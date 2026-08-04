@@ -92,6 +92,7 @@ func cmdServe(args []string) error {
 	withSync := fs.Bool("sync", false, "run the incremental sync loop inside the server")
 	importAttachments := fs.String("import-attachments", "",
 		"seed the attachment cache from a directory holding manifest.json (see examples/attachments)")
+	noOpen := fs.Bool("no-open", false, "do not open the browser after the server starts")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -206,6 +207,9 @@ func cmdServe(args []string) error {
 	}
 	if len(cfg.Projects) == 0 {
 		log.Printf("no projects configured — run `scry init`")
+	}
+	if !*noOpen {
+		go openOnceUp(browseAddr(*addr))
 	}
 	err = srv.ListenAndServe()
 	if err == http.ErrServerClosed {
@@ -574,6 +578,7 @@ func cmdDemo(args []string) error {
 	addr := fs.String("addr", "127.0.0.1:7878", "listen address")
 	static := fs.String("static", "dist/app", "directory holding the built web UI")
 	dbPath := fs.String("db", "examples/demo.db", "snapshot to serve")
+	noOpen := fs.Bool("no-open", false, "do not open the browser after the server starts")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -608,7 +613,41 @@ func cmdDemo(args []string) error {
 	}
 	log.Printf("demo mirror in %s (deleted on exit)", home)
 	defer os.RemoveAll(home)
-	return cmdServe([]string{"--addr", *addr, "--static", *static})
+	serveArgs := []string{"--addr", *addr, "--static", *static}
+	if *noOpen {
+		serveArgs = append(serveArgs, "--no-open")
+	}
+	return cmdServe(serveArgs)
+}
+
+// browseAddr turns a listen address into the URL a person should visit:
+// a blank or wildcard host becomes localhost.
+func browseAddr(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "http://" + addr
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "localhost"
+	}
+	return "http://" + net.JoinHostPort(host, port)
+}
+
+// openOnceUp opens the browser as soon as the server answers /healthz, so the
+// tab never lands on a connection error. Gives up quietly after ~5s — a browser
+// failing to open must never take the server down with it.
+func openOnceUp(u string) {
+	for i := 0; i < 50; i++ {
+		res, err := http.Get(u + "/healthz")
+		if err == nil {
+			res.Body.Close()
+			if err := openBrowser(u); err != nil {
+				log.Printf("could not open a browser: %v — visit %s", err, u)
+			}
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 func cmdProfiles() error {

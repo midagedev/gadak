@@ -486,6 +486,15 @@ func cmdOpen(args []string) error {
 		return errors.New("no Jira site configured — run `scry init` first")
 	}
 	u := strings.TrimRight(cfg.Site, "/") + "/browse/" + url.PathEscape(normalizeKey(args[0]))
+	if err := openBrowser(u); err != nil {
+		return fmt.Errorf("could not open a browser (%v) — the URL is %s", err, u)
+	}
+	fmt.Println(u)
+	return nil
+}
+
+// openBrowser starts the platform's URL opener and does not wait for it.
+func openBrowser(u string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
@@ -495,9 +504,5 @@ func cmdOpen(args []string) error {
 	default:
 		cmd = exec.Command("xdg-open", u)
 	}
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("could not open a browser (%v) — the URL is %s", err, u)
-	}
-	fmt.Println(u)
-	return nil
+	return cmd.Start()
 }
