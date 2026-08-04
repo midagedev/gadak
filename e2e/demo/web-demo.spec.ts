@@ -1,9 +1,14 @@
 /**
  * Web UI demo recording for docs/media/web-demo.{gif,mp4}.
  *
- * Gated by SCRY_MEDIA=1 so the main e2e suite (which discovers subdirs under
- * e2e/) skips this file and stays at its 10-test baseline. Timing targets
- * ~20–30s of readable motion — no DOM caption overlays (app code stays clean).
+ * Gated by SCRY_MEDIA=1 so the main suite skips it. This is a hero asset: a
+ * reader gives it two seconds, so it shows one thing first — the list collapsing
+ * under the keystroke — and only then the palette and detail. Total ~17s.
+ *
+ * Two rules learned the hard way:
+ *  - Never `waitForLoadState('networkidle')`. The client polls for a delta every
+ *    15s, so it returns 15s later and the first half of the GIF is a still frame.
+ *  - No DOM caption overlays. App code stays clean; pacing carries the story.
  */
 import { test, expect, type Page } from '@playwright/test'
 import { gotoApp, searchInput } from '../helpers'
@@ -11,7 +16,7 @@ import { gotoApp, searchInput } from '../helpers'
 const isMedia = !!process.env.SCRY_MEDIA
 
 /** Pause between beats so a human can read the UI. */
-async function beat(page: Page, ms = 900): Promise<void> {
+async function beat(page: Page, ms = 700): Promise<void> {
   await page.waitForTimeout(ms)
 }
 
@@ -23,104 +28,62 @@ function listCount(page: Page) {
 test.describe('web UI demo', () => {
   test.skip(!isMedia, 'SCRY_MEDIA=1 only — media pipeline recording')
 
-  test('instant search, filters, palette, detail, saved view', async ({ page }) => {
-    // ── 1. Boot: full issue list ──────────────────────────────────────────
+  test('instant search, palette, detail, saved view', async ({ page }) => {
+    // ── Boot ──────────────────────────────────────────────────────────────
     await gotoApp(page)
-    await expect(page.getByText('519 issues')).toBeVisible()
+    await expect(page.getByText('519 issues')).toBeVisible({ timeout: 30_000 })
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
-    await page.waitForLoadState('networkidle')
-    await beat(page, 1200)
+    // Short settle for the trailing boot requests. Deliberately not networkidle.
+    await beat(page, 900)
 
-    // ── 2. Instant search (zero network) + highlight ──────────────────────
+    // ── The pitch: type, and hundreds of issues become a handful ──────────
     const input = searchInput(page)
     await input.click()
-    await beat(page, 300)
-    // Type slowly so the list narrowing and <mark> highlights are visible.
-    await input.pressSequentially('pagination', { delay: 110 })
-    await expect(listCount(page)).toBeVisible()
+    await beat(page, 250)
+    // Slow enough to read each narrowing step; the count and the <mark>
+    // highlights are the whole point of this beat.
+    await input.pressSequentially('pagination', { delay: 150 })
+    await expect(page.locator('mark').first()).toBeVisible({ timeout: 10_000 })
+    await beat(page, 1600)
+
+    // A second query, so it reads as "typing is instant", not one lucky result.
+    await input.fill('')
+    await beat(page, 250)
+    await input.pressSequentially('timezone', { delay: 150 })
     await expect(page.locator('mark').first()).toBeVisible({ timeout: 10_000 })
     await beat(page, 1400)
-
-    // Clear search to reset the list for the filter beat.
     await input.fill('')
-    await expect(listCount(page)).toBeVisible()
     await beat(page, 500)
 
-    // ── 3. Filter chips → count changes ───────────────────────────────────
-    // Boot applies "All open" (Category: New + In progress). Reset, then rebuild
-    // filters so the count change is obvious. Demo DB mostly lacks assignee
-    // emails, so prefer Priority + Unassigned (stable facet values).
-    await page.getByRole('button', { name: 'Reset' }).click()
-    await beat(page, 500)
-    const countAll = await listCount(page).innerText()
-
-    await page.getByRole('button', { name: '+ Filter' }).click()
-    await page.getByRole('button', { name: 'Priority ›', exact: true }).click()
-    // First facet row is the most common priority (label + count).
-    await page
-      .locator('div.absolute button')
-      .filter({ has: page.locator('span.text-\\[11px\\]') })
-      .first()
-      .click()
-    await beat(page, 700)
-    // Dismiss the floating menu (FilterBar has no Esc handler).
-    await input.click()
-    await expect(listCount(page)).not.toHaveText(countAll)
-    await beat(page, 600)
-
-    await page.getByRole('button', { name: '+ Filter' }).click()
-    await page.getByRole('button', { name: 'Unassigned', exact: true }).click()
-    await beat(page, 700)
-    await input.click()
-    await expect(listCount(page)).toBeVisible()
-    await beat(page, 1000)
-
-    // Reset so the palette opens against a wide pool again.
-    await page.getByRole('button', { name: 'Reset' }).click()
-    await beat(page, 400)
-
-    // ── 4. ⌘K command palette → issue detail ──────────────────────────────
+    // ── ⌘K palette → jump straight to an issue ────────────────────────────
     await page.keyboard.press('ControlOrMeta+k')
     const palette = page.getByRole('dialog', { name: 'Command palette' })
     await expect(palette).toBeVisible()
-    await beat(page, 400)
-    await page.keyboard.type('NMB-110', { delay: 90 })
-    const first = palette.getByRole('option').first()
-    await expect(first).toContainText('NMB-110')
-    await beat(page, 700)
+    await beat(page, 500)
+    await page.keyboard.type('NMB-110', { delay: 130 })
+    await expect(palette.getByRole('option').first()).toContainText('NMB-110')
+    await beat(page, 800)
     await page.keyboard.press('Enter')
     await expect(palette).toBeHidden()
 
     const panel = page.getByTestId('issue-detail-panel')
     await expect(panel).toBeVisible()
     await expect(panel.getByText('NMB-110').first()).toBeVisible()
-    await beat(page, 1000)
+    await beat(page, 1100)
 
-    // ── 5. Scroll detail (comments / history) ─────────────────────────────
+    // ── Detail: description, comments, history ────────────────────────────
     await expect(panel.getByRole('heading', { name: 'Comments' })).toBeVisible()
     await panel.evaluate((el) => {
       const scroller = el.querySelector('.overflow-y-auto') ?? el
-      scroller.scrollTo({ top: scroller.scrollHeight * 0.55, behavior: 'smooth' })
+      scroller.scrollTo({ top: scroller.scrollHeight * 0.6, behavior: 'smooth' })
     })
-    await beat(page, 1000)
-    await panel.evaluate((el) => {
-      const scroller = el.querySelector('.overflow-y-auto') ?? el
-      scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' })
-    })
-    await beat(page, 1100)
+    await beat(page, 1300)
 
-    // ── 6. Built-in saved view from the sidebar ───────────────────────────
-    // Close detail first so the list + count change is the focus.
+    // ── One saved view, then rest on the list for a clean loop ────────────
     await page.keyboard.press('Escape')
     await beat(page, 400)
-
-    // "Stale" is empty on the current demo seed — use Reopened (non-zero).
-    const reopenedView = page.getByRole('button', { name: /Reopened/i }).first()
-    await reopenedView.click()
+    await page.getByRole('button', { name: /Reopened/i }).first().click()
     await expect(listCount(page)).toBeVisible()
-    await beat(page, 1500)
-
-    // Final rest frame for loop-friendly endings.
-    await beat(page, 800)
+    await beat(page, 1600)
   })
 })
