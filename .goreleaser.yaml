@@ -1,6 +1,7 @@
 # GoReleaser config for scry.
-# The UI is not embedded (embed.FS is deferred); release archives ship dist/app
-# next to the binary. After unpacking: ./scry serve --static dist/app
+# The web UI is compiled into the binary via go:embed (embed.go), so a release
+# archive is one self-contained binary. The release workflow runs `npm run
+# build` before goreleaser so dist/app is present at compile time.
 #
 # Signing: checksums.txt only. Cosign / sigstore attestation is deferred
 # (uncomment and wire GITHUB_TOKEN + OIDC when we need keyless signatures).
@@ -48,9 +49,6 @@ archives:
       - LICENSE
       - NOTICE
       - README.md
-      # Built web UI — place next to the binary and pass --static dist/app.
-      # (go:embed is deferred; see docs/ARCHITECTURE.md.)
-      - dist/app/**
 
 checksum:
   name_template: checksums.txt
@@ -82,7 +80,9 @@ release:
     Download the archive for your OS/arch, unpack it, and run:
 
     ```bash
-    ./scry serve --static dist/app
+    ./scry init && ./scry serve --sync
     ```
+
+    The web UI is embedded — the binary is the whole install.
 
     Or use the container image (see README).

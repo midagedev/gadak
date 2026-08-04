@@ -29,8 +29,9 @@ RUN go build -trimpath -ldflags="-s -w" -o /out/scry ./cmd/scry
 # distroless/static: no shell, no package manager; ca-certificates included.
 FROM gcr.io/distroless/static-debian12
 
+# The web UI is embedded in the binary (go:embed picks up dist/app during the
+# build stage), so the runtime image is just the binary.
 COPY --from=build /out/scry /usr/bin/scry
-COPY --from=web /src/dist/app /app/dist
 
 # Persist config + scry.db outside the container filesystem.
 ENV SCRY_HOME=/data
@@ -39,4 +40,4 @@ VOLUME ["/data"]
 EXPOSE 7777
 
 ENTRYPOINT ["scry"]
-CMD ["serve", "--addr", "0.0.0.0:7777", "--allow-remote", "--static", "/app/dist"]
+CMD ["serve", "--addr", "0.0.0.0:7777", "--allow-remote"]

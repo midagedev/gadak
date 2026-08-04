@@ -79,7 +79,7 @@ Requirements: Go 1.25+, Node.js 20+, and a Jira Cloud API token from
 ```bash
 npm ci
 npm run build            # builds the web UI into dist/app
-go build -o scry ./cmd/scry
+go build -o scry ./cmd/scry   # embeds the web UI — the binary is the whole install
 
 ./scry init              # prompts for site URL, email, API token, and projects
 ./scry sync              # first full sync
