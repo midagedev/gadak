@@ -172,9 +172,9 @@ flowchart LR
 
 Sync is incremental with a two-minute overlap on the watermark, plus a reconcile
 pass so deletions do not linger. Derived fields the source does not provide —
-reopen count, time in current status, resolution date, clone origin — are
-computed during sync and keyed on `statusCategory`, never on a localized status
-name.
+reopen count and the reason it came back, last status change, resolution date,
+clone origin — are computed during sync and keyed on `statusCategory`, never on a
+localized status name.
 
 ### Why not a browser extension or a Forge app?
 
