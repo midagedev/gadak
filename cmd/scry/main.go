@@ -1,8 +1,11 @@
 // Command scry serves a local mirror of your issue tracker.
 //
-// Implemented: init, sync (--full/--watch), serve (--sync), sql, status,
-// profiles, version. Specified but not implemented: demo, snapshot, mcp.
+// Implemented: init, sync (--full/--watch), serve (--sync), issue, search,
+// comment, transition, assign, sql, status, demo, profiles, version. Specified
+// but not implemented: snapshot, mcp.
 // See specs/000-product/tasks.md for the current state of each.
+//
+// The agent-facing commands live in agent.go; AGENTS.md is their reference.
 package main
 
 import (
@@ -10,6 +13,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -299,14 +303,25 @@ func openReadOnly() (*sql.DB, error) {
 }
 
 func cmdSQL(args []string) error {
-	fs := flag.NewFlagSet("sql", flag.ExitOnError)
-	asJSON := fs.Bool("json", false, "emit one JSON object per row")
-	if err := fs.Parse(args); err != nil {
-		return err
+	// The two flags are matched by name wherever they appear instead of with
+	// flag.Parse, because a query legitimately starts with `--` — a SQL comment,
+	// which flag.Parse reads as an undefined flag and refuses. That is exactly what
+	// happens when an agent pastes a commented query out of AGENTS.md.
+	var asJSON, asCSV bool
+	var words []string
+	for _, a := range args {
+		switch a {
+		case "--json", "-json":
+			asJSON = true
+		case "--csv", "-csv":
+			asCSV = true
+		default:
+			words = append(words, a)
+		}
 	}
-	query := strings.TrimSpace(strings.Join(fs.Args(), " "))
+	query := strings.TrimSpace(strings.Join(words, " "))
 	if query == "" {
-		return fmt.Errorf("usage: scry sql [--json] \"select ...\"")
+		return fmt.Errorf("usage: scry sql [--json|--csv] \"select ...\"")
 	}
 	db, err := openReadOnly()
 	if err != nil {
@@ -323,7 +338,14 @@ func cmdSQL(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !*asJSON {
+	var csvOut *csv.Writer
+	switch {
+	case asCSV:
+		csvOut = csv.NewWriter(os.Stdout)
+		if err := csvOut.Write(cols); err != nil {
+			return err
+		}
+	case !asJSON:
 		fmt.Println(strings.Join(cols, "\t"))
 	}
 	vals := make([]any, len(cols))
@@ -336,7 +358,7 @@ func cmdSQL(args []string) error {
 		if err := rows.Scan(ptrs...); err != nil {
 			return err
 		}
-		if *asJSON {
+		if asJSON {
 			obj := make(map[string]any, len(cols))
 			for i, c := range cols {
 				obj[c] = cell(vals[i])
@@ -346,11 +368,24 @@ func cmdSQL(args []string) error {
 		}
 		out := make([]string, len(cols))
 		for i := range vals {
-			out[i] = fmt.Sprint(cell(vals[i]))
+			out[i] = text(vals[i])
+		}
+		if csvOut != nil {
+			if err := csvOut.Write(out); err != nil {
+				return err
+			}
+			continue
 		}
 		fmt.Println(strings.Join(out, "\t"))
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if csvOut != nil {
+		csvOut.Flush()
+		return csvOut.Error()
+	}
+	return nil
 }
 
 func cell(v any) any {
@@ -358,6 +393,15 @@ func cell(v any) any {
 		return string(b)
 	}
 	return v
+}
+
+// text renders a cell for the row-oriented outputs. NULL prints as empty rather
+// than as Go's "<nil>", which no consumer of a tab or CSV row wants to parse.
+func text(v any) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprint(cell(v))
 }
 
 func cmdStatus(args []string) error {
@@ -456,11 +500,20 @@ Commands:
   init       configure site, credentials, and projects (interactive)
   sync       mirror Jira into SQLite   [--full] [--watch]
   serve      web UI + API on loopback  [--addr] [--static] [--sync] [--allow-remote]
-  sql        read-only SQL against the mirror   [--json] "select ..."
   status     sync state and row counts [--json]
   demo       serve the bundled snapshot, no Jira account needed
   profiles   list configured profiles
   version    print version
+
+Reading the mirror (no network; see AGENTS.md):
+  issue      full detail for one issue    <KEY> [--json]
+  search     full-text search            [--limit N] [--json] "text"
+  sql        read-only SQL               [--json|--csv] "select ..."
+
+Writing through to Jira (needs a credential):
+  comment    add a comment    <KEY> -m <text|-> [--json]
+  transition change status    <KEY> <status-or-id> [--json]
+  assign     set assignee     <KEY> <email|-> [--json]
 
 Profiles keep separate credentials and mirrors (e.g. work and demo):
   scry --profile demo init && scry --profile demo serve --sync --addr 127.0.0.1:7778
@@ -491,6 +544,16 @@ func main() {
 		err = cmdSync(args[1:])
 	case "sql":
 		err = cmdSQL(args[1:])
+	case "issue":
+		err = cmdIssue(args[1:])
+	case "search":
+		err = cmdSearch(args[1:])
+	case "comment":
+		err = cmdComment(args[1:])
+	case "transition":
+		err = cmdTransition(args[1:])
+	case "assign":
+		err = cmdAssign(args[1:])
 	case "status":
 		err = cmdStatus(args[1:])
 	case "demo":

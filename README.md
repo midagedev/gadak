@@ -11,7 +11,7 @@ and serves everything from local disk.
 ```bash
 scry sync     # Jira -> ~/.scry/scry.db
 scry serve    # http://localhost:7777
-sqlite3 ~/.scry/scry.db "select key, status, summary from issues where reopen_count > 0"
+sqlite3 ~/.scry/scry.db "select key, status, reopen_count from issues where reopen_count > 0"
 ```
 
 > **Status: working, pre-release.** Sync, the read API, write-through, settings,
@@ -45,7 +45,7 @@ agent read the same store.
 | Local mirror | Full issue snapshot in SQLite with FTS5 over summary, description, and comments. Incremental sync keeps it current. |
 | Web UI | Keyboard-driven list, saved views, grouping, instant filters, full detail panel with ADF rendering, comments, history, and attachments. |
 | Write-through | Status transitions, comments with mentions and attachments, assignee changes, field edits, and issue creation go straight to Jira and refresh the mirror. |
-| Agent access | The SQLite file is the interface. Any agent with a shell can query it. An MCP server is planned for clients without shell access. |
+| Agent access | The SQLite file is the interface, with a CLI (`issue`, `search`, `comment`, `transition`, `assign`, `sql`) over it for the common moves. `AGENTS.md` is the reference. An MCP server is planned for clients without shell access. |
 | Zero-setup demo | `scry demo` opens the UI against a bundled snapshot, no Jira account needed. |
 
 ## How It Works
@@ -102,20 +102,32 @@ fictional projects. Useful for evaluating the UI and for deterministic tests.
 
 ### Point your agent at it
 
-```bash
-# What has regressed recently?
-sqlite3 ~/.scry/scry.db "
-  select key, summary, reopen_count, reopened_at from issues
-  where reopen_count > 0 order by reopened_at desc limit 20"
+Three layers, and an agent can use all of them from a shell.
 
-# Full-text search across descriptions and comments
-sqlite3 ~/.scry/scry.db "
-  select i.key, i.summary from issues_fts f join issues i on i.rowid = f.rowid
-  where issues_fts match 'idempotency AND webhook' limit 20"
+```bash
+# SQL, for anything relational or aggregated. `scry sql` is the read-only path
+# for agents on a command allowlist; sqlite3 works just as well.
+scry sql "select key, status, reopen_count from issues
+          where reopen_count > 0 order by reopened_at desc limit 20"
+
+# Full-text across descriptions and comments
+scry sql "select i.key, it.title from items_fts f
+          join items it on it.rowid = f.rowid
+          join issues i on i.item_id = it.id
+          where items_fts match 'idempotency AND webhook' limit 20"
+
+# One issue whole, or one write straight through to Jira
+scry issue NMB-140
+scry search "flaky upload" --limit 5
+scry comment NMB-140 -m "Reproduced on staging."
+scry transition NMB-140 "In Review"
+scry assign NMB-140 dana@example.com
 ```
 
-The schema is documented in `specs/000-product/data-model.md` and is treated as
-a public contract.
+Reads never touch the network; writes go to Jira and re-read the issue into the
+mirror. `AGENTS.md` is the reference an agent should be pointed at — SQL
+cookbook, CLI reference, REST examples, and how to check staleness. The schema is
+documented in `specs/000-product/data-model.md` and treated as a public contract.
 
 ## Good Fit / Bad Fit
 

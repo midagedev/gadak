@@ -80,9 +80,20 @@ Legend: **done** / **partial** / **todo**
 | # | Task | State |
 | --- | --- | --- |
 | T5.1 | Documented schema | done (`data-model.md`) |
-| T5.2 | `scry sql` read-only query path | done — `mode=ro` connection, tab-separated or `--json` |
+| T5.2 | `scry sql` read-only query path | done — `mode=ro` connection, tab-separated, `--json`, or `--csv`. NULL prints as empty in the row formats, not as Go's `<nil>` |
 | T5.3 | `scry status --json` | done |
 | T5.4 | MCP server | todo (post-v0.1) |
+| T5.5 | `scry issue <KEY> [--json]` | done — `store.Detail` plus the list row; `--json` is the `GET <key>/detail/` document with `issue` added. `TestIssueAndSearchReadTheMirror` |
+| T5.6 | `scry search <text> [--limit] [--json]` | done — FTS over titles, bodies and comments, best match first. Text output is `key\tstatus\tassignee\tsummary`, so `cut -f1` gives keys |
+| T5.7 | `scry comment <KEY> -m <text\|->` | done — write-through via `jira.AddComment` + `sync.SyncIssue`, same order as the server. Body is plain text: an `@Name` notifies nobody, unlike the UI's mention picker. `TestCommentSendsADFAndRefusesAnEmptyBody` |
+| T5.8 | `scry transition <KEY> <status-or-id>` | done — matches a transition id, its name, or its **target status** name (case-insensitive), because a caller knows the status it wants, not the verb the workflow uses. A miss lists what is available. `TestTransitionMatchesByNameAndReportsAlternatives` |
+| T5.9 | `scry assign <KEY> <email\|->` | done — configured member directory first, then Jira's user search; a bare `-` unassigns without asking Jira anything. Ambiguous matches are refused with the candidates, never guessed. `TestAssignResolvesEmailAndUnassigns` |
+| T5.10 | Staleness warning on every issue command | done — one stderr line when the last sync failed or is over an hour old, so stdout stays pipeable. `contracts/agent.md`, "Staleness" |
+| T5.11 | `AGENTS.md` as the agent-facing reference | done — SQL cookbook, CLI reference, REST examples, staleness; `docs/AGENT_ACCESS.md` is the three-layer map that points at it |
+
+Writes with no stored credential fail before any Jira call
+(`TestWritesRefuseToRunWithoutACredential`), and a write that lands but fails to
+re-read says so rather than reporting a failure the caller would retry.
 
 CLI wiring beyond T5: `init` (interactive, verifies against `/myself` before saving),
 `sync --full/--watch`, `serve --sync`, `demo`, `profiles`, and a global
@@ -112,6 +123,12 @@ under `~/.scry/profiles/<name>/` — the work/demo dual-account setup.
 | T7.4 | Secret and internal-string scan in CI | todo |
 | T7.5 | Dockerfile and container build | todo |
 | T7.6 | Release process and signed binaries | todo |
+
+## T8 Keyboard and command surface
+
+| # | Task | State | Notes |
+| --- | --- | --- | --- |
+| T8.1 | Command palette (⌘K/Ctrl+K) | done | `web/src/components/palette/CommandPalette.svelte`, mounted and key-bound in `App.svelte`. Three sections off one input: issue jump (reuses `filterIssues` + relevance sort, so key shortforms and 초성 queries work), views (built-in + personal + team), and actions (new issue, settings, reset filters, reopened/unassigned/stale toggles, locale switch, sync status toast). Empty query lists recently viewed issues. Every keystroke is a memory-pool computation — `e2e/palette.spec.ts` asserts zero `/api/` requests while typing, and that ⌘K opens even with a text input focused |
 
 ## Critical path to something usable
 
