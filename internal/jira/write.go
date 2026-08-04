@@ -237,20 +237,14 @@ func (c *Client) Upload(ctx context.Context, key, filename string, file io.Reade
 // `/file/<uuid>/binary` (or `/file/<uuid>/artifact/...`).
 var mediaIDPattern = regexp.MustCompile(`/file/([0-9a-fA-F-]{36})`)
 
-// MediaID resolves an attachment id to the media UUID an ADF `media` node needs.
+// MediaRef resolves an attachment id to both the media UUID Jira needs in an ADF
+// node and the filename our own renderer matches on (`alt`), which is what makes
+// an inline image resolve without persisting the UUID anywhere.
 //
 // There is no documented endpoint for this. Requesting the attachment's content
 // answers 3xx to a pre-signed media URL that carries the UUID, so the redirect is
 // read rather than followed — following it would download the whole file for a
 // string, and the credential must not travel to the media host.
-func (c *Client) MediaID(ctx context.Context, attachmentID string) (string, error) {
-	id, _, err := c.mediaRef(ctx, attachmentID)
-	return id, err
-}
-
-// MediaRef resolves an attachment id to both the media UUID Jira needs in an ADF
-// node and the filename our own renderer matches on (`alt`), which is what makes
-// an inline image resolve without persisting the UUID anywhere.
 func (c *Client) MediaRef(ctx context.Context, attachmentID string) (mediaID, filename string, err error) {
 	return c.mediaRef(ctx, attachmentID)
 }

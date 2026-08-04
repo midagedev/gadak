@@ -207,7 +207,7 @@ export interface DetailAttachment {
   is_video: boolean
   cache_status: 'pending' | 'caching' | 'ready' | 'failed'
   created_at: string | null
-  /** same-origin redacted-tool URL. 최초 요청 시 S3 캐시 후 presigned URL로 리다이렉트. */
+  /** same-origin 첨부 URL. 서버가 디스크 캐시에서 바로 서빙한다. */
   content_url: string
 }
 
@@ -315,19 +315,6 @@ export interface DeltaResponse {
 export interface SearchResponse {
   keys: string[]
   total: number
-}
-
-/** GET `mentions/?email=` 의 항목. */
-export interface Mention {
-  issue_key: string
-  comment_id: string
-  author: string | null
-  body_excerpt: string // <=200자
-  created_at: string | null
-}
-
-export interface MentionsResponse {
-  mentions: Mention[]
 }
 
 export type FeedFocus = 'all' | 'assignee' | 'reporter' | 'mention'

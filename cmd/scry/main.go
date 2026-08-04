@@ -658,6 +658,7 @@ Not implemented yet (specified in specs/000-product/):
 
 func main() {
 	log.SetFlags(0)
+	server.Version = version
 	args := os.Args[1:]
 	// 글로벌 --profile 은 서브커맨드 앞에서만 받는다.
 	if len(args) >= 2 && (args[0] == "--profile" || args[0] == "-p") {

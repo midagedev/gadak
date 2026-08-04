@@ -24,8 +24,9 @@ trap 'rm -f "$hits_file" "$text_list"' EXIT
 # Patterns assembled so this script does not match itself.
 # User API tokens / org API keys from Atlassian.
 PAT_TOKEN='ATATT[A-Za-z0-9+/=_-]{20,}|ATCTT[A-Za-z0-9+/=_-]{20,}'
-# Former company name (split to avoid a self-hit on this file).
-PAT_COMPANY='imago''works'
+# Former company name and internal product names (split to avoid a self-hit on
+# this file). `d`+`hub` also catches the hyphenated form via the optional dash.
+PAT_COMPANY='imago''works|d''-?hub'
 PAT_HOST='atlassian\.net'
 
 # Allowlisted documentation / fixture hostnames.

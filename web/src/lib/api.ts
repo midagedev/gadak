@@ -23,7 +23,6 @@ import type {
   FeedUnreadCounts,
   IssueWriteResponse,
   JiraCredential,
-  MentionsResponse,
   NotificationConfig,
   NotificationPreferences,
   SavedView,
@@ -124,14 +123,8 @@ export function search(q: string, limit = 200): Promise<SearchResponse> {
   return json<SearchResponse>(`search/?q=${encodeURIComponent(q)}&limit=${limit}`)
 }
 
-/* ── 멘션 ── */
-
-export function getMentions(email: string): Promise<MentionsResponse> {
-  return json<MentionsResponse>(`mentions/?email=${encodeURIComponent(email)}`)
-}
-
 /* ── 프레즌스 티켓 ──
- * WS 접속 전에 단발성 티켓을 발급받는다. 응답은 redacted-tool 표준 api_response 래퍼
+ * WS 접속 전에 단발성 티켓을 발급받는다. 서버 구현에 따라 래퍼
  *  ({ data: { ticket } })거나 평문({ ticket })일 수 있어 둘 다 흡수한다.
  */
 

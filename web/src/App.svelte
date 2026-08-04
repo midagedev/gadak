@@ -2,7 +2,6 @@
   /*
    * 앱 셸. 3컬럼 레이아웃 골격 + 부팅 상태 분기.
    *  [explore] 배선: 사이드바=SidebarNav, 메인=ListView, 우측 패널 open=선택 이슈 여부.
-   *  RightPanel children 은 [detail] 이 마운트하므로 여기선 Placeholder 유지(오케스트레이터가 교체).
    *  선택 이슈 ↔ URL(?issue=KEY) 양방향 동기화도 여기서 담당(계약 §2 selection).
    */
   import { onMount, untrack } from 'svelte'

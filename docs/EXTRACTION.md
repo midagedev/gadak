@@ -24,7 +24,7 @@ backend was inseparable from the company's other systems.
 | Derived fields (reopen counts, status timestamps, priority rank) | **Reimplemented**, with site-specific naming rules replaced by status categories |
 | Full-text search over descriptions and comments | **Reimplemented** on FTS5 |
 | Write proxy to Jira with per-user credentials | **Reimplemented** with credentials in a local config file |
-| Attachment caching in S3 with presigned URLs | **Replaced** by an on-demand proxy; nothing is cached to disk |
+| Attachment caching in S3 with presigned URLs | **Replaced** by a local on-disk cache (`internal/attachcache`) filled on demand |
 | Team directory (people, parts, aliases, avatars) | **Cut.** Members are now derived from assignees and reporters in the mirror |
 | Team/part taxonomy grouping | **Cut.** The config keys remain so an organization can supply its own labels |
 | Deployment state per issue, from a CI/CD index | **Cut** |
@@ -33,7 +33,7 @@ backend was inseparable from the company's other systems.
 | Personal activity feed and Web Push | **Deferred.** A local watch-based feed is a v0.2 design |
 | Multi-viewer presence over WebSocket | **Cut.** Meaningless in a single-user local tool |
 | Company SSO and session auth | **Cut.** There are no scry accounts; identity is the stored Jira credential only |
-| Email/password login dialog, `scry_token` localStorage, `Authorization: Token` | **Cut.** Frontend leftovers from redacted-tool SSO; writes gate on credential settings alone |
+| Email/password login dialog, `scry_token` localStorage, `Authorization: Token` | **Cut.** Frontend leftovers from the internal SSO; writes gate on credential settings alone |
 | Data-quality audit endpoint | **Cut** |
 
 ## What was scrubbed
@@ -89,10 +89,9 @@ so scry uses a different one:
   deliberate, temporary choice: deleting them touches the detail panel and the
   type surface, and that refactor is not worth doing in the same change as the
   extraction.
-- **The UI is Korean-only.** Comments in the source are Korean too. The copy
-  needs to become English with the current strings kept as a locale. This is a
-  release blocker for a public launch — a tool whose interface the audience
-  cannot read will not spread, however good it is.
+- ~~**The UI is Korean-only.**~~ Done: the copy is English-first with Korean
+  kept as a locale (`web/src/lib/i18n/`). Source comments are still partly
+  Korean; translating them is cosmetic, not blocking.
 - **`d1_group` is still the field name** for the optional group taxonomy in the
   client's types and view config. It should be renamed to something neutral like
   `team_group` in the same pass as the API contract's first stable release.

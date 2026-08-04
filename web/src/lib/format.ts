@@ -126,14 +126,3 @@ export const CATEGORY_META: Record<StatusCategory, { get label(): string; color:
 export function categoryOf(issue: IssueLite): StatusCategory {
   return effectiveCategory(issue)
 }
-
-/* ── 심각도 색(집계 표시용, 값 형식이 다양하므로 휴리스틱) ── */
-
-export function severityColor(sev: string | null): string {
-  const s = (sev ?? '').toLowerCase()
-  if (/s1|critical|치명|blocker/.test(s)) return '#ef4444'
-  if (/s2|major|높음|high/.test(s)) return '#f97316'
-  if (/s3|minor|보통|medium/.test(s)) return '#eab308'
-  if (/s4|trivial|낮음|low/.test(s)) return '#64748b'
-  return '#9ba1a9'
-}

@@ -22,7 +22,7 @@ import type { AdfNode, DetailAttachment } from './types'
 export interface AdfRenderOptions {
   /** media(첨부) 폴백에서 Jira 원본 이슈로 링크 걸 때 사용. */
   issueKey?: string
-  /** Jira media UUID/파일명과 실제 redacted-tool 첨부 URL 매핑. */
+  /** Jira media UUID/파일명과 로컬 첨부 프록시 URL 매핑. */
   attachments?: DetailAttachment[]
 }
 
