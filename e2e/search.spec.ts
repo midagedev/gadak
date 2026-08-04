@@ -6,8 +6,12 @@ test.describe('client-side search', () => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
-    // Wait until the post-boot API chatter (bootstrap/write-meta) has finished.
-    await page.waitForLoadState('networkidle')
+    // Wait for the boot payload to land, plus a short settle for the trailing
+    // boot requests. Deliberately not networkidle: the app polls for a delta
+    // every 15s, so "no network for 500ms" only becomes true after that poll
+    // fires, which added 15s to this test for nothing.
+    await expect(page.getByText('519 issues')).toBeVisible({ timeout: 30_000 })
+    await page.waitForTimeout(300)
 
     const apiDuringType: string[] = []
     page.on('request', (req) => {
