@@ -448,3 +448,16 @@ func (db *DB) setKey(table, key string, on bool) error {
 		return err
 	})
 }
+
+// FreshenSyncClock stamps every sync timestamp as now. It exists for throwaway
+// fixtures — `scry demo` and the demo recordings — where the snapshot's real age
+// would surface as a stale-sync warning about data that is deliberately frozen.
+// Never call this on a mirror that syncs for real: it would hide a stalled sync.
+func (db *DB) FreshenSyncClock() error {
+	now := Now()
+	_, err := db.sql.Exec(`
+		UPDATE sync_state SET watermark = ?, last_full_sync_at = ?, last_error = NULL;
+		UPDATE sources    SET synced_at = ?;
+		UPDATE items      SET synced_at = ?;`, now, now, now, now)
+	return err
+}

@@ -254,3 +254,21 @@ func writeMeta(p string, m Meta) error {
 	}
 	return os.WriteFile(p, b, 0o600)
 }
+
+// ImportFile seeds an entry from a local file. It exists for fixtures: the
+// bundled demo snapshot ships attachment bytes so `scry demo` shows real images
+// with no Jira account, and a test can prime the cache without a fake server.
+func (c *Cache) ImportFile(id, path, contentType, filename string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	return c.Fill(id, func() (io.ReadCloser, Meta, error) {
+		return io.NopCloser(f), Meta{ContentType: contentType, Size: info.Size(), Filename: filename}, nil
+	})
+}

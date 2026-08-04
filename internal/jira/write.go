@@ -244,10 +244,22 @@ var mediaIDPattern = regexp.MustCompile(`/file/([0-9a-fA-F-]{36})`)
 // read rather than followed — following it would download the whole file for a
 // string, and the credential must not travel to the media host.
 func (c *Client) MediaID(ctx context.Context, attachmentID string) (string, error) {
+	id, _, err := c.mediaRef(ctx, attachmentID)
+	return id, err
+}
+
+// MediaRef resolves an attachment id to both the media UUID Jira needs in an ADF
+// node and the filename our own renderer matches on (`alt`), which is what makes
+// an inline image resolve without persisting the UUID anywhere.
+func (c *Client) MediaRef(ctx context.Context, attachmentID string) (mediaID, filename string, err error) {
+	return c.mediaRef(ctx, attachmentID)
+}
+
+func (c *Client) mediaRef(ctx context.Context, attachmentID string) (string, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		c.base+apiPath+"/attachment/content/"+url.PathEscape(attachmentID), nil)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	req.Header.Set("Authorization", c.auth)
 
@@ -261,20 +273,47 @@ func (c *Client) MediaID(ctx context.Context, attachmentID string) (string, erro
 	}
 	res, err := noFollow.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
-		return "", ErrAuth
+		return "", "", ErrAuth
 	}
 	loc := res.Header.Get("Location")
 	if loc == "" {
-		return "", fmt.Errorf("jira: attachment %s did not redirect to a media URL (status %d)",
+		return "", "", fmt.Errorf("jira: attachment %s did not redirect to a media URL (status %d)",
 			attachmentID, res.StatusCode)
 	}
 	m := mediaIDPattern.FindStringSubmatch(loc)
 	if m == nil {
-		return "", fmt.Errorf("jira: no media id in the attachment redirect for %s", attachmentID)
+		return "", "", fmt.Errorf("jira: no media id in the attachment redirect for %s", attachmentID)
 	}
-	return m[1], nil
+	// The pre-signed URL carries the original name; fall back to metadata only if
+	// it does not, so the common case stays one request.
+	name := filenameFromMediaURL(loc)
+	if name == "" {
+		name, _ = c.attachmentFilename(ctx, attachmentID)
+	}
+	return m[1], name, nil
+}
+
+// filenameFromMediaURL reads the `name=` query parameter Jira's media URLs carry.
+func filenameFromMediaURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return u.Query().Get("name")
+}
+
+// attachmentFilename is the documented metadata call, used only when the media
+// URL did not name the file.
+func (c *Client) attachmentFilename(ctx context.Context, attachmentID string) (string, error) {
+	var meta struct {
+		Filename string `json:"filename"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/attachment/"+url.PathEscape(attachmentID), nil, &meta); err != nil {
+		return "", err
+	}
+	return meta.Filename, nil
 }

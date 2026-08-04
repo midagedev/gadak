@@ -274,19 +274,19 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 		// UUID, which is only exposed through the attachment redirect. An id that
 		// cannot be resolved is dropped rather than failing the comment: the file is
 		// still attached to the issue either way.
-		var mediaIDs []string
+		var media []jira.Media
 		for _, id := range body.AttachmentIDs {
 			if id == "" {
 				continue
 			}
-			mediaID, err := c.MediaID(ctx, id)
+			mediaID, filename, err := c.MediaRef(ctx, id)
 			if err != nil {
-				log.Printf("server: comment media id for attachment %s: %v", id, err)
+				log.Printf("server: comment media ref for attachment %s: %v", id, err)
 				continue
 			}
-			mediaIDs = append(mediaIDs, mediaID)
+			media = append(media, jira.Media{ID: mediaID, Filename: filename})
 		}
-		created, err := c.AddComment(ctx, key, jira.DocWithMedia(body.Text, mentions, mediaIDs))
+		created, err := c.AddComment(ctx, key, jira.DocWithMedia(body.Text, mentions, media))
 		if err != nil {
 			return nil, err
 		}
