@@ -97,7 +97,8 @@ never shadow mirrored fields.
 | --- | --- | --- |
 | `scry snapshot` (timestamp spreading, volume scaling) | T6.4 | `examples/demo.db` was scrubbed by hand; the command would automate the next refresh |
 | Live-site assignee display names | T6.8 | The committed snapshot is clean (fictional personas); the live site shows placeholder handles until each invitation is accepted. Affects live-site screenshots only |
-| Feed / push as a local watch-based design | v0.2 | Deferred endpoints return clean 404s today |
+| Local watch feed | done (this branch) | `GET feed/` / `POST feed/read/`; events computed from mirror; `feed_reads` v4 |
+| Web push (VAPID) | v0.2 | Still deferred; `features.push` stays false; in-tab Notification only |
 | Bootstrap payload cost at 10k | G5 | ≈61 ms/op on an M4 Pro — over the 50 ms product target, but it is a once-per-boot cost and the client caches it in IndexedDB. Streaming or a columnar payload is the lever if it matters |
 
 Everything else on the original launch list is done: benchmarks (T6.7), the CI
