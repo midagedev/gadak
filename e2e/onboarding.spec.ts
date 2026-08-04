@@ -157,6 +157,7 @@ test.describe('first-run onboarding', () => {
     await wizard.getByRole('button', { name: 'Connect', exact: true }).click()
 
     await expect(page.getByTestId('onboarding-error')).toContainText('Jira rejected')
+    await expect(page.getByTestId('onboarding-error')).toContainText('Org API keys')
     await expect(page.getByTestId('onboarding-connect')).toBeVisible()
   })
 })

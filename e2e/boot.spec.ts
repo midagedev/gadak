@@ -14,7 +14,7 @@ test.describe('boot', () => {
     await expect(page.getByText('scry', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
     // Search placeholder (en.ts list.searchPlaceholder)
-    await expect(page.getByPlaceholder(/Search — key\/title\/assignee/)).toBeVisible()
+    await expect(page.getByPlaceholder(/Search issues/)).toBeVisible()
     // Filter add chip
     await expect(page.getByRole('button', { name: '+ Filter' })).toBeVisible()
     // At least one issue row in the virtual list
