@@ -40,7 +40,12 @@ snapshot, not assumed.
 | Secret scan | `scripts/scan-internal.sh` clean across the tracked tree and the demo snapshot |
 | Release artifacts | `goreleaser release --snapshot` → six archives; the extracted darwin/arm64 binary serves the embedded UI and a 200 bootstrap with no `--static` |
 | MCP server | stdio JSON-RPC round trip: initialize / tools/list / all four tools; write SQL rejected as a tool error; stdout carries frames only |
-| Demo media | `make media` regenerates three GIFs and an MP4 from the snapshot; frames inspected for branding, English status names, and a healthy sync badge |
+| Demo media | `make media` regenerates three GIFs and an MP4 from the snapshot; frames inspected for branding, English status names, a healthy sync badge, and the attachment gallery + inline comment images |
+| Attachment cache | Fake-Jira test: one upstream fetch for two views, `immutable` validator on the second, and a cached image still served with the credential removed. Live: 0.6 ms from disk |
+| Inline comment images | Live demo site: three uploads, a comment carrying two media nodes with real UUIDs and `alt` filenames, both rendering in a browser at full resolution |
+| Offline attachments | `scry demo` imports `examples/attachments/`; both inline images render with no Jira account |
+| Onboarding | Live site: credential rejected vs verified, four projects listed, 409 on a concurrent sync start, progress 100 → 193 → done |
+| Settings runtime panel | `GET settings/` carries profile, absolute DB and config paths, sizes, counts, watermark; a 5-second sync interval is refused with 400 and the credential survives a PUT |
 | Whole test tree | `go test ./...` green across store/jira/sync/server/tools; `npm run typecheck` 0 errors |
 | Gates | G1–G4 test evidence recorded per task in `../specs/000-product/tasks.md` |
 
@@ -67,6 +72,10 @@ snapshot, not assumed.
 - `internal/tui` — Bubble Tea terminal UI. Column widths in terminal cells
   (`go-runewidth`), so CJK summaries stay aligned; see `docs/TUI.md`.
 - `internal/mcp` — stdio JSON-RPC server, four read-only tools, no SDK.
+- `internal/attachcache` — attachment bytes on disk, content-addressed, single
+  flight, LRU budget. Why it exists: proxying every image view contradicted the
+  premise, and a cached image renders with no credential, which is what lets the
+  offline snapshot show real screenshots.
 - `examples/plugins/` — working enrichment plugins (GitHub PRs, deploy status
   from git tags, CSV import) with self-tests behind `make plugins-test`.
 - `e2e/` — Playwright suite over `examples/demo.db`; runs in CI. `e2e/demo/` and

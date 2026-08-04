@@ -56,9 +56,13 @@ terminal, and the agent read the same store.
 </p>
 
 Writes go through in all three: status transitions, comments with mentions and
-attachments, assignee changes, field edits, issue creation. They hit Jira and
-then refresh the mirror, so the list is correct a moment later without a full
+inline screenshots, assignee changes, field edits, issue creation. They hit Jira
+and then refresh the mirror, so the list is correct a moment later without a full
 sync.
+
+Attachments are local too. The first view of an image caches its bytes next to
+the mirror and every later view is a disk read, so a screenshot-heavy issue opens
+at the speed of the rest of the app — and keeps rendering offline.
 
 ## Quick Start
 
@@ -69,10 +73,14 @@ Requirements: Go 1.25+, Node.js 20+, and a Jira Cloud API token from
 npm ci && npm run build       # build the web UI
 go build -o scry ./cmd/scry   # embeds it — the binary is the whole install
 
-./scry init                   # site URL, email, API token, project keys
-./scry sync                   # first full sync
-./scry serve --sync           # http://localhost:7777, keeps the mirror fresh
+./scry serve                  # http://localhost:7777
 ```
+
+The first run walks you through it in the browser: paste your site, email, and
+token, pick projects from your site's own list, and watch the first sync fill the
+mirror. If you would rather stay in the terminal, `./scry init && ./scry sync`
+does the same thing, and `./scry serve --sync` keeps the mirror fresh in the
+background afterwards.
 
 Your API token lives in `~/.scry/config.json` at `0600` and never touches the
 database, the repository, or a log line. There is no scry account, no server, and
