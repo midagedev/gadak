@@ -123,16 +123,33 @@ func TestWriteKeysWithoutCredential(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("%s: expected toast cmd", key)
 		}
-		// Run the cmd synchronously
-		msg := cmd()
-		toast, ok := msg.(toastMsg)
+		toast, ok := findToast(cmd)
 		if !ok {
-			t.Fatalf("%s: got %T", key, msg)
+			t.Fatalf("%s: no toastMsg in cmd tree", key)
 		}
 		if !toast.err || !strings.Contains(toast.text, "credential") {
 			t.Fatalf("%s toast: %+v", key, toast)
 		}
 	}
+}
+
+// findToast walks a tea.Cmd (including BatchMsg trees) for the first toastMsg.
+func findToast(cmd tea.Cmd) (toastMsg, bool) {
+	if cmd == nil {
+		return toastMsg{}, false
+	}
+	msg := cmd()
+	switch m := msg.(type) {
+	case toastMsg:
+		return m, true
+	case tea.BatchMsg:
+		for _, c := range m {
+			if t, ok := findToast(c); ok {
+				return t, true
+			}
+		}
+	}
+	return toastMsg{}, false
 }
 
 func TestRenderSmoke(t *testing.T) {
@@ -142,9 +159,11 @@ func TestRenderSmoke(t *testing.T) {
 	if view == "" {
 		t.Fatal("empty view")
 	}
+	// Strip ANSI so assertions stay stable under style changes.
+	plain := stripANSI(view)
 	for _, want := range []string{"scry", "AAA-1", "all", "open"} {
-		if !strings.Contains(view, want) {
-			t.Errorf("view missing %q\n%s", want, view)
+		if !strings.Contains(plain, want) {
+			t.Errorf("view missing %q\n%s", want, plain)
 		}
 	}
 
@@ -162,7 +181,7 @@ func TestRenderSmoke(t *testing.T) {
 		},
 	}
 	m.mode = modeDetail
-	dview := m.View()
+	dview := stripANSI(m.View())
 	for _, want := range []string{"AAA-1", "Description", "Comments", "History", "Ada", "status"} {
 		if !strings.Contains(dview, want) {
 			t.Errorf("detail view missing %q\n%s", want, dview)
@@ -174,6 +193,36 @@ func TestRenderSmoke(t *testing.T) {
 	if m.mode != modeList {
 		t.Fatalf("esc → mode %v", m.mode)
 	}
+}
+
+// stripANSI removes CSI sequences so View() smoke tests can match plain text
+// even when lipgloss wraps every glyph in colour codes.
+func stripANSI(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\x1b' {
+			// CSI: ESC [ ... final byte in @-~
+			if i+1 < len(s) && s[i+1] == '[' {
+				i += 2
+				for i < len(s) && (s[i] < '@' || s[i] > '~') {
+					i++
+				}
+				continue
+			}
+			// OSC / other: skip until BEL or ST
+			i++
+			for i < len(s) && s[i] != '\x07' && s[i] != '\x1b' {
+				i++
+			}
+			if i < len(s) && s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '\\' {
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }
 
 func visibleKeys(m Model) []string {

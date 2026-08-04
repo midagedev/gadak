@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/jira"
@@ -55,6 +55,11 @@ type Model struct {
 	syncedLabel   string
 	now           time.Time // injectable for tests
 	keys          keyMap
+
+	// Visual-only progress: spinner runs while loading (refresh) or busy (write).
+	spin    spinner.Model
+	loading bool
+	busy    bool
 }
 
 // newModel builds a model without loading data (tests inject rows).
@@ -62,18 +67,26 @@ func newModel(cfg *config.Config, db *store.DB) Model {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	sp.Style = styleSpinner
 	return Model{
-		cfg:  cfg,
-		db:   db,
-		tab:  TabAll,
-		mode: modeList,
-		now:  time.Now(),
-		keys: defaultKeys(),
+		cfg:     cfg,
+		db:      db,
+		tab:     TabAll,
+		mode:    modeList,
+		now:     time.Now(),
+		keys:    defaultKeys(),
+		spin:    sp,
+		loading: db != nil, // initial mirror load; tests inject rows with db==nil
 	}
 }
 
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
+	if m.loading {
+		return tea.Batch(m.spin.Tick, m.reloadCmd())
+	}
 	return m.reloadCmd()
 }
 
@@ -131,6 +144,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case loadedMsg:
+		m.loading = false
 		m.loadErr = msg.err
 		if msg.err == nil {
 			m.all = msg.rows
@@ -155,6 +169,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case openFormMsg:
+		m.busy = false
 		m.form = msg.form.WithWidth(min(m.width-4, 72)).WithHeight(min(m.height-6, 16))
 		m.formSubmit = msg.submit
 		m.formTitle = msg.title
@@ -162,6 +177,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.form.Init()
 
 	case formResultMsg:
+		m.busy = false
 		m.mode = modeList
 		m.form = nil
 		m.formSubmit = nil
@@ -174,14 +190,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.toastAt = m.clock()
 		if msg.key != "" {
-			return m, m.reloadCmd()
+			m.loading = true
+			return m, tea.Batch(m.spin.Tick, m.reloadCmd())
 		}
 		return m, nil
 
 	case toastMsg:
+		m.busy = false
 		m.toast = msg.text
 		m.toastErr = msg.err
 		m.toastAt = m.clock()
+		return m, nil
+
+	case spinner.TickMsg:
+		if m.loading || m.busy {
+			var cmd tea.Cmd
+			m.spin, cmd = m.spin.Update(msg)
+			return m, cmd
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -223,7 +249,8 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.Quit):
 		return m, tea.Quit
 	case key.Matches(msg, k.Refresh):
-		return m, m.reloadCmd()
+		m.loading = true
+		return m, tea.Batch(m.spin.Tick, m.reloadCmd())
 	case key.Matches(msg, k.Filter):
 		m.mode = modeFilter
 		return m, nil
@@ -275,11 +302,14 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		lite := m.all[m.visible[m.cursor]].lite
 		return m, m.loadDetailCmd(issueKey, lite)
 	case key.Matches(msg, k.Comment):
-		return m, m.startComment()
+		m.busy = true
+		return m, tea.Batch(m.spin.Tick, m.startComment())
 	case key.Matches(msg, k.Transition):
-		return m, m.startTransition()
+		m.busy = true
+		return m, tea.Batch(m.spin.Tick, m.startTransition())
 	case key.Matches(msg, k.Assignee):
-		return m, m.startAssignee()
+		m.busy = true
+		return m, tea.Batch(m.spin.Tick, m.startAssignee())
 	}
 	return m, nil
 }
@@ -324,11 +354,14 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.detailLite = nil
 		return m, nil
 	case key.Matches(msg, k.Comment):
-		return m, m.startComment()
+		m.busy = true
+		return m, tea.Batch(m.spin.Tick, m.startComment())
 	case key.Matches(msg, k.Transition):
-		return m, m.startTransition()
+		m.busy = true
+		return m, tea.Batch(m.spin.Tick, m.startTransition())
 	case key.Matches(msg, k.Assignee):
-		return m, m.startAssignee()
+		m.busy = true
+		return m, tea.Batch(m.spin.Tick, m.startAssignee())
 	case key.Matches(msg, k.Refresh):
 		if m.detailKey != "" && m.detailLite != nil {
 			return m, m.loadDetailCmd(m.detailKey, *m.detailLite)
@@ -349,14 +382,17 @@ func (m Model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.form = nil
 		m.formSubmit = nil
 		m.mode = modeList
+		m.busy = true
 		if submit != nil {
-			return m, submit()
+			return m, tea.Batch(m.spin.Tick, submit())
 		}
+		m.busy = false
 		return m, nil
 	case huh.StateAborted:
 		m.form = nil
 		m.formSubmit = nil
 		m.mode = modeList
+		m.busy = false
 		m.toast = "cancelled"
 		m.toastErr = false
 		m.toastAt = m.clock()
@@ -407,8 +443,8 @@ func (m *Model) pageSize() int {
 }
 
 func (m *Model) listHeight() int {
-	// header(1) + tabs(1) + status(1) + help(1) ≈ 4 chrome lines
-	h := m.height - 4
+	// header(1) + tabs(1) + status(1) ≈ 3 chrome lines
+	h := m.height - 3
 	if h < 3 {
 		h = 3
 	}
@@ -457,25 +493,11 @@ func (m Model) viewList() string {
 	var b strings.Builder
 	w := m.width
 
-	// Header
-	title := styleHeader.Render("scry · issues")
-	sync := styleMuted.Render(m.syncedLabel)
-	right := sync
-	if m.loadErr != nil {
-		right = styleToastErr.Render(m.loadErr.Error())
-	}
-	gap := w - lipgloss.Width(title) - lipgloss.Width(right) - 1
-	if gap < 1 {
-		gap = 1
-	}
-	b.WriteString(fitWidth(title+spaces(gap)+right, w))
+	b.WriteString(m.renderHeader(w))
 	b.WriteByte('\n')
-
-	// Tabs
 	b.WriteString(fitWidth(m.renderTabs(), w))
 	b.WriteByte('\n')
 
-	// List body
 	listH := m.listHeight()
 	if len(m.visible) == 0 {
 		empty := "  no issues"
@@ -495,21 +517,29 @@ func (m Model) viewList() string {
 		}
 		for i := m.offset; i < end; i++ {
 			r := m.all[m.visible[i]]
-			line := m.renderRow(r, i == m.cursor, w)
-			b.WriteString(line)
+			b.WriteString(m.renderRow(r, i == m.cursor, w))
 			b.WriteByte('\n')
 		}
-		// Pad remaining viewport lines.
 		for i := end - m.offset; i < listH; i++ {
 			b.WriteByte('\n')
 		}
 	}
 
-	// Status / filter / toast
-	b.WriteString(fitWidth(m.renderStatus(), w))
-	b.WriteByte('\n')
-	b.WriteString(fitWidth(m.renderHelp(), w))
+	b.WriteString(m.renderStatusBar(w))
 	return b.String()
+}
+
+// renderHeader: app name + profile chip + watermark/sync age on one bar.
+func (m Model) renderHeader(w int) string {
+	left := styleBrand.Render(" scry ")
+	if p := config.Profile(); p != "" {
+		left += styleChip.Render(p)
+	}
+	right := styleMuted.Render(m.syncedLabel)
+	if m.loadErr != nil {
+		right = styleToastErr.Render(m.loadErr.Error())
+	}
+	return styleHeaderBar.Render(joinBar(left, right, max(1, w-2)))
 }
 
 func (m Model) renderTabs() string {
@@ -532,76 +562,111 @@ func (m Model) renderTabs() string {
 	}
 	parts := make([]string, 0, 4)
 	for i, t := range tabs {
-		label := fmt.Sprintf("%d:%s(%d)", i+1, t.t.Label(), t.n)
+		label := fmt.Sprintf("%d %s (%d)", i+1, t.t.Label(), t.n)
 		if t.t == m.tab {
-			parts = append(parts, styleHeader.Render("["+label+"]"))
+			parts = append(parts, styleTabActive.Render(label))
 		} else {
-			parts = append(parts, styleDim.Render(label))
+			parts = append(parts, styleTabInactive.Render(label))
 		}
 	}
-	return strings.Join(parts, "  ")
+	return " " + strings.Join(parts, " ")
 }
 
 func (m Model) renderRow(r row, selected bool, w int) string {
-	key := padRight(r.lite.IssueKey, 12)
-	status := padRight(truncate(r.lite.Status, 12), 12)
-	assignee := padRight(truncate(deref(r.lite.Assignee), 14), 14)
-	age := relativeTime(deref(r.lite.UpdatedAt), m.clock())
-	age = padRight(age, 10)
-
-	// key(12) + sp + status(12) + sp + assignee(14) + sp + age(10) + sp = 52
-	const fixed = 12 + 1 + 12 + 1 + 14 + 1 + 10
-	sumW := w - fixed - 1
+	// Layout: " ● KEY········ status····· summary… [label] assignee age"
+	// Fixed budget leaves the rest for the summary.
+	const (
+		keyW      = 12
+		statusW   = 12
+		assigneeW = 12
+		ageW      = 9
+		// " " + "●" + " " + key + " " + status + " " + ... + " " + assignee + " " + age
+		// prefix dots/spaces ≈ 5; chip is optional and short.
+		overhead = 5 + keyW + 1 + statusW + 1 + 1 + assigneeW + 1 + ageW
+	)
+	sumW := w - overhead - 8 // room for an optional label chip
 	if sumW < 8 {
 		sumW = 8
 	}
-	summary := truncate(r.lite.Summary, sumW)
 
-	statusCol := statusStyle(r.lite.StatusCategory).Render(status)
-	line := styleKey.Render(key) + " " + statusCol + " " + summary + " " +
-		styleDim.Render(assignee) + " " + styleMuted.Render(age)
+	dotStyle := statusStyle(r.lite.StatusCategory, r.lite.ReopenCount)
+	keyPlain := padRight(r.lite.IssueKey, keyW)
+	statusPlain := padRight(truncate(r.lite.Status, statusW), statusW)
+	summaryPlain := padRight(truncate(r.lite.Summary, sumW), sumW)
+	assigneePlain := padRight(truncate(deref(r.lite.Assignee), assigneeW), assigneeW)
+	agePlain := padRight(relativeTime(deref(r.lite.UpdatedAt), m.clock()), ageW)
+
+	chip := ""
+	if len(r.lite.Labels) > 0 {
+		chip = truncate(r.lite.Labels[0], 10)
+	}
 
 	if selected {
-		// Rebuild without nested styles so the selection background is solid.
-		plain := padRight(key, 12) + " " + padRight(truncate(r.lite.Status, 12), 12) + " " +
-			padRight(truncate(r.lite.Summary, sumW), sumW) + " " +
-			padRight(truncate(deref(r.lite.Assignee), 14), 14) + " " +
-			padRight(age, 10)
-		return styleSel.Render(fitWidth(plain, w))
+		// Solid indigo row; keep the status dot coloured on top of the bg.
+		inner := " " +
+			dotStyle.Background(colAccentBg).Render("●") + " " +
+			styleSelKey.Render(keyPlain) + " " +
+			styleSel.Render(statusPlain) + " " +
+			styleSel.Render(summaryPlain)
+		if chip != "" {
+			inner += " " + styleSelMuted.Render(chip)
+		}
+		inner += " " + styleSelMuted.Render(assigneePlain) + " " + styleSelMuted.Render(agePlain)
+		return styleSel.Width(w).MaxWidth(w).Render(inner)
 	}
+
+	line := " " +
+		dotStyle.Render("●") + " " +
+		styleKey.Render(keyPlain) + " " +
+		styleDim.Render(statusPlain) + " " +
+		stylePrimary.Render(summaryPlain)
+	if chip != "" {
+		line += " " + styleChip.Render(chip)
+	}
+	line += " " + styleDim.Render(assigneePlain) + " " + styleMuted.Render(agePlain)
 	return fitWidth(line, w)
 }
 
-func (m Model) renderStatus() string {
-	var parts []string
-	parts = append(parts, fmt.Sprintf("%d/%d", m.cursor+1, len(m.visible)))
+// renderStatusBar: left = key hints (+ spinner/toast/filter), right = sync + count.
+func (m Model) renderStatusBar(w int) string {
+	leftParts := make([]string, 0, 4)
+	if m.loading || m.busy {
+		leftParts = append(leftParts, m.spin.View())
+	}
+	leftParts = append(leftParts, styleHelp.Render("j/k · / · 1-4 · enter · c/t/a · r · q"))
 	if m.filter != "" || m.mode == modeFilter {
 		f := m.filter
 		if m.mode == modeFilter {
 			f += "▌"
 		}
-		parts = append(parts, styleFilter.Render("/"+f))
+		leftParts = append(leftParts, styleFilter.Render("/"+f))
 	}
 	if m.toast != "" && m.clock().Sub(m.toastAt) < 8*time.Second {
 		if m.toastErr {
-			parts = append(parts, styleToastErr.Render(m.toast))
+			leftParts = append(leftParts, styleToastErr.Render(m.toast))
 		} else {
-			parts = append(parts, styleToastOK.Render(m.toast))
+			leftParts = append(leftParts, styleToastOK.Render(m.toast))
 		}
 	}
 	if m.cfg != nil && !m.cfg.HasCredential() {
-		parts = append(parts, styleMuted.Render("read-only (no credential)"))
+		leftParts = append(leftParts, styleMuted.Render("read-only"))
 	}
-	return strings.Join(parts, "  ·  ")
-}
+	left := strings.Join(leftParts, "  ")
 
-func (m Model) renderHelp() string {
-	return styleHelp.Render("j/k move  / filter  1-4 tabs  enter detail  c comment  t transition  a assignee  r refresh  q quit")
+	count := fmt.Sprintf("%d/%d", 0, len(m.visible))
+	if len(m.visible) > 0 {
+		count = fmt.Sprintf("%d/%d", m.cursor+1, len(m.visible))
+	}
+	right := styleMuted.Render(m.syncedLabel + "  ·  " + count)
+	return joinBar(left, right, w)
 }
 
 func (m Model) viewForm() string {
 	var b strings.Builder
-	title := styleHeader.Render(m.formTitle)
+	title := styleBrand.Render(" " + m.formTitle + " ")
+	if m.busy {
+		title = m.spin.View() + title
+	}
 	b.WriteString(fitWidth(title, m.width))
 	b.WriteString("\n\n")
 	b.WriteString(m.form.View())
@@ -614,118 +679,143 @@ func (m Model) viewDetail() string {
 	key := m.detailKey
 	lite := m.detailLite
 
-	// Prefer split view when the terminal is wide enough.
-	split := w >= 100 && m.mode == modeDetail
-	_ = split // full-screen detail for v1; split reserved for later
-
-	header := styleKey.Render(key)
-	if lite != nil {
-		header += "  " + statusStyle(lite.StatusCategory).Render(lite.Status)
-		header += "  " + styleHeader.Render(lite.Summary)
-	}
-	b.WriteString(fitWidth(header, w))
+	// Outer chrome: header bar + footer hints. Body sits in a rounded card.
+	b.WriteString(m.renderHeader(w))
 	b.WriteByte('\n')
 
-	if lite != nil {
-		meta := fmt.Sprintf("assignee %s  ·  labels %s  ·  updated %s",
-			orDash(deref(lite.Assignee)),
-			orDash(strings.Join(lite.Labels, ", ")),
-			orDash(relativeTime(deref(lite.UpdatedAt), m.clock())),
-		)
-		b.WriteString(fitWidth(styleDim.Render(meta), w))
-		b.WriteByte('\n')
+	innerW := w - 4
+	if innerW < 20 {
+		innerW = 20
 	}
-	b.WriteByte('\n')
+
+	var body strings.Builder
+	// Title row: key + status dot + summary
+	title := styleKey.Render(key)
+	if lite != nil {
+		dot := statusStyle(lite.StatusCategory, lite.ReopenCount).Render("●")
+		title += "  " + dot + " " + styleDim.Render(lite.Status)
+		title += "\n" + stylePrimary.Bold(true).Render(lite.Summary)
+	}
+	body.WriteString(title)
+	body.WriteByte('\n')
+
+	if lite != nil {
+		body.WriteString(m.renderDetailField("assignee", orDash(deref(lite.Assignee))))
+		body.WriteByte('\n')
+		labelVal := "—"
+		if len(lite.Labels) > 0 {
+			chips := make([]string, 0, len(lite.Labels))
+			for _, l := range lite.Labels {
+				chips = append(chips, styleChip.Render(l))
+			}
+			labelVal = strings.Join(chips, " ")
+		}
+		body.WriteString(styleDetailLabel.Render("labels") + " " + labelVal)
+		body.WriteByte('\n')
+		body.WriteString(m.renderDetailField("updated", orDash(relativeTime(deref(lite.UpdatedAt), m.clock()))))
+		body.WriteByte('\n')
+	}
+	body.WriteByte('\n')
 
 	if m.detail == nil {
-		b.WriteString(styleMuted.Render("  loading…"))
-		return b.String()
-	}
-
-	// Description (ADF → plain text)
-	body := jira.PlainText(m.detail.DescriptionADF)
-	b.WriteString(styleHeader.Render("Description"))
-	b.WriteByte('\n')
-	if body == "" {
-		b.WriteString(styleMuted.Render("  (empty)"))
+		body.WriteString(styleMuted.Render("loading…"))
 	} else {
-		for _, line := range wrapLines(body, w-2, 12) {
-			b.WriteString("  ")
-			b.WriteString(fitWidth(line, w-2))
-			b.WriteByte('\n')
-		}
-	}
-	b.WriteByte('\n')
-
-	// Recent comments (last 5)
-	b.WriteString(styleHeader.Render("Comments"))
-	b.WriteByte('\n')
-	comments := m.detail.Comments
-	if len(comments) == 0 {
-		b.WriteString(styleMuted.Render("  (none)"))
-		b.WriteByte('\n')
-	} else {
-		start := 0
-		if len(comments) > 5 {
-			start = len(comments) - 5
-		}
-		for _, c := range comments[start:] {
-			who := c.Author
-			if who == "" {
-				who = "?"
-			}
-			when := relativeTime(c.CreatedAt, m.clock())
-			b.WriteString(styleDim.Render(fmt.Sprintf("  %s · %s", who, when)))
-			b.WriteByte('\n')
-			text := c.Body
-			if text == "" {
-				text = jira.PlainText(c.BodyADF)
-			}
-			for _, line := range wrapLines(text, w-4, 4) {
-				b.WriteString("    ")
-				b.WriteString(fitWidth(line, w-4))
-				b.WriteByte('\n')
-			}
-		}
-	}
-	b.WriteByte('\n')
-
-	// Recent history (last 5)
-	b.WriteString(styleHeader.Render("History"))
-	b.WriteByte('\n')
-	hist := m.detail.History
-	if len(hist) == 0 {
-		b.WriteString(styleMuted.Render("  (none)"))
-		b.WriteByte('\n')
-	} else {
-		start := 0
-		if len(hist) > 5 {
-			start = len(hist) - 5
-		}
-		for _, h := range hist[start:] {
-			line := fmt.Sprintf("  %s  %s: %s → %s  (%s)",
-				relativeTime(h.At, m.clock()),
-				h.Field,
-				orDash(h.FromValue),
-				orDash(h.ToValue),
-				orDash(h.Author),
-			)
-			b.WriteString(fitWidth(styleDim.Render(line), w))
-			b.WriteByte('\n')
-		}
-	}
-
-	b.WriteByte('\n')
-	b.WriteString(fitWidth(styleHelp.Render("esc back  c comment  t transition  a assignee  r refresh"), w))
-	if m.toast != "" && m.clock().Sub(m.toastAt) < 8*time.Second {
-		b.WriteByte('\n')
-		if m.toastErr {
-			b.WriteString(styleToastErr.Render(m.toast))
+		// Description
+		body.WriteString(styleSection.Render("Description"))
+		body.WriteByte('\n')
+		desc := jira.PlainText(m.detail.DescriptionADF)
+		if desc == "" {
+			body.WriteString(styleMuted.Render("  (empty)"))
+			body.WriteByte('\n')
 		} else {
-			b.WriteString(styleToastOK.Render(m.toast))
+			for _, line := range wrapLines(desc, innerW-2, 12) {
+				body.WriteString("  ")
+				body.WriteString(line)
+				body.WriteByte('\n')
+			}
+		}
+		body.WriteByte('\n')
+
+		// Comments (last 5)
+		body.WriteString(styleSection.Render("Comments"))
+		body.WriteByte('\n')
+		comments := m.detail.Comments
+		if len(comments) == 0 {
+			body.WriteString(styleMuted.Render("  (none)"))
+			body.WriteByte('\n')
+		} else {
+			start := 0
+			if len(comments) > 5 {
+				start = len(comments) - 5
+			}
+			for _, c := range comments[start:] {
+				who := c.Author
+				if who == "" {
+					who = "?"
+				}
+				when := relativeTime(c.CreatedAt, m.clock())
+				body.WriteString(styleDim.Render(fmt.Sprintf("  %s · %s", who, when)))
+				body.WriteByte('\n')
+				text := c.Body
+				if text == "" {
+					text = jira.PlainText(c.BodyADF)
+				}
+				for _, line := range wrapLines(text, innerW-4, 4) {
+					body.WriteString("    ")
+					body.WriteString(line)
+					body.WriteByte('\n')
+				}
+			}
+		}
+		body.WriteByte('\n')
+
+		// History (last 5)
+		body.WriteString(styleSection.Render("History"))
+		body.WriteByte('\n')
+		hist := m.detail.History
+		if len(hist) == 0 {
+			body.WriteString(styleMuted.Render("  (none)"))
+			body.WriteByte('\n')
+		} else {
+			start := 0
+			if len(hist) > 5 {
+				start = len(hist) - 5
+			}
+			for _, h := range hist[start:] {
+				line := fmt.Sprintf("  %s  %s: %s → %s  (%s)",
+					relativeTime(h.At, m.clock()),
+					h.Field,
+					orDash(h.FromValue),
+					orDash(h.ToValue),
+					orDash(h.Author),
+				)
+				body.WriteString(styleDim.Render(line))
+				body.WriteByte('\n')
+			}
 		}
 	}
+
+	panel := styleDetailPanel.Width(w - 2).Render(strings.TrimRight(body.String(), "\n"))
+	b.WriteString(panel)
+	b.WriteByte('\n')
+
+	// Footer: hints left, toast right/appended
+	footer := styleHelp.Render("esc back  c comment  t transition  a assignee  r refresh")
+	if m.toast != "" && m.clock().Sub(m.toastAt) < 8*time.Second {
+		var t string
+		if m.toastErr {
+			t = styleToastErr.Render(m.toast)
+		} else {
+			t = styleToastOK.Render(m.toast)
+		}
+		footer = joinBar(footer, t, w)
+	}
+	b.WriteString(fitWidth(footer, w))
 	return b.String()
+}
+
+func (m Model) renderDetailField(label, value string) string {
+	return styleDetailLabel.Render(label) + " " + stylePrimary.Render(value)
 }
 
 func wrapLines(s string, width, maxLines int) []string {
