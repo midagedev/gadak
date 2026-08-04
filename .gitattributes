@@ -1,0 +1,4 @@
+# Binary media assets (demo GIFs / social MP4s under docs/media/)
+*.gif binary
+*.mp4 binary
+*.webm binary
