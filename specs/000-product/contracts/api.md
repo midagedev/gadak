@@ -339,11 +339,16 @@ cannot bring the filter back.
 
 ## Auth
 
+scry is a single-user local tool. There are no scry accounts and no session
+tokens. **Identity is the stored Jira credential** (`site` / email / API token in
+`~/.scry/config.json`, managed via `credential/`). `GET me/` projects that
+credential into `{email, name, department}` for the UI; when nothing is
+configured it answers `200 {"email": null}` so the boot probe never 4xxes.
+Writes that need Jira call out with that same credential. The UI has no login
+dialog — if identity is missing it opens the credential settings dialog instead.
+
 | Endpoint | Method | v0.1 behavior |
 | --- | --- | --- |
-| `me/` | GET | `{email, name, department}` from the stored credential and the configured member directory, with no call to Jira. `200 {"email": null}` when nothing is configured — the UI probes this on every boot, so an unconfigured install must not 4xx |
-| `login/` | POST | `404`. There are no scry accounts |
-| `logout/` | POST | `404` |
-
-The UI's login dialog is reachable only when `me/` fails, and its copy now points
-at `scry serve` rather than any hosted login.
+| `me/` | GET | `{email, name, department}` from the stored credential and the configured member directory, with no call to Jira. `200 {"email": null}` when nothing is configured |
+| `login/` | POST | `404`. There are no scry accounts; use `PUT credential/` |
+| `logout/` | POST | `404`. Clear credentials with `DELETE credential/` instead |

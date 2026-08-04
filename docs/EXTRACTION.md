@@ -32,7 +32,8 @@ backend was inseparable from the company's other systems.
 | Test-management (Qase) context per issue | **Cut** |
 | Personal activity feed and Web Push | **Deferred.** A local watch-based feed is a v0.2 design |
 | Multi-viewer presence over WebSocket | **Cut.** Meaningless in a single-user local tool |
-| Company SSO and session auth | **Cut.** There are no scry accounts |
+| Company SSO and session auth | **Cut.** There are no scry accounts; identity is the stored Jira credential only |
+| Email/password login dialog, `scry_token` localStorage, `Authorization: Token` | **Cut.** Frontend leftovers from redacted-tool SSO; writes gate on credential settings alone |
 | Data-quality audit endpoint | **Cut** |
 
 ## What was scrubbed
