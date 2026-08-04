@@ -20,6 +20,9 @@ contract itself, see [`PLUGINS.md`](PLUGINS.md).
 
 ### Config (`config.json`)
 
+Full reference (defaults, floors, apply timing, hand-edit-only list):
+[`CONFIGURATION.md`](CONFIGURATION.md).
+
 | Key | Purpose |
 | --- | --- |
 | `fieldMap` | Alias → Jira custom field id (e.g. `"severity": "customfield_10042"`). Synced into list rows under the alias. |
@@ -29,7 +32,10 @@ contract itself, see [`PLUGINS.md`](PLUGINS.md).
 | `groupLabels` / `groupColors` / `productByGroup` | Display names and colors for those groups. |
 | `members` | Static member directory (avatar, group, account id) merged into bootstrap. |
 | `features` | Feature flags: `deploy`, `qa`, `teamGroups`, `presence`, `feed`, `push` (all off by default). |
-| `qaDashboardURL` | Optional link shown next to QA surfaces. |
+| `qaDashboardUrl` | Optional link shown next to QA surfaces. |
+| `staleThresholdHours` | Hours in status before an open issue counts as stale (0 → UI default 72). |
+| `syncIntervalSec` | Incremental sync period in seconds (0 → 60). Min 15 when set. Restart `serve --sync`. |
+| `reconcileIntervalSec` | Deletion reconcile period in seconds (0 → 3600). Min 300 when set. Restart `serve --sync`. |
 
 Nothing installation-specific belongs in the scry **source tree**. Put it here.
 

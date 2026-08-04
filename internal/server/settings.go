@@ -2,11 +2,22 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/midagedev/scry/internal/config"
 )
+
+// Version is the scry release string exposed on GET settings/ under runtime.
+// cmd/scry should assign this from its ldflags version var at startup:
+//
+//	server.Version = version
+//
+// Until that wiring lands, the default below is what the UI shows.
+var Version = "0.0.0-dev"
 
 // The client falls back to 72 hours when the document omits the threshold, but a
 // literal 0 would override that and mark every issue stale, so the document
@@ -54,30 +65,56 @@ func webConfig(cfg *config.Config) webConfigDoc {
 	}
 }
 
+// runtimeInfo is read-only instance facts for the settings UI. Never carry
+// secrets (token, email) — only paths and mirror bookkeeping.
+type runtimeInfo struct {
+	Profile       string  `json:"profile"`
+	DBPath        string  `json:"dbPath"`
+	DBSizeBytes   int64   `json:"dbSizeBytes"`
+	DBSizeHuman   string  `json:"dbSizeHuman"`
+	DBModifiedAt  *string `json:"dbModifiedAt,omitempty"`
+	ConfigPath    string  `json:"configPath"`
+	IssueCount    int     `json:"issueCount"`
+	CommentCount  int     `json:"commentCount"`
+	SchemaVersion int     `json:"schemaVersion"`
+	Watermark     string  `json:"watermark,omitempty"`
+	// SyncVersion is sync_state.version — the mirror generation clients poll.
+	SyncVersion    int64   `json:"syncVersion"`
+	LastFullSyncAt *string `json:"lastFullSyncAt,omitempty"`
+	LastError      *string `json:"lastError,omitempty"`
+	ScryVersion    string  `json:"scryVersion"`
+	// Defaults the UI shows as placeholders when the stored interval is 0.
+	DefaultSyncIntervalSec      int `json:"defaultSyncIntervalSec"`
+	DefaultReconcileIntervalSec int `json:"defaultReconcileIntervalSec"`
+}
+
 // settingsDoc is everything the settings UI may read and write. The credential
 // block (email, token) is absent by construction, not by filtering.
 type settingsDoc struct {
-	Projects            []string                  `json:"projects"`
-	FieldMap            map[string]string         `json:"fieldMap"`
-	BodyFields          []string                  `json:"bodyFields"`
-	EditableFields      map[string]string         `json:"editableFields"`
-	Members             []config.Member           `json:"members"`
-	GroupRules          []config.GroupRule        `json:"groupRules"`
-	GroupLabels         map[string]string         `json:"groupLabels"`
-	GroupColors         map[string]string         `json:"groupColors"`
-	ProductByGroup      map[string]config.Product `json:"productByGroup"`
-	Features            map[string]bool           `json:"features"`
-	QaDashboardURL      string                    `json:"qaDashboardUrl"`
-	StaleThresholdHours int                       `json:"staleThresholdHours"`
+	Projects             []string                  `json:"projects"`
+	FieldMap             map[string]string         `json:"fieldMap"`
+	BodyFields           []string                  `json:"bodyFields"`
+	EditableFields       map[string]string         `json:"editableFields"`
+	Members              []config.Member           `json:"members"`
+	GroupRules           []config.GroupRule        `json:"groupRules"`
+	GroupLabels          map[string]string         `json:"groupLabels"`
+	GroupColors          map[string]string         `json:"groupColors"`
+	ProductByGroup       map[string]config.Product `json:"productByGroup"`
+	Features             map[string]bool           `json:"features"`
+	QaDashboardURL       string                    `json:"qaDashboardUrl"`
+	StaleThresholdHours  int                       `json:"staleThresholdHours"`
+	SyncIntervalSec      int                       `json:"syncIntervalSec"`
+	ReconcileIntervalSec int                       `json:"reconcileIntervalSec"`
 
 	// Read-only context for the UI. Ignored on PUT — the site and the token are
-	// the credential endpoint's business (T4).
-	Site          string `json:"site"`
-	HasCredential bool   `json:"hasCredential"`
+	// the credential endpoint's business (T4). runtime is assembled per request.
+	Site          string       `json:"site"`
+	HasCredential bool         `json:"hasCredential"`
+	Runtime       *runtimeInfo `json:"runtime,omitempty"`
 }
 
 func (s *server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, settings(s.config()))
+	writeJSON(w, http.StatusOK, s.settingsResponse(s.config()))
 }
 
 func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
@@ -86,8 +123,13 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
-	// Copy the live config so the credential block and the sync intervals survive
-	// a settings write untouched.
+	if err := validateIntervals(in.SyncIntervalSec, in.ReconcileIntervalSec); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// Copy the live config so the credential block survives a settings write.
+	// site / email / token / tokenVerifiedAt / tokenOwner are never taken from
+	// the PUT body — those stay the credential endpoint's job.
 	next := *s.config()
 	next.Projects = in.Projects
 	next.FieldMap = in.FieldMap
@@ -101,6 +143,8 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	next.Features = features(in.Features)
 	next.QaDashboardURL = in.QaDashboardURL
 	next.StaleThresholdHours = max(in.StaleThresholdHours, 0)
+	next.SyncIntervalSec = max(in.SyncIntervalSec, 0)
+	next.ReconcileIntervalSec = max(in.ReconcileIntervalSec, 0)
 
 	if err := next.Save(); err != nil {
 		serverError(w, r, err)
@@ -109,26 +153,117 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	s.cfg.Store(&next)
 	// Members and group rules feed the cached projection; it has to be rebuilt.
 	s.gen.Add(1)
-	writeJSON(w, http.StatusOK, settings(&next))
+	writeJSON(w, http.StatusOK, s.settingsResponse(&next))
+}
+
+func validateIntervals(syncSec, reconcileSec int) error {
+	if syncSec < 0 {
+		return fmt.Errorf("syncIntervalSec must be 0 (default) or a positive number of seconds")
+	}
+	if syncSec > 0 && syncSec < config.MinSyncIntervalSec {
+		return fmt.Errorf("syncIntervalSec must be 0 (default) or >= %d (got %d)", config.MinSyncIntervalSec, syncSec)
+	}
+	if reconcileSec < 0 {
+		return fmt.Errorf("reconcileIntervalSec must be 0 (default) or a positive number of seconds")
+	}
+	if reconcileSec > 0 && reconcileSec < config.MinReconcileIntervalSec {
+		return fmt.Errorf("reconcileIntervalSec must be 0 (default) or >= %d (got %d)", config.MinReconcileIntervalSec, reconcileSec)
+	}
+	return nil
 }
 
 func settings(cfg *config.Config) settingsDoc {
 	return settingsDoc{
-		Projects:            strs(cfg.Projects),
-		FieldMap:            strMap(cfg.FieldMap),
-		BodyFields:          strs(cfg.BodyFields),
-		EditableFields:      strMap(cfg.EditableFields),
-		Members:             members(cfg.Members),
-		GroupRules:          rules(cfg.GroupRules),
-		GroupLabels:         strMap(cfg.GroupLabels),
-		GroupColors:         strMap(cfg.GroupColors),
-		ProductByGroup:      products(cfg.ProductByGroup),
-		Features:            features(cfg.Features),
-		QaDashboardURL:      cfg.QaDashboardURL,
-		StaleThresholdHours: cfg.StaleThresholdHours,
-		Site:                cfg.Site,
-		HasCredential:       cfg.HasCredential(),
+		Projects:             strs(cfg.Projects),
+		FieldMap:             strMap(cfg.FieldMap),
+		BodyFields:           strs(cfg.BodyFields),
+		EditableFields:       strMap(cfg.EditableFields),
+		Members:              members(cfg.Members),
+		GroupRules:           rules(cfg.GroupRules),
+		GroupLabels:          strMap(cfg.GroupLabels),
+		GroupColors:          strMap(cfg.GroupColors),
+		ProductByGroup:       products(cfg.ProductByGroup),
+		Features:             features(cfg.Features),
+		QaDashboardURL:       cfg.QaDashboardURL,
+		StaleThresholdHours:  cfg.StaleThresholdHours,
+		SyncIntervalSec:      cfg.SyncIntervalSec,
+		ReconcileIntervalSec: cfg.ReconcileIntervalSec,
+		Site:                 cfg.Site,
+		HasCredential:        cfg.HasCredential(),
 	}
+}
+
+func (s *server) settingsResponse(cfg *config.Config) settingsDoc {
+	doc := settings(cfg)
+	doc.Runtime = s.runtimeInfo()
+	return doc
+}
+
+func (s *server) runtimeInfo() *runtimeInfo {
+	info := &runtimeInfo{
+		Profile:                     profileDisplay(),
+		ScryVersion:                 Version,
+		DefaultSyncIntervalSec:      config.DefaultSyncIntervalSec,
+		DefaultReconcileIntervalSec: config.DefaultReconcileIntervalSec,
+	}
+	if p, err := config.Path(); err == nil {
+		info.ConfigPath = p
+	}
+	if p, err := config.DBPath(); err == nil {
+		info.DBPath = p
+		if st, err := os.Stat(p); err == nil {
+			info.DBSizeBytes = st.Size()
+			info.DBSizeHuman = humanBytes(st.Size())
+			mod := st.ModTime().UTC().Format(time.RFC3339)
+			info.DBModifiedAt = &mod
+		} else {
+			info.DBSizeHuman = "—"
+		}
+	}
+	if s.db != nil {
+		if lites, err := s.db.IssueLites(); err == nil {
+			info.IssueCount = len(lites)
+			comments := 0
+			for _, l := range lites {
+				comments += l.CommentCount
+			}
+			info.CommentCount = comments
+		}
+		info.SchemaVersion = s.db.SchemaVersion()
+		if st, err := s.db.SyncState(sourceID); err == nil {
+			info.Watermark = st.Watermark
+			info.SyncVersion = st.Version
+			info.LastFullSyncAt = st.LastFullSyncAt
+			info.LastError = st.LastError
+			if st.SchemaVersion > 0 {
+				info.SchemaVersion = st.SchemaVersion
+			}
+		}
+	}
+	return info
+}
+
+func profileDisplay() string {
+	if p := config.Profile(); p != "" {
+		return p
+	}
+	return "default"
+}
+
+func humanBytes(n int64) string {
+	if n < 0 {
+		n = 0
+	}
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := int64(unit), 0
+	for v := n / unit; v >= unit; v /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 // The helpers below only replace nil with empty, so the documents carry `[]` and

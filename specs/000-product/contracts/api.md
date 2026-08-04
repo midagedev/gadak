@@ -348,22 +348,77 @@ The settings UI reads and writes the configuration through these. The document i
 the credential-free part of `~/.scry/config.json` — `projects`, `fieldMap`,
 `bodyFields`, `editableFields`, `members`, `groupRules`, `groupLabels`,
 `groupColors`, `productByGroup`, `features`, `qaDashboardUrl`,
-`staleThresholdHours` — plus two read-only fields for the UI's connection panel:
+`staleThresholdHours`, `syncIntervalSec`, `reconcileIntervalSec` — plus
+read-only context for the UI:
 
 ```json
-{ "site": "https://your-site.atlassian.net", "hasCredential": true, "projects": ["NMB"], "…": "…" }
+{
+  "site": "https://your-site.atlassian.net",
+  "hasCredential": true,
+  "projects": ["NMB"],
+  "syncIntervalSec": 0,
+  "reconcileIntervalSec": 0,
+  "staleThresholdHours": 72,
+  "runtime": {
+    "profile": "default",
+    "dbPath": "/Users/you/.scry/scry.db",
+    "dbSizeBytes": 4823040,
+    "dbSizeHuman": "4.6 MB",
+    "dbModifiedAt": "2026-08-04T09:15:00Z",
+    "configPath": "/Users/you/.scry/config.json",
+    "issueCount": 519,
+    "commentCount": 339,
+    "schemaVersion": 3,
+    "watermark": "2026-08-04T09:15:00.000Z",
+    "syncVersion": 41,
+    "lastFullSyncAt": "2026-08-01T12:00:00.000Z",
+    "lastError": null,
+    "scryVersion": "0.0.0-dev",
+    "defaultSyncIntervalSec": 60,
+    "defaultReconcileIntervalSec": 3600
+  },
+  "…": "…"
+}
 ```
 
 `PUT` replaces exactly the writable fields and preserves everything else in the
 file, credentials included; `site` and the token stay the credential endpoint's
-business. Unknown `features` keys are dropped, a negative threshold is clamped to
-0 (meaning "use the client default"), and the response is the stored document.
-There is no authentication here either — the server is loopback-bound, and a
-config write is no more sensitive than the file itself.
+business. `runtime`, `site`, and `hasCredential` on the request body are
+ignored. Unknown `features` keys are dropped, a negative threshold is clamped to
+0 (meaning "use the client default"), and the response is the stored document
+plus a freshly assembled `runtime`. There is no authentication here either —
+the server is loopback-bound, and a config write is no more sensitive than the
+file itself.
+
+#### Sync intervals
+
+| Field | Unit | `0` / omitted | Minimum when set | Default |
+| --- | --- | --- | --- | --- |
+| `syncIntervalSec` | seconds | use default | **15** | `60` |
+| `reconcileIntervalSec` | seconds | use default | **300** (5 minutes) | `3600` |
+
+A value below the floor answers `400` with a clear `error` string, e.g.
+`syncIntervalSec must be 0 (default) or >= 15 (got 5)`. Rejected writes do not
+touch the file.
+
+**Apply timing:** `scry serve --sync` builds its Watch tickers once at process
+start from the config loaded then. A successful `PUT` updates `config.json` and
+the in-process settings atomic immediately (group rules, features, etc.), but
+**interval changes take effect only after restarting** `scry serve --sync`. The
+UI states this explicitly.
 
 `staleThresholdHours` is how long an unresolved issue may sit in its current
 status — measured from `status_changed_at`, falling back to `updated_at` — before
 the `stale` filter and the row badge pick it up.
+
+#### `runtime` (GET only)
+
+Read-only instance facts. **Never** includes credentials (`token`, `email`, or
+anything derived from them beyond the top-level `site` / `hasCredential` already
+documented). Paths are absolute. `profile` is `"default"` when no
+`--profile` / `SCRY_PROFILE` is set. `scryVersion` comes from `server.Version`
+(package var; `cmd/scry` should assign the ldflags version at startup — until
+wired, the default is `0.0.0-dev`).
 
 Each `features` flag gates a surface that needs a capability the server may not
 have: `presence` the viewer WebSocket (off means no `presence-ticket/` request at

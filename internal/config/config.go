@@ -72,9 +72,35 @@ type Config struct {
 	// default (512 MB); a negative value is treated as 0.
 	AttachmentCacheMB int `json:"attachmentCacheMB,omitempty"`
 
-	// sync 주기 (초). 0 = 기본 (incremental 60, reconcile 3600)
+	// sync 주기 (초). 0 = 기본값 사용 (DefaultSyncIntervalSec / DefaultReconcileIntervalSec).
+	// serve --sync 의 Watch 루프는 기동 시 한 번만 읽는다 — 변경은 프로세스 재시작 후 적용.
 	SyncIntervalSec      int `json:"syncIntervalSec,omitempty"`
 	ReconcileIntervalSec int `json:"reconcileIntervalSec,omitempty"`
+}
+
+// Sync loop defaults and floors. Zero in the file means "use default".
+// Floors reject values that would thrash Jira or busy-loop the local process.
+const (
+	DefaultSyncIntervalSec      = 60   // 1 minute
+	DefaultReconcileIntervalSec = 3600 // 1 hour
+	MinSyncIntervalSec          = 15   // seconds
+	MinReconcileIntervalSec     = 300  // 5 minutes
+)
+
+// EffectiveSyncIntervalSec returns the interval Watch should use.
+func (c *Config) EffectiveSyncIntervalSec() int {
+	if c == nil || c.SyncIntervalSec <= 0 {
+		return DefaultSyncIntervalSec
+	}
+	return c.SyncIntervalSec
+}
+
+// EffectiveReconcileIntervalSec returns the reconcile interval Watch should use.
+func (c *Config) EffectiveReconcileIntervalSec() int {
+	if c == nil || c.ReconcileIntervalSec <= 0 {
+		return DefaultReconcileIntervalSec
+	}
+	return c.ReconcileIntervalSec
 }
 
 // profile 은 SetProfile(--profile 플래그) 또는 SCRY_PROFILE 로 정한다.

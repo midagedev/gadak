@@ -13,9 +13,10 @@ test.describe('locale', () => {
     await expect(dialog.getByText('Language')).toBeVisible()
 
     // setLocale writes localStorage and hard-reloads (URL hash unchanged).
+    // Language is the labeled select in the footer — not the interval presets on Sync.
     await Promise.all([
       page.waitForEvent('load'),
-      dialog.locator('select').selectOption('ko'),
+      dialog.getByLabel('Language').selectOption('ko'),
     ])
 
     // ko.ts: sidebar.issueCount = '{n} 이슈' (pool size; list count may be filtered)

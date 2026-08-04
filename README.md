@@ -146,8 +146,10 @@ Two axes, no forking required — see **[docs/EXTENDING.md](docs/EXTENDING.md)**
 **Configuration** covers most of it, from the settings dialog or
 `~/.scry/config.json`: map your custom fields (severity, environment, whatever
 your site calls them), classify issues into teams by label or component, choose
-which fields are inline-editable, set the staleness threshold, toggle features.
-No restart.
+which fields are inline-editable, set the staleness threshold and sync
+intervals, toggle features. Most keys apply without restart; sync intervals
+need a restart of `scry serve --sync`. Full key table:
+[`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 
 **The plugin boundary** covers the rest. The core contains zero GitHub, CD, or
 test-management code on purpose. Anything else you want beside an issue — linked
