@@ -248,9 +248,9 @@
       onkeydown={onKeydown}
       onpaste={onPaste}
       rows="2"
-      placeholder={me.authed
+      placeholder={me.identified
         ? t('write.commentPlaceholder')
-        : t('write.commentNeedLogin')}
+        : t('write.commentNeedCredentials')}
       class="w-full resize-none rounded-md border bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none transition-colors focus:border-accent {dragOver
         ? 'border-accent border-dashed'
         : 'border-border-strong'}"
@@ -331,7 +331,7 @@
     <button
       type="button"
       onclick={() => fileInput?.click()}
-      disabled={!me.authed || busy}
+      disabled={!me.identified || busy}
       class="rounded-md border border-border-strong px-2 py-1 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-40"
       title={t('write.attachFile')}>{t('write.attachEmoji')}</button
     >

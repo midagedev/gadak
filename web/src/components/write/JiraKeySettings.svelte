@@ -4,7 +4,7 @@
    *  - 안내문 + Atlassian API 토큰 발급 링크.
    *  - jira_email(기본값 me.email) + api_token 입력 → 저장 시 서버가 /myself 로 검증.
    *  - 이미 설정됨: display_name / token_hint / verified_at 표시 + 삭제.
-   *  LoginDialog 의 모달 패턴을 따른다(Esc/배경 클릭 닫기).
+   *  Modal pattern: Esc / backdrop click closes.
    */
   import { t } from '../../lib/i18n'
   import { me } from '../../stores/me.svelte'

@@ -8,10 +8,9 @@
  *      ③ 응답의 issue 로 확정 교체(+detail 캐시 무효화) → ④ 실패 시 원복 + 토스트.
  *  - 다이얼로그 열림 상태(자격증명 설정 / 새 이슈) + 전역 토스트 큐.
  *
- * 인증/자격증명 게이트:
- *  - 비로그인 → me.promptLogin().
- *  - 로그인했지만 자격증명 미설정 → 설정 다이얼로그 자동 오픈(맥락 유지, 재시도는 사용자 몫).
- *  - 서버가 409 credential_required 를 주면(선반영 실패한 경우) 동일하게 설정 다이얼로그를 연다.
+ * Credential gate (identity = stored Jira credential):
+ *  - No credential → open settings dialog + toast; retry is the user's job.
+ *  - Server 409 credential_required → same settings dialog.
  */
 
 import { SvelteMap } from 'svelte/reactivity'
@@ -189,13 +188,12 @@ class WriteStore {
   /* ── 자격증명 ── */
 
   async loadCredential(): Promise<void> {
-    if (!me.authed) return
     try {
       const c = await api.getCredential()
       this.#applyCredential(c)
     } catch (e) {
-      // 401 등은 조용히(비로그인 취급). 다른 오류는 로그만.
-      if (!(e instanceof ApiError && e.status === 401)) {
+      // Quiet on missing/unauthorized; log other failures.
+      if (!(e instanceof ApiError && (e.status === 401 || e.status === 404))) {
         console.warn('[write] 자격증명 로드 실패', e)
       }
     } finally {
@@ -207,6 +205,7 @@ class WriteStore {
     try {
       const c = await api.saveCredential(jiraEmail, apiToken)
       this.#applyCredential(c)
+      await me.refreshIdentity()
       this.toast(t('write.credSaved'), 'success')
       return { ok: true }
     } catch (e) {
@@ -215,7 +214,7 @@ class WriteStore {
     }
   }
 
-  /** 로그아웃 시 자격증명 상태 초기화(다음 로그인에서 재조회되도록). */
+  /** Clear local credential state (e.g. when identity disappears). */
   resetCredential(): void {
     this.configured = false
     this.jiraEmail = ''
@@ -229,6 +228,7 @@ class WriteStore {
     try {
       const c = await api.deleteCredential()
       this.#applyCredential(c)
+      await me.refreshIdentity()
       this.toast(t('write.credDeleted'), 'info')
     } catch (e) {
       this.#handleError(e, t('write.credDeleteFailed'))
@@ -271,21 +271,15 @@ class WriteStore {
   /* ── 쓰기 게이트 ── */
 
   /**
-   * 쓰기 가능 여부를 보장한다.
-   *  - 비로그인 → 로그인 다이얼로그 + false.
-   *  - 자격증명 미설정 → 설정 다이얼로그 + false.
-   *  - 통과 → true.
+   * Ensure a write can proceed.
+   *  - No credential → settings dialog + false.
+   *  - Configured → true.
    */
   async ensureWritable(): Promise<boolean> {
-    // 자격증명이 곧 identity — 미설정이면 로그인이 아니라 설정으로 안내한다.
     if (!this.credentialLoaded) await this.loadCredential()
     if (!this.configured) {
       this.toast(t('write.needToken'), 'info')
       this.openSettings()
-      return false
-    }
-    if (!me.authed) {
-      me.promptLogin()
       return false
     }
     return true
@@ -520,15 +514,11 @@ class WriteStore {
 
   #handleError(e: unknown, fallback: string): void {
     if (e instanceof ApiError) {
-      if (e.code === 'credential_required') {
-        // 선반영 실패(자격증명이 사라졌거나 최초 미설정) → 설정 다이얼로그
+      if (e.code === 'credential_required' || e.status === 401) {
+        // Credential gone or never set → settings dialog
         this.configured = false
         this.toast(t('write.needToken'), 'info')
         this.openSettings()
-        return
-      }
-      if (e.status === 401) {
-        me.promptLogin()
         return
       }
       this.toast(e.message || fallback, 'error')

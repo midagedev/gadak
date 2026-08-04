@@ -55,7 +55,7 @@
   const byName = (a: Member, b: Member) =>
     collator().compare(a.display_name || a.name, b.display_name || b.name)
 
-  const meMember = $derived(me.authed && me.email ? issues.members.get(me.email) : undefined)
+  const meMember = $derived(me.identified && me.email ? issues.members.get(me.email) : undefined)
 
   /** jira_account_id → Member (최근 지정 복원용). */
   const memberByAccount = $derived.by(() => {
@@ -234,7 +234,7 @@
     type="button"
     onclick={openPicker}
     class="group flex items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-bg-hover"
-    title={me.authed ? t('write.changeAssignee') : (issue.assignee ?? t('common.unassigned'))}
+    title={me.identified ? t('write.changeAssignee') : (issue.assignee ?? t('common.unassigned'))}
     disabled={busy}
   >
     {#if hasAssignee}

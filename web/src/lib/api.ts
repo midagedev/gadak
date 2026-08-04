@@ -1,9 +1,9 @@
 /*
- * Issue Navigator — REST 클라이언트 (계약 §1)
+ * Issue Navigator — REST client (contract §1)
  *
- * base 는 런타임 config() 에서 온다. dev 는 Vite 프록시가 로컬 서버로 넘긴다.
- * 인증: localStorage `scry_token` 이 있으면 `Authorization: Token <t>` 를 붙인다.
- *  (읽기는 익명 허용, 쓰기는 IsAuthenticated — 토큰/세션 쿠키 둘 다 지원)
+ * base comes from runtime config(); dev proxies via Vite to the local server.
+ * No session token: identity is the Jira credential stored by the server.
+ * Reads work without a credential on loopback; writes need one configured.
  */
 
 import { config } from './config'
@@ -35,23 +35,12 @@ import type {
   WriteMeta,
 } from './types'
 
-// 런타임 config 에서 읽는다(빌드 산출물은 테넌트 중립).
-
-/** localStorage 에 저장된 API 토큰 키. */
-export const TOKEN_KEY = 'scry_token'
-
-export function getToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_KEY)
-  } catch {
-    return null
-  }
-}
+// Runtime config (built artifacts stay tenant-neutral).
 
 /**
- * 인증 실패(401)·자격증명 미설정(409) 등을 호출부가 구분할 수 있도록 하는 에러.
- * `code` 는 서버 에러 바디의 `error` 문자열(예: 'credential_required'),
- * `jiraErrors` 는 Jira 원본 필드 에러(있으면 그대로 보여줄 수 있게).
+ * Lets callers distinguish credential-missing (409) and similar failures.
+ * `code` is the server body `error` string (e.g. 'credential_required');
+ * `jiraErrors` carries raw Jira field errors when present.
  */
 export class ApiError extends Error {
   status: number
@@ -71,19 +60,11 @@ export class ApiError extends Error {
   }
 }
 
-function authHeaders(extra?: HeadersInit): Headers {
-  const h = new Headers(extra)
-  const token = getToken()
-  if (token) h.set('Authorization', `Token ${token}`)
-  return h
-}
-
-/** 공통 fetch — 상대 경로(BASE 기준)를 받아 Response 를 돌려준다. */
+/** Shared fetch — path is relative to the API base. */
 async function raw(path: string, init?: RequestInit): Promise<Response> {
   return fetch(config().apiBase + path, {
-    credentials: 'same-origin', // 세션 인증 폴백
+    credentials: 'same-origin',
     ...init,
-    headers: authHeaders(init?.headers),
   })
 }
 
@@ -109,7 +90,7 @@ export type BootstrapResult =
 export async function getBootstrap(etag?: string | null): Promise<BootstrapResult> {
   const headers = new Headers()
   if (etag) headers.set('If-None-Match', etag)
-  const res = await raw('bootstrap/', { headers: authHeaders(headers) })
+  const res = await raw('bootstrap/', { headers })
   if (res.status === 304) return { status: 'not_modified' }
   if (!res.ok) throw new ApiError(res.status, `GET bootstrap/ → ${res.status}`)
   return {

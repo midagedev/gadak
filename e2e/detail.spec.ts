@@ -28,7 +28,7 @@ test.describe('detail', () => {
     await expect(panel.getByText('NMB-110').first()).toBeVisible()
 
     // Write gate: the configured credential alone must unlock the write UI
-    // (me/ → email → authed). Regression guard for the boot-time identity probe.
+    // (me/ → email → identified). Regression guard for the boot-time identity probe.
     await expect(panel.locator('textarea[placeholder*="Write a comment"]')).toBeVisible()
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

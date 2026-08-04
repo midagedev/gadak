@@ -26,10 +26,7 @@ export const ko = {
   'common.yes': '예',
   'common.no': '아니오',
   'common.settings': '설정',
-  'common.login': '로그인',
-  'common.logout': '로그아웃',
-  'common.email': '이메일',
-  'common.password': '비밀번호',
+  'common.setCredentials': '자격증명 설정',
   'common.name': '이름',
   'common.select': '선택',
   'common.deselect': '선택 해제',
@@ -329,18 +326,18 @@ export const ko = {
   'personal.myAssignee': '내 담당',
   'personal.myReporter': '내가 보고',
   'personal.feedHint': '내 이슈 변화 + 나를 멘션한 코멘트',
-  'personal.loginPrompt': '로그인하면 내 담당·보고·멘션이 여기 모입니다 →',
+  'personal.needCredentials': '자격증명을 설정하면 내 담당·보고·멘션이 여기 모입니다 →',
   'personal.favoriteAria': '{key} 즐겨찾기',
   'personal.unfavoriteAria': '{key} 즐겨찾기 해제',
   'personal.watchOn': '워치 해제 — 상태 변경/코멘트/재오픈 알림을 받고 있습니다',
   'personal.watchOff': '워치 — 변경 시 Teams 알림',
-  'personal.watchNeedLogin': '로그인하면 워치할 수 있습니다',
+  'personal.watchNeedCredentials': '자격증명을 설정하면 워치할 수 있습니다',
 
   /* ── Feed ── */
   'feed.title': '피드',
   'feed.markAllRead': '모두 읽음',
   'feed.backToList': '리스트로 돌아가기',
-  'feed.needLogin': '로그인이 필요합니다',
+  'feed.needCredentials': '먼저 Jira 자격증명을 설정하세요',
   'feed.loading': '피드 로딩 중',
   'feed.empty': '새 활동이 없습니다',
   'feed.filterAll': '전체',
@@ -376,14 +373,6 @@ export const ko = {
   'notif.quietHint': 'KST 기준 · 자정 걸침 가능',
   'notif.enabledHere': '이 브라우저에서 켜짐',
   'notif.enableHere': '이 브라우저에서 켜기',
-
-  /* ── Login ── */
-  'login.title': '로그인',
-  'login.heading': 'redacted-tool 로그인',
-  'login.hint': '워치·개인 피드 등 개인화 기능을 쓰려면 로그인하세요.',
-  'login.submitting': '로그인 중…',
-  'login.failed': '로그인에 실패했습니다.',
-  'login.networkFailed': '네트워크 오류로 로그인하지 못했습니다.',
 
   /* ── Detail ── */
   'detail.details': '세부 사항',
@@ -466,7 +455,7 @@ export const ko = {
   'write.credDeleteFailed': '자격증명 삭제에 실패했습니다.',
   'write.commentPlaceholder':
     '코멘트 작성…  (@멘션 · 파일 붙여넣기/드롭 · ⌘Enter 등록)',
-  'write.commentNeedLogin': '코멘트를 남기려면 로그인하세요',
+  'write.commentNeedCredentials': '코멘트를 남기려면 자격증명을 설정하세요',
   'write.commentPosting': '등록 중…',
   'write.commentButton': '코멘트',
   'write.removeAttachment': '첨부 제거',

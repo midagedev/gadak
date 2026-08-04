@@ -7,12 +7,13 @@
    *           개인 피드의 "보고" 초점 탭으로 연다(피드가 reporter 관계를 직접 계산).
    *   - 멘션/피드: 개인 피드(전체 초점) 열기.
    *  카운트는 로컬 풀에서 $derived(멘션은 API 결과 수).
-   *  비로그인 시엔 로그인 유도 문구만 노출.
+   *  Without identity: prompt to set credentials.
    */
   import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
+  import { write } from '../../stores/write.svelte'
   import { effectiveCategory, emptyConfig, type ViewConfig } from '../../lib/view-config'
   import { feature } from '../../lib/config'
 
@@ -55,7 +56,7 @@
     My Issues
   </div>
 
-  {#if me.authed}
+  {#if me.identified}
     <button
       type="button"
       class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
@@ -102,9 +103,9 @@
     <button
       type="button"
       class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
-      onclick={() => me.promptLogin()}
+      onclick={() => write.openSettings()}
     >
-      {t('personal.loginPrompt')}
+      {t('personal.needCredentials')}
     </button>
   {/if}
 </div>

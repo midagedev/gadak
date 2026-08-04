@@ -150,7 +150,7 @@
     }
   })
 
-  const canEdit = $derived(me.authed)
+  const canEdit = $derived(me.identified)
 </script>
 
 <div class="relative inline-block" bind:this={rootEl}>

@@ -1,22 +1,23 @@
 /*
- * Issue Navigator — 로그인/개인화 상태 스토어 ([personal], 계약 §2)
+ * Issue Navigator — identity / personalization store ([personal], contract §2)
  *
- * 역할:
- *  - 로그인 상태(email/name/department/토큰). 토큰은 localStorage(TOKEN_KEY)에 저장 →
- *    api.ts 가 매 요청에 `Authorization: Token` 을 자동으로 붙인다.
- *  - 워치 셋(SvelteSet, 옵티미스틱 토글 + 실패 롤백), 멘션 목록.
- *  - 즐겨찾기(localStorage `issue-nav:favorites`) / 최근 본 이슈(localStorage `issue-nav:recent`, 최대 30).
- *  - 소속 파트(group) 파생 — 스마트 기본값(파트 프리셋)에 쓰인다.
+ * Role:
+ *  - Identity (email/name/department) from GET auth/me/, which reads the stored
+ *    Jira credential. There is no scry account and no session token.
+ *  - Watch set (SvelteSet, optimistic toggle + rollback), feed, push prefs.
+ *  - Favorites (localStorage `issue-nav:favorites`) / recent issues
+ *    (localStorage `issue-nav:recent`, max 30).
+ *  - Derived group (part) for smart default views.
  *
- * 읽기 전용 기능은 비로그인(익명)으로 완전히 동작한다. 개인화 섹션만 로그인을 요구한다.
+ * Read-only features work with no credential. Personalization and writes need
+ * a configured credential (`identified` === email !== null).
  *
- * ⚠️ 반응성: Set 은 순정 Set 대신 svelte/reactivity 의 SvelteSet 을 써야 add/delete 가 반응성을 트리거한다.
+ * Reactivity: use svelte/reactivity SvelteSet so add/delete trigger updates.
  */
 
 import { t } from '../lib/i18n'
 import { SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
-import { TOKEN_KEY, getToken } from '../lib/api'
 import { basePath, config, feature } from '../lib/config'
 import { issues } from './issues.svelte'
 import type {
@@ -29,7 +30,7 @@ import type {
 
 export type { FeedFocus } from '../lib/types'
 
-/* 인증 API 는 issues API base 밖이라 여기서 직접 fetch 한다. */
+/* Auth API lives outside the issues API base. */
 const AUTH_BASE = config().authBase
 
 const FAVORITES_KEY = 'issue-nav:favorites'
@@ -78,7 +79,7 @@ function loadRecent(): RecentIssueVisit[] {
     const seen = new Set<string>()
     const visits: RecentIssueVisit[] = []
     for (const value of values) {
-      // 기존 string[] 기록은 순서를 보존하고, 다음 조회부터 정확한 시각을 채운다.
+      // Legacy string[] keeps order; fill exact timestamps on next view.
       const key = typeof value === 'string' ? value : isRecentVisit(value) ? value.key : ''
       if (!key || seen.has(key)) continue
       seen.add(key)
@@ -111,11 +112,6 @@ function saveRecent(visits: RecentIssueVisit[]): void {
   }
 }
 
-export interface LoginResult {
-  ok: boolean
-  error?: string
-}
-
 export type PushState =
   | 'unsupported'
   | 'unavailable'
@@ -128,17 +124,17 @@ export type PushState =
 const EMPTY_UNREAD: FeedUnreadCounts = { all: 0, assignee: 0, reporter: 0, mention: 0 }
 
 class MeStore {
-  /* ── 로그인 상태 ── */
+  /* ── Identity (from stored credential via auth/me/) ── */
   email = $state<string | null>(null)
   name = $state<string | null>(null)
   department = $state<string | null>(null)
-  /** init()(토큰 검증)이 끝났는지 — 개인화 UI 가 깜빡임 없이 분기하도록. */
+  /** init() finished — personalization UI can branch without a flash. */
   authChecked = $state(false)
 
-  /* ── 워치 ── */
+  /* ── Watches ── */
   watches = new SvelteSet<string>()
 
-  /* ── 서버 개인 피드 / 읽음 ── */
+  /* ── Server personal feed / read state ── */
   feedItems = $state<FeedItem[]>([])
   feedUnread = $state<FeedUnreadCounts>({ ...EMPTY_UNREAD })
   feedLoaded = $state(false)
@@ -149,22 +145,24 @@ class MeStore {
   pushState = $state<PushState>('default')
   pushError = $state<string | null>(null)
 
-  /* ── 로컬 개인화(비로그인도 동작) ── */
+  /* ── Local personalization (works without credential) ── */
   favorites = new SvelteSet<string>()
   recent = $state<RecentIssueVisit[]>([])
 
-  /** 개인 피드(메인 영역 토글 뷰)가 열려 있는지. */
+  /** Personal feed main-area toggle. */
   feedOpen = $state(false)
-  /** 피드 초점 탭(전체/담당/보고/멘션). */
+  /** Feed focus tab (all / assignee / reporter / mention). */
   feedFocus = $state<FeedFocus>('all')
-  /** 로그인 다이얼로그 표시 여부(어디서든 promptLogin 으로 연다). */
-  loginOpen = $state(false)
 
-  get authed(): boolean {
+  /**
+   * True when GET auth/me/ returned an email — synonymous with
+   * "a Jira credential is configured on the server".
+   */
+  get identified(): boolean {
     return this.email !== null
   }
 
-  /** 내 소속 파트(멤버 목록에서 email 매칭 → group). 스마트 기본값에 사용. */
+  /** My group (member directory email match). Used for smart defaults. */
   get group(): string | null {
     if (!this.email) return null
     return issues.members.get(this.email)?.group ?? null
@@ -174,10 +172,10 @@ class MeStore {
   #feedPollTimer: ReturnType<typeof setInterval> | null = null
 
   /**
-   * 부팅:
-   *  - 로컬 개인화(favorites/recent)는 항상 복원.
-   *  - 항상 me 확인(GET auth/me/) — 서버 credential 이 설정돼 있으면 email 이 오고
-   *    로그인 상태(쓰기/워치 활성). email:null 이면 조용히 익명(render-before-auth).
+   * Boot:
+   *  - Always restore local favorites/recent.
+   *  - Always probe GET auth/me/ — configured credential → email (identity);
+   *    otherwise 200 {email:null} and stay anonymous (render-before-auth).
    */
   async init(): Promise<void> {
     if (this.#initialized) return
@@ -186,84 +184,58 @@ class MeStore {
     for (const key of loadArray(FAVORITES_KEY)) this.favorites.add(key)
     this.recent = loadRecent()
 
-    // 서버 credential 이 곧 identity — 토큰 유무와 무관하게 항상 확인한다.
-    // (레거시 토큰이 있으면 같이 보내고, 무효 판명 시 정리)
-    const token = getToken()
     try {
-      const res = await fetch(`${AUTH_BASE}me/`, {
-        credentials: 'same-origin',
-        ...(token ? { headers: { Authorization: `Token ${token}` } } : {}),
-      })
-      if (res.ok) {
-        const data = (await res.json()) as { email: string | null; name?: string; department?: string }
-        if (data.email) {
-          this.#setUser(data.email, data.name ?? null, data.department ?? null)
-          await Promise.all([this.loadWatches(), this.loadFeed(), this.loadNotificationConfig()])
-          this.#startFeedPolling()
-        }
-      } else if (token) {
-        // 토큰 만료/무효 → 정리
-        this.#clearToken()
-      }
+      await this.#fetchIdentity({ loadPersonal: true })
     } catch (e) {
-      console.warn('[me] 인증 확인 실패(익명 진행)', e)
+      console.warn('[me] identity probe failed (continuing anonymous)', e)
     } finally {
       this.authChecked = true
     }
   }
 
-  /** 이메일/비밀번호 로그인. 성공 시 토큰 저장 + 워치/멘션 로드. */
-  async login(email: string, password: string): Promise<LoginResult> {
+  /**
+   * Re-read identity after credential save/delete. Loads personal surfaces when
+   * identity appears; clears them when it disappears.
+   */
+  async refreshIdentity(): Promise<void> {
     try {
-      const res = await fetch(`${AUTH_BASE}login/`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
-      })
-      const data = (await res.json().catch(() => ({}))) as {
-        token?: string
-        name?: string
-        email?: string
-        department?: string
-        error?: string
-      }
-      if (!res.ok || !data.token) {
-        return { ok: false, error: data.error ?? t('login.failed') }
-      }
-      try {
-        localStorage.setItem(TOKEN_KEY, data.token)
-      } catch (e) {
-        console.warn('[me] 토큰 저장 실패', e)
-      }
-      this.#setUser(data.email ?? email.trim(), data.name ?? null, data.department ?? null)
-      await Promise.all([this.loadWatches(), this.loadFeed(), this.loadNotificationConfig()])
-      this.#startFeedPolling()
-      return { ok: true }
+      await this.#fetchIdentity({ loadPersonal: true })
     } catch (e) {
-      console.warn('[me] 로그인 요청 실패', e)
-      return { ok: false, error: t('login.networkFailed') }
+      console.warn('[me] identity refresh failed', e)
     }
   }
 
-  /** 로그아웃 — 토큰/개인화 상태 정리(로컬 favorites/recent 는 유지). */
-  async logout(): Promise<void> {
-    if (this.pushState === 'subscribed') {
-      await this.disablePush().catch(() => undefined)
+  async #fetchIdentity(opts: { loadPersonal: boolean }): Promise<void> {
+    const res = await fetch(`${AUTH_BASE}me/`, { credentials: 'same-origin' })
+    if (!res.ok) return
+    const data = (await res.json()) as {
+      email: string | null
+      name?: string
+      department?: string
     }
-    const token = getToken()
-    if (token) {
-      try {
-        await fetch(`${AUTH_BASE}logout/`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { Authorization: `Token ${token}` },
-        })
-      } catch {
-        // 세션 로그아웃 실패는 무시 — 로컬 토큰만 지우면 충분
+    if (data.email) {
+      const wasIdentified = this.email !== null
+      this.#setUser(data.email, data.name ?? null, data.department ?? null)
+      if (opts.loadPersonal && !wasIdentified) {
+        await Promise.all([this.loadWatches(), this.loadFeed(), this.loadNotificationConfig()])
+        this.#startFeedPolling()
       }
+    } else if (this.email !== null) {
+      this.#clearIdentity()
     }
-    this.#clearToken()
+  }
+
+  #setUser(email: string, name: string | null, department: string | null): void {
+    this.email = email
+    this.name = name
+    this.department = department
+  }
+
+  /** Drop identity and personal server state; keep local favorites/recent. */
+  #clearIdentity(): void {
+    this.email = null
+    this.name = null
+    this.department = null
     this.watches.clear()
     this.feedItems = []
     this.feedUnread = { ...EMPTY_UNREAD }
@@ -273,24 +245,7 @@ class MeStore {
     this.#syncAppBadge()
   }
 
-  #setUser(email: string, name: string | null, department: string | null): void {
-    this.email = email
-    this.name = name
-    this.department = department
-  }
-
-  #clearToken(): void {
-    try {
-      localStorage.removeItem(TOKEN_KEY)
-    } catch {
-      /* noop */
-    }
-    this.email = null
-    this.name = null
-    this.department = null
-  }
-
-  /* ── 워치 ── */
+  /* ── Watches ── */
 
   async loadWatches(): Promise<void> {
     try {
@@ -306,11 +261,10 @@ class MeStore {
     return this.watches.has(key)
   }
 
-  /** 워치 토글 — 옵티미스틱 반영 후 서버 반영, 실패 시 롤백. 비로그인은 false 반환(호출부가 유도). */
+  /** Optimistic toggle; rolls back on failure. Returns false when not identified. */
   async toggleWatch(key: string): Promise<boolean> {
-    if (!this.authed) return false
+    if (!this.identified) return false
     const wasWatching = this.watches.has(key)
-    // 옵티미스틱
     if (wasWatching) this.watches.delete(key)
     else this.watches.add(key)
     try {
@@ -319,19 +273,17 @@ class MeStore {
       return true
     } catch (e) {
       console.warn('[me] 워치 토글 실패(롤백)', e)
-      // 롤백
       if (wasWatching) this.watches.add(key)
       else this.watches.delete(key)
       return false
     }
   }
 
-  /* ── 개인 피드 / 읽음 ── */
+  /* ── Personal feed / read ── */
 
-  /** 서버가 피드를 제공하지 않으면(feed=false) 아무 요청도 하지 않는다. 읽음 처리 계열도
-   *  전부 feedItems 가 비어 있어 자연히 no-op 이 된다. */
+  /** No-op when feed feature is off or no identity. */
   async loadFeed(focus: FeedFocus = this.feedFocus): Promise<void> {
-    if (!feature('feed') || !this.authed) return
+    if (!feature('feed') || !this.identified) return
     this.feedLoading = true
     try {
       const response = await api.getFeed(focus)
@@ -347,7 +299,7 @@ class MeStore {
   }
 
   async markEventRead(eventId: string): Promise<void> {
-    if (!this.authed) return
+    if (!this.identified) return
     const unread = this.feedItems.filter((item) => item.event_id === eventId && !item.read_at)
     if (!unread.length) return
     const now = new Date().toISOString()
@@ -365,7 +317,7 @@ class MeStore {
   }
 
   async markEventsRead(eventIds: string[]): Promise<void> {
-    if (!this.authed || !eventIds.length) return
+    if (!this.identified || !eventIds.length) return
     const ids = new Set(eventIds)
     const unread = this.feedItems.filter((item) => ids.has(item.event_id) && !item.read_at)
     if (!unread.length) return
@@ -384,7 +336,7 @@ class MeStore {
   }
 
   async markIssueRead(issueKey: string): Promise<void> {
-    if (!this.authed || !issueKey) return
+    if (!this.identified || !issueKey) return
     if (!this.feedItems.some((item) => item.issue_key === issueKey && !item.read_at)) return
     const now = new Date().toISOString()
     this.feedItems = this.feedItems.map((item) =>
@@ -401,7 +353,7 @@ class MeStore {
   }
 
   async markAllFeedRead(): Promise<void> {
-    if (!this.authed || this.feedUnread.all === 0) return
+    if (!this.identified || this.feedUnread.all === 0) return
     const previous = this.feedItems
     const now = new Date().toISOString()
     this.feedItems = this.feedItems.map((item) => ({ ...item, read_at: item.read_at ?? now }))
@@ -419,10 +371,10 @@ class MeStore {
     if (!feature('feed')) return
     if (this.#feedPollTimer || typeof window === 'undefined') return
     this.#feedPollTimer = setInterval(() => {
-      if (this.authed) void this.loadFeed()
+      if (this.identified) void this.loadFeed()
     }, 15_000)
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && this.authed) void this.loadFeed()
+      if (document.visibilityState === 'visible' && this.identified) void this.loadFeed()
     })
   }
 
@@ -446,9 +398,9 @@ class MeStore {
     )
   }
 
-  /** 웹 푸시가 꺼져 있으면 설정 조회도, 서비스워커 등록도 하지 않는다. */
+  /** Skip config fetch and SW registration when push is off. */
   async loadNotificationConfig(): Promise<void> {
-    if (!feature('push') || !this.authed) return
+    if (!feature('push') || !this.identified) return
     try {
       this.notificationConfig = await api.getNotificationConfig()
       if (!this.pushSupported) {
@@ -548,7 +500,7 @@ class MeStore {
     }
   }
 
-  /* ── 즐겨찾기 (로컬) ── */
+  /* ── Favorites (local) ── */
 
   isFavorite(key: string): boolean {
     return this.favorites.has(key)
@@ -575,7 +527,7 @@ class MeStore {
     saveArray(FAVORITES_KEY, ordered)
   }
 
-  /* ── 개인 피드 토글 ── */
+  /* ── Personal feed toggle ── */
 
   openFeed(focus: FeedFocus = 'all'): void {
     if (!feature('feed')) return
@@ -592,17 +544,7 @@ class MeStore {
     this.feedOpen = !this.feedOpen
   }
 
-  /* ── 로그인 다이얼로그 ── */
-
-  promptLogin(): void {
-    this.loginOpen = true
-  }
-
-  closeLogin(): void {
-    this.loginOpen = false
-  }
-
-  /* ── 최근 본 이슈 (로컬) ── */
+  /* ── Recent issues (local) ── */
 
   recordRecent(key: string): void {
     if (!key) return
@@ -615,5 +557,5 @@ class MeStore {
   }
 }
 
-/** 앱 전역 싱글턴. */
+/** App-wide singleton. */
 export const me = new MeStore()

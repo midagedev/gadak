@@ -25,10 +25,7 @@ export const en = {
   'common.yes': 'Yes',
   'common.no': 'No',
   'common.settings': 'Settings',
-  'common.login': 'Log in',
-  'common.logout': 'Log out',
-  'common.email': 'Email',
-  'common.password': 'Password',
+  'common.setCredentials': 'Set credentials',
   'common.name': 'Name',
   'common.select': 'Select',
   'common.deselect': 'Deselect',
@@ -328,18 +325,18 @@ export const en = {
   'personal.myAssignee': 'Assigned to me',
   'personal.myReporter': 'Reported by me',
   'personal.feedHint': 'Changes on my issues + comments that mention me',
-  'personal.loginPrompt': 'Log in to see assigned, reported, and mentions →',
+  'personal.needCredentials': 'Set credentials to see assigned, reported, and mentions →',
   'personal.favoriteAria': 'Favorite {key}',
   'personal.unfavoriteAria': 'Unfavorite {key}',
   'personal.watchOn': 'Watching — status/comment/reopen alerts on',
   'personal.watchOff': 'Watch — Teams alert on changes',
-  'personal.watchNeedLogin': 'Log in to watch',
+  'personal.watchNeedCredentials': 'Set credentials to watch',
 
   /* ── Feed ── */
   'feed.title': 'Feed',
   'feed.markAllRead': 'Mark all read',
   'feed.backToList': 'Back to list',
-  'feed.needLogin': 'Sign in required',
+  'feed.needCredentials': 'Set your Jira credentials first',
   'feed.loading': 'Loading feed',
   'feed.empty': 'No new activity',
   'feed.filterAll': 'All',
@@ -375,14 +372,6 @@ export const en = {
   'notif.quietHint': 'Local time · may span midnight',
   'notif.enabledHere': 'On in this browser',
   'notif.enableHere': 'Enable in this browser',
-
-  /* ── Login ── */
-  'login.title': 'Sign in',
-  'login.heading': 'redacted-tool sign-in',
-  'login.hint': 'Sign in for watches, personal feed, and other personal features.',
-  'login.submitting': 'Signing in…',
-  'login.failed': 'Sign-in failed.',
-  'login.networkFailed': 'Could not sign in due to a network error.',
 
   /* ── Detail ── */
   'detail.details': 'Details',
@@ -465,7 +454,7 @@ export const en = {
   'write.credDeleteFailed': 'Could not delete credentials.',
   'write.commentPlaceholder':
     'Write a comment…  (@mention · paste/drop files · ⌘Enter to post)',
-  'write.commentNeedLogin': 'Sign in to leave a comment',
+  'write.commentNeedCredentials': 'Set credentials to leave a comment',
   'write.commentPosting': 'Posting…',
   'write.commentButton': 'Comment',
   'write.removeAttachment': 'Remove attachment',

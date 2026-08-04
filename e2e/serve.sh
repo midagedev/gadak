@@ -28,7 +28,7 @@ rm -f "${DB}-wal" "${DB}-shm"
 
 # Demo projects + deploy/teamGroups surfaces. The credential is fake — nothing
 # in the suite talks to Jira — but its presence must unlock the write UI
-# (me/ → email → authed), which is asserted in detail.spec.ts.
+# (me/ → email → identified), which is asserted in detail.spec.ts.
 cat >"$CFG" <<'EOF'
 {
   "site": "https://nimbus.example.com",

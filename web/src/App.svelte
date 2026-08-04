@@ -30,7 +30,6 @@
   import ListView from './components/list/ListView.svelte'
   import DetailPanel from './components/detail/DetailPanel.svelte'
   import PersonalFeed from './components/personal/PersonalFeed.svelte'
-  import LoginDialog from './components/personal/LoginDialog.svelte'
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
   import SettingsDialog from './components/settings/SettingsDialog.svelte'
@@ -79,25 +78,25 @@
     if (key) untrack(() => me.recordRecent(key))
   })
 
-  // 이슈를 어떤 경로(리스트/피드/푸시)로 열든 해당 이슈의 새 활동을 읽음 처리.
+  // Mark feed events read whenever an issue is opened (list / feed / push).
   $effect(() => {
     const key = selection.selectedKey
-    const authed = me.authed
-    if (key && authed) untrack(() => void me.markIssueRead(key))
+    const identified = me.identified
+    if (key && identified) untrack(() => void me.markIssueRead(key))
   })
 
-  // ── 로그인 상태 ↔ Jira 자격증명 로드/리셋 (사이드바 ⚙︎ 표시·쓰기 게이트용) ──
+  // ── Identity ↔ credential load/reset (sidebar ⚙︎ + write gate) ──
   $effect(() => {
-    if (me.authed) {
+    if (me.identified) {
       void write.loadCredential()
     } else if (me.authChecked) {
       write.resetCredential()
     }
   })
 
-  // ── 전역 단축키 ──
-  //  ⌘K/Ctrl+K = 커맨드 팔레트 토글(입력 필드 포커스 중에도 열려야 하므로 가드 앞에서 처리).
-  //  c = 새 이슈 (입력 필드 포커스/다이얼로그 열림 중엔 무시).
+  // ── Global shortcuts ──
+  //  ⌘K/Ctrl+K = command palette (even while a field is focused).
+  //  c = new issue (ignored while typing or a dialog is open).
   function onGlobalKey(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault()
@@ -110,8 +109,7 @@
       const tag = t.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return
     }
-    if (me.loginOpen || write.settingsOpen || write.newIssueOpen || serverSettingsOpen || paletteOpen)
-      return
+    if (write.settingsOpen || write.newIssueOpen || serverSettingsOpen || paletteOpen) return
     e.preventDefault()
     write.openNewIssue()
   }
@@ -154,7 +152,7 @@
       return
     }
 
-    // 2) 내 소속 파트 프리셋(파트 분류 사용 + 로그인 + group 존재 시)
+    // 2) Group preset when taxonomy is on and identity has a group
     if (feature('teamGroups') && me.group) {
       const c: ViewConfig = emptyConfig()
       c.filters.d1_group = [me.group]
@@ -163,7 +161,7 @@
       return
     }
 
-    // 비로그인/파트 미지정 사용자는 전체 미해결을 기본으로 본다.
+    // No identity / no group → all open issues
     const c: ViewConfig = emptyConfig()
     c.filters.status_category = ['new', 'inprogress']
     filters.applyConfig(c)
@@ -242,10 +240,6 @@
       </RightPanel>
     </div>
   </div>
-{/if}
-
-{#if me.loginOpen}
-  <LoginDialog onClose={() => me.closeLogin()} />
 {/if}
 
 {#if write.settingsOpen}

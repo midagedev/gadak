@@ -240,7 +240,7 @@
 
   </div>
 
-  <!-- 설정 / 로그인 영역(사이드바 하단) -->
+  <!-- Settings / identity area (sidebar footer) -->
   <div class="flex-none border-t border-border-subtle px-3 py-2">
     <button
       type="button"
@@ -260,7 +260,7 @@
       </svg>
       {t('sidebar.settings')}
     </button>
-    {#if me.authed}
+    {#if me.identified}
       <div class="flex items-center gap-2 text-[12px]">
         <span class="min-w-0 flex-1 truncate text-text-secondary" title={me.email ?? undefined}>
           {me.name ?? me.email}
@@ -289,21 +289,14 @@
             />
           </svg>
         </button>
-        <button
-          type="button"
-          class="flex-none text-[11px] text-text-muted transition-colors hover:text-text-primary"
-          onclick={() => me.logout()}
-        >
-          {t('common.logout')}
-        </button>
       </div>
     {:else if me.authChecked}
       <button
         type="button"
         class="flex w-full items-center justify-center gap-1.5 rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-        onclick={() => me.promptLogin()}
+        onclick={() => write.openSettings()}
       >
-        {t('common.login')}
+        {t('common.setCredentials')}
       </button>
     {/if}
   </div>

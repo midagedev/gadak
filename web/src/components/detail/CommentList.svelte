@@ -56,7 +56,7 @@
           <span class="text-[11px] text-text-muted" title={absoluteTime(c.created_at)}>
             {relativeTime(c.created_at)}
           </span>
-          {#if me.authed && c.author_account_id && !c.comment_id.startsWith('temp-')}
+          {#if me.identified && c.author_account_id && !c.comment_id.startsWith('temp-')}
             <button
               type="button"
               class="ml-auto rounded px-1.5 py-0.5 text-[11px] text-text-muted opacity-0 transition-colors hover:bg-bg-hover hover:text-text-primary group-hover:opacity-100"

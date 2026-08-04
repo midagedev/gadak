@@ -8,7 +8,7 @@
    *      · version_array : 체크박스 다중선택 + "적용".
    *      · user          : 로컬 멤버(개인화 정렬) + 2자↑ 서버 검색 폴백(+"해제").
    *  - 선택 시 write.setField() 옵티미스틱(표시값 즉시 반영 → 서버 재동기화로 확정).
-   * 편집 불가/미로그인 등으로 editmeta 가 없으면 조용히 읽기 전용으로 폴백한다.
+   * Falls back to read-only when editmeta is missing (not editable / no credential).
    */
   import { t, collator } from '../../lib/i18n'
   import type { EditMetaOption, IssueLite, JiraUser, Member } from '../../lib/types'
@@ -135,7 +135,7 @@
     label?: string
   }
 
-  const meMember = $derived(me.authed && me.email ? issues.members.get(me.email) : undefined)
+  const meMember = $derived(me.identified && me.email ? issues.members.get(me.email) : undefined)
   const reporterMember = $derived(issues.memberOf(issue.reporter_email))
 
   /** 로컬 멤버(개인화) — 나 → 보고자 → 이름순. jira_account_id 있는 멤버만. */
@@ -237,7 +237,7 @@
     }
   })
 
-  const canEdit = $derived(me.authed)
+  const canEdit = $derived(me.identified)
 </script>
 
 <div class="relative inline-block w-full" bind:this={rootEl}>

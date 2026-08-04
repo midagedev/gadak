@@ -173,8 +173,8 @@
   </header>
 
   <div class="min-h-0 flex-1 overflow-y-auto">
-    {#if !me.authed}
-      <EmptyState icon="" title={t('feed.needLogin')} />
+    {#if !me.identified}
+      <EmptyState icon="" title={t('feed.needCredentials')} />
     {:else if me.feedLoading && !me.feedLoaded}
       <div class="space-y-px p-2" aria-label={t('feed.loading')}>
         {#each Array(6) as _}

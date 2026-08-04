@@ -1,11 +1,12 @@
 <script lang="ts">
   /*
-   * 워치 토글 버튼 ([personal]). 눈 아이콘 + watching 상태 표시.
-   *  - 로그인: 옵티미스틱 토글(me.toggleWatch, 실패 시 롤백).
-   *  - 비로그인: 클릭 시 로그인 유도 콜백(onNeedLogin) 호출.
+   * Watch toggle ([personal]). Eye icon + watching state.
+   *  - Identified: optimistic toggle (me.toggleWatch, rollback on failure).
+   *  - No credential: open credential settings.
    */
   import { t } from '../../lib/i18n'
   import { me } from '../../stores/me.svelte'
+  import { write } from '../../stores/write.svelte'
 
   let { issueKey }: { issueKey: string } = $props()
 
@@ -14,8 +15,8 @@
 
   async function onClick(e: MouseEvent) {
     e.stopPropagation()
-    if (!me.authed) {
-      me.promptLogin()
+    if (!me.identified) {
+      write.openSettings()
       return
     }
     if (busy) return
@@ -31,15 +32,15 @@
   class="flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors {watching
     ? 'bg-accent-subtle/40 text-accent-text hover:bg-accent-subtle/60'
     : 'text-text-muted hover:bg-bg-hover hover:text-text-primary'}"
-  title={me.authed
+  title={me.identified
     ? watching
       ? t('personal.watchOn')
       : t('personal.watchOff')
-    : t('personal.watchNeedLogin')}
+    : t('personal.watchNeedCredentials')}
   aria-pressed={watching}
 >
   {#if watching}
-    <!-- 뜬 눈 -->
+    <!-- Open eye -->
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path
         d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8Z"
@@ -50,7 +51,7 @@
     </svg>
     <span>{t('common.watching')}</span>
   {:else}
-    <!-- 감은 눈 -->
+    <!-- Closed eye -->
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path
         d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8Z"
