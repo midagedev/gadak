@@ -18,15 +18,44 @@ one issue in the mirror.
 | `1` `2` `3` `4` | all / open / in progress / done |
 | `/` | filter by key, summary, or assignee (local, per keystroke) |
 | `Enter` | open detail |
-| `Esc` | back, or clear the filter |
+| `Esc` | back, or clear the filter / leave feed or views |
 | `c` | comment |
 | `t` | transition |
 | `a` | assign |
-| `r` | re-read the mirror from disk |
+| `w` | watch / unwatch the current issue |
+| `F` | personal feed (toggle): activity list; `Enter` opens the issue; `r` marks all read |
+| `v` | saved views picker — apply a stored view (supported filters only) |
+| `?` | help overlay (actual bindings only) |
+| `r` | re-read the mirror from disk (in feed mode: mark all feed events read) |
 | `q`, `Ctrl+C` | quit |
 
 Write keys are inert until a credential is configured (`scry init`); the status
 bar says so rather than failing at submit time.
+
+### Feed
+
+`F` loads the personal feed from the mirror (`store.Feed`): recent activity on
+issues you watch, are assigned to, reported, or were mentioned on (30-day window).
+Unread count appears as a `feed N` chip on the list status bar. In the feed list,
+`r` marks every event read and reloads.
+
+### Saved views
+
+`v` lists rows from `saved_views`. Applying a view maps what the TUI can honour:
+
+- `status_category` → tab / category filter
+- `assignee_email` / `assignee` → assignee filter
+- `q` / `text` → the `/` text filter
+- `unassigned` → unassigned-only
+
+Anything else (labels, sort, group_by, stale, …) is ignored and the status bar
+says `unsupported filter ignored: …`. That is intentional honesty, not a silent
+drop.
+
+### Narrow terminals
+
+Below 40 columns the list shows only key + summary, and the status bar shortens
+its help strip.
 
 ## Fonts, and why Korean or Japanese columns can look wrong
 
@@ -60,6 +89,7 @@ up rich text, images, find-in-page, and screen readers to get it. See
 
 ## What it deliberately does not do
 
-Triage is the scope: find the issue, read it, move it. Saved views, grouping,
-bulk edits, attachments, and rich-text rendering stay in the web UI. If you find
-yourself wanting those in the terminal, `scry sql` is usually the faster answer.
+Triage is the scope: find the issue, read it, move it, watch it, skim the feed.
+Grouping, bulk edits, attachments, and rich-text rendering stay in the web UI.
+Saved views apply only the filters the TUI can express; the rest is reported, not
+faked. If you need the full filter surface, `scry sql` or the web UI is faster.

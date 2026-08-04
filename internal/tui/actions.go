@@ -82,6 +82,20 @@ func (m *Model) requireWrite() (writeClient, error) {
 }
 
 func (m *Model) selectedKey() (string, bool) {
+	// Detail (list or feed) always wins — the list cursor may not match the open issue.
+	if m.mode == modeDetail && m.detailKey != "" {
+		return m.detailKey, true
+	}
+	if m.mode == modeFeed {
+		if len(m.feedItems) == 0 || m.feedCursor < 0 || m.feedCursor >= len(m.feedItems) {
+			return "", false
+		}
+		k := m.feedItems[m.feedCursor].IssueKey
+		if k == "" {
+			return "", false
+		}
+		return k, true
+	}
 	if len(m.visible) == 0 || m.cursor < 0 || m.cursor >= len(m.visible) {
 		return "", false
 	}
