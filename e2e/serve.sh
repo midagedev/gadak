@@ -63,7 +63,8 @@ if [ -n "${SCRY_FRESHEN:-}" ]; then
   sqlite3 "$DB" "UPDATE sync_state SET watermark = strftime('%Y-%m-%dT%H:%M:%S.000Z','now'),
                                        last_full_sync_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now'),
                                        last_error = NULL;
-                 UPDATE items SET synced_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now');"
+                 UPDATE items SET synced_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now');
+                 UPDATE sources SET synced_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now');"
 fi
 
 echo "[e2e] injecting deploy enrichment on NMB-110…"
