@@ -9,7 +9,9 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
+	"time"
 )
 
 // This file is the only one that changes anything in Jira. Every call here is a
@@ -228,4 +230,51 @@ func (c *Client) Upload(ctx context.Context, key, filename string, file io.Reade
 	}
 	var out []Attachment
 	return out, json.Unmarshal(data, &out)
+}
+
+// mediaIDPattern pulls the media UUID out of the pre-signed media URL Jira
+// redirects an attachment download to. The path looks like
+// `/file/<uuid>/binary` (or `/file/<uuid>/artifact/...`).
+var mediaIDPattern = regexp.MustCompile(`/file/([0-9a-fA-F-]{36})`)
+
+// MediaID resolves an attachment id to the media UUID an ADF `media` node needs.
+//
+// There is no documented endpoint for this. Requesting the attachment's content
+// answers 3xx to a pre-signed media URL that carries the UUID, so the redirect is
+// read rather than followed — following it would download the whole file for a
+// string, and the credential must not travel to the media host.
+func (c *Client) MediaID(ctx context.Context, attachmentID string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.base+apiPath+"/attachment/content/"+url.PathEscape(attachmentID), nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", c.auth)
+
+	// A client that refuses redirects, so the Location header survives.
+	noFollow := &http.Client{
+		Timeout:       30 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	if c.HTTP != nil {
+		noFollow.Transport = c.HTTP.Transport
+	}
+	res, err := noFollow.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+		return "", ErrAuth
+	}
+	loc := res.Header.Get("Location")
+	if loc == "" {
+		return "", fmt.Errorf("jira: attachment %s did not redirect to a media URL (status %d)",
+			attachmentID, res.StatusCode)
+	}
+	m := mediaIDPattern.FindStringSubmatch(loc)
+	if m == nil {
+		return "", fmt.Errorf("jira: no media id in the attachment redirect for %s", attachmentID)
+	}
+	return m[1], nil
 }

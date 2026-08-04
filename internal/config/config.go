@@ -68,6 +68,9 @@ type Config struct {
 	QaDashboardURL string             `json:"qaDashboardUrl,omitempty"`
 
 	StaleThresholdHours int `json:"staleThresholdHours,omitempty"` // 0 = 프론트 기본(72)
+	// AttachmentCacheMB caps the on-disk attachment byte cache. 0 = package
+	// default (512 MB); a negative value is treated as 0.
+	AttachmentCacheMB int `json:"attachmentCacheMB,omitempty"`
 
 	// sync 주기 (초). 0 = 기본 (incremental 60, reconcile 3600)
 	SyncIntervalSec      int `json:"syncIntervalSec,omitempty"`
@@ -114,6 +117,17 @@ func DBPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(d, "scry.db"), nil
+}
+
+// AttachmentDir is where attachment bytes are cached, next to the mirror it
+// belongs to (so a profile keeps its own, and deleting a profile takes its cache
+// with it).
+func AttachmentDir() (string, error) {
+	d, err := Dir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(d, "attachments"), nil
 }
 
 // Profiles 는 존재하는 프로필 이름 목록 (기본 프로필 제외).

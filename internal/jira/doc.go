@@ -13,6 +13,14 @@ import (
 //
 // mentions maps display name to account id.
 func Doc(text string, mentions map[string]string) json.RawMessage {
+	return DocWithMedia(text, mentions, nil)
+}
+
+// DocWithMedia is Doc plus inline images. Each media id is a Jira **media UUID**
+// (not an attachment id) — see Client.MediaID. They render as one mediaSingle
+// block per image, appended after the text, which is where a screenshot belongs
+// in a comment that describes it.
+func DocWithMedia(text string, mentions map[string]string, mediaIDs []string) json.RawMessage {
 	// Longest name first: "@김현" must not win over "@김현철".
 	names := make([]string, 0, len(mentions))
 	for name := range mentions {
@@ -30,6 +38,21 @@ func Doc(text string, mentions map[string]string) json.RawMessage {
 			para["content"] = nodes
 		}
 		content = append(content, para)
+	}
+	for _, id := range mediaIDs {
+		if id == "" {
+			continue
+		}
+		content = append(content, map[string]any{
+			"type":    "mediaSingle",
+			"attrs":   map[string]any{"layout": "center"},
+			"content": []any{map[string]any{
+				"type": "media",
+				// collection must be present and empty for an issue attachment;
+				// Jira rejects the node without it.
+				"attrs": map[string]any{"type": "file", "id": id, "collection": ""},
+			}},
+		})
 	}
 	doc, err := json.Marshal(map[string]any{"type": "doc", "version": 1, "content": content})
 	if err != nil {

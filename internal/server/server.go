@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/midagedev/scry/internal/attachcache"
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/store"
 )
@@ -41,15 +42,25 @@ type server struct {
 
 	mu     sync.Mutex
 	cached *derivedView
+
+	// cache holds attachment bytes on disk. nil disables caching and every view
+	// proxies, which is the pre-cache behavior.
+	cache *attachcache.Cache
 }
 
 // New returns the API handler. Mount it at "/api/" — the patterns below carry
 // their full paths, so nothing strips a prefix.
 func New(db *store.DB, cfg *config.Config) http.Handler {
+	return NewWithCache(db, cfg, nil)
+}
+
+// NewWithCache is New plus an attachment byte cache. `scry serve` passes one
+// rooted under SCRY_HOME; tests pass nil when they do not exercise attachments.
+func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) http.Handler {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	s := &server{db: db}
+	s := &server{db: db, cache: cache}
 	s.cfg.Store(cfg)
 
 	// Every pattern is anchored with {$}: a trailing slash alone would make each

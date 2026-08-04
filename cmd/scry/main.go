@@ -30,6 +30,7 @@ import (
 	"time"
 
 	scry "github.com/midagedev/scry"
+	"github.com/midagedev/scry/internal/attachcache"
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/server"
 	"github.com/midagedev/scry/internal/store"
@@ -135,7 +136,20 @@ func cmdServe(args []string) error {
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(doc)
 	})
-	mux.Handle("/api/", server.New(db, cfg))
+	// Attachment bytes live on disk next to the mirror: the first view fetches
+	// them from Jira, every later one is local, and a cached image still renders
+	// with no credential at all.
+	var apiHandler http.Handler
+	if dir, err := config.AttachmentDir(); err != nil {
+		log.Printf("warning: attachment cache disabled: %v", err)
+		apiHandler = server.New(db, cfg)
+	} else if cache, err := attachcache.New(dir, int64(cfg.AttachmentCacheMB)<<20); err != nil {
+		log.Printf("warning: attachment cache disabled: %v", err)
+		apiHandler = server.New(db, cfg)
+	} else {
+		apiHandler = server.NewWithCache(db, cfg, cache)
+	}
+	mux.Handle("/api/", apiHandler)
 
 	// The embedded UI is the default; --static overrides it for development
 	// (`npm run build` output) without rebuilding the binary.
