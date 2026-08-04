@@ -20,9 +20,9 @@ Jira issues are mirrored to a local SQLite file. Prefer these over any Jira API:
   through to Jira.
 
 Rules: filter on `status_category` ('new'|'inprogress'|'done') and ids, never
-on display names — Jira localizes those per account. `issues` joins to `items`
-for the title: `join items it on it.id = i.item_id`. If the mirror warns it is
-stale, mention that in your answer.
+on display names — Jira localizes those per account. Query the `issues_full`
+view (it includes `summary`); the bare `issues` table has no title column. If
+the mirror warns it is stale, mention that in your answer.
 ```
 
 ## Cursor — `.cursor/rules/scry.mdc`
@@ -36,7 +36,7 @@ alwaysApply: false
 When the user asks about Jira issues, use the scry CLI against the local
 mirror: `scry issue <KEY> --json`, `scry search "<text>" --json`, or
 `scry sql "<select …>"` (read-only). Filter on status_category, not display
-names. Titles live in `items`: `join items it on it.id = i.item_id`.
+names. Use the `issues_full` view — it includes the issue title as `summary`.
 ```
 
 ## Codex — `AGENTS.md` (repo root)
@@ -47,7 +47,7 @@ names. Titles live in `items`: `join items it on it.id = i.item_id`.
 Use the scry local mirror, not the Jira REST API:
 `scry issue <KEY> --json` · `scry search "<text>" --json` ·
 `scry sql "<read-only select>"`. Filter on `status_category` and ids, never
-display names. Titles: `join items it on it.id = i.item_id`.
+display names. Use the `issues_full` view for titles.
 ```
 
 ## MCP (for hosts without a shell)
