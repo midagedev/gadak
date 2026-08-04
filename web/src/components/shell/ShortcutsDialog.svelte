@@ -1,9 +1,9 @@
 <script lang="ts">
   /*
    * Keyboard cheat sheet (`?`). Every row below maps to a handler that actually
-   * exists — App.svelte (⌘K / c / ?), IssueList (j/k/Enter/Esc), SearchBox (/),
-   * CommandPalette (↑↓/Enter/Esc), CommentComposer (⌘↩). Do not document a key
-   * that no handler listens for.
+   * exists — App.svelte (⌘K / c / ? / s / a / x), IssueList (j/k/Enter/Esc/x),
+   * SearchBox (/), CommandPalette (↑↓/Enter/Esc), CommentComposer (⌘↩).
+   * Do not document a key that no handler listens for.
    */
   import { t } from '../../lib/i18n'
   import { trapFocus } from '../../lib/focus-trap'
@@ -30,6 +30,15 @@
         ['k', t('shortcuts.moveUp')],
         ['↵', t('shortcuts.openIssue')],
         ['Esc', t('shortcuts.closeDetail')],
+        ['x', t('shortcuts.closeDetailX')],
+      ],
+    },
+    {
+      title: t('shortcuts.sectionDetail'),
+      rows: [
+        ['s', t('shortcuts.focusStatus')],
+        ['a', t('shortcuts.focusAssignee')],
+        ['c', t('shortcuts.focusComment')],
       ],
     },
     {

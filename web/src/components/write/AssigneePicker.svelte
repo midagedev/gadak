@@ -233,6 +233,7 @@
   <button
     type="button"
     onclick={openPicker}
+    data-testid="assignee-picker"
     class="group flex items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-bg-hover"
     title={me.identified ? t('write.changeAssignee') : (issue.assignee ?? t('common.unassigned'))}
     disabled={busy}
