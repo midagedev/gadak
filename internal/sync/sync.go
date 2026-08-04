@@ -138,7 +138,10 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 	if res.Full {
 		for _, p := range cfg.Projects {
 			opts.logf("full sync: %s", p)
-			if err := c.Search(ctx, fmt.Sprintf("project = %q ORDER BY created ASC", p), fields, true, page); err != nil {
+			// Newest activity first: the mirror is usable the moment the first
+			// page lands, instead of after every historical issue. The watermark
+			// is max(updated) over fetched pages, so ordering does not affect it.
+			if err := c.Search(ctx, fmt.Sprintf("project = %q ORDER BY updated DESC", p), fields, true, page); err != nil {
 				return res, record(db, res, err)
 			}
 		}

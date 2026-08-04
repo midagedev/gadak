@@ -640,6 +640,7 @@ Commands:
 
 Reading the mirror (no network; see AGENTS.md):
   issue      full detail for one issue    <KEY> [--json]
+  open       open the issue on your Jira site in the browser  <KEY>
   search     full-text search            [--limit N] [--json] "text"
   sql        read-only SQL               [--json|--csv] "select ..."
   mcp        MCP server on stdio (for clients without a shell; see docs/MCP.md)
@@ -681,6 +682,8 @@ func main() {
 		err = cmdSQL(args[1:])
 	case "issue":
 		err = cmdIssue(args[1:])
+	case "open":
+		err = cmdOpen(args[1:])
 	case "search":
 		err = cmdSearch(args[1:])
 	case "comment":

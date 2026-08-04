@@ -123,6 +123,10 @@ Rules that come with the file:
 ```bash
 scry issue NMB-140                   # fields, description, comments, history, links
 scry issue NMB-140 --json            # the `GET <key>/detail/` document plus the list row
+# `scry issue` is the context pack: one call returns everything an LLM needs
+# about an issue — no follow-up requests, no pagination.
+
+scry open NMB-140                    # jump to the issue on the Jira site (boards, admin)
 
 scry search "flaky upload" --limit 5
 scry search "idempotency" --json     # matching IssueLite rows, best match first

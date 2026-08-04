@@ -18,7 +18,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"os/exec"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -466,4 +469,35 @@ func resolveAccount(ctx context.Context, c *jira.Client, who string) (string, er
 		names = append(names, fmt.Sprintf("%s <%s>", u.DisplayName, u.Email))
 	}
 	return "", fmt.Errorf("%q matches %d users — be more specific: %s", who, len(users), strings.Join(names, "; "))
+}
+
+// cmdOpen jumps from a key in the terminal to the issue on the Jira site.
+// scry is the fast path for reading; this is the escape hatch for everything
+// the mirror deliberately does not do (boards, admin, workflow).
+func cmdOpen(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: scry open <KEY>")
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if cfg.Site == "" {
+		return errors.New("no Jira site configured — run `scry init` first")
+	}
+	u := strings.TrimRight(cfg.Site, "/") + "/browse/" + url.PathEscape(normalizeKey(args[0]))
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", u)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", u)
+	default:
+		cmd = exec.Command("xdg-open", u)
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("could not open a browser (%v) — the URL is %s", err, u)
+	}
+	fmt.Println(u)
+	return nil
 }

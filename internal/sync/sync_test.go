@@ -342,7 +342,7 @@ func TestFullSyncMapsEverything(t *testing.T) {
 		t.Fatalf("mirror holds %d issues, err = %v", len(lites), err)
 	}
 	// Two pages of two, so pagination actually happened.
-	if !strings.Contains(site.syncJQL, `project = "NMB" ORDER BY created ASC`) {
+	if !strings.Contains(site.syncJQL, `project = "NMB" ORDER BY updated DESC`) {
 		t.Errorf("full sync JQL = %q", site.syncJQL)
 	}
 	fields := strings.Join(site.syncFields, ",")
