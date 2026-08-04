@@ -409,6 +409,28 @@ export interface SettingsGroupRule {
   components?: string[]
 }
 
+/** Read-only instance facts from GET settings/. Never carries secrets. */
+export interface SettingsRuntime {
+  profile: string
+  dbPath: string
+  dbSizeBytes: number
+  dbSizeHuman: string
+  dbModifiedAt?: string | null
+  configPath: string
+  issueCount: number
+  commentCount: number
+  schemaVersion: number
+  watermark?: string
+  syncVersion: number
+  lastFullSyncAt?: string | null
+  lastError?: string | null
+  scryVersion: string
+  /** Placeholder when syncIntervalSec is 0. */
+  defaultSyncIntervalSec: number
+  /** Placeholder when reconcileIntervalSec is 0. */
+  defaultReconcileIntervalSec: number
+}
+
 export interface ScrySettings {
   projects?: string[]
   fieldMap?: Record<string, string>
@@ -422,6 +444,15 @@ export interface ScrySettings {
   features?: Partial<ScryFeatures>
   qaDashboardUrl?: string
   staleThresholdHours?: number
+  /** Incremental sync period in seconds. 0 = server default. Min 15 when set. */
+  syncIntervalSec?: number
+  /** Reconcile (deletion) period in seconds. 0 = server default. Min 300 when set. */
+  reconcileIntervalSec?: number
+  /** Connection panel (read-only). */
+  site?: string
+  hasCredential?: boolean
+  /** Instance facts (read-only; ignored on PUT). */
+  runtime?: SettingsRuntime
 }
 
 export function getSettings(): Promise<ScrySettings> {

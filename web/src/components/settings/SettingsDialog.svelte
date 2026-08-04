@@ -11,7 +11,7 @@
   import { t, locale, setLocale, type Locale } from '../../lib/i18n'
   import { onMount } from 'svelte'
   import * as api from '../../lib/api'
-  import type { ScrySettings } from '../../lib/api'
+  import type { ScrySettings, SettingsRuntime } from '../../lib/api'
   import type { ScryFeatures } from '../../lib/config'
   import { write } from '../../stores/write.svelte'
   import KeyValueRows from './KeyValueRows.svelte'
@@ -37,12 +37,31 @@
     ['teamGroups', t('settings.featureTeams'), t('settings.featureTeamsDesc')],
   ]
 
+  /** Preset values in seconds. 0 = server default; -1 = custom number entry. */
+  const SYNC_PRESETS: { value: number; label: string }[] = [
+    { value: 0, label: t('settings.intervalDefault') },
+    { value: 30, label: t('settings.intervalPreset30s') },
+    { value: 60, label: t('settings.intervalPreset1m') },
+    { value: 300, label: t('settings.intervalPreset5m') },
+    { value: 900, label: t('settings.intervalPreset15m') },
+    { value: -1, label: t('settings.intervalCustom') },
+  ]
+  const RECONCILE_PRESETS: { value: number; label: string }[] = [
+    { value: 0, label: t('settings.intervalDefault') },
+    { value: 3600, label: t('settings.intervalPreset1h') },
+    { value: 21600, label: t('settings.intervalPreset6h') },
+    { value: 86400, label: t('settings.intervalPreset24h') },
+    { value: -1, label: t('settings.intervalCustom') },
+  ]
+
   const INPUT =
     'w-full rounded-md border border-border-strong bg-bg-base px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent'
   const ADD_BTN =
     'self-start rounded-md border border-border-strong px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
   const DEL_BTN =
     'w-6 flex-none text-[12px] text-text-muted transition-colors hover:text-status-reopen'
+  const COPY_BTN =
+    'rounded border border-border-strong px-1.5 py-0.5 text-[10px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
 
   interface Kv {
     k: string
@@ -100,6 +119,16 @@
   let editableRows = $state<Kv[]>([])
   let bodyFieldsText = $state('')
 
+  // Interval UI: preset select (-1 = custom) + custom seconds text.
+  let syncPreset = $state(0)
+  let syncCustomText = $state('')
+  let reconcilePreset = $state(0)
+  let reconcileCustomText = $state('')
+  let defaultSyncSec = $state(60)
+  let defaultReconcileSec = $state(3600)
+  let runtime = $state<SettingsRuntime | null>(null)
+  let copiedKey = $state<string | null>(null)
+
   let jsonText = $state('')
   let jsonError = $state<string | null>(null)
 
@@ -117,12 +146,38 @@
     return out
   }
 
+  function pickPreset(sec: number, presets: { value: number }[]): number {
+    if (!sec || sec <= 0) return 0
+    return presets.some((p) => p.value === sec) ? sec : -1
+  }
+
+  function resolveInterval(preset: number, customText: string): number {
+    if (preset === 0) return 0
+    if (preset > 0) return preset
+    const n = Number(customText)
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+  }
+
   /** 서버 응답(또는 JSON textarea)을 폼 상태로 펼친다. */
   function load(s: ScrySettings) {
     projectsText = joinCsv(s.projects)
     staleText = String(s.staleThresholdHours ?? 72)
     qaDashboardUrl = s.qaDashboardUrl ?? ''
     features = { ...features, ...(s.features ?? {}) }
+
+    if (s.runtime) {
+      runtime = s.runtime
+      defaultSyncSec = s.runtime.defaultSyncIntervalSec || 60
+      defaultReconcileSec = s.runtime.defaultReconcileIntervalSec || 3600
+    }
+
+    const syncSec = s.syncIntervalSec ?? 0
+    syncPreset = pickPreset(syncSec, SYNC_PRESETS)
+    syncCustomText = syncPreset === -1 ? String(syncSec) : ''
+
+    const recSec = s.reconcileIntervalSec ?? 0
+    reconcilePreset = pickPreset(recSec, RECONCILE_PRESETS)
+    reconcileCustomText = reconcilePreset === -1 ? String(recSec) : ''
 
     const groupKeys = [
       ...new Set([...Object.keys(s.groupLabels ?? {}), ...Object.keys(s.groupColors ?? {})]),
@@ -160,7 +215,7 @@
     bodyFieldsText = joinCsv(s.bodyFields)
   }
 
-  /** 폼 상태 → PUT 페이로드(전체 교체). */
+  /** 폼 상태 → PUT 페이로드(전체 교체). runtime/site 은 보내지 않는다. */
   function build(): ScrySettings {
     const groupLabels: Record<string, string> = {}
     const groupColors: Record<string, string> = {}
@@ -179,6 +234,8 @@
     return {
       projects: splitCsv(projectsText),
       staleThresholdHours: Number.isFinite(hours) && hours > 0 ? hours : 72,
+      syncIntervalSec: resolveInterval(syncPreset, syncCustomText),
+      reconcileIntervalSec: resolveInterval(reconcilePreset, reconcileCustomText),
       qaDashboardUrl: qaDashboardUrl.trim(),
       features: { ...features },
       groupLabels,
@@ -198,6 +255,19 @@
       fieldMap: rec(fieldMapRows),
       editableFields: rec(editableRows),
       bodyFields: splitCsv(bodyFieldsText),
+    }
+  }
+
+  async function copyText(key: string, text: string) {
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      copiedKey = key
+      setTimeout(() => {
+        if (copiedKey === key) copiedKey = null
+      }, 1500)
+    } catch {
+      /* clipboard may be denied — ignore */
     }
   }
 
@@ -290,12 +360,162 @@
     <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[12px]">
       {#if loading}
         <p class="py-8 text-center text-text-muted">{t('settings.loading')}</p>
-      {:else if tab === 'sync'}
+      {:else}
+        <!-- This mirror — read-only runtime facts (always above tab content) -->
+        {#if runtime}
+          <section
+            class="mb-4 rounded-md border border-border-subtle bg-bg-base/60 px-3 py-2.5"
+            aria-label={t('settings.thisMirror')}
+          >
+            <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+              {t('settings.thisMirror')}
+            </div>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11px]">
+              <dt class="text-text-muted">{t('settings.runtimeProfile')}</dt>
+              <dd class="font-mono text-text-primary">{runtime.profile}</dd>
+
+              <dt class="text-text-muted">{t('settings.runtimeDb')}</dt>
+              <dd class="min-w-0">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="break-all font-mono text-text-primary">{runtime.dbPath || t('settings.none')}</span>
+                  {#if runtime.dbPath}
+                    <button type="button" class={COPY_BTN} onclick={() => copyText('db', runtime!.dbPath)}>
+                      {copiedKey === 'db' ? t('settings.copied') : t('settings.copy')}
+                    </button>
+                    <button
+                      type="button"
+                      class={COPY_BTN}
+                      title={t('settings.copySqlite')}
+                      onclick={() => copyText('sqlite', `sqlite3 ${runtime!.dbPath}`)}
+                    >
+                      {copiedKey === 'sqlite' ? t('settings.copied') : 'sqlite3'}
+                    </button>
+                  {/if}
+                </div>
+                <div class="mt-0.5 text-text-muted">
+                  {runtime.dbSizeHuman}
+                  {#if runtime.dbModifiedAt}
+                    · {t('settings.runtimeModified')} {runtime.dbModifiedAt}
+                  {/if}
+                </div>
+              </dd>
+
+              <dt class="text-text-muted">{t('settings.runtimeConfig')}</dt>
+              <dd class="min-w-0">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="break-all font-mono text-text-primary">{runtime.configPath || t('settings.none')}</span>
+                  {#if runtime.configPath}
+                    <button
+                      type="button"
+                      class={COPY_BTN}
+                      onclick={() => copyText('cfg', runtime!.configPath)}
+                    >
+                      {copiedKey === 'cfg' ? t('settings.copied') : t('settings.copy')}
+                    </button>
+                  {/if}
+                </div>
+              </dd>
+
+              <dt class="text-text-muted">{t('settings.runtimeCounts')}</dt>
+              <dd class="text-text-primary">
+                {t('settings.runtimeIssues', { n: runtime.issueCount })}
+                · {t('settings.runtimeComments', { n: runtime.commentCount })}
+              </dd>
+
+              <dt class="text-text-muted">{t('settings.runtimeSchema')}</dt>
+              <dd class="font-mono text-text-primary">{runtime.schemaVersion}</dd>
+
+              <dt class="text-text-muted">{t('settings.runtimeWatermark')}</dt>
+              <dd class="font-mono text-text-primary">{runtime.watermark || t('settings.none')}</dd>
+
+              <dt class="text-text-muted">{t('settings.runtimeFullSync')}</dt>
+              <dd class="font-mono text-text-primary">{runtime.lastFullSyncAt || t('settings.none')}</dd>
+
+              {#if runtime.lastError}
+                <dt class="text-text-muted">{t('settings.runtimeLastError')}</dt>
+                <dd class="break-all text-status-reopen">{runtime.lastError}</dd>
+              {/if}
+
+              <dt class="text-text-muted">{t('settings.runtimeVersion')}</dt>
+              <dd class="font-mono text-text-primary">{runtime.scryVersion}</dd>
+            </dl>
+          </section>
+        {/if}
+
+        {#if tab === 'sync'}
         <div class="flex flex-col gap-4">
           <label class="flex flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('settings.projects')}</span>
             <input class={INPUT} bind:value={projectsText} placeholder="NMB, NMA" />
           </label>
+
+          <div class="flex flex-col gap-1">
+            <span class="text-[11px] text-text-secondary">{t('settings.syncInterval')}</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <select
+                class="{INPUT} w-auto max-w-[12rem]"
+                value={String(syncPreset)}
+                onchange={(e) => {
+                  syncPreset = Number(e.currentTarget.value)
+                  if (syncPreset !== -1) syncCustomText = ''
+                }}
+              >
+                {#each SYNC_PRESETS as p (p.value)}
+                  <option value={p.value}>
+                    {p.label}{p.value === 0 ? ` (${defaultSyncSec}s)` : ''}
+                  </option>
+                {/each}
+              </select>
+              {#if syncPreset === -1}
+                <input
+                  class="{INPUT} w-28"
+                  type="number"
+                  min="15"
+                  step="1"
+                  bind:value={syncCustomText}
+                  placeholder={String(defaultSyncSec)}
+                  aria-label={t('settings.syncInterval')}
+                />
+                <span class="text-[11px] text-text-muted">{t('settings.intervalSeconds')}</span>
+              {/if}
+            </div>
+            <span class="text-[11px] text-text-muted">{t('settings.syncIntervalHint')}</span>
+          </div>
+
+          <div class="flex flex-col gap-1">
+            <span class="text-[11px] text-text-secondary">{t('settings.reconcileInterval')}</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <select
+                class="{INPUT} w-auto max-w-[12rem]"
+                value={String(reconcilePreset)}
+                onchange={(e) => {
+                  reconcilePreset = Number(e.currentTarget.value)
+                  if (reconcilePreset !== -1) reconcileCustomText = ''
+                }}
+              >
+                {#each RECONCILE_PRESETS as p (p.value)}
+                  <option value={p.value}>
+                    {p.label}{p.value === 0 ? ` (${defaultReconcileSec}s)` : ''}
+                  </option>
+                {/each}
+              </select>
+              {#if reconcilePreset === -1}
+                <input
+                  class="{INPUT} w-28"
+                  type="number"
+                  min="300"
+                  step="1"
+                  bind:value={reconcileCustomText}
+                  placeholder={String(defaultReconcileSec)}
+                  aria-label={t('settings.reconcileInterval')}
+                />
+                <span class="text-[11px] text-text-muted">{t('settings.intervalSeconds')}</span>
+              {/if}
+            </div>
+            <span class="text-[11px] text-text-muted">{t('settings.reconcileIntervalHint')}</span>
+          </div>
+          <p class="text-[11px] leading-relaxed text-text-muted">{t('settings.intervalApplies')}</p>
+
           <label class="flex max-w-[200px] flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('settings.staleHours')}</span>
             <input class={INPUT} type="number" min="1" bind:value={staleText} />
@@ -559,7 +779,6 @@
       {/if}
 
       <!-- 고급: JSON 원본 -->
-      {#if !loading}
         <details
           class="mt-5 border-t border-border-subtle pt-3"
           ontoggle={(e) => {
