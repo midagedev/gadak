@@ -2,6 +2,7 @@
   /*
    * 연결 PR ([detail]). 상태 칩(open/merged/closed) + repo#number + 제목 + 새탭 링크.
    */
+  import { t } from '../../lib/i18n'
   import type { LinkedPr } from '../../lib/types'
 
   let { prs }: { prs: LinkedPr[] } = $props()
@@ -22,7 +23,7 @@
 </script>
 
 {#if prs.length === 0}
-  <p class="text-[12px] text-text-muted italic">연결된 PR 없음</p>
+  <p class="text-[12px] text-text-muted italic">{t('detail.noPrs')}</p>
 {:else}
   <ul class="flex flex-col gap-1">
     {#each prs as pr (pr.url)}

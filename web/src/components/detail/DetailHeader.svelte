@@ -4,6 +4,7 @@
    * 로컬 풀의 IssueLite 만으로 즉시 렌더 가능(레이턴시 은닉). detail 로드 여부와 무관.
    * 키/제목/상태/우선순위/심각도/담당자/라벨/버전/그룹/재오픈 배지 + 닫기.
    */
+  import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
   import { selection } from '../../stores/selection.svelte'
   import { me } from '../../stores/me.svelte'
@@ -31,7 +32,7 @@
         target="_blank"
         rel="noopener noreferrer"
         class="flex-none font-mono text-[12px] font-medium text-accent-text hover:underline"
-        title="Jira 원본 열기"
+        title={t('detail.openJira')}
       >
         {issue.issue_key}
       </a>
@@ -44,7 +45,7 @@
             aria-hidden="true"
           ></span>
           <ViewerStack {viewers} size={20} max={3} ringClass="ring-bg-panel" />
-          <span class="flex-none text-[11px] text-text-muted">보는 중</span>
+          <span class="flex-none text-[11px] text-text-muted">{t('detail.viewing')}</span>
         </span>
       {/if}
     </div>
@@ -57,8 +58,8 @@
           ? 'text-status-stale'
           : 'text-text-muted hover:text-text-primary'}"
         aria-pressed={isFavorite}
-        aria-label={isFavorite ? '즐겨찾기 해제' : '즐겨찾기'}
-        title={isFavorite ? '즐겨찾기 해제' : '즐겨찾기'}
+        aria-label={isFavorite ? t('common.unfavorite') : t('common.favorite')}
+        title={isFavorite ? t('common.unfavorite') : t('common.favorite')}
       >
         {isFavorite ? '★' : '☆'}
       </button>
@@ -69,8 +70,8 @@
         type="button"
         onclick={() => selection.clear()}
         class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-        aria-label="닫기"
-        title="닫기 (Esc)"
+        aria-label={t('common.close')}
+        title={t('common.closeEsc')}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
@@ -93,10 +94,10 @@
       <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{issue.issue_type}</span>
     {/if}
     {#if issue.priority}
-      <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">우선 {issue.priority}</span>
+      <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{t('detail.priorityShort', { p: issue.priority })}</span>
     {/if}
     {#if issue.severity}
-      <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">심각도 {issue.severity}</span>
+      <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{t('detail.severityShort', { s: issue.severity })}</span>
     {/if}
     {#if issue.d1_group}
       <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{issue.d1_group}</span>
@@ -106,9 +107,9 @@
     {#if issue.reopen_count > 0}
       <span
         class="inline-flex items-center gap-1 rounded-md bg-status-reopen/15 px-2 py-0.5 font-semibold text-status-reopen"
-        title={issue.reopen_reason ?? '재오픈됨'}
+        title={issue.reopen_reason ?? t('detail.reopened')}
       >
-        재오픈 ×{issue.reopen_count}
+        {t('detail.reopenTimes', { n: issue.reopen_count })}
       </span>
     {/if}
   </div>
@@ -119,7 +120,7 @@
     <AssigneePicker {issue} />
     {#if issue.fix_versions.length > 0}
       <div class="flex items-start gap-1.5">
-        <span class="w-12 flex-none pt-0.5 text-text-muted">버전</span>
+        <span class="w-12 flex-none pt-0.5 text-text-muted">{t('common.version')}</span>
         <span class="flex flex-wrap gap-1">
           {#each issue.fix_versions as v (v)}
             <span class="rounded bg-bg-elevated px-1.5 py-0.5 text-text-secondary">{v}</span>
@@ -129,7 +130,7 @@
     {/if}
     {#if issue.labels.length > 0}
       <div class="flex items-start gap-1.5">
-        <span class="w-12 flex-none pt-0.5 text-text-muted">라벨</span>
+        <span class="w-12 flex-none pt-0.5 text-text-muted">{t('common.labels')}</span>
         <span class="flex flex-wrap gap-1">
           {#each issue.labels as l (l)}
             <span class="rounded bg-bg-elevated px-1.5 py-0.5 text-text-secondary">{l}</span>

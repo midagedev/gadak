@@ -4,6 +4,7 @@
    *  상단: 이슈 총계 + 마지막 동기화. 하단: 개인화(Wave 3) 자리 — 주석 placeholder.
    *  뷰 클릭 = filters.applyConfig(config). 현재 뷰와 일치하면 활성 표시.
    */
+  import { t, formatNumber, relativeTime, formatTimeOfDay } from '../../lib/i18n'
   import { filterIssues, filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { views } from '../../stores/views.svelte'
@@ -53,46 +54,39 @@
     return counts
   })
 
-  const lastSyncLabel = $derived(
-    issues.lastSync ? new Date(issues.lastSync).toLocaleTimeString('ko-KR') : '',
-  )
+  const lastSyncLabel = $derived(issues.lastSync ? formatTimeOfDay(issues.lastSync) : '')
 
   const STATUS_LABEL: Record<string, string> = {
-    healthy: '정상',
-    running: '동기화 중',
-    paused: '업무시간 외 대기',
-    idle: '대기',
-    stale: '지연',
-    failed: '실패',
-    missing: '기록 없음',
+    healthy: t('sidebar.syncOk'),
+    running: t('sidebar.syncing'),
+    paused: t('sidebar.syncOffHours'),
+    idle: t('sidebar.syncWaiting'),
+    stale: t('sidebar.syncDelayed'),
+    failed: t('sidebar.syncFailed'),
+    missing: t('sidebar.syncNoRecord'),
   }
 
   function relativeSync(value: string | null): string {
-    if (!value) return ''
-    const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000))
-    if (minutes < 1) return '방금 전'
-    if (minutes < 60) return `${minutes}분 전`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}시간 전`
-    return `${Math.floor(hours / 24)}일 전`
+    return relativeTime(value, 'long')
   }
 
   const syncTitle = $derived.by(() =>
     issues.syncHealth?.sources
       .map((source) => {
         const time = relativeSync(source.synced_at)
-        return `${source.label} · ${STATUS_LABEL[source.status] ?? source.status}${time ? ` · ${time}` : ''}${source.message && source.message !== '정상' ? `\n${source.message}` : ''}`
+        // source.message 는 서버 원문(사이트 언어). '정상' 은 서버 healthy 표기 폴백.
+        return `${source.label} · ${STATUS_LABEL[source.status] ?? source.status}${time ? ` · ${time}` : ''}${source.message && source.message !== '정상' && source.message.toLowerCase() !== 'ok' ? `\n${source.message}` : ''}`
       })
       .join('\n'),
   )
   const syncLabel = $derived(
     issues.syncHealth?.overall === 'failed'
-      ? '동기화 실패'
+      ? t('sidebar.syncFailTitle')
       : issues.syncHealth?.overall === 'warning'
-        ? '동기화 지연'
+        ? t('sidebar.syncDelayedTitle')
         : lastSyncLabel
-          ? `동기화 ${lastSyncLabel}`
-          : '동기화 확인 중',
+          ? t('sidebar.syncLabel', { when: lastSyncLabel })
+          : t('sidebar.syncChecking'),
   )
   const syncColor = $derived(
     issues.syncHealth?.overall === 'failed'
@@ -117,18 +111,18 @@
       type="button"
       onclick={() => write.openNewIssue()}
       class="flex w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover"
-      title="새 이슈 (c)"
+      title={t('sidebar.newIssueTitle')}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
         <path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
       </svg>
-      새 이슈
+      {t('sidebar.newIssue')}
     </button>
   </div>
 
   <!-- 총계 / 동기화 -->
   <div class="flex-none px-3 pb-2 pt-1 text-[11px] text-text-muted">
-    <span class="text-text-secondary">{issues.pool.size.toLocaleString()}</span> 이슈
+    {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}
     <span class="ml-1">·</span>
     <span
       class="ml-1 inline-flex items-center gap-1 {syncColor}"
@@ -148,7 +142,7 @@
     <!-- 기본 뷰 -->
     <div class="mb-3">
       <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-        기본 뷰
+        {t('sidebar.builtinViews')}
       </div>
       {#each builtins as v (v.id)}
         <button
@@ -163,7 +157,7 @@
           <span class="flex-none text-[13px]">{v.icon}</span>
           <span class="min-w-0 flex-1 truncate">{v.name}</span>
           <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
-            {(builtinCounts.get(v.id) ?? 0).toLocaleString()}
+            {formatNumber(builtinCounts.get(v.id) ?? 0)}
           </span>
         </button>
       {/each}
@@ -173,7 +167,7 @@
     {#if views.personal.length}
       <div class="mb-3">
         <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-          내 뷰
+          {t('sidebar.myViews')}
         </div>
         {#each views.personal as v (v.id)}
           <div
@@ -194,7 +188,7 @@
             <button
               type="button"
               class="flex-none text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100"
-              title="삭제"
+              title={t('common.delete')}
               onclick={() => views.removePersonal(v.id)}
             >
               ✕
@@ -208,7 +202,7 @@
     {#if views.team.length}
       <div class="mb-3">
         <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-          팀 공유 뷰
+          {t('sidebar.teamViews')}
         </div>
         {#each views.team as v (v.id)}
           <div
@@ -223,7 +217,7 @@
                 ? 'text-text-primary'
                 : 'text-text-secondary group-hover:text-text-primary'}"
               onclick={() => applyView(v.config as unknown as ViewConfig)}
-              title={v.owner_name ? `작성자: ${v.owner_name}` : undefined}
+              title={v.owner_name ? t('sidebar.viewOwner', { name: v.owner_name }) : undefined}
             >
               {v.name}
               {#if v.owner_name}<span class="ml-1 text-[11px] text-text-muted">· {v.owner_name}</span>{/if}
@@ -232,9 +226,9 @@
               <button
                 type="button"
                 class="flex-none text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100"
-                title="삭제"
+                title={t('common.delete')}
                 onclick={() =>
-                  views.removeTeam(v.id).catch(() => alert('뷰를 삭제하지 못했습니다.'))}
+                  views.removeTeam(v.id).catch(() => alert(t('sidebar.viewDeleteFail')))}
               >
                 ✕
               </button>
@@ -252,7 +246,7 @@
       type="button"
       class="mb-1 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={onOpenSettings}
-      title="서버 설정 (프로젝트·기능·팀·필드 매핑)"
+      title={t('sidebar.serverSettings')}
     >
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path d="M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke="currentColor" stroke-width="1.2" />
@@ -264,7 +258,7 @@
           opacity="0.5"
         />
       </svg>
-      설정
+      {t('sidebar.settings')}
     </button>
     {#if me.authed}
       <div class="flex items-center gap-2 text-[12px]">
@@ -277,8 +271,8 @@
             ? ''
             : 'text-status-stale'}"
           onclick={() => write.openSettings()}
-          title={write.configured ? 'Jira 자격증명 설정' : 'Jira API 토큰 미설정 — 쓰기하려면 설정하세요'}
-          aria-label="Jira 자격증명 설정"
+          title={write.configured ? t('sidebar.jiraCreds') : t('sidebar.jiraCredsMissing')}
+          aria-label={t('sidebar.jiraCreds')}
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path
@@ -300,7 +294,7 @@
           class="flex-none text-[11px] text-text-muted transition-colors hover:text-text-primary"
           onclick={() => me.logout()}
         >
-          로그아웃
+          {t('common.logout')}
         </button>
       </div>
     {:else if me.authChecked}
@@ -309,7 +303,7 @@
         class="flex w-full items-center justify-center gap-1.5 rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={() => me.promptLogin()}
       >
-        로그인
+        {t('common.login')}
       </button>
     {/if}
   </div>

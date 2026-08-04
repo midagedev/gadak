@@ -8,6 +8,7 @@
    *  - 답글: write.replyRequest(작성자 멘션 삽입 요청)를 effect 로 받아 처리.
    *  - 제출 시 write.submitComment()(옵티미스틱). 성공 시 비우고, 실패 시 텍스트 복원.
    */
+  import { t } from '../../lib/i18n'
   import { tick } from 'svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
@@ -248,8 +249,8 @@
       onpaste={onPaste}
       rows="2"
       placeholder={me.authed
-        ? '코멘트 작성…  (@멘션 · 파일 붙여넣기/드롭 · ⌘Enter 등록)'
-        : '코멘트를 남기려면 로그인하세요'}
+        ? t('write.commentPlaceholder')
+        : t('write.commentNeedLogin')}
       class="w-full resize-none rounded-md border bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none transition-colors focus:border-accent {dragOver
         ? 'border-accent border-dashed'
         : 'border-border-strong'}"
@@ -306,12 +307,12 @@
             type="button"
             class="text-text-muted transition-colors hover:text-status-reopen"
             onclick={() => removeAttachment(a.id)}
-            title="첨부 제거">✕</button
+            title={t('write.removeAttachment')}>✕</button
           >
         </span>
       {/each}
       {#if uploading > 0}
-        <span class="text-[11px] text-text-muted">업로드 중… ({uploading})</span>
+        <span class="text-[11px] text-text-muted">{t('write.uploading', { n: uploading })}</span>
       {/if}
     </div>
   {/if}
@@ -332,7 +333,7 @@
       onclick={() => fileInput?.click()}
       disabled={!me.authed || busy}
       class="rounded-md border border-border-strong px-2 py-1 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-40"
-      title="파일 첨부">📎 첨부</button
+      title={t('write.attachFile')}>{t('write.attachEmoji')}</button
     >
     <span class="mr-auto text-[11px] text-text-muted">⌘Enter</span>
     <button
@@ -341,7 +342,7 @@
       disabled={busy || !canSubmit}
       class="rounded-md bg-accent px-3 py-1 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
     >
-      {busy ? '등록 중…' : '코멘트'}
+      {busy ? t('write.commentPosting') : t('write.commentButton')}
     </button>
   </div>
 </div>

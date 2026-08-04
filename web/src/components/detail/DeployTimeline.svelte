@@ -8,6 +8,7 @@
    * 방어적 파싱: deploy 는 구 서버 미전송/부분 응답일 수 있어 optional chaining 으로 접근한다.
    *  (state 자체가 없으면 상위 DetailPanel 에서 섹션을 렌더하지 않는다.)
    */
+  import { t } from '../../lib/i18n'
   import type { DeployDetail, DeployState } from '../../lib/types'
   import { absoluteTime } from './format'
 
@@ -47,9 +48,9 @@
   const steps = $derived.by<Step[]>(() => {
     const mergedText =
       deploy.total_prs != null
-        ? `${deploy.merged_prs ?? 0}/${deploy.total_prs} PR 머지`
+        ? t('deploy.prMergedFrac', { a: deploy.merged_prs ?? 0, b: deploy.total_prs })
         : deploy.merged_prs != null
-          ? `${deploy.merged_prs} PR 머지`
+          ? t('deploy.prMergedCount', { n: deploy.merged_prs })
           : null
     const devText = deploy.dev ? `${deploy.dev.tag} · ${absoluteTime(deploy.dev.at)}` : null
     const qaRelText = deploy.qa_release
@@ -59,17 +60,17 @@
     const prodText = deploy.prod_at ? absoluteTime(deploy.prod_at) : null
 
     return [
-      { at: 1, label: '머지', detail: mergedText, href: null, highlight: false },
-      { at: 2, label: 'dev 릴리즈', detail: devText, href: releaseUrl('dev'), highlight: false },
-      { at: 3, label: 'qa 릴리즈', detail: qaRelText, href: releaseUrl('qa'), highlight: false },
+      { at: 1, label: t('deploy.merge'), detail: mergedText, href: null, highlight: false },
+      { at: 2, label: t('deploy.dev'), detail: devText, href: releaseUrl('dev'), highlight: false },
+      { at: 3, label: t('deploy.qaRelease'), detail: qaRelText, href: releaseUrl('qa'), highlight: false },
       {
         at: 4,
-        label: 'qa 스왑 · QA 확인 가능',
+        label: t('deploy.qaSwapReady'),
         detail: swapText,
         href: null,
         highlight: true,
       },
-      { at: 5, label: 'prod 배포', detail: prodText, href: releaseUrl('prod'), highlight: false },
+      { at: 5, label: t('deploy.prod'), detail: prodText, href: releaseUrl('prod'), highlight: false },
     ]
   })
 
@@ -139,7 +140,7 @@
 <!-- PR별 포함 근거(있을 때만) -->
 {#if prList.length > 0}
   <div class="mt-1 border-t border-border-subtle pt-3">
-    <div class="mb-1.5 text-[11px] font-medium text-text-muted">PR별 포함 여부</div>
+    <div class="mb-1.5 text-[11px] font-medium text-text-muted">{t('deploy.byPr')}</div>
     <ul class="flex flex-col gap-1">
       {#each prList as pr (pr.number)}
         <li class="flex items-center gap-2 text-[12px]">
@@ -150,10 +151,10 @@
                 ? 'bg-status-stale'
                 : 'bg-border-strong'}"
             title={pr.included_in
-              ? `포함: ${pr.included_in}`
+              ? t('deploy.includedIn', { tag: pr.included_in })
               : pr.merged
-                ? '머지됨 · 릴리즈 미포함'
-                : '미머지'}
+                ? t('deploy.mergedNoRelease')
+                : t('deploy.unmerged')}
           ></span>
           {#if pr.url}
             <a

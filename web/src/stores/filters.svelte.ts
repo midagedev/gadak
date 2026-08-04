@@ -19,7 +19,6 @@ import type { IssueLite } from '../lib/types'
 import {
   configToParams,
   defaultColumns,
-  DEPLOY_STATE_LABEL,
   deployStateOf,
   effectiveCategory,
   emptyConfig,
@@ -38,6 +37,12 @@ import {
   type ViewFilters,
 } from '../lib/view-config'
 import * as api from '../lib/api'
+import {
+  categoryLabel,
+  deployStateLabel,
+  fieldLabel,
+  t,
+} from '../lib/i18n'
 
 /* ── 파생 그룹 타입 ── */
 
@@ -587,43 +592,43 @@ function groupKeyOf(issue: IssueLite, by: GroupBy): { key: string; label: string
   switch (by) {
     case 'status_category': {
       const category = effectiveCategory(issue)
-      const label = category === 'new' ? '신규' : category === 'inprogress' ? '진행 중' : '완료'
+      const label = categoryLabel(category, true)
       return { key: category, label }
     }
     case 'status':
-      return { key: issue.status || '(없음)', label: issue.status || '(상태 없음)' }
+      return { key: issue.status || '(none)', label: issue.status || t('group.noStatus') }
     case 'assignee':
       return issue.assignee_email
         ? { key: issue.assignee_email, label: issue.assignee || issue.assignee_email }
-        : { key: '', label: '미할당' }
+        : { key: '', label: t('common.unassigned') }
     case 'priority':
-      return { key: issue.priority || '', label: issue.priority || '우선순위 없음' }
+      return { key: issue.priority || '', label: issue.priority || t('group.noPriority') }
     case 'severity':
-      return { key: issue.severity || '', label: issue.severity || '심각도 없음' }
+      return { key: issue.severity || '', label: issue.severity || t('group.noSeverity') }
     case 'd1_group':
       return issue.d1_group
         ? { key: issue.d1_group, label: issue.d1_group }
-        : { key: '', label: '미분류' }
+        : { key: '', label: t('common.unclassified') }
     case 'product':
       // 그룹→제품 매핑은 조직마다 다르므로 런타임 config 에서 읽는다.
-      return config().productByGroup[issue.d1_group ?? ''] ?? { key: '', label: '제품 없음' }
+      return config().productByGroup[issue.d1_group ?? ''] ?? { key: '', label: t('group.noProduct') }
     case 'issue_type':
-      return { key: issue.issue_type || '', label: issue.issue_type || '유형 없음' }
+      return { key: issue.issue_type || '', label: issue.issue_type || t('group.noType') }
     case 'development_test_result': {
       const result = issue.development_test_result?.trim()
-      return result ? { key: result, label: result } : { key: 'none', label: '없음' }
+      return result ? { key: result, label: result } : { key: 'none', label: t('group.none') }
     }
     case 'qa_impact':
       return issue.qa_impact_state
         ? { key: issue.qa_impact_state, label: issue.qa_impact_label }
-        : { key: '', label: '현재 차수 무관' }
+        : { key: '', label: t('group.qaIrrelevant') }
     case 'source_project':
       return {
         key: issue.source_project || '',
-        label: issue.source_project || '프로젝트 없음',
+        label: issue.source_project || t('group.noProject'),
       }
     case 'epic':
-      return issue.epic_key ? { key: issue.epic_key, label: issue.epic_key } : { key: '', label: '에픽 없음' }
+      return issue.epic_key ? { key: issue.epic_key, label: issue.epic_key } : { key: '', label: t('group.noEpic') }
     default:
       return { key: '', label: '' }
   }
@@ -719,41 +724,13 @@ function rankOf(issue: IssueLite | undefined): number {
 
 /* ── 활성 칩 ── */
 
-const FIELD_LABEL: Record<string, string> = {
-  status_category: '분류',
-  status: '상태',
-  assignee_email: '담당자',
-  reporter_email: '보고자',
-  d1_group: '파트',
-  labels: '라벨',
-  priority: '우선순위',
-  severity: '심각도',
-  issue_type: '유형',
-  components: '컴포넌트',
-  fix_versions: '수정 버전',
-  environment: '발생 환경',
-  browser: '브라우저',
-  dev_project_number: '발생 프로젝트 번호',
-  found_version: '발생 버전',
-  occurrence: '발생 빈도',
-  solution: '솔루션',
-  critical_phenomenon: '크리티컬 현상',
-  development_area: '개발 영역',
-  development_test_assignee_email: '개발 테스트 담당자',
-  development_test_result: '개발 테스트 결과',
-  qa_run: 'QA 차수',
-  qa_suite: 'QA 영역',
-  qa_impact: 'QA 영향',
-  deploy_state: '배포',
-  cs: 'CS',
-  jira_project: '프로젝트',
-  source_project: '복제 원본 프로젝트',
+function FIELD_LABEL(field: string): string {
+  return fieldLabel(field)
 }
 
-const CATEGORY_LABEL: Record<string, string> = {
-  new: '신규',
-  inprogress: '진행중',
-  done: '완료',
+function CATEGORY_LABEL(value: string): string {
+  if (value === 'new' || value === 'inprogress' || value === 'done') return categoryLabel(value)
+  return value
 }
 
 function buildChips(
@@ -765,7 +742,7 @@ function buildChips(
   for (const field of MULTI_FIELDS) {
     for (const value of f[field]) {
       let label = value
-      if (field === 'status_category') label = CATEGORY_LABEL[value] ?? value
+      if (field === 'status_category') label = CATEGORY_LABEL(value)
       else if (
         field === 'assignee_email' ||
         field === 'reporter_email' ||
@@ -779,16 +756,16 @@ function buildChips(
         field === 'deploy_state'
       )
         label = facetLabel(field, value, all, members)
-      chips.push({ kind: 'multi', field, value, label: `${FIELD_LABEL[field]}: ${label}` })
+      chips.push({ kind: 'multi', field, value, label: t('filter.chipFieldValue', { field: FIELD_LABEL(field), value: label }) })
     }
   }
-  if (f.reopened) chips.push({ kind: 'flag', field: 'reopened', label: '🔁 재오픈' })
-  if (f.unassigned) chips.push({ kind: 'flag', field: 'unassigned', label: '미할당' })
-  if (f.stale) chips.push({ kind: 'flag', field: 'stale', label: '⏳ 정체' })
+  if (f.reopened) chips.push({ kind: 'flag', field: 'reopened', label: t('filter.flagReopened') })
+  if (f.unassigned) chips.push({ kind: 'flag', field: 'unassigned', label: t('filter.flagUnassigned') })
+  if (f.stale) chips.push({ kind: 'flag', field: 'stale', label: t('filter.flagStale') })
   if (f.created_from || f.created_to)
-    chips.push({ kind: 'range', field: 'created', label: `생성 ${f.created_from ?? ''}~${f.created_to ?? ''}` })
+    chips.push({ kind: 'range', field: 'created', label: t('filter.chipCreatedRange', { from: f.created_from ?? '', to: f.created_to ?? '' }) })
   if (f.updated_from || f.updated_to)
-    chips.push({ kind: 'range', field: 'updated', label: `갱신 ${f.updated_from ?? ''}~${f.updated_to ?? ''}` })
+    chips.push({ kind: 'range', field: 'updated', label: t('filter.chipUpdatedRange', { from: f.updated_from ?? '', to: f.updated_to ?? '' }) })
   return chips
 }
 
@@ -860,7 +837,7 @@ function facetLabel(
   all: IssueLite[],
   members: Map<string, { name: string }>,
 ): string {
-  if (field === 'status_category') return CATEGORY_LABEL[value] ?? value
+  if (field === 'status_category') return CATEGORY_LABEL(value)
   if (
     field === 'assignee_email' ||
     field === 'reporter_email' ||
@@ -869,15 +846,15 @@ function facetLabel(
     return members.get(value)?.name ?? value
   if (field === 'qa_impact') {
     const labels: Record<string, string> = {
-      blocking: '현재 차수 차단',
-      retest: '재검증 대기',
-      verified: '검증 완료',
-      linked: '현재 차수 연결',
+      blocking: t('filter.qaBlocking'),
+      retest: t('filter.qaRetest'),
+      verified: t('filter.qaVerified'),
+      linked: t('filter.qaLinked'),
     }
     return labels[value] ?? value
   }
   if (field === 'deploy_state') {
-    return DEPLOY_STATE_LABEL[value as keyof typeof DEPLOY_STATE_LABEL] ?? value
+    return deployStateLabel(value)
   }
   if (field === 'qa_run') {
     for (const issue of all) {

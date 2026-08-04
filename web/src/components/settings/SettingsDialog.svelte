@@ -8,6 +8,7 @@
    *  Jira 개인 토큰은 JiraKeySettings 담당 — 여기선 링크만.
    *  JiraKeySettings 의 모달 패턴을 따른다(Esc/배경 클릭 닫기).
    */
+  import { t, locale, setLocale, type Locale } from '../../lib/i18n'
   import { onMount } from 'svelte'
   import * as api from '../../lib/api'
   import type { ScrySettings } from '../../lib/api'
@@ -19,20 +20,20 @@
 
   type Tab = 'sync' | 'features' | 'groups' | 'members' | 'fields'
   const TABS: [Tab, string][] = [
-    ['sync', '동기화'],
-    ['features', '기능'],
-    ['groups', '팀/그룹'],
-    ['members', '멤버'],
-    ['fields', '필드 매핑'],
+    ['sync', t('settings.tabSync')],
+    ['features', t('settings.tabFeatures')],
+    ['groups', t('settings.tabTeams')],
+    ['members', t('settings.tabMembers')],
+    ['fields', t('settings.tabFields')],
   ]
 
   const FEATURES: [keyof ScryFeatures, string, string][] = [
-    ['presence', '프레즌스', '같은 이슈를 보고 있는 사람 표시 — 로컬 단일 사용자에선 의미 없음'],
-    ['feed', '개인 피드', '멘션·워치·담당자 변경을 모은 활동 피드'],
-    ['push', '웹 푸시', '피드 이벤트를 브라우저 알림으로 — 서버 VAPID 키 필요'],
-    ['deploy', '배포 상태', '이슈별 배포 단계 — 외부 CI/CD 인덱스 필요'],
-    ['qa', 'QA 컨텍스트', '이슈별 테스트 런·스위트 — 외부 QA 도구 필요'],
-    ['teamGroups', '파트 분류', '멤버를 파트로 묶어 필터·그룹핑 — 아래 팀/그룹 설정 필요'],
+    ['presence', t('settings.featurePresence'), t('settings.featurePresenceDesc')],
+    ['feed', t('settings.featureFeed'), t('settings.featureFeedDesc')],
+    ['push', t('settings.featurePush'), t('settings.featurePushDesc')],
+    ['deploy', t('settings.featureDeploy'), t('settings.featureDeployDesc')],
+    ['qa', t('settings.featureQa'), t('settings.featureQaDesc')],
+    ['teamGroups', t('settings.featureTeams'), t('settings.featureTeamsDesc')],
   ]
 
   const INPUT =
@@ -203,7 +204,7 @@
     try {
       load(await api.getSettings())
     } catch (e) {
-      error = e instanceof Error ? e.message : '설정을 불러오지 못했습니다.'
+      error = e instanceof Error ? e.message : t('settings.loadFailed')
     }
     loading = false
   })
@@ -219,7 +220,7 @@
       load(JSON.parse(text) as ScrySettings)
       jsonError = null
     } catch {
-      jsonError = 'JSON 파싱 실패 — 고치면 저장이 다시 활성화됩니다.'
+      jsonError = t('settings.jsonParseError')
     }
   }
 
@@ -229,10 +230,10 @@
     error = null
     try {
       await api.putSettings(build())
-      write.toast('설정을 저장했습니다. 새로고침합니다…', 'success')
+      write.toast(t('settings.savedReload'), 'success')
       setTimeout(() => location.reload(), 600)
     } catch (e) {
-      error = e instanceof Error ? e.message : '설정 저장에 실패했습니다.'
+      error = e instanceof Error ? e.message : t('settings.saveFailed')
       saving = false
     }
   }
@@ -260,14 +261,13 @@
     class="anim-enter flex max-h-[88vh] w-full max-w-3xl flex-col rounded-lg border border-border-strong bg-bg-panel shadow-xl"
     role="dialog"
     aria-modal="true"
-    aria-label="설정"
+    aria-label={t('settings.title')}
   >
     <!-- 헤더 + 탭 -->
     <div class="flex-none border-b border-border-subtle px-5 pt-4">
-      <h2 class="mb-0.5 text-[14px] font-semibold text-text-primary">설정</h2>
+      <h2 class="mb-0.5 text-[14px] font-semibold text-text-primary">{t('settings.title')}</h2>
       <p class="mb-3 text-[11px] text-text-muted">
-        서버의 <span class="font-mono">~/.scry/config.json</span> 을 직접 편집합니다. 저장하면 앱이
-        새로고침됩니다.
+        {t('settings.introBefore')} <span class="font-mono">~/.scry/config.json</span> {t('settings.introAfter')}
       </p>
       <div class="flex gap-1">
         {#each TABS as [id, label] (id)}
@@ -287,18 +287,18 @@
     <!-- 본문 -->
     <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[12px]">
       {#if loading}
-        <p class="py-8 text-center text-text-muted">불러오는 중…</p>
+        <p class="py-8 text-center text-text-muted">{t('settings.loading')}</p>
       {:else if tab === 'sync'}
         <div class="flex flex-col gap-4">
           <label class="flex flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">미러링할 프로젝트 키 (콤마 구분)</span>
+            <span class="text-[11px] text-text-secondary">{t('settings.projects')}</span>
             <input class={INPUT} bind:value={projectsText} placeholder="NMB, NMA" />
           </label>
           <label class="flex max-w-[200px] flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">지연 판정 기준 (시간)</span>
+            <span class="text-[11px] text-text-secondary">{t('settings.staleHours')}</span>
             <input class={INPUT} type="number" min="1" bind:value={staleText} />
             <span class="text-[11px] text-text-muted">
-              현재 상태에 이 시간 이상 머문 미해결 이슈를 지연으로 표시합니다.
+              {t('settings.staleHint')}
             </span>
           </label>
           <div class="border-t border-border-subtle pt-3">
@@ -307,10 +307,10 @@
               class={ADD_BTN}
               onclick={openJiraKey}
             >
-              개인 Jira API 토큰 설정 →
+              {t('settings.personalToken')}
             </button>
             <p class="mt-1 text-[11px] text-text-muted">
-              자격증명은 이 화면이 아니라 별도 다이얼로그에서 관리합니다.
+              {t('settings.credsElsewhere')}
             </p>
           </div>
         </div>
@@ -330,7 +330,7 @@
             </label>
           {/each}
           <label class="mt-2 flex flex-col gap-1 border-t border-border-subtle pt-3">
-            <span class="text-[11px] text-text-secondary">QA 대시보드 URL (선택)</span>
+            <span class="text-[11px] text-text-secondary">{t('settings.qaDashboardUrl')}</span>
             <input class={INPUT} bind:value={qaDashboardUrl} placeholder="https://qa.example.com" />
           </label>
         </div>
@@ -339,29 +339,29 @@
           <!-- 그룹 라벨 + 색상 -->
           <div class="flex flex-col gap-1.5">
             <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              그룹 라벨·색상
+              {t('settings.groupLabels')}
             </div>
             <div class="flex gap-1.5 text-[11px] text-text-muted">
-              <span class="flex-1">그룹 키</span>
-              <span class="flex-1">라벨</span>
-              <span class="w-16 flex-none">색상</span>
+              <span class="flex-1">{t('settings.groupKey')}</span>
+              <span class="flex-1">{t('settings.label')}</span>
+              <span class="w-16 flex-none">{t('settings.color')}</span>
               <span class="w-6 flex-none"></span>
             </div>
             {#each groupRows as row, i (i)}
               <div class="flex items-center gap-1.5">
                 <input class="{INPUT} flex-1 font-mono" bind:value={row.key} placeholder="cloud" />
-                <input class="{INPUT} flex-1" bind:value={row.label} placeholder="Cloud 파트" />
+                <input class="{INPUT} flex-1" bind:value={row.label} placeholder={t('settings.cloudPart')} />
                 <input
                   type="color"
                   class="h-[26px] w-16 flex-none rounded-md border border-border-strong bg-bg-base"
                   value={row.color || '#888888'}
                   oninput={(e) => (row.color = e.currentTarget.value)}
-                  title={row.color || '미지정'}
+                  title={row.color || t('common.unspecified')}
                 />
                 <button
                   type="button"
                   class={DEL_BTN}
-                  title="행 삭제"
+                  title={t('settings.deleteRow')}
                   onclick={() => (groupRows = groupRows.filter((_, j) => j !== i))}>✕</button
                 >
               </div>
@@ -370,19 +370,19 @@
               type="button"
               class={ADD_BTN}
               onclick={() => (groupRows = [...groupRows, { key: '', label: '', color: '' }])}
-              >+ 행 추가</button
+              >{t('settings.addRow')}</button
             >
           </div>
 
           <!-- 제품 버킷 -->
           <div class="flex flex-col gap-1.5">
             <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              그룹 → 제품
+              {t('settings.groupToProduct')}
             </div>
             <div class="flex gap-1.5 text-[11px] text-text-muted">
-              <span class="flex-1">그룹 키</span>
-              <span class="flex-1">제품 키</span>
-              <span class="flex-1">제품 라벨</span>
+              <span class="flex-1">{t('settings.groupKey')}</span>
+              <span class="flex-1">{t('settings.productKey')}</span>
+              <span class="flex-1">{t('settings.productLabel')}</span>
               <span class="w-6 flex-none"></span>
             </div>
             {#each productRows as row, i (i)}
@@ -393,7 +393,7 @@
                 <button
                   type="button"
                   class={DEL_BTN}
-                  title="행 삭제"
+                  title={t('settings.deleteRow')}
                   onclick={() => (productRows = productRows.filter((_, j) => j !== i))}>✕</button
                 >
               </div>
@@ -403,24 +403,23 @@
               class={ADD_BTN}
               onclick={() =>
                 (productRows = [...productRows, { group: '', key: '', label: '' }])}
-              >+ 행 추가</button
+              >{t('settings.addRow')}</button
             >
           </div>
 
           <!-- 그룹 판정 규칙 -->
           <div class="flex flex-col gap-1.5">
             <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              그룹 판정 규칙
+              {t('settings.groupRules')}
             </div>
             <p class="text-[11px] leading-relaxed text-text-muted">
-              위에서 아래로 <span class="text-text-secondary">첫 매치가 이깁니다</span>. 한 행의
-              조건들은 AND, 각 목록 안은 OR, 빈 조건은 항상 참입니다.
+              {t('settings.rulesTopDown')} <span class="text-text-secondary">{t('settings.rulesFirstWins')}</span>{t('settings.rulesDetail')}
             </p>
             <div class="flex gap-1.5 text-[11px] text-text-muted">
-              <span class="w-24 flex-none">그룹</span>
-              <span class="flex-1">프로젝트</span>
-              <span class="flex-1">라벨</span>
-              <span class="flex-1">컴포넌트</span>
+              <span class="w-24 flex-none">{t('common.group')}</span>
+              <span class="flex-1">{t('settings.projectsCol')}</span>
+              <span class="flex-1">{t('settings.label')}</span>
+              <span class="flex-1">{t('settings.componentsCol')}</span>
               <span class="w-6 flex-none"></span>
             </div>
             {#each ruleRows as row, i (i)}
@@ -432,7 +431,7 @@
                 <button
                   type="button"
                   class={DEL_BTN}
-                  title="행 삭제"
+                  title={t('settings.deleteRow')}
                   onclick={() => (ruleRows = ruleRows.filter((_, j) => j !== i))}>✕</button
                 >
               </div>
@@ -444,16 +443,16 @@
                 (ruleRows = [
                   ...ruleRows,
                   { group: '', projects: '', labels: '', components: '' },
-                ])}>+ 행 추가</button
+                ])}>{t('settings.addRow')}</button
             >
           </div>
         </div>
       {:else if tab === 'members'}
         <div class="flex flex-col gap-1.5">
           <div class="flex gap-1.5 text-[11px] text-text-muted">
-            <span class="flex-1">이메일</span>
-            <span class="w-24 flex-none">이름</span>
-            <span class="w-20 flex-none">그룹</span>
+            <span class="flex-1">{t('settings.memberEmail')}</span>
+            <span class="w-24 flex-none">{t('settings.memberName')}</span>
+            <span class="w-20 flex-none">{t('common.group')}</span>
             <span class="flex-1">Jira accountId</span>
             <span class="w-12 flex-none"></span>
           </div>
@@ -467,14 +466,14 @@
                 <button
                   type="button"
                   class="w-6 flex-none text-[12px] text-text-muted transition-colors hover:text-text-primary"
-                  title="상세"
+                  title={t('common.detail')}
                   onclick={() => (openMember = openMember === i ? null : i)}
                   >{openMember === i ? '▾' : '▸'}</button
                 >
                 <button
                   type="button"
                   class={DEL_BTN}
-                  title="행 삭제"
+                  title={t('settings.deleteRow')}
                   onclick={() => {
                     memberRows = memberRows.filter((_, j) => j !== i)
                     openMember = null
@@ -484,19 +483,19 @@
               {#if openMember === i}
                 <div class="ml-2 grid grid-cols-2 gap-1.5 border-l border-border-subtle pl-3 pb-1">
                   <label class="flex flex-col gap-0.5">
-                    <span class="text-[11px] text-text-muted">표시 이름</span>
+                    <span class="text-[11px] text-text-muted">{t('settings.displayName')}</span>
                     <input class={INPUT} bind:value={row.display_name} />
                   </label>
                   <label class="flex flex-col gap-0.5">
-                    <span class="text-[11px] text-text-muted">부서</span>
+                    <span class="text-[11px] text-text-muted">{t('settings.department')}</span>
                     <input class={INPUT} bind:value={row.department} />
                   </label>
                   <label class="flex flex-col gap-0.5">
-                    <span class="text-[11px] text-text-muted">직무</span>
+                    <span class="text-[11px] text-text-muted">{t('settings.jobTitle')}</span>
                     <input class={INPUT} bind:value={row.job_role} />
                   </label>
                   <label class="flex flex-col gap-0.5">
-                    <span class="text-[11px] text-text-muted">아바타 URL</span>
+                    <span class="text-[11px] text-text-muted">{t('settings.avatarUrl')}</span>
                     <input class={INPUT} bind:value={row.avatar_url} />
                   </label>
                 </div>
@@ -519,38 +518,38 @@
                   jira_account_id: '',
                   avatar_url: '',
                 },
-              ])}>+ 멤버 추가</button
+              ])}>{t('settings.addMember')}</button
           >
         </div>
       {:else}
         <div class="flex flex-col gap-5">
           <div class="flex flex-col gap-1.5">
             <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              필드 맵 (동기화 적재)
+              {t('settings.fieldMap')}
             </div>
             <KeyValueRows
               bind:rows={fieldMapRows}
-              keyLabel="별칭"
-              valueLabel="Jira 필드 id"
+              keyLabel={t('settings.alias')}
+              valueLabel={t('settings.jiraFieldId')}
               keyPlaceholder="severity"
               valuePlaceholder="customfield_10050"
             />
           </div>
           <div class="flex flex-col gap-1.5">
             <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              인라인 편집 허용 필드
+              {t('settings.editableFields')}
             </div>
             <KeyValueRows
               bind:rows={editableRows}
-              keyLabel="별칭"
-              valueLabel="Jira 필드 id"
+              keyLabel={t('settings.alias')}
+              valueLabel={t('settings.jiraFieldId')}
               keyPlaceholder="solution"
               valuePlaceholder="customfield_10092"
             />
           </div>
           <label class="flex flex-col gap-1">
             <span class="text-[11px] text-text-secondary">
-              본문 검색에 합칠 ADF 커스텀필드 id (콤마 구분)
+              {t('settings.adfSearchFields')}
             </span>
             <input class="{INPUT} font-mono" bind:value={bodyFieldsText} placeholder="customfield_10101" />
           </label>
@@ -566,7 +565,7 @@
           }}
         >
           <summary class="cursor-pointer text-[11px] text-text-secondary hover:text-text-primary">
-            고급 — JSON 직접 편집
+            {t('settings.advancedJson')}
           </summary>
           <textarea
             class="mt-2 h-56 w-full rounded-md border border-border-strong bg-bg-base p-2 font-mono text-[11px] text-text-primary outline-none focus:border-accent"
@@ -578,11 +577,27 @@
             <p class="mt-1 text-[11px] text-status-reopen">{jsonError}</p>
           {:else}
             <p class="mt-1 text-[11px] text-text-muted">
-              폼과 JSON 은 마지막 수정이 이깁니다. 펼칠 때마다 현재 폼 값으로 다시 채워집니다.
+              {t('settings.jsonHint')}
             </p>
           {/if}
         </details>
       {/if}
+    </div>
+
+
+    <!-- locale -->
+    <div class="flex flex-none items-center gap-2 border-t border-border-subtle px-5 py-2">
+      <label class="flex items-center gap-2 text-[12px] text-text-secondary">
+        <span>{t('settings.locale')}</span>
+        <select
+          class="rounded-md border border-border-strong bg-bg-base px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent"
+          value={locale()}
+          onchange={(e) => setLocale(e.currentTarget.value as Locale)}
+        >
+          <option value="en">{t('settings.localeEn')}</option>
+          <option value="ko">{t('settings.localeKo')}</option>
+        </select>
+      </label>
     </div>
 
     <!-- 푸터 -->
@@ -593,7 +608,7 @@
         onclick={onclose}
         class="rounded-md px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
       >
-        닫기
+        {t('common.close')}
       </button>
       <button
         type="button"
@@ -601,7 +616,7 @@
         disabled={loading || saving || !!jsonError}
         class="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
       >
-        {saving ? '저장 중…' : '저장'}
+        {saving ? t('common.saving') : t('common.save')}
       </button>
     </div>
   </div>

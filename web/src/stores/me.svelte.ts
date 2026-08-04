@@ -13,6 +13,7 @@
  * ⚠️ 반응성: Set 은 순정 Set 대신 svelte/reactivity 의 SvelteSet 을 써야 add/delete 가 반응성을 트리거한다.
  */
 
+import { t } from '../lib/i18n'
 import { SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
 import { TOKEN_KEY, getToken } from '../lib/api'
@@ -228,7 +229,7 @@ class MeStore {
         error?: string
       }
       if (!res.ok || !data.token) {
-        return { ok: false, error: data.error ?? '로그인에 실패했습니다.' }
+        return { ok: false, error: data.error ?? t('login.failed') }
       }
       try {
         localStorage.setItem(TOKEN_KEY, data.token)
@@ -241,7 +242,7 @@ class MeStore {
       return { ok: true }
     } catch (e) {
       console.warn('[me] 로그인 요청 실패', e)
-      return { ok: false, error: '네트워크 오류로 로그인하지 못했습니다.' }
+      return { ok: false, error: t('login.networkFailed') }
     }
   }
 
@@ -499,14 +500,14 @@ class MeStore {
       const endpoint = serialized.endpoint ?? subscription.endpoint
       const p256dh = serialized.keys?.p256dh
       const auth = serialized.keys?.auth
-      if (!p256dh || !auth) throw new Error('구독 암호화 키가 없습니다.')
+      if (!p256dh || !auth) throw new Error(t('me.noCryptoKey'))
       await api.savePushSubscription({ endpoint, keys: { p256dh, auth } })
       this.pushState = 'subscribed'
       return true
     } catch (e) {
       console.warn('[me] 웹 알림 활성화 실패', e)
       this.pushState = 'unsubscribed'
-      this.pushError = '이 브라우저에서 알림을 켜지 못했습니다.'
+      this.pushError = t('me.enableNotifFailed')
       return false
     }
   }
@@ -526,7 +527,7 @@ class MeStore {
     } catch (e) {
       console.warn('[me] 웹 알림 해제 실패', e)
       this.pushState = 'subscribed'
-      this.pushError = '알림을 끄지 못했습니다.'
+      this.pushError = t('me.disableNotifFailed')
     }
   }
 

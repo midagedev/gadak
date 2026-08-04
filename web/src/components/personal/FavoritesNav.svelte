@@ -1,8 +1,9 @@
 <script lang="ts">
   /* 즐겨찾기와 최근 본 이슈를 분리해 표시한다. 즐겨찾기 행 자체가 정렬 드래그 대상이다. */
+  import { t, relativeSeenLabel } from '../../lib/i18n'
   import { onMount } from 'svelte'
   import type { IssueLite } from '../../lib/types'
-  import { absTime, relativeTime } from '../../lib/format'
+  import { absTime } from '../../lib/format'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { me, type RecentIssueVisit } from '../../stores/me.svelte'
@@ -54,9 +55,8 @@
 
   function viewedLabel(viewedAt: string | null | undefined): string {
     now
-    if (!viewedAt) return '이전 조회 기록'
-    const relative = relativeTime(viewedAt)
-    return relative === '방금' ? '방금 봄' : `${relative} 전 봄`
+    if (!viewedAt) return t('personal.recentHistory')
+    return relativeSeenLabel(viewedAt)
   }
 
   function selectIssue(event: MouseEvent, key: string): void {
@@ -122,7 +122,7 @@
 {#if favoriteItems.length}
   <div class="mb-3">
     <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-      즐겨찾기
+      {t('personal.favorites')}
     </div>
     {#each favoriteItems as item (item.issue.issue_key)}
       <div
@@ -172,8 +172,8 @@
           class="absolute right-2 top-1 flex h-7 w-7 items-center justify-center rounded-md text-[13px] text-status-stale transition-colors hover:bg-bg-hover"
           onclick={() => me.toggleFavorite(item.issue.issue_key)}
           aria-pressed="true"
-          aria-label={`${item.issue.issue_key} 즐겨찾기 해제`}
-          title="즐겨찾기 해제"
+          aria-label={t('personal.unfavoriteAria', { key: item.issue.issue_key })}
+          title={t('common.unfavorite')}
         >
           ★
         </button>
@@ -185,7 +185,7 @@
 {#if recentItems.length}
   <div class="mb-3">
     <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-      최근 본 이슈
+      {t('personal.recent')}
     </div>
     {#each recentItems as item (item.issue.issue_key)}
       <div
@@ -226,8 +226,8 @@
           class="pointer-events-none absolute right-2 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-bg-elevated text-[13px] text-text-muted opacity-0 shadow-sm shadow-black/25 transition-opacity hover:bg-bg-hover hover:text-text-primary group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
           onclick={() => me.toggleFavorite(item.issue.issue_key)}
           aria-pressed="false"
-          aria-label={`${item.issue.issue_key} 즐겨찾기`}
-          title="즐겨찾기"
+          aria-label={t('personal.favoriteAria', { key: item.issue.issue_key })}
+          title={t('common.favorite')}
         >
           ☆
         </button>

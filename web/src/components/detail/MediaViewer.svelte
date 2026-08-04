@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../lib/i18n'
   import type { DetailAttachment } from '../../lib/types'
 
   let {
@@ -37,8 +38,8 @@
         target="_blank"
         rel="noopener noreferrer"
         class="flex h-8 w-8 items-center justify-center text-[18px] text-white/60 transition-colors hover:text-white"
-        aria-label="새 탭에서 열기"
-        title="새 탭에서 열기"
+        aria-label={t('common.openInNewTab')}
+        title={t('common.openInNewTab')}
       >
         ↗
       </a>
@@ -46,8 +47,8 @@
         type="button"
         onclick={onClose}
         class="flex h-8 w-8 items-center justify-center text-[24px] leading-none text-white/60 transition-colors hover:text-white"
-        aria-label="미디어 닫기"
-        title="닫기"
+        aria-label={t('detail.mediaClose')}
+        title={t('common.close')}
       >
         ×
       </button>

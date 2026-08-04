@@ -10,6 +10,7 @@
    *  - 성공 시 닫고 selection.select(새 키) → 상세 열림. (recency 기록은 write.createIssue)
    *  진입점: 사이드바 "+ 새 이슈" / 단축키 c (App.svelte).
    */
+  import { t } from '../../lib/i18n'
   import { onMount } from 'svelte'
   import * as api from '../../lib/api'
   import { ApiError } from '../../lib/api'
@@ -76,7 +77,7 @@
         write.openSettings()
         return
       }
-      loadError = '생성 메타를 불러오지 못했습니다.'
+      loadError = t('write.metaFailed')
     } finally {
       loading = false
     }
@@ -208,7 +209,7 @@
     if (submitting) return
     const s = summary.trim()
     if (!projectKey || !issueTypeId || !s) {
-      submitError = '프로젝트·유형·제목은 필수입니다.'
+      submitError = t('write.requiredFields')
       return
     }
     submitting = true
@@ -227,7 +228,7 @@
       write.closeNewIssue()
       selection.select(res.key)
     } else {
-      submitError = res.error ?? '이슈 생성에 실패했습니다.'
+      submitError = res.error ?? t('write.createFailed')
     }
   }
 
@@ -252,12 +253,12 @@
     class="anim-enter w-full max-w-lg rounded-lg border border-border-strong bg-bg-panel p-5 shadow-xl"
     role="dialog"
     aria-modal="true"
-    aria-label="새 이슈"
+    aria-label={t('write.newIssue')}
   >
-    <h2 class="mb-4 text-[14px] font-semibold text-text-primary">새 이슈</h2>
+    <h2 class="mb-4 text-[14px] font-semibold text-text-primary">{t('write.newIssue')}</h2>
 
     {#if loading}
-      <div class="py-8 text-center text-[13px] text-text-muted">불러오는 중…</div>
+      <div class="py-8 text-center text-[13px] text-text-muted">{t('common.loading')}</div>
     {:else if loadError}
       <div class="flex flex-col items-center gap-3 py-8 text-center">
         <p class="text-[13px] text-status-reopen">{loadError}</p>
@@ -265,7 +266,7 @@
           type="button"
           onclick={loadFallback}
           class="rounded-md border border-border-strong px-3 py-1.5 text-[12px] text-text-secondary hover:bg-bg-hover"
-          >다시 시도</button
+          >{t('common.retry')}</button
         >
       </div>
     {:else}
@@ -273,7 +274,7 @@
         <!-- 프로젝트 + 유형 -->
         <div class="flex gap-3">
           <label class="flex min-w-0 flex-1 flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">프로젝트</span>
+            <span class="text-[11px] text-text-secondary">{t('common.project')}</span>
             <select
               bind:value={projectKey}
               class="rounded-md border border-border-strong bg-bg-base px-2 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
@@ -284,7 +285,7 @@
             </select>
           </label>
           <label class="flex min-w-0 flex-1 flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">유형</span>
+            <span class="text-[11px] text-text-secondary">{t('common.type')}</span>
             <select
               bind:value={issueTypeId}
               class="rounded-md border border-border-strong bg-bg-base px-2 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
@@ -298,7 +299,7 @@
 
         <!-- 제목 -->
         <label class="flex flex-col gap-1">
-          <span class="text-[11px] text-text-secondary">제목 <span class="text-status-reopen">*</span></span>
+          <span class="text-[11px] text-text-secondary">{t('common.title')} <span class="text-status-reopen">*</span></span>
           <input
             bind:this={summaryEl}
             bind:value={summary}
@@ -306,25 +307,25 @@
             required
             maxlength="255"
             class="rounded-md border border-border-strong bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
-            placeholder="이슈 제목"
+            placeholder={t('write.issueTitle')}
           />
         </label>
 
         <!-- 설명 -->
         <label class="flex flex-col gap-1">
-          <span class="text-[11px] text-text-secondary">설명</span>
+          <span class="text-[11px] text-text-secondary">{t('common.description')}</span>
           <textarea
             bind:value={description}
             rows="4"
             class="resize-y rounded-md border border-border-strong bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
-            placeholder="평문 (줄바꿈 유지)"
+            placeholder={t('write.descriptionPlain')}
           ></textarea>
         </label>
 
         <!-- 담당자 + 우선순위 -->
         <div class="flex gap-3">
           <div class="relative flex min-w-0 flex-1 flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">담당자</span>
+            <span class="text-[11px] text-text-secondary">{t('common.assignee')}</span>
             {#if assignee}
               <div class="flex items-center gap-2 rounded-md border border-border-strong bg-bg-base px-2 py-1.5 text-[13px]">
                 <span class="min-w-0 flex-1 truncate text-text-primary">{assignee.display_name}</span>
@@ -334,14 +335,14 @@
               <input
                 bind:value={userQuery}
                 type="text"
-                placeholder="이름/이메일 검색 (선택)"
+                placeholder={t('write.searchPersonOptional')}
                 onfocus={() => (userMenuOpen = userResults.length > 0)}
                 class="rounded-md border border-border-strong bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
               />
               {#if userMenuOpen && (userResults.length > 0 || userSearching)}
                 <div class="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-border-subtle bg-bg-elevated py-1 shadow-xl">
                   {#if userSearching}
-                    <div class="px-3 py-1.5 text-[11px] text-text-muted">검색 중…</div>
+                    <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.searching')}</div>
                   {/if}
                   {#each userResults as u (u.account_id)}
                     <button
@@ -360,12 +361,12 @@
             {/if}
           </div>
           <label class="flex w-32 flex-none flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">우선순위</span>
+            <span class="text-[11px] text-text-secondary">{t('common.priority')}</span>
             <select
               bind:value={priority}
               class="rounded-md border border-border-strong bg-bg-base px-2 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
             >
-              <option value="">(기본)</option>
+              <option value="">{t('common.defaultParen')}</option>
               {#each PRIORITIES as p (p)}
                 <option value={p}>{p}</option>
               {/each}
@@ -375,7 +376,7 @@
 
         <!-- 라벨 -->
         <div class="relative flex flex-col gap-1">
-          <span class="text-[11px] text-text-secondary">라벨</span>
+          <span class="text-[11px] text-text-secondary">{t('common.labels')}</span>
           <div class="flex flex-wrap items-center gap-1 rounded-md border border-border-strong bg-bg-base px-2 py-1.5">
             {#each labels as l (l)}
               <span class="inline-flex items-center gap-1 rounded bg-bg-elevated px-1.5 py-0.5 text-[11px] text-text-secondary">
@@ -389,7 +390,7 @@
               onfocus={() => (labelMenuOpen = true)}
               onblur={() => setTimeout(() => (labelMenuOpen = false), 120)}
               type="text"
-              placeholder={labels.length ? '' : '라벨 추가 (선택)'}
+              placeholder={labels.length ? '' : t('write.addLabelOptional')}
               class="min-w-24 flex-1 bg-transparent text-[13px] text-text-primary outline-none"
             />
           </div>
@@ -418,14 +419,14 @@
             type="button"
             onclick={close}
             class="rounded-md px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
-            >취소</button
+            >{t('common.cancel')}</button
           >
           <button
             type="submit"
             disabled={submitting}
             class="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
           >
-            {submitting ? '생성 중…' : '생성'}
+            {submitting ? t('common.creating') : t('common.create')}
           </button>
         </div>
       </form>

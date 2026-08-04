@@ -3,6 +3,7 @@
    * 그룹 헤더 ([explore]). 고정 높이 42px. 라벨 + 총건수 + 상태분류 미니 집계.
    *  리스트가 곧 요약 대시보드(plan §5.1) — 헤더에 집계를 내장한다.
    */
+  import { t } from '../../lib/i18n'
   import type { IssueGroup } from '../../stores/filters.svelte'
   import { CATEGORY_META } from '../../lib/format'
   import type { StatusCategory } from '../../lib/view-config'
@@ -28,7 +29,7 @@
       : ''}"
 >
   <span class="truncate text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-    {group.label || '전체'}
+    {group.label || t('common.all')}
   </span>
   <span class="flex-none text-[11px] tabular-nums text-text-muted">
     {group.counts.total}

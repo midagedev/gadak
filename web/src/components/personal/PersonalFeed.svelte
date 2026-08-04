@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../lib/i18n'
   import { ArrowLeft, CheckCheck, ChevronRight } from '@lucide/svelte'
   import type { FeedFocus, FeedItem } from '../../lib/types'
   import { selection } from '../../stores/selection.svelte'
@@ -9,28 +10,28 @@
   import NotificationSettings from './NotificationSettings.svelte'
 
   const TABS: { key: FeedFocus; label: string }[] = [
-    { key: 'all', label: '전체' },
-    { key: 'assignee', label: '담당' },
-    { key: 'reporter', label: '보고' },
-    { key: 'mention', label: '멘션' },
+    { key: 'all', label: t('feed.filterAll') },
+    { key: 'assignee', label: t('feed.filterAssignee') },
+    { key: 'reporter', label: t('feed.filterReporter') },
+    { key: 'mention', label: t('feed.filterMention') },
   ]
 
   const EVENT_LABELS: Record<FeedItem['event_type'], string> = {
-    created: '새 이슈',
-    status_changed: '상태 변경',
-    reopened: '재오픈',
-    assigned: '담당자 변경',
-    comment_added: '새 코멘트',
-    attachment_added: '새 첨부',
-    fields_changed: '필드 변경',
+    created: t('feed.kindCreated'),
+    status_changed: t('feed.kindStatus'),
+    reopened: t('feed.kindReopen'),
+    assigned: t('feed.kindAssignee'),
+    comment_added: t('feed.kindComment'),
+    attachment_added: t('feed.kindAttachment'),
+    fields_changed: t('feed.kindField'),
   }
 
   const REASON_LABELS: Record<string, string> = {
-    assignee: '담당',
-    assigned: '새 담당',
-    reporter: '보고',
-    watch: '워치',
-    mention: '멘션',
+    assignee: t('feed.whyAssignee'),
+    assigned: t('feed.whyNewAssignee'),
+    reporter: t('feed.whyReporter'),
+    watch: t('feed.whyWatch'),
+    mention: t('feed.whyMention'),
   }
 
   function payloadString(item: FeedItem, key: string): string {
@@ -117,7 +118,7 @@
   <header
     class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-3 py-2"
   >
-    <h1 class="whitespace-nowrap text-[13px] font-semibold text-text-primary">피드</h1>
+    <h1 class="whitespace-nowrap text-[13px] font-semibold text-text-primary">{t('feed.title')}</h1>
     {#if me.feedUnread.all > 0}
       <span
         class="min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-center text-[10px] font-semibold text-white"
@@ -151,10 +152,10 @@
         type="button"
         onclick={() => me.markAllFeedRead()}
         class="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary max-[760px]:w-7 max-[760px]:justify-center max-[760px]:px-0"
-        title="모두 읽음"
+        title={t('feed.markAllRead')}
       >
         <CheckCheck size={14} strokeWidth={1.8} />
-        <span class="max-[760px]:hidden">모두 읽음</span>
+        <span class="max-[760px]:hidden">{t('feed.markAllRead')}</span>
       </button>
     {/if}
     {#if feature('push')}
@@ -164,8 +165,8 @@
       type="button"
       onclick={() => me.closeFeed()}
       class="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-      title="리스트로 돌아가기"
-      aria-label="리스트로 돌아가기"
+      title={t('feed.backToList')}
+      aria-label={t('feed.backToList')}
     >
       <ArrowLeft size={15} strokeWidth={1.8} />
     </button>
@@ -173,15 +174,15 @@
 
   <div class="min-h-0 flex-1 overflow-y-auto">
     {#if !me.authed}
-      <EmptyState icon="" title="로그인이 필요합니다" />
+      <EmptyState icon="" title={t('feed.needLogin')} />
     {:else if me.feedLoading && !me.feedLoaded}
-      <div class="space-y-px p-2" aria-label="피드 로딩 중">
+      <div class="space-y-px p-2" aria-label={t('feed.loading')}>
         {#each Array(6) as _}
           <div class="h-[58px] animate-pulse rounded-md bg-bg-elevated"></div>
         {/each}
       </div>
     {:else if me.feedItems.length === 0}
-      <EmptyState icon="" title="새 활동이 없습니다" />
+      <EmptyState icon="" title={t('feed.empty')} />
     {:else}
       {#snippet feedRow(item: FeedItem)}
         {@const unread = !item.read_at}

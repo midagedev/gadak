@@ -3,6 +3,7 @@
    * key-value 행 편집기 (fieldMap / editableFields 공용).
    *  빈 키 행은 저장 시 호출부가 걸러낸다.
    */
+  import { t } from '../../lib/i18n'
   let {
     rows = $bindable(),
     keyLabel,
@@ -34,7 +35,7 @@
       <button
         type="button"
         class="w-6 flex-none text-[12px] text-text-muted transition-colors hover:text-status-reopen"
-        title="행 삭제"
+        title={t('settings.deleteRow')}
         onclick={() => (rows = rows.filter((_, j) => j !== i))}
       >
         ✕
@@ -46,6 +47,6 @@
     class="self-start rounded-md border border-border-strong px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
     onclick={() => (rows = [...rows, { k: '', v: '' }])}
   >
-    + 행 추가
+    {t('settings.addRow')}
   </button>
 </div>

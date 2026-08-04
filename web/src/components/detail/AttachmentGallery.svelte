@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../lib/i18n'
   import type { DetailAttachment } from '../../lib/types'
   import { mediaViewer } from '../../stores/media-viewer.svelte'
 
@@ -20,7 +21,7 @@
         type="button"
         onclick={() => mediaViewer.open(attachment)}
         class="group relative aspect-[4/3] min-w-0 overflow-hidden rounded-md border border-border-subtle bg-bg-base text-left hover:border-border-strong"
-        aria-label={`${attachment.filename} 크게 보기`}
+        aria-label={t('detail.enlarge', { name: attachment.filename })}
       >
         <img
           src={attachment.content_url}
@@ -38,7 +39,7 @@
         type="button"
         onclick={() => mediaViewer.open(attachment)}
         class="group col-span-2 flex aspect-video min-w-0 flex-col items-center justify-center gap-2 rounded-md border border-border-subtle bg-bg-base px-3 text-center hover:border-border-strong hover:bg-bg-hover"
-        aria-label={`${attachment.filename} 재생`}
+        aria-label={t('detail.play', { name: attachment.filename })}
       >
         <span class="flex h-9 w-9 items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-[16px] text-text-primary group-hover:border-accent">
           ▶

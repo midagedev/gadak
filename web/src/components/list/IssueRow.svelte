@@ -4,6 +4,7 @@
    *  구성: 우선순위 아이콘 · 상태 점 · 키(모노) · 제목 · 라벨칩(≤3+n) · 재오픈/정체 배지 · 담당자 · 상대시간
    *  모든 칩/점/아바타 클릭 = 해당 값 필터 추가(stopPropagation 로 행 선택과 분리).
    */
+  import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
   import { filters } from '../../stores/filters.svelte'
   import { selection } from '../../stores/selection.svelte'
@@ -40,13 +41,13 @@
   const qaImpactMeta = $derived.by(() => {
     switch (issue.qa_impact_state) {
       case 'blocking':
-        return { label: 'QA 차단', cls: 'bg-status-reopen/15 text-status-reopen' }
+        return { label: t('list.qaBlock'), cls: 'bg-status-reopen/15 text-status-reopen' }
       case 'retest':
-        return { label: '재검증', cls: 'bg-status-stale/15 text-status-stale' }
+        return { label: t('list.qaRetest'), cls: 'bg-status-stale/15 text-status-stale' }
       case 'verified':
-        return { label: 'QA 완료', cls: 'bg-status-done/15 text-status-done' }
+        return { label: t('list.qaDone'), cls: 'bg-status-done/15 text-status-done' }
       case 'linked':
-        return { label: 'QA 차수', cls: 'bg-accent-subtle/60 text-accent-text' }
+        return { label: t('list.qaRun'), cls: 'bg-accent-subtle/60 text-accent-text' }
       default:
         return null
     }
@@ -60,7 +61,7 @@
         // 스왑 완료 = QA 확인 가능 — 청록 점 + 라벨로 리스트에서 바로 잡히게
         return { label: 'QA', cls: 'bg-[#2dd4bf]/15 text-[#5eead4]', dot: true }
       case 'qa_preview':
-        return { label: 'QA 대기', cls: 'bg-[#2dd4bf]/8 text-[#2dd4bf]/70', dot: false }
+        return { label: t('list.qaPending'), cls: 'bg-[#2dd4bf]/8 text-[#2dd4bf]/70', dot: false }
       case 'dev':
         return { label: 'dev', cls: 'bg-bg-active text-text-muted', dot: false }
       case 'prod':
@@ -147,8 +148,8 @@
       {selected ? 'border-accent bg-accent text-white' : 'border-border-strong'}"
     onclick={onCheckClick}
     aria-pressed={selected}
-    aria-label={selected ? '선택 해제' : '선택'}
-    title="선택"
+    aria-label={selected ? t('list.deselect') : t('list.select')}
+    title={t('list.select')}
   >
     {#if selected}<span class="text-[9px]">✓</span>{/if}
   </button>
@@ -161,9 +162,9 @@
     type="button"
     class="h-2 w-2 flex-none rounded-full transition-transform hover:scale-125"
     style:background={catMeta.color}
-    title={`분류: ${catMeta.label} (${issue.status})`}
+    title={t('list.categoryTitle', { label: catMeta.label, status: issue.status })}
     onclick={stop(() => filters.addValue('status_category', cat))}
-    aria-label={`분류 ${catMeta.label} 필터`}
+    aria-label={t('list.categoryFilter', { label: catMeta.label })}
   ></button>
 
   <!-- 키 (자기 이슈면 액센트 톤으로 소속 표시) -->
@@ -174,8 +175,8 @@
   <!-- 개인화 마커(즐겨찾기/워치) — 과하지 않게, 제목 앞 -->
   {#if isFavorite || isWatching}
     <span class="flex flex-none items-center gap-0.5 text-[10px]" aria-hidden="true">
-      {#if isFavorite}<span class="text-status-stale" title="즐겨찾기">★</span>{/if}
-      {#if isWatching}<span class="text-accent-text" title="워치 중">👁</span>{/if}
+      {#if isFavorite}<span class="text-status-stale" title={t('common.favorite')}>★</span>{/if}
+      {#if isWatching}<span class="text-accent-text" title={t('common.watching')}>👁</span>{/if}
     </span>
   {/if}
 
@@ -195,7 +196,7 @@
     <button
       type="button"
       class="flex-none rounded bg-status-reopen/15 px-1.5 py-0.5 text-[10px] font-medium text-status-reopen transition-colors hover:bg-status-reopen/25"
-      title={issue.reopen_reason ? `재오픈 ${issue.reopen_count}회 · ${issue.reopen_reason}` : `재오픈 ${issue.reopen_count}회`}
+      title={issue.reopen_reason ? t('list.reopenCountReason', { n: issue.reopen_count, reason: issue.reopen_reason }) : t('list.reopenCount', { n: issue.reopen_count })}
       onclick={stop(() => filters.toggleFlag('reopened'))}
     >
       🔁 {issue.reopen_count}
@@ -204,9 +205,9 @@
   {#if cols.has('stale') && stale}
     <span
       class="flex-none rounded bg-status-stale/15 px-1.5 py-0.5 text-[10px] font-medium text-status-stale"
-      title={`이 상태로 ${staleDays}일째`}
+      title={t('list.staleDays', { n: staleDays })}
     >
-      ⏳ {staleDays}일
+      {t('list.staleDaysShort', { n: staleDays })}
     </span>
   {/if}
 
@@ -227,8 +228,8 @@
       type="button"
       class="flex flex-none items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-opacity hover:opacity-80 {deployMeta.cls}"
       title={deployState === 'qa'
-        ? 'qa 스왑 완료 — QA 확인 가능'
-        : `배포 단계: ${deployMeta.label}`}
+        ? t('deploy.qaSwapDone')
+        : t('deploy.stageTitle', { label: deployMeta.label })}
       onclick={stop(() => filters.addValue('deploy_state', deployState))}
     >
       {#if deployMeta.dot}
@@ -239,9 +240,9 @@
   {:else if cols.has('deploy') && deployStale}
     <span
       class="flex-none rounded bg-status-stale/12 px-1.5 py-0.5 text-[10px] font-medium text-status-stale/80"
-      title="해결됨이지만 아직 어느 릴리즈에도 포함되지 않음(머지 상태)"
+      title={t('deploy.resolvedNoRelease')}
     >
-      미배포
+      {t('deploy.notDeployed')}
     </span>
   {/if}
 
@@ -250,7 +251,7 @@
     <button
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
-      title={`심각도: ${issue.severity}`}
+      title={t('list.fieldValue', { field: t('common.severity'), value: issue.severity })}
       onclick={stop(() => filters.addValue('severity', issue.severity!))}
     >
       {issue.severity}
@@ -260,7 +261,7 @@
     <button
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
-      title={`유형: ${issue.issue_type}`}
+      title={t('list.fieldValue', { field: t('common.type'), value: issue.issue_type })}
       onclick={stop(() => filters.addValue('issue_type', issue.issue_type))}
     >
       {issue.issue_type}
@@ -270,7 +271,7 @@
     <button
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
-      title={`상태: ${issue.status}`}
+      title={t('list.fieldValue', { field: t('common.status'), value: issue.status })}
       onclick={stop(() => filters.addValue('status', issue.status))}
     >
       {issue.status}
@@ -280,7 +281,7 @@
     <button
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
-      title={`개발검증 결과: ${issue.development_test_result}`}
+      title={t('list.fieldValue', { field: t('column.dev_test_result'), value: issue.development_test_result })}
       onclick={stop(() => filters.addValue('development_test_result', issue.development_test_result!))}
     >
       {issue.development_test_result}
@@ -290,7 +291,7 @@
     <button
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
-      title={`환경: ${issue.environment}`}
+      title={t('list.fieldValue', { field: t('column.environment'), value: issue.environment })}
       onclick={stop(() => filters.addValue('environment', issue.environment!))}
     >
       {issue.environment}
@@ -300,7 +301,7 @@
     <button
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
-      title={`파트: ${issue.d1_group}`}
+      title={t('list.fieldValue', { field: t('column.d1_group'), value: issue.d1_group })}
       onclick={stop(() => filters.addValue('d1_group', issue.d1_group!))}
     >
       {issue.d1_group}
@@ -310,7 +311,7 @@
     <button
       type="button"
       class="hidden max-w-[90px] flex-none truncate rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
-      title={`보고자: ${issue.reporter}`}
+      title={t('list.fieldValue', { field: t('common.reporter'), value: issue.reporter })}
       onclick={issue.reporter_email
         ? stop(() => filters.addValue('reporter_email', issue.reporter_email!))
         : undefined}
@@ -319,7 +320,7 @@
     </button>
   {/if}
   {#if cols.has('comment_count') && issue.comment_count > 0}
-    <span class="hidden flex-none text-[10px] text-text-muted sm:inline" title={`댓글 ${issue.comment_count}개`}>
+    <span class="hidden flex-none text-[10px] text-text-muted sm:inline" title={t('list.commentCount', { n: issue.comment_count })}>
       💬 {issue.comment_count}
     </span>
   {/if}
@@ -343,7 +344,7 @@
       <button
         type="button"
         class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
-        title={`컴포넌트: ${issue.components.join(', ')}`}
+        title={t('list.fieldValue', { field: t('field.components'), value: issue.components.join(', ') })}
         onclick={stop(() => filters.addValue('components', issue.components[0]))}
       >
         {issue.components[0]}
@@ -354,7 +355,7 @@
     </span>
   {/if}
   {#if cols.has('created') && issue.created_at}
-    <span class="hidden w-10 flex-none text-right text-[11px] text-text-muted sm:inline" title={`생성 ${absTime(issue.created_at)}`}>
+    <span class="hidden w-10 flex-none text-right text-[11px] text-text-muted sm:inline" title={t('list.createdAt', { time: absTime(issue.created_at) })}>
       {relativeTime(issue.created_at)}
     </span>
   {/if}
@@ -367,7 +368,7 @@
           type="button"
           class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-[11px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
           onclick={stop(() => filters.addValue('labels', label))}
-          title={`라벨: ${label}`}
+          title={t('list.fieldValue', { field: t('common.labels'), value: label })}
         >
           {label}
         </button>

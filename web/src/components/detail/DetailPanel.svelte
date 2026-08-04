@@ -9,6 +9,7 @@
    * 레이턴시 은닉: selectedKey 변경 즉시 로컬 풀(issues.get)의 IssueLite 로 헤더를 렌더하고
    *  본문은 스켈레톤을 보이다가 detail(getDetailCached) 도착 시 교체한다.
    */
+  import { t } from '../../lib/i18n'
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
@@ -112,7 +113,7 @@
             type="button"
             onclick={() => selection.clear()}
             class="flex h-6 w-6 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-            aria-label="닫기"
+            aria-label={t('common.close')}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
@@ -129,9 +130,9 @@
         <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">
           <p class="text-[13px] text-text-secondary">
             {#if errorKind === 'notfound'}
-              이 이슈를 찾을 수 없습니다. 삭제되었을 수 있습니다.
+              {t('detail.notFound')}
             {:else}
-              상세를 불러오지 못했습니다.
+              {t('detail.loadFailed')}
             {/if}
           </p>
           {#if errorKind === 'network'}
@@ -140,7 +141,7 @@
               onclick={retry}
               class="rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
             >
-              다시 시도
+              {t('common.retry')}
             </button>
           {/if}
         </div>
@@ -157,38 +158,38 @@
         <!-- 상세 본문 -->
         <div class="anim-enter divide-y divide-border-subtle">
           {#if lite}
-            <Section title="세부 사항">
+            <Section title={t('detail.details')}>
               <IssueFields issue={lite} developmentOpinion={detailForKey.development_opinion} />
             </Section>
           {/if}
 
           <!-- 설명 -->
-          <Section title="설명">
+          <Section title={t('detail.description')}>
             <div class="text-[13px] text-text-secondary">
               <AdfContent
                 node={detailForKey.description_adf}
                 issueKey={key}
                 attachments={detailForKey.attachments}
-                emptyLabel="설명 없음"
+                emptyLabel={t('detail.noDescription')}
               />
             </div>
           </Section>
 
           {#if detailForKey.attachments.length > 0}
-            <Section title="첨부" count={detailForKey.attachments.length}>
+            <Section title={t('detail.attachments')} count={detailForKey.attachments.length}>
               <AttachmentGallery attachments={detailForKey.attachments} />
             </Section>
           {/if}
 
           <!-- QA 차수 맥락은 Jira 본문/증빙 다음에 보조 정보로 노출한다. -->
           {#if feature('qa') && detailForKey.qa_context}
-            <Section title="QA 영향" count={detailForKey.qa_context.runs.length}>
+            <Section title={t('detail.qaImpact')} count={detailForKey.qa_context.runs.length}>
               <QaImpact context={detailForKey.qa_context} />
             </Section>
           {/if}
 
           <!-- 코멘트 (+ 작성 컴포저) -->
-          <Section title="코멘트" count={detailForKey.comments.length}>
+          <Section title={t('detail.comments')} count={detailForKey.comments.length}>
             <CommentList
               comments={detailForKey.comments}
               issueKey={key}
@@ -199,28 +200,28 @@
 
           <!-- 변경 이력 -->
           {#if detailForKey.history.length > 0}
-            <Section title="변경 이력" count={detailForKey.history.length}>
+            <Section title={t('detail.history')} count={detailForKey.history.length}>
               <HistoryTimeline history={detailForKey.history} />
             </Section>
           {/if}
 
           <!-- 연결 이슈 -->
           {#if detailForKey.linked_issues.length > 0}
-            <Section title="연결 이슈" count={detailForKey.linked_issues.length}>
+            <Section title={t('detail.links')} count={detailForKey.linked_issues.length}>
               <LinkedIssues linked={detailForKey.linked_issues} />
             </Section>
           {/if}
 
           <!-- 배포 현황 (deploy.state 있을 때만 — 구 서버 호환) -->
           {#if feature('deploy') && detailForKey.deploy?.state}
-            <Section title="배포 현황">
+            <Section title={t('detail.deploy')}>
               <DeployTimeline deploy={detailForKey.deploy} />
             </Section>
           {/if}
 
           <!-- 연결 PR (배포 연동과 같은 CI/CD 소스에서 온다 — deploy 플래그에 함께 묶임) -->
           {#if feature('deploy') && detailForKey.linked_prs.length > 0}
-            <Section title="연결 PR" count={detailForKey.linked_prs.length}>
+            <Section title={t('detail.prs')} count={detailForKey.linked_prs.length}>
               <PrList prs={detailForKey.linked_prs} />
             </Section>
           {/if}

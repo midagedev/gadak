@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../lib/i18n'
   /*
    * 인증 게이트 — 캐시가 없는데 401 이 난 경우에만 표시(render-before-auth).
    * 캐시가 있으면 앱은 그대로 뜨고 인증 확인은 백그라운드에서 조용히 처리된다.
@@ -12,8 +13,9 @@
     <span class="text-[15px] font-semibold text-text-primary">Issues</span>
   </div>
   <p class="max-w-sm text-[13px] text-text-secondary">
-    로컬 서버에 연결할 수 없습니다. <code class="text-text-primary">scry serve</code> 가 실행 중인지
-    확인하세요.
+    {t('app.authGate')}
+    <code class="text-text-primary">scry serve</code>
+    {t('app.authGateHint')}
   </p>
   <div class="flex gap-2">
     {#if onRetry}
@@ -21,7 +23,7 @@
         onclick={onRetry}
         class="rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
       >
-        다시 시도
+        {t('app.authRetry')}
       </button>
     {/if}
   </div>

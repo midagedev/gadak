@@ -14,6 +14,7 @@
  *  5. 미지원 노드는 자식으로 텍스트 폴백(재귀) — 절대 원본 HTML 을 흘리지 않는다.
  */
 
+import { t } from './i18n'
 import { config, jiraBrowseUrl } from './config'
 import type { AdfNode, DetailAttachment } from './types'
 
@@ -143,10 +144,10 @@ function findAttachment(node: AdfNode, opts: AdfRenderOptions): DetailAttachment
 function renderAttachment(attachment: DetailAttachment, compact = false): string {
   const src = safeMediaUrl(attachment.content_url)
   if (!src) return ''
-  const name = esc(attachment.filename || '첨부 파일')
+  const name = esc(attachment.filename || t('common.attachmentFile'))
   const id = esc(attachment.id)
   if (attachment.is_image && !compact) {
-    return `<button type="button" class="adf-media-image" data-attachment-id="${id}" aria-label="${name} 크게 보기"><img src="${src}" alt="${name}" loading="lazy" decoding="async"></button>`
+    return `<button type="button" class="adf-media-image" data-attachment-id="${id}" aria-label="${t('detail.enlarge', { name })}"><img src="${src}" alt="${name}" loading="lazy" decoding="async"></button>`
   }
   if (attachment.is_video && !compact) {
     return `<figure class="adf-media-video"><video src="${src}" controls preload="metadata" playsinline aria-label="${name}"></video><figcaption>${name}</figcaption></figure>`
@@ -239,7 +240,7 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
 
     case 'mention': {
       const raw = attrStr(node, 'text') ?? ''
-      const name = raw.replace(/^@/, '') || '불명'
+      const name = raw.replace(/^@/, '') || t('adf.unknownMention')
       return `<span class="adf-mention">@${esc(name)}</span>`
     }
 
@@ -291,9 +292,9 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
     case 'media': {
       const attachment = findAttachment(node, opts)
       if (attachment) return renderAttachment(attachment)
-      const name = attrStr(node, 'alt') ?? '첨부 파일'
+      const name = attrStr(node, 'alt') ?? t('common.attachmentFile')
       const link = opts.issueKey ? jiraBrowseUrl(opts.issueKey) : null
-      const label = `📎 첨부: ${esc(name)}`
+      const label = t('detail.attachmentLabel', { name: esc(name) })
       return link
         ? `<a class="adf-media" href="${esc(link)}" target="_blank" rel="noopener noreferrer">${label}</a>`
         : `<span class="adf-media">${label}</span>`
@@ -302,7 +303,7 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
     case 'mediaInline': {
       const attachment = findAttachment(node, opts)
       if (attachment) return renderAttachment(attachment, true)
-      const name = attrStr(node, 'alt') ?? '첨부'
+      const name = attrStr(node, 'alt') ?? t('common.attachment')
       return `<span class="adf-media">📎 ${esc(name)}</span>`
     }
 

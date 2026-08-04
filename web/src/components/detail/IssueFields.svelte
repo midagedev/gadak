@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, fieldLabel } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
   import { feature } from '../../lib/config'
   import QaFieldEditor from './QaFieldEditor.svelte'
@@ -31,32 +32,32 @@
   const rows = $derived.by<FieldRow[]>(() => [
     {
       key: 'development_test_assignee',
-      label: '개발 테스트 담당자',
+      label: fieldLabel('development_test_assignee_email'),
       values: split(issue.development_test_assignee || issue.development_test_assignee_email),
       edit: 'user',
     },
     {
       key: 'development_test_result',
-      label: '개발 테스트 결과',
+      label: fieldLabel('development_test_result'),
       values: split(issue.development_test_result),
       edit: 'option',
     },
-    { key: 'environment', label: '발생 환경', values: split(issue.environment) },
-    { key: 'browser', label: '브라우저', values: split(issue.browser) },
-    { key: 'dev_project_number', label: '발생 프로젝트 번호', values: split(issue.dev_project_number) },
-    { key: 'found_version', label: '발생 버전', values: split(issue.found_version) },
-    { key: 'occurrence', label: '발생 빈도', values: split(issue.occurrence) },
-    { key: 'components', label: '컴포넌트', values: issue.components ?? [] },
-    { key: 'solution', label: '수정 방법', values: split(issue.solution), edit: 'option' },
+    { key: 'environment', label: fieldLabel('environment'), values: split(issue.environment) },
+    { key: 'browser', label: fieldLabel('browser'), values: split(issue.browser) },
+    { key: 'dev_project_number', label: fieldLabel('dev_project_number'), values: split(issue.dev_project_number) },
+    { key: 'found_version', label: fieldLabel('found_version'), values: split(issue.found_version) },
+    { key: 'occurrence', label: fieldLabel('occurrence'), values: split(issue.occurrence) },
+    { key: 'components', label: fieldLabel('components'), values: issue.components ?? [] },
+    { key: 'solution', label: t('field.solution_method'), values: split(issue.solution), edit: 'option' },
     {
       key: 'fix_versions',
-      label: '수정 버전',
+      label: fieldLabel('fix_versions'),
       values: issue.fix_versions ?? [],
       edit: 'version_array',
     },
-    { key: 'critical_phenomenon', label: '크리티컬 현상', values: split(issue.critical_phenomenon) },
-    { key: 'development_area', label: '개발 영역', values: split(issue.development_area) },
-    { key: 'development_opinion', label: '개발 의견', values: split(developmentOpinion) },
+    { key: 'critical_phenomenon', label: fieldLabel('critical_phenomenon'), values: split(issue.critical_phenomenon) },
+    { key: 'development_area', label: fieldLabel('development_area'), values: split(issue.development_area) },
+    { key: 'development_opinion', label: t('field.development_opinion'), values: split(developmentOpinion) },
     { key: 'cs', label: 'CS', values: split(issue.cs) },
   ])
 
@@ -75,7 +76,7 @@
       {#if row.edit && feature('qa')}
         <QaFieldEditor {issue} field={row.key} kind={row.edit} values={row.values} />
       {:else if row.values.length === 0}
-        <span class="text-text-muted">없음</span>
+        <span class="text-text-muted">{t('issueFields.none')}</span>
       {:else}
         <span class="flex flex-wrap gap-1">
           {#each row.values as value (value)}

@@ -5,41 +5,23 @@
 
 import type { IssueLite } from './types'
 import { effectiveCategory, type StatusCategory } from './view-config'
+import {
+  absTime as i18nAbsTime,
+  categoryLabel,
+  relativeTime as i18nRelativeTime,
+  t,
+} from './i18n'
 
-/* ── 상대시간 (ko) ── */
+/* ── 상대시간 (i18n 단일 구현, compact) ── */
 
-const MIN = 60_000
-const HOUR = 60 * MIN
-const DAY = 24 * HOUR
-
-/** "방금 · N분 · N시간 · N일 · N주 · N달 · N년" 형태의 압축 상대시간. */
+/** "just now · 3m · 2h · 1d …" compact relative time. */
 export function relativeTime(iso: string | null): string {
-  if (!iso) return ''
-  const t = Date.parse(iso)
-  if (Number.isNaN(t)) return ''
-  const diff = Date.now() - t
-  if (diff < MIN) return '방금'
-  if (diff < HOUR) return `${Math.floor(diff / MIN)}분`
-  if (diff < DAY) return `${Math.floor(diff / HOUR)}시간`
-  const days = Math.floor(diff / DAY)
-  if (days < 7) return `${days}일`
-  if (days < 30) return `${Math.floor(days / 7)}주`
-  if (days < 365) return `${Math.floor(days / 30)}달`
-  return `${Math.floor(days / 365)}년`
+  return i18nRelativeTime(iso, 'compact')
 }
 
 /** 절대시각(툴팁용). */
 export function absTime(iso: string | null): string {
-  if (!iso) return ''
-  const t = new Date(iso)
-  if (Number.isNaN(t.getTime())) return ''
-  return t.toLocaleString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return i18nAbsTime(iso)
 }
 
 /* ── 이니셜(아바타 폴백) ── */
@@ -83,15 +65,41 @@ export function priorityMeta(priority: string | null): PriorityMeta {
   if (/medium|보통|normal/.test(p)) return { label: priority ?? '', color: '#eab308', level: 3 }
   if (/lowest|가장 낮음|매우 ?낮음|trivial/.test(p)) return { label: priority ?? '', color: '#64748b', level: 1 }
   if (/low|낮음|minor/.test(p)) return { label: priority ?? '', color: '#3b82f6', level: 2 }
-  return { label: priority ?? '없음', color: '#64748b', level: 0 }
+  return { label: priority ?? t('common.none'), color: '#64748b', level: 0 }
 }
 
 /* ── 상태 카테고리 메타 ── */
 
-export const CATEGORY_META: Record<StatusCategory, { label: string; color: string }> = {
-  new: { label: '신규', color: 'var(--color-status-new)' },
-  inprogress: { label: '진행중', color: 'var(--color-status-inprogress)' },
-  done: { label: '완료', color: 'var(--color-status-done)' },
+export function categoryMetaOf(cat: StatusCategory): { label: string; color: string } {
+  const color =
+    cat === 'new'
+      ? 'var(--color-status-new)'
+      : cat === 'inprogress'
+        ? 'var(--color-status-inprogress)'
+        : 'var(--color-status-done)'
+  return { label: categoryLabel(cat), color }
+}
+
+/** @deprecated prefer categoryMetaOf — kept as getter-style for call sites. */
+export const CATEGORY_META: Record<StatusCategory, { get label(): string; color: string }> = {
+  new: {
+    get label() {
+      return categoryLabel('new')
+    },
+    color: 'var(--color-status-new)',
+  },
+  inprogress: {
+    get label() {
+      return categoryLabel('inprogress')
+    },
+    color: 'var(--color-status-inprogress)',
+  },
+  done: {
+    get label() {
+      return categoryLabel('done')
+    },
+    color: 'var(--color-status-done)',
+  },
 }
 
 export function categoryOf(issue: IssueLite): StatusCategory {

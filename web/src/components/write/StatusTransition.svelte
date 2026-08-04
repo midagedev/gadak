@@ -7,6 +7,7 @@
    *    첫 항목에 포커스 → Enter 로 즉시 실행.
    *  - 선택 시 write.transition()(옵티미스틱). 로컬 실행이 실패하면(맵 낡음 등) 원격으로 재조회.
    */
+  import { t } from '../../lib/i18n'
   import type { IssueLite, Transition } from '../../lib/types'
   import * as api from '../../lib/api'
   import { ApiError } from '../../lib/api'
@@ -106,7 +107,7 @@
         write.openSettings()
         return
       }
-      loadError = '전환 목록을 불러오지 못했습니다.'
+      loadError = t('write.transitionsFailed')
       remote = []
     } finally {
       loading = false
@@ -159,7 +160,7 @@
     class="group inline-flex items-center gap-1.5 rounded-md bg-bg-elevated px-2 py-0.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
     aria-haspopup="listbox"
     aria-expanded={open}
-    title={canEdit ? '상태 변경' : issue.status}
+    title={canEdit ? t('write.changeStatus') : issue.status}
   >
     <span class="h-1.5 w-1.5 rounded-full {dotClass}"></span>
     {issue.status}
@@ -182,11 +183,11 @@
       role="listbox"
     >
       {#if loading}
-        <div class="px-3 py-2 text-[12px] text-text-muted">불러오는 중…</div>
+        <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.loadingTransitions')}</div>
       {:else if loadError}
         <div class="px-3 py-2 text-[12px] text-status-reopen">{loadError}</div>
       {:else if sorted.length === 0}
-        <div class="px-3 py-2 text-[12px] text-text-muted">가능한 전환이 없습니다.</div>
+        <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.noTransitions')}</div>
       {:else}
         {#each sorted as t (t.id)}
           <button

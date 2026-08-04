@@ -10,6 +10,7 @@
  */
 
 import { config, feature, type ScryFeatures } from './config'
+import { columnLabel, deployStateLabel } from './i18n'
 import type { DeployState, IssueLite } from './types'
 
 /* ── 필터 상태 ── */
@@ -80,28 +81,40 @@ export type SortDir = 'asc' | 'desc'
  *  레이아웃은 "밀집 행 유지 + 필드 on/off" — 체크한 컬럼만 행 우측에 렌더한다.
  *  컬럼 구성은 display 의 일부라 URL·저장 뷰에 함께 직렬화된다(뷰별 컬럼).
  */
-export const COLUMNS = [
-  { key: 'assignee', label: '담당자' },
-  { key: 'updated', label: '갱신 시간' },
-  { key: 'labels', label: '라벨' },
-  { key: 'reopen', label: '재오픈' },
-  { key: 'stale', label: '정체(경과)' },
-  { key: 'qa_impact', label: 'QA 영향' },
-  { key: 'deploy', label: '배포 단계' },
-  { key: 'severity', label: '심각도' },
-  { key: 'issue_type', label: '유형' },
-  { key: 'status', label: '상태' },
-  { key: 'reporter', label: '보고자' },
-  { key: 'comment_count', label: '댓글수' },
-  { key: 'fix_versions', label: 'Fix Version' },
-  { key: 'components', label: '컴포넌트' },
-  { key: 'created', label: '생성 시간' },
-  { key: 'environment', label: '환경' },
-  { key: 'd1_group', label: '파트' },
-  { key: 'dev_test_result', label: '개발검증 결과' },
+export const COLUMN_KEYS_ALL = [
+  'assignee',
+  'updated',
+  'labels',
+  'reopen',
+  'stale',
+  'qa_impact',
+  'deploy',
+  'severity',
+  'issue_type',
+  'status',
+  'reporter',
+  'comment_count',
+  'fix_versions',
+  'components',
+  'created',
+  'environment',
+  'd1_group',
+  'dev_test_result',
 ] as const
-export type ColumnKey = (typeof COLUMNS)[number]['key']
-const COLUMN_KEYS = COLUMNS.map((c) => c.key) as readonly ColumnKey[]
+export type ColumnKey = (typeof COLUMN_KEYS_ALL)[number]
+
+/** 컬럼 카탈로그 항목(라벨은 활성 로케일 기준). */
+export interface ColumnDef {
+  key: ColumnKey
+  label: string
+}
+
+/** 라벨은 호출 시점 로케일로 계산한다. */
+export function COLUMNS(): ColumnDef[] {
+  return COLUMN_KEYS_ALL.map((key) => ({ key, label: columnLabel(key) }))
+}
+
+const COLUMN_KEYS = COLUMN_KEYS_ALL as readonly ColumnKey[]
 
 /** 선택 기능에 딸린 컬럼 — 해당 플래그가 꺼지면 카탈로그에서 사라진다. */
 const COLUMN_FEATURE: Partial<Record<ColumnKey, keyof ScryFeatures>> = {
@@ -116,8 +129,8 @@ function columnEnabled(key: ColumnKey): boolean {
 }
 
 /** 컬럼 메뉴가 노출할 카탈로그(꺼진 기능의 컬럼 제외). */
-export function columnCatalog(): (typeof COLUMNS)[number][] {
-  return COLUMNS.filter((c) => columnEnabled(c.key))
+export function columnCatalog(): ColumnDef[] {
+  return COLUMNS().filter((c) => columnEnabled(c.key))
 }
 
 const DEFAULT_COLUMN_KEYS: ColumnKey[] = [
@@ -478,14 +491,21 @@ export function deployStateOf(issue: IssueLite): DeployState {
   return issue.deploy_status?.state ?? 'none'
 }
 
-/** 배포 단계 한국어 라벨(필터 파셋/칩 공용). */
-export const DEPLOY_STATE_LABEL: Record<DeployState, string> = {
-  none: '릴리즈 미포함',
-  merged: '머지됨',
-  dev: 'dev 릴리즈',
-  qa_preview: 'QA 대기(스왑 전)',
-  qa: 'QA 확인 가능',
-  prod: 'prod 배포',
+/** 배포 단계 라벨(필터 파셋/칩 공용) — 활성 로케일. */
+export function DEPLOY_STATE_LABEL(): Record<DeployState, string> {
+  return {
+    none: deployStateLabel('none'),
+    merged: deployStateLabel('merged'),
+    dev: deployStateLabel('dev'),
+    qa_preview: deployStateLabel('qa_preview'),
+    qa: deployStateLabel('qa'),
+    prod: deployStateLabel('prod'),
+  }
+}
+
+/** 단일 배포 단계 라벨. */
+export function deployLabel(state: DeployState): string {
+  return deployStateLabel(state)
 }
 
 /**
