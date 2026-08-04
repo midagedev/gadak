@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
@@ -8,10 +9,24 @@ import tailwindcss from '@tailwindcss/vite'
 // which is what keeps the service worker scope and manifest correct.
 const base = process.env.SCRY_BASE_PATH || '/'
 
+// `emptyOutDir` wipes dist/app on every build, including the tracked
+// placeholder that keeps `go:embed all:dist/app` compilable before the first
+// web build. Put it back once the bundle is written.
+const keepEmbedPlaceholder = {
+  name: 'scry-embed-placeholder',
+  closeBundle() {
+    writeFileSync(
+      'dist/app/.placeholder',
+      'Placeholder so the go:embed directive in embed.go always has a directory.\n' +
+        'Run `npm run build` to produce the real web assets here.\n',
+    )
+  },
+}
+
 export default defineConfig({
   root: 'web',
   base,
-  plugins: [svelte(), tailwindcss()],
+  plugins: [svelte(), tailwindcss(), keepEmbedPlaceholder],
   build: {
     outDir: '../dist/app',
     emptyOutDir: true,
