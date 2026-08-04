@@ -64,22 +64,57 @@ Attachments are local too. The first view of an image caches its bytes next to
 the mirror and every later view is a disk read, so a screenshot-heavy issue opens
 at the speed of the rest of the app — and keeps rendering offline.
 
-## Quick Start
+## Install
 
-Requirements: Go 1.25+, Node.js 20+, and a Jira Cloud API token from
+Jira Cloud only. You need an API token from
 <https://id.atlassian.com/manage-profile/security/api-tokens>.
 
-```bash
-npm ci && npm run build       # build the web UI
-go build -o scry ./cmd/scry   # embeds it — the binary is the whole install
+### 1. Homebrew (after the first release)
 
-./scry serve                  # http://localhost:7777
+```bash
+brew install midagedev/tap/scry
+```
+
+The `midagedev/homebrew-tap` formula is published by GoReleaser on each release
+tag. Until the first public release exists, this install path is inactive.
+
+### 2. Install script (after the first release)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/midagedev/scry/main/scripts/install.sh | sh
+```
+
+Downloads the latest GitHub Release for your OS/arch, verifies `checksums.txt`
+(sha256), and installs to `~/.local/bin/scry` (override with `SCRY_INSTALL_DIR`).
+Upgrades in place if a binary is already there. Inactive until a release is
+published.
+
+### 3. Release binary
+
+Download the archive for your OS/arch from
+[GitHub Releases](https://github.com/midagedev/scry/releases), verify against
+`checksums.txt`, unpack, and put `scry` on your `PATH`.
+
+### 4. Build from source
+
+Requirements: Go 1.25+, Node.js 20+.
+
+```bash
+npm ci && npm run build       # build the web UI into dist/app
+go build -o scry ./cmd/scry   # embeds it — the binary is the whole install
+# or: make build  → bin/scry
+```
+
+### First run
+
+```bash
+scry serve                    # http://localhost:7777
 ```
 
 The first run walks you through it in the browser: paste your site, email, and
 token, pick projects from your site's own list, and watch the first sync fill the
-mirror. If you would rather stay in the terminal, `./scry init && ./scry sync`
-does the same thing, and `./scry serve --sync` keeps the mirror fresh in the
+mirror. If you would rather stay in the terminal, `scry init && scry sync`
+does the same thing, and `scry serve --sync` keeps the mirror fresh in the
 background afterwards.
 
 Your API token lives in `~/.scry/config.json` at `0600` and never touches the
@@ -93,7 +128,8 @@ for: `scry --profile demo init` keeps a separate credential and mirror under
 ### Try it with no Jira account at all
 
 ```bash
-./scry demo
+scry demo
+# from a source checkout: ./scry demo
 ```
 
 Opens the UI against `examples/demo.db` — 519 issues on fictional projects. It is

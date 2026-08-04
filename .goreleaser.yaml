@@ -59,6 +59,31 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
+# Homebrew tap formula. Requires a separate repo midagedev/homebrew-tap and a
+# token with contents:write on that repo (HOMEBREW_TAP_GITHUB_TOKEN in the
+# release workflow). Formula is still written under .release/ when upload is
+# skipped. Note: `brews` is deprecated upstream in favor of homebrew_casks;
+# we keep formulas until the tap is ready for casks.
+brews:
+  - name: scry
+    ids:
+      - default
+    repository:
+      owner: midagedev
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/midagedev/scry"
+    description: "Local SQLite mirror of your Jira issues — web UI, TUI, and agent SQL"
+    license: "Apache-2.0"
+    commit_msg_template: "scry {{ .Tag }}"
+    # Do not push formulas for prerelease tags (v0.1.0-rc.1, etc.).
+    skip_upload: auto
+    test: |
+      system "#{bin}/scry", "version"
+    install: |
+      bin.install "scry"
+
 # Cosign / sbom / notarize: skipped for now (checksums.txt is the only artifact
 # integrity signal). Revisit before a public v1.
 
@@ -82,12 +107,18 @@ release:
   footer: |
     ## Install
 
-    Download the archive for your OS/arch, unpack it, and run:
+    After the first public release:
+
+    ```bash
+    brew install midagedev/tap/scry
+    # or
+    curl -fsSL https://raw.githubusercontent.com/midagedev/scry/main/scripts/install.sh | sh
+    ```
+
+    Or download the archive for your OS/arch from this release, unpack it, and run:
 
     ```bash
     ./scry init && ./scry serve --sync
     ```
 
-    The web UI is embedded — the binary is the whole install.
-
-    Or use the container image (see README).
+    The web UI is embedded — the binary is the whole install. See the README for Docker and source builds.
