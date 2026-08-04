@@ -69,16 +69,72 @@ type Config struct {
 	ReconcileIntervalSec int `json:"reconcileIntervalSec,omitempty"`
 }
 
-// Dir 은 SCRY_HOME 또는 ~/.scry.
-func Dir() (string, error) {
-	if d := os.Getenv("SCRY_HOME"); d != "" {
-		return d, nil
+// profile 은 SetProfile(--profile 플래그) 또는 SCRY_PROFILE 로 정한다.
+// 빈 값/"default" 는 기본 프로필(~/.scry 루트), 그 외는 ~/.scry/profiles/<이름>.
+// 프로필마다 config.json 과 scry.db 가 통째로 분리되므로 회사용/데모용
+// 사이트를 자격증명·미러 충돌 없이 오갈 수 있다.
+var profile = os.Getenv("SCRY_PROFILE")
+
+// SetProfile 은 CLI 의 --profile 플래그가 부른다. 환경변수보다 우선.
+func SetProfile(name string) { profile = name }
+
+// Profile 은 현재 활성 프로필 이름("" = 기본).
+func Profile() string {
+	if profile == "default" {
+		return ""
 	}
-	home, err := os.UserHomeDir()
+	return profile
+}
+
+// Dir 은 SCRY_HOME 또는 ~/.scry, 프로필이 있으면 그 아래 profiles/<이름>.
+func Dir() (string, error) {
+	base := os.Getenv("SCRY_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		base = filepath.Join(home, ".scry")
+	}
+	if p := Profile(); p != "" {
+		return filepath.Join(base, "profiles", p), nil
+	}
+	return base, nil
+}
+
+// DBPath 는 활성 프로필의 기본 SQLite 경로.
+func DBPath() (string, error) {
+	d, err := Dir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".scry"), nil
+	return filepath.Join(d, "scry.db"), nil
+}
+
+// Profiles 는 존재하는 프로필 이름 목록 (기본 프로필 제외).
+func Profiles() ([]string, error) {
+	base := os.Getenv("SCRY_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+		base = filepath.Join(home, ".scry")
+	}
+	entries, err := os.ReadDir(filepath.Join(base, "profiles"))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	return names, nil
 }
 
 func Path() (string, error) {
