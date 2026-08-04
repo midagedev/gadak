@@ -55,6 +55,17 @@ cat >"$CFG" <<'EOF'
 }
 EOF
 
+# Recordings (not tests) freshen the sync clock: the committed snapshot ages, and
+# a demo that opens with "Sync delayed" reads as a defect rather than as the
+# freshness guard it is. Tests leave it unset so their timestamps stay fixed.
+if [ -n "${SCRY_FRESHEN:-}" ]; then
+  echo "[e2e] freshening sync clock (SCRY_FRESHEN)…"
+  sqlite3 "$DB" "UPDATE sync_state SET watermark = strftime('%Y-%m-%dT%H:%M:%S.000Z','now'),
+                                       last_full_sync_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now'),
+                                       last_error = NULL;
+                 UPDATE items SET synced_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now');"
+fi
+
 echo "[e2e] injecting deploy enrichment on NMB-110…"
 sqlite3 "$DB" <<'SQL'
 INSERT INTO enrichments (key, kind, payload, source, updated_at)
