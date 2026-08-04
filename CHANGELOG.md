@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Ported the demo Jira seeder from Python to Go (`go run ./tools/seed-demo`),
+  removing the last Python dependency. Flag contract, category-ladder
+  transitions, and repair idempotency are unchanged.
 - Extracted the web application from an internal deployment into this
   repository, replacing every hardcoded internal value with a runtime
   configuration document (`config.json`) fetched before mount.
@@ -15,9 +18,9 @@
 - Added `scry serve`: serves the built UI, the runtime config document, and
   `/healthz`. Refuses to bind a non-loopback address without `--allow-remote`,
   because the mirror has no authentication.
-- Added `tools/seed-demo-jira.py` for populating a throwaway Jira site with
-  releases, components, issues, transition history, comments, and links — either
-  generated or projected from a dataset file.
+- Added a Jira seeding tool for populating a throwaway Jira site with releases,
+  components, issues, transition history, comments, and links — either generated
+  or projected from a dataset file (`tools/seed-demo`).
 - Specified the storage schema as a public contract, plus the HTTP, sync, and
   agent contracts under `specs/000-product/`.
 - Implemented that schema in `internal/store`: SQLite (pure-Go driver, so the

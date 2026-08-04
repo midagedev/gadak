@@ -1,6 +1,6 @@
 # tools
 
-## `seed-demo-jira.py`
+## `seed-demo`
 
 Populates a throwaway Jira Cloud site with a realistic backlog: releases,
 components, issues, real transition history, comments, and issue links.
@@ -14,10 +14,10 @@ export JIRA_EMAIL=you@example.com
 export JIRA_TOKEN=...    # id.atlassian.com/manage-profile/security/api-tokens
 
 # Project it from the committed dataset (reproducible)
-python3 tools/seed-demo-jira.py --data examples/demo-seed.json --projects NMB,NMA,NMS
+go run ./tools/seed-demo --data examples/demo-seed.json --projects NMB,NMA,NMS
 
 # Or generate content procedurally (quick, more repetitive)
-python3 tools/seed-demo-jira.py --projects NMB,NMA,NMS --issues 300
+go run ./tools/seed-demo --projects NMB,NMA,NMS --issues 300
 ```
 
 Flags: `--dry-run`, `--skip-setup` (versions and components already exist),
@@ -29,7 +29,7 @@ Redistribute assignees across a pool of accounts (dataset issues follow their
 by key hash, so repeated runs are a no-op):
 
 ```bash
-python3 tools/seed-demo-jira.py --data examples/demo-seed.json \
+go run ./tools/seed-demo --data examples/demo-seed.json \
   --repair-assignees --assignees "<accountId>,<accountId>,<accountId>"
 ```
 
@@ -37,7 +37,7 @@ Repair a site whose workflow states do not match the dataset — issues, comment
 and links are left alone and only statuses are re-driven, matched by summary:
 
 ```bash
-python3 tools/seed-demo-jira.py --data examples/demo-seed.json --repair-states
+go run ./tools/seed-demo --data examples/demo-seed.json --repair-states
 ```
 
 ### Requirements
