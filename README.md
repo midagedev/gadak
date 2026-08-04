@@ -1,10 +1,22 @@
 # scry
 
-**Your Jira, mirrored to a local SQLite file.** One binary: a browser UI that
-filters 10,000 issues without a network round trip, a terminal UI for when you
-never leave tmux, and a database your coding agent can query with plain SQL.
+**Give your coding agent your Jira as a local SQLite file** — and get instant
+search, offline reads, and a keyboard-driven UI for yourself in the same binary.
+scry mirrors your issues locally; agents query them with plain SQL, you triage
+them in a browser UI or a TUI that never waits on the network.
 
-Jira is the first source; the storage layer is source-neutral on purpose.
+Why now: every developer suddenly has a coding agent, and agents burn context
+paging a REST API and guessing at JQL. A tracker that is a local file needs
+neither. Jira is the first source; the storage layer is source-neutral on
+purpose.
+
+**Try it in 30 seconds, no Jira account, no token:**
+
+```bash
+git clone https://github.com/midagedev/scry && cd scry
+npm ci && npm run build && go build -o scry ./cmd/scry
+./scry demo        # opens a 519-issue fictional backlog in your browser
+```
 
 <p align="center">
   <img src="docs/media/web-demo.gif" alt="Typing in the search box narrows 519 issues instantly, with matches highlighted; ⌘K jumps to an issue" width="900">
@@ -125,14 +137,9 @@ Pointing one machine at two sites (work and a demo, say) is what profiles are
 for: `scry --profile demo init` keeps a separate credential and mirror under
 `~/.scry/profiles/demo/`.
 
-### Try it with no Jira account at all
+### About the demo data
 
-```bash
-scry demo
-# from a source checkout: ./scry demo
-```
-
-Opens the UI against `examples/demo.db` — 519 issues on fictional projects. It is
+`scry demo` serves `examples/demo.db` — 519 issues on fictional projects. It is
 also what the test suite and the GIFs above run against, so what you see is what
 CI checks.
 
@@ -257,6 +264,12 @@ delete it and re-sync.
   (much larger) group whose org keeps Jira: it gives you Linear-ish speed and
   keyboard flow without asking anyone for permission — it is a mirror, not a
   migration.
+- **Atlassian's Rovo MCP server** gives agents official, hosted access to the
+  same data — worth using if it fits. The architectural difference: a network
+  MCP cannot join, aggregate, or work offline, every call costs tokens and rate
+  budget, and it answers only the questions its tools anticipated. A local
+  SQLite file has none of those limits, and derived history (reopen counts and
+  reasons) exists only in the mirror.
 - **Jira's own UI** stays the source of record and the place for boards,
   sprints, and admin. scry does not replace it; it replaces waiting on it.
 
@@ -270,6 +283,7 @@ source-specific work merges until the neutral layer stays neutral.
 ## Documentation
 
 - [`AGENTS.md`](AGENTS.md) — the agent reference: SQL, CLI, REST
+- [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — one paste per agent (Claude Code, Cursor, Codex, MCP)
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) — fitting scry to your team
 - [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) — what exists, what does not
 - [`docs/CONCEPT.md`](docs/CONCEPT.md) — the product idea and the loop it optimizes

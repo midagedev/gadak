@@ -36,19 +36,28 @@ number-jumping; each minor is earned by shipped, verified work.
   the binary carries its own UI. (Signing: later, when there is a user to ask.)
 - Moved out to keep v0.2 shippable: the zero-install hosted demo (below).
 
-## v0.3 — TUI parity and daily-driver polish
+## v0.3 — retention and reach
 
-- **TUI catches up to the web UI**: feed, saved views, watch toggle, in-app help.
-  From here, new surfaces land on web and TUI together.
-- UX debt from the pre-launch audit (P2 tier): comment drafts, offline badge,
-  keyboard write actions.
-- **JQL → SQL bridge.** Paste a JQL query, get the roughly equivalent SQL.
-  Common clauses only (`project`, `status`, `assignee`, relative dates,
-  `ORDER BY`); anything else is honestly marked untranslatable. Users arrive
-  with JQL assets; this removes the migration tax (`docs/PAIN_POINTS.md` §6).
-- **Query recipes.** Ship the questions JQL cannot ask as named, documented
+Ordered by one rule (post-mentor-review, 2026-08): everything here either
+keeps an installed mirror alive or removes a reason not to try one.
+
+- **Close the notification loop.** The watch feed is computed (`GET feed/`);
+  the missing piece is the last hop out of the browser tab: OS notifications
+  from the sync loop (macOS `osascript`, Linux `notify-send`).
+- **`scry install-service`.** A mirror that dies on reboot has zero retention.
+  Writes a launchd plist / systemd user unit for the user.
+- **`serve` syncs by default** when a credential is configured (`--no-sync`
+  opts out). A stale mirror is the fastest way to lose a habit.
+- **Zero-install hosted demo** — promoted from v0.5. `sqlite-wasm` over the
+  demo snapshot on static hosting: no binary, no account, no trust decision.
+  The strongest adoption lever available (`decisions/0004-browser-sqlite.md`).
+- **Query recipes.** The questions JQL cannot ask, as named, documented
   queries: stalled N days, reopened, version ranges, comment-history search.
-  Demonstrates SQL > JQL instead of asserting it.
+  Doubles as launch content.
+- **Agent setup doc** — paste-ready blocks for Claude Code / Cursor / Codex.
+  The 2026 distribution channel is the developer's agent, not their browser.
+- TUI keeps parity with new surfaces (feed focus tabs, saved-view sort) and
+  the remaining UX-audit P2 debt lands here.
 
 ## Later, research-backed (see docs/PAIN_POINTS.md)
 
@@ -64,8 +73,8 @@ number-jumping; each minor is earned by shipped, verified work.
 
 ## v0.4 — workspaces (multi-account)
 
-Profiles (`--profile`) already isolate credential + mirror per site. Promote
-them to a first-class workspace switcher:
+Profiles (`--profile`) already isolate credential + mirror per site and cover
+the two-site case today. Promote them to a first-class switcher:
 
 - Web: workspace picker in the sidebar (server enumerates profiles; switch
   restarts the serve target or proxies per-profile handlers).
@@ -74,11 +83,12 @@ them to a first-class workspace switcher:
   security model (loopback, one user) before letting one server open several
   credentials.
 
-## v0.5 — zero-install hosted demo
+Sequenced after v0.3 deliberately: retention loops for existing mirrors come
+before conveniences for hypothetical second sites.
 
-`sqlite-wasm` reading a static snapshot over HTTP range requests, published on
-static hosting. No binary, no account, no trust decision — the strongest
-adoption lever available (`decisions/0004-browser-sqlite.md`).
+- **JQL → SQL bridge** also waits here: it removes a migration tax for
+  arriving users, so it needs arriving users — and real JQL corpora to test
+  against, or a half-working translator fails in trust-destroying ways.
 
 ## Later — the second source
 
