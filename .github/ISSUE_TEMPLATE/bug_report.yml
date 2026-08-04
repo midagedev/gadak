@@ -5,18 +5,36 @@ body:
   - type: markdown
     attributes:
       value: |
-        Check `specs/000-product/tasks.md` first — many features are specified
-        but not implemented yet. Never paste real issue text, tokens, or site URLs.
+        Check `specs/000-product/tasks.md` and `docs/STATE_OF_PLAY.md` first —
+        many features are specified but not implemented yet.
+
+        **Do not paste real issue text, API tokens, site URLs, or a database
+        snapshot.** Redact everything installation-specific.
   - type: input
     id: version
     attributes:
-      label: scry version or commit
+      label: scry version
+      description: Output of `scry version`. If that command is missing or prints `0.0.0-dev`, paste the git commit SHA instead.
+      placeholder: "0.1.0 or abcdef1"
     validations:
       required: true
   - type: input
-    id: env
+    id: os
     attributes:
-      label: OS, Go version, Node version
+      label: OS
+      description: Operating system and architecture.
+      placeholder: "macOS 15 arm64 / Ubuntu 24.04 x86_64 / Windows 11 amd64"
+    validations:
+      required: true
+  - type: dropdown
+    id: jira_deployment
+    attributes:
+      label: Jira deployment type
+      description: scry supports **Jira Cloud only**. Server / Data Center is out of scope until someone can test it.
+      options:
+        - Jira Cloud
+        - Jira Server / Data Center (unsupported)
+        - Not sure
     validations:
       required: true
   - type: dropdown
@@ -30,10 +48,17 @@ body:
     id: language
     attributes:
       label: Jira account display language
-      description: Status and issue-type names are localized per account; this is a common cause.
+      description: Status and issue-type names are localized per account; this is a common cause of empty filters.
+      placeholder: "English / Korean / …"
   - type: textarea
     id: repro
     attributes:
-      label: Command run, expected, and actual
+      label: Steps to reproduce
+      description: Command(s) run, expected result, actual result. Redact keys, titles, and hostnames.
+      placeholder: |
+        1. scry sync
+        2. scry sql "select …"
+        Expected: …
+        Actual: …
     validations:
       required: true

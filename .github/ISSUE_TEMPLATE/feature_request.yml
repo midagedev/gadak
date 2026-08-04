@@ -6,7 +6,10 @@ body:
     attributes:
       value: |
         Out of scope: hosted or multi-user deployment, Jira administration,
-        boards and sprints, and anything requiring a scry service to exist.
+        boards and sprints, Jira Server / Data Center, and anything requiring a
+        scry service to exist.
+
+        **Do not paste real issue text, API tokens, or site URLs.**
   - type: textarea
     id: problem
     attributes:

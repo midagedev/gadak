@@ -2,18 +2,29 @@
 
 ## Supported Versions
 
-scry is pre-release. There is no supported version line yet.
+Only the latest published release is supported. Pre-release and development
+builds (`0.0.0-dev`, untagged commits) receive no security backports. There is
+no long-term support line.
+
+| Version | Supported |
+| --- | --- |
+| Latest release tag | Yes |
+| Older release tags | No |
+| Unreleased / `main` | Best effort |
 
 ## Reporting a Vulnerability
 
-Open a private advisory:
+Use GitHub private vulnerability reporting:
 
 ```text
 https://github.com/midagedev/scry/security/advisories/new
 ```
 
-Do not include real credentials, real issue data, or a database snapshot in a
-report.
+(Repo Settings → Code security → Enable private vulnerability reporting, if the
+form is not yet available.)
+
+Do **not** open a public issue for a vulnerability. Do not include real
+credentials, real issue data, a database snapshot, or a site URL in a report.
 
 Report privately if the issue involves:
 
@@ -25,15 +36,24 @@ Report privately if the issue involves:
 
 Public issues are fine for non-sensitive questions about the security model.
 
-## Security Model
+## Security Model (summary)
 
-scry has **no authentication**. It is a single-user local tool, and the only
-thing separating the mirror from the network is that it binds `127.0.0.1`.
+scry is a **single-user local tool with no authentication**. The only network
+boundary is the bind address:
+
+| Surface | Guard |
+| --- | --- |
+| HTTP API / web UI | Binds `127.0.0.1` only; non-loopback requires `--allow-remote` |
+| Auth | None — anyone who can reach the port can read the mirror and write to Jira |
+| Credentials | API token in `~/.scry/config.json` mode `0600` (or OS keychain); never in SQLite, logs, or snapshots |
+| Telemetry | None — outbound traffic is only to the configured Jira site |
+
 Therefore:
 
 - `scry serve` refuses a non-loopback bind without an explicit `--allow-remote`.
-- `--allow-remote` is not a supported deployment mode. Exposing scry to a network
-  publishes every issue the mirror holds to anyone who can reach the port.
+- `--allow-remote` is **not** a supported multi-user deployment mode. Exposing
+  scry on a network publishes every issue the mirror holds to anyone who can
+  reach the port.
 - There is no multi-user model, no roles, and no audit log.
 
 ## Rendered Content Is Untrusted
@@ -56,10 +76,12 @@ check to a prefix test or a broad regex is an XSS hole, not a simplification.
 - API tokens live in `~/.scry/config.json` with mode `0600`, or in the OS keychain.
 - Tokens are never written to SQLite, a log line, an error message, or a snapshot.
 - `GET credential/` returns only a hint, never the token.
-- `scry snapshot` refuses to write output containing credential-shaped strings.
+- `scry snapshot` refuses to write output containing credential-shaped strings
+  (when that command lands).
 
 ## Data Boundaries
 
 scry only ever talks to the source you configure. There is no telemetry, no
 update check, and no third-party endpoint. Attachment bytes are proxied on
-demand and never written to disk.
+demand (and may be cached locally under the profile directory); credentials never
+travel with them in logs or the repository.

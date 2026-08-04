@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Discussions
+    url: https://github.com/midagedev/scry/discussions
+    about: Questions, ideas, and show-and-tell (enable Discussions in repo settings first)
   - name: Security report
     url: https://github.com/midagedev/scry/security/advisories/new
     about: Credential exposure, XSS in rendered issue content, or bind-guard bypass
