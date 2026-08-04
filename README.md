@@ -100,6 +100,16 @@ credential and mirror under `~/.scry/profiles/demo/`.
 Opens the UI against `examples/demo.db`, a snapshot of a public demo site with
 fictional projects. Useful for evaluating the UI and for deterministic tests.
 
+### Run with Docker
+
+```bash
+docker build -t scry . && docker run --rm -p 7777:7777 -v scry-data:/data scry
+```
+
+The image serves the UI on `0.0.0.0:7777` with `--allow-remote` (the process has
+no auth — only bind it on a trusted network). Config and `scry.db` live under
+`/data` (`SCRY_HOME`).
+
 ### Point your agent at it
 
 ```bash

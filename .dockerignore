@@ -1,20 +1,56 @@
+# VCS and editor noise
 .git
-.gitignore
+.github
 .DS_Store
+.idea
+.vscode
 
+# Dependencies and local build outputs (rebuilt in the image)
 node_modules
 dist
 bin
 build
+coverage
+vendor
+*.test
+*.out
+
+# Local runtime data and secrets
 .scry
 .private
 tmp
-coverage
-vendor
-
 *.db
-*.db-*
-*.log
-
+*.db-shm
+*.db-wal
 .env
 .env.*
+
+# Keep the committed demo snapshot out of the image layers
+# (users mount their own data under /data).
+examples/*.db
+
+# Tests and e2e (not needed at runtime)
+e2e
+test-results
+playwright-report
+blob-report
+playwright
+
+# Docs and specs (not needed to build the binary or UI)
+docs
+specs
+*.md
+!README.md
+!LICENSE
+!NOTICE
+
+# Tooling not required for the image
+tools
+scripts
+.specify
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+SUPPORT.md
+CHANGELOG.md
+AGENTS.md
