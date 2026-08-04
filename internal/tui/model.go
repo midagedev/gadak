@@ -23,6 +23,8 @@ const (
 	modeFilter
 	modeDetail
 	modeForm
+	modeFeed
+	modeViews
 )
 
 // Model is the bubbletea model for the issue navigator.
@@ -42,6 +44,8 @@ type Model struct {
 	detailKey string
 	// detailLite is the list row shown in the detail header (status, assignee…).
 	detailLite *store.IssueLite
+	// detailFrom remembers which mode opened detail (list or feed) for Esc.
+	detailFrom mode
 
 	form       *huh.Form
 	formSubmit func() tea.Cmd
@@ -60,6 +64,25 @@ type Model struct {
 	spin    spinner.Model
 	loading bool
 	busy    bool
+
+	// Help overlay (?).
+	showHelp bool
+
+	// Personal feed (F).
+	feedItems  []store.FeedItem
+	feedUnread int
+	feedCursor int
+	feedOffset int
+
+	// Saved views (v).
+	savedViews  []store.SavedView
+	viewCursor  int
+	viewName    string
+	viewNote    string
+	extraFilter listFilter // from saved view: categories, unassigned, assignee email
+
+	// Watches (w) — issue keys currently watched.
+	watches map[string]bool
 }
 
 // newModel builds a model without loading data (tests inject rows).
@@ -79,6 +102,7 @@ func newModel(cfg *config.Config, db *store.DB) Model {
 		keys:    defaultKeys(),
 		spin:    sp,
 		loading: db != nil, // initial mirror load; tests inject rows with db==nil
+		watches: map[string]bool{},
 	}
 }
 
@@ -93,6 +117,8 @@ func (m Model) Init() tea.Cmd {
 type loadedMsg struct {
 	rows        []row
 	syncedLabel string
+	watches     map[string]bool
+	feedUnread  int
 	err         error
 }
 
@@ -103,8 +129,15 @@ type detailMsg struct {
 	err  error
 }
 
+type watchToggledMsg struct {
+	key string
+	on  bool
+	err error
+}
+
 func (m Model) reloadCmd() tea.Cmd {
 	db := m.db
+	me := m.feedMe()
 	return func() tea.Msg {
 		if db == nil {
 			return loadedMsg{err: fmt.Errorf("no database")}
@@ -121,7 +154,23 @@ func (m Model) reloadCmd() tea.Cmd {
 				label = "watermark " + relativeTime(st.Watermark, time.Now())
 			}
 		}
-		return loadedMsg{rows: buildRows(lites), syncedLabel: label}
+		watchMap := map[string]bool{}
+		if keys, err := db.Watches(); err == nil {
+			for _, k := range keys {
+				watchMap[k] = true
+			}
+		}
+		feedUnread := 0
+		if res, err := db.Feed(store.FeedOpts{Me: me, Limit: 1}); err == nil {
+			// UnreadCounts is over the full event set, not the limit slice.
+			feedUnread = res.UnreadCounts.All
+		}
+		return loadedMsg{
+			rows:        buildRows(lites),
+			syncedLabel: label,
+			watches:     watchMap,
+			feedUnread:  feedUnread,
+		}
 	}
 }
 
@@ -133,6 +182,19 @@ func (m Model) loadDetailCmd(key string, lite store.IssueLite) tea.Cmd {
 		}
 		d, err := db.Detail(key)
 		return detailMsg{key: key, lite: lite, d: d, err: err}
+	}
+}
+
+func (m Model) toggleWatchCmd(issueKey string, on bool) tea.Cmd {
+	db := m.db
+	return func() tea.Msg {
+		if db == nil {
+			return watchToggledMsg{key: issueKey, err: fmt.Errorf("no database")}
+		}
+		if err := db.SetWatch(issueKey, on); err != nil {
+			return watchToggledMsg{key: issueKey, err: err}
+		}
+		return watchToggledMsg{key: issueKey, on: on}
 	}
 }
 
@@ -149,8 +211,87 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.all = msg.rows
 			m.syncedLabel = msg.syncedLabel
+			if msg.watches != nil {
+				m.watches = msg.watches
+			}
+			m.feedUnread = msg.feedUnread
 			m.refilter()
 		}
+		return m, nil
+
+	case feedLoadedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.toast = msg.err.Error()
+			m.toastErr = true
+			m.toastAt = m.clock()
+			m.mode = modeList
+			return m, nil
+		}
+		m.feedItems = msg.items
+		if m.feedItems == nil {
+			m.feedItems = []store.FeedItem{}
+		}
+		m.feedUnread = msg.unread
+		if m.feedCursor >= len(m.feedItems) {
+			m.feedCursor = max(0, len(m.feedItems)-1)
+		}
+		m.ensureFeedVisible()
+		m.mode = modeFeed
+		return m, nil
+
+	case feedMarkedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.toast = msg.err.Error()
+			m.toastErr = true
+			m.toastAt = m.clock()
+			return m, nil
+		}
+		m.feedUnread = msg.unread
+		m.toast = "feed marked read"
+		m.toastErr = false
+		m.toastAt = m.clock()
+		// Reload items so read_at stamps refresh.
+		m.loading = true
+		return m, tea.Batch(m.spin.Tick, m.loadFeedCmd())
+
+	case viewsLoadedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.toast = msg.err.Error()
+			m.toastErr = true
+			m.toastAt = m.clock()
+			m.mode = modeList
+			return m, nil
+		}
+		m.savedViews = msg.views
+		if m.savedViews == nil {
+			m.savedViews = []store.SavedView{}
+		}
+		m.viewCursor = 0
+		m.mode = modeViews
+		return m, nil
+
+	case watchToggledMsg:
+		if msg.err != nil {
+			m.toast = msg.err.Error()
+			m.toastErr = true
+			m.toastAt = m.clock()
+			return m, nil
+		}
+		if m.watches == nil {
+			m.watches = map[string]bool{}
+		}
+		if msg.on {
+			m.watches[msg.key] = true
+			m.toast = msg.key + " watching"
+		} else {
+			delete(m.watches, msg.key)
+			m.toast = msg.key + " unwatched"
+		}
+		m.toastErr = false
+		m.toastAt = m.clock()
 		return m, nil
 
 	case detailMsg:
@@ -158,7 +299,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toast = msg.err.Error()
 			m.toastErr = true
 			m.toastAt = m.clock()
-			m.mode = modeList
+			if m.detailFrom == modeFeed {
+				m.mode = modeFeed
+			} else {
+				m.mode = modeList
+			}
 			return m, nil
 		}
 		m.detail = msg.d
@@ -226,11 +371,25 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateForm(msg)
 	}
 
-	key := msg.String()
+	keyStr := msg.String()
 
 	// Global quit always works outside forms (form uses ctrl+c via huh).
-	if key == "ctrl+c" {
+	if keyStr == "ctrl+c" {
 		return m, tea.Quit
+	}
+
+	// Help overlay: ? toggles; esc/? closes; other keys ignored while open
+	// except quit which already handled.
+	if m.showHelp {
+		k := m.keys
+		if key.Matches(msg, k.Help) || key.Matches(msg, k.Back) || keyStr == "esc" {
+			m.showHelp = false
+			return m, nil
+		}
+		if key.Matches(msg, k.Quit) {
+			return m, tea.Quit
+		}
+		return m, nil
 	}
 
 	switch m.mode {
@@ -238,6 +397,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleFilterKey(msg)
 	case modeDetail:
 		return m.handleDetailKey(msg)
+	case modeFeed:
+		return m.handleFeedKey(msg)
+	case modeViews:
+		return m.handleViewsKey(msg)
 	default:
 		return m.handleListKey(msg)
 	}
@@ -248,6 +411,17 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, k.Quit):
 		return m, tea.Quit
+	case key.Matches(msg, k.Help):
+		m.showHelp = true
+		return m, nil
+	case key.Matches(msg, k.Feed):
+		m.loading = true
+		return m, tea.Batch(m.spin.Tick, m.loadFeedCmd())
+	case key.Matches(msg, k.Views):
+		m.loading = true
+		return m, tea.Batch(m.spin.Tick, m.loadViewsCmd())
+	case key.Matches(msg, k.Watch):
+		return m, m.toggleWatchSelected()
 	case key.Matches(msg, k.Refresh):
 		m.loading = true
 		return m, tea.Batch(m.spin.Tick, m.reloadCmd())
@@ -255,8 +429,9 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeFilter
 		return m, nil
 	case key.Matches(msg, k.ClearFilter):
-		if m.filter != "" {
+		if m.filter != "" || m.extraFilter.statusCategories != nil || m.extraFilter.unassigned || m.extraFilter.assigneeEmail != "" {
 			m.filter = ""
+			m.clearSavedViewFilters()
 			m.refilter()
 		}
 		return m, nil
@@ -300,6 +475,7 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		lite := m.all[m.visible[m.cursor]].lite
+		m.detailFrom = modeList
 		return m, m.loadDetailCmd(issueKey, lite)
 	case key.Matches(msg, k.Comment):
 		m.busy = true
@@ -312,6 +488,18 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.spin.Tick, m.startAssignee())
 	}
 	return m, nil
+}
+
+func (m Model) toggleWatchSelected() tea.Cmd {
+	key, ok := m.selectedKey()
+	if !ok {
+		return toast("no issue selected", true)
+	}
+	if m.db == nil {
+		return toast("no database", true)
+	}
+	on := !m.watches[key]
+	return m.toggleWatchCmd(key, on)
 }
 
 func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -347,8 +535,24 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, k.Quit):
 		return m, tea.Quit
+	case key.Matches(msg, k.Help):
+		m.showHelp = true
+		return m, nil
+	case key.Matches(msg, k.Watch):
+		if m.detailKey == "" {
+			return m, toast("no issue selected", true)
+		}
+		if m.db == nil {
+			return m, toast("no database", true)
+		}
+		on := !m.watches[m.detailKey]
+		return m, m.toggleWatchCmd(m.detailKey, on)
 	case key.Matches(msg, k.Back), msg.String() == "esc":
-		m.mode = modeList
+		if m.detailFrom == modeFeed {
+			m.mode = modeFeed
+		} else {
+			m.mode = modeList
+		}
 		m.detail = nil
 		m.detailKey = ""
 		m.detailLite = nil
@@ -402,16 +606,24 @@ func (m Model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) setTab(t Tab) {
-	if m.tab == t {
+	if m.tab == t && len(m.extraFilter.statusCategories) == 0 {
 		return
 	}
 	m.tab = t
+	// Manual tab change clears precise category list from a saved view.
+	m.extraFilter.statusCategories = nil
 	m.refilter()
 }
 
 func (m *Model) refilter() {
 	needle := strings.ToLower(strings.TrimSpace(m.filter))
-	m.visible = applyFilter(m.all, m.tab, needle)
+	f := m.extraFilter
+	f.tab = m.tab
+	// Free-text from / merges with any text baked into the saved view.
+	if needle != "" {
+		f.text = needle
+	}
+	m.visible = applyListFilter(m.all, f)
 	if m.cursor >= len(m.visible) {
 		m.cursor = max(0, len(m.visible)-1)
 	}
@@ -480,13 +692,24 @@ func (m Model) View() string {
 		m.height = 24
 	}
 
-	if m.mode == modeForm && m.form != nil {
-		return m.viewForm()
+	var frame string
+	switch {
+	case m.mode == modeForm && m.form != nil:
+		frame = m.viewForm()
+	case m.mode == modeDetail:
+		frame = m.viewDetail()
+	case m.mode == modeFeed:
+		frame = m.viewFeed()
+	case m.mode == modeViews:
+		frame = m.viewViews()
+	default:
+		frame = m.viewList()
 	}
-	if m.mode == modeDetail {
-		return m.viewDetail()
+	if m.showHelp && m.mode != modeFeed {
+		// feed view already overlays help itself
+		return m.overlayHelp(frame)
 	}
-	return m.viewList()
+	return frame
 }
 
 func (m Model) viewList() string {
@@ -500,9 +723,10 @@ func (m Model) viewList() string {
 
 	listH := m.listHeight()
 	if len(m.visible) == 0 {
-		empty := "  no issues"
-		if m.filter != "" || m.tab != TabAll {
-			empty = "  no matches"
+		empty := "  no issues — press / to filter · r to reload"
+		if m.filter != "" || m.tab != TabAll || m.extraFilter.unassigned ||
+			m.extraFilter.assigneeEmail != "" || len(m.extraFilter.statusCategories) > 0 {
+			empty = "  no matches — press / to filter · r to reload"
 		}
 		for i := 0; i < listH; i++ {
 			if i == 0 {
@@ -569,10 +793,38 @@ func (m Model) renderTabs() string {
 			parts = append(parts, styleTabInactive.Render(label))
 		}
 	}
-	return " " + strings.Join(parts, " ")
+	s := " " + strings.Join(parts, " ")
+	if m.viewName != "" {
+		s += " " + styleChip.Render(m.viewName)
+	}
+	return s
 }
 
 func (m Model) renderRow(r row, selected bool, w int) string {
+	// Narrow terminal: key + summary only.
+	if w < 40 {
+		const keyW = 12
+		sumW := w - keyW - 3
+		if sumW < 4 {
+			sumW = 4
+		}
+		keyPlain := padRight(r.lite.IssueKey, min(keyW, max(4, w/3)))
+		summaryPlain := truncate(r.lite.Summary, sumW)
+		watch := ""
+		if m.watches[r.lite.IssueKey] {
+			watch = "★"
+		}
+		if selected {
+			inner := " " + styleSelKey.Render(keyPlain) + " " + styleSel.Render(summaryPlain) + watch
+			return styleSel.Width(w).MaxWidth(w).Render(inner)
+		}
+		line := " " + styleKey.Render(keyPlain) + " " + stylePrimary.Render(summaryPlain)
+		if watch != "" {
+			line += styleBrand.Render(watch)
+		}
+		return fitWidth(line, w)
+	}
+
 	// Layout: " ● KEY········ status····· summary… [label] assignee age"
 	// Fixed budget leaves the rest for the summary.
 	const (
@@ -599,6 +851,13 @@ func (m Model) renderRow(r row, selected bool, w int) string {
 	chip := ""
 	if len(r.lite.Labels) > 0 {
 		chip = truncate(r.lite.Labels[0], 10)
+	}
+	if m.watches[r.lite.IssueKey] {
+		if chip != "" {
+			chip = "★" + chip
+		} else {
+			chip = "★"
+		}
 	}
 
 	if selected {
@@ -633,13 +892,20 @@ func (m Model) renderStatusBar(w int) string {
 	if m.loading || m.busy {
 		leftParts = append(leftParts, m.spin.View())
 	}
-	leftParts = append(leftParts, styleHelp.Render("j/k · / · 1-4 · enter · c/t/a · r · q"))
+	if w < 40 {
+		leftParts = append(leftParts, styleHelp.Render("j/k / enter ? q"))
+	} else {
+		leftParts = append(leftParts, styleHelp.Render("j/k · / · 1-4 · enter · c/t/a · w · F · v · ? · r · q"))
+	}
 	if m.filter != "" || m.mode == modeFilter {
 		f := m.filter
 		if m.mode == modeFilter {
 			f += "▌"
 		}
 		leftParts = append(leftParts, styleFilter.Render("/"+f))
+	}
+	if m.feedUnread > 0 {
+		leftParts = append(leftParts, styleChip.Render(fmt.Sprintf("feed %d", m.feedUnread)))
 	}
 	if m.toast != "" && m.clock().Sub(m.toastAt) < 8*time.Second {
 		if m.toastErr {
@@ -694,6 +960,9 @@ func (m Model) viewDetail() string {
 	if lite != nil {
 		dot := statusStyle(lite.StatusCategory, lite.ReopenCount).Render("●")
 		title += "  " + dot + " " + styleDim.Render(lite.Status)
+		if m.watches[key] {
+			title += " " + styleBrand.Render("★")
+		}
 		title += "\n" + stylePrimary.Bold(true).Render(lite.Summary)
 	}
 	body.WriteString(title)
@@ -800,7 +1069,7 @@ func (m Model) viewDetail() string {
 	b.WriteByte('\n')
 
 	// Footer: hints left, toast right/appended
-	footer := styleHelp.Render("esc back  c comment  t transition  a assignee  r refresh")
+	footer := styleHelp.Render("esc back  c comment  t transition  a assignee  w watch  r refresh  ?")
 	if m.toast != "" && m.clock().Sub(m.toastAt) < 8*time.Second {
 		var t string
 		if m.toastErr {

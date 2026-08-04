@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -77,6 +78,53 @@ func TestBuildRowsPreLowercases(t *testing.T) {
 	})
 	if rows[0].search != "x-1 hello world alice" {
 		t.Fatalf("search haystack = %q", rows[0].search)
+	}
+}
+
+func TestApplyListFilterUnassignedAndEmail(t *testing.T) {
+	all := buildRows([]store.IssueLite{
+		{IssueKey: "A-1", Summary: "one", StatusCategory: "new", Assignee: strp("Ada"), AssigneeEmail: strp("ada@x.com")},
+		{IssueKey: "A-2", Summary: "two", StatusCategory: "new"},
+		{IssueKey: "A-3", Summary: "three", StatusCategory: "done", AssigneeEmail: strp("bob@x.com")},
+	})
+	got := applyListFilter(all, listFilter{tab: TabAll, unassigned: true})
+	if len(got) != 1 || all[got[0]].lite.IssueKey != "A-2" {
+		t.Fatalf("unassigned: %#v", got)
+	}
+	got = applyListFilter(all, listFilter{tab: TabAll, assigneeEmail: "ada@x.com"})
+	if len(got) != 1 || all[got[0]].lite.IssueKey != "A-1" {
+		t.Fatalf("email: %#v", got)
+	}
+}
+
+func TestParseSavedViewConfig(t *testing.T) {
+	av := parseSavedViewConfig("Open mine", []byte(`{
+		"filters": {
+			"status_category": ["new","inprogress"],
+			"q": "login",
+			"labels": ["batch"],
+			"unassigned": false
+		},
+		"display": {"sort":"updated","group_by":"status"}
+	}`))
+	if av.filter.text != "login" {
+		t.Fatalf("text=%q", av.filter.text)
+	}
+	if len(av.filter.statusCategories) != 2 {
+		t.Fatalf("cats=%v", av.filter.statusCategories)
+	}
+	if av.filter.tab != TabOpen {
+		t.Fatalf("tab=%v", av.filter.tab)
+	}
+	joined := strings.Join(av.unsupported, ",")
+	if !strings.Contains(joined, "labels") || !strings.Contains(joined, "display") {
+		t.Fatalf("unsupported=%v", av.unsupported)
+	}
+
+	// Flat simplified shape from store tests.
+	av = parseSavedViewConfig("Mine", []byte(`{"assignee":"ada@x.com"}`))
+	if av.filter.assigneeEmail != "ada@x.com" {
+		t.Fatalf("flat assignee email=%q", av.filter.assigneeEmail)
 	}
 }
 

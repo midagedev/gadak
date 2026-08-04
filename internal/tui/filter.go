@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -28,6 +29,16 @@ func (t Tab) Label() string {
 	default:
 		return "all"
 	}
+}
+
+// listFilter is the full local filter applied to the issue list.
+// statusCategories, when non-empty, overrides tab for category matching.
+type listFilter struct {
+	tab              Tab
+	statusCategories []string // exact match any; empty → use tab
+	text             string   // lowercased haystack substring
+	unassigned       bool
+	assigneeEmail    string // lowercased; match IssueLite.AssigneeEmail
 }
 
 // row is one list entry with a pre-lowercased haystack for filter matching.
@@ -66,20 +77,236 @@ func matchTab(tab Tab, category string) bool {
 	}
 }
 
+func matchStatusCategories(cats []string, category string) bool {
+	if len(cats) == 0 {
+		return true
+	}
+	// Normalize indeterminate → inprogress for matching.
+	cat := category
+	if cat == "indeterminate" {
+		cat = "inprogress"
+	}
+	for _, c := range cats {
+		c = strings.ToLower(strings.TrimSpace(c))
+		if c == "indeterminate" {
+			c = "inprogress"
+		}
+		if c == cat {
+			return true
+		}
+	}
+	return false
+}
+
 // applyFilter rebuilds the visible index list from the full row slice.
 // filter is already lowercased by the caller (or empty).
 func applyFilter(all []row, tab Tab, filter string) []int {
+	return applyListFilter(all, listFilter{tab: tab, text: filter})
+}
+
+func applyListFilter(all []row, f listFilter) []int {
 	out := make([]int, 0, len(all))
 	for i, r := range all {
-		if !matchTab(tab, r.lite.StatusCategory) {
+		if len(f.statusCategories) > 0 {
+			if !matchStatusCategories(f.statusCategories, r.lite.StatusCategory) {
+				continue
+			}
+		} else if !matchTab(f.tab, r.lite.StatusCategory) {
 			continue
 		}
-		if filter != "" && !strings.Contains(r.search, filter) {
+		if f.unassigned {
+			if r.lite.Assignee != nil && strings.TrimSpace(*r.lite.Assignee) != "" {
+				continue
+			}
+			if r.lite.AssigneeID != nil && strings.TrimSpace(*r.lite.AssigneeID) != "" {
+				continue
+			}
+			if r.lite.AssigneeEmail != nil && strings.TrimSpace(*r.lite.AssigneeEmail) != "" {
+				continue
+			}
+		}
+		if f.assigneeEmail != "" {
+			email := strings.ToLower(deref(r.lite.AssigneeEmail))
+			if email == "" || email != f.assigneeEmail {
+				continue
+			}
+		}
+		if f.text != "" && !strings.Contains(r.search, f.text) {
 			continue
 		}
 		out = append(out, i)
 	}
 	return out
+}
+
+// appliedView is the result of parsing a saved view's config for the TUI.
+type appliedView struct {
+	filter      listFilter
+	name        string
+	unsupported []string
+}
+
+// parseSavedViewConfig maps a stored ViewConfig (or a simplified flat object)
+// onto filters the TUI can apply. Unsupported keys are listed, not silently
+// dropped without notice.
+func parseSavedViewConfig(name string, raw json.RawMessage) appliedView {
+	av := appliedView{name: name, filter: listFilter{tab: TabAll}}
+	if len(raw) == 0 || string(raw) == "null" {
+		return av
+	}
+
+	// Full shape: { "filters": { ... }, "display": { ... } }
+	var wrap struct {
+		Filters map[string]json.RawMessage `json:"filters"`
+		Display json.RawMessage            `json:"display"`
+	}
+	if err := json.Unmarshal(raw, &wrap); err != nil {
+		av.unsupported = append(av.unsupported, "invalid config")
+		return av
+	}
+
+	// Also accept a flat filter object at the top level (no "filters" wrapper).
+	fields := wrap.Filters
+	if fields == nil {
+		var flat map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &flat); err == nil {
+			// Drop display-only keys if present at top level.
+			delete(flat, "display")
+			delete(flat, "filters")
+			fields = flat
+		}
+	}
+	if len(fields) == 0 {
+		if len(wrap.Display) > 0 && string(wrap.Display) != "null" && string(wrap.Display) != "{}" {
+			av.unsupported = append(av.unsupported, "display")
+		}
+		return av
+	}
+
+	// Supported keys
+	supported := map[string]bool{
+		"status_category": true,
+		"assignee_email":  true,
+		"assignee":        true, // simplified / test shape
+		"q":               true,
+		"text":            true, // alias for q
+		"unassigned":      true,
+	}
+
+	for k, v := range fields {
+		if !supported[k] {
+			// Empty / false values don't count as applied filters.
+			if isEmptyFilterValue(v) {
+				continue
+			}
+			av.unsupported = append(av.unsupported, k)
+			continue
+		}
+		switch k {
+		case "status_category":
+			var cats []string
+			if err := json.Unmarshal(v, &cats); err != nil {
+				// single string
+				var s string
+				if err2 := json.Unmarshal(v, &s); err2 == nil && s != "" {
+					cats = []string{s}
+				}
+			}
+			if len(cats) > 0 {
+				av.filter.statusCategories = cats
+				av.filter.tab = tabFromCategories(cats)
+			}
+		case "assignee_email":
+			var emails []string
+			if err := json.Unmarshal(v, &emails); err != nil {
+				var s string
+				if err2 := json.Unmarshal(v, &s); err2 == nil && s != "" {
+					emails = []string{s}
+				}
+			}
+			if len(emails) > 0 {
+				// TUI applies the first email only (AND of multiple is rare).
+				av.filter.assigneeEmail = strings.ToLower(strings.TrimSpace(emails[0]))
+				if len(emails) > 1 {
+					av.unsupported = append(av.unsupported, "assignee_email[1+]")
+				}
+			}
+		case "assignee":
+			var s string
+			if err := json.Unmarshal(v, &s); err == nil && s != "" {
+				// "me" is a web convention we cannot resolve without identity
+				// in the filter haystack — put it in text so name match still works.
+				if strings.EqualFold(s, "me") {
+					av.unsupported = append(av.unsupported, "assignee=me")
+				} else if strings.Contains(s, "@") {
+					av.filter.assigneeEmail = strings.ToLower(strings.TrimSpace(s))
+				} else {
+					av.filter.text = strings.ToLower(strings.TrimSpace(s))
+				}
+			}
+		case "q", "text":
+			var s string
+			if err := json.Unmarshal(v, &s); err == nil && s != "" {
+				// Prefer dedicated text; if assignee already set text, append.
+				q := strings.ToLower(strings.TrimSpace(s))
+				if av.filter.text == "" {
+					av.filter.text = q
+				} else {
+					av.filter.text = av.filter.text + " " + q
+				}
+			}
+		case "unassigned":
+			var b bool
+			if err := json.Unmarshal(v, &b); err == nil {
+				av.filter.unassigned = b
+			}
+		}
+	}
+	if len(wrap.Display) > 0 && string(wrap.Display) != "null" && string(wrap.Display) != "{}" {
+		// Display (sort/group/columns) is intentionally ignored in the TUI list.
+		// Only note it if something non-default-looking is present — always
+		// mention so the user knows group/sort did not apply.
+		var disp map[string]any
+		if json.Unmarshal(wrap.Display, &disp) == nil && len(disp) > 0 {
+			av.unsupported = append(av.unsupported, "display")
+		}
+	}
+	return av
+}
+
+func isEmptyFilterValue(v json.RawMessage) bool {
+	s := strings.TrimSpace(string(v))
+	return s == "" || s == "null" || s == "[]" || s == `""` || s == "false"
+}
+
+// tabFromCategories picks a status tab that best matches the category list,
+// for the tab bar highlight when a precise statusCategories filter is active.
+func tabFromCategories(cats []string) Tab {
+	set := map[string]bool{}
+	for _, c := range cats {
+		c = strings.ToLower(strings.TrimSpace(c))
+		if c == "indeterminate" {
+			c = "inprogress"
+		}
+		set[c] = true
+	}
+	if len(set) == 1 {
+		if set["done"] {
+			return TabDone
+		}
+		if set["inprogress"] {
+			return TabInProgress
+		}
+		if set["new"] {
+			// No dedicated "new" tab; highlight open (non-done).
+			return TabOpen
+		}
+	}
+	// open-ish: new + inprogress without done
+	if (set["new"] || set["inprogress"]) && !set["done"] {
+		return TabOpen
+	}
+	return TabAll
 }
 
 // relativeTime renders a compact age for ISO-ish timestamps stored by the mirror.

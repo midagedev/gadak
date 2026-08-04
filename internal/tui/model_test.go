@@ -232,3 +232,179 @@ func visibleKeys(m Model) []string {
 	}
 	return out
 }
+
+func TestHelpToggle(t *testing.T) {
+	m := seededModel()
+	m = feed(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
+	if !m.showHelp {
+		t.Fatal("? should open help")
+	}
+	view := stripANSI(m.View())
+	for _, want := range []string{"Keys", "j/↓", "filter", "feed", "quit"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("help missing %q\n%s", want, view)
+		}
+	}
+	// Only real bindings from keys.go
+	if strings.Contains(view, "bulk") {
+		t.Error("help should not invent bulk shortcuts")
+	}
+	m = feed(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
+	if m.showHelp {
+		t.Fatal("? should close help")
+	}
+	// esc also closes
+	m.showHelp = true
+	m = feedSpecial(m, tea.KeyEscape)
+	if m.showHelp {
+		t.Fatal("esc should close help")
+	}
+}
+
+func TestFeedViewRender(t *testing.T) {
+	m := seededModel()
+	at := "2026-08-04T10:00:00Z"
+	m.feedItems = []store.FeedItem{
+		{
+			EventID:    "cm:1",
+			IssueKey:   "AAA-1",
+			Summary:    "Fix login timeout",
+			EventType:  "comment_added",
+			OccurredAt: &at,
+			ActorName:  "Other",
+		},
+		{
+			EventID:   "cl:2",
+			IssueKey:  "AAA-2",
+			Summary:   "Ship dashboard",
+			EventType: "status_changed",
+			ActorName: "Bob",
+			ReadAt:    &at, // read
+		},
+	}
+	m.feedUnread = 1
+	m.mode = modeFeed
+	m = feed(m, tea.WindowSizeMsg{Width: 100, Height: 30})
+	plain := stripANSI(m.View())
+	for _, want := range []string{"feed", "AAA-1", "comment_added", "Other", "AAA-2", "status_changed", "1 unread"} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("feed view missing %q\n%s", want, plain)
+		}
+	}
+	// Status bar hints for feed mode
+	if !strings.Contains(plain, "mark-read") {
+		t.Errorf("feed status missing mark-read hint\n%s", plain)
+	}
+
+	// F leaves feed
+	m = feed(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("F")})
+	if m.mode != modeList {
+		t.Fatalf("F should leave feed, mode=%v", m.mode)
+	}
+}
+
+func TestFeedUnreadInListStatus(t *testing.T) {
+	m := seededModel()
+	m.feedUnread = 3
+	plain := stripANSI(m.View())
+	if !strings.Contains(plain, "feed 3") {
+		t.Fatalf("list status should show feed unread badge\n%s", plain)
+	}
+}
+
+func TestEmptyListCopy(t *testing.T) {
+	m := seededModel()
+	m.all = nil
+	m.refilter()
+	plain := stripANSI(m.View())
+	if !strings.Contains(plain, "no issues — press / to filter · r to reload") {
+		t.Fatalf("empty copy missing:\n%s", plain)
+	}
+}
+
+func TestNarrowLayout(t *testing.T) {
+	m := seededModel()
+	m = feed(m, tea.WindowSizeMsg{Width: 35, Height: 20})
+	plain := stripANSI(m.View())
+	// Key present; full status column chrome not required to assert — just that it renders.
+	if !strings.Contains(plain, "AAA-1") {
+		t.Fatalf("narrow view missing key:\n%s", plain)
+	}
+	if !strings.Contains(plain, "j/k") {
+		t.Fatalf("narrow status missing compact help:\n%s", plain)
+	}
+}
+
+func TestWatchToggle(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(dir + "/tui-watch.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	m := newModel(&config.Config{}, db)
+	m.width, m.height = 100, 30
+	m.now = time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
+	m.all = sampleRows()
+	m.watches = map[string]bool{}
+	m.refilter()
+	// Cursor on AAA-1
+	if m.all[m.visible[0]].lite.IssueKey != "AAA-1" {
+		t.Fatalf("expected AAA-1 first, got %s", m.all[m.visible[0]].lite.IssueKey)
+	}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("w")})
+	m = next.(Model)
+	if cmd == nil {
+		t.Fatal("w should produce a command")
+	}
+	// Drain the async SetWatch result.
+	msg := cmd()
+	next, _ = m.Update(msg)
+	m = next.(Model)
+	if !m.watches["AAA-1"] {
+		t.Fatalf("expected AAA-1 watched after w, watches=%v toast=%q", m.watches, m.toast)
+	}
+	if !strings.Contains(m.toast, "watching") {
+		t.Fatalf("toast=%q", m.toast)
+	}
+	// Persist check
+	keys, err := db.Watches()
+	if err != nil || len(keys) != 1 || keys[0] != "AAA-1" {
+		t.Fatalf("db watches=%v err=%v", keys, err)
+	}
+	// Toggle off
+	next, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("w")})
+	m = next.(Model)
+	msg = cmd()
+	next, _ = m.Update(msg)
+	m = next.(Model)
+	if m.watches["AAA-1"] {
+		t.Fatal("expected unwatched")
+	}
+	keys, _ = db.Watches()
+	if len(keys) != 0 {
+		t.Fatalf("db still has %v", keys)
+	}
+}
+
+func TestKeyMapNewBindings(t *testing.T) {
+	km := defaultKeys()
+	if !keyMatches(km.Help, "?") {
+		t.Error("? should match Help")
+	}
+	if !keyMatches(km.Feed, "F") {
+		t.Error("F should match Feed")
+	}
+	if !keyMatches(km.Views, "v") {
+		t.Error("v should match Views")
+	}
+	if !keyMatches(km.Watch, "w") {
+		t.Error("w should match Watch")
+	}
+	lines := km.helpLines()
+	if len(lines) < 15 {
+		t.Fatalf("help lines too short: %d", len(lines))
+	}
+}
