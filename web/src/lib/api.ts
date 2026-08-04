@@ -326,9 +326,21 @@ export function getAvailableProjects(): Promise<{
   return jsonW<{ projects: AvailableProject[]; truncated: boolean }>('projects/available/')
 }
 
-/** 풀 싱크를 백그라운드로 시작. 이미 돌고 있으면 409 sync_in_progress. */
+/**
+ * Start a background sync. Default mode is full (onboarding first run).
+ * Daily "Sync now" uses `incremental`. 409 sync_in_progress when already running.
+ */
+export function startSync(mode: 'full' | 'incremental' = 'full'): Promise<SyncProgress> {
+  return jsonW<SyncProgress>('sync/', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ mode }),
+  })
+}
+
+/** @deprecated Prefer startSync('full') — kept for call-site clarity in onboarding. */
 export function startFullSync(): Promise<SyncProgress> {
-  return jsonW<SyncProgress>('sync/', { method: 'POST' })
+  return startSync('full')
 }
 
 export function getSyncProgress(): Promise<SyncProgress> {

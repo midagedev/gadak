@@ -25,6 +25,7 @@
     <button
       type="button"
       class="mt-1 rounded-md border border-border-strong px-3 py-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+      data-testid="empty-state-action"
       onclick={onAction}
     >
       {actionLabel}

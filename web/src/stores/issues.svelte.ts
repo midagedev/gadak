@@ -33,6 +33,11 @@ class IssuesStore {
   syncHealth = $state<SyncHealth | null>(null)
   /** 부팅 실패(주로 인증). 캐시가 없을 때만 UI 를 막는다(render-before-auth). */
   error = $state<string | null>(null)
+  /**
+   * True when a poll/bootstrap failed after the pool was already ready —
+   * UI shows an "Offline — showing cached data" strip without blocking the list.
+   */
+  offline = $state(false)
 
   /** updated_at 내림차순 전체 리스트. 필터/그룹핑의 기준 컬렉션(계약). */
   allIssues = $derived.by(() => {
@@ -101,14 +106,17 @@ class IssuesStore {
         await this.#bootstrap()
       }
       this.error = null
+      this.offline = false
     } catch (e) {
       const status = e instanceof api.ApiError ? e.status : 0
       if (status === 401) {
         // 캐시가 있으면 조용히 넘어가고(render-before-auth), 없으면 UI 를 막는다.
         if (!this.ready) this.error = 'auth'
+        else this.offline = true
       } else {
         console.warn('[issues] sync 실패', e)
         if (!this.ready) this.error = 'network'
+        else this.offline = true
       }
     } finally {
       this.#syncing = false

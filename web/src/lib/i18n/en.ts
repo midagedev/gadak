@@ -235,6 +235,8 @@ export const en = {
   'list.bodyMatchCount': '{n} body matches · "{q}"',
   'list.emptyTitle': 'No issues',
   'list.emptyHint': 'They will appear here when sync finishes.',
+  'list.emptyRunSync': 'Run sync',
+  'list.emptySyncHint': 'Or keep the server running with scry serve --sync for automatic updates.',
   'list.bodyOnlyTitle': 'No local matches — found in body',
   'list.bodyOnlyHint': "See the 'Body matches' section above.",
   'list.noMatchTitle': 'No issues match',
@@ -261,11 +263,14 @@ export const en = {
   'list.qaDone': 'QA done',
   'list.qaRun': 'QA run',
   'list.qaPending': 'QA pending',
-  'list.searchPlaceholder':
-    'Search — key/title/assignee, @assignee #team !priority is:reopened, Enter for body search',
+  'list.searchPlaceholder': 'Search issues…',
+  'list.searchHelp':
+    'Key, title, assignee. Tokens: @assignee #team !priority is:reopened|unassigned|stale. Enter runs body search.',
   'list.searchClear': 'Clear (Esc)',
   'list.searchOpen': 'Open with Enter',
   'list.searching': 'Searching…',
+  'list.searchFailed': 'Could not search body text. Check the connection and try again.',
+  'list.searchRetry': 'Retry body search',
 
   /* ── Bulk bar ── */
   'bulk.changeStatus': 'Change status',
@@ -301,6 +306,8 @@ export const en = {
   'sidebar.syncDelayedTitle': 'Sync delayed',
   'sidebar.syncLabel': 'Synced {when}',
   'sidebar.syncChecking': 'Checking sync',
+  'sidebar.syncNow': 'Sync now',
+  'sidebar.syncNowTitle': 'Run an incremental sync now',
   'sidebar.issueCount': '{n} issues',
 
   /* ── Builtin views ── */
@@ -451,6 +458,8 @@ export const en = {
   'write.metaFailed': 'Could not load create metadata.',
   'write.issueCreated': 'Created {key}.',
   'write.needToken': 'Set your personal Jira API token first.',
+  'write.tokenRejected':
+    'Your Jira API token was rejected — replace it with a new personal token.',
   'write.transitionFailed': 'Could not transition status.',
   'write.assignFailed': 'Could not change assignee.',
   'write.editMetaFailed': 'Could not load editable fields.',
@@ -637,7 +646,14 @@ export const en = {
   'palette.actionToggleStale': 'Toggle stale filter',
   'palette.actionLocale': 'Switch language to {lang}',
   'palette.actionSyncStatus': 'Show sync status',
+  'palette.actionSyncNow': 'Sync now',
   'palette.syncToast': '{overall} · synced {when}',
+
+  /* ── Sync now (shared) ── */
+  'sync.starting': 'Starting sync…',
+  'sync.done': 'Sync finished · fetched {n} · changed {changed}',
+  'sync.failed': 'Sync failed: {message}',
+  'sync.projectsRequired': 'Add at least one project in settings before syncing.',
 
   /* ── Onboarding (first run) ── */
   'onboarding.title': 'Set up your mirror',
@@ -656,6 +672,8 @@ export const en = {
   'onboarding.connecting': 'Verifying…',
   'onboarding.connectedAs': 'Connected as {name}',
   'onboarding.errRejected': 'Jira rejected that email and token. Check both and try again.',
+  'onboarding.errRejectedOrgKey':
+    'Org API keys (ATCTT from admin.atlassian.com) do not work — create a user API token (ATATT) instead.',
   'onboarding.errSite': 'Enter your Jira site URL, for example https://your-team.atlassian.net.',
   'onboarding.errFields': 'Email and API token are both required.',
   'onboarding.errConnect': 'Could not reach Jira: {message}',
@@ -664,6 +682,11 @@ export const en = {
   'onboarding.errProjects': 'Could not list projects: {message}',
   'onboarding.projectsTruncated': 'Showing the first {n} projects; add any others in settings.',
   'onboarding.noProjects': 'This account cannot browse any project on that site.',
+  'onboarding.noProjectsChecklist':
+    'Check: the site URL is correct, the account has Browse Projects, and you are not using an org admin key.',
+  'onboarding.noProjectsManual': 'You can type project keys manually in settings.',
+  'onboarding.selectAll': 'Select all',
+  'onboarding.selectNone': 'Select none',
   'onboarding.selectedCount': '{n} selected',
   'onboarding.startSync': 'Start first sync',
   'onboarding.saving': 'Saving…',
@@ -671,9 +694,12 @@ export const en = {
   'onboarding.syncing': 'Fetching issues',
   'onboarding.syncStarting': 'Starting…',
   'onboarding.syncDone': 'Mirrored {n} issues. Opening the list…',
+  'onboarding.syncServeHint':
+    'For automatic updates later, run scry serve --sync (or use Sync now from the sidebar).',
   'onboarding.errSync': 'Sync failed: {message}',
   'onboarding.retry': 'Retry',
   'onboarding.back': 'Back',
+  'onboarding.switchAccount': 'Use a different account',
   'onboarding.openSettings': 'Open settings',
   'onboarding.cliHint': 'The same setup is available as scry init in a terminal.',
 
@@ -681,6 +707,7 @@ export const en = {
   'shortcuts.title': 'Keyboard shortcuts',
   'shortcuts.sectionGlobal': 'Global',
   'shortcuts.sectionList': 'Issue list',
+  'shortcuts.sectionDetail': 'Detail panel',
   'shortcuts.sectionSearch': 'Search',
   'shortcuts.sectionPalette': 'Command palette',
   'shortcuts.sectionCompose': 'Composing',
@@ -691,6 +718,10 @@ export const en = {
   'shortcuts.moveUp': 'Move cursor up',
   'shortcuts.openIssue': 'Open the issue under the cursor',
   'shortcuts.closeDetail': 'Close the detail panel',
+  'shortcuts.closeDetailX': 'Close the detail panel',
+  'shortcuts.focusStatus': 'Change status (when detail is open)',
+  'shortcuts.focusAssignee': 'Change assignee (when detail is open)',
+  'shortcuts.focusComment': 'Focus the comment box (when detail is open)',
   'shortcuts.focusSearch': 'Focus the search box',
   'shortcuts.suggestions': 'Move through suggestions',
   'shortcuts.applySearch': 'Apply the search',
@@ -705,6 +736,7 @@ export const en = {
   'app.authGate': 'Cannot connect to the local server.',
   'app.authGateHint': 'Make sure it is running.',
   'app.authRetry': 'Retry',
+  'app.offlineBanner': 'Offline — showing cached data',
 
   /* ── Me / notifications errors ── */
   'me.noCryptoKey': 'Missing subscription encryption key.',

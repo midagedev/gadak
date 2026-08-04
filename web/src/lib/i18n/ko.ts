@@ -236,6 +236,8 @@ export const ko = {
   'list.bodyMatchCount': '본문 매칭 {n}건 · "{q}"',
   'list.emptyTitle': '이슈가 없습니다',
   'list.emptyHint': '동기화가 완료되면 여기 표시됩니다.',
+  'list.emptyRunSync': '동기화 실행',
+  'list.emptySyncHint': '자동 갱신이 필요하면 scry serve --sync 로 서버를 실행하세요.',
   'list.bodyOnlyTitle': '로컬 매칭은 없지만 본문에서 찾았습니다',
   'list.bodyOnlyHint': "위 '본문 매칭' 섹션을 확인하세요.",
   'list.noMatchTitle': '조건에 맞는 이슈가 없습니다',
@@ -262,11 +264,14 @@ export const ko = {
   'list.qaDone': 'QA 완료',
   'list.qaRun': 'QA 차수',
   'list.qaPending': 'QA 대기',
-  'list.searchPlaceholder':
-    '검색 — 키/제목/담당자, @담당자 #파트 !우선순위 is:reopened, Enter로 본문검색',
+  'list.searchPlaceholder': '이슈 검색…',
+  'list.searchHelp':
+    '키·제목·담당자. 토큰: @담당자 #파트 !우선순위 is:reopened|unassigned|stale. Enter로 본문 검색.',
   'list.searchClear': '지우기 (Esc)',
   'list.searchOpen': 'Enter로 열기',
   'list.searching': '검색중…',
+  'list.searchFailed': '본문 검색에 실패했습니다. 연결을 확인한 뒤 다시 시도하세요.',
+  'list.searchRetry': '본문 검색 다시 시도',
 
   /* ── Bulk bar ── */
   'bulk.changeStatus': '상태 변경',
@@ -302,6 +307,8 @@ export const ko = {
   'sidebar.syncDelayedTitle': '동기화 지연',
   'sidebar.syncLabel': '동기화 {when}',
   'sidebar.syncChecking': '동기화 확인 중',
+  'sidebar.syncNow': '지금 동기화',
+  'sidebar.syncNowTitle': '증분 동기화를 지금 실행',
   'sidebar.issueCount': '{n} 이슈',
 
   /* ── Builtin views ── */
@@ -452,6 +459,8 @@ export const ko = {
   'write.metaFailed': '생성 메타를 불러오지 못했습니다.',
   'write.issueCreated': '{key} 이슈를 생성했습니다.',
   'write.needToken': '먼저 개인 Jira API 토큰을 설정하세요.',
+  'write.tokenRejected':
+    'Jira API 토큰이 거부되었습니다 — 새 개인 토큰으로 교체하세요.',
   'write.transitionFailed': '상태 전환에 실패했습니다.',
   'write.assignFailed': '담당자 변경에 실패했습니다.',
   'write.editMetaFailed': '편집 항목을 불러오지 못했습니다.',
@@ -636,7 +645,14 @@ export const ko = {
   'palette.actionToggleStale': '정체 필터 토글',
   'palette.actionLocale': '언어를 {lang} 로 전환',
   'palette.actionSyncStatus': '동기화 상태 보기',
+  'palette.actionSyncNow': '지금 동기화',
   'palette.syncToast': '{overall} · 동기화 {when}',
+
+  /* ── Sync now (shared) ── */
+  'sync.starting': '동기화 시작 중…',
+  'sync.done': '동기화 완료 · 가져옴 {n} · 변경 {changed}',
+  'sync.failed': '동기화 실패: {message}',
+  'sync.projectsRequired': '동기화 전에 설정에서 프로젝트를 하나 이상 추가하세요.',
 
   /* ── 온보딩(첫 실행) ── */
   'onboarding.title': '미러 설정하기',
@@ -655,6 +671,8 @@ export const ko = {
   'onboarding.connecting': '검증 중…',
   'onboarding.connectedAs': '{name} 으로 연결됨',
   'onboarding.errRejected': 'Jira 가 이메일/토큰을 거부했습니다. 둘 다 확인해 주세요.',
+  'onboarding.errRejectedOrgKey':
+    '조직 API 키(admin.atlassian.com 의 ATCTT)는 동작하지 않습니다 — 사용자 API 토큰(ATATT)을 만드세요.',
   'onboarding.errSite': 'Jira 사이트 URL 을 입력하세요. 예: https://your-team.atlassian.net',
   'onboarding.errFields': '이메일과 API 토큰이 모두 필요합니다.',
   'onboarding.errConnect': 'Jira 에 연결할 수 없습니다: {message}',
@@ -663,6 +681,11 @@ export const ko = {
   'onboarding.errProjects': '프로젝트 목록을 가져오지 못했습니다: {message}',
   'onboarding.projectsTruncated': '앞쪽 {n}개만 표시했습니다. 나머지는 설정에서 추가하세요.',
   'onboarding.noProjects': '이 계정이 조회할 수 있는 프로젝트가 없습니다.',
+  'onboarding.noProjectsChecklist':
+    '확인: 사이트 URL 이 맞고, Browse Projects 권한이 있으며, 조직 관리자 키가 아닌지.',
+  'onboarding.noProjectsManual': '설정에서 프로젝트 키를 직접 입력할 수 있습니다.',
+  'onboarding.selectAll': '전체 선택',
+  'onboarding.selectNone': '선택 해제',
   'onboarding.selectedCount': '{n}개 선택',
   'onboarding.startSync': '첫 동기화 시작',
   'onboarding.saving': '저장 중…',
@@ -670,9 +693,12 @@ export const ko = {
   'onboarding.syncing': '이슈 가져오는 중',
   'onboarding.syncStarting': '시작 중…',
   'onboarding.syncDone': '{n}건 미러 완료. 목록을 엽니다…',
+  'onboarding.syncServeHint':
+    '이후 자동 갱신은 scry serve --sync 로 서버를 실행하거나 사이드바의 지금 동기화를 쓰세요.',
   'onboarding.errSync': '동기화 실패: {message}',
   'onboarding.retry': '다시 시도',
   'onboarding.back': '뒤로',
+  'onboarding.switchAccount': '다른 계정으로 연결',
   'onboarding.openSettings': '설정 열기',
   'onboarding.cliHint': '같은 설정을 터미널에서 scry init 으로도 할 수 있습니다.',
 
@@ -680,6 +706,7 @@ export const ko = {
   'shortcuts.title': '키보드 단축키',
   'shortcuts.sectionGlobal': '전역',
   'shortcuts.sectionList': '이슈 리스트',
+  'shortcuts.sectionDetail': '상세 패널',
   'shortcuts.sectionSearch': '검색',
   'shortcuts.sectionPalette': '커맨드 팔레트',
   'shortcuts.sectionCompose': '작성',
@@ -690,6 +717,10 @@ export const ko = {
   'shortcuts.moveUp': '커서 위로',
   'shortcuts.openIssue': '커서의 이슈 열기',
   'shortcuts.closeDetail': '상세 패널 닫기',
+  'shortcuts.closeDetailX': '상세 패널 닫기',
+  'shortcuts.focusStatus': '상태 변경 (상세 열림 시)',
+  'shortcuts.focusAssignee': '담당자 변경 (상세 열림 시)',
+  'shortcuts.focusComment': '코멘트 입력 포커스 (상세 열림 시)',
   'shortcuts.focusSearch': '검색창 포커스',
   'shortcuts.suggestions': '추천 항목 이동',
   'shortcuts.applySearch': '검색 실행',
@@ -704,6 +735,7 @@ export const ko = {
   'app.authGate': '로컬 서버에 연결할 수 없습니다.',
   'app.authGateHint': '가 실행 중인지 확인하세요.',
   'app.authRetry': '다시 시도',
+  'app.offlineBanner': '오프라인 — 캐시된 데이터를 표시 중',
 
   /* ── Me / notifications errors ── */
   'me.noCryptoKey': '구독 암호화 키가 없습니다.',

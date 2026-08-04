@@ -514,10 +514,17 @@ class WriteStore {
 
   #handleError(e: unknown, fallback: string): void {
     if (e instanceof ApiError) {
-      if (e.code === 'credential_required' || e.status === 401) {
-        // Credential gone or never set → settings dialog
+      if (e.code === 'credential_required') {
+        // No token stored → settings dialog with "set token" copy
         this.configured = false
         this.toast(t('write.needToken'), 'info')
+        this.openSettings()
+        return
+      }
+      if (e.code === 'credential_rejected' || e.status === 401) {
+        // Stored token expired/refused → settings with "replace token" copy
+        this.configured = false
+        this.toast(t('write.tokenRejected'), 'error')
         this.openSettings()
         return
       }
