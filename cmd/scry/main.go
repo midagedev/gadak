@@ -90,6 +90,8 @@ func cmdServe(args []string) error {
 	allowRemote := fs.Bool("allow-remote", false,
 		"permit binding a non-loopback address (the mirror has no auth; do not expose it)")
 	withSync := fs.Bool("sync", false, "run the incremental sync loop inside the server")
+	importAttachments := fs.String("import-attachments", "",
+		"seed the attachment cache from a directory holding manifest.json (see examples/attachments)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -136,6 +138,12 @@ func cmdServe(args []string) error {
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(doc)
 	})
+	if *importAttachments != "" {
+		if err := importAttachmentDir(*importAttachments); err != nil {
+			log.Printf("warning: could not import attachments from %q: %v", *importAttachments, err)
+		}
+	}
+
 	// Attachment bytes live on disk next to the mirror: the first view fetches
 	// them from Jira, every later one is local, and a cached image still renders
 	// with no credential at all.
@@ -498,10 +506,28 @@ func cmdStatus(args []string) error {
 
 // cmdDemo serves the bundled snapshot from a throwaway home, so evaluating the
 // UI needs no Jira account and cannot touch a real profile.
-// importDemoAttachments loads examples/attachments/ into the demo cache. A
-// missing directory is not an error: the snapshot simply has no images.
+// importDemoAttachments loads <snapshotDir>/attachments/ into the demo cache.
 func importDemoAttachments(snapshotDir, home string) error {
-	manifestPath := filepath.Join(snapshotDir, "attachments", "manifest.json")
+	return importAttachmentsInto(filepath.Join(snapshotDir, "attachments"),
+		filepath.Join(home, "attachments"))
+}
+
+// importAttachmentDir seeds this profile's cache from a manifest directory. It is
+// how a snapshot ships renderable images: bytes cannot be proxied without a
+// credential, so a fixture (the demo, the test server, a shared snapshot) hands
+// them over instead.
+func importAttachmentDir(dir string) error {
+	cacheDir, err := config.AttachmentDir()
+	if err != nil {
+		return err
+	}
+	return importAttachmentsInto(dir, cacheDir)
+}
+
+// importAttachmentsInto is the shared body. A missing directory is not an error:
+// the snapshot simply has no images.
+func importAttachmentsInto(dir, cacheDir string) error {
+	manifestPath := filepath.Join(dir, "manifest.json")
 	raw, err := os.ReadFile(manifestPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -520,12 +546,12 @@ func importDemoAttachments(snapshotDir, home string) error {
 	if err := json.Unmarshal(raw, &manifest); err != nil {
 		return err
 	}
-	cache, err := attachcache.New(filepath.Join(home, "attachments"), 0)
+	cache, err := attachcache.New(cacheDir, 0)
 	if err != nil {
 		return err
 	}
 	for _, a := range manifest.Attachments {
-		src := filepath.Join(snapshotDir, "attachments", a.File)
+		src := filepath.Join(dir, a.File)
 		if err := cache.ImportFile(a.ID, src, a.ContentType, a.Filename); err != nil {
 			return fmt.Errorf("import %s: %w", a.File, err)
 		}

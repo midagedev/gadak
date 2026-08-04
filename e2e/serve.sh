@@ -87,4 +87,8 @@ SQL
 
 export SCRY_HOME="$HOME_DIR"
 echo "[e2e] serving on 127.0.0.1:7877 (SCRY_HOME=$SCRY_HOME)…"
-exec "$BIN" serve --addr 127.0.0.1:7877 --static dist/app
+# The snapshot references attachments whose bytes cannot be proxied (the fixture
+# credential is fake), so seed the cache from the committed images. Without this
+# the browser logs 502s and the console-hygiene spec fails.
+exec "$BIN" serve --addr 127.0.0.1:7877 --static dist/app \
+  --import-attachments "$ROOT/examples/attachments"

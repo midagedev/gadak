@@ -71,13 +71,22 @@ test.describe('web UI demo', () => {
     await expect(panel.getByText('NMB-110').first()).toBeVisible()
     await beat(page, 1100)
 
-    // ── Detail: description, comments, history ────────────────────────────
+    // ── Detail: description, then the comment with inline screenshots ─────
+    // The images are served from the local attachment cache, so they appear
+    // without a network round trip — worth showing, since "attachments work
+    // offline" is not obvious from a list of filenames.
     await expect(panel.getByRole('heading', { name: 'Comments' })).toBeVisible()
     await panel.evaluate((el) => {
       const scroller = el.querySelector('.overflow-y-auto') ?? el
-      scroller.scrollTo({ top: scroller.scrollHeight * 0.6, behavior: 'smooth' })
+      scroller.scrollTo({ top: scroller.scrollHeight * 0.45, behavior: 'smooth' })
     })
-    await beat(page, 1300)
+    await beat(page, 900)
+    await expect(panel.locator('.adf-media-image img').first()).toBeVisible({ timeout: 10_000 })
+    await panel.evaluate((el) => {
+      const scroller = el.querySelector('.overflow-y-auto') ?? el
+      scroller.scrollTo({ top: scroller.scrollHeight * 0.72, behavior: 'smooth' })
+    })
+    await beat(page, 1600)
 
     // ── One saved view, then rest on the list for a clean loop ────────────
     await page.keyboard.press('Escape')
