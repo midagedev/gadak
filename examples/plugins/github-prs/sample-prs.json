@@ -1,0 +1,35 @@
+[
+  {
+    "number": 42,
+    "title": "Fix session timeout on NMB-110",
+    "body": "Closes NMB-110.\n\nAlso softens the retry for NMB-111.",
+    "html_url": "https://github.com/example/app/pull/42",
+    "state": "closed",
+    "merged_at": "2026-03-01T10:00:00Z",
+    "head": { "ref": "fix/NMB-110-session" },
+    "user": { "login": "alice" },
+    "base": { "repo": { "full_name": "example/app" } }
+  },
+  {
+    "number": 55,
+    "title": "Docs: operator guide",
+    "body": "No tracker key in this one.",
+    "html_url": "https://github.com/example/app/pull/55",
+    "state": "open",
+    "merged_at": null,
+    "head": { "ref": "docs/ops" },
+    "user": { "login": "bob" },
+    "base": { "repo": { "full_name": "example/app" } }
+  },
+  {
+    "number": 61,
+    "title": "Retry backoff",
+    "body": "",
+    "html_url": "https://github.com/example/app/pull/61",
+    "state": "open",
+    "merged_at": null,
+    "head": { "ref": "bugfix/NMB-110-retry" },
+    "user": { "login": "carol" },
+    "base": { "repo": { "full_name": "example/app" } }
+  }
+]
