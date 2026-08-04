@@ -82,7 +82,7 @@ Legend: **done** / **partial** / **todo**
 | T5.1 | Documented schema | done (`data-model.md`) |
 | T5.2 | `scry sql` read-only query path | done — `mode=ro` connection, tab-separated, `--json`, or `--csv`. NULL prints as empty in the row formats, not as Go's `<nil>` |
 | T5.3 | `scry status --json` | done |
-| T5.4 | MCP server | todo (post-v0.1) |
+| T5.4 | MCP server | done — `scry mcp` stdio JSON-RPC (`internal/mcp`, no SDK). Tools: `scry_query` (SELECT/WITH only, row/byte caps), `scry_search`, `scry_issue`, `scry_status`. Protocol round-trip + write-SQL rejection tests in `internal/mcp/*_test.go`; docs in `docs/MCP.md` |
 | T5.5 | `scry issue <KEY> [--json]` | done — `store.Detail` plus the list row; `--json` is the `GET <key>/detail/` document with `issue` added. `TestIssueAndSearchReadTheMirror` |
 | T5.6 | `scry search <text> [--limit] [--json]` | done — FTS over titles, bodies and comments, best match first. Text output is `key\tstatus\tassignee\tsummary`, so `cut -f1` gives keys |
 | T5.7 | `scry comment <KEY> -m <text\|->` | done — write-through via `jira.AddComment` + `sync.SyncIssue`, same order as the server. Body is plain text: an `@Name` notifies nobody, unlike the UI's mention picker. `TestCommentSendsADFAndRefusesAnEmptyBody` |
