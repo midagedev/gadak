@@ -15,7 +15,7 @@
  * Reactivity: use svelte/reactivity SvelteSet so add/delete trigger updates.
  */
 
-import { t } from '../lib/i18n'
+import { t, type MessageKey } from '../lib/i18n'
 import { SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
 import { basePath, config, feature } from '../lib/config'
@@ -123,6 +123,16 @@ export type PushState =
 
 const EMPTY_UNREAD: FeedUnreadCounts = { all: 0, assignee: 0, reporter: 0, mention: 0 }
 
+const EVENT_NOTIFY_KIND: Record<FeedItem['event_type'], MessageKey> = {
+  created: 'feed.notifyCreated',
+  status_changed: 'feed.notifyStatus',
+  reopened: 'feed.notifyReopened',
+  assigned: 'feed.notifyAssigned',
+  comment_added: 'feed.notifyComment',
+  attachment_added: 'feed.notifyAttachment',
+  fields_changed: 'feed.notifyFields',
+}
+
 class MeStore {
   /* ── Identity (from stored credential via auth/me/) ── */
   email = $state<string | null>(null)
@@ -153,6 +163,10 @@ class MeStore {
   feedOpen = $state(false)
   /** Feed focus tab (all / assignee / reporter / mention). */
   feedFocus = $state<FeedFocus>('all')
+  /** Browser Notification.permission snapshot for the settings toggle. */
+  browserNotifyPermission = $state<NotificationPermission | 'unsupported'>(
+    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
+  )
 
   /**
    * True when GET auth/me/ returned an email — synonymous with
@@ -170,6 +184,10 @@ class MeStore {
 
   #initialized = false
   #feedPollTimer: ReturnType<typeof setInterval> | null = null
+  /** Last seen feedUnread.all — used to fire at most one browser Notification when it grows. */
+  #prevUnreadAll = 0
+  /** Whether the first successful feed load has set #prevUnreadAll (avoid notify on boot). */
+  #feedBaselineReady = false
 
   /**
    * Boot:
@@ -240,6 +258,8 @@ class MeStore {
     this.feedItems = []
     this.feedUnread = { ...EMPTY_UNREAD }
     this.feedLoaded = false
+    this.#feedBaselineReady = false
+    this.#prevUnreadAll = 0
     this.notificationConfig = null
     this.pushState = 'default'
     this.#syncAppBadge()
@@ -288,13 +308,65 @@ class MeStore {
     try {
       const response = await api.getFeed(focus)
       if (focus === this.feedFocus) this.feedItems = response.items
+      const prevAll = this.feedUnread.all
       this.feedUnread = response.unread_counts
       this.feedLoaded = true
       this.#syncAppBadge()
+      this.#maybeNotifyNewUnread(prevAll, response.items, response.unread_counts.all)
     } catch (e) {
       console.warn('[me] 피드 로드 실패', e)
     } finally {
       this.feedLoading = false
+    }
+  }
+
+  /**
+   * When unread_counts.all grows and the user has granted Notification permission,
+   * fire a single in-tab Notification summarizing the newest unread item.
+   * No VAPID / service-worker push — that stays behind features.push.
+   */
+  #maybeNotifyNewUnread(prevAll: number, items: FeedItem[], nextAll: number): void {
+    if (!this.#feedBaselineReady) {
+      this.#feedBaselineReady = true
+      this.#prevUnreadAll = nextAll
+      return
+    }
+    const grew = nextAll > this.#prevUnreadAll || nextAll > prevAll
+    this.#prevUnreadAll = nextAll
+    if (!grew || nextAll === 0) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    const newest = items.find((item) => !item.read_at) ?? items[0]
+    if (!newest) return
+    const kindKey = EVENT_NOTIFY_KIND[newest.event_type]
+    const kind = kindKey ? t(kindKey) : newest.event_type
+    const title = newest.actor_name
+      ? t('feed.notifyTitle', { key: newest.issue_key, kind, actor: newest.actor_name })
+      : t('feed.notifyTitleNoActor', { key: newest.issue_key, kind })
+    try {
+      new Notification(title, {
+        body: newest.summary || undefined,
+        tag: `scry-feed-${newest.event_id}`,
+      })
+    } catch {
+      /* some browsers throw when the page is not visible / permission races */
+    }
+  }
+
+  /** Request browser Notification permission (settings toggle). Returns final permission. */
+  async requestBrowserNotificationPermission(): Promise<NotificationPermission | 'unsupported'> {
+    if (typeof Notification === 'undefined') {
+      this.browserNotifyPermission = 'unsupported'
+      return 'unsupported'
+    }
+    try {
+      if (Notification.permission === 'default') {
+        await Notification.requestPermission()
+      }
+      this.browserNotifyPermission = Notification.permission
+      return this.browserNotifyPermission
+    } catch {
+      this.browserNotifyPermission = Notification.permission
+      return this.browserNotifyPermission
     }
   }
 

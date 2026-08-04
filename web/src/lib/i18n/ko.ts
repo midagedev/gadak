@@ -356,6 +356,15 @@ export const ko = {
   'feed.whyReporter': '보고',
   'feed.whyWatch': '워치',
   'feed.whyMention': '멘션',
+  'feed.notifyCreated': '생성',
+  'feed.notifyStatus': '상태',
+  'feed.notifyReopened': '재오픈',
+  'feed.notifyAssigned': '담당',
+  'feed.notifyComment': '코멘트',
+  'feed.notifyAttachment': '첨부',
+  'feed.notifyFields': '필드',
+  'feed.notifyTitle': '{key} {kind} · {actor}',
+  'feed.notifyTitleNoActor': '{key} {kind}',
 
   /* ── Notifications ── */
   'notif.title': '알림 설정',
@@ -551,6 +560,13 @@ export const ko = {
     '같은 이슈를 보고 있는 사람 표시 — 로컬 단일 사용자에선 의미 없음',
   'settings.featureFeed': '개인 피드',
   'settings.featureFeedDesc': '멘션·워치·담당자 변경을 모은 활동 피드',
+  'settings.browserNotify': '데스크톱 알림 (이 브라우저)',
+  'settings.browserNotifyDesc':
+    'scry가 열려 있을 때 새 피드 항목이 오면 시스템 알림을 표시합니다. 웹 푸시는 사용하지 않습니다.',
+  'settings.browserNotifyEnable': '알림 허용',
+  'settings.browserNotifyGranted': '허용됨',
+  'settings.browserNotifyDenied': '브라우저 설정에서 차단됨',
+  'settings.browserNotifyUnsupported': '이 브라우저에서 지원하지 않음',
   'settings.featurePush': '웹 푸시',
   'settings.featurePushDesc':
     '피드 이벤트를 브라우저 알림으로 — 서버 VAPID 키 필요',

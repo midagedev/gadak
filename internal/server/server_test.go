@@ -373,8 +373,8 @@ func TestSearchHitsCommentText(t *testing.T) {
 func TestDeferredEndpointsAre404(t *testing.T) {
 	db, cfg := fixture(t)
 	h := New(db, cfg)
+	// Feed is implemented (GET feed/ → 200). These remain deferred/cut.
 	for _, path := range []string{
-		apiBase + "feed/", apiBase + "feed/read/",
 		apiBase + "notifications/config/", apiBase + "notifications/subscription/",
 		apiBase + "presence-ticket/", apiBase + "ws/issues/",
 		apiBase + "mentions/?email=hc@example.com", apiBase + "data-quality/",

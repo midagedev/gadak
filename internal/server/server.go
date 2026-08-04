@@ -77,6 +77,10 @@ func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) ht
 	mux.HandleFunc("DELETE "+apiBase+"views/{id}/{$}", s.handleDeleteView)
 	mux.HandleFunc("GET "+apiBase+"watches/{$}", s.handleGetWatches)
 	mux.HandleFunc("DELETE "+apiBase+"watches/{key}/{$}", s.handleDeleteWatch)
+	// Personal feed (computed from the mirror; read receipts in feed_reads).
+	// Literal patterns beat `{key}/{action}/` and `{key}/detail/`.
+	mux.HandleFunc("GET "+apiBase+"feed/{$}", s.handleGetFeed)
+	mux.HandleFunc("POST "+apiBase+"feed/read/{$}", s.handleMarkFeedRead)
 	// The client's two PUT shapes — `watches/{key}/` and `{key}/assignee/` — are
 	// mirror images that overlap on `watches/assignee/`, and ServeMux rejects an
 	// ambiguous pair with no way to break the tie (there is no third-pattern
@@ -116,7 +120,7 @@ func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) ht
 	mux.HandleFunc("PUT "+apiBase+"{key}/assignee/{$}", s.handleAssignee)
 	mux.HandleFunc("PATCH "+apiBase+"{key}/fields/{$}", s.handleFields)
 	mux.HandleFunc("GET "+apiBase+"{key}/editmeta/{$}", s.handleEditMeta)
-	// Deferred and cut endpoints (feed, notifications, presence, mentions,
+	// Deferred and cut endpoints (notifications, presence, mentions,
 	// data-quality, login/logout) fall through to here. The UI hides a surface on
 	// a clean 404 and only breaks on a 500.
 	mux.HandleFunc("/", handleNotFound)

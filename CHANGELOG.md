@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Personal watch feed: `GET /api/v1/issues/feed/` and `POST …/feed/read/` compute
+  activity from the mirror at query time (status/assignee/fields changelog,
+  comments, attachments, issue creates) over a 30-day window, with local
+  `feed_reads` receipts (schema v4). Relevance is watched · assignee · reporter ·
+  mention; self-actions are excluded. `account_id` is stored on credential
+  verify. `features.feed` defaults on. In-tab browser Notifications fire when
+  unread grows (no VAPID/push).
 - Ported the demo Jira seeder from Python to Go (`go run ./tools/seed-demo`),
   removing the last Python dependency. Flag contract, category-ladder
   transitions, and repair idempotency are unchanged.

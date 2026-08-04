@@ -312,6 +312,18 @@ were deleted, so `scry export` must be able to dump them.
 | `watches` | `key` PK, `created_at` |
 | `favorites` | `key` PK, `created_at` |
 
+## `feed_reads`
+
+Local personal-feed read receipts. Feed events are not stored as rows: the
+server computes them from the mirror at query time (status/assignee changelog,
+comments, attachments, issue creates). This table only records which event ids
+the user has marked read.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `event_id` | TEXT PK | Deterministic id: `cl:<changelog.id>`, `cm:<comment.id>`, `at:<attachment.id>`, `cr:<issue.key>`, or `fl:<item_id>:<at>` for grouped field changes |
+| `read_at` | TEXT | When the local user marked it read |
+
 ## `sync_state`
 
 | Column | Type | Notes |

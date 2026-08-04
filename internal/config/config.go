@@ -50,6 +50,10 @@ type Config struct {
 	// 토큰 원문과 달리 응답에 실려도 된다.
 	TokenVerifiedAt string `json:"tokenVerifiedAt,omitempty"`
 	TokenOwner      string `json:"tokenOwner,omitempty"`
+	// AccountID is the Jira accountId returned by /myself. Used for feed
+	// relevance (assignee/reporter/mention) and self-action filtering. Empty
+	// when the credential was never verified against a live site.
+	AccountID string `json:"account_id,omitempty"`
 
 	// sync 필드 매핑 (contracts/sync.md "Field mapping")
 	FieldMap   map[string]string `json:"fieldMap,omitempty"`   // alias -> customfield_xxxxx

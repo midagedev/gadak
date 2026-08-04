@@ -130,10 +130,10 @@ func TestNormalizeSiteAcceptsWhatPeoplePaste(t *testing.T) {
 	for in, want := range map[string]string{
 		"example.atlassian.net":          "https://example.atlassian.net",
 		"https://example.atlassian.net/": "https://example.atlassian.net",
-		" http://localhost:8080/x ":   "http://localhost:8080",
-		"::nope":                      "",
+		" http://localhost:8080/x ":      "http://localhost:8080",
+		"::nope":                         "",
 		"ftp://example.atlassian.net":    "",
-		"":                            "",
+		"":                               "",
 	} {
 		if got := normalizeSite(in); got != want {
 			t.Errorf("normalizeSite(%q) = %q, want %q", in, got, want)
