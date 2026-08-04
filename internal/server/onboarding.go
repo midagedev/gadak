@@ -67,6 +67,7 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	next := *s.config()
 	next.Site, next.Email, next.Token = site, email, token
 	next.TokenOwner, next.TokenVerifiedAt = me.DisplayName, store.Now()
+	next.AccountID = me.AccountID
 	if err := next.Save(); err != nil {
 		serverError(w, r, err)
 		return

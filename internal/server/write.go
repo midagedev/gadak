@@ -175,6 +175,7 @@ func (s *server) handlePutCredential(w http.ResponseWriter, r *http.Request) {
 	}
 	next.Email, next.Token = body.JiraEmail, body.APIToken
 	next.TokenOwner, next.TokenVerifiedAt = me.DisplayName, store.Now()
+	next.AccountID = me.AccountID
 	if err := next.Save(); err != nil {
 		serverError(w, r, err)
 		return
@@ -186,7 +187,7 @@ func (s *server) handlePutCredential(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleDeleteCredential(w http.ResponseWriter, r *http.Request) {
 	next := *s.config()
-	next.Email, next.Token, next.TokenOwner, next.TokenVerifiedAt = "", "", "", ""
+	next.Email, next.Token, next.TokenOwner, next.TokenVerifiedAt, next.AccountID = "", "", "", "", ""
 	if err := next.Save(); err != nil {
 		serverError(w, r, err)
 		return

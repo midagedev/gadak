@@ -269,10 +269,19 @@ func humanBytes(n int64) string {
 // The helpers below only replace nil with empty, so the documents carry `[]` and
 // `{}` instead of `null` and the UI can bind to them without guards.
 
+// features projects the optional-surface flags. An explicit key in the config
+// wins; missing keys stay off except feed, which defaults on so the personal
+// feed surface is available without a config edit (still overridable to false).
 func features(set map[string]bool) map[string]bool {
 	out := make(map[string]bool, len(featureNames))
 	for _, name := range featureNames {
-		out[name] = set[name]
+		if set != nil {
+			if v, ok := set[name]; ok {
+				out[name] = v
+				continue
+			}
+		}
+		out[name] = name == "feed"
 	}
 	return out
 }
