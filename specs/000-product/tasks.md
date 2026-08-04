@@ -37,14 +37,14 @@ Legend: **done** / **partial** / **todo**
 
 | # | Task | State | Notes |
 | --- | --- | --- | --- |
-| T2.1 | REST client with Basic auth, retry, and backoff | todo | |
-| T2.2 | Full sync with token pagination and explicit field lists | todo | |
-| T2.3 | Incremental sync with watermark and overlap window | todo | The store side is ready: `RecordSync` refuses a watermark that would regress, and an unchanged issue is skipped rather than rewritten, so a re-run over the overlap window does not bump `version` |
-| T2.4 | Changelog paging for long histories | todo | |
-| T2.5 | Comment paging | todo | |
-| T2.6 | Reconcile pass for deletion detection | todo | `store.DeleteItems` handles the mirror side, including tombstones for `delta` |
-| T2.7 | Derived field computation | partial | `store.Derive` is written and table-tested (`TestDerive`, including a done-to-todo reopen, a multi-reopen issue, and the same fixture with Korean and English status names). The connector still has to supply the status-id → category map from the site's status list |
-| T2.8 | Configurable field mapping and body fields | todo | `issues.custom` and `items.body_text` are the columns it lands in |
+| T2.1 | REST client with Basic auth, retry, and backoff | done | `internal/jira`, stdlib only. 429/5xx exponential backoff capped at 30 s, `Retry-After` honoured, 401/403 aborts as `jira.ErrAuth`. `TestRetriesThenSucceeds`, `TestAuthFailureAbortsWithoutRetry` (which also asserts the token never reaches an error string) |
+| T2.2 | Full sync with token pagination and explicit field lists | done | `sync.Run` with `Options{Full:true}`: `project = KEY ORDER BY created ASC`, `POST /search/jql` with `nextPageToken`, explicit field list, one store transaction per page. `TestFullSyncMapsEverything` over a two-page fixture, `TestSearchFollowsPageTokens` for the cursor |
+| T2.3 | Incremental sync with watermark and overlap window | done | Watermark advances only past a committed page and is stored verbatim, so the JQL floor can be rendered in the offset Jira stamps on `updated` (a bare JQL timestamp is read in account time). `TestIncrementalRerunIsANoOp` pins the two-minute overlap and asserts `version` does not move; `TestFailedPageKeepsMirrorAndWatermark` injects a mid-run 500 and asserts the committed page survives, the watermark stays put and `last_error` is recorded |
+| T2.4 | Changelog paging for long histories | done | `changelog.total > len(histories)` triggers `GET /issue/{key}/changelog` paging. `TestTruncatedChildrenArePaged` derives a reopen that exists only in the paged history; `TestChangelogAndCommentsPageToTotal` covers the client's paging |
+| T2.5 | Comment paging | done | Same shape for `comment.total`. Covered by the two tests above (`comment_count` = 3 from a fixture that inlines one) |
+| T2.6 | Reconcile pass for deletion detection | done | Key-only pass after every full sync and on `Options{Reconcile:true}`, diffed against the mirror's in-scope keys. Refuses to delete when upstream reports nothing at all, which is a scoping failure rather than a mass deletion. `TestReconcileDeletesVanishedKeys` covers both |
+| T2.7 | Derived field computation | done | The connector supplies `GET /status` (id → category) and `GET /priority` (rank order) per batch, plus each issue's own status id so a status missing from the site list still resolves. `TestDerivedFieldsIgnoreDisplayLanguage` runs the whole sync against an English and a Korean site and asserts identical derived output |
+| T2.8 | Configurable field mapping and body fields | done | `fieldMap` aliases land in `issues.custom`, `bodyFields` are flattened into `items.body_text`, and both are appended to the requested field list. `TestFullSyncMapsEverything` asserts the alias in `custom` and finds a term that exists only in a body field (and one only in a comment) through FTS |
 
 ## T3 Server
 
