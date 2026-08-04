@@ -237,6 +237,42 @@ Rows expire after 90 days. A client offline longer than that needs a full
 `bootstrap`, which it gets anyway from the `version` mismatch. Re-mirroring a key
 clears its tombstone, so an issue that comes back stops being reported as gone.
 
+## `enrichments`
+
+The plugin boundary. Integrations that cannot live in this repository — a
+deployment tracker, a test-management tool, an internal review bot — run as
+separate processes in any language and **write to this table directly with SQL**.
+The server merges what it finds into its responses; it never calls a plugin, and
+there is no plugin API beyond this schema.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `key` | TEXT | Issue key, e.g. `NMB-42`. No foreign key: a plugin may run before or after the issue is mirrored |
+| `kind` | TEXT | Open set. `deploy`, `qa`, `prs`, `opinion` are the kinds the UI renders today |
+| `payload` | TEXT (JSON) | Shape per kind is the same object the matching field in `contracts/api.md` documents — `deploy` is `deploy_status`, `prs` is `linked_prs`, `qa` is `qa_context`, `opinion` is `development_opinion` |
+| `source` | TEXT | Plugin name, informational only |
+| `updated_at` | TEXT | When the plugin last wrote the row |
+
+Primary key: `(key, kind)`, so a plugin upserts with
+`ON CONFLICT(key, kind) DO UPDATE`. Index: `(kind)`, which is the server's read
+path.
+
+**A plugin must bump the version counter after writing**, or the UI will serve a
+cached `bootstrap` and the new rows stay invisible until the next sync:
+
+```sql
+INSERT INTO enrichments (key, kind, payload, source, updated_at)
+VALUES ('NMB-42', 'deploy', json('{"state":"prod"}'), 'my-plugin', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+ON CONFLICT(key, kind) DO UPDATE SET
+  payload = excluded.payload, source = excluded.source, updated_at = excluded.updated_at;
+
+UPDATE sync_state SET version = version + 1;
+```
+
+Deleting the database and re-syncing loses enrichments, which is correct: they
+are derived from a system that still has them (Constitution Article 1). Nothing a
+user would mourn may live only here.
+
 ## `items_fts`
 
 FTS5 external-content table over `items(title, body_text)` plus comment bodies.

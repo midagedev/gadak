@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1}
+var migrations = []string{schemaV1, schemaV2}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -164,4 +164,18 @@ CREATE TABLE sync_state (
   last_error        TEXT,
   schema_version    INTEGER NOT NULL DEFAULT 0
 );
+`
+
+// schemaV2 adds the plugin boundary. Writes come from outside this process, so
+// there is no Go write path here on purpose — see data-model.md, `enrichments`.
+const schemaV2 = `
+CREATE TABLE enrichments (
+  key        TEXT NOT NULL,
+  kind       TEXT NOT NULL,
+  payload    TEXT NOT NULL,
+  source     TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (key, kind)
+);
+CREATE INDEX enrichments_kind ON enrichments(kind);
 `

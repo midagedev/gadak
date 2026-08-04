@@ -33,6 +33,7 @@ var documentedColumns = map[string][]string{
 	"watches":       {"key", "created_at"},
 	"favorites":     {"key", "created_at"},
 	"sync_state":    {"source_id", "watermark", "version", "last_full_sync_at", "last_error", "schema_version"},
+	"enrichments":   {"key", "kind", "payload", "source", "updated_at"},
 }
 
 func TestSchemaMatchesDataModel(t *testing.T) {
@@ -263,4 +264,60 @@ func openTemp(t *testing.T, path ...string) *DB {
 	}
 	t.Cleanup(func() { db.Close() })
 	return db
+}
+
+// The first migration that has to apply to an already-shipped database: v1 was
+// released before the plugin boundary existed.
+func TestMigrateFromV1(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "scry.db")
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(migrations[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`INSERT INTO sources (id, kind) VALUES ('jira', 'jira'); PRAGMA user_version = 1`); err != nil {
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("migrating a v1 database: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if db.SchemaVersion() != len(migrations) {
+		t.Errorf("schema version %d, want %d", db.SchemaVersion(), len(migrations))
+	}
+	var kind string
+	if err := db.sql.QueryRow(`SELECT kind FROM sources WHERE id = 'jira'`).Scan(&kind); err != nil {
+		t.Errorf("v1 row did not survive the migration: %v", err)
+	}
+
+	// A plugin writes with raw SQL; the store only reads.
+	if _, err := db.sql.Exec(`
+		INSERT INTO enrichments (key, kind, payload, source, updated_at)
+		VALUES ('NMB-1', 'deploy', '{"state":"prod"}', 'gh-plugin', '2026-08-04T00:00:00Z'),
+		       ('NMB-1', 'prs', '[{"number":7}]', 'gh-plugin', '2026-08-04T00:00:00Z'),
+		       ('NMB-2', 'deploy', '{"state":"merged"}', 'gh-plugin', '2026-08-04T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	byKind, err := db.EnrichmentsByKind("deploy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(byKind) != 2 || string(byKind["NMB-1"]) != `{"state":"prod"}` {
+		t.Errorf("EnrichmentsByKind = %v", byKind)
+	}
+	forKey, err := db.EnrichmentsFor("NMB-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(forKey) != 2 || string(forKey["prs"]) != `[{"number":7}]` {
+		t.Errorf("EnrichmentsFor = %v", forKey)
+	}
+	if empty, err := db.EnrichmentsByKind("qa"); err != nil || len(empty) != 0 {
+		t.Errorf("unknown kind = %v (%v)", empty, err)
+	}
 }
