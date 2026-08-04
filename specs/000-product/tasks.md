@@ -120,9 +120,9 @@ under `~/.scry/profiles/<name>/` — the work/demo dual-account setup.
 | --- | --- | --- |
 | T7.1 | CI: Go build and vet, frontend typecheck and build | done |
 | T7.2 | Go tests once there is Go logic to test | done |
-| T7.3 | Browser smoke test against the demo snapshot | todo |
+| T7.3 | Browser smoke test against the demo snapshot | done | Superseded by the Playwright suite (`e2e/`, 13 specs over `examples/demo.db`, CI job `e2e`) — it covers boot, search, detail, palette, settings, enrichment, locale, onboarding, and console hygiene. |
 | T7.4 | Secret and internal-string scan in CI | done | `scripts/scan-internal.sh` greps `git ls-files` + `strings examples/demo.db` for token-shaped API-token prefixes, a former company name, and non-allowlisted tenant hosts. CI job `scan` in `.github/workflows/ci.yml`. Real-name patterns skipped. Local: `make scan`. |
-| T7.5 | Dockerfile and container build | done | Multi-stage `Dockerfile` (node:20 → golang:1.25 CGO=0 → distroless/static). Volume `/data` as `SCRY_HOME`, `EXPOSE 7777`, `ENTRYPOINT ["scry"]` + `CMD serve --allow-remote --static /app/dist`. `.dockerignore` present. README documents `docker run`. |
+| T7.5 | Dockerfile and container build | done | Multi-stage `Dockerfile` (node:20 → golang:1.25 CGO=0 → distroless/static). Volume `/data` as `SCRY_HOME`, `EXPOSE 7777`, `ENTRYPOINT ["scry"]` + `CMD serve --addr 0.0.0.0:7777 --allow-remote` (the UI is embedded, so no `--static`). `.dockerignore` present. README documents `docker run`. **Verified**: `docker build` → 24.1 MB image; `docker run -p 7941:7777` answers `healthz` 200, serves the embedded `index.html`, and `bootstrap/` returns 200. |
 | T7.6 | Release process and signed binaries | done | `.goreleaser.yaml`: linux/darwin/windows × amd64/arm64, `CGO_ENABLED=0`, archives include `dist/app` (no `go:embed` yet — serve with `--static dist/app`). Checksums only (cosign deferred, commented). `.github/workflows/release.yml` on `v*` tags: npm build then goreleaser-action. |
 
 ## T8 Keyboard and command surface
@@ -137,6 +137,14 @@ under `~/.scry/profiles/<name>/` — the work/demo dual-account setup.
 (519 issues in ~5 s), idempotent incremental sync, derived fields matching the
 seeded ground truth (95 reopen transitions), FTS, bootstrap/delta/detail/search,
 live write-through (comment + transition verified against real Jira), settings
-round-trip without a restart, and the enrichments plugin boundary. What remains
-before a public launch is polish: T6.4/T6.7 fixtures, T7.3–T7.6 CI/release, and
-the T6.8 live-site display names.
+round-trip without a restart, and the enrichments plugin boundary.
+
+Since then the surfaces widened: a terminal UI (`scry tui`), agent-facing CLI
+commands plus an MCP server, working plugin examples, single-binary packaging via
+`go:embed`, a verified release pipeline (six archives, container image), and a
+scripted demo-media pipeline.
+
+**Still open**: T6.4 `scry snapshot`; T6.8 live-site display names (waiting on
+invitation acceptance); the feed / push / presence surfaces, which are deliberate
+404s until a local watch-based design lands in v0.2 — the one place a user
+migrating from the internal predecessor loses a feature they had.
