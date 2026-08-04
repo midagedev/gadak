@@ -1,7 +1,7 @@
 // Command scry serves a local mirror of your issue tracker.
 //
 // Implemented: init, sync (--full/--watch), serve (--sync), sql, status,
-// profiles, version. Specified but not implemented: demo, snapshot, mcp.
+// tui, demo, profiles, version. Specified but not implemented: snapshot, mcp.
 // See specs/000-product/tasks.md for the current state of each.
 package main
 
@@ -459,6 +459,7 @@ Commands:
   sql        read-only SQL against the mirror   [--json] "select ..."
   status     sync state and row counts [--json]
   demo       serve the bundled snapshot, no Jira account needed
+  tui        terminal issue navigator (local mirror)
   profiles   list configured profiles
   version    print version
 
@@ -495,6 +496,8 @@ func main() {
 		err = cmdStatus(args[1:])
 	case "demo":
 		err = cmdDemo(args[1:])
+	case "tui":
+		err = cmdTUI(args[1:])
 	case "profiles":
 		err = cmdProfiles()
 	case "version", "--version", "-v":
