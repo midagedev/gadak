@@ -1,0 +1,169 @@
+// Package store owns the SQLite mirror: schema, migrations, transactions,
+// full-text index and the derived fields the source does not provide.
+//
+// The schema is a public contract documented in
+// specs/000-product/data-model.md — agents query this database directly, so a
+// column change belongs in that document before it belongs here.
+package store
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	_ "modernc.org/sqlite" // pure-Go driver: the binary must build with CGO_ENABLED=0
+)
+
+// DB is a handle on the mirror. Safe for concurrent use; writes are serialized.
+type DB struct {
+	sql           *sql.DB
+	path          string
+	schemaVersion int
+
+	mu sync.Mutex // single-writer discipline, see write()
+}
+
+// Now is the timestamp format every column the store itself writes uses. The
+// server hands the same value to clients as the `delta` cursor, so it must come
+// from here. Milliseconds are not decoration: a whole-second cursor would drop a
+// row written in the same second the cursor was taken.
+func Now() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
+
+// Open opens or creates the mirror at path and migrates it forward. A database
+// written by a newer scry is refused rather than used.
+func Open(path string) (*DB, error) {
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return nil, err
+		}
+	}
+	dsn := "file:" + path + "?" + strings.Join([]string{
+		"_pragma=busy_timeout(5000)",
+		"_pragma=journal_mode(WAL)",
+		"_pragma=foreign_keys(1)",
+		"_pragma=synchronous(NORMAL)",
+	}, "&")
+	sqlDB, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, err
+	}
+	db := &DB{sql: sqlDB, path: path}
+	if err := db.migrate(); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	return db, nil
+}
+
+func (db *DB) Close() error { return db.sql.Close() }
+
+// SchemaVersion is the migration level this binary applied.
+func (db *DB) SchemaVersion() int { return db.schemaVersion }
+
+func (db *DB) migrate() error {
+	var have int
+	if err := db.sql.QueryRow("PRAGMA user_version").Scan(&have); err != nil {
+		return err
+	}
+	want := len(migrations)
+	if have > want {
+		return fmt.Errorf("%s: schema version %d is newer than this build of scry supports (%d); upgrade scry or point --db elsewhere", db.path, have, want)
+	}
+	db.schemaVersion = want
+	if have == want {
+		return nil
+	}
+	return db.write(func(tx *sql.Tx) error {
+		for i := have; i < want; i++ {
+			if _, err := tx.Exec(migrations[i]); err != nil {
+				return fmt.Errorf("migration %d: %w", i+1, err)
+			}
+		}
+		// user_version is the migration level; sync_state.schema_version is the
+		// documented mirror of it and has to move with it.
+		if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", want)); err != nil {
+			return err
+		}
+		_, err := tx.Exec(`UPDATE sync_state SET schema_version = ?`, want)
+		return err
+	})
+}
+
+// write runs fn in a transaction. One mutex is the whole single-writer story:
+// concurrent writers under WAL would just trade this lock for SQLITE_BUSY.
+func (db *DB) write(fn func(*sql.Tx) error) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	tx, err := db.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// nz maps an absent string to SQL NULL. data-model.md defines NULL as "unknown
+// or absent", which is what the documented COALESCE queries assume.
+func nz(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// jsonArray keeps array columns json_each-able: absent is "[]", never NULL.
+func jsonArray(v []string) string {
+	if len(v) == 0 {
+		return "[]"
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
+}
+
+func jsonObject(v map[string]any) string {
+	if len(v) == 0 {
+		return "{}"
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+func jsonRaw(v json.RawMessage) any {
+	if len(v) == 0 {
+		return nil
+	}
+	return string(v)
+}
+
+func parseArray(s *string) []string {
+	out := []string{}
+	if s == nil || *s == "" {
+		return out
+	}
+	_ = json.Unmarshal([]byte(*s), &out)
+	if out == nil {
+		out = []string{}
+	}
+	return out
+}
+
+func rawOrNull(s *string) json.RawMessage {
+	if s == nil || *s == "" {
+		return nil
+	}
+	return json.RawMessage(*s)
+}

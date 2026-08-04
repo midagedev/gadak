@@ -10,7 +10,11 @@ Default location: `~/.scry/scry.db`. Override with `--db` or `SCRY_DB`.
 ## Conventions
 
 - Times are ISO-8601 UTC strings (`2026-08-04T09:15:00Z`). SQLite has no date
-  type and string comparison sorts correctly for this format.
+  type and string comparison sorts correctly for this format. Timestamps the
+  source provides are stored verbatim; the ones scry writes itself (`synced_at`,
+  `deleted_items.deleted_at`) carry milliseconds (`2026-08-04T09:15:00.482Z`)
+  because they are also `delta` cursors, and a whole-second cursor drops rows
+  written in the second it was taken.
 - JSON-valued columns hold arrays or objects and are documented as such. They
   exist so an agent can `json_each` them without a second table when the
   relation is not worth normalizing.
@@ -70,7 +74,13 @@ The neutral spine. One row per mirrored object regardless of source.
 | `updated_at` | TEXT | From the source |
 | `synced_at` | TEXT | When this row was last written |
 
-Indexes: `(source_id, key)` unique, `(kind, updated_at)`, `(updated_at)`.
+Indexes: `(source_id, key)` unique, `(kind, updated_at)`, `(updated_at)`,
+`(synced_at)` — the last one is what `delta` scans.
+
+`source_id` references `sources(id)` and every child table
+(`issues`, `comments`, `attachments`, `changelog`, `links`) references
+`items(id)` with `ON DELETE CASCADE`, so deleting an item is one statement and
+cannot leave orphans. This is why `foreign_keys=ON` is not optional.
 
 ## `issues`
 
@@ -114,7 +124,8 @@ The Jira projection. Joined to `items` on `item_id`.
 | `raw` | TEXT (JSON) | Full source payload. Escape hatch; not a contract |
 
 Indexes: `(project_key, status_category)`, `(assignee_id)`, `(updated_at)`,
-`(status_category, updated_at)`, `(reopen_count)`.
+`(status_category, updated_at)`, `(reopen_count)`, `(key)` — the last one serves
+detail lookups, which arrive by key.
 
 ### Derived field rules
 
@@ -127,9 +138,13 @@ otherwise depend on site-specific naming keys on `statusCategory` instead.
 | `resolved_at` | Timestamp of the newest transition whose target category is `done`; NULL if the current category is not `done` |
 | `reopen_count` | Count of changelog transitions from a `done`-category status to a non-`done` one |
 | `reopened_at` | Timestamp of the newest such transition |
-| `priority_rank` | Position in the site's priority list, 1-based; 0 when unset |
-| `description_text` | ADF flattened to plain text, plus any custom fields configured as body text |
+| `assignee_changed_at` | Timestamp of the newest changelog entry whose field is `assignee` |
+| `priority_rank` | Position in the site's priority list, 1-based; 0 when unset or unknown |
+| `items.body_text` | ADF flattened to plain text, plus any custom fields configured as body text. It lives on the spine, not on `issues`, because it is what FTS indexes |
 | `comment_count` | Number of rows in `comments` for the issue |
+
+A status id the site's status list does not cover counts as **not** `done`. That
+direction is deliberate: it can only miss a reopen, never invent one.
 
 Deliberately absent: time-in-status. The internal system this was extracted from
 carried a `working_hours_in_status` column that no code ever populated, and the
@@ -203,6 +218,24 @@ staleness analysis possible offline.
 
 Primary key: `(item_id, type, direction, target_key)`.
 
+## `deleted_items`
+
+Tombstones. Jira reports nothing when an issue leaves scope, so the reconcile
+pass proves absence and deletes the row — but a client that was offline at that
+moment would keep showing it forever. `delta` reads its `deleted_keys` from here.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `key` | TEXT PK | The key that vanished upstream |
+| `source_id` | TEXT | Which source it belonged to |
+| `deleted_at` | TEXT | When the mirror dropped it; the `delta` cursor compares against this |
+
+Index: `(deleted_at)`.
+
+Rows expire after 90 days. A client offline longer than that needs a full
+`bootstrap`, which it gets anyway from the `version` mismatch. Re-mirroring a key
+clears its tombstone, so an issue that comes back stops being reported as gone.
+
 ## `items_fts`
 
 FTS5 external-content table over `items(title, body_text)` plus comment bodies.
@@ -211,9 +244,15 @@ FTS5 external-content table over `items(title, body_text)` plus comment bodies.
 CREATE VIRTUAL TABLE items_fts USING fts5(
   title, body_text, comments_text,
   content='',            -- contentless: rows are rebuilt on sync
+  contentless_delete=1,  -- lets one row be replaced without the old values
   tokenize='unicode61 remove_diacritics 2'
 );
 ```
+
+`rowid` is `items.rowid`, which is what makes the documented join work. A
+contentless table has no update path, so sync replaces a row by deleting and
+re-inserting it; `contentless_delete=1` (SQLite 3.43+) is what allows the delete
+without re-supplying the previous column values.
 
 `unicode61` is used rather than a CJK-aware tokenizer because the fallback path
 matters more than perfect segmentation: Korean initial-consonant (chosung)
@@ -237,25 +276,37 @@ were deleted, so `scry export` must be able to dump them.
 | Column | Type | Notes |
 | --- | --- | --- |
 | `source_id` | TEXT PK | |
-| `watermark` | TEXT | Highest `updated` seen, the next incremental cursor |
-| `version` | INTEGER | Monotonic counter, bumped on every write. Drives the UI's ETag |
+| `watermark` | TEXT | Highest `updated` seen, the next incremental cursor. Never moves backwards |
+| `version` | INTEGER | Monotonic counter, bumped by every write that changed mirrored rows. Drives the UI's ETag |
 | `last_full_sync_at` | TEXT | |
 | `last_error` | TEXT | NULL when the last sync succeeded |
-| `schema_version` | INTEGER | Migration level |
+| `schema_version` | INTEGER | Migration level, mirroring `PRAGMA user_version` |
 
 The `version` counter is what lets `bootstrap` answer `304 Not Modified` without
-hashing the whole mirror.
+hashing the whole mirror. It moves only when row content changed, which is what
+makes an incremental run over the watermark overlap window a genuine no-op: a
+re-fetched issue whose `updated` is unchanged is skipped, not rewritten.
+
+`PRAGMA user_version` is the authoritative migration level — it is set in the
+same transaction as the migration itself, so a half-applied schema is impossible.
+`schema_version` here is a copy for anything reading the mirror over SQL. Opening
+a database whose level is higher than the binary knows is refused, never
+silently used.
 
 ## Example queries
 
-These are the contract in practice. They must keep working across minor versions.
+These are the contract in practice. They must keep working across minor versions,
+and `TestDocumentedExampleQueries` in `internal/store` runs each of them verbatim
+against a fixture so an edit here that no longer parses fails the build. The join
+is spelled out rather than `USING (item_id)` because the spine's primary key is
+`items.id`, and `key` exists on both tables.
 
 ```sql
 -- Everything reopened in the last month, worst first
-SELECT key, summary, reopen_count, reopened_at
-FROM issues JOIN items USING (item_id)
-WHERE reopen_count > 0 AND reopened_at > datetime('now', '-1 month')
-ORDER BY reopen_count DESC, reopened_at DESC;
+SELECT i.key, it.title, i.reopen_count, i.reopened_at
+FROM issues i JOIN items it ON it.id = i.item_id
+WHERE i.reopen_count > 0 AND i.reopened_at > datetime('now', '-1 month')
+ORDER BY i.reopen_count DESC, i.reopened_at DESC;
 
 -- Full-text across bodies and comments
 SELECT i.key, it.title

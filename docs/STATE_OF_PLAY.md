@@ -27,10 +27,12 @@ Each claim here was executed, not assumed. Re-run any of them to confirm.
 | A non-loopback bind is refused | `/tmp/scry serve --addr 0.0.0.0:7789` exits non-zero |
 | No internal strings remain | `grep -rn "redacted-org\|redacted-product\|/redacted-tool\|redacted-service" web/ tools/ docs/ cmd/` -> nothing |
 
+| The store passes G1 | `CGO_ENABLED=0 go test ./internal/store/` -> 18 tests pass |
+
 ## What does not exist yet
 
-- No SQLite schema, no migrations, no store package.
-- No Jira connector. Nothing has ever synced.
+- No Jira connector. Nothing has ever synced, so the mirror the store manages is
+  empty in practice.
 - No read API: `bootstrap`, `delta`, `detail`, `search` all return `404`.
 - No write-through. The UI's write actions cannot succeed.
 - No `scry init`, `sync`, `demo`, `snapshot`, `sql`, or `mcp` — they exit with a
@@ -41,16 +43,20 @@ not a bug to chase.
 
 ## Start here: the next task
 
-`T1.1` in `../specs/000-product/tasks.md` — create the schema.
+`T2.1` in `../specs/000-product/tasks.md` — the Jira REST client, then full sync.
 
-1. Read `../specs/000-product/data-model.md` in full. It is a contract, so the
-   schema must match it exactly, including column names.
-2. Create `internal/store` with the schema, a migration runner, and WAL pragmas.
-3. Write the test that G1 in `../specs/000-product/gates.md` demands: compare
-   `PRAGMA table_info` output against the documented columns, and execute every
-   example query from the data model doc against a fixture.
+The store is done and is what sync writes through (`internal/store`):
 
-Then follow the critical path: `T1.1 -> T1.2 -> T2.1 -> T2.2 -> T2.7 -> T3.3 -> T3.4`.
+- `UpsertSource`, then `UpsertIssues(Batch)` per page — one transaction, and it
+  recomputes derived fields, rewrites child rows, and rebuilds the FTS row.
+- `Batch.Categories` is a status-id → category map the connector must fetch from
+  `GET /rest/api/3/project/{key}/statuses` (not localized). Without it no reopen
+  is ever detected — an unmapped status counts as not-done.
+- `DeleteItems` for the reconcile pass, `RecordSync` for the watermark and
+  `last_error`. The watermark cannot regress and an unchanged issue is skipped,
+  so an incremental re-run is a real no-op.
+
+Then follow the critical path: `T2.1 -> T2.2 -> T2.7 -> T3.3 -> T3.4`.
 At the end of it, the UI displays real mirrored data, which is the first point at
 which the tool is worth installing.
 

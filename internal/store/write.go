@@ -1,0 +1,443 @@
+package store
+
+import (
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+)
+
+// UpsertSource records a connector instance. Credentials never come near it
+// (Constitution Article 8).
+func (db *DB) UpsertSource(s Source) error {
+	return db.write(func(tx *sql.Tx) error {
+		_, err := tx.Exec(`
+			INSERT INTO sources (id, kind, base_url) VALUES (?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, base_url = excluded.base_url`,
+			s.ID, s.Kind, nz(s.BaseURL))
+		return err
+	})
+}
+
+// UpsertIssues writes one page of sync output in a single transaction and
+// returns how many items it actually changed. Derived fields are recomputed from
+// the batch's changelog, never carried over (contracts/sync.md invariant 5).
+//
+// An item whose updated_at is unchanged is skipped whole — children, FTS and the
+// version counter included — unless Batch.Force is set. That is what makes an
+// incremental re-run over the watermark overlap window a no-op.
+func (db *DB) UpsertIssues(b Batch) (int, error) {
+	if len(b.Records) == 0 {
+		return 0, nil
+	}
+	changed := 0
+	err := db.write(func(tx *sql.Tx) error {
+		sources := map[string]bool{}
+		for _, r := range b.Records {
+			ok, err := upsertRecord(tx, b, r)
+			if err != nil {
+				return fmt.Errorf("%s: %w", r.Item.Key, err)
+			}
+			if ok {
+				changed++
+				sources[r.Item.SourceID] = true
+			}
+		}
+		for id := range sources {
+			if err := bumpVersion(tx, id, db.schemaVersion); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return changed, nil
+}
+
+func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
+	it := r.Item
+	if it.ID == "" || it.SourceID == "" {
+		return false, errors.New("item id and source_id are required")
+	}
+	if it.Kind == "" {
+		it.Kind = "issue"
+	}
+	syncedAt := Now()
+
+	// The conditional DO UPDATE is the change detector: no RETURNING row means
+	// the source reported no new `updated`, so nothing below needs to run.
+	var rowid int64
+	err := tx.QueryRow(`
+		INSERT INTO items (id, source_id, kind, external_id, key, title, body_text,
+		                   author, author_id, url, created_at, updated_at, synced_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(id) DO UPDATE SET
+			source_id = excluded.source_id, kind = excluded.kind,
+			external_id = excluded.external_id, key = excluded.key,
+			title = excluded.title, body_text = excluded.body_text,
+			author = excluded.author, author_id = excluded.author_id,
+			url = excluded.url, created_at = excluded.created_at,
+			updated_at = excluded.updated_at, synced_at = excluded.synced_at
+		WHERE ? OR excluded.updated_at IS NOT items.updated_at
+		RETURNING rowid`,
+		it.ID, it.SourceID, it.Kind, nz(it.ExternalID), nz(it.Key), nz(it.Title),
+		nz(it.BodyText), nz(it.Author), nz(it.AuthorID), nz(it.URL),
+		nz(it.CreatedAt), nz(it.UpdatedAt), syncedAt,
+		b.Force,
+	).Scan(&rowid)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	d := Derive(DeriveInput{
+		Changelog:       r.Changelog,
+		Categories:      b.Categories,
+		CurrentCategory: r.Issue.StatusCategory,
+		Priority:        r.Issue.Priority,
+		Priorities:      b.Priorities,
+		CommentCount:    len(r.Comments),
+	})
+
+	is := r.Issue
+	if _, err := tx.Exec(`DELETE FROM issues WHERE item_id = ?`, it.ID); err != nil {
+		return false, err
+	}
+	if _, err := tx.Exec(`
+		INSERT INTO issues (item_id, key, project_key, issue_type, issue_type_id,
+			status, status_id, status_category, priority, priority_rank,
+			assignee, assignee_id, assignee_email, reporter, reporter_id, parent_key,
+			labels, components, fix_versions, affects_versions, environment_text,
+			duedate, resolution, created_at, updated_at,
+			status_changed_at, resolved_at, reopen_count, reopened_at,
+			assignee_changed_at, comment_count, description_adf, custom, raw)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		it.ID, it.Key, nz(is.ProjectKey), nz(is.IssueType), nz(is.IssueTypeID),
+		nz(is.Status), nz(is.StatusID), nz(is.StatusCategory), nz(is.Priority), d.PriorityRank,
+		nz(is.Assignee), nz(is.AssigneeID), nz(is.AssigneeEmail), nz(is.Reporter),
+		nz(is.ReporterID), nz(is.ParentKey),
+		jsonArray(is.Labels), jsonArray(is.Components), jsonArray(is.FixVersions),
+		jsonArray(is.AffectsVersions), nz(is.EnvironmentText),
+		nz(is.Duedate), nz(is.Resolution), nz(it.CreatedAt), nz(it.UpdatedAt),
+		d.StatusChangedAt, d.ResolvedAt, d.ReopenCount, d.ReopenedAt,
+		d.AssigneeChangedAt, d.CommentCount, jsonRaw(is.DescriptionADF),
+		jsonObject(is.Custom), jsonRaw(is.Raw),
+	); err != nil {
+		return false, err
+	}
+
+	// Child lists arrive complete, so replacing them is both correct and the
+	// only way a removed comment or link leaves the mirror.
+	for _, t := range []string{"comments", "attachments", "changelog", "links"} {
+		if _, err := tx.Exec(`DELETE FROM `+t+` WHERE item_id = ?`, it.ID); err != nil {
+			return false, err
+		}
+	}
+	bodies := make([]string, 0, len(r.Comments))
+	for _, c := range r.Comments {
+		if _, err := tx.Exec(`
+			INSERT INTO comments (id, item_id, external_id, author, author_id,
+			                      body_adf, body_text, created_at, updated_at)
+			VALUES (?,?,?,?,?,?,?,?,?)`,
+			c.ID, it.ID, nz(c.ExternalID), nz(c.Author), nz(c.AuthorID),
+			jsonRaw(c.BodyADF), nz(c.BodyText), nz(c.CreatedAt), nz(c.UpdatedAt),
+		); err != nil {
+			return false, err
+		}
+		if c.BodyText != "" {
+			bodies = append(bodies, c.BodyText)
+		}
+	}
+	for _, a := range r.Attachments {
+		if _, err := tx.Exec(`
+			INSERT INTO attachments (id, item_id, external_id, filename, mime_type, size, author, created_at)
+			VALUES (?,?,?,?,?,?,?,?)`,
+			a.ID, it.ID, nz(a.ExternalID), nz(a.Filename), nz(a.MimeType), a.Size,
+			nz(a.Author), nz(a.CreatedAt),
+		); err != nil {
+			return false, err
+		}
+	}
+	for i, e := range r.Changelog {
+		id := e.ID
+		if id == "" {
+			id = fmt.Sprintf("%s:%d", it.ID, i)
+		}
+		if _, err := tx.Exec(`
+			INSERT INTO changelog (id, item_id, at, author, field, from_value, from_id, to_value, to_id)
+			VALUES (?,?,?,?,?,?,?,?,?)`,
+			id, it.ID, nz(e.At), nz(e.Author), nz(e.Field),
+			nz(e.FromValue), nz(e.FromID), nz(e.ToValue), nz(e.ToID),
+		); err != nil {
+			return false, err
+		}
+	}
+	for _, l := range r.Links {
+		if _, err := tx.Exec(`
+			INSERT OR IGNORE INTO links (item_id, type, direction, target_key) VALUES (?,?,?,?)`,
+			it.ID, l.Type, l.Direction, l.TargetKey,
+		); err != nil {
+			return false, err
+		}
+	}
+
+	if err := writeFTS(tx, rowid, it.Title, it.BodyText, strings.Join(bodies, "\n")); err != nil {
+		return false, err
+	}
+	// An item that came back is no longer deleted.
+	_, err = tx.Exec(`DELETE FROM deleted_items WHERE source_id = ? AND key = ?`, it.SourceID, it.Key)
+	return true, err
+}
+
+// writeFTS rebuilds one row of the contentless index. Contentless FTS5 has no
+// update path, so delete-then-insert is the whole story.
+func writeFTS(tx *sql.Tx, rowid int64, title, body, comments string) error {
+	if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`INSERT INTO items_fts (rowid, title, body_text, comments_text) VALUES (?,?,?,?)`,
+		rowid, title, body, comments)
+	return err
+}
+
+// DeleteItems removes items whose keys have left the source's scope and records
+// a tombstone so `delta` can report the deletion to a client that missed it.
+func (db *DB) DeleteItems(sourceID string, keys []string) (int, error) {
+	if len(keys) == 0 {
+		return 0, nil
+	}
+	deleted := 0
+	at := Now()
+	err := db.write(func(tx *sql.Tx) error {
+		for _, key := range keys {
+			var id string
+			var rowid int64
+			err := tx.QueryRow(`SELECT id, rowid FROM items WHERE source_id = ? AND key = ?`, sourceID, key).Scan(&id, &rowid)
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
+				return err
+			}
+			// issues, comments, attachments, changelog and links go with it via
+			// ON DELETE CASCADE, which is why foreign_keys=ON is not optional.
+			if _, err := tx.Exec(`DELETE FROM items WHERE id = ?`, id); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(`
+				INSERT INTO deleted_items (key, source_id, deleted_at) VALUES (?,?,?)
+				ON CONFLICT(key) DO UPDATE SET deleted_at = excluded.deleted_at`,
+				key, sourceID, at); err != nil {
+				return err
+			}
+			deleted++
+		}
+		if deleted == 0 {
+			return nil
+		}
+		// ponytail: tombstones expire on a fixed 90-day window. A client offline
+		// longer than that needs a full bootstrap anyway, which it gets from the
+		// version mismatch.
+		if _, err := tx.Exec(`DELETE FROM deleted_items WHERE deleted_at < datetime('now', '-90 days')`); err != nil {
+			return err
+		}
+		return bumpVersion(tx, sourceID, db.schemaVersion)
+	})
+	if err != nil {
+		return 0, err
+	}
+	return deleted, nil
+}
+
+// bumpVersion advances the counter the read API turns into an ETag. It moves on
+// every write that changed mirrored rows and on nothing else, so an unchanged
+// sync leaves it alone.
+func bumpVersion(tx *sql.Tx, sourceID string, schemaVersion int) error {
+	_, err := tx.Exec(`
+		INSERT INTO sync_state (source_id, version, schema_version) VALUES (?, 1, ?)
+		ON CONFLICT(source_id) DO UPDATE SET version = sync_state.version + 1`,
+		sourceID, schemaVersion)
+	return err
+}
+
+// SyncState is the per-source sync bookkeeping.
+type SyncState struct {
+	SourceID       string  `json:"source_id"`
+	Watermark      string  `json:"watermark"`
+	Version        int64   `json:"version"`
+	LastFullSyncAt *string `json:"last_full_sync_at"`
+	LastError      *string `json:"last_error"`
+	SchemaVersion  int     `json:"schema_version"`
+}
+
+// SyncState reads the state for one source. A source that has never synced
+// returns a zero state, not an error.
+func (db *DB) SyncState(sourceID string) (SyncState, error) {
+	s := SyncState{SourceID: sourceID, SchemaVersion: db.schemaVersion}
+	var wm *string
+	err := db.sql.QueryRow(`
+		SELECT watermark, version, last_full_sync_at, last_error, schema_version
+		FROM sync_state WHERE source_id = ?`, sourceID).
+		Scan(&wm, &s.Version, &s.LastFullSyncAt, &s.LastError, &s.SchemaVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return s, nil
+	}
+	if err != nil {
+		return s, err
+	}
+	if wm != nil {
+		s.Watermark = *wm
+	}
+	return s, nil
+}
+
+// SyncResult is what a finished sync run reports.
+type SyncResult struct {
+	Watermark string // ignored when empty or not greater than the stored one
+	FullSync  bool   // stamps last_full_sync_at
+	Err       error  // recorded as last_error; nil clears it
+}
+
+// RecordSync stores the run's bookkeeping. It does not bump `version`: a run
+// that changed no rows must leave the ETag alone.
+func (db *DB) RecordSync(sourceID string, r SyncResult) error {
+	var errText, fullAt any
+	if r.Err != nil {
+		errText = r.Err.Error()
+	}
+	if r.FullSync {
+		fullAt = Now()
+	}
+	return db.write(func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`
+			INSERT INTO sync_state (source_id, watermark, last_full_sync_at, last_error, schema_version)
+			VALUES (?,?,?,?,?)
+			ON CONFLICT(source_id) DO UPDATE SET
+				watermark = CASE
+					WHEN excluded.watermark IS NOT NULL
+					 AND excluded.watermark > COALESCE(sync_state.watermark, '')
+					THEN excluded.watermark ELSE sync_state.watermark END,
+				last_full_sync_at = COALESCE(excluded.last_full_sync_at, sync_state.last_full_sync_at),
+				last_error = excluded.last_error,
+				schema_version = excluded.schema_version`,
+			sourceID, nz(r.Watermark), fullAt, errText, db.schemaVersion); err != nil {
+			return err
+		}
+		if r.Err != nil {
+			return nil
+		}
+		_, err := tx.Exec(`UPDATE sources SET synced_at = ? WHERE id = ?`, Now(), sourceID)
+		return err
+	})
+}
+
+// SavedView is a user's stored filter set. Personal state is the only thing in
+// this database a user would miss, so it is also the only thing `scry export`
+// has to dump (Constitution Article 1).
+type SavedView struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Config    json.RawMessage `json:"config"`
+	CreatedAt string          `json:"created_at"`
+	UpdatedAt string          `json:"updated_at"`
+}
+
+func (db *DB) SavedViews() ([]SavedView, error) {
+	rows, err := db.sql.Query(`SELECT id, name, config, created_at, updated_at FROM saved_views ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SavedView{}
+	for rows.Next() {
+		var v SavedView
+		var cfg string
+		var created, updated *string
+		if err := rows.Scan(&v.ID, &v.Name, &cfg, &created, &updated); err != nil {
+			return nil, err
+		}
+		v.Config = json.RawMessage(cfg)
+		if created != nil {
+			v.CreatedAt = *created
+		}
+		if updated != nil {
+			v.UpdatedAt = *updated
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// PutSavedView inserts or replaces a view. The caller owns id generation.
+func (db *DB) PutSavedView(v SavedView) error {
+	if v.ID == "" || v.Name == "" {
+		return errors.New("saved view needs an id and a name")
+	}
+	if len(v.Config) == 0 {
+		v.Config = json.RawMessage("{}")
+	}
+	now := Now()
+	if v.CreatedAt == "" {
+		v.CreatedAt = now
+	}
+	return db.write(func(tx *sql.Tx) error {
+		_, err := tx.Exec(`
+			INSERT INTO saved_views (id, name, config, created_at, updated_at) VALUES (?,?,?,?,?)
+			ON CONFLICT(id) DO UPDATE SET
+				name = excluded.name, config = excluded.config, updated_at = excluded.updated_at`,
+			v.ID, v.Name, string(v.Config), v.CreatedAt, now)
+		return err
+	})
+}
+
+func (db *DB) DeleteSavedView(id string) error {
+	return db.write(func(tx *sql.Tx) error {
+		_, err := tx.Exec(`DELETE FROM saved_views WHERE id = ?`, id)
+		return err
+	})
+}
+
+func (db *DB) Watches() ([]string, error)   { return db.keys("watches") }
+func (db *DB) Favorites() ([]string, error) { return db.keys("favorites") }
+
+// SetWatch adds or removes a watched issue key.
+func (db *DB) SetWatch(key string, on bool) error { return db.setKey("watches", key, on) }
+
+// SetFavorite adds or removes a favorite issue key.
+func (db *DB) SetFavorite(key string, on bool) error { return db.setKey("favorites", key, on) }
+
+func (db *DB) keys(table string) ([]string, error) {
+	rows, err := db.sql.Query(`SELECT key FROM ` + table + ` ORDER BY created_at, key`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}
+
+func (db *DB) setKey(table, key string, on bool) error {
+	return db.write(func(tx *sql.Tx) error {
+		if !on {
+			_, err := tx.Exec(`DELETE FROM `+table+` WHERE key = ?`, key)
+			return err
+		}
+		_, err := tx.Exec(`INSERT OR IGNORE INTO `+table+` (key, created_at) VALUES (?, ?)`, key, Now())
+		return err
+	})
+}

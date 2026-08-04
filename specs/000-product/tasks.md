@@ -18,31 +18,33 @@ Legend: **done** / **partial** / **todo**
 | T0.6 | Build config at repo root (`package.json`, `vite.config.ts`, `tsconfig.json`) | done | Vite root is `web/`, output `dist/app` |
 | T0.7 | Governance and license files | done | Apache-2.0 |
 | T0.8 | Specs, contracts, and architecture docs | done | This directory plus `docs/` |
-| T0.9 | Remove or plugin-ize the cut internal surfaces still present in the UI | todo | `PrList`, `DeployTimeline`, `QaImpact` render nothing without data; they should move behind a plugin boundary or be deleted |
+| T0.9 | Remove or plugin-ize the cut internal surfaces still present in the UI | done | Resolved by feature-flag gating, not deletion: `PrList` and `DeployTimeline` sit behind `features.deploy`, `QaImpact` and `QaFieldEditor` behind `features.qa`. The components stay in the tree so a tenant that has the data can switch them on |
+| T0.11 | Wire the `features` flags to actual consumers | done | The flags were declared in `config.ts` and read by nobody, so `presence` still opened a WebSocket retry loop against a missing endpoint and the deploy/QA/team-group columns stayed in the catalog. Gating now runs through `feature()` in `config.ts` |
+| T0.12 | Compute staleness from `status_changed_at` | done | The UI read `working_hours_in_status`, a field no server populates (see `data-model.md`), so the "stale" view was always empty. Threshold is `staleThresholdHours` in config, default 72 |
 | T0.10 | Translate the UI to English with the current copy as a locale | todo | **Release blocker for a public launch.** The UI is Korean-only, which caps adoption regardless of everything else |
 
 ## T1 Storage
 
-| # | Task | State |
-| --- | --- | --- |
-| T1.1 | Schema and migrations per `data-model.md` | todo |
-| T1.2 | WAL mode, sane pragmas, single-writer discipline | todo |
-| T1.3 | FTS5 table and rebuild-on-sync path | todo |
-| T1.4 | `saved_views` / `watches` / `favorites` plus `scry export` | todo |
-| T1.5 | Schema-version check on open, refusing a newer database | todo |
+| # | Task | State | Notes |
+| --- | --- | --- | --- |
+| T1.1 | Schema and migrations per `data-model.md` | done | `internal/store`, driver `modernc.org/sqlite` (no cgo). `TestSchemaMatchesDataModel` compares every table against the documented column list; `TestDocumentedExampleQueries` runs all four example queries |
+| T1.2 | WAL mode, sane pragmas, single-writer discipline | done | WAL + `busy_timeout=5000` + `foreign_keys=ON` + `synchronous=NORMAL` in the DSN so every pooled connection gets them; writes serialized by one mutex. `TestWALReaderNotBlockedByWriter` |
+| T1.3 | FTS5 table and rebuild-on-sync path | done | Contentless with `contentless_delete=1`; a changed item's row is deleted and re-inserted inside the same transaction as the upsert. Rebuild-on-sync is exercised by `TestChangedIssueReplacesChildrenAndDerivedFields` |
+| T1.4 | `saved_views` / `watches` / `favorites` plus `scry export` | partial | Tables and CRUD done (`TestPersonalState`); `scry export` not written |
+| T1.5 | Schema-version check on open, refusing a newer database | done | `PRAGMA user_version` is the level, mirrored into `sync_state.schema_version`. `TestOpenRefusesNewerSchema` |
 
 ## T2 Jira connector
 
-| # | Task | State |
-| --- | --- | --- |
-| T2.1 | REST client with Basic auth, retry, and backoff | todo |
-| T2.2 | Full sync with token pagination and explicit field lists | todo |
-| T2.3 | Incremental sync with watermark and overlap window | todo |
-| T2.4 | Changelog paging for long histories | todo |
-| T2.5 | Comment paging | todo |
-| T2.6 | Reconcile pass for deletion detection | todo |
-| T2.7 | Derived field computation | todo |
-| T2.8 | Configurable field mapping and body fields | todo |
+| # | Task | State | Notes |
+| --- | --- | --- | --- |
+| T2.1 | REST client with Basic auth, retry, and backoff | todo | |
+| T2.2 | Full sync with token pagination and explicit field lists | todo | |
+| T2.3 | Incremental sync with watermark and overlap window | todo | The store side is ready: `RecordSync` refuses a watermark that would regress, and an unchanged issue is skipped rather than rewritten, so a re-run over the overlap window does not bump `version` |
+| T2.4 | Changelog paging for long histories | todo | |
+| T2.5 | Comment paging | todo | |
+| T2.6 | Reconcile pass for deletion detection | todo | `store.DeleteItems` handles the mirror side, including tombstones for `delta` |
+| T2.7 | Derived field computation | partial | `store.Derive` is written and table-tested (`TestDerive`, including a done-to-todo reopen, a multi-reopen issue, and the same fixture with Korean and English status names). The connector still has to supply the status-id → category map from the site's status list |
+| T2.8 | Configurable field mapping and body fields | todo | `issues.custom` and `items.body_text` are the columns it lands in |
 
 ## T3 Server
 
@@ -97,7 +99,7 @@ Legend: **done** / **partial** / **todo**
 | # | Task | State |
 | --- | --- | --- |
 | T7.1 | CI: Go build and vet, frontend typecheck and build | done |
-| T7.2 | Go tests once there is Go logic to test | todo |
+| T7.2 | Go tests once there is Go logic to test | done |
 | T7.3 | Browser smoke test against the demo snapshot | todo |
 | T7.4 | Secret and internal-string scan in CI | todo |
 | T7.5 | Dockerfile and container build | todo |

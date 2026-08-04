@@ -20,13 +20,15 @@ Ordering and task detail live in `tasks.md` and `../../docs/ROADMAP.md`.
 
 ## G1 — Store Contract
 
+**Passed.** `CGO_ENABLED=0 go test ./internal/store/`.
+
 | Check | Evidence |
 | --- | --- |
-| Schema matches `data-model.md` exactly | Test compares `PRAGMA table_info` against the documented columns |
-| Migrations apply forward from empty and from each released version | Migration test over fixture databases |
-| A newer schema version is refused, not silently used | Test asserts a clear error |
-| Every documented example query runs | Test executes each query from `data-model.md` against a fixture |
-| WAL enabled; a reader is not blocked by a writer | Test reads during an open write transaction |
+| Schema matches `data-model.md` exactly | `TestSchemaMatchesDataModel` compares `PRAGMA table_info` for all fourteen tables against the documented column lists, in document order |
+| Migrations apply forward from empty and from each released version | `TestMigrateForwardIsIdempotent`: empty file to current level, then reopening an already-migrated database applies nothing and preserves its rows. Only one version is released so far, so "each released version" is one case |
+| A newer schema version is refused, not silently used | `TestOpenRefusesNewerSchema` sets `user_version` past the binary's level and asserts `Open` fails with an error naming the mismatch |
+| Every documented example query runs | `TestDocumentedExampleQueries` executes all four queries from `data-model.md` verbatim against a fixture and asserts each returns the rows it should |
+| WAL enabled; a reader is not blocked by a writer | `TestPragmas` for the pragmas; `TestWALReaderNotBlockedByWriter` opens a second connection and reads while a write transaction is held open, failing on a 2 s timeout (`busy_timeout` is 5 s, so a blocked reader hangs rather than erroring) |
 
 ## G2 — Sync Correctness
 
@@ -37,8 +39,8 @@ Ordering and task detail live in `tasks.md` and `../../docs/ROADMAP.md`.
 | Watermark never regresses, and never advances past an uncommitted page | Test with an injected failure mid-page |
 | A failed sync leaves the previous mirror readable and records `last_error` | Test with an injected transport error |
 | Deletions propagate through the reconcile pass | Fixture where a key vanishes upstream |
-| Derived fields match hand-computed values | Table test over changelog fixtures, including a done-to-todo reopen and a multi-reopen issue |
-| No logic keys on a localized name | Test runs the same fixture with Korean and English display names and gets identical derived output |
+| Derived fields match hand-computed values | Done for the calculator: `TestDerive` covers no transitions, a single resolution, a done-to-todo reopen, a multi-reopen issue, out-of-order entries, and a status the site's list does not cover. Still needs the same over a real sync |
+| No logic keys on a localized name | Done for the calculator: `TestDerive` runs every case twice, once with English and once with Korean display names over identical status ids, and asserts identical output |
 
 ## G3 — Read API
 
