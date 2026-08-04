@@ -331,7 +331,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		issue.Assignee, issue.AssigneeID, issue.AssigneeEmail = f.Assignee.DisplayName, f.Assignee.AccountID, f.Assignee.Email
 	}
 	if f.Reporter != nil {
-		issue.Reporter, issue.ReporterID = f.Reporter.DisplayName, f.Reporter.AccountID
+		issue.Reporter, issue.ReporterID, issue.ReporterEmail = f.Reporter.DisplayName, f.Reporter.AccountID, f.Reporter.Email
 	}
 	if f.Parent != nil {
 		issue.ParentKey = f.Parent.Key

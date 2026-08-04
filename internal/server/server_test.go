@@ -157,6 +157,15 @@ func decode[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	return v
 }
 
+// TestRoutesRegister is the cheapest guard there is against a whole class of
+// outage: ServeMux panics at registration when two patterns overlap and neither
+// is more specific, so a new route can take the server down on startup with
+// nothing but a build that passed. Every other test builds a handler too, but
+// this one says why it matters.
+func TestRoutesRegister(t *testing.T) {
+	New(nil, nil)
+}
+
 func TestBootstrapShapeAndETag(t *testing.T) {
 	db, cfg := fixture(t)
 	h := New(db, cfg)

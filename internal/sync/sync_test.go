@@ -380,6 +380,11 @@ func TestFullSyncMapsEverything(t *testing.T) {
 	if one.AssigneeEmail == nil || *one.AssigneeEmail != "Dana@example.com" {
 		t.Errorf("assignee_email = %v", one.AssigneeEmail)
 	}
+	// The reporter's email is what the client's reporter filters key on, so it has
+	// to be mapped like the assignee's rather than left to the account id.
+	if one.ReporterEmail == nil || *one.ReporterEmail != "Sam@example.com" {
+		t.Errorf("reporter_email = %v", one.ReporterEmail)
+	}
 	if one.UpdatedAt == nil || *one.UpdatedAt != "2026-08-02T01:00:00.000Z" {
 		t.Errorf("updated_at should be normalized to UTC, got %v", one.UpdatedAt)
 	}
