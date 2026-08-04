@@ -9,7 +9,7 @@ test.describe('boot', () => {
 
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
     // list.countIssues — en.ts: '{n} issues'
-    await expect(page.getByText('519 issues')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/519 issues/).first()).toBeVisible({ timeout: 30_000 })
     // Sidebar wordmark and built-in nav labels (en.ts)
     await expect(page.getByText('scry', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()

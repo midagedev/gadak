@@ -31,7 +31,7 @@ test.describe('web UI demo', () => {
   test('instant search, palette, detail, saved view', async ({ page }) => {
     // ── Boot ──────────────────────────────────────────────────────────────
     await gotoApp(page)
-    await expect(page.getByText('519 issues')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/519 issues/).first()).toBeVisible({ timeout: 30_000 })
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
     // Short settle for the trailing boot requests. Deliberately not networkidle.
     await beat(page, 900)

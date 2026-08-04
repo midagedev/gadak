@@ -22,7 +22,7 @@ test.describe('settings dialog', () => {
     ])
 
     // After reload the list boots again.
-    await expect(page.getByText('519 issues')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/519 issues/).first()).toBeVisible({ timeout: 30_000 })
 
     const res = await request.get(SETTINGS_URL)
     expect(res.ok()).toBeTruthy()

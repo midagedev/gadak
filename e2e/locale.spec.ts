@@ -6,7 +6,7 @@ test.describe('locale', () => {
     const errors = attachConsoleErrors(page)
     await forceLocale(page, 'en')
     await page.goto('/')
-    await expect(page.getByText('519 issues')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/519 issues/).first()).toBeVisible({ timeout: 30_000 })
 
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
