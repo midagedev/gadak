@@ -2,9 +2,9 @@
   /* 선택한 필드로 리스트를 섹션화하고, 현재 결과의 상위 분포를 한 줄로 요약한다. */
   import { filters } from '../../stores/filters.svelte'
   import { CATEGORY_META } from '../../lib/format'
-  import type { GroupBy, StatusCategory } from '../../lib/view-config'
+  import { groupByEnabled, type GroupBy, type StatusCategory } from '../../lib/view-config'
 
-  const OPTIONS: { key: GroupBy; label: string }[] = [
+  const ALL_OPTIONS: { key: GroupBy; label: string }[] = [
     { key: 'status_category', label: '진행 단계' },
     { key: 'product', label: '제품' },
     { key: 'd1_group', label: '파트' },
@@ -19,6 +19,8 @@
     { key: 'status', label: 'Jira 상태' },
     { key: 'none', label: '섹션 없음' },
   ]
+  // 꺼진 기능의 축(파트/제품/QA 영향)은 선택지에서 빠진다.
+  const OPTIONS = ALL_OPTIONS.filter((o) => groupByEnabled(o.key))
 
   let open = $state(false)
   let rootEl = $state<HTMLDivElement | null>(null)

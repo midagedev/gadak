@@ -75,7 +75,6 @@ export interface IssueLite {
   resolved_at: string | null
   status_changed_at: string | null
 
-  working_hours_in_status: number | null
   reopen_count: number
   reopened_at: string | null
   reopen_reason: string | null
@@ -173,6 +172,9 @@ export interface HistoryEntry {
   from: string | null
   to: string | null
   by: string | null
+  /** status 전이의 전/후 카테고리(new|inprogress|done). 주면 재오픈 판정이 이름 대신 이걸 쓴다. */
+  from_category?: string | null
+  to_category?: string | null
 }
 
 /** 연결된 이슈 1건. */

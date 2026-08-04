@@ -11,6 +11,8 @@
   import { me } from '../../stores/me.svelte'
   import { presence } from '../../stores/presence.svelte'
   import { categoryOf, CATEGORY_META, relativeTime, absTime } from '../../lib/format'
+  import { feature } from '../../lib/config'
+  import { isStale, statusAgeHours } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
   import Avatar from './Avatar.svelte'
   import ViewerStack from '../presence/ViewerStack.svelte'
@@ -28,6 +30,9 @@
   const isWatching = $derived(me.watches.has(issue.issue_key))
   // 본인 제외 뷰어(O(1) Map 조회). 없으면 참조 안정한 빈 배열 → 아래 블록 스킵, 행 오버헤드 없음.
   const rowViewers = $derived(presence.viewersOf(issue.issue_key))
+  // 정체(현재 상태 경과). 배지 문구는 일 단위 — 1일 미만도 "1일째"로 읽히게 최소 1.
+  const stale = $derived(isStale(issue))
+  const staleDays = $derived(Math.max(1, Math.round(statusAgeHours(issue) / 24)))
   const shownLabels = $derived(issue.labels.slice(0, 3))
   const extraLabels = $derived(Math.max(0, issue.labels.length - 3))
   // 노출 컬럼 집합(뷰 설정). O(1) 조회로 각 후행 필드 렌더 여부를 가른다.
@@ -196,12 +201,12 @@
       🔁 {issue.reopen_count}
     </button>
   {/if}
-  {#if cols.has('stale') && issue.working_hours_in_status != null && issue.working_hours_in_status > 40 && cat !== 'done'}
+  {#if cols.has('stale') && stale}
     <span
       class="flex-none rounded bg-status-stale/15 px-1.5 py-0.5 text-[10px] font-medium text-status-stale"
-      title={`이 상태에서 ${Math.round(issue.working_hours_in_status)}시간(업무시간)`}
+      title={`이 상태로 ${staleDays}일째`}
     >
-      ⏳ {Math.round(issue.working_hours_in_status)}h
+      ⏳ {staleDays}일
     </span>
   {/if}
 
@@ -374,7 +379,7 @@
   {/if}
 
   <!-- 같이 보는 중(본인 제외) — 소형 스택. 뷰어 없으면 렌더 안 함. -->
-  {#if rowViewers.length > 0}
+  {#if feature('presence') && rowViewers.length > 0}
     <ViewerStack viewers={rowViewers} size={16} max={2} ringClass="ring-bg-base" />
   {/if}
 

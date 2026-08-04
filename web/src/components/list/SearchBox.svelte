@@ -11,7 +11,7 @@
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
-  import type { MultiField } from '../../lib/view-config'
+  import { fieldEnabled, type MultiField } from '../../lib/view-config'
 
   let text = $state(filters.filters.q)
   let inputEl = $state<HTMLInputElement | null>(null)
@@ -56,7 +56,7 @@
         }
         if (out.length >= 8) break
       }
-    } else if (w.startsWith('#')) {
+    } else if (w.startsWith('#') && fieldEnabled('d1_group')) {
       const q = w.slice(1).toLowerCase()
       for (const v of filters.facets.d1_group) {
         if (!q || v.label.toLowerCase().includes(q)) out.push({ kind: 'value', field: 'd1_group', value: v.value, label: v.label, hint: `${v.count}` })

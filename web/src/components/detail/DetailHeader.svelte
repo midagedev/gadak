@@ -8,6 +8,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { me } from '../../stores/me.svelte'
   import { presence } from '../../stores/presence.svelte'
+  import { feature } from '../../lib/config'
   import { jiraUrl } from './format'
   import WatchButton from '../personal/WatchButton.svelte'
   import StatusTransition from '../write/StatusTransition.svelte'
@@ -36,7 +37,7 @@
       </a>
 
       <!-- 같이 보는 중: 초록 점 + 아바타 스택 + 라벨 (미묘한 실시간 표시) -->
-      {#if viewers.length > 0}
+      {#if feature('presence') && viewers.length > 0}
         <span class="flex min-w-0 items-center gap-1.5">
           <span
             class="h-1.5 w-1.5 flex-none rounded-full bg-status-done shadow-[0_0_5px_var(--color-status-done)]"

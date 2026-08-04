@@ -5,23 +5,23 @@
    * 재오픈(해결됨 상태 → 미해결 상태로의 status 전이)은 빨간 포인트로 강조한다.
    */
   import type { HistoryEntry } from '../../lib/types'
+  import { RESOLVED_STATUS_NAMES } from '../../lib/view-config'
   import { relativeTime, absoluteTime } from './format'
 
   let { history }: { history: HistoryEntry[] } = $props()
 
-  // 백엔드 _effective_category 의 해결 상태 집합과 동일 취지(자체 판단용)
-  const RESOLVED = new Set([
-    '해결됨', 'resolved', '종료', 'closed', 'done', '완료',
-    'qa testing', 'qa 테스트 중', 'qa테스트중',
-  ])
-
   function isResolved(s: string | null): boolean {
-    return !!s && RESOLVED.has(s.trim().toLowerCase())
+    return !!s && RESOLVED_STATUS_NAMES.has(s.trim().toLowerCase())
   }
 
-  /** status 전이가 재오픈(해결→미해결)인지. */
+  /**
+   * status 전이가 재오픈(해결→미해결)인지. 서버가 전/후 카테고리를 주면 그걸 쓰고,
+   * 없을 때만 상태 이름으로 추정한다(사이트마다 이름이 달라 폴백일 뿐).
+   */
   function isReopen(e: HistoryEntry): boolean {
-    return e.field === 'status' && isResolved(e.from) && !isResolved(e.to)
+    if (e.field !== 'status') return false
+    if (e.from_category || e.to_category) return e.from_category === 'done' && e.to_category !== 'done'
+    return isResolved(e.from) && !isResolved(e.to)
   }
 
   /** 필드 라벨(한국어). */

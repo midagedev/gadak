@@ -4,6 +4,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { me } from '../../stores/me.svelte'
   import { relativeTime, absTime } from '../../lib/format'
+  import { feature } from '../../lib/config'
   import EmptyState from '../list/EmptyState.svelte'
   import NotificationSettings from './NotificationSettings.svelte'
 
@@ -156,7 +157,9 @@
         <span class="max-[760px]:hidden">모두 읽음</span>
       </button>
     {/if}
-    <NotificationSettings />
+    {#if feature('push')}
+      <NotificationSettings />
+    {/if}
     <button
       type="button"
       onclick={() => me.closeFeed()}

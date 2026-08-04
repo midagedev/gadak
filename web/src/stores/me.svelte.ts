@@ -16,7 +16,7 @@
 import { SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
 import { TOKEN_KEY, getToken } from '../lib/api'
-import { basePath, config } from '../lib/config'
+import { basePath, config, feature } from '../lib/config'
 import { issues } from './issues.svelte'
 import type {
   FeedFocus,
@@ -327,8 +327,10 @@ class MeStore {
 
   /* ── 개인 피드 / 읽음 ── */
 
+  /** 서버가 피드를 제공하지 않으면(feed=false) 아무 요청도 하지 않는다. 읽음 처리 계열도
+   *  전부 feedItems 가 비어 있어 자연히 no-op 이 된다. */
   async loadFeed(focus: FeedFocus = this.feedFocus): Promise<void> {
-    if (!this.authed) return
+    if (!feature('feed') || !this.authed) return
     this.feedLoading = true
     try {
       const response = await api.getFeed(focus)
@@ -413,6 +415,7 @@ class MeStore {
   }
 
   #startFeedPolling(): void {
+    if (!feature('feed')) return
     if (this.#feedPollTimer || typeof window === 'undefined') return
     this.#feedPollTimer = setInterval(() => {
       if (this.authed) void this.loadFeed()
@@ -442,8 +445,9 @@ class MeStore {
     )
   }
 
+  /** 웹 푸시가 꺼져 있으면 설정 조회도, 서비스워커 등록도 하지 않는다. */
   async loadNotificationConfig(): Promise<void> {
-    if (!this.authed) return
+    if (!feature('push') || !this.authed) return
     try {
       this.notificationConfig = await api.getNotificationConfig()
       if (!this.pushSupported) {
@@ -573,6 +577,7 @@ class MeStore {
   /* ── 개인 피드 토글 ── */
 
   openFeed(focus: FeedFocus = 'all'): void {
+    if (!feature('feed')) return
     this.feedFocus = focus
     this.feedOpen = true
     void this.loadFeed(focus)

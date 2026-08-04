@@ -43,6 +43,8 @@ export interface ScryConfig {
   groupColors: Record<string, string>
   /** Group key -> product bucket, used by the `product` grouping mode. */
   productByGroup: Record<string, { key: string; label: string }>
+  /** Hours in the current status before an unresolved issue counts as stale. */
+  staleThresholdHours: number
   features: ScryFeatures
 }
 
@@ -55,6 +57,7 @@ const DEFAULTS: ScryConfig = {
   groupLabels: {},
   groupColors: {},
   productByGroup: {},
+  staleThresholdHours: 72,
   features: {
     presence: false,
     feed: false,
@@ -69,6 +72,15 @@ let current: ScryConfig = DEFAULTS
 
 export function config(): ScryConfig {
   return current
+}
+
+/**
+ * Whether an optional surface is switched on. Every consumer of a gated surface
+ * (column, filter field, grouping mode, panel, network call) asks here — a flag
+ * that nobody reads is a flag that does nothing.
+ */
+export function feature(name: keyof ScryFeatures): boolean {
+  return current.features[name]
 }
 
 /**

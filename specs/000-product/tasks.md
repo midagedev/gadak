@@ -19,9 +19,9 @@ Legend: **done** / **partial** / **todo**
 | T0.7 | Governance and license files | done | Apache-2.0 |
 | T0.8 | Specs, contracts, and architecture docs | done | This directory plus `docs/` |
 | T0.9 | Remove or plugin-ize the cut internal surfaces still present in the UI | done | Resolved by feature-flag gating, not deletion: `PrList` and `DeployTimeline` sit behind `features.deploy`, `QaImpact` and `QaFieldEditor` behind `features.qa`. The components stay in the tree so a tenant that has the data can switch them on |
+| T0.10 | Translate the UI to English with the current copy as a locale | todo | **Release blocker for a public launch.** The UI is Korean-only, which caps adoption regardless of everything else |
 | T0.11 | Wire the `features` flags to actual consumers | done | The flags were declared in `config.ts` and read by nobody, so `presence` still opened a WebSocket retry loop against a missing endpoint and the deploy/QA/team-group columns stayed in the catalog. Gating now runs through `feature()` in `config.ts` |
 | T0.12 | Compute staleness from `status_changed_at` | done | The UI read `working_hours_in_status`, a field no server populates (see `data-model.md`), so the "stale" view was always empty. Threshold is `staleThresholdHours` in config, default 72 |
-| T0.10 | Translate the UI to English with the current copy as a locale | todo | **Release blocker for a public launch.** The UI is Korean-only, which caps adoption regardless of everything else |
 
 ## T1 Storage
 

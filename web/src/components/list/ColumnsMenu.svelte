@@ -4,11 +4,13 @@
    *  구성은 뷰의 display 에 포함돼 URL·저장 뷰에 함께 직렬화된다(뷰별 컬럼).
    */
   import { filters } from '../../stores/filters.svelte'
-  import { COLUMNS, DEFAULT_COLUMNS, type ColumnKey } from '../../lib/view-config'
+  import { columnCatalog, defaultColumns, type ColumnKey } from '../../lib/view-config'
 
+  const catalog = columnCatalog()
+  const defaults = defaultColumns()
   const active = $derived(new Set<ColumnKey>(filters.display.columns))
   const isDefault = $derived(
-    active.size === DEFAULT_COLUMNS.length && DEFAULT_COLUMNS.every((k) => active.has(k)),
+    active.size === defaults.length && defaults.every((k) => active.has(k)),
   )
 
   let open = $state(false)
@@ -51,7 +53,7 @@
         </button>
       </div>
       <div class="max-h-[60vh] overflow-y-auto">
-        {#each COLUMNS as col (col.key)}
+        {#each catalog as col (col.key)}
           <button
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[12px] transition-colors hover:bg-bg-hover"

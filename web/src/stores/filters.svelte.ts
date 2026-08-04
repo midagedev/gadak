@@ -18,7 +18,7 @@ import { extractChosung, isChosungQuery } from '../lib/korean'
 import type { IssueLite } from '../lib/types'
 import {
   configToParams,
-  DEFAULT_COLUMNS,
+  defaultColumns,
   DEPLOY_STATE_LABEL,
   deployStateOf,
   effectiveCategory,
@@ -239,7 +239,7 @@ class FiltersStore {
   /** 컬럼 구성을 기본값으로 되돌림. */
   resetColumns(): void {
     const c = this.snapshot()
-    c.display.columns = [...DEFAULT_COLUMNS]
+    c.display.columns = defaultColumns()
     this.#apply(c)
   }
 
@@ -312,9 +312,9 @@ function mergeConfig(c: ViewConfig): ViewConfig {
   const base = emptyConfig()
   Object.assign(base.filters, c.filters)
   Object.assign(base.display, c.display)
-  // 배열 참조 분리
+  // 배열 참조 분리. 컬럼은 저장 뷰가 꺼진 기능의 컬럼을 들고 있을 수 있어 정규화한다.
   for (const field of MULTI_FIELDS) base.filters[field] = [...(c.filters[field] ?? [])]
-  base.display.columns = [...(c.display.columns ?? base.display.columns)]
+  base.display.columns = orderColumns(c.display.columns ?? base.display.columns)
   return base
 }
 

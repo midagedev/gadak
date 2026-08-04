@@ -15,7 +15,7 @@
 
 import { SvelteMap } from 'svelte/reactivity'
 import * as api from '../lib/api'
-import { basePath } from '../lib/config'
+import { basePath, feature } from '../lib/config'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 
@@ -51,8 +51,12 @@ class PresenceStore {
   /**
    * 부팅: visibilitychange 리스너 등록 + 최초 접속 시도.
    * 실패해도 조용히 재시도 루프로 넘어가므로 호출부는 결과를 신경 쓸 필요 없다.
+   *
+   * 프레즌스가 꺼져 있으면 여기서 끝난다 — 서버에 presence-ticket/ 엔드포인트가 없으면
+   * 티켓 404 → 백오프 재접속 루프가 영구 네트워크 노이즈가 되기 때문이다.
    */
   init(): void {
+    if (!feature('presence')) return
     if (this.#initialized || typeof window === 'undefined') return
     this.#initialized = true
     document.addEventListener('visibilitychange', this.#onVisibility)

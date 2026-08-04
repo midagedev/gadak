@@ -77,7 +77,7 @@ On-demand detail. Everything comes from the mirror; no Jira call.
   "description_adf": { "type": "doc", "version": 1, "content": [] },
   "attachments": [ { "id": "...", "filename": "...", "mime_type": "...", "size": 0, "content_url": "/api/v1/issues/NMB-142/attachments/10021/content/", "created_at": "..." } ],
   "comments": [ { "id": "...", "author": "...", "author_id": "...", "body_adf": {}, "created_at": "...", "updated_at": "..." } ],
-  "history": [ { "at": "...", "author": "...", "field": "status", "from_value": "...", "to_value": "..." } ],
+  "history": [ { "at": "...", "author": "...", "field": "status", "from_value": "...", "to_value": "...", "from_category": "done", "to_category": "inprogress" } ],
   "linked_issues": [ { "key": "NMA-8", "type": "Blocks", "direction": "inward", "summary": "...", "status_category": "done" } ],
   "development_opinion": null,
   "qa_context": null,
@@ -90,6 +90,11 @@ On-demand detail. Everything comes from the mirror; no Jira call.
 were internal integrations. They stay in the response shape as `null`/`[]`
 because the client already treats them as optional, and removing the keys buys
 nothing.
+
+`from_category` and `to_category` on a `status` history entry are optional
+(`new` / `inprogress` / `done`). When present the UI marks reopens from them;
+otherwise it falls back to matching status names, which is language-dependent and
+therefore only a fallback.
 
 ### `GET search/?q=<text>&limit=<n>` — R
 
@@ -126,8 +131,10 @@ reopen_count, reopened_at, comment_count
 
 Fields the internal version carried that are now always absent: `d1_group`,
 `deploy_status`, `qa_impact_*`, `qa_runs`, `qa_suites`,
-`working_hours_in_status`, `development_test_result`, `source_project`. The UI
-reads them defensively; the config flags that surface them default to off.
+`development_test_result`, `source_project`. The UI reads them defensively; the
+config flags that surface them default to off. `working_hours_in_status` is gone
+from the client type entirely — no server ever populated it (see
+`data-model.md`), and staleness now comes from `status_changed_at`.
 
 ## Write-through
 
@@ -206,12 +213,26 @@ Served at the UI's base path, not under the API base. Shape is
   "groupLabels": {},
   "groupColors": {},
   "productByGroup": {},
+  "staleThresholdHours": 72,
   "features": { "presence": false, "feed": false, "push": false, "deploy": false, "qa": false, "teamGroups": false }
 }
 ```
 
 The UI fetches this before mount. A missing file is not fatal: the client falls
 back to defaults with every optional feature off.
+
+`staleThresholdHours` is how long an unresolved issue may sit in its current
+status — measured from `status_changed_at`, falling back to `updated_at` — before
+the `stale` filter and the row badge pick it up.
+
+Each `features` flag gates a surface that needs a capability the server may not
+have: `presence` the viewer WebSocket (off means no `presence-ticket/` request at
+all), `feed` the personal feed and its polling, `push` Web Push and the service
+worker registration, `deploy` the deploy column/filter plus the deploy and PR
+detail sections, `qa` the QA column/filters, QA section, and inline field
+editing, `teamGroups` the group filter, column, and the group/product grouping
+modes. A flag that is off removes its surface from the catalog, so a shared URL
+cannot bring the filter back.
 
 ## Auth
 

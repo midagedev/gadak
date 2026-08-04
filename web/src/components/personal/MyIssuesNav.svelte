@@ -13,8 +13,11 @@
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
   import { effectiveCategory, emptyConfig, type ViewConfig } from '../../lib/view-config'
+  import { feature } from '../../lib/config'
 
   const myEmail = $derived(me.email)
+  // 피드가 없으면 "내가 보고"·"피드" 는 열 패널이 없어 항목 자체를 숨긴다.
+  const feedOn = feature('feed')
 
   // 활성(미완료) 기준 카운트.
   const assignedCount = $derived(
@@ -62,6 +65,7 @@
       <span class="flex-none text-[11px] text-text-muted">{assignedCount}</span>
     </button>
 
+    {#if feedOn}
     <button
       type="button"
       class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {me.feedOpen &&
@@ -92,6 +96,7 @@
         >{feedUnreadCount > 99 ? '99+' : feedUnreadCount}</span>
       {/if}
     </button>
+    {/if}
   {:else}
     <button
       type="button"

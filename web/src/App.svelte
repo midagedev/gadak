@@ -14,6 +14,7 @@
   import { presence } from './stores/presence.svelte'
   import { write } from './stores/write.svelte'
   import { router, setParams } from './lib/router.svelte'
+  import { feature } from './lib/config'
   import {
     emptyConfig,
     parseConfig,
@@ -49,12 +50,13 @@
     void me.init()
     void write.loadWriteMeta() // 쓰기 메타 선반영(issues.init 과 병렬)
     views.init()
-    presence.init() // 실시간 프레즌스(티켓→WS, 실패는 조용히)
+    if (feature('presence')) presence.init() // 실시간 프레즌스(티켓→WS, 실패는 조용히)
   })
 
   // ── 상세 열림/닫힘을 프레즌스에 반영 ──
   //  selectedKey 만 추적 의존성. setViewing 은 반응형 상태를 읽지 않으므로 루프 없음.
   $effect(() => {
+    if (!feature('presence')) return
     presence.setViewing(selection.selectedKey)
   })
 
@@ -136,8 +138,8 @@
       return
     }
 
-    // 2) 내 소속 파트 프리셋(로그인 + group 존재 시)
-    if (me.group) {
+    // 2) 내 소속 파트 프리셋(파트 분류 사용 + 로그인 + group 존재 시)
+    if (feature('teamGroups') && me.group) {
       const c: ViewConfig = emptyConfig()
       c.filters.d1_group = [me.group]
       c.filters.status_category = ['new', 'inprogress']
@@ -209,7 +211,7 @@
 
       <MainColumn>
         {#snippet children()}
-          {#if me.feedOpen}
+          {#if me.feedOpen && feature('feed')}
             <PersonalFeed />
           {:else}
             <ListView />

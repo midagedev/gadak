@@ -9,6 +9,7 @@
  *  둘은 독립 축이며 모두 로컬 파생으로 계산된다(서버 왕복 없음).
  */
 
+import { config, feature, type ScryFeatures } from './config'
 import type { DeployState, IssueLite } from './types'
 
 /* ── 필터 상태 ── */
@@ -102,8 +103,24 @@ export const COLUMNS = [
 export type ColumnKey = (typeof COLUMNS)[number]['key']
 const COLUMN_KEYS = COLUMNS.map((c) => c.key) as readonly ColumnKey[]
 
-/** 기본 노출 컬럼 — 현재 행 동작과 동일(조건부 배지는 데이터 있을 때만 나타남). */
-export const DEFAULT_COLUMNS: ColumnKey[] = [
+/** 선택 기능에 딸린 컬럼 — 해당 플래그가 꺼지면 카탈로그에서 사라진다. */
+const COLUMN_FEATURE: Partial<Record<ColumnKey, keyof ScryFeatures>> = {
+  qa_impact: 'qa',
+  deploy: 'deploy',
+  d1_group: 'teamGroups',
+}
+
+function columnEnabled(key: ColumnKey): boolean {
+  const f = COLUMN_FEATURE[key]
+  return !f || feature(f)
+}
+
+/** 컬럼 메뉴가 노출할 카탈로그(꺼진 기능의 컬럼 제외). */
+export function columnCatalog(): (typeof COLUMNS)[number][] {
+  return COLUMNS.filter((c) => columnEnabled(c.key))
+}
+
+const DEFAULT_COLUMN_KEYS: ColumnKey[] = [
   'assignee',
   'updated',
   'labels',
@@ -113,14 +130,19 @@ export const DEFAULT_COLUMNS: ColumnKey[] = [
   'deploy',
 ]
 
+/** 기본 노출 컬럼 — 현재 행 동작과 동일(조건부 배지는 데이터 있을 때만 나타남). */
+export function defaultColumns(): ColumnKey[] {
+  return DEFAULT_COLUMN_KEYS.filter(columnEnabled)
+}
+
 function isColumnKey(v: string): v is ColumnKey {
   return (COLUMN_KEYS as readonly string[]).includes(v)
 }
 
-/** 임의 키 목록을 카탈로그 순서로 정규화(유효키만, 빈 목록 허용 — 전부 끄기 가능). */
+/** 임의 키 목록을 카탈로그 순서로 정규화(유효+활성 키만, 빈 목록 허용 — 전부 끄기 가능). */
 export function orderColumns(keys: readonly string[]): ColumnKey[] {
   const set = new Set(keys.filter(isColumnKey) as ColumnKey[])
-  return COLUMN_KEYS.filter((k) => set.has(k))
+  return COLUMN_KEYS.filter((k) => set.has(k) && columnEnabled(k))
 }
 
 export interface ViewDisplay {
@@ -168,6 +190,37 @@ export const MULTI_FIELDS = [
   'source_project',
 ] as const
 export type MultiField = (typeof MULTI_FIELDS)[number]
+
+/** 선택 기능에서 오는 필터 필드 — 플래그가 꺼지면 필터 메뉴/URL 양쪽에서 무효. */
+const FIELD_FEATURE: Partial<Record<MultiField, keyof ScryFeatures>> = {
+  d1_group: 'teamGroups',
+  qa_run: 'qa',
+  qa_suite: 'qa',
+  qa_impact: 'qa',
+  deploy_state: 'deploy',
+}
+
+export function fieldEnabled(field: MultiField): boolean {
+  const f = FIELD_FEATURE[field]
+  return !f || feature(f)
+}
+
+/** 필터 메뉴가 노출할 필드 목록(꺼진 기능의 필드 제외). */
+export function filterFields(): MultiField[] {
+  return MULTI_FIELDS.filter(fieldEnabled)
+}
+
+/** 선택 기능에서 오는 그룹핑 축. */
+const GROUP_FEATURE: Partial<Record<GroupBy, keyof ScryFeatures>> = {
+  d1_group: 'teamGroups',
+  product: 'teamGroups',
+  qa_impact: 'qa',
+}
+
+export function groupByEnabled(by: GroupBy): boolean {
+  const f = GROUP_FEATURE[by]
+  return !f || feature(f)
+}
 
 export const FLAG_FIELDS = ['reopened', 'unassigned', 'stale'] as const
 export type FlagField = (typeof FLAG_FIELDS)[number]
@@ -220,7 +273,7 @@ export function defaultDisplay(): ViewDisplay {
     group_by: 'status_category',
     sort: 'updated',
     dir: 'desc',
-    columns: [...DEFAULT_COLUMNS],
+    columns: defaultColumns(),
   }
 }
 
@@ -303,7 +356,8 @@ function splitList(v: string | null): string[] {
 export function parseConfig(params: URLSearchParams): ViewConfig {
   const f = emptyFilters()
   for (const field of MULTI_FIELDS) {
-    f[field] = splitList(params.get(MULTI_KEY[field]))
+    // 꺼진 기능의 필드는 URL 로도 켜지지 않는다(공유 링크가 죽은 필터를 되살리지 않게).
+    f[field] = fieldEnabled(field) ? splitList(params.get(MULTI_KEY[field])) : []
   }
   const flags = splitList(params.get(FLAG_KEY))
   f.reopened = flags.includes('reopened')
@@ -331,21 +385,23 @@ export function parseConfig(params: URLSearchParams): ViewConfig {
 }
 
 function isGroupBy(v: string): v is GroupBy {
-  return [
-    'none',
-    'status_category',
-    'status',
-    'assignee',
-    'priority',
-    'severity',
-    'd1_group',
-    'product',
-    'issue_type',
-    'development_test_result',
-    'qa_impact',
-    'source_project',
-    'epic',
-  ].includes(v)
+  return (
+    [
+      'none',
+      'status_category',
+      'status',
+      'assignee',
+      'priority',
+      'severity',
+      'd1_group',
+      'product',
+      'issue_type',
+      'development_test_result',
+      'qa_impact',
+      'source_project',
+      'epic',
+    ].includes(v) && groupByEnabled(v as GroupBy)
+  )
 }
 function isSortKey(v: string): v is SortKey {
   return ['updated', 'created', 'priority', 'reopen_count', 'relevance'].includes(v)
@@ -381,36 +437,36 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   out[DIR_KEY] = d.dir !== 'desc' ? d.dir : null
 
   // 컬럼: 기본과 같으면 생략(URL 청결), 전부 끄면 'none' 으로 보존.
+  const def = defaultColumns()
   const colsEqDefault =
-    d.columns.length === DEFAULT_COLUMNS.length &&
-    d.columns.every((c, i) => c === DEFAULT_COLUMNS[i])
+    d.columns.length === def.length && d.columns.every((c, i) => c === def[i])
   out[COLS_KEY] = colsEqDefault ? null : d.columns.length ? d.columns.join(',') : COLS_NONE
 
   return out
 }
 
-/* ── 필터 적용 판정 ──
- *  effectiveCategory 는 백엔드 `_effective_category` 와 동일 규칙(redacted-tool/CLAUDE.md).
- */
+/* ── 필터 적용 판정 ── */
 
-const RESOLVED_STATUSES = new Set([
-  '해결됨',
+/**
+ * status_category 를 못 주는 응답용 폴백. 사이트/계정 언어마다 상태 이름이 달라
+ * 신뢰할 수 없으므로 어느 Jira 에서나 같은 뜻인 일반 항목만 남긴다.
+ */
+export const RESOLVED_STATUS_NAMES = new Set([
   'resolved',
-  '종료',
   'closed',
   'done',
+  '해결됨',
+  '종료',
   '완료',
-  'qa testing',
-  'qa 테스트 중',
-  'qa테스트중',
 ])
 
 export type StatusCategory = 'new' | 'inprogress' | 'done'
 
+/** 서버가 준 status_category 를 1순위로 신뢰하고, 없을 때만 상태 이름으로 추정한다. */
 export function effectiveCategory(issue: IssueLite): StatusCategory {
   const sc = (issue.status_category ?? '').toLowerCase()
-  if (sc === 'done' || RESOLVED_STATUSES.has((issue.status ?? '').toLowerCase())) return 'done'
-  if (sc === 'new') return 'new'
+  if (sc === 'new' || sc === 'inprogress' || sc === 'done') return sc
+  if (RESOLVED_STATUS_NAMES.has((issue.status ?? '').trim().toLowerCase())) return 'done'
   return 'inprogress'
 }
 
@@ -432,11 +488,21 @@ export const DEPLOY_STATE_LABEL: Record<DeployState, string> = {
   prod: 'prod 배포',
 }
 
-/** 정체 판정: 업무시간 40h 초과 + 미완료. */
-export const STALE_HOURS = 40
+/**
+ * 현재 상태로 들어온 뒤 경과 시간(h). status_changed_at 이 기준이고, 없으면 updated_at
+ * 으로 대체한다. 둘 다 없으면 0 — 판정 근거가 없으므로 정체로 몰지 않는다.
+ */
+export function statusAgeHours(issue: IssueLite): number {
+  const iso = issue.status_changed_at ?? issue.updated_at
+  if (!iso) return 0
+  const t = Date.parse(iso)
+  return Number.isFinite(t) ? Math.max(0, (Date.now() - t) / 3_600_000) : 0
+}
+
+/** 정체 판정: 미완료 + 현재 상태 경과가 임계(config.staleThresholdHours) 초과. */
 export function isStale(issue: IssueLite): boolean {
-  const h = issue.working_hours_in_status
-  return h != null && h > STALE_HOURS && effectiveCategory(issue) !== 'done'
+  if (effectiveCategory(issue) === 'done') return false
+  return statusAgeHours(issue) > config().staleThresholdHours
 }
 
 /** 활성 필터가 하나라도 있는지(뷰 저장 버튼 노출용). q 제외 여부는 호출부에서 판단. */

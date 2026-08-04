@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { IssueLite } from '../../lib/types'
+  import { feature } from '../../lib/config'
   import QaFieldEditor from './QaFieldEditor.svelte'
 
   let {
@@ -71,7 +72,7 @@
   {#each rows as row (row.key)}
     <dt class="pt-0.5 text-text-muted">{row.label}</dt>
     <dd class="min-w-0">
-      {#if row.edit}
+      {#if row.edit && feature('qa')}
         <QaFieldEditor {issue} field={row.key} kind={row.edit} values={row.values} />
       {:else if row.values.length === 0}
         <span class="text-text-muted">없음</span>

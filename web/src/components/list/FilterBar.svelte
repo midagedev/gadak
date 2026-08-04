@@ -6,7 +6,7 @@
    */
   import { filters, type FacetValue } from '../../stores/filters.svelte'
   import { views } from '../../stores/views.svelte'
-  import { MULTI_FIELDS, type MultiField } from '../../lib/view-config'
+  import { filterFields, type MultiField } from '../../lib/view-config'
 
   const FIELD_LABEL: Record<MultiField, string> = {
     status_category: '분류',
@@ -38,6 +38,9 @@
     jira_project: '프로젝트',
     source_project: '복제 원본 프로젝트',
   }
+
+  // 꺼진 기능의 필드는 메뉴에 아예 나오지 않는다.
+  const FIELDS = filterFields()
 
   let open = $state(false)
   let field = $state<MultiField | null>(null)
@@ -128,7 +131,7 @@
         {#if !field}
           <!-- 1단: 필드 선택 + 플래그 -->
           <div class="px-2 py-1 text-[11px] font-medium text-text-muted">속성</div>
-          {#each MULTI_FIELDS as f (f)}
+          {#each FIELDS as f (f)}
             <button
               type="button"
               class="flex w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"

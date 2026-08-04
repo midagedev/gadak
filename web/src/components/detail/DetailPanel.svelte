@@ -13,6 +13,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { ApiError } from '../../lib/api'
+  import { feature } from '../../lib/config'
   import type { DetailResponse } from '../../lib/types'
   import { getDetailCached, invalidate } from './cache.svelte'
   import { jiraUrl } from './format'
@@ -180,7 +181,7 @@
           {/if}
 
           <!-- QA 차수 맥락은 Jira 본문/증빙 다음에 보조 정보로 노출한다. -->
-          {#if detailForKey.qa_context}
+          {#if feature('qa') && detailForKey.qa_context}
             <Section title="QA 영향" count={detailForKey.qa_context.runs.length}>
               <QaImpact context={detailForKey.qa_context} />
             </Section>
@@ -211,14 +212,14 @@
           {/if}
 
           <!-- 배포 현황 (deploy.state 있을 때만 — 구 서버 호환) -->
-          {#if detailForKey.deploy?.state}
+          {#if feature('deploy') && detailForKey.deploy?.state}
             <Section title="배포 현황">
               <DeployTimeline deploy={detailForKey.deploy} />
             </Section>
           {/if}
 
-          <!-- 연결 PR -->
-          {#if detailForKey.linked_prs.length > 0}
+          <!-- 연결 PR (배포 연동과 같은 CI/CD 소스에서 온다 — deploy 플래그에 함께 묶임) -->
+          {#if feature('deploy') && detailForKey.linked_prs.length > 0}
             <Section title="연결 PR" count={detailForKey.linked_prs.length}>
               <PrList prs={detailForKey.linked_prs} />
             </Section>
