@@ -52,12 +52,13 @@ Legend: **done** / **partial** / **todo**
 | --- | --- | --- | --- |
 | T3.1 | `scry serve` with static UI, `config.json`, `/healthz` | done | `cmd/scry/main.go` |
 | T3.2 | Loopback-only bind with an explicit `--allow-remote` escape | done | The mirror has no auth; this is the only thing protecting it |
-| T3.3 | `bootstrap` and `delta` from SQLite, with ETag | todo |
-| T3.4 | `detail` assembly | todo |
-| T3.5 | `search` over FTS5 | todo |
-| T3.6 | Attachment content proxy | todo |
-| T3.7 | Saved views and watches endpoints | todo |
-| T3.8 | Deferred endpoints returning a clean `404` | todo |
+| T3.3 | `bootstrap` and `delta` from SQLite, with ETag | done | `internal/server`. `"sv-<version>"` ETag with a 304 path that also accepts the client's own `"in-<version>"` hydration tag; `delta` drops the member payload when `mv` matches. `d1_group` is injected from `groupRules` (assignee's configured group as the fallback) and configured field aliases are spread from `issues.custom` into the row. `TestBootstrapShapeAndETag`, `TestDeltaUpsertedAndDeleted`, `TestIssueLiteFieldNames` |
+| T3.4 | `detail` assembly | done | Status history carries `from_category`/`to_category` resolved through the mirror's own status id → category map, so a reopen is never inferred from a localized name. `TestDetailAssembly` |
+| T3.5 | `search` over FTS5 | done | `{keys, total}` straight from `store.Search`. `TestSearchHitsCommentText` |
+| T3.6 | Attachment content proxy | done | Streams from Jira with Basic auth, no credential → `409 credential_required`, a rejected token → the same so the UI reopens its dialog. `nosniff` always, and anything scriptable (SVG included) is forced to download. `TestAttachmentProxyStreamsFromJira` |
+| T3.7 | Saved views and watches endpoints | done | Local only, never 401/403. `TestPersonalStateRoundtrip` |
+| T3.8 | Deferred endpoints returning a clean `404` | done | One catch-all under both bases, with an `{"error": …}` body. `TestDeferredEndpointsAre404` |
+| T3.9 | `settings/` read and write for the settings UI | done | Credential-free config projection; a write preserves the credential block and invalidates the cached member/group projection. `TestSettingsRoundtripPreservesCredential`, `TestWebConfigHidesCredential` |
 
 ## T4 Write-through
 

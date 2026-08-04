@@ -35,19 +35,32 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
 {
   "server_time": "2026-08-04T09:15:00Z",
   "sync_version": 412,
-  "members": [ { "email": "...", "name": "...", "display_name": "...", "group": null, "department": null, "job_role": null, "avatar_url": null } ],
+  "members": [ { "email": "...", "name": "...", "display_name": null, "profile_image": null, "avatar_url": null, "department": null, "job_role": null, "group": null, "status": null, "jira_account_id": null } ],
   "members_version": "sha256:...",
   "issues": [ /* IssueLite, see below */ ],
-  "sync_health": { "jira": { "ok": true, "synced_at": "...", "error": null } }
+  "sync_health": {
+    "overall": "healthy",
+    "checked_at": "2026-08-04T09:15:00Z",
+    "sources": [ { "key": "jira", "label": "Jira", "status": "healthy", "synced_at": "...", "message": "정상" } ]
+  }
 }
 ```
 
-- `ETag: "sv-<sync_version>"` must be set on 200.
+- `ETag: "sv-<sync_version>"` must be set on 200. The 304 path also accepts the
+  client's `"in-<sync_version>"` tag, which its cache-hydration path invents when
+  it has a stored version but no stored ETag.
 - `server_time` is the cursor the client passes to `delta/`. It must come from
-  the same clock that writes `items.synced_at`.
-- `members` is derived from assignees and reporters present in the mirror. There
-  is no team directory in v0.1, so `group`, `department`, and `job_role` are
-  always `null` and the UI's group-based surfaces stay switched off by config.
+  the same clock that writes `items.synced_at`. That cursor bound is inclusive,
+  so a poll in the same millisecond as a write legitimately re-sends the row.
+- `members` is keyed by email: the mirror supplies the name and account id of
+  everyone who appears as an assignee, and `config.members` supplies
+  `group`, `department`, `job_role` and the avatar, winning on every conflict. A
+  reporter who is never an assignee cannot be keyed and is absent. `avatar_url`
+  and `profile_image` carry the same value — the client reads the latter.
+- `sync_health.status` is one of `healthy` / `stale` / `failed` / `missing`, and
+  `message` is `"정상"` when nothing is wrong (the client suppresses that line).
+  Staleness is measured from the last run that finished without an error, never
+  from the watermark: a quiet project leaves its watermark in the past forever.
 
 ### `GET delta/?since=<iso>&mv=<members_version>` — R
 
@@ -75,9 +88,9 @@ On-demand detail. Everything comes from the mirror; no Jira call.
 {
   "issue_key": "NMB-142",
   "description_adf": { "type": "doc", "version": 1, "content": [] },
-  "attachments": [ { "id": "...", "filename": "...", "mime_type": "...", "size": 0, "content_url": "/api/v1/issues/NMB-142/attachments/10021/content/", "created_at": "..." } ],
-  "comments": [ { "id": "...", "author": "...", "author_id": "...", "body_adf": {}, "created_at": "...", "updated_at": "..." } ],
-  "history": [ { "at": "...", "author": "...", "field": "status", "from_value": "...", "to_value": "...", "from_category": "done", "to_category": "inprogress" } ],
+  "attachments": [ { "id": "10021", "filename": "...", "mime_type": "...", "size": 0, "media_id": "", "media_collection": "", "is_image": true, "is_video": false, "cache_status": "ready", "created_at": "...", "content_url": "/api/v1/issues/NMB-142/attachments/10021/content/" } ],
+  "comments": [ { "comment_id": "...", "author": "...", "author_email": null, "author_account_id": "...", "body": "flattened text", "raw_body": {}, "created_at": "..." } ],
+  "history": [ { "at": "...", "by": "...", "field": "status", "from": "...", "to": "...", "from_category": "done", "to_category": "inprogress" } ],
   "linked_issues": [ { "key": "NMA-8", "type": "Blocks", "direction": "inward", "summary": "...", "status_category": "done" } ],
   "development_opinion": null,
   "qa_context": null,
@@ -85,6 +98,17 @@ On-demand detail. Everything comes from the mirror; no Jira call.
   "linked_prs": []
 }
 ```
+
+The field names above are the client's (`DetailResponse` in
+`web/src/lib/types.ts`), which is what actually gets parsed: comments carry
+`comment_id` / `raw_body` / `body`, and history carries `by` / `from` / `to`.
+`raw_body` is the ADF and `body` is the flattened fallback the renderer uses when
+the ADF will not render — the two are never both dropped.
+
+`media_id` is the ADF media node's own id, which the mirror does not carry, so it
+is empty and the renderer falls back to matching a media node to an attachment by
+filename. `author_email` is resolved by matching the comment author's account id
+against `config.members`, and is `null` for anyone not in that directory.
 
 `development_opinion`, `qa_context`, `deploy`, and `linked_prs` are **X** — they
 were internal integrations. They stay in the response shape as `null`/`[]`
@@ -122,15 +146,28 @@ verbatim in IndexedDB, so **field names are a contract** — adding is safe,
 renaming or removing is not.
 
 ```
-key, summary, project_key, issue_type, issue_type_id, status, status_id,
+issue_key, summary, project_key, issue_type, issue_type_id, status, status_id,
 status_category, priority, priority_rank, assignee, assignee_id, assignee_email,
-reporter, parent_key, labels[], components[], fix_versions[], duedate,
-resolution, created_at, updated_at, status_changed_at, resolved_at,
+reporter, reporter_email, epic_key, labels[], components[], fix_versions[],
+duedate, resolution, created_at, updated_at, status_changed_at, resolved_at,
 reopen_count, reopened_at, comment_count
 ```
 
-Fields the internal version carried that are now always absent: `d1_group`,
-`deploy_status`, `qa_impact_*`, `qa_runs`, `qa_suites`,
+Two groups of fields are added on top of the stored row, both from
+configuration:
+
+- `d1_group`, when `groupRules` or a member `group` is configured. The first
+  matching rule wins — conditions are ANDed, values inside one condition are
+  ORed, an empty condition is always true — and the assignee's configured group
+  is the fallback. With no taxonomy configured the key is **omitted**, not null,
+  so the client's group surfaces stay empty rather than showing one bogus bucket.
+- every `fieldMap` alias present in `issues.custom`, spread as a top-level key
+  (`severity`, `solution`, `environment`, …). Aliases are serialized before the
+  stored fields, so a stored field of the same name wins in the client's
+  `JSON.parse`.
+
+Fields the internal version carried that stay absent until something populates
+them: `deploy_status`, `qa_impact_*`, `qa_runs`, `qa_suites`,
 `development_test_result`, `source_project`. The UI reads them defensively; the
 config flags that surface them default to off. `working_hours_in_status` is gone
 from the client type entirely — no server ever populated it (see
@@ -221,6 +258,29 @@ Served at the UI's base path, not under the API base. Shape is
 The UI fetches this before mount. A missing file is not fatal: the client falls
 back to defaults with every optional feature off.
 
+The document always carries a real `staleThresholdHours`: the client merges it
+over its own defaults, so a literal `0` would override the 72-hour default and
+mark every issue stale.
+
+### `GET settings/` · `PUT settings/` — R
+
+The settings UI reads and writes the configuration through these. The document is
+the credential-free part of `~/.scry/config.json` — `projects`, `fieldMap`,
+`bodyFields`, `editableFields`, `members`, `groupRules`, `groupLabels`,
+`groupColors`, `productByGroup`, `features`, `qaDashboardUrl`,
+`staleThresholdHours` — plus two read-only fields for the UI's connection panel:
+
+```json
+{ "site": "https://your-site.atlassian.net", "hasCredential": true, "projects": ["NMB"], "…": "…" }
+```
+
+`PUT` replaces exactly the writable fields and preserves everything else in the
+file, credentials included; `site` and the token stay the credential endpoint's
+business. Unknown `features` keys are dropped, a negative threshold is clamped to
+0 (meaning "use the client default"), and the response is the stored document.
+There is no authentication here either — the server is loopback-bound, and a
+config write is no more sensitive than the file itself.
+
 `staleThresholdHours` is how long an unresolved issue may sit in its current
 status — measured from `status_changed_at`, falling back to `updated_at` — before
 the `stale` filter and the row badge pick it up.
@@ -238,7 +298,7 @@ cannot bring the filter back.
 
 | Endpoint | Method | v0.1 behavior |
 | --- | --- | --- |
-| `me/` | GET | Returns the identity from the verified Jira credential |
+| `me/` | GET | `{email, name, department}` from the stored credential and the configured member directory, with no call to Jira. `401 credential_required` when nothing is configured |
 | `login/` | POST | `404`. There are no scry accounts |
 | `logout/` | POST | `404` |
 

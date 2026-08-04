@@ -1,0 +1,671 @@
+package server
+
+import (
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/store"
+)
+
+/* ── response shapes ──
+ * Field names follow web/src/lib/types.ts, which is what the client actually
+ * parses and stores verbatim in IndexedDB. Where contracts/api.md and the
+ * client disagree the client wins; the divergences are listed in
+ * contracts/api.md.
+ */
+
+// issueLite is the stored row plus the fields only configuration can supply.
+type issueLite struct {
+	store.IssueLite
+	// D1Group is omitted entirely when no group taxonomy is configured, which
+	// leaves the client's group surfaces empty rather than wrong.
+	D1Group *string `json:"d1_group,omitempty"`
+}
+
+// MarshalJSON flattens the configured field aliases into the row. The client
+// reads `severity` and friends as top-level keys and encoding/json cannot inline
+// a map, so the two objects are spliced. Aliases come first on purpose: a stored
+// field of the same name is later in the object and therefore wins in the
+// client's JSON.parse.
+func (l issueLite) MarshalJSON() ([]byte, error) {
+	extra := make(map[string]any, len(l.Custom)+1)
+	for k, v := range l.Custom {
+		extra[k] = v
+	}
+	if l.D1Group != nil {
+		extra["d1_group"] = *l.D1Group
+	}
+	l.IssueLite.Custom = nil // spread, never nested
+	stored, err := json.Marshal(l.IssueLite)
+	if err != nil {
+		return nil, err
+	}
+	if len(extra) == 0 || len(stored) < 2 || stored[0] != '{' {
+		return stored, nil
+	}
+	head, err := json.Marshal(extra)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]byte, 0, len(head)+len(stored))
+	out = append(out, head[:len(head)-1]...) // drop the closing brace
+	out = append(out, ',')
+	return append(out, stored[1:]...), nil
+}
+
+type member struct {
+	Email       string  `json:"email"`
+	Name        string  `json:"name"`
+	DisplayName *string `json:"display_name"`
+	// ProfileImage is the field the client's Avatar reads; AvatarURL is the name
+	// contracts/api.md uses. Same value, both spellings.
+	ProfileImage  *string `json:"profile_image"`
+	AvatarURL     *string `json:"avatar_url"`
+	Department    *string `json:"department"`
+	JobRole       *string `json:"job_role"`
+	Group         *string `json:"group"`
+	Status        *string `json:"status"`
+	JiraAccountID *string `json:"jira_account_id"`
+}
+
+type syncSource struct {
+	Key      string  `json:"key"`
+	Label    string  `json:"label"`
+	Status   string  `json:"status"`
+	SyncedAt *string `json:"synced_at"`
+	Message  string  `json:"message"`
+}
+
+type syncHealth struct {
+	Overall   string       `json:"overall"`
+	CheckedAt string       `json:"checked_at"`
+	Sources   []syncSource `json:"sources"`
+}
+
+type bootstrapResponse struct {
+	ServerTime     string      `json:"server_time"`
+	SyncVersion    int64       `json:"sync_version"`
+	Members        []member    `json:"members"`
+	MembersVersion string      `json:"members_version"`
+	Issues         []issueLite `json:"issues"`
+	SyncHealth     syncHealth  `json:"sync_health"`
+}
+
+type deltaResponse struct {
+	ServerTime     string      `json:"server_time"`
+	Upserted       []issueLite `json:"upserted"`
+	DeletedKeys    []string    `json:"deleted_keys"`
+	Members        []member    `json:"members"`
+	MembersVersion string      `json:"members_version"`
+	SyncHealth     syncHealth  `json:"sync_health"`
+}
+
+/* ── bootstrap / delta ── */
+
+func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
+	st, err := s.db.SyncState(sourceID)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	w.Header().Set("ETag", etag(st.Version))
+	if etagMatches(r.Header.Get("If-None-Match"), st.Version) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	lites, err := s.db.IssueLites()
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	view, err := s.derived(st.Version, lites)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, bootstrapResponse{
+		ServerTime:     store.Now(),
+		SyncVersion:    st.Version,
+		Members:        view.members,
+		MembersVersion: view.membersVersion,
+		Issues:         view.issues(lites),
+		SyncHealth:     s.health(st),
+	})
+}
+
+func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
+	st, err := s.db.SyncState(sourceID)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	since := r.URL.Query().Get("since")
+	upserted, err := s.db.IssueLitesSince(since)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	deleted, err := s.db.DeletedKeysSince(since)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	view, err := s.derived(st.Version, nil)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	res := deltaResponse{
+		ServerTime:     store.Now(),
+		Upserted:       view.issues(upserted),
+		DeletedKeys:    deleted,
+		MembersVersion: view.membersVersion,
+		SyncHealth:     s.health(st),
+	}
+	// members ride along only when the client's hash is stale.
+	if r.URL.Query().Get("mv") != view.membersVersion {
+		res.Members = view.members
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// etagMatches accepts any `"<prefix>-<version>"` tag, not just the `"sv-"` one
+// this server sends: the client's cache-hydration path invents `"in-<version>"`
+// when it has a stored sync_version but no stored ETag, and answering 304 there
+// saves a full re-hydration.
+func etagMatches(header string, version int64) bool {
+	if header == "" {
+		return false
+	}
+	suffix := fmt.Sprintf("-%d\"", version)
+	for _, tag := range strings.Split(header, ",") {
+		if strings.HasSuffix(strings.TrimSpace(tag), suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+/* ── detail ── */
+
+type detailComment struct {
+	CommentID       string          `json:"comment_id"`
+	Author          *string         `json:"author"`
+	AuthorEmail     *string         `json:"author_email"`
+	AuthorAccountID *string         `json:"author_account_id"`
+	Body            string          `json:"body"`
+	RawBody         json.RawMessage `json:"raw_body"`
+	CreatedAt       *string         `json:"created_at"`
+}
+
+type detailAttachment struct {
+	ID       string `json:"id"`
+	Filename string `json:"filename"`
+	MimeType string `json:"mime_type"`
+	Size     int64  `json:"size"`
+	// MediaID is the ADF media node id, which the mirror does not carry. Empty
+	// makes the client's ADF renderer fall back to matching on filename.
+	MediaID         string  `json:"media_id"`
+	MediaCollection string  `json:"media_collection"`
+	IsImage         bool    `json:"is_image"`
+	IsVideo         bool    `json:"is_video"`
+	CacheStatus     string  `json:"cache_status"`
+	CreatedAt       *string `json:"created_at"`
+	ContentURL      string  `json:"content_url"`
+}
+
+type historyEntry struct {
+	At    *string `json:"at"`
+	Field string  `json:"field"`
+	From  *string `json:"from"`
+	To    *string `json:"to"`
+	By    *string `json:"by"`
+	// Categories are resolved from status ids, never from localized names.
+	FromCategory *string `json:"from_category"`
+	ToCategory   *string `json:"to_category"`
+}
+
+type linkedIssue struct {
+	Key            string  `json:"key"`
+	Type           string  `json:"type"`
+	Direction      string  `json:"direction"`
+	Summary        *string `json:"summary"`
+	StatusCategory *string `json:"status_category"`
+}
+
+type detailResponse struct {
+	IssueKey       string             `json:"issue_key"`
+	DescriptionADF json.RawMessage    `json:"description_adf"`
+	Attachments    []detailAttachment `json:"attachments"`
+	Comments       []detailComment    `json:"comments"`
+	History        []historyEntry     `json:"history"`
+	LinkedIssues   []linkedIssue      `json:"linked_issues"`
+	// The four below were internal integrations, cut in the extraction. They stay
+	// in the shape because the client already treats them as optional.
+	DevelopmentOpinion any   `json:"development_opinion"`
+	QaContext          any   `json:"qa_context"`
+	Deploy             any   `json:"deploy"`
+	LinkedPRs          []any `json:"linked_prs"`
+}
+
+func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	d, err := s.db.Detail(key)
+	if errors.Is(err, sql.ErrNoRows) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	st, err := s.db.SyncState(sourceID)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	view, err := s.derived(st.Version, nil)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+
+	res := detailResponse{
+		IssueKey:       d.IssueKey,
+		DescriptionADF: d.DescriptionADF,
+		Attachments:    make([]detailAttachment, 0, len(d.Attachments)),
+		Comments:       make([]detailComment, 0, len(d.Comments)),
+		History:        make([]historyEntry, 0, len(d.History)),
+		LinkedIssues:   make([]linkedIssue, 0, len(d.LinkedIssues)),
+		LinkedPRs:      []any{},
+	}
+	for _, a := range d.Attachments {
+		id := a.ExternalID
+		if id == "" {
+			id = a.ID
+		}
+		res.Attachments = append(res.Attachments, detailAttachment{
+			ID:          id,
+			Filename:    a.Filename,
+			MimeType:    a.MimeType,
+			Size:        a.Size,
+			IsImage:     strings.HasPrefix(a.MimeType, "image/"),
+			IsVideo:     strings.HasPrefix(a.MimeType, "video/"),
+			CacheStatus: "ready", // bytes are proxied live, never cached to disk
+			CreatedAt:   nilIfEmpty(a.CreatedAt),
+			ContentURL:  attachmentURL(d.IssueKey, id),
+		})
+	}
+	for _, c := range d.Comments {
+		id := c.ExternalID
+		if id == "" {
+			id = c.ID
+		}
+		res.Comments = append(res.Comments, detailComment{
+			CommentID:       id,
+			Author:          nilIfEmpty(c.Author),
+			AuthorEmail:     nilIfEmpty(view.emailByAccount[c.AuthorID]),
+			AuthorAccountID: nilIfEmpty(c.AuthorID),
+			Body:            c.Body, // the client's fallback when the ADF will not render
+			RawBody:         c.BodyADF,
+			CreatedAt:       nilIfEmpty(c.CreatedAt),
+		})
+	}
+	for _, h := range d.History {
+		e := historyEntry{
+			At:    nilIfEmpty(h.At),
+			Field: h.Field,
+			From:  nilIfEmpty(h.FromValue),
+			To:    nilIfEmpty(h.ToValue),
+			By:    nilIfEmpty(h.Author),
+		}
+		if h.Field == "status" {
+			e.FromCategory = nilIfEmpty(view.categories[h.FromID])
+			e.ToCategory = nilIfEmpty(view.categories[h.ToID])
+		}
+		res.History = append(res.History, e)
+	}
+	for _, l := range d.LinkedIssues {
+		res.LinkedIssues = append(res.LinkedIssues, linkedIssue{
+			Key:            l.Key,
+			Type:           l.Type,
+			Direction:      l.Direction,
+			Summary:        nilIfEmpty(l.Summary),
+			StatusCategory: nilIfEmpty(l.StatusCategory),
+		})
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// attachmentURL builds the one URL shape the client's ADF renderer accepts as an
+// image source: `<apiBase><key>/attachments/<id>/content/`, unescaped. Changing
+// it silently blocks every inline image (web/src/lib/adf.ts, safeMediaUrl).
+func attachmentURL(key, id string) string {
+	return apiBase + key + "/attachments/" + id + "/content/"
+}
+
+/* ── search ── */
+
+func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	keys, err := s.db.Search(r.URL.Query().Get("q"), limit)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"keys": keys, "total": len(keys)})
+}
+
+/* ── attachment byte proxy ── */
+
+// ponytail: a 2-minute ceiling on one attachment download, no resumption.
+var proxyClient = &http.Client{Timeout: 2 * time.Minute}
+
+func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
+	cfg := s.config()
+	if !cfg.HasCredential() {
+		fail(w, http.StatusConflict, "credential_required")
+		return
+	}
+	target := strings.TrimRight(cfg.Site, "/") + "/rest/api/3/attachment/content/" +
+		url.PathEscape(r.PathValue("id"))
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	// Jira answers with a redirect to a pre-signed media URL. Go drops the
+	// Authorization header on a cross-host redirect, which is exactly right: the
+	// token must not travel to the media host.
+	req.SetBasicAuth(cfg.Email, cfg.Token)
+	res, err := proxyClient.Do(req)
+	if err != nil {
+		log.Printf("server: attachment proxy: %v", err)
+		fail(w, http.StatusBadGateway, "attachment_unavailable")
+		return
+	}
+	defer res.Body.Close()
+
+	switch {
+	case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
+		// Tell the UI to reopen the credential dialog rather than showing a broken
+		// image: the stored token is wrong or expired.
+		fail(w, http.StatusConflict, "credential_required")
+		return
+	case res.StatusCode == http.StatusNotFound:
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	case res.StatusCode != http.StatusOK:
+		fail(w, http.StatusBadGateway, "attachment_unavailable")
+		return
+	}
+
+	ct := res.Header.Get("Content-Type")
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", ct)
+	if cl := res.Header.Get("Content-Length"); cl != "" {
+		w.Header().Set("Content-Length", cl)
+	}
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	// These bytes are attacker-controlled as far as this origin is concerned, so
+	// nothing scriptable may render inline here.
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if !inlineSafe(ct) {
+		w.Header().Set("Content-Disposition", "attachment")
+	}
+	if _, err := io.Copy(w, res.Body); err != nil {
+		log.Printf("server: attachment stream: %v", err)
+	}
+}
+
+// inlineSafe reports whether a type may render in the page. SVG is an image that
+// executes script, so it is deliberately excluded.
+func inlineSafe(contentType string) bool {
+	mime := strings.TrimSpace(strings.SplitN(contentType, ";", 2)[0])
+	if mime == "image/svg+xml" {
+		return false
+	}
+	return strings.HasPrefix(mime, "image/") || strings.HasPrefix(mime, "video/") ||
+		strings.HasPrefix(mime, "audio/") || mime == "application/pdf"
+}
+
+/* ── derived view (members, group index, status categories) ── */
+
+// derivedView is what bootstrap, delta and detail all need but the store does
+// not hold: the member directory and its hash, the account-id → email index the
+// detail panel resolves comment authors through, and the status id → category
+// map history entries are annotated from. Building it scans the mirror, so it is
+// cached until either the sync version or the configuration moves.
+type derivedView struct {
+	key            string
+	members        []member
+	membersVersion string
+	emailByAccount map[string]string
+	categories     map[string]string
+	groupByEmail   map[string]string
+	rules          []config.GroupRule
+	groupsEnabled  bool
+}
+
+// derived returns the cached view for this sync version, rebuilding it when
+// stale. lites may be nil, in which case it scans; bootstrap passes the rows it
+// already read so the mirror is scanned once per request, not twice.
+func (s *server) derived(version int64, lites []store.IssueLite) (*derivedView, error) {
+	key := fmt.Sprintf("%d:%d", version, s.gen.Load())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cached != nil && s.cached.key == key {
+		return s.cached, nil
+	}
+	if lites == nil {
+		var err error
+		if lites, err = s.db.IssueLites(); err != nil {
+			return nil, err
+		}
+	}
+	v := buildView(key, s.config(), lites)
+	s.cached = v
+	return v, nil
+}
+
+func buildView(key string, cfg *config.Config, lites []store.IssueLite) *derivedView {
+	v := &derivedView{
+		key:            key,
+		emailByAccount: map[string]string{},
+		categories:     map[string]string{},
+		groupByEmail:   map[string]string{},
+		rules:          cfg.GroupRules,
+	}
+	byEmail := map[string]*member{}
+	for i := range lites {
+		l := &lites[i]
+		if l.StatusID != "" && l.StatusCategory != "" {
+			v.categories[l.StatusID] = l.StatusCategory
+		}
+		// Only assignees carry an email in the mirror, so only they can seed the
+		// directory: members are keyed by email on the client.
+		email := deref(l.AssigneeEmail)
+		if email == "" {
+			continue
+		}
+		m := byEmail[email]
+		if m == nil {
+			m = &member{Email: email}
+			byEmail[email] = m
+		}
+		if m.Name == "" {
+			m.Name = deref(l.Assignee)
+		}
+		if m.JiraAccountID == nil {
+			m.JiraAccountID = nilIfEmpty(deref(l.AssigneeID))
+		}
+	}
+	// Configuration wins: group, department, job role and avatar exist nowhere
+	// else.
+	for _, cm := range cfg.Members {
+		if cm.Email == "" {
+			continue
+		}
+		m := byEmail[cm.Email]
+		if m == nil {
+			m = &member{Email: cm.Email}
+			byEmail[cm.Email] = m
+		}
+		if cm.Name != "" {
+			m.Name = cm.Name
+		} else if m.Name == "" {
+			m.Name = cm.DisplayName
+		}
+		m.DisplayName = nilIfEmpty(cm.DisplayName)
+		m.Department = nilIfEmpty(cm.Department)
+		m.JobRole = nilIfEmpty(cm.JobRole)
+		m.Group = nilIfEmpty(cm.Group)
+		m.ProfileImage = nilIfEmpty(cm.AvatarURL)
+		m.AvatarURL = m.ProfileImage
+		if cm.JiraAccountID != "" {
+			m.JiraAccountID = nilIfEmpty(cm.JiraAccountID)
+		}
+		if cm.Group != "" {
+			v.groupByEmail[cm.Email] = cm.Group
+			v.groupsEnabled = true
+		}
+	}
+	v.groupsEnabled = v.groupsEnabled || len(cfg.GroupRules) > 0
+
+	v.members = make([]member, 0, len(byEmail))
+	for _, m := range byEmail {
+		if m.JiraAccountID != nil {
+			v.emailByAccount[*m.JiraAccountID] = m.Email
+		}
+		v.members = append(v.members, *m)
+	}
+	sort.Slice(v.members, func(i, j int) bool { return v.members[i].Email < v.members[j].Email })
+	v.membersVersion = hashMembers(v.members)
+	return v
+}
+
+// hashMembers is the token the client returns as `mv`; equal hashes let delta
+// skip the member payload.
+func hashMembers(members []member) string {
+	b, err := json.Marshal(members)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func (v *derivedView) issues(lites []store.IssueLite) []issueLite {
+	out := make([]issueLite, 0, len(lites))
+	for _, l := range lites {
+		out = append(out, issueLite{IssueLite: l, D1Group: v.group(l)})
+	}
+	return out
+}
+
+// group classifies one issue: the first matching rule wins, otherwise the
+// assignee's configured group. Nothing configured means the field is omitted
+// rather than sent as null, which keeps the client's group surfaces empty
+// instead of showing a bogus bucket.
+func (v *derivedView) group(l store.IssueLite) *string {
+	if !v.groupsEnabled {
+		return nil
+	}
+	for _, r := range v.rules {
+		if ruleMatches(r, l) {
+			return nilIfEmpty(r.Group)
+		}
+	}
+	return nilIfEmpty(v.groupByEmail[deref(l.AssigneeEmail)])
+}
+
+// ruleMatches: conditions are ANDed, values inside one condition are ORed, an
+// empty condition is always true.
+func ruleMatches(r config.GroupRule, l store.IssueLite) bool {
+	if len(r.Projects) > 0 && !contains(r.Projects, l.ProjectKey) {
+		return false
+	}
+	if len(r.Labels) > 0 && !overlaps(r.Labels, l.Labels) {
+		return false
+	}
+	if len(r.Components) > 0 && !overlaps(r.Components, l.Components) {
+		return false
+	}
+	return true
+}
+
+func contains(list []string, v string) bool {
+	for _, s := range list {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}
+
+func overlaps(want, have []string) bool {
+	for _, v := range have {
+		if contains(want, v) {
+			return true
+		}
+	}
+	return false
+}
+
+/* ── sync health ── */
+
+// health maps the store's sync bookkeeping onto the shape the sidebar renders.
+// "정상" is not decoration: the client suppresses the tooltip line when the
+// message equals it (web/src/components/sidebar/SidebarNav.svelte).
+//
+// Staleness is measured from the last run that finished without an error, never
+// from the watermark: a quiet project leaves its watermark in the past forever
+// and would read as permanently delayed.
+func (s *server) health(st store.SyncState) syncHealth {
+	src := syncSource{Key: "jira", Label: "Jira", Status: "healthy", Message: "정상", SyncedAt: st.SyncedAt}
+	overall := "healthy"
+	switch {
+	case st.LastError != nil && *st.LastError != "":
+		src.Status, src.Message, overall = "failed", *st.LastError, "failed"
+	case st.SyncedAt == nil && st.Watermark == "" && st.LastFullSyncAt == nil:
+		src.Status, src.Message, overall = "missing", "아직 동기화되지 않았습니다.", "warning"
+	case s.stale(st.SyncedAt):
+		src.Status, src.Message, overall = "stale", "최근 동기화가 밀렸습니다.", "warning"
+	}
+	if src.SyncedAt == nil {
+		src.SyncedAt = st.LastFullSyncAt
+	}
+	return syncHealth{Overall: overall, CheckedAt: store.Now(), Sources: []syncSource{src}}
+}
+
+// stale allows a wide margin — ten missed incremental runs — because this only
+// has to catch a sync loop that died without recording an error.
+func (s *server) stale(syncedAt *string) bool {
+	if syncedAt == nil {
+		return false
+	}
+	at, err := time.Parse(time.RFC3339, *syncedAt)
+	if err != nil {
+		return false
+	}
+	interval := time.Duration(s.config().SyncIntervalSec) * time.Second
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	return time.Since(at) > 10*interval
+}
