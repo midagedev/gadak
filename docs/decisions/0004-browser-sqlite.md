@@ -90,3 +90,34 @@ Constraints for that target:
 - Someone wants scry's mirror synced across their own machines, which is a real
   problem these tools do solve — though libSQL embedded replicas or plain file
   sync would come first.
+
+## Addendum (2026-08) — static JSON + service worker, not sqlite-wasm
+
+**Status:** accepted for the v0.3 hosted demo.
+
+The decision above said "yes for the demo" via `sqlite-wasm` over a static
+`demo.db`. When the demo target was built, a smaller path won:
+
+The web client already boots from one `GET bootstrap/` JSON document and loads
+`{key}/detail/` on demand, with IndexedDB as a durable cache and all filtering
+in memory. It does not speak SQL. Shipping a WASM SQLite engine, OPFS plumbing,
+and a second store adapter would only re-implement the same boot path with a
+larger bundle and a second schema runtime to keep in step.
+
+Instead the hosted demo:
+
+1. Freezes `examples/demo.db` into static files with `scry export-static`
+   (`bootstrap.json`, `detail/<KEY>.json`, attachment bytes) — same handlers the
+   live server uses, so the snapshot cannot drift from the API.
+2. Ships a demo-only service worker (`demo-sw.js`, gated by `VITE_HOSTED_DEMO=1`)
+   that rewrites `apiBase` fetches onto those files and answers writes with
+   `501 demo_read_only`.
+3. Relies on the existing in-memory list filter for typing search. Server FTS
+   (`search/`) is unavailable offline and surfaces as a toast — an accepted demo
+   limit, not a reason to pull WASM SQLite.
+
+`sqlite-wasm` remains a valid answer if the demo ever needs genuine SQL in the
+browser (cross-issue aggregation, agent-style queries in the page). Wanting a
+URL people can open without installing is not that trigger; static JSON already
+provides it.
+

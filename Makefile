@@ -1,5 +1,6 @@
 .PHONY: build test vet typecheck bench scan docker plugins-test \
-	media media-web media-tui media-agent media-prep media-deps
+	media media-web media-tui media-agent media-prep media-deps \
+	hosted-demo hosted-demo-test
 
 build:
 	CGO_ENABLED=0 go build -trimpath -o bin/scry ./cmd/scry
@@ -12,6 +13,16 @@ test:
 
 typecheck:
 	npm run typecheck
+
+# Zero-install hosted demo (static UI + demo.db snapshot for GitHub Pages).
+# Output: dist/hosted/. Does not touch dist/app (go:embed).
+hosted-demo: build
+	node tools/hosted-demo/build.mjs
+
+# Playwright smoke against dist/hosted (not in CI). Requires hosted-demo first.
+hosted-demo-test: hosted-demo
+	./node_modules/.bin/playwright install chromium
+	./node_modules/.bin/playwright test --config e2e/hosted/playwright.config.ts
 
 # Latency benches over a synthetic 10k fixture (T6.7 / G5).
 # Not a CI fail gate — machine variance is too high; record output in gates.md.

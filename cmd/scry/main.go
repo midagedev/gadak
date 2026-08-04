@@ -2,7 +2,7 @@
 //
 // Implemented: init, sync (--full/--watch), serve (syncs by default), tui,
 // issue, search, comment, transition, assign, sql, status, mcp, demo,
-// install-service, profiles, version.
+// export-static, install-service, profiles, version.
 // Specified but not implemented: snapshot.
 // See specs/000-product/tasks.md for the current state of each.
 //
@@ -691,6 +691,7 @@ Commands:
                    [--uninstall]
   status           sync state and row counts [--json]
   demo             serve the bundled snapshot, no Jira account needed
+  export-static    freeze demo.db into static JSON for hosted demo  <outdir>
   tui              terminal issue navigator (local mirror)
   profiles         list configured profiles
   version          print version
@@ -755,6 +756,8 @@ func main() {
 		err = cmdMCP(args[1:])
 	case "demo":
 		err = cmdDemo(args[1:])
+	case "export-static":
+		err = cmdExportStatic(args[1:])
 	case "tui":
 		err = cmdTUI(args[1:])
 	case "profiles":
