@@ -281,6 +281,13 @@ type SyncState struct {
 	LastFullSyncAt *string `json:"last_full_sync_at"`
 	LastError      *string `json:"last_error"`
 	SchemaVersion  int     `json:"schema_version"`
+	// FirstSyncAt is the first successful sync for this source (retention).
+	FirstSyncAt *string `json:"first_sync_at,omitempty"`
+	// SyncCount is the number of successful sync runs (retention).
+	SyncCount int64 `json:"sync_count"`
+	// LastNotifiedAt is the OS-notification watermark. Independent of
+	// feed_reads: delivering a desktop alert must not mark the feed read.
+	LastNotifiedAt *string `json:"last_notified_at,omitempty"`
 }
 
 // SyncState reads the state for one source. A source that has never synced
@@ -290,10 +297,12 @@ func (db *DB) SyncState(sourceID string) (SyncState, error) {
 	var wm *string
 	err := db.sql.QueryRow(`
 		SELECT st.watermark, st.version, st.last_full_sync_at, st.last_error,
-		       st.schema_version, src.synced_at
+		       st.schema_version, src.synced_at,
+		       st.first_sync_at, st.sync_count, st.last_notified_at
 		FROM sync_state st LEFT JOIN sources src ON src.id = st.source_id
 		WHERE st.source_id = ?`, sourceID).
-		Scan(&wm, &s.Version, &s.LastFullSyncAt, &s.LastError, &s.SchemaVersion, &s.SyncedAt)
+		Scan(&wm, &s.Version, &s.LastFullSyncAt, &s.LastError, &s.SchemaVersion, &s.SyncedAt,
+			&s.FirstSyncAt, &s.SyncCount, &s.LastNotifiedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, nil
 	}
@@ -314,19 +323,25 @@ type SyncResult struct {
 }
 
 // RecordSync stores the run's bookkeeping. It does not bump `version`: a run
-// that changed no rows must leave the ETag alone.
+// that changed no rows must leave the ETag alone. A successful run advances
+// first_sync_at (once) and sync_count.
 func (db *DB) RecordSync(sourceID string, r SyncResult) error {
-	var errText, fullAt any
+	var errText, fullAt, firstAt any
+	inc := 0
 	if r.Err != nil {
 		errText = r.Err.Error()
+	} else {
+		inc = 1
+		firstAt = Now()
 	}
 	if r.FullSync {
 		fullAt = Now()
 	}
 	return db.write(func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`
-			INSERT INTO sync_state (source_id, watermark, last_full_sync_at, last_error, schema_version)
-			VALUES (?,?,?,?,?)
+			INSERT INTO sync_state (source_id, watermark, last_full_sync_at, last_error, schema_version,
+			                       first_sync_at, sync_count)
+			VALUES (?,?,?,?,?,?,?)
 			ON CONFLICT(source_id) DO UPDATE SET
 				watermark = CASE
 					WHEN excluded.watermark IS NOT NULL
@@ -334,14 +349,33 @@ func (db *DB) RecordSync(sourceID string, r SyncResult) error {
 					THEN excluded.watermark ELSE sync_state.watermark END,
 				last_full_sync_at = COALESCE(excluded.last_full_sync_at, sync_state.last_full_sync_at),
 				last_error = excluded.last_error,
-				schema_version = excluded.schema_version`,
-			sourceID, nz(r.Watermark), fullAt, errText, db.schemaVersion); err != nil {
+				schema_version = excluded.schema_version,
+				first_sync_at = CASE
+					WHEN excluded.first_sync_at IS NOT NULL AND sync_state.first_sync_at IS NULL
+					THEN excluded.first_sync_at ELSE sync_state.first_sync_at END,
+				sync_count = sync_state.sync_count + excluded.sync_count`,
+			sourceID, nz(r.Watermark), fullAt, errText, db.schemaVersion, firstAt, inc); err != nil {
 			return err
 		}
 		if r.Err != nil {
 			return nil
 		}
 		_, err := tx.Exec(`UPDATE sources SET synced_at = ? WHERE id = ?`, Now(), sourceID)
+		return err
+	})
+}
+
+// SetLastNotifiedAt advances the OS-notification watermark. Never touches feed_reads.
+func (db *DB) SetLastNotifiedAt(sourceID, at string) error {
+	if at == "" {
+		at = Now()
+	}
+	return db.write(func(tx *sql.Tx) error {
+		_, err := tx.Exec(`
+			INSERT INTO sync_state (source_id, last_notified_at, schema_version, version)
+			VALUES (?, ?, ?, 0)
+			ON CONFLICT(source_id) DO UPDATE SET last_notified_at = excluded.last_notified_at`,
+			sourceID, at, db.schemaVersion)
 		return err
 	})
 }

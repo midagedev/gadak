@@ -334,6 +334,9 @@ the user has marked read.
 | `last_full_sync_at` | TEXT | |
 | `last_error` | TEXT | NULL when the last sync succeeded |
 | `schema_version` | INTEGER | Migration level, mirroring `PRAGMA user_version` |
+| `first_sync_at` | TEXT | First successful sync for this source (retention instrumentation). Set once |
+| `sync_count` | INTEGER | Successful sync runs. Failed runs leave it alone |
+| `last_notified_at` | TEXT | OS desktop-notification watermark. Independent of `feed_reads` — delivering an alert must not mark the feed read |
 
 The `version` counter is what lets `bootstrap` answer `304 Not Modified` without
 hashing the whole mirror. It moves only when row content changed, which is what
@@ -346,6 +349,20 @@ same transaction as the migration itself, so a half-applied schema is impossible
 a database whose level is higher than the binary knows is refused, never
 silently used.
 
+## `issues_full` (view)
+
+Agent convenience view: `issues` columns plus `summary` from `items.title`, so
+queries that need a title do not have to join the spine.
+
+```sql
+CREATE VIEW issues_full AS
+  SELECT it.title AS summary, i.*
+  FROM issues i JOIN items it ON it.id = i.item_id;
+```
+
+Prefer `issues_full` when the answer needs a human-readable title. The base
+`issues` table still has no title column — that lives on `items` (or this view).
+
 ## Example queries
 
 These are the contract in practice. They must keep working across minor versions,
@@ -356,10 +373,10 @@ is spelled out rather than `USING (item_id)` because the spine's primary key is
 
 ```sql
 -- Everything reopened in the last month, worst first
-SELECT i.key, it.title, i.reopen_count, i.reopened_at
-FROM issues i JOIN items it ON it.id = i.item_id
-WHERE i.reopen_count > 0 AND i.reopened_at > datetime('now', '-1 month')
-ORDER BY i.reopen_count DESC, i.reopened_at DESC;
+SELECT key, summary, reopen_count, reopened_at
+FROM issues_full
+WHERE reopen_count > 0 AND reopened_at > datetime('now', '-1 month')
+ORDER BY reopen_count DESC, reopened_at DESC;
 
 -- Full-text across bodies and comments
 SELECT i.key, it.title

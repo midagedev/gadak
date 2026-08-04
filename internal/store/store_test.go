@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -33,9 +34,10 @@ var documentedColumns = map[string][]string{
 	"saved_views":   {"id", "name", "config", "created_at", "updated_at"},
 	"watches":       {"key", "created_at"},
 	"favorites":     {"key", "created_at"},
-	"sync_state":    {"source_id", "watermark", "version", "last_full_sync_at", "last_error", "schema_version"},
-	"enrichments":   {"key", "kind", "payload", "source", "updated_at"},
-	"feed_reads":    {"event_id", "read_at"},
+	"sync_state": {"source_id", "watermark", "version", "last_full_sync_at", "last_error", "schema_version",
+		"first_sync_at", "sync_count", "last_notified_at"},
+	"enrichments": {"key", "kind", "payload", "source", "updated_at"},
+	"feed_reads":  {"event_id", "read_at"},
 }
 
 func TestSchemaMatchesDataModel(t *testing.T) {
@@ -191,10 +193,10 @@ var exampleQueries = []struct {
 	wantMin int
 }{
 	{"reopened last month", `
-		SELECT i.key, it.title, i.reopen_count, i.reopened_at
-		FROM issues i JOIN items it ON it.id = i.item_id
-		WHERE i.reopen_count > 0 AND i.reopened_at > datetime('now', '-1 month')
-		ORDER BY i.reopen_count DESC, i.reopened_at DESC`, 1},
+		SELECT key, summary, reopen_count, reopened_at
+		FROM issues_full
+		WHERE reopen_count > 0 AND reopened_at > datetime('now', '-1 month')
+		ORDER BY reopen_count DESC, reopened_at DESC`, 1},
 	{"full text across bodies and comments", `
 		SELECT i.key, it.title
 		FROM items_fts f
@@ -236,6 +238,92 @@ func TestDocumentedExampleQueries(t *testing.T) {
 		if n < q.wantMin {
 			t.Errorf("%s returned %d rows, want at least %d", q.name, n, q.wantMin)
 		}
+	}
+}
+
+func TestIssuesFullView(t *testing.T) {
+	db := openTemp(t)
+	seed(t, db)
+	var key, summary string
+	err := db.sql.QueryRow(`SELECT key, summary FROM issues_full WHERE key = 'NMB-1'`).Scan(&key, &summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary == "" {
+		t.Fatal("issues_full.summary empty — view must expose items.title")
+	}
+	if summary != "Duplicate charges on card retry" {
+		t.Errorf("summary %q", summary)
+	}
+	// No join required: agents get the title from one table-shaped path.
+	rows, err := db.sql.Query(`SELECT key, summary FROM issues_full WHERE status_category != 'done' LIMIT 5`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		n++
+	}
+	if n == 0 {
+		t.Fatal("issues_full returned no open issues")
+	}
+}
+
+func TestSyncCountAndFirstSyncAt(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	// Failed sync must not bump.
+	if err := db.RecordSync("jira", SyncResult{Err: fmt.Errorf("network down")}); err != nil {
+		t.Fatal(err)
+	}
+	st, err := db.SyncState("jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.SyncCount != 0 || st.FirstSyncAt != nil {
+		t.Fatalf("failed sync advanced counters: count=%d first=%v", st.SyncCount, st.FirstSyncAt)
+	}
+	if err := db.RecordSync("jira", SyncResult{Watermark: "2026-08-01T00:00:00Z", FullSync: true}); err != nil {
+		t.Fatal(err)
+	}
+	st, _ = db.SyncState("jira")
+	if st.SyncCount != 1 || st.FirstSyncAt == nil {
+		t.Fatalf("first success: count=%d first=%v", st.SyncCount, st.FirstSyncAt)
+	}
+	first := *st.FirstSyncAt
+	if err := db.RecordSync("jira", SyncResult{Watermark: "2026-08-02T00:00:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	st, _ = db.SyncState("jira")
+	if st.SyncCount != 2 {
+		t.Errorf("sync_count %d, want 2", st.SyncCount)
+	}
+	if st.FirstSyncAt == nil || *st.FirstSyncAt != first {
+		t.Errorf("first_sync_at changed: %v → %v", first, st.FirstSyncAt)
+	}
+}
+
+func TestLastNotifiedAtIndependentOfFeedReads(t *testing.T) {
+	db := openTemp(t)
+	if err := db.SetLastNotifiedAt("jira", "2026-08-04T12:00:00.000Z"); err != nil {
+		t.Fatal(err)
+	}
+	st, err := db.SyncState("jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.LastNotifiedAt == nil || *st.LastNotifiedAt != "2026-08-04T12:00:00.000Z" {
+		t.Errorf("last_notified_at %v", st.LastNotifiedAt)
+	}
+	var n int
+	if err := db.sql.QueryRow(`SELECT COUNT(*) FROM feed_reads`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("SetLastNotifiedAt must not touch feed_reads, got %d rows", n)
 	}
 }
 

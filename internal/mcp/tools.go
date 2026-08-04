@@ -267,6 +267,10 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, bool) {
 	st["watermark"] = ss.Watermark
 	st["version"] = ss.Version
 	st["schema_version"] = ss.SchemaVersion
+	st["sync_count"] = ss.SyncCount
+	if ss.FirstSyncAt != nil {
+		st["first_sync_at"] = *ss.FirstSyncAt
+	}
 	if ss.LastFullSyncAt != nil {
 		st["last_full_sync_at"] = *ss.LastFullSyncAt
 	} else {

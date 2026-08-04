@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -197,4 +197,16 @@ CREATE TABLE feed_reads (
   event_id TEXT PRIMARY KEY,
   read_at  TEXT NOT NULL
 );
+`
+
+// schemaV5 adds retention instrumentation (first_sync_at / sync_count), an OS
+// notification watermark separate from feed_reads, and the agent convenience
+// view issues_full (title as summary without joining items).
+const schemaV5 = `
+ALTER TABLE sync_state ADD COLUMN first_sync_at TEXT;
+ALTER TABLE sync_state ADD COLUMN sync_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE sync_state ADD COLUMN last_notified_at TEXT;
+CREATE VIEW issues_full AS
+  SELECT it.title AS summary, i.*
+  FROM issues i JOIN items it ON it.id = i.item_id;
 `
