@@ -4,17 +4,20 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-04, after the v0.1 implementation push.
+Last updated: 2026-08-04, after the pre-launch push (three surfaces, plugin
+examples, release pipeline).
 
 ## In one paragraph
 
-The tool works end to end. `scry init && scry sync && scry serve` mirrors a real
-Jira site into SQLite and serves the full UI from it; `scry demo` does the same
-from a bundled snapshot with no account at all. Sync (full, incremental,
-reconcile), the read API, write-through, the settings UI, the enrichments plugin
-boundary, i18n (English default, Korean locale), and a Playwright E2E suite are
-all implemented and tested. What remains before a public launch is release
-polish, listed below.
+The tool works end to end on three surfaces over one SQLite mirror: the web UI
+(`scry serve`), the terminal UI (`scry tui`), and the CLI that doubles as the
+agent interface (`scry issue/search/comment/transition/assign/sql`, plus an MCP
+server for clients without a shell). `scry demo` runs the whole thing against a
+bundled snapshot with no Jira account. Sync (full, incremental, reconcile), the
+read API, write-through, the settings UI, the enrichments plugin boundary with
+working examples, i18n, single-binary packaging, and a Playwright suite are
+implemented and tested. Identity is the stored Jira credential — there is no
+account and no login.
 
 ## What is verified to work
 
@@ -29,7 +32,12 @@ snapshot, not assumed.
 | Live write-through | Comment and transition executed against real Jira; response carried the refreshed IssueLite (`comment_count` 0→1) |
 | Settings round-trip without restart | `PUT settings/` → `config.json` reflects immediately; `groupRules` classified 39 issues on the next read |
 | Plugin boundary | Two SQL statements (insert into `enrichments`, bump `sync_state.version`) surfaced a deploy badge and PR list in the API |
-| Browser E2E | `npx playwright test --config e2e/playwright.config.ts` → 8/8 against `examples/demo.db` |
+| Browser E2E | `playwright test --config e2e/playwright.config.ts` → 10/10 against `examples/demo.db` |
+| Derived reopen_reason / cloned_from | Live demo-site sync: 87 reopened issues, 42 carrying a derived reason |
+| Plugin examples end to end | `examples/plugins/github-prs` and `csv-import` run against a copy of the snapshot; the API then returns `linked_prs` and both the list badge (`deploy_status`) and detail `deploy` |
+| Single binary | `go build` embeds `dist/app`; a fresh binary with no `--static` serves the UI and `/api/v1/issues/bootstrap/` returns 200 |
+| Agent CLI | `scry issue NMB-20`, `scry search pagination`, `--json` shapes verified against the demo profile |
+| Secret scan | `scripts/scan-internal.sh` clean across 189 tracked files and the demo snapshot |
 | Whole test tree | `go test ./...` green across store/jira/sync/server/tools; `npm run typecheck` 0 errors |
 | Gates | G1–G4 test evidence recorded per task in `../specs/000-product/tasks.md` |
 
@@ -69,13 +77,14 @@ never shadow mirrored fields.
 
 | Item | Task | Note |
 | --- | --- | --- |
-| `scry snapshot` (timestamp spreading, volume scaling) | T6.4 | `examples/demo.db` was scrubbed by hand this time; the command automates the next refresh |
-| 10k-issue bench fixture + latency gate | T6.7 / G5 | **done** — `tools/bench-fixture`, `make bench`; bootstrap ≈ 61 ms / search ≈ 0.06 ms at 10k (see `gates.md` G5). Not a CI fail gate. |
-| Secret & internal-string scan in CI | T7.4 | **done** — `scripts/scan-internal.sh` + CI `scan` job |
-| Dockerfile, release process, signed binaries | T7.5 / T7.6 | **done** — multi-stage `Dockerfile`; `.goreleaser.yaml` + tag-triggered `release.yml` (checksums only) |
-| Live-site assignee display names | T6.8 | The committed snapshot is clean (fictional personas); the live site shows `midagedev+…` until each invitation is accepted. Blocks live-site screenshots only |
-| Feed/push as a local watch-based design | v0.2 | Deferred endpoints return clean 404s today |
-| MCP server | T5.4 | The SQLite file plus `scry sql` already cover shell-capable agents |
+| `scry snapshot` (timestamp spreading, volume scaling) | T6.4 | `examples/demo.db` was scrubbed by hand; the command would automate the next refresh |
+| Live-site assignee display names | T6.8 | The committed snapshot is clean (fictional personas); the live site shows placeholder handles until each invitation is accepted. Affects live-site screenshots only |
+| Feed / push as a local watch-based design | v0.2 | Deferred endpoints return clean 404s today |
+| Bootstrap payload cost at 10k | G5 | ≈61 ms/op on an M4 Pro — over the 50 ms product target, but it is a once-per-boot cost and the client caches it in IndexedDB. Streaming or a columnar payload is the lever if it matters |
+
+Everything else on the original launch list is done: benchmarks (T6.7), the CI
+secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
+(T5.4), and the demo media pipeline.
 
 ## Operational notes
 
