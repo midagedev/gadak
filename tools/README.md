@@ -24,6 +24,13 @@ Flags: `--dry-run`, `--skip-setup` (versions and components already exist),
 `--no-history` (skip transitions, comments, links), `--assignees <id,id>`,
 `--seed <int>`.
 
+Repair a site whose workflow states do not match the dataset — issues, comments,
+and links are left alone and only statuses are re-driven, matched by summary:
+
+```bash
+python3 tools/seed-demo-jira.py --data examples/demo-seed.json --repair-states
+```
+
 ### Requirements
 
 - Projects must exist and be **company-managed**. Team-managed projects do not
@@ -43,6 +50,15 @@ Flags: `--dry-run`, `--skip-setup` (versions and components already exist),
   `scry snapshot`, not here.
 - Deleting issues needs the "Delete Issues" permission, which the default
   company-managed scheme does not grant. Plan runs so you do not need to undo them.
+- Default workflows offer a direct `Backlog -> Done` edge. Taking it leaves a
+  single changelog entry, which makes derived fields correct but the history
+  timeline empty — so the script walks the status *category* ladder one rung at a
+  time (`new -> indeterminate -> done`) instead, and only falls back to a direct
+  jump when no stepwise path exists.
+- A `reopened` issue is driven to done and then back, because that is the only
+  way to get a real done-to-not-done transition into the changelog. History
+  cannot be backfilled after the fact: pushing an already-done issue backwards
+  later would register as a reopen it was never supposed to have.
 
 ## `examples/demo-seed.json`
 

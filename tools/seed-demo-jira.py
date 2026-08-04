@@ -398,27 +398,63 @@ def project_status_ids(project: str) -> dict[str, str]:
     return out
 
 
-def transition_to(issue_key: str, target_id: str, hops: int = 4) -> bool:
-    """Walk the workflow until the issue reaches `target_id`.
+CATEGORY_LADDER = ["new", "indeterminate", "done"]
 
-    Workflows may not offer the target as a direct transition, so intermediate
-    steps are taken when needed. Returns True if the target was reached.
+
+def transition_to(issue_key: str, target_id: str, target_category: str | None = None,
+                  hops: int = 5) -> bool:
+    """Walk the workflow to `target_id`, one category rung at a time.
+
+    Deliberately avoids a direct edge that skips rungs. Default Jira workflows
+    offer Backlog -> Done, and taking it leaves a changelog with a single entry —
+    which makes derived fields technically correct but the history timeline
+    useless, and gives a demo nothing to show. Stepping through the intermediate
+    categories produces the multi-entry history a real issue accumulates.
     """
+    if target_category is None:
+        target_category = "done"
+    want_rung = CATEGORY_LADDER.index(target_category)
+
     for _ in range(hops):
         res = call("GET", f"/rest/api/3/issue/{issue_key}/transitions")
         options = (res or {}).get("transitions", [])
         if not options:
             return False
-        direct = next((t for t in options if t["to"]["id"] == target_id), None)
-        if direct:
+
+        # Where are we now? Any transition tells us via its own source omission,
+        # so ask the issue instead.
+        current = call("GET", f"/rest/api/3/issue/{issue_key}?fields=status")
+        if not current:
+            return False
+        status = current["fields"]["status"]
+        if status["id"] == target_id:
+            return True
+        here_rung = CATEGORY_LADDER.index(status["statusCategory"]["key"])
+
+        if here_rung == want_rung:
+            # Right category, wrong status (e.g. Backlog vs Selected).
+            same = next((t for t in options if t["to"]["id"] == target_id), None)
+            if not same:
+                return False
+            return call("POST", f"/rest/api/3/issue/{issue_key}/transitions",
+                        {"transition": {"id": same["id"]}}) is not None
+
+        step = 1 if want_rung > here_rung else -1
+        next_category = CATEGORY_LADDER[here_rung + step]
+        candidates = [t for t in options
+                      if t["to"]["statusCategory"]["key"] == next_category]
+        if not candidates:
+            # No rung-by-rung path exists in this workflow; accept a direct jump
+            # rather than leaving the issue in the wrong state.
+            direct = next((t for t in options if t["to"]["id"] == target_id), None)
+            if not direct:
+                return False
             return call("POST", f"/rest/api/3/issue/{issue_key}/transitions",
                         {"transition": {"id": direct["id"]}}) is not None
-        # No direct edge — step forward and try again.
-        forward = [t for t in options if t["to"]["statusCategory"]["key"] != "new"]
-        if not forward:
-            return False
+        # Prefer the target itself when it happens to be on the next rung.
+        pick = next((t for t in candidates if t["to"]["id"] == target_id), candidates[0])
         if call("POST", f"/rest/api/3/issue/{issue_key}/transitions",
-                {"transition": {"id": forward[0]["id"]}}) is None:
+                {"transition": {"id": pick["id"]}}) is None:
             return False
     return False
 
@@ -429,6 +465,10 @@ def apply_states(keys: list[str], order: list[dict], per_project: dict) -> tuple
     A `reopened` issue is pushed to done and then back to its target state, which
     is what makes the changelog contain a genuine done -> not-done transition.
     """
+    state_category = {
+        "backlog": "new", "selected": "new",
+        "inprogress": "indeterminate", "done": "done",
+    }
     moved = reopened = 0
     for key, item in zip(keys, order):
         statuses = per_project[item["project"]]["statuses"]
@@ -436,13 +476,13 @@ def apply_states(keys: list[str], order: list[dict], per_project: dict) -> tuple
         target = statuses.get(state)
         if item.get("reopened"):
             done_id = statuses.get("done")
-            if done_id and transition_to(key, done_id):
+            if done_id and transition_to(key, done_id, "done"):
                 moved += 1
             back = target if state != "done" else statuses.get("backlog")
-            if back and transition_to(key, back):
+            if back and transition_to(key, back, state_category.get(state, "new")):
                 reopened += 1
         elif target and state != "backlog":
-            if transition_to(key, target):
+            if transition_to(key, target, state_category.get(state)):
                 moved += 1
     return moved, reopened
 
