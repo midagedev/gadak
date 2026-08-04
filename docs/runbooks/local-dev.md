@@ -30,15 +30,15 @@ npm run typecheck                # svelte-check
 
 ## Populating a demo Jira
 
-`tools/seed-demo-jira.py` creates releases, components, issues, transition
+`go run ./tools/seed-demo` creates releases, components, issues, transition
 history, comments, and links in a throwaway Jira site.
 
 ```bash
 export JIRA_SITE=https://your-site.atlassian.net
 export JIRA_EMAIL=you@example.com
 export JIRA_TOKEN=...
-python3 tools/seed-demo-jira.py --projects NMB,NMA,NMS --issues 300
-python3 tools/seed-demo-jira.py --data examples/demo-seed.json --skip-setup
+go run ./tools/seed-demo --projects NMB,NMA,NMS --issues 300
+go run ./tools/seed-demo --data examples/demo-seed.json --skip-setup
 ```
 
 Requirements and gotchas:

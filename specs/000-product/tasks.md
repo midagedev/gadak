@@ -86,7 +86,7 @@ Legend: **done** / **partial** / **todo**
 
 | # | Task | State | Notes |
 | --- | --- | --- | --- |
-| T6.1 | Jira seeding tool | done | `tools/seed-demo-jira.py`: dataset-driven or generated, plus `--repair-states` |
+| T6.1 | Jira seeding tool | done | `tools/seed-demo`: dataset-driven or generated, plus `--repair-states` |
 | T6.2 | Public demo site populated | done | 519 issues across three fictional products. Categories: 209 todo / 144 in progress / 166 done. Status-change depth 0–7 per issue. 95 reopen transitions, 339 issues with comments, 264 assigned, 61 link edges |
 | T6.3 | Authored (non-templated) issue bodies | done | 210 of the 519 are hand-authored: 210/210 unique summaries, 642/642 unique paragraphs, 339/339 unique comments. The other 309 are procedurally generated and visibly more repetitive in the detail panel |
 | T6.8 | Demo assignee display names | blocked | Four accounts are assigned across the site, but three show an email local part. Jira Cloud refuses to let an admin set `displayName` for a non-managed account, so each invitation has to be accepted and the name set by its holder. Blocks public screenshots |

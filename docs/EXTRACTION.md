@@ -100,6 +100,6 @@ so scry uses a different one:
 
 The public demo data is not derived from the originating installation. It is
 generated from scratch against a personal Jira Cloud site with three fictional
-products, using `tools/seed-demo-jira.py`. No real issue text, customer, or
+products, using `go run ./tools/seed-demo`. No real issue text, customer, or
 person appears in it. The snapshot that ships in `examples/` is scanned for
 credential-shaped strings before it is committed.
