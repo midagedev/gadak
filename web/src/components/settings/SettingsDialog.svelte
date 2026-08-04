@@ -14,6 +14,7 @@
   import type { ScrySettings, SettingsRuntime } from '../../lib/api'
   import type { ScryFeatures } from '../../lib/config'
   import { write } from '../../stores/write.svelte'
+  import { me } from '../../stores/me.svelte'
   import KeyValueRows from './KeyValueRows.svelte'
   import { trapFocus } from '../../lib/focus-trap'
 
@@ -551,6 +552,31 @@
               </span>
             </label>
           {/each}
+          <!-- In-tab browser Notification permission (not web push / VAPID). -->
+          <div class="mt-1 flex items-start gap-2.5 border-t border-border-subtle pt-3">
+            <span class="min-w-0 flex-1">
+              <span class="text-text-primary">{t('settings.browserNotify')}</span>
+              <span class="block text-[11px] leading-relaxed text-text-muted">
+                {t('settings.browserNotifyDesc')}
+              </span>
+              {#if me.browserNotifyPermission === 'granted'}
+                <span class="mt-1 block text-[11px] text-text-secondary">{t('settings.browserNotifyGranted')}</span>
+              {:else if me.browserNotifyPermission === 'denied'}
+                <span class="mt-1 block text-[11px] text-status-reopen">{t('settings.browserNotifyDenied')}</span>
+              {:else if me.browserNotifyPermission === 'unsupported'}
+                <span class="mt-1 block text-[11px] text-text-muted">{t('settings.browserNotifyUnsupported')}</span>
+              {/if}
+            </span>
+            {#if me.browserNotifyPermission === 'default'}
+              <button
+                type="button"
+                class="flex-none rounded-md border border-border-strong px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                onclick={() => void me.requestBrowserNotificationPermission()}
+              >
+                {t('settings.browserNotifyEnable')}
+              </button>
+            {/if}
+          </div>
           <label class="mt-2 flex flex-col gap-1 border-t border-border-subtle pt-3">
             <span class="text-[11px] text-text-secondary">{t('settings.qaDashboardUrl')}</span>
             <input class={INPUT} bind:value={qaDashboardUrl} placeholder="https://qa.example.com" />

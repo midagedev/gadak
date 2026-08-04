@@ -30,6 +30,8 @@
     assignee: t('feed.whyAssignee'),
     assigned: t('feed.whyNewAssignee'),
     reporter: t('feed.whyReporter'),
+    // Server emits `watched`; keep `watch` for any older payload.
+    watched: t('feed.whyWatch'),
     watch: t('feed.whyWatch'),
     mention: t('feed.whyMention'),
   }
@@ -55,6 +57,13 @@
       return `${payloadString(item, 'from')} → ${payloadString(item, 'to')}`
     }
     if (item.event_type === 'fields_changed') {
+      // Server ships field names as payload.fields[]; older shape used changes[].label.
+      const fields = Array.isArray(item.payload.fields) ? item.payload.fields : []
+      const fromFields = fields
+        .slice(0, 3)
+        .map((f) => (typeof f === 'string' ? f : ''))
+        .filter(Boolean)
+      if (fromFields.length) return fromFields.join(', ')
       const changes = Array.isArray(item.payload.changes) ? item.payload.changes : []
       return changes
         .slice(0, 3)

@@ -355,6 +355,15 @@ export const en = {
   'feed.whyReporter': 'Reported',
   'feed.whyWatch': 'Watching',
   'feed.whyMention': 'Mentioned',
+  'feed.notifyCreated': 'created',
+  'feed.notifyStatus': 'status',
+  'feed.notifyReopened': 'reopened',
+  'feed.notifyAssigned': 'assigned',
+  'feed.notifyComment': 'comment',
+  'feed.notifyAttachment': 'attachment',
+  'feed.notifyFields': 'fields',
+  'feed.notifyTitle': '{key} {kind} by {actor}',
+  'feed.notifyTitleNoActor': '{key} {kind}',
 
   /* ── Notifications ── */
   'notif.title': 'Notification settings',
@@ -550,6 +559,13 @@ export const en = {
     'Show who is viewing the same issue — not useful for a single local user',
   'settings.featureFeed': 'Personal feed',
   'settings.featureFeedDesc': 'Activity feed of mentions, watches, and assignee changes',
+  'settings.browserNotify': 'Desktop notifications (this browser)',
+  'settings.browserNotifyDesc':
+    'Show a system notification when new feed items arrive while scry is open. Does not use web push.',
+  'settings.browserNotifyEnable': 'Allow notifications',
+  'settings.browserNotifyGranted': 'Allowed',
+  'settings.browserNotifyDenied': 'Blocked in browser settings',
+  'settings.browserNotifyUnsupported': 'Not supported in this browser',
   'settings.featurePush': 'Web push',
   'settings.featurePushDesc':
     'Browser notifications for feed events — needs server VAPID keys',
