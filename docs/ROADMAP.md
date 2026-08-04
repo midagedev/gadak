@@ -42,6 +42,25 @@ number-jumping; each minor is earned by shipped, verified work.
   From here, new surfaces land on web and TUI together.
 - UX debt from the pre-launch audit (P2 tier): comment drafts, offline badge,
   keyboard write actions.
+- **JQL → SQL bridge.** Paste a JQL query, get the roughly equivalent SQL.
+  Common clauses only (`project`, `status`, `assignee`, relative dates,
+  `ORDER BY`); anything else is honestly marked untranslatable. Users arrive
+  with JQL assets; this removes the migration tax (`docs/PAIN_POINTS.md` §6).
+- **Query recipes.** Ship the questions JQL cannot ask as named, documented
+  queries: stalled N days, reopened, version ranges, comment-history search.
+  Demonstrates SQL > JQL instead of asserting it.
+
+## Later, research-backed (see docs/PAIN_POINTS.md)
+
+- **Rate-limit visibility.** Jira's shared 65k-point pool has no user-facing
+  dashboard and 429s are invisible until they hit. The client already honors
+  `Retry-After` with backoff; counting and showing our own call volume would be
+  a dashboard Jira does not offer.
+- **Field-bloat report.** "Which custom fields are actually used" is one SQL
+  query over a mirror and impossible to see in Jira itself.
+- **Offline write queue.** Deliberately deferred: optimistic write-through
+  already covers short offline windows, and conflict resolution is a product
+  of its own. Wait for observed demand.
 
 ## v0.4 — workspaces (multi-account)
 

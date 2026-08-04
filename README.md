@@ -273,6 +273,7 @@ source-specific work merges until the neutral layer stays neutral.
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) — fitting scry to your team
 - [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) — what exists, what does not
 - [`docs/CONCEPT.md`](docs/CONCEPT.md) — the product idea and the loop it optimizes
+- [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md) — the Jira complaints scry answers, with sources
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components and data flow
 - [`docs/TUI.md`](docs/TUI.md) — terminal UI keys, and CJK font guidance
 - [`docs/PLUGINS.md`](docs/PLUGINS.md) — the enrichment contract
