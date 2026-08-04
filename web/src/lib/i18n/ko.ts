@@ -575,6 +575,28 @@ export const ko = {
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
 
+  /* ── Command palette ── */
+  'palette.title': '커맨드 팔레트',
+  'palette.placeholder': '이슈·뷰·액션으로 이동…',
+  'palette.sectionIssues': '이슈',
+  'palette.sectionViews': '뷰',
+  'palette.sectionActions': '액션',
+  'palette.recent': '최근 본 이슈',
+  'palette.empty': '결과 없음',
+  'palette.hintNav': '↑↓ 이동 · Enter 실행 · Esc 닫기',
+  'palette.viewBuiltin': '기본 뷰',
+  'palette.viewPersonal': '내 뷰',
+  'palette.viewTeam': '팀 뷰',
+  'palette.actionNewIssue': '새 이슈',
+  'palette.actionSettings': '설정 열기',
+  'palette.actionResetFilters': '필터 초기화',
+  'palette.actionToggleReopened': '재오픈 필터 토글',
+  'palette.actionToggleUnassigned': '미할당 필터 토글',
+  'palette.actionToggleStale': '정체 필터 토글',
+  'palette.actionLocale': '언어를 {lang} 로 전환',
+  'palette.actionSyncStatus': '동기화 상태 보기',
+  'palette.syncToast': '{overall} · 동기화 {when}',
+
   /* ── App / shell ── */
   'app.loadFailed': '데이터를 불러오지 못했습니다. 네트워크/VPN 상태를 확인하세요.',
   'app.authGate': '로컬 서버에 연결할 수 없습니다.',

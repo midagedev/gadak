@@ -34,6 +34,7 @@
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
   import SettingsDialog from './components/settings/SettingsDialog.svelte'
+  import CommandPalette from './components/palette/CommandPalette.svelte'
   import ToastHost from './components/write/ToastHost.svelte'
   import MediaViewer from './components/detail/MediaViewer.svelte'
   import { mediaViewer } from './stores/media-viewer.svelte'
@@ -43,6 +44,8 @@
 
   /** 서버 설정 다이얼로그(사이드바 톱니). 스토어를 새로 만들 이유가 없어 셸 로컬 상태. */
   let serverSettingsOpen = $state(false)
+  /** 커맨드 팔레트(⌘K). 여는 주체가 여기뿐이라 역시 셸 로컬 상태. */
+  let paletteOpen = $state(false)
 
   // 공유 링크/대시보드/푸시에서 직접 진입한 이슈를 첫 렌더 전에 복원한다.
   // 그렇지 않으면 selection → URL 이펙트가 빈 선택으로 `issue`를 먼저 지울 수 있다.
@@ -92,15 +95,23 @@
     }
   })
 
-  // ── 전역 단축키: c = 새 이슈 (입력 필드 포커스/다이얼로그 열림 중엔 무시) ──
+  // ── 전역 단축키 ──
+  //  ⌘K/Ctrl+K = 커맨드 팔레트 토글(입력 필드 포커스 중에도 열려야 하므로 가드 앞에서 처리).
+  //  c = 새 이슈 (입력 필드 포커스/다이얼로그 열림 중엔 무시).
   function onGlobalKey(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault()
+      paletteOpen = !paletteOpen
+      return
+    }
     if (e.key !== 'c' || e.metaKey || e.ctrlKey || e.altKey) return
     const t = e.target as HTMLElement | null
     if (t) {
       const tag = t.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return
     }
-    if (me.loginOpen || write.settingsOpen || write.newIssueOpen || serverSettingsOpen) return
+    if (me.loginOpen || write.settingsOpen || write.newIssueOpen || serverSettingsOpen || paletteOpen)
+      return
     e.preventDefault()
     write.openNewIssue()
   }
@@ -247,6 +258,13 @@
 
 {#if serverSettingsOpen}
   <SettingsDialog onclose={() => (serverSettingsOpen = false)} />
+{/if}
+
+{#if paletteOpen}
+  <CommandPalette
+    onclose={() => (paletteOpen = false)}
+    onOpenSettings={() => (serverSettingsOpen = true)}
+  />
 {/if}
 
 <!-- 토스트(우하단) — 항상 마운트 -->

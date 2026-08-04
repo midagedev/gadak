@@ -576,6 +576,28 @@ export const en = {
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
 
+  /* ── Command palette ── */
+  'palette.title': 'Command palette',
+  'palette.placeholder': 'Jump to an issue, view, or action…',
+  'palette.sectionIssues': 'Issues',
+  'palette.sectionViews': 'Views',
+  'palette.sectionActions': 'Actions',
+  'palette.recent': 'Recently viewed',
+  'palette.empty': 'No matches',
+  'palette.hintNav': '↑↓ move · Enter run · Esc close',
+  'palette.viewBuiltin': 'Built-in view',
+  'palette.viewPersonal': 'My view',
+  'palette.viewTeam': 'Team view',
+  'palette.actionNewIssue': 'New issue',
+  'palette.actionSettings': 'Open settings',
+  'palette.actionResetFilters': 'Reset filters',
+  'palette.actionToggleReopened': 'Toggle reopened filter',
+  'palette.actionToggleUnassigned': 'Toggle unassigned filter',
+  'palette.actionToggleStale': 'Toggle stale filter',
+  'palette.actionLocale': 'Switch language to {lang}',
+  'palette.actionSyncStatus': 'Show sync status',
+  'palette.syncToast': '{overall} · synced {when}',
+
   /* ── App / shell ── */
   'app.loadFailed': 'Could not load data. Check network/VPN.',
   'app.authGate': 'Cannot connect to the local server.',
