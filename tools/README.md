@@ -73,6 +73,16 @@ go run ./tools/seed-demo --data examples/demo-seed.json --repair-states
   cannot be backfilled after the fact: pushing an already-done issue backwards
   later would register as a reopen it was never supposed to have.
 
+## `bench-fixture`
+
+Builds a deterministic synthetic `scry.db` for latency work (T6.7 / G5). No
+network — only `internal/store`.
+
+```bash
+go run ./tools/bench-fixture -out /tmp/bench.db -issues 10000
+make bench   # BenchmarkBootstrap10k + BenchmarkSearch10k
+```
+
 ## `examples/demo-seed.json`
 
 The dataset the seeder projects onto Jira. Every issue has a unique summary and

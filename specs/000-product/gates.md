@@ -65,12 +65,16 @@ Ordering and task detail live in `tasks.md` and `../../docs/ROADMAP.md`.
 
 ## G5 — Latency
 
+Measured on Apple M4 Pro (darwin/arm64) with `make bench` (2026-08-04).
+Fixture: synthetic 10k issues via `tools/bench-fixture` / `seedBenchDB` (seed 42).
+These are not CI fail gates — wall times vary by machine; re-run `make bench` to refresh.
+
 | Check | Evidence |
 | --- | --- |
-| Filter, group, and sort stay under 50 ms at 10k issues | Bench over the synthetic 10k snapshot, recorded in the run log |
-| Cold start to interactive under 1 s with a warm cache | Browser smoke measurement |
+| Filter, group, and sort stay under 50 ms at 10k issues | Client-side filter/group/sort is in-memory over the bootstrap payload (no network on keystroke — constitution). Server-side measurements for the payload itself: **bootstrap** `BenchmarkBootstrap10k` ≈ **61.5 ms/op** (66.9 MB/op, 600k allocs); **FTS search** `BenchmarkSearch10k` ≈ **0.063 ms/op** (3.0 KB/op). Bootstrap is slightly over the 50 ms product target on this machine; search is well under. Re-measure with `make bench`. |
+| Cold start to interactive under 1 s with a warm cache | Browser smoke measurement (not re-run this pass) |
 | No network request on a keystroke path | Smoke test records zero requests while typing into the search box |
-| Server memory under 100 MB at 10k issues | Observed during the bench run |
+| Server memory under 100 MB at 10k issues | Bootstrap bench allocs ≈ 67 MB/op on the response path; process RSS not separately profiled. Fixture DB ≈ 10 MB on disk (`go run ./tools/bench-fixture -out /tmp/bench.db -issues 10000`) |
 
 ## G6 — Demo and Public Readiness
 

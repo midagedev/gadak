@@ -84,6 +84,17 @@ jobs:
             exit 1
           fi
 
+  scan:
+    name: Secret and internal-string scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan tracked files and demo.db
+        run: bash scripts/scan-internal.sh
+
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
