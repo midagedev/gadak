@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2}
+var migrations = []string{schemaV1, schemaV2, schemaV3}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -178,4 +178,13 @@ CREATE TABLE enrichments (
   PRIMARY KEY (key, kind)
 );
 CREATE INDEX enrichments_kind ON enrichments(kind);
+`
+
+// schemaV3 adds two derived columns (rules in data-model.md): reopen_reason is
+// the first comment written at or after the last reopen (a heuristic, not a
+// Jira field), cloned_from is the key of the issue this one was cloned from.
+// Existing rows backfill on the next full sync — Derive computes both.
+const schemaV3 = `
+ALTER TABLE issues ADD COLUMN reopen_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE issues ADD COLUMN cloned_from TEXT NOT NULL DEFAULT '';
 `

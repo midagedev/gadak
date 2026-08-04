@@ -101,7 +101,8 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		CurrentCategory: r.Issue.StatusCategory,
 		Priority:        r.Issue.Priority,
 		Priorities:      b.Priorities,
-		CommentCount:    len(r.Comments),
+		Comments:        r.Comments,
+		Links:           r.Links,
 	})
 
 	is := r.Issue
@@ -114,9 +115,9 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			assignee, assignee_id, assignee_email, reporter, reporter_id, reporter_email, parent_key,
 			labels, components, fix_versions, affects_versions, environment_text,
 			duedate, resolution, created_at, updated_at,
-			status_changed_at, resolved_at, reopen_count, reopened_at,
-			assignee_changed_at, comment_count, description_adf, custom, raw)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			status_changed_at, resolved_at, reopen_count, reopened_at, reopen_reason,
+			assignee_changed_at, comment_count, description_adf, custom, raw, cloned_from)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		it.ID, it.Key, nz(is.ProjectKey), nz(is.IssueType), nz(is.IssueTypeID),
 		nz(is.Status), nz(is.StatusID), nz(is.StatusCategory), nz(is.Priority), d.PriorityRank,
 		nz(is.Assignee), nz(is.AssigneeID), nz(is.AssigneeEmail), nz(is.Reporter),
@@ -124,9 +125,9 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		jsonArray(is.Labels), jsonArray(is.Components), jsonArray(is.FixVersions),
 		jsonArray(is.AffectsVersions), nz(is.EnvironmentText),
 		nz(is.Duedate), nz(is.Resolution), nz(it.CreatedAt), nz(it.UpdatedAt),
-		d.StatusChangedAt, d.ResolvedAt, d.ReopenCount, d.ReopenedAt,
+		d.StatusChangedAt, d.ResolvedAt, d.ReopenCount, d.ReopenedAt, d.ReopenReason,
 		d.AssigneeChangedAt, d.CommentCount, jsonRaw(is.DescriptionADF),
-		jsonObject(is.Custom), jsonRaw(is.Raw),
+		jsonObject(is.Custom), jsonRaw(is.Raw), d.ClonedFrom,
 	); err != nil {
 		return false, err
 	}

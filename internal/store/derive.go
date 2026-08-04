@@ -1,6 +1,10 @@
 package store
 
-import "sort"
+import (
+	"sort"
+	"strings"
+	"unicode/utf8"
+)
 
 // CategoryDone is the only status category with meaning to the derived rules.
 // Every rule keys on the category, never on a status name: the internal tool
@@ -17,7 +21,8 @@ type DeriveInput struct {
 	CurrentCategory string            // the issue's category right now
 	Priority        string
 	Priorities      []string // site priority names, most urgent first
-	CommentCount    int
+	Comments        []Comment
+	Links           []Link
 }
 
 // Derived holds the columns scry computes because the source does not provide
@@ -27,9 +32,11 @@ type Derived struct {
 	ResolvedAt        *string
 	ReopenCount       int
 	ReopenedAt        *string
+	ReopenReason      string
 	AssigneeChangedAt *string
 	CommentCount      int
 	PriorityRank      int
+	ClonedFrom        string
 }
 
 // Derive computes every derived field in one pass over the issue's changelog.
@@ -37,8 +44,9 @@ type Derived struct {
 // ever miss a reopen — never invent one.
 func Derive(in DeriveInput) Derived {
 	d := Derived{
-		CommentCount: in.CommentCount,
+		CommentCount: len(in.Comments),
 		PriorityRank: priorityRank(in.Priority, in.Priorities),
+		ClonedFrom:   clonedFrom(in.Links),
 	}
 
 	entries := make([]ChangeEntry, len(in.Changelog))
@@ -74,7 +82,52 @@ func Derive(in DeriveInput) Derived {
 	if in.CurrentCategory != CategoryDone {
 		d.ResolvedAt = nil
 	}
+	if d.ReopenedAt != nil {
+		d.ReopenReason = reopenReason(in.Comments, *d.ReopenedAt)
+	}
 	return d
+}
+
+// reopenReason is the body of the earliest comment written at or after the
+// last reopen — a heuristic: on teams where the person reopening explains why
+// in a comment, this surfaces that explanation. Timestamps are ISO-8601 UTC
+// (the connector normalizes them), so string comparison is chronological.
+func reopenReason(comments []Comment, reopenedAt string) string {
+	best := ""
+	bestAt := ""
+	for _, c := range comments {
+		if c.CreatedAt == "" || c.CreatedAt < reopenedAt {
+			continue
+		}
+		if bestAt == "" || c.CreatedAt < bestAt {
+			bestAt = c.CreatedAt
+			best = c.BodyText
+		}
+	}
+	const maxLen = 1000
+	if len(best) > maxLen {
+		// Do not split a UTF-8 sequence mid-rune: back up to a rune start.
+		i := maxLen
+		for i > 0 && !utf8.RuneStart(best[i]) {
+			i--
+		}
+		best = best[:i]
+	}
+	return best
+}
+
+// clonedFrom is the key of the issue this one was cloned from: the target of
+// an inward link whose type name contains "clone" (Jira's default "Cloners"
+// type). Caveat: link type names are site configuration created in the site's
+// language, so a site whose clone type carries a non-English name derives
+// nothing here — there is no language-stable id to key on.
+func clonedFrom(links []Link) string {
+	for _, l := range links {
+		if l.Direction == "inward" && strings.Contains(strings.ToLower(l.Type), "clone") {
+			return l.TargetKey
+		}
+	}
+	return ""
 }
 
 // priorityRank is the 1-based position in the site's priority list; 0 when the

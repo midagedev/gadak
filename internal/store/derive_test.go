@@ -159,7 +159,8 @@ func TestDeriveCountsAndPriorityRank(t *testing.T) {
 		{"", 0},
 		{"Not On This Site", 0},
 	} {
-		got := Derive(DeriveInput{Priority: c.priority, Priorities: priorities, CommentCount: 4})
+		got := Derive(DeriveInput{Priority: c.priority, Priorities: priorities,
+			Comments: []Comment{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}}})
 		if got.PriorityRank != c.want {
 			t.Errorf("priority %q rank = %d, want %d", c.priority, got.PriorityRank, c.want)
 		}
@@ -196,4 +197,72 @@ func deref(s *string) string {
 		return "<nil>"
 	}
 	return *s
+}
+
+func TestDeriveReopenReason(t *testing.T) {
+	reopen := []ChangeEntry{
+		statusChange("2026-07-05T00:00:00Z", "1", "5", englishNames),
+		statusChange("2026-07-10T00:00:00Z", "5", "3", englishNames),
+	}
+	comments := []Comment{
+		{ID: "c1", BodyText: "before the reopen", CreatedAt: "2026-07-06T00:00:00Z"},
+		{ID: "c2", BodyText: "this is why it came back", CreatedAt: "2026-07-10T01:00:00Z"},
+		{ID: "c3", BodyText: "a later comment", CreatedAt: "2026-07-11T00:00:00Z"},
+	}
+	got := Derive(DeriveInput{Changelog: reopen, Categories: categories,
+		CurrentCategory: "inprogress", Comments: comments})
+	if got.ReopenReason != "this is why it came back" {
+		t.Fatalf("reopen_reason = %q", got.ReopenReason)
+	}
+
+	// No comment after the reopen -> empty, never a pre-reopen comment.
+	got = Derive(DeriveInput{Changelog: reopen, Categories: categories,
+		CurrentCategory: "inprogress", Comments: comments[:1]})
+	if got.ReopenReason != "" {
+		t.Fatalf("reopen_reason without post-reopen comment = %q", got.ReopenReason)
+	}
+
+	// Never reopened -> empty even with comments.
+	got = Derive(DeriveInput{Categories: categories, CurrentCategory: "new", Comments: comments})
+	if got.ReopenReason != "" {
+		t.Fatalf("reopen_reason without reopen = %q", got.ReopenReason)
+	}
+}
+
+func TestDeriveReopenReasonTruncatesOnRuneBoundary(t *testing.T) {
+	long := ""
+	for len(long) < 1100 {
+		long += "가나다라마바사아자차" // 3 bytes per rune
+	}
+	got := Derive(DeriveInput{
+		Changelog: []ChangeEntry{
+			statusChange("2026-07-05T00:00:00Z", "1", "5", englishNames),
+			statusChange("2026-07-10T00:00:00Z", "5", "3", englishNames),
+		},
+		Categories: categories, CurrentCategory: "inprogress",
+		Comments: []Comment{{ID: "c", BodyText: long, CreatedAt: "2026-07-10T01:00:00Z"}},
+	})
+	if len(got.ReopenReason) == 0 || len(got.ReopenReason) > 1000 {
+		t.Fatalf("truncated length = %d", len(got.ReopenReason))
+	}
+	for i, r := range got.ReopenReason {
+		if r == '�' {
+			t.Fatalf("invalid rune at byte %d — split mid-sequence", i)
+		}
+	}
+}
+
+func TestDeriveClonedFrom(t *testing.T) {
+	links := []Link{
+		{Type: "Blocks", Direction: "outward", TargetKey: "NMA-1"},
+		{Type: "Cloners", Direction: "inward", TargetKey: "NMS-42"},
+	}
+	if got := Derive(DeriveInput{Links: links}); got.ClonedFrom != "NMS-42" {
+		t.Fatalf("cloned_from = %q", got.ClonedFrom)
+	}
+	// Outward clone links ("clones X") are not an origin.
+	outOnly := []Link{{Type: "Cloners", Direction: "outward", TargetKey: "NMS-42"}}
+	if got := Derive(DeriveInput{Links: outOnly}); got.ClonedFrom != "" {
+		t.Fatalf("outward clone treated as origin: %q", got.ClonedFrom)
+	}
 }

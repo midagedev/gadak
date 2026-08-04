@@ -123,6 +123,8 @@ The Jira projection. Joined to `items` on `item_id`.
 | `description_adf` | TEXT (JSON) | Raw ADF, rendered by the UI |
 | `custom` | TEXT (JSON object) | Mapped custom fields, keyed by config alias |
 | `raw` | TEXT (JSON) | Full source payload. Escape hatch; not a contract |
+| `reopen_reason` | TEXT | Derived (v3): first comment at/after the last reopen. Heuristic; `''` when none |
+| `cloned_from` | TEXT | Derived (v3): key of the clone origin. `''` when not a clone |
 
 Indexes: `(project_key, status_category)`, `(assignee_id)`, `(updated_at)`,
 `(status_category, updated_at)`, `(reopen_count)`, `(key)` — the last one serves
@@ -143,6 +145,8 @@ otherwise depend on site-specific naming keys on `statusCategory` instead.
 | `priority_rank` | Position in the site's priority list, 1-based; 0 when unset or unknown |
 | `items.body_text` | ADF flattened to plain text, plus any custom fields configured as body text. It lives on the spine, not on `issues`, because it is what FTS indexes |
 | `comment_count` | Number of rows in `comments` for the issue |
+| `reopen_reason` | Body text of the earliest comment created at or after `reopened_at`, capped at 1000 bytes on a rune boundary. A heuristic: it surfaces the explanation on teams where whoever reopens says why in a comment. Empty when never reopened or no comment followed |
+| `cloned_from` | Target of an inward link whose type name contains "clone" (Jira's default "Cloners" type). Caveat: link type names are site configuration created in the site's language — a non-English clone type derives nothing, and there is no language-stable id to key on. The read API also exposes `source_project`, the key's project prefix |
 
 A status id the site's status list does not cover counts as **not** `done`. That
 direction is deliberate: it can only miss a reopen, never invent one.

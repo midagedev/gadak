@@ -37,7 +37,12 @@ type IssueLite struct {
 	ResolvedAt      *string  `json:"resolved_at"`
 	ReopenCount     int      `json:"reopen_count"`
 	ReopenedAt      *string  `json:"reopened_at"`
-	CommentCount    int      `json:"comment_count"`
+	ReopenReason    *string  `json:"reopen_reason"`
+	ClonedFrom      *string  `json:"cloned_from"`
+	// SourceProject is ClonedFrom's project prefix, precomputed because the
+	// list filter groups by it.
+	SourceProject *string `json:"source_project"`
+	CommentCount  int     `json:"comment_count"`
 	// Custom holds the configured field aliases from issues.custom. The server
 	// spreads them into the response as top-level keys, which is where the client
 	// reads severity and friends.
@@ -52,7 +57,8 @@ const issueLiteSelect = `
 	       i.assignee, i.assignee_id, i.assignee_email, i.reporter, i.reporter_email, i.parent_key,
 	       COALESCE(i.labels, '[]'), COALESCE(i.components, '[]'), COALESCE(i.fix_versions, '[]'),
 	       i.duedate, i.resolution, i.created_at, i.updated_at,
-	       i.status_changed_at, i.resolved_at, i.reopen_count, i.reopened_at, i.comment_count,
+	       i.status_changed_at, i.resolved_at, i.reopen_count, i.reopened_at,
+	       COALESCE(i.reopen_reason, ''), COALESCE(i.cloned_from, ''), i.comment_count,
 	       COALESCE(i.custom, '{}')
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
@@ -79,15 +85,27 @@ func (db *DB) issueLites(query string, args ...any) ([]IssueLite, error) {
 	for rows.Next() {
 		var v IssueLite
 		var labels, components, fixVersions, custom string
+		var reopenReason, clonedFrom string
 		if err := rows.Scan(&v.IssueKey, &v.Summary, &v.ProjectKey, &v.IssueType, &v.IssueTypeID,
 			&v.Status, &v.StatusID, &v.StatusCategory, &v.Priority, &v.PriorityRank,
 			&v.Assignee, &v.AssigneeID, &v.AssigneeEmail, &v.Reporter, &v.ReporterEmail, &v.EpicKey,
 			&labels, &components, &fixVersions,
 			&v.Duedate, &v.Resolution, &v.CreatedAt, &v.UpdatedAt,
-			&v.StatusChangedAt, &v.ResolvedAt, &v.ReopenCount, &v.ReopenedAt, &v.CommentCount,
+			&v.StatusChangedAt, &v.ResolvedAt, &v.ReopenCount, &v.ReopenedAt,
+			&reopenReason, &clonedFrom, &v.CommentCount,
 			&custom,
 		); err != nil {
 			return nil, err
+		}
+		if reopenReason != "" {
+			v.ReopenReason = &reopenReason
+		}
+		if clonedFrom != "" {
+			v.ClonedFrom = &clonedFrom
+			if i := strings.IndexByte(clonedFrom, '-'); i > 0 {
+				prefix := clonedFrom[:i]
+				v.SourceProject = &prefix
+			}
 		}
 		v.Labels = parseArray(&labels)
 		v.Components = parseArray(&components)
