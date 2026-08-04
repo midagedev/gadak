@@ -1,8 +1,14 @@
 # Contributing
 
-scry is pre-release. The web application is mature; the server is a skeleton.
-`specs/000-product/tasks.md` is the honest inventory — read it before assuming
-something works.
+scry is pre-release but working end to end: sync, the read API, write-through,
+the web UI, the TUI, and the CLI are implemented and tested. What remains is
+release polish. `docs/STATE_OF_PLAY.md` and `specs/000-product/tasks.md` are the
+honest inventory — read them before assuming something is or is not there.
+
+The most useful contributions right now are a second source connector behind the
+neutral storage layer, plugin examples in `examples/plugins/`, and reports from
+Jira sites configured differently from the ones we test against (other
+languages, team-managed projects, unusual workflows).
 
 Before contributing, read:
 
@@ -22,10 +28,16 @@ go build ./... && go vet ./...
 ## Before Sending Changes
 
 ```bash
-go build ./... && go vet ./...
+go build ./... && go vet ./... && go test ./...
 npm run typecheck
 npm run build
+./node_modules/.bin/playwright test --config e2e/playwright.config.ts
+bash scripts/scan-internal.sh
 ```
+
+`scan-internal.sh` is the one that keeps this repository publishable — it fails on
+token shapes, company strings, and non-allowlisted tenant hosts, including inside
+the committed demo snapshot. CI runs it too.
 
 Add a test for anything non-trivial: parsing, derived fields, sync cursors,
 schema access, or security checks.
