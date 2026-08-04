@@ -67,20 +67,36 @@ Opens the database read-only and rejects anything that is not a `SELECT` or
 `WITH`. It exists so an agent that has been given a narrow command allowlist can
 still be granted mirror access without granting arbitrary `sqlite3`.
 
-## MCP server (planned, not in v0.1)
+## MCP server
 
-For agents without shell access. It stays a thin wrapper over the same schema:
+For agents **without shell access** (Claude Desktop and similar). Agents that can
+run a shell should keep using `scry sql` / `scry issue` / `scry search` — MCP is
+the fallback path, not the preferred one. Docs and client config: `docs/MCP.md`.
+
+```bash
+scry mcp                     # stdio JSON-RPC 2.0; stdout is frames only
+scry --profile demo mcp
+```
+
+Implemented as a thin stdlib server (`internal/mcp`) over the same schema. No
+MCP SDK dependency. Protocol version `2025-03-26` (a client that asks for another
+version is answered with this one, not rejected).
 
 | Tool | Shape |
 | --- | --- |
-| `scry_query` | `{sql}` -> rows. Read-only, statement-type checked, row-capped |
-| `scry_search` | `{text, limit}` -> keys and titles, via FTS |
-| `scry_issue` | `{key}` -> full detail including comments and history |
-| `scry_status` | `{}` -> sync state |
+| `scry_query` | `{sql, limit?}` → rows. Read-only (`mode=ro` + SELECT/WITH only), default limit 200, hard max 1000, byte-capped; truncation is reported in the result |
+| `scry_search` | `{text, limit?}` → `{key, summary, status}` rows, via FTS |
+| `scry_issue` | `{key}` → full detail including comments and history (plus list fields) |
+| `scry_status` | `{}` → sync state (watermark, version, last_error, counts) |
 
-Deliberately not planned: one tool per question. `scry_query` plus the documented
-schema subsumes them, and every extra tool is context an agent has to read before
-it can act.
+Tool execution failures (bad SQL, missing key, no mirror) return
+`isError: true` with a readable message so the agent can fix and retry.
+Protocol violations use JSON-RPC error codes. Missing DB guidance:
+`run scry init && scry sync`.
+
+Deliberately not planned: one tool per question, or any write tool. `scry_query`
+plus the documented schema subsumes pre-baked reads, and every extra tool is
+context an agent has to read before it can act. Writes stay on the CLI and REST.
 
 ## Anti-patterns
 

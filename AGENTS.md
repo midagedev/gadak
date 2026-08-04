@@ -12,13 +12,14 @@ scry keeps a local SQLite mirror of Jira at `~/.scry/scry.db` (`--profile x` put
 it under `~/.scry/profiles/x/`). Reads never touch the network. Writes go to Jira
 and re-read the issue into the mirror afterwards.
 
-Three layers. Use the lowest one that answers the question:
+Four layers. Use the lowest one that answers the question:
 
 | Layer | Use it for | Needs |
 | --- | --- | --- |
 | **SQL** | anything relational, aggregated, or historical | the file, or `scry sql` |
 | **CLI** | one issue, one search, one write | the `scry` binary |
 | **REST** | the same data from something that is not a shell | `scry serve` running |
+| **MCP** | shell-less clients only (Claude Desktop, etc.) | `scry mcp` — see [docs/MCP.md](docs/MCP.md) |
 
 ### Check freshness before you answer
 
@@ -187,6 +188,20 @@ curl -s -X PUT localhost:7777/api/v1/issues/NMB-140/assignee/ \
 A write with no stored credential answers `409 {"error":"credential_required"}`.
 The full endpoint list, response shapes, and error bodies are in
 `specs/000-product/contracts/api.md`.
+
+### MCP (for clients without a shell)
+
+If you can run shell commands, **stop here** — use SQL or the CLI above. MCP is
+only for hosts that cannot spawn `scry sql` / `scry issue` as one-shot processes.
+
+```bash
+scry mcp                          # stdio JSON-RPC; logs go to stderr only
+scry --profile demo mcp
+```
+
+Four tools, no more: `scry_query` (read-only SQL), `scry_search`, `scry_issue`,
+`scry_status`. There are no write tools on MCP. Setup examples (Claude Desktop
+config, profiles, troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
 
 ## Developing scry
 
