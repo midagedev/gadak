@@ -50,15 +50,15 @@ keeps an installed mirror alive or removes a reason not to try one.
   opts out). A stale mirror is the fastest way to lose a habit.
 - ✅ **Retention counters + `issues_full`.** `sync_state.first_sync_at` /
   `sync_count` on successful syncs; SQL view gives agents a title without a join.
-- **Zero-install hosted demo** — promoted from v0.5. Static JSON snapshot +
+- ✅ **Zero-install hosted demo** — promoted from v0.5. Static JSON snapshot +
   service worker on GitHub Pages (not sqlite-wasm — see ADR 0004 addendum): no
   binary, no account, no trust decision. `make hosted-demo` → `dist/hosted/`;
-  `.github/workflows/pages.yml` deploys on main once Pages is enabled.
-- **Query recipes.** The questions JQL cannot ask, as named, documented
-  queries: stalled N days, reopened, version ranges, comment-history search.
-  Doubles as launch content.
-- **Agent setup doc** — paste-ready blocks for Claude Code / Cursor / Codex.
-  The 2026 distribution channel is the developer's agent, not their browser.
+  `.github/workflows/pages.yml` deploys on main once Pages is enabled (human
+  step, README).
+- ✅ **Query recipes** — `docs/RECIPES.md`: 13 questions JQL cannot ask, each
+  verified against the demo snapshot. Doubles as launch content.
+- ✅ **Agent setup doc** — `docs/AGENT_SETUP.md`: paste-ready blocks for Claude
+  Code / Cursor / Codex / MCP.
 - TUI keeps parity with new surfaces (feed focus tabs, saved-view sort) and
   the remaining UX-audit P2 debt lands here.
 
