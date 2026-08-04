@@ -17,16 +17,19 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
+	scry "github.com/midagedev/scry"
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/server"
 	"github.com/midagedev/scry/internal/store"
@@ -49,6 +52,28 @@ func spaHandler(dir string) http.Handler {
 	})
 }
 
+// spaHandlerFS serves the embedded web UI with the same SPA fallback:
+// unknown paths get index.html so hash-routed deep links work.
+func spaHandlerFS(fsys fs.FS) http.Handler {
+	files := http.FileServer(http.FS(fsys))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+		if name != "" {
+			if info, err := fs.Stat(fsys, name); err == nil && !info.IsDir() {
+				files.ServeHTTP(w, r)
+				return
+			}
+		}
+		index, err := fs.ReadFile(fsys, "index.html")
+		if err != nil {
+			http.Error(w, "web UI not embedded — build with `npm run build` before `go build`, or pass --static", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(index)
+	})
+}
+
 func openStore() (*store.DB, error) {
 	path, err := config.DBPath()
 	if err != nil {
@@ -60,7 +85,7 @@ func openStore() (*store.DB, error) {
 func cmdServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := fs.String("addr", "127.0.0.1:7777", "listen address")
-	static := fs.String("static", "dist/app", "directory holding the built web UI")
+	static := fs.String("static", "", "serve the web UI from this directory instead of the embedded copy")
 	allowRemote := fs.Bool("allow-remote", false,
 		"permit binding a non-loopback address (the mirror has no auth; do not expose it)")
 	withSync := fs.Bool("sync", false, "run the incremental sync loop inside the server")
@@ -112,10 +137,20 @@ func cmdServe(args []string) error {
 	})
 	mux.Handle("/api/", server.New(db, cfg))
 
-	if _, err := os.Stat(*static); err != nil {
-		log.Printf("warning: static dir %q not found — run `npm run build` first", *static)
+	// The embedded UI is the default; --static overrides it for development
+	// (`npm run build` output) without rebuilding the binary.
+	if *static != "" {
+		if _, err := os.Stat(*static); err != nil {
+			log.Printf("warning: static dir %q not found — run `npm run build` first", *static)
+		}
+		mux.Handle("/", spaHandler(*static))
+	} else {
+		ui, ok := scry.WebUI()
+		if !ok {
+			log.Printf("warning: no web UI embedded in this binary — build with `npm run build` before `go build`, or pass --static")
+		}
+		mux.Handle("/", spaHandlerFS(ui))
 	}
-	mux.Handle("/", spaHandler(*static))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
