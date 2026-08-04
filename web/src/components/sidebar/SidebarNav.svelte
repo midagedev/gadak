@@ -14,6 +14,9 @@
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
   import FavoritesNav from '../personal/FavoritesNav.svelte'
 
+  /** 서버 설정 다이얼로그 열기 — 다이얼로그 자체는 App.svelte 가 마운트한다. */
+  let { onOpenSettings }: { onOpenSettings: () => void } = $props()
+
   const builtins = builtinViews()
 
   /** 뷰 적용 = 개인 피드가 열려 있으면 닫고(리스트로 복귀) 필터 적용. */
@@ -243,8 +246,26 @@
 
   </div>
 
-  <!-- 로그인 영역(사이드바 하단) -->
+  <!-- 설정 / 로그인 영역(사이드바 하단) -->
   <div class="flex-none border-t border-border-subtle px-3 py-2">
+    <button
+      type="button"
+      class="mb-1 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+      onclick={onOpenSettings}
+      title="서버 설정 (프로젝트·기능·팀·필드 매핑)"
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke="currentColor" stroke-width="1.2" />
+        <path
+          d="M8 1.5l.7 1.6 1.7-.5.3 1.8 1.8.3-.5 1.7 1.6.7-1.6.7.5 1.7-1.8.3-.3 1.8-1.7-.5L8 14.5l-.7-1.6-1.7.5-.3-1.8-1.8-.3.5-1.7L1.9 8l1.6-.7-.5-1.7 1.8-.3.3-1.8 1.7.5L8 1.5z"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linejoin="round"
+          opacity="0.5"
+        />
+      </svg>
+      설정
+    </button>
     {#if me.authed}
       <div class="flex items-center gap-2 text-[12px]">
         <span class="min-w-0 flex-1 truncate text-text-secondary" title={me.email ?? undefined}>

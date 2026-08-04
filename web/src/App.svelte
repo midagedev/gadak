@@ -33,11 +33,15 @@
   import LoginDialog from './components/personal/LoginDialog.svelte'
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
+  import SettingsDialog from './components/settings/SettingsDialog.svelte'
   import ToastHost from './components/write/ToastHost.svelte'
   import MediaViewer from './components/detail/MediaViewer.svelte'
   import { mediaViewer } from './stores/media-viewer.svelte'
 
   const LAST_VIEW_KEY = 'issue-nav:last-view'
+
+  /** 서버 설정 다이얼로그(사이드바 톱니). 스토어를 새로 만들 이유가 없어 셸 로컬 상태. */
+  let serverSettingsOpen = $state(false)
 
   // 공유 링크/대시보드/푸시에서 직접 진입한 이슈를 첫 렌더 전에 복원한다.
   // 그렇지 않으면 selection → URL 이펙트가 빈 선택으로 `issue`를 먼저 지울 수 있다.
@@ -95,7 +99,7 @@
       const tag = t.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return
     }
-    if (me.loginOpen || write.settingsOpen || write.newIssueOpen) return
+    if (me.loginOpen || write.settingsOpen || write.newIssueOpen || serverSettingsOpen) return
     e.preventDefault()
     write.openNewIssue()
   }
@@ -205,7 +209,7 @@
     >
       <Sidebar>
         {#snippet children()}
-          <SidebarNav />
+          <SidebarNav onOpenSettings={() => (serverSettingsOpen = true)} />
         {/snippet}
       </Sidebar>
 
@@ -238,6 +242,10 @@
 
 {#if write.newIssueOpen}
   <NewIssueDialog />
+{/if}
+
+{#if serverSettingsOpen}
+  <SettingsDialog onclose={() => (serverSettingsOpen = false)} />
 {/if}
 
 <!-- 토스트(우하단) — 항상 마운트 -->

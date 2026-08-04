@@ -7,6 +7,7 @@
  */
 
 import { config } from './config'
+import type { ScryFeatures } from './config'
 import type {
   AttachmentUploadResponse,
   BootstrapResponse,
@@ -401,6 +402,58 @@ export function getCreateMeta(): Promise<CreateMetaResponse> {
 
 export function searchUsers(q: string): Promise<UsersResponse> {
   return jsonW<UsersResponse>(`users/?q=${encodeURIComponent(q)}`)
+}
+
+/* ── 서버 설정 (loopback 전용) ──
+ * `~/.scry/config.json` 의 편집 가능 부분. 자격증명은 포함되지 않는다(credential/ 담당).
+ * 응답에서 어떤 필드든 빠질 수 있으므로 전부 optional.
+ */
+
+export interface SettingsMember {
+  email: string
+  name?: string
+  display_name?: string
+  group?: string
+  department?: string
+  job_role?: string
+  jira_account_id?: string
+  avatar_url?: string
+}
+
+/** 그룹 판정 규칙. 위에서 아래로 첫 매치 승, 조건끼리 AND·목록 내 OR, 빈 조건은 항상 참. */
+export interface SettingsGroupRule {
+  group: string
+  projects?: string[]
+  labels?: string[]
+  components?: string[]
+}
+
+export interface ScrySettings {
+  projects?: string[]
+  fieldMap?: Record<string, string>
+  bodyFields?: string[]
+  editableFields?: Record<string, string>
+  members?: SettingsMember[]
+  groupRules?: SettingsGroupRule[]
+  groupLabels?: Record<string, string>
+  groupColors?: Record<string, string>
+  productByGroup?: Record<string, { key: string; label: string }>
+  features?: Partial<ScryFeatures>
+  qaDashboardUrl?: string
+  staleThresholdHours?: number
+}
+
+export function getSettings(): Promise<ScrySettings> {
+  return jsonW<ScrySettings>('settings/')
+}
+
+/** 전체 교체(PUT). 받은 값을 그대로 저장하므로 부분 전송하면 나머지가 지워진다. */
+export function putSettings(settings: ScrySettings): Promise<ScrySettings> {
+  return jsonW<ScrySettings>('settings/', {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(settings),
+  })
 }
 
 /* ── 쓰기 메타 (익명 읽기) — 전환 맵 + create-meta 선반영 ── */
