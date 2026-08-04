@@ -2,6 +2,8 @@
 
 ## Start here
 
+- `STATE_OF_PLAY.md`: **picking this up? read this first.** What exists, what does
+  not, the next task, and hard-won Jira behaviors
 - `../README.md`: what scry is, quick start, scope
 - `CONCEPT.md`: the idea and what follows from it
 - `ARCHITECTURE.md`: components, module boundaries, data flow

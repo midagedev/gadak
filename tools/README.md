@@ -24,6 +24,15 @@ Flags: `--dry-run`, `--skip-setup` (versions and components already exist),
 `--no-history` (skip transitions, comments, links), `--assignees <id,id>`,
 `--seed <int>`.
 
+Redistribute assignees across a pool of accounts (dataset issues follow their
+`assignee_slot`; other issues keep their assigned/unassigned status but get spread
+by key hash, so repeated runs are a no-op):
+
+```bash
+python3 tools/seed-demo-jira.py --data examples/demo-seed.json \
+  --repair-assignees --assignees "<accountId>,<accountId>,<accountId>"
+```
+
 Repair a site whose workflow states do not match the dataset — issues, comments,
 and links are left alone and only statuses are re-driven, matched by summary:
 
@@ -55,6 +64,10 @@ python3 tools/seed-demo-jira.py --data examples/demo-seed.json --repair-states
   timeline empty — so the script walks the status *category* ladder one rung at a
   time (`new -> indeterminate -> done`) instead, and only falls back to a direct
   jump when no stepwise path exists.
+- An admin cannot set a user's display name. `POST /rest/api/3/user` accepts
+  `displayName` and ignores it for accounts outside a verified domain — Jira uses
+  the email local part until the account holder accepts the invitation and sets
+  their own name. Demo personas created this way read as `you+alice` until then.
 - A `reopened` issue is driven to done and then back, because that is the only
   way to get a real done-to-not-done transition into the changelog. History
   cannot be backfilled after the fact: pushing an already-done issue backwards

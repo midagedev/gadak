@@ -525,6 +525,62 @@ def repair_states(path: str, projects: list[str]) -> int:
     return len(keys)
 
 
+def iter_site_issues(projects: list[str], fields: str):
+    """Page every issue in scope, yielding raw issue objects."""
+    for project in projects:
+        token, page = None, 0
+        while True:
+            path_q = (f"/rest/api/3/search/jql?jql=project%3D{project}"
+                      f"&maxResults=100&fields={fields}")
+            if token:
+                path_q += f"&nextPageToken={token}"
+            res = call("GET", path_q)
+            if not res:
+                break
+            yield from res.get("issues", [])
+            token = res.get("nextPageToken")
+            page += 1
+            if not token or res.get("isLast") or page > 40:
+                break
+
+
+def repair_assignees(path: str, projects: list[str], assignees: list[str]) -> int:
+    """Redistribute assignees across the given accounts.
+
+    Dataset issues follow their `assignee_slot` (null means unassigned). Issues
+    that are not in the dataset keep their assigned/unassigned status but get
+    spread across the account pool, so avatars vary without changing the ratio.
+    Distribution is by key hash, which makes repeated runs a no-op.
+    """
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    slots = {i["summary"]: i.get("assignee_slot") for i in data["issues"]}
+
+    changed = skipped = 0
+    for issue in iter_site_issues(projects, "summary,assignee"):
+        key = issue["key"]
+        summary = issue["fields"]["summary"]
+        current = (issue["fields"].get("assignee") or {}).get("accountId")
+
+        if summary in slots:
+            slot = slots[summary]
+            target = None if slot is None else assignees[slot % len(assignees)]
+        elif current:
+            # Not from the dataset but assigned: spread deterministically.
+            target = assignees[sum(ord(c) for c in key) % len(assignees)]
+        else:
+            target = None
+
+        if target == current:
+            skipped += 1
+            continue
+        if call("PUT", f"/rest/api/3/issue/{key}/assignee",
+                {"accountId": target}) is not None:
+            changed += 1
+    print(f"assignees changed: {changed}, already correct: {skipped}")
+    return changed
+
+
 def seed_from_data(path: str, projects: list[str], assignees: list[str],
                    dry: bool, skip_setup: bool) -> list[str]:
     """Create issues from a pre-generated dataset (see tools/README for the shape).
@@ -661,6 +717,8 @@ def main() -> int:
                     help="comma-separated accountIds for assignee slots (default: the caller)")
     ap.add_argument("--repair-states", action="store_true",
                     help="re-drive workflow states for issues already in Jira, matched by summary")
+    ap.add_argument("--repair-assignees", action="store_true",
+                    help="redistribute assignees across --assignees for issues already in Jira")
     args = ap.parse_args()
 
     if not (SITE and EMAIL and TOKEN):
@@ -677,11 +735,17 @@ def main() -> int:
     account_id = me["accountId"]
     print(f"authenticated as {me.get('displayName')} <{me.get('emailAddress')}>")
 
-    if args.repair_states:
+    if args.repair_states or args.repair_assignees:
         if not args.data:
-            print("--repair-states requires --data", file=sys.stderr)
+            print("--repair-* requires --data", file=sys.stderr)
             return 2
-        repair_states(args.data, projects)
+        if args.repair_states:
+            repair_states(args.data, projects)
+        if args.repair_assignees:
+            pool = ([a.strip() for a in args.assignees.split(",") if a.strip()]
+                    if args.assignees else [account_id])
+            print(f"assignee pool: {len(pool)} account(s)")
+            repair_assignees(args.data, projects, pool)
         return 0
 
     if args.data:

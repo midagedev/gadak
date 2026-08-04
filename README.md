@@ -16,8 +16,9 @@ sqlite3 ~/.scry/scry.db "select key, status, summary from issues where reopen_co
 
 > **Status: pre-implementation.** The web application is real and in daily use
 > (extracted from an internal deployment). The Go server that replaces its
-> internal backend is specified but not built yet — see
-> `specs/000-product/tasks.md` for exactly what exists and what does not.
+> internal backend is specified but not built yet, so launching the UI today shows
+> an empty shell. `docs/STATE_OF_PLAY.md` is the honest inventory and the starting
+> point for contributors; `specs/000-product/tasks.md` has the task-level detail.
 
 ## Why
 
@@ -147,6 +148,7 @@ layer stays neutral.
 
 ## Documentation
 
+- `docs/STATE_OF_PLAY.md`: what exists today, what does not, and where to start
 - `docs/CONCEPT.md`: the product idea and the loop it optimizes
 - `docs/ARCHITECTURE.md`: components, module boundaries, and data flow
 - `docs/AGENT_ACCESS.md`: how agents are meant to read the mirror

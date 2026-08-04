@@ -2,6 +2,8 @@
 
 ## Required Reading Order
 
+0. **`docs/STATE_OF_PLAY.md`** — what actually exists right now, the next task,
+   and the Jira behaviors that already cost debugging time. Start here.
 1. `.specify/memory/constitution.md`
 2. `specs/000-product/spec.md`
 3. `specs/000-product/tasks.md` — the honest state of every piece
