@@ -41,7 +41,7 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
   "sync_health": {
     "overall": "healthy",
     "checked_at": "2026-08-04T09:15:00Z",
-    "sources": [ { "key": "jira", "label": "Jira", "status": "healthy", "synced_at": "...", "message": "정상" } ]
+    "sources": [ { "key": "jira", "label": "Jira", "status": "healthy", "synced_at": "...", "message": "ok" } ]
   }
 }
 ```
@@ -58,7 +58,8 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
   reporter who is never an assignee cannot be keyed and is absent. `avatar_url`
   and `profile_image` carry the same value — the client reads the latter.
 - `sync_health.status` is one of `healthy` / `stale` / `failed` / `missing`, and
-  `message` is `"정상"` when nothing is wrong (the client suppresses that line).
+  `message` is `"ok"` when nothing is wrong (the client suppresses that line).
+  It is server text in one language; the client localizes only the status label.
   Staleness is measured from the last run that finished without an error, never
   from the watermark: a quiet project leaves its watermark in the past forever.
 

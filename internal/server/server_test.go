@@ -732,7 +732,7 @@ func TestSyncHealth(t *testing.T) {
 		t.Fatalf("record: %v", err)
 	}
 	if got := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil)).SyncHealth; got.Overall != "healthy" ||
-		got.Sources[0].Message != "정상" || got.Sources[0].SyncedAt == nil {
+		got.Sources[0].Message != "ok" || got.Sources[0].SyncedAt == nil {
 		t.Fatalf("after a good run: %+v", got)
 	}
 	if err := db.RecordSync(sourceID, store.SyncResult{Err: errors.New("401 from jira")}); err != nil {

@@ -722,22 +722,24 @@ func overlaps(want, have []string) bool {
 /* ── sync health ── */
 
 // health maps the store's sync bookkeeping onto the shape the sidebar renders.
-// "정상" is not decoration: the client suppresses the tooltip line when the
-// message equals it (web/src/components/sidebar/SidebarNav.svelte).
+// The message is server text in one language — English, like every other string
+// this process emits — and the client localizes only the status label. "ok" is
+// not decoration: the client suppresses the tooltip line for exactly that value
+// (web/src/components/sidebar/SidebarNav.svelte).
 //
 // Staleness is measured from the last run that finished without an error, never
 // from the watermark: a quiet project leaves its watermark in the past forever
 // and would read as permanently delayed.
 func (s *server) health(st store.SyncState) syncHealth {
-	src := syncSource{Key: "jira", Label: "Jira", Status: "healthy", Message: "정상", SyncedAt: st.SyncedAt}
+	src := syncSource{Key: "jira", Label: "Jira", Status: "healthy", Message: "ok", SyncedAt: st.SyncedAt}
 	overall := "healthy"
 	switch {
 	case st.LastError != nil && *st.LastError != "":
 		src.Status, src.Message, overall = "failed", *st.LastError, "failed"
 	case st.SyncedAt == nil && st.Watermark == "" && st.LastFullSyncAt == nil:
-		src.Status, src.Message, overall = "missing", "아직 동기화되지 않았습니다.", "warning"
+		src.Status, src.Message, overall = "missing", "not synced yet", "warning"
 	case s.stale(st.SyncedAt):
-		src.Status, src.Message, overall = "stale", "최근 동기화가 밀렸습니다.", "warning"
+		src.Status, src.Message, overall = "stale", "last sync is behind", "warning"
 	}
 	if src.SyncedAt == nil {
 		src.SyncedAt = st.LastFullSyncAt
