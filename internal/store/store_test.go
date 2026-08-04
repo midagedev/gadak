@@ -17,7 +17,7 @@ var documentedColumns = map[string][]string{
 		"author", "author_id", "url", "created_at", "updated_at", "synced_at"},
 	"issues": {"item_id", "key", "project_key", "issue_type", "issue_type_id",
 		"status", "status_id", "status_category", "priority", "priority_rank",
-		"assignee", "assignee_id", "assignee_email", "reporter", "reporter_id", "parent_key",
+		"assignee", "assignee_id", "assignee_email", "reporter", "reporter_id", "reporter_email", "parent_key",
 		"labels", "components", "fix_versions", "affects_versions", "environment_text",
 		"duedate", "resolution", "created_at", "updated_at",
 		"status_changed_at", "resolved_at", "reopen_count", "reopened_at",

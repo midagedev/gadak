@@ -26,6 +26,8 @@
   over titles, bodies and comment text, and the derived-field calculator
   (`status_changed_at`, `resolved_at`, `reopen_count`, `reopened_at`,
   `assignee_changed_at`, `comment_count`, `priority_rank`).
+- Added `issues.reporter_email`, which the client filters and groups on but the
+  first schema draft only had for the assignee.
 - Schema additions over the first draft of `data-model.md`, all documented there:
   a `deleted_items` tombstone table so `delta` can report deletions,
   `contentless_delete=1` on `items_fts` so one row can be replaced,

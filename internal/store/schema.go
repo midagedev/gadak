@@ -49,6 +49,7 @@ CREATE TABLE issues (
   assignee_email      TEXT,
   reporter            TEXT,
   reporter_id         TEXT,
+  reporter_email      TEXT,
   parent_key          TEXT,
   labels              TEXT,
   components          TEXT,

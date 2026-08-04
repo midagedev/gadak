@@ -40,7 +40,8 @@ func fixture() Batch {
 					Status: "Done", StatusID: "5", StatusCategory: "done",
 					Priority: "High", Assignee: "Ada Lovelace", AssigneeID: "acc-ada",
 					AssigneeEmail: "ada@example.invalid", Reporter: "Reporter One", ReporterID: "acc-r1",
-					Labels: []string{"payments", "regression"}, FixVersions: []string{"2026.8.0"},
+					ReporterEmail: "reporter.one@example.invalid",
+					Labels:        []string{"payments", "regression"}, FixVersions: []string{"2026.8.0"},
 					Resolution:     "Fixed",
 					DescriptionADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`),
 					Custom:         map[string]any{"severity": "S2"},
@@ -147,6 +148,16 @@ func TestUpsertAndReadBack(t *testing.T) {
 	if len(one.Labels) != 2 || one.Labels[0] != "payments" {
 		t.Errorf("labels = %v", one.Labels)
 	}
+	if one.ReporterEmail == nil || *one.ReporterEmail != "reporter.one@example.invalid" {
+		t.Errorf("reporter_email = %v", one.ReporterEmail)
+	}
+	// Configured field aliases ride along so the server can spread them.
+	if one.Custom["severity"] != "S2" {
+		t.Errorf("custom = %v, want severity S2", one.Custom)
+	}
+	if three := byKey["NMB-3"]; len(three.Custom) != 0 {
+		t.Errorf("empty custom decoded as %v", three.Custom)
+	}
 	if three := byKey["NMB-3"]; three.Assignee != nil {
 		t.Errorf("unassigned issue has assignee %q", *three.Assignee)
 	}
@@ -165,6 +176,10 @@ func TestDetailAssembly(t *testing.T) {
 	}
 	if len(d.Comments) != 1 || d.Comments[0].Author != "Ada Lovelace" {
 		t.Errorf("comments = %+v", d.Comments)
+	}
+	// Flattened text is the client's fallback when ADF will not render.
+	if len(d.Comments) == 1 && d.Comments[0].Body == "" {
+		t.Error("comment body_text not exposed")
 	}
 	if len(d.Attachments) != 1 || d.Attachments[0].Filename != "trace.har" {
 		t.Errorf("attachments = %+v", d.Attachments)
@@ -417,6 +432,10 @@ func TestRecordSyncWatermarkOnlyMovesForward(t *testing.T) {
 	if st.LastError != nil {
 		t.Errorf("last_error = %q after a clean run", *st.LastError)
 	}
+	if st.SyncedAt == nil {
+		t.Error("synced_at not stamped after a clean run")
+	}
+	fresh := *st.SyncedAt
 
 	// A failure records itself and leaves the mirror readable.
 	if err := db.RecordSync("jira", SyncResult{Err: fmt.Errorf("401 from the source")}); err != nil {
@@ -431,6 +450,9 @@ func TestRecordSyncWatermarkOnlyMovesForward(t *testing.T) {
 	}
 	if st.Watermark != "2026-08-01T00:00:00Z" {
 		t.Errorf("failed run moved the watermark to %q", st.Watermark)
+	}
+	if st.SyncedAt == nil || *st.SyncedAt != fresh {
+		t.Errorf("synced_at = %v after a failed run, want the last good one (%s)", st.SyncedAt, fresh)
 	}
 }
 

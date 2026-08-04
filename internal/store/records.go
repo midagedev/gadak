@@ -47,6 +47,7 @@ type Issue struct {
 	AssigneeEmail   string
 	Reporter        string
 	ReporterID      string
+	ReporterEmail   string
 	ParentKey       string
 	Labels          []string
 	Components      []string

@@ -103,6 +103,7 @@ The Jira projection. Joined to `items` on `item_id`.
 | `assignee_email` | TEXT | Empty when the site hides emails |
 | `reporter` | TEXT | Display name |
 | `reporter_id` | TEXT | Account id |
+| `reporter_email` | TEXT | Empty when the site hides emails |
 | `parent_key` | TEXT | Epic or parent issue key |
 | `labels` | TEXT (JSON array) | |
 | `components` | TEXT (JSON array) | |

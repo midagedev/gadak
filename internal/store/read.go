@@ -24,6 +24,7 @@ type IssueLite struct {
 	AssigneeID      *string  `json:"assignee_id"`
 	AssigneeEmail   *string  `json:"assignee_email"`
 	Reporter        *string  `json:"reporter"`
+	ReporterEmail   *string  `json:"reporter_email"`
 	EpicKey         *string  `json:"epic_key"`
 	Labels          []string `json:"labels"`
 	Components      []string `json:"components"`
@@ -37,6 +38,10 @@ type IssueLite struct {
 	ReopenCount     int      `json:"reopen_count"`
 	ReopenedAt      *string  `json:"reopened_at"`
 	CommentCount    int      `json:"comment_count"`
+	// Custom holds the configured field aliases from issues.custom. The server
+	// spreads them into the response as top-level keys, which is where the client
+	// reads severity and friends.
+	Custom map[string]any `json:"custom,omitempty"`
 }
 
 const issueLiteSelect = `
@@ -44,10 +49,11 @@ const issueLiteSelect = `
 	       COALESCE(i.issue_type, ''), COALESCE(i.issue_type_id, ''),
 	       COALESCE(i.status, ''), COALESCE(i.status_id, ''), COALESCE(i.status_category, ''),
 	       i.priority, i.priority_rank,
-	       i.assignee, i.assignee_id, i.assignee_email, i.reporter, i.parent_key,
+	       i.assignee, i.assignee_id, i.assignee_email, i.reporter, i.reporter_email, i.parent_key,
 	       COALESCE(i.labels, '[]'), COALESCE(i.components, '[]'), COALESCE(i.fix_versions, '[]'),
 	       i.duedate, i.resolution, i.created_at, i.updated_at,
-	       i.status_changed_at, i.resolved_at, i.reopen_count, i.reopened_at, i.comment_count
+	       i.status_changed_at, i.resolved_at, i.reopen_count, i.reopened_at, i.comment_count,
+	       COALESCE(i.custom, '{}')
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
 // IssueLites returns the whole mirror, which is what `bootstrap` sends.
@@ -72,19 +78,21 @@ func (db *DB) issueLites(query string, args ...any) ([]IssueLite, error) {
 	out := []IssueLite{}
 	for rows.Next() {
 		var v IssueLite
-		var labels, components, fixVersions string
+		var labels, components, fixVersions, custom string
 		if err := rows.Scan(&v.IssueKey, &v.Summary, &v.ProjectKey, &v.IssueType, &v.IssueTypeID,
 			&v.Status, &v.StatusID, &v.StatusCategory, &v.Priority, &v.PriorityRank,
-			&v.Assignee, &v.AssigneeID, &v.AssigneeEmail, &v.Reporter, &v.EpicKey,
+			&v.Assignee, &v.AssigneeID, &v.AssigneeEmail, &v.Reporter, &v.ReporterEmail, &v.EpicKey,
 			&labels, &components, &fixVersions,
 			&v.Duedate, &v.Resolution, &v.CreatedAt, &v.UpdatedAt,
 			&v.StatusChangedAt, &v.ResolvedAt, &v.ReopenCount, &v.ReopenedAt, &v.CommentCount,
+			&custom,
 		); err != nil {
 			return nil, err
 		}
 		v.Labels = parseArray(&labels)
 		v.Components = parseArray(&components)
 		v.FixVersions = parseArray(&fixVersions)
+		_ = json.Unmarshal([]byte(custom), &v.Custom)
 		out = append(out, v)
 	}
 	return out, rows.Err()
@@ -116,6 +124,7 @@ type DetailComment struct {
 	Author     string          `json:"author"`
 	AuthorID   string          `json:"author_id"`
 	BodyADF    json.RawMessage `json:"body_adf"`
+	Body       string          `json:"body"` // flattened; the client's fallback when ADF will not render
 	CreatedAt  string          `json:"created_at"`
 	UpdatedAt  string          `json:"updated_at"`
 }
@@ -185,12 +194,12 @@ func (db *DB) Detail(key string) (*Detail, error) {
 
 	if err := each(db.sql, `
 		SELECT id, COALESCE(external_id,''), COALESCE(author,''), COALESCE(author_id,''),
-		       body_adf, COALESCE(created_at,''), COALESCE(updated_at,'')
+		       body_adf, COALESCE(body_text,''), COALESCE(created_at,''), COALESCE(updated_at,'')
 		FROM comments WHERE item_id = ? ORDER BY created_at, id`,
 		func(rows *sql.Rows) error {
 			var c DetailComment
 			var body *string
-			if err := rows.Scan(&c.ID, &c.ExternalID, &c.Author, &c.AuthorID, &body, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			if err := rows.Scan(&c.ID, &c.ExternalID, &c.Author, &c.AuthorID, &body, &c.Body, &c.CreatedAt, &c.UpdatedAt); err != nil {
 				return err
 			}
 			c.BodyADF = rawOrNull(body)

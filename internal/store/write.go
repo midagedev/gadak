@@ -111,16 +111,16 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	if _, err := tx.Exec(`
 		INSERT INTO issues (item_id, key, project_key, issue_type, issue_type_id,
 			status, status_id, status_category, priority, priority_rank,
-			assignee, assignee_id, assignee_email, reporter, reporter_id, parent_key,
+			assignee, assignee_id, assignee_email, reporter, reporter_id, reporter_email, parent_key,
 			labels, components, fix_versions, affects_versions, environment_text,
 			duedate, resolution, created_at, updated_at,
 			status_changed_at, resolved_at, reopen_count, reopened_at,
 			assignee_changed_at, comment_count, description_adf, custom, raw)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		it.ID, it.Key, nz(is.ProjectKey), nz(is.IssueType), nz(is.IssueTypeID),
 		nz(is.Status), nz(is.StatusID), nz(is.StatusCategory), nz(is.Priority), d.PriorityRank,
 		nz(is.Assignee), nz(is.AssigneeID), nz(is.AssigneeEmail), nz(is.Reporter),
-		nz(is.ReporterID), nz(is.ParentKey),
+		nz(is.ReporterID), nz(is.ReporterEmail), nz(is.ParentKey),
 		jsonArray(is.Labels), jsonArray(is.Components), jsonArray(is.FixVersions),
 		jsonArray(is.AffectsVersions), nz(is.EnvironmentText),
 		nz(is.Duedate), nz(is.Resolution), nz(it.CreatedAt), nz(it.UpdatedAt),
@@ -270,8 +270,12 @@ func bumpVersion(tx *sql.Tx, sourceID string, schemaVersion int) error {
 
 // SyncState is the per-source sync bookkeeping.
 type SyncState struct {
-	SourceID       string  `json:"source_id"`
-	Watermark      string  `json:"watermark"`
+	SourceID  string `json:"source_id"`
+	Watermark string `json:"watermark"`
+	// SyncedAt is the last run that finished without an error — the only field
+	// here that means "the mirror is fresh". A watermark stalls on its own
+	// whenever the project is simply quiet.
+	SyncedAt       *string `json:"synced_at"`
 	Version        int64   `json:"version"`
 	LastFullSyncAt *string `json:"last_full_sync_at"`
 	LastError      *string `json:"last_error"`
@@ -284,9 +288,11 @@ func (db *DB) SyncState(sourceID string) (SyncState, error) {
 	s := SyncState{SourceID: sourceID, SchemaVersion: db.schemaVersion}
 	var wm *string
 	err := db.sql.QueryRow(`
-		SELECT watermark, version, last_full_sync_at, last_error, schema_version
-		FROM sync_state WHERE source_id = ?`, sourceID).
-		Scan(&wm, &s.Version, &s.LastFullSyncAt, &s.LastError, &s.SchemaVersion)
+		SELECT st.watermark, st.version, st.last_full_sync_at, st.last_error,
+		       st.schema_version, src.synced_at
+		FROM sync_state st LEFT JOIN sources src ON src.id = st.source_id
+		WHERE st.source_id = ?`, sourceID).
+		Scan(&wm, &s.Version, &s.LastFullSyncAt, &s.LastError, &s.SchemaVersion, &s.SyncedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, nil
 	}
