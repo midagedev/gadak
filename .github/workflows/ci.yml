@@ -39,6 +39,12 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
+      # The web build has to precede the Go build: go:embed compiles dist/app
+      # into the binary, so the serve smoke below exercises the real embedded UI
+      # rather than the tracked placeholder.
+      - name: Frontend build
+        run: npm run build
+
       - name: Go build (static)
         run: CGO_ENABLED=0 go build -trimpath -o /tmp/scry ./cmd/scry
 
@@ -48,13 +54,10 @@ jobs:
       - name: Frontend typecheck
         run: npm run typecheck
 
-      - name: Frontend build
-        run: npm run build
-
       - name: Serve smoke
         run: |
           set -euo pipefail
-          /tmp/scry serve --addr 127.0.0.1:7777 --static dist/app &
+          /tmp/scry serve --addr 127.0.0.1:7777 &
           pid=$!
           trap 'kill $pid 2>/dev/null || true' EXIT
           for _ in $(seq 1 30); do
@@ -68,7 +71,7 @@ jobs:
       - name: Refuse non-loopback bind without opt-in
         run: |
           set -euo pipefail
-          if /tmp/scry serve --addr 0.0.0.0:7778 --static dist/app; then
+          if /tmp/scry serve --addr 0.0.0.0:7778; then
             echo "expected a non-loopback bind to be refused" >&2
             exit 1
           fi
