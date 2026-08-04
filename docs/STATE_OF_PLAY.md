@@ -70,9 +70,9 @@ never shadow mirrored fields.
 | Item | Task | Note |
 | --- | --- | --- |
 | `scry snapshot` (timestamp spreading, volume scaling) | T6.4 | `examples/demo.db` was scrubbed by hand this time; the command automates the next refresh |
-| 10k-issue bench fixture + latency gate | T6.7 / G5 | The 50 ms / 10k target is still unmeasured |
-| Secret & internal-string scan in CI | T7.4 | Manual scans passed; CI should pin them |
-| Dockerfile, release process, signed binaries | T7.5 / T7.6 | |
+| 10k-issue bench fixture + latency gate | T6.7 / G5 | **done** — `tools/bench-fixture`, `make bench`; bootstrap ≈ 61 ms / search ≈ 0.06 ms at 10k (see `gates.md` G5). Not a CI fail gate. |
+| Secret & internal-string scan in CI | T7.4 | **done** — `scripts/scan-internal.sh` + CI `scan` job |
+| Dockerfile, release process, signed binaries | T7.5 / T7.6 | **done** — multi-stage `Dockerfile`; `.goreleaser.yaml` + tag-triggered `release.yml` (checksums only) |
 | Live-site assignee display names | T6.8 | The committed snapshot is clean (fictional personas); the live site shows `midagedev+…` until each invitation is accepted. Blocks live-site screenshots only |
 | Feed/push as a local watch-based design | v0.2 | Deferred endpoints return clean 404s today |
 | MCP server | T5.4 | The SQLite file plus `scry sql` already cover shell-capable agents |

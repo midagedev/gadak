@@ -100,7 +100,7 @@ under `~/.scry/profiles/<name>/` — the work/demo dual-account setup.
 | T6.4 | `scry snapshot` with timestamp spreading and volume scaling | todo |
 | T6.5 | `examples/demo.db` committed, credential-scanned | done | 519 issues mirrored from the demo site, then scrubbed (see T6.8). Scan: zero `ATATT`/`ATCTT`/real emails/real names |
 | T6.6 | `scry demo` serving the bundled snapshot | done | Copies the snapshot into a throwaway temp home, serves it, deletes on exit. No Jira account, no config |
-| T6.7 | 10k-issue benchmark fixture for the latency target | todo |
+| T6.7 | 10k-issue benchmark fixture for the latency target | done | `tools/bench-fixture` builds a deterministic 10k `scry.db` via `store.UpsertIssues` (`go run ./tools/bench-fixture -out /tmp/bench.db -issues 10000`). `internal/server/bench_test.go`: `TestBenchSmoke1k` + `BenchmarkBootstrap10k` / `BenchmarkSearch10k`. `make bench` records timings; not a CI fail gate (machine variance). Evidence in `gates.md` G5. |
 
 ## T7 CI and release
 
@@ -109,9 +109,9 @@ under `~/.scry/profiles/<name>/` — the work/demo dual-account setup.
 | T7.1 | CI: Go build and vet, frontend typecheck and build | done |
 | T7.2 | Go tests once there is Go logic to test | done |
 | T7.3 | Browser smoke test against the demo snapshot | todo |
-| T7.4 | Secret and internal-string scan in CI | todo |
-| T7.5 | Dockerfile and container build | todo |
-| T7.6 | Release process and signed binaries | todo |
+| T7.4 | Secret and internal-string scan in CI | done | `scripts/scan-internal.sh` greps `git ls-files` + `strings examples/demo.db` for token-shaped API-token prefixes, a former company name, and non-allowlisted tenant hosts. CI job `scan` in `.github/workflows/ci.yml`. Real-name patterns skipped. Local: `make scan`. |
+| T7.5 | Dockerfile and container build | done | Multi-stage `Dockerfile` (node:20 → golang:1.25 CGO=0 → distroless/static). Volume `/data` as `SCRY_HOME`, `EXPOSE 7777`, `ENTRYPOINT ["scry"]` + `CMD serve --allow-remote --static /app/dist`. `.dockerignore` present. README documents `docker run`. |
+| T7.6 | Release process and signed binaries | done | `.goreleaser.yaml`: linux/darwin/windows × amd64/arm64, `CGO_ENABLED=0`, archives include `dist/app` (no `go:embed` yet — serve with `--static dist/app`). Checksums only (cosign deferred, commented). `.github/workflows/release.yml` on `v*` tags: npm build then goreleaser-action. |
 
 ## Critical path to something usable
 
