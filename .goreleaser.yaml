@@ -10,6 +10,11 @@ version: 2
 
 project_name: scry
 
+# Release artifacts go to .release/, not dist/: `--clean` empties the output
+# directory, and dist/app holds the web build that go:embed needs at compile
+# time. Sharing the directory means --clean deletes the UI before the build.
+dist: .release
+
 before:
   hooks:
     - go mod tidy

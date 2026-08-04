@@ -43,3 +43,6 @@ playwright/.cache/
 .DS_Store
 .idea/
 .vscode/
+
+# goreleaser output (see .goreleaser.yaml `dist:`)
+.release/
