@@ -2,8 +2,12 @@
 node_modules/
 vendor/
 
-# Build outputs
-dist/
+# Build outputs. dist/app/.placeholder stays tracked so `go build` works
+# before the first `npm run build` (embed.go needs the directory to exist).
+dist/*
+!dist/app
+dist/app/*
+!dist/app/.placeholder
 bin/
 build/
 coverage/

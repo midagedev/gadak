@@ -1,0 +1,2 @@
+Placeholder so the go:embed directive in embed.go always has a directory.
+Run `npm run build` to produce the real web assets here.
