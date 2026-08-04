@@ -90,5 +90,7 @@ echo "[e2e] serving on 127.0.0.1:7877 (SCRY_HOME=$SCRY_HOME)…"
 # The snapshot references attachments whose bytes cannot be proxied (the fixture
 # credential is fake), so seed the cache from the committed images. Without this
 # the browser logs 502s and the console-hygiene spec fails.
-exec "$BIN" serve --addr 127.0.0.1:7877 --static dist/app --no-open \
+# --no-sync: the fixture credential is fake; starting the watch loop would
+# hammer a non-existent Jira and fail every tick.
+exec "$BIN" serve --addr 127.0.0.1:7877 --static dist/app --no-open --no-sync \
   --import-attachments "$ROOT/examples/attachments"

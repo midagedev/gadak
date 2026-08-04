@@ -1,7 +1,8 @@
 // Command scry serves a local mirror of your issue tracker.
 //
-// Implemented: init, sync (--full/--watch), serve (--sync), tui, issue,
-// search, comment, transition, assign, sql, status, mcp, demo, profiles, version.
+// Implemented: init, sync (--full/--watch), serve (syncs by default), tui,
+// issue, search, comment, transition, assign, sql, status, mcp, demo,
+// install-service, profiles, version.
 // Specified but not implemented: snapshot.
 // See specs/000-product/tasks.md for the current state of each.
 //
@@ -89,7 +90,10 @@ func cmdServe(args []string) error {
 	static := fs.String("static", "", "serve the web UI from this directory instead of the embedded copy")
 	allowRemote := fs.Bool("allow-remote", false,
 		"permit binding a non-loopback address (the mirror has no auth; do not expose it)")
-	withSync := fs.Bool("sync", false, "run the incremental sync loop inside the server")
+	// Sync starts by default when a credential is configured. --sync is kept as
+	// a deprecated no-op alias; --no-sync opts out (demo / e2e fixtures).
+	withSync := fs.Bool("sync", false, "deprecated alias (sync already starts when a credential is configured)")
+	noSync := fs.Bool("no-sync", false, "do not run the incremental sync loop")
 	importAttachments := fs.String("import-attachments", "",
 		"seed the attachment cache from a directory holding manifest.json (see examples/attachments)")
 	noOpen := fs.Bool("no-open", false, "do not open the browser after the server starts")
@@ -178,16 +182,20 @@ func cmdServe(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if *withSync {
-		if !cfg.HasCredential() || len(cfg.Projects) == 0 {
-			log.Printf("--sync ignored: run `scry init` first")
-		} else {
-			go func() {
-				if err := syncer.Watch(ctx, cfg, db, syncer.Options{Log: func(s string) { log.Print(s) }}); err != nil && ctx.Err() == nil {
-					log.Printf("sync loop stopped: %v", err)
-				}
-			}()
-		}
+	// Default: keep the mirror fresh whenever a credential exists. --no-sync
+	// opts out (fixtures with a fake token must pass it). --sync remains a
+	// silent alias when the loop would start anyway; with no credential it
+	// still prints the old guidance line.
+	startSync := !*noSync && cfg.HasCredential() && len(cfg.Projects) > 0
+	if *withSync && !startSync && !*noSync {
+		log.Printf("--sync ignored: run `scry init` first")
+	}
+	if startSync {
+		go func() {
+			if err := syncer.Watch(ctx, cfg, db, syncer.Options{Log: func(s string) { log.Print(s) }}); err != nil && ctx.Err() == nil {
+				log.Printf("sync loop stopped: %v", err)
+			}
+		}()
 	}
 
 	srv := &http.Server{
@@ -479,11 +487,18 @@ func cmdStatus(args []string) error {
 
 	st := map[string]any{"profile": config.Profile()}
 	row := db.QueryRow(`SELECT watermark, version, COALESCE(last_full_sync_at,''),
-		COALESCE(last_error,''), schema_version FROM sync_state WHERE source_id = 'jira'`)
-	var watermark, lastFull, lastErr string
+		COALESCE(last_error,''), schema_version,
+		COALESCE(first_sync_at,''), COALESCE(sync_count, 0)
+		FROM sync_state WHERE source_id = 'jira'`)
+	var watermark, lastFull, lastErr, firstSync string
 	var ver, schema int
-	if err := row.Scan(&watermark, &ver, &lastFull, &lastErr, &schema); err == nil {
+	var syncCount int64
+	if err := row.Scan(&watermark, &ver, &lastFull, &lastErr, &schema, &firstSync, &syncCount); err == nil {
 		st["watermark"], st["version"], st["last_full_sync_at"], st["schema_version"] = watermark, ver, lastFull, schema
+		st["sync_count"] = syncCount
+		if firstSync != "" {
+			st["first_sync_at"] = firstSync
+		}
 		if lastErr != "" {
 			st["last_error"] = lastErr
 		}
@@ -668,14 +683,17 @@ Usage:
   scry [--profile <name>] <command>
 
 Commands:
-  init       configure site, credentials, and projects (interactive)
-  sync       mirror Jira into SQLite   [--full] [--watch]
-  serve      web UI + API on loopback  [--addr] [--static] [--sync] [--allow-remote]
-  status     sync state and row counts [--json]
-  demo       serve the bundled snapshot, no Jira account needed
-  tui        terminal issue navigator (local mirror)
-  profiles   list configured profiles
-  version    print version
+  init             configure site, credentials, and projects (interactive)
+  sync             mirror Jira into SQLite   [--full] [--watch]
+  serve            web UI + API on loopback  [--addr] [--static] [--no-sync] [--no-open] [--allow-remote]
+                   (syncs by default when a credential is configured; --no-sync opts out)
+  install-service  keep serve running across reboots (launchd / systemd user)
+                   [--uninstall]
+  status           sync state and row counts [--json]
+  demo             serve the bundled snapshot, no Jira account needed
+  tui              terminal issue navigator (local mirror)
+  profiles         list configured profiles
+  version          print version
 
 Reading the mirror (no network; see AGENTS.md):
   issue      full detail for one issue    <KEY> [--json]
@@ -690,7 +708,7 @@ Writing through to Jira (needs a credential):
   assign     set assignee     <KEY> <email|-> [--json]
 
 Profiles keep separate credentials and mirrors (e.g. work and demo):
-  scry --profile demo init && scry --profile demo serve --sync --addr 127.0.0.1:7778
+  scry --profile demo init && scry --profile demo serve --addr 127.0.0.1:7778
 
 Not implemented yet (specified in specs/000-product/):
   scry snapshot
@@ -741,6 +759,8 @@ func main() {
 		err = cmdTUI(args[1:])
 	case "profiles":
 		err = cmdProfiles()
+	case "install-service":
+		err = cmdInstallService(args[1:])
 	case "version", "--version", "-v":
 		fmt.Println(version)
 	case "help", "--help", "-h":
