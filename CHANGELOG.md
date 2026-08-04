@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Retention loop (v0.3).** `scry serve` starts the sync watch loop by default
+  when a credential is configured (`--no-sync` opts out; `--sync` kept as a
+  deprecated alias). `scry install-service` writes a launchd agent or systemd
+  user unit for `serve --no-open`. After each successful watch cycle, one OS
+  desktop notification may fire for new personal-feed events (macOS
+  `osascript`, Linux `notify-send`; config `notify`, default true; body is the
+  issue title only). Schema v5: `sync_state.first_sync_at`, `sync_count`,
+  `last_notified_at`, and the `issues_full` view (`summary` + issues columns).
 - Personal watch feed: `GET /api/v1/issues/feed/` and `POST …/feed/read/` compute
   activity from the mirror at query time (status/assignee/fields changelog,
   comments, attachments, issue creates) over a 30-day window, with local

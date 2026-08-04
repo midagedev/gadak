@@ -237,7 +237,7 @@ export const ko = {
   'list.emptyTitle': '이슈가 없습니다',
   'list.emptyHint': '동기화가 완료되면 여기 표시됩니다.',
   'list.emptyRunSync': '동기화 실행',
-  'list.emptySyncHint': '자동 갱신이 필요하면 scry serve --sync 로 서버를 실행하세요.',
+  'list.emptySyncHint': '자동 갱신이 필요하면 scry serve 로 서버를 실행하세요.',
   'list.bodyOnlyTitle': '로컬 매칭은 없지만 본문에서 찾았습니다',
   'list.bodyOnlyHint': "위 '본문 매칭' 섹션을 확인하세요.",
   'list.noMatchTitle': '조건에 맞는 이슈가 없습니다',
@@ -528,12 +528,12 @@ export const ko = {
     '현재 상태에 이 시간 이상 머문 미해결 이슈를 지연으로 표시합니다.',
   'settings.syncInterval': '증분 동기화 주기',
   'settings.syncIntervalHint':
-    'serve --sync 가 Jira 변경을 폴링하는 간격. 0 이면 기본값.',
+    'scry serve 가 Jira 변경을 폴링하는 간격. 0 이면 기본값.',
   'settings.reconcileInterval': '삭제 정리(reconcile) 주기',
   'settings.reconcileIntervalHint':
     'upstream 에서 삭제된 이슈를 정리하기 위해 키를 재목록화하는 간격. 0 이면 기본값.',
   'settings.intervalApplies':
-    'scry serve --sync 를 다시 시작해야 적용됩니다(루프는 기동 시 주기를 한 번만 읽음).',
+    'scry serve 를 다시 시작해야 적용됩니다(루프는 기동 시 주기를 한 번만 읽음).',
   'settings.intervalDefault': '기본값',
   'settings.intervalCustom': '직접 입력…',
   'settings.intervalSeconds': '초',
@@ -694,7 +694,7 @@ export const ko = {
   'onboarding.syncStarting': '시작 중…',
   'onboarding.syncDone': '{n}건 미러 완료. 목록을 엽니다…',
   'onboarding.syncServeHint':
-    '이후 자동 갱신은 scry serve --sync 로 서버를 실행하거나 사이드바의 지금 동기화를 쓰세요.',
+    '이후 자동 갱신은 scry serve 로 서버를 실행하거나 사이드바의 지금 동기화를 쓰세요.',
   'onboarding.errSync': '동기화 실패: {message}',
   'onboarding.retry': '다시 시도',
   'onboarding.back': '뒤로',

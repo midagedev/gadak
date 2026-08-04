@@ -126,8 +126,12 @@ scry serve                    # http://localhost:7777
 The first run walks you through it in the browser: paste your site, email, and
 token, pick projects from your site's own list, and watch the first sync fill the
 mirror. If you would rather stay in the terminal, `scry init && scry sync`
-does the same thing, and `scry serve --sync` keeps the mirror fresh in the
-background afterwards.
+does the same thing. `scry serve` keeps the mirror fresh in the background
+whenever a credential is configured (`--no-sync` opts out). To survive reboot:
+
+```bash
+scry install-service   # launchd (macOS) or systemd --user (Linux)
+```
 
 Your API token lives in `~/.scry/config.json` at `0600` and never touches the
 database, the repository, or a log line. There is no scry account, no server, and
@@ -199,7 +203,7 @@ Two axes, no forking required — see **[docs/EXTENDING.md](docs/EXTENDING.md)**
 your site calls them), classify issues into teams by label or component, choose
 which fields are inline-editable, set the staleness threshold and sync
 intervals, toggle features. Most keys apply without restart; sync intervals
-need a restart of `scry serve --sync`. Full key table:
+need a restart of `scry serve`. Full key table:
 [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 
 **The plugin boundary** covers the rest. The core contains zero GitHub, CD, or

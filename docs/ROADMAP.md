@@ -41,13 +41,15 @@ number-jumping; each minor is earned by shipped, verified work.
 Ordered by one rule (post-mentor-review, 2026-08): everything here either
 keeps an installed mirror alive or removes a reason not to try one.
 
-- **Close the notification loop.** The watch feed is computed (`GET feed/`);
-  the missing piece is the last hop out of the browser tab: OS notifications
-  from the sync loop (macOS `osascript`, Linux `notify-send`).
-- **`scry install-service`.** A mirror that dies on reboot has zero retention.
-  Writes a launchd plist / systemd user unit for the user.
-- **`serve` syncs by default** when a credential is configured (`--no-sync`
+- ✅ **Close the notification loop.** The watch feed is computed (`GET feed/`);
+  OS notifications fire from the sync loop (macOS `osascript`, Linux
+  `notify-send`) for new personal-feed events. Config: `notify` (default true).
+- ✅ **`scry install-service`.** launchd plist / systemd user unit so the mirror
+  survives reboot (`serve --no-open`). `--uninstall` removes it.
+- ✅ **`serve` syncs by default** when a credential is configured (`--no-sync`
   opts out). A stale mirror is the fastest way to lose a habit.
+- ✅ **Retention counters + `issues_full`.** `sync_state.first_sync_at` /
+  `sync_count` on successful syncs; SQL view gives agents a title without a join.
 - **Zero-install hosted demo** — promoted from v0.5. `sqlite-wasm` over the
   demo snapshot on static hosting: no binary, no account, no trust decision.
   The strongest adoption lever available (`decisions/0004-browser-sqlite.md`).

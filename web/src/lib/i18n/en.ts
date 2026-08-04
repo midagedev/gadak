@@ -236,7 +236,7 @@ export const en = {
   'list.emptyTitle': 'No issues',
   'list.emptyHint': 'They will appear here when sync finishes.',
   'list.emptyRunSync': 'Run sync',
-  'list.emptySyncHint': 'Or keep the server running with scry serve --sync for automatic updates.',
+  'list.emptySyncHint': 'Or keep the server running with scry serve for automatic updates.',
   'list.bodyOnlyTitle': 'No local matches — found in body',
   'list.bodyOnlyHint': "See the 'Body matches' section above.",
   'list.noMatchTitle': 'No issues match',
@@ -527,12 +527,12 @@ export const en = {
     'Open issues in the same status longer than this are marked stale.',
   'settings.syncInterval': 'Incremental sync interval',
   'settings.syncIntervalHint':
-    'How often serve --sync polls Jira for changes. 0 uses the default.',
+    'How often scry serve polls Jira for changes. 0 uses the default.',
   'settings.reconcileInterval': 'Reconcile interval (deletions)',
   'settings.reconcileIntervalHint':
-    'How often serve --sync re-lists keys to drop issues deleted upstream. 0 uses the default.',
+    'How often scry serve re-lists keys to drop issues deleted upstream. 0 uses the default.',
   'settings.intervalApplies':
-    'Takes effect after restarting scry serve --sync (the loop reads intervals once at startup).',
+    'Takes effect after restarting scry serve (the loop reads intervals once at startup).',
   'settings.intervalDefault': 'Default',
   'settings.intervalCustom': 'Custom…',
   'settings.intervalSeconds': 'seconds',
@@ -695,7 +695,7 @@ export const en = {
   'onboarding.syncStarting': 'Starting…',
   'onboarding.syncDone': 'Mirrored {n} issues. Opening the list…',
   'onboarding.syncServeHint':
-    'For automatic updates later, run scry serve --sync (or use Sync now from the sidebar).',
+    'For automatic updates later, run scry serve (or use Sync now from the sidebar).',
   'onboarding.errSync': 'Sync failed: {message}',
   'onboarding.retry': 'Retry',
   'onboarding.back': 'Back',

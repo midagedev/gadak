@@ -122,8 +122,9 @@ is source-neutral; only the field schema it reads is Jira-shaped.
 ## What is deliberately absent
 
 - **No ORM.** Hand-written SQL against a schema that is itself a public contract.
-- **No background daemon.** `scry serve --sync` runs the loop in-process; there
-  is nothing to install into systemd or launchd.
+- **No always-on daemon required.** `scry serve` runs the sync loop in-process
+  when a credential is configured. `scry install-service` is optional and writes
+  a user-level launchd/systemd unit so that process survives reboot.
 - **No embedded UI assets in v0.1.** The binary serves `dist/app` from disk.
   Embedding via `embed.FS` is a packaging decision for the release, not an
   architectural one.

@@ -5,7 +5,7 @@ scry tui
 ```
 
 Reads the same `~/.scry/scry.db` the web UI and your agent read. It never talks
-to Jira on its own — sync is `scry sync` or `scry serve --sync` — except when you
+to Jira on its own — sync is `scry sync` or `scry serve` — except when you
 comment, transition, or reassign, which go straight through and then refresh that
 one issue in the mirror.
 
