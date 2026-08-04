@@ -48,7 +48,7 @@ terminal, and the agent read the same store.
 | | For | Looks like |
 | --- | --- | --- |
 | **Web UI** | all-day triage, mouse and keyboard | keyboard-driven list, saved views, ⌘K palette, full detail with rich text, comments, history, attachments |
-| **TUI** | people who live in the terminal | `scry tui` — list, filter, detail, and write actions over the same mirror |
+| **TUI** | people who live in the terminal | [`scry tui`](docs/TUI.md) — list, filter, detail, and write actions over the same mirror |
 | **CLI + SQL** | agents, scripts, one-off questions | `scry issue`, `scry search`, `scry sql`, plus the file itself |
 
 <p align="center">
@@ -214,6 +214,7 @@ source-specific work merges until the neutral layer stays neutral.
 - [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) — what exists, what does not
 - [`docs/CONCEPT.md`](docs/CONCEPT.md) — the product idea and the loop it optimizes
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components and data flow
+- [`docs/TUI.md`](docs/TUI.md) — terminal UI keys, and CJK font guidance
 - [`docs/PLUGINS.md`](docs/PLUGINS.md) — the enrichment contract
 - [`docs/decisions/`](docs/decisions/) — why it is shaped this way
 - [`specs/000-product/`](specs/000-product/) — spec, data model, API and sync contracts
