@@ -1,0 +1,82 @@
+# Deploy the zero-install hosted demo to GitHub Pages.
+#
+# Workflow is ready to run; Pages must be enabled once by a human:
+#   Repo → Settings → Pages → Build and deployment → Source: GitHub Actions
+#
+# After the first successful run the demo is at:
+#   https://<owner>.github.io/scry/
+#
+# Only examples/demo.db + examples/attachments (already scrubbed public fixtures)
+# are baked into the artifact. Never point export-static at a personal mirror.
+
+name: Hosted demo (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build hosted demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build binary
+        run: CGO_ENABLED=0 go build -trimpath -o bin/scry ./cmd/scry
+
+      - name: Build hosted demo (UI + static snapshot)
+        run: node tools/hosted-demo/build.mjs
+
+      - name: Tenant-neutrality / secret scan
+        run: |
+          set -euo pipefail
+          bash scripts/scan-internal.sh
+          # Artifact must not contain a concrete Jira site URL.
+          if grep -rEn "atlassian\.net" dist/hosted \
+              | grep -vE "your-site|example\.com|your-team"; then
+            echo "found a concrete Jira site URL in hosted artifact" >&2
+            exit 1
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/hosted
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

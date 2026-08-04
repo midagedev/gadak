@@ -73,6 +73,17 @@ go run ./tools/seed-demo --data examples/demo-seed.json --repair-states
   cannot be backfilled after the fact: pushing an already-done issue backwards
   later would register as a reopen it was never supposed to have.
 
+## `hosted-demo`
+
+Builds the zero-install hosted demo into `dist/hosted/` (Vite with
+`VITE_HOSTED_DEMO=1` + `scry export-static` over `examples/demo.db`). See
+`make hosted-demo` and ADR 0004 addendum.
+
+```bash
+node tools/hosted-demo/build.mjs
+# or: make hosted-demo && make hosted-demo-test
+```
+
 ## `bench-fixture`
 
 Builds a deterministic synthetic `scry.db` for latency work (T6.7 / G5). No

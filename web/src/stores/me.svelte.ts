@@ -30,8 +30,9 @@ import type {
 
 export type { FeedFocus } from '../lib/types'
 
-/* Auth API lives outside the issues API base. */
-const AUTH_BASE = config().authBase
+/* Auth API lives outside the issues API base. Read at call time so a
+ * loadConfig() override (hosted demo api/auth base under /scry/) is honoured —
+ * a module-level capture would freeze DEFAULTS before config.json loads. */
 
 const FAVORITES_KEY = 'issue-nav:favorites'
 const RECENT_KEY = 'issue-nav:recent'
@@ -224,7 +225,7 @@ class MeStore {
   }
 
   async #fetchIdentity(opts: { loadPersonal: boolean }): Promise<void> {
-    const res = await fetch(`${AUTH_BASE}me/`, { credentials: 'same-origin' })
+    const res = await fetch(`${config().authBase}me/`, { credentials: 'same-origin' })
     if (!res.ok) return
     const data = (await res.json()) as {
       email: string | null

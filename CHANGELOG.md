@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Zero-install hosted demo (v0.3).** Static snapshot of `examples/demo.db`
+  (bootstrap + 519 detail JSON + attachment bytes) served by a demo-only service
+  worker on GitHub Pages — no binary, no account. `scry export-static`,
+  `make hosted-demo`, `e2e/hosted/`, `.github/workflows/pages.yml`. ADR 0004
+  addendum: static JSON+SW instead of sqlite-wasm (client already boots from
+  bootstrap JSON; FTS is client-side typing search for the demo).
 - **Retention loop (v0.3).** `scry serve` starts the sync watch loop by default
   when a credential is configured (`--no-sync` opts out; `--sync` kept as a
   deprecated alias). `scry install-service` writes a launchd agent or systemd

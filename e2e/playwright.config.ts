@@ -6,10 +6,9 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: '.',
-  // demo/ is the recording pipeline, not a test: it has its own config and
-  // skips itself without SCRY_MEDIA. Excluding it keeps the suite honest
-  // ("13 passed", not "13 passed 1 skipped").
-  testIgnore: '**/demo/**',
+  // demo/ is the recording pipeline; hosted/ has its own config (static Pages
+  // smoke). Excluding both keeps the suite honest ("N passed", not "N + skipped").
+  testIgnore: ['**/demo/**', '**/hosted/**'],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

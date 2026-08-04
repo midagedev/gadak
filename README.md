@@ -18,6 +18,10 @@ npm ci && npm run build && go build -o scry ./cmd/scry
 ./scry demo        # opens a 519-issue fictional backlog in your browser
 ```
 
+Or open the [zero-install hosted demo](https://midagedev.github.io/scry/) in a
+browser (static snapshot of the same 519 issues; read-only — no binary, no
+account). Enable GitHub Pages once if the link 404s; see below.
+
 <p align="center">
   <img src="docs/media/web-demo.gif" alt="Typing in the search box narrows 519 issues instantly, with matches highlighted; ⌘K jumps to an issue" width="900">
 </p>
@@ -140,6 +144,34 @@ no telemetry — the only outbound traffic is to your own Jira site.
 Pointing one machine at two sites (work and a demo, say) is what profiles are
 for: `scry --profile demo init` keeps a separate credential and mirror under
 `~/.scry/profiles/demo/`.
+
+### Zero-install hosted demo
+
+A static build of the web UI plus a frozen copy of the demo snapshot, for GitHub
+Pages (or any static host). No binary, no Jira account, no trust decision.
+
+```bash
+make hosted-demo          # → dist/hosted/  (UI + bootstrap/detail/attachments)
+make hosted-demo-test     # Playwright smoke (boot, search, detail, image)
+```
+
+Local preview (base path `/scry/` matches a project Pages site):
+
+```bash
+mkdir -p dist/pages/scry && cp -R dist/hosted/. dist/pages/scry/
+npx serve dist/pages -l 4173
+# open http://127.0.0.1:4173/scry/
+```
+
+**Human checklist to publish on GitHub Pages** (workflow is already in the repo):
+
+1. Repo → **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+2. Merge to `main` (or run **Hosted demo (GitHub Pages)** via workflow_dispatch).
+3. Wait for the deploy job; the site is `https://<owner>.github.io/scry/`.
+
+Limits of the hosted snapshot: read-only (writes return `501 demo_read_only`);
+server full-text search (`search/`) is unavailable (client-side typing search
+still works over the 519-issue pool); no live sync or identity.
 
 ### About the demo data
 
