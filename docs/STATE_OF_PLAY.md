@@ -4,147 +4,119 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-04, after the initial extraction.
+Last updated: 2026-08-04, after the v0.1 implementation push.
 
 ## In one paragraph
 
-The web application is real, mature, and in daily use in its original internal
-deployment. Everything server-side is a skeleton: `scry serve` hosts the built UI
-and a config document, and nothing else is implemented. There is no database, no
-sync, no API. The next work is to build them, in the order given below. A populated
-public demo Jira site exists to develop and test against.
+The tool works end to end. `scry init && scry sync && scry serve` mirrors a real
+Jira site into SQLite and serves the full UI from it; `scry demo` does the same
+from a bundled snapshot with no account at all. Sync (full, incremental,
+reconcile), the read API, write-through, the settings UI, the enrichments plugin
+boundary, i18n (English default, Korean locale), and a Playwright E2E suite are
+all implemented and tested. What remains before a public launch is release
+polish, listed below.
 
 ## What is verified to work
 
-Each claim here was executed, not assumed. Re-run any of them to confirm.
+Each claim here was executed against the real public demo site or the committed
+snapshot, not assumed.
 
-| Claim | Command |
+| Claim | Evidence |
 | --- | --- |
-| The UI builds | `npm ci && npm run build` -> `dist/app` |
-| The UI typechecks clean | `npm run typecheck` -> 0 errors, 0 warnings |
-| The binary builds without CGO | `CGO_ENABLED=0 go build -o /tmp/scry ./cmd/scry` |
-| `serve` answers health, config, and the SPA | `/tmp/scry serve --static dist/app` then curl `/healthz`, `/config.json`, `/` |
-| A non-loopback bind is refused | `/tmp/scry serve --addr 0.0.0.0:7789` exits non-zero |
-| No internal strings remain | `grep -rn "redacted-org\|redacted-product\|/redacted-tool\|redacted-service" web/ tools/ docs/ cmd/` -> nothing |
+| Full sync mirrors the demo site | 519 issues in ~5 s, `scry sync --full` |
+| Incremental sync is idempotent | Immediate re-run: fetched 193 (overlap window), changed 0, `version` unchanged |
+| Derived fields match seeded ground truth | 209/144/166 per category and 95 reopen transitions — the exact numbers the seeder wrote |
+| Live write-through | Comment and transition executed against real Jira; response carried the refreshed IssueLite (`comment_count` 0→1) |
+| Settings round-trip without restart | `PUT settings/` → `config.json` reflects immediately; `groupRules` classified 39 issues on the next read |
+| Plugin boundary | Two SQL statements (insert into `enrichments`, bump `sync_state.version`) surfaced a deploy badge and PR list in the API |
+| Browser E2E | `npx playwright test --config e2e/playwright.config.ts` → 8/8 against `examples/demo.db` |
+| Whole test tree | `go test ./...` green across store/jira/sync/server/tools; `npm run typecheck` 0 errors |
+| Gates | G1–G4 test evidence recorded per task in `../specs/000-product/tasks.md` |
 
-| The store passes G1 | `CGO_ENABLED=0 go test ./internal/store/` -> 18 tests pass |
+## How the pieces fit
 
-## What does not exist yet
+- `internal/store` — SQLite schema (public contract, `data-model.md`), migrations,
+  FTS5, derived-field computation. Single writer, WAL.
+- `internal/jira` — stdlib REST client: token-cursor search, changelog/comment
+  paging, retry/backoff, id/category-only logic.
+- `internal/sync` — full/incremental/reconcile passes, watermark with a 2-minute
+  overlap, `SyncIssue` for post-write refresh, `Watch` loop.
+- `internal/server` — the whole HTTP contract (`contracts/api.md`): bootstrap
+  ETag, delta, detail (history carries `from_category`/`to_category`), search,
+  attachment proxy, write-through, `settings/`, enrichments merge.
+- `internal/config` — `~/.scry/config.json` (0600). **Profiles**: `--profile x` /
+  `SCRY_PROFILE` keep separate credentials and mirrors under
+  `~/.scry/profiles/x/` — this is how one machine points at a work site and the
+  demo site at once.
+- `web/` — the Svelte app. Feature flags (`presence/feed/push/deploy/qa/
+  teamGroups`) actually gate their surfaces; staleness comes from
+  `status_changed_at`; i18n catalogs live in `web/src/lib/i18n/`.
+- `tools/seed-demo` — Go port of the demo-site seeder (the Python original is
+  gone).
+- `e2e/` — Playwright suite over `examples/demo.db`; runs in CI.
 
-- No Jira connector. Nothing has ever synced, so the mirror the store manages is
-  empty in practice.
-- No read API: `bootstrap`, `delta`, `detail`, `search` all return `404`.
-- No write-through. The UI's write actions cannot succeed.
-- No `scry init`, `sync`, `demo`, `snapshot`, `sql`, or `mcp` — they exit with a
-  pointer to `../specs/000-product/tasks.md`.
+## The plugin boundary (how company-specific surfaces come back)
 
-Consequence: **launching the UI today shows an empty shell.** That is expected,
-not a bug to chase.
+The open-source core contains zero GitHub/CD/test-management code. An external
+process — any language, any schedule — upserts rows into the `enrichments`
+table and bumps `sync_state.version`; the server merges them into list rows
+(`deploy_status`, `qa_impact_*`) and detail responses (`deploy`, `qa_context`,
+`linked_prs`, `development_opinion`), and the UI surfaces appear once the
+matching feature flag is on. Payload shapes: `docs/PLUGINS.md`. Enrichments can
+never shadow mirrored fields.
 
-## Start here: the next task
+## What remains before a public launch
 
-`T2.1` in `../specs/000-product/tasks.md` — the Jira REST client, then full sync.
+| Item | Task | Note |
+| --- | --- | --- |
+| `scry snapshot` (timestamp spreading, volume scaling) | T6.4 | `examples/demo.db` was scrubbed by hand this time; the command automates the next refresh |
+| 10k-issue bench fixture + latency gate | T6.7 / G5 | The 50 ms / 10k target is still unmeasured |
+| Secret & internal-string scan in CI | T7.4 | Manual scans passed; CI should pin them |
+| Dockerfile, release process, signed binaries | T7.5 / T7.6 | |
+| Live-site assignee display names | T6.8 | The committed snapshot is clean (fictional personas); the live site shows `midagedev+…` until each invitation is accepted. Blocks live-site screenshots only |
+| Feed/push as a local watch-based design | v0.2 | Deferred endpoints return clean 404s today |
+| MCP server | T5.4 | The SQLite file plus `scry sql` already cover shell-capable agents |
 
-The store is done and is what sync writes through (`internal/store`):
+## Operational notes
 
-- `UpsertSource`, then `UpsertIssues(Batch)` per page — one transaction, and it
-  recomputes derived fields, rewrites child rows, and rebuilds the FTS row.
-- `Batch.Categories` is a status-id → category map the connector must fetch from
-  `GET /rest/api/3/project/{key}/statuses` (not localized). Without it no reopen
-  is ever detected — an unmapped status counts as not-done.
-- `DeleteItems` for the reconcile pass, `RecordSync` for the watermark and
-  `last_error`. The watermark cannot regress and an unchanged issue is skipped,
-  so an incremental re-run is a real no-op.
-
-Then follow the critical path: `T2.1 -> T2.2 -> T2.7 -> T3.3 -> T3.4`.
-At the end of it, the UI displays real mirrored data, which is the first point at
-which the tool is worth installing.
-
-Do not start with writes or search. They are cheap once the mirror exists and
-worthless before.
-
-## The demo Jira site
-
-A personal Atlassian site holds fictional data for development, screenshots, and
-fixtures. Nothing in it derives from any real backlog.
-
-| | |
-| --- | --- |
-| Projects | `NMB` Nimbus Web, `NMA` Nimbus API, `NMS` Nimbus Support (all **company-managed**) |
-| Volume | 519 issues; 209 todo / 144 in progress / 166 done |
-| History | Status-change depth 0–7 per issue, 95 reopen transitions |
-| Content | 339 issues with comments, 61 link edges, releases and components per project |
-| Authored subset | 210 issues have hand-written bodies (`examples/demo-seed.json`); the other 309 are procedurally generated and noticeably more repetitive |
-| Assignees | Four accounts (264 assigned / 255 unassigned). **Three of them still display as an email local part** — see the debt table |
-| Extra project | `KAN` exists on the same site and is unrelated; leave it alone |
-
-Credentials are **not** in this repository. To work against the site you need the
-site URL, an account email, and a user API token from
-<https://id.atlassian.com/manage-profile/security/api-tokens>, exported as
-`JIRA_SITE`, `JIRA_EMAIL`, `JIRA_TOKEN`. See `runbooks/local-dev.md`.
+- GitHub remote: `https://github.com/midagedev/scry` (private until launch).
+  All commits are authored `midagedev <midagedev@users.noreply.github.com>`.
+- The public demo site (a personal Atlassian site) is the live sync target;
+  credentials are never in this repo. CI needs no secrets — everything runs
+  against `examples/demo.db`.
+- `scry --profile demo …` on the owner's machine holds the demo-site credential.
 
 ## Hard-won knowledge (do not rediscover these)
 
-Every one of these cost real debugging time. They are also encoded in the code and
-the contracts, but they are worth reading once up front.
-
-1. **Organization API keys are not product API keys.** A key from
-   `admin.atlassian.com` (prefix `ATCTT`) authenticates against
-   `/admin/v1/orgs/...` and returns `401` on every Jira product endpoint. You need
-   a user API token (prefix `ATATT`) with Basic auth.
-
-2. **Team-managed projects are unusable for this tool's demo data.** They do not
-   expose `priority`, `components`, or `fixVersions`, which are exactly the axes
-   the UI filters on. Company-managed only.
-
-3. **Jira localizes names and ignores `Accept-Language`.**
-   `issue/createmeta` and search responses translate issue type and status names
-   into the *account's* display language. `project/{key}/statuses` leaves
-   workflow-local statuses untranslated but still translates Jira's global ones.
-   Therefore: **all logic keys on ids or `statusCategory`, never on names.** This is
-   the single most common way to write code that works for you and silently
-   returns nothing for someone else.
-
-4. **Reopen and resolution detection must use `statusCategory`.** The internal
-   original matched status names and broke everywhere else. A reopen is a
-   transition from a `done`-category status to a non-`done` one.
-
-5. **Default workflows offer a direct `Backlog -> Done` edge.** Taking it leaves a
-   single changelog entry, so the history timeline has nothing to show. Walk the
-   category ladder one rung at a time.
-
-6. **Changelog history cannot be backfilled.** Jira assigns `created` at insert
-   time with no backdating, and pushing an already-done issue backwards later
-   registers as a reopen it should not have. Realistic time spread is therefore a
-   `scry snapshot` concern, not a Jira one.
-
-7. **`search/jql` does support `expand=changelog`** — verified. Use token
-   pagination (`nextPageToken`), not the deprecated `startAt` search.
-
-8. **Deleting issues needs a permission the default scheme lacks.** Plan seeding
-   runs assuming you cannot undo them.
-
-9. **The frontend build target rejects top-level `await`.** `web/src/main.ts`
-   wraps its config load in an async IIFE for this reason. Do not "simplify" it.
-
-10. **An admin cannot set a display name on Jira Cloud.**
-    `POST /rest/api/3/user` accepts `displayName` and silently ignores it for
-    accounts outside a verified domain; Jira uses the email local part instead.
-    Only the account holder can set the real name, after accepting the invitation
-    email. Plan demo personas accordingly — or use a domain you control.
-
-## Deliberate debts
-
-These are choices, not oversights. Each has a reason recorded.
-
-| Debt | Why it was left | Where |
-| --- | --- | --- |
-| `PrList`, `DeployTimeline`, `QaImpact` still in the tree | Deleting them touches the detail panel and type surface; not worth bundling into the extraction | `EXTRACTION.md` |
-| UI is Korean-only, including source comments | Translation is a separate pass, and it is a **release blocker** for a public launch | `tasks.md` T0.10 |
-| `d1_group` field name survives in client types | Rename belongs with the first stable API release | `EXTRACTION.md` |
-| 309 of 519 demo issues have templated bodies | Rewriting them is cheap later; the authored 210 cover screenshots | `tasks.md` T6.3 |
-| Some demo issues have thin changelog history | Cannot be fixed retroactively without faking reopens | point 6 above |
-| Three demo assignees display as an email local part, not a person's name | Jira Cloud will not let an admin set `displayName` for a non-managed account. `POST /rest/api/3/user` accepts the field and ignores it; the name is derived from the email instead, and only the account holder can change it after accepting the invitation. **Blocks public screenshots**, because the owner's alias pattern would be visible | point 10 below |
+1. **Organization API keys are not product API keys.** `ATCTT` keys from
+   admin.atlassian.com 401 on every product endpoint; you need a user token
+   (`ATATT`) with Basic auth.
+2. **Team-managed projects lack `priority`/`components`/`fixVersions`.**
+   Company-managed only for demo data.
+3. **Jira localizes type/status names per account language and ignores
+   `Accept-Language`.** All logic keys on ids or `statusCategory`. The sync test
+   suite runs the same fixture in English and Korean and asserts identical
+   derived output.
+4. **A reopen is a `done`-category → non-`done` transition.** Never a name match.
+5. **Default workflows have a direct `Backlog -> Done` edge** that leaves a
+   one-entry changelog; the seeder walks the category ladder instead.
+6. **Changelog history cannot be backfilled.** Time spread is a snapshot-tool
+   concern (T6.4).
+7. **`search/jql` supports `expand=changelog`** with `nextPageToken` paging; when
+   an issue reports a truncated changelog, page `GET /issue/{key}/changelog`.
+8. **Issue deletion needs a permission the default scheme lacks.** Plan seeding
+   runs assuming you cannot undo.
+9. **The frontend build target rejects top-level `await`** — `web/src/main.ts`
+   wraps its config load in an async IIFE.
+10. **Admins cannot set display names on Jira Cloud** for accounts outside a
+    verified domain; only the account holder can, after accepting the invite.
+11. **Go's ServeMux panics at registration on intersecting patterns**
+    (`watches/{key}/` vs `{key}/assignee/` under the same method). The server
+    registers one `{key}/{action}` pattern and branches inside;
+    `TestRoutesRegister` keeps it honest.
+12. **JQL `updated` comparisons are minute-granular and read in account time.**
+    The watermark is stored verbatim and rendered into JQL with the offset Jira
+    supplied; the 2-minute overlap makes the boundary loss-proof.
 
 ## Where to look for what
 
@@ -152,12 +124,14 @@ These are choices, not oversights. Each has a reason recorded.
 | --- | --- |
 | What is the product and why | `CONCEPT.md`, `../README.md` |
 | What am I allowed to do | `../.specify/memory/constitution.md` |
-| What is the state of every piece | `../specs/000-product/tasks.md` |
-| What is the database contract | `../specs/000-product/data-model.md` |
-| What does the UI expect from the server | `../specs/000-product/contracts/api.md` |
-| How must sync behave | `../specs/000-product/contracts/sync.md` |
-| What do agents get | `../specs/000-product/contracts/agent.md`, `AGENT_ACCESS.md` |
-| When is a phase done | `../specs/000-product/gates.md` |
-| Why is it shaped this way | `decisions/` |
-| How do I run things | `runbooks/local-dev.md` |
-| How do I refill demo data | `../tools/README.md` |
+| State of every task, with test evidence | `../specs/000-product/tasks.md` |
+| Database contract | `../specs/000-product/data-model.md` |
+| HTTP contract | `../specs/000-product/contracts/api.md` |
+| Sync behavior | `../specs/000-product/contracts/sync.md` |
+| Plugin payloads | `PLUGINS.md` |
+| Agent access | `../specs/000-product/contracts/agent.md`, `AGENT_ACCESS.md` |
+| Gate definitions | `../specs/000-product/gates.md` |
+| Why it is shaped this way | `decisions/` |
+| Running locally | `runbooks/local-dev.md` |
+| Refilling demo data | `../tools/README.md` |
+| Browser E2E | `../e2e/README.md` |

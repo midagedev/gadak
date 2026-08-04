@@ -14,11 +14,12 @@ scry serve    # http://localhost:7777
 sqlite3 ~/.scry/scry.db "select key, status, summary from issues where reopen_count > 0"
 ```
 
-> **Status: pre-implementation.** The web application is real and in daily use
-> (extracted from an internal deployment). The Go server that replaces its
-> internal backend is specified but not built yet, so launching the UI today shows
-> an empty shell. `docs/STATE_OF_PLAY.md` is the honest inventory and the starting
-> point for contributors; `specs/000-product/tasks.md` has the task-level detail.
+> **Status: working, pre-release.** Sync, the read API, write-through, settings,
+> the plugin boundary, and i18n are implemented and verified end to end against a
+> public demo site; a Playwright suite runs in CI against the bundled snapshot.
+> What remains before a public release is packaging polish (snapshot tooling,
+> benchmarks, Docker, release process). `docs/STATE_OF_PLAY.md` is the honest
+> inventory; `specs/000-product/tasks.md` has task-level test evidence.
 
 ## Why
 
@@ -82,11 +83,13 @@ go build -o scry ./cmd/scry
 
 ./scry init              # prompts for site URL, email, API token, and projects
 ./scry sync              # first full sync
-./scry serve             # http://localhost:7777
+./scry serve --sync      # http://localhost:7777, keeps the mirror fresh
 ```
 
 Credentials live in `~/.scry/config.json` with `0600` permissions and are never
-written to the database or the repository.
+written to the database or the repository. To point one machine at two sites
+(say, work and a demo), use profiles: `scry --profile demo init` keeps a second
+credential and mirror under `~/.scry/profiles/demo/`.
 
 ### Try it without a Jira account
 
