@@ -32,12 +32,15 @@ snapshot, not assumed.
 | Live write-through | Comment and transition executed against real Jira; response carried the refreshed IssueLite (`comment_count` 0→1) |
 | Settings round-trip without restart | `PUT settings/` → `config.json` reflects immediately; `groupRules` classified 39 issues on the next read |
 | Plugin boundary | Two SQL statements (insert into `enrichments`, bump `sync_state.version`) surfaced a deploy badge and PR list in the API |
-| Browser E2E | `playwright test --config e2e/playwright.config.ts` → 10/10 against `examples/demo.db` |
+| Browser E2E | `playwright test --config e2e/playwright.config.ts` → 13/13 against `examples/demo.db`, 11 s |
 | Derived reopen_reason / cloned_from | Live demo-site sync: 87 reopened issues, 42 carrying a derived reason |
 | Plugin examples end to end | `examples/plugins/github-prs` and `csv-import` run against a copy of the snapshot; the API then returns `linked_prs` and both the list badge (`deploy_status`) and detail `deploy` |
 | Single binary | `go build` embeds `dist/app`; a fresh binary with no `--static` serves the UI and `/api/v1/issues/bootstrap/` returns 200 |
 | Agent CLI | `scry issue NMB-20`, `scry search pagination`, `--json` shapes verified against the demo profile |
-| Secret scan | `scripts/scan-internal.sh` clean across 189 tracked files and the demo snapshot |
+| Secret scan | `scripts/scan-internal.sh` clean across the tracked tree and the demo snapshot |
+| Release artifacts | `goreleaser release --snapshot` → six archives; the extracted darwin/arm64 binary serves the embedded UI and a 200 bootstrap with no `--static` |
+| MCP server | stdio JSON-RPC round trip: initialize / tools/list / all four tools; write SQL rejected as a tool error; stdout carries frames only |
+| Demo media | `make media` regenerates three GIFs and an MP4 from the snapshot; frames inspected for branding, English status names, and a healthy sync badge |
 | Whole test tree | `go test ./...` green across store/jira/sync/server/tools; `npm run typecheck` 0 errors |
 | Gates | G1–G4 test evidence recorded per task in `../specs/000-product/tasks.md` |
 
@@ -61,7 +64,13 @@ snapshot, not assumed.
   `status_changed_at`; i18n catalogs live in `web/src/lib/i18n/`.
 - `tools/seed-demo` — Go port of the demo-site seeder (the Python original is
   gone).
-- `e2e/` — Playwright suite over `examples/demo.db`; runs in CI.
+- `internal/tui` — Bubble Tea terminal UI. Column widths in terminal cells
+  (`go-runewidth`), so CJK summaries stay aligned; see `docs/TUI.md`.
+- `internal/mcp` — stdio JSON-RPC server, four read-only tools, no SDK.
+- `examples/plugins/` — working enrichment plugins (GitHub PRs, deploy status
+  from git tags, CSV import) with self-tests behind `make plugins-test`.
+- `e2e/` — Playwright suite over `examples/demo.db`; runs in CI. `e2e/demo/` and
+  `tools/tapes/` are the recording pipeline (`make media`), excluded from it.
 
 ## The plugin boundary (how company-specific surfaces come back)
 
@@ -123,7 +132,16 @@ secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
     (`watches/{key}/` vs `{key}/assignee/` under the same method). The server
     registers one `{key}/{action}` pattern and branches inside;
     `TestRoutesRegister` keeps it honest.
-12. **JQL `updated` comparisons are minute-granular and read in account time.**
+12. **goreleaser `--clean` empties its own output directory.** Pointing it at
+    `dist/` deleted `dist/app`, the web build `go:embed` needs, so every tagged
+    release would have failed its own before-hook. Output goes to `.release/`.
+13. **The sync-health badge reads `sources.synced_at`, not the watermark.** A
+    quiet project's watermark stays in the past forever and would read as
+    permanently delayed; recordings freshen the former (`SCRY_FRESHEN=1`).
+14. **`waitForLoadState('networkidle')` is a trap here.** The client polls for a
+    delta every 15 s, so "no network for 500 ms" only becomes true after that
+    poll fires. Wait on the boot payload instead.
+15. **JQL `updated` comparisons are minute-granular and read in account time.**
     The watermark is stored verbatim and rendered into JQL with the offset Jira
     supplied; the 2-minute overlap makes the boundary loss-proof.
 
