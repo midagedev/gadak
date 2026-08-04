@@ -35,6 +35,7 @@ var documentedColumns = map[string][]string{
 	"favorites":     {"key", "created_at"},
 	"sync_state":    {"source_id", "watermark", "version", "last_full_sync_at", "last_error", "schema_version"},
 	"enrichments":   {"key", "kind", "payload", "source", "updated_at"},
+	"feed_reads":    {"event_id", "read_at"},
 }
 
 func TestSchemaMatchesDataModel(t *testing.T) {

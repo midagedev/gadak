@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -187,4 +187,14 @@ CREATE INDEX enrichments_kind ON enrichments(kind);
 const schemaV3 = `
 ALTER TABLE issues ADD COLUMN reopen_reason TEXT NOT NULL DEFAULT '';
 ALTER TABLE issues ADD COLUMN cloned_from TEXT NOT NULL DEFAULT '';
+`
+
+// schemaV4 records which personal-feed events the local user has already seen.
+// Events themselves are never stored: the feed is computed from the mirror at
+// query time (changelog / comments / attachments / issue creates).
+const schemaV4 = `
+CREATE TABLE feed_reads (
+  event_id TEXT PRIMARY KEY,
+  read_at  TEXT NOT NULL
+);
 `
