@@ -1,10 +1,10 @@
 # scry
 
-**Your issue tracker, mirrored to a local SQLite file.** One binary: a browser UI
-that filters 10,000 issues without a network round trip, a terminal UI for when
-you never leave tmux, and a database your coding agent can query with plain SQL.
+**Your Jira, mirrored to a local SQLite file.** One binary: a browser UI that
+filters 10,000 issues without a network round trip, a terminal UI for when you
+never leave tmux, and a database your coding agent can query with plain SQL.
 
-Jira is the first source.
+Jira is the first source; the storage layer is source-neutral on purpose.
 
 <p align="center">
   <img src="docs/media/web-demo.gif" alt="Typing in the search box narrows 519 issues instantly, with matches highlighted; ⌘K jumps to an issue" width="900">
