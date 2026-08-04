@@ -128,11 +128,11 @@ func TestConnectVerifiesStoresSiteAndHidesTheToken(t *testing.T) {
 
 func TestNormalizeSiteAcceptsWhatPeoplePaste(t *testing.T) {
 	for in, want := range map[string]string{
-		"team.atlassian.net":          "https://team.atlassian.net",
-		"https://team.atlassian.net/": "https://team.atlassian.net",
+		"example.atlassian.net":          "https://example.atlassian.net",
+		"https://example.atlassian.net/": "https://example.atlassian.net",
 		" http://localhost:8080/x ":   "http://localhost:8080",
 		"::nope":                      "",
-		"ftp://team.atlassian.net":    "",
+		"ftp://example.atlassian.net":    "",
 		"":                            "",
 	} {
 		if got := normalizeSite(in); got != want {

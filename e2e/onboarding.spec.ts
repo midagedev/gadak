@@ -110,7 +110,7 @@ test.describe('first-run onboarding', () => {
     const wizard = page.getByTestId('onboarding')
     await expect(wizard).toBeVisible({ timeout: 30_000 })
     await expect(wizard.getByText('Step 1 of 3 · Connect')).toBeVisible()
-    await wizard.locator('input[name="site"]').fill('https://nimbus.atlassian.net')
+    await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
     await wizard.locator('input[name="email"]').fill('dana@example.com')
     await wizard.locator('input[name="token"]').fill('super-secret-token')
     await wizard.getByRole('button', { name: 'Connect', exact: true }).click()
@@ -120,7 +120,7 @@ test.describe('first-run onboarding', () => {
     await expect(wizard.getByText('Step 2 of 3 · Projects')).toBeVisible()
     await expect(wizard.getByText('Connected as Dana Scully')).toBeVisible()
     expect(connectBody).toMatchObject({
-      site: 'https://nimbus.atlassian.net',
+      site: 'https://example.atlassian.net',
       jira_email: 'dana@example.com',
       api_token: 'super-secret-token',
     })
@@ -151,7 +151,7 @@ test.describe('first-run onboarding', () => {
 
     const wizard = page.getByTestId('onboarding')
     await expect(wizard).toBeVisible({ timeout: 30_000 })
-    await wizard.locator('input[name="site"]').fill('https://nimbus.atlassian.net')
+    await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
     await wizard.locator('input[name="email"]').fill('dana@example.com')
     await wizard.locator('input[name="token"]').fill('wrong')
     await wizard.getByRole('button', { name: 'Connect', exact: true }).click()
