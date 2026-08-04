@@ -1,8 +1,8 @@
 // Command scry serves a local mirror of your issue tracker.
 //
 // Implemented: init, sync (--full/--watch), serve (--sync), tui, issue,
-// search, comment, transition, assign, sql, status, demo, profiles, version.
-// Specified but not implemented: snapshot, mcp.
+// search, comment, transition, assign, sql, status, mcp, demo, profiles, version.
+// Specified but not implemented: snapshot.
 // See specs/000-product/tasks.md for the current state of each.
 //
 // The agent-facing commands live in agent.go; AGENTS.md is their reference.
@@ -545,6 +545,7 @@ Reading the mirror (no network; see AGENTS.md):
   issue      full detail for one issue    <KEY> [--json]
   search     full-text search            [--limit N] [--json] "text"
   sql        read-only SQL               [--json|--csv] "select ..."
+  mcp        MCP server on stdio (for clients without a shell; see docs/MCP.md)
 
 Writing through to Jira (needs a credential):
   comment    add a comment    <KEY> -m <text|-> [--json]
@@ -555,7 +556,7 @@ Profiles keep separate credentials and mirrors (e.g. work and demo):
   scry --profile demo init && scry --profile demo serve --sync --addr 127.0.0.1:7778
 
 Not implemented yet (specified in specs/000-product/):
-  scry snapshot | mcp
+  scry snapshot
 `
 
 func main() {
@@ -592,6 +593,8 @@ func main() {
 		err = cmdAssign(args[1:])
 	case "status":
 		err = cmdStatus(args[1:])
+	case "mcp":
+		err = cmdMCP(args[1:])
 	case "demo":
 		err = cmdDemo(args[1:])
 	case "tui":
@@ -602,7 +605,7 @@ func main() {
 		fmt.Println(version)
 	case "help", "--help", "-h":
 		fmt.Print(usage)
-	case "snapshot", "mcp":
+	case "snapshot":
 		log.Fatalf("scry %s: not implemented yet — see specs/000-product/tasks.md", args[0])
 	default:
 		fmt.Print(usage)
