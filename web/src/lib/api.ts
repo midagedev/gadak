@@ -287,6 +287,61 @@ export function deleteCredential(): Promise<JiraCredential> {
   return jsonW<JiraCredential>('credential/', { method: 'DELETE' })
 }
 
+/* ── 첫 실행 온보딩 (loopback 전용) ──
+ * `credential/` 과 달리 site 까지 받는다: 첫 실행에는 저장된 사이트가 없고,
+ * `PUT credential/` 은 site 없이는 검증 대상이 없어 거부한다.
+ */
+
+export interface AvailableProject {
+  key: string
+  name: string
+  projectTypeKey: string
+}
+
+/** POST sync/ · GET sync/progress/ 의 공통 응답. 자격증명 정보는 담기지 않는다. */
+export interface SyncProgress {
+  running: boolean
+  /** idle | syncing | done | error */
+  phase: string
+  fetched: number
+  changed: number
+  deleted: number
+  done: boolean
+  error: string
+  started_at: string
+  finished_at: string
+}
+
+/** 사이트+이메일+토큰을 /myself 로 검증한 뒤 저장한다. 실패 시 ApiError.code 로 구분. */
+export function connectJira(
+  site: string,
+  jiraEmail: string,
+  apiToken: string,
+): Promise<JiraCredential> {
+  return jsonW<JiraCredential>('onboarding/connect/', {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ site, jira_email: jiraEmail, api_token: apiToken }),
+  })
+}
+
+/** 사이트의 실제 프로젝트 목록. `truncated` 면 상한(500)에서 잘렸다는 뜻. */
+export function getAvailableProjects(): Promise<{
+  projects: AvailableProject[]
+  truncated: boolean
+}> {
+  return jsonW<{ projects: AvailableProject[]; truncated: boolean }>('projects/available/')
+}
+
+/** 풀 싱크를 백그라운드로 시작. 이미 돌고 있으면 409 sync_in_progress. */
+export function startFullSync(): Promise<SyncProgress> {
+  return jsonW<SyncProgress>('sync/', { method: 'POST' })
+}
+
+export function getSyncProgress(): Promise<SyncProgress> {
+  return jsonW<SyncProgress>('sync/progress/')
+}
+
 /* ── 상태 전환 ── */
 
 export function getTransitions(issueKey: string): Promise<TransitionsResponse> {

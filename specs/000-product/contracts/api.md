@@ -228,6 +228,43 @@ Implementation notes that are part of the contract:
 a snapshot. `GET credential/` returns only `{configured, jira_email,
 display_name, verified_at, token_hint}` — never the token.
 
+### First-run onboarding
+
+Three endpoints exist so a browser can finish setup with no CLI step: `scry serve`
+plus the wizard is the whole path.
+
+| Endpoint | Method | Jira call | Status |
+| --- | --- | --- | --- |
+| `onboarding/connect/` | PUT | `GET /rest/api/3/myself` to verify | R |
+| `projects/available/` | GET | `GET /rest/api/3/project/search` | R |
+| `sync/` | POST | full sync (background) | R |
+| `sync/progress/` | GET | none | R |
+
+`PUT onboarding/connect/` takes `{site, jira_email, api_token}` and is the only
+endpoint that writes `site`: on a first run there is no stored site, and
+`PUT credential/` refuses to verify without one. `site` is normalised (a missing
+scheme becomes `https://`, a trailing path is dropped) and rejected as
+`400 site_required` when it is not a host URL. Verification and storage are
+otherwise identical to `PUT credential/`, response included — a rejected token is
+`401 credential_rejected`, and the token never appears in a response.
+
+`GET projects/available/` proxies the site's project list as
+`{projects: [{key, name, projectTypeKey}], truncated}`, permission-filtered by the
+credential. It answers `409 credential_required` without one. It stops at 500
+projects and sets `truncated: true`, because a bigger site is one where typing keys
+into settings beats scrolling a picker.
+
+`POST sync/` starts one full sync in the background and answers `202` with the
+progress document. It is single-flight: a second call while one is running is
+`409 sync_in_progress`. An incomplete setup is `400 credential_required` or
+`400 projects_required`. `GET sync/progress/` polls
+`{running, phase, fetched, changed, deleted, done, error, started_at, finished_at}`
+where `phase` is `idle | syncing | done | error`. The document carries counters
+only — no site, no email, nothing derived from the token — and `fetched`/`changed`
+advance per committed page, so a client polling every second can show issues
+arriving live. The job is process-wide state, matching the one server `scry serve`
+runs.
+
 ### Field edits
 
 `PATCH <key>/fields/` accepts `{field, value}` and rejects any field not present

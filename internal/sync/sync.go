@@ -37,6 +37,9 @@ type Options struct {
 	Reconcile bool
 	// Log, when set, receives one line per committed page and per pass.
 	Log func(string)
+	// Progress, when set, is called once per committed page with the running
+	// totals. It exists so a caller can report progress without parsing Log.
+	Progress func(fetched, changed int)
 	// Client is for tests and for a server that wants to share one; nil builds
 	// one from cfg.
 	Client *jira.Client
@@ -126,6 +129,9 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 			}
 		}
 		opts.logf("page: %d issues, %d changed", len(issues), changed)
+		if opts.Progress != nil {
+			opts.Progress(res.Fetched, res.Changed)
+		}
 		return nil
 	}
 

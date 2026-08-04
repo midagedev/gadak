@@ -89,6 +89,12 @@ func New(db *store.DB, cfg *config.Config) http.Handler {
 	mux.HandleFunc("PUT "+apiBase+"credential/{$}", s.handlePutCredential)
 	mux.HandleFunc("DELETE "+apiBase+"credential/{$}", s.handleDeleteCredential)
 	mux.HandleFunc("GET "+apiBase+"meta/write/{$}", s.handleWriteMeta)
+	// First-run onboarding (onboarding.go). These literal patterns are more
+	// specific than the `{key}/{action}/` pair above, so ServeMux prefers them.
+	mux.HandleFunc("PUT "+apiBase+"onboarding/connect/{$}", s.handleConnect)
+	mux.HandleFunc("GET "+apiBase+"projects/available/{$}", s.handleAvailableProjects)
+	mux.HandleFunc("POST "+apiBase+"sync/{$}", s.handleStartSync)
+	mux.HandleFunc("GET "+apiBase+"sync/progress/{$}", s.handleSyncProgress)
 	mux.HandleFunc("GET "+apiBase+"create-meta/{$}", s.handleCreateMeta)
 	mux.HandleFunc("POST "+apiBase+"create/{$}", s.handleCreate)
 	mux.HandleFunc("GET "+apiBase+"users/{$}", s.handleUsers)

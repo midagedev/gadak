@@ -96,9 +96,9 @@ test.describe('first run', () => {
 
     const onboarding = page.getByTestId('onboarding')
     await expect(onboarding).toBeVisible({ timeout: 30_000 })
-    await expect(onboarding.getByText('Jira credential')).toBeVisible()
-    await expect(onboarding.getByText('Projects', { exact: true })).toBeVisible()
-    await expect(onboarding.getByText('First sync')).toBeVisible()
+    // The wizard opens on step 1; the three-step flow itself is onboarding.spec.ts.
+    await expect(onboarding.getByText('Step 1 of 3 · Connect')).toBeVisible()
+    await expect(onboarding.getByTestId('onboarding-connect')).toBeVisible()
     await expect(onboarding.getByRole('button', { name: 'Open settings' })).toBeVisible()
   })
 })
