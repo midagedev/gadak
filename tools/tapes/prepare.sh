@@ -21,6 +21,14 @@ echo "[tapes] seeding SCRY_HOME from examples/demo.db"
 cp -f "$ROOT/examples/demo.db" "$DB"
 rm -f "${DB}-wal" "${DB}-shm"
 
+# Freshen the sync clock. The committed snapshot ages, and a recording that
+# opens with "mirror last synced 2h ago — run `scry sync`" reads as a defect
+# rather than as the freshness guard it is.
+sqlite3 "$DB" "UPDATE sync_state SET watermark = strftime('%Y-%m-%dT%H:%M:%S.000Z','now'),
+                                     last_full_sync_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now'),
+                                     last_error = NULL;
+               UPDATE items SET synced_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now');"
+
 # Minimal config — credential is fake; CLI reads never hit the network.
 cat >"$CFG" <<'EOF'
 {

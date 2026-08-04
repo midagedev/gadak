@@ -34,7 +34,7 @@ export default defineConfig({
     trace: 'off',
   },
   webServer: {
-    command: 'bash e2e/serve.sh',
+    command: 'SCRY_FRESHEN=1 bash e2e/serve.sh',
     url: 'http://127.0.0.1:7877/healthz',
     // Demo recordings often re-run while a previous serve is still up.
     reuseExistingServer: true,
