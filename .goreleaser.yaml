@@ -1,0 +1,88 @@
+# GoReleaser config for scry.
+# The UI is not embedded (embed.FS is deferred); release archives ship dist/app
+# next to the binary. After unpacking: ./scry serve --static dist/app
+#
+# Signing: checksums.txt only. Cosign / sigstore attestation is deferred
+# (uncomment and wire GITHUB_TOKEN + OIDC when we need keyless signatures).
+
+version: 2
+
+project_name: scry
+
+before:
+  hooks:
+    - go mod tidy
+    # Web UI must already be built (release workflow runs npm run build first).
+    - test -d dist/app
+
+builds:
+  - id: scry
+    main: ./cmd/scry
+    binary: scry
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    flags:
+      - -trimpath
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+      # Built web UI — place next to the binary and pass --static dist/app.
+      # (go:embed is deferred; see docs/ARCHITECTURE.md.)
+      - dist/app/**
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# Cosign / sbom / notarize: skipped for now (checksums.txt is the only artifact
+# integrity signal). Revisit before a public v1.
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: midagedev
+    name: scry
+  draft: false
+  prerelease: auto
+  name_template: "scry {{.Tag}}"
+  footer: |
+    ## Install
+
+    Download the archive for your OS/arch, unpack it, and run:
+
+    ```bash
+    ./scry serve --static dist/app
+    ```
+
+    Or use the container image (see README).
