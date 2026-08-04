@@ -19,7 +19,7 @@ Legend: **done** / **partial** / **todo**
 | T0.7 | Governance and license files | done | Apache-2.0 |
 | T0.8 | Specs, contracts, and architecture docs | done | This directory plus `docs/` |
 | T0.9 | Remove or plugin-ize the cut internal surfaces still present in the UI | done | Resolved by feature-flag gating, not deletion: `PrList` and `DeployTimeline` sit behind `features.deploy`, `QaImpact` and `QaFieldEditor` behind `features.qa`. The components stay in the tree so a tenant that has the data can switch them on |
-| T0.10 | Translate the UI to English with the current copy as a locale | todo | **Release blocker for a public launch.** The UI is Korean-only, which caps adoption regardless of everything else |
+| T0.10 | Translate the UI to English with the current copy as a locale | done | `web/src/lib/i18n/` — thin `t()` + `en.ts`/`ko.ts` catalogs (~520 keys, key sets typechecked against each other), locale from `scry_locale` in localStorage > `navigator.language` > `en`. All three relative-time implementations unified; composed sentences rewritten as whole message keys. Source comments stay Korean by design |
 | T0.11 | Wire the `features` flags to actual consumers | done | The flags were declared in `config.ts` and read by nobody, so `presence` still opened a WebSocket retry loop against a missing endpoint and the deploy/QA/team-group columns stayed in the catalog. Gating now runs through `feature()` in `config.ts` |
 | T0.12 | Compute staleness from `status_changed_at` | done | The UI read `working_hours_in_status`, a field no server populates (see `data-model.md`), so the "stale" view was always empty. Threshold is `staleThresholdHours` in config, default 72 |
 
@@ -80,9 +80,14 @@ Legend: **done** / **partial** / **todo**
 | # | Task | State |
 | --- | --- | --- |
 | T5.1 | Documented schema | done (`data-model.md`) |
-| T5.2 | `scry sql` read-only query path | todo |
-| T5.3 | `scry status --json` | todo |
+| T5.2 | `scry sql` read-only query path | done — `mode=ro` connection, tab-separated or `--json` |
+| T5.3 | `scry status --json` | done |
 | T5.4 | MCP server | todo (post-v0.1) |
+
+CLI wiring beyond T5: `init` (interactive, verifies against `/myself` before saving),
+`sync --full/--watch`, `serve --sync`, `demo`, `profiles`, and a global
+`--profile <name>` / `SCRY_PROFILE` that keeps separate credentials and mirrors
+under `~/.scry/profiles/<name>/` — the work/demo dual-account setup.
 
 ## T6 Demo and fixtures
 
@@ -91,10 +96,10 @@ Legend: **done** / **partial** / **todo**
 | T6.1 | Jira seeding tool | done | `tools/seed-demo`: dataset-driven or generated, plus `--repair-states` |
 | T6.2 | Public demo site populated | done | 519 issues across three fictional products. Categories: 209 todo / 144 in progress / 166 done. Status-change depth 0–7 per issue. 95 reopen transitions, 339 issues with comments, 264 assigned, 61 link edges |
 | T6.3 | Authored (non-templated) issue bodies | done | 210 of the 519 are hand-authored: 210/210 unique summaries, 642/642 unique paragraphs, 339/339 unique comments. The other 309 are procedurally generated and visibly more repetitive in the detail panel |
-| T6.8 | Demo assignee display names | blocked | Four accounts are assigned across the site, but three show an email local part. Jira Cloud refuses to let an admin set `displayName` for a non-managed account, so each invitation has to be accepted and the name set by its holder. Blocks public screenshots |
+| T6.8 | Demo assignee display names | partial | The **committed snapshot** (`examples/demo.db`) is clean: emails and display names rewritten to fictional personas (Dana Whitfield, Marco Reyes, Priya Sharma, Alex Kim) and the site URL to `nimbus.example.com`, so `scry demo` and screenshots of it are safe. The **live site** still shows `midagedev+…` until each invitation is accepted; live-site screenshots stay blocked |
 | T6.4 | `scry snapshot` with timestamp spreading and volume scaling | todo |
-| T6.5 | `examples/demo.db` committed, credential-scanned | todo |
-| T6.6 | `scry demo` serving the bundled snapshot | todo |
+| T6.5 | `examples/demo.db` committed, credential-scanned | done | 519 issues mirrored from the demo site, then scrubbed (see T6.8). Scan: zero `ATATT`/`ATCTT`/real emails/real names |
+| T6.6 | `scry demo` serving the bundled snapshot | done | Copies the snapshot into a throwaway temp home, serves it, deletes on exit. No Jira account, no config |
 | T6.7 | 10k-issue benchmark fixture for the latency target | todo |
 
 ## T7 CI and release
@@ -110,6 +115,10 @@ Legend: **done** / **partial** / **todo**
 
 ## Critical path to something usable
 
-T1.1 → T1.2 → T2.1 → T2.2 → T2.7 → T3.3 → T3.4. At that point the UI reads real
-mirrored data and the tool is worth installing. Writes (T4) and search (T1.3,
-T3.5) follow. T0.10 gates any public launch.
+**Done.** The full loop works end to end against the public demo site: full sync
+(519 issues in ~5 s), idempotent incremental sync, derived fields matching the
+seeded ground truth (95 reopen transitions), FTS, bootstrap/delta/detail/search,
+live write-through (comment + transition verified against real Jira), settings
+round-trip without a restart, and the enrichments plugin boundary. What remains
+before a public launch is polish: T6.4/T6.7 fixtures, T7.3–T7.6 CI/release, and
+the T6.8 live-site display names.

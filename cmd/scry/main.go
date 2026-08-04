@@ -403,6 +403,38 @@ func cmdStatus(args []string) error {
 	return nil
 }
 
+// cmdDemo serves the bundled snapshot from a throwaway home, so evaluating the
+// UI needs no Jira account and cannot touch a real profile.
+func cmdDemo(args []string) error {
+	fs := flag.NewFlagSet("demo", flag.ExitOnError)
+	addr := fs.String("addr", "127.0.0.1:7878", "listen address")
+	static := fs.String("static", "dist/app", "directory holding the built web UI")
+	dbPath := fs.String("db", "examples/demo.db", "snapshot to serve")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	src, err := os.ReadFile(*dbPath)
+	if err != nil {
+		return fmt.Errorf("demo snapshot %q not found — run from the repo root or pass --db: %w", *dbPath, err)
+	}
+	home, err := os.MkdirTemp("", "scry-demo-")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(home, "scry.db"), src, 0o600); err != nil {
+		return err
+	}
+	demoCfg := []byte(`{"projects":["NMB","NMA","NMS"]}`)
+	if err := os.WriteFile(filepath.Join(home, "config.json"), demoCfg, 0o600); err != nil {
+		return err
+	}
+	os.Setenv("SCRY_HOME", home)
+	config.SetProfile("")
+	log.Printf("demo mirror in %s (deleted on exit)", home)
+	defer os.RemoveAll(home)
+	return cmdServe([]string{"--addr", *addr, "--static", *static})
+}
+
 func cmdProfiles() error {
 	names, err := config.Profiles()
 	if err != nil {
@@ -426,6 +458,7 @@ Commands:
   serve      web UI + API on loopback  [--addr] [--static] [--sync] [--allow-remote]
   sql        read-only SQL against the mirror   [--json] "select ..."
   status     sync state and row counts [--json]
+  demo       serve the bundled snapshot, no Jira account needed
   profiles   list configured profiles
   version    print version
 
@@ -433,7 +466,7 @@ Profiles keep separate credentials and mirrors (e.g. work and demo):
   scry --profile demo init && scry --profile demo serve --sync --addr 127.0.0.1:7778
 
 Not implemented yet (specified in specs/000-product/):
-  scry demo | snapshot | mcp
+  scry snapshot | mcp
 `
 
 func main() {
@@ -460,13 +493,15 @@ func main() {
 		err = cmdSQL(args[1:])
 	case "status":
 		err = cmdStatus(args[1:])
+	case "demo":
+		err = cmdDemo(args[1:])
 	case "profiles":
 		err = cmdProfiles()
 	case "version", "--version", "-v":
 		fmt.Println(version)
 	case "help", "--help", "-h":
 		fmt.Print(usage)
-	case "demo", "snapshot", "mcp":
+	case "snapshot", "mcp":
 		log.Fatalf("scry %s: not implemented yet — see specs/000-product/tasks.md", args[0])
 	default:
 		fmt.Print(usage)
