@@ -1,6 +1,9 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
+)
 
 // Palette mirrors web/src/app.css @theme (dark-first). 256-color indices are
 // the Dark values; Light counterparts keep a light terminal readable.
@@ -90,7 +93,7 @@ var (
 			MarginBottom(0)
 
 	// Status / help / filter / toast
-	styleHelp = lipgloss.NewStyle().Foreground(colMuted)
+	styleHelp   = lipgloss.NewStyle().Foreground(colMuted)
 	styleFilter = lipgloss.NewStyle().
 			Foreground(colAccentFg).
 			Bold(true)
@@ -129,26 +132,18 @@ func statusStyle(category string, reopenCount int) lipgloss.Style {
 	}
 }
 
+// padRight and truncate work in terminal cells, not runes: CJK characters
+// occupy two cells, and rune-count math misaligns every column after a Korean
+// summary or assignee name.
 func padRight(s string, n int) string {
-	r := []rune(s)
-	if len(r) >= n {
-		return string(r[:n])
-	}
-	return s + spaces(n-len(r))
+	return runewidth.FillRight(runewidth.Truncate(s, n, ""), n)
 }
 
 func truncate(s string, n int) string {
-	r := []rune(s)
 	if n <= 0 {
 		return ""
 	}
-	if len(r) <= n {
-		return s
-	}
-	if n <= 1 {
-		return string(r[:n])
-	}
-	return string(r[:n-1]) + "…"
+	return runewidth.Truncate(s, n, "…")
 }
 
 func spaces(n int) string {

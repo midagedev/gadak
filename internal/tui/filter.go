@@ -11,8 +11,8 @@ import (
 type Tab int
 
 const (
-	TabAll Tab = iota
-	TabOpen      // non-done
+	TabAll  Tab = iota
+	TabOpen     // non-done
 	TabInProgress
 	TabDone
 )

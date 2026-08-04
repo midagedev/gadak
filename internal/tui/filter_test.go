@@ -25,7 +25,7 @@ func TestApplyFilterTab(t *testing.T) {
 		want int
 	}{
 		{TabAll, 4},
-		{TabOpen, 3},      // non-done
+		{TabOpen, 3}, // non-done
 		{TabInProgress, 1},
 		{TabDone, 1},
 	}
