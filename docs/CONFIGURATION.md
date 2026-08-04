@@ -36,8 +36,9 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `features` | map of bool | all `false` | Settings → Features | Immediate after reload (client reads `config.json`) |
 | `qaDashboardUrl` | string | _(empty)_ | Settings → Features | Immediate after reload |
 | `staleThresholdHours` | int | `0` → client **72** | Settings → Sync | Immediate after reload |
-| `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | **After restart** of `scry serve --sync` |
-| `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | **After restart** of `scry serve --sync` |
+| `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | **After restart** of `scry serve` |
+| `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | **After restart** of `scry serve` |
+| `notify` | bool | **true** when absent | `config.json` (not on Settings UI) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
 
 ### Interval floors (settings `PUT`)
 
@@ -52,10 +53,20 @@ Below the floor → `400` with a clear `error` string; the file is not written.
 ### Why intervals need a restart
 
 `internal/sync.Watch` creates its tickers once at loop start from the `Config`
-passed in. `scry serve --sync` starts that loop with the config loaded at process
-boot. `PUT settings/` updates the on-disk file and the server’s atomic config for
-everything else (members, group rules, features…), but it does **not** rebuild
-the Watch tickers. Restart `scry serve --sync` to pick up new intervals.
+passed in. `scry serve` starts that loop by default when a credential is
+configured (`--no-sync` opts out). `PUT settings/` updates the on-disk file and
+the server’s atomic config for everything else (members, group rules,
+features…), but it does **not** rebuild the Watch tickers. Restart `scry serve`
+to pick up new intervals.
+
+### OS desktop notifications
+
+When the watch loop runs (`scry serve` with a credential, or `scry sync
+--watch`), each successful cycle may fire **one** bundled OS notification for
+new personal-feed events since `sync_state.last_notified_at` (macOS
+`osascript`, Linux `notify-send`; Windows is a quiet no-op). The body carries
+the issue title only — never comment text. Set `"notify": false` in
+`config.json` to opt out. Notifications never write `feed_reads`.
 
 ---
 
@@ -87,7 +98,9 @@ a ready-to-paste `sqlite3 <dbPath>`).
 | Profile selection | CLI `--profile` / `SCRY_PROFILE` (separate home directory) |
 | `SCRY_HOME` override | Environment variable |
 | Binary version string in UI | `server.Version` package var — wire from `cmd/scry` ldflags (default `0.0.0-dev` until wired) |
-| Sync loop process | Start/stop `scry serve --sync` or `scry sync` / `scry watch` |
+| Sync loop process | Start/stop `scry serve` (default when credentialed; `--no-sync` opts out) or `scry sync --watch` |
+| Keep serve across reboots | `scry install-service` (launchd / systemd user); `--uninstall` removes it |
+| OS desktop notifications | `"notify": false` in `config.json` to disable (default on) |
 
 There is no remaining day-to-day operational knob that only lives in the JSON
 file: intervals, projects, features, field maps, teams, and members are all on

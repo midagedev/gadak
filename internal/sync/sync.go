@@ -43,6 +43,9 @@ type Options struct {
 	// Client is for tests and for a server that wants to share one; nil builds
 	// one from cfg.
 	Client *jira.Client
+	// Notifier delivers OS desktop alerts for new personal-feed events after
+	// each successful Watch cycle. Nil uses OSNotifier. Never aborts the loop.
+	Notifier Notifier
 }
 
 type Result struct {
@@ -173,7 +176,9 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 // Watch runs incremental sync on an interval and reconcile on a longer one. A
 // transport failure is logged and retried on the next tick; a rejected
 // credential ends the loop, because every further request would only burn rate
-// budget.
+// budget. After each successful cycle, new personal-feed events may produce one
+// OS desktop notification (see notifyAfterSync); notification failures never
+// stop the loop.
 func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) error {
 	every := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
 	reconcileEvery := time.Duration(cfg.EffectiveReconcileIntervalSec()) * time.Second
@@ -193,6 +198,9 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 				return err
 			}
 			opts.logf("sync failed: %v", err)
+		} else if err := notifyAfterSync(db, cfg, o.Notifier); err != nil {
+			// Desktop notify is best-effort: never abort the watch loop.
+			opts.logf("notify: %v", err)
 		}
 		o.Full, o.Reconcile = false, false
 		select {

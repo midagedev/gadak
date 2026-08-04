@@ -77,9 +77,14 @@ type Config struct {
 	AttachmentCacheMB int `json:"attachmentCacheMB,omitempty"`
 
 	// sync 주기 (초). 0 = 기본값 사용 (DefaultSyncIntervalSec / DefaultReconcileIntervalSec).
-	// serve --sync 의 Watch 루프는 기동 시 한 번만 읽는다 — 변경은 프로세스 재시작 후 적용.
+	// serve 의 Watch 루프는 기동 시 한 번만 읽는다 — 변경은 프로세스 재시작 후 적용.
 	SyncIntervalSec      int `json:"syncIntervalSec,omitempty"`
 	ReconcileIntervalSec int `json:"reconcileIntervalSec,omitempty"`
+
+	// Notify enables OS desktop notifications from the sync watch loop after
+	// new personal-feed events. Default true when absent; set false to opt out.
+	// Pointer so omitempty can distinguish "unset" from explicit false.
+	Notify *bool `json:"notify,omitempty"`
 }
 
 // Sync loop defaults and floors. Zero in the file means "use default".
@@ -237,4 +242,12 @@ func (c *Config) Save() error {
 // HasCredential 은 쓰기/첨부 프록시가 가능한 상태인지.
 func (c *Config) HasCredential() bool {
 	return c.Site != "" && c.Email != "" && c.Token != ""
+}
+
+// NotifyEnabled is true unless the user set notify: false. Absent means on.
+func (c *Config) NotifyEnabled() bool {
+	if c == nil || c.Notify == nil {
+		return true
+	}
+	return *c.Notify
 }

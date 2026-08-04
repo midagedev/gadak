@@ -34,8 +34,9 @@ Full reference (defaults, floors, apply timing, hand-edit-only list):
 | `features` | Feature flags: `deploy`, `qa`, `teamGroups`, `presence`, `feed`, `push` (all off by default). |
 | `qaDashboardUrl` | Optional link shown next to QA surfaces. |
 | `staleThresholdHours` | Hours in status before an open issue counts as stale (0 → UI default 72). |
-| `syncIntervalSec` | Incremental sync period in seconds (0 → 60). Min 15 when set. Restart `serve --sync`. |
-| `reconcileIntervalSec` | Deletion reconcile period in seconds (0 → 3600). Min 300 when set. Restart `serve --sync`. |
+| `syncIntervalSec` | Incremental sync period in seconds (0 → 60). Min 15 when set. Restart `serve`. |
+| `reconcileIntervalSec` | Deletion reconcile period in seconds (0 → 3600). Min 300 when set. Restart `serve`. |
+| `notify` | OS desktop notifications from the watch loop (default true). |
 
 Nothing installation-specific belongs in the scry **source tree**. Put it here.
 

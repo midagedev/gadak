@@ -29,11 +29,13 @@ last sync failed; stdout stays clean and pipeable. To check explicitly:
 ```bash
 scry status --json
 # {"profile":"","issues":519,"comments":339,"watermark":"2026-08-04T09:15:00.000Z",
-#  "version":41,"schema_version":3}
+#  "version":41,"schema_version":5,"sync_count":12,"first_sync_at":"2026-07-01T…"}
 ```
 
 A `last_error` field means the last sync failed. A quiet project's `watermark`
 stalls on its own, so treat an old watermark as "possibly behind", not "broken".
+`first_sync_at` / `sync_count` are retention instrumentation (successful syncs
+only).
 
 ### The one mistake that silently returns nothing
 
@@ -52,11 +54,13 @@ WHERE status_category = 'inprogress'  -- RIGHT: stable on every site
 
 The schema in one paragraph: `items` is the source-neutral spine (title,
 `body_text`, timestamps); `issues` is the Jira projection, joined on
-`issues.item_id = items.id`; `comments`, `attachments`, `changelog`, and `links`
-hang off `items.id`; `items_fts` is the FTS5 index over titles, bodies, and
-comment text; `sync_state` holds freshness. `labels`, `components`, and
-`fix_versions` are JSON arrays — reach them with `json_each`. Every column is
-listed in `specs/000-product/data-model.md`.
+`issues.item_id = items.id`; **`issues_full` is the agent convenience view**
+(`summary` + every `issues` column — prefer it when you need a title);
+`comments`, `attachments`, `changelog`, and `links` hang off `items.id`;
+`items_fts` is the FTS5 index over titles, bodies, and comment text;
+`sync_state` holds freshness. `labels`, `components`, and `fix_versions` are
+JSON arrays — reach them with `json_each`. Every column is listed in
+`specs/000-product/data-model.md`.
 
 ```bash
 scry sql "…"          # tab-separated, read-only
@@ -65,17 +69,17 @@ scry sql --csv "…"    # header row plus CSV
 ```
 
 ```sql
--- 1. Someone's open work, most urgent first. The title lives on the spine, so
--- every query that wants one joins items — `issues` has no summary column.
-SELECT i.key, i.status, i.priority, it.title
-FROM issues i JOIN items it ON it.id = i.item_id
-WHERE i.assignee_email = 'dana@example.com' AND i.status_category != 'done'
-ORDER BY i.priority_rank, i.updated_at DESC;
+-- 1. Someone's open work, most urgent first.
+-- Prefer issues_full for titles (summary comes from items.title).
+SELECT key, status, priority, summary
+FROM issues_full
+WHERE assignee_email = 'dana@example.com' AND status_category != 'done'
+ORDER BY priority_rank, updated_at DESC;
 
 -- 2. What regressed — reopens are the highest-signal quality metric available
-SELECT i.key, it.title, i.reopen_count, i.reopened_at
-FROM issues i JOIN items it ON it.id = i.item_id
-WHERE i.reopen_count > 0 ORDER BY i.reopen_count DESC, i.reopened_at DESC LIMIT 20;
+SELECT key, summary, reopen_count, reopened_at
+FROM issues_full
+WHERE reopen_count > 0 ORDER BY reopen_count DESC, reopened_at DESC LIMIT 20;
 
 -- 3. What is stuck, and for how long
 SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS days
@@ -93,9 +97,9 @@ FROM issues WHERE status_category != 'done'
 GROUP BY project_key, who ORDER BY project_key, n DESC;
 
 -- 6. What is in a release (JSON array column)
-SELECT i.key, i.status, it.title
-FROM issues i JOIN items it ON it.id = i.item_id, json_each(i.fix_versions) v
-WHERE v.value = '2026.8.0' ORDER BY i.resolved_at;
+SELECT key, status, summary
+FROM issues_full, json_each(fix_versions) v
+WHERE v.value = '2026.8.0' ORDER BY resolved_at;
 
 -- 7. What moved this week, and who moved it
 SELECT c.at, c.author, c.field, c.from_value, c.to_value, i.key
@@ -103,10 +107,10 @@ FROM changelog c JOIN issues i ON i.item_id = c.item_id
 WHERE c.at > datetime('now', '-7 days') ORDER BY c.at DESC LIMIT 50;
 
 -- 8. Untriaged: nobody on it, no priority set
-SELECT i.key, i.created_at, it.title
-FROM issues i JOIN items it ON it.id = i.item_id
-WHERE i.status_category = 'new' AND i.assignee_id IS NULL AND i.priority_rank = 0
-ORDER BY i.created_at LIMIT 30;
+SELECT key, created_at, summary
+FROM issues_full
+WHERE status_category = 'new' AND assignee_id IS NULL AND priority_rank = 0
+ORDER BY created_at LIMIT 30;
 ```
 
 Rules that come with the file:

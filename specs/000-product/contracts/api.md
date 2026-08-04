@@ -405,10 +405,10 @@ A value below the floor answers `400` with a clear `error` string, e.g.
 `syncIntervalSec must be 0 (default) or >= 15 (got 5)`. Rejected writes do not
 touch the file.
 
-**Apply timing:** `scry serve --sync` builds its Watch tickers once at process
+**Apply timing:** `scry serve` builds its Watch tickers once at process
 start from the config loaded then. A successful `PUT` updates `config.json` and
 the in-process settings atomic immediately (group rules, features, etc.), but
-**interval changes take effect only after restarting** `scry serve --sync`. The
+**interval changes take effect only after restarting** `scry serve`. The
 UI states this explicitly.
 
 `staleThresholdHours` is how long an unresolved issue may sit in its current
