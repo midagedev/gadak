@@ -33,16 +33,22 @@ type issueLite struct {
 	// D1Group is omitted entirely when no group taxonomy is configured, which
 	// leaves the client's group surfaces empty rather than wrong.
 	D1Group *string `json:"d1_group,omitempty"`
+	// extra carries the plugin enrichment fields, already keyed by their client
+	// names (see derivedView.enrichRow).
+	extra map[string]any
 }
 
-// MarshalJSON flattens the configured field aliases into the row. The client
-// reads `severity` and friends as top-level keys and encoding/json cannot inline
-// a map, so the two objects are spliced. Aliases come first on purpose: a stored
-// field of the same name is later in the object and therefore wins in the
-// client's JSON.parse.
+// MarshalJSON flattens the configured field aliases and the plugin enrichments
+// into the row. The client reads `severity`, `deploy_status` and friends as
+// top-level keys and encoding/json cannot inline a map, so the two objects are
+// spliced. The extras come first on purpose: a stored field of the same name is
+// later in the object and therefore wins in the client's JSON.parse.
 func (l issueLite) MarshalJSON() ([]byte, error) {
-	extra := make(map[string]any, len(l.Custom)+1)
+	extra := make(map[string]any, len(l.Custom)+len(l.extra)+1)
 	for k, v := range l.Custom {
+		extra[k] = v
+	}
+	for k, v := range l.extra {
 		extra[k] = v
 	}
 	if l.D1Group != nil {
@@ -253,12 +259,13 @@ type detailResponse struct {
 	Comments       []detailComment    `json:"comments"`
 	History        []historyEntry     `json:"history"`
 	LinkedIssues   []linkedIssue      `json:"linked_issues"`
-	// The four below were internal integrations, cut in the extraction. They stay
-	// in the shape because the client already treats them as optional.
-	DevelopmentOpinion any   `json:"development_opinion"`
-	QaContext          any   `json:"qa_context"`
-	Deploy             any   `json:"deploy"`
-	LinkedPRs          []any `json:"linked_prs"`
+	// The four below come from plugin enrichments (docs/PLUGINS.md). With no
+	// plugin writing them they stay null / [], which is what the client's
+	// optional-field guards expect.
+	DevelopmentOpinion json.RawMessage `json:"development_opinion"`
+	QaContext          json.RawMessage `json:"qa_context"`
+	Deploy             json.RawMessage `json:"deploy"`
+	LinkedPRs          json.RawMessage `json:"linked_prs"`
 }
 
 func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
@@ -290,7 +297,25 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		Comments:       make([]detailComment, 0, len(d.Comments)),
 		History:        make([]historyEntry, 0, len(d.History)),
 		LinkedIssues:   make([]linkedIssue, 0, len(d.LinkedIssues)),
-		LinkedPRs:      []any{},
+		LinkedPRs:      json.RawMessage("[]"),
+	}
+	// The detail half of the plugin boundary: each kind maps to one response field.
+	en, err := s.db.EnrichmentsFor(key)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if p := payload(en["deploy"]); p != nil {
+		res.Deploy = pick(p, "detail")
+	}
+	if p := payload(en["qa"]); p != nil {
+		res.QaContext = pick(p, "context")
+	}
+	if p := payload(en["prs"]); p != nil {
+		res.LinkedPRs = p
+	}
+	if p := payload(en["opinion"]); p != nil {
+		res.DevelopmentOpinion = p
 	}
 	for _, a := range d.Attachments {
 		id := a.ExternalID
@@ -460,6 +485,11 @@ type derivedView struct {
 	groupByEmail   map[string]string
 	rules          []config.GroupRule
 	groupsEnabled  bool
+	// Plugin enrichments the list rows carry, by issue key. They are cached with
+	// everything else here, which is exactly as fresh as the ETag: a plugin that
+	// forgets to bump sync_state.version gets no refetch either way (docs/PLUGINS.md).
+	deploy map[string]json.RawMessage
+	qa     map[string]json.RawMessage
 }
 
 // derived returns the cached view for this sync version, rebuilding it when
@@ -478,18 +508,29 @@ func (s *server) derived(version int64, lites []store.IssueLite) (*derivedView, 
 			return nil, err
 		}
 	}
-	v := buildView(key, s.config(), lites)
+	v, err := s.buildView(key, lites)
+	if err != nil {
+		return nil, err
+	}
 	s.cached = v
 	return v, nil
 }
 
-func buildView(key string, cfg *config.Config, lites []store.IssueLite) *derivedView {
+func (s *server) buildView(key string, lites []store.IssueLite) (*derivedView, error) {
+	cfg := s.config()
 	v := &derivedView{
 		key:            key,
 		emailByAccount: map[string]string{},
 		categories:     map[string]string{},
 		groupByEmail:   map[string]string{},
 		rules:          cfg.GroupRules,
+	}
+	var err error
+	if v.deploy, err = s.db.EnrichmentsByKind("deploy"); err != nil {
+		return nil, err
+	}
+	if v.qa, err = s.db.EnrichmentsByKind("qa"); err != nil {
+		return nil, err
 	}
 	byEmail := map[string]*member{}
 	for i := range lites {
@@ -556,7 +597,7 @@ func buildView(key string, cfg *config.Config, lites []store.IssueLite) *derived
 	}
 	sort.Slice(v.members, func(i, j int) bool { return v.members[i].Email < v.members[j].Email })
 	v.membersVersion = hashMembers(v.members)
-	return v
+	return v, nil
 }
 
 // hashMembers is the token the client returns as `mv`; equal hashes let delta
@@ -573,9 +614,60 @@ func hashMembers(members []member) string {
 func (v *derivedView) issues(lites []store.IssueLite) []issueLite {
 	out := make([]issueLite, 0, len(lites))
 	for _, l := range lites {
-		out = append(out, issueLite{IssueLite: l, D1Group: v.group(l)})
+		out = append(out, issueLite{IssueLite: l, D1Group: v.group(l), extra: v.enrichRow(l.IssueKey)})
 	}
 	return out
+}
+
+// enrichRow is the list half of the plugin boundary: the `deploy` payload's
+// status object becomes `deploy_status`, and the `qa` payload's impact object is
+// spread as the `qa_impact_*` / `qa_runs` / `qa_suites` fields the client filters
+// on. A plugin cannot shadow a mirrored field this way — enrichment keys are
+// serialized before the stored ones, so the stored value is what survives
+// JSON.parse.
+func (v *derivedView) enrichRow(key string) map[string]any {
+	if len(v.deploy) == 0 && len(v.qa) == 0 {
+		return nil
+	}
+	extra := map[string]any{}
+	if p := payload(v.deploy[key]); p != nil {
+		extra["deploy_status"] = pick(p, "status")
+	}
+	if p := payload(v.qa[key]); p != nil {
+		var impact map[string]json.RawMessage
+		if json.Unmarshal(pick(p, "impact"), &impact) == nil {
+			for k, val := range impact {
+				extra[k] = val
+			}
+		}
+	}
+	if len(extra) == 0 {
+		return nil
+	}
+	return extra
+}
+
+// payload guards the one place this server copies bytes written by another
+// process straight into a response: invalid JSON would corrupt the whole
+// document, so it is dropped instead.
+func payload(p json.RawMessage) json.RawMessage {
+	if len(p) == 0 || !json.Valid(p) {
+		return nil
+	}
+	return p
+}
+
+// pick unwraps `{"status": …}` / `{"impact": …}` / `{"detail": …}` / `{"context": …}`
+// and passes anything else through whole, so a plugin that writes the bare
+// object documented in data-model.md still works.
+func pick(p json.RawMessage, field string) json.RawMessage {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(p, &m) == nil {
+		if v, ok := m[field]; ok {
+			return v
+		}
+	}
+	return p
 }
 
 // group classifies one issue: the first matching rule wins, otherwise the

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	_ "modernc.org/sqlite"
+
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/store"
 )
@@ -18,7 +21,16 @@ import (
 // company-specific surfaces (member directory, group rules) back on.
 func fixture(t *testing.T) (*store.DB, *config.Config) {
 	t.Helper()
-	db, err := store.Open(filepath.Join(t.TempDir(), "mirror.db"))
+	db, cfg, _ := fixtureAt(t)
+	return db, cfg
+}
+
+// fixtureAt also hands back the database path, which is how a plugin reaches the
+// mirror: with SQL, from outside this process.
+func fixtureAt(t *testing.T) (*store.DB, *config.Config, string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "mirror.db")
+	db, err := store.Open(path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -105,7 +117,24 @@ func fixture(t *testing.T) (*store.DB, *config.Config) {
 		},
 		GroupLabels: map[string]string{"batch": "배치", "cloud": "클라우드"},
 	}
-	return db, cfg
+	return db, cfg, path
+}
+
+// enrich writes one enrichment row the way a plugin does: raw SQL from another
+// process, no Go write API involved.
+func enrich(t *testing.T, path, key, kind, payload string) {
+	t.Helper()
+	sqlDB, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatalf("plugin open: %v", err)
+	}
+	defer sqlDB.Close()
+	if _, err := sqlDB.Exec(`
+		INSERT INTO enrichments (key, kind, payload, source, updated_at) VALUES (?,?,?,'test-plugin',?)
+		ON CONFLICT(key, kind) DO UPDATE SET payload = excluded.payload`,
+		key, kind, payload, store.Now()); err != nil {
+		t.Fatalf("plugin write: %v", err)
+	}
 }
 
 func get(t *testing.T, h http.Handler, path string, headers map[string]string) *httptest.ResponseRecorder {
@@ -596,6 +625,98 @@ func TestIssueLiteFieldNames(t *testing.T) {
 	// An issue with no aliases still carries the stored fields.
 	if _, ok := rows["NMA-9"]["issue_key"]; !ok {
 		t.Errorf("row without aliases lost its fields: %v", rows["NMA-9"])
+	}
+}
+
+func TestEnrichmentsMerge(t *testing.T) {
+	db, cfg, path := fixtureAt(t)
+	// Wrapped payloads: one kind feeds both the list row and the detail panel.
+	enrich(t, path, "NMB-1", "deploy",
+		`{"status":{"state":"prod","merged_prs":2,"total_prs":2},"detail":{"state":"prod","releases":[{"tag":"v1.2.3"}]}}`)
+	enrich(t, path, "NMB-1", "qa",
+		`{"impact":{"qa_impact_state":"blocking","qa_impact_label":"차단","qa_runs":[{"key":"R-1","label":"run"}],"qa_suites":[]},"context":{"state":"blocking","state_label":"차단","runs":[],"suites":[]}}`)
+	enrich(t, path, "NMB-1", "prs", `[{"number":7,"title":"fix the drop","url":"https://x/pr/7","state":"merged"}]`)
+	enrich(t, path, "NMB-1", "opinion", `"재현 조건이 좁다"`)
+	// The bare shape data-model.md documents still works, unwrapped.
+	enrich(t, path, "NMB-2", "deploy", `{"state":"merged","merged_prs":1,"total_prs":1}`)
+	// A plugin writing garbage may not corrupt the document.
+	enrich(t, path, "NMA-9", "deploy", `{oops`)
+	h := New(db, cfg)
+
+	rows := map[string]map[string]json.RawMessage{}
+	for _, row := range decode[struct {
+		Issues []map[string]json.RawMessage `json:"issues"`
+	}](t, get(t, h, apiBase+"bootstrap/", nil)).Issues {
+		var key string
+		_ = json.Unmarshal(row["issue_key"], &key)
+		rows[key] = row
+	}
+	if got := string(rows["NMB-1"]["deploy_status"]); !strings.Contains(got, `"state":"prod"`) {
+		t.Errorf("deploy_status = %s", got)
+	}
+	if got := string(rows["NMB-1"]["qa_impact_state"]); got != `"blocking"` {
+		t.Errorf("qa_impact_state = %s", got)
+	}
+	if got := string(rows["NMB-1"]["qa_runs"]); got != `[{"key":"R-1","label":"run"}]` {
+		t.Errorf("qa_runs = %s", got)
+	}
+	if got := string(rows["NMB-2"]["deploy_status"]); !strings.Contains(got, `"state":"merged"`) {
+		t.Errorf("unwrapped payload dropped: %s", got)
+	}
+	if _, ok := rows["NMA-9"]["deploy_status"]; ok {
+		t.Error("invalid payload reached the response")
+	}
+	// The row without an enrichment keeps its own fields.
+	if _, ok := rows["NMA-9"]["issue_key"]; !ok {
+		t.Error("row lost its fields")
+	}
+
+	d := decode[map[string]json.RawMessage](t, get(t, h, apiBase+"NMB-1/detail/", nil))
+	if got := string(d["deploy"]); !strings.Contains(got, `"v1.2.3"`) {
+		t.Errorf("deploy = %s", got)
+	}
+	if got := string(d["qa_context"]); !strings.Contains(got, `"state_label":"차단"`) {
+		t.Errorf("qa_context = %s", got)
+	}
+	if got := string(d["linked_prs"]); !strings.Contains(got, `"number":7`) {
+		t.Errorf("linked_prs = %s", got)
+	}
+	if got := string(d["development_opinion"]); got != `"재현 조건이 좁다"` {
+		t.Errorf("development_opinion = %s", got)
+	}
+	// An unwrapped deploy payload serves the detail panel too.
+	if got := string(decode[map[string]json.RawMessage](t, get(t, h, apiBase+"NMB-2/detail/", nil))["deploy"]); !strings.Contains(got, `"merged"`) {
+		t.Errorf("NMB-2 deploy = %s", got)
+	}
+	// An issue nobody enriched keeps the null / [] the client guards on.
+	nma := decode[map[string]json.RawMessage](t, get(t, h, apiBase+"NMA-9/detail/", nil))
+	if string(nma["qa_context"]) != "null" || string(nma["linked_prs"]) != "[]" {
+		t.Errorf("unenriched detail: %s %s", nma["qa_context"], nma["linked_prs"])
+	}
+}
+
+func TestEnrichmentCannotShadowMirroredFields(t *testing.T) {
+	db, cfg, path := fixtureAt(t)
+	enrich(t, path, "NMB-1", "qa", `{"impact":{"status":"HACKED","summary":"HACKED","qa_impact_state":"verified"}}`)
+	rows := decode[struct {
+		Issues []map[string]json.RawMessage `json:"issues"`
+	}](t, get(t, New(db, cfg), apiBase+"bootstrap/", nil)).Issues
+	for _, row := range rows {
+		var key string
+		_ = json.Unmarshal(row["issue_key"], &key)
+		if key != "NMB-1" {
+			continue
+		}
+		// The stored fields are serialized last, so they are what JSON.parse keeps.
+		var status, summary string
+		_ = json.Unmarshal(row["status"], &status)
+		_ = json.Unmarshal(row["summary"], &summary)
+		if status != "진행 중" || !strings.HasPrefix(summary, "batch worker") {
+			t.Fatalf("plugin shadowed a mirrored field: status=%q summary=%q", status, summary)
+		}
+		if got := string(row["qa_impact_state"]); got != `"verified"` {
+			t.Fatalf("qa_impact_state = %s", got)
+		}
 	}
 }
 

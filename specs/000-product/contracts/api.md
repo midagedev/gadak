@@ -110,10 +110,12 @@ is empty and the renderer falls back to matching a media node to an attachment b
 filename. `author_email` is resolved by matching the comment author's account id
 against `config.members`, and is `null` for anyone not in that directory.
 
-`development_opinion`, `qa_context`, `deploy`, and `linked_prs` are **X** — they
-were internal integrations. They stay in the response shape as `null`/`[]`
-because the client already treats them as optional, and removing the keys buys
-nothing.
+`development_opinion`, `qa_context`, `deploy`, and `linked_prs` are merged from
+the `enrichments` table, which external plugins write with SQL — the kinds are
+`opinion`, `qa`, `deploy` and `prs`, and the payload shapes are in
+`docs/PLUGINS.md`. With no plugin writing them they stay `null` / `[]`, which is
+what the client's optional-field guards expect. A payload that is not valid JSON
+is dropped rather than spliced into the response.
 
 `from_category` and `to_category` on a `status` history entry are optional
 (`new` / `inprogress` / `done`). When present the UI marks reopens from them;
@@ -166,8 +168,12 @@ configuration:
   stored fields, so a stored field of the same name wins in the client's
   `JSON.parse`.
 
-Fields the internal version carried that stay absent until something populates
-them: `deploy_status`, `qa_impact_*`, `qa_runs`, `qa_suites`,
+A third group comes from plugin enrichments: `deploy_status` from kind `deploy`,
+and `qa_impact_state` / `qa_impact_label` / `qa_runs` / `qa_suites` from kind
+`qa` (`docs/PLUGINS.md`). Enrichment keys are serialized before the stored ones
+too, so a plugin can add to a row but never shadow what the tracker said.
+
+Fields that stay absent until something populates them:
 `development_test_result`, `source_project`. The UI reads them defensively; the
 config flags that surface them default to off. `working_hours_in_status` is gone
 from the client type entirely — no server ever populated it (see

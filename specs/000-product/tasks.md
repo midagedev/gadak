@@ -59,6 +59,7 @@ Legend: **done** / **partial** / **todo**
 | T3.7 | Saved views and watches endpoints | done | Local only, never 401/403. `TestPersonalStateRoundtrip` |
 | T3.8 | Deferred endpoints returning a clean `404` | done | One catch-all under both bases, with an `{"error": …}` body. `TestDeferredEndpointsAre404` |
 | T3.9 | `settings/` read and write for the settings UI | done | Credential-free config projection; a write preserves the credential block and invalidates the cached member/group projection. `TestSettingsRoundtripPreservesCredential`, `TestWebConfigHidesCredential` |
+| T3.10 | Merge plugin `enrichments` into the list and detail responses | done | `docs/PLUGINS.md` is the payload contract. Wrapped or bare payloads both work, invalid JSON is dropped instead of corrupting the document, and an enrichment can never shadow a mirrored field. `TestEnrichmentsMerge`, `TestEnrichmentCannotShadowMirroredFields` |
 
 ## T4 Write-through
 

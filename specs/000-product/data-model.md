@@ -249,7 +249,7 @@ there is no plugin API beyond this schema.
 | --- | --- | --- |
 | `key` | TEXT | Issue key, e.g. `NMB-42`. No foreign key: a plugin may run before or after the issue is mirrored |
 | `kind` | TEXT | Open set. `deploy`, `qa`, `prs`, `opinion` are the kinds the UI renders today |
-| `payload` | TEXT (JSON) | Shape per kind is the same object the matching field in `contracts/api.md` documents — `deploy` is `deploy_status`, `prs` is `linked_prs`, `qa` is `qa_context`, `opinion` is `development_opinion` |
+| `payload` | TEXT (JSON) | Shape per kind is in `docs/PLUGINS.md`. `deploy` and `qa` feed both a list field and a detail field, so they wrap two objects (`{"status":…,"detail":…}`, `{"impact":…,"context":…}`); a bare object is still accepted and feeds whichever field it matches |
 | `source` | TEXT | Plugin name, informational only |
 | `updated_at` | TEXT | When the plugin last wrote the row |
 
