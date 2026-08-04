@@ -57,11 +57,11 @@ Ordering and task detail live in `tasks.md` and `../../docs/ROADMAP.md`.
 
 | Check | Evidence |
 | --- | --- |
-| Each write endpoint calls Jira and refreshes the affected row before responding | Integration test against the demo site |
-| Jira's error body is passed through, including field errors | Test with a deliberately invalid field edit |
-| A missing credential yields `409 credential_required` | Handler test |
-| The credential file is `0600` and the token never appears in a response, log, or the database | Test greps the database file and captured logs for the token |
-| Field edits outside the configured allowlist are rejected | Handler test |
+| Each write endpoint calls Jira and refreshes the affected row before responding | `TestTransitionWritesThroughToTheMirror`: the fake Jira returns a *different* status on re-read, and the response carries it — as does the next `bootstrap`, with a moved ETag. Every other write asserts the same round trip |
+| Jira's error body is passed through, including field errors | `TestJiraErrorsPassThrough`: `error` from `errorMessages`, `jira_errors` from `errors`, status preserved for 4xx |
+| A missing credential yields `409 credential_required` | `TestWritesRequireACredential` over all nine credentialed endpoints, plus the same code when Jira rejects a stored token |
+| The credential file is `0600` and the token never appears in a response, log, or the database | `TestCredentialLifecycle` stats the file; `TestTokenNeverReachesResponsesOrLogs` greps five response bodies, the config document, captured logs, and the mirror (`.db` and `-wal`) |
+| Field edits outside the configured allowlist are rejected | `TestFieldEditAllowlistAndShapes`: refused with `403 field_not_editable` and, crucially, no request reaches Jira |
 
 ## G5 — Latency
 

@@ -65,11 +65,40 @@ func New(db *store.DB, cfg *config.Config) http.Handler {
 	mux.HandleFunc("POST "+apiBase+"views/{$}", s.handlePostView)
 	mux.HandleFunc("DELETE "+apiBase+"views/{id}/{$}", s.handleDeleteView)
 	mux.HandleFunc("GET "+apiBase+"watches/{$}", s.handleGetWatches)
-	mux.HandleFunc("PUT "+apiBase+"watches/{key}/{$}", s.handlePutWatch)
 	mux.HandleFunc("DELETE "+apiBase+"watches/{key}/{$}", s.handleDeleteWatch)
+	// The client's two PUT shapes — `watches/{key}/` and `{key}/assignee/` — are
+	// mirror images that overlap on `watches/assignee/`, and ServeMux rejects an
+	// ambiguous pair with no way to break the tie (there is no third-pattern
+	// exception). So they share one pattern and are told apart here.
+	mux.HandleFunc("PUT "+apiBase+"{key}/{action}/{$}", func(w http.ResponseWriter, r *http.Request) {
+		switch key, action := r.PathValue("key"), r.PathValue("action"); {
+		case key == "watches":
+			s.setWatch(w, r, action, true)
+		case action == "assignee":
+			s.handleAssignee(w, r)
+		default:
+			handleNotFound(w, r)
+		}
+	})
 	mux.HandleFunc("GET "+apiBase+"{key}/detail/{$}", s.handleDetail)
 	mux.HandleFunc("GET "+apiBase+"{key}/attachments/{id}/content/{$}", s.handleAttachment)
 	mux.HandleFunc("GET "+authBase+"me/{$}", s.handleMe)
+
+	// Write-through (T4). Everything below calls Jira and then re-reads the issue.
+	mux.HandleFunc("GET "+apiBase+"credential/{$}", s.handleGetCredential)
+	mux.HandleFunc("PUT "+apiBase+"credential/{$}", s.handlePutCredential)
+	mux.HandleFunc("DELETE "+apiBase+"credential/{$}", s.handleDeleteCredential)
+	mux.HandleFunc("GET "+apiBase+"meta/write/{$}", s.handleWriteMeta)
+	mux.HandleFunc("GET "+apiBase+"create-meta/{$}", s.handleCreateMeta)
+	mux.HandleFunc("POST "+apiBase+"create/{$}", s.handleCreate)
+	mux.HandleFunc("GET "+apiBase+"users/{$}", s.handleUsers)
+	mux.HandleFunc("GET "+apiBase+"{key}/transitions/{$}", s.handleTransitions)
+	mux.HandleFunc("POST "+apiBase+"{key}/transition/{$}", s.handleTransition)
+	mux.HandleFunc("POST "+apiBase+"{key}/comment/{$}", s.handleComment)
+	mux.HandleFunc("POST "+apiBase+"{key}/attachments/{$}", s.handleUpload)
+	mux.HandleFunc("PUT "+apiBase+"{key}/assignee/{$}", s.handleAssignee)
+	mux.HandleFunc("PATCH "+apiBase+"{key}/fields/{$}", s.handleFields)
+	mux.HandleFunc("GET "+apiBase+"{key}/editmeta/{$}", s.handleEditMeta)
 	// Deferred and cut endpoints (feed, notifications, presence, mentions,
 	// data-quality, login/logout) fall through to here. The UI hides a surface on
 	// a clean 404 and only breaks on a 500.

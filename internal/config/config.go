@@ -46,6 +46,11 @@ type Config struct {
 	Token    string   `json:"token,omitempty"`
 	Projects []string `json:"projects,omitempty"`
 
+	// 자격증명 검증 결과. `PUT credential/` 이 /myself 로 확인한 시각과 소유자 이름이며,
+	// 토큰 원문과 달리 응답에 실려도 된다.
+	TokenVerifiedAt string `json:"tokenVerifiedAt,omitempty"`
+	TokenOwner      string `json:"tokenOwner,omitempty"`
+
 	// sync 필드 매핑 (contracts/sync.md "Field mapping")
 	FieldMap   map[string]string `json:"fieldMap,omitempty"`   // alias -> customfield_xxxxx
 	BodyFields []string          `json:"bodyFields,omitempty"` // FTS 에 합칠 ADF 커스텀필드 id

@@ -198,7 +198,27 @@ No local queue, ever.
 | `create/` | POST | `POST /issue` | R |
 | `create-meta/` | GET | `GET /issue/createmeta` | R |
 | `users/?q=` | GET | `GET /user/search` | R |
-| `meta/write/` | GET | precomputed transition map + create meta | R |
+| `meta/write/` | GET | create meta; the transition map is empty (see below) | R |
+
+Implementation notes that are part of the contract:
+
+- The re-read is `sync.SyncIssue`, the same mapping and derived-field code a
+  scheduled sync runs, forced so the rewrite moves `synced_at` and
+  `sync_state.version`. That is what makes the client's next `delta` carry the row
+  and its ETag stop matching.
+- A write that Jira accepted but whose re-read failed answers
+  `502 write_applied_mirror_stale`. It is not a failure the user should retry: the
+  change is in Jira, only the mirror is behind.
+- A retry on a state-changing request would risk a duplicate, so only `429` and
+  `503` — where Jira states it did not act — are retried, and a dropped connection
+  never is.
+- `meta/write/` fills `create_meta` but leaves `transitions` empty: precomputing it
+  costs a Jira call per project and status, and the client already fetches an
+  issue's transitions when the menu opens. Without a credential it answers `200`
+  with empty collections rather than an error, because it runs on every boot.
+- `<key>/comment/` accepts `attachment_ids` and ignores them. The files are
+  already attached by the upload endpoint; embedding them in the body needs the
+  ADF media id, which Jira only exposes through the attachment redirect.
 
 ### Credential storage
 
@@ -213,6 +233,22 @@ display_name, verified_at, token_hint}` — never the token.
 in the configured editable-field allowlist. The internal version hardcoded three
 custom field ids here; those are now configuration and the allowlist is empty by
 default, which hides the inline editor entirely.
+
+`field` is the configured **alias**, never a field id, and rejection is
+`403 field_not_editable` — enforced whether or not the UI offered the field, and
+again when Jira's editmeta says the field is not editable on that issue.
+
+`value` is the client's `string | string[] | null`, and how it reaches Jira comes
+from the field's editmeta schema rather than from configuration:
+
+| Schema | Kind | Sent as |
+| --- | --- | --- |
+| `option` | `option` | `{"id": value}` |
+| `user` | `user` | `{"accountId": value}` |
+| `array` of `version` | `version_array` | `[{"id": …}, …]` |
+
+A `null` clears the field (an empty array for `version_array`). Any other schema
+has no editor, so `editmeta/` leaves it out and an edit to it is refused.
 
 ## Personal state
 

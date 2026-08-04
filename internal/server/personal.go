@@ -115,16 +115,15 @@ func (s *server) handleGetWatches(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"keys": keys})
 }
 
-func (s *server) handlePutWatch(w http.ResponseWriter, r *http.Request) {
-	s.setWatch(w, r, true)
-}
-
 func (s *server) handleDeleteWatch(w http.ResponseWriter, r *http.Request) {
-	s.setWatch(w, r, false)
+	s.setWatch(w, r, r.PathValue("key"), false)
 }
 
-func (s *server) setWatch(w http.ResponseWriter, r *http.Request, on bool) {
-	if err := s.db.SetWatch(r.PathValue("key"), on); err != nil {
+// setWatch takes the key as an argument rather than reading it from the route:
+// the PUT route it shares with the assignee endpoint names its wildcards
+// differently (see New).
+func (s *server) setWatch(w http.ResponseWriter, r *http.Request, key string, on bool) {
+	if err := s.db.SetWatch(key, on); err != nil {
 		serverError(w, r, err)
 		return
 	}

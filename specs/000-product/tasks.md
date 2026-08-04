@@ -63,16 +63,17 @@ Legend: **done** / **partial** / **todo**
 
 ## T4 Write-through
 
-| # | Task | State |
-| --- | --- | --- |
-| T4.1 | Credential store at `0600`, verified against `/myself` | todo |
-| T4.2 | Transitions (list and execute) | todo |
-| T4.3 | Comment with mentions and attachments | todo |
-| T4.4 | Attachment upload | todo |
-| T4.5 | Assignee change | todo |
-| T4.6 | Field edit against a configured allowlist | todo |
-| T4.7 | Issue creation and create-meta | todo |
-| T4.8 | Re-read and mirror refresh after every write | todo |
+| # | Task | State | Notes |
+| --- | --- | --- | --- |
+| T4.1 | Credential store at `0600`, verified against `/myself` | done | Verified before it is stored, so a typo never becomes the stored credential. `GET` answers with a `…last4` hint and never the token. `TestCredentialLifecycle` asserts the file mode, `TestRejectedCredentialIsNotStored` the rejection path |
+| T4.2 | Transitions (list and execute) | done | `to_category` is Jira's own category key, which is what the client's type documents. `TestTransitionWritesThroughToTheMirror`, `TestTransitionsAndUsersAndCreateMeta` |
+| T4.3 | Comment with mentions and attachments | done | `@Display Name` plus the resolved account ids become ADF mention nodes — a mention left as plain text notifies nobody. Longest name wins so `@김현` cannot shadow `@김현철` (`jira.TestDocTurnsMentionsIntoNodes`). `attachment_ids` is accepted and ignored: the files are already on the issue, and inlining them needs a media id Jira only exposes through the attachment redirect |
+| T4.4 | Attachment upload | done | Multipart pass-through with Jira's required `X-Atlassian-Token`, capped at 64 MB. `TestUploadProxiesAndReturnsContentURL` |
+| T4.5 | Assignee change | done | `TestAssigneeSetAndClear`, which also covers the PUT route it shares with `watches/{key}/` |
+| T4.6 | Field edit against a configured allowlist | done | Refused server-side whatever the UI offered, and refused again when Jira says the field is not editable on that issue. The value shape per kind (`option` / `user` / `version_array`) comes from Jira's editmeta schema, so no field id is hardcoded. `TestFieldEditAllowlistAndShapes`, `TestEditMetaOnlyExposesAllowlistedFields` |
+| T4.7 | Issue creation and create-meta | done | Filing outside the mirrored projects is refused up front: the re-read would never find the issue. `TestCreateIssue` |
+| T4.8 | Re-read and mirror refresh after every write | done | `sync.SyncIssue` — the same mapping and derived-field code a scheduled sync uses, with `Force` so the rewrite moves `synced_at` and the version, which is what makes the next delta and the ETag agree. A write that lands but fails to re-read reports `write_applied_mirror_stale` rather than a failure the user would retry |
+| T4.9 | `meta/write/` boot cache | partial | `create_meta` is real; the transition map is empty because the client already falls back to fetching an issue's transitions when the menu opens. No credential answers 200 with empty rather than blocking the boot |
 
 ## T5 Agent access
 

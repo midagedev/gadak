@@ -17,7 +17,14 @@ type User struct {
 	AccountID   string `json:"accountId"`
 	DisplayName string `json:"displayName"`
 	Email       string `json:"emailAddress"`
+	// The two below are only ever filled by the user search the assignee picker
+	// calls; the mirror stores neither.
+	AvatarURLs map[string]string `json:"avatarUrls"`
+	Active     bool              `json:"active"`
 }
+
+// Avatar is the 48px avatar, or empty when Jira sent none.
+func (u User) Avatar() string { return u.AvatarURLs["48x48"] }
 
 // Status carries the category because every piece of logic keys on it: names
 // come back in the account's display language (contracts/sync.md, "Localization

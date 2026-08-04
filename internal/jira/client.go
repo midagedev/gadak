@@ -52,12 +52,28 @@ func New(site, email, token string) *Client {
 func (c *Client) BaseURL() string { return c.base }
 
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+	return c.call(ctx, method, path, body, out, false)
+}
+
+// write is do() with the retry policy a state-changing request needs. A 500 or a
+// dropped connection may mean Jira acted and the answer was lost, so retrying
+// would post the comment twice; only 429 and 503, where Jira states it did not
+// act, are retried.
+func (c *Client) write(ctx context.Context, method, path string, body, out any) error {
+	return c.call(ctx, method, path, body, out, true)
+}
+
+func (c *Client) call(ctx context.Context, method, path string, body, out any, mutating bool) error {
 	var payload []byte
 	if body != nil {
 		var err error
 		if payload, err = json.Marshal(body); err != nil {
 			return err
 		}
+	}
+	retries := retryable
+	if mutating {
+		retries = func(code int) bool { return code == 429 || code == 503 }
 	}
 	for attempt := 0; ; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, method, c.base+path, bytes.NewReader(payload))
@@ -71,7 +87,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		}
 		res, err := c.HTTP.Do(req)
 		if err != nil {
-			if attempt < c.Retries-1 {
+			if attempt < c.Retries-1 && !mutating {
 				if werr := c.wait(ctx, attempt, ""); werr != nil {
 					return werr
 				}
@@ -84,13 +100,13 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		switch {
 		case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
 			return fmt.Errorf("%s %s: %w (%s)", method, path, ErrAuth, res.Status)
-		case retryable(res.StatusCode) && attempt < c.Retries-1:
+		case retries(res.StatusCode) && attempt < c.Retries-1:
 			if werr := c.wait(ctx, attempt, res.Header.Get("Retry-After")); werr != nil {
 				return werr
 			}
 			continue
 		case res.StatusCode >= 300:
-			return fmt.Errorf("%s %s: %s: %s", method, path, res.Status, snippet(data))
+			return apiError(method, path, res.StatusCode, res.Status, data)
 		}
 		if readErr != nil {
 			return fmt.Errorf("%s %s: %w", method, path, readErr)

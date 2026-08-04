@@ -1,0 +1,231 @@
+package jira
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/url"
+	"strings"
+)
+
+// This file is the only one that changes anything in Jira. Every call here is a
+// user action taken in the UI: nothing writes on a schedule, and there is no
+// queue — a failed write is reported to the person who asked for it
+// (contracts/api.md, "Write-through").
+
+// APIError is a non-2xx answer with its body parsed. Errors is Jira's per-field
+// rejection map, which the server passes to the client as `jira_errors` so the
+// message lands on the input that caused it. Neither the request nor the
+// credential is ever recorded here (constitution article 8).
+type APIError struct {
+	Status   int
+	Messages []string
+	Errors   map[string]string
+	Body     string
+}
+
+func (e *APIError) Error() string {
+	if msg := e.Message(); msg != "" {
+		return fmt.Sprintf("jira: %d: %s", e.Status, msg)
+	}
+	return fmt.Sprintf("jira: %d", e.Status)
+}
+
+// Message is the first thing worth showing a person: Jira's own message when it
+// sent one, the field errors when it only rejected fields, the raw body last.
+func (e *APIError) Message() string {
+	if len(e.Messages) > 0 {
+		return strings.Join(e.Messages, " ")
+	}
+	if len(e.Errors) > 0 {
+		parts := make([]string, 0, len(e.Errors))
+		for k, v := range e.Errors {
+			parts = append(parts, k+": "+v)
+		}
+		return strings.Join(parts, "; ")
+	}
+	return e.Body
+}
+
+func apiError(method, path string, code int, status string, body []byte) error {
+	e := &APIError{Status: code, Body: snippet(body)}
+	var parsed struct {
+		Messages []string          `json:"errorMessages"`
+		Errors   map[string]string `json:"errors"`
+	}
+	if json.Unmarshal(body, &parsed) == nil {
+		e.Messages, e.Errors = parsed.Messages, parsed.Errors
+	}
+	if e.Message() == "" {
+		e.Body = status
+	}
+	// The method and path stay in the wrapper so a log line still says what failed.
+	return fmt.Errorf("%s %s: %w", method, path, e)
+}
+
+// Myself verifies a credential and identifies its owner. It is the only call
+// `PUT credential/` makes before storing a token.
+func (c *Client) Myself(ctx context.Context) (User, error) {
+	var u User
+	return u, c.do(ctx, http.MethodGet, apiPath+"/myself", nil, &u)
+}
+
+// Transition is one available status change, with the target's category so the
+// UI can colour it without knowing the site's status names.
+type Transition struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	To   Status `json:"to"`
+}
+
+func (c *Client) Transitions(ctx context.Context, key string) ([]Transition, error) {
+	var out struct {
+		Transitions []Transition `json:"transitions"`
+	}
+	p := fmt.Sprintf("%s/issue/%s/transitions?expand=transitions.fields", apiPath, url.PathEscape(key))
+	return out.Transitions, c.do(ctx, http.MethodGet, p, nil, &out)
+}
+
+func (c *Client) Transition(ctx context.Context, key, transitionID string) error {
+	body := map[string]any{"transition": map[string]string{"id": transitionID}}
+	return c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/transitions", apiPath, url.PathEscape(key)), body, nil)
+}
+
+func (c *Client) AddComment(ctx context.Context, key string, adf json.RawMessage) (Comment, error) {
+	var out Comment
+	body := map[string]any{"body": adf}
+	return out, c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/comment", apiPath, url.PathEscape(key)), body, &out)
+}
+
+// SetAssignee assigns or, with an empty id, unassigns. Jira distinguishes "no
+// assignee" (null) from "default assignee" (-1); the UI only ever asks for the
+// former.
+func (c *Client) SetAssignee(ctx context.Context, key, accountID string) error {
+	body := map[string]any{"accountId": nil}
+	if accountID != "" {
+		body["accountId"] = accountID
+	}
+	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s/assignee", apiPath, url.PathEscape(key)), body, nil)
+}
+
+// UpdateFields sets raw field values. The caller is responsible for the shape
+// each field id expects, which EditMeta describes.
+func (c *Client) UpdateFields(ctx context.Context, key string, fields map[string]any) error {
+	body := map[string]any{"fields": fields}
+	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s", apiPath, url.PathEscape(key)), body, nil)
+}
+
+// FieldMeta is one editable field as Jira describes it: what it accepts and, for
+// a closed set, every value it accepts.
+type FieldMeta struct {
+	Required   bool     `json:"required"`
+	Operations []string `json:"operations"`
+	Schema     struct {
+		Type   string `json:"type"`
+		Items  string `json:"items"`
+		Custom string `json:"custom"`
+	} `json:"schema"`
+	AllowedValues []struct {
+		ID    string `json:"id"`
+		Value string `json:"value"`
+		Name  string `json:"name"`
+	} `json:"allowedValues"`
+}
+
+// EditMeta returns the fields this user may edit on this issue, keyed by field id.
+func (c *Client) EditMeta(ctx context.Context, key string) (map[string]FieldMeta, error) {
+	var out struct {
+		Fields map[string]FieldMeta `json:"fields"`
+	}
+	p := fmt.Sprintf("%s/issue/%s/editmeta", apiPath, url.PathEscape(key))
+	return out.Fields, c.do(ctx, http.MethodGet, p, nil, &out)
+}
+
+// CreateIssue returns the new issue's key.
+func (c *Client) CreateIssue(ctx context.Context, fields map[string]any) (string, error) {
+	var out struct {
+		Key string `json:"key"`
+	}
+	return out.Key, c.write(ctx, http.MethodPost, apiPath+"/issue", map[string]any{"fields": fields}, &out)
+}
+
+// CreateMetaProject is one project a person may file into, with its issue types.
+type CreateMetaProject struct {
+	Key        string    `json:"key"`
+	Name       string    `json:"name"`
+	IssueTypes []NamedID `json:"issuetypes"`
+}
+
+// CreateMeta lists what can be created. Restricted to the configured projects:
+// the site-wide answer is large and most of it is unreachable from this UI.
+func (c *Client) CreateMeta(ctx context.Context, projects []string) ([]CreateMetaProject, error) {
+	var out struct {
+		Projects []CreateMetaProject `json:"projects"`
+	}
+	p := apiPath + "/issue/createmeta"
+	if len(projects) > 0 {
+		p += "?projectKeys=" + url.QueryEscape(strings.Join(projects, ","))
+	}
+	return out.Projects, c.do(ctx, http.MethodGet, p, nil, &out)
+}
+
+// SearchUsers backs the assignee picker. Jira's own endpoint decides what
+// matches; there is no local user table to search.
+func (c *Client) SearchUsers(ctx context.Context, query string) ([]User, error) {
+	var out []User
+	p := fmt.Sprintf("%s/user/search?query=%s&maxResults=20", apiPath, url.QueryEscape(query))
+	return out, c.do(ctx, http.MethodGet, p, nil, &out)
+}
+
+// Upload attaches one file. Jira requires the nosniff header on this endpoint and
+// answers with the created attachments.
+//
+// ponytail: buffers the whole file in memory. Fine for the screenshots this is
+// for; stream with io.Pipe if someone starts attaching video.
+func (c *Client) Upload(ctx context.Context, key, filename string, file io.Reader) ([]Attachment, error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	part, err := mw.CreateFormFile("file", filename)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return nil, err
+	}
+	if err := mw.Close(); err != nil {
+		return nil, err
+	}
+
+	p := fmt.Sprintf("%s/issue/%s/attachments", apiPath, url.PathEscape(key))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+p, &buf)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", c.auth)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	// Jira rejects an attachment upload without this header, by design: it is what
+	// stops a cross-site form post from uploading on the user's behalf.
+	req.Header.Set("X-Atlassian-Token", "no-check")
+
+	res, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("POST %s: %w", p, err)
+	}
+	defer res.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(res.Body, 4<<20))
+	switch {
+	case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
+		return nil, fmt.Errorf("POST %s: %w (%s)", p, ErrAuth, res.Status)
+	case res.StatusCode >= 300:
+		return nil, apiError(http.MethodPost, p, res.StatusCode, res.Status, data)
+	case err != nil:
+		return nil, fmt.Errorf("POST %s: %w", p, err)
+	}
+	var out []Attachment
+	return out, json.Unmarshal(data, &out)
+}
