@@ -107,24 +107,62 @@
 
   // ── Global shortcuts ──
   //  ⌘K/Ctrl+K = command palette (even while a field is focused).
-  //  c = new issue (ignored while typing or a dialog is open).
+  //  c = new issue when detail closed; focus comment when detail open.
+  //  Detail open: s status / a assignee / c comment / x close.
+  //  Keep ShortcutsDialog in sync — document only keys that have handlers.
   function onGlobalKey(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault()
       paletteOpen = !paletteOpen
       return
     }
-    if (e.key !== 'c' && e.key !== '?') return
     if (e.metaKey || e.ctrlKey || e.altKey) return
-    const t = e.target as HTMLElement | null
-    if (t) {
-      const tag = t.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return
+    const el = e.target as HTMLElement | null
+    if (el) {
+      const tag = el.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) return
     }
+    // Other modal layers own their keys; cheat sheet can still toggle with ?.
     if (write.settingsOpen || write.newIssueOpen || serverSettingsOpen || paletteOpen) return
-    e.preventDefault()
-    if (e.key === '?') shortcutsOpen = !shortcutsOpen
-    else if (!shortcutsOpen) write.openNewIssue()
+    if (shortcutsOpen) {
+      if (e.key === '?') {
+        e.preventDefault()
+        shortcutsOpen = false
+      }
+      return
+    }
+
+    const key = e.key
+    const detailOpenNow = selection.selectedKey !== null
+
+    if (key === '?') {
+      e.preventDefault()
+      shortcutsOpen = true
+      return
+    }
+    if (key === 'x' && detailOpenNow) {
+      e.preventDefault()
+      selection.clear()
+      return
+    }
+    if (key === 's' && detailOpenNow) {
+      e.preventDefault()
+      document.querySelector<HTMLButtonElement>('[data-testid="status-transition"]')?.click()
+      return
+    }
+    if (key === 'a' && detailOpenNow) {
+      e.preventDefault()
+      document.querySelector<HTMLButtonElement>('[data-testid="assignee-picker"]')?.click()
+      return
+    }
+    if (key === 'c') {
+      e.preventDefault()
+      if (detailOpenNow) {
+        document.querySelector<HTMLTextAreaElement>('[data-testid="comment-composer"]')?.focus()
+      } else {
+        write.openNewIssue()
+      }
+    }
   }
 
   // ── 스마트 기본값: 최초 1회. URL 에 뷰 파람이 있으면 절대 덮지 않는다. ──
@@ -224,6 +262,15 @@
   {/if}
 {:else}
   <div class="issue-shell">
+    {#if issues.offline}
+      <div
+        class="flex flex-none items-center justify-center gap-2 border-b border-status-stale/40 bg-status-stale/10 px-3 py-1.5 text-[12px] text-status-stale"
+        role="status"
+        data-testid="offline-banner"
+      >
+        {t('app.offlineBanner')}
+      </div>
+    {/if}
     <div
       class="issue-layout"
       class:detail-open={detailOpen}

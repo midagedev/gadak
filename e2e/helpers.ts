@@ -44,5 +44,5 @@ export async function openServerSettings(page: Page): Promise<void> {
 
 /** Local client-side search box (placeholder from en.ts). */
 export function searchInput(page: Page) {
-  return page.getByPlaceholder(/Search — key\/title\/assignee/)
+  return page.getByPlaceholder(/Search issues/)
 }

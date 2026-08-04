@@ -445,14 +445,14 @@ func TestAttachmentProxyStreamsFromJira(t *testing.T) {
 		t.Fatalf("svg Content-Disposition %q", got)
 	}
 
-	// A rejected token has to reach the UI as credential_required, not as a
+	// A rejected token has to reach the UI as credential_rejected, not as a
 	// broken image.
 	mime = ""
 	rec = get(t, h, apiBase+"NMB-1/attachments/10021/content/", nil)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("upstream 401 → %d", rec.Code)
 	}
-	if got := decode[map[string]string](t, rec)["error"]; got != "credential_required" {
+	if got := decode[map[string]string](t, rec)["error"]; got != "credential_rejected" {
 		t.Fatalf("error %q", got)
 	}
 }

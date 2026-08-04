@@ -43,6 +43,7 @@ import {
   fieldLabel,
   t,
 } from '../lib/i18n'
+import { write } from './write.svelte'
 
 /* ── 파생 그룹 타입 ── */
 
@@ -111,6 +112,8 @@ class FiltersStore {
   serverMatchKeys = $state<string[]>([])
   serverMatchQuery = $state('')
   searching = $state(false)
+  /** Last query that failed body search (UI can offer Retry). */
+  searchError = $state<string | null>(null)
 
   /* ── 필터 적용 결과(그룹 무관 평면, 정렬 반영) ── */
   visibleIssues = $derived.by(() => {
@@ -275,9 +278,12 @@ class FiltersStore {
     try {
       const res = await api.search(q, 200)
       this.serverMatchKeys = res.keys
+      this.searchError = null
     } catch (e) {
       console.warn('[filters] 서버 검색 실패', e)
       this.serverMatchKeys = []
+      this.searchError = q
+      write.toast(t('list.searchFailed'), 'error')
     } finally {
       this.searching = false
     }
@@ -286,6 +292,7 @@ class FiltersStore {
   clearServerSearch(): void {
     if (this.serverMatchKeys.length) this.serverMatchKeys = []
     this.serverMatchQuery = ''
+    this.searchError = null
   }
 
   /** 로컬 결과에 없지만 본문 매칭으로 잡힌 이슈(추가 섹션 렌더). */

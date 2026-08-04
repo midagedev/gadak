@@ -17,15 +17,69 @@
 
   let { issueKey }: { issueKey: string } = $props()
 
+  const DRAFT_PREFIX = 'scry:comment-draft:'
+
   let text = $state('')
   let mentions = $state<CommentMention[]>([])
   let attachments = $state<UploadedAttachment[]>([])
   let uploading = $state(0)
   let busy = $state(false)
+  /** Skip persisting while swapping drafts between issues. */
+  let hydrating = $state(false)
 
   let ta: HTMLTextAreaElement | null = $state(null)
   let fileInput: HTMLInputElement | null = $state(null)
   let dragOver = $state(false)
+
+  function draftKey(key: string): string {
+    return DRAFT_PREFIX + key
+  }
+
+  function loadDraft(key: string): string {
+    try {
+      return localStorage.getItem(draftKey(key)) ?? ''
+    } catch {
+      return ''
+    }
+  }
+
+  function saveDraft(key: string, body: string): void {
+    try {
+      if (body.trim()) localStorage.setItem(draftKey(key), body)
+      else localStorage.removeItem(draftKey(key))
+    } catch {
+      /* private mode / quota — draft is best-effort */
+    }
+  }
+
+  function clearDraft(key: string): void {
+    try {
+      localStorage.removeItem(draftKey(key))
+    } catch {
+      /* noop */
+    }
+  }
+
+  // Per-issue draft: load when the key changes; persist while typing.
+  $effect(() => {
+    const key = issueKey
+    hydrating = true
+    text = loadDraft(key)
+    mentions = []
+    attachments = []
+    closeMention()
+    queueMicrotask(() => {
+      hydrating = false
+      autosize()
+    })
+  })
+
+  $effect(() => {
+    const key = issueKey
+    const body = text
+    if (hydrating) return
+    saveDraft(key, body)
+  })
 
   /* ── 멘션 자동완성 ── */
   let mOpen = $state(false)
@@ -173,6 +227,8 @@
       mentions = prev.mentions
       attachments = prev.attachments
       queueMicrotask(autosize)
+    } else {
+      clearDraft(issueKey)
     }
   }
 
@@ -248,6 +304,7 @@
       onkeydown={onKeydown}
       onpaste={onPaste}
       rows="2"
+      data-testid="comment-composer"
       placeholder={me.identified
         ? t('write.commentPlaceholder')
         : t('write.commentNeedCredentials')}

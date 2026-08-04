@@ -63,10 +63,20 @@
   /** Each failure gets its own sentence — a rejected token is not an unreachable site. */
   function connectMessage(e: unknown): string {
     const code = e instanceof ApiError ? e.code : null
-    if (code === 'credential_rejected') return t('onboarding.errRejected')
+    if (code === 'credential_rejected') {
+      // CLI init already warns about org keys; surface the same hard-won hint here.
+      return `${t('onboarding.errRejected')} ${t('onboarding.errRejectedOrgKey')}`
+    }
     if (code === 'site_required') return t('onboarding.errSite')
     if (code === 'email_and_token_required') return t('onboarding.errFields')
     return t('onboarding.errConnect', { message: reason(e) })
+  }
+
+  function goBackToConnect(): void {
+    step = 1
+    projectsError = null
+    syncError = null
+    stopPolling()
   }
 
   function reason(e: unknown): string {
@@ -98,6 +108,14 @@
 
   function toggle(key: string): void {
     picked = picked.includes(key) ? picked.filter((k) => k !== key) : [...picked, key]
+  }
+
+  function selectAll(): void {
+    picked = projects.map((p) => p.key)
+  }
+
+  function selectNone(): void {
+    picked = []
   }
 
   /** PUT settings/ replaces the whole document, so the current one is read first. */
@@ -217,7 +235,17 @@
         </label>
 
         {#if connectError}
-          <p class="text-[12px] text-status-reopen" role="alert" data-testid="onboarding-error">{connectError}</p>
+          <div class="flex flex-col gap-1" role="alert" data-testid="onboarding-error">
+            <p class="text-[12px] text-status-reopen">{connectError}</p>
+            <a
+              class="text-[11px] text-accent hover:underline"
+              href={TOKEN_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              {t('onboarding.tokenLink')}
+            </a>
+          </div>
         {/if}
 
         <div class="flex items-center gap-2">
@@ -240,8 +268,24 @@
           <p class="text-[12px] text-status-reopen" role="alert" data-testid="onboarding-error">{projectsError}</p>
           <button class={GHOST} type="button" onclick={() => void loadProjects()}>{t('onboarding.retry')}</button>
         {:else if projects.length === 0}
-          <p class="text-[12px] text-text-muted">{t('onboarding.noProjects')}</p>
+          <div class="flex flex-col gap-1.5" data-testid="onboarding-no-projects">
+            <p class="text-[12px] text-text-secondary">{t('onboarding.noProjects')}</p>
+            <p class="text-[11px] text-text-muted">{t('onboarding.noProjectsChecklist')}</p>
+            <p class="text-[11px] text-text-muted">{t('onboarding.noProjectsManual')}</p>
+            <div class="flex flex-wrap items-center gap-2">
+              <button class={GHOST} type="button" onclick={onOpenSettings}>{t('onboarding.openSettings')}</button>
+              <button class={GHOST} type="button" onclick={goBackToConnect}>{t('onboarding.switchAccount')}</button>
+            </div>
+          </div>
         {:else}
+          <div class="flex items-center gap-2">
+            <button class={GHOST} type="button" data-testid="onboarding-select-all" onclick={selectAll}>
+              {t('onboarding.selectAll')}
+            </button>
+            <button class={GHOST} type="button" data-testid="onboarding-select-none" onclick={selectNone}>
+              {t('onboarding.selectNone')}
+            </button>
+          </div>
           <ul class="max-h-64 overflow-y-auto rounded-md border border-border-subtle bg-bg-panel/50">
             {#each projects as p (p.key)}
               <li class="border-b border-border-subtle/60 last:border-b-0">
@@ -265,10 +309,12 @@
           {/if}
         {/if}
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <button class={PRIMARY} type="button" disabled={!canContinue} onclick={() => void saveProjectsAndSync()}>
             {saving ? t('onboarding.saving') : t('onboarding.startSync')}
           </button>
+          <button class={GHOST} type="button" onclick={goBackToConnect}>{t('onboarding.back')}</button>
+          <button class={GHOST} type="button" onclick={goBackToConnect}>{t('onboarding.switchAccount')}</button>
           <span class="text-[11px] text-text-muted">
             {t('onboarding.selectedCount', { n: picked.length })}
           </span>
@@ -283,6 +329,7 @@
           <p class="text-[12px] text-text-secondary" data-testid="onboarding-sync-done">
             {t('onboarding.syncDone', { n: formatNumber(progress.fetched) })}
           </p>
+          <p class="text-[11px] text-text-muted">{t('onboarding.syncServeHint')}</p>
         {:else}
           <p class="text-[13px] text-text-primary" data-testid="onboarding-sync-count">
             {progress ? t('onboarding.syncing') : t('onboarding.syncStarting')}

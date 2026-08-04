@@ -10,6 +10,7 @@
   import { views } from '../../stores/views.svelte'
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
+  import { runSyncNow } from '../../lib/sync-now'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
@@ -120,18 +121,21 @@
     </button>
   </div>
 
-  <!-- 총계 / 동기화 -->
+  <!-- 총계 / 동기화 — 배지 클릭 = Sync now (실패/지연 시 재시도 경로) -->
   <div class="flex-none px-3 pb-2 pt-1 text-[11px] text-text-muted">
     {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}
     <span class="ml-1">·</span>
-    <span
-      class="ml-1 inline-flex items-center gap-1 {syncColor}"
-      title={syncTitle || syncLabel}
-      aria-label={syncTitle || syncLabel}
+    <button
+      type="button"
+      class="ml-1 inline-flex items-center gap-1 rounded px-0.5 {syncColor} transition-colors hover:bg-bg-hover hover:text-text-primary"
+      title={[syncTitle || syncLabel, t('sidebar.syncNowTitle')].filter(Boolean).join('\n')}
+      aria-label={t('sidebar.syncNow')}
+      data-testid="sidebar-sync-now"
+      onclick={() => void runSyncNow('incremental')}
     >
       <span class="h-1.5 w-1.5 flex-none rounded-full {syncDot}" aria-hidden="true"></span>
       {syncLabel}
-    </span>
+    </button>
   </div>
 
   <div class="min-h-0 flex-1 overflow-y-auto">

@@ -21,6 +21,7 @@
   import Onboarding from '../shell/Onboarding.svelte'
   import { config } from '../../lib/config'
   import { me } from '../../stores/me.svelte'
+  import { runSyncNow } from '../../lib/sync-now'
 
   let { onOpenSettings }: { onOpenSettings?: () => void } = $props()
 
@@ -92,7 +93,21 @@
       {#if needsOnboarding}
         <Onboarding onOpenSettings={() => onOpenSettings?.()} />
       {:else if issues.pool.size === 0}
-        <EmptyState icon="📭" title={t('list.emptyTitle')} hint={t('list.emptyHint')} />
+        <EmptyState
+          icon="📭"
+          title={t('list.emptyTitle')}
+          hint={`${t('list.emptyHint')} ${t('list.emptySyncHint')}`}
+          actionLabel={t('list.emptyRunSync')}
+          onAction={() => void runSyncNow('full')}
+        />
+      {:else if filters.searchError}
+        <EmptyState
+          icon="⚠️"
+          title={t('list.searchFailed')}
+          hint={filters.searchError}
+          actionLabel={t('list.searchRetry')}
+          onAction={() => void filters.runServerSearch()}
+        />
       {:else if filters.serverMatchQuery && extra.length}
         <EmptyState
           icon="📄"

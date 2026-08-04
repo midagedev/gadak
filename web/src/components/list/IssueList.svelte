@@ -121,7 +121,7 @@
         e.preventDefault()
         selection.select(cursorKey)
       }
-    } else if (e.key === 'Escape') {
+    } else if (e.key === 'Escape' || e.key === 'x') {
       if (selection.selectedKey) {
         e.preventDefault()
         selection.clear()

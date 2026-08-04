@@ -28,6 +28,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
+  import { runSyncNow } from '../../lib/sync-now'
   import type { IssueLite } from '../../lib/types'
 
   let { onclose, onOpenSettings }: { onclose: () => void; onOpenSettings: () => void } = $props()
@@ -147,6 +148,11 @@
         run: () => setLocale(locale() === 'ko' ? 'en' : 'ko'),
       },
       { id: 'a:sync', label: t('palette.actionSyncStatus'), run: syncStatusToast },
+      {
+        id: 'a:sync-now',
+        label: t('palette.actionSyncNow'),
+        run: () => void runSyncNow('incremental'),
+      },
     ]
     return defs.filter((d) => matches(d.label)).map((d) => ({ ...d, section: 'action' as const }))
   })

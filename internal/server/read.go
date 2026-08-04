@@ -442,7 +442,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case errors.Is(err, errAttachmentAuth):
-			fail(w, http.StatusConflict, "credential_required")
+			fail(w, http.StatusConflict, "credential_rejected")
 			return
 		case errors.Is(err, errAttachmentMissing):
 			fail(w, http.StatusNotFound, "not_found")
@@ -457,7 +457,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 	res, err := s.fetchAttachment(r, cfg, id)
 	switch {
 	case errors.Is(err, errAttachmentAuth):
-		fail(w, http.StatusConflict, "credential_required")
+		fail(w, http.StatusConflict, "credential_rejected")
 		return
 	case errors.Is(err, errAttachmentMissing):
 		fail(w, http.StatusNotFound, "not_found")

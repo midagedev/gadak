@@ -98,6 +98,8 @@
 
 @layer components {
   .issue-shell {
+    display: flex;
+    flex-direction: column;
     height: 100vh;
     overflow: hidden;
     background: #080a0d;
@@ -108,6 +110,8 @@
     grid-template-columns: 272px minmax(0, 1360px) minmax(0, 1fr);
     width: 100%;
     max-width: 2200px;
+    flex: 1 1 auto;
+    min-height: 0;
     height: 100%;
     margin-inline: auto;
     overflow: hidden;

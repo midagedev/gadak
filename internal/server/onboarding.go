@@ -10,9 +10,11 @@ package server
 // response, a log line or the progress document.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -140,6 +142,12 @@ var (
 	syncJob progressDoc
 )
 
+// startSyncBody is optional. Empty body keeps the historical full-sync default
+// (onboarding first run). Daily "Sync now" sends {"mode":"incremental"}.
+type startSyncBody struct {
+	Mode string `json:"mode"` // "full" | "incremental"; default "full"
+}
+
 func (s *server) handleStartSync(w http.ResponseWriter, r *http.Request) {
 	cfg := s.config()
 	switch {
@@ -149,6 +157,29 @@ func (s *server) handleStartSync(w http.ResponseWriter, r *http.Request) {
 	case len(cfg.Projects) == 0:
 		fail(w, http.StatusBadRequest, "projects_required")
 		return
+	}
+
+	full := true
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<10))
+	if err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	if len(bytes.TrimSpace(raw)) > 0 {
+		var in startSyncBody
+		if err := json.Unmarshal(raw, &in); err != nil {
+			fail(w, http.StatusBadRequest, "invalid_body")
+			return
+		}
+		switch strings.ToLower(strings.TrimSpace(in.Mode)) {
+		case "", "full":
+			full = true
+		case "incremental":
+			full = false
+		default:
+			fail(w, http.StatusBadRequest, "invalid_mode")
+			return
+		}
 	}
 
 	syncMu.Lock()
@@ -161,13 +192,13 @@ func (s *server) handleStartSync(w http.ResponseWriter, r *http.Request) {
 	syncMu.Unlock()
 
 	// The request is answered immediately, so the run cannot hang off r.Context().
-	go runFirstSync(context.Background(), cfg, s.db)
+	go runSyncJob(context.Background(), cfg, s.db, full)
 	writeJSON(w, http.StatusAccepted, syncProgress())
 }
 
-func runFirstSync(ctx context.Context, cfg *config.Config, db *store.DB) {
+func runSyncJob(ctx context.Context, cfg *config.Config, db *store.DB, full bool) {
 	res, err := sync.Run(ctx, cfg, db, sync.Options{
-		Full: true,
+		Full: full,
 		Progress: func(fetched, changed int) {
 			syncMu.Lock()
 			syncJob.Fetched, syncJob.Changed = fetched, changed

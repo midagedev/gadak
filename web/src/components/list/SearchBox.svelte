@@ -183,10 +183,20 @@
       onkeydown={onKeydown}
       type="text"
       placeholder={t('list.searchPlaceholder')}
+      title={t('list.searchHelp')}
       class="min-w-0 flex-1 bg-transparent text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none"
       spellcheck="false"
       autocomplete="off"
     />
+    <button
+      type="button"
+      class="flex h-5 w-5 flex-none items-center justify-center rounded text-[11px] font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+      title={t('list.searchHelp')}
+      aria-label={t('list.searchHelp')}
+      data-testid="search-help"
+    >
+      ?
+    </button>
     {#if filters.searching}
       <span class="flex-none text-[11px] text-text-muted">{t('list.searching')}</span>
     {:else if text}

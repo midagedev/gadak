@@ -102,8 +102,14 @@
       remote = res.transitions
       focusFirst()
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'credential_required') {
+      if (
+        e instanceof ApiError &&
+        (e.code === 'credential_required' || e.code === 'credential_rejected')
+      ) {
         open = false
+        // #handleError path is inside write; surface the right copy here too.
+        if (e.code === 'credential_rejected') write.toast(t('write.tokenRejected'), 'error')
+        else write.toast(t('write.needToken'), 'info')
         write.openSettings()
         return
       }
@@ -157,6 +163,7 @@
   <button
     type="button"
     onclick={toggle}
+    data-testid="status-transition"
     class="group inline-flex items-center gap-1.5 rounded-md bg-bg-elevated px-2 py-0.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
     aria-haspopup="listbox"
     aria-expanded={open}

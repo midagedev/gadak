@@ -494,14 +494,14 @@ func TestJiraErrorsPassThrough(t *testing.T) {
 		t.Fatalf("jira_errors %+v", body.JiraErrors)
 	}
 
-	// A rejected credential is reported as one, so the UI reopens its dialog.
+	// A rejected/expired token is credential_rejected (not credential_required).
 	f.status = http.StatusUnauthorized
 	f.errBody = ``
 	rec = send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"31"}`)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("401 from jira → %d", rec.Code)
 	}
-	if got := decode[map[string]string](t, rec)["error"]; got != "credential_required" {
+	if got := decode[map[string]string](t, rec)["error"]; got != "credential_rejected" {
 		t.Fatalf("error %q", got)
 	}
 }
