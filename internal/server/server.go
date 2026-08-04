@@ -142,7 +142,9 @@ func serverError(w http.ResponseWriter, r *http.Request, err error) {
 func (s *server) handleMe(w http.ResponseWriter, r *http.Request) {
 	cfg := s.config()
 	if !cfg.HasCredential() {
-		fail(w, http.StatusUnauthorized, "credential_required")
+		// Not an auth failure — a local tool with no credential simply has no
+		// identity yet. 200 keeps the boot-time probe out of the browser console.
+		writeJSON(w, http.StatusOK, map[string]any{"email": nil})
 		return
 	}
 	name, dept := cfg.Email, ""

@@ -277,14 +277,15 @@ class WriteStore {
    *  - 통과 → true.
    */
   async ensureWritable(): Promise<boolean> {
-    if (!me.authed) {
-      me.promptLogin()
-      return false
-    }
+    // 자격증명이 곧 identity — 미설정이면 로그인이 아니라 설정으로 안내한다.
     if (!this.credentialLoaded) await this.loadCredential()
     if (!this.configured) {
       this.toast(t('write.needToken'), 'info')
       this.openSettings()
+      return false
+    }
+    if (!me.authed) {
+      me.promptLogin()
       return false
     }
     return true

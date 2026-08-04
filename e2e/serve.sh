@@ -26,9 +26,14 @@ cp -f "$ROOT/examples/demo.db" "$DB"
 # Drop any leftover WAL/SHM from a previous run so sqlite opens cleanly.
 rm -f "${DB}-wal" "${DB}-shm"
 
-# Credential-free config: demo projects + deploy/teamGroups surfaces.
+# Demo projects + deploy/teamGroups surfaces. The credential is fake — nothing
+# in the suite talks to Jira — but its presence must unlock the write UI
+# (me/ → email → authed), which is asserted in detail.spec.ts.
 cat >"$CFG" <<'EOF'
 {
+  "site": "https://nimbus.example.com",
+  "email": "dana@example.com",
+  "token": "e2e-fake-token",
   "projects": ["NMB", "NMA", "NMS"],
   "features": {
     "deploy": true,

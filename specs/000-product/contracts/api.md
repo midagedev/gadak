@@ -341,7 +341,7 @@ cannot bring the filter back.
 
 | Endpoint | Method | v0.1 behavior |
 | --- | --- | --- |
-| `me/` | GET | `{email, name, department}` from the stored credential and the configured member directory, with no call to Jira. `401 credential_required` when nothing is configured |
+| `me/` | GET | `{email, name, department}` from the stored credential and the configured member directory, with no call to Jira. `200 {"email": null}` when nothing is configured — the UI probes this on every boot, so an unconfigured install must not 4xx |
 | `login/` | POST | `404`. There are no scry accounts |
 | `logout/` | POST | `404` |
 

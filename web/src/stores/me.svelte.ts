@@ -176,8 +176,8 @@ class MeStore {
   /**
    * 부팅:
    *  - 로컬 개인화(favorites/recent)는 항상 복원.
-   *  - 토큰이 있으면 me 검증(GET auth/me/). 성공 시 로그인 상태 + 워치/멘션 로드,
-   *    실패(401 등) 시 조용히 익명으로 떨어뜨린다(render-before-auth).
+   *  - 항상 me 확인(GET auth/me/) — 서버 credential 이 설정돼 있으면 email 이 오고
+   *    로그인 상태(쓰기/워치 활성). email:null 이면 조용히 익명(render-before-auth).
    */
   async init(): Promise<void> {
     if (this.#initialized) return
@@ -186,22 +186,22 @@ class MeStore {
     for (const key of loadArray(FAVORITES_KEY)) this.favorites.add(key)
     this.recent = loadRecent()
 
+    // 서버 credential 이 곧 identity — 토큰 유무와 무관하게 항상 확인한다.
+    // (레거시 토큰이 있으면 같이 보내고, 무효 판명 시 정리)
     const token = getToken()
-    if (!token) {
-      this.authChecked = true
-      return
-    }
     try {
       const res = await fetch(`${AUTH_BASE}me/`, {
         credentials: 'same-origin',
-        headers: { Authorization: `Token ${token}` },
+        ...(token ? { headers: { Authorization: `Token ${token}` } } : {}),
       })
       if (res.ok) {
-        const data = (await res.json()) as { email: string; name?: string; department?: string }
-        this.#setUser(data.email, data.name ?? null, data.department ?? null)
-        await Promise.all([this.loadWatches(), this.loadFeed(), this.loadNotificationConfig()])
-        this.#startFeedPolling()
-      } else {
+        const data = (await res.json()) as { email: string | null; name?: string; department?: string }
+        if (data.email) {
+          this.#setUser(data.email, data.name ?? null, data.department ?? null)
+          await Promise.all([this.loadWatches(), this.loadFeed(), this.loadNotificationConfig()])
+          this.#startFeedPolling()
+        }
+      } else if (token) {
         // 토큰 만료/무효 → 정리
         this.#clearToken()
       }

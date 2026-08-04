@@ -463,9 +463,11 @@ func TestMe(t *testing.T) {
 	if got["email"] != "hc@example.com" || got["name"] != "현철" {
 		t.Fatalf("me %+v", got)
 	}
-	rec := get(t, New(db, &config.Config{}), authBase+"me/", nil)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("uncredentialed me/ → %d", rec.Code)
+	// No credential: 200 with a null identity, not 401 — the UI probes this on
+	// every boot and a 4xx would land in the browser console.
+	anon := decode[map[string]any](t, get(t, New(db, &config.Config{}), authBase+"me/", nil))
+	if email, ok := anon["email"]; !ok || email != nil {
+		t.Fatalf("uncredentialed me/ %+v", anon)
 	}
 }
 
