@@ -8,21 +8,26 @@ honest inventory — read them before assuming something is or is not there.
 The most useful contributions right now are a second source connector behind the
 neutral storage layer, plugin examples in `examples/plugins/`, and reports from
 Jira sites configured differently from the ones we test against (other
-languages, team-managed projects, unusual workflows).
+languages, team-managed projects, unusual workflows). Smaller starter tasks are
+listed in [`docs/GOOD_FIRST_ISSUES.md`](docs/GOOD_FIRST_ISSUES.md).
 
 Before contributing, read:
 
 - `README.md` for the product boundary
+- `CODE_OF_CONDUCT.md` for community norms
 - `.specify/memory/constitution.md` for the rules that override preference
 - `AGENTS.md` for the working rules (they apply to humans too)
 - `SECURITY.md` for what must be reported privately
 
 ## Development Setup
 
+Requirements: Go 1.25+, Node.js 20+.
+
 ```bash
 npm ci
-npm run build
-go build ./... && go vet ./...
+npm run build              # writes dist/app; required before go build (go:embed)
+go build -o bin/scry ./cmd/scry
+# or: make build
 ```
 
 ## Before Sending Changes
@@ -31,9 +36,13 @@ go build ./... && go vet ./...
 go build ./... && go vet ./... && go test ./...
 npm run typecheck
 npm run build
-./node_modules/.bin/playwright test --config e2e/playwright.config.ts
-bash scripts/scan-internal.sh
+# optional but expected if you touch the UI:
+npm run test:e2e           # or: ./node_modules/.bin/playwright test --config e2e/playwright.config.ts
+bash scripts/scan-internal.sh   # or: make scan
 ```
+
+Makefile targets that match the above: `make build`, `make vet`, `make test`,
+`make typecheck`, `make scan`, `make plugins-test` (example plugins), `make docker`.
 
 `scan-internal.sh` is the one that keeps this repository publishable — it fails on
 token shapes, company strings, and non-allowlisted tenant hosts, including inside
@@ -70,4 +79,7 @@ Do not commit:
 ## Pull Requests
 
 Keep the change scoped, describe the behavior change, and say which contract it
-touches (HTTP, sync, schema, or agent). Include the commands you ran.
+touches (HTTP, sync, schema, or agent). Include the commands you ran. Prefer the
+PR template checkboxes over a free-form dump.
+
+By participating, you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
