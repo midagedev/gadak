@@ -172,8 +172,8 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 // credential ends the loop, because every further request would only burn rate
 // budget.
 func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) error {
-	every := seconds(cfg.SyncIntervalSec, 60*time.Second)
-	reconcileEvery := seconds(cfg.ReconcileIntervalSec, time.Hour)
+	every := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
+	reconcileEvery := time.Duration(cfg.EffectiveReconcileIntervalSec()) * time.Second
 
 	tick := time.NewTicker(every)
 	defer tick.Stop()
@@ -200,13 +200,6 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 			o.Reconcile = true
 		}
 	}
-}
-
-func seconds(v int, fallback time.Duration) time.Duration {
-	if v <= 0 {
-		return fallback
-	}
-	return time.Duration(v) * time.Second
 }
 
 // record stores last_error and returns the error unchanged. It passes no
