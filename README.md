@@ -246,6 +246,20 @@ configuration, permission schemes, and anything requiring Jira's own UI.
 **Not a sync engine:** Jira is the system of record. The mirror is disposable —
 delete it and re-sync.
 
+## How it compares
+
+- **[jira-cli](https://github.com/ankitpokhrel/jira-cli)** talks to Jira's REST
+  API per command, so every listing is a network round trip and JQL is the query
+  language. scry queries a local mirror: millisecond filters, SQL joins over the
+  changelog, offline reads — plus a web UI and TUI over the same file. If all you
+  want is "create an issue from the terminal", jira-cli is lighter.
+- **Linear** is a different tracker. If your team can move, move. scry is for the
+  (much larger) group whose org keeps Jira: it gives you Linear-ish speed and
+  keyboard flow without asking anyone for permission — it is a mirror, not a
+  migration.
+- **Jira's own UI** stays the source of record and the place for boards,
+  sprints, and admin. scry does not replace it; it replaces waiting on it.
+
 ## More sources later
 
 The storage schema and search layer are source-neutral so a second connector does
