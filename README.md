@@ -288,6 +288,7 @@ source-specific work merges until the neutral layer stays neutral.
 
 - [`AGENTS.md`](AGENTS.md) — the agent reference: SQL, CLI, REST
 - [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — one paste per agent (Claude Code, Cursor, Codex, MCP)
+- [`docs/RECIPES.md`](docs/RECIPES.md) — 13 questions JQL cannot ask, as ready-to-run SQL
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) — fitting scry to your team
 - [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) — what exists, what does not
 - [`docs/CONCEPT.md`](docs/CONCEPT.md) — the product idea and the loop it optimizes
