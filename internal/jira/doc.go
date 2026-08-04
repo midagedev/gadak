@@ -13,6 +13,21 @@ import (
 //
 // mentions maps display name to account id.
 func Doc(text string, mentions map[string]string) json.RawMessage {
+	return DocWithMedia(text, mentions, nil)
+}
+
+// Media is one inline image in a comment: the Jira media UUID (not the
+// attachment id — see Client.MediaRef) plus the filename, which is carried as
+// `alt` so our own renderer can match the node to the attachment without
+// persisting the UUID anywhere (web/src/lib/adf.ts, findAttachment).
+type Media struct {
+	ID       string
+	Filename string
+}
+
+// DocWithMedia is Doc plus inline images, appended after the text — where a
+// screenshot belongs in a comment that describes it.
+func DocWithMedia(text string, mentions map[string]string, media []Media) json.RawMessage {
 	// Longest name first: "@김현" must not win over "@김현철".
 	names := make([]string, 0, len(mentions))
 	for name := range mentions {
@@ -30,6 +45,22 @@ func Doc(text string, mentions map[string]string) json.RawMessage {
 			para["content"] = nodes
 		}
 		content = append(content, para)
+	}
+	for _, m := range media {
+		if m.ID == "" {
+			continue
+		}
+		// collection must be present and empty for an issue attachment; Jira
+		// rejects the node without it.
+		attrs := map[string]any{"type": "file", "id": m.ID, "collection": ""}
+		if m.Filename != "" {
+			attrs["alt"] = m.Filename
+		}
+		content = append(content, map[string]any{
+			"type":    "mediaSingle",
+			"attrs":   map[string]any{"layout": "center"},
+			"content": []any{map[string]any{"type": "media", "attrs": attrs}},
+		})
 	}
 	doc, err := json.Marshal(map[string]any{"type": "doc", "version": 1, "content": content})
 	if err != nil {

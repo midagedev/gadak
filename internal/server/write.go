@@ -249,6 +249,9 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 			AccountID   string `json:"account_id"`
 			DisplayName string `json:"display_name"`
 		} `json:"mentions"`
+		// AttachmentIDs are ids returned by the upload endpoint. They render inline
+		// in the comment body; the files are attached to the issue regardless.
+		AttachmentIDs []string `json:"attachment_ids"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
@@ -258,10 +261,6 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "text_required")
 		return
 	}
-	// attachment_ids is accepted and ignored: the files are already attached to the
-	// issue by the upload endpoint, and inlining them in the body needs the media
-	// id Jira only exposes through the attachment redirect (see docs/PLUGINS.md's
-	// neighbour, contracts/api.md).
 	mentions := map[string]string{}
 	for _, m := range body.Mentions {
 		if m.DisplayName != "" && m.AccountID != "" {
@@ -270,7 +269,24 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 	}
 	key := r.PathValue("key")
 	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
-		created, err := c.AddComment(ctx, key, jira.Doc(body.Text, mentions))
+		// attachment_ids arrive from the upload endpoint, which already attached the
+		// files to the issue. Rendering them *inside* the comment needs Jira's media
+		// UUID, which is only exposed through the attachment redirect. An id that
+		// cannot be resolved is dropped rather than failing the comment: the file is
+		// still attached to the issue either way.
+		var media []jira.Media
+		for _, id := range body.AttachmentIDs {
+			if id == "" {
+				continue
+			}
+			mediaID, filename, err := c.MediaRef(ctx, id)
+			if err != nil {
+				log.Printf("server: comment media ref for attachment %s: %v", id, err)
+				continue
+			}
+			media = append(media, jira.Media{ID: mediaID, Filename: filename})
+		}
+		created, err := c.AddComment(ctx, key, jira.DocWithMedia(body.Text, mentions, media))
 		if err != nil {
 			return nil, err
 		}

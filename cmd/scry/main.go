@@ -30,6 +30,7 @@ import (
 	"time"
 
 	scry "github.com/midagedev/scry"
+	"github.com/midagedev/scry/internal/attachcache"
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/server"
 	"github.com/midagedev/scry/internal/store"
@@ -135,7 +136,20 @@ func cmdServe(args []string) error {
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(doc)
 	})
-	mux.Handle("/api/", server.New(db, cfg))
+	// Attachment bytes live on disk next to the mirror: the first view fetches
+	// them from Jira, every later one is local, and a cached image still renders
+	// with no credential at all.
+	var apiHandler http.Handler
+	if dir, err := config.AttachmentDir(); err != nil {
+		log.Printf("warning: attachment cache disabled: %v", err)
+		apiHandler = server.New(db, cfg)
+	} else if cache, err := attachcache.New(dir, int64(cfg.AttachmentCacheMB)<<20); err != nil {
+		log.Printf("warning: attachment cache disabled: %v", err)
+		apiHandler = server.New(db, cfg)
+	} else {
+		apiHandler = server.NewWithCache(db, cfg, cache)
+	}
+	mux.Handle("/api/", apiHandler)
 
 	// The embedded UI is the default; --static overrides it for development
 	// (`npm run build` output) without rebuilding the binary.
@@ -484,6 +498,51 @@ func cmdStatus(args []string) error {
 
 // cmdDemo serves the bundled snapshot from a throwaway home, so evaluating the
 // UI needs no Jira account and cannot touch a real profile.
+// importDemoAttachments loads examples/attachments/ into the demo cache. A
+// missing directory is not an error: the snapshot simply has no images.
+func importDemoAttachments(snapshotDir, home string) error {
+	manifestPath := filepath.Join(snapshotDir, "attachments", "manifest.json")
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var manifest struct {
+		Attachments []struct {
+			ID          string `json:"id"`
+			File        string `json:"file"`
+			Filename    string `json:"filename"`
+			ContentType string `json:"content_type"`
+		} `json:"attachments"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return err
+	}
+	cache, err := attachcache.New(filepath.Join(home, "attachments"), 0)
+	if err != nil {
+		return err
+	}
+	for _, a := range manifest.Attachments {
+		src := filepath.Join(snapshotDir, "attachments", a.File)
+		if err := cache.ImportFile(a.ID, src, a.ContentType, a.Filename); err != nil {
+			return fmt.Errorf("import %s: %w", a.File, err)
+		}
+	}
+	return nil
+}
+
+// freshenDemoClock stamps the throwaway demo copy as just-synced.
+func freshenDemoClock(dbPath string) error {
+	db, err := store.Open(dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	return db.FreshenSyncClock()
+}
+
 func cmdDemo(args []string) error {
 	fs := flag.NewFlagSet("demo", flag.ExitOnError)
 	addr := fs.String("addr", "127.0.0.1:7878", "listen address")
@@ -509,6 +568,18 @@ func cmdDemo(args []string) error {
 	}
 	os.Setenv("SCRY_HOME", home)
 	config.SetProfile("")
+	// Attachment bytes cannot be proxied without a credential, so the snapshot
+	// ships them and they are imported into the cache: the demo shows real
+	// screenshots and inline comment images with no Jira account at all.
+	if err := importDemoAttachments(filepath.Dir(*dbPath), home); err != nil {
+		log.Printf("demo: attachment bytes unavailable (%v) — images will not render", err)
+	}
+	// The snapshot ages on the shelf, and a demo that opens with "Sync delayed"
+	// reads as a defect rather than as the freshness guard it is. This is a
+	// throwaway copy, so stamp its clock as current.
+	if err := freshenDemoClock(filepath.Join(home, "scry.db")); err != nil {
+		log.Printf("demo: could not freshen the sync clock: %v", err)
+	}
 	log.Printf("demo mirror in %s (deleted on exit)", home)
 	defer os.RemoveAll(home)
 	return cmdServe([]string{"--addr", *addr, "--static", *static})

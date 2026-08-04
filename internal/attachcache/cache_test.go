@@ -1,0 +1,169 @@
+package attachcache
+
+import (
+	"bytes"
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+)
+
+func fetcher(body string, ct string) func() (io.ReadCloser, Meta, error) {
+	return func() (io.ReadCloser, Meta, error) {
+		return io.NopCloser(strings.NewReader(body)), Meta{ContentType: ct, Size: int64(len(body))}, nil
+	}
+}
+
+func TestFillThenGet(t *testing.T) {
+	c, err := New(t.TempDir(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Has("10001") {
+		t.Fatal("empty cache reported a hit")
+	}
+	if err := c.Fill("10001", fetcher("PNGBYTES", "image/png")); err != nil {
+		t.Fatal(err)
+	}
+	if !c.Has("10001") {
+		t.Fatal("filled entry reported a miss")
+	}
+	f, meta, err := c.Get("10001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	got, _ := io.ReadAll(f)
+	if string(got) != "PNGBYTES" || meta.ContentType != "image/png" || meta.Size != 8 {
+		t.Fatalf("got %q %+v", got, meta)
+	}
+}
+
+// A miss on the same id from several renders at once must fetch once.
+func TestFillIsSingleFlight(t *testing.T) {
+	c, err := New(t.TempDir(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	calls := 0
+	release := make(chan struct{})
+	slow := func() (io.ReadCloser, Meta, error) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		<-release
+		return io.NopCloser(strings.NewReader("x")), Meta{ContentType: "image/png", Size: 1}, nil
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = c.Fill("same", slow)
+		}()
+	}
+	// Let the first goroutine register its flight before releasing.
+	for {
+		mu.Lock()
+		started := calls
+		mu.Unlock()
+		if started > 0 {
+			break
+		}
+	}
+	close(release)
+	wg.Wait()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("fetch called %d times, want 1", calls)
+	}
+}
+
+// A hostile id must not write outside the cache directory.
+func TestIdCannotEscapeDirectory(t *testing.T) {
+	dir := t.TempDir()
+	c, err := New(dir, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Fill("../../etc/passwd", fetcher("nope", "text/plain")); err != nil {
+		t.Fatal(err)
+	}
+	var outside []string
+	_ = filepath.WalkDir(filepath.Dir(dir), func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && !strings.HasPrefix(p, dir) && strings.Contains(p, "passwd") {
+			outside = append(outside, p)
+		}
+		return nil
+	})
+	if len(outside) > 0 {
+		t.Fatalf("wrote outside the cache: %v", outside)
+	}
+	if !c.Has("../../etc/passwd") {
+		t.Fatal("entry not retrievable by its own id")
+	}
+}
+
+func TestEvictsLeastRecentlyUsedOverBudget(t *testing.T) {
+	// Budget fits two of the three 40-byte payloads.
+	c, err := New(t.TempDir(), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := strings.Repeat("a", 40)
+	for _, id := range []string{"one", "two", "three"} {
+		if err := c.Fill(id, fetcher(payload, "image/png")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files, bytes := c.Stats()
+	if bytes > 100 {
+		t.Fatalf("cache holds %d bytes over a 100-byte budget (%d files)", bytes, files)
+	}
+	if !c.Has("three") {
+		t.Fatal("evicted the newest entry")
+	}
+}
+
+func TestOversizedEntryIsRejectedNotTruncated(t *testing.T) {
+	c, err := New(t.TempDir(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	huge := func() (io.ReadCloser, Meta, error) {
+		// Declares a size past the per-file limit.
+		return io.NopCloser(bytes.NewReader([]byte("x"))), Meta{ContentType: "video/mp4", Size: maxEntryBytes + 1}, nil
+	}
+	err = c.Fill("big", huge)
+	if !TooLarge(err) {
+		t.Fatalf("err = %v, want TooLarge", err)
+	}
+	if c.Has("big") {
+		t.Fatal("oversized entry was cached")
+	}
+}
+
+func TestFetchFailureLeavesNoEntry(t *testing.T) {
+	c, err := New(t.TempDir(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	boom := errors.New("upstream down")
+	if err := c.Fill("nope", func() (io.ReadCloser, Meta, error) { return nil, Meta{}, boom }); !errors.Is(err, boom) {
+		t.Fatalf("err = %v", err)
+	}
+	if c.Has("nope") {
+		t.Fatal("failed fetch left a cached entry")
+	}
+	files, _ := c.Stats()
+	if files != 0 {
+		t.Fatalf("%d files left behind", files)
+	}
+}
