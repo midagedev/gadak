@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
    * 좌측 사이드바 프레임 (desktop 272px, [foundation]).
-   * 상단 로고 "Issues" + `children` 스니펫 슬롯.
+   * 상단 로고 + `children` 스니펫 슬롯.
    * 내비게이션 콘텐츠(My Issues / 피드 / 최근 본 이슈 / 뷰 목록)는
    *  [explore]·[personal] 이 `components/sidebar/` 에 만들어 이 슬롯에 주입한다.
    */
@@ -19,8 +19,7 @@
       class="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent"
       aria-hidden="true"
     ></span>
-    <span class="text-[13px] font-semibold tracking-tight text-text-primary">Issues</span>
-    <span class="text-[11px] font-medium text-text-muted">redacted-tool</span>
+    <span class="text-[13px] font-semibold tracking-tight text-text-primary">scry</span>
   </div>
 
   <!-- 내비게이션 슬롯 -->

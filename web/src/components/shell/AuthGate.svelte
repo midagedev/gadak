@@ -10,7 +10,7 @@
 <div class="flex h-screen flex-col items-center justify-center gap-4 bg-bg-base px-6 text-center">
   <div class="flex items-center gap-2">
     <span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent"></span>
-    <span class="text-[15px] font-semibold text-text-primary">Issues</span>
+    <span class="text-[15px] font-semibold text-text-primary">scry</span>
   </div>
   <p class="max-w-sm text-[13px] text-text-secondary">
     {t('app.authGate')}
