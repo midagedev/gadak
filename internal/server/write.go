@@ -41,8 +41,9 @@ func failJira(w http.ResponseWriter, r *http.Request, err error) {
 	var apiErr *jira.APIError
 	switch {
 	case errors.Is(err, jira.ErrAuth):
-		// The stored token is wrong or expired: same signal as having none.
-		fail(w, http.StatusConflict, "credential_required")
+		// Stored token is wrong or expired — distinct from never having one
+		// (credential_required), so the UI can say "replace your token".
+		fail(w, http.StatusConflict, "credential_rejected")
 	case errors.Is(err, sync.ErrNotFound):
 		fail(w, http.StatusNotFound, "not_found")
 	case errors.As(err, &apiErr):

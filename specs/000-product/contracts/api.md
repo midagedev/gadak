@@ -17,7 +17,9 @@ absence), **X** = cut in the extraction and not coming back.
 - Success bodies are the documented object, not wrapped.
 - Write failures return `{"error": "<code>", "jira_errors": {...}}` with a 4xx.
   The client surfaces `error` directly and renders `jira_errors` per field.
-- `409 credential_required` tells the UI to open the credential dialog.
+- `409 credential_required` means no token is stored — open the credential dialog.
+- `409 credential_rejected` means a stored token was refused by Jira (expired or
+  wrong) — open the same dialog with “replace your token” copy.
 - Reads are permitted without authentication when the server is bound to
   loopback; writes require configured credentials.
 
@@ -237,7 +239,7 @@ plus the wizard is the whole path.
 | --- | --- | --- | --- |
 | `onboarding/connect/` | PUT | `GET /rest/api/3/myself` to verify | R |
 | `projects/available/` | GET | `GET /rest/api/3/project/search` | R |
-| `sync/` | POST | full sync (background) | R |
+| `sync/` | POST | full or incremental sync (background) | R |
 | `sync/progress/` | GET | none | R |
 
 `PUT onboarding/connect/` takes `{site, jira_email, api_token}` and is the only
@@ -254,16 +256,18 @@ credential. It answers `409 credential_required` without one. It stops at 500
 projects and sets `truncated: true`, because a bigger site is one where typing keys
 into settings beats scrolling a picker.
 
-`POST sync/` starts one full sync in the background and answers `202` with the
-progress document. It is single-flight: a second call while one is running is
-`409 sync_in_progress`. An incomplete setup is `400 credential_required` or
-`400 projects_required`. `GET sync/progress/` polls
-`{running, phase, fetched, changed, deleted, done, error, started_at, finished_at}`
-where `phase` is `idle | syncing | done | error`. The document carries counters
-only — no site, no email, nothing derived from the token — and `fetched`/`changed`
-advance per committed page, so a client polling every second can show issues
-arriving live. The job is process-wide state, matching the one server `scry serve`
-runs.
+`POST sync/` starts one background sync and answers `202` with the progress
+document. Body is optional: empty (or `{"mode":"full"}`) runs a full sync
+(onboarding first run); `{"mode":"incremental"}` runs an incremental pass for
+daily “Sync now”. Unknown `mode` is `400 invalid_mode`. It is single-flight: a
+second call while one is running is `409 sync_in_progress`. An incomplete setup
+is `400 credential_required` or `400 projects_required`. `GET sync/progress/`
+polls `{running, phase, fetched, changed, deleted, done, error, started_at,
+finished_at}` where `phase` is `idle | syncing | done | error`. The document
+carries counters only — no site, no email, nothing derived from the token — and
+`fetched`/`changed` advance per committed page, so a client polling every second
+can show issues arriving live. The job is process-wide state, matching the one
+server `scry serve` runs.
 
 ### Field edits
 

@@ -258,6 +258,31 @@ func TestSyncProgressStartsIdle(t *testing.T) {
 	}
 }
 
+func TestStartSyncAcceptsIncrementalMode(t *testing.T) {
+	f, h, _ := onboarding(t)
+	connect(t, h, f)
+	if rec := send(t, h, http.MethodPut, apiBase+"settings/", `{"projects":["NMB"]}`); rec.Code != http.StatusOK {
+		t.Fatalf("settings: %d %s", rec.Code, rec.Body.String())
+	}
+	// Seed a watermark so incremental is not forced full.
+	if rec := send(t, h, http.MethodPost, apiBase+"sync/", `{"mode":"full"}`); rec.Code != http.StatusAccepted {
+		t.Fatalf("full start: %d %s", rec.Code, rec.Body.String())
+	}
+	_ = waitDone(t, h)
+
+	if rec := send(t, h, http.MethodPost, apiBase+"sync/", `{"mode":"incremental"}`); rec.Code != http.StatusAccepted {
+		t.Fatalf("incremental start: %d %s", rec.Code, rec.Body.String())
+	}
+	p := waitDone(t, h)
+	if p.Phase == "error" {
+		t.Fatalf("incremental failed: %+v", p)
+	}
+
+	if rec := send(t, h, http.MethodPost, apiBase+"sync/", `{"mode":"bogus"}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("bogus mode: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func connect(t *testing.T, h http.Handler, f *onboardJira) {
 	t.Helper()
 	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
