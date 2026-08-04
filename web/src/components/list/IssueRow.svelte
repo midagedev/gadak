@@ -135,6 +135,7 @@
             : 'hover:bg-bg-hover'}"
   role="button"
   tabindex="-1"
+  aria-current={active ? 'true' : undefined}
   onclick={onRowClick}
   onmouseenter={() => prefetchDetail(issue.issue_key)}
   onkeydown={(e) => {

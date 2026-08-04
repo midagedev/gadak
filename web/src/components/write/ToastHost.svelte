@@ -11,7 +11,7 @@
     <button
       type="button"
       onclick={() => write.dismissToast(t.id)}
-      class="anim-enter pointer-events-auto max-w-sm rounded-md border px-3 py-2 text-left text-[12px] shadow-xl transition-colors {t.kind ===
+      class="anim-toast pointer-events-auto max-w-sm rounded-md border px-3 py-2 text-left text-[12px] shadow-xl transition-colors {t.kind ===
       'error'
         ? 'border-status-reopen/40 bg-status-reopen/15 text-status-reopen'
         : t.kind === 'success'

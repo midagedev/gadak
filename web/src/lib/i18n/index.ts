@@ -32,7 +32,13 @@ function detectLocale(): Locale {
 /** Call once at boot (before first render). Idempotent. */
 export function initLocale(): Locale {
   current = detectLocale()
+  syncDocumentLang()
   return current
+}
+
+/** Keep <html lang> in sync so screen readers pick the right pronunciation. */
+function syncDocumentLang(): void {
+  if (typeof document !== 'undefined') document.documentElement.lang = localeTag()
 }
 
 export function locale(): Locale {
@@ -46,7 +52,10 @@ export function setLocale(next: Locale): void {
   } catch {
     /* ignore */
   }
-  if (next !== current) location.reload()
+  if (next === current) return
+  current = next
+  syncDocumentLang() // reload re-runs initLocale, but don't leave a stale lang mid-teardown
+  location.reload()
 }
 
 /** BCP 47 tag for Intl APIs. */

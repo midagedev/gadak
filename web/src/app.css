@@ -130,18 +130,27 @@
     overflow: hidden;
   }
 
+  /*
+    상세 패널 등장: grid track 폭은 즉시 확정하고(레이아웃 애니메이션 금지 — 리플로우가 비싸다)
+    opacity/transform 만 160ms ease-out 으로 미끄러뜨린다.
+  */
   .issue-detail-panel {
     width: 0;
     min-width: 0;
     min-height: 0;
     visibility: hidden;
     opacity: 0;
+    transform: translateX(8px);
+    transition:
+      opacity 160ms ease-out,
+      transform 160ms ease-out;
   }
 
   .issue-detail-panel.is-open {
     width: 100%;
     visibility: visible;
     opacity: 1;
+    transform: none;
   }
 
   @media (min-width: 2201px) {
@@ -210,9 +219,45 @@
       transform: none;
     }
   }
+  /* 모달/팔레트 — 살짝 스케일 + 페이드. Linear 급 절제: 150ms, ease-out. */
+  .anim-pop {
+    animation: in-pop 0.15s ease-out;
+  }
+  @keyframes in-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.98) translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* 토스트 — 우측에서 슬라이드 인. */
+  .anim-toast {
+    animation: in-slide-right 0.18s ease-out;
+  }
+  @keyframes in-slide-right {
+    from {
+      opacity: 0;
+      transform: translateX(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .anim-enter {
+    .anim-enter,
+    .anim-pop,
+    .anim-toast {
       animation: none;
+    }
+    .issue-detail-panel {
+      transition: none;
+      transform: none;
     }
   }
 }

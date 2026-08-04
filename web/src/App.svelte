@@ -34,6 +34,7 @@
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
   import SettingsDialog from './components/settings/SettingsDialog.svelte'
   import CommandPalette from './components/palette/CommandPalette.svelte'
+  import ShortcutsDialog from './components/shell/ShortcutsDialog.svelte'
   import ToastHost from './components/write/ToastHost.svelte'
   import MediaViewer from './components/detail/MediaViewer.svelte'
   import { mediaViewer } from './stores/media-viewer.svelte'
@@ -45,6 +46,14 @@
   let serverSettingsOpen = $state(false)
   /** 커맨드 팔레트(⌘K). 여는 주체가 여기뿐이라 역시 셸 로컬 상태. */
   let paletteOpen = $state(false)
+  /** 단축키 치트시트(?). */
+  let shortcutsOpen = $state(false)
+  /**
+   * 스켈레톤 지연 표시. IndexedDB 캐시 히트는 보통 100ms 안에 끝나므로 그때는
+   * 스켈레톤을 아예 그리지 않는다(깜빡임 방지). index.html 의 인라인 부트 셸이
+   * 그 사이의 배경을 이미 채우고 있다.
+   */
+  let showSkeleton = $state(false)
 
   // 공유 링크/대시보드/푸시에서 직접 진입한 이슈를 첫 렌더 전에 복원한다.
   // 그렇지 않으면 selection → URL 이펙트가 빈 선택으로 `issue`를 먼저 지울 수 있다.
@@ -58,6 +67,9 @@
     void write.loadWriteMeta() // 쓰기 메타 선반영(issues.init 과 병렬)
     views.init()
     if (feature('presence')) presence.init() // 실시간 프레즌스(티켓→WS, 실패는 조용히)
+
+    const skeletonTimer = setTimeout(() => (showSkeleton = true), 120)
+    return () => clearTimeout(skeletonTimer)
   })
 
   // ── 상세 열림/닫힘을 프레즌스에 반영 ──
@@ -103,7 +115,8 @@
       paletteOpen = !paletteOpen
       return
     }
-    if (e.key !== 'c' || e.metaKey || e.ctrlKey || e.altKey) return
+    if (e.key !== 'c' && e.key !== '?') return
+    if (e.metaKey || e.ctrlKey || e.altKey) return
     const t = e.target as HTMLElement | null
     if (t) {
       const tag = t.tagName
@@ -111,7 +124,8 @@
     }
     if (write.settingsOpen || write.newIssueOpen || serverSettingsOpen || paletteOpen) return
     e.preventDefault()
-    write.openNewIssue()
+    if (e.key === '?') shortcutsOpen = !shortcutsOpen
+    else if (!shortcutsOpen) write.openNewIssue()
   }
 
   // ── 스마트 기본값: 최초 1회. URL 에 뷰 파람이 있으면 절대 덮지 않는다. ──
@@ -206,7 +220,7 @@
         {t('common.retry')}
       </button>
     </div>
-  {:else}
+  {:else if showSkeleton}
     <LoadingShell />
   {/if}
 {:else}
@@ -228,7 +242,7 @@
           {#if me.feedOpen && feature('feed')}
             <PersonalFeed />
           {:else}
-            <ListView />
+            <ListView onOpenSettings={() => (serverSettingsOpen = true)} />
           {/if}
         {/snippet}
       </MainColumn>
@@ -252,6 +266,10 @@
 
 {#if serverSettingsOpen}
   <SettingsDialog onclose={() => (serverSettingsOpen = false)} />
+{/if}
+
+{#if shortcutsOpen}
+  <ShortcutsDialog onclose={() => (shortcutsOpen = false)} />
 {/if}
 
 {#if paletteOpen}

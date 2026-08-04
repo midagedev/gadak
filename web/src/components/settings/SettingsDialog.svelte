@@ -15,6 +15,7 @@
   import type { ScryFeatures } from '../../lib/config'
   import { write } from '../../stores/write.svelte'
   import KeyValueRows from './KeyValueRows.svelte'
+  import { trapFocus } from '../../lib/focus-trap'
 
   let { onclose }: { onclose: () => void } = $props()
 
@@ -258,7 +259,8 @@
   }}
 >
   <div
-    class="anim-enter flex max-h-[88vh] w-full max-w-3xl flex-col rounded-lg border border-border-strong bg-bg-panel shadow-xl"
+    use:trapFocus
+    class="anim-pop flex max-h-[88vh] w-full max-w-3xl flex-col rounded-lg border border-border-strong bg-bg-panel shadow-xl"
     role="dialog"
     aria-modal="true"
     aria-label={t('settings.title')}

@@ -7,6 +7,7 @@
    *  - 열림/닫힘과 키 바인딩은 App.svelte 소관(입력 필드 포커스 중에도 열려야 하므로).
    */
   import { onMount } from 'svelte'
+  import { trapFocus } from '../../lib/focus-trap'
   import {
     formatTimeOfDay,
     locale,
@@ -200,7 +201,8 @@
   }}
 >
   <div
-    class="anim-enter flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-xl"
+    use:trapFocus
+    class="anim-pop flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-xl"
     role="dialog"
     aria-modal="true"
     aria-label={t('palette.title')}
@@ -277,7 +279,7 @@
     <div
       class="flex-none border-t border-border-subtle px-3 py-1.5 text-[11px] text-text-muted"
     >
-      {t('palette.hintNav')}
+      {t('palette.hintNav')} · <kbd class="font-mono">?</kbd> {t('palette.hintHelp')}
     </div>
   </div>
 </div>

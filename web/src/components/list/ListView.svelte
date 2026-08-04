@@ -18,9 +18,28 @@
   import IssueList from './IssueList.svelte'
   import IssueRow from './IssueRow.svelte'
   import EmptyState from './EmptyState.svelte'
+  import Onboarding from '../shell/Onboarding.svelte'
+  import { config } from '../../lib/config'
+  import { me } from '../../stores/me.svelte'
+
+  let { onOpenSettings }: { onOpenSettings?: () => void } = $props()
 
   const visibleCount = $derived(filters.visibleIssues.length)
   const extra = $derived(filters.serverExtraIssues)
+
+  /**
+   * First run vs. "mirror is empty, sync will fill it". Setup is incomplete when
+   * there is no stored credential or no project list; once anything has synced
+   * (pool > 0) this is false forever, so onboarding cannot come back.
+   */
+  //  me.authChecked 가 필수: identity 확인 전에는 자격증명 유무를 알 수 없어
+  //  기다리지 않으면 부팅 중 온보딩이 한 프레임 번쩍인다.
+  //  identity === 저장된 Jira 자격증명이므로 자격증명 판정은 me.identified 로 한다.
+  const needsOnboarding = $derived(
+    issues.pool.size === 0 &&
+      me.authChecked &&
+      (!me.identified || config().projects.length === 0),
+  )
 
   // 뷰(필터/정렬/그룹)가 바뀌면 가시 리스트에서 빠진 선택은 정리한다.
   //  viewKey 에만 반응(데이터 delta 마다 재계산하지 않도록 visibleIssues 는 untrack).
@@ -70,7 +89,9 @@
   <!-- 리스트 / 빈 상태 -->
   <div class="min-h-0 flex-1">
     {#if visibleCount === 0}
-      {#if issues.pool.size === 0}
+      {#if needsOnboarding}
+        <Onboarding onOpenSettings={() => onOpenSettings?.()} />
+      {:else if issues.pool.size === 0}
         <EmptyState icon="📭" title={t('list.emptyTitle')} hint={t('list.emptyHint')} />
       {:else if filters.serverMatchQuery && extra.length}
         <EmptyState

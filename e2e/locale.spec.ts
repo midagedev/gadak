@@ -20,6 +20,8 @@ test.describe('locale', () => {
 
     // ko.ts: sidebar.issueCount = '{n} 이슈' (pool size; list count may be filtered)
     await expect(page.getByText('519 이슈')).toBeVisible({ timeout: 30_000 })
+    // <html lang> follows the locale so screen readers switch pronunciation.
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ko-KR')
     // ko.ts: sidebar.settings
     await expect(page.getByRole('button', { name: '설정', exact: true })).toBeVisible()
     // ko.ts: filter.add
