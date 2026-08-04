@@ -24,6 +24,27 @@ export function absTime(iso: string | null): string {
   return i18nAbsTime(iso)
 }
 
+/* ── 검색어 하이라이팅 ── */
+
+/** 대소문자 무시 부분일치 조각 분해. 초성/키 단축형 매칭은 조각이 없어 하이라이트 생략. */
+export function highlightSegments(text: string, q: string): { text: string; hit: boolean }[] {
+  const needle = q.trim().toLowerCase()
+  if (!needle) return [{ text, hit: false }]
+  const lower = text.toLowerCase()
+  const out: { text: string; hit: boolean }[] = []
+  let i = 0
+  for (;;) {
+    const at = lower.indexOf(needle, i)
+    if (at < 0) break
+    if (at > i) out.push({ text: text.slice(i, at), hit: false })
+    out.push({ text: text.slice(at, at + needle.length), hit: true })
+    i = at + needle.length
+  }
+  if (out.length === 0) return [{ text, hit: false }]
+  if (i < text.length) out.push({ text: text.slice(i), hit: false })
+  return out
+}
+
 /* ── 이니셜(아바타 폴백) ── */
 
 export function initials(name: string | null | undefined, email?: string | null): string {

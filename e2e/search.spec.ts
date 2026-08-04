@@ -23,6 +23,9 @@ test.describe('client-side search', () => {
     await expect(page.getByText(/1 issues?|1 issue/)).toBeVisible()
     await expect(page.getByText('NMB-110').first()).toBeVisible()
 
+    // Matched substring is highlighted in the surviving row.
+    await expect(page.locator('mark', { hasText: /NMB-110/i }).first()).toBeVisible()
+
     expect(
       apiDuringType,
       `expected no /api/ requests while typing, got:\n${apiDuringType.join('\n')}`,

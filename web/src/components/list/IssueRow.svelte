@@ -11,7 +11,7 @@
   import { bulk } from '../../stores/bulk.svelte'
   import { me } from '../../stores/me.svelte'
   import { presence } from '../../stores/presence.svelte'
-  import { categoryOf, CATEGORY_META, relativeTime, absTime } from '../../lib/format'
+  import { categoryOf, CATEGORY_META, relativeTime, absTime, highlightSegments } from '../../lib/format'
   import { feature } from '../../lib/config'
   import { isStale, statusAgeHours } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
@@ -38,6 +38,9 @@
   const extraLabels = $derived(Math.max(0, issue.labels.length - 3))
   // 노출 컬럼 집합(뷰 설정). O(1) 조회로 각 후행 필드 렌더 여부를 가른다.
   const cols = $derived(new Set(filters.display.columns))
+  // 검색어 하이라이팅(제목·키). q 없으면 단일 조각이라 렌더 비용 동일.
+  const summarySegs = $derived(highlightSegments(issue.summary, filters.filters.q))
+  const keySegs = $derived(highlightSegments(issue.issue_key, filters.filters.q))
   const qaImpactMeta = $derived.by(() => {
     switch (issue.qa_impact_state) {
       case 'blocking':
@@ -169,7 +172,7 @@
 
   <!-- 키 (자기 이슈면 액센트 톤으로 소속 표시) -->
   <span class="w-[88px] flex-none truncate font-mono text-[12px] {mine ? 'text-accent-text' : 'text-text-secondary'}">
-    {issue.issue_key}
+    {#each keySegs as seg, i (i)}{#if seg.hit}<mark class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark>{:else}{seg.text}{/if}{/each}
   </span>
 
   <!-- 개인화 마커(즐겨찾기/워치) — 과하지 않게, 제목 앞 -->
@@ -182,7 +185,7 @@
 
   <!-- 제목 -->
   <span class="min-w-0 flex-1 truncate font-medium text-text-primary" title={issue.summary}>
-    {issue.summary}
+    {#each summarySegs as seg, i (i)}{#if seg.hit}<mark class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark>{:else}{seg.text}{/if}{/each}
     {#if filters.filters.reopened && issue.reopen_count > 0 && issue.reopen_reason}
       <!-- 사유 인라인은 재오픈 뷰에서만 — 일반 리스트에선 🔁 배지+툴팁으로 충분(노이즈 최소화) -->
       <span class="ml-1 text-[11px] text-status-reopen/80" title={issue.reopen_reason}>
