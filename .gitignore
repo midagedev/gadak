@@ -15,6 +15,13 @@ coverage/
 *.db-wal
 tmp/
 .private/
+e2e/.tmp/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 # Exception: the committed demo snapshot
 !examples/demo.db
