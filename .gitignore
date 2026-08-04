@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+bin/
+build/
+coverage/
+
+# Local runtime data
+.scry/
+*.db
+*.db-shm
+*.db-wal
+tmp/
+.private/
+
+# Exception: the committed demo snapshot
+!examples/demo.db
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Go
+*.test
+*.out
+
+# OS and editor
+.DS_Store
+.idea/
+.vscode/

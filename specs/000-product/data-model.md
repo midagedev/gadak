@@ -1,0 +1,279 @@
+# Data Model
+
+The SQLite schema is a **public contract**. Agents and scripts query it directly,
+so it is versioned, migrated forward, and documented here. A released column is
+never repurposed; renames go through a migration that keeps the old name
+readable for one minor version.
+
+Default location: `~/.scry/scry.db`. Override with `--db` or `SCRY_DB`.
+
+## Conventions
+
+- Times are ISO-8601 UTC strings (`2026-08-04T09:15:00Z`). SQLite has no date
+  type and string comparison sorts correctly for this format.
+- JSON-valued columns hold arrays or objects and are documented as such. They
+  exist so an agent can `json_each` them without a second table when the
+  relation is not worth normalizing.
+- `NULL` means unknown or absent. Empty string means "known to be empty".
+- All identifiers from the source are stored verbatim, never re-keyed.
+
+## Source neutrality
+
+`items` is the source-neutral spine: anything with a title, body, author, and
+timestamp fits it. `issues` holds the Jira-specific projection. A second
+connector (Confluence is the intended next one) adds its own projection table and
+reuses `items`, `items_fts`, `sync_state`, and the whole search path unchanged.
+
+v0.1 ships only the Jira projection. The spine exists from the start because
+retrofitting it later would mean rewriting every query an agent has already
+written against the shipped schema.
+
+```mermaid
+erDiagram
+  items ||--o| issues : "projection"
+  items ||--o{ comments : "has"
+  items ||--o{ attachments : "has"
+  items ||--o{ changelog : "has"
+  items ||--o{ links : "from"
+  items ||--|| items_fts : "indexed by"
+  sources ||--o{ items : "produces"
+```
+
+## `sources`
+
+One row per configured connector instance.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | TEXT PK | Stable slug, e.g. `jira` |
+| `kind` | TEXT | `jira` in v0.1 |
+| `base_url` | TEXT | Site origin, used to build deep links |
+| `synced_at` | TEXT | Last successful sync completion |
+
+## `items`
+
+The neutral spine. One row per mirrored object regardless of source.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | TEXT PK | `<source_id>:<external_id>` |
+| `source_id` | TEXT | FK to `sources.id` |
+| `kind` | TEXT | `issue` in v0.1; `page` reserved for Confluence |
+| `external_id` | TEXT | Source's own id |
+| `key` | TEXT | Human-facing key, e.g. `NMB-142`. Unique per source |
+| `title` | TEXT | Summary / page title |
+| `body_text` | TEXT | Flattened plain text of the body, used for FTS |
+| `author` | TEXT | Display name of the creator |
+| `author_id` | TEXT | Source account id |
+| `url` | TEXT | Absolute deep link |
+| `created_at` | TEXT | From the source |
+| `updated_at` | TEXT | From the source |
+| `synced_at` | TEXT | When this row was last written |
+
+Indexes: `(source_id, key)` unique, `(kind, updated_at)`, `(updated_at)`.
+
+## `issues`
+
+The Jira projection. Joined to `items` on `item_id`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `item_id` | TEXT PK | FK to `items.id` |
+| `key` | TEXT | Duplicated from `items` so agents can query one table |
+| `project_key` | TEXT | e.g. `NMB` |
+| `issue_type` | TEXT | Localized display name as returned by the source |
+| `issue_type_id` | TEXT | **Use this for logic**; names are localized |
+| `status` | TEXT | Localized display name |
+| `status_id` | TEXT | **Use this for logic** |
+| `status_category` | TEXT | `new` \| `inprogress` \| `done`. Stable across sites |
+| `priority` | TEXT | Display name |
+| `priority_rank` | INTEGER | Derived: 1 = most urgent, 0 = unset |
+| `assignee` | TEXT | Display name |
+| `assignee_id` | TEXT | Account id |
+| `assignee_email` | TEXT | Empty when the site hides emails |
+| `reporter` | TEXT | Display name |
+| `reporter_id` | TEXT | Account id |
+| `parent_key` | TEXT | Epic or parent issue key |
+| `labels` | TEXT (JSON array) | |
+| `components` | TEXT (JSON array) | |
+| `fix_versions` | TEXT (JSON array) | |
+| `affects_versions` | TEXT (JSON array) | |
+| `environment_text` | TEXT | Flattened |
+| `duedate` | TEXT | Date only |
+| `resolution` | TEXT | Display name, NULL while unresolved |
+| `created_at` | TEXT | Mirrored from `items` for single-table queries |
+| `updated_at` | TEXT | Mirrored from `items` |
+| `status_changed_at` | TEXT | Derived: last status transition |
+| `resolved_at` | TEXT | Derived: last transition into a `done` category |
+| `reopen_count` | INTEGER | Derived: `done` -> not-`done` transitions |
+| `reopened_at` | TEXT | Derived: most recent reopen |
+| `assignee_changed_at` | TEXT | Derived |
+| `comment_count` | INTEGER | Derived |
+| `description_adf` | TEXT (JSON) | Raw ADF, rendered by the UI |
+| `custom` | TEXT (JSON object) | Mapped custom fields, keyed by config alias |
+| `raw` | TEXT (JSON) | Full source payload. Escape hatch; not a contract |
+
+Indexes: `(project_key, status_category)`, `(assignee_id)`, `(updated_at)`,
+`(status_category, updated_at)`, `(reopen_count)`.
+
+### Derived field rules
+
+Each rule is computed during sync from the changelog, and every rule that would
+otherwise depend on site-specific naming keys on `statusCategory` instead.
+
+| Field | Rule |
+| --- | --- |
+| `status_changed_at` | Timestamp of the newest changelog entry whose field is `status` |
+| `resolved_at` | Timestamp of the newest transition whose target category is `done`; NULL if the current category is not `done` |
+| `reopen_count` | Count of changelog transitions from a `done`-category status to a non-`done` one |
+| `reopened_at` | Timestamp of the newest such transition |
+| `priority_rank` | Position in the site's priority list, 1-based; 0 when unset |
+| `description_text` | ADF flattened to plain text, plus any custom fields configured as body text |
+| `comment_count` | Number of rows in `comments` for the issue |
+
+Deliberately absent: time-in-status. The internal system this was extracted from
+carried a `working_hours_in_status` column that no code ever populated, and the
+UI's "stale" view read it as always zero. Staleness is computed from
+`status_changed_at` instead, with the threshold in configuration.
+
+## `comments`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | TEXT PK | `<source_id>:<comment_id>` |
+| `item_id` | TEXT | FK |
+| `external_id` | TEXT | |
+| `author` | TEXT | |
+| `author_id` | TEXT | |
+| `body_adf` | TEXT (JSON) | Raw, for rendering |
+| `body_text` | TEXT | Flattened, for FTS |
+| `created_at` | TEXT | |
+| `updated_at` | TEXT | |
+
+Index: `(item_id, created_at)`.
+
+Jira's REST API exposes comments as a flat list with no thread parent, so scry
+stores them flat. Reply affordances in the UI are a mention convention, not a
+tree.
+
+## `attachments`
+
+Metadata only. Bytes are fetched on demand and proxied, never mirrored, so the
+database stays small and no file content is ever committed in a snapshot.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | TEXT PK | |
+| `item_id` | TEXT | FK |
+| `external_id` | TEXT | Used to build the content proxy path |
+| `filename` | TEXT | |
+| `mime_type` | TEXT | |
+| `size` | INTEGER | Bytes |
+| `author` | TEXT | |
+| `created_at` | TEXT | |
+
+## `changelog`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | TEXT PK | |
+| `item_id` | TEXT | FK |
+| `at` | TEXT | |
+| `author` | TEXT | |
+| `field` | TEXT | `status`, `assignee`, `priority`, ... |
+| `from_value` | TEXT | Display value |
+| `from_id` | TEXT | |
+| `to_value` | TEXT | |
+| `to_id` | TEXT | |
+
+Index: `(item_id, at)`, `(field, at)`.
+
+Kept because it is the source of every derived field and the only way to answer
+"when did this actually change" questions. It is also what makes reopen and
+staleness analysis possible offline.
+
+## `links`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `item_id` | TEXT | FK, the source side |
+| `type` | TEXT | `Relates`, `Blocks`, `Duplicate`, ... |
+| `direction` | TEXT | `inward` \| `outward` |
+| `target_key` | TEXT | May reference an issue outside the mirror |
+
+Primary key: `(item_id, type, direction, target_key)`.
+
+## `items_fts`
+
+FTS5 external-content table over `items(title, body_text)` plus comment bodies.
+
+```sql
+CREATE VIRTUAL TABLE items_fts USING fts5(
+  title, body_text, comments_text,
+  content='',            -- contentless: rows are rebuilt on sync
+  tokenize='unicode61 remove_diacritics 2'
+);
+```
+
+`unicode61` is used rather than a CJK-aware tokenizer because the fallback path
+matters more than perfect segmentation: Korean initial-consonant (chosung)
+search and substring narrowing already happen client-side over the warm issue
+pool, and FTS is for body and comment text where prefix matching is enough.
+Revisit with `trigram` if body search in CJK proves weak.
+
+## `saved_views`, `watches`, `favorites`
+
+Local personal state. These are the only rows a user would miss if the database
+were deleted, so `scry export` must be able to dump them.
+
+| Table | Columns |
+| --- | --- |
+| `saved_views` | `id` PK, `name`, `config` (JSON), `created_at`, `updated_at` |
+| `watches` | `key` PK, `created_at` |
+| `favorites` | `key` PK, `created_at` |
+
+## `sync_state`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_id` | TEXT PK | |
+| `watermark` | TEXT | Highest `updated` seen, the next incremental cursor |
+| `version` | INTEGER | Monotonic counter, bumped on every write. Drives the UI's ETag |
+| `last_full_sync_at` | TEXT | |
+| `last_error` | TEXT | NULL when the last sync succeeded |
+| `schema_version` | INTEGER | Migration level |
+
+The `version` counter is what lets `bootstrap` answer `304 Not Modified` without
+hashing the whole mirror.
+
+## Example queries
+
+These are the contract in practice. They must keep working across minor versions.
+
+```sql
+-- Everything reopened in the last month, worst first
+SELECT key, summary, reopen_count, reopened_at
+FROM issues JOIN items USING (item_id)
+WHERE reopen_count > 0 AND reopened_at > datetime('now', '-1 month')
+ORDER BY reopen_count DESC, reopened_at DESC;
+
+-- Full-text across bodies and comments
+SELECT i.key, it.title
+FROM items_fts f
+JOIN items it ON it.rowid = f.rowid
+JOIN issues i ON i.item_id = it.id
+WHERE items_fts MATCH 'idempotency AND retry'
+LIMIT 20;
+
+-- Open work per assignee in one project
+SELECT COALESCE(assignee, '(unassigned)') AS who, COUNT(*) AS open
+FROM issues
+WHERE project_key = 'NMB' AND status_category != 'done'
+GROUP BY who ORDER BY open DESC;
+
+-- How long has each in-progress issue been sitting?
+SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS days
+FROM issues
+WHERE status_category = 'inprogress'
+ORDER BY days DESC LIMIT 20;
+```

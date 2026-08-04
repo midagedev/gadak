@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest something that fits a local, single-user mirror
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Out of scope: hosted or multi-user deployment, Jira administration,
+        boards and sprints, and anything requiring a scry service to exist.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you hitting?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you want scry to do?
+    validations:
+      required: true
+  - type: textarea
+    id: agent
+    attributes:
+      label: Could a SQL query against the mirror already answer this?
+      description: If so, say what you tried — it may be a documentation gap instead.

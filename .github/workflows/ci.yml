@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go build (static)
+        run: CGO_ENABLED=0 go build -trimpath -o /tmp/scry ./cmd/scry
+
+      - name: Go tests
+        run: go test ./...
+
+      - name: Frontend typecheck
+        run: npm run typecheck
+
+      - name: Frontend build
+        run: npm run build
+
+      - name: Serve smoke
+        run: |
+          set -euo pipefail
+          /tmp/scry serve --addr 127.0.0.1:7777 --static dist/app &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:7777/healthz >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:7777/healthz
+          curl -fsS http://127.0.0.1:7777/config.json
+          curl -fsS http://127.0.0.1:7777/ | grep -q '<div id="app">'
+
+      - name: Refuse non-loopback bind without opt-in
+        run: |
+          set -euo pipefail
+          if /tmp/scry serve --addr 0.0.0.0:7778 --static dist/app; then
+            echo "expected a non-loopback bind to be refused" >&2
+            exit 1
+          fi
+
+      - name: Tenant-neutrality scan
+        run: |
+          set -euo pipefail
+          # No installation-specific value may appear in shipped code.
+          # Extend this list as new patterns become relevant.
+          if grep -rEn "atlassian\.net" web/src tools cmd \
+              | grep -vE "your-site|example\.com|your-team"; then
+            echo "found a concrete Jira site URL in shipped code" >&2
+            exit 1
+          fi

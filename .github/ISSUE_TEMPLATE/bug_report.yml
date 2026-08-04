@@ -1,0 +1,39 @@
+name: Bug report
+description: Something in scry behaves incorrectly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check `specs/000-product/tasks.md` first — many features are specified
+        but not implemented yet. Never paste real issue text, tokens, or site URLs.
+  - type: input
+    id: version
+    attributes:
+      label: scry version or commit
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS, Go version, Node version
+    validations:
+      required: true
+  - type: dropdown
+    id: project_style
+    attributes:
+      label: Jira project style
+      options: [company-managed, team-managed, both, not sure]
+    validations:
+      required: true
+  - type: input
+    id: language
+    attributes:
+      label: Jira account display language
+      description: Status and issue-type names are localized per account; this is a common cause.
+  - type: textarea
+    id: repro
+    attributes:
+      label: Command run, expected, and actual
+    validations:
+      required: true

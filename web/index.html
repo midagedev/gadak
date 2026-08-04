@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#12161c" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>scry</title>
+    <!--
+      인라인 크리티컬 CSS (Linear 식 inlined app shell).
+      번들/스타일 로드 전에도 다크 배경과 스켈레톤이 즉시 페인트되어
+      흰 플래시(FOUC) 없이 부팅한다.
+    -->
+    <style>
+      :root {
+        color-scheme: dark;
+        --boot-bg: #0c0f13;
+        --boot-panel: #12161c;
+        --boot-line: #252b34;
+        --boot-skeleton: #181d24;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--boot-bg);
+        color: #e6e8eb;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-feature-settings: 'tnum' 1;
+        -webkit-font-smoothing: antialiased;
+      }
+      #app {
+        height: 100%;
+      }
+      /* 셸 골격: 사이드바 + 메인. 번들 로드 전 뼈대만 먼저 그린다. */
+      .boot-shell {
+        display: flex;
+        height: 100%;
+      }
+      .boot-sidebar {
+        width: 272px;
+        flex: 0 0 272px;
+        border-right: 1px solid var(--boot-line);
+        background: var(--boot-panel);
+        padding: 16px 12px;
+      }
+      .boot-main {
+        flex: 1;
+        padding: 14px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .boot-skel {
+        background: var(--boot-skeleton);
+        border-radius: 6px;
+        animation: boot-pulse 1.2s ease-in-out infinite;
+      }
+      .boot-logo {
+        height: 18px;
+        width: 84px;
+        margin-bottom: 20px;
+      }
+      .boot-nav {
+        height: 12px;
+        margin: 10px 0;
+      }
+      .boot-row {
+        height: 42px;
+      }
+      @keyframes boot-pulse {
+        0%,
+        100% {
+          opacity: 0.5;
+        }
+        50% {
+          opacity: 0.85;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-skel {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="boot-shell" id="boot-shell">
+        <aside class="boot-sidebar">
+          <div class="boot-skel boot-logo"></div>
+          <div class="boot-skel boot-nav" style="width: 70%"></div>
+          <div class="boot-skel boot-nav" style="width: 55%"></div>
+          <div class="boot-skel boot-nav" style="width: 62%"></div>
+          <div class="boot-skel boot-nav" style="width: 48%"></div>
+        </aside>
+        <main class="boot-main">
+          <div class="boot-skel boot-row" style="width: 40%; height: 24px"></div>
+          <div class="boot-skel boot-row"></div>
+          <div class="boot-skel boot-row"></div>
+          <div class="boot-skel boot-row"></div>
+          <div class="boot-skel boot-row"></div>
+          <div class="boot-skel boot-row"></div>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
