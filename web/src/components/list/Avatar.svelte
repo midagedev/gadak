@@ -3,6 +3,7 @@
    * 담당자 아바타 ([explore]). profile_image 우선, 실패/부재 시 이니셜 폴백.
    * 클릭 = 담당자 필터 추가(부모가 onclick 처리). 툴팁으로 이름 노출.
    */
+  import { t } from '../../lib/i18n'
   import { issues } from '../../stores/issues.svelte'
   import { initials, colorIndex } from '../../lib/format'
   import { memberOrgColor, memberTooltip } from '../../lib/member-visual'
@@ -20,7 +21,7 @@
   } = $props()
 
   const member = $derived(email ? issues.memberOf(email) : undefined)
-  const displayName = $derived(member?.name ?? name ?? email ?? '미할당')
+  const displayName = $derived(member?.name ?? name ?? email ?? t('common.unassigned'))
   const img = $derived(member?.profile_image ?? null)
   const ini = $derived(initials(member?.name ?? name, email))
   const orgColor = $derived(memberOrgColor(member))

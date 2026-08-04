@@ -14,6 +14,7 @@
  * 날짜 의존 뷰(이번 주 해결됨)는 매 호출 시점 기준으로 재계산하므로 함수로 노출한다.
  */
 
+import { t } from './i18n'
 import { emptyConfig, type ViewConfig } from './view-config'
 
 export interface BuiltinView {
@@ -48,15 +49,15 @@ export function builtinViews(): BuiltinView[] {
     {
       id: 'all-open',
       icon: '📋',
-      name: '전체 미해결',
-      hint: '신규 + 진행중',
+      name: t('view.allOpen.name'),
+      hint: t('view.allOpen.hint'),
       config: make({ filters: { status_category: ['new', 'inprogress'] } }),
     },
     {
       id: 'unassigned-new',
       icon: '🆕',
-      name: '미할당 신규',
-      hint: '담당자 없는 신규',
+      name: t('view.unassignedNew.name'),
+      hint: t('view.unassignedNew.hint'),
       config: make({
         filters: { unassigned: true, status_category: ['new'] },
         display: { sort: 'created', dir: 'desc' },
@@ -65,8 +66,8 @@ export function builtinViews(): BuiltinView[] {
     {
       id: 'reopened',
       icon: '🔁',
-      name: '재오픈 이슈',
-      hint: '완료 후 다시 열린 이슈',
+      name: t('view.reopened.name'),
+      hint: t('view.reopened.hint'),
       config: make({
         filters: { reopened: true },
         display: { sort: 'reopen_count', dir: 'desc' },
@@ -75,15 +76,15 @@ export function builtinViews(): BuiltinView[] {
     {
       id: 'stale',
       icon: '⏳',
-      name: '정체 이슈',
-      hint: '한 상태에 오래 머문 이슈',
+      name: t('view.stale.name'),
+      hint: t('view.stale.hint'),
       config: make({ filters: { stale: true }, display: { sort: 'updated', dir: 'asc' } }),
     },
     {
       id: 'recently-updated',
       icon: '⚡',
-      name: '최근 갱신',
-      hint: '미해결 · 갱신 최신순',
+      name: t('view.recentlyUpdated.name'),
+      hint: t('view.recentlyUpdated.hint'),
       config: make({
         filters: { status_category: ['new', 'inprogress'] },
         display: { sort: 'updated', dir: 'desc' },
@@ -92,8 +93,8 @@ export function builtinViews(): BuiltinView[] {
     {
       id: 'resolved-week',
       icon: '✅',
-      name: '이번 주 해결됨',
-      hint: '월요일 이후 갱신',
+      name: t('view.resolvedWeek.name'),
+      hint: t('view.resolvedWeek.hint'),
       config: make({
         filters: { status_category: ['done'], updated_from: startOfWeekISO() },
         display: { sort: 'updated', dir: 'desc' },

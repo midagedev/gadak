@@ -3,6 +3,7 @@
    * 중앙 리스트 화면 조립 ([explore]) — SearchBox + FilterBar + DisplayMenu + 리스트.
    *  본문 검색(서버) 결과는 로컬 리스트 위에 "본문 매칭 N건" 섹션으로 합쳐 보여준다(plan §5.2).
    */
+  import { t, formatNumber } from '../../lib/i18n'
   import { untrack } from 'svelte'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
@@ -42,7 +43,7 @@
     <div class="flex items-center gap-2.5">
       <div class="min-w-0 flex-1"><FilterBar /></div>
       <span class="flex-none text-[12px] text-text-muted">
-        {visibleCount.toLocaleString()}건
+        {t('list.countIssues', { n: formatNumber(visibleCount) })}
       </span>
     </div>
   </div>
@@ -56,7 +57,7 @@
   {#if filters.serverMatchQuery && extra.length}
     <div class="flex-none border-b border-border-subtle bg-bg-panel/40">
       <div class="px-3 py-1 text-[11px] font-medium text-accent-text">
-        본문 매칭 {extra.length}건 · "{filters.serverMatchQuery}"
+        {t('list.bodyMatchCount', { n: formatNumber(extra.length), q: filters.serverMatchQuery })}
       </div>
       <div class="max-h-48 overflow-y-auto">
         {#each extra.slice(0, 50) as issue (issue.issue_key)}
@@ -70,19 +71,19 @@
   <div class="min-h-0 flex-1">
     {#if visibleCount === 0}
       {#if issues.pool.size === 0}
-        <EmptyState icon="📭" title="이슈가 없습니다" hint="동기화가 완료되면 여기 표시됩니다." />
+        <EmptyState icon="📭" title={t('list.emptyTitle')} hint={t('list.emptyHint')} />
       {:else if filters.serverMatchQuery && extra.length}
         <EmptyState
           icon="📄"
-          title="로컬 매칭은 없지만 본문에서 찾았습니다"
-          hint="위 '본문 매칭' 섹션을 확인하세요."
+          title={t('list.bodyOnlyTitle')}
+          hint={t('list.bodyOnlyHint')}
         />
       {:else}
         <EmptyState
           icon="🔍"
-          title="조건에 맞는 이슈가 없습니다"
-          hint="필터를 완화하거나 검색어를 바꿔보세요."
-          actionLabel={filters.hasFilters ? '필터 초기화' : ''}
+          title={t('list.noMatchTitle')}
+          hint={t('list.noMatchHint')}
+          actionLabel={filters.hasFilters ? t('list.clearFilters') : ''}
           onAction={() => filters.clearAll()}
         />
       {/if}

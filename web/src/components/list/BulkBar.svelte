@@ -1,17 +1,18 @@
 <script lang="ts">
   /*
    * 일괄 작업 바 (bulk). 1개 이상 선택 시 리스트 상단(필터바 아래)에 나타난다.
-   *  "N개 선택 · [상태 변경] [담당자 변경] [선택 해제]"
+   *  "N개 선택 · [{t('bulk.changeStatus')}] [{t('bulk.changeAssignee')}] [{t('common.deselect')}]"
    *
-   *  - 상태 변경: 선택 이슈들의 transitionsFor(로컬 맵)를 to_status 이름 기준으로 union
+   *  - {t('bulk.changeStatus')}: 선택 이슈들의 transitionsFor(로컬 맵)를 to_status 이름 기준으로 union
    *      → 드롭다운. 선택하면 각 이슈별로 해당 to_status 로 가는 transition 을 resolve 해 실행,
    *      없는 이슈는 skip(로컬 맵이 비면 원격 GET 폴백으로 한 번 더 시도).
-   *  - 담당자 변경: 지정 가능 멤버(최근 선택 우선) 드롭다운. per-issue write.assign.
+   *  - {t('bulk.changeAssignee')}: 지정 가능 멤버(최근 선택 우선) 드롭다운. per-issue write.assign.
    *  - 실행: write 스토어의 per-issue 옵티미스틱 메서드를 동시성 3으로 배치. 진행 카운터 표시,
    *      실패 이슈 롤백은 기존 옵티미스틱 패턴이 처리. 끝나면 성공/실패/건너뜀 요약 토스트.
    *
    * 자격증명/로그인 게이트는 write.ensureWritable() 한 번으로 처리(기존과 동일한 안내).
    */
+  import { t, collator } from '../../lib/i18n'
   import type { JiraUser, Member, Transition } from '../../lib/types'
   import * as api from '../../lib/api'
   import { bulk } from '../../stores/bulk.svelte'
@@ -95,7 +96,7 @@
       const ra = rank(a)
       const rb = rank(b)
       if (ra !== rb) return ra - rb
-      return (a.display_name || a.name).localeCompare(b.display_name || b.name, 'ko')
+      return collator().compare(a.display_name || a.name, b.display_name || b.name)
     })
   })
 
@@ -129,8 +130,8 @@
 
   /** 결과 요약 토스트 + 성공 시 선택 해제. */
   function finish(ok: number, fail: number, skip: number) {
-    const parts = [`성공 ${ok}`, `실패 ${fail}`]
-    if (skip) parts.push(`건너뜀 ${skip}`)
+    const parts = [t('bulk.resultOk', { n: ok }), t('bulk.resultFail', { n: fail })]
+    if (skip) parts.push(t('bulk.resultSkip', { n: skip }))
     write.toast(parts.join(' · '), fail > 0 ? 'error' : 'success')
     if (fail === 0) bulk.clear()
   }
@@ -192,7 +193,7 @@
     finish(ok, fail, 0)
   }
 
-  // 바깥 클릭 / Escape: 메뉴가 열려 있으면 메뉴만 닫고, 아니면 선택 해제.
+  // 바깥 클릭 / Escape: 메뉴가 열려 있으면 메뉴만 닫고, 아니면 {t('common.deselect')}.
   $effect(() => {
     function onDown(e: MouseEvent) {
       if (menu && rootEl && !rootEl.contains(e.target as Node)) closeMenu()
@@ -216,10 +217,10 @@
     bind:this={rootEl}
     class="anim-enter flex flex-none items-center gap-2 border-b border-border-strong/70 bg-bg-elevated px-4 py-2 text-[12px]"
   >
-    <span class="flex-none font-medium text-text-primary">{bulk.count}개 선택</span>
+    <span class="flex-none font-medium text-text-primary">{t('list.selectedCount', { n: bulk.count })}</span>
     <span class="flex-none text-text-muted">·</span>
 
-    <!-- 상태 변경 -->
+    <!-- {t('bulk.changeStatus')} -->
     <div class="relative flex-none">
       <button
         type="button"
@@ -227,7 +228,7 @@
         disabled={running}
         class="rounded-md border border-border-subtle px-2.5 py-1 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
       >
-        상태 변경
+        {t('bulk.changeStatus')}
       </button>
       {#if menu === 'status'}
         <div
@@ -235,7 +236,7 @@
           role="listbox"
         >
           {#if statusOptions.length === 0}
-            <div class="px-3 py-2 text-[12px] text-text-muted">공통 전환이 없습니다.</div>
+            <div class="px-3 py-2 text-[12px] text-text-muted">{t('bulk.noCommonTransitions')}</div>
           {:else}
             {#each statusOptions as opt (opt.to_status)}
               <button
@@ -255,7 +256,7 @@
       {/if}
     </div>
 
-    <!-- 담당자 변경 -->
+    <!-- {t('bulk.changeAssignee')} -->
     <div class="relative flex-none">
       <button
         type="button"
@@ -263,26 +264,26 @@
         disabled={running}
         class="rounded-md border border-border-subtle px-2.5 py-1 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
       >
-        담당자 변경
+        {t('bulk.changeAssignee')}
       </button>
       {#if menu === 'assignee'}
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 w-64 rounded-md border border-border-subtle bg-bg-elevated shadow-xl"
           role="dialog"
-          aria-label="담당자 선택"
+          aria-label={t('bulk.pickAssignee')}
         >
           <div class="border-b border-border-subtle p-2">
             <!-- svelte-ignore a11y_autofocus -->
             <input
               bind:value={assigneeQuery}
               type="text"
-              placeholder="이름 또는 이메일 검색"
+              placeholder={t('bulk.searchPerson')}
               autofocus
               class="w-full rounded-md border border-border-strong bg-bg-base px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent"
             />
           </div>
           <div class="max-h-72 overflow-y-auto py-1">
-            <!-- 미할당 -->
+            <!-- {t('common.unassigned')} -->
             <button
               type="button"
               onclick={() => runAssign(null)}
@@ -292,7 +293,7 @@
                 class="flex h-4 w-4 flex-none items-center justify-center rounded-full border border-dashed border-border-strong text-[9px]"
                 >–</span
               >
-              미할당
+              {t('common.unassigned')}
             </button>
             {#each assigneeCands as m (m.email)}
               <button
@@ -306,27 +307,27 @@
               </button>
             {/each}
             {#if assigneeCands.length === 0}
-              <div class="px-3 py-1.5 text-[11px] text-text-muted">결과 없음</div>
+              <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.noResults')}</div>
             {/if}
           </div>
         </div>
       {/if}
     </div>
 
-    <!-- 선택 해제 -->
+    <!-- {t('common.deselect')} -->
     <button
       type="button"
       onclick={() => bulk.clear()}
       disabled={running}
       class="flex-none rounded-md px-2 py-1 text-text-muted transition-colors hover:text-text-primary disabled:opacity-50"
     >
-      선택 해제
+      {t('common.deselect')}
     </button>
 
     <!-- 진행 표시(카운터 — 무한 애니메이션 금지) -->
     {#if running}
       <span class="ml-auto flex flex-none items-center gap-1.5 text-[11px] text-text-secondary">
-        <span class="text-text-muted">처리 중</span>
+        <span class="text-text-muted">{t('common.processing')}</span>
         {progress.done}/{progress.total}
       </span>
     {/if}

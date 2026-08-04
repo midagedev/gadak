@@ -5,6 +5,7 @@
 
 import { jiraBrowseUrl } from '../../lib/config'
 import type { StatusCategory } from '../../lib/types'
+import { absTime as i18nAbsTime, relativeTime as i18nRelativeTime } from '../../lib/i18n'
 
 /** Jira 원본 status_category 문자열을 UI 3분류로 정규화한다. */
 export function normalizeCategory(raw: string | null | undefined): StatusCategory {
@@ -20,41 +21,14 @@ export function categoryColor(cat: StatusCategory): string {
   return cat === 'done' ? 'done' : cat === 'new' ? 'new' : 'inprogress'
 }
 
-/** ISO8601 → "3분 전" 류 상대시간(한국어). 파싱 실패 시 원문 반환. */
+/** ISO8601 → relative time (long style: "3m ago"). 파싱 실패 시 원문 반환. */
 export function relativeTime(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const t = Date.parse(iso)
-  if (Number.isNaN(t)) return iso
-  const diff = Date.now() - t
-  const sec = Math.round(diff / 1000)
-  if (sec < 0) return '방금'
-  if (sec < 60) return '방금'
-  const min = Math.round(sec / 60)
-  if (min < 60) return `${min}분 전`
-  const hr = Math.round(min / 60)
-  if (hr < 24) return `${hr}시간 전`
-  const day = Math.round(hr / 24)
-  if (day === 1) return '어제'
-  if (day < 7) return `${day}일 전`
-  const wk = Math.round(day / 7)
-  if (wk < 5) return `${wk}주 전`
-  const mo = Math.round(day / 30)
-  if (mo < 12) return `${mo}개월 전`
-  return `${Math.round(day / 365)}년 전`
+  return i18nRelativeTime(iso, 'long')
 }
 
 /** ISO8601 → 절대시간 라벨(툴팁용). */
 export function absoluteTime(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const t = Date.parse(iso)
-  if (Number.isNaN(t)) return iso
-  return new Date(t).toLocaleString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return i18nAbsTime(iso)
 }
 
 /** 이름/이메일에서 아바타 이니셜(최대 2자)을 뽑는다. */

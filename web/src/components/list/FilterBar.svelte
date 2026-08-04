@@ -7,37 +7,12 @@
   import { filters, type FacetValue } from '../../stores/filters.svelte'
   import { views } from '../../stores/views.svelte'
   import { filterFields, type MultiField } from '../../lib/view-config'
+  import { t, fieldLabel } from '../../lib/i18n'
 
-  const FIELD_LABEL: Record<MultiField, string> = {
-    status_category: '분류',
-    status: '상태',
-    assignee_email: '담당자',
-    reporter_email: '보고자',
-    d1_group: '파트',
-    labels: '라벨',
-    priority: '우선순위',
-    severity: '심각도',
-    issue_type: '유형',
-    components: '컴포넌트',
-    fix_versions: '수정 버전',
-    environment: '발생 환경',
-    browser: '브라우저',
-    dev_project_number: '발생 프로젝트 번호',
-    found_version: '발생 버전',
-    occurrence: '발생 빈도',
-    solution: '솔루션',
-    critical_phenomenon: '크리티컬 현상',
-    development_area: '개발 영역',
-    development_test_assignee_email: '개발 테스트 담당자',
-    development_test_result: '개발 테스트 결과',
-    qa_run: 'QA 차수',
-    qa_suite: 'QA 영역',
-    qa_impact: 'QA 영향',
-    deploy_state: '배포',
-    cs: 'CS',
-    jira_project: '프로젝트',
-    source_project: '복제 원본 프로젝트',
+  function FIELD_LABEL(f: MultiField): string {
+    return fieldLabel(f)
   }
+
 
   // 꺼진 기능의 필드는 메뉴에 아예 나오지 않는다.
   const FIELDS = filterFields()
@@ -107,7 +82,7 @@
         else if (chip.kind === 'flag') filters.toggleFlag(chip.field as 'reopened' | 'unassigned' | 'stale')
         else filters.setRange(chip.field as 'created' | 'updated', null, null)
       }}
-      title="필터 제거"
+      title={t('filter.remove')}
     >
       <span class="truncate max-w-[180px]">{chip.label}</span>
       <span class="text-text-muted transition-colors group-hover:text-status-reopen">✕</span>
@@ -121,7 +96,7 @@
       class="inline-flex items-center gap-1 rounded-md border border-dashed border-border-strong px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={() => (open ? closeAll() : openMenu())}
     >
-      + 필터
+      {t('filter.add')}
     </button>
 
     {#if open}
@@ -130,20 +105,20 @@
       >
         {#if !field}
           <!-- 1단: 필드 선택 + 플래그 -->
-          <div class="px-2 py-1 text-[11px] font-medium text-text-muted">속성</div>
+          <div class="px-2 py-1 text-[11px] font-medium text-text-muted">{t('filter.properties')}</div>
           {#each FIELDS as f (f)}
             <button
               type="button"
               class="flex w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
               onclick={() => pickField(f)}
             >
-              <span>{FIELD_LABEL[f]}</span>
+              <span>{FIELD_LABEL(f)}</span>
               <span class="text-text-muted">›</span>
             </button>
           {/each}
           <div class="my-1 border-t border-border-subtle"></div>
-          <div class="px-2 py-1 text-[11px] font-medium text-text-muted">빠른 필터</div>
-          {#each [{ k: 'reopened', l: '🔁 재오픈' }, { k: 'unassigned', l: '미할당' }, { k: 'stale', l: '⏳ 정체' }] as flag (flag.k)}
+          <div class="px-2 py-1 text-[11px] font-medium text-text-muted">{t('filter.quick')}</div>
+          {#each [{ k: 'reopened' as const, l: t('filter.flagReopened') }, { k: 'unassigned' as const, l: t('filter.flagUnassigned') }, { k: 'stale' as const, l: t('filter.flagStale') }] as flag (flag.k)}
             <button
               type="button"
               class="flex w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
@@ -168,13 +143,13 @@
             <input
               type="text"
               bind:value={valueQuery}
-              placeholder="{FIELD_LABEL[field]} 검색"
+              placeholder={t('filter.searchField', { field: FIELD_LABEL(field) })}
               class="min-w-0 flex-1 rounded bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none"
             />
           </div>
           <div class="max-h-64 overflow-y-auto">
             {#if values.length === 0}
-              <div class="px-2 py-3 text-center text-[12px] text-text-muted">값 없음</div>
+              <div class="px-2 py-3 text-center text-[12px] text-text-muted">{t('common.noValues')}</div>
             {/if}
             {#each values as v (v.value)}
               <button
@@ -208,7 +183,7 @@
         class="rounded-md px-2 py-0.5 text-[12px] text-accent-text transition-colors hover:bg-accent-subtle/40"
         onclick={() => (saveOpen = !saveOpen)}
       >
-        뷰로 저장
+        {t('filter.saveAsView')}
       </button>
       {#if saveOpen}
         <div
@@ -217,7 +192,7 @@
           <input
             type="text"
             bind:value={saveName}
-            placeholder="뷰 이름"
+            placeholder={t('filter.viewName')}
             class="mb-2 w-full rounded bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none"
             onkeydown={(e) => e.key === 'Enter' && doSave('personal')}
           />
@@ -228,7 +203,7 @@
               disabled={!saveName.trim()}
               onclick={() => doSave('personal')}
             >
-              개인 저장
+              {t('filter.savePersonal')}
             </button>
             <button
               type="button"
@@ -236,7 +211,7 @@
               disabled={!saveName.trim()}
               onclick={() => doSave('team')}
             >
-              팀 공유
+              {t('filter.saveTeam')}
             </button>
           </div>
         </div>
@@ -247,7 +222,7 @@
       class="rounded-md px-2 py-0.5 text-[12px] text-text-muted transition-colors hover:text-status-reopen"
       onclick={() => filters.clearAll()}
     >
-      초기화
+      {t('filter.clear')}
     </button>
   {/if}
 </div>

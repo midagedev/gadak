@@ -7,6 +7,7 @@
    *  ④ Enter → 서버 전문검색(본문/코멘트) 확장.
    *  `/` 로 어디서든 포커스, Esc 로 클리어.
    */
+  import { t } from '../../lib/i18n'
   import { onMount } from 'svelte'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
@@ -70,7 +71,11 @@
       }
     } else if (w.startsWith('is:')) {
       const q = w.slice(3).toLowerCase()
-      for (const [flag, label] of [['reopened', '🔁 재오픈'], ['unassigned', '미할당'], ['stale', '⏳ 정체']] as const) {
+      for (const [flag, label] of [
+        ['reopened', t('filter.flagReopened')],
+        ['unassigned', t('filter.flagUnassigned')],
+        ['stale', t('filter.flagStale')],
+      ] as const) {
         if (!q || flag.includes(q)) out.push({ kind: 'flag', value: flag, label })
       }
     }
@@ -177,13 +182,13 @@
       oninput={onInput}
       onkeydown={onKeydown}
       type="text"
-      placeholder="검색 — 키/제목/담당자, @담당자 #파트 !우선순위 is:reopened, Enter로 본문검색"
+      placeholder={t('list.searchPlaceholder')}
       class="min-w-0 flex-1 bg-transparent text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none"
       spellcheck="false"
       autocomplete="off"
     />
     {#if filters.searching}
-      <span class="flex-none text-[11px] text-text-muted">검색중…</span>
+      <span class="flex-none text-[11px] text-text-muted">{t('list.searching')}</span>
     {:else if text}
       <button
         type="button"
@@ -194,7 +199,7 @@
           filters.clearServerSearch()
           inputEl?.focus()
         }}
-        title="지우기 (Esc)"
+        title={t('list.searchClear')}
       >
         ✕
       </button>
@@ -240,7 +245,7 @@
         <span class="min-w-0 flex-1 truncate text-text-secondary">
           {issues.pool.get(jumpKey)?.summary ?? ''}
         </span>
-        <span class="flex-none text-[11px] text-text-muted">Enter로 열기</span>
+        <span class="flex-none text-[11px] text-text-muted">{t('list.searchOpen')}</span>
       </button>
     </div>
   {/if}

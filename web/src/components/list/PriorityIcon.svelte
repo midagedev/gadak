@@ -3,6 +3,7 @@
    * 우선순위 아이콘 ([explore]). Linear 식 막대 4단(레벨에 따라 채움).
    *  level 0(없음)은 옅은 점선 막대. 색은 priorityMeta.
    */
+  import { t } from '../../lib/i18n'
   import { priorityMeta } from '../../lib/format'
 
   let { priority }: { priority: string | null } = $props()
@@ -14,8 +15,8 @@
 
 <span
   class="inline-flex h-3.5 flex-none items-end gap-[2px]"
-  title={meta.label || '우선순위 없음'}
-  aria-label={`우선순위 ${meta.label || '없음'}`}
+  title={meta.label || t('list.priorityNone')}
+  aria-label={t('list.priorityLabel', { label: meta.label || t('common.none') })}
 >
   {#each bars as b (b)}
     <span

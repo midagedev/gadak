@@ -1,0 +1,247 @@
+/*
+ * Thin i18n runtime — no library dependency.
+ * Locale: localStorage scry_locale > navigator.language (ko*) > en.
+ * Changing locale reloads the page (see setLocale).
+ */
+
+import { en, type MessageKey } from './en'
+import { ko } from './ko'
+
+export type Locale = 'en' | 'ko'
+export type { MessageKey }
+
+const STORAGE_KEY = 'scry_locale'
+const catalogs: Record<Locale, Record<MessageKey, string>> = { en, ko }
+
+let current: Locale = 'en'
+
+function detectLocale(): Locale {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored === 'en' || stored === 'ko') return stored
+  } catch {
+    /* private mode / SSR-ish */
+  }
+  if (typeof navigator !== 'undefined') {
+    const lang = (navigator.language || '').toLowerCase()
+    if (lang === 'ko' || lang.startsWith('ko-')) return 'ko'
+  }
+  return 'en'
+}
+
+/** Call once at boot (before first render). Idempotent. */
+export function initLocale(): Locale {
+  current = detectLocale()
+  return current
+}
+
+export function locale(): Locale {
+  return current
+}
+
+/** Persist and hard-reload so all modules re-read catalogs. */
+export function setLocale(next: Locale): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, next)
+  } catch {
+    /* ignore */
+  }
+  if (next !== current) location.reload()
+}
+
+/** BCP 47 tag for Intl APIs. */
+export function localeTag(): string {
+  return current === 'ko' ? 'ko-KR' : 'en-US'
+}
+
+/** Collator for name sorting. */
+export function collator(): Intl.Collator {
+  return new Intl.Collator(localeTag())
+}
+
+export type MessageParams = Record<string, string | number>
+
+/** Translate a catalog key; `{name}` placeholders replaced from params. */
+export function t(key: MessageKey, params?: MessageParams): string {
+  const table = catalogs[current] ?? en
+  let s: string = table[key] ?? en[key] ?? String(key)
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      s = s.replaceAll(`{${k}}`, String(v))
+    }
+  }
+  return s
+}
+
+/* ── Field / column / category / deploy label helpers ── */
+
+const FIELD_KEYS = [
+  'status_category',
+  'status',
+  'assignee_email',
+  'reporter_email',
+  'd1_group',
+  'labels',
+  'priority',
+  'severity',
+  'issue_type',
+  'components',
+  'fix_versions',
+  'environment',
+  'browser',
+  'dev_project_number',
+  'found_version',
+  'occurrence',
+  'solution',
+  'critical_phenomenon',
+  'development_area',
+  'development_test_assignee_email',
+  'development_test_result',
+  'qa_run',
+  'qa_suite',
+  'qa_impact',
+  'deploy_state',
+  'cs',
+  'jira_project',
+  'source_project',
+] as const
+
+export type FieldLabelKey = (typeof FIELD_KEYS)[number]
+
+export function fieldLabel(field: string): string {
+  const key = `field.${field}` as MessageKey
+  if (key in en) return t(key)
+  return field
+}
+
+export function columnLabel(key: string): string {
+  const mk = `column.${key}` as MessageKey
+  if (mk in en) return t(mk)
+  return key
+}
+
+export function categoryLabel(cat: 'new' | 'inprogress' | 'done', spaced = false): string {
+  if (cat === 'inprogress' && spaced) return t('category.inProgressSpaced')
+  return t(`category.${cat}` as MessageKey)
+}
+
+export type DeployStateKey = 'none' | 'merged' | 'dev' | 'qa_preview' | 'qa' | 'prod'
+
+export function deployStateLabel(state: DeployStateKey | string): string {
+  const mk = `deploy.${state}` as MessageKey
+  if (mk in en) return t(mk)
+  return state
+}
+
+/* ── Relative time (single implementation) ── */
+
+const MIN = 60_000
+const HOUR = 60 * MIN
+const DAY = 24 * HOUR
+
+export type RelativeKind = 'just_now' | 'duration'
+
+export interface RelativeParts {
+  kind: RelativeKind
+  /** Present when kind === 'duration'. */
+  n?: number
+  unit?: 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'
+}
+
+/**
+ * Structured relative time — FavoritesNav and others must not string-match output.
+ * Returns null when iso is missing/invalid.
+ */
+export function relativeTimeParts(iso: string | null | undefined): RelativeParts | null {
+  if (!iso) return null
+  const ts = Date.parse(iso)
+  if (Number.isNaN(ts)) return null
+  const diff = Date.now() - ts
+  if (diff < MIN) return { kind: 'just_now' }
+  if (diff < HOUR) return { kind: 'duration', n: Math.floor(diff / MIN), unit: 'minute' }
+  if (diff < DAY) return { kind: 'duration', n: Math.floor(diff / HOUR), unit: 'hour' }
+  const days = Math.floor(diff / DAY)
+  if (days < 7) return { kind: 'duration', n: days, unit: 'day' }
+  if (days < 30) return { kind: 'duration', n: Math.floor(days / 7), unit: 'week' }
+  if (days < 365) return { kind: 'duration', n: Math.floor(days / 30), unit: 'month' }
+  return { kind: 'duration', n: Math.floor(days / 365), unit: 'year' }
+}
+
+export type RelativeStyle = 'compact' | 'long'
+
+/** Format structured parts. compact: "3m"; long: "3m ago" (+ "yesterday" for 1 day). */
+export function formatRelativeParts(
+  parts: RelativeParts,
+  style: RelativeStyle = 'compact',
+): string {
+  if (parts.kind === 'just_now') return t('time.justNow')
+  const n = parts.n ?? 0
+  const unit = parts.unit ?? 'minute'
+  if (style === 'long' && unit === 'day' && n === 1) return t('time.yesterday')
+  const keyMap: Record<string, { compact: MessageKey; long: MessageKey }> = {
+    minute: { compact: 'time.minute', long: 'time.minuteAgo' },
+    hour: { compact: 'time.hour', long: 'time.hourAgo' },
+    day: { compact: 'time.day', long: 'time.dayAgo' },
+    week: { compact: 'time.week', long: 'time.weekAgo' },
+    month: { compact: 'time.month', long: 'time.monthAgo' },
+    year: { compact: 'time.year', long: 'time.yearAgo' },
+  }
+  const keys = keyMap[unit]
+  return t(style === 'long' ? keys.long : keys.compact, { n })
+}
+
+/**
+ * Unified relative time.
+ * - compact (list rows): "just now" / "3m" / "2h"
+ * - long (detail / sync): "just now" / "3m ago" / "yesterday"
+ */
+export function relativeTime(
+  iso: string | null | undefined,
+  style: RelativeStyle = 'compact',
+): string {
+  const parts = relativeTimeParts(iso)
+  if (!parts) {
+    if (iso == null || iso === '') return ''
+    // detail format historically returned raw iso on parse failure
+    return style === 'long' ? String(iso) : ''
+  }
+  return formatRelativeParts(parts, style)
+}
+
+/** FavoritesNav "seen X ago" without string-matching relative output. */
+export function relativeSeenLabel(iso: string | null | undefined): string {
+  const parts = relativeTimeParts(iso)
+  if (!parts) return ''
+  if (parts.kind === 'just_now') return t('time.seenJustNow')
+  const relative = formatRelativeParts(parts, 'compact')
+  return t('time.seenAgo', { relative })
+}
+
+/** Absolute datetime for tooltips. */
+export function absTime(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return String(iso)
+  return d.toLocaleString(localeTag(), {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/** Locale-aware number formatting. */
+export function formatNumber(n: number): string {
+  return n.toLocaleString(localeTag())
+}
+
+/** Locale-aware time-of-day. */
+export function formatTimeOfDay(isoOrDate: string | Date): string {
+  const d = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' })
+}
+
+// Initialize eagerly so modules that call t() at import time get the right locale.
+initLocale()

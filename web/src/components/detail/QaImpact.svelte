@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../lib/i18n'
   import { ArrowUpRight, FlaskConical, LayoutDashboard } from '@lucide/svelte'
   import { config } from '../../lib/config'
   import type { QaIssueContext, QaRunContext, QaSuiteRef } from '../../lib/types'
@@ -13,13 +14,13 @@
   }
 
   const RESULT_META: Record<string, { label: string; cls: string; mark: string }> = {
-    passed: { label: '합격', cls: 'text-status-done', mark: '✓' },
-    failed: { label: '실패', cls: 'text-status-reopen', mark: '×' },
-    blocked: { label: '블록', cls: 'text-status-stale', mark: '!' },
-    retest: { label: '재검증', cls: 'text-accent-text', mark: '↻' },
-    in_progress: { label: '진행', cls: 'text-accent-text', mark: '◐' },
-    untested: { label: '미검증', cls: 'text-text-muted', mark: '○' },
-    skipped: { label: '스킵', cls: 'text-text-muted', mark: '−' },
+    passed: { label: t('qa.pass'), cls: 'text-status-done', mark: '✓' },
+    failed: { label: t('qa.fail'), cls: 'text-status-reopen', mark: '×' },
+    blocked: { label: t('qa.block'), cls: 'text-status-stale', mark: '!' },
+    retest: { label: t('qa.retest'), cls: 'text-accent-text', mark: '↻' },
+    in_progress: { label: t('qa.inProgress'), cls: 'text-accent-text', mark: '◐' },
+    untested: { label: t('qa.untested'), cls: 'text-text-muted', mark: '○' },
+    skipped: { label: t('qa.skip'), cls: 'text-text-muted', mark: '−' },
   }
 
   // 외부 QA 대시보드는 선택 연동이다. config 에 URL 이 없으면 링크를 만들지 않는다.
@@ -32,7 +33,7 @@
   }
 
   function resultMeta(status: string) {
-    return RESULT_META[status] ?? { label: status || '알 수 없음', cls: 'text-text-muted', mark: '·' }
+    return RESULT_META[status] ?? { label: status || t('common.unknown'), cls: 'text-text-muted', mark: '·' }
   }
 
   function formatTime(value: string | null): string {
@@ -76,8 +77,8 @@
           target="_blank"
           rel="noopener noreferrer"
           class="flex h-6 w-6 flex-none items-center justify-center rounded text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-          title="Qase에서 열기"
-          aria-label="Qase에서 열기"
+          title={t('qa.openQase')}
+          aria-label={t('qa.openQase')}
         >
           <ArrowUpRight size={13} />
         </a>
@@ -88,7 +89,7 @@
           <a
             href={dashboardUrl(run, suite)}
             class="inline-flex max-w-full items-center gap-1 rounded border border-border-subtle bg-bg-elevated px-1.5 py-0.5 text-[10px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            title={`${suite.path} 영역을 QA 대시보드에서 열기`}
+            title={t('qa.openSuite', { path: suite.path })}
           >
             <LayoutDashboard size={10} class="flex-none" />
             <span class="truncate">{suite.path}</span>
@@ -99,7 +100,7 @@
       {#if run.cases.length > 0}
         <details class="group/cases mt-2.5 pl-[22px]">
           <summary class="cursor-pointer select-none text-[11px] text-text-secondary hover:text-text-primary">
-            연결 TC {run.linked_case_count}개
+            {t('qa.linkedTc', { n: run.linked_case_count })}
           </summary>
           <div class="mt-1.5 max-h-52 overflow-y-auto border-t border-border-subtle">
             {#each run.cases as qaCase (`${run.key}-${qaCase.qase_case_id}`)}

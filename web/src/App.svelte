@@ -37,6 +37,7 @@
   import ToastHost from './components/write/ToastHost.svelte'
   import MediaViewer from './components/detail/MediaViewer.svelte'
   import { mediaViewer } from './stores/media-viewer.svelte'
+  import { t } from './lib/i18n'
 
   const LAST_VIEW_KEY = 'issue-nav:last-view'
 
@@ -187,13 +188,13 @@
   {:else if issues.error === 'network'}
     <div class="flex h-screen flex-col items-center justify-center gap-4 bg-bg-base px-6 text-center">
       <p class="max-w-sm text-[13px] text-text-secondary">
-        데이터를 불러오지 못했습니다. 네트워크/VPN 상태를 확인하세요.
+        {t('app.loadFailed')}
       </p>
       <button
         onclick={retry}
         class="rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
       >
-        다시 시도
+        {t('common.retry')}
       </button>
     </div>
   {:else}

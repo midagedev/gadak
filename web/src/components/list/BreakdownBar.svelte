@@ -1,23 +1,24 @@
 <script lang="ts">
   /* 선택한 필드로 리스트를 섹션화하고, 현재 결과의 상위 분포를 한 줄로 요약한다. */
+  import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { CATEGORY_META } from '../../lib/format'
   import { groupByEnabled, type GroupBy, type StatusCategory } from '../../lib/view-config'
 
   const ALL_OPTIONS: { key: GroupBy; label: string }[] = [
-    { key: 'status_category', label: '진행 단계' },
-    { key: 'product', label: '제품' },
-    { key: 'd1_group', label: '파트' },
-    { key: 'assignee', label: '담당자' },
-    { key: 'priority', label: '우선순위' },
-    { key: 'severity', label: '심각도' },
-    { key: 'issue_type', label: '유형' },
-    { key: 'development_test_result', label: '개발 테스트 결과' },
-    { key: 'qa_impact', label: 'QA 영향' },
-    { key: 'source_project', label: '복제 원본' },
-    { key: 'epic', label: '에픽' },
-    { key: 'status', label: 'Jira 상태' },
-    { key: 'none', label: '섹션 없음' },
+    { key: 'status_category', label: t('group.byStatusCategory') },
+    { key: 'product', label: t('group.byProduct') },
+    { key: 'd1_group', label: t('group.byTeam') },
+    { key: 'assignee', label: t('group.byAssignee') },
+    { key: 'priority', label: t('group.byPriority') },
+    { key: 'severity', label: t('group.bySeverity') },
+    { key: 'issue_type', label: t('group.byType') },
+    { key: 'development_test_result', label: t('group.byDevTestResult') },
+    { key: 'qa_impact', label: t('group.byQaImpact') },
+    { key: 'source_project', label: t('group.bySourceProject') },
+    { key: 'epic', label: t('group.byEpic') },
+    { key: 'status', label: t('group.byStatus') },
+    { key: 'none', label: t('group.sectionNone') },
   ]
   // 꺼진 기능의 축(파트/제품/QA 영향)은 선택지에서 빠진다.
   const OPTIONS = ALL_OPTIONS.filter((o) => groupByEnabled(o.key))
@@ -26,7 +27,7 @@
   let rootEl = $state<HTMLDivElement | null>(null)
 
   const currentLabel = $derived(
-    OPTIONS.find((option) => option.key === filters.display.group_by)?.label ?? '진행 단계',
+    OPTIONS.find((option) => option.key === filters.display.group_by)?.label ?? t('group.byStatusCategory'),
   )
   const rankedGroups = $derived.by(() =>
     filters.display.group_by === 'none'
@@ -82,7 +83,7 @@
       onclick={() => (open = !open)}
       aria-expanded={open}
     >
-      <span class="text-text-muted">브레이크다운</span>
+      <span class="text-text-muted">{t('group.breakdown')}</span>
       <span class="text-text-primary">{currentLabel}</span>
       <span class="text-text-muted">⌄</span>
     </button>
@@ -117,12 +118,12 @@
               class="h-1.5 w-1.5 rounded-full"
               style:background={groupColor(group.key, i)}
             ></span>
-            <span class="max-w-36 truncate">{group.label || '전체'}</span>
+            <span class="max-w-36 truncate">{group.label || t('common.all')}</span>
             <span class="font-mono text-[11px] text-text-muted">{group.counts.total}</span>
           </span>
         {/each}
         {#if hiddenGroupCount > 0}
-          <span class="text-[11px] text-text-muted">외 {hiddenGroupCount}개</span>
+          <span class="text-[11px] text-text-muted">{t('list.moreCount', { n: hiddenGroupCount })}</span>
         {/if}
       </div>
     </div>

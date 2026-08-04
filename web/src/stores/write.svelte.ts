@@ -16,6 +16,7 @@
 
 import { SvelteMap } from 'svelte/reactivity'
 import * as api from '../lib/api'
+import { t } from '../lib/i18n'
 import { ApiError } from '../lib/api'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
@@ -206,10 +207,10 @@ class WriteStore {
     try {
       const c = await api.saveCredential(jiraEmail, apiToken)
       this.#applyCredential(c)
-      this.toast('Jira 자격증명을 저장했습니다.', 'success')
+      this.toast(t('write.credSaved'), 'success')
       return { ok: true }
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : '자격증명 저장에 실패했습니다.'
+      const msg = e instanceof ApiError ? e.message : t('write.credSaveFailed')
       return { ok: false, error: msg }
     }
   }
@@ -228,9 +229,9 @@ class WriteStore {
     try {
       const c = await api.deleteCredential()
       this.#applyCredential(c)
-      this.toast('Jira 자격증명을 삭제했습니다.', 'info')
+      this.toast(t('write.credDeleted'), 'info')
     } catch (e) {
-      this.#handleError(e, '자격증명 삭제에 실패했습니다.')
+      this.#handleError(e, t('write.credDeleteFailed'))
     }
   }
 
@@ -282,7 +283,7 @@ class WriteStore {
     }
     if (!this.credentialLoaded) await this.loadCredential()
     if (!this.configured) {
-      this.toast('먼저 개인 Jira API 토큰을 설정하세요.', 'info')
+      this.toast(t('write.needToken'), 'info')
       this.openSettings()
       return false
     }
@@ -334,15 +335,15 @@ class WriteStore {
 
   /* ── 상태 전환 ── */
 
-  async transition(key: string, t: Transition): Promise<boolean> {
+  async transition(key: string, tr: Transition): Promise<boolean> {
     const proj = this.projectOf(issues.pool.get(key) ?? ({ issue_key: key } as IssueLite))
     const ok = await this.#writeIssue(
       key,
-      { status: t.to_status, status_category: t.to_category },
-      () => api.doTransition(key, t.id),
-      '상태 전환에 실패했습니다.',
+      { status: tr.to_status, status_category: tr.to_category },
+      () => api.doTransition(key, tr.id),
+      t('write.transitionFailed'),
     )
-    if (ok) recordRecent(`transition:${proj}`, t.id) // 성공만 기록
+    if (ok) recordRecent(`transition:${proj}`, tr.id) // 성공만 기록
     return ok
   }
 
@@ -356,7 +357,7 @@ class WriteStore {
         assignee_email: user ? user.email || null : null,
       },
       () => api.setAssignee(key, user ? user.account_id : null),
-      '담당자 변경에 실패했습니다.',
+      t('write.assignFailed'),
     )
     if (ok && user?.account_id) recordRecent('assignee', user.account_id) // 성공만 기록
     return ok
@@ -376,7 +377,7 @@ class WriteStore {
         const res = await api.getEditMeta(key)
         this.editMeta.set(key, res.fields)
       } catch (e) {
-        this.#handleError(e, '편집 항목을 불러오지 못했습니다.')
+        this.#handleError(e, t('write.editMetaFailed'))
         return false
       } finally {
         this.#editMetaLoading.delete(key)
@@ -404,7 +405,7 @@ class WriteStore {
       key,
       patch,
       () => api.setIssueField(key, field, value),
-      '필드 변경에 실패했습니다.',
+      t('write.fieldFailed'),
     )
   }
 
@@ -458,7 +459,7 @@ class WriteStore {
       return true
     } catch (e) {
       this.#removePending(key, tmpId)
-      this.#handleError(e, '코멘트 등록에 실패했습니다.')
+      this.#handleError(e, t('write.commentFailed'))
       return false
     }
   }
@@ -473,7 +474,7 @@ class WriteStore {
       const res = await api.uploadCommentAttachment(key, file)
       return res.attachments
     } catch (e) {
-      this.#handleError(e, `첨부 업로드 실패: ${file.name}`)
+      this.#handleError(e, t('write.attachFailed', { name: file.name }))
       return null
     }
   }
@@ -506,10 +507,10 @@ class WriteStore {
       recordRecent('create-project', payload.project_key)
       recordRecent(`create-type:${payload.project_key}`, payload.issue_type)
       for (const l of payload.labels ?? []) recordRecent('label', l)
-      this.toast(`이슈 ${res.issue.issue_key} 를 생성했습니다.`, 'success')
+      this.toast(t('write.issueCreated', { key: res.issue.issue_key }), 'success')
       return { ok: true, key: res.issue.issue_key }
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : '이슈 생성에 실패했습니다.'
+      const msg = e instanceof ApiError ? e.message : t('write.createFailed')
       return { ok: false, error: msg }
     }
   }
@@ -521,7 +522,7 @@ class WriteStore {
       if (e.code === 'credential_required') {
         // 선반영 실패(자격증명이 사라졌거나 최초 미설정) → 설정 다이얼로그
         this.configured = false
-        this.toast('먼저 개인 Jira API 토큰을 설정하세요.', 'info')
+        this.toast(t('write.needToken'), 'info')
         this.openSettings()
         return
       }

@@ -8,6 +8,7 @@
    *  - 지정: 로컬 멤버는 jira_account_id 로 서버 호출 없이 즉시 → write.assign(). account_id 가
    *    없는 멤버(백엔드 미배포 등)만 이메일/이름으로 users/ 재조회 폴백.
    */
+  import { t, collator } from '../../lib/i18n'
   import type { IssueLite, JiraUser, Member } from '../../lib/types'
   import * as api from '../../lib/api'
   import { ApiError } from '../../lib/api'
@@ -52,7 +53,7 @@
   }
 
   const byName = (a: Member, b: Member) =>
-    (a.display_name || a.name).localeCompare(b.display_name || b.name, 'ko')
+    collator().compare(a.display_name || a.name, b.display_name || b.name)
 
   const meMember = $derived(me.authed && me.email ? issues.members.get(me.email) : undefined)
 
@@ -81,7 +82,7 @@
       }
       return r
     }
-    const g1 = take([meMember], '나에게 할당')
+    const g1 = take([meMember], t('write.assignToMe'))
     const g2 = take([issue.reporter_email ? issues.members.get(issue.reporter_email) : undefined])
     const g3 = take(recentOf('assignee').map((acc) => memberByAccount.get(acc)))
     const g4 = take(
@@ -177,14 +178,14 @@
         res.users.find((u) => u.email && c.email && u.email.toLowerCase() === c.email.toLowerCase()) ??
         res.users[0]
       if (!match) {
-        write.toast('Jira 사용자를 찾지 못했습니다.', 'error')
+        write.toast(t('write.userNotFound'), 'error')
         busy = false
         return
       }
       busy = false
       return doAssign(match)
     } catch {
-      write.toast('담당자 지정에 실패했습니다.', 'error')
+      write.toast(t('write.assignSpecifyFailed'), 'error')
       busy = false
     }
   }
@@ -228,19 +229,19 @@
 {/snippet}
 
 <div class="relative flex items-center gap-1.5" bind:this={rootEl}>
-  <span class="w-12 flex-none text-text-muted">담당</span>
+  <span class="w-12 flex-none text-text-muted">{t('write.assigneeLabel')}</span>
   <button
     type="button"
     onclick={openPicker}
     class="group flex items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-bg-hover"
-    title={me.authed ? '담당자 변경' : (issue.assignee ?? '미할당')}
+    title={me.authed ? t('write.changeAssignee') : (issue.assignee ?? t('common.unassigned'))}
     disabled={busy}
   >
     {#if hasAssignee}
       <Avatar member={assigneeMember} name={issue.assignee} email={issue.assignee_email} size={16} />
       <span class="text-text-secondary">{issue.assignee ?? issue.assignee_email}</span>
     {:else}
-      <span class="text-text-muted italic">미할당</span>
+      <span class="text-text-muted italic">{t('common.unassigned')}</span>
     {/if}
     <svg
       width="9"
@@ -258,14 +259,14 @@
     <div
       class="anim-enter absolute left-12 top-full z-30 mt-1 w-64 rounded-md border border-border-subtle bg-bg-elevated shadow-xl"
       role="dialog"
-      aria-label="담당자 선택"
+      aria-label={t('write.pickAssignee')}
     >
       <div class="border-b border-border-subtle p-2">
         <input
           bind:this={inputEl}
           bind:value={query}
           type="text"
-          placeholder="이름 또는 이메일 검색"
+          placeholder={t('write.searchNameEmail')}
           class="w-full rounded-md border border-border-strong bg-bg-base px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent"
         />
       </div>
@@ -278,7 +279,7 @@
           class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
         >
           <span class="flex h-4 w-4 flex-none items-center justify-center rounded-full border border-dashed border-border-strong text-[9px]">–</span>
-          미할당
+          {t('common.unassigned')}
         </button>
 
         {#if isSearching}
@@ -287,9 +288,9 @@
             {@render candRow(c)}
           {/each}
           {#if searching}
-            <div class="px-3 py-1.5 text-[11px] text-text-muted">검색 중…</div>
+            <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.searching')}</div>
           {:else if typed.length === 0}
-            <div class="px-3 py-1.5 text-[11px] text-text-muted">결과 없음</div>
+            <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.noResults')}</div>
           {/if}
         {:else}
           <!-- 개인화 그룹: 그룹 간 미묘한 간격 -->
@@ -301,7 +302,7 @@
             </div>
           {/each}
           {#if groups.length === 0}
-            <div class="px-3 py-1.5 text-[11px] text-text-muted">이름을 입력해 검색하세요</div>
+            <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('write.typeToSearch')}</div>
           {/if}
         {/if}
       </div>

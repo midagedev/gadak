@@ -3,6 +3,7 @@
    * 컬럼 메뉴 ([explore]). 리스트 행에 노출할 후행 필드를 on/off 한다.
    *  구성은 뷰의 display 에 포함돼 URL·저장 뷰에 함께 직렬화된다(뷰별 컬럼).
    */
+  import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { columnCatalog, defaultColumns, type ColumnKey } from '../../lib/view-config'
 
@@ -28,9 +29,9 @@
     type="button"
     class="inline-flex items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 py-1.5 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
     onclick={() => (open = !open)}
-    title="표시할 컬럼 선택"
+    title={t('columns.title')}
   >
-    <span>컬럼</span>
+    <span>{t('columns.label')}</span>
     {#if !isDefault}
       <span class="rounded bg-accent-subtle/70 px-1 text-[10px] text-accent-text">{active.size}</span>
     {/if}
@@ -41,15 +42,15 @@
       class="anim-enter absolute right-0 top-full z-30 mt-1 w-52 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-xl shadow-black/40"
     >
       <div class="mb-1 flex items-center justify-between">
-        <span class="text-[11px] font-medium text-text-muted">노출 컬럼</span>
+        <span class="text-[11px] font-medium text-text-muted">{t('columns.exposed')}</span>
         <button
           type="button"
           class="rounded px-1.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-40"
           onclick={() => filters.resetColumns()}
           disabled={isDefault}
-          title="기본 컬럼으로 되돌리기"
+          title={t('columns.reset')}
         >
-          기본값
+          {t('columns.defaults')}
         </button>
       </div>
       <div class="max-h-[60vh] overflow-y-auto">

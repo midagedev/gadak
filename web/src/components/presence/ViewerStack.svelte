@@ -4,6 +4,7 @@
    *  기존 list/Avatar 재사용(email 로 members 맵에서 프로필/이름 자체 조회, 툴팁 포함).
    *  ring 으로 겹침 경계를 만든다 — 배경색이 다른 곳(행/헤더)에 맞춰 ringClass 로 지정.
    */
+  import { t } from '../../lib/i18n'
   import type { Viewer } from '../../stores/presence.svelte'
   import Avatar from '../list/Avatar.svelte'
 
@@ -21,7 +22,7 @@
 
   const shown = $derived(viewers.slice(0, max))
   const extra = $derived(Math.max(0, viewers.length - max))
-  const title = $derived(`${viewers.map((v) => v.name || v.email).join(', ')} 보는 중`)
+  const title = $derived(t('detail.viewingNames', { names: viewers.map((v) => v.name || v.email).join(', ') }))
 </script>
 
 {#if viewers.length > 0}

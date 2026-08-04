@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../lib/i18n'
   import { Bell, BellOff, Check, X } from '@lucide/svelte'
   import { me } from '../../stores/me.svelte'
 
@@ -45,8 +46,8 @@
     'subscribed'
       ? 'text-accent-text hover:bg-bg-hover'
       : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-    title="알림 설정"
-    aria-label="알림 설정"
+    title={t('notif.title')}
+    aria-label={t('notif.title')}
     aria-expanded={open}
   >
     {#if me.pushState === 'subscribed'}
@@ -63,25 +64,25 @@
     >
       <div class="mb-3 flex items-center gap-2">
         <Bell size={15} strokeWidth={1.8} class="text-text-secondary" />
-        <span class="text-[12px] font-semibold text-text-primary">웹 알림</span>
+        <span class="text-[12px] font-semibold text-text-primary">{t('notif.webPush')}</span>
         <span class="flex-1"></span>
         <button
           type="button"
           class="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
           onclick={close}
-          aria-label="닫기"
-          title="닫기"
+          aria-label={t('common.close')}
+          title={t('common.close')}
         >
           <X size={14} strokeWidth={1.8} />
         </button>
       </div>
 
       {#if me.pushState === 'unsupported'}
-        <p class="text-[11px] text-text-muted">이 브라우저는 웹 알림을 지원하지 않습니다.</p>
+        <p class="text-[11px] text-text-muted">{t('notif.unsupported')}</p>
       {:else if me.pushState === 'unavailable'}
-        <p class="text-[11px] text-text-muted">서버 알림 설정이 준비되지 않았습니다.</p>
+        <p class="text-[11px] text-text-muted">{t('notif.serverNotReady')}</p>
       {:else if me.pushState === 'denied'}
-        <p class="text-[11px] text-status-reopen">브라우저에서 알림이 차단되었습니다.</p>
+        <p class="text-[11px] text-status-reopen">{t('notif.blocked')}</p>
       {:else}
         <button
           type="button"
@@ -94,10 +95,10 @@
         >
           {#if me.pushState === 'subscribed'}
             <Check size={14} strokeWidth={2} />
-            이 브라우저에서 켜짐
+            {t('notif.enabledHere')}
           {:else}
             <Bell size={14} strokeWidth={1.8} />
-            이 브라우저에서 켜기
+            {t('notif.enableHere')}
           {/if}
         </button>
 
@@ -113,7 +114,7 @@
                   })}
                 class="h-3.5 w-3.5 accent-accent"
               />
-              멘션
+              {t('notif.mention')}
             </label>
             <label class="flex min-h-6 cursor-pointer items-center gap-2 text-[11px] text-text-secondary">
               <input
@@ -125,7 +126,7 @@
                   })}
                 class="h-3.5 w-3.5 accent-accent"
               />
-              새 담당 이슈
+              {t('notif.newAssignee')}
             </label>
             <label class="flex min-h-6 cursor-pointer items-center gap-2 text-[11px] text-text-secondary">
               <input
@@ -137,7 +138,7 @@
                   })}
                 class="h-3.5 w-3.5 accent-accent"
               />
-              워치 이슈 변경
+              {t('notif.watchChange')}
             </label>
             <label
               class="flex min-h-6 cursor-pointer items-center gap-2 border-t border-border-subtle pt-2 text-[11px] text-text-secondary"
@@ -149,7 +150,7 @@
                   me.updateNotificationPreferences({ show_preview: event.currentTarget.checked })}
                 class="h-3.5 w-3.5 accent-accent"
               />
-              잠금 화면에 내용 표시
+              {t('notif.lockScreen')}
             </label>
           </div>
 
@@ -161,7 +162,7 @@
                 onchange={(event) => toggleQuiet(event.currentTarget.checked)}
                 class="h-3.5 w-3.5 accent-accent"
               />
-              조용 시간 (이 시간대엔 알림 보류)
+              {t('notif.quietHours')}
             </label>
             {#if quietEnabled}
               <div class="flex items-center gap-2 pl-6 text-[11px] text-text-muted">
@@ -170,7 +171,7 @@
                   value={me.notificationConfig.preferences.quiet_start ?? ''}
                   onchange={(event) => setQuiet('quiet_start', event.currentTarget.value)}
                   class="rounded border border-border-strong bg-bg-elevated px-1.5 py-1 text-[11px] text-text-primary"
-                  aria-label="조용 시간 시작"
+                  aria-label={t('notif.quietStart')}
                 />
                 <span>~</span>
                 <input
@@ -178,10 +179,10 @@
                   value={me.notificationConfig.preferences.quiet_end ?? ''}
                   onchange={(event) => setQuiet('quiet_end', event.currentTarget.value)}
                   class="rounded border border-border-strong bg-bg-elevated px-1.5 py-1 text-[11px] text-text-primary"
-                  aria-label="조용 시간 종료"
+                  aria-label={t('notif.quietEnd')}
                 />
               </div>
-              <p class="pl-6 text-[10px] text-text-muted">KST 기준 · 자정 걸침 가능</p>
+              <p class="pl-6 text-[10px] text-text-muted">{t('notif.quietHint')}</p>
             {/if}
           </div>
         {/if}

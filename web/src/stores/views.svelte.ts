@@ -8,6 +8,7 @@
  * config 는 explore 의 ViewConfig 직렬화(불투명 JSON). 서버는 해석하지 않는다.
  */
 
+import { t } from '../lib/i18n'
 import * as api from '../lib/api'
 import type { SavedView } from '../lib/types'
 import type { ViewConfig } from '../lib/view-config'
@@ -64,7 +65,7 @@ class ViewsStore {
   addPersonal(name: string, config: ViewConfig): void {
     const view: PersonalView = {
       id: `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-      name: name.trim() || '이름 없는 뷰',
+      name: name.trim() || t('view.unnamed'),
       config,
       created_at: new Date().toISOString(),
     }
@@ -79,7 +80,7 @@ class ViewsStore {
 
   async addTeam(name: string, config: ViewConfig): Promise<void> {
     const view = await api.createView(
-      name.trim() || '이름 없는 뷰',
+      name.trim() || t('view.unnamed'),
       config as unknown as Record<string, unknown>,
     )
     this.team = [...this.team, view]

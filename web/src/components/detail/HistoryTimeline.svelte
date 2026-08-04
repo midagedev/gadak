@@ -4,6 +4,7 @@
    * status/assignee/priority 변경을 컴팩트하게(from→to, by, 상대시간).
    * 재오픈(해결됨 상태 → 미해결 상태로의 status 전이)은 빨간 포인트로 강조한다.
    */
+  import { t } from '../../lib/i18n'
   import type { HistoryEntry } from '../../lib/types'
   import { RESOLVED_STATUS_NAMES } from '../../lib/view-config'
   import { relativeTime, absoluteTime } from './format'
@@ -26,12 +27,12 @@
 
   /** 필드 라벨(한국어). */
   function fieldLabel(f: string): string {
-    return f === 'status' ? '상태' : f === 'assignee' ? '담당자' : f === 'priority' ? '우선순위' : f
+    return f === 'status' ? t('common.status') : f === 'assignee' ? t('common.assignee') : f === 'priority' ? t('common.priority') : f
   }
 </script>
 
 {#if history.length === 0}
-  <p class="text-[12px] text-text-muted italic">변경 이력 없음</p>
+  <p class="text-[12px] text-text-muted italic">{t('detail.noHistory')}</p>
 {:else}
   <ol class="relative flex flex-col gap-2.5 pl-4">
     <!-- 세로 가이드 라인 -->
@@ -53,13 +54,13 @@
           <span class="font-medium text-text-secondary">{fieldLabel(e.field)}</span>
           {#if reopen}
             <span class="rounded bg-status-reopen/15 px-1 text-[10px] font-semibold text-status-reopen">
-              재오픈
+              {t('feed.kindReopen')}
             </span>
           {/if}
           <span class="text-text-muted">
-            {e.from ?? '없음'}
+            {e.from ?? t('common.none')}
             <span class="mx-0.5 text-text-muted">→</span>
-            <span class="text-text-primary">{e.to ?? '없음'}</span>
+            <span class="text-text-primary">{e.to ?? t('common.none')}</span>
           </span>
         </div>
         <div class="text-[11px] text-text-muted">

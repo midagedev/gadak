@@ -5,6 +5,7 @@
    * ADF 가 없거나 렌더 결과가 비면 fallback 평문 → emptyLabel 순으로 폴백한다.
    * 렌더는 adf.ts 내부에서 try/catch 되어 예외 시 빈 문자열을 주므로 여기선 결과만 분기한다.
    */
+  import { t } from '../../lib/i18n'
   import type { AdfNode, DetailAttachment } from '../../lib/types'
   import { renderAdf } from '../../lib/adf'
   import { mediaViewer } from '../../stores/media-viewer.svelte'
@@ -14,7 +15,7 @@
     issueKey = undefined,
     attachments = [],
     fallback = null,
-    emptyLabel = '내용 없음',
+    emptyLabel = t('detail.noContent'),
   }: {
     node?: AdfNode | null
     issueKey?: string

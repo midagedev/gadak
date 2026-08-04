@@ -9,6 +9,7 @@
    *  카운트는 로컬 풀에서 $derived(멘션은 API 결과 수).
    *  비로그인 시엔 로그인 유도 문구만 노출.
    */
+  import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
@@ -61,7 +62,7 @@
       onclick={applyAssignee}
     >
       <span class="flex-none">🙋</span>
-      <span class="min-w-0 flex-1 truncate">내 담당</span>
+      <span class="min-w-0 flex-1 truncate">{t('personal.myAssignee')}</span>
       <span class="flex-none text-[11px] text-text-muted">{assignedCount}</span>
     </button>
 
@@ -75,7 +76,7 @@
       onclick={() => me.openFeed('reporter')}
     >
       <span class="flex-none">✍️</span>
-      <span class="min-w-0 flex-1 truncate">내가 보고</span>
+      <span class="min-w-0 flex-1 truncate">{t('personal.myReporter')}</span>
       <span class="flex-none text-[11px] text-text-muted">{reportedCount}</span>
     </button>
 
@@ -86,10 +87,10 @@
         ? 'bg-bg-active text-text-primary'
         : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
       onclick={() => me.openFeed('all')}
-      title="내 이슈 변화 + 나를 멘션한 코멘트"
+      title={t('personal.feedHint')}
     >
       <span class="flex-none">📣</span>
-      <span class="min-w-0 flex-1 truncate">피드</span>
+      <span class="min-w-0 flex-1 truncate">{t('common.feed')}</span>
       {#if feedUnreadCount}
         <span
           class="min-w-5 flex-none rounded-full bg-accent px-1.5 py-0.5 text-center text-[10px] font-semibold text-white"
@@ -103,7 +104,7 @@
       class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
       onclick={() => me.promptLogin()}
     >
-      로그인하면 내 담당·보고·멘션이 여기 모입니다 →
+      {t('personal.loginPrompt')}
     </button>
   {/if}
 </div>

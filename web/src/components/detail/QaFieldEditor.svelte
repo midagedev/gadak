@@ -10,6 +10,7 @@
    *  - 선택 시 write.setField() 옵티미스틱(표시값 즉시 반영 → 서버 재동기화로 확정).
    * 편집 불가/미로그인 등으로 editmeta 가 없으면 조용히 읽기 전용으로 폴백한다.
    */
+  import { t, collator } from '../../lib/i18n'
   import type { EditMetaOption, IssueLite, JiraUser, Member } from '../../lib/types'
   import * as api from '../../lib/api'
   import { issues } from '../../stores/issues.svelte'
@@ -53,7 +54,7 @@
       const sa = draft.has(a.id) ? 0 : 1
       const sb = draft.has(b.id) ? 0 : 1
       if (sa !== sb) return sa - sb
-      return b.value.localeCompare(a.value, 'en') // 최신(이름 역순) 우선
+      return b.value.localeCompare(a.value) // 최신(이름 역순) 우선
     })
   })
 
@@ -141,7 +142,7 @@
   const localCands = $derived.by<Cand[]>(() => {
     const withId = [...issues.members.values()].filter((m) => m.jira_account_id)
     const byName = (a: Member, b: Member) =>
-      (a.display_name || a.name).localeCompare(b.display_name || b.name, 'ko')
+      collator().compare(a.display_name || a.name, b.display_name || b.name)
     const seen = new Set<string>()
     const out: Cand[] = []
     const push = (m: Member | undefined, label?: string) => {
@@ -155,8 +156,8 @@
         label,
       })
     }
-    push(meMember, '나')
-    push(reporterMember, '보고자')
+    push(meMember, t('common.me'))
+    push(reporterMember, t('qaEditor.reporter'))
     for (const m of withId.sort(byName)) push(m)
     return out
   })
@@ -246,10 +247,10 @@
     class="group flex w-full min-w-0 items-center gap-1 rounded px-1 -mx-1 py-0.5 text-left transition-colors hover:bg-bg-hover"
     aria-haspopup="listbox"
     aria-expanded={open}
-    title={canEdit ? '변경' : undefined}
+    title={canEdit ? t('common.change') : undefined}
   >
     {#if values.length === 0}
-      <span class="text-text-muted">없음</span>
+      <span class="text-text-muted">{t('qaEditor.none')}</span>
     {:else}
       <span class="flex min-w-0 flex-wrap gap-1">
         {#each values as v (v)}
@@ -289,7 +290,7 @@
           disabled={busy}
           class="flex w-full items-center px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50"
         >
-          없음
+          {t('qaEditor.none')}
         </button>
         {#each options as opt (opt.id)}
           {@const selected = values.includes(opt.value)}
@@ -309,14 +310,14 @@
         {/each}
       {:else if kind === 'version_array'}
         {#if options.length === 0}
-          <div class="px-3 py-2 text-[12px] text-text-muted">선택 가능한 버전이 없습니다.</div>
+          <div class="px-3 py-2 text-[12px] text-text-muted">{t('qaEditor.noVersions')}</div>
         {:else}
           <div class="px-2 pb-1">
             <input
               bind:this={inputEl}
               bind:value={vquery}
               type="text"
-              placeholder="버전 검색"
+              placeholder={t('qaEditor.searchVersion')}
               class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
           </div>
@@ -342,7 +343,7 @@
               </button>
             {/each}
             {#if versionOptions.length === 0}
-              <div class="px-3 py-1.5 text-[11px] text-text-muted">결과 없음</div>
+              <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.noResults')}</div>
             {/if}
           </div>
           <div class="mt-1 flex items-center justify-end gap-2 border-t border-border-subtle px-2 pt-1.5">
@@ -352,7 +353,7 @@
               disabled={busy}
               class="rounded px-2 py-1 text-[11px] text-text-muted hover:bg-bg-hover disabled:opacity-50"
             >
-              취소
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -360,7 +361,7 @@
               disabled={busy}
               class="rounded bg-accent px-2 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              적용
+              {t('common.apply')}
             </button>
           </div>
         {/if}
@@ -371,7 +372,7 @@
             bind:this={inputEl}
             bind:value={query}
             type="text"
-            placeholder="이름·이메일 검색"
+            placeholder={t('qaEditor.searchPerson')}
             class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>
@@ -381,7 +382,7 @@
           disabled={busy}
           class="flex w-full items-center px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50"
         >
-          담당자 해제
+          {t('qaEditor.clearAssignee')}
         </button>
         {#each cands as c (c.account_id)}
           <button
@@ -398,9 +399,9 @@
           </button>
         {/each}
         {#if searching}
-          <div class="px-3 py-1.5 text-[11px] text-text-muted">검색 중…</div>
+          <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.searching')}</div>
         {:else if cands.length === 0}
-          <div class="px-3 py-1.5 text-[11px] text-text-muted">결과 없음</div>
+          <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.noResults')}</div>
         {/if}
       {/if}
     </div>

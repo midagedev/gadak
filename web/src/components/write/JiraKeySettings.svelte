@@ -6,6 +6,7 @@
    *  - 이미 설정됨: display_name / token_hint / verified_at 표시 + 삭제.
    *  LoginDialog 의 모달 패턴을 따른다(Esc/배경 클릭 닫기).
    */
+  import { t } from '../../lib/i18n'
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
   import { absoluteTime } from '../detail/format'
@@ -32,7 +33,7 @@
     if (res.ok) {
       apiToken = ''
     } else {
-      error = res.error ?? '자격증명 저장에 실패했습니다.'
+      error = res.error ?? t('write.credSaveFailed')
     }
   }
 
@@ -66,18 +67,17 @@
     class="anim-enter w-full max-w-sm rounded-lg border border-border-strong bg-bg-panel p-5 shadow-xl"
     role="dialog"
     aria-modal="true"
-    aria-label="Jira 자격증명 설정"
+    aria-label={t('jiraSettings.title')}
   >
-    <h2 class="mb-1 text-[14px] font-semibold text-text-primary">개인 Jira API 토큰</h2>
+    <h2 class="mb-1 text-[14px] font-semibold text-text-primary">{t('jiraSettings.heading')}</h2>
     <p class="mb-4 text-[12px] leading-relaxed text-text-muted">
-      상태 전환·코멘트·이슈 생성은 <span class="text-text-secondary">본인 Jira 계정</span>으로
-      수행됩니다. Atlassian
+      {t('jiraSettings.intro1')} <span class="text-text-secondary">{t('jiraSettings.intro2')}</span>{t('jiraSettings.intro3')} Atlassian
       <a
         href={API_TOKEN_URL}
         target="_blank"
         rel="noopener noreferrer"
-        class="text-accent-text hover:underline">API 토큰</a
-      >을 발급해 등록하세요.
+        class="text-accent-text hover:underline">{t('jiraSettings.intro4')}</a
+      >{t('jiraSettings.intro5')}
     </p>
 
     {#if write.configured}
@@ -86,20 +86,20 @@
         <div class="flex items-center justify-between gap-2">
           <span class="text-text-secondary">{write.displayName || write.jiraEmail}</span>
           <span class="rounded bg-status-done/15 px-1.5 py-0.5 text-[11px] font-medium text-status-done"
-            >연결됨</span
+            >{t('jiraSettings.connected')}</span
           >
         </div>
         <div class="mt-1 flex flex-col gap-0.5 text-[11px] text-text-muted">
           <span>{write.jiraEmail}</span>
-          {#if write.tokenHint}<span class="font-mono">토큰 …{write.tokenHint}</span>{/if}
-          {#if write.verifiedAt}<span>검증 {absoluteTime(write.verifiedAt)}</span>{/if}
+          {#if write.tokenHint}<span class="font-mono">{t('jiraSettings.tokenDots', { hint: write.tokenHint })}</span>{/if}
+          {#if write.verifiedAt}<span>{t('jiraSettings.verified', { when: absoluteTime(write.verifiedAt) })}</span>{/if}
         </div>
       </div>
     {/if}
 
     <form onsubmit={submit} class="flex flex-col gap-3">
       <label class="flex flex-col gap-1">
-        <span class="text-[11px] text-text-secondary">Jira 이메일</span>
+        <span class="text-[11px] text-text-secondary">{t('jiraSettings.email')}</span>
         <input
           bind:this={emailEl}
           bind:value={jiraEmail}
@@ -112,7 +112,7 @@
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-[11px] text-text-secondary">
-          API 토큰 {#if write.configured}<span class="text-text-muted">(교체 시에만 입력)</span>{/if}
+          {t('jiraSettings.intro4')} {#if write.configured}<span class="text-text-muted">{t('jiraSettings.tokenReplace')}</span>{/if}
         </span>
         <input
           bind:value={apiToken}
@@ -136,7 +136,7 @@
             disabled={busy}
             class="rounded-md px-3 py-1.5 text-[12px] text-status-reopen transition-colors hover:bg-status-reopen/10 disabled:opacity-50"
           >
-            삭제
+            {t('common.delete')}
           </button>
         {:else}
           <span></span>
@@ -147,14 +147,14 @@
             onclick={close}
             class="rounded-md px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
           >
-            닫기
+            {t('common.close')}
           </button>
           <button
             type="submit"
             disabled={busy}
             class="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
           >
-            {busy ? '검증 중…' : write.configured ? '토큰 교체' : '저장'}
+            {busy ? t('common.verifying') : write.configured ? t('jiraSettings.replaceToken') : t('common.save')}
           </button>
         </div>
       </div>
