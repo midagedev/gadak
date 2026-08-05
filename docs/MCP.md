@@ -38,6 +38,29 @@ scry --profile demo mcp
 
 The process exits when stdin closes.
 
+## Install (pin the profile)
+
+MCP hosts do **not** inherit your shell environment. A bare `scry mcp` in a
+client config therefore resolves the **default** profile even if you always
+`export SCRY_PROFILE=work` in the terminal. `scry mcp install` bakes the
+current profile (global `--profile` / `SCRY_PROFILE`) and this binary's absolute
+path into the registration.
+
+```bash
+scry mcp install claude              # exec: claude mcp add scry -- <abs> mcp
+scry --profile demo mcp install claude
+scry mcp install claude --dry-run    # print the command only
+scry mcp install cursor              # paste block for .cursor/mcp.json
+scry mcp install codex               # paste block for ~/.codex/config.toml
+scry mcp install json                # mcpServers JSON snippet
+scry mcp install                     # list clients
+```
+
+`claude` runs `claude mcp add` when the binary is on `PATH`; if it is missing,
+the error prints the manual command. If the server name is already registered,
+scry shows claude's message, prints `already registered`, and exits 0.
+`cursor` / `codex` / `json` never exec — they only print.
+
 ## Claude Desktop
 
 Add a server entry to the Claude Desktop MCP config (path varies by OS; on macOS

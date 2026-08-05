@@ -242,13 +242,16 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"scry status", "scry sync", "scry sql"},
 	},
 	"mcp": {
-		summary: "MCP server on stdio for clients without a shell",
-		usage:   "scry [--profile <name>] mcp",
+		summary: "MCP server on stdio for clients without a shell; install pins the profile",
+		usage:   "scry [--profile <name>] mcp [install <client>]",
 		examples: []string{
 			"scry mcp",
 			"scry --profile demo mcp",
+			"scry mcp install claude",
+			"scry --profile demo mcp install claude --dry-run",
+			"scry mcp install json",
 		},
-		seeAlso: []string{"scry sql", "scry issue", "scry status"},
+		seeAlso: []string{"scry sql", "scry issue", "scry status", "scry profiles"},
 	},
 	"snapshot": {
 		summary: "write a shareable copy of the mirror (no personal tables, no credentials)",

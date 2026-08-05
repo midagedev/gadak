@@ -12,6 +12,11 @@ import (
 )
 
 func cmdMCP(args []string) error {
+	// Subcommand: pin the current profile into an MCP host registration.
+	// Must run before the bare-server path so `scry mcp install` never opens stdio.
+	if len(args) > 0 && args[0] == "install" {
+		return cmdMCPInstall(args[1:])
+	}
 	// No flags: profile comes from the global --profile / SCRY_PROFILE, and the
 	// mirror path from the active profile (or SCRY_HOME / SCRY_DB is not used —
 	// same DBPath as every other command).

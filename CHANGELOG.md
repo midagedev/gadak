@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **`scry mcp install <client>`.** Pins the current profile and absolute binary
+  path into an MCP host registration so clients that do not inherit shell env
+  cannot silently attach to the default mirror. `claude` runs
+  `claude mcp add` (or prints a manual command if the binary is missing);
+  `cursor` / `codex` / `json` print paste-ready config; `--dry-run` prints
+  without registering. See `docs/MCP.md` and `docs/AGENT_SETUP.md`.
 - **Confluence page labels (schema v13).** `pages.labels` (JSON array,
   alphabetical) collected via `expand=metadata.labels` on the page fetch and
   exposed on `PageLite` everywhere pages appear (list, detail, search). First

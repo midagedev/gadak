@@ -87,7 +87,19 @@ display names. Use the `issues_full` view for titles.
 
 ## MCP (for hosts without a shell)
 
-The shortest path, verified end to end (this is the line in the README GIF):
+Shortest path — pins the **current** profile into the registration so the host
+cannot silently attach to the default mirror:
+
+```bash
+scry mcp install claude
+# or: scry --profile demo mcp install claude
+```
+
+That runs the same registration the manual line below does (absolute binary
+path + optional `--profile`). Other hosts: `scry mcp install cursor|codex|json`
+prints a paste block.
+
+The shortest manual path, verified end to end (this is the line in the README GIF):
 
 ```bash
 claude mcp add scry -- scry mcp

@@ -1152,7 +1152,7 @@ Reading the mirror (no network; see AGENTS.md):
   search     full-text search            [--limit N] [--json] "text"
   sql        read-only SQL               [--json|--csv] "select ..."
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
-  mcp        MCP server on stdio (for clients without a shell; see docs/MCP.md)
+  mcp        MCP server on stdio; mcp install <client> pins profile (docs/MCP.md)
 
 Writing through to Jira (needs a credential):
   comment    add a comment    <KEY> -m <text|-> [--json]
