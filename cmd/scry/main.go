@@ -816,7 +816,7 @@ func cmdStatus(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	// store.Open migrates the mirror (schema v6 api_usage). status only reads
+	// store.Open migrates the mirror (schema v7 field_usage). status only reads
 	// issue rows; it may create an empty mirror when none exists yet.
 	db, err := openStore()
 	if err != nil {

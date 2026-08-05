@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/fields"
 	"github.com/midagedev/scry/internal/jira"
 	"github.com/midagedev/scry/internal/store"
 )
@@ -97,6 +98,10 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 	// floor to start from.
 	res.Full = opts.Full || state.Watermark == ""
 
+	// Discovery mode: no configured custom fields yet — first full sync pulls
+	// *all so raw carries every custom value for auto-configuration.
+	discoveryMode := len(cfg.Fields) == 0 && len(cfg.FieldMap) == 0
+
 	cats, err := c.Statuses(ctx)
 	if err != nil {
 		return res, record(db, res, err)
@@ -106,7 +111,7 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 		return res, record(db, res, err)
 	}
 
-	fields := fieldList(cfg)
+	fieldIDs := fieldList(cfg, res.Full)
 	var maxUTC, maxRaw string
 	// pageBase / unitDenom drive per-Search progress lines. unitDenom < 0 means
 	// the approximate count failed and the line has no denominator.
@@ -191,7 +196,7 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 			// page lands, instead of after every historical issue. The watermark
 			// is max(updated) over fetched pages, so ordering does not affect it.
 			beginSearch("full sync: every project this account can see", jql, true)
-			if err := c.Search(ctx, jql, fields, true, page); err != nil {
+			if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
 				return res, record(db, res, err)
 			}
 		} else {
@@ -201,7 +206,7 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 				// page lands, instead of after every historical issue. The watermark
 				// is max(updated) over fetched pages, so ordering does not affect it.
 				beginSearch("full sync: "+p, jql, true)
-				if err := c.Search(ctx, jql, fields, true, page); err != nil {
+				if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
 					return res, record(db, res, err)
 				}
 			}
@@ -209,7 +214,10 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 	} else {
 		jql := incrementalJQL(cfg.Projects, state.Watermark)
 		beginSearch("incremental: "+scopeLabel(cfg.Projects)+" — changes since "+sinceLabel(state.Watermark), jql, false)
-		if err := c.Search(ctx, jql, fields, true, page); err != nil {
+		if discoveryMode {
+			opts.logf("tip: run `scry sync --full` once to auto-configure custom fields")
+		}
+		if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
 			return res, record(db, res, err)
 		}
 	}
@@ -226,10 +234,99 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 			return res, record(db, res, err)
 		}
 	}
+
+	// Custom-field discovery / field_usage refresh (before the done line).
+	if discoveryMode && res.Full {
+		if err := runDiscovery(ctx, c, cfg, db, opts); err != nil {
+			// cfg.Save failure propagates; other discovery errors are warnings.
+			return res, err
+		}
+	} else if (res.Full || opts.Reconcile) && len(cfg.FieldSpecs()) > 0 {
+		if err := refreshFieldUsage(db, cfg); err != nil {
+			opts.logf("fields: usage refresh skipped: %v", err)
+		}
+	}
+
 	elapsed := time.Since(started).Round(time.Second)
 	opts.logf("done: %s fetched, %s changed, %s deleted in %s",
 		formatCount(res.Fetched), formatCount(res.Changed), formatCount(res.Deleted), elapsed)
 	return res, nil
+}
+
+// runDiscovery configures custom fields from the site catalog + mirror raw
+// after a discovery-mode full sync. Network failures log a warning and leave
+// the sync successful; Save failures propagate.
+func runDiscovery(ctx context.Context, c *jira.Client, cfg *config.Config, db *store.DB, opts Options) error {
+	catalog, err := c.Fields(ctx)
+	if err != nil {
+		opts.logf("fields: discovery skipped: %v", err)
+		return nil
+	}
+	fill, err := scanMirrorFill(db)
+	if err != nil {
+		opts.logf("fields: discovery skipped: %v", err)
+		return nil
+	}
+	specs := fields.Discover(catalog, fill, cfg.Fields)
+	cfg.Fields = specs
+	if err := cfg.Save(); err != nil {
+		return fmt.Errorf("fields: save discovered specs: %w", err)
+	}
+	n, err := reingestFromConfig(db, cfg)
+	if err != nil {
+		opts.logf("fields: discovery skipped: %v", err)
+		return nil
+	}
+	if err := refreshFieldUsage(db, cfg); err != nil {
+		opts.logf("fields: usage refresh skipped: %v", err)
+	}
+	if len(specs) == 0 {
+		opts.logf("fields: no custom fields in use")
+		return nil
+	}
+	opts.logf("fields: discovered %s custom fields in use — labels, filters, and editors configured", formatCount(len(specs)))
+	opts.logf("fields: backfilled %s issues from the mirror (no re-download)", formatCount(n))
+	return nil
+}
+
+// scanMirrorFill counts filled field ids across the mirror's stored raw JSON.
+func scanMirrorFill(db *store.DB) (map[string]int, error) {
+	fill := map[string]int{}
+	err := db.ScanFieldFill(func(_ string, fieldVals map[string]json.RawMessage) error {
+		for id, raw := range fieldVals {
+			if fields.IsFilled(raw) {
+				fill[id]++
+			}
+		}
+		return nil
+	})
+	return fill, err
+}
+
+// reingestFromConfig rewrites issues.custom and FTS body from raw using specs.
+func reingestFromConfig(db *store.DB, cfg *config.Config) (int, error) {
+	specs := cfg.FieldSpecs()
+	bodyIDs := fields.BodyFieldIDs(cfg.BodyFields, specs)
+	return db.ReingestCustom(fields.SpecIDsFrom(specs), bodyIDs)
+}
+
+// refreshFieldUsage recomputes the field_usage table from issues.custom.
+func refreshFieldUsage(db *store.DB, cfg *config.Config) error {
+	specs := cfg.FieldSpecs()
+	if len(specs) == 0 {
+		return db.ReplaceFieldUsage(nil)
+	}
+	aliases := make([]string, 0, len(specs))
+	for _, s := range specs {
+		if s.Alias != "" {
+			aliases = append(aliases, s.Alias)
+		}
+	}
+	rows, err := db.ComputeFieldUsage(aliases)
+	if err != nil {
+		return err
+	}
+	return db.ReplaceFieldUsage(rows)
 }
 
 // approxCount asks Jira for a progress denominator. Any failure or timeout is
@@ -393,7 +490,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	}
 
 	body := []string{jira.PlainText(f.Description)}
-	for _, id := range cfg.BodyFields {
+	for _, id := range fields.BodyFieldIDs(cfg.BodyFields, cfg.FieldSpecs()) {
 		if text := jira.PlainText(iss.Extra[id]); text != "" {
 			body = append(body, text)
 		}
@@ -437,7 +534,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		EnvironmentText: jira.PlainText(f.Environment),
 		Duedate:         f.Duedate,
 		DescriptionADF:  f.Description,
-		Custom:          custom(cfg.FieldMap, iss.Extra),
+		Custom:          custom(cfg.FieldSpecs(), iss.Extra),
 		Raw:             iss.Raw,
 	}
 	if f.Priority != nil {
@@ -509,31 +606,20 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	return rec, nil
 }
 
-// custom lands the configured aliases in issues.custom. Ids are configuration,
-// never code (contracts/sync.md, "Field mapping").
-func custom(fieldMap map[string]string, extra map[string]json.RawMessage) map[string]any {
-	if len(fieldMap) == 0 {
-		return nil
-	}
-	out := map[string]any{}
-	for alias, id := range fieldMap {
-		raw, ok := extra[id]
-		if !ok || len(raw) == 0 || string(raw) == "null" {
-			continue
-		}
-		var v any
-		if json.Unmarshal(raw, &v) != nil {
-			continue
-		}
-		out[alias] = v
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+// custom lands the configured aliases in issues.custom. Specs coalesce the
+// first filled id; body-role values are included so the web can render them.
+// Ids are configuration, never code (contracts/sync.md, "Field mapping").
+func custom(specs []config.FieldSpec, extra map[string]json.RawMessage) map[string]any {
+	return fields.CoalesceSpecs(specs, extra)
 }
 
-func fieldList(cfg *config.Config) []string {
+// fieldList is the Search fields= argument. Discovery-mode full sync uses
+// *all so every custom value lands in raw; otherwise base fields plus every
+// id from FieldSpecs and BodyFields (base first, de-duplicated).
+func fieldList(cfg *config.Config, full bool) []string {
+	if cfg != nil && full && len(cfg.Fields) == 0 && len(cfg.FieldMap) == 0 {
+		return []string{"*all"}
+	}
 	seen := map[string]bool{}
 	out := []string{}
 	for _, f := range baseFields {
@@ -541,9 +627,14 @@ func fieldList(cfg *config.Config) []string {
 			seen[f], out = true, append(out, f)
 		}
 	}
-	for _, id := range cfg.FieldMap {
-		if id != "" && !seen[id] {
-			seen[id], out = true, append(out, id)
+	if cfg == nil {
+		return out
+	}
+	for _, s := range cfg.FieldSpecs() {
+		for _, id := range s.IDs {
+			if id != "" && !seen[id] {
+				seen[id], out = true, append(out, id)
+			}
 		}
 	}
 	for _, id := range cfg.BodyFields {

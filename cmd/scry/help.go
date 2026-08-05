@@ -225,11 +225,19 @@ var helps = map[string]cmdHelp{
 	},
 	"fields": {
 		summary: "report which custom fields are populated (samples the mirror; queries Jira)",
-		usage:   "scry [--profile <name>] fields [--sample N] [--json] [--all] [--project KEY]",
+		usage:   "scry [--profile <name>] fields [--sample N] [--json] [--all] [--project KEY] [--apply]",
+		options: []helpOption{
+			{name: "sample", desc: "number of mirrored issues to sample (default 200)"},
+			{name: "json", desc: "emit JSON"},
+			{name: "all", desc: "include system fields (default: custom only)"},
+			{name: "project", desc: "limit the sample to one project key"},
+			{name: "apply", desc: "discover in-use custom fields from the mirror, save specs, and backfill (no re-download)"},
+		},
 		examples: []string{
 			"scry fields",
 			"scry fields --sample 100 --project NMB",
 			"scry fields --all --json",
+			"scry fields --apply",
 		},
 		seeAlso: []string{"scry status", "scry sync", "scry sql"},
 	},

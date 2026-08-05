@@ -26,6 +26,7 @@ type Document struct {
 // JSON tags match config.Config so a human can diff against ~/.scry/config.json.
 type TeamSettings struct {
 	Projects            []string                  `json:"projects,omitempty"`
+	Fields              []config.FieldSpec        `json:"fields,omitempty"`
 	FieldMap            map[string]string         `json:"fieldMap,omitempty"`
 	BodyFields          []string                  `json:"bodyFields,omitempty"`
 	EditableFields      map[string]string         `json:"editableFields,omitempty"`
@@ -65,6 +66,7 @@ func BuildDocument(cfg *config.Config, views []store.SavedView, opts ExportOptio
 	}
 	s := TeamSettings{
 		Projects:            copyStrings(cfg.Projects),
+		Fields:              copyFieldSpecs(cfg.Fields),
 		FieldMap:            copyStringMap(cfg.FieldMap),
 		BodyFields:          copyStrings(cfg.BodyFields),
 		EditableFields:      copyStringMap(cfg.EditableFields),
@@ -197,5 +199,19 @@ func copyMembers(in []config.Member) []config.Member {
 	}
 	out := make([]config.Member, len(in))
 	copy(out, in)
+	return out
+}
+
+func copyFieldSpecs(in []config.FieldSpec) []config.FieldSpec {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]config.FieldSpec, len(in))
+	for i, s := range in {
+		out[i] = s
+		if s.IDs != nil {
+			out[i].IDs = append([]string(nil), s.IDs...)
+		}
+	}
 	return out
 }

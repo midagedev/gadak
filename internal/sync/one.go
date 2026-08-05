@@ -39,7 +39,7 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 	}
 
 	found := false
-	err = c.Search(ctx, fmt.Sprintf("key = %q", key), fieldList(cfg), true, func(issues []jira.Issue) error {
+	err = c.Search(ctx, fmt.Sprintf("key = %q", key), fieldList(cfg, false), true, func(issues []jira.Issue) error {
 		// Force rewrites the row even when `updated` looks unchanged. That is the
 		// point: the rewrite is what moves synced_at and bumps sync_state.version,
 		// so the client's next delta carries the row and its ETag no longer matches.

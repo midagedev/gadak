@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 // Member is one entry of the static member directory injected through settings.
@@ -60,11 +61,12 @@ type Config struct {
 	AccountID string `json:"account_id,omitempty"`
 
 	// Sync field mapping (contracts/sync.md, "Field mapping").
-	FieldMap   map[string]string `json:"fieldMap,omitempty"`   // alias -> customfield_xxxxx
-	BodyFields []string          `json:"bodyFields,omitempty"` // ADF custom-field ids to fold into FTS
-
-	// Write allowlist: alias -> field id. Empty hides the inline edit UI entirely.
-	EditableFields map[string]string `json:"editableFields,omitempty"`
+	// Fields is the sole truth when present. FieldMap/EditableFields remain for
+	// legacy configs; FieldSpecs() synthesizes them into one shape.
+	Fields         []FieldSpec       `json:"fields,omitempty"`
+	FieldMap       map[string]string `json:"fieldMap,omitempty"`       // alias -> customfield_xxxxx (legacy)
+	BodyFields     []string          `json:"bodyFields,omitempty"`     // ADF custom-field ids to fold into FTS
+	EditableFields map[string]string `json:"editableFields,omitempty"` // alias -> field id (legacy write allowlist)
 
 	// Optional surfaces carried over from the tool this was extracted from.
 	Members        []Member           `json:"members,omitempty"`
@@ -90,6 +92,19 @@ type Config struct {
 	// new personal-feed events. Default true when absent; set false to opt out.
 	// Pointer so omitempty can distinguish "unset" from explicit false.
 	Notify *bool `json:"notify,omitempty"`
+}
+
+// FieldSpec is one logical custom field. Jira creates a separate field id per
+// board template for the same concept, so one spec can carry several ids; the
+// sync coalesces the first filled value (measured fact: 57 of 353 custom field
+// names on one large site map to 2+ ids).
+type FieldSpec struct {
+	Alias string   `json:"alias"`          // stable key: ascii slug of the name, else cf_<id>
+	Label string   `json:"label"`          // Jira display name, in the account's language
+	IDs   []string `json:"ids"`            // all field ids sharing the name, most-filled first
+	Role  string   `json:"role"`           // body | facet | user | plain
+	Kind  string   `json:"kind,omitempty"` // editor: option | multi_option | user | version_array | ""
+	Auto  bool     `json:"auto,omitempty"` // discovery-owned; regenerated on re-apply
 }
 
 // Sync loop defaults and floors. Zero in the file means "use default".
@@ -256,4 +271,40 @@ func (c *Config) NotifyEnabled() bool {
 		return true
 	}
 	return *c.Notify
+}
+
+// FieldSpecs returns the effective field specs. Legacy configs that predate
+// Fields carry FieldMap/EditableFields instead; synthesize specs from them so
+// every consumer reads one shape. Fields, when present, is the sole truth.
+func (c *Config) FieldSpecs() []FieldSpec {
+	if c == nil {
+		return nil
+	}
+	if len(c.Fields) > 0 {
+		return c.Fields
+	}
+	if len(c.FieldMap) == 0 {
+		return nil
+	}
+	out := make([]FieldSpec, 0, len(c.FieldMap))
+	// Stable order for tests and logs.
+	aliases := make([]string, 0, len(c.FieldMap))
+	for a := range c.FieldMap {
+		aliases = append(aliases, a)
+	}
+	sort.Strings(aliases)
+	for _, alias := range aliases {
+		id := c.FieldMap[alias]
+		if id == "" {
+			continue
+		}
+		out = append(out, FieldSpec{
+			Alias: alias,
+			Label: alias,
+			IDs:   []string{id},
+			Role:  "facet",
+			Auto:  false,
+		})
+	}
+	return out
 }

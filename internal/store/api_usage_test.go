@@ -6,8 +6,8 @@ import (
 
 func TestAPIUsageAccumulatesAndOrders(t *testing.T) {
 	db := openTemp(t)
-	if db.SchemaVersion() != 6 {
-		t.Fatalf("schema version %d, want 6", db.SchemaVersion())
+	if db.SchemaVersion() != len(migrations) {
+		t.Fatalf("schema version %d, want %d", db.SchemaVersion(), len(migrations))
 	}
 
 	if err := db.AddAPIUsage("2026-08-04", APIUsageDelta{
@@ -54,16 +54,17 @@ func TestAPIUsageAccumulatesAndOrders(t *testing.T) {
 	}
 }
 
-func TestNewDBSchemaVersionIs6(t *testing.T) {
+func TestNewDBSchemaVersionMatchesMigrations(t *testing.T) {
 	db := openTemp(t)
-	if got := db.SchemaVersion(); got != 6 {
-		t.Fatalf("SchemaVersion = %d, want 6", got)
+	want := len(migrations)
+	if got := db.SchemaVersion(); got != want {
+		t.Fatalf("SchemaVersion = %d, want %d", got, want)
 	}
 	var uv int
 	if err := db.sql.QueryRow("PRAGMA user_version").Scan(&uv); err != nil {
 		t.Fatal(err)
 	}
-	if uv != 6 {
-		t.Fatalf("PRAGMA user_version = %d, want 6", uv)
+	if uv != want {
+		t.Fatalf("PRAGMA user_version = %d, want %d", uv, want)
 	}
 }

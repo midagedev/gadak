@@ -94,6 +94,9 @@ func countSettingsKeys(s teamconfig.TeamSettings) int {
 	if len(s.Projects) > 0 {
 		n++
 	}
+	if len(s.Fields) > 0 {
+		n++
+	}
 	if len(s.FieldMap) > 0 {
 		n++
 	}

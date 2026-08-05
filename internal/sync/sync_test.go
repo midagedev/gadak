@@ -46,6 +46,8 @@ type fakeSite struct {
 	keyOnlyRun int
 	// allJQLs records every search/jql body (sync + reconcile) for empty-scope tests.
 	allJQLs []string
+	// fieldCatalog, when set, is returned from GET /rest/api/3/field (discovery).
+	fieldCatalog []map[string]any
 }
 
 func newSite(t *testing.T, lang string) *fakeSite {
@@ -69,6 +71,12 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write(statusesJSON(f.lang))
 	case r.URL.Path == "/rest/api/3/priority":
 		w.Write([]byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"},{"id":"4","name":"Low"}]`))
+	case r.URL.Path == "/rest/api/3/field":
+		cat := f.fieldCatalog
+		if cat == nil {
+			cat = []map[string]any{}
+		}
+		_ = json.NewEncoder(w).Encode(cat)
 	case r.URL.Path == "/rest/api/3/search/approximate-count":
 		f.count(w, r)
 	case r.URL.Path == "/rest/api/3/search/jql":

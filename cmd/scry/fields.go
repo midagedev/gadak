@@ -14,11 +14,11 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"unicode"
 
 	"github.com/mattn/go-runewidth"
 
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/fields"
 	"github.com/midagedev/scry/internal/jira"
 )
 
@@ -61,8 +61,12 @@ func cmdFields(args []string) error {
 	asJSON := fs.Bool("json", false, "emit JSON")
 	showAll := fs.Bool("all", false, "include system fields (default: custom only)")
 	project := fs.String("project", "", "limit the sample to one project key")
+	apply := fs.Bool("apply", false, "discover custom fields from the mirror and save specs")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *apply {
+		return cmdFieldsApply(*asJSON)
 	}
 	if *sampleN < 1 {
 		return errors.New("--sample must be at least 1")
@@ -353,40 +357,6 @@ func evenIndices(count, want int) []int {
 	return out
 }
 
-// isFilled reports whether a Jira field value counts as "set" on an issue.
-// null, "", [], and {} are empty; 0 and false are filled (user-supplied values).
-func isFilled(raw json.RawMessage) bool {
-	if len(raw) == 0 {
-		return false
-	}
-	s := strings.TrimSpace(string(raw))
-	if s == "" || s == "null" {
-		return false
-	}
-	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
-		// Non-JSON garbage that is still present — treat as filled.
-		return true
-	}
-	if v == nil {
-		return false
-	}
-	switch x := v.(type) {
-	case string:
-		return x != ""
-	case []any:
-		return len(x) > 0
-	case map[string]any:
-		return len(x) > 0
-	case bool:
-		return true
-	case float64:
-		return true
-	default:
-		return true
-	}
-}
-
 // probeFieldFills searches issues in batches with fields=*all and counts how
 // many times each field id is filled.
 func probeFieldFills(ctx context.Context, c *jira.Client, keys []string) (map[string]int, error) {
@@ -401,7 +371,7 @@ func probeFieldFills(ctx context.Context, c *jira.Client, keys []string) (map[st
 		err := c.Search(ctx, jql, []string{"*all"}, false, func(issues []jira.Issue) error {
 			for _, iss := range issues {
 				for id, raw := range iss.Extra {
-					if isFilled(raw) {
+					if fields.IsFilled(raw) {
 						filled[id]++
 					}
 				}
@@ -413,6 +383,93 @@ func probeFieldFills(ctx context.Context, c *jira.Client, keys []string) (map[st
 		}
 	}
 	return filled, nil
+}
+
+// cmdFieldsApply runs discovery against the mirror (catalog + raw fill stats),
+// saves cfg.Fields, reingests custom/FTS, and refreshes field_usage.
+func cmdFieldsApply(asJSON bool) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if !cfg.HasCredential() {
+		return errors.New("no Jira credential — run `scry init` first")
+	}
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	has, err := db.HasCustomFieldKeysInRaw()
+	if err != nil {
+		return err
+	}
+	if !has {
+		msg := "mirror was synced without custom fields — run `scry sync --full` first, then re-run"
+		if asJSON {
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{"message": msg, "applied": 0})
+		}
+		fmt.Println(msg)
+		return nil
+	}
+
+	ctx := context.Background()
+	c := jira.New(cfg.Site, cfg.Email, cfg.Token)
+	catalog, err := c.Fields(ctx)
+	if err != nil {
+		return fmt.Errorf("list fields: %w", err)
+	}
+	fill := map[string]int{}
+	if err := db.ScanFieldFill(func(_ string, fieldVals map[string]json.RawMessage) error {
+		for id, raw := range fieldVals {
+			if fields.IsFilled(raw) {
+				fill[id]++
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	specs := fields.Discover(catalog, fill, cfg.Fields)
+	cfg.Fields = specs
+	if err := cfg.Save(); err != nil {
+		return err
+	}
+	bodyIDs := fields.BodyFieldIDs(cfg.BodyFields, specs)
+	if _, err := db.ReingestCustom(fields.SpecIDsFrom(specs), bodyIDs); err != nil {
+		return err
+	}
+	aliases := make([]string, 0, len(specs))
+	for _, s := range specs {
+		if s.Alias != "" {
+			aliases = append(aliases, s.Alias)
+		}
+	}
+	usage, err := db.ComputeFieldUsage(aliases)
+	if err != nil {
+		return err
+	}
+	if err := db.ReplaceFieldUsage(usage); err != nil {
+		return err
+	}
+
+	if asJSON {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"applied": len(specs),
+			"fields":  specs,
+		})
+	}
+	for _, s := range specs {
+		kind := s.Role
+		if s.Kind != "" {
+			kind = s.Role + "/" + s.Kind
+		}
+		fmt.Printf("%s  %s  %s  ids=%d\n", s.Alias, s.Label, kind, len(s.IDs))
+	}
+	fmt.Printf("applied %d field specs — restart `scry serve` to pick them up\n", len(specs))
+	return nil
 }
 
 func quoteJiraKeys(keys []string) string {
@@ -472,7 +529,7 @@ func buildFieldReport(catalog []jira.FieldInfo, filled map[string]int, sampled i
 			Alias:   idToAlias[f.ID],
 		}
 		if f.Custom && row.Alias == "" && rate >= mapSuggestMinRate {
-			row.Suggested = suggestAlias(f.Name, f.ID, usedAliases)
+			row.Suggested = fields.SuggestAlias(f.Name, f.ID, usedAliases)
 			usedAliases[row.Suggested] = true
 		}
 		rows = append(rows, row)
@@ -504,69 +561,6 @@ func buildFieldReport(catalog []jira.FieldInfo, filled map[string]int, sampled i
 	// When showAll, unused is custom-only bloat; used holds the rest.
 	// When custom-only, used is non-zero custom fields.
 	return fieldReport{rows: used, unused: unused, suggestedMap: suggested}
-}
-
-// suggestAlias turns a field display name into a snake_case alias, appending a
-// field-id tail when the base collides with an already used alias.
-// suggestAlias proposes a fieldMap key for a field the config does not name yet.
-//
-// The slug is ASCII-only, and a name with no ASCII letters falls back to the
-// field id (cf_10019). Two reasons, both from the same fact: Jira returns field
-// names in the account's own language. A Korean account calls customfield_10019
-// "순위" where an English one says "Rank", so a name-derived alias is not the
-// same on two machines — and a fieldMap is exactly the thing teams share with
-// `scry team export`. An id-derived alias is ugly but identical everywhere.
-func suggestAlias(name, fieldID string, used map[string]bool) string {
-	base := asciiSlug(name)
-	if base == "" {
-		base = fieldIDSlug(fieldID)
-	}
-	if base == "" {
-		base = "field"
-	}
-	if !used[base] {
-		return base
-	}
-	tail := fieldID
-	if strings.HasPrefix(fieldID, "customfield_") {
-		tail = strings.TrimPrefix(fieldID, "customfield_")
-	}
-	candidate := base + "_" + tail
-	if !used[candidate] {
-		return candidate
-	}
-	// Extremely unlikely: keep appending until free.
-	for i := 2; ; i++ {
-		c := fmt.Sprintf("%s_%d", candidate, i)
-		if !used[c] {
-			return c
-		}
-	}
-}
-
-// asciiSlug lowercases and snake-cases the ASCII letters and digits in s,
-// dropping everything else. Returns "" when s carries no ASCII alphanumerics,
-// which is the signal to fall back to the field id — see suggestAlias.
-func asciiSlug(s string) string {
-	var b strings.Builder
-	prevUnderscore := false
-	for _, r := range strings.ToLower(s) {
-		if r < unicode.MaxASCII && (unicode.IsLetter(r) || unicode.IsDigit(r)) {
-			b.WriteRune(r)
-			prevUnderscore = false
-			continue
-		}
-		if !prevUnderscore && b.Len() > 0 {
-			b.WriteByte('_')
-			prevUnderscore = true
-		}
-	}
-	return strings.Trim(b.String(), "_")
-}
-
-// fieldIDSlug turns customfield_10019 into cf_10019.
-func fieldIDSlug(fieldID string) string {
-	return "cf_" + strings.TrimPrefix(asciiSlug(fieldID), "customfield_")
 }
 
 func printFieldReport(report fieldReport, sampleN, mirrored, projects int) {

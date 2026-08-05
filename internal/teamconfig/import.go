@@ -224,6 +224,7 @@ func planSettings(cur *config.Config, in TeamSettings, overwrite bool) []Setting
 	// apply is unused in plan; ApplyPlan uses setSettingByKey.
 	items := []item{
 		{key: "projects", empty: len(cur.Projects) == 0, hasIn: len(in.Projects) > 0},
+		{key: "fields", empty: len(cur.Fields) == 0, hasIn: len(in.Fields) > 0},
 		{key: "fieldMap", empty: len(cur.FieldMap) == 0, hasIn: len(in.FieldMap) > 0},
 		{key: "bodyFields", empty: len(cur.BodyFields) == 0, hasIn: len(in.BodyFields) > 0},
 		{key: "editableFields", empty: len(cur.EditableFields) == 0, hasIn: len(in.EditableFields) > 0},
@@ -316,6 +317,8 @@ func applySetting(cfg *config.Config, key string, in TeamSettings) error {
 	switch key {
 	case "projects":
 		cfg.Projects = copyStrings(in.Projects)
+	case "fields":
+		cfg.Fields = copyFieldSpecs(in.Fields)
 	case "fieldMap":
 		cfg.FieldMap = copyStringMap(in.FieldMap)
 	case "bodyFields":

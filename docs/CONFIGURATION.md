@@ -25,9 +25,10 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `tokenVerifiedAt` | string (RFC3339) | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `tokenOwner` | string | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sync / `scry init` | Next sync / list scope; UI reload after save |
-| `fieldMap` | map alias→field id | `{}` | Settings → Field mapping | Next sync ingest |
-| `bodyFields` | string[] (field ids) | `[]` | Settings → Field mapping | Next sync (FTS body) |
-| `editableFields` | map alias→field id | `{}` | Settings → Field mapping | Immediate (empty hides inline edit) |
+| `fields` | FieldSpec[] | `[]` | Auto on first full sync / `scry fields --apply` (read-only on Settings GET as `fieldSpecs`) | Next sync ingest; `fieldUsage` on Settings is project→alias fill counts |
+| `fieldMap` | map alias→field id | `{}` | Settings → Field mapping (legacy; synthesized into `fields` when `fields` is empty) | Next sync ingest |
+| `bodyFields` | string[] (field ids) | `[]` | Settings → Field mapping | Next sync (FTS body); additive with role=body specs |
+| `editableFields` | map alias→field id | `{}` | Settings → Field mapping (legacy; Kind-bearing specs also enable inline edit) | Immediate |
 | `members` | Member[] | `[]` | Settings → Members | Immediate (cached projection invalidated) |
 | `groupRules` | GroupRule[] | `[]` | Settings → Teams | Immediate |
 | `groupLabels` | map | `{}` | Settings → Teams | Immediate |
@@ -39,6 +40,28 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | **After restart** of `scry serve` |
 | `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | **After restart** of `scry serve` |
 | `notify` | bool | **true** when absent | `config.json` (not on Settings UI) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
+
+### `fields` (FieldSpec)
+
+One logical custom field. Jira often creates a separate field id per board
+template for the same display name, so a spec can list several ids; sync
+coalesces the first filled value.
+
+| Field | Meaning |
+| --- | --- |
+| `alias` | Stable key (ASCII slug of the name, else `cf_<id>`) |
+| `label` | Jira display name (account language) |
+| `ids` | Field ids sharing that name, most-filled first |
+| `role` | `body` \| `facet` \| `user` \| `plain` |
+| `kind` | Editor: `option` \| `multi_option` \| `user` \| `version_array` \| empty |
+| `auto` | Discovery-owned; regenerated on `scry fields --apply` / re-discovery |
+
+When `fields` is empty, legacy `fieldMap` / `editableFields` are synthesized into
+specs for consumers. Discovery only writes `fields` (never rewrites `fieldMap`).
+The first full sync with neither map configured uses `fields=*all`, discovers
+in-use custom fields, saves specs, and backfills `issues.custom` from raw without
+re-download. Settings GET exposes `fieldSpecs` and `fieldUsage` as read-only;
+PUT ignores both so it cannot wipe discovery.
 
 ### Interval floors (settings `PUT`)
 
@@ -101,7 +124,7 @@ list. Credentials and per-machine prefs are never included.
 | Shared (export / import) | Not shared |
 | --- | --- |
 | `projects` | `site`, `email`, `token` |
-| `fieldMap`, `bodyFields`, `editableFields` | `account_id`, `tokenOwner`, `tokenVerifiedAt` |
+| `fields`, `fieldMap`, `bodyFields`, `editableFields` | `account_id`, `tokenOwner`, `tokenVerifiedAt` |
 | `groupRules`, `groupLabels`, `groupColors`, `productByGroup` | `syncIntervalSec`, `reconcileIntervalSec` |
 | `features`, `qaDashboardUrl`, `staleThresholdHours` | `notify`, `attachmentCacheMB` |
 | `members` only with `export --with-members` (emails; stderr warns) | personal machine intervals / notification prefs |

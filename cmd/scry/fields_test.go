@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/midagedev/scry/internal/fields"
 )
 
 func TestSampleIssueKeysDeterministicAndStratified(t *testing.T) {
@@ -119,47 +121,47 @@ func TestIsFilled(t *testing.T) {
 		{``, false},
 	}
 	for _, tc := range cases {
-		got := isFilled(json.RawMessage(tc.raw))
+		got := fields.IsFilled(json.RawMessage(tc.raw))
 		if got != tc.want {
-			t.Errorf("isFilled(%s) = %v, want %v", tc.raw, got, tc.want)
+			t.Errorf("IsFilled(%s) = %v, want %v", tc.raw, got, tc.want)
 		}
 	}
 }
 
 func TestSuggestAliasCollisionAppendsTail(t *testing.T) {
 	used := map[string]bool{"story_points": true}
-	got := suggestAlias("Story Points", "customfield_10016", used)
+	got := fields.SuggestAlias("Story Points", "customfield_10016", used)
 	if got != "story_points_10016" {
 		t.Errorf("got %q, want story_points_10016", got)
 	}
 	// No collision → plain snake_case.
-	got2 := suggestAlias("Epic Link", "customfield_10014", used)
+	got2 := fields.SuggestAlias("Epic Link", "customfield_10014", used)
 	if got2 != "epic_link" {
 		t.Errorf("got %q, want epic_link", got2)
 	}
 	// Second collision on the tailed form.
 	used[got] = true
-	got3 := suggestAlias("Story Points", "customfield_10016", used)
+	got3 := fields.SuggestAlias("Story Points", "customfield_10016", used)
 	if got3 != "story_points_10016_2" {
 		t.Errorf("got %q, want story_points_10016_2", got3)
 	}
 }
 
 func TestAsciiSlugDropsNonASCII(t *testing.T) {
-	if got := asciiSlug("Story Points"); got != "story_points" {
+	if got := fields.ASCIISlug("Story Points"); got != "story_points" {
 		t.Errorf("got %q", got)
 	}
-	if got := asciiSlug("  CF — Something!! "); got != "cf_something" {
+	if got := fields.ASCIISlug("  CF — Something!! "); got != "cf_something" {
 		t.Errorf("got %q", got)
 	}
 	// Jira localizes field names, so a Korean account sees "순위" where an
 	// English one sees "Rank". An alias built from that name would differ per
 	// machine, and a fieldMap is shared between machines.
-	if got := asciiSlug("순위"); got != "" {
-		t.Errorf("asciiSlug(%q) = %q, want empty so the caller falls back to the id", "순위", got)
+	if got := fields.ASCIISlug("순위"); got != "" {
+		t.Errorf("ASCIISlug(%q) = %q, want empty so the caller falls back to the id", "순위", got)
 	}
-	if got := suggestAlias("순위", "customfield_10019", map[string]bool{}); got != "cf_10019" {
-		t.Errorf("suggestAlias for a non-ASCII name = %q, want cf_10019", got)
+	if got := fields.SuggestAlias("순위", "customfield_10019", map[string]bool{}); got != "cf_10019" {
+		t.Errorf("SuggestAlias for a non-ASCII name = %q, want cf_10019", got)
 	}
 }
 

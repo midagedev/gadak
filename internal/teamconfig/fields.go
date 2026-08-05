@@ -8,6 +8,7 @@ package teamconfig
 // Keep this list as the single source of "what is team-shareable".
 var exportableConfigFields = []string{
 	"Projects",
+	"Fields",
 	"FieldMap",
 	"BodyFields",
 	"EditableFields",

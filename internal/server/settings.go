@@ -113,9 +113,12 @@ type settingsDoc struct {
 
 	// Read-only context for the UI. Ignored on PUT — the site and the token are
 	// the credential endpoint's business (T4). runtime is assembled per request.
-	Site          string       `json:"site"`
-	HasCredential bool         `json:"hasCredential"`
-	Runtime       *runtimeInfo `json:"runtime,omitempty"`
+	// fieldSpecs / fieldUsage are discovery output; PUT must not clobber Fields.
+	Site          string                    `json:"site"`
+	HasCredential bool                      `json:"hasCredential"`
+	Runtime       *runtimeInfo              `json:"runtime,omitempty"`
+	FieldSpecsOut []config.FieldSpec        `json:"fieldSpecs"` // read-only; PUT ignores
+	FieldUsage    map[string]map[string]int `json:"fieldUsage"` // project → alias → filled; read-only
 }
 
 func (s *server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
@@ -201,6 +204,26 @@ func settings(cfg *config.Config) settingsDoc {
 func (s *server) settingsResponse(cfg *config.Config) settingsDoc {
 	doc := settings(cfg)
 	doc.Runtime = s.runtimeInfo()
+	// Read-only discovery surfaces — never written by handlePutSettings.
+	specs := cfg.FieldSpecs()
+	if specs == nil {
+		doc.FieldSpecsOut = []config.FieldSpec{}
+	} else {
+		doc.FieldSpecsOut = specs
+	}
+	doc.FieldUsage = map[string]map[string]int{}
+	if s.db != nil {
+		if rows, err := s.db.FieldUsage(); err == nil {
+			for _, r := range rows {
+				m := doc.FieldUsage[r.ProjectKey]
+				if m == nil {
+					m = map[string]int{}
+					doc.FieldUsage[r.ProjectKey] = m
+				}
+				m[r.Alias] = r.Filled
+			}
+		}
+	}
 	return doc
 }
 

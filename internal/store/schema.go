@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -223,5 +223,17 @@ CREATE TABLE api_usage (
   retries           INTEGER NOT NULL DEFAULT 0,
   wait_ms           INTEGER NOT NULL DEFAULT 0,
   last_throttled_at TEXT
+);
+`
+
+// schemaV7 records per-project fill counts for discovered custom field aliases
+// (issues.custom after specs applied). Recomputed after discovery or full sync.
+const schemaV7 = `
+CREATE TABLE field_usage (
+  project_key TEXT NOT NULL,
+  alias       TEXT NOT NULL,
+  filled      INTEGER NOT NULL,
+  total       INTEGER NOT NULL,
+  PRIMARY KEY (project_key, alias)
 );
 `
