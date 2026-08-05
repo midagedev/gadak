@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/store"
 )
 
 // Version is the scry release string exposed on GET settings/ under runtime.
@@ -86,6 +87,10 @@ type runtimeInfo struct {
 	// Defaults the UI shows as placeholders when the stored interval is 0.
 	DefaultSyncIntervalSec      int `json:"defaultSyncIntervalSec"`
 	DefaultReconcileIntervalSec int `json:"defaultReconcileIntervalSec"`
+	// ApiUsage is our process's outbound Jira call volume (today + 7-day
+	// rollup), not Jira's remaining rate-limit budget. Omitted only if the
+	// mirror cannot be read; zeros are still a valid document.
+	ApiUsage *store.APIUsageSummary `json:"apiUsage,omitempty"`
 }
 
 // settingsDoc is everything the settings UI may read and write. The credential
@@ -238,6 +243,9 @@ func (s *server) runtimeInfo() *runtimeInfo {
 			if st.SchemaVersion > 0 {
 				info.SchemaVersion = st.SchemaVersion
 			}
+		}
+		if summary, err := s.db.APIUsageSummary(); err == nil {
+			info.ApiUsage = &summary
 		}
 	}
 	return info

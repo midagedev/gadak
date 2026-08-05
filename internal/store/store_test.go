@@ -38,6 +38,7 @@ var documentedColumns = map[string][]string{
 		"first_sync_at", "sync_count", "last_notified_at"},
 	"enrichments": {"key", "kind", "payload", "source", "updated_at"},
 	"feed_reads":  {"event_id", "read_at"},
+	"api_usage":   {"day", "requests", "throttled", "server_errors", "retries", "wait_ms", "last_throttled_at"},
 }
 
 func TestSchemaMatchesDataModel(t *testing.T) {

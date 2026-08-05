@@ -36,6 +36,10 @@ type Client struct {
 	// wait, doubling per attempt and capped at 30 s.
 	Retries int
 	Backoff time.Duration
+
+	// usage is process-local call volume; see Usage / TakeUsage. Never blocks
+	// a request on instrumentation failure (counters are atomic).
+	usage usage
 }
 
 func New(site, email, token string) *Client {
@@ -86,17 +90,21 @@ func (c *Client) call(ctx context.Context, method, path string, body, out any, m
 			req.Header.Set("Content-Type", "application/json")
 		}
 		res, err := c.HTTP.Do(req)
+		// Count every attempt that left the process; retries each draw rate budget.
+		c.usage.noteRequest()
 		if err != nil {
 			if attempt < c.Retries-1 && !mutating {
 				if werr := c.wait(ctx, attempt, ""); werr != nil {
 					return werr
 				}
+				c.usage.noteRetry()
 				continue
 			}
 			return fmt.Errorf("%s %s: %w", method, path, err)
 		}
 		data, readErr := io.ReadAll(io.LimitReader(res.Body, 64<<20))
 		res.Body.Close()
+		c.usage.noteStatus(res.StatusCode)
 		switch {
 		case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
 			return fmt.Errorf("%s %s: %w (%s)", method, path, ErrAuth, res.Status)
@@ -104,6 +112,7 @@ func (c *Client) call(ctx context.Context, method, path string, body, out any, m
 			if werr := c.wait(ctx, attempt, res.Header.Get("Retry-After")); werr != nil {
 				return werr
 			}
+			c.usage.noteRetry()
 			continue
 		case res.StatusCode >= 300:
 			return apiError(method, path, res.StatusCode, res.Status, data)
@@ -137,10 +146,13 @@ func (c *Client) wait(ctx context.Context, attempt int, retryAfter string) error
 	if d <= 0 {
 		return ctx.Err()
 	}
+	start := time.Now()
 	select {
 	case <-ctx.Done():
+		c.usage.noteWait(time.Since(start))
 		return ctx.Err()
 	case <-time.After(d):
+		c.usage.noteWait(time.Since(start))
 		return nil
 	}
 }

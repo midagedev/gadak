@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testClient(t *testing.T, h http.Handler) *Client {
@@ -171,6 +172,69 @@ func TestFieldsParsesCatalog(t *testing.T) {
 	}
 	if got[1].Schema.Type != "number" || !strings.Contains(got[1].Schema.Custom, "float") {
 		t.Errorf("custom schema = %+v", got[1].Schema)
+	}
+}
+
+func TestUsageCountsThrottleAndRetry(t *testing.T) {
+	calls := 0
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "0")
+			// Positive Retry-After seconds would sleep whole seconds; use header
+			// parse miss and a tiny Backoff so the test does not stall.
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.Write([]byte(`[{"id":"1","name":"Highest"}]`))
+	}))
+	// Backoff must be short: Retry-After "0" is ignored (s > 0 required), so
+	// wait uses Backoff << attempt. One millisecond keeps WaitMS > 0 without
+	// multi-second sleeps.
+	c.Backoff = time.Millisecond
+
+	got, err := c.Priorities(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != "Highest" {
+		t.Fatalf("priorities = %v", got)
+	}
+
+	u := c.Usage()
+	if u.Requests != 2 {
+		t.Errorf("Requests = %d, want 2", u.Requests)
+	}
+	if u.Throttled != 1 {
+		t.Errorf("Throttled = %d, want 1", u.Throttled)
+	}
+	if u.Retries != 1 {
+		t.Errorf("Retries = %d, want 1", u.Retries)
+	}
+	if u.ServerErrors != 0 {
+		t.Errorf("ServerErrors = %d, want 0", u.ServerErrors)
+	}
+	if u.WaitMS <= 0 {
+		t.Errorf("WaitMS = %d, want > 0", u.WaitMS)
+	}
+	if u.LastThrottledAt.IsZero() {
+		t.Error("LastThrottledAt is zero, want a UTC timestamp")
+	}
+
+	// TakeUsage zeroes counters but keeps LastThrottledAt.
+	taken := c.TakeUsage()
+	if taken.Requests != 2 || taken.Throttled != 1 {
+		t.Errorf("TakeUsage snapshot = %+v", taken)
+	}
+	after := c.Usage()
+	if after.Requests != 0 || after.Throttled != 0 || after.Retries != 0 || after.WaitMS != 0 {
+		t.Errorf("counters not zeroed after TakeUsage: %+v", after)
+	}
+	if after.LastThrottledAt.IsZero() {
+		t.Error("LastThrottledAt must survive TakeUsage")
+	}
+	if !after.LastThrottledAt.Equal(taken.LastThrottledAt) {
+		t.Errorf("LastThrottledAt moved: taken=%v after=%v", taken.LastThrottledAt, after.LastThrottledAt)
 	}
 }
 

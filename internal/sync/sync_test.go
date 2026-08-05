@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -698,5 +699,58 @@ func TestRunRejectsMissingConfig(t *testing.T) {
 	cfg.Projects = nil
 	if _, err := Run(context.Background(), cfg, db.DB, Options{}); err == nil {
 		t.Error("expected no configured projects to fail")
+	}
+}
+
+func TestRunFlushesAPIUsage(t *testing.T) {
+	site := newSite(t, "en")
+	db := newMirror(t)
+	c := site.start()
+	if _, err := Run(context.Background(), testConfig(), db.DB, Options{Full: true, Client: c}); err != nil {
+		t.Fatal(err)
+	}
+	days, err := db.APIUsage(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(days) != 1 {
+		t.Fatalf("api_usage rows = %d, want 1", len(days))
+	}
+	if days[0].Requests < 1 {
+		t.Errorf("requests = %d, want at least the status/priority/search calls", days[0].Requests)
+	}
+	// Client counters were taken by the flush.
+	if u := c.Usage(); u.Requests != 0 {
+		t.Errorf("client still holds %d requests after flush", u.Requests)
+	}
+}
+
+func TestFlushAPIUsageFailureDoesNotPropagate(t *testing.T) {
+	// Closed DB makes AddAPIUsage fail; flush must log and return without panic
+	// so a broken instrumentation path cannot fail the sync that produced traffic.
+	db := newMirror(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`[{"id":"1","name":"Highest"}]`))
+	}))
+	t.Cleanup(srv.Close)
+	c := jira.New(srv.URL, "a@b.c", "tok")
+	c.Retries, c.Backoff = 1, 0
+	if _, err := c.Priorities(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if c.Usage().Requests < 1 {
+		t.Fatal("setup: expected at least one counted request")
+	}
+	_ = db.Close()
+	var logs []string
+	flushAPIUsage(db.DB, c, func(format string, args ...any) {
+		logs = append(logs, fmt.Sprintf(format, args...))
+	})
+	if len(logs) != 1 || !strings.Contains(logs[0], "api usage flush") {
+		t.Fatalf("expected one flush log line, got %v", logs)
+	}
+	// Counters were still taken (we do not want to re-flush forever on a bad DB).
+	if c.Usage().Requests != 0 {
+		t.Errorf("TakeUsage should still zero the client: %+v", c.Usage())
 	}
 }

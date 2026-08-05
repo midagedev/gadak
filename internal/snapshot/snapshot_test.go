@@ -85,11 +85,22 @@ func TestPersonalDataDropped(t *testing.T) {
 	if version != 1 {
 		t.Errorf("version = %d, want 1", version)
 	}
-	if schema != 5 {
-		t.Errorf("schema_version = %d, want 5", schema)
+	// The contract is "a snapshot is built at this binary's migration level",
+	// not any particular number — pinning the literal made every new migration
+	// edit this line. Ask the store what current is.
+	fresh, err := store.Open(filepath.Join(t.TempDir(), "level.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantSchema := fresh.SchemaVersion()
+	_ = fresh.Close()
+	if schema != wantSchema {
+		t.Errorf("schema_version = %d, want %d (current migration level)", schema, wantSchema)
 	}
 	// Personal tables must not carry rows; deleted_items / enrichments also empty.
-	for _, table := range []string{"deleted_items", "enrichments"} {
+	// api_usage is this machine's own Jira call volume — operational data that
+	// has no business travelling to whoever receives the snapshot.
+	for _, table := range []string{"deleted_items", "enrichments", "api_usage"} {
 		var n int
 		if err := db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
 			t.Fatalf("%s: %v", table, err)

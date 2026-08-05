@@ -64,10 +64,12 @@ keeps an installed mirror alive or removes a reason not to try one.
 
 ## Later, research-backed (see docs/PAIN_POINTS.md)
 
-- **Rate-limit visibility.** Jira's shared 65k-point pool has no user-facing
-  dashboard and 429s are invisible until they hit. The client already honors
-  `Retry-After` with backoff; counting and showing our own call volume would be
-  a dashboard Jira does not offer.
+- ✅ **Rate-limit visibility.** The Jira client counts outbound attempts,
+  429s, 5xx, retries, and backoff wait time; each sync cycle flushes into
+  `api_usage` (daily UTC rows). `scry status` / `status --json` and
+  `GET settings/` `runtime.apiUsage` expose today plus a 7-day rollup. This is
+  **our process's call volume**, not Jira's remaining shared point budget —
+  the site still does not expose that.
 - ✅ **Field-bloat report** (`scry fields`). Not a single SQL query: the mirror
   only stores custom fields listed in `fieldMap`, so the command lists fields
   from Jira (`GET /field`) and probes a stratified sample of mirrored issue

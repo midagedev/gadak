@@ -381,11 +381,35 @@ read-only context for the UI:
     "lastError": null,
     "scryVersion": "0.0.0-dev",
     "defaultSyncIntervalSec": 60,
-    "defaultReconcileIntervalSec": 3600
+    "defaultReconcileIntervalSec": 3600,
+    "apiUsage": {
+      "today": {
+        "day": "2026-08-05",
+        "requests": 1204,
+        "throttled": 2,
+        "server_errors": 0,
+        "retries": 2,
+        "wait_ms": 4500,
+        "last_throttled_at": "2026-08-05T14:03:00.000Z"
+      },
+      "last_7_days": {
+        "requests": 8400,
+        "throttled": 5,
+        "server_errors": 1,
+        "retries": 6,
+        "wait_ms": 12000,
+        "last_throttled_at": "2026-08-05T14:03:00.000Z"
+      }
+    }
   },
   "…": "…"
 }
 ```
+
+`runtime.apiUsage` is this process's outbound Jira call volume flushed into the
+mirror after each sync cycle (today plus a 7-day rollup). It is **not** Jira's
+remaining rate-limit point budget — the site does not expose that. Zeros mean
+no traffic was flushed yet, not "unlimited headroom".
 
 `PUT` replaces exactly the writable fields and preserves everything else in the
 file, credentials included; `site` and the token stay the credential endpoint's
@@ -425,6 +449,10 @@ documented). Paths are absolute. `profile` is `"default"` when no
 `--profile` / `SCRY_PROFILE` is set. `scryVersion` comes from `server.Version`
 (package var; `cmd/scry` should assign the ldflags version at startup — until
 wired, the default is `0.0.0-dev`).
+
+`apiUsage` (optional) carries `{today, last_7_days}` counters for outbound Jira
+HTTP volume recorded by this installation. See the sample document above; field
+semantics match the `api_usage` table in `data-model.md`.
 
 Each `features` flag gates a surface that needs a capability the server may not
 have: `feed` the personal feed and its polling, `push` Web Push and the service

@@ -653,39 +653,42 @@ func cmdStatus(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	db, err := openReadOnly()
+	// store.Open migrates the mirror (schema v6 api_usage). status only reads
+	// issue rows; it may create an empty mirror when none exists yet.
+	db, err := openStore()
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
 	st := map[string]any{"profile": config.Profile()}
-	row := db.QueryRow(`SELECT watermark, version, COALESCE(last_full_sync_at,''),
-		COALESCE(last_error,''), schema_version,
-		COALESCE(first_sync_at,''), COALESCE(sync_count, 0)
-		FROM sync_state WHERE source_id = 'jira'`)
-	var watermark, lastFull, lastErr, firstSync string
-	var ver, schema int
-	var syncCount int64
-	if err := row.Scan(&watermark, &ver, &lastFull, &lastErr, &schema, &firstSync, &syncCount); err == nil {
-		st["watermark"], st["version"], st["last_full_sync_at"], st["schema_version"] = watermark, ver, lastFull, schema
-		st["sync_count"] = syncCount
-		if firstSync != "" {
-			st["first_sync_at"] = firstSync
+	if ss, err := db.SyncState("jira"); err == nil {
+		st["watermark"] = ss.Watermark
+		st["version"] = ss.Version
+		st["schema_version"] = ss.SchemaVersion
+		st["sync_count"] = ss.SyncCount
+		if ss.LastFullSyncAt != nil && *ss.LastFullSyncAt != "" {
+			st["last_full_sync_at"] = *ss.LastFullSyncAt
 		}
-		if lastErr != "" {
-			st["last_error"] = lastErr
+		if ss.LastError != nil && *ss.LastError != "" {
+			st["last_error"] = *ss.LastError
+		}
+		if ss.FirstSyncAt != nil && *ss.FirstSyncAt != "" {
+			st["first_sync_at"] = *ss.FirstSyncAt
 		}
 	}
-	for name, q := range map[string]string{
-		"issues":   "SELECT COUNT(*) FROM issues",
-		"comments": "SELECT COUNT(*) FROM comments",
-	} {
-		var n int
-		if err := db.QueryRow(q).Scan(&n); err == nil {
-			st[name] = n
-		}
+	if n, err := db.TableCount("issues"); err == nil {
+		st["issues"] = n
 	}
+	if n, err := db.TableCount("comments"); err == nil {
+		st["comments"] = n
+	}
+	usage, err := db.APIUsageSummary()
+	if err != nil {
+		usage = store.APIUsageSummary{Today: store.APIUsageDay{Day: time.Now().UTC().Format("2006-01-02")}}
+	}
+	st["api_usage"] = usage
+
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(st)
 	}
@@ -694,7 +697,38 @@ func cmdStatus(args []string) error {
 			fmt.Printf("%-18s %v\n", k, v)
 		}
 	}
+	if line := formatAPIUsageLine(usage); line != "" {
+		fmt.Printf("%-18s %s\n", "api (today)", line)
+	}
 	return nil
+}
+
+// formatAPIUsageLine returns "" when nothing has been counted in the last week,
+// so a fresh or credential-less profile does not carry a line that only ever
+// says zero. The value is aligned with the other status rows by the caller.
+func formatAPIUsageLine(u store.APIUsageSummary) string {
+	if u.Today.Requests == 0 && u.Last7Days.Requests == 0 {
+		return ""
+	}
+	line := fmt.Sprintf("%d requests", u.Today.Requests)
+	if u.Last7Days.Requests != u.Today.Requests {
+		line += fmt.Sprintf(" (%d in 7 days)", u.Last7Days.Requests)
+	}
+	if u.Today.Throttled > 0 {
+		line += fmt.Sprintf(", %d throttled", u.Today.Throttled)
+		at := u.Today.LastThrottledAt
+		if at == nil {
+			at = u.Last7Days.LastThrottledAt
+		}
+		if at != nil && *at != "" {
+			if t, err := time.Parse("2006-01-02T15:04:05.000Z", *at); err == nil {
+				line += fmt.Sprintf(" (last %s)", t.UTC().Format("15:04Z"))
+			} else if t, err := time.Parse(time.RFC3339, *at); err == nil {
+				line += fmt.Sprintf(" (last %s)", t.UTC().Format("15:04Z"))
+			}
+		}
+	}
+	return line
 }
 
 // cmdDemo serves the bundled snapshot from a throwaway home, so evaluating the

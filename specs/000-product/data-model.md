@@ -363,6 +363,23 @@ CREATE VIEW issues_full AS
 Prefer `issues_full` when the answer needs a human-readable title. The base
 `issues` table still has no title column — that lives on `items` (or this view).
 
+## `api_usage`
+
+Per-UTC-day outbound Jira HTTP volume accumulated by this process. **Personal
+operational data, not mirrored Jira content** — a wipe of this table loses only
+local rate-limit visibility, never issue history. Counts are our own call
+volume (including retries); they are not Jira's remaining point budget.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `day` | TEXT PK | UTC date, `YYYY-MM-DD` |
+| `requests` | INTEGER | HTTP attempts actually sent (each retry counts) |
+| `throttled` | INTEGER | 429 responses |
+| `server_errors` | INTEGER | 5xx responses, excluding 429 |
+| `retries` | INTEGER | Attempts re-sent after a wait |
+| `wait_ms` | INTEGER | Milliseconds spent sleeping for backoff / `Retry-After` |
+| `last_throttled_at` | TEXT | UTC timestamp of the most recent 429 that day, if any |
+
 ## Example queries
 
 These are the contract in practice. They must keep working across minor versions,

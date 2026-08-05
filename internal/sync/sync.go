@@ -80,6 +80,11 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 	if c == nil {
 		c = jira.New(cfg.Site, cfg.Email, cfg.Token)
 	}
+	// Flush call-volume counters into the mirror for every exit path of this
+	// pass (success, transport failure, auth failure). Instrumentation must
+	// never fail the sync itself — see flushAPIUsage. Watch also lands here
+	// once per cycle, so one-shot and watch share this single flush point.
+	defer flushAPIUsage(db, c, opts.logf)
 	if err := db.UpsertSource(store.Source{ID: SourceID, Kind: "jira", BaseURL: c.BaseURL()}); err != nil {
 		return res, err
 	}
@@ -218,6 +223,38 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 func record(db *store.DB, res Result, err error) error {
 	_ = db.RecordSync(SourceID, store.SyncResult{Err: err})
 	return err
+}
+
+// flushAPIUsage takes the client's process-local counters and accumulates them
+// into api_usage for the current UTC day. One-shot `scry sync` and each Watch
+// cycle both go through Run, so this is the single flush point.
+//
+// A flush failure is logged and swallowed: rate-limit visibility must not break
+// the sync that produced the traffic.
+func flushAPIUsage(db *store.DB, c *jira.Client, logf func(string, ...any)) {
+	if db == nil || c == nil {
+		return
+	}
+	u := c.TakeUsage()
+	if u.Requests == 0 && u.Throttled == 0 && u.ServerErrors == 0 && u.Retries == 0 && u.WaitMS == 0 {
+		return
+	}
+	delta := store.APIUsageDelta{
+		Requests:     u.Requests,
+		Throttled:    u.Throttled,
+		ServerErrors: u.ServerErrors,
+		Retries:      u.Retries,
+		WaitMS:       u.WaitMS,
+	}
+	if !u.LastThrottledAt.IsZero() {
+		delta.LastThrottledAt = u.LastThrottledAt.UTC().Format("2006-01-02T15:04:05.000Z")
+	}
+	day := time.Now().UTC().Format("2006-01-02")
+	if err := db.AddAPIUsage(day, delta); err != nil {
+		if logf != nil {
+			logf("api usage flush: %v", err)
+		}
+	}
 }
 
 // reconcile proves absence, which a search over an `updated >=` window cannot.

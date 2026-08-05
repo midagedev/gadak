@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -209,4 +209,19 @@ ALTER TABLE sync_state ADD COLUMN last_notified_at TEXT;
 CREATE VIEW issues_full AS
   SELECT it.title AS summary, i.*
   FROM issues i JOIN items it ON it.id = i.item_id;
+`
+
+// schemaV6 records per-day outbound Jira HTTP volume for rate-limit visibility.
+// This is personal operational data (our process's call counts), not mirrored
+// Jira content. Counters are flushed from the client after each sync cycle.
+const schemaV6 = `
+CREATE TABLE api_usage (
+  day               TEXT PRIMARY KEY,
+  requests          INTEGER NOT NULL DEFAULT 0,
+  throttled         INTEGER NOT NULL DEFAULT 0,
+  server_errors     INTEGER NOT NULL DEFAULT 0,
+  retries           INTEGER NOT NULL DEFAULT 0,
+  wait_ms           INTEGER NOT NULL DEFAULT 0,
+  last_throttled_at TEXT
+);
 `
