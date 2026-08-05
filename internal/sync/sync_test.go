@@ -34,11 +34,18 @@ type fakeSite struct {
 	failOffset int // offset of the sync page that answers 500; -1 for none
 	changelog  map[string]string
 	comments   map[string]string
+	// countFail, when true, makes approximate-count answer 500 so Run must
+	// continue without a progress denominator.
+	countFail bool
+	// lastCountJQL is the JQL last posted to approximate-count (tests assert it).
+	lastCountJQL string
 
 	mu         sync.Mutex
 	syncJQL    string
 	syncFields []string
 	keyOnlyRun int
+	// allJQLs records every search/jql body (sync + reconcile) for empty-scope tests.
+	allJQLs []string
 }
 
 func newSite(t *testing.T, lang string) *fakeSite {
@@ -62,6 +69,8 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write(statusesJSON(f.lang))
 	case r.URL.Path == "/rest/api/3/priority":
 		w.Write([]byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"},{"id":"4","name":"Low"}]`))
+	case r.URL.Path == "/rest/api/3/search/approximate-count":
+		f.count(w, r)
 	case r.URL.Path == "/rest/api/3/search/jql":
 		f.search(w, r)
 	case strings.HasSuffix(r.URL.Path, "/changelog"):
@@ -74,6 +83,22 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (f *fakeSite) count(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		JQL string `json:"jql"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		f.t.Fatalf("bad count body: %v", err)
+	}
+	f.lastCountJQL = body.JQL
+	if f.countFail {
+		http.Error(w, `{"errorMessages":["count boom"]}`, http.StatusInternalServerError)
+		return
+	}
+	// Approximate count = fixture size; good enough for progress-denominator tests.
+	_ = json.NewEncoder(w).Encode(map[string]int{"count": len(f.issues)})
+}
+
 func (f *fakeSite) search(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		JQL           string   `json:"jql"`
@@ -84,6 +109,7 @@ func (f *fakeSite) search(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		f.t.Fatalf("bad search body: %v", err)
 	}
+	f.allJQLs = append(f.allJQLs, body.JQL)
 	offset, _ := strconv.Atoi(body.NextPageToken)
 	keyOnly := body.Expand == "" // the reconcile pass asks for no changelog
 	if keyOnly {
@@ -695,10 +721,139 @@ func TestRunRejectsMissingConfig(t *testing.T) {
 	if _, err := Run(context.Background(), &config.Config{}, db.DB, Options{}); err == nil {
 		t.Error("expected a missing credential to fail before any request")
 	}
+}
+
+// TestEmptyProjectsJQL proves empty cfg.Projects never emits `project in ()`
+// and builds the three documented unscoped clauses.
+func TestEmptyProjectsJQL(t *testing.T) {
+	// String contracts (no network).
+	if got := fullJQL(""); got != "ORDER BY updated DESC" {
+		t.Errorf("full empty = %q", got)
+	}
+	if got := fullJQL("D1"); got != `project = "D1" ORDER BY updated DESC` {
+		t.Errorf("full one = %q", got)
+	}
+	incEmpty := incrementalJQL(nil, "2026-08-05T14:54:00.000+0000")
+	if incEmpty != `updated >= "2026/08/05 14:52" ORDER BY updated ASC` {
+		t.Errorf("incremental empty = %q", incEmpty)
+	}
+	if strings.Contains(incEmpty, "project") {
+		t.Errorf("incremental empty must not mention project: %q", incEmpty)
+	}
+	incOne := incrementalJQL([]string{"D1"}, "2026-08-05T14:54:00.000+0000")
+	if !strings.Contains(incOne, `project in ("D1")`) || strings.Contains(incOne, "project in ()") {
+		t.Errorf("incremental one = %q", incOne)
+	}
+	if got := reconcileJQL(nil); got != "ORDER BY created ASC" {
+		t.Errorf("reconcile empty = %q", got)
+	}
+	if got := reconcileJQL([]string{"D1", "D2"}); got != `project in ("D1", "D2") ORDER BY created ASC` {
+		t.Errorf("reconcile multi = %q", got)
+	}
+	if strings.Contains(reconcileJQL(nil), "project in ()") || strings.Contains(reconcileJQL([]string{}), "project in ()") {
+		t.Error("reconcile empty must not emit project in ()")
+	}
+
+	// End-to-end: empty projects full sync + reconcile hit the unscoped JQLs.
+	site := newSite(t, "en")
+	db := newMirror(t)
 	cfg := testConfig()
 	cfg.Projects = nil
-	if _, err := Run(context.Background(), cfg, db.DB, Options{}); err == nil {
-		t.Error("expected no configured projects to fail")
+	res, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: site.start()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Fetched != 3 {
+		t.Fatalf("fetched %d, want 3", res.Fetched)
+	}
+	if site.syncJQL != "ORDER BY updated DESC" {
+		t.Errorf("full search JQL = %q", site.syncJQL)
+	}
+	var sawReconcile bool
+	for _, j := range site.allJQLs {
+		if strings.Contains(j, "project in ()") {
+			t.Errorf("empty project clause leaked: %q", j)
+		}
+		if j == "ORDER BY created ASC" {
+			sawReconcile = true
+		}
+	}
+	if !sawReconcile {
+		t.Errorf("reconcile JQL missing; all = %v", site.allJQLs)
+	}
+
+	// Incremental with empty projects after a watermark is set.
+	site2 := newSite(t, "en")
+	client := site2.start()
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(site2.syncJQL, "updated >=") || !strings.HasSuffix(site2.syncJQL, "ORDER BY updated ASC") {
+		t.Errorf("incremental empty JQL = %q", site2.syncJQL)
+	}
+	if strings.Contains(site2.syncJQL, "project") {
+		t.Errorf("incremental empty must drop project filter: %q", site2.syncJQL)
+	}
+}
+
+func TestFormatCount(t *testing.T) {
+	cases := map[int]string{
+		0:       "0",
+		999:     "999",
+		1000:    "1,000",
+		6824:    "6,824",
+		1234567: "1,234,567",
+	}
+	for n, want := range cases {
+		if got := formatCount(n); got != want {
+			t.Errorf("formatCount(%d) = %q, want %q", n, got, want)
+		}
+	}
+}
+
+// TestCountFailureStillSyncs: approximate-count 500 must not fail the run, and
+// page progress lines must omit the denominator.
+func TestCountFailureStillSyncs(t *testing.T) {
+	site := newSite(t, "en")
+	site.countFail = true
+	db := newMirror(t)
+	var logs []string
+	res, err := Run(context.Background(), testConfig(), db.DB, Options{
+		Full:   true,
+		Client: site.start(),
+		Log:    func(s string) { logs = append(logs, s) },
+	})
+	if err != nil {
+		t.Fatalf("Run failed when Count failed: %v", err)
+	}
+	if res.Fetched != 3 {
+		t.Fatalf("fetched %d, want 3", res.Fetched)
+	}
+	joined := strings.Join(logs, "\n")
+	if strings.Contains(joined, "about ") {
+		t.Errorf("start line must omit about-count when Count fails:\n%s", joined)
+	}
+	if strings.Contains(joined, " / ") {
+		t.Errorf("page lines must omit denominator when Count fails:\n%s", joined)
+	}
+	// Page lines look like "  N issues" (two leading spaces).
+	sawBare := false
+	for _, line := range logs {
+		if strings.HasPrefix(line, "  ") && strings.HasSuffix(line, " issues") && !strings.Contains(line, "/") {
+			sawBare = true
+			break
+		}
+	}
+	if !sawBare {
+		t.Errorf("expected bare progress lines; logs:\n%s", joined)
+	}
+	if !strings.HasPrefix(logs[0], "full sync: NMB") {
+		t.Errorf("first log = %q", logs[0])
+	}
+	// done line still present with duration.
+	last := logs[len(logs)-1]
+	if !strings.HasPrefix(last, "done: ") || !strings.Contains(last, " in ") {
+		t.Errorf("done line = %q", last)
 	}
 }
 

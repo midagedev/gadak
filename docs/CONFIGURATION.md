@@ -24,7 +24,7 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `token` | string | _(empty)_ | Credential dialog / `scry init` | Immediate; **never** returned by `settings/` or `config.json` |
 | `tokenVerifiedAt` | string (RFC3339) | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `tokenOwner` | string | _(empty)_ | Set by successful credential verify | Read-only side effect |
-| `projects` | string[] | `[]` | Settings → Sync | Next sync / list scope; UI reload after save |
+| `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sync / `scry init` | Next sync / list scope; UI reload after save |
 | `fieldMap` | map alias→field id | `{}` | Settings → Field mapping | Next sync ingest |
 | `bodyFields` | string[] (field ids) | `[]` | Settings → Field mapping | Next sync (FTS body) |
 | `editableFields` | map alias→field id | `{}` | Settings → Field mapping | Immediate (empty hides inline edit) |

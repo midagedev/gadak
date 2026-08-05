@@ -68,13 +68,14 @@ func (o Options) logf(format string, args ...any) {
 // A failure leaves the pages already committed in place and does not advance the
 // watermark, so the next run re-reads from the last known-good point
 // (contracts/sync.md invariants 2 and 3).
+//
+// An empty cfg.Projects means no project filter: the account's full visible
+// issue set is the scope (one Search, not one per project).
 func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
 	var res Result
+	started := time.Now()
 	if !cfg.HasCredential() {
 		return res, errors.New("sync: site, email and token are required")
-	}
-	if len(cfg.Projects) == 0 {
-		return res, errors.New("sync: no projects configured")
 	}
 	c := opts.Client
 	if c == nil {
@@ -107,6 +108,10 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 
 	fields := fieldList(cfg)
 	var maxUTC, maxRaw string
+	// pageBase / unitDenom drive per-Search progress lines. unitDenom < 0 means
+	// the approximate count failed and the line has no denominator.
+	pageBase := 0
+	unitDenom := -1
 	page := func(issues []jira.Issue) error {
 		batch := store.Batch{Categories: cats, Priorities: prios, Records: make([]store.IssueRecord, 0, len(issues))}
 		for _, iss := range issues {
@@ -136,27 +141,74 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 				maxUTC, maxRaw = u, iss.Fields.Updated
 			}
 		}
-		opts.logf("page: %d issues, %d changed", len(issues), changed)
+		local := res.Fetched - pageBase
+		if unitDenom >= 0 {
+			pct := 0
+			if unitDenom > 0 {
+				pct = local * 100 / unitDenom
+				if pct > 100 {
+					pct = 100
+				}
+			}
+			opts.logf("  %s / %s  (%d%%)", formatCount(local), formatCount(unitDenom), pct)
+		} else {
+			opts.logf("  %s issues", formatCount(local))
+		}
 		if opts.Progress != nil {
 			opts.Progress(res.Fetched, res.Changed)
 		}
 		return nil
 	}
 
+	// beginSearch resets per-page progress counters and optionally asks Jira for
+	// a denominator. Count failures are silent (unitDenom stays -1). withAbout
+	// puts " — about N issues" on the start line (full sync only; incremental
+	// start lines carry the since-clock instead).
+	beginSearch := func(startLine, countJQL string, withAbout bool) {
+		pageBase = res.Fetched
+		unitDenom = -1
+		if opts.Log == nil {
+			// The denominator exists only for the log lines — Progress carries
+			// running totals, not a total. Watch loops run with no Log, and an
+			// unread count would be one extra request every cycle.
+			return
+		}
+		n, ok := approxCount(ctx, c, countJQL)
+		if ok {
+			unitDenom = n
+		}
+		if withAbout && ok {
+			opts.logf("%s — about %s issues", startLine, formatCount(n))
+			return
+		}
+		opts.logf("%s", startLine)
+	}
+
 	if res.Full {
-		for _, p := range cfg.Projects {
-			opts.logf("full sync: %s", p)
+		if len(cfg.Projects) == 0 {
+			jql := fullJQL("")
 			// Newest activity first: the mirror is usable the moment the first
 			// page lands, instead of after every historical issue. The watermark
 			// is max(updated) over fetched pages, so ordering does not affect it.
-			if err := c.Search(ctx, fmt.Sprintf("project = %q ORDER BY updated DESC", p), fields, true, page); err != nil {
+			beginSearch("full sync: every project this account can see", jql, true)
+			if err := c.Search(ctx, jql, fields, true, page); err != nil {
 				return res, record(db, res, err)
+			}
+		} else {
+			for _, p := range cfg.Projects {
+				jql := fullJQL(p)
+				// Newest activity first: the mirror is usable the moment the first
+				// page lands, instead of after every historical issue. The watermark
+				// is max(updated) over fetched pages, so ordering does not affect it.
+				beginSearch("full sync: "+p, jql, true)
+				if err := c.Search(ctx, jql, fields, true, page); err != nil {
+					return res, record(db, res, err)
+				}
 			}
 		}
 	} else {
-		jql := fmt.Sprintf("project in (%s) AND updated >= %q ORDER BY updated ASC",
-			quoteList(cfg.Projects), jqlTime(state.Watermark))
-		opts.logf("incremental: %s", jql)
+		jql := incrementalJQL(cfg.Projects, state.Watermark)
+		beginSearch("incremental: "+scopeLabel(cfg.Projects)+" — changes since "+sinceLabel(state.Watermark), jql, false)
 		if err := c.Search(ctx, jql, fields, true, page); err != nil {
 			return res, record(db, res, err)
 		}
@@ -174,8 +226,22 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 			return res, record(db, res, err)
 		}
 	}
-	opts.logf("done: %d fetched, %d changed, %d deleted", res.Fetched, res.Changed, res.Deleted)
+	elapsed := time.Since(started).Round(time.Second)
+	opts.logf("done: %s fetched, %s changed, %s deleted in %s",
+		formatCount(res.Fetched), formatCount(res.Changed), formatCount(res.Deleted), elapsed)
 	return res, nil
+}
+
+// approxCount asks Jira for a progress denominator. Any failure or timeout is
+// reported as ok=false; the caller continues without a denominator.
+func approxCount(ctx context.Context, c *jira.Client, jql string) (int, bool) {
+	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	n, err := c.Count(cctx, jql)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 // Watch runs incremental sync on an interval and reconcile on a longer one. A
@@ -259,9 +325,11 @@ func flushAPIUsage(db *store.DB, c *jira.Client, logf func(string, ...any)) {
 
 // reconcile proves absence, which a search over an `updated >=` window cannot.
 // It is a separate pass because its cost scales with total issue count.
+// Empty projects means the whole visible site is in scope: every mirrored key
+// not returned upstream is a candidate for deletion.
 func reconcile(ctx context.Context, c *jira.Client, db *store.DB, projects []string, opts Options) (int, error) {
 	upstream := map[string]bool{}
-	jql := fmt.Sprintf("project in (%s) ORDER BY created ASC", quoteList(projects))
+	jql := reconcileJQL(projects)
 	// summary rather than an empty list: the key comes back regardless, and an
 	// empty `fields` is the one thing Jira may answer with every field.
 	if err := c.Search(ctx, jql, []string{"summary"}, false, func(issues []jira.Issue) error {
@@ -277,13 +345,14 @@ func reconcile(ctx context.Context, c *jira.Client, db *store.DB, projects []str
 	if err != nil {
 		return 0, err
 	}
+	allProjects := len(projects) == 0
 	inScope := map[string]bool{}
 	for _, p := range projects {
 		inScope[strings.ToUpper(p)] = true
 	}
 	gone := []string{}
 	for _, l := range lites {
-		if inScope[strings.ToUpper(l.ProjectKey)] && !upstream[l.IssueKey] {
+		if (allProjects || inScope[strings.ToUpper(l.ProjectKey)]) && !upstream[l.IssueKey] {
 			gone = append(gone, l.IssueKey)
 		}
 	}
@@ -499,6 +568,79 @@ func quoteList(keys []string) string {
 		parts = append(parts, fmt.Sprintf("%q", k))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// fullJQL is the Search clause for a full pass. project empty → no project
+// filter (the account's full visible set). Never emits `project in ()`.
+func fullJQL(project string) string {
+	if project == "" {
+		return "ORDER BY updated DESC"
+	}
+	return fmt.Sprintf("project = %q ORDER BY updated DESC", project)
+}
+
+// incrementalJQL is the Search clause for an incremental pass. Empty projects
+// drops the project filter; never emits `project in ()`.
+func incrementalJQL(projects []string, watermark string) string {
+	floor := jqlTime(watermark)
+	if len(projects) == 0 {
+		return fmt.Sprintf("updated >= %q ORDER BY updated ASC", floor)
+	}
+	return fmt.Sprintf("project in (%s) AND updated >= %q ORDER BY updated ASC",
+		quoteList(projects), floor)
+}
+
+// reconcileJQL is the Search clause for the reconcile key scan. Empty projects
+// drops the project filter; never emits `project in ()`.
+func reconcileJQL(projects []string) string {
+	if len(projects) == 0 {
+		return "ORDER BY created ASC"
+	}
+	return fmt.Sprintf("project in (%s) ORDER BY created ASC", quoteList(projects))
+}
+
+// scopeLabel is the human scope fragment on incremental start lines.
+func scopeLabel(projects []string) string {
+	if len(projects) == 0 {
+		return "every project this account can see"
+	}
+	return strings.Join(projects, ", ")
+}
+
+// sinceLabel is the human "changes since …" clock for incremental start lines
+// (same floor jqlTime uses, dash-separated for readability).
+func sinceLabel(watermark string) string {
+	t, err := time.Parse(jira.Layout, watermark)
+	if err != nil {
+		if t, err = time.Parse(time.RFC3339, watermark); err != nil {
+			t = time.Now().Add(-24 * time.Hour)
+		}
+	}
+	return t.Add(-overlap).Format("2006-01-02 15:04")
+}
+
+// formatCount renders n with ASCII thousands separators (6824 → "6,824").
+// No external locale package — keep the binary dependency-free.
+func formatCount(n int) string {
+	if n < 0 {
+		return "-" + formatCount(-n)
+	}
+	s := fmt.Sprintf("%d", n)
+	if len(s) <= 3 {
+		return s
+	}
+	var b strings.Builder
+	// Leading group may be shorter than 3; then groups of three.
+	rem := len(s) % 3
+	if rem == 0 {
+		rem = 3
+	}
+	b.WriteString(s[:rem])
+	for i := rem; i < len(s); i += 3 {
+		b.WriteByte(',')
+		b.WriteString(s[i : i+3])
+	}
+	return b.String()
 }
 
 // jqlTime renders the watermark minus the overlap in JQL's minute-granularity

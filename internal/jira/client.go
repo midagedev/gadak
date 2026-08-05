@@ -200,6 +200,19 @@ func (c *Client) Search(ctx context.Context, jql string, fields []string, withCh
 	}
 }
 
+// Count returns Jira's approximate issue count for a JQL. It exists only to give
+// progress output a denominator, so a failure is not the caller's problem:
+// callers treat any error as "unknown" and keep going.
+func (c *Client) Count(ctx context.Context, jql string) (int, error) {
+	var out struct {
+		Count int `json:"count"`
+	}
+	if err := c.do(ctx, http.MethodPost, apiPath+"/search/approximate-count", map[string]any{"jql": jql}, &out); err != nil {
+		return 0, err
+	}
+	return out.Count, nil
+}
+
 // Changelog pages the full history of one issue, for the issues whose inline
 // expand=changelog came back truncated.
 func (c *Client) Changelog(ctx context.Context, key string) ([]History, error) {

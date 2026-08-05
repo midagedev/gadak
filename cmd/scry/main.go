@@ -182,11 +182,12 @@ func cmdServe(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Default: keep the mirror fresh whenever a credential exists. --no-sync
-	// opts out (fixtures with a fake token must pass it). --sync remains a
-	// silent alias when the loop would start anyway; with no credential it
-	// still prints the old guidance line.
-	startSync := !*noSync && cfg.HasCredential() && len(cfg.Projects) > 0
+	// Default: keep the mirror fresh whenever a credential exists. Empty
+	// projects means "everything this account can see". --no-sync opts out
+	// (fixtures with a fake token must pass it). --sync remains a silent alias
+	// when the loop would start anyway; with no credential it still prints the
+	// old guidance line.
+	startSync := !*noSync && cfg.HasCredential()
 	if *withSync && !startSync && !*noSync {
 		log.Printf("--sync ignored: run `scry init` first")
 	}
@@ -213,8 +214,8 @@ func cmdServe(args []string) error {
 	if p := config.Profile(); p != "" {
 		log.Printf("profile: %s", p)
 	}
-	if len(cfg.Projects) == 0 {
-		log.Printf("no projects configured — run `scry init`")
+	if len(cfg.Projects) == 0 && cfg.HasCredential() {
+		log.Printf("no project filter — syncing everything this account can see")
 	}
 	if !*noOpen {
 		go openOnceUp(browseAddr(*addr))
@@ -260,20 +261,22 @@ func parseProjectKeys(s string) []string {
 
 // initMissingError lists every value still empty and how to supply it without a
 // prompt. reason is why prompting was skipped (not a TTY, --json, --token-stdin).
+// projects is optional (empty = every project the account can see).
 func initMissingError(missing []string, reason string) error {
-	return fmt.Errorf("missing: %s (%s)\nsupply them with flags (--site, --email, --projects) or environment\n(SCRY_SITE, SCRY_EMAIL, SCRY_TOKEN, SCRY_PROJECTS); for the token also\n--token-file <path> or --token-stdin",
+	return fmt.Errorf("missing: %s (%s)\nsupply them with flags (--site, --email) or environment\n(SCRY_SITE, SCRY_EMAIL, SCRY_TOKEN); for the token also\n--token-file <path> or --token-stdin; optional --projects / SCRY_PROJECTS",
 		strings.Join(missing, ", "), reason)
 }
 
 // cmdInit writes site/email/token/projects to config after verifying against
 // /myself. Classic interactive mode (TTY, no supply flags/env, no --json)
-// re-prompts all four fields so a human can replace an expired token. Any
-// non-interactive supply turns prompting off entirely.
+// re-prompts credentials (and optional projects) so a human can replace an
+// expired token. Any non-interactive supply turns prompting off entirely.
+// Projects are optional: blank means sync every project the account can see.
 func cmdInit(args []string) error {
 	fs := newFlagSet("init")
 	siteFlag := fs.String("site", "", "Jira site URL (https://your-site.atlassian.net)")
 	emailFlag := fs.String("email", "", "account email")
-	projectsFlag := fs.String("projects", "", "project keys, comma-separated")
+	projectsFlag := fs.String("projects", "", "project keys, comma-separated (optional — blank syncs every project you can see)")
 	tokenFile := fs.String("token-file", "", "read API token from this file")
 	tokenStdin := fs.Bool("token-stdin", false, "read API token from stdin")
 	// Defined only so a mistaken `--token secret` gets a clear error instead of
@@ -339,7 +342,7 @@ func cmdInit(args []string) error {
 		if v := prompt(tokenLabel, ""); v != "" {
 			token = v
 		}
-		projects = parseProjectKeys(prompt("Project keys, comma-separated", strings.Join(projects, ",")))
+		projects = parseProjectKeys(prompt("Project keys, comma-separated (optional — blank syncs every project you can see)", strings.Join(projects, ",")))
 	} else {
 		// flag > env > saved; never prompt.
 		site = strings.TrimRight(cfg.Site, "/")
@@ -395,9 +398,7 @@ func cmdInit(args []string) error {
 		if token == "" {
 			missing = append(missing, "token")
 		}
-		if len(projects) == 0 {
-			missing = append(missing, "projects")
-		}
+		// projects is optional: empty means every project the account can see.
 		if len(missing) > 0 {
 			reason := "stdin is not a terminal, so init cannot prompt"
 			switch {
@@ -450,6 +451,9 @@ func cmdInit(args []string) error {
 		})
 	}
 	fmt.Printf("verified as %s — saved %s\n", name, p)
+	if len(cfg.Projects) == 0 {
+		fmt.Println("no project filter — syncing everything this account can see; narrow it later in Settings → Sync")
+	}
 	fmt.Println("next: scry sync")
 	return nil
 }
@@ -492,7 +496,7 @@ func cmdSync(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !cfg.HasCredential() || len(cfg.Projects) == 0 {
+	if !cfg.HasCredential() {
 		return fmt.Errorf("not configured — run `scry init` first")
 	}
 	db, err := openStore()

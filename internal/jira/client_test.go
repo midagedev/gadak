@@ -62,6 +62,32 @@ func TestAuthFailureAbortsWithoutRetry(t *testing.T) {
 	}
 }
 
+func TestCountApproximate(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/rest/api/3/search/approximate-count" {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		var body struct {
+			JQL string `json:"jql"`
+		}
+		decode(t, r, &body)
+		if body.JQL != `project = "NMB"` {
+			t.Errorf("jql = %q", body.JQL)
+		}
+		w.Write([]byte(`{"count":6824}`))
+	}))
+	n, err := c.Count(context.Background(), `project = "NMB"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 6824 {
+		t.Errorf("count = %d, want 6824", n)
+	}
+	if u := c.Usage(); u.Requests != 1 {
+		t.Errorf("Count must go through do() so usage counts it: Requests=%d", u.Requests)
+	}
+}
+
 func TestSearchFollowsPageTokens(t *testing.T) {
 	var seen []string
 	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

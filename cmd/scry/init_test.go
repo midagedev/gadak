@@ -147,24 +147,62 @@ func TestInitMissingNonTTY(t *testing.T) {
 			t.Fatal("expected error for missing values")
 		}
 		msg := err.Error()
-		for _, name := range []string{"site", "token", "projects"} {
+		// projects is optional; only site and token are still required.
+		for _, name := range []string{"site", "token"} {
 			if !strings.Contains(msg, name) {
 				t.Errorf("error should name missing %q: %s", name, msg)
 			}
 		}
+		first := msg
+		if i := strings.Index(msg, "\n"); i >= 0 {
+			first = msg[:i]
+		}
+		if strings.Contains(first, "projects") {
+			t.Errorf("projects is optional but listed missing: %s", first)
+		}
 		// email was supplied; must not be listed as missing.
-		if strings.Contains(msg, "missing: ") && strings.Contains(msg, "email") {
-			// Only fail if email appears in the missing list, not in the supply-help text.
-			// The missing list is the first line: "missing: site, token, projects (...)"
-			first := msg
-			if i := strings.Index(msg, "\n"); i >= 0 {
-				first = msg[:i]
-			}
-			if strings.Contains(first, "email") {
-				t.Errorf("email was supplied but listed missing: %s", first)
-			}
+		if strings.Contains(first, "email") {
+			t.Errorf("email was supplied but listed missing: %s", first)
 		}
 	})
+}
+
+// TestInitAllowsEmptyProjects: site/email/token alone is enough; blank projects
+// means every project the account can see.
+func TestInitAllowsEmptyProjects(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SCRY_HOME", home)
+	t.Setenv("SCRY_SITE", "")
+	t.Setenv("SCRY_EMAIL", "")
+	t.Setenv("SCRY_TOKEN", "")
+	t.Setenv("SCRY_PROJECTS", "")
+	config.SetProfile("")
+
+	srv := myselfServer(t)
+	var out string
+	withClosedStdin(t, func() {
+		var err error
+		out, err = capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "agent@example.com",
+				"--token-file", writeTokenFile(t, home, "no-projects-token"),
+			})
+		})
+		if err != nil {
+			t.Fatalf("init without projects: %v", err)
+		}
+	})
+	if !strings.Contains(out, "no project filter — syncing everything this account can see; narrow it later in Settings → Sync") {
+		t.Fatalf("expected empty-projects guidance line: %q", out)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Projects) != 0 {
+		t.Fatalf("projects = %v, want empty", cfg.Projects)
+	}
 }
 
 func TestInitRejectsTokenFlag(t *testing.T) {
@@ -357,7 +395,7 @@ func TestInitAnyFlagDisablesPrompt(t *testing.T) {
 		t.Fatal("expected missing error when only --site is supplied")
 	}
 	msg := err.Error()
-	for _, name := range []string{"email", "token", "projects"} {
+	for _, name := range []string{"email", "token"} {
 		if !strings.Contains(msg, name) {
 			t.Errorf("error should name missing %q: %s", name, msg)
 		}
@@ -368,5 +406,8 @@ func TestInitAnyFlagDisablesPrompt(t *testing.T) {
 	}
 	if strings.Contains(first, "site") {
 		t.Errorf("site was supplied but listed missing: %s", first)
+	}
+	if strings.Contains(first, "projects") {
+		t.Errorf("projects is optional but listed missing: %s", first)
 	}
 }
