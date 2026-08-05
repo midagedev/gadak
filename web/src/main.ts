@@ -22,7 +22,10 @@ if (!target) throw new Error('#app not found')
 async function registerHostedDemoSW(): Promise<boolean> {
   if (import.meta.env.VITE_HOSTED_DEMO !== '1') return true
   if (!('serviceWorker' in navigator)) return false
-  try {
+  // Restricted WebViews don't just reject — register() or `ready` can hang
+  // forever. Race the whole handshake against a deadline so the visitor gets
+  // the notice instead of an eternal skeleton.
+  const handshake = (async () => {
     await navigator.serviceWorker.register(`${basePath()}demo-sw.js`, {
       scope: basePath(),
     })
@@ -42,6 +45,12 @@ async function registerHostedDemoSW(): Promise<boolean> {
       ])
     }
     return navigator.serviceWorker.controller !== null
+  })()
+  try {
+    return await Promise.race([
+      handshake,
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 6000)),
+    ])
   } catch (e) {
     console.warn('[scry] hosted demo service worker failed to register', e)
     return false
