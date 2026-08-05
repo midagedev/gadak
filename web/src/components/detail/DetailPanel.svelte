@@ -24,6 +24,7 @@
   import AdfContent from './AdfContent.svelte'
   import AttachmentGallery from './AttachmentGallery.svelte'
   import Section from './Section.svelte'
+  import EpicProgress from './EpicProgress.svelte'
   import CommentList from './CommentList.svelte'
   import CommentComposer from '../write/CommentComposer.svelte'
   import HistoryTimeline from './HistoryTimeline.svelte'
@@ -185,6 +186,10 @@
       {:else}
         <!-- Detail body -->
         <div class="anim-enter divide-y divide-border-subtle">
+          <!-- An epic's own fields say little; what it contains is the answer.
+               Renders nothing when this issue owns no children. -->
+          <EpicProgress issueKey={key} />
+
           {#if lite}
             <!-- Renders its own Section, and nothing at all when every field is empty. -->
             <IssueFields issue={lite} developmentOpinion={detailForKey.development_opinion} />

@@ -59,6 +59,11 @@ export interface GroupCounts {
 export interface IssueGroup {
   key: string
   label: string
+  /**
+   * Monospace identifier rendered before the label (epic key). Set only when the
+   * group is named by a real issue, so `label` stays the human part alone.
+   */
+  prefix?: string
   items: IssueLite[]
   counts: GroupCounts
 }
@@ -722,7 +727,10 @@ export function sortIssues(
 
 /* ── Grouping ── */
 
-function groupKeyOf(issue: IssueLite, by: GroupBy): { key: string; label: string } {
+function groupKeyOf(
+  issue: IssueLite,
+  by: GroupBy,
+): { key: string; label: string; prefix?: string } {
   switch (by) {
     case 'status_category': {
       const category = effectiveCategory(issue)
@@ -761,8 +769,16 @@ function groupKeyOf(issue: IssueLite, by: GroupBy): { key: string; label: string
         key: issue.source_project || '',
         label: issue.source_project || t('group.noProject'),
       }
-    case 'epic':
-      return issue.epic_key ? { key: issue.epic_key, label: issue.epic_key } : { key: '', label: t('group.noEpic') }
+    case 'epic': {
+      const epicKey = issue.epic_key
+      if (!epicKey) return { key: '', label: t('group.noEpic') }
+      // The epic is mirrored like any other issue, so its summary is already in
+      // the pool — key alone when it is not (partial mirror / narrowed project set).
+      const epic = issues.pool.get(epicKey)
+      return epic
+        ? { key: epicKey, label: epic.summary, prefix: epicKey }
+        : { key: epicKey, label: epicKey }
+    }
     default:
       return { key: '', label: '' }
   }
@@ -786,10 +802,10 @@ export function buildGroups(list: IssueLite[], by: GroupBy): IssueGroup[] {
   }
   const map = new Map<string, IssueGroup>()
   for (const it of list) {
-    const { key, label } = groupKeyOf(it, by)
+    const { key, label, prefix } = groupKeyOf(it, by)
     let g = map.get(key)
     if (!g) {
-      g = { key, label, items: [], counts: emptyCounts() }
+      g = { key, label, prefix, items: [], counts: emptyCounts() }
       map.set(key, g)
     }
     g.items.push(it)
@@ -847,6 +863,9 @@ export function buildGroups(list: IssueLite[], by: GroupBy): IssueGroup[] {
       const bc = IN_RANK[effectiveCategory(b.items[0])]
       if (ac !== bc) return ac - bc
     }
+    // Epics sort by key so one project's epics stay adjacent; summaries would
+    // interleave projects and the order would move whenever an epic is renamed.
+    if (by === 'epic') return a.key < b.key ? -1 : a.key > b.key ? 1 : 0
     return a.label < b.label ? -1 : a.label > b.label ? 1 : 0
   })
   return groups

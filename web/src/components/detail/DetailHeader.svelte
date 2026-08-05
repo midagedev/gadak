@@ -10,6 +10,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { me } from '../../stores/me.svelte'
   import { jiraUrl } from './format'
+  import IssueBreadcrumb from './IssueBreadcrumb.svelte'
   import WatchButton from '../personal/WatchButton.svelte'
   import StatusTransition from '../write/StatusTransition.svelte'
   import AssigneePicker from '../write/AssigneePicker.svelte'
@@ -63,6 +64,9 @@
       </button>
     </div>
   </div>
+
+  <!-- Where the issue sits in its epic. Renders nothing when it has no ancestors. -->
+  <IssueBreadcrumb {issue} />
 
   <!-- Title -->
   <h2 class="mb-3 text-[16px] leading-snug font-semibold text-text-primary">

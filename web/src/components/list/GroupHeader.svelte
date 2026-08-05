@@ -24,11 +24,17 @@
   (Background/blur only when sticky-floating over rows below.)
 -->
 <div
+  data-testid="group-header"
   class="flex h-row items-end gap-2 px-4 pb-1.5 text-[12px]
     {floating
       ? 'bg-bg-base/95 backdrop-blur border-b border-border-subtle'
       : ''}"
 >
+  {#if group.prefix}
+    <!-- Epic key stays as typed (mono, no uppercase transform) so it reads as an
+         identifier next to the uppercased section label. -->
+    <span class="flex-none font-mono text-[11px] font-semibold text-accent-text">{group.prefix}</span>
+  {/if}
   <span class="truncate text-[11px] font-semibold uppercase tracking-wider text-text-muted">
     {group.label || t('common.all')}
   </span>

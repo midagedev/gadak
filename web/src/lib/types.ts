@@ -67,7 +67,10 @@ export interface IssueLite {
   components: string[]
 
   team_group: string | null
+  /** Nearest epic (hierarchy level 1) ancestor, derived server-side. Null when none. */
   epic_key: string | null
+  /** Direct parent issue, which is the epic only when the parent happens to be one. */
+  parent_key: string | null
   source_project: string | null
 
   created_at: string | null // ISO8601

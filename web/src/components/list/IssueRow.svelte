@@ -8,6 +8,7 @@
   import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
   import { filters } from '../../stores/filters.svelte'
+  import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { bulk } from '../../stores/bulk.svelte'
   import { me } from '../../stores/me.svelte'
@@ -74,6 +75,11 @@
 
   // Own-issue highlight. Off when the view is already scoped to "my issues".
   const mine = $derived(filters.isMine(issue) && !filters.scopedToMe)
+
+  // Epic chip. Redundant while the list is already sectioned by epic, so it is
+  // dropped there rather than repeating the group header on every row.
+  const epicKey = $derived(filters.display.group_by === 'epic' ? null : issue.epic_key)
+  const epicSummary = $derived(epicKey ? issues.get(epicKey)?.summary : undefined)
 
   // Recency: updates within 24h pull the time label up to accent.
   const isFresh = $derived.by(() => {
@@ -358,6 +364,21 @@
     <span class="hidden w-10 flex-none text-right text-[11px] text-text-muted sm:inline" title={t('list.createdAt', { time: absTime(issue.created_at) })}>
       {relativeTime(issue.created_at)}
     </span>
+  {/if}
+
+  <!-- Epic chip. It lives in the trailing strip, not beside the key: an optional
+       element before the title would move every summary's left edge by its width,
+       and the title column is what the eye scans down. -->
+  {#if epicKey}
+    <button
+      type="button"
+      class="hidden max-w-[84px] flex-none truncate rounded px-1.5 py-0.5 font-mono text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-accent-text lg:inline-block"
+      data-testid="epic-chip"
+      title={t('list.fieldValue', { field: t('common.epic'), value: epicSummary ?? epicKey })}
+      onclick={stop(() => selection.select(epicKey))}
+    >
+      {epicKey}
+    </button>
   {/if}
 
   <!-- Label chips -->
