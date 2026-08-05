@@ -4,6 +4,40 @@ One paste per tool. Each block teaches the agent that the mirror exists, how to
 query it, and the one mistake that silently returns nothing. The full reference
 is [`AGENTS.md`](../AGENTS.md).
 
+## Let the agent set scry up for you
+
+If a coding agent (Claude Code, Codex, …) already talks to Jira on this
+machine — through environment variables, an MCP connector, or its own memory —
+it already holds everything scry needs. Paste this prompt into the agent:
+
+```text
+Set up scry (https://github.com/midagedev/scry) against the Jira account this
+machine already uses. Steps:
+
+1. Find my Jira credentials wherever they already live: JIRA_URL /
+   JIRA_EMAIL / JIRA_API_TOKEN environment variables (check ~/.zshrc or
+   ~/.bashrc), an Atlassian MCP server entry in .mcp.json or the Claude
+   config, or a .env file. Do not ask me for them unless nothing exists.
+2. Install scry if missing: `brew install midagedev/tap/scry`
+   (or the install script in the repo README).
+3. Configure non-interactively — init never prompts when values are supplied:
+   SCRY_TOKEN=<token> scry init --site <url> --email <email> --json
+   Leave --projects off: an empty project list syncs every project I can see,
+   and the first line of sync output shows the total so we can narrow later
+   with `scry init --projects KEY1,KEY2` if it is huge.
+4. Run `scry sync`. The first full sync auto-discovers the site's custom
+   fields (labels, filter axes, editors) and prints what it configured.
+5. Verify: `scry sql "select count(*) from issues_full"` returns a number,
+   and `scry fields` lists the discovered mapping.
+6. Add the scry usage block from docs/AGENT_SETUP.md to my agent config so
+   future sessions query the mirror instead of the Jira REST API.
+```
+
+Everything the agent configures stays editable afterwards: field mapping in
+the web UI under Settings → Fields (edits are pinned and survive
+re-discovery), or `scry fields --apply` to re-run detection, or the `fields`
+array in `~/.scry/config.json` directly.
+
 ## Claude Code — `CLAUDE.md` (project or user scope)
 
 ```markdown

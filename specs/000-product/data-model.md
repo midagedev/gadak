@@ -380,6 +380,36 @@ volume (including retries); they are not Jira's remaining point budget.
 | `wait_ms` | INTEGER | Milliseconds spent sleeping for backoff / `Retry-After` |
 | `last_throttled_at` | TEXT | UTC timestamp of the most recent 429 that day, if any |
 
+## `field_usage`
+
+Per-project fill counts for discovered custom-field aliases, recomputed from
+`issues.custom` after discovery, a full sync, or a reconcile pass. Derived
+data — a wipe costs one recompute, never history. The UI uses it to offer only
+the filter axes a board actually fills.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `project_key` | TEXT | Project the counts are for (PK with `alias`) |
+| `alias` | TEXT | Field-spec alias (`config.fields[].alias`) |
+| `filled` | INTEGER | Issues in the project with a value for the alias |
+| `total` | INTEGER | Issues in the project |
+
+## `sync_runs`
+
+Short history of meaningful sync passes — ones that changed something, were a
+full pass, or failed. The watch loop's no-op incrementals are not recorded,
+and the table prunes to the newest 100 per source. Backs the sync-history
+popover in the web UI (`GET sync/runs/`).
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | INTEGER PK | Autoincrement; newest = highest |
+| `source_id` | TEXT | `jira` |
+| `kind` | TEXT | `full` / `incremental`, with `+reconcile` when deletions ran |
+| `started_at` / `finished_at` | TEXT | UTC RFC3339 |
+| `fetched` / `changed` / `deleted` | INTEGER | Run totals |
+| `error` | TEXT | NULL on success |
+
 ## Example queries
 
 These are the contract in practice. They must keep working across minor versions,
