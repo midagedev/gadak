@@ -4,11 +4,12 @@
    *  Server body-search hits merge above the local list as a "N body matches"
    *  section (plan §5.2).
    */
-  import { t, formatNumber } from '../../lib/i18n'
+  import { t, formatNumber, relativeTime, absTime } from '../../lib/i18n'
   import { untrack } from 'svelte'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
+  import { pages } from '../../stores/pages.svelte'
   import { bulk } from '../../stores/bulk.svelte'
   import SearchBox from './SearchBox.svelte'
   import FilterBar from './FilterBar.svelte'
@@ -28,6 +29,8 @@
 
   const visibleCount = $derived(filters.visibleIssues.length)
   const extra = $derived(filters.serverExtraIssues)
+  /** Wiki pages hit by the same server search — issues alone would miss them. */
+  const docHits = $derived(pages.searchHits)
 
   /**
    * First run vs. "mirror is empty, sync will fill it". Setup is incomplete when
@@ -74,6 +77,39 @@
 
   <BreakdownBar />
 
+  <!-- Document hits from the same server search. Above the issue sections: a
+       page is the answer people came for when the issue list comes back thin. -->
+  {#if filters.serverMatchQuery && docHits.length}
+    <div class="flex-none border-b border-border-subtle bg-bg-panel/40" data-testid="search-docs">
+      <div class="px-3 py-1 text-[11px] font-medium text-accent-text">
+        {t('list.docMatchCount', { n: formatNumber(docHits.length), q: filters.serverMatchQuery })}
+      </div>
+      <div class="max-h-48 overflow-y-auto">
+        {#each docHits as p (p.key)}
+          <button
+            type="button"
+            class="flex min-h-9 w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors {pages.selectedKey ===
+            p.key
+              ? 'bg-bg-active text-text-primary'
+              : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+            data-testid="search-doc-row"
+            onclick={() => pages.select(p.key)}
+          >
+            <span
+              class="flex-none rounded bg-accent-subtle/60 px-1.5 py-0.5 font-mono text-[10px] font-medium text-accent-text"
+            >
+              {p.space_key}
+            </span>
+            <span class="min-w-0 flex-1 truncate">{p.title}</span>
+            <span class="flex-none text-[11px] text-text-muted" title={absTime(p.updated_at)}>
+              {relativeTime(p.updated_at, 'long')}
+            </span>
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
   <!-- Body-search results (matches not already in the local list) -->
   {#if filters.serverMatchQuery && extra.length}
     <div class="flex-none border-b border-border-subtle bg-bg-panel/40">
@@ -115,6 +151,10 @@
           title={t('list.bodyOnlyTitle')}
           hint={t('list.bodyOnlyHint')}
         />
+      {:else if filters.serverMatchQuery && docHits.length}
+        <!-- The query only lives in the wiki (docs group above). Saying so beats
+             "no issues match", which reads as "nothing found". -->
+        <EmptyState icon="📄" title={t('list.docOnlyTitle')} hint={t('list.docOnlyHint')} />
       {:else}
         <EmptyState
           icon="🔍"

@@ -8,6 +8,7 @@
   import { issues } from './stores/issues.svelte'
   import { views } from './stores/views.svelte'
   import { selection } from './stores/selection.svelte'
+  import { pages } from './stores/pages.svelte'
   import { filters } from './stores/filters.svelte'
   import { me } from './stores/me.svelte'
   import { write } from './stores/write.svelte'
@@ -31,6 +32,7 @@
   import SidebarNav from './components/sidebar/SidebarNav.svelte'
   import ListView from './components/list/ListView.svelte'
   import DetailPanel from './components/detail/DetailPanel.svelte'
+  import DocumentPanel from './components/detail/DocumentPanel.svelte'
   import PersonalFeed from './components/personal/PersonalFeed.svelte'
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
@@ -67,6 +69,7 @@
   onMount(() => {
     void issues.init()
     void me.init()
+    void pages.init() // Sidebar DOCS section; hides itself when the mirror has none
     void write.loadWriteMeta() // Prefetch write meta (parallel with issues.init)
     views.init()
 
@@ -139,6 +142,12 @@
     if (key === 'x' && detailOpenNow) {
       e.preventDefault()
       selection.clear()
+      return
+    }
+    // x also closes a document — s/a/c have no meaning on a read-only page.
+    if (key === 'x' && pages.selectedKey) {
+      e.preventDefault()
+      pages.clear()
       return
     }
     if (key === 's' && detailOpenNow) {
@@ -233,7 +242,15 @@
     }
   })
 
+  // One right panel, two kinds of content. pages.select() clears the issue on the
+  // way in; this closes the document on the way back so they can never stack.
+  $effect(() => {
+    if (selection.selectedKey) untrack(() => pages.clear())
+  })
+
   const detailOpen = $derived(selection.selectedKey !== null)
+  const docOpen = $derived(pages.selectedKey !== null)
+  const panelOpen = $derived(detailOpen || docOpen)
 </script>
 
 <svelte:window onkeydown={onGlobalKey} />
@@ -295,9 +312,9 @@
     {/if}
     <div
       class="issue-layout"
-      class:detail-open={detailOpen}
+      class:detail-open={panelOpen}
       data-testid="issue-layout"
-      data-detail-open={detailOpen}
+      data-detail-open={panelOpen}
     >
       <Sidebar>
         {#snippet children()}
@@ -315,9 +332,10 @@
         {/snippet}
       </MainColumn>
 
-      <RightPanel open={detailOpen}>
+      <RightPanel open={panelOpen}>
         {#snippet children()}
           <DetailPanel />
+          <DocumentPanel />
         {/snippet}
       </RightPanel>
     </div>

@@ -25,6 +25,8 @@ import type {
   JiraCredential,
   NotificationConfig,
   NotificationPreferences,
+  PageDetail,
+  PagesResponse,
   SavedView,
   SearchResponse,
   TransitionsResponse,
@@ -121,6 +123,18 @@ export function getDetail(issueKey: string): Promise<DetailResponse> {
 
 export function search(q: string, limit = 200): Promise<SearchResponse> {
   return json<SearchResponse>(`search/?q=${encodeURIComponent(q)}&limit=${limit}`)
+}
+
+/* ── Mirrored wiki pages (docs) ── */
+
+/** Every mirrored page, without bodies. Small enough to hold in memory. */
+export function getPages(): Promise<PagesResponse> {
+  return json<PagesResponse>('pages/')
+}
+
+/** One page with its body ADF and comments. */
+export function getPageDetail(key: string): Promise<PageDetail> {
+  return json<PageDetail>(`pages/${encodeURIComponent(key)}/`)
 }
 
 /* ── Personal feed / read state ── */

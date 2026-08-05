@@ -9,6 +9,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { views } from '../../stores/views.svelte'
   import { me } from '../../stores/me.svelte'
+  import { pages, type PageNode } from '../../stores/pages.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
   import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
@@ -152,9 +153,99 @@
       return w.site
     }
   }
+
+  /* ── Docs (mirrored wiki pages), a tree per space ── */
+  //  Collapsed by default: a space holds dozens of pages, and the nav is for
+  //  views first. Expanded state is per-tab — no need to persist it.
+  let openSpaces = $state(new Set<string>())
+  /** Expanded page nodes, by key. */
+  let openDocs = $state(new Set<string>())
+
+  function toggleSpace(space: string) {
+    const next = new Set(openSpaces)
+    if (!next.delete(space)) {
+      next.add(space)
+      // A space normally has one root page, so opening to a single collapsed
+      // row reads as a broken toggle. Roots open with the space; deeper levels
+      // stay closed.
+      const docs = new Set(openDocs)
+      for (const r of pages.treeBySpace.find((g) => g.space === space)?.roots ?? []) {
+        docs.add(r.page.key)
+      }
+      openDocs = docs
+    }
+    openSpaces = next
+  }
+
+  function toggleDoc(key: string) {
+    const next = new Set(openDocs)
+    if (!next.delete(key)) next.add(key)
+    openDocs = next
+  }
+
+  /** Open a page; a parent also expands, so one click never looks inert. */
+  function openDoc(node: PageNode) {
+    pages.select(node.page.key)
+    if (node.children.length && !openDocs.has(node.page.key)) toggleDoc(node.page.key)
+  }
 </script>
 
 <svelte:document onclick={onDocClick} />
+
+<!-- One page row in the DOCS tree, recursing into its children. Indent is a
+     fixed step per depth so a leaf lines up under its parent's title. -->
+{#snippet docNode(node: PageNode)}
+  {@const expanded = openDocs.has(node.page.key)}
+  {@const selected = pages.selectedKey === node.page.key}
+  <div
+    class="group flex min-h-7 items-center rounded-md pr-3 text-[12px] transition-colors {selected
+      ? 'bg-bg-active'
+      : 'hover:bg-bg-hover'}"
+    style="padding-left: {16 + node.depth * 12}px"
+    data-testid="doc-tree-node"
+  >
+    {#if node.children.length}
+      <button
+        type="button"
+        class="flex h-4 w-4 flex-none items-center justify-center rounded text-text-muted transition-colors hover:text-text-primary"
+        aria-expanded={expanded}
+        aria-label={t('sidebar.docsToggleNode', { title: node.page.title })}
+        data-testid="doc-tree-toggle"
+        onclick={() => toggleDoc(node.page.key)}
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          aria-hidden="true"
+          class="transition-transform duration-150"
+          style={expanded ? 'transform: rotate(90deg)' : ''}
+        >
+          <path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+    {:else}
+      <!-- Keeps leaf titles on the same left edge as their siblings' -->
+      <span class="h-4 w-4 flex-none" aria-hidden="true"></span>
+    {/if}
+    <button
+      type="button"
+      class="min-w-0 flex-1 truncate py-1 pl-1 text-left {selected
+        ? 'text-text-primary'
+        : 'text-text-secondary group-hover:text-text-primary'}"
+      title={node.page.title}
+      onclick={() => openDoc(node)}
+    >
+      {node.page.title}
+    </button>
+  </div>
+  {#if expanded}
+    {#each node.children as child (child.page.key)}
+      {@render docNode(child)}
+    {/each}
+  {/if}
+{/snippet}
 
 <div class="flex h-full flex-col">
   <!-- New issue (shortcut c). Disabled on the hosted demo, where the snapshot
@@ -368,6 +459,48 @@
               </button>
             {/if}
           </div>
+        {/each}
+      </div>
+    {/if}
+
+    <!-- Docs: mirrored wiki pages by space. Hidden entirely when the mirror has
+         none (no wiki configured / older server → empty index). -->
+    {#if pages.bySpace.length}
+      <div class="mb-3" data-testid="docs-section">
+        <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+          {t('sidebar.docs')}
+        </div>
+        {#each pages.treeBySpace as group (group.space)}
+          {@const expanded = openSpaces.has(group.space)}
+          <button
+            type="button"
+            class="flex min-h-7 w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            aria-expanded={expanded}
+            title={t('sidebar.docsSpaceTitle', { space: group.space, n: group.count })}
+            data-testid="docs-space"
+            onclick={() => toggleSpace(group.space)}
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              aria-hidden="true"
+              class="flex-none text-text-muted transition-transform duration-150"
+              style={expanded ? 'transform: rotate(90deg)' : ''}
+            >
+              <path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="min-w-0 flex-1 truncate font-mono text-[12px]">{group.space}</span>
+            <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
+              {formatNumber(group.count)}
+            </span>
+          </button>
+          {#if expanded}
+            {#each group.roots as node (node.page.key)}
+              {@render docNode(node)}
+            {/each}
+          {/if}
         {/each}
       </div>
     {/if}

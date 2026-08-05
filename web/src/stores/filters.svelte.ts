@@ -46,6 +46,7 @@ import {
   t,
 } from '../lib/i18n'
 import { write } from './write.svelte'
+import { pages } from './pages.svelte'
 
 /* ── Derived group types ── */
 
@@ -373,10 +374,14 @@ class FiltersStore {
     try {
       const res = await api.search(q, 200)
       this.serverMatchKeys = res.keys
+      // Page hits ride the same response; the docs store owns them (older
+      // servers omit the field entirely → no docs group).
+      pages.setSearchHits(res.pages ?? [])
       this.searchError = null
     } catch (e) {
       console.warn('[filters] 서버 검색 실패', e)
       this.serverMatchKeys = []
+      pages.clearSearchHits()
       this.searchError = q
       write.toast(t('list.searchFailed'), 'error')
     } finally {
@@ -386,6 +391,7 @@ class FiltersStore {
 
   clearServerSearch(): void {
     if (this.serverMatchKeys.length) this.serverMatchKeys = []
+    pages.clearSearchHits()
     this.serverMatchQuery = ''
     this.searchError = null
   }

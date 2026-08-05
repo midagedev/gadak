@@ -340,6 +340,42 @@ export interface DeltaResponse {
 export interface SearchResponse {
   keys: string[]
   total: number
+  /** Mirrored wiki pages matching the same query. Older servers omit. */
+  pages?: PageLite[]
+}
+
+/* ── Mirrored wiki pages (docs) ── */
+
+/** One mirrored wiki page, without body. Sidebar rows and search hits use this. */
+export interface PageLite {
+  key: string
+  title: string
+  space_key: string
+  parent_id: string | null
+  author: string | null
+  updated_at: string | null
+  version: number
+  url: string
+}
+
+/** One comment on a mirrored page. Pages have no comment ids, so nothing to reply to. */
+export interface PageComment {
+  author: string | null
+  created_at: string | null
+  body_adf: AdfNode | null
+  body_text: string
+}
+
+/** GET `pages/` response. */
+export interface PagesResponse {
+  pages: PageLite[]
+  total: number
+}
+
+/** GET `pages/{key}/` response — PageLite plus body and comments. */
+export interface PageDetail extends PageLite {
+  body_adf: AdfNode | null
+  comments: PageComment[]
 }
 
 export type FeedFocus = 'all' | 'assignee' | 'reporter' | 'mention'

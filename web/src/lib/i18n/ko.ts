@@ -272,6 +272,9 @@ export const ko = {
   'list.searching': '검색중…',
   'list.searchFailed': '본문 검색에 실패했습니다. 연결을 확인한 뒤 다시 시도하세요.',
   'list.searchRetry': '본문 검색 다시 시도',
+  'list.docMatchCount': '문서 {n}건 · "{q}"',
+  'list.docOnlyTitle': '이슈 매칭은 없지만 문서에서 찾았습니다',
+  'list.docOnlyHint': "위 '문서' 섹션을 확인하세요.",
 
   /* ── Bulk bar ── */
   'bulk.changeStatus': '상태 변경',
@@ -290,6 +293,9 @@ export const ko = {
   'sidebar.builtinViews': '기본 뷰',
   'sidebar.myViews': '내 뷰',
   'sidebar.teamViews': '팀 공유 뷰',
+  'sidebar.docs': '문서',
+  'sidebar.docsSpaceTitle': '{space} · 문서 {n}건',
+  'sidebar.docsToggleNode': '{title} 하위 문서',
   'sidebar.workspaces': '워크스페이스',
   'sidebar.workspaceUnreadable': '프로필 설정을 읽을 수 없음',
   'sidebar.settings': '설정',
@@ -433,6 +439,18 @@ export const ko = {
   'detail.play': '{name} 재생',
   'detail.attachmentLabel': '📎 첨부: {name}',
   'detail.unknownAuthor': '알 수 없음',
+
+  /* ── Document panel (mirrored wiki pages) ── */
+  'doc.badge': '문서',
+  'doc.content': '본문',
+  'doc.comments': '댓글',
+  'doc.noComments': '댓글 없음',
+  'doc.noContent': '내용이 비어 있습니다.',
+  'doc.version': 'v{n}',
+  'doc.breadcrumb': '문서 경로',
+  'doc.openSource': '원본 페이지 열기',
+  'doc.notFound': '문서를 찾을 수 없습니다. 삭제되었을 수 있습니다.',
+  'doc.loadFailed': '문서를 불러오지 못했습니다.',
 
   /* ── QA impact ── */
   'qa.pass': '합격',

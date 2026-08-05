@@ -271,6 +271,9 @@ export const en = {
   'list.searching': 'Searching…',
   'list.searchFailed': 'Could not search body text. Check the connection and try again.',
   'list.searchRetry': 'Retry body search',
+  'list.docMatchCount': '{n} documents · "{q}"',
+  'list.docOnlyTitle': 'No issues matched — found in documents',
+  'list.docOnlyHint': "See the 'Documents' section above.",
 
   /* ── Bulk bar ── */
   'bulk.changeStatus': 'Change status',
@@ -289,6 +292,9 @@ export const en = {
   'sidebar.builtinViews': 'Built-in views',
   'sidebar.myViews': 'My views',
   'sidebar.teamViews': 'Shared team views',
+  'sidebar.docs': 'Docs',
+  'sidebar.docsSpaceTitle': '{space} · {n} documents',
+  'sidebar.docsToggleNode': 'Pages under {title}',
   'sidebar.workspaces': 'Workspaces',
   'sidebar.workspaceUnreadable': 'Profile config could not be read',
   'sidebar.settings': 'Settings',
@@ -432,6 +438,18 @@ export const en = {
   'detail.play': 'Play {name}',
   'detail.attachmentLabel': '📎 Attachment: {name}',
   'detail.unknownAuthor': 'Unknown',
+
+  /* ── Document panel (mirrored wiki pages) ── */
+  'doc.badge': 'Doc',
+  'doc.content': 'Content',
+  'doc.comments': 'Comments',
+  'doc.noComments': 'No comments',
+  'doc.noContent': 'This page is empty.',
+  'doc.version': 'v{n}',
+  'doc.breadcrumb': 'Document path',
+  'doc.openSource': 'Open the original page',
+  'doc.notFound': 'Could not find this document. It may have been deleted.',
+  'doc.loadFailed': 'Could not load this document.',
 
   /* ── QA impact ── */
   'qa.pass': 'Pass',
