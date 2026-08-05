@@ -4,6 +4,13 @@ scry stores its configuration in `~/.scry/config.json` (mode `0600`). A profile
 (`scry --profile x` or `SCRY_PROFILE=x`) moves both the file and the mirror under
 `~/.scry/profiles/<name>/`.
 
+A running `scry serve` also mounts every sibling profile as a **workspace**
+under `/w/<name>/` — full API, opened lazily on first request. The sidebar
+shows a switcher when more than one exists. `GET /api/v1/workspaces` lists
+them (name, site, projects — never credentials). Background sync, OS
+notifications, and the update check stay on the profile `serve` was started
+with; workspace mirrors sync on demand.
+
 Most day-to-day keys are editable from the web **Settings** dialog
 (`GET` / `PUT /api/v1/issues/settings/`). Credentials use a separate endpoint
 (`credential/`). A few operational facts are read-only on the settings response

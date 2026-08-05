@@ -146,7 +146,12 @@ anonymous version check against GitHub Releases (`updateCheck: false` turns it o
 
 Pointing one machine at two sites (work and a demo, say) is what profiles are
 for: `scry --profile demo init` keeps a separate credential and mirror under
-`~/.scry/profiles/demo/`.
+`~/.scry/profiles/demo/`. One `scry serve` then serves every profile: each one
+mounts under `/w/<name>/` (full API, reads and writes, opened on first
+request), and when there is more than one, the web sidebar grows a WORKSPACES
+switcher. Same loopback listener, same single user — the workspace list never
+exposes credentials. Background sync and notifications stay on the primary
+profile; workspaces sync when you use them.
 
 ### Zero-install hosted demo
 
