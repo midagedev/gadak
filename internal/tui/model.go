@@ -31,6 +31,8 @@ const (
 	modeForm
 	modeFeed
 	modeViews
+	modeDocs
+	modeDocDetail
 )
 
 // Model is the bubbletea model for the issue navigator.
@@ -105,6 +107,17 @@ type Model struct {
 
 	// Command palette (ctrl+k). Nil when closed.
 	pal *paletteState
+
+	// Mirrored wiki pages (docs view, D).
+	pages         []store.PageLite
+	docsLines     []docsLine
+	docsNav       []docsNavItem
+	docsCursor    int
+	docsOffset    int
+	pageDetail    *store.PageDetail
+	pageDetailKey string
+	// filterFrom remembers which mode opened / so Esc/Enter return there.
+	filterFrom mode
 }
 
 // newModel builds a model without loading data (tests inject rows).
@@ -173,6 +186,7 @@ func (m Model) checkUpdateCmd() tea.Cmd {
 
 type loadedMsg struct {
 	rows        []row
+	pages       []store.PageLite
 	syncedLabel string
 	watches     map[string]bool
 	feedUnread  int
@@ -203,6 +217,10 @@ func (m Model) reloadCmd() tea.Cmd {
 		if err != nil {
 			return loadedMsg{err: err}
 		}
+		pages, err := db.PageLites()
+		if err != nil {
+			return loadedMsg{err: err}
+		}
 		label := "never synced"
 		if st, err := db.SyncState("jira"); err == nil {
 			if st.SyncedAt != nil && *st.SyncedAt != "" {
@@ -224,6 +242,7 @@ func (m Model) reloadCmd() tea.Cmd {
 		}
 		return loadedMsg{
 			rows:        buildRows(lites),
+			pages:       pages,
 			syncedLabel: label,
 			watches:     watchMap,
 			feedUnread:  feedUnread,
@@ -271,6 +290,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadErr = msg.err
 		if msg.err == nil {
 			m.all = msg.rows
+			if msg.pages != nil {
+				m.pages = msg.pages
+			} else {
+				m.pages = []store.PageLite{}
+			}
 			m.syncedLabel = msg.syncedLabel
 			if msg.watches != nil {
 				m.watches = msg.watches
@@ -278,7 +302,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// List status chip uses All only; other focus counts fill when feed opens.
 			m.feedCounts.All = msg.feedUnread
 			m.refilter()
+			if m.mode == modeDocs || m.mode == modeDocDetail {
+				m.refilterDocs()
+			}
 		}
+		return m, nil
+
+	case pageDetailMsg:
+		if msg.err != nil {
+			m.toast = msg.err.Error()
+			m.toastErr = true
+			m.toastAt = m.clock()
+			m.mode = modeDocs
+			return m, nil
+		}
+		m.pageDetail = msg.d
+		m.pageDetailKey = msg.key
+		m.mode = modeDocDetail
 		return m, nil
 
 	case feedLoadedMsg:
@@ -483,6 +523,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleFeedKey(msg)
 	case modeViews:
 		return m.handleViewsKey(msg)
+	case modeDocs:
+		return m.handleDocsKey(msg)
+	case modeDocDetail:
+		return m.handleDocDetailKey(msg)
 	default:
 		return m.handleListKey(msg)
 	}
@@ -499,6 +543,9 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.Feed):
 		m.loading = true
 		return m, tea.Batch(m.spin.Tick, m.loadFeedCmd())
+	case key.Matches(msg, k.Docs):
+		m.enterDocs()
+		return m, nil
 	case key.Matches(msg, k.Views):
 		m.loading = true
 		return m, tea.Batch(m.spin.Tick, m.loadViewsCmd())
@@ -508,6 +555,7 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loading = true
 		return m, tea.Batch(m.spin.Tick, m.reloadCmd())
 	case key.Matches(msg, k.Filter):
+		m.filterFrom = modeList
 		m.mode = modeFilter
 		return m, nil
 	case key.Matches(msg, k.ClearFilter):
@@ -588,9 +636,15 @@ func (m Model) toggleWatchSelected() tea.Cmd {
 }
 
 func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	leave := func() mode {
+		if m.filterFrom == modeDocs {
+			return modeDocs
+		}
+		return modeList
+	}
 	switch msg.String() {
 	case "esc", "enter":
-		m.mode = modeList
+		m.mode = leave()
 		return m, nil
 	case "ctrl+c":
 		return m, tea.Quit
@@ -598,18 +652,30 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.filter != "" {
 			r := []rune(m.filter)
 			m.filter = string(r[:len(r)-1])
-			m.refilter()
+			if m.filterFrom == modeDocs {
+				m.refilterDocs()
+			} else {
+				m.refilter()
+			}
 		}
 		return m, nil
 	case "ctrl+u":
 		m.filter = ""
-		m.refilter()
+		if m.filterFrom == modeDocs {
+			m.refilterDocs()
+		} else {
+			m.refilter()
+		}
 		return m, nil
 	default:
 		// Printable runes only — ignore chords.
 		if msg.Type == tea.KeyRunes {
 			m.filter += string(msg.Runes)
-			m.refilter()
+			if m.filterFrom == modeDocs {
+				m.refilterDocs()
+			} else {
+				m.refilter()
+			}
 		}
 		return m, nil
 	}
@@ -828,10 +894,17 @@ func (m Model) View() string {
 		frame = m.viewForm()
 	case m.mode == modeDetail:
 		frame = m.viewDetail()
+	case m.mode == modeDocDetail:
+		frame = m.viewDocDetail()
 	case m.mode == modeFeed:
 		frame = m.viewFeed()
 	case m.mode == modeViews:
 		frame = m.viewViews()
+	case m.mode == modeDocs:
+		frame = m.viewDocs()
+	case m.mode == modeFilter && m.filterFrom == modeDocs:
+		// Filter overlays the docs list chrome (same as issue list).
+		frame = m.viewDocs()
 	default:
 		frame = m.viewList()
 	}

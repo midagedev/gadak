@@ -14,7 +14,7 @@ type keyMap struct {
 	Comment, Transition    key.Binding
 	Assignee, Edit, Quit   key.Binding
 	Help, Feed, Views      key.Binding
-	Watch, Palette         key.Binding
+	Watch, Palette, Docs   key.Binding
 }
 
 func defaultKeys() keyMap {
@@ -40,8 +40,10 @@ func defaultKeys() keyMap {
 		Feed:          key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "feed")),
 		Views:         key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "saved views")),
 		Watch:         key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "watch")),
-		Palette:       key.NewBinding(key.WithKeys("ctrl+k"), key.WithHelp("ctrl+k", "command palette")),
-		Quit:          key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		// D is free (lowercase d unused; F is feed, so capital letter mirrors feed).
+		Docs:    key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "docs (mirrored pages)")),
+		Palette: key.NewBinding(key.WithKeys("ctrl+k"), key.WithHelp("ctrl+k", "command palette")),
+		Quit:    key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
 }
 
@@ -66,6 +68,7 @@ func (k keyMap) helpLines() [][2]string {
 		{k.Edit.Help().Key, k.Edit.Help().Desc},
 		{k.Watch.Help().Key, k.Watch.Help().Desc},
 		{k.Feed.Help().Key, k.Feed.Help().Desc},
+		{k.Docs.Help().Key, k.Docs.Help().Desc},
 		{k.Views.Help().Key, k.Views.Help().Desc},
 		{k.Refresh.Help().Key, k.Refresh.Help().Desc},
 		{k.Help.Help().Key, k.Help.Help().Desc},

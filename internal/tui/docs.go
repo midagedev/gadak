@@ -1,0 +1,614 @@
+package tui
+
+// Docs view: mirrored wiki pages in a space-grouped tree, plain-text detail,
+// and in-memory title/space filter. Issue-only write actions report unsupported
+// rather than no-op. Full-text search stays on the web UI / CLI.
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/midagedev/scry/internal/jira"
+	"github.com/midagedev/scry/internal/store"
+)
+
+// docsLine kinds for the docs list viewport (headers are non-navigable).
+const (
+	docsLineHeader = iota
+	docsLinePage
+)
+
+// docsLine is one screen row in the docs list: a space header or a page.
+type docsLine struct {
+	kind  int
+	space string
+	count int // header only
+	page  store.PageLite
+	depth int
+}
+
+// docsNavItem is one cursor-addressable page in tree order (no headers).
+type docsNavItem struct {
+	page  store.PageLite
+	depth int
+}
+
+type pageDetailMsg struct {
+	key string
+	d   *store.PageDetail
+	err error
+}
+
+// buildDocsLines groups pages by space (alpha), nests by parent_id, and flattens
+// for display. Rules match the web sidebar (pages.svelte.ts treeBySpace):
+// missing / other-space parent → root; parent cycles are bounded and residual
+// nodes surface as roots rather than vanishing.
+func buildDocsLines(pages []store.PageLite) []docsLine {
+	if len(pages) == 0 {
+		return nil
+	}
+	byKey := make(map[string]store.PageLite, len(pages))
+	groups := map[string][]store.PageLite{}
+	for _, p := range pages {
+		byKey[p.Key] = p
+		groups[p.SpaceKey] = append(groups[p.SpaceKey], p)
+	}
+	spaces := make([]string, 0, len(groups))
+	for s := range groups {
+		spaces = append(spaces, s)
+	}
+	sort.Strings(spaces)
+
+	var out []docsLine
+	for _, space := range spaces {
+		list := groups[space]
+		sort.Slice(list, func(i, j int) bool {
+			return list[i].Title < list[j].Title
+		})
+
+		children := map[string][]store.PageLite{}
+		var roots []store.PageLite
+		for _, p := range list {
+			parentKey := p.ParentID
+			parent, ok := byKey[parentKey]
+			if parentKey == "" || !ok || parent.SpaceKey != space {
+				roots = append(roots, p)
+				continue
+			}
+			children[parentKey] = append(children[parentKey], p)
+		}
+		// Siblings keep title order already applied on list; children slices
+		// inherit that order because we walked list sorted.
+		for k := range children {
+			sort.Slice(children[k], func(i, j int) bool {
+				return children[k][i].Title < children[k][j].Title
+			})
+		}
+		sort.Slice(roots, func(i, j int) bool {
+			return roots[i].Title < roots[j].Title
+		})
+
+		visited := map[string]bool{}
+		var walk func(p store.PageLite, depth int)
+		walk = func(p store.PageLite, depth int) {
+			visited[p.Key] = true
+			out = append(out, docsLine{kind: docsLinePage, page: p, depth: depth})
+			for _, c := range children[p.Key] {
+				if visited[c.Key] {
+					continue
+				}
+				walk(c, depth+1)
+			}
+		}
+
+		out = append(out, docsLine{kind: docsLineHeader, space: space, count: len(list)})
+		for _, r := range roots {
+			if !visited[r.Key] {
+				walk(r, 0)
+			}
+		}
+		// Cycle residual: not reachable from any root.
+		for _, p := range list {
+			if !visited[p.Key] {
+				walk(p, 0)
+			}
+		}
+	}
+	return out
+}
+
+// filterPages keeps pages whose title or space_key contains needle (case-insensitive).
+func filterPages(pages []store.PageLite, needle string) []store.PageLite {
+	needle = strings.ToLower(strings.TrimSpace(needle))
+	if needle == "" {
+		return pages
+	}
+	out := make([]store.PageLite, 0, len(pages))
+	for _, p := range pages {
+		hay := strings.ToLower(p.Title + " " + p.SpaceKey + " " + p.Key)
+		if strings.Contains(hay, needle) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// docsBreadcrumb builds "SPACE › ancestor… › title" for key. Ancestors walk
+// parent_id via the full index (any space), cycle-defended — same as web.
+func docsBreadcrumb(pages []store.PageLite, key string) string {
+	byKey := make(map[string]store.PageLite, len(pages))
+	for _, p := range pages {
+		byKey[p.Key] = p
+	}
+	cur, ok := byKey[key]
+	if !ok {
+		return key
+	}
+	// Ancestors outermost first.
+	var trail []string
+	seen := map[string]bool{key: true}
+	walk := cur
+	for walk.ParentID != "" {
+		parent, ok := byKey[walk.ParentID]
+		if !ok || seen[parent.Key] {
+			break
+		}
+		seen[parent.Key] = true
+		trail = append([]string{parent.Title}, trail...)
+		walk = parent
+	}
+	parts := make([]string, 0, 2+len(trail))
+	if cur.SpaceKey != "" {
+		parts = append(parts, cur.SpaceKey)
+	}
+	parts = append(parts, trail...)
+	parts = append(parts, cur.Title)
+	return strings.Join(parts, " › ")
+}
+
+func (m *Model) refilterDocs() {
+	filtered := filterPages(m.pages, m.filter)
+	lines := buildDocsLines(filtered)
+	m.docsLines = lines
+	nav := make([]docsNavItem, 0, len(filtered))
+	for _, ln := range lines {
+		if ln.kind == docsLinePage {
+			nav = append(nav, docsNavItem{page: ln.page, depth: ln.depth})
+		}
+	}
+	m.docsNav = nav
+	if m.docsCursor >= len(m.docsNav) {
+		m.docsCursor = max(0, len(m.docsNav)-1)
+	}
+	if m.docsCursor < 0 {
+		m.docsCursor = 0
+	}
+	m.ensureDocsVisible()
+}
+
+func (m *Model) enterDocs() {
+	m.mode = modeDocs
+	m.filter = ""
+	m.docsCursor = 0
+	m.docsOffset = 0
+	m.refilterDocs()
+}
+
+func (m *Model) leaveDocs() {
+	m.mode = modeList
+	m.filter = ""
+	m.pageDetail = nil
+	m.pageDetailKey = ""
+}
+
+func (m *Model) moveDocsCursor(delta int) {
+	n := len(m.docsNav)
+	if n == 0 {
+		m.docsCursor = 0
+		return
+	}
+	m.docsCursor += delta
+	if m.docsCursor < 0 {
+		m.docsCursor = 0
+	}
+	if m.docsCursor >= n {
+		m.docsCursor = n - 1
+	}
+	m.ensureDocsVisible()
+}
+
+// docsCursorScreenLine maps docsCursor onto docsLines (headers shift indices).
+func (m Model) docsCursorScreenLine() int {
+	if len(m.docsNav) == 0 || m.docsCursor < 0 || m.docsCursor >= len(m.docsNav) {
+		return 0
+	}
+	key := m.docsNav[m.docsCursor].page.Key
+	for i, ln := range m.docsLines {
+		if ln.kind == docsLinePage && ln.page.Key == key {
+			return i
+		}
+	}
+	return 0
+}
+
+func (m *Model) ensureDocsVisible() {
+	h := m.listHeight()
+	line := m.docsCursorScreenLine()
+	if line < m.docsOffset {
+		m.docsOffset = line
+	}
+	if line >= m.docsOffset+h {
+		m.docsOffset = line - h + 1
+	}
+	if m.docsOffset < 0 {
+		m.docsOffset = 0
+	}
+}
+
+func (m Model) selectedDocKey() (string, bool) {
+	if m.mode == modeDocDetail && m.pageDetailKey != "" {
+		return m.pageDetailKey, true
+	}
+	if len(m.docsNav) == 0 || m.docsCursor < 0 || m.docsCursor >= len(m.docsNav) {
+		return "", false
+	}
+	return m.docsNav[m.docsCursor].page.Key, true
+}
+
+func (m Model) loadPageDetailCmd(key string) tea.Cmd {
+	db := m.db
+	return func() tea.Msg {
+		if db == nil {
+			return pageDetailMsg{key: key, err: fmt.Errorf("no database")}
+		}
+		d, err := db.PageDetail(key)
+		if err != nil {
+			return pageDetailMsg{key: key, err: err}
+		}
+		if d == nil {
+			return pageDetailMsg{key: key, err: fmt.Errorf("page not found")}
+		}
+		return pageDetailMsg{key: key, d: d}
+	}
+}
+
+func (m Model) docsUnsupported(action string) tea.Cmd {
+	return toast("unsupported in docs view: "+action, true)
+}
+
+func (m Model) handleDocsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	k := m.keys
+	switch {
+	case key.Matches(msg, k.Quit):
+		return m, tea.Quit
+	case key.Matches(msg, k.Help):
+		m.showHelp = true
+		return m, nil
+	case key.Matches(msg, k.Docs):
+		m.leaveDocs()
+		return m, nil
+	case key.Matches(msg, k.Back), msg.String() == "esc":
+		if m.filter != "" {
+			m.filter = ""
+			m.refilterDocs()
+			return m, nil
+		}
+		m.leaveDocs()
+		return m, nil
+	case key.Matches(msg, k.Filter):
+		m.filterFrom = modeDocs
+		m.mode = modeFilter
+		return m, nil
+	case key.Matches(msg, k.Down):
+		m.moveDocsCursor(1)
+		return m, nil
+	case key.Matches(msg, k.Up):
+		m.moveDocsCursor(-1)
+		return m, nil
+	case key.Matches(msg, k.Top):
+		m.docsCursor = 0
+		m.ensureDocsVisible()
+		return m, nil
+	case key.Matches(msg, k.Bottom):
+		if n := len(m.docsNav); n > 0 {
+			m.docsCursor = n - 1
+			m.ensureDocsVisible()
+		}
+		return m, nil
+	case msg.String() == "pgdown" || msg.String() == "ctrl+d":
+		m.moveDocsCursor(m.pageSize())
+		return m, nil
+	case msg.String() == "pgup" || msg.String() == "ctrl+u":
+		m.moveDocsCursor(-m.pageSize())
+		return m, nil
+	case key.Matches(msg, k.Enter):
+		key, ok := m.selectedDocKey()
+		if !ok {
+			return m, nil
+		}
+		if m.db == nil {
+			// Tests inject pageDetail; without DB stay put unless already set.
+			return m, nil
+		}
+		return m, m.loadPageDetailCmd(key)
+	case key.Matches(msg, k.Refresh):
+		m.loading = true
+		return m, tea.Batch(m.spin.Tick, m.reloadCmd())
+	case key.Matches(msg, k.Comment):
+		return m, m.docsUnsupported("comment")
+	case key.Matches(msg, k.Transition):
+		return m, m.docsUnsupported("transition")
+	case key.Matches(msg, k.Assignee):
+		return m, m.docsUnsupported("assignee")
+	case key.Matches(msg, k.Edit):
+		return m, m.docsUnsupported("edit")
+	case key.Matches(msg, k.Watch):
+		return m, m.docsUnsupported("watch")
+	case key.Matches(msg, k.Feed):
+		m.loading = true
+		return m, tea.Batch(m.spin.Tick, m.loadFeedCmd())
+	case key.Matches(msg, k.Views):
+		return m, m.docsUnsupported("saved views")
+	}
+	return m, nil
+}
+
+func (m Model) handleDocDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	k := m.keys
+	switch {
+	case key.Matches(msg, k.Quit):
+		return m, tea.Quit
+	case key.Matches(msg, k.Help):
+		m.showHelp = true
+		return m, nil
+	case key.Matches(msg, k.Back), msg.String() == "esc":
+		m.mode = modeDocs
+		m.pageDetail = nil
+		m.pageDetailKey = ""
+		return m, nil
+	case key.Matches(msg, k.Docs):
+		m.leaveDocs()
+		return m, nil
+	case key.Matches(msg, k.Refresh):
+		if m.pageDetailKey != "" && m.db != nil {
+			return m, m.loadPageDetailCmd(m.pageDetailKey)
+		}
+		return m, nil
+	case key.Matches(msg, k.Comment):
+		return m, m.docsUnsupported("comment")
+	case key.Matches(msg, k.Transition):
+		return m, m.docsUnsupported("transition")
+	case key.Matches(msg, k.Assignee):
+		return m, m.docsUnsupported("assignee")
+	case key.Matches(msg, k.Edit):
+		return m, m.docsUnsupported("edit")
+	case key.Matches(msg, k.Watch):
+		return m, m.docsUnsupported("watch")
+	}
+	return m, nil
+}
+
+func (m Model) viewDocs() string {
+	var b strings.Builder
+	w := m.width
+
+	b.WriteString(m.renderHeader(w))
+	b.WriteByte('\n')
+	// Docs chrome: single active chip, no issue tabs.
+	tab := " " + styleTabActive.Render(" docs ")
+	if n := len(m.pages); n > 0 {
+		tab += " " + styleMuted.Render(fmt.Sprintf("%d mirrored", n))
+	}
+	b.WriteString(fitWidth(tab, w))
+	b.WriteByte('\n')
+
+	listH := m.listHeight()
+	if len(m.pages) == 0 {
+		empty := styleMuted.Render("  no documents mirrored")
+		for i := 0; i < listH; i++ {
+			if i == 0 {
+				b.WriteString(fitWidth(empty, w))
+			}
+			b.WriteByte('\n')
+		}
+	} else if len(m.docsNav) == 0 {
+		empty := styleMuted.Render("  no matches — press / to filter · D to leave")
+		for i := 0; i < listH; i++ {
+			if i == 0 {
+				b.WriteString(fitWidth(empty, w))
+			}
+			b.WriteByte('\n')
+		}
+	} else {
+		total := len(m.docsLines)
+		end := m.docsOffset + listH
+		if end > total {
+			end = total
+		}
+		selKey := ""
+		if m.docsCursor >= 0 && m.docsCursor < len(m.docsNav) {
+			selKey = m.docsNav[m.docsCursor].page.Key
+		}
+		for i := m.docsOffset; i < end; i++ {
+			ln := m.docsLines[i]
+			if ln.kind == docsLineHeader {
+				hdr := fmt.Sprintf(" ▸ %s (%d)", ln.space, ln.count)
+				b.WriteString(fitWidth(styleMuted.Render(hdr), w))
+			} else {
+				// Indent by depth (2 spaces per level), then title · author · age.
+				indent := strings.Repeat("  ", ln.depth)
+				title := ln.page.Title
+				if title == "" {
+					title = ln.page.Key
+				}
+				age := relativeTime(ln.page.UpdatedAt, m.clock())
+				label := "  " + indent + title
+				meta := ""
+				if ln.page.Author != "" {
+					meta = "  " + ln.page.Author
+				}
+				if age != "" {
+					meta += "  " + age
+				}
+				selected := ln.page.Key == selKey
+				if selected {
+					inner := styleSel.Render(label) + styleSelMuted.Render(meta)
+					b.WriteString(styleSel.Width(w).MaxWidth(w).Render(inner))
+				} else {
+					line := stylePrimary.Render(label) + styleMuted.Render(meta)
+					b.WriteString(fitWidth(line, w))
+				}
+			}
+			b.WriteByte('\n')
+		}
+		for i := end - m.docsOffset; i < listH; i++ {
+			b.WriteByte('\n')
+		}
+	}
+
+	b.WriteString(m.renderDocsStatusBar(w))
+	return b.String()
+}
+
+func (m Model) renderDocsStatusBar(w int) string {
+	leftParts := make([]string, 0, 4)
+	if m.loading || m.busy {
+		leftParts = append(leftParts, m.spin.View())
+	}
+	if w < 40 {
+		leftParts = append(leftParts, styleHelp.Render("j/k enter / D q"))
+	} else {
+		leftParts = append(leftParts, styleHelp.Render("j/k · / filter · enter · D leave · ? · q"))
+	}
+	if m.filter != "" || m.mode == modeFilter {
+		f := m.filter
+		if m.mode == modeFilter {
+			f += "▌"
+		}
+		leftParts = append(leftParts, styleFilter.Render("/"+f))
+	}
+	if m.toast != "" && m.clock().Sub(m.toastAt) < 8*time.Second {
+		if m.toastErr {
+			leftParts = append(leftParts, styleToastErr.Render(m.toast))
+		} else {
+			leftParts = append(leftParts, styleToastOK.Render(m.toast))
+		}
+	}
+	left := strings.Join(leftParts, "  ")
+
+	count := "0/0"
+	if n := len(m.docsNav); n > 0 {
+		count = fmt.Sprintf("%d/%d", m.docsCursor+1, n)
+	}
+	right := styleMuted.Render(m.syncedLabel + "  ·  " + count)
+	return joinBar(left, right, w)
+}
+
+func (m Model) viewDocDetail() string {
+	var b strings.Builder
+	w := m.width
+	key := m.pageDetailKey
+
+	b.WriteString(m.renderHeader(w))
+	b.WriteByte('\n')
+
+	innerW := w - 4
+	if innerW < 20 {
+		innerW = 20
+	}
+
+	var body strings.Builder
+	// Breadcrumb: space › ancestors › title
+	crumb := docsBreadcrumb(m.pages, key)
+	if crumb == "" || crumb == key {
+		if m.pageDetail != nil {
+			crumb = docsBreadcrumb([]store.PageLite{m.pageDetail.PageLite}, key)
+			if m.pageDetail.SpaceKey != "" && m.pageDetail.Title != "" && !strings.Contains(crumb, "›") {
+				crumb = m.pageDetail.SpaceKey + " › " + m.pageDetail.Title
+			}
+		}
+	}
+	body.WriteString(stylePrimary.Bold(true).Render(crumb))
+	body.WriteByte('\n')
+
+	if m.pageDetail != nil {
+		body.WriteString(m.renderDetailField("author", orDash(m.pageDetail.Author)))
+		body.WriteByte('\n')
+		body.WriteString(m.renderDetailField("updated", orDash(relativeTime(m.pageDetail.UpdatedAt, m.clock()))))
+		body.WriteByte('\n')
+		body.WriteByte('\n')
+
+		body.WriteString(styleSection.Render("Body"))
+		body.WriteByte('\n')
+		// Store exposes body_adf for detail; flatten like issue Description.
+		// (items.body_text is FTS-only and not on PageDetail.)
+		text := jira.PlainText(m.pageDetail.BodyADF)
+		if text == "" {
+			body.WriteString(styleMuted.Render("  (empty)"))
+			body.WriteByte('\n')
+		} else {
+			for _, line := range wrapLines(text, innerW-2, 40) {
+				body.WriteString("  ")
+				body.WriteString(line)
+				body.WriteByte('\n')
+			}
+		}
+		body.WriteByte('\n')
+
+		body.WriteString(styleSection.Render("Comments"))
+		body.WriteByte('\n')
+		comments := m.pageDetail.Comments
+		if len(comments) == 0 {
+			body.WriteString(styleMuted.Render("  (none)"))
+			body.WriteByte('\n')
+		} else {
+			for _, c := range comments {
+				who := c.Author
+				if who == "" {
+					who = "?"
+				}
+				when := relativeTime(c.CreatedAt, m.clock())
+				body.WriteString(styleDim.Render(fmt.Sprintf("  %s · %s", who, when)))
+				body.WriteByte('\n')
+				ct := c.BodyText
+				if ct == "" {
+					ct = jira.PlainText(c.BodyADF)
+				}
+				if ct == "" {
+					body.WriteString(styleMuted.Render("    (empty)"))
+					body.WriteByte('\n')
+					continue
+				}
+				for _, line := range wrapLines(ct, innerW-4, 8) {
+					body.WriteString("    ")
+					body.WriteString(line)
+					body.WriteByte('\n')
+				}
+			}
+		}
+	} else {
+		body.WriteString(styleMuted.Render("loading…"))
+	}
+
+	panel := styleDetailPanel.Width(w - 2).Render(strings.TrimRight(body.String(), "\n"))
+	b.WriteString(panel)
+	b.WriteByte('\n')
+
+	footer := styleHelp.Render("esc back  D docs/list  ? help  q")
+	if m.toast != "" && m.clock().Sub(m.toastAt) < 8*time.Second {
+		var t string
+		if m.toastErr {
+			t = styleToastErr.Render(m.toast)
+		} else {
+			t = styleToastOK.Render(m.toast)
+		}
+		footer = joinBar(footer, t, w)
+	}
+	b.WriteString(fitWidth(footer, w))
+	return b.String()
+}

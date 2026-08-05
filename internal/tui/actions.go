@@ -92,6 +92,12 @@ func (m *Model) requireWrite() (writeClient, error) {
 }
 
 func (m *Model) selectedKey() (string, bool) {
+	// Docs surfaces have no issue key — issue write paths must not fall through
+	// to a hidden list cursor.
+	if m.mode == modeDocs || m.mode == modeDocDetail ||
+		(m.mode == modeFilter && m.filterFrom == modeDocs) {
+		return "", false
+	}
 	// Detail (list or feed) always wins — the list cursor may not match the open issue.
 	if m.mode == modeDetail && m.detailKey != "" {
 		return m.detailKey, true
@@ -110,6 +116,13 @@ func (m *Model) selectedKey() (string, bool) {
 		return "", false
 	}
 	return m.all[m.visible[m.cursor]].lite.IssueKey, true
+}
+
+// inDocsSurface reports whether the navigator is showing docs (list, detail, or
+// a / filter opened from docs). Issue-only actions should refuse honestly.
+func (m Model) inDocsSurface() bool {
+	return m.mode == modeDocs || m.mode == modeDocDetail ||
+		(m.mode == modeFilter && m.filterFrom == modeDocs)
 }
 
 func (m *Model) startComment() tea.Cmd {

@@ -41,6 +41,7 @@ func (m *Model) paletteItems() []paletteItem {
 		{id: "act:edit", label: "Edit field", hint: "e"},
 		{id: "act:watch", label: "Watch / unwatch", hint: "w"},
 		{id: "act:feed", label: "Personal feed", hint: "F"},
+		{id: "act:docs", label: "Docs (mirrored pages)", hint: "D"},
 		{id: "act:views", label: "Saved views", hint: "v"},
 		{id: "act:refresh", label: "Reload mirror", hint: "r"},
 		{id: "act:help", label: "Help", hint: "?"},
@@ -201,22 +202,44 @@ func (m Model) dispatchPalette(id string) (tea.Model, tea.Cmd) {
 	}
 	switch id {
 	case "act:comment":
+		if m.inDocsSurface() {
+			return m, m.docsUnsupported("comment")
+		}
 		m.busy = true
 		return m, tea.Batch(m.spin.Tick, m.startComment())
 	case "act:transition":
+		if m.inDocsSurface() {
+			return m, m.docsUnsupported("transition")
+		}
 		m.busy = true
 		return m, tea.Batch(m.spin.Tick, m.startTransition())
 	case "act:assignee":
+		if m.inDocsSurface() {
+			return m, m.docsUnsupported("assignee")
+		}
 		m.busy = true
 		return m, tea.Batch(m.spin.Tick, m.startAssignee())
 	case "act:edit":
+		if m.inDocsSurface() {
+			return m, m.docsUnsupported("edit")
+		}
 		m.busy = true
 		return m, tea.Batch(m.spin.Tick, m.startFieldEdit())
 	case "act:watch":
+		if m.inDocsSurface() {
+			return m, m.docsUnsupported("watch")
+		}
 		return m, m.toggleWatchSelected()
 	case "act:feed":
 		m.loading = true
 		return m, tea.Batch(m.spin.Tick, m.loadFeedCmd())
+	case "act:docs":
+		if m.mode == modeDocs || m.mode == modeDocDetail {
+			m.leaveDocs()
+		} else {
+			m.enterDocs()
+		}
+		return m, nil
 	case "act:views":
 		m.loading = true
 		return m, tea.Batch(m.spin.Tick, m.loadViewsCmd())

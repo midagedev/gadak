@@ -30,6 +30,12 @@ func (m Model) overlayHelp(base string) string {
 		body.WriteByte('\n')
 	}
 	body.WriteByte('\n')
+	// Honest parity: docs list filter is title/space substring only.
+	body.WriteString(styleMuted.Render("  docs / filter: title & space only"))
+	body.WriteByte('\n')
+	body.WriteString(styleMuted.Render("  full-text search: web/CLI (not TUI)"))
+	body.WriteByte('\n')
+	body.WriteByte('\n')
 	body.WriteString(styleMuted.Render("  ? or esc to close"))
 
 	panelW := min(m.width-4, 48)
