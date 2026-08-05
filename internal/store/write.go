@@ -195,6 +195,117 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	return true, err
 }
 
+// UpsertPages writes document records in a single transaction and returns how
+// many items it actually changed. Unlike issues, pages always rewrite when
+// called: comments can change without bumping the page's updated_at, so a
+// version-equality skip would drop the comments-only pass.
+func (db *DB) UpsertPages(records []PageRecord) (int, error) {
+	if len(records) == 0 {
+		return 0, nil
+	}
+	changed := 0
+	err := db.write(func(tx *sql.Tx) error {
+		sources := map[string]bool{}
+		for _, r := range records {
+			ok, err := upsertPageRecord(tx, r)
+			if err != nil {
+				return fmt.Errorf("%s: %w", r.Item.Key, err)
+			}
+			if ok {
+				changed++
+				sources[r.Item.SourceID] = true
+			}
+		}
+		for id := range sources {
+			if err := bumpVersion(tx, id, db.schemaVersion); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return changed, nil
+}
+
+func upsertPageRecord(tx *sql.Tx, r PageRecord) (bool, error) {
+	it := r.Item
+	if it.ID == "" || it.SourceID == "" {
+		return false, errors.New("item id and source_id are required")
+	}
+	if it.Kind == "" {
+		it.Kind = "page"
+	}
+	syncedAt := Now()
+
+	// Always rewrite: comment-only edits do not advance the page's updated_at.
+	var rowid int64
+	err := tx.QueryRow(`
+		INSERT INTO items (id, source_id, kind, external_id, key, title, body_text,
+		                   author, author_id, url, created_at, updated_at, synced_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(id) DO UPDATE SET
+			source_id = excluded.source_id, kind = excluded.kind,
+			external_id = excluded.external_id, key = excluded.key,
+			title = excluded.title, body_text = excluded.body_text,
+			author = excluded.author, author_id = excluded.author_id,
+			url = excluded.url, created_at = excluded.created_at,
+			updated_at = excluded.updated_at, synced_at = excluded.synced_at
+		RETURNING rowid`,
+		it.ID, it.SourceID, it.Kind, nz(it.ExternalID), nz(it.Key), nz(it.Title),
+		nz(it.BodyText), nz(it.Author), nz(it.AuthorID), nz(it.URL),
+		nz(it.CreatedAt), nz(it.UpdatedAt), syncedAt,
+	).Scan(&rowid)
+	if err != nil {
+		return false, err
+	}
+
+	pg := r.Page
+	if pg.Status == "" {
+		pg.Status = "current"
+	}
+	if pg.Version <= 0 {
+		pg.Version = 1
+	}
+	if _, err := tx.Exec(`DELETE FROM pages WHERE item_id = ?`, it.ID); err != nil {
+		return false, err
+	}
+	if _, err := tx.Exec(`
+		INSERT INTO pages (item_id, space_key, parent_id, version, status)
+		VALUES (?,?,?,?,?)`,
+		// parent_id/space_key/status are NOT NULL — empty string, never nil.
+		it.ID, pg.SpaceKey, pg.ParentID, pg.Version, pg.Status,
+	); err != nil {
+		return false, err
+	}
+
+	if _, err := tx.Exec(`DELETE FROM comments WHERE item_id = ?`, it.ID); err != nil {
+		return false, err
+	}
+	bodies := make([]string, 0, len(r.Comments))
+	for _, c := range r.Comments {
+		if _, err := tx.Exec(`
+			INSERT INTO comments (id, item_id, external_id, author, author_id,
+			                      body_adf, body_text, created_at, updated_at)
+			VALUES (?,?,?,?,?,?,?,?,?)`,
+			c.ID, it.ID, nz(c.ExternalID), nz(c.Author), nz(c.AuthorID),
+			jsonRaw(c.BodyADF), nz(c.BodyText), nz(c.CreatedAt), nz(c.UpdatedAt),
+		); err != nil {
+			return false, err
+		}
+		if c.BodyText != "" {
+			bodies = append(bodies, c.BodyText)
+		}
+	}
+
+	if err := writeFTS(tx, rowid, it.Title, it.BodyText, strings.Join(bodies, "\n")); err != nil {
+		return false, err
+	}
+	_, err = tx.Exec(`DELETE FROM deleted_items WHERE source_id = ? AND key = ?`, it.SourceID, it.Key)
+	return true, err
+}
+
 // writeFTS rebuilds one row of the contentless index. Contentless FTS5 has no
 // update path, so delete-then-insert is the whole story.
 func writeFTS(tx *sql.Tx, rowid int64, title, body, comments string) error {

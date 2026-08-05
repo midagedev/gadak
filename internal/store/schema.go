@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -253,4 +253,17 @@ CREATE TABLE sync_runs (
   error       TEXT                     -- NULL on success
 );
 CREATE INDEX idx_sync_runs_source ON sync_runs(source_id, id DESC);
+`
+
+// schemaV9 adds the document projection for wiki pages (second source). Comments
+// stay on the existing comments table; the spine is still items.
+const schemaV9 = `
+CREATE TABLE pages (
+  item_id    TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+  space_key  TEXT NOT NULL,
+  parent_id  TEXT NOT NULL DEFAULT '',
+  version    INTEGER NOT NULL DEFAULT 1,
+  status     TEXT NOT NULL DEFAULT 'current'
+);
+CREATE INDEX idx_pages_space ON pages(space_key);
 `

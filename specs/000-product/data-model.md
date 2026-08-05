@@ -156,6 +156,21 @@ carried a `working_hours_in_status` column that no code ever populated, and the
 UI's "stale" view read it as always zero. Staleness is computed from
 `status_changed_at` instead, with the threshold in configuration.
 
+## `pages` (v9)
+
+The document projection (Confluence pages; decision 0006). Joined to `items` on
+`item_id`; the item row carries `kind = 'page'`, the numeric page id as `key`,
+and the flattened ADF body as `body_text`, so FTS and the spine queries need no
+change. Comments reuse the `comments` table.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `item_id` | TEXT PK | FK to `items.id`, `ON DELETE CASCADE` |
+| `space_key` | TEXT | Confluence space key; indexed (`idx_pages_space`) |
+| `parent_id` | TEXT | Direct parent page id, `''` for top-level pages |
+| `version` | INTEGER | Source version number of the mirrored copy |
+| `status` | TEXT | `current` (source status; trashed pages are not mirrored) |
+
 ## `comments`
 
 | Column | Type | Notes |

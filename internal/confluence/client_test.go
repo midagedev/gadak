@@ -1,0 +1,186 @@
+package confluence
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+func testClient(t *testing.T, h http.Handler) *Client {
+	t.Helper()
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	// New appends /wiki to the site; httptest URL is the site origin.
+	c := New(srv.URL, "user@example.invalid", "secret-token")
+	c.Retries, c.Backoff, c.PauseBetween = 4, time.Millisecond, 0
+	return c
+}
+
+func TestSpacesPagesComments(t *testing.T) {
+	adf := `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"로그인이 실패했다"}]}]}`
+	var hits int32
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		switch {
+		case r.URL.Path == "/wiki/rest/api/space":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]any{
+					{"key": "AAA", "name": "Alpha", "type": "global"},
+					{"key": "BBB", "name": "Beta", "type": "global"},
+				},
+				"size": 2, "limit": 100, "start": 0,
+			})
+		case r.URL.Path == "/wiki/rest/api/content/search":
+			// First page then next via _links.next.
+			if r.URL.Query().Get("cursor") == "next1" {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"results": []map[string]any{
+						pageHit("2", "BBB", "Other page", "2026-08-02T12:00:00.000Z", 1),
+					},
+					"_links": map[string]string{},
+				})
+				return
+			}
+			next := "/wiki/rest/api/content/search?cql=type=page&limit=50&expand=version,space&cursor=next1"
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]any{
+					pageHit("1", "AAA", "Login notes", "2026-08-01T10:00:00.000Z", 2),
+				},
+				"_links": map[string]string{"next": next},
+			})
+		case r.URL.Path == "/wiki/rest/api/content/1":
+			_ = json.NewEncoder(w).Encode(fullPage("1", "AAA", "Login notes", adf, 2, "2026-08-01T10:00:00.000Z"))
+		case r.URL.Path == "/wiki/rest/api/content/1/child/comment":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]any{
+					commentJSON("c1", "looks broken", "2026-08-01T11:00:00.000Z"),
+				},
+				"size": 1, "limit": 100,
+			})
+		case r.URL.Path == "/wiki/rest/api/content/c1/child/comment":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]any{
+					commentJSON("c1r1", "reply ok", "2026-08-01T11:30:00.000Z"),
+				},
+				"size": 1, "limit": 100,
+			})
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+
+	spaces, err := c.Spaces(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spaces) != 2 || spaces[0].Key != "AAA" {
+		t.Fatalf("spaces = %+v", spaces)
+	}
+
+	var ids []string
+	err = c.SearchPages(context.Background(), "type=page", func(pages []Page) error {
+		for _, p := range pages {
+			ids = append(ids, p.ID)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 2 || ids[0] != "1" || ids[1] != "2" {
+		t.Fatalf("search ids = %v", ids)
+	}
+
+	pg, err := c.Page(context.Background(), "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pg.Title != "Login notes" || pg.Body.AtlasDocFormat == nil {
+		t.Fatalf("page = %+v", pg)
+	}
+	raw := pg.Body.ADFRaw()
+	if !strings.Contains(string(raw), "로그인이 실패했다") {
+		t.Errorf("adf raw = %s", raw)
+	}
+
+	cms, err := c.Comments(context.Background(), "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cms) != 2 {
+		t.Fatalf("comments = %d, want 2 (top + reply)", len(cms))
+	}
+	if cms[0].ID != "c1" || cms[1].ID != "c1r1" {
+		t.Errorf("comment ids = %s, %s", cms[0].ID, cms[1].ID)
+	}
+}
+
+func TestRetryAfter429(t *testing.T) {
+	var calls int32
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&calls, 1)
+		if n < 3 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"key": "AAA", "name": "Alpha", "type": "global"},
+			},
+			"size": 1, "limit": 100, "start": 0,
+		})
+	}))
+	spaces, err := c.Spaces(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 3 {
+		t.Errorf("attempts = %d, want 3", calls)
+	}
+	if len(spaces) != 1 || spaces[0].Key != "AAA" {
+		t.Errorf("spaces = %+v", spaces)
+	}
+}
+
+func pageHit(id, space, title, when string, ver int) map[string]any {
+	return map[string]any{
+		"id": id, "type": "page", "status": "current", "title": title,
+		"space": map[string]any{"key": space, "name": space},
+		"version": map[string]any{"number": ver, "when": when, "by": map[string]any{
+			"accountId": "acc-1", "displayName": "Ada Example",
+		}},
+	}
+}
+
+func fullPage(id, space, title, adf string, ver int, when string) map[string]any {
+	p := pageHit(id, space, title, when, ver)
+	p["body"] = map[string]any{
+		"atlas_doc_format": map[string]any{
+			"value":          adf,
+			"representation": "atlas_doc_format",
+		},
+	}
+	p["ancestors"] = []map[string]any{}
+	return p
+}
+
+func commentJSON(id, text, when string) map[string]any {
+	adf := `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"` + text + `"}]}]}`
+	return map[string]any{
+		"id": id, "type": "comment", "title": "Re:",
+		"body": map[string]any{
+			"atlas_doc_format": map[string]any{"value": adf, "representation": "atlas_doc_format"},
+		},
+		"version": map[string]any{
+			"number": 1, "when": when,
+			"by": map[string]any{"accountId": "acc-2", "displayName": "Bob Example"},
+		},
+	}
+}

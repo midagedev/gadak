@@ -115,6 +115,23 @@ type IssueRecord struct {
 	Links       []Link
 }
 
+// Page is the document projection (one row in the pages table). Field names
+// match the projection columns, not any source API (same status as Issue).
+type Page struct {
+	SpaceKey string
+	ParentID string
+	Version  int
+	Status   string
+}
+
+// PageRecord is one document item plus its projection and comments. Comments
+// are replaced wholesale on upsert, matching IssueRecord.
+type PageRecord struct {
+	Item     Item
+	Page     Page
+	Comments []Comment
+}
+
 // Batch is one page of sync output. Categories and Priorities come from the
 // site's own metadata endpoints (which are not localized) and feed the derived
 // field rules.

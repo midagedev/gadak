@@ -480,8 +480,14 @@ func cmdSync(args []string) error {
 	fs := newFlagSet("sync")
 	full := fs.Bool("full", false, "force a full sync")
 	watch := fs.Bool("watch", false, "keep syncing on an interval")
+	source := fs.String("source", "all", "which source to sync: jira, confluence, or all")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	switch *source {
+	case "jira", "confluence", "all":
+	default:
+		return fmt.Errorf("unknown --source %q (want jira, confluence, or all)", *source)
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -502,16 +508,39 @@ func cmdSync(args []string) error {
 		defer stop()
 		return syncer.Watch(ctx, cfg, db, opts)
 	}
-	res, err := syncer.Run(context.Background(), cfg, db, opts)
-	if err != nil {
-		return err
+	runJira := *source == "all" || *source == "jira"
+	runConf := (*source == "all" || *source == "confluence") && cfg.Confluence != nil
+	if *source == "confluence" && cfg.Confluence == nil {
+		return fmt.Errorf("confluence is not configured — add a confluence section to config.json")
 	}
-	kind := "incremental"
-	if res.Full {
-		kind = "full"
+	if runJira {
+		res, err := syncer.Run(context.Background(), cfg, db, opts)
+		if err != nil {
+			return err
+		}
+		kind := "incremental"
+		if res.Full {
+			kind = "full"
+		}
+		fmt.Printf("%s sync: fetched %d, changed %d, deleted %d, watermark %s\n",
+			kind, res.Fetched, res.Changed, res.Deleted, res.Watermark)
 	}
-	fmt.Printf("%s sync: fetched %d, changed %d, deleted %d, watermark %s\n",
-		kind, res.Fetched, res.Changed, res.Deleted, res.Watermark)
+	if runConf {
+		cres, err := syncer.RunConfluence(context.Background(), cfg, db, opts)
+		if err != nil {
+			if runJira {
+				// Jira already succeeded; log confluence failure but still exit non-zero.
+				log.Printf("confluence sync failed: %v", err)
+			}
+			return err
+		}
+		kind := "incremental"
+		if cres.Full {
+			kind = "full"
+		}
+		fmt.Printf("confluence %s sync: fetched %d pages, changed %d, watermark %s\n",
+			kind, cres.Fetched, cres.Changed, cres.Watermark)
+	}
 	printUpdateNotice(cfg, false)
 	return nil
 }

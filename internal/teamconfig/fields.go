@@ -20,6 +20,7 @@ var exportableConfigFields = []string{
 	"Features",
 	"QaDashboardURL",
 	"StaleThresholdHours",
+	"Confluence",
 }
 
 // Config struct field names that must never appear in a team file. Secrets,

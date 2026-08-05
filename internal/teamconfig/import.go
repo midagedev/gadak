@@ -236,6 +236,7 @@ func planSettings(cur *config.Config, in TeamSettings, overwrite bool) []Setting
 		{key: "features", empty: len(cur.Features) == 0, hasIn: len(in.Features) > 0},
 		{key: "qaDashboardUrl", empty: cur.QaDashboardURL == "", hasIn: in.QaDashboardURL != ""},
 		{key: "staleThresholdHours", empty: cur.StaleThresholdHours == 0, hasIn: in.StaleThresholdHours != 0},
+		{key: "confluence", empty: cur.Confluence == nil, hasIn: in.Confluence != nil},
 	}
 	var out []SettingChange
 	for _, it := range items {
@@ -341,6 +342,8 @@ func applySetting(cfg *config.Config, key string, in TeamSettings) error {
 		cfg.QaDashboardURL = in.QaDashboardURL
 	case "staleThresholdHours":
 		cfg.StaleThresholdHours = in.StaleThresholdHours
+	case "confluence":
+		cfg.Confluence = copyConfluence(in.Confluence)
 	default:
 		return fmt.Errorf("internal: unknown settings key %q", key)
 	}

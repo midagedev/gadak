@@ -38,6 +38,7 @@ type TeamSettings struct {
 	Features            map[string]bool           `json:"features,omitempty"`
 	QaDashboardURL      string                    `json:"qaDashboardUrl,omitempty"`
 	StaleThresholdHours int                       `json:"staleThresholdHours,omitempty"`
+	Confluence          *config.ConfluenceConfig  `json:"confluence,omitempty"`
 }
 
 // ExportView is a saved view without machine-local id/timestamps.
@@ -77,6 +78,7 @@ func BuildDocument(cfg *config.Config, views []store.SavedView, opts ExportOptio
 		Features:            copyBoolMap(cfg.Features),
 		QaDashboardURL:      cfg.QaDashboardURL,
 		StaleThresholdHours: cfg.StaleThresholdHours,
+		Confluence:          copyConfluence(cfg.Confluence),
 	}
 	if opts.WithMembers {
 		s.Members = copyMembers(cfg.Members)
@@ -214,4 +216,11 @@ func copyFieldSpecs(in []config.FieldSpec) []config.FieldSpec {
 		}
 	}
 	return out
+}
+
+func copyConfluence(in *config.ConfluenceConfig) *config.ConfluenceConfig {
+	if in == nil {
+		return nil
+	}
+	return &config.ConfluenceConfig{Spaces: copyStrings(in.Spaces)}
 }

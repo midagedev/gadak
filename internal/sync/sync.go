@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/confluence"
 	"github.com/midagedev/scry/internal/fields"
 	"github.com/midagedev/scry/internal/jira"
 	"github.com/midagedev/scry/internal/store"
@@ -44,6 +45,8 @@ type Options struct {
 	// Client is for tests and for a server that wants to share one; nil builds
 	// one from cfg.
 	Client *jira.Client
+	// ConfluenceClient is for tests; nil builds one from cfg when Confluence is configured.
+	ConfluenceClient *confluence.Client
 	// Notifier delivers OS desktop alerts for new personal-feed events after
 	// each successful Watch cycle. Nil uses OSNotifier. Never aborts the loop.
 	Notifier Notifier
@@ -395,6 +398,15 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 		} else if err := notifyAfterSync(db, cfg, o.Notifier); err != nil {
 			// Desktop notify is best-effort: never abort the watch loop.
 			opts.logf("notify: %v", err)
+		}
+		// Confluence is best-effort: a failure must not block Jira's next tick.
+		if cfg.Confluence != nil {
+			if _, err := RunConfluence(ctx, cfg, db, o); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				opts.logf("confluence sync failed: %v", err)
+			}
 		}
 		o.Full, o.Reconcile = false, false
 		select {

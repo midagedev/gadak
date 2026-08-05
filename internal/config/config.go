@@ -98,9 +98,19 @@ type Config struct {
 	// set false to opt out (restores the prior "outbound is only Jira" model).
 	UpdateCheck *bool `json:"updateCheck,omitempty"`
 
+	// Confluence, when non-nil, enables the wiki-page mirror (second source).
+	// Spaces empty means every space the account can see.
+	Confluence *ConfluenceConfig `json:"confluence,omitempty"`
+
 	// dir is the profile directory this Config was loaded from (or will save to).
 	// Unexported so it never appears in JSON; set by LoadFor.
 	dir string
+}
+
+// ConfluenceConfig is the optional wiki-page source. Presence (non-nil) is the
+// on switch; same site/email/token as Jira, REST base under /wiki.
+type ConfluenceConfig struct {
+	Spaces []string `json:"spaces,omitempty"`
 }
 
 // FieldSpec is one logical custom field. Jira creates a separate field id per

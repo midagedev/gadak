@@ -29,6 +29,7 @@ var documentedColumns = map[string][]string{
 	"attachments":   {"id", "item_id", "external_id", "filename", "mime_type", "size", "author", "created_at"},
 	"changelog":     {"id", "item_id", "at", "author", "field", "from_value", "from_id", "to_value", "to_id"},
 	"links":         {"item_id", "type", "direction", "target_key"},
+	"pages":         {"item_id", "space_key", "parent_id", "version", "status"},
 	"items_fts":     {"title", "body_text", "comments_text"},
 	"deleted_items": {"key", "source_id", "deleted_at"},
 	"saved_views":   {"id", "name", "config", "created_at", "updated_at"},
