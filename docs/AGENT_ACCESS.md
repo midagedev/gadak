@@ -62,9 +62,10 @@ sqlite3 ~/.scry/scry.db "select watermark, last_error from sync_state"
 
 Confirm `last_error IS NULL` and that the watermark is recent before acting on an
 answer: a mirror that silently stopped syncing looks exactly like a quiet
-backlog. Every `scry` command that reads or writes an issue also prints a
-one-line warning to stderr when the last sync failed or is over an hour old, so a
-stale answer says so without being asked.
+backlog. `issue`, `search`, `comment`, `transition`, `assign`, and `fields` also
+print a one-line warning to stderr when the last sync failed or is over an hour
+old, so a stale answer says so without being asked. (`sql` and `status` do not;
+use `scry status --json` when you need an explicit freshness check.)
 
 ## Rules
 
@@ -75,11 +76,12 @@ stale answer says so without being asked.
 - **Do not poll.** `sync_state.version` changes only when something changed.
 - **Remember it is a mirror, not an archive.** Deleted issues disappear from it.
 
-## Why not an MCP server first
+## Why MCP is last, not first
 
-One is planned for agents without shell access, and it will stay a thin wrapper:
-`scry_query`, `scry_search`, `scry_issue`, `scry_status`. Deliberately not one
-tool per question — every extra tool is context an agent must read before it can
-act, and `scry_query` plus the documented schema subsumes them all. The CLI and
-REST layers came first because both are usable today from anything that can run a
-command or open a socket.
+MCP is shipped (`scry mcp`) for hosts without a shell — Claude Desktop and the
+like. Prefer the CLI or SQL when the agent can spawn a process: no tool schemas
+in the context window, and the same four capabilities. The MCP surface stays a
+thin wrapper: `scry_query`, `scry_search`, `scry_issue`, `scry_status`.
+Deliberately not one tool per question — every extra tool is context an agent
+must read before it can act, and `scry_query` plus the documented schema subsumes
+them all. Setup: [`MCP.md`](MCP.md).

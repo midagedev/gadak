@@ -49,10 +49,11 @@ English (or locale-aware) for an English-primary open-source audience.
 
 - `web/src/stores/views.svelte.ts` — `'[views] 개인 뷰 저장 실패'`, etc.
 - `web/src/stores/me.svelte.ts` — `'워치 로드 실패'`, `'피드 로드 실패'`, …
-- `web/src/stores/presence.svelte.ts` — `'[presence] … 프레즌스 비활성…'`
 
-Source *comments* may stay Korean by design (T0.10); this item is about
-user-visible `console.*` text only.
+Source comments are English throughout; this item is the `console.*` text that
+was left behind. Korean strings that are *data* — the `i18n/ko.ts` catalog, and
+the localized status and person names in test fixtures — are deliberate and must
+stay: those fixtures are what keep the display-name trap from coming back.
 
 **Done when:** all `console.warn` / `console.error` strings under `web/src` are
 English (or routed through `t()`), and a quick grep shows no Hangul in those

@@ -30,7 +30,7 @@ account). Enable GitHub Pages once if the link 404s; see below.
 scry init && scry sync    # Jira -> ~/.scry/scry.db
 scry serve                # http://localhost:7777
 scry tui                  # same mirror, in your terminal
-scry sql "select key, summary from issues where reopen_count > 1"
+scry sql "select key, summary from issues_full where reopen_count > 1"
 ```
 
 > **Status: working, pre-release.** Sync, the read API, write-through, the web UI,
@@ -71,10 +71,10 @@ terminal, and the agent read the same store.
   <img src="docs/media/tui.gif" alt="scry tui: filtering and opening an issue in the terminal" width="800">
 </p>
 
-Writes go through in all three: status transitions, comments with mentions and
-inline screenshots, assignee changes, field edits, issue creation. They hit Jira
-and then refresh the mirror, so the list is correct a moment later without a full
-sync.
+Writes go through to Jira and then refresh the mirror, so the list is correct a
+moment later without a full sync. Comment, transition, and assign work on all
+three surfaces. Field edits and issue creation are web-only today (TUI and CLI
+have no create or field-edit commands).
 
 Attachments are local too. The first view of an image caches its bytes next to
 the mirror and every later view is a disk read, so a screenshot-heavy issue opens
@@ -202,7 +202,7 @@ at full power:
 
 ```bash
 # What keeps coming back, and when did it last happen?
-scry sql "select key, summary, reopen_count, reopened_at from issues
+scry sql "select key, summary, reopen_count, reopened_at from issues_full
           where reopen_count > 0 order by reopened_at desc limit 20"
 
 # Full-text across descriptions and comments
@@ -217,10 +217,14 @@ scry comment NMB-140 -m "Reproduced on staging."
 scry transition NMB-140 "In Review"
 ```
 
-Every command takes `--json`, warns on stderr when the mirror is behind, and
-keeps stdout clean enough to pipe. `scry sql` is read-only and statement-checked,
-so an agent on a narrow command allowlist can be given mirror access without
-being given arbitrary `sqlite3`.
+Read and write commands that emit structured output (`init`, `status`, `issue`,
+`search`, `comment`, `transition`, `assign`, `fields`, `sql`) take `--json`.
+`issue`, `search`, `comment`, `transition`, `assign`, and `fields` also warn on
+stderr when the last sync failed or is over an hour old; stdout stays clean
+enough to pipe. `scry sql` opens the database with SQLite `mode=ro` (MCP's
+`scry_query` additionally rejects non-SELECT statements), so an agent on a
+narrow command allowlist can be given mirror access without being given
+arbitrary `sqlite3`.
 
 The schema in `specs/000-product/data-model.md` is a public contract. Filter on
 `status_category` and ids, never on display names — Jira translates those per
@@ -282,8 +286,8 @@ which is half the point. See `docs/decisions/0003-local-process.md`.
 | Your tracker holds tens of thousands of issues and Jira's UI struggles. | Your team is small enough that Jira already feels instant. |
 
 **In scope:** issue fields, descriptions, comments, attachments, changelog, links,
-status transitions, assignee, field edits, issue creation, full-text search, saved
-views, watches.
+status transitions, assignee, full-text search, saved views, watches; field edits
+and issue creation on the web UI.
 **Out of scope:** boards and sprint mechanics, project administration, workflow
 configuration, permission schemes, and anything requiring Jira's own UI.
 **Not a sync engine:** Jira is the system of record. The mirror is disposable —

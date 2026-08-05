@@ -45,7 +45,7 @@ boundary is the bind address:
 | --- | --- |
 | HTTP API / web UI | Binds `127.0.0.1` only; non-loopback requires `--allow-remote` |
 | Auth | None — anyone who can reach the port can read the mirror and write to Jira |
-| Credentials | API token in `~/.scry/config.json` mode `0600` (or OS keychain); never in SQLite, logs, or snapshots |
+| Credentials | API token in `~/.scry/config.json` mode `0600`; never in SQLite, logs, or snapshots |
 | Telemetry | None — outbound traffic is only to the configured Jira site |
 
 Therefore:
@@ -73,7 +73,7 @@ check to a prefix test or a broad regex is an XSS hole, not a simplification.
 
 ## Credential Handling
 
-- API tokens live in `~/.scry/config.json` with mode `0600`, or in the OS keychain.
+- API tokens live in `~/.scry/config.json` with mode `0600`.
 - Tokens are never written to SQLite, a log line, an error message, or a snapshot.
 - `GET credential/` returns only a hint, never the token.
 - `scry snapshot` refuses to write output containing credential-shaped strings.

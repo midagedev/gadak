@@ -14,8 +14,9 @@ Jira issues are mirrored to a local SQLite file. Prefer these over any Jira API:
 - `scry issue <KEY>` — everything about one issue (fields, description,
   comments, history, links) in one call. Add `--json` for structure.
 - `scry search "<text>" --json` — full-text over summaries, bodies, comments.
-- `scry sql "<select …>"` — read-only SQL. Schema: `scry sql ".schema"` or
-  specs/000-product/data-model.md in the scry repo.
+- `scry sql "<select …>"` — read-only SQL (SQLite mode=ro). Schema:
+  specs/000-product/data-model.md in the scry repo (or
+  `SELECT sql FROM sqlite_master WHERE type IN ('table','view')`).
 - `scry comment <KEY> -m "…"`, `scry transition <KEY> "<status>"` — writes go
   through to Jira.
 

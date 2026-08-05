@@ -5,7 +5,7 @@ company’s CD pipeline, test manager, and org chart. You extend it in three
 places, each with a different cost and power trade-off.
 
 If you only need “how do I attach GitHub PRs?”, jump to
-[Five-minute quick start](#five-minute-quick-start). For the enrichment table
+[Five-minute quick start](#3-five-minute-quick-start). For the enrichment table
 contract itself, see [`PLUGINS.md`](PLUGINS.md).
 
 ---
@@ -31,7 +31,7 @@ Full reference (defaults, floors, apply timing, hand-edit-only list):
 | `groupRules` | Ordered rules (`projects` / `labels` / `components`) → group id for team views. |
 | `groupLabels` / `groupColors` / `productByGroup` | Display names and colors for those groups. |
 | `members` | Static member directory (avatar, group, account id) merged into bootstrap. |
-| `features` | Feature flags: `deploy`, `qa`, `teamGroups`, `presence`, `feed`, `push` (all off by default). |
+| `features` | Feature flags: `feed`, `push`, `deploy`, `qa`, `teamGroups` (`feed` defaults on when omitted; others off). |
 | `qaDashboardUrl` | Optional link shown next to QA surfaces. |
 | `staleThresholdHours` | Hours in status before an open issue counts as stale (0 → UI default 72). |
 | `syncIntervalSec` | Incremental sync period in seconds (0 → 60). Min 15 when set. Restart `serve`. |

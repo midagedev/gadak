@@ -33,7 +33,7 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `groupLabels` | map | `{}` | Settings → Teams | Immediate |
 | `groupColors` | map | `{}` | Settings → Teams | Immediate |
 | `productByGroup` | map → `{key,label}` | `{}` | Settings → Teams | Immediate |
-| `features` | map of bool | all `false` | Settings → Features | Immediate after reload (client reads `config.json`) |
+| `features` | map of bool | keys: `feed`, `push`, `deploy`, `qa`, `teamGroups`; **`feed` defaults true when omitted**, others false | Settings → Features | Immediate after reload (client reads `config.json`) |
 | `qaDashboardUrl` | string | _(empty)_ | Settings → Features | Immediate after reload |
 | `staleThresholdHours` | int | `0` → client **72** | Settings → Sync | Immediate after reload |
 | `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | **After restart** of `scry serve` |

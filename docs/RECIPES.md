@@ -1,6 +1,6 @@
 # Query recipes — the questions JQL cannot ask
 
-Every recipe runs as-is with `scry sql "…"` (read-only, statement-checked) and
+Every recipe runs as-is with `scry sql "…"` (SQLite `mode=ro`) and
 returns in milliseconds. `issues_full` is the view with the title included;
 add `--json` or `--csv` for machines. Timestamps are ISO-8601 UTC strings, so
 `julianday()` and string comparison both work.

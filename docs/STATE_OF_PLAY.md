@@ -33,7 +33,7 @@ snapshot, not assumed.
 | Live write-through | Comment and transition executed against real Jira; response carried the refreshed IssueLite (`comment_count` 0→1) |
 | Settings round-trip without restart | `PUT settings/` → `config.json` reflects immediately; `groupRules` classified 39 issues on the next read |
 | Plugin boundary | Two SQL statements (insert into `enrichments`, bump `sync_state.version`) surfaced a deploy badge and PR list in the API |
-| Browser E2E | `playwright test --config e2e/playwright.config.ts` → 13/13 against `examples/demo.db`, 11 s |
+| Browser E2E | `playwright test --config e2e/playwright.config.ts` → 19/19 against `examples/demo.db` (`e2e/*.spec.ts` only; `demo/` and `hosted/` ignored) |
 | Derived reopen_reason / cloned_from | Live demo-site sync: 87 reopened issues, 42 carrying a derived reason |
 | Plugin examples end to end | `examples/plugins/github-prs` and `csv-import` run against a copy of the snapshot; the API then returns `linked_prs` and both the list badge (`deploy_status`) and detail `deploy` |
 | Single binary | `go build` embeds `dist/app`; a fresh binary with no `--static` serves the UI and `/api/v1/issues/bootstrap/` returns 200 |
@@ -107,7 +107,7 @@ never shadow mirrored fields.
 | Item | Task | Note |
 | --- | --- | --- |
 | Live-site assignee display names | T6.8 | The committed snapshot is clean (fictional personas); the live site shows placeholder handles until each invitation is accepted. Affects live-site screenshots only |
-| Zero-install hosted demo | v0.3 | Static JSON + demo-sw.js (not sqlite-wasm). `make hosted-demo` → `dist/hosted/`; Pages workflow ready; human enables Pages once |
+| Zero-install hosted demo | v0.3 | Code done: static JSON + demo-sw.js (not sqlite-wasm), `make hosted-demo` → `dist/hosted/`, Pages workflow ready. Remaining: human enables GitHub Pages once |
 | Web push (VAPID) | v0.2 | Still deferred; `features.push` stays false; in-tab Notification only |
 | Bootstrap payload cost at 10k | G5 | ≈61 ms/op on an M4 Pro — over the 50 ms product target, but it is a once-per-boot cost and the client caches it in IndexedDB. Streaming or a columnar payload is the lever if it matters |
 
@@ -117,12 +117,13 @@ secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
 
 ## Operational notes
 
-- GitHub remote: `https://github.com/midagedev/scry` (private until launch).
-  All commits are authored `midagedev <midagedev@users.noreply.github.com>`.
-- The public demo site (a personal Atlassian site) is the live sync target;
-  credentials are never in this repo. CI needs no secrets — everything runs
-  against `examples/demo.db`.
-- `scry --profile demo …` on the owner's machine holds the demo-site credential.
+- All commits are authored `midagedev <midagedev@users.noreply.github.com>`.
+- Everything in CI runs against `examples/demo.db`; no Jira credential is
+  needed to build, test, or review a change. The snapshot's personas are
+  fictional.
+- Live-site verification uses a throwaway Atlassian site through a named profile
+  (`scry --profile demo …`). Credentials live outside the repo by construction —
+  see [SECURITY.md](../SECURITY.md).
 
 ## Hard-won knowledge (do not rediscover these)
 

@@ -11,10 +11,10 @@ flowchart TB
   end
   subgraph Machine["Your machine"]
     subgraph Binary["scry (single Go binary)"]
-      Sync["connector/jira<br/>full + incremental sync"]
+      Sync["jira + sync<br/>full + incremental"]
       Store["store<br/>SQLite + FTS5"]
       API["server<br/>read API + write proxy"]
-      Static["server/static<br/>built UI + config.json"]
+      UI["embedded UI / --static<br/>SPA + config.json"]
     end
     DB[("~/.scry/scry.db")]
     Browser["Browser<br/>Svelte SPA + IndexedDB"]
@@ -26,7 +26,7 @@ flowchart TB
   Store <--> DB
   Store --> API
   API --> Browser
-  Static --> Browser
+  UI --> Browser
   Browser -->|"writes"| API
   API -->|"writes"| Jira
   DB -->|"read-only"| Agent
@@ -41,18 +41,18 @@ codebase — which is exactly what a browser-only build could not achieve
 
 | Package | Owns | Must not know about |
 | --- | --- | --- |
-| `cmd/scry` | CLI surface, flag parsing, wiring | Jira, SQL |
+| `cmd/scry` | CLI surface, flag parsing, wiring; agent commands currently call jira/SQL directly | HTTP handlers |
 | `internal/config` | Config file, credential file permissions, client config document | HTTP handlers |
 | `internal/store` | Schema, migrations, queries, FTS, transactions | Jira field names, HTTP |
-| `internal/connector` | Connector interface and shared sync scaffolding | Jira specifics |
-| `internal/connector/jira` | Jira REST client, field mapping, ADF flattening, derived fields | HTTP handlers, SQL text |
-| `internal/server` | Routing, the API contract, static serving, attachment proxy | SQL text, Jira REST paths |
+| `internal/jira` | Jira REST client, field mapping, ADF flattening | HTTP handlers, SQL text |
+| `internal/sync` | Full/incremental/reconcile passes over the jira client into the store | HTTP handlers, browser |
+| `internal/server` | Routing, the API contract, static/embed serving, attachment proxy | SQL text, Jira REST paths |
 | `web/` | Everything the browser does | Anything server-side |
 
 The rule that matters: **`internal/store` never imports anything Jira-shaped, and
-`internal/connector/jira` never writes SQL.** The connector produces neutral
-records; the store persists them. That boundary is what makes a second connector
-a new package rather than a rewrite (Constitution Article 6).
+`internal/jira` never writes SQL.** The jira package produces neutral records;
+the store persists them. That boundary is what makes a second source a new
+package rather than a rewrite (Constitution Article 6).
 
 ## Three layers of caching, on purpose
 

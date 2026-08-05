@@ -1,20 +1,27 @@
 # Extraction
 
-Where this code came from, what was cut, and what still needs cutting. Written
-down because a reader deserves to know that the web application is battle-tested
-and the server is not.
+Where this code came from, what was cut at extraction time, and what residual
+UI leftovers remain. Written down because a reader deserves to know the UI was
+battle-tested before the local server existed.
+
+**Current product state** (sync, write-through, feed, MCP, snapshot, plugins,
+and so on) lives in [`STATE_OF_PLAY.md`](STATE_OF_PLAY.md) and
+[`ROADMAP.md`](ROADMAP.md). This page is the extraction history, not the
+inventory of what works today.
 
 ## Origin
 
 The web application in `web/` was built as an internal tool inside a company
 monorepo: a Svelte 5 SPA sitting on a Django backend that already mirrored Jira
-into PostgreSQL for other purposes. It has been in daily use by a product team
+into PostgreSQL for other purposes. It had been in daily use by a product team
 against a real backlog of roughly ten thousand issues.
 
-That is why the UI is mature — virtualized list, saved views, keyboard triage,
-ADF rendering, inline write-through — while the server in this repository is a
-skeleton. The extraction kept the client and threw away the backend, because the
-backend was inseparable from the company's other systems.
+At extraction time that is why the UI was mature — virtualized list, saved views,
+keyboard triage, ADF rendering, inline write-through — while the server in this
+repository started as a skeleton. The extraction kept the client and threw away
+the backend, because the backend was inseparable from the company's other
+systems. The local Go server, sync, and agent surfaces have since been built out
+(see STATE_OF_PLAY).
 
 ## What the internal backend provided
 
@@ -30,7 +37,7 @@ backend was inseparable from the company's other systems.
 | Deployment state per issue, from a CI/CD index | **Cut** |
 | Pull-request links per issue | **Cut** |
 | Test-management (Qase) context per issue | **Cut** |
-| Personal activity feed and Web Push | **Deferred.** A local watch-based feed is a v0.2 design |
+| Personal activity feed and Web Push | **Cut from the company backend.** A local watch-based feed later shipped in-core; Web Push (VAPID) remains deferred — see ROADMAP |
 | Multi-viewer presence over WebSocket | **Cut.** Meaningless in a single-user local tool |
 | Company SSO and session auth | **Cut.** There are no scry accounts; identity is the stored Jira credential only |
 | Email/password login dialog, `scry_token` localStorage, `Authorization: Token` | **Cut.** Frontend leftovers from the internal SSO; writes gate on credential settings alone |

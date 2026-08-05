@@ -23,13 +23,15 @@ Four layers. Use the lowest one that answers the question:
 
 ### Check freshness before you answer
 
-Every CLI command prints one line to **stderr** when the mirror is behind or the
-last sync failed; stdout stays clean and pipeable. To check explicitly:
+`issue`, `search`, `comment`, `transition`, `assign`, and `fields` print one line
+to **stderr** when the last sync failed or is over an hour old; stdout stays
+clean and pipeable. (`sql`, `status`, `open`, `sync`, and others do not.) To
+check explicitly:
 
 ```bash
 scry status --json
-# {"profile":"","issues":519,"comments":339,"watermark":"2026-08-04T09:15:00.000Z",
-#  "version":41,"schema_version":5,"sync_count":12,"first_sync_at":"2026-07-01T…"}
+# {"profile":"…","issues":519,"comments":614,"watermark":"…",
+#  "version":6,"schema_version":6,"sync_count":1,"first_sync_at":"…"}
 ```
 
 A `last_error` field means the last sync failed. A quiet project's `watermark`
@@ -97,9 +99,9 @@ FROM issues WHERE status_category != 'done'
 GROUP BY project_key, who ORDER BY project_key, n DESC;
 
 -- 6. What is in a release (JSON array column)
-SELECT key, status, summary
-FROM issues_full, json_each(fix_versions) v
-WHERE v.value = '2026.8.0' ORDER BY resolved_at;
+SELECT i.key, i.status, i.summary
+FROM issues_full i, json_each(i.fix_versions) v
+WHERE v.value = '2026.8.0' ORDER BY i.resolved_at;
 
 -- 7. What moved this week, and who moved it
 SELECT c.at, c.author, c.field, c.from_value, c.to_value, i.key
@@ -252,7 +254,7 @@ config, profiles, troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
   project key, custom field id, status name, team label, or person.
 - Logic keys on ids and `statusCategory`, never on localized display names. Jira
   translates type and status names per account and ignores `Accept-Language`.
-- `internal/store` must not import Jira-shaped code; `internal/connector/jira`
+- `internal/store` must not import Jira-shaped code; `internal/jira`
   must not write SQL.
 - No network call on a keystroke path. Filtering stays in memory.
 - Schema changes are contract changes: update `data-model.md`, add a migration,
