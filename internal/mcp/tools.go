@@ -23,19 +23,25 @@ const (
 // toolQueryDescription is long on purpose: agents without AGENTS.md only see
 // this text, so the schema summary, the localization trap, and two working
 // examples have to live here.
-const toolQueryDescription = `Run a read-only SQL query against the local scry Jira mirror (SQLite).
+const toolQueryDescription = `Run a read-only SQL query against the local scry mirror (SQLite): Jira issues and Confluence wiki pages in one file.
 
 Schema essentials:
 - items: source-neutral spine — id, key, title, body_text, created_at, updated_at
 - issues: Jira projection joined on issues.item_id = items.id — key, project_key,
   status, status_id, status_category (new|inprogress|done), priority, priority_rank,
   assignee, assignee_email, assignee_id, reporter, labels/components/fix_versions
-  (JSON arrays; use json_each), reopen_count, reopened_at, status_changed_at,
-  resolved_at, comment_count. There is NO summary column on issues — join items
-  for title.
+  (JSON arrays; use json_each), parent_key (direct parent), epic_key (nearest epic
+  ancestor — group/aggregate on this), hierarchy_level (1=epic, 0=standard,
+  -1=sub-task), reopen_count (times an issue left done and came back; 0 is normal,
+  >0 is the signal), reopened_at, status_changed_at, resolved_at, comment_count.
+- issues_full: VIEW of issues plus summary (the item title) — prefer it whenever
+  the answer needs a human-readable title, no join required.
+- pages: Confluence projection joined on pages.item_id = items.id — space_key,
+  parent_id (page tree), version, labels (JSON array), body_adf. Page title and
+  body_text live on items (items.kind = 'page'; issues are kind 'issue').
 - comments, attachments, changelog, links: hang off items.id
-- items_fts: FTS5 over titles, bodies, and comment text
-  (WHERE items_fts MATCH 'term'; join items/issues)
+- items_fts: FTS5 over titles, bodies, and comment text of BOTH kinds
+  (WHERE items_fts MATCH 'term'; join items, then issues or pages by kind)
 - sync_state: watermark, version, last_error, last_full_sync_at, schema_version
 
 CRITICAL: filter on status_category / status_id / issue_type_id, never on display
@@ -49,14 +55,24 @@ LIMIT or columns and retry. Never write to this database; writes go through Jira
 
 Examples:
 1) Open work for someone, most urgent first:
-  SELECT i.key, i.status, i.priority, it.title
-  FROM issues i JOIN items it ON it.id = i.item_id
-  WHERE i.assignee_email = 'dana@example.com' AND i.status_category != 'done'
-  ORDER BY i.priority_rank, i.updated_at DESC LIMIT 20;
+  SELECT key, status, priority, summary FROM issues_full
+  WHERE assignee_email = 'dana@example.com' AND status_category != 'done'
+  ORDER BY priority_rank, updated_at DESC LIMIT 20;
 
 2) Issues stuck in progress the longest:
   SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS days
-  FROM issues WHERE status_category = 'inprogress' ORDER BY days DESC LIMIT 20;`
+  FROM issues WHERE status_category = 'inprogress' ORDER BY days DESC LIMIT 20;
+
+3) Which epic carries the most reopened work:
+  SELECT epic_key, COUNT(*) AS reopened FROM issues
+  WHERE reopen_count > 0 AND epic_key IS NOT NULL
+  GROUP BY epic_key ORDER BY reopened DESC LIMIT 5;
+
+4) Wiki pages about an area (join pages through items):
+  SELECT it.title, p.space_key FROM items_fts f
+  JOIN items it ON it.rowid = f.rowid
+  JOIN pages p ON p.item_id = it.id
+  WHERE items_fts MATCH 'billing' LIMIT 10;`
 
 const toolSearchDescription = `Full-text search over issue and page titles, bodies, and comments (FTS5).
 Returns matching issue keys (with summary/status) and page PageLite rows, best match first.

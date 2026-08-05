@@ -87,12 +87,29 @@ display names. Use the `issues_full` view for titles.
 
 ## MCP (for hosts without a shell)
 
+The shortest path, verified end to end (this is the line in the README GIF):
+
+```bash
+claude mcp add scry -- scry mcp
+```
+
+Or the JSON form for hosts that take a config file:
+
 ```json
 {
   "mcpServers": {
     "scry": { "command": "scry", "args": ["mcp"] }
   }
 }
+```
+
+**Pin the profile in the registration.** `scry mcp` serves whatever mirror the
+process environment resolves (`SCRY_HOME` / `--profile`), and MCP hosts do not
+inherit your shell exports. If the agent should see a non-default mirror, put
+it in the command itself:
+
+```bash
+claude mcp add scry -- scry --profile demo mcp
 ```
 
 Same store, tool-shaped: see [`docs/MCP.md`](MCP.md). If the agent can run
