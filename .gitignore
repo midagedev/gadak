@@ -9,6 +9,8 @@ dist/*
 dist/app/*
 !dist/app/.placeholder
 bin/
+# A stray `go build` in the repo root drops a binary named after the module.
+/scry
 build/
 coverage/
 
