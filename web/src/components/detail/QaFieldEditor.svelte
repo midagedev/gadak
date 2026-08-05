@@ -18,7 +18,7 @@
   import { me } from '../../stores/me.svelte'
   import Avatar from './Avatar.svelte'
 
-  type Kind = 'option' | 'user' | 'version_array'
+  type Kind = 'option' | 'user' | 'version_array' | 'multi_option'
 
   let {
     issue,
@@ -42,9 +42,12 @@
   let serverUsers = $state<JiraUser[]>([])
   let searching = $state(false)
 
-  // version_array draft selection (version id set) + filter (hundreds of options)
+  // Multi-select (version_array / multi_option) draft id set + filter (hundreds of options)
   let draft = $state<Set<string>>(new Set())
   let vquery = $state('')
+
+  /** version_array and multi_option share the whole multi-select flow; only the payload id source differs. */
+  const isMulti = $derived(kind === 'version_array' || kind === 'multi_option')
 
   /** Filtered version options — selected items always sort first. */
   const versionOptions = $derived.by<EditMetaOption[]>(() => {
@@ -84,9 +87,9 @@
     query = ''
     vquery = ''
     serverUsers = []
-    if (kind === 'version_array') draft = new Set(currentVersionIds())
+    if (isMulti) draft = new Set(currentSelectedIds())
     open = true
-    if (kind === 'user' || kind === 'version_array') queueMicrotask(() => inputEl?.focus())
+    if (kind === 'user' || isMulti) queueMicrotask(() => inputEl?.focus())
   }
 
   /* ── option (single select) ── */
@@ -100,12 +103,12 @@
     if (ok) open = false
   }
 
-  /* ── version_array (multi) ── */
+  /* ── multi select (version_array / multi_option) ── */
 
-  /** Display version names → editmeta option ids (reverse map). */
-  function currentVersionIds(): string[] {
+  /** Currently shown display values → editmeta option ids (reverse map). */
+  function currentSelectedIds(): string[] {
     const byName = new Map(options.map((o) => [o.value, o.id]))
-    return (issue.fix_versions ?? []).map((n) => byName.get(n)).filter((x): x is string => !!x)
+    return values.map((n) => byName.get(n)).filter((x): x is string => !!x)
   }
 
   function toggleVersion(id: string) {
@@ -115,11 +118,11 @@
     draft = next
   }
 
-  async function applyVersions() {
+  async function applyMulti() {
     const ids = [...draft]
     const names = options.filter((o) => draft.has(o.id)).map((o) => o.value)
     busy = true
-    const ok = await write.setField(key, 'fix_versions', ids, { fix_versions: names })
+    const ok = await write.setField(key, field, ids, { [field]: names } as Partial<IssueLite>)
     busy = false
     if (ok) open = false
   }
@@ -308,7 +311,7 @@
             {#if selected}<span class="flex-none text-accent">✓</span>{/if}
           </button>
         {/each}
-      {:else if kind === 'version_array'}
+      {:else if isMulti}
         {#if options.length === 0}
           <div class="px-3 py-2 text-[12px] text-text-muted">{t('qaEditor.noVersions')}</div>
         {:else}
@@ -357,7 +360,7 @@
             </button>
             <button
               type="button"
-              onclick={applyVersions}
+              onclick={applyMulti}
               disabled={busy}
               class="rounded bg-accent px-2 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50"
             >

@@ -21,8 +21,8 @@
     developmentOpinion: string
   } = $props()
 
-  type EditKind = 'option' | 'user' | 'version_array'
-  const EDITOR_KINDS: readonly string[] = ['option', 'user', 'version_array']
+  type EditKind = 'option' | 'user' | 'version_array' | 'multi_option'
+  const EDITOR_KINDS: readonly string[] = ['option', 'user', 'version_array', 'multi_option']
 
   interface FieldRow {
     key: string
