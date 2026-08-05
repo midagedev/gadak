@@ -165,6 +165,25 @@ pages (current version, comments, labels) alongside issues —
 `--source jira|confluence|all` narrows a run. Pages land in the same FTS
 index, the sidebar grows a DOCS tree, and search answers across both.
 
+### Staying current
+
+scry checks GitHub Releases for a newer version once a day (anonymous, cached,
+`updateCheck: false` opts out) and says so in the web sidebar and the TUI —
+but three things still catch people, learned the hard way:
+
+1. **A running `scry serve` keeps its old code.** Upgrading the binary does
+   not touch a process that is already up — restart it (or re-run
+   `scry install-service`, which restarts the unit) after an upgrade.
+2. **A stale Homebrew tap pins you silently.** If `brew info midagedev/tap/scry`
+   shows an old "stable" after `brew update`, reset the tap:
+   `brew untap midagedev/tap && brew tap midagedev/tap && brew upgrade scry`.
+3. **Check what `scry` actually resolves to.** `which -a scry` — a leftover
+   `go install` build in `~/go/bin` earlier in `PATH` will shadow the brew
+   binary forever, versions be damned.
+
+`scry --version` against the [releases page](https://github.com/midagedev/scry/releases)
+settles any doubt.
+
 Your API token lives in `~/.scry/config.json` at `0600` and never touches the
 database, the repository, or a log line. There is no scry account, no server,
 and no telemetry — outbound traffic is your own Atlassian site, plus an
