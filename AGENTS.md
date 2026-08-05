@@ -261,6 +261,9 @@ config, profiles, troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
   note it in `CHANGELOG.md`, and keep the documented example queries working.
 - Credentials never reach SQLite, a log, or a snapshot.
 - Derived fields are recomputed from the changelog, never carried forward.
+- Every web-UI feature wave gets a TUI follow-up in the same version: parity
+  where the TUI can express it, an honest "unsupported" report where it can't.
+  Silence is the only wrong answer (rule added 2026-08-06).
 
 ### Before sending changes
 
