@@ -335,7 +335,7 @@ Served at the UI's base path, not under the API base. Shape is
   "groupColors": {},
   "productByGroup": {},
   "staleThresholdHours": 72,
-  "features": { "presence": false, "feed": false, "push": false, "deploy": false, "qa": false, "teamGroups": false }
+  "features": { "feed": false, "push": false, "deploy": false, "qa": false, "teamGroups": false }
 }
 ```
 
@@ -425,8 +425,7 @@ documented). Paths are absolute. `profile` is `"default"` when no
 wired, the default is `0.0.0-dev`).
 
 Each `features` flag gates a surface that needs a capability the server may not
-have: `presence` the viewer WebSocket (off means no `presence-ticket/` request at
-all), `feed` the personal feed and its polling, `push` Web Push and the service
+have: `feed` the personal feed and its polling, `push` Web Push and the service
 worker registration, `deploy` the deploy column/filter plus the deploy and PR
 detail sections, `qa` the QA column/filters, QA section, and inline field
 editing, `teamGroups` the group filter, column, and the group/product grouping

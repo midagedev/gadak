@@ -5,7 +5,7 @@
    */
   import type { Member } from '../../lib/types'
   import { memberOrgColor, memberTooltip } from '../../lib/member-visual'
-  import { initials } from './format'
+  import { initials } from '../../lib/format'
 
   let {
     member = undefined,

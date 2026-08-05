@@ -31,17 +31,6 @@ export function absoluteTime(iso: string | null | undefined): string {
   return i18nAbsTime(iso)
 }
 
-/** 이름/이메일에서 아바타 이니셜(최대 2자)을 뽑는다. */
-export function initials(name: string | null | undefined, email?: string | null): string {
-  const src = (name ?? '').trim() || (email ?? '').trim()
-  if (!src) return '?'
-  // 한글 이름은 마지막 두 글자, 영문은 각 단어 첫 글자
-  if (/[가-힣]/.test(src)) return src.slice(-2)
-  const parts = src.split(/[\s@._-]+/).filter(Boolean)
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-  return src.slice(0, 2).toUpperCase()
-}
-
 /** Jira 원본 이슈 URL. Jira 사이트가 설정돼 있지 않으면 null(→ href 속성 생략). */
 export function jiraUrl(issueKey: string): string | null {
   return jiraBrowseUrl(issueKey)

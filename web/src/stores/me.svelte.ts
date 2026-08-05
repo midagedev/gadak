@@ -5,8 +5,8 @@
  *  - Identity (email/name/department) from GET auth/me/, which reads the stored
  *    Jira credential. There is no scry account and no session token.
  *  - Watch set (SvelteSet, optimistic toggle + rollback), feed, push prefs.
- *  - Favorites (localStorage `issue-nav:favorites`) / recent issues
- *    (localStorage `issue-nav:recent`, max 30).
+ *  - Favorites (localStorage `scry:favorites`) / recent issues
+ *    (localStorage `scry:recent`, max 30).
  *  - Derived group (part) for smart default views.
  *
  * Read-only features work with no credential. Personalization and writes need
@@ -19,6 +19,7 @@ import { t, type MessageKey } from '../lib/i18n'
 import { SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
 import { basePath, config, feature } from '../lib/config'
+import { STORAGE_KEYS } from '../lib/storage'
 import { issues } from './issues.svelte'
 import type {
   FeedFocus,
@@ -34,8 +35,8 @@ export type { FeedFocus } from '../lib/types'
  * loadConfig() override (hosted demo api/auth base under /scry/) is honoured —
  * a module-level capture would freeze DEFAULTS before config.json loads. */
 
-const FAVORITES_KEY = 'issue-nav:favorites'
-const RECENT_KEY = 'issue-nav:recent'
+const FAVORITES_KEY = STORAGE_KEYS.favorites
+const RECENT_KEY = STORAGE_KEYS.recent
 const RECENT_MAX = 30
 
 function loadArray(key: string): string[] {

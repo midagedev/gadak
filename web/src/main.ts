@@ -2,6 +2,7 @@ import { mount } from 'svelte'
 import './app.css'
 import App from './App.svelte'
 import { basePath, loadConfig } from './lib/config'
+import { migrateStorageKeys } from './lib/storage'
 
 const target = document.getElementById('app')
 if (!target) throw new Error('#app not found')
@@ -46,6 +47,8 @@ async function registerHostedDemoSW(): Promise<void> {
 void (async () => {
   await registerHostedDemoSW()
   await loadConfig()
+  // 옛 issue-nav:* → scry:* 1회 이관. 스토어 onMount 보다 먼저.
+  migrateStorageKeys()
 
   // 부트 셸을 비우고 그 자리에 마운트한다.
   target.innerHTML = ''

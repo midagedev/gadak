@@ -12,8 +12,6 @@
 
 /** Optional surfaces. Each one needs a server capability that may be absent. */
 export interface ScryFeatures {
-  /** Live "who else is looking at this issue" presence over WebSocket. */
-  presence: boolean
   /** Personal activity feed (mentions, watched issues, assignment changes). */
   feed: boolean
   /** Web Push notifications for feed events. */
@@ -59,7 +57,6 @@ const DEFAULTS: ScryConfig = {
   productByGroup: {},
   staleThresholdHours: 72,
   features: {
-    presence: false,
     feed: false,
     push: false,
     deploy: false,

@@ -10,10 +10,11 @@
 
 import { t } from '../lib/i18n'
 import * as api from '../lib/api'
+import { STORAGE_KEYS } from '../lib/storage'
 import type { SavedView } from '../lib/types'
 import type { ViewConfig } from '../lib/view-config'
 
-const LS_KEY = 'issue-nav:personal-views'
+const LS_KEY = STORAGE_KEYS.personalViews
 
 export interface PersonalView {
   id: string

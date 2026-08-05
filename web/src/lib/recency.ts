@@ -9,7 +9,9 @@
  *          'create-type:<project>', 'label'
  */
 
-const PREFIX = 'issue-nav:recent:'
+import { RECENT_KIND_PREFIX } from './storage'
+
+const PREFIX = RECENT_KIND_PREFIX
 const MAX = 10
 
 /** 최근 사용값 목록(최신순). 없으면 빈 배열. */

@@ -26,7 +26,7 @@ const defaultStaleHours = 72
 
 // Every optional surface a config flag can switch on. Unknown keys in the
 // configuration are dropped: a flag nobody reads is a flag that does nothing.
-var featureNames = []string{"presence", "feed", "push", "deploy", "qa", "teamGroups"}
+var featureNames = []string{"feed", "push", "deploy", "qa", "teamGroups"}
 
 type webConfigDoc struct {
 	APIBase             string                    `json:"apiBase"`

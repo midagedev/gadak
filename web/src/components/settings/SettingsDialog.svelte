@@ -30,7 +30,6 @@
   ]
 
   const FEATURES: [keyof ScryFeatures, string, string][] = [
-    ['presence', t('settings.featurePresence'), t('settings.featurePresenceDesc')],
     ['feed', t('settings.featureFeed'), t('settings.featureFeedDesc')],
     ['push', t('settings.featurePush'), t('settings.featurePushDesc')],
     ['deploy', t('settings.featureDeploy'), t('settings.featureDeployDesc')],
@@ -104,7 +103,6 @@
   let staleText = $state('72')
   let qaDashboardUrl = $state('')
   let features = $state<Record<keyof ScryFeatures, boolean>>({
-    presence: false,
     feed: false,
     push: false,
     deploy: false,

@@ -64,9 +64,9 @@ snapshot, not assumed.
   `SCRY_PROFILE` keep separate credentials and mirrors under
   `~/.scry/profiles/x/` — this is how one machine points at a work site and the
   demo site at once.
-- `web/` — the Svelte app. Feature flags (`presence/feed/push/deploy/qa/
-  teamGroups`) actually gate their surfaces; staleness comes from
-  `status_changed_at`; i18n catalogs live in `web/src/lib/i18n/`.
+- `web/` — the Svelte app. Feature flags (`feed/push/deploy/qa/teamGroups`)
+  actually gate their surfaces; staleness comes from `status_changed_at`; i18n
+  catalogs live in `web/src/lib/i18n/`.
 - `tools/seed-demo` — Go port of the demo-site seeder (the Python original is
   gone).
 - `internal/tui` — Bubble Tea terminal UI. Column widths in terminal cells

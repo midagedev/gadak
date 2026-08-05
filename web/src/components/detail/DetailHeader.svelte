@@ -8,23 +8,18 @@
   import type { IssueLite } from '../../lib/types'
   import { selection } from '../../stores/selection.svelte'
   import { me } from '../../stores/me.svelte'
-  import { presence } from '../../stores/presence.svelte'
-  import { feature } from '../../lib/config'
   import { jiraUrl } from './format'
   import WatchButton from '../personal/WatchButton.svelte'
   import StatusTransition from '../write/StatusTransition.svelte'
   import AssigneePicker from '../write/AssigneePicker.svelte'
-  import ViewerStack from '../presence/ViewerStack.svelte'
 
   let { issue }: { issue: IssueLite } = $props()
 
   const isFavorite = $derived(me.favorites.has(issue.issue_key))
-  // 본인 제외, 지금 이 이슈를 같이 보고 있는 사람들.
-  const viewers = $derived(presence.viewersOf(issue.issue_key))
 </script>
 
 <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
-  <!-- 상단 줄: 이슈 키(Jira 링크) + 프레즌스 + 닫기 -->
+  <!-- 상단 줄: 이슈 키(Jira 링크) + 닫기 -->
   <div class="mb-2 flex items-center justify-between gap-2">
     <div class="flex min-w-0 items-center gap-2">
       <a
@@ -36,18 +31,6 @@
       >
         {issue.issue_key}
       </a>
-
-      <!-- 같이 보는 중: 초록 점 + 아바타 스택 + 라벨 (미묘한 실시간 표시) -->
-      {#if feature('presence') && viewers.length > 0}
-        <span class="flex min-w-0 items-center gap-1.5">
-          <span
-            class="h-1.5 w-1.5 flex-none rounded-full bg-status-done shadow-[0_0_5px_var(--color-status-done)]"
-            aria-hidden="true"
-          ></span>
-          <ViewerStack {viewers} size={20} max={3} ringClass="ring-bg-panel" />
-          <span class="flex-none text-[11px] text-text-muted">{t('detail.viewing')}</span>
-        </span>
-      {/if}
     </div>
     <div class="flex flex-none items-center gap-1">
       <!-- 즐겨찾기 토글 -->

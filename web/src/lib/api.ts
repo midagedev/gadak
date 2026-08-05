@@ -123,18 +123,6 @@ export function search(q: string, limit = 200): Promise<SearchResponse> {
   return json<SearchResponse>(`search/?q=${encodeURIComponent(q)}&limit=${limit}`)
 }
 
-/* ── 프레즌스 티켓 ──
- * WS 접속 전에 단발성 티켓을 발급받는다. 서버 구현에 따라 래퍼
- *  ({ data: { ticket } })거나 평문({ ticket })일 수 있어 둘 다 흡수한다.
- */
-
-export async function getPresenceTicket(): Promise<string> {
-  const res = await json<{ data?: { ticket?: string }; ticket?: string }>('presence-ticket/')
-  const ticket = res.data?.ticket ?? res.ticket
-  if (!ticket) throw new ApiError(0, 'presence-ticket: 응답에 ticket 없음')
-  return ticket
-}
-
 /* ── 개인 피드 / 읽음 ── */
 
 export function getFeed(focus: FeedFocus = 'all', limit = 80): Promise<FeedResponse> {

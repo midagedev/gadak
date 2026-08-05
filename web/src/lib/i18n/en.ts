@@ -407,8 +407,6 @@ export const en = {
   'detail.notFound': 'Could not find this issue. It may have been deleted.',
   'detail.loadFailed': 'Could not load details.',
   'detail.openJira': 'Open in Jira',
-  'detail.viewing': 'viewing',
-  'detail.viewingNames': '{names} viewing',
   'detail.reopened': 'Reopened',
   'detail.reopenTimes': 'Reopened ×{n}',
   'detail.priorityShort': 'Prio {p}',
@@ -563,9 +561,6 @@ export const en = {
   'settings.personalToken': 'Personal Jira API token settings →',
   'settings.credsElsewhere':
     'Credentials are managed in a separate dialog, not here.',
-  'settings.featurePresence': 'Presence',
-  'settings.featurePresenceDesc':
-    'Show who is viewing the same issue — not useful for a single local user',
   'settings.featureFeed': 'Personal feed',
   'settings.featureFeedDesc': 'Activity feed of mentions, watches, and assignee changes',
   'settings.browserNotify': 'Desktop notifications (this browser)',
@@ -742,11 +737,6 @@ export const en = {
   'me.noCryptoKey': 'Missing subscription encryption key.',
   'me.enableNotifFailed': 'Could not enable notifications in this browser.',
   'me.disableNotifFailed': 'Could not turn off notifications.',
-
-  /* ── Presence (user-visible rare) ── */
-  'presence.ticketFailed': 'Ticket issue failed',
-  'presence.wsError': 'WebSocket error',
-  'presence.wsConnectFailed': 'WebSocket connect failed',
 
   /* ── ADF fallbacks ── */
   'adf.unknownMention': 'unknown',

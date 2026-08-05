@@ -10,13 +10,10 @@
   import { selection } from '../../stores/selection.svelte'
   import { bulk } from '../../stores/bulk.svelte'
   import { me } from '../../stores/me.svelte'
-  import { presence } from '../../stores/presence.svelte'
   import { categoryOf, CATEGORY_META, relativeTime, absTime, highlightSegments } from '../../lib/format'
-  import { feature } from '../../lib/config'
   import { isStale, statusAgeHours } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
   import Avatar from './Avatar.svelte'
-  import ViewerStack from '../presence/ViewerStack.svelte'
   import { prefetchDetail } from '../detail/cache.svelte'
 
   let {
@@ -29,8 +26,6 @@
   const catMeta = $derived(CATEGORY_META[cat])
   const isFavorite = $derived(me.favorites.has(issue.issue_key))
   const isWatching = $derived(me.watches.has(issue.issue_key))
-  // 본인 제외 뷰어(O(1) Map 조회). 없으면 참조 안정한 빈 배열 → 아래 블록 스킵, 행 오버헤드 없음.
-  const rowViewers = $derived(presence.viewersOf(issue.issue_key))
   // 정체(현재 상태 경과). 배지 문구는 일 단위 — 1일 미만도 "1일째"로 읽히게 최소 1.
   const stale = $derived(isStale(issue))
   const staleDays = $derived(Math.max(1, Math.round(statusAgeHours(issue) / 24)))
@@ -381,11 +376,6 @@
         <span class="text-[11px] text-text-muted">+{extraLabels}</span>
       {/if}
     </span>
-  {/if}
-
-  <!-- 같이 보는 중(본인 제외) — 소형 스택. 뷰어 없으면 렌더 안 함. -->
-  {#if feature('presence') && rowViewers.length > 0}
-    <ViewerStack viewers={rowViewers} size={16} max={2} ringClass="ring-bg-base" />
   {/if}
 
   <!-- 담당자 -->

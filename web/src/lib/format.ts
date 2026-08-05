@@ -48,9 +48,13 @@ export function highlightSegments(text: string, q: string): { text: string; hit:
 /* ── 이니셜(아바타 폴백) ── */
 
 export function initials(name: string | null | undefined, email?: string | null): string {
-  const src = (name || email || '').trim()
-  if (!src) return '?'
-  // 한글이면 마지막 두 글자(성 제외 이름), 영문이면 앞 두 단어 첫 글자
+  const raw = (name || email || '').trim()
+  if (!raw) return '?'
+  // 이메일이면 로컬 파트만 쓴다. 도메인까지 토큰으로 세면 marco@x.io 의 이니셜이
+  // 사람과 무관한 'MX'(또는 TLD 를 집어 'MI')가 된다 — 아바타는 사람을 가리켜야 한다.
+  const at = raw.indexOf('@')
+  const src = at > 0 ? raw.slice(0, at) : raw
+  // 한글이면 공백 제거 후 마지막 두 글자(성 제외 이름), 영문이면 앞 두 토큰 첫 글자.
   if (/[가-힣]/.test(src)) {
     const nm = src.replace(/\s+/g, '')
     return nm.length >= 2 ? nm.slice(-2) : nm

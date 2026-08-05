@@ -408,8 +408,6 @@ export const ko = {
   'detail.notFound': '이 이슈를 찾을 수 없습니다. 삭제되었을 수 있습니다.',
   'detail.loadFailed': '상세를 불러오지 못했습니다.',
   'detail.openJira': 'Jira 원본 열기',
-  'detail.viewing': '보는 중',
-  'detail.viewingNames': '{names} 보는 중',
   'detail.reopened': '재오픈됨',
   'detail.reopenTimes': '재오픈 ×{n}',
   'detail.priorityShort': '우선 {p}',
@@ -564,9 +562,6 @@ export const ko = {
   'settings.personalToken': '개인 Jira API 토큰 설정 →',
   'settings.credsElsewhere':
     '자격증명은 이 화면이 아니라 별도 다이얼로그에서 관리합니다.',
-  'settings.featurePresence': '프레즌스',
-  'settings.featurePresenceDesc':
-    '같은 이슈를 보고 있는 사람 표시 — 로컬 단일 사용자에선 의미 없음',
   'settings.featureFeed': '개인 피드',
   'settings.featureFeedDesc': '멘션·워치·담당자 변경을 모은 활동 피드',
   'settings.browserNotify': '데스크톱 알림 (이 브라우저)',
@@ -741,11 +736,6 @@ export const ko = {
   'me.noCryptoKey': '구독 암호화 키가 없습니다.',
   'me.enableNotifFailed': '이 브라우저에서 알림을 켜지 못했습니다.',
   'me.disableNotifFailed': '알림을 끄지 못했습니다.',
-
-  /* ── Presence ── */
-  'presence.ticketFailed': '티켓 발급 실패',
-  'presence.wsError': 'WS 오류',
-  'presence.wsConnectFailed': 'WS 접속 실패',
 
   /* ── ADF fallbacks ── */
   'adf.unknownMention': '불명',

@@ -10,7 +10,6 @@
   import { selection } from './stores/selection.svelte'
   import { filters } from './stores/filters.svelte'
   import { me } from './stores/me.svelte'
-  import { presence } from './stores/presence.svelte'
   import { write } from './stores/write.svelte'
   import { router, setParams } from './lib/router.svelte'
   import { feature } from './lib/config'
@@ -20,6 +19,7 @@
     VIEW_PARAM_KEYS,
     type ViewConfig,
   } from './lib/view-config'
+  import { STORAGE_KEYS } from './lib/storage'
   import Sidebar from './components/shell/Sidebar.svelte'
   import MainColumn from './components/shell/MainColumn.svelte'
   import RightPanel from './components/shell/RightPanel.svelte'
@@ -39,7 +39,7 @@
   import { mediaViewer } from './stores/media-viewer.svelte'
   import { t } from './lib/i18n'
 
-  const LAST_VIEW_KEY = 'issue-nav:last-view'
+  const LAST_VIEW_KEY = STORAGE_KEYS.lastView
 
   /** 서버 설정 다이얼로그(사이드바 톱니). 스토어를 새로 만들 이유가 없어 셸 로컬 상태. */
   let serverSettingsOpen = $state(false)
@@ -65,17 +65,9 @@
     void me.init()
     void write.loadWriteMeta() // 쓰기 메타 선반영(issues.init 과 병렬)
     views.init()
-    if (feature('presence')) presence.init() // 실시간 프레즌스(티켓→WS, 실패는 조용히)
 
     const skeletonTimer = setTimeout(() => (showSkeleton = true), 120)
     return () => clearTimeout(skeletonTimer)
-  })
-
-  // ── 상세 열림/닫힘을 프레즌스에 반영 ──
-  //  selectedKey 만 추적 의존성. setViewing 은 반응형 상태를 읽지 않으므로 루프 없음.
-  $effect(() => {
-    if (!feature('presence')) return
-    presence.setViewing(selection.selectedKey)
   })
 
   function retry() {
