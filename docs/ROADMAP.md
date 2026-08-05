@@ -100,12 +100,19 @@ keeps an installed mirror alive or removes a reason not to try one.
 Profiles (`--profile`) already isolate credential + mirror per site and cover
 the two-site case today. Promote them to a first-class switcher:
 
-- Web: workspace picker in the sidebar (server enumerates profiles; switch
-  restarts the serve target or proxies per-profile handlers).
-- TUI/CLI: `scry --profile` stays; add `scry workspaces` to list.
-- One process, many mirrors is the design question to settle first — see the
-  security model (loopback, one user) before letting one server open several
-  credentials.
+- ✅ **One process, many mirrors** — settled and shipped: `scry serve` mounts
+  every sibling profile under `/w/<name>/` (full API, reads and write-through),
+  opened lazily on first request. The trust boundary is unchanged — same
+  loopback listener, same single OS user; the workspace list endpoint carries
+  site + projects only, never credentials (test-enforced). Background sync and
+  the update check stay on the primary; workspaces sync on demand.
+- ✅ **Web: workspace picker in the sidebar** — served from
+  `GET /api/v1/workspaces`; the SPA detects its mount from the URL, fetches the
+  per-workspace `config.json` (prefixed API bases), and keys IndexedDB and
+  localStorage per workspace so two mirrors on one origin never share cache or
+  favorites. Push notifications stay a primary-page feature.
+- ✅ TUI/CLI: `scry --profile` stays; `scry profiles` lists them (predates this
+  wave; `scry workspaces` as a separate verb was judged a duplicate).
 
 Sequenced after v0.3 deliberately: retention loops for existing mirrors come
 before conveniences for hypothetical second sites.

@@ -11,8 +11,8 @@
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
-  import { getSyncRuns, type SyncRun } from '../../lib/api'
-  import { isHostedDemo } from '../../lib/config'
+  import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
+  import { isHostedDemo, workspaceName } from '../../lib/config'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
@@ -130,6 +130,27 @@
   function runKindLabel(kind: string): string {
     const base = kind.startsWith('full') ? t('sidebar.runFull') : t('sidebar.runIncremental')
     return kind.includes('+reconcile') ? `${base} ${t('sidebar.runReconcile')}` : base
+  }
+
+  /* ── Workspaces (one process, several profile mirrors) ── */
+  let workspaceList = $state<WorkspaceInfo[]>([])
+  $effect(() => {
+    void getWorkspaces().then((list) => (workspaceList = list))
+  })
+  /** The mirror this page is looking at: URL mount, or the serve primary. */
+  const currentWorkspace = $derived(
+    workspaceName() || workspaceList.find((w) => w.active)?.name || 'default',
+  )
+  function workspaceHref(w: WorkspaceInfo): string {
+    return w.active ? '/' : `/w/${w.name}/`
+  }
+  function workspaceHost(w: WorkspaceInfo): string {
+    if (!w.site) return ''
+    try {
+      return new URL(w.site).host
+    } catch {
+      return w.site
+    }
   }
 </script>
 
@@ -351,6 +372,39 @@
       </div>
     {/if}
 
+    <!-- Workspaces: other profile mirrors this serve can mount. Hidden unless
+         the server actually has more than one (older servers / demo → 404 → []). -->
+    {#if workspaceList.length > 1}
+      <div class="mb-3">
+        <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+          {t('sidebar.workspaces')}
+        </div>
+        {#each workspaceList as w (w.name)}
+          <a
+            href={workspaceHref(w)}
+            data-testid="workspace-link"
+            class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {currentWorkspace ===
+            w.name
+              ? 'bg-bg-active text-text-primary'
+              : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+            title={w.error ? t('sidebar.workspaceUnreadable') : w.site}
+          >
+            <span
+              class="h-1.5 w-1.5 flex-none rounded-full {currentWorkspace === w.name
+                ? 'bg-status-done'
+                : 'bg-border-strong'}"
+              aria-hidden="true"
+            ></span>
+            <span class="min-w-0 flex-1 truncate">{w.name}</span>
+            {#if workspaceHost(w)}
+              <span class="max-w-[45%] flex-none truncate text-[10px] text-text-muted">
+                {workspaceHost(w)}
+              </span>
+            {/if}
+          </a>
+        {/each}
+      </div>
+    {/if}
   </div>
 
   <!-- Settings / identity area (sidebar footer) -->

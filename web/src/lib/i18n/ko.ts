@@ -290,6 +290,8 @@ export const ko = {
   'sidebar.builtinViews': '기본 뷰',
   'sidebar.myViews': '내 뷰',
   'sidebar.teamViews': '팀 공유 뷰',
+  'sidebar.workspaces': '워크스페이스',
+  'sidebar.workspaceUnreadable': '프로필 설정을 읽을 수 없음',
   'sidebar.settings': '설정',
   'sidebar.serverSettings': '서버 설정 (프로젝트·기능·팀·필드 매핑)',
   'sidebar.jiraCreds': 'Jira 자격증명 설정',

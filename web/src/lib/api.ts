@@ -576,6 +576,34 @@ export async function getSyncRuns(): Promise<SyncRun[]> {
   }
 }
 
+/* ── workspaces (one process, several profile mirrors) ── */
+
+/** One profile the running serve can mount. Never carries credentials. */
+export interface WorkspaceInfo {
+  name: string
+  site?: string
+  projects?: string[]
+  /** True for the profile serve was started with (its API is at the root). */
+  active?: boolean
+  error?: string
+}
+
+/**
+ * List mountable workspaces. Deliberately fetched at the origin root, not the
+ * API base: the list is one process-wide fact, the same from every mount.
+ * Older servers and the hosted demo answer 404 → empty list, section hidden.
+ */
+export async function getWorkspaces(): Promise<WorkspaceInfo[]> {
+  try {
+    const res = await fetch('/api/v1/workspaces', { credentials: 'same-origin' })
+    if (!res.ok) return []
+    const doc = (await res.json()) as { workspaces?: WorkspaceInfo[] }
+    return doc.workspaces ?? []
+  } catch {
+    return []
+  }
+}
+
 export function getSettings(): Promise<ScrySettings> {
   return jsonW<ScrySettings>('settings/')
 }

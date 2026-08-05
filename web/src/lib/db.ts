@@ -10,9 +10,12 @@
  */
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { workspaceName } from './config'
 import type { CacheMeta, IssueLite, WriteMetaCache } from './types'
 
-const DB_NAME = 'issue-navigator'
+// Workspace mounts get their own database: two mirrors on one origin would
+// otherwise overwrite each other's cached issue pool.
+const DB_NAME = workspaceName() ? `issue-navigator:ws:${workspaceName()}` : 'issue-navigator'
 const DB_VERSION = 1
 
 interface IssueDB extends DBSchema {

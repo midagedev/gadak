@@ -20,7 +20,7 @@
 import { t, type MessageKey } from '../lib/i18n'
 import { SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
-import { basePath, config, feature, isHostedDemo } from '../lib/config'
+import { basePath, config, feature, isHostedDemo, workspaceName } from '../lib/config'
 import { STORAGE_KEYS } from '../lib/storage'
 import { issues } from './issues.svelte'
 import type {
@@ -489,6 +489,9 @@ class MeStore {
     // Hosted demo: demo-sw.js owns the scope — registering sw.js here would
     // replace it and every API call would fall through to 404s.
     if (isHostedDemo()) return
+    // Workspace mounts: sw.js at the root scope would push for the primary
+    // mirror, not this one. Push stays a primary-page feature.
+    if (workspaceName() !== '') return
     if (!feature('push') || !this.identified) return
     try {
       this.notificationConfig = await api.getNotificationConfig()

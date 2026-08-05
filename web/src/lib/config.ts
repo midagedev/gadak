@@ -110,12 +110,32 @@ export function basePath(): string {
 }
 
 /**
+ * Workspace mount name when the app is served under /w/<name>/ (one scry
+ * process serving several profile mirrors), '' on the primary. Build-time
+ * BASE_URL cannot know this — the same bundle serves every mount — so it is
+ * derived from the URL path at runtime.
+ */
+export function workspaceName(): string {
+  const m = window.location.pathname.match(/^\/w\/([A-Za-z0-9_-]+)(\/|$)/)
+  return m ? m[1] : ''
+}
+
+/**
+ * Where this page's config.json and API live: the workspace mount when
+ * present, the build base otherwise.
+ */
+export function runtimeBase(): string {
+  const ws = workspaceName()
+  return ws ? `/w/${ws}/` : basePath()
+}
+
+/**
  * Fetch `<base>config.json` and merge it over DEFAULTS. Never throws — a missing
  * or malformed file leaves the defaults in place so the shell still renders.
  */
 export async function loadConfig(): Promise<ScryConfig> {
   try {
-    const res = await fetch(`${basePath()}config.json`, { credentials: 'same-origin' })
+    const res = await fetch(`${runtimeBase()}config.json`, { credentials: 'same-origin' })
     if (res.ok) {
       const raw = (await res.json()) as Partial<ScryConfig>
       current = {

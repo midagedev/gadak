@@ -3,24 +3,31 @@
  * Old prefix `issue-nav:` → `scry:`. Call once at app boot.
  */
 
+import { workspaceName } from './config'
+
+// Workspace mounts (/w/<name>/) share the origin with the primary, so their
+// keys carry the workspace name — favorites or a last view from one mirror
+// must never leak into another.
+const WS = workspaceName() ? `ws:${workspaceName()}:` : ''
+
 /** Keys in active use. */
 export const STORAGE_KEYS = {
   /** Fallback only — holds the set when the server does not accept favorites (hosted demo). */
-  favorites: 'scry:favorites',
+  favorites: `scry:${WS}favorites`,
   /**
    * Favorites display order. The set itself is owned by the server (`favorites` table),
    * but that table has no order column and returns insert order only. Drag-made order is
    * this browser's display preference, so it lives here — intentional split of ownership
    * between set (server) and order (local).
    */
-  favoritesOrder: 'scry:favorites-order',
-  recent: 'scry:recent',
-  personalViews: 'scry:personal-views',
-  lastView: 'scry:last-view',
+  favoritesOrder: `scry:${WS}favorites-order`,
+  recent: `scry:${WS}recent`,
+  personalViews: `scry:${WS}personal-views`,
+  lastView: `scry:${WS}last-view`,
 } as const
 
 /** Prefix for recency.ts (`scry:recent:` + kind). */
-export const RECENT_KIND_PREFIX = 'scry:recent:'
+export const RECENT_KIND_PREFIX = `scry:${WS}recent:`
 
 /** Migration only — runtime reads/writes all use scry:. */
 const LEGACY = {
@@ -44,6 +51,9 @@ const EXACT_MIGRATIONS: [string, string][] = [
  * Quietly ignore localStorage exceptions (private mode, etc.) — same as other call sites.
  */
 export function migrateStorageKeys(): void {
+  // Workspace mounts must not adopt the primary's legacy keys as their own —
+  // migration belongs to the primary page alone.
+  if (WS !== '') return
   try {
     for (const [oldKey, newKey] of EXACT_MIGRATIONS) {
       const oldVal = localStorage.getItem(oldKey)

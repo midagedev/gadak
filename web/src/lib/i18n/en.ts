@@ -289,6 +289,8 @@ export const en = {
   'sidebar.builtinViews': 'Built-in views',
   'sidebar.myViews': 'My views',
   'sidebar.teamViews': 'Shared team views',
+  'sidebar.workspaces': 'Workspaces',
+  'sidebar.workspaceUnreadable': 'Profile config could not be read',
   'sidebar.settings': 'Settings',
   'sidebar.serverSettings': 'Server settings (projects, features, teams, field map)',
   'sidebar.jiraCreds': 'Jira credentials',
