@@ -1,5 +1,11 @@
 # scry
 
+<p>
+  <a href="https://github.com/midagedev/scry/releases"><img src="https://img.shields.io/github/v/release/midagedev/scry" alt="Latest Release"></a>
+  <a href="https://github.com/midagedev/scry/actions/workflows/ci.yml"><img src="https://github.com/midagedev/scry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
+</p>
+
 **Give your coding agent your team's memory.** scry mirrors Jira *and
 Confluence* into one local SQLite file — issues, comments, history, wiki pages
 — indexed together, queryable with plain SQL, searchable in milliseconds. You
@@ -26,6 +32,9 @@ account). Enable GitHub Pages once if the link 404s; see below.
 
 <p align="center">
   <img src="docs/media/web-demo.gif" alt="Typing in the search box narrows issues instantly, with matches highlighted; the sidebar lists wiki spaces as a tree" width="900">
+  <br>
+  <sub>Every clip in this README is generated from a script against the committed demo snapshot —
+  this one from <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a>. What you see is what CI checks.</sub>
 </p>
 
 ```bash
@@ -75,6 +84,8 @@ the terminal, and the agent read the same store.
 
 <p align="center">
   <img src="docs/media/tui.gif" alt="scry tui: neon list with live filter highlighting, the Ctrl+K command palette, and issue detail" width="800">
+  <br>
+  <sub>Generated from <a href="tools/tapes/tui.tape">tools/tapes/tui.tape</a> (VHS).</sub>
 </p>
 
 Writes go through to Jira and then refresh the mirror, so the list is correct
@@ -255,6 +266,9 @@ This is half the reason scry exists, so it has its own reference:
 
 <p align="center">
   <img src="docs/media/agent.gif" alt="scry search, scry sql aggregation, and scry issue in a terminal" width="800">
+  <br>
+  <sub>A real agent session — one-line MCP registration, then a live cross-source answer.
+  Generated from <a href="tools/tapes/agent.tape">tools/tapes/agent.tape</a> (VHS, unscripted model output).</sub>
 </p>
 
 The interface is the database. Anything that can run a shell command can use
@@ -411,11 +425,17 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 - [`docs/decisions/`](docs/decisions/) — why it is shaped this way
 - [`specs/000-product/`](specs/000-product/) — spec, data model, API and sync contracts
 
-## Contributing
+## Contributing and feedback
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). Bug reports should include your Jira
-deployment type (Cloud), the scry commit, and the command you ran. Never paste
-real issue data, tokens, or site URLs into a public issue.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) — and
+[`docs/GOOD_FIRST_ISSUES.md`](docs/GOOD_FIRST_ISSUES.md) if you want a place
+to start. Bug reports should include your Jira deployment type (Cloud), the
+scry commit, and the command you ran. Never paste real issue data, tokens, or
+site URLs into a public issue.
+
+Using scry with an agent and hitting friction? That is exactly the feedback we
+want — [open an issue](https://github.com/midagedev/scry/issues) with the
+question you asked and what the agent did.
 
 ## License
 
