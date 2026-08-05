@@ -20,12 +20,20 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:7877',
     locale: 'en-US',
-    // Fixed showcase framing (retina-ish pixels for crisp stills).
-    viewport: { width: 1280, height: 800 },
+    // Showcase framing. 1024 CSS px, not 1280: the GIF is displayed at ~900 px
+    // in the README, so a narrower logical viewport is the only lever on text
+    // size — at 1280 the glyphs land near 0.7× and readers said so. 1024 is the
+    // floor that still matches Tailwind's `lg:` breakpoint, which is what keeps
+    // the epic chip and the trailing row strip on screen.
+    viewport: { width: 1024, height: 640 },
     deviceScaleFactor: 2,
     video: {
       mode: 'on',
-      size: { width: 1280, height: 800 },
+      // Must equal the viewport. Playwright never *upscales* into a larger
+      // video frame — asking for 2048×1280 pins the capture in the top-left
+      // corner and pads the rest black (cost us one take). The GIF is exported
+      // at this width 1:1, so no resample happens anywhere in the chain.
+      size: { width: 1024, height: 640 },
     },
     // Slow enough that a viewer can read each step; not so slow it becomes a slog.
     launchOptions: { slowMo: 35 },
@@ -46,7 +54,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        viewport: { width: 1280, height: 800 },
+        viewport: { width: 1024, height: 640 },
         deviceScaleFactor: 2,
       },
     },

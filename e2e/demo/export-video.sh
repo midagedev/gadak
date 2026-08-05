@@ -25,13 +25,13 @@ ffmpeg -y -i "$WEBM" \
   "$OUT_DIR/web-demo.mp4"
 
 # ── GIF (README hero) — palette 2-pass, size-budgeted ─────────────────────
-# Targets: width ~1000px, 12 fps, under 8 MB (prefer ≤5 MB).
-# Tradeoffs are documented in docs/MEDIA.md if we have to step down further.
-# Dense UI (sidebar + list + detail) needs a conservative start size to stay
-# under the 8 MB README budget. Prefer ≤5 MB when the walkthrough is short.
-# Tradeoffs: see docs/MEDIA.md.
-FPS=10
-WIDTH=800
+# Width sits between the 1024 recording and the README's ~900 px render: the
+# small downscale is visually free, and going below 960 does not reliably save
+# bytes — palette dither noise, not pixel count, drives GIF size here.
+# Step fps and colors before width: the whole point of this round was that the
+# text was too small to read.
+FPS=9
+WIDTH=960
 # macOS mktemp requires the X's at the end of the template (before any suffix).
 PALETTE="$(mktemp "${TMPDIR:-/tmp}/scry-palette.XXXXXX").png"
 trap 'rm -f "$PALETTE"' EXIT
@@ -54,12 +54,12 @@ MAX_BYTES=$((8 * 1024 * 1024))
 size_bytes() { wc -c <"$OUT_DIR/web-demo.gif" | tr -d ' '; }
 
 if (( $(size_bytes) > MAX_BYTES )); then
-  echo "export-video: gif $(size_bytes) bytes > 8MB, retrying at fps=10 width=720 colors=96" >&2
-  make_gif 10 720 96
+  echo "export-video: gif $(size_bytes) bytes > 8MB, retrying at fps=8 width=960 colors=96" >&2
+  make_gif 8 960 96
 fi
 if (( $(size_bytes) > MAX_BYTES )); then
-  echo "export-video: gif $(size_bytes) bytes > 8MB, retrying at fps=8 width=640 colors=64" >&2
-  make_gif 8 640 64
+  echo "export-video: gif $(size_bytes) bytes > 8MB, retrying at fps=8 width=900 colors=64" >&2
+  make_gif 8 900 64
 fi
 
 
