@@ -1,12 +1,12 @@
 <script lang="ts">
   /*
-   * 코멘트 작성 입력 (쓰기). 코멘트 섹션 하단 고정.
-   *  - textarea 자동 높이, ⌘/Ctrl+Enter 제출.
-   *  - @멘션 자동완성: '@' 뒤 토큰으로 Jira 사용자 검색 → 선택 시 본문에 `@표시이름` 삽입 +
-   *      account_id 를 mentions 에 기록(백엔드가 ADF mention 노드로 변환).
-   *  - 첨부: 버튼/붙여넣기/드롭으로 업로드 → 미리보기 칩 → 코멘트 본문에 인라인 임베드.
-   *  - 답글: write.replyRequest(작성자 멘션 삽입 요청)를 effect 로 받아 처리.
-   *  - 제출 시 write.submitComment()(옵티미스틱). 성공 시 비우고, 실패 시 텍스트 복원.
+   * Comment composer (write). Anchored under the comments section.
+   *  - Auto-height textarea; ⌘/Ctrl+Enter to submit.
+   *  - @mention autocomplete: token after '@' searches Jira users → insert `@DisplayName`
+   *      and record account_id in mentions (backend turns it into an ADF mention).
+   *  - Attachments: button/paste/drop upload → preview chips → inline embed in body.
+   *  - Reply: effect consumes write.replyRequest (insert author mention).
+   *  - Submit via write.submitComment() optimistic; clear on success, restore text on fail.
    */
   import { t } from '../../lib/i18n'
   import { tick } from 'svelte'
@@ -81,12 +81,12 @@
     saveDraft(key, body)
   })
 
-  /* ── 멘션 자동완성 ── */
+  /* ── Mention autocomplete ── */
   let mOpen = $state(false)
-  let mStart = $state(-1) // 본문에서 '@' 위치
+  let mStart = $state(-1) // index of '@' in body
   let mResults = $state<JiraUser[]>([])
   let mIndex = $state(0)
-  let mSeq = 0 // 검색 레이스 가드
+  let mSeq = 0 // search race guard
   let mTimer: ReturnType<typeof setTimeout> | null = null
 
   function autosize() {
@@ -102,17 +102,17 @@
     mIndex = 0
   }
 
-  /** 커서 기준으로 활성 '@토큰'을 찾는다. 없으면 -1/''。 */
+  /** Active '@token' relative to the caret; null if none. */
   function detectMention(): { start: number; query: string } | null {
     if (!ta) return null
     const cur = ta.selectionStart ?? text.length
     const before = text.slice(0, cur)
     const at = before.lastIndexOf('@')
     if (at === -1) return null
-    // '@' 앞은 문두이거나 공백이어야 한다(이메일 a@b 오탐 방지).
+    // '@' must be at start or after whitespace (avoid email a@b false positives).
     if (at > 0 && !/\s/.test(before[at - 1])) return null
     const token = before.slice(at + 1)
-    if (!/^[^\s@]*$/.test(token)) return null // 공백/추가 @ 있으면 토큰 아님
+    if (!/^[^\s@]*$/.test(token)) return null // space/extra @ ends the token
     return { start: at, query: token }
   }
 
@@ -138,7 +138,7 @@
     const seq = ++mSeq
     try {
       const res = await searchUsers(q)
-      if (seq !== mSeq) return // 최신 쿼리만 반영
+      if (seq !== mSeq) return // only the latest query
       mResults = res.users.filter((u) => u.active && u.account_id).slice(0, 8)
       mIndex = 0
     } catch {
@@ -167,7 +167,7 @@
     autosize()
   }
 
-  /* ── 첨부 ── */
+  /* ── Attachments ── */
 
   async function handleFiles(list: FileList | File[] | null | undefined) {
     const files = Array.from(list ?? [])
@@ -206,14 +206,14 @@
     attachments = attachments.filter((a) => a.id !== id)
   }
 
-  /* ── 제출 ── */
+  /* ── Submit ── */
 
   async function submit() {
     const body = text.trim()
     if ((!body && attachments.length === 0) || busy || uploading > 0) return
     busy = true
     const prev = { text, mentions, attachments }
-    // 본문에 실제로 남아있는 멘션만 전송(사용자가 지웠을 수 있음). 백엔드는 문자열 매칭.
+    // Only mentions still present in the body (user may have deleted them). Backend matches strings.
     const used = mentions.filter((m) => body.includes(`@${m.display_name}`))
     text = ''
     mentions = []
@@ -261,14 +261,14 @@
     }
   }
 
-  /* ── 답글 요청 처리 (write.replyRequest) ── */
+  /* ── Handle reply request (write.replyRequest) ── */
   let lastReplyNonce = -1
   $effect(() => {
     const req = write.replyRequest
     if (!req || req.issueKey !== issueKey || req.nonce === lastReplyNonce) return
     lastReplyNonce = req.nonce
     const insert = `@${req.user.display_name} `
-    // 본문 앞에 멘션을 붙인다(빈 본문이면 그대로, 아니면 앞에).
+    // Prefix the body with the mention (or leave if already there).
     text = text.startsWith(insert) ? text : insert + text
     if (!mentions.some((m) => m.account_id === req.user.account_id)) {
       mentions = [...mentions, { ...req.user }]
@@ -313,7 +313,7 @@
         : 'border-border-strong'}"
     ></textarea>
 
-    <!-- 멘션 자동완성 드롭다운 -->
+    <!-- Mention autocomplete dropdown -->
     {#if mOpen && mResults.length}
       <div
         class="absolute bottom-full left-0 z-30 mb-1 max-h-56 w-72 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-xl shadow-black/40"
@@ -347,7 +347,7 @@
     {/if}
   </div>
 
-  <!-- 첨부 미리보기 칩 -->
+  <!-- Attachment preview chips -->
   {#if attachments.length || uploading > 0}
     <div class="flex flex-wrap items-center gap-1.5">
       {#each attachments as a (a.id)}

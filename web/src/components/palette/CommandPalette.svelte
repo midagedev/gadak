@@ -1,10 +1,10 @@
 <script lang="ts">
   /*
-   * 커맨드 팔레트(⌘K/Ctrl+K) — 이슈 점프 / 뷰 적용 / 액션 실행.
-   *  - 매칭은 전부 메모리 풀 로컬 연산(네트워크 0). 이슈는 리스트와 같은 filterIssues +
-   *    관련도 정렬을 재사용하므로 초성 검색·키 단축형이 그대로 동작한다.
-   *  - 항목은 섹션 순서대로 이어붙인 평면 배열 → ↑↓ 는 단일 인덱스만 움직인다.
-   *  - 열림/닫힘과 키 바인딩은 App.svelte 소관(입력 필드 포커스 중에도 열려야 하므로).
+   * Command palette (⌘K/Ctrl+K) — issue jump / apply view / run action.
+   *  - Matching is all local on the memory pool (zero network). Issues reuse list
+   *    filterIssues + relevance sort, so chosung search and key short-forms work.
+   *  - Items are a flat array in section order → ↑↓ moves a single index.
+   *  - Open/close and key bindings live in App.svelte (must open even while focused).
    */
   import { onMount } from 'svelte'
   import { trapFocus } from '../../lib/focus-trap'
@@ -38,10 +38,10 @@
   interface Item {
     id: string
     section: Section
-    /** 매칭·표시에 쓰는 본문. */
+    /** Body used for match + display. */
     label: string
     icon?: string
-    /** 우측 보조 텍스트(이슈 제목 / 뷰 출처 / 단축키). */
+    /** Right-side secondary text (issue title / view source / shortcut). */
     sub?: string
     kbd?: string
     mono?: boolean
@@ -59,7 +59,7 @@
   const needle = $derived(raw.toLowerCase())
   const chosungQuery = $derived(raw ? isChosungQuery(raw) : false)
 
-  /** 뷰/액션 이름 매칭 — 부분일치 + 초성 쿼리. */
+  /** Match view/action names — substring + chosung query. */
   function matches(text: string): boolean {
     if (!needle) return true
     if (text.toLowerCase().includes(needle)) return true
@@ -78,7 +78,7 @@
   }
 
   const issueItems = $derived.by<Item[]>(() => {
-    // 빈 입력 = 최근 본 이슈(풀에 남아 있는 것만).
+    // Empty input = recently viewed issues still in the pool.
     if (!needle) {
       const out: Item[] = []
       for (const visit of me.recent) {
@@ -90,7 +90,7 @@
     }
     const f = emptyFilters()
     f.q = raw
-    // 관련도 컨텍스트는 리스트와 같은 규칙(매칭 강도 + 최근성 + 개인화).
+    // Relevance context matches the list (match strength + recency + personalization).
     const ctx: RelevanceContext = {
       needle,
       chosungQuery,
@@ -165,13 +165,13 @@
     action: t('palette.sectionActions'),
   }
 
-  // 후보가 바뀌면 하이라이트를 처음으로.
+  // Reset highlight to the first item when candidates change.
   $effect(() => {
     void items
     idx = 0
   })
 
-  // 하이라이트가 뷰포트 밖으로 나가지 않게.
+  // Keep the highlight inside the viewport.
   $effect(() => {
     listEl?.querySelector(`[data-idx="${idx}"]`)?.scrollIntoView({ block: 'nearest' })
   })

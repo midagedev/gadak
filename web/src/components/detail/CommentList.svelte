@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
-   * 코멘트 목록 ([detail]). 시간순, 작성자 아바타+이름+상대시간, raw_body(ADF) 렌더.
-   * raw_body 가 없거나 파싱 실패면 body 평문으로 폴백(AdfContent 가 처리).
+   * Comment list ([detail]). Chronological; author avatar+name+relative time;
+   * raw_body (ADF). Missing/failed raw_body falls back to plain body (AdfContent).
    */
   import { t } from '../../lib/i18n'
   import type { DetailAttachment, DetailComment } from '../../lib/types'
@@ -27,7 +27,7 @@
     attachments?: DetailAttachment[]
   } = $props()
 
-  // 낙관적 코멘트(서버 확정 전) — 이미 서버 목록에 있는 것은 중복 제거.
+  // Optimistic comments (pre-server confirm) — drop ones already in the server list.
   const pending = $derived.by<DetailComment[]>(() => {
     const list = write.pending(issueKey)
     if (list.length === 0) return []

@@ -14,7 +14,7 @@
     else await me.enablePush()
   }
 
-  // 조용 시간: quiet_start/quiet_end 둘 다 설정돼 있으면 사용 중.
+  // Quiet hours: enabled when both quiet_start and quiet_end are set.
   const quietEnabled = $derived(
     !!me.notificationConfig?.preferences.quiet_start &&
       !!me.notificationConfig?.preferences.quiet_end,

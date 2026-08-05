@@ -1,12 +1,13 @@
 <script lang="ts">
   /*
-   * 배포 현황 타임라인 ([detail]).
+   * Deploy status timeline ([detail]).
    *
-   * 단계: 머지(N/M PR) → dev 릴리즈 → qa 릴리즈 → qa 스왑(QA 확인 가능) → prod.
-   *  도달한 단계는 채운 원 + 강조, 미도달은 회색 빈 원. qa 스왑은 QA팀 핵심이라 강조한다.
+   * Stages: merge (N/M PR) → dev release → qa release → qa swap (QA ready) → prod.
+   *  Reached stages: filled circle + emphasis; unreached: empty gray. QA swap is
+   *  highlighted as the QA team's key stage.
    *
-   * 방어적 파싱: deploy 는 구 서버 미전송/부분 응답일 수 있어 optional chaining 으로 접근한다.
-   *  (state 자체가 없으면 상위 DetailPanel 에서 섹션을 렌더하지 않는다.)
+   * Defensive parsing: older servers may omit/partial-send deploy — optional chain.
+   *  (If state is missing entirely, parent DetailPanel skips this section.)
    */
   import { t } from '../../lib/i18n'
   import type { DeployDetail, DeployState } from '../../lib/types'
@@ -14,7 +15,7 @@
 
   let { deploy }: { deploy: DeployDetail } = $props()
 
-  // 단계 서열 — 도달 여부 판정용.
+  // Stage rank — for "reached?" checks.
   const RANK: Record<DeployState, number> = {
     none: 0,
     merged: 1,
@@ -28,18 +29,18 @@
   const rank = $derived(RANK[state] ?? 0)
 
   interface Step {
-    /** 이 단계 도달에 필요한 최소 서열. */
+    /** Minimum rank required to count as reached. */
     at: number
     label: string
-    /** 보조 설명(태그/시각 등). */
+    /** Secondary detail (tag/time etc.). */
     detail: string | null
-    /** 외부 링크(릴리즈 html_url 등). */
+    /** External link (release html_url etc.). */
     href: string | null
-    /** QA 확인 가능 강조 여부. */
+    /** Emphasize as "QA can verify". */
     highlight: boolean
   }
 
-  /** 포함 릴리즈 근거에서 채널로 html_url 을 찾는다(있으면). */
+  /** Find html_url for a channel in inclusion evidence (if any). */
   function releaseUrl(channel: string): string | null {
     const found = (deploy.releases ?? []).find((r) => (r.channel ?? '') === channel)
     return found?.html_url ?? null
@@ -74,7 +75,7 @@
     ]
   })
 
-  // PR별 포함 여부(근거) — 있으면 접이식 목록으로.
+  // Per-PR inclusion evidence — collapsible list when present.
   const prList = $derived(deploy.prs ?? [])
 </script>
 
@@ -83,7 +84,7 @@
     {@const reached = rank >= step.at}
     {@const isQaSwap = step.highlight && reached}
     <li class="flex gap-2.5">
-      <!-- 좌측 마커 + 연결선 -->
+      <!-- Left marker + connector -->
       <div class="flex flex-none flex-col items-center">
         <span
           class="mt-0.5 flex h-3 w-3 flex-none items-center justify-center rounded-full border transition-colors
@@ -104,7 +105,7 @@
         {/if}
       </div>
 
-      <!-- 단계 내용 -->
+      <!-- Step content -->
       <div class="min-w-0 flex-1 pb-3">
         <div class="flex items-center gap-1.5">
           <span
@@ -137,7 +138,7 @@
   {/each}
 </ol>
 
-<!-- PR별 포함 근거(있을 때만) -->
+<!-- Per-PR inclusion evidence (when present) -->
 {#if prList.length > 0}
   <div class="mt-1 border-t border-border-subtle pt-3">
     <div class="mb-1.5 text-[11px] font-medium text-text-muted">{t('deploy.byPr')}</div>

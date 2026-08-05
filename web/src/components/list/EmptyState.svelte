@@ -1,6 +1,6 @@
 <script lang="ts">
   /*
-   * 빈 상태 ([explore]). 필터 0건 / 검색 0건 등에 정갈한 안내 + 선택적 초기화 액션.
+   * Empty state ([explore]). Clean copy for 0 filter/search hits + optional reset.
    */
   let {
     icon = '🔍',

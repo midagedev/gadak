@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
-   * key-value 행 편집기 (fieldMap / editableFields 공용).
-   *  빈 키 행은 저장 시 호출부가 걸러낸다.
+   * Key-value row editor (shared by fieldMap / editableFields).
+   *  Caller drops empty-key rows on save.
    */
   import { t } from '../../lib/i18n'
   let {

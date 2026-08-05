@@ -1,5 +1,5 @@
 <script lang="ts">
-  /* 선택한 필드로 리스트를 섹션화하고, 현재 결과의 상위 분포를 한 줄로 요약한다. */
+  /* Section the list by a chosen field and summarize top distribution in one line. */
   import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { CATEGORY_META } from '../../lib/format'
@@ -20,7 +20,7 @@
     { key: 'status', label: t('group.byStatus') },
     { key: 'none', label: t('group.sectionNone') },
   ]
-  // 꺼진 기능의 축(파트/제품/QA 영향)은 선택지에서 빠진다.
+  // Disabled-feature axes (team/product/QA impact) are omitted from the options.
   const OPTIONS = ALL_OPTIONS.filter((o) => groupByEnabled(o.key))
 
   let open = $state(false)

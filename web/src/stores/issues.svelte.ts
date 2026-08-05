@@ -1,14 +1,16 @@
 /*
- * Issue Navigator — 이슈 풀 스토어 (계약 §2)
+ * Issue Navigator — issue pool store (contract §2)
  *
- * "브라우저를 DB로": 이 스토어가 유일한 진실원(메모리 풀)이고, IndexedDB 는 영속 캐시,
- *  서버는 백그라운드 동기화 소스다. 리스트/필터/검색/그룹핑은 전부 이 풀 위 $derived 로 계산된다.
+ * "Browser as DB": this store is the sole source of truth (in-memory pool);
+ *  IndexedDB is the durable cache, and the server is a background sync source.
+ *  List/filter/search/grouping all derive from this pool via $derived.
  *
- * ⚠️ Svelte 5 반응성 주의:
- *  - Map 반응성은 순정 Map 이 아니라 `svelte/reactivity` 의 SvelteMap 을 써야 한다
- *    (순정 Map 은 set/delete 가 반응성을 트리거하지 않는다).
- *  - `$state`/`$derived` 클래스 필드는 컴파일 시 getter 로 바뀌어 모듈 경계 너머에서도
- *    반응형으로 읽힌다. 그래서 싱글턴 인스턴스를 export 해 어디서든 `issues.allIssues` 를 읽으면 된다.
+ * ⚠️ Svelte 5 reactivity traps:
+ *  - Map reactivity needs `svelte/reactivity` SvelteMap, not a plain Map
+ *    (plain Map set/delete does not trigger reactivity).
+ *  - `$state`/`$derived` class fields compile to getters and stay reactive
+ *    across module boundaries — export a singleton and read `issues.allIssues`
+ *    anywhere.
  */
 
 import { SvelteMap } from 'svelte/reactivity'
@@ -20,18 +22,18 @@ import type { CacheMeta } from '../lib/types'
 const POLL_MS = 15_000
 
 class IssuesStore {
-  /** issue_key → IssueLite. delta 는 이 Map 의 개별 항목만 교체 → 해당 행만 리렌더. */
+  /** issue_key → IssueLite. Delta replaces individual Map entries → only those rows re-render. */
   pool = new SvelteMap<string, IssueLite>()
-  /** email → Member (아바타/파트). */
+  /** email → Member (avatar/part). */
   members = new SvelteMap<string, Member>()
 
-  /** 캐시 하이드레이션 또는 최초 bootstrap 이 끝나 UI 가 동작 가능한 상태. */
+  /** True once cache hydration or first bootstrap finishes and the UI can run. */
   ready = $state(false)
-  /** 마지막으로 서버와 동기화된 커서(server_time). 다음 delta 의 since. */
+  /** Last server sync cursor (server_time). Used as delta's since. */
   lastSync = $state('')
-  /** Jira/Qase/멤버 소스별 서버 판정. 캐시에도 저장해 첫 렌더부터 표시한다. */
+  /** Per-source (Jira/Qase/members) server health. Cached so first paint can show it. */
   syncHealth = $state<SyncHealth | null>(null)
-  /** 부팅 실패(주로 인증). 캐시가 없을 때만 UI 를 막는다(render-before-auth). */
+  /** Boot failure (usually auth). Blocks UI only when there is no cache (render-before-auth). */
   error = $state<string | null>(null)
   /**
    * True when a poll/bootstrap failed after the pool was already ready —
@@ -39,7 +41,7 @@ class IssuesStore {
    */
   offline = $state(false)
 
-  /** updated_at 내림차순 전체 리스트. 필터/그룹핑의 기준 컬렉션(계약). */
+  /** Full list sorted by updated_at desc. Canonical collection for filter/grouping (contract). */
   allIssues = $derived.by(() => {
     const arr = [...this.pool.values()]
     arr.sort((a, b) => {
@@ -50,26 +52,26 @@ class IssuesStore {
     return arr
   })
 
-  // ── 내부 상태(비반응형) ──
+  // ── Internal state (non-reactive) ──
   #etag: string | null = null
   #syncVersion = 0
-  /** 멤버 셋 안정 해시. delta 의 mv 로 보내 변경 없을 때 members 재전송을 생략시킨다. */
+  /** Stable members-set hash. Sent as delta mv so unchanged members are omitted. */
   #membersVersion = ''
   #initialized = false
   #syncing = false
   #pollTimer: ReturnType<typeof setInterval> | null = null
 
   /**
-   * 부팅 시퀀스:
-   *  ① IndexedDB → 메모리 하이드레이션 (있으면 즉시 ready)
-   *  ② 백그라운드 bootstrap(ETag 304) 또는 delta(since=저장된 server_time)
-   *  ③ 15초 delta 폴링 시작 (탭 복귀 시 즉시 1회)
+   * Boot sequence:
+   *  ① IndexedDB → memory hydration (ready immediately when cache hits)
+   *  ② Background bootstrap (ETag 304) or delta (since=stored server_time)
+   *  ③ Start 15s delta polling (one immediate sync on tab focus)
    */
   async init(): Promise<void> {
     if (this.#initialized) return
     this.#initialized = true
 
-    // ① 하이드레이션
+    // ① Hydration
     try {
       const [cached, meta] = await Promise.all([db.getAllIssues(), db.getMeta()])
       if (meta) {
@@ -82,20 +84,20 @@ class IssuesStore {
       }
       if (cached.length > 0) {
         for (const it of cached) this.pool.set(it.issue_key, it)
-        this.ready = true // 캐시로 즉시 사용 가능
+        this.ready = true // usable immediately from cache
       }
     } catch (e) {
       console.warn('[issues] hydration 실패', e)
     }
 
-    // ② 백그라운드 동기화
+    // ② Background sync
     await this.#sync()
 
-    // ③ 폴링
+    // ③ Polling
     this.#startPolling()
   }
 
-  /** 캐시 유무에 따라 delta 또는 bootstrap 을 고른다. */
+  /** Pick delta vs bootstrap based on whether a cache exists. */
   async #sync(): Promise<void> {
     if (this.#syncing) return
     this.#syncing = true
@@ -110,7 +112,7 @@ class IssuesStore {
     } catch (e) {
       const status = e instanceof api.ApiError ? e.status : 0
       if (status === 401) {
-        // 캐시가 있으면 조용히 넘어가고(render-before-auth), 없으면 UI 를 막는다.
+        // With cache: stay quiet (render-before-auth). Without: block the UI.
         if (!this.ready) this.error = 'auth'
         else this.offline = true
       } else {
@@ -131,7 +133,7 @@ class IssuesStore {
     }
     const { data, etag } = res
 
-    // 전량 교체 (오래된 tombstone 잔재 제거)
+    // Full replace (drop stale tombstone leftovers)
     this.pool.clear()
     for (const it of data.issues) this.pool.set(it.issue_key, it)
     this.members.clear()
@@ -144,7 +146,7 @@ class IssuesStore {
     this.syncHealth = data.sync_health
     this.ready = true
 
-    // 영속화 (실패해도 메모리 풀은 이미 최신 — IndexedDB 없이도 동작)
+    // Persist (memory pool is already current even if this fails — works without IndexedDB)
     try {
       await db.replaceAllIssues(data.issues)
       await this.#persistMeta()
@@ -167,8 +169,8 @@ class IssuesStore {
   }
 
   /**
-   * delta 적용 — 변경 이슈만 교체 + 삭제 키 제거 + IndexedDB 반영 + 커서 전진.
-   * (직접 delta 를 받아 넣고 싶은 후속 코드도 이 메서드를 재사용)
+   * Apply a delta — replace changed issues, drop deleted keys, persist to IndexedDB,
+   * advance the cursor. Reusable by later code that wants to inject a delta directly.
    */
   async applyDelta(
     upserted: IssueLite[],
@@ -180,7 +182,7 @@ class IssuesStore {
   ): Promise<void> {
     for (const it of upserted) this.pool.set(it.issue_key, it)
     for (const key of deletedKeys) this.pool.delete(key)
-    // members 는 변경 시에만 온다(생략 시 기존 멤버 유지). 해시는 오면 갱신.
+    // members arrive only when changed (omit → keep existing). Refresh hash when present.
     if (members) {
       this.members.clear()
       for (const member of members) this.members.set(member.email, member)
@@ -189,7 +191,7 @@ class IssuesStore {
     if (syncHealth) this.syncHealth = syncHealth
     this.lastSync = serverTime
 
-    // 영속화 (실패해도 메모리 풀은 이미 최신)
+    // Persist (memory pool is already current even if this fails)
     try {
       await db.putIssues(upserted)
       await db.deleteIssues(deletedKeys)
@@ -200,8 +202,8 @@ class IssuesStore {
   }
 
   async #persistMeta(): Promise<void> {
-    // ⚠️ members·sync_health 는 $state/Svelte 프록시라 그대로 IndexedDB.put 하면
-    // structuredClone 이 DataCloneError 로 실패한다. $state.snapshot 으로 plain 화한다.
+    // ⚠️ members·sync_health are $state/Svelte proxies — IndexedDB.put on them
+    // fails structuredClone with DataCloneError. Flatten via $state.snapshot.
     await db.putMeta(
       $state.snapshot({
         key: 'sync',
@@ -224,12 +226,12 @@ class IssuesStore {
     })
   }
 
-  /** 수동 새로고침(탭 복귀/사용자 트리거). */
+  /** Manual refresh (tab focus / user trigger). */
   async refresh(): Promise<void> {
     await this.#sync()
   }
 
-  /** 편의 조회. */
+  /** Convenience lookup. */
   get(issueKey: string): IssueLite | undefined {
     return this.pool.get(issueKey)
   }
@@ -239,5 +241,5 @@ class IssuesStore {
   }
 }
 
-/** 앱 전역 싱글턴. 어디서든 `import { issues } from '../stores/issues.svelte'`. */
+/** App-wide singleton. Import anywhere: `import { issues } from '../stores/issues.svelte'`. */
 export const issues = new IssuesStore()

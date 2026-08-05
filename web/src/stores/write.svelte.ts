@@ -1,12 +1,13 @@
 /*
- * Issue Navigator — 쓰기(Write) 상태/액션 스토어 (계약: 쓰기 프론트)
+ * Issue Navigator — write state/action store (contract: write frontend)
  *
- * 역할:
- *  - 개인 Jira 자격증명 상태(configured/jira_email/token_hint) + load/save/delete.
- *  - 쓰기 액션(상태 전환·담당자·코멘트·이슈 생성)의 **옵티미스틱** 래퍼.
- *      ① 로컬 풀(issues.pool)의 IssueLite 를 즉시 반영 → ② 서버 호출 →
- *      ③ 응답의 issue 로 확정 교체(+detail 캐시 무효화) → ④ 실패 시 원복 + 토스트.
- *  - 다이얼로그 열림 상태(자격증명 설정 / 새 이슈) + 전역 토스트 큐.
+ * Role:
+ *  - Personal Jira credential state (configured/jira_email/token_hint) + load/save/delete.
+ *  - **Optimistic** wrapper for write actions (transition · assignee · comment · create):
+ *      ① Apply IssueLite to local pool (issues.pool) immediately → ② server call →
+ *      ③ Confirm-replace with response issue (+ invalidate detail cache) →
+ *      ④ On failure: restore snapshot + toast.
+ *  - Dialog open state (credential settings / new issue) + global toast queue.
  *
  * Credential gate (identity = stored Jira credential):
  *  - No credential → open settings dialog + toast; retry is the user's job.
@@ -36,7 +37,7 @@ import type {
 } from '../lib/types'
 import * as db from '../lib/db'
 
-const WRITE_META_MS = 15 * 60 * 1000 // 쓰기 메타 재로드 주기
+const WRITE_META_MS = 15 * 60 * 1000 // write-meta reload interval
 
 export type ToastKind = 'error' | 'info' | 'success'
 
@@ -49,49 +50,50 @@ export interface Toast {
 const TOAST_MS = { error: 6000, info: 3000, success: 2500 }
 
 class WriteStore {
-  /* ── 자격증명 상태 ── */
+  /* ── Credential state ── */
   configured = $state(false)
   jiraEmail = $state('')
   displayName = $state('')
   tokenHint = $state('')
   verifiedAt = $state<string | null>(null)
-  /** loadCredential 이 한 번이라도 끝났는지(중복 조회 방지). */
+  /** True after loadCredential has finished once (dedupe probes). */
   credentialLoaded = $state(false)
 
-  /* ── 쓰기 메타(로컬 우선) ── transition 맵 + create-meta. 부팅 시 선반영 + 15분 재로드. */
+  /* ── Write meta (local-first) ── transition map + create-meta. Hydrate on boot + 15m reload. */
   writeMetaTransitions = $state<Record<string, Record<string, Transition[]>>>({})
   writeMetaProjects = $state<CreateMetaProject[]>([])
   writeMetaUpdatedAt = $state<string | null>(null)
   writeMetaLoaded = $state(false)
 
-  /* ── 다이얼로그 ── */
+  /* ── Dialogs ── */
   settingsOpen = $state(false)
   newIssueOpen = $state(false)
 
-  /* ── 토스트 큐(셸이 렌더) ── */
+  /* ── Toast queue (shell renders) ── */
   toasts = $state<Toast[]>([])
 
   /**
-   * detail 재로딩 신호. 코멘트 확정 후 이 값을 올리면 DetailPanel 이 캐시에서 다시 읽어
-   *  낙관적 임시 코멘트를 실제 코멘트로 교체한다(네트워크 왕복 없이 캐시 히트).
+   * Detail reload signal. Bump after a comment commits so DetailPanel re-reads
+   *  the cache and swaps optimistic temps for real comments (cache hit, no round-trip).
    */
   detailNonce = $state(0)
 
-  /** issueKey → 낙관적 코멘트(서버 확정 전). CommentList 가 detail.comments 아래에 덧붙여 렌더. */
+  /** issueKey → optimistic comments (pre-server confirm). CommentList appends under detail.comments. */
   pendingComments = new SvelteMap<string, DetailComment[]>()
 
-  /** issueKey → 편집 가능한 QA 필드 메타(editmeta). 인라인 편집 드롭다운 소스. */
+  /** issueKey → editable QA field meta (editmeta). Source for inline-edit dropdowns. */
   editMeta = new SvelteMap<string, EditMetaResponse['fields']>()
   #editMetaLoading = new Set<string>()
 
   /**
-   * 답글 요청 브릿지. CommentList 의 '답글' 버튼이 이 값을 세팅하면 CommentComposer 가
-   * (effect 로 감지해) 작성자 멘션을 본문에 삽입하고 포커스한다. nonce 로 같은 대상 재요청도 감지.
+   * Reply-request bridge. CommentList's Reply button sets this; CommentComposer
+   * (via effect) inserts the author mention and focuses. nonce detects re-requests
+   * for the same target.
    */
   replyRequest = $state<{ issueKey: string; user: CommentMention; nonce: number } | null>(null)
   #replyNonce = 0
 
-  /** '답글' — 대상 작성자 멘션 삽입을 컴포저에 요청. account_id 없으면 무시(멘션 불가). */
+  /** Reply — ask the composer to insert the target author's mention. No-op without account_id. */
   requestReply(issueKey: string, user: CommentMention): void {
     if (!user.account_id || !user.display_name) return
     this.replyRequest = { issueKey, user, nonce: ++this.#replyNonce }
@@ -101,12 +103,12 @@ class WriteStore {
   #tmpId = 0
   #writeMetaTimer: ReturnType<typeof setInterval> | null = null
 
-  /* ── 쓰기 메타 (로컬 우선) ── */
+  /* ── Write meta (local-first) ── */
 
   /**
-   * 부팅 시퀀스(issues.init 과 병렬):
-   *  ① IndexedDB 캐시 하이드레이션(재방문 즉시 0ms) ② 네트워크 최신화 ③ 15분 주기 재로드.
-   *  meta/write/ 미배포(404)/오류는 조용히 넘어가고 컴포넌트가 lazy GET 으로 폴백한다.
+   * Boot sequence (parallel with issues.init):
+   *  ① IndexedDB cache hydrate (0ms on revisit) ② network refresh ③ 15m reload loop.
+   *  meta/write/ missing (404) / errors are quiet; components fall back to lazy GET.
    */
   async loadWriteMeta(): Promise<void> {
     if (!this.writeMetaLoaded) {
@@ -116,7 +118,7 @@ class WriteStore {
           this.#applyWriteMeta(cached.transitions, cached.projects, cached.updated_at)
         }
       } catch {
-        /* 캐시 없음/불가 — 무시 */
+        /* no/unusable cache — ignore */
       }
     }
     await this.#refreshWriteMeta()
@@ -130,7 +132,7 @@ class WriteStore {
       const m = await api.getWriteMeta()
       const projects = m.create_meta?.projects ?? []
       this.#applyWriteMeta(m.transitions ?? {}, projects, m.updated_at ?? null)
-      // $state proxy 는 IndexedDB 에 structured clone 불가 → 평문 스냅샷으로 저장.
+      // $state proxies cannot structured-clone into IndexedDB → store a plain snapshot.
       await db.putWriteMeta(
         $state.snapshot({
           key: 'write',
@@ -141,7 +143,7 @@ class WriteStore {
         }) as WriteMetaCache,
       )
     } catch (e) {
-      // 404(미배포)는 조용히 — 폴백 경로가 처리. 그 외만 경고.
+      // 404 (not deployed) stays quiet — fallback path handles it. Warn on other errors.
       if (!(e instanceof ApiError && e.status === 404)) {
         console.warn('[write] meta/write 로드 실패(폴백 사용)', e)
       }
@@ -159,21 +161,21 @@ class WriteStore {
     this.writeMetaLoaded = true
   }
 
-  /** 이슈의 워크플로 프로젝트 키(백엔드 project_of 와 동일: issue_key prefix 우선). */
+  /** Workflow project key for an issue (same as backend project_of: issue_key prefix first). */
   projectOf(issue: IssueLite): string {
     const k = issue.issue_key
     if (k && k.includes('-')) return k.split('-')[0]
     return issue.source_project ?? ''
   }
 
-  /** 로컬 전환 맵에서 이 이슈의 전환 후보. 없으면 null(컴포넌트가 lazy GET 폴백). */
+  /** Local transition candidates for this issue. null when missing (component lazy-GET fallback). */
   transitionsFor(issue: IssueLite): Transition[] | null {
     const byStatus = this.writeMetaTransitions[this.projectOf(issue)]
     const list = byStatus?.[issue.status]
     return list && list.length ? list : null
   }
 
-  /* ── 토스트 ── */
+  /* ── Toasts ── */
 
   toast(message: string, kind: ToastKind = 'info'): void {
     const id = ++this.#toastId
@@ -185,7 +187,7 @@ class WriteStore {
     this.toasts = this.toasts.filter((t) => t.id !== id)
   }
 
-  /* ── 자격증명 ── */
+  /* ── Credentials ── */
 
   async loadCredential(): Promise<void> {
     try {
@@ -250,7 +252,7 @@ class WriteStore {
     this.credentialLoaded = true
   }
 
-  /* ── 다이얼로그 ── */
+  /* ── Dialogs ── */
 
   openSettings(): void {
     this.settingsOpen = true
@@ -259,7 +261,7 @@ class WriteStore {
     this.settingsOpen = false
   }
   openNewIssue(): void {
-    // 새 이슈도 쓰기 게이트를 통과해야 열린다.
+    // New issue also has to pass the write gate before opening.
     void this.#gateThen(() => {
       this.newIssueOpen = true
     })
@@ -268,7 +270,7 @@ class WriteStore {
     this.newIssueOpen = false
   }
 
-  /* ── 쓰기 게이트 ── */
+  /* ── Write gate ── */
 
   /**
    * Ensure a write can proceed.
@@ -285,7 +287,7 @@ class WriteStore {
     return true
   }
 
-  /** 게이트 통과 시에만 fn 실행. */
+  /** Run fn only after the write gate passes. */
   async #gateThen(fn: () => void): Promise<void> {
     if (await this.ensureWritable()) fn()
   }
@@ -294,7 +296,7 @@ class WriteStore {
     this.detailNonce++
   }
 
-  /* ── IssueLite 로컬 반영/영속 ── */
+  /* ── IssueLite local apply / persist ── */
 
   #applyIssue(issue: IssueLite | null | undefined): void {
     if (!issue || !issue.issue_key) return
@@ -302,8 +304,9 @@ class WriteStore {
     void db.putIssues([issue]).catch(() => {})
   }
 
-  /* ── 공통 옵티미스틱 이슈 쓰기 ──
-   * patch 를 즉시 풀에 반영 → call() → 응답 issue 로 확정 → 실패 시 스냅샷 원복.
+  /* ── Shared optimistic issue write ──
+   * Apply patch to the pool immediately → call() → confirm with response issue →
+   * restore snapshot on failure.
    */
   async #writeIssue(
     key: string,
@@ -319,16 +322,16 @@ class WriteStore {
     try {
       const res = await call()
       this.#applyIssue(res.issue)
-      invalidate(key) // detail(히스토리 등) 다음 열람 시 최신화
+      invalidate(key) // refresh detail (history, …) on next open
       return true
     } catch (e) {
-      if (snapshot) issues.pool.set(key, snapshot) // 롤백
+      if (snapshot) issues.pool.set(key, snapshot) // rollback
       this.#handleError(e, failMsg)
       return false
     }
   }
 
-  /* ── 상태 전환 ── */
+  /* ── Status transition ── */
 
   async transition(key: string, tr: Transition): Promise<boolean> {
     const proj = this.projectOf(issues.pool.get(key) ?? ({ issue_key: key } as IssueLite))
@@ -338,11 +341,11 @@ class WriteStore {
       () => api.doTransition(key, tr.id),
       t('write.transitionFailed'),
     )
-    if (ok) recordRecent(`transition:${proj}`, tr.id) // 성공만 기록
+    if (ok) recordRecent(`transition:${proj}`, tr.id) // record successes only
     return ok
   }
 
-  /* ── 담당자 ── */
+  /* ── Assignee ── */
 
   async assign(key: string, user: JiraUser | null): Promise<boolean> {
     const ok = await this.#writeIssue(
@@ -354,15 +357,15 @@ class WriteStore {
       () => api.setAssignee(key, user ? user.account_id : null),
       t('write.assignFailed'),
     )
-    if (ok && user?.account_id) recordRecent('assignee', user.account_id) // 성공만 기록
+    if (ok && user?.account_id) recordRecent('assignee', user.account_id) // record successes only
     return ok
   }
 
-  /* ── QA 필드 인라인 편집 ── */
+  /* ── QA field inline edit ── */
 
   /**
-   * 편집 시작 게이트: 쓰기 가능 보장 + 이 이슈의 editmeta(허용값) 로드.
-   * 컴포넌트가 편집 UI 를 열기 직전에 호출한다. 통과 못하면 false(다이얼로그/토스트는 내부 처리).
+   * Edit-start gate: ensure writable + load this issue's editmeta (allowed values).
+   * Call just before opening the edit UI. false = blocked (dialog/toast handled inside).
    */
   async ensureEditMeta(key: string): Promise<boolean> {
     if (!(await this.ensureWritable())) return false
@@ -381,14 +384,15 @@ class WriteStore {
     return true
   }
 
-  /** 이 이슈에서 해당 필드의 편집 메타. 없으면 null(로드 전이거나 편집 불가). */
+  /** Edit meta for a field on this issue. null if not loaded yet or not editable. */
   editFieldMeta(key: string, field: string): EditMetaField | null {
     return this.editMeta.get(key)?.[field] ?? null
   }
 
   /**
-   * QA 필드 값 변경(옵티미스틱). ``patch`` 는 IssueLite 표시값을 즉시 반영하기 위한 부분 갱신
-   * (옵션 표시값·담당자 이름·버전명 등). 서버 응답의 재동기화된 IssueLite 로 최종 확정된다.
+   * Change a QA field value (optimistic). ``patch`` is a partial IssueLite update so
+   * display values (option labels · assignee name · version names, …) refresh immediately.
+   * Server response's resynced IssueLite is the final confirmation.
    */
   async setField(
     key: string,
@@ -404,12 +408,12 @@ class WriteStore {
     )
   }
 
-  /* ── 코멘트 ── */
+  /* ── Comments ── */
 
   /**
-   * 코멘트 등록. 낙관적으로 임시 코멘트를 pendingComments 에 추가(CommentList 즉시 표시),
-   *  성공 시 임시 제거 + 캐시에 실제 코멘트 append + detail 재읽기(nonce), 실패 시 임시 제거.
-   * 반환값 false 면 호출부(컴포저)가 입력 텍스트를 복원한다.
+   * Post a comment. Optimistically push a temp into pendingComments (CommentList shows
+   *  it immediately); on success drop the temp, append the real comment to cache, and
+   *  re-read detail (nonce); on failure drop the temp. false → caller restores input text.
    */
   async submitComment(
     key: string,
@@ -419,7 +423,8 @@ class WriteStore {
   ): Promise<boolean> {
     if (!(await this.ensureWritable())) return false
     const tmpId = `temp-${++this.#tmpId}`
-    // 낙관적 표시: 멘션은 평문 그대로, 첨부는 파일명 목록을 덧붙여 보여준다(확정 후 실제 렌더).
+    // Optimistic paint: mentions as plain text; attachments as a filename list
+    // (real render after confirm).
     const attachNote = attachments.length
       ? `\n${attachments.map((a) => `📎 ${a.filename}`).join('\n')}`
       : ''
@@ -448,9 +453,9 @@ class WriteStore {
         raw_body: null,
         created_at: res.comment.created_at,
       }
-      appendComment(key, real) // 캐시에 반영 → 재읽기 시 실제 코멘트로 표시
-      this.#applyIssue(res.issue) // comment_count 등 갱신
-      this.bumpDetail() // DetailPanel 이 캐시에서 재로딩
+      appendComment(key, real) // into cache → re-read shows the real comment
+      this.#applyIssue(res.issue) // comment_count etc.
+      this.bumpDetail() // DetailPanel reloads from cache
       return true
     } catch (e) {
       this.#removePending(key, tmpId)
@@ -460,8 +465,8 @@ class WriteStore {
   }
 
   /**
-   * 코멘트용 첨부 업로드. 성공 시 업로드된 첨부 메타 배열, 실패 시 null(토스트).
-   * 쓰기 게이트를 통과해야 하며, 여러 파일은 호출부가 병렬로 올린다.
+   * Upload an attachment for a comment. Returns uploaded attachment meta on success,
+   * null on failure (toast). Must pass the write gate; callers may upload files in parallel.
    */
   async uploadAttachment(key: string, file: File): Promise<UploadedAttachment[] | null> {
     if (!(await this.ensureWritable())) return null
@@ -490,15 +495,15 @@ class WriteStore {
     else this.pendingComments.delete(key)
   }
 
-  /* ── 이슈 생성 ── */
+  /* ── Create issue ── */
 
-  /** 성공 시 새 이슈를 풀에 추가하고 issue_key 반환(다이얼로그가 선택/닫기 처리). */
+  /** On success: add the new issue to the pool and return issue_key (dialog selects/closes). */
   async createIssue(payload: CreateIssuePayload): Promise<{ ok: boolean; key?: string; error?: string }> {
     if (!(await this.ensureWritable())) return { ok: false }
     try {
       const res = await api.createIssue(payload)
       this.#applyIssue(res.issue)
-      // 성공만 기록: 프로젝트/타입/라벨 최근 사용(새 이슈 기본값·자동완성 개인화)
+      // Success only: project/type/label recency (new-issue defaults + autocomplete personalization)
       recordRecent('create-project', payload.project_key)
       recordRecent(`create-type:${payload.project_key}`, payload.issue_type)
       for (const l of payload.labels ?? []) recordRecent('label', l)
@@ -510,7 +515,7 @@ class WriteStore {
     }
   }
 
-  /* ── 에러 처리 ── */
+  /* ── Error handling ── */
 
   #handleError(e: unknown, fallback: string): void {
     if (e instanceof ApiError) {
@@ -536,5 +541,5 @@ class WriteStore {
   }
 }
 
-/** 앱 전역 싱글턴. */
+/** App-wide singleton. */
 export const write = new WriteStore()

@@ -1,11 +1,12 @@
 <script lang="ts">
   /*
-   * 검색창 ([explore]) — 이중 모드(plan §5.2).
-   *  ① 타이핑 즉시 로컬 검색(키/제목/담당자/라벨) — filters.setQuery 로 URL 반영, <16ms.
-   *  ② 인라인 토큰: @담당자 · #파트 · !우선순위 · is:reopened|unassigned|stale — 자동완성 후 필터로 변환.
-   *  ③ 이슈 키(DEN-123/den123) 즉시 점프.
-   *  ④ Enter → 서버 전문검색(본문/코멘트) 확장.
-   *  `/` 로 어디서든 포커스, Esc 로 클리어.
+   * Search box ([explore]) — dual mode (plan §5.2).
+   *  ① Instant local search (key/title/assignee/labels) via filters.setQuery → URL, <16ms.
+   *  ② Inline tokens: @assignee · #team · !priority · is:reopened|unassigned|stale —
+   *     autocomplete then convert to filters.
+   *  ③ Issue-key jump (DEN-123/den123).
+   *  ④ Enter → server full-text (body/comments).
+   *  `/` focuses from anywhere; Esc clears.
    */
   import { t } from '../../lib/i18n'
   import { onMount } from 'svelte'
@@ -18,7 +19,7 @@
   let inputEl = $state<HTMLInputElement | null>(null)
   let sugIdx = $state(0)
 
-  // 외부(뷰 적용 등)로 q 가 바뀌면 입력값 동기화(타이핑 중이 아니면).
+  // Sync input when q changes externally (view apply, etc.) if not typing.
   $effect(() => {
     const q = filters.filters.q
     if (q !== text && document.activeElement !== inputEl) text = q
@@ -32,13 +33,13 @@
     hint?: string
   }
 
-  // 마지막 단어(토큰 후보) 추출
+  // Last word (token candidate)
   const lastWord = $derived.by(() => {
     const m = text.match(/(\S+)$/)
     return m ? m[1] : ''
   })
 
-  // 이슈 키 점프 후보(텍스트 어디든)
+  // Issue-key jump candidate (anywhere in the text)
   const jumpKey = $derived.by(() => {
     const m = text.match(/([A-Za-z]{2,10})-?(\d+)/)
     if (!m) return null
@@ -85,7 +86,7 @@
   const showJump = $derived(jumpKey !== null && suggestions.length === 0)
 
   $effect(() => {
-    // 후보 목록이 바뀌면 하이라이트 리셋
+    // Reset highlight when the suggestion list changes
     void suggestions
     sugIdx = 0
   })
@@ -141,7 +142,7 @@
     } else if (e.key === 'Escape') {
       e.preventDefault()
       if (suggestions.length) {
-        // 토큰 후보만 닫기 → 마지막 단어 유지, blur 안 함
+        // Close token candidates only — keep last word; blur closes the popup
         ;(e.target as HTMLElement).blur()
       } else if (text) {
         text = ''
@@ -218,7 +219,7 @@
     {/if}
   </div>
 
-  <!-- 토큰 자동완성 / 점프 -->
+  <!-- Token autocomplete / jump -->
   {#if suggestions.length > 0}
     <div
       class="anim-enter absolute left-0 top-full z-30 mt-1 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-xl shadow-black/40"

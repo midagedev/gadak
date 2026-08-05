@@ -1,29 +1,29 @@
 /*
- * Issue Navigator — API 타입 (계약 §1 의 TypeScript 표현)
+ * Issue Navigator — API types (TypeScript of contract §1)
  *
- * 원칙: 필드명은 서버 응답 그대로 snake_case 를 유지한다.
- *  변환 레이어를 두지 않아야(성능) 대량 이슈를 그대로 메모리 풀/IndexedDB 에 넣을 수 있다.
+ * Principle: keep field names as snake_case from the server response.
+ *  No transform layer (performance) so bulk issues land as-is in the memory pool / IndexedDB.
  */
 
-/** 이슈 상태의 유효 분류. 서버 `status_category` 는 Jira 원본이며, UI 는 이 3분류로 색을 입힌다. */
+/** Effective status buckets. Server `status_category` is Jira's raw value; UI colors by these 3. */
 export type StatusCategory = 'new' | 'inprogress' | 'done'
 
 export type QaImpactState = 'blocking' | 'retest' | 'verified' | 'linked' | ''
 
 /**
- * 이슈별 배포 단계(사전계산). 단계 진행: merged → dev(릴리즈) →
- *  qa_preview(qa 릴리즈, 스왑 전) → qa(스왑 완료=QA 확인 가능) → prod.
- *  none = 연결 PR 자체가 없음.
+ * Per-issue deploy stage (precomputed). Progression: merged → dev (release) →
+ *  qa_preview (qa release, pre-swap) → qa (swapped = QA can verify) → prod.
+ *  none = no linked PR at all.
  */
 export type DeployState = 'none' | 'merged' | 'dev' | 'qa_preview' | 'qa' | 'prod'
 
-/** 배포에 이슈 픽스를 담은 릴리즈 참조(태그 + 시각). */
+/** Release that carried the issue fix (tag + timestamp). */
 export interface DeployReleaseRef {
   tag: string
   at: string
 }
 
-/** IssueLite 에 실리는 경량 배포 현황(사전계산). */
+/** Lightweight deploy status embedded on IssueLite (precomputed). */
 export interface DeployStatus {
   state: DeployState
   merged_prs: number
@@ -44,14 +44,14 @@ export interface QaSuiteRef extends QaRef {
 }
 
 /**
- * 리스트/필터/검색이 읽는 경량 이슈. bootstrap/delta 가 이 형태의 배열을 준다.
- * (본문/코멘트/히스토리는 제외 — 상세는 온디맨드 detail 로 가져온다.)
+ * Lightweight issue for list/filter/search. bootstrap/delta return arrays of these.
+ * (Body/comments/history omitted — detail is fetched on demand.)
  */
 export interface IssueLite {
   issue_key: string
   summary: string
   status: string
-  status_category: string // Jira 원본 카테고리 문자열 (분류는 StatusCategory 로 별도 계산)
+  status_category: string // Raw Jira category string (effective bucket is StatusCategory)
   issue_type: string
   priority: string | null
   priority_rank: number | null
@@ -100,11 +100,11 @@ export interface IssueLite {
   qa_runs: QaRef[]
   qa_suites: QaSuiteRef[]
 
-  /** 배포 단계(사전계산). 구 서버는 미전송(undefined), 기본값으로 빈 객체가 올 수도 있음. */
+  /** Deploy stage (precomputed). Older servers omit (undefined); empty object may arrive as default. */
   deploy_status?: DeployStatus
 }
 
-/** 팀 멤버 (이름/아바타/파트). bootstrap 에 동봉. */
+/** Team member (name/avatar/group). Bundled with bootstrap. */
 export interface Member {
   email: string
   name: string
@@ -114,7 +114,7 @@ export interface Member {
   job_role: string | null
   group: string | null
   status: string | null
-  /** Jira accountId — 담당자 지정에 사용(서버 호출 없이 로컬 지정). 백엔드가 채워준다. */
+  /** Jira accountId — used for assignee writes (local pick, no server round-trip). Backend fills. */
   jira_account_id?: string | null
 }
 
@@ -142,8 +142,8 @@ export interface SyncHealth {
 }
 
 /* ── ADF (Atlassian Document Format) ──
- * detail 의 description_adf / comment.raw_body 원본. 렌더는 [detail] 의 adf.ts 소관.
- * 여기서는 재귀 노드 형태만 최소로 선언한다.
+ * Raw shape of detail description_adf / comment.raw_body. Rendering lives in adf.ts ([detail]).
+ * Here we only declare the recursive node shape.
  */
 export interface AdfNode {
   type: string
@@ -154,30 +154,30 @@ export interface AdfNode {
   [key: string]: unknown
 }
 
-/** 상세 패널의 코멘트 1건. */
+/** One comment in the detail panel. */
 export interface DetailComment {
   comment_id: string
   author: string | null
   author_email: string | null
-  author_account_id?: string | null // 답글(멘션) 대상 지정용
+  author_account_id?: string | null // For reply (mention) targeting
   body: string // plain text
-  raw_body: AdfNode | null // ADF 원본
+  raw_body: AdfNode | null // Raw ADF
   created_at: string | null
 }
 
-/** 상태/담당자/우선순위 변경 이력 1건 (시간순). */
+/** One status/assignee/priority change (chronological). */
 export interface HistoryEntry {
   at: string | null
   field: string
   from: string | null
   to: string | null
   by: string | null
-  /** status 전이의 전/후 카테고리(new|inprogress|done). 주면 재오픈 판정이 이름 대신 이걸 쓴다. */
+  /** Pre/post category of a status transition (new|inprogress|done). Prefer over names for reopen. */
   from_category?: string | null
   to_category?: string | null
 }
 
-/** 연결된 이슈 1건. */
+/** One linked issue. */
 export interface LinkedIssue {
   key: string
   type: string
@@ -185,7 +185,7 @@ export interface LinkedIssue {
   summary: string | null
 }
 
-/** 연결된 PR 1건 (PrSnapshot). */
+/** One linked PR (PrSnapshot). */
 export interface LinkedPr {
   number: number
   title: string
@@ -195,7 +195,7 @@ export interface LinkedPr {
   author: string | null
 }
 
-/** Jira 원본 첨부 + private S3 재생 캐시 메타데이터. */
+/** Jira attachment plus private S3 replay-cache metadata. */
 export interface DetailAttachment {
   id: string
   filename: string
@@ -207,7 +207,7 @@ export interface DetailAttachment {
   is_video: boolean
   cache_status: 'pending' | 'caching' | 'ready' | 'failed'
   created_at: string | null
-  /** same-origin 첨부 URL. 서버가 디스크 캐시에서 바로 서빙한다. */
+  /** Same-origin attachment URL. Server serves straight from disk cache. */
   content_url: string
 }
 
@@ -245,36 +245,37 @@ export interface QaIssueContext {
   suites: QaSuiteRef[]
 }
 
-/** 상세 배포 근거 — 포함 릴리즈 1건(태그 + 링크 + 시각 + 채널). 방어적 파싱(모두 optional). */
+/** Deploy evidence detail — one included release (tag + link + time + channel). All optional. */
 export interface DeployReleaseEvidence {
   tag: string
   html_url?: string | null
   at?: string | null
-  /** 릴리즈 채널 힌트(dev/qa/prod 등). 서버 구현에 따라 없을 수 있음. */
+  /** Release channel hint (dev/qa/prod, …). May be absent depending on server. */
   channel?: string | null
 }
 
-/** 상세 배포 근거 — PR별 포함 여부 1건. */
+/** Deploy evidence detail — one PR inclusion row. */
 export interface DeployPrInclusion {
   number: number
   title?: string | null
   url?: string | null
   repo?: string | null
   merged?: boolean
-  /** 어느 릴리즈에 포함되었는지(태그). 미포함이면 null/미전송. */
+  /** Release tag that includes this PR. null/omitted if not included. */
   included_in?: string | null
 }
 
 /**
- * detail 응답의 배포 상세 — 경량 DeployStatus 전체 + 근거(포함 릴리즈/PR별 포함/최근 스왑).
- * 구 서버 호환을 위해 전 필드 optional. state 없으면 섹션을 렌더하지 않는다.
+ * Deploy detail on the detail response — full lightweight DeployStatus plus evidence
+ *  (included releases / per-PR inclusion / last swap). All fields optional for older servers;
+ *  omit the section when state is missing.
  */
 export interface DeployDetail extends Partial<DeployStatus> {
   releases?: DeployReleaseEvidence[]
   prs?: DeployPrInclusion[]
 }
 
-/** GET `<issue_key>/detail/` 응답. */
+/** GET `<issue_key>/detail/` response. */
 export interface DetailResponse {
   issue_key: string
   development_opinion: string
@@ -285,33 +286,33 @@ export interface DetailResponse {
   linked_issues: LinkedIssue[]
   linked_prs: LinkedPr[]
   qa_context: QaIssueContext | null
-  /** 배포 현황 상세. 구 서버는 미전송 → 상세 섹션 숨김. */
+  /** Deploy status detail. Older servers omit → hide the detail section. */
   deploy?: DeployDetail
 }
 
-/** GET `bootstrap/` 응답. */
+/** GET `bootstrap/` response. */
 export interface BootstrapResponse {
   server_time: string
   sync_version: number
   members: Member[]
-  /** 멤버 셋 안정 해시. 이후 delta 의 mv 로 되돌려주면 변경 없을 때 members 전송이 생략된다. */
-  members_version?: string // 구 서버는 미전송
+  /** Stable hash of the member set. Echo as delta `mv` so unchanged members can be omitted. */
+  members_version?: string // Older servers omit
   issues: IssueLite[]
   sync_health: SyncHealth
 }
 
-/** GET `delta/?since=&mv=` 응답. */
+/** GET `delta/?since=&mv=` response. */
 export interface DeltaResponse {
   server_time: string
   upserted: IssueLite[]
   deleted_keys: string[]
-  /** mv 가 서버 해시와 같으면 서버가 생략한다 → 이 경우 기존 멤버를 유지한다. */
+  /** Omitted when `mv` matches the server hash → keep existing members. */
   members?: Member[]
-  members_version?: string // 구 서버는 미전송
+  members_version?: string // Older servers omit
   sync_health: SyncHealth
 }
 
-/** GET `search/?q=` 응답. */
+/** GET `search/?q=` response. */
 export interface SearchResponse {
   keys: string[]
   total: number
@@ -359,7 +360,7 @@ export interface NotificationPreferences {
   notify_assigned: boolean
   notify_watched: boolean
   show_preview: boolean
-  // 조용 시간 (KST 기준 "HH:MM"). null 이면 미사용.
+  // Quiet hours (KST "HH:MM"). null = unused.
   quiet_start: string | null
   quiet_end: string | null
 }
@@ -371,8 +372,8 @@ export interface NotificationConfig {
 }
 
 /**
- * 저장된 뷰 (팀 공유). config 는 서버가 해석하지 않는 불투명 JSON —
- * 프론트 뷰 상태(필터/디스플레이) 직렬화이며 구조는 [explore] 가 정의한다.
+ * Saved view (team-shared). `config` is opaque JSON the server does not interpret —
+ *  front-end view state (filters/display); shape is defined by [explore].
  */
 export interface SavedView {
   id: string
@@ -388,14 +389,14 @@ export interface ViewsResponse {
   views: SavedView[]
 }
 
-/** 워치 목록 응답. */
+/** Watch list response. */
 export interface WatchesResponse {
   keys: string[]
 }
 
-/* ── 쓰기(Write) API 타입 (계약: 쓰기 프록시) ────────────────────────────── */
+/* ── Write API types (contract: write proxy) ────────────────────────────── */
 
-/** GET/PUT/DELETE credential/ 응답 — 개인 Jira API 토큰 설정 상태. 평문 토큰은 미노출. */
+/** GET/PUT/DELETE credential/ response — personal Jira API token status. Plain token never exposed. */
 export interface JiraCredential {
   configured: boolean
   jira_email: string
@@ -404,7 +405,7 @@ export interface JiraCredential {
   token_hint: string
 }
 
-/** 상태 전환 후보 1건 (GET <key>/transitions/). */
+/** One transition option (GET <key>/transitions/). */
 export interface Transition {
   id: string
   name: string
@@ -416,7 +417,7 @@ export interface TransitionsResponse {
   transitions: Transition[]
 }
 
-/** 담당자 후보 사용자 1건 (GET users/?q=). */
+/** One assignee candidate (GET users/?q=). */
 export interface JiraUser {
   account_id: string
   display_name: string
@@ -429,35 +430,35 @@ export interface UsersResponse {
   users: JiraUser[]
 }
 
-/* ── QA 필드 인라인 편집 (editmeta) ── */
+/* ── QA field inline edit (editmeta) ── */
 
-/** 단일 옵션/버전 선택지 (id + 표시값). */
+/** One option/version choice (id + display value). */
 export interface EditMetaOption {
   id: string
   value: string
 }
 
-/** 편집 가능한 한 필드의 메타 — 종류 + 편집가능여부 + 선택지. */
+/** Meta for one editable field — kind + editable flag + choices. */
 export interface EditMetaField {
-  /** option(단일 select) / user(userpicker) / version_array(버전 배열). */
+  /** option (single select) / user (userpicker) / version_array (version list). */
   kind: 'option' | 'user' | 'version_array'
   editable: boolean
-  /** user 필드는 비어 있음(사용자 검색으로 대체). */
+  /** Empty for user fields (user search replaces options). */
   options: EditMetaOption[]
 }
 
-/** GET <key>/editmeta/ — 프론트 키별 편집 메타. 편집 불가 필드는 생략. */
+/** GET <key>/editmeta/ — edit meta keyed by front-end field. Non-editable fields omitted. */
 export interface EditMetaResponse {
   fields: Partial<Record<string, EditMetaField>>
 }
 
-/** 이슈 타입 (create-meta 항목). */
+/** Issue type (create-meta entry). */
 export interface CreateMetaIssueType {
   id: string
   name: string
 }
 
-/** 생성 가능한 프로젝트 1건 (GET create-meta/). */
+/** One creatable project (GET create-meta/). */
 export interface CreateMetaProject {
   key: string
   name: string
@@ -468,7 +469,7 @@ export interface CreateMetaResponse {
   projects: CreateMetaProject[]
 }
 
-/** POST <key>/comment/ 가 돌려주는 새 코멘트 (raw_body 없음 — 평문 body). */
+/** New comment returned by POST <key>/comment/ (no raw_body — plain text body). */
 export interface CreatedComment {
   comment_id: string
   author: string | null
@@ -476,7 +477,7 @@ export interface CreatedComment {
   created_at: string | null
 }
 
-/** 쓰기 응답 공통 — 최신 IssueLite. */
+/** Common write response — latest IssueLite. */
 export interface IssueWriteResponse {
   issue: IssueLite
 }
@@ -486,13 +487,13 @@ export interface CommentWriteResponse {
   comment: CreatedComment
 }
 
-/** 코멘트에 삽입된 멘션 1건 (프론트가 자동완성으로 확정한 account_id + 표시이름). */
+/** One mention inserted in a comment (account_id + display name from front-end autocomplete). */
 export interface CommentMention {
   account_id: string
   display_name: string
 }
 
-/** 업로드된 첨부 1건 (POST <key>/attachments/ 응답). 코멘트 인라인 임베드에 사용. */
+/** One uploaded attachment (POST <key>/attachments/ response). Used for comment inline embeds. */
 export interface UploadedAttachment {
   id: string
   filename: string
@@ -509,10 +510,10 @@ export interface AttachmentUploadResponse {
 }
 
 /**
- * GET meta/write/ 응답 (익명 읽기) — 쓰기에 필요한 정적 메타를 통째로 선반영.
- *  - transitions: project → 현재 status → 가능한 전환 목록 (0ms 드롭다운용).
- *  - create_meta: 생성 가능한 프로젝트/이슈타입 (새 이슈 다이얼로그용).
- * 부팅 시 로드 + IndexedDB 캐시 + 15분 주기 재로드.
+ * GET meta/write/ response (anonymous read) — static write meta prefetched in bulk.
+ *  - transitions: project → current status → available transitions (0ms dropdown).
+ *  - create_meta: creatable projects/issue types (new-issue dialog).
+ * Loaded at boot + IndexedDB cache + reload every 15 minutes.
  */
 export interface WriteMeta {
   transitions: Record<string, Record<string, Transition[]>>
@@ -520,7 +521,7 @@ export interface WriteMeta {
   updated_at: string | null
 }
 
-/** IndexedDB meta 스토어의 write 메타 레코드. */
+/** Write-meta record in the IndexedDB meta store. */
 export interface WriteMetaCache {
   key: 'write'
   transitions: Record<string, Record<string, Transition[]>>
@@ -529,10 +530,10 @@ export interface WriteMetaCache {
   cached_at: string
 }
 
-/** POST create/ 요청 바디. */
+/** POST create/ request body. */
 export interface CreateIssuePayload {
   project_key: string
-  issue_type: string // create-meta 의 issue_type id
+  issue_type: string // issue_type id from create-meta
   summary: string
   description_text?: string
   assignee_account_id?: string | null
@@ -540,12 +541,12 @@ export interface CreateIssuePayload {
   labels?: string[]
 }
 
-/** IndexedDB meta 스토어에 저장하는 캐시 메타. */
+/** Cache meta stored in the IndexedDB meta store. */
 export interface CacheMeta {
-  key: 'sync' // 단일 레코드 키
+  key: 'sync' // Singleton record key
   server_time: string
   sync_version: number
   members: Member[]
-  members_version?: string // 멤버 셋 해시. 다음 delta 의 mv 로 사용 (구 캐시엔 없음)
+  members_version?: string // Member-set hash; used as next delta's mv (absent in older caches)
   sync_health?: SyncHealth
 }

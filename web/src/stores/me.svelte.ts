@@ -598,8 +598,8 @@ class MeStore {
     try {
       const res = await api.getFavorites()
       this.favorites.clear()
-      // 서버는 추가순으로만 돌려준다. 사용자가 드래그로 정한 순서가 있으면 그것을
-      // 먼저 깔고, 서버에만 있는 키(다른 창·TUI에서 추가)를 뒤에 붙인다.
+      // Server returns add-order only. Prefer user drag order when present, then
+      // append keys that exist only on the server (added in another window/TUI).
       const wanted = new Set(res.keys)
       for (const k of loadArray(FAVORITES_ORDER_KEY)) {
         if (wanted.delete(k)) this.favorites.add(k)
@@ -685,8 +685,8 @@ class MeStore {
     ordered.splice(insertAt, 0, moved)
     this.favorites.clear()
     for (const key of ordered) this.favorites.add(key)
-    // 순서는 언제나 로컬에 남긴다 — 서버 favorites 테이블에는 순서 컬럼이 없고,
-    // 드래그 순서를 세션에만 두면 새로고침마다 흐트러진다(회귀).
+    // Always persist order locally — server favorites has no order column, and
+    // session-only drag order reshuffles on every refresh (regression).
     saveArray(FAVORITES_ORDER_KEY, ordered)
     if (this.#favoritesLocal) saveArray(FAVORITES_KEY, ordered)
   }

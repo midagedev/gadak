@@ -1,11 +1,12 @@
 <script lang="ts">
   /*
-   * 상태 칩 + 전환 드롭다운 (쓰기, 로컬 우선).
-   *  - 평시엔 기존 상태 칩과 동일한 모습. hover 시 편집 어포던스(쉐브론).
-   *  - 클릭 → write.transitionsFor(issue)(로컬 맵)에서 0ms 렌더. 없으면 GET <key>/transitions/ 폴백.
-   *  - 정렬(조용한 제안): ① 최근 사용 전환(프로젝트별) ② 워크플로 전진(new→inprogress→done) ③ 나머지.
-   *    첫 항목에 포커스 → Enter 로 즉시 실행.
-   *  - 선택 시 write.transition()(옵티미스틱). 로컬 실행이 실패하면(맵 낡음 등) 원격으로 재조회.
+   * Status chip + transition dropdown (write, local-first).
+   *  - Idle looks like the status chip; hover shows edit affordance (chevron).
+   *  - Click → render from write.transitionsFor(issue) local map at 0ms; else GET
+   *    <key>/transitions/ fallback.
+   *  - Sort (quiet suggestions): ① recent transitions (per project) ② workflow forward
+   *    (new→inprogress→done) ③ rest. Focus first item → Enter runs immediately.
+   *  - On pick: write.transition() optimistic. Local fail (stale map) → remote refresh.
    */
   import { t } from '../../lib/i18n'
   import type { IssueLite, Transition } from '../../lib/types'
@@ -20,7 +21,7 @@
 
   let open = $state(false)
   let loading = $state(false)
-  let remote = $state<Transition[] | null>(null) // 폴백 GET 결과
+  let remote = $state<Transition[] | null>(null) // fallback GET result
   let source = $state<'local' | 'remote'>('local')
   let loadError = $state<string | null>(null)
   let busyId = $state<string | null>(null)
@@ -32,7 +33,7 @@
     cat === 'done' ? 'bg-status-done' : cat === 'new' ? 'bg-status-new' : 'bg-status-inprogress',
   )
 
-  /** Jira statusCategory key → 도트 색 클래스. */
+  /** Jira statusCategory key → dot color class. */
   function catDot(key: string): string {
     const c = (key || '').toLowerCase()
     if (c === 'done') return 'bg-status-done'
@@ -40,16 +41,16 @@
     return 'bg-status-inprogress'
   }
 
-  /** 현재 카테고리 순위(new=0, inprogress=1, done=2) — 전진 방향 판별용. */
+  /** Current category rank (new=0, inprogress=1, done=2) — for forward-direction. */
   const curRank = $derived(cat === 'new' ? 0 : cat === 'done' ? 2 : 1)
   function jiraRank(key: string): number {
     const c = (key || '').toLowerCase()
     if (c === 'new') return 0
     if (c === 'done') return 2
-    return 1 // indeterminate 등
+    return 1 // indeterminate etc.
   }
 
-  /** 정렬된 전환 목록(로컬 우선 → 폴백). */
+  /** Sorted transitions (local first → fallback). */
   const sorted = $derived.by<Transition[]>(() => {
     const base = remote ?? write.transitionsFor(issue) ?? []
     if (base.length === 0) return []
@@ -62,10 +63,10 @@
     return [...base].sort((a, b) => {
       const ra = recIdx(a.id)
       const rb = recIdx(b.id)
-      if (ra !== rb) return ra - rb // ① 최근 사용
+      if (ra !== rb) return ra - rb // ① recent
       const fa = jiraRank(a.to_category) > curRank ? 0 : 1
       const fb = jiraRank(b.to_category) > curRank ? 0 : 1
-      if (fa !== fb) return fa - fb // ② 전진 방향 우선
+      if (fa !== fb) return fa - fb // ② forward direction first
       return 0
     })
   })
@@ -78,7 +79,7 @@
     remote = null
     source = 'local'
     loadError = null
-    // 로컬 맵에 있으면 즉시(0ms). 없으면 원격 폴백.
+    // Local map hit → open immediately (0ms). Else remote fallback.
     if (write.transitionsFor(issue)) {
       open = true
       focusFirst()
@@ -88,7 +89,7 @@
   }
 
   async function loadRemote() {
-    // 원격 GET 은 인증 필요 → 게이트 먼저.
+    // Remote GET needs auth → gate first.
     if (!(await write.ensureWritable())) {
       open = false
       return
@@ -120,7 +121,7 @@
     }
   }
 
-  /** 첫 항목 포커스 → Enter 로 바로 실행. */
+  /** Focus first item → Enter runs immediately. */
   function focusFirst() {
     queueMicrotask(() => listEl?.querySelector('button')?.focus())
   }
@@ -132,14 +133,14 @@
     busyId = null
     if (ok) {
       open = false
-      remote = null // 상태가 바뀌었으니 다음엔 새로
+      remote = null // status changed — refetch next time
     } else if (wasLocal) {
-      // 로컬 맵이 낡아 실패했을 수 있음 → 원격으로 최신 목록 재조회(드롭다운 유지)
+      // Local map may be stale → re-fetch remote list (keep dropdown open)
       await loadRemote()
     }
   }
 
-  // 바깥 클릭 / Esc 로 닫기
+  // Outside click / Esc to close
   $effect(() => {
     if (!open) return
     function onDown(e: MouseEvent) {

@@ -88,10 +88,10 @@
     selection.select(item.issue_key)
   }
 
-  // 같은 issue_key + event_type + 같은 날의 연속 이벤트를 한 그룹으로 접는다.
+  // Collapse consecutive events with same issue_key + event_type + day.
   interface FeedGroup {
-    id: number // 그룹 대표(첫 아이템) id — {#each} 키 + 펼침 상태 키
-    groupKey: string // 인접 병합 판정용
+    id: number // group representative (first item) id — {#each} key + expand state key
+    groupKey: string // adjacent-merge key
     items: FeedItem[]
   }
 
@@ -109,14 +109,14 @@
     return out
   })
 
-  // 펼쳐진 그룹(로컬 상태). 그룹 대표 id 를 키로 사용.
+  // Expanded groups (local). Keyed by group representative id.
   let expanded = $state<Record<number, boolean>>({})
 
   function reasonsOf(items: FeedItem[]): string[] {
     return [...new Set(items.flatMap((item) => item.reasons))]
   }
 
-  // 접힌 그룹을 열고 그룹 전체를 읽음 처리.
+  // Expand a collapsed group and mark all its events read.
   function openGroup(group: FeedGroup) {
     expanded = { ...expanded, [group.id]: true }
     void me.markEventsRead(group.items.map((item) => item.event_id))

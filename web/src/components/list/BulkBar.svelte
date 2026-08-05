@@ -1,16 +1,16 @@
 <script lang="ts">
   /*
-   * 일괄 작업 바 (bulk). 1개 이상 선택 시 리스트 상단(필터바 아래)에 나타난다.
-   *  "N개 선택 · [{t('bulk.changeStatus')}] [{t('bulk.changeAssignee')}] [{t('common.deselect')}]"
+   * Bulk action bar. Appears above the list (under the filter bar) when ≥1 selected.
+   *  "N selected · [change status] [change assignee] [deselect]"
    *
-   *  - {t('bulk.changeStatus')}: 선택 이슈들의 transitionsFor(로컬 맵)를 to_status 이름 기준으로 union
-   *      → 드롭다운. 선택하면 각 이슈별로 해당 to_status 로 가는 transition 을 resolve 해 실행,
-   *      없는 이슈는 skip(로컬 맵이 비면 원격 GET 폴백으로 한 번 더 시도).
-   *  - {t('bulk.changeAssignee')}: 지정 가능 멤버(최근 선택 우선) 드롭다운. per-issue write.assign.
-   *  - 실행: write 스토어의 per-issue 옵티미스틱 메서드를 동시성 3으로 배치. 진행 카운터 표시,
-   *      실패 이슈 롤백은 기존 옵티미스틱 패턴이 처리. 끝나면 성공/실패/건너뜀 요약 토스트.
+   *  - Status: union selected issues' transitionsFor (local map) by to_status name →
+   *      dropdown. On pick, resolve each issue's transition to that to_status; skip
+   *      missing (if local map empty, one remote GET fallback).
+   *  - Assignee: assignable members (recent first) dropdown; per-issue write.assign.
+   *  - Run: write store's per-issue optimistic methods, concurrency 3, progress counter.
+   *      Failed issues roll back via existing optimistic pattern. End toast: ok/fail/skip.
    *
-   * 자격증명/로그인 게이트는 write.ensureWritable() 한 번으로 처리(기존과 동일한 안내).
+   * Credential/login gate is a single write.ensureWritable() (same guidance as elsewhere).
    */
   import { t, collator } from '../../lib/i18n'
   import type { JiraUser, Member, Transition } from '../../lib/types'
@@ -26,11 +26,11 @@
   let assigneeQuery = $state('')
   let rootEl = $state<HTMLDivElement | null>(null)
 
-  // ── 배치 진행 상태 ──
+  // ── Batch progress ──
   let running = $state(false)
   let progress = $state<{ done: number; total: number }>({ done: 0, total: 0 })
 
-  /** 현재 카테고리 순위(전진 방향 우선 정렬용). */
+  /** Category rank (forward-direction sort priority). */
   function jiraRank(key: string): number {
     const c = (key || '').toLowerCase()
     if (c === 'new') return 0
@@ -47,10 +47,10 @@
   interface StatusOption {
     to_status: string
     to_category: string
-    count: number // 이 상태로 갈 수 있는 선택 이슈 수(로컬 맵 기준)
+    count: number // selected issues that can reach this status (local map)
   }
 
-  /** 선택 이슈들의 전환을 to_status 이름 기준으로 union. */
+  /** Union selected issues' transitions by to_status name. */
   const statusOptions = $derived.by<StatusOption[]>(() => {
     const map = new Map<string, StatusOption>()
     for (const key of bulk.selected) {
@@ -60,7 +60,7 @@
       if (!list) continue
       const seen = new Set<string>()
       for (const t of list) {
-        if (seen.has(t.to_status)) continue // 한 이슈 내 같은 목적 상태 중복 방지
+        if (seen.has(t.to_status)) continue // dedupe same target status within one issue
         seen.add(t.to_status)
         const e = map.get(t.to_status)
         if (e) e.count++
@@ -70,12 +70,12 @@
     return [...map.values()].sort((a, b) => {
       const fa = jiraRank(a.to_category)
       const fb = jiraRank(b.to_category)
-      if (fa !== fb) return fa - fb // 신규→진행→완료 순
-      return b.count - a.count // 더 많이 적용되는 상태 우선
+      if (fa !== fb) return fa - fb // new → inprogress → done
+      return b.count - a.count // statuses that apply to more issues first
     })
   })
 
-  // ── 담당자 후보(최근 선택 우선) ──
+  // ── Assignee candidates (recent first) ──
   const assignable = $derived.by<Member[]>(() =>
     [...issues.members.values()].filter((m) => m.status !== 'RESIGN' && m.jira_account_id),
   )
@@ -109,7 +109,7 @@
     menu = menu === m ? null : m
   }
 
-  /** 동시성 3 배치. fn 은 각 키의 결과를 자체 집계. */
+  /** Concurrency-3 batch. fn tallies each key's outcome itself. */
   async function runBatch(keys: string[], fn: (key: string) => Promise<void>): Promise<void> {
     running = true
     progress = { done: 0, total: keys.length }
@@ -128,7 +128,7 @@
     }
   }
 
-  /** 결과 요약 토스트 + 성공 시 선택 해제. */
+  /** Summary toast; clear selection on full success. */
   function finish(ok: number, fail: number, skip: number) {
     const parts = [t('bulk.resultOk', { n: ok }), t('bulk.resultFail', { n: fail })]
     if (skip) parts.push(t('bulk.resultSkip', { n: skip }))
@@ -151,7 +151,7 @@
       }
       let list: Transition[] | null = write.transitionsFor(issue)
       if (!list) {
-        // 로컬 맵이 비면 원격으로 한 번 더 확인(새 API 아님).
+        // Empty local map → one remote check (not a new API).
         try {
           list = (await api.getTransitions(key)).transitions
         } catch {
@@ -193,7 +193,7 @@
     finish(ok, fail, 0)
   }
 
-  // 바깥 클릭 / Escape: 메뉴가 열려 있으면 메뉴만 닫고, 아니면 {t('common.deselect')}.
+  // Outside click / Escape: close menu if open, else deselect.
   $effect(() => {
     function onDown(e: MouseEvent) {
       if (menu && rootEl && !rootEl.contains(e.target as Node)) closeMenu()
@@ -324,7 +324,7 @@
       {t('common.deselect')}
     </button>
 
-    <!-- 진행 표시(카운터 — 무한 애니메이션 금지) -->
+    <!-- Progress (counter — no infinite spinner) -->
     {#if running}
       <span class="ml-auto flex flex-none items-center gap-1.5 text-[11px] text-text-secondary">
         <span class="text-text-muted">{t('common.processing')}</span>

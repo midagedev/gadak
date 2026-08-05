@@ -1,11 +1,11 @@
 /*
- * Issue Navigator — 저장 뷰 스토어 ([explore])
+ * Issue Navigator — saved views store ([explore])
  *
- * 2계층(plan §5.3):
- *  - 개인 뷰: localStorage (즉시, 서버 불필요) — 다른 기기와 공유 안 됨
- *  - 팀 공유 뷰: 서버 api(views/) — 작성자 표시, 본인 소유만 삭제
+ * Two layers (plan §5.3):
+ *  - Personal views: localStorage (instant, no server) — not shared across devices
+ *  - Team-shared views: server api(views/) — shows author; only owner can delete
  *
- * config 는 explore 의 ViewConfig 직렬화(불투명 JSON). 서버는 해석하지 않는다.
+ * config is explore's ViewConfig serialization (opaque JSON). Server does not interpret it.
  */
 
 import { t } from '../lib/i18n'

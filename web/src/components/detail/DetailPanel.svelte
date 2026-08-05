@@ -1,13 +1,13 @@
 <script lang="ts">
   /*
-   * 상세 패널 진입점 ([detail]).
+   * Detail panel entry ([detail]).
    *
-   * props 없음 — selection 스토어(`selectedKey`)를 직접 구독한다.
-   * RightPanel(480px, 자체 overflow-y-auto) 안에 마운트되므로 여기선 내용만 흐르게 두고
-   *  헤더만 sticky 로 고정한다(패널 내부 스크롤).
+   * No props — subscribes to selection store (`selectedKey`) directly.
+   * Mounted inside RightPanel (own overflow-y-auto); content flows here and
+   * only the header is sticky (scroll within the panel).
    *
-   * 레이턴시 은닉: selectedKey 변경 즉시 로컬 풀(issues.get)의 IssueLite 로 헤더를 렌더하고
-   *  본문은 스켈레톤을 보이다가 detail(getDetailCached) 도착 시 교체한다.
+   * Latency hide: on selectedKey change, render header immediately from local
+   * pool IssueLite (issues.get); body shows skeleton until getDetailCached arrives.
    */
   import { t } from '../../lib/i18n'
   import { selection } from '../../stores/selection.svelte'
@@ -32,13 +32,13 @@
   import DeployTimeline from './DeployTimeline.svelte'
 
   const key = $derived(selection.selectedKey)
-  // 헤더 즉시 렌더용 로컬 풀 항목(없을 수도 있음: 풀에 없는 연결 이슈 등)
+  // Local-pool row for instant header (may be missing: linked issues not in pool)
   const lite = $derived(key ? issues.get(key) : undefined)
 
   let detail = $state<DetailResponse | null>(null)
   let errorKind = $state<null | 'notfound' | 'network'>(null)
 
-  // 경쟁 조건 방지: 빠르게 선택이 바뀌면 마지막 로드만 반영한다.
+  // Race guard: only the last load wins when selection changes quickly.
   let gen = 0
 
   async function load(k: string): Promise<void> {
@@ -63,14 +63,14 @@
     }
   }
 
-  // selectedKey 변경 시 로드. 선택 해제되면 상태 초기화.
-  //  write.detailNonce 를 의존성으로 읽어, 코멘트 확정 등으로 캐시가 바뀌면 다시 읽는다
-  //  (캐시 히트라 네트워크 왕복 없음 → 임시 코멘트가 실제 코멘트로 교체됨).
+  // Load on selectedKey change; clear state when selection clears.
+  // Depend on write.detailNonce so cache updates (e.g. comment confirm) re-read
+  // (cache hit → no network; temp comment swaps to the real one).
   $effect(() => {
     const k = selection.selectedKey
     void write.detailNonce
     if (!k) {
-      gen++ // 인플라이트 무효화
+      gen++ // invalidate inflight
       detail = null
       errorKind = null
       return
@@ -78,7 +78,7 @@
     void load(k)
   })
 
-  // Esc 로 닫기
+  // Esc to close
   $effect(() => {
     if (!key) return
     function onKey(e: KeyboardEvent) {
@@ -88,18 +88,18 @@
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  // 현재 detail 이 지금 선택된 키의 것인지(키 전환 직후 이전 detail 표시 방지)
+  // detail must match the current key (avoid showing previous detail mid-switch)
   const detailForKey = $derived(detail && key === detail.issue_key ? detail : null)
 </script>
 
 {#if key}
   <div class="flex h-full flex-col text-text-primary">
-    <!-- 헤더 (sticky) -->
+    <!-- Header (sticky) -->
     <div class="sticky top-0 z-10 flex-none bg-bg-panel">
       {#if lite}
         <DetailHeader issue={lite} />
       {:else}
-        <!-- 풀에 없는 이슈: 최소 헤더 -->
+        <!-- Issue not in pool: minimal header -->
         <header class="flex items-center justify-between border-b border-border-subtle px-4 py-3">
           <a
             href={jiraUrl(key)}
@@ -123,10 +123,10 @@
       {/if}
     </div>
 
-    <!-- 본문 -->
+    <!-- Body -->
     <div class="min-h-0 flex-1">
       {#if errorKind}
-        <!-- 에러: 404(삭제) / 네트워크 -->
+        <!-- Error: 404 (deleted) / network -->
         <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">
           <p class="text-[13px] text-text-secondary">
             {#if errorKind === 'notfound'}
@@ -146,7 +146,7 @@
           {/if}
         </div>
       {:else if !detailForKey}
-        <!-- 스켈레톤 (본문 로딩 중) -->
+        <!-- Skeleton (body loading) -->
         <div class="flex flex-col gap-2 px-4 py-4" aria-hidden="true">
           <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
           <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
@@ -155,7 +155,7 @@
           <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
         </div>
       {:else}
-        <!-- 상세 본문 -->
+        <!-- Detail body -->
         <div class="anim-enter divide-y divide-border-subtle">
           {#if lite}
             <Section title={t('detail.details')}>
@@ -163,7 +163,7 @@
             </Section>
           {/if}
 
-          <!-- 설명 -->
+          <!-- Description -->
           <Section title={t('detail.description')}>
             <div class="text-[13px] text-text-secondary">
               <AdfContent
@@ -181,14 +181,14 @@
             </Section>
           {/if}
 
-          <!-- QA 차수 맥락은 Jira 본문/증빙 다음에 보조 정보로 노출한다. -->
+          <!-- QA run context is secondary, after Jira body/evidence. -->
           {#if feature('qa') && detailForKey.qa_context}
             <Section title={t('detail.qaImpact')} count={detailForKey.qa_context.runs.length}>
               <QaImpact context={detailForKey.qa_context} />
             </Section>
           {/if}
 
-          <!-- 코멘트 (+ 작성 컴포저) -->
+          <!-- Comments (+ composer) -->
           <Section title={t('detail.comments')} count={detailForKey.comments.length}>
             <CommentList
               comments={detailForKey.comments}
@@ -198,28 +198,28 @@
             <CommentComposer issueKey={key} />
           </Section>
 
-          <!-- 변경 이력 -->
+          <!-- History -->
           {#if detailForKey.history.length > 0}
             <Section title={t('detail.history')} count={detailForKey.history.length}>
               <HistoryTimeline history={detailForKey.history} />
             </Section>
           {/if}
 
-          <!-- 연결 이슈 -->
+          <!-- Linked issues -->
           {#if detailForKey.linked_issues.length > 0}
             <Section title={t('detail.links')} count={detailForKey.linked_issues.length}>
               <LinkedIssues linked={detailForKey.linked_issues} />
             </Section>
           {/if}
 
-          <!-- 배포 현황 (deploy.state 있을 때만 — 구 서버 호환) -->
+          <!-- Deploy status (only when deploy.state present — old-server compat) -->
           {#if feature('deploy') && detailForKey.deploy?.state}
             <Section title={t('detail.deploy')}>
               <DeployTimeline deploy={detailForKey.deploy} />
             </Section>
           {/if}
 
-          <!-- 연결 PR (배포 연동과 같은 CI/CD 소스에서 온다 — deploy 플래그에 함께 묶임) -->
+          <!-- Linked PRs (same CI/CD source as deploy — gated on deploy flag) -->
           {#if feature('deploy') && detailForKey.linked_prs.length > 0}
             <Section title={t('detail.prs')} count={detailForKey.linked_prs.length}>
               <PrList prs={detailForKey.linked_prs} />

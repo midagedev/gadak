@@ -1,12 +1,12 @@
 <script lang="ts">
   /*
-   * My Issues 사이드바 섹션 ([personal]).
-   *  항목: 내 담당 N / 내가 보고 N / 나를 멘션(피드) N.
-   *   - 담당: filters.applyConfig(assignee + 활성 상태) → 메인 리스트.
-   *   - 보고: reporter 는 explore 필터 스키마에 없어(계약상 assignee_email 만 지원),
-   *           개인 피드의 "보고" 초점 탭으로 연다(피드가 reporter 관계를 직접 계산).
-   *   - 멘션/피드: 개인 피드(전체 초점) 열기.
-   *  카운트는 로컬 풀에서 $derived(멘션은 API 결과 수).
+   * My Issues sidebar section ([personal]).
+   *  Rows: assigned to me N / reported by me N / mentioned me (feed) N.
+   *   - Assigned: filters.applyConfig(assignee + active statuses) → main list.
+   *   - Reported: reporter isn't in explore filter schema (assignee_email only) —
+   *     open personal feed on the "reported" focus tab (feed computes reporter).
+   *   - Mentions/feed: open personal feed (all focus).
+   *  Counts are $derived from the local pool (mentions = API result count).
    *  Without identity: prompt to set credentials.
    */
   import { t } from '../../lib/i18n'
@@ -18,10 +18,10 @@
   import { feature } from '../../lib/config'
 
   const myEmail = $derived(me.email)
-  // 피드가 없으면 "내가 보고"·"피드" 는 열 패널이 없어 항목 자체를 숨긴다.
+  // Without feed, hide "reported by me" / "feed" — no panel to open.
   const feedOn = feature('feed')
 
-  // 활성(미완료) 기준 카운트.
+  // Counts use active (non-done) issues.
   const assignedCount = $derived(
     myEmail
       ? issues.allIssues.filter(

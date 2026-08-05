@@ -1,32 +1,35 @@
 /*
- * Issue Navigator — 멀티선택(일괄 작업) 스토어
+ * Issue Navigator — multi-select (bulk action) store
  *
- * 단일 선택(selection: 상세 열기)과 별개로, 여러 이슈를 골라 한 번에 상태/담당자를
- *  바꾸기 위한 선택 집합이다. UI(체크박스/BulkBar)가 이 스토어만 읽고 쓴다.
+ * Separate from single selection (selection: opens detail): a set of issue keys
+ *  chosen for batch status/assignee changes. UI (checkboxes/BulkBar) is the only
+ *  reader/writer of this store.
  *
- *  - selected: 선택된 issue_key 집합(SvelteSet — add/delete 가 반응성 트리거).
- *  - anchorKey: 마지막으로 단일 토글한 키. shift-클릭 범위 선택의 기준점.
- *  - selectRange: 앵커~현재 행을 "현재 필터·정렬된 가시 리스트 순서"로 범위 선택.
- *      가시 순서는 filters.groups(리스트가 그리는 시각 순서와 동일)에서 파생한다.
- *  - retain: 뷰 변경 등으로 가시 리스트에서 빠진 키를 정리(호출부가 가시 키를 넘김).
+ *  - selected: selected issue_key set (SvelteSet — add/delete trigger reactivity).
+ *  - anchorKey: last single-toggle key; pivot for shift-click range select.
+ *  - selectRange: select anchor~current row in "current filtered/sorted visible
+ *      list order". Visible order is derived from filters.groups (same visual
+ *      order the list paints).
+ *  - retain: drop keys no longer visible after a view change (caller passes
+ *      visible keys).
  *
- * ⚠️ 실제 쓰기(상태/담당자)는 여기서 하지 않는다 — write 스토어의 per-issue
- *    옵티미스틱 메서드를 BulkBar 가 배치로 호출한다.
+ * ⚠️ Actual writes (status/assignee) do not live here — BulkBar batches
+ *    write store's per-issue optimistic methods.
  */
 
 import { SvelteSet } from 'svelte/reactivity'
 import { filters } from './filters.svelte'
 
 class BulkStore {
-  /** 선택된 issue_key. */
+  /** Selected issue_key set. */
   selected = new SvelteSet<string>()
-  /** 마지막 단일 토글 키(shift 범위 선택의 앵커). */
+  /** Last single-toggle key (shift-range anchor). */
   anchorKey = $state<string | null>(null)
 
-  /** 선택 개수(반응형). */
+  /** Selection size (reactive). */
   count = $derived(this.selected.size)
 
-  /** 1개 이상 선택된 "선택 모드" 여부. */
+  /** True when ≥1 key is selected ("selection mode"). */
   get active(): boolean {
     return this.selected.size > 0
   }
@@ -35,23 +38,23 @@ class BulkStore {
     return this.selected.has(key)
   }
 
-  /** 단일 토글(있으면 해제, 없으면 선택) + 앵커 갱신. */
+  /** Single toggle (deselect if present, else select) + refresh anchor. */
   toggle(key: string): void {
     if (this.selected.has(key)) this.selected.delete(key)
     else this.selected.add(key)
     this.anchorKey = key
   }
 
-  /** 강제 선택(토글 아님) + 앵커 갱신. */
+  /** Force-select (not toggle) + refresh anchor. */
   add(key: string): void {
     this.selected.add(key)
     this.anchorKey = key
   }
 
   /**
-   * shift-클릭 범위 선택: 앵커~target 을 가시 순서로 모두 추가.
-   *  앵커가 없거나 target/앵커가 가시 리스트 밖이면 단일 추가로 폴백.
-   *  앵커는 유지 — 반복 shift-클릭이 같은 기준점에서 확장되도록.
+   * Shift-click range select: add every key from anchor~target in visible order.
+   *  Falls back to single add when anchor is missing or either key is off-list.
+   *  Keeps the anchor so repeated shift-clicks expand from the same pivot.
    */
   selectRange(targetKey: string): void {
     const order = orderedVisibleKeys()
@@ -70,25 +73,25 @@ class BulkStore {
     this.anchorKey = null
   }
 
-  /** 가시 키 집합에 없는 선택은 제거(뷰/필터 변경 시 호출부가 호출). */
+  /** Drop selections not in the visible key set (caller on view/filter change). */
   retain(visibleKeys: Iterable<string>): void {
     const keep = visibleKeys instanceof Set ? visibleKeys : new Set(visibleKeys)
     for (const k of this.selected) if (!keep.has(k)) this.selected.delete(k)
     if (this.anchorKey && !keep.has(this.anchorKey)) this.anchorKey = null
   }
 
-  /** 선택 키 스냅샷(배치 실행용). */
+  /** Snapshot of selected keys (for batch execution). */
   keys(): string[] {
     return [...this.selected]
   }
 }
 
-/** 리스트가 그리는 시각 순서(그룹 평면화)와 동일한 가시 키 목록. */
+/** Visible keys in the same visual order the list paints (groups flattened). */
 function orderedVisibleKeys(): string[] {
   const out: string[] = []
   for (const g of filters.groups) for (const it of g.items) out.push(it.issue_key)
   return out
 }
 
-/** 앱 전역 싱글턴. */
+/** App-wide singleton. */
 export const bulk = new BulkStore()

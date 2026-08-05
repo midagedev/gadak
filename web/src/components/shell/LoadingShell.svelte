@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
-   * cold start(캐시 없음) 로딩 셸. index.html 의 인라인 부트 셸과 시각적으로 이어져
-   *  흰 플래시 없이 스켈레톤 → 실제 UI 로 전환된다.
+   * Cold-start (no cache) loading shell. Visually continues index.html's inline
+   * boot shell so skeleton → real UI has no white flash.
    */
   const navWidths = ['70%', '55%', '62%', '48%']
   const rows = Array.from({ length: 8 })

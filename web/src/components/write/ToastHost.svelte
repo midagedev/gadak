@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
-   * 토스트 호스트 (쓰기). 우하단 스택. write.toasts 를 렌더한다.
-   *  에러는 붉은 계열로 눈에 띄게, 그 외는 중립. 클릭 시 즉시 닫기.
+   * Toast host (write). Bottom-right stack over write.toasts.
+   *  Errors in red; others neutral. Click dismisses immediately.
    */
   import { write } from '../../stores/write.svelte'
 </script>

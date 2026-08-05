@@ -1,11 +1,13 @@
 /*
- * Issue Navigator — 최근 사용 기록 (개인화 정렬용)
+ * Issue Navigator — recent-use history (for personalized ranking)
  *
- * 모든 선택 UI(담당자/상태전환/새 이슈)에 "조용한 제안"을 주기 위한 localStorage 기반 헬퍼.
- *  - kind 별로 최근 사용값을 최신순·중복제거·최대 10개 보관한다.
- *  - 순서 자체가 제안이다(별도 배지 없음). 성공한 액션만 기록한다(호출부 책임).
+ * localStorage helper that quietly ranks choices in every picker UI
+ * (assignee / transition / new issue).
+ *  - Per kind: recent values newest-first, de-duped, cap 10.
+ *  - Order itself is the suggestion (no badge). Record only successful actions
+ *    (caller's responsibility).
  *
- * kind 예: 'assignee', 'transition:<project>', 'create-project',
+ * kind examples: 'assignee', 'transition:<project>', 'create-project',
  *          'create-type:<project>', 'label'
  */
 
@@ -14,7 +16,7 @@ import { RECENT_KIND_PREFIX } from './storage'
 const PREFIX = RECENT_KIND_PREFIX
 const MAX = 10
 
-/** 최근 사용값 목록(최신순). 없으면 빈 배열. */
+/** Recent values for a kind (newest first). Empty array if none. */
 export function recentOf(kind: string): string[] {
   try {
     const raw = localStorage.getItem(PREFIX + kind)
@@ -26,19 +28,19 @@ export function recentOf(kind: string): string[] {
   }
 }
 
-/** 사용값을 맨 앞에 기록(중복 제거, 최대 MAX). 빈 값은 무시. */
+/** Record a value at the front (de-dup, cap MAX). Empty values ignored. */
 export function recordRecent(kind: string, value: string): void {
   if (!value) return
   try {
     const next = [value, ...recentOf(kind).filter((v) => v !== value)].slice(0, MAX)
     localStorage.setItem(PREFIX + kind, JSON.stringify(next))
   } catch {
-    /* localStorage 불가 환경 — 무시 */
+    /* localStorage unavailable — ignore */
   }
 }
 
 /**
- * 최근 순위 인덱스(0 = 가장 최근, 없으면 Infinity). 정렬 비교자에 바로 쓴다.
+ * Recent rank index (0 = most recent, missing → Infinity). Drop into a sort comparator.
  */
 export function recentRank(kind: string, value: string): number {
   const i = recentOf(kind).indexOf(value)

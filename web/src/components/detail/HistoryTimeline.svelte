@@ -1,8 +1,8 @@
 <script lang="ts">
   /*
-   * 변경 이력 타임라인 ([detail]).
-   * status/assignee/priority 변경을 컴팩트하게(from→to, by, 상대시간).
-   * 재오픈(해결됨 상태 → 미해결 상태로의 status 전이)은 빨간 포인트로 강조한다.
+   * Change history timeline ([detail]).
+   * Compact status/assignee/priority changes (from→to, by, relative time).
+   * Reopen (resolved → unresolved status transition) gets a red point.
    */
   import { t } from '../../lib/i18n'
   import type { HistoryEntry } from '../../lib/types'
@@ -16,8 +16,8 @@
   }
 
   /**
-   * status 전이가 재오픈(해결→미해결)인지. 서버가 전/후 카테고리를 주면 그걸 쓰고,
-   * 없을 때만 상태 이름으로 추정한다(사이트마다 이름이 달라 폴백일 뿐).
+   * Is this status transition a reopen (resolved→unresolved)? Prefer server
+   * before/after categories; only fall back to status names (locale-dependent).
    */
   function isReopen(e: HistoryEntry): boolean {
     if (e.field !== 'status') return false
@@ -25,7 +25,7 @@
     return isResolved(e.from) && !isResolved(e.to)
   }
 
-  /** 필드 라벨(한국어). */
+  /** Field label (via i18n). */
   function fieldLabel(f: string): string {
     return f === 'status' ? t('common.status') : f === 'assignee' ? t('common.assignee') : f === 'priority' ? t('common.priority') : f
   }
@@ -35,7 +35,7 @@
   <p class="text-[12px] text-text-muted italic">{t('detail.noHistory')}</p>
 {:else}
   <ol class="relative flex flex-col gap-2.5 pl-4">
-    <!-- 세로 가이드 라인 -->
+    <!-- Vertical guide line -->
     <span
       class="absolute top-1 bottom-1 left-[3px] w-px bg-border-subtle"
       aria-hidden="true"
@@ -43,7 +43,7 @@
     {#each history as e, i (i)}
       {@const reopen = isReopen(e)}
       <li class="relative">
-        <!-- 타임라인 포인트 -->
+        <!-- Timeline point -->
         <span
           class="absolute top-[5px] -left-4 h-[7px] w-[7px] rounded-full ring-2 ring-bg-panel"
           class:bg-status-reopen={reopen}

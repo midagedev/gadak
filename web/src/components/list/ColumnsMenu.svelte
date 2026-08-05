@@ -1,7 +1,8 @@
 <script lang="ts">
   /*
-   * 컬럼 메뉴 ([explore]). 리스트 행에 노출할 후행 필드를 on/off 한다.
-   *  구성은 뷰의 display 에 포함돼 URL·저장 뷰에 함께 직렬화된다(뷰별 컬럼).
+   * Column menu ([explore]). Toggle trailing fields shown on list rows.
+   *  Config lives under the view's display and serializes with URL/saved views
+   *  (per-view columns).
    */
   import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'

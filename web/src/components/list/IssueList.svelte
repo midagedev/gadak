@@ -1,10 +1,11 @@
 <script lang="ts">
   /*
-   * 가상 이슈 리스트 ([explore]) — 자체 구현.
-   *  - 고정 행높이 42px(헤더/이슈 동일) → 균일 가상화(DOM 노드 = 뷰포트 행 수).
-   *  - 그룹 헤더는 상단 고정(floating) + 다음 헤더가 밀어올리는 push 효과.
-   *  - 키보드 보조: j/k 커서 이동, Enter 선택, Esc 선택 해제(입력 포커스 중엔 무시).
-   *  성능 규율: 스크롤은 top(translate) 계산만, 재계산 없음.
+   * Virtual issue list ([explore]) — in-house.
+   *  - Fixed 42px row height (header/issue same) → uniform virtualization
+   *    (DOM nodes = viewport rows).
+   *  - Group headers float sticky + next header push effect.
+   *  - Keys: j/k cursor, Enter select, Esc clear (ignored while typing).
+   *  Perf: scroll only computes top(translate); no full recompute.
    */
   import { onMount } from 'svelte'
   import { filters, type IssueGroup } from '../../stores/filters.svelte'
@@ -22,7 +23,7 @@
 
   const grouped = $derived(filters.display.group_by !== 'none')
 
-  // 시각 순서 평면화: (헤더) + 그룹 아이템. group_by=none 이면 단일 그룹(헤더 없음).
+  // Flatten visual order: (header) + group items. group_by=none → one group, no header.
   const rows = $derived.by(() => {
     const out: RowItem[] = []
     for (const g of filters.groups) {
@@ -32,7 +33,7 @@
     return out
   })
 
-  // 커서 내비게이션용 이슈 키(시각 순서)와 행 인덱스 매핑
+  // Issue keys in visual order + row-index map (for cursor nav)
   const issueRowIndex = $derived.by(() => {
     const m = new Map<string, number>()
     rows.forEach((r, i) => {
@@ -54,7 +55,7 @@
   )
   const slice = $derived(rows.slice(start, end))
 
-  // ── floating 그룹 헤더(현재 최상단 그룹 + push 효과) ──
+  // ── Floating group header (top group + push effect) ──
   const firstRow = $derived(Math.floor(scrollTop / ROW_H))
   const floatingGroup = $derived.by(() => {
     if (!grouped || rows.length === 0) return null
@@ -64,7 +65,7 @@
     }
     return null
   })
-  // 다음 헤더가 다가오면 위로 밀어 올린다.
+  // Push up as the next header approaches.
   const floatingOffset = $derived.by(() => {
     if (!floatingGroup) return 0
     for (let i = floatingGroup.headerIndex + 1; i < rows.length; i++) {
@@ -85,7 +86,7 @@
     if (!scroller) return
     const top = rowIndex * ROW_H
     const bottom = top + ROW_H
-    // 그룹 모드면 상단 고정 헤더(1행) 높이만큼 여유
+    // In group mode, leave room for the sticky header (1 row)
     const pad = grouped ? ROW_H : 0
     if (top - pad < scroller.scrollTop) scroller.scrollTop = top - pad
     else if (bottom > scroller.scrollTop + viewportH) scroller.scrollTop = bottom - viewportH
@@ -129,7 +130,7 @@
     }
   }
 
-  // 뷰(필터/그룹/정렬)가 실제로 바뀌면 최상단으로 리셋(데이터 delta 에는 반응 안 함).
+  // Real view (filter/group/sort) changes scroll to top (ignore data deltas).
   $effect(() => {
     void filters.viewKey
     if (scroller) scroller.scrollTop = 0
@@ -144,7 +145,7 @@
 </script>
 
 <div class="relative h-full">
-  <!-- 고정 그룹 헤더(floating) -->
+  <!-- Sticky group header (floating) -->
   {#if floatingGroup}
     <div
       class="pointer-events-none absolute inset-x-0 top-0 z-10"

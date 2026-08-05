@@ -1,14 +1,14 @@
 <script lang="ts">
   /*
-   * 우선순위 아이콘 ([explore]). Linear 식 막대 4단(레벨에 따라 채움).
-   *  level 0(없음)은 옅은 점선 막대. 색은 priorityMeta.
+   * Priority icon ([explore]). Linear-style 4 bars (fill by level).
+   *  Level 0 (none) is a faint dashed bar. Color from priorityMeta.
    */
   import { t } from '../../lib/i18n'
   import { priorityMeta } from '../../lib/format'
 
   let { priority }: { priority: string | null } = $props()
   const meta = $derived(priorityMeta(priority))
-  // 막대 4개: level 1~5 → 채워지는 개수(0=없음)
+  // 4 bars: levels 1–5 → how many filled (0 = none)
   const bars = [1, 2, 3, 4]
   const filled = $derived(Math.min(4, Math.max(0, meta.level - 1)))
 </script>

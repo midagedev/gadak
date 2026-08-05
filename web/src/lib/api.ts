@@ -67,7 +67,7 @@ async function raw(path: string, init?: RequestInit): Promise<Response> {
   })
 }
 
-/** JSON 응답을 파싱하고 4xx/5xx 는 ApiError 로 던진다. */
+/** Parse a JSON response; throw ApiError on 4xx/5xx. */
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await raw(path, init)
   if (!res.ok) {
@@ -76,15 +76,15 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-/* ── bootstrap (ETag / 304 지원) ── */
+/* ── bootstrap (ETag / 304) ── */
 
 export type BootstrapResult =
   | { status: 'ok'; data: BootstrapResponse; etag: string | null }
   | { status: 'not_modified' }
 
 /**
- * 전체 이슈 + 멤버 로드. `etag`(직전 If-None-Match) 를 넘기면 304 시 `not_modified` 를 준다.
- * ETag 는 `"in-<sync_version>"` 형태(서버). 다음 호출에 그대로 되돌려주면 된다.
+ * Load all issues + members. Pass prior `etag` (If-None-Match) to get `not_modified` on 304.
+ * ETag shape is `"in-<sync_version>"` (server). Echo it on the next call.
  */
 export async function getBootstrap(etag?: string | null): Promise<BootstrapResult> {
   const headers = new Headers()
@@ -102,8 +102,8 @@ export async function getBootstrap(etag?: string | null): Promise<BootstrapResul
 /* ── delta ── */
 
 /**
- * since 이후 변경분. `membersVersion`(직전 members_version)을 넘기면 서버 해시와 같을 때
- * 응답에서 members 를 생략한다(페이로드 다이어트). 없으면 서버가 members 를 항상 포함.
+ * Changes since `since`. Pass prior `membersVersion` so the server can omit members
+ * when the hash matches (payload diet). Without it, server always includes members.
  */
 export function getDelta(since: string, membersVersion?: string): Promise<DeltaResponse> {
   let path = `delta/?since=${encodeURIComponent(since)}`
@@ -111,19 +111,19 @@ export function getDelta(since: string, membersVersion?: string): Promise<DeltaR
   return json<DeltaResponse>(path)
 }
 
-/* ── detail (온디맨드) ── */
+/* ── detail (on demand) ── */
 
 export function getDetail(issueKey: string): Promise<DetailResponse> {
   return json<DetailResponse>(`${encodeURIComponent(issueKey)}/detail/`)
 }
 
-/* ── 전문 검색 (서버) ── */
+/* ── Full-text search (server) ── */
 
 export function search(q: string, limit = 200): Promise<SearchResponse> {
   return json<SearchResponse>(`search/?q=${encodeURIComponent(q)}&limit=${limit}`)
 }
 
-/* ── 개인 피드 / 읽음 ── */
+/* ── Personal feed / read state ── */
 
 export function getFeed(focus: FeedFocus = 'all', limit = 80): Promise<FeedResponse> {
   return json<FeedResponse>(`feed/?focus=${encodeURIComponent(focus)}&limit=${limit}`)
@@ -182,7 +182,7 @@ export function deletePushSubscription(
   })
 }
 
-/* ── 저장 뷰 ── */
+/* ── Saved views ── */
 
 export function getViews(): Promise<ViewsResponse> {
   return json<ViewsResponse>('views/')
@@ -203,7 +203,7 @@ export async function deleteView(id: string): Promise<void> {
   }
 }
 
-/* ── 워치 ── */
+/* ── Watches ── */
 
 export function getWatches(): Promise<WatchesResponse> {
   return json<WatchesResponse>('watches/')
@@ -221,7 +221,7 @@ export async function removeWatch(issueKey: string): Promise<void> {
   }
 }
 
-/* ── 즐겨찾기 (응답 shape는 watches 와 동일) ── */
+/* ── Favorites (response shape matches watches) ── */
 
 export function getFavorites(): Promise<WatchesResponse> {
   return json<WatchesResponse>('favorites/')
@@ -239,12 +239,12 @@ export async function removeFavorite(issueKey: string): Promise<void> {
   }
 }
 
-/* ── 쓰기(Write) — 에러 바디 파싱 포함 ──
- * 쓰기 엔드포인트는 실패 시 { error, jira_errors? } 를 준다. 409 credential_required 는
- *  ApiError.code 로 구분되어 호출부가 자격증명 다이얼로그를 열 수 있다.
+/* ── Write — with error-body parsing ──
+ * Write endpoints return { error, jira_errors? } on failure. 409 credential_required is
+ *  exposed as ApiError.code so callers can open the credential dialog.
  */
 
-/** 쓰기 응답 파서 — !ok 면 바디의 error/jira_errors 를 담아 ApiError 로 던진다. */
+/** Write-response parser — on !ok, throw ApiError carrying body error/jira_errors. */
 async function jsonW<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await raw(path, init)
   if (!res.ok) {
@@ -259,7 +259,7 @@ async function jsonW<T>(path: string, init?: RequestInit): Promise<T> {
       }
       if (body.jira_errors) jiraErrors = body.jira_errors
     } catch {
-      /* 바디 없음/비 JSON — 기본 메시지 유지 */
+      /* No body / non-JSON — keep default message */
     }
     throw new ApiError(res.status, message, code, jiraErrors)
   }
@@ -268,7 +268,7 @@ async function jsonW<T>(path: string, init?: RequestInit): Promise<T> {
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
 
-/* ── 자격증명 (개인 Jira API 토큰) ── */
+/* ── Credentials (personal Jira API token) ── */
 
 export function getCredential(): Promise<JiraCredential> {
   return jsonW<JiraCredential>('credential/')
@@ -286,9 +286,9 @@ export function deleteCredential(): Promise<JiraCredential> {
   return jsonW<JiraCredential>('credential/', { method: 'DELETE' })
 }
 
-/* ── 첫 실행 온보딩 (loopback 전용) ──
- * `credential/` 과 달리 site 까지 받는다: 첫 실행에는 저장된 사이트가 없고,
- * `PUT credential/` 은 site 없이는 검증 대상이 없어 거부한다.
+/* ── First-run onboarding (loopback only) ──
+ * Unlike `credential/`, this also takes site: first run has no stored site, and
+ * `PUT credential/` rejects without a site because there is nothing to verify against.
  */
 
 export interface AvailableProject {
@@ -297,7 +297,7 @@ export interface AvailableProject {
   projectTypeKey: string
 }
 
-/** POST sync/ · GET sync/progress/ 의 공통 응답. 자격증명 정보는 담기지 않는다. */
+/** Shared response of POST sync/ · GET sync/progress/. Never carries credential data. */
 export interface SyncProgress {
   running: boolean
   /** idle | syncing | done | error */
@@ -311,7 +311,7 @@ export interface SyncProgress {
   finished_at: string
 }
 
-/** 사이트+이메일+토큰을 /myself 로 검증한 뒤 저장한다. 실패 시 ApiError.code 로 구분. */
+/** Verify site+email+token via /myself, then store. Failures distinguished by ApiError.code. */
 export function connectJira(
   site: string,
   jiraEmail: string,
@@ -324,7 +324,7 @@ export function connectJira(
   })
 }
 
-/** 사이트의 실제 프로젝트 목록. `truncated` 면 상한(500)에서 잘렸다는 뜻. */
+/** Real project list for the site. `truncated` means the list was capped at 500. */
 export function getAvailableProjects(): Promise<{
   projects: AvailableProject[]
   truncated: boolean
@@ -353,7 +353,7 @@ export function getSyncProgress(): Promise<SyncProgress> {
   return jsonW<SyncProgress>('sync/progress/')
 }
 
-/* ── 상태 전환 ── */
+/* ── Status transitions ── */
 
 export function getTransitions(issueKey: string): Promise<TransitionsResponse> {
   return jsonW<TransitionsResponse>(`${encodeURIComponent(issueKey)}/transitions/`)
@@ -367,7 +367,7 @@ export function doTransition(issueKey: string, transitionId: string): Promise<Is
   })
 }
 
-/* ── 코멘트 ── */
+/* ── Comments ── */
 
 export function postComment(
   issueKey: string,
@@ -383,8 +383,8 @@ export function postComment(
 }
 
 /**
- * 코멘트용 첨부 업로드 (multipart). Content-Type 은 브라우저가 boundary 와 함께 세팅하도록
- * 직접 지정하지 않는다(JSON_HEADERS 안 씀). 업로드된 첨부 메타를 돌려준다.
+ * Upload a comment attachment (multipart). Do not set Content-Type yourself so the
+ * browser can add the boundary (skip JSON_HEADERS). Returns uploaded attachment meta.
  */
 export function uploadCommentAttachment(
   issueKey: string,
@@ -398,7 +398,7 @@ export function uploadCommentAttachment(
   })
 }
 
-/* ── 담당자 ── */
+/* ── Assignee ── */
 
 export function setAssignee(
   issueKey: string,
@@ -411,9 +411,9 @@ export function setAssignee(
   })
 }
 
-/* ── QA 필드 인라인 편집 ── */
+/* ── QA field inline edit ── */
 
-/** PATCH <key>/fields/ — 허용 QA 필드 값 변경(옵션 id / accountId / 버전 id 배열). */
+/** PATCH <key>/fields/ — change an allowed QA field (option id / accountId / version id array). */
 export function setIssueField(
   issueKey: string,
   field: string,
@@ -426,12 +426,12 @@ export function setIssueField(
   })
 }
 
-/** GET <key>/editmeta/ — 편집용 허용값(옵션/버전). 편집 불가 필드는 생략된다. */
+/** GET <key>/editmeta/ — allowed edit values (options/versions). Non-editable fields omitted. */
 export function getEditMeta(issueKey: string): Promise<EditMetaResponse> {
   return jsonW<EditMetaResponse>(`${encodeURIComponent(issueKey)}/editmeta/`)
 }
 
-/* ── 이슈 생성 ── */
+/* ── Issue create ── */
 
 export function createIssue(payload: CreateIssuePayload): Promise<IssueWriteResponse> {
   return jsonW<IssueWriteResponse>('create/', {
@@ -445,15 +445,15 @@ export function getCreateMeta(): Promise<CreateMetaResponse> {
   return jsonW<CreateMetaResponse>('create-meta/')
 }
 
-/* ── 사용자 검색 (담당자 지정용) ── */
+/* ── User search (for assignee picker) ── */
 
 export function searchUsers(q: string): Promise<UsersResponse> {
   return jsonW<UsersResponse>(`users/?q=${encodeURIComponent(q)}`)
 }
 
-/* ── 서버 설정 (loopback 전용) ──
- * `~/.scry/config.json` 의 편집 가능 부분. 자격증명은 포함되지 않는다(credential/ 담당).
- * 응답에서 어떤 필드든 빠질 수 있으므로 전부 optional.
+/* ── Server settings (loopback only) ──
+ * Editable slice of `~/.scry/config.json`. Credentials are not included (credential/ owns those).
+ * Any field may be absent in the response, so everything is optional.
  */
 
 export interface SettingsMember {
@@ -467,7 +467,7 @@ export interface SettingsMember {
   avatar_url?: string
 }
 
-/** 그룹 판정 규칙. 위에서 아래로 첫 매치 승, 조건끼리 AND·목록 내 OR, 빈 조건은 항상 참. */
+/** Group-assignment rule. First match wins top-to-bottom; conditions AND, list values OR; empty condition always true. */
 export interface SettingsGroupRule {
   group: string
   projects?: string[]
@@ -542,7 +542,7 @@ export function getSettings(): Promise<ScrySettings> {
   return jsonW<ScrySettings>('settings/')
 }
 
-/** 전체 교체(PUT). 받은 값을 그대로 저장하므로 부분 전송하면 나머지가 지워진다. */
+/** Full replace (PUT). Values are stored as sent — partial payloads wipe the rest. */
 export function putSettings(settings: ScrySettings): Promise<ScrySettings> {
   return jsonW<ScrySettings>('settings/', {
     method: 'PUT',
@@ -551,7 +551,7 @@ export function putSettings(settings: ScrySettings): Promise<ScrySettings> {
   })
 }
 
-/* ── 쓰기 메타 (익명 읽기) — 전환 맵 + create-meta 선반영 ── */
+/* ── Write meta (anonymous read) — transition map + create-meta prefetched ── */
 
 export function getWriteMeta(): Promise<WriteMeta> {
   return json<WriteMeta>('meta/write/')

@@ -1,12 +1,12 @@
 <script lang="ts">
   /*
-   * 담당자 표시 + 지정 팝오버 (쓰기, 로컬 우선 + 개인화 정렬).
-   *  - 평시엔 "담당 [아바타] 이름"(미할당이면 회색). hover 시 편집 어포던스.
-   *  - 클릭 → 팝오버. 검색어 없음: 로컬 멤버(jira_account_id 보유)를 개인화 순서로 즉시 표시.
-   *      ① 나에게 할당 ② 이슈 보고자 ③ 최근 지정 ④ 같은 파트 ⑤ 나머지(이름순). 그룹 간 미묘한 간격.
-   *  - 타이핑 시작하면 전체 검색으로 전환(로컬 필터 + 2자+ GET users/ 병합, 팀 외 사람 폴백).
-   *  - 지정: 로컬 멤버는 jira_account_id 로 서버 호출 없이 즉시 → write.assign(). account_id 가
-   *    없는 멤버(백엔드 미배포 등)만 이메일/이름으로 users/ 재조회 폴백.
+   * Assignee display + assign popover (write, local-first + personalized sort).
+   *  - Idle: "Assignee [avatar] name" (gray when unassigned). Edit affordance on hover.
+   *  - Click → popover. Empty query: local members (with jira_account_id) in personal order:
+   *      ① me ② reporter ③ recent ④ same team ⑤ rest (name). Subtle gaps between groups.
+   *  - Typing switches to full search (local filter + ≥2-char GET users/, outside-team fallback).
+   *  - Assign: local members with jira_account_id call write.assign() immediately; members
+   *    without account_id (backend lag etc.) re-resolve via users/ by email/name.
    */
   import { t, collator } from '../../lib/i18n'
   import type { IssueLite, JiraUser, Member } from '../../lib/types'
@@ -27,7 +27,7 @@
     email: string | null
     member?: Member
     avatar_url?: string | null
-    label?: string // "나에게 할당" 등 특수 라벨
+    label?: string // special label e.g. "Assign to me"
   }
 
   let open = $state(false)
@@ -57,19 +57,19 @@
 
   const meMember = $derived(me.identified && me.email ? issues.members.get(me.email) : undefined)
 
-  /** jira_account_id → Member (최근 지정 복원용). */
+  /** jira_account_id → Member (restore recent assignees). */
   const memberByAccount = $derived.by(() => {
     const map = new Map<string, Member>()
     for (const m of issues.members.values()) if (m.jira_account_id) map.set(m.jira_account_id, m)
     return map
   })
 
-  /** 지정 가능(퇴사자 제외 + account_id 보유) 멤버. */
+  /** Assignable members (exclude resigned + require account_id). */
   const assignableMembers = $derived.by<Member[]>(() =>
     [...issues.members.values()].filter((m) => m.status !== 'RESIGN' && m.jira_account_id),
   )
 
-  /** 개인화 그룹(검색어 없을 때). 그룹 간 미묘한 간격으로 "조용한 제안". */
+  /** Personalized groups (no query). Subtle gaps = "quiet suggestions". */
   const groups = $derived.by<Cand[][]>(() => {
     const seen = new Set<string>()
     const take = (list: (Member | undefined)[], label?: string): Cand[] => {
@@ -92,7 +92,7 @@
     return [g1, g2, g3, g4, g5].filter((g) => g.length)
   })
 
-  /** 검색 모드(타이핑 시) 평면 후보: 로컬 필터 + 서버 폴백. */
+  /** Search mode (typing): flat candidates = local filter + server fallback. */
   const typed = $derived.by<Cand[]>(() => {
     const q = query.trim().toLowerCase()
     if (!q) return []
@@ -170,7 +170,7 @@
         active: true,
       })
     }
-    // account_id 없는 로컬 멤버 → 이메일/이름으로 해석 후 지정(폴백)
+    // Local member without account_id → resolve via email/name then assign (fallback)
     busy = true
     try {
       const res = await api.searchUsers(c.email || c.display_name)
@@ -272,7 +272,7 @@
         />
       </div>
       <div class="max-h-72 overflow-y-auto py-1">
-        <!-- 미할당 -->
+        <!-- Unassign -->
         <button
           type="button"
           onclick={() => doAssign(null)}
@@ -284,7 +284,7 @@
         </button>
 
         {#if isSearching}
-          <!-- 검색 모드: 평면 목록 -->
+          <!-- Search mode: flat list -->
           {#each typed as c (c.key)}
             {@render candRow(c)}
           {/each}
@@ -294,7 +294,7 @@
             <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.noResults')}</div>
           {/if}
         {:else}
-          <!-- 개인화 그룹: 그룹 간 미묘한 간격 -->
+          <!-- Personalized groups: subtle gaps between groups -->
           {#each groups as g, gi (gi)}
             <div class={gi > 0 ? 'mt-1 border-t border-border-subtle pt-1' : ''}>
               {#each g as c (c.key)}

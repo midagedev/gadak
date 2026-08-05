@@ -23,7 +23,7 @@
     skipped: { label: t('qa.skip'), cls: 'text-text-muted', mark: '−' },
   }
 
-  // 외부 QA 대시보드는 선택 연동이다. config 에 URL 이 없으면 링크를 만들지 않는다.
+  // External QA dashboard is optional. No URL in config → no link.
   function dashboardUrl(run: QaRunContext, suite?: QaSuiteRef): string | null {
     const base = config().qaDashboardUrl.replace(/\/+$/, '')
     if (!base) return null

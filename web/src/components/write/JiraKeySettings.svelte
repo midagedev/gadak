@@ -1,9 +1,9 @@
 <script lang="ts">
   /*
-   * 개인 Jira API 토큰 설정 다이얼로그 (쓰기).
-   *  - 안내문 + Atlassian API 토큰 발급 링크.
-   *  - jira_email(기본값 me.email) + api_token 입력 → 저장 시 서버가 /myself 로 검증.
-   *  - 이미 설정됨: display_name / token_hint / verified_at 표시 + 삭제.
+   * Personal Jira API token settings dialog (write).
+   *  - Copy + Atlassian API-token issue link.
+   *  - jira_email (default me.email) + api_token → server validates via /myself on save.
+   *  - When already set: display_name / token_hint / verified_at + delete.
    *  Modal pattern: Esc / backdrop click closes.
    */
   import { t } from '../../lib/i18n'
@@ -81,7 +81,7 @@
     </p>
 
     {#if write.configured}
-      <!-- 설정됨 요약 -->
+      <!-- Configured summary -->
       <div class="mb-4 rounded-md border border-border-subtle bg-bg-elevated px-3 py-2.5 text-[12px]">
         <div class="flex items-center justify-between gap-2">
           <span class="text-text-secondary">{write.displayName || write.jiraEmail}</span>

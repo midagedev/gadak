@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
-   * 중앙 메인 컬럼 프레임 ([foundation], flex-1).
-   * 상단 도구줄(검색/필터/디스플레이) + 이슈 리스트는 [explore] 가 이 슬롯에 채운다.
+   * Center main-column frame ([foundation], flex-1).
+   * Top toolbar (search/filter/display) + issue list are filled by [explore].
    */
   import type { Snippet } from 'svelte'
 

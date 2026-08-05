@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
-   * 연결 이슈 ([detail]). 타입/방향 라벨 + 키 + 요약.
-   * 클릭 시 selection.select(key) — 로컬 풀에 있으면 즉시 전환, 없으면 detail 이 로드한다.
+   * Linked issues ([detail]). Type/direction label + key + summary.
+   * Click → selection.select(key): instant if in local pool, else detail loads.
    */
   import { t } from '../../lib/i18n'
   import type { LinkedIssue } from '../../lib/types'
@@ -10,13 +10,13 @@
 
   let { linked }: { linked: LinkedIssue[] } = $props()
 
-  /** 방향/타입에서 사람이 읽는 라벨. 백엔드가 direction 에 문구를 주면 그대로 쓴다. */
+  /** Human label from direction/type. Prefer backend direction text when present. */
   function label(l: LinkedIssue): string {
     return (l.direction && l.direction.trim()) || l.type || t('detail.linked')
   }
 
-  // 백엔드가 같은 링크(key+direction)를 중복으로 줄 때가 있다. 중복 키로 렌더하면
-  // Svelte each_key_duplicate 로 상세 패널(그리고 앱 전체)이 죽으므로 먼저 dedupe 한다.
+  // Backend sometimes duplicates the same link (key+direction). Duplicate each keys
+  // trip Svelte each_key_duplicate and kill the detail panel (and the app) — dedupe first.
   const uniqueLinked = $derived.by(() => {
     const seen = new Set<string>()
     const out: LinkedIssue[] = []

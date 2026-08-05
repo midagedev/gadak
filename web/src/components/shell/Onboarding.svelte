@@ -199,7 +199,7 @@
     <h2 class="mt-1 text-[15px] font-semibold text-text-primary">{t('onboarding.title')}</h2>
     <p class="mt-1.5 text-[12px] text-text-secondary">{t('onboarding.intro')}</p>
 
-    <!-- 진행 표시: 얇은 3분할 바 -->
+    <!-- Progress: thin 3-segment bar -->
     <div class="mt-4 flex gap-1" aria-hidden="true">
       {#each [1, 2, 3] as n (n)}
         <span class="h-0.5 flex-1 rounded-full {n <= step ? 'bg-accent' : 'bg-border-strong'}"></span>
@@ -337,7 +337,7 @@
               <span class="ml-1 font-mono tabular-nums text-text-secondary">{formatNumber(fetched)}</span>
             {/if}
           </p>
-          <!-- 총량을 모르므로 부정직한 퍼센트 대신 진행 중임만 보여준다. -->
+          <!-- Unknown total — show activity only, not a dishonest percent. -->
           <div class="h-0.5 overflow-hidden rounded-full bg-border-strong">
             <div class="h-full w-1/3 animate-pulse rounded-full bg-accent"></div>
           </div>

@@ -1,8 +1,9 @@
 <script lang="ts">
   /*
-   * 상세 패널 헤더 ([detail]).
-   * 로컬 풀의 IssueLite 만으로 즉시 렌더 가능(레이턴시 은닉). detail 로드 여부와 무관.
-   * 키/제목/상태/우선순위/심각도/담당자/라벨/버전/그룹/재오픈 배지 + 닫기.
+   * Detail panel header ([detail]).
+   * Renders immediately from local-pool IssueLite alone (latency hide); independent
+   * of detail load. Key/title/status/priority/severity/assignee/labels/versions/
+   * group/reopen badge + close.
    */
   import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
@@ -19,7 +20,7 @@
 </script>
 
 <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
-  <!-- 상단 줄: 이슈 키(Jira 링크) + 닫기 -->
+  <!-- Top row: issue key (Jira link) + close -->
   <div class="mb-2 flex items-center justify-between gap-2">
     <div class="flex min-w-0 items-center gap-2">
       <a
@@ -33,7 +34,7 @@
       </a>
     </div>
     <div class="flex flex-none items-center gap-1">
-      <!-- 즐겨찾기 토글 -->
+      <!-- Favorite toggle -->
       <button
         type="button"
         onclick={() => void me.toggleFavorite(issue.issue_key)}
@@ -46,9 +47,9 @@
       >
         {isFavorite ? '★' : '☆'}
       </button>
-      <!-- 워치 -->
+      <!-- Watch -->
       <WatchButton issueKey={issue.issue_key} />
-      <!-- 닫기 -->
+      <!-- Close -->
       <button
         type="button"
         onclick={() => selection.clear()}
@@ -63,14 +64,14 @@
     </div>
   </div>
 
-  <!-- 제목 -->
+  <!-- Title -->
   <h2 class="mb-3 text-[16px] leading-snug font-semibold text-text-primary">
     {issue.summary}
   </h2>
 
-  <!-- 메타 칩 줄 -->
+  <!-- Meta chip row -->
   <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
-    <!-- 상태 (클릭 → 전환 드롭다운) -->
+    <!-- Status (click → transition dropdown) -->
     <StatusTransition {issue} />
 
     {#if issue.issue_type}
@@ -86,7 +87,7 @@
       <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{issue.d1_group}</span>
     {/if}
 
-    <!-- 재오픈 배지 -->
+    <!-- Reopen badge -->
     {#if issue.reopen_count > 0}
       <span
         class="inline-flex items-center gap-1 rounded-md bg-status-reopen/15 px-2 py-0.5 font-semibold text-status-reopen"
@@ -97,9 +98,9 @@
     {/if}
   </div>
 
-  <!-- 담당자 + 라벨/버전 -->
+  <!-- Assignee + labels/versions -->
   <div class="mt-3 flex flex-col gap-2 text-[12px] text-text-muted">
-    <!-- 담당자 (클릭 → 지정 팝오버, 미할당도 지정 가능) -->
+    <!-- Assignee (click → assign popover; works when unassigned too) -->
     <AssigneePicker {issue} />
     {#if issue.fix_versions.length > 0}
       <div class="flex items-start gap-1.5">

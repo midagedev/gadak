@@ -1,5 +1,5 @@
 <script lang="ts">
-  /* 즐겨찾기와 최근 본 이슈를 분리해 표시한다. 즐겨찾기 행 자체가 정렬 드래그 대상이다. */
+  /* Favorites and recent issues shown separately. Favorite rows are drag-reorder targets. */
   import { t, relativeSeenLabel } from '../../lib/i18n'
   import { onMount } from 'svelte'
   import type { IssueLite } from '../../lib/types'

@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
-   * 상세 패널 섹션 래퍼 ([detail]).
-   * 보더 대신 여백 + 섹션 제목(옵션 카운트)로 구분한다(계약 §3).
+   * Detail panel section wrapper ([detail]).
+   * Separates with spacing + section title (optional count), not borders (contract §3).
    */
   import type { Snippet } from 'svelte'
 

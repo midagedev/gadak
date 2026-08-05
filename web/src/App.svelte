@@ -1,8 +1,8 @@
 <script lang="ts">
   /*
-   * 앱 셸. 3컬럼 레이아웃 골격 + 부팅 상태 분기.
-   *  [explore] 배선: 사이드바=SidebarNav, 메인=ListView, 우측 패널 open=선택 이슈 여부.
-   *  선택 이슈 ↔ URL(?issue=KEY) 양방향 동기화도 여기서 담당(계약 §2 selection).
+   * App shell: 3-column layout skeleton + boot-state branching.
+   *  [explore] wiring: sidebar=SidebarNav, main=ListView, right panel open=selection.
+   *  Also owns selected issue ↔ URL (?issue=KEY) two-way sync (contract §2 selection).
    */
   import { onMount, untrack } from 'svelte'
   import { issues } from './stores/issues.svelte'
@@ -41,21 +41,22 @@
 
   const LAST_VIEW_KEY = STORAGE_KEYS.lastView
 
-  /** 서버 설정 다이얼로그(사이드바 톱니). 스토어를 새로 만들 이유가 없어 셸 로컬 상태. */
+  /** Server settings dialog (sidebar gear). Shell-local — no need for a store. */
   let serverSettingsOpen = $state(false)
-  /** 커맨드 팔레트(⌘K). 여는 주체가 여기뿐이라 역시 셸 로컬 상태. */
+  /** Command palette (⌘K). Only opened from here, so shell-local too. */
   let paletteOpen = $state(false)
-  /** 단축키 치트시트(?). */
+  /** Shortcut cheat sheet (?). */
   let shortcutsOpen = $state(false)
   /**
-   * 스켈레톤 지연 표시. IndexedDB 캐시 히트는 보통 100ms 안에 끝나므로 그때는
-   * 스켈레톤을 아예 그리지 않는다(깜빡임 방지). index.html 의 인라인 부트 셸이
-   * 그 사이의 배경을 이미 채우고 있다.
+   * Delayed skeleton. IndexedDB cache hits usually finish within ~100ms, so skip
+   * the skeleton then (avoids flash). index.html's inline boot shell already
+   * fills the background in that gap.
    */
   let showSkeleton = $state(false)
 
-  // 공유 링크/대시보드/푸시에서 직접 진입한 이슈를 첫 렌더 전에 복원한다.
-  // 그렇지 않으면 selection → URL 이펙트가 빈 선택으로 `issue`를 먼저 지울 수 있다.
+  // Restore deep-linked issue (share / dashboard / push) before first render.
+  // Otherwise the selection→URL effect can clear `issue` while selection is empty.
+
   const initialIssueKey = router.params.get('issue')
   if (initialIssueKey) selection.select(initialIssueKey)
   let syncedIssueKey = initialIssueKey
@@ -63,7 +64,7 @@
   onMount(() => {
     void issues.init()
     void me.init()
-    void write.loadWriteMeta() // 쓰기 메타 선반영(issues.init 과 병렬)
+    void write.loadWriteMeta() // Prefetch write meta (parallel with issues.init)
     views.init()
 
     const skeletonTimer = setTimeout(() => (showSkeleton = true), 120)
@@ -74,8 +75,8 @@
     void issues.refresh()
   }
 
-  // ── 최근 본 이슈 기록(선택 시) ──
-  //  untrack 필수: recordRecent 가 me.recent 를 읽고+쓰므로 추적되면 무한 이펙트 루프.
+  // ── Record recent issue on select ──
+  //  untrack is required: recordRecent reads+writes me.recent → infinite loop if tracked.
   $effect(() => {
     const key = selection.selectedKey
     if (key) untrack(() => me.recordRecent(key))
@@ -157,9 +158,9 @@
     }
   }
 
-  // ── 스마트 기본값: 최초 1회. URL 에 뷰 파람이 있으면 절대 덮지 않는다. ──
-  //  우선순위: URL > 마지막 사용 뷰(localStorage) > 내 소속 파트 프리셋.
-  //  데이터(members)·인증확인이 끝나야 파트 매칭이 가능하므로 그 시점까지 기다린다.
+  // ── Smart default: once. Never override URL view params. ──
+  //  Priority: URL > last-used view (localStorage) > own group preset.
+  //  Wait until members + auth check finish so group matching can work.
   let startupDone = false
   $effect(() => {
     if (startupDone) return
@@ -168,7 +169,7 @@
     applyStartupView()
   })
 
-  // ── 마지막 사용 뷰 저장(스마트 기본값 적용 이후, 뷰 변경마다) ──
+  // ── Persist last-used view (after smart default, on every view change) ──
   $effect(() => {
     const vk = filters.viewKey
     if (!startupDone) return
@@ -180,10 +181,10 @@
   })
 
   function applyStartupView() {
-    // URL 이 뷰를 지정했으면(공유 링크/새로고침) 그대로 존중.
+    // Respect URL view params (shared link / refresh).
     if (VIEW_PARAM_KEYS.some((k) => router.params.get(k))) return
 
-    // 1) 마지막 사용 뷰 복원
+    // 1) Restore last-used view
     let last: string | null = null
     try {
       last = localStorage.getItem(LAST_VIEW_KEY)
@@ -210,10 +211,10 @@
     filters.applyConfig(c)
   }
 
-  // ── 선택 이슈 ↔ URL 양방향 동기화 ──
-  // 마지막 동기화 값을 기준으로 URL 이동과 사용자 선택 중 어느 쪽이 먼저
-  // 바뀌었는지 구분한다. 두 방향을 별도 이펙트로 두면 뒤로가기/딥링크에서
-  // 이전 선택이 새 URL을 덮을 수 있다.
+  // ── Selected issue ↔ URL two-way sync ──
+  // Use last-synced value to tell whether URL nav or user selection moved first.
+  // Separate effects per direction let back/deeplink let the old selection
+  // overwrite the new URL.
   $effect(() => {
     const urlKey = router.params.get('issue')
     const key = selection.selectedKey
@@ -317,7 +318,7 @@
   />
 {/if}
 
-<!-- 토스트(우하단) — 항상 마운트 -->
+<!-- Toast host (bottom-right) — always mounted -->
 <ToastHost />
 
 {#if mediaViewer.attachment}

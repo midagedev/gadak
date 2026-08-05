@@ -41,16 +41,16 @@ async function registerHostedDemoSW(): Promise<void> {
   void reg
 }
 
-// 런타임 설정을 먼저 읽는다 — API base·Jira URL·기능 플래그가 첫 렌더 전에 확정돼야 한다.
-// top-level await 은 빌드 타깃(es2020)에서 못 쓰므로 async IIFE 로 감싼다.
-// index.html 의 인라인 부트 셸이 그동안 화면을 채우고 있어 흰 플래시는 없다.
+// Load runtime config first — API base, Jira URL, feature flags must be set
+// before first render. top-level await is unavailable at es2020, so use an IIFE.
+// index.html's inline boot shell fills the screen until then (no white flash).
 void (async () => {
   await registerHostedDemoSW()
   await loadConfig()
-  // 옛 issue-nav:* → scry:* 1회 이관. 스토어 onMount 보다 먼저.
+  // One-shot migrate issue-nav:* → scry:*. Before store onMount.
   migrateStorageKeys()
 
-  // 부트 셸을 비우고 그 자리에 마운트한다.
+  // Clear boot shell and mount in its place.
   target.innerHTML = ''
   mount(App, { target })
 })()

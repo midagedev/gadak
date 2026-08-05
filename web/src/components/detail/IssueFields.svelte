@@ -18,7 +18,7 @@
     key: string
     label: string
     values: string[]
-    /** 설정 시 인라인 편집 지원(QaFieldEditor). 없으면 읽기 전용. */
+    /** When set, supports inline edit (QaFieldEditor). Else read-only. */
     edit?: EditKind
   }
 

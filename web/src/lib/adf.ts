@@ -1,32 +1,32 @@
 /*
- * ADF (Atlassian Document Format) → HTML 렌더러 ([detail]).
+ * ADF (Atlassian Document Format) → HTML renderer ([detail]).
  *
- * 입력은 Jira description / comment 의 ADF 원본(AdfNode 트리), 출력은 HTML string.
- * 컴포넌트는 이 문자열을 {@html} 로 삽입하고, 타이포/여백 스타일은 AdfContent.svelte 의
- *  전역(:global(.adf)) 규칙이 담당한다. 특수 요소(멘션/상태/패널/첨부 등)만 Tailwind
- *  유틸리티 클래스를 문자열에 직접 박아 색을 맞춘다.
+ * Input is the raw ADF of a Jira description / comment (AdfNode tree); output is an HTML string.
+ * Components insert it via {@html}; typography/spacing live in AdfContent.svelte's
+ *  global (:global(.adf)) rules. Only specials (mention/status/panel/attachment, …) get
+ *  Tailwind utility classes baked into the string for color.
  *
- * ── XSS 안전 규율 ──
- *  1. 모든 텍스트는 esc() 로 escape 한다(<,>,&,",' 치환).
- *  2. 태그는 이 파일이 생성하는 화이트리스트만 존재한다(사용자 입력이 태그가 되지 않음).
- *  3. href 는 safeHref() 로 http(s) 만 허용, 그 외엔 링크로 만들지 않는다.
- *  4. 색상 등 style 값은 정규식 검증(hex) 을 통과한 것만 인라인한다.
- *  5. 미지원 노드는 자식으로 텍스트 폴백(재귀) — 절대 원본 HTML 을 흘리지 않는다.
+ * ── XSS safety rules ──
+ *  1. Every text node goes through esc() (<,>,&,",' replaced).
+ *  2. Only tags this file emits exist (user input never becomes a tag).
+ *  3. hrefs pass safeHref() — http(s) only; otherwise no link.
+ *  4. Style values (color, …) are inlined only after hex-regex validation.
+ *  5. Unsupported nodes fall back to escaped text / recursive children — never raw HTML.
  */
 
 import { t } from './i18n'
 import { config, jiraBrowseUrl } from './config'
 import type { AdfNode, DetailAttachment } from './types'
 
-/** 렌더 옵션. media 폴백 링크를 위해 이슈 키를 넘길 수 있다. */
+/** Render options. Pass issue key for media fallback links. */
 export interface AdfRenderOptions {
-  /** media(첨부) 폴백에서 Jira 원본 이슈로 링크 걸 때 사용. */
+  /** Used when media (attachment) fallbacks link out to the original Jira issue. */
   issueKey?: string
-  /** Jira media UUID/파일명과 로컬 첨부 프록시 URL 매핑. */
+  /** Map of Jira media UUID/filename → local attachment proxy URL. */
   attachments?: DetailAttachment[]
 }
 
-/** HTML 특수문자 escape. 텍스트/속성 값 모두 이걸 통과시킨다. */
+/** Escape HTML specials. All text/attribute values go through this. */
 function esc(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -36,7 +36,7 @@ function esc(s: string): string {
     .replace(/'/g, '&#39;')
 }
 
-/** http(s) URL 만 허용. 통과하면 escape 된 href, 아니면 null. */
+/** Allow http(s) URLs only. Returns escaped href on pass, else null. */
 function safeHref(url: unknown): string | null {
   if (typeof url !== 'string') return null
   const trimmed = url.trim()
@@ -45,11 +45,11 @@ function safeHref(url: unknown): string | null {
 }
 
 /**
- * 백엔드가 발급한 same-origin 첨부 경로만 media src로 허용한다.
+ * Allow only same-origin attachment paths issued by the backend as media src.
  *
- * apiBase 는 런타임 설정이지만 검사는 그대로 화이트리스트다: 반드시 apiBase 로 시작하고,
- * 남은 경로가 `<issueKey>/attachments/<id>/content/` 모양이어야 한다. 점·슬래시가 허용되지
- * 않으므로 `..` 트래버설과 `//host` 형태의 protocol-relative URL 은 모두 걸러진다.
+ * apiBase is runtime config but the check is still a whitelist: must start with apiBase,
+ * and the remainder must look like `<issueKey>/attachments/<id>/content/`. Dots and
+ * extra slashes are rejected, so `..` traversal and `//host` protocol-relative URLs fail.
  */
 function safeMediaUrl(url: unknown): string | null {
   if (typeof url !== 'string') return null
@@ -60,25 +60,25 @@ function safeMediaUrl(url: unknown): string | null {
   return /^[A-Za-z0-9_-]+\/attachments\/[A-Za-z0-9_-]+\/content\/$/.test(tail) ? esc(trimmed) : null
 }
 
-/** #rgb / #rrggbb / #rrggbbaa 형태의 hex 색만 허용(textColor 마크용). */
+/** Allow #rgb / #rrggbb / #rrggbbaa hex colors only (for textColor marks). */
 function safeColor(c: unknown): string | null {
   if (typeof c !== 'string') return null
   return /^#[0-9a-fA-F]{3,8}$/.test(c.trim()) ? c.trim() : null
 }
 
-/** attrs 에서 문자열 값을 안전하게 뽑는다. */
+/** Safely pull a string value from attrs. */
 function attrStr(node: AdfNode, key: string): string | undefined {
   const v = node.attrs?.[key]
   return typeof v === 'string' ? v : undefined
 }
 
-/** attrs 에서 숫자 값을 안전하게 뽑는다. */
+/** Safely pull a number value from attrs. */
 function attrNum(node: AdfNode, key: string): number | undefined {
   const v = node.attrs?.[key]
   return typeof v === 'number' ? v : undefined
 }
 
-/* ── 마크(inline 서식) 적용 ── */
+/* ── Apply marks (inline formatting) ── */
 
 function applyMark(html: string, mark: { type: string; attrs?: Record<string, unknown> }): string {
   switch (mark.type) {
@@ -107,19 +107,19 @@ function applyMark(html: string, mark: { type: string; attrs?: Record<string, un
         : html
     }
     default:
-      // 미지원 마크는 서식 없이 텍스트만 유지
+      // Unsupported mark: keep text with no formatting
       return html
   }
 }
 
-/** text 노드: escape 후 마크들을 안쪽→바깥쪽으로 감싼다. */
+/** text node: escape, then wrap marks inside-out. */
 function renderText(node: AdfNode): string {
   let html = esc(node.text ?? '')
   for (const mark of node.marks ?? []) html = applyMark(html, mark)
   return html
 }
 
-/** 자식 배열을 이어붙인다. */
+/** Concatenate rendered children. */
 function renderChildren(node: AdfNode, opts: AdfRenderOptions): string {
   return (node.content ?? []).map((c) => renderNode(c, opts)).join('')
 }
@@ -155,7 +155,7 @@ function renderAttachment(attachment: DetailAttachment, compact = false): string
   return `<a class="adf-media" href="${src}" target="_blank" rel="noopener noreferrer">📎 ${name}</a>`
 }
 
-/** 패널 타입 → Tailwind 색 조합(테두리/배경 틴트/텍스트). */
+/** Panel type → Tailwind color combo (border / bg tint / text). */
 const PANEL_STYLES: Record<string, string> = {
   info: 'border-status-new/40 bg-status-new/10',
   note: 'border-accent/40 bg-accent/10',
@@ -164,7 +164,7 @@ const PANEL_STYLES: Record<string, string> = {
   error: 'border-status-reopen/40 bg-status-reopen/10',
 }
 
-/** Jira status 노드 색 이름 → 배경 hex(칩). 키 lookup 이므로 안전. */
+/** Jira status-node color name → chip background hex. Key lookup, so safe. */
 const STATUS_COLORS: Record<string, string> = {
   neutral: '#3a4048',
   grey: '#3a4048',
@@ -175,7 +175,7 @@ const STATUS_COLORS: Record<string, string> = {
   green: '#2a5c3a',
 }
 
-/** 단일 노드를 HTML 로. */
+/** Single node → HTML. */
 function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
   switch (node.type) {
     case 'doc':
@@ -215,7 +215,7 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
       const badge = lang
         ? `<span class="adf-code-lang">${esc(lang)}</span>`
         : ''
-      // codeBlock 자식은 (마크 없는) text 노드 — escape 만 하면 된다.
+      // codeBlock children are (unmarked) text nodes — escape only.
       const code = (node.content ?? []).map((c) => esc(c.text ?? '')).join('')
       return `<div class="adf-code">${badge}<pre><code>${code}</code></pre></div>`
     }
@@ -245,7 +245,7 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
     }
 
     case 'emoji': {
-      // 우선순위: 이미 유니코드인 text → id(코드포인트) 변환 → shortName 폴백
+      // Priority: already-unicode text → id (codepoint) convert → shortName fallback
       const text = attrStr(node, 'text')
       if (text) return esc(text)
       const id = attrStr(node, 'id')
@@ -308,13 +308,13 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
     }
 
     default:
-      // 미지원 노드: 텍스트가 있으면 escape, 없으면 자식 재귀 폴백
+      // Unsupported node: escape text if present, else recursive children fallback
       if (typeof node.text === 'string') return esc(node.text)
       return renderChildren(node, opts)
   }
 }
 
-/** 코드포인트 문자열("1f604" 또는 "1f1f0-1f1f7") → 이모지. 실패 시 null. */
+/** Codepoint string ("1f604" or "1f1f0-1f1f7") → emoji. null on failure. */
 function codepointsToEmoji(id: string): string | null {
   try {
     const cps = id.split('-').map((h) => parseInt(h, 16))
@@ -325,7 +325,7 @@ function codepointsToEmoji(id: string): string | null {
   }
 }
 
-/** epoch(ms) 문자열 → YYYY-MM-DD. */
+/** epoch(ms) string → YYYY-MM-DD. */
 function formatEpoch(ts: string): string {
   const n = Number(ts)
   if (Number.isNaN(n)) return ts
@@ -335,8 +335,8 @@ function formatEpoch(ts: string): string {
 }
 
 /**
- * ADF 문서(또는 인라인 노드) → HTML string.
- * 파싱 예외는 삼켜서 빈 문자열을 반환한다(호출부에서 평문 폴백 처리).
+ * ADF document (or inline node) → HTML string.
+ * Swallows parse exceptions and returns '' (caller can fall back to plain text).
  */
 export function renderAdf(doc: AdfNode | null | undefined, opts: AdfRenderOptions = {}): string {
   if (!doc) return ''

@@ -1,8 +1,8 @@
 <script lang="ts">
   import { t } from '../../lib/i18n'
   /*
-   * 인증 게이트 — 캐시가 없는데 401 이 난 경우에만 표시(render-before-auth).
-   * 캐시가 있으면 앱은 그대로 뜨고 인증 확인은 백그라운드에서 조용히 처리된다.
+   * Auth gate — shown only when there's no cache and we got 401 (render-before-auth).
+   * With a cache the app still renders; auth is rechecked quietly in the background.
    */
   let { onRetry }: { onRetry?: () => void } = $props()
 </script>

@@ -1,13 +1,13 @@
 <script lang="ts">
   /*
-   * QA 메타 필드 인라인 에디터 (쓰기, 로컬 우선).
-   *  - 4종만 편집 지원: 수정방법(솔루션)·개발검증여부(Pass/Fail)·개발테스트담당자·수정버전.
-   *  - 평시엔 IssueFields 의 값 칩과 동일한 모습. hover 시 편집 어포던스(연필/쉐브론).
-   *  - 클릭 → write.ensureEditMeta(key)(쓰기 게이트 + editmeta 허용값 로드) → 드롭다운.
-   *      · option        : 단일 select(+"없음" 해제).
-   *      · version_array : 체크박스 다중선택 + "적용".
-   *      · user          : 로컬 멤버(개인화 정렬) + 2자↑ 서버 검색 폴백(+"해제").
-   *  - 선택 시 write.setField() 옵티미스틱(표시값 즉시 반영 → 서버 재동기화로 확정).
+   * QA meta field inline editor (write, local-first).
+   *  - Four fields only: solution, dev verify (Pass/Fail), dev-test assignee, fix versions.
+   *  - Idle look matches IssueFields value chips; hover shows edit affordance (pencil/chevron).
+   *  - Click → write.ensureEditMeta(key) (write gate + load allowed values) → dropdown.
+   *      · option        : single select (+ clear "none").
+   *      · version_array : multi checkbox + Apply.
+   *      · user          : local members (personalized sort) + ≥2-char server search (+ clear).
+   *  - On pick: write.setField() optimistic (UI updates immediately; server resync confirms).
    * Falls back to read-only when editmeta is missing (not editable / no credential).
    */
   import { t, collator } from '../../lib/i18n'
@@ -29,7 +29,7 @@
     issue: IssueLite
     field: string
     kind: Kind
-    values: string[] // 현재 표시 중인 값(칩) — 읽기 표시용
+    values: string[] // currently shown chip values (read display)
   } = $props()
 
   let open = $state(false)
@@ -37,16 +37,16 @@
   let rootEl = $state<HTMLDivElement | null>(null)
   let inputEl = $state<HTMLInputElement | null>(null)
 
-  // user 검색 상태
+  // user search state
   let query = $state('')
   let serverUsers = $state<JiraUser[]>([])
   let searching = $state(false)
 
-  // version_array 초안 선택(버전 id 집합) + 필터(버전 옵션이 수백 개라 검색 필수)
+  // version_array draft selection (version id set) + filter (hundreds of options)
   let draft = $state<Set<string>>(new Set())
   let vquery = $state('')
 
-  /** 필터된 버전 옵션 — 선택된 항목은 항상 상위 노출. */
+  /** Filtered version options — selected items always sort first. */
   const versionOptions = $derived.by<EditMetaOption[]>(() => {
     const q = vquery.trim().toLowerCase()
     const filtered = q ? options.filter((o) => o.value.toLowerCase().includes(q)) : options
@@ -54,7 +54,7 @@
       const sa = draft.has(a.id) ? 0 : 1
       const sb = draft.has(b.id) ? 0 : 1
       if (sa !== sb) return sa - sb
-      return b.value.localeCompare(a.value) // 최신(이름 역순) 우선
+      return b.value.localeCompare(a.value) // newest-ish (name reverse)
     })
   })
 
@@ -71,7 +71,7 @@
   const chipClass = (v: string) =>
     field === 'development_test_result' ? resultClass(v) : 'bg-bg-elevated text-text-secondary'
 
-  /* ── 열기/닫기 ── */
+  /* ── Open / close ── */
 
   async function toggle() {
     if (open) {
@@ -79,7 +79,7 @@
       return
     }
     if (!(await write.ensureEditMeta(key))) return
-    // editmeta 로드 후에도 이 필드가 편집 불가면 열지 않음(읽기 전용 폴백).
+    // Still not editable after editmeta load → keep closed (read-only fallback).
     if (!write.editFieldMeta(key, field)) return
     query = ''
     vquery = ''
@@ -89,7 +89,7 @@
     if (kind === 'user' || kind === 'version_array') queueMicrotask(() => inputEl?.focus())
   }
 
-  /* ── option (단일 select) ── */
+  /* ── option (single select) ── */
 
   async function pickOption(opt: EditMetaOption | null) {
     busy = true
@@ -100,9 +100,9 @@
     if (ok) open = false
   }
 
-  /* ── version_array (다중) ── */
+  /* ── version_array (multi) ── */
 
-  /** 현재 표시 버전명 → editmeta 옵션 id 로 역매핑. */
+  /** Display version names → editmeta option ids (reverse map). */
   function currentVersionIds(): string[] {
     const byName = new Map(options.map((o) => [o.value, o.id]))
     return (issue.fix_versions ?? []).map((n) => byName.get(n)).filter((x): x is string => !!x)
@@ -124,7 +124,7 @@
     if (ok) open = false
   }
 
-  /* ── user (개발테스트담당자) ── */
+  /* ── user (dev-test assignee) ── */
 
   interface Cand {
     account_id: string
@@ -138,7 +138,7 @@
   const meMember = $derived(me.identified && me.email ? issues.members.get(me.email) : undefined)
   const reporterMember = $derived(issues.memberOf(issue.reporter_email))
 
-  /** 로컬 멤버(개인화) — 나 → 보고자 → 이름순. jira_account_id 있는 멤버만. */
+  /** Local members (personalized) — me → reporter → name. Only with jira_account_id. */
   const localCands = $derived.by<Cand[]>(() => {
     const withId = [...issues.members.values()].filter((m) => m.jira_account_id)
     const byName = (a: Member, b: Member) =>
@@ -162,7 +162,7 @@
     return out
   })
 
-  /** 검색어 반영 후보(로컬 필터 + 서버 검색 병합). */
+  /** Query-aware candidates (local filter + server search merge). */
   const cands = $derived.by<Cand[]>(() => {
     const q = query.trim().toLowerCase()
     const base = q
@@ -187,7 +187,7 @@
     return merged.slice(0, 40)
   })
 
-  // 2자↑ 입력 시 서버 사용자 검색(팀 외 사람 폴백).
+  // ≥2 chars → server user search (fallback for people outside the team).
   $effect(() => {
     const q = query.trim()
     if (q.length < 2) {
@@ -220,7 +220,7 @@
     if (ok) open = false
   }
 
-  /* ── 바깥 클릭 / Esc ── */
+  /* ── Outside click / Esc ── */
   $effect(() => {
     if (!open) return
     function onDown(e: MouseEvent) {

@@ -1,5 +1,5 @@
-// 선택 이슈 스토어 — 탐색(explore)이 select/clear 를 호출하고, 상세 패널(detail)이 구독한다.
-// URL(?issue=KEY) 반영은 explore 쪽 책임 (계약 §2).
+// Selected-issue store — explore calls select/clear; detail panel subscribes.
+// URL (?issue=KEY) sync is explore's job (contract §2).
 
 class SelectionStore {
 	selectedKey = $state<string | null>(null)

@@ -1,6 +1,6 @@
 /*
- * Issue Navigator — 표시 헬퍼 ([explore])
- *  상대시간 / 이니셜 / 우선순위·상태 메타 등 순수 함수. 컴포넌트 곳곳에서 재사용.
+ * Issue Navigator — display helpers ([explore])
+ *  Pure functions: relative time / initials / priority·status meta. Reused across components.
  */
 
 import type { IssueLite } from './types'
@@ -12,21 +12,21 @@ import {
   t,
 } from './i18n'
 
-/* ── 상대시간 (i18n 단일 구현, compact) ── */
+/* ── Relative time (single i18n impl, compact) ── */
 
 /** "just now · 3m · 2h · 1d …" compact relative time. */
 export function relativeTime(iso: string | null): string {
   return i18nRelativeTime(iso, 'compact')
 }
 
-/** 절대시각(툴팁용). */
+/** Absolute time (for tooltips). */
 export function absTime(iso: string | null): string {
   return i18nAbsTime(iso)
 }
 
-/* ── 검색어 하이라이팅 ── */
+/* ── Search-term highlighting ── */
 
-/** 대소문자 무시 부분일치 조각 분해. 초성/키 단축형 매칭은 조각이 없어 하이라이트 생략. */
+/** Case-insensitive substring split. Chosung / key-shortcut hits have no slices → no highlight. */
 export function highlightSegments(text: string, q: string): { text: string; hit: boolean }[] {
   const needle = q.trim().toLowerCase()
   if (!needle) return [{ text, hit: false }]
@@ -45,16 +45,16 @@ export function highlightSegments(text: string, q: string): { text: string; hit:
   return out
 }
 
-/* ── 이니셜(아바타 폴백) ── */
+/* ── Initials (avatar fallback) ── */
 
 export function initials(name: string | null | undefined, email?: string | null): string {
   const raw = (name || email || '').trim()
   if (!raw) return '?'
-  // 이메일이면 로컬 파트만 쓴다. 도메인까지 토큰으로 세면 marco@x.io 의 이니셜이
-  // 사람과 무관한 'MX'(또는 TLD 를 집어 'MI')가 된다 — 아바타는 사람을 가리켜야 한다.
+  // Emails: use local part only. Tokenizing the domain turns marco@x.io into
+  // 'MX' (or 'MI' if the TLD sneaks in) — avatars should point at a person.
   const at = raw.indexOf('@')
   const src = at > 0 ? raw.slice(0, at) : raw
-  // 한글이면 공백 제거 후 마지막 두 글자(성 제외 이름), 영문이면 앞 두 토큰 첫 글자.
+  // Hangul: strip spaces, last two chars (given name, drop family name). Latin: first letter of first two tokens.
   if (/[가-힣]/.test(src)) {
     const nm = src.replace(/\s+/g, '')
     return nm.length >= 2 ? nm.slice(-2) : nm
@@ -64,7 +64,7 @@ export function initials(name: string | null | undefined, email?: string | null)
   return src.slice(0, 2).toUpperCase()
 }
 
-/** 이메일/이름 문자열을 안정적인 색 인덱스로(아바타 배경). */
+/** Stable color index from email/name string (avatar background). */
 export function colorIndex(seed: string | null | undefined, buckets = 8): number {
   const s = seed ?? ''
   let h = 0
@@ -72,17 +72,17 @@ export function colorIndex(seed: string | null | undefined, buckets = 8): number
   return Math.abs(h) % buckets
 }
 
-/* ── 우선순위 메타 ── */
+/* ── Priority meta ── */
 
 export interface PriorityMeta {
   label: string
-  /** 시맨틱 색(Tailwind 임의값용 hex). */
+  /** Semantic color (hex for Tailwind arbitrary values). */
   color: string
-  /** 막대 채움 단계 1~5 (아이콘 렌더). */
+  /** Bar fill level 1–5 (icon render). */
   level: number
 }
 
-/** priority 문자열 → 표시 메타. 한/영 명칭 모두 대응. */
+/** priority string → display meta. Matches both KO and EN names. */
 export function priorityMeta(priority: string | null): PriorityMeta {
   const p = (priority ?? '').toLowerCase()
   if (/highest|긴급|가장 높음|blocker/.test(p)) return { label: priority ?? '', color: '#ef4444', level: 5 }
@@ -93,7 +93,7 @@ export function priorityMeta(priority: string | null): PriorityMeta {
   return { label: priority ?? t('common.none'), color: '#64748b', level: 0 }
 }
 
-/* ── 상태 카테고리 메타 ── */
+/* ── Status category meta ── */
 
 export function categoryMetaOf(cat: StatusCategory): { label: string; color: string } {
   const color =

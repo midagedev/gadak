@@ -1,8 +1,8 @@
 <script lang="ts">
   /*
-   * 필터 바 ([explore]). 활성 필터 칩(제거 가능) + "필터 추가" 드롭다운(2단: 필드→값) + 플래그 토글.
-   *  + 활성 필터가 있으면 "뷰로 저장" · "초기화" 노출.
-   *  모든 값 토글은 filters 스토어(URL) 로 반영 → 즉시 로컬 재필터.
+   * Filter bar ([explore]). Removable chips + "Add filter" dropdown (2-step:
+   * field→value) + flag toggles. With active filters, shows "Save as view" /
+   * "Reset". Every value toggle writes the filters store (URL) → local refilter.
    */
   import { filters, type FacetValue } from '../../stores/filters.svelte'
   import { views } from '../../stores/views.svelte'
@@ -14,7 +14,7 @@
   }
 
 
-  // 꺼진 기능의 필드는 메뉴에 아예 나오지 않는다.
+  // Disabled-feature fields are omitted from the menu entirely.
   const FIELDS = filterFields()
 
   let open = $state(false)
@@ -25,7 +25,7 @@
   let rootEl = $state<HTMLDivElement | null>(null)
 
   const activeSet = $derived.by(() => {
-    // 현재 열린 필드의 선택값 집합(체크 표시용)
+    // Selected values for the open field (for checkmarks)
     if (!field) return new Set<string>()
     return new Set(filters.filters[field])
   })
@@ -72,7 +72,7 @@
 <svelte:document onclick={onDocClick} />
 
 <div bind:this={rootEl} class="flex flex-wrap items-center gap-1.5">
-  <!-- 활성 칩 -->
+  <!-- Active chips -->
   {#each filters.activeChips as chip (chip.field + (chip.value ?? ''))}
     <button
       type="button"
@@ -89,7 +89,7 @@
     </button>
   {/each}
 
-  <!-- 필터 추가 -->
+  <!-- Add filter -->
   <div class="relative">
     <button
       type="button"
@@ -104,7 +104,7 @@
         class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-[70vh] w-64 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-xl shadow-black/40"
       >
         {#if !field}
-          <!-- 1단: 필드 선택 + 플래그 -->
+          <!-- Step 1: field pick + flags -->
           <div class="px-2 py-1 text-[11px] font-medium text-text-muted">{t('filter.properties')}</div>
           {#each FIELDS as f (f)}
             <button
@@ -131,7 +131,7 @@
             </button>
           {/each}
         {:else}
-          <!-- 2단: 값 선택 -->
+          <!-- Step 2: value pick -->
           <div class="flex items-center gap-1 px-1 pb-1">
             <button
               type="button"

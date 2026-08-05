@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
-   * 아바타 ([detail]). 멤버 프로필 이미지, 실패/부재 시 이니셜 폴백.
-   * name/email 로 이니셜을 만들고, member(issues.memberOf 결과)가 있으면 이미지 사용.
+   * Avatar ([detail]). Member profile image; initials on fail/missing.
+   * Build initials from name/email; use image when member (issues.memberOf) is present.
    */
   import type { Member } from '../../lib/types'
   import { memberOrgColor, memberTooltip } from '../../lib/member-visual'
@@ -19,7 +19,7 @@
     size?: number
   } = $props()
 
-  // 이미지 로드 실패 시 이니셜로 폴백
+  // Fall back to initials if the image fails to load
   let broken = $state(false)
   const src = $derived(member?.profile_image ?? null)
   const label = $derived(member?.display_name ?? member?.name ?? name ?? email ?? '')

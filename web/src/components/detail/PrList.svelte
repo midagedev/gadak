@@ -1,13 +1,13 @@
 <script lang="ts">
   /*
-   * 연결 PR ([detail]). 상태 칩(open/merged/closed) + repo#number + 제목 + 새탭 링크.
+   * Linked PRs ([detail]). State chip (open/merged/closed) + repo#number + title + new-tab.
    */
   import { t } from '../../lib/i18n'
   import type { LinkedPr } from '../../lib/types'
 
   let { prs }: { prs: LinkedPr[] } = $props()
 
-  /** PR 상태 → 칩 색 클래스. merged=보라, open=초록, closed=빨강. */
+  /** PR state → chip color class. merged=purple, open=green, closed=red. */
   function stateClass(state: string): string {
     const s = state.toLowerCase()
     if (s === 'merged') return 'bg-accent/15 text-accent-text'

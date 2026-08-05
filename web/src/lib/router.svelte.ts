@@ -1,24 +1,24 @@
 /*
- * Issue Navigator — 경량 해시 라우터
+ * Issue Navigator — lightweight hash router
  *
- * ⚠️ 파일명 주의: 계약 §2 는 `router.ts` 로 적었으나, 현재 해시를 `$state`(runes) 로
- *  노출하려면 파일이 `.svelte.ts` 여야 컴파일러가 룬을 처리한다(순수 `.ts` 에서는 룬 불가).
- *  따라서 `router.svelte.ts` 로 두고, import 는 `./lib/router.svelte` 로 한다.
+ * ⚠️ Filename note: contract §2 says `router.ts`, but exposing the hash via `$state`
+ *  (runes) requires a `.svelte.ts` file so the compiler processes runes (plain `.ts`
+ *  cannot). So this is `router.svelte.ts`; imports use `./lib/router.svelte`.
  *
- * 책임(파운데이션 범위): 현재 해시를 반응형으로 노출 + `{ path, params }` 파싱/직렬화
- *  + 범용 쿼리파람 get/set. **뷰 상태(필터/디스플레이) 직렬화는 [explore] 소관** —
- *  여기서는 어떤 키에 무슨 뜻이 있는지 해석하지 않는다.
+ * Responsibility (foundation scope): expose the current hash reactively + parse/serialize
+ *  `{ path, params }` + generic query-param get/set. **View state (filter/display)
+ *  serialization is [explore]'s job** — we do not interpret what any key means.
  */
 
 export interface Route {
-  /** 해시의 경로부 (선행 `#` 제거, `?` 이전). 기본 `/`. 예: `/board` */
+  /** Path part of the hash (leading `#` stripped, before `?`). Default `/`. e.g. `/board` */
   path: string
-  /** 경로 뒤 쿼리스트링을 파싱한 값. */
+  /** Parsed query string after the path. */
   params: URLSearchParams
 }
 
 function parseHash(hash: string): Route {
-  // location.hash 는 "#..." 또는 "" 형태
+  // location.hash is "#..." or ""
   const raw = hash.startsWith('#') ? hash.slice(1) : hash
   const qIndex = raw.indexOf('?')
   const path = (qIndex === -1 ? raw : raw.slice(0, qIndex)) || '/'
@@ -26,13 +26,13 @@ function parseHash(hash: string): Route {
   return { path: path.startsWith('/') ? path : '/' + path, params: new URLSearchParams(query) }
 }
 
-/** Route → 해시 문자열 (`#/path?a=b`). 빈 쿼리면 `?` 를 붙이지 않는다. */
+/** Route → hash string (`#/path?a=b`). No trailing `?` when the query is empty. */
 export function serialize(route: Route): string {
   const qs = route.params.toString()
   return '#' + route.path + (qs ? '?' + qs : '')
 }
 
-// 현재 해시 상태 (반응형). hashchange 로 동기화된다.
+// Current hash state (reactive). Kept in sync via hashchange.
 let current = $state<Route>(parseHash(typeof location !== 'undefined' ? location.hash : ''))
 
 if (typeof window !== 'undefined') {
@@ -42,8 +42,8 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * 현재 라우트에 반응형으로 접근. 컴포넌트/`$derived` 안에서 `router.path`,
- * `router.params` 를 읽으면 해시 변경 시 자동 갱신된다.
+ * Reactive access to the current route. Reading `router.path` / `router.params`
+ * inside a component or `$derived` auto-updates on hash change.
  */
 export const router = {
   get path(): string {
@@ -54,7 +54,7 @@ export const router = {
   },
 }
 
-/** 해시를 통째로 교체(경로 + 파람). history 항목을 새로 쌓는다. */
+/** Replace the whole hash (path + params). Pushes a new history entry. */
 export function navigate(path: string, params?: URLSearchParams | Record<string, string>): void {
   const sp =
     params instanceof URLSearchParams
@@ -63,15 +63,15 @@ export function navigate(path: string, params?: URLSearchParams | Record<string,
   location.hash = serialize({ path, params: sp })
 }
 
-/** 단일 쿼리파람 읽기 (없으면 null). */
+/** Read one query param (null if missing). */
 export function getParam(key: string): string | null {
   return current.params.get(key)
 }
 
 /**
- * 쿼리파람 다건 병합 갱신 — 나머지 파람은 보존한다.
- * 값이 `null` 이면 해당 키를 제거. 경로는 그대로 유지.
- * `replace=true` 면 history 스택을 쌓지 않고 현재 항목을 대체(스크롤/타이핑 중 유용).
+ * Merge-update several query params — preserve the rest.
+ * `null` removes that key. Path stays. `replace=true` rewrites the current
+ * history entry instead of pushing (useful while scrolling/typing).
  */
 export function setParams(next: Record<string, string | null>, replace = false): void {
   const sp = new URLSearchParams(current.params)
@@ -82,14 +82,14 @@ export function setParams(next: Record<string, string | null>, replace = false):
   const hash = serialize({ path: current.path, params: sp })
   if (replace) {
     history.replaceState(null, '', hash)
-    // replaceState 는 hashchange 를 발화하지 않으므로 수동 동기화
+    // replaceState does not fire hashchange — sync manually
     current = parseHash(hash)
   } else {
     location.hash = hash
   }
 }
 
-/** 단일 쿼리파람 설정(설탕). */
+/** Set one query param (sugar). */
 export function setParam(key: string, value: string | null, replace = false): void {
   setParams({ [key]: value }, replace)
 }

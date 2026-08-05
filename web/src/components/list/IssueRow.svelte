@@ -1,8 +1,9 @@
 <script lang="ts">
   /*
-   * 이슈 행 ([explore]). 고정 높이 42px(가상 스크롤 전제).
-   *  구성: 우선순위 아이콘 · 상태 점 · 키(모노) · 제목 · 라벨칩(≤3+n) · 재오픈/정체 배지 · 담당자 · 상대시간
-   *  모든 칩/점/아바타 클릭 = 해당 값 필터 추가(stopPropagation 로 행 선택과 분리).
+   * Issue row ([explore]). Fixed 42px (virtual scroll assumption).
+   *  Layout: priority icon · status dot · key (mono) · title · label chips (≤3+n)
+   *  · reopen/stale badges · assignee · relative time.
+   *  Chip/dot/avatar click = add that value as a filter (stopPropagation vs row select).
    */
   import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
@@ -26,14 +27,14 @@
   const catMeta = $derived(CATEGORY_META[cat])
   const isFavorite = $derived(me.favorites.has(issue.issue_key))
   const isWatching = $derived(me.watches.has(issue.issue_key))
-  // 정체(현재 상태 경과). 배지 문구는 일 단위 — 1일 미만도 "1일째"로 읽히게 최소 1.
+  // Stale (time in current status). Badge is day-based — floor at 1 so sub-day reads "day 1".
   const stale = $derived(isStale(issue))
   const staleDays = $derived(Math.max(1, Math.round(statusAgeHours(issue) / 24)))
   const shownLabels = $derived(issue.labels.slice(0, 3))
   const extraLabels = $derived(Math.max(0, issue.labels.length - 3))
-  // 노출 컬럼 집합(뷰 설정). O(1) 조회로 각 후행 필드 렌더 여부를 가른다.
+  // Visible column set (view settings). O(1) check per trailing field.
   const cols = $derived(new Set(filters.display.columns))
-  // 검색어 하이라이팅(제목·키). q 없으면 단일 조각이라 렌더 비용 동일.
+  // Query highlight (title·key). Empty q → single segment, same render cost.
   const summarySegs = $derived(highlightSegments(issue.summary, filters.filters.q))
   const keySegs = $derived(highlightSegments(issue.issue_key, filters.filters.q))
   const qaImpactMeta = $derived.by(() => {
@@ -50,13 +51,13 @@
         return null
     }
   })
-  // 배포 단계 배지. QA팀 핵심 스캔 대상은 qa(스왑 완료)이므로 청록으로 확실히,
-  //  그 외(대기/dev/prod)는 흐린 톤. none/merged 는 배지 없음(노이즈 방지).
+  // Deploy-stage badge. QA scan target is qa (swap done) → strong teal; waiting/dev/prod
+  //  stay muted. none/merged = no badge (noise control).
   const deployState = $derived(issue.deploy_status?.state ?? 'none')
   const deployMeta = $derived.by(() => {
     switch (deployState) {
       case 'qa':
-        // 스왑 완료 = QA 확인 가능 — 청록 점 + 라벨로 리스트에서 바로 잡히게
+        // Swap done = QA can verify — teal dot + label so it pops in the list
         return { label: 'QA', cls: 'bg-[#2dd4bf]/15 text-[#5eead4]', dot: true }
       case 'qa_preview':
         return { label: t('list.qaPending'), cls: 'bg-[#2dd4bf]/8 text-[#2dd4bf]/70', dot: false }
@@ -68,13 +69,13 @@
         return null
     }
   })
-  // 해결됨(done)인데 어느 릴리즈에도 미포함(merged 단계에 머묾) → 미묘한 경고 톤.
+  // Done but not in any release (stuck at merged) → subtle warning tone.
   const deployStale = $derived(cat === 'done' && deployState === 'merged')
 
-  // 자기 이슈 하이라이팅. 단, 이미 "내 이슈"로 스코프된 뷰에선 전부 내 것이라 끈다.
+  // Own-issue highlight. Off when the view is already scoped to "my issues".
   const mine = $derived(filters.isMine(issue) && !filters.scopedToMe)
 
-  // 최신성 가중치: 24시간 내 갱신은 시간 표기를 액센트로 끌어올린다.
+  // Recency: updates within 24h pull the time label up to accent.
   const isFresh = $derived.by(() => {
     if (!issue.updated_at) return false
     const t = Date.parse(issue.updated_at)
@@ -88,21 +89,21 @@
     }
   }
 
-  // ── 멀티선택 ──
+  // ── Multi-select ──
   const selected = $derived(bulk.has(issue.issue_key))
-  // 체크박스: 평소 흐리게(hover 시 선명), 선택되거나 선택 모드면 항상 선명.
+  // Checkbox: dim by default (clear on hover); always clear when selected or in select mode.
   const boxOpacity = $derived(
     selected || bulk.count > 0 ? 'opacity-100' : 'opacity-40 group-hover:opacity-100',
   )
 
-  // 체크박스 영역 클릭 = 선택 토글(행 열기와 분리). shift 는 범위 선택.
+  // Checkbox hit = toggle select (separate from opening the row). Shift = range.
   function onCheckClick(e: MouseEvent) {
     e.stopPropagation()
     if (e.shiftKey) bulk.selectRange(issue.issue_key)
     else bulk.toggle(issue.issue_key)
   }
 
-  // 행 클릭: shift = 범위 선택, 선택 모드(1개 이상)면 토글, 그 외엔 상세 열기.
+  // Row click: shift = range, select mode (≥1) = toggle, else open detail.
   function onRowClick(e: MouseEvent) {
     if (e.shiftKey) {
       e.preventDefault()
@@ -140,7 +141,7 @@
     }
   }}
 >
-  <!-- 멀티선택 체크박스(체크박스 영역만 선택; shift=범위) -->
+  <!-- Multi-select checkbox (hit target only; shift=range) -->
   <button
     type="button"
     class="flex h-4 w-4 flex-none items-center justify-center rounded border transition-all {boxOpacity}
@@ -153,10 +154,10 @@
     {#if selected}<span class="text-[9px]">✓</span>{/if}
   </button>
 
-  <!-- 우선순위 -->
+  <!-- Priority -->
   <PriorityIcon priority={issue.priority} />
 
-  <!-- 상태 점(클릭 = 분류 필터) -->
+  <!-- Status dot (click = category filter) -->
   <button
     type="button"
     class="h-2 w-2 flex-none rounded-full transition-transform hover:scale-125"
@@ -166,12 +167,12 @@
     aria-label={t('list.categoryFilter', { label: catMeta.label })}
   ></button>
 
-  <!-- 키 (자기 이슈면 액센트 톤으로 소속 표시) -->
+  <!-- Key (accent tone marks own issues) -->
   <span class="w-[88px] flex-none truncate font-mono text-[12px] {mine ? 'text-accent-text' : 'text-text-secondary'}">
     {#each keySegs as seg, i (i)}{#if seg.hit}<mark class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark>{:else}{seg.text}{/if}{/each}
   </span>
 
-  <!-- 개인화 마커(즐겨찾기/워치) — 과하지 않게, 제목 앞 -->
+  <!-- Personal markers (favorite/watch) — quiet, before title -->
   {#if isFavorite || isWatching}
     <span class="flex flex-none items-center gap-0.5 text-[10px]" aria-hidden="true">
       {#if isFavorite}<span class="text-status-stale" title={t('common.favorite')}>★</span>{/if}
@@ -179,18 +180,18 @@
     </span>
   {/if}
 
-  <!-- 제목 -->
+  <!-- Title -->
   <span class="min-w-0 flex-1 truncate font-medium text-text-primary" title={issue.summary}>
     {#each summarySegs as seg, i (i)}{#if seg.hit}<mark class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark>{:else}{seg.text}{/if}{/each}
     {#if filters.filters.reopened && issue.reopen_count > 0 && issue.reopen_reason}
-      <!-- 사유 인라인은 재오픈 뷰에서만 — 일반 리스트에선 🔁 배지+툴팁으로 충분(노이즈 최소화) -->
+      <!-- Inline reason only on reopen view — elsewhere 🔁 badge+tooltip is enough -->
       <span class="ml-1 text-[11px] text-status-reopen/80" title={issue.reopen_reason}>
         · {issue.reopen_reason}
       </span>
     {/if}
   </span>
 
-  <!-- 배지: 재오픈 / 정체 -->
+  <!-- Badges: reopen / stale -->
   {#if cols.has('reopen') && issue.reopen_count > 0}
     <button
       type="button"
@@ -221,7 +222,7 @@
     </button>
   {/if}
 
-  <!-- 배포 단계 배지 (qa=청록 강조 / 나머지 흐린 톤) -->
+  <!-- Deploy-stage badge (qa=teal emphasis / others muted) -->
   {#if cols.has('deploy') && deployMeta}
     <button
       type="button"
@@ -245,7 +246,7 @@
     </span>
   {/if}
 
-  <!-- 선택 노출 컬럼(뷰 설정) — 값 있을 때만, 대부분 클릭 시 해당 값 필터 추가 -->
+  <!-- Optional columns (view settings) — only when valued; most add a filter on click -->
   {#if cols.has('severity') && issue.severity}
     <button
       type="button"
@@ -359,7 +360,7 @@
     </span>
   {/if}
 
-  <!-- 라벨 칩 -->
+  <!-- Label chips -->
   {#if cols.has('labels') && shownLabels.length}
     <span class="hidden flex-none items-center gap-1 md:flex">
       {#each shownLabels as label (label)}
@@ -378,7 +379,7 @@
     </span>
   {/if}
 
-  <!-- 담당자 -->
+  <!-- Assignee -->
   {#if cols.has('assignee')}
     <Avatar
       email={issue.assignee_email}
@@ -389,7 +390,7 @@
     />
   {/if}
 
-  <!-- 상대시간(갱신). 24h 내 갱신은 액센트로 최신성 강조 -->
+  <!-- Relative updated time. Accent within 24h for recency. -->
   {#if cols.has('updated')}
     <span
       class="w-10 flex-none text-right text-[11px] {isFresh

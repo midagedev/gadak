@@ -1,13 +1,14 @@
 /*
- * Issue Navigator — 필터/디스플레이/파생 리스트 스토어 ([explore], 계약 §2)
+ * Issue Navigator — filter/display/derived-list store ([explore], contract §2)
  *
- * 설계: **URL 해시가 뷰의 단일 진실원**이다.
- *  - filters/display 는 router.params 에서 파생(parseConfig) → "뷰 = URL" 이 자연스럽게 성립.
- *  - 모든 변경(칩 추가/제거·그룹핑·정렬·검색어)은 setParams(replace) 로 URL 을 갱신 → 파생 재계산.
- *  - 선택 이슈(?issue) 변경이 필터 재계산을 유발하지 않도록, 뷰 관련 파람만 추린
- *    안정 문자열(#viewKey)을 중간 파생으로 두어 리필터를 차단한다(성능 규율).
+ * Design: **the URL hash is the single source of truth for the view**.
+ *  - filters/display derive from router.params (parseConfig) → "view = URL" holds naturally.
+ *  - Every change (chip add/remove · grouping · sort · query) updates the URL via
+ *    setParams(replace) → derived values recompute.
+ *  - Selecting an issue (?issue) must not refilter: an intermediate stable string
+ *    (#viewKey) of view-only params blocks refilter (perf discipline).
  *
- * 모든 파생(visibleIssues/groups/facets)은 로컬 연산 — 서버 왕복 없음.
+ * All derived values (visibleIssues/groups/facets) are local — no server round-trip.
  */
 
 import { config } from '../lib/config'
@@ -45,7 +46,7 @@ import {
 } from '../lib/i18n'
 import { write } from './write.svelte'
 
-/* ── 파생 그룹 타입 ── */
+/* ── Derived group types ── */
 
 export interface GroupCounts {
   total: number
@@ -60,16 +61,16 @@ export interface IssueGroup {
   counts: GroupCounts
 }
 
-/** FilterBar 가 렌더하는 활성 필터 칩 1개. */
+/** One active filter chip rendered by FilterBar. */
 export interface ActiveChip {
-  /** 어떤 필드/플래그/기간인지. */
+  /** Which field/flag/range this chip represents. */
   kind: 'multi' | 'flag' | 'range'
   field: string
-  value?: string // multi 값
-  label: string // 표시 문자열
+  value?: string // multi value
+  label: string // display string
 }
 
-/* ── facet(추가 드롭다운용 값 분포) ── */
+/* ── facet (value distribution for add dropdowns) ── */
 
 export interface FacetValue {
   value: string
@@ -78,10 +79,10 @@ export interface FacetValue {
 }
 
 class FiltersStore {
-  /* URL → 뷰 관련 파람만 추린 안정 문자열. 선택 이슈 변경엔 불변 → 리필터 차단. */
+  /* URL → stable string of view-only params. Unchanged by issue selection → blocks refilter. */
   #viewKey = $derived(VIEW_PARAM_KEYS.map((k) => `${k}=${router.params.get(k) ?? ''}`).join('&'))
 
-  /* #viewKey 가 실제로 바뀔 때만 재파싱되는 config. */
+  /* Config re-parsed only when #viewKey actually changes. */
   #config = $derived(parseFromKey(this.#viewKey))
 
   get filters(): ViewFilters {
@@ -92,9 +93,9 @@ class FiltersStore {
   }
 
   /**
-   * 실제 적용되는 정렬. 검색어가 있고 정렬이 기본값(updated)이면 관련도순으로 자동 승격한다.
-   *  (사용자가 명시적으로 다른 정렬을 고르면 그것을 우선 — 단, updated 는 "미선택"과
-   *   구분되지 않으므로 검색 중엔 관련도로 본다. 정렬 UI 표시도 이 값을 따른다.)
+   * Sort actually applied. With a query and default sort (updated), auto-promote
+   *  to relevance. (An explicit other sort wins — but updated is indistinguishable
+   *  from "unset", so during search we treat it as relevance. Sort UI shows this too.)
    */
   get effectiveSort(): SortKey {
     const { filters: f, display: d } = this.#config
@@ -102,34 +103,34 @@ class FiltersStore {
     return d.sort
   }
 
-  /** 뷰(필터+디스플레이) 관련 파람만 담은 안정 문자열. 데이터 변경엔 불변 →
-   *  리스트가 "뷰가 실제로 바뀐 경우"에만 스크롤/커서를 리셋하는 신호로 쓴다. */
+  /** Stable string of view (filter+display) params only. Unchanged by data updates →
+   *  list uses this as the signal to reset scroll/cursor only when the view really changed. */
   get viewKey(): string {
     return this.#viewKey
   }
 
-  /* ── 서버 전문검색 결과(휘발성, 뷰 직렬화 대상 아님) ── */
+  /* ── Server full-text search results (volatile; not part of view serialization) ── */
   serverMatchKeys = $state<string[]>([])
   serverMatchQuery = $state('')
   searching = $state(false)
   /** Last query that failed body search (UI can offer Retry). */
   searchError = $state<string | null>(null)
 
-  /* ── 필터 적용 결과(그룹 무관 평면, 정렬 반영) ── */
+  /* ── Filter result (flat, group-agnostic, sorted) ── */
   visibleIssues = $derived.by(() => {
     const f = this.#config.filters
     const list = filterIssues(issues.allIssues, f)
     const sort = this.effectiveSort
-    // 관련도순은 검색어·최근성·개인화를 함께 봐야 하므로 컨텍스트를 넘긴다.
+    // Relevance needs query · recency · personalization together — pass context.
     const ctx: RelevanceContext | undefined =
       sort === 'relevance' ? buildRelevanceContext(f.q) : undefined
     return sortIssues(list, sort, this.#config.display.dir, ctx)
   })
 
-  /* ── 그룹핑 결과(디스플레이 group_by 기준). group_by=none 이면 단일 그룹. ── */
+  /* ── Grouping (display.group_by). group_by=none → single group. ── */
   groups = $derived.by(() => buildGroups(this.visibleIssues, this.#config.display.group_by))
 
-  /* ── FilterBar 활성 칩 ── */
+  /* ── FilterBar active chips ── */
   activeChips = $derived.by(() =>
     buildChips(this.#config.filters, issues.members, issues.allIssues),
   )
@@ -137,8 +138,9 @@ class FiltersStore {
   hasFilters = $derived(hasAnyFilter(this.#config.filters))
 
   /**
-   * 현재 뷰가 이미 "내 이슈"로 스코프됐는지(담당 또는 보고 필터에 내 이메일 포함).
-   *  이때는 리스트 전체가 내 이슈라 개별 하이라이팅이 오히려 노이즈이므로 끈다.
+   * Whether the current view is already scoped to "my issues" (my email in
+   *  assignee or reporter filters). Whole list is then mine, so per-row highlight
+   *  is noise — turn it off.
    */
   scopedToMe = $derived.by(() => {
     const e = me.email?.toLowerCase()
@@ -148,7 +150,7 @@ class FiltersStore {
     return has(f.assignee_email) || has(f.reporter_email)
   })
 
-  /** 이 이슈가 내 담당인지(하이라이팅 판정). 대소문자 무시. */
+  /** Whether this issue is assigned to me (highlight check). Case-insensitive. */
   isMine(issue: IssueLite): boolean {
     const e = me.email
     return (
@@ -158,21 +160,21 @@ class FiltersStore {
     )
   }
 
-  /** facet: 현재 전체 풀 기준 값 분포(추가 드롭다운). member 이름 라벨 포함. */
+  /** facet: value distribution over the full pool (add dropdowns). Includes member name labels. */
   facets = $derived.by(() => buildFacets(issues.allIssues, issues.members))
 
-  /* ── 변경 연산: 전부 URL 갱신(replace, history 미적재) ── */
+  /* ── Mutations: all via URL update (replace, no history push) ── */
 
   #apply(config: ViewConfig): void {
     setParams(configToParams(config), true)
   }
 
-  /** 현재 config 의 독립 사본(배열까지 분리). 변경 연산의 시작점. */
+  /** Independent copy of current config (arrays cloned). Starting point for mutations. */
   private snapshot(): ViewConfig {
     return mergeConfig(this.#config)
   }
 
-  /** 다중값 토글(있으면 제거, 없으면 추가). */
+  /** Toggle a multi value (remove if present, else add). */
   toggleValue(field: MultiField, value: string): void {
     const c = this.snapshot()
     const arr = c.filters[field]
@@ -180,7 +182,7 @@ class FiltersStore {
     this.#apply(c)
   }
 
-  /** 다중값 추가(칩 클릭=필터 추가; 중복은 무시). */
+  /** Add a multi value (chip click = add filter; ignore duplicates). */
   addValue(field: MultiField, value: string): void {
     if (!value) return
     if (this.#config.filters[field].includes(value)) return
@@ -213,7 +215,7 @@ class FiltersStore {
     const c = this.snapshot()
     c.filters.q = q
     this.#apply(c)
-    // 로컬 질의가 바뀌면 이전 서버검색 결과는 무효
+    // Local query change invalidates prior server-search results
     if (!q.trim()) this.clearServerSearch()
   }
 
@@ -235,7 +237,7 @@ class FiltersStore {
     this.#apply(c)
   }
 
-  /** 리스트 컬럼 on/off 토글(카탈로그 순서 유지, 전부 끄기 허용). */
+  /** Toggle a list column on/off (keeps catalog order; allowing all-off is intentional). */
   toggleColumn(key: ColumnKey): void {
     const c = this.snapshot()
     const cur = c.display.columns
@@ -244,31 +246,31 @@ class FiltersStore {
     this.#apply(c)
   }
 
-  /** 컬럼 구성을 기본값으로 되돌림. */
+  /** Reset column set to defaults. */
   resetColumns(): void {
     const c = this.snapshot()
     c.display.columns = defaultColumns()
     this.#apply(c)
   }
 
-  /** 저장/기본 뷰를 통째 적용. */
+  /** Apply a saved/default view wholesale. */
   applyConfig(config: ViewConfig): void {
     this.clearServerSearch()
     this.#apply(mergeConfig(config))
   }
 
-  /** 현재 뷰 config(저장용). */
+  /** Current view config (for save). */
   currentConfig(): ViewConfig {
     return mergeConfig(this.#config)
   }
 
-  /** 전체 필터/디스플레이 초기화(선택 이슈는 보존). */
+  /** Reset all filters/display (preserve selected issue). */
   clearAll(): void {
     this.clearServerSearch()
     this.#apply(emptyConfig())
   }
 
-  /* ── 서버 전문검색 ── */
+  /* ── Server full-text search ── */
 
   async runServerSearch(): Promise<void> {
     const q = this.#config.filters.q.trim()
@@ -295,7 +297,7 @@ class FiltersStore {
     this.searchError = null
   }
 
-  /** 로컬 결과에 없지만 본문 매칭으로 잡힌 이슈(추가 섹션 렌더). */
+  /** Issues hit by body match but missing from local results (extra section). */
   serverExtraIssues = $derived.by(() => {
     if (!this.serverMatchKeys.length) return [] as IssueLite[]
     const shown = new Set(this.visibleIssues.map((i) => i.issue_key))
@@ -309,22 +311,22 @@ class FiltersStore {
   })
 }
 
-/* display 타입 별칭(가독성). */
+/* display type alias (readability). */
 type ViewDisplayRef = ViewConfig['display']
 
-/* ── 순수 헬퍼 ── */
+/* ── Pure helpers ── */
 
 function parseFromKey(viewKey: string): ViewConfig {
-  // viewKey 는 뷰 파람만 담은 "k=v&k=v" 문자열 → URLSearchParams 로 복원해 파싱.
+  // viewKey is "k=v&k=v" of view params only → rehydrate via URLSearchParams and parse.
   return parseConfig(new URLSearchParams(viewKey))
 }
 
-/** config 를 완전한 형태로 정규화(부분 config 방어) + 배열 참조 분리. */
+/** Normalize config to full shape (partial-config defense) + clone array refs. */
 function mergeConfig(c: ViewConfig): ViewConfig {
   const base = emptyConfig()
   Object.assign(base.filters, c.filters)
   Object.assign(base.display, c.display)
-  // 배열 참조 분리. 컬럼은 저장 뷰가 꺼진 기능의 컬럼을 들고 있을 수 있어 정규화한다.
+  // Clone array refs. Columns may include ones for disabled features in a saved view — normalize.
   for (const field of MULTI_FIELDS) base.filters[field] = [...(c.filters[field] ?? [])]
   base.display.columns = orderColumns(c.display.columns ?? base.display.columns)
   return base
@@ -352,9 +354,10 @@ function matchesSelected(selected: string[], values: string[]): boolean {
   return selected.length === 0 || values.some((value) => selected.includes(value))
 }
 
-/* ── 초성 캐시 ──
- *  제목+담당자의 초성열은 이슈당 1회만 계산하고, updated_at 을 시그니처로 캐시한다.
- *  delta 로 이슈가 갱신되면 시그니처가 바뀌어 자동 무효화된다(10.5K 대상 재계산 방지).
+/* ── Chosung (initial-consonant) cache ──
+ *  title+assignee chosung string is computed once per issue; updated_at is the
+ *  cache signature. Delta updates change the signature → auto-invalidate
+ *  (avoids recomputing over ~10.5K issues).
  */
 const chosungCache = new Map<string, { sig: string; text: string }>()
 
@@ -367,7 +370,7 @@ function issueChosung(issue: IssueLite): string {
   return text
 }
 
-/** 로컬 텍스트 매칭(키/제목/담당자/라벨). chosungQuery 면 제목·담당자 초성열도 부분 매칭. */
+/** Local text match (key/title/assignee/labels). chosungQuery also partial-matches chosung strings. */
 function textMatch(issue: IssueLite, needle: string, chosungQuery: boolean): boolean {
   const hay = [
     issue.issue_key,
@@ -379,17 +382,17 @@ function textMatch(issue: IssueLite, needle: string, chosungQuery: boolean): boo
     .join(' ')
     .toLowerCase()
   if (hay.includes(needle)) return true
-  // 이슈 키 단축형(den1234) 대응. 자모 쿼리(ㅋㅌㅂ)는 normKey 가 '' 이 돼
-  // includes('') 전체 매칭이 되므로 빈 결과는 건너뛴다.
+  // Short issue-key form (den1234). Jamo queries (ㅋㅌㅂ) make normKey '' so
+  // includes('') would match everything — skip empty results.
   const nk = normKey(needle)
   if (nk && normKey(issue.issue_key).includes(nk)) return true
-  // 초성 쿼리("ㅋㅌㅂ")는 제목·담당자 초성열에 부분 매칭
+  // Chosung query ("ㅋㅌㅂ") partial-matches title·assignee chosung strings
   if (chosungQuery && issueChosung(issue).includes(needle)) return true
   return false
 }
 
 function inRange(iso: string | null, from: string | null, to: string | null): boolean {
-  if (!iso) return !from // 값 없으면 하한 없을 때만 통과
+  if (!iso) return !from // no value: pass only when there is no lower bound
   const d = iso.slice(0, 10)
   if (from && d < from) return false
   if (to && d > to) return false
@@ -399,7 +402,7 @@ function inRange(iso: string | null, from: string | null, to: string | null): bo
 export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
   const raw = f.q.trim()
   const needle = raw.toLowerCase()
-  // 초성 판정은 쿼리당 1회만(이슈 루프 밖).
+  // Chosung check once per query (outside the issue loop).
   const chosungQuery = raw ? isChosungQuery(raw) : false
   const out: IssueLite[] = []
   for (const it of all) {
@@ -479,9 +482,9 @@ function cmpStr(a: string | null, b: string | null, dir: 1 | -1): number {
   return av < bv ? -dir : av > bv ? dir : 0
 }
 
-/* ── 관련도 랭킹 ──
- *  검색어(needle) 기준 매칭 강도 + 최근성 + 개인화 보너스로 점수를 매긴다.
- *  needle 은 이미 trim·소문자화된 쿼리. chosungQuery 면 초성열도 후보.
+/* ── Relevance ranking ──
+ *  Score = match strength for needle + recency + personalization bonuses.
+ *  needle is already trim·lowercased. chosungQuery also considers chosung strings.
  */
 export interface RelevanceContext {
   needle: string
@@ -491,7 +494,7 @@ export interface RelevanceContext {
   recentKeys: Set<string>
 }
 
-/** 관련도 계산에 필요한 컨텍스트 스냅샷(개인화는 me 스토어에서). */
+/** Context snapshot for relevance (personalization from me store). */
 function buildRelevanceContext(rawQuery: string): RelevanceContext {
   const raw = rawQuery.trim()
   return {
@@ -510,7 +513,7 @@ function relevanceScore(issue: IssueLite, ctx: RelevanceContext): number {
   const keyLower = issue.issue_key.toLowerCase()
   const summaryLower = issue.summary.toLowerCase()
 
-  // 매칭 강도(가장 강한 위치 하나만 base 로) — 키 > 제목 > 초성 > 담당자·라벨.
+  // Match strength (strongest location only as base) — key > title > chosung > assignee·labels.
   let base = 0
   if (keyLower === needle || normKey(issue.issue_key) === normKey(needle)) base = 1000
   else if (keyLower.startsWith(needle) || normKey(issue.issue_key).startsWith(normKey(needle)))
@@ -531,7 +534,7 @@ function relevanceScore(issue: IssueLite, ctx: RelevanceContext): number {
       base = 60
   }
 
-  // 최근성 보너스(갱신 기준).
+  // Recency bonus (by updated_at).
   let score = base
   if (issue.updated_at) {
     const age = ctx.now - Date.parse(issue.updated_at)
@@ -541,7 +544,7 @@ function relevanceScore(issue: IssueLite, ctx: RelevanceContext): number {
     }
   }
 
-  // 개인화 보너스: 내 담당 / 최근 본 이슈.
+  // Personalization: assigned to me / recently viewed.
   if (ctx.myEmail && issue.assignee_email === ctx.myEmail) score += 40
   if (ctx.recentKeys.has(issue.issue_key)) score += 25
 
@@ -557,7 +560,7 @@ export function sortIssues(
   const d: 1 | -1 = dir === 'asc' ? 1 : -1
   const arr = [...list]
   if (sort === 'relevance') {
-    // 관련도는 방향 무관(항상 높은 점수 우선). 점수 캐시로 재계산 방지, 동점은 최신 갱신순.
+    // Relevance ignores dir (always higher score first). Cache scores; ties by newest update.
     const rc = ctx ?? buildRelevanceContext('')
     const scoreOf = new Map<string, number>()
     for (const it of arr) scoreOf.set(it.issue_key, relevanceScore(it, rc))
@@ -576,7 +579,7 @@ export function sortIssues(
         return diff !== 0 ? diff : cmpStr(a.updated_at, b.updated_at, -1)
       }
       case 'priority': {
-        // priority_rank: 작을수록 높은 우선순위. null 은 항상 뒤로.
+        // priority_rank: lower = higher priority. null always sorts last.
         const ar = a.priority_rank
         const br = b.priority_rank
         if (ar == null && br == null) return cmpStr(a.updated_at, b.updated_at, -1)
@@ -593,7 +596,7 @@ export function sortIssues(
   return arr
 }
 
-/* ── 그룹핑 ── */
+/* ── Grouping ── */
 
 function groupKeyOf(issue: IssueLite, by: GroupBy): { key: string; label: string } {
   switch (by) {
@@ -617,7 +620,7 @@ function groupKeyOf(issue: IssueLite, by: GroupBy): { key: string; label: string
         ? { key: issue.d1_group, label: issue.d1_group }
         : { key: '', label: t('common.unclassified') }
     case 'product':
-      // 그룹→제품 매핑은 조직마다 다르므로 런타임 config 에서 읽는다.
+      // Group→product mapping is org-specific; read from runtime config.
       return config().productByGroup[issue.d1_group ?? ''] ?? { key: '', label: t('group.noProduct') }
     case 'issue_type':
       return { key: issue.issue_type || '', label: issue.issue_type || t('group.noType') }
@@ -669,7 +672,7 @@ export function buildGroups(list: IssueLite[], by: GroupBy): IssueGroup[] {
     accCounts(g.counts, it)
   }
   const groups = [...map.values()]
-  // 그룹 정렬: 빈 키는 뒤로, 진행 단계/우선순위/심각도는 업무 순서, 나머지는 이름순.
+  // Group sort: empty keys last; status/priority/severity by work order; else by name.
   groups.sort((a, b) => {
     const ae = a.key === ''
     const be = b.key === ''
@@ -729,7 +732,7 @@ function rankOf(issue: IssueLite | undefined): number {
   return issue?.priority_rank ?? Number.MAX_SAFE_INTEGER
 }
 
-/* ── 활성 칩 ── */
+/* ── Active chips ── */
 
 function FIELD_LABEL(field: string): string {
   return fieldLabel(field)
@@ -815,7 +818,7 @@ function buildFacets(
     for (const suite of it.qa_suites ?? []) bump(counters.qa_suite, suite.key)
     if (it.qa_impact_state) bump(counters.qa_impact, it.qa_impact_state)
     {
-      // 배포 단계: 'none'(릴리즈 미포함)은 노이즈라 파셋에서 제외한다.
+      // Deploy stage: 'none' (not in any release) is noise — omit from facets.
       const ds = deployStateOf(it)
       if (ds !== 'none') bump(counters.deploy_state, ds)
     }

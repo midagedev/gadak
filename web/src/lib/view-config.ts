@@ -1,24 +1,27 @@
 /*
- * Issue Navigator — 뷰 설정(필터 + 디스플레이)의 타입·직렬화·파싱 ([explore])
+ * Issue Navigator — view config (filters + display) types/serialize/parse ([explore])
  *
- * "뷰 = 필터+디스플레이 직렬화 객체"(작업 스펙). 이 모듈이 그 스키마의 단일 정의다.
- *  - URL 해시 쿼리파람 ↔ ViewConfig 왕복 (setParams 로 반영, router.params 에서 복원)
- *  - 저장 뷰(개인 localStorage / 팀 api)의 config 로도 그대로 직렬화된다(서버는 불투명 JSON 취급)
+ * "View = serialized filter+display object" (work spec). This module is the single
+ * schema definition.
+ *  - Round-trip URL hash query params ↔ ViewConfig (setParams writes, router.params restores)
+ *  - Same shape serializes into saved views (personal localStorage / team API);
+ *    server treats config as opaque JSON
  *
- * 원칙: 필터는 "무엇을"(다중값 OR + 불리언 + 기간 + 텍스트), 디스플레이는 "어떻게"(그룹핑/정렬).
- *  둘은 독립 축이며 모두 로컬 파생으로 계산된다(서버 왕복 없음).
+ * Principle: filters are "what" (multi-value OR + booleans + ranges + text);
+ *  display is "how" (grouping/sort). Independent axes; both computed as local
+ *  derivations (no server round-trip).
  */
 
 import { config, feature, type ScryFeatures } from './config'
 import { columnLabel, deployStateLabel } from './i18n'
 import type { DeployState, IssueLite } from './types'
 
-/* ── 필터 상태 ── */
+/* ── Filter state ── */
 
-/** 다중값 필터 필드(전부 OR 매칭, 필드 간은 AND). */
+/** Multi-value filter fields (OR within a field, AND across fields). */
 export interface ViewFilters {
-  status_category: string[] // new | inprogress | done (유효 분류)
-  status: string[] // Jira 원본 상태 문자열
+  status_category: string[] // new | inprogress | done (effective buckets)
+  status: string[] // Raw Jira status strings
   assignee_email: string[]
   reporter_email: string[]
   d1_group: string[]
@@ -41,20 +44,20 @@ export interface ViewFilters {
   qa_run: string[]
   qa_suite: string[]
   qa_impact: string[]
-  deploy_state: string[] // 배포 단계 (merged/dev/qa_preview/qa/prod)
+  deploy_state: string[] // Deploy stage (merged/dev/qa_preview/qa/prod)
   cs: string[]
   jira_project: string[] // issue_key prefix (DEN / DBO / CRWN ...)
   source_project: string[]
-  // 불리언 플래그
+  // Boolean flags
   reopened: boolean
   unassigned: boolean
   stale: boolean
-  // 기간 (ISO date, inclusive). null = 미설정
+  // Date ranges (ISO date, inclusive). null = unset
   created_from: string | null
   created_to: string | null
   updated_from: string | null
   updated_to: string | null
-  // 로컬 텍스트 질의(키/제목/담당자/라벨 즉시 매칭)
+  // Local text query (instant match on key/title/assignee/labels)
   q: string
 }
 
@@ -72,14 +75,15 @@ export type GroupBy =
   | 'qa_impact'
   | 'source_project'
   | 'epic'
-// 'relevance' 는 검색어가 있을 때의 관련도순. 기본 정렬(updated)에서 자동 승격되며
-// 명시 선택 시에만 URL 에 직렬화된다(구 URL 은 relevance 를 모르므로 하위호환 유지).
+// 'relevance' = rank by search relevance when a query is present. Auto-promoted from
+// the default sort (updated); only serialized into the URL when explicitly chosen
+// (older URLs do not know relevance — keep backward compatible).
 export type SortKey = 'updated' | 'created' | 'priority' | 'reopen_count' | 'relevance'
 export type SortDir = 'asc' | 'desc'
 
-/* ── 리스트 컬럼(행에 노출할 후행 필드) ──
- *  레이아웃은 "밀집 행 유지 + 필드 on/off" — 체크한 컬럼만 행 우측에 렌더한다.
- *  컬럼 구성은 display 의 일부라 URL·저장 뷰에 함께 직렬화된다(뷰별 컬럼).
+/* ── List columns (trailing fields shown on a row) ──
+ *  Layout is "keep dense rows + field on/off" — only checked columns render on the right.
+ *  Column set is part of display, so it serializes into URL and saved views (per-view columns).
  */
 export const COLUMN_KEYS_ALL = [
   'assignee',
@@ -103,20 +107,20 @@ export const COLUMN_KEYS_ALL = [
 ] as const
 export type ColumnKey = (typeof COLUMN_KEYS_ALL)[number]
 
-/** 컬럼 카탈로그 항목(라벨은 활성 로케일 기준). */
+/** Column catalog entry (label from active locale). */
 export interface ColumnDef {
   key: ColumnKey
   label: string
 }
 
-/** 라벨은 호출 시점 로케일로 계산한다. */
+/** Labels computed at call time for the active locale. */
 export function COLUMNS(): ColumnDef[] {
   return COLUMN_KEYS_ALL.map((key) => ({ key, label: columnLabel(key) }))
 }
 
 const COLUMN_KEYS = COLUMN_KEYS_ALL as readonly ColumnKey[]
 
-/** 선택 기능에 딸린 컬럼 — 해당 플래그가 꺼지면 카탈로그에서 사라진다. */
+/** Columns tied to optional features — drop from the catalog when the flag is off. */
 const COLUMN_FEATURE: Partial<Record<ColumnKey, keyof ScryFeatures>> = {
   qa_impact: 'qa',
   deploy: 'deploy',
@@ -128,7 +132,7 @@ function columnEnabled(key: ColumnKey): boolean {
   return !f || feature(f)
 }
 
-/** 컬럼 메뉴가 노출할 카탈로그(꺼진 기능의 컬럼 제외). */
+/** Catalog the columns menu exposes (excludes columns for disabled features). */
 export function columnCatalog(): ColumnDef[] {
   return COLUMNS().filter((c) => columnEnabled(c.key))
 }
@@ -143,7 +147,7 @@ const DEFAULT_COLUMN_KEYS: ColumnKey[] = [
   'deploy',
 ]
 
-/** 기본 노출 컬럼 — 현재 행 동작과 동일(조건부 배지는 데이터 있을 때만 나타남). */
+/** Default visible columns — matches current row behavior (conditional badges only when data exists). */
 export function defaultColumns(): ColumnKey[] {
   return DEFAULT_COLUMN_KEYS.filter(columnEnabled)
 }
@@ -152,7 +156,7 @@ function isColumnKey(v: string): v is ColumnKey {
   return (COLUMN_KEYS as readonly string[]).includes(v)
 }
 
-/** 임의 키 목록을 카탈로그 순서로 정규화(유효+활성 키만, 빈 목록 허용 — 전부 끄기 가능). */
+/** Normalize an arbitrary key list into catalog order (valid+enabled only; empty list allowed = all off). */
 export function orderColumns(keys: readonly string[]): ColumnKey[] {
   const set = new Set(keys.filter(isColumnKey) as ColumnKey[])
   return COLUMN_KEYS.filter((k) => set.has(k) && columnEnabled(k))
@@ -170,7 +174,7 @@ export interface ViewConfig {
   display: ViewDisplay
 }
 
-/* ── 다중값 필드 목록(메타 주도 로직에 재사용) ── */
+/* ── Multi-value field list (reused by meta-driven logic) ── */
 
 export const MULTI_FIELDS = [
   'status_category',
@@ -204,7 +208,7 @@ export const MULTI_FIELDS = [
 ] as const
 export type MultiField = (typeof MULTI_FIELDS)[number]
 
-/** 선택 기능에서 오는 필터 필드 — 플래그가 꺼지면 필터 메뉴/URL 양쪽에서 무효. */
+/** Filter fields from optional features — invalid in both filter menu and URL when flag is off. */
 const FIELD_FEATURE: Partial<Record<MultiField, keyof ScryFeatures>> = {
   d1_group: 'teamGroups',
   qa_run: 'qa',
@@ -218,12 +222,12 @@ export function fieldEnabled(field: MultiField): boolean {
   return !f || feature(f)
 }
 
-/** 필터 메뉴가 노출할 필드 목록(꺼진 기능의 필드 제외). */
+/** Fields the filter menu exposes (excludes fields for disabled features). */
 export function filterFields(): MultiField[] {
   return MULTI_FIELDS.filter(fieldEnabled)
 }
 
-/** 선택 기능에서 오는 그룹핑 축. */
+/** Grouping axes from optional features. */
 const GROUP_FEATURE: Partial<Record<GroupBy, keyof ScryFeatures>> = {
   d1_group: 'teamGroups',
   product: 'teamGroups',
@@ -238,7 +242,7 @@ export function groupByEnabled(by: GroupBy): boolean {
 export const FLAG_FIELDS = ['reopened', 'unassigned', 'stale'] as const
 export type FlagField = (typeof FLAG_FIELDS)[number]
 
-/* ── 기본값 ── */
+/* ── Defaults ── */
 
 export function emptyFilters(): ViewFilters {
   return {
@@ -294,8 +298,9 @@ export function emptyConfig(): ViewConfig {
   return { filters: emptyFilters(), display: defaultDisplay() }
 }
 
-/* ── URL 파람 키 매핑(짧은 키로 URL 을 간결하게) ──
- *  선택 이슈(?issue)·활성 뷰(?view) 는 뷰 직렬화에 포함하지 않는다(각각 selection·사이드바 소관).
+/* ── URL param key map (short keys keep URLs compact) ──
+ *  Selected issue (?issue) and active view (?view) are not part of view serialization
+ *  (owned by selection / sidebar respectively).
  */
 
 const MULTI_KEY: Record<MultiField, string> = {
@@ -336,15 +341,15 @@ const RANGE_KEY = {
   updated_to: 'ut',
 } as const
 
-const FLAG_KEY = 'fl' // 콤마조인된 플래그 목록
+const FLAG_KEY = 'fl' // Comma-joined flag list
 const Q_KEY = 'q'
 const GROUP_KEY = 'g'
 const SORT_KEY = 's'
 const DIR_KEY = 'd'
-const COLS_KEY = 'cl' // 콤마조인된 컬럼 목록. 전부 끔 = 'none'
+const COLS_KEY = 'cl' // Comma-joined column list. All off = 'none'
 const COLS_NONE = 'none'
 
-/** 뷰 직렬화에 관여하는 모든 파람 키(안정적인 viewKey 계산에 사용, 순서 고정). */
+/** Every param key involved in view serialization (stable viewKey; fixed order). */
 export const VIEW_PARAM_KEYS: string[] = [
   Q_KEY,
   ...Object.values(MULTI_KEY),
@@ -356,7 +361,7 @@ export const VIEW_PARAM_KEYS: string[] = [
   COLS_KEY,
 ]
 
-/* ── 파싱: URLSearchParams → ViewConfig ── */
+/* ── Parse: URLSearchParams → ViewConfig ── */
 
 function splitList(v: string | null): string[] {
   if (!v) return []
@@ -369,7 +374,7 @@ function splitList(v: string | null): string[] {
 export function parseConfig(params: URLSearchParams): ViewConfig {
   const f = emptyFilters()
   for (const field of MULTI_FIELDS) {
-    // 꺼진 기능의 필드는 URL 로도 켜지지 않는다(공유 링크가 죽은 필터를 되살리지 않게).
+    // Disabled-feature fields stay off even from the URL (shared links must not revive dead filters).
     f[field] = fieldEnabled(field) ? splitList(params.get(MULTI_KEY[field])) : []
   }
   const flags = splitList(params.get(FLAG_KEY))
@@ -389,8 +394,8 @@ export function parseConfig(params: URLSearchParams): ViewConfig {
   if (s && isSortKey(s)) d.sort = s
   const dir = params.get(DIR_KEY)
   if (dir === 'asc' || dir === 'desc') d.dir = dir
-  // 빈 문자열(cl=)은 "미설정"으로 보고 기본값 유지 — #viewKey 재직렬화가 미설정 키도
-  // `cl=` 로 항상 붙이기 때문. 전부 끄기는 명시적 sentinel 'none' 으로만.
+  // Empty string (cl=) means "unset" → keep defaults: #viewKey re-serialization always
+  // emits `cl=` for unset keys too. All-off is only the explicit sentinel 'none'.
   const cl = params.get(COLS_KEY)
   if (cl) d.columns = cl === COLS_NONE ? [] : orderColumns(splitList(cl))
 
@@ -420,8 +425,8 @@ function isSortKey(v: string): v is SortKey {
   return ['updated', 'created', 'priority', 'reopen_count', 'relevance'].includes(v)
 }
 
-/* ── 직렬화: ViewConfig → URL 파람 델타 ──
- *  값이 비면 null 을 넣어 setParams 가 해당 키를 제거하도록 한다(URL 청결 유지).
+/* ── Serialize: ViewConfig → URL param delta ──
+ *  Empty values become null so setParams drops the key (keeps URLs clean).
  */
 
 export function configToParams(config: ViewConfig): Record<string, string | null> {
@@ -444,12 +449,12 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   out[RANGE_KEY.updated_to] = f.updated_to || null
   out[Q_KEY] = f.q ? f.q : null
 
-  // 진행 단계가 기본값이다. 섹션 없음을 선택한 경우에는 g=none 을 명시해 보존한다.
+  // Status-category grouping is the default. Explicit g=none preserves "no sections".
   out[GROUP_KEY] = d.group_by !== 'status_category' ? d.group_by : null
   out[SORT_KEY] = d.sort !== 'updated' ? d.sort : null
   out[DIR_KEY] = d.dir !== 'desc' ? d.dir : null
 
-  // 컬럼: 기본과 같으면 생략(URL 청결), 전부 끄면 'none' 으로 보존.
+  // Columns: omit when default (clean URL); all-off preserved as 'none'.
   const def = defaultColumns()
   const colsEqDefault =
     d.columns.length === def.length && d.columns.every((c, i) => c === def[i])
@@ -458,11 +463,11 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   return out
 }
 
-/* ── 필터 적용 판정 ── */
+/* ── Filter application helpers ── */
 
 /**
- * status_category 를 못 주는 응답용 폴백. 사이트/계정 언어마다 상태 이름이 달라
- * 신뢰할 수 없으므로 어느 Jira 에서나 같은 뜻인 일반 항목만 남긴다.
+ * Fallback when status_category is missing. Status names vary by site/account language
+ * and cannot be trusted, so keep only generic names that mean the same on every Jira.
  */
 export const RESOLVED_STATUS_NAMES = new Set([
   'resolved',
@@ -475,7 +480,7 @@ export const RESOLVED_STATUS_NAMES = new Set([
 
 export type StatusCategory = 'new' | 'inprogress' | 'done'
 
-/** 서버가 준 status_category 를 1순위로 신뢰하고, 없을 때만 상태 이름으로 추정한다. */
+/** Trust server status_category first; fall back to status name only when absent. */
 export function effectiveCategory(issue: IssueLite): StatusCategory {
   const sc = (issue.status_category ?? '').toLowerCase()
   if (sc === 'new' || sc === 'inprogress' || sc === 'done') return sc
@@ -484,14 +489,14 @@ export function effectiveCategory(issue: IssueLite): StatusCategory {
 }
 
 /**
- * 이슈의 배포 단계. deploy_status 미전송(구 서버)·빈 객체는 'none' 으로 정규화.
- *  (백엔드 사전계산과 동일 의미 — 프론트는 파생만 한다.)
+ * Issue deploy stage. Missing deploy_status (older server) or empty object → 'none'.
+ *  (Same meaning as backend precompute — front only derives.)
  */
 export function deployStateOf(issue: IssueLite): DeployState {
   return issue.deploy_status?.state ?? 'none'
 }
 
-/** 배포 단계 라벨(필터 파셋/칩 공용) — 활성 로케일. */
+/** Deploy-stage labels (shared by filter facets/chips) — active locale. */
 export function DEPLOY_STATE_LABEL(): Record<DeployState, string> {
   return {
     none: deployStateLabel('none'),
@@ -503,14 +508,14 @@ export function DEPLOY_STATE_LABEL(): Record<DeployState, string> {
   }
 }
 
-/** 단일 배포 단계 라벨. */
+/** Label for a single deploy stage. */
 export function deployLabel(state: DeployState): string {
   return deployStateLabel(state)
 }
 
 /**
- * 현재 상태로 들어온 뒤 경과 시간(h). status_changed_at 이 기준이고, 없으면 updated_at
- * 으로 대체한다. 둘 다 없으면 0 — 판정 근거가 없으므로 정체로 몰지 않는다.
+ * Hours spent in the current status. Prefer status_changed_at; fall back to updated_at.
+ * 0 when both are missing — no evidence, so do not count as stale.
  */
 export function statusAgeHours(issue: IssueLite): number {
   const iso = issue.status_changed_at ?? issue.updated_at
@@ -519,13 +524,13 @@ export function statusAgeHours(issue: IssueLite): number {
   return Number.isFinite(t) ? Math.max(0, (Date.now() - t) / 3_600_000) : 0
 }
 
-/** 정체 판정: 미완료 + 현재 상태 경과가 임계(config.staleThresholdHours) 초과. */
+/** Stale check: not done + hours in current status exceed config.staleThresholdHours. */
 export function isStale(issue: IssueLite): boolean {
   if (effectiveCategory(issue) === 'done') return false
   return statusAgeHours(issue) > config().staleThresholdHours
 }
 
-/** 활성 필터가 하나라도 있는지(뷰 저장 버튼 노출용). q 제외 여부는 호출부에서 판단. */
+/** Whether any filter is active (for save-view button). Callers decide whether to exclude q. */
 export function hasAnyFilter(f: ViewFilters): boolean {
   for (const field of MULTI_FIELDS) if (f[field].length) return true
   if (f.reopened || f.unassigned || f.stale) return true

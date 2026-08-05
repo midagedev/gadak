@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
-   * 담당자 아바타 ([explore]). profile_image 우선, 실패/부재 시 이니셜 폴백.
-   * 클릭 = 담당자 필터 추가(부모가 onclick 처리). 툴팁으로 이름 노출.
+   * Assignee avatar ([explore]). profile_image first; initials on fail/missing.
+   * Click = add assignee filter (parent handles onclick). Name in tooltip.
    */
   import { t } from '../../lib/i18n'
   import { issues } from '../../stores/issues.svelte'
@@ -27,7 +27,7 @@
   const orgColor = $derived(memberOrgColor(member))
   const tooltip = $derived(memberTooltip(member, displayName))
 
-  // 이니셜 폴백 배경 팔레트(8단, 다크 톤)
+  // Initials fallback palette (8 steps, dark tones)
   const PALETTE = [
     '#4f46e5',
     '#0891b2',
@@ -42,7 +42,7 @@
 
   let broken = $state(false)
   $effect(() => {
-    // email 이 바뀌면 깨짐 상태 초기화
+    // Reset broken state when email changes
     void email
     broken = false
   })

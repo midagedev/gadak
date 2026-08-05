@@ -1,9 +1,9 @@
 <script lang="ts">
   /*
-   * ADF 렌더 컨테이너 ([detail]).
-   * renderAdf(HTML string) 을 {@html} 로 삽입하고, 타이포/여백은 아래 :global(.adf) 규칙이 담당.
-   * ADF 가 없거나 렌더 결과가 비면 fallback 평문 → emptyLabel 순으로 폴백한다.
-   * 렌더는 adf.ts 내부에서 try/catch 되어 예외 시 빈 문자열을 주므로 여기선 결과만 분기한다.
+   * ADF render container ([detail]).
+   * Inserts renderAdf(HTML string) via {@html}; typography/spacing from :global(.adf).
+   * Missing ADF or empty render falls back: plain fallback text → emptyLabel.
+   * adf.ts try/catches render (empty string on throw) so we only branch on results.
    */
   import { t } from '../../lib/i18n'
   import type { AdfNode, DetailAttachment } from '../../lib/types'
@@ -49,7 +49,7 @@
 {#if hasHtml}
   <div class="adf" bind:this={contentElement}>{@html html}</div>
 {:else if hasFallback}
-  <!-- ADF 파싱 불가/부재 시 평문 폴백 (줄바꿈 보존) -->
+  <!-- Plain-text fallback when ADF missing/unparseable (preserve newlines) -->
   <div class="adf whitespace-pre-wrap">{fallback}</div>
 {:else}
   <p class="text-[12px] text-text-muted italic">{emptyLabel}</p>
@@ -57,8 +57,8 @@
 
 <style>
   /*
-   * {@html} 로 들어온 노드는 Svelte 스코핑 대상이 아니므로 :global 로 스타일링한다.
-   * 색/간격은 app.css @theme 의 CSS 변수를 그대로 참조한다(단일 소스).
+   * Nodes from {@html} are outside Svelte scoping — style with :global.
+   * Colors/spacing use app.css @theme CSS vars (single source).
    */
   .adf :global(p) {
     margin: 0.5em 0;
@@ -135,7 +135,7 @@
     border: none;
     border-top: 1px solid var(--color-border-subtle);
   }
-  /* 인라인 code */
+  /* Inline code */
   .adf :global(code) {
     font-family: var(--font-mono);
     font-size: 12px;
@@ -176,7 +176,7 @@
     font-size: 12px;
     line-height: 1.5;
   }
-  /* 멘션 칩 */
+  /* Mention chip */
   .adf :global(.adf-mention) {
     display: inline;
     padding: 0.05em 0.35em;
@@ -185,7 +185,7 @@
     color: var(--color-accent-text);
     background: color-mix(in srgb, var(--color-accent) 22%, transparent);
   }
-  /* 상태 칩 */
+  /* Status chip */
   .adf :global(.adf-status) {
     display: inline-block;
     padding: 0.05em 0.5em;
@@ -199,7 +199,7 @@
   .adf :global(.adf-date) {
     color: var(--color-text-secondary);
   }
-  /* 패널 */
+  /* Panel */
   .adf :global(.adf-panel) {
     margin: 0.6em 0;
     padding: 0.6em 0.9em;
@@ -213,7 +213,7 @@
   .adf :global(.adf-panel > p:last-child) {
     margin-bottom: 0;
   }
-  /* 첨부/인라인 카드 */
+  /* Attachment / inline card */
   .adf :global(.adf-media),
   .adf :global(.adf-inline-card) {
     display: inline-flex;
@@ -285,7 +285,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* 테이블 */
+  /* Table */
   .adf :global(.adf-table-wrap) {
     margin: 0.6em 0;
     overflow-x: auto;
@@ -307,7 +307,7 @@
     font-weight: 600;
     color: var(--color-text-primary);
   }
-  /* 태스크 리스트 */
+  /* Task list */
   .adf :global(.adf-task-item) {
     display: flex;
     gap: 0.4em;

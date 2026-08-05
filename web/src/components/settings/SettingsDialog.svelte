@@ -1,12 +1,13 @@
 <script lang="ts">
   /*
-   * 서버 설정 편집 다이얼로그 (`~/.scry/config.json`, loopback 전용 API).
-   *  - 열릴 때 GET settings/, 저장은 PUT settings/(전체 교체) → 성공 시 location.reload().
-   *    config.json·bootstrap 멤버·그룹 주입이 전부 서버 파생이라 전체 리로드가 가장 정직하다.
-   *  - Record/배열은 편집용 행 배열로 펼쳐 두고 저장 시 다시 조립한다(빈 키 행은 버림).
-   *  - "고급" 의 JSON textarea 와 폼은 마지막 수정이 이긴다(파싱 성공 시 즉시 폼에 반영).
-   *  Jira 개인 토큰은 JiraKeySettings 담당 — 여기선 링크만.
-   *  JiraKeySettings 의 모달 패턴을 따른다(Esc/배경 클릭 닫기).
+   * Server settings editor dialog (`~/.scry/config.json`, loopback-only API).
+   *  - Open → GET settings/; save → PUT settings/ (full replace) → location.reload() on ok.
+   *    config.json, bootstrap members, and group inject are all server-derived — full
+   *    reload is the honest path.
+   *  - Records/arrays expand to editable row arrays and reassemble on save (drop empty keys).
+   *  - Advanced JSON textarea vs form: last edit wins (successful parse rehydrates form).
+   *  Personal Jira token is JiraKeySettings' job — only a link here.
+   *  Same modal pattern as JiraKeySettings (Esc / backdrop close).
    */
   import { t, locale, setLocale, type Locale } from '../../lib/i18n'
   import { onMount } from 'svelte'
@@ -162,7 +163,7 @@
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
   }
 
-  /** 서버 응답(또는 JSON textarea)을 폼 상태로 펼친다. */
+  /** Expand server response (or JSON textarea) into form state. */
   function load(s: ScrySettings) {
     projectsText = joinCsv(s.projects)
     staleText = String(s.staleThresholdHours ?? 72)
@@ -219,7 +220,7 @@
     bodyFieldsText = joinCsv(s.bodyFields)
   }
 
-  /** 폼 상태 → PUT 페이로드(전체 교체). runtime/site 은 보내지 않는다. */
+  /** Form state → PUT payload (full replace). Do not send runtime/site. */
   function build(): ScrySettings {
     const groupLabels: Record<string, string> = {}
     const groupColors: Record<string, string> = {}
@@ -339,7 +340,7 @@
     aria-modal="true"
     aria-label={t('settings.title')}
   >
-    <!-- 헤더 + 탭 -->
+    <!-- Header + tabs -->
     <div class="flex-none border-b border-border-subtle px-5 pt-4">
       <h2 class="mb-0.5 text-[14px] font-semibold text-text-primary">{t('settings.title')}</h2>
       <p class="mb-3 text-[11px] text-text-muted">
@@ -360,7 +361,7 @@
       </div>
     </div>
 
-    <!-- 본문 -->
+    <!-- Body -->
     <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[12px]">
       {#if loading}
         <p class="py-8 text-center text-text-muted">{t('settings.loading')}</p>
@@ -602,7 +603,7 @@
         </div>
       {:else if tab === 'groups'}
         <div class="flex flex-col gap-5">
-          <!-- 그룹 라벨 + 색상 -->
+          <!-- Group labels + colors -->
           <div class="flex flex-col gap-1.5">
             <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
               {t('settings.groupLabels')}
@@ -640,7 +641,7 @@
             >
           </div>
 
-          <!-- 제품 버킷 -->
+          <!-- Product buckets -->
           <div class="flex flex-col gap-1.5">
             <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
               {t('settings.groupToProduct')}
@@ -673,7 +674,7 @@
             >
           </div>
 
-          <!-- 그룹 판정 규칙 -->
+          <!-- Group classification rules -->
           <div class="flex flex-col gap-1.5">
             <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
               {t('settings.groupRules')}
@@ -822,7 +823,7 @@
         </div>
       {/if}
 
-      <!-- 고급: JSON 원본 -->
+      <!-- Advanced: raw JSON -->
         <details
           class="mt-5 border-t border-border-subtle pt-3"
           ontoggle={(e) => {
@@ -865,7 +866,7 @@
       </label>
     </div>
 
-    <!-- 푸터 -->
+    <!-- Footer -->
     <div class="flex flex-none items-center justify-between gap-2 border-t border-border-subtle px-5 py-3">
       <span class="min-w-0 flex-1 truncate text-[12px] text-status-reopen">{error ?? ''}</span>
       <button

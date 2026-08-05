@@ -1,7 +1,7 @@
 import { config } from './config'
 import type { Member } from './types'
 
-/* 그룹(파트/팀) 라벨·색은 테넌트마다 다르므로 런타임 config 에서 온다. 미설정이면 부서 해시 색으로 폴백. */
+/* Group (part/team) labels & colors are per-tenant via runtime config. Fallback: department hash color. */
 const DEPARTMENT_COLORS = ['#22d3ee', '#4ade80', '#facc15', '#f472b6', '#818cf8', '#fb923c']
 
 function hashIndex(value: string, length: number): number {

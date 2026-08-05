@@ -1,6 +1,6 @@
 <script lang="ts">
   /*
-   * 정렬 메뉴 ([explore]). 브레이크다운은 BreakdownBar 에서 직접 바꾼다.
+   * Sort menu ([explore]). Breakdown is changed directly on BreakdownBar.
    */
   import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
@@ -13,7 +13,7 @@
   ]
   const RELEVANCE = { k: 'relevance' as SortKey, l: t('sort.relevance') }
 
-  // 검색 중(또는 관련도가 활성)일 때만 관련도 옵션을 노출. 자동 승격 상태가 셀렉트에 보이게.
+  // Show relevance only while searching (or relevance is active) so auto-promote is visible.
   const sorts = $derived(
     filters.filters.q.trim() || filters.effectiveSort === 'relevance'
       ? [RELEVANCE, ...BASE_SORTS]

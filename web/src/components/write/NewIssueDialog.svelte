@@ -1,14 +1,15 @@
 <script lang="ts">
   /*
-   * 새 이슈 생성 다이얼로그 (쓰기, 로컬 우선 + 개인화 기본값).
-   *  - 프로젝트/이슈타입 = write.writeMetaProjects(로컬 create-meta, 0ms). 비었을 때만 GET create-meta/ 폴백.
-   *  - 기본값(조용한 제안):
-   *      프로젝트 ① 최근 생성 ② 현재 필터 source_project ③ 선택 이슈 프로젝트 ④ 첫 프로젝트
-   *      이슈타입 = 프로젝트별 최근 사용(없으면 Bug, 없으면 첫 타입)
-   *      담당자 = 비움(강요 X)
-   *  - 라벨 입력 = 로컬 풀에서 해당 프로젝트 빈도순 자동완성 + 최근 사용 상단.
-   *  - 성공 시 닫고 selection.select(새 키) → 상세 열림. (recency 기록은 write.createIssue)
-   *  진입점: 사이드바 "+ 새 이슈" / 단축키 c (App.svelte).
+   * New-issue dialog (write, local-first + personalized defaults).
+   *  - Project/type = write.writeMetaProjects (local create-meta, 0ms). GET create-meta/
+   *    only when empty.
+   *  - Defaults (quiet suggestions):
+   *      Project ① recent create ② current filter source_project ③ selected issue ④ first
+   *      Type = per-project recent (else Bug, else first type)
+   *      Assignee = empty (no force)
+   *  - Labels: autocomplete by project frequency in local pool + recent on top.
+   *  - On success: close + selection.select(new key) → detail opens (recency via createIssue).
+   *  Entry: sidebar "+ New issue" / shortcut c (App.svelte).
    */
   import { t } from '../../lib/i18n'
   import { onMount } from 'svelte'
@@ -27,7 +28,7 @@
   let loadError = $state<string | null>(null)
   let fallbackProjects = $state<CreateMetaProject[]>([])
 
-  // 로컬 메타 우선, 없으면 폴백.
+  // Local meta first, else fallback.
   const projects = $derived(write.writeMetaProjects.length ? write.writeMetaProjects : fallbackProjects)
 
   let projectKey = $state('')
@@ -36,14 +37,14 @@
   let description = $state('')
   let priority = $state('')
 
-  // 담당자(선택)
+  // Assignee (optional)
   let assignee = $state<JiraUser | null>(null)
   let userQuery = $state('')
   let userResults = $state<JiraUser[]>([])
   let userSearching = $state(false)
   let userMenuOpen = $state(false)
 
-  // 라벨(선택)
+  // Labels (optional)
   let labels = $state<string[]>([])
   let labelInput = $state('')
   let labelMenuOpen = $state(false)
@@ -83,7 +84,7 @@
     }
   }
 
-  /** 프로젝트/이슈타입 기본값 유추(최초 1회). */
+  /** Infer project/type defaults (once). */
   let defaultsApplied = false
   function applyDefaults() {
     if (defaultsApplied || projects.length === 0) return
@@ -116,14 +117,14 @@
     return types[0]?.id ?? ''
   }
 
-  // 프로젝트 변경 시 유효하지 않으면 해당 프로젝트의 추론 타입으로.
+  // On project change, if type is invalid, switch to the inferred type for that project.
   $effect(() => {
     if (selectedProject && !issueTypes.some((t) => t.id === issueTypeId)) {
       issueTypeId = inferType(projectKey)
     }
   })
 
-  // ── 담당자 검색(디바운스) ──
+  // ── Assignee search (debounced) ──
   let debounce: ReturnType<typeof setTimeout> | null = null
   $effect(() => {
     const q = userQuery.trim()
@@ -156,7 +157,7 @@
     assignee = null
   }
 
-  // ── 라벨 자동완성 ── 해당 프로젝트 빈도 + 최근 사용 상단.
+  // ── Label autocomplete ── project frequency + recent on top.
   const labelFreq = $derived.by(() => {
     const freq = new Map<string, number>()
     for (const it of issues.allIssues) {
@@ -177,8 +178,8 @@
       const rb = recent.indexOf(b)
       const rra = ra === -1 ? Infinity : ra
       const rrb = rb === -1 ? Infinity : rb
-      if (rra !== rrb) return rra - rrb // 최근 상단
-      return (labelFreq.get(b) ?? 0) - (labelFreq.get(a) ?? 0) // 빈도순
+      if (rra !== rrb) return rra - rrb // recent first
+      return (labelFreq.get(b) ?? 0) - (labelFreq.get(a) ?? 0) // then by frequency
     })
     return arr.slice(0, 8)
   })
@@ -271,7 +272,7 @@
       </div>
     {:else}
       <form onsubmit={submit} class="flex flex-col gap-3">
-        <!-- 프로젝트 + 유형 -->
+        <!-- Project + type -->
         <div class="flex gap-3">
           <label class="flex min-w-0 flex-1 flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('common.project')}</span>
@@ -297,7 +298,7 @@
           </label>
         </div>
 
-        <!-- 제목 -->
+        <!-- Title -->
         <label class="flex flex-col gap-1">
           <span class="text-[11px] text-text-secondary">{t('common.title')} <span class="text-status-reopen">*</span></span>
           <input
@@ -311,7 +312,7 @@
           />
         </label>
 
-        <!-- 설명 -->
+        <!-- Description -->
         <label class="flex flex-col gap-1">
           <span class="text-[11px] text-text-secondary">{t('common.description')}</span>
           <textarea
@@ -322,7 +323,7 @@
           ></textarea>
         </label>
 
-        <!-- 담당자 + 우선순위 -->
+        <!-- Assignee + priority -->
         <div class="flex gap-3">
           <div class="relative flex min-w-0 flex-1 flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('common.assignee')}</span>
@@ -374,7 +375,7 @@
           </label>
         </div>
 
-        <!-- 라벨 -->
+        <!-- Labels -->
         <div class="relative flex flex-col gap-1">
           <span class="text-[11px] text-text-secondary">{t('common.labels')}</span>
           <div class="flex flex-wrap items-center gap-1 rounded-md border border-border-strong bg-bg-base px-2 py-1.5">

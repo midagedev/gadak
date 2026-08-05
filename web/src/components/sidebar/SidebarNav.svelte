@@ -1,8 +1,8 @@
 <script lang="ts">
   /*
-   * 사이드바 내비게이션 ([explore]). 섹션: 기본 뷰 / 내 뷰(localStorage) / 팀 공유 뷰(api).
-   *  상단: 이슈 총계 + 마지막 동기화. 하단: 개인화(Wave 3) 자리 — 주석 placeholder.
-   *  뷰 클릭 = filters.applyConfig(config). 현재 뷰와 일치하면 활성 표시.
+   * Sidebar nav ([explore]). Sections: built-in views / personal (localStorage) /
+   * team shared (api). Top: issue totals + last sync. Personalization (Wave 3)
+   * sits above built-ins. View click = filters.applyConfig; active when it matches.
    */
   import { t, formatNumber, relativeTime, formatTimeOfDay } from '../../lib/i18n'
   import { filterIssues, filters } from '../../stores/filters.svelte'
@@ -16,18 +16,18 @@
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
   import FavoritesNav from '../personal/FavoritesNav.svelte'
 
-  /** 서버 설정 다이얼로그 열기 — 다이얼로그 자체는 App.svelte 가 마운트한다. */
+  /** Open server settings dialog — App.svelte mounts the dialog itself. */
   let { onOpenSettings }: { onOpenSettings: () => void } = $props()
 
   const builtins = builtinViews()
 
-  /** 뷰 적용 = 개인 피드가 열려 있으면 닫고(리스트로 복귀) 필터 적용. */
+  /** Apply view = close personal feed if open (back to list) then apply filters. */
   function applyView(config: ViewConfig) {
     me.closeFeed()
     filters.applyConfig(config)
   }
 
-  /** config 를 순서 무관 비교 가능한 정규 문자열로. */
+  /** Order-independent canonical string for comparing configs. */
   function canon(config: ViewConfig): string {
     const p = configToParams(config)
     return Object.keys(p)
@@ -75,7 +75,7 @@
     issues.syncHealth?.sources
       .map((source) => {
         const time = relativeSync(source.synced_at)
-        // source.message 는 서버 원문(사이트 언어). '정상' 은 서버 healthy 표기 폴백.
+        // source.message is server-locale text; '정상' is a healthy-message fallback.
         return `${source.label} · ${STATUS_LABEL[source.status] ?? source.status}${time ? ` · ${time}` : ''}${source.message && source.message !== '정상' && source.message.toLowerCase() !== 'ok' ? `\n${source.message}` : ''}`
       })
       .join('\n'),
@@ -106,7 +106,7 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <!-- 새 이슈 (단축키 c) -->
+  <!-- New issue (shortcut c) -->
   <div class="flex-none px-3 pt-1 pb-2">
     <button
       type="button"
@@ -121,7 +121,7 @@
     </button>
   </div>
 
-  <!-- 총계 / 동기화 — 배지 클릭 = Sync now (실패/지연 시 재시도 경로) -->
+  <!-- Totals / sync — badge click = Sync now (retry path on fail/stale) -->
   <div class="flex-none px-3 pb-2 pt-1 text-[11px] text-text-muted">
     {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}
     <span class="ml-1">·</span>
@@ -139,11 +139,11 @@
   </div>
 
   <div class="min-h-0 flex-1 overflow-y-auto">
-    <!-- 개인화 (Wave 3): My Issues / 최근 본 이슈 — 기본 뷰 위 -->
+    <!-- Personalization (Wave 3): My Issues / recent — above built-ins -->
     <MyIssuesNav />
     <FavoritesNav />
 
-    <!-- 기본 뷰 -->
+    <!-- Built-in views -->
     <div class="mb-3">
       <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
         {t('sidebar.builtinViews')}
@@ -167,7 +167,7 @@
       {/each}
     </div>
 
-    <!-- 내 뷰 -->
+    <!-- Personal views -->
     {#if views.personal.length}
       <div class="mb-3">
         <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
@@ -202,7 +202,7 @@
       </div>
     {/if}
 
-    <!-- 팀 공유 뷰 -->
+    <!-- Team shared views -->
     {#if views.team.length}
       <div class="mb-3">
         <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
