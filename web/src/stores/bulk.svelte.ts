@@ -18,7 +18,7 @@
  */
 
 import { SvelteSet } from 'svelte/reactivity'
-import { filters } from './filters.svelte'
+import { visibleKeys } from '../lib/visible-order'
 
 class BulkStore {
   /** Selected issue_key set. */
@@ -57,7 +57,7 @@ class BulkStore {
    *  Keeps the anchor so repeated shift-clicks expand from the same pivot.
    */
   selectRange(targetKey: string): void {
-    const order = orderedVisibleKeys()
+    const order = visibleKeys()
     const ti = order.indexOf(targetKey)
     const ai = this.anchorKey ? order.indexOf(this.anchorKey) : -1
     if (ti === -1 || ai === -1) {
@@ -84,13 +84,6 @@ class BulkStore {
   keys(): string[] {
     return [...this.selected]
   }
-}
-
-/** Visible keys in the same visual order the list paints (groups flattened). */
-function orderedVisibleKeys(): string[] {
-  const out: string[] = []
-  for (const g of filters.groups) for (const it of g.items) out.push(it.issue_key)
-  return out
 }
 
 /** App-wide singleton. */

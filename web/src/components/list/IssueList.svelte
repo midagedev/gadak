@@ -4,12 +4,14 @@
    *  - Fixed 42px row height (header/issue same) → uniform virtualization
    *    (DOM nodes = viewport rows).
    *  - Group headers float sticky + next header push effect.
-   *  - Keys: j/k cursor, Enter select, Esc clear (ignored while typing).
+   *  - Keys live in App.svelte (one window handler for the whole triage flow);
+   *    this file owns the cursor's scroll follow and paints the cursor row.
    *  Perf: scroll only computes top(translate); no full recompute.
    */
-  import { onMount } from 'svelte'
+  import { onMount, untrack } from 'svelte'
   import { filters, type IssueGroup } from '../../stores/filters.svelte'
   import { selection } from '../../stores/selection.svelte'
+  import { triage } from '../../stores/triage.svelte'
   import type { IssueLite } from '../../lib/types'
   import IssueRow from './IssueRow.svelte'
   import GroupHeader from './GroupHeader.svelte'
@@ -33,7 +35,7 @@
     return out
   })
 
-  // Issue keys in visual order + row-index map (for cursor nav)
+  // Row-index map for the cursor's scroll follow (visual order incl. headers).
   const issueRowIndex = $derived.by(() => {
     const m = new Map<string, number>()
     rows.forEach((r, i) => {
@@ -41,12 +43,11 @@
     })
     return m
   })
-  const issueKeys = $derived([...issueRowIndex.keys()])
 
   let scrollTop = $state(0)
   let viewportH = $state(0)
   let scroller = $state<HTMLDivElement | null>(null)
-  let cursorKey = $state<string | null>(null)
+  const cursorKey = $derived(triage.cursorKey)
 
   const total = $derived(rows.length * ROW_H)
   const start = $derived(Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN))
@@ -92,55 +93,33 @@
     else if (bottom > scroller.scrollTop + viewportH) scroller.scrollTop = bottom - viewportH
   }
 
-  function moveCursor(delta: number) {
-    if (issueKeys.length === 0) return
-    let idx = cursorKey ? issueKeys.indexOf(cursorKey) : -1
-    idx = idx === -1 ? (delta > 0 ? 0 : issueKeys.length - 1) : idx + delta
-    idx = Math.max(0, Math.min(issueKeys.length - 1, idx))
-    cursorKey = issueKeys[idx]
-    const rowIdx = issueRowIndex.get(cursorKey)
-    if (rowIdx != null) scrollToRow(rowIdx)
-  }
-
-  function inEditable(t: EventTarget | null): boolean {
-    const el = t as HTMLElement | null
-    if (!el) return false
-    const tag = el.tagName
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
-  }
-
-  function onKey(e: KeyboardEvent) {
-    if (inEditable(e.target)) return
-    if (e.key === 'j') {
-      e.preventDefault()
-      moveCursor(1)
-    } else if (e.key === 'k') {
-      e.preventDefault()
-      moveCursor(-1)
-    } else if (e.key === 'Enter') {
-      if (cursorKey) {
-        e.preventDefault()
-        selection.select(cursorKey)
-      }
-    } else if (e.key === 'Escape' || e.key === 'x') {
-      if (selection.selectedKey) {
-        e.preventDefault()
-        selection.clear()
-      }
-    }
-  }
+  // Follow the cursor: keep the row the keys moved onto inside the viewport.
+  //  untrack the row map so a data delta cannot yank the scroll back on its own.
+  $effect(() => {
+    const key = cursorKey
+    if (!key) return
+    untrack(() => {
+      const rowIdx = issueRowIndex.get(key)
+      if (rowIdx != null) scrollToRow(rowIdx)
+    })
+  })
 
   // Real view (filter/group/sort) changes scroll to top (ignore data deltas).
   $effect(() => {
     void filters.viewKey
     if (scroller) scroller.scrollTop = 0
     scrollTop = 0
-    cursorKey = null
+    triage.resetCursor()
   })
 
+  // Tell the shell the triage keys have a list to act on. Feed / onboarding /
+  // empty states render instead of this component, and there they do nothing.
   onMount(() => {
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    triage.listActive = true
+    return () => {
+      triage.listActive = false
+      triage.resetCursor()
+    }
   })
 </script>
 

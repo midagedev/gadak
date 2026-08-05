@@ -4,6 +4,8 @@
    *  Layout: priority icon · status dot · key (mono) · title · label chips (≤3+n)
    *  · reopen/stale badges · assignee · relative time.
    *  Chip/dot/avatar click = add that value as a filter (stopPropagation vs row select).
+   *  Tint and cursor ring are separate: checking a row must not hide where the
+   *  keyboard is, or the next x lands blind.
    */
   import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
@@ -129,15 +131,22 @@
     {selected
       ? 'bg-accent-subtle/30'
       : active
-        ? 'bg-accent-subtle/20 shadow-[inset_3px_0_0_var(--color-accent)]'
+        ? 'bg-accent-subtle/20'
         : cursor
-          ? 'bg-bg-hover shadow-[inset_0_0_0_1px_var(--color-accent)]'
+          ? 'bg-bg-hover'
           : mine
             ? 'bg-accent-subtle/10 hover:bg-bg-hover'
-            : 'hover:bg-bg-hover'}"
+            : 'hover:bg-bg-hover'}
+    {cursor
+      ? 'shadow-[inset_0_0_0_1px_var(--color-accent)]'
+      : active
+        ? 'shadow-[inset_3px_0_0_var(--color-accent)]'
+        : ''}"
   role="button"
   tabindex="-1"
   aria-current={active ? 'true' : undefined}
+  data-issue-key={issue.issue_key}
+  data-cursor={cursor ? 'true' : undefined}
   onclick={onRowClick}
   onmouseenter={() => prefetchDetail(issue.issue_key)}
   onkeydown={(e) => {

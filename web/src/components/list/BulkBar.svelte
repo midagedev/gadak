@@ -11,18 +11,22 @@
    *      Failed issues roll back via existing optimistic pattern. End toast: ok/fail/skip.
    *
    * Credential/login gate is a single write.ensureWritable() (same guidance as elsewhere).
+   *
+   * Which popover is open lives in the triage store, not here: `s`/`a` open the
+   * same menus from the keyboard, and a component-local flag would leave them
+   * with nothing to set.
    */
   import { t, collator } from '../../lib/i18n'
   import type { JiraUser, Member, Transition } from '../../lib/types'
   import * as api from '../../lib/api'
   import { bulk } from '../../stores/bulk.svelte'
+  import { triage, type TriageMenu } from '../../stores/triage.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { recentOf } from '../../lib/recency'
   import Avatar from '../detail/Avatar.svelte'
 
-  type Menu = 'status' | 'assignee' | null
-  let menu = $state<Menu>(null)
+  const menu = $derived(triage.menu)
   let assigneeQuery = $state('')
   let rootEl = $state<HTMLDivElement | null>(null)
 
@@ -101,13 +105,19 @@
   })
 
   function closeMenu() {
-    menu = null
+    triage.closeMenu()
     assigneeQuery = ''
   }
 
-  function toggleMenu(m: Exclude<Menu, null>) {
-    menu = menu === m ? null : m
+  function toggleMenu(m: TriageMenu) {
+    if (menu === m) closeMenu()
+    else triage.menu = m
   }
+
+  // The bar is the menu's anchor, so an emptied selection takes the menu with it.
+  $effect(() => {
+    if (!bulk.active && triage.menu) triage.closeMenu()
+  })
 
   /** Concurrency-3 batch. fn tallies each key's outcome itself. */
   async function runBatch(keys: string[], fn: (key: string) => Promise<void>): Promise<void> {
@@ -193,21 +203,32 @@
     finish(ok, fail, 0)
   }
 
-  // Outside click / Escape: close menu if open, else deselect.
+  // Escape closes an open menu. Escape with no menu open is the shell's (it drops
+  // the selection) — handling it here too would clear the selection in the same
+  // keystroke that closed the popover. This one stays on window because the
+  // assignee search box has focus while its menu is open.
   $effect(() => {
-    function onDown(e: MouseEvent) {
-      if (menu && rootEl && !rootEl.contains(e.target as Node)) closeMenu()
-    }
     function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return
-      if (menu) closeMenu()
-      else if (bulk.active && !running) bulk.clear()
+      if (e.key !== 'Escape' || !menu) return
+      e.preventDefault() // spend the Esc here so the detail panel keeps its own
+      closeMenu()
     }
-    window.addEventListener('mousedown', onDown)
     window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  // Outside click closes an open menu. Bound one task late: the palette runs its
+  // commands on mousedown, so a listener attached during that same dispatch
+  // would see the opening click as an outside click and close the menu at once.
+  $effect(() => {
+    if (!menu) return
+    function onDown(e: MouseEvent) {
+      if (rootEl && !rootEl.contains(e.target as Node)) closeMenu()
+    }
+    const timer = setTimeout(() => window.addEventListener('mousedown', onDown), 0)
     return () => {
+      clearTimeout(timer)
       window.removeEventListener('mousedown', onDown)
-      window.removeEventListener('keydown', onKey)
     }
   })
 </script>
@@ -215,6 +236,7 @@
 {#if bulk.active}
   <div
     bind:this={rootEl}
+    data-testid="bulk-bar"
     class="anim-enter flex flex-none items-center gap-2 border-b border-border-strong/70 bg-bg-elevated px-4 py-2 text-[12px]"
   >
     <span class="flex-none font-medium text-text-primary">{t('list.selectedCount', { n: bulk.count })}</span>
@@ -234,6 +256,7 @@
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-md border border-border-subtle bg-bg-elevated py-1 shadow-xl"
           role="listbox"
+          data-testid="bulk-status-menu"
         >
           {#if statusOptions.length === 0}
             <div class="px-3 py-2 text-[12px] text-text-muted">{t('bulk.noCommonTransitions')}</div>
@@ -271,6 +294,7 @@
           class="anim-enter absolute left-0 top-full z-30 mt-1 w-64 rounded-md border border-border-subtle bg-bg-elevated shadow-xl"
           role="dialog"
           aria-label={t('bulk.pickAssignee')}
+          data-testid="bulk-assignee-menu"
         >
           <div class="border-b border-border-subtle p-2">
             <!-- svelte-ignore a11y_autofocus -->

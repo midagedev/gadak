@@ -287,6 +287,9 @@ export const ko = {
   'bulk.pickAssignee': '담당자 선택',
   'bulk.searchPerson': '이름 또는 이메일 검색',
 
+  /* ── Keyboard triage ── */
+  'triage.commentOn': '{key}에 코멘트',
+
   /* ── Sidebar ── */
   'sidebar.newIssue': '새 이슈',
   'sidebar.newIssueTitle': '새 이슈 (c)',
@@ -692,6 +695,13 @@ export const ko = {
   'palette.actionSyncStatus': '동기화 상태 보기',
   'palette.actionSyncNow': '지금 동기화',
   'palette.syncToast': '{overall} · 동기화 {when}',
+  'palette.triageSelected': '{n}개 선택',
+  'palette.actionTriageStatus': '상태 변경 · {target}',
+  'palette.actionTriageAssignee': '담당자 변경 · {target}',
+  'palette.actionTriageComment': '{key}에 코멘트',
+  'palette.actionTriageSelect': '{key} 선택',
+  'palette.actionTriageDeselect': '{key} 선택 해제',
+  'palette.actionTriageClear': '선택 해제 ({n})',
 
   /* ── Sync now (shared) ── */
   'sync.starting': '동기화 시작 중…',
@@ -761,8 +771,11 @@ export const ko = {
   'shortcuts.moveDown': '커서 아래로',
   'shortcuts.moveUp': '커서 위로',
   'shortcuts.openIssue': '커서의 이슈 열기',
-  'shortcuts.closeDetail': '상세 패널 닫기',
-  'shortcuts.closeDetailX': '상세 패널 닫기',
+  'shortcuts.selectRow': '커서의 행 선택',
+  'shortcuts.listStatus': '상태 변경 (선택 항목 또는 커서 행)',
+  'shortcuts.listAssignee': '담당자 변경 (선택 항목 또는 커서 행)',
+  'shortcuts.listComment': '커서의 이슈에 코멘트',
+  'shortcuts.clearSelection': '선택 해제 후 상세 패널 닫기',
   'shortcuts.focusStatus': '상태 변경 (상세 열림 시)',
   'shortcuts.focusAssignee': '담당자 변경 (상세 열림 시)',
   'shortcuts.focusComment': '코멘트 입력 포커스 (상세 열림 시)',

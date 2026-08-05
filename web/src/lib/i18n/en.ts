@@ -286,6 +286,9 @@ export const en = {
   'bulk.pickAssignee': 'Choose assignee',
   'bulk.searchPerson': 'Search name or email',
 
+  /* ── Keyboard triage ── */
+  'triage.commentOn': 'Comment on {key}',
+
   /* ── Sidebar ── */
   'sidebar.newIssue': 'New issue',
   'sidebar.newIssueTitle': 'New issue (c)',
@@ -695,6 +698,13 @@ export const en = {
   'palette.actionSyncStatus': 'Show sync status',
   'palette.actionSyncNow': 'Sync now',
   'palette.syncToast': '{overall} · synced {when}',
+  'palette.triageSelected': '{n} selected',
+  'palette.actionTriageStatus': 'Change status · {target}',
+  'palette.actionTriageAssignee': 'Change assignee · {target}',
+  'palette.actionTriageComment': 'Comment on {key}',
+  'palette.actionTriageSelect': 'Select {key}',
+  'palette.actionTriageDeselect': 'Deselect {key}',
+  'palette.actionTriageClear': 'Clear selection ({n})',
 
   /* ── Sync now (shared) ── */
   'sync.starting': 'Starting sync…',
@@ -764,8 +774,11 @@ export const en = {
   'shortcuts.moveDown': 'Move cursor down',
   'shortcuts.moveUp': 'Move cursor up',
   'shortcuts.openIssue': 'Open the issue under the cursor',
-  'shortcuts.closeDetail': 'Close the detail panel',
-  'shortcuts.closeDetailX': 'Close the detail panel',
+  'shortcuts.selectRow': 'Select the row under the cursor',
+  'shortcuts.listStatus': 'Change status (selection, or the cursor row)',
+  'shortcuts.listAssignee': 'Change assignee (selection, or the cursor row)',
+  'shortcuts.listComment': 'Comment on the row under the cursor',
+  'shortcuts.clearSelection': 'Clear the selection, then close the detail panel',
   'shortcuts.focusStatus': 'Change status (when detail is open)',
   'shortcuts.focusAssignee': 'Change assignee (when detail is open)',
   'shortcuts.focusComment': 'Focus the comment box (when detail is open)',

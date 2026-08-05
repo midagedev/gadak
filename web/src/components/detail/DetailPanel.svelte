@@ -79,11 +79,17 @@
     void load(k)
   })
 
-  // Esc to close
+  // Esc to close, unless this Esc was already spent — the shell gives the first
+  // one back to a live multi-selection and BulkBar to an open popover, and
+  // closing the panel in the same keystroke would cost the user a batch they
+  // are still assembling. defaultPrevented is the signal rather than reading the
+  // stores: listener order is registration order, and this one registers last
+  // (on selection), so by the time it runs the stores are already cleared.
   $effect(() => {
     if (!key) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') selection.clear()
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      selection.clear()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

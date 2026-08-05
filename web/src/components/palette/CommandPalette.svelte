@@ -26,6 +26,8 @@
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
   import { selection } from '../../stores/selection.svelte'
+  import { bulk } from '../../stores/bulk.svelte'
+  import { triage } from '../../stores/triage.svelte'
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
@@ -132,9 +134,70 @@
     write.toast(t('palette.syncToast', { overall: label, when }), overall === 'failed' ? 'error' : 'info')
   }
 
+  /**
+   * Triage commands carry their target in the label — "Change status · 3
+   * selected" vs "· NMB-110" — because the palette covers the list while it is
+   * open, and a bare "Change status" would not say what it is about to change.
+   * They only appear when there is something to act on.
+   */
+  const triageItems = $derived.by<Omit<Item, 'section'>[]>(() => {
+    const count = bulk.count
+    const cursor = triage.listActive ? triage.cursorKey : null
+    if (!count && !cursor) return []
+    const target = count ? t('palette.triageSelected', { n: count }) : (cursor as string)
+    const out: Omit<Item, 'section'>[] = [
+      {
+        id: 'a:triage-status',
+        label: t('palette.actionTriageStatus', { target }),
+        kbd: 's',
+        run: () => triage.requestMenu('status'),
+      },
+      {
+        id: 'a:triage-assignee',
+        label: t('palette.actionTriageAssignee', { target }),
+        kbd: 'a',
+        run: () => triage.requestMenu('assignee'),
+      },
+    ]
+    if (cursor) {
+      out.push({
+        id: 'a:triage-comment',
+        label: t('palette.actionTriageComment', { key: cursor }),
+        kbd: 'c',
+        run: () => triage.openComment(cursor),
+      })
+      out.push({
+        id: 'a:triage-select',
+        label: bulk.has(cursor)
+          ? t('palette.actionTriageDeselect', { key: cursor })
+          : t('palette.actionTriageSelect', { key: cursor }),
+        kbd: 'x',
+        run: () => bulk.toggle(cursor),
+      })
+    }
+    if (count) {
+      out.push({
+        id: 'a:triage-clear',
+        label: t('palette.actionTriageClear', { n: count }),
+        kbd: 'Esc',
+        run: () => bulk.clear(),
+      })
+    }
+    return out
+  })
+
   const actionItems = $derived.by<Item[]>(() => {
+    // `c` belongs to the cursor row while there is one, so the badge moves with
+    // it — two rows both claiming `c` would be a lie about one of them.
+    const cIsComment = triageItems.some((d) => d.id === 'a:triage-comment')
     const defs: Omit<Item, 'section'>[] = [
-      { id: 'a:new', label: t('palette.actionNewIssue'), kbd: 'c', run: () => void write.openNewIssue() },
+      ...triageItems,
+      {
+        id: 'a:new',
+        label: t('palette.actionNewIssue'),
+        kbd: cIsComment ? undefined : 'c',
+        run: () => void write.openNewIssue(),
+      },
       { id: 'a:settings', label: t('palette.actionSettings'), run: onOpenSettings },
       { id: 'a:reset', label: t('palette.actionResetFilters'), run: () => filters.clearAll() },
       { id: 'a:reopened', label: t('palette.actionToggleReopened'), run: () => filters.toggleFlag('reopened') },

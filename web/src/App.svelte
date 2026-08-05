@@ -12,6 +12,8 @@
   import { filters } from './stores/filters.svelte'
   import { me } from './stores/me.svelte'
   import { write } from './stores/write.svelte'
+  import { bulk } from './stores/bulk.svelte'
+  import { triage } from './stores/triage.svelte'
   import { router, setParams } from './lib/router.svelte'
   import { feature, isHostedDemo } from './lib/config'
 
@@ -35,6 +37,7 @@
   import DocumentPanel from './components/detail/DocumentPanel.svelte'
   import PersonalFeed from './components/personal/PersonalFeed.svelte'
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
+  import QuickComment from './components/write/QuickComment.svelte'
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
   import SettingsDialog from './components/settings/SettingsDialog.svelte'
   import CommandPalette from './components/palette/CommandPalette.svelte'
@@ -106,8 +109,12 @@
 
   // ── Global shortcuts ──
   //  ⌘K/Ctrl+K = command palette (even while a field is focused).
-  //  c = new issue when detail closed; focus comment when detail open.
+  //  List triage: j/k cursor, ↵ open, x select, s status, a assignee, c comment,
+  //    Esc drops the selection before it closes anything.
   //  Detail open: s status / a assignee / c comment / x close.
+  //  c with neither a cursor nor an open detail = new issue.
+  //  One handler on purpose: the list used to run its own window listener, and
+  //  two listeners racing is how Esc closed the detail *and* the selection.
   //  Keep ShortcutsDialog in sync — document only keys that have handlers.
   function onGlobalKey(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -122,7 +129,14 @@
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) return
     }
     // Other modal layers own their keys; cheat sheet can still toggle with ?.
-    if (write.settingsOpen || write.newIssueOpen || serverSettingsOpen || paletteOpen) return
+    if (
+      write.settingsOpen ||
+      write.newIssueOpen ||
+      serverSettingsOpen ||
+      paletteOpen ||
+      triage.commentKey
+    )
+      return
     if (shortcutsOpen) {
       if (e.key === '?') {
         e.preventDefault()
@@ -133,37 +147,86 @@
 
     const key = e.key
     const detailOpenNow = selection.selectedKey !== null
+    const cursorKey = triage.listActive ? triage.cursorKey : null
 
     if (key === '?') {
       e.preventDefault()
       shortcutsOpen = true
       return
     }
-    if (key === 'x' && detailOpenNow) {
+
+    // ── List cursor ──
+    if (triage.listActive && (key === 'j' || key === 'k')) {
       e.preventDefault()
-      selection.clear()
+      triage.move(key === 'j' ? 1 : -1)
       return
     }
-    // x also closes a document — s/a/c have no meaning on a read-only page.
-    if (key === 'x' && pages.selectedKey) {
+    if (key === 'Enter' && cursorKey) {
       e.preventDefault()
-      pages.clear()
+      selection.select(cursorKey)
       return
     }
-    if (key === 's' && detailOpenNow) {
-      e.preventDefault()
-      document.querySelector<HTMLButtonElement>('[data-testid="status-transition"]')?.click()
+
+    // ── Esc: give back the selection first, then close panels ──
+    if (key === 'Escape') {
+      // An open popover is BulkBar's to close (it also hears Esc from inside its
+      // own search box, which this handler never sees).
+      if (triage.menu) return
+      if (bulk.active) {
+        e.preventDefault()
+        bulk.clear()
+        return
+      }
+      if (detailOpenNow) {
+        e.preventDefault()
+        selection.clear()
+      }
       return
     }
-    if (key === 'a' && detailOpenNow) {
-      e.preventDefault()
-      document.querySelector<HTMLButtonElement>('[data-testid="assignee-picker"]')?.click()
+
+    // ── x: pick the cursor row for a batch; falls back to closing panels ──
+    if (key === 'x') {
+      // A document keeps x first: it is the panel on screen, and s/a/c have no
+      // meaning on a read-only page, so x is the only key that closes it.
+      if (pages.selectedKey) {
+        e.preventDefault()
+        pages.clear()
+        return
+      }
+      if (cursorKey) {
+        e.preventDefault()
+        bulk.toggle(cursorKey)
+        return
+      }
+      if (detailOpenNow) {
+        e.preventDefault()
+        selection.clear()
+      }
       return
     }
+
+    // ── s / a: the selection wins, then the open detail, then the cursor row ──
+    if (key === 's' || key === 'a') {
+      const menu = key === 's' ? 'status' : 'assignee'
+      if (bulk.active || (!detailOpenNow && cursorKey)) {
+        e.preventDefault()
+        triage.requestMenu(menu)
+        return
+      }
+      if (detailOpenNow) {
+        e.preventDefault()
+        const testid = key === 's' ? 'status-transition' : 'assignee-picker'
+        document.querySelector<HTMLButtonElement>(`[data-testid="${testid}"]`)?.click()
+      }
+      return
+    }
+
     if (key === 'c') {
       e.preventDefault()
       if (detailOpenNow) {
         document.querySelector<HTMLTextAreaElement>('[data-testid="comment-composer"]')?.focus()
+      } else if (cursorKey) {
+        triage.openComment(cursorKey)
       } else {
         write.openNewIssue()
       }
@@ -348,6 +411,10 @@
 
 {#if write.newIssueOpen}
   <NewIssueDialog />
+{/if}
+
+{#if triage.commentKey}
+  <QuickComment issueKey={triage.commentKey} onclose={() => triage.closeComment()} />
 {/if}
 
 {#if serverSettingsOpen}
