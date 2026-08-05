@@ -83,6 +83,14 @@ keeps an installed mirror alive or removes a reason not to try one.
   only stores custom fields listed in `fieldMap`, so the command lists fields
   from Jira (`GET /field`) and probes a stratified sample of mirrored issue
   keys with `fields=*all`. Rates are sample-based, not a site census.
+- ✅ **Custom-field auto-discovery** (v0.3.0). The first full sync fetches
+  `*all`, groups the site catalog by display name (one concept, several ids —
+  measured: 57 of 353 names on a large site), classifies role/editor from the
+  schema, saves `config.fields`, and backfills from stored raw with no
+  re-download. Detail rows, filter axes (per-project via `field_usage`), and
+  the multi-select editor all derive from the specs; Settings → Fields edits
+  are pinned across re-discovery. Projects became optional the same release:
+  empty means every project the account can see.
 - **Offline write queue.** Deliberately deferred: optimistic write-through
   already covers short offline windows, and conflict resolution is a product
   of its own. Wait for observed demand.
