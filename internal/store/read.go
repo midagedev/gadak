@@ -292,14 +292,15 @@ func (db *DB) Detail(key string) (*Detail, error) {
 // PageLite is the list/search row for a mirrored wiki page. Field names are
 // snake_case JSON to match IssueLite and the read API contract.
 type PageLite struct {
-	Key       string `json:"key"`
-	Title     string `json:"title"`
-	SpaceKey  string `json:"space_key"`
-	ParentID  string `json:"parent_id"`
-	Author    string `json:"author"`
-	UpdatedAt string `json:"updated_at"`
-	Version   int    `json:"version"`
-	URL       string `json:"url"`
+	Key       string   `json:"key"`
+	Title     string   `json:"title"`
+	SpaceKey  string   `json:"space_key"`
+	ParentID  string   `json:"parent_id"`
+	Author    string   `json:"author"`
+	UpdatedAt string   `json:"updated_at"`
+	Version   int      `json:"version"`
+	URL       string   `json:"url"`
+	Labels    []string `json:"labels"`
 }
 
 // PageComment is one comment on a page detail response.
@@ -323,17 +324,19 @@ func (db *DB) PageLites() ([]PageLite, error) {
 	err := each(db.sql, `
 		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
 		       COALESCE(p.parent_id, ''), COALESCE(it.author, ''), COALESCE(it.updated_at, ''),
-		       COALESCE(p.version, 0), COALESCE(it.url, '')
+		       COALESCE(p.version, 0), COALESCE(it.url, ''), COALESCE(p.labels, '[]')
 		FROM pages p
 		JOIN items it ON it.id = p.item_id
 		WHERE it.kind = 'page'
 		ORDER BY p.space_key, it.title`,
 		func(rows *sql.Rows) error {
 			var v PageLite
+			var labels string
 			if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.ParentID,
-				&v.Author, &v.UpdatedAt, &v.Version, &v.URL); err != nil {
+				&v.Author, &v.UpdatedAt, &v.Version, &v.URL, &labels); err != nil {
 				return err
 			}
+			v.Labels = parseArray(&labels)
 			out = append(out, v)
 			return nil
 		})
@@ -344,22 +347,24 @@ func (db *DB) PageLites() ([]PageLite, error) {
 func (db *DB) PageDetail(key string) (*PageDetail, error) {
 	var itemID string
 	var bodyADF *string
+	var labels string
 	var d PageDetail
 	err := db.sql.QueryRow(`
 		SELECT it.id, COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
 		       COALESCE(p.parent_id, ''), COALESCE(it.author, ''), COALESCE(it.updated_at, ''),
-		       COALESCE(p.version, 0), COALESCE(it.url, ''), p.body_adf
+		       COALESCE(p.version, 0), COALESCE(it.url, ''), p.body_adf, COALESCE(p.labels, '[]')
 		FROM pages p
 		JOIN items it ON it.id = p.item_id
 		WHERE it.kind = 'page' AND it.key = ?`, key).
 		Scan(&itemID, &d.Key, &d.Title, &d.SpaceKey, &d.ParentID,
-			&d.Author, &d.UpdatedAt, &d.Version, &d.URL, &bodyADF)
+			&d.Author, &d.UpdatedAt, &d.Version, &d.URL, &bodyADF, &labels)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	d.Labels = parseArray(&labels)
 	d.BodyADF = rawOrNull(bodyADF)
 	d.Comments = []PageComment{}
 	if err := each(db.sql, `
@@ -441,7 +446,8 @@ func (db *DB) search(match string, limit int) (SearchResult, error) {
 	err := each(db.sql, `
 		SELECT it.kind, COALESCE(it.key, ''), COALESCE(it.title, ''),
 		       COALESCE(it.author, ''), COALESCE(it.updated_at, ''), COALESCE(it.url, ''),
-		       COALESCE(p.space_key, ''), COALESCE(p.parent_id, ''), COALESCE(p.version, 0)
+		       COALESCE(p.space_key, ''), COALESCE(p.parent_id, ''), COALESCE(p.version, 0),
+		       COALESCE(p.labels, '[]')
 		FROM items_fts f
 		JOIN items it ON it.rowid = f.rowid
 		LEFT JOIN pages p ON p.item_id = it.id
@@ -449,10 +455,10 @@ func (db *DB) search(match string, limit int) (SearchResult, error) {
 		ORDER BY rank
 		LIMIT ?`,
 		func(rows *sql.Rows) error {
-			var kind, key, title, author, updatedAt, url, spaceKey, parentID string
+			var kind, key, title, author, updatedAt, url, spaceKey, parentID, labels string
 			var version int
 			if err := rows.Scan(&kind, &key, &title, &author, &updatedAt, &url,
-				&spaceKey, &parentID, &version); err != nil {
+				&spaceKey, &parentID, &version, &labels); err != nil {
 				return err
 			}
 			switch kind {
@@ -464,6 +470,7 @@ func (db *DB) search(match string, limit int) (SearchResult, error) {
 				res.Pages = append(res.Pages, PageLite{
 					Key: key, Title: title, SpaceKey: spaceKey, ParentID: parentID,
 					Author: author, UpdatedAt: updatedAt, Version: version, URL: url,
+					Labels: parseArray(&labels),
 				})
 			}
 			return nil

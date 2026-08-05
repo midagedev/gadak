@@ -20,6 +20,28 @@ import (
 	"time"
 )
 
+// Label is one entry under metadata.labels.results (Confluence REST v1).
+type Label struct {
+	Name   string `json:"name"`
+	Prefix string `json:"prefix"`
+	ID     string `json:"id"`
+}
+
+// LabelsPage is the expanded metadata.labels object. expand=metadata.labels
+// returns only the first page (default limit 25). Real wiki pages almost always
+// have single-digit labels, so paging is intentionally not followed.
+type LabelsPage struct {
+	Results []Label `json:"results"`
+	Size    int     `json:"size"`
+	Limit   int     `json:"limit"`
+	Start   int     `json:"start"`
+}
+
+// PageMetadata is the expand=metadata.* payload on a content row.
+type PageMetadata struct {
+	Labels LabelsPage `json:"labels"`
+}
+
 const apiPath = "/rest/api"
 
 // ErrAuth aborts a run immediately: retrying a bad credential just burns the
@@ -106,6 +128,8 @@ type Page struct {
 	Space   SpaceRef    `json:"space"`
 	Version Version     `json:"version"`
 	Body    ContentBody `json:"body"`
+	// Metadata is present when expand includes metadata.labels (full Page fetch).
+	Metadata PageMetadata `json:"metadata"`
 	// Ancestors, when expanded, lists the parent chain; the last entry is the direct parent.
 	Ancestors []struct {
 		ID string `json:"id"`
@@ -113,6 +137,24 @@ type Page struct {
 	Links struct {
 		WebUI string `json:"webui"`
 	} `json:"_links"`
+}
+
+// LabelNames returns label names from metadata.labels.results in API order.
+// Always returns a non-nil empty slice when none are present. Does not sort —
+// callers that need determinism (sync → store) sort themselves.
+//
+// Limit: expand=metadata.labels only includes the first results page (≤25).
+// Pages with more labels than that will be truncated; paging is not followed
+// because production pages typically have single-digit labels.
+func (p Page) LabelNames() []string {
+	out := make([]string, 0, len(p.Metadata.Labels.Results))
+	for _, l := range p.Metadata.Labels.Results {
+		if l.Name == "" {
+			continue
+		}
+		out = append(out, l.Name)
+	}
+	return out
 }
 
 // Comment is a child comment (or reply) on a page.
@@ -189,10 +231,11 @@ func (c *Client) SearchPages(ctx context.Context, cql string, fn func([]Page) er
 	return nil
 }
 
-// Page fetches one content id with ADF body, version, space, and ancestors.
+// Page fetches one content id with ADF body, version, space, ancestors, and
+// labels. metadata.labels is the first page only (≤25 results); see LabelNames.
 func (c *Client) Page(ctx context.Context, id string) (Page, error) {
 	var out Page
-	p := fmt.Sprintf("%s/content/%s?expand=body.atlas_doc_format,version,space,ancestors",
+	p := fmt.Sprintf("%s/content/%s?expand=body.atlas_doc_format,version,space,ancestors,metadata.labels",
 		apiPath, url.PathEscape(id))
 	if err := c.do(ctx, http.MethodGet, p, nil, &out); err != nil {
 		return Page{}, err

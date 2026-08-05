@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Confluence page labels (schema v13).** `pages.labels` (JSON array,
+  alphabetical) collected via `expand=metadata.labels` on the page fetch and
+  exposed on `PageLite` everywhere pages appear (list, detail, search). First
+  label page only (≤25) — real pages carry single-digit label counts.
 - **Epic hierarchy (schema v11/v12).** `issues.hierarchy_level` (source tree
   rank, backfilled from raw) and a derived `issues.epic_key` — the nearest
   level-1 ancestor via `parent_key`, recomputed after every upsert batch, so a

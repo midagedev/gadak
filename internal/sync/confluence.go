@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -226,6 +227,13 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 	adf := full.Body.ADFRaw()
 	bodyText := jira.PlainText(adf)
 
+	// Labels: first expand page only (≤25); sorted for deterministic store rows.
+	labels := full.LabelNames()
+	if labels == nil {
+		labels = []string{}
+	}
+	sort.Strings(labels)
+
 	item := store.Item{
 		ID:         ConfluenceSourceID + ":" + full.ID,
 		SourceID:   ConfluenceSourceID,
@@ -248,6 +256,7 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 			ParentID: parentID,
 			Version:  ver,
 			Status:   status,
+			Labels:   labels,
 			BodyADF:  adf,
 		},
 	}

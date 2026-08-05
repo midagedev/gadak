@@ -143,6 +143,73 @@ func TestPageDetail200And404(t *testing.T) {
 	}
 }
 
+// TestPagesResponseIncludesLabels is FAIL-first for PageLite.Labels on the
+// pages list API (handler serializes store.PageLite — no handler change).
+func TestPagesResponseIncludesLabels(t *testing.T) {
+	db, cfg := fixture(t)
+	if err := db.UpsertSource(store.Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x.atlassian.net/wiki"}); err != nil {
+		t.Fatal(err)
+	}
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
+	if _, err := db.UpsertPages([]store.PageRecord{{
+		Item: store.Item{
+			ID: "confluence:55", SourceID: "confluence", Kind: "page", ExternalID: "55",
+			Key: "55", Title: "Labeled page", BodyText: "x",
+			Author: "Dana", URL: "https://x/wiki/spaces/ENG/pages/55",
+			CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+		},
+		Page: store.Page{
+			SpaceKey: "ENG", Version: 1, Status: "current", BodyADF: adf,
+			Labels: []string{"alpha", "beta"},
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordSync("confluence", store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z", FullSync: true}); err != nil {
+		t.Fatal(err)
+	}
+	h := New(db, cfg)
+
+	list := decode[struct {
+		Pages []store.PageLite `json:"pages"`
+		Total int              `json:"total"`
+	}](t, get(t, h, apiBase+"pages/", nil))
+	if list.Total != 1 || len(list.Pages) != 1 {
+		t.Fatalf("list = %+v", list)
+	}
+	if list.Pages[0].Labels == nil {
+		t.Fatal("pages[].labels omitted/null, want array")
+	}
+	if len(list.Pages[0].Labels) != 2 || list.Pages[0].Labels[0] != "alpha" || list.Pages[0].Labels[1] != "beta" {
+		t.Errorf("pages[].labels = %v", list.Pages[0].Labels)
+	}
+
+	// Raw JSON: labels must be present (not omitted by omitempty).
+	rec := get(t, h, apiBase+"pages/", nil)
+	var raw map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	pages, _ := raw["pages"].([]any)
+	if len(pages) != 1 {
+		t.Fatalf("raw pages = %v", raw["pages"])
+	}
+	row, _ := pages[0].(map[string]any)
+	labels, ok := row["labels"].([]any)
+	if !ok {
+		t.Fatalf("labels field missing or wrong type: %v", row["labels"])
+	}
+	if len(labels) != 2 {
+		t.Errorf("raw labels = %v", labels)
+	}
+
+	// Detail also carries labels via embedded PageLite.
+	detail := decode[store.PageDetail](t, get(t, h, apiBase+"pages/55/", nil))
+	if len(detail.Labels) != 2 || detail.Labels[0] != "alpha" {
+		t.Errorf("detail labels = %v", detail.Labels)
+	}
+}
+
 func TestHealthExposesConfluenceWhenSourcePresent(t *testing.T) {
 	db, cfg := fixturePages(t)
 	h := New(db, cfg)

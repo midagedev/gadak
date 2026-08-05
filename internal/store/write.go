@@ -301,10 +301,11 @@ func upsertPageRecord(tx *sql.Tx, r PageRecord) (bool, error) {
 		bodyADF = string(pg.BodyADF)
 	}
 	if _, err := tx.Exec(`
-		INSERT INTO pages (item_id, space_key, parent_id, version, status, body_adf)
-		VALUES (?,?,?,?,?,?)`,
+		INSERT INTO pages (item_id, space_key, parent_id, version, status, body_adf, labels)
+		VALUES (?,?,?,?,?,?,?)`,
 		// parent_id/space_key/status/body_adf are NOT NULL — empty string, never nil.
-		it.ID, pg.SpaceKey, pg.ParentID, pg.Version, pg.Status, bodyADF,
+		// labels is a JSON array string ("[]" when absent), matching issues.labels.
+		it.ID, pg.SpaceKey, pg.ParentID, pg.Version, pg.Status, bodyADF, jsonArray(pg.Labels),
 	); err != nil {
 		return false, err
 	}

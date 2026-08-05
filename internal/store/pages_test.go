@@ -231,3 +231,105 @@ func TestPageLitesOrder(t *testing.T) {
 		t.Errorf("order = %s then %s, want 200 then 100", pages[0].Key, pages[1].Key)
 	}
 }
+
+// TestPageLabelsRoundTrip is FAIL-first for schema v13: labels JSON array on
+// pages, surfaced on PageLite/PageDetail (empty array when absent, never null).
+func TestPageLabelsRoundTrip(t *testing.T) {
+	db := openTemp(t)
+	if got := db.SchemaVersion(); got < 13 {
+		t.Fatalf("schema version %d, want ≥ 13 (labels on pages)", got)
+	}
+	if err := db.UpsertSource(Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertPages([]PageRecord{{
+		Item: Item{
+			ID: "confluence:42", SourceID: "confluence", Kind: "page", ExternalID: "42",
+			Key: "42", Title: "Labeled", BodyText: "body",
+			CreatedAt: ago(1), UpdatedAt: ago(1),
+		},
+		Page: Page{
+			SpaceKey: "X", Version: 1, Status: "current",
+			Labels:  []string{"runbook", "ops"},
+			BodyADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`),
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	var stored string
+	if err := db.sql.QueryRow(`SELECT labels FROM pages WHERE item_id = 'confluence:42'`).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored == "" || stored == "null" {
+		t.Fatalf("labels column = %q, want JSON array", stored)
+	}
+	var decoded []string
+	if err := json.Unmarshal([]byte(stored), &decoded); err != nil {
+		t.Fatalf("labels not JSON: %v (%s)", err, stored)
+	}
+	if len(decoded) != 2 || decoded[0] != "runbook" || decoded[1] != "ops" {
+		t.Errorf("stored labels = %v, want [runbook ops]", decoded)
+	}
+
+	pages, err := db.PageLites()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 1 {
+		t.Fatalf("PageLites len = %d, want 1", len(pages))
+	}
+	if pages[0].Labels == nil {
+		t.Fatal("PageLite.Labels is nil, want empty or filled array")
+	}
+	if len(pages[0].Labels) != 2 || pages[0].Labels[0] != "runbook" || pages[0].Labels[1] != "ops" {
+		t.Errorf("PageLite.Labels = %v", pages[0].Labels)
+	}
+
+	d, err := db.PageDetail("42")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d == nil {
+		t.Fatal("PageDetail(42) = nil")
+	}
+	if len(d.Labels) != 2 || d.Labels[0] != "runbook" {
+		t.Errorf("PageDetail.Labels = %v", d.Labels)
+	}
+
+	// Absent labels → empty array, not null.
+	if _, err := db.UpsertPages([]PageRecord{{
+		Item: Item{
+			ID: "confluence:43", SourceID: "confluence", Kind: "page", ExternalID: "43",
+			Key: "43", Title: "No labels", BodyText: "x",
+			CreatedAt: ago(1), UpdatedAt: ago(1),
+		},
+		Page: Page{SpaceKey: "X", Version: 1, Status: "current"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	d2, err := db.PageDetail("43")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d2 == nil {
+		t.Fatal("PageDetail(43) = nil")
+	}
+	if d2.Labels == nil {
+		t.Error("absent Labels decoded as nil, want empty slice")
+	}
+	if len(d2.Labels) != 0 {
+		t.Errorf("absent Labels = %v, want empty", d2.Labels)
+	}
+
+	cols := documentedColumns["pages"]
+	found := false
+	for _, c := range cols {
+		if c == "labels" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("documentedColumns[pages] missing labels")
+	}
+}

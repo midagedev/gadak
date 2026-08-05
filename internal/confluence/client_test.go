@@ -121,6 +121,58 @@ func TestSpacesPagesComments(t *testing.T) {
 	}
 }
 
+// TestPageParsesMetadataLabels is FAIL-first for expand=metadata.labels:
+// Confluence REST v1 returns metadata.labels.results[{name,...}].
+// Only the first page of labels is expanded (≤25); real pages have few labels.
+func TestPageParsesMetadataLabels(t *testing.T) {
+	adf := `{"type":"doc","version":1,"content":[]}`
+	var expand string
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/wiki/rest/api/content/9" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		expand = r.URL.Query().Get("expand")
+		p := fullPage("9", "ENG", "Runbook", adf, 1, "2026-08-01T10:00:00.000Z")
+		// Deliberately unsorted names — client must surface names; sort is sync's job.
+		p["metadata"] = map[string]any{
+			"labels": map[string]any{
+				"results": []map[string]any{
+					{"name": "ops", "prefix": "global", "id": "1"},
+					{"name": "runbook", "prefix": "global", "id": "2"},
+					{"name": "alpha", "prefix": "global", "id": "3"},
+				},
+				"size":  3,
+				"limit": 25,
+				"start": 0,
+			},
+		}
+		_ = json.NewEncoder(w).Encode(p)
+	}))
+
+	pg, err := c.Page(context.Background(), "9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(expand, "metadata.labels") {
+		t.Errorf("expand = %q, want metadata.labels", expand)
+	}
+	names := pg.LabelNames()
+	if len(names) != 3 {
+		t.Fatalf("LabelNames = %v, want 3 names", names)
+	}
+	// Order preserved from API (sync sorts for determinism).
+	if names[0] != "ops" || names[1] != "runbook" || names[2] != "alpha" {
+		t.Errorf("LabelNames = %v", names)
+	}
+	// Empty metadata → empty slice, not nil for callers that range.
+	empty := Page{}
+	if got := empty.LabelNames(); got == nil || len(got) != 0 {
+		t.Errorf("empty LabelNames = %v, want empty non-nil", got)
+	}
+}
+
 func TestRetryAfter429(t *testing.T) {
 	var calls int32
 	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

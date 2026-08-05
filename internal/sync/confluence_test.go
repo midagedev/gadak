@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,6 +40,9 @@ type confPage struct {
 	Version int
 	When    string
 	BodyADF string
+	// Labels are label names as returned under metadata.labels.results[].name.
+	// Order here is API order; sync sorts alphabetically into Page.Labels.
+	Labels []string
 	// comments: each has id, text, when; replies nested one level
 	Comments []confComment
 }
@@ -74,6 +78,8 @@ func newConfFixture(t *testing.T) *confFixture {
 				ID: "1001", Space: "AAA", Title: "Login runbook",
 				Version: 2, When: "2026-08-01T10:00:00.000Z",
 				BodyADF: adf("로그인이 실패했다 — check the auth gateway"),
+				// Unsorted API order — sync must alphabetize.
+				Labels: []string{"runbook", "ops"},
 				Comments: []confComment{
 					{ID: "c1001", Text: "still broken on staging", When: "2026-08-01T11:00:00.000Z"},
 				},
@@ -271,6 +277,12 @@ func confCommentJSON(c confComment) map[string]any {
 }
 
 func (f *confFixture) fullPage(p *confPage) map[string]any {
+	results := make([]map[string]any, 0, len(p.Labels))
+	for i, name := range p.Labels {
+		results = append(results, map[string]any{
+			"name": name, "prefix": "global", "id": fmt.Sprintf("%d", i+1),
+		})
+	}
 	return map[string]any{
 		"id": p.ID, "type": "page", "status": "current", "title": p.Title,
 		"space": map[string]any{"key": p.Space, "name": p.Space},
@@ -282,6 +294,14 @@ func (f *confFixture) fullPage(p *confPage) map[string]any {
 			"atlas_doc_format": map[string]any{"value": p.BodyADF, "representation": "atlas_doc_format"},
 		},
 		"ancestors": []any{},
+		"metadata": map[string]any{
+			"labels": map[string]any{
+				"results": results,
+				"size":    len(results),
+				"limit":   25,
+				"start":   0,
+			},
+		},
 	}
 }
 
@@ -362,6 +382,26 @@ func TestConfluenceFullSyncMapsPagesAndFTS(t *testing.T) {
 	}
 	if st.Watermark == "" {
 		t.Error("watermark not set after full sync")
+	}
+
+	// Labels: API order was runbook,ops → stored alphabetically as ops,runbook.
+	var labelsJSON string
+	if err := raw.QueryRow(`SELECT labels FROM pages WHERE item_id = 'confluence:1001'`).Scan(&labelsJSON); err != nil {
+		t.Fatal(err)
+	}
+	var labels []string
+	if err := json.Unmarshal([]byte(labelsJSON), &labels); err != nil {
+		t.Fatalf("labels JSON: %v (%s)", err, labelsJSON)
+	}
+	if len(labels) != 2 || labels[0] != "ops" || labels[1] != "runbook" {
+		t.Errorf("page 1001 labels = %v, want [ops runbook] (sorted)", labels)
+	}
+	// Page without labels → empty JSON array.
+	if err := raw.QueryRow(`SELECT labels FROM pages WHERE item_id = 'confluence:1002'`).Scan(&labelsJSON); err != nil {
+		t.Fatal(err)
+	}
+	if labelsJSON != "[]" {
+		t.Errorf("page 1002 labels = %q, want []", labelsJSON)
 	}
 }
 
