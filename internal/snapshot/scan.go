@@ -3,23 +3,10 @@ package snapshot
 import (
 	"database/sql"
 	"fmt"
-	"regexp"
 	"strings"
-)
 
-// Credential patterns must not disagree with scripts/scan-internal.sh for
-// Atlassian tokens, and cover the extra shapes listed in the snapshot contract.
-var credentialPatterns = []struct {
-	name string
-	re   *regexp.Regexp
-}{
-	{"atlassian_api_token", regexp.MustCompile(`ATATT[A-Za-z0-9+/=_-]{20,}|ATCTT[A-Za-z0-9+/=_-]{20,}`)},
-	{"http_basic_auth", regexp.MustCompile(`(?i)Authorization:\s*Basic\s+[A-Za-z0-9+/=_-]{8,}`)},
-	{"http_bearer_token", regexp.MustCompile(`(?i)Authorization:\s*Bearer\s+[A-Za-z0-9._-]{20,}`)},
-	{"slack_token", regexp.MustCompile(`xox[baprs]-[A-Za-z0-9-]{10,}`)},
-	{"github_token", regexp.MustCompile(`\b(?:ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}`)},
-	{"private_key_pem", regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)},
-}
+	"github.com/midagedev/scry/internal/secretscan"
+)
 
 // tables scanned for credential-shaped strings (copy targets only).
 var scanTables = []string{
@@ -81,7 +68,7 @@ func scanCredentials(db *sql.DB) error {
 				if !vals[i].Valid || vals[i].String == "" {
 					continue
 				}
-				if name := matchCredential(vals[i].String); name != "" {
+				if name := secretscan.Match(vals[i].String); name != "" {
 					rows.Close()
 					return fmt.Errorf("credential-shaped string detected: table=%s row=%s column=%s pattern=%s",
 						table, rowID, c, name)
@@ -95,15 +82,6 @@ func scanCredentials(db *sql.DB) error {
 		}
 	}
 	return nil
-}
-
-func matchCredential(s string) string {
-	for _, p := range credentialPatterns {
-		if p.re.MatchString(s) {
-			return p.name
-		}
-	}
-	return ""
 }
 
 func textColumns(db *sql.DB, table string) ([]string, error) {

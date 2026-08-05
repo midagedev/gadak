@@ -145,6 +145,9 @@ scry assign NMB-140 -                # unassign
 scry fields                          # custom-field usage on a sample (needs credential)
 scry fields --sample 100 --project NMB --json
 
+scry team export --out scry-team.json   # share views, fieldMap, group rules (no credentials)
+scry team import scry-team.json         # merge into this profile; try --dry-run first
+
 scry sync                            # incremental; --full re-fetches everything
 scry status --json
 scry sql --json "select count(*) from issues where reopen_count > 0"

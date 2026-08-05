@@ -28,6 +28,7 @@ var commandNames = []string{
 	"sql",
 	"status",
 	"sync",
+	"team",
 	"transition",
 	"tui",
 	"version",
@@ -245,6 +246,23 @@ var helps = map[string]cmdHelp{
 			"scry snapshot bench.db --scale 10000             # benchmark fixture, no 10k-issue site",
 		},
 		seeAlso: []string{"scry demo", "scry export-static", "scry sync"},
+	},
+	"team": {
+		summary: "export or import shareable team settings and saved views (no credentials)",
+		usage:   "scry [--profile <name>] team export|import …",
+		options: []helpOption{
+			{name: "out", desc: "export: write to this file instead of stdout"},
+			{name: "with-members", desc: "export: include members (emails)"},
+			{name: "dry-run", desc: "import: print the merge plan without writing"},
+			{name: "overwrite", desc: "import: replace conflicting settings and same-named views"},
+		},
+		examples: []string{
+			"scry team export --out scry-team.json",
+			"scry team import scry-team.json --dry-run",
+			"scry team import scry-team.json",
+			"scry team import scry-team.json --overwrite",
+		},
+		seeAlso: []string{"scry init", "scry status"},
 	},
 	"version": {
 		summary: "print the scry version",

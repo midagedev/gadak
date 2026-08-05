@@ -90,6 +90,30 @@ a ready-to-paste `sqlite3 <dbPath>`).
 
 ---
 
+## Sharing team settings (`scry team export` / `import`)
+
+Teams can commit a single file (for example `scry-team.json` in a repo) so a new
+member runs `scry init` then `scry team import scry-team.json` and gets the same
+views, field map, and group rules. Export is **whitelist-only**: new `Config`
+fields never leave the machine until someone explicitly adds them to the share
+list. Credentials and per-machine prefs are never included.
+
+| Shared (export / import) | Not shared |
+| --- | --- |
+| `projects` | `site`, `email`, `token` |
+| `fieldMap`, `bodyFields`, `editableFields` | `account_id`, `tokenOwner`, `tokenVerifiedAt` |
+| `groupRules`, `groupLabels`, `groupColors`, `productByGroup` | `syncIntervalSec`, `reconcileIntervalSec` |
+| `features`, `qaDashboardUrl`, `staleThresholdHours` | `notify`, `attachmentCacheMB` |
+| `members` only with `export --with-members` (emails; stderr warns) | personal machine intervals / notification prefs |
+| saved views (`name` + `config`; new ids on import) | view `id` / timestamps |
+
+Import **merges** by default (fill empty settings keys; add views only when the
+name is new). `--overwrite` replaces conflicts. Prefer
+`scry team import FILE --dry-run` first. A file that contains credential keys
+(`site` / `token` / …) is rejected — do not hand-edit secrets into a share file.
+
+---
+
 ## What you must still edit by hand (or outside Settings)
 
 | Concern | How |
@@ -98,6 +122,7 @@ a ready-to-paste `sqlite3 <dbPath>`).
 | Profile selection | CLI `--profile` / `SCRY_PROFILE` (separate home directory) |
 | `SCRY_HOME` override | Environment variable |
 | Binary version string in UI | `server.Version` package var — wire from `cmd/scry` ldflags (default `0.0.0-dev` until wired) |
+| Team views / field map / group rules (between people) | `scry team export` / `scry team import` (see above) |
 | Sync loop process | Start/stop `scry serve` (default when credentialed; `--no-sync` opts out) or `scry sync --watch` |
 | Keep serve across reboots | `scry install-service` (launchd / systemd user); `--uninstall` removes it |
 | OS desktop notifications | `"notify": false` in `config.json` to disable (default on) |

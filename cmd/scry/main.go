@@ -2,7 +2,7 @@
 //
 // Implemented: init, sync (--full/--watch), serve (syncs by default), tui,
 // issue, search, comment, transition, assign, sql, status, mcp, demo,
-// export-static, install-service, profiles, version, snapshot.
+// export-static, install-service, profiles, version, snapshot, team.
 // See specs/000-product/tasks.md for the current state of each.
 //
 // The agent-facing commands live in agent.go; AGENTS.md is their reference.
@@ -930,6 +930,8 @@ Writing through to Jira (needs a credential):
   transition change status    <KEY> <status-or-id> [--json]
   assign     set assignee     <KEY> <email|-> [--json]
   fields     custom-field usage report  [--sample N] [--json] [--all] [--project KEY]
+  team       share team settings/views  export [--out] [--with-members]
+                                        import <FILE|-> [--dry-run] [--overwrite]
 
 Profiles keep separate credentials and mirrors (e.g. work and demo):
   scry --profile demo init && scry --profile demo serve --addr 127.0.0.1:7778
@@ -1002,6 +1004,8 @@ func main() {
 		err = cmdVersion(args[1:])
 	case "snapshot":
 		err = cmdSnapshot(args[1:])
+	case "team":
+		err = cmdTeam(args[1:])
 	default:
 		fmt.Print(usage)
 		os.Exit(2)
