@@ -43,6 +43,14 @@ export interface ScryConfig {
   productByGroup: Record<string, { key: string; label: string }>
   /** Hours in the current status before an unresolved issue counts as stale. */
   staleThresholdHours: number
+  /**
+   * True only for the public hosted demo: a static snapshot on someone else's
+   * domain, where a service worker answers every write with 501. Nothing here
+   * reaches a Jira site, so the UI must say it is a demo and must not offer to
+   * take an API token — a credential box on a page like this invites a visitor
+   * to paste a real token somewhere it can do them no good.
+   */
+  hostedDemo: boolean
   features: ScryFeatures
 }
 
@@ -56,6 +64,7 @@ const DEFAULTS: ScryConfig = {
   groupColors: {},
   productByGroup: {},
   staleThresholdHours: 72,
+  hostedDemo: false,
   features: {
     feed: false,
     push: false,
@@ -78,6 +87,11 @@ export function config(): ScryConfig {
  */
 export function feature(name: keyof ScryFeatures): boolean {
   return current.features[name]
+}
+
+/** True on the public hosted demo. See ScryConfig.hostedDemo. */
+export function isHostedDemo(): boolean {
+  return current.hostedDemo
 }
 
 /**

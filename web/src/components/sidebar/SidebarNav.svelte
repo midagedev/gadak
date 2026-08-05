@@ -11,6 +11,7 @@
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
+  import { isHostedDemo } from '../../lib/config'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
@@ -106,13 +107,16 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <!-- New issue (shortcut c) -->
+  <!-- New issue (shortcut c). Disabled on the hosted demo, where the snapshot
+       service worker answers every write with 501 — offering the button only to
+       fail on submit wastes the visitor's time. -->
   <div class="flex-none px-3 pt-1 pb-2">
     <button
       type="button"
+      disabled={isHostedDemo()}
       onclick={() => write.openNewIssue()}
-      class="flex w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover"
-      title={t('sidebar.newIssueTitle')}
+      class="flex w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-bg-elevated disabled:text-text-muted disabled:hover:bg-bg-elevated"
+      title={isHostedDemo() ? t('app.demoWriteDisabled') : t('sidebar.newIssueTitle')}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
         <path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
@@ -294,6 +298,12 @@
           </svg>
         </button>
       </div>
+    {:else if isHostedDemo()}
+      <!-- No credential button on the hosted demo: the dialog behind it asks for
+           a real Atlassian token, and nothing on a static snapshot could use one. -->
+      <p class="px-3 py-1.5 text-center text-[11px] text-text-muted">
+        {t('app.demoNoCredentials')}
+      </p>
     {:else if me.authChecked}
       <button
         type="button"

@@ -71,7 +71,9 @@
   >
     <h2 class="mb-1 text-[14px] font-semibold text-text-primary">{t('jiraSettings.heading')}</h2>
     <p class="mb-4 text-[12px] leading-relaxed text-text-muted">
-      {t('jiraSettings.intro1')} <span class="text-text-secondary">{t('jiraSettings.intro2')}</span>{t('jiraSettings.intro3')} Atlassian
+      <!-- intro3 already ends in "Atlassian"; the line break below is the space
+           before the link, so no literal belongs here. -->
+      {t('jiraSettings.intro1')} <span class="text-text-secondary">{t('jiraSettings.intro2')}</span>{t('jiraSettings.intro3')}
       <a
         href={API_TOKEN_URL}
         target="_blank"

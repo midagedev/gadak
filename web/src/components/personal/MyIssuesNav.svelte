@@ -16,6 +16,7 @@
   import { write } from '../../stores/write.svelte'
   import { effectiveCategory, emptyConfig, type ViewConfig } from '../../lib/view-config'
   import { feature } from '../../lib/config'
+  import { isHostedDemo } from '../../lib/config'
 
   const myEmail = $derived(me.email)
   // Without feed, hide "reported by me" / "feed" — no panel to open.
@@ -99,6 +100,10 @@
       {/if}
     </button>
     {/if}
+  {:else if isHostedDemo()}
+    <!-- The personal views need a Jira identity, which the demo has no way to
+         obtain. Say so rather than pointing at a credential dialog. -->
+    <p class="px-3 py-1.5 text-[12px] text-text-muted">{t('personal.demoNoIdentity')}</p>
   {:else}
     <button
       type="button"

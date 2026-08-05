@@ -12,7 +12,10 @@
   import { me } from './stores/me.svelte'
   import { write } from './stores/write.svelte'
   import { router, setParams } from './lib/router.svelte'
-  import { feature } from './lib/config'
+  import { feature, isHostedDemo } from './lib/config'
+
+  /** Where the demo banner sends people who want the real thing. */
+  const REPO_URL = 'https://github.com/midagedev/scry'
   import {
     emptyConfig,
     parseConfig,
@@ -255,6 +258,25 @@
   {/if}
 {:else}
   <div class="issue-shell">
+    {#if isHostedDemo()}
+      <!-- First thing on the page on purpose. Without it this reads as a real
+           Jira client someone left signed in, which is how a visitor ends up
+           looking for the credential box. -->
+      <div
+        class="flex flex-none flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-b border-accent-strong/40 bg-accent-strong/10 px-3 py-1.5 text-[12px] text-text-secondary"
+        role="status"
+        data-testid="demo-banner"
+      >
+        <span class="font-semibold text-accent-text">{t('app.demoBadge')}</span>
+        <span>{t('app.demoBanner')}</span>
+        <a
+          href={REPO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-accent-text hover:underline">{t('app.demoBannerLink')}</a
+        >
+      </div>
+    {/if}
     {#if issues.offline}
       <div
         class="flex flex-none items-center justify-center gap-2 border-b border-status-stale/40 bg-status-stale/10 px-3 py-1.5 text-[12px] text-status-stale"

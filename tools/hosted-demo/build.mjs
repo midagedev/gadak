@@ -10,7 +10,7 @@
  *   make hosted-demo
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -75,10 +75,21 @@ if (!existsSync(join(outDir, 'demo-sw.js'))) {
   console.error('hosted-demo: demo-sw.js missing from build output')
   process.exit(1)
 }
-if (!existsSync(join(outDir, 'index.html'))) {
+const indexPath = join(outDir, 'index.html')
+if (!existsSync(indexPath)) {
   console.error('hosted-demo: index.html missing from build output')
   process.exit(1)
 }
+
+// The tab title is the one label a visitor sees before the app paints, and it
+// follows a bookmark or a shared link anywhere. Say "demo" there too.
+const indexHtml = readFileSync(indexPath, 'utf8')
+const titled = indexHtml.replace('<title>scry</title>', '<title>scry — live demo</title>')
+if (titled === indexHtml) {
+  console.error('hosted-demo: could not retitle index.html — the <title> tag changed shape')
+  process.exit(1)
+}
+writeFileSync(indexPath, titled)
 
 // ── 3. Freeze demo.db into static JSON ──────────────────────────────────────
 // Flags before positional outdir (Go flag.Parse stops at the first non-flag).

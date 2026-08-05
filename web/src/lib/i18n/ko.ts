@@ -334,6 +334,7 @@ export const ko = {
   'personal.myReporter': '내가 보고',
   'personal.feedHint': '내 이슈 변화 + 나를 멘션한 코멘트',
   'personal.needCredentials': '자격증명을 설정하면 내 담당·보고·멘션이 여기 모입니다 →',
+  'personal.demoNoIdentity': '개인 뷰는 Jira 신원이 필요해 데모에서는 표시되지 않습니다',
   'personal.favoriteAria': '{key} 즐겨찾기',
   'personal.unfavoriteAria': '{key} 즐겨찾기 해제',
   'personal.watchOn': '워치 해제 — 상태 변경/코멘트/재오픈 알림을 받고 있습니다',
@@ -735,6 +736,11 @@ export const ko = {
   'app.authGateHint': '가 실행 중인지 확인하세요.',
   'app.authRetry': '다시 시도',
   'app.offlineBanner': '오프라인 — 캐시된 데이터를 표시 중',
+  'app.demoBadge': '데모',
+  'app.demoBanner': '가상의 이슈이며 읽기 전용입니다. Jira 에 연결되지 않고 계정도 필요 없습니다.',
+  'app.demoBannerLink': '내 Jira 에서 실행하기 →',
+  'app.demoNoCredentials': '데모에서는 자격증명을 설정할 수 없습니다',
+  'app.demoWriteDisabled': '데모에서는 읽기 전용입니다',
 
   /* ── Me / notifications errors ── */
   'me.noCryptoKey': '구독 암호화 키가 없습니다.',

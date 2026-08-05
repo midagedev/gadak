@@ -80,4 +80,27 @@ test.describe('hosted demo', () => {
     )
     expect(serious, `console errors:\n${serious.join('\n')}`).toEqual([])
   })
+
+  test('says it is a demo and never offers to take a Jira token', async ({ page }) => {
+    await forceLocale(page, 'en')
+    await page.goto(DEMO)
+
+    // Without this the page reads as a real Jira client someone left signed in,
+    // and the next thing a visitor looks for is where to put their token.
+    const banner = page.getByTestId('demo-banner')
+    await expect(banner).toBeVisible({ timeout: 30_000 })
+    await expect(banner).toContainText('Demo')
+    await expect(banner).toContainText('read-only')
+    await expect(page).toHaveTitle(/demo/i)
+
+    // The credential dialog asks for a real Atlassian API token. On a static
+    // snapshot served from someone else's domain there is nothing it could ever
+    // be used for, so no path may lead there.
+    await expect(page.getByText(/set credentials/i)).toHaveCount(0)
+    await expect(page.locator('input[type="password"]')).toHaveCount(0)
+
+    // Writes answer 501 here, so the entry point is disabled up front rather
+    // than failing after the visitor has typed something.
+    await expect(page.getByRole('button', { name: /new issue/i }).first()).toBeDisabled()
+  })
 })

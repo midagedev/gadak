@@ -333,6 +333,7 @@ export const en = {
   'personal.myReporter': 'Reported by me',
   'personal.feedHint': 'Changes on my issues + comments that mention me',
   'personal.needCredentials': 'Set credentials to see assigned, reported, and mentions →',
+  'personal.demoNoIdentity': 'Personal views need a Jira identity — not available in the demo',
   'personal.favoriteAria': 'Favorite {key}',
   'personal.unfavoriteAria': 'Unfavorite {key}',
   'personal.watchOn': 'Watching — status/comment/reopen alerts on',
@@ -497,7 +498,9 @@ export const en = {
   'jiraSettings.intro2': 'your Jira account',
   'jiraSettings.intro3': '. Issue an Atlassian',
   'jiraSettings.intro4': 'API token',
-  'jiraSettings.intro5': 'and register it here.',
+  // Leading space on purpose: this follows the link element directly. Korean
+  // attaches a particle instead and must not have one.
+  'jiraSettings.intro5': ' and register it here.',
   'jiraSettings.email': 'Jira email',
   'jiraSettings.tokenReplace': '(only when replacing)',
   'jiraSettings.replaceToken': 'Replace token',
@@ -736,6 +739,12 @@ export const en = {
   'app.authGateHint': 'Make sure it is running.',
   'app.authRetry': 'Retry',
   'app.offlineBanner': 'Offline — showing cached data',
+  'app.demoBadge': 'Demo',
+  'app.demoBanner':
+    'Fictional issues, read-only. Nothing here connects to Jira and no account is involved.',
+  'app.demoBannerLink': 'Run it on your own Jira →',
+  'app.demoNoCredentials': 'Credentials are disabled in the demo',
+  'app.demoWriteDisabled': 'Read-only in the demo',
 
   /* ── Me / notifications errors ── */
   'me.noCryptoKey': 'Missing subscription encryption key.',
