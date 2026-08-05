@@ -16,6 +16,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -233,51 +234,191 @@ func isLoopback(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// cmdInit prompts for the connection settings, verifies them against Jira, and
-// writes ~/.scry/config.json (0600). Existing values are kept on empty input.
-func cmdInit(args []string) error {
-	if wantsHelp(args) {
-		printHelp("init")
-		return nil
+// stdinIsTerminal reports whether stdin is a character device. Used so init can
+// refuse to block on a prompt when an agent or pipe is driving the CLI.
+func stdinIsTerminal() bool {
+	fi, err := os.Stdin.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
+// Injection points so tests can exercise the interactive branch, which cannot
+// be reached through a pipe.
+var initStdin io.Reader = os.Stdin
+var initIsTerminal = stdinIsTerminal
+
+// parseProjectKeys splits a comma-separated project list the same way the
+// interactive init path always has: trim, upper-case, drop empties.
+func parseProjectKeys(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(strings.ToUpper(p)); p != "" {
+			out = append(out, p)
+		}
 	}
+	return out
+}
+
+// initMissingError lists every value still empty and how to supply it without a
+// prompt. reason is why prompting was skipped (not a TTY, --json, --token-stdin).
+func initMissingError(missing []string, reason string) error {
+	return fmt.Errorf("missing: %s (%s)\nsupply them with flags (--site, --email, --projects) or environment\n(SCRY_SITE, SCRY_EMAIL, SCRY_TOKEN, SCRY_PROJECTS); for the token also\n--token-file <path> or --token-stdin",
+		strings.Join(missing, ", "), reason)
+}
+
+// cmdInit writes site/email/token/projects to config after verifying against
+// /myself. Classic interactive mode (TTY, no supply flags/env, no --json)
+// re-prompts all four fields so a human can replace an expired token. Any
+// non-interactive supply turns prompting off entirely.
+func cmdInit(args []string) error {
+	fs := newFlagSet("init")
+	siteFlag := fs.String("site", "", "Jira site URL (https://your-site.atlassian.net)")
+	emailFlag := fs.String("email", "", "account email")
+	projectsFlag := fs.String("projects", "", "project keys, comma-separated")
+	tokenFile := fs.String("token-file", "", "read API token from this file")
+	tokenStdin := fs.Bool("token-stdin", false, "read API token from stdin")
+	// Defined only so a mistaken `--token secret` gets a clear error instead of
+	// "flag provided but not defined"; the value must never be accepted (ps/history).
+	tokenFlag := fs.String("token", "", "not accepted; use SCRY_TOKEN, --token-file, or --token-stdin")
+	jsonOut := fs.Bool("json", false, "emit one JSON object on success")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *tokenFlag != "" {
+		return fmt.Errorf("--token is not accepted: it would be visible in `ps` and shell history.\nuse SCRY_TOKEN=..., --token-file <path>, or --token-stdin")
+	}
+	if *tokenStdin && *tokenFile != "" {
+		return fmt.Errorf("use only one of --token-file or --token-stdin")
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	in := bufio.NewReader(os.Stdin)
-	prompt := func(label, current string) string {
-		if current != "" {
-			fmt.Printf("%s [%s]: ", label, current)
-		} else {
-			fmt.Printf("%s: ", label)
-		}
-		line, _ := in.ReadString('\n')
-		line = strings.TrimSpace(line)
-		if line == "" {
-			return current
-		}
-		return line
-	}
-	cfg.Site = strings.TrimRight(prompt("Jira site URL (https://your-site.atlassian.net)", cfg.Site), "/")
-	cfg.Email = prompt("Account email", cfg.Email)
-	hint := ""
-	if cfg.Token != "" {
-		hint = "configured; enter to keep"
-	}
-	cfg.Token = prompt("API token (id.atlassian.com/manage-profile/security/api-tokens)"+
-		func() string {
-			if hint != "" {
-				return " [" + hint + "]"
+
+	envSite := os.Getenv("SCRY_SITE")
+	envEmail := os.Getenv("SCRY_EMAIL")
+	envToken := os.Getenv("SCRY_TOKEN")
+	envProjects := os.Getenv("SCRY_PROJECTS")
+
+	// Any supply flag or env forces non-interactive; half-prompted states are unpredictable for agents.
+	suppliedFlag := *siteFlag != "" || *emailFlag != "" || *projectsFlag != "" || *tokenFile != "" || *tokenStdin
+	suppliedEnv := envSite != "" || envEmail != "" || envToken != "" || envProjects != ""
+	classic := initIsTerminal() && !*jsonOut && !suppliedFlag && !suppliedEnv
+
+	var site, email, token string
+	var projects []string
+
+	if classic {
+		// Start from saved values; empty answers keep them (token never echoed).
+		site = strings.TrimRight(cfg.Site, "/")
+		email = cfg.Email
+		token = cfg.Token
+		projects = append([]string(nil), cfg.Projects...)
+
+		in := bufio.NewReader(initStdin)
+		prompt := func(label, current string) string {
+			if current != "" {
+				fmt.Printf("%s [%s]: ", label, current)
+			} else {
+				fmt.Printf("%s: ", label)
 			}
-			return ""
-		}(), cfg.Token)
-	projects := prompt("Project keys, comma-separated", strings.Join(cfg.Projects, ","))
-	cfg.Projects = nil
-	for _, p := range strings.Split(projects, ",") {
-		if p = strings.TrimSpace(strings.ToUpper(p)); p != "" {
-			cfg.Projects = append(cfg.Projects, p)
+			line, _ := in.ReadString('\n')
+			line = strings.TrimSpace(line)
+			if line == "" {
+				return current
+			}
+			return line
+		}
+		site = strings.TrimRight(prompt("Jira site URL (https://your-site.atlassian.net)", site), "/")
+		email = prompt("Account email", email)
+		// Token: keep-hint in the label only — never print the secret as [current].
+		tokenLabel := "API token (id.atlassian.com/manage-profile/security/api-tokens)"
+		if token != "" {
+			tokenLabel += " [configured; enter to keep]"
+		}
+		if v := prompt(tokenLabel, ""); v != "" {
+			token = v
+		}
+		projects = parseProjectKeys(prompt("Project keys, comma-separated", strings.Join(projects, ",")))
+	} else {
+		// flag > env > saved; never prompt.
+		site = strings.TrimRight(cfg.Site, "/")
+		if envSite != "" {
+			site = strings.TrimRight(envSite, "/")
+		}
+		if *siteFlag != "" {
+			site = strings.TrimRight(*siteFlag, "/")
+		}
+
+		email = cfg.Email
+		if envEmail != "" {
+			email = envEmail
+		}
+		if *emailFlag != "" {
+			email = *emailFlag
+		}
+
+		token = cfg.Token
+		if envToken != "" {
+			token = envToken
+		}
+		switch {
+		case *tokenStdin:
+			b, err := io.ReadAll(initStdin)
+			if err != nil {
+				return fmt.Errorf("reading token from stdin: %w", err)
+			}
+			token = strings.TrimSpace(string(b))
+		case *tokenFile != "":
+			b, err := os.ReadFile(*tokenFile)
+			if err != nil {
+				return fmt.Errorf("reading --token-file: %w", err)
+			}
+			token = strings.TrimSpace(string(b))
+		}
+
+		projects = append([]string(nil), cfg.Projects...)
+		if envProjects != "" {
+			projects = parseProjectKeys(envProjects)
+		}
+		if *projectsFlag != "" {
+			projects = parseProjectKeys(*projectsFlag)
+		}
+
+		var missing []string
+		if site == "" {
+			missing = append(missing, "site")
+		}
+		if email == "" {
+			missing = append(missing, "email")
+		}
+		if token == "" {
+			missing = append(missing, "token")
+		}
+		if len(projects) == 0 {
+			missing = append(missing, "projects")
+		}
+		if len(missing) > 0 {
+			reason := "stdin is not a terminal, so init cannot prompt"
+			switch {
+			case *jsonOut:
+				reason = "--json forbids interactive prompts"
+			case *tokenStdin:
+				reason = "--token-stdin consumes stdin, so init cannot prompt"
+			case suppliedFlag || suppliedEnv:
+				// TTY but non-classic: flags/env opted into non-interactive fill.
+				if initIsTerminal() {
+					reason = "non-interactive supply was used, so init cannot prompt"
+				}
+			}
+			return initMissingError(missing, reason)
 		}
 	}
+
+	cfg.Site = site
+	cfg.Email = email
+	cfg.Token = token
+	cfg.Projects = projects
 
 	if !cfg.HasCredential() {
 		return fmt.Errorf("site, email, and token are all required")
@@ -290,6 +431,24 @@ func cmdInit(args []string) error {
 		return err
 	}
 	p, _ := config.Path()
+	if *jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		// One line, no HTML escaping — machine consumers parse this.
+		enc.SetEscapeHTML(false)
+		return enc.Encode(struct {
+			Profile  string   `json:"profile"`
+			Account  string   `json:"account"`
+			Site     string   `json:"site"`
+			Projects []string `json:"projects"`
+			Path     string   `json:"path"`
+		}{
+			Profile:  config.Profile(),
+			Account:  name,
+			Site:     cfg.Site,
+			Projects: cfg.Projects,
+			Path:     p,
+		})
+	}
 	fmt.Printf("verified as %s — saved %s\n", name, p)
 	fmt.Println("next: scry sync")
 	return nil
@@ -904,7 +1063,8 @@ Usage:
   scry [--profile <name>] <command>
 
 Commands:
-  init             configure site, credentials, and projects (interactive)
+  init             configure site, credentials, and projects
+                   [--site] [--email] [--projects] [--token-file|--token-stdin] [--json]
   sync             mirror Jira into SQLite   [--full] [--watch]
   serve            web UI + API on loopback  [--addr] [--static] [--no-sync] [--no-open] [--allow-remote]
                    (syncs by default when a credential is configured; --no-sync opts out)

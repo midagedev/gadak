@@ -119,6 +119,7 @@ name is new). `--overwrite` replaces conflicts. Prefer
 | Concern | How |
 | --- | --- |
 | Jira site / email / API token | Credential dialog, `PUT credential/`, or `scry init` — **not** settings PUT |
+| Unattended setup (agents, CI, provisioning) | `scry init` flags/env — see below |
 | Profile selection | CLI `--profile` / `SCRY_PROFILE` (separate home directory) |
 | `SCRY_HOME` override | Environment variable |
 | Binary version string in UI | `server.Version` package var — wire from `cmd/scry` ldflags (default `0.0.0-dev` until wired) |
@@ -130,6 +131,33 @@ name is new). `--overwrite` replaces conflicts. Prefer
 There is no remaining day-to-day operational knob that only lives in the JSON
 file: intervals, projects, features, field maps, teams, and members are all on
 the Settings surface. Direct file edit still works for automation and recovery.
+
+### Unattended `scry init`
+
+A prompt an agent cannot answer is a hang, so init is non-interactive whenever
+anything is supplied:
+
+| Value | Flag | Environment |
+| --- | --- | --- |
+| site | `--site <url>` | `SCRY_SITE` |
+| email | `--email <addr>` | `SCRY_EMAIL` |
+| projects | `--projects <A,B>` | `SCRY_PROJECTS` |
+| token | `--token-file <path>` / `--token-stdin` | `SCRY_TOKEN` |
+
+Per value: flag beats environment beats the saved config. **There is no
+`--token` flag** — argv shows up in `ps` and shell history; passing one fails
+with a pointer to the three accepted paths.
+
+Using *any* flag or `SCRY_*` value turns prompting off entirely, so a missing
+value errors with the list of what is missing rather than waiting on stdin.
+`--json` prints one object (`profile`, `account`, `site`, `projects`, `path`;
+never the token) and also forbids prompting, since a prompt would corrupt the
+document a caller is parsing.
+
+Running `scry init` bare in a terminal keeps the original behavior: all four
+values are re-asked with the current one shown, and an empty answer keeps it —
+which is how an expired token gets replaced. The credential is always verified
+against `/myself` before anything is written.
 
 ---
 

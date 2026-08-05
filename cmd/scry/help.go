@@ -55,11 +55,24 @@ type helpOption struct {
 // constant; positionals and examples match the real cmdXxx implementations.
 var helps = map[string]cmdHelp{
 	"init": {
-		summary: "configure site, credentials, and projects (interactive)",
-		usage:   "scry [--profile <name>] init",
+		summary: "configure site, credentials, and projects",
+		usage:   "scry [--profile <name>] init [--site URL] [--email ADDR] [--projects A,B] [--token-file PATH | --token-stdin] [--json]",
+		// FlagSet VisitAll supplies Options when `scry init --help` runs; this
+		// list covers formatHelp(nil) and documents the env-only token path.
+		options: []helpOption{
+			{name: "site", desc: "Jira site URL (https://your-site.atlassian.net); env SCRY_SITE"},
+			{name: "email", desc: "account email; env SCRY_EMAIL"},
+			{name: "projects", desc: "project keys, comma-separated; env SCRY_PROJECTS"},
+			{name: "token-file", desc: "read API token from this file"},
+			{name: "token-stdin", desc: "read API token from stdin"},
+			{name: "token", desc: "not accepted; use SCRY_TOKEN, --token-file, or --token-stdin"},
+			{name: "json", desc: "emit one JSON object on success"},
+		},
 		examples: []string{
 			"scry init",
 			"scry --profile demo init",
+			"SCRY_TOKEN=$(cat token) scry init --site https://x.atlassian.net --email you@example.com --projects ABC --json",
+			"scry init --site https://x.atlassian.net --email you@example.com --projects ABC --token-file ./token",
 		},
 		seeAlso: []string{"scry sync", "scry profiles"},
 	},

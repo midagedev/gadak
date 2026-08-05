@@ -158,7 +158,21 @@ Text output for a search result or a write is one tab-separated line —
 `key`, `status`, `assignee`, `summary` — so `cut -f1` gives you keys. `--json` on
 a write answers `{"issue": {…IssueLite}}`, plus `"comment"` for `comment`.
 
-Writes need a credential (`scry init`) and fail before calling Jira without one.
+Writes need a credential and fail before calling Jira without one. `scry init`
+takes the whole setup non-interactively, so an agent never has to drive a
+prompt — it only falls back to asking when stdin is a terminal *and* nothing was
+supplied:
+
+```
+SCRY_TOKEN=$(cat token) scry init \
+  --site https://your-site.atlassian.net --email you@example.com --projects ABC --json
+```
+
+There is deliberately no `--token` flag: argv is visible in `ps` and lands in
+shell history. Pass the token as `SCRY_TOKEN`, `--token-file <path>`, or
+`--token-stdin`. Any flag or `SCRY_*` value switches init fully non-interactive,
+so a missing value fails immediately — listing what is missing — instead of
+blocking on a prompt no one is there to answer.
 A body written by `scry comment` is plain text: an `@Name` in it notifies nobody,
 unlike the web UI's mention autocomplete.
 
