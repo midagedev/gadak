@@ -184,12 +184,12 @@ func TestParseSavedViewConfigDisplay(t *testing.T) {
 			forbidUnsup: []string{"group_by"},
 		},
 		{
-			name:      "unknown group_by",
-			raw:       `{"display":{"sort":"updated","group_by":"epic"}}`,
-			wantSort:  "updated",
-			wantDir:   "desc",
-			wantGroup: "",
-			wantUnsup: []string{"group_by=epic"},
+			name:        "epic group_by supported",
+			raw:         `{"display":{"sort":"updated","group_by":"epic"}}`,
+			wantSort:    "updated",
+			wantDir:     "desc",
+			wantGroup:   "epic",
+			forbidUnsup: []string{"group_by"},
 		},
 		{
 			name:        "columns reported",
@@ -342,5 +342,42 @@ func TestRelativeTime(t *testing.T) {
 		if got := relativeTime(tc.iso, now); got != tc.want {
 			t.Errorf("relativeTime(%q)=%q want %q", tc.iso, got, tc.want)
 		}
+	}
+}
+
+func TestBuildListLinesEpicGroup(t *testing.T) {
+	ep1, ep2 := "EP-1", "EP-2"
+	all := buildRows([]store.IssueLite{
+		{IssueKey: "EP-1", Summary: "Billing", EpicKey: &ep1}, // epic itself may carry no epic_key in real data
+		{IssueKey: "ST-1", Summary: "Story A", EpicKey: &ep1},
+		{IssueKey: "ST-2", Summary: "Story B", EpicKey: &ep2},
+		{IssueKey: "OR-1", Summary: "Orphan", EpicKey: nil},
+	})
+	// Fix: epic row should have nil EpicKey (epics do not belong to themselves).
+	all[0].lite.EpicKey = nil
+	vis := []int{0, 1, 2, 3}
+	lines := buildListLines(all, vis, "epic")
+	var labels []string
+	for _, ln := range lines {
+		if ln.kind == lineKindHeader {
+			labels = append(labels, ln.label)
+		}
+	}
+	// Groups sorted by label asc; empty "(no epic)" last.
+	// EP-1 has summary in pool → "EP-1 Billing"; EP-2 is not in pool as issue key with that summary...
+	// EP-2 is not present as a row, so label is key only. EP-1 row is in pool with Summary Billing.
+	joined := strings.Join(labels, "|")
+	if !strings.Contains(joined, "EP-1 Billing") {
+		t.Fatalf("want epic label with summary, got %v", labels)
+	}
+	if !strings.Contains(joined, "EP-2") {
+		t.Fatalf("want EP-2 group, got %v", labels)
+	}
+	if labels[len(labels)-1] != "(no epic)" {
+		t.Fatalf("empty epic group should be last, got %v", labels)
+	}
+	// Count: 3 headers + 4 issues = 7
+	if len(lines) != 7 {
+		t.Fatalf("lines=%d want 7", len(lines))
 	}
 }

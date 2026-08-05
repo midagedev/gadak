@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -272,4 +272,36 @@ CREATE INDEX idx_pages_space ON pages(space_key);
 // rendering does not re-fetch Confluence (R2 read path).
 const schemaV10 = `
 ALTER TABLE pages ADD COLUMN body_adf TEXT NOT NULL DEFAULT '';
+`
+
+// schemaV11 stores issue hierarchy level and a derived epic_key. hierarchy_level
+// is the source's tree rank (Jira: Epic=1, standard=0, sub-task=-1). epic_key is
+// the key of the nearest hierarchy_level==1 ancestor via parent_key (NULL when
+// none). Backfill walks raw JSON for level, then two-hop parent joins for epic.
+// issues_full (v5) expands i.* at CREATE VIEW time and is not recreated here —
+// a follow-up migration must rebuild the view if agents need the new columns
+// through issues_full.
+const schemaV11 = `
+ALTER TABLE issues ADD COLUMN hierarchy_level INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE issues ADD COLUMN epic_key TEXT;
+UPDATE issues SET hierarchy_level = COALESCE(json_extract(raw, '$.fields.issuetype.hierarchyLevel'), 0);
+UPDATE issues SET epic_key = (
+  SELECT CASE
+    WHEN p.hierarchy_level = 1 THEN p.key
+    WHEN gp.hierarchy_level = 1 THEN gp.key
+  END
+  FROM issues p
+  LEFT JOIN issues gp ON gp.key = p.parent_key
+  WHERE p.key = issues.parent_key
+);
+`
+
+// schemaV12 rebuilds issues_full: the view expanded i.* at CREATE VIEW time
+// (v5), so databases migrated past v11 were missing hierarchy_level and
+// epic_key through the agent-facing view. Recreating re-expands the star.
+const schemaV12 = `
+DROP VIEW issues_full;
+CREATE VIEW issues_full AS
+  SELECT it.title AS summary, i.*
+  FROM issues i JOIN items it ON it.id = i.item_id;
 `

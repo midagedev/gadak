@@ -35,20 +35,23 @@ type Item struct {
 // are taken from the record's Item and every derived field is computed by the
 // store, so a connector fills none of them.
 type Issue struct {
-	ProjectKey      string
-	IssueType       string
-	IssueTypeID     string
-	Status          string
-	StatusID        string
-	StatusCategory  string // new | inprogress | done
-	Priority        string
-	Assignee        string
-	AssigneeID      string
-	AssigneeEmail   string
-	Reporter        string
-	ReporterID      string
-	ReporterEmail   string
-	ParentKey       string
+	ProjectKey     string
+	IssueType      string
+	IssueTypeID    string
+	Status         string
+	StatusID       string
+	StatusCategory string // new | inprogress | done
+	Priority       string
+	Assignee       string
+	AssigneeID     string
+	AssigneeEmail  string
+	Reporter       string
+	ReporterID     string
+	ReporterEmail  string
+	ParentKey      string
+	// HierarchyLevel is the source-neutral tree rank of this issue's type
+	// (e.g. epic=1, standard=0, sub-task=-1). Used to derive EpicKey.
+	HierarchyLevel  int
 	Labels          []string
 	Components      []string
 	FixVersions     []string

@@ -104,7 +104,9 @@ The Jira projection. Joined to `items` on `item_id`.
 | `reporter` | TEXT | Display name |
 | `reporter_id` | TEXT | Account id |
 | `reporter_email` | TEXT | Empty when the site hides emails |
-| `parent_key` | TEXT | Epic or parent issue key |
+| `parent_key` | TEXT | Direct parent issue key (an epic for a story, a story for a sub-task) |
+| `hierarchy_level` | INTEGER | Source tree rank (v11) — Jira: epic 1, standard 0, sub-task −1. Backfilled from `raw` |
+| `epic_key` | TEXT | Derived (v11): key of the nearest `hierarchy_level = 1` ancestor via `parent_key`, recomputed after every upsert batch. NULL when no epic ancestor |
 | `labels` | TEXT (JSON array) | |
 | `components` | TEXT (JSON array) | |
 | `fix_versions` | TEXT (JSON array) | |
@@ -368,7 +370,9 @@ silently used.
 ## `issues_full` (view)
 
 Agent convenience view: `issues` columns plus `summary` from `items.title`, so
-queries that need a title do not have to join the spine.
+queries that need a title do not have to join the spine. Rebuilt in v12: the
+view expands `i.*` at CREATE VIEW time, so it had to be recreated to expose
+the v11 columns (`hierarchy_level`, `epic_key`).
 
 ```sql
 CREATE VIEW issues_full AS

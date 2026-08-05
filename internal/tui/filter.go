@@ -179,7 +179,7 @@ type appliedView struct {
 	filter      listFilter
 	name        string
 	sort        listSort
-	groupBy     string // status | status_category | assignee | priority | ""
+	groupBy     string // status | status_category | assignee | priority | epic | ""
 	unsupported []string
 }
 
@@ -337,7 +337,7 @@ func parseDisplayConfig(raw json.RawMessage, av *appliedView) {
 				continue
 			}
 			switch s {
-			case "status", "status_category", "assignee", "priority":
+			case "status", "status_category", "assignee", "priority", "epic":
 				av.groupBy = s
 			case "none":
 				// explicit no grouping
@@ -476,10 +476,17 @@ func buildListLines(all []row, visible []int, groupBy string) []listLine {
 		rank  int   // priority_rank of the group, for groupBy == "priority"
 		idxs  []int // indices into visible
 	}
+	// Epic labels prefer "KEY summary" when the epic row is in the pool.
+	epicTitles := map[string]string{}
+	if groupBy == "epic" {
+		for _, r := range all {
+			epicTitles[r.lite.IssueKey] = r.lite.Summary
+		}
+	}
 	order := make([]string, 0)
 	byKey := map[string]*bucket{}
 	for vi, ai := range visible {
-		key, label := groupKeyLabel(all[ai].lite, groupBy)
+		key, label := groupKeyLabel(all[ai].lite, groupBy, epicTitles)
 		b, ok := byKey[key]
 		if !ok {
 			b = &bucket{key: key, label: label, rank: all[ai].lite.PriorityRank}
@@ -531,7 +538,7 @@ func buildListLines(all []row, visible []int, groupBy string) []listLine {
 	return out
 }
 
-func groupKeyLabel(lite store.IssueLite, groupBy string) (key, label string) {
+func groupKeyLabel(lite store.IssueLite, groupBy string, epicTitles map[string]string) (key, label string) {
 	switch groupBy {
 	case "status":
 		if lite.Status == "" {
@@ -566,6 +573,15 @@ func groupKeyLabel(lite store.IssueLite, groupBy string) (key, label string) {
 			return "", "—"
 		}
 		return p, p
+	case "epic":
+		ek := strings.TrimSpace(deref(lite.EpicKey))
+		if ek == "" {
+			return "", "(no epic)"
+		}
+		if sum := strings.TrimSpace(epicTitles[ek]); sum != "" {
+			return ek, ek + " " + sum
+		}
+		return ek, ek
 	default:
 		return "", "—"
 	}

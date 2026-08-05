@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Epic hierarchy (schema v11/v12).** `issues.hierarchy_level` (source tree
+  rank, backfilled from raw) and a derived `issues.epic_key` — the nearest
+  level-1 ancestor via `parent_key`, recomputed after every upsert batch, so a
+  sub-task groups under its epic rather than its story. `IssueLite` now carries
+  `epic_key` and `parent_key` separately; the TUI supports `group_by=epic`
+  (label `KEY summary`, `(no epic)` bucket); `issues_full` is rebuilt (v12) to
+  expose the new columns; snapshots carry them.
+
 - **Team config sharing.** `scry team export` writes the views, field map,
   group rules and thresholds a team agrees on into one file to commit next to
   the code; `scry team import` merges it into a profile (`--dry-run` prints the

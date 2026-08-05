@@ -49,12 +49,35 @@ func (db *DB) UpsertIssues(b Batch) (int, error) {
 				return err
 			}
 		}
+		// Parent chains can resolve only after later pages arrive, so recompute
+		// epic_key for the whole table after every batch (cheap two-hop join).
+		if err := recomputeEpicKeys(tx); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
 		return 0, err
 	}
 	return changed, nil
+}
+
+// recomputeEpicKeys sets issues.epic_key to the nearest hierarchy_level==1
+// ancestor via parent_key (direct parent, else grandparent). NULL when none.
+// Full-table UPDATE is intentional: reverse batch order and children of
+// unchanged parents both need a second look, and the join is two hops.
+func recomputeEpicKeys(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+		UPDATE issues SET epic_key = (
+			SELECT CASE
+				WHEN p.hierarchy_level = 1 THEN p.key
+				WHEN gp.hierarchy_level = 1 THEN gp.key
+			END
+			FROM issues p
+			LEFT JOIN issues gp ON gp.key = p.parent_key
+			WHERE p.key = issues.parent_key
+		)`)
+	return err
 }
 
 func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
@@ -116,8 +139,9 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			labels, components, fix_versions, affects_versions, environment_text,
 			duedate, resolution, created_at, updated_at,
 			status_changed_at, resolved_at, reopen_count, reopened_at, reopen_reason,
-			assignee_changed_at, comment_count, description_adf, custom, raw, cloned_from)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			assignee_changed_at, comment_count, description_adf, custom, raw, cloned_from,
+			hierarchy_level)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		it.ID, it.Key, nz(is.ProjectKey), nz(is.IssueType), nz(is.IssueTypeID),
 		nz(is.Status), nz(is.StatusID), nz(is.StatusCategory), nz(is.Priority), d.PriorityRank,
 		nz(is.Assignee), nz(is.AssigneeID), nz(is.AssigneeEmail), nz(is.Reporter),
@@ -128,6 +152,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		d.StatusChangedAt, d.ResolvedAt, d.ReopenCount, d.ReopenedAt, d.ReopenReason,
 		d.AssigneeChangedAt, d.CommentCount, jsonRaw(is.DescriptionADF),
 		jsonObject(is.Custom), jsonRaw(is.Raw), d.ClonedFrom,
+		is.HierarchyLevel,
 	); err != nil {
 		return false, err
 	}

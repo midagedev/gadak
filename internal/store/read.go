@@ -10,22 +10,26 @@ import (
 // are the ones web/src/lib/types.ts already parses (contracts/api.md,
 // "IssueLite"): adding is safe, renaming is not.
 type IssueLite struct {
-	IssueKey        string   `json:"issue_key"`
-	Summary         string   `json:"summary"`
-	ProjectKey      string   `json:"project_key"`
-	IssueType       string   `json:"issue_type"`
-	IssueTypeID     string   `json:"issue_type_id"`
-	Status          string   `json:"status"`
-	StatusID        string   `json:"status_id"`
-	StatusCategory  string   `json:"status_category"`
-	Priority        *string  `json:"priority"`
-	PriorityRank    int      `json:"priority_rank"`
-	Assignee        *string  `json:"assignee"`
-	AssigneeID      *string  `json:"assignee_id"`
-	AssigneeEmail   *string  `json:"assignee_email"`
-	Reporter        *string  `json:"reporter"`
-	ReporterEmail   *string  `json:"reporter_email"`
-	EpicKey         *string  `json:"epic_key"`
+	IssueKey       string  `json:"issue_key"`
+	Summary        string  `json:"summary"`
+	ProjectKey     string  `json:"project_key"`
+	IssueType      string  `json:"issue_type"`
+	IssueTypeID    string  `json:"issue_type_id"`
+	Status         string  `json:"status"`
+	StatusID       string  `json:"status_id"`
+	StatusCategory string  `json:"status_category"`
+	Priority       *string `json:"priority"`
+	PriorityRank   int     `json:"priority_rank"`
+	Assignee       *string `json:"assignee"`
+	AssigneeID     *string `json:"assignee_id"`
+	AssigneeEmail  *string `json:"assignee_email"`
+	Reporter       *string `json:"reporter"`
+	ReporterEmail  *string `json:"reporter_email"`
+	// EpicKey is the nearest hierarchy_level==1 ancestor (derived). Nil when
+	// none. Distinct from ParentKey, which is the direct parent only.
+	EpicKey *string `json:"epic_key"`
+	// ParentKey is the direct parent issue key (source field), not the epic.
+	ParentKey       *string  `json:"parent_key"`
 	Labels          []string `json:"labels"`
 	Components      []string `json:"components"`
 	FixVersions     []string `json:"fix_versions"`
@@ -54,7 +58,8 @@ const issueLiteSelect = `
 	       COALESCE(i.issue_type, ''), COALESCE(i.issue_type_id, ''),
 	       COALESCE(i.status, ''), COALESCE(i.status_id, ''), COALESCE(i.status_category, ''),
 	       i.priority, i.priority_rank,
-	       i.assignee, i.assignee_id, i.assignee_email, i.reporter, i.reporter_email, i.parent_key,
+	       i.assignee, i.assignee_id, i.assignee_email, i.reporter, i.reporter_email,
+	       i.epic_key, i.parent_key,
 	       COALESCE(i.labels, '[]'), COALESCE(i.components, '[]'), COALESCE(i.fix_versions, '[]'),
 	       i.duedate, i.resolution, i.created_at, i.updated_at,
 	       i.status_changed_at, i.resolved_at, i.reopen_count, i.reopened_at,
@@ -88,7 +93,8 @@ func (db *DB) issueLites(query string, args ...any) ([]IssueLite, error) {
 		var reopenReason, clonedFrom string
 		if err := rows.Scan(&v.IssueKey, &v.Summary, &v.ProjectKey, &v.IssueType, &v.IssueTypeID,
 			&v.Status, &v.StatusID, &v.StatusCategory, &v.Priority, &v.PriorityRank,
-			&v.Assignee, &v.AssigneeID, &v.AssigneeEmail, &v.Reporter, &v.ReporterEmail, &v.EpicKey,
+			&v.Assignee, &v.AssigneeID, &v.AssigneeEmail, &v.Reporter, &v.ReporterEmail,
+			&v.EpicKey, &v.ParentKey,
 			&labels, &components, &fixVersions,
 			&v.Duedate, &v.Resolution, &v.CreatedAt, &v.UpdatedAt,
 			&v.StatusChangedAt, &v.ResolvedAt, &v.ReopenCount, &v.ReopenedAt,

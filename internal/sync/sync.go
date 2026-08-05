@@ -587,6 +587,16 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	if f.Parent != nil {
 		issue.ParentKey = f.Parent.Key
 	}
+	// hierarchyLevel lives on issuetype; NamedID does not carry it, so read from
+	// the raw fields map (source-neutral once stored as HierarchyLevel).
+	if raw, ok := iss.Extra["issuetype"]; ok {
+		var it struct {
+			HierarchyLevel int `json:"hierarchyLevel"`
+		}
+		if err := json.Unmarshal(raw, &it); err == nil {
+			issue.HierarchyLevel = it.HierarchyLevel
+		}
+	}
 	if f.Resolution != nil {
 		issue.Resolution = f.Resolution.Name
 	}

@@ -23,7 +23,7 @@ var documentedColumns = map[string][]string{
 		"duedate", "resolution", "created_at", "updated_at",
 		"status_changed_at", "resolved_at", "reopen_count", "reopened_at",
 		"assignee_changed_at", "comment_count", "description_adf", "custom", "raw",
-		"reopen_reason", "cloned_from"},
+		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key"},
 	"comments": {"id", "item_id", "external_id", "author", "author_id",
 		"body_adf", "body_text", "created_at", "updated_at"},
 	"attachments":   {"id", "item_id", "external_id", "filename", "mime_type", "size", "author", "created_at"},

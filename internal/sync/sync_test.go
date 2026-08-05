@@ -406,8 +406,13 @@ func TestFullSyncMapsEverything(t *testing.T) {
 	if one.CommentCount != 2 {
 		t.Errorf("comment_count = %d", one.CommentCount)
 	}
-	if one.EpicKey == nil || *one.EpicKey != "NMB-100" {
-		t.Errorf("parent = %v", one.EpicKey)
+	// Parent is the direct link; epic_key is derived only when the parent chain
+	// reaches a hierarchyLevel==1 issue in the mirror (NMB-100 is not mirrored).
+	if one.ParentKey == nil || *one.ParentKey != "NMB-100" {
+		t.Errorf("parent_key = %v", one.ParentKey)
+	}
+	if one.EpicKey != nil {
+		t.Errorf("epic_key = %v, want nil without mirrored epic ancestor", one.EpicKey)
 	}
 	if strings.Join(one.Labels, ",") != "regression,editor" || strings.Join(one.FixVersions, ",") != "2026.8" {
 		t.Errorf("labels = %v, fixVersions = %v", one.Labels, one.FixVersions)
