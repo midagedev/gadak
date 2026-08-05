@@ -45,8 +45,9 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # PAT with contents:write on midagedev/homebrew-tap (optional until the tap exists).
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # Write-scoped deploy key for midagedev/homebrew-tap — goreleaser pushes
+          # the formula over SSH. Absent on forks, where the brews upload skips itself.
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
           # Developer ID signing + notarization. Absent on forks, where the
           # notarize block disables itself rather than failing the build.
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}

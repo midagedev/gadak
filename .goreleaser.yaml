@@ -59,11 +59,11 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
-# Homebrew tap formula. Requires a separate repo midagedev/homebrew-tap and a
-# token with contents:write on that repo (HOMEBREW_TAP_GITHUB_TOKEN in the
-# release workflow). Formula is still written under .release/ when upload is
-# skipped. Note: `brews` is deprecated upstream in favor of homebrew_casks;
-# we keep formulas until the tap is ready for casks.
+# Homebrew tap formula. Pushed to midagedev/homebrew-tap over SSH with a
+# write-scoped deploy key (TAP_DEPLOY_KEY secret in the release workflow) —
+# no PAT involved, the key opens exactly one repo. Formula is still written
+# under .release/ when upload is skipped. Note: `brews` is deprecated upstream
+# in favor of homebrew_casks; we keep formulas until the tap is ready for casks.
 # macOS signing + notarization. Without it a browser-downloaded archive carries
 # com.apple.quarantine and Gatekeeper refuses to run the binary; curl and brew
 # do not set that attribute, which is why those paths worked unsigned.
@@ -98,16 +98,18 @@ brews:
     repository:
       owner: midagedev
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      git:
+        url: "git@github.com:midagedev/homebrew-tap.git"
+        private_key: '{{ .Env.TAP_DEPLOY_KEY }}'
     directory: Formula
     homepage: "https://github.com/midagedev/scry"
     description: "Local SQLite mirror of your Jira issues — web UI, TUI, and agent SQL"
     license: "Apache-2.0"
     commit_msg_template: "scry {{ .Tag }}"
-    # No tap token, no formula push — a release must not fail because the
-    # optional Homebrew step has no credential. With a token: still skipped for
-    # prerelease tags (v0.1.0-rc.1, etc.).
-    skip_upload: '{{ if .Env.HOMEBREW_TAP_GITHUB_TOKEN }}auto{{ else }}true{{ end }}'
+    # No deploy key, no formula push — a release must not fail because the
+    # optional Homebrew step has no credential (forks). With the key: still
+    # skipped for prerelease tags (v0.1.0-rc.1, etc.).
+    skip_upload: '{{ if isEnvSet "TAP_DEPLOY_KEY" }}auto{{ else }}true{{ end }}'
     test: |
       system "#{bin}/scry", "version"
     install: |
@@ -148,12 +150,11 @@ release:
   prerelease: auto
   name_template: "scry {{.Tag}}"
   footer: |
-    ## Install
-
-    After the first public release:
+    ## Install / upgrade
 
     ```bash
-    brew install midagedev/tap/scry
+    brew install midagedev/tap/scry     # first install
+    brew upgrade midagedev/tap/scry     # upgrade
     # or
     curl -fsSL https://raw.githubusercontent.com/midagedev/scry/main/scripts/install.sh | sh
     ```
@@ -164,4 +165,4 @@ release:
     ./scry init && ./scry serve --sync
     ```
 
-    The web UI is embedded — the binary is the whole install. See the README for Docker and source builds.
+    The web UI is embedded — the binary is the whole install. See the README for Docker and source builds. Running installs notice new releases on their own (daily anonymous check, `updateCheck: false` to opt out — see SECURITY.md).
