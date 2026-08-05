@@ -122,28 +122,6 @@ func cmdServe(args []string) error {
 	}
 	defer db.Close()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": version})
-	})
-	// PUT settings/ rewrites the config on disk, so re-read it per request. One
-	// small file read costs nothing and settings changes apply without a restart.
-	mux.HandleFunc("/config.json", func(w http.ResponseWriter, r *http.Request) {
-		cur, err := config.Load()
-		if err != nil {
-			http.Error(w, `{"error":"config_unreadable"}`, http.StatusInternalServerError)
-			return
-		}
-		doc, err := server.WebConfig(cur)
-		if err != nil {
-			http.Error(w, `{"error":"config_unreadable"}`, http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store")
-		_, _ = w.Write(doc)
-	})
 	if *importAttachments != "" {
 		if err := importAttachmentDir(*importAttachments); err != nil {
 			log.Printf("warning: could not import attachments from %q: %v", *importAttachments, err)
@@ -163,22 +141,28 @@ func cmdServe(args []string) error {
 	} else {
 		api = server.NewWithCache(db, cfg, cache)
 	}
-	mux.Handle("/api/", api)
 
 	// The embedded UI is the default; --static overrides it for development
 	// (`npm run build` output) without rebuilding the binary.
+	var spa http.Handler
 	if *static != "" {
 		if _, err := os.Stat(*static); err != nil {
 			log.Printf("warning: static dir %q not found — run `npm run build` first", *static)
 		}
-		mux.Handle("/", spaHandler(*static))
+		spa = spaHandler(*static)
 	} else {
 		ui, ok := scry.WebUI()
 		if !ok {
 			log.Printf("warning: no web UI embedded in this binary — build with `npm run build` before `go build`, or pass --static")
 		}
-		mux.Handle("/", spaHandlerFS(ui))
+		spa = spaHandlerFS(ui)
 	}
+
+	// Workspace mounts share this process's listener; each profile opens lazily.
+	// Background sync and update checks stay on the primary handler only.
+	reg := newWorkspaceRegistry()
+	defer reg.Close()
+	mux := buildServeMux(api, spa, reg)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -193,7 +177,7 @@ func cmdServe(args []string) error {
 	// projects means "everything this account can see". --no-sync opts out
 	// (fixtures with a fake token must pass it). --sync remains a silent alias
 	// when the loop would start anyway; with no credential it still prints the
-	// old guidance line.
+	// old guidance line. Workspace handlers have no background loop of their own.
 	startSync := !*noSync && cfg.HasCredential()
 	if *withSync && !startSync && !*noSync {
 		log.Printf("--sync ignored: run `scry init` first")

@@ -97,6 +97,10 @@ type Config struct {
 	// a newer version on sync/status/serve bootstrap. Default true when absent;
 	// set false to opt out (restores the prior "outbound is only Jira" model).
 	UpdateCheck *bool `json:"updateCheck,omitempty"`
+
+	// dir is the profile directory this Config was loaded from (or will save to).
+	// Unexported so it never appears in JSON; set by LoadFor.
+	dir string
 }
 
 // FieldSpec is one logical custom field. Jira creates a separate field id per
@@ -155,8 +159,9 @@ func Profile() string {
 	return profile
 }
 
-// Dir is SCRY_HOME or ~/.scry, plus profiles/<name> when a profile is active.
-func Dir() (string, error) {
+// scryHome is SCRY_HOME or ~/.scry (the root that holds the default profile and
+// the profiles/ subdirectory). Shared by DirFor and Profiles.
+func scryHome() (string, error) {
 	base := os.Getenv("SCRY_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
@@ -165,41 +170,62 @@ func Dir() (string, error) {
 		}
 		base = filepath.Join(home, ".scry")
 	}
-	if p := Profile(); p != "" {
-		return filepath.Join(base, "profiles", p), nil
-	}
 	return base, nil
 }
 
-// DBPath is the default SQLite path for the active profile.
-func DBPath() (string, error) {
-	d, err := Dir()
+// DirFor is the config directory for a named profile. "" or "default" means the
+// root (SCRY_HOME / ~/.scry); any other name lives under profiles/<name>.
+func DirFor(profile string) (string, error) {
+	base, err := scryHome()
+	if err != nil {
+		return "", err
+	}
+	if profile == "" || profile == "default" {
+		return base, nil
+	}
+	return filepath.Join(base, "profiles", profile), nil
+}
+
+// Dir is SCRY_HOME or ~/.scry, plus profiles/<name> when a profile is active.
+func Dir() (string, error) {
+	return DirFor(Profile())
+}
+
+// DBPathFor is the SQLite path for the named profile.
+func DBPathFor(profile string) (string, error) {
+	d, err := DirFor(profile)
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(d, "scry.db"), nil
 }
 
-// AttachmentDir is where attachment bytes are cached, next to the mirror it
-// belongs to (so a profile keeps its own, and deleting a profile takes its cache
-// with it).
-func AttachmentDir() (string, error) {
-	d, err := Dir()
+// DBPath is the default SQLite path for the active profile.
+func DBPath() (string, error) {
+	return DBPathFor(Profile())
+}
+
+// AttachmentDirFor is where attachment bytes are cached for the named profile.
+func AttachmentDirFor(profile string) (string, error) {
+	d, err := DirFor(profile)
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(d, "attachments"), nil
 }
 
+// AttachmentDir is where attachment bytes are cached, next to the mirror it
+// belongs to (so a profile keeps its own, and deleting a profile takes its cache
+// with it).
+func AttachmentDir() (string, error) {
+	return AttachmentDirFor(Profile())
+}
+
 // Profiles lists the configured profile names, excluding the default one.
 func Profiles() ([]string, error) {
-	base := os.Getenv("SCRY_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
-		}
-		base = filepath.Join(home, ".scry")
+	base, err := scryHome()
+	if err != nil {
+		return nil, err
 	}
 	entries, err := os.ReadDir(filepath.Join(base, "profiles"))
 	if os.IsNotExist(err) {
@@ -225,15 +251,17 @@ func Path() (string, error) {
 	return filepath.Join(d, "config.json"), nil
 }
 
-// Load returns an empty Config when the file does not exist; that is not an error.
-func Load() (*Config, error) {
-	p, err := Path()
+// LoadFor reads config.json for the named profile. Missing file returns an empty
+// Config with dir set (not an error), matching Load's convention.
+func LoadFor(profile string) (*Config, error) {
+	d, err := DirFor(profile)
 	if err != nil {
 		return nil, err
 	}
+	p := filepath.Join(d, "config.json")
 	data, err := os.ReadFile(p)
 	if os.IsNotExist(err) {
-		return &Config{}, nil
+		return &Config{dir: d}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -242,14 +270,27 @@ func Load() (*Config, error) {
 	if err := json.Unmarshal(data, &c); err != nil {
 		return nil, fmt.Errorf("%s: %w", p, err)
 	}
+	c.dir = d
 	return &c, nil
 }
 
-// Save writes the file atomically with mode 0600.
+// Load returns an empty Config when the file does not exist; that is not an error.
+func Load() (*Config, error) {
+	return LoadFor(Profile())
+}
+
+// Save writes the file atomically with mode 0600. When c.dir is set (LoadFor),
+// the write goes to that profile's config.json; otherwise the active Path().
 func (c *Config) Save() error {
-	p, err := Path()
-	if err != nil {
-		return err
+	var p string
+	if c != nil && c.dir != "" {
+		p = filepath.Join(c.dir, "config.json")
+	} else {
+		var err error
+		p, err = Path()
+		if err != nil {
+			return err
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		return err

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -241,17 +242,16 @@ func (s *server) settingsResponse(cfg *config.Config) settingsDoc {
 
 func (s *server) runtimeInfo() *runtimeInfo {
 	info := &runtimeInfo{
-		Profile:                     profileDisplay(),
+		Profile:                     profileDisplay(s.profile),
 		ScryVersion:                 Version,
 		DefaultSyncIntervalSec:      config.DefaultSyncIntervalSec,
 		DefaultReconcileIntervalSec: config.DefaultReconcileIntervalSec,
 	}
-	if p, err := config.Path(); err == nil {
-		info.ConfigPath = p
-	}
-	if p, err := config.DBPath(); err == nil {
-		info.DBPath = p
-		if st, err := os.Stat(p); err == nil {
+	if d, err := config.DirFor(s.profile); err == nil {
+		info.ConfigPath = filepath.Join(d, "config.json")
+		dbPath := filepath.Join(d, "scry.db")
+		info.DBPath = dbPath
+		if st, err := os.Stat(dbPath); err == nil {
 			info.DBSizeBytes = st.Size()
 			info.DBSizeHuman = humanBytes(st.Size())
 			mod := st.ModTime().UTC().Format(time.RFC3339)
@@ -286,11 +286,12 @@ func (s *server) runtimeInfo() *runtimeInfo {
 	return info
 }
 
-func profileDisplay() string {
-	if p := config.Profile(); p != "" {
-		return p
+// profileDisplay returns the UI name for a profile ("" / "default" → "default").
+func profileDisplay(profile string) string {
+	if profile == "" || profile == "default" {
+		return "default"
 	}
-	return "default"
+	return profile
 }
 
 func humanBytes(n int64) string {

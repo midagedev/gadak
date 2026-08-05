@@ -43,6 +43,10 @@ type server struct {
 	// derived from it.
 	gen atomic.Int64
 
+	// profile is the config profile this handler serves ("" = default/root).
+	// Used by runtimeInfo so workspace handlers report their own paths.
+	profile string
+
 	mu     sync.Mutex
 	cached *derivedView
 
@@ -78,10 +82,20 @@ func New(db *store.DB, cfg *config.Config) *Handler {
 // NewWithCache is New plus an attachment byte cache. `scry serve` passes one
 // rooted under SCRY_HOME; tests pass nil when they do not exercise attachments.
 func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) *Handler {
+	return newServer(db, cfg, cache, config.Profile())
+}
+
+// NewWorkspace is NewWithCache bound to a named profile (for /w/<name>/ mounts).
+// profile is used for runtime paths and display; it does not re-read global config.
+func NewWorkspace(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profile string) *Handler {
+	return newServer(db, cfg, cache, profile)
+}
+
+func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profile string) *Handler {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	s := &server{db: db, cache: cache}
+	s := &server{db: db, cache: cache, profile: profile}
 	s.cfg.Store(cfg)
 
 	// Every pattern is anchored with {$}: a trailing slash alone would make each
@@ -211,7 +225,18 @@ func (s *server) loopUpdateCheck(ctx context.Context, cacheDir string) {
 // WebConfig renders the config document the UI fetches before mount
 // (`ScryConfig` in web/src/lib/config.ts). Credentials never appear in it.
 func WebConfig(cfg *config.Config) ([]byte, error) {
-	return json.Marshal(webConfig(cfg))
+	return WebConfigBase(cfg, "")
+}
+
+// WebConfigBase is WebConfig with APIBase/AuthBase prefixed (e.g. "/w/work" for
+// a workspace mount). prefix has no trailing slash; empty means root bases.
+func WebConfigBase(cfg *config.Config, prefix string) ([]byte, error) {
+	doc := webConfig(cfg)
+	if prefix != "" {
+		doc.APIBase = prefix + apiBase
+		doc.AuthBase = prefix + authBase
+	}
+	return json.Marshal(doc)
 }
 
 func (s *server) config() *config.Config { return s.cfg.Load() }
