@@ -6,7 +6,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,7 +25,7 @@ import (
 const serverAPIBase = "/api/v1/issues/"
 
 func cmdExportStatic(args []string) error {
-	fs := flag.NewFlagSet("export-static", flag.ExitOnError)
+	fs := newFlagSet("export-static")
 	dbPath := fs.String("db", "examples/demo.db", "snapshot database to freeze")
 	attachments := fs.String("attachments", "examples/attachments",
 		"directory holding manifest.json + attachment files")
@@ -40,7 +39,7 @@ func cmdExportStatic(args []string) error {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: scry export-static [flags] <outdir>\n  --db --attachments --api-base --auth-base")
+		return usageError("export-static", "usage: scry export-static [flags] <outdir>\n  --db --attachments --api-base --auth-base")
 	}
 	outDir := fs.Arg(0)
 	if !strings.HasSuffix(*apiBase, "/") {

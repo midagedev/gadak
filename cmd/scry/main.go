@@ -15,7 +15,6 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/fs"
 	"log"
@@ -85,7 +84,7 @@ func openStore() (*store.DB, error) {
 }
 
 func cmdServe(args []string) error {
-	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	fs := newFlagSet("serve")
 	addr := fs.String("addr", "127.0.0.1:7777", "listen address")
 	static := fs.String("static", "", "serve the web UI from this directory instead of the embedded copy")
 	allowRemote := fs.Bool("allow-remote", false,
@@ -237,6 +236,10 @@ func isLoopback(host string) bool {
 // cmdInit prompts for the connection settings, verifies them against Jira, and
 // writes ~/.scry/config.json (0600). Existing values are kept on empty input.
 func cmdInit(args []string) error {
+	if wantsHelp(args) {
+		printHelp("init")
+		return nil
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -320,7 +323,7 @@ func verifyCredential(cfg *config.Config) (string, error) {
 }
 
 func cmdSync(args []string) error {
-	fs := flag.NewFlagSet("sync", flag.ExitOnError)
+	fs := newFlagSet("sync")
 	full := fs.Bool("full", false, "force a full sync")
 	watch := fs.Bool("watch", false, "keep syncing on an interval")
 	if err := fs.Parse(args); err != nil {
@@ -376,6 +379,10 @@ func cmdSQL(args []string) error {
 	// flag.Parse, because a query legitimately starts with `--` — a SQL comment,
 	// which flag.Parse reads as an undefined flag and refuses. That is exactly what
 	// happens when an agent pastes a commented query out of AGENTS.md.
+	if wantsHelp(args) {
+		printHelp("sql")
+		return nil
+	}
 	var asJSON, asCSV bool
 	var words []string
 	for _, a := range args {
@@ -390,7 +397,7 @@ func cmdSQL(args []string) error {
 	}
 	query := strings.TrimSpace(strings.Join(words, " "))
 	if query == "" {
-		return fmt.Errorf("usage: scry sql [--json|--csv] \"select ...\"")
+		return usageError("sql", `usage: scry sql [--json|--csv] "select ..."`)
 	}
 	db, err := openReadOnly()
 	if err != nil {
@@ -478,6 +485,7 @@ func text(v any) string {
 //
 // Flags may appear before or after <out.db> (same ergonomics as `scry sql`).
 func cmdSnapshot(args []string) error {
+	const snapshotUsage = "usage: scry snapshot <out.db> [--from db] [--spread 90d] [--scale N] [--seed N] [--now RFC3339] [--force]"
 	var from, spread, nowArg string
 	scale := 0
 	seed := int64(1)
@@ -545,7 +553,8 @@ func cmdSnapshot(args []string) error {
 		case a == "--force" || a == "-force":
 			force = true
 		case a == "-h" || a == "--help":
-			return fmt.Errorf("usage: scry snapshot <out.db> [--from db] [--spread 90d] [--scale N] [--seed N] [--now RFC3339] [--force]")
+			printHelp("snapshot")
+			return nil
 		case strings.HasPrefix(a, "-"):
 			return fmt.Errorf("unknown flag %s", a)
 		default:
@@ -553,7 +562,7 @@ func cmdSnapshot(args []string) error {
 		}
 	}
 	if len(positionals) != 1 {
-		return fmt.Errorf("usage: scry snapshot <out.db> [--from db] [--spread 90d] [--scale N] [--seed N] [--now RFC3339] [--force]")
+		return usageError("snapshot", snapshotUsage)
 	}
 	// --now pins the clock the spread window ends at, so a snapshot can be
 	// rebuilt byte-for-byte. Left unset, a snapshot is dated now, which is what
@@ -639,7 +648,7 @@ func formatBytes(n int64) string {
 }
 
 func cmdStatus(args []string) error {
-	fs := flag.NewFlagSet("status", flag.ExitOnError)
+	fs := newFlagSet("status")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -754,7 +763,7 @@ func freshenDemoClock(dbPath string) error {
 }
 
 func cmdDemo(args []string) error {
-	fs := flag.NewFlagSet("demo", flag.ExitOnError)
+	fs := newFlagSet("demo")
 	addr := fs.String("addr", "127.0.0.1:7878", "listen address")
 	static := fs.String("static", "dist/app", "directory holding the built web UI")
 	dbPath := fs.String("db", "examples/demo.db", "snapshot to serve")
@@ -830,7 +839,11 @@ func openOnceUp(u string) {
 	}
 }
 
-func cmdProfiles() error {
+func cmdProfiles(args []string) error {
+	if wantsHelp(args) {
+		printHelp("profiles")
+		return nil
+	}
 	names, err := config.Profiles()
 	if err != nil {
 		return err
@@ -839,6 +852,15 @@ func cmdProfiles() error {
 	for _, n := range names {
 		fmt.Println(n)
 	}
+	return nil
+}
+
+func cmdVersion(args []string) error {
+	if wantsHelp(args) {
+		printHelp("version")
+		return nil
+	}
+	fmt.Println(version)
 	return nil
 }
 
@@ -891,6 +913,18 @@ func main() {
 		fmt.Print(usage)
 		os.Exit(2)
 	}
+	// scry help [<cmd>] — bare help is top-level usage; with a name, same as
+	// `<cmd> --help`. Aliases --help/-h alone also print top-level usage.
+	if args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
+		if len(args) == 1 {
+			fmt.Print(usage)
+			return
+		}
+		args = []string{args[1], "--help"}
+	}
+	if args[0] == "--version" || args[0] == "-v" {
+		args = []string{"version"}
+	}
 	var err error
 	switch args[0] {
 	case "serve":
@@ -924,13 +958,11 @@ func main() {
 	case "tui":
 		err = cmdTUI(args[1:])
 	case "profiles":
-		err = cmdProfiles()
+		err = cmdProfiles(args[1:])
 	case "install-service":
 		err = cmdInstallService(args[1:])
-	case "version", "--version", "-v":
-		fmt.Println(version)
-	case "help", "--help", "-h":
-		fmt.Print(usage)
+	case "version":
+		err = cmdVersion(args[1:])
 	case "snapshot":
 		err = cmdSnapshot(args[1:])
 	default:

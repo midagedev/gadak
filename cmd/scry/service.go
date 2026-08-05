@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,7 +16,7 @@ const serviceLabel = "dev.midagedev.scry"
 // cmdInstallService writes a user-level unit so the mirror survives reboot:
 // launchd on darwin, systemd --user on linux. Windows is unsupported.
 func cmdInstallService(args []string) error {
-	fs := flag.NewFlagSet("install-service", flag.ExitOnError)
+	fs := newFlagSet("install-service")
 	uninstall := fs.Bool("uninstall", false, "remove the installed service unit")
 	if err := fs.Parse(args); err != nil {
 		return err

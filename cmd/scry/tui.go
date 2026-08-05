@@ -9,7 +9,10 @@ import (
 
 // cmdTUI opens the terminal issue navigator against the local mirror.
 func cmdTUI(args []string) error {
-	_ = args
+	if wantsHelp(args) {
+		printHelp("tui")
+		return nil
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return err

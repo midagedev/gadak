@@ -15,7 +15,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net/url"
@@ -120,13 +119,13 @@ func deref(s *string, fallback string) string {
 
 func cmdIssue(args []string) error {
 	pos, rest := leading(args, 1)
-	fs := flag.NewFlagSet("issue", flag.ExitOnError)
+	fs := newFlagSet("issue")
 	asJSON := fs.Bool("json", false, "emit the detail document as JSON")
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
 	if len(pos) == 0 {
-		return errors.New("usage: scry issue <KEY> [--json]")
+		return usageError("issue", "usage: scry issue <KEY> [--json]")
 	}
 	key := normalizeKey(pos[0])
 
@@ -245,7 +244,7 @@ func cmdSearch(args []string) error {
 	// The query is peeled off first so flags may follow it, which is how anyone
 	// actually types this: `scry search "flaky upload" --limit 5`.
 	pos, rest := leading(args, 1)
-	fs := flag.NewFlagSet("search", flag.ExitOnError)
+	fs := newFlagSet("search")
 	limit := fs.Int("limit", 20, "maximum matches")
 	asJSON := fs.Bool("json", false, "emit matching IssueLite rows as JSON")
 	if err := fs.Parse(rest); err != nil {
@@ -253,7 +252,7 @@ func cmdSearch(args []string) error {
 	}
 	query := strings.TrimSpace(strings.Join(append(pos, fs.Args()...), " "))
 	if query == "" {
-		return errors.New(`usage: scry search [--limit N] [--json] "text"`)
+		return usageError("search", `usage: scry search [--limit N] [--json] "text"`)
 	}
 	// An unquoted multi-word query swallows the flags that follow it, and FTS would
 	// then quietly match nothing rather than fail. Say so instead.
@@ -334,14 +333,14 @@ func mutate(key string, asJSON bool, fn func(context.Context, *jira.Client) (map
 
 func cmdComment(args []string) error {
 	pos, rest := leading(args, 1)
-	fs := flag.NewFlagSet("comment", flag.ExitOnError)
+	fs := newFlagSet("comment")
 	text := fs.String("m", "", "comment body; `-` reads it from stdin")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
 	if len(pos) == 0 {
-		return errors.New("usage: scry comment <KEY> -m <text> [--json]")
+		return usageError("comment", "usage: scry comment <KEY> -m <text> [--json]")
 	}
 	key := normalizeKey(pos[0])
 	body := *text
@@ -372,13 +371,13 @@ func cmdComment(args []string) error {
 
 func cmdTransition(args []string) error {
 	pos, rest := leading(args, 2)
-	fs := flag.NewFlagSet("transition", flag.ExitOnError)
+	fs := newFlagSet("transition")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
 	if len(pos) < 2 {
-		return errors.New("usage: scry transition <KEY> <status-or-id> [--json]")
+		return usageError("transition", "usage: scry transition <KEY> <status-or-id> [--json]")
 	}
 	key := normalizeKey(pos[0])
 	// Trailing words join the target so an unquoted `In Review` still works.
@@ -411,13 +410,13 @@ func cmdTransition(args []string) error {
 
 func cmdAssign(args []string) error {
 	pos, rest := leading(args, 2)
-	fs := flag.NewFlagSet("assign", flag.ExitOnError)
+	fs := newFlagSet("assign")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
 	if len(pos) < 2 {
-		return errors.New("usage: scry assign <KEY> <email|-> [--json]")
+		return usageError("assign", "usage: scry assign <KEY> <email|-> [--json]")
 	}
 	key, who := normalizeKey(pos[0]), strings.TrimSpace(pos[1])
 
@@ -475,8 +474,12 @@ func resolveAccount(ctx context.Context, c *jira.Client, who string) (string, er
 // scry is the fast path for reading; this is the escape hatch for everything
 // the mirror deliberately does not do (boards, admin, workflow).
 func cmdOpen(args []string) error {
+	if wantsHelp(args) {
+		printHelp("open")
+		return nil
+	}
 	if len(args) == 0 {
-		return errors.New("usage: scry open <KEY>")
+		return usageError("open", "usage: scry open <KEY>")
 	}
 	cfg, err := config.Load()
 	if err != nil {

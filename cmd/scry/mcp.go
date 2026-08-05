@@ -15,7 +15,10 @@ func cmdMCP(args []string) error {
 	// No flags: profile comes from the global --profile / SCRY_PROFILE, and the
 	// mirror path from the active profile (or SCRY_HOME / SCRY_DB is not used —
 	// same DBPath as every other command).
-	_ = args
+	if wantsHelp(args) {
+		printHelp("mcp")
+		return nil
+	}
 	path, err := config.DBPath()
 	if err != nil {
 		return err
