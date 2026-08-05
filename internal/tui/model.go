@@ -527,6 +527,9 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.Assignee):
 		m.busy = true
 		return m, tea.Batch(m.spin.Tick, m.startAssignee())
+	case key.Matches(msg, k.Edit):
+		m.busy = true
+		return m, tea.Batch(m.spin.Tick, m.startFieldEdit())
 	}
 	return m, nil
 }
@@ -607,6 +610,9 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.Assignee):
 		m.busy = true
 		return m, tea.Batch(m.spin.Tick, m.startAssignee())
+	case key.Matches(msg, k.Edit):
+		m.busy = true
+		return m, tea.Batch(m.spin.Tick, m.startFieldEdit())
 	case key.Matches(msg, k.Refresh):
 		if m.detailKey != "" && m.detailLite != nil {
 			return m, m.loadDetailCmd(m.detailKey, *m.detailLite)

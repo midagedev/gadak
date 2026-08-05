@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/fields"
 	"github.com/midagedev/scry/internal/jira"
 	"github.com/midagedev/scry/internal/store"
 	"github.com/midagedev/scry/internal/sync"
@@ -358,76 +359,12 @@ func (s *server) handleAssignee(w http.ResponseWriter, r *http.Request) {
 
 /* ── field edit ── */
 
-// editKinds maps a Jira field schema onto the editors the UI has. A field
-// whose schema is none of them has no editor and is left out of editmeta.
-func editKind(m jira.FieldMeta) string {
-	switch {
-	case m.Schema.Type == "option":
-		return "option"
-	case m.Schema.Type == "user":
-		return "user"
-	case m.Schema.Type == "array" && m.Schema.Items == "version":
-		return "version_array"
-	case m.Schema.Type == "array" && m.Schema.Items == "option":
-		return "multi_option"
-	}
-	return ""
-}
-
-// editableAlias maps an alias onto candidate field ids and a preferred kind.
-// Legacy EditableFields win over FieldSpecs for the same alias; specs with an
-// empty Kind are display-only and do not enter the write path.
-type editableAlias struct {
-	IDs  []string
-	Kind string // preferred kind from the spec when set; empty → use editmeta
-}
-
-// editableAliases builds the write allowlist from FieldSpecs (Kind set) plus
-// legacy EditableFields (legacy wins on alias collision).
-func editableAliases(cfg *config.Config) map[string]editableAlias {
-	out := map[string]editableAlias{}
-	if cfg == nil {
-		return out
-	}
-	for _, s := range cfg.FieldSpecs() {
-		if s.Kind == "" || s.Alias == "" || len(s.IDs) == 0 {
-			continue
-		}
-		ids := append([]string(nil), s.IDs...)
-		out[s.Alias] = editableAlias{IDs: ids, Kind: s.Kind}
-	}
-	for alias, id := range cfg.EditableFields {
-		if alias == "" || id == "" {
-			continue
-		}
-		// Legacy wins: replace any auto-discovered entry for the same alias.
-		out[alias] = editableAlias{IDs: []string{id}}
-	}
-	return out
-}
-
-// resolveEditableID picks the first candidate id present in editmeta.
-func resolveEditableID(candidates []string, meta map[string]jira.FieldMeta) (id, kind string, ok bool) {
-	for _, cand := range candidates {
-		m, present := meta[cand]
-		if !present {
-			continue
-		}
-		k := editKind(m)
-		if k == "" {
-			continue
-		}
-		return cand, k, true
-	}
-	return "", "", false
-}
-
 func (s *server) handleEditMeta(w http.ResponseWriter, r *http.Request) {
 	c, cfg, ok := s.client(w)
 	if !ok {
 		return
 	}
-	allow := editableAliases(cfg)
+	allow := fields.EditableAliases(cfg)
 	if len(allow) == 0 {
 		// No editable fields means no inline editor at all, which is the default.
 		writeJSON(w, http.StatusOK, map[string]any{"fields": map[string]any{}})
@@ -440,7 +377,7 @@ func (s *server) handleEditMeta(w http.ResponseWriter, r *http.Request) {
 	}
 	out := map[string]any{}
 	for alias, ea := range allow {
-		id, kind, present := resolveEditableID(ea.IDs, meta)
+		id, kind, present := fields.ResolveEditableID(ea.IDs, meta)
 		if !present {
 			continue
 		}
@@ -481,7 +418,7 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 	}
 	// The allowlist is the whole authorization story for field edits: anything not
 	// configured is refused here, whether or not the UI offered it.
-	ea, allowed := editableAliases(cfg)[body.Field]
+	ea, allowed := fields.EditableAliases(cfg)[body.Field]
 	if !allowed || len(ea.IDs) == 0 {
 		fail(w, http.StatusForbidden, "field_not_editable")
 		return
@@ -492,12 +429,12 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, err)
 		return
 	}
-	id, kind, present := resolveEditableID(ea.IDs, meta)
+	id, kind, present := fields.ResolveEditableID(ea.IDs, meta)
 	if !present || kind == "" {
 		fail(w, http.StatusForbidden, "field_not_editable")
 		return
 	}
-	value, err := fieldValue(kind, body.Value)
+	value, err := fields.FieldValue(kind, body.Value)
 	if err != nil {
 		fail(w, http.StatusBadRequest, "invalid_value")
 		return
@@ -505,39 +442,6 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
 		return nil, c.UpdateFields(ctx, key, map[string]any{id: value})
 	})
-}
-
-// fieldValue shapes the client's `string | string[] | null` into what Jira wants
-// for that kind. A null clears the field, which is what the editor's "없음" does.
-func fieldValue(kind string, raw json.RawMessage) (any, error) {
-	if len(raw) == 0 || string(raw) == "null" {
-		if kind == "version_array" || kind == "multi_option" {
-			return []any{}, nil
-		}
-		return nil, nil
-	}
-	if kind == "version_array" || kind == "multi_option" {
-		var ids []string
-		if err := json.Unmarshal(raw, &ids); err != nil {
-			return nil, err
-		}
-		out := make([]any, 0, len(ids))
-		for _, id := range ids {
-			out = append(out, map[string]string{"id": id})
-		}
-		return out, nil
-	}
-	var id string
-	if err := json.Unmarshal(raw, &id); err != nil {
-		return nil, err
-	}
-	if id == "" {
-		return nil, nil
-	}
-	if kind == "user" {
-		return map[string]string{"accountId": id}, nil
-	}
-	return map[string]string{"id": id}, nil
 }
 
 /* ── create ── */

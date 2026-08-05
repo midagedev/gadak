@@ -6,8 +6,8 @@ scry tui
 
 Reads the same `~/.scry/scry.db` the web UI and your agent read. It never talks
 to Jira on its own — sync is `scry sync` or `scry serve` — except when you
-comment, transition, or reassign, which go straight through and then refresh that
-one issue in the mirror.
+comment, transition, reassign, or edit a field, which go straight through and
+then refresh that one issue in the mirror.
 
 ## Keys
 
@@ -22,6 +22,7 @@ one issue in the mirror.
 | `c` | comment |
 | `t` | transition |
 | `a` | assign |
+| `e` | edit a field — pick from your editable fields (settings / field specs), then pick a value from what Jira allows on that issue; multi-selects preselect the current values. No free-text input: options, versions, and users only |
 | `w` | watch / unwatch the current issue |
 | `F` | personal feed (toggle): activity list; `Enter` opens the issue; `r` marks all read |
 | `v` | saved views picker — apply a stored view (supported filters only) |

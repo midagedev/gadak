@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/charmbracelet/huh"
 
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/fields"
 	"github.com/midagedev/scry/internal/jira"
 	"github.com/midagedev/scry/internal/store"
 	syncer "github.com/midagedev/scry/internal/sync"
@@ -21,6 +23,8 @@ type writeClient interface {
 	Transitions(ctx context.Context, key string) ([]jira.Transition, error)
 	Transition(ctx context.Context, key, transitionID string) error
 	SetAssignee(ctx context.Context, key, accountID string) error
+	EditMeta(ctx context.Context, key string) (map[string]jira.FieldMeta, error)
+	UpdateFields(ctx context.Context, key string, fields map[string]any) error
 }
 
 // liveClient adapts *jira.Client to writeClient.
@@ -38,6 +42,12 @@ func (l liveClient) Transition(ctx context.Context, key, id string) error {
 }
 func (l liveClient) SetAssignee(ctx context.Context, key, accountID string) error {
 	return l.c.SetAssignee(ctx, key, accountID)
+}
+func (l liveClient) EditMeta(ctx context.Context, key string) (map[string]jira.FieldMeta, error) {
+	return l.c.EditMeta(ctx, key)
+}
+func (l liveClient) UpdateFields(ctx context.Context, key string, fields map[string]any) error {
+	return l.c.UpdateFields(ctx, key, fields)
 }
 
 // clientFactory builds a write client from config. Overridden in tests.
@@ -269,6 +279,287 @@ func (m *Model) startAssignee() tea.Cmd {
 				}
 			},
 		}
+	}
+}
+
+// fieldEditCandidate is one alias that is editable on the selected issue.
+type fieldEditCandidate struct {
+	alias   string
+	label   string
+	fieldID string
+	kind    string
+	meta    jira.FieldMeta
+	current string // display of current value, may be empty
+}
+
+func (m *Model) startFieldEdit() tea.Cmd {
+	key, ok := m.selectedKey()
+	if !ok {
+		return toast("no issue selected", true)
+	}
+	if _, err := m.requireWrite(); err != nil {
+		return toast(err.Error(), true)
+	}
+	cfg, db := m.cfg, m.db
+	var custom map[string]any
+	if m.detail != nil && m.detail.Custom != nil {
+		custom = m.detail.Custom
+	}
+	// Label lookup from field specs (alias → display label).
+	labelByAlias := map[string]string{}
+	for _, s := range cfg.FieldSpecs() {
+		if s.Alias == "" {
+			continue
+		}
+		label := s.Label
+		if label == "" {
+			label = s.Alias
+		}
+		labelByAlias[s.Alias] = label
+	}
+	return func() tea.Msg {
+		allow := fields.EditableAliases(cfg)
+		if len(allow) == 0 {
+			return formResultMsg{note: "no editable fields configured — see settings"}
+		}
+		c := clientFactory(cfg)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		meta, err := c.EditMeta(ctx, key)
+		if err != nil {
+			return formResultMsg{err: err}
+		}
+		cands := make([]fieldEditCandidate, 0, len(allow))
+		for alias, ea := range allow {
+			id, kind, present := fields.ResolveEditableID(ea.IDs, meta)
+			if !present {
+				continue
+			}
+			if kind == "" {
+				kind = ea.Kind
+			}
+			if kind == "" {
+				continue
+			}
+			label := labelByAlias[alias]
+			if label == "" {
+				label = alias
+			}
+			cur := ""
+			if custom != nil {
+				cur = customDisplay(custom[alias])
+			}
+			cands = append(cands, fieldEditCandidate{
+				alias:   alias,
+				label:   label,
+				fieldID: id,
+				kind:    kind,
+				meta:    meta[id],
+				current: cur,
+			})
+		}
+		if len(cands) == 0 {
+			return formResultMsg{note: key + " has no editable fields"}
+		}
+		sort.Slice(cands, func(i, j int) bool {
+			return strings.ToLower(cands[i].label) < strings.ToLower(cands[j].label)
+		})
+		opts := make([]huh.Option[string], 0, len(cands))
+		byAlias := map[string]fieldEditCandidate{}
+		for _, cand := range cands {
+			byAlias[cand.alias] = cand
+			label := cand.label
+			if cand.current != "" {
+				label = cand.label + " · current: " + cand.current
+			}
+			opts = append(opts, huh.NewOption(label, cand.alias))
+		}
+		var chosen string
+		form := actionForm(
+			huh.NewSelect[string]().
+				Title(key + " · edit field").
+				Options(opts...).
+				Value(&chosen),
+		)
+		return openFormMsg{
+			title: key + " · edit field",
+			form:  form,
+			submit: func() tea.Cmd {
+				return func() tea.Msg {
+					cand, ok := byAlias[chosen]
+					if !ok || chosen == "" {
+						return formResultMsg{note: "no field selected"}
+					}
+					return openFieldValueForm(cfg, db, key, cand, custom)
+				}
+			},
+		}
+	}
+}
+
+// openFieldValueForm builds the second-stage value picker for one candidate.
+// Returned as tea.Msg so openFormMsg / formResultMsg both work as outcomes.
+func openFieldValueForm(cfg *config.Config, db *store.DB, key string, cand fieldEditCandidate, custom map[string]any) tea.Msg {
+	title := key + " · " + cand.label
+	switch cand.kind {
+	case "multi_option", "version_array":
+		opts := make([]huh.Option[string], 0, len(cand.meta.AllowedValues))
+		for _, v := range cand.meta.AllowedValues {
+			label := v.Value
+			if label == "" {
+				label = v.Name
+			}
+			opts = append(opts, huh.NewOption(label, v.ID))
+		}
+		selected := preselectMultiIDs(cand.meta, custom[cand.alias])
+		form := actionForm(
+			huh.NewMultiSelect[string]().
+				Title(title).
+				Options(opts...).
+				Value(&selected),
+		)
+		alias, fieldID, kind := cand.alias, cand.fieldID, cand.kind
+		return openFormMsg{
+			title: title,
+			form:  form,
+			submit: func() tea.Cmd {
+				return fieldEditSubmit(cfg, db, key, alias, fieldID, kind, selected)
+			},
+		}
+	case "user":
+		opts := []huh.Option[string]{
+			huh.NewOption("(unassign/clear)", ""),
+		}
+		for _, mem := range cfg.Members {
+			id := mem.JiraAccountID
+			if id == "" {
+				continue
+			}
+			label := mem.DisplayName
+			if label == "" {
+				label = mem.Name
+			}
+			if label == "" {
+				label = mem.Email
+			}
+			if label == "" {
+				label = id
+			}
+			opts = append(opts, huh.NewOption(label, id))
+		}
+		var picked string
+		form := actionForm(
+			huh.NewSelect[string]().
+				Title(title).
+				Options(opts...).
+				Value(&picked),
+		)
+		alias, fieldID, kind := cand.alias, cand.fieldID, cand.kind
+		return openFormMsg{
+			title: title,
+			form:  form,
+			submit: func() tea.Cmd {
+				return fieldEditSubmit(cfg, db, key, alias, fieldID, kind, []string{picked})
+			},
+		}
+	default:
+		// option / version (single) and any other single-id kind.
+		opts := []huh.Option[string]{
+			huh.NewOption("(clear)", ""),
+		}
+		for _, v := range cand.meta.AllowedValues {
+			label := v.Value
+			if label == "" {
+				label = v.Name
+			}
+			opts = append(opts, huh.NewOption(label, v.ID))
+		}
+		var picked string
+		form := actionForm(
+			huh.NewSelect[string]().
+				Title(title).
+				Options(opts...).
+				Value(&picked),
+		)
+		alias, fieldID, kind := cand.alias, cand.fieldID, cand.kind
+		return openFormMsg{
+			title: title,
+			form:  form,
+			submit: func() tea.Cmd {
+				return fieldEditSubmit(cfg, db, key, alias, fieldID, kind, []string{picked})
+			},
+		}
+	}
+}
+
+func fieldEditSubmit(cfg *config.Config, db *store.DB, key, alias, fieldID, kind string, ids []string) tea.Cmd {
+	// Copy so the caller can reuse / mutate the slice after we return.
+	picked := append([]string(nil), ids...)
+	return func() tea.Msg {
+		c := clientFactory(cfg)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		value := fields.ValueFromIDs(kind, picked)
+		if err := c.UpdateFields(ctx, key, map[string]any{fieldID: value}); err != nil {
+			return formResultMsg{err: err}
+		}
+		if err := syncIssueFn(ctx, cfg, db, key); err != nil {
+			return formResultMsg{err: fmt.Errorf("%s %s applied, mirror refresh failed: %w", key, alias, err), key: key}
+		}
+		return formResultMsg{note: key + " " + alias + " updated", key: key}
+	}
+}
+
+// preselectMultiIDs marks AllowedValues whose labels match current custom
+// display tokens (case-insensitive). Mismatches are ignored quietly.
+func preselectMultiIDs(meta jira.FieldMeta, current any) []string {
+	tokens := customValueTokens(current)
+	if len(tokens) == 0 {
+		return nil
+	}
+	var out []string
+	for _, v := range meta.AllowedValues {
+		label := v.Value
+		if label == "" {
+			label = v.Name
+		}
+		for _, tok := range tokens {
+			if strings.EqualFold(label, tok) {
+				out = append(out, v.ID)
+				break
+			}
+		}
+	}
+	return out
+}
+
+// customValueTokens expands a Custom map value into display tokens for matching.
+func customValueTokens(v any) []string {
+	switch t := v.(type) {
+	case string:
+		s := strings.TrimSpace(t)
+		if s == "" {
+			return nil
+		}
+		return []string{s}
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, el := range t {
+			s := strings.TrimSpace(fmt.Sprint(el))
+			if s == "" || s == "<nil>" {
+				continue
+			}
+			out = append(out, s)
+		}
+		return out
+	case nil:
+		return nil
+	default:
+		s := customDisplay(v)
+		if s == "" {
+			return nil
+		}
+		return []string{s}
 	}
 }
 

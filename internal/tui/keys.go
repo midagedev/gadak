@@ -12,7 +12,7 @@ type keyMap struct {
 	TabInProgress, TabDone key.Binding
 	Enter, Back, Refresh   key.Binding
 	Comment, Transition    key.Binding
-	Assignee, Quit         key.Binding
+	Assignee, Edit, Quit   key.Binding
 	Help, Feed, Views      key.Binding
 	Watch                  key.Binding
 }
@@ -35,6 +35,7 @@ func defaultKeys() keyMap {
 		Comment:       key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 		Transition:    key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
 		Assignee:      key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assignee")),
+		Edit:          key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit field")),
 		Help:          key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Feed:          key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "feed")),
 		Views:         key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "saved views")),
@@ -60,6 +61,7 @@ func (k keyMap) helpLines() [][2]string {
 		{k.Comment.Help().Key, k.Comment.Help().Desc},
 		{k.Transition.Help().Key, k.Transition.Help().Desc},
 		{k.Assignee.Help().Key, k.Assignee.Help().Desc},
+		{k.Edit.Help().Key, k.Edit.Help().Desc},
 		{k.Watch.Help().Key, k.Watch.Help().Desc},
 		{k.Feed.Help().Key, k.Feed.Help().Desc},
 		{k.Views.Help().Key, k.Views.Help().Desc},

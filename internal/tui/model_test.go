@@ -533,9 +533,22 @@ func TestKeyMapNewBindings(t *testing.T) {
 	if !keyMatches(km.Watch, "w") {
 		t.Error("w should match Watch")
 	}
+	if !keyMatches(km.Edit, "e") {
+		t.Error("e should match Edit")
+	}
 	lines := km.helpLines()
 	if len(lines) < 15 {
 		t.Fatalf("help lines too short: %d", len(lines))
+	}
+	found := false
+	for _, pair := range lines {
+		if pair[0] == "e" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("helpLines missing e")
 	}
 }
 
