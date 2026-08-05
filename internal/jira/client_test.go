@@ -145,6 +145,35 @@ func TestChangelogAndCommentsPageToTotal(t *testing.T) {
 	}
 }
 
+func TestFieldsParsesCatalog(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/rest/api/3/field" {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		w.Write([]byte(`[
+			{"id":"summary","name":"Summary","custom":false,"schema":{"type":"string","system":"summary"}},
+			{"id":"customfield_10016","name":"Story Points","custom":true,
+			 "schema":{"type":"number","custom":"com.atlassian.jira.plugin.system.customfieldtypes:float","customId":10016}}
+		]`))
+	}))
+	got, err := c.Fields(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2", len(got))
+	}
+	if got[0].ID != "summary" || got[0].Custom || got[0].Schema.Type != "string" {
+		t.Errorf("system field = %+v", got[0])
+	}
+	if got[1].ID != "customfield_10016" || !got[1].Custom || got[1].Name != "Story Points" {
+		t.Errorf("custom field = %+v", got[1])
+	}
+	if got[1].Schema.Type != "number" || !strings.Contains(got[1].Schema.Custom, "float") {
+		t.Errorf("custom schema = %+v", got[1].Schema)
+	}
+}
+
 func decode(t *testing.T, r *http.Request, out any) {
 	t.Helper()
 	if err := json.NewDecoder(r.Body).Decode(out); err != nil {

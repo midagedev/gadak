@@ -142,6 +142,9 @@ scry transition NMB-140 31
 scry assign NMB-140 dana@example.com
 scry assign NMB-140 -                # unassign
 
+scry fields                          # custom-field usage on a sample (needs credential)
+scry fields --sample 100 --project NMB --json
+
 scry sync                            # incremental; --full re-fetches everything
 scry status --json
 scry sql --json "select count(*) from issues where reopen_count > 0"

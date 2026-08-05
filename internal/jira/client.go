@@ -255,3 +255,25 @@ func (c *Client) Priorities(ctx context.Context) ([]string, error) {
 	}
 	return out, nil
 }
+
+// FieldInfo is one row from GET /rest/api/3/field — the site-wide field catalog.
+// Distinct from FieldMeta (editmeta for one issue); do not reuse that type here.
+type FieldInfo struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Custom bool   `json:"custom"`
+	Schema struct {
+		Type   string `json:"type"`
+		Custom string `json:"custom"`
+		Items  string `json:"items"`
+	} `json:"schema"`
+}
+
+// Fields returns every system and custom field the site exposes to this user.
+func (c *Client) Fields(ctx context.Context) ([]FieldInfo, error) {
+	var list []FieldInfo
+	if err := c.do(ctx, http.MethodGet, apiPath+"/field", nil, &list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}

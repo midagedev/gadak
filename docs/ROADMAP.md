@@ -68,8 +68,10 @@ keeps an installed mirror alive or removes a reason not to try one.
   dashboard and 429s are invisible until they hit. The client already honors
   `Retry-After` with backoff; counting and showing our own call volume would be
   a dashboard Jira does not offer.
-- **Field-bloat report.** "Which custom fields are actually used" is one SQL
-  query over a mirror and impossible to see in Jira itself.
+- ✅ **Field-bloat report** (`scry fields`). Not a single SQL query: the mirror
+  only stores custom fields listed in `fieldMap`, so the command lists fields
+  from Jira (`GET /field`) and probes a stratified sample of mirrored issue
+  keys with `fields=*all`. Rates are sample-based, not a site census.
 - **Offline write queue.** Deliberately deferred: optimistic write-through
   already covers short offline windows, and conflict resolution is a product
   of its own. Wait for observed demand.

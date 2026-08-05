@@ -895,6 +895,7 @@ Writing through to Jira (needs a credential):
   comment    add a comment    <KEY> -m <text|-> [--json]
   transition change status    <KEY> <status-or-id> [--json]
   assign     set assignee     <KEY> <email|-> [--json]
+  fields     custom-field usage report  [--sample N] [--json] [--all] [--project KEY]
 
 Profiles keep separate credentials and mirrors (e.g. work and demo):
   scry --profile demo init && scry --profile demo serve --addr 127.0.0.1:7778
@@ -947,6 +948,8 @@ func main() {
 		err = cmdTransition(args[1:])
 	case "assign":
 		err = cmdAssign(args[1:])
+	case "fields":
+		err = cmdFields(args[1:])
 	case "status":
 		err = cmdStatus(args[1:])
 	case "mcp":

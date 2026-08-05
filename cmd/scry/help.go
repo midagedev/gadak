@@ -15,6 +15,7 @@ var commandNames = []string{
 	"comment",
 	"demo",
 	"export-static",
+	"fields",
 	"init",
 	"install-service",
 	"issue",
@@ -207,6 +208,16 @@ var helps = map[string]cmdHelp{
 			"scry assign NMB-140 dana@example.com --json",
 		},
 		seeAlso: []string{"scry comment", "scry transition", "scry issue"},
+	},
+	"fields": {
+		summary: "report which custom fields are populated (samples the mirror; queries Jira)",
+		usage:   "scry [--profile <name>] fields [--sample N] [--json] [--all] [--project KEY]",
+		examples: []string{
+			"scry fields",
+			"scry fields --sample 100 --project NMB",
+			"scry fields --all --json",
+		},
+		seeAlso: []string{"scry status", "scry sync", "scry sql"},
 	},
 	"mcp": {
 		summary: "MCP server on stdio for clients without a shell",
