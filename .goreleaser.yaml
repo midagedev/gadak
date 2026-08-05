@@ -64,6 +64,27 @@ checksum:
 # release workflow). Formula is still written under .release/ when upload is
 # skipped. Note: `brews` is deprecated upstream in favor of homebrew_casks;
 # we keep formulas until the tap is ready for casks.
+# macOS signing + notarization. Without it a browser-downloaded archive carries
+# com.apple.quarantine and Gatekeeper refuses to run the binary; curl and brew
+# do not set that attribute, which is why those paths worked unsigned.
+#
+# Enabled only when the secrets are present, so a fork's tag still builds.
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      sign:
+        certificate: "{{.Env.MACOS_SIGN_P12}}"
+        password: "{{.Env.MACOS_SIGN_PASSWORD}}"
+      notarize:
+        issuer_id: "{{.Env.MACOS_NOTARY_ISSUER_ID}}"
+        key_id: "{{.Env.MACOS_NOTARY_KEY_ID}}"
+        key: "{{.Env.MACOS_NOTARY_KEY}}"
+        # A bare executable cannot be stapled, so the ticket stays on Apple's
+        # side and Gatekeeper checks it online. Waiting keeps a failed
+        # notarization from shipping as a green release.
+        wait: true
+        timeout: 20m
+
 # GoReleaser deprecates `brews` in favour of `homebrew_casks`, but a cask is the
 # wrong shape here until the binaries are notarized: Homebrew stamps cask
 # downloads with com.apple.quarantine and Gatekeeper refuses to run an unsigned

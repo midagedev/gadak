@@ -82,6 +82,24 @@ check to a prefix test or a broad regex is an XSS hole, not a simplification.
   nothing is published. `--force` overwrites an existing output but cannot skip
   this check.
 
+## Release Artifacts
+
+Every release ships a `checksums.txt` (sha256) covering each archive;
+`scripts/install.sh` verifies it before installing. macOS binaries are signed
+with a Developer ID Application certificate and notarized by Apple, so a
+browser-downloaded archive is not blocked by Gatekeeper. The signature carries a
+secure timestamp, which keeps already-published releases verifiable after the
+signing certificate itself expires.
+
+Verify a macOS binary yourself:
+
+```bash
+codesign --verify --strict --verbose=2 ./scry   # signature and requirement
+spctl --assess --type execute -vv ./scry        # Gatekeeper's own verdict
+```
+
+Linux and Windows binaries are not signed; verify those with `checksums.txt`.
+
 ## Data Boundaries
 
 scry only ever talks to the source you configure. There is no telemetry, no
