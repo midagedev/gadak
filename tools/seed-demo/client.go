@@ -14,7 +14,8 @@ import (
 
 // Client is a minimal Jira Cloud REST helper for seeding. It is intentionally
 // separate from internal/jira so this tool can write without touching the
-// read-only connector package.
+// read-only connector package. The same client also talks to Confluence under
+// /wiki/rest/api for --docs mode.
 type Client struct {
 	base  string
 	auth  string
@@ -23,15 +24,21 @@ type Client struct {
 	// backoff is the first wait; doubles each attempt, capped at 30s.
 	// Zero means no sleep (tests).
 	backoff time.Duration
+	// paceDelay is the sleep between successful Confluence writes (docs mode).
+	// Zero means no pacing (tests).
+	paceDelay time.Duration
+	// lastRetryAfter, when set by a 429 response, overrides the next waitFor.
+	lastRetryAfter time.Duration
 }
 
 func newClient(site, email, token string) *Client {
 	return &Client{
-		base:    strings.TrimRight(site, "/"),
-		auth:    "Basic " + base64.StdEncoding.EncodeToString([]byte(email+":"+token)),
-		http:    &http.Client{Timeout: 60 * time.Second},
-		tries:   5,
-		backoff: time.Second,
+		base:      strings.TrimRight(site, "/"),
+		auth:      "Basic " + base64.StdEncoding.EncodeToString([]byte(email+":"+token)),
+		http:      &http.Client{Timeout: 60 * time.Second},
+		tries:     5,
+		backoff:   time.Second,
+		paceDelay: 100 * time.Millisecond,
 	}
 }
 
@@ -84,6 +91,11 @@ func (c *Client) call(method, path string, body any, out any) bool {
 		if res.StatusCode == 429 || res.StatusCode == 500 || res.StatusCode == 502 ||
 			res.StatusCode == 503 || res.StatusCode == 504 {
 			if attempt < c.tries-1 {
+				if res.StatusCode == 429 {
+					if d := parseRetryAfter(res.Header.Get("Retry-After")); d > 0 {
+						c.lastRetryAfter = d
+					}
+				}
 				wait := c.waitFor(attempt)
 				fmt.Fprintf(os.Stderr, "  retry %d in %s: %s %s\n", res.StatusCode, wait, method, path)
 				if wait > 0 {
@@ -113,6 +125,15 @@ func (c *Client) call(method, path string, body any, out any) bool {
 }
 
 func (c *Client) waitFor(attempt int) time.Duration {
+	if c.lastRetryAfter > 0 {
+		d := c.lastRetryAfter
+		c.lastRetryAfter = 0
+		// Tests set backoff=0 to skip sleeps entirely.
+		if c.backoff <= 0 {
+			return 0
+		}
+		return d
+	}
 	if c.backoff <= 0 {
 		return 0
 	}
