@@ -1,0 +1,273 @@
+{
+ "generated_for": "scry demo",
+ "epics": [
+  {
+   "project": "NMB",
+   "summary": "Dashboard polish and reliability",
+   "description": "Raise the quality bar on the main Nimbus dashboard: filter state, chart layout, workspace switching, density modes, and empty states. This initiative covers the daily board experience customers open first and aims to cut p95 interaction jank on common paths.",
+   "child_summaries": [
+    "Filter chips reset to default after switching workspaces",
+    "Dashboard chart legend overlaps axis labels on 1280px viewports",
+    "Workspace switcher shows stale plan tier until full page reload",
+    "Dark mode contrast fails WCAG AA on secondary dashboard metrics",
+    "Kanban column counts ignore cards moved via keyboard shortcuts",
+    "Date picker shifts one day backward in Pacific/Auckland timezone",
+    "Saved view filters apply only the first three selected components",
+    "Dashboard heatmap cells render transparent under forced colors mode",
+    "Dashboard refresh button triggers two identical network requests in Firefox",
+    "Board filter URL params are lost when opening a card in a new tab"
+   ]
+  },
+  {
+   "project": "NMB",
+   "summary": "Billing reliability",
+   "description": "Make billing flows trustworthy end to end: invoices, portal sessions, usage meters, receipts, payment methods, and plan changes. Support and finance both treat billing bugs as P1 noise, so this epic groups the reliability fixes customers hit when they pay us.",
+   "child_summaries": [
+    "Billing invoice PDF downloads with a blank second page",
+    "Billing portal redirect loops when the customer already has a portal session",
+    "Invoice line items show tax twice when the workspace uses reverse charge",
+    "Billing usage meter shows negative remaining seats after a plan downgrade",
+    "Billing receipt email links open the app root instead of the invoice detail",
+    "Add a read-only share link for dashboards without requiring a full seat",
+    "Surface upcoming invoice amount on the billing settings overview",
+    "Let billing admins download a usage CSV for any completed billing period",
+    "Surface trial days remaining as a non-blocking banner for workspace owners",
+    "Allow attaching a payment method without immediately changing the plan",
+    "Extract billing proration helpers into a shared package with unit coverage",
+    "Generate OpenAPI types for the billing portal session create endpoint"
+   ]
+  },
+  {
+   "project": "NMB",
+   "summary": "Editor performance push",
+   "description": "Speed up and stabilize the collaborative editor: autosave correctness, mention UX, undo/redo, cursors, tables, and large paste paths. Editors are where customers spend the most continuous time; regressions here show up as silent data loss reports.",
+   "child_summaries": [
+    "Notification toast stacks behind the sticky editor toolbar",
+    "Editor autosave writes the previous document revision every third save",
+    "Mention autocomplete inserts an extra space before the handle",
+    "Editor collaborative cursors jump to line zero after a paste of 500+ lines",
+    "Editor undo stack collapses multiple keystrokes into a single step after idle",
+    "Pinned comment markers disappear when the document is reopened in split view",
+    "Editor slash command menu stays open after switching to another browser tab",
+    "Editor markdown paste converts nested lists into a flat numbered list",
+    "Let editors insert collapsible callout blocks from the slash menu",
+    "Show inline diffs when two collaborators edit the same paragraph",
+    "Allow pinning an editor template as the default for new documents",
+    "Add an accessibility audit checklist panel for published documents",
+    "Add slash-command shortcuts for inserting date chips with relative offsets",
+    "Editor table column resize snaps to zero width on the last column"
+   ]
+  },
+  {
+   "project": "NMB",
+   "summary": "Notification overhaul",
+   "description": "Rebuild notification delivery so toasts, badges, digests, quiet hours, and preference toggles stay consistent across sessions. The goal is fewer muted workspaces and fewer duplicate digests after the midnight boundary bugs.",
+   "child_summaries": [
+    "Sidebar badge count freezes after dismissing the last unread item",
+    "Notification preferences toggle reverts after navigating away within 2 seconds",
+    "Notification email subject line drops non-ASCII characters from the issue title",
+    "Notification digests duplicate events that occurred near the midnight boundary",
+    "Support keyboard-only navigation through the notification inbox",
+    "Let users snooze a notification for 1 hour, tomorrow, or next week",
+    "Let users configure quiet hours for desktop and mobile push alerts",
+    "Allow filtering the notification feed by project and event type",
+    "Allow muting notifications for a specific card until it is reassigned",
+    "Add Storybook stories for notification toast variants and stacking rules",
+    "Backfill missing notification preference rows for workspaces created before 2025",
+    "Migrate notification email templates to the shared MJML layout"
+   ]
+  },
+  {
+   "project": "NMB",
+   "summary": "Auth hardening",
+   "description": "Harden login, session renewal, SSO, OAuth callbacks, MFA policy, and password reset so identity edge cases stop generating security tickets. Scope is product-auth for the web app, not the support portal subdomain.",
+   "child_summaries": [
+    "Auth session cookie is not refreshed after silent token renewal",
+    "Login form submits twice if Enter is pressed while the request is in flight",
+    "SSO login fails when the IdP returns a NameID with mixed case domain",
+    "Password reset token is accepted twice if both tabs submit within 1 second",
+    "Allow workspace admins to force SSO for all new member invitations",
+    "Show password strength and common-breach checks on the signup form",
+    "Replace legacy localStorage auth tokens with the httpOnly session cookie path",
+    "Add Playwright coverage for OAuth callback deep-link restoration",
+    "OAuth callback lands on the root dashboard instead of the deep-linked board",
+    "Let admins require MFA for any role at or above editor"
+   ]
+  },
+  {
+   "project": "NMB",
+   "summary": "Workspace data export foundations",
+   "description": "Close gaps around bulk archive, CSV export and import, bulk reassignment, and shared worker test coverage. These paths are rare but high-blast-radius when they fail, and they currently lack shared fixtures.",
+   "child_summaries": [
+    "Export CSV truncates multi-line description fields at 255 characters",
+    "Bulk archive leaves orphaned cards visible until the next poll cycle",
+    "Allow bulk reassignment of cards from the board multi-select toolbar",
+    "Support importing a board from a CSV with custom field mapping",
+    "Add integration tests for the bulk import worker"
+   ]
+  },
+  {
+   "project": "NMA",
+   "summary": "REST API correctness",
+   "description": "Tighten REST contract behavior for pagination, validation status codes, bulk update, and search freshness. Partner integrations depend on stable error codes and cursor semantics; this epic is the correctness backlog for the public API surface.",
+   "child_summaries": [
+    "Cursor pagination skips records when the sort column has duplicate values",
+    "REST API returns 500 instead of 422 for invalid ISO-8601 due dates",
+    "Bulk update endpoint accepts mixed project keys and partially commits changes",
+    "REST search returns stale results for 45 seconds after an issue is reassigned",
+    "Webhook subscription list endpoint ignores the pageSize parameter above 50",
+    "REST API CORS allowlist rejects legitimate subdomains of example.com",
+    "Webhook test delivery endpoint always returns 200 even when the target is down",
+    "Pagination total count drifts when filters include labels with special characters",
+    "REST field metadata endpoint caches deleted custom fields for the full TTL",
+    "REST API accepts empty assignee_slot strings instead of returning 400",
+    "Webhook fan-out delivers events twice when the subscription uses two endpoints",
+    "Expose a public endpoint to list webhook delivery attempts for a subscription",
+    "Add a REST filter for issues updated since a specific cursor token",
+    "Add a dry-run mode for bulk mutation endpoints that returns a change plan"
+   ]
+  },
+  {
+   "project": "NMA",
+   "summary": "Webhook delivery reliability",
+   "description": "Make webhook delivery, signature rotation, DLQ handling, fan-out, and payload completeness reliable under load. Customers build automations on these events; silent dual-delivery or stale secrets burn trust faster than latency.",
+   "child_summaries": [
+    "Webhook delivery retries exhaust the DLQ without surfacing a final failure event",
+    "Webhook signature header uses the previous secret for 30 seconds after rotation",
+    "SDK webhook verifier fails for payloads larger than 256 KiB",
+    "Webhook payload omits the previous status when the transition skips intermediate states",
+    "Allow webhook filters by project key and issue type without a separate subscription",
+    "Support rotating webhook secrets with a dual-validation grace period",
+    "Migrate webhook delivery logs to a partitioned cold-storage table",
+    "Add contract tests for webhook signature verification across secret rotations",
+    "Write a runbook for replaying failed webhook deliveries from the DLQ",
+    "Normalize error response envelopes across REST and webhook test endpoints",
+    "Add OpenTelemetry traces around webhook fan-out fan-in paths",
+    "Add schema validation for incoming webhook filter expressions"
+   ]
+  },
+  {
+   "project": "NMA",
+   "summary": "Worker platform stability",
+   "description": "Stabilize background workers: heartbeats, concurrency leases, dead-letter metadata, progress checkpoints, and queue-depth observability. Platform ops should reason about export jobs without hunting logs.",
+   "child_summaries": [
+    "Worker crashes when the job payload contains nested null optional fields",
+    "Worker heartbeat expires while a long-running export holds the same lease",
+    "Worker dead-letter requeue loses the original attempt count metadata",
+    "Worker concurrency semaphore leaks slots after a panicked handler",
+    "Worker job IDs collide when two nodes boot within the same millisecond",
+    "Let workers publish progress checkpoints for multi-minute export jobs",
+    "Expose worker queue depth metrics via a read-only ops endpoint",
+    "Allow workers to pause and resume long-running jobs without losing lease state",
+    "Add integration tests for the bulk import worker pagination edge cases",
+    "Generate SDK release notes from the OpenAPI diff for each minor version",
+    "Backfill missing created_at indexes on the worker job history table",
+    "Add benchmark fixtures for the search index rebuild worker"
+   ]
+  },
+  {
+   "project": "NMA",
+   "summary": "SDK developer experience",
+   "description": "Improve the official SDKs so list/create/retry paths and generated types match the REST contract. Goal is fewer partner tickets that start with the docs say one thing but the client does another.",
+   "child_summaries": [
+    "SDK listIssues ignores the expand=changelog query parameter on v2.4 clients",
+    "SDK createIssue drops custom field values when the field is multi-select",
+    "SDK retry middleware does not honor 503 Retry-After delay values",
+    "SDK TypeScript types mark required create fields as optional after codegen",
+    "Allow SDK consumers to stream search results via async iterators",
+    "Provide signed temporary URLs for large attachment downloads in the SDK",
+    "Let SDK clients configure a custom fetch implementation for edge runtimes",
+    "Add SDK helpers for building JQL-like filters with typed field names",
+    "Replace ad-hoc sleep retries with the shared exponential backoff package",
+    "Upgrade the SDK HTTP client to enforce TLS 1.2 minimum",
+    "Document SDK authentication flows for OAuth and API key side by side"
+   ]
+  },
+  {
+   "project": "NMA",
+   "summary": "Rate limiting and edge resilience",
+   "description": "Fix rate-limit window math, header honesty, preflight accounting, redis key isolation, and soft-warning signals at the edge. Fair throttling protects multi-tenant clusters without surprising well-behaved clients.",
+   "child_summaries": [
+    "Rate limiter window resets early under clock skew between API nodes",
+    "Rate limit headers omit Retry-After on 429 responses from the edge layer",
+    "Rate limiting counts OPTIONS preflight requests against the client quota",
+    "Rate limiter redis key collision occurs across staging and production clusters",
+    "Support soft rate-limit warnings at 80 percent of the hourly quota",
+    "Surface remaining rate-limit budget on every successful authenticated response",
+    "Document rate limit tiers and header semantics for public API consumers",
+    "Add chaos tests for rate limiter redis failover behavior",
+    "Add feature flags for the soft rate-limit warning headers experiment"
+   ]
+  },
+  {
+   "project": "NMS",
+   "summary": "Billing questions experience",
+   "description": "Improve how customers ask and resolve billing questions: portal invoices, proration copy, form attachments, refund macros, and routing into the Billing Questions queue. Cuts repeat tickets that bounce between support and finance.",
+   "child_summaries": [
+    "Customer cannot download invoice after plan change mid-cycle",
+    "Billing question form drops the attached screenshot on mobile Safari",
+    "Support macros insert outdated refund policy text from 2025",
+    "Billing proration explanation in the portal mismatches the invoice line items",
+    "Customer cannot reopen a closed ticket from the portal within 24 hours",
+    "Billing questions route to Triage instead of Billing Questions queue",
+    "Billing portal shows an unpaid balance after a successful card update",
+    "Billing refund request form rejects valid VAT IDs from certain EU countries",
+    "Customer cannot update the contact email on an open billing dispute",
+    "Billing double-charge complaint cannot link to the matching invoice ID",
+    "Customer sees another tenant workspace name briefly on portal load",
+    "Billing question about seat reduction is auto-closed after 48 hours of silence"
+   ]
+  },
+  {
+   "project": "NMS",
+   "summary": "Triage queue modernization",
+   "description": "Modernize triage so SLA-first sorting, bulk labels, workspace isolation, and merge aftermaths behave predictably. First-response metrics depend on this queue more than any other support surface.",
+   "child_summaries": [
+    "Customer reports missing issues after workspace merge completed green",
+    "Triage queue sorts by last updated instead of first response SLA",
+    "Triage labels applied via bulk action do not persist after refresh",
+    "Support search returns tickets from other workspaces for shared domains",
+    "Customer attachment virus scan never completes for files over 8 MB",
+    "Triage SLA breach banner shows for tickets already first-responded",
+    "Support CSAT survey link expires before the configured 14-day window",
+    "Triage filter for unassigned tickets includes tickets with a temporary owner",
+    "Triage priority auto-suggest marks every security mention as Highest",
+    "Triage backlog count includes spam tickets marked for deletion",
+    "Backfill missing first_response_at timestamps on closed triage tickets",
+    "Wire support portal audit logs into the shared SIEM pipeline"
+   ]
+  },
+  {
+   "project": "NMS",
+   "summary": "Escalation and on-call reliability",
+   "description": "Fix escalation timers, on-call auto-assign, handoffs, and chat transcript export so high-severity tickets stay owned. Night-shift EU coverage gaps and timer resets are the recurring pain this epic targets.",
+   "child_summaries": [
+    "Escalation auto-assign skips the on-call rotation for EU overnight hours",
+    "Escalation email goes to the previous owner after a handoff",
+    "Escalation timer resets when a public comment is added by the customer",
+    "Escalation severity dropdown loses the selected value on mobile web",
+    "Escalation template variables render as raw placeholders in outbound email",
+    "Customer report of data-loss after bulk archive cannot be reproduced in staging",
+    "Escalation chat transcript export truncates the last 20 messages",
+    "Escalation on-call page mute suppresses all channels instead of SMS only",
+    "Escalation secondary assignee is not notified when the primary is out of office",
+    "Document the escalation path for data-loss customer reports",
+    "Create a runbook for verifying portal SSO after IdP certificate rotation",
+    "Remove retired escalation severity values from the admin UI"
+   ]
+  },
+  {
+   "project": "NMS",
+   "summary": "Support portal fundamentals",
+   "description": "Stabilize the customer-facing support portal: ticket status sync, SSO on the support subdomain, macros, reopen windows, agent draft autosave, and outage language. Portal trust is the entry point for every other support epic.",
+   "child_summaries": [
+    "Support portal ticket status stuck on Waiting despite agent reply",
+    "Customer SSO login fails only on the support portal subdomain",
+    "Support reply drafts autosave overwrites concurrent agent edits",
+    "Add macros for common billing proration explanations",
+    "Migrate legacy support macros off the deprecated template engine",
+    "Document customer-facing language for rate limit related outages"
+   ]
+  }
+ ]
+}

@@ -31,6 +31,7 @@ func run(args []string) int {
 	noHistory := fs.Bool("no-history", false, "create issues only; skip transitions, comments, links")
 	dataPath := fs.String("data", "", "JSON dataset to project onto Jira instead of generating content")
 	docsPath := fs.String("docs", "", "JSON wiki dataset to seed into Confluence (docs only; skips issue seeding)")
+	epicsPath := fs.String("epics", "", "JSON epic hierarchy dataset to seed (epics only; skips issue seeding)")
 	assigneesFlag := fs.String("assignees", "", "comma-separated accountIds for assignee slots")
 	repairStatesFlag := fs.Bool("repair-states", false, "re-drive workflow states matched by summary")
 	repairAssigneesFlag := fs.Bool("repair-assignees", false, "redistribute assignees across --assignees")
@@ -55,6 +56,25 @@ func run(args []string) int {
 		}
 		c := newClient(site, email, token)
 		return c.seedDocs(*docsPath, false)
+	}
+
+	// --epics mode: create Epic issues and parent existing children by summary.
+	// dry-run never touches the network.
+	if *epicsPath != "" {
+		if *dryRun {
+			c := newClient("https://example.com", "dry@example.com", "dry-token")
+			c.paceDelay = 0
+			return c.seedEpics(*epicsPath, true)
+		}
+		site := strings.TrimRight(os.Getenv("JIRA_SITE"), "/")
+		email := os.Getenv("JIRA_EMAIL")
+		token := os.Getenv("JIRA_TOKEN")
+		if site == "" || email == "" || token == "" {
+			fmt.Fprintln(os.Stderr, "JIRA_SITE, JIRA_EMAIL, and JIRA_TOKEN must be set")
+			return 2
+		}
+		c := newClient(site, email, token)
+		return c.seedEpics(*epicsPath, false)
 	}
 
 	site := strings.TrimRight(os.Getenv("JIRA_SITE"), "/")
