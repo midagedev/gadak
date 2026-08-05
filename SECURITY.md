@@ -76,8 +76,11 @@ check to a prefix test or a broad regex is an XSS hole, not a simplification.
 - API tokens live in `~/.scry/config.json` with mode `0600`, or in the OS keychain.
 - Tokens are never written to SQLite, a log line, an error message, or a snapshot.
 - `GET credential/` returns only a hint, never the token.
-- `scry snapshot` refuses to write output containing credential-shaped strings
-  (when that command lands).
+- `scry snapshot` refuses to write output containing credential-shaped strings.
+  The scan runs over every text column of the finished file while it is still a
+  temp file; a hit names the table, row, and pattern — never the value — and
+  nothing is published. `--force` overwrites an existing output but cannot skip
+  this check.
 
 ## Data Boundaries
 

@@ -110,7 +110,7 @@ under `~/.scry/profiles/<name>/` — the work/demo dual-account setup.
 | T6.2 | Public demo site populated | done | 519 issues across three fictional products. Categories: 209 todo / 144 in progress / 166 done. Status-change depth 0–7 per issue. 95 reopen transitions, 339 issues with comments, 264 assigned, 61 link edges |
 | T6.3 | Authored (non-templated) issue bodies | done | 210 of the 519 are hand-authored: 210/210 unique summaries, 642/642 unique paragraphs, 339/339 unique comments. The other 309 are procedurally generated and visibly more repetitive in the detail panel |
 | T6.8 | Demo assignee display names | partial | The **committed snapshot** (`examples/demo.db`) is clean: emails and display names rewritten to fictional personas (Dana Whitfield, Marco Reyes, Priya Sharma, Alex Kim) and the site URL to `nimbus.example.com`, so `scry demo` and screenshots of it are safe. The **live site** still shows `midagedev+…` until each invitation is accepted; live-site screenshots stay blocked |
-| T6.4 | `scry snapshot` with timestamp spreading and volume scaling | todo |
+| T6.4 | `scry snapshot` with timestamp spreading and volume scaling | done | `internal/snapshot` + `scry snapshot <out.db> [--from] [--spread 90d] [--scale N] [--seed N] [--now RFC3339] [--force]`. Builds a fresh schema and copies rows into it rather than duplicating the file, so deleted tables leave no residue and the output carries the current views and FTS. `saved_views` / `watches` / `favorites` / `feed_reads` / `enrichments` are dropped and `sync_state` is rewritten clean (no watermark, no `first_sync_at`, no `sync_count`). Spreading maps each issue's original `[created, updated]` span onto its new one and moves every child timestamp with it, so no comment or changelog entry escapes its issue. Verified against `examples/demo.db`: 519 issues, 90-day spread, 0 ordering violations across issues, comments, and changelog; `--scale 2000` → 2000 issues, 0 duplicate keys, 0 orphans, 0 dangling links; `--now` makes two builds byte-identical. A source with an `ATATT`-shaped string in an issue body is refused before publish, naming table/row/pattern but never the value, and leaves no temp file |
 | T6.5 | `examples/demo.db` committed, credential-scanned | done | 519 issues mirrored from the demo site, then scrubbed (see T6.8). Scan: zero `ATATT`/`ATCTT`/real emails/real names |
 | T6.6 | `scry demo` serving the bundled snapshot | done | Copies the snapshot into a throwaway temp home, serves it, deletes on exit. No Jira account, no config |
 | T6.7 | 10k-issue benchmark fixture for the latency target | done | `tools/bench-fixture` builds a deterministic 10k `scry.db` via `store.UpsertIssues` (`go run ./tools/bench-fixture -out /tmp/bench.db -issues 10000`). `internal/server/bench_test.go`: `TestBenchSmoke1k` + `BenchmarkBootstrap10k` / `BenchmarkSearch10k`. `make bench` records timings; not a CI fail gate (machine variance). Evidence in `gates.md` G5. |
@@ -145,7 +145,7 @@ commands plus an MCP server, working plugin examples, single-binary packaging vi
 `go:embed`, a verified release pipeline (six archives, container image), and a
 scripted demo-media pipeline.
 
-**Still open**: T6.4 `scry snapshot`; T6.8 live-site display names (waiting on
+**Still open**: T6.8 live-site display names (waiting on
 invitation acceptance); the feed / push / presence surfaces, which are deliberate
 404s until a local watch-based design lands in v0.2 — the one place a user
 migrating from the internal predecessor loses a feature they had.
