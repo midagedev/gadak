@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+	"github.com/mattn/go-runewidth"
 
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/jira"
@@ -1054,6 +1057,21 @@ func (m Model) viewDetail() string {
 	if m.detail == nil {
 		body.WriteString(styleMuted.Render("loading…"))
 	} else {
+		// Discovered custom fields — only the ones this issue fills (boards
+		// differ; an empty row is noise). Same source of truth as the web:
+		// config field specs over issues.custom.
+		for _, spec := range m.cfg.FieldSpecs() {
+			if spec.Role == "body" {
+				continue // rendered as a section below, like Description
+			}
+			val := customDisplay(m.detail.Custom[spec.Alias])
+			if val == "" {
+				continue
+			}
+			body.WriteString(styleCustomLabel.Render(truncateCells(spec.Label, 17)) + " " + stylePrimary.Render(val))
+			body.WriteByte('\n')
+		}
+
 		// Description
 		body.WriteString(styleSection.Render("Description"))
 		body.WriteByte('\n')
@@ -1069,6 +1087,25 @@ func (m Model) viewDetail() string {
 			}
 		}
 		body.WriteByte('\n')
+
+		// Body-role custom fields (repro steps, QA notes, …) as prose sections.
+		for _, spec := range m.cfg.FieldSpecs() {
+			if spec.Role != "body" {
+				continue
+			}
+			text := bodyText(m.detail.Custom[spec.Alias])
+			if text == "" {
+				continue
+			}
+			body.WriteString(styleSection.Render(spec.Label))
+			body.WriteByte('\n')
+			for _, line := range wrapLines(text, innerW-2, 12) {
+				body.WriteString("  ")
+				body.WriteString(line)
+				body.WriteByte('\n')
+			}
+			body.WriteByte('\n')
+		}
 
 		// Comments (last 5)
 		body.WriteString(styleSection.Render("Comments"))
@@ -1150,6 +1187,54 @@ func (m Model) viewDetail() string {
 
 func (m Model) renderDetailField(label, value string) string {
 	return styleDetailLabel.Render(label) + " " + stylePrimary.Render(value)
+}
+
+// truncateCells caps s at max display cells (CJK-aware), appending … when cut.
+func truncateCells(s string, max int) string {
+	if runewidth.StringWidth(s) <= max {
+		return s
+	}
+	return runewidth.Truncate(s, max, "…")
+}
+
+// customDisplay renders a flattened custom value (string or []string; sync
+// stores non-body values display-ready) as one chip-ish line.
+func customDisplay(v any) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case []any:
+		parts := make([]string, 0, len(t))
+		for _, el := range t {
+			if s, ok := el.(string); ok && s != "" {
+				parts = append(parts, s)
+			}
+		}
+		return strings.Join(parts, ", ")
+	case float64:
+		return strconv.FormatFloat(t, 'f', -1, 64)
+	case nil:
+		return ""
+	default:
+		return ""
+	}
+}
+
+// bodyText extracts prose from a body-role custom value: ADF documents render
+// through the same plain-text path as descriptions; plain strings pass through.
+func bodyText(v any) string {
+	switch t := v.(type) {
+	case string:
+		return strings.TrimSpace(t)
+	case map[string]any:
+		raw, err := json.Marshal(t)
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(jira.PlainText(raw))
+	default:
+		return ""
+	}
 }
 
 func wrapLines(s string, width, maxLines int) []string {

@@ -85,6 +85,11 @@ var (
 	styleDetailLabel = lipgloss.NewStyle().
 				Foreground(colMuted).
 				Width(10)
+	// Discovered custom fields carry Jira display names (often longer, often
+	// CJK); a wider column keeps them on one line.
+	styleCustomLabel = lipgloss.NewStyle().
+				Foreground(colMuted).
+				Width(18)
 	styleSection = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(colPrimary).

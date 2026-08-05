@@ -538,3 +538,43 @@ func TestKeyMapNewBindings(t *testing.T) {
 		t.Fatalf("help lines too short: %d", len(lines))
 	}
 }
+
+// TestDetailRendersDiscoveredFields proves the TUI detail shows discovered
+// custom fields from config specs over Detail.Custom: non-body values as
+// label/value rows, body-role values as prose sections, empty values omitted.
+func TestDetailRendersDiscoveredFields(t *testing.T) {
+	m := newModel(&config.Config{Fields: []config.FieldSpec{
+		{Alias: "severity_level", Label: "Severity Level", IDs: []string{"customfield_10"}, Role: "facet"},
+		{Alias: "repro_steps", Label: "Repro Steps", IDs: []string{"customfield_30"}, Role: "body"},
+		{Alias: "never_filled", Label: "Never Filled", IDs: []string{"customfield_40"}, Role: "facet"},
+	}}, nil)
+	m.width, m.height = 100, 40
+	m.all = []row{{lite: store.IssueLite{IssueKey: "AAA-1", Summary: "s", Status: "Done", StatusCategory: "done"}}}
+	m.detailKey = "AAA-1"
+	lite := m.all[0].lite
+	m.detailLite = &lite
+	m.detail = &store.Detail{
+		IssueKey: "AAA-1",
+		Custom: map[string]any{
+			"severity_level": "High",
+			"repro_steps": map[string]any{
+				"type":    "doc",
+				"version": float64(1),
+				"content": []any{map[string]any{
+					"type":    "paragraph",
+					"content": []any{map[string]any{"type": "text", "text": "open the editor twice"}},
+				}},
+			},
+		},
+	}
+	m.mode = modeDetail
+	view := stripANSI(m.View())
+	for _, want := range []string{"Severity Level", "High", "Repro Steps", "open the editor twice"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("detail view missing %q\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "Never Filled") {
+		t.Error("empty field must not render")
+	}
+}
