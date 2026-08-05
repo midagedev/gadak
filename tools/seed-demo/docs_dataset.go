@@ -26,6 +26,9 @@ type DocsPage struct {
 	Parent      string        `json:"parent,omitempty"`
 	BodyStorage string        `json:"body_storage"`
 	Comments    []DocsComment `json:"comments,omitempty"`
+	// Labels are Confluence global labels (lowercase-hyphen). Empty or omitted
+	// means no labels; the seeder never removes existing labels on the site.
+	Labels []string `json:"labels,omitempty"`
 }
 
 // DocsComment is a page comment in storage format.

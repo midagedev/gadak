@@ -131,6 +131,49 @@ func TestDocsDatasetContract(t *testing.T) {
 	if koreanPages < 8 {
 		t.Errorf("Korean pages = %d, want ≥ 8", koreanPages)
 	}
+
+	// Labels: lowercase-hyphen form, vocabulary size 10–15, 55–75% of pages labeled.
+	labelRe := regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+	vocab := map[string]int{}
+	pagesWithLabels := 0
+	for _, p := range data.Pages {
+		if len(p.Labels) == 0 {
+			continue
+		}
+		if len(p.Labels) > 3 {
+			t.Errorf("page %q: %d labels, want ≤ 3", p.Title, len(p.Labels))
+		}
+		pagesWithLabels++
+		seenOnPage := map[string]bool{}
+		for _, lab := range p.Labels {
+			if !labelRe.MatchString(lab) {
+				t.Errorf("page %q: label %q not lowercase-hyphen", p.Title, lab)
+			}
+			if seenOnPage[lab] {
+				t.Errorf("page %q: duplicate label %q", p.Title, lab)
+			}
+			seenOnPage[lab] = true
+			vocab[lab]++
+		}
+	}
+	if n == 0 {
+		t.Fatal("no pages")
+	}
+	ratio := float64(pagesWithLabels) / float64(n)
+	if ratio < 0.55 || ratio > 0.75 {
+		t.Errorf("pages with labels = %d/%d (%.1f%%), want 55–75%%", pagesWithLabels, n, 100*ratio)
+	}
+	if len(vocab) < 10 || len(vocab) > 15 {
+		t.Errorf("label vocabulary size = %d, want 10–15; vocab=%v", len(vocab), vocabKeys(vocab))
+	}
+}
+
+func vocabKeys(m map[string]int) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
 
 func validateXMLFragment(fragment string) error {

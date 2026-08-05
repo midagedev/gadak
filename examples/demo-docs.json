@@ -90,13 +90,22 @@
         {
           "body_storage": "<p>Alex Kim: Keep the edge versus worker boundary explicit—on-call mixed them up during the last rate-limit incident.</p>"
         }
+      ],
+      "labels": [
+        "architecture",
+        "auth"
       ]
     },
     {
       "space": "ENG",
       "title": "Component Map — Board Product",
       "body_storage": "<h2>Components</h2><p>The board product splits into Auth, Billing, Dashboard, Editor, and Notifications. Cross-component bugs usually hide in shared chip or toast primitives.</p><h2>Hot spots this quarter</h2><ul><li>Filter chips resetting after a workspace switch: NMB-104.</li><li>Chart legend overlap at 1280px viewports: NMB-105.</li><li>Notification toasts stacking under the sticky editor toolbar: NMB-108.</li><li>Editor autosave writing the previous revision every third save: NMB-109.</li><li>Workspace switcher showing a stale plan tier until full reload: NMB-110.</li></ul><p>Dashboard layout work for 2026.8.0 must not regress heatmap rendering under forced colors; that path is NMB-121.</p><p>Collaborative protocol documentation for SDK consumers is NMB-174; initial-paint performance budgets for mid-tier laptops are NMB-181.</p>",
-      "parent": "Architecture"
+      "parent": "Architecture",
+      "labels": [
+        "architecture",
+        "dashboard",
+        "editor"
+      ]
     },
     {
       "space": "ENG",
@@ -110,25 +119,38 @@
         {
           "body_storage": "<p>Alex Kim will add the sequence diagram next week.</p>"
         }
+      ],
+      "labels": [
+        "architecture"
       ]
     },
     {
       "space": "ENG",
       "title": "Data Retention Policy",
       "body_storage": "<h2>Policy summary</h2><p>Workspace data is retained for the life of the subscription plus thirty days. Worker job history is partitioned for cold storage; do not invent ad-hoc retention flags in product code.</p><p>Support attachment virus scans that never complete for large files are tracked in NMS-120—unscanned blobs must not remain durable beyond twenty-four hours.</p><h2>PII</h2><p>Debug logs must follow the redaction policy work in NMA-172 before anyone enables verbose worker logging in production.</p><ul><li>No credentials in SQLite mirrors or snapshots</li><li>No customer email in unstructured worker logs</li><li>Webhook payload samples redacted in support tools</li></ul>",
-      "parent": "Architecture"
+      "parent": "Architecture",
+      "labels": [
+        "architecture"
+      ]
     },
     {
       "space": "ENG",
       "title": "Observability Standards",
       "body_storage": "<h2>Tracing</h2><p>Webhook fan-out traces under NMA-170 use the shared trace context. Worker crashes when payloads contain nested null optional fields—see NMA-108—must include job type attributes on the span.</p><h2>Logs</h2><p>PII redaction from NMA-172 is mandatory before enabling debug on production workers. Prefer structured fields over free-text concatenation.</p><p>Ops dashboard: <a href=\"https://example.com/ops/traces\">ops traces</a>. Alert rules live next to the service, not only in this wiki.</p>",
-      "parent": "Architecture"
+      "parent": "Architecture",
+      "labels": [
+        "architecture"
+      ]
     },
     {
       "space": "ENG",
       "title": "ADR-001 Workspace Scoping Middleware",
       "body_storage": "<h2>Status</h2><p>Accepted — 2026-06-12</p><h2>Context</h2><p>Multi-tenant request contexts were applied inconsistently across board and API routes. That contributed to stale plan tier displays after workspace switches (NMB-110) and seat count mismatches on accounts with more than a thousand seats (NMS-68).</p><h2>Decision</h2><p>All authenticated handlers receive a typed workspace scope. Middleware rejects cross-tenant resource IDs before handlers run.</p><h2>Consequences</h2><ul><li>Board and API share the same scope library</li><li>SDK tests must send workspace headers on every call</li><li>Legacy unscoped routes deleted after 2026.7.0</li></ul>",
-      "parent": "ADRs"
+      "parent": "ADRs",
+      "labels": [
+        "adr",
+        "auth"
+      ]
     },
     {
       "space": "ENG",
@@ -139,19 +161,31 @@
         {
           "body_storage": "<p>Thirty-minute grace matches customer IdP cert rotation practice described under NMS-142.</p>"
         }
+      ],
+      "labels": [
+        "adr",
+        "architecture"
       ]
     },
     {
       "space": "ENG",
       "title": "ADR-003 Editor CRDT vs OT",
       "body_storage": "<h2>Status</h2><p>Accepted — 2026-05-20</p><h2>Context</h2><p>Collaborative cursors jumped to line zero after pastes of five hundred or more lines (NMB-118). Autosave occasionally wrote the previous document revision every third save (NMB-109).</p><h2>Decision</h2><p>Stay on operational transformation for 2026.x. Invest in protocol documentation for SDK consumers (NMB-174) rather than a CRDT rewrite this year.</p><h2>Consequences</h2><p>Performance budgets for editor initial paint on mid-tier laptops (NMB-181) remain a separate workstream from collab correctness.</p>",
-      "parent": "ADRs"
+      "parent": "ADRs",
+      "labels": [
+        "adr",
+        "editor"
+      ]
     },
     {
       "space": "ENG",
       "title": "ADR-004 Rate Limit Header Semantics",
       "body_storage": "<h2>Status</h2><p>Proposed</p><h2>Context</h2><p>Edge 429 responses omit Retry-After today (NMA-111). SDK retry middleware already mishandles 503 Retry-After delay values (NMA-123). Rate limiter windows reset early under clock skew between API nodes (NMA-106).</p><h2>Decision</h2><p>Standardize X-RateLimit-* plus Retry-After on every 429. Document tiers and header semantics for public consumers under NMA-151.</p><h2>Consequences</h2><p>Support needs stable customer-facing language for rate-limit related outages (NMS-151) once headers stop changing week to week.</p>",
-      "parent": "ADRs"
+      "parent": "ADRs",
+      "labels": [
+        "adr",
+        "architecture"
+      ]
     },
     {
       "space": "ENG",
@@ -165,37 +199,62 @@
         {
           "body_storage": "<p>Add a checklist item for the dual-secret window before the next drill.</p>"
         }
+      ],
+      "labels": [
+        "runbook",
+        "architecture"
       ]
     },
     {
       "space": "ENG",
       "title": "Runbook — Rate Limit Storm",
       "body_storage": "<h2>Symptoms</h2><p>Spike of 429 responses. Clients without Retry-After thrash the edge—header omission is NMA-111. Windows may also reset early under clock skew (NMA-106).</p><h2>Mitigations</h2><ol><li>Check redis clock offset across API nodes</li><li>Enable soft warning headers if the experiment flag is available</li><li>Point support at the customer language pack in NMS-151</li><li>If SDK clients mis-retry on 503, track fixes under NMA-123</li></ol><p>Status page template: <a href=\"https://example.com/status/templates/rate-limit\">rate-limit template</a>.</p>",
-      "parent": "Runbooks"
+      "parent": "Runbooks",
+      "labels": [
+        "runbook",
+        "architecture"
+      ]
     },
     {
       "space": "ENG",
       "title": "Runbook — SSO Certificate Rotation",
       "body_storage": "<h2>Scope</h2><p>Board SSO can fail when the IdP returns a mixed-case NameID domain (NMB-137). Portal-only login breaks are NMS-112. A dedicated verification runbook for agents after cert rotation is requested in NMS-142.</p><h2>Steps</h2><ol><li>Load the new IdP cert in staging; force SSO on a test workspace using the admin control from NMB-152</li><li>Validate OAuth deep links still land on the board rather than the root dashboard (NMB-122)</li><li>Confirm silent token renewal still refreshes session cookies (NMB-107)</li><li>Promote to production during low traffic and watch auth error rates for thirty minutes</li></ol>",
-      "parent": "Runbooks"
+      "parent": "Runbooks",
+      "labels": [
+        "runbook",
+        "auth"
+      ]
     },
     {
       "space": "ENG",
       "title": "Runbook — Worker Lease Exhaustion",
       "body_storage": "<h2>Symptoms</h2><p>Long-running exports hold a lease until the heartbeat expires (NMA-114). Concurrency semaphores leak slots after a panicked handler (NMA-124). Nested null optional fields in job payloads crash workers (NMA-108).</p><h2>Immediate actions</h2><ul><li>Drain the export queue and pause new multi-minute jobs</li><li>Restart worker pods one availability zone at a time</li><li>Capture payloads that contain nested nulls for the NMA-108 fix set</li></ul><p>Progress checkpoints for multi-minute exports are tracked as NMA-135—treat that as a follow-up, not a hot patch during the incident.</p>",
-      "parent": "Runbooks"
+      "parent": "Runbooks",
+      "labels": [
+        "runbook",
+        "architecture"
+      ]
     },
     {
       "space": "ENG",
       "title": "Runbook — Billing PDF Blank Page",
       "body_storage": "<h2>Customer impact</h2><p>Invoice PDF downloads sometimes include a blank second page (NMB-106). Related billing defects: reverse-charge tax counted twice on line items (NMB-126), portal redirect loops when a session already exists (NMB-117), and receipt email links that open the app root instead of the invoice (NMB-141).</p><h2>Triage</h2><ol><li>Reproduce with a reverse-charge workspace versus standard tax</li><li>Check PDF renderer version and font pack on the billing worker</li><li>If the customer already has a portal session, verify the redirect loop fix path for NMB-117</li></ol>",
-      "parent": "Runbooks"
+      "parent": "Runbooks",
+      "labels": [
+        "runbook",
+        "billing"
+      ]
     },
     {
       "space": "ENG",
       "title": "Runbook — Sev-1 Cross-Tenant Display",
       "body_storage": "<h2>Trigger</h2><p>Any report that a customer briefly saw another tenant workspace name on portal load matches NMS-134. Treat as Sev-1 privacy even if the flash lasts under a second.</p><h2>Actions</h2><ol><li>Page security and platform on-call immediately</li><li>Disable support portal edge cache if the flash correlates with a cache hit</li><li>Preserve request ids and edge logs for forensics</li><li>Hand customer comms to support using the privacy incident template</li></ol><p>Do not close the incident until a root-cause note exists under Postmortems.</p>",
-      "parent": "Runbooks"
+      "parent": "Runbooks",
+      "labels": [
+        "runbook",
+        "dashboard",
+        "auth"
+      ]
     },
     {
       "space": "ENG",
@@ -206,31 +265,51 @@
         {
           "body_storage": "<p>Alex Kim: Add podman notes for Linux contributors.</p>"
         }
+      ],
+      "labels": [
+        "onboarding",
+        "architecture"
       ]
     },
     {
       "space": "ENG",
       "title": "엔지니어링 온보딩 가이드",
       "body_storage": "<h2>환영합니다</h2><p>Nimbus 엔지니어링 팀에 오신 것을 환영합니다. 이 문서는 첫 주 체크리스트입니다. 담당 멘토는 Alex Kim입니다.</p><h2>첫 주에 할 일</h2><ol><li>로컬 개발 환경 구성 (Local Development Setup 참고)</li><li>데모 보드에서 필터 칩 이슈 NMB-104 재현해 보기</li><li>대시보드 범례 겹침 버그 NMB-105 스크린샷 첨부 연습</li><li>에디터 자동저장 회귀 NMB-109 관련 테스트 한 개 실행</li></ol><h2>이슈 키 읽기</h2><p>NMB는 보드 제품, NMA는 플랫폼 API/SDK, NMS는 지원 포털입니다. 재오픈이 많은 버그—예를 들어 알림 다이제스트 중복 NMB-139—는 수정 범위를 넓게 잡으세요.</p><p>내부 링크: <a href=\"https://example.com/eng/onboarding-ko\">온보딩 포털</a>.</p>",
-      "parent": "Onboarding"
+      "parent": "Onboarding",
+      "labels": [
+        "onboarding"
+      ]
     },
     {
       "space": "ENG",
       "title": "How We Ship",
       "body_storage": "<h2>Train model</h2><p>Board releases follow calendar versions 2026.6.0–2026.9.0. Platform SDK uses v2.3–v2.5. Support portal tracks Sprint 41–43.</p><h2>Definition of done</h2><ul><li>Feature flag default off for risky UI experiments such as compact board density</li><li>Regression labels set when reopening bugs like the mention spacing fix in NMB-112</li><li>Docs PR if public API changes—for example rate limit tiers in NMA-151</li></ul><p>Never ship billing PDF changes without covering the blank second page case tracked in NMB-106.</p>",
-      "parent": "Onboarding"
+      "parent": "Onboarding",
+      "labels": [
+        "onboarding",
+        "release"
+      ]
     },
     {
       "space": "ENG",
       "title": "Security Basics for Engineers",
       "body_storage": "<h2>Rules</h2><ul><li>No production credentials in local env files</li><li>Tenant isolation regressions such as NMS-134 are Sev-1</li><li>Webhook secrets dual-validate during rotation per NMA-146 and ADR-002</li><li>CORS allowlist mistakes that reject legitimate example.com subdomains (NMA-120) need security review</li></ul><p>Workspace admins forcing SSO for all new invitations is specified under NMB-152; do not invent a one-off flag.</p>",
-      "parent": "Onboarding"
+      "parent": "Onboarding",
+      "labels": [
+        "onboarding",
+        "auth"
+      ]
     },
     {
       "space": "ENG",
       "title": "Internal Notes — 2026.7.0",
       "body_storage": "<h2>Board 2026.7.0</h2><p>Focus: notifications and editor polish for the mid-year train.</p><ul><li>Digest emails duplicating near midnight: NMB-139</li><li>Mention autocomplete inserting an extra space: NMB-112</li><li>Toasts stacking under the editor toolbar: NMB-108</li><li>Preferences toggle reverting within two seconds: NMB-120</li></ul><p>NMB-112 reopened twice—require golden tests before merge. Follow-ups for 2026.8.0: snooze options in NMB-153 and feed filters in NMB-162.</p>",
-      "parent": "Release Notes"
+      "parent": "Release Notes",
+      "labels": [
+        "release",
+        "dashboard",
+        "notifications"
+      ]
     },
     {
       "space": "ENG",
@@ -241,13 +320,22 @@
         {
           "body_storage": "<p>Coordinate with PROD release comms for customer-facing billing notes.</p>"
         }
+      ],
+      "labels": [
+        "release",
+        "billing",
+        "dashboard"
       ]
     },
     {
       "space": "ENG",
       "title": "Internal Notes — Platform v2.5",
       "body_storage": "<h2>SDK and API v2.5</h2><ul><li>SDK retry middleware ignoring 503 Retry-After: NMA-123</li><li>createIssue dropping multi-select custom fields: NMA-118</li><li>Field metadata caching deleted custom fields for a full TTL: NMA-125</li><li>Edge omitting Retry-After on 429: NMA-111</li></ul><p>NMA-118 and NMA-125 both reopened—pair SDK and REST owners for the same patch window. Cursor pagination skipping duplicate sort values (NMA-104) remains open for v2.5.1.</p>",
-      "parent": "Release Notes"
+      "parent": "Release Notes",
+      "labels": [
+        "release",
+        "architecture"
+      ]
     },
     {
       "space": "ENG",
@@ -261,19 +349,32 @@
         {
           "body_storage": "<p>Support reused rate-limit outage language from NMS-151 during the same week—unrelated but co-incident.</p>"
         }
+      ],
+      "labels": [
+        "postmortem",
+        "notifications"
       ]
     },
     {
       "space": "ENG",
       "title": "Postmortem — SDK Retry and Custom Fields",
       "body_storage": "<h2>Summary</h2><p>Two related platform regressions reopened together. SDK retry middleware did not honor 503 Retry-After delays (NMA-123). createIssue dropped multi-select custom field values (NMA-118). The field metadata endpoint also cached deleted custom fields for a full TTL (NMA-125).</p><h2>Impact</h2><p>Integrators retried too aggressively during a partial outage; some custom field writes silently dropped.</p><h2>Actions</h2><ul><li>Honor Retry-After in SDK middleware</li><li>Invalidate field metadata on delete within sixty seconds</li><li>Contract tests for multi-select create payloads</li></ul>",
-      "parent": "Postmortems"
+      "parent": "Postmortems",
+      "labels": [
+        "postmortem",
+        "architecture"
+      ]
     },
     {
       "space": "ENG",
       "title": "Postmortem — Support Portal Tenant Flash",
       "body_storage": "<h2>Summary</h2><p>Customers briefly saw another tenant workspace name on portal load (NMS-134). Concurrent agent edits were overwritten by support reply draft autosave (NMS-135).</p><h2>Severity</h2><p>Sev-1 security and privacy for the cross-tenant flash; Sev-2 data-loss for drafts.</p><h2>Actions</h2><ol><li>Clear cached workspace labels before first paint</li><li>Optimistic locking on support reply drafts</li><li>Virus scan hangs for large attachments remain separate under NMS-120</li></ol>",
-      "parent": "Postmortems"
+      "parent": "Postmortems",
+      "labels": [
+        "postmortem",
+        "dashboard",
+        "auth"
+      ]
     },
     {
       "space": "ENG",
@@ -284,13 +385,20 @@
         {
           "body_storage": "<p>Alex Kim: 한국어 전문검색 데모용으로 본문에 이슈 키를 유지했습니다.</p>"
         }
+      ],
+      "labels": [
+        "postmortem",
+        "dashboard"
       ]
     },
     {
       "space": "ENG",
       "title": "Eng Sync 2026-07-09",
       "body_storage": "<h2>Attendees</h2><p>Alex Kim plus board and platform rotation.</p><h2>Notes</h2><ul><li>Ship blocker: last-row widget drag-and-drop failure NMB-142</li><li>Platform priority: edge Retry-After on 429 under NMA-111</li><li>Support: workspace invite double-fire on slow connections still flaky—NMS-98</li></ul><h2>Actions</h2><ol><li>Alex Kim owns the DLQ runbook draft linked to NMA-162</li><li>Pair board and billing on the blank PDF page path NMB-106</li></ol>",
-      "parent": "Engineering Meetings"
+      "parent": "Engineering Meetings",
+      "labels": [
+        "meeting-notes"
+      ]
     },
     {
       "space": "ENG",
@@ -301,13 +409,20 @@
         {
           "body_storage": "<p>Approved to build behind the notif_snooze_v1 flag.</p>"
         }
+      ],
+      "labels": [
+        "meeting-notes",
+        "notifications"
       ]
     },
     {
       "space": "ENG",
       "title": "엔지니어링 주간 회의 2026-07-16",
       "body_storage": "<h2>참석</h2><p>Alex Kim 외 보드/플랫폼 로테이션.</p><h2>논의</h2><ul><li>재오픈 버그: SDK 멀티셀렉트 커스텀 필드 누락 NMA-118, 삭제된 필드 메타데이터 캐시 NMA-125</li><li>보드: 워크스페이스 전환 후 요금제 티어가 늦게 갱신되는 NMB-110</li><li>지원: 환불 정책 매크로가 2025 문구를 넣는 NMS-111</li></ul><h2>액션</h2><p>다음 주까지 웹훅 시크릿 이중 검증 ADR 후속과 NMA-146 구현 범위를 맞춘다. 보드 쪽은 NMB-110 재현 로그를 #eng-board에 공유한다.</p><p>온콜 인수인계 템플릿에 재오픈 카운트가 있는 이슈를 한 줄로 넣는 규칙을 시험한다.</p>",
-      "parent": "Engineering Meetings"
+      "parent": "Engineering Meetings",
+      "labels": [
+        "meeting-notes"
+      ]
     },
     {
       "space": "ENG",
@@ -318,31 +433,51 @@
         {
           "body_storage": "<p>Add visual baselines for dark mode secondary metrics covered by NMB-111.</p>"
         }
+      ],
+      "labels": [
+        "qa",
+        "dashboard"
       ]
     },
     {
       "space": "ENG",
       "title": "QA — Auth and SSO Matrix",
       "body_storage": "<h2>Matrix</h2><table><tbody><tr><th>Scenario</th><th>Issue</th><th>Expect</th></tr><tr><td>Silent token renewal</td><td>NMB-107</td><td>Session cookie refreshed</td></tr><tr><td>Mixed-case NameID domain</td><td>NMB-137</td><td>Login succeeds</td></tr><tr><td>OAuth deep link</td><td>NMB-122</td><td>Lands on board, not root</td></tr><tr><td>Force SSO for invites</td><td>NMB-152</td><td>Admin setting enforced</td></tr><tr><td>Portal subdomain only</td><td>NMS-112</td><td>Portal login works</td></tr></tbody></table><p>Run the full matrix after any IdP certificate change. Pair with the SSO certificate rotation runbook.</p>",
-      "parent": "QA Playbooks"
+      "parent": "QA Playbooks",
+      "labels": [
+        "qa",
+        "auth"
+      ]
     },
     {
       "space": "ENG",
       "title": "QA — Billing and Invoices",
       "body_storage": "<h2>Scripts</h2><ol><li>PDF second page blank — NMB-106</li><li>Reverse-charge tax double count — NMB-126</li><li>Portal redirect loop with existing session — NMB-117</li><li>Receipt email deep link — NMB-141</li><li>Usage meter after plan downgrade — NMB-134</li><li>Upcoming invoice on billing settings — NMB-150</li></ol><p>Currency instrumentation tickets such as NMS-50 belong to support tooling but share invoice fixtures with this suite—do not duplicate PDF renderers.</p>",
-      "parent": "QA Playbooks"
+      "parent": "QA Playbooks",
+      "labels": [
+        "qa",
+        "billing"
+      ]
     },
     {
       "space": "ENG",
       "title": "QA — API Pagination and Webhooks",
       "body_storage": "<h2>API</h2><ul><li>Cursor pagination with duplicate sort values — NMA-104</li><li>Invalid ISO-8601 due dates return 422 not 500 — NMA-109</li><li>CORS allowlist for example.com subdomains — NMA-120</li><li>Idempotency keys on create — NMA-142</li></ul><h2>Webhooks</h2><ul><li>DLQ final failure event — NMA-105</li><li>List delivery attempts endpoint — NMA-132</li><li>Secret dual validation — NMA-146</li><li>Replay runbook drill — NMA-162</li></ul><p>Include the CORS subdomain case for example.com in automated suite CI.</p>",
-      "parent": "QA Playbooks"
+      "parent": "QA Playbooks",
+      "labels": [
+        "qa",
+        "architecture"
+      ]
     },
     {
       "space": "ENG",
       "title": "QA — Editor Collaboration",
       "body_storage": "<h2>Focus</h2><p>Autosave writing a previous revision (NMB-109), cursor jump after a large paste (NMB-118), and mention spacing (NMB-112).</p><p>Protocol docs for SDK consumers are NMB-174. Performance budgets for initial paint are NMB-181.</p><h2>Environment</h2><p>Two browsers, mid-tier laptop profile, five-hundred-plus line paste fixture. Also cover card label overflow (NMB-140) and dark mode contrast (NMB-111) in the same weekly smoke when capacity allows.</p>",
-      "parent": "QA Playbooks"
+      "parent": "QA Playbooks",
+      "labels": [
+        "qa",
+        "editor"
+      ]
     },
     {
       "space": "PROD",
@@ -373,19 +508,31 @@
         {
           "body_storage": "<p>Flag name: notif_snooze_v1</p>"
         }
+      ],
+      "labels": [
+        "spec",
+        "notifications"
       ]
     },
     {
       "space": "PROD",
       "title": "Dashboard Layout Spec",
       "body_storage": "<h2>Goals</h2><p>Readable charts at 1280px width (NMB-105), accessible heatmaps under forced colors (NMB-121), and reliable widget reorder including the last row (NMB-142).</p><h2>Acceptance</h2><ul><li>No double network request on refresh in Firefox — NMB-129</li><li>Filter chips stable across workspace switches — NMB-104</li><li>Saved views honor more than the first three selected components — NMB-119</li></ul><p>Visual QA attaches before/after captures at 1280 and 1440 widths.</p>",
-      "parent": "Feature Specs"
+      "parent": "Feature Specs",
+      "labels": [
+        "spec",
+        "dashboard"
+      ]
     },
     {
       "space": "PROD",
       "title": "Billing Settings Spec",
       "body_storage": "<h2>Surfaces</h2><p>Show the upcoming invoice amount on the billing settings overview (NMB-150). Usage meter must not go negative after a plan downgrade (NMB-134). Receipt email links must open the invoice detail, not the app root (NMB-141).</p><h2>Invoice PDF and portal</h2><p>Blank second pages on PDF download (NMB-106) and reverse-charge tax double counting (NMB-126) are P0 for enterprise. Portal redirect loops when a session already exists (NMB-117) block self-serve plan changes.</p>",
-      "parent": "Feature Specs"
+      "parent": "Feature Specs",
+      "labels": [
+        "spec",
+        "billing"
+      ]
     },
     {
       "space": "PROD",
@@ -396,25 +543,42 @@
         {
           "body_storage": "<p>제품/엔지니어링 공동 리뷰 예정.</p>"
         }
+      ],
+      "labels": [
+        "spec",
+        "auth",
+        "dashboard"
       ]
     },
     {
       "space": "PROD",
       "title": "기능 스펙 — 알림 다이제스트",
       "body_storage": "<h2>배경</h2><p>자정 경계에서 다이제스트 메일이 중복 발송됩니다. 이슈 키는 NMB-139입니다. 또한 환경설정 토글이 2초 안에 다른 화면으로 이동하면 이전 값으로 되돌아가는 회귀가 NMB-120으로 열려 있습니다.</p><h2>목표</h2><ul><li>UTC 일자 기준 중복 제거</li><li>스누즈 NMB-153과 피드 필터 NMB-162와 일관된 상태 모델</li><li>알림 토스트가 에디터 고정 툴바 뒤에 가려지지 않을 것 — NMB-108</li></ul><p>제품 노트: <a href=\"https://example.com/prod/notif-digest\">notif digest</a>.</p><p>ENG 포스트모템 문서를 함께 읽고 타임존 버킷 실수를 반복하지 말 것.</p>",
-      "parent": "Feature Specs"
+      "parent": "Feature Specs",
+      "labels": [
+        "spec",
+        "notifications"
+      ]
     },
     {
       "space": "PROD",
       "title": "Workspace Admin Controls Brief",
       "body_storage": "<h2>Problem</h2><p>Admins cannot force SSO for all new member invitations. Security-conscious customers escalate through support when invites bypass corporate IdP.</p><h2>Proposal</h2><p>Ship the admin toggle described in NMB-152. Coordinate with portal-only SSO failures in NMS-112 and the certificate rotation verification path in NMS-142.</p><h2>Success metrics</h2><p>Fewer seat and security tickets such as seat count mismatches on large accounts tracked in NMS-68.</p>",
-      "parent": "Product Briefs"
+      "parent": "Product Briefs",
+      "labels": [
+        "auth",
+        "dashboard"
+      ]
     },
     {
       "space": "PROD",
       "title": "제품 브리프 — CSV 내보내기 한도",
       "body_storage": "<h2>문제 진술</h2><p>보드 CSV 내보내기에서 여러 줄 설명 필드가 255자에서 잘립니다. 관련 이슈는 NMB-115입니다. 지원 포털 쪽 내보내기는 느린 연결에서 이중 실행되는 문제가 NMS-59로 열려 있습니다.</p><h2>가설</h2><p>셀 한도를 올리고 스트리밍 내보내기로 전환하면 고객 신고가 줄어든다. 장시간 작업의 워커 하트비트 만료 이슈 NMA-114와 함께 설계를 검토한다.</p><h2>다음 단계</h2><p>보드 CSV와 지원 내보내기 픽스처를 공유해 회귀를 한 번에 잡는다. ENG ADR의 8 KiB 소프트 한도 제안을 스펙으로 승격할지 로드맵 리뷰에서 결정한다.</p>",
-      "parent": "Product Briefs"
+      "parent": "Product Briefs",
+      "labels": [
+        "billing",
+        "research"
+      ]
     },
     {
       "space": "PROD",
@@ -432,7 +596,11 @@
       "space": "PROD",
       "title": "Release Notes 2026.7.0 (Customer)",
       "body_storage": "<h2>What's new</h2><p>This release focuses on more reliable notification digests and cleaner editor mentions for everyday board use.</p><h2>Fixes</h2><ul><li>Duplicate digest emails near midnight — NMB-139</li><li>Extra space before handles in mention autocomplete — NMB-112</li><li>Notification toasts stacking under editor chrome — NMB-108</li></ul><p>Help center article: <a href=\"https://example.com/help/2026-7-0\">2026.7.0 help</a>. Contact support if digests still double after upgrade.</p>",
-      "parent": "Release Comms"
+      "parent": "Release Comms",
+      "labels": [
+        "release",
+        "notifications"
+      ]
     },
     {
       "space": "PROD",
@@ -443,13 +611,21 @@
         {
           "body_storage": "<p>Legal review complete for tax wording.</p>"
         }
+      ],
+      "labels": [
+        "release",
+        "dashboard"
       ]
     },
     {
       "space": "PROD",
       "title": "Release Notes Platform v2.5",
       "body_storage": "<h2>SDK and API</h2><p>v2.5 improves retry behavior, multi-select custom fields on create, and freshness of field metadata after deletes.</p><ul><li>Honor 503 Retry-After in the SDK — NMA-123</li><li>Preserve multi-select custom fields on createIssue — NMA-118</li><li>Stop serving deleted custom fields for a full metadata TTL — NMA-125</li><li>Emit Retry-After on edge 429 responses — NMA-111</li></ul><p>Full changelog: <a href=\"https://example.com/changelog/v2.5\">v2.5 changelog</a>.</p>",
-      "parent": "Release Comms"
+      "parent": "Release Comms",
+      "labels": [
+        "release",
+        "architecture"
+      ]
     },
     {
       "space": "PROD",
@@ -466,31 +642,49 @@
         {
           "body_storage": "<p>Notes by Alex Kim.</p>"
         }
+      ],
+      "labels": [
+        "meeting-notes"
       ]
     },
     {
       "space": "PROD",
       "title": "제품 회의록 — 2026년 7월 로드맵",
       "body_storage": "<h2>안건</h2><p>H2 테마 확정과 재오픈 버그 처리 원칙을 이번 회의에서 닫는다. 참석: 제품, 엔지니어링 로테이션, 지원 대표.</p><h2>결정</h2><ul><li>알림 다이제스트 중복 NMB-139를 P0로 유지</li><li>카드 라벨 오버플로 NMB-140은 papercut이지만 접근성 영향으로 승격</li><li>지원 포털 테넌트 이름 플래시 NMS-134는 보안 분류로 처리</li></ul><h2>후속</h2><p>엔지니어링 온보딩 한국어 가이드와 연동해 신규 입사자가 NMB-104 재현부터 하도록 안내한다. 다음 로드맵 리뷰 전에 CSAT 내보내기 NMS-143 초안 수치를 붙인다.</p>",
-      "parent": "Product Meetings"
+      "parent": "Product Meetings",
+      "labels": [
+        "meeting-notes"
+      ]
     },
     {
       "space": "PROD",
       "title": "제품 회의록 — 빌링 품질",
       "body_storage": "<h2>요약</h2><p>PDF 빈 페이지 NMB-106, 세금 이중 계산 NMB-126, 포털 리다이렉트 루프 NMB-117, 영수증 링크 오류 NMB-141을 하나의 빌링 품질 에픽으로 묶는다.</p><p>지원 측 통화 계측 이슈 NMS-50은 제품 버그와 티켓 유형을 분리한다. 계측 노이즈가 실제 인보이스 결함 트리아지를 늦춘 이력이 있다.</p><h2>일정</h2><p>2026.8.0 고객 릴리스 노트 문구와 맞춰 같은 열차에 태운다. 법률 리뷰는 세금 관련 문장만 별도 통과 확인한다. 완료 후 ENG 내부 노트와 이슈 키를 교차 점검한다.</p>",
-      "parent": "Product Meetings"
+      "parent": "Product Meetings",
+      "labels": [
+        "meeting-notes",
+        "billing"
+      ]
     },
     {
       "space": "PROD",
       "title": "Research — Notification Fatigue",
       "body_storage": "<h2>Themes</h2><p>Users request snooze controls and better digests. Evidence aligns with snooze work in NMB-153, feed filters in NMB-162, and the midnight duplication fix in NMB-139.</p><p>Preference UI trust is low after toggles revert on quick navigation (NMB-120). Several CSAT comments mentioned turning notifications off entirely rather than tuning them.</p>",
-      "parent": "Customer Research"
+      "parent": "Customer Research",
+      "labels": [
+        "research",
+        "notifications"
+      ]
     },
     {
       "space": "PROD",
       "title": "Research — Billing Confusion",
       "body_storage": "<h2>Themes</h2><p>PDF quality and tax line items drive enterprise tickets—see NMB-106 and NMB-126. Seat count mismatches on large accounts (NMS-68) confuse workspace admins during renewals.</p><p>Upcoming invoice transparency on settings (NMB-150) is the most requested billing change in the last two CSAT waves.</p>",
-      "parent": "Customer Research"
+      "parent": "Customer Research",
+      "labels": [
+        "research",
+        "billing"
+      ]
     },
     {
       "space": "PROD",
@@ -501,6 +695,10 @@
         {
           "body_storage": "<p>Share with ENG architecture owners.</p>"
         }
+      ],
+      "labels": [
+        "research",
+        "architecture"
       ]
     }
   ]

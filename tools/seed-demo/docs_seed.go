@@ -31,9 +31,12 @@ func (c *Client) seedDocsData(data *DocsDataset, dry bool) int {
 	for _, p := range ordered {
 		commentTotal += len(p.Comments)
 	}
+	uniqueLabels, pagesWithLabels, labelSlots := labelStats(ordered)
 
 	fmt.Printf("docs plan: %d spaces, %d pages, %d comments\n",
 		len(data.Spaces), len(ordered), commentTotal)
+	fmt.Printf("label stats: unique=%d pages_with_labels=%d/%d slots=%d\n",
+		uniqueLabels, pagesWithLabels, len(ordered), labelSlots)
 	for _, s := range data.Spaces {
 		fmt.Printf("  space %s — %s\n", s.Key, s.Name)
 	}
@@ -44,7 +47,11 @@ func (c *Client) seedDocsData(data *DocsDataset, dry bool) int {
 		if p.Parent != "" {
 			parentNote = " (parent: " + p.Parent + ")"
 		}
-		fmt.Printf("  page [%s] %s%s  comments=%d\n", p.Space, p.Title, parentNote, len(p.Comments))
+		labNote := ""
+		if len(p.Labels) > 0 {
+			labNote = " labels=[" + strings.Join(p.Labels, ",") + "]"
+		}
+		fmt.Printf("  page [%s] %s%s  comments=%d%s\n", p.Space, p.Title, parentNote, len(p.Comments), labNote)
 	}
 	if dry {
 		fmt.Printf("dry-run: no Confluence calls\n")
@@ -62,47 +69,143 @@ func (c *Client) seedDocsData(data *DocsDataset, dry bool) int {
 
 	// page title → content id within a space
 	ids := make(map[string]string) // space+"\x00"+title → id
-	created, skipped, commentsMade := 0, 0, 0
+	created, skipped, commentsMade, labelsAdded := 0, 0, 0, 0
 
 	for _, p := range ordered {
 		key := p.Space + "\x00" + p.Title
-		if id, ok := c.findPage(p.Space, p.Title); ok && id != "" {
-			fmt.Printf("  skip existing page [%s] %s (id %s)\n", p.Space, p.Title, id)
-			ids[key] = id
+		var id string
+		if existing, ok := c.findPage(p.Space, p.Title); ok && existing != "" {
+			fmt.Printf("  skip existing page [%s] %s (id %s)\n", p.Space, p.Title, existing)
+			ids[key] = existing
+			id = existing
 			skipped++
 			c.pace()
-			continue
-		}
-		c.pace()
+		} else {
+			c.pace()
 
-		var parentID string
-		if p.Parent != "" {
-			parentID = ids[p.Space+"\x00"+p.Parent]
-			if parentID == "" {
-				fmt.Fprintf(os.Stderr, "ERROR missing parent id for %q under %q\n", p.Title, p.Parent)
+			var parentID string
+			if p.Parent != "" {
+				parentID = ids[p.Space+"\x00"+p.Parent]
+				if parentID == "" {
+					fmt.Fprintf(os.Stderr, "ERROR missing parent id for %q under %q\n", p.Title, p.Parent)
+					return 1
+				}
+			}
+			newID, ok := c.createPage(p.Space, p.Title, parentID, p.BodyStorage)
+			if !ok || newID == "" {
+				fmt.Fprintf(os.Stderr, "ERROR create page [%s] %s\n", p.Space, p.Title)
 				return 1
 			}
-		}
-		id, ok := c.createPage(p.Space, p.Title, parentID, p.BodyStorage)
-		if !ok || id == "" {
-			fmt.Fprintf(os.Stderr, "ERROR create page [%s] %s\n", p.Space, p.Title)
-			return 1
-		}
-		ids[key] = id
-		created++
-		fmt.Printf("  created page [%s] %s (id %s)\n", p.Space, p.Title, id)
-		c.pace()
+			ids[key] = newID
+			id = newID
+			created++
+			fmt.Printf("  created page [%s] %s (id %s)\n", p.Space, p.Title, id)
+			c.pace()
 
-		for _, cm := range p.Comments {
-			if c.createComment(id, cm.BodyStorage) {
-				commentsMade++
+			for _, cm := range p.Comments {
+				if c.createComment(id, cm.BodyStorage) {
+					commentsMade++
+				}
+				c.pace()
+			}
+		}
+
+		// Labels apply to both newly created and already-seeded pages.
+		if len(p.Labels) > 0 {
+			n, ok := c.ensurePageLabels(id, p.Labels)
+			if !ok {
+				fmt.Fprintf(os.Stderr, "ERROR labels on [%s] %s\n", p.Space, p.Title)
+				return 1
+			}
+			labelsAdded += n
+			if n > 0 {
+				fmt.Printf("  labels +%d on [%s] %s\n", n, p.Space, p.Title)
 			}
 			c.pace()
 		}
 	}
 
-	fmt.Printf("done. pages created=%d skipped=%d comments=%d\n", created, skipped, commentsMade)
+	fmt.Printf("done. pages created=%d skipped=%d comments=%d labels_added=%d\n",
+		created, skipped, commentsMade, labelsAdded)
 	return 0
+}
+
+// labelStats returns unique label count, pages with ≥1 label, and total label slots.
+func labelStats(pages []DocsPage) (unique, withLabels, slots int) {
+	seen := map[string]bool{}
+	for _, p := range pages {
+		if len(p.Labels) == 0 {
+			continue
+		}
+		withLabels++
+		for _, l := range p.Labels {
+			slots++
+			if !seen[l] {
+				seen[l] = true
+				unique++
+			}
+		}
+	}
+	return unique, withLabels, slots
+}
+
+// ensurePageLabels GETs existing labels and POSTs only the missing ones
+// (idempotent; never deletes). Returns the number of labels posted.
+func (c *Client) ensurePageLabels(pageID string, want []string) (added int, ok bool) {
+	if len(want) == 0 {
+		return 0, true
+	}
+	existing, ok := c.listPageLabels(pageID)
+	if !ok {
+		return 0, false
+	}
+	have := map[string]bool{}
+	for _, n := range existing {
+		have[strings.ToLower(n)] = true
+	}
+	var missing []map[string]string
+	for _, name := range want {
+		name = strings.TrimSpace(name)
+		if name == "" || have[strings.ToLower(name)] {
+			continue
+		}
+		missing = append(missing, map[string]string{
+			"prefix": "global",
+			"name":   name,
+		})
+		have[strings.ToLower(name)] = true // de-dupe within want
+	}
+	if len(missing) == 0 {
+		return 0, true
+	}
+	if !c.addPageLabels(pageID, missing) {
+		return 0, false
+	}
+	return len(missing), true
+}
+
+func (c *Client) listPageLabels(pageID string) ([]string, bool) {
+	var res struct {
+		Results []struct {
+			Name string `json:"name"`
+		} `json:"results"`
+	}
+	path := "/wiki/rest/api/content/" + url.PathEscape(pageID) + "/label"
+	if !c.call("GET", path, nil, &res) {
+		return nil, false
+	}
+	out := make([]string, 0, len(res.Results))
+	for _, r := range res.Results {
+		if r.Name != "" {
+			out = append(out, r.Name)
+		}
+	}
+	return out, true
+}
+
+func (c *Client) addPageLabels(pageID string, labels []map[string]string) bool {
+	path := "/wiki/rest/api/content/" + url.PathEscape(pageID) + "/label"
+	return c.call("POST", path, labels, nil)
 }
 
 // topoPages returns pages in parent-before-child order. Detects missing parents

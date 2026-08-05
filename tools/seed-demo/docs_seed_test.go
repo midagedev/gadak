@@ -201,13 +201,177 @@ func TestSeedDocsDryRunNoNetwork(t *testing.T) {
 	c.paceDelay = 0
 	data := &DocsDataset{
 		Spaces: []DocsSpace{{Key: "ENG", Name: "E"}},
-		Pages:  []DocsPage{{Space: "ENG", Title: "T", BodyStorage: "<p>x</p>"}},
+		Pages: []DocsPage{
+			{Space: "ENG", Title: "T", BodyStorage: "<p>x</p>", Labels: []string{"runbook", "auth"}},
+		},
 	}
 	if code := c.seedDocsData(data, true); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	if hits != 0 {
 		t.Errorf("dry-run made %d HTTP calls", hits)
+	}
+}
+
+func TestSeedDocsAppliesLabelsGetDiffPost(t *testing.T) {
+	var labelGets, labelPosts atomic.Int32
+	var postedBody []map[string]string
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/wiki/rest/api/space/"):
+			_ = json.NewEncoder(w).Encode(map[string]string{"key": "ENG"})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/label"):
+			labelGets.Add(1)
+			// page already has "runbook"; seeder should only POST missing ones
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]string{
+					{"prefix": "global", "name": "runbook"},
+				},
+			})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/label"):
+			labelPosts.Add(1)
+			_ = json.NewDecoder(r.Body).Decode(&postedBody)
+			_ = json.NewEncoder(w).Encode(map[string]any{"results": postedBody})
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/wiki/rest/api/content"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"results": []any{}})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/wiki/rest/api/content"):
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "p1"})
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.String())
+			http.NotFound(w, r)
+		}
+	}))
+	c.paceDelay = 0
+
+	data := &DocsDataset{
+		Spaces: []DocsSpace{{Key: "ENG", Name: "Engineering"}},
+		Pages: []DocsPage{
+			{Space: "ENG", Title: "Runbook X", BodyStorage: "<p>x</p>",
+				Labels: []string{"runbook", "auth", "billing"}},
+		},
+	}
+	if code := c.seedDocsData(data, false); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if labelGets.Load() != 1 {
+		t.Errorf("label GETs=%d, want 1", labelGets.Load())
+	}
+	if labelPosts.Load() != 1 {
+		t.Errorf("label POSTs=%d, want 1", labelPosts.Load())
+	}
+	// POST body must only contain missing labels (auth, billing), not runbook.
+	names := map[string]bool{}
+	for _, item := range postedBody {
+		if item["prefix"] != "global" {
+			t.Errorf("prefix=%q, want global", item["prefix"])
+		}
+		names[item["name"]] = true
+	}
+	if names["runbook"] {
+		t.Error("POST included already-present runbook")
+	}
+	if !names["auth"] || !names["billing"] {
+		t.Errorf("POST body names=%v, want auth+billing", names)
+	}
+	if len(postedBody) != 2 {
+		t.Errorf("POST body len=%d, want 2", len(postedBody))
+	}
+}
+
+func TestSeedDocsLabelsIdempotentNoPostWhenPresent(t *testing.T) {
+	var labelPosts atomic.Int32
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/wiki/rest/api/space/"):
+			_ = json.NewEncoder(w).Encode(map[string]string{"key": "ENG"})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/label"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]string{
+					{"prefix": "global", "name": "runbook"},
+					{"prefix": "global", "name": "auth"},
+				},
+			})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/label"):
+			labelPosts.Add(1)
+			http.Error(w, "should not POST labels", 500)
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/wiki/rest/api/content"):
+			// existing page
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]string{{"id": "existing-1"}},
+			})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/wiki/rest/api/content"):
+			http.Error(w, "should not create page", 500)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.String())
+			http.NotFound(w, r)
+		}
+	}))
+	c.paceDelay = 0
+
+	data := &DocsDataset{
+		Spaces: []DocsSpace{{Key: "ENG", Name: "Engineering"}},
+		Pages: []DocsPage{
+			{Space: "ENG", Title: "Already There", BodyStorage: "<p>x</p>",
+				Labels: []string{"runbook", "auth"}},
+		},
+	}
+	if code := c.seedDocsData(data, false); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if labelPosts.Load() != 0 {
+		t.Errorf("label POSTs=%d, want 0 (idempotent)", labelPosts.Load())
+	}
+}
+
+func TestSeedDocsLabelsOnSkippedPage(t *testing.T) {
+	var labelGets, labelPosts atomic.Int32
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/wiki/rest/api/space/"):
+			_ = json.NewEncoder(w).Encode(map[string]string{"key": "ENG"})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/label"):
+			labelGets.Add(1)
+			_ = json.NewEncoder(w).Encode(map[string]any{"results": []any{}})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/label"):
+			labelPosts.Add(1)
+			_ = json.NewEncoder(w).Encode(map[string]any{})
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/wiki/rest/api/content"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]string{{"id": "existing-9"}},
+			})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/wiki/rest/api/content"):
+			http.Error(w, "should not create", 500)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.String())
+			http.NotFound(w, r)
+		}
+	}))
+	c.paceDelay = 0
+
+	data := &DocsDataset{
+		Spaces: []DocsSpace{{Key: "ENG", Name: "Engineering"}},
+		Pages: []DocsPage{
+			{Space: "ENG", Title: "Old Page", BodyStorage: "<p>x</p>",
+				Labels: []string{"meeting-notes"}},
+		},
+	}
+	if code := c.seedDocsData(data, false); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if labelGets.Load() != 1 || labelPosts.Load() != 1 {
+		t.Errorf("label GET=%d POST=%d, want 1/1 on skipped page", labelGets.Load(), labelPosts.Load())
+	}
+}
+
+func TestLabelStats(t *testing.T) {
+	pages := []DocsPage{
+		{Title: "a", Labels: []string{"runbook", "auth"}},
+		{Title: "b", Labels: []string{"runbook"}},
+		{Title: "c"},
+	}
+	u, w, s := labelStats(pages)
+	if u != 2 || w != 2 || s != 3 {
+		t.Errorf("unique=%d with=%d slots=%d, want 2/2/3", u, w, s)
 	}
 }
 
