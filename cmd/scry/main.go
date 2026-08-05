@@ -126,8 +126,8 @@ func cmdServe(args []string) error {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": version})
 	})
-	// PUT settings/ 가 디스크의 config 를 갱신하므로 요청마다 다시 읽는다.
-	// 파일 하나 읽기라 비용은 없고, 재시작 없이 설정 변경이 반영된다.
+	// PUT settings/ rewrites the config on disk, so re-read it per request. One
+	// small file read costs nothing and settings changes apply without a restart.
 	mux.HandleFunc("/config.json", func(w http.ResponseWriter, r *http.Request) {
 		cur, err := config.Load()
 		if err != nil {
@@ -1101,7 +1101,7 @@ func main() {
 	log.SetFlags(0)
 	server.Version = version
 	args := os.Args[1:]
-	// 글로벌 --profile 은 서브커맨드 앞에서만 받는다.
+	// The global --profile is only accepted before the subcommand.
 	if len(args) >= 2 && (args[0] == "--profile" || args[0] == "-p") {
 		config.SetProfile(args[1])
 		args = args[2:]

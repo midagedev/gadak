@@ -1,7 +1,8 @@
 // Package config loads and saves ~/.scry/config.json.
 //
-// 자격증명(email/token)과 사이트 설정이 함께 살지만, 자격증명은 절대
-// DB·로그·스냅샷에 들어가지 않는다 (constitution 제8조). 파일 모드 0600.
+// Credentials (email/token) share the file with the site settings, but they
+// never reach the database, a log line, or a snapshot (constitution article 8).
+// The file is written 0600.
 package config
 
 import (
@@ -11,8 +12,9 @@ import (
 	"path/filepath"
 )
 
-// Member 는 설정으로 주입하는 정적 멤버 디렉터리 한 명분.
-// bootstrap 의 members[] 에 머지되어 아바타 링/툴팁/파트 프리셋을 살린다.
+// Member is one entry of the static member directory injected through settings.
+// It merges into bootstrap's members[], which is what gives an avatar its ring,
+// tooltip, and team preset.
 type Member struct {
 	Email         string `json:"email"`
 	Name          string `json:"name,omitempty"`
@@ -24,8 +26,9 @@ type Member struct {
 	AvatarURL     string `json:"avatar_url,omitempty"`
 }
 
-// GroupRule 은 이슈→그룹 분류 룰. 위에서부터 첫 매치가 이긴다.
-// 각 조건은 AND, 조건 내 목록은 OR. 비어 있는 조건은 항상 참.
+// GroupRule classifies an issue into a group. Rules are read top-down and the
+// first match wins. Conditions AND together; the list inside one condition ORs.
+// An empty condition is always true.
 type GroupRule struct {
 	Group      string   `json:"group"`
 	Projects   []string `json:"projects,omitempty"`
@@ -33,21 +36,22 @@ type GroupRule struct {
 	Components []string `json:"components,omitempty"`
 }
 
-// Product 는 그룹→제품 버킷 매핑 값.
+// Product is the product bucket a group maps to.
 type Product struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
 }
 
 type Config struct {
-	// 자격증명 + 연결 대상. Token 은 이 파일 밖으로 절대 복사하지 않는다.
+	// The credential and what it connects to. Token is never copied out of this file.
 	Site     string   `json:"site,omitempty"` // https://your-site.atlassian.net
 	Email    string   `json:"email,omitempty"`
 	Token    string   `json:"token,omitempty"`
 	Projects []string `json:"projects,omitempty"`
 
-	// 자격증명 검증 결과. `PUT credential/` 이 /myself 로 확인한 시각과 소유자 이름이며,
-	// 토큰 원문과 달리 응답에 실려도 된다.
+	// Result of verifying the credential: when `PUT credential/` last confirmed it
+	// against /myself, and who owns it. Unlike the token itself, both may be
+	// returned in a response.
 	TokenVerifiedAt string `json:"tokenVerifiedAt,omitempty"`
 	TokenOwner      string `json:"tokenOwner,omitempty"`
 	// AccountID is the Jira accountId returned by /myself. Used for feed
@@ -55,29 +59,30 @@ type Config struct {
 	// when the credential was never verified against a live site.
 	AccountID string `json:"account_id,omitempty"`
 
-	// sync 필드 매핑 (contracts/sync.md "Field mapping")
+	// Sync field mapping (contracts/sync.md, "Field mapping").
 	FieldMap   map[string]string `json:"fieldMap,omitempty"`   // alias -> customfield_xxxxx
-	BodyFields []string          `json:"bodyFields,omitempty"` // FTS 에 합칠 ADF 커스텀필드 id
+	BodyFields []string          `json:"bodyFields,omitempty"` // ADF custom-field ids to fold into FTS
 
-	// 쓰기 allowlist: alias -> field id. 비어 있으면 인라인 편집 UI 자체가 숨는다.
+	// Write allowlist: alias -> field id. Empty hides the inline edit UI entirely.
 	EditableFields map[string]string `json:"editableFields,omitempty"`
 
-	// 회사 특화 표면 복원 (전부 선택)
+	// Optional surfaces carried over from the tool this was extracted from.
 	Members        []Member           `json:"members,omitempty"`
 	GroupRules     []GroupRule        `json:"groupRules,omitempty"`
 	GroupLabels    map[string]string  `json:"groupLabels,omitempty"`
 	GroupColors    map[string]string  `json:"groupColors,omitempty"`
 	ProductByGroup map[string]Product `json:"productByGroup,omitempty"`
-	Features       map[string]bool    `json:"features,omitempty"` // presence/feed/push/deploy/qa/teamGroups
+	Features       map[string]bool    `json:"features,omitempty"` // feed/push/deploy/qa/teamGroups
 	QaDashboardURL string             `json:"qaDashboardUrl,omitempty"`
 
-	StaleThresholdHours int `json:"staleThresholdHours,omitempty"` // 0 = 프론트 기본(72)
+	StaleThresholdHours int `json:"staleThresholdHours,omitempty"` // 0 = the client default (72)
 	// AttachmentCacheMB caps the on-disk attachment byte cache. 0 = package
 	// default (512 MB); a negative value is treated as 0.
 	AttachmentCacheMB int `json:"attachmentCacheMB,omitempty"`
 
-	// sync 주기 (초). 0 = 기본값 사용 (DefaultSyncIntervalSec / DefaultReconcileIntervalSec).
-	// serve 의 Watch 루프는 기동 시 한 번만 읽는다 — 변경은 프로세스 재시작 후 적용.
+	// Sync periods in seconds. 0 means use DefaultSyncIntervalSec /
+	// DefaultReconcileIntervalSec. serve's Watch loop reads these once at start,
+	// so a change only takes effect after the process restarts.
 	SyncIntervalSec      int `json:"syncIntervalSec,omitempty"`
 	ReconcileIntervalSec int `json:"reconcileIntervalSec,omitempty"`
 
@@ -112,16 +117,17 @@ func (c *Config) EffectiveReconcileIntervalSec() int {
 	return c.ReconcileIntervalSec
 }
 
-// profile 은 SetProfile(--profile 플래그) 또는 SCRY_PROFILE 로 정한다.
-// 빈 값/"default" 는 기본 프로필(~/.scry 루트), 그 외는 ~/.scry/profiles/<이름>.
-// 프로필마다 config.json 과 scry.db 가 통째로 분리되므로 회사용/데모용
-// 사이트를 자격증명·미러 충돌 없이 오갈 수 있다.
+// profile comes from SetProfile (the --profile flag) or SCRY_PROFILE. Empty or
+// "default" means the root profile (~/.scry); anything else lives under
+// ~/.scry/profiles/<name>. Each profile gets its own config.json and scry.db, so
+// two sites can be used side by side without their credentials or mirrors
+// colliding.
 var profile = os.Getenv("SCRY_PROFILE")
 
-// SetProfile 은 CLI 의 --profile 플래그가 부른다. 환경변수보다 우선.
+// SetProfile is called by the CLI's --profile flag, which wins over the env var.
 func SetProfile(name string) { profile = name }
 
-// Profile 은 현재 활성 프로필 이름("" = 기본).
+// Profile returns the active profile name ("" for the default one).
 func Profile() string {
 	if profile == "default" {
 		return ""
@@ -129,7 +135,7 @@ func Profile() string {
 	return profile
 }
 
-// Dir 은 SCRY_HOME 또는 ~/.scry, 프로필이 있으면 그 아래 profiles/<이름>.
+// Dir is SCRY_HOME or ~/.scry, plus profiles/<name> when a profile is active.
 func Dir() (string, error) {
 	base := os.Getenv("SCRY_HOME")
 	if base == "" {
@@ -145,7 +151,7 @@ func Dir() (string, error) {
 	return base, nil
 }
 
-// DBPath 는 활성 프로필의 기본 SQLite 경로.
+// DBPath is the default SQLite path for the active profile.
 func DBPath() (string, error) {
 	d, err := Dir()
 	if err != nil {
@@ -165,7 +171,7 @@ func AttachmentDir() (string, error) {
 	return filepath.Join(d, "attachments"), nil
 }
 
-// Profiles 는 존재하는 프로필 이름 목록 (기본 프로필 제외).
+// Profiles lists the configured profile names, excluding the default one.
 func Profiles() ([]string, error) {
 	base := os.Getenv("SCRY_HOME")
 	if base == "" {
@@ -199,7 +205,7 @@ func Path() (string, error) {
 	return filepath.Join(d, "config.json"), nil
 }
 
-// Load 는 파일이 없으면 빈 Config 를 돌려준다 (에러 아님).
+// Load returns an empty Config when the file does not exist; that is not an error.
 func Load() (*Config, error) {
 	p, err := Path()
 	if err != nil {
@@ -219,7 +225,7 @@ func Load() (*Config, error) {
 	return &c, nil
 }
 
-// Save 는 0600 으로 원자적으로 쓴다.
+// Save writes the file atomically with mode 0600.
 func (c *Config) Save() error {
 	p, err := Path()
 	if err != nil {
@@ -239,7 +245,7 @@ func (c *Config) Save() error {
 	return os.Rename(tmp, p)
 }
 
-// HasCredential 은 쓰기/첨부 프록시가 가능한 상태인지.
+// HasCredential reports whether writes and the attachment proxy are possible.
 func (c *Config) HasCredential() bool {
 	return c.Site != "" && c.Email != "" && c.Token != ""
 }
