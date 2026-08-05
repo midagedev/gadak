@@ -3,6 +3,7 @@
   import type { IssueLite } from '../../lib/types'
   import { feature } from '../../lib/config'
   import QaFieldEditor from './QaFieldEditor.svelte'
+  import Section from './Section.svelte'
 
   let {
     issue,
@@ -61,6 +62,13 @@
     { key: 'cs', label: 'CS', values: split(issue.cs) },
   ])
 
+  // Boards differ in which fields they actually use (a team board may fill 2,
+  // a QA board 30+), so an empty non-editable field is noise, not information.
+  // Editable rows stay even when empty — that is how a value gets set.
+  const visibleRows = $derived(
+    rows.filter((row) => row.values.length > 0 || (row.edit && feature('qa'))),
+  )
+
   function resultClass(value: string): string {
     const normalized = value.toLowerCase()
     if (normalized === 'pass') return 'bg-status-done/15 text-status-done'
@@ -69,26 +77,28 @@
   }
 </script>
 
-<dl class="grid grid-cols-[116px_minmax(0,1fr)] gap-x-3 gap-y-2 text-[12px]">
-  {#each rows as row (row.key)}
-    <dt class="pt-0.5 text-text-muted">{row.label}</dt>
-    <dd class="min-w-0">
-      {#if row.edit && feature('qa')}
-        <QaFieldEditor {issue} field={row.key} kind={row.edit} values={row.values} />
-      {:else if row.values.length === 0}
-        <span class="text-text-muted">{t('issueFields.none')}</span>
-      {:else}
-        <span class="flex flex-wrap gap-1">
-          {#each row.values as value (value)}
-            <span
-              class="max-w-full break-words rounded px-1.5 py-0.5 {row.key ===
-              'development_test_result'
-                ? resultClass(value)
-                : 'bg-bg-elevated text-text-secondary'}"
-            >{value}</span>
-          {/each}
-        </span>
-      {/if}
-    </dd>
-  {/each}
-</dl>
+{#if visibleRows.length > 0}
+  <Section title={t('detail.details')}>
+    <dl class="grid grid-cols-[116px_minmax(0,1fr)] gap-x-3 gap-y-2 text-[12px]">
+      {#each visibleRows as row (row.key)}
+        <dt class="pt-0.5 text-text-muted">{row.label}</dt>
+        <dd class="min-w-0">
+          {#if row.edit && feature('qa')}
+            <QaFieldEditor {issue} field={row.key} kind={row.edit} values={row.values} />
+          {:else}
+            <span class="flex flex-wrap gap-1">
+              {#each row.values as value (value)}
+                <span
+                  class="max-w-full break-words rounded px-1.5 py-0.5 {row.key ===
+                  'development_test_result'
+                    ? resultClass(value)
+                    : 'bg-bg-elevated text-text-secondary'}"
+                >{value}</span>
+              {/each}
+            </span>
+          {/if}
+        </dd>
+      {/each}
+    </dl>
+  </Section>
+{/if}

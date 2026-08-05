@@ -168,9 +168,8 @@
         <!-- Detail body -->
         <div class="anim-enter divide-y divide-border-subtle">
           {#if lite}
-            <Section title={t('detail.details')}>
-              <IssueFields issue={lite} developmentOpinion={detailForKey.development_opinion} />
-            </Section>
+            <!-- Renders its own Section, and nothing at all when every field is empty. -->
+            <IssueFields issue={lite} developmentOpinion={detailForKey.development_opinion} />
           {/if}
 
           <!-- Description -->

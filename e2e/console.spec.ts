@@ -18,7 +18,9 @@ test.describe('console hygiene', () => {
       .first()
       .click()
     await expect(page.getByTestId('issue-detail-panel')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Details' })).toBeVisible()
+    // NMB-16 has no field values, so the Details section hides itself;
+    // Description is the section every issue renders.
+    await expect(page.getByRole('heading', { name: 'Description' })).toBeVisible()
 
     // Open settings and close
     await openServerSettings(page)
