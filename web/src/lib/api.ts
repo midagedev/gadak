@@ -495,6 +495,23 @@ export interface SettingsRuntime {
   defaultSyncIntervalSec: number
   /** Placeholder when reconcileIntervalSec is 0. */
   defaultReconcileIntervalSec: number
+  /** Our own outbound Jira volume, not Jira's remaining budget. */
+  apiUsage?: ApiUsageSummary
+}
+
+export interface ApiUsageDay {
+  day: string
+  requests: number
+  throttled: number
+  server_errors: number
+  retries: number
+  wait_ms: number
+  last_throttled_at?: string | null
+}
+
+export interface ApiUsageSummary {
+  today: ApiUsageDay
+  last_7_days: ApiUsageDay
 }
 
 export interface ScrySettings {

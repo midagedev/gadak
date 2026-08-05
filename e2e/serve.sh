@@ -67,6 +67,12 @@ if [ -n "${SCRY_FRESHEN:-}" ]; then
                  UPDATE sources SET synced_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now');"
 fi
 
+# The committed snapshot is at an older schema level, so open it once with the
+# binary to run migrations before injecting rows — otherwise a table added by a
+# later migration (api_usage) does not exist yet and sqlite3 aborts.
+echo "[e2e] migrating fixture mirror to the current schema…"
+SCRY_HOME="$HOME_DIR" "$BIN" status >/dev/null
+
 echo "[e2e] injecting deploy enrichment on NMB-110…"
 sqlite3 "$DB" <<'SQL'
 INSERT INTO enrichments (key, kind, payload, source, updated_at)
@@ -83,6 +89,18 @@ ON CONFLICT(key, kind) DO UPDATE SET
   updated_at = excluded.updated_at;
 
 UPDATE sync_state SET version = version + 1;
+
+-- One day of call volume so the settings panel's "Jira calls" row has something
+-- to show. The row hides itself at zero, so without this the spec would pass
+-- against a panel that lost the row entirely.
+INSERT INTO api_usage (day, requests, throttled, server_errors, retries, wait_ms, last_throttled_at)
+VALUES (strftime('%Y-%m-%d','now'), 1204, 2, 0, 3, 4500, strftime('%Y-%m-%dT%H:%M:%S.000Z','now'))
+ON CONFLICT(day) DO UPDATE SET
+  requests = excluded.requests,
+  throttled = excluded.throttled,
+  retries = excluded.retries,
+  wait_ms = excluded.wait_ms,
+  last_throttled_at = excluded.last_throttled_at;
 SQL
 
 export SCRY_HOME="$HOME_DIR"

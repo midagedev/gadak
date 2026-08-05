@@ -36,4 +36,17 @@ test.describe('settings dialog', () => {
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  test('shows our own Jira call volume, including throttling', async ({ page }) => {
+    await gotoApp(page)
+    await openServerSettings(page)
+
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    // The fixture seeds one day of api_usage. The row hides itself when nothing
+    // has been counted, so asserting the numbers — not just the label — is what
+    // keeps a silently dropped runtime.apiUsage from passing.
+    await expect(dialog.getByText('Jira calls')).toBeVisible()
+    await expect(dialog.getByText('1204 today')).toBeVisible()
+    await expect(dialog.getByText('2 throttled')).toBeVisible()
+  })
 })

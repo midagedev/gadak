@@ -126,6 +126,11 @@
   let defaultSyncSec = $state(60)
   let defaultReconcileSec = $state(3600)
   let runtime = $state<SettingsRuntime | null>(null)
+  // Hidden until there is traffic to report: a row that only ever says zero
+  // teaches nothing, and zero here means "nothing flushed yet", not "headroom".
+  const apiUsage = $derived(
+    runtime?.apiUsage && runtime.apiUsage.last_7_days.requests > 0 ? runtime.apiUsage : null,
+  )
   let copiedKey = $state<string | null>(null)
 
   let jsonText = $state('')
@@ -433,6 +438,21 @@
               {#if runtime.lastError}
                 <dt class="text-text-muted">{t('settings.runtimeLastError')}</dt>
                 <dd class="break-all text-status-reopen">{runtime.lastError}</dd>
+              {/if}
+
+              {#if apiUsage}
+                <dt class="text-text-muted">{t('settings.runtimeApiCalls')}</dt>
+                <dd class="text-text-primary">
+                  {t('settings.runtimeApiToday', { n: apiUsage.today.requests })}
+                  {#if apiUsage.last_7_days.requests !== apiUsage.today.requests}
+                    · {t('settings.runtimeApiWeek', { n: apiUsage.last_7_days.requests })}
+                  {/if}
+                  {#if apiUsage.last_7_days.throttled > 0}
+                    · <span class="text-status-reopen"
+                      >{t('settings.runtimeApiThrottled', { n: apiUsage.last_7_days.throttled })}</span
+                    >
+                  {/if}
+                </dd>
               {/if}
 
               <dt class="text-text-muted">{t('settings.runtimeVersion')}</dt>
