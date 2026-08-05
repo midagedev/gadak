@@ -128,5 +128,8 @@ is source-neutral; only the field schema it reads is Jira-shaped.
 - **No embedded UI assets in v0.1.** The binary serves `dist/app` from disk.
   Embedding via `embed.FS` is a packaging decision for the release, not an
   architectural one.
-- **No plugin system.** The connector interface is a Go interface, not a runtime
-  plugin surface. A new source is a new package and a rebuild.
+- **No plugin system.** A new source is a new package and a rebuild. The
+  connector boundary is the store's data contract (`store.Batch` and friends in
+  `internal/store/records.go`), not a Go interface — with two concrete
+  connectors that contract is cheaper to hold than an interface designed from
+  one example (decision 0006).
