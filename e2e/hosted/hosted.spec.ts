@@ -30,7 +30,7 @@ function attachConsoleErrors(page: Page): string[] {
 }
 
 test.describe('hosted demo', () => {
-  test('boots 519 issues, searches, opens detail with attachment image', async ({
+  test('boots 534 issues, searches, opens detail with attachment image', async ({
     page,
   }) => {
     const errors = attachConsoleErrors(page)
@@ -40,7 +40,7 @@ test.describe('hosted demo', () => {
     await page.goto(DEMO)
 
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
-    await expect(page.getByText(/519 issues/).first()).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 60_000 })
     await expect(page.getByPlaceholder(/Search issues/)).toBeVisible()
 
     // Client-side (in-memory) search — no server FTS on the hosted snapshot.
