@@ -710,7 +710,7 @@ func sinceLabel(watermark string) string {
 	return t.Add(-overlap).Format("2006-01-02 15:04")
 }
 
-// formatCount renders n with ASCII thousands separators (6824 → "6,824").
+// formatCount renders n with ASCII thousands separators (6543 → "6,543").
 // No external locale package — keep the binary dependency-free.
 func formatCount(n int) string {
 	if n < 0 {

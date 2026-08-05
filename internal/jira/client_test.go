@@ -74,14 +74,14 @@ func TestCountApproximate(t *testing.T) {
 		if body.JQL != `project = "NMB"` {
 			t.Errorf("jql = %q", body.JQL)
 		}
-		w.Write([]byte(`{"count":6824}`))
+		w.Write([]byte(`{"count":6543}`))
 	}))
 	n, err := c.Count(context.Background(), `project = "NMB"`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 6824 {
-		t.Errorf("count = %d, want 6824", n)
+	if n != 6543 {
+		t.Errorf("count = %d, want 6543", n)
 	}
 	if u := c.Usage(); u.Requests != 1 {
 		t.Errorf("Count must go through do() so usage counts it: Requests=%d", u.Requests)

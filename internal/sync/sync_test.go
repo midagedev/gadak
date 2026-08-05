@@ -809,7 +809,7 @@ func TestFormatCount(t *testing.T) {
 		0:       "0",
 		999:     "999",
 		1000:    "1,000",
-		6824:    "6,824",
+		6543:    "6,543",
 		1234567: "1,234,567",
 	}
 	for n, want := range cases {
