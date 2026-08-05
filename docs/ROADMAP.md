@@ -38,7 +38,7 @@ number-jumping; each minor is earned by shipped, verified work.
 
 ## v0.3 — retention and reach
 
-Ordered by one rule (post-mentor-review, 2026-08): everything here either
+Ordered by one rule (review, 2026-08): everything here either
 keeps an installed mirror alive or removes a reason not to try one.
 
 - ✅ **Close the notification loop.** The watch feed is computed (`GET feed/`);
@@ -121,17 +121,68 @@ before conveniences for hypothetical second sites.
   arriving users, so it needs arriving users — and real JQL corpora to test
   against, or a half-working translator fails in trust-destroying ways.
 
-## Later — the second source
+## v0.6 — the second source, and structure
 
-Confluence, as the proof that the neutral layer is actually neutral.
+Confluence, as the proof that the neutral layer is actually neutral — plus the
+hierarchy layer the data was missing.
 
-- Confluence connector against the same `items` spine and the same FTS path.
-- Unified search across issues and pages, since the questions people ask ("what
-  do we know about X") do not respect the boundary.
-- A generic detail view for document-shaped items.
+- ✅ **Confluence connector** against the same `items` spine and the same FTS
+  path (decision 0006). Same site credential, CQL incremental with a
+  comments-only pass (comments don't bump page version), ADF bodies stored raw
+  (`pages.body_adf`, v10).
+- ✅ **Unified search across issues and pages** — one FTS index, one query;
+  `search` returns `keys` + `pages`. CLI/MCP parity.
+- **Docs in the UI** (in flight): sidebar DOCS as a real tree (`parent_id`
+  recursion), DocumentPanel with a clickable breadcrumb
+  (`space › ancestors › title`), documents group in unified search.
+- **Epic hierarchy.** The demo backlog now has one (15 epics, 163 parented
+  issues, seeded via `seed-demo --epics`); the UI must catch up:
+  - Derive `epic_key` honestly on the read path (walk `parent_key` to the
+    hierarchy-level-1 ancestor instead of aliasing the direct parent), so
+    subtasks group under their epic, not their story.
+  - Web: epic group headers show the epic's summary, not its key; epic chip on
+    list rows; parent breadcrumb in the detail panel; children progress
+    (`3/12 done`) on an epic's own detail.
+  - TUI: `group_by=epic` becomes supported (it is honest-unsupported today).
+- **Confluence labels** as a pageLite filter axis (deferred from the connector
+  round on purpose).
+- **Demo snapshot refresh**: epics + page bodies, re-scrubbed
+  (`scripts/scrub-demo-db.py` + `scan-internal.sh` before commit, as always).
 
-This is deliberately last. Shipping it earlier would mean designing the neutral
-layer against one imagined consumer instead of one real one.
+This wave was deliberately sequenced after v0.3–v0.4: shipping the second
+source earlier would have meant designing the neutral layer against one
+imagined consumer instead of one real one.
+
+## v0.7 — freshness, speed, and the agent wedge
+
+The organizing ideas of this wave: the product is "an agent-aware memory of
+your team's work" and the fast mirror is the wedge; the sync engine is the
+product, speed is a feature, and trust in freshness is built in the UI.
+
+- **Freshness as a feeling.** `sync-on-focus` (web regains focus + mirror older
+  than N → sync now), a cheap head-check between polls (one
+  `updated >= -5m` count query gates whether a delta pull runs at all), and a
+  visible freshness chip ("synced 12s ago") in the header. No webhooks, no
+  server — the loopback model stays.
+- **Performance budgets as gates.** Interaction budgets measured in e2e against
+  a 10k-issue fixture (`tools/bench-fixture`), enforced in CI: cold boot →
+  interactive, keystroke → search results, palette open, panel switch. Budgets
+  pinned from real measurements first (FAIL-first), not aspirations.
+- **Keyboard triage flow.** The palette exists; the flow doesn't. `j/k` move,
+  `x` select, `s` status, `a` assign, `c` comment on the list itself — a sprint
+  cleanup should never need the mouse. Every action also registered in the
+  palette.
+- **Agent wedge, front and center.** README leads with the agent story
+  (the mirror is the substrate); one-command MCP setup per client
+  (`claude mcp add` paste-blocks already exist in docs/AGENT_SETUP.md — promote
+  to a `scry mcp install <client>` verb); a 90-second demo of an agent
+  answering with issue+doc context no cloud API could assemble as fast.
+  Launch content (Show HN) rides this, not the "fast Jira client" frame.
+- **Offline write queue — revisit, don't build yet.** The v0.3-era deferral
+  ("wait for observed demand") stands, but the 2026-08-06 review added a new
+  argument: agents writing through MCP would benefit from a durable outbox
+  more than humans do. Recorded here so the next demand signal reopens
+  it with both arguments on the table.
 
 ## Considered and not planned
 
