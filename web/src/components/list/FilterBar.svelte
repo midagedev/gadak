@@ -9,16 +9,21 @@
   import { filterFields, type MultiField } from '../../lib/view-config'
   import { t, fieldLabel } from '../../lib/i18n'
 
-  function FIELD_LABEL(f: MultiField): string {
-    return fieldLabel(f)
+  /** One pickable axis: a static field or a discovered custom-field alias. */
+  interface Axis {
+    key: string
+    label: string
+    dynamic: boolean
   }
 
-
-  // Disabled-feature fields are omitted from the menu entirely.
-  const FIELDS = filterFields()
+  // Static fields (disabled features omitted) + discovered axes for the scope.
+  const axes = $derived.by<Axis[]>(() => [
+    ...filterFields().map((f) => ({ key: f as string, label: fieldLabel(f), dynamic: false })),
+    ...filters.dynamicAxes.map((a) => ({ key: a.key, label: a.label, dynamic: true })),
+  ])
 
   let open = $state(false)
-  let field = $state<MultiField | null>(null)
+  let field = $state<Axis | null>(null)
   let valueQuery = $state('')
   let saveOpen = $state(false)
   let saveName = $state('')
@@ -27,12 +32,15 @@
   const activeSet = $derived.by(() => {
     // Selected values for the open field (for checkmarks)
     if (!field) return new Set<string>()
-    return new Set(filters.filters[field])
+    if (field.dynamic) return new Set(filters.filters.fields[field.key] ?? [])
+    return new Set(filters.filters[field.key as MultiField])
   })
 
   const values = $derived.by<FacetValue[]>(() => {
     if (!field) return []
-    const list = filters.facets[field]
+    const list = field.dynamic
+      ? (filters.dynamicFacets[field.key] ?? [])
+      : filters.facets[field.key as MultiField]
     const q = valueQuery.trim().toLowerCase()
     return q ? list.filter((v) => v.label.toLowerCase().includes(q)) : list
   })
@@ -42,9 +50,13 @@
     field = null
     valueQuery = ''
   }
-  function pickField(f: MultiField) {
+  function pickField(f: Axis) {
     field = f
     valueQuery = ''
+  }
+  function toggle(axis: Axis, value: string) {
+    if (axis.dynamic) filters.toggleFieldValue(axis.key, value)
+    else filters.toggleValue(axis.key as MultiField, value)
   }
   function closeAll() {
     open = false
@@ -79,6 +91,7 @@
       class="group inline-flex items-center gap-1 rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
       onclick={() => {
         if (chip.kind === 'multi') filters.removeValue(chip.field as MultiField, chip.value!)
+        else if (chip.kind === 'field') filters.removeFieldValue(chip.field, chip.value!)
         else if (chip.kind === 'flag') filters.toggleFlag(chip.field as 'reopened' | 'unassigned' | 'stale')
         else filters.setRange(chip.field as 'created' | 'updated', null, null)
       }}
@@ -106,13 +119,13 @@
         {#if !field}
           <!-- Step 1: field pick + flags -->
           <div class="px-2 py-1 text-[11px] font-medium text-text-muted">{t('filter.properties')}</div>
-          {#each FIELDS as f (f)}
+          {#each axes as f (f.key)}
             <button
               type="button"
               class="flex w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
               onclick={() => pickField(f)}
             >
-              <span>{FIELD_LABEL(f)}</span>
+              <span>{f.label}</span>
               <span class="text-text-muted">›</span>
             </button>
           {/each}
@@ -143,7 +156,7 @@
             <input
               type="text"
               bind:value={valueQuery}
-              placeholder={t('filter.searchField', { field: FIELD_LABEL(field) })}
+              placeholder={t('filter.searchField', { field: field.label })}
               class="min-w-0 flex-1 rounded bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none"
             />
           </div>
@@ -155,7 +168,7 @@
               <button
                 type="button"
                 class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
-                onclick={() => filters.toggleValue(field!, v.value)}
+                onclick={() => toggle(field!, v.value)}
               >
                 <span
                   class="flex h-3.5 w-3.5 flex-none items-center justify-center rounded border {activeSet.has(

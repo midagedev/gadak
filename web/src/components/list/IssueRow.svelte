@@ -282,7 +282,7 @@
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
       title={t('list.fieldValue', { field: t('column.dev_test_result'), value: issue.development_test_result })}
-      onclick={stop(() => filters.addValue('development_test_result', issue.development_test_result!))}
+      onclick={stop(() => filters.addFieldValue('development_test_result', issue.development_test_result!))}
     >
       {issue.development_test_result}
     </button>
@@ -292,7 +292,7 @@
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
       title={t('list.fieldValue', { field: t('column.environment'), value: issue.environment })}
-      onclick={stop(() => filters.addValue('environment', issue.environment!))}
+      onclick={stop(() => filters.addFieldValue('environment', issue.environment!))}
     >
       {issue.environment}
     </button>

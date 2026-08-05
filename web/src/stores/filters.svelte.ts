@@ -21,14 +21,15 @@ import {
   configToParams,
   defaultColumns,
   deployStateOf,
+  DYN_FIELD_PREFIX,
   effectiveCategory,
   emptyConfig,
   hasAnyFilter,
   isStale,
+  isViewParam,
   MULTI_FIELDS,
   orderColumns,
   parseConfig,
-  VIEW_PARAM_KEYS,
   type ColumnKey,
   type GroupBy,
   type MultiField,
@@ -63,8 +64,8 @@ export interface IssueGroup {
 
 /** One active filter chip rendered by FilterBar. */
 export interface ActiveChip {
-  /** Which field/flag/range this chip represents. */
-  kind: 'multi' | 'flag' | 'range'
+  /** Which field/flag/range this chip represents. 'field' = discovered custom-field axis. */
+  kind: 'multi' | 'flag' | 'range' | 'field'
   field: string
   value?: string // multi value
   label: string // display string
@@ -79,8 +80,15 @@ export interface FacetValue {
 }
 
 class FiltersStore {
-  /* URL → stable string of view-only params. Unchanged by issue selection → blocks refilter. */
-  #viewKey = $derived(VIEW_PARAM_KEYS.map((k) => `${k}=${router.params.get(k) ?? ''}`).join('&'))
+  /* URL → stable string of view-only params. Unchanged by issue selection → blocks refilter.
+   * Sorted so param order never changes the key; includes dynamic `f.<alias>` axes. */
+  #viewKey = $derived(
+    [...router.params.entries()]
+      .filter(([k]) => isViewParam(k))
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${k}=${v}`)
+      .join('&'),
+  )
 
   /* Config re-parsed only when #viewKey actually changes. */
   #config = $derived(parseFromKey(this.#viewKey))
@@ -130,9 +138,61 @@ class FiltersStore {
   /* ── Grouping (display.group_by). group_by=none → single group. ── */
   groups = $derived.by(() => buildGroups(this.visibleIssues, this.#config.display.group_by))
 
+  /**
+   * Discovered filter axes for the current scope. Only bounded value sets make
+   * useful facets, so role facet/user qualifies; plain text/date/url does not.
+   * When the view is scoped to projects, axes the scoped boards never fill are
+   * dropped — a team board does not offer a QA board's thirty fields.
+   */
+  dynamicAxes = $derived.by<{ key: string; label: string }[]>(() => {
+    const scoped = this.#config.filters.jira_project
+    const usage = issues.fieldUsage
+    const out: { key: string; label: string }[] = []
+    for (const spec of issues.fieldSpecs) {
+      if (spec.role !== 'facet' && spec.role !== 'user') continue
+      if ((STATIC_FIELD_NAMES as readonly string[]).includes(spec.alias)) continue
+      const used = scoped.length
+        ? scoped.some((p) => (usage[p]?.[spec.alias] ?? 0) > 0)
+        : Object.values(usage).some((m) => (m[spec.alias] ?? 0) > 0)
+      // No usage data at all (older cache) → show rather than hide.
+      if (Object.keys(usage).length > 0 && !used) continue
+      out.push({ key: spec.alias, label: axisLabel(spec.alias, spec.label) })
+    }
+    return out
+  })
+
+  /** Facet values for discovered axes (same shape as `facets`, keyed by alias). */
+  dynamicFacets = $derived.by<Record<string, FacetValue[]>>(() => {
+    const axes = this.dynamicAxes
+    if (!axes.length) return {}
+    const counters: Record<string, Map<string, number>> = {}
+    for (const a of axes) counters[a.key] = new Map()
+    for (const it of issues.allIssues) {
+      for (const a of axes) {
+        for (const value of rowFieldValues(it, a.key)) bump(counters[a.key], value)
+      }
+    }
+    const out: Record<string, FacetValue[]> = {}
+    for (const a of axes) {
+      const values: FacetValue[] = [...counters[a.key].entries()].map(([value, count]) => ({
+        value,
+        count,
+        label: value,
+      }))
+      values.sort((x, y) => y.count - x.count || (x.label < y.label ? -1 : 1))
+      out[a.key] = values
+    }
+    return out
+  })
+
   /* ── FilterBar active chips ── */
   activeChips = $derived.by(() =>
-    buildChips(this.#config.filters, issues.members, issues.allIssues),
+    buildChips(
+      this.#config.filters,
+      issues.members,
+      issues.allIssues,
+      new Map(issues.fieldSpecs.map((s) => [s.alias, axisLabel(s.alias, s.label)])),
+    ),
   )
 
   hasFilters = $derived(hasAnyFilter(this.#config.filters))
@@ -166,7 +226,13 @@ class FiltersStore {
   /* ── Mutations: all via URL update (replace, no history push) ── */
 
   #apply(config: ViewConfig): void {
-    setParams(configToParams(config), true)
+    const params = configToParams(config)
+    // A dynamic axis dropped from the config must clear its URL param too —
+    // configToParams only emits keys for axes still present.
+    for (const [k] of router.params) {
+      if (k.startsWith(DYN_FIELD_PREFIX) && !(k in params)) params[k] = null
+    }
+    setParams(params, true)
   }
 
   /** Independent copy of current config (arrays cloned). Starting point for mutations. */
@@ -179,6 +245,33 @@ class FiltersStore {
     const c = this.snapshot()
     const arr = c.filters[field]
     c.filters[field] = arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value]
+    this.#apply(c)
+  }
+
+  /* ── Discovered-axis mutations (fields bucket, `f.<alias>` params) ── */
+
+  toggleFieldValue(alias: string, value: string): void {
+    const c = this.snapshot()
+    const arr = c.filters.fields[alias] ?? []
+    const next = arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value]
+    if (next.length) c.filters.fields[alias] = next
+    else delete c.filters.fields[alias]
+    this.#apply(c)
+  }
+
+  addFieldValue(alias: string, value: string): void {
+    if (!value) return
+    if ((this.#config.filters.fields[alias] ?? []).includes(value)) return
+    const c = this.snapshot()
+    c.filters.fields[alias] = [...(c.filters.fields[alias] ?? []), value]
+    this.#apply(c)
+  }
+
+  removeFieldValue(alias: string, value: string): void {
+    const c = this.snapshot()
+    const next = (c.filters.fields[alias] ?? []).filter((v) => v !== value)
+    if (next.length) c.filters.fields[alias] = next
+    else delete c.filters.fields[alias]
     this.#apply(c)
   }
 
@@ -328,11 +421,34 @@ function mergeConfig(c: ViewConfig): ViewConfig {
   Object.assign(base.display, c.display)
   // Clone array refs. Columns may include ones for disabled features in a saved view — normalize.
   for (const field of MULTI_FIELDS) base.filters[field] = [...(c.filters[field] ?? [])]
+  // Saved views from before dynamic axes have no fields record at all.
+  base.filters.fields = {}
+  for (const [alias, arr] of Object.entries(c.filters.fields ?? {})) {
+    if (arr?.length) base.filters.fields[alias] = [...arr]
+  }
   base.display.columns = orderColumns(c.display.columns ?? base.display.columns)
   return base
 }
 
 const IN_RANK: Record<StatusCategory, number> = { inprogress: 0, new: 1, done: 2 }
+
+/** Row fields the static filter/facet machinery already owns — dynamic axes must not duplicate them. */
+const STATIC_FIELD_NAMES = [
+  ...MULTI_FIELDS,
+  'assignee',
+  'reporter',
+  'summary',
+  'labels',
+  'priority',
+  'status',
+  'severity',
+] as const
+
+/** Discovered-axis display label: i18n override for well-known aliases, else the Jira name. */
+function axisLabel(alias: string, label: string): string {
+  const viaI18n = fieldLabel(alias)
+  return viaI18n !== alias ? viaI18n : label || alias
+}
 
 function normKey(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9가-힣]/g, '')
@@ -352,6 +468,29 @@ function splitStoredValues(value: string | null | undefined): string[] {
 
 function matchesSelected(selected: string[], values: string[]): boolean {
   return selected.length === 0 || values.some((value) => selected.includes(value))
+}
+
+/**
+ * A discovered field's row value: sync flattens to string or string[]; older
+ * mirrors may still carry comma-joined strings, which split covers.
+ */
+export function rowFieldValues(issue: IssueLite, alias: string): string[] {
+  const v = (issue as unknown as Record<string, unknown>)[alias]
+  if (v == null) return []
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string')
+  if (typeof v === 'string') return splitStoredValues(v)
+  if (typeof v === 'number') return [String(v)]
+  return []
+}
+
+/** AND across dynamic axes, OR within one — same semantics as the static fields. */
+function matchesDynamicFields(fields: Record<string, string[]>, it: IssueLite): boolean {
+  for (const alias in fields) {
+    const selected = fields[alias]
+    if (!selected.length) continue
+    if (!matchesSelected(selected, rowFieldValues(it, alias))) return false
+  }
+  return true
 }
 
 /* ── Chosung (initial-consonant) cache ──
@@ -418,27 +557,7 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
     if (f.issue_type.length && !f.issue_type.includes(it.issue_type)) continue
     if (!matchesSelected(f.components, it.components)) continue
     if (!matchesSelected(f.fix_versions, it.fix_versions)) continue
-    if (!matchesSelected(f.environment, splitStoredValues(it.environment))) continue
-    if (!matchesSelected(f.browser, splitStoredValues(it.browser))) continue
-    if (!matchesSelected(f.dev_project_number, splitStoredValues(it.dev_project_number))) continue
-    if (!matchesSelected(f.found_version, splitStoredValues(it.found_version))) continue
-    if (!matchesSelected(f.occurrence, splitStoredValues(it.occurrence))) continue
-    if (!matchesSelected(f.solution, splitStoredValues(it.solution))) continue
-    if (!matchesSelected(f.critical_phenomenon, splitStoredValues(it.critical_phenomenon))) continue
-    if (!matchesSelected(f.development_area, splitStoredValues(it.development_area))) continue
-    if (
-      f.development_test_assignee_email.length &&
-      !(
-        it.development_test_assignee_email &&
-        f.development_test_assignee_email.includes(it.development_test_assignee_email)
-      )
-    )
-      continue
-    if (
-      f.development_test_result.length &&
-      !(it.development_test_result && f.development_test_result.includes(it.development_test_result))
-    )
-      continue
+    if (!matchesDynamicFields(f.fields, it)) continue
     if (
       f.qa_run.length &&
       !(it.qa_runs ?? []).some((run) => f.qa_run.includes(run.key))
@@ -455,7 +574,6 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
     )
       continue
     if (f.deploy_state.length && !f.deploy_state.includes(deployStateOf(it))) continue
-    if (!matchesSelected(f.cs, splitStoredValues(it.cs))) continue
     if (f.jira_project.length && !f.jira_project.includes(jiraProjectOf(it))) continue
     if (f.source_project.length && !(it.source_project && f.source_project.includes(it.source_project)))
       continue
@@ -747,17 +865,14 @@ function buildChips(
   f: ViewFilters,
   members: Map<string, { name: string }>,
   all: IssueLite[],
+  fieldLabels: Map<string, string>,
 ): ActiveChip[] {
   const chips: ActiveChip[] = []
   for (const field of MULTI_FIELDS) {
     for (const value of f[field]) {
       let label = value
       if (field === 'status_category') label = CATEGORY_LABEL(value)
-      else if (
-        field === 'assignee_email' ||
-        field === 'reporter_email' ||
-        field === 'development_test_assignee_email'
-      )
+      else if (field === 'assignee_email' || field === 'reporter_email')
         label = members.get(value)?.name ?? value
       else if (
         field === 'qa_run' ||
@@ -767,6 +882,12 @@ function buildChips(
       )
         label = facetLabel(field, value, all, members)
       chips.push({ kind: 'multi', field, value, label: t('filter.chipFieldValue', { field: FIELD_LABEL(field), value: label }) })
+    }
+  }
+  for (const [alias, values] of Object.entries(f.fields)) {
+    const name = fieldLabels.get(alias) ?? FIELD_LABEL(alias)
+    for (const value of values) {
+      chips.push({ kind: 'field', field: alias, value, label: t('filter.chipFieldValue', { field: name, value }) })
     }
   }
   if (f.reopened) chips.push({ kind: 'flag', field: 'reopened', label: t('filter.flagReopened') })
@@ -799,21 +920,6 @@ function buildFacets(
     if (it.issue_type) bump(counters.issue_type, it.issue_type)
     for (const value of it.components) bump(counters.components, value)
     for (const value of it.fix_versions) bump(counters.fix_versions, value)
-    for (const value of splitStoredValues(it.environment)) bump(counters.environment, value)
-    for (const value of splitStoredValues(it.browser)) bump(counters.browser, value)
-    for (const value of splitStoredValues(it.dev_project_number))
-      bump(counters.dev_project_number, value)
-    for (const value of splitStoredValues(it.found_version)) bump(counters.found_version, value)
-    for (const value of splitStoredValues(it.occurrence)) bump(counters.occurrence, value)
-    for (const value of splitStoredValues(it.solution)) bump(counters.solution, value)
-    for (const value of splitStoredValues(it.critical_phenomenon))
-      bump(counters.critical_phenomenon, value)
-    for (const value of splitStoredValues(it.development_area))
-      bump(counters.development_area, value)
-    if (it.development_test_assignee_email)
-      bump(counters.development_test_assignee_email, it.development_test_assignee_email)
-    if (it.development_test_result)
-      bump(counters.development_test_result, it.development_test_result)
     for (const run of it.qa_runs ?? []) bump(counters.qa_run, run.key)
     for (const suite of it.qa_suites ?? []) bump(counters.qa_suite, suite.key)
     if (it.qa_impact_state) bump(counters.qa_impact, it.qa_impact_state)
@@ -822,7 +928,6 @@ function buildFacets(
       const ds = deployStateOf(it)
       if (ds !== 'none') bump(counters.deploy_state, ds)
     }
-    for (const value of splitStoredValues(it.cs)) bump(counters.cs, value)
     bump(counters.jira_project, jiraProjectOf(it))
     if (it.source_project) bump(counters.source_project, it.source_project)
     for (const l of it.labels) bump(counters.labels, l)
@@ -848,11 +953,7 @@ function facetLabel(
   members: Map<string, { name: string }>,
 ): string {
   if (field === 'status_category') return CATEGORY_LABEL(value)
-  if (
-    field === 'assignee_email' ||
-    field === 'reporter_email' ||
-    field === 'development_test_assignee_email'
-  )
+  if (field === 'assignee_email' || field === 'reporter_email')
     return members.get(value)?.name ?? value
   if (field === 'qa_impact') {
     const labels: Record<string, string> = {

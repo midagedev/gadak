@@ -31,23 +31,19 @@ export interface ViewFilters {
   issue_type: string[]
   components: string[]
   fix_versions: string[]
-  environment: string[]
-  browser: string[]
-  dev_project_number: string[]
-  found_version: string[]
-  occurrence: string[]
-  solution: string[]
-  critical_phenomenon: string[]
-  development_area: string[]
-  development_test_assignee_email: string[]
-  development_test_result: string[]
   qa_run: string[]
   qa_suite: string[]
   qa_impact: string[]
   deploy_state: string[] // Deploy stage (merged/dev/qa_preview/qa/prod)
-  cs: string[]
-  jira_project: string[] // issue_key prefix (DEN / DBO / CRWN ...)
+  jira_project: string[] // issue_key prefix (ABC / XYZ ...)
   source_project: string[]
+  /**
+   * Discovered custom-field axes, keyed by spec alias. Which axes exist comes
+   * from bootstrap field_specs, not from this schema — a board that uses 30
+   * fields gets 30 possible axes, one that uses 2 gets 2. Serialized as
+   * `f.<alias>` URL params.
+   */
+  fields: Record<string, string[]>
   // Boolean flags
   reopened: boolean
   unassigned: boolean
@@ -188,21 +184,10 @@ export const MULTI_FIELDS = [
   'issue_type',
   'components',
   'fix_versions',
-  'environment',
-  'browser',
-  'dev_project_number',
-  'found_version',
-  'occurrence',
-  'solution',
-  'critical_phenomenon',
-  'development_area',
-  'development_test_assignee_email',
-  'development_test_result',
   'qa_run',
   'qa_suite',
   'qa_impact',
   'deploy_state',
-  'cs',
   'jira_project',
   'source_project',
 ] as const
@@ -257,23 +242,13 @@ export function emptyFilters(): ViewFilters {
     issue_type: [],
     components: [],
     fix_versions: [],
-    environment: [],
-    browser: [],
-    dev_project_number: [],
-    found_version: [],
-    occurrence: [],
-    solution: [],
-    critical_phenomenon: [],
-    development_area: [],
-    development_test_assignee_email: [],
-    development_test_result: [],
     qa_run: [],
     qa_suite: [],
     qa_impact: [],
     deploy_state: [],
-    cs: [],
     jira_project: [],
     source_project: [],
+    fields: {},
     reopened: false,
     unassigned: false,
     stale: false,
@@ -315,23 +290,23 @@ const MULTI_KEY: Record<MultiField, string> = {
   issue_type: 'ty',
   components: 'co',
   fix_versions: 'fx',
-  environment: 'en',
-  browser: 'br',
-  dev_project_number: 'dp',
-  found_version: 'vr',
-  occurrence: 'oc',
-  solution: 'so',
-  critical_phenomenon: 'cr',
-  development_area: 'da',
-  development_test_assignee_email: 'dta',
-  development_test_result: 'dtr',
   qa_run: 'qr',
   qa_suite: 'qs',
   qa_impact: 'qi',
   deploy_state: 'ds',
-  cs: 'cs',
   jira_project: 'pj',
   source_project: 'spj',
+}
+
+/**
+ * Discovered-field axes serialize as `f.<alias>` params. The alias is the
+ * stable key discovery keeps across re-runs, so links survive re-discovery.
+ */
+export const DYN_FIELD_PREFIX = 'f.'
+
+/** Every view-affecting param, dynamic axes included (`issue` is selection, not view). */
+export function isViewParam(key: string): boolean {
+  return key.startsWith(DYN_FIELD_PREFIX) || VIEW_PARAM_KEYS.includes(key)
 }
 
 const RANGE_KEY = {
@@ -376,6 +351,14 @@ export function parseConfig(params: URLSearchParams): ViewConfig {
   for (const field of MULTI_FIELDS) {
     // Disabled-feature fields stay off even from the URL (shared links must not revive dead filters).
     f[field] = fieldEnabled(field) ? splitList(params.get(MULTI_KEY[field])) : []
+  }
+  // Discovered-field axes: every `f.<alias>` param. Unknown aliases parse too —
+  // a shared link may name a field this mirror simply has not discovered yet.
+  for (const [key, raw] of params) {
+    if (!key.startsWith(DYN_FIELD_PREFIX)) continue
+    const alias = key.slice(DYN_FIELD_PREFIX.length)
+    const values = splitList(raw)
+    if (alias && values.length) f.fields[alias] = values
   }
   const flags = splitList(params.get(FLAG_KEY))
   f.reopened = flags.includes('reopened')
@@ -436,6 +419,9 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   for (const field of MULTI_FIELDS) {
     const arr = f[field]
     out[MULTI_KEY[field]] = arr.length ? arr.join(',') : null
+  }
+  for (const [alias, arr] of Object.entries(f.fields)) {
+    out[DYN_FIELD_PREFIX + alias] = arr.length ? arr.join(',') : null
   }
   const flags: string[] = []
   if (f.reopened) flags.push('reopened')
@@ -533,6 +519,7 @@ export function isStale(issue: IssueLite): boolean {
 /** Whether any filter is active (for save-view button). Callers decide whether to exclude q. */
 export function hasAnyFilter(f: ViewFilters): boolean {
   for (const field of MULTI_FIELDS) if (f[field].length) return true
+  for (const alias in f.fields) if (f.fields[alias].length) return true
   if (f.reopened || f.unassigned || f.stale) return true
   if (f.created_from || f.created_to || f.updated_from || f.updated_to) return true
   if (f.q.trim()) return true

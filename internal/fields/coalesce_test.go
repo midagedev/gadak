@@ -21,12 +21,36 @@ func TestCoalesceFirstFilled(t *testing.T) {
 	if got == nil || got["severity"] == nil {
 		t.Fatalf("got %+v", got)
 	}
-	m, ok := got["severity"].(map[string]any)
-	if !ok || m["value"] != "Sev1" {
-		t.Errorf("severity = %#v", got["severity"])
+	// Non-body values flatten to display text: {"value":"Sev1"} → "Sev1".
+	if s, ok := got["severity"].(string); !ok || s != "Sev1" {
+		t.Errorf("severity = %#v, want flattened string", got["severity"])
 	}
 	if _, ok := got["empty_all"]; ok {
 		t.Error("empty_all should be omitted")
+	}
+}
+
+func TestDisplayValueShapes(t *testing.T) {
+	cases := []struct {
+		in   any
+		want any
+	}{
+		{map[string]any{"value": "High"}, "High"},
+		{map[string]any{"name": "1.2.0"}, "1.2.0"},
+		{map[string]any{"displayName": "Kim"}, "Kim"},
+		{map[string]any{"id": "only-id"}, nil},
+		{"plain", "plain"},
+		{float64(7), float64(7)},
+	}
+	for _, c := range cases {
+		if got := DisplayValue(c.in); got != c.want {
+			t.Errorf("DisplayValue(%#v) = %#v, want %#v", c.in, got, c.want)
+		}
+	}
+	arr := DisplayValue([]any{map[string]any{"value": "Chrome"}, map[string]any{"value": "Safari"}})
+	list, ok := arr.([]string)
+	if !ok || len(list) != 2 || list[0] != "Chrome" || list[1] != "Safari" {
+		t.Errorf("array = %#v", arr)
 	}
 }
 

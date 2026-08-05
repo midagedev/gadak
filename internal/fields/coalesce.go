@@ -7,10 +7,11 @@ import (
 )
 
 // SpecIDs is the flat shape store and sync use to coalesce without depending on
-// the full FieldSpec when only alias+ids are needed.
+// the full FieldSpec when only alias+ids+role are needed.
 type SpecIDs struct {
 	Alias string
 	IDs   []string
+	Role  string
 }
 
 // SpecIDsFrom projects config field specs onto the coalesce shape.
@@ -25,7 +26,7 @@ func SpecIDsFrom(specs []config.FieldSpec) []SpecIDs {
 		}
 		ids := make([]string, len(s.IDs))
 		copy(ids, s.IDs)
-		out = append(out, SpecIDs{Alias: s.Alias, IDs: ids})
+		out = append(out, SpecIDs{Alias: s.Alias, IDs: ids, Role: s.Role})
 	}
 	return out
 }
@@ -58,6 +59,11 @@ func BodyFieldIDs(bodyFields []string, specs []config.FieldSpec) []string {
 
 // Coalesce lands the first filled value for each spec under its alias.
 // IDs are tried in order; null/""/[]/{} are skipped.
+//
+// Values are stored display-ready: body-role values keep their raw document
+// (the detail panel renders ADF), everything else flattens to a string or a
+// []string — filters, chips, badges and FTS all consume plain text, and the
+// write path resolves option ids through editmeta, never through the mirror.
 func Coalesce(specs []SpecIDs, extra map[string]json.RawMessage) map[string]any {
 	if len(specs) == 0 {
 		return nil
@@ -73,6 +79,12 @@ func Coalesce(specs []SpecIDs, extra map[string]json.RawMessage) map[string]any 
 			if json.Unmarshal(raw, &v) != nil {
 				continue
 			}
+			if s.Role != "body" {
+				v = DisplayValue(v)
+				if !IsFilledAny(v) {
+					continue
+				}
+			}
 			out[s.Alias] = v
 			break
 		}
@@ -81,6 +93,36 @@ func Coalesce(specs []SpecIDs, extra map[string]json.RawMessage) map[string]any 
 		return nil
 	}
 	return out
+}
+
+// DisplayValue flattens a raw Jira field value onto display text: option
+// `{value}`, version/component `{name}`, user `{displayName}` become their
+// string; arrays flatten element-wise; scalars pass through unchanged.
+func DisplayValue(v any) any {
+	switch t := v.(type) {
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, el := range t {
+			if s, ok := DisplayValue(el).(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
+	case map[string]any:
+		for _, k := range []string{"value", "name", "displayName"} {
+			if s, ok := t[k].(string); ok && s != "" {
+				return s
+			}
+		}
+		return nil
+	case float64, bool, string, nil:
+		return v
+	default:
+		return v
+	}
 }
 
 // CoalesceSpecs is Coalesce over config.FieldSpec values.
