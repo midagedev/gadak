@@ -76,6 +76,8 @@ func (m *Model) applySavedView(v store.SavedView) {
 	m.tab = av.filter.tab
 	m.filter = av.filter.text
 	m.viewName = av.name
+	m.listSort = av.sort
+	m.groupBy = av.groupBy
 	if len(av.unsupported) > 0 {
 		m.viewNote = "unsupported filter ignored: " + strings.Join(av.unsupported, ", ")
 		m.toast = m.viewNote
@@ -91,11 +93,13 @@ func (m *Model) applySavedView(v store.SavedView) {
 }
 
 // clearSavedViewFilters drops view-only constraints (statusCategories, unassigned,
-// assigneeEmail) while keeping the current tab and free-text filter.
+// assigneeEmail, sort, group) while keeping the current tab and free-text filter.
 func (m *Model) clearSavedViewFilters() {
 	m.extraFilter = listFilter{}
 	m.viewName = ""
 	m.viewNote = ""
+	m.listSort = listSort{}
+	m.groupBy = ""
 }
 
 func (m Model) viewViews() string {

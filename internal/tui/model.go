@@ -70,7 +70,8 @@ type Model struct {
 
 	// Personal feed (F).
 	feedItems  []store.FeedItem
-	feedUnread int
+	feedFocus  store.FeedFocus
+	feedCounts store.FeedUnreadCounts
 	feedCursor int
 	feedOffset int
 
@@ -80,6 +81,8 @@ type Model struct {
 	viewName    string
 	viewNote    string
 	extraFilter listFilter // from saved view: categories, unassigned, assignee email
+	listSort    listSort   // from saved view display.sort / dir
+	groupBy     string     // from saved view display.group_by
 
 	// Watches (w) — issue keys currently watched.
 	watches map[string]bool
@@ -94,15 +97,16 @@ func newModel(cfg *config.Config, db *store.DB) Model {
 	sp.Spinner = spinner.Dot
 	sp.Style = styleSpinner
 	return Model{
-		cfg:     cfg,
-		db:      db,
-		tab:     TabAll,
-		mode:    modeList,
-		now:     time.Now(),
-		keys:    defaultKeys(),
-		spin:    sp,
-		loading: db != nil, // initial mirror load; tests inject rows with db==nil
-		watches: map[string]bool{},
+		cfg:       cfg,
+		db:        db,
+		tab:       TabAll,
+		mode:      modeList,
+		now:       time.Now(),
+		keys:      defaultKeys(),
+		spin:      sp,
+		loading:   db != nil, // initial mirror load; tests inject rows with db==nil
+		watches:   map[string]bool{},
+		feedFocus: store.FeedFocusAll,
 	}
 }
 
@@ -214,7 +218,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.watches != nil {
 				m.watches = msg.watches
 			}
-			m.feedUnread = msg.feedUnread
+			// List status chip uses All only; other focus counts fill when feed opens.
+			m.feedCounts.All = msg.feedUnread
 			m.refilter()
 		}
 		return m, nil
@@ -232,7 +237,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.feedItems == nil {
 			m.feedItems = []store.FeedItem{}
 		}
-		m.feedUnread = msg.unread
+		m.feedCounts = msg.counts
 		if m.feedCursor >= len(m.feedItems) {
 			m.feedCursor = max(0, len(m.feedItems)-1)
 		}
@@ -248,7 +253,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toastAt = m.clock()
 			return m, nil
 		}
-		m.feedUnread = msg.unread
+		m.feedCounts = msg.counts
 		m.toast = "feed marked read"
 		m.toastErr = false
 		m.toastAt = m.clock()
@@ -429,7 +434,7 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeFilter
 		return m, nil
 	case key.Matches(msg, k.ClearFilter):
-		if m.filter != "" || m.extraFilter.statusCategories != nil || m.extraFilter.unassigned || m.extraFilter.assigneeEmail != "" {
+		if m.filter != "" || m.hasSavedViewState() {
 			m.filter = ""
 			m.clearSavedViewFilters()
 			m.refilter()
@@ -624,10 +629,47 @@ func (m *Model) refilter() {
 		f.text = needle
 	}
 	m.visible = applyListFilter(m.all, f)
+	if m.listSort.key != "" {
+		sortVisible(m.all, m.visible, m.listSort)
+	}
 	if m.cursor >= len(m.visible) {
 		m.cursor = max(0, len(m.visible)-1)
 	}
 	m.ensureVisible()
+}
+
+// hasSavedViewState reports whether esc should clear view-applied state.
+func (m Model) hasSavedViewState() bool {
+	return m.extraFilter.statusCategories != nil ||
+		m.extraFilter.unassigned ||
+		m.extraFilter.assigneeEmail != "" ||
+		m.viewName != "" ||
+		m.listSort.key != "" ||
+		m.groupBy != ""
+}
+
+// listLines is the screen-line expansion of the current visible set, or nil
+// when no grouping is active. nil means "screen line == visible index", which
+// is the hot path: every keystroke re-renders, and expanding 10k rows into a
+// parallel slice on each one buys nothing when there are no headers to insert.
+func (m Model) listLines() []listLine {
+	if m.groupBy == "" {
+		return nil
+	}
+	return buildListLines(m.all, m.visible, m.groupBy)
+}
+
+// cursorScreenLine returns the screen-line index of the selected issue.
+func (m Model) cursorScreenLine() int {
+	if m.groupBy == "" {
+		return m.cursor
+	}
+	for i, ln := range m.listLines() {
+		if ln.kind == lineKindIssue && ln.visIdx == m.cursor {
+			return i
+		}
+	}
+	return 0
 }
 
 func (m *Model) moveCursor(delta int) {
@@ -665,11 +707,13 @@ func (m *Model) listHeight() int {
 
 func (m *Model) ensureVisible() {
 	h := m.listHeight()
-	if m.cursor < m.offset {
-		m.offset = m.cursor
+	// offset is a screen-line index (headers count when grouping is on).
+	line := m.cursorScreenLine()
+	if line < m.offset {
+		m.offset = line
 	}
-	if m.cursor >= m.offset+h {
-		m.offset = m.cursor - h + 1
+	if line >= m.offset+h {
+		m.offset = line - h + 1
 	}
 	if m.offset < 0 {
 		m.offset = 0
@@ -735,13 +779,31 @@ func (m Model) viewList() string {
 			b.WriteByte('\n')
 		}
 	} else {
+		// lines is nil unless a saved view asked for grouping; then screen lines
+		// and visible indices diverge by the header rows.
+		lines := m.listLines()
+		total := len(m.visible)
+		if lines != nil {
+			total = len(lines)
+		}
 		end := m.offset + listH
-		if end > len(m.visible) {
-			end = len(m.visible)
+		if end > total {
+			end = total
 		}
 		for i := m.offset; i < end; i++ {
-			r := m.all[m.visible[i]]
-			b.WriteString(m.renderRow(r, i == m.cursor, w))
+			if lines == nil {
+				b.WriteString(m.renderRow(m.all[m.visible[i]], i == m.cursor, w))
+				b.WriteByte('\n')
+				continue
+			}
+			ln := lines[i]
+			if ln.kind == lineKindHeader {
+				hdr := fmt.Sprintf(" ▸ %s (%d)", ln.label, ln.count)
+				b.WriteString(fitWidth(styleMuted.Render(hdr), w))
+			} else {
+				r := m.all[m.visible[ln.visIdx]]
+				b.WriteString(m.renderRow(r, ln.visIdx == m.cursor, w))
+			}
 			b.WriteByte('\n')
 		}
 		for i := end - m.offset; i < listH; i++ {
@@ -796,6 +858,9 @@ func (m Model) renderTabs() string {
 	s := " " + strings.Join(parts, " ")
 	if m.viewName != "" {
 		s += " " + styleChip.Render(m.viewName)
+	}
+	if chip := m.listSort.chip(); chip != "" && m.width >= 40 {
+		s += " " + styleChip.Render(chip)
 	}
 	return s
 }
@@ -904,8 +969,8 @@ func (m Model) renderStatusBar(w int) string {
 		}
 		leftParts = append(leftParts, styleFilter.Render("/"+f))
 	}
-	if m.feedUnread > 0 {
-		leftParts = append(leftParts, styleChip.Render(fmt.Sprintf("feed %d", m.feedUnread)))
+	if m.feedCounts.All > 0 {
+		leftParts = append(leftParts, styleChip.Render(fmt.Sprintf("feed %d", m.feedCounts.All)))
 	}
 	if m.toast != "" && m.clock().Sub(m.toastAt) < 8*time.Second {
 		if m.toastErr {

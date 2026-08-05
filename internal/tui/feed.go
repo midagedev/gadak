@@ -13,12 +13,12 @@ import (
 
 type feedLoadedMsg struct {
 	items  []store.FeedItem
-	unread int
+	counts store.FeedUnreadCounts
 	err    error
 }
 
 type feedMarkedMsg struct {
-	unread int
+	counts store.FeedUnreadCounts
 	err    error
 }
 
@@ -33,18 +33,26 @@ func (m Model) feedMe() store.FeedIdentity {
 	}
 }
 
+func (m Model) effectiveFeedFocus() store.FeedFocus {
+	if m.feedFocus == "" {
+		return store.FeedFocusAll
+	}
+	return m.feedFocus
+}
+
 func (m Model) loadFeedCmd() tea.Cmd {
 	db := m.db
 	me := m.feedMe()
+	focus := m.effectiveFeedFocus()
 	return func() tea.Msg {
 		if db == nil {
 			return feedLoadedMsg{err: fmt.Errorf("no database")}
 		}
-		res, err := db.Feed(store.FeedOpts{Me: me})
+		res, err := db.Feed(store.FeedOpts{Me: me, Focus: focus})
 		if err != nil {
 			return feedLoadedMsg{err: err}
 		}
-		return feedLoadedMsg{items: res.Items, unread: res.UnreadCounts.All}
+		return feedLoadedMsg{items: res.Items, counts: res.UnreadCounts}
 	}
 }
 
@@ -59,8 +67,20 @@ func (m Model) markFeedAllReadCmd() tea.Cmd {
 		if err != nil {
 			return feedMarkedMsg{err: err}
 		}
-		return feedMarkedMsg{unread: res.UnreadCounts.All}
+		return feedMarkedMsg{counts: res.UnreadCounts}
 	}
+}
+
+// setFeedFocus switches the personal-feed focus tab and reloads.
+func (m Model) setFeedFocus(f store.FeedFocus) (tea.Model, tea.Cmd) {
+	if m.effectiveFeedFocus() == f {
+		return m, nil
+	}
+	m.feedFocus = f
+	m.feedCursor = 0
+	m.feedOffset = 0
+	m.loading = true
+	return m, tea.Batch(m.spin.Tick, m.loadFeedCmd())
 }
 
 func (m Model) handleFeedKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -80,6 +100,14 @@ func (m Model) handleFeedKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.feedCursor = 0
 		m.feedOffset = 0
 		return m, nil
+	case key.Matches(msg, k.TabAll):
+		return m.setFeedFocus(store.FeedFocusAll)
+	case key.Matches(msg, k.TabOpen):
+		return m.setFeedFocus(store.FeedFocusAssignee)
+	case key.Matches(msg, k.TabInProgress):
+		return m.setFeedFocus(store.FeedFocusReporter)
+	case key.Matches(msg, k.TabDone):
+		return m.setFeedFocus(store.FeedFocusMention)
 	case key.Matches(msg, k.Refresh):
 		// In feed mode, r marks all events read then reloads the feed list.
 		m.loading = true
@@ -161,11 +189,7 @@ func (m Model) viewFeed() string {
 
 	b.WriteString(m.renderHeader(w))
 	b.WriteByte('\n')
-	title := styleTabActive.Render(" feed ")
-	if m.feedUnread > 0 {
-		title += " " + styleChip.Render(fmt.Sprintf("%d unread", m.feedUnread))
-	}
-	b.WriteString(fitWidth(" "+title, w))
+	b.WriteString(fitWidth(m.renderFeedTabs(), w))
 	b.WriteByte('\n')
 
 	listH := m.listHeight()
@@ -196,6 +220,35 @@ func (m Model) viewFeed() string {
 		return m.overlayHelp(b.String())
 	}
 	return b.String()
+}
+
+// renderFeedTabs draws focus tabs with unread badges (0 omitted).
+// Reuses list tab styles; labels: all / assignee / reporter / mention.
+func (m Model) renderFeedTabs() string {
+	cur := m.effectiveFeedFocus()
+	tabs := []struct {
+		focus store.FeedFocus
+		label string
+		n     int
+	}{
+		{store.FeedFocusAll, "all", m.feedCounts.All},
+		{store.FeedFocusAssignee, "assignee", m.feedCounts.Assignee},
+		{store.FeedFocusReporter, "reporter", m.feedCounts.Reporter},
+		{store.FeedFocusMention, "mention", m.feedCounts.Mention},
+	}
+	parts := make([]string, 0, 4)
+	for i, t := range tabs {
+		label := fmt.Sprintf("%d %s", i+1, t.label)
+		if t.n > 0 {
+			label += fmt.Sprintf(" %d", t.n)
+		}
+		if t.focus == cur {
+			parts = append(parts, styleTabActive.Render(label))
+		} else {
+			parts = append(parts, styleTabInactive.Render(label))
+		}
+	}
+	return " " + strings.Join(parts, " ")
 }
 
 func (m Model) renderFeedRow(item store.FeedItem, selected bool, w int) string {
@@ -272,9 +325,9 @@ func (m Model) renderFeedStatusBar(w int) string {
 	if m.loading || m.busy {
 		leftParts = append(leftParts, m.spin.View())
 	}
-	leftParts = append(leftParts, styleHelp.Render("j/k · enter · r mark-read · F/esc back · ? · q"))
-	if m.feedUnread > 0 {
-		leftParts = append(leftParts, styleChip.Render(fmt.Sprintf("%d unread", m.feedUnread)))
+	leftParts = append(leftParts, styleHelp.Render("j/k · 1-4 · enter · r mark-read · F/esc back · ? · q"))
+	if m.feedCounts.All > 0 {
+		leftParts = append(leftParts, styleChip.Render(fmt.Sprintf("%d unread", m.feedCounts.All)))
 	}
 	if m.toast != "" && m.clock().Sub(m.toastAt) < 8*time.Second {
 		if m.toastErr {

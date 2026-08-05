@@ -15,7 +15,7 @@ one issue in the mirror.
 | --- | --- |
 | `j` / `k`, `↓` / `↑` | move the cursor |
 | `g` / `G` | first / last row |
-| `1` `2` `3` `4` | all / open / in progress / done |
+| `1` `2` `3` `4` | list: all / open / in progress / done · feed: all / assignee / reporter / mention |
 | `/` | filter by key, summary, or assignee (local, per keystroke) |
 | `Enter` | open detail |
 | `Esc` | back, or clear the filter / leave feed or views |
@@ -36,21 +36,43 @@ bar says so rather than failing at submit time.
 
 `F` loads the personal feed from the mirror (`store.Feed`): recent activity on
 issues you watch, are assigned to, reported, or were mentioned on (30-day window).
-Unread count appears as a `feed N` chip on the list status bar. In the feed list,
-`r` marks every event read and reloads.
+Unread count appears as a `feed N` chip on the list status bar (always the **all**
+focus total). In feed mode, `1`–`4` switch focus tabs (`all` / `assignee` /
+`reporter` / `mention`); each tab shows its unread badge when non-zero. `r` marks
+every event read (all focus) and reloads the current focus list.
 
 ### Saved views
 
 `v` lists rows from `saved_views`. Applying a view maps what the TUI can honour:
+
+**Filters**
 
 - `status_category` → tab / category filter
 - `assignee_email` / `assignee` → assignee filter
 - `q` / `text` → the `/` text filter
 - `unassigned` → unassigned-only
 
-Anything else (labels, sort, group_by, stale, …) is ignored and the status bar
-says `unsupported filter ignored: …`. That is intentional honesty, not a silent
-drop.
+**Display** (`display` object, same shape as the web UI)
+
+- `sort`: `updated`, `created`, `priority`, `reopen_count` (default direction
+  `desc`). Empty / missing field values always sort last. `relevance` is not
+  supported (no text ranking in the TUI) and is reported as `sort=relevance`.
+  `priority` sorts on `priority_rank` — the position in your site's own priority
+  list — never on the name, because Jira localizes priority names per account
+  language. That is also what keeps the same saved view in the same order here
+  and in the web UI.
+- `dir`: `asc` or `desc`
+- `group_by`: `status`, `status_category`, `assignee`, `priority` only. Other
+  values are reported as `group_by=<value>` and grouping stays off. Group headers
+  are screen lines (`▸ label (n)`); the cursor moves issue-to-issue only.
+
+When a non-default sort is active, a short `sort:…` chip appears next to the view
+name (omitted below 40 columns). Leaving the view with `Esc` restores default
+list order (updated desc, no grouping).
+
+Anything else (labels, stale, columns, unknown keys, …) is ignored and the status
+bar says `unsupported filter ignored: …`. That is intentional honesty, not a
+silent drop.
 
 ### Narrow terminals
 
@@ -90,6 +112,7 @@ up rich text, images, find-in-page, and screen readers to get it. See
 ## What it deliberately does not do
 
 Triage is the scope: find the issue, read it, move it, watch it, skim the feed.
-Grouping, bulk edits, attachments, and rich-text rendering stay in the web UI.
-Saved views apply only the filters the TUI can express; the rest is reported, not
-faked. If you need the full filter surface, `scry sql` or the web UI is faster.
+Bulk edits, attachments, and rich-text rendering stay in the web UI. Saved views
+apply filters plus the sort/group keys listed above; unsupported values are
+reported, not faked. If you need the full filter surface, `scry sql` or the web
+UI is faster.

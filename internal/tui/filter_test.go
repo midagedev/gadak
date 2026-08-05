@@ -116,15 +116,201 @@ func TestParseSavedViewConfig(t *testing.T) {
 	if av.filter.tab != TabOpen {
 		t.Fatalf("tab=%v", av.filter.tab)
 	}
+	if av.sort.key != "updated" || av.sort.dir != "desc" {
+		t.Fatalf("sort=%+v", av.sort)
+	}
+	if av.groupBy != "status" {
+		t.Fatalf("groupBy=%q", av.groupBy)
+	}
 	joined := strings.Join(av.unsupported, ",")
-	if !strings.Contains(joined, "labels") || !strings.Contains(joined, "display") {
-		t.Fatalf("unsupported=%v", av.unsupported)
+	if !strings.Contains(joined, "labels") {
+		t.Fatalf("unsupported=%v want labels", av.unsupported)
+	}
+	if strings.Contains(joined, "display") || strings.Contains(joined, "sort") || strings.Contains(joined, "group") {
+		t.Fatalf("supported display keys should not be unsupported: %v", av.unsupported)
 	}
 
 	// Flat simplified shape from store tests.
 	av = parseSavedViewConfig("Mine", []byte(`{"assignee":"ada@x.com"}`))
 	if av.filter.assigneeEmail != "ada@x.com" {
 		t.Fatalf("flat assignee email=%q", av.filter.assigneeEmail)
+	}
+}
+
+func TestParseSavedViewConfigDisplay(t *testing.T) {
+	cases := []struct {
+		name        string
+		raw         string
+		wantSort    string
+		wantDir     string
+		wantGroup   string
+		wantUnsup   []string
+		forbidUnsup []string
+	}{
+		{
+			name:      "created asc + assignee group",
+			raw:       `{"filters":{},"display":{"sort":"created","dir":"asc","group_by":"assignee"}}`,
+			wantSort:  "created",
+			wantDir:   "asc",
+			wantGroup: "assignee",
+		},
+		{
+			name:      "priority desc default dir",
+			raw:       `{"display":{"sort":"priority","group_by":"priority"}}`,
+			wantSort:  "priority",
+			wantDir:   "desc",
+			wantGroup: "priority",
+		},
+		{
+			name:        "relevance unsupported",
+			raw:         `{"display":{"sort":"relevance","dir":"desc","group_by":"status_category"}}`,
+			wantSort:    "",
+			wantDir:     "",
+			wantGroup:   "status_category",
+			wantUnsup:   []string{"sort=relevance"},
+			forbidUnsup: []string{"group_by"},
+		},
+		{
+			name:      "unknown group_by",
+			raw:       `{"display":{"sort":"updated","group_by":"epic"}}`,
+			wantSort:  "updated",
+			wantDir:   "desc",
+			wantGroup: "",
+			wantUnsup: []string{"group_by=epic"},
+		},
+		{
+			name:        "columns reported",
+			raw:         `{"display":{"sort":"reopen_count","dir":"asc","group_by":"none","columns":["assignee"]}}`,
+			wantSort:    "reopen_count",
+			wantDir:     "asc",
+			wantGroup:   "",
+			wantUnsup:   []string{"columns"},
+			forbidUnsup: []string{"sort", "group_by"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			av := parseSavedViewConfig(tc.name, []byte(tc.raw))
+			if av.sort.key != tc.wantSort || av.sort.dir != tc.wantDir {
+				t.Fatalf("sort=%+v want key=%q dir=%q", av.sort, tc.wantSort, tc.wantDir)
+			}
+			if av.groupBy != tc.wantGroup {
+				t.Fatalf("groupBy=%q want %q", av.groupBy, tc.wantGroup)
+			}
+			joined := strings.Join(av.unsupported, ",")
+			for _, u := range tc.wantUnsup {
+				if !strings.Contains(joined, u) {
+					t.Fatalf("unsupported=%v missing %q", av.unsupported, u)
+				}
+			}
+			for _, u := range tc.forbidUnsup {
+				if strings.Contains(joined, u) {
+					t.Fatalf("unsupported=%v should not contain %q", av.unsupported, u)
+				}
+			}
+		})
+	}
+}
+
+func TestSortVisiblePriorityAndNullLast(t *testing.T) {
+	// Priority names are deliberately Korean: Jira localizes them per account
+	// language, so the sort must key on priority_rank (the issue's position in
+	// the site's own list, 1 = most urgent) and never on the name. Rank 0 means
+	// no priority, or one the site does not list.
+	all := buildRows([]store.IssueLite{
+		{IssueKey: "A", Priority: strp("낮음"), PriorityRank: 4, UpdatedAt: strp("2026-08-01T00:00:00Z")},
+		{IssueKey: "B", Priority: strp("가장 높음"), PriorityRank: 1, UpdatedAt: strp("2026-08-02T00:00:00Z")},
+		{IssueKey: "C", Priority: nil, UpdatedAt: strp("2026-08-03T00:00:00Z")},
+		{IssueKey: "D", Priority: strp("보통"), PriorityRank: 3, UpdatedAt: strp("2026-08-04T00:00:00Z")},
+		{IssueKey: "E", Priority: strp("Weird"), UpdatedAt: strp("2026-08-05T00:00:00Z")},
+	})
+	keysOf := func(vis []int) []string {
+		out := make([]string, len(vis))
+		for i, idx := range vis {
+			out[i] = all[idx].lite.IssueKey
+		}
+		return out
+	}
+
+	// desc = most urgent first: rank 1 → 3 → 4, then the rank-0 rows. Among
+	// those, the tiebreak is updated desc (E 08-05 before C 08-03), matching
+	// how the web UI sorts the same saved view.
+	vis := []int{0, 1, 2, 3, 4}
+	sortVisible(all, vis, listSort{key: "priority", dir: "desc"})
+	if got := keysOf(vis); strings.Join(got, ",") != "B,D,A,E,C" {
+		t.Fatalf("priority desc: %v", got)
+	}
+
+	// asc = least urgent first: rank 4 → 3 → 1, rank-0 rows still last.
+	vis = []int{0, 1, 2, 3, 4}
+	sortVisible(all, vis, listSort{key: "priority", dir: "asc"})
+	if got := keysOf(vis); strings.Join(got, ",") != "A,D,B,E,C" {
+		t.Fatalf("priority asc: %v", got)
+	}
+
+	// updated desc: empty last regardless of direction
+	all2 := buildRows([]store.IssueLite{
+		{IssueKey: "X", UpdatedAt: strp("2026-08-01T00:00:00Z")},
+		{IssueKey: "Y", UpdatedAt: nil},
+		{IssueKey: "Z", UpdatedAt: strp("2026-08-03T00:00:00Z")},
+	})
+	vis = []int{0, 1, 2}
+	sortVisible(all2, vis, listSort{key: "updated", dir: "asc"})
+	if all2[vis[2]].lite.IssueKey != "Y" {
+		t.Fatalf("null last asc: %v", keysOfVisible(all2, vis))
+	}
+	vis = []int{0, 1, 2}
+	sortVisible(all2, vis, listSort{key: "updated", dir: "desc"})
+	if all2[vis[2]].lite.IssueKey != "Y" {
+		t.Fatalf("null last desc: %v", keysOfVisible(all2, vis))
+	}
+}
+
+func keysOfVisible(all []row, vis []int) []string {
+	out := make([]string, len(vis))
+	for i, idx := range vis {
+		out[i] = all[idx].lite.IssueKey
+	}
+	return out
+}
+
+func TestBuildListLinesGroupHeaders(t *testing.T) {
+	all := buildRows([]store.IssueLite{
+		{IssueKey: "A", StatusCategory: "done", Status: "Done"},
+		{IssueKey: "B", StatusCategory: "new", Status: "Backlog"},
+		{IssueKey: "C", StatusCategory: "inprogress", Status: "Doing"},
+		{IssueKey: "D", StatusCategory: "new", Status: "To Do"},
+	})
+	// Pre-sorted as if by updated; grouping reorders groups only.
+	vis := []int{0, 1, 2, 3}
+	lines := buildListLines(all, vis, "status_category")
+	// new (2) + inprogress (1) + done (1) = 3 headers + 4 issues = 7
+	if len(lines) != 7 {
+		t.Fatalf("lines=%d want 7", len(lines))
+	}
+	headers := 0
+	var labels []string
+	for _, ln := range lines {
+		if ln.kind == lineKindHeader {
+			headers++
+			labels = append(labels, ln.label)
+		}
+	}
+	if headers != 3 {
+		t.Fatalf("headers=%d", headers)
+	}
+	if strings.Join(labels, ",") != "new,inprogress,done" {
+		t.Fatalf("group order=%v", labels)
+	}
+	// No grouping: 1:1 with visible
+	plain := buildListLines(all, vis, "")
+	if len(plain) != 4 {
+		t.Fatalf("ungrouped lines=%d", len(plain))
+	}
+	for i, ln := range plain {
+		if ln.kind != lineKindIssue || ln.visIdx != i {
+			t.Fatalf("plain[%d]=%+v", i, ln)
+		}
 	}
 }
 

@@ -282,11 +282,11 @@ func TestFeedViewRender(t *testing.T) {
 			ReadAt:    &at, // read
 		},
 	}
-	m.feedUnread = 1
+	m.feedCounts = store.FeedUnreadCounts{All: 1, Assignee: 1}
 	m.mode = modeFeed
 	m = feed(m, tea.WindowSizeMsg{Width: 100, Height: 30})
 	plain := stripANSI(m.View())
-	for _, want := range []string{"feed", "AAA-1", "comment_added", "Other", "AAA-2", "status_changed", "1 unread"} {
+	for _, want := range []string{"all", "assignee", "reporter", "mention", "AAA-1", "comment_added", "Other", "AAA-2", "status_changed", "1 unread"} {
 		if !strings.Contains(plain, want) {
 			t.Errorf("feed view missing %q\n%s", want, plain)
 		}
@@ -305,10 +305,140 @@ func TestFeedViewRender(t *testing.T) {
 
 func TestFeedUnreadInListStatus(t *testing.T) {
 	m := seededModel()
-	m.feedUnread = 3
+	m.feedCounts.All = 3
 	plain := stripANSI(m.View())
 	if !strings.Contains(plain, "feed 3") {
 		t.Fatalf("list status should show feed unread badge\n%s", plain)
+	}
+}
+
+func TestFeedFocusKeys(t *testing.T) {
+	m := seededModel()
+	m.mode = modeFeed
+	m.feedFocus = store.FeedFocusAll
+	m.feedCursor = 2
+	m.feedOffset = 1
+	m.feedItems = []store.FeedItem{
+		{EventID: "1", IssueKey: "A-1"},
+		{EventID: "2", IssueKey: "A-2"},
+		{EventID: "3", IssueKey: "A-3"},
+	}
+	m.feedCounts = store.FeedUnreadCounts{All: 3, Assignee: 1, Reporter: 0, Mention: 2}
+
+	// 2 → assignee; cursor/offset reset; load cmd issued (db nil → error msg if run).
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	m = next.(Model)
+	if m.feedFocus != store.FeedFocusAssignee {
+		t.Fatalf("focus=%q want assignee", m.feedFocus)
+	}
+	if m.feedCursor != 0 || m.feedOffset != 0 {
+		t.Fatalf("cursor=%d offset=%d want 0,0", m.feedCursor, m.feedOffset)
+	}
+	if cmd == nil {
+		t.Fatal("expected reload cmd")
+	}
+	// Same focus again is a no-op (no cmd).
+	next, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	m = next.(Model)
+	if cmd != nil {
+		t.Fatal("same focus should not reload")
+	}
+
+	// 3 → reporter, 4 → mention, 1 → all
+	for _, tc := range []struct {
+		key  string
+		want store.FeedFocus
+	}{
+		{"3", store.FeedFocusReporter},
+		{"4", store.FeedFocusMention},
+		{"1", store.FeedFocusAll},
+	} {
+		m.feedCursor = 1
+		next, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tc.key)})
+		m = next.(Model)
+		if m.feedFocus != tc.want {
+			t.Fatalf("key %s: focus=%q want %q", tc.key, m.feedFocus, tc.want)
+		}
+		if m.feedCursor != 0 {
+			t.Fatalf("key %s: cursor not reset", tc.key)
+		}
+		if cmd == nil {
+			t.Fatalf("key %s: expected reload", tc.key)
+		}
+	}
+
+	// loadFeedCmd closes over current focus (model unit; db nil returns err).
+	m.feedFocus = store.FeedFocusMention
+	msg := m.loadFeedCmd()()
+	loaded, ok := msg.(feedLoadedMsg)
+	if !ok {
+		t.Fatalf("msg type %T", msg)
+	}
+	if loaded.err == nil {
+		t.Fatal("nil db should error")
+	}
+}
+
+func TestGroupedListCursorSkipsHeaders(t *testing.T) {
+	m := seededModel()
+	// Three categories → three headers; sampleRows has new×2, inprogress×1, done×1.
+	m.groupBy = "status_category"
+	m.listSort = listSort{key: "updated", dir: "desc"}
+	m.refilter()
+	lines := m.listLines()
+	if len(lines) != len(m.visible)+3 {
+		t.Fatalf("screen lines=%d visible=%d (want +3 headers)", len(lines), len(m.visible))
+	}
+	if m.cursor != 0 {
+		t.Fatalf("start cursor %d", m.cursor)
+	}
+	// j through entire list — cursor always indexes an issue in visible.
+	for i := 0; i < len(m.visible)+2; i++ {
+		m = feedKey(m, "j")
+		if m.cursor < 0 || m.cursor >= len(m.visible) {
+			t.Fatalf("after j×%d cursor=%d visible=%d", i+1, m.cursor, len(m.visible))
+		}
+	}
+	if m.cursor != len(m.visible)-1 {
+		t.Fatalf("cursor should clamp at last issue: %d want %d", m.cursor, len(m.visible)-1)
+	}
+	// Headers are not selectable: every listLines issue line maps to a unique visIdx.
+	seen := map[int]bool{}
+	for _, ln := range m.listLines() {
+		if ln.kind == lineKindIssue {
+			if seen[ln.visIdx] {
+				t.Fatalf("duplicate visIdx %d", ln.visIdx)
+			}
+			seen[ln.visIdx] = true
+		}
+	}
+	if len(seen) != len(m.visible) {
+		t.Fatalf("issue lines=%d visible=%d", len(seen), len(m.visible))
+	}
+
+	// Ungrouped path: no line expansion at all. nil is the contract — the
+	// renderer then indexes m.visible directly instead of allocating a parallel
+	// slice on every keystroke — and the cursor is already a screen line.
+	m.groupBy = ""
+	m.refilter()
+	if lines := m.listLines(); lines != nil {
+		t.Fatalf("ungrouped listLines should be nil, got %d lines", len(lines))
+	}
+	m.cursor = len(m.visible) - 1
+	if got := m.cursorScreenLine(); got != m.cursor {
+		t.Fatalf("ungrouped cursorScreenLine=%d, want %d", got, m.cursor)
+	}
+}
+
+func TestClearSavedViewResetsSortGroup(t *testing.T) {
+	m := seededModel()
+	m.listSort = listSort{key: "created", dir: "asc"}
+	m.groupBy = "assignee"
+	m.viewName = "Mine"
+	m.refilter()
+	m = feedSpecial(m, tea.KeyEscape)
+	if m.listSort.key != "" || m.groupBy != "" || m.viewName != "" {
+		t.Fatalf("esc should clear sort/group/name: sort=%+v group=%q name=%q", m.listSort, m.groupBy, m.viewName)
 	}
 }
 
