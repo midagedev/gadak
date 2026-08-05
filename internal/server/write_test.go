@@ -165,7 +165,7 @@ func TestTransitionWritesThroughToTheMirror(t *testing.T) {
 		Issue struct {
 			Status         string `json:"status"`
 			StatusCategory string `json:"status_category"`
-			TeamGroup        string `json:"team_group"`
+			TeamGroup      string `json:"team_group"`
 		} `json:"issue"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {

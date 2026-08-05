@@ -22,5 +22,5 @@ func cmdTUI(args []string) error {
 		return fmt.Errorf("open mirror: %w (run `scry sync` or `scry demo` first)", err)
 	}
 	defer db.Close()
-	return tui.Run(cfg, db)
+	return tui.Run(cfg, db, version)
 }

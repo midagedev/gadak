@@ -14,6 +14,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/selfupdate"
 	"github.com/midagedev/scry/internal/store"
 )
 
@@ -164,6 +165,54 @@ func decode[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 // this one says why it matters.
 func TestRoutesRegister(t *testing.T) {
 	New(nil, nil)
+}
+
+func TestBootstrapUpdateFields(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	prev := Version
+	t.Cleanup(func() { Version = prev })
+	Version = "0.3.0"
+
+	// No cached release → fields omitted.
+	body := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
+	if body.LatestVersion != "" || body.ReleaseURL != "" {
+		t.Fatalf("expected empty update fields, got latest=%q url=%q", body.LatestVersion, body.ReleaseURL)
+	}
+
+	// Newer release → both fields present.
+	h.s.setUpdateInfo(selfupdate.Info{
+		Latest: "0.3.1",
+		URL:    "https://github.com/midagedev/scry/releases/tag/v0.3.1",
+	}, true)
+	body = decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
+	if body.LatestVersion != "0.3.1" {
+		t.Fatalf("latest_version %q", body.LatestVersion)
+	}
+	if body.ReleaseURL == "" {
+		t.Fatal("release_url empty")
+	}
+
+	// Same version → omit.
+	h.s.setUpdateInfo(selfupdate.Info{
+		Latest: "0.3.0",
+		URL:    "https://github.com/midagedev/scry/releases/tag/v0.3.0",
+	}, true)
+	body = decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
+	if body.LatestVersion != "" || body.ReleaseURL != "" {
+		t.Fatalf("same version should omit fields, got latest=%q url=%q", body.LatestVersion, body.ReleaseURL)
+	}
+
+	// Older release than running → omit.
+	h.s.setUpdateInfo(selfupdate.Info{
+		Latest: "0.2.0",
+		URL:    "https://github.com/midagedev/scry/releases/tag/v0.2.0",
+	}, true)
+	body = decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
+	if body.LatestVersion != "" || body.ReleaseURL != "" {
+		t.Fatalf("older release should omit fields, got latest=%q url=%q", body.LatestVersion, body.ReleaseURL)
+	}
 }
 
 func TestBootstrapShapeAndETag(t *testing.T) {

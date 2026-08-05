@@ -122,6 +122,10 @@ type bootstrapResponse struct {
 	// detail panel shows, which filter axes exist, per current project scope.
 	FieldSpecs []fieldSpecOut            `json:"field_specs"`
 	FieldUsage map[string]map[string]int `json:"field_usage"`
+	// LatestVersion / ReleaseURL are set only when a cached GitHub release is
+	// newer than the running build (server.Version). Absent otherwise.
+	LatestVersion string `json:"latest_version,omitempty"`
+	ReleaseURL    string `json:"release_url,omitempty"`
 }
 
 type deltaResponse struct {
@@ -160,6 +164,7 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	latest, releaseURL := s.bootstrapUpdate()
 	writeJSON(w, http.StatusOK, bootstrapResponse{
 		ServerTime:     store.Now(),
 		SyncVersion:    st.Version,
@@ -169,6 +174,8 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		SyncHealth:     s.health(st),
 		FieldSpecs:     s.fieldSpecsOut(),
 		FieldUsage:     s.fieldUsageOut(),
+		LatestVersion:  latest,
+		ReleaseURL:     releaseURL,
 	})
 }
 

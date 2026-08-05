@@ -118,6 +118,20 @@ brews:
 
 changelog:
   sort: asc
+  # Grouped, human-first changelog. The curated summary still gets written by
+  # hand on the release page; this keeps the generated tail readable.
+  groups:
+    - title: Features
+      regexp: '^feat'
+      order: 0
+    - title: Fixes
+      regexp: '^fix'
+      order: 1
+    - title: Performance
+      regexp: '^perf'
+      order: 2
+    - title: Other
+      order: 999
   filters:
     exclude:
       - "^docs:"

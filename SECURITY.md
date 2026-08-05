@@ -46,7 +46,8 @@ boundary is the bind address:
 | HTTP API / web UI | Binds `127.0.0.1` only; non-loopback requires `--allow-remote` |
 | Auth | None — anyone who can reach the port can read the mirror and write to Jira |
 | Credentials | API token in `~/.scry/config.json` mode `0600`; never in SQLite, logs, or snapshots |
-| Telemetry | None — outbound traffic is only to the configured Jira site |
+| Telemetry | None. Outbound traffic is the configured Jira site plus one optional update check (below) |
+| Update check | At most one anonymous `GET` per day to the GitHub Releases API for the latest version tag; result cached on disk. Carries no identifier and no local data. Disable with `updateCheck: false` in config; dev builds never check |
 
 Therefore:
 
@@ -102,7 +103,8 @@ Linux and Windows binaries are not signed; verify those with `checksums.txt`.
 
 ## Data Boundaries
 
-scry only ever talks to the source you configure. There is no telemetry, no
-update check, and no third-party endpoint. Attachment bytes are proxied on
+scry only ever talks to the source you configure, with one opt-out exception:
+a daily anonymous version check against the GitHub Releases API (see the
+table above). There is no telemetry. Attachment bytes are proxied on
 demand (and may be cached locally under the profile directory); credentials never
 travel with them in logs or the repository.

@@ -8,15 +8,18 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/midagedev/scry/internal/attachcache"
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/selfupdate"
 	"github.com/midagedev/scry/internal/store"
 )
 
@@ -46,17 +49,35 @@ type server struct {
 	// cache holds attachment bytes on disk. nil disables caching and every view
 	// proxies, which is the pre-cache behavior.
 	cache *attachcache.Cache
+
+	// updateMu protects the GitHub release snapshot used by bootstrap only.
+	// Separate from mu so a release check never contends with derived views.
+	updateMu   sync.Mutex
+	updateInfo selfupdate.Info
+	updateOK   bool
+}
+
+// Handler is the HTTP API plus optional update-check control. It implements
+// http.Handler; mount it at "/api/".
+type Handler struct {
+	mux *http.ServeMux
+	s   *server
+}
+
+// ServeHTTP implements http.Handler.
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.mux.ServeHTTP(w, r)
 }
 
 // New returns the API handler. Mount it at "/api/" — the patterns below carry
 // their full paths, so nothing strips a prefix.
-func New(db *store.DB, cfg *config.Config) http.Handler {
+func New(db *store.DB, cfg *config.Config) *Handler {
 	return NewWithCache(db, cfg, nil)
 }
 
 // NewWithCache is New plus an attachment byte cache. `scry serve` passes one
 // rooted under SCRY_HOME; tests pass nil when they do not exercise attachments.
-func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) http.Handler {
+func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) *Handler {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
@@ -130,7 +151,61 @@ func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) ht
 	// data-quality, login/logout) fall through to here. The UI hides a surface on
 	// a clean 404 and only breaks on a 500.
 	mux.HandleFunc("/", handleNotFound)
-	return mux
+	return &Handler{mux: mux, s: s}
+}
+
+// StartUpdateCheck runs a GitHub release lookup immediately and every 24h.
+// Results feed bootstrap's latest_version / release_url when the running build
+// is older. No-op when cfg.UpdateCheckEnabled() is false. Safe with no
+// credential (Jira-independent). Errors are silent.
+func (h *Handler) StartUpdateCheck(ctx context.Context, cacheDir string) {
+	if h == nil || h.s == nil {
+		return
+	}
+	if !h.s.config().UpdateCheckEnabled() {
+		return
+	}
+	go h.s.loopUpdateCheck(ctx, cacheDir)
+}
+
+// setUpdateInfo stores a release snapshot (tests and the background loop).
+func (s *server) setUpdateInfo(info selfupdate.Info, ok bool) {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+	s.updateInfo = info
+	s.updateOK = ok
+}
+
+// bootstrapUpdate returns latest/url only when the cached release is newer
+// than the running Version.
+func (s *server) bootstrapUpdate() (latest, url string) {
+	s.updateMu.Lock()
+	info, ok := s.updateInfo, s.updateOK
+	s.updateMu.Unlock()
+	if !ok || !selfupdate.Newer(Version, info.Latest) {
+		return "", ""
+	}
+	return info.Latest, info.URL
+}
+
+func (s *server) loopUpdateCheck(ctx context.Context, cacheDir string) {
+	run := func() {
+		info, ok := selfupdate.Check(ctx, cacheDir, Version, s.config().UpdateCheckEnabled())
+		if ok {
+			s.setUpdateInfo(info, true)
+		}
+	}
+	run()
+	t := time.NewTicker(24 * time.Hour)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			run()
+		}
+	}
 }
 
 // WebConfig renders the config document the UI fetches before mount

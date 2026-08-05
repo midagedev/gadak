@@ -141,7 +141,8 @@ scry install-service   # launchd (macOS) or systemd --user (Linux)
 
 Your API token lives in `~/.scry/config.json` at `0600` and never touches the
 database, the repository, or a log line. There is no scry account, no server, and
-no telemetry — the only outbound traffic is to your own Jira site.
+no telemetry — outbound traffic is your own Jira site, plus an optional daily
+anonymous version check against GitHub Releases (`updateCheck: false` turns it off).
 
 Pointing one machine at two sites (work and a demo, say) is what profiles are
 for: `scry --profile demo init` keeps a separate credential and mirror under

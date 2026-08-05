@@ -92,6 +92,11 @@ type Config struct {
 	// new personal-feed events. Default true when absent; set false to opt out.
 	// Pointer so omitempty can distinguish "unset" from explicit false.
 	Notify *bool `json:"notify,omitempty"`
+
+	// UpdateCheck enables the once-per-day GitHub release lookup that surfaces
+	// a newer version on sync/status/serve bootstrap. Default true when absent;
+	// set false to opt out (restores the prior "outbound is only Jira" model).
+	UpdateCheck *bool `json:"updateCheck,omitempty"`
 }
 
 // FieldSpec is one logical custom field. Jira creates a separate field id per
@@ -271,6 +276,14 @@ func (c *Config) NotifyEnabled() bool {
 		return true
 	}
 	return *c.Notify
+}
+
+// UpdateCheckEnabled is true unless the user set updateCheck: false. Absent means on.
+func (c *Config) UpdateCheckEnabled() bool {
+	if c == nil || c.UpdateCheck == nil {
+		return true
+	}
+	return *c.UpdateCheck
 }
 
 // FieldSpecs returns the effective field specs. Legacy configs that predate

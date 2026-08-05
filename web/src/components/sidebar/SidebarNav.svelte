@@ -154,6 +154,21 @@
     </button>
   </div>
 
+  <!-- Update notice: server found a newer published release (daily check). -->
+  {#if issues.latestVersion}
+    <div class="flex-none px-3 pb-1">
+      <a
+        href={issues.releaseUrl || 'https://github.com/midagedev/scry/releases'}
+        target="_blank"
+        rel="noreferrer"
+        class="block rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-[11px] text-accent-text transition-colors hover:bg-accent-subtle/50"
+        data-testid="update-notice"
+      >
+        {t('sidebar.updateAvailable', { version: issues.latestVersion })}
+      </a>
+    </div>
+  {/if}
+
   <!-- Totals / sync — badge click = history popover (with Sync now inside) -->
   <div class="flex-none px-3 pb-2 pt-1 text-[11px] text-text-muted">
     {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}

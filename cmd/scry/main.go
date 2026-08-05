@@ -32,6 +32,7 @@ import (
 	scry "github.com/midagedev/scry"
 	"github.com/midagedev/scry/internal/attachcache"
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/selfupdate"
 	"github.com/midagedev/scry/internal/server"
 	"github.com/midagedev/scry/internal/snapshot"
 	"github.com/midagedev/scry/internal/store"
@@ -152,17 +153,17 @@ func cmdServe(args []string) error {
 	// Attachment bytes live on disk next to the mirror: the first view fetches
 	// them from Jira, every later one is local, and a cached image still renders
 	// with no credential at all.
-	var apiHandler http.Handler
+	var api *server.Handler
 	if dir, err := config.AttachmentDir(); err != nil {
 		log.Printf("warning: attachment cache disabled: %v", err)
-		apiHandler = server.New(db, cfg)
+		api = server.New(db, cfg)
 	} else if cache, err := attachcache.New(dir, int64(cfg.AttachmentCacheMB)<<20); err != nil {
 		log.Printf("warning: attachment cache disabled: %v", err)
-		apiHandler = server.New(db, cfg)
+		api = server.New(db, cfg)
 	} else {
-		apiHandler = server.NewWithCache(db, cfg, cache)
+		api = server.NewWithCache(db, cfg, cache)
 	}
-	mux.Handle("/api/", apiHandler)
+	mux.Handle("/api/", api)
 
 	// The embedded UI is the default; --static overrides it for development
 	// (`npm run build` output) without rebuilding the binary.
@@ -181,6 +182,12 @@ func cmdServe(args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Optional once-a-day GitHub release check (opt-out via updateCheck: false).
+	// Independent of Jira credentials; silent on failure.
+	if dir, err := config.Dir(); err == nil {
+		api.StartUpdateCheck(ctx, dir)
+	}
 
 	// Default: keep the mirror fresh whenever a credential exists. Empty
 	// projects means "everything this account can see". --no-sync opts out
@@ -521,7 +528,30 @@ func cmdSync(args []string) error {
 	}
 	fmt.Printf("%s sync: fetched %d, changed %d, deleted %d, watermark %s\n",
 		kind, res.Fetched, res.Changed, res.Deleted, res.Watermark)
+	printUpdateNotice(cfg, false)
 	return nil
+}
+
+// printUpdateNotice prints a one-line brew upgrade hint when a newer release
+// is known. withURL adds the release page on a second line (status). Failures
+// and opt-out are silent — this is courtesy, not a feature path.
+func printUpdateNotice(cfg *config.Config, withURL bool) {
+	if cfg == nil || !cfg.UpdateCheckEnabled() {
+		return
+	}
+	dir, err := config.Dir()
+	if err != nil {
+		return
+	}
+	info, ok := selfupdate.Check(context.Background(), dir, version, true)
+	if !ok || !selfupdate.Newer(version, info.Latest) {
+		return
+	}
+	fmt.Printf("update: v%s available (running v%s) — brew upgrade midagedev/tap/scry\n",
+		info.Latest, version)
+	if withURL && info.URL != "" {
+		fmt.Println(info.URL)
+	}
 }
 
 // openReadOnly gives sql/status a connection that cannot write, so a typo'd
@@ -852,6 +882,21 @@ func cmdStatus(args []string) error {
 	}
 	st["api_usage"] = usage
 
+	cfg, _ := config.Load()
+	var updateInfo selfupdate.Info
+	var updateOK bool
+	if cfg != nil && cfg.UpdateCheckEnabled() {
+		if dir, err := config.Dir(); err == nil {
+			updateInfo, updateOK = selfupdate.Check(context.Background(), dir, version, true)
+			if updateOK && selfupdate.Newer(version, updateInfo.Latest) {
+				st["update"] = map[string]string{
+					"latest": updateInfo.Latest,
+					"url":    updateInfo.URL,
+				}
+			}
+		}
+	}
+
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(st)
 	}
@@ -862,6 +907,13 @@ func cmdStatus(args []string) error {
 	}
 	if line := formatAPIUsageLine(usage); line != "" {
 		fmt.Printf("%-18s %s\n", "api (today)", line)
+	}
+	if updateOK && selfupdate.Newer(version, updateInfo.Latest) {
+		fmt.Printf("update: v%s available (running v%s) — brew upgrade midagedev/tap/scry\n",
+			updateInfo.Latest, version)
+		if updateInfo.URL != "" {
+			fmt.Println(updateInfo.URL)
+		}
 	}
 	return nil
 }

@@ -38,6 +38,7 @@ var neverExportConfigFields = []string{
 	"SyncIntervalSec",
 	"ReconcileIntervalSec",
 	"Notify",
+	"UpdateCheck",
 }
 
 // credentialJSONKeys are JSON object keys that mean "this file carries

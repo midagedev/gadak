@@ -14,8 +14,9 @@ import (
 	"github.com/midagedev/scry/internal/store"
 )
 
-// Run starts the issue navigator. It blocks until the user quits.
-func Run(cfg *config.Config, db *store.DB) error {
+// Run starts the issue navigator. It blocks until the user quits. version is
+// the running build ("0.0.0-dev" disables the update notice).
+func Run(cfg *config.Config, db *store.DB, version string) error {
 	if db == nil {
 		return fmt.Errorf("tui: database is required")
 	}
@@ -23,6 +24,7 @@ func Run(cfg *config.Config, db *store.DB) error {
 		cfg = &config.Config{}
 	}
 	m := newModel(cfg, db)
+	m.version = version
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err

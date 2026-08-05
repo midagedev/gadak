@@ -37,6 +37,9 @@ class IssuesStore {
   fieldSpecs = $state<FieldSpec[]>([])
   /** project → alias → filled count. Which fields a board actually uses. */
   fieldUsage = $state<Record<string, Record<string, number>>>({})
+  /** Newer published release, when the server's daily check found one. */
+  latestVersion = $state('')
+  releaseUrl = $state('')
   /** Boot failure (usually auth). Blocks UI only when there is no cache (render-before-auth). */
   error = $state<string | null>(null)
   /**
@@ -152,6 +155,8 @@ class IssuesStore {
     this.syncHealth = data.sync_health
     this.fieldSpecs = data.field_specs ?? []
     this.fieldUsage = data.field_usage ?? {}
+    this.latestVersion = data.latest_version ?? ''
+    this.releaseUrl = data.release_url ?? ''
     this.ready = true
 
     // Persist (memory pool is already current even if this fails — works without IndexedDB)

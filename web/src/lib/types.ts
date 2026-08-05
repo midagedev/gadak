@@ -317,6 +317,9 @@ export interface BootstrapResponse {
   field_specs?: FieldSpec[]
   /** project → alias → filled count. Older servers omit. */
   field_usage?: Record<string, Record<string, number>>
+  /** Set only when a newer release than the running build is published. */
+  latest_version?: string
+  release_url?: string
 }
 
 /** GET `delta/?since=&mv=` response. */

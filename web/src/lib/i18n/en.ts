@@ -306,6 +306,7 @@ export const en = {
   'sidebar.syncDelayedTitle': 'Sync delayed',
   'sidebar.syncLabel': 'Synced {when}',
   'sidebar.syncChecking': 'Checking sync',
+  'sidebar.updateAvailable': 'scry {version} is out — release notes',
   'sidebar.syncNow': 'Sync now',
   'sidebar.syncNowTitle': 'Run an incremental sync now',
   'sidebar.syncHistory': 'Sync history',

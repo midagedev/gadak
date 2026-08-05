@@ -40,6 +40,7 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | **After restart** of `scry serve` |
 | `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | **After restart** of `scry serve` |
 | `notify` | bool | **true** when absent | `config.json` (not on Settings UI) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
+| `updateCheck` | bool | **true** when absent | `config.json` (not on Settings UI) | Next `sync` / `status` / `serve` start; once-per-day GitHub release lookup (cached under the profile dir). Set `false` to opt out — no outbound traffic beyond Jira |
 
 ### `fields` (FieldSpec)
 
@@ -91,6 +92,15 @@ new personal-feed events since `sync_state.last_notified_at` (macOS
 the issue title only — never comment text. Set `"notify": false` in
 `config.json` to opt out. Notifications never write `feed_reads`.
 
+### Update check
+
+Once a day, `scry sync` (after a successful run), `scry status`, and `scry
+serve` may query GitHub's public releases API for this project and cache the
+answer under the profile directory (`update-check.json`). The request carries
+no account identifiers. Dev builds (`0.0.0-dev`) never check. Network errors
+and rate limits are silent. Set `"updateCheck": false` in `config.json` to
+disable the lookup entirely (restores outbound traffic to Jira only).
+
 ---
 
 ## Read-only `runtime` on `GET settings/`
@@ -126,7 +136,7 @@ list. Credentials and per-machine prefs are never included.
 | `projects` | `site`, `email`, `token` |
 | `fields`, `fieldMap`, `bodyFields`, `editableFields` | `account_id`, `tokenOwner`, `tokenVerifiedAt` |
 | `groupRules`, `groupLabels`, `groupColors`, `productByGroup` | `syncIntervalSec`, `reconcileIntervalSec` |
-| `features`, `qaDashboardUrl`, `staleThresholdHours` | `notify`, `attachmentCacheMB` |
+| `features`, `qaDashboardUrl`, `staleThresholdHours` | `notify`, `updateCheck`, `attachmentCacheMB` |
 | `members` only with `export --with-members` (emails; stderr warns) | personal machine intervals / notification prefs |
 | saved views (`name` + `config`; new ids on import) | view `id` / timestamps |
 

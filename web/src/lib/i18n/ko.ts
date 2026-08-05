@@ -307,6 +307,7 @@ export const ko = {
   'sidebar.syncDelayedTitle': '동기화 지연',
   'sidebar.syncLabel': '동기화 {when}',
   'sidebar.syncChecking': '동기화 확인 중',
+  'sidebar.updateAvailable': 'scry {version} 업데이트가 나왔어요 — 릴리스 노트 보기',
   'sidebar.syncNow': '지금 동기화',
   'sidebar.syncNowTitle': '증분 동기화를 지금 실행',
   'sidebar.syncHistory': '동기화 내역',

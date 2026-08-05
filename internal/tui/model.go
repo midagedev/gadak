@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/jira"
+	"github.com/midagedev/scry/internal/selfupdate"
 	"github.com/midagedev/scry/internal/store"
 )
 
@@ -34,6 +36,10 @@ const (
 type Model struct {
 	cfg *config.Config
 	db  *store.DB
+	// version is the running build; updateNotice is set when a newer release
+	// is published (checked async at start, cached daily, silent on failure).
+	version      string
+	updateNotice string
 
 	all     []row
 	visible []int // indices into all
@@ -115,10 +121,33 @@ func newModel(cfg *config.Config, db *store.DB) Model {
 
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
+	cmds := []tea.Cmd{m.reloadCmd(), m.checkUpdateCmd()}
 	if m.loading {
-		return tea.Batch(m.spin.Tick, m.reloadCmd())
+		cmds = append(cmds, m.spin.Tick)
 	}
-	return m.reloadCmd()
+	return tea.Batch(cmds...)
+}
+
+type updateNoticeMsg struct{ latest string }
+
+// checkUpdateCmd asks selfupdate (daily cache) whether a newer release exists.
+// Runs off the UI loop; failures and opt-out yield no message at all.
+func (m Model) checkUpdateCmd() tea.Cmd {
+	cfg, version := m.cfg, m.version
+	return func() tea.Msg {
+		if cfg == nil || !cfg.UpdateCheckEnabled() {
+			return nil
+		}
+		dir, err := config.Dir()
+		if err != nil {
+			return nil
+		}
+		info, ok := selfupdate.Check(context.Background(), dir, version, true)
+		if !ok || !selfupdate.Newer(version, info.Latest) {
+			return nil
+		}
+		return updateNoticeMsg{latest: info.Latest}
+	}
 }
 
 type loadedMsg struct {
@@ -210,6 +239,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		return m, nil
+
+	case updateNoticeMsg:
+		m.updateNotice = msg.latest
 		return m, nil
 
 	case loadedMsg:
@@ -825,6 +858,9 @@ func (m Model) renderHeader(w int) string {
 		left += styleChip.Render(p)
 	}
 	right := styleMuted.Render(m.syncedLabel)
+	if m.updateNotice != "" {
+		right = styleBrand.Render("v"+m.updateNotice+" available") + " " + right
+	}
 	if m.loadErr != nil {
 		right = styleToastErr.Render(m.loadErr.Error())
 	}
