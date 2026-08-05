@@ -85,16 +85,19 @@ at the speed of the rest of the app — and keeps rendering offline.
 Jira Cloud only. You need an API token from
 <https://id.atlassian.com/manage-profile/security/api-tokens>.
 
-### 1. Homebrew (after the first release)
+### 1. Homebrew
 
 ```bash
 brew install midagedev/tap/scry
 ```
 
-The `midagedev/homebrew-tap` formula is published by GoReleaser on each release
-tag. Until the first public release exists, this install path is inactive.
+macOS and Linux, from [`midagedev/homebrew-tap`][tap]. A formula rather than a
+cask on purpose: the released binaries are not notarized, and Homebrew marks
+cask downloads with `com.apple.quarantine`, which Gatekeeper then blocks.
 
-### 2. Install script (after the first release)
+[tap]: https://github.com/midagedev/homebrew-tap
+
+### 2. Install script
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/midagedev/scry/main/scripts/install.sh | sh
@@ -102,8 +105,7 @@ curl -fsSL https://raw.githubusercontent.com/midagedev/scry/main/scripts/install
 
 Downloads the latest GitHub Release for your OS/arch, verifies `checksums.txt`
 (sha256), and installs to `~/.local/bin/scry` (override with `SCRY_INSTALL_DIR`).
-Upgrades in place if a binary is already there. Inactive until a release is
-published.
+Upgrades in place if a binary is already there.
 
 ### 3. Release binary
 
