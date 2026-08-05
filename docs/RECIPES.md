@@ -49,6 +49,11 @@ order by created_at asc limit 20
 
 ## Full-text
 
+`scry search` (and the REST/MCP search path) rewrites bare terms as FTS5 prefix
+matches, so Korean particles and verb endings are found (`로그인` → `로그인이`,
+`실패` → `실패합니다`) and English stems work too (`retri` → `retries`).
+Word *middles* still miss — searching `결제` will not hit `간편결제`.
+
 **Search descriptions AND comments together** (FTS5, with AND/OR/NEAR):
 
 ```sql

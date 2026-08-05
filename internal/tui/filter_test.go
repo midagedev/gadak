@@ -72,6 +72,19 @@ func TestApplyFilterText(t *testing.T) {
 	}
 }
 
+// TUI / filter is substring, so Korean particles already match; keep a regression
+// case so a future FTS-shaped change cannot break list narrowing.
+func TestApplyListFilterKoreanSubstring(t *testing.T) {
+	all := buildRows([]store.IssueLite{
+		{IssueKey: "KR-1", Summary: "로그인이 안됨", StatusCategory: "new"},
+		{IssueKey: "KR-2", Summary: "결제 오류", StatusCategory: "new"},
+	})
+	got := applyListFilter(all, listFilter{tab: TabAll, text: "로그인"})
+	if len(got) != 1 || all[got[0]].lite.IssueKey != "KR-1" {
+		t.Fatalf("korean substring filter: %#v", got)
+	}
+}
+
 func TestBuildRowsPreLowercases(t *testing.T) {
 	rows := buildRows([]store.IssueLite{
 		{IssueKey: "X-1", Summary: "Hello World", Assignee: strp("Alice")},

@@ -242,6 +242,134 @@ func TestSearchReachesCommentText(t *testing.T) {
 	}
 }
 
+// seedKoreanSearch upserts generic Korean/English issues for FTS prefix tests.
+// Titles use particles and conjugated verbs so whole-token MATCH fails without
+// prefix rewrite (unicode61 treats 로그인이 as one token).
+func seedKoreanSearch(t *testing.T, db *DB) {
+	t.Helper()
+	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	b := Batch{
+		Categories: fixtureCategories,
+		Records: []IssueRecord{
+			{
+				Item: Item{
+					ID: "jira:kr1", SourceID: "jira", Kind: "issue", ExternalID: "kr1",
+					Key: "KR-1", Title: "로그인이 간헐적으로 실패합니다",
+					CreatedAt: ago(1), UpdatedAt: ago(1),
+				},
+				Issue: Issue{
+					ProjectKey: "KR", IssueType: "Bug", IssueTypeID: "10004",
+					Status: "To Do", StatusID: "1", StatusCategory: "new",
+				},
+			},
+			{
+				Item: Item{
+					ID: "jira:kr2", SourceID: "jira", Kind: "issue", ExternalID: "kr2",
+					Key: "KR-2", Title: "결제 오류",
+					BodyText:  "결제 모듈이 응답하지 않습니다",
+					CreatedAt: ago(1), UpdatedAt: ago(1),
+				},
+				Issue: Issue{
+					ProjectKey: "KR", IssueType: "Bug", IssueTypeID: "10004",
+					Status: "To Do", StatusID: "1", StatusCategory: "new",
+				},
+			},
+			{
+				Item: Item{
+					ID: "jira:en1", SourceID: "jira", Kind: "issue", ExternalID: "en1",
+					Key: "EN-1", Title: "Payment retries fail",
+					CreatedAt: ago(1), UpdatedAt: ago(1),
+				},
+				Issue: Issue{
+					ProjectKey: "EN", IssueType: "Bug", IssueTypeID: "10004",
+					Status: "To Do", StatusID: "1", StatusCategory: "new",
+				},
+			},
+			{
+				Item: Item{
+					ID: "jira:kr3", SourceID: "jira", Kind: "issue", ExternalID: "kr3",
+					Key: "KR-3", Title: "로그인 화면 깨짐",
+					CreatedAt: ago(1), UpdatedAt: ago(1),
+				},
+				Issue: Issue{
+					ProjectKey: "KR", IssueType: "Bug", IssueTypeID: "10004",
+					Status: "To Do", StatusID: "1", StatusCategory: "new",
+				},
+			},
+		},
+	}
+	if _, err := db.UpsertIssues(b); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func containsKey(keys []string, want string) bool {
+	for _, k := range keys {
+		if k == want {
+			return true
+		}
+	}
+	return false
+}
+
+func TestSearchKoreanAndPrefix(t *testing.T) {
+	db := openTemp(t)
+	seedKoreanSearch(t, db)
+
+	// 1. Particle-attached noun: 로그인이 is one FTS token; bare "로그인" needs prefix.
+	keys, err := db.Search("로그인", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsKey(keys, "KR-1") {
+		t.Errorf("Search(%q) = %v, want KR-1 (particle form)", "로그인", keys)
+	}
+
+	// 2. Conjugated verb in body: 응답하지 → bare "응답".
+	keys, err = db.Search("응답", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsKey(keys, "KR-2") {
+		t.Errorf("Search(%q) = %v, want KR-2 (conjugated form)", "응답", keys)
+	}
+
+	// 3. English stem prefix: retries ← retri.
+	keys, err = db.Search("retri", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsKey(keys, "EN-1") {
+		t.Errorf("Search(%q) = %v, want EN-1", "retri", keys)
+	}
+
+	// 4. Quoted phrase passes through: match consecutive tokens only.
+	keys, err = db.Search(`"로그인 화면"`, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsKey(keys, "KR-3") {
+		t.Errorf("phrase Search = %v, want KR-3", keys)
+	}
+	if containsKey(keys, "KR-1") {
+		t.Errorf("phrase Search matched KR-1 (particle title), keys=%v", keys)
+	}
+
+	// 5. Two bare tokens → implicit AND via space-joined prefixes.
+	keys, err = db.Search("로그인 실패", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsKey(keys, "KR-1") {
+		t.Errorf("AND Search = %v, want KR-1", keys)
+	}
+	if containsKey(keys, "KR-3") {
+		t.Errorf("AND Search matched KR-3 (login only), keys=%v", keys)
+	}
+}
+
 func TestUnchangedUpsertIsANoOp(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)

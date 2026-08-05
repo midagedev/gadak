@@ -284,7 +284,8 @@ func (db *DB) Detail(key string) (*Detail, error) {
 }
 
 // Search runs an FTS5 query over titles, bodies and comment text and returns
-// matching issue keys, best match first. A query FTS5 cannot parse is retried as
+// matching issue keys, best match first. Bare terms are rewritten as quoted
+// prefix queries (see ftsPrefixQuery). A query FTS5 cannot parse is retried as
 // a literal phrase rather than surfaced as an error, because this is fed raw
 // user input.
 func (db *DB) Search(query string, limit int) ([]string, error) {
@@ -295,11 +296,35 @@ func (db *DB) Search(query string, limit int) ([]string, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	keys, err := db.search(query, limit)
+	match := ftsPrefixQuery(query)
+	keys, err := db.search(match, limit)
 	if err != nil {
 		return db.search(`"`+strings.ReplaceAll(query, `"`, `""`)+`"`, limit)
 	}
 	return keys, nil
+}
+
+// ftsPrefixQuery rewrites bare terms into quoted prefix queries ("텀"*).
+// Korean is agglutinative — 로그인이/로그인을/로그인은 are all one FTS token, so
+// whole-token matching misses nearly every inflected form; prefix matching
+// recovers it (and helps English: retri* → retries). Queries that already use
+// FTS5 syntax (quotes, operators, parens, *) pass through untouched.
+func ftsPrefixQuery(q string) string {
+	if strings.ContainsAny(q, `"*()`) {
+		return q
+	}
+	toks := strings.Fields(q)
+	for _, t := range toks {
+		switch t {
+		case "AND", "OR", "NOT", "NEAR":
+			return q
+		}
+	}
+	out := make([]string, 0, len(toks))
+	for _, t := range toks {
+		out = append(out, `"`+strings.ReplaceAll(t, `"`, `""`)+`"*`)
+	}
+	return strings.Join(out, " ")
 }
 
 func (db *DB) search(match string, limit int) ([]string, error) {
