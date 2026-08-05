@@ -66,7 +66,7 @@ func TestExportWhitelistCoversAllConfigFields(t *testing.T) {
 
 func sampleConfig() *config.Config {
 	return &config.Config{
-		Site:            "https://evil.example.atlassian.net",
+		Site:            "https://example.atlassian.net",
 		Email:           "secret-user@example.com",
 		Token:           "ATATT" + strings.Repeat("x", 30),
 		AccountID:       "acc-secret-99",
@@ -315,7 +315,7 @@ func TestDryRunNoChanges(t *testing.T) {
 	config.SetProfile("")
 
 	cfg := &config.Config{
-		Site:     "https://keep.example.atlassian.net",
+		Site:     "https://example.atlassian.net",
 		Email:    "keep@example.com",
 		Token:    "keep-token-not-atlassian-shape",
 		Projects: []string{"OLD"},
@@ -444,7 +444,7 @@ func TestRoundTripExportImport(t *testing.T) {
 	t.Setenv("SCRY_HOME", homeB)
 	config.SetProfile("")
 	dst := &config.Config{
-		Site:  "https://other.example.atlassian.net",
+		Site:  "https://example.atlassian.net",
 		Email: "other@example.com",
 		Token: "other-token-plain",
 	}

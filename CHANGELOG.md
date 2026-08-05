@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+- **Team config sharing.** `scry team export` writes the views, field map,
+  group rules and thresholds a team agrees on into one file to commit next to
+  the code; `scry team import` merges it into a profile (`--dry-run` prints the
+  same plan the apply path runs, `--overwrite` replaces conflicts). Export is
+  whitelist-only and a reflection test forces every new `Config` field to be
+  classified as shareable or private. Credentials, account identity and
+  per-machine preferences never travel; `members` ships only with
+  `--with-members` because it carries email addresses. A file containing
+  credential keys is refused on import rather than silently ignored.
+- **Rate-limit visibility (schema v6).** The Jira client counts outbound
+  attempts, 429s, 5xx, retries and backoff wait; each sync pass flushes them
+  into `api_usage` (one row per UTC day). Shown in `scry status`, `status
+  --json`, `GET settings/` and the settings runtime panel — hidden while the
+  count is zero. This is our own call volume, not Jira's remaining point
+  budget, which the site does not expose. The retry policy itself is unchanged.
+- **`scry fields`.** Reports which custom fields are actually populated, by
+  listing the site's fields and probing a stratified, deterministic sample of
+  mirrored issues with `fields=*all`. Fields with real usage that are missing
+  from `fieldMap` come with a paste-ready fragment; fields at zero are listed
+  as the bloat. Not one SQL query over the mirror — the mirror only stores what
+  `fieldMap` already names.
+- **`scry snapshot` (T6.4).** Builds a shareable copy by creating a fresh
+  schema and copying rows into it, so dropped tables leave no residue.
+  Personal state and `sync_state` counters stay behind. `--spread` restates
+  timestamps across a window while preserving every issue's internal ordering,
+  `--scale` clones issues onto new keys for benchmark fixtures, `--now` pins
+  the clock for reproducible builds, and a credential scan runs before the file
+  is published.
+- **Per-command help.** Every subcommand answers `--help` with a summary, the
+  real call shape including positional arguments, its flags, working examples
+  and related commands, exiting 0. Flag lines are generated from the FlagSet so
+  they cannot drift from the registration site.
+- **TUI parity.** Feed focus tabs (`1`–`4`) with per-tab unread badges, and
+  saved-view `sort` / `dir` / `group_by` support. Priority sorting keys on
+  `priority_rank` rather than the localized priority name.
+- Favorites live in the mirror (`GET/PUT/DELETE favorites/`) instead of only in
+  browser storage, so `scry sql` and agents can see them; the hosted demo,
+  which has no writable API, falls back to local storage.
+- Removed the `presence` client stack and its feature flag: the server has
+  answered those endpoints with a permanent 404 since extraction, and the
+  security model (one user, loopback) has no room for it.
+
 - **Zero-install hosted demo (v0.3).** Static snapshot of `examples/demo.db`
   (bootstrap + 519 detail JSON + attachment bytes) served by a demo-only service
   worker on GitHub Pages — no binary, no account. `scry export-static`,

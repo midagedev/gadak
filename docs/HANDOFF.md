@@ -6,8 +6,8 @@ only what a fresh session needs to continue.
 
 ## Where things stand
 
-Everything below is merged to `main`, pushed, CI green (build + secret scan +
-Playwright 18/18):
+Everything below is merged to `main`, CI green (build + secret scan +
+Playwright 19/19):
 
 - **v0.2 scope complete**: watch feed (server computes from the mirror; web,
   TUI, and in-tab notifications), attachment disk cache, onboarding, settings
@@ -19,11 +19,24 @@ Playwright 18/18):
   zero-install hosted demo (`make hosted-demo`, Pages workflow), query recipes
   (`docs/RECIPES.md`), agent setup doc (`docs/AGENT_SETUP.md`), newest-first
   full sync, `scry open`, browser auto-open on serve (`--no-open`).
+- **v0.3 remainder closed** (2026-08-05): `scry snapshot` (T6.4 — the last
+  unimplemented command in the spec), TUI feed focus tabs and saved-view
+  sort/group, per-command `--help`, and the UX/quality debt (favorites moved
+  into the mirror, `presence` client stack deleted, duplicate `initials`
+  merged, storage keys renamed off the project's old name).
+- **Research-backed Later items closed**: `scry fields` (which custom fields
+  are actually populated) and call-volume instrumentation — **schema v6**,
+  `api_usage`, surfaced in `scry status` and the settings runtime panel.
+- **Team config sharing**: `scry team export` / `import` for the views, field
+  map and group rules a team agrees on. Whitelist-only, credentials never
+  travel, `--dry-run` previews the exact plan the apply path runs.
 - **Docs repositioned** after an external-mentor-style review: README leads
   with the agent angle and the no-token demo; Rovo MCP addressed in the
   comparison; roadmap reordered around retention.
 
 No unmerged worktrees or branches remain; `git worktree list` shows only main.
+
+`main` is ahead of `origin` by the 2026-08-05 work — push when ready.
 
 ## Blocked on the repo owner (in order)
 
@@ -57,7 +70,16 @@ No unmerged worktrees or branches remain; `git worktree list` shows only main.
 
 ## Open items beyond the blockers
 
-- TUI follow-ups deliberately parked: feed focus tabs, saved-view sort/group.
-- `scry snapshot` (specified, unimplemented; usage says so).
+- **v0.4 workspaces is next in the roadmap**, and its design question is
+  settled: a *single active workspace* the server switches between, not one
+  process holding several mirrors open at once. The switcher enumerates
+  profiles and re-points the serve target; that keeps one credential open at a
+  time and leaves the API contract almost untouched. Viewing two sites side by
+  side is explicitly out of scope until someone asks for it.
+- `scry team` has no web surface yet — export/import is CLI-only. A settings
+  panel button is the obvious follow-up.
+- `scry fields` is unverified against a live Jira site (no credential on the
+  development machine); the counting path is covered by a fake server that
+  answers the way `fields=*all` does.
 - Windows: OS notifications and install-service are explicit no-ops.
-- Parked-by-design: workspaces UI (v0.4), JQL→SQL bridge, Confluence.
+- Parked-by-design: JQL→SQL bridge, Confluence, offline write queue.

@@ -4,8 +4,9 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-04, after the pre-launch push (three surfaces, plugin
-examples, release pipeline).
+Last updated: 2026-08-05, after closing the v0.3 remainder (`scry snapshot`,
+TUI parity), the research-backed Later items (`scry fields`, call-volume
+instrumentation at schema v6), and team config sharing.
 
 ## In one paragraph
 
@@ -76,6 +77,16 @@ snapshot, not assumed.
   flight, LRU budget. Why it exists: proxying every image view contradicted the
   premise, and a cached image renders with no credential, which is what lets the
   offline snapshot show real screenshots.
+- `internal/snapshot` — `scry snapshot`. Builds a fresh schema and copies rows
+  into it rather than duplicating the file, so personal tables leave no residue;
+  optional timestamp spreading and issue cloning for fixtures.
+- `internal/teamconfig` — `scry team export/import`. Whitelist-only settings
+  sharing; a reflection test refuses to compile past an unclassified `Config`
+  field.
+- `internal/secretscan` — the credential-shaped patterns every outbound
+  artifact is checked against. Separate from both producers on purpose: a
+  snapshot and a team file have nothing else in common, and whichever owned the
+  patterns would have become the other's dependency.
 - `examples/plugins/` — working enrichment plugins (GitHub PRs, deploy status
   from git tags, CSV import) with self-tests behind `make plugins-test`.
 - `e2e/` — Playwright suite over `examples/demo.db`; runs in CI. `e2e/demo/` and
@@ -95,9 +106,7 @@ never shadow mirrored fields.
 
 | Item | Task | Note |
 | --- | --- | --- |
-| `scry snapshot` (timestamp spreading, volume scaling) | T6.4 | `examples/demo.db` was scrubbed by hand; the command would automate the next refresh |
 | Live-site assignee display names | T6.8 | The committed snapshot is clean (fictional personas); the live site shows placeholder handles until each invitation is accepted. Affects live-site screenshots only |
-| Local watch feed | done (this branch) | `GET feed/` / `POST feed/read/`; events computed from mirror; `feed_reads` v4 |
 | Zero-install hosted demo | v0.3 | Static JSON + demo-sw.js (not sqlite-wasm). `make hosted-demo` → `dist/hosted/`; Pages workflow ready; human enables Pages once |
 | Web push (VAPID) | v0.2 | Still deferred; `features.push` stays false; in-tab Notification only |
 | Bootstrap payload cost at 10k | G5 | ≈61 ms/op on an M4 Pro — over the 50 ms product target, but it is a once-per-boot cost and the client caches it in IndexedDB. Streaming or a columnar payload is the lever if it matters |

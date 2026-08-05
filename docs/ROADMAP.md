@@ -59,8 +59,17 @@ keeps an installed mirror alive or removes a reason not to try one.
   verified against the demo snapshot. Doubles as launch content.
 - ✅ **Agent setup doc** — `docs/AGENT_SETUP.md`: paste-ready blocks for Claude
   Code / Cursor / Codex / MCP.
-- TUI keeps parity with new surfaces (feed focus tabs, saved-view sort) and
-  the remaining UX-audit P2 debt lands here.
+- ✅ **TUI parity.** Feed focus tabs (`1`–`4`: all / assignee / reporter /
+  mention, each with its unread badge) and saved-view `display.sort` / `dir` /
+  `group_by`. Priority sorts on `priority_rank`, never the localized name, so
+  the same view orders the same way here and in the web UI. `relevance` and
+  group keys outside the supported four stay reported as unsupported — the TUI
+  has no text ranking, and faking a group is worse than saying so.
+- ✅ **UX and quality debt.** Per-command `--help` with real usage and
+  examples; `scry team` for sharing views and field mappings; favorites moved
+  from browser storage into the mirror; the dead `presence` client stack
+  removed; duplicate `initials` merged; storage keys renamed off the project's
+  old name.
 
 ## Later, research-backed (see docs/PAIN_POINTS.md)
 
