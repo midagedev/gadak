@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -266,4 +266,10 @@ CREATE TABLE pages (
   status     TEXT NOT NULL DEFAULT 'current'
 );
 CREATE INDEX idx_pages_space ON pages(space_key);
+`
+
+// schemaV10 stores the original ADF body on the pages projection so detail
+// rendering does not re-fetch Confluence (R2 read path).
+const schemaV10 = `
+ALTER TABLE pages ADD COLUMN body_adf TEXT NOT NULL DEFAULT '';
 `

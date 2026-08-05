@@ -105,6 +105,11 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("GET "+apiBase+"bootstrap/{$}", s.handleBootstrap)
 	mux.HandleFunc("GET "+apiBase+"delta/{$}", s.handleDelta)
 	mux.HandleFunc("GET "+apiBase+"search/{$}", s.handleSearch)
+	// Confluence pages list (R2). Detail shares GET {key}/{action}/ below —
+	// ServeMux rejects pages/{key}/ vs {key}/detail/ (both match pages/detail/).
+	// ETag on the list is confluence sync_state.version only; jira bootstrap/
+	// delta ETags are unchanged.
+	mux.HandleFunc("GET "+apiBase+"pages/{$}", s.handlePages)
 	mux.HandleFunc("GET "+apiBase+"settings/{$}", s.handleGetSettings)
 	mux.HandleFunc("PUT "+apiBase+"settings/{$}", s.handlePutSettings)
 	mux.HandleFunc("GET "+apiBase+"views/{$}", s.handleGetViews)
@@ -135,7 +140,25 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 			handleNotFound(w, r)
 		}
 	})
-	mux.HandleFunc("GET "+apiBase+"{key}/detail/{$}", s.handleDetail)
+	// GET two-segment fan-out: issue detail, page detail (pages/{id}), and the
+	// write-meta GETs that share the same shape. Literal routes above and
+	// three-segment attachment content below beat this pattern where they apply.
+	mux.HandleFunc("GET "+apiBase+"{key}/{action}/{$}", func(w http.ResponseWriter, r *http.Request) {
+		key, action := r.PathValue("key"), r.PathValue("action")
+		switch {
+		case key == "pages":
+			// GET pages/{pageKey}/ — page detail (R2).
+			s.handlePageDetailKey(w, r, action)
+		case action == "detail":
+			s.handleDetail(w, r)
+		case action == "transitions":
+			s.handleTransitions(w, r)
+		case action == "editmeta":
+			s.handleEditMeta(w, r)
+		default:
+			handleNotFound(w, r)
+		}
+	})
 	mux.HandleFunc("GET "+apiBase+"{key}/attachments/{id}/content/{$}", s.handleAttachment)
 	mux.HandleFunc("GET "+authBase+"me/{$}", s.handleMe)
 
@@ -154,13 +177,11 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("GET "+apiBase+"create-meta/{$}", s.handleCreateMeta)
 	mux.HandleFunc("POST "+apiBase+"create/{$}", s.handleCreate)
 	mux.HandleFunc("GET "+apiBase+"users/{$}", s.handleUsers)
-	mux.HandleFunc("GET "+apiBase+"{key}/transitions/{$}", s.handleTransitions)
 	mux.HandleFunc("POST "+apiBase+"{key}/transition/{$}", s.handleTransition)
 	mux.HandleFunc("POST "+apiBase+"{key}/comment/{$}", s.handleComment)
 	mux.HandleFunc("POST "+apiBase+"{key}/attachments/{$}", s.handleUpload)
 	mux.HandleFunc("PUT "+apiBase+"{key}/assignee/{$}", s.handleAssignee)
 	mux.HandleFunc("PATCH "+apiBase+"{key}/fields/{$}", s.handleFields)
-	mux.HandleFunc("GET "+apiBase+"{key}/editmeta/{$}", s.handleEditMeta)
 	// Deferred and cut endpoints (notifications, presence, mentions,
 	// data-quality, login/logout) fall through to here. The UI hides a surface on
 	// a clean 404 and only breaks on a 500.

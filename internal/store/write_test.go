@@ -226,19 +226,19 @@ func TestSearchReachesCommentText(t *testing.T) {
 	seed(t, db)
 
 	// "sandbox" appears only in a comment body.
-	keys, err := db.Search("sandbox", 10)
+	res, err := db.Search("sandbox", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(keys) != 1 || keys[0] != "NMB-1" {
-		t.Errorf("comment search = %v, want [NMB-1]", keys)
+	if len(res.Keys) != 1 || res.Keys[0] != "NMB-1" {
+		t.Errorf("comment search = %v, want [NMB-1]", res.Keys)
 	}
 	// Unparseable FTS input falls back to a phrase match instead of erroring.
 	if _, err := db.Search(`retry AND`, 10); err != nil {
 		t.Errorf("malformed query: %v", err)
 	}
-	if keys, err := db.Search("webhook", 10); err != nil || len(keys) != 1 {
-		t.Errorf("body search = %v (%v)", keys, err)
+	if res, err := db.Search("webhook", 10); err != nil || len(res.Keys) != 1 {
+		t.Errorf("body search = %v (%v)", res.Keys, err)
 	}
 }
 
@@ -319,54 +319,54 @@ func TestSearchKoreanAndPrefix(t *testing.T) {
 	seedKoreanSearch(t, db)
 
 	// 1. Particle-attached noun: 로그인이 is one FTS token; bare "로그인" needs prefix.
-	keys, err := db.Search("로그인", 10)
+	res, err := db.Search("로그인", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsKey(keys, "KR-1") {
-		t.Errorf("Search(%q) = %v, want KR-1 (particle form)", "로그인", keys)
+	if !containsKey(res.Keys, "KR-1") {
+		t.Errorf("Search(%q) = %v, want KR-1 (particle form)", "로그인", res.Keys)
 	}
 
 	// 2. Conjugated verb in body: 응답하지 → bare "응답".
-	keys, err = db.Search("응답", 10)
+	res, err = db.Search("응답", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsKey(keys, "KR-2") {
-		t.Errorf("Search(%q) = %v, want KR-2 (conjugated form)", "응답", keys)
+	if !containsKey(res.Keys, "KR-2") {
+		t.Errorf("Search(%q) = %v, want KR-2 (conjugated form)", "응답", res.Keys)
 	}
 
 	// 3. English stem prefix: retries ← retri.
-	keys, err = db.Search("retri", 10)
+	res, err = db.Search("retri", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsKey(keys, "EN-1") {
-		t.Errorf("Search(%q) = %v, want EN-1", "retri", keys)
+	if !containsKey(res.Keys, "EN-1") {
+		t.Errorf("Search(%q) = %v, want EN-1", "retri", res.Keys)
 	}
 
 	// 4. Quoted phrase passes through: match consecutive tokens only.
-	keys, err = db.Search(`"로그인 화면"`, 10)
+	res, err = db.Search(`"로그인 화면"`, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsKey(keys, "KR-3") {
-		t.Errorf("phrase Search = %v, want KR-3", keys)
+	if !containsKey(res.Keys, "KR-3") {
+		t.Errorf("phrase Search = %v, want KR-3", res.Keys)
 	}
-	if containsKey(keys, "KR-1") {
-		t.Errorf("phrase Search matched KR-1 (particle title), keys=%v", keys)
+	if containsKey(res.Keys, "KR-1") {
+		t.Errorf("phrase Search matched KR-1 (particle title), keys=%v", res.Keys)
 	}
 
 	// 5. Two bare tokens → implicit AND via space-joined prefixes.
-	keys, err = db.Search("로그인 실패", 10)
+	res, err = db.Search("로그인 실패", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsKey(keys, "KR-1") {
-		t.Errorf("AND Search = %v, want KR-1", keys)
+	if !containsKey(res.Keys, "KR-1") {
+		t.Errorf("AND Search = %v, want KR-1", res.Keys)
 	}
-	if containsKey(keys, "KR-3") {
-		t.Errorf("AND Search matched KR-3 (login only), keys=%v", keys)
+	if containsKey(res.Keys, "KR-3") {
+		t.Errorf("AND Search matched KR-3 (login only), keys=%v", res.Keys)
 	}
 }
 
@@ -460,8 +460,8 @@ func TestChangedIssueReplacesChildrenAndDerivedFields(t *testing.T) {
 		t.Errorf("%d comment rows survived a shorter upstream list", rows)
 	}
 	// The FTS row is rebuilt, so the removed comment is no longer searchable.
-	if keys, err := db.Search("sandbox", 10); err != nil || len(keys) != 0 {
-		t.Errorf("search still finds removed comment text: %v (%v)", keys, err)
+	if res, err := db.Search("sandbox", 10); err != nil || len(res.Keys) != 0 {
+		t.Errorf("search still finds removed comment text: %v (%v)", res.Keys, err)
 	}
 }
 
@@ -486,8 +486,8 @@ func TestDeleteItemsCascadesAndTombstones(t *testing.T) {
 			t.Errorf("%s kept %d rows for a deleted item", table, rows)
 		}
 	}
-	if keys, err := db.Search("budget", 10); err != nil || len(keys) != 0 {
-		t.Errorf("deleted item still in the full-text index: %v (%v)", keys, err)
+	if res, err := db.Search("budget", 10); err != nil || len(res.Keys) != 0 {
+		t.Errorf("deleted item still in the full-text index: %v (%v)", res.Keys, err)
 	}
 	deleted, err := db.DeletedKeysSince(cursor)
 	if err != nil {

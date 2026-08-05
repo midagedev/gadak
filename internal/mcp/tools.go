@@ -58,8 +58,8 @@ Examples:
   SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS days
   FROM issues WHERE status_category = 'inprogress' ORDER BY days DESC LIMIT 20;`
 
-const toolSearchDescription = `Full-text search over issue titles, descriptions, and comments (FTS5).
-Returns matching keys with summary and status, best match first.
+const toolSearchDescription = `Full-text search over issue and page titles, bodies, and comments (FTS5).
+Returns matching issue keys (with summary/status) and page PageLite rows, best match first.
 Prefer scry_query for relational or aggregated questions; use this for free-text recall.`
 
 const toolIssueDescription = `Fetch one issue by key with full detail: list fields plus description,
@@ -194,7 +194,7 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, bool) {
 	if limit > hardRowLimit {
 		limit = hardRowLimit
 	}
-	keys, err := s.db.Search(text, limit)
+	res, err := s.db.Search(text, limit)
 	if err != nil {
 		return textResult(err.Error()), true
 	}
@@ -212,15 +212,19 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, bool) {
 		Summary string `json:"summary"`
 		Status  string `json:"status"`
 	}
-	hits := make([]hit, 0, len(keys))
-	for _, k := range keys {
+	hits := make([]hit, 0, len(res.Keys))
+	for _, k := range res.Keys {
 		if l, ok := byKey[k]; ok {
 			hits = append(hits, hit{Key: l.IssueKey, Summary: l.Summary, Status: l.Status})
 		} else {
 			hits = append(hits, hit{Key: k})
 		}
 	}
-	return marshalResult(map[string]any{"total": len(hits), "issues": hits})
+	pages := res.Pages
+	if pages == nil {
+		pages = []store.PageLite{}
+	}
+	return marshalResult(map[string]any{"total": res.Total, "issues": hits, "pages": pages})
 }
 
 func (s *Server) toolIssue(args map[string]any) ([]contentItem, bool) {

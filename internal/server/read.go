@@ -472,12 +472,63 @@ func attachmentURL(key, id string) string {
 
 func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	keys, err := s.db.Search(r.URL.Query().Get("q"), limit)
+	res, err := s.db.Search(r.URL.Query().Get("q"), limit)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"keys": keys, "total": len(keys)})
+	// keys/total keep pre-R2 meaning for issue clients; pages is additive.
+	// Always emit pages (empty array) so clients can rely on the key.
+	if res.Pages == nil {
+		res.Pages = []store.PageLite{}
+	}
+	if res.Keys == nil {
+		res.Keys = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"keys": res.Keys, "pages": res.Pages, "total": res.Total,
+	})
+}
+
+/* ── Confluence pages (R2) ── */
+
+func (s *server) handlePages(w http.ResponseWriter, r *http.Request) {
+	st, err := s.db.SyncState("confluence")
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	w.Header().Set("ETag", etag(st.Version))
+	if etagMatches(r.Header.Get("If-None-Match"), st.Version) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	pages, err := s.db.PageLites()
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if pages == nil {
+		pages = []store.PageLite{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"pages": pages, "total": len(pages)})
+}
+
+func (s *server) handlePageDetail(w http.ResponseWriter, r *http.Request) {
+	s.handlePageDetailKey(w, r, r.PathValue("key"))
+}
+
+func (s *server) handlePageDetailKey(w http.ResponseWriter, r *http.Request, key string) {
+	d, err := s.db.PageDetail(key)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if d == nil {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
 }
 
 /* ── attachment bytes: local cache first, Jira only on a miss ── */
@@ -984,21 +1035,45 @@ func overlaps(want, have []string) bool {
 // Staleness is measured from the last run that finished without an error, never
 // from the watermark: a quiet project leaves its watermark in the past forever
 // and would read as permanently delayed.
+//
+// st is the Jira sync_state (bootstrap/delta still pass only that). Confluence
+// is appended when a sources row exists — bootstrap/delta payloads stay issue-
+// only and their ETags stay jira-version-only.
 func (s *server) health(st store.SyncState) syncHealth {
-	src := syncSource{Key: "jira", Label: "Jira", Status: "healthy", Message: "ok", SyncedAt: st.SyncedAt}
+	sources := []syncSource{s.sourceHealth("jira", "Jira", st)}
+	if ok, err := s.db.HasSource("confluence"); err == nil && ok {
+		if cst, err := s.db.SyncState("confluence"); err == nil {
+			sources = append(sources, s.sourceHealth("confluence", "Confluence", cst))
+		}
+	}
 	overall := "healthy"
+	for _, src := range sources {
+		switch src.Status {
+		case "failed":
+			overall = "failed"
+		case "missing", "stale":
+			if overall == "healthy" {
+				overall = "warning"
+			}
+		}
+	}
+	return syncHealth{Overall: overall, CheckedAt: store.Now(), Sources: sources}
+}
+
+func (s *server) sourceHealth(key, label string, st store.SyncState) syncSource {
+	src := syncSource{Key: key, Label: label, Status: "healthy", Message: "ok", SyncedAt: st.SyncedAt}
 	switch {
 	case st.LastError != nil && *st.LastError != "":
-		src.Status, src.Message, overall = "failed", *st.LastError, "failed"
+		src.Status, src.Message = "failed", *st.LastError
 	case st.SyncedAt == nil && st.Watermark == "" && st.LastFullSyncAt == nil:
-		src.Status, src.Message, overall = "missing", "not synced yet", "warning"
+		src.Status, src.Message = "missing", "not synced yet"
 	case s.stale(st.SyncedAt):
-		src.Status, src.Message, overall = "stale", "last sync is behind", "warning"
+		src.Status, src.Message = "stale", "last sync is behind"
 	}
 	if src.SyncedAt == nil {
 		src.SyncedAt = st.LastFullSyncAt
 	}
-	return syncHealth{Overall: overall, CheckedAt: store.Now(), Sources: []syncSource{src}}
+	return src
 }
 
 // stale allows a wide margin — ten missed incremental runs — because this only

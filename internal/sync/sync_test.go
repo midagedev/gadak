@@ -462,8 +462,8 @@ func TestFullSyncMapsEverything(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(hits) != 1 || hits[0] != "NMB-1" {
-			t.Errorf("search %q = %v", term, hits)
+		if len(hits.Keys) != 1 || hits.Keys[0] != "NMB-1" {
+			t.Errorf("search %q = %v", term, hits.Keys)
 		}
 	}
 

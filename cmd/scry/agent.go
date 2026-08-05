@@ -266,20 +266,30 @@ func cmdSearch(args []string) error {
 	defer db.Close()
 	warnIfStale()
 
-	keys, err := db.Search(query, *limit)
+	res, err := db.Search(query, *limit)
 	if err != nil {
 		return err
 	}
 	// Best match first: lookup preserves the order FTS ranked the keys in.
-	lites, err := lookup(db, keys)
+	lites, err := lookup(db, res.Keys)
 	if err != nil {
 		return err
 	}
 	if *asJSON {
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"total": len(lites), "issues": lites})
+		pages := res.Pages
+		if pages == nil {
+			pages = []store.PageLite{}
+		}
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"total": res.Total, "issues": lites, "pages": pages,
+		})
 	}
 	for _, l := range lites {
 		fmt.Println(summaryLine(l))
+	}
+	for _, p := range res.Pages {
+		// page  <space>/<title>  <url>
+		fmt.Printf("page  %s/%s  %s\n", p.SpaceKey, p.Title, p.URL)
 	}
 	return nil
 }

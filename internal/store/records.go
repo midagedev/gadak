@@ -122,6 +122,9 @@ type Page struct {
 	ParentID string
 	Version  int
 	Status   string
+	// BodyADF is the raw Atlas Document Format body for rendering. Empty when
+	// the mirror only has flattened body_text (pre-v10 rows).
+	BodyADF json.RawMessage
 }
 
 // PageRecord is one document item plus its projection and comments. Comments

@@ -283,25 +283,128 @@ func (db *DB) Detail(key string) (*Detail, error) {
 	return d, nil
 }
 
+// PageLite is the list/search row for a mirrored wiki page. Field names are
+// snake_case JSON to match IssueLite and the read API contract.
+type PageLite struct {
+	Key       string `json:"key"`
+	Title     string `json:"title"`
+	SpaceKey  string `json:"space_key"`
+	ParentID  string `json:"parent_id"`
+	Author    string `json:"author"`
+	UpdatedAt string `json:"updated_at"`
+	Version   int    `json:"version"`
+	URL       string `json:"url"`
+}
+
+// PageComment is one comment on a page detail response.
+type PageComment struct {
+	Author    string          `json:"author"`
+	CreatedAt string          `json:"created_at"`
+	BodyADF   json.RawMessage `json:"body_adf"`
+	BodyText  string          `json:"body_text"`
+}
+
+// PageDetail is PageLite plus the raw ADF body and comments.
+type PageDetail struct {
+	PageLite
+	BodyADF  json.RawMessage `json:"body_adf"`
+	Comments []PageComment   `json:"comments"`
+}
+
+// PageLites returns every mirrored page, ordered by space then title.
+func (db *DB) PageLites() ([]PageLite, error) {
+	out := []PageLite{}
+	err := each(db.sql, `
+		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
+		       COALESCE(p.parent_id, ''), COALESCE(it.author, ''), COALESCE(it.updated_at, ''),
+		       COALESCE(p.version, 0), COALESCE(it.url, '')
+		FROM pages p
+		JOIN items it ON it.id = p.item_id
+		WHERE it.kind = 'page'
+		ORDER BY p.space_key, it.title`,
+		func(rows *sql.Rows) error {
+			var v PageLite
+			if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.ParentID,
+				&v.Author, &v.UpdatedAt, &v.Version, &v.URL); err != nil {
+				return err
+			}
+			out = append(out, v)
+			return nil
+		})
+	return out, err
+}
+
+// PageDetail assembles one page. An unknown key returns (nil, nil).
+func (db *DB) PageDetail(key string) (*PageDetail, error) {
+	var itemID string
+	var bodyADF *string
+	var d PageDetail
+	err := db.sql.QueryRow(`
+		SELECT it.id, COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
+		       COALESCE(p.parent_id, ''), COALESCE(it.author, ''), COALESCE(it.updated_at, ''),
+		       COALESCE(p.version, 0), COALESCE(it.url, ''), p.body_adf
+		FROM pages p
+		JOIN items it ON it.id = p.item_id
+		WHERE it.kind = 'page' AND it.key = ?`, key).
+		Scan(&itemID, &d.Key, &d.Title, &d.SpaceKey, &d.ParentID,
+			&d.Author, &d.UpdatedAt, &d.Version, &d.URL, &bodyADF)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	d.BodyADF = rawOrNull(bodyADF)
+	d.Comments = []PageComment{}
+	if err := each(db.sql, `
+		SELECT COALESCE(author, ''), COALESCE(created_at, ''),
+		       body_adf, COALESCE(body_text, '')
+		FROM comments WHERE item_id = ? ORDER BY created_at, id`,
+		func(rows *sql.Rows) error {
+			var c PageComment
+			var body *string
+			if err := rows.Scan(&c.Author, &c.CreatedAt, &body, &c.BodyText); err != nil {
+				return err
+			}
+			c.BodyADF = rawOrNull(body)
+			d.Comments = append(d.Comments, c)
+			return nil
+		}, itemID); err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+// SearchResult is a kind-aware FTS hit list. Keys are issue keys (best match
+// first among issues in the ranked window); Pages are page hits in the same
+// ranked window. Total is the number of hits returned (keys + pages), matching
+// the pre-R2 meaning of total = len(results after limit).
+type SearchResult struct {
+	Keys  []string
+	Pages []PageLite
+	Total int
+}
+
 // Search runs an FTS5 query over titles, bodies and comment text and returns
-// matching issue keys, best match first. Bare terms are rewritten as quoted
-// prefix queries (see ftsPrefixQuery). A query FTS5 cannot parse is retried as
-// a literal phrase rather than surfaced as an error, because this is fed raw
-// user input.
-func (db *DB) Search(query string, limit int) ([]string, error) {
+// matching issues and pages, best match first. Bare terms are rewritten as
+// quoted prefix queries (see ftsPrefixQuery). A query FTS5 cannot parse is
+// retried as a literal phrase rather than surfaced as an error, because this is
+// fed raw user input. limit applies to the combined FTS result set.
+func (db *DB) Search(query string, limit int) (SearchResult, error) {
+	empty := SearchResult{Keys: []string{}, Pages: []PageLite{}}
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return []string{}, nil
+		return empty, nil
 	}
 	if limit <= 0 {
 		limit = 50
 	}
 	match := ftsPrefixQuery(query)
-	keys, err := db.search(match, limit)
+	res, err := db.search(match, limit)
 	if err != nil {
 		return db.search(`"`+strings.ReplaceAll(query, `"`, `""`)+`"`, limit)
 	}
-	return keys, nil
+	return res, nil
 }
 
 // ftsPrefixQuery rewrites bare terms into quoted prefix queries ("텀"*).
@@ -327,25 +430,47 @@ func ftsPrefixQuery(q string) string {
 	return strings.Join(out, " ")
 }
 
-func (db *DB) search(match string, limit int) ([]string, error) {
-	out := []string{}
+func (db *DB) search(match string, limit int) (SearchResult, error) {
+	res := SearchResult{Keys: []string{}, Pages: []PageLite{}}
 	err := each(db.sql, `
-		SELECT i.key
+		SELECT it.kind, COALESCE(it.key, ''), COALESCE(it.title, ''),
+		       COALESCE(it.author, ''), COALESCE(it.updated_at, ''), COALESCE(it.url, ''),
+		       COALESCE(p.space_key, ''), COALESCE(p.parent_id, ''), COALESCE(p.version, 0)
 		FROM items_fts f
 		JOIN items it ON it.rowid = f.rowid
-		JOIN issues i ON i.item_id = it.id
+		LEFT JOIN pages p ON p.item_id = it.id
 		WHERE items_fts MATCH ?
 		ORDER BY rank
 		LIMIT ?`,
 		func(rows *sql.Rows) error {
-			var k string
-			if err := rows.Scan(&k); err != nil {
+			var kind, key, title, author, updatedAt, url, spaceKey, parentID string
+			var version int
+			if err := rows.Scan(&kind, &key, &title, &author, &updatedAt, &url,
+				&spaceKey, &parentID, &version); err != nil {
 				return err
 			}
-			out = append(out, k)
+			switch kind {
+			case "issue":
+				if key != "" {
+					res.Keys = append(res.Keys, key)
+				}
+			case "page":
+				res.Pages = append(res.Pages, PageLite{
+					Key: key, Title: title, SpaceKey: spaceKey, ParentID: parentID,
+					Author: author, UpdatedAt: updatedAt, Version: version, URL: url,
+				})
+			}
 			return nil
 		}, match, limit)
-	return out, err
+	res.Total = len(res.Keys) + len(res.Pages)
+	return res, err
+}
+
+// HasSource reports whether a sources row exists for id.
+func (db *DB) HasSource(id string) (bool, error) {
+	var n int
+	err := db.sql.QueryRow(`SELECT COUNT(*) FROM sources WHERE id = ?`, id).Scan(&n)
+	return n > 0, err
 }
 
 // each is the query-rows-and-scan boilerplate, once.

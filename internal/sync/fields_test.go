@@ -173,18 +173,18 @@ func TestDiscoveryE2ETwoProjectsCoalesce(t *testing.T) {
 		t.Errorf("field_usage repro = %+v", filled)
 	}
 
-	keys, err := db.Search("xyzzy", 10)
+	hits, err := db.Search("xyzzy", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	found := false
-	for _, k := range keys {
+	for _, k := range hits.Keys {
 		if k == "ALPHA-1" {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("FTS missed body text; keys=%v", keys)
+		t.Errorf("FTS missed body text; keys=%v", hits.Keys)
 	}
 
 	if len(site.syncFields) != 1 || site.syncFields[0] != "*all" {
@@ -234,32 +234,32 @@ func TestReingestCustomIdempotent(t *testing.T) {
 		t.Errorf("expected at least one rewrite, got %d", n)
 	}
 	// Comments FTS preserved
-	keys, err := db.Search("commentonlytoken", 10)
+	res, err := db.Search("commentonlytoken", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	found := false
-	for _, k := range keys {
+	for _, k := range res.Keys {
 		if k == "NMB-1" {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("comments FTS lost after reingest; keys=%v", keys)
+		t.Errorf("comments FTS lost after reingest; keys=%v", res.Keys)
 	}
 	// Body role FTS
-	keys, err = db.Search("reproseed", 10)
+	res, err = db.Search("reproseed", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	found = false
-	for _, k := range keys {
+	for _, k := range res.Keys {
 		if k == "NMB-1" {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("body field FTS missed; keys=%v body=%q", keys, db.column(t, "items", "body_text", "NMB-1"))
+		t.Errorf("body field FTS missed; keys=%v body=%q", res.Keys, db.column(t, "items", "body_text", "NMB-1"))
 	}
 	// Second reingest is idempotent
 	n2, err := db.ReingestCustom(fields.SpecIDsFrom(specs), fields.BodyFieldIDs(nil, specs))

@@ -248,6 +248,7 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 			ParentID: parentID,
 			Version:  ver,
 			Status:   status,
+			BodyADF:  adf,
 		},
 	}
 	for _, cm := range cms {
