@@ -92,7 +92,7 @@ export const ko = {
   'field.status': '상태',
   'field.assignee_email': '담당자',
   'field.reporter_email': '보고자',
-  'field.d1_group': '파트',
+  'field.team_group': '파트',
   'field.labels': '라벨',
   'field.priority': '우선순위',
   'field.severity': '심각도',
@@ -136,7 +136,7 @@ export const ko = {
   'column.components': '컴포넌트',
   'column.created': '생성 시간',
   'column.environment': '환경',
-  'column.d1_group': '파트',
+  'column.team_group': '파트',
   'column.dev_test_result': '개발검증 결과',
 
   /* ── Status categories ── */

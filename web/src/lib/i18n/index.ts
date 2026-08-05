@@ -89,7 +89,7 @@ const FIELD_KEYS = [
   'status',
   'assignee_email',
   'reporter_email',
-  'd1_group',
+  'team_group',
   'labels',
   'priority',
   'severity',

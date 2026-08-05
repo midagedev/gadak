@@ -738,7 +738,7 @@ func TestEmptyProjectsJQL(t *testing.T) {
 	if got := fullJQL(""); got != "ORDER BY updated DESC" {
 		t.Errorf("full empty = %q", got)
 	}
-	if got := fullJQL("D1"); got != `project = "D1" ORDER BY updated DESC` {
+	if got := fullJQL("AAA"); got != `project = "AAA" ORDER BY updated DESC` {
 		t.Errorf("full one = %q", got)
 	}
 	incEmpty := incrementalJQL(nil, "2026-08-05T14:54:00.000+0000")
@@ -748,14 +748,14 @@ func TestEmptyProjectsJQL(t *testing.T) {
 	if strings.Contains(incEmpty, "project") {
 		t.Errorf("incremental empty must not mention project: %q", incEmpty)
 	}
-	incOne := incrementalJQL([]string{"D1"}, "2026-08-05T14:54:00.000+0000")
-	if !strings.Contains(incOne, `project in ("D1")`) || strings.Contains(incOne, "project in ()") {
+	incOne := incrementalJQL([]string{"AAA"}, "2026-08-05T14:54:00.000+0000")
+	if !strings.Contains(incOne, `project in ("AAA")`) || strings.Contains(incOne, "project in ()") {
 		t.Errorf("incremental one = %q", incOne)
 	}
 	if got := reconcileJQL(nil); got != "ORDER BY created ASC" {
 		t.Errorf("reconcile empty = %q", got)
 	}
-	if got := reconcileJQL([]string{"D1", "D2"}); got != `project in ("D1", "D2") ORDER BY created ASC` {
+	if got := reconcileJQL([]string{"AAA", "BBB"}); got != `project in ("AAA", "BBB") ORDER BY created ASC` {
 		t.Errorf("reconcile multi = %q", got)
 	}
 	if strings.Contains(reconcileJQL(nil), "project in ()") || strings.Contains(reconcileJQL([]string{}), "project in ()") {

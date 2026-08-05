@@ -58,10 +58,10 @@
         }
         if (out.length >= 8) break
       }
-    } else if (w.startsWith('#') && fieldEnabled('d1_group')) {
+    } else if (w.startsWith('#') && fieldEnabled('team_group')) {
       const q = w.slice(1).toLowerCase()
-      for (const v of filters.facets.d1_group) {
-        if (!q || v.label.toLowerCase().includes(q)) out.push({ kind: 'value', field: 'd1_group', value: v.value, label: v.label, hint: `${v.count}` })
+      for (const v of filters.facets.team_group) {
+        if (!q || v.label.toLowerCase().includes(q)) out.push({ kind: 'value', field: 'team_group', value: v.value, label: v.label, hint: `${v.count}` })
         if (out.length >= 8) break
       }
     } else if (w.startsWith('!')) {

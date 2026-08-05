@@ -6,7 +6,7 @@ test.describe('teamGroups surface', () => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
-    // Filter menu exposes Team (field.d1_group) when features.teamGroups is on.
+    // Filter menu exposes Team (field.team_group) when features.teamGroups is on.
     // Accessible name is "Team ›" (label + chevron), so match by prefix.
     await page.getByRole('button', { name: '+ Filter' }).click()
     const teamField = page.getByRole('button', { name: /^Team/ })

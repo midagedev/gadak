@@ -8,7 +8,7 @@
   const ALL_OPTIONS: { key: GroupBy; label: string }[] = [
     { key: 'status_category', label: t('group.byStatusCategory') },
     { key: 'product', label: t('group.byProduct') },
-    { key: 'd1_group', label: t('group.byTeam') },
+    { key: 'team_group', label: t('group.byTeam') },
     { key: 'assignee', label: t('group.byAssignee') },
     { key: 'priority', label: t('group.byPriority') },
     { key: 'severity', label: t('group.bySeverity') },

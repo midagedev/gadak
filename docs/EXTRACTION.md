@@ -99,9 +99,9 @@ so scry uses a different one:
 - ~~**The UI is Korean-only.**~~ Done: the copy is English-first with Korean
   kept as a locale (`web/src/lib/i18n/`). Source comments are still partly
   Korean; translating them is cosmetic, not blocking.
-- **`d1_group` is still the field name** for the optional group taxonomy in the
-  client's types and view config. It should be renamed to something neutral like
-  `team_group` in the same pass as the API contract's first stable release.
+- ~~**The group-taxonomy field carried its originating team's name.**~~ Done:
+  renamed to the neutral `team_group` across the API, client types, and view
+  config before the first stable release of the API contract.
 
 ## Provenance of the demo data
 

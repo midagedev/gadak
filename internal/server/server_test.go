@@ -108,7 +108,7 @@ func fixtureAt(t *testing.T) (*store.DB, *config.Config, string) {
 		Projects: []string{"NMB", "NMA"},
 		Members: []config.Member{{
 			Email: "hc@example.com", Name: "김현철", DisplayName: "현철",
-			Group: "batch", Department: "D1", JobRole: "lead",
+			Group: "batch", Department: "platform", JobRole: "lead",
 			AvatarURL: "https://avatars/hc.png", JiraAccountID: "acc-hc",
 		}},
 		GroupRules: []config.GroupRule{
@@ -197,10 +197,10 @@ func TestBootstrapShapeAndETag(t *testing.T) {
 	// (labels cloud) is cloud even though both live in project NMB.
 	groups := map[string]string{}
 	for _, i := range body.Issues {
-		groups[i.IssueKey] = deref(i.D1Group)
+		groups[i.IssueKey] = deref(i.TeamGroup)
 	}
 	if groups["NMB-1"] != "batch" || groups["NMB-2"] != "cloud" {
-		t.Fatalf("d1_group %v", groups)
+		t.Fatalf("team_group %v", groups)
 	}
 	// No rule matches NMA-9 and it has no assignee, so the fallback yields nothing.
 	if groups["NMA-9"] != "" {
@@ -592,8 +592,8 @@ func TestSettingsRoundtripPreservesCredential(t *testing.T) {
 	// New rules take effect immediately: the cached projection is invalidated.
 	boot := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
 	for _, i := range boot.Issues {
-		if i.ProjectKey == "NMB" && deref(i.D1Group) != "platform" {
-			t.Fatalf("%s d1_group %q, want platform", i.IssueKey, deref(i.D1Group))
+		if i.ProjectKey == "NMB" && deref(i.TeamGroup) != "platform" {
+			t.Fatalf("%s team_group %q, want platform", i.IssueKey, deref(i.TeamGroup))
 		}
 	}
 }
@@ -646,7 +646,7 @@ func TestIssueLiteFieldNames(t *testing.T) {
 		"status_category", "priority", "priority_rank", "assignee", "assignee_email",
 		"reporter", "reporter_email", "labels", "components", "fix_versions", "epic_key",
 		"created_at", "updated_at", "status_changed_at", "resolved_at", "reopen_count",
-		"comment_count", "d1_group",
+		"comment_count", "team_group",
 	} {
 		if _, ok := rows["NMB-1"][field]; !ok {
 			t.Errorf("issue row is missing %q", field)

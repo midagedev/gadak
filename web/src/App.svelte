@@ -202,7 +202,7 @@
     // 2) Group preset when taxonomy is on and identity has a group
     if (feature('teamGroups') && me.group) {
       const c: ViewConfig = emptyConfig()
-      c.filters.d1_group = [me.group]
+      c.filters.team_group = [me.group]
       c.filters.status_category = ['new', 'inprogress']
       filters.applyConfig(c)
       return

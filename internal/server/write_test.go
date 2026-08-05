@@ -165,7 +165,7 @@ func TestTransitionWritesThroughToTheMirror(t *testing.T) {
 		Issue struct {
 			Status         string `json:"status"`
 			StatusCategory string `json:"status_category"`
-			D1Group        string `json:"d1_group"`
+			TeamGroup        string `json:"team_group"`
 		} `json:"issue"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
@@ -175,8 +175,8 @@ func TestTransitionWritesThroughToTheMirror(t *testing.T) {
 		t.Fatalf("stale row returned: %+v", body.Issue)
 	}
 	// It is a full IssueLite, group injection included.
-	if body.Issue.D1Group != "batch" {
-		t.Errorf("d1_group %q", body.Issue.D1Group)
+	if body.Issue.TeamGroup != "batch" {
+		t.Errorf("team_group %q", body.Issue.TeamGroup)
 	}
 	// And the mirror itself moved, so the next poll and the ETag agree with it.
 	if after := get(t, h, apiBase+"bootstrap/", nil).Header().Get("ETag"); after == before {

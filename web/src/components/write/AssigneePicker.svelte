@@ -86,7 +86,7 @@
     const g2 = take([issue.reporter_email ? issues.members.get(issue.reporter_email) : undefined])
     const g3 = take(recentOf('assignee').map((acc) => memberByAccount.get(acc)))
     const g4 = take(
-      assignableMembers.filter((m) => issue.d1_group && m.group === issue.d1_group).sort(byName),
+      assignableMembers.filter((m) => issue.team_group && m.group === issue.team_group).sort(byName),
     )
     const g5 = take([...assignableMembers].sort(byName))
     return [g1, g2, g3, g4, g5].filter((g) => g.length)

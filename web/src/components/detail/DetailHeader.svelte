@@ -83,8 +83,8 @@
     {#if issue.severity}
       <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{t('detail.severityShort', { s: issue.severity })}</span>
     {/if}
-    {#if issue.d1_group}
-      <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{issue.d1_group}</span>
+    {#if issue.team_group}
+      <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{issue.team_group}</span>
     {/if}
 
     <!-- Reopen badge -->

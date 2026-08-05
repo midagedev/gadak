@@ -297,14 +297,14 @@
       {issue.environment}
     </button>
   {/if}
-  {#if cols.has('d1_group') && issue.d1_group}
+  {#if cols.has('team_group') && issue.team_group}
     <button
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
-      title={t('list.fieldValue', { field: t('column.d1_group'), value: issue.d1_group })}
-      onclick={stop(() => filters.addValue('d1_group', issue.d1_group!))}
+      title={t('list.fieldValue', { field: t('column.team_group'), value: issue.team_group })}
+      onclick={stop(() => filters.addValue('team_group', issue.team_group!))}
     >
-      {issue.d1_group}
+      {issue.team_group}
     </button>
   {/if}
   {#if cols.has('reporter') && issue.reporter}

@@ -91,7 +91,7 @@ export const en = {
   'field.status': 'Status',
   'field.assignee_email': 'Assignee',
   'field.reporter_email': 'Reporter',
-  'field.d1_group': 'Team',
+  'field.team_group': 'Team',
   'field.labels': 'Labels',
   'field.priority': 'Priority',
   'field.severity': 'Severity',
@@ -135,7 +135,7 @@ export const en = {
   'column.components': 'Components',
   'column.created': 'Created',
   'column.environment': 'Environment',
-  'column.d1_group': 'Team',
+  'column.team_group': 'Team',
   'column.dev_test_result': 'Dev test result',
 
   /* ── Status categories ── */

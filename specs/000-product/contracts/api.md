@@ -161,7 +161,7 @@ reopen_count, reopened_at, comment_count
 Two groups of fields are added on top of the stored row, both from
 configuration:
 
-- `d1_group`, when `groupRules` or a member `group` is configured. The first
+- `team_group`, when `groupRules` or a member `group` is configured. The first
   matching rule wins — conditions are ANDed, values inside one condition are
   ORed, an empty condition is always true — and the assignee's configured group
   is the fallback. With no taxonomy configured the key is **omitted**, not null,

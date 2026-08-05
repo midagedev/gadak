@@ -31,9 +31,9 @@ import (
 // issueLite is the stored row plus the fields only configuration can supply.
 type issueLite struct {
 	store.IssueLite
-	// D1Group is omitted entirely when no group taxonomy is configured, which
+	// TeamGroup is omitted entirely when no group taxonomy is configured, which
 	// leaves the client's group surfaces empty rather than wrong.
-	D1Group *string `json:"d1_group,omitempty"`
+	TeamGroup *string `json:"team_group,omitempty"`
 	// extra carries the plugin enrichment fields, already keyed by their client
 	// names (see derivedView.enrichRow).
 	extra map[string]any
@@ -52,8 +52,8 @@ func (l issueLite) MarshalJSON() ([]byte, error) {
 	for k, v := range l.extra {
 		extra[k] = v
 	}
-	if l.D1Group != nil {
-		extra["d1_group"] = *l.D1Group
+	if l.TeamGroup != nil {
+		extra["team_group"] = *l.TeamGroup
 	}
 	l.IssueLite.Custom = nil // spread, never nested
 	stored, err := json.Marshal(l.IssueLite)
@@ -769,7 +769,7 @@ func hashMembers(members []member) string {
 func (v *derivedView) issues(lites []store.IssueLite) []issueLite {
 	out := make([]issueLite, 0, len(lites))
 	for _, l := range lites {
-		out = append(out, issueLite{IssueLite: l, D1Group: v.group(l), extra: v.enrichRow(l.IssueKey)})
+		out = append(out, issueLite{IssueLite: l, TeamGroup: v.group(l), extra: v.enrichRow(l.IssueKey)})
 	}
 	return out
 }

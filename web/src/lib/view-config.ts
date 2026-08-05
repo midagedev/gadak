@@ -24,7 +24,7 @@ export interface ViewFilters {
   status: string[] // Raw Jira status strings
   assignee_email: string[]
   reporter_email: string[]
-  d1_group: string[]
+  team_group: string[]
   labels: string[]
   priority: string[]
   severity: string[]
@@ -68,7 +68,7 @@ export type GroupBy =
   | 'assignee'
   | 'priority'
   | 'severity'
-  | 'd1_group'
+  | 'team_group'
   | 'product'
   | 'issue_type'
   | 'development_test_result'
@@ -102,7 +102,7 @@ export const COLUMN_KEYS_ALL = [
   'components',
   'created',
   'environment',
-  'd1_group',
+  'team_group',
   'dev_test_result',
 ] as const
 export type ColumnKey = (typeof COLUMN_KEYS_ALL)[number]
@@ -124,7 +124,7 @@ const COLUMN_KEYS = COLUMN_KEYS_ALL as readonly ColumnKey[]
 const COLUMN_FEATURE: Partial<Record<ColumnKey, keyof ScryFeatures>> = {
   qa_impact: 'qa',
   deploy: 'deploy',
-  d1_group: 'teamGroups',
+  team_group: 'teamGroups',
 }
 
 function columnEnabled(key: ColumnKey): boolean {
@@ -181,7 +181,7 @@ export const MULTI_FIELDS = [
   'status',
   'assignee_email',
   'reporter_email',
-  'd1_group',
+  'team_group',
   'labels',
   'priority',
   'severity',
@@ -210,7 +210,7 @@ export type MultiField = (typeof MULTI_FIELDS)[number]
 
 /** Filter fields from optional features — invalid in both filter menu and URL when flag is off. */
 const FIELD_FEATURE: Partial<Record<MultiField, keyof ScryFeatures>> = {
-  d1_group: 'teamGroups',
+  team_group: 'teamGroups',
   qa_run: 'qa',
   qa_suite: 'qa',
   qa_impact: 'qa',
@@ -229,7 +229,7 @@ export function filterFields(): MultiField[] {
 
 /** Grouping axes from optional features. */
 const GROUP_FEATURE: Partial<Record<GroupBy, keyof ScryFeatures>> = {
-  d1_group: 'teamGroups',
+  team_group: 'teamGroups',
   product: 'teamGroups',
   qa_impact: 'qa',
 }
@@ -250,7 +250,7 @@ export function emptyFilters(): ViewFilters {
     status: [],
     assignee_email: [],
     reporter_email: [],
-    d1_group: [],
+    team_group: [],
     labels: [],
     priority: [],
     severity: [],
@@ -308,7 +308,7 @@ const MULTI_KEY: Record<MultiField, string> = {
   status: 'st',
   assignee_email: 'as',
   reporter_email: 'rp',
-  d1_group: 'gr',
+  team_group: 'gr',
   labels: 'lb',
   priority: 'pr',
   severity: 'sv',
@@ -411,7 +411,7 @@ function isGroupBy(v: string): v is GroupBy {
       'assignee',
       'priority',
       'severity',
-      'd1_group',
+      'team_group',
       'product',
       'issue_type',
       'development_test_result',

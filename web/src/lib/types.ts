@@ -66,7 +66,7 @@ export interface IssueLite {
   fix_versions: string[]
   components: string[]
 
-  d1_group: string | null
+  team_group: string | null
   epic_key: string | null
   source_project: string | null
 

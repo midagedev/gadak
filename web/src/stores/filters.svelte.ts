@@ -412,7 +412,7 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
       continue
     if (f.reporter_email.length && !(it.reporter_email && f.reporter_email.includes(it.reporter_email)))
       continue
-    if (f.d1_group.length && !(it.d1_group && f.d1_group.includes(it.d1_group))) continue
+    if (f.team_group.length && !(it.team_group && f.team_group.includes(it.team_group))) continue
     if (f.priority.length && !(it.priority && f.priority.includes(it.priority))) continue
     if (f.severity.length && !(it.severity && f.severity.includes(it.severity))) continue
     if (f.issue_type.length && !f.issue_type.includes(it.issue_type)) continue
@@ -615,13 +615,13 @@ function groupKeyOf(issue: IssueLite, by: GroupBy): { key: string; label: string
       return { key: issue.priority || '', label: issue.priority || t('group.noPriority') }
     case 'severity':
       return { key: issue.severity || '', label: issue.severity || t('group.noSeverity') }
-    case 'd1_group':
-      return issue.d1_group
-        ? { key: issue.d1_group, label: issue.d1_group }
+    case 'team_group':
+      return issue.team_group
+        ? { key: issue.team_group, label: issue.team_group }
         : { key: '', label: t('common.unclassified') }
     case 'product':
       // Group→product mapping is org-specific; read from runtime config.
-      return config().productByGroup[issue.d1_group ?? ''] ?? { key: '', label: t('group.noProduct') }
+      return config().productByGroup[issue.team_group ?? ''] ?? { key: '', label: t('group.noProduct') }
     case 'issue_type':
       return { key: issue.issue_type || '', label: issue.issue_type || t('group.noType') }
     case 'development_test_result': {
@@ -793,7 +793,7 @@ function buildFacets(
     bump(counters.status, it.status)
     if (it.assignee_email) bump(counters.assignee_email, it.assignee_email)
     if (it.reporter_email) bump(counters.reporter_email, it.reporter_email)
-    if (it.d1_group) bump(counters.d1_group, it.d1_group)
+    if (it.team_group) bump(counters.team_group, it.team_group)
     if (it.priority) bump(counters.priority, it.priority)
     if (it.severity) bump(counters.severity, it.severity)
     if (it.issue_type) bump(counters.issue_type, it.issue_type)
