@@ -221,6 +221,24 @@ export async function removeWatch(issueKey: string): Promise<void> {
   }
 }
 
+/* ── 즐겨찾기 (응답 shape는 watches 와 동일) ── */
+
+export function getFavorites(): Promise<WatchesResponse> {
+  return json<WatchesResponse>('favorites/')
+}
+
+export async function addFavorite(issueKey: string): Promise<void> {
+  const res = await raw(`favorites/${encodeURIComponent(issueKey)}/`, { method: 'PUT' })
+  if (!res.ok) throw new ApiError(res.status, `PUT favorites/${issueKey}/ → ${res.status}`)
+}
+
+export async function removeFavorite(issueKey: string): Promise<void> {
+  const res = await raw(`favorites/${encodeURIComponent(issueKey)}/`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 404) {
+    throw new ApiError(res.status, `DELETE favorites/${issueKey}/ → ${res.status}`)
+  }
+}
+
 /* ── 쓰기(Write) — 에러 바디 파싱 포함 ──
  * 쓰기 엔드포인트는 실패 시 { error, jira_errors? } 를 준다. 409 credential_required 는
  *  ApiError.code 로 구분되어 호출부가 자격증명 다이얼로그를 열 수 있다.

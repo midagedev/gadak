@@ -130,6 +130,29 @@ func (s *server) setWatch(w http.ResponseWriter, r *http.Request, key string, on
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *server) handleGetFavorites(w http.ResponseWriter, r *http.Request) {
+	keys, err := s.db.Favorites()
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"keys": keys})
+}
+
+func (s *server) handleDeleteFavorite(w http.ResponseWriter, r *http.Request) {
+	s.setFavorite(w, r, r.PathValue("key"), false)
+}
+
+// setFavorite mirrors setWatch: the PUT path shares wildcards with assignee
+// (see New), so the issue key is passed in rather than read from the route.
+func (s *server) setFavorite(w http.ResponseWriter, r *http.Request, key string, on bool) {
+	if err := s.db.SetFavorite(key, on); err != nil {
+		serverError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func newID() string {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {

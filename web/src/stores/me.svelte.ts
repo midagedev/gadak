@@ -5,12 +5,14 @@
  *  - Identity (email/name/department) from GET auth/me/, which reads the stored
  *    Jira credential. There is no scry account and no session token.
  *  - Watch set (SvelteSet, optimistic toggle + rollback), feed, push prefs.
- *  - Favorites (localStorage `scry:favorites`) / recent issues
- *    (localStorage `scry:recent`, max 30).
+ *  - Favorites (mirror DB via GET/PUT/DELETE favorites/; localStorage fallback
+ *    for hosted demo which answers 501 demo_read_only on writes) / recent
+ *    issues (localStorage `scry:recent`, max 30).
  *  - Derived group (part) for smart default views.
  *
  * Read-only features work with no credential. Personalization and writes need
- * a configured credential (`identified` === email !== null).
+ * a configured credential (`identified` === email !== null). Favorites are an
+ * exception: the loopback mirror is single-user and never 401s them.
  *
  * Reactivity: use svelte/reactivity SvelteSet so add/delete trigger updates.
  */
@@ -36,6 +38,7 @@ export type { FeedFocus } from '../lib/types'
  * a module-level capture would freeze DEFAULTS before config.json loads. */
 
 const FAVORITES_KEY = STORAGE_KEYS.favorites
+const FAVORITES_ORDER_KEY = STORAGE_KEYS.favoritesOrder
 const RECENT_KEY = STORAGE_KEYS.recent
 const RECENT_MAX = 30
 
@@ -157,8 +160,16 @@ class MeStore {
   pushState = $state<PushState>('default')
   pushError = $state<string | null>(null)
 
-  /* ── Local personalization (works without credential) ── */
+  /* ── Favorites (server; localStorage only as hosted-demo / offline fallback) ── */
   favorites = new SvelteSet<string>()
+  /**
+   * true while the favorites API is unreachable or read-only (hosted demo
+   * service worker returns 501 demo_read_only on writes). In that mode we
+   * persist to localStorage so the static demo keeps working.
+   */
+  #favoritesLocal = false
+
+  /* ── Local personalization (works without credential) ── */
   recent = $state<RecentIssueVisit[]>([])
 
   /** Personal feed main-area toggle. */
@@ -193,7 +204,8 @@ class MeStore {
 
   /**
    * Boot:
-   *  - Always restore local favorites/recent.
+   *  - Load favorites from the mirror (or localStorage when the server is
+   *    absent — hosted demo); restore recent from localStorage.
    *  - Always probe GET auth/me/ — configured credential → email (identity);
    *    otherwise 200 {email:null} and stay anonymous (render-before-auth).
    */
@@ -201,8 +213,8 @@ class MeStore {
     if (this.#initialized) return
     this.#initialized = true
 
-    for (const key of loadArray(FAVORITES_KEY)) this.favorites.add(key)
     this.recent = loadRecent()
+    await this.loadFavorites()
 
     try {
       await this.#fetchIdentity({ loadPersonal: true })
@@ -251,7 +263,7 @@ class MeStore {
     this.department = department
   }
 
-  /** Drop identity and personal server state; keep local favorites/recent. */
+  /** Drop identity and personal server state; keep favorites/recent. */
   #clearIdentity(): void {
     this.email = null
     this.name = null
@@ -574,16 +586,91 @@ class MeStore {
     }
   }
 
-  /* ── Favorites (local) ── */
+  /* ── Favorites (mirror DB; localStorage only for hosted-demo / offline) ── */
+
+  /**
+   * GET favorites/. On success, one-shot migrate any leftover localStorage
+   * keys into the mirror then drop the local key. On failure (hosted demo SW
+   * returns 404 for unknown GETs, or network down), load from localStorage so
+   * the static demo keeps working.
+   */
+  async loadFavorites(): Promise<void> {
+    try {
+      const res = await api.getFavorites()
+      this.favorites.clear()
+      // 서버는 추가순으로만 돌려준다. 사용자가 드래그로 정한 순서가 있으면 그것을
+      // 먼저 깔고, 서버에만 있는 키(다른 창·TUI에서 추가)를 뒤에 붙인다.
+      const wanted = new Set(res.keys)
+      for (const k of loadArray(FAVORITES_ORDER_KEY)) {
+        if (wanted.delete(k)) this.favorites.add(k)
+      }
+      for (const k of res.keys) {
+        if (wanted.has(k)) this.favorites.add(k)
+      }
+      this.#favoritesLocal = false
+      await this.#migrateLocalFavoritesToServer()
+    } catch (e) {
+      // Hosted demo has no writable favorites API; fall back to localStorage.
+      console.warn('[me] 즐겨찾기 서버 로드 실패 — localStorage 폴백', e)
+      this.#favoritesLocal = true
+      this.favorites.clear()
+      for (const key of loadArray(FAVORITES_KEY)) this.favorites.add(key)
+    }
+  }
+
+  /** One-shot: local scry:favorites → server, then clear the local key. */
+  async #migrateLocalFavoritesToServer(): Promise<void> {
+    const local = loadArray(FAVORITES_KEY)
+    if (!local.length) return
+    for (const key of local) {
+      if (this.favorites.has(key)) continue
+      try {
+        await api.addFavorite(key)
+        this.favorites.add(key)
+      } catch (e) {
+        // Write rejected (e.g. 501 demo_read_only) — keep local path.
+        console.warn('[me] 즐겨찾기 이관 실패 — localStorage 유지', e)
+        this.#favoritesLocal = true
+        saveArray(FAVORITES_KEY, [...new Set([...this.favorites, ...local])])
+        return
+      }
+    }
+    try {
+      localStorage.removeItem(FAVORITES_KEY)
+    } catch {
+      /* private mode */
+    }
+  }
 
   isFavorite(key: string): boolean {
     return this.favorites.has(key)
   }
 
-  toggleFavorite(key: string): void {
-    if (this.favorites.has(key)) this.favorites.delete(key)
+  /**
+   * Optimistic toggle. Server write on success; on any write failure (501
+   * demo_read_only, network, …) do not roll back — persist to localStorage
+   * so the hosted demo keeps working. Only write localStorage when the
+   * server cannot own the set (avoids dual-source drift).
+   */
+  async toggleFavorite(key: string): Promise<void> {
+    const wasFavorite = this.favorites.has(key)
+    if (wasFavorite) this.favorites.delete(key)
     else this.favorites.add(key)
-    saveArray(FAVORITES_KEY, [...this.favorites])
+
+    if (this.#favoritesLocal) {
+      saveArray(FAVORITES_KEY, [...this.favorites])
+      return
+    }
+
+    try {
+      if (wasFavorite) await api.removeFavorite(key)
+      else await api.addFavorite(key)
+    } catch (e) {
+      // Hosted demo / offline: keep the optimistic state and store locally.
+      console.warn('[me] 즐겨찾기 서버 쓰기 실패 — localStorage 폴백', e)
+      this.#favoritesLocal = true
+      saveArray(FAVORITES_KEY, [...this.favorites])
+    }
   }
 
   reorderFavorite(sourceKey: string, targetKey: string): void {
@@ -598,7 +685,10 @@ class MeStore {
     ordered.splice(insertAt, 0, moved)
     this.favorites.clear()
     for (const key of ordered) this.favorites.add(key)
-    saveArray(FAVORITES_KEY, ordered)
+    // 순서는 언제나 로컬에 남긴다 — 서버 favorites 테이블에는 순서 컬럼이 없고,
+    // 드래그 순서를 세션에만 두면 새로고침마다 흐트러진다(회귀).
+    saveArray(FAVORITES_ORDER_KEY, ordered)
+    if (this.#favoritesLocal) saveArray(FAVORITES_KEY, ordered)
   }
 
   /* ── Personal feed toggle ── */

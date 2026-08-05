@@ -228,12 +228,18 @@ func TestAssigneeSetAndClear(t *testing.T) {
 	if got := string(f.bodies["PUT /issue/NMB-1/assignee"]); got != `{"accountId":null}` {
 		t.Fatalf("clear body %s", got)
 	}
-	// The watch route shares this PUT pattern; both still land where they should.
+	// watches/favorites share this PUT pattern with assignee; each must land correctly.
 	if rec := send(t, h, http.MethodPut, apiBase+"watches/NMB-1/", ``); rec.Code != http.StatusNoContent {
 		t.Fatalf("watch PUT → %d", rec.Code)
 	}
 	if got := decode[struct{ Keys []string }](t, get(t, h, apiBase+"watches/", nil)); len(got.Keys) != 1 {
 		t.Fatalf("watches %v", got.Keys)
+	}
+	if rec := send(t, h, http.MethodPut, apiBase+"favorites/NMB-1/", ``); rec.Code != http.StatusNoContent {
+		t.Fatalf("favorite PUT → %d", rec.Code)
+	}
+	if got := decode[struct{ Keys []string }](t, get(t, h, apiBase+"favorites/", nil)); len(got.Keys) != 1 || got.Keys[0] != "NMB-1" {
+		t.Fatalf("favorites %v", got.Keys)
 	}
 }
 

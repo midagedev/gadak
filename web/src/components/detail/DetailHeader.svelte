@@ -36,7 +36,7 @@
       <!-- 즐겨찾기 토글 -->
       <button
         type="button"
-        onclick={() => me.toggleFavorite(issue.issue_key)}
+        onclick={() => void me.toggleFavorite(issue.issue_key)}
         class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-[13px] transition-colors hover:bg-bg-hover {isFavorite
           ? 'text-status-stale'
           : 'text-text-muted hover:text-text-primary'}"

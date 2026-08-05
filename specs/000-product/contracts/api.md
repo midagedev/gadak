@@ -300,6 +300,8 @@ has no editor, so `editmeta/` leaves it out and an edit to it is refused.
 | `views/<id>/` | DELETE | `saved_views` | R |
 | `watches/` | GET | `watches` | R |
 | `watches/<key>/` | PUT / DELETE | `watches` | R |
+| `favorites/` | GET | `favorites` | R |
+| `favorites/<key>/` | PUT / DELETE | `favorites` | R |
 
 Stored locally. `403`/`401` is never correct for these on a loopback bind.
 

@@ -5,7 +5,14 @@
 
 /** 현재 사용 키. */
 export const STORAGE_KEYS = {
+  /** 폴백 전용 — 서버가 즐겨찾기를 받아주지 않는 환경(호스티드 데모)에서만 집합을 담는다. */
   favorites: 'scry:favorites',
+  /**
+   * 즐겨찾기 표시 순서. 집합의 주인은 서버(`favorites` 테이블)지만 그 테이블에는
+   * 순서 컬럼이 없고 추가순으로만 돌려준다. 드래그로 만든 순서는 이 브라우저의
+   * 표시 취향이라 여기 남긴다 — 집합과 순서의 주인이 다르다는 뜻이고, 의도한 것이다.
+   */
+  favoritesOrder: 'scry:favorites-order',
   recent: 'scry:recent',
   personalViews: 'scry:personal-views',
   lastView: 'scry:last-view',

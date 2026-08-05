@@ -77,6 +77,8 @@ func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) ht
 	mux.HandleFunc("DELETE "+apiBase+"views/{id}/{$}", s.handleDeleteView)
 	mux.HandleFunc("GET "+apiBase+"watches/{$}", s.handleGetWatches)
 	mux.HandleFunc("DELETE "+apiBase+"watches/{key}/{$}", s.handleDeleteWatch)
+	mux.HandleFunc("GET "+apiBase+"favorites/{$}", s.handleGetFavorites)
+	mux.HandleFunc("DELETE "+apiBase+"favorites/{key}/{$}", s.handleDeleteFavorite)
 	// Personal feed (computed from the mirror; read receipts in feed_reads).
 	// Literal patterns beat `{key}/{action}/` and `{key}/detail/`.
 	mux.HandleFunc("GET "+apiBase+"feed/{$}", s.handleGetFeed)
@@ -85,10 +87,13 @@ func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) ht
 	// mirror images that overlap on `watches/assignee/`, and ServeMux rejects an
 	// ambiguous pair with no way to break the tie (there is no third-pattern
 	// exception). So they share one pattern and are told apart here.
+	// favorites/{key}/ is the same shape; add a case, do not register a second PUT.
 	mux.HandleFunc("PUT "+apiBase+"{key}/{action}/{$}", func(w http.ResponseWriter, r *http.Request) {
 		switch key, action := r.PathValue("key"), r.PathValue("action"); {
 		case key == "watches":
 			s.setWatch(w, r, action, true)
+		case key == "favorites":
+			s.setFavorite(w, r, action, true)
 		case action == "assignee":
 			s.handleAssignee(w, r)
 		default:

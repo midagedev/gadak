@@ -495,6 +495,7 @@ func TestPersonalStateRoundtrip(t *testing.T) {
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodDelete, apiBase + "views/" + created.ID + "/"},
 		{http.MethodPut, apiBase + "watches/NMB-1/"},
+		{http.MethodPut, apiBase + "favorites/NMB-1/"},
 	} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
@@ -505,8 +506,37 @@ func TestPersonalStateRoundtrip(t *testing.T) {
 	if got := decode[struct{ Keys []string }](t, get(t, h, apiBase+"watches/", nil)); len(got.Keys) != 1 || got.Keys[0] != "NMB-1" {
 		t.Fatalf("watches %+v", got.Keys)
 	}
+	if got := decode[struct{ Keys []string }](t, get(t, h, apiBase+"favorites/", nil)); len(got.Keys) != 1 || got.Keys[0] != "NMB-1" {
+		t.Fatalf("favorites %+v", got.Keys)
+	}
 	if got := decode[struct{ Views []savedView }](t, get(t, h, apiBase+"views/", nil)); len(got.Views) != 0 {
 		t.Fatalf("view survived deletion: %+v", got.Views)
+	}
+}
+
+// TestFavoritesRoundtrip covers PUT → GET → DELETE → GET empty, and that the
+// shared PUT pattern routes favorites/{key}/ and {key}/assignee/ correctly
+// (ServeMux would panic at registration if they were separate patterns).
+func TestFavoritesRoundtrip(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	put := httptest.NewRecorder()
+	h.ServeHTTP(put, httptest.NewRequest(http.MethodPut, apiBase+"favorites/NMB-1/", nil))
+	if put.Code != http.StatusNoContent {
+		t.Fatalf("PUT favorites/NMB-1/ → %d %s", put.Code, put.Body.String())
+	}
+	if got := decode[struct{ Keys []string }](t, get(t, h, apiBase+"favorites/", nil)); len(got.Keys) != 1 || got.Keys[0] != "NMB-1" {
+		t.Fatalf("after PUT: favorites %+v", got.Keys)
+	}
+
+	del := httptest.NewRecorder()
+	h.ServeHTTP(del, httptest.NewRequest(http.MethodDelete, apiBase+"favorites/NMB-1/", nil))
+	if del.Code != http.StatusNoContent {
+		t.Fatalf("DELETE favorites/NMB-1/ → %d %s", del.Code, del.Body.String())
+	}
+	if got := decode[struct{ Keys []string }](t, get(t, h, apiBase+"favorites/", nil)); len(got.Keys) != 0 {
+		t.Fatalf("after DELETE: favorites %+v", got.Keys)
 	}
 }
 
