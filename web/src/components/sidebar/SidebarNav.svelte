@@ -11,6 +11,7 @@
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
+  import { getSyncRuns, type SyncRun } from '../../lib/api'
   import { isHostedDemo } from '../../lib/config'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
@@ -104,7 +105,35 @@
         ? 'bg-status-stale'
         : 'bg-status-done',
   )
+
+  /* ── Sync history popover (click on the sync timestamp) ── */
+  let historyOpen = $state(false)
+  let historyRuns = $state<SyncRun[]>([])
+  let historyLoading = $state(false)
+  let historyEl = $state<HTMLDivElement | null>(null)
+
+  async function toggleHistory() {
+    if (historyOpen) {
+      historyOpen = false
+      return
+    }
+    historyOpen = true
+    historyLoading = true
+    historyRuns = await getSyncRuns()
+    historyLoading = false
+  }
+
+  function onDocClick(e: MouseEvent) {
+    if (historyOpen && historyEl && !e.composedPath().includes(historyEl)) historyOpen = false
+  }
+
+  function runKindLabel(kind: string): string {
+    const base = kind.startsWith('full') ? t('sidebar.runFull') : t('sidebar.runIncremental')
+    return kind.includes('+reconcile') ? `${base} ${t('sidebar.runReconcile')}` : base
+  }
 </script>
+
+<svelte:document onclick={onDocClick} />
 
 <div class="flex h-full flex-col">
   <!-- New issue (shortcut c). Disabled on the hosted demo, where the snapshot
@@ -125,21 +154,82 @@
     </button>
   </div>
 
-  <!-- Totals / sync — badge click = Sync now (retry path on fail/stale) -->
+  <!-- Totals / sync — badge click = history popover (with Sync now inside) -->
   <div class="flex-none px-3 pb-2 pt-1 text-[11px] text-text-muted">
     {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}
     <span class="ml-1">·</span>
-    <button
-      type="button"
-      class="ml-1 inline-flex items-center gap-1 rounded px-0.5 {syncColor} transition-colors hover:bg-bg-hover hover:text-text-primary"
-      title={[syncTitle || syncLabel, t('sidebar.syncNowTitle')].filter(Boolean).join('\n')}
-      aria-label={t('sidebar.syncNow')}
-      data-testid="sidebar-sync-now"
-      onclick={() => void runSyncNow('incremental')}
-    >
-      <span class="h-1.5 w-1.5 flex-none rounded-full {syncDot}" aria-hidden="true"></span>
-      {syncLabel}
-    </button>
+    <div class="relative inline-block" bind:this={historyEl}>
+      <button
+        type="button"
+        class="ml-1 inline-flex items-center gap-1 rounded px-0.5 {syncColor} transition-colors hover:bg-bg-hover hover:text-text-primary"
+        title={[syncTitle || syncLabel, t('sidebar.syncHistoryTitle')].filter(Boolean).join('\n')}
+        aria-label={t('sidebar.syncHistory')}
+        aria-expanded={historyOpen}
+        data-testid="sidebar-sync-now"
+        onclick={() => void toggleHistory()}
+      >
+        <span class="h-1.5 w-1.5 flex-none rounded-full {syncDot}" aria-hidden="true"></span>
+        {syncLabel}
+      </button>
+      {#if historyOpen}
+        <div
+          class="anim-enter absolute left-0 top-full z-40 mt-1 w-72 rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-xl shadow-black/40"
+          data-testid="sync-history-popover"
+        >
+          <div class="px-2 py-1 text-[11px] font-medium text-text-muted">
+            {t('sidebar.syncHistory')}
+          </div>
+          {#if historyLoading}
+            <div class="px-2 py-2 text-[12px] text-text-muted">{t('common.searching')}</div>
+          {:else if historyRuns.length === 0}
+            <div class="px-2 py-2 text-[12px] text-text-muted">{t('sidebar.syncNoHistory')}</div>
+          {:else}
+            <div class="max-h-64 overflow-y-auto">
+              {#each historyRuns as run (run.started_at + run.kind)}
+                <div class="flex items-start gap-2 rounded px-2 py-1 text-[12px]">
+                  <span
+                    class="mt-1.5 h-1.5 w-1.5 flex-none rounded-full {run.error
+                      ? 'bg-status-reopen'
+                      : 'bg-status-done'}"
+                    aria-hidden="true"
+                  ></span>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-baseline justify-between gap-2">
+                      <span class="text-text-secondary">{runKindLabel(run.kind)}</span>
+                      <span class="flex-none text-[11px] text-text-muted" title={run.finished_at}>
+                        {relativeTime(run.finished_at, 'long')}
+                      </span>
+                    </div>
+                    {#if run.error}
+                      <div class="break-words text-[11px] text-status-reopen">{run.error}</div>
+                    {:else}
+                      <div class="text-[11px] text-text-muted">
+                        {t('sidebar.runCounts', {
+                          changed: formatNumber(run.changed),
+                          deleted: formatNumber(run.deleted),
+                        })}
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+          <div class="mt-1 border-t border-border-subtle px-1 pt-1">
+            <button
+              type="button"
+              class="w-full rounded px-2 py-1 text-left text-[12px] text-accent-text transition-colors hover:bg-bg-hover"
+              onclick={() => {
+                historyOpen = false
+                void runSyncNow('incremental')
+              }}
+            >
+              {t('sidebar.syncNow')}
+            </button>
+          </div>
+        </div>
+      {/if}
+    </div>
   </div>
 
   <div class="min-h-0 flex-1 overflow-y-auto">

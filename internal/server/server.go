@@ -115,6 +115,7 @@ func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) ht
 	mux.HandleFunc("GET "+apiBase+"projects/available/{$}", s.handleAvailableProjects)
 	mux.HandleFunc("POST "+apiBase+"sync/{$}", s.handleStartSync)
 	mux.HandleFunc("GET "+apiBase+"sync/progress/{$}", s.handleSyncProgress)
+	mux.HandleFunc("GET "+apiBase+"sync/runs/{$}", s.handleSyncRuns)
 	mux.HandleFunc("GET "+apiBase+"create-meta/{$}", s.handleCreateMeta)
 	mux.HandleFunc("POST "+apiBase+"create/{$}", s.handleCreate)
 	mux.HandleFunc("GET "+apiBase+"users/{$}", s.handleUsers)

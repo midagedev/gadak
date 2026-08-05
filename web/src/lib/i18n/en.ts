@@ -308,6 +308,13 @@ export const en = {
   'sidebar.syncChecking': 'Checking sync',
   'sidebar.syncNow': 'Sync now',
   'sidebar.syncNowTitle': 'Run an incremental sync now',
+  'sidebar.syncHistory': 'Sync history',
+  'sidebar.syncHistoryTitle': 'Click for recent sync runs',
+  'sidebar.syncNoHistory': 'No recorded runs yet — history keeps syncs that changed something.',
+  'sidebar.runFull': 'Full sync',
+  'sidebar.runIncremental': 'Incremental',
+  'sidebar.runReconcile': '+ deletions',
+  'sidebar.runCounts': '{changed} changed · {deleted} deleted',
   'sidebar.issueCount': '{n} issues',
 
   /* ── Builtin views ── */

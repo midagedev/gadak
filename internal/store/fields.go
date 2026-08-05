@@ -308,3 +308,62 @@ func (db *DB) HasCustomFieldKeysInRaw() (bool, error) {
 
 // errStopScan is a private sentinel to short-circuit ScanFieldFill.
 var errStopScan = fmt.Errorf("stop scan")
+
+/* ── sync run history ── */
+
+// SyncRun is one recorded sync pass. Only meaningful runs are stored: ones
+// that changed something, were a full pass, or failed — the watch loop's
+// no-op incrementals would otherwise bury the history in noise.
+type SyncRun struct {
+	Kind       string `json:"kind"` // full | incremental (+reconcile)
+	StartedAt  string `json:"started_at"`
+	FinishedAt string `json:"finished_at"`
+	Fetched    int    `json:"fetched"`
+	Changed    int    `json:"changed"`
+	Deleted    int    `json:"deleted"`
+	Error      string `json:"error,omitempty"`
+}
+
+// AppendSyncRun stores one run and prunes the history to the newest 100.
+func (db *DB) AppendSyncRun(sourceID string, r SyncRun) error {
+	var errText any
+	if r.Error != "" {
+		errText = r.Error
+	}
+	return db.write(func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`
+			INSERT INTO sync_runs (source_id, kind, started_at, finished_at, fetched, changed, deleted, error)
+			VALUES (?,?,?,?,?,?,?,?)`,
+			sourceID, r.Kind, r.StartedAt, r.FinishedAt, r.Fetched, r.Changed, r.Deleted, errText); err != nil {
+			return err
+		}
+		_, err := tx.Exec(`
+			DELETE FROM sync_runs WHERE source_id = ? AND id NOT IN (
+				SELECT id FROM sync_runs WHERE source_id = ? ORDER BY id DESC LIMIT 100)`,
+			sourceID, sourceID)
+		return err
+	})
+}
+
+// SyncRuns returns the newest runs first, at most limit.
+func (db *DB) SyncRuns(sourceID string, limit int) ([]SyncRun, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	rs, err := db.sql.Query(`
+		SELECT kind, started_at, finished_at, fetched, changed, deleted, COALESCE(error, '')
+		FROM sync_runs WHERE source_id = ? ORDER BY id DESC LIMIT ?`, sourceID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	var out []SyncRun
+	for rs.Next() {
+		var r SyncRun
+		if err := rs.Scan(&r.Kind, &r.StartedAt, &r.FinishedAt, &r.Fetched, &r.Changed, &r.Deleted, &r.Error); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rs.Err()
+}

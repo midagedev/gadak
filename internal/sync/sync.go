@@ -72,9 +72,35 @@ func (o Options) logf(format string, args ...any) {
 //
 // An empty cfg.Projects means no project filter: the account's full visible
 // issue set is the scope (one Search, not one per project).
-func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
-	var res Result
+func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (res Result, err error) {
 	started := time.Now()
+	// History: keep only runs worth remembering — a change, a full pass, or a
+	// failure. The watch loop's no-op incrementals would drown everything else.
+	defer func() {
+		if err == nil && !res.Full && res.Changed == 0 && res.Deleted == 0 {
+			return
+		}
+		kind := "incremental"
+		if res.Full {
+			kind = "full"
+		}
+		if opts.Reconcile || res.Full {
+			kind += "+reconcile"
+		}
+		run := store.SyncRun{
+			Kind:       kind,
+			StartedAt:  started.UTC().Format(time.RFC3339),
+			FinishedAt: time.Now().UTC().Format(time.RFC3339),
+			Fetched:    res.Fetched,
+			Changed:    res.Changed,
+			Deleted:    res.Deleted,
+		}
+		if err != nil {
+			run.Error = err.Error()
+		}
+		// Bookkeeping must never fail the sync that produced it.
+		_ = db.AppendSyncRun(SourceID, run)
+	}()
 	if !cfg.HasCredential() {
 		return res, errors.New("sync: site, email and token are required")
 	}

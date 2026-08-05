@@ -555,6 +555,27 @@ export interface ScrySettings {
   fieldUsage?: Record<string, Record<string, number>>
 }
 
+/** One recorded sync pass (meaningful runs only: changed something, full, or failed). */
+export interface SyncRun {
+  kind: string // full | incremental (+reconcile)
+  started_at: string
+  finished_at: string
+  fetched: number
+  changed: number
+  deleted: number
+  error?: string
+}
+
+/** GET sync/runs/ — newest first. Older servers 404 → treat as empty. */
+export async function getSyncRuns(): Promise<SyncRun[]> {
+  try {
+    const res = await jsonW<{ runs: SyncRun[] }>('sync/runs/')
+    return res.runs ?? []
+  } catch {
+    return []
+  }
+}
+
 export function getSettings(): Promise<ScrySettings> {
   return jsonW<ScrySettings>('settings/')
 }

@@ -213,10 +213,12 @@ func TestStartSyncRefusesAnIncompleteSetup(t *testing.T) {
 		t.Fatalf("no credential: status %d body %s", rec.Code, rec.Body.String())
 	}
 
-	connect(t, h, f) // credential, still no projects
+	// A credential alone is a complete setup now: empty projects means "every
+	// project this account can see", so the sync must start, not 400.
+	connect(t, h, f)
 	rec = send(t, h, http.MethodPost, apiBase+"sync/", "")
-	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "projects_required") {
-		t.Fatalf("no projects: status %d body %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("no projects should still sync: status %d body %s", rec.Code, rec.Body.String())
 	}
 }
 

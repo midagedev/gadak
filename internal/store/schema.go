@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -236,4 +236,21 @@ CREATE TABLE field_usage (
   total       INTEGER NOT NULL,
   PRIMARY KEY (project_key, alias)
 );
+`
+
+// schemaV8 keeps a short history of meaningful sync runs (changed something,
+// was a full pass, or failed) so the UI can answer "what did sync actually do".
+const schemaV8 = `
+CREATE TABLE sync_runs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_id   TEXT NOT NULL,
+  kind        TEXT NOT NULL,           -- full | incremental (+reconcile suffix)
+  started_at  TEXT NOT NULL,
+  finished_at TEXT NOT NULL,
+  fetched     INTEGER NOT NULL,
+  changed     INTEGER NOT NULL,
+  deleted     INTEGER NOT NULL,
+  error       TEXT                     -- NULL on success
+);
+CREATE INDEX idx_sync_runs_source ON sync_runs(source_id, id DESC);
 `

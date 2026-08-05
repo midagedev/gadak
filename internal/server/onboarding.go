@@ -149,13 +149,10 @@ type startSyncBody struct {
 }
 
 func (s *server) handleStartSync(w http.ResponseWriter, r *http.Request) {
+	// Empty projects is a valid scope now: every project the account can see.
 	cfg := s.config()
-	switch {
-	case !cfg.HasCredential():
+	if !cfg.HasCredential() {
 		fail(w, http.StatusBadRequest, "credential_required")
-		return
-	case len(cfg.Projects) == 0:
-		fail(w, http.StatusBadRequest, "projects_required")
 		return
 	}
 
@@ -220,6 +217,20 @@ func runSyncJob(ctx context.Context, cfg *config.Config, db *store.DB, full bool
 
 func (s *server) handleSyncProgress(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, syncProgress())
+}
+
+// handleSyncRuns lists recent meaningful sync runs, newest first. Backs the
+// history popover behind the sidebar's sync timestamp.
+func (s *server) handleSyncRuns(w http.ResponseWriter, r *http.Request) {
+	runs, err := s.db.SyncRuns(sourceID, 20)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if runs == nil {
+		runs = []store.SyncRun{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
 }
 
 func syncProgress() progressDoc {
