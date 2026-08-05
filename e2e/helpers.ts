@@ -21,7 +21,7 @@ export async function gotoApp(page: Page): Promise<void> {
   await forceLocale(page, 'en')
   await page.goto('/')
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByText(/519 issues/).first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
 }
 
 export function attachConsoleErrors(page: Page): string[] {

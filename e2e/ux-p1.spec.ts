@@ -60,7 +60,7 @@ test.describe('UX P1', () => {
   test('command palette offers Sync now and POSTs incremental sync', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
-    await expect(page.getByText(/519 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
     await page.waitForTimeout(300)
 
     let syncBody: unknown = null

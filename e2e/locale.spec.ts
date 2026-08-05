@@ -6,7 +6,7 @@ test.describe('locale', () => {
     const errors = attachConsoleErrors(page)
     await forceLocale(page, 'en')
     await page.goto('/')
-    await expect(page.getByText(/519 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
 
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
@@ -20,7 +20,7 @@ test.describe('locale', () => {
     ])
 
     // ko.ts: sidebar.issueCount = '{n} 이슈' (pool size; list count may be filtered)
-    await expect(page.getByText('519 이슈')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('534 이슈')).toBeVisible({ timeout: 30_000 })
     // <html lang> follows the locale so screen readers switch pronunciation.
     await expect(page.locator('html')).toHaveAttribute('lang', 'ko-KR')
     // ko.ts: sidebar.settings

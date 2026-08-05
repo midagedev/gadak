@@ -10,7 +10,7 @@ test.describe('client-side search', () => {
     // boot requests. Deliberately not networkidle: the app polls for a delta
     // every 15s, so "no network for 500ms" only becomes true after that poll
     // fires, which added 15s to this test for nothing.
-    await expect(page.getByText(/519 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
     await page.waitForTimeout(300)
 
     const apiDuringType: string[] = []

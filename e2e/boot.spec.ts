@@ -2,14 +2,14 @@ import { test, expect } from '@playwright/test'
 import { attachConsoleErrors, forceLocale, gotoApp } from './helpers'
 
 test.describe('boot', () => {
-  test('renders issue list with 519 count and English copy', async ({ page }) => {
+  test('renders issue list with 534 count and English copy', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await forceLocale(page, 'en')
     await page.goto('/')
 
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
     // list.countIssues — en.ts: '{n} issues'
-    await expect(page.getByText(/519 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
     // Sidebar wordmark and built-in nav labels (en.ts)
     await expect(page.getByText('scry', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
