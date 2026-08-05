@@ -78,8 +78,12 @@ No unmerged worktrees or branches remain; `git worktree list` shows only main.
   side is explicitly out of scope until someone asks for it.
 - `scry team` has no web surface yet — export/import is CLI-only. A settings
   panel button is the obvious follow-up.
-- `scry fields` is unverified against a live Jira site (no credential on the
-  development machine); the counting path is covered by a fake server that
-  answers the way `fields=*all` does.
+- `scry fields` has now run against the live demo site (519 issues, 60-issue
+  sample, 41 custom fields in the catalog). Two defects only that run could
+  show: alias suggestions were built from localized field names — a Korean
+  account proposes `순위` where an English one proposes `rank`, and a fieldMap
+  is precisely what `scry team export` shares — and the table misaligned on
+  CJK names. Aliases now fall back to the field id (`cf_10019`) and column
+  widths are measured in terminal cells.
 - Windows: OS notifications and install-service are explicit no-ops.
 - Parked-by-design: JQL→SQL bridge, Confluence, offline write queue.

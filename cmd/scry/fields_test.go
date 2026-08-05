@@ -145,12 +145,21 @@ func TestSuggestAliasCollisionAppendsTail(t *testing.T) {
 	}
 }
 
-func TestToSnakeCase(t *testing.T) {
-	if got := toSnakeCase("Story Points"); got != "story_points" {
+func TestAsciiSlugDropsNonASCII(t *testing.T) {
+	if got := asciiSlug("Story Points"); got != "story_points" {
 		t.Errorf("got %q", got)
 	}
-	if got := toSnakeCase("  CF — Something!! "); got != "cf_something" {
+	if got := asciiSlug("  CF — Something!! "); got != "cf_something" {
 		t.Errorf("got %q", got)
+	}
+	// Jira localizes field names, so a Korean account sees "순위" where an
+	// English one sees "Rank". An alias built from that name would differ per
+	// machine, and a fieldMap is shared between machines.
+	if got := asciiSlug("순위"); got != "" {
+		t.Errorf("asciiSlug(%q) = %q, want empty so the caller falls back to the id", "순위", got)
+	}
+	if got := suggestAlias("순위", "customfield_10019", map[string]bool{}); got != "cf_10019" {
+		t.Errorf("suggestAlias for a non-ASCII name = %q, want cf_10019", got)
 	}
 }
 

@@ -16,6 +16,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/mattn/go-runewidth"
+
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/jira"
 )
@@ -506,10 +508,18 @@ func buildFieldReport(catalog []jira.FieldInfo, filled map[string]int, sampled i
 
 // suggestAlias turns a field display name into a snake_case alias, appending a
 // field-id tail when the base collides with an already used alias.
+// suggestAlias proposes a fieldMap key for a field the config does not name yet.
+//
+// The slug is ASCII-only, and a name with no ASCII letters falls back to the
+// field id (cf_10019). Two reasons, both from the same fact: Jira returns field
+// names in the account's own language. A Korean account calls customfield_10019
+// "순위" where an English one says "Rank", so a name-derived alias is not the
+// same on two machines — and a fieldMap is exactly the thing teams share with
+// `scry team export`. An id-derived alias is ugly but identical everywhere.
 func suggestAlias(name, fieldID string, used map[string]bool) string {
-	base := toSnakeCase(name)
+	base := asciiSlug(name)
 	if base == "" {
-		base = toSnakeCase(fieldID)
+		base = fieldIDSlug(fieldID)
 	}
 	if base == "" {
 		base = "field"
@@ -534,11 +544,14 @@ func suggestAlias(name, fieldID string, used map[string]bool) string {
 	}
 }
 
-func toSnakeCase(s string) string {
+// asciiSlug lowercases and snake-cases the ASCII letters and digits in s,
+// dropping everything else. Returns "" when s carries no ASCII alphanumerics,
+// which is the signal to fall back to the field id — see suggestAlias.
+func asciiSlug(s string) string {
 	var b strings.Builder
 	prevUnderscore := false
 	for _, r := range strings.ToLower(s) {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+		if r < unicode.MaxASCII && (unicode.IsLetter(r) || unicode.IsDigit(r)) {
 			b.WriteRune(r)
 			prevUnderscore = false
 			continue
@@ -549,6 +562,11 @@ func toSnakeCase(s string) string {
 		}
 	}
 	return strings.Trim(b.String(), "_")
+}
+
+// fieldIDSlug turns customfield_10019 into cf_10019.
+func fieldIDSlug(fieldID string) string {
+	return "cf_" + strings.TrimPrefix(asciiSlug(fieldID), "customfield_")
 }
 
 func printFieldReport(report fieldReport, sampleN, mirrored, projects int) {
@@ -592,37 +610,33 @@ func printUsageTable(rows []fieldUsageRow) {
 		fmt.Println("(no fields with non-zero fill in the sample)")
 		return
 	}
-	// Column widths from content.
+	// Column widths in terminal cells, not bytes or runes: Jira returns field
+	// names in the account's language, so a Korean or Japanese name is routine
+	// here and each of its characters occupies two cells. This is the same
+	// contract the TUI keeps (docs/TUI.md, "Fonts, and why Korean or Japanese
+	// columns can look wrong") and the same helper it uses.
 	wName, wID, wType, wFilled, wAlias := 4, 2, 4, 6, 5 // header minima
-	for _, r := range rows {
-		if n := len(r.Name); n > wName {
-			wName = n
+	aliasOf := func(r fieldUsageRow) string {
+		if r.Alias == "" && r.Suggested != "" {
+			return r.Suggested + " *"
 		}
-		if n := len(r.ID); n > wID {
-			wID = n
-		}
-		if n := len(r.Type); n > wType {
-			wType = n
-		}
-		if n := len(fmt.Sprintf("%d", r.Filled)); n > wFilled {
-			wFilled = n
-		}
-		alias := r.Alias
-		if alias == "" && r.Suggested != "" {
-			alias = r.Suggested + " *"
-		}
-		if n := len(alias); n > wAlias {
-			wAlias = n
-		}
+		return r.Alias
 	}
-	fmt.Printf("%-*s  %-*s  %-*s  %*s  %6s  %-*s\n",
-		wName, "NAME", wID, "ID", wType, "TYPE", wFilled, "FILLED", "RATE", wAlias, "ALIAS")
 	for _, r := range rows {
-		alias := r.Alias
-		if alias == "" && r.Suggested != "" {
-			alias = r.Suggested + " *"
-		}
-		fmt.Printf("%-*s  %-*s  %-*s  %*d  %5.1f%%  %-*s\n",
-			wName, r.Name, wID, r.ID, wType, r.Type, wFilled, r.Filled, r.Rate*100, wAlias, alias)
+		wName = max(wName, runewidth.StringWidth(r.Name))
+		wID = max(wID, runewidth.StringWidth(r.ID))
+		wType = max(wType, runewidth.StringWidth(r.Type))
+		wFilled = max(wFilled, len(fmt.Sprintf("%d", r.Filled)))
+		wAlias = max(wAlias, runewidth.StringWidth(aliasOf(r)))
 	}
+	pad := func(s string, w int) string { return runewidth.FillRight(s, w) }
+
+	fmt.Printf("%s  %s  %s  %*s  %6s  %s\n",
+		pad("NAME", wName), pad("ID", wID), pad("TYPE", wType), wFilled, "FILLED", "RATE", "ALIAS")
+	for _, r := range rows {
+		fmt.Printf("%s  %s  %s  %*d  %5.1f%%  %s\n",
+			pad(r.Name, wName), pad(r.ID, wID), pad(r.Type, wType),
+			wFilled, r.Filled, r.Rate*100, aliasOf(r))
+	}
+	fmt.Println("(* = alias suggestion; the field is not in fieldMap yet)")
 }
