@@ -14,7 +14,7 @@
  */
 
 import { SvelteMap } from 'svelte/reactivity'
-import type { IssueLite, Member, SyncHealth } from '../lib/types'
+import type { FieldSpec, IssueLite, Member, SyncHealth } from '../lib/types'
 import * as api from '../lib/api'
 import * as db from '../lib/db'
 import type { CacheMeta } from '../lib/types'
@@ -33,6 +33,10 @@ class IssuesStore {
   lastSync = $state('')
   /** Per-source (Jira/Qase/members) server health. Cached so first paint can show it. */
   syncHealth = $state<SyncHealth | null>(null)
+  /** Discovered custom fields (bootstrap field_specs). Drives detail rows and filter axes. */
+  fieldSpecs = $state<FieldSpec[]>([])
+  /** project → alias → filled count. Which fields a board actually uses. */
+  fieldUsage = $state<Record<string, Record<string, number>>>({})
   /** Boot failure (usually auth). Blocks UI only when there is no cache (render-before-auth). */
   error = $state<string | null>(null)
   /**
@@ -81,6 +85,8 @@ class IssuesStore {
         this.#membersVersion = meta.members_version ?? ''
         this.#etag = `"in-${meta.sync_version}"`
         this.syncHealth = meta.sync_health ?? null
+        this.fieldSpecs = meta.field_specs ?? []
+        this.fieldUsage = meta.field_usage ?? {}
       }
       if (cached.length > 0) {
         for (const it of cached) this.pool.set(it.issue_key, it)
@@ -144,6 +150,8 @@ class IssuesStore {
     this.#membersVersion = data.members_version ?? ''
     this.#etag = etag ?? `"in-${data.sync_version}"`
     this.syncHealth = data.sync_health
+    this.fieldSpecs = data.field_specs ?? []
+    this.fieldUsage = data.field_usage ?? {}
     this.ready = true
 
     // Persist (memory pool is already current even if this fails — works without IndexedDB)
@@ -158,6 +166,9 @@ class IssuesStore {
   async #deltaSync(): Promise<void> {
     if (!this.lastSync) return this.#bootstrap()
     const delta = await api.getDelta(this.lastSync, this.#membersVersion)
+    // Discovery may run server-side long after this tab bootstrapped.
+    if (delta.field_specs) this.fieldSpecs = delta.field_specs
+    if (delta.field_usage) this.fieldUsage = delta.field_usage
     await this.applyDelta(
       delta.upserted,
       delta.deleted_keys,
@@ -212,6 +223,8 @@ class IssuesStore {
         members: [...this.members.values()],
         members_version: this.#membersVersion,
         sync_health: this.syncHealth ?? undefined,
+        field_specs: this.fieldSpecs,
+        field_usage: this.fieldUsage,
       }) as CacheMeta,
     )
   }

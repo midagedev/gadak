@@ -15,7 +15,7 @@
   import { write } from '../../stores/write.svelte'
   import { ApiError } from '../../lib/api'
   import { feature, isHostedDemo } from '../../lib/config'
-  import type { DetailResponse } from '../../lib/types'
+  import type { AdfNode, DetailResponse } from '../../lib/types'
   import { getDetailCached, invalidate } from './cache.svelte'
   import { jiraUrl } from './format'
   import DetailHeader from './DetailHeader.svelte'
@@ -90,6 +90,24 @@
 
   // detail must match the current key (avoid showing previous detail mid-switch)
   const detailForKey = $derived(detail && key === detail.issue_key ? detail : null)
+
+  // Body-role custom fields, in spec order, only when this issue carries them.
+  const bodySections = $derived.by(() => {
+    const bodies = detailForKey?.bodies
+    if (!bodies) return []
+    const out: { alias: string; label: string; node: AdfNode | null; text: string | null }[] = []
+    for (const spec of issues.fieldSpecs) {
+      if (spec.role !== 'body') continue
+      const v = bodies[spec.alias]
+      if (v == null) continue
+      if (typeof v === 'string') {
+        if (v.trim()) out.push({ alias: spec.alias, label: spec.label, node: null, text: v })
+      } else {
+        out.push({ alias: spec.alias, label: spec.label, node: v, text: null })
+      }
+    }
+    return out
+  })
 </script>
 
 {#if key}
@@ -183,6 +201,21 @@
               />
             </div>
           </Section>
+
+          <!-- Body-role custom fields (재현 단계, QA comment, …) — documents, not chips.
+               Board templates put real prose in these; each gets its own section. -->
+          {#each bodySections as body (body.alias)}
+            <Section title={body.label}>
+              <div class="text-[13px] text-text-secondary">
+                <AdfContent
+                  node={body.node}
+                  fallback={body.text}
+                  issueKey={key}
+                  attachments={detailForKey.attachments}
+                />
+              </div>
+            </Section>
+          {/each}
 
           {#if detailForKey.attachments.length > 0}
             <Section title={t('detail.attachments')} count={detailForKey.attachments.length}>

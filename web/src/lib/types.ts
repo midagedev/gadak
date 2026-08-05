@@ -279,6 +279,8 @@ export interface DeployDetail extends Partial<DeployStatus> {
 export interface DetailResponse {
   issue_key: string
   development_opinion: string
+  /** Body-role custom field values (ADF documents) keyed by alias. Older servers omit. */
+  bodies?: Record<string, AdfNode | string | null>
   description_adf: AdfNode | null
   attachments: DetailAttachment[]
   comments: DetailComment[]
@@ -291,6 +293,18 @@ export interface DetailResponse {
 }
 
 /** GET `bootstrap/` response. */
+/** One configured custom field, discovered from the Jira site catalog. */
+export interface FieldSpec {
+  /** Stable key. Issue rows carry the value under this name. */
+  alias: string
+  /** Jira display name, in the account's language. */
+  label: string
+  /** body = document (detail block) | facet = chips/filter | user | plain. */
+  role: 'body' | 'facet' | 'user' | 'plain'
+  /** Editor kind when inline-editable: option | multi_option | user | version_array. */
+  kind?: string
+}
+
 export interface BootstrapResponse {
   server_time: string
   sync_version: number
@@ -299,6 +313,10 @@ export interface BootstrapResponse {
   members_version?: string // Older servers omit
   issues: IssueLite[]
   sync_health: SyncHealth
+  /** Discovered custom fields. Older servers omit. */
+  field_specs?: FieldSpec[]
+  /** project → alias → filled count. Older servers omit. */
+  field_usage?: Record<string, Record<string, number>>
 }
 
 /** GET `delta/?since=&mv=` response. */
@@ -310,6 +328,9 @@ export interface DeltaResponse {
   members?: Member[]
   members_version?: string // Older servers omit
   sync_health: SyncHealth
+  /** Discovery output; a delta-only tab must still learn about it. Older servers omit. */
+  field_specs?: FieldSpec[]
+  field_usage?: Record<string, Record<string, number>>
 }
 
 /** GET `search/?q=` response. */
@@ -549,4 +570,6 @@ export interface CacheMeta {
   members: Member[]
   members_version?: string // Member-set hash; used as next delta's mv (absent in older caches)
   sync_health?: SyncHealth
+  field_specs?: FieldSpec[] // Discovered custom fields (absent in older caches)
+  field_usage?: Record<string, Record<string, number>>
 }

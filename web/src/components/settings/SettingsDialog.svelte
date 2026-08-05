@@ -12,7 +12,7 @@
   import { t, locale, setLocale, type Locale } from '../../lib/i18n'
   import { onMount } from 'svelte'
   import * as api from '../../lib/api'
-  import type { ScrySettings, SettingsRuntime } from '../../lib/api'
+  import type { ScrySettings, SettingsFieldSpec, SettingsRuntime } from '../../lib/api'
   import type { ScryFeatures } from '../../lib/config'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
@@ -118,6 +118,11 @@
   let fieldMapRows = $state<Kv[]>([])
   let editableRows = $state<Kv[]>([])
   let bodyFieldsText = $state('')
+  // Discovered field specs. specsTouched gates the PUT: absence preserves
+  // discovery output on the server, so an untouched section costs nothing.
+  let specRows = $state<SettingsFieldSpec[]>([])
+  let specsTouched = $state(false)
+  let specsSupported = $state(false)
 
   // Interval UI: preset select (-1 = custom) + custom seconds text.
   let syncPreset = $state(0)
@@ -218,6 +223,9 @@
     fieldMapRows = kvRows(s.fieldMap)
     editableRows = kvRows(s.editableFields)
     bodyFieldsText = joinCsv(s.bodyFields)
+    specsSupported = s.fieldSpecs !== undefined
+    specRows = (s.fieldSpecs ?? []).map((sp) => ({ ...sp, ids: [...sp.ids] }))
+    specsTouched = false
   }
 
   /** Form state → PUT payload (full replace). Do not send runtime/site. */
@@ -260,7 +268,17 @@
       fieldMap: rec(fieldMapRows),
       editableFields: rec(editableRows),
       bodyFields: splitCsv(bodyFieldsText),
+      // Only when touched: the server treats absence as "keep discovery output".
+      ...(specsTouched && specsSupported
+        ? { fields: specRows.filter((r) => r.alias.trim() && r.ids.length > 0) }
+        : {}),
     }
+  }
+
+  /** Any hand edit pins the row (auto:false) so `scry fields --apply` keeps it. */
+  function touchSpec(i: number) {
+    specsTouched = true
+    specRows[i] = { ...specRows[i], auto: false }
   }
 
   async function copyText(key: string, text: string) {
@@ -790,6 +808,65 @@
         </div>
       {:else}
         <div class="flex flex-col gap-5">
+          {#if specsSupported}
+            <div class="flex flex-col gap-1.5">
+              <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+                {t('settings.discoveredFields')}
+              </div>
+              <p class="text-[11px] text-text-muted">{t('settings.discoveredFieldsHint')}</p>
+              {#if specRows.length === 0}
+                <p class="text-[12px] text-text-secondary">{t('settings.noDiscoveredFields')}</p>
+              {:else}
+                <div class="flex flex-col gap-1">
+                  {#each specRows as spec, i (spec.alias)}
+                    <div class="flex items-center gap-2">
+                      <span class="w-40 truncate text-[12px] text-text-primary" title={spec.alias}>
+                        {spec.label}
+                        {#if spec.auto === false}
+                          <span class="ml-1 text-[10px] text-accent">{t('settings.pinned')}</span>
+                        {/if}
+                      </span>
+                      <select
+                        class="{INPUT} w-24"
+                        value={spec.role}
+                        onchange={(e) => {
+                          touchSpec(i)
+                          specRows[i].role = e.currentTarget.value
+                        }}
+                      >
+                        <option value="facet">{t('settings.roleFacet')}</option>
+                        <option value="body">{t('settings.roleBody')}</option>
+                        <option value="user">{t('settings.roleUser')}</option>
+                        <option value="plain">{t('settings.rolePlain')}</option>
+                      </select>
+                      <select
+                        class="{INPUT} w-32"
+                        value={spec.kind ?? ''}
+                        onchange={(e) => {
+                          touchSpec(i)
+                          specRows[i].kind = e.currentTarget.value || undefined
+                        }}
+                      >
+                        <option value="">{t('settings.kindNone')}</option>
+                        <option value="option">option</option>
+                        <option value="multi_option">multi_option</option>
+                        <option value="user">user</option>
+                        <option value="version_array">version_array</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="text-[11px] text-text-muted hover:text-status-reopen"
+                        onclick={() => {
+                          specsTouched = true
+                          specRows = specRows.filter((_, j) => j !== i)
+                        }}>{t('settings.removeField')}</button
+                      >
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
           <div class="flex flex-col gap-1.5">
             <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
               {t('settings.fieldMap')}

@@ -190,6 +190,9 @@ type Detail struct {
 	Attachments    []DetailAttachment `json:"attachments"`
 	History        []DetailChange     `json:"history"`
 	LinkedIssues   []DetailLink       `json:"linked_issues"`
+	// Custom is the issue's full alias→value map. List rows strip body-role
+	// values (they can be document-sized); detail is where they surface.
+	Custom map[string]any `json:"-"`
 }
 
 // Detail assembles one issue. An unknown key returns sql.ErrNoRows so the
@@ -197,8 +200,9 @@ type Detail struct {
 func (db *DB) Detail(key string) (*Detail, error) {
 	var itemID string
 	var adf *string
-	if err := db.sql.QueryRow(`SELECT item_id, description_adf FROM issues WHERE key = ?`, key).
-		Scan(&itemID, &adf); err != nil {
+	var customJSON string
+	if err := db.sql.QueryRow(`SELECT item_id, description_adf, COALESCE(custom, '{}') FROM issues WHERE key = ?`, key).
+		Scan(&itemID, &adf, &customJSON); err != nil {
 		return nil, err
 	}
 	d := &Detail{
@@ -209,6 +213,7 @@ func (db *DB) Detail(key string) (*Detail, error) {
 		History:        []DetailChange{},
 		LinkedIssues:   []DetailLink{},
 	}
+	_ = json.Unmarshal([]byte(customJSON), &d.Custom)
 
 	if err := each(db.sql, `
 		SELECT id, COALESCE(external_id,''), COALESCE(author,''), COALESCE(author_id,''),

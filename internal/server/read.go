@@ -102,6 +102,15 @@ type syncHealth struct {
 	Sources   []syncSource `json:"sources"`
 }
 
+// fieldSpecOut is the client's view of one configured custom field. IDs stay
+// server-side; the client keys everything by alias.
+type fieldSpecOut struct {
+	Alias string `json:"alias"`
+	Label string `json:"label"`
+	Role  string `json:"role"`
+	Kind  string `json:"kind,omitempty"`
+}
+
 type bootstrapResponse struct {
 	ServerTime     string      `json:"server_time"`
 	SyncVersion    int64       `json:"sync_version"`
@@ -109,6 +118,10 @@ type bootstrapResponse struct {
 	MembersVersion string      `json:"members_version"`
 	Issues         []issueLite `json:"issues"`
 	SyncHealth     syncHealth  `json:"sync_health"`
+	// FieldSpecs and FieldUsage drive the dynamic field surfaces: which rows a
+	// detail panel shows, which filter axes exist, per current project scope.
+	FieldSpecs []fieldSpecOut            `json:"field_specs"`
+	FieldUsage map[string]map[string]int `json:"field_usage"`
 }
 
 type deltaResponse struct {
@@ -118,6 +131,10 @@ type deltaResponse struct {
 	Members        []member    `json:"members"`
 	MembersVersion string      `json:"members_version"`
 	SyncHealth     syncHealth  `json:"sync_health"`
+	// Specs ride the delta too: a long-lived tab that only ever polls delta
+	// must still learn about a discovery that ran after its bootstrap.
+	FieldSpecs []fieldSpecOut            `json:"field_specs"`
+	FieldUsage map[string]map[string]int `json:"field_usage"`
 }
 
 /* ── bootstrap / delta ── */
@@ -150,7 +167,50 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		MembersVersion: view.membersVersion,
 		Issues:         view.issues(lites),
 		SyncHealth:     s.health(st),
+		FieldSpecs:     s.fieldSpecsOut(),
+		FieldUsage:     s.fieldUsageOut(),
 	})
+}
+
+// fieldSpecsOut projects the effective field specs for the client. Never nil —
+// the client treats the empty list as "no custom fields configured".
+func (s *server) fieldSpecsOut() []fieldSpecOut {
+	specs := s.config().FieldSpecs()
+	out := make([]fieldSpecOut, 0, len(specs))
+	for _, sp := range specs {
+		if sp.Alias == "" {
+			continue
+		}
+		label := sp.Label
+		if label == "" {
+			label = sp.Alias
+		}
+		role := sp.Role
+		if role == "" {
+			role = "facet"
+		}
+		out = append(out, fieldSpecOut{Alias: sp.Alias, Label: label, Role: role, Kind: sp.Kind})
+	}
+	return out
+}
+
+// fieldUsageOut is project → alias → filled from the field_usage table. Never
+// nil. A missing table row means the alias was never seen in that project.
+func (s *server) fieldUsageOut() map[string]map[string]int {
+	out := map[string]map[string]int{}
+	rows, err := s.db.FieldUsage()
+	if err != nil {
+		return out
+	}
+	for _, r := range rows {
+		m := out[r.ProjectKey]
+		if m == nil {
+			m = map[string]int{}
+			out[r.ProjectKey] = m
+		}
+		m[r.Alias] = r.Filled
+	}
+	return out
 }
 
 func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
@@ -181,6 +241,8 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		DeletedKeys:    deleted,
 		MembersVersion: view.membersVersion,
 		SyncHealth:     s.health(st),
+		FieldSpecs:     s.fieldSpecsOut(),
+		FieldUsage:     s.fieldUsageOut(),
 	}
 	// members ride along only when the client's hash is stale.
 	if r.URL.Query().Get("mv") != view.membersVersion {
@@ -267,6 +329,9 @@ type detailResponse struct {
 	QaContext          json.RawMessage `json:"qa_context"`
 	Deploy             json.RawMessage `json:"deploy"`
 	LinkedPRs          json.RawMessage `json:"linked_prs"`
+	// Bodies carries the body-role custom field values (ADF documents), keyed
+	// by alias. List rows strip these; the detail panel renders them as blocks.
+	Bodies map[string]json.RawMessage `json:"bodies"`
 }
 
 func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
@@ -299,6 +364,16 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		History:        make([]historyEntry, 0, len(d.History)),
 		LinkedIssues:   make([]linkedIssue, 0, len(d.LinkedIssues)),
 		LinkedPRs:      json.RawMessage("[]"),
+		Bodies:         map[string]json.RawMessage{},
+	}
+	for alias := range view.bodyAliases {
+		val, ok := d.Custom[alias]
+		if !ok || val == nil {
+			continue
+		}
+		if raw, err := json.Marshal(val); err == nil {
+			res.Bodies[alias] = raw
+		}
 	}
 	// The detail half of the plugin boundary: each kind maps to one response field.
 	en, err := s.db.EnrichmentsFor(key)
@@ -645,6 +720,10 @@ type derivedView struct {
 	// forgets to bump sync_state.version gets no refetch either way (docs/PLUGINS.md).
 	deploy map[string]json.RawMessage
 	qa     map[string]json.RawMessage
+	// bodyAliases are the field aliases whose values are documents (role=body).
+	// List rows strip them — a 60-issue page must not carry sixty ADF bodies —
+	// and the detail response is where they surface.
+	bodyAliases map[string]bool
 }
 
 // derived returns the cached view for this sync version, rebuilding it when
@@ -679,6 +758,12 @@ func (s *server) buildView(key string, lites []store.IssueLite) (*derivedView, e
 		categories:     map[string]string{},
 		groupByEmail:   map[string]string{},
 		rules:          cfg.GroupRules,
+		bodyAliases:    map[string]bool{},
+	}
+	for _, sp := range cfg.FieldSpecs() {
+		if sp.Role == "body" && sp.Alias != "" {
+			v.bodyAliases[sp.Alias] = true
+		}
 	}
 	var err error
 	if v.deploy, err = s.db.EnrichmentsByKind("deploy"); err != nil {
@@ -769,6 +854,13 @@ func hashMembers(members []member) string {
 func (v *derivedView) issues(lites []store.IssueLite) []issueLite {
 	out := make([]issueLite, 0, len(lites))
 	for _, l := range lites {
+		// Body-role values are documents; the list row drops them and the
+		// detail response carries them instead.
+		if len(v.bodyAliases) > 0 && len(l.Custom) > 0 {
+			for alias := range v.bodyAliases {
+				delete(l.Custom, alias)
+			}
+		}
 		out = append(out, issueLite{IssueLite: l, TeamGroup: v.group(l), extra: v.enrichRow(l.IssueKey)})
 	}
 	return out

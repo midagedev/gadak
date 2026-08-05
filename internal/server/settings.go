@@ -111,6 +111,12 @@ type settingsDoc struct {
 	SyncIntervalSec      int                       `json:"syncIntervalSec"`
 	ReconcileIntervalSec int                       `json:"reconcileIntervalSec"`
 
+	// Fields edits the discovered specs. A pointer so absence is distinguishable:
+	// an older UI that PUTs without this key must not wipe discovery output.
+	// GET never populates it (fieldSpecs below is the read surface), which also
+	// keeps old clients from echoing it back.
+	Fields *[]config.FieldSpec `json:"fields,omitempty"`
+
 	// Read-only context for the UI. Ignored on PUT — the site and the token are
 	// the credential endpoint's business (T4). runtime is assembled per request.
 	// fieldSpecs / fieldUsage are discovery output; PUT must not clobber Fields.
@@ -141,6 +147,12 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	next := *s.config()
 	next.Projects = in.Projects
 	next.FieldMap = in.FieldMap
+	// Field specs change only when the client sent the key. Hand edits are the
+	// user overriding discovery, so they arrive pinned (auto:false) from the UI;
+	// discovery regenerates only auto:true specs.
+	if in.Fields != nil {
+		next.Fields = *in.Fields
+	}
 	next.BodyFields = in.BodyFields
 	next.EditableFields = in.EditableFields
 	next.Members = in.Members
