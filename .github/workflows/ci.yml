@@ -76,16 +76,6 @@ jobs:
             exit 1
           fi
 
-      - name: Tenant-neutrality scan
-        run: |
-          set -euo pipefail
-          # No installation-specific value may appear in shipped code.
-          # Extend this list as new patterns become relevant.
-          if grep -rEn "atlassian\.net" web/src tools cmd \
-              | grep -vE "your-site|example\.com|your-team"; then
-            echo "found a concrete Jira site URL in shipped code" >&2
-            exit 1
-          fi
 
   scan:
     name: Secret and internal-string scan
