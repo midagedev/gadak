@@ -77,8 +77,10 @@ brews:
     description: "Local SQLite mirror of your Jira issues — web UI, TUI, and agent SQL"
     license: "Apache-2.0"
     commit_msg_template: "scry {{ .Tag }}"
-    # Do not push formulas for prerelease tags (v0.1.0-rc.1, etc.).
-    skip_upload: auto
+    # No tap token, no formula push — a release must not fail because the
+    # optional Homebrew step has no credential. With a token: still skipped for
+    # prerelease tags (v0.1.0-rc.1, etc.).
+    skip_upload: '{{ if .Env.HOMEBREW_TAP_GITHUB_TOKEN }}auto{{ else }}true{{ end }}'
     test: |
       system "#{bin}/scry", "version"
     install: |
