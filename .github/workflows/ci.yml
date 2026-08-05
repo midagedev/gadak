@@ -97,6 +97,10 @@ jobs:
 
       - name: Scan tracked files and demo.db
         run: bash scripts/scan-internal.sh
+        env:
+          # Deployment-specific word list. Absent on forks, where the scanner
+          # skips that check and still enforces tokens and tenant hostnames.
+          SCRY_SCAN_WORDS: ${{ secrets.SCRY_SCAN_WORDS }}
 
   e2e:
     name: Playwright E2E

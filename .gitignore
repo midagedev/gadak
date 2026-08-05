@@ -48,3 +48,9 @@ playwright/.cache/
 
 # goreleaser output (see .goreleaser.yaml `dist:`)
 .release/
+
+# Local word list for scripts/scan-internal.sh (never commit — see the script header)
+.scan-wordlist
+
+# Local scratch: audit reports and working notes, never part of a release
+scratch/
