@@ -269,6 +269,13 @@
       >
         <span class="font-semibold text-accent-text">{t('app.demoBadge')}</span>
         <span>{t('app.demoBanner')}</span>
+        {#if write.demoEdits.size}
+          <!-- Writes are kept locally so they can be tried; the running count is
+               what keeps "kept" from reading as "saved". -->
+          <span class="rounded-full bg-bg-elevated px-2 py-0.5 text-text-primary">
+            {t('app.demoEditCount', { n: write.demoEdits.size })}
+          </span>
+        {/if}
         <a
           href={REPO_URL}
           target="_blank"

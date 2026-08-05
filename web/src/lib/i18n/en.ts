@@ -744,7 +744,12 @@ export const en = {
     'Fictional issues, read-only. Nothing here connects to Jira and no account is involved.',
   'app.demoBannerLink': 'Run it on your own Jira →',
   'app.demoNoCredentials': 'Credentials are disabled in the demo',
-  'app.demoWriteDisabled': 'Read-only in the demo',
+  'app.demoWriteDisabled': 'Creating issues needs a server — try a status change or a comment instead',
+  'app.demoWriteNotice':
+    'Demo edit applied in this browser only — it is not sent anywhere and a reload restores it.',
+  'app.demoAttachDisabled': 'Attachments need a server — not available in the demo',
+  'app.demoEditCount': '{n} local edit(s), not saved',
+  'app.demoEditedIssue': 'Edited in this demo — not saved',
 
   /* ── Me / notifications errors ── */
   'me.noCryptoKey': 'Missing subscription encryption key.',

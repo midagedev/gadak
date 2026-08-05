@@ -14,7 +14,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { ApiError } from '../../lib/api'
-  import { feature } from '../../lib/config'
+  import { feature, isHostedDemo } from '../../lib/config'
   import type { DetailResponse } from '../../lib/types'
   import { getDetailCached, invalidate } from './cache.svelte'
   import { jiraUrl } from './format'
@@ -98,6 +98,16 @@
     <div class="sticky top-0 z-10 flex-none bg-bg-panel">
       {#if lite}
         <DetailHeader issue={lite} />
+        {#if isHostedDemo() && write.demoEdits.has(key)}
+          <!-- The banner counts demo edits; this says which issue is one, so a
+               changed status here is never mistaken for the snapshot's own. -->
+          <p
+            class="border-b border-border-subtle bg-accent-strong/10 px-4 py-1.5 text-[11px] text-text-secondary"
+            data-testid="demo-edited-notice"
+          >
+            {t('app.demoEditedIssue')}
+          </p>
+        {/if}
       {:else}
         <!-- Issue not in pool: minimal header -->
         <header class="flex items-center justify-between border-b border-border-subtle px-4 py-3">

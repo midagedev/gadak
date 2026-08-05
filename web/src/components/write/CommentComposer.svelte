@@ -14,6 +14,7 @@
   import { me } from '../../stores/me.svelte'
   import { searchUsers } from '../../lib/api'
   import type { CommentMention, JiraUser, UploadedAttachment } from '../../lib/types'
+  import { isHostedDemo } from '../../lib/config'
 
   let { issueKey }: { issueKey: string } = $props()
 
@@ -305,7 +306,7 @@
       onpaste={onPaste}
       rows="2"
       data-testid="comment-composer"
-      placeholder={me.identified
+      placeholder={me.identified || isHostedDemo()
         ? t('write.commentPlaceholder')
         : t('write.commentNeedCredentials')}
       class="w-full resize-none rounded-md border bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none transition-colors focus:border-accent {dragOver

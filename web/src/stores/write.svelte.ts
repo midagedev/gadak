@@ -14,7 +14,7 @@
  *  - Server 409 credential_required → same settings dialog.
  */
 
-import { SvelteMap } from 'svelte/reactivity'
+import { SvelteMap, SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
 import { t } from '../lib/i18n'
 import { ApiError } from '../lib/api'
@@ -22,6 +22,7 @@ import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 import { appendComment, invalidate } from '../components/detail/cache.svelte'
 import { recordRecent } from '../lib/recency'
+import { isHostedDemo } from '../lib/config'
 import type {
   CommentMention,
   CreateIssuePayload,
@@ -80,6 +81,16 @@ class WriteStore {
 
   /** issueKey → optimistic comments (pre-server confirm). CommentList appends under detail.comments. */
   pendingComments = new SvelteMap<string, DetailComment[]>()
+
+  /**
+   * Hosted demo only: issue keys this session has "edited". The demo keeps the
+   * optimistic update so the interaction is worth trying, but there is no server
+   * behind it — so the count is surfaced (banner, detail panel) and nothing is
+   * written to IndexedDB. A reload restores the snapshot, which is the honest
+   * behavior and also the cheapest way to say "this was never saved".
+   */
+  demoEdits = new SvelteSet<string>()
+  #demoNoticeShown = false
 
   /** issueKey → editable QA field meta (editmeta). Source for inline-edit dropdowns. */
   editMeta = new SvelteMap<string, EditMetaResponse['fields']>()
@@ -278,6 +289,10 @@ class WriteStore {
    *  - Configured → true.
    */
   async ensureWritable(): Promise<boolean> {
+    // The demo has no credential and cannot get one, but the write surfaces are
+    // most of what there is to look at — so let them run locally instead of
+    // sending visitors to a settings dialog that leads nowhere.
+    if (isHostedDemo()) return true
     if (!this.credentialLoaded) await this.loadCredential()
     if (!this.configured) {
       this.toast(t('write.needToken'), 'info')
@@ -285,6 +300,19 @@ class WriteStore {
       return false
     }
     return true
+  }
+
+  /**
+   * Record a demo-local edit and explain it once. One toast per session: the
+   * banner carries the running count, so repeating the message on every edit
+   * would be noise, and saying nothing at all would be misleading.
+   */
+  #noteDemoEdit(key: string): void {
+    this.demoEdits.add(key)
+    if (!this.#demoNoticeShown) {
+      this.#demoNoticeShown = true
+      this.toast(t('app.demoWriteNotice'), 'info')
+    }
   }
 
   /** Run fn only after the write gate passes. */
@@ -318,6 +346,13 @@ class WriteStore {
     const snapshot = issues.pool.get(key)
     if (snapshot && patch) {
       issues.pool.set(key, { ...snapshot, ...patch })
+    }
+    // Demo: the optimistic patch is the whole result. Stop before the request —
+    // catching the 501 afterwards would mean rolling back the change we want to
+    // keep, and an error toast for something that worked as intended.
+    if (isHostedDemo()) {
+      this.#noteDemoEdit(key)
+      return true
     }
     try {
       const res = await call()
@@ -437,6 +472,12 @@ class WriteStore {
       created_at: new Date().toISOString(),
     }
     this.#pushPending(key, temp)
+    // Demo: leave the pending comment in place. It lives in memory only, so it
+    // reads as posted until the visitor reloads — which is exactly true.
+    if (isHostedDemo()) {
+      this.#noteDemoEdit(key)
+      return true
+    }
     try {
       const res = await api.postComment(
         key,
@@ -470,6 +511,12 @@ class WriteStore {
    */
   async uploadAttachment(key: string, file: File): Promise<UploadedAttachment[] | null> {
     if (!(await this.ensureWritable())) return null
+    // Unlike a status change, an upload has no local stand-in: the bytes would
+    // have to come back from a server to be rendered anywhere.
+    if (isHostedDemo()) {
+      this.toast(t('app.demoAttachDisabled'), 'info')
+      return null
+    }
     try {
       const res = await api.uploadCommentAttachment(key, file)
       return res.attachments

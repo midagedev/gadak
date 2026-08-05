@@ -69,8 +69,9 @@ test.describe('hosted demo', () => {
       .poll(async () => galleryImg.evaluate((el: HTMLImageElement) => el.naturalWidth))
       .toBeGreaterThan(0)
 
-    // Read-only: write UI (comment composer) must stay gated — no credential.
-    await expect(panel.locator('textarea[placeholder*="Write a comment"]')).toHaveCount(0)
+    // The composer is offered on the demo (writes apply locally, see the write
+    // test below), so its placeholder is the normal one, not the credential nag.
+    await expect(panel.locator('textarea[placeholder*="Write a comment"]')).toHaveCount(1)
 
     // Filter out noisy SW / favicon misses; fail on real app errors.
     const serious = errors.filter(
@@ -102,5 +103,44 @@ test.describe('hosted demo', () => {
     // Writes answer 501 here, so the entry point is disabled up front rather
     // than failing after the visitor has typed something.
     await expect(page.getByRole('button', { name: /new issue/i }).first()).toBeDisabled()
+  })
+
+  test('a comment applies locally, is labelled unsaved, and reaches no server', async ({
+    page,
+  }) => {
+    await forceLocale(page, 'en')
+    const writes: string[] = []
+    page.on('request', (r) => {
+      if (!['GET', 'HEAD'].includes(r.method())) writes.push(`${r.method()} ${r.url()}`)
+    })
+    await page.goto(DEMO)
+
+    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
+    await page.getByPlaceholder(/Search issues/).fill('NMB-110')
+    await page
+      .locator('[data-testid="issue-list-scroller"] [role="button"]')
+      .filter({ hasText: 'NMB-110' })
+      .first()
+      .click()
+
+    const panel = page.getByTestId('issue-detail-panel')
+    const composer = panel.getByTestId('comment-composer')
+    await expect(composer).toBeVisible()
+    await composer.fill('Does the write path feel real here?')
+    await panel.getByRole('button', { name: /^Comment$/ }).click()
+
+    // The optimistic comment stays put — a demo where writes bounce is not worth
+    // trying — but everything around it has to say it went nowhere.
+    await expect(panel.getByText('Does the write path feel real here?')).toBeVisible()
+    await expect(page.getByTestId('demo-edited-notice')).toBeVisible()
+    await expect(page.getByTestId('demo-banner')).toContainText(/local edit/i)
+
+    // The claim on the banner is only true if nothing was actually sent.
+    expect(writes, `unexpected writes:\n${writes.join('\n')}`).toEqual([])
+
+    // "Not saved" has to survive the obvious test a visitor would run.
+    await page.reload()
+    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByText('Does the write path feel real here?')).toHaveCount(0)
   })
 })

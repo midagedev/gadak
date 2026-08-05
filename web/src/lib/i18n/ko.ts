@@ -740,7 +740,11 @@ export const ko = {
   'app.demoBanner': '가상의 이슈이며 읽기 전용입니다. Jira 에 연결되지 않고 계정도 필요 없습니다.',
   'app.demoBannerLink': '내 Jira 에서 실행하기 →',
   'app.demoNoCredentials': '데모에서는 자격증명을 설정할 수 없습니다',
-  'app.demoWriteDisabled': '데모에서는 읽기 전용입니다',
+  'app.demoWriteDisabled': '이슈 생성은 서버가 필요합니다 — 상태 변경이나 코멘트를 시도해 보세요',
+  'app.demoWriteNotice': '데모 수정은 이 브라우저에만 적용됩니다 — 어디로도 전송되지 않고 새로고침하면 사라집니다.',
+  'app.demoAttachDisabled': '첨부는 서버가 필요해 데모에서는 지원되지 않습니다',
+  'app.demoEditCount': '로컬 수정 {n}건 · 저장되지 않음',
+  'app.demoEditedIssue': '이 데모에서 수정됨 — 저장되지 않음',
 
   /* ── Me / notifications errors ── */
   'me.noCryptoKey': '구독 암호화 키가 없습니다.',
