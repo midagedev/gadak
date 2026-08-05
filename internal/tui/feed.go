@@ -129,29 +129,35 @@ func (m Model) handleFeedKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case key.Matches(msg, k.Enter):
-		if len(m.feedItems) == 0 || m.feedCursor < 0 || m.feedCursor >= len(m.feedItems) {
-			return m, nil
-		}
-		item := m.feedItems[m.feedCursor]
-		if item.IssueKey == "" {
-			return m, nil
-		}
-		lite := store.IssueLite{
-			IssueKey: item.IssueKey,
-			Summary:  item.Summary,
-			Status:   item.CurrentStatus,
-		}
-		// Prefer the list row if we already have it (fuller fields).
-		for _, r := range m.all {
-			if r.lite.IssueKey == item.IssueKey {
-				lite = r.lite
-				break
-			}
-		}
-		m.detailFrom = modeFeed
-		return m, m.loadDetailCmd(item.IssueKey, lite)
+		return m.openFeedSelection()
 	}
 	return m, nil
+}
+
+// openFeedSelection opens the detail for the feed row under the cursor.
+// Shared by Enter and a mouse click on the selected row.
+func (m Model) openFeedSelection() (tea.Model, tea.Cmd) {
+	if len(m.feedItems) == 0 || m.feedCursor < 0 || m.feedCursor >= len(m.feedItems) {
+		return m, nil
+	}
+	item := m.feedItems[m.feedCursor]
+	if item.IssueKey == "" {
+		return m, nil
+	}
+	lite := store.IssueLite{
+		IssueKey: item.IssueKey,
+		Summary:  item.Summary,
+		Status:   item.CurrentStatus,
+	}
+	// Prefer the list row if we already have it (fuller fields).
+	for _, r := range m.all {
+		if r.lite.IssueKey == item.IssueKey {
+			lite = r.lite
+			break
+		}
+	}
+	m.detailFrom = modeFeed
+	return m, m.loadDetailCmd(item.IssueKey, lite)
 }
 
 func (m *Model) moveFeedCursor(delta int) {

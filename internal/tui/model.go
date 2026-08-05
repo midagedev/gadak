@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
 	"github.com/midagedev/scry/internal/config"
@@ -95,6 +96,15 @@ type Model struct {
 
 	// Watches (w) — issue keys currently watched.
 	watches map[string]bool
+
+	// Ambient animation. animOn is decided once at startup (Run sets it from
+	// animEnabled(); tests leave it false so views render static). animPhase
+	// advances ~0.045 per 110ms tick and drives every shimmer/pulse/glow.
+	animOn    bool
+	animPhase float64
+
+	// Command palette (ctrl+k). Nil when closed.
+	pal *paletteState
 }
 
 // newModel builds a model without loading data (tests inject rows).
@@ -125,7 +135,18 @@ func (m Model) Init() tea.Cmd {
 	if m.loading {
 		cmds = append(cmds, m.spin.Tick)
 	}
+	if m.animOn {
+		cmds = append(cmds, animTickCmd())
+	}
 	return tea.Batch(cmds...)
+}
+
+// animTickMsg is the global ambient-animation heartbeat (~9 fps). It keeps
+// firing while the program runs so the surface breathes even when idle.
+type animTickMsg struct{}
+
+func animTickCmd() tea.Cmd {
+	return tea.Tick(110*time.Millisecond, func(time.Time) tea.Msg { return animTickMsg{} })
 }
 
 type updateNoticeMsg struct{ latest string }
@@ -396,6 +417,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case animTickMsg:
+		if !m.animOn {
+			return m, nil
+		}
+		m.animPhase += 0.045
+		return m, animTickCmd()
+
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
+
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -417,6 +448,16 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Global quit always works outside forms (form uses ctrl+c via huh).
 	if keyStr == "ctrl+c" {
 		return m, tea.Quit
+	}
+
+	// Command palette: ctrl+k toggles from anywhere outside forms; while open
+	// it consumes every key.
+	if m.pal != nil {
+		return m.handlePaletteKey(msg)
+	}
+	if keyStr == "ctrl+k" && m.mode != modeFilter {
+		m.openPalette()
+		return m, nil
 	}
 
 	// Help overlay: ? toggles; esc/? closes; other keys ignored while open
@@ -778,6 +819,9 @@ func (m Model) View() string {
 		m.height = 24
 	}
 
+	if m.pal != nil {
+		return m.viewPalette()
+	}
 	var frame string
 	switch {
 	case m.mode == modeForm && m.form != nil:
@@ -834,7 +878,7 @@ func (m Model) viewList() string {
 		}
 		for i := m.offset; i < end; i++ {
 			if lines == nil {
-				b.WriteString(m.renderRow(m.all[m.visible[i]], i == m.cursor, w))
+				b.WriteString(m.renderRowAt(m.all[m.visible[i]], i == m.cursor, w, i-m.offset))
 				b.WriteByte('\n')
 				continue
 			}
@@ -844,7 +888,7 @@ func (m Model) viewList() string {
 				b.WriteString(fitWidth(styleMuted.Render(hdr), w))
 			} else {
 				r := m.all[m.visible[ln.visIdx]]
-				b.WriteString(m.renderRow(r, ln.visIdx == m.cursor, w))
+				b.WriteString(m.renderRowAt(r, ln.visIdx == m.cursor, w, i-m.offset))
 			}
 			b.WriteByte('\n')
 		}
@@ -860,6 +904,11 @@ func (m Model) viewList() string {
 // renderHeader: app name + profile chip + watermark/sync age on one bar.
 func (m Model) renderHeader(w int) string {
 	left := styleBrand.Render(" scry ")
+	if m.animOn {
+		// Brand wordmark shimmers with the global phase — the one place the
+		// gradient runs at full strength.
+		left = " " + shimmer("scry", m.animPhase) + " "
+	}
 	if p := config.Profile(); p != "" {
 		left += styleChip.Render(p)
 	}
@@ -871,6 +920,12 @@ func (m Model) renderHeader(w int) string {
 		right = styleToastErr.Render(m.loadErr.Error())
 	}
 	return styleHeaderBar.Render(joinBar(left, right, max(1, w-2)))
+}
+
+// renderTabLabel is the plain text of one tab ("1 All (34)") — shared with
+// the mouse hit-testing in tabAt, which must reproduce the same widths.
+func renderTabLabel(i int, t Tab, n int) string {
+	return fmt.Sprintf("%d %s (%d)", i+1, t.Label(), n)
 }
 
 func (m Model) renderTabs() string {
@@ -893,9 +948,14 @@ func (m Model) renderTabs() string {
 	}
 	parts := make([]string, 0, 4)
 	for i, t := range tabs {
-		label := fmt.Sprintf("%d %s (%d)", i+1, t.t.Label(), t.n)
+		label := renderTabLabel(i, t.t, t.n)
 		if t.t == m.tab {
-			parts = append(parts, styleTabActive.Render(label))
+			active := styleTabActive
+			if m.animOn {
+				// The active tab breathes with the global pulse.
+				active = active.Background(pulseColor(m.animPhase)).Foreground(colSelFg)
+			}
+			parts = append(parts, active.Render(label))
 		} else {
 			parts = append(parts, styleTabInactive.Render(label))
 		}
@@ -911,6 +971,58 @@ func (m Model) renderTabs() string {
 }
 
 func (m Model) renderRow(r row, selected bool, w int) string {
+	return m.renderRowAt(r, selected, w, 0)
+}
+
+// renderRowAt renders one list row. screenRow feeds the ambient wave so each
+// line sits at a slightly different phase; selection gets the breathing glow.
+func (m Model) renderRowAt(r row, selected bool, w, screenRow int) string {
+	// Animated backgrounds: selection glows, idle rows ride a very dark wave.
+	// sep carries the row background across the gaps between segments —
+	// unstyled spaces after an inner ANSI reset would show the terminal's own
+	// background as dark slivers.
+	styleSel, styleSelKey, styleSelMuted := styleSel, styleSelKey, styleSelMuted
+	stylePrimary, styleDim, styleMuted, styleKey := stylePrimary, styleDim, styleMuted, styleKey
+	rowFill := func(s string) string { return fitWidth(s, w) }
+	sep := " "
+	matchBg := styleHighlight
+	if selected {
+		matchBg = matchBg.Background(colAccentBg)
+	}
+	if m.animOn {
+		if selected {
+			g := glowColor(m.animPhase)
+			styleSel = styleSel.Background(g)
+			styleSelKey = styleSelKey.Background(g)
+			styleSelMuted = styleSelMuted.Background(g)
+			matchBg = matchBg.Background(g)
+		} else if amb, ok := ambientBg(m.animPhase, screenRow); ok {
+			stylePrimary = stylePrimary.Background(amb)
+			styleDim = styleDim.Background(amb)
+			styleMuted = styleMuted.Background(amb)
+			styleKey = styleKey.Background(amb)
+			matchBg = matchBg.Background(amb)
+			ambStyle := lipgloss.NewStyle().Background(amb)
+			sep = ambStyle.Render(" ")
+			rowFill = func(s string) string {
+				pad := w - lipgloss.Width(s)
+				if pad < 0 {
+					pad = 0
+				}
+				return s + ambStyle.Render(spaces(pad))
+			}
+		}
+	}
+	if selected {
+		sep = styleSel.Render(" ")
+	}
+	hl := func(plain string, base lipgloss.Style) string {
+		if m.filter == "" {
+			return base.Render(plain)
+		}
+		return highlightMatch(plain, m.filter, base, matchBg)
+	}
+
 	// Narrow terminal: key + summary only.
 	if w < 40 {
 		const keyW = 12
@@ -925,14 +1037,14 @@ func (m Model) renderRow(r row, selected bool, w int) string {
 			watch = "★"
 		}
 		if selected {
-			inner := " " + styleSelKey.Render(keyPlain) + " " + styleSel.Render(summaryPlain) + watch
+			inner := sep + hl(keyPlain, styleSelKey) + sep + hl(summaryPlain, styleSel) + watch
 			return styleSel.Width(w).MaxWidth(w).Render(inner)
 		}
-		line := " " + styleKey.Render(keyPlain) + " " + stylePrimary.Render(summaryPlain)
+		line := sep + hl(keyPlain, styleKey) + sep + hl(summaryPlain, stylePrimary)
 		if watch != "" {
 			line += styleBrand.Render(watch)
 		}
-		return fitWidth(line, w)
+		return rowFill(line)
 	}
 
 	// Layout: " ● KEY········ status····· summary… [label] assignee age"
@@ -946,18 +1058,6 @@ func (m Model) renderRow(r row, selected bool, w int) string {
 		// prefix dots/spaces ≈ 5; chip is optional and short.
 		overhead = 5 + keyW + 1 + statusW + 1 + 1 + assigneeW + 1 + ageW
 	)
-	sumW := w - overhead - 8 // room for an optional label chip
-	if sumW < 8 {
-		sumW = 8
-	}
-
-	dotStyle := statusStyle(r.lite.StatusCategory, r.lite.ReopenCount)
-	keyPlain := padRight(r.lite.IssueKey, keyW)
-	statusPlain := padRight(truncate(r.lite.Status, statusW), statusW)
-	summaryPlain := padRight(truncate(r.lite.Summary, sumW), sumW)
-	assigneePlain := padRight(truncate(deref(r.lite.Assignee), assigneeW), assigneeW)
-	agePlain := padRight(relativeTime(deref(r.lite.UpdatedAt), m.clock()), ageW)
-
 	chip := ""
 	if len(r.lite.Labels) > 0 {
 		chip = truncate(r.lite.Labels[0], 10)
@@ -969,31 +1069,59 @@ func (m Model) renderRow(r row, selected bool, w int) string {
 			chip = "★"
 		}
 	}
+	// The summary absorbs exactly what the chip leaves: a wide chip once made
+	// the selected row overflow w and wrap, scrolling the header off-screen.
+	chipW := 0
+	if chip != "" {
+		chipW = runewidth.StringWidth(chip) + 1
+	}
+	sumW := w - overhead - chipW
+	if sumW < 8 {
+		sumW = 8
+	}
+
+	dotStyle := statusStyle(r.lite.StatusCategory, r.lite.ReopenCount)
+	keyPlain := padRight(r.lite.IssueKey, keyW)
+	statusPlain := padRight(truncate(r.lite.Status, statusW), statusW)
+	summaryPlain := padRight(truncate(r.lite.Summary, sumW), sumW)
+	assigneePlain := padRight(truncate(deref(r.lite.Assignee), assigneeW), assigneeW)
+	agePlain := padRight(relativeTime(deref(r.lite.UpdatedAt), m.clock()), ageW)
 
 	if selected {
-		// Solid indigo row; keep the status dot coloured on top of the bg.
-		inner := " " +
-			dotStyle.Background(colAccentBg).Render("●") + " " +
-			styleSelKey.Render(keyPlain) + " " +
-			styleSel.Render(statusPlain) + " " +
-			styleSel.Render(summaryPlain)
-		if chip != "" {
-			inner += " " + styleSelMuted.Render(chip)
+		// Solid glowing row; keep the status dot coloured on top of the bg.
+		dotBg := colAccentBg
+		dot := dotStyle.Background(dotBg)
+		if m.animOn {
+			dot = dotStyle.Background(glowColor(m.animPhase))
 		}
-		inner += " " + styleSelMuted.Render(assigneePlain) + " " + styleSelMuted.Render(agePlain)
-		return styleSel.Width(w).MaxWidth(w).Render(inner)
+		inner := sep +
+			dot.Render("●") + sep +
+			hl(keyPlain, styleSelKey) + sep +
+			hl(statusPlain, styleSel) + sep +
+			hl(summaryPlain, styleSel)
+		if chip != "" {
+			inner += sep + styleSelMuted.Render(chip)
+		}
+		inner += sep + hl(assigneePlain, styleSelMuted) + sep + styleSelMuted.Render(agePlain)
+		return styleSel.MaxWidth(w).Render(inner)
 	}
 
-	line := " " +
-		dotStyle.Render("●") + " " +
-		styleKey.Render(keyPlain) + " " +
-		styleDim.Render(statusPlain) + " " +
-		stylePrimary.Render(summaryPlain)
-	if chip != "" {
-		line += " " + styleChip.Render(chip)
+	dot := dotStyle
+	if m.animOn {
+		if amb, ok := ambientBg(m.animPhase, screenRow); ok {
+			dot = dot.Background(amb)
+		}
 	}
-	line += " " + styleDim.Render(assigneePlain) + " " + styleMuted.Render(agePlain)
-	return fitWidth(line, w)
+	line := sep +
+		dot.Render("●") + sep +
+		hl(keyPlain, styleKey) + sep +
+		hl(statusPlain, styleDim) + sep +
+		hl(summaryPlain, stylePrimary)
+	if chip != "" {
+		line += sep + styleChip.Render(chip)
+	}
+	line += sep + hl(assigneePlain, styleDim) + sep + styleMuted.Render(agePlain)
+	return rowFill(line)
 }
 
 // renderStatusBar: left = key hints (+ spinner/toast/filter), right = sync + count.

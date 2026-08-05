@@ -16,7 +16,8 @@ then refresh that one issue in the mirror.
 | `j` / `k`, `↓` / `↑` | move the cursor |
 | `g` / `G` | first / last row |
 | `1` `2` `3` `4` | list: all / open / in progress / done · feed: all / assignee / reporter / mention |
-| `/` | filter by key, summary, or assignee (local, per keystroke) |
+| `/` | filter by key, summary, or assignee (local, per keystroke; matches are highlighted in the list) |
+| `Ctrl+K` | command palette — fuzzy jump to any tab, action, saved view, or issue |
 | `Enter` | open detail |
 | `Esc` | back, or clear the filter / leave feed or views |
 | `c` | comment |
@@ -32,6 +33,21 @@ then refresh that one issue in the mirror.
 
 Write keys are inert until a credential is configured (`scry init`); the status
 bar says so rather than failing at submit time.
+
+### Mouse
+
+The list is clickable: wheel scrolls, a click moves the cursor, a second click
+on the selected row opens it, and the tab bar switches on click. The feed works
+the same way. Everything remains fully keyboard-driven — the mouse is an
+addition, never a requirement.
+
+### Ambient neon
+
+The header wordmark, active tab, and selected row breathe on a slow gradient
+even when nothing is happening; the filter query is highlighted in matching
+rows. All of it derives from one global tick and switches off automatically
+under `NO_COLOR`, or explicitly with `SCRY_NO_ANIM=1`. Piped output was never
+animated to begin with.
 
 ### Feed
 

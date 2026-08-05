@@ -64,17 +64,17 @@ terminal, and the agent read the same store.
 | | For | Looks like |
 | --- | --- | --- |
 | **Web UI** | all-day triage, mouse and keyboard | keyboard-driven list, saved views, ⌘K palette, full detail with rich text, comments, history, attachments |
-| **TUI** | people who live in the terminal | [`scry tui`](docs/TUI.md) — list, filter, detail, and write actions over the same mirror |
+| **TUI** | people who live in the terminal | [`scry tui`](docs/TUI.md) — list, filter with live match highlight, Ctrl+K palette, mouse support, detail, and write actions over the same mirror |
 | **CLI + SQL** | agents, scripts, one-off questions | `scry issue`, `scry search`, `scry sql`, plus the file itself |
 
 <p align="center">
-  <img src="docs/media/tui.gif" alt="scry tui: filtering and opening an issue in the terminal" width="800">
+  <img src="docs/media/tui.gif" alt="scry tui: neon list with live filter highlighting, the Ctrl+K command palette, and issue detail" width="800">
 </p>
 
 Writes go through to Jira and then refresh the mirror, so the list is correct a
 moment later without a full sync. Comment, transition, and assign work on all
-three surfaces. Field edits and issue creation are web-only today (TUI and CLI
-have no create or field-edit commands).
+three surfaces; field edits work in the web UI and the TUI (values always come
+from what Jira allows, never free text). Issue creation is web-only today.
 
 Attachments are local too. The first view of an image caches its bytes next to
 the mirror and every later view is a disk read, so a screenshot-heavy issue opens

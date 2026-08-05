@@ -5,29 +5,28 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-// Palette mirrors web/src/app.css @theme (dark-first). 256-color indices are
-// the Dark values; Light counterparts keep a light terminal readable.
-//
-//	bg layers / border  #343d49 → 238
-//	accent indigo       #6366f1 → 105, #a5b4fc → 147
-//	text                primary 252 / secondary 249 / muted 242
-//	status              new 39 / inprogress 220 / done 42 / reopen 203
+// Neon palette. High-chroma on dark terminals so the accents glow; one tone
+// darker on light terminals so they stay readable. Truecolor hexes — lipgloss
+// degrades them itself on 256/16-colour terminals, and drops them entirely
+// under NO_COLOR or a pipe.
 var (
-	colPrimary   = lipgloss.AdaptiveColor{Light: "235", Dark: "252"}
-	colSecondary = lipgloss.AdaptiveColor{Light: "238", Dark: "249"}
-	colMuted     = lipgloss.AdaptiveColor{Light: "244", Dark: "242"}
-	colBorder    = lipgloss.AdaptiveColor{Light: "250", Dark: "238"}
-	colSurface   = lipgloss.AdaptiveColor{Light: "254", Dark: "236"} // elevated chip bg
-	colAccent    = lipgloss.AdaptiveColor{Light: "62", Dark: "105"}  // indigo
-	colAccentFg  = lipgloss.AdaptiveColor{Light: "55", Dark: "147"}  // violet text
-	colAccentBg  = lipgloss.AdaptiveColor{Light: "189", Dark: "61"}  // selection / active tab
-	colSelFg     = lipgloss.AdaptiveColor{Light: "235", Dark: "255"}
-	colOK        = lipgloss.AdaptiveColor{Light: "28", Dark: "42"}
-	colErr       = lipgloss.AdaptiveColor{Light: "160", Dark: "203"}
-	colNew       = lipgloss.AdaptiveColor{Light: "27", Dark: "39"}
-	colIP        = lipgloss.AdaptiveColor{Light: "136", Dark: "220"}
-	colDone      = lipgloss.AdaptiveColor{Light: "28", Dark: "42"}
-	colReopen    = lipgloss.AdaptiveColor{Light: "160", Dark: "203"}
+	colPrimary   = lipgloss.AdaptiveColor{Light: "#1A1523", Dark: "#F5F0FF"}
+	colSecondary = lipgloss.AdaptiveColor{Light: "#4A4458", Dark: "#C9C2DB"}
+	colMuted     = lipgloss.AdaptiveColor{Light: "#8E8C99", Dark: "#6C6A7A"}
+	colBorder    = lipgloss.AdaptiveColor{Light: "#C9C5D6", Dark: "#5B5470"} // lilac grey
+	colSurface   = lipgloss.AdaptiveColor{Light: "#EEEAF8", Dark: "#241D40"} // faint purple surface
+	colAccent    = lipgloss.AdaptiveColor{Light: "#7D56F4", Dark: "#9D7CFF"} // signature purple
+	colAccentFg  = lipgloss.AdaptiveColor{Light: "#6B3FD4", Dark: "#B392FF"} // violet text
+	colAccentBg  = lipgloss.AdaptiveColor{Light: "#7D56F4", Dark: "#4B3A8F"} // selection / active tab
+	colSelFg     = lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#F5F0FF"}
+	colCyan      = lipgloss.AdaptiveColor{Light: "#0BA5C2", Dark: "#34E2E4"} // keys / links (aqua)
+	colPink      = lipgloss.AdaptiveColor{Light: "#D6409F", Dark: "#FF6AC1"} // highlights (hot pink)
+	colOK        = lipgloss.AdaptiveColor{Light: "#03A66A", Dark: "#27FFB0"} // neon mint
+	colErr       = lipgloss.AdaptiveColor{Light: "#E5484D", Dark: "#FF6B6E"} // coral
+	colNew       = lipgloss.AdaptiveColor{Light: "#0C8CE0", Dark: "#5EC8FF"} // sky
+	colIP        = lipgloss.AdaptiveColor{Light: "#B8860B", Dark: "#FFD15C"} // gold
+	colDone      = lipgloss.AdaptiveColor{Light: "#03A66A", Dark: "#27FFB0"} // mint
+	colReopen    = lipgloss.AdaptiveColor{Light: "#E5484D", Dark: "#FF6B6E"} // coral
 )
 
 // Component styles — shared by list, detail, form, and status bar.
@@ -44,10 +43,10 @@ var (
 			Foreground(colSecondary).
 			Padding(0, 1)
 
-	// Issue key
+	// Issue key — aqua, the palette's "this is a link/id" colour.
 	styleKey = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(colAccentFg)
+			Foreground(colCyan)
 
 	// Selection: full-row indigo highlight
 	styleSel = lipgloss.NewStyle().

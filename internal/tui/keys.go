@@ -14,7 +14,7 @@ type keyMap struct {
 	Comment, Transition    key.Binding
 	Assignee, Edit, Quit   key.Binding
 	Help, Feed, Views      key.Binding
-	Watch                  key.Binding
+	Watch, Palette         key.Binding
 }
 
 func defaultKeys() keyMap {
@@ -40,6 +40,7 @@ func defaultKeys() keyMap {
 		Feed:          key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "feed")),
 		Views:         key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "saved views")),
 		Watch:         key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "watch")),
+		Palette:       key.NewBinding(key.WithKeys("ctrl+k"), key.WithHelp("ctrl+k", "command palette")),
 		Quit:          key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
 }
@@ -56,6 +57,7 @@ func (k keyMap) helpLines() [][2]string {
 		{k.TabInProgress.Help().Key, k.TabInProgress.Help().Desc},
 		{k.TabDone.Help().Key, k.TabDone.Help().Desc},
 		{k.Filter.Help().Key, k.Filter.Help().Desc},
+		{k.Palette.Help().Key, k.Palette.Help().Desc},
 		{k.Enter.Help().Key, k.Enter.Help().Desc},
 		{k.Back.Help().Key, k.Back.Help().Desc},
 		{k.Comment.Help().Key, k.Comment.Help().Desc},

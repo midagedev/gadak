@@ -25,7 +25,10 @@ func Run(cfg *config.Config, db *store.DB, version string) error {
 	}
 	m := newModel(cfg, db)
 	m.version = version
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	// Ambient neon runs only in a real session: SCRY_NO_ANIM / NO_COLOR turn
+	// it off, and tests never set animOn at all.
+	m.animOn = animEnabled()
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
 	return err
 }
