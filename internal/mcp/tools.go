@@ -76,7 +76,8 @@ Examples:
   WHERE items_fts MATCH 'billing' LIMIT 10;`
 
 const toolSearchDescription = `Full-text search over issue and page titles, bodies, and comments (FTS5).
-Returns matching issue keys (with summary/status) and page PageLite rows, best match first.
+Returns matching issue keys (with summary/status), page PageLite rows, and matches
+(key → {field: title|body|comment, snippet: plain text ~120 chars}), best match first.
 Prefer scry_query for relational or aggregated questions; use this for free-text recall.`
 
 const toolIssueDescription = `Fetch one issue by key with full detail: list fields plus description,
@@ -241,7 +242,11 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, bool) {
 	if pages == nil {
 		pages = []store.PageLite{}
 	}
-	return marshalResult(map[string]any{"total": res.Total, "issues": hits, "pages": pages})
+	matches := res.Matches
+	if matches == nil {
+		matches = map[string]store.SearchMatch{}
+	}
+	return marshalResult(map[string]any{"total": res.Total, "issues": hits, "pages": pages, "matches": matches})
 }
 
 func (s *Server) toolIssue(args map[string]any) ([]contentItem, bool) {

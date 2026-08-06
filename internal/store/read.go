@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"strings"
+	"unicode/utf8"
 )
 
 // IssueLite is the row shape the read API hydrates the client with. Field names
@@ -396,15 +397,28 @@ func (db *DB) PageDetail(key string) (*PageDetail, error) {
 	return &d, nil
 }
 
+// SearchMatch says which FTS column matched and shows a plain-text snippet.
+// Field is "title" | "body" | "comment". Snippet has no HTML or highlight
+// markers — the client highlights against its own query string.
+type SearchMatch struct {
+	Field   string `json:"field"`
+	Snippet string `json:"snippet"`
+}
+
 // SearchResult is a kind-aware FTS hit list. Keys are issue keys (best match
 // first among issues in the ranked window); Pages are page hits in the same
 // ranked window. Total is the number of hits returned (keys + pages), matching
 // the pre-R2 meaning of total = len(results after limit).
+// Matches maps each returned issue or page key to the winning column match.
 type SearchResult struct {
-	Keys  []string
-	Pages []PageLite
-	Total int
+	Keys    []string               `json:"keys"`
+	Pages   []PageLite             `json:"pages"`
+	Total   int                    `json:"total"`
+	Matches map[string]SearchMatch `json:"matches"`
 }
+
+// searchSnippetRunes is the target plain-snippet length (~120 runes).
+const searchSnippetRunes = 120
 
 // Search runs an FTS5 query over titles, bodies and comment text and returns
 // matching issues and pages, best match first. Bare terms are rewritten as
@@ -412,7 +426,7 @@ type SearchResult struct {
 // retried as a literal phrase rather than surfaced as an error, because this is
 // fed raw user input. limit applies to the combined FTS result set.
 func (db *DB) Search(query string, limit int) (SearchResult, error) {
-	empty := SearchResult{Keys: []string{}, Pages: []PageLite{}}
+	empty := SearchResult{Keys: []string{}, Pages: []PageLite{}, Matches: map[string]SearchMatch{}}
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return empty, nil
@@ -421,9 +435,9 @@ func (db *DB) Search(query string, limit int) (SearchResult, error) {
 		limit = 50
 	}
 	match := ftsPrefixQuery(query)
-	res, err := db.search(match, limit)
+	res, err := db.search(match, query, limit)
 	if err != nil {
-		return db.search(`"`+strings.ReplaceAll(query, `"`, `""`)+`"`, limit)
+		return db.search(`"`+strings.ReplaceAll(query, `"`, `""`)+`"`, query, limit)
 	}
 	return res, nil
 }
@@ -451,13 +465,28 @@ func ftsPrefixQuery(q string) string {
 	return strings.Join(out, " ")
 }
 
-func (db *DB) search(match string, limit int) (SearchResult, error) {
-	res := SearchResult{Keys: []string{}, Pages: []PageLite{}}
+func (db *DB) search(match, rawQuery string, limit int) (SearchResult, error) {
+	res := SearchResult{Keys: []string{}, Pages: []PageLite{}, Matches: map[string]SearchMatch{}}
+	// Column-filtered MATCH expressions detect which FTS column hit. items_fts
+	// is contentless (content=''), so FTS5 snippet()/highlight() return NULL —
+	// we still SELECT them for non-contentless compatibility, and fall back to
+	// source text + column filters when markers are absent.
+	titleMatch := "title : " + match
+	bodyMatch := "body_text : " + match
+	commentMatch := "comments_text : " + match
 	err := each(db.sql, `
 		SELECT it.kind, COALESCE(it.key, ''), COALESCE(it.title, ''),
 		       COALESCE(it.author, ''), COALESCE(it.updated_at, ''), COALESCE(it.url, ''),
 		       COALESCE(p.space_key, ''), COALESCE(sp.name, ''), COALESCE(p.parent_id, ''),
-		       COALESCE(p.version, 0), COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]')
+		       COALESCE(p.version, 0), COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]'),
+		       snippet(items_fts, 0, char(1), char(2), '…', 18),
+		       snippet(items_fts, 1, char(1), char(2), '…', 18),
+		       snippet(items_fts, 2, char(1), char(2), '…', 18),
+		       COALESCE(it.body_text, ''),
+		       COALESCE((SELECT group_concat(c.body_text, char(10)) FROM comments c WHERE c.item_id = it.id), ''),
+		       EXISTS(SELECT 1 FROM items_fts WHERE rowid = f.rowid AND items_fts MATCH ?),
+		       EXISTS(SELECT 1 FROM items_fts WHERE rowid = f.rowid AND items_fts MATCH ?),
+		       EXISTS(SELECT 1 FROM items_fts WHERE rowid = f.rowid AND items_fts MATCH ?)
 		FROM items_fts f
 		JOIN items it ON it.rowid = f.rowid
 		LEFT JOIN pages p ON p.item_id = it.id
@@ -468,8 +497,13 @@ func (db *DB) search(match string, limit int) (SearchResult, error) {
 		func(rows *sql.Rows) error {
 			var kind, key, title, author, updatedAt, url, spaceKey, spaceName, parentID, excerpt, labels string
 			var version int
+			var snipTitle, snipBody, snipComment sql.NullString
+			var bodyText, commentsText string
+			var titleHit, bodyHit, commentHit int
 			if err := rows.Scan(&kind, &key, &title, &author, &updatedAt, &url,
-				&spaceKey, &spaceName, &parentID, &version, &excerpt, &labels); err != nil {
+				&spaceKey, &spaceName, &parentID, &version, &excerpt, &labels,
+				&snipTitle, &snipBody, &snipComment, &bodyText, &commentsText,
+				&titleHit, &bodyHit, &commentHit); err != nil {
 				return err
 			}
 			switch kind {
@@ -484,10 +518,136 @@ func (db *DB) search(match string, limit int) (SearchResult, error) {
 					Version: version, URL: url, Excerpt: excerpt, Labels: parseArray(&labels),
 				})
 			}
+			if key != "" {
+				if m, ok := resolveSearchMatch(
+					snipTitle.String, snipBody.String, snipComment.String,
+					title, bodyText, commentsText, rawQuery,
+					titleHit != 0, bodyHit != 0, commentHit != 0,
+				); ok {
+					res.Matches[key] = m
+				}
+			}
 			return nil
-		}, match, limit)
+		}, titleMatch, bodyMatch, commentMatch, match, limit)
 	res.Total = len(res.Keys) + len(res.Pages)
 	return res, err
+}
+
+// resolveSearchMatch picks the winning field (title > body > comment) and a
+// plain-text snippet. Prefer FTS snippet() markers when present; otherwise use
+// column-filter hits and build a window from source text (contentless FTS).
+func resolveSearchMatch(
+	snipTitle, snipBody, snipComment, title, body, comments, rawQuery string,
+	titleHit, bodyHit, commentHit bool,
+) (SearchMatch, bool) {
+	tMark := strings.Contains(snipTitle, "\x01")
+	bMark := strings.Contains(snipBody, "\x01")
+	cMark := strings.Contains(snipComment, "\x01")
+	if tMark || bMark || cMark {
+		switch {
+		case tMark:
+			snip := plainFromFTSSnippet(snipTitle)
+			if snip == "" {
+				snip = makeSearchSnippet(title, rawQuery)
+			}
+			return SearchMatch{Field: "title", Snippet: snip}, true
+		case bMark:
+			return SearchMatch{Field: "body", Snippet: plainFromFTSSnippet(snipBody)}, true
+		default:
+			return SearchMatch{Field: "comment", Snippet: plainFromFTSSnippet(snipComment)}, true
+		}
+	}
+	// Contentless path: no markers. Column filters decide the field.
+	switch {
+	case titleHit:
+		return SearchMatch{Field: "title", Snippet: makeSearchSnippet(title, rawQuery)}, true
+	case bodyHit:
+		return SearchMatch{Field: "body", Snippet: makeSearchSnippet(body, rawQuery)}, true
+	case commentHit:
+		return SearchMatch{Field: "comment", Snippet: makeSearchSnippet(comments, rawQuery)}, true
+	default:
+		// Overall MATCH hit without a per-column signal — omit rather than guess.
+		return SearchMatch{}, false
+	}
+}
+
+// plainFromFTSSnippet strips FTS highlight markers and normalizes whitespace.
+func plainFromFTSSnippet(s string) string {
+	s = strings.ReplaceAll(s, "\x01", "")
+	s = strings.ReplaceAll(s, "\x02", "")
+	return normalizeWhitespace(s)
+}
+
+// makeSearchSnippet returns a ~120-rune plain window around the first query
+// token found in text, or the front of the text when no token hits.
+func makeSearchSnippet(text, rawQuery string) string {
+	text = normalizeWhitespace(text)
+	if text == "" {
+		return ""
+	}
+	runes := []rune(text)
+	if len(runes) <= searchSnippetRunes {
+		return text
+	}
+	lower := strings.ToLower(text)
+	bestByte := -1
+	bestEndByte := 0
+	for _, tok := range snippetTokens(rawQuery) {
+		i := strings.Index(lower, strings.ToLower(tok))
+		if i < 0 {
+			continue
+		}
+		if bestByte < 0 || i < bestByte {
+			bestByte = i
+			bestEndByte = i + len(tok)
+		}
+	}
+	if bestByte < 0 {
+		return string(runes[:searchSnippetRunes])
+	}
+	startRune := utf8.RuneCountInString(text[:bestByte])
+	matchRunes := utf8.RuneCountInString(text[bestByte:bestEndByte])
+	pad := (searchSnippetRunes - matchRunes) / 2
+	if pad < 0 {
+		pad = 0
+	}
+	start := startRune - pad
+	if start < 0 {
+		start = 0
+	}
+	end := start + searchSnippetRunes
+	if end > len(runes) {
+		end = len(runes)
+		start = end - searchSnippetRunes
+		if start < 0 {
+			start = 0
+		}
+	}
+	snip := string(runes[start:end])
+	if start > 0 {
+		snip = "…" + snip
+	}
+	if end < len(runes) {
+		snip = snip + "…"
+	}
+	return snip
+}
+
+// snippetTokens pulls plain search words out of a raw user query for windowing.
+func snippetTokens(q string) []string {
+	var out []string
+	for _, t := range strings.Fields(q) {
+		t = strings.Trim(t, `"()*`)
+		if t == "" {
+			continue
+		}
+		switch t {
+		case "AND", "OR", "NOT", "NEAR":
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 // HasSource reports whether a sources row exists for id.

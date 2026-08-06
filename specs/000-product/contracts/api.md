@@ -132,8 +132,22 @@ already does substring and chosung matching over the warm pool, so this endpoint
 exists only to reach text the client does not hold.
 
 ```json
-{ "keys": ["NMB-142", "NMA-8"], "total": 2 }
+{
+  "keys": ["NMB-142", "NMA-8"],
+  "pages": [],
+  "total": 2,
+  "matches": {
+    "NMB-142": { "field": "comment", "snippet": "Reproduced on staging with a fresh workspace." },
+    "NMA-8": { "field": "body", "snippet": "The idempotency key is dropped when the gateway times out." }
+  }
+}
 ```
+
+`matches` maps each returned issue or page key to the winning FTS column:
+`field` is `"title"` | `"body"` | `"comment"` (title wins over body over comment
+when more than one column hits). `snippet` is plain text only — no HTML and no
+highlight markers; clients highlight against their own query. Always present
+(empty object when there are no hits).
 
 ### `GET <key>/attachments/<id>/content/` — R
 

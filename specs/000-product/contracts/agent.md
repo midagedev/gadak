@@ -85,7 +85,7 @@ version is answered with this one, not rejected).
 | Tool | Shape |
 | --- | --- |
 | `scry_query` | `{sql, limit?}` → rows. Read-only (`mode=ro` + SELECT/WITH only), default limit 200, hard max 1000, byte-capped; truncation is reported in the result |
-| `scry_search` | `{text, limit?}` → `{key, summary, status}` rows, via FTS |
+| `scry_search` | `{text, limit?}` → `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field: title\|body\|comment, snippet}` plain text |
 | `scry_issue` | `{key}` → full detail including comments and history (plus list fields) |
 | `scry_status` | `{}` → sync state (watermark, version, last_error, counts) |
 

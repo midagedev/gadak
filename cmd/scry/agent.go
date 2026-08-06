@@ -276,21 +276,33 @@ func cmdSearch(args []string) error {
 	if err != nil {
 		return err
 	}
+	matches := res.Matches
+	if matches == nil {
+		matches = map[string]store.SearchMatch{}
+	}
 	if *asJSON {
 		pages := res.Pages
 		if pages == nil {
 			pages = []store.PageLite{}
 		}
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{
-			"total": res.Total, "issues": lites, "pages": pages,
+			"total": res.Total, "issues": lites, "pages": pages, "matches": matches,
 		})
 	}
 	for _, l := range lites {
-		fmt.Println(summaryLine(l))
+		line := summaryLine(l)
+		if m, ok := matches[l.IssueKey]; ok && (m.Field == "comment" || m.Field == "body") {
+			line += fmt.Sprintf(" (%s: %s)", m.Field, m.Snippet)
+		}
+		fmt.Println(line)
 	}
 	for _, p := range res.Pages {
 		// page  <space>/<title>  <url>
-		fmt.Printf("page  %s/%s  %s\n", p.SpaceKey, p.Title, p.URL)
+		line := fmt.Sprintf("page  %s/%s  %s", p.SpaceKey, p.Title, p.URL)
+		if m, ok := matches[p.Key]; ok && (m.Field == "comment" || m.Field == "body") {
+			line += fmt.Sprintf(" (%s: %s)", m.Field, m.Snippet)
+		}
+		fmt.Println(line)
 	}
 	return nil
 }

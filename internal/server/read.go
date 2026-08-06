@@ -477,16 +477,19 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	// keys/total keep pre-R2 meaning for issue clients; pages is additive.
-	// Always emit pages (empty array) so clients can rely on the key.
+	// keys/total keep pre-R2 meaning for issue clients; pages/matches are additive.
+	// Always emit pages and matches (empty) so clients can rely on the keys.
 	if res.Pages == nil {
 		res.Pages = []store.PageLite{}
 	}
 	if res.Keys == nil {
 		res.Keys = []string{}
 	}
+	if res.Matches == nil {
+		res.Matches = map[string]store.SearchMatch{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"keys": res.Keys, "pages": res.Pages, "total": res.Total,
+		"keys": res.Keys, "pages": res.Pages, "total": res.Total, "matches": res.Matches,
 	})
 }
 

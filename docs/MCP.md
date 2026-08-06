@@ -131,7 +131,7 @@ plus the schema in `specs/000-product/data-model.md` subsumes pre-baked queries.
 | Tool | Arguments | Returns |
 | --- | --- | --- |
 | `scry_query` | `{sql: string, limit?: number}` | `{columns, rows, count, truncated?, …}` — **SELECT/WITH only**, default limit 200, hard max 1000, byte-capped |
-| `scry_search` | `{text: string, limit?: number}` | `{total, issues: [{key, summary, status}]}` via FTS |
+| `scry_search` | `{text: string, limit?: number}` | `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field, snippet}` (plain text) |
 | `scry_issue` | `{key: string}` | Full detail (comments, history, links) plus list fields |
 | `scry_status` | `{}` | Watermark, version, last_error, row counts |
 
