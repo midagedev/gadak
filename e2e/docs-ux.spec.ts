@@ -162,7 +162,22 @@ test.describe('documents in the daily loop', () => {
     const body = (await res.json()) as {
       pages: { title: string; author: string | null; updated_at: string | null }[]
     }
-    const authors = [...new Set(body.pages.map((p) => p.author ?? ''))]
+    // Groups ordered by each author's newest edit (pages.svelte byAuthor), not
+    // API insertion order — matches the Updated tab's recency-first rule.
+    const byAuthor = new Map<string, typeof body.pages>()
+    for (const p of body.pages) {
+      const a = p.author ?? ''
+      const list = byAuthor.get(a)
+      if (list) list.push(p)
+      else byAuthor.set(a, [p])
+    }
+    const authorGroups = [...byAuthor.entries()]
+      .map(([author, list]) => ({
+        author,
+        pages: [...list].sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? '')),
+      }))
+      .sort((a, b) => (b.pages[0]?.updated_at ?? '').localeCompare(a.pages[0]?.updated_at ?? ''))
+    const authors = authorGroups.map((g) => g.author)
 
     const groups = view.getByTestId('docs-author-group')
     await expect(groups).toHaveCount(authors.length)
@@ -170,11 +185,11 @@ test.describe('documents in the daily loop', () => {
     // Every page is still listed — grouping regroups, it does not filter.
     await expect(view.getByTestId('doc-row')).toHaveCount(body.pages.length)
 
-    const first = [...body.pages]
-      .filter((p) => (p.author ?? '') === authors[0])
-      .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''))
-      .map((p) => p.title)
-    expect(await rowTitles(view.getByTestId('doc-row'))).toEqual(first)
+    // First group's pages appear first (newest edit inside the group); later
+    // groups follow. Assert the leading slice, not the whole list (multi-author).
+    const first = authorGroups[0].pages.map((p) => p.title)
+    const titles = await rowTitles(view.getByTestId('doc-row'))
+    expect(titles.slice(0, first.length)).toEqual(first)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

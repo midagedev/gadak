@@ -111,8 +111,8 @@ test.describe('mirrored wiki documents', () => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
-    // '빌링' hits no issue field but two Korean pages — the case that only works
-    // because the search response carries pages.
+    // '빌링' hits no issue field but two page bodies (CJK in body_text) — the case
+    // that only works because the search response carries pages.
     const input = searchInput(page)
     await input.fill('빌링')
     await input.press('Enter')
@@ -121,11 +121,13 @@ test.describe('mirrored wiki documents', () => {
     await expect(rows).toHaveCount(2)
     await expect(rows.first()).toContainText('PROD')
 
-    await rows.filter({ hasText: '제품 회의록 — 빌링 품질' }).click()
+    await rows.filter({ hasText: 'Product Meeting Notes — Billing Quality' }).click()
 
     const panel = page.getByTestId('doc-panel')
     await expect(panel).toBeVisible()
-    await expect(panel.getByTestId('doc-title')).toHaveText('제품 회의록 — 빌링 품질')
+    await expect(panel.getByTestId('doc-title')).toHaveText(
+      'Product Meeting Notes — Billing Quality',
+    )
     // The space reads from the breadcrumb, and a hit opened from search — never
     // expanded in the tree — still gets its full trail from the page index.
     await expect(panel.getByTestId('doc-breadcrumb')).toContainText('PROD')

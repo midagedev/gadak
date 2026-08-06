@@ -41,7 +41,7 @@ snapshot, not assumed.
 | Secret scan | `scripts/scan-internal.sh` clean across the tracked tree and the demo snapshot |
 | Release artifacts | `goreleaser release --snapshot` → six archives; the extracted darwin/arm64 binary serves the embedded UI and a 200 bootstrap with no `--static` |
 | MCP server | stdio JSON-RPC round trip: initialize / tools/list / all four tools; write SQL rejected as a tool error; stdout carries frames only |
-| Demo media | `make media` regenerates three GIFs and an MP4 from the snapshot; frames inspected for branding, English status names, a healthy sync badge, and the attachment gallery + inline comment images |
+| Demo media | `make media` regenerates three GIFs and an MP4 from the snapshot; frames inspected for branding, English status/type names (list + issue detail — `examples/demo.db` 2026-08-06: status/type Hangul 0 rows; titles English), a healthy sync badge, and the attachment gallery + inline comment images |
 | Attachment cache | Fake-Jira test: one upstream fetch for two views, `immutable` validator on the second, and a cached image still served with the credential removed. Live: 0.6 ms from disk |
 | Inline comment images | Live demo site: three uploads, a comment carrying two media nodes with real UUIDs and `alt` filenames, both rendering in a browser at full resolution |
 | Offline attachments | `scry demo` imports `examples/attachments/`; both inline images render with no Jira account |
