@@ -96,5 +96,5 @@ README, and is wired into `make plugins-test` (or a sibling target).
 
 ---
 
-Not good first issues (need more context or are large): a second source
+Not good first issues (need more context or are large): a third source
 connector, feed/push redesign, bootstrap payload streaming at 10k issues.

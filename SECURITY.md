@@ -159,10 +159,18 @@ scoped down to what a given machine should hold.
 
 `~/.scry/scry.db` is a plain SQLite file owned by your user, holding a copy
 of data you already had read access to. It is deliberately disposable: delete
-it and re-sync. If your threat model includes other processes in your own
-account reading your files, full-disk encryption plus OS user separation is
-the right tool — a local password on the file would only be obfuscation, and
-we would rather not pretend otherwise.
+it and re-sync.
+
+File modes enforce the user boundary: the database and its `-wal`/`-shm`
+sidecars are chmodded to `0600` and every data directory to `0700` on open
+(`internal/store/store.go`), matching the credential file (`0600`) and the
+attachment cache (`0700`). Older installs left at `0644`/`0755` are tightened
+the next time scry opens them.
+
+If your threat model includes other processes in your *own* account reading
+your files, full-disk encryption is the remaining tool — a local password on
+the file would only be obfuscation, and we would rather not pretend
+otherwise.
 
 ## Release artifacts
 

@@ -18,17 +18,20 @@ in the tracker at all — it is in the wiki next door. A local file that holds
 both answers "what do we know about X?" with one full-text query, joins across
 sources, and never spends a token on pagination.
 
-**Try it in 30 seconds, no Jira account, no token:**
+**Try it in 30 seconds, no install, no account:** open the
+[hosted demo](https://midagedev.github.io/scry/) — a fictional company's
+backlog, 534 issues + 71 wiki pages, in your browser right now (static
+snapshot, read-only).
+
+To run the same demo locally against a real mirror, clone and build — that
+path needs Go 1.25+ and Node 20+ and takes a few minutes cold, so it lives
+under [Build from source](#4-build-from-source):
 
 ```bash
 git clone https://github.com/midagedev/scry && cd scry
 npm ci && npm run build && go build -o scry ./cmd/scry
-./scry demo   # a fictional company in your browser: 534 issues + 71 wiki pages
+./scry demo
 ```
-
-Or open the [zero-install hosted demo](https://midagedev.github.io/scry/) in a
-browser (static snapshot of the same backlog; read-only — no binary, no
-account). Enable GitHub Pages once if the link 404s; see below.
 
 <p align="center">
   <img src="docs/media/web-demo.gif" alt="Typing in the search box narrows issues instantly, with matches highlighted; the sidebar lists wiki spaces as a tree" width="900">

@@ -33,8 +33,11 @@ flowchart TB
 ```
 
 The single-origin property is not incidental. Because the UI and the API are
-served from the same localhost origin, no CORS handling exists anywhere in the
-codebase — which is exactly what a browser-only build could not achieve
+served from the same localhost origin, the server never emits a CORS header —
+there is no cross-origin client to allow — and a guard enforces the boundary
+in the other direction: cross-origin writes and DNS-rebinding reads are
+rejected before the mux (`internal/server/browser_guard.go`, see
+`SECURITY.md`). A browser-only build could achieve neither
 (`decisions/0003-local-process.md`).
 
 ## Module boundaries

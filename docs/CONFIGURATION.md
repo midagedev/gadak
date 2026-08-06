@@ -162,7 +162,7 @@ name is new). `--overwrite` replaces conflicts. Prefer
 | Unattended setup (agents, CI, provisioning) | `scry init` flags/env — see below |
 | Profile selection | CLI `--profile` / `SCRY_PROFILE` (separate home directory) |
 | `SCRY_HOME` override | Environment variable |
-| Binary version string in UI | `server.Version` package var — wire from `cmd/scry` ldflags (default `0.0.0-dev` until wired) |
+| Binary version string in UI | `server.Version`, wired from `cmd/scry` ldflags by goreleaser (`main.version`); dev builds show `0.0.0-dev` |
 | Team views / field map / group rules (between people) | `scry team export` / `scry team import` (see above) |
 | Sync loop process | Start/stop `scry serve` (default when credentialed; `--no-sync` opts out) or `scry sync --watch` |
 | Keep serve across reboots | `scry install-service` (launchd / systemd user); `--uninstall` removes it |

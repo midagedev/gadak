@@ -132,18 +132,15 @@ hierarchy layer the data was missing.
   (`pages.body_adf`, v10).
 - ✅ **Unified search across issues and pages** — one FTS index, one query;
   `search` returns `keys` + `pages`. CLI/MCP parity.
-- **Docs in the UI** (in flight): sidebar DOCS as a real tree (`parent_id`
-  recursion), DocumentPanel with a clickable breadcrumb
-  (`space › ancestors › title`), documents group in unified search.
-- **Epic hierarchy.** The demo backlog now has one (15 epics, 163 parented
-  issues, seeded via `seed-demo --epics`); the UI must catch up:
-  - Derive `epic_key` honestly on the read path (walk `parent_key` to the
-    hierarchy-level-1 ancestor instead of aliasing the direct parent), so
-    subtasks group under their epic, not their story.
-  - Web: epic group headers show the epic's summary, not its key; epic chip on
-    list rows; parent breadcrumb in the detail panel; children progress
-    (`3/12 done`) on an epic's own detail.
-  - TUI: `group_by=epic` becomes supported (it is honest-unsupported today).
+- ✅ **Docs in the UI** — sidebar DOCS tree (`parent_id` recursion),
+  DocumentPanel with a clickable breadcrumb (`space › ancestors › title`),
+  documents group in unified search. (Shipped in v0.6.0; the tree-first
+  sidebar was later reworked toward recency-first views —
+  `docs/UX_PRINCIPLES.md` §6.)
+- ✅ **Epic hierarchy** — `epic_key` derived honestly on the write path
+  (nearest hierarchy-level-1 ancestor via `parent_key`, schema v11), epic
+  group headers with real summaries, epic chips, parent breadcrumb, children
+  progress, and TUI `group_by=epic` support. (Shipped in v0.6.0.)
 - **Confluence labels** as a pageLite filter axis (deferred from the connector
   round on purpose).
 - **Demo snapshot refresh**: epics + page bodies, re-scrubbed

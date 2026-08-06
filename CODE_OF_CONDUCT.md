@@ -58,12 +58,16 @@ representative at an online or offline event.
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported by opening a GitHub issue on this repository:
+Instances of abusive, harassing, or otherwise unacceptable behavior can be
+reported privately through GitHub's advisory channel for this repository —
+the same private path `SECURITY.md` uses:
 
-https://github.com/midagedev/scry/issues/new
+https://github.com/midagedev/scry/security/advisories/new
 
-For security vulnerabilities, use the private process in `SECURITY.md` instead.
+This is a single-maintainer project with no published email; the advisory
+channel is the one route only the maintainer can read. A public GitHub issue
+also works if you are comfortable reporting in the open — but it is public,
+so the privacy promise below can only hold for the private channel.
 
 All complaints will be reviewed and investigated promptly and fairly.
 

@@ -5,11 +5,14 @@ the web UI, the TUI, and the CLI are implemented and tested. What remains is
 release polish. `docs/STATE_OF_PLAY.md` and `specs/000-product/tasks.md` are the
 honest inventory — read them before assuming something is or is not there.
 
-The most useful contributions right now are a second source connector behind the
-neutral storage layer, plugin examples in `examples/plugins/`, and reports from
-Jira sites configured differently from the ones we test against (other
-languages, team-managed projects, unusual workflows). Smaller starter tasks are
-listed in [`docs/GOOD_FIRST_ISSUES.md`](docs/GOOD_FIRST_ISSUES.md).
+The most useful contributions right now are a third source connector behind
+the neutral storage layer (Confluence was the second — it merged without
+reshaping the database, and the next one should ride the same seam; GitHub
+Issues and Linear are the obvious candidates), plugin examples in
+`examples/plugins/`, and reports from Jira sites configured differently from
+the ones we test against (other languages, team-managed projects, unusual
+workflows). Smaller starter tasks are listed in
+[`docs/GOOD_FIRST_ISSUES.md`](docs/GOOD_FIRST_ISSUES.md).
 
 Before contributing, read:
 
