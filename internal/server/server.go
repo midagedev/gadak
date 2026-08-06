@@ -112,7 +112,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("GET "+apiBase+"pages/{$}", s.handlePages)
 	mux.HandleFunc("GET "+apiBase+"settings/{$}", s.handleGetSettings)
 	mux.HandleFunc("PUT "+apiBase+"settings/{$}", s.handlePutSettings)
-	// Live Confluence space picker for Settings (read-only; scope still via PUT settings / team import).
+	// Live Confluence space picker for Settings (scope written via PUT settings/).
 	mux.HandleFunc("GET "+apiBase+"settings/spaces/{$}", s.handleSettingsSpaces)
 	mux.HandleFunc("GET "+apiBase+"views/{$}", s.handleGetViews)
 	mux.HandleFunc("POST "+apiBase+"views/{$}", s.handlePostView)

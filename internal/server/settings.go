@@ -98,6 +98,13 @@ type runtimeInfo struct {
 	ApiUsage *store.APIUsageSummary `json:"apiUsage,omitempty"`
 }
 
+// settingsConfluenceDoc is the Confluence slice of settings. A pointer on
+// settingsDoc so absence on PUT is distinguishable from an empty spaces list
+// (empty = "all global spaces" and is a valid save when Confluence is already on).
+type settingsConfluenceDoc struct {
+	Spaces []string `json:"spaces"`
+}
+
 // settingsDoc is everything the settings UI may read and write. The credential
 // block (email, token) is absent by construction, not by filtering.
 type settingsDoc struct {
@@ -121,6 +128,11 @@ type settingsDoc struct {
 	// GET never populates it (fieldSpecs below is the read surface), which also
 	// keeps old clients from echoing it back.
 	Fields *[]config.FieldSpec `json:"fields,omitempty"`
+
+	// Confluence is nil when the source is off. PUT with this key while
+	// cfg.Confluence is nil is rejected — settings never turns Confluence on.
+	// When present, Spaces (including empty) updates the scope only.
+	Confluence *settingsConfluenceDoc `json:"confluence,omitempty"`
 
 	// Read-only context for the UI. Ignored on PUT — the site and the token are
 	// the credential endpoint's business (T4). runtime is assembled per request.
@@ -148,8 +160,8 @@ type spaceRow struct {
 }
 
 // handleSettingsSpaces lists live Confluence spaces for the settings picker.
-// Read-only: no companion PUT. Scope lives in config.Confluence (team import /
-// config.json today; settingsDoc does not yet surface the confluence key).
+// Scope is written via PUT settings/ {confluence:{spaces:[…]}} when Confluence
+// is already configured; this endpoint is live discovery only.
 func (s *server) handleSettingsSpaces(w http.ResponseWriter, r *http.Request) {
 	cfg := s.config()
 	if cfg.Confluence == nil {
@@ -225,6 +237,19 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	if in.Fields != nil {
 		next.Fields = *in.Fields
 	}
+	// Confluence spaces: key absent → leave alone; key present with Confluence
+	// already on → replace Spaces (empty = all global); key present while off → 400.
+	if in.Confluence != nil {
+		if next.Confluence == nil {
+			fail(w, http.StatusBadRequest, "confluence_not_configured")
+			return
+		}
+		// Copy the section so we do not mutate the shared atomic config pointer's
+		// nested struct before Save succeeds.
+		cc := *next.Confluence
+		cc.Spaces = strs(in.Confluence.Spaces)
+		next.Confluence = &cc
+	}
 	next.BodyFields = in.BodyFields
 	next.EditableFields = in.EditableFields
 	next.Members = in.Members
@@ -265,7 +290,7 @@ func validateIntervals(syncSec, reconcileSec int) error {
 }
 
 func settings(cfg *config.Config) settingsDoc {
-	return settingsDoc{
+	doc := settingsDoc{
 		Projects:             strs(cfg.Projects),
 		FieldMap:             strMap(cfg.FieldMap),
 		BodyFields:           strs(cfg.BodyFields),
@@ -283,6 +308,10 @@ func settings(cfg *config.Config) settingsDoc {
 		Site:                 cfg.Site,
 		HasCredential:        cfg.HasCredential(),
 	}
+	if cfg.Confluence != nil {
+		doc.Confluence = &settingsConfluenceDoc{Spaces: strs(cfg.Confluence.Spaces)}
+	}
+	return doc
 }
 
 func (s *server) settingsResponse(cfg *config.Config) settingsDoc {

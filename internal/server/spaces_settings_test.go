@@ -175,3 +175,151 @@ func TestSettingsSpacesEmptyMeansAllGlobalFlag(t *testing.T) {
 		t.Fatalf("order %+v", body.Spaces)
 	}
 }
+
+func TestPutSettingsConfluenceSpacesRoundtrip(t *testing.T) {
+	t.Setenv("SCRY_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"OLD"}}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	h := New(db, cfg)
+
+	// GET exposes current spaces.
+	got := decode[settingsDoc](t, get(t, h, apiBase+"settings/", nil))
+	if got.Confluence == nil || len(got.Confluence.Spaces) != 1 || got.Confluence.Spaces[0] != "OLD" {
+		t.Fatalf("GET confluence before PUT: %+v", got.Confluence)
+	}
+
+	// PUT non-empty list.
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"confluence":          map[string]any{"spaces": []string{"ENG", "OPS"}},
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT spaces → %d %s", rec.Code, rec.Body.String())
+	}
+	after := decode[settingsDoc](t, rec)
+	if after.Confluence == nil || len(after.Confluence.Spaces) != 2 ||
+		after.Confluence.Spaces[0] != "ENG" || after.Confluence.Spaces[1] != "OPS" {
+		t.Fatalf("PUT response confluence %+v", after.Confluence)
+	}
+
+	// Config on disk / live pointer.
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.Confluence == nil || len(saved.Confluence.Spaces) != 2 ||
+		saved.Confluence.Spaces[0] != "ENG" || saved.Confluence.Spaces[1] != "OPS" {
+		t.Fatalf("disk confluence %+v", saved.Confluence)
+	}
+
+	// Empty array = all global (valid).
+	putBody["confluence"] = map[string]any{"spaces": []string{}}
+	b, _ = json.Marshal(putBody)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT empty spaces → %d %s", rec.Code, rec.Body.String())
+	}
+	empty := decode[settingsDoc](t, rec)
+	if empty.Confluence == nil || empty.Confluence.Spaces == nil || len(empty.Confluence.Spaces) != 0 {
+		t.Fatalf("empty spaces response %+v", empty.Confluence)
+	}
+	saved, err = config.Load()
+	if err != nil {
+		t.Fatalf("load2: %v", err)
+	}
+	if saved.Confluence == nil || len(saved.Confluence.Spaces) != 0 {
+		t.Fatalf("disk empty spaces %+v", saved.Confluence)
+	}
+	// Confluence still enabled — empty spaces must not nil the section.
+	if saved.Confluence == nil {
+		t.Fatal("empty spaces cleared confluence section")
+	}
+
+	// Re-GET still exposes empty spaces under confluence.
+	again := decode[settingsDoc](t, get(t, h, apiBase+"settings/", nil))
+	if again.Confluence == nil || again.Confluence.Spaces == nil || len(again.Confluence.Spaces) != 0 {
+		t.Fatalf("re-GET empty %+v", again.Confluence)
+	}
+}
+
+func TestPutSettingsConfluenceSpacesNotConfigured(t *testing.T) {
+	t.Setenv("SCRY_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	// No Confluence section — PUT must not invent one.
+	cfg.Confluence = nil
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	h := New(db, cfg)
+
+	// GET omits confluence when unconfigured.
+	got := decode[settingsDoc](t, get(t, h, apiBase+"settings/", nil))
+	if got.Confluence != nil {
+		t.Fatalf("GET should omit confluence when nil: %+v", got.Confluence)
+	}
+
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"confluence":          map[string]any{"spaces": []string{"ENG"}},
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400; body %s", rec.Code, rec.Body.String())
+	}
+	var errBody map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if errBody["error"] != "confluence_not_configured" {
+		t.Fatalf("error %q", errBody["error"])
+	}
+
+	// Rejected write must leave Confluence nil on disk.
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.Confluence != nil {
+		t.Fatalf("PUT activated confluence: %+v", saved.Confluence)
+	}
+}
+
+func TestPutSettingsOmitsConfluenceKeyLeavesSpaces(t *testing.T) {
+	t.Setenv("SCRY_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"KEEP"}}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	h := New(db, cfg)
+
+	// PUT without confluence key (older client) must not wipe spaces.
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 48,
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.Confluence == nil || len(saved.Confluence.Spaces) != 1 || saved.Confluence.Spaces[0] != "KEEP" {
+		t.Fatalf("spaces wiped: %+v", saved.Confluence)
+	}
+}
