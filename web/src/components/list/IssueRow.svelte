@@ -6,26 +6,42 @@
    *  Chip/dot/avatar click = add that value as a filter (stopPropagation vs row select).
    *  Tint and cursor ring are separate: checking a row must not hide where the
    *  keyboard is, or the next x lands blind.
+   *
+   *  A `match` grows the row by exactly one line — 59px, the same height a
+   *  document row takes with its excerpt, so the two lists stay one density.
+   *  Only the server-search section passes it; the virtual list never does, so
+   *  its uniform 42px assumption still holds. The line is dropped only when the
+   *  highlighted summary already says why the row is here — see matchEvidence.
    */
   import { t } from '../../lib/i18n'
-  import type { IssueLite } from '../../lib/types'
+  import type { IssueLite, SearchMatch } from '../../lib/types'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { bulk } from '../../stores/bulk.svelte'
   import { me } from '../../stores/me.svelte'
   import { categoryOf, CATEGORY_META, relativeTime, absTime, highlightSegments } from '../../lib/format'
+  import { matchEvidence } from '../../lib/search-match'
   import { isStale, statusAgeHours } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from '../ui/Icon.svelte'
+  import MatchLine from './MatchLine.svelte'
   import { prefetchDetail } from '../detail/cache.svelte'
 
   let {
     issue,
     active = false,
     cursor = false,
-  }: { issue: IssueLite; active?: boolean; cursor?: boolean } = $props()
+    /** Why the server search returned this row (body/comment hit). Absent in the
+     *  main list, where the highlighted title already says why. */
+    match = null,
+  }: {
+    issue: IssueLite
+    active?: boolean
+    cursor?: boolean
+    match?: SearchMatch | null
+  } = $props()
 
   const cat = $derived(categoryOf(issue))
   const catMeta = $derived(CATEGORY_META[cat])
@@ -41,6 +57,10 @@
   // Query highlight (title·key). Empty q → single segment, same render cost.
   const summarySegs = $derived(highlightSegments(issue.summary, filters.filters.q))
   const keySegs = $derived(highlightSegments(issue.issue_key, filters.filters.q))
+  // The snippet line to draw, if any. 'title' means the summary above already
+  // carries the highlight, so a second line would only repeat it.
+  const evidence = $derived(matchEvidence(match, issue.summary, filters.filters.q))
+  const matchLine = $derived(evidence === 'title' || evidence === null ? null : evidence)
   const qaImpactMeta = $derived.by(() => {
     switch (issue.qa_impact_state) {
       case 'blocking':
@@ -128,7 +148,8 @@
 </script>
 
 <div
-  class="group flex h-row cursor-pointer select-none items-center gap-2.5 border-b border-border-subtle/70 px-4 text-body transition-colors
+  class="group flex cursor-pointer select-none flex-col justify-center gap-0.5 border-b border-border-subtle/70 text-body transition-colors
+    {matchLine ? 'h-row-excerpt' : 'h-row'}
     {selected
       ? 'bg-accent-subtle/30'
       : active
@@ -157,6 +178,7 @@
     }
   }}
 >
+  <div class="flex w-full min-w-0 items-center gap-2.5 px-4">
   <!-- Multi-select checkbox (hit target only; shift=range) -->
   <button
     type="button"
@@ -443,5 +465,14 @@
     >
       {relativeTime(issue.updated_at)}
     </span>
+  {/if}
+  </div>
+
+  <!-- The matched text, when the row came back from a server search for a
+       reason the title does not show. -->
+  {#if matchLine}
+    <div class="w-full min-w-0 px-4">
+      <MatchLine match={matchLine} q={filters.serverMatchQuery} />
+    </div>
   {/if}
 </div>

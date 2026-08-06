@@ -339,12 +339,22 @@ export interface DeltaResponse {
   field_usage?: Record<string, Record<string, number>>
 }
 
+/** Which column of the full-text index a hit came from, and the text around it.
+ *  `snippet` is plain text — the server never marks it up, so the client
+ *  highlights it against its own query. */
+export interface SearchMatch {
+  field: 'title' | 'body' | 'comment'
+  snippet: string
+}
+
 /** GET `search/?q=` response. */
 export interface SearchResponse {
   keys: string[]
   total: number
   /** Mirrored wiki pages matching the same query. Older servers omit. */
   pages?: PageLite[]
+  /** Why each returned issue or page matched, keyed by its key. Older servers omit. */
+  matches?: Record<string, SearchMatch>
 }
 
 /* ── Mirrored wiki pages (docs) ── */

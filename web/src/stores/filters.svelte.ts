@@ -16,7 +16,7 @@ import { router, setParams } from '../lib/router.svelte'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 import { extractChosung, isChosungQuery } from '../lib/korean'
-import type { IssueLite } from '../lib/types'
+import type { IssueLite, SearchMatch } from '../lib/types'
 import {
   configToParams,
   defaultColumns,
@@ -129,6 +129,17 @@ class FiltersStore {
   searching = $state(false)
   /** Last query that failed body search (UI can offer Retry). */
   searchError = $state<string | null>(null)
+  /** Why each hit matched, keyed by issue or page key. Empty against older servers. */
+  serverMatches = $state<Record<string, SearchMatch>>({})
+
+  /** The reason a key came back, when the server said one. Whether it is worth
+   *  a line is the row's call (`matchEvidence`): a title hit is silent only
+   *  while the row really shows that title highlighted. */
+  matchReason(key: string): SearchMatch | null {
+    const m = this.serverMatches[key]
+    if (!m || !m.snippet) return null
+    return m
+  }
 
   /* ── Filter result (flat, group-agnostic, sorted) ── */
   visibleIssues = $derived.by(() => {
@@ -379,6 +390,9 @@ class FiltersStore {
     try {
       const res = await api.search(q, 200)
       this.serverMatchKeys = res.keys
+      // Why each hit matched — issues and pages share one map, so it stays here
+      // rather than being split across two stores.
+      this.serverMatches = res.matches ?? {}
       // Page hits ride the same response; the docs store owns them (older
       // servers omit the field entirely → no docs group).
       pages.setSearchHits(res.pages ?? [])
@@ -386,6 +400,7 @@ class FiltersStore {
     } catch (e) {
       console.warn('[filters] 서버 검색 실패', e)
       this.serverMatchKeys = []
+      this.serverMatches = {}
       pages.clearSearchHits()
       this.searchError = q
       write.toast(t('list.searchFailed'), 'error')
@@ -396,6 +411,7 @@ class FiltersStore {
 
   clearServerSearch(): void {
     if (this.serverMatchKeys.length) this.serverMatchKeys = []
+    this.serverMatches = {}
     pages.clearSearchHits()
     this.serverMatchQuery = ''
     this.searchError = null

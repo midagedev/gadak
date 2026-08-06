@@ -26,19 +26,37 @@ export function absTime(iso: string | null): string {
 
 /* ── Search-term highlighting ── */
 
-/** Case-insensitive substring split. Chosung / key-shortcut hits have no slices → no highlight. */
+/** Case-insensitive substring split, one span per query word. Chosung /
+ *  key-shortcut hits have no slices → no highlight.
+ *
+ *  Words are highlighted separately because that is how the query was answered:
+ *  the search matches each word on its own, so "webhook replay" returns a title
+ *  reading "replaying failed webhook deliveries". Treating the query as one
+ *  literal string highlighted nothing there, and a row that matched while
+ *  showing no reason reads as a bug in the search (vision verdict 2026-08-06). */
 export function highlightSegments(text: string, q: string): { text: string; hit: boolean }[] {
-  const needle = q.trim().toLowerCase()
-  if (!needle) return [{ text, hit: false }]
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return [{ text, hit: false }]
   const lower = text.toLowerCase()
   const out: { text: string; hit: boolean }[] = []
   let i = 0
   for (;;) {
-    const at = lower.indexOf(needle, i)
+    // Earliest word wins; at a tie the longer one, so "run runbook" marks the
+    // whole word rather than leaving a stub behind.
+    let at = -1
+    let len = 0
+    for (const w of words) {
+      const p = lower.indexOf(w, i)
+      if (p < 0) continue
+      if (at < 0 || p < at || (p === at && w.length > len)) {
+        at = p
+        len = w.length
+      }
+    }
     if (at < 0) break
     if (at > i) out.push({ text: text.slice(i, at), hit: false })
-    out.push({ text: text.slice(at, at + needle.length), hit: true })
-    i = at + needle.length
+    out.push({ text: text.slice(at, at + len), hit: true })
+    i = at + len
   }
   if (out.length === 0) return [{ text, hit: false }]
   if (i < text.length) out.push({ text: text.slice(i), hit: false })

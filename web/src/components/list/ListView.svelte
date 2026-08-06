@@ -5,6 +5,8 @@
    *  section (plan §5.2).
    */
   import { t, formatNumber, relativeTime, absTime } from '../../lib/i18n'
+  import { highlightSegments } from '../../lib/format'
+  import { matchEvidence } from '../../lib/search-match'
   import { untrack } from 'svelte'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
@@ -19,6 +21,8 @@
   import BreakdownBar from './BreakdownBar.svelte'
   import IssueList from './IssueList.svelte'
   import IssueRow from './IssueRow.svelte'
+  import MatchLine from './MatchLine.svelte'
+  import SearchSection from './SearchSection.svelte'
   import EmptyState from './EmptyState.svelte'
   import Onboarding from '../shell/Onboarding.svelte'
   import FreshnessChip from '../shell/FreshnessChip.svelte'
@@ -29,9 +33,25 @@
   let { onOpenSettings }: { onOpenSettings?: () => void } = $props()
 
   const visibleCount = $derived(filters.visibleIssues.length)
-  const extra = $derived(filters.serverExtraIssues)
-  /** Wiki pages hit by the same server search — issues alone would miss them. */
-  const docHits = $derived(pages.searchHits)
+  /** Body/comment hits, minus any row that could not say why it is here. A
+   *  group that lists a key and shows no reason is worse than a shorter group:
+   *  it asks the reader to trust a claim it does not back. */
+  const extra = $derived(
+    filters.serverExtraIssues.filter(
+      (i) => matchEvidence(filters.matchReason(i.issue_key), i.summary, filters.filters.q) !== null,
+    ),
+  )
+  /** Wiki pages hit by the same server search — issues alone would miss them.
+   *  Same rule: a page stays only while it can show its reason. */
+  const docHits = $derived(
+    pages.searchHits.filter(
+      (p) => matchEvidence(filters.matchReason(p.key), p.title, filters.serverMatchQuery) !== null,
+    ),
+  )
+  /** Same title highlight the issue rows use, against the query that was sent. */
+  const titleSegs = $derived((title: string) =>
+    highlightSegments(title, filters.serverMatchQuery),
+  )
 
   /**
    * First run vs. "mirror is empty, sync will fill it". Setup is incomplete when
@@ -82,48 +102,71 @@
   <!-- Document hits from the same server search. Above the issue sections: a
        page is the answer people came for when the issue list comes back thin. -->
   {#if filters.serverMatchQuery && docHits.length}
-    <div class="flex-none border-b border-border-subtle bg-bg-panel/40" data-testid="search-docs">
-      <div class="px-3 py-1 text-[11px] font-medium text-accent-text">
-        {t('list.docMatchCount', { n: formatNumber(docHits.length), q: filters.serverMatchQuery })}
-      </div>
-      <div class="max-h-48 overflow-y-auto">
-        {#each docHits as p (p.key)}
-          <button
-            type="button"
-            class="flex min-h-9 w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors {pages.selectedKey ===
-            p.key
-              ? 'bg-bg-active text-text-primary'
-              : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-            data-testid="search-doc-row"
-            onclick={() => pages.select(p.key)}
-          >
+    <SearchSection
+      testid="search-docs"
+      count={docHits.length}
+      label={t('list.docMatchCount', {
+        n: formatNumber(docHits.length),
+        q: filters.serverMatchQuery,
+      })}
+    >
+      {#each docHits as p (p.key)}
+        {@const evidence = matchEvidence(
+          filters.matchReason(p.key),
+          p.title,
+          filters.serverMatchQuery,
+        )}
+        <button
+          type="button"
+          class="flex min-h-9 w-full flex-col justify-center gap-0.5 px-4 py-1.5 text-left text-body transition-colors {pages.selectedKey ===
+          p.key
+            ? 'bg-bg-active text-text-primary'
+            : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+          data-testid="search-doc-row"
+          onclick={() => pages.select(p.key)}
+        >
+          <span class="flex w-full min-w-0 items-center gap-2">
             <span
               class="flex-none rounded bg-accent-subtle/60 px-1.5 py-0.5 font-mono text-micro font-medium text-accent-text"
             >
               {p.space_key}
             </span>
-            <span class="min-w-0 flex-1 truncate">{p.title}</span>
-            <span class="flex-none text-[11px] text-text-muted" title={absTime(p.updated_at)}>
+            <span class="min-w-0 flex-1 truncate"
+              >{#each titleSegs(p.title) as seg, i (i)}{#if seg.hit}<mark
+                  class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark
+                >{:else}{seg.text}{/if}{/each}</span
+            >
+            <span class="flex-none text-micro text-text-muted" title={absTime(p.updated_at)}>
               {relativeTime(p.updated_at, 'long')}
             </span>
-          </button>
-        {/each}
-      </div>
-    </div>
+          </span>
+          <!-- A page can match on its body, and often does — the title alone
+               leaves "why is this here?" unanswered. -->
+          {#if evidence && evidence !== 'title'}
+            <MatchLine match={evidence} q={filters.serverMatchQuery} />
+          {/if}
+        </button>
+      {/each}
+    </SearchSection>
   {/if}
 
   <!-- Body-search results (matches not already in the local list) -->
   {#if filters.serverMatchQuery && extra.length}
-    <div class="flex-none border-b border-border-subtle bg-bg-panel/40">
-      <div class="px-3 py-1 text-[11px] font-medium text-accent-text">
-        {t('list.bodyMatchCount', { n: formatNumber(extra.length), q: filters.serverMatchQuery })}
-      </div>
-      <div class="max-h-48 overflow-y-auto">
-        {#each extra.slice(0, 50) as issue (issue.issue_key)}
-          <IssueRow {issue} active={selection.selectedKey === issue.issue_key} />
-        {/each}
-      </div>
-    </div>
+    <SearchSection
+      count={extra.length}
+      label={t('list.bodyMatchCount', {
+        n: formatNumber(extra.length),
+        q: filters.serverMatchQuery,
+      })}
+    >
+      {#each extra.slice(0, 50) as issue (issue.issue_key)}
+        <IssueRow
+          {issue}
+          active={selection.selectedKey === issue.issue_key}
+          match={filters.matchReason(issue.issue_key)}
+        />
+      {/each}
+    </SearchSection>
   {/if}
 
   <!-- List / empty state -->

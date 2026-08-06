@@ -273,6 +273,7 @@ export const ko = {
   'list.searching': '검색중…',
   'list.searchFailed': '본문 검색에 실패했습니다. 연결을 확인한 뒤 다시 시도하세요.',
   'list.searchRetry': '본문 검색 다시 시도',
+  'list.matchInComment': '댓글에서',
   'list.docMatchCount': '문서 {n}건 · "{q}"',
   'list.docOnlyTitle': '이슈 매칭은 없지만 문서에서 찾았습니다',
   'list.docOnlyHint': "위 '문서' 섹션을 확인하세요.",

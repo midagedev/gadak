@@ -272,6 +272,7 @@ export const en = {
   'list.searching': 'Searching…',
   'list.searchFailed': 'Could not search body text. Check the connection and try again.',
   'list.searchRetry': 'Retry body search',
+  'list.matchInComment': 'in a comment',
   'list.docMatchCount': '{n} documents · "{q}"',
   'list.docOnlyTitle': 'No issues matched — found in documents',
   'list.docOnlyHint': "See the 'Documents' section above.",
