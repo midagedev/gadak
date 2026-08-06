@@ -160,10 +160,14 @@ your team's work" and the fast mirror is the wedge; the sync engine is the
 product, speed is a feature, and trust in freshness is built in the UI.
 
 - **Freshness as a feeling.** `sync-on-focus` (web regains focus + mirror older
-  than N → sync now), a cheap head-check between polls (one
-  `updated >= -5m` count query gates whether a delta pull runs at all), and a
-  visible freshness chip ("synced 12s ago") in the header. No webhooks, no
-  server — the loopback model stays.
+  than N → sync now) and a visible freshness chip ("synced 12s ago") in the
+  header. No webhooks, no server — the loopback model stays.
+  ~~A cheap head-check between polls (one `updated >= -5m` count query gates
+  whether a delta pull runs at all).~~ Dropped 2026-08-06 on measurement, and
+  the original is kept because the argument comes back the moment the interval
+  drops: the watch loop already runs at 60s (`DefaultSyncIntervalSec`, floor
+  15s) and an idle incremental costs one or two Jira calls, so the gate query
+  would spend about what it saves.
 - **Performance budgets as gates.** Interaction budgets measured in e2e against
   a 10k-issue fixture (`tools/bench-fixture`), enforced in CI: cold boot →
   interactive, keystroke → search results, palette open, panel switch. Budgets
