@@ -6,11 +6,11 @@
   import { absTime } from '../../lib/format'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
-  import { me, type RecentIssueVisit } from '../../stores/me.svelte'
+  import { me, type RecentVisit } from '../../stores/me.svelte'
 
   interface NavItem {
     issue: IssueLite
-    visit: RecentIssueVisit | null
+    visit: RecentVisit | null
   }
 
   interface DragCandidate {
@@ -33,7 +33,7 @@
   })
 
   const favoriteItems = $derived.by(() => {
-    const visitByKey = new Map(me.recent.map((visit) => [visit.key, visit]))
+    const visitByKey = new Map(me.recentIssues.map((visit) => [visit.key, visit]))
     const items: NavItem[] = []
     for (const key of me.favorites) {
       const issue = issues.pool.get(key)
@@ -44,7 +44,7 @@
 
   const recentItems = $derived.by(() => {
     const items: NavItem[] = []
-    for (const visit of me.recent) {
+    for (const visit of me.recentIssues) {
       if (me.favorites.has(visit.key)) continue
       const issue = issues.pool.get(visit.key)
       if (issue) items.push({ issue, visit })

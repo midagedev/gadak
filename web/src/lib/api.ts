@@ -539,8 +539,17 @@ export interface SettingsFieldSpec {
   auto?: boolean
 }
 
+/** Confluence slice of settings. Present in the GET response only while the
+ *  source is configured — absence is how the UI knows to hide the scope picker,
+ *  and PUTting the key with the source off is a 400. */
+export interface SettingsConfluence {
+  /** Mirrored space keys. Empty = every global space. */
+  spaces: string[]
+}
+
 export interface ScrySettings {
   projects?: string[]
+  confluence?: SettingsConfluence
   fieldMap?: Record<string, string>
   bodyFields?: string[]
   editableFields?: Record<string, string>
@@ -620,6 +629,28 @@ export async function getWorkspaces(): Promise<WorkspaceInfo[]> {
 
 export function getSettings(): Promise<ScrySettings> {
   return jsonW<ScrySettings>('settings/')
+}
+
+/** One Confluence space offered by the scope picker. */
+export interface SettingsSpace {
+  key: string
+  name: string
+  /** global | personal. Personal spaces are noise for most mirrors. */
+  type: string
+  selected: boolean
+}
+
+/**
+ * Live space list for the settings picker (global first). `all_global_when_empty`
+ * says the stored scope is empty, which the sync reads as "every global space" —
+ * so an empty selection here is a meaning, not a missing answer.
+ * 400 confluence_not_configured when the source is off.
+ */
+export function getSettingsSpaces(): Promise<{
+  spaces: SettingsSpace[]
+  all_global_when_empty: boolean
+}> {
+  return jsonW<{ spaces: SettingsSpace[]; all_global_when_empty: boolean }>('settings/spaces/')
 }
 
 /** Full replace (PUT). Values are stored as sent — partial payloads wipe the rest. */

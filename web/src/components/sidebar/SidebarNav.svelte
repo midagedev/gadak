@@ -27,6 +27,7 @@
   /** Apply view = close personal feed if open (back to list) then apply filters. */
   function applyView(config: ViewConfig) {
     me.closeFeed()
+    pages.closeRecent()
     filters.applyConfig(config)
   }
 
@@ -187,6 +188,12 @@
   function openDoc(node: PageNode) {
     pages.select(node.page.key)
     if (node.children.length && !openDocs.has(node.page.key)) toggleDoc(node.page.key)
+  }
+
+  /** "Recently updated" takes over the main column, so the feed must give it up. */
+  function toggleRecentDocs() {
+    me.closeFeed()
+    pages.toggleRecent()
   }
 </script>
 
@@ -470,6 +477,31 @@
         <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
           {t('sidebar.docs')}
         </div>
+        <!-- Cross-space entry point, above the per-space trees: what changed in
+             the wiki lately is a question no single space answers. -->
+        <button
+          type="button"
+          class="flex min-h-7 w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {pages.recentView
+            ? 'bg-bg-active text-text-primary'
+            : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+          aria-pressed={pages.recentView}
+          title={t('sidebar.docsRecentTitle')}
+          data-testid="docs-recent"
+          onclick={toggleRecentDocs}
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 12 12"
+            fill="none"
+            aria-hidden="true"
+            class="flex-none text-text-muted"
+          >
+            <circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.2" />
+            <path d="M6 3.4V6l1.8 1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+          </svg>
+          <span class="min-w-0 flex-1 truncate">{t('sidebar.docsRecent')}</span>
+        </button>
         {#each pages.treeBySpace as group (group.space)}
           {@const expanded = openSpaces.has(group.space)}
           <button
@@ -491,7 +523,11 @@
             >
               <path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-            <span class="min-w-0 flex-1 truncate font-mono text-[12px]">{group.space}</span>
+            <!-- The name is what people call the space; the key stays reachable
+                 in the tooltip, and is the label itself until a name is mirrored. -->
+            <span class="min-w-0 flex-1 truncate text-[12px] {group.name ? '' : 'font-mono'}">
+              {group.name || group.space}
+            </span>
             <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
               {formatNumber(group.count)}
             </span>

@@ -24,6 +24,14 @@ test.describe('mirrored wiki documents', () => {
     await expect(spaces.filter({ hasText: 'ENG' })).toContainText('43')
     await expect(spaces.filter({ hasText: 'PROD' })).toContainText('28')
 
+    // Space rows read as the space's name. The snapshot predates the name mirror
+    // (space_name arrives empty), so this is the fallback: the key itself, and
+    // the tooltip carries it either way.
+    await expect(spaces.filter({ hasText: 'ENG' })).toHaveAttribute(
+      'title',
+      'ENG · 43 documents',
+    )
+
     // Collapsed until asked. Opening PROD reveals its root page and the level
     // under it (6 sections) — not the whole space.
     const nodes = section.getByTestId('doc-tree-node')

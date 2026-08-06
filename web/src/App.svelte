@@ -36,6 +36,7 @@
   import DetailPanel from './components/detail/DetailPanel.svelte'
   import DocumentPanel from './components/detail/DocumentPanel.svelte'
   import PersonalFeed from './components/personal/PersonalFeed.svelte'
+  import RecentDocsView from './components/docs/RecentDocsView.svelte'
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
   import QuickComment from './components/write/QuickComment.svelte'
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
@@ -387,8 +388,12 @@
 
       <MainColumn>
         {#snippet children()}
+          <!-- The feed wins on purpose: opening it is an explicit request for
+               this column, so it never has to close the docs view first. -->
           {#if me.feedOpen && feature('feed')}
             <PersonalFeed />
+          {:else if pages.recentView}
+            <RecentDocsView />
           {:else}
             <ListView onOpenSettings={() => (serverSettingsOpen = true)} />
           {/if}

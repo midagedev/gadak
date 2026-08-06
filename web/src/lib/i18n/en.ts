@@ -298,6 +298,8 @@ export const en = {
   'sidebar.teamViews': 'Shared team views',
   'sidebar.docs': 'Docs',
   'sidebar.docsSpaceTitle': '{space} · {n} documents',
+  'sidebar.docsRecent': 'Recently edited',
+  'sidebar.docsRecentTitle': 'Documents from every space, newest edit first',
   'sidebar.docsToggleNode': 'Pages under {title}',
   'sidebar.workspaces': 'Workspaces',
   'sidebar.workspaceUnreadable': 'Profile config could not be read',
@@ -471,6 +473,12 @@ export const en = {
   'doc.notFound': 'Could not find this document. It may have been deleted.',
   'doc.loadFailed': 'Could not load this document.',
 
+  /* ── Recently edited documents (main column) ── */
+  'docs.recentTitle': 'Recently edited documents',
+  'docs.recentCount': '{n} documents, newest edit first',
+  'docs.recentEmpty': 'No mirrored documents yet.',
+  'docs.backToIssues': 'Back to issues',
+
   /* ── QA impact ── */
   'qa.pass': 'Pass',
   'qa.fail': 'Fail',
@@ -559,6 +567,7 @@ export const en = {
   /* ── Server settings ── */
   'settings.title': 'Settings',
   'settings.tabSync': 'Sync',
+  'settings.tabSources': 'Sources',
   'settings.tabFeatures': 'Features',
   'settings.tabTeams': 'Teams / groups',
   'settings.tabMembers': 'Members',
@@ -571,6 +580,23 @@ export const en = {
   'settings.savedReload': 'Settings saved. Reloading…',
   'settings.jsonParseError': 'JSON parse error — fix it to re-enable save.',
   'settings.projects': 'Project keys to mirror (comma-separated)',
+  'settings.projectsManual':
+    'The project list could not be read from the site, so keys are entered by hand here.',
+  'settings.sourcesProjects': 'Jira projects',
+  'settings.sourcesProjectsHint': 'Only these projects are mirrored.',
+  'settings.sourcesNoProjects': 'Nothing selected — no issue is mirrored.',
+  'settings.sourcesSpaces': 'Confluence spaces',
+  'settings.sourcesSpacesHint': 'Only these spaces are mirrored.',
+  'settings.sourcesAllGlobal': 'Nothing selected — every team (global) space is mirrored.',
+  'settings.sourcesNoSpaces': 'Nothing selected — no page is mirrored.',
+  'settings.showPersonalSpaces': 'Show personal spaces',
+  'settings.spacesUnavailable': 'Could not read the space list from Confluence.',
+  'settings.sourcesApplyHint': 'Scope changes take effect from the next sync.',
+  'settings.scopeLoading': 'Loading the list…',
+  'settings.scopeNoMatch': 'No match',
+  'settings.scopeRemove': 'Remove {name}',
+  'settings.scopeProjectPlaceholder': 'Type a project key or name…',
+  'settings.scopeSpacePlaceholder': 'Type a space key or name…',
   'settings.staleHours': 'Stale threshold (hours)',
   'settings.staleHint':
     'Open issues in the same status longer than this are marked stale.',

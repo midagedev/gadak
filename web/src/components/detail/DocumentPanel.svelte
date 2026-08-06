@@ -104,12 +104,20 @@
         <!-- Where the page sits in its space. One line: ancestors give up width
              first, the open page keeps at most half. -->
         {#if head}
+          <!-- Same rule as the sidebar: the space's name when the mirror has
+               one, its key (monospace, and the tooltip either way) until then. -->
+          {@const spaceLabel = pages.spaceLabel(head.space_key)}
           <nav
             class="mb-1.5 flex items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-text-muted"
             aria-label={t('doc.breadcrumb')}
             data-testid="doc-breadcrumb"
           >
-            <span class="flex-none font-mono">{head.space_key}</span>
+            <span
+              class="flex-none {spaceLabel === head.space_key ? 'font-mono' : ''}"
+              title={head.space_key}
+            >
+              {spaceLabel}
+            </span>
             {#each trail as a (a.key)}
               <span class="flex-none" aria-hidden="true">›</span>
               <button

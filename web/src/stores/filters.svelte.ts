@@ -631,7 +631,7 @@ function buildRelevanceContext(rawQuery: string): RelevanceContext {
     chosungQuery: raw ? isChosungQuery(raw) : false,
     now: Date.now(),
     myEmail: me.email,
-    recentKeys: new Set(me.recent.map((v) => v.key)),
+    recentKeys: new Set(me.recentIssues.map((v) => v.key)),
   }
 }
 

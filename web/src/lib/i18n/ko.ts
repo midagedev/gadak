@@ -299,6 +299,8 @@ export const ko = {
   'sidebar.teamViews': '팀 공유 뷰',
   'sidebar.docs': '문서',
   'sidebar.docsSpaceTitle': '{space} · 문서 {n}건',
+  'sidebar.docsRecent': '최근 편집',
+  'sidebar.docsRecentTitle': '모든 스페이스의 문서를 최근 수정 순으로',
   'sidebar.docsToggleNode': '{title} 하위 문서',
   'sidebar.workspaces': '워크스페이스',
   'sidebar.workspaceUnreadable': '프로필 설정을 읽을 수 없음',
@@ -472,6 +474,12 @@ export const ko = {
   'doc.notFound': '문서를 찾을 수 없습니다. 삭제되었을 수 있습니다.',
   'doc.loadFailed': '문서를 불러오지 못했습니다.',
 
+  /* ── Recently edited documents (main column) ── */
+  'docs.recentTitle': '최근 편집된 문서',
+  'docs.recentCount': '문서 {n}건, 최근 수정 순',
+  'docs.recentEmpty': '미러링된 문서가 아직 없습니다.',
+  'docs.backToIssues': '이슈 목록으로',
+
   /* ── QA impact ── */
   'qa.pass': '합격',
   'qa.fail': '실패',
@@ -558,6 +566,7 @@ export const ko = {
   /* ── Server settings ── */
   'settings.title': '설정',
   'settings.tabSync': '동기화',
+  'settings.tabSources': '소스',
   'settings.tabFeatures': '기능',
   'settings.tabTeams': '팀/그룹',
   'settings.tabMembers': '멤버',
@@ -570,6 +579,23 @@ export const ko = {
   'settings.savedReload': '설정을 저장했습니다. 새로고침합니다…',
   'settings.jsonParseError': 'JSON 파싱 실패 — 고치면 저장이 다시 활성화됩니다.',
   'settings.projects': '미러링할 프로젝트 키 (콤마 구분)',
+  'settings.projectsManual':
+    '사이트에서 프로젝트 목록을 읽지 못해, 여기서는 키를 직접 입력합니다.',
+  'settings.sourcesProjects': 'Jira 프로젝트',
+  'settings.sourcesProjectsHint': '선택한 프로젝트만 미러링합니다.',
+  'settings.sourcesNoProjects': '선택 없음 — 미러링되는 이슈가 없습니다.',
+  'settings.sourcesSpaces': 'Confluence 스페이스',
+  'settings.sourcesSpacesHint': '선택한 스페이스만 미러링합니다.',
+  'settings.sourcesAllGlobal': '선택 없음 — 모든 팀(global) 스페이스를 미러링합니다.',
+  'settings.sourcesNoSpaces': '선택 없음 — 미러링되는 문서가 없습니다.',
+  'settings.showPersonalSpaces': '개인 스페이스도 표시',
+  'settings.spacesUnavailable': 'Confluence에서 스페이스 목록을 읽지 못했습니다.',
+  'settings.sourcesApplyHint': '범위 변경은 다음 sync부터 반영됩니다.',
+  'settings.scopeLoading': '목록을 불러오는 중…',
+  'settings.scopeNoMatch': '일치하는 항목 없음',
+  'settings.scopeRemove': '{name} 제거',
+  'settings.scopeProjectPlaceholder': '프로젝트 키나 이름을 입력…',
+  'settings.scopeSpacePlaceholder': '스페이스 키나 이름을 입력…',
   'settings.staleHours': '지연 판정 기준 (시간)',
   'settings.staleHint':
     '현재 상태에 이 시간 이상 머문 미해결 이슈를 지연으로 표시합니다.',
@@ -689,7 +715,7 @@ export const ko = {
   'palette.sectionIssues': '이슈',
   'palette.sectionViews': '뷰',
   'palette.sectionActions': '액션',
-  'palette.recent': '최근 본 이슈',
+  'palette.recent': '최근 본 항목',
   'palette.empty': '결과 없음',
   'palette.hintNav': '↑↓ 이동 · Enter 실행 · Esc 닫기',
   'palette.hintHelp': '단축키',

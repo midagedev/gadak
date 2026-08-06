@@ -17,13 +17,15 @@
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import KeyValueRows from './KeyValueRows.svelte'
+  import ScopePicker, { type ScopeOption } from './ScopePicker.svelte'
   import { trapFocus } from '../../lib/focus-trap'
 
   let { onclose }: { onclose: () => void } = $props()
 
-  type Tab = 'sync' | 'features' | 'groups' | 'members' | 'fields'
+  type Tab = 'sync' | 'sources' | 'features' | 'groups' | 'members' | 'fields'
   const TABS: [Tab, string][] = [
     ['sync', t('settings.tabSync')],
+    ['sources', t('settings.tabSources')],
     ['features', t('settings.tabFeatures')],
     ['groups', t('settings.tabTeams')],
     ['members', t('settings.tabMembers')],
@@ -100,6 +102,8 @@
   let error = $state<string | null>(null)
   let tab = $state<Tab>('sync')
 
+  let projectKeys = $state<string[]>([])
+  /** Manual entry, used only while the site's project list is unreachable. */
   let projectsText = $state('')
   let staleText = $state('72')
   let qaDashboardUrl = $state('')
@@ -139,6 +143,38 @@
   )
   let copiedKey = $state<string | null>(null)
 
+  /* ── Sources tab (what the mirror pulls) ──
+   * Both lists come from the live site, so they are fetched when the tab is
+   * first opened rather than with the dialog: settings gets opened for plenty of
+   * reasons that should not cost a Jira round-trip.
+   */
+  let sourcesRequested = false
+  let projectOptions = $state<ScopeOption[]>([])
+  /** Site list unreachable (no credential, Jira down) → keep the old text box,
+   *  which is the only way to configure a scope without asking the site. */
+  let projectsPickerReady = $state(false)
+  let projectsLoading = $state(false)
+  /** Hand-edited the manual keys — the list must not replace the field under a
+   *  typing user, however late it arrives. */
+  let projectsTouched = $state(false)
+  /** Confluence is off in this profile → no space section at all. */
+  let confluenceConfigured = $state(false)
+  let spaceKeys = $state<string[]>([])
+  let spaceOptions = $state<ScopeOption[]>([])
+  let spacesLoading = $state(false)
+  let spacesError = $state<string | null>(null)
+  let allGlobalWhenEmpty = $state(false)
+  let showPersonalSpaces = $state(false)
+
+  // Personal spaces are one per colleague and almost never mirror targets, so
+  // they stay out of the list until asked for — except one already selected,
+  // which must stay visible or the picker would look like it dropped it.
+  const visibleSpaceOptions = $derived(
+    showPersonalSpaces
+      ? spaceOptions
+      : spaceOptions.filter((o) => o.hint !== 'personal' || spaceKeys.includes(o.value)),
+  )
+
   let jsonText = $state('')
   let jsonError = $state<string | null>(null)
 
@@ -170,7 +206,12 @@
 
   /** Expand server response (or JSON textarea) into form state. */
   function load(s: ScrySettings) {
+    projectKeys = [...(s.projects ?? [])]
     projectsText = joinCsv(s.projects)
+    // The key is absent unless the source is configured, and PUTting it while
+    // it is off is rejected — so its presence is the section's on/off switch.
+    confluenceConfigured = s.confluence !== undefined
+    spaceKeys = [...(s.confluence?.spaces ?? [])]
     staleText = String(s.staleThresholdHours ?? 72)
     qaDashboardUrl = s.qaDashboardUrl ?? ''
     features = { ...features, ...(s.features ?? {}) }
@@ -245,7 +286,10 @@
     }
     const hours = Number(staleText)
     return {
-      projects: splitCsv(projectsText),
+      projects: projectsPickerReady ? projectKeys : splitCsv(projectsText),
+      // Only when the source is on: the server rejects the key otherwise, and
+      // omitting it leaves the stored scope alone.
+      ...(confluenceConfigured ? { confluence: { spaces: spaceKeys } } : {}),
       staleThresholdHours: Number.isFinite(hours) && hours > 0 ? hours : 72,
       syncIntervalSec: resolveInterval(syncPreset, syncCustomText),
       reconcileIntervalSec: resolveInterval(reconcilePreset, reconcileCustomText),
@@ -301,6 +345,50 @@
       error = e instanceof Error ? e.message : t('settings.loadFailed')
     }
     loading = false
+  })
+
+  /** Fetch the two scope lists once, the first time the Sources tab is shown. */
+  async function loadSources() {
+    if (sourcesRequested) return
+    sourcesRequested = true
+
+    // Manual entry is on screen from the first frame: asking the site for its
+    // projects can take many seconds when it is unreachable, and a spinner over
+    // the one field that works without the site is the wrong trade.
+    projectsLoading = true
+    try {
+      const res = await api.getAvailableProjects()
+      projectOptions = res.projects.map((p) => ({
+        value: p.key,
+        label: p.name,
+        hint: p.projectTypeKey,
+      }))
+      if (!projectsTouched) {
+        projectsPickerReady = true
+        // The picker is now the field of record; drop the text mirror so a stale
+        // string can never win the next build().
+        projectsText = ''
+      }
+    } catch {
+      // No credential (409) or the site is unreachable — the manual list stays.
+      projectsPickerReady = false
+    }
+    projectsLoading = false
+
+    if (!confluenceConfigured) return
+    spacesLoading = true
+    try {
+      const res = await api.getSettingsSpaces()
+      spaceOptions = res.spaces.map((s) => ({ value: s.key, label: s.name, hint: s.type }))
+      allGlobalWhenEmpty = res.all_global_when_empty
+    } catch {
+      spacesError = t('settings.spacesUnavailable')
+    }
+    spacesLoading = false
+  }
+
+  $effect(() => {
+    if (tab === 'sources' && !loading) void loadSources()
   })
 
   function refreshJson() {
@@ -482,11 +570,6 @@
 
         {#if tab === 'sync'}
         <div class="flex flex-col gap-4">
-          <label class="flex flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">{t('settings.projects')}</span>
-            <input class={INPUT} bind:value={projectsText} placeholder="NMB, NMA" />
-          </label>
-
           <div class="flex flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('settings.syncInterval')}</span>
             <div class="flex flex-wrap items-center gap-2">
@@ -574,6 +657,75 @@
               {t('settings.credsElsewhere')}
             </p>
           </div>
+        </div>
+      {:else if tab === 'sources'}
+        <div class="flex flex-col gap-5" data-testid="settings-sources">
+          <!-- Jira projects -->
+          {#if projectsPickerReady}
+            <ScopePicker
+              label={t('settings.sourcesProjects')}
+              hint={t('settings.sourcesProjectsHint')}
+              options={projectOptions}
+              bind:selected={projectKeys}
+              placeholder={t('settings.scopeProjectPlaceholder')}
+              emptyLabel={t('settings.sourcesNoProjects')}
+              testid="scope-projects"
+            />
+          {:else}
+            <label class="flex flex-col gap-1" data-testid="scope-projects-fallback">
+              <span class="text-[11px] text-text-secondary">{t('settings.projects')}</span>
+              <input
+                class={INPUT}
+                bind:value={projectsText}
+                oninput={() => (projectsTouched = true)}
+                placeholder="NMB, NMA"
+              />
+              <span class="text-[11px] text-text-muted">
+                {projectsLoading ? t('settings.scopeLoading') : t('settings.projectsManual')}
+              </span>
+            </label>
+          {/if}
+
+          <!-- Confluence spaces. Hidden entirely when the source is off: there is
+               nothing to scope, and the server rejects the field anyway. -->
+          {#if confluenceConfigured}
+            <div class="border-t border-border-subtle pt-4">
+              {#if spacesLoading}
+                <p class="text-[12px] text-text-muted">{t('settings.scopeLoading')}</p>
+              {:else if spacesError}
+                <p class="text-[12px] text-status-stale" data-testid="scope-spaces-error">
+                  {spacesError}
+                </p>
+              {:else}
+                <ScopePicker
+                  label={t('settings.sourcesSpaces')}
+                  hint={t('settings.sourcesSpacesHint')}
+                  options={visibleSpaceOptions}
+                  bind:selected={spaceKeys}
+                  placeholder={t('settings.scopeSpacePlaceholder')}
+                  emptyLabel={allGlobalWhenEmpty
+                    ? t('settings.sourcesAllGlobal')
+                    : t('settings.sourcesNoSpaces')}
+                  testid="scope-spaces"
+                >
+                  {#snippet action()}
+                    <label class="flex cursor-pointer items-center gap-1.5 text-[11px] text-text-muted">
+                      <input
+                        type="checkbox"
+                        class="accent-[var(--color-accent,#3b82f6)]"
+                        bind:checked={showPersonalSpaces}
+                      />
+                      {t('settings.showPersonalSpaces')}
+                    </label>
+                  {/snippet}
+                </ScopePicker>
+              {/if}
+            </div>
+          {/if}
+
+          <p class="border-t border-border-subtle pt-3 text-[11px] leading-relaxed text-text-muted">
+            {t('settings.sourcesApplyHint')}
+          </p>
         </div>
       {:else if tab === 'features'}
         <div class="flex flex-col gap-2.5">

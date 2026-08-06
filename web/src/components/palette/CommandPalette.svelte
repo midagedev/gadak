@@ -28,10 +28,11 @@
   import { selection } from '../../stores/selection.svelte'
   import { bulk } from '../../stores/bulk.svelte'
   import { triage } from '../../stores/triage.svelte'
+  import { pages } from '../../stores/pages.svelte'
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
-  import type { IssueLite } from '../../lib/types'
+  import type { IssueLite, PageLite } from '../../lib/types'
 
   let { onclose, onOpenSettings }: { onclose: () => void; onOpenSettings: () => void } = $props()
 
@@ -43,10 +44,14 @@
     /** Body used for match + display. */
     label: string
     icon?: string
+    /** Leading chip — what kind of thing the row opens (documents only; an
+     *  issue says so with its monospace key). */
+    badge?: string
     /** Right-side secondary text (issue title / view source / shortcut). */
     sub?: string
     kbd?: string
     mono?: boolean
+    testid?: string
     run: () => void
   }
 
@@ -79,13 +84,32 @@
     }
   }
 
+  /** A mirrored page reads as its title; the badge carries the kind, since a
+   *  page key is an opaque id nobody recognizes. */
+  function docItem(page: PageLite): Item {
+    return {
+      id: `d:${page.key}`,
+      section: 'issue',
+      label: page.title,
+      badge: t('doc.badge'),
+      sub: pages.spaceLabel(page.space_key),
+      testid: 'palette-doc-row',
+      run: () => pages.select(page.key),
+    }
+  }
+
   const issueItems = $derived.by<Item[]>(() => {
-    // Empty input = recently viewed issues still in the pool.
+    // Empty input = recently opened issues and documents, in visit order.
     if (!needle) {
       const out: Item[] = []
       for (const visit of me.recent) {
-        const issue = issues.pool.get(visit.key)
-        if (issue) out.push(issueItem(issue))
+        if (visit.kind === 'doc') {
+          const page = pages.byKey.get(visit.key)
+          if (page) out.push(docItem(page))
+        } else {
+          const issue = issues.pool.get(visit.key)
+          if (issue) out.push(issueItem(issue))
+        }
         if (out.length >= 5) break
       }
       return out
@@ -98,7 +122,7 @@
       chosungQuery,
       now: Date.now(),
       myEmail: me.email,
-      recentKeys: new Set(me.recent.map((v) => v.key)),
+      recentKeys: new Set(me.recentIssues.map((v) => v.key)),
     }
     return sortIssues(filterIssues(issues.allIssues, f), 'relevance', 'desc', ctx)
       .slice(0, 8)
@@ -107,6 +131,7 @@
 
   function applyView(config: ViewConfig) {
     me.closeFeed()
+    pages.closeRecent()
     filters.applyConfig(config)
   }
 
@@ -319,6 +344,7 @@
           role="option"
           id="palette-opt-{i}"
           data-idx={i}
+          data-testid={item.testid}
           aria-selected={i === idx}
           class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] {i === idx
             ? 'bg-bg-active text-text-primary'
@@ -330,9 +356,28 @@
           }}
         >
           {#if item.icon}<span class="flex-none" aria-hidden="true">{item.icon}</span>{/if}
-          <span class="flex-none {item.mono ? 'font-mono text-accent-text' : ''}">{item.label}</span>
+          {#if item.badge}
+            <span
+              class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted"
+            >
+              {item.badge}
+            </span>
+          {/if}
+          <!-- A document leads with its title, so the title is what gives up
+               width; an issue leads with its key and lets the summary truncate. -->
+          <span
+            class="{item.badge ? 'min-w-0 flex-1 truncate' : 'flex-none'} {item.mono
+              ? 'font-mono text-accent-text'
+              : ''}"
+          >
+            {item.label}
+          </span>
           {#if item.sub}
-            <span class="min-w-0 flex-1 truncate text-text-muted">{item.sub}</span>
+            <span
+              class="truncate text-text-muted {item.badge
+                ? 'max-w-[35%] flex-none'
+                : 'min-w-0 flex-1'}">{item.sub}</span
+            >
           {/if}
           {#if item.kbd}
             <span class="ml-auto flex-none">

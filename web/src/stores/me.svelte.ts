@@ -69,12 +69,23 @@ function urlBase64ToUint8Array(value: string): Uint8Array<ArrayBuffer> {
   return bytes
 }
 
-export interface RecentIssueVisit {
+/** What a recent entry points at. Absent in anything stored before documents
+ *  joined the list, so a missing kind reads as 'issue'. */
+export type RecentKind = 'issue' | 'doc'
+
+export interface RecentVisit {
   key: string
   viewed_at: string | null
+  kind: RecentKind
 }
 
-function loadRecent(): RecentIssueVisit[] {
+/** Issue keys and page keys come from different namespaces, so identity here is
+ *  the pair, not the key alone. */
+function visitId(kind: RecentKind, key: string): string {
+  return `${kind}:${key}`
+}
+
+function loadRecent(): RecentVisit[] {
   try {
     const raw = localStorage.getItem(RECENT_KEY)
     if (!raw) return []
@@ -82,15 +93,22 @@ function loadRecent(): RecentIssueVisit[] {
     if (!Array.isArray(values)) return []
 
     const seen = new Set<string>()
-    const visits: RecentIssueVisit[] = []
+    const visits: RecentVisit[] = []
     for (const value of values) {
       // Legacy string[] keeps order; fill exact timestamps on next view.
       const key = typeof value === 'string' ? value : isRecentVisit(value) ? value.key : ''
-      if (!key || seen.has(key)) continue
-      seen.add(key)
+      if (!key) continue
+      const kind: RecentKind =
+        typeof value !== 'string' && (value as Record<string, unknown>).kind === 'doc'
+          ? 'doc'
+          : 'issue'
+      const id = visitId(kind, key)
+      if (seen.has(id)) continue
+      seen.add(id)
       visits.push({
         key,
         viewed_at: typeof value === 'string' ? null : value.viewed_at,
+        kind,
       })
       if (visits.length === RECENT_MAX) break
     }
@@ -100,7 +118,7 @@ function loadRecent(): RecentIssueVisit[] {
   }
 }
 
-function isRecentVisit(value: unknown): value is RecentIssueVisit {
+function isRecentVisit(value: unknown): value is RecentVisit {
   if (!value || typeof value !== 'object') return false
   const visit = value as Record<string, unknown>
   return (
@@ -109,7 +127,7 @@ function isRecentVisit(value: unknown): value is RecentIssueVisit {
   )
 }
 
-function saveRecent(visits: RecentIssueVisit[]): void {
+function saveRecent(visits: RecentVisit[]): void {
   try {
     localStorage.setItem(RECENT_KEY, JSON.stringify(visits))
   } catch (e) {
@@ -170,7 +188,10 @@ class MeStore {
   #favoritesLocal = false
 
   /* ── Local personalization (works without credential) ── */
-  recent = $state<RecentIssueVisit[]>([])
+  /** Recently opened issues *and* documents, newest first. */
+  recent = $state<RecentVisit[]>([])
+  /** The issue slice — for anything that resolves a key against the issue pool. */
+  recentIssues = $derived(this.recent.filter((visit) => visit.kind === 'issue'))
 
   /** Personal feed main-area toggle. */
   feedOpen = $state(false)
@@ -714,13 +735,14 @@ class MeStore {
     this.feedOpen = !this.feedOpen
   }
 
-  /* ── Recent issues (local) ── */
+  /* ── Recent issues and documents (local) ── */
 
-  recordRecent(key: string): void {
+  recordRecent(key: string, kind: RecentKind = 'issue'): void {
     if (!key) return
+    const id = visitId(kind, key)
     const next = [
-      { key, viewed_at: new Date().toISOString() },
-      ...this.recent.filter((visit) => visit.key !== key),
+      { key, viewed_at: new Date().toISOString(), kind },
+      ...this.recent.filter((visit) => visitId(visit.kind, visit.key) !== id),
     ].slice(0, RECENT_MAX)
     this.recent = next
     saveRecent(next)
