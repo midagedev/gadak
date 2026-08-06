@@ -8,7 +8,7 @@ export default defineConfig({
   testDir: '.',
   // demo/ is the recording pipeline; hosted/ has its own config (static Pages
   // smoke). Excluding both keeps the suite honest ("N passed", not "N + skipped").
-  testIgnore: ['**/demo/**', '**/hosted/**'],
+  testIgnore: ['**/demo/**', '**/hosted/**', '**/perf/**'],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

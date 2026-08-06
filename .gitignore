@@ -22,6 +22,7 @@ coverage/
 tmp/
 .private/
 e2e/.tmp/
+e2e/perf/.tmp/
 
 # Playwright
 test-results/

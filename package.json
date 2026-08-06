@@ -15,7 +15,8 @@
     "preview": "vite preview",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
-    "test:hosted": "playwright test --config e2e/hosted/playwright.config.ts"
+    "test:hosted": "playwright test --config e2e/hosted/playwright.config.ts",
+    "test:perf": "bash e2e/perf/make-fixture.sh && SCRY_PERF=1 playwright test --config e2e/perf/playwright.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
