@@ -104,6 +104,61 @@ Attachments are local too. The first view of an image caches its bytes next to
 the mirror and every later view is a disk read, so a screenshot-heavy issue
 opens at the speed of the rest of the app — and keeps rendering offline.
 
+## For agents
+
+This is half the reason scry exists, so it has its own reference:
+**[AGENTS.md](AGENTS.md)** — and
+[`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) is one paste per agent
+(Claude Code, Cursor, Codex, MCP). Hooking one up is one line:
+
+```bash
+scry mcp install claude    # pins this binary and profile into the registration
+```
+
+<p align="center">
+  <img src="docs/media/agent.gif" alt="scry search, scry sql aggregation, and scry issue in a terminal" width="800">
+  <br>
+  <sub>A real agent session — one-line MCP registration, then a live cross-source answer.
+  Generated from <a href="tools/tapes/agent.tape">tools/tapes/agent.tape</a> (VHS, unscripted model output).</sub>
+</p>
+
+The interface is the database. Anything that can run a shell command can use
+it at full power:
+
+```bash
+# What keeps coming back, and when did it last happen?
+scry sql "select key, summary, reopen_count, reopened_at from issues_full
+          where reopen_count > 0 order by reopened_at desc limit 20"
+
+# Full-text across issues AND wiki pages — one index, one query
+scry search "idempotency webhook"
+
+# What does the wiki know that the tracker doesn't?
+scry sql "select it.key, it.title, p.space_key from items_fts f
+          join items it on it.rowid = f.rowid
+          join pages p on p.item_id = it.id
+          where items_fts match 'incident AND billing' limit 20"
+
+# One issue whole, or one write straight through to Jira
+scry issue NMB-140 --json
+scry comment NMB-140 -m "Reproduced on staging."
+scry transition NMB-140 "In Review"
+```
+
+Read and write commands that emit structured output (`init`, `status`,
+`issue`, `search`, `comment`, `transition`, `assign`, `fields`, `sql`) take
+`--json`; `scry search --json` includes a `pages` array, and the MCP server's
+`scry_search` returns the same. `issue`, `search`, `comment`, `transition`,
+`assign`, and `fields` also warn on stderr when the last sync failed or is
+over an hour old; stdout stays clean enough to pipe. `scry sql` opens the
+database with SQLite `mode=ro` (MCP's `scry_query` additionally rejects
+non-SELECT statements), so an agent on a narrow command allowlist can be given
+mirror access without being given arbitrary `sqlite3`.
+
+The schema in `specs/000-product/data-model.md` is a public contract. Filter
+on `status_category` and ids, never on display names — Jira translates those
+per account, which is the one mistake that silently returns nothing.
+
 ## Install
 
 Atlassian Cloud only. You need an API token from
@@ -256,57 +311,6 @@ docker build -t scry . && docker run --rm -p 7777:7777 -v scry-data:/data scry
 The process has no authentication by design, so it refuses to bind a
 non-loopback address without `--allow-remote` (the image passes it). Only put
 it on a network you trust. Config and `scry.db` live under `/data`.
-
-## For agents
-
-This is half the reason scry exists, so it has its own reference:
-**[AGENTS.md](AGENTS.md)** — and
-[`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) is one paste per agent
-(Claude Code, Cursor, Codex, MCP).
-
-<p align="center">
-  <img src="docs/media/agent.gif" alt="scry search, scry sql aggregation, and scry issue in a terminal" width="800">
-  <br>
-  <sub>A real agent session — one-line MCP registration, then a live cross-source answer.
-  Generated from <a href="tools/tapes/agent.tape">tools/tapes/agent.tape</a> (VHS, unscripted model output).</sub>
-</p>
-
-The interface is the database. Anything that can run a shell command can use
-it at full power:
-
-```bash
-# What keeps coming back, and when did it last happen?
-scry sql "select key, summary, reopen_count, reopened_at from issues_full
-          where reopen_count > 0 order by reopened_at desc limit 20"
-
-# Full-text across issues AND wiki pages — one index, one query
-scry search "idempotency webhook"
-
-# What does the wiki know that the tracker doesn't?
-scry sql "select it.key, it.title, p.space_key from items_fts f
-          join items it on it.rowid = f.rowid
-          join pages p on p.item_id = it.id
-          where items_fts match 'incident AND billing' limit 20"
-
-# One issue whole, or one write straight through to Jira
-scry issue NMB-140 --json
-scry comment NMB-140 -m "Reproduced on staging."
-scry transition NMB-140 "In Review"
-```
-
-Read and write commands that emit structured output (`init`, `status`,
-`issue`, `search`, `comment`, `transition`, `assign`, `fields`, `sql`) take
-`--json`; `scry search --json` includes a `pages` array, and the MCP server's
-`scry_search` returns the same. `issue`, `search`, `comment`, `transition`,
-`assign`, and `fields` also warn on stderr when the last sync failed or is
-over an hour old; stdout stays clean enough to pipe. `scry sql` opens the
-database with SQLite `mode=ro` (MCP's `scry_query` additionally rejects
-non-SELECT statements), so an agent on a narrow command allowlist can be given
-mirror access without being given arbitrary `sqlite3`.
-
-The schema in `specs/000-product/data-model.md` is a public contract. Filter
-on `status_category` and ids, never on display names — Jira translates those
-per account, which is the one mistake that silently returns nothing.
 
 ## Making it yours
 
