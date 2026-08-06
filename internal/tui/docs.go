@@ -1,8 +1,9 @@
 package tui
 
-// Docs view: mirrored wiki pages in a space-grouped tree, plain-text detail,
-// and in-memory title/space filter. Issue-only write actions report unsupported
-// rather than no-op. Full-text search stays on the web UI / CLI.
+// Docs view: mirrored wiki pages with three list axes (Updated / By author /
+// Spaces tree), plain-text detail, and in-memory title/space filter.
+// Issue-only write actions report unsupported rather than no-op.
+// Full-text search and Viewed recency stay on the web UI / CLI.
 
 import (
 	"fmt"
@@ -23,7 +24,18 @@ const (
 	docsLinePage
 )
 
-// docsLine is one screen row in the docs list: a space header or a page.
+// docsTab is which list axis the docs mode shows. Keys 1/2/3 switch these
+// (same physical keys as issue status tabs and feed focus — context-bound).
+type docsTab int
+
+const (
+	docsTabUpdated  docsTab = iota // 1 — flat, updated_at desc (default)
+	docsTabByAuthor                // 2 — author group headers
+	docsTabSpaces                  // 3 — space-grouped parent_id tree
+)
+
+// docsLine is one screen row in the docs list: a group header or a page.
+// space holds the header label (space key or author name) when kind is header.
 type docsLine struct {
 	kind  int
 	space string
@@ -42,6 +54,100 @@ type pageDetailMsg struct {
 	key string
 	d   *store.PageDetail
 	err error
+}
+
+// pageSpaceLabel is the on-screen space name: SpaceName, or SpaceKey when empty
+// (web pages.spaceLabel parity).
+func pageSpaceLabel(p store.PageLite) string {
+	if p.SpaceName != "" {
+		return p.SpaceName
+	}
+	return p.SpaceKey
+}
+
+// formatDocsMeta builds the dimmed second clause: "author · age · in space".
+// Empty clauses are dropped (web DocRow).
+func formatDocsMeta(p store.PageLite, now time.Time) string {
+	parts := make([]string, 0, 3)
+	if p.Author != "" {
+		parts = append(parts, p.Author)
+	}
+	if age := relativeTime(p.UpdatedAt, now); age != "" {
+		parts = append(parts, age)
+	}
+	if space := pageSpaceLabel(p); space != "" {
+		parts = append(parts, "in "+space)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// buildDocsUpdatedLines is a flat list sorted by updated_at desc (ISO lex).
+// Empty timestamps sort last — same rule as issue list sort.
+func buildDocsUpdatedLines(pages []store.PageLite) []docsLine {
+	if len(pages) == 0 {
+		return nil
+	}
+	list := make([]store.PageLite, len(pages))
+	copy(list, pages)
+	sort.SliceStable(list, func(i, j int) bool {
+		return lessStr(list[i].UpdatedAt, list[j].UpdatedAt, false)
+	})
+	out := make([]docsLine, len(list))
+	for i, p := range list {
+		out[i] = docsLine{kind: docsLinePage, page: p}
+	}
+	return out
+}
+
+// buildDocsByAuthorLines groups by author (empty → "(no author)"), pages within
+// a group by updated_at desc, groups ordered by their newest page (web byAuthor).
+func buildDocsByAuthorLines(pages []store.PageLite) []docsLine {
+	if len(pages) == 0 {
+		return nil
+	}
+	type bucket struct {
+		label string
+		list  []store.PageLite
+	}
+	byKey := map[string]*bucket{}
+	order := make([]string, 0)
+	for _, p := range pages {
+		key := p.Author
+		label := p.Author
+		if key == "" {
+			label = "(no author)"
+		}
+		b, ok := byKey[key]
+		if !ok {
+			b = &bucket{label: label}
+			byKey[key] = b
+			order = append(order, key)
+		}
+		b.list = append(b.list, p)
+	}
+	for _, b := range byKey {
+		sort.SliceStable(b.list, func(i, j int) bool {
+			return lessStr(b.list[i].UpdatedAt, b.list[j].UpdatedAt, false)
+		})
+	}
+	// Groups by newest edit first (first page after within-group sort).
+	sort.SliceStable(order, func(i, j int) bool {
+		ai, aj := byKey[order[i]].list, byKey[order[j]].list
+		if len(ai) == 0 || len(aj) == 0 {
+			return len(ai) > len(aj)
+		}
+		return lessStr(ai[0].UpdatedAt, aj[0].UpdatedAt, false)
+	})
+
+	out := make([]docsLine, 0, len(pages)+len(order))
+	for _, k := range order {
+		b := byKey[k]
+		out = append(out, docsLine{kind: docsLineHeader, space: b.label, count: len(b.list)})
+		for _, p := range b.list {
+			out = append(out, docsLine{kind: docsLinePage, page: p})
+		}
+	}
+	return out
 }
 
 // buildDocsLines groups pages by space (alpha), nests by parent_id, and flattens
@@ -173,7 +279,15 @@ func docsBreadcrumb(pages []store.PageLite, key string) string {
 
 func (m *Model) refilterDocs() {
 	filtered := filterPages(m.pages, m.filter)
-	lines := buildDocsLines(filtered)
+	var lines []docsLine
+	switch m.docsTab {
+	case docsTabByAuthor:
+		lines = buildDocsByAuthorLines(filtered)
+	case docsTabSpaces:
+		lines = buildDocsLines(filtered)
+	default:
+		lines = buildDocsUpdatedLines(filtered)
+	}
 	m.docsLines = lines
 	nav := make([]docsNavItem, 0, len(filtered))
 	for _, ln := range lines {
@@ -191,9 +305,20 @@ func (m *Model) refilterDocs() {
 	m.ensureDocsVisible()
 }
 
+func (m *Model) setDocsTab(t docsTab) {
+	if m.docsTab == t {
+		return
+	}
+	m.docsTab = t
+	m.docsCursor = 0
+	m.docsOffset = 0
+	m.refilterDocs()
+}
+
 func (m *Model) enterDocs() {
 	m.mode = modeDocs
 	m.filter = ""
+	m.docsTab = docsTabUpdated // docs mode default: Updated (not Spaces tree)
 	m.docsCursor = 0
 	m.docsOffset = 0
 	m.refilterDocs()
@@ -326,6 +451,16 @@ func (m Model) handleDocsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.PageUp):
 		m.moveDocsCursor(-m.pageSize())
 		return m, nil
+	// 1/2/3 reuse issue/feed tab keys; in docs they mean Updated / By author / Spaces.
+	case key.Matches(msg, k.TabAll):
+		m.setDocsTab(docsTabUpdated)
+		return m, nil
+	case key.Matches(msg, k.TabOpen):
+		m.setDocsTab(docsTabByAuthor)
+		return m, nil
+	case key.Matches(msg, k.TabInProgress):
+		m.setDocsTab(docsTabSpaces)
+		return m, nil
 	case key.Matches(msg, k.Enter):
 		key, ok := m.selectedDocKey()
 		if !ok {
@@ -399,12 +534,7 @@ func (m Model) viewDocs() string {
 
 	b.WriteString(m.renderHeader(w))
 	b.WriteByte('\n')
-	// Docs chrome: single active chip, no issue tabs.
-	tab := " " + styleTabActive.Render(" docs ")
-	if n := len(m.pages); n > 0 {
-		tab += " " + styleMuted.Render(fmt.Sprintf("%d mirrored", n))
-	}
-	b.WriteString(fitWidth(tab, w))
+	b.WriteString(fitWidth(m.renderDocsTabs(), w))
 	b.WriteByte('\n')
 
 	listH := m.listHeight()
@@ -437,23 +567,20 @@ func (m Model) viewDocs() string {
 		for i := m.docsOffset; i < end; i++ {
 			ln := m.docsLines[i]
 			if ln.kind == docsLineHeader {
+				// Same grammar as issue group headers / spaces tree.
 				hdr := fmt.Sprintf(" ▸ %s (%d)", ln.space, ln.count)
 				b.WriteString(fitWidth(styleMuted.Render(hdr), w))
 			} else {
-				// Indent by depth (2 spaces per level), then title · author · age.
+				// Indent by depth (Spaces tree only); title + dimmed meta clause.
 				indent := strings.Repeat("  ", ln.depth)
 				title := ln.page.Title
 				if title == "" {
 					title = ln.page.Key
 				}
-				age := relativeTime(ln.page.UpdatedAt, m.clock())
 				label := "  " + indent + title
-				meta := ""
-				if ln.page.Author != "" {
-					meta = "  " + ln.page.Author
-				}
-				if age != "" {
-					meta += "  " + age
+				meta := formatDocsMeta(ln.page, m.clock())
+				if meta != "" {
+					meta = "  " + meta
 				}
 				selected := ln.page.Key == selKey
 				if selected {
@@ -473,6 +600,32 @@ func (m Model) viewDocs() string {
 
 	b.WriteString(m.renderDocsStatusBar(w))
 	return b.String()
+}
+
+// renderDocsTabs draws the three docs list axes (reuses list tab styles).
+func (m Model) renderDocsTabs() string {
+	tabs := []struct {
+		tab   docsTab
+		label string
+	}{
+		{docsTabUpdated, "updated"},
+		{docsTabByAuthor, "by author"},
+		{docsTabSpaces, "spaces"},
+	}
+	parts := make([]string, 0, 3)
+	for i, t := range tabs {
+		label := fmt.Sprintf("%d %s", i+1, t.label)
+		if t.tab == m.docsTab {
+			parts = append(parts, styleTabActive.Render(label))
+		} else {
+			parts = append(parts, styleTabInactive.Render(label))
+		}
+	}
+	s := " " + strings.Join(parts, " ")
+	if n := len(m.pages); n > 0 {
+		s += " " + styleMuted.Render(fmt.Sprintf("%d mirrored", n))
+	}
+	return s
 }
 
 func (m Model) renderDocsStatusBar(w int) string {

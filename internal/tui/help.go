@@ -30,10 +30,12 @@ func (m Model) overlayHelp(base string) string {
 		body.WriteByte('\n')
 	}
 	body.WriteByte('\n')
-	// Honest parity: docs list filter is title/space substring only.
+	// Honest parity notes (TUI_PRINCIPLES §10 — silence is the only wrong answer).
 	body.WriteString(styleMuted.Render("  docs / filter: title & space only"))
 	body.WriteByte('\n')
 	body.WriteString(styleMuted.Render("  full-text search: web/CLI (not TUI)"))
+	body.WriteByte('\n')
+	body.WriteString(styleMuted.Render("  Viewed recency lives in the web UI's browser storage; the TUI does not track visits yet."))
 	body.WriteByte('\n')
 	body.WriteByte('\n')
 	body.WriteString(styleMuted.Render("  ? or esc to close"))

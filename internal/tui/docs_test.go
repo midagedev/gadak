@@ -43,6 +43,7 @@ func seededDocsModel() Model {
 	m.width, m.height = 120, 40
 	m.now = time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
 	m.pages = samplePages()
+	m.docsTab = docsTabUpdated
 	m.refilterDocs()
 	m.mode = modeDocs
 	return m
@@ -156,10 +157,14 @@ func TestDocsEmptyState(t *testing.T) {
 func TestDocsToggleAndTreeRender(t *testing.T) {
 	m := seededModel() // issue list
 	m.pages = samplePages()
-	// D enters docs
+	// D enters docs (default Updated); 3 switches to Spaces tree.
 	m = feedKey(m, "D")
 	if m.mode != modeDocs {
 		t.Fatalf("D → mode %v want modeDocs", m.mode)
+	}
+	m = feedKey(m, "3")
+	if m.docsTab != docsTabSpaces {
+		t.Fatalf("3 → docsTab %v want spaces", m.docsTab)
 	}
 	plain := stripANSI(m.View())
 	for _, want := range []string{"ENG", "PROD", "Root Guide", "Child Page"} {
@@ -304,6 +309,177 @@ func TestDocsHelpMentionsFTSHonesty(t *testing.T) {
 		if !strings.Contains(plain, "web/CLI") && !strings.Contains(plain, "web or CLI") {
 			t.Errorf("help missing full-text search honesty note:\n%s", plain)
 		}
+	}
+}
+
+// TestBuildDocsUpdatedOrder: flat list, updated_at desc (newest first).
+// Empty timestamps sort last (same as issue list sort).
+func TestBuildDocsUpdatedOrder(t *testing.T) {
+	pages := []store.PageLite{
+		{Key: "old", Title: "Old", SpaceKey: "A", UpdatedAt: "2026-08-01T10:00:00Z"},
+		{Key: "new", Title: "New", SpaceKey: "B", UpdatedAt: "2026-08-03T10:00:00Z"},
+		{Key: "mid", Title: "Mid", SpaceKey: "A", UpdatedAt: "2026-08-02T10:00:00Z"},
+		{Key: "empty", Title: "No stamp", SpaceKey: "C", UpdatedAt: ""},
+	}
+	lines := buildDocsUpdatedLines(pages)
+	var keys []string
+	for _, ln := range lines {
+		if ln.kind != docsLinePage {
+			t.Fatalf("updated view must be flat (no headers), got kind=%d", ln.kind)
+		}
+		keys = append(keys, ln.page.Key)
+	}
+	want := []string{"new", "mid", "old", "empty"}
+	if len(keys) != len(want) {
+		t.Fatalf("keys=%v want %v", keys, want)
+	}
+	for i := range want {
+		if keys[i] != want[i] {
+			t.Fatalf("keys=%v want %v", keys, want)
+		}
+	}
+}
+
+// TestBuildDocsByAuthor: group headers (issue header grammar), empty author
+// bucket is "(no author)", within-group updated_at desc, groups by newest first.
+func TestBuildDocsByAuthor(t *testing.T) {
+	pages := []store.PageLite{
+		{Key: "a1", Title: "Ada old", Author: "Ada", UpdatedAt: "2026-08-01T10:00:00Z"},
+		{Key: "a2", Title: "Ada new", Author: "Ada", UpdatedAt: "2026-08-03T10:00:00Z"},
+		{Key: "b1", Title: "Bob only", Author: "Bob", UpdatedAt: "2026-08-02T10:00:00Z"},
+		{Key: "n1", Title: "Anon", Author: "", UpdatedAt: "2026-08-04T10:00:00Z"},
+	}
+	lines := buildDocsByAuthorLines(pages)
+	var got []string
+	for _, ln := range lines {
+		if ln.kind == docsLineHeader {
+			got = append(got, "H:"+ln.space)
+			continue
+		}
+		got = append(got, "P:"+ln.page.Key)
+	}
+	// n1 is newest overall → "(no author)" group first; then Ada (a2=Aug3);
+	// then Bob (Aug2). Within Ada: a2 before a1.
+	want := []string{
+		"H:(no author)", "P:n1",
+		"H:Ada", "P:a2", "P:a1",
+		"H:Bob", "P:b1",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got=%v want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got=%v want %v", got, want)
+		}
+	}
+}
+
+// TestPageSpaceLabel: SpaceName when set, else SpaceKey (web spaceLabel parity).
+func TestPageSpaceLabel(t *testing.T) {
+	if got := pageSpaceLabel(store.PageLite{SpaceKey: "ENG", SpaceName: "Engineering"}); got != "Engineering" {
+		t.Errorf("named = %q", got)
+	}
+	if got := pageSpaceLabel(store.PageLite{SpaceKey: "ENG", SpaceName: ""}); got != "ENG" {
+		t.Errorf("fallback = %q want ENG", got)
+	}
+}
+
+// TestFormatDocsMeta: "author · age · in space" with space-name fallback.
+func TestFormatDocsMeta(t *testing.T) {
+	now := time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
+	p := store.PageLite{
+		Author: "Ada", SpaceKey: "ENG", SpaceName: "",
+		UpdatedAt: "2026-08-03T12:00:00Z",
+	}
+	got := formatDocsMeta(p, now)
+	if !strings.Contains(got, "Ada") || !strings.Contains(got, "in ENG") {
+		t.Errorf("meta=%q want author and in ENG", got)
+	}
+	if !strings.Contains(got, "·") {
+		t.Errorf("meta=%q want · separators", got)
+	}
+	p.SpaceName = "Engineering"
+	got = formatDocsMeta(p, now)
+	if !strings.Contains(got, "in Engineering") || strings.Contains(got, "in ENG") {
+		t.Errorf("meta=%q want in Engineering (not key)", got)
+	}
+	// Empty author drops the author clause (web DocRow).
+	p.Author = ""
+	got = formatDocsMeta(p, now)
+	if strings.HasPrefix(got, " ·") || strings.Contains(got, "(no author)") {
+		t.Errorf("empty author should drop clause, got %q", got)
+	}
+}
+
+// TestDocsDefaultTabUpdated: entering docs mode lands on Updated (flat), not Spaces.
+func TestDocsDefaultTabUpdated(t *testing.T) {
+	m := seededModel()
+	m.pages = samplePages()
+	m = feedKey(m, "D")
+	if m.mode != modeDocs {
+		t.Fatalf("mode=%v", m.mode)
+	}
+	if m.docsTab != docsTabUpdated {
+		t.Fatalf("docsTab=%v want docsTabUpdated", m.docsTab)
+	}
+	// Flat: no space headers in nav-driving lines; first nav is newest (p-cb).
+	for _, ln := range m.docsLines {
+		if ln.kind == docsLineHeader {
+			t.Fatalf("Updated default should be flat, saw header %q", ln.space)
+		}
+	}
+	if len(m.docsNav) == 0 || m.docsNav[0].page.Key != "p-cb" {
+		t.Fatalf("newest first: nav[0]=%v", docsNavKeys(m))
+	}
+}
+
+// TestDocsTabKeys: 1/2/3 switch Updated / By author / Spaces inside docs mode.
+func TestDocsTabKeys(t *testing.T) {
+	m := seededDocsModel()
+	// seededDocsModel refilters without setting tab; pin Updated then switch.
+	m.docsTab = docsTabUpdated
+	m.refilterDocs()
+
+	m = feedKey(m, "2")
+	if m.docsTab != docsTabByAuthor {
+		t.Fatalf("2 → docsTab=%v want by author", m.docsTab)
+	}
+	var sawAuthorHeader bool
+	for _, ln := range m.docsLines {
+		if ln.kind == docsLineHeader {
+			sawAuthorHeader = true
+			break
+		}
+	}
+	if !sawAuthorHeader {
+		t.Fatal("by author should insert group headers")
+	}
+
+	m = feedKey(m, "3")
+	if m.docsTab != docsTabSpaces {
+		t.Fatalf("3 → docsTab=%v want spaces", m.docsTab)
+	}
+	// Spaces tree: ENG then PROD headers (existing buildDocsLines).
+	if len(m.docsLines) == 0 || m.docsLines[0].kind != docsLineHeader || m.docsLines[0].space != "ENG" {
+		t.Fatalf("spaces first line = %+v", m.docsLines)
+	}
+
+	m = feedKey(m, "1")
+	if m.docsTab != docsTabUpdated {
+		t.Fatalf("1 → docsTab=%v want updated", m.docsTab)
+	}
+}
+
+// TestDocsHelpMentionsViewedUnsupported: honest parity note for Viewed recency.
+func TestDocsHelpMentionsViewedUnsupported(t *testing.T) {
+	m := seededDocsModel()
+	m.showHelp = true
+	plain := stripANSI(m.View())
+	// Exact sentence from the parity brief (or a close substring).
+	if !strings.Contains(plain, "Viewed recency") &&
+		!strings.Contains(strings.ToLower(plain), "does not track visits") {
+		t.Errorf("help missing Viewed unsupported honesty:\n%s", plain)
 	}
 }
 

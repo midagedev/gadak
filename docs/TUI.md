@@ -16,7 +16,8 @@ then refresh that one issue in the mirror.
 | `j` / `k`, `↓` / `↑` | move the cursor |
 | `g` / `G` | first / last row |
 | `PgDown` / `Ctrl+D`, `PgUp` / `Ctrl+U` | page down / page up |
-| `1` `2` `3` `4` | list: all / open / in progress / done · feed: all / assignee / reporter / mention |
+| `1` `2` `3` `4` | list: all / open / in progress / done · feed: all / assignee / reporter / mention · docs: updated / by author / spaces (`4` unused in docs) |
+| `D` | docs mode (toggle): mirrored wiki pages |
 | `/` | filter by key, summary, or assignee (local, per keystroke; matches are highlighted in the list) |
 | `Ctrl+K` | command palette — fuzzy jump to any tab, action, saved view, or issue |
 | `Enter` | open detail |
@@ -61,6 +62,26 @@ Unread count appears as a `feed N` chip on the list status bar (always the **all
 focus total). In feed mode, `1`–`4` switch focus tabs (`all` / `assignee` /
 `reporter` / `mention`); each tab shows its unread badge when non-zero. `r` marks
 every event read (all focus) and reloads the current focus list.
+
+### Docs
+
+`D` opens mirrored wiki pages from the same SQLite mirror. Inside docs mode,
+`1` / `2` / `3` switch the list axis (same keys as issue status tabs and feed
+focus — meaning depends on mode):
+
+| Key | View | What it shows |
+| --- | --- | --- |
+| `1` | **Updated** (default) | Every page, flat, `updated_at` desc |
+| `2` | **By author** | Author group headers (`▸ name (n)`); empty author is `(no author)`; pages within a group by `updated_at` desc |
+| `3` | **Spaces** | Space-grouped parent/child tree (same nesting rules as the web space tree) |
+
+Each row is the title plus a dimmed meta clause: `author · relative time · in
+space name` (space key when the mirror has no name yet). `/` filters by title or
+space key (substring only — not full-text). `Enter` opens plain-text detail;
+`Esc` / `D` leaves.
+
+**Viewed** recency lives in the web UI's browser storage; the TUI does not track
+visits yet. Full-text document search stays on the web UI / CLI.
 
 ### Saved views
 

@@ -114,6 +114,7 @@ type Model struct {
 	docsNav       []docsNavItem
 	docsCursor    int
 	docsOffset    int
+	docsTab       docsTab // Updated / By author / Spaces (keys 1/2/3)
 	pageDetail    *store.PageDetail
 	pageDetailKey string
 	// filterFrom remembers which mode opened / so Esc/Enter return there.
