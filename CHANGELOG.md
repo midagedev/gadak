@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.7.0 — 2026-08-06
 
 - **`scry mcp install <client>`.** Pins the current profile and absolute binary
   path into an MCP host registration so clients that do not inherit shell env
@@ -14,7 +14,21 @@
 - **Space names (schema v14).** `spaces` table and `PageLite.space_name`;
   settings APIs to list Confluence spaces and persist `confluence.spaces`.
 - **Docs UX wave.** Space names in the UI, unified recents, scope pickers, and
-  a Recently edited view for mirrored pages.
+  a Recently edited view for mirrored pages — landing in a final recency-first
+  shape: Viewed / Updated / By author tabs replace the sidebar space tree, in
+  both the web UI and the TUI docs mode.
+- **Epics built-in view.** The open backlog grouped by epic, one click from
+  the sidebar.
+- **Mirror file permissions.** The database and its WAL/SHM sidecars are
+  chmodded to `0600` and data directories to `0700` on open; older installs
+  are tightened the next time scry opens them.
+- **A face.** Wordmark, logo, and a favicon the app never had; the README
+  leads with the live demo and a hero clip.
+- **Demo speaks English.** The bundled snapshot's statuses, types, titles, and
+  space homes read as English product data (Korean narrative pages remain for
+  CJK search); page authors spread across five personas.
+- **`docs/FAQ.md`.** The hard questions answered with receipts — site load
+  math, admin visibility, single-maintainer risk, agent data exposure.
 - **`scry.localhost`.** `serve` opens `http://scry.localhost` when the resolver
   maps it to loopback.
 - **Port-conflict handling.** On a busy listen port, hand off to a running
