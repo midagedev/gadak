@@ -194,6 +194,87 @@ test.describe('documents in the daily loop', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  test('the activity lists carry one line of the body; navigation surfaces do not', async ({
+    page,
+    request,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    // Read one page first, so the Viewed assertion below runs against a row that
+    // exists rather than against an empty tab.
+    await openDocFromTree(page, 'Billing Settings Spec')
+    await openDocuments(page)
+
+    const view = page.getByTestId('docs-view')
+    const res = await request.get(PAGES_URL)
+    const body = (await res.json()) as {
+      pages: { title: string; updated_at: string | null; excerpt?: string }[]
+    }
+    const newest = [...body.pages].sort((a, b) =>
+      (b.updated_at ?? '').localeCompare(a.updated_at ?? ''),
+    )[0]
+    // Guard the fixture, not the UI: an all-empty snapshot would let every
+    // assertion below pass against a row that renders nothing.
+    expect(newest.excerpt, 'demo snapshot has no excerpts to show').toBeTruthy()
+
+    // Updated is someone else's activity — the title alone often cannot say
+    // whether the edit is worth opening, so the row shows the body's first line.
+    await view.getByTestId('docs-tab').filter({ hasText: 'Updated' }).click()
+    const first = view.getByTestId('doc-row').first()
+    await expect(first.getByTestId('doc-excerpt')).toHaveText(newest.excerpt!)
+
+    // Exactly one line, whatever the excerpt's length: density is the point, and
+    // a wrapping preview would quietly become a second row height.
+    const lines = await first.getByTestId('doc-excerpt').evaluate((el) => {
+      const lineHeight = parseFloat(getComputedStyle(el).lineHeight)
+      return el.getBoundingClientRect().height / lineHeight
+    })
+    expect(lines).toBeCloseTo(1, 1)
+
+    // It never outranks the meta line it sits under (UX_PRINCIPLES §5).
+    const weight = await first.evaluate((row) => {
+      const px = (el: Element) => parseFloat(getComputedStyle(el).fontSize)
+      const color = (el: Element) => getComputedStyle(el).color
+      const meta = row.children[1]
+      const excerpt = row.querySelector('[data-testid="doc-excerpt"]')!
+      return {
+        sameOrSmaller: px(excerpt) <= px(meta),
+        sameOrQuieter: color(excerpt) === color(meta),
+      }
+    })
+    expect(weight).toEqual({ sameOrSmaller: true, sameOrQuieter: true })
+
+    // By author asks the same question of the same mirror, so it shows the same.
+    await view.getByTestId('docs-tab').filter({ hasText: 'By author' }).click()
+    await expect(view.getByTestId('doc-excerpt').first()).toBeVisible()
+
+    // Viewed is your own return path: you have read these, so a preview is
+    // noise. (Every fixture page has a body, so the empty-excerpt case is left
+    // to the component's guard rather than to snapshot data.)
+    await view.getByTestId('docs-tab').filter({ hasText: 'Viewed' }).click()
+    await expect(view.getByTestId('doc-row')).toHaveCount(1)
+    await expect(view.getByTestId('doc-excerpt')).toHaveCount(0)
+
+    // A space is reached to get somewhere, not to browse — neither its flat list
+    // nor its tree becomes a discovery surface.
+    // The Spaces disclosure is still open from the tree step above, so the space
+    // is clicked directly — toggling it again would close the list.
+    await page
+      .getByTestId('docs-section')
+      .getByTestId('docs-space')
+      .filter({ hasText: 'ENG' })
+      .click()
+    const spaceView = page.getByTestId('space-docs-view')
+    await expect(spaceView.getByTestId('doc-row').first()).toBeVisible()
+    await expect(spaceView.getByTestId('doc-excerpt')).toHaveCount(0)
+
+    await spaceView.getByTestId('space-tree-toggle').click()
+    await expect(spaceView.getByTestId('doc-tree-node').first()).toBeVisible()
+    await expect(spaceView.getByTestId('doc-excerpt')).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('a document edited since the last visit is marked unread', async ({ page, request }) => {
     const errors = attachConsoleErrors(page)
 

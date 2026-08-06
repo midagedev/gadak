@@ -9,6 +9,11 @@
    *
    * Height and divider are the issue row's, not a second density: 42px, one
    * hairline below. Two lines fit because the meta line is 11px.
+   *
+   * The lists that answer "what changed" also carry one line of the body, which
+   * is the question a title alone often cannot settle. It is opt-in per list:
+   * a screen for getting somewhere (the space tree, your own return path) is
+   * not a place to browse content.
    */
   import { t, relativeTime, absTime } from '../../lib/i18n'
   import type { PageLite } from '../../lib/types'
@@ -21,7 +26,15 @@
      *  under an author heading. */
     showSpace = true,
     showAuthor = true,
-  }: { page: PageLite; showSpace?: boolean; showAuthor?: boolean } = $props()
+    /** One line of the body, for lists read to find something worth opening.
+     *  Off by default so a navigation surface stays a navigation surface. */
+    showExcerpt = false,
+  }: {
+    page: PageLite
+    showSpace?: boolean
+    showAuthor?: boolean
+    showExcerpt?: boolean
+  } = $props()
 
   const selected = $derived(pages.selectedKey === page.key)
   // Edited since this browser last opened it. Never set for a page never opened.
@@ -29,13 +42,16 @@
   const author = $derived(showAuthor ? (page.author ?? '') : '')
   const when = $derived(relativeTime(page.updated_at))
   const space = $derived(pages.spaceLabel(page.space_key))
+  // A page with an empty body gets no line at all — an empty row is worse than
+  // a shorter one, and older servers send no excerpt field.
+  const excerpt = $derived(showExcerpt ? (page.excerpt ?? '').trim() : '')
 </script>
 
 <button
   type="button"
-  class="group flex h-row w-full cursor-pointer select-none flex-col justify-center gap-0.5 border-b border-border-subtle/70 px-4 text-left transition-colors {selected
-    ? 'bg-bg-active'
-    : 'hover:bg-bg-hover'}"
+  class="group flex w-full cursor-pointer select-none flex-col justify-center gap-0.5 border-b border-border-subtle/70 px-4 text-left transition-colors {excerpt
+    ? 'h-row-excerpt'
+    : 'h-row'} {selected ? 'bg-bg-active' : 'hover:bg-bg-hover'}"
   data-testid="doc-row"
   data-doc-key={page.key}
   data-unread={unread ? 'true' : undefined}
@@ -65,4 +81,11 @@
       <span class="min-w-0 truncate" title={page.space_key}>{t('docs.metaIn', { space })}</span>
     {/if}
   </span>
+  {#if excerpt}
+    <!-- Exactly one line, clipped: the row answers "is this the one", and a
+         second line would trade the list's density for a worse summary. -->
+    <span class="w-full truncate text-[11px] leading-[15px] text-text-muted" data-testid="doc-excerpt">
+      {excerpt}
+    </span>
+  {/if}
 </button>

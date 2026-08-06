@@ -81,7 +81,10 @@
         <EmptyState icon="" title={t('docs.recentEmpty')} />
       {:else}
         {#each updated as page (page.key)}
-          <DocRow {page} />
+          <!-- Someone else's edit: the title alone rarely says whether it is
+               worth opening, so the row carries one line of the body. Viewed
+               above does not — you have already read those. -->
+          <DocRow {page} showExcerpt />
         {/each}
       {/if}
     {:else if authors.length === 0}
@@ -103,7 +106,7 @@
           <span class="h-px flex-1 self-center bg-border-subtle"></span>
         </div>
         {#each group.pages as page (page.key)}
-          <DocRow {page} showAuthor={false} />
+          <DocRow {page} showAuthor={false} showExcerpt />
         {/each}
       {/each}
     {/if}

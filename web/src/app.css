@@ -38,6 +38,7 @@
 
   /* ── Density tokens ── */
   --spacing-row: 42px; /* list row height */
+  --spacing-row-excerpt: 59px; /* document row carrying a one-line body preview */
   --text-body: 13px; /* body baseline */
   --text-body--line-height: 1.35;
 
