@@ -44,6 +44,11 @@ type PageMetadata struct {
 
 const apiPath = "/rest/api"
 
+// ErrNotFound marks a 404 on a specific content id. A page can vanish (or get
+// view-restricted) between the CQL listing and the per-page fetch on a busy
+// site; callers skip that page instead of aborting the run.
+var ErrNotFound = errors.New("confluence: content not found")
+
 // ErrAuth aborts a run immediately: retrying a bad credential just burns the
 // rate budget.
 var ErrAuth = errors.New("confluence: credential rejected")
@@ -352,6 +357,8 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		switch {
 		case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
 			return fmt.Errorf("%s %s: %w (%s)", method, path, ErrAuth, res.Status)
+		case res.StatusCode == http.StatusNotFound:
+			return fmt.Errorf("%s %s: %w: %s", method, path, ErrNotFound, snippet(data))
 		case retryable(res.StatusCode) && attempt < c.Retries-1:
 			if werr := c.wait(ctx, attempt, res.Header.Get("Retry-After")); werr != nil {
 				return werr

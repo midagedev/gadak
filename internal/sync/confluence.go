@@ -80,7 +80,11 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 			return res, recordConfluence(db, err)
 		}
 		for _, s := range listed {
-			if s.Key != "" {
+			// An empty config means "the team's wiki", not "every space I can
+			// see": Cloud gives each user a personal space, so an unfiltered
+			// listing is mostly ~accountid noise that also blows up CQL URLs.
+			// Personal spaces stay reachable by naming them in config.spaces.
+			if s.Key != "" && s.Type == "global" {
 				spaces = append(spaces, s.Key)
 			}
 		}
@@ -122,6 +126,13 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 		batch := make([]store.PageRecord, 0, pageBatchSize)
 		for _, hit := range hits {
 			rec, when, err := fetchPageRecord(ctx, c, hit)
+			if errors.Is(err, confluence.ErrNotFound) {
+				// Deleted or view-restricted between the listing and the fetch —
+				// routine on a busy site; the reconcile of a later full sync
+				// removes any stale mirror row.
+				opts.logf("confluence: skip %s (gone: %v)", hit.ID, err)
+				continue
+			}
 			if err != nil {
 				return err
 			}
@@ -152,13 +163,16 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 		}
 	} else {
 		floor := cqlTime(state.Watermark)
-		// Space filter: one CQL covering configured spaces, or per-space if many.
-		// CQL allows space in (AAA, BBB).
-		cql := fmt.Sprintf(`space in (%s) AND type=page AND lastModified >= "%s" order by lastmodified asc`,
-			cqlSpaceList(spaces), floor)
 		opts.logf("confluence incremental: since %s", floor)
-		if err := c.SearchPages(ctx, cql, processHits); err != nil {
-			return res, recordConfluence(db, err)
+		// Space filter in chunks: quoted keys are ~15+ chars each on real Cloud
+		// sites, and one `space in (…)` clause over every visible space blew
+		// past URL limits (observed 414 with the CDN in front of *.atlassian.net).
+		for _, group := range chunkStrings(spaces, cqlSpaceChunk) {
+			cql := fmt.Sprintf(`space in (%s) AND type=page AND lastModified >= "%s" order by lastmodified asc`,
+				cqlSpaceList(group), floor)
+			if err := c.SearchPages(ctx, cql, processHits); err != nil {
+				return res, recordConfluence(db, err)
+			}
 		}
 	}
 
@@ -190,7 +204,11 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 		full = hit
 	}
 	cms, err := c.Comments(ctx, full.ID)
-	if err != nil {
+	if errors.Is(err, confluence.ErrNotFound) {
+		// The page itself fetched fine but its comment container 404s (seen
+		// live: restricted child content). Keep the page, drop the comments.
+		cms = nil
+	} else if err != nil {
 		return store.PageRecord{}, "", err
 	}
 
@@ -287,6 +305,20 @@ func pageURL(c *confluence.Client, spaceKey, pageID string) string {
 // error, and quoting a key that didn't need it is harmless.
 func cqlSpace(key string) string {
 	return fmt.Sprintf("%q", key)
+}
+
+// cqlSpaceChunk bounds how many space keys ride one `space in (…)` query.
+// Keys travel URL-encoded with quotes (~20 bytes each); 15 keeps the whole
+// request a few hundred bytes under even conservative proxy URL limits.
+const cqlSpaceChunk = 15
+
+func chunkStrings(all []string, size int) [][]string {
+	var out [][]string
+	for i := 0; i < len(all); i += size {
+		end := min(i+size, len(all))
+		out = append(out, all[i:end])
+	}
+	return out
 }
 
 func cqlSpaceList(keys []string) string {
