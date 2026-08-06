@@ -21,7 +21,7 @@ then refresh that one issue in the mirror.
 | `Enter` | open detail |
 | `Esc` | back, or clear the filter / leave feed or views |
 | `c` | comment |
-| `t` | transition |
+| `t` / `s` | transition (`s` matches the web UI's status key) |
 | `a` | assign |
 | `e` | edit a field — pick from your editable fields (settings / field specs), then pick a value from what Jira allows on that issue; multi-selects preselect the current values. No free-text input: options, versions, and users only |
 | `w` | watch / unwatch the current issue |
@@ -30,6 +30,9 @@ then refresh that one issue in the mirror.
 | `?` | help overlay (actual bindings only) |
 | `r` | re-read the mirror from disk (in feed mode: mark all feed events read) |
 | `q`, `Ctrl+C` | quit |
+
+Multi-select (`x` in the web UI) is web-only for now — the TUI acts on the
+cursor row. Batch status/assignee changes live in the web list's bulk bar.
 
 Write keys are inert until a credential is configured (`scry init`); the status
 bar says so rather than failing at submit time.

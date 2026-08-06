@@ -33,7 +33,8 @@ func defaultKeys() keyMap {
 		Back:          key.NewBinding(key.WithKeys("esc", "backspace"), key.WithHelp("esc", "back")),
 		Refresh:       key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh / mark feed read")),
 		Comment:       key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
-		Transition:    key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
+		// s is the web UI's status key (R6 triage flow); t predates it. Both work.
+		Transition:    key.NewBinding(key.WithKeys("t", "s"), key.WithHelp("t/s", "transition")),
 		Assignee:      key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assignee")),
 		Edit:          key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit field")),
 		Help:          key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
