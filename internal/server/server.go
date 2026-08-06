@@ -139,6 +139,9 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// Literal patterns beat `{key}/{action}/` and `{key}/detail/`.
 	mux.HandleFunc("GET "+apiBase+"feed/{$}", s.handleGetFeed)
 	mux.HandleFunc("POST "+apiBase+"feed/read/{$}", s.handleMarkFeedRead)
+	// People axis: comments by author (exact author_id). Three-segment path so it
+	// does not collide with `{key}/{action}/`.
+	mux.HandleFunc("GET "+apiBase+"people/{author_id}/comments/{$}", s.handlePeopleComments)
 	// The client's two PUT shapes — `watches/{key}/` and `{key}/assignee/` — are
 	// mirror images that overlap on `watches/assignee/`, and ServeMux rejects an
 	// ambiguous pair with no way to break the tie (there is no third-pattern

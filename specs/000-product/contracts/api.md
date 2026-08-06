@@ -319,6 +319,47 @@ has no editor, so `editmeta/` leaves it out and an edit to it is refused.
 
 Stored locally. `403`/`401` is never correct for these on a loopback bind.
 
+## People axis
+
+### `GET people/{author_id}/comments/?limit=<n>` — R
+
+Comments written by one person, newest first. Exact match on
+`comments.author_id` (source account id). Joins `items` for the parent issue or
+page key/title. Served entirely from the mirror.
+
+`limit` defaults to 50 and is capped at 200. An unknown `author_id` is **not**
+`404`: the response is `200` with `total: 0` and an empty `comments` array so the
+UI can render an empty person header.
+
+```json
+{
+  "author": "Alex Kim",
+  "total": 634,
+  "comments": [
+    {
+      "key": "622723",
+      "kind": "page",
+      "title": "Research — Integrator Pain Points",
+      "snippet": "Share with ENG architecture owners.",
+      "created_at": "2026-08-05T11:31:43.827Z"
+    },
+    {
+      "key": "NMB-140",
+      "kind": "issue",
+      "title": "batch worker drops the last page",
+      "snippet": "Reproduced on staging.",
+      "created_at": "2026-08-04T09:15:00.000Z"
+    }
+  ]
+}
+```
+
+- `author` is the display name on the newest matching comment (`""` when none).
+- `kind` is the parent item kind: `"issue"` or `"page"`.
+- `snippet` is `body_text` (or ADF plain text when `body_text` is empty),
+  whitespace-normalized, hard-cut at 160 runes (UTF-8 safe).
+- `total` is the full count for that author; `comments` is the limited page.
+
 ## Deferred and cut
 
 | Endpoint | Status | Reason |
