@@ -70,6 +70,11 @@ type Handler struct {
 
 // ServeHTTP implements http.Handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Identity markers for a second `scry serve` that finds this port busy
+	// (cmd/scry port fallback). Fixed marker + profile — no version injection
+	// into constructors. Set before browserGuard so every response carries them.
+	w.Header().Set("X-Scry", "1")
+	w.Header().Set("X-Scry-Profile", h.s.profile)
 	if !browserGuard(w, r) {
 		return
 	}

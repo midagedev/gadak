@@ -15,6 +15,7 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -101,6 +102,13 @@ func cmdServe(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	// --addr pin: user forced a port → no fallback on conflict (rule 3).
+	addrPinned := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "addr" {
+			addrPinned = true
+		}
+	})
 
 	host, _, err := net.SplitHostPort(*addr)
 	if err != nil {
@@ -190,8 +198,35 @@ func cmdServe(args []string) error {
 		}()
 	}
 
+	// Bind before serving so EADDRINUSE can be handled: same-profile scry →
+	// hand off (exit 0); other occupant + default addr → next free port;
+	// explicit --addr → hard error (with scry identity when known).
+	preferred := *addr
+	ln, bound, existingURL, occupant, err := bindListenDetail(preferred, addrPinned, config.Profile(), nil, nil)
+	if err != nil {
+		return err
+	}
+	if existingURL != "" {
+		log.Printf("already serving at %s (same profile)", existingURL)
+		if !*noOpen {
+			if openErr := openBrowser(existingURL); openErr != nil {
+				log.Printf("could not open a browser: %v — visit %s", openErr, existingURL)
+			}
+		}
+		return nil
+	}
+	if bound != preferred {
+		_, prefPort, _ := net.SplitHostPort(preferred)
+		_, boundPort, _ := net.SplitHostPort(bound)
+		if occupant == "" {
+			occupant = "another process"
+		}
+		log.Printf("port %s busy (%s) — serving on %s", prefPort, occupant, boundPort)
+	}
+	defer ln.Close()
+
 	srv := &http.Server{
-		Addr:              *addr,
+		Addr:              bound,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -201,7 +236,7 @@ func cmdServe(args []string) error {
 		defer cancel()
 		_ = srv.Shutdown(shctx)
 	}()
-	openURL := browseAddr(*addr)
+	openURL := browseAddr(bound)
 	log.Printf("scry %s listening on %s", version, openURL)
 	if p := config.Profile(); p != "" {
 		log.Printf("profile: %s", p)
@@ -212,7 +247,7 @@ func cmdServe(args []string) error {
 	if !*noOpen {
 		go openOnceUp(openURL)
 	}
-	err = srv.ListenAndServe()
+	err = srv.Serve(ln)
 	if err == http.ErrServerClosed {
 		return nil
 	}
