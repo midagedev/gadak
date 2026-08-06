@@ -79,14 +79,23 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 		if err != nil {
 			return res, recordConfluence(db, err)
 		}
+		// Path ①: empty config → Spaces() listing carries key/name/type.
+		var spaceRows []store.SpaceRow
 		for _, s := range listed {
+			if s.Key == "" {
+				continue
+			}
+			spaceRows = append(spaceRows, store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type})
 			// An empty config means "the team's wiki", not "every space I can
 			// see": Cloud gives each user a personal space, so an unfiltered
 			// listing is mostly ~accountid noise that also blows up CQL URLs.
 			// Personal spaces stay reachable by naming them in config.spaces.
-			if s.Key != "" && s.Type == "global" {
+			if s.Type == "global" {
 				spaces = append(spaces, s.Key)
 			}
+		}
+		if err := db.UpsertSpaces(ConfluenceSourceID, spaceRows); err != nil {
+			return res, err
 		}
 	}
 	if len(spaces) == 0 {
@@ -100,9 +109,16 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 	var maxUTC, maxRaw string
 	// Per-batch watermark advance so a crash mid-run resumes. FullSync stamp
 	// is applied only on the final RecordSync after the whole pass.
-	commitBatch := func(batch []store.PageRecord) error {
+	// batchSpaces: path ② (config listed spaces) collects names from page hits;
+	// also a harmless refresh when path ① already wrote spaces from Spaces().
+	commitBatch := func(batch []store.PageRecord, batchSpaces []store.SpaceRow) error {
 		if len(batch) == 0 {
 			return nil
+		}
+		if len(batchSpaces) > 0 {
+			if err := db.UpsertSpaces(ConfluenceSourceID, batchSpaces); err != nil {
+				return err
+			}
 		}
 		changed, err := db.UpsertPages(batch)
 		if err != nil {
@@ -124,8 +140,9 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 
 	processHits := func(hits []confluence.Page) error {
 		batch := make([]store.PageRecord, 0, pageBatchSize)
+		spaceByKey := map[string]store.SpaceRow{}
 		for _, hit := range hits {
-			rec, when, err := fetchPageRecord(ctx, c, hit)
+			rec, spaceName, when, err := fetchPageRecord(ctx, c, hit)
 			if errors.Is(err, confluence.ErrNotFound) {
 				// Deleted or view-restricted between the listing and the fetch —
 				// routine on a busy site; the reconcile of a later full sync
@@ -136,6 +153,9 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 			if err != nil {
 				return err
 			}
+			if sk := rec.Page.SpaceKey; sk != "" {
+				spaceByKey[sk] = store.SpaceRow{Key: sk, Name: spaceName}
+			}
 			batch = append(batch, rec)
 			if when != "" {
 				iso := jira.ISOTime(when)
@@ -144,13 +164,14 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 				}
 			}
 			if len(batch) >= pageBatchSize {
-				if err := commitBatch(batch); err != nil {
+				if err := commitBatch(batch, spaceRowsFromMap(spaceByKey)); err != nil {
 					return err
 				}
 				batch = batch[:0]
+				spaceByKey = map[string]store.SpaceRow{}
 			}
 		}
-		return commitBatch(batch)
+		return commitBatch(batch, spaceRowsFromMap(spaceByKey))
 	}
 
 	if res.Full {
@@ -194,10 +215,11 @@ func recordConfluence(db *store.DB, err error) error {
 // fetchPageRecord loads full body + comments for a search hit and maps to store.
 // Comments are always re-fetched even when the page version is unchanged
 // (comments do not bump page version — the comments-only trap).
-func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.Page) (store.PageRecord, string, error) {
+// spaceName is the human space title from the full page (fallback: search hit).
+func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.Page) (store.PageRecord, string, string, error) {
 	full, err := c.Page(ctx, hit.ID)
 	if err != nil {
-		return store.PageRecord{}, "", err
+		return store.PageRecord{}, "", "", err
 	}
 	// Prefer full fetch fields; fall back to search hit.
 	if full.ID == "" {
@@ -209,7 +231,7 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 		// live: restricted child content). Keep the page, drop the comments.
 		cms = nil
 	} else if err != nil {
-		return store.PageRecord{}, "", err
+		return store.PageRecord{}, "", "", err
 	}
 
 	when := full.Version.When
@@ -222,6 +244,10 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 	spaceKey := full.Space.Key
 	if spaceKey == "" {
 		spaceKey = hit.Space.Key
+	}
+	spaceName := full.Space.Name
+	if spaceName == "" {
+		spaceName = hit.Space.Name
 	}
 	parentID := ""
 	if n := len(full.Ancestors); n > 0 {
@@ -292,12 +318,23 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 			UpdatedAt:  cmWhen,
 		})
 	}
-	return rec, when, nil
+	return rec, spaceName, when, nil
 }
 
 func pageURL(c *confluence.Client, spaceKey, pageID string) string {
 	// <site>/wiki/spaces/<KEY>/pages/<id>
 	return fmt.Sprintf("%s/spaces/%s/pages/%s", c.BaseURL(), spaceKey, pageID)
+}
+
+func spaceRowsFromMap(m map[string]store.SpaceRow) []store.SpaceRow {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]store.SpaceRow, 0, len(m))
+	for _, r := range m {
+		out = append(out, r)
+	}
+	return out
 }
 
 // cqlSpace quotes a space key for CQL — always. A bare key that starts with a

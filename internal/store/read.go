@@ -292,9 +292,12 @@ func (db *DB) Detail(key string) (*Detail, error) {
 // PageLite is the list/search row for a mirrored wiki page. Field names are
 // snake_case JSON to match IssueLite and the read API contract.
 type PageLite struct {
-	Key       string   `json:"key"`
-	Title     string   `json:"title"`
-	SpaceKey  string   `json:"space_key"`
+	Key      string `json:"key"`
+	Title    string `json:"title"`
+	SpaceKey string `json:"space_key"`
+	// SpaceName is the human-readable space title from the spaces table join.
+	// Empty when no spaces row is mirrored for this key (never omitted in JSON).
+	SpaceName string   `json:"space_name"`
 	ParentID  string   `json:"parent_id"`
 	Author    string   `json:"author"`
 	UpdatedAt string   `json:"updated_at"`
@@ -323,16 +326,18 @@ func (db *DB) PageLites() ([]PageLite, error) {
 	out := []PageLite{}
 	err := each(db.sql, `
 		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
-		       COALESCE(p.parent_id, ''), COALESCE(it.author, ''), COALESCE(it.updated_at, ''),
-		       COALESCE(p.version, 0), COALESCE(it.url, ''), COALESCE(p.labels, '[]')
+		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
+		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
+		       COALESCE(p.labels, '[]')
 		FROM pages p
 		JOIN items it ON it.id = p.item_id
+		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
 		WHERE it.kind = 'page'
 		ORDER BY p.space_key, it.title`,
 		func(rows *sql.Rows) error {
 			var v PageLite
 			var labels string
-			if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.ParentID,
+			if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.SpaceName, &v.ParentID,
 				&v.Author, &v.UpdatedAt, &v.Version, &v.URL, &labels); err != nil {
 				return err
 			}
@@ -351,12 +356,14 @@ func (db *DB) PageDetail(key string) (*PageDetail, error) {
 	var d PageDetail
 	err := db.sql.QueryRow(`
 		SELECT it.id, COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
-		       COALESCE(p.parent_id, ''), COALESCE(it.author, ''), COALESCE(it.updated_at, ''),
-		       COALESCE(p.version, 0), COALESCE(it.url, ''), p.body_adf, COALESCE(p.labels, '[]')
+		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
+		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
+		       p.body_adf, COALESCE(p.labels, '[]')
 		FROM pages p
 		JOIN items it ON it.id = p.item_id
+		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
 		WHERE it.kind = 'page' AND it.key = ?`, key).
-		Scan(&itemID, &d.Key, &d.Title, &d.SpaceKey, &d.ParentID,
+		Scan(&itemID, &d.Key, &d.Title, &d.SpaceKey, &d.SpaceName, &d.ParentID,
 			&d.Author, &d.UpdatedAt, &d.Version, &d.URL, &bodyADF, &labels)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -446,19 +453,20 @@ func (db *DB) search(match string, limit int) (SearchResult, error) {
 	err := each(db.sql, `
 		SELECT it.kind, COALESCE(it.key, ''), COALESCE(it.title, ''),
 		       COALESCE(it.author, ''), COALESCE(it.updated_at, ''), COALESCE(it.url, ''),
-		       COALESCE(p.space_key, ''), COALESCE(p.parent_id, ''), COALESCE(p.version, 0),
-		       COALESCE(p.labels, '[]')
+		       COALESCE(p.space_key, ''), COALESCE(sp.name, ''), COALESCE(p.parent_id, ''),
+		       COALESCE(p.version, 0), COALESCE(p.labels, '[]')
 		FROM items_fts f
 		JOIN items it ON it.rowid = f.rowid
 		LEFT JOIN pages p ON p.item_id = it.id
+		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
 		WHERE items_fts MATCH ?
 		ORDER BY rank
 		LIMIT ?`,
 		func(rows *sql.Rows) error {
-			var kind, key, title, author, updatedAt, url, spaceKey, parentID, labels string
+			var kind, key, title, author, updatedAt, url, spaceKey, spaceName, parentID, labels string
 			var version int
 			if err := rows.Scan(&kind, &key, &title, &author, &updatedAt, &url,
-				&spaceKey, &parentID, &version, &labels); err != nil {
+				&spaceKey, &spaceName, &parentID, &version, &labels); err != nil {
 				return err
 			}
 			switch kind {
@@ -468,9 +476,9 @@ func (db *DB) search(match string, limit int) (SearchResult, error) {
 				}
 			case "page":
 				res.Pages = append(res.Pages, PageLite{
-					Key: key, Title: title, SpaceKey: spaceKey, ParentID: parentID,
-					Author: author, UpdatedAt: updatedAt, Version: version, URL: url,
-					Labels: parseArray(&labels),
+					Key: key, Title: title, SpaceKey: spaceKey, SpaceName: spaceName,
+					ParentID: parentID, Author: author, UpdatedAt: updatedAt,
+					Version: version, URL: url, Labels: parseArray(&labels),
 				})
 			}
 			return nil

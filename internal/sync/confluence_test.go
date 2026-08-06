@@ -168,7 +168,7 @@ func (f *confFixture) serveSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		results = append(results, map[string]any{
 			"id": p.ID, "type": "page", "status": "current", "title": p.Title,
-			"space": map[string]any{"key": p.Space, "name": p.Space},
+			"space": map[string]any{"key": p.Space, "name": f.spaceName(p.Space)},
 			"version": map[string]any{
 				"number": p.Version, "when": p.When,
 				"by": map[string]any{"accountId": "acc-1", "displayName": "Ada Example"},
@@ -277,6 +277,17 @@ func confCommentJSON(c confComment) map[string]any {
 	}
 }
 
+func (f *confFixture) spaceName(key string) string {
+	for _, s := range f.spaces {
+		if s["key"] == key {
+			if n, ok := s["name"].(string); ok {
+				return n
+			}
+		}
+	}
+	return key
+}
+
 func (f *confFixture) fullPage(p *confPage) map[string]any {
 	results := make([]map[string]any, 0, len(p.Labels))
 	for i, name := range p.Labels {
@@ -286,7 +297,7 @@ func (f *confFixture) fullPage(p *confPage) map[string]any {
 	}
 	return map[string]any{
 		"id": p.ID, "type": "page", "status": "current", "title": p.Title,
-		"space": map[string]any{"key": p.Space, "name": p.Space},
+		"space": map[string]any{"key": p.Space, "name": f.spaceName(p.Space)},
 		"version": map[string]any{
 			"number": p.Version, "when": p.When,
 			"by": map[string]any{"accountId": "acc-1", "displayName": "Ada Example"},
@@ -403,6 +414,78 @@ func TestConfluenceFullSyncMapsPagesAndFTS(t *testing.T) {
 	}
 	if labelsJSON != "[]" {
 		t.Errorf("page 1002 labels = %q, want []", labelsJSON)
+	}
+
+	// Path ②: config listed spaces → names collected from page hits at batch commit.
+	var spaceName string
+	if err := raw.QueryRow(`SELECT name FROM spaces WHERE source_id = 'confluence' AND key = 'AAA'`).Scan(&spaceName); err != nil {
+		t.Fatalf("spaces row for AAA: %v", err)
+	}
+	if spaceName != "Alpha" {
+		t.Errorf("space AAA name = %q, want Alpha (from page hit Space.Name)", spaceName)
+	}
+	lites, err := db.PageLites()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range lites {
+		if p.SpaceKey == "AAA" && p.SpaceName != "Alpha" {
+			t.Errorf("PageLite %s SpaceName = %q, want Alpha", p.Key, p.SpaceName)
+		}
+	}
+}
+
+// TestConfluenceSpacesFromListing is FAIL-first for path ①: empty config.spaces
+// calls Spaces() and UpsertSpaces with key/name/kind from the listing.
+func TestConfluenceSpacesFromListing(t *testing.T) {
+	f := newConfFixture(t)
+	// Opaque Cloud-style key with a human name — the point of the feature.
+	f.spaces = []map[string]any{
+		{"key": "3dvBrsa61dIo", "name": "Engineering", "type": "global"},
+		{"key": "~personal", "name": "Ada personal", "type": "personal"},
+	}
+	f.pages = map[string]*confPage{
+		"9001": {
+			ID: "9001", Space: "3dvBrsa61dIo", Title: "Root",
+			Version: 1, When: "2026-08-01T10:00:00.000Z",
+			BodyADF: `{"type":"doc","version":1,"content":[]}`,
+		},
+	}
+	// CQL matcher only knows AAA/BBB — extend match for this key via space in / exact.
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg(nil) // empty → Spaces()
+
+	res, err := RunConfluence(context.Background(), cfg, db.DB, Options{
+		Full: true, ConfluenceClient: client,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Fetched != 1 {
+		t.Fatalf("fetched = %d, want 1", res.Fetched)
+	}
+	raw := db.raw(t)
+	var name, kind string
+	if err := raw.QueryRow(`SELECT name, kind FROM spaces WHERE source_id = 'confluence' AND key = '3dvBrsa61dIo'`).Scan(&name, &kind); err != nil {
+		t.Fatalf("spaces row: %v", err)
+	}
+	if name != "Engineering" || kind != "global" {
+		t.Errorf("space = name=%q kind=%q, want Engineering/global", name, kind)
+	}
+	// Personal spaces are listed into the table but not synced as page scope.
+	if err := raw.QueryRow(`SELECT name, kind FROM spaces WHERE source_id = 'confluence' AND key = '~personal'`).Scan(&name, &kind); err != nil {
+		t.Fatalf("personal space row: %v", err)
+	}
+	if name != "Ada personal" || kind != "personal" {
+		t.Errorf("personal = name=%q kind=%q", name, kind)
+	}
+	pages, err := db.PageLites()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 1 || pages[0].SpaceName != "Engineering" {
+		t.Errorf("PageLites = %+v, want SpaceName Engineering", pages)
 	}
 }
 

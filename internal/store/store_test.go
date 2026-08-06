@@ -30,6 +30,7 @@ var documentedColumns = map[string][]string{
 	"changelog":     {"id", "item_id", "at", "author", "field", "from_value", "from_id", "to_value", "to_id"},
 	"links":         {"item_id", "type", "direction", "target_key"},
 	"pages":         {"item_id", "space_key", "parent_id", "version", "status", "body_adf", "labels"},
+	"spaces":        {"source_id", "key", "name", "kind"},
 	"items_fts":     {"title", "body_text", "comments_text"},
 	"deleted_items": {"key", "source_id", "deleted_at"},
 	"saved_views":   {"id", "name", "config", "created_at", "updated_at"},

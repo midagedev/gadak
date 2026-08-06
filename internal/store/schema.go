@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -310,4 +310,17 @@ CREATE VIEW issues_full AS
 // as issues.labels). Empty is '[]', never NULL — filters use json_each.
 const schemaV13 = `
 ALTER TABLE pages ADD COLUMN labels TEXT NOT NULL DEFAULT '[]';
+`
+
+// schemaV14 mirrors wiki space metadata (key → human name). Cloud space keys
+// are often opaque auto-generated strings; the UI displays name via a join.
+// kind is the source type string ('global' | 'personal').
+const schemaV14 = `
+CREATE TABLE spaces (
+  source_id TEXT NOT NULL,
+  key       TEXT NOT NULL,
+  name      TEXT NOT NULL DEFAULT '',
+  kind      TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (source_id, key)
+);
 `

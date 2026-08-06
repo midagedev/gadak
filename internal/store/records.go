@@ -141,6 +141,16 @@ type PageRecord struct {
 	Comments []Comment
 }
 
+// SpaceRow is one wiki space (key + human name + kind). Source-neutral: a
+// connector maps its space listing or page-embedded space ref onto this.
+// Kind is the source type string (e.g. "global", "personal"); empty is allowed
+// when only a name is known from a page hit.
+type SpaceRow struct {
+	Key  string
+	Name string
+	Kind string
+}
+
 // Batch is one page of sync output. Categories and Priorities come from the
 // site's own metadata endpoints (which are not localized) and feed the derived
 // field rules.

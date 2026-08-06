@@ -16,6 +16,12 @@ func fixturePages(t *testing.T) (*store.DB, *config.Config) {
 	if err := db.UpsertSource(store.Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x.atlassian.net/wiki"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := db.UpsertSpaces("confluence", []store.SpaceRow{
+		{Key: "PROD", Name: "Product", Kind: "global"},
+		{Key: "ENG", Name: "Engineering", Kind: "global"},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
 	if _, err := db.UpsertPages([]store.PageRecord{
 		{
@@ -140,6 +146,51 @@ func TestPageDetail200And404(t *testing.T) {
 
 	if rec := get(t, h, apiBase+"pages/nope/", nil); rec.Code != http.StatusNotFound {
 		t.Fatalf("missing → %d, want 404", rec.Code)
+	}
+}
+
+// TestPagesResponseIncludesSpaceName is FAIL-first for PageLite.space_name on
+// the pages list/detail API (handler serializes store.PageLite — no handler change).
+func TestPagesResponseIncludesSpaceName(t *testing.T) {
+	db, cfg := fixturePages(t)
+	h := New(db, cfg)
+
+	list := decode[struct {
+		Pages []store.PageLite `json:"pages"`
+		Total int              `json:"total"`
+	}](t, get(t, h, apiBase+"pages/", nil))
+	if list.Total != 2 {
+		t.Fatalf("list total = %d", list.Total)
+	}
+	byKey := map[string]store.PageLite{}
+	for _, p := range list.Pages {
+		byKey[p.Key] = p
+	}
+	if byKey["100"].SpaceName != "Product" {
+		t.Errorf("page 100 space_name = %q, want Product", byKey["100"].SpaceName)
+	}
+	if byKey["200"].SpaceName != "Engineering" {
+		t.Errorf("page 200 space_name = %q, want Engineering", byKey["200"].SpaceName)
+	}
+
+	// Raw JSON: space_name present (not omitted).
+	rec := get(t, h, apiBase+"pages/", nil)
+	var raw map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	pages, _ := raw["pages"].([]any)
+	if len(pages) == 0 {
+		t.Fatal("no pages in raw")
+	}
+	row, _ := pages[0].(map[string]any)
+	if _, ok := row["space_name"]; !ok {
+		t.Fatalf("space_name field missing in page row: %v", row)
+	}
+
+	detail := decode[store.PageDetail](t, get(t, h, apiBase+"pages/100/", nil))
+	if detail.SpaceName != "Product" {
+		t.Errorf("detail space_name = %q, want Product", detail.SpaceName)
 	}
 }
 

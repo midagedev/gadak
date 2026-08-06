@@ -220,6 +220,32 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	return true, err
 }
 
+// UpsertSpaces writes wiki space rows (key → name/kind) for a source. Empty
+// name/kind on conflict keeps the previous value so page-hit upserts (name
+// only) do not wipe kind filled by a full space listing.
+func (db *DB) UpsertSpaces(sourceID string, rows []SpaceRow) error {
+	if sourceID == "" || len(rows) == 0 {
+		return nil
+	}
+	return db.write(func(tx *sql.Tx) error {
+		for _, r := range rows {
+			if r.Key == "" {
+				continue
+			}
+			if _, err := tx.Exec(`
+				INSERT INTO spaces (source_id, key, name, kind) VALUES (?,?,?,?)
+				ON CONFLICT(source_id, key) DO UPDATE SET
+					name = CASE WHEN excluded.name != '' THEN excluded.name ELSE spaces.name END,
+					kind = CASE WHEN excluded.kind != '' THEN excluded.kind ELSE spaces.kind END`,
+				sourceID, r.Key, r.Name, r.Kind,
+			); err != nil {
+				return fmt.Errorf("space %s: %w", r.Key, err)
+			}
+		}
+		return nil
+	})
+}
+
 // UpsertPages writes document records in a single transaction and returns how
 // many items it actually changed. Unlike issues, pages always rewrite when
 // called: comments can change without bumping the page's updated_at, so a
