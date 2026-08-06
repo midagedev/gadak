@@ -94,10 +94,20 @@ model — no roles, no audit log.
 
 `scry serve` has **no authentication**, on purpose: it binds loopback and
 refuses any other address unless you pass `--allow-remote`
-(`internal/server/server.go`). The security boundary is your OS user account
+(`cmd/scry/main.go`). The security boundary is your OS user account
 — the same boundary that already protects `~/.ssh`. `--allow-remote` is not
 a multi-user mode: exposing the port publishes every issue the mirror holds
 to anyone who can reach it.
+
+A loopback bind alone does not stop the browser you are running, so the
+server also guards against the two ways a web page can reach it
+(`internal/server/browser_guard.go`, tests alongside): state-changing
+methods reject any `Origin` that does not match the request host — a
+malicious page cannot post comments or transitions through your browser
+(CSRF) — and every request rejects `Host` values that are neither
+`localhost`, `*.localhost`, nor an IP literal, so a DNS name rebound to
+127.0.0.1 cannot read the mirror. CLI, TUI, and MCP clients send no
+Origin header and are unaffected.
 
 ## Rendered content is untrusted
 
