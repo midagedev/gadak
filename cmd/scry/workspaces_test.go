@@ -181,7 +181,11 @@ func TestWorkspaceBootstrap(t *testing.T) {
 	mux, _ := testServeMux(t)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/w/work/api/v1/issues/bootstrap/", nil))
+	req := httptest.NewRequest(http.MethodGet, "/w/work/api/v1/issues/bootstrap/", nil)
+	// httptest defaults Host to example.com, which the browser guard rejects
+	// as a rebinding name; real clients arrive with a loopback Host.
+	req.Host = "127.0.0.1:7777"
+	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
 	}
@@ -199,7 +203,9 @@ func TestWorkspaceBootstrap(t *testing.T) {
 
 	// Primary still has AAA-1.
 	rec2 := httptest.NewRecorder()
-	mux.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/api/v1/issues/bootstrap/", nil))
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/issues/bootstrap/", nil)
+	req2.Host = "127.0.0.1:7777"
+	mux.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("primary status %d", rec2.Code)
 	}

@@ -41,7 +41,7 @@ func TestSettingsFieldSpecsAndUsageReadOnly(t *testing.T) {
 	}
 	body, _ := json.Marshal(put)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT → %d %s", rec.Code, rec.Body.String())
 	}

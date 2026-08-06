@@ -129,7 +129,7 @@ func TestFeedGetAndMarkRead(t *testing.T) {
 	eid := body.Items[0].EventID
 	markBody := `{"event_ids":[` + jsonString(eid) + `]}`
 	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, apiBase+"feed/read/", strings.NewReader(markBody)))
+	h.ServeHTTP(rec, testRequest(http.MethodPost, apiBase+"feed/read/", strings.NewReader(markBody)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("POST read → %d %s", rec.Code, rec.Body.String())
 	}
@@ -151,7 +151,7 @@ func TestFeedGetAndMarkRead(t *testing.T) {
 
 	// Mark all.
 	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, apiBase+"feed/read/", strings.NewReader(`{"all":true}`)))
+	h.ServeHTTP(rec, testRequest(http.MethodPost, apiBase+"feed/read/", strings.NewReader(`{"all":true}`)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("POST all → %d %s", rec.Code, rec.Body.String())
 	}

@@ -134,7 +134,7 @@ func writable(t *testing.T) (*fakeJira, http.Handler, *config.Config) {
 
 func send(t *testing.T, h http.Handler, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req := testRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -374,7 +374,7 @@ func TestUploadProxiesAndReturnsContentURL(t *testing.T) {
 	_, _ = part.Write([]byte("PNGBYTES\x00\x01"))
 	_ = mw.Close()
 
-	req := httptest.NewRequest(http.MethodPost, apiBase+"NMB-1/attachments/", &buf)
+	req := testRequest(http.MethodPost, apiBase+"NMB-1/attachments/", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)

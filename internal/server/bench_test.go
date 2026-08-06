@@ -141,7 +141,7 @@ func BenchmarkBootstrap10k(b *testing.B) {
 	h := New(db, cfg)
 
 	// Warm once so the first timed iteration is not cold-cache dominated.
-	req := httptest.NewRequest(http.MethodGet, apiBase+"bootstrap/", nil)
+	req := testRequest(http.MethodGet, apiBase+"bootstrap/", nil)
 	warm := httptest.NewRecorder()
 	h.ServeHTTP(warm, req)
 	if warm.Code != http.StatusOK {
@@ -167,7 +167,7 @@ func BenchmarkSearch10k(b *testing.B) {
 	db, cfg := seedBenchDB(b, 10000, 42)
 	h := New(db, cfg)
 
-	req := httptest.NewRequest(http.MethodGet, apiBase+"search/?q=benchneedle&limit=50", nil)
+	req := testRequest(http.MethodGet, apiBase+"search/?q=benchneedle&limit=50", nil)
 	warm := httptest.NewRecorder()
 	h.ServeHTTP(warm, req)
 	if warm.Code != http.StatusOK {

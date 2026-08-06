@@ -31,7 +31,7 @@ func TestSettingsSyncIntervalsRoundtrip(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT valid intervals → %d %s", rec.Code, rec.Body.String())
 	}
@@ -62,7 +62,7 @@ func TestSettingsSyncIntervalsRoundtrip(t *testing.T) {
 	put.ReconcileIntervalSec = 0
 	body, _ = json.Marshal(put)
 	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT zero intervals → %d %s", rec.Code, rec.Body.String())
 	}
@@ -86,7 +86,7 @@ func TestSettingsIntervalFloorsReject(t *testing.T) {
 	}
 	body, _ := json.Marshal(seed)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("seed → %d %s", rec.Code, rec.Body.String())
 	}
@@ -111,7 +111,7 @@ func TestSettingsIntervalFloorsReject(t *testing.T) {
 			}
 			b, _ := json.Marshal(doc)
 			r := httptest.NewRecorder()
-			h.ServeHTTP(r, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+			h.ServeHTTP(r, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
 			if r.Code != http.StatusBadRequest {
 				t.Fatalf("status %d, want 400; body %s", r.Code, r.Body.String())
 			}
@@ -255,7 +255,7 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 	}
 	b, _ := json.Marshal(putBody)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT with runtime → %d %s", rec.Code, rec.Body.String())
 	}

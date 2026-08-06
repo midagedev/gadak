@@ -199,7 +199,7 @@ func TestPutSettingsConfluenceSpacesRoundtrip(t *testing.T) {
 	}
 	b, _ := json.Marshal(putBody)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT spaces → %d %s", rec.Code, rec.Body.String())
 	}
@@ -223,7 +223,7 @@ func TestPutSettingsConfluenceSpacesRoundtrip(t *testing.T) {
 	putBody["confluence"] = map[string]any{"spaces": []string{}}
 	b, _ = json.Marshal(putBody)
 	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT empty spaces → %d %s", rec.Code, rec.Body.String())
 	}
@@ -273,7 +273,7 @@ func TestPutSettingsConfluenceSpacesNotConfigured(t *testing.T) {
 	}
 	b, _ := json.Marshal(putBody)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status %d, want 400; body %s", rec.Code, rec.Body.String())
 	}
@@ -311,7 +311,7 @@ func TestPutSettingsOmitsConfluenceKeyLeavesSpaces(t *testing.T) {
 	}
 	b, _ := json.Marshal(putBody)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT → %d %s", rec.Code, rec.Body.String())
 	}

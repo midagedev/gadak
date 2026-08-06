@@ -70,6 +70,9 @@ type Handler struct {
 
 // ServeHTTP implements http.Handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !browserGuard(w, r) {
+		return
+	}
 	h.mux.ServeHTTP(w, r)
 }
 

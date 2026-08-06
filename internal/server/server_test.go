@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -17,6 +18,15 @@ import (
 	"github.com/midagedev/scry/internal/selfupdate"
 	"github.com/midagedev/scry/internal/store"
 )
+
+// testRequest is httptest.NewRequest with Host set for the loopback API guard.
+// httptest defaults Host to "example.com", which browserGuard correctly
+// rejects as a DNS-rebinding name; real clients send localhost or an IP.
+func testRequest(method, target string, body io.Reader) *http.Request {
+	req := httptest.NewRequest(method, target, body)
+	req.Host = "127.0.0.1"
+	return req
+}
 
 // fixture builds a three-issue mirror and the configuration that turns the
 // company-specific surfaces (member directory, group rules) back on.
@@ -140,7 +150,7 @@ func enrich(t *testing.T, path, key, kind, payload string) {
 
 func get(t *testing.T, h http.Handler, path string, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req := testRequest(http.MethodGet, path, nil)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
@@ -524,7 +534,7 @@ func TestPersonalStateRoundtrip(t *testing.T) {
 	db, cfg := fixture(t)
 	h := New(db, cfg)
 
-	req := httptest.NewRequest(http.MethodPost, apiBase+"views/",
+	req := testRequest(http.MethodPost, apiBase+"views/",
 		strings.NewReader(`{"name":"내 배치","config":{"group":["batch"]}}`))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -547,7 +557,7 @@ func TestPersonalStateRoundtrip(t *testing.T) {
 		{http.MethodPut, apiBase + "favorites/NMB-1/"},
 	} {
 		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
+		h.ServeHTTP(rec, testRequest(tc.method, tc.path, nil))
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("%s %s → %d", tc.method, tc.path, rec.Code)
 		}
@@ -571,7 +581,7 @@ func TestFavoritesRoundtrip(t *testing.T) {
 	h := New(db, cfg)
 
 	put := httptest.NewRecorder()
-	h.ServeHTTP(put, httptest.NewRequest(http.MethodPut, apiBase+"favorites/NMB-1/", nil))
+	h.ServeHTTP(put, testRequest(http.MethodPut, apiBase+"favorites/NMB-1/", nil))
 	if put.Code != http.StatusNoContent {
 		t.Fatalf("PUT favorites/NMB-1/ → %d %s", put.Code, put.Body.String())
 	}
@@ -580,7 +590,7 @@ func TestFavoritesRoundtrip(t *testing.T) {
 	}
 
 	del := httptest.NewRecorder()
-	h.ServeHTTP(del, httptest.NewRequest(http.MethodDelete, apiBase+"favorites/NMB-1/", nil))
+	h.ServeHTTP(del, testRequest(http.MethodDelete, apiBase+"favorites/NMB-1/", nil))
 	if del.Code != http.StatusNoContent {
 		t.Fatalf("DELETE favorites/NMB-1/ → %d %s", del.Code, del.Body.String())
 	}
@@ -610,7 +620,7 @@ func TestSettingsRoundtripPreservesCredential(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT settings/ → %d %s", rec.Code, rec.Body.String())
 	}
