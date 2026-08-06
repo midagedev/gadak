@@ -78,7 +78,7 @@ the terminal, and the agent read the same store.
 
 | | For | Looks like |
 | --- | --- | --- |
-| **Web UI** | all-day triage, mouse and keyboard | keyboard-driven list with epic grouping and rollups, saved views, ⌘K palette, full issue detail (rich text, comments, history, attachments), a DOCS tree of your wiki spaces with a breadcrumbed document view |
+| **Web UI** | all-day triage, mouse and keyboard | a list you triage without the mouse (`j/k` walk, `x` multi-select, `s`/`a`/`c` status·assignee·comment in place), epic grouping and rollups, saved views, ⌘K palette, a freshness chip that shows the mirror's age and pulls it on click, full issue detail (rich text, comments, history, attachments), a DOCS tree of your wiki spaces with a breadcrumbed document view |
 | **TUI** | people who live in the terminal | [`scry tui`](docs/TUI.md) — list, filter with live match highlight, `group_by=epic`, Ctrl+K palette, write actions, and `D` for the same wiki tree, all over the same mirror |
 | **CLI + SQL** | agents, scripts, one-off questions | `scry issue`, `scry search` (issues and pages), `scry sql`, plus the file itself |
 
