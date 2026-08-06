@@ -2,14 +2,18 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/confluence"
 	"github.com/midagedev/scry/internal/store"
 )
 
@@ -130,6 +134,73 @@ type settingsDoc struct {
 
 func (s *server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.settingsResponse(s.config()))
+}
+
+// spaceRow is one Confluence space in the settings picker. selected mirrors
+// config.Confluence.Spaces membership; when that list is empty the API leaves
+// every selected=false and sets all_global_when_empty so the UI can render
+// "all global spaces" without lying about checkboxes.
+type spaceRow struct {
+	Key      string `json:"key"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Selected bool   `json:"selected"`
+}
+
+// handleSettingsSpaces lists live Confluence spaces for the settings picker.
+// Read-only: no companion PUT. Scope lives in config.Confluence (team import /
+// config.json today; settingsDoc does not yet surface the confluence key).
+func (s *server) handleSettingsSpaces(w http.ResponseWriter, r *http.Request) {
+	cfg := s.config()
+	if cfg.Confluence == nil {
+		fail(w, http.StatusBadRequest, "confluence_not_configured")
+		return
+	}
+	if !cfg.HasCredential() {
+		fail(w, http.StatusConflict, "credential_required")
+		return
+	}
+	c := confluence.New(cfg.Site, cfg.Email, cfg.Token)
+	listed, err := c.Spaces(r.Context())
+	if err != nil {
+		if errors.Is(err, confluence.ErrAuth) {
+			fail(w, http.StatusConflict, "credential_rejected")
+			return
+		}
+		log.Printf("server: %s %s: %v", r.Method, r.URL.Path, err)
+		fail(w, http.StatusBadGateway, "confluence_unavailable")
+		return
+	}
+
+	selected := make(map[string]bool, len(cfg.Confluence.Spaces))
+	for _, k := range cfg.Confluence.Spaces {
+		selected[k] = true
+	}
+	empty := len(cfg.Confluence.Spaces) == 0
+
+	out := make([]spaceRow, 0, len(listed))
+	for _, sp := range listed {
+		out = append(out, spaceRow{
+			Key:  sp.Key,
+			Name: sp.Name,
+			Type: sp.Type,
+			// Empty config means "all global" at sync time — do not pre-check
+			// every row; the flag below tells the UI how to present that.
+			Selected: !empty && selected[sp.Key],
+		})
+	}
+	// global first, then name (case-insensitive) within each group.
+	sort.SliceStable(out, func(i, j int) bool {
+		gi, gj := out[i].Type == "global", out[j].Type == "global"
+		if gi != gj {
+			return gi
+		}
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"spaces":                out,
+		"all_global_when_empty": empty,
+	})
 }
 
 func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
