@@ -171,9 +171,10 @@ covers both Jira and Confluence on the same site.
 brew install midagedev/tap/scry
 ```
 
-macOS and Linux, from [`midagedev/homebrew-tap`][tap]. A formula rather than a
-cask on purpose: the released binaries are not notarized, and Homebrew marks
-cask downloads with `com.apple.quarantine`, which Gatekeeper then blocks.
+macOS and Linux, from [`midagedev/homebrew-tap`][tap]. A formula, not a cask:
+scry is a single CLI binary, which is what formulas are for. macOS release
+binaries are signed with a Developer ID certificate and notarized by Apple —
+[`SECURITY.md`](SECURITY.md) shows how to verify one yourself.
 
 [tap]: https://github.com/midagedev/homebrew-tap
 
@@ -418,6 +419,7 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 ## Documentation
 
 - [`AGENTS.md`](AGENTS.md) — the agent reference: SQL, CLI, REST
+- [`SECURITY.md`](SECURITY.md) — threat model, what leaves your machine, and where each claim lives in code
 - [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — one paste per agent (Claude Code, Cursor, Codex, MCP)
 - [`docs/RECIPES.md`](docs/RECIPES.md) — 13 questions JQL cannot ask, as ready-to-run SQL
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) — fitting scry to your team

@@ -164,7 +164,13 @@ certificate expires. Verify one yourself:
 
 ```bash
 codesign --verify --strict --verbose=2 ./scry   # signature and requirement
-spctl --assess --type execute -vv ./scry        # Gatekeeper's own verdict
+spctl --assess --type open --context context:primary-signature -vv ./scry
+# → accepted, source=Notarized Developer ID
 ```
+
+(Do not use `spctl --assess --type execute` here: that assessment is for app
+bundles, and on a bare CLI binary it prints `rejected (the code is valid but
+does not seem to be an app)` even when the signature and notarization are
+fine — the `origin=` line it prints still shows the Developer ID.)
 
 Linux and Windows binaries are not signed; verify those with `checksums.txt`.

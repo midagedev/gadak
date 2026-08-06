@@ -14,10 +14,11 @@ it already holds everything scry needs. Paste this prompt into the agent:
 Set up scry (https://github.com/midagedev/scry) against the Jira account this
 machine already uses. Steps:
 
-1. Find my Jira credentials wherever they already live: JIRA_URL /
-   JIRA_EMAIL / JIRA_API_TOKEN environment variables (check ~/.zshrc or
-   ~/.bashrc), an Atlassian MCP server entry in .mcp.json or the Claude
-   config, or a .env file. Do not ask me for them unless nothing exists.
+1. Use the Jira credentials this session already has: JIRA_URL / JIRA_EMAIL /
+   JIRA_API_TOKEN environment variables, or an Atlassian MCP server entry in
+   .mcp.json or the Claude config. Tell me which source you found before
+   using it. Do not go hunting through shell profiles or dotfiles for
+   tokens — if nothing is already exposed, ask me for the token instead.
 2. Install scry if missing: `brew install midagedev/tap/scry`
    (or the install script in the repo README).
 3. Configure non-interactively — init never prompts when values are supplied:
