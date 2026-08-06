@@ -2,8 +2,10 @@ package tui
 
 // Docs view: mirrored wiki pages with three list axes (Updated / By author /
 // Spaces tree), plain-text detail, and in-memory title/space filter.
-// Issue-only write actions report unsupported rather than no-op.
-// Full-text search and Viewed recency stay on the web UI / CLI.
+// Updated / By author rows show a muted one-line body excerpt when present
+// (Spaces tree does not — web parity). Issue-only write actions report
+// unsupported rather than no-op. Full-text search, Viewed recency, and the
+// People axis stay on the web UI / CLI.
 
 import (
 	"fmt"
@@ -347,6 +349,25 @@ func (m *Model) moveDocsCursor(delta int) {
 	m.ensureDocsVisible()
 }
 
+// docsShowExcerpt reports whether the docs tab shows a body excerpt under each
+// page row. Matches the web UI: Updated / By author only — Spaces tree and the
+// web-only Viewed tab never show previews.
+func docsShowExcerpt(tab docsTab) bool {
+	return tab == docsTabUpdated || tab == docsTabByAuthor
+}
+
+// docsLineScreenHeight is how many terminal rows a docs list entry occupies.
+// Pages with a non-empty excerpt take two rows on Updated / By author tabs.
+func docsLineScreenHeight(ln docsLine, showExcerpt bool) int {
+	if ln.kind != docsLinePage || !showExcerpt {
+		return 1
+	}
+	if strings.TrimSpace(ln.page.Excerpt) == "" {
+		return 1
+	}
+	return 2
+}
+
 // docsCursorScreenLine maps docsCursor onto docsLines (headers shift indices).
 func (m Model) docsCursorScreenLine() int {
 	if len(m.docsNav) == 0 || m.docsCursor < 0 || m.docsCursor >= len(m.docsNav) {
@@ -363,16 +384,43 @@ func (m Model) docsCursorScreenLine() int {
 
 func (m *Model) ensureDocsVisible() {
 	h := m.listHeight()
+	if h < 1 {
+		h = 1
+	}
 	line := m.docsCursorScreenLine()
 	if line < m.docsOffset {
 		m.docsOffset = line
 	}
-	if line >= m.docsOffset+h {
-		m.docsOffset = line - h + 1
+	// docsOffset is a docsLines index; account for multi-row excerpt lines so
+	// the cursor page (title + optional excerpt) fully fits in the viewport.
+	show := docsShowExcerpt(m.docsTab)
+	for m.docsOffset <= line {
+		rows := 0
+		for i := m.docsOffset; i <= line && i < len(m.docsLines); i++ {
+			rows += docsLineScreenHeight(m.docsLines[i], show)
+		}
+		if rows <= h {
+			break
+		}
+		if m.docsOffset >= line {
+			break
+		}
+		m.docsOffset++
 	}
 	if m.docsOffset < 0 {
 		m.docsOffset = 0
 	}
+}
+
+// formatDocsExcerpt is the muted second line under a page row: whitespace-
+// trimmed body preview, cut to maxW terminal cells (CJK-safe via truncate).
+// Empty excerpt → empty string (caller omits the line — web parity).
+func formatDocsExcerpt(excerpt string, maxW int) string {
+	s := strings.TrimSpace(excerpt)
+	if s == "" || maxW <= 0 {
+		return ""
+	}
+	return truncate(s, maxW)
 }
 
 func (m Model) selectedDocKey() (string, bool) {
@@ -555,46 +603,72 @@ func (m Model) viewDocs() string {
 			b.WriteByte('\n')
 		}
 	} else {
-		total := len(m.docsLines)
-		end := m.docsOffset + listH
-		if end > total {
-			end = total
-		}
+		showEx := docsShowExcerpt(m.docsTab)
 		selKey := ""
 		if m.docsCursor >= 0 && m.docsCursor < len(m.docsNav) {
 			selKey = m.docsNav[m.docsCursor].page.Key
 		}
-		for i := m.docsOffset; i < end; i++ {
+		// Fill listH terminal rows. Excerpt pages cost two rows; stop before
+		// starting a row that cannot fully fit (except when the viewport is
+		// shorter than the first line alone — draw the title only then).
+		used := 0
+		for i := m.docsOffset; i < len(m.docsLines) && used < listH; i++ {
 			ln := m.docsLines[i]
+			lh := docsLineScreenHeight(ln, showEx)
+			if used+lh > listH && used > 0 {
+				break
+			}
 			if ln.kind == docsLineHeader {
 				// Same grammar as issue group headers / spaces tree.
 				hdr := fmt.Sprintf(" ▸ %s (%d)", ln.space, ln.count)
 				b.WriteString(fitWidth(styleMuted.Render(hdr), w))
+				b.WriteByte('\n')
+				used++
+				continue
+			}
+			// Indent by depth (Spaces tree only); title + dimmed meta clause.
+			indent := strings.Repeat("  ", ln.depth)
+			title := ln.page.Title
+			if title == "" {
+				title = ln.page.Key
+			}
+			label := "  " + indent + title
+			meta := formatDocsMeta(ln.page, m.clock())
+			if meta != "" {
+				meta = "  " + meta
+			}
+			selected := ln.page.Key == selKey
+			if selected {
+				inner := styleSel.Render(label) + styleSelMuted.Render(meta)
+				b.WriteString(styleSel.Width(w).MaxWidth(w).Render(inner))
 			} else {
-				// Indent by depth (Spaces tree only); title + dimmed meta clause.
-				indent := strings.Repeat("  ", ln.depth)
-				title := ln.page.Title
-				if title == "" {
-					title = ln.page.Key
-				}
-				label := "  " + indent + title
-				meta := formatDocsMeta(ln.page, m.clock())
-				if meta != "" {
-					meta = "  " + meta
-				}
-				selected := ln.page.Key == selKey
-				if selected {
-					inner := styleSel.Render(label) + styleSelMuted.Render(meta)
-					b.WriteString(styleSel.Width(w).MaxWidth(w).Render(inner))
-				} else {
-					line := stylePrimary.Render(label) + styleMuted.Render(meta)
-					b.WriteString(fitWidth(line, w))
-				}
+				line := stylePrimary.Render(label) + styleMuted.Render(meta)
+				b.WriteString(fitWidth(line, w))
 			}
 			b.WriteByte('\n')
+			used++
+			// Optional muted excerpt under Updated / By author page rows.
+			if showEx && used < listH {
+				exW := w - 4
+				if exW < 1 {
+					exW = 1
+				}
+				ex := formatDocsExcerpt(ln.page.Excerpt, exW)
+				if ex != "" {
+					exLabel := "    " + ex
+					if selected {
+						b.WriteString(styleSel.Width(w).MaxWidth(w).Render(styleSelMuted.Render(exLabel)))
+					} else {
+						b.WriteString(fitWidth(styleMuted.Render(exLabel), w))
+					}
+					b.WriteByte('\n')
+					used++
+				}
+			}
 		}
-		for i := end - m.docsOffset; i < listH; i++ {
+		for used < listH {
 			b.WriteByte('\n')
+			used++
 		}
 	}
 

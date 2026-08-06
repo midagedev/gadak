@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mattn/go-runewidth"
 
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/store"
@@ -480,6 +481,139 @@ func TestDocsHelpMentionsViewedUnsupported(t *testing.T) {
 	if !strings.Contains(plain, "Viewed recency") &&
 		!strings.Contains(strings.ToLower(plain), "does not track visits") {
 		t.Errorf("help missing Viewed unsupported honesty:\n%s", plain)
+	}
+}
+
+// TestFormatDocsExcerpt: empty → omit; present → kept; CJK cut by display width.
+func TestFormatDocsExcerpt(t *testing.T) {
+	if got := formatDocsExcerpt("", 40); got != "" {
+		t.Fatalf("empty excerpt = %q want empty", got)
+	}
+	if got := formatDocsExcerpt("  hello world  ", 40); got != "hello world" {
+		t.Fatalf("trim = %q", got)
+	}
+	// CJK: each Hangul is 2 cells; maxW 5 → at most 2 chars + ellipsis (or 2 chars).
+	long := "한글요약이아주길다"
+	got := formatDocsExcerpt(long, 5)
+	if got == "" {
+		t.Fatal("CJK excerpt should not be empty at maxW=5")
+	}
+	if w := runewidth.StringWidth(got); w > 5 {
+		t.Fatalf("CJK truncate width=%d want <=5 got %q", w, got)
+	}
+	// ASCII cut with ellipsis when over width.
+	got = formatDocsExcerpt("abcdefghijklmnop", 8)
+	if runewidth.StringWidth(got) > 8 {
+		t.Fatalf("ascii truncate width=%d want <=8 got %q", runewidth.StringWidth(got), got)
+	}
+}
+
+// TestDocsExcerptRender: Updated/By author show excerpt when present; empty
+// omits the second line; Spaces tree never shows excerpts (web parity).
+func TestDocsExcerptRender(t *testing.T) {
+	pages := []store.PageLite{
+		{
+			Key: "with", Title: "Has Excerpt", SpaceKey: "ENG", Author: "Ada",
+			UpdatedAt: "2026-08-04T10:00:00Z",
+			Excerpt:   "Body preview line for the page",
+		},
+		{
+			Key: "empty", Title: "No Excerpt", SpaceKey: "ENG", Author: "Bob",
+			UpdatedAt: "2026-08-03T10:00:00Z",
+			Excerpt:   "",
+		},
+	}
+	m := newModel(&config.Config{}, nil)
+	m.width, m.height = 100, 40
+	m.now = time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	m.pages = pages
+	m.mode = modeDocs
+	m.docsTab = docsTabUpdated
+	m.refilterDocs()
+
+	// Updated: excerpt present under Has Excerpt, absent for empty-excerpt page.
+	plain := stripANSI(m.View())
+	if !strings.Contains(plain, "Has Excerpt") {
+		t.Fatalf("missing title:\n%s", plain)
+	}
+	if !strings.Contains(plain, "Body preview line for the page") {
+		t.Fatalf("Updated tab should show excerpt:\n%s", plain)
+	}
+	// Empty-excerpt page: title appears; no spurious blank excerpt marker.
+	if !strings.Contains(plain, "No Excerpt") {
+		t.Fatalf("missing empty-excerpt title:\n%s", plain)
+	}
+
+	// By author also shows excerpts.
+	m.docsTab = docsTabByAuthor
+	m.refilterDocs()
+	plain = stripANSI(m.View())
+	if !strings.Contains(plain, "Body preview line for the page") {
+		t.Fatalf("By author tab should show excerpt:\n%s", plain)
+	}
+
+	// Spaces tree: no excerpt lines (discovery surface only).
+	m.docsTab = docsTabSpaces
+	m.refilterDocs()
+	plain = stripANSI(m.View())
+	if strings.Contains(plain, "Body preview line for the page") {
+		t.Fatalf("Spaces tree must not show excerpt:\n%s", plain)
+	}
+	if docsShowExcerpt(docsTabSpaces) {
+		t.Fatal("docsShowExcerpt(spaces) should be false")
+	}
+	if !docsShowExcerpt(docsTabUpdated) || !docsShowExcerpt(docsTabByAuthor) {
+		t.Fatal("docsShowExcerpt should be true for updated/by author")
+	}
+}
+
+// TestDocsExcerptScreenHeight: empty excerpt is 1 row; non-empty is 2 on
+// excerpt tabs; always 1 on Spaces.
+func TestDocsExcerptScreenHeight(t *testing.T) {
+	with := docsLine{kind: docsLinePage, page: store.PageLite{Excerpt: "preview"}}
+	empty := docsLine{kind: docsLinePage, page: store.PageLite{Excerpt: ""}}
+	hdr := docsLine{kind: docsLineHeader, space: "ENG", count: 1}
+	if docsLineScreenHeight(with, true) != 2 {
+		t.Fatal("non-empty excerpt should be 2 rows")
+	}
+	if docsLineScreenHeight(empty, true) != 1 {
+		t.Fatal("empty excerpt should be 1 row")
+	}
+	if docsLineScreenHeight(with, false) != 1 {
+		t.Fatal("spaces tab: always 1 row")
+	}
+	if docsLineScreenHeight(hdr, true) != 1 {
+		t.Fatal("header is always 1 row")
+	}
+}
+
+// TestDocsExcerptCJKInView: rendered excerpt is cut to terminal cell width.
+func TestDocsExcerptCJKInView(t *testing.T) {
+	// Narrow width so truncate must fire on a long CJK excerpt.
+	pages := []store.PageLite{
+		{
+			Key: "cjk", Title: "CJK", SpaceKey: "K", Author: "Lee",
+			UpdatedAt: "2026-08-04T10:00:00Z",
+			Excerpt:   "한글요약이아주아주아주길어서잘려야한다",
+		},
+	}
+	m := newModel(&config.Config{}, nil)
+	m.width, m.height = 30, 20
+	m.now = time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	m.pages = pages
+	m.mode = modeDocs
+	m.docsTab = docsTabUpdated
+	m.refilterDocs()
+	plain := stripANSI(m.View())
+	// Full uncut excerpt should not appear when terminal is 30 cells wide
+	// (indent 4 + long CJK exceeds remaining width).
+	full := "한글요약이아주아주아주길어서잘려야한다"
+	if strings.Contains(plain, full) {
+		t.Fatalf("expected CJK excerpt to be truncated at width=30:\n%s", plain)
+	}
+	// Some Hangul prefix should still appear.
+	if !strings.Contains(plain, "한글") {
+		t.Fatalf("expected partial CJK excerpt:\n%s", plain)
 	}
 }
 

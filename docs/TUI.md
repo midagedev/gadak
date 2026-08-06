@@ -76,12 +76,23 @@ focus — meaning depends on mode):
 | `3` | **Spaces** | Space-grouped parent/child tree (same nesting rules as the web space tree) |
 
 Each row is the title plus a dimmed meta clause: `author · relative time · in
-space name` (space key when the mirror has no name yet). `/` filters by title or
-space key (substring only — not full-text). `Enter` opens plain-text detail;
-`Esc` / `D` leaves.
+space name` (space key when the mirror has no name yet). On **Updated** and **By
+author**, a muted one-line body excerpt sits under the meta when the page has
+one (`PageLite.excerpt` — empty bodies omit the line). **Spaces** never shows
+excerpts (tree is for navigation, not discovery — same as the web UI). `/`
+filters by title or space key (substring only — not full-text). `Enter` opens
+plain-text detail; `Esc` / `D` leaves.
 
 **Viewed** recency lives in the web UI's browser storage; the TUI does not track
 visits yet. Full-text document search stays on the web UI / CLI.
+
+**People** (web palette PEOPLE + person panel, `CommentsByAuthor`) is web-only;
+the TUI has no person axis or activity-by-author surface.
+
+**Search match hints** (`SearchResult.Matches` — body/comment snippet on FTS
+hits) are CLI/web only. TUI `/` is a local substring filter over already-loaded
+issue rows (key, summary, assignee) or docs (title, space); it never calls
+`store.Search`, so there is no match field or snippet to surface.
 
 ### Saved views
 
