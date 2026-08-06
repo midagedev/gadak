@@ -107,6 +107,11 @@ refuses any other address unless you pass `--allow-remote`
 a multi-user mode: exposing the port publishes every issue the mirror holds
 to anyone who can reach it.
 
+The desktop app removes this surface entirely: it runs **no listener at
+all** — the window reaches the mirror through an in-process handler
+(`desktop/main.go`), so there is no port for another local process or a
+hostile page to connect to.
+
 A loopback bind alone does not stop the browser you are running, so the
 server also guards against the two ways a web page can reach it
 (`internal/server/browser_guard.go`, tests alongside): state-changing

@@ -78,7 +78,7 @@ the terminal, and the agent read the same store.
 
 | | For | Looks like |
 | --- | --- | --- |
-| **Web UI** | all-day triage, mouse and keyboard | a list you triage without the mouse (`j/k` walk, `x` multi-select, `s`/`a`/`c` status·assignee·comment in place), epic grouping and rollups, saved views, ⌘K palette, a freshness chip that shows the mirror's age and pulls it on click, full issue detail (rich text, comments, history, attachments), a DOCS tree of your wiki spaces with a breadcrumbed document view |
+| **Web UI** | all-day triage — a browser tab (`scry serve`) or its own macOS window ([desktop app](docs/DESKTOP.md), no port at all) | a list you triage without the mouse (`j/k` walk, `x` multi-select, `s`/`a`/`c` status·assignee·comment in place), epic grouping and rollups, saved views, ⌘K palette, a freshness chip that shows the mirror's age and pulls it on click, full issue detail (rich text, comments, history, attachments), a DOCS tree of your wiki spaces with a breadcrumbed document view |
 | **TUI** | people who live in the terminal | [`scry tui`](docs/TUI.md) — list, filter with live match highlight, `group_by=epic`, Ctrl+K palette, write actions, and `D` for the same wiki tree, all over the same mirror |
 | **CLI + SQL** | agents, scripts, one-off questions | `scry issue`, `scry search` (issues and pages), `scry sql`, plus the file itself |
 
@@ -114,6 +114,10 @@ This is half the reason scry exists, so it has its own reference:
 ```bash
 scry mcp install claude    # pins this binary and profile into the registration
 ```
+
+No brew on the machine? The desktop app bundles the same CLI —
+[`docs/DESKTOP.md`](docs/DESKTOP.md) has the one-line PATH hookup, and then
+your agent reads exactly what your window shows.
 
 <p align="center">
   <img src="docs/media/agent.gif" alt="scry search, scry sql aggregation, and scry issue in a terminal" width="800">
@@ -175,6 +179,16 @@ Atlassian Cloud only. You need an API token from
 <https://id.atlassian.com/manage-profile/security/api-tokens> — one token
 covers both Jira and Confluence on the same site.
 
+Three doors into the same product — pick by how you'll use it:
+
+- **Your coding agent is the user** (Claude Code, Cursor, …): Homebrew, then
+  `scry mcp install claude`. Two lines and the agent is querying the mirror.
+- **You want an app, not a terminal**: the macOS
+  [desktop app](docs/DESKTOP.md) — setup happens in the window, and the CLI
+  rides inside the bundle for the day your agent wants in.
+- **You live in the terminal**: Homebrew again — `scry serve` for the browser
+  UI, `scry tui` to stay where you are.
+
 ### 1. Homebrew
 
 ```bash
@@ -188,7 +202,17 @@ binaries are signed with a Developer ID certificate and notarized by Apple —
 
 [tap]: https://github.com/midagedev/homebrew-tap
 
-### 2. Install script
+### 2. Desktop app (macOS)
+
+Download `Scry-<version>-arm64.dmg` from the
+[latest release](https://github.com/midagedev/scry/releases/latest) and drag
+it to Applications — signed and notarized, Apple Silicon. It is the same web
+UI in its own window with **no local server at all**: no port, no address,
+nothing new listening. First launch walks through setup in the window, and
+the bundle carries the CLI for agent wiring without a separate install.
+[`docs/DESKTOP.md`](docs/DESKTOP.md) has the details.
+
+### 3. Install script
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/midagedev/scry/main/scripts/install.sh | sh
@@ -198,13 +222,13 @@ Downloads the latest GitHub Release for your OS/arch, verifies `checksums.txt`
 (sha256), and installs to `~/.local/bin/scry` (override with `SCRY_INSTALL_DIR`).
 Upgrades in place if a binary is already there.
 
-### 3. Release binary
+### 4. Release binary
 
 Download the archive for your OS/arch from
 [GitHub Releases](https://github.com/midagedev/scry/releases), verify against
 `checksums.txt`, unpack, and put `scry` on your `PATH`.
 
-### 4. Build from source
+### 5. Build from source
 
 Requirements: Go 1.25+, Node.js 20+.
 
@@ -227,7 +251,8 @@ scry serve                    # http://scry.localhost:7777
 
 The first run walks you through it in the browser: paste your site, email, and
 token, pick projects from your site's own list, and watch the first sync fill
-the mirror. If you would rather stay in the terminal, `scry init && scry sync`
+the mirror. (The desktop app runs the same setup in its own window — no
+terminal at any point.) If you would rather stay in the terminal, `scry init && scry sync`
 does the same thing. `scry serve` keeps the mirror fresh in the background
 whenever a credential is configured (`--no-sync` opts out). To survive reboot:
 
@@ -437,6 +462,7 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 - [`SECURITY.md`](SECURITY.md) — threat model, what leaves your machine, and where each claim lives in code
 - [`docs/FAQ.md`](docs/FAQ.md) — the hard questions: site load, one-person risk, concurrency, where agent data goes
 - [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — one paste per agent (Claude Code, Cursor, Codex, MCP)
+- [`docs/DESKTOP.md`](docs/DESKTOP.md) — the macOS app: install, first run, and where the CLI fits
 - [`docs/RECIPES.md`](docs/RECIPES.md) — 13 questions JQL cannot ask, as ready-to-run SQL
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) — fitting scry to your team
 - [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) — what exists, what does not

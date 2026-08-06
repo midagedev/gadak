@@ -185,6 +185,24 @@ product, speed is a feature, and trust in freshness is built in the UI.
   more than humans do. Recorded here so the next demand signal reopens
   it with both arguments on the table.
 
+## v0.8 — the desktop app
+
+The port and the terminal were the last pieces of accidental UX between a
+person and the mirror. Shipped 2026-08-06:
+
+- ✅ **Scry.app** — the web UI in a native macOS window with no local server
+  at all (in-process handler; no port, no conflicts, single-instance).
+  Signed + notarized `Scry-<ver>-arm64.dmg` attached to every release.
+- ✅ **First run in the window.** The existing in-app onboarding carries the
+  desktop case; finishing setup now also starts the background sync without
+  a restart (previously boot-time only).
+- ✅ **The CLI rides inside the bundle** (`Contents/Resources/bin/scry`), so
+  a desktop-only install still graduates to agent use — one symlink, then
+  `scry mcp install claude`. See `docs/DESKTOP.md`.
+
+Not in this wave: workspace switching in the app (one profile per window),
+Intel/universal builds, Windows/Linux shells.
+
 ## Considered and not planned
 
 - **Bidirectional sync engines** (PowerSync, Electric, Zero). Wrong shape: they

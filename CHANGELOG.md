@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.8.0 — 2026-08-06
+
+- **Scry.app — the macOS desktop app.** The web UI in its own signed,
+  notarized window (`Scry-<version>-arm64.dmg` on every release), with **no
+  local server at all**: the window reaches the mirror in-process, so ports,
+  addresses, and conflicts stop existing as UX. First launch runs the same
+  in-window setup as the browser; a second launch focuses the running window.
+  The bundle carries the CLI (`Contents/Resources/bin/scry`) so a
+  desktop-only install can still wire up an agent — see `docs/DESKTOP.md`.
+- **Sync starts after in-app onboarding.** `serve` (and the app) began the
+  background watch loop only when a credential existed at boot; finishing
+  first-run setup now kicks it off without a restart.
+
 ## v0.7.0 — 2026-08-06
 
 - **`scry mcp install <client>`.** Pins the current profile and absolute binary
