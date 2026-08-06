@@ -89,7 +89,7 @@ func TestDoctorRedaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := db.UpsertSource(store.Source{ID: "jira", Kind: "jira", BaseURL: "https://acme-corp.atlassian.net"}); err != nil {
+	if err := db.UpsertSource(store.Source{ID: "jira", Kind: "jira", BaseURL: "https://example.atlassian.net"}); err != nil {
 		t.Fatalf("source: %v", err)
 	}
 	if _, err := db.UpsertIssues(store.Batch{
@@ -97,7 +97,7 @@ func TestDoctorRedaction(t *testing.T) {
 		Records: []store.IssueRecord{{
 			Item: store.Item{
 				ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
-				Key: "SECRET-42", Title: "do not leak this summary",
+				Key: "LEAKY-42", Title: "do not leak this summary",
 				CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-01T00:00:00.000Z",
 			},
 			Issue: store.Issue{
@@ -110,16 +110,16 @@ func TestDoctorRedaction(t *testing.T) {
 	}
 	// Plant a last_error that embeds a host, key, and URL — classifier only.
 	if err := db.RecordSync("jira", store.SyncResult{
-		Err: errString("GET /rest/api/3/search: jira: 403: You do not have access to SECRET-42 on https://acme-corp.atlassian.net"),
+		Err: errString("GET /rest/api/3/search: jira: 403: You do not have access to LEAKY-42 on https://example.atlassian.net"),
 	}); err != nil {
 		t.Fatalf("record sync: %v", err)
 	}
 	_ = db.Close()
 
 	const (
-		fakeSite  = "https://acme-corp.atlassian.net"
-		fakeEmail = "alice.secret@acme-corp.example"
-		fakeToken = "ATATT3xFfGF0-super-secret-token-value-xyz"
+		fakeSite  = "https://example.atlassian.net"
+		fakeEmail = "alice.secret@example.invalid"
+		fakeToken = "NOT-A-REAL-TOKEN-fixture-value-0123456789"
 	)
 	cfg := &config.Config{
 		Site:     fakeSite,
@@ -148,13 +148,13 @@ func TestDoctorRedaction(t *testing.T) {
 
 	forbidden := []string{
 		fakeSite,
-		"acme-corp.atlassian.net",
-		"acme-corp",
+		"example.atlassian.net",
+		"example",
 		fakeEmail,
 		"alice.secret",
 		fakeToken,
-		"ATATT3xFfGF0",
-		"SECRET-42",
+		"NOT-A-REAL-TOKEN",
+		"LEAKY-42",
 		"SECRET",
 		"LEAKME",
 		"do not leak this summary",
@@ -276,8 +276,8 @@ func TestClassifyLastError(t *testing.T) {
 func TestRedactSite(t *testing.T) {
 	cases := map[string]string{
 		"":                            "none",
-		"https://acme.atlassian.net":  "<redacted>.atlassian.net",
-		"https://acme.atlassian.net/": "<redacted>.atlassian.net",
+		"https://example.atlassian.net":  "<redacted>.atlassian.net",
+		"https://example.atlassian.net/": "<redacted>.atlassian.net",
 		"https://jira.example.com":    "configured (cloud)",
 		"http://localhost:8080":       "configured (cloud)",
 	}
