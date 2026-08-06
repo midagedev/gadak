@@ -1,7 +1,7 @@
 // Command scry serves a local mirror of your issue tracker.
 //
 // Implemented: init, sync (--full/--watch), serve (syncs by default), tui,
-// issue, search, comment, transition, assign, sql, status, mcp, demo,
+// issue, search, comment, transition, assign, sql, status, doctor, mcp, demo,
 // export-static, install-service, profiles, version, snapshot, team.
 // See specs/000-product/tasks.md for the current state of each.
 //
@@ -1218,6 +1218,7 @@ Commands:
   install-service  keep serve running across reboots (launchd / systemd user)
                    [--uninstall]
   status           sync state and row counts [--json]
+  doctor           redacted diagnostics safe to paste into a bug report [--json]
   demo             serve the bundled snapshot, no Jira account needed
   export-static    freeze demo.db into static JSON for hosted demo  <outdir>
   tui              terminal issue navigator (local mirror)
@@ -1300,6 +1301,8 @@ func main() {
 		err = cmdFields(args[1:])
 	case "status":
 		err = cmdStatus(args[1:])
+	case "doctor":
+		err = cmdDoctor(args[1:])
 	case "mcp":
 		err = cmdMCP(args[1:])
 	case "demo":

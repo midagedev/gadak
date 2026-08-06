@@ -15,6 +15,7 @@ var commandNames = []string{
 	"assign",
 	"comment",
 	"demo",
+	"doctor",
 	"export-static",
 	"fields",
 	"init",
@@ -115,7 +116,17 @@ var helps = map[string]cmdHelp{
 			"scry status --json",
 			"scry --profile demo status",
 		},
-		seeAlso: []string{"scry sync", "scry sql"},
+		seeAlso: []string{"scry sync", "scry sql", "scry doctor"},
+	},
+	"doctor": {
+		summary: "print redacted diagnostics safe to paste into a bug report",
+		usage:   "scry [--profile <name>] doctor [--json]",
+		examples: []string{
+			"scry doctor",
+			"scry doctor --json",
+			"scry --profile demo doctor",
+		},
+		seeAlso: []string{"scry status", "scry version"},
 	},
 	"demo": {
 		summary: "serve the bundled snapshot; no Jira account needed",

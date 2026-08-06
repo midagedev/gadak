@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **`scry doctor` — redacted diagnostics for bug reports.** Prints versions,
+  profile path (`~/…`), schema/migration level, mirror row counts, sync
+  freshness (watermark presence + classified last error only), last-day
+  `api_usage`, and Jira shape as counts (projects, custom-field mappings,
+  Confluence spaces, status categories). No tokens, hostnames, emails,
+  project keys, field names, or raw error text. Works with no mirror and no
+  credential. `--json` for the same document. Paste into issues; see
+  `SUPPORT.md` and the bug report template.
 - **`scry api` — raw Atlassian REST escape hatch.** Call any site-relative
   path with the stored credential when the mirror does not cover the
   endpoint (watchers, worklogs, sprints, user search, Confluence REST under

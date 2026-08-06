@@ -9,12 +9,27 @@ body:
         many features are specified but not implemented yet.
 
         **Do not paste real issue text, API tokens, site URLs, or a database
-        snapshot.** Redact everything installation-specific.
+        snapshot.** Prefer `scry doctor` (counts and versions only — no keys,
+        names, hostnames, or tokens).
+  - type: textarea
+    id: doctor
+    attributes:
+      label: scry doctor output
+      description: |
+        Run `scry doctor` (or `scry --profile <name> doctor`) and paste the full
+        output. Safe for public issues — redacts tokens, site hosts, emails,
+        project keys, and custom-field names.
+      placeholder: |
+        # scry doctor — safe to paste: counts and versions only, no keys, names, URLs or tokens
+        ...
+      render: shell
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
       label: scry version
-      description: Output of `scry version`. If that command is missing or prints `0.0.0-dev`, paste the git commit SHA instead.
+      description: Output of `scry version`. If that command is missing or prints `0.0.0-dev`, paste the git commit SHA instead. (Also present in `scry doctor`.)
       placeholder: "0.1.0 or abcdef1"
     validations:
       required: true
@@ -22,7 +37,7 @@ body:
     id: os
     attributes:
       label: OS
-      description: Operating system and architecture.
+      description: Operating system and architecture. (Also present in `scry doctor`.)
       placeholder: "macOS 15 arm64 / Ubuntu 24.04 x86_64 / Windows 11 amd64"
     validations:
       required: true

@@ -145,14 +145,31 @@ func (db *DB) APIUsageSummary() (APIUsageSummary, error) {
 	return out, nil
 }
 
-// TableCount returns SELECT COUNT(*) for a fixed known table name used by status.
+// TableCount returns SELECT COUNT(*) for a fixed known table name used by
+// status and doctor. Only whitelisted table names are accepted.
 func (db *DB) TableCount(table string) (int, error) {
 	switch table {
-	case "issues", "comments":
+	case "issues", "comments", "items", "pages", "spaces":
 	default:
 		return 0, fmt.Errorf("store: TableCount: unknown table %q", table)
 	}
 	var n int
 	err := db.sql.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&n)
+	return n, err
+}
+
+// DistinctCount returns COUNT(DISTINCT col) for a fixed known table.column
+// used by doctor. Empty/NULL values are excluded.
+func (db *DB) DistinctCount(table, column string) (int, error) {
+	switch table + "." + column {
+	case "issues.project_key", "issues.status_category", "pages.space_key":
+	default:
+		return 0, fmt.Errorf("store: DistinctCount: unknown %s.%s", table, column)
+	}
+	var n int
+	// Identifiers are whitelisted above; values never enter the SQL string.
+	q := "SELECT COUNT(DISTINCT " + column + ") FROM " + table +
+		" WHERE " + column + " IS NOT NULL AND " + column + " != ''"
+	err := db.sql.QueryRow(q).Scan(&n)
 	return n, err
 }
