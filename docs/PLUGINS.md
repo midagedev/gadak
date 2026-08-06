@@ -5,7 +5,10 @@ run is, or who reviewed what — and it never will, because every one of those
 integrations was the reason the tool it was extracted from could not be shared.
 
 So the boundary is a table, not an API. There are **zero lines of external
-integration code in this repository**: an integration runs as its own process, in
+integration code in this repository** (verified 2026-08-06:
+`grep -R --include='*.go' -E 'go-github|slack-go|andygrunwald|xanzy/go-gitlab'
+internal/ cmd/` → empty; plugin reference code lives only under
+`examples/plugins/`): an integration runs as its own process, in
 any language, and writes rows into `enrichments` with SQL. The server merges what
 it finds into its responses. It never calls a plugin, never loads one, and has no
 plugin registry, lifecycle, or manifest.

@@ -1,9 +1,11 @@
 # Query recipes — the questions JQL cannot ask
 
-Every recipe runs as-is with `scry sql "…"` (SQLite `mode=ro`) and
-returns in milliseconds. `issues_full` is the view with the title included;
-add `--json` or `--csv` for machines. Timestamps are ISO-8601 UTC strings, so
-`julianday()` and string comparison both work.
+Every recipe runs as-is with `scry sql "…"` (SQLite `mode=ro`) and returns in
+single-digit milliseconds on the demo snapshot (measured: `1–2 ms`,
+`sqlite3 examples/demo.db` with `.timer on` on the reopen recipe below; full
+`scry sql` process wall-clock ≈16 ms including startup). `issues_full` is the
+view with the title included; add `--json` or `--csv` for machines. Timestamps
+are ISO-8601 UTC strings, so `julianday()` and string comparison both work.
 
 None of these are expressible in JQL — that is the point. JQL cannot join, see
 the changelog as data, aggregate, or read derived history.

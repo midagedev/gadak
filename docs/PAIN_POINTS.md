@@ -10,8 +10,8 @@ excluded.
 
 **1. Opening a ticket is slow.** The single most repeated complaint, across HN
 threads spanning 2018–2024. Root cause is architectural: one ticket render fans
-out into many sequential requests. A local mirror answers with zero round
-trips — this is the core of the product.
+out into many sequential requests. A local mirror answers with zero network
+round trips — this is the core of the product.
 [HN 36381111](https://news.ycombinator.com/item?id=36381111),
 [HN 25594451](https://news.ycombinator.com/item?id=25594451),
 [HN 39376054](https://news.ycombinator.com/item?id=39376054),

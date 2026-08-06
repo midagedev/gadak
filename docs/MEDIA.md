@@ -23,12 +23,14 @@ All assets are produced from **scripts** against the scrubbed snapshot
 
 ### Current committed sizes (re-measure after regen)
 
-| Asset | Size | Duration | Resolution / fps |
-| --- | --- | --- | --- |
-| `web-demo.gif` | 7.16 MB | 24.0 s | 960×600 @ 8 fps, 96-color palette |
-| `web-demo.mp4` | 1.29 MB | 24.0 s | 1024×640 h264 |
-| `tui.gif` | 4.73 MB | 17.0 s | 1080×620, 77×24 cells, 64 colors |
-| `agent.gif` | 305 KB | 31.5 s | 1080×620, 77×24 cells, 64 colors |
+Measured 2026-08-06 via `ls -la docs/media/` (decimal MB = bytes/1e6):
+
+| Asset | Size | Bytes (`ls -la`) | Duration | Resolution / fps |
+| --- | --- | --- | --- | --- |
+| `web-demo.gif` | 7.16 MB | 7162838 | 24.0 s | 960×600 @ 8 fps, 96-color palette |
+| `web-demo.mp4` | 1.29 MB | 1290689 | 24.0 s | 1024×640 h264 |
+| `tui.gif` | 4.73 MB | 4728239 | 17.0 s | 1080×620, 77×24 cells, 64 colors |
+| `agent.gif` | 305 KB | 304708 | 31.5 s | 1080×620, 77×24 cells, 64 colors |
 
 ## Readability comes first, and it costs bytes
 

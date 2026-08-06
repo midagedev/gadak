@@ -8,6 +8,30 @@
   `claude mcp add` (or prints a manual command if the binary is missing);
   `cursor` / `codex` / `json` print paste-ready config; `--dry-run` prints
   without registering. See `docs/MCP.md` and `docs/AGENT_SETUP.md`.
+- **Browser guard on the local API.** Reject cross-origin writes and
+  DNS-rebinding reads so a page opened in the browser cannot drive the
+  loopback mirror as an open proxy.
+- **Space names (schema v14).** `spaces` table and `PageLite.space_name`;
+  settings APIs to list Confluence spaces and persist `confluence.spaces`.
+- **Docs UX wave.** Space names in the UI, unified recents, scope pickers, and
+  a Recently edited view for mirrored pages.
+- **`scry.localhost`.** `serve` opens `http://scry.localhost` when the resolver
+  maps it to loopback.
+- **Port-conflict handling.** On a busy listen port, hand off to a running
+  scry or fall back to a free port instead of failing opaquely.
+- **Keyboard triage.** Sprint cleanup from the keyboard without touching the
+  mouse; TUI `s` aliases `t` for transition (parity with the web flow).
+- **Freshness chip.** Surface the server↔Jira leg and pull the mirror on focus.
+- **Warm-boot cache.** Chunked IndexedDB writes and an honest warm-boot metric
+  for durable bootstrap.
+- **Interaction performance gate.** Budget tests against a 10k-issue fixture.
+- **TUI page-scroll keys.** Register page-scroll bindings in `keyMap` so help
+  and docs match what the navigator actually does.
+- Confluence sync hardened for real sites (team spaces by default, chunked
+  CQL, quoted space keys, tolerated 404s).
+
+## v0.6.0 — 2026-08-06
+
 - **Confluence page labels (schema v13).** `pages.labels` (JSON array,
   alphabetical) collected via `expand=metadata.labels` on the page fetch and
   exposed on `PageLite` everywhere pages appear (list, detail, search). First
@@ -19,6 +43,52 @@
   `epic_key` and `parent_key` separately; the TUI supports `group_by=epic`
   (label `KEY summary`, `(no epic)` bucket); `issues_full` is rebuilt (v12) to
   expose the new columns; snapshots carry them.
+- **Confluence page mirror.** Second source on the items spine — sync, pages
+  API, unified search, and a demo snapshot that carries the Nimbus wiki beside
+  the issue backlog.
+- **Docs in the web UI.** Mirrored wiki pages as a sidebar tree, document
+  panel, and unified search.
+- **TUI docs navigator.** `D` toggles a space-grouped page tree.
+- **Epic hierarchy in the web UI.** Group labels, row chips, breadcrumb, and
+  rollup over the honest `epic_key`.
+- **Mobile viewport.** Phones render the desktop layout instead of a squeezed
+  column.
+
+## v0.5.0 — 2026-08-05
+
+- **Workspaces.** `serve` mounts every profile under `/w/<name>/`; the web UI
+  workspace picker switches between mounted profile mirrors.
+- **TUI neon look.** Ambient animation, mouse support, palette, and match
+  highlight.
+- **Search prefix match.** Bare terms prefix-match so inflected Korean (and
+  similar morphology) is found.
+
+## v0.4.0 — 2026-08-05
+
+- **TUI custom-field edit.** Edit discovered custom fields with Jira-allowed
+  values only; detail shows the discovered set.
+- **Update notice.** Daily anonymous check on every surface, with opt-out.
+- **Hosted-demo service-worker handshake.** Time out cleanly and say so when
+  the browser cannot run the demo.
+
+## v0.3.0 — 2026-08-05
+
+- **Field auto-discovery.** The first full sync discovers and configures
+  custom fields itself.
+- **Filter axes from discovered fields.** Per-project scope; the detail panel
+  renders whatever fields the site actually has, including multi-select
+  `array<option>` editors.
+- **Sync progress denominator.** Projects are optional on sync, and progress
+  lines carry a real total.
+- **Sync history.** Activity behind the sidebar timestamp.
+
+## v0.2.1 — 2026-08-05
+
+- Sign and notarize the macOS release binaries.
+- Hosted demo: local write simulation that says the change was not saved, and
+  copy that identifies the surface as a demo (no token prompt).
+
+## v0.2.0 — 2026-08-05
 
 - **Team config sharing.** `scry team export` writes the views, field map,
   group rules and thresholds a team agrees on into one file to commit next to

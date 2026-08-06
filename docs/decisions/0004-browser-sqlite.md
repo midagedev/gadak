@@ -32,6 +32,9 @@ hosting with no binary and no Jira account.
    server is on loopback. The current client already meets the latency target
    (sub-50 ms filtering at 10k issues) with a shipped, in-daily-use engine.
 
+> [2026-08-06] Measured at 10k: ≈61 ms/op — see STATE_OF_PLAY.md for the
+> live number; the 50 ms figure was the design target.
+
 2. **Bidirectional sync is architecturally impossible in this product.** Jira
    Cloud sends no CORS headers, so the browser can never write upstream
    directly. Every write must pass through the local process anyway

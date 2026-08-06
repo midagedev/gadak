@@ -200,7 +200,9 @@ for `GH_TOKEN` / `SCRY_HOME`.
    The source system remains the record; re-run the plugin.
 5. **Zero external integration code in this repository.** Do not propose a
    GitHub/Slack/Jenkins client inside `internal/`. Ship a plugin process
-   instead — like the examples under `examples/plugins/`.
+   instead — like the examples under `examples/plugins/`. Verified 2026-08-06:
+   `grep -R --include='*.go' -E 'go-github|slack-go|andygrunwald|xanzy/go-gitlab'
+   internal/ cmd/` → empty.
 6. **Credentials stay out of SQLite.** Tokens belong in the environment or a
    secret store the plugin reads; never in `enrichments.payload`.
 
