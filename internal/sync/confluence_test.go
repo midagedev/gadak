@@ -182,13 +182,14 @@ func (f *confFixture) serveSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func cqlMatch(cql string, p *confPage) bool {
-	// Very small CQL interpreter for tests.
-	if strings.Contains(cql, "space=AAA") || strings.Contains(cql, "space = AAA") {
+	// Very small CQL interpreter for tests. Space keys arrive quoted
+	// (space="AAA") since the always-quote fix for digit-leading keys.
+	if strings.Contains(cql, `space="AAA"`) {
 		if p.Space != "AAA" {
 			return false
 		}
 	}
-	if strings.Contains(cql, "space=BBB") {
+	if strings.Contains(cql, `space="BBB"`) {
 		if p.Space != "BBB" {
 			return false
 		}

@@ -282,18 +282,11 @@ func pageURL(c *confluence.Client, spaceKey, pageID string) string {
 	return fmt.Sprintf("%s/spaces/%s/pages/%s", c.BaseURL(), spaceKey, pageID)
 }
 
-// cqlSpace quotes a space key for CQL (keys are usually bare alphanumerics).
+// cqlSpace quotes a space key for CQL — always. A bare key that starts with a
+// digit (real Cloud sites generate keys like "3dvBrsa61dIo") is a CQL parse
+// error, and quoting a key that didn't need it is harmless.
 func cqlSpace(key string) string {
-	if key == "" {
-		return `""`
-	}
-	// Bare keys are fine; quote when they contain non-identifier chars.
-	for _, r := range key {
-		if !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_') {
-			return fmt.Sprintf("%q", key)
-		}
-	}
-	return key
+	return fmt.Sprintf("%q", key)
 }
 
 func cqlSpaceList(keys []string) string {
