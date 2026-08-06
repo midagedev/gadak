@@ -496,6 +496,19 @@ export const ko = {
   'docs.recentEmpty': '미러링된 문서가 아직 없습니다.',
   'docs.backToIssues': '이슈 목록으로',
 
+  /* ── Person panel (people axis) ── */
+  'person.comments': '코멘트',
+  'person.noComments': '미러에 이 사람의 코멘트가 없습니다.',
+  'person.commentsFailed': '이 사람의 코멘트를 불러오지 못했습니다.',
+  'person.unlinked': '미러에 이 사람의 계정 id가 아직 없어 코멘트를 나열할 수 없습니다.',
+  'person.showingOf': '{total}건 중 최근 {n}건.',
+  'person.assigned': '담당',
+  'person.assignedTo': '{name} 담당 이슈',
+  'person.reported': '보고',
+  'person.reportedBy': '{name} 보고 이슈',
+  'person.docs': '문서',
+  'person.docsBy': '{name} 작성 문서',
+
   /* ── QA impact ── */
   'qa.pass': '합격',
   'qa.fail': '실패',
@@ -730,6 +743,7 @@ export const ko = {
   'palette.title': '커맨드 팔레트',
   'palette.placeholder': '이슈·뷰·액션으로 이동…',
   'palette.sectionIssues': '이슈',
+  'palette.sectionPeople': '사람',
   'palette.sectionViews': '뷰',
   'palette.sectionActions': '액션',
   'palette.recent': '최근 본 항목',

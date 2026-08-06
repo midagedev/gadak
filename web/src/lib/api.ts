@@ -12,6 +12,7 @@ import type {
   AttachmentUploadResponse,
   BootstrapResponse,
   CommentMention,
+  CommentsByAuthorResponse,
   CommentWriteResponse,
   CreateIssuePayload,
   CreateMetaResponse,
@@ -135,6 +136,24 @@ export function getPages(): Promise<PagesResponse> {
 /** One page with its body ADF and comments. */
 export function getPageDetail(key: string): Promise<PageDetail> {
   return json<PageDetail>(`pages/${encodeURIComponent(key)}/`)
+}
+
+/* ── People axis ── */
+
+/**
+ * One person's comments, newest first. `authorId` is the source account id
+ * (`comments.author_id`), which is what `Member.jira_account_id` carries.
+ * Unlike the rest of the read path this is a request: comment bodies are not
+ * in the client pool, and holding every comment in memory to answer one panel
+ * would cost the boot budget the pool is spent on.
+ */
+export function getCommentsByAuthor(
+  authorId: string,
+  limit = 50,
+): Promise<CommentsByAuthorResponse> {
+  return json<CommentsByAuthorResponse>(
+    `people/${encodeURIComponent(authorId)}/comments/?limit=${limit}`,
+  )
 }
 
 /* ── Personal feed / read state ── */

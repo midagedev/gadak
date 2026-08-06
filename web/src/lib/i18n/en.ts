@@ -495,6 +495,20 @@ export const en = {
   'docs.recentEmpty': 'No mirrored documents yet.',
   'docs.backToIssues': 'Back to issues',
 
+  /* ── Person panel (people axis) ── */
+  'person.comments': 'Comments',
+  'person.noComments': 'No comments from this person in the mirror.',
+  'person.commentsFailed': 'Could not load this person’s comments.',
+  'person.unlinked':
+    'The mirror has no account id for this person yet, so their comments cannot be listed.',
+  'person.showingOf': 'Showing the {n} most recent of {total}.',
+  'person.assigned': 'Assigned',
+  'person.assignedTo': 'Issues assigned to {name}',
+  'person.reported': 'Reported',
+  'person.reportedBy': 'Issues reported by {name}',
+  'person.docs': 'Docs',
+  'person.docsBy': 'Documents written by {name}',
+
   /* ── QA impact ── */
   'qa.pass': 'Pass',
   'qa.fail': 'Fail',
@@ -733,6 +747,7 @@ export const en = {
   'palette.title': 'Command palette',
   'palette.placeholder': 'Jump to an issue, view, or action…',
   'palette.sectionIssues': 'Issues',
+  'palette.sectionPeople': 'People',
   'palette.sectionViews': 'Views',
   'palette.sectionActions': 'Actions',
   'palette.recent': 'Recently viewed',

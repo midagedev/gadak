@@ -397,6 +397,29 @@ export interface PageDetail extends PageLite {
   comments: PageComment[]
 }
 
+/* ── People axis ── */
+
+/** One comment in `GET people/{author_id}/comments/`, joined to what it is on.
+ *  `key` is that parent's key, so a row opens the issue or the page it lives in. */
+export interface AuthorComment {
+  key: string
+  kind: 'issue' | 'page'
+  title: string
+  /** Plain text, whitespace-normalized, hard-cut at 160 runes by the server. */
+  snippet: string
+  created_at: string
+}
+
+/** GET `people/{author_id}/comments/?limit=` response. An unknown id answers
+ *  200 with `total: 0`, never 404 — the panel draws an empty person. */
+export interface CommentsByAuthorResponse {
+  /** Display name from the newest matching comment; '' when there are none. */
+  author: string
+  /** Full count for this author — `comments` is only the requested page of it. */
+  total: number
+  comments: AuthorComment[]
+}
+
 export type FeedFocus = 'all' | 'assignee' | 'reporter' | 'mention'
 
 export type FeedEventType =

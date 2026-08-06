@@ -100,6 +100,10 @@ class PagesStore {
   spaceView = $state<string | null>(null)
   /** Which axis the document view is showing. */
   docsTab = $state<DocsTab>(loadDocsTab())
+  /** Author group the By-author tab should scroll to once, set by an arrival
+   *  from elsewhere (the person panel). Cleared as soon as it is honoured —
+   *  it is a one-shot instruction, not a filter. */
+  focusAuthor = $state<string | null>(null)
 
   /** key → detail, for this tab's lifetime. */
   #details = new Map<string, PageDetail>()
@@ -295,15 +299,35 @@ class PagesStore {
   closeDocs(): void {
     this.docsView = false
     this.spaceView = null
+    this.focusAuthor = null
   }
 
   selectTab(tab: DocsTab): void {
     this.docsTab = tab
+    this.focusAuthor = null
     try {
       localStorage.setItem(STORAGE_KEYS.docsTab, tab)
     } catch {
       /* private mode — the tab just does not survive the session */
     }
+  }
+
+  /** Arrive at the By-author tab already looking at one person's group. The
+   *  axis is the tab's own — nothing new is filtered, the list is only scrolled
+   *  to where the answer is, since author groups run in recency order and the
+   *  one that was asked for can sit well down the page. */
+  openDocsByAuthor(author: string): void {
+    this.spaceView = null
+    this.docsView = true
+    this.selectTab('author')
+    this.focusAuthor = author
+  }
+
+  /** How many mirrored pages carry this author name. Display names are what the
+   *  By-author tab groups by, so this counts exactly what that tab will show. */
+  pagesByAuthorCount(author: string): number {
+    if (!author) return 0
+    return this.index.reduce((n, p) => (p.author === author ? n + 1 : n), 0)
   }
 
   /** Row data for the open page — header renders before the body arrives. */

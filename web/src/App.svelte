@@ -9,6 +9,7 @@
   import { views } from './stores/views.svelte'
   import { selection } from './stores/selection.svelte'
   import { pages } from './stores/pages.svelte'
+  import { person } from './stores/person.svelte'
   import { filters } from './stores/filters.svelte'
   import { me } from './stores/me.svelte'
   import { write } from './stores/write.svelte'
@@ -35,6 +36,7 @@
   import ListView from './components/list/ListView.svelte'
   import DetailPanel from './components/detail/DetailPanel.svelte'
   import DocumentPanel from './components/detail/DocumentPanel.svelte'
+  import PersonPanel from './components/detail/PersonPanel.svelte'
   import PersonalFeed from './components/personal/PersonalFeed.svelte'
   import DocsView from './components/docs/DocsView.svelte'
   import SpaceDocsView from './components/docs/SpaceDocsView.svelte'
@@ -189,10 +191,16 @@
     // ── x: pick the cursor row for a batch; falls back to closing panels ──
     if (key === 'x') {
       // A document keeps x first: it is the panel on screen, and s/a/c have no
-      // meaning on a read-only page, so x is the only key that closes it.
+      // meaning on a read-only page, so x is the only key that closes it. A
+      // person reads the same way — nothing on that panel is triageable.
       if (pages.selectedKey) {
         e.preventDefault()
         pages.clear()
+        return
+      }
+      if (person.selectedEmail) {
+        e.preventDefault()
+        person.clear()
         return
       }
       if (cursorKey) {
@@ -307,15 +315,25 @@
     }
   })
 
-  // One right panel, two kinds of content. pages.select() clears the issue on the
-  // way in; this closes the document on the way back so they can never stack.
+  // One right panel, three kinds of content. Each store's select() clears the
+  // others on the way in (pages.select, person.select); these close what an
+  // issue selection displaces on the way back, so they can never stack.
   $effect(() => {
-    if (selection.selectedKey) untrack(() => pages.clear())
+    if (selection.selectedKey) {
+      untrack(() => {
+        pages.clear()
+        person.clear()
+      })
+    }
+  })
+  $effect(() => {
+    if (pages.selectedKey) untrack(() => person.clear())
   })
 
   const detailOpen = $derived(selection.selectedKey !== null)
   const docOpen = $derived(pages.selectedKey !== null)
-  const panelOpen = $derived(detailOpen || docOpen)
+  const personOpen = $derived(person.selectedEmail !== null)
+  const panelOpen = $derived(detailOpen || docOpen || personOpen)
 </script>
 
 <svelte:window onkeydown={onGlobalKey} />
@@ -407,6 +425,7 @@
         {#snippet children()}
           <DetailPanel />
           <DocumentPanel />
+          <PersonPanel />
         {/snippet}
       </RightPanel>
     </div>

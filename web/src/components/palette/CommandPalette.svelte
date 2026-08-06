@@ -25,6 +25,7 @@
   } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
+  import { person } from '../../stores/person.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { bulk } from '../../stores/bulk.svelte'
   import { triage } from '../../stores/triage.svelte'
@@ -32,12 +33,12 @@
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
-  import type { IssueLite, PageLite } from '../../lib/types'
+  import type { IssueLite, Member, PageLite } from '../../lib/types'
   import Icon, { type IconName } from '../ui/Icon.svelte'
 
   let { onclose, onOpenSettings }: { onclose: () => void; onOpenSettings: () => void } = $props()
 
-  type Section = 'issue' | 'view' | 'action'
+  type Section = 'person' | 'issue' | 'view' | 'action'
 
   interface Item {
     id: string
@@ -128,6 +129,41 @@
     return sortIssues(filterIssues(issues.allIssues, f), 'relevance', 'desc', ctx)
       .slice(0, 8)
       .map(issueItem)
+  })
+
+  /**
+   * People come from the member directory bootstrap already loaded, so this is
+   * a pool read like every other section — no request on a keystroke.
+   *
+   * A name is matched by the same forgiving rule as views and actions, plus the
+   * email, because half the time the thing you remember about a colleague is
+   * their handle. Exact and prefix hits sort first: typing "sam" should reach
+   * Sam before it reaches Samantha, and the list is capped at five so a large
+   * directory cannot push the issues section off the screen.
+   */
+  const peopleItems = $derived.by<Item[]>(() => {
+    if (!needle) return []
+    const scored: { member: Member; label: string; rank: number }[] = []
+    for (const member of issues.members.values()) {
+      const label = member.display_name || member.name || member.email
+      if (!matches(label) && !matches(member.email)) continue
+      const lower = label.toLowerCase()
+      const local = member.email.toLowerCase().split('@')[0]
+      const rank = lower === needle || local === needle ? 0 : lower.startsWith(needle) || local.startsWith(needle) ? 1 : 2
+      scored.push({ member, label, rank })
+    }
+    return scored
+      .sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label))
+      .slice(0, 5)
+      .map(({ member, label }) => ({
+        id: `p:${member.email}`,
+        section: 'person' as const,
+        label,
+        icon: 'user' as const,
+        sub: member.email,
+        testid: 'palette-person-row',
+        run: () => person.select(member.email),
+      }))
   })
 
   function applyView(config: ViewConfig) {
@@ -246,9 +282,15 @@
     return defs.filter((d) => matches(d.label)).map((d) => ({ ...d, section: 'action' as const }))
   })
 
-  const items = $derived([...issueItems, ...viewItems, ...actionItems])
+  // People lead when they match at all. The group only appears for a query that
+  // names someone, which is a strong statement of intent — and putting it under
+  // eight issue rows would leave the axis undiscoverable, which is the whole
+  // reason it exists. Key and title queries never match a member, so the hot
+  // path (jump to an issue) keeps its top slot.
+  const items = $derived([...peopleItems, ...issueItems, ...viewItems, ...actionItems])
 
   const SECTION_LABEL: Record<Section, string> = {
+    person: t('palette.sectionPeople'),
     issue: t('palette.sectionIssues'),
     view: t('palette.sectionViews'),
     action: t('palette.sectionActions'),

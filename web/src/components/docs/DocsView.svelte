@@ -29,6 +29,21 @@
   const updated = $derived(pages.recentlyUpdated)
   const authors = $derived(pages.byAuthor)
   const count = $derived(tab === 'viewed' ? viewed.length : updated.length)
+
+  let listEl = $state<HTMLElement | null>(null)
+
+  // Someone arriving from a person lands on that person's group rather than at
+  // the top of a recency-ordered list. One shot: the store clears the request
+  // here so a later tab visit opens where it always did.
+  $effect(() => {
+    const author = pages.focusAuthor
+    if (!author || tab !== 'author' || !listEl) return
+    const cssEscape = globalThis.CSS?.escape ?? ((s: string) => s.replace(/["\\]/g, '\\$&'))
+    listEl
+      .querySelector(`[data-author="${cssEscape(author)}"]`)
+      ?.scrollIntoView({ block: 'start' })
+    pages.focusAuthor = null
+  })
 </script>
 
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="docs-view">
@@ -67,7 +82,7 @@
     </button>
   </header>
 
-  <div class="min-h-0 flex-1 overflow-y-auto">
+  <div bind:this={listEl} class="min-h-0 flex-1 overflow-y-auto">
     {#if tab === 'viewed'}
       {#if viewed.length === 0}
         <EmptyState icon="" title={t('docs.viewedEmpty')} hint={t('docs.viewedEmptyHint')} />
