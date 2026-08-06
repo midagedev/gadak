@@ -2,9 +2,32 @@
 
 ## Unreleased
 
+- **The people axis.** Type a name in the ⌘K palette and a PEOPLE group
+  appears; selecting opens a person panel — their recent comments across
+  issues and wiki pages (`GET people/{author_id}/comments/`), plus one-click
+  Assigned / Reported / Docs-by-author entries whose counts match what they
+  open. Web-only this version (TUI.md says so).
+- **Search says why it matched.** Every hit carries
+  `matches[key] = {field: title|body|comment, snippet}` — in the API, `scry
+  search` (human and `--json`), and MCP `scry_search`. The web UI shows the
+  matched comment or body line with the query highlighted; highlighting went
+  word-level to match how FTS actually matches. Comment search always worked —
+  now it looks like it.
 - **Page list excerpt (schema v15).** `pages.excerpt` — a one-line body preview
-  (≤200 runes from ADF plain text) on every `PageLite` for document list UIs;
-  backfilled from existing `body_adf` on migrate.
+  (≤200 runes from ADF plain text) on every `PageLite`; shown on the web and
+  TUI activity doc lists (navigation surfaces stay bare); backfilled from
+  existing `body_adf` on migrate. The bundled demo's page bodies were
+  anglicized where the new line looks (two Korean CJK-search anchors remain,
+  below the fold).
+- **A visual foundation.** A real type scale (8px retired), muted text at
+  6.2:1, the accent reduced to links and what's yours (one screen measured
+  29→1 accent nodes), dark-canvas overlay shadows that actually render, one
+  monochrome icon family replacing every emoji in the chrome, and an avatar
+  palette where red stays reserved for meaning.
+- **One orb everywhere.** The wordmark's sphere sits on the x-height now
+  (was 22% high — measured), gains a core-glow treatment, and every icon
+  (favicon, app icon, dmg) derives from that same SVG. The crescent logo
+  retires.
 
 ## v0.8.0 — 2026-08-06
 
