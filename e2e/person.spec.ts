@@ -5,9 +5,11 @@ import { attachConsoleErrors, gotoApp } from './helpers'
  * The people axis end to end: find a person in the palette, read what they
  * wrote, and leave through one of the quick links.
  *
- * The fixture mirror has exactly one member — Alex Kim / demo@example.com, the
- * account id every comment in the snapshot carries — with 634 comments, 72
- * assigned issues and 534 reported ones.
+ * The fixture mirror seeds four people from assignees with emails (Alex Kim /
+ * demo@example.com, Dana/Marco/Priya @example.com). Comments and reporters are
+ * redistributed across those four account ids (demo-alex|dana|marco|priya).
+ * Alex retains the plurality: 265 comments, 72 assigned, 198 reported
+ * (2026-08-06 데모 저자 분산으로 전제 변경 — was single-member / 634 / 534).
  */
 test.describe('people axis', () => {
   test('palette finds a person, the panel lists their comments, a quick link filters the list', async ({
@@ -59,12 +61,14 @@ test.describe('people axis', () => {
     await expect(rows.first()).toBeVisible({ timeout: 15_000 })
     expect(await rows.count()).toBeGreaterThan(1)
     // Section count is the author's full total, and the cap line says so.
-    await expect(panel.getByText('634', { exact: true })).toBeVisible()
-    await expect(panel.getByTestId('person-comment-cap')).toContainText('634')
+    // 2026-08-06 데모 저자 분산: Alex 코멘트 265 (was 634 — FAIL-first confirmed).
+    await expect(panel.getByText('265', { exact: true })).toBeVisible()
+    await expect(panel.getByTestId('person-comment-cap')).toContainText('265')
 
     // Quick links carry counts computed from the local pool.
     await expect(panel.getByTestId('person-link-assigned')).toContainText('72')
-    await expect(panel.getByTestId('person-link-reported')).toContainText('534')
+    // 2026-08-06 데모 저자 분산: Alex 리포터 198 (was 534).
+    await expect(panel.getByTestId('person-link-reported')).toContainText('198')
     await expect(panel.getByTestId('person-link-docs')).toContainText('6')
 
     // …and the count is exactly what the list lands on.
