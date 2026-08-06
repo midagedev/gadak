@@ -201,7 +201,8 @@ func cmdServe(args []string) error {
 		defer cancel()
 		_ = srv.Shutdown(shctx)
 	}()
-	log.Printf("scry %s listening on http://%s", version, *addr)
+	openURL := browseAddr(*addr)
+	log.Printf("scry %s listening on %s", version, openURL)
 	if p := config.Profile(); p != "" {
 		log.Printf("profile: %s", p)
 	}
@@ -209,7 +210,7 @@ func cmdServe(args []string) error {
 		log.Printf("no project filter — syncing everything this account can see")
 	}
 	if !*noOpen {
-		go openOnceUp(browseAddr(*addr))
+		go openOnceUp(openURL)
 	}
 	err = srv.ListenAndServe()
 	if err == http.ErrServerClosed {
@@ -1072,16 +1073,64 @@ func cmdDemo(args []string) error {
 }
 
 // browseAddr turns a listen address into the URL a person should visit:
-// a blank or wildcard host becomes localhost.
+// a blank or wildcard host becomes localhost; loopback binds prefer
+// scry.localhost when the system resolver maps it only to loopback IPs.
 func browseAddr(addr string) string {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return "http://" + addr
 	}
-	if host == "" || host == "0.0.0.0" || host == "::" {
-		host = "localhost"
+	return prettyOpenURL(host, port, nil)
+}
+
+// hostLookup is the injectable DNS path for prettyOpenURL (tests pass a stub).
+type hostLookup func(ctx context.Context, host string) ([]string, error)
+
+// prettyOpenURL chooses the host shown in the terminal and opened in a browser.
+// Bind address is unchanged — only the display/open URL may become scry.localhost.
+//
+// Rules:
+//   - non-loopback bind (LAN / --allow-remote) → keep that host
+//   - loopback bind (127.0.0.1, ::1, localhost, empty) and lookup("scry.localhost")
+//     returns only loopback IPs → http://scry.localhost:<port>
+//   - lookup timeout, failure, empty, or any non-loopback result → fallback host
+//
+// lookup nil uses the default resolver with a 500ms budget so a slow DNS path
+// never stalls serve startup.
+func prettyOpenURL(bindHost, port string, lookup hostLookup) string {
+	fallback := bindHost
+	if fallback == "" || fallback == "0.0.0.0" || fallback == "::" {
+		fallback = "localhost"
 	}
-	return "http://" + net.JoinHostPort(host, port)
+	fallbackURL := "http://" + net.JoinHostPort(fallback, port)
+
+	// Only rewrite when the process is listening on loopback (or empty host,
+	// which net treats as all-interfaces but is still the local machine).
+	// 0.0.0.0 / :: require --allow-remote and stay on the fallback form.
+	if bindHost != "" && !isLoopback(bindHost) {
+		return fallbackURL
+	}
+
+	if lookup == nil {
+		lookup = lookupHostDefault
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	addrs, err := lookup(ctx, "scry.localhost")
+	if err != nil || len(addrs) == 0 {
+		return fallbackURL
+	}
+	for _, a := range addrs {
+		ip := net.ParseIP(a)
+		if ip == nil || !ip.IsLoopback() {
+			return fallbackURL
+		}
+	}
+	return "http://" + net.JoinHostPort("scry.localhost", port)
+}
+
+func lookupHostDefault(ctx context.Context, host string) ([]string, error) {
+	return net.DefaultResolver.LookupHost(ctx, host)
 }
 
 // openOnceUp opens the browser as soon as the server answers /healthz, so the
