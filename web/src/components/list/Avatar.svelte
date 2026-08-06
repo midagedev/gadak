@@ -27,18 +27,40 @@
   const orgColor = $derived(memberOrgColor(member))
   const tooltip = $derived(memberTooltip(member, displayName))
 
-  // Initials fallback palette (8 steps, dark tones). No indigo: #4f46e5 is the
-  // accent, and an avatar wearing it reads as "this row is yours/actionable".
-  // Its slot went to green-700, the one hue gap the other seven left open.
+  /*
+    Initials fallback palette (8 steps). Rebuilt 2026-08-06 by search rather than
+    by eye, against four things the old set broke:
+
+      · White initials clear AA. Four of the eight old swatches did not —
+        #ca8a04 measured 2.94:1. That caps L* near 49, since 4.5:1 against white
+        means relative luminance 0.175.
+      · One tonal family. The old spread was L* 43-62, so some avatars read as
+        filled and others as washed out. This one is L* 43-50.
+      · Red belongs to meaning, not to people. The old #dc2626 was the reopen
+        badge's own red sitting in the same row as the badge, and #7c3aed
+        reached chroma 102 — louder than any signal it shared a row with. The
+        whole hue band around the reopen red is now excluded, brand indigo with
+        it, and nothing exceeds chroma 72.
+      · Spread around the wheel. Four of the old eight crowded the green-cyan
+        band (hues 124/147/185/233, closest pair only dE2000 17.3); two do now.
+
+    Worst pair here is dE2000 19.1. That is the measured ceiling, not a target
+    missed: at L*~46 with AA-white initials, sRGB has little chroma left in cyan
+    and blue, so eight slots cannot be pushed further apart without dropping to
+    five slots (dE 33.7) or giving up one of the constraints above. The closest
+    approach to a status color is #007eb6 against the "new" blue (dE 11), which
+    survives because the two never share a shape — an 8px dot at the row's head
+    against a 20px lettered disc at its tail.
+  */
   const PALETTE = [
-    '#15803d',
-    '#0891b2',
-    '#0d9488',
-    '#65a30d',
-    '#ca8a04',
-    '#dc2626',
-    '#db2777',
-    '#7c3aed',
+    '#ca045a',
+    '#ba3a0c',
+    '#a86800',
+    '#6e6804',
+    '#2a8800',
+    '#00866c',
+    '#007eb6',
+    '#ac4ec4',
   ]
   const bg = $derived(PALETTE[colorIndex(email ?? name ?? '')])
 
@@ -83,7 +105,7 @@
     </span>
   {:else}
     <span
-      class="flex h-full w-full items-center justify-center border border-dashed border-border-strong text-text-muted"
+      class="flex h-full w-full items-center justify-center border border-dashed border-[#5b6b80] text-text-muted"
       style:font-size="{Math.round(size * 0.5)}px"
       aria-hidden="true"
     >

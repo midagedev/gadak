@@ -14,6 +14,7 @@
   import WatchButton from '../personal/WatchButton.svelte'
   import StatusTransition from '../write/StatusTransition.svelte'
   import AssigneePicker from '../write/AssigneePicker.svelte'
+  import Icon from '../ui/Icon.svelte'
 
   let { issue }: { issue: IssueLite } = $props()
 
@@ -46,7 +47,7 @@
         aria-label={isFavorite ? t('common.unfavorite') : t('common.favorite')}
         title={isFavorite ? t('common.unfavorite') : t('common.favorite')}
       >
-        {isFavorite ? '★' : '☆'}
+        <Icon name="star" size={14} filled={isFavorite} />
       </button>
       <!-- Watch -->
       <WatchButton issueKey={issue.issue_key} />

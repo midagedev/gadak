@@ -7,6 +7,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { me, type RecentVisit } from '../../stores/me.svelte'
+  import Icon from '../ui/Icon.svelte'
 
   interface NavItem {
     issue: IssueLite
@@ -175,7 +176,7 @@
           aria-label={t('personal.unfavoriteAria', { key: item.issue.issue_key })}
           title={t('common.unfavorite')}
         >
-          ★
+          <Icon name="star" size={13} filled />
         </button>
       </div>
     {/each}
@@ -229,7 +230,7 @@
           aria-label={t('personal.favoriteAria', { key: item.issue.issue_key })}
           title={t('common.favorite')}
         >
-          ☆
+          <Icon name="star" size={13} />
         </button>
       </div>
     {/each}

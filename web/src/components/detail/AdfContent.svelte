@@ -81,19 +81,35 @@
     line-height: 1.3;
     color: var(--color-text-primary);
   }
+  /*
+    Body headings must lose to the panel title (20px) that names the thing they
+    are inside. They used to run 18/16/14/13 — the top of that ramp sat 2px under
+    the panel title, near enough that a page opened looking like it had two
+    titles. The ramp now starts 4px below and spends one fewer size, and the
+    bottom two levels separate by color instead of by another size step, since
+    below 13px there is no size left to spend. (2026-08-06)
+  */
   .adf :global(h1) {
-    font-size: 18px;
+    font-size: 16px;
+    margin-top: 1.3em;
   }
   .adf :global(h2) {
-    font-size: 16px;
+    font-size: 14px;
+    margin-top: 1.2em;
   }
   .adf :global(h3) {
-    font-size: 14px;
+    font-size: 13px;
   }
   .adf :global(h4),
   .adf :global(h5),
   .adf :global(h6) {
     font-size: 13px;
+    color: var(--color-text-secondary);
+  }
+  .adf :global(h1:first-child),
+  .adf :global(h2:first-child),
+  .adf :global(h3:first-child) {
+    margin-top: 0;
   }
   .adf :global(a) {
     color: var(--color-accent-text);

@@ -17,6 +17,7 @@
   import { effectiveCategory, emptyConfig, type ViewConfig } from '../../lib/view-config'
   import { feature } from '../../lib/config'
   import { isHostedDemo } from '../../lib/config'
+  import Icon from '../ui/Icon.svelte'
 
   const myEmail = $derived(me.email)
   // Without feed, hide "reported by me" / "feed" — no panel to open.
@@ -63,7 +64,7 @@
       class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={applyAssignee}
     >
-      <span class="flex-none">🙋</span>
+      <Icon name="user" size={15} class="text-text-muted" />
       <span class="min-w-0 flex-1 truncate">{t('personal.myAssignee')}</span>
       <span class="flex-none text-[11px] text-text-muted">{assignedCount}</span>
     </button>
@@ -77,7 +78,7 @@
         : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
       onclick={() => me.openFeed('reporter')}
     >
-      <span class="flex-none">✍️</span>
+      <Icon name="pen" size={15} class="text-text-muted" />
       <span class="min-w-0 flex-1 truncate">{t('personal.myReporter')}</span>
       <span class="flex-none text-[11px] text-text-muted">{reportedCount}</span>
     </button>
@@ -91,7 +92,7 @@
       onclick={() => me.openFeed('all')}
       title={t('personal.feedHint')}
     >
-      <span class="flex-none">📣</span>
+      <Icon name="megaphone" size={15} class="text-text-muted" />
       <span class="min-w-0 flex-1 truncate">{t('common.feed')}</span>
       {#if feedUnreadCount}
         <span

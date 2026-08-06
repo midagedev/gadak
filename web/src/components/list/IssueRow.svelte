@@ -18,6 +18,7 @@
   import { isStale, statusAgeHours } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
   import Avatar from './Avatar.svelte'
+  import Icon from '../ui/Icon.svelte'
   import { prefetchDetail } from '../detail/cache.svelte'
 
   let {
@@ -189,9 +190,13 @@
 
   <!-- Personal markers (favorite/watch) — quiet, before title -->
   {#if isFavorite || isWatching}
-    <span class="flex flex-none items-center gap-0.5 text-micro" aria-hidden="true">
-      {#if isFavorite}<span class="text-status-stale" title={t('common.favorite')}>★</span>{/if}
-      {#if isWatching}<span class="text-accent-text" title={t('common.watching')}>👁</span>{/if}
+    <span class="flex flex-none items-center gap-1" aria-hidden="true">
+      {#if isFavorite}
+        <Icon name="star" size={12} filled class="text-status-stale" title={t('common.favorite')} />
+      {/if}
+      {#if isWatching}
+        <Icon name="eye" size={12} class="text-accent-text" title={t('common.watching')} />
+      {/if}
     </span>
   {/if}
 
@@ -199,7 +204,7 @@
   <span class="min-w-0 flex-1 truncate font-medium text-text-primary" title={issue.summary}>
     {#each summarySegs as seg, i (i)}{#if seg.hit}<mark class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark>{:else}{seg.text}{/if}{/each}
     {#if filters.filters.reopened && issue.reopen_count > 0 && issue.reopen_reason}
-      <!-- Inline reason only on reopen view — elsewhere 🔁 badge+tooltip is enough -->
+      <!-- Inline reason only on reopen view — elsewhere the badge + its tooltip is enough -->
       <span class="ml-1 text-[11px] text-status-reopen/80" title={issue.reopen_reason}>
         · {issue.reopen_reason}
       </span>
@@ -210,11 +215,14 @@
   {#if cols.has('reopen') && issue.reopen_count > 0}
     <button
       type="button"
-      class="flex-none rounded bg-status-reopen/15 px-1.5 py-0.5 text-micro font-medium text-status-reopen transition-colors hover:bg-status-reopen/25"
+      class="flex flex-none items-center gap-1 rounded bg-status-reopen/15 px-1.5 py-0.5 text-micro font-medium text-status-reopen transition-colors hover:bg-status-reopen/25"
       title={issue.reopen_reason ? t('list.reopenCountReason', { n: issue.reopen_count, reason: issue.reopen_reason }) : t('list.reopenCount', { n: issue.reopen_count })}
       onclick={stop(() => filters.toggleFlag('reopened'))}
     >
-      🔁 {issue.reopen_count}
+      <!-- currentColor keeps the glyph inside the badge's red: reopen count is a
+           semantic signal, and the icon must not read cooler than the number. -->
+      <Icon name="rotate-ccw" size={11} />
+      {issue.reopen_count}
     </button>
   {/if}
   {#if cols.has('stale') && stale}
@@ -335,8 +343,9 @@
     </button>
   {/if}
   {#if cols.has('comment_count') && issue.comment_count > 0}
-    <span class="hidden flex-none text-micro text-text-muted sm:inline" title={t('list.commentCount', { n: issue.comment_count })}>
-      💬 {issue.comment_count}
+    <span class="hidden flex-none items-center gap-1 text-micro text-text-muted sm:flex" title={t('list.commentCount', { n: issue.comment_count })}>
+      <Icon name="message-square" size={11} />
+      {issue.comment_count}
     </span>
   {/if}
   {#if cols.has('fix_versions') && issue.fix_versions.length}

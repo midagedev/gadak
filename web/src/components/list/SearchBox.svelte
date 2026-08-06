@@ -14,6 +14,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { fieldEnabled, type MultiField } from '../../lib/view-config'
+  import Icon from '../ui/Icon.svelte'
 
   let text = $state(filters.filters.q)
   let inputEl = $state<HTMLInputElement | null>(null)
@@ -176,7 +177,7 @@
   <div
     class="flex h-9 items-center gap-2 rounded-md border border-border-strong/70 bg-bg-elevated px-3 shadow-sm shadow-black/10 focus-within:border-accent/70"
   >
-    <span class="flex-none text-text-muted" aria-hidden="true">⌕</span>
+    <Icon name="search" size={14} class="text-text-muted" />
     <input
       bind:this={inputEl}
       bind:value={text}

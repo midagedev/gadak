@@ -17,10 +17,11 @@
 
 import { t } from './i18n'
 import { emptyConfig, type ViewConfig } from './view-config'
+import type { IconName } from '../components/ui/Icon.svelte'
 
 export interface BuiltinView {
   id: string // Sidebar active marker and stable key
-  icon: string // Emoji marker
+  icon: IconName // Line glyph, drawn by components/ui/Icon.svelte
   name: string
   hint?: string
   config: ViewConfig
@@ -49,14 +50,14 @@ export function builtinViews(): BuiltinView[] {
   return [
     {
       id: 'all-open',
-      icon: '📋',
+      icon: 'inbox',
       name: t('view.allOpen.name'),
       hint: t('view.allOpen.hint'),
       config: make({ filters: { status_category: ['new', 'inprogress'] } }),
     },
     {
       id: 'unassigned-new',
-      icon: '🆕',
+      icon: 'plus-circle',
       name: t('view.unassignedNew.name'),
       hint: t('view.unassignedNew.hint'),
       config: make({
@@ -68,7 +69,9 @@ export function builtinViews(): BuiltinView[] {
       // group_by is tenant-neutral: epic_key is derived from the hierarchy,
       // never from a site-specific type name.
       id: 'epic-breakdown',
-      icon: '🧭',
+      // Layers, not a compass: the view's whole content is a list sectioned by
+      // epic, and a stack says "grouped" where a compass would say "explore".
+      icon: 'layers',
       name: t('view.epicBreakdown.name'),
       hint: t('view.epicBreakdown.hint'),
       config: make({
@@ -78,7 +81,7 @@ export function builtinViews(): BuiltinView[] {
     },
     {
       id: 'reopened',
-      icon: '🔁',
+      icon: 'rotate-ccw',
       name: t('view.reopened.name'),
       hint: t('view.reopened.hint'),
       config: make({
@@ -88,14 +91,14 @@ export function builtinViews(): BuiltinView[] {
     },
     {
       id: 'stale',
-      icon: '⏳',
+      icon: 'clock',
       name: t('view.stale.name'),
       hint: t('view.stale.hint'),
       config: make({ filters: { stale: true }, display: { sort: 'updated', dir: 'asc' } }),
     },
     {
       id: 'recently-updated',
-      icon: '⚡',
+      icon: 'zap',
       name: t('view.recentlyUpdated.name'),
       hint: t('view.recentlyUpdated.hint'),
       config: make({
@@ -105,7 +108,7 @@ export function builtinViews(): BuiltinView[] {
     },
     {
       id: 'resolved-week',
-      icon: '✅',
+      icon: 'check-circle',
       name: t('view.resolvedWeek.name'),
       hint: t('view.resolvedWeek.hint'),
       config: make({

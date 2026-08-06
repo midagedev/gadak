@@ -133,7 +133,7 @@
         <Onboarding onOpenSettings={() => onOpenSettings?.()} />
       {:else if issues.pool.size === 0}
         <EmptyState
-          icon="📭"
+          icon="inbox"
           title={t('list.emptyTitle')}
           hint={`${t('list.emptyHint')} ${t('list.emptySyncHint')}`}
           actionLabel={t('list.emptyRunSync')}
@@ -141,7 +141,7 @@
         />
       {:else if filters.searchError}
         <EmptyState
-          icon="⚠️"
+          icon="warning"
           title={t('list.searchFailed')}
           hint={filters.searchError}
           actionLabel={t('list.searchRetry')}
@@ -149,17 +149,17 @@
         />
       {:else if filters.serverMatchQuery && extra.length}
         <EmptyState
-          icon="📄"
+          icon="file"
           title={t('list.bodyOnlyTitle')}
           hint={t('list.bodyOnlyHint')}
         />
       {:else if filters.serverMatchQuery && docHits.length}
         <!-- The query only lives in the wiki (docs group above). Saying so beats
              "no issues match", which reads as "nothing found". -->
-        <EmptyState icon="📄" title={t('list.docOnlyTitle')} hint={t('list.docOnlyHint')} />
+        <EmptyState icon="file" title={t('list.docOnlyTitle')} hint={t('list.docOnlyHint')} />
       {:else}
         <EmptyState
-          icon="🔍"
+          icon="search-x"
           title={t('list.noMatchTitle')}
           hint={t('list.noMatchHint')}
           actionLabel={filters.hasFilters ? t('list.clearFilters') : ''}

@@ -66,7 +66,14 @@ function renderUnsupportedNotice(el: HTMLElement): void {
   el.innerHTML = `
     <div style="min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box">
       <div style="max-width:420px;text-align:center;line-height:1.6">
-        <div style="font-size:28px;margin-bottom:12px">🔒</div>
+        <!-- Inline rather than the Icon component: this notice renders instead
+             of booting the app, so no Svelte tree exists yet. -->
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9aa3ad"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true" style="margin:0 auto 12px;display:block">
+          <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
         <h1 style="font-size:16px;margin:0 0 8px">이 브라우저에서는 데모를 열 수 없어요</h1>
         <p style="font-size:13px;color:#9aa3ad;margin:0 0 6px">
           트위터·인스타그램 같은 인앱 브라우저는 데모가 쓰는 브라우저 기능(서비스 워커)을 막아 둡니다.

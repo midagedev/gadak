@@ -15,6 +15,7 @@
   import { searchUsers } from '../../lib/api'
   import type { CommentMention, JiraUser, UploadedAttachment } from '../../lib/types'
   import { isHostedDemo } from '../../lib/config'
+  import Icon from '../ui/Icon.svelte'
 
   /** onsubmitted fires after a comment commits — the quick-comment dialog closes on it. */
   let { issueKey, onsubmitted }: { issueKey: string; onsubmitted?: () => void } = $props()
@@ -360,7 +361,7 @@
           {#if a.is_image}
             <img src={a.content_url} alt="" class="h-5 w-5 rounded object-cover" />
           {:else}
-            <span class="text-[12px]">{a.is_video ? '🎬' : '📎'}</span>
+            <Icon name={a.is_video ? 'film' : 'paperclip'} size={14} class="text-text-muted" />
           {/if}
           <span class="max-w-[160px] truncate">{a.filename}</span>
           <button
@@ -392,9 +393,12 @@
       type="button"
       onclick={() => fileInput?.click()}
       disabled={!me.identified || busy}
-      class="rounded-md border border-border-strong px-2 py-1 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-40"
-      title={t('write.attachFile')}>{t('write.attachEmoji')}</button
+      class="flex items-center gap-1.5 rounded-md border border-border-strong px-2 py-1 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-40"
+      title={t('write.attachFile')}
     >
+      <Icon name="paperclip" size={13} />
+      {t('write.attachLabel')}
+    </button>
     <span class="mr-auto text-[11px] text-text-muted">⌘Enter</span>
     <button
       type="button"

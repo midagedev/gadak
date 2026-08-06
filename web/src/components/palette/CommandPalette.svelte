@@ -33,6 +33,7 @@
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
   import type { IssueLite, PageLite } from '../../lib/types'
+  import Icon, { type IconName } from '../ui/Icon.svelte'
 
   let { onclose, onOpenSettings }: { onclose: () => void; onOpenSettings: () => void } = $props()
 
@@ -43,7 +44,7 @@
     section: Section
     /** Body used for match + display. */
     label: string
-    icon?: string
+    icon?: IconName
     /** Leading chip — what kind of thing the row opens (documents only; an
      *  issue says so with its monospace key). */
     badge?: string
@@ -137,7 +138,7 @@
 
   const viewItems = $derived.by<Item[]>(() => {
     const out: Item[] = []
-    const push = (id: string, name: string, sub: string, config: ViewConfig, icon?: string) => {
+    const push = (id: string, name: string, sub: string, config: ViewConfig, icon?: IconName) => {
       if (matches(name)) out.push({ id, section: 'view', label: name, sub, icon, run: () => applyView(config) })
     }
     for (const v of builtinViews()) push(`vb:${v.id}`, v.name, t('palette.viewBuiltin'), v.config, v.icon)
@@ -302,7 +303,7 @@
     aria-label={t('palette.title')}
   >
     <div class="flex h-11 flex-none items-center gap-2 border-b border-border-subtle px-3">
-      <span class="flex-none text-text-muted" aria-hidden="true">⌕</span>
+      <Icon name="search" size={15} class="text-text-muted" />
       <input
         bind:this={inputEl}
         bind:value={query}
@@ -355,7 +356,9 @@
             run(item)
           }}
         >
-          {#if item.icon}<span class="flex-none" aria-hidden="true">{item.icon}</span>{/if}
+          {#if item.icon}
+            <Icon name={item.icon} size={14} class={i === idx ? 'text-text-secondary' : 'text-text-muted'} />
+          {/if}
           {#if item.badge}
             <span
               class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-text-muted"

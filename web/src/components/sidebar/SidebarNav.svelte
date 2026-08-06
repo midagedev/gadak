@@ -18,6 +18,7 @@
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
   import FavoritesNav from '../personal/FavoritesNav.svelte'
+  import Icon from '../ui/Icon.svelte'
 
   /** Open server settings dialog — App.svelte mounts the dialog itself. */
   let { onOpenSettings }: { onOpenSettings: () => void } = $props()
@@ -188,9 +189,7 @@
       class="flex w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-bg-elevated disabled:text-text-muted disabled:hover:bg-bg-elevated"
       title={isHostedDemo() ? t('app.demoWriteDisabled') : t('sidebar.newIssueTitle')}
     >
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-        <path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-      </svg>
+      <Icon name="plus" size={13} />
       {t('sidebar.newIssue')}
     </button>
   </div>
@@ -308,7 +307,13 @@
           title={v.hint}
           onclick={() => applyView(v.config)}
         >
-          <span class="flex-none text-[13px]">{v.icon}</span>
+          <!-- The icon is orientation, not content: it stays a tier below the
+               label it sits next to, and only rises with the row it marks. -->
+          <Icon
+            name={v.icon}
+            size={15}
+            class={activeBuiltin === v.id ? 'text-text-secondary' : 'text-text-muted'}
+          />
           <span class="min-w-0 flex-1 truncate">{v.name}</span>
           <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
             {formatNumber(builtinCounts.get(v.id) ?? 0)}
@@ -403,7 +408,7 @@
              and what you had open, are questions no single space answers. -->
         <button
           type="button"
-          class="flex min-h-7 w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {pages.docsView
+          class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {pages.docsView
             ? 'bg-bg-active text-text-primary'
             : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
           aria-pressed={pages.docsView}
@@ -411,45 +416,29 @@
           data-testid="docs-documents"
           onclick={openDocuments}
         >
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 12 12"
-            fill="none"
-            aria-hidden="true"
-            class="flex-none text-text-muted"
-          >
-            <path
-              d="M3 1.5h4L9 3.8V10a.5.5 0 01-.5.5h-5A.5.5 0 013 10V2a.5.5 0 010-.5z"
-              stroke="currentColor"
-              stroke-width="1.1"
-              stroke-linejoin="round"
-            />
-            <path d="M6.6 1.7v2.2h2.2" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" />
-          </svg>
+          <Icon
+            name="file"
+            size={15}
+            class={pages.docsView ? 'text-text-secondary' : 'text-text-muted'}
+          />
           <span class="min-w-0 flex-1 truncate">{t('sidebar.docsAll')}</span>
         </button>
         <!-- Spaces: collapsed, and one level deep. Seeing every container at all
              times was the thing that read as too much. -->
         <button
           type="button"
-          class="flex min-h-7 w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
           aria-expanded={spacesOpen}
           title={t('sidebar.docsSpacesTitle')}
           data-testid="docs-spaces"
           onclick={() => (spacesOpen = !spacesOpen)}
         >
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 10 10"
-            fill="none"
-            aria-hidden="true"
+          <span
             class="flex-none text-text-muted transition-transform duration-150"
             style={spacesOpen ? 'transform: rotate(90deg)' : ''}
           >
-            <path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
+            <Icon name="chevron-right" size={15} />
+          </span>
           <span class="min-w-0 flex-1 truncate">{t('sidebar.docsSpaces')}</span>
           <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
             {formatNumber(pages.bySpace.length)}
@@ -459,7 +448,7 @@
           {#each pages.bySpace as group (group.space)}
             <button
               type="button"
-              class="flex min-h-7 w-full items-center gap-1.5 rounded-md py-1.5 pl-[30px] pr-3 text-left text-[12px] transition-colors {pages.spaceView ===
+              class="flex min-h-7 w-full items-center gap-2 rounded-md py-1.5 pl-[35px] pr-3 text-left text-[12px] transition-colors {pages.spaceView ===
               group.space
                 ? 'bg-bg-active text-text-primary'
                 : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -525,16 +514,7 @@
       onclick={onOpenSettings}
       title={t('sidebar.serverSettings')}
     >
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke="currentColor" stroke-width="1.2" />
-        <path
-          d="M8 1.5l.7 1.6 1.7-.5.3 1.8 1.8.3-.5 1.7 1.6.7-1.6.7.5 1.7-1.8.3-.3 1.8-1.7-.5L8 14.5l-.7-1.6-1.7.5-.3-1.8-1.8-.3.5-1.7L1.9 8l1.6-.7-.5-1.7 1.8-.3.3-1.8 1.7.5L8 1.5z"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linejoin="round"
-          opacity="0.5"
-        />
-      </svg>
+      <Icon name="settings" size={14} />
       {t('sidebar.settings')}
     </button>
     {#if me.identified}
@@ -551,20 +531,7 @@
           title={write.configured ? t('sidebar.jiraCreds') : t('sidebar.jiraCredsMissing')}
           aria-label={t('sidebar.jiraCreds')}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"
-              stroke="currentColor"
-              stroke-width="1.2"
-            />
-            <path
-              d="M8 1.5l.7 1.6 1.7-.5.3 1.8 1.8.3-.5 1.7 1.6.7-1.6.7.5 1.7-1.8.3-.3 1.8-1.7-.5L8 14.5l-.7-1.6-1.7.5-.3-1.8-1.8-.3.5-1.7L1.9 8l1.6-.7-.5-1.7 1.8-.3.3-1.8 1.7.5L8 1.5z"
-              stroke="currentColor"
-              stroke-width="1.2"
-              stroke-linejoin="round"
-              opacity="0.5"
-            />
-          </svg>
+      <Icon name="settings" size={14} />
         </button>
       </div>
     {:else if isHostedDemo()}
