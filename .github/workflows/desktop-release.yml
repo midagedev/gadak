@@ -82,7 +82,17 @@ jobs:
         run: |
           set -euo pipefail
           KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
-          printf '%s\n' "$MACOS_NOTARY_KEY" > "$KEY_PATH"
+          # The secret is stored base64-encoded (what goreleaser/quill consume);
+          # accept raw PEM too so a rotated secret in either shape keeps working.
+          if printf '%s' "$MACOS_NOTARY_KEY" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$MACOS_NOTARY_KEY" > "$KEY_PATH"
+          else
+            printf '%s' "$MACOS_NOTARY_KEY" | base64 --decode > "$KEY_PATH"
+            grep -q 'BEGIN PRIVATE KEY' "$KEY_PATH" || {
+              echo "MACOS_NOTARY_KEY is neither PEM nor base64-encoded PEM" >&2
+              exit 1
+            }
+          fi
           chmod 600 "$KEY_PATH"
           {
             echo "SCRY_NOTARY_KEY=$KEY_PATH"
