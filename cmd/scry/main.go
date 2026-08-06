@@ -12,9 +12,9 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -33,6 +33,7 @@ import (
 	scry "github.com/midagedev/scry"
 	"github.com/midagedev/scry/internal/attachcache"
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/jira"
 	"github.com/midagedev/scry/internal/selfupdate"
 	"github.com/midagedev/scry/internal/server"
 	"github.com/midagedev/scry/internal/snapshot"
@@ -185,17 +186,31 @@ func cmdServe(args []string) error {
 	// projects means "everything this account can see". --no-sync opts out
 	// (fixtures with a fake token must pass it). --sync remains a silent alias
 	// when the loop would start anyway; with no credential it still prints the
-	// old guidance line. Workspace handlers have no background loop of their own.
-	startSync := !*noSync && cfg.HasCredential()
-	if *withSync && !startSync && !*noSync {
-		log.Printf("--sync ignored: run `scry init` first")
-	}
-	if startSync {
-		go func() {
-			if err := syncer.Watch(ctx, cfg, db, syncer.Options{Log: func(s string) { log.Print(s) }}); err != nil && ctx.Err() == nil {
-				log.Printf("sync loop stopped: %v", err)
+	// old guidance line. When serve starts without a credential, register the
+	// same starter so PUT onboarding/connect/ can kick off Watch once after
+	// the first successful save. Workspace handlers have no background loop.
+	if !*noSync {
+		startWatch := func() {
+			go func() {
+				// Reload so a late setup does not capture a stale empty config.
+				cur, err := config.Load()
+				if err != nil {
+					log.Printf("sync loop: load config: %v", err)
+					return
+				}
+				if err := syncer.Watch(ctx, cur, db, syncer.Options{Log: func(s string) { log.Print(s) }}); err != nil && ctx.Err() == nil {
+					log.Printf("sync loop stopped: %v", err)
+				}
+			}()
+		}
+		if cfg.HasCredential() {
+			startWatch()
+		} else {
+			api.SetSyncStarter(startWatch)
+			if *withSync {
+				log.Printf("--sync ignored: run `scry init` first")
 			}
-		}()
+		}
 	}
 
 	// Bind before serving so EADDRINUSE can be handled: same-profile scry →
@@ -451,10 +466,16 @@ func cmdInit(args []string) error {
 	if !cfg.HasCredential() {
 		return fmt.Errorf("site, email, and token are all required")
 	}
-	name, err := verifyCredential(cfg)
+	// Same verification as the server credential / onboarding endpoints (jira /myself).
+	me, err := jira.New(cfg.Site, cfg.Email, cfg.Token).Myself(context.Background())
 	if err != nil {
+		if errors.Is(err, jira.ErrAuth) {
+			// Restore the pre-jira.Myself hint: org API keys are a common mistake.
+			return fmt.Errorf("credential check failed: %w (org API keys do not work; use a user token)", err)
+		}
 		return fmt.Errorf("credential check failed: %w", err)
 	}
+	name := me.DisplayName
 	if err := cfg.Save(); err != nil {
 		return err
 	}
@@ -483,33 +504,6 @@ func cmdInit(args []string) error {
 	}
 	fmt.Println("next: scry sync")
 	return nil
-}
-
-// verifyCredential calls /rest/api/3/myself directly; the sync client is not
-// needed for a single authenticated GET.
-func verifyCredential(cfg *config.Config) (string, error) {
-	req, err := http.NewRequest("GET", cfg.Site+"/rest/api/3/myself", nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", "Basic "+
-		base64.StdEncoding.EncodeToString([]byte(cfg.Email+":"+cfg.Token)))
-	req.Header.Set("Accept", "application/json")
-	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("HTTP %d from /myself (org API keys do not work; use a user token)", resp.StatusCode)
-	}
-	var me struct {
-		DisplayName string `json:"displayName"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&me); err != nil {
-		return "", err
-	}
-	return me.DisplayName, nil
 }
 
 func cmdSync(args []string) error {

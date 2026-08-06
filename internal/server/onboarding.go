@@ -57,6 +57,8 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "email_and_token_required")
 		return
 	}
+	// Snapshot before save: first credential may need to kick the serve Watch loop.
+	hadCredential := s.config().HasCredential()
 	me, err := jira.New(site, email, token).Myself(r.Context())
 	if err != nil {
 		if errors.Is(err, jira.ErrAuth) {
@@ -76,6 +78,8 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	s.cfg.Store(&next)
 	s.gen.Add(1)
+	// When serve started without a credential, start the background sync once.
+	s.fireSyncStarterIfNeeded(hadCredential)
 	// Same credential document the settings UI reads — never the token itself.
 	writeJSON(w, http.StatusOK, credential(&next))
 }

@@ -59,6 +59,12 @@ type server struct {
 	updateMu   sync.Mutex
 	updateInfo selfupdate.Info
 	updateOK   bool
+
+	// syncStarter starts the background sync loop after a first-run credential
+	// is saved via PUT onboarding/connect/. Set once by cmdServe when serve
+	// starts without a credential; fired at most once via syncStarterOnce.
+	syncStarter     func()
+	syncStarterOnce sync.Once
 }
 
 // Handler is the HTTP API plus optional update-check control. It implements
