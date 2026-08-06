@@ -65,6 +65,18 @@ export function builtinViews(): BuiltinView[] {
       }),
     },
     {
+      // group_by is tenant-neutral: epic_key is derived from the hierarchy,
+      // never from a site-specific type name.
+      id: 'epic-breakdown',
+      icon: '🧭',
+      name: t('view.epicBreakdown.name'),
+      hint: t('view.epicBreakdown.hint'),
+      config: make({
+        filters: { status_category: ['new', 'inprogress'] },
+        display: { group_by: 'epic' },
+      }),
+    },
+    {
       id: 'reopened',
       icon: '🔁',
       name: t('view.reopened.name'),

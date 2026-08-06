@@ -54,7 +54,7 @@
 
 <div class="mb-3">
   <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-    My Issues
+    {t('personal.myIssues')}
   </div>
 
   {#if me.identified}
