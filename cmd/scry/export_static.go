@@ -280,6 +280,9 @@ func getBytes(h http.Handler, method, path string) ([]byte, error) {
 
 func doReq(h http.Handler, method, path string) ([]byte, int, error) {
 	req := httptest.NewRequest(method, path, nil)
+	// httptest defaults Host to example.com, which the server's browser guard
+	// rejects; these are in-process requests, so present as loopback.
+	req.Host = "127.0.0.1"
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	res := rec.Result()
