@@ -27,8 +27,8 @@ Measured 2026-08-06 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 
 | Asset | Size | Bytes (`ls -la`) | Duration | Resolution / fps |
 | --- | --- | --- | --- | --- |
-| `web-demo.gif` | 7.16 MB | 7162838 | 24.0 s | 960×600 @ 8 fps, 96-color palette |
-| `web-demo.mp4` | 1.29 MB | 1290689 | 24.0 s | 1024×640 h264 |
+| `web-demo.gif` | 6.55 MB | 6549601 | 22.4 s | 960×600 @ 9 fps, 128-color palette |
+| `web-demo.mp4` | 0.95 MB | 952142 | 22.4 s | 1024×640 h264 |
 | `tui.gif` | 4.73 MB | 4728239 | 17.0 s | 1080×620, 77×24 cells, 64 colors |
 | `agent.gif` | 305 KB | 304708 | 31.5 s | 1080×620, 77×24 cells, 64 colors |
 
@@ -109,16 +109,23 @@ directly, and CI does not regenerate media.
 
 ### Web UI (`web-demo`)
 
-~24 s of readable motion, viewport **1024×640** @ `deviceScaleFactor: 2`:
+~22 s of readable motion, viewport **1024×640** @ `deviceScaleFactor: 2`:
 
 1. Boot — 534-issue list
 2. Instant local search with per-keystroke narrowing and `<mark>` highlights
-3. The same box on Enter: server search answering with a **Documents** group,
-   then a wiki page open in the document panel with its breadcrumb trail
-4. Sidebar **DOCS** tree — a space, then one level under it
-5. Breakdown → **Epic**: the list re-sectioned by epic, headers carrying the
-   epic key and summary
-6. ⌘K palette → an epic → its rollup (`4 of 12 done`) and child list
+3. Sidebar **Documents** — the Viewed tab, then **Updated** (every page,
+   newest edit first, rows reading `author · time · in space`), then one
+   page open in the document panel with its breadcrumb trail
+4. **Spaces** disclosure — a space as a flat list, then its Tree toggle,
+   one branch opened
+5. Sidebar **Epics** built-in view: the open backlog re-sectioned by epic in
+   one click, headers carrying the epic key and summary
+
+Re-shoot trap (2026-08-06): the demo config reuses an already-running 7877
+server (`reuseExistingServer: true`), so a stale fixture prints an orange
+`Sync delayed` chip into every frame. Restart the server (or re-run the
+`SCRY_FRESHEN` block in `e2e/serve.sh` against `e2e/.tmp/home/scry.db`)
+before recording.
 
 Note the video size in `e2e/demo/playwright.config.ts` must equal the viewport.
 Playwright does not upscale into a larger video frame — it pins the capture in
