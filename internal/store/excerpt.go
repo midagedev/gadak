@@ -36,6 +36,10 @@ func plainTextFromADF(raw string) string {
 				}
 			}
 			walk(v["content"])
+			// Block boundaries must not fuse ("Why nowIntegrators"): a space
+			// after every container node; text leaves stay contiguous, and the
+			// whitespace normalizer collapses the extras.
+			b.WriteByte(' ')
 		}
 	}
 	walk(doc)
