@@ -103,6 +103,17 @@ from changelog ch where ch.field = 'assignee'
 group by ch.author order by reassignments desc limit 10
 ```
 
+**Everything one person said lately** — comments cross issues and wiki pages,
+so this is one query here and two products upstream (the web UI's person
+panel runs on the same axis):
+
+```sql
+select i.key, i.kind, substr(c.body_text, 1, 80) as opening, c.created_at
+from comments c join items i on i.id = c.item_id
+where c.author = 'Dana Whitfield'
+order by c.created_at desc limit 20
+```
+
 ## Releases
 
 **Everything targeted at one fix version** (JQL cannot do ranges or joins over

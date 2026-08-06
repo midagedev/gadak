@@ -28,6 +28,19 @@
   (was 22% high — measured), gains a core-glow treatment, and every icon
   (favicon, app icon, dmg) derives from that same SVG. The crescent logo
   retires.
+- **Geometry, not just color.** Every control lands on a two-step height grid
+  (32px primary / 24px secondary — one toolbar row used to hold four heights),
+  corner radius follows nesting depth, the two native selects wear the app's
+  own chevron, and panel spacing sits on a 4/8/12/16/20 scale. Detail-panel
+  headers are pinned by structure now (the old sticky header slid off after a
+  screen of scrolling), consecutive comments by one author group under a
+  single header with each continuation keeping a visible timestamp, and
+  document body headings step 20/15/13 instead of hiding a 1px hierarchy.
+  Every text glyph pretending to be an icon (✕ ✓ ›) became a real one.
+- **The demo has more than one person in it.** The bundled snapshot's
+  comments and reports were all Alex Kim's; they now spread across four
+  personas with linked emails, so the people axis is explorable out of the
+  box.
 
 ## v0.8.0 — 2026-08-06
 
