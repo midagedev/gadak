@@ -67,26 +67,61 @@ func (c *Client) write(ctx context.Context, method, path string, body, out any) 
 	return c.call(ctx, method, path, body, out, true)
 }
 
+// Raw sends a request and returns the HTTP status and response body without
+// JSON decoding. Path must be site-relative (leading "/"); absolute URLs and
+// scheme-relative paths are rejected so the Authorization header never leaves
+// the configured site. mutating selects the write retry policy (429/503 only).
+//
+// A completed HTTP response always returns err == nil with the status and body
+// (including non-2xx). err is reserved for transport failures and bad paths.
+func (c *Client) Raw(ctx context.Context, method, path string, body []byte, mutating bool) (status int, out []byte, err error) {
+	return c.doRaw(ctx, method, path, body, len(body) > 0, mutating)
+}
+
 func (c *Client) call(ctx context.Context, method, path string, body, out any, mutating bool) error {
 	var payload []byte
-	if body != nil {
+	hasBody := body != nil
+	if hasBody {
 		var err error
 		if payload, err = json.Marshal(body); err != nil {
 			return err
 		}
+	}
+	status, data, err := c.doRaw(ctx, method, path, payload, hasBody, mutating)
+	if err != nil {
+		return err
+	}
+	statusLine := fmt.Sprintf("%d %s", status, http.StatusText(status))
+	switch {
+	case status == http.StatusUnauthorized, status == http.StatusForbidden:
+		return fmt.Errorf("%s %s: %w (%s)", method, path, ErrAuth, statusLine)
+	case status >= 300:
+		return apiError(method, path, status, statusLine, data)
+	}
+	if out == nil || len(data) == 0 {
+		return nil
+	}
+	return json.Unmarshal(data, out)
+}
+
+// doRaw is the single HTTP path for call and Raw: retries, backoff, and usage.
+func (c *Client) doRaw(ctx context.Context, method, path string, payload []byte, hasBody, mutating bool) (int, []byte, error) {
+	fullURL, err := c.resolveURL(path)
+	if err != nil {
+		return 0, nil, err
 	}
 	retries := retryable
 	if mutating {
 		retries = func(code int) bool { return code == 429 || code == 503 }
 	}
 	for attempt := 0; ; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, method, c.base+path, bytes.NewReader(payload))
+		req, err := http.NewRequestWithContext(ctx, method, fullURL, bytes.NewReader(payload))
 		if err != nil {
-			return err
+			return 0, nil, err
 		}
 		req.Header.Set("Authorization", c.auth)
 		req.Header.Set("Accept", "application/json")
-		if body != nil {
+		if hasBody {
 			req.Header.Set("Content-Type", "application/json")
 		}
 		res, err := c.HTTP.Do(req)
@@ -95,36 +130,75 @@ func (c *Client) call(ctx context.Context, method, path string, body, out any, m
 		if err != nil {
 			if attempt < c.Retries-1 && !mutating {
 				if werr := c.wait(ctx, attempt, ""); werr != nil {
-					return werr
+					return 0, nil, werr
 				}
 				c.usage.noteRetry()
 				continue
 			}
-			return fmt.Errorf("%s %s: %w", method, path, err)
+			return 0, nil, fmt.Errorf("%s %s: %w", method, path, err)
 		}
 		data, readErr := io.ReadAll(io.LimitReader(res.Body, 64<<20))
 		res.Body.Close()
 		c.usage.noteStatus(res.StatusCode)
-		switch {
-		case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
-			return fmt.Errorf("%s %s: %w (%s)", method, path, ErrAuth, res.Status)
-		case retries(res.StatusCode) && attempt < c.Retries-1:
+		if retries(res.StatusCode) && attempt < c.Retries-1 {
 			if werr := c.wait(ctx, attempt, res.Header.Get("Retry-After")); werr != nil {
-				return werr
+				return 0, nil, werr
 			}
 			c.usage.noteRetry()
 			continue
-		case res.StatusCode >= 300:
-			return apiError(method, path, res.StatusCode, res.Status, data)
 		}
-		if readErr != nil {
-			return fmt.Errorf("%s %s: %w", method, path, readErr)
+		if res.StatusCode >= 200 && res.StatusCode < 300 && readErr != nil {
+			return 0, nil, fmt.Errorf("%s %s: %w", method, path, readErr)
 		}
-		if out == nil || len(data) == 0 {
-			return nil
-		}
-		return json.Unmarshal(data, out)
+		return res.StatusCode, data, nil
 	}
+}
+
+// resolveURL joins path onto the configured site and refuses anything that
+// would send the Authorization header off-host (absolute URL, scheme-relative
+// "//host", or a ResolveReference host change).
+func (c *Client) resolveURL(path string) (string, error) {
+	if err := rejectAbsolutePath(path); err != nil {
+		return "", err
+	}
+	base, err := url.Parse(c.base)
+	if err != nil {
+		return "", fmt.Errorf("jira: bad site URL: %w", err)
+	}
+	// Concatenate like the original call() did. ResolveReference would replace
+	// any base path (and is unnecessary for a site-relative path).
+	full := c.base + path
+	resolved, err := url.Parse(full)
+	if err != nil {
+		return "", fmt.Errorf("jira: bad path %q: %w", path, err)
+	}
+	if resolved.Scheme != base.Scheme || !strings.EqualFold(resolved.Host, base.Host) {
+		return "", fmt.Errorf("refusing request: resolved host %q is not the configured site", resolved.Host)
+	}
+	if resolved.User != nil {
+		return "", fmt.Errorf("refusing request: userinfo in URL is not allowed")
+	}
+	return full, nil
+}
+
+// rejectAbsolutePath blocks paths that would re-target the request before
+// url.ResolveReference (https://…, http://…, //host/…).
+func rejectAbsolutePath(path string) error {
+	if path == "" {
+		return fmt.Errorf("path is required and must start with /")
+	}
+	lower := strings.ToLower(path)
+	// Order: absolute / scheme-relative first so the error names the real risk
+	// (token on a foreign host), then require a site-relative leading slash.
+	if strings.HasPrefix(path, "//") ||
+		strings.HasPrefix(lower, "http://") ||
+		strings.HasPrefix(lower, "https://") {
+		return fmt.Errorf("absolute URLs are not allowed — pass a path starting with / so the request stays on your configured site")
+	}
+	if !strings.HasPrefix(path, "/") {
+		return fmt.Errorf("path must start with / (got %q)", path)
+	}
+	return nil
 }
 
 func retryable(code int) bool {

@@ -1232,6 +1232,9 @@ Reading the mirror (no network; see AGENTS.md):
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
   mcp        MCP server on stdio; mcp install <client> pins profile (docs/MCP.md)
 
+Atlassian REST escape hatch (needs a credential; not on MCP):
+  api        raw REST call    [METHOD] <PATH> [--query k=v] [--data …] [--write] [--status]
+
 Writing through to Jira (needs a credential):
   comment    add a comment    <KEY> -m <text|-> [--json]
   transition change status    <KEY> <status-or-id> [--json]
@@ -1279,6 +1282,8 @@ func main() {
 		err = cmdSync(args[1:])
 	case "sql":
 		err = cmdSQL(args[1:])
+	case "api":
+		err = cmdAPI(args[1:])
 	case "issue":
 		err = cmdIssue(args[1:])
 	case "open":

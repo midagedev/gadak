@@ -236,3 +236,37 @@ func commentJSON(id, text, when string) map[string]any {
 		},
 	}
 }
+
+func TestRawGETUnderWiki(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/wiki/api/v2/spaces" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+		if r.URL.Query().Get("limit") != "5" {
+			t.Errorf("limit = %q", r.URL.Query().Get("limit"))
+		}
+		w.Write([]byte(`{"results":[]}`))
+	}))
+	status, body, err := c.Raw(context.Background(), http.MethodGet, "/api/v2/spaces?limit=5", nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != 200 || string(body) != `{"results":[]}` {
+		t.Fatalf("status=%d body=%s", status, body)
+	}
+}
+
+func TestRawRejectsAbsoluteURL(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("must not send: %s", r.URL)
+	}))
+	for _, path := range []string{"https://evil.example/x", "//evil.example/x"} {
+		_, _, err := c.Raw(context.Background(), http.MethodGet, path, nil, false)
+		if err == nil {
+			t.Errorf("%q: want error", path)
+		}
+		if strings.Contains(err.Error(), "secret-token") {
+			t.Errorf("token leaked in %v", err)
+		}
+	}
+}

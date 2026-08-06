@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **`scry api` — raw Atlassian REST escape hatch.** Call any site-relative
+  path with the stored credential when the mirror does not cover the
+  endpoint (watchers, worklogs, sprints, user search, Confluence REST under
+  `/wiki/`, …). Read (`GET`/`HEAD`) by default; other methods need
+  `--write`. Absolute URLs are refused so the token cannot be aimed at a
+  foreign host. Response body is printed unchanged; non-2xx still writes the
+  body and exits 1. Usage counts flush into `api_usage`. CLI only — not on
+  MCP. See `docs/AGENT_ACCESS.md` and `SECURITY.md`.
+
 ## v0.9.0 — 2026-08-06
 
 - **The people axis.** Type a name in the ⌘K palette and a PEOPLE group

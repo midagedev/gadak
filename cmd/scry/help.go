@@ -11,6 +11,7 @@ import (
 // helps has one entry per name; tests assert the two sets stay equal so a
 // new command without help (or a leftover help for a removed command) fails CI.
 var commandNames = []string{
+	"api",
 	"assign",
 	"comment",
 	"demo",
@@ -166,6 +167,17 @@ var helps = map[string]cmdHelp{
 			"scry sql --csv \"select key from issues where status_category = 'done'\"",
 		},
 		seeAlso: []string{"scry issue", "scry search", "scry status"},
+	},
+	"api": {
+		summary: "call Atlassian REST with the stored credential (escape hatch for endpoints the mirror does not cover)",
+		usage:   "scry [--profile <name>] api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status]",
+		examples: []string{
+			"scry api /rest/api/3/myself",
+			"scry api GET /rest/api/3/issue/ABC-1/watchers",
+			"scry api GET /wiki/api/v2/spaces --query limit=5",
+			"scry api POST /rest/api/3/issue/ABC-1/worklog --data @wl.json --write",
+		},
+		seeAlso: []string{"scry issue", "scry comment", "scry fields"},
 	},
 	"issue": {
 		summary: "print full detail for one issue from the local mirror",

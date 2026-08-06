@@ -76,6 +76,42 @@ use `scry status --json` when you need an explicit freshness check.)
 - **Do not poll.** `sync_state.version` changes only when something changed.
 - **Remember it is a mirror, not an archive.** Deleted issues disappear from it.
 
+## Escape hatch: `scry api`
+
+When the mirror does not model what you need — watchers, worklogs, sprint
+boards, user search, label bulk reads, Confluence REST that is not in the page
+mirror — use **`scry api`**. It sends the request with the profile's stored
+credential and prints the response body unchanged on stdout so an agent can
+parse it. It is not a second product surface; it is a deliberate hole in the
+fence for endpoints scry has not chosen to model.
+
+```bash
+# Who am I (credential check / account id)
+scry api /rest/api/3/myself
+
+# Watchers on one issue (not in the mirror)
+scry api GET /rest/api/3/issue/ABC-1/watchers
+
+# Confluence spaces (path prefix /wiki/ → Confluence client; needs confluence enabled)
+scry api GET /wiki/api/v2/spaces --query limit=5
+
+# Worklog write — requires --write; uses write retry policy (429/503 only)
+scry api POST /rest/api/3/issue/ABC-1/worklog --data @wl.json --write
+```
+
+**Read by default.** `GET` and `HEAD` run as-is. Any other method is refused
+unless you pass **`--write`**, which also switches to the write retry policy
+(no blind retry on 500 — a lost response may already have applied). Absolute
+URLs (`https://…`, `//host/…`) are rejected so a prompt-injected path cannot
+walk the token off your site.
+
+**Not on MCP.** `scry api` is CLI-only. MCP stays the four read tools
+(`scry_query`, `scry_search`, `scry_issue`, `scry_status`) with no write tools
+and no raw proxy. A host without a shell is not given a full-credential REST
+tunnel: that would expand the blast radius of a compromised or confused agent
+beyond what the mirror contracts describe. If you need the escape hatch, grant
+the agent a shell and `scry api`.
+
 ## Why MCP is last, not first
 
 MCP is shipped (`scry mcp`) for hosts without a shell — Claude Desktop and the

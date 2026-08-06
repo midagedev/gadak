@@ -270,3 +270,138 @@ func decode(t *testing.T, r *http.Request, out any) {
 		t.Fatalf("decode request: %v", err)
 	}
 }
+
+func TestRawGETReturnsBody(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/rest/api/3/myself" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+		if r.Header.Get("Authorization") == "" {
+			t.Error("missing Authorization")
+		}
+		w.Write([]byte(`{"accountId":"abc"}`))
+	}))
+	status, body, err := c.Raw(context.Background(), http.MethodGet, "/rest/api/3/myself", nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != 200 {
+		t.Errorf("status = %d", status)
+	}
+	if string(body) != `{"accountId":"abc"}` {
+		t.Errorf("body = %s", body)
+	}
+	if u := c.Usage(); u.Requests != 1 {
+		t.Errorf("Requests = %d, want 1", u.Requests)
+	}
+}
+
+func TestRawRejectsAbsoluteURL(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("must not send request for absolute path: %s", r.URL)
+	}))
+	for _, path := range []string{
+		"https://evil.example/steal",
+		"http://evil.example/steal",
+		"//evil.example/steal",
+	} {
+		status, body, err := c.Raw(context.Background(), http.MethodGet, path, nil, false)
+		if err == nil {
+			t.Errorf("%q: want error, got status=%d body=%s", path, status, body)
+			continue
+		}
+		if !strings.Contains(err.Error(), "absolute") && !strings.Contains(err.Error(), "must start with /") {
+			t.Errorf("%q: err = %v", path, err)
+		}
+		if strings.Contains(err.Error(), "secret-token") {
+			t.Errorf("%q: error leaked token", path)
+		}
+	}
+	if u := c.Usage(); u.Requests != 0 {
+		t.Errorf("rejected paths must not leave the process: Requests=%d", u.Requests)
+	}
+}
+
+func TestRawWriteRetryPolicy(t *testing.T) {
+	// Write: 500 is not retried (might have applied); 429 is.
+	t.Run("500 not retried", func(t *testing.T) {
+		calls := 0
+		c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls++
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"errorMessages":["boom"]}`))
+		}))
+		status, body, err := c.Raw(context.Background(), http.MethodPost, "/rest/api/3/issue/A-1/worklog",
+			[]byte(`{"timeSpent":"1h"}`), true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status != 500 {
+			t.Errorf("status = %d", status)
+		}
+		if !strings.Contains(string(body), "boom") {
+			t.Errorf("body = %s", body)
+		}
+		if calls != 1 {
+			t.Errorf("calls = %d, want 1 (write must not retry 500)", calls)
+		}
+	})
+	t.Run("429 retried", func(t *testing.T) {
+		calls := 0
+		c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls++
+			if calls == 1 {
+				w.Header().Set("Retry-After", "0")
+				w.WriteHeader(http.StatusTooManyRequests)
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"id":"wl-1"}`))
+		}))
+		c.Backoff = 0
+		status, body, err := c.Raw(context.Background(), http.MethodPost, "/rest/api/3/issue/A-1/worklog",
+			[]byte(`{"timeSpent":"1h"}`), true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status != 201 || string(body) != `{"id":"wl-1"}` {
+			t.Errorf("status=%d body=%s", status, body)
+		}
+		if calls != 2 {
+			t.Errorf("calls = %d, want 2", calls)
+		}
+	})
+}
+
+func TestRawNon2xxStillReturnsBody(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"errorMessages":["not found"]}`))
+	}))
+	status, body, err := c.Raw(context.Background(), http.MethodGet, "/rest/api/3/issue/NOPE", nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != 404 {
+		t.Errorf("status = %d", status)
+	}
+	if !strings.Contains(string(body), "not found") {
+		t.Errorf("body = %s", body)
+	}
+}
+
+func TestRawQueryPassthrough(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "maxResults=5&query=a+b" {
+			// url.Values.Encode uses sorted keys: maxResults then query
+			if r.URL.Query().Get("maxResults") != "5" || r.URL.Query().Get("query") != "a b" {
+				t.Errorf("query = %q", r.URL.RawQuery)
+			}
+		}
+		w.Write([]byte(`[]`))
+	}))
+	_, _, err := c.Raw(context.Background(), http.MethodGet, "/rest/api/3/user/search?maxResults=5&query=a+b", nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

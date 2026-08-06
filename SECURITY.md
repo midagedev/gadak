@@ -151,6 +151,14 @@ only removes the REST-API friction. What scry does control:
   getting arbitrary `sqlite3`.
 - Writes (comment, transition, assign) go through Jira's API with your
   token's permissions — scry grants nothing your account doesn't have.
+- `scry api` is a raw REST escape hatch with the **same token permissions**
+  as your account. It adds surface: any path the credential can reach on
+  the configured site. Mitigations: absolute URLs (`https://…`, `//…`) are
+  refused so the Authorization header never leaves that site; non-GET/HEAD
+  requires an explicit `--write` flag (read is default); traffic still goes
+  through the existing clients (retry policy, `api_usage` counters). It is
+  **not** exposed on MCP — only the CLI — so a shell-less host cannot open a
+  full-credential proxy. Prefer the modeled write commands when they fit.
 - `scry mcp install` pins the binary path and profile into the registration,
   so an MCP host cannot silently attach to a different mirror than the one
   you chose.
