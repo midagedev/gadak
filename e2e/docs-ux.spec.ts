@@ -3,21 +3,34 @@ import { attachConsoleErrors, gotoApp, openServerSettings } from './helpers'
 
 const PAGES_URL = 'http://127.0.0.1:7877/api/v1/issues/pages/'
 
-/** Open PROD → Feature Specs → the named page, the way docs.spec walks the tree. */
+/** Open PROD's space screen → Tree → Feature Specs → the named page. */
 async function openDocFromTree(page: Page, title: string): Promise<void> {
-  const section = page.getByTestId('docs-section')
-  await section.getByTestId('docs-space').filter({ hasText: 'PROD' }).click()
-  await section
+  await page.getByTestId('docs-spaces').click()
+  await page.getByTestId('docs-section').getByTestId('docs-space').filter({ hasText: 'PROD' }).click()
+  const view = page.getByTestId('space-docs-view')
+  await view.getByTestId('space-tree-toggle').click()
+  await view
     .getByTestId('doc-tree-node')
     .filter({ hasText: 'Feature Specs' })
     .getByTestId('doc-tree-toggle')
     .click()
-  await section
+  await view
     .getByTestId('doc-tree-node')
     .filter({ hasText: title })
     .getByRole('button', { name: title, exact: true })
     .click()
   await expect(page.getByTestId('doc-title')).toHaveText(title)
+}
+
+/** Open the tabbed Documents view from the sidebar. */
+async function openDocuments(page: Page): Promise<void> {
+  await page.getByTestId('docs-documents').click()
+  await expect(page.getByTestId('docs-view')).toBeVisible()
+}
+
+/** The title line of each document row (the meta line is the second span). */
+async function rowTitles(rows: import('@playwright/test').Locator): Promise<string[]> {
+  return rows.evaluateAll((els) => els.map((el) => el.querySelector('span')?.textContent?.trim() ?? ''))
 }
 
 test.describe('documents in the daily loop', () => {
@@ -52,15 +65,49 @@ test.describe('documents in the daily loop', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('Recently updated lists every space by last edit, newest first', async ({ page, request }) => {
+  test('Documents opens on Viewed, and a read page lands there as one sentence', async ({
+    page,
+  }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
-    await page.getByTestId('docs-recent').click()
-    const view = page.getByTestId('recent-docs-view')
-    await expect(view).toBeVisible()
+    // Nothing read yet: the default tab says so rather than falling back to
+    // someone else's activity (UX_PRINCIPLES §6 — viewed wins the default).
+    await openDocuments(page)
+    const view = page.getByTestId('docs-view')
+    await expect(view.getByTestId('docs-tab').filter({ hasText: 'Viewed' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await expect(view).toContainText('Documents you open will appear here')
     // It replaces the issue list in the main column.
     await expect(page.getByTestId('issue-list-scroller')).toHaveCount(0)
+
+    await openDocFromTree(page, 'Billing Settings Spec')
+    await openDocuments(page)
+
+    const rows = view.getByTestId('doc-row')
+    await expect(rows).toHaveCount(1)
+    // One sentence: who, when, where. Every mirrored page in the snapshot has an
+    // author, so the dropped-author case is covered by the component's guard
+    // rather than by fixture data.
+    await expect(rows.first()).toContainText('Billing Settings Spec')
+    await expect(rows.first()).toContainText('Alex Kim')
+    await expect(rows.first()).toContainText('in PROD')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('Updated keeps the mirror sort, and the chosen tab survives a reload', async ({
+    page,
+    request,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await openDocuments(page)
+
+    const view = page.getByTestId('docs-view')
+    await view.getByTestId('docs-tab').filter({ hasText: 'Updated' }).click()
 
     // Expected order is computed from the mirror itself, so the assertion tests
     // the client sort rather than restating it.
@@ -73,13 +120,9 @@ test.describe('documents in the daily loop', () => {
       .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''))
       .map((p) => p.title)
 
-    const rows = view.getByTestId('recent-doc-row')
+    const rows = view.getByTestId('doc-row')
     await expect(rows).toHaveCount(expected.length)
-    // Rows carry the space and a timestamp too, so compare the leading title only.
-    const titles = await rows.evaluateAll((els) =>
-      els.map((el) => el.querySelector('span')?.textContent?.trim() ?? ''),
-    )
-    expect(titles).toEqual(expected)
+    expect(await rowTitles(rows)).toEqual(expected)
 
     // A row opens the document beside the list, which stays put.
     await rows.first().click()
@@ -87,10 +130,110 @@ test.describe('documents in the daily loop', () => {
     await expect(page.getByTestId('doc-title')).toHaveText(expected[0])
     await expect(view).toBeVisible()
 
-    // And the sidebar entry toggles back to the issue list.
-    await page.getByTestId('docs-recent').click()
+    // The sidebar entry toggles back to the issue list.
+    await page.getByTestId('docs-documents').click()
     await expect(view).toHaveCount(0)
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
+
+    // Reopening after a reload lands on the tab that was left open.
+    await page.reload()
+    await expect(page.getByTestId('issue-layout')).toBeVisible()
+    await openDocuments(page)
+    await expect(view.getByTestId('docs-tab').filter({ hasText: 'Updated' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('By author groups the whole mirror, newest edit first inside each group', async ({
+    page,
+    request,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await openDocuments(page)
+
+    const view = page.getByTestId('docs-view')
+    await view.getByTestId('docs-tab').filter({ hasText: 'By author' }).click()
+
+    const res = await request.get(PAGES_URL)
+    const body = (await res.json()) as {
+      pages: { title: string; author: string | null; updated_at: string | null }[]
+    }
+    const authors = [...new Set(body.pages.map((p) => p.author ?? ''))]
+
+    const groups = view.getByTestId('docs-author-group')
+    await expect(groups).toHaveCount(authors.length)
+    await expect(groups.first()).toContainText(authors[0])
+    // Every page is still listed — grouping regroups, it does not filter.
+    await expect(view.getByTestId('doc-row')).toHaveCount(body.pages.length)
+
+    const first = [...body.pages]
+      .filter((p) => (p.author ?? '') === authors[0])
+      .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''))
+      .map((p) => p.title)
+    expect(await rowTitles(view.getByTestId('doc-row'))).toEqual(first)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('a document edited since the last visit is marked unread', async ({ page, request }) => {
+    const errors = attachConsoleErrors(page)
+
+    // A visit older than the page's last edit — the one thing the local mirror
+    // can compute that the originals cannot (UX_PRINCIPLES §6).
+    const res = await request.get(PAGES_URL)
+    const body = (await res.json()) as { pages: { key: string; title: string }[] }
+    const stale = body.pages[0]
+    await page.addInitScript((key: string) => {
+      localStorage.setItem(
+        'scry:recent',
+        JSON.stringify([{ key, viewed_at: '2000-01-01T00:00:00.000Z', kind: 'doc' }]),
+      )
+    }, stale.key)
+
+    await gotoApp(page)
+    await openDocuments(page)
+
+    const rows = page.getByTestId('docs-view').getByTestId('doc-row')
+    await expect(rows).toHaveCount(1)
+    await expect(rows.first()).toHaveAttribute('data-unread', 'true')
+    await expect(rows.first()).toContainText(stale.title)
+
+    // Opening it clears the mark: the visit is now newer than the edit.
+    await rows.first().click()
+    await expect(page.getByTestId('doc-panel')).toBeVisible()
+    await expect(rows.first()).not.toHaveAttribute('data-unread', 'true')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('a space opens flat from the disclosure and drops the repeated space suffix', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    await page.getByTestId('docs-spaces').click()
+    await page
+      .getByTestId('docs-section')
+      .getByTestId('docs-space')
+      .filter({ hasText: 'ENG' })
+      .click()
+
+    const view = page.getByTestId('space-docs-view')
+    await expect(view).toBeVisible()
+    await expect(view.getByTestId('doc-row')).toHaveCount(43)
+    // The space is the screen, so the row's "in ENG" clause would be noise.
+    await expect(view.getByTestId('doc-row').first()).not.toContainText('in ENG')
+    await expect(view.getByTestId('doc-row').first()).toContainText('Alex Kim')
+
+    // Tree is available on the same screen and gives the hierarchy back.
+    await view.getByTestId('space-tree-toggle').click()
+    await expect(view.getByTestId('doc-tree-node').first()).toBeVisible()
+    await expect(view.getByTestId('doc-row')).toHaveCount(0)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

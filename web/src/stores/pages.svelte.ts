@@ -1,9 +1,14 @@
 /*
  * Mirrored wiki pages (docs) store.
  *
- * Three things live here: the page index for the sidebar DOCS section, the
- * selected page for DocumentPanel, and the page hits from the last server
- * search (filters owns issue hits; this owns page hits).
+ * Three things live here: the page index behind the sidebar DOCS section and
+ * the main-column document views, the selected page for DocumentPanel, and the
+ * page hits from the last server search (filters owns issue hits; this owns
+ * page hits).
+ *
+ * The index is sliced four ways — viewed, updated, author, one space — because
+ * those are the axes that survive for a single-user local mirror
+ * (docs/UX_PRINCIPLES.md §6). The tree is one of them, not the entry point.
  *
  * Bodies are never persisted — the index is small and memory-only, and detail
  * is fetched per page and cached for the tab's lifetime. Nothing goes to
@@ -11,6 +16,7 @@
  */
 
 import * as api from '../lib/api'
+import { STORAGE_KEYS } from '../lib/storage'
 import type { PageDetail, PageLite } from '../lib/types'
 import { me } from './me.svelte'
 import { selection } from './selection.svelte'
@@ -40,6 +46,45 @@ export interface SpaceTree {
   roots: PageNode[]
 }
 
+/** Pages of one author, newest edit first. */
+export interface AuthorGroup {
+  /** '' when the mirror has no author — the row drops the clause, the header names it. */
+  author: string
+  pages: PageLite[]
+}
+
+/** The three axes the document view offers. Parallel tabs, never merged
+ *  (UX_PRINCIPLES §6): viewed is your return path, updated is everyone's
+ *  activity, author answers "who wrote this". */
+export type DocsTab = 'viewed' | 'updated' | 'author'
+
+const DOCS_TABS: DocsTab[] = ['viewed', 'updated', 'author']
+
+/** Last tab survives the tab/session — coming back to Documents lands where the
+ *  user left it, the way Outline restores its home tab. */
+function loadDocsTab(): DocsTab {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.docsTab)
+    return DOCS_TABS.includes(raw as DocsTab) ? (raw as DocsTab) : 'viewed'
+  } catch {
+    return 'viewed'
+  }
+}
+
+/** Millis, or null when the timestamp is missing or unparseable. Offsets differ
+ *  between the mirror (Confluence, +09:00) and local visits (Z), so these are
+ *  compared as instants, never as strings. */
+function millis(iso: string | null | undefined): number | null {
+  if (!iso) return null
+  const t = Date.parse(iso)
+  return Number.isFinite(t) ? t : null
+}
+
+/** Newest edit first; a page with no timestamp sorts last rather than to the top. */
+function byUpdatedDesc(a: PageLite, b: PageLite): number {
+  return (b.updated_at ?? '').localeCompare(a.updated_at ?? '')
+}
+
 class PagesStore {
   /** Whole page index (no bodies). Empty until loaded, or when the server has none. */
   index = $state<PageLite[]>([])
@@ -49,8 +94,12 @@ class PagesStore {
   selectedKey = $state<string | null>(null)
   /** Page hits from the last server search. Cleared with the query. */
   searchHits = $state<PageLite[]>([])
-  /** "Recently updated" is open in the main column instead of the issue list. */
-  recentView = $state(false)
+  /** The tabbed document view owns the main column instead of the issue list. */
+  docsView = $state(false)
+  /** One space's document list owns the main column; the space key, or null. */
+  spaceView = $state<string | null>(null)
+  /** Which axis the document view is showing. */
+  docsTab = $state<DocsTab>(loadDocsTab())
 
   /** key → detail, for this tab's lifetime. */
   #details = new Map<string, PageDetail>()
@@ -88,15 +137,59 @@ class PagesStore {
       .sort((a, b) => (a.name || a.space).localeCompare(b.name || b.space))
   })
 
-  /** Whole index, newest edit first — the "Recently updated" view. Pages with no
-   *  timestamp sort last rather than to the top. */
-  recentlyUpdated = $derived.by<PageLite[]>(() =>
-    [...this.index].sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? '')),
-  )
+  /** Whole index, newest edit first — the "Updated" tab. */
+  recentlyUpdated = $derived.by<PageLite[]>(() => [...this.index].sort(byUpdatedDesc))
 
   /** key → page. `parent_id` carries a sibling page's key, so one map resolves
    *  both the tree and any ancestor chain. */
   byKey = $derived(new Map(this.index.map((p) => [p.key, p])))
+
+  /** Documents this browser opened, newest visit first — the "Viewed" tab.
+   *  Visits to pages the mirror has since dropped are skipped rather than shown
+   *  as blanks. */
+  recentlyViewed = $derived.by<PageLite[]>(() => {
+    const out: PageLite[] = []
+    for (const visit of me.recent) {
+      if (visit.kind !== 'doc') continue
+      const page = this.byKey.get(visit.key)
+      if (page) out.push(page)
+    }
+    return out
+  })
+
+  /** Whole index grouped by author, groups ordered by their newest edit — the
+   *  same recency-first rule the flat lists use. */
+  byAuthor = $derived.by<AuthorGroup[]>(() => {
+    const groups = new Map<string, PageLite[]>()
+    for (const p of this.index) {
+      const author = p.author ?? ''
+      const list = groups.get(author)
+      if (list) list.push(p)
+      else groups.set(author, [p])
+    }
+    return [...groups.entries()]
+      .map(([author, list]) => ({ author, pages: [...list].sort(byUpdatedDesc) }))
+      .sort((a, b) => byUpdatedDesc(a.pages[0], b.pages[0]))
+  })
+
+  /** Documents edited since this browser last opened them. A page never opened
+   *  is not unread — otherwise the whole mirror lights up and the mark means
+   *  nothing. */
+  unread = $derived.by<Set<string>>(() => {
+    const out = new Set<string>()
+    for (const visit of me.recent) {
+      if (visit.kind !== 'doc') continue
+      const seen = millis(visit.viewed_at)
+      const edited = millis(this.byKey.get(visit.key)?.updated_at)
+      if (seen !== null && edited !== null && edited > seen) out.add(visit.key)
+    }
+    return out
+  })
+
+  /** One space's pages, flat and newest edit first — the space screen's default. */
+  inSpace(spaceKey: string): PageLite[] {
+    return this.index.filter((p) => p.space_key === spaceKey).sort(byUpdatedDesc)
+  }
 
   /** Same grouping as `bySpace`, nested by `parent_id`. Siblings keep the
    *  alphabetical order they already have in `bySpace`. */
@@ -180,14 +273,37 @@ class PagesStore {
     this.selectedKey = null
   }
 
-  /* ── "Recently updated" main-column view ── */
+  /* ── Main-column document views (tabbed list, or one space) ── */
 
-  toggleRecent(): void {
-    this.recentView = !this.recentView
+  /** Either document surface holds the main column. */
+  get open(): boolean {
+    return this.docsView || this.spaceView !== null
   }
 
-  closeRecent(): void {
-    this.recentView = false
+  toggleDocs(): void {
+    const wasOnlyDocs = this.docsView && this.spaceView === null
+    this.spaceView = null
+    this.docsView = !wasOnlyDocs
+  }
+
+  /** A space row: its flat document list takes the column from the tabbed view. */
+  openSpace(spaceKey: string): void {
+    this.docsView = false
+    this.spaceView = spaceKey
+  }
+
+  closeDocs(): void {
+    this.docsView = false
+    this.spaceView = null
+  }
+
+  selectTab(tab: DocsTab): void {
+    this.docsTab = tab
+    try {
+      localStorage.setItem(STORAGE_KEYS.docsTab, tab)
+    } catch {
+      /* private mode — the tab just does not survive the session */
+    }
   }
 
   /** Row data for the open page — header renders before the body arrives. */

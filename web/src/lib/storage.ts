@@ -24,6 +24,8 @@ export const STORAGE_KEYS = {
   recent: `scry:${WS}recent`,
   personalViews: `scry:${WS}personal-views`,
   lastView: `scry:${WS}last-view`,
+  /** Last document-view tab (viewed / updated / author). */
+  docsTab: `scry:${WS}docs-tab`,
 } as const
 
 /** Prefix for recency.ts (`scry:recent:` + kind). */

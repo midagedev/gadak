@@ -131,7 +131,7 @@
 
   function applyView(config: ViewConfig) {
     me.closeFeed()
-    pages.closeRecent()
+    pages.closeDocs()
     filters.applyConfig(config)
   }
 

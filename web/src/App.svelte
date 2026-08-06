@@ -36,7 +36,8 @@
   import DetailPanel from './components/detail/DetailPanel.svelte'
   import DocumentPanel from './components/detail/DocumentPanel.svelte'
   import PersonalFeed from './components/personal/PersonalFeed.svelte'
-  import RecentDocsView from './components/docs/RecentDocsView.svelte'
+  import DocsView from './components/docs/DocsView.svelte'
+  import SpaceDocsView from './components/docs/SpaceDocsView.svelte'
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
   import QuickComment from './components/write/QuickComment.svelte'
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
@@ -392,8 +393,10 @@
                this column, so it never has to close the docs view first. -->
           {#if me.feedOpen && feature('feed')}
             <PersonalFeed />
-          {:else if pages.recentView}
-            <RecentDocsView />
+          {:else if pages.spaceView !== null}
+            <SpaceDocsView space={pages.spaceView} />
+          {:else if pages.docsView}
+            <DocsView />
           {:else}
             <ListView onOpenSettings={() => (serverSettingsOpen = true)} />
           {/if}

@@ -9,7 +9,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { views } from '../../stores/views.svelte'
   import { me } from '../../stores/me.svelte'
-  import { pages, type PageNode } from '../../stores/pages.svelte'
+  import { pages } from '../../stores/pages.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
   import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
@@ -27,7 +27,7 @@
   /** Apply view = close personal feed if open (back to list) then apply filters. */
   function applyView(config: ViewConfig) {
     me.closeFeed()
-    pages.closeRecent()
+    pages.closeDocs()
     filters.applyConfig(config)
   }
 
@@ -155,104 +155,26 @@
     }
   }
 
-  /* ── Docs (mirrored wiki pages), a tree per space ── */
-  //  Collapsed by default: a space holds dozens of pages, and the nav is for
-  //  views first. Expanded state is per-tab — no need to persist it.
-  let openSpaces = $state(new Set<string>())
-  /** Expanded page nodes, by key. */
-  let openDocs = $state(new Set<string>())
+  /* ── Docs (mirrored wiki pages) ── */
+  //  The nav carries two entries only — the document view, and a collapsed
+  //  disclosure of the spaces. No tool lists every container by default, and a
+  //  sidebar must not grow with content volume (UX_PRINCIPLES §6); the page
+  //  tree lives on the space screen, where it is asked for.
+  let spacesOpen = $state(false)
 
-  function toggleSpace(space: string) {
-    const next = new Set(openSpaces)
-    if (!next.delete(space)) {
-      next.add(space)
-      // A space normally has one root page, so opening to a single collapsed
-      // row reads as a broken toggle. Roots open with the space; deeper levels
-      // stay closed.
-      const docs = new Set(openDocs)
-      for (const r of pages.treeBySpace.find((g) => g.space === space)?.roots ?? []) {
-        docs.add(r.page.key)
-      }
-      openDocs = docs
-    }
-    openSpaces = next
-  }
-
-  function toggleDoc(key: string) {
-    const next = new Set(openDocs)
-    if (!next.delete(key)) next.add(key)
-    openDocs = next
-  }
-
-  /** Open a page; a parent also expands, so one click never looks inert. */
-  function openDoc(node: PageNode) {
-    pages.select(node.page.key)
-    if (node.children.length && !openDocs.has(node.page.key)) toggleDoc(node.page.key)
-  }
-
-  /** "Recently updated" takes over the main column, so the feed must give it up. */
-  function toggleRecentDocs() {
+  /** A docs surface takes over the main column, so the feed must give it up. */
+  function openDocuments() {
     me.closeFeed()
-    pages.toggleRecent()
+    pages.toggleDocs()
+  }
+
+  function openSpace(space: string) {
+    me.closeFeed()
+    pages.openSpace(space)
   }
 </script>
 
 <svelte:document onclick={onDocClick} />
-
-<!-- One page row in the DOCS tree, recursing into its children. Indent is a
-     fixed step per depth so a leaf lines up under its parent's title. -->
-{#snippet docNode(node: PageNode)}
-  {@const expanded = openDocs.has(node.page.key)}
-  {@const selected = pages.selectedKey === node.page.key}
-  <div
-    class="group flex min-h-7 items-center rounded-md pr-3 text-[12px] transition-colors {selected
-      ? 'bg-bg-active'
-      : 'hover:bg-bg-hover'}"
-    style="padding-left: {16 + node.depth * 12}px"
-    data-testid="doc-tree-node"
-  >
-    {#if node.children.length}
-      <button
-        type="button"
-        class="flex h-4 w-4 flex-none items-center justify-center rounded text-text-muted transition-colors hover:text-text-primary"
-        aria-expanded={expanded}
-        aria-label={t('sidebar.docsToggleNode', { title: node.page.title })}
-        data-testid="doc-tree-toggle"
-        onclick={() => toggleDoc(node.page.key)}
-      >
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          fill="none"
-          aria-hidden="true"
-          class="transition-transform duration-150"
-          style={expanded ? 'transform: rotate(90deg)' : ''}
-        >
-          <path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      </button>
-    {:else}
-      <!-- Keeps leaf titles on the same left edge as their siblings' -->
-      <span class="h-4 w-4 flex-none" aria-hidden="true"></span>
-    {/if}
-    <button
-      type="button"
-      class="min-w-0 flex-1 truncate py-1 pl-1 text-left {selected
-        ? 'text-text-primary'
-        : 'text-text-secondary group-hover:text-text-primary'}"
-      title={node.page.title}
-      onclick={() => openDoc(node)}
-    >
-      {node.page.title}
-    </button>
-  </div>
-  {#if expanded}
-    {#each node.children as child (child.page.key)}
-      {@render docNode(child)}
-    {/each}
-  {/if}
-{/snippet}
 
 <div class="flex h-full flex-col">
   <!-- New issue (shortcut c). Disabled on the hosted demo, where the snapshot
@@ -470,24 +392,24 @@
       </div>
     {/if}
 
-    <!-- Docs: mirrored wiki pages by space. Hidden entirely when the mirror has
-         none (no wiki configured / older server → empty index). -->
+    <!-- Docs: mirrored wiki pages. Hidden entirely when the mirror has none
+         (no wiki configured / older server → empty index). -->
     {#if pages.bySpace.length}
       <div class="mb-3" data-testid="docs-section">
         <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
           {t('sidebar.docs')}
         </div>
-        <!-- Cross-space entry point, above the per-space trees: what changed in
-             the wiki lately is a question no single space answers. -->
+        <!-- The way in: recency first, across every space. What changed lately,
+             and what you had open, are questions no single space answers. -->
         <button
           type="button"
-          class="flex min-h-7 w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {pages.recentView
+          class="flex min-h-7 w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {pages.docsView
             ? 'bg-bg-active text-text-primary'
             : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-          aria-pressed={pages.recentView}
-          title={t('sidebar.docsRecentTitle')}
-          data-testid="docs-recent"
-          onclick={toggleRecentDocs}
+          aria-pressed={pages.docsView}
+          title={t('sidebar.docsAllTitle')}
+          data-testid="docs-documents"
+          onclick={openDocuments}
         >
           <svg
             width="10"
@@ -497,47 +419,66 @@
             aria-hidden="true"
             class="flex-none text-text-muted"
           >
-            <circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.2" />
-            <path d="M6 3.4V6l1.8 1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            <path
+              d="M3 1.5h4L9 3.8V10a.5.5 0 01-.5.5h-5A.5.5 0 013 10V2a.5.5 0 010-.5z"
+              stroke="currentColor"
+              stroke-width="1.1"
+              stroke-linejoin="round"
+            />
+            <path d="M6.6 1.7v2.2h2.2" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" />
           </svg>
-          <span class="min-w-0 flex-1 truncate">{t('sidebar.docsRecent')}</span>
+          <span class="min-w-0 flex-1 truncate">{t('sidebar.docsAll')}</span>
         </button>
-        {#each pages.treeBySpace as group (group.space)}
-          {@const expanded = openSpaces.has(group.space)}
-          <button
-            type="button"
-            class="flex min-h-7 w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            aria-expanded={expanded}
-            title={t('sidebar.docsSpaceTitle', { space: group.space, n: group.count })}
-            data-testid="docs-space"
-            onclick={() => toggleSpace(group.space)}
+        <!-- Spaces: collapsed, and one level deep. Seeing every container at all
+             times was the thing that read as too much. -->
+        <button
+          type="button"
+          class="flex min-h-7 w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          aria-expanded={spacesOpen}
+          title={t('sidebar.docsSpacesTitle')}
+          data-testid="docs-spaces"
+          onclick={() => (spacesOpen = !spacesOpen)}
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            aria-hidden="true"
+            class="flex-none text-text-muted transition-transform duration-150"
+            style={spacesOpen ? 'transform: rotate(90deg)' : ''}
           >
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              aria-hidden="true"
-              class="flex-none text-text-muted transition-transform duration-150"
-              style={expanded ? 'transform: rotate(90deg)' : ''}
+            <path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span class="min-w-0 flex-1 truncate">{t('sidebar.docsSpaces')}</span>
+          <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
+            {formatNumber(pages.bySpace.length)}
+          </span>
+        </button>
+        {#if spacesOpen}
+          {#each pages.bySpace as group (group.space)}
+            <button
+              type="button"
+              class="flex min-h-7 w-full items-center gap-1.5 rounded-md py-1.5 pl-[30px] pr-3 text-left text-[12px] transition-colors {pages.spaceView ===
+              group.space
+                ? 'bg-bg-active text-text-primary'
+                : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+              aria-pressed={pages.spaceView === group.space}
+              title={t('sidebar.docsSpaceTitle', { space: group.space, n: group.pages.length })}
+              data-testid="docs-space"
+              onclick={() => openSpace(group.space)}
             >
-              <path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <!-- The name is what people call the space; the key stays reachable
-                 in the tooltip, and is the label itself until a name is mirrored. -->
-            <span class="min-w-0 flex-1 truncate text-[12px] {group.name ? '' : 'font-mono'}">
-              {group.name || group.space}
-            </span>
-            <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
-              {formatNumber(group.count)}
-            </span>
-          </button>
-          {#if expanded}
-            {#each group.roots as node (node.page.key)}
-              {@render docNode(node)}
-            {/each}
-          {/if}
-        {/each}
+              <!-- The name is what people call the space; the key stays reachable
+                   in the tooltip, and is the label itself until a name is mirrored. -->
+              <span class="min-w-0 flex-1 truncate {group.name ? '' : 'font-mono'}">
+                {group.name || group.space}
+              </span>
+              <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
+                {formatNumber(group.pages.length)}
+              </span>
+            </button>
+          {/each}
+        {/if}
       </div>
     {/if}
 

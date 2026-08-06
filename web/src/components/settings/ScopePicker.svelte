@@ -135,9 +135,10 @@
           class="flex max-w-full items-center gap-1 rounded-md border border-border-strong bg-bg-elevated py-0.5 pl-1.5 pr-1 text-[11px] text-text-primary"
           data-testid="scope-chip"
         >
-          <span class="font-mono">{value}</span>
+          <!-- Same emphasis order as the dropdown rows: mono accent key, then name. -->
+          <span class="font-mono text-accent-text">{value}</span>
           {#if option && option.label !== value}
-            <span class="min-w-0 truncate text-text-muted">{option.label}</span>
+            <span class="min-w-0 truncate">{option.label}</span>
           {/if}
           <button
             type="button"
@@ -171,42 +172,57 @@
       data-testid="scope-input"
     />
     {#if open}
+      <!-- Shadow deliberately one step below the palette's: this floats over the
+           next settings section, and a heavy drop made that section read as
+           disabled rather than covered. Height is capped for the same reason. -->
       <div
-        class="anim-enter absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-md border border-border-strong bg-bg-elevated p-1 shadow-xl shadow-black/40"
-        id={listId}
-        role="listbox"
-        aria-label={label}
-        data-testid="scope-options"
+        class="anim-enter absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-md border border-border-strong bg-bg-elevated shadow-xl shadow-black/50"
       >
-        {#if matches.length === 0}
-          <p class="px-2 py-1.5 text-[11px] text-text-muted">{t('settings.scopeNoMatch')}</p>
-        {:else}
-          {#each matches as option, i (option.value)}
-            <button
-              type="button"
-              role="option"
-              aria-selected={i === idx}
-              class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] {i ===
-              idx
-                ? 'bg-bg-active text-text-primary'
-                : 'text-text-secondary hover:bg-bg-hover'}"
-              data-testid="scope-option"
-              onmousemove={() => (idx = i)}
-              onmousedown={(e) => {
-                e.preventDefault()
-                add(option.value)
-              }}
-            >
-              <span class="flex-none font-mono text-[11px] text-accent-text">{option.value}</span>
-              <span class="min-w-0 flex-1 truncate">{option.label}</span>
-              {#if option.hint}
-                <!-- Raw API vocabulary (service_desk, personal) — shown as it
-                     is, but quiet: it disambiguates, it does not label. -->
-                <span class="flex-none text-[10px] text-text-muted">{option.hint}</span>
-              {/if}
-            </button>
-          {/each}
-        {/if}
+        <div
+          class="max-h-40 overflow-y-auto p-1"
+          id={listId}
+          role="listbox"
+          aria-label={label}
+          data-testid="scope-options"
+        >
+          {#if matches.length === 0}
+            <p class="px-2 py-1.5 text-[11px] text-text-muted">{t('settings.scopeNoMatch')}</p>
+          {:else}
+            {#each matches as option, i (option.value)}
+              <button
+                type="button"
+                role="option"
+                aria-selected={i === idx}
+                class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] {i ===
+                idx
+                  ? 'bg-bg-active text-text-primary'
+                  : 'text-text-secondary hover:bg-bg-hover'}"
+                data-testid="scope-option"
+                onmousemove={() => (idx = i)}
+                onmousedown={(e) => {
+                  e.preventDefault()
+                  add(option.value)
+                }}
+              >
+                <span class="flex-none font-mono text-[11px] text-accent-text">{option.value}</span>
+                <span class="min-w-0 flex-1 truncate">{option.label}</span>
+                {#if option.hint}
+                  <!-- Raw API vocabulary (service_desk, personal) — shown as it
+                       is, but quiet: it disambiguates, it does not label. -->
+                  <span class="flex-none text-[10px] text-text-muted">{option.hint}</span>
+                {/if}
+              </button>
+            {/each}
+          {/if}
+        </div>
+        <!-- Same hint grammar as the palette's footer: the keys are only
+             discoverable while the list is open, so they live in it. -->
+        <div
+          class="flex-none border-t border-border-subtle px-2 py-1 text-[10px] text-text-muted"
+          data-testid="scope-hint"
+        >
+          {t('settings.scopeHint')}
+        </div>
       </div>
     {/if}
   </div>

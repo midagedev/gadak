@@ -298,8 +298,10 @@ export const en = {
   'sidebar.teamViews': 'Shared team views',
   'sidebar.docs': 'Docs',
   'sidebar.docsSpaceTitle': '{space} · {n} documents',
-  'sidebar.docsRecent': 'Recently edited',
-  'sidebar.docsRecentTitle': 'Documents from every space, newest edit first',
+  'sidebar.docsAll': 'Documents',
+  'sidebar.docsAllTitle': 'Documents you viewed, what changed, and who wrote it',
+  'sidebar.docsSpaces': 'Spaces',
+  'sidebar.docsSpacesTitle': 'Browse one space at a time',
   'sidebar.docsToggleNode': 'Pages under {title}',
   'sidebar.workspaces': 'Workspaces',
   'sidebar.workspaceUnreadable': 'Profile config could not be read',
@@ -473,9 +475,19 @@ export const en = {
   'doc.notFound': 'Could not find this document. It may have been deleted.',
   'doc.loadFailed': 'Could not load this document.',
 
-  /* ── Recently edited documents (main column) ── */
-  'docs.recentTitle': 'Recently edited documents',
-  'docs.recentCount': '{n} documents, newest edit first',
+  /* ── Documents (main column) ── */
+  'docs.title': 'Documents',
+  'docs.tabViewed': 'Viewed',
+  'docs.tabUpdated': 'Updated',
+  'docs.tabAuthor': 'By author',
+  'docs.viewList': 'List',
+  'docs.viewTree': 'Tree',
+  /* Row meta reads as one sentence: "Alex Kim · 3h · in Engineering". */
+  'docs.metaIn': 'in {space}',
+  'docs.unread': 'Edited since you last opened it',
+  'docs.authorUnknown': 'Unknown author',
+  'docs.viewedEmpty': 'Documents you open will appear here',
+  'docs.viewedEmptyHint': 'Until then, Updated shows what changed across every space.',
   'docs.recentEmpty': 'No mirrored documents yet.',
   'docs.backToIssues': 'Back to issues',
 
@@ -594,6 +606,7 @@ export const en = {
   'settings.sourcesApplyHint': 'Scope changes take effect from the next sync.',
   'settings.scopeLoading': 'Loading the list…',
   'settings.scopeNoMatch': 'No match',
+  'settings.scopeHint': '↑↓ move · Enter add · Esc close',
   'settings.scopeRemove': 'Remove {name}',
   'settings.scopeProjectPlaceholder': 'Type a project key or name…',
   'settings.scopeSpacePlaceholder': 'Type a space key or name…',

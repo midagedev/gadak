@@ -299,8 +299,10 @@ export const ko = {
   'sidebar.teamViews': '팀 공유 뷰',
   'sidebar.docs': '문서',
   'sidebar.docsSpaceTitle': '{space} · 문서 {n}건',
-  'sidebar.docsRecent': '최근 편집',
-  'sidebar.docsRecentTitle': '모든 스페이스의 문서를 최근 수정 순으로',
+  'sidebar.docsAll': '문서',
+  'sidebar.docsAllTitle': '내가 본 문서, 최근 갱신, 작성자별로',
+  'sidebar.docsSpaces': '스페이스',
+  'sidebar.docsSpacesTitle': '스페이스 하나씩 살펴보기',
   'sidebar.docsToggleNode': '{title} 하위 문서',
   'sidebar.workspaces': '워크스페이스',
   'sidebar.workspaceUnreadable': '프로필 설정을 읽을 수 없음',
@@ -474,9 +476,19 @@ export const ko = {
   'doc.notFound': '문서를 찾을 수 없습니다. 삭제되었을 수 있습니다.',
   'doc.loadFailed': '문서를 불러오지 못했습니다.',
 
-  /* ── Recently edited documents (main column) ── */
-  'docs.recentTitle': '최근 편집된 문서',
-  'docs.recentCount': '문서 {n}건, 최근 수정 순',
+  /* ── 문서 (메인 컬럼) ── */
+  'docs.title': '문서',
+  'docs.tabViewed': '내가 본',
+  'docs.tabUpdated': '최근 갱신',
+  'docs.tabAuthor': '작성자별',
+  'docs.viewList': '목록',
+  'docs.viewTree': '트리',
+  /* 행 메타는 한 문장으로 읽힌다: "Alex Kim · 3시간 전 · Engineering". */
+  'docs.metaIn': '{space}',
+  'docs.unread': '마지막으로 연 뒤에 수정됨',
+  'docs.authorUnknown': '작성자 미상',
+  'docs.viewedEmpty': '연 문서가 여기에 쌓입니다',
+  'docs.viewedEmptyHint': '그전까지는 최근 갱신 탭이 모든 스페이스의 변경을 보여줍니다.',
   'docs.recentEmpty': '미러링된 문서가 아직 없습니다.',
   'docs.backToIssues': '이슈 목록으로',
 
@@ -593,6 +605,7 @@ export const ko = {
   'settings.sourcesApplyHint': '범위 변경은 다음 sync부터 반영됩니다.',
   'settings.scopeLoading': '목록을 불러오는 중…',
   'settings.scopeNoMatch': '일치하는 항목 없음',
+  'settings.scopeHint': '↑↓ 이동 · Enter 추가 · Esc 닫기',
   'settings.scopeRemove': '{name} 제거',
   'settings.scopeProjectPlaceholder': '프로젝트 키나 이름을 입력…',
   'settings.scopeSpacePlaceholder': '스페이스 키나 이름을 입력…',

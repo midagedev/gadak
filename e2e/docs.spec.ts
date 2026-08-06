@@ -10,13 +10,30 @@ async function openDoc(page: Page, title: string): Promise<void> {
     .click()
 }
 
+/**
+ * Open a space's screen and switch it to Tree. The tree moved out of the sidebar
+ * in r9 (recency beats hierarchy) — it is now one toggle on the space screen,
+ * which is the only place it can still be reached.
+ */
+async function openSpaceTree(page: Page, space: string): Promise<void> {
+  await page.getByTestId('docs-spaces').click()
+  await page.getByTestId('docs-section').getByTestId('docs-space').filter({ hasText: space }).click()
+  await expect(page.getByTestId('space-docs-view')).toBeVisible()
+  await page.getByTestId('space-tree-toggle').click()
+}
+
 test.describe('mirrored wiki documents', () => {
-  test('sidebar DOCS section opens a space as a tree, one level at a time', async ({ page }) => {
+  test('a space opens as a flat list, and the tree is one toggle away', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
     const section = page.getByTestId('docs-section')
     await expect(section).toBeVisible()
+
+    // Spaces are behind a collapsed disclosure — the sidebar shows the entry, not
+    // the containers.
+    await expect(section.getByTestId('docs-space')).toHaveCount(0)
+    await section.getByTestId('docs-spaces').click()
 
     // demo.db mirrors 71 pages: ENG 43 + PROD 28.
     const spaces = section.getByTestId('docs-space')
@@ -32,11 +49,17 @@ test.describe('mirrored wiki documents', () => {
       'ENG · 43 documents',
     )
 
-    // Collapsed until asked. Opening PROD reveals its root page and the level
-    // under it (6 sections) — not the whole space.
-    const nodes = section.getByTestId('doc-tree-node')
-    await expect(nodes).toHaveCount(0)
+    // A space opens flat, every page in it, newest edit first — no tree.
     await spaces.filter({ hasText: 'PROD' }).click()
+    const view = page.getByTestId('space-docs-view')
+    await expect(view).toBeVisible()
+    await expect(view.getByTestId('doc-row')).toHaveCount(28)
+    await expect(view.getByTestId('doc-tree-node')).toHaveCount(0)
+
+    // Tree is the same screen, one toggle: PROD's root page and the level under
+    // it (6 sections) — not the whole space.
+    await view.getByTestId('space-tree-toggle').click()
+    const nodes = view.getByTestId('doc-tree-node')
     await expect(nodes).toHaveCount(7)
     await expect(nodes.first()).toContainText('Nimbus Product Home')
     await expect(nodes.filter({ hasText: 'Billing Settings Spec' })).toHaveCount(0)
@@ -58,9 +81,8 @@ test.describe('mirrored wiki documents', () => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
-    const section = page.getByTestId('docs-section')
-    await section.getByTestId('docs-space').filter({ hasText: 'PROD' }).click()
-    await section
+    await openSpaceTree(page, 'PROD')
+    await page
       .getByTestId('doc-tree-node')
       .filter({ hasText: 'Feature Specs' })
       .getByTestId('doc-tree-toggle')
