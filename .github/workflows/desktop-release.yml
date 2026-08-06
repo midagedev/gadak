@@ -14,6 +14,10 @@ jobs:
     name: macOS app + dmg
     runs-on: macos-14
     timeout-minutes: 45
+    env:
+      # `secrets` is not a valid context in step-level `if`; evaluate here.
+      HAS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 != '' }}
+      HAS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +45,7 @@ jobs:
       # Developer ID p12 + notary API key. Absent on forks — signing/notarization
       # self-disable and the job still succeeds with an unsigned dmg.
       - name: Import signing certificate
-        if: ${{ secrets.MACOS_SIGN_P12 != '' }}
+        if: env.HAS_SIGN_P12 == 'true'
         env:
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
           MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
@@ -70,7 +74,7 @@ jobs:
           echo "imported signing identity (name redacted)"
 
       - name: Prepare notarization key
-        if: ${{ secrets.MACOS_NOTARY_KEY != '' }}
+        if: env.HAS_NOTARY_KEY == 'true'
         env:
           MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
