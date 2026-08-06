@@ -158,6 +158,18 @@ carried a `working_hours_in_status` column that no code ever populated, and the
 UI's "stale" view read it as always zero. Staleness is computed from
 `status_changed_at` instead, with the threshold in configuration.
 
+## `spaces` (v14)
+
+Space display metadata for mirrored wiki pages — real Cloud space keys are
+generated strings, so the UI joins here for a human name.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_id` | TEXT | PK part; the owning connector (`confluence`) |
+| `key` | TEXT | PK part; the space key as the source knows it |
+| `name` | TEXT | Display name; `''` when not yet learned |
+| `kind` | TEXT | Source's space type string (`global` / `personal`) |
+
 ## `pages` (v9, `body_adf` v10, `labels` v13)
 
 The document projection (Confluence pages; decision 0006). Joined to `items` on
