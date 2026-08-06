@@ -1,37 +1,25 @@
-# scry
+<p align="center">
+  <img src="docs/media/wordmark-dark.png#gh-dark-mode-only" width="380" alt="scry">
+  <img src="docs/media/wordmark-light.png#gh-light-mode-only" width="380" alt="scry">
+</p>
 
-<p>
+<p align="center">
   <a href="https://github.com/midagedev/scry/releases"><img src="https://img.shields.io/github/v/release/midagedev/scry" alt="Latest Release"></a>
   <a href="https://github.com/midagedev/scry/actions/workflows/ci.yml"><img src="https://github.com/midagedev/scry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
 </p>
 
-**Give your coding agent your team's memory.** scry mirrors Jira *and
-Confluence* into one local SQLite file — issues, comments, history, wiki pages
-— indexed together, queryable with plain SQL, searchable in milliseconds. You
-get a keyboard-driven web UI and a TUI over the same file; your agent gets the
-whole thing through one query interface. One binary, no server, no account.
+<p align="center"><b>Give your coding agent your team's memory.</b></p>
 
-Why now: every developer suddenly has a coding agent, and agents burn context
-paging REST APIs and guessing at JQL. Worse, half of what an agent needs is not
-in the tracker at all — it is in the wiki next door. A local file that holds
-both answers "what do we know about X?" with one full-text query, joins across
-sources, and never spends a token on pagination.
+scry mirrors Jira *and* Confluence into one local SQLite file — issues,
+comments, history, wiki pages — indexed together and searchable in
+milliseconds. A keyboard-driven web UI and a TUI for you; plain SQL for your
+agent. One binary, no server, no account.
 
-**Try it in 30 seconds, no install, no account:** open the
-[hosted demo](https://midagedev.github.io/scry/) — a fictional company's
-backlog, 534 issues + 71 wiki pages, in your browser right now (static
-snapshot, read-only).
-
-To run the same demo locally against a real mirror, clone and build — that
-path needs Go 1.25+ and Node 20+ and takes a few minutes cold, so it lives
-under [Build from source](#4-build-from-source):
-
-```bash
-git clone https://github.com/midagedev/scry && cd scry
-npm ci && npm run build && go build -o scry ./cmd/scry
-./scry demo
-```
+<p align="center">
+  <a href="https://midagedev.github.io/scry/"><b>▶&nbsp; Open the live demo</b></a>
+  &nbsp;—&nbsp; 534 issues + 71 wiki pages, in your browser, right now.
+</p>
 
 <p align="center">
   <img src="docs/media/web-demo.gif" alt="Typing in the search box narrows issues instantly, with matches highlighted; the sidebar lists wiki spaces as a tree" width="900">
@@ -41,8 +29,10 @@ npm ci && npm run build && go build -o scry ./cmd/scry
 </p>
 
 ```bash
+brew install midagedev/tap/scry
+
 scry init && scry sync    # Jira (and Confluence) -> ~/.scry/scry.db
-scry serve                # http://localhost:7777
+scry serve                # http://scry.localhost:7777
 scry tui                  # same mirror, in your terminal (D toggles docs)
 scry sql "select key, summary from issues_full where reopen_count > 1"
 ```
@@ -54,7 +44,14 @@ scry sql "select key, summary from issues_full where reopen_count > 1"
 
 ## Why
 
-Three complaints about living in a tracker and a wiki, one root cause.
+Every developer suddenly has a coding agent, and agents burn context paging
+REST APIs and guessing at JQL. Worse, half of what an agent needs is not in
+the tracker at all — it is in the wiki next door. A local file that holds both
+answers "what do we know about X?" with one full-text query, joins across
+sources, and never spends a token on pagination.
+
+Beyond the agent, three complaints about living in a tracker and a wiki, one
+root cause.
 
 **Search is slow, and it is two searches.** Every filter change is a network
 round trip against a multi-tenant service — and the answer to "what do we know
@@ -205,12 +202,17 @@ Requirements: Go 1.25+, Node.js 20+.
 npm ci && npm run build       # build the web UI into dist/app
 go build -o scry ./cmd/scry   # embeds it — the binary is the whole install
 # or: make build  → bin/scry
+
+./scry demo                   # the hosted demo's backlog, served locally
 ```
+
+A cold build (clone, npm ci, module downloads) takes a few minutes; the
+hosted demo needs none of it.
 
 ### First run
 
 ```bash
-scry serve                    # http://localhost:7777
+scry serve                    # http://scry.localhost:7777
 ```
 
 The first run walks you through it in the browser: paste your site, email, and
