@@ -30,6 +30,40 @@ Public issues are fine for non-sensitive questions about the security model.
 Only the latest published release is supported; older tags receive no
 backports, and `main` / `0.0.0-dev` builds are best effort.
 
+### What this project does not promise
+
+scry is maintained by one person in evenings and weekends. Saying so up front
+is more useful than a response target that gets missed:
+
+- **No response-time commitment.** Reports are read and taken seriously; how
+  fast one is triaged depends on the week. If a report is time-critical for
+  you, say so in it.
+- **Fixes ship in the next release, on the current line.** There is no
+  backport to an older tag and no separate patch channel.
+- **Severity is judged by one maintainer.** There is no committee and no
+  second opinion. Disagree in the report and it will be re-read.
+- **The signing certificate expires (Feb 2027).** If it lapses without a
+  renewed build, macOS will refuse an already-downloaded `.app` — the fix is a
+  new signed release, not something you can work around locally.
+
+### The blast radius of `scry api`
+
+`scry api` sends requests to your site with your stored credential, so its
+reach is exactly your Atlassian account's permissions — no more, and no less.
+Three properties are worth knowing before an agent uses it:
+
+- **There is no audit log.** scry counts requests (`api_usage`) but does not
+  record what was called. Your Atlassian site's own audit log is the record.
+- **`--write` is not reversible.** scry has no undo and no dry-run for
+  pass-through writes. A `DELETE` that reaches Jira is Jira's business from
+  then on.
+- **A confused agent is inside the blast radius.** Issue text is written by
+  other people, and an agent acting on it can be steered. The guards are that
+  absolute URLs are refused (the credential cannot be aimed off-site) and that
+  anything past `GET`/`HEAD` needs an explicit `--write`. Those bound where the
+  token can go; they do not bound what a legitimate-looking request can ask
+  your own site to do. Give an agent `--write` deliberately.
+
 ## Data flow
 
 ```mermaid

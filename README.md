@@ -471,6 +471,7 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 
 - [`AGENTS.md`](AGENTS.md) — the agent reference: SQL, CLI, REST
 - [`SECURITY.md`](SECURITY.md) — threat model, what leaves your machine, and where each claim lives in code
+- [`MAINTENANCE.md`](MAINTENANCE.md) — who maintains this, the release cadence, and what is refused
 - [`docs/FAQ.md`](docs/FAQ.md) — the hard questions: site load, one-person risk, concurrency, where agent data goes
 - [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — one paste per agent (Claude Code, Cursor, Codex, MCP)
 - [`docs/DESKTOP.md`](docs/DESKTOP.md) — the macOS app: install, first run, and where the CLI fits

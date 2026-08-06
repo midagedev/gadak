@@ -220,20 +220,45 @@ Shipped 2026-08-06:
 - ✅ **The bundled demo has four people in it**, so the people axis is
   explorable before you connect anything.
 
-### Next (candidates, not commitments)
+## Next — the only open question is whether anyone else wants this
+
+Nine releases exist and, as of 2026-08-07, the measurable number of people
+outside this machine who have installed any of them is zero. That is the state
+the roadmap has to answer to, and no feature on any list below changes it.
+
+So the next stretch is not a feature wave. It is:
+
+1. **Collect questions, not installs.** Ask people who live in Jira for one
+   question they want to ask it and cannot, and answer it with SQL against a
+   mirror that already exists. Demand for the answer has to show up before the
+   binary is worth anyone's evening.
+2. **Watch someone install it without help**, and write down where they stop.
+3. **Prepare for arrival rather than polish for absence** — `scry doctor`,
+   [`MAINTENANCE.md`](../MAINTENANCE.md), and the narrowed schema contract in
+   `specs/000-product/data-model.md` all exist so that a first real user costs
+   hours instead of weeks.
+
+Deliberately **not** now, until there is a user to justify it: Show HN (a card
+that can be played once, and not before the install friction is known), a
+1.0 (0.x is the accurate label and the better shield), new sources, new
+surfaces, and UI polish rounds. The type-scale sweep that used to sit here was
+the clearest example of the trap — a hundred-odd class literals to tidy, for
+nobody.
+
+### Held, with the bar written down
 
 - **Desktop notifications** — the watch feed has the events; a native
   notification is the natural surface. Quiet by default: this is a mirror,
-  not another thing that interrupts you.
-- **Windows and Linux shells.** Wails builds all three, and the no-listener
-  architecture ports unchanged. The real work is per-platform: WebView2
-  bootstrap and an installer on Windows (plus a code-signing decision, or
-  SmartScreen greets every download), webkit2gtk and AppImage/.deb on Linux,
-  and splitting the macOS-only menu code. Linux first if demand shows up —
-  it overlaps the agent audience most.
-- **The type scale's middle step.** 141 `text-[12px]` literals sit between
-  micro (11) and body (13); either they earn a token or they collapse into
-  one of the two.
+  not another thing that interrupts you. Worth doing once someone other than
+  the author leaves the app running all day.
+- **Windows and Linux shells** — **not until 10 people have asked.** Wails
+  builds all three and the no-listener architecture ports unchanged, so this
+  is not a technical wall; it is WebView2 bootstrap and an installer on
+  Windows (plus a code-signing decision, or SmartScreen greets every
+  download), webkit2gtk and AppImage/.deb on Linux, and splitting the
+  macOS-only menu code — three platforms of packaging and bug surface for a
+  maintainer whose macOS build has not yet carried a real user. Linux first
+  when the bar is met; it overlaps the agent audience most.
 
 ## Considered and not planned
 

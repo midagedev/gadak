@@ -1,9 +1,27 @@
 # Data Model
 
-The SQLite schema is a **public contract**. Agents and scripts query it directly,
-so it is versioned, migrated forward, and documented here. A released column is
-never repurposed; renames go through a migration that keeps the old name
-readable for one minor version.
+Agents and scripts query this schema directly, so it is versioned, migrated
+forward, and documented here.
+
+**How much of it is a contract, while the version is 0.x.** Two things are
+promised: the `issues_full` view, and the queries printed in
+[`docs/RECIPES.md`](../../docs/RECIPES.md). Those keep working across minor
+versions, and a column either of them names is never repurposed or silently
+retyped. Everything else — base tables, indexes, internal columns, the FTS
+shadow tables — is documented so you can read it, not promised so you can build
+on it. It changed fifteen times in the first month and will change again.
+
+This is deliberately narrower than the earlier wording, which promised the
+whole schema. A contract that a solo maintainer cannot honour is worse than a
+small one that holds: it is easier to widen a promise later than to take one
+back from someone who already built on it. If you need a guarantee on a column
+outside the two above, open an issue and say what you are building — that is
+how it earns its way in.
+
+**When a migration goes wrong**, the mirror is disposable and the recovery is
+one line — `rm -rf ~/.scry && scry sync`. Nothing here is a source of truth;
+your Atlassian site is. Losing the mirror costs you the time to re-sync and
+nothing else.
 
 Default location: `~/.scry/scry.db`. Override with `--db` or `SCRY_DB`.
 
