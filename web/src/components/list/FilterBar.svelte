@@ -88,7 +88,7 @@
   {#each filters.activeChips as chip (chip.field + (chip.value ?? ''))}
     <button
       type="button"
-      class="group inline-flex items-center gap-1 rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+      class="group inline-flex h-control-sm items-center gap-1 rounded-md border border-accent/60 bg-accent-subtle/40 px-2.5 text-[12px] text-accent-text transition-colors hover:border-accent/75 hover:text-text-primary"
       onclick={() => {
         if (chip.kind === 'multi') filters.removeValue(chip.field as MultiField, chip.value!)
         else if (chip.kind === 'field') filters.removeFieldValue(chip.field, chip.value!)
@@ -106,7 +106,7 @@
   <div class="relative">
     <button
       type="button"
-      class="inline-flex items-center gap-1 rounded-md border border-dashed border-border-strong px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+      class="inline-flex h-control-sm items-center gap-1 rounded-md border border-dashed border-border-strong px-2.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={() => (open ? closeAll() : openMenu())}
     >
       {t('filter.add')}
@@ -114,7 +114,7 @@
 
     {#if open}
       <div
-        class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-[70vh] w-64 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-xl shadow-black/40"
+        class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-[70vh] w-64 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
       >
         {#if !field}
           <!-- Step 1: field pick + flags -->
@@ -122,7 +122,7 @@
           {#each axes as f (f.key)}
             <button
               type="button"
-              class="flex w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+              class="flex min-h-control-sm w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
               onclick={() => pickField(f)}
             >
               <span>{f.label}</span>
@@ -134,7 +134,7 @@
           {#each [{ k: 'reopened' as const, l: t('filter.flagReopened') }, { k: 'unassigned' as const, l: t('filter.flagUnassigned') }, { k: 'stale' as const, l: t('filter.flagStale') }] as flag (flag.k)}
             <button
               type="button"
-              class="flex w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+              class="flex min-h-control-sm w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
               onclick={() => filters.toggleFlag(flag.k as 'reopened' | 'unassigned' | 'stale')}
             >
               <span>{flag.l}</span>
@@ -148,7 +148,7 @@
           <div class="flex items-center gap-1 px-1 pb-1">
             <button
               type="button"
-              class="rounded px-1 text-[12px] text-text-muted hover:text-text-primary"
+              class="flex h-control-sm w-control-sm items-center justify-center rounded text-[12px] text-text-muted hover:bg-bg-hover hover:text-text-primary"
               onclick={() => (field = null)}
             >
               ‹
@@ -157,7 +157,7 @@
               type="text"
               bind:value={valueQuery}
               placeholder={t('filter.searchField', { field: field.label })}
-              class="min-w-0 flex-1 rounded bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none"
+              class="h-control-sm min-w-0 flex-1 rounded bg-bg-base px-2 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none"
             />
           </div>
           <div class="max-h-64 overflow-y-auto">
@@ -167,7 +167,7 @@
             {#each values as v (v.value)}
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                class="flex h-control-sm w-full items-center gap-2 rounded px-2 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
                 onclick={() => toggle(field!, v.value)}
               >
                 <span
@@ -193,26 +193,26 @@
     <div class="relative">
       <button
         type="button"
-        class="rounded-md px-2 py-0.5 text-[12px] text-accent-text transition-colors hover:bg-accent-subtle/40"
+        class="inline-flex h-control-sm items-center rounded-md px-2 text-[12px] text-accent-text transition-colors hover:bg-accent-subtle/40"
         onclick={() => (saveOpen = !saveOpen)}
       >
         {t('filter.saveAsView')}
       </button>
       {#if saveOpen}
         <div
-          class="anim-enter absolute left-0 top-full z-30 mt-1 w-60 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-xl shadow-black/40"
+          class="anim-enter absolute left-0 top-full z-30 mt-1 w-60 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-overlay"
         >
           <input
             type="text"
             bind:value={saveName}
             placeholder={t('filter.viewName')}
-            class="mb-2 w-full rounded bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none"
+            class="mb-2 h-control-sm w-full rounded bg-bg-base px-2 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none"
             onkeydown={(e) => e.key === 'Enter' && doSave('personal')}
           />
           <div class="flex gap-1.5">
             <button
               type="button"
-              class="flex-1 rounded bg-accent px-2 py-1 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+              class="h-control-sm flex-1 rounded bg-accent px-2 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
               disabled={!saveName.trim()}
               onclick={() => doSave('personal')}
             >
@@ -220,7 +220,7 @@
             </button>
             <button
               type="button"
-              class="flex-1 rounded border border-border-strong px-2 py-1 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-40"
+              class="h-control-sm flex-1 rounded border border-border-strong px-2 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-40"
               disabled={!saveName.trim()}
               onclick={() => doSave('team')}
             >
@@ -232,7 +232,7 @@
     </div>
     <button
       type="button"
-      class="rounded-md px-2 py-0.5 text-[12px] text-text-muted transition-colors hover:text-status-reopen"
+      class="inline-flex h-control-sm items-center rounded-md px-2 text-[12px] text-text-muted transition-colors hover:text-status-reopen"
       onclick={() => filters.clearAll()}
     >
       {t('filter.clear')}

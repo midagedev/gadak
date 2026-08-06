@@ -8,6 +8,7 @@
    * — it must not grow with content volume.
    */
   import { ArrowLeft } from '@lucide/svelte'
+  import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type PageNode } from '../../stores/pages.svelte'
   import DocRow from './DocRow.svelte'
@@ -52,7 +53,7 @@
   {@const expanded = openDocs.has(node.page.key)}
   {@const selected = pages.selectedKey === node.page.key}
   <div
-    class="group flex min-h-8 items-center rounded-md pr-3 text-body transition-colors {selected
+    class="group flex min-h-control items-center rounded-md pr-3 text-body transition-colors {selected
       ? 'bg-bg-active'
       : 'hover:bg-bg-hover'}"
     style="padding-left: {8 + node.depth * 18}px"
@@ -61,27 +62,21 @@
     {#if node.children.length}
       <button
         type="button"
-        class="flex h-4 w-4 flex-none items-center justify-center rounded text-text-muted transition-colors hover:text-text-primary"
+        class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         aria-expanded={expanded}
         aria-label={t('sidebar.docsToggleNode', { title: node.page.title })}
         data-testid="doc-tree-toggle"
         onclick={() => toggleDoc(node.page.key)}
       >
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          fill="none"
-          aria-hidden="true"
-          class="transition-transform duration-150"
-          style={expanded ? 'transform: rotate(90deg)' : ''}
-        >
-          <path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+        <Icon
+          name="chevron-right"
+          size={14}
+          class="transition-transform duration-150 {expanded ? 'rotate-90' : ''}"
+        />
       </button>
     {:else}
       <!-- Keeps leaf titles on the same left edge as their siblings' -->
-      <span class="h-4 w-4 flex-none" aria-hidden="true"></span>
+      <span class="h-control-sm w-control-sm flex-none" aria-hidden="true"></span>
     {/if}
     <button
       type="button"
@@ -109,7 +104,7 @@
     <div class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-0.5">
       <button
         type="button"
-        class="flex min-h-6 items-center rounded px-2 py-0.5 text-[11px] font-medium transition-colors {treeMode
+        class="flex h-control-sm items-center rounded px-2 text-[11px] font-medium transition-colors {treeMode
           ? 'text-text-muted hover:text-text-secondary'
           : 'bg-bg-active text-text-primary'}"
         aria-pressed={!treeMode}
@@ -120,7 +115,7 @@
       </button>
       <button
         type="button"
-        class="flex min-h-6 items-center rounded px-2 py-0.5 text-[11px] font-medium transition-colors {treeMode
+        class="flex h-control-sm items-center rounded px-2 text-[11px] font-medium transition-colors {treeMode
           ? 'bg-bg-active text-text-primary'
           : 'text-text-muted hover:text-text-secondary'}"
         aria-pressed={treeMode}
@@ -134,7 +129,7 @@
     <div class="flex-1"></div>
     <button
       type="button"
-      class="flex h-7 w-7 flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+      class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={() => pages.closeDocs()}
       title={t('docs.backToIssues')}
       aria-label={t('docs.backToIssues')}

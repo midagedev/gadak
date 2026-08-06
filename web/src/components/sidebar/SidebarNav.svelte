@@ -186,7 +186,7 @@
       type="button"
       disabled={isHostedDemo()}
       onclick={() => write.openNewIssue()}
-      class="flex w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-bg-elevated disabled:text-text-muted disabled:hover:bg-bg-elevated"
+      class="flex h-control w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-bg-elevated disabled:text-text-muted disabled:hover:bg-bg-elevated"
       title={isHostedDemo() ? t('app.demoWriteDisabled') : t('sidebar.newIssueTitle')}
     >
       <Icon name="plus" size={13} />
@@ -228,7 +228,7 @@
       </button>
       {#if historyOpen}
         <div
-          class="anim-enter absolute left-0 top-full z-40 mt-1 w-72 rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-xl shadow-black/40"
+          class="anim-enter absolute left-0 top-full z-40 mt-1 w-72 rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
           data-testid="sync-history-popover"
         >
           <div class="px-2 py-1 text-[11px] font-medium text-text-muted">
@@ -273,7 +273,7 @@
           <div class="mt-1 border-t border-border-subtle px-1 pt-1">
             <button
               type="button"
-              class="w-full rounded px-2 py-1 text-left text-[12px] text-accent-text transition-colors hover:bg-bg-hover"
+              class="flex h-control-sm w-full items-center rounded px-2 text-left text-[12px] text-accent-text transition-colors hover:bg-bg-hover"
               onclick={() => {
                 historyOpen = false
                 void runSyncNow('incremental')
@@ -510,7 +510,7 @@
   <div class="flex-none border-t border-border-subtle px-3 py-2">
     <button
       type="button"
-      class="mb-1 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+      class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={onOpenSettings}
       title={t('sidebar.serverSettings')}
     >
@@ -518,22 +518,16 @@
       {t('sidebar.settings')}
     </button>
     {#if me.identified}
-      <div class="flex items-center gap-2 text-[12px]">
-        <span class="min-w-0 flex-1 truncate text-text-secondary" title={me.email ?? undefined}>
-          {me.name ?? me.email}
-        </span>
-        <button
-          type="button"
-          class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary {write.configured
-            ? ''
-            : 'text-status-stale'}"
-          onclick={() => write.openSettings()}
-          title={write.configured ? t('sidebar.jiraCreds') : t('sidebar.jiraCredsMissing')}
-          aria-label={t('sidebar.jiraCreds')}
-        >
-      <Icon name="settings" size={14} />
-        </button>
-      </div>
+      <button
+        type="button"
+        class="flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+        onclick={() => write.openSettings()}
+        title={write.configured ? t('sidebar.jiraCreds') : t('sidebar.jiraCredsMissing')}
+        aria-label={t('sidebar.jiraCreds')}
+      >
+        <Icon name="user" size={14} class={write.configured ? '' : 'text-status-stale'} />
+        <span class="min-w-0 flex-1 truncate text-left">{me.name ?? me.email}</span>
+      </button>
     {:else if isHostedDemo()}
       <!-- No credential button on the hosted demo: the dialog behind it asks for
            a real Atlassian token, and nothing on a static snapshot could use one. -->
@@ -543,7 +537,7 @@
     {:else if me.authChecked}
       <button
         type="button"
-        class="flex w-full items-center justify-center gap-1.5 rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-control w-full items-center justify-center gap-1.5 rounded-md border border-border-strong px-3 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={() => write.openSettings()}
       >
         {t('common.setCredentials')}

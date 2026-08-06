@@ -45,6 +45,22 @@
   --spacing-row-excerpt: 59px; /* document row carrying a one-line body preview */
 
   /*
+    Control height grid. Two steps, and nothing between them. The toolbar used
+    to run 36 / 30.2 / 26.2 / 20.2px in a single band because every control
+    picked its own py-*, so height came out of whatever text and padding
+    happened to add up to — four sizes reading as an accident rather than a
+    hierarchy. Height is now declared (h-control / h-control-sm with
+    flex items-center), never inferred from padding.
+      control     the thing you aim at: search field, menu trigger, form input,
+                  select, dialog action, nav row
+      control-sm  the thing that rides along inside a dense band or an overlay:
+                  filter chip, inline text action, icon button, tree toggle
+    (2026-08-06)
+  */
+  --spacing-control: 32px;
+  --spacing-control-sm: 24px;
+
+  /*
     Type scale. Four steps, and nothing between them — the screen used to run
     8/10/11/12/13px, five sizes inside a 5px band, which reads as noise rather
     than hierarchy. Anything smaller than micro is not a size, it is a defect.
@@ -71,6 +87,23 @@
   --shadow-overlay:
     0 16px 48px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.4),
     0 0 0 1px rgb(255 255 255 / 0.06);
+
+  /*
+    Corner radius by nesting depth, not by widget name. The screen carried
+    4px on 100 nodes, 6px on 119 and 8px on 15 with no rule behind the split,
+    so the same button came out round in one file and square in the next.
+    Depth is the rule: the further inside you are, the tighter the corner —
+    which is also what keeps a nested corner concentric with the one around it
+    (inner radius ≈ outer radius − padding).
+      rounded-lg  8px — a surface that floats over the page: dropdown, popover,
+                  dialog, toast
+      rounded-md  6px — a control sitting in the page: button, menu trigger,
+                  input, select, filter chip, nav row, inset card
+      rounded     4px — anything nested inside one of the above: menu row,
+                  badge, count, kbd, checkbox, segment
+      rounded-full     circles and true pills only: avatar, status dot, segment
+    (2026-08-06)
+  */
 
   /* ── Fonts ── */
   --font-sans:

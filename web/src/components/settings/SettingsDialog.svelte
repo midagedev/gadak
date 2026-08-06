@@ -19,6 +19,7 @@
   import KeyValueRows from './KeyValueRows.svelte'
   import ScopePicker, { type ScopeOption } from './ScopePicker.svelte'
   import { trapFocus } from '../../lib/focus-trap'
+  import Icon from '../ui/Icon.svelte'
 
   let { onclose }: { onclose: () => void } = $props()
 
@@ -58,13 +59,20 @@
   ]
 
   const INPUT =
-    'w-full rounded-md border border-border-strong bg-bg-base px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent'
+    'h-control w-full rounded-md border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent'
+  // Spelled out rather than `${INPUT} pr-7`: px-2 and pr-7 resolve against each
+  // other by cascade order, not by class order, so the chevron's clearance
+  // would depend on how Tailwind happens to emit the two utilities.
+  const SELECT =
+    'h-control w-full appearance-none rounded-md border border-border-strong bg-bg-base pl-2 pr-7 text-[12px] text-text-primary outline-none focus:border-accent'
+  const SELECT_CHEVRON =
+    'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-text-muted'
   const ADD_BTN =
-    'self-start rounded-md border border-border-strong px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
+    'inline-flex h-control-sm items-center self-start rounded-md border border-border-strong px-2 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
   const DEL_BTN =
     'w-6 flex-none text-[12px] text-text-muted transition-colors hover:text-status-reopen'
   const COPY_BTN =
-    'rounded border border-border-strong px-1.5 py-0.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
+    'inline-flex h-control-sm items-center rounded border border-border-strong px-1.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
 
   interface Kv {
     k: string
@@ -448,7 +456,7 @@
   >
     <!-- Header + tabs -->
     <div class="flex-none border-b border-border-subtle px-5 pt-4">
-      <h2 class="mb-0.5 text-[14px] font-semibold text-text-primary">{t('settings.title')}</h2>
+      <h2 class="mb-0.5 text-title font-semibold text-text-primary">{t('settings.title')}</h2>
       <p class="mb-3 text-[11px] text-text-muted">
         {t('settings.introBefore')} <span class="font-mono">~/.scry/config.json</span> {t('settings.introAfter')}
       </p>
@@ -456,7 +464,7 @@
         {#each TABS as [id, label] (id)}
           <button
             type="button"
-            class="-mb-px border-b-2 px-2.5 py-1.5 text-[12px] transition-colors {tab === id
+            class="-mb-px flex h-control items-center border-b-2 px-2.5 text-[12px] transition-colors {tab === id
               ? 'border-accent text-text-primary'
               : 'border-transparent text-text-secondary hover:text-text-primary'}"
             onclick={() => (tab = id)}
@@ -576,19 +584,22 @@
               <!-- selected on the option, not value on the select: a plain
                    value attribute applies before the #each options mount and
                    never re-syncs, leaving the control visibly empty. -->
-              <select
-                class="{INPUT} w-auto max-w-[12rem]"
-                onchange={(e) => {
-                  syncPreset = Number(e.currentTarget.value)
-                  if (syncPreset !== -1) syncCustomText = ''
-                }}
-              >
-                {#each SYNC_PRESETS as p (p.value)}
-                  <option value={p.value} selected={p.value === syncPreset}>
-                    {p.label}{p.value === 0 ? ` (${defaultSyncSec}s)` : ''}
-                  </option>
-                {/each}
-              </select>
+              <span class="relative flex">
+                <select
+                  class="{SELECT} w-auto max-w-[12rem]"
+                  onchange={(e) => {
+                    syncPreset = Number(e.currentTarget.value)
+                    if (syncPreset !== -1) syncCustomText = ''
+                  }}
+                >
+                  {#each SYNC_PRESETS as p (p.value)}
+                    <option value={p.value} selected={p.value === syncPreset}>
+                      {p.label}{p.value === 0 ? ` (${defaultSyncSec}s)` : ''}
+                    </option>
+                  {/each}
+                </select>
+                <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+              </span>
               {#if syncPreset === -1}
                 <input
                   class="{INPUT} w-28"
@@ -608,19 +619,22 @@
           <div class="flex flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('settings.reconcileInterval')}</span>
             <div class="flex flex-wrap items-center gap-2">
-              <select
-                class="{INPUT} w-auto max-w-[12rem]"
-                onchange={(e) => {
-                  reconcilePreset = Number(e.currentTarget.value)
-                  if (reconcilePreset !== -1) reconcileCustomText = ''
-                }}
-              >
-                {#each RECONCILE_PRESETS as p (p.value)}
-                  <option value={p.value} selected={p.value === reconcilePreset}>
-                    {p.label}{p.value === 0 ? ` (${defaultReconcileSec}s)` : ''}
-                  </option>
-                {/each}
-              </select>
+              <span class="relative flex">
+                <select
+                  class="{SELECT} w-auto max-w-[12rem]"
+                  onchange={(e) => {
+                    reconcilePreset = Number(e.currentTarget.value)
+                    if (reconcilePreset !== -1) reconcileCustomText = ''
+                  }}
+                >
+                  {#each RECONCILE_PRESETS as p (p.value)}
+                    <option value={p.value} selected={p.value === reconcilePreset}>
+                      {p.label}{p.value === 0 ? ` (${defaultReconcileSec}s)` : ''}
+                    </option>
+                  {/each}
+                </select>
+                <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+              </span>
               {#if reconcilePreset === -1}
                 <input
                   class="{INPUT} w-28"
@@ -760,7 +774,7 @@
             {#if me.browserNotifyPermission === 'default'}
               <button
                 type="button"
-                class="flex-none rounded-md border border-border-strong px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                class="inline-flex h-control-sm flex-none items-center rounded-md border border-border-strong px-2 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                 onclick={() => void me.requestBrowserNotificationPermission()}
               >
                 {t('settings.browserNotifyEnable')}
@@ -791,7 +805,7 @@
                 <input class="{INPUT} flex-1" bind:value={row.label} placeholder={t('settings.cloudPart')} />
                 <input
                   type="color"
-                  class="h-[26px] w-16 flex-none rounded-md border border-border-strong bg-bg-base"
+                  class="h-control w-16 flex-none rounded-md border border-border-strong bg-bg-base"
                   value={row.color || '#888888'}
                   oninput={(e) => (row.color = e.currentTarget.value)}
                   title={row.color || t('common.unspecified')}
@@ -979,33 +993,39 @@
                           <span class="ml-1 text-micro text-accent">{t('settings.pinned')}</span>
                         {/if}
                       </span>
-                      <select
-                        class="{INPUT} w-24"
-                        value={spec.role}
-                        onchange={(e) => {
-                          touchSpec(i)
-                          specRows[i].role = e.currentTarget.value
-                        }}
-                      >
-                        <option value="facet">{t('settings.roleFacet')}</option>
-                        <option value="body">{t('settings.roleBody')}</option>
-                        <option value="user">{t('settings.roleUser')}</option>
-                        <option value="plain">{t('settings.rolePlain')}</option>
-                      </select>
-                      <select
-                        class="{INPUT} w-32"
-                        value={spec.kind ?? ''}
-                        onchange={(e) => {
-                          touchSpec(i)
-                          specRows[i].kind = e.currentTarget.value || undefined
-                        }}
-                      >
-                        <option value="">{t('settings.kindNone')}</option>
-                        <option value="option">option</option>
-                        <option value="multi_option">multi_option</option>
-                        <option value="user">user</option>
-                        <option value="version_array">version_array</option>
-                      </select>
+                      <span class="relative flex">
+                        <select
+                          class="{SELECT} w-24"
+                          value={spec.role}
+                          onchange={(e) => {
+                            touchSpec(i)
+                            specRows[i].role = e.currentTarget.value
+                          }}
+                        >
+                          <option value="facet">{t('settings.roleFacet')}</option>
+                          <option value="body">{t('settings.roleBody')}</option>
+                          <option value="user">{t('settings.roleUser')}</option>
+                          <option value="plain">{t('settings.rolePlain')}</option>
+                        </select>
+                        <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+                      </span>
+                      <span class="relative flex">
+                        <select
+                          class="{SELECT} w-32"
+                          value={spec.kind ?? ''}
+                          onchange={(e) => {
+                            touchSpec(i)
+                            specRows[i].kind = e.currentTarget.value || undefined
+                          }}
+                        >
+                          <option value="">{t('settings.kindNone')}</option>
+                          <option value="option">option</option>
+                          <option value="multi_option">multi_option</option>
+                          <option value="user">user</option>
+                          <option value="version_array">version_array</option>
+                        </select>
+                        <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+                      </span>
                       <button
                         type="button"
                         class="text-[11px] text-text-muted hover:text-status-reopen"
@@ -1085,14 +1105,17 @@
     <div class="flex flex-none items-center gap-2 border-t border-border-subtle px-5 py-2">
       <label class="flex items-center gap-2 text-[12px] text-text-secondary">
         <span>{t('settings.locale')}</span>
-        <select
-          class="rounded-md border border-border-strong bg-bg-base px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent"
-          value={locale()}
-          onchange={(e) => setLocale(e.currentTarget.value as Locale)}
-        >
-          <option value="en">{t('settings.localeEn')}</option>
-          <option value="ko">{t('settings.localeKo')}</option>
-        </select>
+        <span class="relative flex">
+          <select
+            class="{SELECT} w-auto"
+            value={locale()}
+            onchange={(e) => setLocale(e.currentTarget.value as Locale)}
+          >
+            <option value="en">{t('settings.localeEn')}</option>
+            <option value="ko">{t('settings.localeKo')}</option>
+          </select>
+          <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+        </span>
       </label>
     </div>
 
@@ -1102,7 +1125,7 @@
       <button
         type="button"
         onclick={onclose}
-        class="rounded-md px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+        class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
       >
         {t('common.close')}
       </button>
@@ -1110,7 +1133,7 @@
         type="button"
         onclick={save}
         disabled={loading || saving || !!jsonError}
-        class="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+        class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('common.save')}
       </button>

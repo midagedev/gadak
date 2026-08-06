@@ -17,7 +17,7 @@
       aria-live={toast.kind === 'error' ? 'assertive' : 'polite'}
       onclick={() => write.dismissToast(toast.id)}
       data-testid="toast"
-      class="anim-toast pointer-events-auto max-w-sm rounded-md border px-3 py-2 text-left text-[12px] shadow-xl transition-colors {toast.kind ===
+      class="anim-toast pointer-events-auto max-w-sm rounded-lg border px-3 py-2 text-left text-[12px] shadow-overlay transition-colors {toast.kind ===
       'error'
         ? 'border-status-reopen/40 bg-status-reopen/15 text-status-reopen'
         : toast.kind === 'success'

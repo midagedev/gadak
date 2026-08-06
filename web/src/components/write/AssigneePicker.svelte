@@ -260,7 +260,7 @@
 
   {#if open}
     <div
-      class="anim-enter absolute left-12 top-full z-30 mt-1 w-64 rounded-md border border-border-subtle bg-bg-elevated shadow-xl"
+      class="anim-enter absolute left-12 top-full z-30 mt-1 w-64 rounded-lg border border-border-strong bg-bg-elevated shadow-overlay"
       role="dialog"
       aria-label={t('write.pickAssignee')}
     >
@@ -270,7 +270,7 @@
           bind:value={query}
           type="text"
           placeholder={t('write.searchNameEmail')}
-          class="w-full rounded-md border border-border-strong bg-bg-base px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent"
+          class="h-control-sm w-full rounded border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent"
         />
       </div>
       <div class="max-h-72 overflow-y-auto py-1">

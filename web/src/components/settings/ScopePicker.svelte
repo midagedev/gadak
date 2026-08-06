@@ -47,7 +47,7 @@
   } = $props()
 
   const INPUT =
-    'w-full rounded-md border border-border-strong bg-bg-base px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent'
+    'h-control w-full rounded-md border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent'
 
   // Two pickers share the settings dialog, so the input↔listbox pairing needs an
   // id that is unique per instance.
@@ -132,7 +132,7 @@
       {#each selected as value (value)}
         {@const option = byValue.get(value)}
         <span
-          class="flex max-w-full items-center gap-1 rounded-md border border-border-strong bg-bg-elevated py-0.5 pl-1.5 pr-1 text-[11px] text-text-primary"
+          class="flex h-control-sm max-w-full items-center gap-1 rounded-md border border-border-strong bg-bg-elevated pl-1.5 pr-1 text-[11px] text-text-primary"
           data-testid="scope-chip"
         >
           <!-- Same emphasis order as the dropdown rows: mono accent key, then name. -->
@@ -172,11 +172,12 @@
       data-testid="scope-input"
     />
     {#if open}
-      <!-- Shadow deliberately one step below the palette's: this floats over the
-           next settings section, and a heavy drop made that section read as
-           disabled rather than covered. Height is capped for the same reason. -->
+      <!-- Floats over the next settings section, so its height is capped: a
+           dropdown that covers the rest of the form reads as a modal. Elevation
+           is the shared overlay token — the old hand-tuned shadow was a tier
+           below the palette's, which on this canvas meant no shadow at all. -->
       <div
-        class="anim-enter absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-md border border-border-strong bg-bg-elevated shadow-xl shadow-black/50"
+        class="anim-enter absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-lg border border-border-strong bg-bg-elevated shadow-overlay"
       >
         <div
           class="max-h-40 overflow-y-auto p-1"
@@ -193,7 +194,7 @@
                 type="button"
                 role="option"
                 aria-selected={i === idx}
-                class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] {i ===
+                class="flex min-h-control-sm w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] {i ===
                 idx
                   ? 'bg-bg-active text-text-primary'
                   : 'text-text-secondary hover:bg-bg-hover'}"

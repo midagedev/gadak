@@ -60,7 +60,7 @@
       </span>
       <button
         type="button"
-        class="flex-none rounded px-1.5 text-[13px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-[13px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={onclose}
         aria-label={t('common.closeEsc')}
         title={t('common.closeEsc')}

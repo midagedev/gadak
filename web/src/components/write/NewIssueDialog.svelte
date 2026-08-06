@@ -21,6 +21,15 @@
   import { filters } from '../../stores/filters.svelte'
   import { recentOf } from '../../lib/recency'
   import type { CreateMetaProject, JiraUser } from '../../lib/types'
+  import Icon from '../ui/Icon.svelte'
+
+  // A native <select> keeps its keyboard model and its OS popup; only the closed
+  // state is ours. appearance-none drops the platform arrow, so the chevron has
+  // to come back from the icon set — and it must not eat the click.
+  const SELECT =
+    'h-control w-full appearance-none rounded-md border border-border-strong bg-bg-base pl-2.5 pr-7 text-[13px] text-text-primary outline-none focus:border-accent'
+  const SELECT_CHEVRON =
+    'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-text-muted'
 
   const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
 
@@ -256,7 +265,7 @@
     aria-modal="true"
     aria-label={t('write.newIssue')}
   >
-    <h2 class="mb-4 text-[14px] font-semibold text-text-primary">{t('write.newIssue')}</h2>
+    <h2 class="mb-4 text-title font-semibold text-text-primary">{t('write.newIssue')}</h2>
 
     {#if loading}
       <div class="py-8 text-center text-[13px] text-text-muted">{t('common.loading')}</div>
@@ -266,7 +275,7 @@
         <button
           type="button"
           onclick={loadFallback}
-          class="rounded-md border border-border-strong px-3 py-1.5 text-[12px] text-text-secondary hover:bg-bg-hover"
+          class="inline-flex h-control items-center rounded-md border border-border-strong px-3 text-[12px] text-text-secondary hover:bg-bg-hover"
           >{t('common.retry')}</button
         >
       </div>
@@ -276,25 +285,25 @@
         <div class="flex gap-3">
           <label class="flex min-w-0 flex-1 flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('common.project')}</span>
-            <select
-              bind:value={projectKey}
-              class="rounded-md border border-border-strong bg-bg-base px-2 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
-            >
-              {#each projects as p (p.key)}
-                <option value={p.key}>{p.key} · {p.name}</option>
-              {/each}
-            </select>
+            <span class="relative flex">
+              <select bind:value={projectKey} class={SELECT}>
+                {#each projects as p (p.key)}
+                  <option value={p.key}>{p.key} · {p.name}</option>
+                {/each}
+              </select>
+              <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+            </span>
           </label>
           <label class="flex min-w-0 flex-1 flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('common.type')}</span>
-            <select
-              bind:value={issueTypeId}
-              class="rounded-md border border-border-strong bg-bg-base px-2 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
-            >
-              {#each issueTypes as t (t.id)}
-                <option value={t.id}>{t.name}</option>
-              {/each}
-            </select>
+            <span class="relative flex">
+              <select bind:value={issueTypeId} class={SELECT}>
+                {#each issueTypes as t (t.id)}
+                  <option value={t.id}>{t.name}</option>
+                {/each}
+              </select>
+              <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+            </span>
           </label>
         </div>
 
@@ -307,7 +316,7 @@
             type="text"
             required
             maxlength="255"
-            class="rounded-md border border-border-strong bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
+            class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-[13px] text-text-primary outline-none focus:border-accent"
             placeholder={t('write.issueTitle')}
           />
         </label>
@@ -328,7 +337,7 @@
           <div class="relative flex min-w-0 flex-1 flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('common.assignee')}</span>
             {#if assignee}
-              <div class="flex items-center gap-2 rounded-md border border-border-strong bg-bg-base px-2 py-1.5 text-[13px]">
+              <div class="flex h-control items-center gap-2 rounded-md border border-border-strong bg-bg-base px-2 text-[13px]">
                 <span class="min-w-0 flex-1 truncate text-text-primary">{assignee.display_name}</span>
                 <button type="button" onclick={clearUser} class="flex-none text-text-muted hover:text-status-reopen">✕</button>
               </div>
@@ -338,10 +347,10 @@
                 type="text"
                 placeholder={t('write.searchPersonOptional')}
                 onfocus={() => (userMenuOpen = userResults.length > 0)}
-                class="rounded-md border border-border-strong bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
+                class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-[13px] text-text-primary outline-none focus:border-accent"
               />
               {#if userMenuOpen && (userResults.length > 0 || userSearching)}
-                <div class="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-border-subtle bg-bg-elevated py-1 shadow-xl">
+                <div class="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay">
                   {#if userSearching}
                     <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.searching')}</div>
                   {/if}
@@ -363,22 +372,22 @@
           </div>
           <label class="flex w-32 flex-none flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('common.priority')}</span>
-            <select
-              bind:value={priority}
-              class="rounded-md border border-border-strong bg-bg-base px-2 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
-            >
-              <option value="">{t('common.defaultParen')}</option>
-              {#each PRIORITIES as p (p)}
-                <option value={p}>{p}</option>
-              {/each}
-            </select>
+            <span class="relative flex">
+              <select bind:value={priority} class={SELECT}>
+                <option value="">{t('common.defaultParen')}</option>
+                {#each PRIORITIES as p (p)}
+                  <option value={p}>{p}</option>
+                {/each}
+              </select>
+              <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+            </span>
           </label>
         </div>
 
         <!-- Labels -->
         <div class="relative flex flex-col gap-1">
           <span class="text-[11px] text-text-secondary">{t('common.labels')}</span>
-          <div class="flex flex-wrap items-center gap-1 rounded-md border border-border-strong bg-bg-base px-2 py-1.5">
+          <div class="flex min-h-control flex-wrap items-center gap-1 rounded-md border border-border-strong bg-bg-base px-2 py-1">
             {#each labels as l (l)}
               <span class="inline-flex items-center gap-1 rounded bg-bg-elevated px-1.5 py-0.5 text-[11px] text-text-secondary">
                 {l}
@@ -396,7 +405,7 @@
             />
           </div>
           {#if labelMenuOpen && labelSuggestions.length > 0}
-            <div class="absolute left-0 right-0 top-full z-20 mt-1 max-h-40 overflow-y-auto rounded-md border border-border-subtle bg-bg-elevated py-1 shadow-xl">
+            <div class="absolute left-0 right-0 top-full z-20 mt-1 max-h-40 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay">
               {#each labelSuggestions as l (l)}
                 <button
                   type="button"
@@ -419,13 +428,13 @@
           <button
             type="button"
             onclick={close}
-            class="rounded-md px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+            class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
             >{t('common.cancel')}</button
           >
           <button
             type="submit"
             disabled={submitting}
-            class="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+            class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
           >
             {submitting ? t('common.creating') : t('common.create')}
           </button>

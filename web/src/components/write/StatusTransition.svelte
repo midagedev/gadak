@@ -187,7 +187,7 @@
   {#if open}
     <div
       bind:this={listEl}
-      class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-52 overflow-y-auto rounded-md border border-border-subtle bg-bg-elevated py-1 shadow-xl"
+      class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-52 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
       role="listbox"
     >
       {#if loading}

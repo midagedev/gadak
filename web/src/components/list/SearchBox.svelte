@@ -175,7 +175,7 @@
 
 <div class="relative">
   <div
-    class="flex h-9 items-center gap-2 rounded-md border border-border-strong/70 bg-bg-elevated px-3 shadow-sm shadow-black/10 focus-within:border-accent/70"
+    class="flex h-control items-center gap-2 rounded-md border border-border-strong/70 bg-bg-elevated px-3 shadow-sm shadow-black/10 focus-within:border-accent/70"
   >
     <Icon name="search" size={14} class="text-text-muted" />
     <input
@@ -192,7 +192,7 @@
     />
     <button
       type="button"
-      class="flex h-5 w-5 flex-none items-center justify-center rounded text-[11px] font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+      class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded text-[11px] font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
       title={t('list.searchHelp')}
       aria-label={t('list.searchHelp')}
       data-testid="search-help"
@@ -223,7 +223,7 @@
   <!-- Token autocomplete / jump -->
   {#if suggestions.length > 0}
     <div
-      class="anim-enter absolute left-0 top-full z-30 mt-1 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-xl shadow-black/40"
+      class="anim-enter absolute left-0 top-full z-30 mt-1 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
     >
       {#each suggestions as s, i (s.kind + s.value)}
         <button
@@ -243,7 +243,7 @@
     </div>
   {:else if showJump && jumpKey}
     <div
-      class="anim-enter absolute left-0 top-full z-30 mt-1 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-xl shadow-black/40"
+      class="anim-enter absolute left-0 top-full z-30 mt-1 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
     >
       <button
         type="button"

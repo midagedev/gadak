@@ -60,7 +60,7 @@
 
   {#if open}
     <div
-      class="absolute right-0 top-9 z-40 w-[276px] rounded-md border border-border-strong bg-bg-panel p-3 shadow-xl"
+      class="absolute right-0 top-9 z-40 w-[276px] rounded-lg border border-border-strong bg-bg-panel p-3 shadow-overlay"
     >
       <div class="mb-3 flex items-center gap-2">
         <Bell size={15} strokeWidth={1.8} class="text-text-secondary" />
@@ -68,7 +68,7 @@
         <span class="flex-1"></span>
         <button
           type="button"
-          class="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
+          class="flex h-control-sm w-control-sm items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
           onclick={close}
           aria-label={t('common.close')}
           title={t('common.close')}
@@ -88,7 +88,7 @@
           type="button"
           disabled={me.pushState === 'loading'}
           onclick={togglePush}
-          class="mb-3 flex h-8 w-full items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium transition-colors disabled:opacity-50 {me.pushState ===
+          class="mb-3 flex h-control w-full items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium transition-colors disabled:opacity-50 {me.pushState ===
           'subscribed'
             ? 'border-status-done/40 bg-status-done/10 text-status-done hover:bg-status-done/15'
             : 'border-border-strong text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -170,7 +170,7 @@
                   type="time"
                   value={me.notificationConfig.preferences.quiet_start ?? ''}
                   onchange={(event) => setQuiet('quiet_start', event.currentTarget.value)}
-                  class="rounded border border-border-strong bg-bg-elevated px-1.5 py-1 text-[11px] text-text-primary"
+                  class="h-control-sm rounded border border-border-strong bg-bg-elevated px-1.5 text-[11px] text-text-primary"
                   aria-label={t('notif.quietStart')}
                 />
                 <span>~</span>
@@ -178,7 +178,7 @@
                   type="time"
                   value={me.notificationConfig.preferences.quiet_end ?? ''}
                   onchange={(event) => setQuiet('quiet_end', event.currentTarget.value)}
-                  class="rounded border border-border-strong bg-bg-elevated px-1.5 py-1 text-[11px] text-text-primary"
+                  class="h-control-sm rounded border border-border-strong bg-bg-elevated px-1.5 text-[11px] text-text-primary"
                   aria-label={t('notif.quietEnd')}
                 />
               </div>

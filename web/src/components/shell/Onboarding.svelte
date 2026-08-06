@@ -24,11 +24,11 @@
   const POLL_MS = 1000
 
   const INPUT =
-    'w-full rounded-md border border-border-strong bg-bg-base px-2.5 py-1.5 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-accent'
+    'h-control w-full rounded-md border border-border-strong bg-bg-base px-2.5 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-accent'
   const PRIMARY =
-    'rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50'
+    'inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50'
   const GHOST =
-    'rounded-md border border-border-strong px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
+    'inline-flex h-control items-center rounded-md border border-border-strong px-2.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
 
   type Step = 1 | 2 | 3
   let step = $state<Step>(1)
@@ -196,7 +196,7 @@
     <p class="text-micro uppercase tracking-wide text-text-muted">
       {t('onboarding.stepOf', { n: step })} · {STEP_LABELS[step - 1]}
     </p>
-    <h2 class="mt-1 text-[15px] font-semibold text-text-primary">{t('onboarding.title')}</h2>
+    <h2 class="mt-1 text-title font-semibold text-text-primary">{t('onboarding.title')}</h2>
     <p class="mt-1.5 text-[12px] text-text-secondary">{t('onboarding.intro')}</p>
 
     <!-- Progress: thin 3-segment bar -->

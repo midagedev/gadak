@@ -19,7 +19,7 @@
   } = $props()
 
   const INPUT =
-    'w-full rounded-md border border-border-strong bg-bg-base px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent'
+    'h-control w-full rounded-md border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent'
 </script>
 
 <div class="flex flex-col gap-1.5">
@@ -44,7 +44,7 @@
   {/each}
   <button
     type="button"
-    class="self-start rounded-md border border-border-strong px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+    class="inline-flex h-control-sm items-center self-start rounded-md border border-border-strong px-2 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
     onclick={() => (rows = [...rows, { k: '', v: '' }])}
   >
     {t('settings.addRow')}

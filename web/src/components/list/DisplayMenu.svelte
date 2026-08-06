@@ -33,7 +33,7 @@
 <div bind:this={rootEl} class="relative">
   <button
     type="button"
-    class="inline-flex items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 py-1.5 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+    class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
     onclick={() => (open = !open)}
     title={t('sort.options')}
   >
@@ -45,14 +45,14 @@
 
   {#if open}
     <div
-      class="anim-enter absolute right-0 top-full z-30 mt-1 w-56 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-xl shadow-black/40"
+      class="anim-enter absolute right-0 top-full z-30 mt-1 w-56 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-overlay"
     >
       <div class="mb-1 text-[11px] font-medium text-text-muted">{t('sort.label')}</div>
       <div class="flex flex-wrap gap-1">
         {#each sorts as s (s.k)}
           <button
             type="button"
-            class="rounded px-2 py-0.5 text-[12px] transition-colors {filters.effectiveSort === s.k
+            class="inline-flex h-control-sm items-center rounded px-2 text-[12px] transition-colors {filters.effectiveSort === s.k
               ? 'bg-accent text-white'
               : 'bg-bg-base text-text-secondary hover:bg-bg-hover'}"
             onclick={() => filters.setSort(s.k)}
@@ -62,7 +62,7 @@
         {/each}
         <button
           type="button"
-          class="ml-auto rounded px-2 py-0.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+          class="ml-auto inline-flex h-control-sm items-center rounded px-2 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
           onclick={() => filters.toggleDir()}
           title={t('sort.direction')}
         >

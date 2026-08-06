@@ -93,10 +93,10 @@
     data-testid="shortcuts-dialog"
   >
     <div class="flex flex-none items-center justify-between border-b border-border-subtle px-4 py-3">
-      <h2 class="text-[14px] font-semibold text-text-primary">{t('shortcuts.title')}</h2>
+      <h2 class="text-title font-semibold text-text-primary">{t('shortcuts.title')}</h2>
       <button
         type="button"
-        class="rounded px-1.5 text-[13px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-[13px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={onclose}
         aria-label={t('common.closeEsc')}
         title={t('common.closeEsc')}

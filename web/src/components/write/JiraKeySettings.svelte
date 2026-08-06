@@ -69,7 +69,7 @@
     aria-modal="true"
     aria-label={t('jiraSettings.title')}
   >
-    <h2 class="mb-1 text-[14px] font-semibold text-text-primary">{t('jiraSettings.heading')}</h2>
+    <h2 class="mb-1 text-title font-semibold text-text-primary">{t('jiraSettings.heading')}</h2>
     <p class="mb-4 text-[12px] leading-relaxed text-text-muted">
       <!-- intro3 already ends in "Atlassian"; the line break below is the space
            before the link, so no literal belongs here. -->
@@ -108,7 +108,7 @@
           type="email"
           autocomplete="username"
           required
-          class="rounded-md border border-border-strong bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
+          class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-[13px] text-text-primary outline-none focus:border-accent"
           placeholder="you@example.com"
         />
       </label>
@@ -121,7 +121,7 @@
           type="password"
           autocomplete="off"
           required
-          class="rounded-md border border-border-strong bg-bg-base px-2.5 py-1.5 font-mono text-[13px] text-text-primary outline-none focus:border-accent"
+          class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 font-mono text-[13px] text-text-primary outline-none focus:border-accent"
           placeholder="ATATT3x…"
         />
       </label>
@@ -136,7 +136,7 @@
             type="button"
             onclick={remove}
             disabled={busy}
-            class="rounded-md px-3 py-1.5 text-[12px] text-status-reopen transition-colors hover:bg-status-reopen/10 disabled:opacity-50"
+            class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-status-reopen transition-colors hover:bg-status-reopen/10 disabled:opacity-50"
           >
             {t('common.delete')}
           </button>
@@ -147,14 +147,14 @@
           <button
             type="button"
             onclick={close}
-            class="rounded-md px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+            class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
           >
             {t('common.close')}
           </button>
           <button
             type="submit"
             disabled={busy}
-            class="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+            class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
           >
             {busy ? t('common.verifying') : write.configured ? t('jiraSettings.replaceToken') : t('common.save')}
           </button>

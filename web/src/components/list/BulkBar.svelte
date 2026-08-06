@@ -248,13 +248,13 @@
         type="button"
         onclick={() => toggleMenu('status')}
         disabled={running}
-        class="rounded-md border border-border-subtle px-2.5 py-1 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+        class="inline-flex h-control-sm items-center rounded-md border border-border-subtle px-2.5 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
       >
         {t('bulk.changeStatus')}
       </button>
       {#if menu === 'status'}
         <div
-          class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-md border border-border-subtle bg-bg-elevated py-1 shadow-xl"
+          class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
           role="listbox"
           data-testid="bulk-status-menu"
         >
@@ -285,13 +285,13 @@
         type="button"
         onclick={() => toggleMenu('assignee')}
         disabled={running}
-        class="rounded-md border border-border-subtle px-2.5 py-1 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+        class="inline-flex h-control-sm items-center rounded-md border border-border-subtle px-2.5 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
       >
         {t('bulk.changeAssignee')}
       </button>
       {#if menu === 'assignee'}
         <div
-          class="anim-enter absolute left-0 top-full z-30 mt-1 w-64 rounded-md border border-border-subtle bg-bg-elevated shadow-xl"
+          class="anim-enter absolute left-0 top-full z-30 mt-1 w-64 rounded-lg border border-border-strong bg-bg-elevated shadow-overlay"
           role="dialog"
           aria-label={t('bulk.pickAssignee')}
           data-testid="bulk-assignee-menu"
@@ -303,7 +303,7 @@
               type="text"
               placeholder={t('bulk.searchPerson')}
               autofocus
-              class="w-full rounded-md border border-border-strong bg-bg-base px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent"
+              class="h-control-sm w-full rounded border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent"
             />
           </div>
           <div class="max-h-72 overflow-y-auto py-1">
@@ -343,7 +343,7 @@
       type="button"
       onclick={() => bulk.clear()}
       disabled={running}
-      class="flex-none rounded-md px-2 py-1 text-text-muted transition-colors hover:text-text-primary disabled:opacity-50"
+      class="inline-flex h-control-sm flex-none items-center rounded-md px-2 text-text-muted transition-colors hover:text-text-primary disabled:opacity-50"
     >
       {t('common.deselect')}
     </button>

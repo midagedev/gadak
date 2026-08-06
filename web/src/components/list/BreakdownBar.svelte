@@ -4,6 +4,7 @@
   import { filters } from '../../stores/filters.svelte'
   import { CATEGORY_META } from '../../lib/format'
   import { groupByEnabled, type GroupBy, type StatusCategory } from '../../lib/view-config'
+  import Icon from '../ui/Icon.svelte'
 
   const ALL_OPTIONS: { key: GroupBy; label: string }[] = [
     { key: 'status_category', label: t('group.byStatusCategory') },
@@ -74,28 +75,32 @@
 <svelte:document onclick={onDocClick} />
 
 <div
-  class="flex min-h-11 flex-none items-center gap-3 border-b border-border-subtle bg-bg-panel/55 px-4 py-2"
+  class="flex min-h-11 flex-none items-center gap-3 border-b border-border-subtle bg-bg-panel/55 px-4 py-1.5"
 >
   <div bind:this={rootEl} class="relative flex-none">
     <button
       type="button"
-      class="inline-flex items-center gap-1.5 rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+      class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong bg-bg-elevated px-2.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
       onclick={() => (open = !open)}
       aria-expanded={open}
     >
       <span class="text-text-muted">{t('group.breakdown')}</span>
       <span class="text-text-primary">{currentLabel}</span>
-      <span class="text-text-muted">⌄</span>
+      <Icon
+        name="chevron-right"
+        size={13}
+        class="text-text-muted transition-transform duration-150 {open ? '-rotate-90' : 'rotate-90'}"
+      />
     </button>
 
     {#if open}
       <div
-        class="anim-enter absolute left-0 top-full z-30 mt-1 grid w-64 grid-cols-2 gap-1 rounded-lg border border-border-strong bg-bg-elevated p-1.5 shadow-xl shadow-black/40"
+        class="anim-enter absolute left-0 top-full z-30 mt-1 grid w-64 grid-cols-2 gap-1 rounded-lg border border-border-strong bg-bg-elevated p-1.5 shadow-overlay"
       >
         {#each OPTIONS as option (option.key)}
           <button
             type="button"
-            class="rounded-md px-2.5 py-1.5 text-left text-[12px] transition-colors {filters.display
+            class="flex min-h-control-sm items-center rounded px-2.5 py-1 text-left text-[12px] transition-colors {filters.display
               .group_by === option.key
               ? 'bg-accent text-white'
               : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
