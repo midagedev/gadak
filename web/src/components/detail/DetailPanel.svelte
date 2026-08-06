@@ -134,7 +134,7 @@
           <!-- The banner counts demo edits; this says which issue is one, so a
                changed status here is never mistaken for the snapshot's own. -->
           <p
-            class="border-b border-border-subtle bg-accent-strong/10 px-5 py-2 text-[11px] text-text-secondary"
+            class="border-b border-border-subtle bg-accent-strong/10 px-5 py-2 text-micro text-text-secondary"
             data-testid="demo-edited-notice"
           >
             {t('app.demoEditedIssue')}
@@ -170,7 +170,7 @@
       {#if errorKind}
         <!-- Error: 404 (deleted) / network -->
         <div class="flex flex-col items-center gap-3 px-5 py-16 text-center">
-          <p class="text-[13px] text-text-secondary">
+          <p class="text-body text-text-secondary">
             {#if errorKind === 'notfound'}
               {t('detail.notFound')}
             {:else}
@@ -210,7 +210,7 @@
 
           <!-- Description -->
           <Section title={t('detail.description')}>
-            <div class="text-[13px] text-text-secondary">
+            <div class="text-body text-text-secondary">
               <AdfContent
                 node={detailForKey.description_adf}
                 issueKey={key}
@@ -224,7 +224,7 @@
                Board templates put real prose in these; each gets its own section. -->
           {#each bodySections as body (body.alias)}
             <Section title={body.label}>
-              <div class="text-[13px] text-text-secondary">
+              <div class="text-body text-text-secondary">
                 <AdfContent
                   node={body.node}
                   fallback={body.text}

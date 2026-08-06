@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from '../../lib/i18n'
-  import { Bell, BellOff, Check, X } from '@lucide/svelte'
+  import Icon from '../ui/Icon.svelte'
   import { me } from '../../stores/me.svelte'
 
   let open = $state(false)
@@ -42,7 +42,7 @@
   <button
     type="button"
     onclick={() => (open = !open)}
-    class="relative flex h-7 w-7 items-center justify-center rounded-md transition-colors {me.pushState ===
+    class="relative flex h-control-sm w-control-sm items-center justify-center rounded-md transition-colors {me.pushState ===
     'subscribed'
       ? 'text-accent-text hover:bg-bg-hover'
       : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -51,10 +51,10 @@
     aria-expanded={open}
   >
     {#if me.pushState === 'subscribed'}
-      <Bell size={15} strokeWidth={1.9} />
+      <Icon name="bell" size={15} />
       <span class="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-status-done"></span>
     {:else}
-      <BellOff size={15} strokeWidth={1.8} />
+      <Icon name="bell-off" size={15} />
     {/if}
   </button>
 
@@ -63,7 +63,7 @@
       class="absolute right-0 top-9 z-40 w-[276px] rounded-lg border border-border-strong bg-bg-panel p-3 shadow-overlay"
     >
       <div class="mb-3 flex items-center gap-2">
-        <Bell size={15} strokeWidth={1.8} class="text-text-secondary" />
+        <Icon name="bell" size={15} class="text-text-secondary" />
         <span class="text-[12px] font-semibold text-text-primary">{t('notif.webPush')}</span>
         <span class="flex-1"></span>
         <button
@@ -73,16 +73,16 @@
           aria-label={t('common.close')}
           title={t('common.close')}
         >
-          <X size={14} strokeWidth={1.8} />
+          <Icon name="x" size={14} />
         </button>
       </div>
 
       {#if me.pushState === 'unsupported'}
-        <p class="text-[11px] text-text-muted">{t('notif.unsupported')}</p>
+        <p class="text-micro text-text-muted">{t('notif.unsupported')}</p>
       {:else if me.pushState === 'unavailable'}
-        <p class="text-[11px] text-text-muted">{t('notif.serverNotReady')}</p>
+        <p class="text-micro text-text-muted">{t('notif.serverNotReady')}</p>
       {:else if me.pushState === 'denied'}
-        <p class="text-[11px] text-status-reopen">{t('notif.blocked')}</p>
+        <p class="text-micro text-status-reopen">{t('notif.blocked')}</p>
       {:else}
         <button
           type="button"
@@ -94,17 +94,17 @@
             : 'border-border-strong text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
         >
           {#if me.pushState === 'subscribed'}
-            <Check size={14} strokeWidth={2} />
+            <Icon name="check" size={14} />
             {t('notif.enabledHere')}
           {:else}
-            <Bell size={14} strokeWidth={1.8} />
+            <Icon name="bell" size={14} />
             {t('notif.enableHere')}
           {/if}
         </button>
 
         {#if me.notificationConfig}
           <div class="space-y-2 border-t border-border-subtle pt-2.5">
-            <label class="flex min-h-6 cursor-pointer items-center gap-2 text-[11px] text-text-secondary">
+            <label class="flex min-h-6 cursor-pointer items-center gap-2 text-micro text-text-secondary">
               <input
                 type="checkbox"
                 checked={me.notificationConfig.preferences.notify_mentions}
@@ -116,7 +116,7 @@
               />
               {t('notif.mention')}
             </label>
-            <label class="flex min-h-6 cursor-pointer items-center gap-2 text-[11px] text-text-secondary">
+            <label class="flex min-h-6 cursor-pointer items-center gap-2 text-micro text-text-secondary">
               <input
                 type="checkbox"
                 checked={me.notificationConfig.preferences.notify_assigned}
@@ -128,7 +128,7 @@
               />
               {t('notif.newAssignee')}
             </label>
-            <label class="flex min-h-6 cursor-pointer items-center gap-2 text-[11px] text-text-secondary">
+            <label class="flex min-h-6 cursor-pointer items-center gap-2 text-micro text-text-secondary">
               <input
                 type="checkbox"
                 checked={me.notificationConfig.preferences.notify_watched}
@@ -141,7 +141,7 @@
               {t('notif.watchChange')}
             </label>
             <label
-              class="flex min-h-6 cursor-pointer items-center gap-2 border-t border-border-subtle pt-2 text-[11px] text-text-secondary"
+              class="flex min-h-6 cursor-pointer items-center gap-2 border-t border-border-subtle pt-2 text-micro text-text-secondary"
             >
               <input
                 type="checkbox"
@@ -155,7 +155,7 @@
           </div>
 
           <div class="mt-2 space-y-2 border-t border-border-subtle pt-2.5">
-            <label class="flex min-h-6 cursor-pointer items-center gap-2 text-[11px] text-text-secondary">
+            <label class="flex min-h-6 cursor-pointer items-center gap-2 text-micro text-text-secondary">
               <input
                 type="checkbox"
                 checked={quietEnabled}
@@ -165,12 +165,12 @@
               {t('notif.quietHours')}
             </label>
             {#if quietEnabled}
-              <div class="flex items-center gap-2 pl-6 text-[11px] text-text-muted">
+              <div class="flex items-center gap-2 pl-6 text-micro text-text-muted">
                 <input
                   type="time"
                   value={me.notificationConfig.preferences.quiet_start ?? ''}
                   onchange={(event) => setQuiet('quiet_start', event.currentTarget.value)}
-                  class="h-control-sm rounded border border-border-strong bg-bg-elevated px-1.5 text-[11px] text-text-primary"
+                  class="h-control-sm rounded border border-border-strong bg-bg-elevated px-1.5 text-micro text-text-primary"
                   aria-label={t('notif.quietStart')}
                 />
                 <span>~</span>
@@ -178,7 +178,7 @@
                   type="time"
                   value={me.notificationConfig.preferences.quiet_end ?? ''}
                   onchange={(event) => setQuiet('quiet_end', event.currentTarget.value)}
-                  class="h-control-sm rounded border border-border-strong bg-bg-elevated px-1.5 text-[11px] text-text-primary"
+                  class="h-control-sm rounded border border-border-strong bg-bg-elevated px-1.5 text-micro text-text-primary"
                   aria-label={t('notif.quietEnd')}
                 />
               </div>
@@ -189,7 +189,7 @@
       {/if}
 
       {#if me.pushError}
-        <p class="mt-2 text-[11px] text-status-reopen">{me.pushError}</p>
+        <p class="mt-2 text-micro text-status-reopen">{me.pushError}</p>
       {/if}
     </div>
   {/if}

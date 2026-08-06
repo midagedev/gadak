@@ -71,13 +71,13 @@
               style:background={CATEGORY_META[categoryOf(child)].color}
               title={child.status}
             ></span>
-            <span class="w-[76px] flex-none truncate font-mono text-[11px] font-medium text-accent-text">
+            <span class="w-[76px] flex-none truncate font-mono text-micro font-medium text-accent-text">
               {child.issue_key}
             </span>
             <span class="min-w-0 flex-1 truncate text-[12px] text-text-secondary group-hover:text-text-primary">
               {child.summary}
             </span>
-            <span class="max-w-[88px] flex-none truncate text-[11px] text-text-muted">
+            <span class="max-w-[88px] flex-none truncate text-micro text-text-muted">
               {child.status}
             </span>
           </button>
@@ -90,7 +90,7 @@
         type="button"
         data-testid="epic-children-toggle"
         onclick={() => (expanded = !expanded)}
-        class="mt-1 rounded-md px-2 py-1 text-[11px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
+        class="mt-1 rounded-md px-2 py-1 text-micro text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
       >
         {expanded ? t('detail.epicShowLess') : t('detail.epicShowAll', { n: hidden })}
       </button>

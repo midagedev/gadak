@@ -54,25 +54,25 @@
 </script>
 
 <div class="mb-3">
-  <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+  <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
     {t('personal.myIssues')}
   </div>
 
   {#if me.identified}
     <button
       type="button"
-      class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+      class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={applyAssignee}
     >
       <Icon name="user" size={15} class="text-text-muted" />
       <span class="min-w-0 flex-1 truncate">{t('personal.myAssignee')}</span>
-      <span class="flex-none text-[11px] text-text-muted">{assignedCount}</span>
+      <span class="flex-none text-micro text-text-muted">{assignedCount}</span>
     </button>
 
     {#if feedOn}
     <button
       type="button"
-      class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {me.feedOpen &&
+      class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {me.feedOpen &&
       me.feedFocus === 'reporter'
         ? 'bg-bg-active text-text-primary'
         : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -80,12 +80,12 @@
     >
       <Icon name="pen" size={15} class="text-text-muted" />
       <span class="min-w-0 flex-1 truncate">{t('personal.myReporter')}</span>
-      <span class="flex-none text-[11px] text-text-muted">{reportedCount}</span>
+      <span class="flex-none text-micro text-text-muted">{reportedCount}</span>
     </button>
 
     <button
       type="button"
-      class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {me.feedOpen &&
+      class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {me.feedOpen &&
       me.feedFocus !== 'reporter'
         ? 'bg-bg-active text-text-primary'
         : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"

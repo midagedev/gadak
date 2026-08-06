@@ -16,7 +16,9 @@
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import { recentOf } from '../../lib/recency'
-  import Avatar from '../detail/Avatar.svelte'
+  // The list's Avatar: a person wears the same name-derived color here that
+  // they wear in every row behind this popover.
+  import Avatar from '../list/Avatar.svelte'
 
   let { issue }: { issue: IssueLite } = $props()
 
@@ -38,7 +40,6 @@
   let rootEl = $state<HTMLDivElement | null>(null)
   let inputEl: HTMLInputElement | null = $state(null)
 
-  const assigneeMember = $derived(issues.memberOf(issue.assignee_email))
   const hasAssignee = $derived(Boolean(issue.assignee || issue.assignee_email))
 
   function candOf(m: Member, label?: string): Cand {
@@ -219,7 +220,7 @@
     <!-- One 20px circle whichever branch renders: a 16px circle could not hold a
          legible initial, and the three branches have to line up in one column. -->
     {#if c.member}
-      <Avatar member={c.member} name={c.display_name} email={c.email} size={20} />
+      <Avatar name={c.display_name} email={c.email} size={20} />
     {:else if c.avatar_url}
       <img src={c.avatar_url} alt={c.display_name} class="h-5 w-5 flex-none rounded-full object-cover" loading="lazy" />
     {:else}
@@ -241,7 +242,7 @@
     disabled={busy}
   >
     {#if hasAssignee}
-      <Avatar member={assigneeMember} name={issue.assignee} email={issue.assignee_email} size={16} />
+      <Avatar name={issue.assignee} email={issue.assignee_email} size={16} />
       <span class="text-text-secondary">{issue.assignee ?? issue.assignee_email}</span>
     {:else}
       <span class="text-text-muted italic">{t('common.unassigned')}</span>
@@ -291,9 +292,9 @@
             {@render candRow(c)}
           {/each}
           {#if searching}
-            <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.searching')}</div>
+            <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.searching')}</div>
           {:else if typed.length === 0}
-            <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.noResults')}</div>
+            <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.noResults')}</div>
           {/if}
         {:else}
           <!-- Personalized groups: subtle gaps between groups -->
@@ -305,7 +306,7 @@
             </div>
           {/each}
           {#if groups.length === 0}
-            <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('write.typeToSearch')}</div>
+            <div class="px-3 py-1.5 text-micro text-text-muted">{t('write.typeToSearch')}</div>
           {/if}
         {/if}
       </div>

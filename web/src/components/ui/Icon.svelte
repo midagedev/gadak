@@ -14,8 +14,24 @@
    * Glyphs come from Lucide, already a dependency and already rendering in the
    * detail and docs panels. Drawing a parallel set by hand would have produced
    * exactly the mismatch described above.
+   *
+   * A literal ✕ ✓ › ‹ ▾ in the markup is the same problem wearing a different
+   * hat, which is why those are gone: a text glyph renders in whatever font the
+   * platform picks for it, carries no stroke weight to match, and sits on the
+   * text baseline instead of the icon grid, so a close button drawn with ✕ was
+   * a different size and a different weight on macOS than beside it on Linux.
+   * The exceptions are the ones that are genuinely punctuation and not a
+   * control — · as a separator, — as a dash, × as the multiplication sign in
+   * "Reopened 3×". Those stay text.
    */
   import {
+    ArrowLeft,
+    ArrowUpRight,
+    Bell,
+    BellOff,
+    Check,
+    CheckCheck,
+    ChevronLeft,
     ChevronRight,
     CircleCheck,
     CirclePlus,
@@ -23,8 +39,11 @@
     Eye,
     FileText,
     Film,
+    FlaskConical,
+    Hourglass,
     Inbox,
     Layers,
+    LayoutDashboard,
     Megaphone,
     MessageSquare,
     Paperclip,
@@ -37,18 +56,29 @@
     Star,
     TriangleAlert,
     UserRound,
+    X,
     Zap,
   } from '@lucide/svelte'
 
   const ICONS = {
+    'arrow-left': ArrowLeft,
+    'arrow-up-right': ArrowUpRight,
+    bell: Bell,
+    'bell-off': BellOff,
+    check: Check,
+    'check-check': CheckCheck,
     'check-circle': CircleCheck,
+    'chevron-left': ChevronLeft,
     'chevron-right': ChevronRight,
     clock: Clock,
     eye: Eye,
     file: FileText,
     film: Film,
+    flask: FlaskConical,
+    hourglass: Hourglass,
     inbox: Inbox,
     layers: Layers,
+    'layout-dashboard': LayoutDashboard,
     megaphone: Megaphone,
     'message-square': MessageSquare,
     paperclip: Paperclip,
@@ -62,6 +92,7 @@
     star: Star,
     user: UserRound,
     warning: TriangleAlert,
+    x: X,
     zap: Zap,
   } as const
 

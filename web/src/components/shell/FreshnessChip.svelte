@@ -80,7 +80,7 @@
 {#if visible}
   <button
     type="button"
-    class="inline-flex flex-none items-center gap-1.5 rounded px-1.5 py-0.5 text-[12px] {tone} transition-colors {issues.mirrorSyncing
+    class="inline-flex h-control-sm flex-none items-center gap-1.5 rounded-md px-1.5 text-[12px] {tone} transition-colors {issues.mirrorSyncing
       ? 'cursor-progress'
       : 'hover:bg-bg-hover hover:text-text-primary'}"
     data-testid="freshness-chip"

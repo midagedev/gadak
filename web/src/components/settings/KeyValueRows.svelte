@@ -4,6 +4,7 @@
    *  Caller drops empty-key rows on save.
    */
   import { t } from '../../lib/i18n'
+  import Icon from '../ui/Icon.svelte'
   let {
     rows = $bindable(),
     keyLabel,
@@ -23,7 +24,7 @@
 </script>
 
 <div class="flex flex-col gap-1.5">
-  <div class="flex gap-1.5 text-[11px] text-text-muted">
+  <div class="flex gap-1.5 text-micro text-text-muted">
     <span class="flex-1">{keyLabel}</span>
     <span class="flex-1">{valueLabel}</span>
     <span class="w-6 flex-none"></span>
@@ -34,17 +35,17 @@
       <input class="{INPUT} flex-1 font-mono" bind:value={row.v} placeholder={valuePlaceholder} />
       <button
         type="button"
-        class="w-6 flex-none text-[12px] text-text-muted transition-colors hover:text-status-reopen"
+        class="flex w-6 flex-none items-center justify-center text-text-muted transition-colors hover:text-status-reopen"
         title={t('settings.deleteRow')}
         onclick={() => (rows = rows.filter((_, j) => j !== i))}
       >
-        ✕
+        <Icon name="x" size={13} />
       </button>
     </div>
   {/each}
   <button
     type="button"
-    class="inline-flex h-control-sm items-center self-start rounded-md border border-border-strong px-2 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+    class="inline-flex h-control-sm items-center self-start rounded-md border border-border-strong px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
     onclick={() => (rows = [...rows, { k: '', v: '' }])}
   >
     {t('settings.addRow')}

@@ -65,7 +65,7 @@
   </span>
   <!-- Unread is the dot alone; painting the whole meta line accent put the
        meta above the title in the row's hierarchy (vision verdict). -->
-  <span class="flex w-full min-w-0 items-center gap-1 text-[11px] text-text-muted">
+  <span class="flex w-full min-w-0 items-center gap-1 text-micro text-text-muted">
     {#if unread}
       <!-- The mark the local mirror makes cheap: edited since your last visit. -->
       <span class="h-1.5 w-1.5 flex-none rounded-full bg-accent" aria-hidden="true"></span>
@@ -84,7 +84,7 @@
   {#if excerpt}
     <!-- Exactly one line, clipped: the row answers "is this the one", and a
          second line would trade the list's density for a worse summary. -->
-    <span class="w-full truncate text-[11px] leading-[15px] text-text-muted" data-testid="doc-excerpt">
+    <span class="w-full truncate text-micro leading-[15px] text-text-muted" data-testid="doc-excerpt">
       {excerpt}
     </span>
   {/if}

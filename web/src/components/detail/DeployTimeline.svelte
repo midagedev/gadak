@@ -122,14 +122,14 @@
               href={step.href}
               target="_blank"
               rel="noopener noreferrer"
-              class="text-[11px] text-accent-text hover:underline"
+              class="text-micro text-accent-text hover:underline"
             >
               ↗
             </a>
           {/if}
         </div>
         {#if step.detail}
-          <div class="mt-0.5 truncate font-mono text-[11px] text-text-muted" title={step.detail}>
+          <div class="mt-0.5 truncate font-mono text-micro text-text-muted" title={step.detail}>
             {step.detail}
           </div>
         {/if}
@@ -141,7 +141,7 @@
 <!-- Per-PR inclusion evidence (when present) -->
 {#if prList.length > 0}
   <div class="mt-1 border-t border-border-subtle pt-3">
-    <div class="mb-2 text-[11px] font-medium text-text-muted">{t('deploy.byPr')}</div>
+    <div class="mb-2 text-micro font-medium text-text-muted">{t('deploy.byPr')}</div>
     <ul class="flex flex-col gap-1">
       {#each prList as pr (pr.number)}
         <li class="flex items-center gap-2 text-[12px]">
@@ -162,12 +162,12 @@
               href={pr.url}
               target="_blank"
               rel="noopener noreferrer"
-              class="font-mono text-[11px] text-accent-text hover:underline"
+              class="font-mono text-micro text-accent-text hover:underline"
             >
               #{pr.number}
             </a>
           {:else}
-            <span class="font-mono text-[11px] text-text-muted">#{pr.number}</span>
+            <span class="font-mono text-micro text-text-muted">#{pr.number}</span>
           {/if}
           <span class="min-w-0 flex-1 truncate text-text-secondary" title={pr.title ?? ''}>
             {pr.title ?? ''}

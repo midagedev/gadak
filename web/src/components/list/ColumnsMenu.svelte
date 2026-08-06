@@ -7,6 +7,7 @@
   import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { columnCatalog, defaultColumns, type ColumnKey } from '../../lib/view-config'
+  import Icon from '../ui/Icon.svelte'
 
   const catalog = columnCatalog()
   const defaults = defaultColumns()
@@ -43,10 +44,10 @@
       class="anim-enter absolute right-0 top-full z-30 mt-1 w-52 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-overlay"
     >
       <div class="mb-1 flex items-center justify-between">
-        <span class="text-[11px] font-medium text-text-muted">{t('columns.exposed')}</span>
+        <span class="text-micro font-medium text-text-muted">{t('columns.exposed')}</span>
         <button
           type="button"
-          class="inline-flex h-control-sm items-center rounded px-1.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-40"
+          class="inline-flex h-control-sm items-center rounded px-1.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-40"
           onclick={() => filters.resetColumns()}
           disabled={isDefault}
           title={t('columns.reset')}
@@ -69,7 +70,7 @@
                 ? 'border-accent bg-accent text-white'
                 : 'border-border-strong'}"
             >
-              {#if active.has(col.key)}<span class="text-micro">✓</span>{/if}
+              {#if active.has(col.key)}<Icon name="check" size={10} />{/if}
             </span>
             <span class={active.has(col.key) ? 'text-text-primary' : 'text-text-secondary'}>
               {col.label}

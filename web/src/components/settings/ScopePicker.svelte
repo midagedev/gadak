@@ -22,6 +22,7 @@
    */
   import type { Snippet } from 'svelte'
   import { t } from '../../lib/i18n'
+  import Icon from '../ui/Icon.svelte'
 
   let {
     label,
@@ -123,7 +124,7 @@
 
 <div class="flex flex-col gap-1.5" bind:this={rootEl} data-testid={testid}>
   <div class="flex items-center justify-between gap-2">
-    <span class="text-[11px] text-text-secondary">{label}</span>
+    <span class="text-micro text-text-secondary">{label}</span>
     {#if action}{@render action()}{/if}
   </div>
 
@@ -132,7 +133,7 @@
       {#each selected as value (value)}
         {@const option = byValue.get(value)}
         <span
-          class="flex h-control-sm max-w-full items-center gap-1 rounded-md border border-border-strong bg-bg-elevated pl-1.5 pr-1 text-[11px] text-text-primary"
+          class="flex h-control-sm max-w-full items-center gap-1 rounded-md border border-border-strong bg-bg-elevated pl-1.5 pr-1 text-micro text-text-primary"
           data-testid="scope-chip"
         >
           <!-- Same emphasis order as the dropdown rows: mono accent key, then name. -->
@@ -142,15 +143,15 @@
           {/if}
           <button
             type="button"
-            class="flex-none rounded px-0.5 text-text-muted transition-colors hover:text-status-reopen"
+            class="flex flex-none items-center rounded px-0.5 text-text-muted transition-colors hover:text-status-reopen"
             aria-label={t('settings.scopeRemove', { name: option?.label || value })}
-            onclick={() => remove(value)}>✕</button
+            onclick={() => remove(value)}><Icon name="x" size={11} /></button
           >
         </span>
       {/each}
     </div>
   {:else if emptyLabel}
-    <p class="text-[11px] text-text-muted" data-testid="scope-empty">{emptyLabel}</p>
+    <p class="text-micro text-text-muted" data-testid="scope-empty">{emptyLabel}</p>
   {/if}
 
   <div class="relative">
@@ -187,7 +188,7 @@
           data-testid="scope-options"
         >
           {#if matches.length === 0}
-            <p class="px-2 py-1.5 text-[11px] text-text-muted">{t('settings.scopeNoMatch')}</p>
+            <p class="px-2 py-1.5 text-micro text-text-muted">{t('settings.scopeNoMatch')}</p>
           {:else}
             {#each matches as option, i (option.value)}
               <button
@@ -205,7 +206,7 @@
                   add(option.value)
                 }}
               >
-                <span class="flex-none font-mono text-[11px] text-accent-text">{option.value}</span>
+                <span class="flex-none font-mono text-micro text-accent-text">{option.value}</span>
                 <span class="min-w-0 flex-1 truncate">{option.label}</span>
                 {#if option.hint}
                   <!-- Raw API vocabulary (service_desk, personal) — shown as it
@@ -229,6 +230,6 @@
   </div>
 
   {#if hint}
-    <span class="text-[11px] text-text-muted">{hint}</span>
+    <span class="text-micro text-text-muted">{hint}</span>
   {/if}
 </div>

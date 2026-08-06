@@ -24,7 +24,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { recentOf } from '../../lib/recency'
-  import Avatar from '../detail/Avatar.svelte'
+  import Avatar from './Avatar.svelte'
 
   const menu = $derived(triage.menu)
   let assigneeQuery = $state('')
@@ -271,7 +271,7 @@
               >
                 <span class="h-1.5 w-1.5 flex-none rounded-full {catDot(opt.to_category)}"></span>
                 <span class="min-w-0 flex-1 truncate">{opt.to_status}</span>
-                <span class="flex-none text-[11px] text-text-muted">{opt.count}</span>
+                <span class="flex-none text-micro text-text-muted">{opt.count}</span>
               </button>
             {/each}
           {/if}
@@ -325,13 +325,13 @@
                 onclick={() => runAssign(m)}
                 class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
-                <Avatar member={m} name={m.display_name || m.name} email={m.email} size={20} />
+                <Avatar name={m.display_name || m.name} email={m.email} size={20} />
                 <span class="min-w-0 flex-1 truncate">{m.display_name || m.name}</span>
                 <span class="flex-none text-micro text-text-muted">{m.email.split('@')[0]}</span>
               </button>
             {/each}
             {#if assigneeCands.length === 0}
-              <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.noResults')}</div>
+              <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.noResults')}</div>
             {/if}
           </div>
         </div>
@@ -350,7 +350,7 @@
 
     <!-- Progress (counter — no infinite spinner) -->
     {#if running}
-      <span class="ml-auto flex flex-none items-center gap-1.5 text-[11px] text-text-secondary">
+      <span class="ml-auto flex flex-none items-center gap-1.5 text-micro text-text-secondary">
         <span class="text-text-muted">{t('common.processing')}</span>
         {progress.done}/{progress.total}
       </span>

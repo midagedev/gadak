@@ -25,7 +25,7 @@
   {#if icon}
     <Icon name={icon} size={22} class="mb-1 text-text-muted opacity-70" />
   {/if}
-  <span class="text-[13px] font-medium text-text-secondary">{title}</span>
+  <span class="text-body font-medium text-text-secondary">{title}</span>
   {#if hint}<span class="max-w-xs text-[12px] text-text-muted">{hint}</span>{/if}
   {#if actionLabel && onAction}
     <button

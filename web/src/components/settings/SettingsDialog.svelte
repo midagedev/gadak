@@ -68,9 +68,9 @@
   const SELECT_CHEVRON =
     'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-text-muted'
   const ADD_BTN =
-    'inline-flex h-control-sm items-center self-start rounded-md border border-border-strong px-2 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
+    'inline-flex h-control-sm items-center self-start rounded-md border border-border-strong px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
   const DEL_BTN =
-    'w-6 flex-none text-[12px] text-text-muted transition-colors hover:text-status-reopen'
+    'flex w-6 flex-none items-center justify-center text-text-muted transition-colors hover:text-status-reopen'
   const COPY_BTN =
     'inline-flex h-control-sm items-center rounded border border-border-strong px-1.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
 
@@ -447,9 +447,17 @@
     if (e.target === e.currentTarget) onclose()
   }}
 >
+  <!-- 92vh, not 88: the Sync tab runs THIS MIRROR plus four groups plus the
+       personal-token entry point, and at 88vh the entry point sat 35px below
+       the fold — an action nobody scrolls to find, because nothing above it
+       suggests there is more. The alternative was to compress the groups, but
+       they are already at 16px apart with 4px between label and control, at or
+       under the floor that fix was given, so the height had to come from the
+       dialog instead. 8vh still leaves 40px of backdrop above and below at a
+       1000px viewport. (2026-08-06) -->
   <div
     use:trapFocus
-    class="anim-pop flex max-h-[88vh] w-full max-w-3xl flex-col rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
+    class="anim-pop flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
     role="dialog"
     aria-modal="true"
     aria-label={t('settings.title')}
@@ -457,7 +465,7 @@
     <!-- Header + tabs -->
     <div class="flex-none border-b border-border-subtle px-5 pt-4">
       <h2 class="mb-0.5 text-title font-semibold text-text-primary">{t('settings.title')}</h2>
-      <p class="mb-3 text-[11px] text-text-muted">
+      <p class="mb-3 text-micro text-text-muted">
         {t('settings.introBefore')} <span class="font-mono">~/.scry/config.json</span> {t('settings.introAfter')}
       </p>
       <div class="flex gap-1">
@@ -486,10 +494,10 @@
             class="mb-4 rounded-md border border-border-subtle bg-bg-base/60 px-3 py-2.5"
             aria-label={t('settings.thisMirror')}
           >
-            <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <div class="mb-2 text-micro font-medium uppercase tracking-wide text-text-muted">
               {t('settings.thisMirror')}
             </div>
-            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11px]">
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-micro">
               <dt class="text-text-muted">{t('settings.runtimeProfile')}</dt>
               <dd class="font-mono text-text-primary">{runtime.profile}</dd>
 
@@ -579,7 +587,7 @@
         {#if tab === 'sync'}
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">{t('settings.syncInterval')}</span>
+            <span class="text-micro text-text-secondary">{t('settings.syncInterval')}</span>
             <div class="flex flex-wrap items-center gap-2">
               <!-- selected on the option, not value on the select: a plain
                    value attribute applies before the #each options mount and
@@ -610,14 +618,14 @@
                   placeholder={String(defaultSyncSec)}
                   aria-label={t('settings.syncInterval')}
                 />
-                <span class="text-[11px] text-text-muted">{t('settings.intervalSeconds')}</span>
+                <span class="text-micro text-text-muted">{t('settings.intervalSeconds')}</span>
               {/if}
             </div>
-            <span class="text-[11px] text-text-muted">{t('settings.syncIntervalHint')}</span>
+            <span class="text-micro text-text-muted">{t('settings.syncIntervalHint')}</span>
           </div>
 
           <div class="flex flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">{t('settings.reconcileInterval')}</span>
+            <span class="text-micro text-text-secondary">{t('settings.reconcileInterval')}</span>
             <div class="flex flex-wrap items-center gap-2">
               <span class="relative flex">
                 <select
@@ -645,17 +653,17 @@
                   placeholder={String(defaultReconcileSec)}
                   aria-label={t('settings.reconcileInterval')}
                 />
-                <span class="text-[11px] text-text-muted">{t('settings.intervalSeconds')}</span>
+                <span class="text-micro text-text-muted">{t('settings.intervalSeconds')}</span>
               {/if}
             </div>
-            <span class="text-[11px] text-text-muted">{t('settings.reconcileIntervalHint')}</span>
+            <span class="text-micro text-text-muted">{t('settings.reconcileIntervalHint')}</span>
           </div>
-          <p class="text-[11px] leading-relaxed text-text-muted">{t('settings.intervalApplies')}</p>
+          <p class="text-micro leading-relaxed text-text-muted">{t('settings.intervalApplies')}</p>
 
           <label class="flex max-w-[200px] flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">{t('settings.staleHours')}</span>
+            <span class="text-micro text-text-secondary">{t('settings.staleHours')}</span>
             <input class={INPUT} type="number" min="1" bind:value={staleText} />
-            <span class="text-[11px] text-text-muted">
+            <span class="text-micro text-text-muted">
               {t('settings.staleHint')}
             </span>
           </label>
@@ -667,7 +675,7 @@
             >
               {t('settings.personalToken')}
             </button>
-            <p class="mt-1 text-[11px] text-text-muted">
+            <p class="mt-1 text-micro text-text-muted">
               {t('settings.credsElsewhere')}
             </p>
           </div>
@@ -687,14 +695,14 @@
             />
           {:else}
             <label class="flex flex-col gap-1" data-testid="scope-projects-fallback">
-              <span class="text-[11px] text-text-secondary">{t('settings.projects')}</span>
+              <span class="text-micro text-text-secondary">{t('settings.projects')}</span>
               <input
                 class={INPUT}
                 bind:value={projectsText}
                 oninput={() => (projectsTouched = true)}
                 placeholder="NMB, NMA"
               />
-              <span class="text-[11px] text-text-muted">
+              <span class="text-micro text-text-muted">
                 {projectsLoading ? t('settings.scopeLoading') : t('settings.projectsManual')}
               </span>
             </label>
@@ -723,7 +731,7 @@
                   testid="scope-spaces"
                 >
                   {#snippet action()}
-                    <label class="flex cursor-pointer items-center gap-1.5 text-[11px] text-text-muted">
+                    <label class="flex cursor-pointer items-center gap-1.5 text-micro text-text-muted">
                       <input
                         type="checkbox"
                         class="accent-[var(--color-accent,#3b82f6)]"
@@ -737,7 +745,7 @@
             </div>
           {/if}
 
-          <p class="border-t border-border-subtle pt-3 text-[11px] leading-relaxed text-text-muted">
+          <p class="border-t border-border-subtle pt-3 text-micro leading-relaxed text-text-muted">
             {t('settings.sourcesApplyHint')}
           </p>
         </div>
@@ -752,7 +760,7 @@
               />
               <span class="min-w-0">
                 <span class="text-text-primary">{label}</span>
-                <span class="block text-[11px] leading-relaxed text-text-muted">{hint}</span>
+                <span class="block text-micro leading-relaxed text-text-muted">{hint}</span>
               </span>
             </label>
           {/each}
@@ -760,21 +768,21 @@
           <div class="mt-1 flex items-start gap-2.5 border-t border-border-subtle pt-3">
             <span class="min-w-0 flex-1">
               <span class="text-text-primary">{t('settings.browserNotify')}</span>
-              <span class="block text-[11px] leading-relaxed text-text-muted">
+              <span class="block text-micro leading-relaxed text-text-muted">
                 {t('settings.browserNotifyDesc')}
               </span>
               {#if me.browserNotifyPermission === 'granted'}
-                <span class="mt-1 block text-[11px] text-text-secondary">{t('settings.browserNotifyGranted')}</span>
+                <span class="mt-1 block text-micro text-text-secondary">{t('settings.browserNotifyGranted')}</span>
               {:else if me.browserNotifyPermission === 'denied'}
-                <span class="mt-1 block text-[11px] text-status-reopen">{t('settings.browserNotifyDenied')}</span>
+                <span class="mt-1 block text-micro text-status-reopen">{t('settings.browserNotifyDenied')}</span>
               {:else if me.browserNotifyPermission === 'unsupported'}
-                <span class="mt-1 block text-[11px] text-text-muted">{t('settings.browserNotifyUnsupported')}</span>
+                <span class="mt-1 block text-micro text-text-muted">{t('settings.browserNotifyUnsupported')}</span>
               {/if}
             </span>
             {#if me.browserNotifyPermission === 'default'}
               <button
                 type="button"
-                class="inline-flex h-control-sm flex-none items-center rounded-md border border-border-strong px-2 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                class="inline-flex h-control-sm flex-none items-center rounded-md border border-border-strong px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                 onclick={() => void me.requestBrowserNotificationPermission()}
               >
                 {t('settings.browserNotifyEnable')}
@@ -782,7 +790,7 @@
             {/if}
           </div>
           <label class="mt-2 flex flex-col gap-1 border-t border-border-subtle pt-3">
-            <span class="text-[11px] text-text-secondary">{t('settings.qaDashboardUrl')}</span>
+            <span class="text-micro text-text-secondary">{t('settings.qaDashboardUrl')}</span>
             <input class={INPUT} bind:value={qaDashboardUrl} placeholder="https://qa.example.com" />
           </label>
         </div>
@@ -790,10 +798,10 @@
         <div class="flex flex-col gap-5">
           <!-- Group labels + colors -->
           <div class="flex flex-col gap-1.5">
-            <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
               {t('settings.groupLabels')}
             </div>
-            <div class="flex gap-1.5 text-[11px] text-text-muted">
+            <div class="flex gap-1.5 text-micro text-text-muted">
               <span class="flex-1">{t('settings.groupKey')}</span>
               <span class="flex-1">{t('settings.label')}</span>
               <span class="w-16 flex-none">{t('settings.color')}</span>
@@ -814,7 +822,8 @@
                   type="button"
                   class={DEL_BTN}
                   title={t('settings.deleteRow')}
-                  onclick={() => (groupRows = groupRows.filter((_, j) => j !== i))}>✕</button
+                  onclick={() => (groupRows = groupRows.filter((_, j) => j !== i))}
+                  ><Icon name="x" size={13} /></button
                 >
               </div>
             {/each}
@@ -828,10 +837,10 @@
 
           <!-- Product buckets -->
           <div class="flex flex-col gap-1.5">
-            <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
               {t('settings.groupToProduct')}
             </div>
-            <div class="flex gap-1.5 text-[11px] text-text-muted">
+            <div class="flex gap-1.5 text-micro text-text-muted">
               <span class="flex-1">{t('settings.groupKey')}</span>
               <span class="flex-1">{t('settings.productKey')}</span>
               <span class="flex-1">{t('settings.productLabel')}</span>
@@ -846,7 +855,8 @@
                   type="button"
                   class={DEL_BTN}
                   title={t('settings.deleteRow')}
-                  onclick={() => (productRows = productRows.filter((_, j) => j !== i))}>✕</button
+                  onclick={() => (productRows = productRows.filter((_, j) => j !== i))}
+                  ><Icon name="x" size={13} /></button
                 >
               </div>
             {/each}
@@ -861,13 +871,13 @@
 
           <!-- Group classification rules -->
           <div class="flex flex-col gap-1.5">
-            <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
               {t('settings.groupRules')}
             </div>
-            <p class="text-[11px] leading-relaxed text-text-muted">
+            <p class="text-micro leading-relaxed text-text-muted">
               {t('settings.rulesTopDown')} <span class="text-text-secondary">{t('settings.rulesFirstWins')}</span>{t('settings.rulesDetail')}
             </p>
-            <div class="flex gap-1.5 text-[11px] text-text-muted">
+            <div class="flex gap-1.5 text-micro text-text-muted">
               <span class="w-24 flex-none">{t('common.group')}</span>
               <span class="flex-1">{t('settings.projectsCol')}</span>
               <span class="flex-1">{t('settings.label')}</span>
@@ -884,7 +894,8 @@
                   type="button"
                   class={DEL_BTN}
                   title={t('settings.deleteRow')}
-                  onclick={() => (ruleRows = ruleRows.filter((_, j) => j !== i))}>✕</button
+                  onclick={() => (ruleRows = ruleRows.filter((_, j) => j !== i))}
+                  ><Icon name="x" size={13} /></button
                 >
               </div>
             {/each}
@@ -901,7 +912,7 @@
         </div>
       {:else if tab === 'members'}
         <div class="flex flex-col gap-1.5">
-          <div class="flex gap-1.5 text-[11px] text-text-muted">
+          <div class="flex gap-1.5 text-micro text-text-muted">
             <span class="flex-1">{t('settings.memberEmail')}</span>
             <span class="w-24 flex-none">{t('settings.memberName')}</span>
             <span class="w-20 flex-none">{t('common.group')}</span>
@@ -917,10 +928,14 @@
                 <input class="{INPUT} flex-1 font-mono" bind:value={row.jira_account_id} />
                 <button
                   type="button"
-                  class="w-6 flex-none text-[12px] text-text-muted transition-colors hover:text-text-primary"
+                  class="flex w-6 flex-none items-center justify-center text-text-muted transition-colors hover:text-text-primary"
                   title={t('common.detail')}
                   onclick={() => (openMember = openMember === i ? null : i)}
-                  >{openMember === i ? '▾' : '▸'}</button
+                  ><Icon
+                    name="chevron-right"
+                    size={13}
+                    class="transition-transform {openMember === i ? 'rotate-90' : ''}"
+                  /></button
                 >
                 <button
                   type="button"
@@ -929,25 +944,25 @@
                   onclick={() => {
                     memberRows = memberRows.filter((_, j) => j !== i)
                     openMember = null
-                  }}>✕</button
+                  }}><Icon name="x" size={13} /></button
                 >
               </div>
               {#if openMember === i}
                 <div class="ml-2 grid grid-cols-2 gap-1.5 border-l border-border-subtle pl-3 pb-1">
                   <label class="flex flex-col gap-0.5">
-                    <span class="text-[11px] text-text-muted">{t('settings.displayName')}</span>
+                    <span class="text-micro text-text-muted">{t('settings.displayName')}</span>
                     <input class={INPUT} bind:value={row.display_name} />
                   </label>
                   <label class="flex flex-col gap-0.5">
-                    <span class="text-[11px] text-text-muted">{t('settings.department')}</span>
+                    <span class="text-micro text-text-muted">{t('settings.department')}</span>
                     <input class={INPUT} bind:value={row.department} />
                   </label>
                   <label class="flex flex-col gap-0.5">
-                    <span class="text-[11px] text-text-muted">{t('settings.jobTitle')}</span>
+                    <span class="text-micro text-text-muted">{t('settings.jobTitle')}</span>
                     <input class={INPUT} bind:value={row.job_role} />
                   </label>
                   <label class="flex flex-col gap-0.5">
-                    <span class="text-[11px] text-text-muted">{t('settings.avatarUrl')}</span>
+                    <span class="text-micro text-text-muted">{t('settings.avatarUrl')}</span>
                     <input class={INPUT} bind:value={row.avatar_url} />
                   </label>
                 </div>
@@ -977,10 +992,10 @@
         <div class="flex flex-col gap-5">
           {#if specsSupported}
             <div class="flex flex-col gap-1.5">
-              <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+              <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
                 {t('settings.discoveredFields')}
               </div>
-              <p class="text-[11px] text-text-muted">{t('settings.discoveredFieldsHint')}</p>
+              <p class="text-micro text-text-muted">{t('settings.discoveredFieldsHint')}</p>
               {#if specRows.length === 0}
                 <p class="text-[12px] text-text-secondary">{t('settings.noDiscoveredFields')}</p>
               {:else}
@@ -1028,7 +1043,7 @@
                       </span>
                       <button
                         type="button"
-                        class="text-[11px] text-text-muted hover:text-status-reopen"
+                        class="text-micro text-text-muted hover:text-status-reopen"
                         onclick={() => {
                           specsTouched = true
                           specRows = specRows.filter((_, j) => j !== i)
@@ -1041,7 +1056,7 @@
             </div>
           {/if}
           <div class="flex flex-col gap-1.5">
-            <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
               {t('settings.fieldMap')}
             </div>
             <KeyValueRows
@@ -1053,7 +1068,7 @@
             />
           </div>
           <div class="flex flex-col gap-1.5">
-            <div class="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
               {t('settings.editableFields')}
             </div>
             <KeyValueRows
@@ -1065,7 +1080,7 @@
             />
           </div>
           <label class="flex flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">
+            <span class="text-micro text-text-secondary">
               {t('settings.adfSearchFields')}
             </span>
             <input class="{INPUT} font-mono" bind:value={bodyFieldsText} placeholder="customfield_10101" />
@@ -1080,19 +1095,19 @@
             if (e.currentTarget.open) refreshJson()
           }}
         >
-          <summary class="cursor-pointer text-[11px] text-text-secondary hover:text-text-primary">
+          <summary class="cursor-pointer text-micro text-text-secondary hover:text-text-primary">
             {t('settings.advancedJson')}
           </summary>
           <textarea
-            class="mt-2 h-56 w-full rounded-md border border-border-strong bg-bg-base p-2 font-mono text-[11px] text-text-primary outline-none focus:border-accent"
+            class="mt-2 h-56 w-full rounded-md border border-border-strong bg-bg-base p-2 font-mono text-micro text-text-primary outline-none focus:border-accent"
             spellcheck="false"
             value={jsonText}
             oninput={(e) => applyJson(e.currentTarget.value)}
           ></textarea>
           {#if jsonError}
-            <p class="mt-1 text-[11px] text-status-reopen">{jsonError}</p>
+            <p class="mt-1 text-micro text-status-reopen">{jsonError}</p>
           {:else}
-            <p class="mt-1 text-[11px] text-text-muted">
+            <p class="mt-1 text-micro text-text-muted">
               {t('settings.jsonHint')}
             </p>
           {/if}

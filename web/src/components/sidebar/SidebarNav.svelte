@@ -201,7 +201,7 @@
         href={issues.releaseUrl || 'https://github.com/midagedev/scry/releases'}
         target="_blank"
         rel="noreferrer"
-        class="block rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-[11px] text-accent-text transition-colors hover:bg-accent-subtle/50"
+        class="block rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-micro text-accent-text transition-colors hover:bg-accent-subtle/50"
         data-testid="update-notice"
       >
         {t('sidebar.updateAvailable', { version: issues.latestVersion })}
@@ -210,7 +210,7 @@
   {/if}
 
   <!-- Totals / sync — badge click = history popover (with Sync now inside) -->
-  <div class="flex-none px-3 pb-2 pt-1 text-[11px] text-text-muted">
+  <div class="flex-none px-3 pb-2 pt-1 text-micro text-text-muted">
     {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}
     <span class="ml-1">·</span>
     <div class="relative inline-block" bind:this={historyEl}>
@@ -231,7 +231,7 @@
           class="anim-enter absolute left-0 top-full z-40 mt-1 w-72 rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
           data-testid="sync-history-popover"
         >
-          <div class="px-2 py-1 text-[11px] font-medium text-text-muted">
+          <div class="px-2 py-1 text-micro font-medium text-text-muted">
             {t('sidebar.syncHistory')}
           </div>
           {#if historyLoading}
@@ -251,14 +251,14 @@
                   <div class="min-w-0 flex-1">
                     <div class="flex items-baseline justify-between gap-2">
                       <span class="text-text-secondary">{runKindLabel(run.kind)}</span>
-                      <span class="flex-none text-[11px] text-text-muted" title={run.finished_at}>
+                      <span class="flex-none text-micro text-text-muted" title={run.finished_at}>
                         {relativeTime(run.finished_at, 'long')}
                       </span>
                     </div>
                     {#if run.error}
-                      <div class="break-words text-[11px] text-status-reopen">{run.error}</div>
+                      <div class="break-words text-micro text-status-reopen">{run.error}</div>
                     {:else}
-                      <div class="text-[11px] text-text-muted">
+                      <div class="text-micro text-text-muted">
                         {t('sidebar.runCounts', {
                           changed: formatNumber(run.changed),
                           deleted: formatNumber(run.deleted),
@@ -294,13 +294,13 @@
 
     <!-- Built-in views -->
     <div class="mb-3">
-      <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+      <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
         {t('sidebar.builtinViews')}
       </div>
       {#each builtins as v (v.id)}
         <button
           type="button"
-          class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {activeBuiltin ===
+          class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {activeBuiltin ===
           v.id
             ? 'bg-bg-active text-text-primary'
             : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -315,7 +315,7 @@
             class={activeBuiltin === v.id ? 'text-text-secondary' : 'text-text-muted'}
           />
           <span class="min-w-0 flex-1 truncate">{v.name}</span>
-          <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
+          <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
             {formatNumber(builtinCounts.get(v.id) ?? 0)}
           </span>
         </button>
@@ -325,12 +325,12 @@
     <!-- Personal views -->
     {#if views.personal.length}
       <div class="mb-3">
-        <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
           {t('sidebar.myViews')}
         </div>
         {#each views.personal as v (v.id)}
           <div
-            class="group flex min-h-7 items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors {activePersonal ===
+            class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {activePersonal ===
             v.id
               ? 'bg-bg-active'
               : 'hover:bg-bg-hover'}"
@@ -346,11 +346,11 @@
             </button>
             <button
               type="button"
-              class="flex-none text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100"
+              class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100"
               title={t('common.delete')}
               onclick={() => views.removePersonal(v.id)}
             >
-              ✕
+              <Icon name="x" size={13} />
             </button>
           </div>
         {/each}
@@ -360,12 +360,12 @@
     <!-- Team shared views -->
     {#if views.team.length}
       <div class="mb-3">
-        <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
           {t('sidebar.teamViews')}
         </div>
         {#each views.team as v (v.id)}
           <div
-            class="group flex min-h-7 items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors {activeTeam ===
+            class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {activeTeam ===
             v.id
               ? 'bg-bg-active'
               : 'hover:bg-bg-hover'}"
@@ -379,17 +379,17 @@
               title={v.owner_name ? t('sidebar.viewOwner', { name: v.owner_name }) : undefined}
             >
               {v.name}
-              {#if v.owner_name}<span class="ml-1 text-[11px] text-text-muted">· {v.owner_name}</span>{/if}
+              {#if v.owner_name}<span class="ml-1 text-micro text-text-muted">· {v.owner_name}</span>{/if}
             </button>
             {#if me.email && v.owner_email === me.email}
               <button
                 type="button"
-                class="flex-none text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100"
+                class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100"
                 title={t('common.delete')}
                 onclick={() =>
                   views.removeTeam(v.id).catch(() => alert(t('sidebar.viewDeleteFail')))}
               >
-                ✕
+                <Icon name="x" size={13} />
               </button>
             {/if}
           </div>
@@ -401,14 +401,14 @@
          (no wiki configured / older server → empty index). -->
     {#if pages.bySpace.length}
       <div class="mb-3" data-testid="docs-section">
-        <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
           {t('sidebar.docs')}
         </div>
         <!-- The way in: recency first, across every space. What changed lately,
              and what you had open, are questions no single space answers. -->
         <button
           type="button"
-          class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {pages.docsView
+          class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {pages.docsView
             ? 'bg-bg-active text-text-primary'
             : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
           aria-pressed={pages.docsView}
@@ -427,7 +427,7 @@
              times was the thing that read as too much. -->
         <button
           type="button"
-          class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
           aria-expanded={spacesOpen}
           title={t('sidebar.docsSpacesTitle')}
           data-testid="docs-spaces"
@@ -440,7 +440,7 @@
             <Icon name="chevron-right" size={15} />
           </span>
           <span class="min-w-0 flex-1 truncate">{t('sidebar.docsSpaces')}</span>
-          <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
+          <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
             {formatNumber(pages.bySpace.length)}
           </span>
         </button>
@@ -448,7 +448,7 @@
           {#each pages.bySpace as group (group.space)}
             <button
               type="button"
-              class="flex min-h-7 w-full items-center gap-2 rounded-md py-1.5 pl-[35px] pr-3 text-left text-[12px] transition-colors {pages.spaceView ===
+              class="flex h-control w-full items-center gap-2 rounded-md pl-[35px] pr-3 text-left text-[12px] transition-colors {pages.spaceView ===
               group.space
                 ? 'bg-bg-active text-text-primary'
                 : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -462,7 +462,7 @@
               <span class="min-w-0 flex-1 truncate {group.name ? '' : 'font-mono'}">
                 {group.name || group.space}
               </span>
-              <span class="flex-none font-mono text-[11px] tabular-nums text-text-muted">
+              <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
                 {formatNumber(group.pages.length)}
               </span>
             </button>
@@ -475,14 +475,14 @@
          the server actually has more than one (older servers / demo → 404 → []). -->
     {#if workspaceList.length > 1}
       <div class="mb-3">
-        <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
           {t('sidebar.workspaces')}
         </div>
         {#each workspaceList as w (w.name)}
           <a
             href={workspaceHref(w)}
             data-testid="workspace-link"
-            class="flex min-h-7 w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {currentWorkspace ===
+            class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {currentWorkspace ===
             w.name
               ? 'bg-bg-active text-text-primary'
               : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -531,7 +531,7 @@
     {:else if isHostedDemo()}
       <!-- No credential button on the hosted demo: the dialog behind it asks for
            a real Atlassian token, and nothing on a static snapshot could use one. -->
-      <p class="px-3 py-1.5 text-center text-[11px] text-text-muted">
+      <p class="px-3 py-1.5 text-center text-micro text-text-muted">
         {t('app.demoNoCredentials')}
       </p>
     {:else if me.authChecked}

@@ -87,11 +87,11 @@
       <div class="mb-4 rounded-md border border-border-subtle bg-bg-elevated px-3 py-2.5 text-[12px]">
         <div class="flex items-center justify-between gap-2">
           <span class="text-text-secondary">{write.displayName || write.jiraEmail}</span>
-          <span class="rounded bg-status-done/15 px-1.5 py-0.5 text-[11px] font-medium text-status-done"
+          <span class="rounded bg-status-done/15 px-1.5 py-0.5 text-micro font-medium text-status-done"
             >{t('jiraSettings.connected')}</span
           >
         </div>
-        <div class="mt-1 flex flex-col gap-0.5 text-[11px] text-text-muted">
+        <div class="mt-1 flex flex-col gap-0.5 text-micro text-text-muted">
           <span>{write.jiraEmail}</span>
           {#if write.tokenHint}<span class="font-mono">{t('jiraSettings.tokenDots', { hint: write.tokenHint })}</span>{/if}
           {#if write.verifiedAt}<span>{t('jiraSettings.verified', { when: absoluteTime(write.verifiedAt) })}</span>{/if}
@@ -101,19 +101,19 @@
 
     <form onsubmit={submit} class="flex flex-col gap-3">
       <label class="flex flex-col gap-1">
-        <span class="text-[11px] text-text-secondary">{t('jiraSettings.email')}</span>
+        <span class="text-micro text-text-secondary">{t('jiraSettings.email')}</span>
         <input
           bind:this={emailEl}
           bind:value={jiraEmail}
           type="email"
           autocomplete="username"
           required
-          class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-[13px] text-text-primary outline-none focus:border-accent"
+          class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none focus:border-accent"
           placeholder="you@example.com"
         />
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-[11px] text-text-secondary">
+        <span class="text-micro text-text-secondary">
           {t('jiraSettings.intro4')} {#if write.configured}<span class="text-text-muted">{t('jiraSettings.tokenReplace')}</span>{/if}
         </span>
         <input
@@ -121,7 +121,7 @@
           type="password"
           autocomplete="off"
           required
-          class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 font-mono text-[13px] text-text-primary outline-none focus:border-accent"
+          class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 font-mono text-body text-text-primary outline-none focus:border-accent"
           placeholder="ATATT3x…"
         />
       </label>

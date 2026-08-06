@@ -63,7 +63,7 @@
             <span class="text-text-primary">{e.to ?? t('common.none')}</span>
           </span>
         </div>
-        <div class="text-[11px] text-text-muted">
+        <div class="text-micro text-text-muted">
           {#if e.by}{e.by} · {/if}<span title={absoluteTime(e.at)}>{relativeTime(e.at)}</span>
         </div>
       </li>

@@ -88,14 +88,22 @@
 {:else}
   <ol>
     {#each rows as { c, head } (c.comment_id)}
-      <!-- 20px and an avatar row open a new speaker; 8px and a hairline inside
-           the text column continue the current one. The continuation needs the
-           hairline: a paragraph inside one comment is already separated by
-           6.5px of its own margin, so any gap small enough to read as "same
-           person" is too small to read as "different comment", and four
-           comments in a row collapse into one four-paragraph wall. -->
+      <!-- 20px and an avatar row open a new speaker; 12px, a hairline and a
+           timestamp inside the text column continue the current one.
+
+           The continuation needs all three. A paragraph inside one comment is
+           already separated by 6.5px of its own margin, so the earlier 8px gap
+           was small enough to read as "same person" only by also being too
+           small to read as "different comment": an independent look at NMB-109
+           counted its four-comment run as one comment with four paragraphs.
+           12px clears the paragraph margin by enough to register as a break,
+           the hairline says the break is structural, and the timestamp is what
+           actually makes the units countable — it is the only mark that says
+           "someone posted this", and it has to be visible statically, not on
+           hover, or the count is unavailable to a still screen or a keyboard.
+           (2026-08-06) -->
       <li
-        class="group anim-enter {head ? 'mt-5 first:mt-0' : 'mt-2'}"
+        class="group anim-enter {head ? 'mt-5 first:mt-0' : 'mt-3'}"
         class:opacity-60={c.comment_id.startsWith('temp-')}
       >
         {#if head}
@@ -104,13 +112,13 @@
             <span class="text-[12px] font-medium text-text-primary">
               {c.author ?? c.author_email ?? t('detail.unknownAuthor')}
             </span>
-            <span class="text-[11px] text-text-muted" title={absoluteTime(c.created_at)}>
+            <span class="text-micro text-text-muted" title={absoluteTime(c.created_at)}>
               {relativeTime(c.created_at)}
             </span>
             {#if me.identified && c.author_account_id && !c.comment_id.startsWith('temp-')}
               <button
                 type="button"
-                class="ml-auto rounded px-1.5 py-0.5 text-[11px] text-text-muted opacity-0 transition-colors hover:bg-bg-hover hover:text-text-primary group-hover:opacity-100"
+                class="ml-auto rounded px-1.5 py-0.5 text-micro text-text-muted opacity-0 transition-colors hover:bg-bg-hover hover:text-text-primary group-hover:opacity-100"
                 onclick={() => reply(c)}
                 title={t('detail.replyToComment')}>{t('common.reply')}</button
               >
@@ -118,16 +126,31 @@
           </div>
         {/if}
         <!-- 28px = 20px avatar + the 8px gap beside it, so a continuation lines
-             up with the first comment's text rather than with its avatar. A
-             continuation has no visible time of its own, so it carries the
-             absolute one as its tooltip. -->
+             up with the first comment's text rather than with its avatar.
+
+             border-strong/70 is the panel's own section-divider rule, measured
+             at ΔL* 12.96 on this surface against 10.21 for the border-subtle it
+             replaces. Worth recording that the two bounds the fix was given do
+             not both hold: the issue-list row divider, named as the ceiling,
+             measures ΔL* 8.84 — below the hairline that was already here. It is
+             the darker canvas behind the list that makes the same token read
+             quieter there, so the ceiling was a judgement about the list's
+             ruled-table look (full-width rules at a 42px pitch), not a contrast
+             number this column can be held to. Matching the panel's own divider
+             is the instruction that survives measurement. -->
         <div
-          class="ml-7 text-[13px] leading-relaxed text-text-secondary {head
-            ? ''
-            : 'border-t border-border-subtle pt-2'}"
+          class="ml-7 {head ? '' : 'border-t border-border-strong/70 pt-3'}"
           title={head ? undefined : absoluteTime(c.created_at)}
         >
-          <AdfContent node={c.raw_body} {issueKey} {attachments} fallback={c.body} emptyLabel={t('detail.emptyComment')} />
+          {#if !head}
+            <!-- Its own line, left-aligned with the body: a right-aligned or
+                 inline time would eat into the text column the prescription
+                 protects. Same tier as the group header's time, never brighter. -->
+            <div class="mb-1 text-micro text-text-muted">{relativeTime(c.created_at)}</div>
+          {/if}
+          <div class="text-body leading-relaxed text-text-secondary">
+            <AdfContent node={c.raw_body} {issueKey} {attachments} fallback={c.body} emptyLabel={t('detail.emptyComment')} />
+          </div>
         </div>
       </li>
     {/each}

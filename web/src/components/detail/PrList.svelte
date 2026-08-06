@@ -40,7 +40,7 @@
             {pr.state}
           </span>
           <span class="min-w-0 flex-1">
-            <span class="font-mono text-[11px] text-text-muted">{repoLabel(pr)}</span>
+            <span class="font-mono text-micro text-text-muted">{repoLabel(pr)}</span>
             <span class="block truncate text-[12px] text-text-secondary group-hover:text-text-primary">
               {pr.title}
             </span>

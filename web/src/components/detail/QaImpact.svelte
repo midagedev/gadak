@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from '../../lib/i18n'
-  import { ArrowUpRight, FlaskConical, LayoutDashboard } from '@lucide/svelte'
+  import Icon from '../ui/Icon.svelte'
   import { config } from '../../lib/config'
   import type { QaIssueContext, QaRunContext, QaSuiteRef } from '../../lib/types'
 
@@ -13,6 +13,14 @@
     linked: 'bg-accent-subtle/60 text-accent-text',
   }
 
+  /*
+   * Status marks stay as text, unlike the control glyphs swept out of the rest
+   * of the UI. This is a seven-value vocabulary read as a column — pass, fail,
+   * blocked, retest, running, untested, skipped — and only two of the seven
+   * have an obvious line-icon counterpart. Converting those two would leave one
+   * column mixing icons and glyphs, which is worse than either; converting all
+   * seven is a redesign of the vocabulary, not a sweep. (2026-08-06)
+   */
   const RESULT_META: Record<string, { label: string; cls: string; mark: string }> = {
     passed: { label: t('qa.pass'), cls: 'text-status-done', mark: '✓' },
     failed: { label: t('qa.fail'), cls: 'text-status-reopen', mark: '×' },
@@ -51,7 +59,7 @@
   {#each context.runs as run (run.key)}
     <div class="border-b border-border-subtle pb-4 last:border-b-0 last:pb-0">
       <div class="flex min-w-0 items-start gap-2">
-        <FlaskConical size={14} class="mt-0.5 flex-none text-text-muted" />
+        <Icon name="flask" size={14} class="mt-0.5 text-text-muted" />
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5">
             <span class="truncate text-[12px] font-semibold text-text-primary" title={run.title}>
@@ -80,7 +88,7 @@
           title={t('qa.openQase')}
           aria-label={t('qa.openQase')}
         >
-          <ArrowUpRight size={13} />
+          <Icon name="arrow-up-right" size={13} />
         </a>
       </div>
 
@@ -91,7 +99,7 @@
             class="inline-flex max-w-full items-center gap-1 rounded border border-border-subtle bg-bg-elevated px-1.5 py-0.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
             title={t('qa.openSuite', { path: suite.path })}
           >
-            <LayoutDashboard size={10} class="flex-none" />
+            <Icon name="layout-dashboard" size={10} />
             <span class="truncate">{suite.path}</span>
           </a>
         {/each}
@@ -99,18 +107,18 @@
 
       {#if run.cases.length > 0}
         <details class="group/cases mt-3 pl-[22px]">
-          <summary class="cursor-pointer select-none text-[11px] text-text-secondary hover:text-text-primary">
+          <summary class="cursor-pointer select-none text-micro text-text-secondary hover:text-text-primary">
             {t('qa.linkedTc', { n: run.linked_case_count })}
           </summary>
           <div class="mt-2 max-h-52 overflow-y-auto border-t border-border-subtle">
             {#each run.cases as qaCase (`${run.key}-${qaCase.qase_case_id}`)}
               {@const meta = resultMeta(qaCase.status)}
               <div class="flex items-start gap-2 border-b border-border-subtle/70 py-1.5 last:border-b-0">
-                <span class="w-3 flex-none text-center text-[11px] font-semibold {meta.cls}" title={meta.label}>
+                <span class="w-3 flex-none text-center text-micro font-semibold {meta.cls}" title={meta.label}>
                   {meta.mark}
                 </span>
                 <div class="min-w-0 flex-1">
-                  <div class="truncate text-[11px] text-text-secondary" title={qaCase.title || qaCase.case_id}>
+                  <div class="truncate text-micro text-text-secondary" title={qaCase.title || qaCase.case_id}>
                     {qaCase.title || qaCase.case_id}
                   </div>
                   <div class="mt-0.5 flex items-center gap-1.5 text-micro text-text-muted">

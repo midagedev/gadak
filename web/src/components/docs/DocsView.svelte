@@ -12,7 +12,7 @@
    * list keeps its place, which is how someone skims several edits in one pass.
    * Everything is client-side over the page index — no request of its own.
    */
-  import { ArrowLeft } from '@lucide/svelte'
+  import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type DocsTab } from '../../stores/pages.svelte'
   import EmptyState from '../list/EmptyState.svelte'
@@ -48,14 +48,14 @@
 
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="docs-view">
   <header class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2">
-    <h2 class="whitespace-nowrap text-[13px] font-semibold text-text-primary">{t('docs.title')}</h2>
-    <span class="flex-none text-[11px] tabular-nums text-text-muted">{formatNumber(count)}</span>
+    <h2 class="whitespace-nowrap text-body font-semibold text-text-primary">{t('docs.title')}</h2>
+    <span class="flex-none text-micro tabular-nums text-text-muted">{formatNumber(count)}</span>
 
     <div class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-0.5">
       {#each TABS as entry (entry.key)}
         <button
           type="button"
-          class="flex min-h-6 items-center rounded px-2 py-0.5 text-[11px] font-medium transition-colors {tab ===
+          class="flex h-control-sm items-center rounded px-2 text-micro font-medium transition-colors {tab ===
           entry.key
             ? 'bg-bg-active text-text-primary'
             : 'text-text-muted hover:text-text-secondary'}"
@@ -72,13 +72,13 @@
     <div class="flex-1"></div>
     <button
       type="button"
-      class="flex h-7 w-7 flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+      class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={() => pages.closeDocs()}
       title={t('docs.backToIssues')}
       aria-label={t('docs.backToIssues')}
       data-testid="docs-close"
     >
-      <ArrowLeft size={15} strokeWidth={1.8} />
+      <Icon name="arrow-left" size={15} />
     </button>
   </header>
 
@@ -112,10 +112,10 @@
           data-testid="docs-author-group"
           data-author={group.author}
         >
-          <span class="truncate text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+          <span class="truncate text-micro font-semibold uppercase tracking-wider text-text-muted">
             {group.author || t('docs.authorUnknown')}
           </span>
-          <span class="flex-none text-[11px] tabular-nums text-text-muted">
+          <span class="flex-none text-micro tabular-nums text-text-muted">
             {formatNumber(group.pages.length)}
           </span>
           <span class="h-px flex-1 self-center bg-border-subtle"></span>

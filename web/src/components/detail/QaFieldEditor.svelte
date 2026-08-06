@@ -18,6 +18,7 @@
   import { me } from '../../stores/me.svelte'
   // The list's Avatar: one person, one color, everywhere they appear.
   import Avatar from '../list/Avatar.svelte'
+  import Icon from '../ui/Icon.svelte'
 
   type Kind = 'option' | 'user' | 'version_array' | 'multi_option'
 
@@ -280,7 +281,7 @@
 
   {#if open}
     <div
-      class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-60 overflow-y-auto rounded-md border border-border-subtle bg-bg-elevated py-1 shadow-xl"
+      class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-60 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
       role="listbox"
     >
       {#if kind === 'option'}
@@ -307,7 +308,7 @@
               : 'text-text-secondary'}"
           >
             <span class="min-w-0 flex-1 truncate">{opt.value}</span>
-            {#if selected}<span class="flex-none text-accent">✓</span>{/if}
+            {#if selected}<Icon name="check" size={13} class="text-accent" />{/if}
           </button>
         {/each}
       {:else if isMulti}
@@ -339,13 +340,13 @@
                     ? 'border-accent bg-accent text-white'
                     : 'border-border-subtle'}"
                 >
-                  {#if checked}<span class="text-micro leading-none">✓</span>{/if}
+                  {#if checked}<Icon name="check" size={10} />{/if}
                 </span>
                 <span class="min-w-0 flex-1 truncate">{opt.value}</span>
               </button>
             {/each}
             {#if versionOptions.length === 0}
-              <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.noResults')}</div>
+              <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.noResults')}</div>
             {/if}
           </div>
           <div class="mt-1 flex items-center justify-end gap-2 border-t border-border-subtle px-2 pt-1.5">
@@ -353,7 +354,7 @@
               type="button"
               onclick={() => (open = false)}
               disabled={busy}
-              class="rounded px-2 py-1 text-[11px] text-text-muted hover:bg-bg-hover disabled:opacity-50"
+              class="rounded px-2 py-1 text-micro text-text-muted hover:bg-bg-hover disabled:opacity-50"
             >
               {t('common.cancel')}
             </button>
@@ -361,7 +362,7 @@
               type="button"
               onclick={applyMulti}
               disabled={busy}
-              class="rounded bg-accent px-2 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+              class="rounded bg-accent px-2 py-1 text-micro font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {t('common.apply')}
             </button>
@@ -401,9 +402,9 @@
           </button>
         {/each}
         {#if searching}
-          <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.searching')}</div>
+          <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.searching')}</div>
         {:else if cands.length === 0}
-          <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.noResults')}</div>
+          <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.noResults')}</div>
         {/if}
       {/if}
     </div>

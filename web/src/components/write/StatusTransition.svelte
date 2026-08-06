@@ -165,7 +165,7 @@
     type="button"
     onclick={toggle}
     data-testid="status-transition"
-    class="group inline-flex items-center gap-1.5 rounded-md bg-bg-elevated px-2 py-0.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+    class="group inline-flex items-center gap-1.5 rounded-md bg-bg-elevated px-2 py-0.5 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover"
     aria-haspopup="listbox"
     aria-expanded={open}
     title={canEdit ? t('write.changeStatus') : issue.status}
@@ -209,9 +209,9 @@
             <span class="h-1.5 w-1.5 flex-none rounded-full {catDot(t.to_category)}"></span>
             <span class="min-w-0 flex-1 truncate">{t.name}</span>
             {#if busyId === t.id}
-              <span class="flex-none text-[11px] text-text-muted">…</span>
+              <span class="flex-none text-micro text-text-muted">…</span>
             {:else if t.to_status && t.to_status !== t.name}
-              <span class="flex-none text-[11px] text-text-muted">→ {t.to_status}</span>
+              <span class="flex-none text-micro text-text-muted">→ {t.to_status}</span>
             {/if}
           </button>
         {/each}

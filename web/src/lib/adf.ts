@@ -303,8 +303,11 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
     case 'mediaInline': {
       const attachment = findAttachment(node, opts)
       if (attachment) return renderAttachment(attachment, true)
-      const name = attrStr(node, 'alt') ?? t('common.attachment')
-      return `<span class="adf-media">📎 ${esc(name)}</span>`
+      const name = attrStr(node, 'alt')
+      const label = name
+        ? t('detail.attachmentLabel', { name: esc(name) })
+        : esc(t('common.attachment'))
+      return `<span class="adf-media">${label}</span>`
     }
 
     default:

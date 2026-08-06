@@ -8,6 +8,7 @@
   import { views } from '../../stores/views.svelte'
   import { filterFields, type MultiField } from '../../lib/view-config'
   import { t, fieldLabel } from '../../lib/i18n'
+  import Icon from '../ui/Icon.svelte'
 
   /** One pickable axis: a static field or a discovered custom-field alias. */
   interface Axis {
@@ -98,7 +99,7 @@
       title={t('filter.remove')}
     >
       <span class="truncate max-w-[180px]">{chip.label}</span>
-      <span class="text-text-muted transition-colors group-hover:text-status-reopen">✕</span>
+      <Icon name="x" size={12} class="text-text-muted transition-colors group-hover:text-status-reopen" />
     </button>
   {/each}
 
@@ -118,7 +119,7 @@
       >
         {#if !field}
           <!-- Step 1: field pick + flags -->
-          <div class="px-2 py-1 text-[11px] font-medium text-text-muted">{t('filter.properties')}</div>
+          <div class="px-2 py-1 text-micro font-medium text-text-muted">{t('filter.properties')}</div>
           {#each axes as f (f.key)}
             <button
               type="button"
@@ -126,11 +127,11 @@
               onclick={() => pickField(f)}
             >
               <span>{f.label}</span>
-              <span class="text-text-muted">›</span>
+              <Icon name="chevron-right" size={13} class="text-text-muted" />
             </button>
           {/each}
           <div class="my-1 border-t border-border-subtle"></div>
-          <div class="px-2 py-1 text-[11px] font-medium text-text-muted">{t('filter.quick')}</div>
+          <div class="px-2 py-1 text-micro font-medium text-text-muted">{t('filter.quick')}</div>
           {#each [{ k: 'reopened' as const, l: t('filter.flagReopened') }, { k: 'unassigned' as const, l: t('filter.flagUnassigned') }, { k: 'stale' as const, l: t('filter.flagStale') }] as flag (flag.k)}
             <button
               type="button"
@@ -139,7 +140,7 @@
             >
               <span>{flag.l}</span>
               {#if filters.filters[flag.k as 'reopened' | 'unassigned' | 'stale']}
-                <span class="text-accent-text">✓</span>
+                <Icon name="check" size={13} class="text-accent-text" />
               {/if}
             </button>
           {/each}
@@ -148,10 +149,11 @@
           <div class="flex items-center gap-1 px-1 pb-1">
             <button
               type="button"
-              class="flex h-control-sm w-control-sm items-center justify-center rounded text-[12px] text-text-muted hover:bg-bg-hover hover:text-text-primary"
+              class="flex h-control-sm w-control-sm items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
               onclick={() => (field = null)}
+              aria-label={t('onboarding.back')}
             >
-              ‹
+              <Icon name="chevron-left" size={14} />
             </button>
             <input
               type="text"
@@ -177,10 +179,10 @@
                     ? 'border-accent bg-accent text-white'
                     : 'border-border-strong'}"
                 >
-                  {#if activeSet.has(v.value)}<span class="text-micro">✓</span>{/if}
+                  {#if activeSet.has(v.value)}<Icon name="check" size={10} />{/if}
                 </span>
                 <span class="min-w-0 flex-1 truncate">{v.label}</span>
-                <span class="flex-none text-[11px] text-text-muted">{v.count}</span>
+                <span class="flex-none text-micro text-text-muted">{v.count}</span>
               </button>
             {/each}
           </div>

@@ -124,11 +124,11 @@
               style:background={groupColor(group.key, i)}
             ></span>
             <span class="max-w-36 truncate">{group.label || t('common.all')}</span>
-            <span class="font-mono text-[11px] text-text-muted">{group.counts.total}</span>
+            <span class="font-mono text-micro text-text-muted">{group.counts.total}</span>
           </span>
         {/each}
         {#if hiddenGroupCount > 0}
-          <span class="text-[11px] text-text-muted">{t('list.moreCount', { n: hiddenGroupCount })}</span>
+          <span class="text-micro text-text-muted">{t('list.moreCount', { n: hiddenGroupCount })}</span>
         {/if}
       </div>
     </div>

@@ -7,6 +7,7 @@
    */
   import { t } from '../../lib/i18n'
   import { trapFocus } from '../../lib/focus-trap'
+  import Icon from '../ui/Icon.svelte'
 
   let { onclose }: { onclose: () => void } = $props()
 
@@ -96,19 +97,19 @@
       <h2 class="text-title font-semibold text-text-primary">{t('shortcuts.title')}</h2>
       <button
         type="button"
-        class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-[13px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={onclose}
         aria-label={t('common.closeEsc')}
         title={t('common.closeEsc')}
       >
-        ✕
+        <Icon name="x" size={14} />
       </button>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
       {#each sections as section (section.title)}
         <div class="mb-3 last:mb-0">
-          <div class="mb-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+          <div class="mb-1 text-micro font-medium uppercase tracking-wide text-text-muted">
             {section.title}
           </div>
           <dl class="flex flex-col">
@@ -116,7 +117,7 @@
               <div class="flex items-center gap-3 border-b border-border-subtle/60 py-1.5 last:border-0">
                 <dt class="w-24 flex-none">
                   <kbd
-                    class="rounded border border-border-strong bg-bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-text-secondary"
+                    class="rounded border border-border-strong bg-bg-elevated px-1.5 py-0.5 font-mono text-micro text-text-secondary"
                   >
                     {keys}
                   </kbd>

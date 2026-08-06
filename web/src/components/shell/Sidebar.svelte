@@ -19,7 +19,7 @@
       class="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent"
       aria-hidden="true"
     ></span>
-    <span class="text-[13px] font-semibold tracking-tight text-text-primary">scry</span>
+    <span class="text-body font-semibold tracking-tight text-text-primary">scry</span>
   </div>
 
   <!-- Navigation slot -->

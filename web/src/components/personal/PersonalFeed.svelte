@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from '../../lib/i18n'
-  import { ArrowLeft, CheckCheck, ChevronRight } from '@lucide/svelte'
+  import Icon from '../ui/Icon.svelte'
   import type { FeedFocus, FeedItem } from '../../lib/types'
   import { selection } from '../../stores/selection.svelte'
   import { me } from '../../stores/me.svelte'
@@ -127,7 +127,7 @@
   <header
     class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-3 py-2"
   >
-    <h1 class="whitespace-nowrap text-[13px] font-semibold text-text-primary">{t('feed.title')}</h1>
+    <h1 class="whitespace-nowrap text-body font-semibold text-text-primary">{t('feed.title')}</h1>
     {#if me.feedUnread.all > 0}
       <span
         class="min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-center text-micro font-semibold text-white"
@@ -143,7 +143,7 @@
         {@const count = me.feedUnread[tab.key]}
         <button
           type="button"
-          class="flex min-h-6 items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium transition-colors {me.feedFocus ===
+          class="flex min-h-6 items-center gap-1 rounded px-2 py-0.5 text-micro font-medium transition-colors {me.feedFocus ===
           tab.key
             ? 'bg-bg-active text-text-primary'
             : 'text-text-muted hover:text-text-secondary'}"
@@ -160,10 +160,10 @@
       <button
         type="button"
         onclick={() => me.markAllFeedRead()}
-        class="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary max-[760px]:w-7 max-[760px]:justify-center max-[760px]:px-0"
+        class="flex h-control-sm items-center gap-1 rounded-md px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary max-[760px]:w-control-sm max-[760px]:justify-center max-[760px]:px-0"
         title={t('feed.markAllRead')}
       >
-        <CheckCheck size={14} strokeWidth={1.8} />
+        <Icon name="check-check" size={14} />
         <span class="max-[760px]:hidden">{t('feed.markAllRead')}</span>
       </button>
     {/if}
@@ -173,11 +173,11 @@
     <button
       type="button"
       onclick={() => me.closeFeed()}
-      class="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+      class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       title={t('feed.backToList')}
       aria-label={t('feed.backToList')}
     >
-      <ArrowLeft size={15} strokeWidth={1.8} />
+      <Icon name="arrow-left" size={15} />
     </button>
   </header>
 
@@ -211,17 +211,17 @@
           </span>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
-              <span class="flex-none font-mono text-[11px] text-text-muted">{item.issue_key}</span>
+              <span class="flex-none font-mono text-micro text-text-muted">{item.issue_key}</span>
               <span
-                class="min-w-0 flex-1 truncate text-[13px] {unread
+                class="min-w-0 flex-1 truncate text-body {unread
                   ? 'font-medium text-text-primary'
                   : 'text-text-secondary'}"
               >{item.summary}</span>
-              <span class="flex-none text-[11px] text-text-muted" title={absTime(item.occurred_at)}>
+              <span class="flex-none text-micro text-text-muted" title={absTime(item.occurred_at)}>
                 {relativeTime(item.occurred_at)}
               </span>
             </div>
-            <div class="mt-1 flex min-w-0 items-center gap-1.5 text-[11px]">
+            <div class="mt-1 flex min-w-0 items-center gap-1.5 text-micro">
               <span class="flex-none text-text-secondary">{EVENT_LABELS[item.event_type]}</span>
               {#if detail}
                 <span class="truncate text-text-muted">{detail}</span>
@@ -259,18 +259,18 @@
             </span>
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
-                <span class="flex-none font-mono text-[11px] text-text-muted">{rep.issue_key}</span>
+                <span class="flex-none font-mono text-micro text-text-muted">{rep.issue_key}</span>
                 <span
-                  class="min-w-0 flex-1 truncate text-[13px] {anyUnread
+                  class="min-w-0 flex-1 truncate text-body {anyUnread
                     ? 'font-medium text-text-primary'
                     : 'text-text-secondary'}"
                 >{rep.summary}</span>
-                <span class="flex-none text-[11px] text-text-muted" title={absTime(rep.occurred_at)}>
+                <span class="flex-none text-micro text-text-muted" title={absTime(rep.occurred_at)}>
                   {relativeTime(rep.occurred_at)}
                 </span>
               </div>
-              <div class="mt-1 flex min-w-0 items-center gap-1.5 text-[11px]">
-                <ChevronRight size={12} strokeWidth={2} class="flex-none text-text-muted" />
+              <div class="mt-1 flex min-w-0 items-center gap-1.5 text-micro">
+                <Icon name="chevron-right" size={12} class="text-text-muted" />
                 <span class="flex-none text-text-secondary">{EVENT_LABELS[rep.event_type]}</span>
                 <span class="flex-none rounded bg-bg-elevated px-1 py-0.5 text-micro font-medium text-text-secondary">
                   ×{group.items.length}

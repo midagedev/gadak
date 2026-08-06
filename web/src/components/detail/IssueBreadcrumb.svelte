@@ -13,6 +13,7 @@
   import type { IssueLite } from '../../lib/types'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
+  import Icon from '../ui/Icon.svelte'
 
   let { issue }: { issue: IssueLite } = $props()
 
@@ -34,7 +35,7 @@
 
 {#if trail.length > 0}
   <nav
-    class="mb-2 flex items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-text-muted"
+    class="mb-2 flex items-center gap-1 overflow-hidden whitespace-nowrap text-micro text-text-muted"
     aria-label={t('detail.breadcrumb')}
     data-testid="issue-breadcrumb"
   >
@@ -51,7 +52,7 @@
           <span class="min-w-0 truncate">{a.summary}</span>
         {/if}
       </button>
-      <span class="flex-none" aria-hidden="true">›</span>
+      <Icon name="chevron-right" size={12} class="text-text-muted" />
     {/each}
     <span class="flex-none font-mono text-text-secondary">{issue.issue_key}</span>
   </nav>

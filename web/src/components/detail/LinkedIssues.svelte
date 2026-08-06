@@ -44,7 +44,7 @@
           <span class="mt-px flex-none text-micro text-text-muted">{label(l)}</span>
           <span class="min-w-0 flex-1">
             <span class="flex items-center gap-1.5">
-              <span class="font-mono text-[11px] font-medium text-accent-text">{l.key}</span>
+              <span class="font-mono text-micro font-medium text-accent-text">{l.key}</span>
               {#if issues.get(l.key)}
                 <span class="h-1 w-1 rounded-full bg-status-done" title={t('detail.inLocalPool')}></span>
               {/if}

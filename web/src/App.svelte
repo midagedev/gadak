@@ -343,7 +343,7 @@
     <AuthGate onRetry={retry} />
   {:else if issues.error === 'network'}
     <div class="flex h-screen flex-col items-center justify-center gap-4 bg-bg-base px-6 text-center">
-      <p class="max-w-sm text-[13px] text-text-secondary">
+      <p class="max-w-sm text-body text-text-secondary">
         {t('app.loadFailed')}
       </p>
       <button

@@ -11,6 +11,7 @@
   import { trapFocus } from '../../lib/focus-trap'
   import { issues } from '../../stores/issues.svelte'
   import CommentComposer from './CommentComposer.svelte'
+  import Icon from '../ui/Icon.svelte'
 
   let { issueKey, onclose }: { issueKey: string; onclose: () => void } = $props()
 
@@ -55,17 +56,17 @@
   >
     <div class="flex flex-none items-center gap-2 border-b border-border-subtle px-4 py-2.5">
       <span class="flex-none font-mono text-[12px] text-accent-text">{issueKey}</span>
-      <span class="min-w-0 flex-1 truncate text-[13px] text-text-primary" title={issue?.summary}>
+      <span class="min-w-0 flex-1 truncate text-body text-text-primary" title={issue?.summary}>
         {issue?.summary ?? ''}
       </span>
       <button
         type="button"
-        class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-[13px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={onclose}
         aria-label={t('common.closeEsc')}
         title={t('common.closeEsc')}
       >
-        ✕
+        <Icon name="x" size={14} />
       </button>
     </div>
 

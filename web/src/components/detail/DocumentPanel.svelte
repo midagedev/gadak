@@ -16,6 +16,7 @@
   import type { PageDetail } from '../../lib/types'
   import AdfContent from './AdfContent.svelte'
   import Section from './Section.svelte'
+  import Icon from '../ui/Icon.svelte'
 
   const key = $derived(pages.selectedKey)
   // Index row for the instant header (a search hit may not be in the index yet).
@@ -108,7 +109,7 @@
                one, its key (monospace, and the tooltip either way) until then. -->
           {@const spaceLabel = pages.spaceLabel(head.space_key)}
           <nav
-            class="mb-2 flex items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-text-muted"
+            class="mb-2 flex items-center gap-1 overflow-hidden whitespace-nowrap text-micro text-text-muted"
             aria-label={t('doc.breadcrumb')}
             data-testid="doc-breadcrumb"
           >
@@ -119,7 +120,7 @@
               {spaceLabel}
             </span>
             {#each trail as a (a.key)}
-              <span class="flex-none" aria-hidden="true">›</span>
+              <Icon name="chevron-right" size={12} class="text-text-muted" />
               <button
                 type="button"
                 class="min-w-0 shrink truncate text-text-secondary transition-colors hover:text-text-primary hover:underline"
@@ -130,7 +131,7 @@
                 {a.title}
               </button>
             {/each}
-            <span class="flex-none" aria-hidden="true">›</span>
+            <Icon name="chevron-right" size={12} class="text-text-muted" />
             <span class="max-w-[60%] flex-none truncate text-text-secondary">{head.title}</span>
           </nav>
         {/if}
@@ -140,7 +141,7 @@
           {head?.title ?? ''}
         </h2>
 
-        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-micro text-text-muted">
           {#if head?.author}
             <span class="min-w-0 truncate text-text-secondary">{head.author}</span>
             <span aria-hidden="true">·</span>
@@ -172,7 +173,7 @@
     <div class="min-h-0 flex-1 overflow-y-auto" data-testid="doc-scroll">
       {#if errorKind}
         <div class="flex flex-col items-center gap-3 px-5 py-16 text-center">
-          <p class="text-[13px] text-text-secondary">
+          <p class="text-body text-text-secondary">
             {errorKind === 'notfound' ? t('doc.notFound') : t('doc.loadFailed')}
           </p>
           {#if errorKind === 'network'}
@@ -197,7 +198,7 @@
       {:else}
         <div class="anim-enter divide-y divide-border-subtle">
           <Section title={t('doc.content')}>
-            <div class="text-[13px] text-text-secondary">
+            <div class="text-body text-text-secondary">
               <AdfContent node={detailForKey.body_adf} emptyLabel={t('doc.noContent')} />
             </div>
           </Section>
@@ -213,11 +214,11 @@
                       <span class="text-[12px] font-medium text-text-primary">
                         {c.author ?? t('detail.unknownAuthor')}
                       </span>
-                      <span class="text-[11px] text-text-muted" title={absTime(c.created_at)}>
+                      <span class="text-micro text-text-muted" title={absTime(c.created_at)}>
                         {relativeTime(c.created_at, 'long')}
                       </span>
                     </div>
-                    <div class="text-[13px] leading-relaxed text-text-secondary">
+                    <div class="text-body leading-relaxed text-text-secondary">
                       <AdfContent
                         node={c.body_adf}
                         fallback={c.body_text}

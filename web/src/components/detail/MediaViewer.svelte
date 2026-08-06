@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from '../../lib/i18n'
   import type { DetailAttachment } from '../../lib/types'
+  import Icon from '../ui/Icon.svelte'
 
   let {
     attachment,
@@ -31,7 +32,7 @@
   onkeydown={onKeydown}
 >
   <header class="flex h-12 flex-none items-center justify-between gap-4 border-b border-white/10 px-4">
-    <p class="min-w-0 truncate text-[13px] font-medium text-white/90">{attachment.filename}</p>
+    <p class="min-w-0 truncate text-body font-medium text-white/90">{attachment.filename}</p>
     <div class="flex flex-none items-center gap-1">
       <a
         href={attachment.content_url}
@@ -46,11 +47,11 @@
       <button
         type="button"
         onclick={onClose}
-        class="flex h-8 w-8 items-center justify-center text-[24px] leading-none text-white/60 transition-colors hover:text-white"
+        class="flex h-8 w-8 items-center justify-center text-white/60 transition-colors hover:text-white"
         aria-label={t('detail.mediaClose')}
         title={t('common.close')}
       >
-        ×
+        <Icon name="x" size={20} />
       </button>
     </div>
   </header>

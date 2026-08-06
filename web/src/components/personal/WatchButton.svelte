@@ -29,7 +29,7 @@
 <button
   type="button"
   onclick={onClick}
-  class="flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors {watching
+  class="flex h-6 items-center gap-1 rounded-md px-2 text-micro font-medium transition-colors {watching
     ? 'bg-accent-subtle/40 text-accent-text hover:bg-accent-subtle/60'
     : 'text-text-muted hover:bg-bg-hover hover:text-text-primary'}"
   title={me.identified

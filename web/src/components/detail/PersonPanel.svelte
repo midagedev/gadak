@@ -98,7 +98,7 @@
             <h2 class="truncate text-title font-semibold text-text-primary" data-testid="person-name">
               {name}
             </h2>
-            <p class="truncate text-[11px] text-text-muted" title={email}>{email}</p>
+            <p class="truncate text-micro text-text-muted" title={email}>{email}</p>
           </div>
           <button
             type="button"
@@ -120,7 +120,7 @@
         <div class="flex flex-wrap items-center gap-2" data-testid="person-links">
           <button
             type="button"
-            class="flex items-center gap-1.5 rounded border border-border-subtle px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            class="flex h-control-sm items-center gap-1.5 rounded-md border border-border-subtle px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
             onclick={openAssigned}
             title={t('person.assignedTo', { name })}
             data-testid="person-link-assigned"
@@ -131,7 +131,7 @@
           </button>
           <button
             type="button"
-            class="flex items-center gap-1.5 rounded border border-border-subtle px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            class="flex h-control-sm items-center gap-1.5 rounded-md border border-border-subtle px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
             onclick={openReported}
             title={t('person.reportedBy', { name })}
             data-testid="person-link-reported"
@@ -143,7 +143,7 @@
           {#if docsCount > 0}
             <button
               type="button"
-              class="flex items-center gap-1.5 rounded border border-border-subtle px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              class="flex h-control-sm items-center gap-1.5 rounded-md border border-border-subtle px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               onclick={() => pages.openDocsByAuthor(name)}
               title={t('person.docsBy', { name })}
               data-testid="person-link-docs"
@@ -206,10 +206,10 @@
                       {t('doc.badge')}
                     </span>
                   {:else}
-                    <span class="flex-none font-mono text-[11px] text-accent-text">{c.key}</span>
+                    <span class="flex-none font-mono text-micro text-accent-text">{c.key}</span>
                   {/if}
                   <span class="min-w-0 flex-1 truncate text-body text-text-primary">{c.title}</span>
-                  <span class="flex-none text-[11px] text-text-muted" title={absTime(c.created_at)}>
+                  <span class="flex-none text-micro text-text-muted" title={absTime(c.created_at)}>
                     {relativeTime(c.created_at)}
                   </span>
                 </span>
@@ -222,7 +222,7 @@
           {#if person.total > person.comments.length}
             <!-- The list is capped; saying which part of the total is on screen
                  keeps the count above from reading as the list's length. -->
-            <p class="pt-3 text-[11px] text-text-muted" data-testid="person-comment-cap">
+            <p class="pt-3 text-micro text-text-muted" data-testid="person-comment-cap">
               {t('person.showingOf', {
                 n: formatNumber(person.comments.length),
                 total: formatNumber(person.total),

@@ -7,7 +7,6 @@
    * the question really is "what lives under what". The sidebar carries neither
    * — it must not grow with content volume.
    */
-  import { ArrowLeft } from '@lucide/svelte'
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type PageNode } from '../../stores/pages.svelte'
@@ -98,13 +97,13 @@
 
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="space-docs-view" data-space={space}>
   <header class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2">
-    <h2 class="truncate text-[13px] font-semibold text-text-primary" title={space}>{label}</h2>
-    <span class="flex-none text-[11px] tabular-nums text-text-muted">{formatNumber(docs.length)}</span>
+    <h2 class="truncate text-body font-semibold text-text-primary" title={space}>{label}</h2>
+    <span class="flex-none text-micro tabular-nums text-text-muted">{formatNumber(docs.length)}</span>
 
     <div class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-0.5">
       <button
         type="button"
-        class="flex h-control-sm items-center rounded px-2 text-[11px] font-medium transition-colors {treeMode
+        class="flex h-control-sm items-center rounded px-2 text-micro font-medium transition-colors {treeMode
           ? 'text-text-muted hover:text-text-secondary'
           : 'bg-bg-active text-text-primary'}"
         aria-pressed={!treeMode}
@@ -115,7 +114,7 @@
       </button>
       <button
         type="button"
-        class="flex h-control-sm items-center rounded px-2 text-[11px] font-medium transition-colors {treeMode
+        class="flex h-control-sm items-center rounded px-2 text-micro font-medium transition-colors {treeMode
           ? 'bg-bg-active text-text-primary'
           : 'text-text-muted hover:text-text-secondary'}"
         aria-pressed={treeMode}
@@ -135,7 +134,7 @@
       aria-label={t('docs.backToIssues')}
       data-testid="docs-close"
     >
-      <ArrowLeft size={15} strokeWidth={1.8} />
+      <Icon name="arrow-left" size={15} />
     </button>
   </header>
 

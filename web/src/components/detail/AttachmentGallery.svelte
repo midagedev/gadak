@@ -44,7 +44,7 @@
         <span class="flex h-9 w-9 items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-[16px] text-text-primary group-hover:border-accent">
           ▶
         </span>
-        <span class="w-full truncate text-[11px] text-text-secondary">{attachment.filename}</span>
+        <span class="w-full truncate text-micro text-text-secondary">{attachment.filename}</span>
         <span class="text-micro text-text-muted">{formatBytes(attachment.size)}</span>
       </button>
     {:else}

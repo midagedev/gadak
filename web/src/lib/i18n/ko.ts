@@ -209,7 +209,7 @@ export const ko = {
   'filter.chipUpdatedRange': '갱신 {from}~{to}',
   'filter.flagReopened': '재오픈',
   'filter.flagUnassigned': '미할당',
-  'filter.flagStale': '⏳ 정체',
+  'filter.flagStale': '정체',
   'filter.qaBlocking': '현재 차수 차단',
   'filter.qaRetest': '재검증 대기',
   'filter.qaVerified': '검증 완료',
@@ -252,7 +252,7 @@ export const ko = {
   'list.reopenCount': '재오픈 {n}회',
   'list.reopenCountReason': '재오픈 {n}회 · {reason}',
   'list.staleDays': '이 상태로 {n}일째',
-  'list.staleDaysShort': '⏳ {n}일',
+  'list.staleDaysShort': '{n}일',
   'list.staleHours': '이 상태에서 {n}시간(업무시간)',
   'list.createdAt': '생성 {time}',
   'list.categoryTitle': '분류: {label} ({status})',
@@ -465,7 +465,7 @@ export const ko = {
   'detail.mediaClose': '미디어 닫기',
   'detail.enlarge': '{name} 크게 보기',
   'detail.play': '{name} 재생',
-  'detail.attachmentLabel': '📎 첨부: {name}',
+  'detail.attachmentLabel': '첨부: {name}',
   'detail.unknownAuthor': '알 수 없음',
 
   /* ── Document panel (mirrored wiki pages) ── */

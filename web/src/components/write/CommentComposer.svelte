@@ -312,7 +312,7 @@
       placeholder={me.identified || isHostedDemo()
         ? t('write.commentPlaceholder')
         : t('write.commentNeedCredentials')}
-      class="w-full resize-none rounded-md border bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none transition-colors focus:border-accent {dragOver
+      class="w-full resize-none rounded-md border bg-bg-base px-2.5 py-1.5 text-body text-text-primary outline-none transition-colors focus:border-accent {dragOver
         ? 'border-accent border-dashed'
         : 'border-border-strong'}"
     ></textarea>
@@ -356,7 +356,7 @@
     <div class="flex flex-wrap items-center gap-1.5">
       {#each attachments as a (a.id)}
         <span
-          class="inline-flex items-center gap-1.5 rounded-md border border-border-strong bg-bg-elevated py-0.5 pl-1 pr-1.5 text-[11px] text-text-secondary"
+          class="inline-flex items-center gap-1.5 rounded-md border border-border-strong bg-bg-elevated py-0.5 pl-1 pr-1.5 text-micro text-text-secondary"
         >
           {#if a.is_image}
             <img src={a.content_url} alt="" class="h-5 w-5 rounded object-cover" />
@@ -366,14 +366,14 @@
           <span class="max-w-[160px] truncate">{a.filename}</span>
           <button
             type="button"
-            class="text-text-muted transition-colors hover:text-status-reopen"
+            class="flex items-center text-text-muted transition-colors hover:text-status-reopen"
             onclick={() => removeAttachment(a.id)}
-            title={t('write.removeAttachment')}>✕</button
+            title={t('write.removeAttachment')}><Icon name="x" size={12} /></button
           >
         </span>
       {/each}
       {#if uploading > 0}
-        <span class="text-[11px] text-text-muted">{t('write.uploading', { n: uploading })}</span>
+        <span class="text-micro text-text-muted">{t('write.uploading', { n: uploading })}</span>
       {/if}
     </div>
   {/if}
@@ -399,7 +399,7 @@
       <Icon name="paperclip" size={13} />
       {t('write.attachLabel')}
     </button>
-    <span class="mr-auto text-[11px] text-text-muted">⌘Enter</span>
+    <span class="mr-auto text-micro text-text-muted">⌘Enter</span>
     <button
       type="button"
       onclick={submit}

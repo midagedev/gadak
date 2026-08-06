@@ -186,13 +186,13 @@
       type="text"
       placeholder={t('list.searchPlaceholder')}
       title={t('list.searchHelp')}
-      class="min-w-0 flex-1 bg-transparent text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none"
+      class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
       spellcheck="false"
       autocomplete="off"
     />
     <button
       type="button"
-      class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded text-[11px] font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+      class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded text-micro font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
       title={t('list.searchHelp')}
       aria-label={t('list.searchHelp')}
       data-testid="search-help"
@@ -200,11 +200,11 @@
       ?
     </button>
     {#if filters.searching}
-      <span class="flex-none text-[11px] text-text-muted">{t('list.searching')}</span>
+      <span class="flex-none text-micro text-text-muted">{t('list.searching')}</span>
     {:else if text}
       <button
         type="button"
-        class="flex-none text-text-muted hover:text-text-primary"
+        class="flex flex-none items-center text-text-muted hover:text-text-primary"
         onclick={() => {
           text = ''
           filters.setQuery('')
@@ -213,7 +213,7 @@
         }}
         title={t('list.searchClear')}
       >
-        ✕
+        <Icon name="x" size={13} />
       </button>
     {:else}
       <kbd class="flex-none rounded border border-border-subtle px-1 text-micro text-text-muted">/</kbd>
@@ -237,7 +237,7 @@
           }}
         >
           <span class="min-w-0 flex-1 truncate">{s.label}</span>
-          {#if s.hint}<span class="flex-none text-[11px] text-text-muted">{s.hint}</span>{/if}
+          {#if s.hint}<span class="flex-none text-micro text-text-muted">{s.hint}</span>{/if}
         </button>
       {/each}
     </div>
@@ -257,7 +257,7 @@
         <span class="min-w-0 flex-1 truncate text-text-secondary">
           {issues.pool.get(jumpKey)?.summary ?? ''}
         </span>
-        <span class="flex-none text-[11px] text-text-muted">{t('list.searchOpen')}</span>
+        <span class="flex-none text-micro text-text-muted">{t('list.searchOpen')}</span>
       </button>
     </div>
   {/if}

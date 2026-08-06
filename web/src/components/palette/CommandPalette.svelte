@@ -357,7 +357,7 @@
         aria-autocomplete="list"
         aria-activedescendant={items.length ? `palette-opt-${idx}` : undefined}
         placeholder={t('palette.placeholder')}
-        class="min-w-0 flex-1 bg-transparent text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none"
+        class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
         spellcheck="false"
         autocomplete="off"
       />
@@ -377,7 +377,7 @@
         {#if i === 0 || items[i - 1].section !== item.section}
           <div
             role="presentation"
-            class="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-muted"
+            class="px-2 pb-1 pt-2 text-micro font-medium uppercase tracking-wide text-text-muted"
           >
             {item.section === 'issue' && !needle ? t('palette.recent') : SECTION_LABEL[item.section]}
           </div>
@@ -436,7 +436,7 @@
     </div>
 
     <div
-      class="flex-none border-t border-border-subtle px-3 py-1.5 text-[11px] text-text-muted"
+      class="flex-none border-t border-border-subtle px-3 py-1.5 text-micro text-text-muted"
     >
       {t('palette.hintNav')} · <kbd class="font-mono">?</kbd> {t('palette.hintHelp')}
     </div>

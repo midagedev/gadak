@@ -27,7 +27,7 @@
   // state is ours. appearance-none drops the platform arrow, so the chevron has
   // to come back from the icon set — and it must not eat the click.
   const SELECT =
-    'h-control w-full appearance-none rounded-md border border-border-strong bg-bg-base pl-2.5 pr-7 text-[13px] text-text-primary outline-none focus:border-accent'
+    'h-control w-full appearance-none rounded-md border border-border-strong bg-bg-base pl-2.5 pr-7 text-body text-text-primary outline-none focus:border-accent'
   const SELECT_CHEVRON =
     'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-text-muted'
 
@@ -268,10 +268,10 @@
     <h2 class="mb-4 text-title font-semibold text-text-primary">{t('write.newIssue')}</h2>
 
     {#if loading}
-      <div class="py-8 text-center text-[13px] text-text-muted">{t('common.loading')}</div>
+      <div class="py-8 text-center text-body text-text-muted">{t('common.loading')}</div>
     {:else if loadError}
       <div class="flex flex-col items-center gap-3 py-8 text-center">
-        <p class="text-[13px] text-status-reopen">{loadError}</p>
+        <p class="text-body text-status-reopen">{loadError}</p>
         <button
           type="button"
           onclick={loadFallback}
@@ -284,7 +284,7 @@
         <!-- Project + type -->
         <div class="flex gap-3">
           <label class="flex min-w-0 flex-1 flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">{t('common.project')}</span>
+            <span class="text-micro text-text-secondary">{t('common.project')}</span>
             <span class="relative flex">
               <select bind:value={projectKey} class={SELECT}>
                 {#each projects as p (p.key)}
@@ -295,7 +295,7 @@
             </span>
           </label>
           <label class="flex min-w-0 flex-1 flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">{t('common.type')}</span>
+            <span class="text-micro text-text-secondary">{t('common.type')}</span>
             <span class="relative flex">
               <select bind:value={issueTypeId} class={SELECT}>
                 {#each issueTypes as t (t.id)}
@@ -309,25 +309,25 @@
 
         <!-- Title -->
         <label class="flex flex-col gap-1">
-          <span class="text-[11px] text-text-secondary">{t('common.title')} <span class="text-status-reopen">*</span></span>
+          <span class="text-micro text-text-secondary">{t('common.title')} <span class="text-status-reopen">*</span></span>
           <input
             bind:this={summaryEl}
             bind:value={summary}
             type="text"
             required
             maxlength="255"
-            class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-[13px] text-text-primary outline-none focus:border-accent"
+            class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none focus:border-accent"
             placeholder={t('write.issueTitle')}
           />
         </label>
 
         <!-- Description -->
         <label class="flex flex-col gap-1">
-          <span class="text-[11px] text-text-secondary">{t('common.description')}</span>
+          <span class="text-micro text-text-secondary">{t('common.description')}</span>
           <textarea
             bind:value={description}
             rows="4"
-            class="resize-y rounded-md border border-border-strong bg-bg-base px-2.5 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent"
+            class="resize-y rounded-md border border-border-strong bg-bg-base px-2.5 py-1.5 text-body text-text-primary outline-none focus:border-accent"
             placeholder={t('write.descriptionPlain')}
           ></textarea>
         </label>
@@ -335,11 +335,11 @@
         <!-- Assignee + priority -->
         <div class="flex gap-3">
           <div class="relative flex min-w-0 flex-1 flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">{t('common.assignee')}</span>
+            <span class="text-micro text-text-secondary">{t('common.assignee')}</span>
             {#if assignee}
-              <div class="flex h-control items-center gap-2 rounded-md border border-border-strong bg-bg-base px-2 text-[13px]">
+              <div class="flex h-control items-center gap-2 rounded-md border border-border-strong bg-bg-base px-2 text-body">
                 <span class="min-w-0 flex-1 truncate text-text-primary">{assignee.display_name}</span>
-                <button type="button" onclick={clearUser} class="flex-none text-text-muted hover:text-status-reopen">✕</button>
+                <button type="button" onclick={clearUser} class="flex flex-none items-center text-text-muted hover:text-status-reopen"><Icon name="x" size={13} /></button>
               </div>
             {:else}
               <input
@@ -347,12 +347,12 @@
                 type="text"
                 placeholder={t('write.searchPersonOptional')}
                 onfocus={() => (userMenuOpen = userResults.length > 0)}
-                class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-[13px] text-text-primary outline-none focus:border-accent"
+                class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none focus:border-accent"
               />
               {#if userMenuOpen && (userResults.length > 0 || userSearching)}
                 <div class="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay">
                   {#if userSearching}
-                    <div class="px-3 py-1.5 text-[11px] text-text-muted">{t('common.searching')}</div>
+                    <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.searching')}</div>
                   {/if}
                   {#each userResults as u (u.account_id)}
                     <button
@@ -371,7 +371,7 @@
             {/if}
           </div>
           <label class="flex w-32 flex-none flex-col gap-1">
-            <span class="text-[11px] text-text-secondary">{t('common.priority')}</span>
+            <span class="text-micro text-text-secondary">{t('common.priority')}</span>
             <span class="relative flex">
               <select bind:value={priority} class={SELECT}>
                 <option value="">{t('common.defaultParen')}</option>
@@ -386,12 +386,12 @@
 
         <!-- Labels -->
         <div class="relative flex flex-col gap-1">
-          <span class="text-[11px] text-text-secondary">{t('common.labels')}</span>
+          <span class="text-micro text-text-secondary">{t('common.labels')}</span>
           <div class="flex min-h-control flex-wrap items-center gap-1 rounded-md border border-border-strong bg-bg-base px-2 py-1">
             {#each labels as l (l)}
-              <span class="inline-flex items-center gap-1 rounded bg-bg-elevated px-1.5 py-0.5 text-[11px] text-text-secondary">
+              <span class="inline-flex items-center gap-1 rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-secondary">
                 {l}
-                <button type="button" onclick={() => removeLabel(l)} class="text-text-muted hover:text-status-reopen">✕</button>
+                <button type="button" onclick={() => removeLabel(l)} class="flex items-center text-text-muted hover:text-status-reopen"><Icon name="x" size={11} /></button>
               </span>
             {/each}
             <input
@@ -401,7 +401,7 @@
               onblur={() => setTimeout(() => (labelMenuOpen = false), 120)}
               type="text"
               placeholder={labels.length ? '' : t('write.addLabelOptional')}
-              class="min-w-24 flex-1 bg-transparent text-[13px] text-text-primary outline-none"
+              class="min-w-24 flex-1 bg-transparent text-body text-text-primary outline-none"
             />
           </div>
           {#if labelMenuOpen && labelSuggestions.length > 0}

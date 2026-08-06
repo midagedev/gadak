@@ -28,7 +28,7 @@
   const PRIMARY =
     'inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50'
   const GHOST =
-    'inline-flex h-control items-center rounded-md border border-border-strong px-2.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
+    'inline-flex h-control items-center rounded-md border border-border-strong px-2.5 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
 
   type Step = 1 | 2 | 3
   let step = $state<Step>(1)
@@ -209,7 +209,7 @@
     {#if step === 1}
       <form class="mt-5 flex flex-col gap-3" onsubmit={connect} data-testid="onboarding-connect">
         <label class="flex flex-col gap-1">
-          <span class="text-[11px] font-medium text-text-secondary">{t('onboarding.site')}</span>
+          <span class="text-micro font-medium text-text-secondary">{t('onboarding.site')}</span>
           <input
             class={INPUT}
             type="text"
@@ -220,13 +220,13 @@
           />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-[11px] font-medium text-text-secondary">{t('onboarding.email')}</span>
+          <span class="text-micro font-medium text-text-secondary">{t('onboarding.email')}</span>
           <input class={INPUT} type="email" name="email" autocomplete="email" bind:value={email} />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-[11px] font-medium text-text-secondary">{t('onboarding.token')}</span>
+          <span class="text-micro font-medium text-text-secondary">{t('onboarding.token')}</span>
           <input class={INPUT} type="password" name="token" autocomplete="off" bind:value={token} />
-          <span class="text-[11px] text-text-muted">
+          <span class="text-micro text-text-muted">
             {t('onboarding.tokenHint')}
             <a class="text-accent hover:underline" href={TOKEN_URL} target="_blank" rel="noreferrer noopener">
               {t('onboarding.tokenLink')}
@@ -238,7 +238,7 @@
           <div class="flex flex-col gap-1" role="alert" data-testid="onboarding-error">
             <p class="text-[12px] text-status-reopen">{connectError}</p>
             <a
-              class="text-[11px] text-accent hover:underline"
+              class="text-micro text-accent hover:underline"
               href={TOKEN_URL}
               target="_blank"
               rel="noreferrer noopener"
@@ -270,8 +270,8 @@
         {:else if projects.length === 0}
           <div class="flex flex-col gap-1.5" data-testid="onboarding-no-projects">
             <p class="text-[12px] text-text-secondary">{t('onboarding.noProjects')}</p>
-            <p class="text-[11px] text-text-muted">{t('onboarding.noProjectsChecklist')}</p>
-            <p class="text-[11px] text-text-muted">{t('onboarding.noProjectsManual')}</p>
+            <p class="text-micro text-text-muted">{t('onboarding.noProjectsChecklist')}</p>
+            <p class="text-micro text-text-muted">{t('onboarding.noProjectsManual')}</p>
             <div class="flex flex-wrap items-center gap-2">
               <button class={GHOST} type="button" onclick={onOpenSettings}>{t('onboarding.openSettings')}</button>
               <button class={GHOST} type="button" onclick={goBackToConnect}>{t('onboarding.switchAccount')}</button>
@@ -296,14 +296,14 @@
                     checked={picked.includes(p.key)}
                     onchange={() => toggle(p.key)}
                   />
-                  <span class="font-mono text-[11px] text-text-primary">{p.key}</span>
+                  <span class="font-mono text-micro text-text-primary">{p.key}</span>
                   <span class="min-w-0 flex-1 truncate text-[12px] text-text-secondary">{p.name}</span>
                 </label>
               </li>
             {/each}
           </ul>
           {#if truncated}
-            <p class="text-[11px] text-text-muted">
+            <p class="text-micro text-text-muted">
               {t('onboarding.projectsTruncated', { n: formatNumber(projects.length) })}
             </p>
           {/if}
@@ -315,7 +315,7 @@
           </button>
           <button class={GHOST} type="button" onclick={goBackToConnect}>{t('onboarding.back')}</button>
           <button class={GHOST} type="button" onclick={goBackToConnect}>{t('onboarding.switchAccount')}</button>
-          <span class="text-[11px] text-text-muted">
+          <span class="text-micro text-text-muted">
             {t('onboarding.selectedCount', { n: picked.length })}
           </span>
         </div>
@@ -329,9 +329,9 @@
           <p class="text-[12px] text-text-secondary" data-testid="onboarding-sync-done">
             {t('onboarding.syncDone', { n: formatNumber(progress.fetched) })}
           </p>
-          <p class="text-[11px] text-text-muted">{t('onboarding.syncServeHint')}</p>
+          <p class="text-micro text-text-muted">{t('onboarding.syncServeHint')}</p>
         {:else}
-          <p class="text-[13px] text-text-primary" data-testid="onboarding-sync-count">
+          <p class="text-body text-text-primary" data-testid="onboarding-sync-count">
             {progress ? t('onboarding.syncing') : t('onboarding.syncStarting')}
             {#if fetched > 0}
               <span class="ml-1 font-mono tabular-nums text-text-secondary">{formatNumber(fetched)}</span>
@@ -345,6 +345,6 @@
       </div>
     {/if}
 
-    <p class="mt-5 text-[11px] text-text-muted">{t('onboarding.cliHint')}</p>
+    <p class="mt-5 text-micro text-text-muted">{t('onboarding.cliHint')}</p>
   </div>
 </div>

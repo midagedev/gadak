@@ -208,7 +208,7 @@ export const en = {
   'filter.chipUpdatedRange': 'Updated {from}–{to}',
   'filter.flagReopened': 'Reopened',
   'filter.flagUnassigned': 'Unassigned',
-  'filter.flagStale': '⏳ Stale',
+  'filter.flagStale': 'Stale',
   'filter.qaBlocking': 'Blocking current run',
   'filter.qaRetest': 'Awaiting retest',
   'filter.qaVerified': 'Verified',
@@ -251,7 +251,7 @@ export const en = {
   'list.reopenCount': 'Reopened {n}×',
   'list.reopenCountReason': 'Reopened {n}× · {reason}',
   'list.staleDays': '{n} days in this status',
-  'list.staleDaysShort': '⏳ {n}d',
+  'list.staleDaysShort': '{n}d',
   'list.staleHours': '{n}h in this status (business hours)',
   'list.createdAt': 'Created {time}',
   'list.categoryTitle': 'Category: {label} ({status})',
@@ -464,7 +464,7 @@ export const en = {
   'detail.mediaClose': 'Close media',
   'detail.enlarge': 'Enlarge {name}',
   'detail.play': 'Play {name}',
-  'detail.attachmentLabel': '📎 Attachment: {name}',
+  'detail.attachmentLabel': 'Attachment: {name}',
   'detail.unknownAuthor': 'Unknown',
 
   /* ── Document panel (mirrored wiki pages) ── */

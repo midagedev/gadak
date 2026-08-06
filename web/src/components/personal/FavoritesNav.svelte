@@ -122,7 +122,7 @@
 
 {#if favoriteItems.length}
   <div class="mb-3">
-    <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+    <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
       {t('personal.favorites')}
     </div>
     {#each favoriteItems as item (item.issue.issue_key)}
@@ -148,7 +148,7 @@
           title={`${item.issue.issue_key} · ${item.issue.summary}`}
         >
           <span class="flex min-w-0 items-center gap-2 pr-7">
-            <span class="w-[70px] flex-none truncate font-mono text-[11px] text-text-muted">
+            <span class="w-[70px] flex-none truncate font-mono text-micro text-text-muted">
               {item.issue.issue_key}
             </span>
             <span
@@ -159,7 +159,7 @@
             </span>
           </span>
           <span
-            class="mt-0.5 block truncate text-[11px] font-medium leading-[1.35] {selection.selectedKey ===
+            class="mt-0.5 block truncate text-micro font-medium leading-[1.35] {selection.selectedKey ===
             item.issue.issue_key
               ? 'text-text-primary'
               : 'text-text-secondary group-hover:text-text-primary'}"
@@ -170,7 +170,7 @@
         <button
           type="button"
           data-favorite-action
-          class="absolute right-2 top-1 flex h-7 w-7 items-center justify-center rounded-md text-[13px] text-status-stale transition-colors hover:bg-bg-hover"
+          class="absolute right-2 top-1 flex h-control-sm w-control-sm items-center justify-center rounded-md text-status-stale transition-colors hover:bg-bg-hover"
           onclick={() => void me.toggleFavorite(item.issue.issue_key)}
           aria-pressed="true"
           aria-label={t('personal.unfavoriteAria', { key: item.issue.issue_key })}
@@ -185,7 +185,7 @@
 
 {#if recentItems.length}
   <div class="mb-3">
-    <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+    <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
       {t('personal.recent')}
     </div>
     {#each recentItems as item (item.issue.issue_key)}
@@ -203,7 +203,7 @@
           title={`${item.issue.issue_key} · ${item.issue.summary}`}
         >
           <span class="flex min-w-0 items-center gap-2">
-            <span class="w-[70px] flex-none truncate font-mono text-[11px] text-text-muted">
+            <span class="w-[70px] flex-none truncate font-mono text-micro text-text-muted">
               {item.issue.issue_key}
             </span>
             <span
@@ -214,7 +214,7 @@
             </span>
           </span>
           <span
-            class="mt-0.5 block truncate text-[11px] font-medium leading-[1.35] {selection.selectedKey ===
+            class="mt-0.5 block truncate text-micro font-medium leading-[1.35] {selection.selectedKey ===
             item.issue.issue_key
               ? 'text-text-primary'
               : 'text-text-secondary group-hover:text-text-primary'}"
@@ -224,7 +224,7 @@
         </button>
         <button
           type="button"
-          class="pointer-events-none absolute right-2 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-bg-elevated text-[13px] text-text-muted opacity-0 shadow-sm shadow-black/25 transition-opacity hover:bg-bg-hover hover:text-text-primary group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+          class="pointer-events-none absolute right-2 top-1 flex h-control-sm w-control-sm items-center justify-center rounded-md bg-bg-elevated text-text-muted opacity-0 shadow-sm shadow-black/25 transition-opacity hover:bg-bg-hover hover:text-text-primary group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
           onclick={() => void me.toggleFavorite(item.issue.issue_key)}
           aria-pressed="false"
           aria-label={t('personal.favoriteAria', { key: item.issue.issue_key })}

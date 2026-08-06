@@ -189,7 +189,7 @@
     aria-label={selected ? t('list.deselect') : t('list.select')}
     title={t('list.select')}
   >
-    {#if selected}<span class="text-micro">✓</span>{/if}
+    {#if selected}<Icon name="check" size={11} />{/if}
   </button>
 
   <!-- Priority -->
@@ -227,7 +227,7 @@
     {#each summarySegs as seg, i (i)}{#if seg.hit}<mark class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark>{:else}{seg.text}{/if}{/each}
     {#if filters.filters.reopened && issue.reopen_count > 0 && issue.reopen_reason}
       <!-- Inline reason only on reopen view — elsewhere the badge + its tooltip is enough -->
-      <span class="ml-1 text-[11px] text-status-reopen/80" title={issue.reopen_reason}>
+      <span class="ml-1 text-micro text-status-reopen/80" title={issue.reopen_reason}>
         · {issue.reopen_reason}
       </span>
     {/if}
@@ -249,9 +249,13 @@
   {/if}
   {#if cols.has('stale') && stale}
     <span
-      class="flex-none rounded bg-status-stale/15 px-1.5 py-0.5 text-micro font-medium text-status-stale"
+      class="flex flex-none items-center gap-1 rounded bg-status-stale/15 px-1.5 py-0.5 text-micro font-medium text-status-stale"
       title={t('list.staleDays', { n: staleDays })}
     >
+      <!-- The mark the string used to carry as an emoji. Same treatment as the
+           reopen badge beside it: currentColor, so it stays inside the badge's
+           amber instead of arriving in whatever colors the platform's ⏳ ships. -->
+      <Icon name="hourglass" size={11} />
       {t('list.staleDaysShort', { n: staleDays })}
     </span>
   {/if}
@@ -401,7 +405,7 @@
     </span>
   {/if}
   {#if cols.has('created') && issue.created_at}
-    <span class="hidden w-10 flex-none text-right text-[11px] text-text-muted sm:inline" title={t('list.createdAt', { time: absTime(issue.created_at) })}>
+    <span class="hidden w-10 flex-none text-right text-micro text-text-muted sm:inline" title={t('list.createdAt', { time: absTime(issue.created_at) })}>
       {relativeTime(issue.created_at)}
     </span>
   {/if}
@@ -427,7 +431,7 @@
       {#each shownLabels as label (label)}
         <button
           type="button"
-          class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-[11px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
           onclick={stop(() => filters.addValue('labels', label))}
           title={t('list.fieldValue', { field: t('common.labels'), value: label })}
         >
@@ -435,7 +439,7 @@
         </button>
       {/each}
       {#if extraLabels}
-        <span class="text-[11px] text-text-muted">+{extraLabels}</span>
+        <span class="text-micro text-text-muted">+{extraLabels}</span>
       {/if}
     </span>
   {/if}

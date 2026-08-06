@@ -33,12 +33,12 @@
   {#if group.prefix}
     <!-- Epic key stays as typed (mono, no uppercase transform) so it reads as an
          identifier next to the uppercased section label. -->
-    <span class="flex-none font-mono text-[11px] font-semibold text-accent-text">{group.prefix}</span>
+    <span class="flex-none font-mono text-micro font-semibold text-accent-text">{group.prefix}</span>
   {/if}
-  <span class="truncate text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+  <span class="truncate text-micro font-semibold uppercase tracking-wider text-text-muted">
     {group.label || t('common.all')}
   </span>
-  <span class="flex-none text-[11px] tabular-nums text-text-muted">
+  <span class="flex-none text-micro tabular-nums text-text-muted">
     {group.counts.total}
   </span>
   <span class="h-px flex-1 self-center bg-border-subtle"></span>
@@ -48,7 +48,7 @@
     <span class="flex flex-none items-center gap-2">
       {#each order as c (c)}
         {#if group.counts.category[c] > 0}
-          <span class="flex items-center gap-1 text-[11px] text-text-muted" title={CATEGORY_META[c].label}>
+          <span class="flex items-center gap-1 text-micro text-text-muted" title={CATEGORY_META[c].label}>
             <span class="h-1.5 w-1.5 rounded-full" style:background={CATEGORY_META[c].color}></span>
             {group.counts.category[c]}
           </span>

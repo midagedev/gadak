@@ -47,7 +47,7 @@
     <div
       class="anim-enter absolute right-0 top-full z-30 mt-1 w-56 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-overlay"
     >
-      <div class="mb-1 text-[11px] font-medium text-text-muted">{t('sort.label')}</div>
+      <div class="mb-1 text-micro font-medium text-text-muted">{t('sort.label')}</div>
       <div class="flex flex-wrap gap-1">
         {#each sorts as s (s.k)}
           <button
