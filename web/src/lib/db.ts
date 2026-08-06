@@ -108,14 +108,43 @@ export async function deleteIssues(keys: string[]): Promise<void> {
   await tx.done
 }
 
-/** Replace the store with a full bootstrap (clears leftover tombstones). */
+/**
+ * Chunk size for replaceAllIssues write transactions.
+ * A single clear()+10k put() txn completed ~690ms after interactive on the
+ * cold path; closing the tab mid-flight rolled back the whole txn (clear
+ * included) so the next visit was cold again. 1k-row commits land durable
+ * progress without one multi-second exclusive txn.
+ */
+const REPLACE_CHUNK = 1_000
+
+/**
+ * Replace the store with a full bootstrap (clears leftover tombstones).
+ *
+ * Writes in REPLACE_CHUNK-sized transactions. clear() runs only in the first
+ * chunk so later chunks only put.
+ *
+ * Ordering contract (do not invert at the call site): issues.svelte.ts
+ * #bootstrap awaits this fully, then #persistMeta() (lastSync / sync_version).
+ * lastSync is the signal that the cache is a complete base for delta. If we
+ * die mid-chunk, meta is not advanced, so a partial issues store is never
+ * trusted as a finished bootstrap — no partial-cache + delta accident.
+ */
 export async function replaceAllIssues(issues: IssueLite[]): Promise<void> {
   const conn = await db()
-  const tx = conn.transaction('issues', 'readwrite')
-  const store = tx.objectStore('issues')
-  await store.clear()
-  for (const issue of issues) store.put(issue)
-  await tx.done
+  if (issues.length === 0) {
+    const tx = conn.transaction('issues', 'readwrite')
+    await tx.objectStore('issues').clear()
+    await tx.done
+    return
+  }
+  for (let i = 0; i < issues.length; i += REPLACE_CHUNK) {
+    const chunk = issues.slice(i, i + REPLACE_CHUNK)
+    const tx = conn.transaction('issues', 'readwrite')
+    const store = tx.objectStore('issues')
+    if (i === 0) await store.clear()
+    for (const issue of chunk) store.put(issue)
+    await tx.done
+  }
 }
 
 export async function getMeta(): Promise<CacheMeta | undefined> {

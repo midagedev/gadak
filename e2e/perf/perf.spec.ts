@@ -16,20 +16,23 @@ const RUN = !!process.env.SCRY_PERF
 /** Expected issue count text on the 10k fixture (en-US locale). */
 const ISSUE_COUNT_RE = /10,000 issues|10000 issues/
 
+/** Fixture issue count — IDB prime target and DOM count must both match. */
+const FIXTURE_ISSUE_COUNT = 10_000
+
 /**
  * Performance budgets (ms). Each pin: max(100, ceil(local_p95 * 2)).
  *
- * FAIL-first (2026-08-06): budgets temporarily set to 1ms; all four metrics
- * failed with the measured p95 values below. Then re-pinned to 2× headroom.
- * Evidence: e2e/perf/.tmp/fail-first-run.log (gitignored; see README).
+ * Original FAIL-first (2026-08-06): budgets at 1ms → all four red; see
+ * e2e/perf/.tmp/fail-first-run.log. warmBoot was later found to measure
+ * cold+contention (no IDB prime wait); re-pinned after priming fix.
  */
 const BUDGETS = {
   // pinned 2026-08-06: local p95=971.3ms, budget=max(100, ceil(971.3*2))=1943
   coldBootMs: 1943,
-  // pinned 2026-08-06: local p95=4453.3ms, budget=max(100, ceil(4453.3*2))=8907
-  // Note: warm > cold on this fixture — IDB hydrate of 10k + navigation dominates;
-  // still a separate product path (cache boot) so it stays its own metric.
-  warmBootMs: 8907,
+  // re-pinned 2026-08-06: priming fixed (was measuring cold+contention),
+  // quiet p95=132.1ms, budget=ceil(132.1*2)=265
+  // FAIL-first: budget=66 (0.5×) failed with p95=138.0ms — e2e/perf/.tmp/fail-first-warmboot-0.5x.log
+  warmBootMs: 265,
   // pinned 2026-08-06: local p95=26.8ms, budget=max(100, ceil(26.8*2))=100
   searchKeystrokeMs: 100,
   // pinned 2026-08-06: local p95=8.7ms, budget=max(100, ceil(8.7*2))=100
@@ -101,19 +104,32 @@ async function runWarmBoot(browser: Browser): Promise<Stats> {
   const page = await context.newPage()
   await forceLocale(page)
 
-  // Prime IndexedDB once outside the measured loop.
+  // Prime IndexedDB once outside the measured loop — wait until the bootstrap
+  // write has actually committed (row count == fixture), not merely until the
+  // UI is interactive. Interactive arrives before replaceAllIssues finishes;
+  // sampling earlier measured empty-cache cold + contention with a dead write.
   await page.goto('/')
   await waitInteractive(page)
+  await waitIdbPrimed(page, FIXTURE_ISSUE_COUNT)
+  console.log(
+    `[perf] warmBoot prime complete: IDB issues=${await countIdbIssues(page)} (expected ${FIXTURE_ISSUE_COUNT})`,
+  )
 
   {
+    await assertIdbPrimed(page, FIXTURE_ISSUE_COUNT)
     const ms = await measureWarmBoot(page)
+    // After each warm navigation, bootstrap may rewrite; re-prime before samples.
+    await waitIdbPrimed(page, FIXTURE_ISSUE_COUNT)
     console.log(`[perf] warmBoot warmup: ${ms.toFixed(1)}ms`)
   }
 
   const samples: number[] = []
   for (let i = 0; i < SAMPLES; i++) {
+    // Guard: prior iteration's write must not have left an empty/partial cache.
+    await assertIdbPrimed(page, FIXTURE_ISSUE_COUNT)
     const ms = await measureWarmBoot(page)
     samples.push(ms)
+    await waitIdbPrimed(page, FIXTURE_ISSUE_COUNT)
     console.log(`[perf] warmBoot sample ${i + 1}/${SAMPLES}: ${ms.toFixed(1)}ms`)
   }
   await context.close()
@@ -259,6 +275,79 @@ async function measurePaletteOpen(page: Page): Promise<number> {
 async function waitInteractive(page: Page): Promise<void> {
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
   await expect(page.getByText(ISSUE_COUNT_RE).first()).toBeVisible({ timeout: 60_000 })
+}
+
+/**
+ * Count rows in the issue-navigator IndexedDB `issues` store (default workspace).
+ * Used only by the warmBoot prime gate — product code stays untouched.
+ */
+async function countIdbIssues(page: Page): Promise<number> {
+  return page.evaluate(async () => {
+    const DB_NAME = 'issue-navigator'
+    return new Promise<number>((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME)
+      req.onerror = () => reject(req.error ?? new Error('idb open failed'))
+      req.onsuccess = () => {
+        const idb = req.result
+        try {
+          if (!idb.objectStoreNames.contains('issues')) {
+            idb.close()
+            resolve(0)
+            return
+          }
+          const tx = idb.transaction('issues', 'readonly')
+          const countReq = tx.objectStore('issues').count()
+          countReq.onsuccess = () => {
+            const n = countReq.result
+            idb.close()
+            resolve(n)
+          }
+          countReq.onerror = () => {
+            idb.close()
+            reject(countReq.error ?? new Error('idb count failed'))
+          }
+        } catch (e) {
+          idb.close()
+          reject(e)
+        }
+      }
+    })
+  })
+}
+
+/** Poll until IDB issue count equals expected (bootstrap write committed). */
+async function waitIdbPrimed(
+  page: Page,
+  expected: number,
+  timeoutMs = 30_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  let last = -1
+  while (Date.now() < deadline) {
+    try {
+      last = await countIdbIssues(page)
+      if (last === expected) {
+        console.log(`[perf] IDB primed: issues=${last} (expected ${expected})`)
+        return
+      }
+    } catch {
+      // DB may not exist yet during first boot write.
+    }
+    await page.waitForTimeout(100)
+  }
+  throw new Error(
+    `IDB prime timeout after ${timeoutMs}ms: issues=${last}, expected ${expected}`,
+  )
+}
+
+/** One-shot assert before a warm sample — fail fast if cache was destroyed. */
+async function assertIdbPrimed(page: Page, expected: number): Promise<void> {
+  const n = await countIdbIssues(page)
+  if (n !== expected) {
+    throw new Error(
+      `warmBoot pre-goto IDB issues=${n}, expected ${expected} (cache not ready / destroyed)`,
+    )
+  }
 }
 
 async function forceLocale(page: Page): Promise<void> {

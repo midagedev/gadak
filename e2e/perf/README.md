@@ -43,17 +43,24 @@ by the main config does not fail CI.
 
 ### Current pins (2026-08-06, local, quiet machine)
 
-FAIL-first: budgets set to `1ms` → all four failed (see run log). Then re-pinned:
+Original FAIL-first (all four at `1ms`): see `e2e/perf/.tmp/fail-first-run.log`.
+warmBoot re-pin after priming fix (2026-08-06): FAIL-first at 0.5×
+(`budget=66`) failed with p95≈138ms — `e2e/perf/.tmp/fail-first-warmboot-0.5x.log`.
 
-| Metric | p50 (ms) | p95 (ms) | Budget (ms) | Formula |
+Quiet-machine measure after product chunking + priming fix:
+
+| Metric | p50 (ms) | p95 (ms) | Budget (ms) | Formula / note |
 | --- | ---: | ---: | ---: | --- |
-| coldBoot | 480 | 971 | **1943** | max(100, ceil(971.3×2)) |
-| warmBoot | 2329 | 4453 | **8907** | max(100, ceil(4453.3×2)) |
-| searchKeystroke | 21 | 27 | **100** | max(100, ceil(26.8×2)) |
-| paletteOpen | 7 | 9 | **100** | max(100, ceil(8.7×2)) |
+| coldBoot | 407 | 425 | **1943** | budget unchanged (no new basis); this-run p50/p95 recorded |
+| warmBoot | 121 | 132 | **265** | max(100, ceil(132.1×2)); was 8907 (invalid cold+contention) |
+| searchKeystroke | 22 | 27 | **100** | max(100, ceil(26.8×2)) — budget unchanged |
+| paletteOpen | 7 | 14 | **100** | max(100, ceil(8.7×2)) — budget unchanged |
 
-Warm boot can exceed cold on this fixture (10k IndexedDB hydrate + full navigation);
-it remains a separate metric because cache boot is a product promise.
+**Warm boot is faster than cold when measured correctly** (this run: warm p95 132ms
+vs cold p95 425ms, ~3.2×). An earlier pin of warmBoot **8907ms** was invalid: the
+harness navigated again before the bootstrap IndexedDB write committed, so every
+"warm" sample was empty-cache cold plus contention with a still-open write. The
+suite now polls IDB row count == 10,000 after interactive before sampling.
 
 ## Re-pin rules (all three required)
 
