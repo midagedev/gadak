@@ -159,6 +159,16 @@ The schema in `specs/000-product/data-model.md` is a public contract. Filter
 on `status_category` and ids, never on display names — Jira translates those
 per account, which is the one mistake that silently returns nothing.
 
+Everything can hold the file at once — the mirror runs WAL with one writer
+(the sync loop), and `scry sql` / MCP open it read-only, so `serve`, the TUI,
+and an agent coexist by design.
+
+One caveat we would rather you read here than discover later: **an agent that
+reads your mirror sends what it reads to whatever model it talks to.** scry
+itself sends nothing anywhere ([`SECURITY.md`](SECURITY.md)), but the agent
+will — scope the mirror to what the agent should see (project and space
+allowlists, or a separate profile).
+
 ## Install
 
 Atlassian Cloud only. You need an API token from
@@ -425,6 +435,7 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 
 - [`AGENTS.md`](AGENTS.md) — the agent reference: SQL, CLI, REST
 - [`SECURITY.md`](SECURITY.md) — threat model, what leaves your machine, and where each claim lives in code
+- [`docs/FAQ.md`](docs/FAQ.md) — the hard questions: site load, one-person risk, concurrency, where agent data goes
 - [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — one paste per agent (Claude Code, Cursor, Codex, MCP)
 - [`docs/RECIPES.md`](docs/RECIPES.md) — 13 questions JQL cannot ask, as ready-to-run SQL
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) — fitting scry to your team
@@ -438,6 +449,17 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 - [`docs/PLUGINS.md`](docs/PLUGINS.md) — the enrichment contract
 - [`docs/decisions/`](docs/decisions/) — why it is shaped this way
 - [`specs/000-product/`](specs/000-product/) — spec, data model, API and sync contracts
+
+## Who makes this
+
+One person, currently. Weigh that before pointing it at a company knowledge
+base — and weigh the other side too: the mirror is a disposable cache of your
+own Jira, the schema is a [documented public
+contract](specs/000-product/data-model.md), the license is Apache-2.0, and
+the file is plain SQLite. If this project stops tomorrow, you delete a
+directory and have lost nothing. The hard questions — site load, compliance,
+what an agent does with the data — are answered head-on in
+[`docs/FAQ.md`](docs/FAQ.md).
 
 ## Contributing and feedback
 

@@ -69,6 +69,14 @@ Outbound traffic is exactly two destinations:
 There is no scry account, no scry server, no telemetry, and no multi-user
 model — no roles, no audit log.
 
+Don't take our word for it — the claim is one grep:
+
+```bash
+grep -rn 'http.NewRequest\|http.Get\|http.Post' --include='*.go' internal/ cmd/
+# every hit is your Atlassian site, the GitHub Releases check, or scry
+# talking to itself on loopback (port probe, health check, cache warming)
+```
+
 ## The credential
 
 - The API token lives in `~/.scry/config.json`, written atomically with mode
@@ -171,6 +179,10 @@ If your threat model includes other processes in your *own* account reading
 your files, full-disk encryption is the remaining tool — a local password on
 the file would only be obfuscation, and we would rather not pretend
 otherwise.
+
+Offboarding is one command: `rm -rf ~/.scry` removes the mirror, the
+credential, and every profile. Nothing else on the machine or in Jira knows
+scry existed.
 
 ## Release artifacts
 
