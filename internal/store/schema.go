@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -323,4 +323,13 @@ CREATE TABLE spaces (
   kind      TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (source_id, key)
 );
+`
+
+// schemaV15 adds a one-line body preview on the pages projection for document
+// lists. FTS is contentless so plain text cannot be recovered from the index;
+// excerpt is derived from body_adf (max 200 runes, whitespace-normalized) on
+// upsert and backfilled for existing rows in the same migration transaction
+// (see backfillPageExcerpts).
+const schemaV15 = `
+ALTER TABLE pages ADD COLUMN excerpt TEXT NOT NULL DEFAULT '';
 `

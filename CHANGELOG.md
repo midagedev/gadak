@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Page list excerpt (schema v15).** `pages.excerpt` — a one-line body preview
+  (≤200 runes from ADF plain text) on every `PageLite` for document list UIs;
+  backfilled from existing `body_adf` on migrate.
+
 ## v0.8.0 — 2026-08-06
 
 - **Scry.app — the macOS desktop app.** The web UI in its own signed,

@@ -652,30 +652,10 @@ func walkMentions(node any, accountID string) bool {
 }
 
 // plainExcerptFromADF is a last-resort excerpt when body_text is empty.
+// Full flattened text; callers apply truncateRunes. Shared ADF walker lives in
+// excerpt.go (pageExcerptFromADF uses the same extraction).
 func plainExcerptFromADF(raw string) string {
-	var doc any
-	if json.Unmarshal([]byte(raw), &doc) != nil {
-		return ""
-	}
-	var b strings.Builder
-	var walk func(any)
-	walk = func(node any) {
-		switch v := node.(type) {
-		case []any:
-			for _, c := range v {
-				walk(c)
-			}
-		case map[string]any:
-			if kind, _ := v["type"].(string); kind == "text" {
-				if s, ok := v["text"].(string); ok {
-					b.WriteString(s)
-				}
-			}
-			walk(v["content"])
-		}
-	}
-	walk(doc)
-	return strings.TrimSpace(b.String())
+	return plainTextFromADF(raw)
 }
 
 func truncateRunes(s string, n int) string {

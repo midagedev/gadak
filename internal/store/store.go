@@ -117,6 +117,12 @@ func (db *DB) migrate() error {
 			if _, err := tx.Exec(migrations[i]); err != nil {
 				return fmt.Errorf("migration %d: %w", i+1, err)
 			}
+			// v15: derive pages.excerpt from body_adf for rows already mirrored.
+			if i+1 == 15 {
+				if err := backfillPageExcerpts(tx); err != nil {
+					return fmt.Errorf("migration 15 backfill: %w", err)
+				}
+			}
 		}
 		// user_version is the migration level; sync_state.schema_version is the
 		// documented mirror of it and has to move with it.

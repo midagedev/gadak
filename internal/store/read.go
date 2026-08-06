@@ -297,13 +297,16 @@ type PageLite struct {
 	SpaceKey string `json:"space_key"`
 	// SpaceName is the human-readable space title from the spaces table join.
 	// Empty when no spaces row is mirrored for this key (never omitted in JSON).
-	SpaceName string   `json:"space_name"`
-	ParentID  string   `json:"parent_id"`
-	Author    string   `json:"author"`
-	UpdatedAt string   `json:"updated_at"`
-	Version   int      `json:"version"`
-	URL       string   `json:"url"`
-	Labels    []string `json:"labels"`
+	SpaceName string `json:"space_name"`
+	ParentID  string `json:"parent_id"`
+	Author    string `json:"author"`
+	UpdatedAt string `json:"updated_at"`
+	Version   int    `json:"version"`
+	URL       string `json:"url"`
+	// Excerpt is a one-line body preview derived from body_adf (schema v15):
+	// whitespace-normalized, at most 200 runes. Empty when the body is empty.
+	Excerpt string   `json:"excerpt"`
+	Labels  []string `json:"labels"`
 }
 
 // PageComment is one comment on a page detail response.
@@ -328,7 +331,7 @@ func (db *DB) PageLites() ([]PageLite, error) {
 		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
 		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
 		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
-		       COALESCE(p.labels, '[]')
+		       COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]')
 		FROM pages p
 		JOIN items it ON it.id = p.item_id
 		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
@@ -338,7 +341,7 @@ func (db *DB) PageLites() ([]PageLite, error) {
 			var v PageLite
 			var labels string
 			if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.SpaceName, &v.ParentID,
-				&v.Author, &v.UpdatedAt, &v.Version, &v.URL, &labels); err != nil {
+				&v.Author, &v.UpdatedAt, &v.Version, &v.URL, &v.Excerpt, &labels); err != nil {
 				return err
 			}
 			v.Labels = parseArray(&labels)
@@ -358,13 +361,13 @@ func (db *DB) PageDetail(key string) (*PageDetail, error) {
 		SELECT it.id, COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
 		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
 		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
-		       p.body_adf, COALESCE(p.labels, '[]')
+		       COALESCE(p.excerpt, ''), p.body_adf, COALESCE(p.labels, '[]')
 		FROM pages p
 		JOIN items it ON it.id = p.item_id
 		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
 		WHERE it.kind = 'page' AND it.key = ?`, key).
 		Scan(&itemID, &d.Key, &d.Title, &d.SpaceKey, &d.SpaceName, &d.ParentID,
-			&d.Author, &d.UpdatedAt, &d.Version, &d.URL, &bodyADF, &labels)
+			&d.Author, &d.UpdatedAt, &d.Version, &d.URL, &d.Excerpt, &bodyADF, &labels)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -454,7 +457,7 @@ func (db *DB) search(match string, limit int) (SearchResult, error) {
 		SELECT it.kind, COALESCE(it.key, ''), COALESCE(it.title, ''),
 		       COALESCE(it.author, ''), COALESCE(it.updated_at, ''), COALESCE(it.url, ''),
 		       COALESCE(p.space_key, ''), COALESCE(sp.name, ''), COALESCE(p.parent_id, ''),
-		       COALESCE(p.version, 0), COALESCE(p.labels, '[]')
+		       COALESCE(p.version, 0), COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]')
 		FROM items_fts f
 		JOIN items it ON it.rowid = f.rowid
 		LEFT JOIN pages p ON p.item_id = it.id
@@ -463,10 +466,10 @@ func (db *DB) search(match string, limit int) (SearchResult, error) {
 		ORDER BY rank
 		LIMIT ?`,
 		func(rows *sql.Rows) error {
-			var kind, key, title, author, updatedAt, url, spaceKey, spaceName, parentID, labels string
+			var kind, key, title, author, updatedAt, url, spaceKey, spaceName, parentID, excerpt, labels string
 			var version int
 			if err := rows.Scan(&kind, &key, &title, &author, &updatedAt, &url,
-				&spaceKey, &spaceName, &parentID, &version, &labels); err != nil {
+				&spaceKey, &spaceName, &parentID, &version, &excerpt, &labels); err != nil {
 				return err
 			}
 			switch kind {
@@ -478,7 +481,7 @@ func (db *DB) search(match string, limit int) (SearchResult, error) {
 				res.Pages = append(res.Pages, PageLite{
 					Key: key, Title: title, SpaceKey: spaceKey, SpaceName: spaceName,
 					ParentID: parentID, Author: author, UpdatedAt: updatedAt,
-					Version: version, URL: url, Labels: parseArray(&labels),
+					Version: version, URL: url, Excerpt: excerpt, Labels: parseArray(&labels),
 				})
 			}
 			return nil

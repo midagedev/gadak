@@ -170,7 +170,7 @@ generated strings, so the UI joins here for a human name.
 | `name` | TEXT | Display name; `''` when not yet learned |
 | `kind` | TEXT | Source's space type string (`global` / `personal`) |
 
-## `pages` (v9, `body_adf` v10, `labels` v13)
+## `pages` (v9, `body_adf` v10, `labels` v13, `excerpt` v15)
 
 The document projection (Confluence pages; decision 0006). Joined to `items` on
 `item_id`; the item row carries `kind = 'page'`, the numeric page id as `key`,
@@ -186,6 +186,7 @@ change. Comments reuse the `comments` table.
 | `status` | TEXT | `current` (source status; trashed pages are not mirrored) |
 | `body_adf` | TEXT | Raw ADF document (v10) — what the detail view renders; `body_text` stays the FTS-only flattening |
 | `labels` | TEXT (JSON array) | Page label names, alphabetical (v13). `'[]'` when none; only the first `metadata.labels` page (≤25) is collected |
+| `excerpt` | TEXT | One-line body preview for document lists (v15). Derived from `body_adf` plain text: whitespace collapsed, at most 200 runes, cut at a word boundary when one exists (CJK at the rune limit). `''` when the body is empty. FTS is contentless, so this column is the only store-side plain preview; recomputed on every page upsert and backfilled on the v15 migration |
 
 ## `comments`
 

@@ -37,8 +37,9 @@ Schema essentials:
 - issues_full: VIEW of issues plus summary (the item title) — prefer it whenever
   the answer needs a human-readable title, no join required.
 - pages: Confluence projection joined on pages.item_id = items.id — space_key,
-  parent_id (page tree), version, labels (JSON array), body_adf. Page title and
-  body_text live on items (items.kind = 'page'; issues are kind 'issue').
+  parent_id (page tree), version, labels (JSON array), body_adf, excerpt
+  (≤200-rune body preview). Page title and body_text live on items
+  (items.kind = 'page'; issues are kind 'issue').
 - comments, attachments, changelog, links: hang off items.id
 - items_fts: FTS5 over titles, bodies, and comment text of BOTH kinds
   (WHERE items_fts MATCH 'term'; join items, then issues or pages by kind)

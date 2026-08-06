@@ -326,12 +326,13 @@ func upsertPageRecord(tx *sql.Tx, r PageRecord) (bool, error) {
 	if len(pg.BodyADF) > 0 {
 		bodyADF = string(pg.BodyADF)
 	}
+	excerpt := pageExcerptFromADF(bodyADF)
 	if _, err := tx.Exec(`
-		INSERT INTO pages (item_id, space_key, parent_id, version, status, body_adf, labels)
-		VALUES (?,?,?,?,?,?,?)`,
-		// parent_id/space_key/status/body_adf are NOT NULL — empty string, never nil.
+		INSERT INTO pages (item_id, space_key, parent_id, version, status, body_adf, labels, excerpt)
+		VALUES (?,?,?,?,?,?,?,?)`,
+		// parent_id/space_key/status/body_adf/excerpt are NOT NULL — empty string, never nil.
 		// labels is a JSON array string ("[]" when absent), matching issues.labels.
-		it.ID, pg.SpaceKey, pg.ParentID, pg.Version, pg.Status, bodyADF, jsonArray(pg.Labels),
+		it.ID, pg.SpaceKey, pg.ParentID, pg.Version, pg.Status, bodyADF, jsonArray(pg.Labels), excerpt,
 	); err != nil {
 		return false, err
 	}
