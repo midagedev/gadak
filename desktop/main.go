@@ -83,7 +83,9 @@ func run() error {
 			Handler: fallbackHandler(api, ui),
 		},
 		SingleInstanceLock: &options.SingleInstanceLock{
-			UniqueId: "com.midagedev.scry",
+			// Per profile, not global: one window per mirror, and a second
+			// profile (SCRY_PROFILE=work open -a Scry) gets its own window.
+			UniqueId: "com.midagedev.scry." + profileLockKey(),
 		},
 		OnStartup: func(context.Context) {
 			if dir, err := config.Dir(); err == nil {
@@ -119,6 +121,15 @@ func run() error {
 		},
 	}
 	return wails.Run(app)
+}
+
+// profileLockKey names the single-instance lock for the active profile.
+// config.Profile() returns "" for the default profile.
+func profileLockKey() string {
+	if p := config.Profile(); p != "" {
+		return p
+	}
+	return "default"
 }
 
 // fallbackHandler serves whatever the Wails asset server does not find as a
