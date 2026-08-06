@@ -3,7 +3,9 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -412,5 +414,120 @@ func TestMigrateFromV1(t *testing.T) {
 	}
 	if empty, err := db.EnrichmentsByKind("qa"); err != nil || len(empty) != 0 {
 		t.Errorf("unknown kind = %v (%v)", empty, err)
+	}
+}
+
+// fileMode is the permission bits of path, or fatals. Unix-focused tests use it
+// to assert 0600/0700; Windows callers skip before reaching here.
+func fileMode(t *testing.T, path string) os.FileMode {
+	t.Helper()
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fi.Mode().Perm()
+}
+
+func TestOpenSetsDBFileMode0600(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not meaningful on Windows")
+	}
+	path := filepath.Join(t.TempDir(), "scry.db")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	if got := fileMode(t, path); got != 0o600 {
+		t.Errorf("new DB mode = %04o, want 0600", got)
+	}
+	// WAL appears after journal_mode=WAL + first use; when present it must match.
+	for _, suffix := range []string{"-wal", "-shm"} {
+		p := path + suffix
+		if _, err := os.Stat(p); err != nil {
+			continue
+		}
+		if got := fileMode(t, p); got != 0o600 {
+			t.Errorf("%s mode = %04o, want 0600", filepath.Base(p), got)
+		}
+	}
+}
+
+func TestOpenTightensExistingDBMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not meaningful on Windows")
+	}
+	path := filepath.Join(t.TempDir(), "scry.db")
+	// Seed a world-readable DB the way SQLite historically left them.
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`PRAGMA user_version = 0`); err != nil {
+		t.Fatal(err)
+	}
+	raw.Close()
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := fileMode(t, path); got != 0o644 {
+		t.Fatalf("setup: mode %04o, want 0644", got)
+	}
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	if got := fileMode(t, path); got != 0o600 {
+		t.Errorf("after Open: mode = %04o, want 0600", got)
+	}
+}
+
+func TestOpenCreatesDataDir0700(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not meaningful on Windows")
+	}
+	// Nested path so Open must create the data directory itself.
+	dir := filepath.Join(t.TempDir(), "nested", "data")
+	path := filepath.Join(dir, "scry.db")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	if got := fileMode(t, dir); got != 0o700 {
+		t.Errorf("data dir mode = %04o, want 0700", got)
+	}
+}
+
+func TestOpenTightensExistingDataDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not meaningful on Windows")
+	}
+	dir := filepath.Join(t.TempDir(), "loose")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// MkdirAll mode is masked by umask; force world-readable for the migration case.
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := fileMode(t, dir); got != 0o755 {
+		t.Fatalf("setup: dir mode %04o, want 0755", got)
+	}
+
+	path := filepath.Join(dir, "scry.db")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	if got := fileMode(t, dir); got != 0o700 {
+		t.Errorf("after Open: dir mode = %04o, want 0700", got)
 	}
 }

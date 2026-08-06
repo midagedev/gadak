@@ -8,6 +8,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -291,6 +292,8 @@ func Load() (*Config, error) {
 
 // Save writes the file atomically with mode 0600. When c.dir is set (LoadFor),
 // the write goes to that profile's config.json; otherwise the active Path().
+// The profile directory (and ~/.scry / SCRY_HOME when writing the default
+// profile) is created and tightened to 0700; chmod failures are logged only.
 func (c *Config) Save() error {
 	var p string
 	if c != nil && c.dir != "" {
@@ -302,7 +305,7 @@ func (c *Config) Save() error {
 			return err
 		}
 	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+	if err := ensurePrivateDir(filepath.Dir(p)); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(c, "", "  ")
@@ -314,6 +317,18 @@ func (c *Config) Save() error {
 		return err
 	}
 	return os.Rename(tmp, p)
+}
+
+// ensurePrivateDir creates dir at 0700 and chmods an existing one to 0700 so
+// older installs left at 0755 are quietly tightened (migration of H-2).
+func ensurePrivateDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		log.Printf("config: chmod %s: %v", dir, err)
+	}
+	return nil
 }
 
 // HasCredential reports whether writes and the attachment proxy are possible.

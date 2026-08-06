@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -187,5 +188,66 @@ func TestLoadAndSaveDefaultUnchanged(t *testing.T) {
 	}
 	if c2.Site != "https://root.example.invalid" || c2.Token != "root-tok" {
 		t.Fatalf("roundtrip: %+v", c2)
+	}
+}
+
+func TestSaveCreatesProfileDir0700(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not meaningful on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("SCRY_HOME", home)
+
+	c, err := LoadFor("sec")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Site = "https://sec.example.invalid"
+	if err := c.Save(); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(home, "profiles", "sec")
+	fi, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o700 {
+		t.Errorf("profile dir mode = %04o, want 0700", got)
+	}
+}
+
+func TestSaveTightensExistingProfileDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not meaningful on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("SCRY_HOME", home)
+
+	dir := filepath.Join(home, "profiles", "loose")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Also leave the SCRY_HOME root loose — Save must tighten the profile dir.
+	if err := os.Chmod(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := LoadFor("loose")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Site = "https://loose.example.invalid"
+	if err := c.Save(); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o700 {
+		t.Errorf("after Save: profile dir mode = %04o, want 0700", got)
 	}
 }

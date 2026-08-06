@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,9 +37,13 @@ func Now() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
 
 // Open opens or creates the mirror at path and migrates it forward. A database
 // written by a newer scry is refused rather than used.
+//
+// The data directory is created (and existing dirs tightened) to 0700; the DB
+// file and any -wal/-shm sidecars are set to 0600. Chmod failures are logged
+// and ignored so unsupported filesystems (or Windows) still work.
 func Open(path string) (*DB, error) {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o700); err != nil {
+		if err := ensurePrivateDir(dir); err != nil {
 			return nil, err
 		}
 	}
@@ -57,7 +62,36 @@ func Open(path string) (*DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	// After migrate so -wal/-shm (created on first use under WAL) are present
+	// when they exist. SQLite mints new sidecars with the main file's mode, so
+	// 0600 on the DB is enough for later writes; we still chmod any that exist.
+	secureDBFiles(path)
 	return db, nil
+}
+
+// ensurePrivateDir creates dir at 0700 and chmods an existing one to 0700 so
+// older installs left at 0755 are quietly tightened.
+func ensurePrivateDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		log.Printf("store: chmod %s: %v", dir, err)
+	}
+	return nil
+}
+
+// secureDBFiles sets the mirror and its WAL/SHM sidecars to 0600 when present.
+// Missing sidecars are ignored; chmod errors are warnings only.
+func secureDBFiles(path string) {
+	for _, p := range []string{path, path + "-wal", path + "-shm"} {
+		if _, err := os.Stat(p); err != nil {
+			continue
+		}
+		if err := os.Chmod(p, 0o600); err != nil {
+			log.Printf("store: chmod %s: %v", p, err)
+		}
+	}
 }
 
 func (db *DB) Close() error { return db.sql.Close() }
