@@ -9,12 +9,16 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
 </p>
 
-<p align="center"><b>Give your coding agent your team's memory.</b></p>
+<p align="center"><b>Ask your Jira the questions Jira can't answer.</b></p>
 
 scry mirrors Jira *and* Confluence into one local SQLite file — issues,
 comments, history, wiki pages — indexed together and searchable in
-milliseconds. A keyboard-driven web UI and a TUI for you; plain SQL for your
-agent. One binary, no server, no account.
+milliseconds. Ask it yourself from a keyboard-driven web UI or a TUI; let your
+coding agent ask in plain SQL. One binary, no server, no account.
+
+**The mirror is a cache you can throw away.** If this project stops tomorrow,
+you delete a directory and have lost nothing: Jira stays the source of truth,
+and nothing you do here is stored anywhere else.
 
 <p align="center">
   <a href="https://midagedev.github.io/scry/"><b>▶&nbsp; Open the live demo</b></a>
@@ -36,6 +40,13 @@ scry serve                # http://scry.localhost:7777
 scry tui                  # same mirror, in your terminal (D toggles docs)
 scry sql "select key, summary from issues_full where reopen_count > 1"
 ```
+
+That last query is the point. `reopen_count` is not a Jira field — scry derives
+it from the changelog while it syncs, along with `reopen_reason` and the epic a
+sub-task ultimately rolls up to. Your site cannot answer "what keeps coming
+back?" at all; a local mirror answers it in a line.
+[`docs/RECIPES.md`](docs/RECIPES.md) has thirteen more, each verified against
+the demo snapshot.
 
 > **Status: working, pre-release.** Sync (both sources), the read API,
 > write-through, the web UI, the TUI, the CLI, settings, the plugin boundary,
