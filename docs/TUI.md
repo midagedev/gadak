@@ -15,6 +15,7 @@ then refresh that one issue in the mirror.
 | --- | --- |
 | `j` / `k`, `↓` / `↑` | move the cursor |
 | `g` / `G` | first / last row |
+| `PgDown` / `Ctrl+D`, `PgUp` / `Ctrl+U` | page down / page up |
 | `1` `2` `3` `4` | list: all / open / in progress / done · feed: all / assignee / reporter / mention |
 | `/` | filter by key, summary, or assignee (local, per keystroke; matches are highlighted in the list) |
 | `Ctrl+K` | command palette — fuzzy jump to any tab, action, saved view, or issue |

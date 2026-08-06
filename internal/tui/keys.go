@@ -2,11 +2,11 @@ package tui
 
 import "github.com/charmbracelet/bubbles/key"
 
-// keyMap documents the navigator bindings. Matching still happens via
-// tea.KeyMsg.String() in the model; this type is the single source of truth
-// for help text and tests.
+// keyMap is the single source of truth for navigator bindings, help text, and
+// tests. Handlers match via key.Matches; helpLines is generated from these.
 type keyMap struct {
 	Up, Down, Top, Bottom  key.Binding
+	PageDown, PageUp       key.Binding
 	Filter, ClearFilter    key.Binding
 	TabAll, TabOpen        key.Binding
 	TabInProgress, TabDone key.Binding
@@ -23,6 +23,8 @@ func defaultKeys() keyMap {
 		Down:          key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/↓", "down")),
 		Top:           key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g", "top")),
 		Bottom:        key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("G", "bottom")),
+		PageDown:      key.NewBinding(key.WithKeys("pgdown", "ctrl+d"), key.WithHelp("pgdown/ctrl+d", "page down")),
+		PageUp:        key.NewBinding(key.WithKeys("pgup", "ctrl+u"), key.WithHelp("pgup/ctrl+u", "page up")),
 		Filter:        key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 		ClearFilter:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear/back")),
 		TabAll:        key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "all")),
@@ -55,6 +57,8 @@ func (k keyMap) helpLines() [][2]string {
 		{k.Down.Help().Key, k.Down.Help().Desc},
 		{k.Top.Help().Key, k.Top.Help().Desc},
 		{k.Bottom.Help().Key, k.Bottom.Help().Desc},
+		{k.PageDown.Help().Key, k.PageDown.Help().Desc},
+		{k.PageUp.Help().Key, k.PageUp.Help().Desc},
 		{k.TabAll.Help().Key, k.TabAll.Help().Desc},
 		{k.TabOpen.Help().Key, k.TabOpen.Help().Desc},
 		{k.TabInProgress.Help().Key, k.TabInProgress.Help().Desc},

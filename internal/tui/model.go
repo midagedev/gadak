@@ -581,10 +581,10 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ensureVisible()
 		}
 		return m, nil
-	case msg.String() == "pgdown" || msg.String() == "ctrl+d":
+	case key.Matches(msg, k.PageDown):
 		m.moveCursor(m.pageSize())
 		return m, nil
-	case msg.String() == "pgup" || msg.String() == "ctrl+u":
+	case key.Matches(msg, k.PageUp):
 		m.moveCursor(-m.pageSize())
 		return m, nil
 	case key.Matches(msg, k.TabAll):
