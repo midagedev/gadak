@@ -42,8 +42,12 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/bin"
   -o "$app/Contents/MacOS/scry-desktop" .)
 
 # CLI for agent wiring (scry mcp install, scry sql, …) without a separate brew
-# install. Built from the root module so dist/app stays embedded.
-(cd "$repo" && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
+# install. Built from the root module so dist/app stays embedded. The version
+# has to be stamped the way goreleaser stamps the standalone binary, or the
+# bundled copy answers `scry --version` with its compile-time default and the
+# two CLIs from one release disagree about what release they are.
+(cd "$repo" && CGO_ENABLED=0 go build -trimpath \
+  -ldflags "-s -w -X main.version=${version#v}" \
   -o "$app/Contents/Resources/bin/scry" ./cmd/scry)
 
 # Icon: the 1024px logo becomes the full iconset.
