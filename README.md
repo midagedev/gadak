@@ -428,6 +428,8 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 - [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md) — the Jira complaints scry answers, with sources
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components and data flow
 - [`docs/TUI.md`](docs/TUI.md) — terminal UI keys, and CJK font guidance
+- [`docs/UX_PRINCIPLES.md`](docs/UX_PRINCIPLES.md) — the standard UI waves are measured against, with sources
+- [`docs/TUI_PRINCIPLES.md`](docs/TUI_PRINCIPLES.md) — its terminal counterpart: keys, color, width, CJK
 - [`docs/PLUGINS.md`](docs/PLUGINS.md) — the enrichment contract
 - [`docs/decisions/`](docs/decisions/) — why it is shaped this way
 - [`specs/000-product/`](specs/000-product/) — spec, data model, API and sync contracts
