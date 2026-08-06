@@ -10,7 +10,7 @@
    * open the docs By-author tab.
    *
    * Same shell as DetailPanel and DocumentPanel: no props, subscribes to its
-   * store, sticky header over a scrolling body inside RightPanel, Esc closes.
+   * store, pinned header over a scrolling body, Esc closes.
    *
    * Counts next to the links are the pool's own answer, and each link lands on a
    * view built from an empty config — so the number on the chip is exactly the
@@ -89,9 +89,9 @@
 
 {#if email}
   <div class="flex h-full flex-col text-text-primary" data-testid="person-panel">
-    <!-- Header (sticky) -->
-    <div class="sticky top-0 z-10 flex-none bg-bg-panel">
-      <header class="border-b border-border-strong/70 px-5 pt-4 pb-3">
+    <!-- Header — outside the scroll (see DetailPanel). -->
+    <div class="relative z-10 flex-none bg-bg-panel">
+      <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
         <div class="mb-3 flex items-start gap-3">
           <Avatar {name} {email} size={36} />
           <div class="min-w-0 flex-1">
@@ -117,7 +117,7 @@
              whose work it is has already been said by the header two lines up,
              and repeating the name on every chip would wrap the row for no
              information. The full phrasing stays in the tooltip. -->
-        <div class="flex flex-wrap items-center gap-1.5" data-testid="person-links">
+        <div class="flex flex-wrap items-center gap-2" data-testid="person-links">
           <button
             type="button"
             class="flex items-center gap-1.5 rounded border border-border-subtle px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
@@ -157,8 +157,8 @@
       </header>
     </div>
 
-    <!-- Body: everything this person wrote, newest first. -->
-    <div class="min-h-0 flex-1">
+    <!-- Body: everything this person wrote, newest first. Own scroller. -->
+    <div class="min-h-0 flex-1 overflow-y-auto" data-testid="person-scroll">
       <Section title={t('person.comments')} count={person.total || undefined}>
         {#if person.error === 'unlinked'}
           <p class="text-[12px] text-text-muted">{t('person.unlinked')}</p>
@@ -191,7 +191,7 @@
                    which is the only reason to read this list. -->
               <button
                 type="button"
-                class="flex w-full flex-col gap-0.5 border-b border-border-subtle/70 px-5 py-2 text-left transition-colors hover:bg-bg-hover"
+                class="flex w-full flex-col gap-1 border-b border-border-subtle/70 px-5 py-2 text-left transition-colors hover:bg-bg-hover"
                 onclick={() => openComment(c)}
                 title={c.title}
                 data-testid="person-comment"

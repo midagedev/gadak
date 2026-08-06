@@ -3,8 +3,15 @@
    * Detail panel entry ([detail]).
    *
    * No props — subscribes to selection store (`selectedKey`) directly.
-   * Mounted inside RightPanel (own overflow-y-auto); content flows here and
-   * only the header is sticky (scroll within the panel).
+   *
+   * Shell shape, shared with DocumentPanel and PersonPanel: a full-height flex
+   * column whose header is a flex-none sibling of the scrolling body, so the
+   * header is outside the scroll rather than sticky inside it. It used to be
+   * `sticky top-0` in RightPanel's scroller with the root at `h-full` — which
+   * caps the sticky containing block at one screen, so the header slid away
+   * after roughly a screen of scrolling (measured: the issue panel's header sat
+   * 189px above the viewport at its own scroll bottom, the person panel's
+   * 1327px). Nothing here is sticky now, so there is no stacking to get wrong.
    *
    * Latency hide: on selectedKey change, render header immediately from local
    * pool IssueLite (issues.get); body shows skeleton until getDetailCached arrives.
@@ -119,15 +126,15 @@
 
 {#if key}
   <div class="flex h-full flex-col text-text-primary">
-    <!-- Header (sticky) -->
-    <div class="sticky top-0 z-10 flex-none bg-bg-panel">
+    <!-- Header — outside the scroll, so it is pinned by structure. -->
+    <div class="relative z-10 flex-none bg-bg-panel">
       {#if lite}
         <DetailHeader issue={lite} />
         {#if isHostedDemo() && write.demoEdits.has(key)}
           <!-- The banner counts demo edits; this says which issue is one, so a
                changed status here is never mistaken for the snapshot's own. -->
           <p
-            class="border-b border-border-subtle bg-accent-strong/10 px-4 py-1.5 text-[11px] text-text-secondary"
+            class="border-b border-border-subtle bg-accent-strong/10 px-5 py-2 text-[11px] text-text-secondary"
             data-testid="demo-edited-notice"
           >
             {t('app.demoEditedIssue')}
@@ -135,7 +142,7 @@
         {/if}
       {:else}
         <!-- Issue not in pool: minimal header -->
-        <header class="flex items-center justify-between border-b border-border-subtle px-4 py-3">
+        <header class="flex items-center justify-between border-b border-border-strong/70 px-5 pt-4 pb-4">
           <a
             href={jiraUrl(key)}
             target="_blank"
@@ -158,11 +165,11 @@
       {/if}
     </div>
 
-    <!-- Body -->
-    <div class="min-h-0 flex-1">
+    <!-- Body — the panel's own scroller. -->
+    <div class="min-h-0 flex-1 overflow-y-auto" data-testid="detail-scroll">
       {#if errorKind}
         <!-- Error: 404 (deleted) / network -->
-        <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">
+        <div class="flex flex-col items-center gap-3 px-5 py-16 text-center">
           <p class="text-[13px] text-text-secondary">
             {#if errorKind === 'notfound'}
               {t('detail.notFound')}
@@ -182,7 +189,7 @@
         </div>
       {:else if !detailForKey}
         <!-- Skeleton (body loading) -->
-        <div class="flex flex-col gap-2 px-4 py-4" aria-hidden="true">
+        <div class="flex flex-col gap-2 px-5 py-4" aria-hidden="true">
           <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
           <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
           <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>

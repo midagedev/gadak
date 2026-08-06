@@ -16,7 +16,8 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
-  import Avatar from './Avatar.svelte'
+  // The list's Avatar: one person, one color, everywhere they appear.
+  import Avatar from '../list/Avatar.svelte'
 
   type Kind = 'option' | 'user' | 'version_array' | 'multi_option'
 
@@ -133,7 +134,6 @@
     account_id: string
     display_name: string
     email: string | null
-    member?: Member
     avatar_url?: string | null
     label?: string
   }
@@ -155,7 +155,6 @@
         account_id: m.jira_account_id,
         display_name: m.display_name || m.name,
         email: m.email,
-        member: m,
         label,
       })
     }
@@ -396,7 +395,7 @@
             disabled={busy}
             class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:outline-none disabled:opacity-50"
           >
-            <Avatar member={c.member} name={c.display_name} email={c.email} size={18} />
+            <Avatar email={c.email ?? null} name={c.display_name} size={18} />
             <span class="min-w-0 flex-1 truncate">{c.display_name}</span>
             {#if c.label}<span class="flex-none text-micro text-text-muted">{c.label}</span>{/if}
           </button>

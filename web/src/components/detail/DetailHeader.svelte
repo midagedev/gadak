@@ -77,7 +77,7 @@
   </h2>
 
   <!-- Meta chip row -->
-  <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+  <div class="flex flex-wrap items-center gap-2 text-[11px]">
     <!-- Status (click → transition dropdown) -->
     <StatusTransition {issue} />
 
@@ -110,7 +110,7 @@
     <!-- Assignee (click → assign popover; works when unassigned too) -->
     <AssigneePicker {issue} />
     {#if issue.fix_versions.length > 0}
-      <div class="flex items-start gap-1.5">
+      <div class="flex items-start gap-2">
         <span class="w-12 flex-none pt-0.5 text-text-muted">{t('common.version')}</span>
         <span class="flex flex-wrap gap-1">
           {#each issue.fix_versions as v (v)}
@@ -120,7 +120,7 @@
       </div>
     {/if}
     {#if issue.labels.length > 0}
-      <div class="flex items-start gap-1.5">
+      <div class="flex items-start gap-2">
         <span class="w-12 flex-none pt-0.5 text-text-muted">{t('common.labels')}</span>
         <span class="flex flex-wrap gap-1">
           {#each issue.labels as l (l)}

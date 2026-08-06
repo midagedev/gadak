@@ -83,7 +83,7 @@
   {#each steps as step, i (step.at)}
     {@const reached = rank >= step.at}
     {@const isQaSwap = step.highlight && reached}
-    <li class="flex gap-2.5">
+    <li class="flex gap-3">
       <!-- Left marker + connector -->
       <div class="flex flex-none flex-col items-center">
         <span
@@ -141,7 +141,7 @@
 <!-- Per-PR inclusion evidence (when present) -->
 {#if prList.length > 0}
   <div class="mt-1 border-t border-border-subtle pt-3">
-    <div class="mb-1.5 text-[11px] font-medium text-text-muted">{t('deploy.byPr')}</div>
+    <div class="mb-2 text-[11px] font-medium text-text-muted">{t('deploy.byPr')}</div>
     <ul class="flex flex-col gap-1">
       {#each prList as pr (pr.number)}
         <li class="flex items-center gap-2 text-[12px]">

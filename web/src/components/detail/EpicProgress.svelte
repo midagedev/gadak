@@ -41,7 +41,7 @@
 {#if children.length > 0}
   <Section title={t('detail.epicChildren')} count={children.length}>
     <div data-testid="epic-progress" class="mb-3">
-      <div class="mb-1.5 flex items-baseline gap-2 text-[12px]">
+      <div class="mb-2 flex items-baseline gap-2 text-[12px]">
         <span class="text-text-secondary">
           {t('detail.epicProgress', { done: doneCount, total: children.length })}
         </span>
@@ -57,7 +57,7 @@
       </div>
     </div>
 
-    <ul class="flex flex-col gap-0.5">
+    <ul class="flex flex-col gap-1">
       {#each shown as child (child.issue_key)}
         <li>
           <button

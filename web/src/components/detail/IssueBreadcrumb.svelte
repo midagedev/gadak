@@ -34,7 +34,7 @@
 
 {#if trail.length > 0}
   <nav
-    class="mb-1.5 flex items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-text-muted"
+    class="mb-2 flex items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-text-muted"
     aria-label={t('detail.breadcrumb')}
     data-testid="issue-breadcrumb"
   >

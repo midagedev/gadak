@@ -2,10 +2,10 @@
   /*
    * Document panel ([detail]) — one mirrored wiki page.
    *
-   * Same shell as DetailPanel: no props, subscribes to the pages store, sticky
-   * header + scrolling body inside RightPanel, Esc closes. Only the parts a page
-   * actually has are here — no fields/history/links/QA/PR/deploy, and no
-   * composer: the mirror is read-only for pages.
+   * Same shell as DetailPanel: no props, subscribes to the pages store, pinned
+   * header over a scrolling body, Esc closes. Only the parts a page actually has
+   * are here — no fields/history/links/QA/PR/deploy, and no composer: the mirror
+   * is read-only for pages.
    *
    * Latency hide follows DetailPanel too: the header renders from the in-memory
    * index row while the body is still in flight.
@@ -77,8 +77,8 @@
 
 {#if key}
   <div class="flex h-full flex-col text-text-primary" data-testid="doc-panel">
-    <!-- Header (sticky) -->
-    <div class="sticky top-0 z-10 flex-none bg-bg-panel">
+    <!-- Header — outside the scroll (see DetailPanel). -->
+    <div class="relative z-10 flex-none bg-bg-panel">
       <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
         <div class="mb-2 flex items-start justify-between gap-2">
           <!-- Type badge only. The space is the breadcrumb's first segment,
@@ -108,7 +108,7 @@
                one, its key (monospace, and the tooltip either way) until then. -->
           {@const spaceLabel = pages.spaceLabel(head.space_key)}
           <nav
-            class="mb-1.5 flex items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-text-muted"
+            class="mb-2 flex items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-text-muted"
             aria-label={t('doc.breadcrumb')}
             data-testid="doc-breadcrumb"
           >
@@ -168,10 +168,10 @@
       </header>
     </div>
 
-    <!-- Body -->
-    <div class="min-h-0 flex-1">
+    <!-- Body — the panel's own scroller. -->
+    <div class="min-h-0 flex-1 overflow-y-auto" data-testid="doc-scroll">
       {#if errorKind}
-        <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">
+        <div class="flex flex-col items-center gap-3 px-5 py-16 text-center">
           <p class="text-[13px] text-text-secondary">
             {errorKind === 'notfound' ? t('doc.notFound') : t('doc.loadFailed')}
           </p>

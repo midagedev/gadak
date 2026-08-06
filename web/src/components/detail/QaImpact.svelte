@@ -61,7 +61,7 @@
               {run.state_label}
             </span>
           </div>
-          <div class="mt-1.5 flex items-center gap-2 text-micro text-text-muted tabular-nums">
+          <div class="mt-2 flex items-center gap-2 text-micro text-text-muted tabular-nums">
             <div class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
               <div
                 class="h-full rounded-full bg-text-muted/50"
@@ -84,7 +84,7 @@
         </a>
       </div>
 
-      <div class="mt-2.5 flex flex-wrap gap-1.5 pl-[22px]">
+      <div class="mt-3 flex flex-wrap gap-2 pl-[22px]">
         {#each run.suites as suite (suite.key)}
           <a
             href={dashboardUrl(run, suite)}
@@ -98,11 +98,11 @@
       </div>
 
       {#if run.cases.length > 0}
-        <details class="group/cases mt-2.5 pl-[22px]">
+        <details class="group/cases mt-3 pl-[22px]">
           <summary class="cursor-pointer select-none text-[11px] text-text-secondary hover:text-text-primary">
             {t('qa.linkedTc', { n: run.linked_case_count })}
           </summary>
-          <div class="mt-1.5 max-h-52 overflow-y-auto border-t border-border-subtle">
+          <div class="mt-2 max-h-52 overflow-y-auto border-t border-border-subtle">
             {#each run.cases as qaCase (`${run.key}-${qaCase.qase_case_id}`)}
               {@const meta = resultMeta(qaCase.status)}
               <div class="flex items-start gap-2 border-b border-border-subtle/70 py-1.5 last:border-b-0">

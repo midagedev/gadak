@@ -85,25 +85,43 @@
     Body headings must lose to the panel title (20px) that names the thing they
     are inside. They used to run 18/16/14/13 — the top of that ramp sat 2px under
     the panel title, near enough that a page opened looking like it had two
-    titles. The ramp now starts 4px below and spends one fewer size, and the
-    bottom two levels separate by color instead of by another size step, since
-    below 13px there is no size left to spend. (2026-08-06)
+    titles. That was cut to 16/14/13/13, which fixed the top of the ramp and left
+    the bottom of it broken: measured on the demo's pages, a body h2 rendered at
+    14px directly above 13px paragraphs, a 1px step nobody can see. (2026-08-06)
+
+    Revised the same day: every step is now at least 2px, and the sizes are the
+    app's own tokens rather than numbers picked between them.
+
+    Between body (13) and title (15) the scale has nothing, and it should not —
+    14 next to 13 is the invisible step this revision exists to remove. So body
+    headings get exactly two sizes and the rest of the ramp is weight and color,
+    the technique the previous revision had already chosen for h4-h6:
+
+      panel title  20 / 600
+      h1           15 / 700
+      h2           15 / 600
+      h3-h6        13 / 600, secondary
+      body         13 / 400, secondary
+
+    h1 and h2 share a size because Confluence's editor makes h2 the top level
+    most pages actually use — every page in the demo mirror is written that way.
+    Mapping h2 down to body size to keep it under an h1 that pages rarely have
+    would cost the common page its only heading size to serve the rare one.
   */
   .adf :global(h1) {
-    font-size: 16px;
+    font-size: var(--text-title);
+    font-weight: 700;
     margin-top: 1.3em;
   }
   .adf :global(h2) {
-    font-size: 14px;
+    font-size: var(--text-title);
     margin-top: 1.2em;
   }
-  .adf :global(h3) {
-    font-size: 13px;
-  }
+  .adf :global(h3),
   .adf :global(h4),
   .adf :global(h5),
   .adf :global(h6) {
-    font-size: 13px;
+    font-size: var(--text-body);
     color: var(--color-text-secondary);
   }
   .adf :global(h1:first-child),

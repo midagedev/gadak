@@ -34,7 +34,7 @@
 {#if history.length === 0}
   <p class="text-[12px] text-text-muted italic">{t('detail.noHistory')}</p>
 {:else}
-  <ol class="relative flex flex-col gap-2.5 pl-4">
+  <ol class="relative flex flex-col gap-3 pl-4">
     <!-- Vertical guide line -->
     <span
       class="absolute top-1 bottom-1 left-[3px] w-px bg-border-subtle"
@@ -50,7 +50,7 @@
           class:bg-border-strong={!reopen}
           aria-hidden="true"
         ></span>
-        <div class="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px]">
+        <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[12px]">
           <span class="font-medium text-text-secondary">{fieldLabel(e.field)}</span>
           {#if reopen}
             <span class="rounded bg-status-reopen/15 px-1 text-micro font-semibold text-status-reopen">
