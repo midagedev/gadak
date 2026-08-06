@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.0 — 2026-08-06
 
 - **The people axis.** Type a name in the ⌘K palette and a PEOPLE group
   appears; selecting opens a person panel — their recent comments across

@@ -202,6 +202,39 @@ person and the mirror. Shipped 2026-08-06:
 Not in this wave: workspace switching in the app (one profile per window),
 Intel/universal builds, Windows/Linux shells.
 
+## v0.9 — people, evidence, and a real grid
+
+The mirror had answers it could not show, and a surface that undersold them.
+Shipped 2026-08-06:
+
+- ✅ **The people axis.** A person is a thing you can open: their comments
+  across issues and pages, plus assigned/reported/authored as one click each.
+  Web-only this version (`docs/TUI.md` records the gap); agents reach the same
+  axis through `scry_query` — see the recipe in `docs/RECIPES.md`.
+- ✅ **Search says why it matched**, everywhere the API reaches (CLI, MCP, web).
+  Comment search always worked; now it looks like it.
+- ✅ **Page excerpts (schema v15)** on activity lists, web and TUI.
+- ✅ **A visual foundation, then its geometry.** A type scale, accent
+  discipline, one icon family; then a two-step control-height grid, radius by
+  nesting depth, panel headers pinned by structure, and grouped comments.
+- ✅ **The bundled demo has four people in it**, so the people axis is
+  explorable before you connect anything.
+
+### Next (candidates, not commitments)
+
+- **Desktop notifications** — the watch feed has the events; a native
+  notification is the natural surface. Quiet by default: this is a mirror,
+  not another thing that interrupts you.
+- **Windows and Linux shells.** Wails builds all three, and the no-listener
+  architecture ports unchanged. The real work is per-platform: WebView2
+  bootstrap and an installer on Windows (plus a code-signing decision, or
+  SmartScreen greets every download), webkit2gtk and AppImage/.deb on Linux,
+  and splitting the macOS-only menu code. Linux first if demand shows up —
+  it overlaps the agent audience most.
+- **The type scale's middle step.** 141 `text-[12px]` literals sit between
+  micro (11) and body (13); either they earn a token or they collapse into
+  one of the two.
+
 ## Considered and not planned
 
 - **Bidirectional sync engines** (PowerSync, Electric, Zero). Wrong shape: they
