@@ -14,12 +14,24 @@
  */
 
 import { SvelteMap } from 'svelte/reactivity'
-import type { FieldSpec, IssueLite, Member, SyncHealth } from '../lib/types'
+import type { FieldSpec, IssueLite, Member, SyncHealth, SyncSourceHealth } from '../lib/types'
 import * as api from '../lib/api'
 import * as db from '../lib/db'
+import { isHostedDemo } from '../lib/config'
 import type { CacheMeta } from '../lib/types'
 
 const POLL_MS = 15_000
+
+/**
+ * How old the mirror may be when a backgrounded tab comes back before we pull
+ * it from Jira ourselves. The server's watch loop runs every 60s, so this is
+ * "slept through two ticks" — past that, polling the server faster only fetches
+ * a fresher copy of an old mirror.
+ */
+const FOCUS_PULL_MAX_AGE_MS = 120_000
+
+/** What lib/sync-now hands this store so the mirror can be pulled from here. */
+export type MirrorPuller = (mode: 'full' | 'incremental', quiet: boolean) => Promise<void>
 
 class IssuesStore {
   /** issue_key → IssueLite. Delta replaces individual Map entries → only those rows re-render. */
@@ -47,6 +59,37 @@ class IssuesStore {
    * UI shows an "Offline — showing cached data" strip without blocking the list.
    */
   offline = $state(false)
+  /**
+   * True while a mirror pull (sync-now) runs — the server↔Jira leg, not the
+   * 15s delta poll. Drives the freshness chip's spinner wherever the pull was
+   * started from (chip click, focus auto-pull).
+   */
+  mirrorSyncing = $state(false)
+
+  /**
+   * Health of the issue mirror's own source. `synced_at` here is the last sync
+   * run that finished without an error (server: store.SyncState.SyncedAt), so
+   * it is the one field that means "the mirror is fresh" — the delta cursor
+   * (lastSync) only measures the browser↔server leg. Falls back to the first
+   * reported source so a mirror without a `jira` row still has an age.
+   */
+  get mirrorHealth(): SyncSourceHealth | null {
+    const sources = this.syncHealth?.sources
+    if (!sources || sources.length === 0) return null
+    return sources.find((s) => s.key === 'jira') ?? sources[0]
+  }
+
+  /**
+   * Mirror age in ms, or null when it has never synced. Reads the wall clock,
+   * so it is a point-in-time answer, not something to hang a $derived on —
+   * callers that render it drive their own tick.
+   */
+  get mirrorAgeMs(): number | null {
+    const at = this.mirrorHealth?.synced_at
+    if (!at) return null
+    const ts = Date.parse(at)
+    return Number.isNaN(ts) ? null : Date.now() - ts
+  }
 
   /** Full list sorted by updated_at desc. Canonical collection for filter/grouping (contract). */
   allIssues = $derived.by(() => {
@@ -240,8 +283,44 @@ class IssuesStore {
       void this.#sync()
     }, POLL_MS)
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') void this.#sync()
+      if (document.visibilityState !== 'visible') return
+      void this.#sync()
+      // Coming back to a tab that slept past the watch loop's cadence, a delta
+      // only buys a fresh copy of an old mirror — pull the mirror too. Quiet:
+      // the user did not ask for it, and the 15s poll covers a failure.
+      const age = this.mirrorAgeMs
+      if (age !== null && age > FOCUS_PULL_MAX_AGE_MS) void this.pullMirror('incremental', true)
     })
+  }
+
+  /**
+   * Registered by lib/sync-now at import time. Injected rather than imported:
+   * sync-now already imports this store to refresh the pool, and importing it
+   * back would close a module cycle for one call.
+   */
+  #mirrorPuller: MirrorPuller | null = null
+
+  setMirrorPuller(fn: MirrorPuller): void {
+    this.#mirrorPuller = fn
+  }
+
+  /**
+   * Pull the mirror itself from Jira, then let the pull's own refresh bring the
+   * rows in. Single-flight so the chip, the palette and the focus handler
+   * cannot stack runs.
+   */
+  async pullMirror(mode: 'full' | 'incremental' = 'incremental', quiet = false): Promise<void> {
+    // Nothing to pull on the hosted demo — a snapshot service worker answers
+    // every write with 501.
+    if (this.mirrorSyncing || isHostedDemo() || !this.#mirrorPuller) return
+    this.mirrorSyncing = true
+    try {
+      await this.#mirrorPuller(mode, quiet)
+    } catch (e) {
+      console.warn('[issues] 미러 동기화 실패', e)
+    } finally {
+      this.mirrorSyncing = false
+    }
   }
 
   /** Manual refresh (tab focus / user trigger). */

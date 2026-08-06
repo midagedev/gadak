@@ -331,6 +331,17 @@ export const ko = {
   'sidebar.runCounts': '{changed}건 변경 · {deleted}건 삭제',
   'sidebar.issueCount': '{n} 이슈',
 
+  /* ── Freshness chip (mirror ↔ Jira leg) ── */
+  'freshness.synced': '{when} 동기화',
+  'freshness.never': '동기화 없음',
+  'freshness.failed': '동기화 실패',
+  'freshness.syncing': '동기화 중…',
+  'freshness.label': '미러 신선도',
+  'freshness.titleFresh': 'Jira에서 미러를 {when} 가져왔습니다. 클릭하면 지금 동기화합니다.',
+  'freshness.titleStale': '미러가 지연됐습니다 — 마지막 성공 동기화 {when}. 클릭하면 지금 동기화합니다.',
+  'freshness.titleFailed': '마지막 동기화 실패: {message}\n클릭하면 재시도합니다.',
+  'freshness.titleNever': '미러가 아직 한 번도 동기화되지 않았습니다. 클릭하면 지금 동기화합니다.',
+
   /* ── Builtin views ── */
   'view.allOpen.name': '전체 미해결',
   'view.allOpen.hint': '신규 + 진행중',

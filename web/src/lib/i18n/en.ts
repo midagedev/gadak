@@ -330,6 +330,17 @@ export const en = {
   'sidebar.runCounts': '{changed} changed · {deleted} deleted',
   'sidebar.issueCount': '{n} issues',
 
+  /* ── Freshness chip (mirror ↔ Jira leg) ── */
+  'freshness.synced': 'Synced {when}',
+  'freshness.never': 'Never synced',
+  'freshness.failed': 'Sync failed',
+  'freshness.syncing': 'Syncing…',
+  'freshness.label': 'Mirror freshness',
+  'freshness.titleFresh': 'Mirror pulled from Jira {when}. Click to sync now.',
+  'freshness.titleStale': 'Mirror is behind — last successful sync {when}. Click to sync now.',
+  'freshness.titleFailed': 'Last sync failed: {message}\nClick to retry.',
+  'freshness.titleNever': 'The mirror has never synced. Click to sync now.',
+
   /* ── Builtin views ── */
   'view.allOpen.name': 'All open',
   'view.allOpen.hint': 'New + in progress',

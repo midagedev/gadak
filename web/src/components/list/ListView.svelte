@@ -21,6 +21,7 @@
   import IssueRow from './IssueRow.svelte'
   import EmptyState from './EmptyState.svelte'
   import Onboarding from '../shell/Onboarding.svelte'
+  import FreshnessChip from '../shell/FreshnessChip.svelte'
   import { config } from '../../lib/config'
   import { me } from '../../stores/me.svelte'
   import { runSyncNow } from '../../lib/sync-now'
@@ -66,6 +67,7 @@
     </div>
     <div class="flex items-center gap-2.5">
       <div class="min-w-0 flex-1"><FilterBar /></div>
+      <FreshnessChip />
       <span class="flex-none text-[12px] text-text-muted">
         {t('list.countIssues', { n: formatNumber(visibleCount) })}
       </span>
