@@ -56,7 +56,7 @@ keeps an installed mirror alive or removes a reason not to try one.
   `.github/workflows/pages.yml` deploys on main once Pages is enabled (human
   step, README).
 - ✅ **Query recipes** — `docs/RECIPES.md`: 13 questions JQL cannot ask, each
-  verified against the demo snapshot. Doubles as launch content.
+  verified against the demo snapshot.
 - ✅ **Agent setup doc** — `docs/AGENT_SETUP.md`: paste-ready blocks for Claude
   Code / Cursor / Codex / MCP.
 - ✅ **TUI parity.** Feed focus tabs (`1`–`4`: all / assignee / reporter /
@@ -178,7 +178,6 @@ product, speed is a feature, and trust in freshness is built in the UI.
   (`claude mcp add` paste-blocks already exist in docs/AGENT_SETUP.md — promote
   to a `scry mcp install <client>` verb); a 90-second demo of an agent
   answering with issue+doc context no cloud API could assemble as fast.
-  Launch content (Show HN) rides this, not the "fast Jira client" frame.
 - **Offline write queue — revisit, don't build yet.** The v0.3-era deferral
   ("wait for observed demand") stands, but the 2026-08-06 review added a new
   argument: agents writing through MCP would benefit from a durable outbox
