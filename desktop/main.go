@@ -12,6 +12,7 @@ import (
 	"net/http"
 
 	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
@@ -64,12 +65,19 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Without an Edit menu, macOS does not wire ⌘C/V/X/A into the webview —
+	// paste during onboarding would fail. AppMenu supplies About/Quit.
+	appMenu := menu.NewMenu()
+	appMenu.Append(menu.AppMenu())
+	appMenu.Append(menu.EditMenu())
+
 	app := &options.App{
 		Title:     "Scry",
 		Width:     1280,
 		Height:    820,
 		MinWidth:  720,
 		MinHeight: 480,
+		Menu:      appMenu,
 		AssetServer: &assetserver.Options{
 			Assets:  ui,
 			Handler: fallbackHandler(api, ui),
@@ -81,12 +89,25 @@ func run() error {
 			if dir, err := config.Dir(); err == nil {
 				api.StartUpdateCheck(ctx, dir)
 			}
-			if cfg.HasCredential() {
+			// Same delayed-start seam as cmd/scry serve: with a credential the
+			// watch loop starts now; without one, in-app onboarding fires it.
+			startWatch := func() {
 				go func() {
-					if err := syncer.Watch(ctx, cfg, db, syncer.Options{Log: func(s string) { log.Print(s) }}); err != nil && ctx.Err() == nil {
+					// Reload so onboarding's save is what the loop runs with.
+					cur, err := config.Load()
+					if err != nil {
+						log.Printf("sync loop: load config: %v", err)
+						return
+					}
+					if err := syncer.Watch(ctx, cur, db, syncer.Options{Log: func(s string) { log.Print(s) }}); err != nil && ctx.Err() == nil {
 						log.Printf("sync loop stopped: %v", err)
 					}
 				}()
+			}
+			if cfg.HasCredential() {
+				startWatch()
+			} else {
+				api.SetSyncStarter(startWatch)
 			}
 		},
 		OnShutdown: func(context.Context) { cancel() },
