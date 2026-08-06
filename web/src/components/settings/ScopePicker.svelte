@@ -209,7 +209,7 @@
                 {#if option.hint}
                   <!-- Raw API vocabulary (service_desk, personal) — shown as it
                        is, but quiet: it disambiguates, it does not label. -->
-                  <span class="flex-none text-[10px] text-text-muted">{option.hint}</span>
+                  <span class="flex-none text-micro text-text-muted">{option.hint}</span>
                 {/if}
               </button>
             {/each}
@@ -218,7 +218,7 @@
         <!-- Same hint grammar as the palette's footer: the keys are only
              discoverable while the list is open, so they live in it. -->
         <div
-          class="flex-none border-t border-border-subtle px-2 py-1 text-[10px] text-text-muted"
+          class="flex-none border-t border-border-subtle px-2 py-1 text-micro text-text-muted"
           data-testid="scope-hint"
         >
           {t('settings.scopeHint')}

@@ -337,12 +337,12 @@
               <img src={u.avatar_url} alt="" class="h-5 w-5 flex-none rounded-full" />
             {:else}
               <span
-                class="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-accent-subtle text-[10px] text-accent-text"
+                class="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-accent-subtle text-micro text-accent-text"
                 >{(u.display_name || '?')[0]}</span
               >
             {/if}
             <span class="truncate text-text-primary">{u.display_name}</span>
-            {#if u.email}<span class="ml-auto truncate text-[10px] text-text-muted">{u.email}</span
+            {#if u.email}<span class="ml-auto truncate text-micro text-text-muted">{u.email}</span
               >{/if}
           </button>
         {/each}

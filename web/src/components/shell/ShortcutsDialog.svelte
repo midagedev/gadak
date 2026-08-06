@@ -78,7 +78,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) onclose()
@@ -86,7 +86,7 @@
 >
   <div
     use:trapFocus
-    class="anim-pop flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-xl"
+    class="anim-pop flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
     role="dialog"
     aria-modal="true"
     aria-label={t('shortcuts.title')}

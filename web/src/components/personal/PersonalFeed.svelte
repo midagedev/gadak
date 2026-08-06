@@ -130,7 +130,7 @@
     <h1 class="whitespace-nowrap text-[13px] font-semibold text-text-primary">{t('feed.title')}</h1>
     {#if me.feedUnread.all > 0}
       <span
-        class="min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-center text-[10px] font-semibold text-white"
+        class="min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-center text-micro font-semibold text-white"
       >
         {me.feedUnread.all > 99 ? '99+' : me.feedUnread.all}
       </span>
@@ -150,7 +150,7 @@
           onclick={() => selectFocus(tab.key)}
         >
           {tab.label}
-          {#if count > 0}<span class="text-[10px] text-accent-text">{count}</span>{/if}
+          {#if count > 0}<span class="text-micro text-accent-text">{count}</span>{/if}
         </button>
       {/each}
     </div>
@@ -229,7 +229,7 @@
               <span class="min-w-2 flex-1"></span>
               {#each item.reasons as reason (reason)}
                 {#if REASON_LABELS[reason]}
-                  <span class="flex-none rounded bg-bg-elevated px-1.5 py-0.5 text-[10px] text-text-muted">
+                  <span class="flex-none rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-muted">
                     {REASON_LABELS[reason]}
                   </span>
                 {/if}
@@ -272,13 +272,13 @@
               <div class="mt-1 flex min-w-0 items-center gap-1.5 text-[11px]">
                 <ChevronRight size={12} strokeWidth={2} class="flex-none text-text-muted" />
                 <span class="flex-none text-text-secondary">{EVENT_LABELS[rep.event_type]}</span>
-                <span class="flex-none rounded bg-bg-elevated px-1 py-0.5 text-[10px] font-medium text-text-secondary">
+                <span class="flex-none rounded bg-bg-elevated px-1 py-0.5 text-micro font-medium text-text-secondary">
                   ×{group.items.length}
                 </span>
                 <span class="min-w-2 flex-1"></span>
                 {#each reasonsOf(group.items) as reason (reason)}
                   {#if REASON_LABELS[reason]}
-                    <span class="flex-none rounded bg-bg-elevated px-1.5 py-0.5 text-[10px] text-text-muted">
+                    <span class="flex-none rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-muted">
                       {REASON_LABELS[reason]}
                     </span>
                   {/if}

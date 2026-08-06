@@ -244,14 +244,14 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-[8vh]"
+  class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-[8vh] backdrop-blur-sm"
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) close()
   }}
 >
   <div
-    class="anim-enter w-full max-w-lg rounded-lg border border-border-strong bg-bg-panel p-5 shadow-xl"
+    class="anim-enter w-full max-w-lg rounded-lg border border-border-strong bg-bg-panel p-5 shadow-overlay"
     role="dialog"
     aria-modal="true"
     aria-label={t('write.newIssue')}
@@ -404,7 +404,7 @@
                   class="flex w-full items-center justify-between gap-2 px-3 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
                 >
                   <span class="min-w-0 flex-1 truncate">{l}</span>
-                  {#if labelFreq.get(l)}<span class="flex-none text-[10px] text-text-muted">{labelFreq.get(l)}</span>{/if}
+                  {#if labelFreq.get(l)}<span class="flex-none text-micro text-text-muted">{labelFreq.get(l)}</span>{/if}
                 </button>
               {/each}
             </div>

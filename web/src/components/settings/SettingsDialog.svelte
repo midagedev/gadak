@@ -64,7 +64,7 @@
   const DEL_BTN =
     'w-6 flex-none text-[12px] text-text-muted transition-colors hover:text-status-reopen'
   const COPY_BTN =
-    'rounded border border-border-strong px-1.5 py-0.5 text-[10px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
+    'rounded border border-border-strong px-1.5 py-0.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
 
   interface Kv {
     k: string
@@ -433,7 +433,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) onclose()
@@ -441,7 +441,7 @@
 >
   <div
     use:trapFocus
-    class="anim-pop flex max-h-[88vh] w-full max-w-3xl flex-col rounded-lg border border-border-strong bg-bg-panel shadow-xl"
+    class="anim-pop flex max-h-[88vh] w-full max-w-3xl flex-col rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
     role="dialog"
     aria-modal="true"
     aria-label={t('settings.title')}
@@ -976,7 +976,7 @@
                       <span class="w-40 truncate text-[12px] text-text-primary" title={spec.alias}>
                         {spec.label}
                         {#if spec.auto === false}
-                          <span class="ml-1 text-[10px] text-accent">{t('settings.pinned')}</span>
+                          <span class="ml-1 text-micro text-accent">{t('settings.pinned')}</span>
                         {/if}
                       </span>
                       <select

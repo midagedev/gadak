@@ -98,7 +98,7 @@
             onclick={() => pages.select(p.key)}
           >
             <span
-              class="flex-none rounded bg-accent-subtle/60 px-1.5 py-0.5 font-mono text-[10px] font-medium text-accent-text"
+              class="flex-none rounded bg-accent-subtle/60 px-1.5 py-0.5 font-mono text-micro font-medium text-accent-text"
             >
               {p.space_key}
             </span>

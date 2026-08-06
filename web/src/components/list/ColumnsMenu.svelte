@@ -34,7 +34,7 @@
   >
     <span>{t('columns.label')}</span>
     {#if !isDefault}
-      <span class="rounded bg-accent-subtle/70 px-1 text-[10px] text-accent-text">{active.size}</span>
+      <span class="rounded bg-accent-subtle/70 px-1 text-micro text-accent-text">{active.size}</span>
     {/if}
   </button>
 
@@ -69,7 +69,7 @@
                 ? 'border-accent bg-accent text-white'
                 : 'border-border-strong'}"
             >
-              {#if active.has(col.key)}<span class="text-[8px]">✓</span>{/if}
+              {#if active.has(col.key)}<span class="text-micro">✓</span>{/if}
             </span>
             <span class={active.has(col.key) ? 'text-text-primary' : 'text-text-secondary'}>
               {col.label}

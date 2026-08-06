@@ -288,7 +288,7 @@
 </script>
 
 <div
-  class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[12vh]"
+  class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[12vh] backdrop-blur-sm"
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) onclose()
@@ -296,7 +296,7 @@
 >
   <div
     use:trapFocus
-    class="anim-pop flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-xl"
+    class="anim-pop flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
     role="dialog"
     aria-modal="true"
     aria-label={t('palette.title')}
@@ -358,7 +358,7 @@
           {#if item.icon}<span class="flex-none" aria-hidden="true">{item.icon}</span>{/if}
           {#if item.badge}
             <span
-              class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted"
+              class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-text-muted"
             >
               {item.badge}
             </span>
@@ -381,7 +381,7 @@
           {/if}
           {#if item.kbd}
             <span class="ml-auto flex-none">
-              <kbd class="rounded border border-border-subtle px-1 text-[10px] text-text-muted">
+              <kbd class="rounded border border-border-subtle px-1 text-micro text-text-muted">
                 {item.kbd}
               </kbd>
             </span>

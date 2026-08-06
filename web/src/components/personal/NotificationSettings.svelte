@@ -182,7 +182,7 @@
                   aria-label={t('notif.quietEnd')}
                 />
               </div>
-              <p class="pl-6 text-[10px] text-text-muted">{t('notif.quietHint')}</p>
+              <p class="pl-6 text-micro text-text-muted">{t('notif.quietHint')}</p>
             {/if}
           </div>
         {/if}

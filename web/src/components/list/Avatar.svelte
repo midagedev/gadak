@@ -27,9 +27,11 @@
   const orgColor = $derived(memberOrgColor(member))
   const tooltip = $derived(memberTooltip(member, displayName))
 
-  // Initials fallback palette (8 steps, dark tones)
+  // Initials fallback palette (8 steps, dark tones). No indigo: #4f46e5 is the
+  // accent, and an avatar wearing it reads as "this row is yours/actionable".
+  // Its slot went to green-700, the one hue gap the other seven left open.
   const PALETTE = [
-    '#4f46e5',
+    '#15803d',
     '#0891b2',
     '#0d9488',
     '#65a30d',
@@ -73,9 +75,9 @@
     />
   {:else if email || name}
     <span
-      class="flex h-full w-full items-center justify-center font-medium text-white"
+      class="flex h-full w-full items-center justify-center font-semibold text-white"
       style:background={bg}
-      style:font-size="{Math.round(size * 0.42)}px"
+      style:font-size="{Math.max(10, Math.round(size * 0.5))}px"
     >
       {ini}
     </span>

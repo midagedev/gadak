@@ -507,7 +507,7 @@
             ></span>
             <span class="min-w-0 flex-1 truncate">{w.name}</span>
             {#if workspaceHost(w)}
-              <span class="max-w-[45%] flex-none truncate text-[10px] text-text-muted">
+              <span class="max-w-[45%] flex-none truncate text-micro text-text-muted">
                 {workspaceHost(w)}
               </span>
             {/if}

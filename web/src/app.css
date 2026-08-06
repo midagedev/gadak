@@ -14,10 +14,14 @@
   --color-bg-hover: #1e242d; /* row hover / interaction */
   --color-bg-active: #262e3b; /* selected */
 
-  /* ── Text tiers ── */
+  /* ── Text tiers ──
+     muted carries ~97 nodes on a busy screen, most of them at 11px. #747d89
+     measured 4.6:1 on the canvas and less on elevated surfaces — under AA for
+     text that small. #8b93a0 is 6.2:1 on canvas / 5.6:1 on bg-elevated, which
+     is the floor a whole tier of small text has to clear. (2026-08-06) */
   --color-text-primary: #f0f2f5;
   --color-text-secondary: #b2b8c1;
-  --color-text-muted: #747d89;
+  --color-text-muted: #8b93a0;
 
   /* ── Borders (subtle → strong) ── */
   --color-border-subtle: #252b34;
@@ -39,8 +43,34 @@
   /* ── Density tokens ── */
   --spacing-row: 42px; /* list row height */
   --spacing-row-excerpt: 59px; /* document row carrying a one-line body preview */
+
+  /*
+    Type scale. Four steps, and nothing between them — the screen used to run
+    8/10/11/12/13px, five sizes inside a 5px band, which reads as noise rather
+    than hierarchy. Anything smaller than micro is not a size, it is a defect.
+      micro   supporting metadata: chips, counts, timestamps, section labels
+      body    the row and the paragraph — the baseline everything else answers to
+      title   a named thing inside a panel (section/card heading)
+      heading the subject of the panel you are looking at
+  */
+  --text-micro: 11px;
+  --text-micro--line-height: 1.3;
   --text-body: 13px; /* body baseline */
   --text-body--line-height: 1.35;
+  --text-title: 15px;
+  --text-title--line-height: 1.4;
+  --text-heading: 20px;
+  --text-heading--line-height: 1.25;
+
+  /*
+    Overlay elevation. Tailwind's shadow-xl is 10%-black — on a #0c0f13 canvas
+    that is a shadow you cannot see, so modals and the palette sat flat on the
+    page. Depth on dark has to come from a rim light (the hairline) plus a
+    shadow dark enough to register against near-black. (2026-08-06)
+  */
+  --shadow-overlay:
+    0 16px 48px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.4),
+    0 0 0 1px rgb(255 255 255 / 0.06);
 
   /* ── Fonts ── */
   --font-sans:
@@ -156,6 +186,12 @@
     visibility: visible;
     opacity: 1;
     transform: none;
+    /*
+      Docked, but still above the list: same reasoning as the overlay variant
+      below, one tier quieter because the panel is part of the layout rather
+      than floating over it.
+    */
+    box-shadow: -12px 0 32px rgb(0 0 0 / 0.3);
   }
 
   @media (min-width: 2201px) {

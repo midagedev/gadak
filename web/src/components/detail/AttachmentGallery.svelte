@@ -30,7 +30,7 @@
           decoding="async"
           class="h-full w-full object-contain transition-transform duration-150 group-hover:scale-[1.02]"
         />
-        <span class="absolute inset-x-0 bottom-0 truncate bg-black/70 px-2 py-1 text-[10px] text-white/90">
+        <span class="absolute inset-x-0 bottom-0 truncate bg-black/70 px-2 py-1 text-micro text-white/90">
           {attachment.filename}
         </span>
       </button>
@@ -45,7 +45,7 @@
           ▶
         </span>
         <span class="w-full truncate text-[11px] text-text-secondary">{attachment.filename}</span>
-        <span class="text-[10px] text-text-muted">{formatBytes(attachment.size)}</span>
+        <span class="text-micro text-text-muted">{formatBytes(attachment.size)}</span>
       </button>
     {:else}
       <a
@@ -56,7 +56,7 @@
       >
         <span class="flex-none text-[14px]" aria-hidden="true">▤</span>
         <span class="min-w-0 flex-1 truncate text-[12px] text-text-secondary">{attachment.filename}</span>
-        <span class="flex-none text-[10px] text-text-muted">{formatBytes(attachment.size)}</span>
+        <span class="flex-none text-micro text-text-muted">{formatBytes(attachment.size)}</span>
       </a>
     {/if}
   {/each}

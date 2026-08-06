@@ -95,7 +95,7 @@
       <span class="min-w-0 flex-1 truncate">{t('common.feed')}</span>
       {#if feedUnreadCount}
         <span
-          class="min-w-5 flex-none rounded-full bg-accent px-1.5 py-0.5 text-center text-[10px] font-semibold text-white"
+          class="min-w-5 flex-none rounded-full bg-accent px-1.5 py-0.5 text-center text-micro font-semibold text-white"
         >{feedUnreadCount > 99 ? '99+' : feedUnreadCount}</span>
       {/if}
     </button>

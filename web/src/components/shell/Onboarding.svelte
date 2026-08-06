@@ -193,7 +193,7 @@
 
 <div class="flex h-full items-start justify-center overflow-y-auto px-6 py-12" data-testid="onboarding">
   <div class="anim-enter w-full max-w-md">
-    <p class="text-[10px] uppercase tracking-wide text-text-muted">
+    <p class="text-micro uppercase tracking-wide text-text-muted">
       {t('onboarding.stepOf', { n: step })} · {STEP_LABELS[step - 1]}
     </p>
     <h2 class="mt-1 text-[15px] font-semibold text-text-primary">{t('onboarding.title')}</h2>

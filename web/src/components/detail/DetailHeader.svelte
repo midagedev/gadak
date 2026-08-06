@@ -69,7 +69,9 @@
   <IssueBreadcrumb {issue} />
 
   <!-- Title -->
-  <h2 class="mb-3 text-[16px] leading-snug font-semibold text-text-primary">
+  <!-- The subject of the panel. At 16px it was 3px from the list rows behind
+       it, which is a difference you measure rather than see. -->
+  <h2 class="mb-3 text-heading font-semibold text-text-primary">
     {issue.summary}
   </h2>
 

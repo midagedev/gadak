@@ -38,7 +38,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[14vh]"
+  class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[14vh] backdrop-blur-sm"
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) onclose()
@@ -47,7 +47,7 @@
   <div
     bind:this={rootEl}
     use:trapFocus
-    class="anim-pop flex w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-xl"
+    class="anim-pop flex w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
     role="dialog"
     aria-modal="true"
     aria-label={t('triage.commentOn', { key: issueKey })}

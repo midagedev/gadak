@@ -53,7 +53,7 @@
         <div class="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px]">
           <span class="font-medium text-text-secondary">{fieldLabel(e.field)}</span>
           {#if reopen}
-            <span class="rounded bg-status-reopen/15 px-1 text-[10px] font-semibold text-status-reopen">
+            <span class="rounded bg-status-reopen/15 px-1 text-micro font-semibold text-status-reopen">
               {t('feed.kindReopen')}
             </span>
           {/if}

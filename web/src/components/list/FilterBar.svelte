@@ -177,7 +177,7 @@
                     ? 'border-accent bg-accent text-white'
                     : 'border-border-strong'}"
                 >
-                  {#if activeSet.has(v.value)}<span class="text-[9px]">✓</span>{/if}
+                  {#if activeSet.has(v.value)}<span class="text-micro">✓</span>{/if}
                 </span>
                 <span class="min-w-0 flex-1 truncate">{v.label}</span>
                 <span class="flex-none text-[11px] text-text-muted">{v.count}</span>

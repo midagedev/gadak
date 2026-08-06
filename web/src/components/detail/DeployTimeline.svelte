@@ -173,7 +173,7 @@
             {pr.title ?? ''}
           </span>
           {#if pr.included_in}
-            <span class="flex-none font-mono text-[10px] text-text-muted">{pr.included_in}</span>
+            <span class="flex-none font-mono text-micro text-text-muted">{pr.included_in}</span>
           {/if}
         </li>
       {/each}

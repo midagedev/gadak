@@ -166,7 +166,7 @@
     aria-label={selected ? t('list.deselect') : t('list.select')}
     title={t('list.select')}
   >
-    {#if selected}<span class="text-[9px]">✓</span>{/if}
+    {#if selected}<span class="text-micro">✓</span>{/if}
   </button>
 
   <!-- Priority -->
@@ -189,7 +189,7 @@
 
   <!-- Personal markers (favorite/watch) — quiet, before title -->
   {#if isFavorite || isWatching}
-    <span class="flex flex-none items-center gap-0.5 text-[10px]" aria-hidden="true">
+    <span class="flex flex-none items-center gap-0.5 text-micro" aria-hidden="true">
       {#if isFavorite}<span class="text-status-stale" title={t('common.favorite')}>★</span>{/if}
       {#if isWatching}<span class="text-accent-text" title={t('common.watching')}>👁</span>{/if}
     </span>
@@ -210,7 +210,7 @@
   {#if cols.has('reopen') && issue.reopen_count > 0}
     <button
       type="button"
-      class="flex-none rounded bg-status-reopen/15 px-1.5 py-0.5 text-[10px] font-medium text-status-reopen transition-colors hover:bg-status-reopen/25"
+      class="flex-none rounded bg-status-reopen/15 px-1.5 py-0.5 text-micro font-medium text-status-reopen transition-colors hover:bg-status-reopen/25"
       title={issue.reopen_reason ? t('list.reopenCountReason', { n: issue.reopen_count, reason: issue.reopen_reason }) : t('list.reopenCount', { n: issue.reopen_count })}
       onclick={stop(() => filters.toggleFlag('reopened'))}
     >
@@ -219,7 +219,7 @@
   {/if}
   {#if cols.has('stale') && stale}
     <span
-      class="flex-none rounded bg-status-stale/15 px-1.5 py-0.5 text-[10px] font-medium text-status-stale"
+      class="flex-none rounded bg-status-stale/15 px-1.5 py-0.5 text-micro font-medium text-status-stale"
       title={t('list.staleDays', { n: staleDays })}
     >
       {t('list.staleDaysShort', { n: staleDays })}
@@ -229,7 +229,7 @@
   {#if cols.has('qa_impact') && qaImpactMeta}
     <button
       type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] font-medium transition-opacity hover:opacity-80 xl:inline-flex {qaImpactMeta.cls}"
+      class="hidden flex-none rounded px-1.5 py-0.5 text-micro font-medium transition-opacity hover:opacity-80 xl:inline-flex {qaImpactMeta.cls}"
       title={issue.qa_runs?.map((run) => run.label).join(', ') || issue.qa_impact_label}
       onclick={stop(() => filters.addValue('qa_impact', issue.qa_impact_state))}
     >
@@ -241,7 +241,7 @@
   {#if cols.has('deploy') && deployMeta}
     <button
       type="button"
-      class="flex flex-none items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-opacity hover:opacity-80 {deployMeta.cls}"
+      class="flex flex-none items-center gap-1 rounded px-1.5 py-0.5 text-micro font-medium transition-opacity hover:opacity-80 {deployMeta.cls}"
       title={deployState === 'qa'
         ? t('deploy.qaSwapDone')
         : t('deploy.stageTitle', { label: deployMeta.label })}
@@ -254,7 +254,7 @@
     </button>
   {:else if cols.has('deploy') && deployStale}
     <span
-      class="flex-none rounded bg-status-stale/12 px-1.5 py-0.5 text-[10px] font-medium text-status-stale/80"
+      class="flex-none rounded bg-status-stale/12 px-1.5 py-0.5 text-micro font-medium text-status-stale/80"
       title={t('deploy.resolvedNoRelease')}
     >
       {t('deploy.notDeployed')}
@@ -265,7 +265,7 @@
   {#if cols.has('severity') && issue.severity}
     <button
       type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
+      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
       title={t('list.fieldValue', { field: t('common.severity'), value: issue.severity })}
       onclick={stop(() => filters.addValue('severity', issue.severity!))}
     >
@@ -275,7 +275,7 @@
   {#if cols.has('issue_type') && issue.issue_type}
     <button
       type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
+      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
       title={t('list.fieldValue', { field: t('common.type'), value: issue.issue_type })}
       onclick={stop(() => filters.addValue('issue_type', issue.issue_type))}
     >
@@ -285,7 +285,7 @@
   {#if cols.has('status') && issue.status}
     <button
       type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
+      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
       title={t('list.fieldValue', { field: t('common.status'), value: issue.status })}
       onclick={stop(() => filters.addValue('status', issue.status))}
     >
@@ -295,7 +295,7 @@
   {#if cols.has('dev_test_result') && issue.development_test_result}
     <button
       type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
+      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
       title={t('list.fieldValue', { field: t('column.dev_test_result'), value: issue.development_test_result })}
       onclick={stop(() => filters.addFieldValue('development_test_result', issue.development_test_result!))}
     >
@@ -305,7 +305,7 @@
   {#if cols.has('environment') && issue.environment}
     <button
       type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
+      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
       title={t('list.fieldValue', { field: t('column.environment'), value: issue.environment })}
       onclick={stop(() => filters.addFieldValue('environment', issue.environment!))}
     >
@@ -315,7 +315,7 @@
   {#if cols.has('team_group') && issue.team_group}
     <button
       type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
+      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
       title={t('list.fieldValue', { field: t('column.team_group'), value: issue.team_group })}
       onclick={stop(() => filters.addValue('team_group', issue.team_group!))}
     >
@@ -325,7 +325,7 @@
   {#if cols.has('reporter') && issue.reporter}
     <button
       type="button"
-      class="hidden max-w-[90px] flex-none truncate rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
+      class="hidden max-w-[90px] flex-none truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
       title={t('list.fieldValue', { field: t('common.reporter'), value: issue.reporter })}
       onclick={issue.reporter_email
         ? stop(() => filters.addValue('reporter_email', issue.reporter_email!))
@@ -335,7 +335,7 @@
     </button>
   {/if}
   {#if cols.has('comment_count') && issue.comment_count > 0}
-    <span class="hidden flex-none text-[10px] text-text-muted sm:inline" title={t('list.commentCount', { n: issue.comment_count })}>
+    <span class="hidden flex-none text-micro text-text-muted sm:inline" title={t('list.commentCount', { n: issue.comment_count })}>
       💬 {issue.comment_count}
     </span>
   {/if}
@@ -343,14 +343,14 @@
     <span class="hidden flex-none items-center gap-1 lg:flex">
       <button
         type="button"
-        class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+        class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
         title={`Fix Version: ${issue.fix_versions.join(', ')}`}
         onclick={stop(() => filters.addValue('fix_versions', issue.fix_versions[0]))}
       >
         {issue.fix_versions[0]}
       </button>
       {#if issue.fix_versions.length > 1}
-        <span class="text-[10px] text-text-muted">+{issue.fix_versions.length - 1}</span>
+        <span class="text-micro text-text-muted">+{issue.fix_versions.length - 1}</span>
       {/if}
     </span>
   {/if}
@@ -358,14 +358,14 @@
     <span class="hidden flex-none items-center gap-1 lg:flex">
       <button
         type="button"
-        class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+        class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
         title={t('list.fieldValue', { field: t('field.components'), value: issue.components.join(', ') })}
         onclick={stop(() => filters.addValue('components', issue.components[0]))}
       >
         {issue.components[0]}
       </button>
       {#if issue.components.length > 1}
-        <span class="text-[10px] text-text-muted">+{issue.components.length - 1}</span>
+        <span class="text-micro text-text-muted">+{issue.components.length - 1}</span>
       {/if}
     </span>
   {/if}
@@ -381,7 +381,7 @@
   {#if epicKey}
     <button
       type="button"
-      class="hidden max-w-[84px] flex-none truncate rounded px-1.5 py-0.5 font-mono text-[10px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-accent-text lg:inline-block"
+      class="hidden max-w-[84px] flex-none truncate rounded px-1.5 py-0.5 font-mono text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-accent-text lg:inline-block"
       data-testid="epic-chip"
       title={t('list.fieldValue', { field: t('common.epic'), value: epicSummary ?? epicKey })}
       onclick={stop(() => selection.select(epicKey))}
@@ -420,11 +420,15 @@
     />
   {/if}
 
-  <!-- Relative updated time. Accent within 24h for recency. -->
+  <!-- Relative updated time. Freshness is weight, not accent: on a list sorted
+       by recency almost every visible row is fresh, so accent here painted the
+       whole column indigo (28 of 29 accent nodes on the default screen,
+       measured 2026-08-06) and said nothing. Accent is reserved for what is
+       yours or actionable — your issues, watches, links. -->
   {#if cols.has('updated')}
     <span
-      class="w-10 flex-none text-right text-[11px] {isFresh
-        ? 'font-medium text-accent-text'
+      class="w-10 flex-none text-right text-micro {isFresh
+        ? 'font-medium text-text-secondary'
         : 'text-text-muted'}"
       title={absTime(issue.updated_at)}
     >

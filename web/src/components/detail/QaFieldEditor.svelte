@@ -340,7 +340,7 @@
                     ? 'border-accent bg-accent text-white'
                     : 'border-border-subtle'}"
                 >
-                  {#if checked}<span class="text-[9px] leading-none">✓</span>{/if}
+                  {#if checked}<span class="text-micro leading-none">✓</span>{/if}
                 </span>
                 <span class="min-w-0 flex-1 truncate">{opt.value}</span>
               </button>
@@ -398,7 +398,7 @@
           >
             <Avatar member={c.member} name={c.display_name} email={c.email} size={18} />
             <span class="min-w-0 flex-1 truncate">{c.display_name}</span>
-            {#if c.label}<span class="flex-none text-[10px] text-text-muted">{c.label}</span>{/if}
+            {#if c.label}<span class="flex-none text-micro text-text-muted">{c.label}</span>{/if}
           </button>
         {/each}
         {#if searching}

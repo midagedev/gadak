@@ -57,11 +57,11 @@
             <span class="truncate text-[12px] font-semibold text-text-primary" title={run.title}>
               {run.product_label} · {run.title}
             </span>
-            <span class="flex-none rounded px-1.5 py-0.5 text-[10px] font-medium {STATE_CLASS[run.state]}">
+            <span class="flex-none rounded px-1.5 py-0.5 text-micro font-medium {STATE_CLASS[run.state]}">
               {run.state_label}
             </span>
           </div>
-          <div class="mt-1.5 flex items-center gap-2 text-[10px] text-text-muted tabular-nums">
+          <div class="mt-1.5 flex items-center gap-2 text-micro text-text-muted tabular-nums">
             <div class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
               <div
                 class="h-full rounded-full bg-text-muted/50"
@@ -88,7 +88,7 @@
         {#each run.suites as suite (suite.key)}
           <a
             href={dashboardUrl(run, suite)}
-            class="inline-flex max-w-full items-center gap-1 rounded border border-border-subtle bg-bg-elevated px-1.5 py-0.5 text-[10px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            class="inline-flex max-w-full items-center gap-1 rounded border border-border-subtle bg-bg-elevated px-1.5 py-0.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
             title={t('qa.openSuite', { path: suite.path })}
           >
             <LayoutDashboard size={10} class="flex-none" />
@@ -113,7 +113,7 @@
                   <div class="truncate text-[11px] text-text-secondary" title={qaCase.title || qaCase.case_id}>
                     {qaCase.title || qaCase.case_id}
                   </div>
-                  <div class="mt-0.5 flex items-center gap-1.5 text-[9px] text-text-muted">
+                  <div class="mt-0.5 flex items-center gap-1.5 text-micro text-text-muted">
                     <span class="font-mono">{qaCase.case_id}</span>
                     <span>{meta.label}</span>
                     {#if qaCase.result_time}<span>{formatTime(qaCase.result_time)}</span>{/if}

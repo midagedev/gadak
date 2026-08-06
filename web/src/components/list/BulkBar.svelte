@@ -314,7 +314,7 @@
               class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
               <span
-                class="flex h-4 w-4 flex-none items-center justify-center rounded-full border border-dashed border-border-strong text-[9px]"
+                class="flex h-5 w-5 flex-none items-center justify-center rounded-full border border-dashed border-border-strong text-micro"
                 >–</span
               >
               {t('common.unassigned')}
@@ -325,9 +325,9 @@
                 onclick={() => runAssign(m)}
                 class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
-                <Avatar member={m} name={m.display_name || m.name} email={m.email} size={16} />
+                <Avatar member={m} name={m.display_name || m.name} email={m.email} size={20} />
                 <span class="min-w-0 flex-1 truncate">{m.display_name || m.name}</span>
-                <span class="flex-none text-[10px] text-text-muted">{m.email.split('@')[0]}</span>
+                <span class="flex-none text-micro text-text-muted">{m.email.split('@')[0]}</span>
               </button>
             {/each}
             {#if assigneeCands.length === 0}

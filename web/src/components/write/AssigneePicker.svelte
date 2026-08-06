@@ -216,15 +216,17 @@
     disabled={busy}
     class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
   >
+    <!-- One 20px circle whichever branch renders: a 16px circle could not hold a
+         legible initial, and the three branches have to line up in one column. -->
     {#if c.member}
-      <Avatar member={c.member} name={c.display_name} email={c.email} size={16} />
+      <Avatar member={c.member} name={c.display_name} email={c.email} size={20} />
     {:else if c.avatar_url}
-      <img src={c.avatar_url} alt={c.display_name} class="h-4 w-4 flex-none rounded-full object-cover" loading="lazy" />
+      <img src={c.avatar_url} alt={c.display_name} class="h-5 w-5 flex-none rounded-full object-cover" loading="lazy" />
     {:else}
-      <span class="flex h-4 w-4 flex-none items-center justify-center rounded-full bg-bg-active text-[9px] text-text-secondary">{c.display_name.slice(0, 1)}</span>
+      <span class="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-bg-active text-micro text-text-secondary">{c.display_name.slice(0, 1)}</span>
     {/if}
     <span class="min-w-0 flex-1 truncate {c.label ? 'text-text-primary' : ''}">{c.label ?? c.display_name}</span>
-    {#if c.email}<span class="flex-none text-[10px] text-text-muted">{c.email.split('@')[0]}</span>{/if}
+    {#if c.email}<span class="flex-none text-micro text-text-muted">{c.email.split('@')[0]}</span>{/if}
   </button>
 {/snippet}
 
@@ -279,7 +281,7 @@
           disabled={busy}
           class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
         >
-          <span class="flex h-4 w-4 flex-none items-center justify-center rounded-full border border-dashed border-border-strong text-[9px]">–</span>
+          <span class="flex h-5 w-5 flex-none items-center justify-center rounded-full border border-dashed border-border-strong text-micro">–</span>
           {t('common.unassigned')}
         </button>
 

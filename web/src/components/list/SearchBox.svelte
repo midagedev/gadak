@@ -215,7 +215,7 @@
         ✕
       </button>
     {:else}
-      <kbd class="flex-none rounded border border-border-subtle px-1 text-[10px] text-text-muted">/</kbd>
+      <kbd class="flex-none rounded border border-border-subtle px-1 text-micro text-text-muted">/</kbd>
     {/if}
   </div>
 

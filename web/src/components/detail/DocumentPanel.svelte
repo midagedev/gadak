@@ -84,7 +84,7 @@
           <!-- Type badge only. The space is the breadcrumb's first segment,
                which renders under exactly the same condition. -->
           <span
-            class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted"
+            class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-text-muted"
           >
             {t('doc.badge')}
           </span>
@@ -135,7 +135,8 @@
           </nav>
         {/if}
 
-        <h2 class="mb-2 text-[15px] font-semibold leading-snug text-text-primary" data-testid="doc-title">
+        <!-- Same tier as an issue's title: both are "the subject of this panel". -->
+        <h2 class="mb-2 text-heading font-semibold text-text-primary" data-testid="doc-title">
           {head?.title ?? ''}
         </h2>
 

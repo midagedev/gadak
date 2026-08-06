@@ -35,7 +35,7 @@
           class="group flex items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-bg-hover"
         >
           <span
-            class="mt-px flex-none rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase {stateClass(pr.state)}"
+            class="mt-px flex-none rounded px-1.5 py-0.5 text-micro font-semibold uppercase {stateClass(pr.state)}"
           >
             {pr.state}
           </span>

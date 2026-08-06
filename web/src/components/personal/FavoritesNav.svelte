@@ -151,7 +151,7 @@
               {item.issue.issue_key}
             </span>
             <span
-              class="min-w-0 flex-1 truncate text-right text-[10px] text-text-muted"
+              class="min-w-0 flex-1 truncate text-right text-micro text-text-muted"
               title={item.visit?.viewed_at ? absTime(item.visit.viewed_at) : undefined}
             >
               {viewedLabel(item.visit?.viewed_at)}
@@ -206,7 +206,7 @@
               {item.issue.issue_key}
             </span>
             <span
-              class="min-w-0 flex-1 truncate text-right text-[10px] text-text-muted"
+              class="min-w-0 flex-1 truncate text-right text-micro text-text-muted"
               title={item.visit?.viewed_at ? absTime(item.visit.viewed_at) : undefined}
             >
               {viewedLabel(item.visit?.viewed_at)}
