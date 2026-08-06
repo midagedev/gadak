@@ -254,7 +254,8 @@ Your API token lives in `~/.scry/config.json` at `0600` and never touches the
 database, the repository, or a log line. There is no scry account, no server,
 and no telemetry — outbound traffic is your own Atlassian site, plus an
 optional daily anonymous version check against GitHub Releases
-(`updateCheck: false` turns it off).
+(`updateCheck: false` turns it off). The full data-flow diagram, threat
+model, and where each claim is enforced in code: **[SECURITY.md](SECURITY.md)**.
 
 Pointing one machine at two sites (work and a demo, say) is what profiles are
 for: `scry --profile demo init` keeps a separate credential and mirror under
