@@ -490,16 +490,18 @@
           <div class="flex flex-col gap-1">
             <span class="text-[11px] text-text-secondary">{t('settings.syncInterval')}</span>
             <div class="flex flex-wrap items-center gap-2">
+              <!-- selected on the option, not value on the select: a plain
+                   value attribute applies before the #each options mount and
+                   never re-syncs, leaving the control visibly empty. -->
               <select
                 class="{INPUT} w-auto max-w-[12rem]"
-                value={String(syncPreset)}
                 onchange={(e) => {
                   syncPreset = Number(e.currentTarget.value)
                   if (syncPreset !== -1) syncCustomText = ''
                 }}
               >
                 {#each SYNC_PRESETS as p (p.value)}
-                  <option value={p.value}>
+                  <option value={p.value} selected={p.value === syncPreset}>
                     {p.label}{p.value === 0 ? ` (${defaultSyncSec}s)` : ''}
                   </option>
                 {/each}
@@ -525,14 +527,13 @@
             <div class="flex flex-wrap items-center gap-2">
               <select
                 class="{INPUT} w-auto max-w-[12rem]"
-                value={String(reconcilePreset)}
                 onchange={(e) => {
                   reconcilePreset = Number(e.currentTarget.value)
                   if (reconcilePreset !== -1) reconcileCustomText = ''
                 }}
               >
                 {#each RECONCILE_PRESETS as p (p.value)}
-                  <option value={p.value}>
+                  <option value={p.value} selected={p.value === reconcilePreset}>
                     {p.label}{p.value === 0 ? ` (${defaultReconcileSec}s)` : ''}
                   </option>
                 {/each}
