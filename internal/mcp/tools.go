@@ -41,6 +41,10 @@ Schema essentials:
   (≤200-rune body preview). Page title and body_text live on items
   (items.kind = 'page'; issues are kind 'issue').
 - comments, attachments, changelog, links: hang off items.id
+- item_refs: text-derived cross-refs — item_id (source), target_kind
+  ('issue'|'page'), target_key (issue key or page id string), via ('url'|'text').
+  Page bodies → issue keys; issue bodies/comments → page ids. Target need not
+  exist; join items on key+kind to filter live rows. Index on (target_kind, target_key).
 - items_fts: FTS5 over titles, bodies, and comment text of BOTH kinds
   (WHERE items_fts MATCH 'term'; join items, then issues or pages by kind)
 - sync_state: watermark, version, last_error, last_full_sync_at, schema_version

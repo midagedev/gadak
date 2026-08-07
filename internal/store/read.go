@@ -197,6 +197,11 @@ type Detail struct {
 	Attachments    []DetailAttachment `json:"attachments"`
 	History        []DetailChange     `json:"history"`
 	LinkedIssues   []DetailLink       `json:"linked_issues"`
+	// RefPages are wiki pages this issue's body/comments mention (item_refs,
+	// target_kind=page). Only pages present in the mirror; empty omitted.
+	RefPages []PageLite `json:"ref_pages,omitempty"`
+	// BacklinkPages are wiki pages that mention this issue key. Empty omitted.
+	BacklinkPages []PageLite `json:"backlink_pages,omitempty"`
 	// Custom is the issue's full alias→value map. List rows strip body-role
 	// values (they can be document-sized); detail is where they surface.
 	Custom map[string]any `json:"-"`
@@ -287,7 +292,62 @@ func (db *DB) Detail(key string) (*Detail, error) {
 		}, itemID); err != nil {
 		return nil, err
 	}
+
+	// Outgoing page refs (this issue mentions pages).
+	refPages, err := db.pageLitesFromRefs(`
+		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
+		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
+		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
+		       COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]')
+		FROM item_refs r
+		JOIN items it ON it.kind = 'page' AND it.key = r.target_key
+		JOIN pages p ON p.item_id = it.id
+		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
+		WHERE r.item_id = ? AND r.target_kind = 'page'
+		ORDER BY it.updated_at DESC, it.key`, itemID)
+	if err != nil {
+		return nil, err
+	}
+	d.RefPages = refPages
+
+	// Incoming page backlinks (pages that mention this issue key).
+	backPages, err := db.pageLitesFromRefs(`
+		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
+		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
+		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
+		       COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]')
+		FROM item_refs r
+		JOIN items it ON it.id = r.item_id AND it.kind = 'page'
+		JOIN pages p ON p.item_id = it.id
+		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
+		WHERE r.target_kind = 'issue' AND r.target_key = ?
+		ORDER BY it.updated_at DESC, it.key`, key)
+	if err != nil {
+		return nil, err
+	}
+	d.BacklinkPages = backPages
+
 	return d, nil
+}
+
+// pageLitesFromRefs runs a PageLite-shaped SELECT and returns the rows (nil when empty).
+func (db *DB) pageLitesFromRefs(query string, args ...any) ([]PageLite, error) {
+	var out []PageLite
+	err := each(db.sql, query, func(rows *sql.Rows) error {
+		var v PageLite
+		var labels string
+		if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.SpaceName, &v.ParentID,
+			&v.Author, &v.UpdatedAt, &v.Version, &v.URL, &v.Excerpt, &labels); err != nil {
+			return err
+		}
+		v.Labels = parseArray(&labels)
+		out = append(out, v)
+		return nil
+	}, args...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // PageLite is the list/search row for a mirrored wiki page. Field names are
@@ -323,6 +383,11 @@ type PageDetail struct {
 	PageLite
 	BodyADF  json.RawMessage `json:"body_adf"`
 	Comments []PageComment   `json:"comments"`
+	// RefIssueKeys are issue keys this page's body mentions (item_refs). Only
+	// issues present in the mirror, sorted ascending. Empty omitted.
+	RefIssueKeys []string `json:"ref_issue_keys,omitempty"`
+	// BacklinkIssueKeys are issue keys that mention this page. Empty omitted.
+	BacklinkIssueKeys []string `json:"backlink_issue_keys,omitempty"`
 }
 
 // PageLites returns every mirrored page, ordered by space then title.
@@ -394,6 +459,47 @@ func (db *DB) PageDetail(key string) (*PageDetail, error) {
 		}, itemID); err != nil {
 		return nil, err
 	}
+
+	// Outgoing: this page mentions these issue keys (mirrored issues only).
+	var refKeys []string
+	if err := each(db.sql, `
+		SELECT r.target_key
+		FROM item_refs r
+		JOIN items it ON it.kind = 'issue' AND it.key = r.target_key
+		WHERE r.item_id = ? AND r.target_kind = 'issue'
+		ORDER BY r.target_key`,
+		func(rows *sql.Rows) error {
+			var k string
+			if err := rows.Scan(&k); err != nil {
+				return err
+			}
+			refKeys = append(refKeys, k)
+			return nil
+		}, itemID); err != nil {
+		return nil, err
+	}
+	d.RefIssueKeys = refKeys
+
+	// Incoming: issues that mention this page id.
+	var backKeys []string
+	if err := each(db.sql, `
+		SELECT it.key
+		FROM item_refs r
+		JOIN items it ON it.id = r.item_id AND it.kind = 'issue'
+		WHERE r.target_kind = 'page' AND r.target_key = ?
+		ORDER BY it.key`,
+		func(rows *sql.Rows) error {
+			var k string
+			if err := rows.Scan(&k); err != nil {
+				return err
+			}
+			backKeys = append(backKeys, k)
+			return nil
+		}, key); err != nil {
+		return nil, err
+	}
+	d.BacklinkIssueKeys = backKeys
+
 	return &d, nil
 }
 

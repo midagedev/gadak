@@ -215,6 +215,13 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	if err := writeFTS(tx, rowid, it.Title, it.BodyText, strings.Join(bodies, "\n")); err != nil {
 		return false, err
 	}
+
+	// Text-derived page refs from description + comments (after comments written).
+	pageRefs := filterSelfRef(ExtractPageRefsFromIssue(it.BodyText, bodies), it.Key)
+	if err := replaceItemRefs(tx, it.ID, pageRefs); err != nil {
+		return false, err
+	}
+
 	// An item that came back is no longer deleted.
 	_, err = tx.Exec(`DELETE FROM deleted_items WHERE source_id = ? AND key = ?`, it.SourceID, it.Key)
 	return true, err
@@ -256,9 +263,14 @@ func (db *DB) UpsertPages(records []PageRecord) (int, error) {
 	}
 	changed := 0
 	err := db.write(func(tx *sql.Tx) error {
+		// known project keys once per batch for bare-text issue-key filtering
+		known, err := loadKnownProjectKeys(tx)
+		if err != nil {
+			return err
+		}
 		sources := map[string]bool{}
 		for _, r := range records {
-			ok, err := upsertPageRecord(tx, r)
+			ok, err := upsertPageRecord(tx, r, known)
 			if err != nil {
 				return fmt.Errorf("%s: %w", r.Item.Key, err)
 			}
@@ -280,7 +292,7 @@ func (db *DB) UpsertPages(records []PageRecord) (int, error) {
 	return changed, nil
 }
 
-func upsertPageRecord(tx *sql.Tx, r PageRecord) (bool, error) {
+func upsertPageRecord(tx *sql.Tx, r PageRecord, knownProjects map[string]bool) (bool, error) {
 	it := r.Item
 	if it.ID == "" || it.SourceID == "" {
 		return false, errors.New("item id and source_id are required")
@@ -359,6 +371,13 @@ func upsertPageRecord(tx *sql.Tx, r PageRecord) (bool, error) {
 	if err := writeFTS(tx, rowid, it.Title, it.BodyText, strings.Join(bodies, "\n")); err != nil {
 		return false, err
 	}
+
+	// Text-derived issue refs from ADF URLs + plain body (not comments).
+	issueRefs := filterSelfRef(ExtractIssueRefsFromPage(bodyADF, it.BodyText, knownProjects), it.Key)
+	if err := replaceItemRefs(tx, it.ID, issueRefs); err != nil {
+		return false, err
+	}
+
 	_, err = tx.Exec(`DELETE FROM deleted_items WHERE source_id = ? AND key = ?`, it.SourceID, it.Key)
 	return true, err
 }

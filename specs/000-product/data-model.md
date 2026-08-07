@@ -273,6 +273,26 @@ staleness analysis possible offline.
 
 Primary key: `(item_id, type, direction, target_key)`.
 
+## `item_refs` (v16)
+
+Text-derived cross-references between the two kinds: page bodies that mention
+issue keys, and issue bodies/comments that mention wiki page URLs. This is what
+connects the wiki axis to the issue axis — Jira remote links are not collected,
+so mentions in text are the only signal, extracted at upsert time and backfilled
+on the v16 migration.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `item_id` | TEXT | FK to `items.id`, `ON DELETE CASCADE` — the side that contains the mention |
+| `target_kind` | TEXT | `issue` \| `page` |
+| `target_key` | TEXT | Issue key (`ABC-123`) or numeric page id string. May reference an item outside the mirror; readers join `items` on `key` + `kind` and surface live rows only |
+| `via` | TEXT | `url` (a `/browse/…`, `/wiki/spaces/…/pages/…`, or `pageId=` link) \| `text` (a bare issue key in plain text, accepted only when its project prefix exists in the mirror) |
+
+Primary key: `(item_id, target_kind, target_key)`; index on
+`(target_kind, target_key)` for the backlink direction. Refs are recomputed
+(delete + insert) inside the same transaction as every item upsert, so they
+never outlive an edit that removed the mention.
+
 ## `deleted_items`
 
 Tombstones. Jira reports nothing when an issue leaves scope, so the reconcile

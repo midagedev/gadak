@@ -144,7 +144,7 @@ type progressDoc struct {
 // depends on. A caller asking "is the mirror moving right now" needs this one.
 type mirrorActivity struct {
 	Running   bool   `json:"running"`
-	Source    string `json:"source"` // issues | documents | "" when idle
+	Source    string `json:"source"`  // issues | documents | "" when idle
 	Fetched   int    `json:"fetched"` // running total for the CURRENT source's pass
 	Changed   int    `json:"changed"`
 	StartedAt string `json:"started_at"`

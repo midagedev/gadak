@@ -123,6 +123,12 @@ func (db *DB) migrate() error {
 					return fmt.Errorf("migration 15 backfill: %w", err)
 				}
 			}
+			// v16: derive item_refs (page↔issue text cross-refs) for existing rows.
+			if i+1 == 16 {
+				if err := backfillItemRefs(tx); err != nil {
+					return fmt.Errorf("migration 16 backfill: %w", err)
+				}
+			}
 		}
 		// user_version is the migration level; sync_state.schema_version is the
 		// documented mirror of it and has to move with it.

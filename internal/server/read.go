@@ -329,6 +329,10 @@ type detailResponse struct {
 	Comments       []detailComment    `json:"comments"`
 	History        []historyEntry     `json:"history"`
 	LinkedIssues   []linkedIssue      `json:"linked_issues"`
+	// RefPages / BacklinkPages are text-derived wiki cross-refs (item_refs).
+	// Empty lists omit (omitempty), matching optional detail enrichments style.
+	RefPages      []store.PageLite `json:"ref_pages,omitempty"`
+	BacklinkPages []store.PageLite `json:"backlink_pages,omitempty"`
 	// The four below come from plugin enrichments (docs/PLUGINS.md). With no
 	// plugin writing them they stay null / [], which is what the client's
 	// optional-field guards expect.
@@ -370,6 +374,8 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		Comments:       make([]detailComment, 0, len(d.Comments)),
 		History:        make([]historyEntry, 0, len(d.History)),
 		LinkedIssues:   make([]linkedIssue, 0, len(d.LinkedIssues)),
+		RefPages:       d.RefPages,
+		BacklinkPages:  d.BacklinkPages,
 		LinkedPRs:      json.RawMessage("[]"),
 		Bodies:         map[string]json.RawMessage{},
 	}
