@@ -258,6 +258,15 @@ func TestResolveInstallCLIDirDefault(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+	// Pin PATH to a directory that is neither ~/.local/bin nor /usr/local/bin.
+	// The default-dir policy prefers /usr/local/bin when it is on PATH and
+	// writable (clitool.DefaultDir rule 2, added 2026-08-07), so asserting on
+	// the host's real PATH made this test answer "is /usr/local/bin writable
+	// here" — green on this Mac, red on GitHub runners for four straight CI
+	// runs (e.g. run 31195133090). With no suitable candidate on PATH the
+	// default must fall back to ~/.local/bin; per-rule coverage is hermetic in
+	// internal/clitool/clitool_test.go.
+	t.Setenv("PATH", t.TempDir())
 	got, err := resolveInstallCLIDir("")
 	if err != nil {
 		t.Fatal(err)
