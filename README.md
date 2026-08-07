@@ -89,8 +89,8 @@ the terminal, and the agent read the same store.
 
 | | For | Looks like |
 | --- | --- | --- |
-| **Web UI** | all-day triage — a browser tab (`scry serve`) or its own macOS window ([desktop app](docs/DESKTOP.md), no port at all) | a list you triage without the mouse (`j/k` walk, `x` multi-select, `s`/`a`/`c` status·assignee·comment in place), epic grouping and rollups, saved views, ⌘K palette, a freshness chip that shows the mirror's age and pulls it on click, full issue detail (rich text, comments, history, attachments), a DOCS tree of your wiki spaces with a breadcrumbed document view |
-| **TUI** | people who live in the terminal | [`scry tui`](docs/TUI.md) — list, filter with live match highlight, `group_by=epic`, Ctrl+K palette, write actions, and `D` for the same wiki tree, all over the same mirror |
+| **Web UI** | all-day triage — a browser tab (`scry serve`) or its own macOS window ([desktop app](docs/DESKTOP.md), no port at all) | a list you triage without the mouse (`j/k` walk, `x` multi-select, `s`/`a`/`c` status·assignee·comment in place), epic grouping and rollups, saved views, a ⌘K palette that finds issues *and* wiki pages, `/` to narrow whichever screen you are on, a freshness chip that shows the mirror's age and pulls it on click, full issue detail (rich text, comments, history, attachments), and wiki documents as a first-class citizen: recency-first lists with label chips, a filter that marks its matches, deep-linkable pages (`?doc=`), and cross-references both ways — the documents an issue's text mentions on the issue, the issues a page mentions on the page |
+| **TUI** | people who live in the terminal | [`scry tui`](docs/TUI.md) — list, filter with live match highlight, `group_by=epic`, Ctrl+K palette, write actions, and `D` for the same wiki views with the same cross-references, all over the same mirror |
 | **CLI + SQL** | agents, scripts, one-off questions | `scry issue`, `scry search` (issues and pages), `scry sql`, plus the file itself |
 
 <p align="center">
@@ -110,6 +110,13 @@ Hierarchy is first-class: `epic_key` is derived honestly (the nearest epic
 *ancestor*, so a sub-task groups under its epic, not its story), group-by-epic
 headers show the epic's actual title, an epic's detail rolls up its children
 (`12 done / 14`), and both breadcrumbs — issue and document — are clickable.
+
+So is the seam between the sources. Jira and Confluence never tell each other
+what mentions what, but the text does: scry extracts issue keys from page
+bodies and wiki links from issue text into an `item_refs` table while it
+syncs. That is why an issue can list the design docs that cite it and a page
+can list the tickets it references — a join neither product can make, and the
+receipt that both really live in one database.
 
 Attachments are local too. The first view of an image caches its bytes next to
 the mirror and every later view is a disk read, so a screenshot-heavy issue

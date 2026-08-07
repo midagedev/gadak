@@ -220,6 +220,32 @@ Shipped 2026-08-06:
 - ✅ **The bundled demo has four people in it**, so the people axis is
   explorable before you connect anything.
 
+## v0.10 — the two sources finally meet
+
+The wiki mirror existed but lived like a guest: reachable, searchable in
+principle, connected to nothing. This wave came out of using it for real on a
+work mirror. Shipped 2026-08-07:
+
+- ✅ **Search reaches every screen.** The ⌘K palette matches page titles
+  (chosung included) above the issues; `/` focuses whichever narrowing field
+  the screen in front of you has; the document screens gained a local filter
+  whose Enter hands the query to the one unified results surface.
+- ✅ **Document screens carry their own weight.** Deep links (`?doc=`,
+  `?space=`) that restore the sidebar and background identically to a
+  click-through; label chips that narrow on click; every filtered row marks
+  what kept it; the tree separates answers from the path to them.
+- ✅ **Cross-references (schema v16).** Page bodies mention issue keys and
+  issue text mentions wiki pages; `item_refs` derives both directions at sync
+  and backfills on migration. Issue detail lists its documents, page detail
+  lists its issues — web and TUI in the same version.
+- ✅ **A reading aid nobody asks for until they drag-read a long doc**: the
+  block under the cursor lifts, in issue descriptions, page bodies, and
+  comments alike.
+- ✅ **`scry snapshot` carries documents** — a shared mirror no longer arrives
+  with an empty DOCS section.
+- ✅ **A sixth perf axis** (`docsFilterKeystrokeMs`, pinned FAIL-first on the
+  10k fixture) so the document filter can never quietly leave memory.
+
 ## Next — the only open question is whether anyone else wants this
 
 Nine releases exist and, as of 2026-08-07, the measurable number of people
