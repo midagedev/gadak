@@ -16,6 +16,7 @@
   import * as api from '../../lib/api'
   import { ApiError } from '../../lib/api'
   import { createUserSearch } from '../../lib/user-search.svelte'
+  import { trapFocus } from '../../lib/focus-trap'
   import { write } from '../../stores/write.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
@@ -245,6 +246,7 @@
   }}
 >
   <div
+    use:trapFocus
     class="anim-enter w-full max-w-lg rounded-lg border border-border-strong bg-bg-panel p-5 shadow-overlay"
     role="dialog"
     aria-modal="true"

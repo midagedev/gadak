@@ -16,6 +16,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
+  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   // The list's Avatar: one person, one color, everywhere they appear.
   import Avatar from '../list/Avatar.svelte'
   import Icon from '../ui/Icon.svelte'
@@ -36,7 +37,6 @@
 
   let open = $state(false)
   let busy = $state(false)
-  let rootEl = $state<HTMLDivElement | null>(null)
   let inputEl = $state<HTMLInputElement | null>(null)
 
   // user search state
@@ -203,27 +203,16 @@
     if (ok) open = false
   }
 
-  /* ── Outside click / Esc ── */
-  $effect(() => {
-    if (!open) return
-    function onDown(e: MouseEvent) {
-      if (rootEl && !rootEl.contains(e.target as Node)) open = false
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') open = false
-    }
-    window.addEventListener('mousedown', onDown)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('mousedown', onDown)
-      window.removeEventListener('keydown', onKey)
-    }
-  })
-
   const canEdit = $derived(me.identified)
 </script>
 
-<div class="relative inline-block w-full" bind:this={rootEl}>
+<!-- Outside click closes. The boundary is this root rather than the list
+     below, so the trigger counts as inside — otherwise the mousedown that
+     closes and the click that reopens would cancel each other out. -->
+<div
+  class="relative inline-block w-full"
+  use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
+>
   <button
     type="button"
     onclick={toggle}
@@ -261,6 +250,7 @@
 
   {#if open}
     <div
+      use:onEscape={() => (open = false)}
       class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-60 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
       role="listbox"
     >

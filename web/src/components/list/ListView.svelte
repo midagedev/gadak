@@ -6,6 +6,7 @@
    */
   import { t, formatNumber, relativeTime, absTime } from '../../lib/i18n'
   import { highlightSegments } from '../../lib/format'
+  import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
   import { untrack } from 'svelte'
   import { filters } from '../../stores/filters.svelte'
@@ -135,9 +136,7 @@
               {p.space_key}
             </span>
             <span class="min-w-0 flex-1 truncate"
-              >{#each titleSegs(p.title) as seg, i (i)}{#if seg.hit}<mark
-                  class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark
-                >{:else}{seg.text}{/if}{/each}</span
+              ><Marks segs={titleSegs(p.title)} /></span
             >
             <span class="flex-none text-micro text-text-muted" title={absTime(p.updated_at)}>
               {relativeTime(p.updated_at, 'long')}

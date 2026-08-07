@@ -72,20 +72,18 @@
   })
 
   // The highlight must not survive a shrinking list, or Enter picks a row that
-  // is no longer on screen.
-  $effect(() => {
-    void matches
-    idx = 0
-  })
-
+  // is no longer on screen. Every edit that rebuilds the list sends it home:
+  // typing, and the two that move an option between the chips and the list.
   function add(value: string) {
     if (!value || selected.includes(value)) return
     selected = [...selected, value]
     query = ''
+    idx = 0
   }
 
   function remove(value: string) {
     selected = selected.filter((v) => v !== value)
+    idx = 0
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -168,7 +166,10 @@
       {placeholder}
       bind:value={query}
       onfocus={() => (open = true)}
-      oninput={() => (open = true)}
+      oninput={() => {
+        open = true
+        idx = 0
+      }}
       onkeydown={onKeydown}
       data-testid="scope-input"
     />

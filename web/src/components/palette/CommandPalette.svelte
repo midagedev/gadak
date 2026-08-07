@@ -38,6 +38,7 @@
   import { runSyncNow } from '../../lib/sync-now'
   import type { IssueLite, Member, PageLite } from '../../lib/types'
   import Icon, { type IconName } from '../ui/Icon.svelte'
+  import Marks from '../ui/Marks.svelte'
 
   let { onclose, onOpenSettings }: { onclose: () => void; onOpenSettings: () => void } = $props()
 
@@ -351,12 +352,6 @@
     action: t('palette.sectionActions'),
   }
 
-  // Reset highlight to the first item when candidates change.
-  $effect(() => {
-    void items
-    idx = 0
-  })
-
   // Keep the highlight inside the viewport.
   $effect(() => {
     listEl?.querySelector(`[data-idx="${idx}"]`)?.scrollIntoView({ block: 'nearest' })
@@ -404,6 +399,7 @@
       <input
         bind:this={inputEl}
         bind:value={query}
+        oninput={() => (idx = 0)}
         onkeydown={onKeydown}
         type="text"
         role="combobox"
@@ -480,18 +476,14 @@
             <!-- Same mark as the list's search hits: the row shows the part of
                  the title the query found. A chosung query marks nothing, and
                  falls back to the plain title. -->
-            {#if item.segs}{#each item.segs as seg, s (s)}{#if seg.hit}<mark
-                  class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark
-                >{:else}{seg.text}{/if}{/each}{:else}{item.label}{/if}
+            {#if item.segs}<Marks segs={item.segs} />{:else}{item.label}{/if}
           </span>
           {#if item.sub}
             <span
               class="truncate text-text-muted {item.badge
                 ? 'max-w-[35%] flex-none'
                 : 'min-w-0 flex-1'}"
-              >{#if item.subSegs}{#each item.subSegs as seg, s (s)}{#if seg.hit}<mark
-                    class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark
-                  >{:else}{seg.text}{/if}{/each}{:else}{item.sub}{/if}</span
+              >{#if item.subSegs}<Marks segs={item.subSegs} />{:else}{item.sub}{/if}</span
             >
           {/if}
           {#if item.kbd}

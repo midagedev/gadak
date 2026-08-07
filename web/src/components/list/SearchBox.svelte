@@ -17,7 +17,7 @@
 
   let text = $state(filters.filters.q)
   let inputEl = $state<HTMLInputElement | null>(null)
-  let sugIdx = $state(0)
+  let sugIdxRaw = $state(0)
 
   // Sync input when q changes externally (view apply, etc.) if not typing.
   $effect(() => {
@@ -85,15 +85,20 @@
 
   const showJump = $derived(jumpKey !== null && suggestions.length === 0)
 
-  $effect(() => {
-    // Reset highlight when the suggestion list changes
-    void suggestions
-    sugIdx = 0
-  })
+  /*
+   * Which candidate the arrows are on. Stored raw and read clamped, because the
+   * list is rebuilt from the facets as well as from what has been typed — a
+   * background sync can shorten it under a highlight the reader has already
+   * moved, and an index past the end would apply a suggestion that is not on
+   * screen. Typing sends the highlight home; anything else can only pull it back
+   * to the last row.
+   */
+  const sugIdx = $derived(Math.min(sugIdxRaw, suggestions.length - 1))
 
   function stripLastWord() {
     text = text.replace(/(\S+)$/, '').replace(/\s+$/, ' ').trimStart()
     filters.setQuery(text)
+    sugIdxRaw = 0
   }
 
   function applySug(s: Sug) {
@@ -112,18 +117,19 @@
 
   function onInput() {
     filters.setQuery(text)
+    sugIdxRaw = 0
   }
 
   function onKeydown(e: KeyboardEvent) {
     if (suggestions.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        sugIdx = (sugIdx + 1) % suggestions.length
+        sugIdxRaw = (sugIdx + 1) % suggestions.length
         return
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
-        sugIdx = (sugIdx - 1 + suggestions.length) % suggestions.length
+        sugIdxRaw = (sugIdx - 1 + suggestions.length) % suggestions.length
         return
       }
       if (e.key === 'Enter' || e.key === 'Tab') {

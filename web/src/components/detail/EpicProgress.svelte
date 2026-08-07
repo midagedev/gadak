@@ -25,12 +25,10 @@
     children.length === 0 ? 0 : Math.round((doneCount / children.length) * 100),
   )
 
-  let expanded = $state(false)
-  // A new epic starts collapsed again; otherwise the previous one's choice leaks.
-  $effect(() => {
-    void issueKey
-    expanded = false
-  })
+  // Which epic the reader opened up, rather than a bare flag: a new epic starts
+  // collapsed again, and a flag would leak the previous one's choice.
+  let expandedFor = $state<string | null>(null)
+  const expanded = $derived(expandedFor === issueKey)
 
   const shown = $derived<IssueLite[]>(
     children.length > PREVIEW && !expanded ? children.slice(0, PREVIEW) : children,
@@ -89,7 +87,7 @@
       <button
         type="button"
         data-testid="epic-children-toggle"
-        onclick={() => (expanded = !expanded)}
+        onclick={() => (expandedFor = expanded ? null : issueKey)}
         class="mt-1 rounded-md px-2 py-1 text-micro text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
       >
         {expanded ? t('detail.epicShowLess') : t('detail.epicShowAll', { n: hidden })}

@@ -21,6 +21,7 @@
   import { bulk } from '../../stores/bulk.svelte'
   import { me } from '../../stores/me.svelte'
   import { categoryOf, CATEGORY_META, relativeTime, absTime, highlightSegments } from '../../lib/format'
+  import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
   import { isStale, statusAgeHours } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
@@ -212,7 +213,7 @@
 
   <!-- Key (accent tone marks own issues) -->
   <span class="w-[88px] flex-none truncate font-mono text-[12px] {mine ? 'text-accent-text' : 'text-text-secondary'}">
-    {#each keySegs as seg, i (i)}{#if seg.hit}<mark class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark>{:else}{seg.text}{/if}{/each}
+    <Marks segs={keySegs} />
   </span>
 
   <!-- Personal markers (favorite/watch) — quiet, before title -->
@@ -235,7 +236,7 @@
        (vision verdict 2026-08-07). The floor is a CSS minimum, never a measured
        one: this row is the 10k-row hot path and must not read layout. -->
   <span class="min-w-[13ch] flex-1 truncate font-medium text-text-primary" title={issue.summary}>
-    {#each summarySegs as seg, i (i)}{#if seg.hit}<mark class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark>{:else}{seg.text}{/if}{/each}
+    <Marks segs={summarySegs} />
     {#if filters.filters.reopened && issue.reopen_count > 0 && issue.reopen_reason}
       <!-- Inline reason only on reopen view — elsewhere the badge + its tooltip is enough -->
       <span class="ml-1 text-micro text-status-reopen/80" title={issue.reopen_reason}>

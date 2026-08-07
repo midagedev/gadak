@@ -17,6 +17,7 @@
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import { recentOf } from '../../lib/recency'
+  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   // The list's Avatar: a person wears the same name-derived color here that
   // they wear in every row behind this popover.
   import Avatar from '../list/Avatar.svelte'
@@ -50,7 +51,6 @@
   // Template keeps `searching` / derived reads of server results.
   const searching = $derived(userSearch.searching)
   const serverUsers = $derived(userSearch.results)
-  let rootEl = $state<HTMLDivElement | null>(null)
   let inputEl: HTMLInputElement | null = $state(null)
 
   const hasAssignee = $derived(Boolean(issue.assignee || issue.assignee_email))
@@ -176,22 +176,6 @@
     }
   }
 
-  $effect(() => {
-    if (!open) return
-    function onDown(e: MouseEvent) {
-      if (rootEl && !rootEl.contains(e.target as Node)) open = false
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') open = false
-    }
-    window.addEventListener('mousedown', onDown)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('mousedown', onDown)
-      window.removeEventListener('keydown', onKey)
-    }
-  })
-
   const isSearching = $derived(query.trim().length > 0)
 </script>
 
@@ -216,7 +200,13 @@
   </button>
 {/snippet}
 
-<div class="relative flex items-center gap-1.5" bind:this={rootEl}>
+<!-- Outside click closes. The boundary is this root rather than the panel
+     below, so the trigger counts as inside — otherwise the mousedown that
+     closes and the click that reopens would cancel each other out. -->
+<div
+  class="relative flex items-center gap-1.5"
+  use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
+>
   <span class="w-12 flex-none text-text-muted">{t('write.assigneeLabel')}</span>
   <button
     type="button"
@@ -246,6 +236,7 @@
 
   {#if open}
     <div
+      use:onEscape={() => (open = false)}
       class="anim-enter absolute left-12 top-full z-30 mt-1 w-64 rounded-lg border border-border-strong bg-bg-elevated shadow-overlay"
       role="dialog"
       aria-label={t('write.pickAssignee')}

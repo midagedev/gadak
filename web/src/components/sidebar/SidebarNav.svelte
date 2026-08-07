@@ -249,6 +249,60 @@
 
 <svelte:document onclick={onDocClick} />
 
+<!-- The label above a group of rows. Every group in the rail uses it, so the
+     one thing that separates a section from a row stays one thing. -->
+{#snippet sectionHeader(label: string)}
+  <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
+    {label}
+  </div>
+{/snippet}
+
+<!-- A saved view's row. A personal view and a team view are the same row: the
+     team one only adds who shared it (in the label and the tooltip) and asks
+     who is allowed to delete it, so both render through here rather than
+     through two copies that drift apart.
+
+     `{' '}` rather than a newline before the owner suffix — the space has to
+     belong to the branch that draws the suffix, or a personal row would carry a
+     trailing one it never had. -->
+{#snippet viewRow(row: {
+  name: string
+  active: boolean
+  apply: () => void
+  /** Team views only: who shared it. Absent draws no suffix and no tooltip. */
+  owner?: string | null
+  /** Null when this viewer may not delete it — a team view that is not theirs. */
+  remove: (() => void) | null
+})}
+  <div
+    class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {row.active
+      ? 'bg-bg-active'
+      : 'hover:bg-bg-hover'}"
+  >
+    <button
+      type="button"
+      class="min-w-0 flex-1 truncate text-left {row.active
+        ? 'text-text-primary'
+        : 'text-text-secondary group-hover:text-text-primary'}"
+      onclick={row.apply}
+      title={row.owner ? t('sidebar.viewOwner', { name: row.owner }) : undefined}
+      >{row.name}{#if row.owner}{' '}<span class="ml-1 text-micro text-text-muted"
+          >· {row.owner}</span
+        >{/if}</button
+    >
+    {#if row.remove}
+      <button
+        type="button"
+        class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100"
+        title={t('common.delete')}
+        onclick={row.remove}
+      >
+        <Icon name="x" size={13} />
+      </button>
+    {/if}
+  </div>
+{/snippet}
+
 <div class="flex h-full flex-col">
   <!-- New issue (shortcut c). Disabled on the hosted demo, where the snapshot
        service worker answers every write with 501 — offering the button only to
@@ -366,9 +420,7 @@
 
     <!-- Built-in views -->
     <div class="mb-3">
-      <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
-        {t('sidebar.builtinViews')}
-      </div>
+      {@render sectionHeader(t('sidebar.builtinViews'))}
       {#each builtins as v (v.id)}
         <button
           type="button"
@@ -397,34 +449,14 @@
     <!-- Personal views -->
     {#if views.personal.length}
       <div class="mb-3">
-        <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
-          {t('sidebar.myViews')}
-        </div>
+        {@render sectionHeader(t('sidebar.myViews'))}
         {#each views.personal as v (v.id)}
-          <div
-            class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {activePersonal ===
-            v.id
-              ? 'bg-bg-active'
-              : 'hover:bg-bg-hover'}"
-          >
-            <button
-              type="button"
-              class="min-w-0 flex-1 truncate text-left {activePersonal === v.id
-                ? 'text-text-primary'
-                : 'text-text-secondary group-hover:text-text-primary'}"
-              onclick={() => applyView(v.config)}
-            >
-              {v.name}
-            </button>
-            <button
-              type="button"
-              class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100"
-              title={t('common.delete')}
-              onclick={() => views.removePersonal(v.id)}
-            >
-              <Icon name="x" size={13} />
-            </button>
-          </div>
+          {@render viewRow({
+            name: v.name,
+            active: activePersonal === v.id,
+            apply: () => applyView(v.config),
+            remove: () => views.removePersonal(v.id),
+          })}
         {/each}
       </div>
     {/if}
@@ -432,39 +464,18 @@
     <!-- Team shared views -->
     {#if views.team.length}
       <div class="mb-3">
-        <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
-          {t('sidebar.teamViews')}
-        </div>
+        {@render sectionHeader(t('sidebar.teamViews'))}
         {#each views.team as v (v.id)}
-          <div
-            class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {activeTeam ===
-            v.id
-              ? 'bg-bg-active'
-              : 'hover:bg-bg-hover'}"
-          >
-            <button
-              type="button"
-              class="min-w-0 flex-1 truncate text-left {activeTeam === v.id
-                ? 'text-text-primary'
-                : 'text-text-secondary group-hover:text-text-primary'}"
-              onclick={() => applyView(v.config)}
-              title={v.owner_name ? t('sidebar.viewOwner', { name: v.owner_name }) : undefined}
-            >
-              {v.name}
-              {#if v.owner_name}<span class="ml-1 text-micro text-text-muted">· {v.owner_name}</span>{/if}
-            </button>
-            {#if me.email && v.owner_email === me.email}
-              <button
-                type="button"
-                class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100"
-                title={t('common.delete')}
-                onclick={() =>
-                  views.removeTeam(v.id).catch(() => alert(t('sidebar.viewDeleteFail')))}
-              >
-                <Icon name="x" size={13} />
-              </button>
-            {/if}
-          </div>
+          {@render viewRow({
+            name: v.name,
+            active: activeTeam === v.id,
+            apply: () => applyView(v.config),
+            owner: v.owner_name,
+            remove:
+              me.email && v.owner_email === me.email
+                ? () => views.removeTeam(v.id).catch(() => alert(t('sidebar.viewDeleteFail')))
+                : null,
+          })}
         {/each}
       </div>
     {/if}
@@ -478,9 +489,7 @@
     -->
     {#if !pages.bySpace.length}
       <div class="mb-3" data-testid="docs-section-empty">
-        <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
-          {t('sidebar.docs')}
-        </div>
+        {@render sectionHeader(t('sidebar.docs'))}
         <!-- Same gutter and leading glyph as the live rows below this header
              would have: without them the two lines aligned with DOCS itself and
              read as a caption about the section rather than as the one thing in
@@ -530,9 +539,7 @@
     {/if}
     {#if pages.bySpace.length}
       <div class="mb-3" data-testid="docs-section">
-        <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
-          {t('sidebar.docs')}
-        </div>
+        {@render sectionHeader(t('sidebar.docs'))}
         <!-- The way in: recency first, across every space. What changed lately,
              and what you had open, are questions no single space answers. -->
         <button
@@ -604,9 +611,7 @@
          the server actually has more than one (older servers / demo → 404 → []). -->
     {#if workspaceList.length > 1}
       <div class="mb-3">
-        <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
-          {t('sidebar.workspaces')}
-        </div>
+        {@render sectionHeader(t('sidebar.workspaces'))}
         {#each workspaceList as w (w.name)}
           <a
             href={workspaceHref(w)}

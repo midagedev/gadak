@@ -24,6 +24,7 @@
   import type { AdfNode } from '../../lib/types'
   import { getDetailCached, invalidate } from '../../lib/detail-cache.svelte'
   import { createResource } from '../../lib/resource.svelte'
+  import { onEscape } from '../../lib/dom-actions'
   import { jiraUrl } from './format'
   import DetailHeader from './DetailHeader.svelte'
   import IssueFields from './IssueFields.svelte'
@@ -68,15 +69,10 @@
   // are still assembling. defaultPrevented is the signal rather than reading the
   // stores: listener order is registration order, and this one registers last
   // (on selection), so by the time it runs the stores are already cleared.
-  $effect(() => {
-    if (!key) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
-      selection.clear()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
+  function onEscapeKey(e: KeyboardEvent): void {
+    if (e.defaultPrevented) return
+    selection.clear()
+  }
 
   // detail must match the current key (avoid showing previous detail mid-switch)
   const detailForKey = $derived(detail && key === detail.issue_key ? detail : null)
@@ -111,7 +107,7 @@
 </script>
 
 {#if key}
-  <div class="flex h-full flex-col text-text-primary">
+  <div class="flex h-full flex-col text-text-primary" use:onEscape={onEscapeKey}>
     <!-- Header — outside the scroll, so it is pinned by structure. -->
     <div class="relative z-10 flex-none bg-bg-panel">
       {#if lite}

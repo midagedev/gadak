@@ -64,12 +64,12 @@
   ]
   const bg = $derived(PALETTE[colorIndex(email ?? name ?? '')])
 
-  let broken = $state(false)
-  $effect(() => {
-    // Reset broken state when email changes
-    void email
-    broken = false
-  })
+  /* Which image URL failed, rather than a bare "did it fail" flag. This row is
+     recycled through the virtual list, so the next member arrives in the same
+     component instance — a flag would carry the previous one's broken image
+     into it. Keyed on the URL, a new src simply is not the one that broke. */
+  let brokenSrc = $state<string | null>(null)
+  const broken = $derived(brokenSrc !== null && brokenSrc === img)
 
   const Tag = $derived(onclick ? 'button' : 'span')
 </script>
@@ -93,7 +93,7 @@
       alt={displayName}
       class="h-full w-full object-cover"
       loading="lazy"
-      onerror={() => (broken = true)}
+      onerror={() => (brokenSrc = img)}
     />
   {:else if email || name}
     <span

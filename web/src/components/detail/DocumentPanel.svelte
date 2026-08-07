@@ -13,6 +13,7 @@
   import { t, relativeTime, absTime } from '../../lib/i18n'
   import { pages } from '../../stores/pages.svelte'
   import { createResource } from '../../lib/resource.svelte'
+  import { onEscape } from '../../lib/dom-actions'
   import AdfContent from './AdfContent.svelte'
   import RelatedIssues from './RelatedIssues.svelte'
   import Section from './Section.svelte'
@@ -37,16 +38,6 @@
     resource.reload()
   }
 
-  // Esc to close (mirrors DetailPanel).
-  $effect(() => {
-    if (!key) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') pages.clear()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
-
   // Never show the previous page's body mid-switch.
   const detailForKey = $derived(detail && key === detail.key ? detail : null)
   const head = $derived(detailForKey ?? lite)
@@ -66,7 +57,12 @@
 </script>
 
 {#if key}
-  <div class="flex h-full flex-col text-text-primary" data-testid="doc-panel">
+  <!-- Esc to close (mirrors DetailPanel). -->
+  <div
+    class="flex h-full flex-col text-text-primary"
+    data-testid="doc-panel"
+    use:onEscape={() => pages.clear()}
+  >
     <!-- Header — outside the scroll (see DetailPanel). -->
     <div class="relative z-10 flex-none bg-bg-panel">
       <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">

@@ -24,11 +24,11 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { recentOf } from '../../lib/recency'
+  import { onOutsideClick } from '../../lib/dom-actions'
   import Avatar from './Avatar.svelte'
 
   const menu = $derived(triage.menu)
   let assigneeQuery = $state('')
-  let rootEl = $state<HTMLDivElement | null>(null)
 
   // ── Batch progress ──
   let running = $state(false)
@@ -207,6 +207,13 @@
   // the selection) — handling it here too would clear the selection in the same
   // keystroke that closed the popover. This one stays on window because the
   // assignee search box has focus while its menu is open.
+  //
+  // It also stays an $effect rather than becoming a use:onEscape on the bar
+  // below, and the difference is registration order: DetailPanel declines an Esc
+  // this one has already spent, which only works while this listener is the
+  // earlier of the two. An action would bind when the bar appears — after the
+  // panel, whenever rows are picked with an issue already open — and the panel
+  // would then close on the keystroke that was meant for the popover.
   $effect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape' || !menu) return
@@ -216,28 +223,17 @@
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
-
-  // Outside click closes an open menu. Bound one task late: the palette runs its
-  // commands on mousedown, so a listener attached during that same dispatch
-  // would see the opening click as an outside click and close the menu at once.
-  $effect(() => {
-    if (!menu) return
-    function onDown(e: MouseEvent) {
-      if (rootEl && !rootEl.contains(e.target as Node)) closeMenu()
-    }
-    const timer = setTimeout(() => window.addEventListener('mousedown', onDown), 0)
-    return () => {
-      clearTimeout(timer)
-      window.removeEventListener('mousedown', onDown)
-    }
-  })
 </script>
 
 {#if bulk.active}
+  <!-- Outside click closes an open menu, bound one task late (see the action's
+       `defer`): the palette runs its commands on mousedown, so a listener
+       attached during that same dispatch would see the opening click as an
+       outside click and close the menu at once. -->
   <div
-    bind:this={rootEl}
     data-testid="bulk-bar"
     class="anim-enter flex flex-none items-center gap-2 border-b border-border-strong/70 bg-bg-elevated px-4 py-2 text-[12px]"
+    use:onOutsideClick={{ handler: closeMenu, enabled: !!menu, defer: true }}
   >
     <span class="flex-none font-medium text-text-primary">{t('list.selectedCount', { n: bulk.count })}</span>
     <span class="flex-none text-text-muted">·</span>

@@ -9,6 +9,7 @@
    */
   import { untrack } from 'svelte'
   import Icon from '../ui/Icon.svelte'
+  import Marks from '../ui/Marks.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { highlightSegments, mergeAdjacentHits } from '../../lib/format'
   import { pages, type PageNode } from '../../stores/pages.svelte'
@@ -190,9 +191,7 @@
       onclick={() => openDoc(node)}
     >
       <span class="min-w-0 truncate"
-        >{#each titleSegs(node.page.title) as seg, i (i)}{#if seg.hit}<mark
-              class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark
-            >{:else}{seg.text}{/if}{/each}</span
+        ><Marks segs={titleSegs(node.page.title)} /></span
       >
       {#if node.children.length}
         <!-- What a collapsed branch is hiding. It rides with the title rather

@@ -16,6 +16,7 @@
   import { me } from '../../stores/me.svelte'
   import { recentOf } from '../../lib/recency'
   import { normalizeCategory } from '../detail/format'
+  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
 
   let { issue }: { issue: IssueLite } = $props()
 
@@ -25,7 +26,6 @@
   let source = $state<'local' | 'remote'>('local')
   let loadError = $state<string | null>(null)
   let busyId = $state<string | null>(null)
-  let rootEl = $state<HTMLDivElement | null>(null)
   let listEl = $state<HTMLDivElement | null>(null)
 
   const cat = $derived(normalizeCategory(issue.status_category))
@@ -140,27 +140,13 @@
     }
   }
 
-  // Outside click / Esc to close
-  $effect(() => {
-    if (!open) return
-    function onDown(e: MouseEvent) {
-      if (rootEl && !rootEl.contains(e.target as Node)) open = false
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') open = false
-    }
-    window.addEventListener('mousedown', onDown)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('mousedown', onDown)
-      window.removeEventListener('keydown', onKey)
-    }
-  })
-
   const canEdit = $derived(me.identified)
 </script>
 
-<div class="relative inline-block" bind:this={rootEl}>
+<!-- Outside click closes. The boundary is this root rather than the list below,
+     so the trigger counts as inside — otherwise the mousedown that closes and
+     the click that reopens would cancel each other out. -->
+<div class="relative inline-block" use:onOutsideClick={{ handler: () => (open = false), enabled: open }}>
   <button
     type="button"
     onclick={toggle}
@@ -187,6 +173,7 @@
   {#if open}
     <div
       bind:this={listEl}
+      use:onEscape={() => (open = false)}
       class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-52 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
       role="listbox"
     >

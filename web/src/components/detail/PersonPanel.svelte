@@ -26,6 +26,7 @@
   import { me } from '../../stores/me.svelte'
   import { emptyConfig, type ViewConfig } from '../../lib/view-config'
   import type { AuthorComment } from '../../lib/types'
+  import { onEscape } from '../../lib/dom-actions'
   // The list's Avatar, not detail/'s: the panel owner must wear the same
   // name-derived color the rows repeat, or the identity link breaks.
   import Avatar from '../list/Avatar.svelte'
@@ -76,19 +77,15 @@
     else selection.select(c.key)
   }
 
-  // Esc closes, the same way it does for an issue or a document.
-  $effect(() => {
-    if (!email) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') person.clear()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
 </script>
 
 {#if email}
-  <div class="flex h-full flex-col text-text-primary" data-testid="person-panel">
+  <!-- Esc closes, the same way it does for an issue or a document. -->
+  <div
+    class="flex h-full flex-col text-text-primary"
+    data-testid="person-panel"
+    use:onEscape={() => person.clear()}
+  >
     <!-- Header — outside the scroll (see DetailPanel). -->
     <div class="relative z-10 flex-none bg-bg-panel">
       <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">

@@ -20,6 +20,7 @@
   import { highlightSegments } from '../../lib/format'
   import type { SearchMatch } from '../../lib/types'
   import Icon from '../ui/Icon.svelte'
+  import Marks from '../ui/Marks.svelte'
 
   let { match, q }: { match: SearchMatch; q: string } = $props()
 
@@ -39,6 +40,6 @@
   <span class="min-w-0 flex-1 truncate" data-testid="match-text">
     <!-- The gap after the separator is a margin, not a space: Svelte trims
          whitespace at a block boundary, which ran the marker into the text. -->
-    {#if match.field === 'comment'}<span class="mr-1">{t('list.matchInComment')} ·</span>{/if}{#each segs as seg, i (i)}{#if seg.hit}<mark class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark>{:else}{seg.text}{/if}{/each}
+    {#if match.field === 'comment'}<span class="mr-1">{t('list.matchInComment')} ·</span>{/if}<Marks {segs} />
   </span>
 </span>

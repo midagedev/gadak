@@ -26,6 +26,7 @@
   import { highlightSegments, mergeAdjacentHits } from '../../lib/format'
   import type { PageLite } from '../../lib/types'
   import { pages } from '../../stores/pages.svelte'
+  import Marks from '../ui/Marks.svelte'
 
   /** Labels beyond this are a count — the row is a sentence, not a tag cloud. */
   const MAX_LABELS = 2
@@ -107,13 +108,6 @@
   }
 </script>
 
-<!-- One clause's matched slices. Every marked clause on the row renders through
-     here, so the mark can never end up drawn one way in the title and another
-     in the line below it. -->
-{#snippet marks(segs: { text: string; hit: boolean }[])}{#each segs as seg, i (i)}{#if seg.hit}<mark
-      class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark
-    >{:else}{seg.text}{/if}{/each}{/snippet}
-
 <div
   class="group flex w-full cursor-pointer select-none flex-col justify-center gap-0.5 border-b border-border-subtle/70 px-4 text-left transition-colors {excerpt
     ? 'h-row-excerpt'
@@ -135,7 +129,7 @@
   <!-- Same tier as an issue row's summary — this list is a peer collection,
        not a secondary one (vision verdict 2026-08-06). -->
   <span class="w-full truncate text-body font-medium text-text-primary"
-    >{@render marks(titleSegs)}</span
+    ><Marks segs={titleSegs} /></span
   >
   <!-- Unread is the dot alone; painting the whole meta line accent put the
        meta above the title in the row's hierarchy (vision verdict). -->
@@ -146,13 +140,13 @@
       <span class="sr-only">{t('docs.unread')}</span>
     {/if}
     {#if author}
-      <span class="max-w-[40%] flex-none truncate">{@render marks(authorSegs)}</span>
+      <span class="max-w-[40%] flex-none truncate"><Marks segs={authorSegs} /></span>
       <span aria-hidden="true">·</span>
     {/if}
     <span class="flex-none" title={absTime(page.updated_at)}>{when}</span>
     {#if showSpace}
       <span aria-hidden="true">·</span>
-      <span class="min-w-0 truncate" title={page.space_key}>{@render marks(spaceSegs)}</span>
+      <span class="min-w-0 truncate" title={page.space_key}><Marks segs={spaceSegs} /></span>
     {/if}
     {#if shownLabels.length}
       <!--
@@ -181,7 +175,7 @@
             data-label={label}
             title={t('docs.labelFilterTo', { label })}
             onclick={stop(() => pages.setDocsLabel(label))}
-          >{@render marks(segsOf(label))}</button>
+          ><Marks segs={segsOf(label)} /></button>
         {/each}
         {#if extraLabels}
           <span class="tabular-nums" title={labels.join(', ')}>+{extraLabels}</span>
@@ -193,7 +187,7 @@
     <!-- Exactly one line, clipped: the row answers "is this the one", and a
          second line would trade the list's density for a worse summary. -->
     <span class="w-full truncate text-micro leading-[15px] text-text-muted" data-testid="doc-excerpt"
-      >{@render marks(excerptSegs)}</span
+      ><Marks segs={excerptSegs} /></span
     >
   {/if}
 </div>

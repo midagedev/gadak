@@ -10,6 +10,7 @@
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
   import { absoluteTime } from '../detail/format'
+  import { trapFocus } from '../../lib/focus-trap'
 
   const API_TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens'
 
@@ -64,6 +65,7 @@
   }}
 >
   <div
+    use:trapFocus
     class="anim-enter w-full max-w-sm rounded-lg border border-border-strong bg-bg-panel p-5 shadow-overlay"
     role="dialog"
     aria-modal="true"
