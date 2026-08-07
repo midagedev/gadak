@@ -20,10 +20,10 @@
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
-  import { ApiError } from '../../lib/api'
   import { feature, isHostedDemo } from '../../lib/config'
-  import type { AdfNode, DetailResponse } from '../../lib/types'
-  import { getDetailCached, invalidate } from './cache.svelte'
+  import type { AdfNode } from '../../lib/types'
+  import { getDetailCached, invalidate } from '../../lib/detail-cache.svelte'
+  import { createResource } from '../../lib/resource.svelte'
   import { jiraUrl } from './format'
   import DetailHeader from './DetailHeader.svelte'
   import IssueFields from './IssueFields.svelte'
@@ -44,48 +44,23 @@
   // Local-pool row for instant header (may be missing: linked issues not in pool)
   const lite = $derived(key ? issues.get(key) : undefined)
 
-  let detail = $state<DetailResponse | null>(null)
-  let errorKind = $state<null | 'notfound' | 'network'>(null)
-
-  // Race guard: only the last load wins when selection changes quickly.
-  let gen = 0
-
-  async function load(k: string): Promise<void> {
-    const my = ++gen
-    errorKind = null
-    try {
-      const d = await getDetailCached(k)
-      if (my !== gen) return // stale
-      detail = d
-    } catch (e) {
-      if (my !== gen) return
-      const status = e instanceof ApiError ? e.status : 0
-      errorKind = status === 404 ? 'notfound' : 'network'
-      detail = null
-    }
-  }
+  // Load on selectedKey change; clear when selection clears.
+  // watch detailNonce so cache updates (e.g. comment confirm) re-read
+  // (cache hit → no network; temp comment swaps to the real one).
+  const resource = createResource(
+    () => selection.selectedKey,
+    (k) => getDetailCached(k),
+    { watch: () => write.detailNonce },
+  )
+  const detail = $derived(resource.data)
+  const errorKind = $derived(resource.errorKind)
 
   function retry(): void {
     if (key) {
       invalidate(key)
-      void load(key)
+      resource.reload()
     }
   }
-
-  // Load on selectedKey change; clear state when selection clears.
-  // Depend on write.detailNonce so cache updates (e.g. comment confirm) re-read
-  // (cache hit → no network; temp comment swaps to the real one).
-  $effect(() => {
-    const k = selection.selectedKey
-    void write.detailNonce
-    if (!k) {
-      gen++ // invalidate inflight
-      detail = null
-      errorKind = null
-      return
-    }
-    void load(k)
-  })
 
   // Esc to close, unless this Esc was already spent — the shell gives the first
   // one back to a live multi-selection and BulkBar to an open popover, and

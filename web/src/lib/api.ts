@@ -221,7 +221,10 @@ export function getViews(): Promise<ViewsResponse> {
   return json<ViewsResponse>('views/')
 }
 
-export function createView(name: string, config: Record<string, unknown>): Promise<SavedView> {
+export function createView(
+  name: string,
+  config: import('./view-config').ViewConfig,
+): Promise<SavedView> {
   return json<SavedView>('views/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

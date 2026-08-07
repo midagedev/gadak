@@ -9,8 +9,8 @@
  * - explore/detail call invalidate(key) when issue updated_at changes.
  */
 
-import type { DetailComment, DetailResponse } from '../../lib/types'
-import { getDetail } from '../../lib/api'
+import type { DetailComment, DetailResponse } from './types'
+import { getDetail } from './api'
 
 const MAX = 50
 

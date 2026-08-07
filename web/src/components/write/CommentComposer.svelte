@@ -12,7 +12,7 @@
   import { tick } from 'svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
-  import { searchUsers } from '../../lib/api'
+  import { createUserSearch } from '../../lib/user-search.svelte'
   import type { CommentMention, JiraUser, UploadedAttachment } from '../../lib/types'
   import { isHostedDemo } from '../../lib/config'
   import Icon from '../ui/Icon.svelte'
@@ -87,10 +87,20 @@
   /* ── Mention autocomplete ── */
   let mOpen = $state(false)
   let mStart = $state(-1) // index of '@' in body
-  let mResults = $state<JiraUser[]>([])
+  let mQuery = $state('') // drives createUserSearch; set from onInput
   let mIndex = $state(0)
-  let mSeq = 0 // search race guard
-  let mTimer: ReturnType<typeof setTimeout> | null = null
+
+  const mentionSearch = createUserSearch(() => mQuery, {
+    debounceMs: 180,
+    minLength: 1,
+    onResults: () => {
+      mIndex = 0
+    },
+  })
+  // Preserve prior filter: active users with account_id, top 8.
+  const mResults = $derived(
+    mentionSearch.results.filter((u) => u.active && u.account_id).slice(0, 8),
+  )
 
   function autosize() {
     if (!ta) return
@@ -101,7 +111,7 @@
   function closeMention() {
     mOpen = false
     mStart = -1
-    mResults = []
+    mQuery = ''
     mIndex = 0
   }
 
@@ -128,25 +138,7 @@
     }
     mStart = m.start
     mOpen = true
-    if (m.query.length < 1) {
-      mResults = []
-      return
-    }
-    if (mTimer) clearTimeout(mTimer)
-    const q = m.query
-    mTimer = setTimeout(() => void runSearch(q), 180)
-  }
-
-  async function runSearch(q: string) {
-    const seq = ++mSeq
-    try {
-      const res = await searchUsers(q)
-      if (seq !== mSeq) return // only the latest query
-      mResults = res.users.filter((u) => u.active && u.account_id).slice(0, 8)
-      mIndex = 0
-    } catch {
-      if (seq === mSeq) mResults = []
-    }
+    mQuery = m.query
   }
 
   async function pickMention(u: JiraUser) {

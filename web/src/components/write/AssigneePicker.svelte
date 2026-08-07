@@ -12,6 +12,7 @@
   import type { IssueLite, JiraUser, Member } from '../../lib/types'
   import * as api from '../../lib/api'
   import { ApiError } from '../../lib/api'
+  import { createUserSearch } from '../../lib/user-search.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
@@ -34,9 +35,21 @@
 
   let open = $state(false)
   let query = $state('')
-  let serverUsers = $state<JiraUser[]>([])
-  let searching = $state(false)
   let busy = $state(false)
+
+  const userSearch = createUserSearch(() => query, {
+    debounceMs: 250,
+    minLength: 2,
+    onError: (e) => {
+      if (e instanceof ApiError && e.code === 'credential_required') {
+        open = false
+        write.openSettings()
+      }
+    },
+  })
+  // Template keeps `searching` / derived reads of server results.
+  const searching = $derived(userSearch.searching)
+  const serverUsers = $derived(userSearch.results)
   let rootEl = $state<HTMLDivElement | null>(null)
   let inputEl: HTMLInputElement | null = $state(null)
 
@@ -119,38 +132,10 @@
     return [...local, ...server]
   })
 
-  let debounce: ReturnType<typeof setTimeout> | null = null
-  $effect(() => {
-    const q = query.trim()
-    if (debounce) clearTimeout(debounce)
-    if (q.length < 2) {
-      serverUsers = []
-      return
-    }
-    debounce = setTimeout(() => void runSearch(q), 250)
-  })
-
-  async function runSearch(q: string) {
-    searching = true
-    try {
-      const res = await api.searchUsers(q)
-      serverUsers = res.users
-    } catch (e) {
-      if (e instanceof ApiError && e.code === 'credential_required') {
-        open = false
-        write.openSettings()
-      }
-      serverUsers = []
-    } finally {
-      searching = false
-    }
-  }
-
   async function openPicker() {
     if (!(await write.ensureWritable())) return
     open = true
     query = ''
-    serverUsers = []
     queueMicrotask(() => inputEl?.focus())
   }
 

@@ -15,6 +15,7 @@
   import { onMount } from 'svelte'
   import * as api from '../../lib/api'
   import { ApiError } from '../../lib/api'
+  import { createUserSearch } from '../../lib/user-search.svelte'
   import { write } from '../../stores/write.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
@@ -49,9 +50,17 @@
   // Assignee (optional)
   let assignee = $state<JiraUser | null>(null)
   let userQuery = $state('')
-  let userResults = $state<JiraUser[]>([])
-  let userSearching = $state(false)
   let userMenuOpen = $state(false)
+
+  const userSearch = createUserSearch(() => userQuery, {
+    debounceMs: 250,
+    minLength: 2,
+    onResults: () => {
+      userMenuOpen = true
+    },
+  })
+  const userResults = $derived(userSearch.results)
+  const userSearching = $derived(userSearch.searching)
 
   // Labels (optional)
   let labels = $state<string[]>([])
@@ -133,33 +142,9 @@
     }
   })
 
-  // ── Assignee search (debounced) ──
-  let debounce: ReturnType<typeof setTimeout> | null = null
-  $effect(() => {
-    const q = userQuery.trim()
-    if (debounce) clearTimeout(debounce)
-    if (q.length < 2) {
-      userResults = []
-      return
-    }
-    debounce = setTimeout(async () => {
-      userSearching = true
-      try {
-        const res = await api.searchUsers(q)
-        userResults = res.users
-        userMenuOpen = true
-      } catch {
-        userResults = []
-      } finally {
-        userSearching = false
-      }
-    }, 250)
-  })
-
   function pickUser(u: JiraUser) {
     assignee = u
     userQuery = ''
-    userResults = []
     userMenuOpen = false
   }
   function clearUser() {

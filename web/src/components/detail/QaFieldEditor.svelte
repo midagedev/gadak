@@ -11,8 +11,8 @@
    * Falls back to read-only when editmeta is missing (not editable / no credential).
    */
   import { t, collator } from '../../lib/i18n'
-  import type { EditMetaOption, IssueLite, JiraUser, Member } from '../../lib/types'
-  import * as api from '../../lib/api'
+  import type { EditMetaOption, IssueLite, Member } from '../../lib/types'
+  import { createUserSearch } from '../../lib/user-search.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
@@ -41,8 +41,12 @@
 
   // user search state
   let query = $state('')
-  let serverUsers = $state<JiraUser[]>([])
-  let searching = $state(false)
+  const userSearch = createUserSearch(() => query, {
+    debounceMs: 180,
+    minLength: 2,
+  })
+  const serverUsers = $derived(userSearch.results)
+  const searching = $derived(userSearch.searching)
 
   // Multi-select (version_array / multi_option) draft id set + filter (hundreds of options)
   let draft = $state<Set<string>>(new Set())
@@ -88,7 +92,6 @@
     if (!write.editFieldMeta(key, field)) return
     query = ''
     vquery = ''
-    serverUsers = []
     if (isMulti) draft = new Set(currentSelectedIds())
     open = true
     if (kind === 'user' || isMulti) queueMicrotask(() => inputEl?.focus())
@@ -188,29 +191,6 @@
       }
     }
     return merged.slice(0, 40)
-  })
-
-  // ≥2 chars → server user search (fallback for people outside the team).
-  $effect(() => {
-    const q = query.trim()
-    if (q.length < 2) {
-      serverUsers = []
-      return
-    }
-    let cancelled = false
-    searching = true
-    api
-      .searchUsers(q)
-      .then((res) => {
-        if (!cancelled) serverUsers = res.users
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) searching = false
-      })
-    return () => {
-      cancelled = true
-    }
   })
 
   async function pickUser(c: Cand | null) {

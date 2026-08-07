@@ -80,10 +80,7 @@ class ViewsStore {
   }
 
   async addTeam(name: string, config: ViewConfig): Promise<void> {
-    const view = await api.createView(
-      name.trim() || t('view.unnamed'),
-      config as unknown as Record<string, unknown>,
-    )
+    const view = await api.createView(name.trim() || t('view.unnamed'), config)
     this.team = [...this.team, view]
   }
 

@@ -20,7 +20,7 @@ import { t } from '../lib/i18n'
 import { ApiError } from '../lib/api'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
-import { appendComment, invalidate } from '../components/detail/cache.svelte'
+import { appendComment, invalidate } from '../lib/detail-cache.svelte'
 import { recordRecent } from '../lib/recency'
 import { isHostedDemo } from '../lib/config'
 import type {

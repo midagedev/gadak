@@ -223,8 +223,7 @@
     }
     for (const v of builtinViews()) push(`vb:${v.id}`, v.name, t('palette.viewBuiltin'), v.config, v.icon)
     for (const v of views.personal) push(`vp:${v.id}`, v.name, t('palette.viewPersonal'), v.config)
-    for (const v of views.team)
-      push(`vt:${v.id}`, v.name, t('palette.viewTeam'), v.config as unknown as ViewConfig)
+    for (const v of views.team) push(`vt:${v.id}`, v.name, t('palette.viewTeam'), v.config)
     return out
   })
 

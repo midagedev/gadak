@@ -50,9 +50,7 @@
   }
   const activeBuiltin = $derived(activeId(builtins))
   const activePersonal = $derived(activeId(views.personal))
-  const activeTeam = $derived(
-    activeId(views.team.map((v) => ({ id: v.id, config: v.config as unknown as ViewConfig }))),
-  )
+  const activeTeam = $derived(activeId(views.team))
   const builtinCounts = $derived.by(() => {
     const counts = new Map<string, number>()
     for (const view of builtins) {
@@ -449,7 +447,7 @@
               class="min-w-0 flex-1 truncate text-left {activeTeam === v.id
                 ? 'text-text-primary'
                 : 'text-text-secondary group-hover:text-text-primary'}"
-              onclick={() => applyView(v.config as unknown as ViewConfig)}
+              onclick={() => applyView(v.config)}
               title={v.owner_name ? t('sidebar.viewOwner', { name: v.owner_name }) : undefined}
             >
               {v.name}

@@ -12,8 +12,7 @@
    */
   import { t, relativeTime, absTime } from '../../lib/i18n'
   import { pages } from '../../stores/pages.svelte'
-  import { ApiError } from '../../lib/api'
-  import type { PageDetail } from '../../lib/types'
+  import { createResource } from '../../lib/resource.svelte'
   import AdfContent from './AdfContent.svelte'
   import RelatedIssues from './RelatedIssues.svelte'
   import Section from './Section.svelte'
@@ -26,37 +25,17 @@
     return pages.lite(key) ?? pages.searchHits.find((p) => p.key === key)
   })
 
-  let detail = $state<PageDetail | null>(null)
-  let errorKind = $state<null | 'notfound' | 'network'>(null)
+  const resource = createResource(
+    () => pages.selectedKey,
+    (k) => pages.detail(k),
+  )
+  const detail = $derived(resource.data)
+  const errorKind = $derived(resource.errorKind)
 
-  // Race guard: only the last load wins when the selection changes quickly.
-  let gen = 0
-
-  async function load(k: string): Promise<void> {
-    const my = ++gen
-    errorKind = null
-    try {
-      const d = await pages.detail(k)
-      if (my !== gen) return // stale
-      detail = d
-    } catch (e) {
-      if (my !== gen) return
-      const status = e instanceof ApiError ? e.status : 0
-      errorKind = status === 404 ? 'notfound' : 'network'
-      detail = null
-    }
+  // Keep `load` name for the markup retry handler (variable rename only).
+  function load(_k: string): void {
+    resource.reload()
   }
-
-  $effect(() => {
-    const k = pages.selectedKey
-    if (!k) {
-      gen++ // invalidate inflight
-      detail = null
-      errorKind = null
-      return
-    }
-    void load(k)
-  })
 
   // Esc to close (mirrors DetailPanel).
   $effect(() => {

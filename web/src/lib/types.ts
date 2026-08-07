@@ -490,13 +490,17 @@ export interface NotificationConfig {
 /**
  * Saved view (team-shared). `config` is opaque JSON the server does not interpret —
  *  front-end view state (filters/display); shape is defined by [explore].
+ *
+ * Default `C` is ViewConfig so call sites need no cast; the server still treats
+ * config as opaque JSON. Override C only for raw/transport edges.
+ * Inline import avoids a top-level cycle with view-config.ts.
  */
-export interface SavedView {
+export interface SavedView<C = import('./view-config').ViewConfig> {
   id: string
   name: string
   owner_email: string | null
   owner_name: string | null
-  config: Record<string, unknown>
+  config: C
   created_at: string | null
   updated_at: string | null
 }

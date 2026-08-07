@@ -27,7 +27,7 @@
   import Avatar from './Avatar.svelte'
   import Icon from '../ui/Icon.svelte'
   import MatchLine from './MatchLine.svelte'
-  import { prefetchDetail } from '../detail/cache.svelte'
+  import { prefetchDetail } from '../../lib/detail-cache.svelte'
 
   let {
     issue,
