@@ -275,11 +275,11 @@ func TestClassifyLastError(t *testing.T) {
 
 func TestRedactSite(t *testing.T) {
 	cases := map[string]string{
-		"":                            "none",
+		"":                               "none",
 		"https://example.atlassian.net":  "<redacted>.atlassian.net",
 		"https://example.atlassian.net/": "<redacted>.atlassian.net",
-		"https://jira.example.com":    "configured (cloud)",
-		"http://localhost:8080":       "configured (cloud)",
+		"https://jira.example.com":       "configured (cloud)",
+		"http://localhost:8080":          "configured (cloud)",
 	}
 	for in, want := range cases {
 		if got := redactSite(in); got != want {
