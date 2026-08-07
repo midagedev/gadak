@@ -397,8 +397,39 @@
       </div>
     {/if}
 
-    <!-- Docs: mirrored wiki pages. Hidden entirely when the mirror has none
-         (no wiki configured / older server → empty index). -->
+    <!--
+      Docs: mirrored wiki pages. When the mirror has none this used to render
+      nothing at all, so "you have not set this up" and "this app cannot do
+      that" looked the same — and someone who had configured it on another
+      profile read the switch as the feature disappearing. The row below says
+      which of the two it is and leads to the screen that fixes it.
+    -->
+    {#if !pages.bySpace.length}
+      <div class="mb-3" data-testid="docs-section-empty">
+        <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
+          {t('sidebar.docs')}
+        </div>
+        <!-- Same gutter and leading glyph as the live rows below this header
+             would have: without them the two lines aligned with DOCS itself and
+             read as a caption about the section rather than as the one thing in
+             it you can click. The glyph is the destination, not a document —
+             a file icon would advertise a view that does not exist yet. -->
+        <button
+          type="button"
+          class="flex w-full items-start gap-2 rounded-md px-3 py-1.5 text-left transition-colors hover:bg-bg-hover"
+          data-testid="docs-empty-cta"
+          onclick={onOpenSettings}
+        >
+          <Icon name="settings" size={15} class="mt-0.5 flex-none text-text-muted" />
+          <span class="flex min-w-0 flex-col gap-0.5">
+            <span class="text-body text-text-secondary">{t('sidebar.docsNoneTitle')}</span>
+            <span class="text-micro leading-relaxed text-text-muted">
+              {t('sidebar.docsNoneHint')}
+            </span>
+          </span>
+        </button>
+      </div>
+    {/if}
     {#if pages.bySpace.length}
       <div class="mb-3" data-testid="docs-section">
         <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">

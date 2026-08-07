@@ -101,8 +101,11 @@ type runtimeInfo struct {
 // settingsConfluenceDoc is the Confluence slice of settings. A pointer on
 // settingsDoc so absence on PUT is distinguishable from an empty spaces list
 // (empty = "all global spaces" and is a valid save when Confluence is already on).
+// Enabled turns the source on/off; Spaces alone still updates scope only when
+// the source is already configured (legacy path).
 type settingsConfluenceDoc struct {
-	Spaces []string `json:"spaces"`
+	Enabled *bool    `json:"enabled,omitempty"`
+	Spaces  []string `json:"spaces,omitempty"`
 }
 
 // settingsDoc is everything the settings UI may read and write. The credential
@@ -129,9 +132,8 @@ type settingsDoc struct {
 	// keeps old clients from echoing it back.
 	Fields *[]config.FieldSpec `json:"fields,omitempty"`
 
-	// Confluence is nil when the source is off. PUT with this key while
-	// cfg.Confluence is nil is rejected — settings never turns Confluence on.
-	// When present, Spaces (including empty) updates the scope only.
+	// Confluence is nil when the source is off. PUT with enabled:true turns it
+	// on; enabled:false turns it off; spaces alone still requires it already on.
 	Confluence *settingsConfluenceDoc `json:"confluence,omitempty"`
 
 	// Read-only context for the UI. Ignored on PUT — the site and the token are
@@ -160,14 +162,11 @@ type spaceRow struct {
 }
 
 // handleSettingsSpaces lists live Confluence spaces for the settings picker.
-// Scope is written via PUT settings/ {confluence:{spaces:[…]}} when Confluence
-// is already configured; this endpoint is live discovery only.
+// Discovery only needs a credential — Confluence may be off (enabled:false);
+// selected flags and all_global_when_empty then stay false so "off" is never
+// read as "all global spaces".
 func (s *server) handleSettingsSpaces(w http.ResponseWriter, r *http.Request) {
 	cfg := s.config()
-	if cfg.Confluence == nil {
-		fail(w, http.StatusBadRequest, "confluence_not_configured")
-		return
-	}
 	if !cfg.HasCredential() {
 		fail(w, http.StatusConflict, "credential_required")
 		return
@@ -184,11 +183,16 @@ func (s *server) handleSettingsSpaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	selected := make(map[string]bool, len(cfg.Confluence.Spaces))
-	for _, k := range cfg.Confluence.Spaces {
-		selected[k] = true
+	enabled := cfg.Confluence != nil
+	selected := map[string]bool{}
+	empty := false
+	if enabled {
+		for _, k := range cfg.Confluence.Spaces {
+			selected[k] = true
+		}
+		// Empty Spaces means "all global" only while the source is on.
+		empty = len(cfg.Confluence.Spaces) == 0
 	}
-	empty := len(cfg.Confluence.Spaces) == 0
 
 	out := make([]spaceRow, 0, len(listed))
 	for _, sp := range listed {
@@ -198,7 +202,8 @@ func (s *server) handleSettingsSpaces(w http.ResponseWriter, r *http.Request) {
 			Type: sp.Type,
 			// Empty config means "all global" at sync time — do not pre-check
 			// every row; the flag below tells the UI how to present that.
-			Selected: !empty && selected[sp.Key],
+			// When off, every selected is false (off ≠ all-global).
+			Selected: enabled && !empty && selected[sp.Key],
 		})
 	}
 	// global first, then name (case-insensitive) within each group.
@@ -212,6 +217,7 @@ func (s *server) handleSettingsSpaces(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"spaces":                out,
 		"all_global_when_empty": empty,
+		"enabled":               enabled,
 	})
 }
 
@@ -237,18 +243,31 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	if in.Fields != nil {
 		next.Fields = *in.Fields
 	}
-	// Confluence spaces: key absent → leave alone; key present with Confluence
-	// already on → replace Spaces (empty = all global); key present while off → 400.
+	// Confluence: key absent → leave alone.
+	// enabled:false → turn off (nil). Does not delete mirrored pages — they
+	// stay readable on disk; wiping is a separate, explicit user action.
+	// enabled:true → create/replace the block with Spaces (empty = all global).
+	// spaces alone (enabled omitted) → replace Spaces only when already on;
+	// still 400 confluence_not_configured when off (legacy path).
 	if in.Confluence != nil {
-		if next.Confluence == nil {
-			fail(w, http.StatusBadRequest, "confluence_not_configured")
-			return
+		switch {
+		case in.Confluence.Enabled != nil && !*in.Confluence.Enabled:
+			next.Confluence = nil
+		case in.Confluence.Enabled != nil && *in.Confluence.Enabled:
+			// Always assign a fresh struct — never mutate a shared nested pointer.
+			next.Confluence = &config.ConfluenceConfig{Spaces: strs(in.Confluence.Spaces)}
+		default:
+			// enabled omitted: spaces-only update, same as before.
+			if next.Confluence == nil {
+				fail(w, http.StatusBadRequest, "confluence_not_configured")
+				return
+			}
+			// Copy the section so we do not mutate the shared atomic config
+			// pointer's nested struct before Save succeeds.
+			cc := *next.Confluence
+			cc.Spaces = strs(in.Confluence.Spaces)
+			next.Confluence = &cc
 		}
-		// Copy the section so we do not mutate the shared atomic config pointer's
-		// nested struct before Save succeeds.
-		cc := *next.Confluence
-		cc.Spaces = strs(in.Confluence.Spaces)
-		next.Confluence = &cc
 	}
 	next.BodyFields = in.BodyFields
 	next.EditableFields = in.EditableFields

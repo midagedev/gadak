@@ -165,13 +165,20 @@
   /** Hand-edited the manual keys — the list must not replace the field under a
    *  typing user, however late it arrives. */
   let projectsTouched = $state(false)
-  /** Confluence is off in this profile → no space section at all. */
+  /**
+   * Whether the Confluence source is on for this profile. The section renders
+   * either way now: it used to be hidden while off, which made an unconfigured
+   * source and a missing feature look identical — and there was no other way to
+   * turn it on, so the app quietly contradicted its own "Jira and Confluence"
+   * promise for anyone who never edited config.json by hand.
+   */
   let confluenceConfigured = $state(false)
+  /** Pending on/off, applied on Save like every other field on this tab. */
+  let confluenceOn = $state(false)
   let spaceKeys = $state<string[]>([])
   let spaceOptions = $state<ScopeOption[]>([])
   let spacesLoading = $state(false)
   let spacesError = $state<string | null>(null)
-  let allGlobalWhenEmpty = $state(false)
   let showPersonalSpaces = $state(false)
 
   // Personal spaces are one per colleague and almost never mirror targets, so
@@ -219,6 +226,7 @@
     // The key is absent unless the source is configured, and PUTting it while
     // it is off is rejected — so its presence is the section's on/off switch.
     confluenceConfigured = s.confluence !== undefined
+    confluenceOn = confluenceConfigured
     spaceKeys = [...(s.confluence?.spaces ?? [])]
     staleText = String(s.staleThresholdHours ?? 72)
     qaDashboardUrl = s.qaDashboardUrl ?? ''
@@ -297,7 +305,10 @@
       projects: projectsPickerReady ? projectKeys : splitCsv(projectsText),
       // Only when the source is on: the server rejects the key otherwise, and
       // omitting it leaves the stored scope alone.
-      ...(confluenceConfigured ? { confluence: { spaces: spaceKeys } } : {}),
+      // `enabled` is what lets this tab turn the source on at all; the server
+      // rejects a bare `spaces` while it is off. Sent whenever the section was
+      // reachable, so switching it off is a save like any other.
+      confluence: { enabled: confluenceOn, spaces: confluenceOn ? spaceKeys : [] },
       staleThresholdHours: Number.isFinite(hours) && hours > 0 ? hours : 72,
       syncIntervalSec: resolveInterval(syncPreset, syncCustomText),
       reconcileIntervalSec: resolveInterval(reconcilePreset, reconcileCustomText),
@@ -383,12 +394,15 @@
     }
     projectsLoading = false
 
-    if (!confluenceConfigured) return
+    // Loaded whether or not the source is on: picking spaces is how you decide
+    // to turn it on, so the list has to arrive first.
     spacesLoading = true
     try {
       const res = await api.getSettingsSpaces()
       spaceOptions = res.spaces.map((s) => ({ value: s.key, label: s.name, hint: s.type }))
-      allGlobalWhenEmpty = res.all_global_when_empty
+      // res.all_global_when_empty is the saved state's version of the same
+      // rule; the picker reads the pending switch instead, or the label would
+      // contradict the warning above it between a toggle and its save.
     } catch {
       spacesError = t('settings.spacesUnavailable')
     }
@@ -708,42 +722,113 @@
             </label>
           {/if}
 
-          <!-- Confluence spaces. Hidden entirely when the source is off: there is
-               nothing to scope, and the server rejects the field anyway. -->
-          {#if confluenceConfigured}
-            <div class="border-t border-border-subtle pt-4">
-              {#if spacesLoading}
-                <p class="text-[12px] text-text-muted">{t('settings.scopeLoading')}</p>
-              {:else if spacesError}
-                <p class="text-[12px] text-status-stale" data-testid="scope-spaces-error">
-                  {spacesError}
-                </p>
-              {:else}
-                <ScopePicker
-                  label={t('settings.sourcesSpaces')}
-                  hint={t('settings.sourcesSpacesHint')}
-                  options={visibleSpaceOptions}
-                  bind:selected={spaceKeys}
-                  placeholder={t('settings.scopeSpacePlaceholder')}
-                  emptyLabel={allGlobalWhenEmpty
-                    ? t('settings.sourcesAllGlobal')
-                    : t('settings.sourcesNoSpaces')}
-                  testid="scope-spaces"
+          <!--
+            Confluence. Present whether the source is on or off — while it was
+            hidden, a profile with the source off looked exactly like a build
+            without the feature, and this screen was the only place it could
+            have been turned on.
+
+            Order is deliberate: choose spaces, then turn it on. The button says
+            what it will mirror, because with nothing selected the answer is
+            "the whole wiki" and that must be a sentence someone read, not the
+            side effect of a generic Turn on.
+          -->
+          <div class="border-t border-border-subtle pt-4" data-testid="sources-confluence">
+            <div class="mb-2.5 flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <!-- Same weight as the Jira projects label above: they are two
+                     sources of one mirror, and a bolder heading here made
+                     Confluence outrank Jira on a scan. -->
+                <span class="text-micro text-text-secondary">
+                  {t('settings.confluenceTitle')}
+                </span>
+                <!--
+                  One state line, and the consequence lives in it rather than in
+                  an extra line underneath. The block sits near the bottom of a
+                  scrolling dialog, so a line added below the button rendered
+                  under the fold at exactly the scroll position where the button
+                  is clicked — the warning was invisible at the moment it was
+                  earned.
+                -->
+                <p
+                  class="mt-0.5 text-micro leading-relaxed {confluenceOn && spaceKeys.length === 0
+                    ? 'text-status-stale'
+                    : 'text-text-muted'}"
+                  data-testid={confluenceOn && spaceKeys.length === 0
+                    ? 'confluence-all-warning'
+                    : undefined}
                 >
-                  {#snippet action()}
-                    <label class="flex cursor-pointer items-center gap-1.5 text-micro text-text-muted">
-                      <input
-                        type="checkbox"
-                        class="accent-[var(--color-accent,#3b82f6)]"
-                        bind:checked={showPersonalSpaces}
-                      />
-                      {t('settings.showPersonalSpaces')}
-                    </label>
-                  {/snippet}
-                </ScopePicker>
+                  {#if confluenceOn && spaceKeys.length === 0}
+                    {t('settings.confluenceAllWarning')}
+                  {:else if confluenceOn}
+                    {t('settings.confluenceOnHint')}
+                  {:else}
+                    {t('settings.confluenceOffHint')}
+                  {/if}
+                </p>
+              </div>
+              <!-- Both states use the dialog's secondary button. The filled
+                   accent belongs to Save alone: this control changes a pending
+                   value like every other field here, and a second primary made
+                   it look like it committed on click. -->
+              {#if confluenceOn}
+                <button
+                  type="button"
+                  class="{ADD_BTN} flex-none self-start"
+                  onclick={() => (confluenceOn = false)}
+                  data-testid="confluence-turn-off"
+                >
+                  {t('settings.confluenceTurnOff')}
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  class="{ADD_BTN} flex-none self-start"
+                  onclick={() => (confluenceOn = true)}
+                  data-testid="confluence-turn-on"
+                >
+                  {spaceKeys.length
+                    ? t('settings.confluenceTurnOnCount', { n: String(spaceKeys.length) })
+                    : t('settings.confluenceTurnOnAll')}
+                </button>
               {/if}
             </div>
-          {/if}
+
+            {#if spacesLoading}
+              <p class="text-[12px] text-text-muted">{t('settings.scopeLoading')}</p>
+            {:else if spacesError}
+              <p class="text-[12px] text-status-stale" data-testid="scope-spaces-error">
+                {spacesError}
+              </p>
+            {:else}
+              <!-- The hint reads "Only these spaces are mirrored", which is
+                   false with nothing selected — that is precisely the case
+                   where every team space is — so it waits for a selection to
+                   describe rather than contradicting the line above it. -->
+              <ScopePicker
+                label={t('settings.sourcesSpaces')}
+                hint={spaceKeys.length ? t('settings.sourcesSpacesHint') : ''}
+                options={visibleSpaceOptions}
+                bind:selected={spaceKeys}
+                placeholder={t('settings.scopeSpacePlaceholder')}
+                emptyLabel={confluenceOn
+                  ? t('settings.sourcesAllGlobal')
+                  : t('settings.sourcesNoSpaces')}
+                testid="scope-spaces"
+              >
+                {#snippet action()}
+                  <label class="flex cursor-pointer items-center gap-1.5 text-micro text-text-muted">
+                    <input
+                      type="checkbox"
+                      class="accent-[var(--color-accent,#3b82f6)]"
+                      bind:checked={showPersonalSpaces}
+                    />
+                    {t('settings.showPersonalSpaces')}
+                  </label>
+                {/snippet}
+              </ScopePicker>
+            {/if}
+          </div>
 
           <p class="border-t border-border-subtle pt-3 text-micro leading-relaxed text-text-muted">
             {t('settings.sourcesApplyHint')}

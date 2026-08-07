@@ -60,13 +60,14 @@ type helpOption struct {
 var helps = map[string]cmdHelp{
 	"init": {
 		summary: "configure site and credentials (projects optional)",
-		usage:   "scry [--profile <name>] init [--site URL] [--email ADDR] [--projects A,B] [--token-file PATH | --token-stdin] [--json]",
+		usage:   "scry [--profile <name>] init [--site URL] [--email ADDR] [--projects A,B] [--spaces KEYS|all|none] [--token-file PATH | --token-stdin] [--json]",
 		// FlagSet VisitAll supplies Options when `scry init --help` runs; this
 		// list covers formatHelp(nil) and documents the env-only token path.
 		options: []helpOption{
 			{name: "site", desc: "Jira site URL (https://your-site.atlassian.net); env SCRY_SITE"},
 			{name: "email", desc: "account email; env SCRY_EMAIL"},
 			{name: "projects", desc: "project keys, comma-separated (optional — blank syncs every project you can see); env SCRY_PROJECTS"},
+			{name: "spaces", desc: "Confluence: KEY,KEY… | all (every space) | none (off); \"all\"/\"none\" reserved; omit to leave unchanged"},
 			{name: "token-file", desc: "read API token from this file"},
 			{name: "token-stdin", desc: "read API token from stdin"},
 			{name: "token", desc: "not accepted; use SCRY_TOKEN, --token-file, or --token-stdin"},
@@ -77,6 +78,9 @@ var helps = map[string]cmdHelp{
 			"scry --profile demo init",
 			"SCRY_TOKEN=$(cat token) scry init --site https://x.atlassian.net --email you@example.com --json",
 			"scry init --site https://x.atlassian.net --email you@example.com --projects ABC --token-file ./token",
+			"scry init --spaces ENG,PROD",
+			"scry init --spaces all",
+			"scry init --spaces none",
 		},
 		seeAlso: []string{"scry sync", "scry profiles"},
 	},

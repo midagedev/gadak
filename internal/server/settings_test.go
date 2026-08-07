@@ -282,6 +282,207 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 	}
 }
 
+// --- Confluence enable/disable via PUT settings/ (product on-switch) ---
+
+// TestPutSettingsConfluenceEnableFromOff: enabled:true + spaces turns Confluence on.
+func TestPutSettingsConfluenceEnableFromOff(t *testing.T) {
+	t.Setenv("SCRY_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	cfg.Confluence = nil
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	h := New(db, cfg)
+
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"confluence":          map[string]any{"enabled": true, "spaces": []string{"ENG"}},
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT enable → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.Confluence == nil || len(saved.Confluence.Spaces) != 1 || saved.Confluence.Spaces[0] != "ENG" {
+		t.Fatalf("disk Confluence.Spaces want [ENG], got %+v", saved.Confluence)
+	}
+}
+
+// TestPutSettingsConfluenceDisable: enabled:false turns off; pages stay on disk.
+func TestPutSettingsConfluenceDisable(t *testing.T) {
+	t.Setenv("SCRY_HOME", t.TempDir())
+	db, cfg := fixturePages(t)
+	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"ENG"}}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	before, err := db.TableCount("pages")
+	if err != nil {
+		t.Fatalf("page count before: %v", err)
+	}
+	if before == 0 {
+		t.Fatal("fixturePages should seed pages")
+	}
+	h := New(db, cfg)
+
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"confluence":          map[string]any{"enabled": false},
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT disable → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.Confluence != nil {
+		t.Fatalf("want Confluence nil after disable, got %+v", saved.Confluence)
+	}
+	after, err := db.TableCount("pages")
+	if err != nil {
+		t.Fatalf("page count after: %v", err)
+	}
+	if after != before {
+		t.Fatalf("disable must not delete pages: before=%d after=%d", before, after)
+	}
+	// Response omits confluence when off.
+	resp := decode[settingsDoc](t, rec)
+	if resp.Confluence != nil {
+		t.Fatalf("response should omit confluence when off: %+v", resp.Confluence)
+	}
+}
+
+// TestPutSettingsConfluenceSpacesOnlyWhileOff: spaces without enabled still 400 when off.
+func TestPutSettingsConfluenceSpacesOnlyWhileOff(t *testing.T) {
+	t.Setenv("SCRY_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	cfg.Confluence = nil
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	h := New(db, cfg)
+
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"confluence":          map[string]any{"spaces": []string{"X"}},
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400; body %s", rec.Code, rec.Body.String())
+	}
+	var errBody map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if errBody["error"] != "confluence_not_configured" {
+		t.Fatalf("error %q", errBody["error"])
+	}
+}
+
+// TestPutSettingsConfluenceSpacesOnlyWhileOn: spaces without enabled updates when on.
+func TestPutSettingsConfluenceSpacesOnlyWhileOn(t *testing.T) {
+	t.Setenv("SCRY_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"OLD"}}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	h := New(db, cfg)
+
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"confluence":          map[string]any{"spaces": []string{"X"}},
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT spaces-only → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.Confluence == nil || len(saved.Confluence.Spaces) != 1 || saved.Confluence.Spaces[0] != "X" {
+		t.Fatalf("disk spaces %+v", saved.Confluence)
+	}
+}
+
+// TestPutSettingsOmitsConfluenceKeyPreserves: no confluence key leaves config alone.
+func TestPutSettingsOmitsConfluenceKeyPreserves(t *testing.T) {
+	t.Setenv("SCRY_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"KEEP"}}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	h := New(db, cfg)
+
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 48,
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.Confluence == nil || len(saved.Confluence.Spaces) != 1 || saved.Confluence.Spaces[0] != "KEEP" {
+		t.Fatalf("spaces wiped: %+v", saved.Confluence)
+	}
+}
+
+// TestPutSettingsConfluenceEnableReplacesSpaces: enabled:true while already on updates spaces.
+func TestPutSettingsConfluenceEnableReplacesSpaces(t *testing.T) {
+	t.Setenv("SCRY_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"OLD"}}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	h := New(db, cfg)
+
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"confluence":          map[string]any{"enabled": true, "spaces": []string{"ENG", "PROD"}},
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.Confluence == nil || len(saved.Confluence.Spaces) != 2 ||
+		saved.Confluence.Spaces[0] != "ENG" || saved.Confluence.Spaces[1] != "PROD" {
+		t.Fatalf("disk %+v", saved.Confluence)
+	}
+}
+
 func TestSettingsRuntimeProfileName(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SCRY_HOME", home)

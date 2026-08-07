@@ -100,7 +100,11 @@ type Config struct {
 	UpdateCheck *bool `json:"updateCheck,omitempty"`
 
 	// Confluence, when non-nil, enables the wiki-page mirror (second source).
-	// Spaces empty means every space the account can see.
+	// Spaces empty means every *global* space — not every space the account can
+	// see, which is what this comment used to claim and what a warning written
+	// from it went on to tell users. Cloud gives each person a personal space,
+	// so an unfiltered listing is mostly noise; personal spaces are mirrored
+	// only when named here. The rule itself lives in internal/sync/confluence.go.
 	Confluence *ConfluenceConfig `json:"confluence,omitempty"`
 
 	// dir is the profile directory this Config was loaded from (or will save to).

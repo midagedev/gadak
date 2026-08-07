@@ -326,6 +326,9 @@ func cmdInit(args []string) error {
 	siteFlag := fs.String("site", "", "Jira site URL (https://your-site.atlassian.net)")
 	emailFlag := fs.String("email", "", "account email")
 	projectsFlag := fs.String("projects", "", "project keys, comma-separated (optional — blank syncs every project you can see)")
+	// Confluence: reserved words "all" / "none" (case-insensitive); any other
+	// value is a comma-separated space-key list. Flag absent leaves Confluence alone.
+	spacesFlag := fs.String("spaces", "", "Confluence spaces: KEY,KEY… | all (every space you can see) | none (off); \"all\"/\"none\" are reserved")
 	tokenFile := fs.String("token-file", "", "read API token from this file")
 	tokenStdin := fs.Bool("token-stdin", false, "read API token from stdin")
 	// Defined only so a mistaken `--token secret` gets a clear error instead of
@@ -353,7 +356,7 @@ func cmdInit(args []string) error {
 	envProjects := os.Getenv("SCRY_PROJECTS")
 
 	// Any supply flag or env forces non-interactive; half-prompted states are unpredictable for agents.
-	suppliedFlag := *siteFlag != "" || *emailFlag != "" || *projectsFlag != "" || *tokenFile != "" || *tokenStdin
+	suppliedFlag := *siteFlag != "" || *emailFlag != "" || *projectsFlag != "" || *spacesFlag != "" || *tokenFile != "" || *tokenStdin
 	suppliedEnv := envSite != "" || envEmail != "" || envToken != "" || envProjects != ""
 	classic := initIsTerminal() && !*jsonOut && !suppliedFlag && !suppliedEnv
 
@@ -470,6 +473,19 @@ func cmdInit(args []string) error {
 	cfg.Token = token
 	cfg.Projects = projects
 
+	// Confluence: flag absent leaves the section untouched.
+	if *spacesFlag != "" {
+		switch {
+		case strings.EqualFold(*spacesFlag, "none"):
+			cfg.Confluence = nil
+		case strings.EqualFold(*spacesFlag, "all"):
+			// Empty Spaces = every space the account can see.
+			cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{}}
+		default:
+			cfg.Confluence = &config.ConfluenceConfig{Spaces: parseProjectKeys(*spacesFlag)}
+		}
+	}
+
 	if !cfg.HasCredential() {
 		return fmt.Errorf("site, email, and token are all required")
 	}
@@ -492,17 +508,19 @@ func cmdInit(args []string) error {
 		// One line, no HTML escaping — machine consumers parse this.
 		enc.SetEscapeHTML(false)
 		return enc.Encode(struct {
-			Profile  string   `json:"profile"`
-			Account  string   `json:"account"`
-			Site     string   `json:"site"`
-			Projects []string `json:"projects"`
-			Path     string   `json:"path"`
+			Profile    string   `json:"profile"`
+			Account    string   `json:"account"`
+			Site       string   `json:"site"`
+			Projects   []string `json:"projects"`
+			Path       string   `json:"path"`
+			Confluence any      `json:"confluence"`
 		}{
-			Profile:  config.Profile(),
-			Account:  name,
-			Site:     cfg.Site,
-			Projects: cfg.Projects,
-			Path:     p,
+			Profile:    config.Profile(),
+			Account:    name,
+			Site:       cfg.Site,
+			Projects:   cfg.Projects,
+			Path:       p,
+			Confluence: initConfluenceJSON(cfg),
 		})
 	}
 	fmt.Printf("verified as %s — saved %s\n", name, p)
@@ -511,6 +529,18 @@ func cmdInit(args []string) error {
 	}
 	printInitNextSteps()
 	return nil
+}
+
+// initConfluenceJSON is the --json shape for Confluence after init:
+// "off" | "all" | ["ENG","PROD"].
+func initConfluenceJSON(cfg *config.Config) any {
+	if cfg == nil || cfg.Confluence == nil {
+		return "off"
+	}
+	if len(cfg.Confluence.Spaces) == 0 {
+		return "all"
+	}
+	return cfg.Confluence.Spaces
 }
 
 // printInitNextSteps ends `init` with the whole path to value, not just the
@@ -565,7 +595,7 @@ func cmdSync(args []string) error {
 	runJira := *source == "all" || *source == "jira"
 	runConf := (*source == "all" || *source == "confluence") && cfg.Confluence != nil
 	if *source == "confluence" && cfg.Confluence == nil {
-		return fmt.Errorf("confluence is not configured — add a confluence section to config.json")
+		return fmt.Errorf("confluence is off for this profile — turn it on with `scry init --spaces ENG,PROD`\n(or `--spaces all`), or in Settings → Sources")
 	}
 	if runJira {
 		res, err := syncer.Run(context.Background(), cfg, db, opts)
@@ -1219,7 +1249,7 @@ Usage:
 
 Commands:
   init             configure site, credentials, and projects
-                   [--site] [--email] [--projects] [--token-file|--token-stdin] [--json]
+                   [--site] [--email] [--projects] [--spaces] [--token-file|--token-stdin] [--json]
   sync             mirror Jira into SQLite   [--full] [--watch]
   serve            web UI + API on loopback  [--addr] [--static] [--no-sync] [--no-open] [--allow-remote]
                    (syncs by default when a credential is configured; --no-sync opts out)

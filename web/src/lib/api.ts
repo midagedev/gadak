@@ -562,7 +562,14 @@ export interface SettingsFieldSpec {
  *  source is configured — absence is how the UI knows to hide the scope picker,
  *  and PUTting the key with the source off is a 400. */
 export interface SettingsConfluence {
-  /** Mirrored space keys. Empty = every global space. */
+  /**
+   * Turn the source on or off. Absent on the way in (the server omits the whole
+   * block while off); sent on the way out, because a bare `spaces` is rejected
+   * unless the source is already on — which is what used to make this screen
+   * unable to enable Confluence at all.
+   */
+  enabled?: boolean
+  /** Mirrored space keys. Empty = every global space, but only while enabled. */
   spaces: string[]
 }
 
@@ -669,7 +676,14 @@ export function getSettingsSpaces(): Promise<{
   spaces: SettingsSpace[]
   all_global_when_empty: boolean
 }> {
-  return jsonW<{ spaces: SettingsSpace[]; all_global_when_empty: boolean }>('settings/spaces/')
+  // `enabled` is the source's on/off state. The list itself is live discovery
+  // and needs only a credential, so it answers while Confluence is off too —
+  // which is what lets someone choose spaces before turning it on.
+  return jsonW<{
+    spaces: SettingsSpace[]
+    all_global_when_empty: boolean
+    enabled: boolean
+  }>('settings/spaces/')
 }
 
 /** Full replace (PUT). Values are stored as sent — partial payloads wipe the rest. */

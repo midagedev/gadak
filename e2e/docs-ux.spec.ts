@@ -348,7 +348,7 @@ test.describe('documents in the daily loop', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('Sources tab picks Jira projects and hides spaces while Confluence is off', async ({
+  test('Sources tab picks Jira projects and offers to turn Confluence on', async ({
     page,
   }) => {
     // No console-error assertion here on purpose: the fixture credential is a
@@ -363,9 +363,37 @@ test.describe('documents in the daily loop', () => {
     const sources = dialog.getByTestId('settings-sources')
     await expect(sources).toBeVisible()
 
-    // The fixture profile has no Confluence block, so there is no space scope to
-    // edit — the section is absent rather than empty.
-    await expect(sources.getByTestId('scope-spaces')).toHaveCount(0)
+    // The fixture profile has no Confluence block. The section is still here:
+    // while it was hidden, this screen was the only place the source could have
+    // been turned on and it did not offer to — so an unconfigured source and a
+    // missing feature looked the same. It now says which, and offers the switch.
+    const confluence = sources.getByTestId('sources-confluence')
+    await expect(confluence).toBeVisible()
+    await expect(confluence).toContainText('Off for this profile')
+    await expect(confluence.getByTestId('confluence-turn-off')).toHaveCount(0)
+    const turnOn = confluence.getByTestId('confluence-turn-on')
+    await expect(turnOn).toBeVisible()
+    // Nothing selected yet, so the button states the consequence rather than
+    // leaving "every space you can read" as a side effect of a generic verb.
+    // "team space", not "every space": an empty scope mirrors global spaces
+    // only — personal ones are opt-in by name (internal/sync/confluence.go).
+    await expect(turnOn).toHaveText('Turn on for every team space')
+
+    // Turning it on flips the control and raises the unscoped warning.
+    await turnOn.click()
+    await expect(confluence.getByTestId('confluence-all-warning')).toBeVisible()
+    await expect(confluence.getByTestId('confluence-turn-off')).toBeVisible()
+    await confluence.getByTestId('confluence-turn-off').click()
+    await expect(confluence.getByTestId('confluence-turn-on')).toBeVisible()
+
+    // The picker is reachable while the source is off — choosing spaces is how
+    // you decide to turn it on, so the list has to come first. The fixture's
+    // site yields no spaces, and the empty state reads as "nothing mirrored"
+    // rather than "every global space": off and all-spaces are opposite states
+    // that an empty list used to render identically.
+    const spaces = sources.getByTestId('scope-spaces')
+    await expect(spaces).toBeVisible()
+    await expect(spaces.getByTestId('scope-empty')).toContainText('no page is mirrored')
 
     // The site list is unreachable, so the picker falls back to manual keys and
     // still shows what is configured.
@@ -406,6 +434,7 @@ test.describe('documents in the daily loop', () => {
             { key: '~dana', name: 'Dana Kim', type: 'personal', selected: false },
           ],
           all_global_when_empty: true,
+          enabled: true,
         },
       }),
     )
@@ -437,6 +466,13 @@ test.describe('documents in the daily loop', () => {
     await expect(options.first()).toContainText('Nimbus App')
     await page.keyboard.press('Enter')
     await expect(projects.getByTestId('scope-chip')).toHaveText([/NMB/, /NMA/])
+
+    // Confluence is on here, so the section offers to turn it off rather than on,
+    // and names the consequence of the unscoped state it is currently in.
+    const confluence = dialog.getByTestId('sources-confluence')
+    await expect(confluence.getByTestId('confluence-turn-off')).toBeVisible()
+    await expect(confluence.getByTestId('confluence-turn-on')).toHaveCount(0)
+    await expect(confluence.getByTestId('confluence-all-warning')).toBeVisible()
 
     // Spaces: no selection is a meaning, not a blank.
     const spaces = dialog.getByTestId('scope-spaces')

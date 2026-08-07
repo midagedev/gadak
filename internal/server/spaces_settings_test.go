@@ -57,22 +57,71 @@ func spacesHandler(t *testing.T, cfg *config.Config, mock *confSpacesMock) http.
 	return New(db, &live)
 }
 
-func TestSettingsSpacesNotConfigured(t *testing.T) {
-	h := spacesHandler(t, &config.Config{
-		Site: "https://x.atlassian.net", Email: "hc@example.com", Token: "tok",
-		// Confluence: nil
-	}, nil)
+// TestSettingsSpacesOffNoCredential: discovery needs a credential even when
+// Confluence is off — no longer 400 confluence_not_configured.
+func TestSettingsSpacesOffNoCredential(t *testing.T) {
+	t.Setenv("SCRY_HOME", t.TempDir())
+	db, base := fixture(t)
+	// Explicitly no credential, Confluence off.
+	live := &config.Config{
+		Site:       "https://example.invalid",
+		Projects:   base.Projects,
+		Confluence: nil,
+	}
+	h := New(db, live)
 
 	rec := get(t, h, apiBase+"settings/spaces/", nil)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status %d, want 400; body %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status %d, want 409; body %s", rec.Code, rec.Body.String())
 	}
 	var body map[string]string
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body["error"] != "confluence_not_configured" {
-		t.Fatalf("error %q, want confluence_not_configured", body["error"])
+	if body["error"] != "credential_required" {
+		t.Fatalf("error %q, want credential_required (not confluence_not_configured)", body["error"])
+	}
+}
+
+// TestSettingsSpacesOffListsWithEnabledFalse: when Confluence is off but a
+// credential is present, listing still works; selected and all_global stay false.
+func TestSettingsSpacesOffListsWithEnabledFalse(t *testing.T) {
+	mock := &confSpacesMock{spaces: []map[string]any{
+		{"key": "ENG", "name": "Engineering", "type": "global"},
+		{"key": "OPS", "name": "Operations", "type": "global"},
+	}}
+	h := spacesHandler(t, &config.Config{
+		// Confluence: nil (off)
+	}, mock)
+
+	rec := get(t, h, apiBase+"settings/spaces/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Spaces []struct {
+			Key      string `json:"key"`
+			Selected bool   `json:"selected"`
+		} `json:"spaces"`
+		AllGlobalWhenEmpty bool `json:"all_global_when_empty"`
+		Enabled            bool `json:"enabled"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Enabled {
+		t.Fatal("enabled should be false when Confluence is off")
+	}
+	if body.AllGlobalWhenEmpty {
+		t.Fatal("all_global_when_empty must be false when off (off ≠ all-global)")
+	}
+	if len(body.Spaces) != 2 {
+		t.Fatalf("spaces %+v", body.Spaces)
+	}
+	for _, s := range body.Spaces {
+		if s.Selected {
+			t.Fatalf("off must not mark selected: %+v", body.Spaces)
+		}
 	}
 }
 
@@ -101,9 +150,13 @@ func TestSettingsSpacesListsSelectedAndSorts(t *testing.T) {
 			Selected bool   `json:"selected"`
 		} `json:"spaces"`
 		AllGlobalWhenEmpty bool `json:"all_global_when_empty"`
+		Enabled            bool `json:"enabled"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v body %s", err, rec.Body.String())
+	}
+	if !body.Enabled {
+		t.Fatal("enabled should be true when Confluence is configured")
 	}
 	if body.AllGlobalWhenEmpty {
 		t.Fatal("all_global_when_empty should be false when spaces are configured")
@@ -155,9 +208,13 @@ func TestSettingsSpacesEmptyMeansAllGlobalFlag(t *testing.T) {
 			Type     string `json:"type"`
 		} `json:"spaces"`
 		AllGlobalWhenEmpty bool `json:"all_global_when_empty"`
+		Enabled            bool `json:"enabled"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
+	}
+	if !body.Enabled {
+		t.Fatal("enabled should be true when Confluence is configured (empty spaces = all global)")
 	}
 	if !body.AllGlobalWhenEmpty {
 		t.Fatal("want all_global_when_empty true when config spaces empty")
@@ -228,7 +285,8 @@ func TestPutSettingsConfluenceSpacesRoundtrip(t *testing.T) {
 		t.Fatalf("PUT empty spaces → %d %s", rec.Code, rec.Body.String())
 	}
 	empty := decode[settingsDoc](t, rec)
-	if empty.Confluence == nil || empty.Confluence.Spaces == nil || len(empty.Confluence.Spaces) != 0 {
+	// spaces omitempty: empty list may be absent in JSON → nil after unmarshal.
+	if empty.Confluence == nil || len(empty.Confluence.Spaces) != 0 {
 		t.Fatalf("empty spaces response %+v", empty.Confluence)
 	}
 	saved, err = config.Load()
@@ -243,9 +301,9 @@ func TestPutSettingsConfluenceSpacesRoundtrip(t *testing.T) {
 		t.Fatal("empty spaces cleared confluence section")
 	}
 
-	// Re-GET still exposes empty spaces under confluence.
+	// Re-GET still exposes the confluence section (spaces empty).
 	again := decode[settingsDoc](t, get(t, h, apiBase+"settings/", nil))
-	if again.Confluence == nil || again.Confluence.Spaces == nil || len(again.Confluence.Spaces) != 0 {
+	if again.Confluence == nil || len(again.Confluence.Spaces) != 0 {
 		t.Fatalf("re-GET empty %+v", again.Confluence)
 	}
 }

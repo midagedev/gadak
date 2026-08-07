@@ -298,6 +298,238 @@ func writeTokenFile(t *testing.T, dir, secret string) string {
 	return p
 }
 
+// runInitWithSpaces runs a non-interactive init with the given --spaces value
+// (empty string = flag omitted) and returns the saved config.
+func runInitWithSpaces(t *testing.T, spaces string) *config.Config {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("SCRY_HOME", home)
+	t.Setenv("SCRY_SITE", "")
+	t.Setenv("SCRY_EMAIL", "")
+	t.Setenv("SCRY_TOKEN", "")
+	t.Setenv("SCRY_PROJECTS", "")
+	config.SetProfile("")
+	srv := myselfServer(t)
+	args := []string{
+		"--site", srv.URL,
+		"--email", "spaces@example.com",
+		"--projects", "ABC",
+		"--token-file", writeTokenFile(t, home, "test-token"),
+		"--json",
+	}
+	if spaces != "" {
+		args = append(args, "--spaces", spaces)
+	}
+	var out string
+	withClosedStdin(t, func() {
+		var err error
+		out, err = capture(t, func() error { return cmdInit(args) })
+		if err != nil {
+			t.Fatalf("init --spaces %q: %v", spaces, err)
+		}
+	})
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("json: %v out=%q", err, out)
+	}
+	// Sanity: existing keys still present.
+	if doc["profile"] == nil || doc["site"] == nil {
+		t.Fatalf("json missing core keys: %v", doc)
+	}
+	// confluence key present in --json (off | all | list).
+	if _, ok := doc["confluence"]; !ok {
+		t.Fatalf("json missing confluence: %v", doc)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+func TestInitSpacesList(t *testing.T) {
+	cfg := runInitWithSpaces(t, "ENG,PROD")
+	if cfg.Confluence == nil || len(cfg.Confluence.Spaces) != 2 ||
+		cfg.Confluence.Spaces[0] != "ENG" || cfg.Confluence.Spaces[1] != "PROD" {
+		t.Fatalf("want Spaces [ENG PROD], got %+v", cfg.Confluence)
+	}
+}
+
+func TestInitSpacesAll(t *testing.T) {
+	cfg := runInitWithSpaces(t, "all")
+	if cfg.Confluence == nil || len(cfg.Confluence.Spaces) != 0 {
+		t.Fatalf("want Confluence on with empty Spaces, got %+v", cfg.Confluence)
+	}
+	// Case-insensitive reserved word.
+	cfg2 := runInitWithSpaces(t, "ALL")
+	if cfg2.Confluence == nil || len(cfg2.Confluence.Spaces) != 0 {
+		t.Fatalf("ALL: want empty Spaces, got %+v", cfg2.Confluence)
+	}
+}
+
+func TestInitSpacesNone(t *testing.T) {
+	// Start with Confluence on, then none should clear it.
+	home := t.TempDir()
+	t.Setenv("SCRY_HOME", home)
+	t.Setenv("SCRY_SITE", "")
+	t.Setenv("SCRY_EMAIL", "")
+	t.Setenv("SCRY_TOKEN", "")
+	t.Setenv("SCRY_PROJECTS", "")
+	config.SetProfile("")
+	// Seed an on state via first init with --spaces ENG.
+	srv := myselfServer(t)
+	withClosedStdin(t, func() {
+		if _, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "spaces@example.com",
+				"--token-file", writeTokenFile(t, home, "test-token"),
+				"--spaces", "ENG",
+			})
+		}); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	})
+	seeded, _ := config.Load()
+	if seeded.Confluence == nil {
+		t.Fatal("seed should enable Confluence")
+	}
+	withClosedStdin(t, func() {
+		out, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "spaces@example.com",
+				"--token-file", writeTokenFile(t, home, "test-token"),
+				"--spaces", "none",
+				"--json",
+			})
+		})
+		if err != nil {
+			t.Fatalf("none: %v", err)
+		}
+		var doc map[string]any
+		if err := json.Unmarshal([]byte(out), &doc); err != nil {
+			t.Fatalf("json: %v", err)
+		}
+		if doc["confluence"] != "off" {
+			t.Fatalf("json confluence: %v, want off", doc["confluence"])
+		}
+	})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Confluence != nil {
+		t.Fatalf("none should clear Confluence, got %+v", cfg.Confluence)
+	}
+}
+
+func TestInitSpacesFlagAbsentLeavesConfluence(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SCRY_HOME", home)
+	t.Setenv("SCRY_SITE", "")
+	t.Setenv("SCRY_EMAIL", "")
+	t.Setenv("SCRY_TOKEN", "")
+	t.Setenv("SCRY_PROJECTS", "")
+	config.SetProfile("")
+	srv := myselfServer(t)
+	// Seed with Confluence on.
+	withClosedStdin(t, func() {
+		if _, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "spaces@example.com",
+				"--token-file", writeTokenFile(t, home, "test-token"),
+				"--spaces", "ENG,PROD",
+			})
+		}); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	})
+	// Re-init without --spaces must preserve Confluence.
+	withClosedStdin(t, func() {
+		if _, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "spaces@example.com",
+				"--token-file", writeTokenFile(t, home, "test-token"),
+				"--projects", "XYZ",
+				"--json",
+			})
+		}); err != nil {
+			t.Fatalf("re-init: %v", err)
+		}
+	})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Confluence == nil || len(cfg.Confluence.Spaces) != 2 ||
+		cfg.Confluence.Spaces[0] != "ENG" || cfg.Confluence.Spaces[1] != "PROD" {
+		t.Fatalf("flag absent should leave Confluence: %+v", cfg.Confluence)
+	}
+	if len(cfg.Projects) != 1 || cfg.Projects[0] != "XYZ" {
+		t.Fatalf("projects should update: %v", cfg.Projects)
+	}
+}
+
+func TestInitSpacesJSONShapes(t *testing.T) {
+	// --spaces ENG,PROD → ["ENG","PROD"]
+	home := t.TempDir()
+	t.Setenv("SCRY_HOME", home)
+	t.Setenv("SCRY_SITE", "")
+	t.Setenv("SCRY_EMAIL", "")
+	t.Setenv("SCRY_TOKEN", "")
+	t.Setenv("SCRY_PROJECTS", "")
+	config.SetProfile("")
+	srv := myselfServer(t)
+
+	check := func(spaces string, want any) {
+		t.Helper()
+		args := []string{
+			"--site", srv.URL,
+			"--email", "spaces@example.com",
+			"--token-file", writeTokenFile(t, home, "test-token"),
+			"--json",
+		}
+		if spaces != "" {
+			args = append(args, "--spaces", spaces)
+		}
+		var out string
+		withClosedStdin(t, func() {
+			var err error
+			out, err = capture(t, func() error { return cmdInit(args) })
+			if err != nil {
+				t.Fatalf("init: %v", err)
+			}
+		})
+		var doc map[string]any
+		if err := json.Unmarshal([]byte(out), &doc); err != nil {
+			t.Fatalf("json: %v", err)
+		}
+		got := doc["confluence"]
+		switch w := want.(type) {
+		case string:
+			if got != w {
+				t.Fatalf("spaces=%q confluence=%v want %q", spaces, got, w)
+			}
+		case []string:
+			arr, ok := got.([]any)
+			if !ok || len(arr) != len(w) {
+				t.Fatalf("spaces=%q confluence=%v want %v", spaces, got, w)
+			}
+			for i, k := range w {
+				if arr[i] != k {
+					t.Fatalf("spaces=%q confluence[%d]=%v want %s", spaces, i, arr[i], k)
+				}
+			}
+		}
+	}
+	check("ENG,PROD", []string{"ENG", "PROD"})
+	check("all", "all")
+	check("none", "off")
+}
+
 // TestInitClassicReplacesTokenOnly is the expired-token re-run: saved config is
 // complete, classic interactive mode re-prompts all four, and empty answers
 // keep site/email/projects while a new token line replaces the secret.
