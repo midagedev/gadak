@@ -192,6 +192,7 @@ export const ko = {
   'group.byEpic': '에픽',
   'group.byStatus': 'Jira 상태',
   'group.breakdown': '브레이크다운',
+  'group.openEpic': '에픽 이슈 열기',
 
   /* ── Filter bar ── */
   'filter.add': '+ 필터',

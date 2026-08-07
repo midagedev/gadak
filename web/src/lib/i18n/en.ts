@@ -191,6 +191,7 @@ export const en = {
   'group.byEpic': 'Epic',
   'group.byStatus': 'Jira status',
   'group.breakdown': 'Breakdown',
+  'group.openEpic': 'Open epic issue',
 
   /* ── Filter bar ── */
   'filter.add': '+ Filter',

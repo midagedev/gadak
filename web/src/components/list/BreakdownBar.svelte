@@ -118,14 +118,20 @@
     <div class="min-w-0 flex-1 overflow-x-auto">
       <div class="flex w-max items-center gap-3 whitespace-nowrap text-[12px]">
         {#each shownGroups as group, i (group.key || `empty-${i}`)}
-          <span class="inline-flex items-center gap-1.5 text-text-secondary">
+          <!-- A chip names a section of the list below, so it is the way to
+               that section (the list owns where it sits — see filters.revealGroup). -->
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 text-text-secondary transition-colors hover:text-text-primary"
+            onclick={() => filters.revealGroup(group.key)}
+          >
             <span
               class="h-1.5 w-1.5 rounded-full"
               style:background={groupColor(group.key, i)}
             ></span>
             <span class="max-w-36 truncate">{group.label || t('common.all')}</span>
             <span class="font-mono text-micro text-text-muted">{group.counts.total}</span>
-          </span>
+          </button>
         {/each}
         {#if hiddenGroupCount > 0}
           <span class="text-micro text-text-muted">{t('list.moreCount', { n: hiddenGroupCount })}</span>

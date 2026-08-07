@@ -155,6 +155,23 @@ class FiltersStore {
   /* ── Grouping (display.group_by). group_by=none → single group. ── */
   groups = $derived.by(() => buildGroups(this.visibleIssues, this.#config.display.group_by))
 
+  /* ── Reveal request: "bring this group's section into view" ──
+   * A state channel rather than a DOM lookup — the breakdown bar names a group,
+   * the list decides where that group sits (it owns the virtual scroll). The
+   * nonce is what makes a second click on the same chip a second request. */
+  #reveal = $state<{ key: string; nonce: number } | null>(null)
+
+  /** Latest reveal request, or null when none was ever made. */
+  get revealRequest(): { key: string; nonce: number } | null {
+    return this.#reveal
+  }
+
+  /** Ask the list to scroll to a group. No-op on the list side when the group
+   *  is not on screen (filtered away, or no list mounted). */
+  revealGroup(key: string): void {
+    this.#reveal = { key, nonce: (this.#reveal?.nonce ?? 0) + 1 }
+  }
+
   /**
    * Discovered filter axes for the current scope. Only bounded value sets make
    * useful facets, so role facet/user qualifies; plain text/date/url does not.

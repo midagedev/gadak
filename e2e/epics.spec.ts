@@ -65,6 +65,32 @@ test.describe('epic hierarchy', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  test('breakdown chip jumps to its section, and the header key opens the epic', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    await groupBy(page, 'Epic')
+
+    // A chip in the breakdown bar names a section below — clicking it scrolls
+    // that section's header to the top of the list (the floating header is the
+    // first group-header in DOM order).
+    const headers = page.getByTestId('group-header')
+    await page.getByRole('button', { name: /SDK developer experience/ }).click()
+    await expect(headers.first()).toContainText('SDK developer experience')
+
+    // An epic is an issue itself — unlike every other group axis — so the key
+    // in the section header opens it in the detail panel.
+    await page.getByRole('button', { name: /REST API correctness/ }).click()
+    await expect(headers.first()).toContainText('NMA-174')
+    await headers.first().getByRole('button', { name: 'NMA-174' }).click()
+    await expect(page.getByTestId('issue-detail-panel')).toBeVisible()
+    await expect(page.getByTestId('issue-detail-panel')).toContainText('NMA-174')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('row epic chip opens the epic it belongs to', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)

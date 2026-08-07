@@ -5,6 +5,7 @@
    */
   import { t } from '../../lib/i18n'
   import type { IssueGroup } from '../../stores/filters.svelte'
+  import { selection } from '../../stores/selection.svelte'
   import { CATEGORY_META } from '../../lib/format'
   import type { StatusCategory } from '../../lib/view-config'
 
@@ -32,8 +33,14 @@
 >
   {#if group.prefix}
     <!-- Epic key stays as typed (mono, no uppercase transform) so it reads as an
-         identifier next to the uppercased section label. -->
-    <span class="flex-none font-mono text-micro font-semibold text-accent-text">{group.prefix}</span>
+         identifier next to the uppercased section label. An epic is a Jira issue
+         itself — unlike every other group axis — so the key opens it. -->
+    <button
+      type="button"
+      class="flex-none font-mono text-micro font-semibold text-accent-text transition-colors hover:underline"
+      title={t('group.openEpic')}
+      onclick={() => selection.select(group.key)}
+    >{group.prefix}</button>
   {/if}
   <span class="truncate text-micro font-semibold uppercase tracking-wider text-text-muted">
     {group.label || t('common.all')}

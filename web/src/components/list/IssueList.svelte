@@ -104,6 +104,19 @@
     })
   })
 
+  // A breakdown chip asked for a group: put that section header at the top.
+  //  Only the request itself is tracked — the row lookup runs untracked so a
+  //  data delta cannot re-scroll on its own (same shape as the follow above).
+  $effect(() => {
+    const req = filters.revealRequest
+    if (!req) return
+    void req.nonce
+    untrack(() => {
+      const idx = rows.findIndex((r) => r.type === 'header' && r.group.key === req.key)
+      if (idx >= 0 && scroller) scroller.scrollTop = idx * ROW_H
+    })
+  })
+
   // Real view (filter/group/sort) changes scroll to top (ignore data deltas).
   $effect(() => {
     void filters.viewKey
