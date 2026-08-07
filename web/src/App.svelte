@@ -161,6 +161,24 @@
       return
     }
 
+    // ── / : narrow whatever is in the main column ──
+    //  One key, one meaning: go to the field that narrows this screen. Which
+    //  field that is belongs to the screen, so this asks the main column rather
+    //  than letting each list bind its own listener (the list used to, which is
+    //  why `/` did nothing on a document screen).
+    if (key === '/') {
+      const testid = pages.open ? 'docs-filter-input' : 'search-input'
+      // The feed has nothing to narrow — no field, no key.
+      const field = me.feedOpen && feature('feed')
+        ? null
+        : document.querySelector<HTMLInputElement>(`[data-testid="${testid}"]`)
+      if (field) {
+        e.preventDefault()
+        field.focus()
+      }
+      return
+    }
+
     // ── List cursor ──
     if (triage.listActive && (key === 'j' || key === 'k')) {
       e.preventDefault()

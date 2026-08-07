@@ -19,7 +19,7 @@ test.describe('keyboard cheat sheet', () => {
       'Open the command palette',
       'New issue',
       'Move cursor down',
-      'Focus the search box',
+      'Focus the search or filter box',
       'Submit the comment',
     ]) {
       await expect(sheet.getByText(label, { exact: true })).toBeVisible()

@@ -505,6 +505,14 @@ export const en = {
   'docs.viewedEmptyHint': 'Until then, Updated shows what changed across every space.',
   'docs.recentEmpty': 'No mirrored documents yet.',
   'docs.backToIssues': 'Back to issues',
+  /* The field narrows what is on screen; Enter leaves for the whole mirror. The
+     placeholder carries both, because Enter changing screens has to be asked
+     for, not discovered. */
+  'docs.filterPlaceholder': 'Filter — Enter searches everything',
+  'docs.filterLabel': 'Filter documents',
+  'docs.filterClear': 'Clear filter',
+  'docs.filterEmpty': 'No documents match',
+  'docs.filterEmptyHint': 'Press Enter to search every issue and document instead.',
 
   /* ── Person panel (people axis) ── */
   'person.comments': 'Comments',
@@ -768,6 +776,10 @@ export const en = {
   'palette.title': 'Command palette',
   'palette.placeholder': 'Jump to an issue, view, or action…',
   'palette.sectionIssues': 'Issues',
+  // Truncation, spelled out. "4 / 7" is reserved for the document screens'
+  // filter fraction; the palette says "4 of 7" so the glyph keeps one meaning.
+  'palette.docCount': '{shown} of {total}',
+  'palette.sectionDocs': 'Documents',
   'palette.sectionPeople': 'People',
   'palette.sectionViews': 'Views',
   'palette.sectionActions': 'Actions',
@@ -907,7 +919,7 @@ export const en = {
   'shortcuts.focusStatus': 'Change status (when detail is open)',
   'shortcuts.focusAssignee': 'Change assignee (when detail is open)',
   'shortcuts.focusComment': 'Focus the comment box (when detail is open)',
-  'shortcuts.focusSearch': 'Focus the search box',
+  'shortcuts.focusSearch': 'Focus the search or filter box',
   'shortcuts.suggestions': 'Move through suggestions',
   'shortcuts.applySearch': 'Apply the search',
   'shortcuts.clearSearch': 'Clear the search box',

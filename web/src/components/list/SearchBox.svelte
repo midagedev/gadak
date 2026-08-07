@@ -9,7 +9,6 @@
    *  `/` focuses from anywhere; Esc clears.
    */
   import { t } from '../../lib/i18n'
-  import { onMount } from 'svelte'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
@@ -155,22 +154,9 @@
     }
   }
 
-  function inEditable(t: EventTarget | null): boolean {
-    const el = t as HTMLElement | null
-    if (!el) return false
-    const tag = el.tagName
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
-  }
-  function onGlobalKey(e: KeyboardEvent) {
-    if (e.key === '/' && !inEditable(e.target)) {
-      e.preventDefault()
-      inputEl?.focus()
-    }
-  }
-  onMount(() => {
-    window.addEventListener('keydown', onGlobalKey)
-    return () => window.removeEventListener('keydown', onGlobalKey)
-  })
+  // `/` is not bound here. It belongs to whatever narrowing field the screen has
+  // — this box on the list, the filter on a document screen — so the binding
+  // lives in App.svelte's one global handler and finds this input by its testid.
 </script>
 
 <div class="relative">
@@ -184,6 +170,7 @@
       oninput={onInput}
       onkeydown={onKeydown}
       type="text"
+      data-testid="search-input"
       placeholder={t('list.searchPlaceholder')}
       title={t('list.searchHelp')}
       class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"

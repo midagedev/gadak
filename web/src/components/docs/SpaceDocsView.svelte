@@ -10,15 +10,37 @@
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type PageNode } from '../../stores/pages.svelte'
+  import { isChosungQuery } from '../../lib/korean'
+  import { pageMatches } from '../../lib/doc-search'
+  import EmptyState from '../list/EmptyState.svelte'
+  import DocsFilter from './DocsFilter.svelte'
   import DocRow from './DocRow.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
   import { rowMetrics } from '../../lib/row-metrics'
 
   let { space }: { space: string } = $props()
 
-  const docs = $derived(pages.inSpace(space))
+  const all = $derived(pages.inSpace(space))
   const tree = $derived(pages.treeBySpace.find((group) => group.space === space))
   const label = $derived(pages.spaceLabel(space))
+
+  /* Same narrowing rule as the tabbed view — title, space and author, locally,
+   * on every keystroke. */
+  let filterText = $state('')
+  const raw = $derived(filterText.trim())
+  const needle = $derived(raw.toLowerCase())
+  const chosungQuery = $derived(raw ? isChosungQuery(raw) : false)
+  const filtering = $derived(needle !== '')
+  const matched = $derived.by(() => {
+    if (!filtering) return null
+    const keys = new Set<string>()
+    for (const page of all) {
+      if (pageMatches(page, needle, chosungQuery, label, { author: true })) keys.add(page.key)
+    }
+    return keys
+  })
+
+  const docs = $derived(matched ? all.filter((page) => matched.has(page.key)) : all)
 
   let treeMode = $state(false)
   /** Expanded page nodes, by key. */
@@ -51,10 +73,38 @@
    * space with no hierarchy makes every page a root, and showTree() opens every
    * root, so "collapsed" is no protection against the size of the space.
    */
+  /**
+   * While the filter is on, the nodes worth drawing: every hit, plus the
+   * ancestors that say where it lives. A hit shown without its path is a title
+   * floating in a hierarchy screen, which is the one thing this mode is for.
+   * Null when nothing is filtered.
+   */
+  const treeKeep = $derived.by<Set<string> | null>(() => {
+    if (!matched) return null
+    const keep = new Set<string>()
+    const mark = (node: PageNode): boolean => {
+      let any = matched.has(node.page.key)
+      for (const child of node.children) if (mark(child)) any = true
+      if (any) keep.add(node.page.key)
+      return any
+    }
+    for (const root of tree?.roots ?? []) mark(root)
+    return keep
+  })
+
   const treeRows = $derived.by(() => {
     const out: PageNode[] = []
+    const keep = treeKeep
     const walk = (nodes: PageNode[]) => {
       for (const node of nodes) {
+        // Filtering opens the path to every hit. The chevron still records what
+        // was clicked; that choice comes back the moment the filter is cleared.
+        if (keep) {
+          if (!keep.has(node.page.key)) continue
+          out.push(node)
+          walk(node.children)
+          continue
+        }
         out.push(node)
         if (openDocs.has(node.page.key)) walk(node.children)
       }
@@ -70,7 +120,9 @@
      compressed one. Children are not rendered from here — treeRows already
      holds them in visual order, which is what lets the list be windowed. -->
 {#snippet docNode(node: PageNode)}
-  {@const expanded = openDocs.has(node.page.key)}
+  {@const expanded = treeKeep
+    ? node.children.some((child) => treeKeep.has(child.page.key))
+    : openDocs.has(node.page.key)}
   {@const selected = pages.selectedKey === node.page.key}
   <div
     class="group flex min-h-control items-center rounded-md pr-3 text-body transition-colors {selected
@@ -114,9 +166,15 @@
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="space-docs-view" data-space={space}>
   <header class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2">
     <h2 class="truncate text-body font-semibold text-text-primary" title={space}>{label}</h2>
-    <span class="flex-none text-micro tabular-nums text-text-muted">{formatNumber(docs.length)}</span>
+    <span class="flex-none text-micro tabular-nums text-text-muted" data-testid="docs-count">
+      {#if filtering}{formatNumber(docs.length)} / {formatNumber(all.length)}{:else}{formatNumber(
+          all.length,
+        )}{/if}
+    </span>
 
-    <div class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-0.5">
+    <!-- p-1: same 32px wrapper as DocsView's tabs, for the same header-row
+         height rule (vision verdict 2026-08-07). -->
+    <div class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-1">
       <button
         type="button"
         class="flex h-control-sm items-center rounded px-2 text-micro font-medium transition-colors {treeMode
@@ -141,7 +199,7 @@
       </button>
     </div>
 
-    <div class="flex-1"></div>
+    <div class="ml-auto min-w-0 max-w-[300px] flex-1"><DocsFilter bind:value={filterText} /></div>
     <button
       type="button"
       class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
@@ -156,7 +214,11 @@
 
   {#if docs.length === 0}
     <div class="min-h-0 flex-1 overflow-y-auto">
-      <p class="px-4 py-12 text-center text-[12px] text-text-muted">{t('docs.recentEmpty')}</p>
+      {#if filtering}
+        <EmptyState icon="search-x" title={t('docs.filterEmpty')} hint={t('docs.filterEmptyHint')} />
+      {:else}
+        <p class="px-4 py-12 text-center text-[12px] text-text-muted">{t('docs.recentEmpty')}</p>
+      {/if}
     </div>
   {:else if treeMode}
     <!-- Capped width: a hierarchy read left-to-right gains nothing from a

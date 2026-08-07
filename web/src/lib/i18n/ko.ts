@@ -506,6 +506,13 @@ export const ko = {
   'docs.viewedEmptyHint': '그전까지는 최근 갱신 탭이 모든 스페이스의 변경을 보여줍니다.',
   'docs.recentEmpty': '미러링된 문서가 아직 없습니다.',
   'docs.backToIssues': '이슈 목록으로',
+  /* 입력은 지금 화면을 좁히고, Enter는 미러 전체로 나간다. Enter가 화면을
+     바꾸는 일은 발견이 아니라 예고되어야 하므로 placeholder가 둘 다 말한다. */
+  'docs.filterPlaceholder': '필터 — Enter로 전체 검색',
+  'docs.filterLabel': '문서 필터',
+  'docs.filterClear': '필터 지우기',
+  'docs.filterEmpty': '일치하는 문서가 없습니다',
+  'docs.filterEmptyHint': 'Enter를 누르면 이슈와 문서 전체에서 검색합니다.',
 
   /* ── Person panel (people axis) ── */
   'person.comments': '코멘트',
@@ -764,6 +771,8 @@ export const ko = {
   'palette.title': '커맨드 팔레트',
   'palette.placeholder': '이슈·뷰·액션으로 이동…',
   'palette.sectionIssues': '이슈',
+  'palette.docCount': '{total}개 중 {shown}개',
+  'palette.sectionDocs': '문서',
   'palette.sectionPeople': '사람',
   'palette.sectionViews': '뷰',
   'palette.sectionActions': '액션',
@@ -903,7 +912,7 @@ export const ko = {
   'shortcuts.focusStatus': '상태 변경 (상세 열림 시)',
   'shortcuts.focusAssignee': '담당자 변경 (상세 열림 시)',
   'shortcuts.focusComment': '코멘트 입력 포커스 (상세 열림 시)',
-  'shortcuts.focusSearch': '검색창 포커스',
+  'shortcuts.focusSearch': '검색·필터 입력 포커스',
   'shortcuts.suggestions': '추천 항목 이동',
   'shortcuts.applySearch': '검색 실행',
   'shortcuts.clearSearch': '검색창 비우기',

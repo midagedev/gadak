@@ -9,12 +9,15 @@
   import { onMount } from 'svelte'
   import { trapFocus } from '../../lib/focus-trap'
   import {
+    formatNumber,
     formatTimeOfDay,
     locale,
     setLocale,
     t,
   } from '../../lib/i18n'
   import { extractChosung, isChosungQuery } from '../../lib/korean'
+  import { rankPages } from '../../lib/doc-search'
+  import { highlightSegments } from '../../lib/format'
   import { builtinViews } from '../../lib/builtin-views'
   import { emptyFilters, type ViewConfig } from '../../lib/view-config'
   import {
@@ -38,7 +41,9 @@
 
   let { onclose, onOpenSettings }: { onclose: () => void; onOpenSettings: () => void } = $props()
 
-  type Section = 'person' | 'issue' | 'view' | 'action'
+  // 'recent' is the empty-query list, which is issues and documents together in
+  // visit order — one group, so neither kind claims the other's section.
+  type Section = 'person' | 'recent' | 'doc' | 'issue' | 'view' | 'action'
 
   interface Item {
     id: string
@@ -46,6 +51,13 @@
     /** Body used for match + display. */
     label: string
     icon?: IconName
+    /** Label split into matched/unmatched runs. Rows that were found by a query
+     *  carry it so the row says why it is here. */
+    segs?: { text: string; hit: boolean }[]
+    /** Same for the sub line. An issue is found by its summary as often as by
+     *  its key, and a doc row right above it marking the word while the issue
+     *  row does not reads as two surfaces (vision verdict 2026-08-07). */
+    subSegs?: { text: string; hit: boolean }[]
     /** Leading chip — what kind of thing the row opens (documents only; an
      *  issue says so with its monospace key). */
     badge?: string
@@ -75,12 +87,13 @@
     return chosungQuery && extractChosung(text).includes(needle)
   }
 
-  function issueItem(issue: IssueLite): Item {
+  function issueItem(issue: IssueLite, section: Section = 'issue'): Item {
     return {
       id: `i:${issue.issue_key}`,
-      section: 'issue',
+      section,
       label: issue.issue_key,
       sub: issue.summary,
+      subSegs: needle ? highlightSegments(issue.summary, raw) : undefined,
       mono: true,
       run: () => selection.select(issue.issue_key),
     }
@@ -88,17 +101,48 @@
 
   /** A mirrored page reads as its title; the badge carries the kind, since a
    *  page key is an opaque id nobody recognizes. */
-  function docItem(page: PageLite): Item {
+  function docItem(page: PageLite, section: Section = 'doc'): Item {
     return {
       id: `d:${page.key}`,
-      section: 'issue',
+      section,
       label: page.title,
+      segs: needle ? highlightSegments(page.title, raw) : undefined,
       badge: t('doc.badge'),
       sub: pages.spaceLabel(page.space_key),
       testid: 'palette-doc-row',
       run: () => pages.select(page.key),
     }
   }
+
+  /**
+   * Documents matched by the query — title first, then the space it lives in,
+   * with chosung covering the Korean titles a Latin keyboard cannot type in
+   * full. Four rows: the section sits above the issues and is a way in, not the
+   * place to read a result set (that is the list's search section, which Enter
+   * in the document filter goes to).
+   */
+  const docMatches = $derived.by<PageLite[]>(() =>
+    needle ? rankPages(pages.index, needle, chosungQuery, (key) => pages.spaceLabel(key)) : [],
+  )
+
+  const DOC_LIMIT = 4
+  const docItems = $derived.by<Item[]>(() =>
+    docMatches.slice(0, DOC_LIMIT).map((page) => docItem(page)),
+  )
+
+  /** What the header says next to "Documents": how many are shown out of how
+   *  many matched, so four rows never read as the whole answer. Spelled out
+   *  ("4 of 7"), never "4 / 7" — the slash form is the document screens'
+   *  filter fraction (shown / total in the mirror), and one glyph carrying two
+   *  meanings across surfaces is how it stops carrying either. */
+  const docCount = $derived(
+    docMatches.length > DOC_LIMIT
+      ? t('palette.docCount', {
+          shown: formatNumber(docItems.length),
+          total: formatNumber(docMatches.length),
+        })
+      : formatNumber(docMatches.length),
+  )
 
   const issueItems = $derived.by<Item[]>(() => {
     // Empty input = recently opened issues and documents, in visit order.
@@ -107,10 +151,10 @@
       for (const visit of me.recent) {
         if (visit.kind === 'doc') {
           const page = pages.byKey.get(visit.key)
-          if (page) out.push(docItem(page))
+          if (page) out.push(docItem(page, 'recent'))
         } else {
           const issue = issues.pool.get(visit.key)
-          if (issue) out.push(issueItem(issue))
+          if (issue) out.push(issueItem(issue, 'recent'))
         }
         if (out.length >= 5) break
       }
@@ -128,7 +172,7 @@
     }
     return sortIssues(filterIssues(issues.allIssues, f), 'relevance', 'desc', ctx)
       .slice(0, 8)
-      .map(issueItem)
+      .map((issue) => issueItem(issue))
   })
 
   /**
@@ -287,10 +331,22 @@
   // eight issue rows would leave the axis undiscoverable, which is the whole
   // reason it exists. Key and title queries never match a member, so the hot
   // path (jump to an issue) keeps its top slot.
-  const items = $derived([...peopleItems, ...issueItems, ...viewItems, ...actionItems])
+  //
+  // Documents sit above the issues for the same reason they do in the list's
+  // search section: when someone types words rather than a key, the page is
+  // often the thing they came for, and eight issue rows would bury it.
+  const items = $derived([
+    ...peopleItems,
+    ...docItems,
+    ...issueItems,
+    ...viewItems,
+    ...actionItems,
+  ])
 
   const SECTION_LABEL: Record<Section, string> = {
     person: t('palette.sectionPeople'),
+    recent: t('palette.recent'),
+    doc: t('palette.sectionDocs'),
     issue: t('palette.sectionIssues'),
     view: t('palette.sectionViews'),
     action: t('palette.sectionActions'),
@@ -377,9 +433,16 @@
         {#if i === 0 || items[i - 1].section !== item.section}
           <div
             role="presentation"
-            class="px-2 pb-1 pt-2 text-micro font-medium uppercase tracking-wide text-text-muted"
+            class="flex items-center gap-1.5 px-2 pb-1 pt-2 text-micro font-medium uppercase tracking-wide text-text-muted"
+            data-testid="palette-section"
+            data-section={item.section}
           >
-            {item.section === 'issue' && !needle ? t('palette.recent') : SECTION_LABEL[item.section]}
+            <span>{SECTION_LABEL[item.section]}</span>
+            {#if item.section === 'doc'}
+              <!-- Four rows out of however many matched. Without the total, a
+                   capped section reads as the whole answer. -->
+              <span class="tabular-nums" data-testid="palette-doc-count">{docCount}</span>
+            {/if}
           </div>
         {/if}
         <button
@@ -415,13 +478,21 @@
               ? 'font-mono text-accent-text'
               : ''}"
           >
-            {item.label}
+            <!-- Same mark as the list's search hits: the row shows the part of
+                 the title the query found. A chosung query marks nothing, and
+                 falls back to the plain title. -->
+            {#if item.segs}{#each item.segs as seg, s (s)}{#if seg.hit}<mark
+                  class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark
+                >{:else}{seg.text}{/if}{/each}{:else}{item.label}{/if}
           </span>
           {#if item.sub}
             <span
               class="truncate text-text-muted {item.badge
                 ? 'max-w-[35%] flex-none'
-                : 'min-w-0 flex-1'}">{item.sub}</span
+                : 'min-w-0 flex-1'}"
+              >{#if item.subSegs}{#each item.subSegs as seg, s (s)}{#if seg.hit}<mark
+                    class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark
+                  >{:else}{seg.text}{/if}{/each}{:else}{item.sub}{/if}</span
             >
           {/if}
           {#if item.kbd}

@@ -15,8 +15,11 @@
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type DocsTab } from '../../stores/pages.svelte'
+  import { isChosungQuery } from '../../lib/korean'
+  import { pageMatches } from '../../lib/doc-search'
   import type { PageLite } from '../../lib/types'
   import EmptyState from '../list/EmptyState.svelte'
+  import DocsFilter from './DocsFilter.svelte'
   import DocRow from './DocRow.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
   import { rowMetrics } from '../../lib/row-metrics'
@@ -28,10 +31,48 @@
   ]
 
   const tab = $derived(pages.docsTab)
-  const viewed = $derived(pages.recentlyViewed)
-  const updated = $derived(pages.recentlyUpdated)
-  const authors = $derived(pages.byAuthor)
-  const count = $derived(tab === 'viewed' ? viewed.length : updated.length)
+
+  /*
+   * Narrowing, not searching: the filter keeps each tab's own order (recency,
+   * author groups) and only removes rows, so the list someone is reading never
+   * reshuffles under them. Title, space and author are the three things the row
+   * itself shows — filtering by anything it does not display would make hits
+   * look arbitrary. Every keystroke is a pass over the loaded index; nothing
+   * here is allowed to reach the network.
+   */
+  let filterText = $state('')
+  const raw = $derived(filterText.trim())
+  const needle = $derived(raw.toLowerCase())
+  const chosungQuery = $derived(raw ? isChosungQuery(raw) : false)
+  const filtering = $derived(needle !== '')
+
+  const keep = $derived((page: PageLite) =>
+    pageMatches(page, needle, chosungQuery, pages.spaceLabel(page.space_key), { author: true }),
+  )
+  const narrow = $derived((list: PageLite[]) => (filtering ? list.filter(keep) : list))
+
+  const viewed = $derived(narrow(pages.recentlyViewed))
+  const updated = $derived(narrow(pages.recentlyUpdated))
+  const authors = $derived.by(() => {
+    if (!filtering) return pages.byAuthor
+    // A group whose every page is filtered out goes with them — an author
+    // heading over nothing claims a match that is not there.
+    return pages.byAuthor
+      .map((group) => ({ author: group.author, pages: group.pages.filter(keep) }))
+      .filter((group) => group.pages.length > 0)
+  })
+
+  /** The tab's own total, before the filter — the denominator of "3 / 47". */
+  const total = $derived(
+    tab === 'viewed' ? pages.recentlyViewed.length : pages.index.length,
+  )
+  const count = $derived(
+    tab === 'viewed'
+      ? viewed.length
+      : tab === 'updated'
+        ? updated.length
+        : authors.reduce((n, group) => n + group.pages.length, 0),
+  )
 
   /*
    * All three tabs are one flat row list so a single window serves them. The
@@ -93,9 +134,16 @@
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="docs-view">
   <header class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2">
     <h2 class="whitespace-nowrap text-body font-semibold text-text-primary">{t('docs.title')}</h2>
-    <span class="flex-none text-micro tabular-nums text-text-muted">{formatNumber(count)}</span>
+    <!-- While the filter is on, the count is a fraction: how many rows are left
+         out of how many the tab holds. -->
+    <span class="flex-none text-micro tabular-nums text-text-muted" data-testid="docs-count">
+      {#if filtering}{formatNumber(count)} / {formatNumber(total)}{:else}{formatNumber(count)}{/if}
+    </span>
 
-    <div class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-0.5">
+    <!-- p-1 so the wrapper stands 32px like the filter input beside it: two
+         controls on one header row at two heights read as two size classes
+         (vision verdict 2026-08-07). -->
+    <div class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-1">
       {#each TABS as entry (entry.key)}
         <button
           type="button"
@@ -113,7 +161,7 @@
       {/each}
     </div>
 
-    <div class="flex-1"></div>
+    <div class="ml-auto min-w-0 max-w-[300px] flex-1"><DocsFilter bind:value={filterText} /></div>
     <button
       type="button"
       class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
@@ -128,7 +176,15 @@
 
   {#if rows.length === 0}
     <div class="min-h-0 flex-1 overflow-y-auto">
-      {#if tab === 'viewed'}
+      {#if filtering}
+        <!-- Nothing here matched, but the mirror is bigger than this tab —
+             Enter is the way to the rest of it. -->
+        <EmptyState
+          icon="search-x"
+          title={t('docs.filterEmpty')}
+          hint={t('docs.filterEmptyHint')}
+        />
+      {:else if tab === 'viewed'}
         <EmptyState icon="" title={t('docs.viewedEmpty')} hint={t('docs.viewedEmptyHint')} />
       {:else}
         <EmptyState icon="" title={t('docs.recentEmpty')} />
