@@ -22,7 +22,9 @@ If the agent has a shell, **prefer the CLI and SQL**:
 MCP is deliberately not the primary interface. Every tool schema is context the
 model must read before it can act; SQL is not a guess about which questions will
 be asked. Use MCP only when the host cannot run `scry` as a subprocess with a
-normal argv/stdio pipe for one-shot commands.
+normal argv/stdio pipe for one-shot commands. If the agent has a shell and you
+want schema/query knowledge without a server process, prefer
+`scry skill install` (Claude Code skill) — see [`docs/AGENT_SETUP.md`](AGENT_SETUP.md).
 
 ## Start
 

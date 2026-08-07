@@ -86,6 +86,34 @@ Use the scry local mirror, not the Jira REST API:
 display names. Use the `issues_full` view for titles.
 ```
 
+## Skill or MCP?
+
+scry's value for agents is **schema and query-pattern knowledge**, not a fixed
+tool surface. Two install paths:
+
+| | **Skill** (`scry skill install`) | **MCP** (`scry mcp install`) |
+| --- | --- | --- |
+| Best when | The agent has a shell (Claude Code, etc.) | The host has **no** shell (Claude Desktop, some IDE hosts) |
+| What you get | One folder of docs, loaded only when relevant | A stdio server + always-on tool schemas in context |
+| Cost | Cheap on context; agent runs `scry sql` / `scry issue` itself | Tool definitions occupy context every turn |
+
+**Use both if you want** — they do not conflict. The skill teaches SQL/CLI;
+MCP is a separate read-only tool surface for hosts that cannot spawn processes.
+
+## Claude Code skill (preferred when the agent has a shell)
+
+```bash
+scry skill install                 # → ~/.claude/skills/scry/SKILL.md
+scry skill install --project       # → ./.claude/skills/scry/SKILL.md
+scry skill install --print         # plan only
+```
+
+Restart the agent or open a new session so it picks up the skill. The skill
+body is embedded in the binary (same as `skills/scry/SKILL.md` in the repo),
+so brew installs work without a checkout. Only Claude Code is supported by
+`skill install` today; other agents: `scry mcp install <client>` or copy
+`SKILL.md` yourself.
+
 ## MCP (for hosts without a shell)
 
 Shortest path — pins the **current** profile into the registration so the host
@@ -126,7 +154,8 @@ claude mcp add scry -- scry --profile demo mcp
 ```
 
 Same store, tool-shaped: see [`docs/MCP.md`](MCP.md). If the agent can run
-shell commands, the CLI is cheaper — no tool schemas in the context window.
+shell commands, prefer the skill or raw CLI — no tool schemas in the context
+window.
 
 ## Why this is worth a paste
 
