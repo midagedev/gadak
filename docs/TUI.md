@@ -73,15 +73,19 @@ focus — meaning depends on mode):
 | --- | --- | --- |
 | `1` | **Updated** (default) | Every page, flat, `updated_at` desc |
 | `2` | **By author** | Author group headers (`▸ name (n)`); empty author is `(no author)`; pages within a group by `updated_at` desc |
-| `3` | **Spaces** | Space-grouped parent/child tree (same nesting rules as the web space tree) |
+| `3` | **Spaces** | Space-grouped parent/child tree (same nesting rules as the web space tree); parents show a muted direct-child count (unfiltered total) |
 
 Each row is the title plus a dimmed meta clause: `author · relative time · in
 space name` (space key when the mirror has no name yet). On **Updated** and **By
 author**, a muted one-line body excerpt sits under the meta when the page has
 one (`PageLite.excerpt` — empty bodies omit the line). **Spaces** never shows
 excerpts (tree is for navigation, not discovery — same as the web UI). `/`
-filters by title or space key (substring only — not full-text). `Enter` opens
-plain-text detail; `Esc` / `D` leaves.
+filters by title, space (key or name), or author (substring only — not
+full-text); matching title spans are highlighted with the same accent as the
+issue list (inert under `NO_COLOR`). On the Spaces tree, a filter also keeps
+each hit's ancestors as muted path rows so the hierarchy still reads. `Enter`
+opens plain-text detail (labels, body, comments, related issue keys /
+backlinks); `Esc` / `D` leaves.
 
 **Viewed** recency lives in the web UI's browser storage; the TUI does not track
 visits yet. Full-text document search stays on the web UI / CLI.
@@ -91,8 +95,21 @@ the TUI has no person axis or activity-by-author surface.
 
 **Search match hints** (`SearchResult.Matches` — body/comment snippet on FTS
 hits) are CLI/web only. TUI `/` is a local substring filter over already-loaded
-issue rows (key, summary, assignee) or docs (title, space); it never calls
-`store.Search`, so there is no match field or snippet to surface.
+issue rows (key, summary, assignee) or docs (title, space, author); it never
+calls `store.Search`, so there is no match field or snippet to surface.
+
+#### v0.10 document-wave parity
+
+| Web feature | TUI |
+| --- | --- |
+| Filter haystack: title + space + **author** | **supported** — `/` matches title, space key/name, author (and page key) |
+| Filter match highlight on list titles | **supported** — `styleHighlight` (same as issue list); no-op under `NO_COLOR` (row still present) |
+| Spaces tree: parent direct-child count (unfiltered total) | **supported** — muted count after title on parents with children |
+| Spaces tree: filter keeps path ancestors, muted | **supported** — non-hit ancestors stay as muted path rows |
+| Issue ↔ document cross-references (`item_refs`) | **supported** — issue detail: Related pages / Mentioned in; page detail: Related issues / Mentioned from |
+| Document label chips on list rows | **unsupported** — narrow terminal width; labels show on page detail only |
+| Document label filter (chip → narrow) | **unsupported** — no dedicated label-filter UI in the TUI |
+| Document deeplink (URL) | **unsupported** — TUI has no address bar / shareable URL |
 
 ### Saved views
 

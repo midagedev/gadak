@@ -31,7 +31,9 @@ func (m Model) overlayHelp(base string) string {
 	}
 	body.WriteByte('\n')
 	// Honest parity notes (TUI_PRINCIPLES §10 — silence is the only wrong answer).
-	body.WriteString(styleMuted.Render("  docs / filter: title & space only"))
+	body.WriteString(styleMuted.Render("  docs / filter: title, space & author (matches highlighted)"))
+	body.WriteByte('\n')
+	body.WriteString(styleMuted.Render("  docs labels: detail only — list chips & label filter are web-only"))
 	body.WriteByte('\n')
 	body.WriteString(styleMuted.Render("  full-text search: web/CLI (not TUI)"))
 	body.WriteByte('\n')
@@ -40,6 +42,8 @@ func (m Model) overlayHelp(base string) string {
 	body.WriteString(styleMuted.Render("  Viewed recency lives in the web UI's browser storage; the TUI does not track visits yet."))
 	body.WriteByte('\n')
 	body.WriteString(styleMuted.Render("  People (person panel / activity by author): web only"))
+	body.WriteByte('\n')
+	body.WriteString(styleMuted.Render("  document deeplinks (URL): web only — TUI has no address bar"))
 	body.WriteByte('\n')
 	body.WriteByte('\n')
 	body.WriteString(styleMuted.Render("  ? or esc to close"))

@@ -1,11 +1,15 @@
 package tui
 
 // Docs view: mirrored wiki pages with three list axes (Updated / By author /
-// Spaces tree), plain-text detail, and in-memory title/space filter.
+// Spaces tree), plain-text detail, and in-memory title/space/author filter
+// with match highlighting on list titles. Spaces tree shows direct-child
+// counts (unfiltered total) and keeps path ancestors muted while filtering.
 // Updated / By author rows show a muted one-line body excerpt when present
-// (Spaces tree does not — web parity). Issue-only write actions report
-// unsupported rather than no-op. Full-text search, Viewed recency, and the
-// People axis stay on the web UI / CLI.
+// (Spaces tree does not — web parity). Labels appear on page detail only
+// (list chips + dedicated label filter stay web-only — narrow width).
+// Issue↔page cross-refs surface on both detail panes. Issue-only write
+// actions report unsupported rather than no-op. Full-text search, Viewed
+// recency, People axis, and URL deeplinks stay on the web UI / CLI.
 
 import (
 	"fmt"
@@ -15,6 +19,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/midagedev/scry/internal/jira"
 	"github.com/midagedev/scry/internal/store"
@@ -41,9 +46,15 @@ const (
 type docsLine struct {
 	kind  int
 	space string
-	count int // header only
+	count int // header only: pages in the group (or keep-set size under filter)
 	page  store.PageLite
 	depth int
+	// childCount is direct children in the unfiltered space tree (Spaces tab
+	// page rows only). Same meaning as the web doc-tree-count badge.
+	childCount int
+	// pathOnly marks an ancestor kept only so a filter hit has a path (Spaces
+	// tab under filter). Rendered muted; still cursor-addressable.
+	pathOnly bool
 }
 
 // docsNavItem is one cursor-addressable page in tree order (no headers).
@@ -155,8 +166,17 @@ func buildDocsByAuthorLines(pages []store.PageLite) []docsLine {
 // buildDocsLines groups pages by space (alpha), nests by parent_id, and flattens
 // for display. Rules match the web sidebar (pages.svelte.ts treeBySpace):
 // missing / other-space parent → root; parent cycles are bounded and residual
-// nodes surface as roots rather than vanishing.
+// nodes surface as roots rather than vanishing. Direct-child counts ride on
+// each parent row (unfiltered total).
 func buildDocsLines(pages []store.PageLite) []docsLine {
+	return buildDocsTree(pages, nil)
+}
+
+// buildDocsTree is the Spaces-tab list builder. When match is non-nil, only
+// hits plus their ancestors are kept (web SpaceDocsView treeKeep); non-hit
+// ancestors are pathOnly. Child counts always come from the full children map
+// over `pages` (pass the unfiltered index for web-parity totals).
+func buildDocsTree(pages []store.PageLite, match map[string]bool) []docsLine {
 	if len(pages) == 0 {
 		return nil
 	}
@@ -201,11 +221,55 @@ func buildDocsLines(pages []store.PageLite) []docsLine {
 			return roots[i].Title < roots[j].Title
 		})
 
+		// While filtering: every hit plus ancestors that say where it lives
+		// (web SpaceDocsView treeKeep). Walk parent_id upward — cycle-safe,
+		// same keep set as a post-order mark over an acyclic tree.
+		var keep map[string]bool
+		if match != nil {
+			keep = map[string]bool{}
+			for _, p := range list {
+				if !match[p.Key] {
+					continue
+				}
+				cur := p
+				seen := map[string]bool{}
+				for {
+					if seen[cur.Key] {
+						break
+					}
+					seen[cur.Key] = true
+					keep[cur.Key] = true
+					parentKey := cur.ParentID
+					if parentKey == "" {
+						break
+					}
+					parent, ok := byKey[parentKey]
+					if !ok || parent.SpaceKey != space {
+						break
+					}
+					cur = parent
+				}
+			}
+			if len(keep) == 0 {
+				continue
+			}
+		}
+
 		visited := map[string]bool{}
 		var walk func(p store.PageLite, depth int)
 		walk = func(p store.PageLite, depth int) {
+			if keep != nil && !keep[p.Key] {
+				return
+			}
 			visited[p.Key] = true
-			out = append(out, docsLine{kind: docsLinePage, page: p, depth: depth})
+			pathOnly := match != nil && !match[p.Key]
+			out = append(out, docsLine{
+				kind:       docsLinePage,
+				page:       p,
+				depth:      depth,
+				childCount: len(children[p.Key]),
+				pathOnly:   pathOnly,
+			})
 			for _, c := range children[p.Key] {
 				if visited[c.Key] {
 					continue
@@ -214,7 +278,16 @@ func buildDocsLines(pages []store.PageLite) []docsLine {
 			}
 		}
 
-		out = append(out, docsLine{kind: docsLineHeader, space: space, count: len(list)})
+		hdrCount := len(list)
+		if keep != nil {
+			hdrCount = 0
+			for _, p := range list {
+				if keep[p.Key] {
+					hdrCount++
+				}
+			}
+		}
+		out = append(out, docsLine{kind: docsLineHeader, space: space, count: hdrCount})
 		for _, r := range roots {
 			if !visited[r.Key] {
 				walk(r, 0)
@@ -230,7 +303,9 @@ func buildDocsLines(pages []store.PageLite) []docsLine {
 	return out
 }
 
-// filterPages keeps pages whose title or space_key contains needle (case-insensitive).
+// filterPages keeps pages whose title, space key/name, page key, or author
+// contains needle (case-insensitive). Haystack matches the web docs filter
+// (title + space + author); key is kept for keystroke jumps by id.
 func filterPages(pages []store.PageLite, needle string) []store.PageLite {
 	needle = strings.ToLower(strings.TrimSpace(needle))
 	if needle == "" {
@@ -238,7 +313,7 @@ func filterPages(pages []store.PageLite, needle string) []store.PageLite {
 	}
 	out := make([]store.PageLite, 0, len(pages))
 	for _, p := range pages {
-		hay := strings.ToLower(p.Title + " " + p.SpaceKey + " " + p.Key)
+		hay := strings.ToLower(p.Title + " " + p.SpaceKey + " " + pageSpaceLabel(p) + " " + p.Key + " " + p.Author)
 		if strings.Contains(hay, needle) {
 			out = append(out, p)
 		}
@@ -286,12 +361,24 @@ func (m *Model) refilterDocs() {
 	case docsTabByAuthor:
 		lines = buildDocsByAuthorLines(filtered)
 	case docsTabSpaces:
-		lines = buildDocsLines(filtered)
+		// Tree child counts and path ancestors need the full index; match set
+		// narrows which rows stay visible (web SpaceDocsView treeKeep).
+		if strings.TrimSpace(m.filter) == "" {
+			lines = buildDocsTree(m.pages, nil)
+		} else if len(filtered) == 0 {
+			lines = nil
+		} else {
+			match := make(map[string]bool, len(filtered))
+			for _, p := range filtered {
+				match[p.Key] = true
+			}
+			lines = buildDocsTree(m.pages, match)
+		}
 	default:
 		lines = buildDocsUpdatedLines(filtered)
 	}
 	m.docsLines = lines
-	nav := make([]docsNavItem, 0, len(filtered))
+	nav := make([]docsNavItem, 0, len(lines))
 	for _, ln := range lines {
 		if ln.kind == docsLinePage {
 			nav = append(nav, docsNavItem{page: ln.page, depth: ln.depth})
@@ -626,23 +713,58 @@ func (m Model) viewDocs() string {
 				used++
 				continue
 			}
-			// Indent by depth (Spaces tree only); title + dimmed meta clause.
+			// Indent by depth (Spaces tree only); title + optional child count +
+			// dimmed meta. Filter matches highlight the title (styleHighlight —
+			// same palette as the issue list; NO_COLOR drops colour safely).
 			indent := strings.Repeat("  ", ln.depth)
 			title := ln.page.Title
 			if title == "" {
 				title = ln.page.Key
 			}
-			label := "  " + indent + title
+			prefix := "  " + indent
 			meta := formatDocsMeta(ln.page, m.clock())
 			if meta != "" {
 				meta = "  " + meta
 			}
 			selected := ln.page.Key == selKey
+			// Path ancestors under filter recede (web data-hit=false); hits and
+			// unfiltered rows stay primary weight.
+			pathMuted := ln.pathOnly && !selected
+
+			matchBg := styleHighlight
 			if selected {
-				inner := styleSel.Render(label) + styleSelMuted.Render(meta)
+				matchBg = matchBg.Background(colAccentBg)
+			}
+			hl := func(plain string, base lipgloss.Style) string {
+				if m.filter == "" || pathMuted {
+					return base.Render(plain)
+				}
+				return highlightMatch(plain, m.filter, base, matchBg)
+			}
+
+			var titlePart, countPart, metaPart string
+			if selected {
+				titlePart = hl(title, styleSel)
+				if ln.childCount > 0 {
+					countPart = styleSelMuted.Render(fmt.Sprintf(" %d", ln.childCount))
+				}
+				metaPart = styleSelMuted.Render(meta)
+				inner := styleSel.Render(prefix) + titlePart + countPart + metaPart
 				b.WriteString(styleSel.Width(w).MaxWidth(w).Render(inner))
+			} else if pathMuted {
+				// Whole path row muted — location context, not an answer.
+				label := prefix + title
+				if ln.childCount > 0 {
+					label += fmt.Sprintf(" %d", ln.childCount)
+				}
+				b.WriteString(fitWidth(styleMuted.Render(label+meta), w))
 			} else {
-				line := stylePrimary.Render(label) + styleMuted.Render(meta)
+				titlePart = hl(title, stylePrimary)
+				if ln.childCount > 0 {
+					countPart = styleMuted.Render(fmt.Sprintf(" %d", ln.childCount))
+				}
+				metaPart = styleMuted.Render(meta)
+				line := stylePrimary.Render(prefix) + titlePart + countPart + metaPart
 				b.WriteString(fitWidth(line, w))
 			}
 			b.WriteByte('\n')
@@ -766,6 +888,16 @@ func (m Model) viewDocDetail() string {
 	if m.pageDetail != nil {
 		body.WriteString(m.renderDetailField("author", orDash(m.pageDetail.Author)))
 		body.WriteByte('\n')
+		labelVal := "—"
+		if len(m.pageDetail.Labels) > 0 {
+			chips := make([]string, 0, len(m.pageDetail.Labels))
+			for _, l := range m.pageDetail.Labels {
+				chips = append(chips, styleChip.Render(l))
+			}
+			labelVal = strings.Join(chips, " ")
+		}
+		body.WriteString(styleDetailLabel.Render("labels") + " " + labelVal)
+		body.WriteByte('\n')
 		body.WriteString(m.renderDetailField("updated", orDash(relativeTime(m.pageDetail.UpdatedAt, m.clock()))))
 		body.WriteByte('\n')
 		body.WriteByte('\n')
@@ -816,6 +948,29 @@ func (m Model) viewDocDetail() string {
 					body.WriteString(line)
 					body.WriteByte('\n')
 				}
+			}
+		}
+
+		// Issue keys this page mentions / that mention this page (item_refs).
+		// Omit empty sections — same omitempty spirit as the store JSON.
+		if keys := m.pageDetail.RefIssueKeys; len(keys) > 0 {
+			body.WriteByte('\n')
+			body.WriteString(styleSection.Render("Related issues"))
+			body.WriteByte('\n')
+			for _, k := range keys {
+				body.WriteString("  ")
+				body.WriteString(styleKey.Render(k))
+				body.WriteByte('\n')
+			}
+		}
+		if keys := m.pageDetail.BacklinkIssueKeys; len(keys) > 0 {
+			body.WriteByte('\n')
+			body.WriteString(styleSection.Render("Mentioned from"))
+			body.WriteByte('\n')
+			for _, k := range keys {
+				body.WriteString("  ")
+				body.WriteString(styleKey.Render(k))
+				body.WriteByte('\n')
 			}
 		}
 	} else {

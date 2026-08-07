@@ -624,3 +624,207 @@ func docsNavKeys(m Model) []string {
 	}
 	return out
 }
+
+// --- v0.10 document-wave parity ---
+
+// TestFilterPagesAuthor: haystack includes author (web title+space+author).
+func TestFilterPagesAuthor(t *testing.T) {
+	pages := samplePages()
+	// Bob only authors e-child.
+	got := filterPages(pages, "bob")
+	if len(got) != 1 || got[0].Key != "e-child" {
+		keys := make([]string, len(got))
+		for i, p := range got {
+			keys[i] = p.Key
+		}
+		t.Fatalf("author filter bob → %v want [e-child]", keys)
+	}
+	// Case-insensitive.
+	got = filterPages(pages, "ADA")
+	if len(got) < 3 {
+		t.Fatalf("author ADA should hit Ada's pages, got %d", len(got))
+	}
+	for _, p := range got {
+		if !strings.EqualFold(p.Author, "Ada") {
+			t.Errorf("unexpected author match: %s author=%q", p.Key, p.Author)
+		}
+	}
+}
+
+// TestDocsTreeChildCount: parent rows carry unfiltered direct-child counts.
+func TestDocsTreeChildCount(t *testing.T) {
+	lines := buildDocsLines(samplePages())
+	// e-root has one direct child (e-child). e-sib has none.
+	var rootCount, sibCount int
+	var sawRoot, sawSib bool
+	for _, ln := range lines {
+		if ln.kind != docsLinePage {
+			continue
+		}
+		switch ln.page.Key {
+		case "e-root":
+			sawRoot = true
+			rootCount = ln.childCount
+		case "e-sib":
+			sawSib = true
+			sibCount = ln.childCount
+		case "e-child":
+			if ln.childCount != 0 {
+				t.Errorf("leaf e-child childCount=%d want 0", ln.childCount)
+			}
+		}
+	}
+	if !sawRoot || !sawSib {
+		t.Fatalf("missing root/sib in tree lines")
+	}
+	if rootCount != 1 {
+		t.Fatalf("e-root childCount=%d want 1", rootCount)
+	}
+	if sibCount != 0 {
+		t.Fatalf("e-sib childCount=%d want 0", sibCount)
+	}
+	// Render surfaces the count next to the parent title.
+	m := seededDocsModel()
+	m.docsTab = docsTabSpaces
+	m.refilterDocs()
+	plain := stripANSI(m.View())
+	// "Root Guide 1" — count rides after the title (web doc-tree-count).
+	if !strings.Contains(plain, "Root Guide 1") {
+		t.Fatalf("spaces tree missing parent child count:\n%s", plain)
+	}
+}
+
+// TestDocsTreeFilterPathAncestors: filter keeps ancestors as pathOnly rows;
+// child counts stay unfiltered totals.
+func TestDocsTreeFilterPathAncestors(t *testing.T) {
+	m := seededDocsModel()
+	m.docsTab = docsTabSpaces
+	m.filter = "child"
+	m.refilterDocs()
+
+	var pathRoot, hitChild bool
+	var rootChildCount int
+	for _, ln := range m.docsLines {
+		if ln.kind != docsLinePage {
+			continue
+		}
+		switch ln.page.Key {
+		case "e-root":
+			if !ln.pathOnly {
+				t.Error("e-root should be pathOnly under filter 'child'")
+			}
+			pathRoot = true
+			rootChildCount = ln.childCount
+		case "e-child":
+			if ln.pathOnly {
+				t.Error("e-child is the hit — must not be pathOnly")
+			}
+			hitChild = true
+		case "e-sib", "e-cross", "e-miss", "p-alone", "p-ca", "p-cb":
+			t.Errorf("unexpected page under filter: %s", ln.page.Key)
+		}
+	}
+	if !pathRoot || !hitChild {
+		t.Fatalf("want path root + hit child; pathRoot=%v hitChild=%v nav=%v",
+			pathRoot, hitChild, docsNavKeys(m))
+	}
+	// Unfiltered total: e-root still has 1 child even though only the hit shows.
+	if rootChildCount != 1 {
+		t.Fatalf("path parent childCount=%d want unfiltered 1", rootChildCount)
+	}
+	// Both rows remain navigable (path is not a header).
+	if len(m.docsNav) != 2 {
+		t.Fatalf("nav n=%d want 2 (path+hit) keys=%v", len(m.docsNav), docsNavKeys(m))
+	}
+}
+
+// TestDocsFilterMatchHighlight: match rows stay fully legible under NO_COLOR
+// (TUI_PRINCIPLES §5 — highlight is optional; the row is the match signal).
+// highlightMatch itself is covered in neon_test; here we only assert the docs
+// list still shows the full title when a filter is active.
+func TestDocsFilterMatchHighlight(t *testing.T) {
+	m := seededDocsModel()
+	m.docsTab = docsTabUpdated
+	m.filter = "Child"
+	m.refilterDocs()
+	if len(m.docsNav) != 1 || m.docsNav[0].page.Key != "e-child" {
+		t.Fatalf("want single Child match, nav=%v", docsNavKeys(m))
+	}
+	plain := stripANSI(m.View())
+	if !strings.Contains(plain, "Child Page") {
+		t.Fatalf("match row missing after strip (NO_COLOR must not drop title):\n%s", plain)
+	}
+	// highlightMatch must not alter the visible characters of a docs title.
+	got := highlightMatch("Child Page", "Child", stylePrimary, styleHighlight)
+	if stripANSI(got) != "Child Page" {
+		t.Fatalf("highlight altered title text: %q", stripANSI(got))
+	}
+}
+
+// TestDocsPageDetailLabelsAndRefs: labels + related/backlink issue keys on
+// page detail.
+func TestDocsPageDetailLabelsAndRefs(t *testing.T) {
+	m := seededDocsModel()
+	m.pageDetail = &store.PageDetail{
+		PageLite: store.PageLite{
+			Key: "e-child", Title: "Child Page", SpaceKey: "ENG",
+			Author: "Bob", Labels: []string{"runbook", "ops"},
+		},
+		BodyADF:           nil,
+		RefIssueKeys:      []string{"NMB-1", "NMB-2"},
+		BacklinkIssueKeys: []string{"NMB-9"},
+	}
+	m.pageDetailKey = "e-child"
+	m.mode = modeDocDetail
+	plain := stripANSI(m.View())
+	for _, want := range []string{
+		"labels", "runbook", "ops",
+		"Related issues", "NMB-1", "NMB-2",
+		"Mentioned from", "NMB-9",
+	} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("doc detail missing %q\n%s", want, plain)
+		}
+	}
+}
+
+// TestIssueDetailPageRefs: issue detail surfaces RefPages / BacklinkPages.
+func TestIssueDetailPageRefs(t *testing.T) {
+	m := seededModel()
+	m.width, m.height = 100, 40
+	m.mode = modeDetail
+	m.detailKey = "NMB-1"
+	summary := "Sample bug"
+	m.detailLite = &store.IssueLite{IssueKey: "NMB-1", Summary: summary}
+	m.detail = &store.Detail{
+		IssueKey: "NMB-1",
+		RefPages: []store.PageLite{
+			{Key: "e-root", Title: "Root Guide", SpaceKey: "ENG", SpaceName: "Engineering"},
+		},
+		BacklinkPages: []store.PageLite{
+			{Key: "e-child", Title: "Child Page", SpaceKey: "ENG"},
+		},
+	}
+	plain := stripANSI(m.View())
+	for _, want := range []string{
+		"Related pages", "e-root", "Root Guide", "Engineering",
+		"Mentioned in", "e-child", "Child Page",
+	} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("issue detail missing %q\n%s", want, plain)
+		}
+	}
+}
+
+// TestDocsHelpMentionsAuthorFilter: help parity note updated for author haystack.
+func TestDocsHelpMentionsAuthorFilter(t *testing.T) {
+	m := seededDocsModel()
+	m.showHelp = true
+	plain := stripANSI(m.View())
+	if !strings.Contains(strings.ToLower(plain), "author") {
+		t.Errorf("help should mention author in docs filter note:\n%s", plain)
+	}
+	if !strings.Contains(strings.ToLower(plain), "label") {
+		t.Errorf("help should mention labels honesty:\n%s", plain)
+	}
+}

@@ -1408,6 +1408,43 @@ func (m Model) viewDetail() string {
 				body.WriteByte('\n')
 			}
 		}
+
+		// Wiki pages this issue mentions / that mention this issue (item_refs).
+		// Empty sections omitted (store omitempty).
+		if pages := m.detail.RefPages; len(pages) > 0 {
+			body.WriteByte('\n')
+			body.WriteString(styleSection.Render("Related pages"))
+			body.WriteByte('\n')
+			for _, p := range pages {
+				title := p.Title
+				if title == "" {
+					title = p.Key
+				}
+				line := "  " + styleKey.Render(p.Key) + " " + stylePrimary.Render(title)
+				if sp := pageSpaceLabel(p); sp != "" {
+					line += styleMuted.Render(" · " + sp)
+				}
+				body.WriteString(line)
+				body.WriteByte('\n')
+			}
+		}
+		if pages := m.detail.BacklinkPages; len(pages) > 0 {
+			body.WriteByte('\n')
+			body.WriteString(styleSection.Render("Mentioned in"))
+			body.WriteByte('\n')
+			for _, p := range pages {
+				title := p.Title
+				if title == "" {
+					title = p.Key
+				}
+				line := "  " + styleKey.Render(p.Key) + " " + stylePrimary.Render(title)
+				if sp := pageSpaceLabel(p); sp != "" {
+					line += styleMuted.Render(" · " + sp)
+				}
+				body.WriteString(line)
+				body.WriteByte('\n')
+			}
+		}
 	}
 
 	panel := styleDetailPanel.Width(w - 2).Render(strings.TrimRight(body.String(), "\n"))
