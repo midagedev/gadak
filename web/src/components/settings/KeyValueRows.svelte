@@ -5,6 +5,7 @@
    */
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
+  import { INPUT, ADD_BTN, DEL_BTN } from './controls'
   let {
     rows = $bindable(),
     keyLabel,
@@ -18,9 +19,6 @@
     keyPlaceholder?: string
     valuePlaceholder?: string
   } = $props()
-
-  const INPUT =
-    'h-control w-full rounded-md border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent'
 </script>
 
 <div class="flex flex-col gap-1.5">
@@ -35,7 +33,7 @@
       <input class="{INPUT} flex-1 font-mono" bind:value={row.v} placeholder={valuePlaceholder} />
       <button
         type="button"
-        class="flex w-6 flex-none items-center justify-center text-text-muted transition-colors hover:text-status-reopen"
+        class={DEL_BTN}
         title={t('settings.deleteRow')}
         onclick={() => (rows = rows.filter((_, j) => j !== i))}
       >
@@ -45,7 +43,7 @@
   {/each}
   <button
     type="button"
-    class="inline-flex h-control-sm items-center self-start rounded-md border border-border-strong px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+    class={ADD_BTN}
     onclick={() => (rows = [...rows, { k: '', v: '' }])}
   >
     {t('settings.addRow')}

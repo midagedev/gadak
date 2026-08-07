@@ -23,6 +23,7 @@
   import type { Snippet } from 'svelte'
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
+  import { INPUT } from './controls'
 
   let {
     label,
@@ -46,9 +47,6 @@
     action?: Snippet
     testid?: string
   } = $props()
-
-  const INPUT =
-    'h-control w-full rounded-md border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent'
 
   // Two pickers share the settings dialog, so the input↔listbox pairing needs an
   // id that is unique per instance.
