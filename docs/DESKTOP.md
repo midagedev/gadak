@@ -25,11 +25,21 @@ pick projects, watch the first sync land. No terminal involved.
 ## Where the CLI fits
 
 The app is for reading and triaging; the CLI is how agents and scripts read
-the same mirror. You don't choose one — the app **ships the CLI inside it**:
+the same mirror. You don't choose one — the app **ships the CLI inside it**.
+After installing the app, put that binary on your PATH (first run needs the
+full path — `scry` is not on PATH yet):
+
+```bash
+/Applications/Scry.app/Contents/Resources/bin/scry install-cli
+scry mcp install claude   # your agent now reads what your window shows
+```
+
+`install-cli` symlinks into `~/.local/bin` by default (no sudo). Pass
+`--dir /usr/local/bin` if you prefer a system location, or make the link
+yourself:
 
 ```bash
 sudo ln -sf "/Applications/Scry.app/Contents/Resources/bin/scry" /usr/local/bin/scry
-scry mcp install claude   # your agent now reads what your window shows
 ```
 
 That is the whole relationship: the window is your view of the mirror, the

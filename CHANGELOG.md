@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **`scry install-cli` — put the running binary on PATH.** Creates a symlink
+  at `~/.local/bin/scry` (no sudo; `--dir` / `--force` / `--print`). After a
+  desktop-only install, run the bundle path once:
+  `/Applications/Scry.app/Contents/Resources/bin/scry install-cli`. Warns when
+  the install directory is not on `$PATH` and points at `scry mcp install
+  claude` next. See `docs/DESKTOP.md`.
 - **`scry doctor` — redacted diagnostics for bug reports.** Prints versions,
   profile path (`~/…`), schema/migration level, mirror row counts, sync
   freshness (watermark presence + classified last error only), last-day

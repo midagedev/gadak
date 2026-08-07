@@ -19,6 +19,7 @@ var commandNames = []string{
 	"export-static",
 	"fields",
 	"init",
+	"install-cli",
 	"install-service",
 	"issue",
 	"mcp",
@@ -107,6 +108,18 @@ var helps = map[string]cmdHelp{
 			"scry --profile work install-service",
 		},
 		seeAlso: []string{"scry serve"},
+	},
+	"install-cli": {
+		summary: "put this binary on PATH via a symlink (default ~/.local/bin)",
+		usage:   "scry install-cli [--dir <path>] [--force] [--print]",
+		examples: []string{
+			"scry install-cli",
+			"/Applications/Scry.app/Contents/Resources/bin/scry install-cli",
+			"scry install-cli --dir /usr/local/bin",
+			"scry install-cli --print",
+			"scry install-cli --force",
+		},
+		seeAlso: []string{"scry mcp install claude", "scry version"},
 	},
 	"status": {
 		summary: "print sync state and row counts",

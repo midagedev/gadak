@@ -2,7 +2,7 @@
 //
 // Implemented: init, sync (--full/--watch), serve (syncs by default), tui,
 // issue, search, comment, transition, assign, sql, status, doctor, mcp, demo,
-// export-static, install-service, profiles, version, snapshot, team.
+// export-static, install-service, install-cli, profiles, version, snapshot, team.
 // See specs/000-product/tasks.md for the current state of each.
 //
 // The agent-facing commands live in agent.go; AGENTS.md is their reference.
@@ -1217,6 +1217,7 @@ Commands:
                    (syncs by default when a credential is configured; --no-sync opts out)
   install-service  keep serve running across reboots (launchd / systemd user)
                    [--uninstall]
+  install-cli      put this binary on PATH via a symlink  [--dir] [--force] [--print]
   status           sync state and row counts [--json]
   doctor           redacted diagnostics safe to paste into a bug report [--json]
   demo             serve the bundled snapshot, no Jira account needed
@@ -1315,6 +1316,8 @@ func main() {
 		err = cmdProfiles(args[1:])
 	case "install-service":
 		err = cmdInstallService(args[1:])
+	case "install-cli":
+		err = cmdInstallCLI(args[1:])
 	case "version":
 		err = cmdVersion(args[1:])
 	case "snapshot":
