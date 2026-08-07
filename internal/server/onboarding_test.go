@@ -79,6 +79,7 @@ func onboarding(t *testing.T) (*onboardJira, http.Handler, string) {
 
 	syncMu.Lock()
 	syncJob = progressDoc{}
+	activity = mirrorActivity{}
 	syncMu.Unlock()
 
 	return f, New(db, cfg), home

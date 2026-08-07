@@ -21,6 +21,15 @@ import (
 // SourceID is the slug the Jira connector owns in `sources` and `sync_state`.
 const SourceID = "jira"
 
+// Phase source names for Options.Phase. Callers report what the mirror is
+// fetching; Progress carries how much. Keep these string values stable — the
+// web client keys UI copy on them.
+const (
+	PhaseIssues    = "issues"
+	PhaseDocuments = "documents"
+	PhaseIdle      = ""
+)
+
 // overlap covers JQL's minute granularity on `updated`: an exact >= boundary
 // drops issues updated in the same minute as the watermark.
 const overlap = 2 * time.Minute
@@ -42,6 +51,11 @@ type Options struct {
 	// Progress, when set, is called once per committed page with the running
 	// totals. It exists so a caller can report progress without parsing Log.
 	Progress func(fetched, changed int)
+	// Phase, when set, is called with the connector a pass is about to run
+	// ("issues", "documents") and with "" when the cycle has nothing in flight.
+	// It exists so a caller can report *what* is being fetched; Progress carries
+	// how much. Watch calls it around each source; one-shot callers set it too.
+	Phase func(source string)
 	// Client is for tests and for a server that wants to share one; nil builds
 	// one from cfg.
 	Client *jira.Client
@@ -67,6 +81,12 @@ type Result struct {
 func (o Options) logf(format string, args ...any) {
 	if o.Log != nil {
 		o.Log(fmt.Sprintf(format, args...))
+	}
+}
+
+func (o Options) phasef(source string) {
+	if o.Phase != nil {
+		o.Phase(source)
 	}
 }
 
@@ -397,6 +417,7 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 	defer rtick.Stop()
 
 	o := opts
+	defer o.phasef(PhaseIdle)
 	for {
 		if opts.Reload != nil {
 			next, err := opts.Reload()
@@ -420,6 +441,7 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 				}
 			}
 		}
+		o.phasef(PhaseIssues)
 		if _, err := Run(ctx, cfg, db, o); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -434,6 +456,7 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 		}
 		// Confluence is best-effort: a failure must not block Jira's next tick.
 		if cfg.Confluence != nil {
+			o.phasef(PhaseDocuments)
 			if _, err := RunConfluence(ctx, cfg, db, o); err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -442,6 +465,7 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 			}
 		}
 		o.Full, o.Reconcile = false, false
+		o.phasef(PhaseIdle)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
