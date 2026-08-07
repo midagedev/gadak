@@ -779,8 +779,8 @@ export const ko = {
 
   /* ── 온보딩(첫 실행) ── */
   'onboarding.title': '미러 설정하기',
-  'onboarding.intro': '3단계, 터미널 없이 끝납니다.',
-  'onboarding.stepOf': '{n}/3 단계',
+  'onboarding.intro': '설정은 여기서 끝납니다. 터미널이 필요 없고, 마지막 단계는 선택입니다.',
+  'onboarding.stepOf': '{n}/4 단계',
   'onboarding.stepCredential': '연결',
   'onboarding.stepProjects': '프로젝트',
   'onboarding.stepSync': '첫 동기화',
@@ -815,9 +815,26 @@ export const ko = {
   'onboarding.errSaveProjects': '프로젝트 목록을 저장하지 못했습니다: {message}',
   'onboarding.syncing': '이슈 가져오는 중',
   'onboarding.syncStarting': '시작 중…',
-  'onboarding.syncDone': '{n}건 미러 완료. 목록을 엽니다…',
+  'onboarding.syncDone': '{n}건 미러 완료.',
   'onboarding.syncServeHint':
     '이후 자동 갱신은 scry serve 로 서버를 실행하거나 사이드바의 지금 동기화를 쓰세요.',
+  /* 4단계 — 선택. 미러는 찼고, 여기서 두 번째 리더가 붙는다. */
+  'onboarding.stepAgent': '에이전트 연결',
+  'onboarding.stepOptional': '선택',
+  'onboarding.agentIntro': '미러가 채워졌습니다. 이제 이걸 무엇으로 읽을지만 고르면 됩니다.',
+  'onboarding.agentWhy':
+    '지금 보고 있는 앱이 리더 하나이고, 다른 하나는 당신의 코딩 에이전트입니다. 명령 한 줄이면 에이전트가 Jira 를 다시 거치지 않고 이 미러에 직접 질의합니다.',
+  'onboarding.agentCommandsLabel': '에이전트에 scry 등록하기',
+  'onboarding.agentCommandsHint': '터미널에서 실행하세요 — 에이전트 자체가 CLI라 이미 하나 열려 있습니다.',
+  'onboarding.agentSkillCaption':
+    'Claude Code — 스키마와 쿼리 패턴을 알려 주는 스킬을 설치합니다. 서버가 필요 없고, 질문이 생길 때만 로드됩니다.',
+  'onboarding.agentMcpCaption':
+    '또는 MCP 서버로 등록 — 셸이 없는 클라이언트를 위한 경로입니다. claude 는 등록까지 대신 하고, cursor·codex 는 붙여넣을 설정을 출력합니다:',
+  'onboarding.agentNoCli': '터미널에 scry 가 없나요? 데스크톱 앱의 Tools → Install Command Line Tool… 을 쓰세요.',
+  'onboarding.agentDocsSetup': '에이전트 설정',
+  'onboarding.agentDocsRecipes': '질의 레시피',
+  'onboarding.agentDone': '앱 열기',
+  'onboarding.agentSkip': '나중에 하기',
   'onboarding.errSync': '동기화 실패: {message}',
   'onboarding.retry': '다시 시도',
   'onboarding.back': '뒤로',

@@ -1,6 +1,19 @@
+<script lang="ts" module>
+  /*
+   * "The wizard is holding the pane" — true only while the optional last step is
+   * on screen. The list decides to show onboarding from an empty pool, which
+   * stops being a usable signal the moment the first sync lands: the 15s delta
+   * poll drops rows in seconds later and would swap step 4 for the issue list
+   * mid-sentence. Leaving the step (finish or skip) clears it, and so does
+   * unmounting, so nothing can strand the wizard on a filled mirror.
+   */
+  export const onboardingHold = $state({ active: false })
+</script>
+
 <script lang="ts">
   /*
-   * First-run setup, in the browser: connect → pick projects → first sync.
+   * First-run setup, in the browser: connect → pick projects → first sync, then
+   * an optional fourth step that connects an agent.
    * `scry serve` plus this dialog is the whole path; the CLI is optional.
    *
    * Shown in place of the list only while the mirror is empty AND setup is
@@ -17,11 +30,25 @@
   import { ApiError } from '../../lib/api'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
+  import Icon from '../ui/Icon.svelte'
 
   let { onOpenSettings }: { onOpenSettings: () => void } = $props()
 
   const TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens'
+  const DOCS_BASE = 'https://github.com/midagedev/scry/blob/main/docs'
   const POLL_MS = 1000
+
+  // The CLI contract (cmd/scry/mcp_install.go): claude execs `claude mcp add`,
+  // the other two print config to paste. Shown, never run — the server has no
+  // endpoint for this on purpose, and anyone reading step 4 has a terminal.
+  // Two ways in, and the skill is first on purpose: what scry gives an agent is
+  // knowledge (the schema, the queries, the one filter mistake), not tools, so a
+  // file that loads when it becomes relevant fits better than a server whose
+  // tool definitions sit in context all session. MCP stays for clients with no
+  // shell to run the CLI from.
+  const SKILL_COMMAND = 'scry skill install'
+  const CLAUDE_COMMAND = 'scry mcp install claude'
+  const MCP_COMMANDS = [CLAUDE_COMMAND, 'scry mcp install cursor', 'scry mcp install codex']
 
   const INPUT =
     'h-control w-full rounded-md border border-border-strong bg-bg-base px-2.5 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-accent'
@@ -29,8 +56,11 @@
     'inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50'
   const GHOST =
     'inline-flex h-control items-center rounded-md border border-border-strong px-2.5 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
+  const COPY_BTN =
+    'inline-flex h-control-sm flex-none items-center rounded border border-border-strong px-1.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
+  const DOC_LINK = 'inline-flex items-center gap-1 text-micro text-accent hover:underline'
 
-  type Step = 1 | 2 | 3
+  type Step = 1 | 2 | 3 | 4
   let step = $state<Step>(1)
 
   /* ── 1. connect ── */
@@ -175,35 +205,77 @@
         syncError = t('onboarding.errSync', { message: p.error })
         return
       }
-      // Refill the store from the freshly filled mirror: the list appears in
-      // place, with no reload — and this component unmounts once the pool is warm.
-      if (p.done) await issues.refresh()
+      // The mirror is full, but the store is not refilled here: that would drop
+      // the pane before step 4 is read. Entering the app is a click away.
+      if (p.done) {
+        onboardingHold.active = true
+        step = 4
+      }
     } catch (e) {
       stopPolling()
       syncError = t('onboarding.errSync', { message: reason(e) })
     }
   }
 
-  $effect(() => stopPolling)
+  /* ── 4. connect an agent (optional) ── */
+  let copiedCommand = $state<string | null>(null)
+
+  async function copyCommand(command: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(command)
+      copiedCommand = command
+      setTimeout(() => {
+        if (copiedCommand === command) copiedCommand = null
+      }, 1500)
+    } catch {
+      /* clipboard may be denied — ignore */
+    }
+  }
+
+  /**
+   * The one exit from step 4, shared by "open the app" and "skip": release the
+   * pane, then refill the store from the mirror the third step just filled. The
+   * list appears in place, with no reload, and this component unmounts.
+   */
+  async function finish(): Promise<void> {
+    onboardingHold.active = false
+    await issues.refresh()
+  }
+
+  $effect(() => () => {
+    stopPolling()
+    onboardingHold.active = false
+  })
 
   const fetched = $derived(progress?.fetched ?? 0)
   const canContinue = $derived(picked.length > 0 && !saving)
-  const STEP_LABELS = [t('onboarding.stepCredential'), t('onboarding.stepProjects'), t('onboarding.stepSync')]
+  const STEP_LABELS = [
+    t('onboarding.stepCredential'),
+    t('onboarding.stepProjects'),
+    t('onboarding.stepSync'),
+    t('onboarding.stepAgent'),
+  ]
 </script>
 
 <div class="flex h-full items-start justify-center overflow-y-auto px-6 py-12" data-testid="onboarding">
   <div class="anim-enter w-full max-w-md">
     <p class="text-micro uppercase tracking-wide text-text-muted">
-      {t('onboarding.stepOf', { n: step })} · {STEP_LABELS[step - 1]}
+      {step === 4 ? t('onboarding.stepOptional') : t('onboarding.stepOf', { n: step })} · {STEP_LABELS[step - 1]}
     </p>
     <h2 class="mt-1 text-title font-semibold text-text-primary">{t('onboarding.title')}</h2>
-    <p class="mt-1.5 text-[12px] text-text-secondary">{t('onboarding.intro')}</p>
+    <p class="mt-1.5 text-[12px] text-text-secondary">
+      {step === 4 ? t('onboarding.agentIntro') : t('onboarding.intro')}
+    </p>
 
-    <!-- Progress: thin 3-segment bar -->
+    <!-- Progress: three required segments, then the optional one — dimmer even
+         when it is the current step, because setup is already done by then. -->
     <div class="mt-4 flex gap-1" aria-hidden="true">
       {#each [1, 2, 3] as n (n)}
         <span class="h-0.5 flex-1 rounded-full {n <= step ? 'bg-accent' : 'bg-border-strong'}"></span>
       {/each}
+      <span
+        class="h-0.5 flex-1 rounded-full {step === 4 ? 'bg-accent/40' : 'bg-border-subtle'}"
+      ></span>
     </div>
 
     {#if step === 1}
@@ -320,16 +392,11 @@
           </span>
         </div>
       </div>
-    {:else}
+    {:else if step === 3}
       <div class="mt-5 flex flex-col gap-3" data-testid="onboarding-sync">
         {#if syncError}
           <p class="text-[12px] text-status-reopen" role="alert" data-testid="onboarding-error">{syncError}</p>
           <button class={GHOST} type="button" onclick={() => void startSync()}>{t('onboarding.retry')}</button>
-        {:else if progress?.done}
-          <p class="text-[12px] text-text-secondary" data-testid="onboarding-sync-done">
-            {t('onboarding.syncDone', { n: formatNumber(progress.fetched) })}
-          </p>
-          <p class="text-micro text-text-muted">{t('onboarding.syncServeHint')}</p>
         {:else}
           <p class="text-body text-text-primary" data-testid="onboarding-sync-count">
             {progress ? t('onboarding.syncing') : t('onboarding.syncStarting')}
@@ -343,8 +410,91 @@
           </div>
         {/if}
       </div>
+    {:else}
+      <div class="mt-5 flex flex-col gap-4" data-testid="onboarding-agent">
+        <div class="flex flex-col gap-1.5">
+          <p class="text-body text-text-primary" data-testid="onboarding-sync-done">
+            {t('onboarding.syncDone', { n: formatNumber(fetched) })}
+          </p>
+          <p class="text-micro text-text-muted">{t('onboarding.agentWhy')}</p>
+        </div>
+
+        <div class="flex flex-col gap-2 rounded-md border border-border-subtle bg-bg-panel/60 p-3">
+          <div class="flex flex-col gap-0.5">
+            <span class="text-micro font-medium text-text-secondary">{t('onboarding.agentCommandsLabel')}</span>
+            <span class="text-micro text-text-muted">{t('onboarding.agentCommandsHint')}</span>
+          </div>
+
+          <div
+            class="flex items-center gap-2 rounded border border-border-strong bg-bg-base px-2 py-1.5"
+            data-testid="onboarding-cmd-skill"
+          >
+            <code class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-body text-text-primary">
+              {SKILL_COMMAND}
+            </code>
+            <button
+              class={COPY_BTN}
+              type="button"
+              data-testid="onboarding-copy-skill"
+              onclick={() => void copyCommand(SKILL_COMMAND)}
+            >
+              {copiedCommand === SKILL_COMMAND ? t('settings.copied') : t('settings.copy')}
+            </button>
+          </div>
+          <p class="text-micro text-text-muted">{t('onboarding.agentSkillCaption')}</p>
+
+          <!-- One box on this card, and it is the recommended command. The MCP
+               routes are quiet rows: an independent look found that giving the
+               claude row the same border, size and weight as the skill box left
+               the priority resting on the word "Or", so two identical boxes
+               asked the reader to choose without saying how. Same Copy buttons
+               on the same right edge — the demotion is border and type, not
+               reach. -->
+          <p class="mt-3 text-micro text-text-muted">{t('onboarding.agentMcpCaption')}</p>
+          <div class="flex flex-col gap-1">
+            {#each MCP_COMMANDS as cmd (cmd)}
+              <div
+                class="flex items-center gap-2 rounded border border-transparent px-2"
+                data-testid={cmd === CLAUDE_COMMAND ? 'onboarding-cmd-claude' : undefined}
+              >
+                <code class="min-w-0 flex-1 truncate font-mono text-micro text-text-secondary">{cmd}</code>
+                <button
+                  class={COPY_BTN}
+                  type="button"
+                  data-testid={cmd === CLAUDE_COMMAND ? 'onboarding-copy-claude' : undefined}
+                  onclick={() => void copyCommand(cmd)}
+                >
+                  {copiedCommand === cmd ? t('settings.copied') : t('settings.copy')}
+                </button>
+              </div>
+            {/each}
+          </div>
+        </div>
+
+        <p class="text-micro text-text-muted">{t('onboarding.agentNoCli')}</p>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <a class={DOC_LINK} href="{DOCS_BASE}/AGENT_SETUP.md" target="_blank" rel="noreferrer noopener">
+            {t('onboarding.agentDocsSetup')}<Icon name="arrow-up-right" size={12} />
+          </a>
+          <a class={DOC_LINK} href="{DOCS_BASE}/RECIPES.md" target="_blank" rel="noreferrer noopener">
+            {t('onboarding.agentDocsRecipes')}<Icon name="arrow-up-right" size={12} />
+          </a>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button class={PRIMARY} type="button" data-testid="onboarding-finish" onclick={() => void finish()}>
+            {t('onboarding.agentDone')}
+          </button>
+          <button class={GHOST} type="button" data-testid="onboarding-skip" onclick={() => void finish()}>
+            {t('onboarding.agentSkip')}
+          </button>
+        </div>
+      </div>
     {/if}
 
-    <p class="mt-5 text-micro text-text-muted">{t('onboarding.cliHint')}</p>
+    <p class="mt-5 text-micro text-text-muted">
+      {step === 4 ? t('onboarding.syncServeHint') : t('onboarding.cliHint')}
+    </p>
   </div>
 </div>

@@ -783,8 +783,8 @@ export const en = {
 
   /* ── Onboarding (first run) ── */
   'onboarding.title': 'Set up your mirror',
-  'onboarding.intro': 'Three steps, no terminal needed.',
-  'onboarding.stepOf': 'Step {n} of 3',
+  'onboarding.intro': 'Setup happens here, no terminal needed. The last step is optional.',
+  'onboarding.stepOf': 'Step {n} of 4',
   'onboarding.stepCredential': 'Connect',
   'onboarding.stepProjects': 'Projects',
   'onboarding.stepSync': 'First sync',
@@ -819,9 +819,26 @@ export const en = {
   'onboarding.errSaveProjects': 'Could not save the project list: {message}',
   'onboarding.syncing': 'Fetching issues',
   'onboarding.syncStarting': 'Starting…',
-  'onboarding.syncDone': 'Mirrored {n} issues. Opening the list…',
+  'onboarding.syncDone': 'Mirrored {n} issues.',
   'onboarding.syncServeHint':
     'For automatic updates later, run scry serve (or use Sync now from the sidebar).',
+  /* Step 4 — optional. The mirror is full; this is where it gets a second reader. */
+  'onboarding.stepAgent': 'Connect an agent',
+  'onboarding.stepOptional': 'Optional',
+  'onboarding.agentIntro': 'The mirror is filled. The last choice is what reads it.',
+  'onboarding.agentWhy':
+    'This app is one reader. The other is your coding agent — one command lets it query the mirror directly, without going back to Jira.',
+  'onboarding.agentCommandsLabel': 'Register scry with your agent',
+  'onboarding.agentCommandsHint': 'Run it in a terminal — your agent is a CLI, so you already have one.',
+  'onboarding.agentSkillCaption':
+    'Claude Code — installs a skill that teaches it the schema and the queries. No server; it loads only when a question needs it.',
+  'onboarding.agentMcpCaption':
+    'Or register an MCP server — the way in for a client with no shell. claude registers itself; cursor and codex print config to paste:',
+  'onboarding.agentNoCli': 'No scry in your terminal? In the desktop app: Tools → Install Command Line Tool…',
+  'onboarding.agentDocsSetup': 'Agent setup',
+  'onboarding.agentDocsRecipes': 'Query recipes',
+  'onboarding.agentDone': 'Open the app',
+  'onboarding.agentSkip': 'Skip for now',
   'onboarding.errSync': 'Sync failed: {message}',
   'onboarding.retry': 'Retry',
   'onboarding.back': 'Back',

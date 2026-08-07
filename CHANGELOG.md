@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`scry skill install` — Claude Code skill without MCP.** Embeds
+  `skills/scry/SKILL.md` in the binary and installs it to
+  `~/.claude/skills/scry/` (or `./.claude/skills/scry/` with `--project`, or
+  `--dir <path>/scry/`). Same content for brew users with no checkout.
+  Identical file → already installed; differing content refuses unless
+  `--force`. Prefer this when the agent has a shell; MCP remains for hosts
+  that cannot spawn processes. See `docs/AGENT_SETUP.md`.
 - **Desktop menu: Install Command Line Tool…** macOS **Tools** menu runs the
   same symlink install as `scry install-cli` against the CLI inside the app
   bundle (`Contents/Resources/bin/scry`) — no terminal, no sudo. Conflict

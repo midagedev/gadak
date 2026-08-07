@@ -1,8 +1,8 @@
 // Command scry serves a local mirror of your issue tracker.
 //
 // Implemented: init, sync (--full/--watch), serve (syncs by default), tui,
-// issue, search, comment, transition, assign, sql, status, doctor, mcp, demo,
-// export-static, install-service, install-cli, profiles, version, snapshot, team.
+// issue, search, comment, transition, assign, sql, status, doctor, mcp, skill,
+// demo, export-static, install-service, install-cli, profiles, version, snapshot, team.
 // See specs/000-product/tasks.md for the current state of each.
 //
 // The agent-facing commands live in agent.go; AGENTS.md is their reference.
@@ -502,8 +502,25 @@ func cmdInit(args []string) error {
 	if len(cfg.Projects) == 0 {
 		fmt.Println("no project filter — syncing everything this account can see; narrow it later in Settings → Sync")
 	}
-	fmt.Println("next: scry sync")
+	printInitNextSteps()
 	return nil
+}
+
+// printInitNextSteps ends `init` with the whole path to value, not just the
+// next command. Filling the mirror is step one of three, and the other two —
+// something to read it in, an agent wired to it — used to live only in the
+// docs, so the product's own headline use case began with a search of the
+// README.
+func printInitNextSteps() {
+	fmt.Print(`
+next:
+  scry sync                    fill the mirror (a few minutes on a first run)
+  scry serve                   read it in the browser — or scry tui to stay here
+  scry mcp install claude      let your coding agent query it (also: cursor, codex)
+
+docs/AGENT_SETUP.md has one paste per agent; docs/RECIPES.md has the questions
+JQL cannot ask.
+`)
 }
 
 func cmdSync(args []string) error {
@@ -1233,6 +1250,7 @@ Reading the mirror (no network; see AGENTS.md):
   sql        read-only SQL               [--json|--csv] "select ..."
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
   mcp        MCP server on stdio; mcp install <client> pins profile (docs/MCP.md)
+  skill      install Claude Code skill (schema + queries; no MCP process)
 
 Atlassian REST escape hatch (needs a credential; not on MCP):
   api        raw REST call    [METHOD] <PATH> [--query k=v] [--data …] [--write] [--status]
@@ -1306,6 +1324,8 @@ func main() {
 		err = cmdDoctor(args[1:])
 	case "mcp":
 		err = cmdMCP(args[1:])
+	case "skill":
+		err = cmdSkill(args[1:])
 	case "demo":
 		err = cmdDemo(args[1:])
 	case "export-static":

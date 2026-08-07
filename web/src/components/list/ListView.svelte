@@ -24,7 +24,7 @@
   import MatchLine from './MatchLine.svelte'
   import SearchSection from './SearchSection.svelte'
   import EmptyState from './EmptyState.svelte'
-  import Onboarding from '../shell/Onboarding.svelte'
+  import Onboarding, { onboardingHold } from '../shell/Onboarding.svelte'
   import FreshnessChip from '../shell/FreshnessChip.svelte'
   import { config } from '../../lib/config'
   import { me } from '../../stores/me.svelte'
@@ -61,10 +61,13 @@
   //  me.authChecked is required: before identity settles we don't know credentials,
   //  and without waiting onboarding flashes one frame at boot.
   //  identity === stored Jira credential, so use me.identified for that check.
+  //  onboardingHold: the wizard's optional last step runs after the mirror is
+  //  full, so "pool is empty" would hand the pane to the list underneath it.
   const needsOnboarding = $derived(
-    issues.pool.size === 0 &&
-      me.authChecked &&
-      (!me.identified || config().projects.length === 0),
+    onboardingHold.active ||
+      (issues.pool.size === 0 &&
+        me.authChecked &&
+        (!me.identified || config().projects.length === 0)),
   )
 
   // Drop selections that left the visible list when the view (filter/sort/group)
@@ -171,7 +174,7 @@
 
   <!-- List / empty state -->
   <div class="min-h-0 flex-1">
-    {#if visibleCount === 0}
+    {#if visibleCount === 0 || needsOnboarding}
       {#if needsOnboarding}
         <Onboarding onOpenSettings={() => onOpenSettings?.()} />
       {:else if issues.pool.size === 0}
