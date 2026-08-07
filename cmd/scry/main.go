@@ -39,6 +39,7 @@ import (
 	"github.com/midagedev/scry/internal/snapshot"
 	"github.com/midagedev/scry/internal/store"
 	syncer "github.com/midagedev/scry/internal/sync"
+	"github.com/midagedev/scry/internal/workspace"
 )
 
 var version = "0.0.0-dev"
@@ -168,8 +169,9 @@ func cmdServe(args []string) error {
 	}
 
 	// Workspace mounts share this process's listener; each profile opens lazily.
-	// Background sync and update checks stay on the primary handler only.
-	reg := newWorkspaceRegistry()
+	// Update checks stay on the primary handler; workspace mirrors get their own
+	// sync loops (see WatchAll below) when they have credentials.
+	reg := workspace.New()
 	defer reg.Close()
 	mux := buildServeMux(api, spa, reg)
 
@@ -188,7 +190,8 @@ func cmdServe(args []string) error {
 	// when the loop would start anyway; with no credential it still prints the
 	// old guidance line. When serve starts without a credential, register the
 	// same starter so PUT onboarding/connect/ can kick off Watch once after
-	// the first successful save. Workspace handlers have no background loop.
+	// the first successful save. Mounted workspace profiles with credentials
+	// each get their own Watch loop (WatchAll); --no-sync disables those too.
 	if !*noSync {
 		startWatch := func() {
 			go func() {
@@ -210,6 +213,10 @@ func cmdServe(args []string) error {
 			if *withSync {
 				log.Printf("--sync ignored: run `scry init` first")
 			}
+		}
+		watched := reg.WatchAll(ctx, config.Profile(), func(s string) { log.Print(s) })
+		if len(watched) > 0 {
+			log.Printf("syncing %d workspace mirrors: %s", len(watched), strings.Join(watched, ", "))
 		}
 	}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/server"
 	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/scry/internal/workspace"
 )
 
 // seedProfile writes config.json and an empty migrated scry.db under SCRY_HOME
@@ -65,7 +66,7 @@ func seedProfile(t *testing.T, home, name string, cfg *config.Config) {
 	_ = db.Close()
 }
 
-func testServeMux(t *testing.T) (*http.ServeMux, *workspaceRegistry) {
+func testServeMux(t *testing.T) (*http.ServeMux, *workspace.Registry) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("SCRY_HOME", home)
@@ -105,7 +106,7 @@ func testServeMux(t *testing.T) (*http.ServeMux, *workspaceRegistry) {
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write([]byte("<html>spa</html>"))
 	})
-	reg := newWorkspaceRegistry()
+	reg := workspace.New()
 	t.Cleanup(func() { reg.Close() })
 	return buildServeMux(api, spa, reg), reg
 }

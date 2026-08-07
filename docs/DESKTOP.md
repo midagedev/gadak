@@ -70,15 +70,23 @@ with the profile in the environment:
 SCRY_PROFILE=work open -a Scry
 ```
 
-One window per process, one profile per window — the in-app workspace
-switcher that `serve` offers under `/w/<profile>/` is not in the app yet.
+Or switch inside the window: the sidebar lists every profile under
+**Workspaces** and each one opens in place. The list appears only when you have
+more than one profile, so a single-mirror install never sees it. The profile in
+the environment is still the one the window starts on, and the one every write
+goes to until you switch.
 
 ## Good to know
 
-- **Sync loops:** the app runs its own background sync, exactly like `serve`.
-  If you keep a `serve` running *on the same profile* alongside the app, both
-  will poll Jira — harmless (SQLite serializes writers) but twice the API
-  volume. Run one or the other per profile.
+- **Sync loops:** the app runs its own background sync, exactly like `serve` —
+  and since every profile you can switch to is one you can read, **every
+  profile that has a credential gets its own loop**, not just the one the
+  window started on. A mirror you can see is a mirror that stays fresh; the
+  cost is that Jira API volume scales with how many profiles you have
+  configured, whether or not you look at them today.
+  Keeping a `serve` running alongside the app now multiplies rather than
+  doubles: both processes poll every credentialed profile. Run one or the
+  other. `scry serve --no-sync` turns off all of them at once.
 - **Security posture:** unchanged from [SECURITY.md](../SECURITY.md), minus
   the local port: with no listener there is nothing for another local process
   or a hostile web page to connect to. The webview reaches the mirror through

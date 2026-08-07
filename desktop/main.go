@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"runtime"
+	"strings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/menu"
@@ -25,7 +26,12 @@ import (
 	"github.com/midagedev/scry/internal/server"
 	"github.com/midagedev/scry/internal/store"
 	syncer "github.com/midagedev/scry/internal/sync"
+	"github.com/midagedev/scry/internal/workspace"
 )
+
+// appVersion is the desktop binary version string (overridable at link time by
+// a future build script; default keeps local builds identifiable).
+var appVersion = "dev"
 
 func main() {
 	if err := run(); err != nil {
@@ -67,6 +73,9 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	reg := workspace.New()
+	defer reg.Close()
+
 	// Without an Edit menu, macOS does not wire ⌘C/V/X/A into the webview —
 	// paste during onboarding would fail. AppMenu supplies About/Quit.
 	// wailsCtx is set in OnStartup so menu handlers can open native dialogs.
@@ -88,7 +97,7 @@ func run() error {
 		Menu:      appMenu,
 		AssetServer: &assetserver.Options{
 			Assets:  ui,
-			Handler: fallbackHandler(api, ui),
+			Handler: fallbackHandler(api, ui, reg),
 		},
 		SingleInstanceLock: &options.SingleInstanceLock{
 			// Per profile, not global: one window per mirror, and a second
@@ -120,6 +129,12 @@ func run() error {
 			} else {
 				api.SetSyncStarter(startWatch)
 			}
+			// Workspace loops start immediately — those profiles already carry
+			// their own credentials (primary may still be waiting on onboarding).
+			watched := reg.WatchAll(ctx, config.Profile(), func(s string) { log.Print(s) })
+			if len(watched) > 0 {
+				log.Printf("syncing %d workspace mirrors: %s", len(watched), strings.Join(watched, ", "))
+			}
 		},
 		OnShutdown: func(context.Context) { cancel() },
 		Mac: &mac.Options{
@@ -147,9 +162,9 @@ func profileLockKey() string {
 }
 
 // fallbackHandler serves whatever the Wails asset server does not find as a
-// static file: the API, /config.json, and the SPA's index.html for
-// client-side routes.
-func fallbackHandler(api http.Handler, ui fs.FS) http.Handler {
+// static file: the API, /config.json, workspace mounts, and the SPA's
+// index.html for client-side routes.
+func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry) http.Handler {
 	mux := http.NewServeMux()
 	// PUT settings/ rewrites the config on disk, so re-read it per request
 	// (mirrors cmd/scry buildServeMux).
@@ -173,6 +188,8 @@ func fallbackHandler(api http.Handler, ui fs.FS) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(doc)
 	})
+	mux.HandleFunc("GET /api/v1/workspaces", workspace.ListHandler())
+	mux.HandleFunc("GET /api/v1/workspaces/{$}", workspace.ListHandler())
 	mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The webview sends wails://-scheme Origin values the browser guard
 		// would reject. These requests never crossed a network boundary —
@@ -182,6 +199,19 @@ func fallbackHandler(api http.Handler, ui fs.FS) http.Handler {
 		r.Host = "127.0.0.1"
 		api.ServeHTTP(w, r)
 	}))
+	spa := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, ui, "index.html")
+	})
+	if reg != nil {
+		ws := reg.Handler(spa, appVersion)
+		mux.HandleFunc("/w/", func(w http.ResponseWriter, r *http.Request) {
+			// Same webview identity normalization as /api/ so workspace API
+			// routes pass the browser guard.
+			r.Header.Del("Origin")
+			r.Host = "127.0.0.1"
+			ws(w, r)
+		})
+	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// SPA fallback: unknown paths are client-side routes.
 		http.ServeFileFS(w, r, ui, "index.html")

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Workspaces work in the desktop app, and mounted mirrors now sync.** The
+  sidebar's profile switcher was a `serve`-only feature: the app served neither
+  `/w/<profile>/` nor `GET /api/v1/workspaces`, so the list came back empty and
+  the section hid itself — indistinguishable from a broken feature. The routing
+  moved to `internal/workspace`, shared by both. And the loop that keeps a
+  mirror fresh used to run for the launch profile only, so anything you switched
+  to was quietly stale; every profile with a credential now gets one.
+  `--no-sync` still turns off all of them. Jira API volume scales with the
+  number of configured profiles — see `docs/DESKTOP.md`.
 - **Document lists no longer freeze on a large mirror.** All three Documents
   tabs, a space's flat list and its tree rendered one row per document, so
   opening the view or switching a tab rebuilt the whole mirror with the UI
