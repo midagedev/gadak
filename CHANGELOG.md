@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`scry profiles` is an inventory now** — active marker, issue and document
+  counts, last sync, and the site host (host only; never the URL, email or
+  token), plus `--json`. There is deliberately no `switch`: the CLI writes to
+  Jira, so the target stays in the command you ran (`--profile`) or in the
+  shell you ran it from (`SCRY_PROFILE`), never in a file shared by every
+  terminal. `skills/scry/SKILL.md` states the rule for agents, which cannot see
+  ambient state at all.
 - **Workspaces work in the desktop app, and mounted mirrors now sync.** The
   sidebar's profile switcher was a `serve`-only feature: the app served neither
   `/w/<profile>/` nor `GET /api/v1/workspaces`, so the list came back empty and
