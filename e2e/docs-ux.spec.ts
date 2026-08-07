@@ -144,10 +144,16 @@ test.describe('documents in the daily loop', () => {
     await expect(view).toHaveCount(0)
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
 
-    // Reopening after a reload lands on the tab that was left open.
+    // After a reload the tab is still the one that was left open.
+    //
+    // The screen comes back on its own: the panel was never closed, so the URL
+    // still carries `doc=`, and a page in the address restores the screen that
+    // page lives on (2026-08-07 — docs-deeplink.spec.ts owns that rule). The
+    // sidebar entry is deliberately not clicked here; it is a toggle, and on a
+    // screen that is already open it would close it.
     await page.reload()
     await expect(page.getByTestId('issue-layout')).toBeVisible()
-    await openDocuments(page)
+    await expect(view).toBeVisible()
     await expect(view.getByTestId('docs-tab').filter({ hasText: 'Updated' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -546,6 +552,192 @@ test.describe('documents in the daily loop', () => {
     await expect.poll(() => puts.length).toBeGreaterThan(0)
     expect(JSON.parse(puts[0]).confluence).toEqual({ enabled: true, spaces: ['ENG'] })
   })
+})
+
+/*
+ * Why a row is on screen, and what else is like it.
+ *
+ * The filter used to remove rows and say nothing about the ones it kept, and
+ * the labels the server has always sent were dropped by the client entirely —
+ * so a document list could neither explain itself nor be narrowed by the axis
+ * Confluence actually files pages under.
+ */
+test.describe('the document lists explain themselves', () => {
+  test('a label on a row narrows the screen to that label', async ({ page, request }) => {
+    const errors = attachConsoleErrors(page)
+    // Expected from the mirror, not restated here: this also pins that the
+    // client keeps the labels the server has been sending all along.
+    const res = await request.get(PAGES_URL)
+    const body = (await res.json()) as {
+      pages: { key: string; labels?: string[]; updated_at: string | null }[]
+    }
+    const labelled = body.pages.filter((p) => (p.labels ?? []).includes('runbook'))
+    expect(labelled.length, 'fixture must carry the label under test').toBe(6)
+
+    await gotoApp(page)
+    await openDocuments(page)
+
+    const view = page.getByTestId('docs-view')
+    await view.getByTestId('docs-tab').filter({ hasText: 'Updated' }).click()
+    await expect(view.getByTestId('docs-count')).toHaveText('71')
+
+    // Typed first only to bring a labelled row into the window — the list is
+    // windowed, so "the chip is somewhere below" is not something to click.
+    const filter = page.getByTestId('docs-filter-input')
+    await filter.click()
+    await filter.fill('Rate Limit Storm')
+    const chip = view.getByTestId('doc-label').filter({ hasText: 'runbook' }).first()
+    await expect(chip).toBeVisible()
+    await chip.click()
+
+    // Both narrowings are on, and they are AND-ed: one page is both.
+    await expect(view.getByTestId('docs-label-chip')).toHaveAttribute('data-label', 'runbook')
+    await expect(view.getByTestId('docs-count')).toHaveText('1 / 71')
+
+    // Clearing the text leaves the label behind — six pages carry it in the
+    // mirror, and the count is the receipt for that.
+    await filter.fill('')
+    await expect(view.getByTestId('docs-count')).toHaveText('6 / 71')
+    // The rows themselves, walked — a page carrying three labels shows two of
+    // them, so what is on screen is not the test of what was kept.
+    const walked = await walkRows(view.getByTestId('docs-scroll'))
+    expect(new Set(walked.map((r) => r.key))).toEqual(new Set(labelled.map((p) => p.key)))
+
+    // The chip in the header is the way out of it, in the place it is stated.
+    await view.getByTestId('docs-label-chip').click()
+    await expect(view.getByTestId('docs-label-chip')).toHaveCount(0)
+    await expect(view.getByTestId('docs-count')).toHaveText('71')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('labels are on the lists that answer "what else", and off the rest', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await openDocFromTree(page, 'Billing Settings Spec')
+    await openDocuments(page)
+
+    const view = page.getByTestId('docs-view')
+    // Viewed is a return path: the row is a bookmark, not a query to follow.
+    await expect(view.getByTestId('docs-tab').filter({ hasText: 'Viewed' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await expect(view.getByTestId('doc-row')).toHaveCount(1)
+    await expect(view.getByTestId('doc-label')).toHaveCount(0)
+
+    // The activity lists carry them, capped at two so the row stays a sentence.
+    await view.getByTestId('docs-tab').filter({ hasText: 'Updated' }).click()
+    await expect(view.getByTestId('doc-label').first()).toBeVisible()
+    for (const row of await view.getByTestId('doc-row').all()) {
+      expect(await row.getByTestId('doc-label').count()).toBeLessThanOrEqual(2)
+    }
+
+    // The tree is read to see where something sits, not to browse by subject.
+    await page.getByTestId('docs-section').getByTestId('docs-space').filter({ hasText: 'ENG' }).click()
+    const spaceView = page.getByTestId('space-docs-view')
+    await expect(spaceView.getByTestId('doc-label').first()).toBeVisible()
+    await spaceView.getByTestId('space-tree-toggle').click()
+    await expect(spaceView.getByTestId('doc-tree-node').first()).toBeVisible()
+    await expect(spaceView.getByTestId('doc-label')).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('the filter marks what it matched, in the clause that matched', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await openDocuments(page)
+
+    const view = page.getByTestId('docs-view')
+    await view.getByTestId('docs-tab').filter({ hasText: 'Updated' }).click()
+    const filter = page.getByTestId('docs-filter-input')
+    await filter.click()
+    await filter.fill('runbook')
+
+    // Every row kept says why it was kept — a list that filters silently reads
+    // as an arbitrary list (the same gap the issue rows closed).
+    const rows = view.getByTestId('doc-row')
+    await expect(rows.first().locator('mark').first()).toHaveText(/runbook/i)
+    for (const row of await rows.all()) {
+      expect(await row.locator('mark').count()).toBeGreaterThan(0)
+    }
+
+    // Every clause the row draws, not only the ones the filter reads. The
+    // excerpt and the labels are outside the haystack (doc-search.ts), and they
+    // used to be the two places where the query was sitting in plain sight with
+    // nothing on it — which reads as the highlighting having missed, not as a
+    // statement about what is searched.
+    const marked = (testid: string) =>
+      view.getByTestId(testid).filter({ has: page.locator('mark') }).count()
+    expect(await marked('doc-excerpt'), 'marks in the excerpt line').toBeGreaterThan(0)
+    expect(await marked('doc-label'), 'marks in a label chip').toBeGreaterThan(0)
+
+    // A row matched by its space is marked there instead: the mark follows the
+    // match, so it never claims the title matched when the space did.
+    await filter.fill('ENG')
+    const spaceMatched = rows
+      .filter({ hasNot: page.locator('span').first().locator('mark') })
+      .first()
+    await expect(spaceMatched).toBeVisible()
+    await expect(rows.first().locator('mark').filter({ hasText: 'ENG' }).first()).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('the tree tells an answer from the path to it', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    await page.getByTestId('docs-spaces').click()
+    await page.getByTestId('docs-section').getByTestId('docs-space').filter({ hasText: 'ENG' }).click()
+    const view = page.getByTestId('space-docs-view')
+    await view.getByTestId('space-tree-toggle').click()
+
+    // A parent says how much is under it, so a collapsed branch is not a
+    // guess — the root of ENG holds eight sections in the mirror.
+    const root = view.getByTestId('doc-tree-node').first()
+    await expect(root.getByTestId('doc-tree-count')).toHaveText('8')
+
+    // A child's chevron begins exactly where its parent's title does. The step
+    // used to be narrower than the control it indents past, which left every
+    // level slightly out of true.
+    const parentTitle = await root.getByRole('button').nth(1).boundingBox()
+    const child = view.getByTestId('doc-tree-node').nth(1)
+    const childToggle = await child.getByTestId('doc-tree-toggle').boundingBox()
+    expect(Math.abs((childToggle?.x ?? 0) - (parentTitle?.x ?? 0))).toBeLessThanOrEqual(1)
+
+    const filter = page.getByTestId('docs-filter-input')
+    await filter.click()
+    await filter.fill('Rate Limit Storm')
+
+    // The hit and the two rows that say where it lives are all on screen, and
+    // they are not the same weight: context recedes, the answer does not.
+    const hit = view.getByTestId('doc-tree-node').filter({ hasText: 'Rate Limit Storm' })
+    await expect(hit).toHaveAttribute('data-hit', 'true')
+    const context = view.getByTestId('doc-tree-node').filter({ hasText: 'Runbooks' }).first()
+    await expect(context).toHaveAttribute('data-hit', 'false')
+    // One mark for the phrase. The filter still answers word by word — marking
+    // the query as one literal string leaves a matched row showing no reason —
+    // but three marks with the spaces between them left outside drew a phrase
+    // as a staircase, so runs that only whitespace separates are rejoined.
+    expect(await hit.locator('mark').allInnerTexts()).toEqual(['Rate Limit Storm'])
+    await expect(context.locator('mark')).toHaveCount(0)
+
+    const tone = await view.evaluate(() => {
+      const nodes = [...document.querySelectorAll('[data-testid="doc-tree-node"]')]
+      const titleColor = (row: Element) =>
+        getComputedStyle(row.querySelectorAll('button')[row.querySelectorAll('button').length - 1])
+          .color
+      const answer = nodes.find((n) => n.getAttribute('data-hit') === 'true')!
+      const path = nodes.find((n) => n.getAttribute('data-hit') === 'false')!
+      return { answer: titleColor(answer), path: titleColor(path) }
+    })
+    expect(tone.answer).not.toBe(tone.path)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
 })
 
 /*

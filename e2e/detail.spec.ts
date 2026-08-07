@@ -33,4 +33,105 @@ test.describe('detail', () => {
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  test('the list beside an open panel gives its width up from the chips, not the title', async ({
+    page,
+  }) => {
+    /*
+     * With a panel open, the rows behind it used to hand over the whole column:
+     * the title fell to "Su…" and then to a single character, while the label
+     * chips beside it kept every pixel they had asked for — the widest thing on
+     * the row surrendering to the narrowest, and the document rows in the same
+     * product ordering it the other way round (vision verdict 2026-08-07).
+     *
+     * Both halves are read, because a floor on the title alone would also be
+     * satisfied by a row that simply overflows the column it sits in.
+     */
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await gotoApp(page)
+
+    const scroller = page.getByTestId('issue-list-scroller')
+    // The row carrying the widest strip of chips: it is the one whose title
+    // reaches its floor first, so it is where the two sides actually compete.
+    // A row with one short label never runs out of room and would pass this
+    // whether or not the rule exists.
+    const widest = await scroller.evaluate((el) => {
+      let best = { key: '', width: 0 }
+      for (const row of el.querySelectorAll<HTMLElement>('[data-issue-key]')) {
+        const strip = [...row.querySelectorAll<HTMLElement>('span')].find((s) =>
+          s.querySelector('[title^="Labels:"]'),
+        )
+        const width = strip?.getBoundingClientRect().width ?? 0
+        if (width > best.width) best = { key: row.dataset.issueKey ?? '', width }
+      }
+      return best
+    })
+    expect(widest.width, 'the fixture must show label chips somewhere').toBeGreaterThan(0)
+    const key = widest.key
+    const chips = scroller.locator(`[data-issue-key="${key}"] span.md\\:flex`).last()
+    const chipped = scroller.locator(`[data-issue-key="${key}"]`)
+
+    // Open some other row, so the row being measured is not also the selected
+    // one — selection paints a row, and a painted row is a second variable.
+    await scroller.locator(`[data-issue-key]:not([data-issue-key="${key}"])`).first().click()
+    await expect(page.getByTestId('issue-detail-panel')).toBeVisible()
+    await expect(chipped).toBeVisible()
+
+    const rows = scroller.locator('[data-issue-key]')
+    const n = Math.min(8, await rows.count())
+    expect(n).toBeGreaterThan(0)
+    for (let i = 0; i < n; i++) {
+      const title = await rows.nth(i).locator('span.flex-1').first().boundingBox()
+      expect(title?.width ?? 0, `row ${i} title width`).toBeGreaterThanOrEqual(96)
+    }
+
+    // And the space came from the chips: that same row's strip is narrower than
+    // it was with the whole column to itself.
+    const narrow = await chips.boundingBox()
+    expect(narrow?.width ?? 0).toBeLessThan(widest.width)
+
+    /*
+     * It came from dropping chips, not from grinding them down. The strip used
+     * to hand its width over by truncation, which at this width left "cust…"
+     * "d…" "r…" — labels narrower than the words in them, which read as a
+     * rendering fault. Every chip still on screen has to be wide enough to be
+     * a word; 40px sits under the 48px floor they carry, so this fails on
+     * fraying rather than on a rounding difference.
+     */
+    const visibleChips = () =>
+      scroller.evaluate((el) =>
+        // Buttons only: the +N counters carry the same title (they name the
+        // labels they stand for), and a count is not a chip.
+        [...el.querySelectorAll<HTMLElement>('button[title^="Labels:"]')]
+          .filter((chip) => chip.offsetParent !== null)
+          .map((chip) => ({
+            text: chip.textContent?.trim() ?? '',
+            width: chip.getBoundingClientRect().width,
+          })),
+      )
+
+    for (const chip of await visibleChips()) {
+      expect(chip.width, `label chip "${chip.text}" width`).toBeGreaterThanOrEqual(40)
+    }
+    // Dropped, not deleted: at this width the strip on the labelled row is the
+    // count alone, so the row still says it has labels.
+    expect((await chips.innerText()).trim()).toMatch(/^\+\d+$/)
+
+    // The fold reverses. Widen until the list is back above the last step and
+    // the chips return — otherwise "no frayed chips" would also be satisfied by
+    // a row that had quietly stopped drawing labels at every width.
+    await page.setViewportSize({ width: 1920, height: 900 })
+    await expect(page.getByTestId('issue-detail-panel')).toBeVisible()
+    await expect
+      .poll(async () => (await visibleChips()).length, {
+        message: 'chips must come back once the list is wide again',
+      })
+      .toBeGreaterThan(0)
+    for (const chip of await visibleChips()) {
+      expect(chip.width, `wide-list label chip "${chip.text}" width`).toBeGreaterThanOrEqual(40)
+    }
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })

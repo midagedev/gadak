@@ -513,6 +513,15 @@ export const en = {
   'docs.filterClear': 'Clear filter',
   'docs.filterEmpty': 'No documents match',
   'docs.filterEmptyHint': 'Press Enter to search every issue and document instead.',
+  /* Labels: a chip on a row is a way to keep looking; the chip in the header is
+     the narrowing that is currently on, and the way out of it. */
+  'docs.labelFilterTo': 'Show only documents labelled {label}',
+  /* Nothing typed, so Enter has nothing to search with — the way out is the
+     label, not the whole mirror. */
+  'docs.filterEmptyLabelHint': 'Nothing here carries the {label} label. Clear it to see the rest.',
+  'docs.labelClear': 'Clear the {label} label',
+  /* How many pages sit under a collapsed branch of the tree. */
+  'docs.treeChildCount': '{n} pages under this one',
 
   /* ── Person panel (people axis) ── */
   'person.comments': 'Comments',

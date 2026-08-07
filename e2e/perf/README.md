@@ -27,7 +27,7 @@ What it does:
    are not cloned either, so the fixture measures rendering, not search.
 2. Playwright starts `e2e/perf/serve.sh` on `127.0.0.1:7878` (not the main
    suite's `:7877`).
-3. Five metrics, each **1 warmup + 20 samples → p95** vs budget.
+3. Six metrics, each **1 warmup + 20 samples → p95** vs budget.
 
 | Metric | What is timed |
 | --- | --- |
@@ -36,6 +36,13 @@ What it does:
 | **searchKeystroke** | One client-search keystroke → list count DOM update; asserts zero `/api/` traffic |
 | **paletteOpen** | ⌘K / Ctrl+K → command palette visible |
 | **docsTabSwitch** | Documents → Updated ↔ By author; both tabs list the whole mirror, so this is the list rebuild |
+| **docsFilterKeystroke** | One keystroke in the document filter (Updated, 5,000 pages) → header count becomes a fraction; asserts no request beyond the freshness pollers |
+
+The document-filter metric excludes `sync/progress/`, `sync/runs/` and `meta/`
+from its network assertion: those run on their own timer and will land inside
+any window wide enough to catch one, so including them would let the sample
+length decide the verdict. Anything that could actually answer a filter —
+`pages/`, `search/`, `bootstrap/`, `delta/` — still fails it.
 
 Main suite (`npm run test:e2e`) is untouched. This folder has its own
 `playwright.config.ts`. Specs skip unless `SCRY_PERF=1` so accidental discovery
@@ -78,6 +85,17 @@ alone — adding 5,000 documents to the fixture did not move any of them.
 | --- | ---: | ---: | ---: | --- |
 | docsTabSwitch (before) | 777 | 1107 | — | every row rendered; 45,013 DOM nodes |
 | docsTabSwitch (after) | 23 | 29 | **100** | max(100, ceil(29.2×2)) |
+
+### docsFilterKeystroke (added 2026-08-07)
+
+The document screens gained a filter, and with it a keystroke path over the
+whole 5,000-page index. FAIL-first at `budget=1`:
+`e2e/perf/.tmp/fail-first-docs-filter-keystroke.log`. The other five budgets
+were left alone; the same run measured them all inside their pins.
+
+| Metric | p50 (ms) | p95 (ms) | Budget (ms) | Formula / note |
+| --- | ---: | ---: | ---: | --- |
+| docsFilterKeystroke | 14.7 | 15.3 | **100** | max(100, ceil(15.3×2)) |
 
 **Warm boot is faster than cold when measured correctly** (this run: warm p95 132ms
 vs cold p95 425ms, ~3.2×). An earlier pin of warmBoot **8907ms** was invalid: the

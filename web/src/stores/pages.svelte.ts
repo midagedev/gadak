@@ -104,6 +104,20 @@ class PagesStore {
    *  from elsewhere (the person panel). Cleared as soon as it is honoured —
    *  it is a one-shot instruction, not a filter. */
   focusAuthor = $state<string | null>(null)
+  /**
+   * The label every document screen is narrowed to, or null.
+   *
+   * One label rather than a set: labels here are subject tags ("runbook",
+   * "adr"), and two of them AND-ed is almost always empty, while OR-ing them
+   * would need a rule on screen to explain itself. Clicking another label
+   * moves the narrowing to it, which is the same gesture reading the same way
+   * twice. It combines with the typed filter as AND — the text says what, the
+   * label says which kind.
+   */
+  docsLabel = $state<string | null>(null)
+  /** Tree mode on a space screen. Store-level because the URL restores it
+   *  (`dview=tree`) and the space screen is remounted per space. */
+  spaceTree = $state(false)
 
   /** key → detail, for this tab's lifetime. */
   #details = new Map<string, PageDetail>()
@@ -310,12 +324,23 @@ class PagesStore {
   openSpace(spaceKey: string): void {
     this.docsView = false
     this.spaceView = spaceKey
+    // The flat list is how a page is found (UX_PRINCIPLES §6); arriving at a
+    // space is not the request for a hierarchy, so each arrival starts flat.
+    this.spaceTree = false
   }
 
   closeDocs(): void {
     this.docsView = false
     this.spaceView = null
     this.focusAuthor = null
+    this.spaceTree = false
+    // The narrowing belongs to the screen that was left, not to the next one.
+    this.docsLabel = null
+  }
+
+  /** Narrow every document screen to one label, or clear it (null). */
+  setDocsLabel(label: string | null): void {
+    this.docsLabel = label
   }
 
   selectTab(tab: DocsTab): void {

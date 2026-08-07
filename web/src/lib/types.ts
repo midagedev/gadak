@@ -375,6 +375,9 @@ export interface PageLite {
   /** First ~200 characters of the body as plain text. Empty when the page has
    *  no body, and absent on older servers — both mean "render no preview". */
   excerpt?: string
+  /** Confluence labels on the page. The server always sends an array (empty,
+   *  never null); older ones omit the field, so read it as `?? []`. */
+  labels?: string[]
 }
 
 /** One comment on a mirrored page. Pages have no comment ids, so nothing to reply to. */

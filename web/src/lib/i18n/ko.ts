@@ -513,6 +513,14 @@ export const ko = {
   'docs.filterClear': '필터 지우기',
   'docs.filterEmpty': '일치하는 문서가 없습니다',
   'docs.filterEmptyHint': 'Enter를 누르면 이슈와 문서 전체에서 검색합니다.',
+  /* 행의 라벨 칩은 같은 종류를 계속 보는 길이고, 헤더의 칩은 지금 걸려 있는
+     좁힘과 거기서 빠져나오는 길이다. */
+  'docs.labelFilterTo': '{label} 라벨이 붙은 문서만 보기',
+  /* 입력이 없으니 Enter로 검색할 것도 없다 — 빠져나올 길은 라벨 쪽이다. */
+  'docs.filterEmptyLabelHint': '여기에는 {label} 라벨이 붙은 문서가 없습니다. 라벨을 해제하면 전체가 보입니다.',
+  'docs.labelClear': '{label} 라벨 해제',
+  /* 접힌 가지 아래에 몇 개가 있는지. */
+  'docs.treeChildCount': '이 아래 문서 {n}개',
 
   /* ── Person panel (people axis) ── */
   'person.comments': '코멘트',

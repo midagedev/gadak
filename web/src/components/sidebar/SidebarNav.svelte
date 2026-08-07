@@ -156,7 +156,23 @@
   //  disclosure of the spaces. No tool lists every container by default, and a
   //  sidebar must not grow with content volume (UX_PRINCIPLES §6); the page
   //  tree lives on the space screen, where it is asked for.
-  let spacesOpen = $state(false)
+  /*
+   * The disclosure starts open when the app is already standing in a space, and
+   * opens whenever it arrives in one from somewhere that is not this list — a
+   * restored URL, a pasted link, the back button. Those never pass through the
+   * row that would have opened it, and a highlight the nav is drawing inside a
+   * collapsed section is a highlight nobody can see: the same address rendered
+   * two different sidebars depending on how it was reached.
+   *
+   * Local state with an effect, not a derivation from `pages.spaceView`: this
+   * stays something a person can collapse while still reading a space, which a
+   * derivation would take away. Nothing new is stored — the store already knows
+   * which space is open, and this only reads it.
+   */
+  let spacesOpen = $state(pages.spaceView !== null)
+  $effect(() => {
+    if (pages.spaceView !== null) spacesOpen = true
+  })
 
   /*
    * An empty DOCS section has four causes, and telling someone to go connect a

@@ -52,6 +52,11 @@
   const staleDays = $derived(Math.max(1, Math.round(statusAgeHours(issue) / 24)))
   const shownLabels = $derived(issue.labels.slice(0, 3))
   const extraLabels = $derived(Math.max(0, issue.labels.length - 3))
+  // Every count in the strip points at the same list, so a folded chip is still
+  // one hover away from naming itself.
+  const allLabelsTitle = $derived(
+    t('list.fieldValue', { field: t('common.labels'), value: issue.labels.join(', ') }),
+  )
   // Visible column set (view settings). O(1) check per trailing field.
   const cols = $derived(new Set(filters.display.columns))
   // Query highlight (title·key). Empty q → single segment, same render cost.
@@ -148,7 +153,7 @@
 </script>
 
 <div
-  class="group flex cursor-pointer select-none flex-col justify-center gap-0.5 border-b border-border-subtle/70 text-body transition-colors
+  class="chipfold-host group flex cursor-pointer select-none flex-col justify-center gap-0.5 border-b border-border-subtle/70 text-body transition-colors
     {matchLine ? 'h-row-excerpt' : 'h-row'}
     {selected
       ? 'bg-accent-subtle/30'
@@ -222,8 +227,14 @@
     </span>
   {/if}
 
-  <!-- Title -->
-  <span class="min-w-0 flex-1 truncate font-medium text-text-primary" title={issue.summary}>
+  <!-- Title.
+       `min-w-[13ch]` is the row's one non-negotiable: the title takes whatever
+       the trailing strip leaves, and with the detail panel open that came to a
+       character and an ellipsis while the label chips beside it kept every pixel
+       they asked for — the widest thing on the row surrendering to the narrowest
+       (vision verdict 2026-08-07). The floor is a CSS minimum, never a measured
+       one: this row is the 10k-row hot path and must not read layout. -->
+  <span class="min-w-[13ch] flex-1 truncate font-medium text-text-primary" title={issue.summary}>
     {#each summarySegs as seg, i (i)}{#if seg.hit}<mark class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark>{:else}{seg.text}{/if}{/each}
     {#if filters.filters.reopened && issue.reopen_count > 0 && issue.reopen_reason}
       <!-- Inline reason only on reopen view — elsewhere the badge + its tooltip is enough -->
@@ -425,22 +436,43 @@
     </button>
   {/if}
 
-  <!-- Label chips -->
+  <!-- Label chips. The one shrinkable thing on the trailing strip, so the space
+       the title's floor claims back is taken from here rather than from a
+       badge that means something the chips do not: a label is a route, and a
+       route can wait for its own row to be read first.
+
+       It is given back by dropping whole chips, never by grinding them down —
+       a chip narrower than the word it carries stops being a label and starts
+       looking like a fault. The width steps and the reasoning are in app.css
+       (.chipfold-*); here each step's count is rendered so that CSS only has to
+       choose between them. `min-w-[3rem]` is the last line of that rule: a
+       column set heavier than the one those steps were measured against can
+       still squeeze the strip, and 48px is where a chip stops being a word. -->
   {#if cols.has('labels') && shownLabels.length}
-    <span class="hidden flex-none items-center gap-1 md:flex">
-      {#each shownLabels as label (label)}
+    <span class="hidden min-w-0 shrink items-center gap-1 md:flex">
+      {#each shownLabels as label, i (label)}
         <button
           type="button"
-          class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          class="min-w-[3rem] max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary
+            {i === 0 ? 'chipfold-first' : 'chipfold-rest'}"
           onclick={stop(() => filters.addValue('labels', label))}
           title={t('list.fieldValue', { field: t('common.labels'), value: label })}
         >
           {label}
         </button>
       {/each}
+      <!-- The counters wear a faint chip tint (weaker than a hovered label, +4px
+           width in total) because at the narrowest step no real chip is left to
+           anchor them: a bare "+1" beside the epic key reads as the key column's
+           continuation, not the label column's residue (vision verdict
+           2026-08-07). -->
       {#if extraLabels}
-        <span class="text-micro text-text-muted">+{extraLabels}</span>
+        <span class="chipfold-n-extra flex-none rounded bg-bg-elevated/70 px-0.5 text-micro text-text-muted" title={allLabelsTitle}>+{extraLabels}</span>
       {/if}
+      {#if issue.labels.length > 1}
+        <span class="chipfold-n-rest flex-none rounded bg-bg-elevated/70 px-0.5 text-micro text-text-muted" title={allLabelsTitle}>+{issue.labels.length - 1}</span>
+      {/if}
+      <span class="chipfold-n-all flex-none rounded bg-bg-elevated/70 px-0.5 text-micro text-text-muted" title={allLabelsTitle}>+{issue.labels.length}</span>
     </span>
   {/if}
 

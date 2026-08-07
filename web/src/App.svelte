@@ -74,6 +74,55 @@
   if (initialIssueKey) selection.select(initialIssueKey)
   let syncedIssueKey = initialIssueKey
 
+  /*
+   * The document screens, restored the same way.
+   *
+   * Everything a document view knows lived in memory, so a reload landed back
+   * on the issue list and a link to a page could not be shared at all — while
+   * the issue beside it had survived both since the first release. These four
+   * params are selection state, never view state: `isViewParam` does not list
+   * them, so the sidebar's active-view match and the saved-view serialization
+   * read exactly what they read before.
+   *
+   * `dview` is written only for the tree, since the flat list is the default
+   * and a URL should not carry a value that changes nothing. The tab is
+   * deliberately not here either: it is a return path this browser remembers
+   * (localStorage), not something a link should impose on the person opening it.
+   */
+  const initialDocKey = router.params.get('doc')
+  if (initialDocKey) pages.select(initialDocKey)
+  let syncedDocKey = initialDocKey
+
+  const initialSpace = router.params.get('space')
+  if (initialSpace) {
+    pages.openSpace(initialSpace)
+    if (router.params.get('dview') === 'tree') pages.spaceTree = true
+  } else if (router.params.get('docs') === '1') {
+    pages.docsView = true
+  } else if (initialDocKey) {
+    /*
+     * A link to a page with nothing behind it lands on the document screen, not
+     * on the issue list with a page floating over it. What arrived was one
+     * address, and everything it restores has to belong to the same place: a
+     * panel over a list nobody asked for offers a Close that leads somewhere
+     * the visitor has never been.
+     *
+     * Only here, on the way in from a URL. Opening a page from a search hit in
+     * the issue list is the opposite request — the list is being worked
+     * through, several hits at a time, and it stays put (see DocsView's header).
+     * That flow writes `doc` alone; this one is what a `doc` alone means when
+     * it is all the app was given.
+     */
+    pages.docsView = true
+  }
+  // Seeded from the URL, never from the store: the promotion above is a change
+  // the store made, and the store→URL direction below is what has to see it.
+  // Seeding these from the store instead would make the first pass read that
+  // promotion as the URL having dropped a param, and close what it just opened.
+  let syncedSpace = initialSpace
+  let syncedDocsView = router.params.get('docs')
+  let syncedDview = router.params.get('dview')
+
   onMount(() => {
     void issues.init()
     void me.init()
@@ -332,6 +381,66 @@
     if (key !== syncedIssueKey) {
       syncedIssueKey = key
       setParams({ issue: key }, true)
+    }
+  })
+
+  // ── Open document ↔ URL (?doc=KEY) ──
+  // Same two-direction shape as the issue above, for the same reason: a URL
+  // change (back, a pasted link) must be able to overwrite the open panel, and
+  // an opened panel must be able to overwrite the URL, without the two chasing
+  // each other. The last-synced value is what tells which of them moved.
+  $effect(() => {
+    const urlKey = router.params.get('doc')
+    const key = pages.selectedKey
+    if (urlKey !== syncedDocKey) {
+      syncedDocKey = urlKey
+      if (urlKey) pages.select(urlKey)
+      else pages.clear()
+      return
+    }
+    if (key !== syncedDocKey) {
+      syncedDocKey = key
+      setParams({ doc: key }, true)
+    }
+  })
+
+  // ── Which document screen owns the main column ↔ URL ──
+  // The three params move together (a space and the tabbed view are exclusive,
+  // and `dview` only means anything inside a space), so they are one effect
+  // rather than three that would each see a half-applied state.
+  $effect(() => {
+    const urlSpace = router.params.get('space')
+    const urlDocs = router.params.get('docs')
+    const urlDview = router.params.get('dview')
+    const space = pages.spaceView
+    const docs = pages.docsView ? '1' : null
+    const dview = pages.spaceTree ? 'tree' : null
+
+    if (urlSpace !== syncedSpace || urlDocs !== syncedDocsView || urlDview !== syncedDview) {
+      syncedSpace = urlSpace
+      syncedDocsView = urlDocs
+      syncedDview = urlDview
+      if (urlSpace) {
+        untrack(() => {
+          pages.openSpace(urlSpace)
+          pages.spaceTree = urlDview === 'tree'
+        })
+      } else if (urlDocs === '1') {
+        untrack(() => {
+          pages.spaceView = null
+          pages.spaceTree = false
+          pages.docsView = true
+        })
+      } else {
+        untrack(() => pages.closeDocs())
+      }
+      return
+    }
+    if (space !== syncedSpace || docs !== syncedDocsView || dview !== syncedDview) {
+      syncedSpace = space
+      syncedDocsView = docs
+      syncedDview = dview
+      setParams({ space, docs, dview }, true)
     }
   })
 

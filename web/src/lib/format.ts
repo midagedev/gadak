@@ -63,6 +63,39 @@ export function highlightSegments(text: string, q: string): { text: string; hit:
   return out
 }
 
+/**
+ * Join hits that nothing but whitespace stands between.
+ *
+ * Query words are matched one at a time, so "rate limit storm" comes back as
+ * three marks with two unmarked spaces wedged between them — one phrase drawn
+ * as a staircase, with the gaps reading as breaks in what was matched. Merging
+ * them says what the list actually answered: the phrase, in one run.
+ *
+ * Only whitespace is absorbed. A hyphen or a slash between two matched words
+ * belongs to the text's own spelling, and swallowing it would claim a hit on a
+ * character the query never contained.
+ */
+export function mergeAdjacentHits(
+  segs: { text: string; hit: boolean }[],
+): { text: string; hit: boolean }[] {
+  const out: { text: string; hit: boolean }[] = []
+  for (let i = 0; i < segs.length; i++) {
+    const seg = segs[i]
+    const prev = out[out.length - 1]
+    if (prev?.hit && !seg.hit && seg.text.trim() === '' && segs[i + 1]?.hit) {
+      prev.text += seg.text + segs[i + 1].text
+      i += 1
+      continue
+    }
+    if (prev?.hit && seg.hit) {
+      prev.text += seg.text
+      continue
+    }
+    out.push({ text: seg.text, hit: seg.hit })
+  }
+  return out
+}
+
 /* ── Initials (avatar fallback) ── */
 
 export function initials(name: string | null | undefined, email?: string | null): string {

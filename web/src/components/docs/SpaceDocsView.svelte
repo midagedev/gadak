@@ -7,8 +7,10 @@
    * the question really is "what lives under what". The sidebar carries neither
    * — it must not grow with content volume.
    */
+  import { untrack } from 'svelte'
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
+  import { highlightSegments, mergeAdjacentHits } from '../../lib/format'
   import { pages, type PageNode } from '../../stores/pages.svelte'
   import { isChosungQuery } from '../../lib/korean'
   import { pageMatches } from '../../lib/doc-search'
@@ -25,16 +27,18 @@
   const label = $derived(pages.spaceLabel(space))
 
   /* Same narrowing rule as the tabbed view — title, space and author, locally,
-   * on every keystroke. */
+   * on every keystroke, AND-ed with the label a row's chip put on the screen. */
   let filterText = $state('')
   const raw = $derived(filterText.trim())
   const needle = $derived(raw.toLowerCase())
   const chosungQuery = $derived(raw ? isChosungQuery(raw) : false)
-  const filtering = $derived(needle !== '')
+  const labelFilter = $derived(pages.docsLabel)
+  const filtering = $derived(needle !== '' || labelFilter !== null)
   const matched = $derived.by(() => {
     if (!filtering) return null
     const keys = new Set<string>()
     for (const page of all) {
+      if (labelFilter !== null && !(page.labels ?? []).includes(labelFilter)) continue
       if (pageMatches(page, needle, chosungQuery, label, { author: true })) keys.add(page.key)
     }
     return keys
@@ -42,7 +46,16 @@
 
   const docs = $derived(matched ? all.filter((page) => matched.has(page.key)) : all)
 
-  let treeMode = $state(false)
+  /** Match marks for a tree row's title — the flat list gets the same from
+   *  DocRow, and a hit with nothing marked on it reads as an arbitrary row.
+   *  Merged the same way too, so a phrase is one mark here and there. */
+  const titleSegs = $derived((title: string) =>
+    mergeAdjacentHits(highlightSegments(title, raw)),
+  )
+
+  /** Tree mode lives in the store because the URL restores it (`dview=tree`)
+   *  and this component is remounted per space. */
+  const treeMode = $derived(pages.spaceTree)
   /** Expanded page nodes, by key. */
   let openDocs = $state(new Set<string>())
 
@@ -53,13 +66,21 @@
   }
 
   /** A space normally has one root page, so opening onto a single collapsed row
-   *  reads as a broken toggle. Roots open with the tree; deeper levels stay shut. */
-  function showTree() {
-    treeMode = true
-    const next = new Set(openDocs)
-    for (const root of tree?.roots ?? []) next.add(root.page.key)
-    openDocs = next
-  }
+   *  reads as a broken toggle. Roots open with the tree; deeper levels stay shut.
+   *  An effect rather than a click handler: the tree is also entered from a
+   *  restored URL, which never passes through the toggle. */
+  $effect(() => {
+    if (!treeMode) return
+    const roots = tree?.roots ?? []
+    if (!roots.length) return
+    untrack(() => {
+      const missing = roots.filter((root) => !openDocs.has(root.page.key))
+      if (!missing.length) return
+      const next = new Set(openDocs)
+      for (const root of missing) next.add(root.page.key)
+      openDocs = next
+    })
+  })
 
   /** Open a page; a parent also expands, so one click never looks inert. */
   function openDoc(node: PageNode) {
@@ -114,22 +135,30 @@
   })
 </script>
 
-<!-- One page row in the tree. Indent is a fixed step per depth so a leaf lines
-     up under its parent's title. This is the main column, not the sidebar: rows
-     carry the body size and the list's row rhythm rather than the nav's
-     compressed one. Children are not rendered from here — treeRows already
-     holds them in visual order, which is what lets the list be windowed. -->
+<!-- One page row in the tree. The indent step is the toggle's own width, so a
+     child's chevron sits exactly under where its parent's title begins — a step
+     narrower than the toggle (it used to be 18px against a 24px control) leaves
+     every level slightly out of true, which is what makes deep trees hard to
+     read. This is the main column, not the sidebar: rows carry the body size and
+     the list's row rhythm rather than the nav's compressed one. Children are not
+     rendered from here — treeRows already holds them in visual order, which is
+     what lets the list be windowed. -->
 {#snippet docNode(node: PageNode)}
   {@const expanded = treeKeep
     ? node.children.some((child) => treeKeep.has(child.page.key))
     : openDocs.has(node.page.key)}
   {@const selected = pages.selectedKey === node.page.key}
+  <!-- While filtering, a row is either an answer or the path to one. The path
+       stays legible but recedes, so "where does this live" and "what did I ask
+       for" are not the same weight (vision verdict 2026-08-07). -->
+  {@const hit = !matched || matched.has(node.page.key)}
   <div
     class="group flex min-h-control items-center rounded-md pr-3 text-body transition-colors {selected
       ? 'bg-bg-active'
       : 'hover:bg-bg-hover'}"
-    style="padding-left: {8 + node.depth * 18}px"
+    style="padding-left: calc(8px + {node.depth} * var(--spacing-control-sm))"
     data-testid="doc-tree-node"
+    data-hit={hit ? 'true' : 'false'}
   >
     {#if node.children.length}
       <button
@@ -152,13 +181,32 @@
     {/if}
     <button
       type="button"
-      class="min-w-0 flex-1 truncate py-1 pl-1 text-left {selected
+      class="flex min-w-0 flex-1 items-center gap-2 py-1 text-left {selected
         ? 'text-text-primary'
-        : 'text-text-secondary group-hover:text-text-primary'}"
+        : hit
+          ? 'text-text-secondary group-hover:text-text-primary'
+          : 'text-text-muted group-hover:text-text-secondary'}"
       title={node.page.title}
       onclick={() => openDoc(node)}
     >
-      {node.page.title}
+      <span class="min-w-0 truncate"
+        >{#each titleSegs(node.page.title) as seg, i (i)}{#if seg.hit}<mark
+              class="rounded-[2px] bg-status-stale/30 text-inherit">{seg.text}</mark
+            >{:else}{seg.text}{/if}{/each}</span
+      >
+      {#if node.children.length}
+        <!-- What a collapsed branch is hiding. It rides with the title rather
+             than in a right-hand column: pushed to the edge, the numbers line up
+             into a structure of their own, and the count is an attribute of the
+             row, not a second axis to read. -->
+        <span
+          class="flex-none text-micro tabular-nums text-text-muted"
+          data-testid="doc-tree-count"
+          title={t('docs.treeChildCount', { n: node.children.length })}
+        >
+          {formatNumber(node.children.length)}
+        </span>
+      {/if}
     </button>
   </div>
 {/snippet}
@@ -171,6 +219,22 @@
           all.length,
         )}{/if}
     </span>
+    {#if labelFilter}
+      <!-- Same chip as the tabbed view: the narrowing is stated where the count
+           is, and removed from the same place. -->
+      <button
+        type="button"
+        class="group mr-2 flex h-control-sm flex-none items-center gap-1 rounded-full bg-bg-elevated pl-2.5 pr-1.5 text-micro text-text-primary transition-colors hover:bg-bg-active"
+        data-testid="docs-label-chip"
+        data-label={labelFilter}
+        title={t('docs.labelClear', { label: labelFilter })}
+        aria-label={t('docs.labelClear', { label: labelFilter })}
+        onclick={() => pages.setDocsLabel(null)}
+      >
+        <span class="max-w-[140px] truncate">{labelFilter}</span>
+        <Icon name="x" size={11} class="text-text-muted group-hover:text-text-primary" />
+      </button>
+    {/if}
 
     <!-- p-1: same 32px wrapper as DocsView's tabs, for the same header-row
          height rule (vision verdict 2026-08-07). -->
@@ -182,7 +246,7 @@
           : 'bg-bg-active text-text-primary'}"
         aria-pressed={!treeMode}
         data-testid="space-list-toggle"
-        onclick={() => (treeMode = false)}
+        onclick={() => (pages.spaceTree = false)}
       >
         {t('docs.viewList')}
       </button>
@@ -193,7 +257,7 @@
           : 'text-text-muted hover:text-text-secondary'}"
         aria-pressed={treeMode}
         data-testid="space-tree-toggle"
-        onclick={showTree}
+        onclick={() => (pages.spaceTree = true)}
       >
         {t('docs.viewTree')}
       </button>
@@ -215,7 +279,13 @@
   {#if docs.length === 0}
     <div class="min-h-0 flex-1 overflow-y-auto">
       {#if filtering}
-        <EmptyState icon="search-x" title={t('docs.filterEmpty')} hint={t('docs.filterEmptyHint')} />
+        <EmptyState
+          icon="search-x"
+          title={t('docs.filterEmpty')}
+          hint={needle
+            ? t('docs.filterEmptyHint')
+            : t('docs.filterEmptyLabelHint', { label: labelFilter ?? '' })}
+        />
       {:else}
         <p class="px-4 py-12 text-center text-[12px] text-text-muted">{t('docs.recentEmpty')}</p>
       {/if}
@@ -246,7 +316,9 @@
       testid="space-list-scroll"
     >
       {#snippet row(page)}
-        <DocRow {page} showSpace={false} />
+        <!-- Labels are on here and off in the tree: this is the list read to
+             find something, and the tree is read to see where things sit. -->
+        <DocRow {page} showSpace={false} showLabels q={raw} />
       {/snippet}
     </VirtualRows>
   {/if}

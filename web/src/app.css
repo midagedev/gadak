@@ -253,6 +253,69 @@
     box-shadow: -12px 0 32px rgb(0 0 0 / 0.3);
   }
 
+  /*
+    Issue-row label chips: they fold, they do not fray.
+
+    The chip strip is the row's one shrinkable element (see IssueRow), and what
+    shrinking it actually produced in a narrow list was three chips ground down
+    to "cust…" "d…" "r…" — read as a rendering fault rather than as labels
+    (vision verdict 2026-08-07). Below the width where a chip still says a word
+    the chip is not drawn at all: it is counted in the +N beside it, and the
+    width it gives back goes to the title.
+
+    Container queries, because this is the 10k-row hot path and the row may not
+    measure itself. A counter's number cannot come from CSS, so all three counts
+    are in the markup and each step shows its own.
+
+    The steps are row widths, read off the fixture (scratch/r2b-fix2/chips.mjs).
+    The row's fixed part — checkbox through avatar and time, with every badge
+    the default columns draw — measured 455px at its heaviest, and the title
+    floor is 110px (13ch):
+      3 chips  455 + 110 + 246 (widest strip: 110+61+67 and its gaps) = 811
+      1 chip   455 + 110 + 136 (one 110px chip, a gap, and "+2")      = 701
+      0 chips  455 + 110 +  32 (the count on its own)                 = 597
+    Rounded up to 900 / 740 / 640 for the rows that carry more badges than the
+    ones measured. Under the last step even the count goes, the way every other
+    optional column drops out of a list this narrow.
+
+    Written as max-width so a browser without container queries lands on the
+    wide step — the behaviour that shipped — rather than on an empty strip.
+  */
+  .chipfold-host {
+    container: issuerow / inline-size;
+  }
+
+  .chipfold-n-rest,
+  .chipfold-n-all {
+    display: none;
+  }
+
+  @container issuerow (max-width: 899px) {
+    .chipfold-rest,
+    .chipfold-n-extra {
+      display: none;
+    }
+    .chipfold-n-rest {
+      display: block;
+    }
+  }
+
+  @container issuerow (max-width: 739px) {
+    .chipfold-first,
+    .chipfold-n-rest {
+      display: none;
+    }
+    .chipfold-n-all {
+      display: block;
+    }
+  }
+
+  @container issuerow (max-width: 639px) {
+    .chipfold-n-all {
+      display: none;
+    }
+  }
+
   @media (min-width: 2201px) {
     .issue-layout {
       border-inline: 1px solid var(--color-border-subtle);

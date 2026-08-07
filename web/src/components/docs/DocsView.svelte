@@ -44,10 +44,15 @@
   const raw = $derived(filterText.trim())
   const needle = $derived(raw.toLowerCase())
   const chosungQuery = $derived(raw ? isChosungQuery(raw) : false)
-  const filtering = $derived(needle !== '')
+  /** The label a chip click put on the screen, and the way back out of it. */
+  const label = $derived(pages.docsLabel)
+  const filtering = $derived(needle !== '' || label !== null)
 
-  const keep = $derived((page: PageLite) =>
-    pageMatches(page, needle, chosungQuery, pages.spaceLabel(page.space_key), { author: true }),
+  /* Two narrowings, AND-ed: the text says what, the label says which kind. */
+  const keep = $derived(
+    (page: PageLite) =>
+      (label === null || (page.labels ?? []).includes(label)) &&
+      pageMatches(page, needle, chosungQuery, pages.spaceLabel(page.space_key), { author: true }),
   )
   const narrow = $derived((list: PageLite[]) => (filtering ? list.filter(keep) : list))
 
@@ -82,21 +87,40 @@
    */
   type Row =
     | { kind: 'header'; author: string; count: number }
-    | { kind: 'doc'; page: PageLite; showAuthor: boolean; showExcerpt: boolean }
+    | {
+        kind: 'doc'
+        page: PageLite
+        showAuthor: boolean
+        showExcerpt: boolean
+        showLabels: boolean
+      }
 
   const rows = $derived.by<Row[]>(() => {
     if (tab === 'viewed') {
-      // No excerpt: you have read these already, so the title is the reminder.
-      return viewed.map((page) => ({ kind: 'doc', page, showAuthor: true, showExcerpt: false }))
+      // No excerpt, no labels: you have read these already, so the title is the
+      // reminder and the row is a bookmark rather than a query to follow.
+      return viewed.map((page) => ({
+        kind: 'doc' as const,
+        page,
+        showAuthor: true,
+        showExcerpt: false,
+        showLabels: false,
+      }))
     }
     if (tab === 'updated') {
-      return updated.map((page) => ({ kind: 'doc', page, showAuthor: true, showExcerpt: true }))
+      return updated.map((page) => ({
+        kind: 'doc' as const,
+        page,
+        showAuthor: true,
+        showExcerpt: true,
+        showLabels: true,
+      }))
     }
     const out: Row[] = []
     for (const group of authors) {
       out.push({ kind: 'header', author: group.author, count: group.pages.length })
       for (const page of group.pages) {
-        out.push({ kind: 'doc', page, showAuthor: false, showExcerpt: true })
+        out.push({ kind: 'doc', page, showAuthor: false, showExcerpt: true, showLabels: true })
       }
     }
     return out
@@ -139,6 +163,32 @@
     <span class="flex-none text-micro tabular-nums text-text-muted" data-testid="docs-count">
       {#if filtering}{formatNumber(count)} / {formatNumber(total)}{:else}{formatNumber(count)}{/if}
     </span>
+    {#if label}
+      <!--
+        The narrowing a row's chip put on the screen, stated where the count is,
+        and removable in the same place. A filter that only shows in the rows it
+        removed is a filter someone forgets is on.
+
+        It has to read as a chip rather than as a fourth piece of the segmented
+        control beside it, which is what it did while it shared that control's
+        4px corner, its fill and its 4px seam (vision verdict 2026-08-07). The
+        pill corner and the wider seam (`mr-2` on top of the header's own gap-2)
+        separate the two, and the x sits a tier below the label it removes — one
+        word plus an affordance, not three equal-weight words in a row.
+      -->
+      <button
+        type="button"
+        class="group mr-2 flex h-control-sm flex-none items-center gap-1 rounded-full bg-bg-elevated pl-2.5 pr-1.5 text-micro text-text-primary transition-colors hover:bg-bg-active"
+        data-testid="docs-label-chip"
+        data-label={label}
+        title={t('docs.labelClear', { label })}
+        aria-label={t('docs.labelClear', { label })}
+        onclick={() => pages.setDocsLabel(null)}
+      >
+        <span class="max-w-[140px] truncate">{label}</span>
+        <Icon name="x" size={11} class="text-text-muted group-hover:text-text-primary" />
+      </button>
+    {/if}
 
     <!-- p-1 so the wrapper stands 32px like the filter input beside it: two
          controls on one header row at two heights read as two size classes
@@ -182,7 +232,9 @@
         <EmptyState
           icon="search-x"
           title={t('docs.filterEmpty')}
-          hint={t('docs.filterEmptyHint')}
+          hint={needle
+            ? t('docs.filterEmptyHint')
+            : t('docs.filterEmptyLabelHint', { label: label ?? '' })}
         />
       {:else if tab === 'viewed'}
         <EmptyState icon="" title={t('docs.viewedEmpty')} hint={t('docs.viewedEmptyHint')} />
@@ -224,6 +276,8 @@
             page={item.page}
             showAuthor={item.showAuthor}
             showExcerpt={item.showExcerpt}
+            showLabels={item.showLabels}
+            q={raw}
           />
         {/if}
       {/snippet}

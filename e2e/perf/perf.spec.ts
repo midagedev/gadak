@@ -19,6 +19,12 @@ const ISSUE_COUNT_RE = /10,000 issues|10000 issues/
 /** Fixture issue count — IDB prime target and DOM count must both match. */
 const FIXTURE_ISSUE_COUNT = 10_000
 
+/** Unfiltered document count in the header (5,000-page fixture, en-US). */
+const DOCS_COUNT_TEXT = /^5,000$|^5000$/
+
+/** Timer-driven endpoints (sync status / freshness), never a keystroke's doing. */
+const POLLED_ENDPOINTS = /\/sync\/(progress|runs)\/|\/meta\//
+
 /**
  * Performance budgets (ms). Each pin: max(100, ceil(local_p95 * 2)).
  *
@@ -44,6 +50,12 @@ const BUDGETS = {
   // (p50=777.3) — e2e/perf/.tmp/fail-first-docs-tab-switch.log. A list that
   // stops windowing lands back there, which is what this budget catches.
   docsTabSwitchMs: 100,
+  // pinned 2026-08-07: local p95=15.3ms, budget=max(100, ceil(15.3*2))=100
+  // FAIL-first: budget=1 failed with p95=15.3ms (p50=14.7) —
+  // e2e/perf/.tmp/fail-first-docs-filter-keystroke.log. The axis is the one the
+  // document screens gained a filter on: every keystroke re-scans the whole
+  // page index in memory, and this is what says it stays in memory.
+  docsFilterKeystrokeMs: 100,
 } as const
 
 const SAMPLES = 20
@@ -53,7 +65,7 @@ type MetricName = keyof typeof BUDGETS
 test.describe('performance budgets (10k fixture)', () => {
   test.skip(!RUN, 'set SCRY_PERF=1 (npm run test:perf)')
 
-  test('four interaction metrics: warmup + 20 samples → p95 vs budget', async ({ browser }) => {
+  test('interaction metrics: warmup + 20 samples → p95 vs budget', async ({ browser }) => {
     // Measure everything first so FAIL-first / re-pin runs always print a full table.
     const results: Record<MetricName, Stats> = {
       coldBootMs: await runColdBoot(browser),
@@ -61,6 +73,7 @@ test.describe('performance budgets (10k fixture)', () => {
       searchKeystrokeMs: await runSearchKeystroke(browser),
       paletteOpenMs: await runPaletteOpen(browser),
       docsTabSwitchMs: await runDocsTabSwitch(browser),
+      docsFilterKeystrokeMs: await runDocsFilterKeystroke(browser),
     }
 
     console.log('[perf] ── summary (ms) ──')
@@ -235,6 +248,41 @@ async function runDocsTabSwitch(browser: Browser): Promise<Stats> {
   return stats
 }
 
+async function runDocsFilterKeystroke(browser: Browser): Promise<Stats> {
+  const context = await browser.newContext({ locale: 'en-US' })
+  const page = await context.newPage()
+  await forceLocale(page)
+  await page.goto('/')
+  await waitInteractive(page)
+  await page.waitForTimeout(400)
+
+  await page.getByTestId('docs-documents').click()
+  await expect(page.getByTestId('docs-view')).toBeVisible({ timeout: 60_000 })
+  // Updated lists the whole mirror, so a keystroke here is a pass over all
+  // 5,000 pages — the worst case the tab offers, which is what to budget.
+  await page.getByTestId('docs-tab').filter({ hasText: 'Updated' }).click()
+  await expect(page.getByTestId('docs-count')).toHaveText(DOCS_COUNT_TEXT, { timeout: 60_000 })
+
+  {
+    const ms = await measureDocsFilterKeystroke(page)
+    console.log(`[perf] docsFilterKeystroke warmup: ${ms.toFixed(1)}ms`)
+    await clearDocsFilter(page)
+  }
+
+  const samples: number[] = []
+  for (let i = 0; i < SAMPLES; i++) {
+    const ms = await measureDocsFilterKeystroke(page)
+    samples.push(ms)
+    console.log(`[perf] docsFilterKeystroke sample ${i + 1}/${SAMPLES}: ${ms.toFixed(1)}ms`)
+    await clearDocsFilter(page)
+  }
+  await context.close()
+
+  const stats = summarize(samples)
+  logStats('docsFilterKeystroke', stats, BUDGETS.docsFilterKeystrokeMs)
+  return stats
+}
+
 // ── measurements ──────────────────────────────────────────────────────────
 
 async function measureColdBoot(
@@ -271,7 +319,14 @@ async function measureSearchKeystroke(page: Page): Promise<number> {
   const apiDuring: string[] = []
   const onReq = (req: Request) => {
     const url = req.url()
-    if (url.includes('/api/')) apiDuring.push(url)
+    // Same exclusion as the docs-filter axis (see POLLED_ENDPOINTS): the sync
+    // pollers fire on their own timer — while the mirror is busy, every 2s —
+    // so a long enough window always catches one regardless of what was typed.
+    // FAIL-first 2026-08-07: this assertion caught sync/progress/ on a quiet
+    // rerun after the activity poller shipped (task #54) — an instrumentation
+    // collision, not a keystroke fetch. Everything that could answer a search
+    // (search/, bootstrap/, delta/, pages/) still fails here.
+    if (url.includes('/api/') && !POLLED_ENDPOINTS.test(url)) apiDuring.push(url)
   }
   page.on('request', onReq)
 
@@ -319,6 +374,55 @@ async function measureDocsTabSwitch(page: Page): Promise<number> {
   await expect(view.getByTestId('doc-row').first()).toBeVisible({ timeout: 15_000 })
   const t1 = await page.evaluate(() => performance.now())
   return t1 - t0
+}
+
+/**
+ * One keystroke in the document filter → the header count settles on its
+ * fraction. Same shape as the issue-list keystroke above, including the claim
+ * that matters most on this path: narrowing 5,000 documents asks the server
+ * nothing at all.
+ */
+async function measureDocsFilterKeystroke(page: Page): Promise<number> {
+  const input = page.getByTestId('docs-filter-input')
+  await input.click()
+  const countEl = page.getByTestId('docs-count')
+
+  const apiDuring: string[] = []
+  const onReq = (req: Request) => {
+    const url = req.url()
+    // The freshness pollers run on their own timer and will land inside any
+    // window long enough to catch them; they are not on the keystroke path and
+    // silencing them here would only make the sample length decide the verdict.
+    // Everything that could actually serve a filter (pages, search, bootstrap,
+    // delta) still fails this.
+    if (url.includes('/api/') && !POLLED_ENDPOINTS.test(url)) apiDuring.push(url)
+  }
+  page.on('request', onReq)
+
+  try {
+    const t0 = await page.evaluate(() => performance.now())
+    await input.press('e')
+    // The unfiltered count is a bare total; a filtered one is "n / total", so
+    // the fraction arriving is the render having landed.
+    await expect(countEl).toHaveText(/\//, { timeout: 15_000 })
+    const t1 = await page.evaluate(() => performance.now())
+
+    expect(
+      apiDuring,
+      `expected no /api/ traffic while filtering documents, got:\n${apiDuring.join('\n')}`,
+    ).toEqual([])
+
+    return t1 - t0
+  } finally {
+    page.off('request', onReq)
+  }
+}
+
+async function clearDocsFilter(page: Page): Promise<void> {
+  const input = page.getByTestId('docs-filter-input')
+  await input.click()
+  await input.fill('')
+  await expect(page.getByTestId('docs-count')).toHaveText(DOCS_COUNT_TEXT, { timeout: 15_000 })
 }
 
 async function measurePaletteOpen(page: Page): Promise<number> {
