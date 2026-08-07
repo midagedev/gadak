@@ -6,6 +6,7 @@ import * as api from './api'
 import { ApiError } from './api'
 import { t } from './i18n'
 import { issues } from '../stores/issues.svelte'
+import { pages } from '../stores/pages.svelte'
 import { write, type ToastKind } from '../stores/write.svelte'
 
 const POLL_MS = 1000
@@ -31,6 +32,28 @@ export function runSyncNow(
     inflight = null
   })
   return inflight
+}
+
+/**
+ * Attach to a sync this tab did not start. The server kicks one when a settings
+ * write changes which projects or spaces get mirrored, and the settings dialog
+ * reloads the page right after saving — so the run that the save asked for is
+ * always somebody else's from this tab's point of view. Without this the app
+ * came back up looking idle while it was in fact fetching, which is the exact
+ * complaint: nothing happened, as far as the screen was concerned.
+ *
+ * Goes through pullMirror so the freshness chip and the sidebar read it the
+ * same as a click. startSync answers 409 and doSync falls through to polling.
+ */
+export async function adoptRunningSync(): Promise<void> {
+  if (inflight) return
+  try {
+    const p = await api.getSyncProgress()
+    if (!p.running) return
+  } catch {
+    return // no endpoint / offline — nothing to adopt
+  }
+  await issues.pullMirror('incremental', true)
 }
 
 async function doSync(mode: 'full' | 'incremental', quiet: boolean): Promise<void> {
@@ -81,15 +104,31 @@ async function doSync(mode: 'full' | 'incremental', quiet: boolean): Promise<voi
       return
     }
     if (p.running) continue
-    if (p.error || p.phase === 'error') {
+    if (p.phase === 'error') {
       say(t('sync.failed', { message: p.error || p.phase }), 'error')
       return
     }
-    // Refresh the mirror pool so the list reflects new/updated issues.
+    // Refresh the mirror pool so the list reflects new/updated issues, and the
+    // page index so newly mirrored documents appear without a reload. Both are
+    // best-effort: the sync itself already succeeded.
     try {
       await issues.refresh()
     } catch {
       /* pool refresh is best-effort; progress already done */
+    }
+    try {
+      await pages.reload()
+    } catch {
+      /* page index refresh is best-effort */
+    }
+    // A finished job can still carry an error: Confluence is best-effort, so a
+    // wiki failure leaves the Jira pass done and its issues worth keeping. Said
+    // after the refresh above, and named by source — "sync failed" over a run
+    // that mirrored every issue is how a permission problem on one source gets
+    // read as the whole thing being broken.
+    if (p.error) {
+      say(t('sync.partial', { message: p.error }), 'error')
+      return
     }
     say(
       t('sync.done', {

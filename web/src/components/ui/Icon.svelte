@@ -49,6 +49,7 @@
     Paperclip,
     PenLine,
     Plus,
+    RefreshCw,
     RotateCcw,
     Search,
     SearchX,
@@ -85,6 +86,11 @@
     pen: PenLine,
     plus: Plus,
     'plus-circle': CirclePlus,
+    // Fetching from the source. Distinct from rotate-ccw on purpose: that one
+    // is spoken for as "reopened" (the built-in view and every reopen chip), so
+    // reusing it for a sync would have meant one glyph and two meanings on the
+    // same screen.
+    refresh: RefreshCw,
     'rotate-ccw': RotateCcw,
     search: Search,
     'search-x': SearchX,

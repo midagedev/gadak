@@ -615,10 +615,20 @@ export interface SyncRun {
   error?: string
 }
 
-/** GET sync/runs/ — newest first. Older servers 404 → treat as empty. */
-export async function getSyncRuns(): Promise<SyncRun[]> {
+/**
+ * GET sync/runs/ — newest first. Older servers 404 → treat as empty.
+ *
+ * `source` selects which connector's history to read; omitted means Jira, the
+ * only one the endpoint used to serve. A server that predates the parameter
+ * ignores it and answers with Jira's runs, so callers asking for Confluence
+ * must not read a non-empty answer as proof Confluence ever ran — check
+ * `source` on the response.
+ */
+export async function getSyncRuns(source?: 'jira' | 'confluence'): Promise<SyncRun[]> {
   try {
-    const res = await jsonW<{ runs: SyncRun[] }>('sync/runs/')
+    const path = source ? `sync/runs/?source=${source}` : 'sync/runs/'
+    const res = await jsonW<{ runs: SyncRun[]; source?: string }>(path)
+    if (source && res.source !== source) return []
     return res.runs ?? []
   } catch {
     return []

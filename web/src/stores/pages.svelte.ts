@@ -264,6 +264,22 @@ class PagesStore {
     }
   }
 
+  /**
+   * Re-read the index after a sync. init() is once-only, so without this the
+   * first documents a mirror ever receives stay invisible until a reload —
+   * which is exactly the moment someone has just switched Confluence on and is
+   * watching to see whether it worked.
+   */
+  async reload(): Promise<void> {
+    try {
+      const res = await api.getPages()
+      this.index = res.pages ?? []
+      this.loaded = true
+    } catch (e) {
+      console.warn('[pages] 문서 목록 갱신 실패', e)
+    }
+  }
+
   /** Open a page. Closing the issue panel keeps one detail surface at a time.
    *  The visit joins the same recent list as issues, so the palette can offer
    *  both without a second history to keep. */

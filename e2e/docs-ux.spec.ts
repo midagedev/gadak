@@ -547,3 +547,102 @@ test.describe('documents in the daily loop', () => {
     expect(JSON.parse(puts[0]).confluence).toEqual({ enabled: true, spaces: ['ENG'] })
   })
 })
+
+/*
+ * An empty DOCS section, told apart by cause.
+ *
+ * The section used to have one sentence for four situations, and it was the
+ * wrong one for the person who had just chosen a space and saved: the sidebar
+ * went on asking them to connect a source they had already connected. These
+ * tests pin each cause to its own sentence — the CTA belongs to "off" alone.
+ */
+test.describe('docs empty states', () => {
+  const RUNS_CONFLUENCE = '**/sync/runs/**'
+
+  /** Serve a mirror with no pages, and say whether Confluence is configured. */
+  async function emptyDocs(page: Page, confluenceEnabled: boolean): Promise<void> {
+    await page.route('**/config.json', async (route) => {
+      const res = await route.fetch()
+      const doc = JSON.parse(await res.text())
+      doc.confluenceEnabled = confluenceEnabled
+      await route.fulfill({ response: res, body: JSON.stringify(doc) })
+    })
+    await page.route(PAGES_URL, (route) => route.fulfill({ json: { pages: [] } }))
+  }
+
+  /** Confluence's own run history. Anything else (Jira's) passes through. */
+  async function confluenceRuns(page: Page, runs: unknown[]): Promise<void> {
+    await page.route(RUNS_CONFLUENCE, (route) => {
+      if (!route.request().url().includes('source=confluence')) return route.continue()
+      return route.fulfill({ json: { runs, source: 'confluence' } })
+    })
+  }
+
+  test('off: the section asks for the one thing missing', async ({ page }) => {
+    await emptyDocs(page, false)
+    await gotoApp(page)
+
+    const cta = page.getByTestId('docs-empty-cta')
+    await expect(cta).toHaveAttribute('data-state', 'off')
+    await expect(cta).toContainText('No documents mirrored')
+    await expect(cta).toContainText('Turn on Confluence')
+
+    // It is a way in, not a label: the errand it names is one click away.
+    await cta.click()
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+  })
+
+  test('on but never fetched: it offers the sync, not the setup', async ({ page }) => {
+    await emptyDocs(page, true)
+    await confluenceRuns(page, [])
+    await gotoApp(page)
+
+    const cta = page.getByTestId('docs-empty-cta')
+    await expect(cta).toHaveAttribute('data-state', 'never')
+    await expect(cta).toContainText('Documents not fetched yet')
+    // The old copy would have sent someone who is already set up back to Settings.
+    await expect(cta).not.toContainText('Turn on Confluence')
+  })
+
+  test('on and the last pass failed: it says so, and carries the reason', async ({ page }) => {
+    await emptyDocs(page, true)
+    await confluenceRuns(page, [
+      {
+        kind: 'full',
+        started_at: '2026-08-07T08:00:00Z',
+        finished_at: '2026-08-07T08:00:04Z',
+        fetched: 0,
+        changed: 0,
+        deleted: 0,
+        error: 'confluence: 403 forbidden',
+      },
+    ])
+    await gotoApp(page)
+
+    const cta = page.getByTestId('docs-empty-cta')
+    await expect(cta).toHaveAttribute('data-state', 'failed')
+    await expect(cta).toContainText('Could not fetch documents')
+    // The reason is on the row, not in a log the user will never open.
+    await expect(cta).toHaveAttribute('title', /403/)
+  })
+
+  test('on, fetched, and the spaces are empty: it blames the selection', async ({ page }) => {
+    await emptyDocs(page, true)
+    await confluenceRuns(page, [
+      {
+        kind: 'full',
+        started_at: '2026-08-07T08:00:00Z',
+        finished_at: '2026-08-07T08:00:04Z',
+        fetched: 0,
+        changed: 0,
+        deleted: 0,
+      },
+    ])
+    await gotoApp(page)
+
+    const cta = page.getByTestId('docs-empty-cta')
+    await expect(cta).toHaveAttribute('data-state', 'empty')
+    await expect(cta).toContainText('No documents in these spaces')
+    await expect(cta).toContainText('Change the selection')
+  })
+})

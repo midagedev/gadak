@@ -17,6 +17,7 @@
   import { triage } from './stores/triage.svelte'
   import { router, setParams } from './lib/router.svelte'
   import { feature, isHostedDemo } from './lib/config'
+  import { adoptRunningSync } from './lib/sync-now'
 
   /** Where the demo banner sends people who want the real thing. */
   const REPO_URL = 'https://github.com/midagedev/scry'
@@ -77,6 +78,7 @@
     void issues.init()
     void me.init()
     void pages.init() // Sidebar DOCS section; hides itself when the mirror has none
+    void adoptRunningSync() // A sync the server started (settings write, CLI) is still ours to show
     void write.loadWriteMeta() // Prefetch write meta (parallel with issues.init)
     views.init()
 

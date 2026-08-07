@@ -299,6 +299,15 @@ export const en = {
   'sidebar.teamViews': 'Shared team views',
   'sidebar.docsNoneTitle': 'No documents mirrored',
   'sidebar.docsNoneHint': 'Turn on Confluence in Settings → Sources.',
+  // Confluence is on and the mirror still holds no pages. Four different
+  // reasons, four different sentences: the CTA above belongs to "off" alone.
+  'sidebar.docsSyncing': 'Fetching documents…',
+  'sidebar.docsNotFetched': 'Documents not fetched yet',
+  'sidebar.docsNotFetchedHint': 'Sync now to mirror the spaces you chose.',
+  'sidebar.docsFetchFailed': 'Could not fetch documents',
+  'sidebar.docsFetchFailedHint': 'Check the spaces and your token in Sources.',
+  'sidebar.docsEmptySpaces': 'No documents in these spaces',
+  'sidebar.docsEmptySpacesHint': 'Change the selection in Settings → Sources.',
   'sidebar.docs': 'Docs',
   'sidebar.docsSpaceTitle': '{space} · {n} documents',
   'sidebar.docsAll': 'Documents',
@@ -791,6 +800,9 @@ export const en = {
   'sync.starting': 'Starting sync…',
   'sync.done': 'Sync finished · fetched {n} · changed {changed}',
   'sync.failed': 'Sync failed: {message}',
+  // Jira landed, a second source did not. Naming it keeps a wiki permission
+  // error from reading as "none of this worked".
+  'sync.partial': 'Issues synced. Documents failed: {message}',
   'sync.projectsRequired': 'Add at least one project in settings before syncing.',
 
   /* ── Onboarding (first run) ── */

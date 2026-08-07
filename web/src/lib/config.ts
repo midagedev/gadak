@@ -44,6 +44,13 @@ export interface ScryConfig {
   /** Hours in the current status before an unresolved issue counts as stale. */
   staleThresholdHours: number
   /**
+   * Whether the Confluence source is configured. Not a page count: it answers
+   * the question a mirror with zero documents cannot — "is this switched off,
+   * or switched on and not filled yet". The sidebar tells those two apart with
+   * it, so an empty DOCS section stops advertising a setup the user already did.
+   */
+  confluenceEnabled: boolean
+  /**
    * True only for the public hosted demo: a static snapshot on someone else's
    * domain, where a service worker answers every write with 501. Nothing here
    * reaches a Jira site, so the UI must say it is a demo and must not offer to
@@ -71,6 +78,7 @@ const DEFAULTS: ScryConfig = {
   groupColors: {},
   productByGroup: {},
   staleThresholdHours: 72,
+  confluenceEnabled: false,
   hostedDemo: false,
   desktop: false,
   features: {

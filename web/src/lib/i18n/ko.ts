@@ -300,6 +300,15 @@ export const ko = {
   'sidebar.teamViews': '팀 공유 뷰',
   'sidebar.docsNoneTitle': '미러링된 문서 없음',
   'sidebar.docsNoneHint': '설정 → 소스에서 Confluence를 켜세요.',
+  // Confluence가 켜져 있는데도 미러가 비어 있는 네 가지 이유. 위의 CTA는
+  // 그중 "꺼져 있음" 하나에만 해당한다.
+  'sidebar.docsSyncing': '문서를 가져오는 중…',
+  'sidebar.docsNotFetched': '아직 문서를 가져오지 않음',
+  'sidebar.docsNotFetchedHint': '선택한 스페이스를 지금 동기화하세요.',
+  'sidebar.docsFetchFailed': '문서를 가져오지 못했습니다',
+  'sidebar.docsFetchFailedHint': '소스 설정에서 스페이스와 토큰을 확인하세요.',
+  'sidebar.docsEmptySpaces': '이 스페이스에 문서가 없습니다',
+  'sidebar.docsEmptySpacesHint': '설정 → 소스에서 선택을 바꾸세요.',
   'sidebar.docs': '문서',
   'sidebar.docsSpaceTitle': '{space} · 문서 {n}건',
   'sidebar.docsAll': '문서',
@@ -787,6 +796,9 @@ export const ko = {
   'sync.starting': '동기화 시작 중…',
   'sync.done': '동기화 완료 · 가져옴 {n} · 변경 {changed}',
   'sync.failed': '동기화 실패: {message}',
+  // Jira는 됐고 다른 소스가 실패한 경우. 소스를 짚어 주지 않으면 위키 권한
+  // 오류가 "전부 실패"로 읽힌다.
+  'sync.partial': '이슈는 동기화됨. 문서 실패: {message}',
   'sync.projectsRequired': '동기화 전에 설정에서 프로젝트를 하나 이상 추가하세요.',
 
   /* ── 온보딩(첫 실행) ── */

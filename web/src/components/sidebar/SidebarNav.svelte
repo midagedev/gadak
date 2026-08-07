@@ -13,7 +13,7 @@
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
   import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
-  import { isHostedDemo, workspaceName } from '../../lib/config'
+  import { config, isHostedDemo, workspaceName } from '../../lib/config'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
@@ -162,6 +162,64 @@
   //  sidebar must not grow with content volume (UX_PRINCIPLES §6); the page
   //  tree lives on the space screen, where it is asked for.
   let spacesOpen = $state(false)
+
+  /*
+   * An empty DOCS section has four causes, and telling someone to go connect a
+   * source is right for exactly one of them. It was wrong for the user who had
+   * just chosen a space and saved: the app kept asking for what it already had.
+   *
+   * off      — Confluence is not configured. The CTA belongs here and only here.
+   * syncing  — a pull is running. Status, not an errand.
+   * failed   — the last Confluence pass errored. Say so; the reason is in the title.
+   * never    — configured, nothing fetched yet. The one state with an action here.
+   * empty    — fetched fine, and the chosen spaces hold nothing. Blame the selection.
+   */
+  type DocsEmptyState = 'off' | 'syncing' | 'failed' | 'never' | 'empty'
+
+  let confluenceRuns = $state<SyncRun[] | null>(null)
+  const docsConfigured = $derived(config().confluenceEnabled)
+
+  // Only ask when the answer changes what the section says: configured, holding
+  // no pages, and nothing in flight. Re-runs after a pull because mirrorSyncing
+  // is read here, which is what refreshes a failure into a success.
+  $effect(() => {
+    if (!docsConfigured || pages.bySpace.length > 0 || issues.mirrorSyncing) return
+    void getSyncRuns('confluence').then((runs) => (confluenceRuns = runs))
+  })
+
+  const docsEmptyState = $derived.by((): DocsEmptyState => {
+    if (!docsConfigured) return 'off'
+    if (issues.mirrorSyncing) return 'syncing'
+    if (confluenceRuns === null) return 'never' // not asked yet — never claim failure
+    if (confluenceRuns[0]?.error) return 'failed'
+    if (confluenceRuns.length === 0) return 'never'
+    return 'empty'
+  })
+
+  const docsEmptyText = $derived.by(() => {
+    switch (docsEmptyState) {
+      case 'syncing':
+        return { title: t('sidebar.docsSyncing'), hint: '' }
+      case 'failed':
+        return { title: t('sidebar.docsFetchFailed'), hint: t('sidebar.docsFetchFailedHint') }
+      case 'never':
+        return { title: t('sidebar.docsNotFetched'), hint: t('sidebar.docsNotFetchedHint') }
+      case 'empty':
+        return { title: t('sidebar.docsEmptySpaces'), hint: t('sidebar.docsEmptySpacesHint') }
+      default:
+        return { title: t('sidebar.docsNoneTitle'), hint: t('sidebar.docsNoneHint') }
+    }
+  })
+
+  /** 'never' is the one state the user can act on without leaving the sidebar. */
+  function onDocsEmptyClick() {
+    if (docsEmptyState === 'syncing') return
+    if (docsEmptyState === 'never') {
+      void issues.pullMirror('full')
+      return
+    }
+    onOpenSettings()
+  }
 
   /** A docs surface takes over the main column, so the feed must give it up. */
   function openDocuments() {
@@ -413,19 +471,45 @@
              would have: without them the two lines aligned with DOCS itself and
              read as a caption about the section rather than as the one thing in
              it you can click. The glyph is the destination, not a document —
-             a file icon would advertise a view that does not exist yet. -->
+             a file icon would advertise a view that does not exist yet. Once
+             the source is configured the glyph stops being a gear, because the
+             errand is no longer "go to Settings". -->
         <button
           type="button"
-          class="flex w-full items-start gap-2 rounded-md px-3 py-1.5 text-left transition-colors hover:bg-bg-hover"
+          class="flex w-full items-start gap-2 rounded-md px-3 py-1.5 text-left transition-colors {docsEmptyState ===
+          'syncing'
+            ? 'cursor-progress'
+            : 'hover:bg-bg-hover'}"
           data-testid="docs-empty-cta"
-          onclick={onOpenSettings}
+          data-state={docsEmptyState}
+          title={docsEmptyState === 'failed' ? (confluenceRuns?.[0]?.error ?? '') : ''}
+          onclick={onDocsEmptyClick}
         >
-          <Icon name="settings" size={15} class="mt-0.5 flex-none text-text-muted" />
+          <!-- Four causes, four silhouettes. The gear is reserved for the one
+               state that is genuinely unconfigured: once the source is on, a
+               gear would say "set this up" about something already set up. -->
+          <Icon
+            name={docsEmptyState === 'failed'
+              ? 'warning'
+              : docsEmptyState === 'syncing' || docsEmptyState === 'never'
+                ? 'refresh'
+                : docsEmptyState === 'empty'
+                  ? 'search-x'
+                  : 'settings'}
+            size={15}
+            class="mt-0.5 flex-none {docsEmptyState === 'failed'
+              ? 'text-status-reopen'
+              : 'text-text-muted'} {docsEmptyState === 'syncing'
+              ? 'motion-safe:animate-spin'
+              : ''}"
+          />
           <span class="flex min-w-0 flex-col gap-0.5">
-            <span class="text-body text-text-secondary">{t('sidebar.docsNoneTitle')}</span>
-            <span class="text-micro leading-relaxed text-text-muted">
-              {t('sidebar.docsNoneHint')}
-            </span>
+            <span class="text-body text-text-secondary">{docsEmptyText.title}</span>
+            {#if docsEmptyText.hint}
+              <span class="text-micro leading-relaxed text-text-muted">
+                {docsEmptyText.hint}
+              </span>
+            {/if}
           </span>
         </button>
       </div>
