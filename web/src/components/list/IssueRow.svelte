@@ -19,7 +19,8 @@
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { bulk } from '../../stores/bulk.svelte'
-  import { me } from '../../stores/me.svelte'
+  import { watches } from '../../stores/watches.svelte'
+  import { favorites } from '../../stores/favorites.svelte'
   import { categoryOf, CATEGORY_META, relativeTime, absTime, highlightSegments } from '../../lib/format'
   import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
@@ -46,8 +47,8 @@
 
   const cat = $derived(categoryOf(issue))
   const catMeta = $derived(CATEGORY_META[cat])
-  const isFavorite = $derived(me.favorites.has(issue.issue_key))
-  const isWatching = $derived(me.watches.has(issue.issue_key))
+  const isFavorite = $derived(favorites.keys.has(issue.issue_key))
+  const isWatching = $derived(watches.keys.has(issue.issue_key))
   // Stale (time in current status). Badge is day-based — floor at 1 so sub-day reads "day 1".
   const stale = $derived(isStale(issue))
   const staleDays = $derived(Math.max(1, Math.round(statusAgeHours(issue) / 24)))

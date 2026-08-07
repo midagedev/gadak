@@ -4,31 +4,31 @@
  * Role:
  *  - Identity (email/name/department) from GET auth/me/, which reads the stored
  *    Jira credential. There is no scry account and no session token.
- *  - Watch set (SvelteSet, optimistic toggle + rollback), feed, push prefs.
- *  - Favorites (mirror DB via GET/PUT/DELETE favorites/; localStorage fallback
- *    for hosted demo which answers 501 demo_read_only on writes) / recent
- *    issues (localStorage `scry:recent`, max 30).
+ *  - Personal feed / read state, feed toggle, recent issues (localStorage
+ *    `scry:recent`, max 30).
  *  - Derived group (part) for smart default views.
  *
- * Read-only features work with no credential. Personalization and writes need
- * a configured credential (`identified` === email !== null). Favorites are an
- * exception: the loopback mirror is single-user and never 401s them.
+ * Watches, web push, and favorites live in their own stores
+ * (`watches.svelte`, `push.svelte`, `favorites.svelte`).
  *
- * Reactivity: use svelte/reactivity SvelteSet so add/delete trigger updates.
+ * Read-only features work with no credential. Personalization and writes need
+ * a configured credential (`identified` === email !== null).
+ *
+ * Reactivity: use svelte/reactivity where needed for collection updates.
  */
 
 import { t, type MessageKey } from '../lib/i18n'
-import { SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
-import { basePath, config, feature, isHostedDemo, workspaceName } from '../lib/config'
+import { config, feature } from '../lib/config'
 import { STORAGE_KEYS } from '../lib/storage'
 import { issues } from './issues.svelte'
+import { watches } from './watches.svelte'
+import { push } from './push.svelte'
+import { favorites } from './favorites.svelte'
 import type {
   FeedFocus,
   FeedItem,
   FeedUnreadCounts,
-  NotificationConfig,
-  NotificationPreferences,
 } from '../lib/types'
 
 export type { FeedFocus } from '../lib/types'
@@ -37,37 +37,8 @@ export type { FeedFocus } from '../lib/types'
  * loadConfig() override (hosted demo api/auth base under /scry/) is honoured —
  * a module-level capture would freeze DEFAULTS before config.json loads. */
 
-const FAVORITES_KEY = STORAGE_KEYS.favorites
-const FAVORITES_ORDER_KEY = STORAGE_KEYS.favoritesOrder
 const RECENT_KEY = STORAGE_KEYS.recent
 const RECENT_MAX = 30
-
-function loadArray(key: string): string[] {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return []
-    const arr = JSON.parse(raw) as unknown
-    return Array.isArray(arr) ? (arr.filter((v) => typeof v === 'string') as string[]) : []
-  } catch {
-    return []
-  }
-}
-
-function saveArray(key: string, arr: string[]): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(arr))
-  } catch (e) {
-    console.warn(`[me] ${key} 저장 실패`, e)
-  }
-}
-
-function urlBase64ToUint8Array(value: string): Uint8Array<ArrayBuffer> {
-  const padding = '='.repeat((4 - (value.length % 4)) % 4)
-  const raw = atob((value + padding).replace(/-/g, '+').replace(/_/g, '/'))
-  const bytes = new Uint8Array(raw.length)
-  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i)
-  return bytes
-}
 
 /** What a recent entry points at. Absent in anything stored before documents
  *  joined the list, so a missing kind reads as 'issue'. */
@@ -135,15 +106,6 @@ function saveRecent(visits: RecentVisit[]): void {
   }
 }
 
-export type PushState =
-  | 'unsupported'
-  | 'unavailable'
-  | 'default'
-  | 'denied'
-  | 'subscribed'
-  | 'unsubscribed'
-  | 'loading'
-
 const EMPTY_UNREAD: FeedUnreadCounts = { all: 0, assignee: 0, reporter: 0, mention: 0 }
 
 const EVENT_NOTIFY_KIND: Record<FeedItem['event_type'], MessageKey> = {
@@ -164,28 +126,11 @@ class MeStore {
   /** init() finished — personalization UI can branch without a flash. */
   authChecked = $state(false)
 
-  /* ── Watches ── */
-  watches = new SvelteSet<string>()
-
   /* ── Server personal feed / read state ── */
   feedItems = $state<FeedItem[]>([])
   feedUnread = $state<FeedUnreadCounts>({ ...EMPTY_UNREAD })
   feedLoaded = $state(false)
   feedLoading = $state(false)
-
-  /* ── Web Push ── */
-  notificationConfig = $state<NotificationConfig | null>(null)
-  pushState = $state<PushState>('default')
-  pushError = $state<string | null>(null)
-
-  /* ── Favorites (server; localStorage only as hosted-demo / offline fallback) ── */
-  favorites = new SvelteSet<string>()
-  /**
-   * true while the favorites API is unreachable or read-only (hosted demo
-   * service worker returns 501 demo_read_only on writes). In that mode we
-   * persist to localStorage so the static demo keeps working.
-   */
-  #favoritesLocal = false
 
   /* ── Local personalization (works without credential) ── */
   /** Recently opened issues *and* documents, newest first. */
@@ -235,7 +180,7 @@ class MeStore {
     this.#initialized = true
 
     this.recent = loadRecent()
-    await this.loadFavorites()
+    await favorites.load()
 
     try {
       await this.#fetchIdentity({ loadPersonal: true })
@@ -270,7 +215,7 @@ class MeStore {
       const wasIdentified = this.email !== null
       this.#setUser(data.email, data.name ?? null, data.department ?? null)
       if (opts.loadPersonal && !wasIdentified) {
-        await Promise.all([this.loadWatches(), this.loadFeed(), this.loadNotificationConfig()])
+        await Promise.all([watches.load(), this.loadFeed(), push.load()])
         this.#startFeedPolling()
       }
     } else if (this.email !== null) {
@@ -289,49 +234,14 @@ class MeStore {
     this.email = null
     this.name = null
     this.department = null
-    this.watches.clear()
+    watches.clear()
     this.feedItems = []
     this.feedUnread = { ...EMPTY_UNREAD }
     this.feedLoaded = false
     this.#feedBaselineReady = false
     this.#prevUnreadAll = 0
-    this.notificationConfig = null
-    this.pushState = 'default'
+    push.clear()
     this.#syncAppBadge()
-  }
-
-  /* ── Watches ── */
-
-  async loadWatches(): Promise<void> {
-    try {
-      const res = await api.getWatches()
-      this.watches.clear()
-      for (const k of res.keys) this.watches.add(k)
-    } catch (e) {
-      console.warn('[me] 워치 로드 실패', e)
-    }
-  }
-
-  isWatching(key: string): boolean {
-    return this.watches.has(key)
-  }
-
-  /** Optimistic toggle; rolls back on failure. Returns false when not identified. */
-  async toggleWatch(key: string): Promise<boolean> {
-    if (!this.identified) return false
-    const wasWatching = this.watches.has(key)
-    if (wasWatching) this.watches.delete(key)
-    else this.watches.add(key)
-    try {
-      if (wasWatching) await api.removeWatch(key)
-      else await api.addWatch(key)
-      return true
-    } catch (e) {
-      console.warn('[me] 워치 토글 실패(롤백)', e)
-      if (wasWatching) this.watches.add(key)
-      else this.watches.delete(key)
-      return false
-    }
   }
 
   /* ── Personal feed / read ── */
@@ -492,230 +402,6 @@ class MeStore {
     }
     if (this.feedUnread.all > 0) void badge.setAppBadge?.(this.feedUnread.all)
     else void badge.clearAppBadge?.()
-  }
-
-  /* ── Web Push ── */
-
-  get pushSupported(): boolean {
-    return (
-      typeof window !== 'undefined' &&
-      'serviceWorker' in navigator &&
-      'PushManager' in window &&
-      'Notification' in window
-    )
-  }
-
-  /** Skip config fetch and SW registration when push is off. */
-  async loadNotificationConfig(): Promise<void> {
-    // Hosted demo: demo-sw.js owns the scope — registering sw.js here would
-    // replace it and every API call would fall through to 404s.
-    if (isHostedDemo()) return
-    // Workspace mounts: sw.js at the root scope would push for the primary
-    // mirror, not this one. Push stays a primary-page feature.
-    if (workspaceName() !== '') return
-    if (!feature('push') || !this.identified) return
-    try {
-      this.notificationConfig = await api.getNotificationConfig()
-      if (!this.pushSupported) {
-        this.pushState = 'unsupported'
-        return
-      }
-      if (!this.notificationConfig.enabled) {
-        this.pushState = 'unavailable'
-        return
-      }
-      if (Notification.permission === 'denied') {
-        this.pushState = 'denied'
-        return
-      }
-      const registration = await navigator.serviceWorker.register(`${basePath()}sw.js`, {
-        scope: basePath(),
-      })
-      const subscription = await registration.pushManager.getSubscription()
-      this.pushState = subscription ? 'subscribed' : 'unsubscribed'
-    } catch (e) {
-      console.warn('[me] 웹 알림 설정 로드 실패', e)
-      this.pushState = 'unavailable'
-    }
-  }
-
-  async enablePush(): Promise<boolean> {
-    if (!this.pushSupported || !this.notificationConfig?.enabled) return false
-    this.pushState = 'loading'
-    this.pushError = null
-    try {
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') {
-        this.pushState = permission === 'denied' ? 'denied' : 'unsubscribed'
-        return false
-      }
-      const registration = await navigator.serviceWorker.register(`${basePath()}sw.js`, {
-        scope: basePath(),
-      })
-      const existing = await registration.pushManager.getSubscription()
-      const subscription =
-        existing ??
-        (await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(
-            this.notificationConfig.vapid_public_key,
-          ),
-        }))
-      const serialized = subscription.toJSON()
-      const endpoint = serialized.endpoint ?? subscription.endpoint
-      const p256dh = serialized.keys?.p256dh
-      const auth = serialized.keys?.auth
-      if (!p256dh || !auth) throw new Error(t('me.noCryptoKey'))
-      await api.savePushSubscription({ endpoint, keys: { p256dh, auth } })
-      this.pushState = 'subscribed'
-      return true
-    } catch (e) {
-      console.warn('[me] 웹 알림 활성화 실패', e)
-      this.pushState = 'unsubscribed'
-      this.pushError = t('me.enableNotifFailed')
-      return false
-    }
-  }
-
-  async disablePush(): Promise<void> {
-    if (!this.pushSupported) return
-    this.pushState = 'loading'
-    this.pushError = null
-    try {
-      const registration = await navigator.serviceWorker.getRegistration(basePath())
-      const subscription = await registration?.pushManager.getSubscription()
-      if (subscription) {
-        await api.deletePushSubscription(subscription.endpoint)
-        await subscription.unsubscribe()
-      }
-      this.pushState = 'unsubscribed'
-    } catch (e) {
-      console.warn('[me] 웹 알림 해제 실패', e)
-      this.pushState = 'subscribed'
-      this.pushError = t('me.disableNotifFailed')
-    }
-  }
-
-  async updateNotificationPreferences(
-    patch: Partial<NotificationPreferences>,
-  ): Promise<void> {
-    if (!this.notificationConfig) return
-    const previous = this.notificationConfig
-    this.notificationConfig = {
-      ...previous,
-      preferences: { ...previous.preferences, ...patch },
-    }
-    try {
-      this.notificationConfig = await api.updateNotificationPreferences(patch)
-    } catch (e) {
-      this.notificationConfig = previous
-      console.warn('[me] 알림 선호 저장 실패', e)
-    }
-  }
-
-  /* ── Favorites (mirror DB; localStorage only for hosted-demo / offline) ── */
-
-  /**
-   * GET favorites/. On success, one-shot migrate any leftover localStorage
-   * keys into the mirror then drop the local key. On failure (hosted demo SW
-   * returns 404 for unknown GETs, or network down), load from localStorage so
-   * the static demo keeps working.
-   */
-  async loadFavorites(): Promise<void> {
-    try {
-      const res = await api.getFavorites()
-      this.favorites.clear()
-      // Server returns add-order only. Prefer user drag order when present, then
-      // append keys that exist only on the server (added in another window/TUI).
-      const wanted = new Set(res.keys)
-      for (const k of loadArray(FAVORITES_ORDER_KEY)) {
-        if (wanted.delete(k)) this.favorites.add(k)
-      }
-      for (const k of res.keys) {
-        if (wanted.has(k)) this.favorites.add(k)
-      }
-      this.#favoritesLocal = false
-      await this.#migrateLocalFavoritesToServer()
-    } catch (e) {
-      // Hosted demo has no writable favorites API; fall back to localStorage.
-      console.warn('[me] 즐겨찾기 서버 로드 실패 — localStorage 폴백', e)
-      this.#favoritesLocal = true
-      this.favorites.clear()
-      for (const key of loadArray(FAVORITES_KEY)) this.favorites.add(key)
-    }
-  }
-
-  /** One-shot: local scry:favorites → server, then clear the local key. */
-  async #migrateLocalFavoritesToServer(): Promise<void> {
-    const local = loadArray(FAVORITES_KEY)
-    if (!local.length) return
-    for (const key of local) {
-      if (this.favorites.has(key)) continue
-      try {
-        await api.addFavorite(key)
-        this.favorites.add(key)
-      } catch (e) {
-        // Write rejected (e.g. 501 demo_read_only) — keep local path.
-        console.warn('[me] 즐겨찾기 이관 실패 — localStorage 유지', e)
-        this.#favoritesLocal = true
-        saveArray(FAVORITES_KEY, [...new Set([...this.favorites, ...local])])
-        return
-      }
-    }
-    try {
-      localStorage.removeItem(FAVORITES_KEY)
-    } catch {
-      /* private mode */
-    }
-  }
-
-  isFavorite(key: string): boolean {
-    return this.favorites.has(key)
-  }
-
-  /**
-   * Optimistic toggle. Server write on success; on any write failure (501
-   * demo_read_only, network, …) do not roll back — persist to localStorage
-   * so the hosted demo keeps working. Only write localStorage when the
-   * server cannot own the set (avoids dual-source drift).
-   */
-  async toggleFavorite(key: string): Promise<void> {
-    const wasFavorite = this.favorites.has(key)
-    if (wasFavorite) this.favorites.delete(key)
-    else this.favorites.add(key)
-
-    if (this.#favoritesLocal) {
-      saveArray(FAVORITES_KEY, [...this.favorites])
-      return
-    }
-
-    try {
-      if (wasFavorite) await api.removeFavorite(key)
-      else await api.addFavorite(key)
-    } catch (e) {
-      // Hosted demo / offline: keep the optimistic state and store locally.
-      console.warn('[me] 즐겨찾기 서버 쓰기 실패 — localStorage 폴백', e)
-      this.#favoritesLocal = true
-      saveArray(FAVORITES_KEY, [...this.favorites])
-    }
-  }
-
-  reorderFavorite(sourceKey: string, targetKey: string): void {
-    if (sourceKey === targetKey) return
-    const ordered = [...this.favorites]
-    const sourceIndex = ordered.indexOf(sourceKey)
-    const targetIndex = ordered.indexOf(targetKey)
-    if (sourceIndex < 0 || targetIndex < 0) return
-
-    const [moved] = ordered.splice(sourceIndex, 1)
-    const insertAt = ordered.indexOf(targetKey) + (sourceIndex < targetIndex ? 1 : 0)
-    ordered.splice(insertAt, 0, moved)
-    this.favorites.clear()
-    for (const key of ordered) this.favorites.add(key)
-    // Always persist order locally — server favorites has no order column, and
-    // session-only drag order reshuffles on every refresh (regression).
-    saveArray(FAVORITES_ORDER_KEY, ordered)
-    if (this.#favoritesLocal) saveArray(FAVORITES_KEY, ordered)
   }
 
   /* ── Personal feed toggle ── */

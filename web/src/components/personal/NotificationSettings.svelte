@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
-  import { me } from '../../stores/me.svelte'
+  import { push } from '../../stores/push.svelte'
 
   let open = $state(false)
 
@@ -10,24 +10,24 @@
   }
 
   async function togglePush() {
-    if (me.pushState === 'subscribed') await me.disablePush()
-    else await me.enablePush()
+    if (push.state === 'subscribed') await push.disable()
+    else await push.enable()
   }
 
   // Quiet hours: enabled when both quiet_start and quiet_end are set.
   const quietEnabled = $derived(
-    !!me.notificationConfig?.preferences.quiet_start &&
-      !!me.notificationConfig?.preferences.quiet_end,
+    !!push.notificationConfig?.preferences.quiet_start &&
+      !!push.notificationConfig?.preferences.quiet_end,
   )
 
   function toggleQuiet(on: boolean) {
-    void me.updateNotificationPreferences(
+    void push.updatePreferences(
       on ? { quiet_start: '22:00', quiet_end: '07:00' } : { quiet_start: null, quiet_end: null },
     )
   }
 
   function setQuiet(field: 'quiet_start' | 'quiet_end', value: string) {
-    void me.updateNotificationPreferences({ [field]: value || null })
+    void push.updatePreferences({ [field]: value || null })
   }
 </script>
 
@@ -42,7 +42,7 @@
   <button
     type="button"
     onclick={() => (open = !open)}
-    class="relative flex h-control-sm w-control-sm items-center justify-center rounded-md transition-colors {me.pushState ===
+    class="relative flex h-control-sm w-control-sm items-center justify-center rounded-md transition-colors {push.state ===
     'subscribed'
       ? 'text-accent-text hover:bg-bg-hover'
       : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -50,7 +50,7 @@
     aria-label={t('notif.title')}
     aria-expanded={open}
   >
-    {#if me.pushState === 'subscribed'}
+    {#if push.state === 'subscribed'}
       <Icon name="bell" size={15} />
       <span class="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-status-done"></span>
     {:else}
@@ -77,23 +77,23 @@
         </button>
       </div>
 
-      {#if me.pushState === 'unsupported'}
+      {#if push.state === 'unsupported'}
         <p class="text-micro text-text-muted">{t('notif.unsupported')}</p>
-      {:else if me.pushState === 'unavailable'}
+      {:else if push.state === 'unavailable'}
         <p class="text-micro text-text-muted">{t('notif.serverNotReady')}</p>
-      {:else if me.pushState === 'denied'}
+      {:else if push.state === 'denied'}
         <p class="text-micro text-status-reopen">{t('notif.blocked')}</p>
       {:else}
         <button
           type="button"
-          disabled={me.pushState === 'loading'}
+          disabled={push.state === 'loading'}
           onclick={togglePush}
-          class="mb-3 flex h-control w-full items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium transition-colors disabled:opacity-50 {me.pushState ===
+          class="mb-3 flex h-control w-full items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium transition-colors disabled:opacity-50 {push.state ===
           'subscribed'
             ? 'border-status-done/40 bg-status-done/10 text-status-done hover:bg-status-done/15'
             : 'border-border-strong text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
         >
-          {#if me.pushState === 'subscribed'}
+          {#if push.state === 'subscribed'}
             <Icon name="check" size={14} />
             {t('notif.enabledHere')}
           {:else}
@@ -102,14 +102,14 @@
           {/if}
         </button>
 
-        {#if me.notificationConfig}
+        {#if push.notificationConfig}
           <div class="space-y-2 border-t border-border-subtle pt-2.5">
             <label class="flex min-h-6 cursor-pointer items-center gap-2 text-micro text-text-secondary">
               <input
                 type="checkbox"
-                checked={me.notificationConfig.preferences.notify_mentions}
+                checked={push.notificationConfig.preferences.notify_mentions}
                 onchange={(event) =>
-                  me.updateNotificationPreferences({
+                  push.updatePreferences({
                     notify_mentions: event.currentTarget.checked,
                   })}
                 class="h-3.5 w-3.5 accent-accent"
@@ -119,9 +119,9 @@
             <label class="flex min-h-6 cursor-pointer items-center gap-2 text-micro text-text-secondary">
               <input
                 type="checkbox"
-                checked={me.notificationConfig.preferences.notify_assigned}
+                checked={push.notificationConfig.preferences.notify_assigned}
                 onchange={(event) =>
-                  me.updateNotificationPreferences({
+                  push.updatePreferences({
                     notify_assigned: event.currentTarget.checked,
                   })}
                 class="h-3.5 w-3.5 accent-accent"
@@ -131,9 +131,9 @@
             <label class="flex min-h-6 cursor-pointer items-center gap-2 text-micro text-text-secondary">
               <input
                 type="checkbox"
-                checked={me.notificationConfig.preferences.notify_watched}
+                checked={push.notificationConfig.preferences.notify_watched}
                 onchange={(event) =>
-                  me.updateNotificationPreferences({
+                  push.updatePreferences({
                     notify_watched: event.currentTarget.checked,
                   })}
                 class="h-3.5 w-3.5 accent-accent"
@@ -145,9 +145,9 @@
             >
               <input
                 type="checkbox"
-                checked={me.notificationConfig.preferences.show_preview}
+                checked={push.notificationConfig.preferences.show_preview}
                 onchange={(event) =>
-                  me.updateNotificationPreferences({ show_preview: event.currentTarget.checked })}
+                  push.updatePreferences({ show_preview: event.currentTarget.checked })}
                 class="h-3.5 w-3.5 accent-accent"
               />
               {t('notif.lockScreen')}
@@ -168,7 +168,7 @@
               <div class="flex items-center gap-2 pl-6 text-micro text-text-muted">
                 <input
                   type="time"
-                  value={me.notificationConfig.preferences.quiet_start ?? ''}
+                  value={push.notificationConfig.preferences.quiet_start ?? ''}
                   onchange={(event) => setQuiet('quiet_start', event.currentTarget.value)}
                   class="h-control-sm rounded border border-border-strong bg-bg-elevated px-1.5 text-micro text-text-primary"
                   aria-label={t('notif.quietStart')}
@@ -176,7 +176,7 @@
                 <span>~</span>
                 <input
                   type="time"
-                  value={me.notificationConfig.preferences.quiet_end ?? ''}
+                  value={push.notificationConfig.preferences.quiet_end ?? ''}
                   onchange={(event) => setQuiet('quiet_end', event.currentTarget.value)}
                   class="h-control-sm rounded border border-border-strong bg-bg-elevated px-1.5 text-micro text-text-primary"
                   aria-label={t('notif.quietEnd')}
@@ -188,8 +188,8 @@
         {/if}
       {/if}
 
-      {#if me.pushError}
-        <p class="mt-2 text-micro text-status-reopen">{me.pushError}</p>
+      {#if push.error}
+        <p class="mt-2 text-micro text-status-reopen">{push.error}</p>
       {/if}
     </div>
   {/if}

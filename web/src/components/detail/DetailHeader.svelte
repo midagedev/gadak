@@ -8,7 +8,7 @@
   import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
   import { selection } from '../../stores/selection.svelte'
-  import { me } from '../../stores/me.svelte'
+  import { favorites } from '../../stores/favorites.svelte'
   import { jiraUrl } from './format'
   import IssueBreadcrumb from './IssueBreadcrumb.svelte'
   import WatchButton from '../personal/WatchButton.svelte'
@@ -18,7 +18,7 @@
 
   let { issue }: { issue: IssueLite } = $props()
 
-  const isFavorite = $derived(me.favorites.has(issue.issue_key))
+  const isFavorite = $derived(favorites.keys.has(issue.issue_key))
 </script>
 
 <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
@@ -39,7 +39,7 @@
       <!-- Favorite toggle -->
       <button
         type="button"
-        onclick={() => void me.toggleFavorite(issue.issue_key)}
+        onclick={() => void favorites.toggle(issue.issue_key)}
         class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-body transition-colors hover:bg-bg-hover {isFavorite
           ? 'text-status-stale'
           : 'text-text-muted hover:text-text-primary'}"

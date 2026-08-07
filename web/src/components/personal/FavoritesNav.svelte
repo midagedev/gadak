@@ -7,6 +7,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { me, type RecentVisit } from '../../stores/me.svelte'
+  import { favorites } from '../../stores/favorites.svelte'
   import Icon from '../ui/Icon.svelte'
 
   interface NavItem {
@@ -36,7 +37,7 @@
   const favoriteItems = $derived.by(() => {
     const visitByKey = new Map(me.recentIssues.map((visit) => [visit.key, visit]))
     const items: NavItem[] = []
-    for (const key of me.favorites) {
+    for (const key of favorites.keys) {
       const issue = issues.pool.get(key)
       if (issue) items.push({ issue, visit: visitByKey.get(key) ?? null })
     }
@@ -46,7 +47,7 @@
   const recentItems = $derived.by(() => {
     const items: NavItem[] = []
     for (const visit of me.recentIssues) {
-      if (me.favorites.has(visit.key)) continue
+      if (favorites.keys.has(visit.key)) continue
       const issue = issues.pool.get(visit.key)
       if (issue) items.push({ issue, visit })
       if (items.length === 12) break
@@ -101,7 +102,7 @@
     const targetKey = target?.dataset.favoriteKey
     if (!targetKey || targetKey === draggingKey || targetKey === dragOverKey) return
     dragOverKey = targetKey
-    me.reorderFavorite(candidate.key, targetKey)
+    favorites.reorder(candidate.key, targetKey)
   }
 
   function endFavoriteDrag(event: PointerEvent): void {
@@ -171,7 +172,7 @@
           type="button"
           data-favorite-action
           class="absolute right-2 top-1 flex h-control-sm w-control-sm items-center justify-center rounded-md text-status-stale transition-colors hover:bg-bg-hover"
-          onclick={() => void me.toggleFavorite(item.issue.issue_key)}
+          onclick={() => void favorites.toggle(item.issue.issue_key)}
           aria-pressed="true"
           aria-label={t('personal.unfavoriteAria', { key: item.issue.issue_key })}
           title={t('common.unfavorite')}
@@ -225,7 +226,7 @@
         <button
           type="button"
           class="pointer-events-none absolute right-2 top-1 flex h-control-sm w-control-sm items-center justify-center rounded-md bg-bg-elevated text-text-muted opacity-0 shadow-sm shadow-black/25 transition-opacity hover:bg-bg-hover hover:text-text-primary group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
-          onclick={() => void me.toggleFavorite(item.issue.issue_key)}
+          onclick={() => void favorites.toggle(item.issue.issue_key)}
           aria-pressed="false"
           aria-label={t('personal.favoriteAria', { key: item.issue.issue_key })}
           title={t('common.favorite')}

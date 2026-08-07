@@ -1,16 +1,17 @@
 <script lang="ts">
   /*
    * Watch toggle ([personal]). Eye icon + watching state.
-   *  - Identified: optimistic toggle (me.toggleWatch, rollback on failure).
+   *  - Identified: optimistic toggle (watches.toggle, rollback on failure).
    *  - No credential: open credential settings.
    */
   import { t } from '../../lib/i18n'
   import { me } from '../../stores/me.svelte'
+  import { watches } from '../../stores/watches.svelte'
   import { write } from '../../stores/write.svelte'
 
   let { issueKey }: { issueKey: string } = $props()
 
-  const watching = $derived(me.watches.has(issueKey))
+  const watching = $derived(watches.keys.has(issueKey))
   let busy = $state(false)
 
   async function onClick(e: MouseEvent) {
@@ -21,7 +22,7 @@
     }
     if (busy) return
     busy = true
-    await me.toggleWatch(issueKey)
+    await watches.toggle(issueKey)
     busy = false
   }
 </script>
