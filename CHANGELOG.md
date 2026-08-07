@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Document lists no longer freeze on a large mirror.** All three Documents
+  tabs, a space's flat list and its tree rendered one row per document, so
+  opening the view or switching a tab rebuilt the whole mirror with the UI
+  blocked. They are windowed now, like the issue list has always been. On a
+  10,000-page mirror in the desktop app's WebKit: **4,433ms → 68ms**, 90,013
+  DOM nodes → 249. Scrolling was never the slow part, which is why this read as
+  a freeze rather than as slowness.
+- **The perf fixture has documents.** It never did — `scry snapshot` copies the
+  issue axis only, so no budget could see the document lists, which is how the
+  above shipped. New `docsTabSwitch` budget over a 5,000-page fixture. Note for
+  anyone using `scry snapshot` to share a mirror: it still drops pages and
+  spaces, so what you hand over has no documents in it.
 - **Desktop: the native title bar is gone.** It spent 32px of window height
   repeating a word the sidebar already shows. The window controls move into the
   sidebar's first row, which reserves their corner and drags the window; the
