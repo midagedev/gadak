@@ -26,17 +26,27 @@ pick projects, watch the first sync land. No terminal involved.
 
 The app is for reading and triaging; the CLI is how agents and scripts read
 the same mirror. You don't choose one — the app **ships the CLI inside it**.
-After installing the app, put that binary on your PATH (first run needs the
-full path — `scry` is not on PATH yet):
+
+**1. From the app (preferred).** macOS menu **Tools → Install Command Line
+Tool…** creates the symlink itself (user-writable location; no sudo, no
+terminal). If the install directory is not already on your PATH, the app
+copies a one-line shell snippet to the clipboard so you can paste it into
+your shell rc. When it succeeds, run `scry mcp install claude` once so your
+agent reads the same mirror the window shows.
+
+**2. From a terminal (same result).** If you already have a shell open:
 
 ```bash
 /Applications/Scry.app/Contents/Resources/bin/scry install-cli
-scry mcp install claude   # your agent now reads what your window shows
+scry mcp install claude
 ```
 
-`install-cli` symlinks into `~/.local/bin` by default (no sudo). Pass
-`--dir /usr/local/bin` if you prefer a system location, or make the link
-yourself:
+`install-cli` (and the menu item) prefer a directory already on PATH —
+`~/.local/bin` when it exists there, else `/usr/local/bin` when writable,
+else `~/.local/bin` (created; PATH hint printed). Pass `--dir` to override.
+No sudo is required for the default locations.
+
+**3. Manual link (last resort):**
 
 ```bash
 sudo ln -sf "/Applications/Scry.app/Contents/Resources/bin/scry" /usr/local/bin/scry

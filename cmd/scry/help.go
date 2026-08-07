@@ -110,7 +110,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"scry serve"},
 	},
 	"install-cli": {
-		summary: "put this binary on PATH via a symlink (default ~/.local/bin)",
+		summary: "put this binary on PATH via a symlink (prefers a PATH entry, else ~/.local/bin)",
 		usage:   "scry install-cli [--dir <path>] [--force] [--print]",
 		examples: []string{
 			"scry install-cli",

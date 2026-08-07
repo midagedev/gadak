@@ -2,12 +2,20 @@
 
 ## Unreleased
 
-- **`scry install-cli` — put the running binary on PATH.** Creates a symlink
-  at `~/.local/bin/scry` (no sudo; `--dir` / `--force` / `--print`). After a
-  desktop-only install, run the bundle path once:
-  `/Applications/Scry.app/Contents/Resources/bin/scry install-cli`. Warns when
-  the install directory is not on `$PATH` and points at `scry mcp install
-  claude` next. See `docs/DESKTOP.md`.
+- **Desktop menu: Install Command Line Tool…** macOS **Tools** menu runs the
+  same symlink install as `scry install-cli` against the CLI inside the app
+  bundle (`Contents/Resources/bin/scry`) — no terminal, no sudo. Conflict
+  offers Replace / Cancel; when the install dir is off PATH, the export
+  one-liner is copied to the clipboard. See `docs/DESKTOP.md`.
+- **`scry install-cli` — put the running binary on PATH.** Shared
+  `internal/clitool` package (CLI + desktop). Default dir prefers a PATH
+  entry: `~/.local/bin` if present on PATH, else `/usr/local/bin` when
+  writable, else `~/.local/bin` (no sudo; `--dir` / `--force` / `--print`).
+  After a desktop-only install you can still run
+  `/Applications/Scry.app/Contents/Resources/bin/scry install-cli`, or use
+  the menu above. Warns when the install directory is not on `$PATH` and
+  points at `scry mcp install claude` next.
+
 - **`scry doctor` — redacted diagnostics for bug reports.** Prints versions,
   profile path (`~/…`), schema/migration level, mirror row counts, sync
   freshness (watermark presence + classified last error only), last-day

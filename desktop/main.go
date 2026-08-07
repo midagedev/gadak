@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/menu"
@@ -67,9 +68,15 @@ func run() error {
 
 	// Without an Edit menu, macOS does not wire ⌘C/V/X/A into the webview —
 	// paste during onboarding would fail. AppMenu supplies About/Quit.
+	// wailsCtx is set in OnStartup so menu handlers can open native dialogs.
+	var wailsCtx context.Context
 	appMenu := menu.NewMenu()
 	appMenu.Append(menu.AppMenu())
 	appMenu.Append(menu.EditMenu())
+	// Tools → Install Command Line Tool… (macOS only; no-op stub elsewhere).
+	if runtime.GOOS == "darwin" {
+		appendInstallCLIMenu(appMenu, &wailsCtx)
+	}
 
 	app := &options.App{
 		Title:     "Scry",
@@ -87,7 +94,8 @@ func run() error {
 			// profile (SCRY_PROFILE=work open -a Scry) gets its own window.
 			UniqueId: "com.midagedev.scry." + profileLockKey(),
 		},
-		OnStartup: func(context.Context) {
+		OnStartup: func(startupCtx context.Context) {
+			wailsCtx = startupCtx
 			if dir, err := config.Dir(); err == nil {
 				api.StartUpdateCheck(ctx, dir)
 			}

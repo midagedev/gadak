@@ -55,3 +55,7 @@ playwright/.cache/
 
 # Local scratch: audit reports and working notes, never part of a release
 scratch/
+
+# Local desktop build output (desktop/build-app.sh, `go build ./...` in desktop/)
+desktop/build/
+desktop/desktop
