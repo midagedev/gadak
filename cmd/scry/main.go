@@ -1203,22 +1203,6 @@ func openOnceUp(u string) {
 	}
 }
 
-func cmdProfiles(args []string) error {
-	if wantsHelp(args) {
-		printHelp("profiles")
-		return nil
-	}
-	names, err := config.Profiles()
-	if err != nil {
-		return err
-	}
-	fmt.Println("default")
-	for _, n := range names {
-		fmt.Println(n)
-	}
-	return nil
-}
-
 func cmdVersion(args []string) error {
 	if wantsHelp(args) {
 		printHelp("version")
@@ -1247,7 +1231,7 @@ Commands:
   demo             serve the bundled snapshot, no Jira account needed
   export-static    freeze demo.db into static JSON for hosted demo  <outdir>
   tui              terminal issue navigator (local mirror)
-  profiles         list configured profiles
+  profiles         list mirrors and which one this command used  [--json]
   version          print version
 
 Reading the mirror (no network; see AGENTS.md):

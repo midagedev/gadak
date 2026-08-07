@@ -27,8 +27,39 @@ scry status --json     # counts, watermark, last_error, schema_version
 is normal — treat it as "possibly behind", not broken. If `scry` is missing,
 the mirror is not set up; say so rather than guessing at answers.
 
-Other profiles: `scry --profile work sql "…"` (mirror under
-`~/.scry/profiles/work/`).
+## Which mirror you are reading
+
+Someone may have several: one per Jira site, kept apart as **profiles**. Ask,
+rather than assume there is one:
+
+```bash
+scry profiles --json   # name, active, configured, site_host, issues, documents, last_sync_at
+```
+
+`active` is the profile the command you just ran used. Nothing else sets it —
+there is no stored "current profile" to switch. It comes from the command line
+or the environment, both of which are visible in what you ran:
+
+```bash
+scry --profile work sql "…"    # this call only
+```
+
+Three rules follow, and they are the point of the design:
+
+- **Name the profile in every command that matters.** Never rely on the
+  ambient default when a question is about a specific site — a shell that was
+  configured before you arrived can point anywhere, and your transcript will
+  not record which mirror answered.
+- **Say which mirror you read.** `scry status --json` carries a `profile`
+  field; quote it when the answer could differ per site.
+- **Never write to one site while reading another.** `scry comment`,
+  `transition`, `assign` and `api --write` all take the same `--profile`. If
+  the question came from data in one mirror, the write goes to that same one.
+
+If a profile shows `configured: false` it has no credential: its mirror can be
+read if it was ever synced, but it will not be refreshed and writes will fail.
+If `site_host` is empty or the row says `unreadable`, do not guess what site it
+is — report it.
 
 ## The one mistake that silently returns nothing
 

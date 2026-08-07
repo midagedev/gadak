@@ -172,10 +172,11 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"scry serve", "scry issue"},
 	},
 	"profiles": {
-		summary: "list configured profiles",
-		usage:   "scry profiles",
+		summary: "list profiles: which mirrors exist, which one this command used",
+		usage:   "scry profiles [--json]",
 		examples: []string{
 			"scry profiles",
+			"scry profiles --json",
 		},
 		seeAlso: []string{"scry init"},
 	},
