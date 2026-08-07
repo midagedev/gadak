@@ -10,12 +10,14 @@
   import { selection } from './stores/selection.svelte'
   import { pages } from './stores/pages.svelte'
   import { person } from './stores/person.svelte'
+  import { panel } from './stores/panel.svelte'
   import { filters } from './stores/filters.svelte'
   import { me } from './stores/me.svelte'
   import { write } from './stores/write.svelte'
   import { bulk } from './stores/bulk.svelte'
   import { triage } from './stores/triage.svelte'
-  import { router, setParams } from './lib/router.svelte'
+  import { router } from './lib/router.svelte'
+  import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { feature, isHostedDemo } from './lib/config'
   import { adoptRunningSync } from './lib/sync-now'
 
@@ -72,7 +74,6 @@
 
   const initialIssueKey = router.params.get('issue')
   if (initialIssueKey) selection.select(initialIssueKey)
-  let syncedIssueKey = initialIssueKey
 
   /*
    * The document screens, restored the same way.
@@ -91,7 +92,6 @@
    */
   const initialDocKey = router.params.get('doc')
   if (initialDocKey) pages.select(initialDocKey)
-  let syncedDocKey = initialDocKey
 
   const initialSpace = router.params.get('space')
   if (initialSpace) {
@@ -115,13 +115,10 @@
      */
     pages.docsView = true
   }
-  // Seeded from the URL, never from the store: the promotion above is a change
-  // the store made, and the store→URL direction below is what has to see it.
-  // Seeding these from the store instead would make the first pass read that
-  // promotion as the URL having dropped a param, and close what it just opened.
-  let syncedSpace = initialSpace
-  let syncedDocsView = router.params.get('docs')
-  let syncedDview = router.params.get('dview')
+  // The promotion above is a change the *store* made, and the bindings below
+  // are what carry it out to the URL — they seed themselves from the URL for
+  // exactly that reason (see lib/url-sync). It happens here, once, on the way
+  // in: nothing after this turns a bare `?doc=` into a document screen.
 
   onMount(() => {
     void issues.init()
@@ -365,104 +362,55 @@
     filters.applyConfig(c)
   }
 
-  // ── Selected issue ↔ URL two-way sync ──
-  // Use last-synced value to tell whether URL nav or user selection moved first.
-  // Separate effects per direction let back/deeplink let the old selection
-  // overwrite the new URL.
-  $effect(() => {
-    const urlKey = router.params.get('issue')
-    const key = selection.selectedKey
-    if (urlKey !== syncedIssueKey) {
-      syncedIssueKey = urlKey
-      if (urlKey) selection.select(urlKey)
-      else selection.clear()
-      return
-    }
-    if (key !== syncedIssueKey) {
-      syncedIssueKey = key
-      setParams({ issue: key }, true)
-    }
+  /*
+   * ── State ↔ URL ──
+   *
+   * Which state each param mirrors, and nothing about how the two are kept
+   * level: that protocol — who moved first, and therefore who follows — lives
+   * once in lib/url-sync, where it also owns the last-synced value it needs.
+   */
+
+  bindParam({
+    param: 'issue',
+    read: () => selection.selectedKey,
+    write: (key) => (key ? selection.select(key) : selection.clear()),
   })
 
-  // ── Open document ↔ URL (?doc=KEY) ──
-  // Same two-direction shape as the issue above, for the same reason: a URL
-  // change (back, a pasted link) must be able to overwrite the open panel, and
-  // an opened panel must be able to overwrite the URL, without the two chasing
-  // each other. The last-synced value is what tells which of them moved.
-  $effect(() => {
-    const urlKey = router.params.get('doc')
-    const key = pages.selectedKey
-    if (urlKey !== syncedDocKey) {
-      syncedDocKey = urlKey
-      if (urlKey) pages.select(urlKey)
-      else pages.clear()
-      return
-    }
-    if (key !== syncedDocKey) {
-      syncedDocKey = key
-      setParams({ doc: key }, true)
-    }
+  bindParam({
+    param: 'doc',
+    read: () => pages.selectedKey,
+    write: (key) => (key ? pages.select(key) : pages.clear()),
   })
 
-  // ── Which document screen owns the main column ↔ URL ──
-  // The three params move together (a space and the tabbed view are exclusive,
-  // and `dview` only means anything inside a space), so they are one effect
-  // rather than three that would each see a half-applied state.
-  $effect(() => {
-    const urlSpace = router.params.get('space')
-    const urlDocs = router.params.get('docs')
-    const urlDview = router.params.get('dview')
-    const space = pages.spaceView
-    const docs = pages.docsView ? '1' : null
-    const dview = pages.spaceTree ? 'tree' : null
-
-    if (urlSpace !== syncedSpace || urlDocs !== syncedDocsView || urlDview !== syncedDview) {
-      syncedSpace = urlSpace
-      syncedDocsView = urlDocs
-      syncedDview = urlDview
-      if (urlSpace) {
-        untrack(() => {
-          pages.openSpace(urlSpace)
-          pages.spaceTree = urlDview === 'tree'
-        })
-      } else if (urlDocs === '1') {
-        untrack(() => {
-          pages.spaceView = null
-          pages.spaceTree = false
-          pages.docsView = true
-        })
+  // Which document screen owns the main column. One binding rather than three:
+  // a space and the tabbed view are exclusive and `dview` only means anything
+  // inside a space, so a pass that saw them one at a time would be reading a
+  // half-applied screen.
+  bindParams({
+    params: ['space', 'docs', 'dview'],
+    read: () => ({
+      space: pages.spaceView,
+      docs: pages.docsView ? '1' : null,
+      dview: pages.spaceTree ? 'tree' : null,
+    }),
+    write: ({ space, docs, dview }) => {
+      if (space) {
+        pages.openSpace(space)
+        pages.spaceTree = dview === 'tree'
+      } else if (docs === '1') {
+        pages.spaceView = null
+        pages.spaceTree = false
+        pages.docsView = true
       } else {
-        untrack(() => pages.closeDocs())
+        pages.closeDocs()
       }
-      return
-    }
-    if (space !== syncedSpace || docs !== syncedDocsView || dview !== syncedDview) {
-      syncedSpace = space
-      syncedDocsView = docs
-      syncedDview = dview
-      setParams({ space, docs, dview }, true)
-    }
+    },
   })
 
-  // One right panel, three kinds of content. Each store's select() clears the
-  // others on the way in (pages.select, person.select); these close what an
-  // issue selection displaces on the way back, so they can never stack.
-  $effect(() => {
-    if (selection.selectedKey) {
-      untrack(() => {
-        pages.clear()
-        person.clear()
-      })
-    }
-  })
-  $effect(() => {
-    if (pages.selectedKey) untrack(() => person.clear())
-  })
-
-  const detailOpen = $derived(selection.selectedKey !== null)
-  const docOpen = $derived(pages.selectedKey !== null)
-  const personOpen = $derived(person.selectedEmail !== null)
-  const panelOpen = $derived(detailOpen || docOpen || personOpen)
+  // One right panel, three kinds of content — and one value holding which
+  // (stores/panel). Opening any of them is what closes the other two, so there
+  // is nothing here to keep them from stacking.
+  const panelOpen = $derived(panel.target !== null)
 </script>
 
 <svelte:window onkeydown={onGlobalKey} />

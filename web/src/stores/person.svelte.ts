@@ -18,16 +18,18 @@ import * as api from '../lib/api'
 import { ApiError } from '../lib/api'
 import type { AuthorComment, Member } from '../lib/types'
 import { issues } from './issues.svelte'
-import { pages } from './pages.svelte'
-import { selection } from './selection.svelte'
+import { panel } from './panel.svelte'
 
 /** How many of a person's comments the panel asks for. The server caps at 200;
  *  50 is a scroll or two, which is what "recent" means on this surface. */
 const COMMENT_LIMIT = 50
 
 class PersonStore {
-  /** Open person's email (the member key), or null. */
-  selectedEmail = $state<string | null>(null)
+  /** Open person's email (the member key), or null when the right panel is
+   *  showing an issue, a document, or nothing. Read from the panel union — one
+   *  detail surface at a time is that value's shape, not a rule this store has
+   *  to re-apply on the way in. */
+  #selectedEmail = $derived(panel.keyOf('person'))
   /** Comments by the open person, newest first. */
   comments = $state<AuthorComment[]>([])
   /** Full count for this author — usually larger than `comments.length`. */
@@ -40,18 +42,28 @@ class PersonStore {
   /** Race guard — only the last load may write into the fields above. */
   #gen = 0
 
+  constructor() {
+    // Everything below the email is *this person's* — it has to go when the
+    // panel moves to someone else, or to an issue, or to nothing at all. The
+    // panel tells us it moved, whoever moved it; this store no longer has to be
+    // told by every other store that can take the surface.
+    panel.onLeave('person', () => this.#discard())
+  }
+
+  get selectedEmail(): string | null {
+    return this.#selectedEmail
+  }
+
   /** The open person's directory row, when the member set still has them. */
   get member(): Member | undefined {
     return issues.memberOf(this.selectedEmail)
   }
 
   /** Open a person. Takes the panel from an issue or a document — one detail
-   *  surface at a time, the same rule pages.select() follows. */
+   *  surface at a time, which is what the panel union guarantees. */
   select(email: string): void {
     if (this.selectedEmail === email) return
-    selection.clear()
-    pages.clear()
-    this.selectedEmail = email
+    panel.show('person', email)
     this.comments = []
     this.total = 0
     this.error = null
@@ -59,9 +71,12 @@ class PersonStore {
   }
 
   clear(): void {
-    if (this.selectedEmail === null) return
+    panel.close('person')
+  }
+
+  /** Drop what was loaded for whoever was open. */
+  #discard(): void {
     this.#gen++ // invalidate anything in flight
-    this.selectedEmail = null
     this.comments = []
     this.total = 0
     this.loading = false

@@ -19,7 +19,7 @@ import * as api from '../lib/api'
 import { STORAGE_KEYS } from '../lib/storage'
 import type { PageDetail, PageLite } from '../lib/types'
 import { me } from './me.svelte'
-import { selection } from './selection.svelte'
+import { panel } from './panel.svelte'
 
 /** Pages of one space, for the sidebar's grouped list. Grouping is by key; the
  *  name only ever decides what the row reads. */
@@ -90,8 +90,6 @@ class PagesStore {
   index = $state<PageLite[]>([])
   /** Server answered — lets the sidebar tell "no docs" from "not asked yet". */
   loaded = $state(false)
-  /** Open page (DocumentPanel). Mutually exclusive with an open issue. */
-  selectedKey = $state<string | null>(null)
   /** Page hits from the last server search. Cleared with the query. */
   searchHits = $state<PageLite[]>([])
   /** The tabbed document view owns the main column instead of the issue list. */
@@ -294,17 +292,27 @@ class PagesStore {
     }
   }
 
-  /** Open a page. Closing the issue panel keeps one detail surface at a time.
-   *  The visit joins the same recent list as issues, so the palette can offer
-   *  both without a second history to keep. */
+  /* ── The open page (DocumentPanel) ── */
+
+  /** Which page the right panel is showing, or null when it is showing an issue,
+   *  a person, or nothing. Read from the panel union rather than held here: one
+   *  detail surface at a time is that value's shape, so opening a page closes an
+   *  issue or a person with nothing to clear. */
+  #selectedKey = $derived(panel.keyOf('doc'))
+
+  get selectedKey(): string | null {
+    return this.#selectedKey
+  }
+
+  /** Open a page. The visit joins the same recent list as issues, so the palette
+   *  can offer both without a second history to keep. */
   select(key: string): void {
-    selection.clear()
-    this.selectedKey = key
+    panel.show('doc', key)
     me.recordRecent(key, 'doc')
   }
 
   clear(): void {
-    this.selectedKey = null
+    panel.close('doc')
   }
 
   /* ── Main-column document views (tabbed list, or one space) ── */
