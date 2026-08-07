@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -225,12 +226,12 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, error) {
 	if limit > hardRowLimit {
 		limit = hardRowLimit
 	}
-	res, err := s.db.Search(text, limit)
+	res, err := s.db.Search(context.Background(), text, limit)
 	if err != nil {
 		return nil, err
 	}
 	// Best match first: IssueLites order is not FTS rank, so re-order by key list.
-	all, err := s.db.IssueLites()
+	all, err := s.db.IssueLites(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -268,14 +269,14 @@ func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 		return nil, errors.New("scry_issue requires {key: string}")
 	}
 	key = strings.ToUpper(strings.TrimSpace(key))
-	d, err := s.db.Detail(key)
+	d, err := s.db.Detail(context.Background(), key)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, fmt.Errorf("%s is not in the mirror — check the key, or run `scry sync`", key)
 	}
 	if err != nil {
 		return nil, err
 	}
-	all, err := s.db.IssueLites()
+	all, err := s.db.IssueLites(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +300,7 @@ func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	_ = args
 	st := map[string]any{"profile": s.Profile}
-	ss, err := s.db.SyncState("jira")
+	ss, err := s.db.SyncState(context.Background(), "jira")
 	if err != nil {
 		return nil, err
 	}

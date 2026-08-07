@@ -57,7 +57,7 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 			batch.Records = append(batch.Records, r)
 			found = true
 		}
-		_, err := db.UpsertIssues(batch)
+		_, err := db.UpsertIssues(ctx, batch)
 		return err
 	})
 	if err != nil {

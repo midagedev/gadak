@@ -144,7 +144,7 @@ type deltaResponse struct {
 /* ── bootstrap / delta ── */
 
 func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
-	st, err := s.db.SyncState(sourceID)
+	st, err := s.db.SyncState(r.Context(), sourceID)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -154,12 +154,12 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
-	lites, err := s.db.IssueLites()
+	lites, err := s.db.IssueLites(r.Context())
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
-	view, err := s.derived(st.Version, lites)
+	view, err := s.derived(r.Context(), st.Version, lites)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -171,9 +171,9 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		Members:        view.members,
 		MembersVersion: view.membersVersion,
 		Issues:         view.issues(lites),
-		SyncHealth:     s.health(st),
+		SyncHealth:     s.health(r.Context(), st),
 		FieldSpecs:     s.fieldSpecsOut(),
-		FieldUsage:     s.fieldUsageOut(),
+		FieldUsage:     s.fieldUsageOut(r.Context()),
 		LatestVersion:  latest,
 		ReleaseURL:     releaseURL,
 	})
@@ -203,9 +203,9 @@ func (s *server) fieldSpecsOut() []fieldSpecOut {
 
 // fieldUsageOut is project → alias → filled from the field_usage table. Never
 // nil. A missing table row means the alias was never seen in that project.
-func (s *server) fieldUsageOut() map[string]map[string]int {
+func (s *server) fieldUsageOut(ctx context.Context) map[string]map[string]int {
 	out := map[string]map[string]int{}
-	rows, err := s.db.FieldUsage()
+	rows, err := s.db.FieldUsage(ctx)
 	if err != nil {
 		return out
 	}
@@ -221,23 +221,23 @@ func (s *server) fieldUsageOut() map[string]map[string]int {
 }
 
 func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
-	st, err := s.db.SyncState(sourceID)
+	st, err := s.db.SyncState(r.Context(), sourceID)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
 	since := r.URL.Query().Get("since")
-	upserted, err := s.db.IssueLitesSince(since)
+	upserted, err := s.db.IssueLitesSince(r.Context(), since)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
-	deleted, err := s.db.DeletedKeysSince(since)
+	deleted, err := s.db.DeletedKeysSince(r.Context(), since)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
-	view, err := s.derived(st.Version, nil)
+	view, err := s.derived(r.Context(), st.Version, nil)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -247,9 +247,9 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		Upserted:       view.issues(upserted),
 		DeletedKeys:    deleted,
 		MembersVersion: view.membersVersion,
-		SyncHealth:     s.health(st),
+		SyncHealth:     s.health(r.Context(), st),
 		FieldSpecs:     s.fieldSpecsOut(),
-		FieldUsage:     s.fieldUsageOut(),
+		FieldUsage:     s.fieldUsageOut(r.Context()),
 	}
 	// members ride along only when the client's hash is stale.
 	if r.URL.Query().Get("mv") != view.membersVersion {
@@ -347,7 +347,7 @@ type detailResponse struct {
 
 func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
-	d, err := s.db.Detail(key)
+	d, err := s.db.Detail(r.Context(), key)
 	if errors.Is(err, store.ErrNotFound) {
 		fail(w, http.StatusNotFound, "not_found")
 		return
@@ -356,12 +356,12 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	st, err := s.db.SyncState(sourceID)
+	st, err := s.db.SyncState(r.Context(), sourceID)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
-	view, err := s.derived(st.Version, nil)
+	view, err := s.derived(r.Context(), st.Version, nil)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -389,7 +389,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// The detail half of the plugin boundary: each kind maps to one response field.
-	en, err := s.db.EnrichmentsFor(key)
+	en, err := s.db.EnrichmentsFor(r.Context(), key)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -478,7 +478,7 @@ func attachmentURL(key, id string) string {
 
 func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	res, err := s.db.Search(r.URL.Query().Get("q"), limit)
+	res, err := s.db.Search(r.Context(), r.URL.Query().Get("q"), limit)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -502,7 +502,7 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 /* ── Confluence pages (R2) ── */
 
 func (s *server) handlePages(w http.ResponseWriter, r *http.Request) {
-	st, err := s.db.SyncState("confluence")
+	st, err := s.db.SyncState(r.Context(), "confluence")
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -512,7 +512,7 @@ func (s *server) handlePages(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
-	pages, err := s.db.PageLites()
+	pages, err := s.db.PageLites(r.Context())
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -528,7 +528,7 @@ func (s *server) handlePageDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handlePageDetailKey(w http.ResponseWriter, r *http.Request, key string) {
-	d, err := s.db.PageDetail(key)
+	d, err := s.db.PageDetail(r.Context(), key)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -792,7 +792,7 @@ type derivedView struct {
 // derived returns the cached view for this sync version, rebuilding it when
 // stale. lites may be nil, in which case it scans; bootstrap passes the rows it
 // already read so the mirror is scanned once per request, not twice.
-func (s *server) derived(version int64, lites []store.IssueLite) (*derivedView, error) {
+func (s *server) derived(ctx context.Context, version int64, lites []store.IssueLite) (*derivedView, error) {
 	key := fmt.Sprintf("%d:%d", version, s.gen.Load())
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -801,11 +801,11 @@ func (s *server) derived(version int64, lites []store.IssueLite) (*derivedView, 
 	}
 	if lites == nil {
 		var err error
-		if lites, err = s.db.IssueLites(); err != nil {
+		if lites, err = s.db.IssueLites(ctx); err != nil {
 			return nil, err
 		}
 	}
-	v, err := s.buildView(key, lites)
+	v, err := s.buildView(ctx, key, lites)
 	if err != nil {
 		return nil, err
 	}
@@ -813,7 +813,7 @@ func (s *server) derived(version int64, lites []store.IssueLite) (*derivedView, 
 	return v, nil
 }
 
-func (s *server) buildView(key string, lites []store.IssueLite) (*derivedView, error) {
+func (s *server) buildView(ctx context.Context, key string, lites []store.IssueLite) (*derivedView, error) {
 	cfg := s.config()
 	v := &derivedView{
 		key:            key,
@@ -829,10 +829,10 @@ func (s *server) buildView(key string, lites []store.IssueLite) (*derivedView, e
 		}
 	}
 	var err error
-	if v.deploy, err = s.db.EnrichmentsByKind("deploy"); err != nil {
+	if v.deploy, err = s.db.EnrichmentsByKind(ctx, "deploy"); err != nil {
 		return nil, err
 	}
-	if v.qa, err = s.db.EnrichmentsByKind("qa"); err != nil {
+	if v.qa, err = s.db.EnrichmentsByKind(ctx, "qa"); err != nil {
 		return nil, err
 	}
 	byEmail := map[string]*member{}
@@ -1044,10 +1044,10 @@ func overlaps(want, have []string) bool {
 // st is the Jira sync_state (bootstrap/delta still pass only that). Confluence
 // is appended when a sources row exists — bootstrap/delta payloads stay issue-
 // only and their ETags stay jira-version-only.
-func (s *server) health(st store.SyncState) syncHealth {
+func (s *server) health(ctx context.Context, st store.SyncState) syncHealth {
 	sources := []syncSource{s.sourceHealth("jira", "Jira", st)}
-	if ok, err := s.db.HasSource("confluence"); err == nil && ok {
-		if cst, err := s.db.SyncState("confluence"); err == nil {
+	if ok, err := s.db.HasSource(ctx, "confluence"); err == nil && ok {
+		if cst, err := s.db.SyncState(ctx, "confluence"); err == nil {
 			sources = append(sources, s.sourceHealth("confluence", "Confluence", cst))
 		}
 	}

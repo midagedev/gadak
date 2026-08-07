@@ -1,6 +1,7 @@
 package teamconfig
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -280,7 +281,7 @@ func ApplyPlan(cfg *config.Config, db *store.DB, plan Plan) error {
 			if err != nil {
 				return err
 			}
-			if err := db.PutSavedView(store.SavedView{
+			if err := db.PutSavedView(context.Background(), store.SavedView{
 				ID:     id,
 				Name:   vc.Name,
 				Config: vc.Config,
@@ -293,7 +294,7 @@ func ApplyPlan(cfg *config.Config, db *store.DB, plan Plan) error {
 			}
 			// Preserve created_at by reading current row if present.
 			created := ""
-			if views, err := db.SavedViews(); err == nil {
+			if views, err := db.SavedViews(context.Background()); err == nil {
 				for _, v := range views {
 					if v.ID == vc.ExistingID {
 						created = v.CreatedAt
@@ -301,7 +302,7 @@ func ApplyPlan(cfg *config.Config, db *store.DB, plan Plan) error {
 					}
 				}
 			}
-			if err := db.PutSavedView(store.SavedView{
+			if err := db.PutSavedView(context.Background(), store.SavedView{
 				ID:        vc.ExistingID,
 				Name:      vc.Name,
 				Config:    vc.Config,

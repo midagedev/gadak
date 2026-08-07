@@ -345,7 +345,7 @@ func (s *server) handleSyncRuns(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_source")
 		return
 	}
-	runs, err := s.db.SyncRuns(id, 20)
+	runs, err := s.db.SyncRuns(r.Context(), id, 20)
 	if err != nil {
 		serverError(w, r, err)
 		return

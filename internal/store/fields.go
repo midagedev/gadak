@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -21,8 +22,8 @@ type FieldUsageRow struct {
 // ScanFieldFill streams every issue's project key and the fields object from
 // stored raw JSON. Rows with empty or unparseable raw are skipped (older rows).
 // fn receives field id → raw value for custom and system fields present in raw.
-func (db *DB) ScanFieldFill(fn func(projectKey string, fieldVals map[string]json.RawMessage) error) error {
-	rows, err := db.sql.Query(`SELECT project_key, raw FROM issues`)
+func (db *DB) ScanFieldFill(ctx context.Context, fn func(projectKey string, fieldVals map[string]json.RawMessage) error) error {
+	rows, err := db.sql.QueryContext(ctx, `SELECT project_key, raw FROM issues`)
 	if err != nil {
 		return err
 	}
@@ -64,11 +65,11 @@ func parseRawFields(raw []byte) (map[string]json.RawMessage, bool) {
 
 // ReingestCustom recomputes issues.custom and the FTS body from the stored raw
 // JSON — no network. Returns the number of issues rewritten.
-func (db *DB) ReingestCustom(specs []fields.SpecIDs, bodyFieldIDs []string) (int, error) {
+func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFieldIDs []string) (int, error) {
 	// comments_text per item, same join rule as upsertRecord. Text only —
 	// cheap to hold for the whole table.
 	commentsByItem := map[string]string{}
-	crs, err := db.sql.Query(`
+	crs, err := db.sql.QueryContext(ctx, `
 		SELECT item_id, body_text FROM comments
 		WHERE body_text IS NOT NULL AND body_text != ''
 		ORDER BY item_id, created_at`)
@@ -105,7 +106,7 @@ func (db *DB) ReingestCustom(specs []fields.SpecIDs, bodyFieldIDs []string) (int
 		comments   string
 	}
 	var updates []update
-	rs, err := db.sql.Query(`
+	rs, err := db.sql.QueryContext(ctx, `
 		SELECT i.item_id, it.rowid, COALESCE(it.title, ''), COALESCE(it.body_text, ''),
 		       COALESCE(i.custom, '{}'), COALESCE(i.raw, ''), COALESCE(i.description_adf, '')
 		FROM issues i JOIN items it ON it.id = i.item_id`)
@@ -175,7 +176,7 @@ func (db *DB) ReingestCustom(specs []fields.SpecIDs, bodyFieldIDs []string) (int
 			end = len(updates)
 		}
 		chunk := updates[i:end]
-		err := db.write(func(tx *sql.Tx) error {
+		err := db.write(ctx, func(tx *sql.Tx) error {
 			for _, u := range chunk {
 				if _, err := tx.Exec(`UPDATE issues SET custom = ? WHERE item_id = ?`, u.customJSON, u.itemID); err != nil {
 					return err
@@ -197,8 +198,8 @@ func (db *DB) ReingestCustom(specs []fields.SpecIDs, bodyFieldIDs []string) (int
 }
 
 // ReplaceFieldUsage replaces the entire field_usage table.
-func (db *DB) ReplaceFieldUsage(rows []FieldUsageRow) error {
-	return db.write(func(tx *sql.Tx) error {
+func (db *DB) ReplaceFieldUsage(ctx context.Context, rows []FieldUsageRow) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`DELETE FROM field_usage`); err != nil {
 			return err
 		}
@@ -214,8 +215,8 @@ func (db *DB) ReplaceFieldUsage(rows []FieldUsageRow) error {
 }
 
 // FieldUsage returns every field_usage row.
-func (db *DB) FieldUsage() ([]FieldUsageRow, error) {
-	rs, err := db.sql.Query(`SELECT project_key, alias, filled, total FROM field_usage ORDER BY project_key, alias`)
+func (db *DB) FieldUsage(ctx context.Context) ([]FieldUsageRow, error) {
+	rs, err := db.sql.QueryContext(ctx, `SELECT project_key, alias, filled, total FROM field_usage ORDER BY project_key, alias`)
 	if err != nil {
 		return nil, err
 	}
@@ -234,11 +235,11 @@ func (db *DB) FieldUsage() ([]FieldUsageRow, error) {
 // ComputeFieldUsage builds field_usage rows from issues.custom for the given
 // aliases. total is the issue count per project; filled is how many issues have
 // a non-empty value for that alias.
-func (db *DB) ComputeFieldUsage(aliases []string) ([]FieldUsageRow, error) {
+func (db *DB) ComputeFieldUsage(ctx context.Context, aliases []string) ([]FieldUsageRow, error) {
 	if len(aliases) == 0 {
 		return nil, nil
 	}
-	rs, err := db.sql.Query(`SELECT project_key, COALESCE(custom, '{}') FROM issues`)
+	rs, err := db.sql.QueryContext(ctx, `SELECT project_key, COALESCE(custom, '{}') FROM issues`)
 	if err != nil {
 		return nil, err
 	}
@@ -289,9 +290,9 @@ func (db *DB) ComputeFieldUsage(aliases []string) ([]FieldUsageRow, error) {
 // HasCustomFieldKeysInRaw reports whether any stored raw document contains a
 // customfield_ key under fields. Used by `scry fields --apply` to refuse when
 // the mirror was never synced with custom fields.
-func (db *DB) HasCustomFieldKeysInRaw() (bool, error) {
+func (db *DB) HasCustomFieldKeysInRaw(ctx context.Context) (bool, error) {
 	found := false
-	err := db.ScanFieldFill(func(_ string, fieldVals map[string]json.RawMessage) error {
+	err := db.ScanFieldFill(ctx, func(_ string, fieldVals map[string]json.RawMessage) error {
 		for id := range fieldVals {
 			if strings.HasPrefix(id, "customfield_") {
 				found = true
@@ -325,12 +326,12 @@ type SyncRun struct {
 }
 
 // AppendSyncRun stores one run and prunes the history to the newest 100.
-func (db *DB) AppendSyncRun(sourceID string, r SyncRun) error {
+func (db *DB) AppendSyncRun(ctx context.Context, sourceID string, r SyncRun) error {
 	var errText any
 	if r.Error != "" {
 		errText = r.Error
 	}
-	return db.write(func(tx *sql.Tx) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`
 			INSERT INTO sync_runs (source_id, kind, started_at, finished_at, fetched, changed, deleted, error)
 			VALUES (?,?,?,?,?,?,?,?)`,
@@ -346,11 +347,11 @@ func (db *DB) AppendSyncRun(sourceID string, r SyncRun) error {
 }
 
 // SyncRuns returns the newest runs first, at most limit.
-func (db *DB) SyncRuns(sourceID string, limit int) ([]SyncRun, error) {
+func (db *DB) SyncRuns(ctx context.Context, sourceID string, limit int) ([]SyncRun, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-	rs, err := db.sql.Query(`
+	rs, err := db.sql.QueryContext(ctx, `
 		SELECT kind, started_at, finished_at, fetched, changed, deleted, COALESCE(error, '')
 		FROM sync_runs WHERE source_id = ? ORDER BY id DESC LIMIT ?`, sourceID, limit)
 	if err != nil {

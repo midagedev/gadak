@@ -1,6 +1,7 @@
 package teamconfig
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -213,7 +214,7 @@ func TestMergeRules(t *testing.T) {
 	// Apply default merge and ensure existing fieldMap untouched, groupRules filled.
 	db := openTestDB(t)
 	// DB starts with Mine so skip/add behaviour matches the plan inputs.
-	if err := db.PutSavedView(store.SavedView{ID: "id1", Name: "Mine", Config: json.RawMessage(`{"a":0}`)}); err != nil {
+	if err := db.PutSavedView(context.Background(), store.SavedView{ID: "id1", Name: "Mine", Config: json.RawMessage(`{"a":0}`)}); err != nil {
 		t.Fatal(err)
 	}
 	cfg := *existing
@@ -228,7 +229,7 @@ func TestMergeRules(t *testing.T) {
 	if len(cfg.GroupRules) != 1 || cfg.GroupRules[0].Group != "g" {
 		t.Errorf("groupRules should be added, got %v", cfg.GroupRules)
 	}
-	views, err := db.SavedViews()
+	views, err := db.SavedViews(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +251,7 @@ func TestMergeRules(t *testing.T) {
 	// Overwrite plan against the same DB: Mine replaced, New view skipped (already exists).
 	cfg2 := *existing
 	cfg2.FieldMap = map[string]string{"old": "customfield_1"}
-	viewsNow, _ := db.SavedViews()
+	viewsNow, _ := db.SavedViews(context.Background())
 	planO2 := BuildPlan(&cfg2, viewsNow, incoming, ImportOptions{Overwrite: true})
 	assertViewAction(t, planO2, "Mine", ViewReplace)
 	assertViewAction(t, planO2, "New view", ViewReplace) // exists now → replace under overwrite
@@ -260,7 +261,7 @@ func TestMergeRules(t *testing.T) {
 	if cfg2.FieldMap["new"] != "customfield_2" {
 		t.Errorf("overwrite should replace fieldMap, got %v", cfg2.FieldMap)
 	}
-	views, _ = db.SavedViews()
+	views, _ = db.SavedViews(context.Background())
 	var mine store.SavedView
 	for _, v := range views {
 		if v.Name == "Mine" {
@@ -329,7 +330,7 @@ func TestDryRunNoChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if err := db.PutSavedView(store.SavedView{
+	if err := db.PutSavedView(context.Background(), store.SavedView{
 		ID: "v1", Name: "Existing", Config: json.RawMessage(`{"k":1}`),
 	}); err != nil {
 		t.Fatal(err)
@@ -349,7 +350,7 @@ func TestDryRunNoChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	views, err := db.SavedViews()
+	views, err := db.SavedViews(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +368,7 @@ func TestDryRunNoChanges(t *testing.T) {
 	if after.FieldMap["x"] != "customfield_1" || len(after.Projects) != 1 || after.Projects[0] != "OLD" {
 		t.Fatalf("dry-run changed settings: %+v", after)
 	}
-	viewsAfter, _ := db.SavedViews()
+	viewsAfter, _ := db.SavedViews(context.Background())
 	if len(viewsAfter) != 1 || viewsAfter[0].Name != "Existing" {
 		t.Fatalf("dry-run changed views: %+v", viewsAfter)
 	}
@@ -426,11 +427,11 @@ func TestRoundTripExportImport(t *testing.T) {
 		{ID: "vb", Name: "Mine", Config: json.RawMessage(`{"assignee":"me"}`)},
 	}
 	for _, v := range viewsIn {
-		if err := dbA.PutSavedView(v); err != nil {
+		if err := dbA.PutSavedView(context.Background(), v); err != nil {
 			t.Fatal(err)
 		}
 	}
-	storedA, _ := dbA.SavedViews()
+	storedA, _ := dbA.SavedViews(context.Background())
 	doc := BuildDocument(src, storedA, ExportOptions{
 		Now: time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC),
 	})
@@ -465,7 +466,7 @@ func TestRoundTripExportImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	existing, _ := dbB.SavedViews()
+	existing, _ := dbB.SavedViews(context.Background())
 	plan := BuildPlan(loaded, existing, parsed, ImportOptions{})
 	if err := ApplyPlan(loaded, dbB, plan); err != nil {
 		t.Fatal(err)
@@ -499,7 +500,7 @@ func TestRoundTripExportImport(t *testing.T) {
 		t.Errorf("members should be empty without --with-members, got %v", loaded.Members)
 	}
 
-	viewsB, err := dbB.SavedViews()
+	viewsB, err := dbB.SavedViews(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

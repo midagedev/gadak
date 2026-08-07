@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -402,7 +403,7 @@ func (s *server) settingsResponse(cfg *config.Config) settingsDoc {
 	}
 	doc.FieldUsage = map[string]map[string]int{}
 	if s.db != nil {
-		if rows, err := s.db.FieldUsage(); err == nil {
+		if rows, err := s.db.FieldUsage(context.Background()); err == nil {
 			for _, r := range rows {
 				m := doc.FieldUsage[r.ProjectKey]
 				if m == nil {
@@ -437,7 +438,7 @@ func (s *server) runtimeInfo() *runtimeInfo {
 		}
 	}
 	if s.db != nil {
-		if lites, err := s.db.IssueLites(); err == nil {
+		if lites, err := s.db.IssueLites(context.Background()); err == nil {
 			info.IssueCount = len(lites)
 			comments := 0
 			for _, l := range lites {
@@ -446,7 +447,7 @@ func (s *server) runtimeInfo() *runtimeInfo {
 			info.CommentCount = comments
 		}
 		info.SchemaVersion = s.db.SchemaVersion()
-		if st, err := s.db.SyncState(sourceID); err == nil {
+		if st, err := s.db.SyncState(context.Background(), sourceID); err == nil {
 			info.Watermark = st.Watermark
 			info.SyncVersion = st.Version
 			info.LastFullSyncAt = st.LastFullSyncAt
@@ -455,7 +456,7 @@ func (s *server) runtimeInfo() *runtimeInfo {
 				info.SchemaVersion = st.SchemaVersion
 			}
 		}
-		if summary, err := s.db.APIUsageSummary(); err == nil {
+		if summary, err := s.db.APIUsageSummary(context.Background()); err == nil {
 			info.ApiUsage = &summary
 		}
 	}

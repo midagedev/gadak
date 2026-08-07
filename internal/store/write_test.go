@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,10 +104,10 @@ func fixture() Batch {
 
 func seed(t *testing.T, db *DB) {
 	t.Helper()
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
 		t.Fatal(err)
 	}
-	n, err := db.UpsertIssues(fixture())
+	n, err := db.UpsertIssues(context.Background(), fixture())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +120,7 @@ func TestUpsertAndReadBack(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)
 
-	lites, err := db.IssueLites()
+	lites, err := db.IssueLites(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +170,7 @@ func TestDetailAssembly(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)
 
-	d, err := db.Detail("NMB-1")
+	d, err := db.Detail(context.Background(), "NMB-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +216,7 @@ func TestDetailAssembly(t *testing.T) {
 		t.Error("description_adf missing")
 	}
 
-	if _, err := db.Detail("NMB-404"); !errors.Is(err, ErrNotFound) {
+	if _, err := db.Detail(context.Background(), "NMB-404"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("unknown key error = %v, want ErrNotFound", err)
 	}
 }
@@ -225,7 +226,7 @@ func TestSearchReachesCommentText(t *testing.T) {
 	seed(t, db)
 
 	// "sandbox" appears only in a comment body.
-	res, err := db.Search("sandbox", 10)
+	res, err := db.Search(context.Background(), "sandbox", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,10 +234,10 @@ func TestSearchReachesCommentText(t *testing.T) {
 		t.Errorf("comment search = %v, want [NMB-1]", res.Keys)
 	}
 	// Unparseable FTS input falls back to a phrase match instead of erroring.
-	if _, err := db.Search(`retry AND`, 10); err != nil {
+	if _, err := db.Search(context.Background(), `retry AND`, 10); err != nil {
 		t.Errorf("malformed query: %v", err)
 	}
-	if res, err := db.Search("webhook", 10); err != nil || len(res.Keys) != 1 {
+	if res, err := db.Search(context.Background(), "webhook", 10); err != nil || len(res.Keys) != 1 {
 		t.Errorf("body search = %v (%v)", res.Keys, err)
 	}
 }
@@ -246,7 +247,7 @@ func TestSearchReachesCommentText(t *testing.T) {
 // prefix rewrite (unicode61 treats 로그인이 as one token).
 func seedKoreanSearch(t *testing.T, db *DB) {
 	t.Helper()
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
 		t.Fatal(err)
 	}
 	b := Batch{
@@ -299,7 +300,7 @@ func seedKoreanSearch(t *testing.T, db *DB) {
 			},
 		},
 	}
-	if _, err := db.UpsertIssues(b); err != nil {
+	if _, err := db.UpsertIssues(context.Background(), b); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -318,7 +319,7 @@ func TestSearchKoreanAndPrefix(t *testing.T) {
 	seedKoreanSearch(t, db)
 
 	// 1. Particle-attached noun: 로그인이 is one FTS token; bare "로그인" needs prefix.
-	res, err := db.Search("로그인", 10)
+	res, err := db.Search(context.Background(), "로그인", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +328,7 @@ func TestSearchKoreanAndPrefix(t *testing.T) {
 	}
 
 	// 2. Conjugated verb in body: 응답하지 → bare "응답".
-	res, err = db.Search("응답", 10)
+	res, err = db.Search(context.Background(), "응답", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +337,7 @@ func TestSearchKoreanAndPrefix(t *testing.T) {
 	}
 
 	// 3. English stem prefix: retries ← retri.
-	res, err = db.Search("retri", 10)
+	res, err = db.Search(context.Background(), "retri", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +346,7 @@ func TestSearchKoreanAndPrefix(t *testing.T) {
 	}
 
 	// 4. Quoted phrase passes through: match consecutive tokens only.
-	res, err = db.Search(`"로그인 화면"`, 10)
+	res, err = db.Search(context.Background(), `"로그인 화면"`, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +358,7 @@ func TestSearchKoreanAndPrefix(t *testing.T) {
 	}
 
 	// 5. Two bare tokens → implicit AND via space-joined prefixes.
-	res, err = db.Search("로그인 실패", 10)
+	res, err = db.Search(context.Background(), "로그인 실패", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,23 +373,23 @@ func TestSearchKoreanAndPrefix(t *testing.T) {
 func TestUnchangedUpsertIsANoOp(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)
-	before, err := db.SyncState("jira")
+	before, err := db.SyncState(context.Background(), "jira")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var syncedBefore string
-	if err := db.sql.QueryRow(`SELECT synced_at FROM items WHERE key = 'NMB-1'`).Scan(&syncedBefore); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT synced_at FROM items WHERE key = 'NMB-1'`).Scan(&syncedBefore); err != nil {
 		t.Fatal(err)
 	}
 
-	n, err := db.UpsertIssues(fixture())
+	n, err := db.UpsertIssues(context.Background(), fixture())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if n != 0 {
 		t.Errorf("re-upserting unchanged issues touched %d rows, want 0", n)
 	}
-	after, err := db.SyncState("jira")
+	after, err := db.SyncState(context.Background(), "jira")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +397,7 @@ func TestUnchangedUpsertIsANoOp(t *testing.T) {
 		t.Errorf("version moved %d -> %d with no upstream change", before.Version, after.Version)
 	}
 	var syncedAfter string
-	if err := db.sql.QueryRow(`SELECT synced_at FROM items WHERE key = 'NMB-1'`).Scan(&syncedAfter); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT synced_at FROM items WHERE key = 'NMB-1'`).Scan(&syncedAfter); err != nil {
 		t.Fatal(err)
 	}
 	if syncedAfter != syncedBefore {
@@ -406,10 +407,10 @@ func TestUnchangedUpsertIsANoOp(t *testing.T) {
 	// Force is the repair path: a full sync must be able to rewrite everything.
 	forced := fixture()
 	forced.Force = true
-	if n, err := db.UpsertIssues(forced); err != nil || n != 3 {
+	if n, err := db.UpsertIssues(context.Background(), forced); err != nil || n != 3 {
 		t.Errorf("forced upsert wrote %d rows (%v), want 3", n, err)
 	}
-	if forcedState, _ := db.SyncState("jira"); forcedState.Version <= before.Version {
+	if forcedState, _ := db.SyncState(context.Background(), "jira"); forcedState.Version <= before.Version {
 		t.Errorf("version %d did not move after a forced rewrite", forcedState.Version)
 	}
 }
@@ -428,13 +429,13 @@ func TestChangedIssueReplacesChildrenAndDerivedFields(t *testing.T) {
 		ID: "jira:h-7", At: ago(1), Field: "status", FromValue: "Done", FromID: "5", ToValue: "In Progress", ToID: "3",
 	})
 	r.Comments = nil
-	if n, err := db.UpsertIssues(b); err != nil || n != 1 {
+	if n, err := db.UpsertIssues(context.Background(), b); err != nil || n != 1 {
 		t.Fatalf("upsert changed=%d err=%v, want 1", n, err)
 	}
 
 	var reopen, comments int
 	var resolved, reopened *string
-	if err := db.sql.QueryRow(`
+	if err := db.sql.QueryRowContext(context.Background(), `
 		SELECT reopen_count, comment_count, resolved_at, reopened_at FROM issues WHERE key = 'NMB-1'`).
 		Scan(&reopen, &comments, &resolved, &reopened); err != nil {
 		t.Fatal(err)
@@ -452,14 +453,14 @@ func TestChangedIssueReplacesChildrenAndDerivedFields(t *testing.T) {
 		t.Errorf("comment_count = %d after the comment was removed upstream", comments)
 	}
 	var rows int
-	if err := db.sql.QueryRow(`SELECT COUNT(*) FROM comments WHERE item_id = 'jira:10001'`).Scan(&rows); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM comments WHERE item_id = 'jira:10001'`).Scan(&rows); err != nil {
 		t.Fatal(err)
 	}
 	if rows != 0 {
 		t.Errorf("%d comment rows survived a shorter upstream list", rows)
 	}
 	// The FTS row is rebuilt, so the removed comment is no longer searchable.
-	if res, err := db.Search("sandbox", 10); err != nil || len(res.Keys) != 0 {
+	if res, err := db.Search(context.Background(), "sandbox", 10); err != nil || len(res.Keys) != 0 {
 		t.Errorf("search still finds removed comment text: %v (%v)", res.Keys, err)
 	}
 }
@@ -469,7 +470,7 @@ func TestDeleteItemsCascadesAndTombstones(t *testing.T) {
 	seed(t, db)
 	cursor := Now()
 
-	n, err := db.DeleteItems("jira", []string{"NMB-2", "NMB-nonexistent"})
+	n, err := db.DeleteItems(context.Background(), "jira", []string{"NMB-2", "NMB-nonexistent"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,17 +479,17 @@ func TestDeleteItemsCascadesAndTombstones(t *testing.T) {
 	}
 	for _, table := range []string{"issues", "comments", "attachments", "changelog", "links"} {
 		var rows int
-		if err := db.sql.QueryRow(`SELECT COUNT(*) FROM ` + table + ` WHERE item_id = 'jira:10002'`).Scan(&rows); err != nil {
+		if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM `+table+` WHERE item_id = 'jira:10002'`).Scan(&rows); err != nil {
 			t.Fatal(err)
 		}
 		if rows != 0 {
 			t.Errorf("%s kept %d rows for a deleted item", table, rows)
 		}
 	}
-	if res, err := db.Search("budget", 10); err != nil || len(res.Keys) != 0 {
+	if res, err := db.Search(context.Background(), "budget", 10); err != nil || len(res.Keys) != 0 {
 		t.Errorf("deleted item still in the full-text index: %v (%v)", res.Keys, err)
 	}
-	deleted, err := db.DeletedKeysSince(cursor)
+	deleted, err := db.DeletedKeysSince(context.Background(), cursor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -499,10 +500,10 @@ func TestDeleteItemsCascadesAndTombstones(t *testing.T) {
 	// An issue that comes back must stop being reported as deleted.
 	b := fixture()
 	b.Records = b.Records[1:2]
-	if _, err := db.UpsertIssues(b); err != nil {
+	if _, err := db.UpsertIssues(context.Background(), b); err != nil {
 		t.Fatal(err)
 	}
-	if deleted, err := db.DeletedKeysSince(cursor); err != nil || len(deleted) != 0 {
+	if deleted, err := db.DeletedKeysSince(context.Background(), cursor); err != nil || len(deleted) != 0 {
 		t.Errorf("resurrected issue still tombstoned: %v (%v)", deleted, err)
 	}
 }
@@ -515,7 +516,7 @@ func TestDeltaWindow(t *testing.T) {
 	// seed writes for "nothing changed" to mean anything.
 	time.Sleep(2 * time.Millisecond)
 	cursor := Now()
-	if rows, err := db.IssueLitesSince(cursor); err != nil {
+	if rows, err := db.IssueLitesSince(context.Background(), cursor); err != nil {
 		t.Fatal(err)
 	} else if len(rows) != 0 {
 		t.Errorf("%d rows changed after the cursor with no writes", len(rows))
@@ -524,10 +525,10 @@ func TestDeltaWindow(t *testing.T) {
 	b := fixture()
 	b.Records = b.Records[2:]
 	b.Records[0].Item.UpdatedAt = ago(0)
-	if _, err := db.UpsertIssues(b); err != nil {
+	if _, err := db.UpsertIssues(context.Background(), b); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := db.IssueLitesSince(cursor)
+	rows, err := db.IssueLitesSince(context.Background(), cursor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -540,13 +541,13 @@ func TestRecordSyncWatermarkOnlyMovesForward(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)
 
-	if err := db.RecordSync("jira", SyncResult{Watermark: "2026-08-01T00:00:00Z", FullSync: true}); err != nil {
+	if err := db.RecordSync(context.Background(), "jira", SyncResult{Watermark: "2026-08-01T00:00:00Z", FullSync: true}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RecordSync("jira", SyncResult{Watermark: "2026-07-01T00:00:00Z"}); err != nil {
+	if err := db.RecordSync(context.Background(), "jira", SyncResult{Watermark: "2026-07-01T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	st, err := db.SyncState("jira")
+	st, err := db.SyncState(context.Background(), "jira")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -565,14 +566,14 @@ func TestRecordSyncWatermarkOnlyMovesForward(t *testing.T) {
 	fresh := *st.SyncedAt
 
 	// A failure records itself and leaves the mirror readable.
-	if err := db.RecordSync("jira", SyncResult{Err: fmt.Errorf("401 from the source")}); err != nil {
+	if err := db.RecordSync(context.Background(), "jira", SyncResult{Err: fmt.Errorf("401 from the source")}); err != nil {
 		t.Fatal(err)
 	}
-	st, _ = db.SyncState("jira")
+	st, _ = db.SyncState(context.Background(), "jira")
 	if st.LastError == nil || *st.LastError != "401 from the source" {
 		t.Errorf("last_error = %v", st.LastError)
 	}
-	if rows, err := db.IssueLites(); err != nil || len(rows) != 3 {
+	if rows, err := db.IssueLites(context.Background()); err != nil || len(rows) != 3 {
 		t.Errorf("mirror unreadable after a failed sync: %d rows (%v)", len(rows), err)
 	}
 	if st.Watermark != "2026-08-01T00:00:00Z" {
@@ -586,50 +587,50 @@ func TestRecordSyncWatermarkOnlyMovesForward(t *testing.T) {
 func TestPersonalState(t *testing.T) {
 	db := openTemp(t)
 
-	if err := db.PutSavedView(SavedView{ID: "v1", Name: "Mine", Config: json.RawMessage(`{"assignee":"me"}`)}); err != nil {
+	if err := db.PutSavedView(context.Background(), SavedView{ID: "v1", Name: "Mine", Config: json.RawMessage(`{"assignee":"me"}`)}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PutSavedView(SavedView{ID: "v1", Name: "Mine, renamed", Config: json.RawMessage(`{"assignee":"me"}`)}); err != nil {
+	if err := db.PutSavedView(context.Background(), SavedView{ID: "v1", Name: "Mine, renamed", Config: json.RawMessage(`{"assignee":"me"}`)}); err != nil {
 		t.Fatal(err)
 	}
-	views, err := db.SavedViews()
+	views, err := db.SavedViews(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(views) != 1 || views[0].Name != "Mine, renamed" || views[0].CreatedAt == "" {
 		t.Fatalf("saved views = %+v", views)
 	}
-	if err := db.PutSavedView(SavedView{ID: "", Name: "no id"}); err == nil {
+	if err := db.PutSavedView(context.Background(), SavedView{ID: "", Name: "no id"}); err == nil {
 		t.Error("accepted a saved view without an id")
 	}
-	if err := db.DeleteSavedView("v1"); err != nil {
+	if err := db.DeleteSavedView(context.Background(), "v1"); err != nil {
 		t.Fatal(err)
 	}
-	if views, _ := db.SavedViews(); len(views) != 0 {
+	if views, _ := db.SavedViews(context.Background()); len(views) != 0 {
 		t.Errorf("view survived deletion: %+v", views)
 	}
 
 	for _, c := range []struct {
-		set  func(string, bool) error
-		get  func() ([]string, error)
+		set  func(context.Context, string, bool) error
+		get  func(context.Context) ([]string, error)
 		name string
 	}{
 		{db.SetWatch, db.Watches, "watches"},
 		{db.SetFavorite, db.Favorites, "favorites"},
 	} {
-		if err := c.set("NMB-1", true); err != nil {
+		if err := c.set(context.Background(), "NMB-1", true); err != nil {
 			t.Fatal(err)
 		}
-		if err := c.set("NMB-1", true); err != nil {
+		if err := c.set(context.Background(), "NMB-1", true); err != nil {
 			t.Fatal(err)
 		}
-		if keys, err := c.get(); err != nil || len(keys) != 1 {
+		if keys, err := c.get(context.Background()); err != nil || len(keys) != 1 {
 			t.Errorf("%s = %v (%v)", c.name, keys, err)
 		}
-		if err := c.set("NMB-1", false); err != nil {
+		if err := c.set(context.Background(), "NMB-1", false); err != nil {
 			t.Fatal(err)
 		}
-		if keys, _ := c.get(); len(keys) != 0 {
+		if keys, _ := c.get(context.Background()); len(keys) != 0 {
 			t.Errorf("%s kept %v after removal", c.name, keys)
 		}
 	}

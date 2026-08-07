@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -48,7 +49,7 @@ func TestNotifyAfterSyncBootstrapNoFire(t *testing.T) {
 	if len(n.calls) != 0 {
 		t.Fatalf("bootstrap should not notify, got %+v", n.calls)
 	}
-	st, err := db.SyncState(SourceID)
+	st, err := db.SyncState(context.Background(), SourceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +69,7 @@ func TestNotifyAfterSyncFiresForNewEvents(t *testing.T) {
 		Email: "me@example.com", AccountID: "acc-me", TokenOwner: "Me",
 	}
 	past := time.Now().UTC().Add(-2 * time.Hour).Format("2006-01-02T15:04:05.000Z")
-	if err := db.SetLastNotifiedAt(SourceID, past); err != nil {
+	if err := db.SetLastNotifiedAt(context.Background(), SourceID, past); err != nil {
 		t.Fatal(err)
 	}
 
@@ -90,7 +91,7 @@ func TestNotifyAfterSyncFiresForNewEvents(t *testing.T) {
 		t.Errorf("body %q, want issue title", body)
 	}
 	// feed_reads must stay empty — notify ≠ read.
-	res, err := db.Feed(store.FeedOpts{Focus: store.FeedFocusAll, Me: store.FeedIdentity{
+	res, err := db.Feed(context.Background(), store.FeedOpts{Focus: store.FeedFocusAll, Me: store.FeedIdentity{
 		AccountID: "acc-me", Email: "me@example.com",
 	}})
 	if err != nil {
@@ -101,7 +102,7 @@ func TestNotifyAfterSyncFiresForNewEvents(t *testing.T) {
 			t.Errorf("event %s has read_at after notify", it.EventID)
 		}
 	}
-	st, _ := db.SyncState(SourceID)
+	st, _ := db.SyncState(context.Background(), SourceID)
 	if st.LastNotifiedAt == nil || *st.LastNotifiedAt <= past {
 		t.Errorf("last_notified_at not advanced: %v", st.LastNotifiedAt)
 	}
@@ -128,7 +129,7 @@ func TestNotifyFailureDoesNotAdvanceWatermark(t *testing.T) {
 		BodyText: "x", CreatedAt: now, UpdatedAt: now,
 	}})
 	past := time.Now().UTC().Add(-time.Hour).Format("2006-01-02T15:04:05.000Z")
-	if err := db.SetLastNotifiedAt(SourceID, past); err != nil {
+	if err := db.SetLastNotifiedAt(context.Background(), SourceID, past); err != nil {
 		t.Fatal(err)
 	}
 	n := &fakeNotifier{err: errBoom}
@@ -136,7 +137,7 @@ func TestNotifyFailureDoesNotAdvanceWatermark(t *testing.T) {
 	if err := notifyAfterSync(db, cfg, n); err == nil {
 		t.Fatal("expected error from notifier")
 	}
-	st, _ := db.SyncState(SourceID)
+	st, _ := db.SyncState(context.Background(), SourceID)
 	if st.LastNotifiedAt == nil || *st.LastNotifiedAt != past {
 		t.Errorf("watermark should stay at %q, got %v", past, st.LastNotifiedAt)
 	}
@@ -155,7 +156,7 @@ func openSyncDB(t *testing.T) *store.DB {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	if err := db.UpsertSource(store.Source{ID: SourceID, Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: SourceID, Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
 		t.Fatal(err)
 	}
 	return db
@@ -184,7 +185,7 @@ func seedFeedIssue(t *testing.T, db *store.DB, key, assigneeID string, comments 
 			Comments: comments,
 		}},
 	}
-	if _, err := db.UpsertIssues(batch); err != nil {
+	if _, err := db.UpsertIssues(context.Background(), batch); err != nil {
 		t.Fatal(err)
 	}
 }

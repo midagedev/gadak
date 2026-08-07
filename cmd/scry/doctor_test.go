@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -67,7 +68,7 @@ func TestDoctorDemoDBCounts(t *testing.T) {
 	if strings.Contains(out, "issues:                n/a") {
 		t.Fatalf("issues should be counted:\n%s", out)
 	}
-	n, err := db.TableCount("issues")
+	n, err := db.TableCount(context.Background(), "issues")
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -89,10 +90,10 @@ func TestDoctorRedaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := db.UpsertSource(store.Source{ID: "jira", Kind: "jira", BaseURL: "https://example.atlassian.net"}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://example.atlassian.net"}); err != nil {
 		t.Fatalf("source: %v", err)
 	}
-	if _, err := db.UpsertIssues(store.Batch{
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
 		Categories: map[string]string{"3": "inprogress"},
 		Records: []store.IssueRecord{{
 			Item: store.Item{
@@ -109,7 +110,7 @@ func TestDoctorRedaction(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	// Plant a last_error that embeds a host, key, and URL — classifier only.
-	if err := db.RecordSync("jira", store.SyncResult{
+	if err := db.RecordSync(context.Background(), "jira", store.SyncResult{
 		Err: errString("GET /rest/api/3/search: jira: 403: You do not have access to LEAKY-42 on https://example.atlassian.net"),
 	}); err != nil {
 		t.Fatalf("record sync: %v", err)

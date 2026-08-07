@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -46,10 +47,10 @@ func fixtureAt(t *testing.T) (*store.DB, *config.Config, string) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
-	if err := db.UpsertSource(store.Source{ID: "jira", Kind: "jira", BaseURL: "https://x.atlassian.net"}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://x.atlassian.net"}); err != nil {
 		t.Fatalf("source: %v", err)
 	}
-	if _, err := db.UpsertIssues(store.Batch{
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
 		Categories: map[string]string{"1": "new", "3": "inprogress", "10001": "done"},
 		Priorities: []string{"Highest", "High", "Medium"},
 		Records: []store.IssueRecord{
@@ -324,10 +325,10 @@ func TestDeltaUpsertedAndDeleted(t *testing.T) {
 	}
 
 	cursor := store.Now()
-	if _, err := db.DeleteItems("jira", []string{"NMB-2"}); err != nil {
+	if _, err := db.DeleteItems(context.Background(), "jira", []string{"NMB-2"}); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, err := db.UpsertIssues(store.Batch{
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
 		Force: true,
 		Records: []store.IssueRecord{{
 			Item:  store.Item{ID: "jira:2001", SourceID: "jira", ExternalID: "2001", Key: "NMA-9", Title: "modeler crash on import (edited)"},
@@ -828,14 +829,14 @@ func TestSyncHealth(t *testing.T) {
 		got.Sources[0].Status != "missing" {
 		t.Fatalf("never-synced mirror: %+v", got)
 	}
-	if err := db.RecordSync(sourceID, store.SyncResult{Watermark: "2026-08-04T00:00:00.000Z"}); err != nil {
+	if err := db.RecordSync(context.Background(), sourceID, store.SyncResult{Watermark: "2026-08-04T00:00:00.000Z"}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 	if got := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil)).SyncHealth; got.Overall != "healthy" ||
 		got.Sources[0].Message != "ok" || got.Sources[0].SyncedAt == nil {
 		t.Fatalf("after a good run: %+v", got)
 	}
-	if err := db.RecordSync(sourceID, store.SyncResult{Err: errors.New("401 from jira")}); err != nil {
+	if err := db.RecordSync(context.Background(), sourceID, store.SyncResult{Err: errors.New("401 from jira")}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 	got := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil)).SyncHealth

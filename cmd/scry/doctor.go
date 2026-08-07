@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -174,29 +175,29 @@ func collectDoctor() doctorReport {
 	}
 
 	counts := &doctorCounts{}
-	if n, err := db.TableCount("items"); err == nil {
+	if n, err := db.TableCount(context.Background(), "items"); err == nil {
 		counts.Items = n
 	}
-	if n, err := db.TableCount("issues"); err == nil {
+	if n, err := db.TableCount(context.Background(), "issues"); err == nil {
 		counts.Issues = n
 	}
-	if n, err := db.TableCount("pages"); err == nil {
+	if n, err := db.TableCount(context.Background(), "pages"); err == nil {
 		counts.Pages = n
 	}
-	if n, err := db.TableCount("comments"); err == nil {
+	if n, err := db.TableCount(context.Background(), "comments"); err == nil {
 		counts.Comments = n
 	}
-	if n, err := db.DistinctCount("issues", "project_key"); err == nil {
+	if n, err := db.DistinctCount(context.Background(), "issues", "project_key"); err == nil {
 		counts.Projects = n
 	}
-	if n, err := db.DistinctCount("issues", "status_category"); err == nil {
+	if n, err := db.DistinctCount(context.Background(), "issues", "status_category"); err == nil {
 		counts.StatusCategories = n
 	}
 	// Prefer the spaces catalog; fall back to distinct keys on mirrored pages
 	// when the catalog was never filled (older snapshots).
-	if n, err := db.TableCount("spaces"); err == nil && n > 0 {
+	if n, err := db.TableCount(context.Background(), "spaces"); err == nil && n > 0 {
 		counts.Spaces = n
-	} else if n, err := db.DistinctCount("pages", "space_key"); err == nil {
+	} else if n, err := db.DistinctCount(context.Background(), "pages", "space_key"); err == nil {
 		counts.Spaces = n
 	}
 	rep.Counts = counts
@@ -205,7 +206,7 @@ func collectDoctor() doctorReport {
 		rep.Sync[src] = collectSync(db, src)
 	}
 
-	if usage, err := db.APIUsageSummary(); err == nil {
+	if usage, err := db.APIUsageSummary(context.Background()); err == nil {
 		rep.APIUsage = doctorAPIUsage{
 			Day:       usage.Today.Day,
 			Requests:  usage.Today.Requests,
@@ -224,7 +225,7 @@ func collectSync(db *store.DB, sourceID string) doctorSync {
 		LastError:  "none",
 		LastFullAt: "never",
 	}
-	ss, err := db.SyncState(sourceID)
+	ss, err := db.SyncState(context.Background(), sourceID)
 	if err != nil {
 		out.LastError = "error"
 		return out

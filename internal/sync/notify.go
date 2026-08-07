@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -65,7 +66,7 @@ func notifyAfterSync(db *store.DB, cfg *config.Config, n Notifier) error {
 	if n == nil {
 		n = OSNotifier{}
 	}
-	st, err := db.SyncState(SourceID)
+	st, err := db.SyncState(context.Background(), SourceID)
 	if err != nil {
 		return err
 	}
@@ -75,10 +76,10 @@ func notifyAfterSync(db *store.DB, cfg *config.Config, n Notifier) error {
 	}
 	if watermark == "" {
 		// Bootstrap: advance the watermark without a flood of historical events.
-		return db.SetLastNotifiedAt(SourceID, store.Now())
+		return db.SetLastNotifiedAt(context.Background(), SourceID, store.Now())
 	}
 
-	res, err := db.Feed(store.FeedOpts{
+	res, err := db.Feed(context.Background(), store.FeedOpts{
 		Focus: store.FeedFocusAll,
 		Limit: store.FeedMaxLimit,
 		Me:    FeedIdentity(cfg),
@@ -110,7 +111,7 @@ func notifyAfterSync(db *store.DB, cfg *config.Config, n Notifier) error {
 		// Still advance the watermark? No — a failed delivery should retry next cycle.
 		return err
 	}
-	return db.SetLastNotifiedAt(SourceID, maxAt)
+	return db.SetLastNotifiedAt(context.Background(), SourceID, maxAt)
 }
 
 // summarizeFeedNotify builds a single bundled line:

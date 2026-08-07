@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"unicode/utf8"
 )
 
@@ -33,7 +34,7 @@ type CommentsByAuthorResult struct {
 // CommentsByAuthor returns comments for an exact author_id match, newest first.
 // Missing author_id yields total 0 and an empty list (not an error). limit
 // defaults to 50 and is capped at 200.
-func (db *DB) CommentsByAuthor(authorID string, limit int) (CommentsByAuthorResult, error) {
+func (db *DB) CommentsByAuthor(ctx context.Context, authorID string, limit int) (CommentsByAuthorResult, error) {
 	out := CommentsByAuthorResult{Comments: []AuthorComment{}}
 	if authorID == "" {
 		return out, nil
@@ -45,7 +46,7 @@ func (db *DB) CommentsByAuthor(authorID string, limit int) (CommentsByAuthorResu
 		limit = CommentsByAuthorMaxLimit
 	}
 
-	if err := db.sql.QueryRow(
+	if err := db.sql.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM comments WHERE author_id = ?`, authorID,
 	).Scan(&out.Total); err != nil {
 		return out, err
@@ -54,7 +55,7 @@ func (db *DB) CommentsByAuthor(authorID string, limit int) (CommentsByAuthorResu
 		return out, nil
 	}
 
-	rows, err := db.sql.Query(`
+	rows, err := db.sql.QueryContext(ctx, `
 		SELECT COALESCE(c.author, ''), COALESCE(it.key, ''), COALESCE(it.kind, ''),
 		       COALESCE(it.title, ''), COALESCE(c.body_text, ''), COALESCE(c.body_adf, ''),
 		       COALESCE(c.created_at, '')

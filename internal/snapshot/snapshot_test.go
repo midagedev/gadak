@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -572,13 +573,13 @@ func seedSource(t *testing.T, o seedOpts) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpsertSource(store.Source{
+	if err := db.UpsertSource(context.Background(), store.Source{
 		ID: "jira", Kind: "jira", BaseURL: "https://example.invalid",
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if o.withPages {
-		if err := db.UpsertSource(store.Source{
+		if err := db.UpsertSource(context.Background(), store.Source{
 			ID: "confluence", Kind: "confluence", BaseURL: "https://example.invalid/wiki",
 		}); err != nil {
 			t.Fatal(err)
@@ -657,12 +658,12 @@ func seedSource(t *testing.T, o seedOpts) string {
 			},
 		},
 	}
-	if _, err := db.UpsertIssues(batch); err != nil {
+	if _, err := db.UpsertIssues(context.Background(), batch); err != nil {
 		t.Fatal(err)
 	}
 
 	if o.withPages {
-		if err := db.UpsertSpaces("confluence", []store.SpaceRow{
+		if err := db.UpsertSpaces(context.Background(), "confluence", []store.SpaceRow{
 			{Key: "ENG", Name: "Engineering", Kind: "global"},
 		}); err != nil {
 			t.Fatal(err)
@@ -676,7 +677,7 @@ func seedSource(t *testing.T, o seedOpts) string {
 			pageADF = json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"secret ` + tok + ` in page"}]}]}`)
 		}
 		cmADF := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"pagecomment confirms"}]}]}`)
-		if _, err := db.UpsertPages([]store.PageRecord{
+		if _, err := db.UpsertPages(context.Background(), []store.PageRecord{
 			{
 				Item: store.Item{
 					ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
@@ -727,7 +728,7 @@ func seedSource(t *testing.T, o seedOpts) string {
 		rawRefs.Close()
 	}
 
-	if err := db.RecordSync("jira", store.SyncResult{
+	if err := db.RecordSync(context.Background(), "jira", store.SyncResult{
 		Watermark: "2026-06-01T00:00:00.000Z",
 		FullSync:  true,
 	}); err != nil {

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -70,20 +71,20 @@ const issueLiteSelect = `
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
 // IssueLites returns the whole mirror, which is what `bootstrap` sends.
-func (db *DB) IssueLites() ([]IssueLite, error) {
-	return db.issueLites(issueLiteSelect + ` ORDER BY it.updated_at DESC`)
+func (db *DB) IssueLites(ctx context.Context) ([]IssueLite, error) {
+	return db.issueLites(ctx, issueLiteSelect+` ORDER BY it.updated_at DESC`)
 }
 
 // IssueLitesSince returns rows written at or after the given cursor. Only a row
 // whose content actually changed has a newer synced_at, so an idle poll returns
 // none. The bound is inclusive on purpose: re-sending a row the client already
 // has is a harmless upsert, while missing one leaves it stale forever.
-func (db *DB) IssueLitesSince(since string) ([]IssueLite, error) {
-	return db.issueLites(issueLiteSelect+` WHERE it.synced_at >= ? ORDER BY it.updated_at DESC`, since)
+func (db *DB) IssueLitesSince(ctx context.Context, since string) ([]IssueLite, error) {
+	return db.issueLites(ctx, issueLiteSelect+` WHERE it.synced_at >= ? ORDER BY it.updated_at DESC`, since)
 }
 
-func (db *DB) issueLites(query string, args ...any) ([]IssueLite, error) {
-	rows, err := db.sql.Query(query, args...)
+func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]IssueLite, error) {
+	rows, err := db.sql.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -126,8 +127,8 @@ func (db *DB) issueLites(query string, args ...any) ([]IssueLite, error) {
 
 // DeletedKeysSince lists keys tombstoned after the cursor. `delta` must report
 // these: a missed deletion leaves a tombstone visible in the client forever.
-func (db *DB) DeletedKeysSince(since string) ([]string, error) {
-	rows, err := db.sql.Query(`SELECT key FROM deleted_items WHERE deleted_at >= ? ORDER BY deleted_at`, since)
+func (db *DB) DeletedKeysSince(ctx context.Context, since string) ([]string, error) {
+	rows, err := db.sql.QueryContext(ctx, `SELECT key FROM deleted_items WHERE deleted_at >= ? ORDER BY deleted_at`, since)
 	if err != nil {
 		return nil, err
 	}
@@ -210,11 +211,11 @@ type Detail struct {
 
 // Detail assembles one issue. An unknown key returns ErrNotFound so the
 // handler can answer 404 without importing database/sql.
-func (db *DB) Detail(key string) (*Detail, error) {
+func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 	var itemID string
 	var adf *string
 	var customJSON string
-	if err := db.sql.QueryRow(`SELECT item_id, description_adf, COALESCE(custom, '{}') FROM issues WHERE key = ?`, key).
+	if err := db.sql.QueryRowContext(ctx, `SELECT item_id, description_adf, COALESCE(custom, '{}') FROM issues WHERE key = ?`, key).
 		Scan(&itemID, &adf, &customJSON); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -231,7 +232,7 @@ func (db *DB) Detail(key string) (*Detail, error) {
 	}
 	_ = json.Unmarshal([]byte(customJSON), &d.Custom)
 
-	if err := each(db.sql, `
+	if err := each(ctx, db.sql, `
 		SELECT id, COALESCE(external_id,''), COALESCE(author,''), COALESCE(author_id,''),
 		       body_adf, COALESCE(body_text,''), COALESCE(created_at,''), COALESCE(updated_at,'')
 		FROM comments WHERE item_id = ? ORDER BY created_at, id`,
@@ -248,7 +249,7 @@ func (db *DB) Detail(key string) (*Detail, error) {
 		return nil, err
 	}
 
-	if err := each(db.sql, `
+	if err := each(ctx, db.sql, `
 		SELECT id, COALESCE(external_id,''), COALESCE(filename,''), COALESCE(mime_type,''),
 		       COALESCE(size,0), COALESCE(created_at,'')
 		FROM attachments WHERE item_id = ? ORDER BY created_at, id`,
@@ -263,7 +264,7 @@ func (db *DB) Detail(key string) (*Detail, error) {
 		return nil, err
 	}
 
-	if err := each(db.sql, `
+	if err := each(ctx, db.sql, `
 		SELECT COALESCE(at,''), COALESCE(author,''), COALESCE(field,''),
 		       COALESCE(from_value,''), COALESCE(from_id,''),
 		       COALESCE(to_value,''), COALESCE(to_id,'')
@@ -279,7 +280,7 @@ func (db *DB) Detail(key string) (*Detail, error) {
 		return nil, err
 	}
 
-	if err := each(db.sql, `
+	if err := each(ctx, db.sql, `
 		SELECT l.target_key, l.type, l.direction,
 		       COALESCE(it.title, ''), COALESCE(i.status_category, '')
 		FROM links l
@@ -298,7 +299,7 @@ func (db *DB) Detail(key string) (*Detail, error) {
 	}
 
 	// Outgoing page refs (this issue mentions pages).
-	refPages, err := db.pageLitesFromRefs(`
+	refPages, err := db.pageLitesFromRefs(ctx, `
 		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
 		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
 		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
@@ -315,7 +316,7 @@ func (db *DB) Detail(key string) (*Detail, error) {
 	d.RefPages = refPages
 
 	// Incoming page backlinks (pages that mention this issue key).
-	backPages, err := db.pageLitesFromRefs(`
+	backPages, err := db.pageLitesFromRefs(ctx, `
 		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
 		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
 		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
@@ -335,9 +336,9 @@ func (db *DB) Detail(key string) (*Detail, error) {
 }
 
 // pageLitesFromRefs runs a PageLite-shaped SELECT and returns the rows (nil when empty).
-func (db *DB) pageLitesFromRefs(query string, args ...any) ([]PageLite, error) {
+func (db *DB) pageLitesFromRefs(ctx context.Context, query string, args ...any) ([]PageLite, error) {
 	var out []PageLite
-	err := each(db.sql, query, func(rows *sql.Rows) error {
+	err := each(ctx, db.sql, query, func(rows *sql.Rows) error {
 		var v PageLite
 		var labels string
 		if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.SpaceName, &v.ParentID,
@@ -395,9 +396,9 @@ type PageDetail struct {
 }
 
 // PageLites returns every mirrored page, ordered by space then title.
-func (db *DB) PageLites() ([]PageLite, error) {
+func (db *DB) PageLites(ctx context.Context) ([]PageLite, error) {
 	out := []PageLite{}
-	err := each(db.sql, `
+	err := each(ctx, db.sql, `
 		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
 		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
 		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
@@ -422,12 +423,12 @@ func (db *DB) PageLites() ([]PageLite, error) {
 }
 
 // PageDetail assembles one page. An unknown key returns (nil, nil).
-func (db *DB) PageDetail(key string) (*PageDetail, error) {
+func (db *DB) PageDetail(ctx context.Context, key string) (*PageDetail, error) {
 	var itemID string
 	var bodyADF *string
 	var labels string
 	var d PageDetail
-	err := db.sql.QueryRow(`
+	err := db.sql.QueryRowContext(ctx, `
 		SELECT it.id, COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
 		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
 		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
@@ -447,7 +448,7 @@ func (db *DB) PageDetail(key string) (*PageDetail, error) {
 	d.Labels = parseArray(&labels)
 	d.BodyADF = rawOrNull(bodyADF)
 	d.Comments = []PageComment{}
-	if err := each(db.sql, `
+	if err := each(ctx, db.sql, `
 		SELECT COALESCE(author, ''), COALESCE(created_at, ''),
 		       body_adf, COALESCE(body_text, '')
 		FROM comments WHERE item_id = ? ORDER BY created_at, id`,
@@ -466,7 +467,7 @@ func (db *DB) PageDetail(key string) (*PageDetail, error) {
 
 	// Outgoing: this page mentions these issue keys (mirrored issues only).
 	var refKeys []string
-	if err := each(db.sql, `
+	if err := each(ctx, db.sql, `
 		SELECT r.target_key
 		FROM item_refs r
 		JOIN items it ON it.kind = 'issue' AND it.key = r.target_key
@@ -486,7 +487,7 @@ func (db *DB) PageDetail(key string) (*PageDetail, error) {
 
 	// Incoming: issues that mention this page id.
 	var backKeys []string
-	if err := each(db.sql, `
+	if err := each(ctx, db.sql, `
 		SELECT it.key
 		FROM item_refs r
 		JOIN items it ON it.id = r.item_id AND it.kind = 'issue'
@@ -535,7 +536,7 @@ const searchSnippetRunes = 120
 // quoted prefix queries (see ftsPrefixQuery). A query FTS5 cannot parse is
 // retried as a literal phrase rather than surfaced as an error, because this is
 // fed raw user input. limit applies to the combined FTS result set.
-func (db *DB) Search(query string, limit int) (SearchResult, error) {
+func (db *DB) Search(ctx context.Context, query string, limit int) (SearchResult, error) {
 	empty := SearchResult{Keys: []string{}, Pages: []PageLite{}, Matches: map[string]SearchMatch{}}
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -545,9 +546,9 @@ func (db *DB) Search(query string, limit int) (SearchResult, error) {
 		limit = 50
 	}
 	match := ftsPrefixQuery(query)
-	res, err := db.search(match, query, limit)
+	res, err := db.search(ctx, match, query, limit)
 	if err != nil {
-		return db.search(`"`+strings.ReplaceAll(query, `"`, `""`)+`"`, query, limit)
+		return db.search(ctx, `"`+strings.ReplaceAll(query, `"`, `""`)+`"`, query, limit)
 	}
 	return res, nil
 }
@@ -575,7 +576,7 @@ func ftsPrefixQuery(q string) string {
 	return strings.Join(out, " ")
 }
 
-func (db *DB) search(match, rawQuery string, limit int) (SearchResult, error) {
+func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (SearchResult, error) {
 	res := SearchResult{Keys: []string{}, Pages: []PageLite{}, Matches: map[string]SearchMatch{}}
 	// Column-filtered MATCH expressions detect which FTS column hit. items_fts
 	// is contentless (content=''), so FTS5 snippet()/highlight() return NULL —
@@ -584,7 +585,7 @@ func (db *DB) search(match, rawQuery string, limit int) (SearchResult, error) {
 	titleMatch := "title : " + match
 	bodyMatch := "body_text : " + match
 	commentMatch := "comments_text : " + match
-	err := each(db.sql, `
+	err := each(ctx, db.sql, `
 		SELECT it.kind, COALESCE(it.key, ''), COALESCE(it.title, ''),
 		       COALESCE(it.author, ''), COALESCE(it.updated_at, ''), COALESCE(it.url, ''),
 		       COALESCE(p.space_key, ''), COALESCE(sp.name, ''), COALESCE(p.parent_id, ''),
@@ -761,15 +762,15 @@ func snippetTokens(q string) []string {
 }
 
 // HasSource reports whether a sources row exists for id.
-func (db *DB) HasSource(id string) (bool, error) {
+func (db *DB) HasSource(ctx context.Context, id string) (bool, error) {
 	var n int
-	err := db.sql.QueryRow(`SELECT COUNT(*) FROM sources WHERE id = ?`, id).Scan(&n)
+	err := db.sql.QueryRowContext(ctx, `SELECT COUNT(*) FROM sources WHERE id = ?`, id).Scan(&n)
 	return n > 0, err
 }
 
 // each is the query-rows-and-scan boilerplate, once.
-func each(db *sql.DB, query string, scan func(*sql.Rows) error, args ...any) error {
-	rows, err := db.Query(query, args...)
+func each(ctx context.Context, db *sql.DB, query string, scan func(*sql.Rows) error, args ...any) error {
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -96,10 +97,10 @@ func mirror(t *testing.T, site string) *config.Config {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := db.UpsertSource(store.Source{ID: "jira", Kind: "jira", BaseURL: "https://nimbus.example.com"}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://nimbus.example.com"}); err != nil {
 		t.Fatalf("source: %v", err)
 	}
-	if _, err := db.UpsertIssues(store.Batch{
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
 		Categories: map[string]string{"3": "inprogress", "10001": "done"},
 		Priorities: []string{"Highest", "High", "Medium"},
 		Records: []store.IssueRecord{{

@@ -47,10 +47,10 @@ func seedProfile(t *testing.T, name string, cfg *config.Config) {
 	if name != "" && name != "default" {
 		key = "BBB-1"
 	}
-	if err := db.UpsertSource(store.Source{ID: "jira", Kind: "jira", BaseURL: cfg.Site}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: cfg.Site}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.UpsertIssues(store.Batch{
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
 		Categories: map[string]string{"1": "new"},
 		Records: []store.IssueRecord{{
 			Item: store.Item{

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -25,7 +26,7 @@ func seedBenchDB(tb testing.TB, n int, seed int64) (*store.DB, *config.Config) {
 	}
 	tb.Cleanup(func() { db.Close() })
 
-	if err := db.UpsertSource(store.Source{
+	if err := db.UpsertSource(context.Background(), store.Source{
 		ID: "jira", Kind: "jira", BaseURL: "https://example.invalid",
 	}); err != nil {
 		tb.Fatalf("source: %v", err)
@@ -96,7 +97,7 @@ func seedBenchDB(tb testing.TB, n int, seed int64) (*store.DB, *config.Config) {
 			}
 			recs = append(recs, rec)
 		}
-		if _, err := db.UpsertIssues(store.Batch{
+		if _, err := db.UpsertIssues(context.Background(), store.Batch{
 			Categories: categories, Priorities: priorities, Records: recs, Force: true,
 		}); err != nil {
 			tb.Fatalf("upsert %d-%d: %v", start, end-1, err)

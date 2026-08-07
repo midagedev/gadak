@@ -21,7 +21,7 @@ func (s *server) handlePeopleComments(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = n
 	}
-	res, err := s.db.CommentsByAuthor(authorID, limit)
+	res, err := s.db.CommentsByAuthor(r.Context(), authorID, limit)
 	if err != nil {
 		serverError(w, r, err)
 		return

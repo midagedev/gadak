@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -10,10 +11,10 @@ import (
 
 func seedPeopleComments(t *testing.T, db *DB) {
 	t.Helper()
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://j.example"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://j.example"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpsertSource(Source{ID: "confluence", Kind: "confluence", BaseURL: "https://j.example/wiki"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence", BaseURL: "https://j.example/wiki"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -22,7 +23,7 @@ func seedPeopleComments(t *testing.T, db *DB) {
 	// Whitespace-heavy body for snippet normalization.
 	messy := "hello\n\nworld   \t  and   more"
 
-	if _, err := db.UpsertIssues(Batch{
+	if _, err := db.UpsertIssues(context.Background(), Batch{
 		Categories: map[string]string{"1": "new"},
 		Records: []IssueRecord{
 			{
@@ -70,7 +71,7 @@ func seedPeopleComments(t *testing.T, db *DB) {
 		t.Fatal(err)
 	}
 
-	if _, err := db.UpsertPages([]PageRecord{{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{{
 		Item: Item{
 			ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
 			Key: "100", Title: "page title", Author: "Dana",
@@ -93,7 +94,7 @@ func TestCommentsByAuthorFilterSortLimit(t *testing.T) {
 	db := openTemp(t)
 	seedPeopleComments(t, db)
 
-	res, err := db.CommentsByAuthor("acc-alex", 2)
+	res, err := db.CommentsByAuthor(context.Background(), "acc-alex", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +124,7 @@ func TestCommentsByAuthorMixedKinds(t *testing.T) {
 	db := openTemp(t)
 	seedPeopleComments(t, db)
 
-	res, err := db.CommentsByAuthor("acc-alex", 50)
+	res, err := db.CommentsByAuthor(context.Background(), "acc-alex", 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +146,7 @@ func TestCommentsByAuthorEmpty(t *testing.T) {
 	db := openTemp(t)
 	seedPeopleComments(t, db)
 
-	res, err := db.CommentsByAuthor("acc-nobody", 50)
+	res, err := db.CommentsByAuthor(context.Background(), "acc-nobody", 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +161,7 @@ func TestCommentsByAuthorEmpty(t *testing.T) {
 	}
 
 	// Empty author_id path param → empty result, not a full-table scan.
-	res, err = db.CommentsByAuthor("", 50)
+	res, err = db.CommentsByAuthor(context.Background(), "", 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +174,7 @@ func TestCommentsByAuthorSnippetNormalizeAndADF(t *testing.T) {
 	db := openTemp(t)
 	seedPeopleComments(t, db)
 
-	res, err := db.CommentsByAuthor("acc-alex", 50)
+	res, err := db.CommentsByAuthor(context.Background(), "acc-alex", 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +207,7 @@ func TestCommentsByAuthorSnippetNormalizeAndADF(t *testing.T) {
 
 func TestCommentsByAuthorLimitCap(t *testing.T) {
 	db := openTemp(t)
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
 		t.Fatal(err)
 	}
 	// 210 comments from one author so default/max caps are observable.
@@ -226,7 +227,7 @@ func TestCommentsByAuthorLimitCap(t *testing.T) {
 			CreatedAt:  "2026-08-01T00:00:00." + ms + "Z",
 		})
 	}
-	if _, err := db.UpsertIssues(Batch{
+	if _, err := db.UpsertIssues(context.Background(), Batch{
 		Categories: map[string]string{"1": "new"},
 		Records: []IssueRecord{{
 			Item: Item{
@@ -242,7 +243,7 @@ func TestCommentsByAuthorLimitCap(t *testing.T) {
 	}
 
 	// Default limit (0 → 50).
-	res, err := db.CommentsByAuthor("acc-mass", 0)
+	res, err := db.CommentsByAuthor(context.Background(), "acc-mass", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +255,7 @@ func TestCommentsByAuthorLimitCap(t *testing.T) {
 	}
 
 	// Cap at max even when caller asks for more.
-	res, err = db.CommentsByAuthor("acc-mass", 500)
+	res, err = db.CommentsByAuthor(context.Background(), "acc-mass", 500)
 	if err != nil {
 		t.Fatal(err)
 	}

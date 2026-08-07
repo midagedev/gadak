@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -11,7 +12,7 @@ import (
 // opening examples/demo.db.
 func seedSearchMatchFields(t *testing.T, db *DB) {
 	t.Helper()
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
 		t.Fatal(err)
 	}
 	b := Batch{
@@ -78,7 +79,7 @@ func seedSearchMatchFields(t *testing.T, db *DB) {
 			},
 		},
 	}
-	if _, err := db.UpsertIssues(b); err != nil {
+	if _, err := db.UpsertIssues(context.Background(), b); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -103,7 +104,7 @@ func TestSearchMatchFieldTitle(t *testing.T) {
 	db := openTemp(t)
 	seedSearchMatchFields(t, db)
 
-	res, err := db.Search("UniqueTitleNeedle", 10)
+	res, err := db.Search(context.Background(), "UniqueTitleNeedle", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +128,7 @@ func TestSearchMatchFieldBody(t *testing.T) {
 	db := openTemp(t)
 	seedSearchMatchFields(t, db)
 
-	res, err := db.Search("UniqueBodyNeedle", 10)
+	res, err := db.Search(context.Background(), "UniqueBodyNeedle", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +152,7 @@ func TestSearchMatchFieldComment(t *testing.T) {
 	db := openTemp(t)
 	seedSearchMatchFields(t, db)
 
-	res, err := db.Search("UniqueCommentNeedle", 10)
+	res, err := db.Search(context.Background(), "UniqueCommentNeedle", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +179,7 @@ func TestSearchMatchFieldPriorityTitleWins(t *testing.T) {
 	db := openTemp(t)
 	seedSearchMatchFields(t, db)
 
-	res, err := db.Search("MultiHitNeedle", 10)
+	res, err := db.Search(context.Background(), "MultiHitNeedle", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +197,7 @@ func TestSearchMatchEmptyQueryAndNoHits(t *testing.T) {
 	db := openTemp(t)
 	seedSearchMatchFields(t, db)
 
-	res, err := db.Search("", 10)
+	res, err := db.Search(context.Background(), "", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +208,7 @@ func TestSearchMatchEmptyQueryAndNoHits(t *testing.T) {
 		t.Errorf("empty query: got keys=%v matches=%+v", res.Keys, res.Matches)
 	}
 
-	res, err = db.Search("zzznomatchtokenzzz", 10)
+	res, err = db.Search(context.Background(), "zzznomatchtokenzzz", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +225,7 @@ func TestSearchMatchExistingFixtureComment(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)
 
-	res, err := db.Search("sandbox", 10)
+	res, err := db.Search(context.Background(), "sandbox", 10)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -10,8 +11,8 @@ import (
 
 // UpsertSource records a connector instance. Credentials never come near it
 // (Constitution Article 8).
-func (db *DB) UpsertSource(s Source) error {
-	return db.write(func(tx *sql.Tx) error {
+func (db *DB) UpsertSource(ctx context.Context, s Source) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.Exec(`
 			INSERT INTO sources (id, kind, base_url) VALUES (?, ?, ?)
 			ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, base_url = excluded.base_url`,
@@ -27,12 +28,12 @@ func (db *DB) UpsertSource(s Source) error {
 // An item whose updated_at is unchanged is skipped whole — children, FTS and the
 // version counter included — unless Batch.Force is set. That is what makes an
 // incremental re-run over the watermark overlap window a no-op.
-func (db *DB) UpsertIssues(b Batch) (int, error) {
+func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 	if len(b.Records) == 0 {
 		return 0, nil
 	}
 	changed := 0
-	err := db.write(func(tx *sql.Tx) error {
+	err := db.write(ctx, func(tx *sql.Tx) error {
 		sources := map[string]bool{}
 		for _, r := range b.Records {
 			ok, err := upsertRecord(tx, b, r)
@@ -230,11 +231,11 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 // UpsertSpaces writes wiki space rows (key → name/kind) for a source. Empty
 // name/kind on conflict keeps the previous value so page-hit upserts (name
 // only) do not wipe kind filled by a full space listing.
-func (db *DB) UpsertSpaces(sourceID string, rows []SpaceRow) error {
+func (db *DB) UpsertSpaces(ctx context.Context, sourceID string, rows []SpaceRow) error {
 	if sourceID == "" || len(rows) == 0 {
 		return nil
 	}
-	return db.write(func(tx *sql.Tx) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		for _, r := range rows {
 			if r.Key == "" {
 				continue
@@ -257,12 +258,12 @@ func (db *DB) UpsertSpaces(sourceID string, rows []SpaceRow) error {
 // many items it actually changed. Unlike issues, pages always rewrite when
 // called: comments can change without bumping the page's updated_at, so a
 // version-equality skip would drop the comments-only pass.
-func (db *DB) UpsertPages(records []PageRecord) (int, error) {
+func (db *DB) UpsertPages(ctx context.Context, records []PageRecord) (int, error) {
 	if len(records) == 0 {
 		return 0, nil
 	}
 	changed := 0
-	err := db.write(func(tx *sql.Tx) error {
+	err := db.write(ctx, func(tx *sql.Tx) error {
 		// known project keys once per batch for bare-text issue-key filtering
 		known, err := loadKnownProjectKeys(tx)
 		if err != nil {
@@ -395,13 +396,13 @@ func writeFTS(tx *sql.Tx, rowid int64, title, body, comments string) error {
 
 // DeleteItems removes items whose keys have left the source's scope and records
 // a tombstone so `delta` can report the deletion to a client that missed it.
-func (db *DB) DeleteItems(sourceID string, keys []string) (int, error) {
+func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (int, error) {
 	if len(keys) == 0 {
 		return 0, nil
 	}
 	deleted := 0
 	at := Now()
-	err := db.write(func(tx *sql.Tx) error {
+	err := db.write(ctx, func(tx *sql.Tx) error {
 		for _, key := range keys {
 			var id string
 			var rowid int64
@@ -479,10 +480,10 @@ type SyncState struct {
 
 // SyncState reads the state for one source. A source that has never synced
 // returns a zero state, not an error.
-func (db *DB) SyncState(sourceID string) (SyncState, error) {
+func (db *DB) SyncState(ctx context.Context, sourceID string) (SyncState, error) {
 	s := SyncState{SourceID: sourceID, SchemaVersion: db.schemaVersion}
 	var wm *string
-	err := db.sql.QueryRow(`
+	err := db.sql.QueryRowContext(ctx, `
 		SELECT st.watermark, st.version, st.last_full_sync_at, st.last_error,
 		       st.schema_version, src.synced_at,
 		       st.first_sync_at, st.sync_count, st.last_notified_at
@@ -512,7 +513,7 @@ type SyncResult struct {
 // RecordSync stores the run's bookkeeping. It does not bump `version`: a run
 // that changed no rows must leave the ETag alone. A successful run advances
 // first_sync_at (once) and sync_count.
-func (db *DB) RecordSync(sourceID string, r SyncResult) error {
+func (db *DB) RecordSync(ctx context.Context, sourceID string, r SyncResult) error {
 	var errText, fullAt, firstAt any
 	inc := 0
 	if r.Err != nil {
@@ -524,7 +525,7 @@ func (db *DB) RecordSync(sourceID string, r SyncResult) error {
 	if r.FullSync {
 		fullAt = Now()
 	}
-	return db.write(func(tx *sql.Tx) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`
 			INSERT INTO sync_state (source_id, watermark, last_full_sync_at, last_error, schema_version,
 			                       first_sync_at, sync_count)
@@ -553,11 +554,11 @@ func (db *DB) RecordSync(sourceID string, r SyncResult) error {
 }
 
 // SetLastNotifiedAt advances the OS-notification watermark. Never touches feed_reads.
-func (db *DB) SetLastNotifiedAt(sourceID, at string) error {
+func (db *DB) SetLastNotifiedAt(ctx context.Context, sourceID, at string) error {
 	if at == "" {
 		at = Now()
 	}
-	return db.write(func(tx *sql.Tx) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.Exec(`
 			INSERT INTO sync_state (source_id, last_notified_at, schema_version, version)
 			VALUES (?, ?, ?, 0)
@@ -578,8 +579,8 @@ type SavedView struct {
 	UpdatedAt string          `json:"updated_at"`
 }
 
-func (db *DB) SavedViews() ([]SavedView, error) {
-	rows, err := db.sql.Query(`SELECT id, name, config, created_at, updated_at FROM saved_views ORDER BY name`)
+func (db *DB) SavedViews(ctx context.Context) ([]SavedView, error) {
+	rows, err := db.sql.QueryContext(ctx, `SELECT id, name, config, created_at, updated_at FROM saved_views ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -605,7 +606,7 @@ func (db *DB) SavedViews() ([]SavedView, error) {
 }
 
 // PutSavedView inserts or replaces a view. The caller owns id generation.
-func (db *DB) PutSavedView(v SavedView) error {
+func (db *DB) PutSavedView(ctx context.Context, v SavedView) error {
 	if v.ID == "" || v.Name == "" {
 		return errors.New("saved view needs an id and a name")
 	}
@@ -616,7 +617,7 @@ func (db *DB) PutSavedView(v SavedView) error {
 	if v.CreatedAt == "" {
 		v.CreatedAt = now
 	}
-	return db.write(func(tx *sql.Tx) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.Exec(`
 			INSERT INTO saved_views (id, name, config, created_at, updated_at) VALUES (?,?,?,?,?)
 			ON CONFLICT(id) DO UPDATE SET
@@ -626,24 +627,28 @@ func (db *DB) PutSavedView(v SavedView) error {
 	})
 }
 
-func (db *DB) DeleteSavedView(id string) error {
-	return db.write(func(tx *sql.Tx) error {
+func (db *DB) DeleteSavedView(ctx context.Context, id string) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.Exec(`DELETE FROM saved_views WHERE id = ?`, id)
 		return err
 	})
 }
 
-func (db *DB) Watches() ([]string, error)   { return db.keys("watches") }
-func (db *DB) Favorites() ([]string, error) { return db.keys("favorites") }
+func (db *DB) Watches(ctx context.Context) ([]string, error)   { return db.keys(ctx, "watches") }
+func (db *DB) Favorites(ctx context.Context) ([]string, error) { return db.keys(ctx, "favorites") }
 
 // SetWatch adds or removes a watched issue key.
-func (db *DB) SetWatch(key string, on bool) error { return db.setKey("watches", key, on) }
+func (db *DB) SetWatch(ctx context.Context, key string, on bool) error {
+	return db.setKey(ctx, "watches", key, on)
+}
 
 // SetFavorite adds or removes a favorite issue key.
-func (db *DB) SetFavorite(key string, on bool) error { return db.setKey("favorites", key, on) }
+func (db *DB) SetFavorite(ctx context.Context, key string, on bool) error {
+	return db.setKey(ctx, "favorites", key, on)
+}
 
-func (db *DB) keys(table string) ([]string, error) {
-	rows, err := db.sql.Query(`SELECT key FROM ` + table + ` ORDER BY created_at, key`)
+func (db *DB) keys(ctx context.Context, table string) ([]string, error) {
+	rows, err := db.sql.QueryContext(ctx, `SELECT key FROM `+table+` ORDER BY created_at, key`)
 	if err != nil {
 		return nil, err
 	}
@@ -659,8 +664,8 @@ func (db *DB) keys(table string) ([]string, error) {
 	return out, rows.Err()
 }
 
-func (db *DB) setKey(table, key string, on bool) error {
-	return db.write(func(tx *sql.Tx) error {
+func (db *DB) setKey(ctx context.Context, table, key string, on bool) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		if !on {
 			_, err := tx.Exec(`DELETE FROM `+table+` WHERE key = ?`, key)
 			return err
@@ -674,9 +679,9 @@ func (db *DB) setKey(table, key string, on bool) error {
 // fixtures — `scry demo` and the demo recordings — where the snapshot's real age
 // would surface as a stale-sync warning about data that is deliberately frozen.
 // Never call this on a mirror that syncs for real: it would hide a stalled sync.
-func (db *DB) FreshenSyncClock() error {
+func (db *DB) FreshenSyncClock(ctx context.Context) error {
 	now := Now()
-	_, err := db.sql.Exec(`
+	_, err := db.sql.ExecContext(ctx, `
 		UPDATE sync_state SET watermark = ?, last_full_sync_at = ?, last_error = NULL;
 		UPDATE sources    SET synced_at = ?;
 		UPDATE items      SET synced_at = ?;`, now, now, now, now)

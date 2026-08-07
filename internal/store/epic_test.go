@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"path/filepath"
@@ -95,7 +96,7 @@ func TestEpicKeyMigrationBackfill(t *testing.T) {
 		level       int
 		epic        sql.NullString
 	}
-	rows, err := db.sql.Query(`SELECT key, COALESCE(parent_key,''), hierarchy_level, epic_key FROM issues ORDER BY key`)
+	rows, err := db.sql.QueryContext(context.Background(), `SELECT key, COALESCE(parent_key,''), hierarchy_level, epic_key FROM issues ORDER BY key`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +143,7 @@ func nullIfEmpty(s string) any {
 // subtask two-hop, no-epic NULL, reverse batch order, and IssueLite split.
 func TestEpicKeyDerivationOnUpsert(t *testing.T) {
 	db := openTemp(t)
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -151,7 +152,7 @@ func TestEpicKeyDerivationOnUpsert(t *testing.T) {
 	batch1 := Batch{Records: []IssueRecord{
 		epicIssue("30", "SB-30", "Subtask first", "ST-30", -1),
 	}}
-	if n, err := db.UpsertIssues(batch1); err != nil || n != 1 {
+	if n, err := db.UpsertIssues(context.Background(), batch1); err != nil || n != 1 {
 		t.Fatalf("batch1: n=%d err=%v", n, err)
 	}
 	// Direct parent is stored even when the parent row is not mirrored yet;
@@ -161,7 +162,7 @@ func TestEpicKeyDerivationOnUpsert(t *testing.T) {
 	batch2 := Batch{Records: []IssueRecord{
 		epicIssue("20", "ST-30", "Story second", "EP-30", 0),
 	}}
-	if n, err := db.UpsertIssues(batch2); err != nil || n != 1 {
+	if n, err := db.UpsertIssues(context.Background(), batch2); err != nil || n != 1 {
 		t.Fatalf("batch2: n=%d err=%v", n, err)
 	}
 	// Story's parent not mirrored yet; subtask still has no epic.
@@ -172,7 +173,7 @@ func TestEpicKeyDerivationOnUpsert(t *testing.T) {
 		epicIssue("10", "EP-30", "Epic last", "", 1),
 	}}
 	start := time.Now()
-	if n, err := db.UpsertIssues(batch3); err != nil || n != 1 {
+	if n, err := db.UpsertIssues(context.Background(), batch3); err != nil || n != 1 {
 		t.Fatalf("batch3: n=%d err=%v", n, err)
 	}
 	// Full recompute cost on this tiny fixture (logged for the completion report).
@@ -183,7 +184,7 @@ func TestEpicKeyDerivationOnUpsert(t *testing.T) {
 	assertEpic(t, db, "SB-30", "ST-30", strPtr("EP-30"))
 
 	// Orphan with no epic ancestor stays NULL.
-	if _, err := db.UpsertIssues(Batch{Records: []IssueRecord{
+	if _, err := db.UpsertIssues(context.Background(), Batch{Records: []IssueRecord{
 		epicIssue("40", "OR-40", "No parent", "", 0),
 	}}); err != nil {
 		t.Fatal(err)
@@ -191,7 +192,7 @@ func TestEpicKeyDerivationOnUpsert(t *testing.T) {
 	assertEpic(t, db, "OR-40", "", nil)
 
 	// IssueLite exposes parent_key and epic_key separately.
-	lites, err := db.IssueLites()
+	lites, err := db.IssueLites(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +219,7 @@ func TestEpicKeyDerivationOnUpsert(t *testing.T) {
 // over a larger fixture so the completion report has a measured number.
 func TestEpicKeyRecomputeBenchmark(t *testing.T) {
 	db := openTemp(t)
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
 		t.Fatal(err)
 	}
 	const n = 500
@@ -239,12 +240,12 @@ func TestEpicKeyRecomputeBenchmark(t *testing.T) {
 		}
 		recs = append(recs, epicIssue("id"+itoa(i), key, "t"+itoa(i), parent, level))
 	}
-	if _, err := db.UpsertIssues(Batch{Records: recs, Force: true}); err != nil {
+	if _, err := db.UpsertIssues(context.Background(), Batch{Records: recs, Force: true}); err != nil {
 		t.Fatal(err)
 	}
 	// Time a second full recompute in isolation (same SQL as post-upsert).
 	start := time.Now()
-	err := db.write(func(tx *sql.Tx) error {
+	err := db.write(context.Background(), func(tx *sql.Tx) error {
 		return recomputeEpicKeys(tx)
 	})
 	elapsed := time.Since(start)
@@ -257,7 +258,7 @@ func TestEpicKeyRecomputeBenchmark(t *testing.T) {
 	}
 	// Spot-check: a story under the epic has epic_key set.
 	var ek sql.NullString
-	if err := db.sql.QueryRow(`SELECT epic_key FROM issues WHERE key = 'ST-B1'`).Scan(&ek); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT epic_key FROM issues WHERE key = 'ST-B1'`).Scan(&ek); err != nil {
 		t.Fatal(err)
 	}
 	if !ek.Valid || ek.String != "EP-BENCH" {
@@ -268,7 +269,7 @@ func TestEpicKeyRecomputeBenchmark(t *testing.T) {
 func assertEpic(t *testing.T, db *DB, key, wantParent string, wantEpic *string) {
 	t.Helper()
 	var parent, epic sql.NullString
-	err := db.sql.QueryRow(
+	err := db.sql.QueryRowContext(context.Background(),
 		`SELECT parent_key, epic_key FROM issues WHERE key = ?`, key,
 	).Scan(&parent, &epic)
 	if err != nil {

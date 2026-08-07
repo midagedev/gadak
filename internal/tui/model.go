@@ -219,16 +219,16 @@ func (m Model) reloadCmd() tea.Cmd {
 		if db == nil {
 			return loadedMsg{err: fmt.Errorf("no database")}
 		}
-		lites, err := db.IssueLites()
+		lites, err := db.IssueLites(context.Background())
 		if err != nil {
 			return loadedMsg{err: err}
 		}
-		pages, err := db.PageLites()
+		pages, err := db.PageLites(context.Background())
 		if err != nil {
 			return loadedMsg{err: err}
 		}
 		label := "never synced"
-		if st, err := db.SyncState("jira"); err == nil {
+		if st, err := db.SyncState(context.Background(), "jira"); err == nil {
 			if st.SyncedAt != nil && *st.SyncedAt != "" {
 				label = "synced " + relativeTime(*st.SyncedAt, time.Now())
 			} else if st.Watermark != "" {
@@ -236,13 +236,13 @@ func (m Model) reloadCmd() tea.Cmd {
 			}
 		}
 		watchMap := map[string]bool{}
-		if keys, err := db.Watches(); err == nil {
+		if keys, err := db.Watches(context.Background()); err == nil {
 			for _, k := range keys {
 				watchMap[k] = true
 			}
 		}
 		feedUnread := 0
-		if res, err := db.Feed(store.FeedOpts{Me: me, Limit: 1}); err == nil {
+		if res, err := db.Feed(context.Background(), store.FeedOpts{Me: me, Limit: 1}); err == nil {
 			// UnreadCounts is over the full event set, not the limit slice.
 			feedUnread = res.UnreadCounts.All
 		}
@@ -262,7 +262,7 @@ func (m Model) loadDetailCmd(key string, lite store.IssueLite) tea.Cmd {
 		if db == nil {
 			return detailMsg{key: key, lite: lite, err: fmt.Errorf("no database")}
 		}
-		d, err := db.Detail(key)
+		d, err := db.Detail(context.Background(), key)
 		return detailMsg{key: key, lite: lite, d: d, err: err}
 	}
 }
@@ -273,7 +273,7 @@ func (m Model) toggleWatchCmd(issueKey string, on bool) tea.Cmd {
 		if db == nil {
 			return watchToggledMsg{key: issueKey, err: fmt.Errorf("no database")}
 		}
-		if err := db.SetWatch(issueKey, on); err != nil {
+		if err := db.SetWatch(context.Background(), issueKey, on); err != nil {
 			return watchToggledMsg{key: issueKey, err: err}
 		}
 		return watchToggledMsg{key: issueKey, on: on}

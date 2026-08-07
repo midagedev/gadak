@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 )
@@ -9,13 +10,13 @@ import (
 // can prove kind split, prefix match, and PageDetail in one fixture.
 func seedPagesWithIssues(t *testing.T, db *DB) {
 	t.Helper()
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://j.example"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://j.example"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpsertSource(Source{ID: "confluence", Kind: "confluence", BaseURL: "https://j.example/wiki"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence", BaseURL: "https://j.example/wiki"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.UpsertIssues(Batch{
+	if _, err := db.UpsertIssues(context.Background(), Batch{
 		Categories: map[string]string{"1": "new"},
 		Records: []IssueRecord{{
 			Item: Item{
@@ -33,7 +34,7 @@ func seedPagesWithIssues(t *testing.T, db *DB) {
 	}
 	adf := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"로그인 가이드"}]}]}`)
 	cmADF := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"도움 됨"}]}]}`)
-	if _, err := db.UpsertPages([]PageRecord{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{
 		{
 			Item: Item{
 				ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
@@ -70,7 +71,7 @@ func TestSearchReturnsIssuesAndPages(t *testing.T) {
 	seedPagesWithIssues(t, db)
 
 	// "billing" is in the issue title only.
-	res, err := db.Search("billing", 10)
+	res, err := db.Search(context.Background(), "billing", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +86,7 @@ func TestSearchReturnsIssuesAndPages(t *testing.T) {
 	}
 
 	// "Architecture" hits a page only.
-	res, err = db.Search("Architecture", 10)
+	res, err = db.Search(context.Background(), "Architecture", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +101,7 @@ func TestSearchReturnsIssuesAndPages(t *testing.T) {
 	}
 
 	// Shared token across kinds: "sandbox" is issue body only; "platform" is page body.
-	res, err = db.Search("platform", 10)
+	res, err = db.Search(context.Background(), "platform", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestSearchKoreanPagePrefix(t *testing.T) {
 	seedPagesWithIssues(t, db)
 
 	// Title is "로그인이 실패할 때" — bare "로그인" needs prefix rewrite.
-	res, err := db.Search("로그인", 10)
+	res, err := db.Search(context.Background(), "로그인", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +134,7 @@ func TestPageDetailBodyADFAndComments(t *testing.T) {
 	db := openTemp(t)
 	seedPagesWithIssues(t, db)
 
-	d, err := db.PageDetail("100")
+	d, err := db.PageDetail(context.Background(), "100")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +161,7 @@ func TestPageDetailBodyADFAndComments(t *testing.T) {
 		t.Error("comment body_adf empty")
 	}
 
-	missing, err := db.PageDetail("no-such")
+	missing, err := db.PageDetail(context.Background(), "no-such")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,11 +176,11 @@ func TestPageBodyADFColumnRoundTrip(t *testing.T) {
 	if got := db.SchemaVersion(); got < 10 {
 		t.Fatalf("schema version %d, want ≥ 10", got)
 	}
-	if err := db.UpsertSource(Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
 		t.Fatal(err)
 	}
 	want := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"hi"}]}]}`)
-	if _, err := db.UpsertPages([]PageRecord{{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{{
 		Item: Item{
 			ID: "confluence:9", SourceID: "confluence", Kind: "page", ExternalID: "9",
 			Key: "9", Title: "Hi", BodyText: "hi", CreatedAt: ago(1), UpdatedAt: ago(1),
@@ -189,7 +190,7 @@ func TestPageBodyADFColumnRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stored string
-	if err := db.sql.QueryRow(`SELECT body_adf FROM pages WHERE item_id = 'confluence:9'`).Scan(&stored); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT body_adf FROM pages WHERE item_id = 'confluence:9'`).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
 	if stored == "" {
@@ -219,7 +220,7 @@ func TestPageBodyADFColumnRoundTrip(t *testing.T) {
 func TestPageLitesOrder(t *testing.T) {
 	db := openTemp(t)
 	seedPagesWithIssues(t, db)
-	pages, err := db.PageLites()
+	pages, err := db.PageLites(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,10 +240,10 @@ func TestPageLabelsRoundTrip(t *testing.T) {
 	if got := db.SchemaVersion(); got < 13 {
 		t.Fatalf("schema version %d, want ≥ 13 (labels on pages)", got)
 	}
-	if err := db.UpsertSource(Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.UpsertPages([]PageRecord{{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{{
 		Item: Item{
 			ID: "confluence:42", SourceID: "confluence", Kind: "page", ExternalID: "42",
 			Key: "42", Title: "Labeled", BodyText: "body",
@@ -258,7 +259,7 @@ func TestPageLabelsRoundTrip(t *testing.T) {
 	}
 
 	var stored string
-	if err := db.sql.QueryRow(`SELECT labels FROM pages WHERE item_id = 'confluence:42'`).Scan(&stored); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT labels FROM pages WHERE item_id = 'confluence:42'`).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
 	if stored == "" || stored == "null" {
@@ -272,7 +273,7 @@ func TestPageLabelsRoundTrip(t *testing.T) {
 		t.Errorf("stored labels = %v, want [runbook ops]", decoded)
 	}
 
-	pages, err := db.PageLites()
+	pages, err := db.PageLites(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +287,7 @@ func TestPageLabelsRoundTrip(t *testing.T) {
 		t.Errorf("PageLite.Labels = %v", pages[0].Labels)
 	}
 
-	d, err := db.PageDetail("42")
+	d, err := db.PageDetail(context.Background(), "42")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +299,7 @@ func TestPageLabelsRoundTrip(t *testing.T) {
 	}
 
 	// Absent labels → empty array, not null.
-	if _, err := db.UpsertPages([]PageRecord{{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{{
 		Item: Item{
 			ID: "confluence:43", SourceID: "confluence", Kind: "page", ExternalID: "43",
 			Key: "43", Title: "No labels", BodyText: "x",
@@ -308,7 +309,7 @@ func TestPageLabelsRoundTrip(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	d2, err := db.PageDetail("43")
+	d2, err := db.PageDetail(context.Background(), "43")
 	if err != nil {
 		t.Fatal(err)
 	}

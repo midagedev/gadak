@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -49,7 +50,7 @@ var documentedColumns = map[string][]string{
 func TestSchemaMatchesDataModel(t *testing.T) {
 	db := openTemp(t)
 	for table, want := range documentedColumns {
-		rows, err := db.sql.Query("PRAGMA table_info(" + table + ")")
+		rows, err := db.sql.QueryContext(context.Background(), "PRAGMA table_info("+table+")")
 		if err != nil {
 			t.Fatalf("%s: %v", table, err)
 		}
@@ -83,10 +84,10 @@ func TestMigrateForwardIsIdempotent(t *testing.T) {
 		t.Fatalf("schema version %d, want %d", got, len(migrations))
 	}
 	// A source row exists so the schema_version mirror has something to update.
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RecordSync("jira", SyncResult{Watermark: "2026-01-01T00:00:00Z"}); err != nil {
+	if err := db.RecordSync(context.Background(), "jira", SyncResult{Watermark: "2026-01-01T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
@@ -97,7 +98,7 @@ func TestMigrateForwardIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	st, err := db.SyncState("jira")
+	st, err := db.SyncState(context.Background(), "jira")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +143,7 @@ func TestPragmas(t *testing.T) {
 		{"synchronous", "1"}, // NORMAL
 	} {
 		var got string
-		if err := db.sql.QueryRow("PRAGMA " + c.pragma).Scan(&got); err != nil {
+		if err := db.sql.QueryRowContext(context.Background(), "PRAGMA "+c.pragma).Scan(&got); err != nil {
 			t.Fatalf("%s: %v", c.pragma, err)
 		}
 		if got != c.want {
@@ -158,7 +159,7 @@ func TestWALReaderNotBlockedByWriter(t *testing.T) {
 	writer := openTemp(t, path)
 	seed(t, writer)
 
-	tx, err := writer.sql.Begin()
+	tx, err := writer.sql.BeginTx(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +178,7 @@ func TestWALReaderNotBlockedByWriter(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := reader.IssueLites()
+		_, err := reader.IssueLites(context.Background())
 		done <- err
 	}()
 	select {
@@ -226,7 +227,7 @@ func TestDocumentedExampleQueries(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)
 	for _, q := range exampleQueries {
-		rows, err := db.sql.Query(q.sql)
+		rows, err := db.sql.QueryContext(context.Background(), q.sql)
 		if err != nil {
 			t.Errorf("%s: %v", q.name, err)
 			continue
@@ -251,7 +252,7 @@ func TestIssuesFullView(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)
 	var key, summary string
-	err := db.sql.QueryRow(`SELECT key, summary FROM issues_full WHERE key = 'NMB-1'`).Scan(&key, &summary)
+	err := db.sql.QueryRowContext(context.Background(), `SELECT key, summary FROM issues_full WHERE key = 'NMB-1'`).Scan(&key, &summary)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +263,7 @@ func TestIssuesFullView(t *testing.T) {
 		t.Errorf("summary %q", summary)
 	}
 	// No join required: agents get the title from one table-shaped path.
-	rows, err := db.sql.Query(`SELECT key, summary FROM issues_full WHERE status_category != 'done' LIMIT 5`)
+	rows, err := db.sql.QueryContext(context.Background(), `SELECT key, summary FROM issues_full WHERE status_category != 'done' LIMIT 5`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,32 +279,32 @@ func TestIssuesFullView(t *testing.T) {
 
 func TestSyncCountAndFirstSyncAt(t *testing.T) {
 	db := openTemp(t)
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
 		t.Fatal(err)
 	}
 	// Failed sync must not bump.
-	if err := db.RecordSync("jira", SyncResult{Err: fmt.Errorf("network down")}); err != nil {
+	if err := db.RecordSync(context.Background(), "jira", SyncResult{Err: fmt.Errorf("network down")}); err != nil {
 		t.Fatal(err)
 	}
-	st, err := db.SyncState("jira")
+	st, err := db.SyncState(context.Background(), "jira")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if st.SyncCount != 0 || st.FirstSyncAt != nil {
 		t.Fatalf("failed sync advanced counters: count=%d first=%v", st.SyncCount, st.FirstSyncAt)
 	}
-	if err := db.RecordSync("jira", SyncResult{Watermark: "2026-08-01T00:00:00Z", FullSync: true}); err != nil {
+	if err := db.RecordSync(context.Background(), "jira", SyncResult{Watermark: "2026-08-01T00:00:00Z", FullSync: true}); err != nil {
 		t.Fatal(err)
 	}
-	st, _ = db.SyncState("jira")
+	st, _ = db.SyncState(context.Background(), "jira")
 	if st.SyncCount != 1 || st.FirstSyncAt == nil {
 		t.Fatalf("first success: count=%d first=%v", st.SyncCount, st.FirstSyncAt)
 	}
 	first := *st.FirstSyncAt
-	if err := db.RecordSync("jira", SyncResult{Watermark: "2026-08-02T00:00:00Z"}); err != nil {
+	if err := db.RecordSync(context.Background(), "jira", SyncResult{Watermark: "2026-08-02T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	st, _ = db.SyncState("jira")
+	st, _ = db.SyncState(context.Background(), "jira")
 	if st.SyncCount != 2 {
 		t.Errorf("sync_count %d, want 2", st.SyncCount)
 	}
@@ -314,10 +315,10 @@ func TestSyncCountAndFirstSyncAt(t *testing.T) {
 
 func TestLastNotifiedAtIndependentOfFeedReads(t *testing.T) {
 	db := openTemp(t)
-	if err := db.SetLastNotifiedAt("jira", "2026-08-04T12:00:00.000Z"); err != nil {
+	if err := db.SetLastNotifiedAt(context.Background(), "jira", "2026-08-04T12:00:00.000Z"); err != nil {
 		t.Fatal(err)
 	}
-	st, err := db.SyncState("jira")
+	st, err := db.SyncState(context.Background(), "jira")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +326,7 @@ func TestLastNotifiedAtIndependentOfFeedReads(t *testing.T) {
 		t.Errorf("last_notified_at %v", st.LastNotifiedAt)
 	}
 	var n int
-	if err := db.sql.QueryRow(`SELECT COUNT(*) FROM feed_reads`).Scan(&n); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM feed_reads`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 0 {
@@ -339,7 +340,7 @@ func TestAbsentTextIsNull(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)
 	var who string
-	if err := db.sql.QueryRow(
+	if err := db.sql.QueryRowContext(context.Background(),
 		`SELECT COALESCE(assignee, '(unassigned)') FROM issues WHERE key = 'NMB-3'`).Scan(&who); err != nil {
 		t.Fatal(err)
 	}
@@ -387,33 +388,33 @@ func TestMigrateFromV1(t *testing.T) {
 		t.Errorf("schema version %d, want %d", db.SchemaVersion(), len(migrations))
 	}
 	var kind string
-	if err := db.sql.QueryRow(`SELECT kind FROM sources WHERE id = 'jira'`).Scan(&kind); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT kind FROM sources WHERE id = 'jira'`).Scan(&kind); err != nil {
 		t.Errorf("v1 row did not survive the migration: %v", err)
 	}
 
 	// A plugin writes with raw SQL; the store only reads.
-	if _, err := db.sql.Exec(`
+	if _, err := db.sql.ExecContext(context.Background(), `
 		INSERT INTO enrichments (key, kind, payload, source, updated_at)
 		VALUES ('NMB-1', 'deploy', '{"state":"prod"}', 'gh-plugin', '2026-08-04T00:00:00Z'),
 		       ('NMB-1', 'prs', '[{"number":7}]', 'gh-plugin', '2026-08-04T00:00:00Z'),
 		       ('NMB-2', 'deploy', '{"state":"merged"}', 'gh-plugin', '2026-08-04T00:00:00Z')`); err != nil {
 		t.Fatal(err)
 	}
-	byKind, err := db.EnrichmentsByKind("deploy")
+	byKind, err := db.EnrichmentsByKind(context.Background(), "deploy")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(byKind) != 2 || string(byKind["NMB-1"]) != `{"state":"prod"}` {
 		t.Errorf("EnrichmentsByKind = %v", byKind)
 	}
-	forKey, err := db.EnrichmentsFor("NMB-1")
+	forKey, err := db.EnrichmentsFor(context.Background(), "NMB-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(forKey) != 2 || string(forKey["prs"]) != `[{"number":7}]` {
 		t.Errorf("EnrichmentsFor = %v", forKey)
 	}
-	if empty, err := db.EnrichmentsByKind("qa"); err != nil || len(empty) != 0 {
+	if empty, err := db.EnrichmentsByKind(context.Background(), "qa"); err != nil || len(empty) != 0 {
 		t.Errorf("unknown kind = %v (%v)", empty, err)
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -371,7 +372,7 @@ func TestAPI_UsageFlushed(t *testing.T) {
 	}
 	defer db.Close()
 	day := time.Now().UTC().Format("2006-01-02")
-	rows, err := db.APIUsage(7)
+	rows, err := db.APIUsage(context.Background(), 7)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +385,7 @@ func TestAPI_UsageFlushed(t *testing.T) {
 	}
 	if found.Requests < 1 {
 		// Also accept summary path if day row shape differs
-		sum, err := db.APIUsageSummary()
+		sum, err := db.APIUsageSummary(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}

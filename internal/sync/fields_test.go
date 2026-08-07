@@ -155,7 +155,7 @@ func TestDiscoveryE2ETwoProjectsCoalesce(t *testing.T) {
 		t.Errorf("BETA custom = %s", got)
 	}
 
-	usage, err := db.FieldUsage()
+	usage, err := db.FieldUsage(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestDiscoveryE2ETwoProjectsCoalesce(t *testing.T) {
 		t.Errorf("field_usage repro = %+v", filled)
 	}
 
-	hits, err := db.Search("xyzzy", 10)
+	hits, err := db.Search(context.Background(), "xyzzy", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestReingestCustomIdempotent(t *testing.T) {
 		{Alias: "severity", Label: "Severity", IDs: []string{"customfield_10050"}, Role: "facet", Kind: "option", Auto: true},
 		{Alias: "repro", Label: "Repro", IDs: []string{"customfield_10101"}, Role: "body", Auto: true},
 	}
-	n, err := db.ReingestCustom(fields.SpecIDsFrom(specs), fields.BodyFieldIDs(nil, specs))
+	n, err := db.ReingestCustom(context.Background(), fields.SpecIDsFrom(specs), fields.BodyFieldIDs(nil, specs))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestReingestCustomIdempotent(t *testing.T) {
 		t.Errorf("expected at least one rewrite, got %d", n)
 	}
 	// Comments FTS preserved
-	res, err := db.Search("commentonlytoken", 10)
+	res, err := db.Search(context.Background(), "commentonlytoken", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestReingestCustomIdempotent(t *testing.T) {
 		t.Errorf("comments FTS lost after reingest; keys=%v", res.Keys)
 	}
 	// Body role FTS
-	res, err = db.Search("reproseed", 10)
+	res, err = db.Search(context.Background(), "reproseed", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestReingestCustomIdempotent(t *testing.T) {
 		t.Errorf("body field FTS missed; keys=%v body=%q", res.Keys, db.column(t, "items", "body_text", "NMB-1"))
 	}
 	// Second reingest is idempotent
-	n2, err := db.ReingestCustom(fields.SpecIDsFrom(specs), fields.BodyFieldIDs(nil, specs))
+	n2, err := db.ReingestCustom(context.Background(), fields.SpecIDsFrom(specs), fields.BodyFieldIDs(nil, specs))
 	if err != nil {
 		t.Fatal(err)
 	}

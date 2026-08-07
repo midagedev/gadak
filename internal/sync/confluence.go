@@ -30,7 +30,7 @@ const pageBatchSize = 50
 // watermark past the last successful batch.
 func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
 	var c *confluence.Client
-	return runSource(cfg, db, opts,
+	return runSource(ctx, cfg, db, opts,
 		sourceIdent{ID: ConfluenceSourceID, Kind: "confluence"},
 		// No reconcile pass yet — kind stays full|incremental (no +reconcile).
 		// The label rule lives in runSource; flip this when delete-reconcile ships.
@@ -59,7 +59,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	if len(spaces) == 0 {
 		listed, err := c.Spaces(ctx)
 		if err != nil {
-			return record(db, ConfluenceSourceID, err)
+			return record(ctx, db, ConfluenceSourceID, err)
 		}
 		// Path ①: empty config → Spaces() listing carries key/name/type.
 		var spaceRows []store.SpaceRow
@@ -76,13 +76,13 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 				spaces = append(spaces, s.Key)
 			}
 		}
-		if err := db.UpsertSpaces(ConfluenceSourceID, spaceRows); err != nil {
+		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
 			return err
 		}
 	}
 	if len(spaces) == 0 {
 		opts.logf("confluence: no spaces in scope")
-		if err := db.RecordSync(ConfluenceSourceID, store.SyncResult{FullSync: res.Full}); err != nil {
+		if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{FullSync: res.Full}); err != nil {
 			return err
 		}
 		return nil
@@ -98,18 +98,18 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			return nil
 		}
 		if len(batchSpaces) > 0 {
-			if err := db.UpsertSpaces(ConfluenceSourceID, batchSpaces); err != nil {
+			if err := db.UpsertSpaces(ctx, ConfluenceSourceID, batchSpaces); err != nil {
 				return err
 			}
 		}
-		changed, err := db.UpsertPages(batch)
+		changed, err := db.UpsertPages(ctx, batch)
 		if err != nil {
 			return err
 		}
 		res.Fetched += len(batch)
 		res.Changed += changed
 		if maxRaw != "" {
-			if err := db.RecordSync(ConfluenceSourceID, store.SyncResult{Watermark: maxRaw}); err != nil {
+			if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: maxRaw}); err != nil {
 				return err
 			}
 		}
@@ -161,7 +161,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			cql := fmt.Sprintf(`space=%s AND type=page order by lastmodified asc`, cqlSpace(key))
 			opts.logf("confluence full sync: space %s", key)
 			if err := c.SearchPages(ctx, cql, processHits); err != nil {
-				return record(db, ConfluenceSourceID, err)
+				return record(ctx, db, ConfluenceSourceID, err)
 			}
 		}
 	} else {
@@ -174,13 +174,13 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			cql := fmt.Sprintf(`space in (%s) AND type=page AND lastModified >= "%s" order by lastmodified asc`,
 				cqlSpaceList(group), floor)
 			if err := c.SearchPages(ctx, cql, processHits); err != nil {
-				return record(db, ConfluenceSourceID, err)
+				return record(ctx, db, ConfluenceSourceID, err)
 			}
 		}
 	}
 
 	res.Watermark = maxRaw
-	if err := db.RecordSync(ConfluenceSourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
+	if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
 		return err
 	}
 	return nil

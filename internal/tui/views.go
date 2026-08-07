@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -21,7 +22,7 @@ func (m Model) loadViewsCmd() tea.Cmd {
 		if db == nil {
 			return viewsLoadedMsg{err: fmt.Errorf("no database")}
 		}
-		views, err := db.SavedViews()
+		views, err := db.SavedViews(context.Background())
 		if err != nil {
 			return viewsLoadedMsg{err: err}
 		}

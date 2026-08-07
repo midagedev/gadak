@@ -22,7 +22,7 @@ func (s *server) handleGetFeed(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = n
 	}
-	res, err := s.db.Feed(store.FeedOpts{
+	res, err := s.db.Feed(r.Context(), store.FeedOpts{
 		Focus: focus,
 		Limit: limit,
 		Me:    s.feedIdentity(),
@@ -53,7 +53,7 @@ func (s *server) handleMarkFeedRead(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "nothing_to_mark")
 		return
 	}
-	res, err := s.db.MarkFeedRead(store.MarkFeedReadOpts{
+	res, err := s.db.MarkFeedRead(r.Context(), store.MarkFeedReadOpts{
 		EventIDs:  body.EventIDs,
 		IssueKeys: body.IssueKeys,
 		All:       body.All,

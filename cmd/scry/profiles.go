@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -116,14 +117,14 @@ func inspectProfile(name, activeDisplay string) profileEntry {
 	}
 	defer db.Close()
 
-	if n, err := db.TableCount("issues"); err == nil {
+	if n, err := db.TableCount(context.Background(), "issues"); err == nil {
 		e.Issues = n
 	}
-	if n, err := db.TableCount("pages"); err == nil {
+	if n, err := db.TableCount(context.Background(), "pages"); err == nil {
 		e.Documents = n
 	}
 	// Same source status uses: jira sync_state (SyncedAt = last good run).
-	if ss, err := db.SyncState("jira"); err == nil {
+	if ss, err := db.SyncState(context.Background(), "jira"); err == nil {
 		if ss.SyncedAt != nil && *ss.SyncedAt != "" {
 			at := *ss.SyncedAt
 			e.LastSyncAt = &at

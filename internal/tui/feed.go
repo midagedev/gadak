@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -48,7 +49,7 @@ func (m Model) loadFeedCmd() tea.Cmd {
 		if db == nil {
 			return feedLoadedMsg{err: fmt.Errorf("no database")}
 		}
-		res, err := db.Feed(store.FeedOpts{Me: me, Focus: focus})
+		res, err := db.Feed(context.Background(), store.FeedOpts{Me: me, Focus: focus})
 		if err != nil {
 			return feedLoadedMsg{err: err}
 		}
@@ -63,7 +64,7 @@ func (m Model) markFeedAllReadCmd() tea.Cmd {
 		if db == nil {
 			return feedMarkedMsg{err: fmt.Errorf("no database")}
 		}
-		res, err := db.MarkFeedRead(store.MarkFeedReadOpts{All: true, Me: me})
+		res, err := db.MarkFeedRead(context.Background(), store.MarkFeedReadOpts{All: true, Me: me})
 		if err != nil {
 			return feedMarkedMsg{err: err}
 		}

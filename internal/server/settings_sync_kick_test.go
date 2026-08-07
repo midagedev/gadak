@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -122,13 +123,13 @@ func TestPutSettingsScopeChangeNoCredentialNoKick(t *testing.T) {
 func TestSyncRunsSourceFilter(t *testing.T) {
 	db, cfg := fixture(t)
 	// Seed one run per source.
-	if err := db.AppendSyncRun(sourceID, store.SyncRun{
+	if err := db.AppendSyncRun(context.Background(), sourceID, store.SyncRun{
 		Kind: "full", StartedAt: "2026-08-01T00:00:00Z", FinishedAt: "2026-08-01T00:01:00Z",
 		Fetched: 3, Changed: 3,
 	}); err != nil {
 		t.Fatalf("append jira: %v", err)
 	}
-	if err := db.AppendSyncRun(scrySync.ConfluenceSourceID, store.SyncRun{
+	if err := db.AppendSyncRun(context.Background(), scrySync.ConfluenceSourceID, store.SyncRun{
 		Kind: "full", StartedAt: "2026-08-01T00:02:00Z", FinishedAt: "2026-08-01T00:03:00Z",
 		Fetched: 9, Changed: 9,
 	}); err != nil {

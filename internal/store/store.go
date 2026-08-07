@@ -7,6 +7,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -106,8 +107,9 @@ func (db *DB) Close() error { return db.sql.Close() }
 func (db *DB) SchemaVersion() int { return db.schemaVersion }
 
 func (db *DB) migrate() error {
+	ctx := context.Background()
 	var have int
-	if err := db.sql.QueryRow("PRAGMA user_version").Scan(&have); err != nil {
+	if err := db.sql.QueryRowContext(ctx, "PRAGMA user_version").Scan(&have); err != nil {
 		return err
 	}
 	want := len(migrations)
@@ -118,7 +120,7 @@ func (db *DB) migrate() error {
 	if have == want {
 		return nil
 	}
-	return db.write(func(tx *sql.Tx) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		for i := have; i < want; i++ {
 			if _, err := tx.Exec(migrations[i]); err != nil {
 				return fmt.Errorf("migration %d: %w", i+1, err)
@@ -148,10 +150,10 @@ func (db *DB) migrate() error {
 
 // write runs fn in a transaction. One mutex is the whole single-writer story:
 // concurrent writers under WAL would just trade this lock for SQLITE_BUSY.
-func (db *DB) write(fn func(*sql.Tx) error) error {
+func (db *DB) write(ctx context.Context, fn func(*sql.Tx) error) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	tx, err := db.sql.Begin()
+	tx, err := db.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}

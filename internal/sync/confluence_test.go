@@ -388,7 +388,7 @@ func TestConfluenceFullSyncMapsPagesAndFTS(t *testing.T) {
 		t.Fatalf("FTS prefix 로그인* hits = %d, want >= 1", hits)
 	}
 
-	st, err := db.SyncState(ConfluenceSourceID)
+	st, err := db.SyncState(context.Background(), ConfluenceSourceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -424,7 +424,7 @@ func TestConfluenceFullSyncMapsPagesAndFTS(t *testing.T) {
 	if spaceName != "Alpha" {
 		t.Errorf("space AAA name = %q, want Alpha (from page hit Space.Name)", spaceName)
 	}
-	lites, err := db.PageLites()
+	lites, err := db.PageLites(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -480,7 +480,7 @@ func TestConfluenceSpacesFromListing(t *testing.T) {
 	if name != "Ada personal" || kind != "personal" {
 		t.Errorf("personal = name=%q kind=%q", name, kind)
 	}
-	pages, err := db.PageLites()
+	pages, err := db.PageLites(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -501,7 +501,7 @@ func TestConfluenceIncrementalAdvancesWatermark(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	st1, err := db.SyncState(ConfluenceSourceID)
+	st1, err := db.SyncState(context.Background(), ConfluenceSourceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -525,7 +525,7 @@ func TestConfluenceIncrementalAdvancesWatermark(t *testing.T) {
 	if res.Fetched < 1 {
 		t.Fatalf("incremental fetched = %d, want >= 1", res.Fetched)
 	}
-	st2, err := db.SyncState(ConfluenceSourceID)
+	st2, err := db.SyncState(context.Background(), ConfluenceSourceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -632,7 +632,7 @@ func TestConfluenceRunFlushesAPIUsage(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	days, err := db.APIUsage(7)
+	days, err := db.APIUsage(context.Background(), 7)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -660,7 +660,7 @@ func TestConfluenceSyncRunKindNoReconcileSuffix(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	runs, err := db.SyncRuns(ConfluenceSourceID, 5)
+	runs, err := db.SyncRuns(context.Background(), ConfluenceSourceID, 5)
 	if err != nil {
 		t.Fatal(err)
 	}

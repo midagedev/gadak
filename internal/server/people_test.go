@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -17,13 +18,13 @@ func peopleCommentsFixture(t *testing.T) (*store.DB, *config.Config) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	if err := db.UpsertSource(store.Source{ID: "jira", Kind: "jira"}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpsertSource(store.Source{ID: "confluence", Kind: "confluence"}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "confluence", Kind: "confluence"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.UpsertIssues(store.Batch{
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
 		Categories: map[string]string{"1": "new"},
 		Records: []store.IssueRecord{{
 			Item: store.Item{
@@ -48,7 +49,7 @@ func peopleCommentsFixture(t *testing.T) (*store.DB, *config.Config) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.UpsertPages([]store.PageRecord{{
+	if _, err := db.UpsertPages(context.Background(), []store.PageRecord{{
 		Item: store.Item{
 			ID: "confluence:9", SourceID: "confluence", Kind: "page", ExternalID: "9",
 			Key: "9", Title: "doc", CreatedAt: "2026-07-01T00:00:00.000Z",

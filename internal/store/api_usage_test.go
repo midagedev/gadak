@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"testing"
 )
 
@@ -10,29 +11,29 @@ func TestAPIUsageAccumulatesAndOrders(t *testing.T) {
 		t.Fatalf("schema version %d, want %d", db.SchemaVersion(), len(migrations))
 	}
 
-	if err := db.AddAPIUsage("2026-08-04", APIUsageDelta{
+	if err := db.AddAPIUsage(context.Background(), "2026-08-04", APIUsageDelta{
 		Requests: 10, Throttled: 1, ServerErrors: 2, Retries: 3, WaitMS: 100,
 		LastThrottledAt: "2026-08-04T10:00:00.000Z",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AddAPIUsage("2026-08-04", APIUsageDelta{
+	if err := db.AddAPIUsage(context.Background(), "2026-08-04", APIUsageDelta{
 		Requests: 5, Throttled: 1, ServerErrors: 0, Retries: 1, WaitMS: 50,
 		LastThrottledAt: "2026-08-04T14:00:00.000Z",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AddAPIUsage("2026-08-05", APIUsageDelta{
+	if err := db.AddAPIUsage(context.Background(), "2026-08-05", APIUsageDelta{
 		Requests: 7, Retries: 0,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	// Empty last_throttled_at on a later flush must not wipe the stored value.
-	if err := db.AddAPIUsage("2026-08-04", APIUsageDelta{Requests: 1}); err != nil {
+	if err := db.AddAPIUsage(context.Background(), "2026-08-04", APIUsageDelta{Requests: 1}); err != nil {
 		t.Fatal(err)
 	}
 
-	days, err := db.APIUsage(7)
+	days, err := db.APIUsage(context.Background(), 7)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +62,7 @@ func TestNewDBSchemaVersionMatchesMigrations(t *testing.T) {
 		t.Fatalf("SchemaVersion = %d, want %d", got, want)
 	}
 	var uv int
-	if err := db.sql.QueryRow("PRAGMA user_version").Scan(&uv); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), "PRAGMA user_version").Scan(&uv); err != nil {
 		t.Fatal(err)
 	}
 	if uv != want {

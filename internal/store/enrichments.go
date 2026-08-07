@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 )
@@ -12,9 +13,9 @@ import (
 
 // EnrichmentsByKind returns every payload of one kind, keyed by issue key. The
 // list and delta responses merge it in.
-func (db *DB) EnrichmentsByKind(kind string) (map[string]json.RawMessage, error) {
+func (db *DB) EnrichmentsByKind(ctx context.Context, kind string) (map[string]json.RawMessage, error) {
 	out := map[string]json.RawMessage{}
-	return out, each(db.sql, `SELECT key, payload FROM enrichments WHERE kind = ?`,
+	return out, each(ctx, db.sql, `SELECT key, payload FROM enrichments WHERE kind = ?`,
 		func(rows *sql.Rows) error {
 			var key, payload string
 			if err := rows.Scan(&key, &payload); err != nil {
@@ -26,9 +27,9 @@ func (db *DB) EnrichmentsByKind(kind string) (map[string]json.RawMessage, error)
 }
 
 // EnrichmentsFor returns every kind attached to one issue, for the detail view.
-func (db *DB) EnrichmentsFor(key string) (map[string]json.RawMessage, error) {
+func (db *DB) EnrichmentsFor(ctx context.Context, key string) (map[string]json.RawMessage, error) {
 	out := map[string]json.RawMessage{}
-	return out, each(db.sql, `SELECT kind, payload FROM enrichments WHERE key = ?`,
+	return out, each(ctx, db.sql, `SELECT kind, payload FROM enrichments WHERE key = ?`,
 		func(rows *sql.Rows) error {
 			var kind, payload string
 			if err := rows.Scan(&kind, &payload); err != nil {

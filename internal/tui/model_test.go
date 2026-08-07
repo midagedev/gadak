@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -500,7 +501,7 @@ func TestWatchToggle(t *testing.T) {
 		t.Fatalf("toast=%q", m.toast)
 	}
 	// Persist check
-	keys, err := db.Watches()
+	keys, err := db.Watches(context.Background())
 	if err != nil || len(keys) != 1 || keys[0] != "AAA-1" {
 		t.Fatalf("db watches=%v err=%v", keys, err)
 	}
@@ -513,7 +514,7 @@ func TestWatchToggle(t *testing.T) {
 	if m.watches["AAA-1"] {
 		t.Fatal("expected unwatched")
 	}
-	keys, _ = db.Watches()
+	keys, _ = db.Watches(context.Background())
 	if len(keys) != 0 {
 		t.Fatalf("db still has %v", keys)
 	}

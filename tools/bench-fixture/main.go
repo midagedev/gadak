@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -46,7 +47,7 @@ func generate(path string, n int, seed int64, batchSize int) error {
 	}
 	defer db.Close()
 
-	if err := db.UpsertSource(store.Source{
+	if err := db.UpsertSource(context.Background(), store.Source{
 		ID: "jira", Kind: "jira", BaseURL: "https://example.invalid",
 	}); err != nil {
 		return err
@@ -98,14 +99,14 @@ func generate(path string, n int, seed int64, batchSize int) error {
 			Records:    recs,
 			Force:      true,
 		}
-		got, err := db.UpsertIssues(batch)
+		got, err := db.UpsertIssues(context.Background(), batch)
 		if err != nil {
 			return fmt.Errorf("upsert batch %d-%d: %w", start, end-1, err)
 		}
 		written += got
 	}
 
-	if err := db.RecordSync("jira", store.SyncResult{
+	if err := db.RecordSync(context.Background(), "jira", store.SyncResult{
 		Watermark: base.Add(time.Duration(n) * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z"),
 		FullSync:  true,
 	}); err != nil {

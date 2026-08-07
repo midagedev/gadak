@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -49,11 +50,11 @@ func seedNamedProfile(t *testing.T, name string, cfg *config.Config, issues, pag
 	if cfg != nil && cfg.Site != "" {
 		site = cfg.Site
 	}
-	if err := db.UpsertSource(store.Source{ID: "jira", Kind: "jira", BaseURL: site}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: site}); err != nil {
 		t.Fatal(err)
 	}
 	if pages > 0 {
-		if err := db.UpsertSource(store.Source{ID: "confluence", Kind: "confluence", BaseURL: site + "/wiki"}); err != nil {
+		if err := db.UpsertSource(context.Background(), store.Source{ID: "confluence", Kind: "confluence", BaseURL: site + "/wiki"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -73,7 +74,7 @@ func seedNamedProfile(t *testing.T, name string, cfg *config.Config, issues, pag
 				},
 			})
 		}
-		if _, err := db.UpsertIssues(store.Batch{
+		if _, err := db.UpsertIssues(context.Background(), store.Batch{
 			Categories: map[string]string{"1": "new"},
 			Records:    recs,
 		}); err != nil {
@@ -93,12 +94,12 @@ func seedNamedProfile(t *testing.T, name string, cfg *config.Config, issues, pag
 				Page: store.Page{SpaceKey: "ENG", Version: 1, Status: "current"},
 			})
 		}
-		if _, err := db.UpsertPages(precs); err != nil {
+		if _, err := db.UpsertPages(context.Background(), precs); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if stampSync {
-		if err := db.RecordSync("jira", store.SyncResult{
+		if err := db.RecordSync(context.Background(), "jira", store.SyncResult{
 			Watermark: "2026-08-01T00:00:00.000Z",
 			FullSync:  true,
 		}); err != nil {

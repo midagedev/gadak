@@ -87,17 +87,17 @@ func (s *server) mutate(w http.ResponseWriter, r *http.Request, key string,
 }
 
 func (s *server) respondIssue(w http.ResponseWriter, r *http.Request, key string, extra map[string]any) {
-	st, err := s.db.SyncState(sourceID)
+	st, err := s.db.SyncState(r.Context(), sourceID)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
-	lites, err := s.db.IssueLites()
+	lites, err := s.db.IssueLites(r.Context())
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
-	view, err := s.derived(st.Version, lites)
+	view, err := s.derived(r.Context(), st.Version, lites)
 	if err != nil {
 		serverError(w, r, err)
 		return

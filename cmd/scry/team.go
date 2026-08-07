@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -60,7 +61,7 @@ See also: scry team import
 		return err
 	}
 	defer db.Close()
-	views, err := db.SavedViews()
+	views, err := db.SavedViews(context.Background())
 	if err != nil {
 		return err
 	}
@@ -198,7 +199,7 @@ See also: scry team export
 		return err
 	}
 	defer db.Close()
-	views, err := db.SavedViews()
+	views, err := db.SavedViews(context.Background())
 	if err != nil {
 		return err
 	}

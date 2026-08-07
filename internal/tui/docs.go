@@ -12,6 +12,7 @@ package tui
 // recency, People axis, and URL deeplinks stay on the web UI / CLI.
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -500,7 +501,7 @@ func (m Model) loadPageDetailCmd(key string) tea.Cmd {
 		if db == nil {
 			return pageDetailMsg{key: key, err: fmt.Errorf("no database")}
 		}
-		d, err := db.PageDetail(key)
+		d, err := db.PageDetail(context.Background(), key)
 		if err != nil {
 			return pageDetailMsg{key: key, err: err}
 		}

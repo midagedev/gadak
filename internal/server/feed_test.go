@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -21,14 +22,14 @@ func feedFixture(t *testing.T) (*store.DB, *config.Config) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	if err := db.UpsertSource(store.Source{ID: "jira", Kind: "jira"}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira"}); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
 	// Keep created/updated recent so the 30-day window always includes them.
 	ts := now.Add(-2 * 24 * time.Hour).Format("2006-01-02T15:04:05.000Z")
 	ts2 := now.Add(-1 * 24 * time.Hour).Format("2006-01-02T15:04:05.000Z")
-	if _, err := db.UpsertIssues(store.Batch{
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
 		Categories: map[string]string{"1": "new", "3": "inprogress"},
 		Priorities: []string{"High"},
 		Records: []store.IssueRecord{
@@ -70,7 +71,7 @@ func feedFixture(t *testing.T) (*store.DB, *config.Config) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetWatch("NMB-2", true); err != nil {
+	if err := db.SetWatch(context.Background(), "NMB-2", true); err != nil {
 		t.Fatal(err)
 	}
 	cfg := &config.Config{

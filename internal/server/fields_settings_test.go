@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +18,7 @@ func TestSettingsFieldSpecsAndUsageReadOnly(t *testing.T) {
 	cfg.Fields = []config.FieldSpec{
 		{Alias: "severity", Label: "Severity Level", IDs: []string{"customfield_10", "customfield_20"}, Role: "facet", Kind: "option", Auto: true},
 	}
-	if err := db.ReplaceFieldUsage([]store.FieldUsageRow{
+	if err := db.ReplaceFieldUsage(context.Background(), []store.FieldUsageRow{
 		{ProjectKey: "NMB", Alias: "severity", Filled: 2, Total: 3},
 	}); err != nil {
 		t.Fatal(err)

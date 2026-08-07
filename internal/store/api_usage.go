@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -30,11 +31,11 @@ type APIUsageDay struct {
 
 // AddAPIUsage UPSERTs delta into the given UTC day (YYYY-MM-DD), adding to any
 // existing counters. last_throttled_at keeps the latest non-empty timestamp.
-func (db *DB) AddAPIUsage(day string, u APIUsageDelta) error {
+func (db *DB) AddAPIUsage(ctx context.Context, day string, u APIUsageDelta) error {
 	if day == "" {
 		return fmt.Errorf("store: api_usage day is required")
 	}
-	return db.write(func(tx *sql.Tx) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
 		var last any
 		if u.LastThrottledAt != "" {
 			last = u.LastThrottledAt
@@ -64,7 +65,7 @@ func (db *DB) AddAPIUsage(day string, u APIUsageDelta) error {
 
 // APIUsage returns up to the most recent days rows, newest day first.
 // days <= 0 means all rows.
-func (db *DB) APIUsage(days int) ([]APIUsageDay, error) {
+func (db *DB) APIUsage(ctx context.Context, days int) ([]APIUsageDay, error) {
 	q := `SELECT day, requests, throttled, server_errors, retries, wait_ms, last_throttled_at
 		FROM api_usage ORDER BY day DESC`
 	var args []any
@@ -72,7 +73,7 @@ func (db *DB) APIUsage(days int) ([]APIUsageDay, error) {
 		q += ` LIMIT ?`
 		args = append(args, days)
 	}
-	rows, err := db.sql.Query(q, args...)
+	rows, err := db.sql.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -114,12 +115,12 @@ type APIUsageSum struct {
 
 // APIUsageSummary builds today + last 7 days from the mirror. Missing days are
 // zeros. last_throttled_at on the rollup is the latest timestamp in the window.
-func (db *DB) APIUsageSummary() (APIUsageSummary, error) {
+func (db *DB) APIUsageSummary(ctx context.Context) (APIUsageSummary, error) {
 	today := time.Now().UTC().Format("2006-01-02")
 	out := APIUsageSummary{
 		Today: APIUsageDay{Day: today},
 	}
-	days, err := db.APIUsage(7)
+	days, err := db.APIUsage(ctx, 7)
 	if err != nil {
 		return out, err
 	}
@@ -147,20 +148,20 @@ func (db *DB) APIUsageSummary() (APIUsageSummary, error) {
 
 // TableCount returns SELECT COUNT(*) for a fixed known table name used by
 // status and doctor. Only whitelisted table names are accepted.
-func (db *DB) TableCount(table string) (int, error) {
+func (db *DB) TableCount(ctx context.Context, table string) (int, error) {
 	switch table {
 	case "issues", "comments", "items", "pages", "spaces":
 	default:
 		return 0, fmt.Errorf("store: TableCount: unknown table %q", table)
 	}
 	var n int
-	err := db.sql.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&n)
+	err := db.sql.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&n)
 	return n, err
 }
 
 // DistinctCount returns COUNT(DISTINCT col) for a fixed known table.column
 // used by doctor. Empty/NULL values are excluded.
-func (db *DB) DistinctCount(table, column string) (int, error) {
+func (db *DB) DistinctCount(ctx context.Context, table, column string) (int, error) {
 	switch table + "." + column {
 	case "issues.project_key", "issues.status_category", "pages.space_key":
 	default:
@@ -170,6 +171,6 @@ func (db *DB) DistinctCount(table, column string) (int, error) {
 	// Identifiers are whitelisted above; values never enter the SQL string.
 	q := "SELECT COUNT(DISTINCT " + column + ") FROM " + table +
 		" WHERE " + column + " IS NOT NULL AND " + column + " != ''"
-	err := db.sql.QueryRow(q).Scan(&n)
+	err := db.sql.QueryRowContext(ctx, q).Scan(&n)
 	return n, err
 }

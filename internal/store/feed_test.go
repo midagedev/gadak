@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -20,14 +21,14 @@ func feedMe() FeedIdentity {
 // seedFeedMirror builds issues that exercise every event type and reason.
 func seedFeedMirror(t *testing.T, db *DB) {
 	t.Helper()
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
 		t.Fatal(err)
 	}
 	mentionADF := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[
 		{"type":"mention","attrs":{"id":"acc-me","text":"@Me"}},
 		{"type":"text","text":" please look"}
 	]}]}`)
-	if _, err := db.UpsertIssues(Batch{
+	if _, err := db.UpsertIssues(context.Background(), Batch{
 		Categories: map[string]string{"1": "new", "3": "inprogress", "10001": "done"},
 		Priorities: []string{"High", "Medium"},
 		Records: []IssueRecord{
@@ -160,7 +161,7 @@ func seedFeedMirror(t *testing.T, db *DB) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetWatch("NMB-3", true); err != nil {
+	if err := db.SetWatch(context.Background(), "NMB-3", true); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -186,7 +187,7 @@ func TestFeedEventMappingAndReasons(t *testing.T) {
 	db := openTemp(t)
 	seedFeedMirror(t, db)
 
-	res, err := db.Feed(FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: feedMe(), Now: frozenNow})
+	res, err := db.Feed(context.Background(), FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: feedMe(), Now: frozenNow})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,11 +299,11 @@ func TestFeedFocusFilter(t *testing.T) {
 	db := openTemp(t)
 	seedFeedMirror(t, db)
 
-	all, err := db.Feed(FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: feedMe(), Now: frozenNow})
+	all, err := db.Feed(context.Background(), FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: feedMe(), Now: frozenNow})
 	if err != nil {
 		t.Fatal(err)
 	}
-	mention, err := db.Feed(FeedOpts{Focus: FeedFocusMention, Limit: 100, Me: feedMe(), Now: frozenNow})
+	mention, err := db.Feed(context.Background(), FeedOpts{Focus: FeedFocusMention, Limit: 100, Me: feedMe(), Now: frozenNow})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,7 +329,7 @@ func TestFeedMarkReadAndUnread(t *testing.T) {
 	seedFeedMirror(t, db)
 	me := feedMe()
 
-	before, err := db.Feed(FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: me, Now: frozenNow})
+	before, err := db.Feed(context.Background(), FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: me, Now: frozenNow})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +339,7 @@ func TestFeedMarkReadAndUnread(t *testing.T) {
 
 	// Mark one event read.
 	target := before.Items[0].EventID
-	marked, err := db.MarkFeedRead(MarkFeedReadOpts{
+	marked, err := db.MarkFeedRead(context.Background(), MarkFeedReadOpts{
 		EventIDs: []string{target}, Me: me, Now: frozenNow,
 	})
 	if err != nil {
@@ -351,7 +352,7 @@ func TestFeedMarkReadAndUnread(t *testing.T) {
 		t.Fatalf("unread %d → %d after one mark", before.UnreadCounts.All, marked.UnreadCounts.All)
 	}
 
-	after, err := db.Feed(FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: me, Now: frozenNow})
+	after, err := db.Feed(context.Background(), FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: me, Now: frozenNow})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,11 +371,11 @@ func TestFeedMarkReadAndUnread(t *testing.T) {
 
 	// Mark whole issue.
 	issueKey := "NMB-2"
-	_, err = db.MarkFeedRead(MarkFeedReadOpts{IssueKeys: []string{issueKey}, Me: me, Now: frozenNow})
+	_, err = db.MarkFeedRead(context.Background(), MarkFeedReadOpts{IssueKeys: []string{issueKey}, Me: me, Now: frozenNow})
 	if err != nil {
 		t.Fatal(err)
 	}
-	mid, err := db.Feed(FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: me, Now: frozenNow})
+	mid, err := db.Feed(context.Background(), FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: me, Now: frozenNow})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -385,7 +386,7 @@ func TestFeedMarkReadAndUnread(t *testing.T) {
 	}
 
 	// Mark all.
-	all, err := db.MarkFeedRead(MarkFeedReadOpts{All: true, Me: me, Now: frozenNow})
+	all, err := db.MarkFeedRead(context.Background(), MarkFeedReadOpts{All: true, Me: me, Now: frozenNow})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +399,7 @@ func TestFeedMentionDisabledWithoutAccountID(t *testing.T) {
 	db := openTemp(t)
 	seedFeedMirror(t, db)
 	me := FeedIdentity{Email: "me@example.com", DisplayName: "Me User"} // no AccountID
-	res, err := db.Feed(FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: me, Now: frozenNow})
+	res, err := db.Feed(context.Background(), FeedOpts{Focus: FeedFocusAll, Limit: 100, Me: me, Now: frozenNow})
 	if err != nil {
 		t.Fatal(err)
 	}

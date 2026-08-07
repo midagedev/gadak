@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"path/filepath"
@@ -71,7 +72,7 @@ func TestMigrateV15BackfillsPageExcerpt(t *testing.T) {
 		t.Fatalf("schema version %d, want ≥ 15", got)
 	}
 	var excerpt string
-	if err := db.sql.QueryRow(`SELECT excerpt FROM pages WHERE item_id = 'confluence:7'`).Scan(&excerpt); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT excerpt FROM pages WHERE item_id = 'confluence:7'`).Scan(&excerpt); err != nil {
 		t.Fatal(err)
 	}
 	if excerpt != "Hello world from ADF" {
@@ -85,11 +86,11 @@ func TestUpsertPagesStoresExcerpt(t *testing.T) {
 	if got := db.SchemaVersion(); got < 15 {
 		t.Fatalf("schema version %d, want ≥ 15", got)
 	}
-	if err := db.UpsertSource(Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
 		t.Fatal(err)
 	}
 	body := adfDoc("Preview line for the list.")
-	if _, err := db.UpsertPages([]PageRecord{{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{{
 		Item: Item{
 			ID: "confluence:9", SourceID: "confluence", Kind: "page", ExternalID: "9",
 			Key: "9", Title: "T", BodyText: "Preview line for the list.",
@@ -100,7 +101,7 @@ func TestUpsertPagesStoresExcerpt(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stored string
-	if err := db.sql.QueryRow(`SELECT excerpt FROM pages WHERE item_id = 'confluence:9'`).Scan(&stored); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT excerpt FROM pages WHERE item_id = 'confluence:9'`).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
 	if stored != "Preview line for the list." {
@@ -185,11 +186,11 @@ func TestPageExcerptCJKRuneSafe(t *testing.T) {
 // TestPageLiteIncludesExcerpt covers list, detail, and search JSON fields.
 func TestPageLiteIncludesExcerpt(t *testing.T) {
 	db := openTemp(t)
-	if err := db.UpsertSource(Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
 		t.Fatal(err)
 	}
 	adf := adfDoc("List preview text for search and detail.")
-	if _, err := db.UpsertPages([]PageRecord{{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{{
 		Item: Item{
 			ID: "confluence:55", SourceID: "confluence", Kind: "page", ExternalID: "55",
 			Key: "55", Title: "Billing runbook", BodyText: "List preview text for search and detail.",
@@ -202,7 +203,7 @@ func TestPageLiteIncludesExcerpt(t *testing.T) {
 	}
 
 	want := "List preview text for search and detail."
-	pages, err := db.PageLites()
+	pages, err := db.PageLites(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +211,7 @@ func TestPageLiteIncludesExcerpt(t *testing.T) {
 		t.Errorf("PageLites excerpt = %+v", pages)
 	}
 
-	d, err := db.PageDetail("55")
+	d, err := db.PageDetail(context.Background(), "55")
 	if err != nil || d == nil {
 		t.Fatalf("PageDetail: %v %#v", err, d)
 	}
@@ -218,7 +219,7 @@ func TestPageLiteIncludesExcerpt(t *testing.T) {
 		t.Errorf("PageDetail.Excerpt = %q", d.Excerpt)
 	}
 
-	res, err := db.Search("Billing", 10)
+	res, err := db.Search(context.Background(), "Billing", 10)
 	if err != nil {
 		t.Fatal(err)
 	}

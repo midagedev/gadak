@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"path/filepath"
@@ -84,14 +85,14 @@ func TestExtractPageRefsEmpty(t *testing.T) {
 
 func seedRefsFixture(t *testing.T, db *DB) {
 	t.Helper()
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira", BaseURL: "https://j.example"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://j.example"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpsertSource(Source{ID: "confluence", Kind: "confluence", BaseURL: "https://j.example/wiki"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence", BaseURL: "https://j.example/wiki"}); err != nil {
 		t.Fatal(err)
 	}
 	// Two issues so known project keys include NMB.
-	if _, err := db.UpsertIssues(Batch{
+	if _, err := db.UpsertIssues(context.Background(), Batch{
 		Categories: map[string]string{"1": "new"},
 		Records: []IssueRecord{
 			{
@@ -127,7 +128,7 @@ func seedRefsFixture(t *testing.T, db *DB) {
 		t.Fatal(err)
 	}
 	adf := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"see /browse/NMB-1 and bare NMB-2 plus SHA-256"}]}]}`)
-	if _, err := db.UpsertPages([]PageRecord{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{
 		{
 			Item: Item{
 				ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
@@ -154,7 +155,7 @@ func seedRefsFixture(t *testing.T, db *DB) {
 
 func loadRefs(t *testing.T, db *DB, itemID string) []ItemRef {
 	t.Helper()
-	rows, err := db.sql.Query(`
+	rows, err := db.sql.QueryContext(context.Background(), `
 		SELECT target_kind, target_key, via FROM item_refs
 		WHERE item_id = ? ORDER BY target_kind, target_key`, itemID)
 	if err != nil {
@@ -220,7 +221,7 @@ func TestUpsertRemovesStaleRefs(t *testing.T) {
 	seedRefsFixture(t, db)
 
 	// Rewrite page without any issue mentions — old refs must disappear.
-	if _, err := db.UpsertPages([]PageRecord{{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{{
 		Item: Item{
 			ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
 			Key: "100", Title: "Guide", BodyText: "cleaned body",
@@ -237,7 +238,7 @@ func TestUpsertRemovesStaleRefs(t *testing.T) {
 	}
 
 	// Rewrite issue without page links.
-	if _, err := db.UpsertIssues(Batch{
+	if _, err := db.UpsertIssues(context.Background(), Batch{
 		Categories: map[string]string{"1": "new"},
 		Force:      true,
 		Records: []IssueRecord{{
@@ -332,7 +333,7 @@ func TestPageDetailRefAndBacklinkIssueKeys(t *testing.T) {
 	db := openTemp(t)
 	seedRefsFixture(t, db)
 
-	d, err := db.PageDetail("100")
+	d, err := db.PageDetail(context.Background(), "100")
 	if err != nil || d == nil {
 		t.Fatalf("PageDetail(100): %v %#v", err, d)
 	}
@@ -346,7 +347,7 @@ func TestPageDetailRefAndBacklinkIssueKeys(t *testing.T) {
 	}
 
 	// Page 200: no outgoing; incoming NMB-2 (pageId=200).
-	d2, err := db.PageDetail("200")
+	d2, err := db.PageDetail(context.Background(), "200")
 	if err != nil || d2 == nil {
 		t.Fatalf("PageDetail(200): %v %#v", err, d2)
 	}
@@ -358,7 +359,7 @@ func TestPageDetailRefAndBacklinkIssueKeys(t *testing.T) {
 	}
 
 	// Unmirrored target is stored but not exposed.
-	if _, err := db.UpsertPages([]PageRecord{{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{{
 		Item: Item{
 			ID: "confluence:300", SourceID: "confluence", Kind: "page", ExternalID: "300",
 			Key: "300", Title: "Ghost", BodyText: "mentions /browse/NMB-99 only",
@@ -373,7 +374,7 @@ func TestPageDetailRefAndBacklinkIssueKeys(t *testing.T) {
 	if got := loadRefs(t, db, "confluence:300"); len(got) != 1 || got[0].TargetKey != "NMB-99" {
 		t.Errorf("stored ghost ref = %+v", got)
 	}
-	d3, err := db.PageDetail("300")
+	d3, err := db.PageDetail(context.Background(), "300")
 	if err != nil || d3 == nil {
 		t.Fatalf("PageDetail(300): %v", err)
 	}
@@ -386,7 +387,7 @@ func TestIssueDetailRefAndBacklinkPages(t *testing.T) {
 	db := openTemp(t)
 	seedRefsFixture(t, db)
 
-	d, err := db.Detail("NMB-1")
+	d, err := db.Detail(context.Background(), "NMB-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -403,7 +404,7 @@ func TestIssueDetailRefAndBacklinkPages(t *testing.T) {
 		t.Errorf("RefPages lite = %+v", d.RefPages[0])
 	}
 
-	d2, err := db.Detail("NMB-2")
+	d2, err := db.Detail(context.Background(), "NMB-2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,10 +423,10 @@ func TestIssueDetailRefAndBacklinkPages(t *testing.T) {
 
 func TestDetailRefsJSONOmitEmpty(t *testing.T) {
 	db := openTemp(t)
-	if err := db.UpsertSource(Source{ID: "jira", Kind: "jira"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.UpsertIssues(Batch{
+	if _, err := db.UpsertIssues(context.Background(), Batch{
 		Categories: map[string]string{"1": "new"},
 		Records: []IssueRecord{{
 			Item: Item{
@@ -441,7 +442,7 @@ func TestDetailRefsJSONOmitEmpty(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	d, err := db.Detail("DEMO-9")
+	d, err := db.Detail(context.Background(), "DEMO-9")
 	if err != nil {
 		t.Fatal(err)
 	}

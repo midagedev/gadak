@@ -101,7 +101,7 @@ func (o Options) phasef(source string) {
 // issue set is the scope (one Search, not one per project).
 func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
 	var c *jira.Client
-	return runSource(cfg, db, opts,
+	return runSource(ctx, cfg, db, opts,
 		sourceIdent{ID: SourceID, Kind: "jira"},
 		true, // SupportsReconcile: full and opts.Reconcile both run reconcile
 		"",
@@ -126,11 +126,11 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 
 	cats, err := c.Statuses(ctx)
 	if err != nil {
-		return record(db, SourceID, err)
+		return record(ctx, db, SourceID, err)
 	}
 	prios, err := c.Priorities(ctx)
 	if err != nil {
-		return record(db, SourceID, err)
+		return record(ctx, db, SourceID, err)
 	}
 
 	fieldIDs := fieldList(cfg, res.Full)
@@ -155,7 +155,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			}
 			batch.Records = append(batch.Records, r)
 		}
-		changed, err := db.UpsertIssues(batch)
+		changed, err := db.UpsertIssues(ctx, batch)
 		if err != nil {
 			return err
 		}
@@ -219,7 +219,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			// is max(updated) over fetched pages, so ordering does not affect it.
 			beginSearch("full sync: every project this account can see", jql, true)
 			if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
-				return record(db, SourceID, err)
+				return record(ctx, db, SourceID, err)
 			}
 		} else {
 			for _, p := range cfg.Projects {
@@ -229,7 +229,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 				// is max(updated) over fetched pages, so ordering does not affect it.
 				beginSearch("full sync: "+p, jql, true)
 				if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
-					return record(db, SourceID, err)
+					return record(ctx, db, SourceID, err)
 				}
 			}
 		}
@@ -240,12 +240,12 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			opts.logf("tip: run `scry sync --full` once to auto-configure custom fields")
 		}
 		if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
-			return record(db, SourceID, err)
+			return record(ctx, db, SourceID, err)
 		}
 	}
 
 	res.Watermark = maxRaw
-	if err := db.RecordSync(SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
+	if err := db.RecordSync(ctx, SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
 		return err
 	}
 
@@ -253,7 +253,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		deleted, err := reconcile(ctx, c, db, cfg.Projects, opts)
 		res.Deleted = deleted
 		if err != nil {
-			return record(db, SourceID, err)
+			return record(ctx, db, SourceID, err)
 		}
 	}
 
@@ -264,7 +264,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			return err
 		}
 	} else if (res.Full || opts.Reconcile) && len(cfg.FieldSpecs()) > 0 {
-		if err := refreshFieldUsage(db, cfg); err != nil {
+		if err := refreshFieldUsage(ctx, db, cfg); err != nil {
 			opts.logf("fields: usage refresh skipped: %v", err)
 		}
 	}
@@ -280,7 +280,7 @@ func runDiscovery(ctx context.Context, c *jira.Client, cfg *config.Config, db *s
 		opts.logf("fields: discovery skipped: %v", err)
 		return nil
 	}
-	fill, err := scanMirrorFill(db)
+	fill, err := scanMirrorFill(ctx, db)
 	if err != nil {
 		opts.logf("fields: discovery skipped: %v", err)
 		return nil
@@ -290,12 +290,12 @@ func runDiscovery(ctx context.Context, c *jira.Client, cfg *config.Config, db *s
 	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("fields: save discovered specs: %w", err)
 	}
-	n, err := reingestFromConfig(db, cfg)
+	n, err := reingestFromConfig(ctx, db, cfg)
 	if err != nil {
 		opts.logf("fields: discovery skipped: %v", err)
 		return nil
 	}
-	if err := refreshFieldUsage(db, cfg); err != nil {
+	if err := refreshFieldUsage(ctx, db, cfg); err != nil {
 		opts.logf("fields: usage refresh skipped: %v", err)
 	}
 	if len(specs) == 0 {
@@ -308,9 +308,9 @@ func runDiscovery(ctx context.Context, c *jira.Client, cfg *config.Config, db *s
 }
 
 // scanMirrorFill counts filled field ids across the mirror's stored raw JSON.
-func scanMirrorFill(db *store.DB) (map[string]int, error) {
+func scanMirrorFill(ctx context.Context, db *store.DB) (map[string]int, error) {
 	fill := map[string]int{}
-	err := db.ScanFieldFill(func(_ string, fieldVals map[string]json.RawMessage) error {
+	err := db.ScanFieldFill(ctx, func(_ string, fieldVals map[string]json.RawMessage) error {
 		for id, raw := range fieldVals {
 			if fields.IsFilled(raw) {
 				fill[id]++
@@ -322,17 +322,17 @@ func scanMirrorFill(db *store.DB) (map[string]int, error) {
 }
 
 // reingestFromConfig rewrites issues.custom and FTS body from raw using specs.
-func reingestFromConfig(db *store.DB, cfg *config.Config) (int, error) {
+func reingestFromConfig(ctx context.Context, db *store.DB, cfg *config.Config) (int, error) {
 	specs := cfg.FieldSpecs()
 	bodyIDs := fields.BodyFieldIDs(cfg.BodyFields, specs)
-	return db.ReingestCustom(fields.SpecIDsFrom(specs), bodyIDs)
+	return db.ReingestCustom(ctx, fields.SpecIDsFrom(specs), bodyIDs)
 }
 
 // refreshFieldUsage recomputes the field_usage table from issues.custom.
-func refreshFieldUsage(db *store.DB, cfg *config.Config) error {
+func refreshFieldUsage(ctx context.Context, db *store.DB, cfg *config.Config) error {
 	specs := cfg.FieldSpecs()
 	if len(specs) == 0 {
-		return db.ReplaceFieldUsage(nil)
+		return db.ReplaceFieldUsage(ctx, nil)
 	}
 	aliases := make([]string, 0, len(specs))
 	for _, s := range specs {
@@ -340,11 +340,11 @@ func refreshFieldUsage(db *store.DB, cfg *config.Config) error {
 			aliases = append(aliases, s.Alias)
 		}
 	}
-	rows, err := db.ComputeFieldUsage(aliases)
+	rows, err := db.ComputeFieldUsage(ctx, aliases)
 	if err != nil {
 		return err
 	}
-	return db.ReplaceFieldUsage(rows)
+	return db.ReplaceFieldUsage(ctx, rows)
 }
 
 // approxCount asks Jira for a progress denominator. Any failure or timeout is
@@ -487,7 +487,7 @@ func reconcile(ctx context.Context, c *jira.Client, db *store.DB, projects []str
 		return 0, err
 	}
 
-	lites, err := db.IssueLites()
+	lites, err := db.IssueLites(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -509,7 +509,7 @@ func reconcile(ctx context.Context, c *jira.Client, db *store.DB, projects []str
 		return 0, fmt.Errorf("reconcile: upstream reported no issues in scope while the mirror holds %d; refusing to empty it", len(gone))
 	}
 	opts.logf("reconcile: %d keys vanished upstream", len(gone))
-	return db.DeleteItems(SourceID, gone)
+	return db.DeleteItems(ctx, SourceID, gone)
 }
 
 // build maps one Jira issue onto the store's record, fetching the children the

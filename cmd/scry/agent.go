@@ -83,7 +83,7 @@ func leading(args []string, n int) (positional, rest []string) {
 // this filters the full list — which is what the server's write path does too,
 // and cheap enough at mirror scale.
 func lookup(db *store.DB, keys []string) ([]store.IssueLite, error) {
-	all, err := db.IssueLites()
+	all, err := db.IssueLites(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func cmdIssue(args []string) error {
 	defer db.Close()
 	warnIfStale()
 
-	d, err := db.Detail(key)
+	d, err := db.Detail(context.Background(), key)
 	if errors.Is(err, store.ErrNotFound) {
 		return fmt.Errorf("%s is not in the mirror — check the key, or run `scry sync`", key)
 	}
@@ -266,7 +266,7 @@ func cmdSearch(args []string) error {
 	defer db.Close()
 	warnIfStale()
 
-	res, err := db.Search(query, *limit)
+	res, err := db.Search(context.Background(), query, *limit)
 	if err != nil {
 		return err
 	}

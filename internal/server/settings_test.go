@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -148,10 +149,10 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
-	if err := db.UpsertSource(store.Source{ID: "jira", Kind: "jira", BaseURL: "https://x.atlassian.net"}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://x.atlassian.net"}); err != nil {
 		t.Fatalf("source: %v", err)
 	}
-	if _, err := db.UpsertIssues(store.Batch{
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
 		Categories: map[string]string{"1": "new"},
 		Records: []store.IssueRecord{{
 			Item: store.Item{
@@ -167,7 +168,7 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
-	if err := db.RecordSync("jira", store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z", FullSync: true}); err != nil {
+	if err := db.RecordSync(context.Background(), "jira", store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z", FullSync: true}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 
@@ -322,7 +323,7 @@ func TestPutSettingsConfluenceDisable(t *testing.T) {
 	if err := cfg.Save(); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	before, err := db.TableCount("pages")
+	before, err := db.TableCount(context.Background(), "pages")
 	if err != nil {
 		t.Fatalf("page count before: %v", err)
 	}
@@ -349,7 +350,7 @@ func TestPutSettingsConfluenceDisable(t *testing.T) {
 	if saved.Confluence != nil {
 		t.Fatalf("want Confluence nil after disable, got %+v", saved.Confluence)
 	}
-	after, err := db.TableCount("pages")
+	after, err := db.TableCount(context.Background(), "pages")
 	if err != nil {
 		t.Fatalf("page count after: %v", err)
 	}

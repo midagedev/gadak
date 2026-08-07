@@ -288,5 +288,5 @@ func flushAPIUsageLocal(c *jira.Client) {
 		delta.LastThrottledAt = u.LastThrottledAt.UTC().Format("2006-01-02T15:04:05.000Z")
 	}
 	day := time.Now().UTC().Format("2006-01-02")
-	_ = db.AddAPIUsage(day, delta)
+	_ = db.AddAPIUsage(context.Background(), day, delta)
 }

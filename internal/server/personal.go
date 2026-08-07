@@ -54,7 +54,7 @@ func (s *server) view(v store.SavedView) savedView {
 }
 
 func (s *server) handleGetViews(w http.ResponseWriter, r *http.Request) {
-	stored, err := s.db.SavedViews()
+	stored, err := s.db.SavedViews(r.Context())
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -80,11 +80,11 @@ func (s *server) handlePostView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v := store.SavedView{ID: newID(), Name: body.Name, Config: body.Config}
-	if err := s.db.PutSavedView(v); err != nil {
+	if err := s.db.PutSavedView(r.Context(), v); err != nil {
 		serverError(w, r, err)
 		return
 	}
-	stored, err := s.db.SavedViews()
+	stored, err := s.db.SavedViews(r.Context())
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -99,7 +99,7 @@ func (s *server) handlePostView(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleDeleteView(w http.ResponseWriter, r *http.Request) {
-	if err := s.db.DeleteSavedView(r.PathValue("id")); err != nil {
+	if err := s.db.DeleteSavedView(r.Context(), r.PathValue("id")); err != nil {
 		serverError(w, r, err)
 		return
 	}
@@ -107,7 +107,7 @@ func (s *server) handleDeleteView(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleGetWatches(w http.ResponseWriter, r *http.Request) {
-	keys, err := s.db.Watches()
+	keys, err := s.db.Watches(r.Context())
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -123,7 +123,7 @@ func (s *server) handleDeleteWatch(w http.ResponseWriter, r *http.Request) {
 // the PUT route it shares with the assignee endpoint names its wildcards
 // differently (see New).
 func (s *server) setWatch(w http.ResponseWriter, r *http.Request, key string, on bool) {
-	if err := s.db.SetWatch(key, on); err != nil {
+	if err := s.db.SetWatch(r.Context(), key, on); err != nil {
 		serverError(w, r, err)
 		return
 	}
@@ -131,7 +131,7 @@ func (s *server) setWatch(w http.ResponseWriter, r *http.Request, key string, on
 }
 
 func (s *server) handleGetFavorites(w http.ResponseWriter, r *http.Request) {
-	keys, err := s.db.Favorites()
+	keys, err := s.db.Favorites(r.Context())
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -146,7 +146,7 @@ func (s *server) handleDeleteFavorite(w http.ResponseWriter, r *http.Request) {
 // setFavorite mirrors setWatch: the PUT path shares wildcards with assignee
 // (see New), so the issue key is passed in rather than read from the route.
 func (s *server) setFavorite(w http.ResponseWriter, r *http.Request, key string, on bool) {
-	if err := s.db.SetFavorite(key, on); err != nil {
+	if err := s.db.SetFavorite(r.Context(), key, on); err != nil {
 		serverError(w, r, err)
 		return
 	}

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"hash/fnv"
@@ -93,8 +94,8 @@ type MarkFeedReadResult struct {
 }
 
 // Feed computes personal-feed events from the mirror at query time.
-func (db *DB) Feed(opts FeedOpts) (FeedResult, error) {
-	events, err := db.computeFeedEvents(opts.Me, opts.Now)
+func (db *DB) Feed(ctx context.Context, opts FeedOpts) (FeedResult, error) {
+	events, err := db.computeFeedEvents(ctx, opts.Me, opts.Now)
 	if err != nil {
 		return FeedResult{}, err
 	}
@@ -125,8 +126,8 @@ func (db *DB) Feed(opts FeedOpts) (FeedResult, error) {
 }
 
 // MarkFeedRead upserts read receipts and returns the refreshed unread counts.
-func (db *DB) MarkFeedRead(opts MarkFeedReadOpts) (MarkFeedReadResult, error) {
-	events, err := db.computeFeedEvents(opts.Me, opts.Now)
+func (db *DB) MarkFeedRead(ctx context.Context, opts MarkFeedReadOpts) (MarkFeedReadResult, error) {
+	events, err := db.computeFeedEvents(ctx, opts.Me, opts.Now)
 	if err != nil {
 		return MarkFeedReadResult{}, err
 	}
@@ -164,7 +165,7 @@ func (db *DB) MarkFeedRead(opts MarkFeedReadOpts) (MarkFeedReadResult, error) {
 		now = opts.Now.UTC().Format("2006-01-02T15:04:05.000Z")
 	}
 	updated := 0
-	err = db.write(func(tx *sql.Tx) error {
+	err = db.write(ctx, func(tx *sql.Tx) error {
 		for id := range want {
 			res, err := tx.Exec(`
 				INSERT INTO feed_reads (event_id, read_at) VALUES (?, ?)
@@ -184,7 +185,7 @@ func (db *DB) MarkFeedRead(opts MarkFeedReadOpts) (MarkFeedReadResult, error) {
 		return MarkFeedReadResult{}, err
 	}
 	// Recompute so read_at stamps and unread counts match the write we just did.
-	events, err = db.computeFeedEvents(opts.Me, opts.Now)
+	events, err = db.computeFeedEvents(ctx, opts.Me, opts.Now)
 	if err != nil {
 		return MarkFeedReadResult{}, err
 	}
@@ -220,7 +221,7 @@ type rawAttach struct {
 	ID, ItemID, Filename, Author, CreatedAt string
 }
 
-func (db *DB) computeFeedEvents(me FeedIdentity, now time.Time) ([]FeedItem, error) {
+func (db *DB) computeFeedEvents(ctx context.Context, me FeedIdentity, now time.Time) ([]FeedItem, error) {
 	if now.IsZero() {
 		now = time.Now().UTC()
 	} else {
@@ -228,27 +229,27 @@ func (db *DB) computeFeedEvents(me FeedIdentity, now time.Time) ([]FeedItem, err
 	}
 	since := now.AddDate(0, 0, -FeedWindowDays).Format("2006-01-02T15:04:05.000Z")
 
-	watches, err := db.watchSet()
+	watches, err := db.watchSet(ctx)
 	if err != nil {
 		return nil, err
 	}
-	issues, err := db.loadIssueMeta()
+	issues, err := db.loadIssueMeta(ctx)
 	if err != nil {
 		return nil, err
 	}
-	changes, err := db.loadChangelogSince(since)
+	changes, err := db.loadChangelogSince(ctx, since)
 	if err != nil {
 		return nil, err
 	}
-	comments, err := db.loadCommentsSince(since)
+	comments, err := db.loadCommentsSince(ctx, since)
 	if err != nil {
 		return nil, err
 	}
-	attaches, err := db.loadAttachmentsSince(since)
+	attaches, err := db.loadAttachmentsSince(ctx, since)
 	if err != nil {
 		return nil, err
 	}
-	reads, err := db.loadFeedReads()
+	reads, err := db.loadFeedReads(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -459,8 +460,8 @@ func (db *DB) computeFeedEvents(me FeedIdentity, now time.Time) ([]FeedItem, err
 	return out, nil
 }
 
-func (db *DB) watchSet() (map[string]bool, error) {
-	keys, err := db.Watches()
+func (db *DB) watchSet(ctx context.Context) (map[string]bool, error) {
+	keys, err := db.Watches(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -471,8 +472,8 @@ func (db *DB) watchSet() (map[string]bool, error) {
 	return out, nil
 }
 
-func (db *DB) loadIssueMeta() (map[string]issueMeta, error) {
-	rows, err := db.sql.Query(`
+func (db *DB) loadIssueMeta(ctx context.Context) (map[string]issueMeta, error) {
+	rows, err := db.sql.QueryContext(ctx, `
 		SELECT it.id, i.key, COALESCE(it.title,''), COALESCE(i.status,''),
 		       COALESCE(i.assignee_id,''), COALESCE(i.assignee_email,''),
 		       COALESCE(i.reporter_id,''), COALESCE(i.reporter_email,''),
@@ -496,8 +497,8 @@ func (db *DB) loadIssueMeta() (map[string]issueMeta, error) {
 	return out, rows.Err()
 }
 
-func (db *DB) loadChangelogSince(since string) ([]rawChange, error) {
-	rows, err := db.sql.Query(`
+func (db *DB) loadChangelogSince(ctx context.Context, since string) ([]rawChange, error) {
+	rows, err := db.sql.QueryContext(ctx, `
 		SELECT id, item_id, COALESCE(at,''), COALESCE(author,''), COALESCE(field,''),
 		       COALESCE(from_value,''), COALESCE(to_value,'')
 		FROM changelog WHERE at >= ?`, since)
@@ -516,8 +517,8 @@ func (db *DB) loadChangelogSince(since string) ([]rawChange, error) {
 	return out, rows.Err()
 }
 
-func (db *DB) loadCommentsSince(since string) ([]rawComment, error) {
-	rows, err := db.sql.Query(`
+func (db *DB) loadCommentsSince(ctx context.Context, since string) ([]rawComment, error) {
+	rows, err := db.sql.QueryContext(ctx, `
 		SELECT id, item_id, COALESCE(author,''), COALESCE(author_id,''),
 		       COALESCE(body_adf,''), COALESCE(body_text,''), COALESCE(created_at,'')
 		FROM comments WHERE created_at >= ?`, since)
@@ -536,8 +537,8 @@ func (db *DB) loadCommentsSince(since string) ([]rawComment, error) {
 	return out, rows.Err()
 }
 
-func (db *DB) loadAttachmentsSince(since string) ([]rawAttach, error) {
-	rows, err := db.sql.Query(`
+func (db *DB) loadAttachmentsSince(ctx context.Context, since string) ([]rawAttach, error) {
+	rows, err := db.sql.QueryContext(ctx, `
 		SELECT id, item_id, COALESCE(filename,''), COALESCE(author,''), COALESCE(created_at,'')
 		FROM attachments WHERE created_at >= ?`, since)
 	if err != nil {
@@ -555,8 +556,8 @@ func (db *DB) loadAttachmentsSince(since string) ([]rawAttach, error) {
 	return out, rows.Err()
 }
 
-func (db *DB) loadFeedReads() (map[string]string, error) {
-	rows, err := db.sql.Query(`SELECT event_id, read_at FROM feed_reads`)
+func (db *DB) loadFeedReads(ctx context.Context) (map[string]string, error) {
+	rows, err := db.sql.QueryContext(ctx, `SELECT event_id, read_at FROM feed_reads`)
 	if err != nil {
 		return nil, err
 	}

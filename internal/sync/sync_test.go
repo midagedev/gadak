@@ -310,7 +310,7 @@ func testConfig() *config.Config {
 
 func lite(t *testing.T, db *mirror, key string) store.IssueLite {
 	t.Helper()
-	lites, err := db.IssueLites()
+	lites, err := db.IssueLites(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,7 +372,7 @@ func TestFullSyncMapsEverything(t *testing.T) {
 	if res.Fetched != 3 || res.Changed != 3 || !res.Full {
 		t.Fatalf("result = %+v", res)
 	}
-	lites, err := db.IssueLites()
+	lites, err := db.IssueLites(context.Background())
 	if err != nil || len(lites) != 3 {
 		t.Fatalf("mirror holds %d issues, err = %v", len(lites), err)
 	}
@@ -445,7 +445,7 @@ func TestFullSyncMapsEverything(t *testing.T) {
 		t.Errorf("url = %q", got)
 	}
 
-	detail, err := db.Detail("NMB-1")
+	detail, err := db.Detail(context.Background(), "NMB-1")
 	if err != nil || detail == nil {
 		t.Fatalf("detail err = %v", err)
 	}
@@ -463,7 +463,7 @@ func TestFullSyncMapsEverything(t *testing.T) {
 	// body_text carries the description, the configured body field and comment
 	// text into FTS.
 	for _, term := range []string{"flangewidget", "reproseed", "commentonlytoken"} {
-		hits, err := db.Search(term, 10)
+		hits, err := db.Search(context.Background(), term, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -472,7 +472,7 @@ func TestFullSyncMapsEverything(t *testing.T) {
 		}
 	}
 
-	state, _ := db.SyncState(SourceID)
+	state, _ := db.SyncState(context.Background(), SourceID)
 	if state.Watermark != "2026-08-04T18:15:00.000+0900" {
 		t.Errorf("watermark = %q, want the newest updated seen", state.Watermark)
 	}
@@ -490,7 +490,7 @@ func TestIncrementalRerunIsANoOp(t *testing.T) {
 	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err != nil {
 		t.Fatal(err)
 	}
-	before, _ := db.SyncState(SourceID)
+	before, _ := db.SyncState(context.Background(), SourceID)
 
 	res, err := Run(context.Background(), cfg, db.DB, Options{Client: client})
 	if err != nil {
@@ -502,7 +502,7 @@ func TestIncrementalRerunIsANoOp(t *testing.T) {
 	if res.Fetched != 3 || res.Changed != 0 {
 		t.Errorf("re-run changed %d of %d fetched rows, want 0", res.Changed, res.Fetched)
 	}
-	after, _ := db.SyncState(SourceID)
+	after, _ := db.SyncState(context.Background(), SourceID)
 	if after.Version != before.Version {
 		t.Errorf("version moved %d -> %d on an unchanged re-run; the ETag would break", before.Version, after.Version)
 	}
@@ -529,11 +529,11 @@ func TestFailedPageKeepsMirrorAndWatermark(t *testing.T) {
 	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err == nil {
 		t.Fatal("expected the injected 500 to fail the run")
 	}
-	lites, _ := db.IssueLites()
+	lites, _ := db.IssueLites(context.Background())
 	if len(lites) != 2 {
 		t.Errorf("committed pages must survive a later failure, mirror holds %d", len(lites))
 	}
-	state, _ := db.SyncState(SourceID)
+	state, _ := db.SyncState(context.Background(), SourceID)
 	if state.Watermark != "" {
 		t.Errorf("watermark advanced to %q on a failed run", state.Watermark)
 	}
@@ -550,11 +550,11 @@ func TestFailedPageKeepsMirrorAndWatermark(t *testing.T) {
 	if !res.Full {
 		t.Error("a mirror without a watermark must resync fully")
 	}
-	state, _ = db.SyncState(SourceID)
+	state, _ = db.SyncState(context.Background(), SourceID)
 	if state.LastError != nil || state.Watermark == "" {
 		t.Errorf("state after recovery = %+v", state)
 	}
-	if lites, _ = db.IssueLites(); len(lites) != 3 {
+	if lites, _ = db.IssueLites(context.Background()); len(lites) != 3 {
 		t.Errorf("mirror holds %d issues after recovery", len(lites))
 	}
 }
@@ -580,11 +580,11 @@ func TestReconcileDeletesVanishedKeys(t *testing.T) {
 	if res.Deleted != 2 {
 		t.Fatalf("deleted %d, want 2", res.Deleted)
 	}
-	lites, _ := db.IssueLites()
+	lites, _ := db.IssueLites(context.Background())
 	if len(lites) != 1 || lites[0].IssueKey != "NMB-1" {
 		t.Errorf("mirror = %+v", lites)
 	}
-	gone, err := db.DeletedKeysSince("")
+	gone, err := db.DeletedKeysSince(context.Background(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -599,7 +599,7 @@ func TestReconcileDeletesVanishedKeys(t *testing.T) {
 	if _, err := Run(context.Background(), cfg, db.DB, Options{Reconcile: true, Client: client}); err == nil {
 		t.Fatal("expected reconcile to refuse an empty upstream")
 	}
-	if lites, _ = db.IssueLites(); len(lites) != 1 {
+	if lites, _ = db.IssueLites(context.Background()); len(lites) != 1 {
 		t.Errorf("mirror emptied by an empty upstream: %d rows left", len(lites))
 	}
 }
@@ -617,7 +617,7 @@ func TestDerivedFieldsIgnoreDisplayLanguage(t *testing.T) {
 			t.Fatal(err)
 		}
 		out := map[string]snapshot{}
-		lites, _ := db.IssueLites()
+		lites, _ := db.IssueLites(context.Background())
 		for _, l := range lites {
 			s := snapshot{category: l.StatusCategory, status: l.Status, reopen: l.ReopenCount}
 			if l.ReopenedAt != nil {
@@ -692,7 +692,7 @@ func TestTruncatedChildrenArePaged(t *testing.T) {
 	if two.ReopenCount != 1 || two.ReopenedAt == nil {
 		t.Errorf("reopen = %d at %v, want 1 from the paged changelog", two.ReopenCount, two.ReopenedAt)
 	}
-	detail, _ := db.Detail("NMB-2")
+	detail, _ := db.Detail(context.Background(), "NMB-2")
 	if len(detail.History) != 4 {
 		t.Errorf("history rows = %d, want 4", len(detail.History))
 	}
@@ -724,7 +724,7 @@ func TestWatchRunsImmediatelyAndStopsWithContext(t *testing.T) {
 	if err := <-done; !errors.Is(err, context.Canceled) {
 		t.Fatalf("Watch returned %v, want context.Canceled", err)
 	}
-	if lites, _ := db.IssueLites(); len(lites) != 3 {
+	if lites, _ := db.IssueLites(context.Background()); len(lites) != 3 {
 		t.Errorf("watch mirrored %d issues", len(lites))
 	}
 }
@@ -877,7 +877,7 @@ func TestRunFlushesAPIUsage(t *testing.T) {
 	if _, err := Run(context.Background(), testConfig(), db.DB, Options{Full: true, Client: c}); err != nil {
 		t.Fatal(err)
 	}
-	days, err := db.APIUsage(7)
+	days, err := db.APIUsage(context.Background(), 7)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -911,7 +911,7 @@ func TestFlushAPIUsageFailureDoesNotPropagate(t *testing.T) {
 	}
 	_ = db.Close()
 	var logs []string
-	flushAPIUsage(db.DB, c, func(format string, args ...any) {
+	flushAPIUsage(context.Background(), db.DB, c, func(format string, args ...any) {
 		logs = append(logs, fmt.Sprintf(format, args...))
 	})
 	if len(logs) != 1 || !strings.Contains(logs[0], "api usage flush") {
@@ -959,7 +959,7 @@ func TestJiraSyncRunKinds(t *testing.T) {
 	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err != nil {
 		t.Fatal(err)
 	}
-	runs, err := db.SyncRuns(SourceID, 5)
+	runs, err := db.SyncRuns(context.Background(), SourceID, 5)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -993,7 +993,7 @@ func TestJiraSyncRunKinds(t *testing.T) {
 	if res.Full {
 		t.Fatal("expected incremental, got full")
 	}
-	runs, err = db.SyncRuns(SourceID, 5)
+	runs, err = db.SyncRuns(context.Background(), SourceID, 5)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1021,7 +1021,7 @@ func TestJiraSyncRunKinds(t *testing.T) {
 	if res.Deleted < 1 && res.Changed < 1 {
 		t.Fatalf("reconcile run left no mark (deleted=%d changed=%d); kind would be skipped", res.Deleted, res.Changed)
 	}
-	runs, err = db.SyncRuns(SourceID, 5)
+	runs, err = db.SyncRuns(context.Background(), SourceID, 5)
 	if err != nil {
 		t.Fatal(err)
 	}

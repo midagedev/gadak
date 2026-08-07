@@ -401,7 +401,8 @@ func cmdFieldsApply(asJSON bool) error {
 	}
 	defer db.Close()
 
-	has, err := db.HasCustomFieldKeysInRaw()
+	ctx := context.Background()
+	has, err := db.HasCustomFieldKeysInRaw(ctx)
 	if err != nil {
 		return err
 	}
@@ -414,14 +415,13 @@ func cmdFieldsApply(asJSON bool) error {
 		return nil
 	}
 
-	ctx := context.Background()
 	c := jira.New(cfg.Site, cfg.Email, cfg.Token)
 	catalog, err := c.Fields(ctx)
 	if err != nil {
 		return fmt.Errorf("list fields: %w", err)
 	}
 	fill := map[string]int{}
-	if err := db.ScanFieldFill(func(_ string, fieldVals map[string]json.RawMessage) error {
+	if err := db.ScanFieldFill(ctx, func(_ string, fieldVals map[string]json.RawMessage) error {
 		for id, raw := range fieldVals {
 			if fields.IsFilled(raw) {
 				fill[id]++
@@ -438,7 +438,7 @@ func cmdFieldsApply(asJSON bool) error {
 		return err
 	}
 	bodyIDs := fields.BodyFieldIDs(cfg.BodyFields, specs)
-	if _, err := db.ReingestCustom(fields.SpecIDsFrom(specs), bodyIDs); err != nil {
+	if _, err := db.ReingestCustom(ctx, fields.SpecIDsFrom(specs), bodyIDs); err != nil {
 		return err
 	}
 	aliases := make([]string, 0, len(specs))
@@ -447,11 +447,11 @@ func cmdFieldsApply(asJSON bool) error {
 			aliases = append(aliases, s.Alias)
 		}
 	}
-	usage, err := db.ComputeFieldUsage(aliases)
+	usage, err := db.ComputeFieldUsage(ctx, aliases)
 	if err != nil {
 		return err
 	}
-	if err := db.ReplaceFieldUsage(usage); err != nil {
+	if err := db.ReplaceFieldUsage(ctx, usage); err != nil {
 		return err
 	}
 

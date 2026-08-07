@@ -962,7 +962,7 @@ func cmdStatus(args []string) error {
 	defer db.Close()
 
 	st := map[string]any{"profile": config.Profile()}
-	if ss, err := db.SyncState("jira"); err == nil {
+	if ss, err := db.SyncState(context.Background(), "jira"); err == nil {
 		st["watermark"] = ss.Watermark
 		st["version"] = ss.Version
 		st["schema_version"] = ss.SchemaVersion
@@ -977,13 +977,13 @@ func cmdStatus(args []string) error {
 			st["first_sync_at"] = *ss.FirstSyncAt
 		}
 	}
-	if n, err := db.TableCount("issues"); err == nil {
+	if n, err := db.TableCount(context.Background(), "issues"); err == nil {
 		st["issues"] = n
 	}
-	if n, err := db.TableCount("comments"); err == nil {
+	if n, err := db.TableCount(context.Background(), "comments"); err == nil {
 		st["comments"] = n
 	}
-	usage, err := db.APIUsageSummary()
+	usage, err := db.APIUsageSummary(context.Background())
 	if err != nil {
 		usage = store.APIUsageSummary{Today: store.APIUsageDay{Day: time.Now().UTC().Format("2006-01-02")}}
 	}
@@ -1115,7 +1115,7 @@ func freshenDemoClock(dbPath string) error {
 		return err
 	}
 	defer db.Close()
-	return db.FreshenSyncClock()
+	return db.FreshenSyncClock(context.Background())
 }
 
 func cmdDemo(args []string) error {

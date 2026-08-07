@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 )
@@ -16,7 +17,7 @@ func TestSchemaV14SpacesTable(t *testing.T) {
 	if len(cols) == 0 {
 		t.Fatal("documentedColumns[spaces] missing")
 	}
-	rows, err := db.sql.Query(`PRAGMA table_info(spaces)`)
+	rows, err := db.sql.QueryContext(context.Background(), `PRAGMA table_info(spaces)`)
 	if err != nil {
 		t.Fatalf("PRAGMA table_info(spaces): %v", err)
 	}
@@ -51,17 +52,17 @@ func TestSchemaV14SpacesTable(t *testing.T) {
 // re-upsert updates name/kind without error or row duplication.
 func TestUpsertSpacesIdempotent(t *testing.T) {
 	db := openTemp(t)
-	if err := db.UpsertSource(Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpsertSpaces("confluence", []SpaceRow{
+	if err := db.UpsertSpaces(context.Background(), "confluence", []SpaceRow{
 		{Key: "3dvBrsa61dIo", Name: "Engineering", Kind: "global"},
 		{Key: "OPS", Name: "Operations", Kind: "global"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	var n int
-	if err := db.sql.QueryRow(`SELECT COUNT(*) FROM spaces WHERE source_id = 'confluence'`).Scan(&n); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM spaces WHERE source_id = 'confluence'`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 2 {
@@ -69,19 +70,19 @@ func TestUpsertSpacesIdempotent(t *testing.T) {
 	}
 
 	// Re-upsert same keys with updated name; row count stays 2.
-	if err := db.UpsertSpaces("confluence", []SpaceRow{
+	if err := db.UpsertSpaces(context.Background(), "confluence", []SpaceRow{
 		{Key: "3dvBrsa61dIo", Name: "Eng Team", Kind: "global"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	var name string
-	if err := db.sql.QueryRow(`SELECT name FROM spaces WHERE source_id = 'confluence' AND key = '3dvBrsa61dIo'`).Scan(&name); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT name FROM spaces WHERE source_id = 'confluence' AND key = '3dvBrsa61dIo'`).Scan(&name); err != nil {
 		t.Fatal(err)
 	}
 	if name != "Eng Team" {
 		t.Errorf("name after re-upsert = %q, want Eng Team", name)
 	}
-	if err := db.sql.QueryRow(`SELECT COUNT(*) FROM spaces WHERE source_id = 'confluence'`).Scan(&n); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM spaces WHERE source_id = 'confluence'`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 2 {
@@ -89,13 +90,13 @@ func TestUpsertSpacesIdempotent(t *testing.T) {
 	}
 
 	// Empty-kind upsert must not wipe kind.
-	if err := db.UpsertSpaces("confluence", []SpaceRow{
+	if err := db.UpsertSpaces(context.Background(), "confluence", []SpaceRow{
 		{Key: "3dvBrsa61dIo", Name: "Eng Team", Kind: ""},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	var kind string
-	if err := db.sql.QueryRow(`SELECT kind FROM spaces WHERE source_id = 'confluence' AND key = '3dvBrsa61dIo'`).Scan(&kind); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT kind FROM spaces WHERE source_id = 'confluence' AND key = '3dvBrsa61dIo'`).Scan(&kind); err != nil {
 		t.Fatal(err)
 	}
 	if kind != "global" {
@@ -107,11 +108,11 @@ func TestUpsertSpacesIdempotent(t *testing.T) {
 // spaces: named when present, empty string when absent.
 func TestPageLiteSpaceNameJoin(t *testing.T) {
 	db := openTemp(t)
-	if err := db.UpsertSource(Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
 		t.Fatal(err)
 	}
 	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
-	if _, err := db.UpsertPages([]PageRecord{
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{
 		{
 			Item: Item{
 				ID: "confluence:1", SourceID: "confluence", Kind: "page", ExternalID: "1",
@@ -131,13 +132,13 @@ func TestPageLiteSpaceNameJoin(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpsertSpaces("confluence", []SpaceRow{
+	if err := db.UpsertSpaces(context.Background(), "confluence", []SpaceRow{
 		{Key: "ENG", Name: "Engineering", Kind: "global"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	pages, err := db.PageLites()
+	pages, err := db.PageLites(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +156,7 @@ func TestPageLiteSpaceNameJoin(t *testing.T) {
 		t.Errorf("page 2 SpaceName = %q, want empty (no spaces row)", byKey["2"].SpaceName)
 	}
 
-	d, err := db.PageDetail("1")
+	d, err := db.PageDetail(context.Background(), "1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +166,7 @@ func TestPageLiteSpaceNameJoin(t *testing.T) {
 	if d.SpaceName != "Engineering" {
 		t.Errorf("PageDetail SpaceName = %q, want Engineering", d.SpaceName)
 	}
-	d2, err := db.PageDetail("2")
+	d2, err := db.PageDetail(context.Background(), "2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +178,7 @@ func TestPageLiteSpaceNameJoin(t *testing.T) {
 	}
 
 	// Search page hits also carry space_name.
-	res, err := db.Search("Has", 10)
+	res, err := db.Search(context.Background(), "Has", 10)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -13,17 +14,17 @@ import (
 func fixturePages(t *testing.T) (*store.DB, *config.Config) {
 	t.Helper()
 	db, cfg := fixture(t)
-	if err := db.UpsertSource(store.Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x.atlassian.net/wiki"}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x.atlassian.net/wiki"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpsertSpaces("confluence", []store.SpaceRow{
+	if err := db.UpsertSpaces(context.Background(), "confluence", []store.SpaceRow{
 		{Key: "PROD", Name: "Product", Kind: "global"},
 		{Key: "ENG", Name: "Engineering", Kind: "global"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
-	if _, err := db.UpsertPages([]store.PageRecord{
+	if _, err := db.UpsertPages(context.Background(), []store.PageRecord{
 		{
 			Item: store.Item{
 				ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
@@ -50,7 +51,7 @@ func fixturePages(t *testing.T) (*store.DB, *config.Config) {
 		t.Fatal(err)
 	}
 	// Stamp confluence sync_state so ETag has a non-zero version.
-	if err := db.RecordSync("confluence", store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z", FullSync: true}); err != nil {
+	if err := db.RecordSync(context.Background(), "confluence", store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z", FullSync: true}); err != nil {
 		t.Fatal(err)
 	}
 	return db, cfg
@@ -198,11 +199,11 @@ func TestPagesResponseIncludesSpaceName(t *testing.T) {
 // pages list API (handler serializes store.PageLite — no handler change).
 func TestPagesResponseIncludesLabels(t *testing.T) {
 	db, cfg := fixture(t)
-	if err := db.UpsertSource(store.Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x.atlassian.net/wiki"}); err != nil {
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x.atlassian.net/wiki"}); err != nil {
 		t.Fatal(err)
 	}
 	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
-	if _, err := db.UpsertPages([]store.PageRecord{{
+	if _, err := db.UpsertPages(context.Background(), []store.PageRecord{{
 		Item: store.Item{
 			ID: "confluence:55", SourceID: "confluence", Kind: "page", ExternalID: "55",
 			Key: "55", Title: "Labeled page", BodyText: "x",
@@ -216,7 +217,7 @@ func TestPagesResponseIncludesLabels(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RecordSync("confluence", store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z", FullSync: true}); err != nil {
+	if err := db.RecordSync(context.Background(), "confluence", store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z", FullSync: true}); err != nil {
 		t.Fatal(err)
 	}
 	h := New(db, cfg)

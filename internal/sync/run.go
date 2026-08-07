@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -34,6 +35,7 @@ type usageTaker interface {
 // no reconcile pass yet; the label rule lives here so a future pass can flip
 // the flag without re-forking the skeleton.
 func runSource(
+	ctx context.Context,
 	cfg *config.Config,
 	db *store.DB,
 	opts Options,
@@ -63,7 +65,7 @@ func runSource(
 			run.Error = err.Error()
 		}
 		// Bookkeeping must never fail the sync that produced it.
-		_ = db.AppendSyncRun(src.ID, run)
+		_ = db.AppendSyncRun(ctx, src.ID, run)
 	}()
 
 	if cfg == nil || !cfg.HasCredential() {
@@ -78,12 +80,12 @@ func runSource(
 	// never fail the sync itself — see flushAPIUsage. Watch also lands here
 	// once per cycle, so one-shot and watch share this single flush point.
 	if usage != nil {
-		defer flushAPIUsage(db, usage, opts.logf)
+		defer flushAPIUsage(ctx, db, usage, opts.logf)
 	}
-	if err := db.UpsertSource(store.Source{ID: src.ID, Kind: src.Kind, BaseURL: baseURL}); err != nil {
+	if err := db.UpsertSource(ctx, store.Source{ID: src.ID, Kind: src.Kind, BaseURL: baseURL}); err != nil {
 		return res, err
 	}
-	state, err := db.SyncState(src.ID)
+	state, err := db.SyncState(ctx, src.ID)
 	if err != nil {
 		return res, err
 	}
@@ -117,8 +119,8 @@ func syncRunKind(full, reconcile bool) string {
 
 // record stores last_error for sourceID and returns the error unchanged. It
 // passes no watermark: a failed run must not advance it.
-func record(db *store.DB, sourceID string, err error) error {
-	_ = db.RecordSync(sourceID, store.SyncResult{Err: err})
+func record(ctx context.Context, db *store.DB, sourceID string, err error) error {
+	_ = db.RecordSync(ctx, sourceID, store.SyncResult{Err: err})
 	return err
 }
 
@@ -130,7 +132,7 @@ func record(db *store.DB, sourceID string, err error) error {
 // A flush failure is logged and swallowed: rate-limit visibility must not break
 // the sync that produced the traffic. api_usage is day-keyed with no source
 // column — both connectors accumulate into the same daily row (schema contract).
-func flushAPIUsage(db *store.DB, c usageTaker, logf func(string, ...any)) {
+func flushAPIUsage(ctx context.Context, db *store.DB, c usageTaker, logf func(string, ...any)) {
 	if db == nil || c == nil {
 		return
 	}
@@ -149,7 +151,7 @@ func flushAPIUsage(db *store.DB, c usageTaker, logf func(string, ...any)) {
 		delta.LastThrottledAt = u.LastThrottledAt.UTC().Format("2006-01-02T15:04:05.000Z")
 	}
 	day := time.Now().UTC().Format("2006-01-02")
-	if err := db.AddAPIUsage(day, delta); err != nil {
+	if err := db.AddAPIUsage(ctx, day, delta); err != nil {
 		if logf != nil {
 			logf("api usage flush: %v", err)
 		}
