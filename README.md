@@ -118,17 +118,14 @@ opens at the speed of the rest of the app — and keeps rendering offline.
 ## For agents
 
 This is half the reason scry exists, so it has its own reference:
-**[AGENTS.md](AGENTS.md)** — and
-[`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) is one paste per agent
-(Claude Code, Cursor, Codex, MCP). Hooking one up is one line:
+**[AGENTS.md](AGENTS.md)** — schema tour, query patterns, and the mistakes
+that silently return nothing. [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) is
+one paste per agent (Claude Code, Cursor, Codex, MCP). Hooking one up is one
+line:
 
 ```bash
 scry mcp install claude    # pins this binary and profile into the registration
 ```
-
-No brew on the machine? The desktop app bundles the same CLI —
-[`docs/DESKTOP.md`](docs/DESKTOP.md) has the one-line PATH hookup, and then
-your agent reads exactly what your window shows.
 
 <p align="center">
   <img src="docs/media/agent.gif" alt="scry search, scry sql aggregation, and scry issue in a terminal" width="800">
@@ -137,46 +134,31 @@ your agent reads exactly what your window shows.
   Generated from <a href="tools/tapes/agent.tape">tools/tapes/agent.tape</a> (VHS, unscripted model output).</sub>
 </p>
 
-The interface is the database. Anything that can run a shell command can use
-it at full power:
+The interface is the database, so anything that can run a shell command has
+full power:
 
 ```bash
-# What keeps coming back, and when did it last happen?
-scry sql "select key, summary, reopen_count, reopened_at from issues_full
+# What keeps coming back? (reopen_count is derived here — Jira has no such field)
+scry sql "select key, summary, reopen_count from issues_full
           where reopen_count > 0 order by reopened_at desc limit 20"
 
 # Full-text across issues AND wiki pages — one index, one query
 scry search "idempotency webhook"
 
-# What does the wiki know that the tracker doesn't?
-scry sql "select it.key, it.title, p.space_key from items_fts f
-          join items it on it.rowid = f.rowid
-          join pages p on p.item_id = it.id
-          where items_fts match 'incident AND billing' limit 20"
-
-# One issue whole, or one write straight through to Jira
+# One issue whole, or a write straight through to Jira
 scry issue NMB-140 --json
 scry comment NMB-140 -m "Reproduced on staging."
-scry transition NMB-140 "In Review"
 ```
 
-Read and write commands that emit structured output (`init`, `status`,
-`issue`, `search`, `comment`, `transition`, `assign`, `fields`, `sql`) take
-`--json`; `scry search --json` includes a `pages` array, and the MCP server's
-`scry_search` returns the same. `issue`, `search`, `comment`, `transition`,
-`assign`, and `fields` also warn on stderr when the last sync failed or is
-over an hour old; stdout stays clean enough to pipe. `scry sql` opens the
-database with SQLite `mode=ro` (MCP's `scry_query` additionally rejects
-non-SELECT statements), so an agent on a narrow command allowlist can be given
-mirror access without being given arbitrary `sqlite3`.
+Reads are safe by construction: `scry sql` opens the database `mode=ro`, and
+MCP's `scry_query` additionally rejects anything that is not a SELECT — so an
+agent can be given the mirror without being given arbitrary `sqlite3`. When
+the mirror does not model an endpoint at all, [`scry api`](docs/AGENT_ACCESS.md)
+passes the request through to your site: read-only unless you add `--write`,
+never on MCP.
 
-The schema in `specs/000-product/data-model.md` is a public contract. Filter
-on `status_category` and ids, never on display names — Jira translates those
-per account, which is the one mistake that silently returns nothing.
-
-Everything can hold the file at once — the mirror runs WAL with one writer
-(the sync loop), and `scry sql` / MCP open it read-only, so `serve`, the TUI,
-and an agent coexist by design.
+Everything can hold the file at once — WAL with one writer (the sync loop),
+readers everywhere else — so `serve`, the TUI, and an agent coexist by design.
 
 One caveat we would rather you read here than discover later: **an agent that
 reads your mirror sends what it reads to whatever model it talks to.** scry
@@ -186,184 +168,39 @@ allowlists, or a separate profile).
 
 ## Install
 
-Atlassian Cloud only. You need an API token from
-<https://id.atlassian.com/manage-profile/security/api-tokens> — one token
-covers both Jira and Confluence on the same site.
+Atlassian Cloud only, and you need an
+[API token](https://id.atlassian.com/manage-profile/security/api-tokens) — one
+token covers Jira and Confluence on the same site.
 
-Three doors into the same product — pick by how you'll use it:
-
-- **Your coding agent is the user** (Claude Code, Cursor, …): Homebrew, then
-  `scry mcp install claude`. Two lines and the agent is querying the mirror.
-- **You want an app, not a terminal**: the macOS
-  [desktop app](docs/DESKTOP.md) — setup happens in the window, and the CLI
-  rides inside the bundle for the day your agent wants in.
-- **You live in the terminal**: Homebrew again — `scry serve` for the browser
-  UI, `scry tui` to stay where you are.
-
-### 1. Homebrew
+**You install one thing.** There is a single binary and a single app, and the
+app has the binary inside it:
 
 ```bash
-brew install midagedev/tap/scry
+brew install midagedev/tap/scry     # macOS + Linux — the CLI, the web UI, the TUI
 ```
 
-macOS and Linux, from [`midagedev/homebrew-tap`][tap]. A formula, not a cask:
-scry is a single CLI binary, which is what formulas are for. macOS release
-binaries are signed with a Developer ID certificate and notarized by Apple —
-[`SECURITY.md`](SECURITY.md) shows how to verify one yourself.
+or download `Scry-<version>-arm64.dmg` from the
+[latest release](https://github.com/midagedev/scry/releases/latest) for the
+[macOS app](docs/DESKTOP.md) — signed, notarized, sets itself up in its own
+window with no terminal at any point.
 
-[tap]: https://github.com/midagedev/homebrew-tap
-
-### 2. Desktop app (macOS)
-
-Download `Scry-<version>-arm64.dmg` from the
-[latest release](https://github.com/midagedev/scry/releases/latest) and drag
-it to Applications — signed and notarized, Apple Silicon. It is the same web
-UI in its own window with **no local server at all**: no port, no address,
-nothing new listening. First launch walks through setup in the window, and
-the bundle carries the CLI for agent wiring without a separate install.
-[`docs/DESKTOP.md`](docs/DESKTOP.md) has the details.
-
-### 3. Install script
+If you took the app and later want an agent on the same mirror, the CLI is
+already on your disk; macOS just does not put an app bundle on your `PATH`.
+One command does:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/midagedev/scry/main/scripts/install.sh | sh
+/Applications/Scry.app/Contents/Resources/bin/scry install-cli
 ```
 
-Downloads the latest GitHub Release for your OS/arch, verifies `checksums.txt`
-(sha256), and installs to `~/.local/bin/scry` (override with `SCRY_INSTALL_DIR`).
-Upgrades in place if a binary is already there.
-
-### 4. Release binary
-
-Download the archive for your OS/arch from
-[GitHub Releases](https://github.com/midagedev/scry/releases), verify against
-`checksums.txt`, unpack, and put `scry` on your `PATH`.
-
-### 5. Build from source
-
-Requirements: Go 1.25+, Node.js 20+.
+Then first run:
 
 ```bash
-npm ci && npm run build       # build the web UI into dist/app
-go build -o scry ./cmd/scry   # embeds it — the binary is the whole install
-# or: make build  → bin/scry
-
-./scry demo                   # the hosted demo's backlog, served locally
+scry serve      # http://scry.localhost:7777 — setup happens in the browser
 ```
 
-A cold build (clone, npm ci, module downloads) takes a few minutes; the
-hosted demo needs none of it.
-
-### First run
-
-```bash
-scry serve                    # http://scry.localhost:7777
-```
-
-The first run walks you through it in the browser: paste your site, email, and
-token, pick projects from your site's own list, and watch the first sync fill
-the mirror. (The desktop app runs the same setup in its own window — no
-terminal at any point.) If you would rather stay in the terminal, `scry init && scry sync`
-does the same thing. `scry serve` keeps the mirror fresh in the background
-whenever a credential is configured (`--no-sync` opts out). To survive reboot:
-
-```bash
-scry install-service   # launchd (macOS) or systemd --user (Linux)
-```
-
-**Mirroring the wiki too** is one config key — the same site, email, and token
-already cover it. Add to `~/.scry/config.json`:
-
-```json
-"confluence": { "spaces": ["ENG", "PROD"] }
-```
-
-Empty `spaces` means every space the account can see. `scry sync` then pulls
-pages (current version, comments, labels) alongside issues —
-`--source jira|confluence|all` narrows a run. Pages land in the same FTS
-index, the sidebar grows a DOCS tree, and search answers across both.
-
-### Staying current
-
-scry checks GitHub Releases for a newer version once a day (anonymous, cached,
-`updateCheck: false` opts out) and says so in the web sidebar and the TUI —
-but three things still catch people, learned the hard way:
-
-1. **A running `scry serve` keeps its old code.** Upgrading the binary does
-   not touch a process that is already up — restart it (or re-run
-   `scry install-service`, which restarts the unit) after an upgrade.
-2. **A stale Homebrew tap pins you silently.** If `brew info midagedev/tap/scry`
-   shows an old "stable" after `brew update`, reset the tap:
-   `brew untap midagedev/tap && brew tap midagedev/tap && brew upgrade scry`.
-3. **Check what `scry` actually resolves to.** `which -a scry` — a leftover
-   `go install` build in `~/go/bin` earlier in `PATH` will shadow the brew
-   binary forever, versions be damned.
-
-`scry --version` against the [releases page](https://github.com/midagedev/scry/releases)
-settles any doubt.
-
-Your API token lives in `~/.scry/config.json` at `0600` and never touches the
-database, the repository, or a log line. There is no scry account, no server,
-and no telemetry — outbound traffic is your own Atlassian site, plus an
-optional daily anonymous version check against GitHub Releases
-(`updateCheck: false` turns it off). The full data-flow diagram, threat
-model, and where each claim is enforced in code: **[SECURITY.md](SECURITY.md)**.
-
-Pointing one machine at two sites (work and a demo, say) is what profiles are
-for: `scry --profile demo init` keeps a separate credential and mirror under
-`~/.scry/profiles/demo/`. One `scry serve` then serves every profile: each one
-mounts under `/w/<name>/` (full API, reads and writes, opened on first
-request), and when there is more than one, the web sidebar grows a WORKSPACES
-switcher. Same loopback listener, same single user — the workspace list never
-exposes credentials. Background sync and notifications stay on the primary
-profile; workspaces sync when you use them.
-
-### Zero-install hosted demo
-
-A static build of the web UI plus a frozen copy of the demo snapshot, for GitHub
-Pages (or any static host). No binary, no Jira account, no trust decision.
-
-```bash
-make hosted-demo          # → dist/hosted/  (UI + bootstrap/detail/attachments)
-make hosted-demo-test     # Playwright smoke (boot, search, detail, image)
-```
-
-Local preview (base path `/scry/` matches a project Pages site):
-
-```bash
-mkdir -p dist/pages/scry && cp -R dist/hosted/. dist/pages/scry/
-npx serve dist/pages -l 4173
-# open http://127.0.0.1:4173/scry/
-```
-
-**Human checklist to publish on GitHub Pages** (workflow is already in the repo):
-
-1. Repo → **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-2. Merge to `main` (or run **Hosted demo (GitHub Pages)** via workflow_dispatch).
-3. Wait for the deploy job; the site is `https://<owner>.github.io/scry/`.
-
-Limits of the hosted snapshot: read-only (writes return `501 demo_read_only`);
-server full-text search (`search/`) is unavailable (client-side typing search
-still works over the issue pool); no live sync or identity. The wiki mirror
-needs the binary demo — the static snapshot carries issues only.
-
-### About the demo data
-
-`scry demo` serves `examples/demo.db` — a fictional SaaS company: 534 issues
-(15 of them epics parenting 163 issues) across three projects, plus 71 wiki
-pages in two spaces, some in Korean because search should survive CJK. It is
-also what the test suite and the GIFs above run against, so what you see is
-what CI checks.
-
-### Run it in a container
-
-```bash
-docker build -t scry . && docker run --rm -p 7777:7777 -v scry-data:/data scry
-```
-
-The process has no authentication by design, so it refuses to bind a
-non-loopback address without `--allow-remote` (the image passes it). Only put
-it on a network you trust. Config and `scry.db` live under `/data`.
+Other routes (install script, release archive, source build, Docker), wiki
+mirroring, profiles for two sites, and the upgrade gotchas all live in
+**[`docs/INSTALL.md`](docs/INSTALL.md)**.
 
 ## Making it yours
 
@@ -469,6 +306,7 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 
 ## Documentation
 
+- [`docs/INSTALL.md`](docs/INSTALL.md) — every way in, first run, profiles, upgrades, Docker
 - [`AGENTS.md`](AGENTS.md) — the agent reference: SQL, CLI, REST
 - [`SECURITY.md`](SECURITY.md) — threat model, what leaves your machine, and where each claim lives in code
 - [`MAINTENANCE.md`](MAINTENANCE.md) — who maintains this, the release cadence, and what is refused

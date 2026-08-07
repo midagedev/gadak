@@ -242,7 +242,7 @@ config, profiles, troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
 1. `.specify/memory/constitution.md`
 2. `specs/000-product/spec.md`
 3. `specs/000-product/tasks.md` — the honest state of every piece
-4. `specs/000-product/data-model.md` — the schema is a public contract
+4. `specs/000-product/data-model.md` — the schema, and how much of it is promised
 5. `specs/000-product/contracts/` — HTTP, sync, and agent contracts
 6. `docs/ARCHITECTURE.md` and `docs/EXTRACTION.md`
 

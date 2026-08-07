@@ -52,7 +52,8 @@ snapshot, not assumed.
 
 ## How the pieces fit
 
-- `internal/store` — SQLite schema (public contract, `data-model.md`), migrations,
+- `internal/store` — SQLite schema (documented in `data-model.md`, promised in
+  part), migrations,
   FTS5, derived-field computation. Single writer, WAL.
 - `internal/jira` — stdlib REST client: token-cursor search, changelog/comment
   paging, retry/backoff, id/category-only logic.

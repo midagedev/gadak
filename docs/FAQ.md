@@ -38,8 +38,9 @@ accurately. Offboarding is `rm -rf ~/.scry`.
 One person, at the moment. You should weigh that — and here is why it is
 less risky than it sounds: the mirror is a **disposable artifact of your own
 Jira**, not a database you migrate into. Delete scry and you have lost
-nothing but a cache. The storage schema is a documented public contract
-(`specs/000-product/data-model.md`), the code is Apache-2.0, and the file is
+nothing but a cache. The storage schema is documented, and the part of it you
+can build on is promised across versions
+(`specs/000-product/data-model.md`); the code is Apache-2.0, and the file is
 plain SQLite readable by anything. There is no account, no server, and no
 format to be stranded in. If the project stops tomorrow, your data was never
 in it.

@@ -124,7 +124,8 @@ is source-neutral; only the field schema it reads is Jira-shaped.
 
 ## What is deliberately absent
 
-- **No ORM.** Hand-written SQL against a schema that is itself a public contract.
+- **No ORM.** Hand-written SQL against a schema that is documented, and
+  promised where agents build on it (`specs/000-product/data-model.md`).
 - **No always-on daemon required.** `scry serve` runs the sync loop in-process
   when a credential is configured. `scry install-service` is optional and writes
   a user-level launchd/systemd unit so that process survives reboot.

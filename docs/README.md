@@ -33,7 +33,7 @@
 - `../.specify/memory/constitution.md`: rules that override preference
 - `../specs/000-product/spec.md`: problem, scope, requirements, acceptance
 - `../specs/000-product/tasks.md`: honest state of every piece
-- `../specs/000-product/data-model.md`: the SQLite schema, a public contract
+- `../specs/000-product/data-model.md`: the SQLite schema, and how much of it is promised
 - `../specs/000-product/contracts/api.md`: HTTP contract the UI already speaks
 - `../specs/000-product/contracts/sync.md`: how the mirror stays correct
 - `../specs/000-product/contracts/agent.md`: guarantees made to agents
