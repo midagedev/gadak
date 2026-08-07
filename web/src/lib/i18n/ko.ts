@@ -453,6 +453,9 @@ export const ko = {
   'detail.noHistory': '변경 이력 없음',
   'detail.links': '연결 이슈',
   'detail.noLinks': '연결된 이슈 없음',
+  'detail.docs': '문서',
+  'detail.docMentions': '이 이슈를 언급',
+  'detail.docMentioned': '이 이슈에서 언급됨',
   'detail.breadcrumb': '이슈 위계',
   'detail.epicChildren': '이 에픽의 이슈',
   'detail.epicProgress': '{total}건 중 {done}건 완료',
@@ -490,6 +493,9 @@ export const ko = {
   'doc.openSource': '원본 페이지 열기',
   'doc.notFound': '문서를 찾을 수 없습니다. 삭제되었을 수 있습니다.',
   'doc.loadFailed': '문서를 불러오지 못했습니다.',
+  'doc.issues': '이슈',
+  'doc.issueMentions': '이 문서를 언급',
+  'doc.issueMentioned': '이 문서에서 언급됨',
 
   /* ── 문서 (메인 컬럼) ── */
   'docs.title': '문서',

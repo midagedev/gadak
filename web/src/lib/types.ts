@@ -293,6 +293,12 @@ export interface DetailResponse {
   qa_context: QaIssueContext | null
   /** Deploy status detail. Older servers omit → hide the detail section. */
   deploy?: DeployDetail
+  /** Pages this issue's own text names. Text-derived, so it exists without
+   *  anyone having drawn a link in Jira. Omitted when empty. */
+  ref_pages?: PageLite[]
+  /** Pages whose text names this issue — the other direction of the same
+   *  derivation. Omitted when empty. */
+  backlink_pages?: PageLite[]
 }
 
 /** GET `bootstrap/` response. */
@@ -398,6 +404,11 @@ export interface PagesResponse {
 export interface PageDetail extends PageLite {
   body_adf: AdfNode | null
   comments: PageComment[]
+  /** Issue keys this page's own text names. Only keys the mirror actually
+   *  holds — the server drops the rest. Omitted when empty. */
+  ref_issue_keys?: string[]
+  /** Issue keys whose text names this page. Same filter, other direction. */
+  backlink_issue_keys?: string[]
 }
 
 /* ── People axis ── */

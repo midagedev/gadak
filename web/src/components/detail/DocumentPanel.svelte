@@ -15,6 +15,7 @@
   import { ApiError } from '../../lib/api'
   import type { PageDetail } from '../../lib/types'
   import AdfContent from './AdfContent.svelte'
+  import RelatedIssues from './RelatedIssues.svelte'
   import Section from './Section.svelte'
   import Icon from '../ui/Icon.svelte'
 
@@ -74,6 +75,15 @@
   // Breadcrumb trail, from the client-side index — no extra request, and it
   // fills in the moment the index loads. Empty for a root page.
   const trail = $derived(key ? pages.ancestors(key) : [])
+
+  // Both directions of the text-derived issue references, counted once — the
+  // section renders them as one list (see RelatedIssues).
+  const relatedIssueCount = $derived.by(() => {
+    const keys = new Set<string>()
+    for (const k of detailForKey?.ref_issue_keys ?? []) keys.add(k)
+    for (const k of detailForKey?.backlink_issue_keys ?? []) keys.add(k)
+    return keys.size
+  })
 </script>
 
 {#if key}
@@ -202,6 +212,18 @@
               <AdfContent node={detailForKey.body_adf} emptyLabel={t('doc.noContent')} />
             </div>
           </Section>
+
+          <!-- The work this page is about, above the conversation about the
+               page. Both come from the body's own text, so they belong with it
+               rather than at the end of the panel. -->
+          {#if relatedIssueCount > 0}
+            <Section title={t('doc.issues')} count={relatedIssueCount}>
+              <RelatedIssues
+                refKeys={detailForKey.ref_issue_keys}
+                backlinkKeys={detailForKey.backlink_issue_keys}
+              />
+            </Section>
+          {/if}
 
           <Section title={t('doc.comments')} count={detailForKey.comments.length}>
             {#if detailForKey.comments.length === 0}

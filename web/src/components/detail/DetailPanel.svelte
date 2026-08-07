@@ -36,6 +36,7 @@
   import CommentComposer from '../write/CommentComposer.svelte'
   import HistoryTimeline from './HistoryTimeline.svelte'
   import LinkedIssues from './LinkedIssues.svelte'
+  import RelatedDocs from './RelatedDocs.svelte'
   import PrList from './PrList.svelte'
   import DeployTimeline from './DeployTimeline.svelte'
 
@@ -121,6 +122,16 @@
       }
     }
     return out
+  })
+
+  // Text-derived page references, both directions in one count — the section
+  // renders one merged list, so a header counting them separately would be
+  // counting something the reader cannot see.
+  const relatedDocCount = $derived.by(() => {
+    const keys = new Set<string>()
+    for (const p of detailForKey?.ref_pages ?? []) keys.add(p.key)
+    for (const p of detailForKey?.backlink_pages ?? []) keys.add(p.key)
+    return keys.size
   })
 </script>
 
@@ -269,6 +280,18 @@
           {#if detailForKey.linked_issues.length > 0}
             <Section title={t('detail.links')} count={detailForKey.linked_issues.length}>
               <LinkedIssues linked={detailForKey.linked_issues} />
+            </Section>
+          {/if}
+
+          <!-- Documents that name this issue, or that it names. Derived from
+               text, so it is next to Linked issues rather than inside it: one
+               is what someone drew in Jira, the other is what was written. -->
+          {#if relatedDocCount > 0}
+            <Section title={t('detail.docs')} count={relatedDocCount}>
+              <RelatedDocs
+                refPages={detailForKey.ref_pages}
+                backlinkPages={detailForKey.backlink_pages}
+              />
             </Section>
           {/if}
 

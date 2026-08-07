@@ -452,6 +452,9 @@ export const en = {
   'detail.noHistory': 'No history',
   'detail.links': 'Linked issues',
   'detail.noLinks': 'No linked issues',
+  'detail.docs': 'Documents',
+  'detail.docMentions': 'mentions this issue',
+  'detail.docMentioned': 'mentioned in this issue',
   'detail.breadcrumb': 'Issue hierarchy',
   'detail.epicChildren': 'In this epic',
   'detail.epicProgress': '{done} of {total} done',
@@ -489,6 +492,9 @@ export const en = {
   'doc.openSource': 'Open the original page',
   'doc.notFound': 'Could not find this document. It may have been deleted.',
   'doc.loadFailed': 'Could not load this document.',
+  'doc.issues': 'Issues',
+  'doc.issueMentions': 'mentions this page',
+  'doc.issueMentioned': 'mentioned on this page',
 
   /* ── Documents (main column) ── */
   'docs.title': 'Documents',

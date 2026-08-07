@@ -359,4 +359,41 @@
   .adf :global(.adf-task-done .adf-task-box) {
     color: var(--color-status-done);
   }
+
+  /*
+   * The line under the cursor, marked (user request 2026-08-07: "people read
+   * long text by dragging along it").
+   *
+   * The unit is the innermost block that holds text, which is what `:not(:has(…
+   * :hover))` buys: a paragraph inside a list item highlights as the paragraph,
+   * not as both, and a nested list marks the item you are on rather than every
+   * ancestor of it. Without that guard the alphas stack and depth in the
+   * document reads as emphasis.
+   *
+   * Blocks that carry a background already — code, tables, panels — are left
+   * alone; a second translucent layer on top of them is mud, not a highlight.
+   *
+   * The fill is bg-hover at just over half strength, which is the row-hover
+   * token diluted rather than a new color: a body paragraph is a much larger
+   * area than a list row, and the full token over that area reads as a
+   * selection someone made. Text color never moves, so contrast is whatever it
+   * was (the muted-on-panel ratios are a contract).
+   *
+   * The 3px spread is the padding this cannot have: these elements' margins are
+   * load-bearing typography, so the bleed goes in the shadow where it costs no
+   * layout. No transition — following a cursor is not an animation, and a fade
+   * here lags the eye it is supposed to be tracking.
+   */
+  @media (hover: hover) {
+    .adf
+      :global(
+        :is(p, li, blockquote, h1, h2, h3, h4, h5, h6, .adf-task-item):hover:not(
+            :has(:is(p, li, blockquote, h1, h2, h3, h4, h5, h6, .adf-task-item):hover)
+          ):not(:is(.adf-panel, .adf-code, td, th) *)
+      ) {
+      background: color-mix(in srgb, var(--color-bg-hover) 55%, transparent);
+      border-radius: 3px;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-bg-hover) 55%, transparent);
+    }
+  }
 </style>
