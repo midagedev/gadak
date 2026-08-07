@@ -1,15 +1,14 @@
-package jira
+package confluence
 
 import (
 	"github.com/midagedev/scry/internal/atlhttp"
 )
 
-// Usage is a point-in-time snapshot of this client's outbound Jira traffic.
+// Usage is a point-in-time snapshot of this client's outbound Confluence traffic.
 // Counters are process-local until a caller persists them (see store.api_usage).
 //
 // Requests counts every HTTP attempt, including retries: that is the unit that
-// draws from Jira's rate budget. This is our own call volume, not Jira's
-// remaining point pool — the site does not expose that.
+// draws from Confluence's rate budget.
 type Usage = atlhttp.Usage
 
 // Usage returns the current counters without resetting them.
@@ -24,8 +23,7 @@ func (c *Client) Usage() Usage {
 // flusher can accumulate into daily totals without double-counting.
 //
 // LastThrottledAt is a timestamp, not a counter: it is included in the
-// snapshot but is NOT cleared. The in-process "last 429" stays visible until
-// the process exits or a later 429 overwrites it.
+// snapshot but is NOT cleared.
 func (c *Client) TakeUsage() Usage {
 	if c == nil {
 		return Usage{}

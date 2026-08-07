@@ -6,18 +6,17 @@
 package confluence
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/midagedev/scry/internal/atlhttp"
 )
 
 // Label is one entry under metadata.labels.results (Confluence REST v1).
@@ -65,6 +64,10 @@ type Client struct {
 	Backoff time.Duration
 	// PauseBetween is slept after each Page fetch (rate politeness). Zero in tests.
 	PauseBetween time.Duration
+
+	// usage is process-local call volume; see Usage / TakeUsage. Never blocks
+	// a request on instrumentation failure (counters are atomic).
+	usage atlhttp.Meter
 }
 
 // New builds a client. site is the Atlassian origin (no /wiki suffix).
@@ -85,6 +88,18 @@ func (c *Client) BaseURL() string { return c.base }
 // SiteURL is the Atlassian origin without /wiki.
 func (c *Client) SiteURL() string {
 	return strings.TrimSuffix(c.base, "/wiki")
+}
+
+func (c *Client) transport() atlhttp.Config {
+	return atlhttp.Config{
+		Base:      c.base,
+		Auth:      c.auth,
+		HTTP:      c.HTTP,
+		Retries:   c.Retries,
+		Backoff:   c.Backoff,
+		ErrPrefix: "confluence",
+		Usage:     &c.usage,
+	}
 }
 
 // Space is one space listing row.
@@ -336,7 +351,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 // A completed HTTP response always returns err == nil with the status and body
 // (including non-2xx). err is reserved for transport failures and bad paths.
 func (c *Client) Raw(ctx context.Context, method, path string, body []byte, mutating bool) (status int, out []byte, err error) {
-	return c.doRaw(ctx, method, path, body, len(body) > 0, mutating)
+	return atlhttp.DoRaw(ctx, c.transport(), method, path, body, len(body) > 0, mutating)
 }
 
 func (c *Client) call(ctx context.Context, method, path string, body, out any, mutating bool) error {
@@ -348,7 +363,7 @@ func (c *Client) call(ctx context.Context, method, path string, body, out any, m
 			return err
 		}
 	}
-	status, data, err := c.doRaw(ctx, method, path, payload, hasBody, mutating)
+	status, data, err := atlhttp.DoRaw(ctx, c.transport(), method, path, payload, hasBody, mutating)
 	if err != nil {
 		return err
 	}
@@ -357,135 +372,12 @@ func (c *Client) call(ctx context.Context, method, path string, body, out any, m
 	case status == http.StatusUnauthorized, status == http.StatusForbidden:
 		return fmt.Errorf("%s %s: %w (%s)", method, path, ErrAuth, statusLine)
 	case status == http.StatusNotFound:
-		return fmt.Errorf("%s %s: %w: %s", method, path, ErrNotFound, snippet(data))
+		return fmt.Errorf("%s %s: %w: %s", method, path, ErrNotFound, atlhttp.Snippet(data))
 	case status >= 300:
-		return fmt.Errorf("%s %s: %s: %s", method, path, statusLine, snippet(data))
+		return fmt.Errorf("%s %s: %s: %s", method, path, statusLine, atlhttp.Snippet(data))
 	}
 	if out == nil || len(data) == 0 {
 		return nil
 	}
 	return json.Unmarshal(data, out)
-}
-
-// doRaw is the single HTTP path for call and Raw: retries and backoff.
-func (c *Client) doRaw(ctx context.Context, method, path string, payload []byte, hasBody, mutating bool) (int, []byte, error) {
-	fullURL, err := c.resolveURL(path)
-	if err != nil {
-		return 0, nil, err
-	}
-	retries := retryable
-	if mutating {
-		retries = func(code int) bool { return code == 429 || code == 503 }
-	}
-	for attempt := 0; ; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, method, fullURL, bytes.NewReader(payload))
-		if err != nil {
-			return 0, nil, err
-		}
-		req.Header.Set("Authorization", c.auth)
-		req.Header.Set("Accept", "application/json")
-		if hasBody {
-			req.Header.Set("Content-Type", "application/json")
-		}
-		res, err := c.HTTP.Do(req)
-		if err != nil {
-			if attempt < c.Retries-1 && !mutating {
-				if werr := c.wait(ctx, attempt, ""); werr != nil {
-					return 0, nil, werr
-				}
-				continue
-			}
-			return 0, nil, fmt.Errorf("%s %s: %w", method, path, err)
-		}
-		data, readErr := io.ReadAll(io.LimitReader(res.Body, 64<<20))
-		res.Body.Close()
-		if retries(res.StatusCode) && attempt < c.Retries-1 {
-			if werr := c.wait(ctx, attempt, res.Header.Get("Retry-After")); werr != nil {
-				return 0, nil, werr
-			}
-			continue
-		}
-		if res.StatusCode >= 200 && res.StatusCode < 300 && readErr != nil {
-			return 0, nil, fmt.Errorf("%s %s: %w", method, path, readErr)
-		}
-		return res.StatusCode, data, nil
-	}
-}
-
-// resolveURL joins path onto the wiki origin (base already ends in /wiki) and
-// refuses anything that would send the Authorization header off-host. Uses
-// concatenation rather than ResolveReference so the /wiki prefix is kept.
-func (c *Client) resolveURL(path string) (string, error) {
-	if err := rejectAbsolutePath(path); err != nil {
-		return "", err
-	}
-	base, err := url.Parse(c.base)
-	if err != nil {
-		return "", fmt.Errorf("confluence: bad site URL: %w", err)
-	}
-	full := c.base + path
-	resolved, err := url.Parse(full)
-	if err != nil {
-		return "", fmt.Errorf("confluence: bad path %q: %w", path, err)
-	}
-	if resolved.Scheme != base.Scheme || !strings.EqualFold(resolved.Host, base.Host) {
-		return "", fmt.Errorf("refusing request: resolved host %q is not the configured site", resolved.Host)
-	}
-	if resolved.User != nil {
-		return "", fmt.Errorf("refusing request: userinfo in URL is not allowed")
-	}
-	return full, nil
-}
-
-// rejectAbsolutePath blocks paths that would re-target the request before
-// url.ResolveReference (https://…, http://…, //host/…).
-func rejectAbsolutePath(path string) error {
-	if path == "" {
-		return fmt.Errorf("path is required and must start with /")
-	}
-	lower := strings.ToLower(path)
-	if strings.HasPrefix(path, "//") ||
-		strings.HasPrefix(lower, "http://") ||
-		strings.HasPrefix(lower, "https://") {
-		return fmt.Errorf("absolute URLs are not allowed — pass a path starting with / so the request stays on your configured site")
-	}
-	if !strings.HasPrefix(path, "/") {
-		return fmt.Errorf("path must start with / (got %q)", path)
-	}
-	return nil
-}
-
-func retryable(code int) bool {
-	switch code {
-	case 429, 500, 502, 503, 504:
-		return true
-	}
-	return false
-}
-
-func (c *Client) wait(ctx context.Context, attempt int, retryAfter string) error {
-	d := c.Backoff << attempt
-	if d > 30*time.Second {
-		d = 30 * time.Second
-	}
-	if s, err := strconv.Atoi(strings.TrimSpace(retryAfter)); err == nil && s > 0 {
-		d = time.Duration(s) * time.Second
-	}
-	if d <= 0 {
-		return ctx.Err()
-	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(d):
-		return nil
-	}
-}
-
-func snippet(b []byte) string {
-	s := strings.TrimSpace(string(b))
-	if len(s) > 400 {
-		return s[:400] + "…"
-	}
-	return s
 }
