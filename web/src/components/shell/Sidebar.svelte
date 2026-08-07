@@ -23,10 +23,15 @@
     class="flex h-12 flex-none items-center gap-2 {desktop ? 'desktop-titlebar-row' : 'px-4'}"
     data-testid="sidebar-logo-row"
   >
-    <span
-      class="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent"
-      aria-hidden="true"
-    ></span>
+    {#if !desktop}
+      <!-- Dropped next to the window controls: a 10px rounded square, one gap
+           after three 12px circles, reads as a fourth traffic light. Nothing
+           is lost — the app already says Scry in the Dock and the menu bar. -->
+      <span
+        class="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent"
+        aria-hidden="true"
+      ></span>
+    {/if}
     <span class="text-body font-semibold tracking-tight text-text-primary">scry</span>
   </div>
 

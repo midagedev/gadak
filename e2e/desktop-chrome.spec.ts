@@ -31,6 +31,8 @@ test.describe('desktop title-bar row', () => {
 
     const row = page.getByTestId(LOGO_ROW)
     await expect(row).toHaveCSS('padding-left', '16px')
+    // Mark + wordmark. There are no window controls here to confuse it with.
+    await expect(row.locator('span')).toHaveCount(2)
     // The wordmark starts where the nav below it does — nothing is reserved.
     const box = await row.getByText('scry', { exact: true }).boundingBox()
     expect(box).not.toBeNull()
@@ -61,6 +63,10 @@ test.describe('desktop title-bar row', () => {
       getComputedStyle(el).getPropertyValue('--wails-draggable').trim(),
     )
     expect(draggable).toBe('drag')
+
+    // Wordmark only: the accent square is another small rounded shape on the
+    // same baseline as the three buttons, which makes it read as a fourth one.
+    await expect(row.locator('span')).toHaveCount(1)
 
     const box = await row.getByText('scry', { exact: true }).boundingBox()
     expect(box).not.toBeNull()
