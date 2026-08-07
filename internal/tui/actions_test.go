@@ -284,7 +284,7 @@ func TestFieldEditNoEditableOnIssue(t *testing.T) {
 		syncIssueFn:   func(_ context.Context, _ *config.Config, _ *store.DB, _ string) error { return nil },
 	}
 	m.visible = []int{0}
-	m.cursor = 0
+	m.issuesPane.cursor = 0
 	m.mode = modeList
 
 	msg := m.startFieldEdit()()
@@ -310,7 +310,7 @@ func TestFieldEditNoConfigured(t *testing.T) {
 		clientFactory: func(*config.Config) writeClient { return fw },
 	}
 	m.visible = []int{0}
-	m.cursor = 0
+	m.issuesPane.cursor = 0
 
 	msg := m.startFieldEdit()()
 	fr, ok := msg.(formResultMsg)

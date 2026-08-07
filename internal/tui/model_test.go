@@ -93,24 +93,24 @@ func TestFilterKeystroke(t *testing.T) {
 
 func TestCursorKeys(t *testing.T) {
 	m := seededModel()
-	if m.cursor != 0 {
-		t.Fatalf("start cursor %d", m.cursor)
+	if m.issuesPane.cursor != 0 {
+		t.Fatalf("start cursor %d", m.issuesPane.cursor)
 	}
 	m = feedKey(m, "j")
-	if m.cursor != 1 {
-		t.Fatalf("j → %d", m.cursor)
+	if m.issuesPane.cursor != 1 {
+		t.Fatalf("j → %d", m.issuesPane.cursor)
 	}
 	m = feedKey(m, "k")
-	if m.cursor != 0 {
-		t.Fatalf("k → %d", m.cursor)
+	if m.issuesPane.cursor != 0 {
+		t.Fatalf("k → %d", m.issuesPane.cursor)
 	}
 	m = feedKey(m, "G")
-	if m.cursor != len(m.visible)-1 {
-		t.Fatalf("G → %d want %d", m.cursor, len(m.visible)-1)
+	if m.issuesPane.cursor != len(m.visible)-1 {
+		t.Fatalf("G → %d want %d", m.issuesPane.cursor, len(m.visible)-1)
 	}
 	m = feedKey(m, "g")
-	if m.cursor != 0 {
-		t.Fatalf("g → %d", m.cursor)
+	if m.issuesPane.cursor != 0 {
+		t.Fatalf("g → %d", m.issuesPane.cursor)
 	}
 }
 
@@ -316,8 +316,8 @@ func TestFeedFocusKeys(t *testing.T) {
 	m := seededModel()
 	m.mode = modeFeed
 	m.feedFocus = store.FeedFocusAll
-	m.feedCursor = 2
-	m.feedOffset = 1
+	m.feedPane.cursor = 2
+	m.feedPane.offset = 1
 	m.feedItems = []store.FeedItem{
 		{EventID: "1", IssueKey: "A-1"},
 		{EventID: "2", IssueKey: "A-2"},
@@ -331,8 +331,8 @@ func TestFeedFocusKeys(t *testing.T) {
 	if m.feedFocus != store.FeedFocusAssignee {
 		t.Fatalf("focus=%q want assignee", m.feedFocus)
 	}
-	if m.feedCursor != 0 || m.feedOffset != 0 {
-		t.Fatalf("cursor=%d offset=%d want 0,0", m.feedCursor, m.feedOffset)
+	if m.feedPane.cursor != 0 || m.feedPane.offset != 0 {
+		t.Fatalf("cursor=%d offset=%d want 0,0", m.feedPane.cursor, m.feedPane.offset)
 	}
 	if cmd == nil {
 		t.Fatal("expected reload cmd")
@@ -353,13 +353,13 @@ func TestFeedFocusKeys(t *testing.T) {
 		{"4", store.FeedFocusMention},
 		{"1", store.FeedFocusAll},
 	} {
-		m.feedCursor = 1
+		m.feedPane.cursor = 1
 		next, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tc.key)})
 		m = next.(Model)
 		if m.feedFocus != tc.want {
 			t.Fatalf("key %s: focus=%q want %q", tc.key, m.feedFocus, tc.want)
 		}
-		if m.feedCursor != 0 {
+		if m.feedPane.cursor != 0 {
 			t.Fatalf("key %s: cursor not reset", tc.key)
 		}
 		if cmd == nil {
@@ -389,18 +389,18 @@ func TestGroupedListCursorSkipsHeaders(t *testing.T) {
 	if len(lines) != len(m.visible)+3 {
 		t.Fatalf("screen lines=%d visible=%d (want +3 headers)", len(lines), len(m.visible))
 	}
-	if m.cursor != 0 {
-		t.Fatalf("start cursor %d", m.cursor)
+	if m.issuesPane.cursor != 0 {
+		t.Fatalf("start cursor %d", m.issuesPane.cursor)
 	}
 	// j through entire list — cursor always indexes an issue in visible.
 	for i := 0; i < len(m.visible)+2; i++ {
 		m = feedKey(m, "j")
-		if m.cursor < 0 || m.cursor >= len(m.visible) {
-			t.Fatalf("after j×%d cursor=%d visible=%d", i+1, m.cursor, len(m.visible))
+		if m.issuesPane.cursor < 0 || m.issuesPane.cursor >= len(m.visible) {
+			t.Fatalf("after j×%d cursor=%d visible=%d", i+1, m.issuesPane.cursor, len(m.visible))
 		}
 	}
-	if m.cursor != len(m.visible)-1 {
-		t.Fatalf("cursor should clamp at last issue: %d want %d", m.cursor, len(m.visible)-1)
+	if m.issuesPane.cursor != len(m.visible)-1 {
+		t.Fatalf("cursor should clamp at last issue: %d want %d", m.issuesPane.cursor, len(m.visible)-1)
 	}
 	// Headers are not selectable: every listLines issue line maps to a unique visIdx.
 	seen := map[int]bool{}
@@ -424,9 +424,9 @@ func TestGroupedListCursorSkipsHeaders(t *testing.T) {
 	if lines := m.listLines(); lines != nil {
 		t.Fatalf("ungrouped listLines should be nil, got %d lines", len(lines))
 	}
-	m.cursor = len(m.visible) - 1
-	if got := m.cursorScreenLine(); got != m.cursor {
-		t.Fatalf("ungrouped cursorScreenLine=%d, want %d", got, m.cursor)
+	m.issuesPane.cursor = len(m.visible) - 1
+	if got := m.cursorScreenLine(); got != m.issuesPane.cursor {
+		t.Fatalf("ungrouped cursorScreenLine=%d, want %d", got, m.issuesPane.cursor)
 	}
 }
 

@@ -119,19 +119,19 @@ func (m *Model) selectedKey() (string, bool) {
 		return m.detailKey, true
 	}
 	if m.mode == modeFeed {
-		if len(m.feedItems) == 0 || m.feedCursor < 0 || m.feedCursor >= len(m.feedItems) {
+		if len(m.feedItems) == 0 || m.feedPane.cursor < 0 || m.feedPane.cursor >= len(m.feedItems) {
 			return "", false
 		}
-		k := m.feedItems[m.feedCursor].IssueKey
+		k := m.feedItems[m.feedPane.cursor].IssueKey
 		if k == "" {
 			return "", false
 		}
 		return k, true
 	}
-	if len(m.visible) == 0 || m.cursor < 0 || m.cursor >= len(m.visible) {
+	if len(m.visible) == 0 || m.issuesPane.cursor < 0 || m.issuesPane.cursor >= len(m.visible) {
 		return "", false
 	}
-	return m.all[m.visible[m.cursor]].lite.IssueKey, true
+	return m.all[m.visible[m.issuesPane.cursor]].lite.IssueKey, true
 }
 
 // inDocsSurface reports whether the navigator is showing docs (list, detail, or

@@ -385,13 +385,8 @@ func (m *Model) refilterDocs() {
 		}
 	}
 	m.docsNav = nav
-	if m.docsCursor >= len(m.docsNav) {
-		m.docsCursor = max(0, len(m.docsNav)-1)
-	}
-	if m.docsCursor < 0 {
-		m.docsCursor = 0
-	}
-	m.ensureDocsVisible()
+	m.docsPane.clamp(len(m.docsNav))
+	m.docsEnsureVisible()
 }
 
 func (m *Model) setDocsTab(t docsTab) {
@@ -399,8 +394,7 @@ func (m *Model) setDocsTab(t docsTab) {
 		return
 	}
 	m.docsTab = t
-	m.docsCursor = 0
-	m.docsOffset = 0
+	m.docsPane = listPane{}
 	m.refilterDocs()
 }
 
@@ -408,8 +402,7 @@ func (m *Model) enterDocs() {
 	m.mode = modeDocs
 	m.filter = ""
 	m.docsTab = docsTabUpdated // docs mode default: Updated (not Spaces tree)
-	m.docsCursor = 0
-	m.docsOffset = 0
+	m.docsPane = listPane{}
 	m.refilterDocs()
 }
 
@@ -418,22 +411,6 @@ func (m *Model) leaveDocs() {
 	m.filter = ""
 	m.pageDetail = nil
 	m.pageDetailKey = ""
-}
-
-func (m *Model) moveDocsCursor(delta int) {
-	n := len(m.docsNav)
-	if n == 0 {
-		m.docsCursor = 0
-		return
-	}
-	m.docsCursor += delta
-	if m.docsCursor < 0 {
-		m.docsCursor = 0
-	}
-	if m.docsCursor >= n {
-		m.docsCursor = n - 1
-	}
-	m.ensureDocsVisible()
 }
 
 // docsShowExcerpt reports whether the docs tab shows a body excerpt under each
@@ -455,12 +432,12 @@ func docsLineScreenHeight(ln docsLine, showExcerpt bool) int {
 	return 2
 }
 
-// docsCursorScreenLine maps docsCursor onto docsLines (headers shift indices).
+// docsCursorScreenLine maps docsPane.cursor onto docsLines (headers shift indices).
 func (m Model) docsCursorScreenLine() int {
-	if len(m.docsNav) == 0 || m.docsCursor < 0 || m.docsCursor >= len(m.docsNav) {
+	if len(m.docsNav) == 0 || m.docsPane.cursor < 0 || m.docsPane.cursor >= len(m.docsNav) {
 		return 0
 	}
-	key := m.docsNav[m.docsCursor].page.Key
+	key := m.docsNav[m.docsPane.cursor].page.Key
 	for i, ln := range m.docsLines {
 		if ln.kind == docsLinePage && ln.page.Key == key {
 			return i
@@ -469,34 +446,31 @@ func (m Model) docsCursorScreenLine() int {
 	return 0
 }
 
-func (m *Model) ensureDocsVisible() {
-	h := m.listHeight()
-	if h < 1 {
-		h = 1
-	}
-	line := m.docsCursorScreenLine()
-	if line < m.docsOffset {
-		m.docsOffset = line
-	}
-	// docsOffset is a docsLines index; account for multi-row excerpt lines so
-	// the cursor page (title + optional excerpt) fully fits in the viewport.
+// docsRowHeight returns terminal-row heights for docsLines indices (excerpt pages
+// may span two rows on Updated / By author).
+func (m Model) docsRowHeight() func(i int) int {
 	show := docsShowExcerpt(m.docsTab)
-	for m.docsOffset <= line {
-		rows := 0
-		for i := m.docsOffset; i <= line && i < len(m.docsLines); i++ {
-			rows += docsLineScreenHeight(m.docsLines[i], show)
+	lines := m.docsLines
+	return func(i int) int {
+		if i < 0 || i >= len(lines) {
+			return 1
 		}
-		if rows <= h {
-			break
-		}
-		if m.docsOffset >= line {
-			break
-		}
-		m.docsOffset++
+		return docsLineScreenHeight(lines[i], show)
 	}
-	if m.docsOffset < 0 {
-		m.docsOffset = 0
+}
+
+func (m *Model) docsMove(delta int) {
+	n := len(m.docsNav)
+	m.docsPane.move(delta, n)
+	if n > 0 {
+		m.docsEnsureVisible()
 	}
+}
+
+func (m *Model) docsEnsureVisible() {
+	// docsPane.offset is a docsLines index; multi-row excerpts are handled via
+	// docsRowHeight so the cursor page fully fits in the viewport.
+	m.docsPane.ensureVisible(m.listHeight(), m.docsCursorScreenLine(), m.docsRowHeight())
 }
 
 // formatDocsExcerpt is the muted second line under a page row: whitespace-
@@ -514,10 +488,10 @@ func (m Model) selectedDocKey() (string, bool) {
 	if m.mode == modeDocDetail && m.pageDetailKey != "" {
 		return m.pageDetailKey, true
 	}
-	if len(m.docsNav) == 0 || m.docsCursor < 0 || m.docsCursor >= len(m.docsNav) {
+	if len(m.docsNav) == 0 || m.docsPane.cursor < 0 || m.docsPane.cursor >= len(m.docsNav) {
 		return "", false
 	}
-	return m.docsNav[m.docsCursor].page.Key, true
+	return m.docsNav[m.docsPane.cursor].page.Key, true
 }
 
 func (m Model) loadPageDetailCmd(key string) tea.Cmd {
@@ -565,26 +539,26 @@ func (m Model) handleDocsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeFilter
 		return m, nil
 	case key.Matches(msg, k.Down):
-		m.moveDocsCursor(1)
+		m.docsMove(1)
 		return m, nil
 	case key.Matches(msg, k.Up):
-		m.moveDocsCursor(-1)
+		m.docsMove(-1)
 		return m, nil
 	case key.Matches(msg, k.Top):
-		m.docsCursor = 0
-		m.ensureDocsVisible()
+		m.docsPane.cursor = 0
+		m.docsEnsureVisible()
 		return m, nil
 	case key.Matches(msg, k.Bottom):
 		if n := len(m.docsNav); n > 0 {
-			m.docsCursor = n - 1
-			m.ensureDocsVisible()
+			m.docsPane.cursor = n - 1
+			m.docsEnsureVisible()
 		}
 		return m, nil
 	case key.Matches(msg, k.PageDown):
-		m.moveDocsCursor(m.pageSize())
+		m.docsMove(m.pageSize())
 		return m, nil
 	case key.Matches(msg, k.PageUp):
-		m.moveDocsCursor(-m.pageSize())
+		m.docsMove(-m.pageSize())
 		return m, nil
 	// 1/2/3 reuse issue/feed tab keys; in docs they mean Updated / By author / Spaces.
 	case key.Matches(msg, k.TabAll):
@@ -692,14 +666,14 @@ func (m Model) viewDocs() string {
 	} else {
 		showEx := docsShowExcerpt(m.docsTab)
 		selKey := ""
-		if m.docsCursor >= 0 && m.docsCursor < len(m.docsNav) {
-			selKey = m.docsNav[m.docsCursor].page.Key
+		if m.docsPane.cursor >= 0 && m.docsPane.cursor < len(m.docsNav) {
+			selKey = m.docsNav[m.docsPane.cursor].page.Key
 		}
 		// Fill listH terminal rows. Excerpt pages cost two rows; stop before
 		// starting a row that cannot fully fit (except when the viewport is
 		// shorter than the first line alone — draw the title only then).
 		used := 0
-		for i := m.docsOffset; i < len(m.docsLines) && used < listH; i++ {
+		for i := m.docsPane.offset; i < len(m.docsLines) && used < listH; i++ {
 			ln := m.docsLines[i]
 			lh := docsLineScreenHeight(ln, showEx)
 			if used+lh > listH && used > 0 {
@@ -852,7 +826,7 @@ func (m Model) renderDocsStatusBar(w int) string {
 
 	count := "0/0"
 	if n := len(m.docsNav); n > 0 {
-		count = fmt.Sprintf("%d/%d", m.docsCursor+1, n)
+		count = fmt.Sprintf("%d/%d", m.docsPane.cursor+1, n)
 	}
 	right := styleMuted.Render(m.syncedLabel + "  ·  " + count)
 	return joinBar(left, right, w)

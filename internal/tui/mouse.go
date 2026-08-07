@@ -42,19 +42,19 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case modeFeed:
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:
-			m.moveFeedCursor(-1)
+			m.feedMove(-1)
 			return m, nil
 		case tea.MouseButtonWheelDown:
-			m.moveFeedCursor(1)
+			m.feedMove(1)
 			return m, nil
 		}
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-			if i := m.feedOffset + msg.Y - listTopLines; i >= 0 && i < len(m.feedItems) {
-				if m.feedCursor == i {
+			if i := m.feedPane.offset + msg.Y - listTopLines; i >= 0 && i < len(m.feedItems) {
+				if m.feedPane.cursor == i {
 					return m.openFeedSelection()
 				}
-				m.feedCursor = i
-				m.ensureFeedVisible()
+				m.feedPane.cursor = i
+				m.feedEnsureVisible()
 			}
 		}
 		return m, nil
@@ -86,7 +86,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if line < 0 || line >= m.listHeight() {
 		return m, nil
 	}
-	idx := m.offset + line
+	idx := m.issuesPane.offset + line
 	lines := m.listLines()
 	var visIdx int
 	if lines != nil {
@@ -100,14 +100,14 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		visIdx = idx
 	}
-	if visIdx == m.cursor {
+	if visIdx == m.issuesPane.cursor {
 		// Second click on the selected row opens it.
 		r := m.all[m.visible[visIdx]]
 		m.detailFrom = modeList
 		m.loading = true
 		return m, tea.Batch(m.spin.Tick, m.loadDetailCmd(r.lite.IssueKey, r.lite))
 	}
-	m.cursor = visIdx
+	m.issuesPane.cursor = visIdx
 	m.ensureVisible()
 	return m, nil
 }

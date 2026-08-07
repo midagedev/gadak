@@ -177,7 +177,7 @@ func (m Model) dispatchPalette(id string) (tea.Model, tea.Cmd) {
 		key := strings.TrimPrefix(id, "issue:")
 		for i, idx := range m.visible {
 			if m.all[idx].lite.IssueKey == key {
-				m.cursor = i
+				m.issuesPane.cursor = i
 				m.ensureVisible()
 				break
 			}

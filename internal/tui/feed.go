@@ -77,8 +77,7 @@ func (m Model) setFeedFocus(f store.FeedFocus) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.feedFocus = f
-	m.feedCursor = 0
-	m.feedOffset = 0
+	m.feedPane = listPane{}
 	m.loading = true
 	return m, tea.Batch(m.spin.Tick, m.loadFeedCmd())
 }
@@ -97,8 +96,7 @@ func (m Model) handleFeedKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.mode = modeList
-		m.feedCursor = 0
-		m.feedOffset = 0
+		m.feedPane = listPane{}
 		return m, nil
 	case key.Matches(msg, k.TabAll):
 		return m.setFeedFocus(store.FeedFocusAll)
@@ -113,19 +111,19 @@ func (m Model) handleFeedKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loading = true
 		return m, tea.Batch(m.spin.Tick, m.markFeedAllReadCmd())
 	case key.Matches(msg, k.Down):
-		m.moveFeedCursor(1)
+		m.feedMove(1)
 		return m, nil
 	case key.Matches(msg, k.Up):
-		m.moveFeedCursor(-1)
+		m.feedMove(-1)
 		return m, nil
 	case key.Matches(msg, k.Top):
-		m.feedCursor = 0
-		m.ensureFeedVisible()
+		m.feedPane.cursor = 0
+		m.feedEnsureVisible()
 		return m, nil
 	case key.Matches(msg, k.Bottom):
 		if n := len(m.feedItems); n > 0 {
-			m.feedCursor = n - 1
-			m.ensureFeedVisible()
+			m.feedPane.cursor = n - 1
+			m.feedEnsureVisible()
 		}
 		return m, nil
 	case key.Matches(msg, k.Enter):
@@ -137,10 +135,10 @@ func (m Model) handleFeedKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // openFeedSelection opens the detail for the feed row under the cursor.
 // Shared by Enter and a mouse click on the selected row.
 func (m Model) openFeedSelection() (tea.Model, tea.Cmd) {
-	if len(m.feedItems) == 0 || m.feedCursor < 0 || m.feedCursor >= len(m.feedItems) {
+	if len(m.feedItems) == 0 || m.feedPane.cursor < 0 || m.feedPane.cursor >= len(m.feedItems) {
 		return m, nil
 	}
-	item := m.feedItems[m.feedCursor]
+	item := m.feedItems[m.feedPane.cursor]
 	if item.IssueKey == "" {
 		return m, nil
 	}
@@ -160,33 +158,16 @@ func (m Model) openFeedSelection() (tea.Model, tea.Cmd) {
 	return m, m.loadDetailCmd(item.IssueKey, lite)
 }
 
-func (m *Model) moveFeedCursor(delta int) {
+func (m *Model) feedMove(delta int) {
 	n := len(m.feedItems)
-	if n == 0 {
-		m.feedCursor = 0
-		return
+	m.feedPane.move(delta, n)
+	if n > 0 {
+		m.feedEnsureVisible()
 	}
-	m.feedCursor += delta
-	if m.feedCursor < 0 {
-		m.feedCursor = 0
-	}
-	if m.feedCursor >= n {
-		m.feedCursor = n - 1
-	}
-	m.ensureFeedVisible()
 }
 
-func (m *Model) ensureFeedVisible() {
-	h := m.listHeight()
-	if m.feedCursor < m.feedOffset {
-		m.feedOffset = m.feedCursor
-	}
-	if m.feedCursor >= m.feedOffset+h {
-		m.feedOffset = m.feedCursor - h + 1
-	}
-	if m.feedOffset < 0 {
-		m.feedOffset = 0
-	}
+func (m *Model) feedEnsureVisible() {
+	m.feedPane.ensureVisible(m.listHeight(), m.feedPane.cursor, unitRowHeight)
 }
 
 func (m Model) viewFeed() string {
@@ -208,15 +189,15 @@ func (m Model) viewFeed() string {
 			b.WriteByte('\n')
 		}
 	} else {
-		end := m.feedOffset + listH
+		end := m.feedPane.offset + listH
 		if end > len(m.feedItems) {
 			end = len(m.feedItems)
 		}
-		for i := m.feedOffset; i < end; i++ {
-			b.WriteString(m.renderFeedRow(m.feedItems[i], i == m.feedCursor, w))
+		for i := m.feedPane.offset; i < end; i++ {
+			b.WriteString(m.renderFeedRow(m.feedItems[i], i == m.feedPane.cursor, w))
 			b.WriteByte('\n')
 		}
-		for i := end - m.feedOffset; i < listH; i++ {
+		for i := end - m.feedPane.offset; i < listH; i++ {
 			b.WriteByte('\n')
 		}
 	}
@@ -345,7 +326,7 @@ func (m Model) renderFeedStatusBar(w int) string {
 	left := strings.Join(leftParts, "  ")
 	count := fmt.Sprintf("%d/%d", 0, len(m.feedItems))
 	if len(m.feedItems) > 0 {
-		count = fmt.Sprintf("%d/%d", m.feedCursor+1, len(m.feedItems))
+		count = fmt.Sprintf("%d/%d", m.feedPane.cursor+1, len(m.feedItems))
 	}
 	right := styleMuted.Render(count)
 	return joinBar(left, right, w)

@@ -175,12 +175,12 @@ func TestDocsToggleAndTreeRender(t *testing.T) {
 	}
 	// Indent: child line should carry deeper leading spaces than root in plain render.
 	// Cursor on first navigable page; j/k moves among pages only.
-	if m.docsCursor != 0 {
-		t.Fatalf("docs cursor start %d", m.docsCursor)
+	if m.docsPane.cursor != 0 {
+		t.Fatalf("docs cursor start %d", m.docsPane.cursor)
 	}
 	m = feedKey(m, "j")
-	if m.docsCursor != 1 {
-		t.Fatalf("j → docsCursor %d", m.docsCursor)
+	if m.docsPane.cursor != 1 {
+		t.Fatalf("j → docsCursor %d", m.docsPane.cursor)
 	}
 	// D again returns to issues
 	m = feedKey(m, "D")

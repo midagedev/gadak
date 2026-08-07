@@ -93,21 +93,21 @@ func TestPaletteDispatchTab(t *testing.T) {
 
 func TestMouseClickSelectsRow(t *testing.T) {
 	m := seededModel()
-	if m.cursor != 0 {
-		t.Fatalf("start cursor %d", m.cursor)
+	if m.issuesPane.cursor != 0 {
+		t.Fatalf("start cursor %d", m.issuesPane.cursor)
 	}
 	// Click the second visible row (Y = listTopLines + 1).
 	click := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, Y: listTopLines + 1}
 	res, _ := m.Update(click)
 	m = res.(Model)
-	if m.cursor != 1 {
-		t.Fatalf("click select: cursor=%d", m.cursor)
+	if m.issuesPane.cursor != 1 {
+		t.Fatalf("click select: cursor=%d", m.issuesPane.cursor)
 	}
 	// Wheel scrolls.
 	res, _ = m.Update(tea.MouseMsg{Button: tea.MouseButtonWheelUp})
 	m = res.(Model)
-	if m.cursor != 0 {
-		t.Fatalf("wheel up: cursor=%d", m.cursor)
+	if m.issuesPane.cursor != 0 {
+		t.Fatalf("wheel up: cursor=%d", m.issuesPane.cursor)
 	}
 }
 

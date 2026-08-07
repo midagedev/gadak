@@ -46,8 +46,8 @@ type Model struct {
 
 	all     []row
 	visible []int // indices into all
-	cursor  int
-	offset  int // scroll top for the list viewport
+	// issuesPane holds list cursor + scroll offset (screen-line space when grouped).
+	issuesPane listPane
 
 	filter    string
 	tab       Tab
@@ -84,8 +84,7 @@ type Model struct {
 	feedItems  []store.FeedItem
 	feedFocus  store.FeedFocus
 	feedCounts store.FeedUnreadCounts
-	feedCursor int
-	feedOffset int
+	feedPane   listPane
 
 	// Saved views (v).
 	savedViews  []store.SavedView
@@ -112,8 +111,7 @@ type Model struct {
 	pages         []store.PageLite
 	docsLines     []docsLine
 	docsNav       []docsNavItem
-	docsCursor    int
-	docsOffset    int
+	docsPane      listPane
 	docsTab       docsTab // Updated / By author / Spaces (keys 1/2/3)
 	pageDetail    *store.PageDetail
 	pageDetailKey string
@@ -343,10 +341,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.feedItems = []store.FeedItem{}
 		}
 		m.feedCounts = msg.counts
-		if m.feedCursor >= len(m.feedItems) {
-			m.feedCursor = max(0, len(m.feedItems)-1)
-		}
-		m.ensureFeedVisible()
+		m.feedPane.clamp(len(m.feedItems))
+		m.feedPane.ensureVisible(m.listHeight(), m.feedPane.cursor, unitRowHeight)
 		m.mode = modeFeed
 		return m, nil
 
@@ -580,12 +576,12 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.moveCursor(-1)
 		return m, nil
 	case key.Matches(msg, k.Top):
-		m.cursor = 0
+		m.issuesPane.cursor = 0
 		m.ensureVisible()
 		return m, nil
 	case key.Matches(msg, k.Bottom):
 		if n := len(m.visible); n > 0 {
-			m.cursor = n - 1
+			m.issuesPane.cursor = n - 1
 			m.ensureVisible()
 		}
 		return m, nil
@@ -612,7 +608,7 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !ok {
 			return m, nil
 		}
-		lite := m.all[m.visible[m.cursor]].lite
+		lite := m.all[m.visible[m.issuesPane.cursor]].lite
 		m.detailFrom = modeList
 		return m, m.loadDetailCmd(issueKey, lite)
 	case key.Matches(msg, k.Comment):
@@ -789,9 +785,7 @@ func (m *Model) refilter() {
 	if m.listSort.key != "" {
 		sortVisible(m.all, m.visible, m.listSort)
 	}
-	if m.cursor >= len(m.visible) {
-		m.cursor = max(0, len(m.visible)-1)
-	}
+	m.issuesPane.clamp(len(m.visible))
 	m.ensureVisible()
 }
 
@@ -819,10 +813,10 @@ func (m Model) listLines() []listLine {
 // cursorScreenLine returns the screen-line index of the selected issue.
 func (m Model) cursorScreenLine() int {
 	if m.groupBy == "" {
-		return m.cursor
+		return m.issuesPane.cursor
 	}
 	for i, ln := range m.listLines() {
-		if ln.kind == lineKindIssue && ln.visIdx == m.cursor {
+		if ln.kind == lineKindIssue && ln.visIdx == m.issuesPane.cursor {
 			return i
 		}
 	}
@@ -831,18 +825,10 @@ func (m Model) cursorScreenLine() int {
 
 func (m *Model) moveCursor(delta int) {
 	n := len(m.visible)
-	if n == 0 {
-		m.cursor = 0
-		return
+	m.issuesPane.move(delta, n)
+	if n > 0 {
+		m.ensureVisible()
 	}
-	m.cursor += delta
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
-	if m.cursor >= n {
-		m.cursor = n - 1
-	}
-	m.ensureVisible()
 }
 
 func (m *Model) pageSize() int {
@@ -863,18 +849,8 @@ func (m *Model) listHeight() int {
 }
 
 func (m *Model) ensureVisible() {
-	h := m.listHeight()
 	// offset is a screen-line index (headers count when grouping is on).
-	line := m.cursorScreenLine()
-	if line < m.offset {
-		m.offset = line
-	}
-	if line >= m.offset+h {
-		m.offset = line - h + 1
-	}
-	if m.offset < 0 {
-		m.offset = 0
-	}
+	m.issuesPane.ensureVisible(m.listHeight(), m.cursorScreenLine(), unitRowHeight)
 }
 
 func (m Model) clock() time.Time {
@@ -953,13 +929,13 @@ func (m Model) viewList() string {
 		if lines != nil {
 			total = len(lines)
 		}
-		end := m.offset + listH
+		end := m.issuesPane.offset + listH
 		if end > total {
 			end = total
 		}
-		for i := m.offset; i < end; i++ {
+		for i := m.issuesPane.offset; i < end; i++ {
 			if lines == nil {
-				b.WriteString(m.renderRowAt(m.all[m.visible[i]], i == m.cursor, w, i-m.offset))
+				b.WriteString(m.renderRowAt(m.all[m.visible[i]], i == m.issuesPane.cursor, w, i-m.issuesPane.offset))
 				b.WriteByte('\n')
 				continue
 			}
@@ -969,11 +945,11 @@ func (m Model) viewList() string {
 				b.WriteString(fitWidth(styleMuted.Render(hdr), w))
 			} else {
 				r := m.all[m.visible[ln.visIdx]]
-				b.WriteString(m.renderRowAt(r, ln.visIdx == m.cursor, w, i-m.offset))
+				b.WriteString(m.renderRowAt(r, ln.visIdx == m.issuesPane.cursor, w, i-m.issuesPane.offset))
 			}
 			b.WriteByte('\n')
 		}
-		for i := end - m.offset; i < listH; i++ {
+		for i := end - m.issuesPane.offset; i < listH; i++ {
 			b.WriteByte('\n')
 		}
 	}
@@ -1240,7 +1216,7 @@ func (m Model) renderStatusBar(w int) string {
 
 	count := fmt.Sprintf("%d/%d", 0, len(m.visible))
 	if len(m.visible) > 0 {
-		count = fmt.Sprintf("%d/%d", m.cursor+1, len(m.visible))
+		count = fmt.Sprintf("%d/%d", m.issuesPane.cursor+1, len(m.visible))
 	}
 	right := styleMuted.Render(m.syncedLabel + "  ·  " + count)
 	return joinBar(left, right, w)
