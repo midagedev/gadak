@@ -279,10 +279,13 @@ or anything touching the schema.
 
 The E2E fixture server (`e2e/serve.sh`) serves the **built** UI from `dist/app`,
 not your source tree. After editing anything under `web/`, rebuild before you
-screenshot or judge the result by eye — otherwise you are looking at the last
-build and will draw conclusions from a screen the code no longer produces.
-`npx playwright test` rebuilds on its own; a manual capture against an
-already-running server does not.
+run the suite or screenshot it — otherwise you are testing the last build and
+will draw conclusions from a screen the code no longer produces.
+
+`npx playwright test` only rebuilds when it has to start the server itself. The
+config sets `reuseExistingServer`, so a server left running from an earlier run
+is reused as-is, `serve.sh` never re-runs, and your edits are simply absent.
+Stop it first (`pkill -f 'e2e/.tmp/scry'`) or run `npm run build` by hand.
 
 ### Handoff format
 
