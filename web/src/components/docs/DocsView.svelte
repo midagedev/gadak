@@ -15,8 +15,11 @@
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type DocsTab } from '../../stores/pages.svelte'
+  import type { PageLite } from '../../lib/types'
   import EmptyState from '../list/EmptyState.svelte'
   import DocRow from './DocRow.svelte'
+  import VirtualRows from '../ui/VirtualRows.svelte'
+  import { rowMetrics } from '../../lib/row-metrics'
 
   const TABS: { key: DocsTab; label: string }[] = [
     { key: 'viewed', label: t('docs.tabViewed') },
@@ -30,18 +33,59 @@
   const authors = $derived(pages.byAuthor)
   const count = $derived(tab === 'viewed' ? viewed.length : updated.length)
 
-  let listEl = $state<HTMLElement | null>(null)
+  /*
+   * All three tabs are one flat row list so a single window serves them. The
+   * author tab's group labels ride in that list rather than wrapping it: a
+   * per-group container would put every group's rows in the DOM again, which is
+   * the thing being removed.
+   */
+  type Row =
+    | { kind: 'header'; author: string; count: number }
+    | { kind: 'doc'; page: PageLite; showAuthor: boolean; showExcerpt: boolean }
+
+  const rows = $derived.by<Row[]>(() => {
+    if (tab === 'viewed') {
+      // No excerpt: you have read these already, so the title is the reminder.
+      return viewed.map((page) => ({ kind: 'doc', page, showAuthor: true, showExcerpt: false }))
+    }
+    if (tab === 'updated') {
+      return updated.map((page) => ({ kind: 'doc', page, showAuthor: true, showExcerpt: true }))
+    }
+    const out: Row[] = []
+    for (const group of authors) {
+      out.push({ kind: 'header', author: group.author, count: group.pages.length })
+      for (const page of group.pages) {
+        out.push({ kind: 'doc', page, showAuthor: false, showExcerpt: true })
+      }
+    }
+    return out
+  })
+
+  // Mirrors DocRow's own rule: the taller row exists only when there is a body
+  // line to put in it, so a page with an empty excerpt stays 42px.
+  function rowHeight(item: Row): number {
+    const m = rowMetrics()
+    if (item.kind === 'header') return m.row
+    return item.showExcerpt && (item.page.excerpt ?? '').trim() ? m.rowExcerpt : m.row
+  }
+
+  function rowKey(item: Row): string {
+    return item.kind === 'header' ? `h:${item.author}` : `d:${item.page.key}`
+  }
+
+  let list = $state<ReturnType<typeof VirtualRows> | null>(null)
 
   // Someone arriving from a person lands on that person's group rather than at
   // the top of a recency-ordered list. One shot: the store clears the request
   // here so a later tab visit opens where it always did.
+  //
+  // An index, not scrollIntoView — the row being scrolled to is outside the
+  // window, so there is no element to scroll into view.
   $effect(() => {
     const author = pages.focusAuthor
-    if (!author || tab !== 'author' || !listEl) return
-    const cssEscape = globalThis.CSS?.escape ?? ((s: string) => s.replace(/["\\]/g, '\\$&'))
-    listEl
-      .querySelector(`[data-author="${cssEscape(author)}"]`)
-      ?.scrollIntoView({ block: 'start' })
+    if (!author || tab !== 'author' || !list) return
+    const index = rows.findIndex((r) => r.kind === 'header' && r.author === author)
+    if (index >= 0) list.scrollToIndex(index)
     pages.focusAuthor = null
   })
 </script>
@@ -82,48 +126,51 @@
     </button>
   </header>
 
-  <div bind:this={listEl} class="min-h-0 flex-1 overflow-y-auto">
-    {#if tab === 'viewed'}
-      {#if viewed.length === 0}
+  {#if rows.length === 0}
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      {#if tab === 'viewed'}
         <EmptyState icon="" title={t('docs.viewedEmpty')} hint={t('docs.viewedEmptyHint')} />
       {:else}
-        {#each viewed as page (page.key)}
-          <DocRow {page} />
-        {/each}
-      {/if}
-    {:else if tab === 'updated'}
-      {#if updated.length === 0}
         <EmptyState icon="" title={t('docs.recentEmpty')} />
-      {:else}
-        {#each updated as page (page.key)}
-          <!-- Someone else's edit: the title alone rarely says whether it is
-               worth opening, so the row carries one line of the body. Viewed
-               above does not — you have already read those. -->
-          <DocRow {page} showExcerpt />
-        {/each}
       {/if}
-    {:else if authors.length === 0}
-      <EmptyState icon="" title={t('docs.recentEmpty')} />
-    {:else}
-      {#each authors as group (group.author)}
-        <!-- Group label line, same rhythm as the issue list's group headers. -->
-        <div
-          class="flex h-row items-end gap-2 px-4 pb-1.5"
-          data-testid="docs-author-group"
-          data-author={group.author}
-        >
-          <span class="truncate text-micro font-semibold uppercase tracking-wider text-text-muted">
-            {group.author || t('docs.authorUnknown')}
-          </span>
-          <span class="flex-none text-micro tabular-nums text-text-muted">
-            {formatNumber(group.pages.length)}
-          </span>
-          <span class="h-px flex-1 self-center bg-border-subtle"></span>
-        </div>
-        {#each group.pages as page (page.key)}
-          <DocRow {page} showAuthor={false} showExcerpt />
-        {/each}
-      {/each}
-    {/if}
-  </div>
+    </div>
+  {:else}
+    <VirtualRows
+      bind:this={list}
+      {rows}
+      height={rowHeight}
+      key={rowKey}
+      testid="docs-scroll"
+    >
+      {#snippet row(item)}
+        {#if item.kind === 'header'}
+          <!-- Group label line, same rhythm as the issue list's group headers. -->
+          <div
+            class="flex h-row items-end gap-2 px-4 pb-1.5"
+            data-testid="docs-author-group"
+            data-author={item.author}
+          >
+            <span
+              class="truncate text-micro font-semibold uppercase tracking-wider text-text-muted"
+            >
+              {item.author || t('docs.authorUnknown')}
+            </span>
+            <span class="flex-none text-micro tabular-nums text-text-muted">
+              {formatNumber(item.count)}
+            </span>
+            <span class="h-px flex-1 self-center bg-border-subtle"></span>
+          </div>
+        {:else}
+          <!-- Someone else's edit: the title alone rarely says whether it is
+               worth opening, so those rows carry one line of the body. Viewed
+               does not — you have already read those. -->
+          <DocRow
+            page={item.page}
+            showAuthor={item.showAuthor}
+            showExcerpt={item.showExcerpt}
+          />
+        {/if}
+      {/snippet}
+    </VirtualRows>
+  {/if}
 </section>

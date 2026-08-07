@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
+import { attachConsoleErrors, gotoApp, searchInput, walkRows } from './helpers'
 
 /** Click a visible tree row's title (each row also holds a toggle button). */
 async function openDoc(page: Page, title: string): Promise<void> {
@@ -53,7 +53,8 @@ test.describe('mirrored wiki documents', () => {
     await spaces.filter({ hasText: 'PROD' }).click()
     const view = page.getByTestId('space-docs-view')
     await expect(view).toBeVisible()
-    await expect(view.getByTestId('doc-row')).toHaveCount(28)
+    // Walked, not counted: the list is windowed and holds a screenful at a time.
+    expect((await walkRows(view.getByTestId('space-list-scroll'))).length).toBe(28)
     await expect(view.getByTestId('doc-tree-node')).toHaveCount(0)
 
     // Tree is the same screen, one toggle: PROD's root page and the level under

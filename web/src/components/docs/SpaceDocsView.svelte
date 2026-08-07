@@ -11,6 +11,8 @@
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type PageNode } from '../../stores/pages.svelte'
   import DocRow from './DocRow.svelte'
+  import VirtualRows from '../ui/VirtualRows.svelte'
+  import { rowMetrics } from '../../lib/row-metrics'
 
   let { space }: { space: string } = $props()
 
@@ -42,12 +44,31 @@
     pages.select(node.page.key)
     if (node.children.length && !openDocs.has(node.page.key)) toggleDoc(node.page.key)
   }
+
+  /*
+   * The tree is flattened to the rows that are actually visible, so the window
+   * can measure it. Recursion stays in the flattening, not in the markup: a
+   * space with no hierarchy makes every page a root, and showTree() opens every
+   * root, so "collapsed" is no protection against the size of the space.
+   */
+  const treeRows = $derived.by(() => {
+    const out: PageNode[] = []
+    const walk = (nodes: PageNode[]) => {
+      for (const node of nodes) {
+        out.push(node)
+        if (openDocs.has(node.page.key)) walk(node.children)
+      }
+    }
+    walk(tree?.roots ?? [])
+    return out
+  })
 </script>
 
-<!-- One page row in the tree, recursing into its children. Indent is a fixed
-     step per depth so a leaf lines up under its parent's title. This is the
-     main column, not the sidebar: rows carry the body size and the list's row
-     rhythm rather than the nav's compressed one. -->
+<!-- One page row in the tree. Indent is a fixed step per depth so a leaf lines
+     up under its parent's title. This is the main column, not the sidebar: rows
+     carry the body size and the list's row rhythm rather than the nav's
+     compressed one. Children are not rendered from here — treeRows already
+     holds them in visual order, which is what lets the list be windowed. -->
 {#snippet docNode(node: PageNode)}
   {@const expanded = openDocs.has(node.page.key)}
   {@const selected = pages.selectedKey === node.page.key}
@@ -88,11 +109,6 @@
       {node.page.title}
     </button>
   </div>
-  {#if expanded}
-    {#each node.children as child (child.page.key)}
-      {@render docNode(child)}
-    {/each}
-  {/if}
 {/snippet}
 
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="space-docs-view" data-space={space}>
@@ -138,22 +154,38 @@
     </button>
   </header>
 
-  <div class="min-h-0 flex-1 overflow-y-auto">
-    {#if docs.length === 0}
+  {#if docs.length === 0}
+    <div class="min-h-0 flex-1 overflow-y-auto">
       <p class="px-4 py-12 text-center text-[12px] text-text-muted">{t('docs.recentEmpty')}</p>
-    {:else if treeMode}
-      <!-- Capped width: a hierarchy read left-to-right gains nothing from a
-           1300px column, and unbounded rows lose the parent–child alignment. -->
-      <div class="max-w-[720px] px-3 py-2">
-        {#each tree?.roots ?? [] as node (node.page.key)}
-          {@render docNode(node)}
-        {/each}
-      </div>
-    {:else}
-      <!-- The space is the screen, so every row would repeat it — dropped. -->
-      {#each docs as page (page.key)}
+    </div>
+  {:else if treeMode}
+    <!-- Capped width: a hierarchy read left-to-right gains nothing from a
+         1300px column, and unbounded rows lose the parent–child alignment.
+         The cap rides on the windowed slice, where horizontal padding is safe;
+         vertical padding there would scroll with the window instead of the
+         list, so the header's rule is the top edge. -->
+    <VirtualRows
+      rows={treeRows}
+      height={() => rowMetrics().control}
+      key={(node) => node.page.key}
+      innerClass="max-w-[720px] px-3"
+      testid="space-tree-scroll"
+    >
+      {#snippet row(node)}
+        {@render docNode(node)}
+      {/snippet}
+    </VirtualRows>
+  {:else}
+    <!-- The space is the screen, so every row would repeat it — dropped. -->
+    <VirtualRows
+      rows={docs}
+      height={() => rowMetrics().row}
+      key={(page) => page.key}
+      testid="space-list-scroll"
+    >
+      {#snippet row(page)}
         <DocRow {page} showSpace={false} />
-      {/each}
-    {/if}
-  </div>
+      {/snippet}
+    </VirtualRows>
+  {/if}
 </section>

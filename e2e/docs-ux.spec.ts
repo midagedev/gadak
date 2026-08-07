@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, openServerSettings } from './helpers'
+import { attachConsoleErrors, gotoApp, openServerSettings, walkRows } from './helpers'
 
 const PAGES_URL = 'http://127.0.0.1:7877/api/v1/issues/pages/'
 
@@ -26,11 +26,6 @@ async function openDocFromTree(page: Page, title: string): Promise<void> {
 async function openDocuments(page: Page): Promise<void> {
   await page.getByTestId('docs-documents').click()
   await expect(page.getByTestId('docs-view')).toBeVisible()
-}
-
-/** The title line of each document row (the meta line is the second span). */
-async function rowTitles(rows: import('@playwright/test').Locator): Promise<string[]> {
-  return rows.evaluateAll((els) => els.map((el) => el.querySelector('span')?.textContent?.trim() ?? ''))
 }
 
 test.describe('documents in the daily loop', () => {
@@ -120,9 +115,23 @@ test.describe('documents in the daily loop', () => {
       .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''))
       .map((p) => p.title)
 
+    // Walked rather than counted: the list is windowed, so the DOM holds a
+    // screenful. Walking asserts the same thing the count used to — every page,
+    // in the mirror's order.
+    const walked = await walkRows(view.getByTestId('docs-scroll'))
+    expect(walked.map((r) => r.title)).toEqual(expected)
+
     const rows = view.getByTestId('doc-row')
-    await expect(rows).toHaveCount(expected.length)
-    expect(await rowTitles(rows)).toEqual(expected)
+    // The list is a window, and the scrollbar still describes the whole thing.
+    // Both halves matter: rendering every row is the freeze this replaced, and
+    // a scroll height that only covers the window is a list you cannot reach
+    // the end of. 30 is well above a viewport's worth and well below 71.
+    expect(await rows.count()).toBeLessThan(30)
+    const geometry = await view.getByTestId('docs-scroll').evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }))
+    expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight * 3)
 
     // A row opens the document beside the list, which stays put.
     await rows.first().click()
@@ -179,16 +188,21 @@ test.describe('documents in the daily loop', () => {
       .sort((a, b) => (b.pages[0]?.updated_at ?? '').localeCompare(a.pages[0]?.updated_at ?? ''))
     const authors = authorGroups.map((g) => g.author)
 
-    const groups = view.getByTestId('docs-author-group')
-    await expect(groups).toHaveCount(authors.length)
-    await expect(groups.first()).toContainText(authors[0])
+    const scroller = view.getByTestId('docs-scroll')
+    await expect(view.getByTestId('docs-author-group').first()).toContainText(authors[0])
+    const walkedGroups = await walkRows(scroller, {
+      rowTestId: 'docs-author-group',
+      keyAttr: 'data-author',
+    })
+    expect(walkedGroups.map((g) => g.key)).toEqual(authors)
+
     // Every page is still listed — grouping regroups, it does not filter.
-    await expect(view.getByTestId('doc-row')).toHaveCount(body.pages.length)
+    const titles = (await walkRows(scroller)).map((r) => r.title)
+    expect(titles.length).toBe(body.pages.length)
 
     // First group's pages appear first (newest edit inside the group); later
     // groups follow. Assert the leading slice, not the whole list (multi-author).
     const first = authorGroups[0].pages.map((p) => p.title)
-    const titles = await rowTitles(view.getByTestId('doc-row'))
     expect(titles.slice(0, first.length)).toEqual(first)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
@@ -321,7 +335,7 @@ test.describe('documents in the daily loop', () => {
 
     const view = page.getByTestId('space-docs-view')
     await expect(view).toBeVisible()
-    await expect(view.getByTestId('doc-row')).toHaveCount(43)
+    expect((await walkRows(view.getByTestId('space-list-scroll'))).length).toBe(43)
     // The space is the screen, so the row's "in ENG" clause would be noise.
     await expect(view.getByTestId('doc-row').first()).not.toContainText('in ENG')
     await expect(view.getByTestId('doc-row').first()).toContainText('Alex Kim')
