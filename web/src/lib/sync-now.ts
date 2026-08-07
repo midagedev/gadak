@@ -149,3 +149,9 @@ function sleep(ms: number): Promise<void> {
 // and the reactive `mirrorSyncing` the freshness chip renders. Injected in this
 // direction because the store must not import back into this module.
 issues.setMirrorPuller((mode, quiet) => runSyncNow(mode, { quiet }))
+
+// Same direction, same reason: the issue store watches the mirror's progress
+// and must not know that documents exist.
+issues.setMirrorBatchHandler(() => {
+  void pages.reload()
+})

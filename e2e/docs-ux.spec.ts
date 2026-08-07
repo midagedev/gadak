@@ -646,3 +646,121 @@ test.describe('docs empty states', () => {
     await expect(cta).toContainText('Change the selection')
   })
 })
+
+/*
+ * One mirror, one sentence.
+ *
+ * The app reported sync in three places that could disagree: the sidebar's sync
+ * row ("Synced 3m ago"), the freshness chip ("Syncing"), and the DOCS section
+ * ("Fetching documents") — at the same moment, about the same pass. Read
+ * together, issue sync and document sync looked like two systems. These pin
+ * that every surface renders the same string, and that the count is in it.
+ */
+test.describe('sync status is one sentence', () => {
+  const API = 'http://127.0.0.1:7877/api/v1/issues/'
+
+  /**
+   * Stub the process-wide activity slot. `agoMs` ages the pass.
+   *
+   * started_at is stamped once, not per request: a timestamp regenerated on
+   * every poll describes a pass that restarts forever, which is not a state the
+   * server can be in and which quietly defeats any test of elapsed time.
+   */
+  async function activity(
+    page: Page,
+    a: { running: boolean; source: string; fetched: number },
+    agoMs = 60_000,
+  ): Promise<void> {
+    const startedAt = new Date(Date.now() - agoMs).toISOString()
+    await page.route(`${API}sync/progress/`, (route) =>
+      route.fulfill({
+        json: {
+          running: false,
+          phase: 'idle',
+          fetched: 0,
+          changed: 0,
+          deleted: 0,
+          done: false,
+          error: '',
+          started_at: '',
+          finished_at: '',
+          activity: { ...a, changed: a.fetched, started_at: startedAt },
+        },
+      }),
+    )
+  }
+
+  test('a document pass names itself, with the count, in every surface', async ({ page }) => {
+    await activity(page, { running: true, source: 'documents', fetched: 350 })
+    await page.route(`${API}pages/`, (route) => route.fulfill({ json: { pages: [] } }))
+    await page.route('**/config.json', async (route) => {
+      const res = await route.fetch()
+      const doc = JSON.parse(await res.text())
+      doc.confluenceEnabled = true
+      await route.fulfill({ response: res, body: JSON.stringify(doc) })
+    })
+    await gotoApp(page)
+
+    const expected = 'Fetching documents · 350'
+    // The sidebar's sync row: this is the one that used to say "Synced 3m ago"
+    // while the section below it claimed to be fetching.
+    await expect(page.getByTestId('sidebar-sync-now')).toContainText(expected, { timeout: 20_000 })
+    await expect(page.getByTestId('freshness-chip')).toContainText(expected)
+    await expect(page.getByTestId('docs-empty-cta')).toContainText(expected)
+  })
+
+  test('an issue pass says issues, not documents', async ({ page }) => {
+    await activity(page, { running: true, source: 'issues', fetched: 6932 })
+    await gotoApp(page)
+
+    await expect(page.getByTestId('sidebar-sync-now')).toContainText('Syncing issues · 6,932', {
+      timeout: 20_000,
+    })
+  })
+
+  test('a pass is announced only once it has run long enough to wonder about', async ({ page }) => {
+    // The watch loop finishes an incremental in a second or two, every minute.
+    // Narrating those would put a blinking status in front of someone all day;
+    // the six-minute backfill is what needed saying. So the rule is elapsed
+    // time, and this asserts both halves of it rather than the quiet first
+    // instant, which would pass with no rule at all.
+    await activity(page, { running: true, source: 'issues', fetched: 2 }, 500)
+    await gotoApp(page)
+
+    const chip = page.getByTestId('freshness-chip')
+    await page.waitForTimeout(1_500) // two polls in, still young
+    await expect(chip).not.toContainText('Syncing')
+    // Same stubbed pass, now old enough: the wording appears without anything
+    // else changing, which is the threshold and not a coincidence of timing.
+    await expect(chip).toContainText('Syncing issues', { timeout: 15_000 })
+  })
+})
+
+test.describe('sync status at rest', () => {
+  test('the row and the chip report the mirror identically, and it fits', async ({ page }) => {
+    // At rest the two used to describe different things with the same verb: the
+    // row read the browser↔server delta cursor ("Synced 18:12"), the chip read
+    // the mirror's age ("Synced yesterday"). Only the second is what anyone
+    // means by synced — a delta poll keeps the screen current with a mirror
+    // that stopped yesterday.
+    await gotoApp(page)
+
+    const row = page.getByTestId('sidebar-sync-now')
+    const chip = page.getByTestId('freshness-chip')
+    const rowText = ((await row.textContent()) ?? '').trim()
+    const chipText = ((await chip.textContent()) ?? '').trim()
+    expect(rowText).toBe(chipText)
+    // The verdict travels with the age: "delayed" alone never says how far
+    // behind, and an age alone never says that being behind is a problem.
+    expect(rowText).toMatch(/·/)
+
+    // The sidebar row shares its line with the issue count, and the settled
+    // string is now the longest it has ever been. Measure rather than trust it.
+    const fits = await row.evaluate((el) => {
+      const line = el.closest('div')?.parentElement
+      if (!line) return true
+      return el.getBoundingClientRect().right <= line.getBoundingClientRect().right + 1
+    })
+    expect(fits).toBe(true)
+  })
+})

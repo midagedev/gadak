@@ -799,6 +799,21 @@ export const ko = {
   // Jira는 됐고 다른 소스가 실패한 경우. 소스를 짚어 주지 않으면 위키 권한
   // 오류가 "전부 실패"로 읽힌다.
   'sync.partial': '이슈는 동기화됨. 문서 실패: {message}',
+  // 동기화 중 표현은 한 곳에서만 만든다 — 여러 자리에 놓이되 서로 다른 말을
+  // 하지는 않게. 숫자가 있어야 오래 걸리는 것과 멈춘 것이 구별된다.
+  'sync.busy': '동기화 중…',
+  'sync.busyIssues': '이슈 동기화 중…',
+  'sync.busyIssuesN': '이슈 동기화 중 · {n}',
+  'sync.busyDocuments': '문서 가져오는 중…',
+  'sync.busyDocumentsN': '문서 가져오는 중 · {n}',
+  // 정지 상태: 판정과 나이를 한 문장에. 둘 중 하나만으로는 각각
+  // "얼마나 밀렸는지"와 "그게 문제인지"를 말하지 못한다.
+  'sync.settledOk': '{when} 동기화됨',
+  'sync.settledDelayedWhen': '동기화 지연 · {when}',
+  'sync.settledFailedWhen': '동기화 실패 · {when}',
+  'sync.settledFailed': '동기화 실패',
+  'sync.settledNever': '동기화한 적 없음',
+  'sync.settledChecking': '동기화 확인 중',
   'sync.projectsRequired': '동기화 전에 설정에서 프로젝트를 하나 이상 추가하세요.',
 
   /* ── 온보딩(첫 실행) ── */

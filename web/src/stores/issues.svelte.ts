@@ -21,6 +21,16 @@ import { isHostedDemo } from '../lib/config'
 import type { CacheMeta } from '../lib/types'
 
 const POLL_MS = 15_000
+/** Sync-progress cadence: tight while the mirror moves, slow while it does not. */
+const ACTIVITY_BUSY_MS = 2_000
+const ACTIVITY_IDLE_MS = 15_000
+/**
+ * How long a pass has to run before the UI mentions it. The watch loop's
+ * incremental passes finish in a second or two, every minute — narrating those
+ * would put a status that blinks on and off in front of someone all day, which
+ * is noise, not information. What needed saying was the six-minute backfill.
+ */
+const ACTIVITY_MIN_VISIBLE_MS = 4_000
 
 /**
  * How old the mirror may be when a backgrounded tab comes back before we pull
@@ -65,6 +75,32 @@ class IssuesStore {
    * started from (chip click, focus auto-pull).
    */
   mirrorSyncing = $state(false)
+
+  /**
+   * What the mirror is fetching right now, whoever started it.
+   *
+   * mirrorSyncing above only knows about pulls this tab started. The background
+   * watch loop does the long ones — a first Confluence backfill ran for six and
+   * a half minutes with the screen saying nothing, because no surface here
+   * could see it. The server reports every pass through sync/progress/'s
+   * `activity`, and this is where it lands so one status line can speak for the
+   * whole mirror instead of each surface guessing.
+   *
+   * `source` names the connector mid-pass ('issues' | 'documents'); `fetched`
+   * is that pass's running total, reset when the source changes — carrying
+   * Jira's count into the Confluence phase would report documents the mirror
+   * does not have.
+   */
+  mirrorActivity = $state<{ running: boolean; source: string; fetched: number }>({
+    running: false,
+    source: '',
+    fetched: 0,
+  })
+
+  /** True when anything is fetching: this tab's pull, or the background loop. */
+  get mirrorBusy(): boolean {
+    return this.mirrorSyncing || this.mirrorActivity.running
+  }
 
   /**
    * Health of the issue mirror's own source. `synced_at` here is the last sync
@@ -147,6 +183,7 @@ class IssuesStore {
 
     // ③ Polling
     this.#startPolling()
+    this.#startActivityPolling()
   }
 
   /** Pick delta vs bootstrap based on whether a cache exists. */
@@ -302,6 +339,59 @@ class IssuesStore {
 
   setMirrorPuller(fn: MirrorPuller): void {
     this.#mirrorPuller = fn
+  }
+
+  /**
+   * Called while a document pass is committing batches, and once when any pass
+   * ends. Injected for the same reason as the puller: the page store must not
+   * be imported here, and this store must not know what a page is.
+   */
+  #mirrorBatch: (() => void) | null = null
+
+  setMirrorBatchHandler(fn: () => void): void {
+    this.#mirrorBatch = fn
+  }
+
+  /**
+   * Poll what the mirror is doing. Tight while it moves, slow while it does
+   * not: a count that updates every two seconds is the difference between a
+   * long sync and a hung one, and outside a sync there is nothing to watch.
+   */
+  #activityTimer: ReturnType<typeof setTimeout> | null = null
+
+  #startActivityPolling(): void {
+    if (this.#activityTimer || typeof window === 'undefined' || isHostedDemo()) return
+    const tick = async () => {
+      let busy = false
+      if (document.visibilityState === 'visible') {
+        try {
+          const a = (await api.getSyncProgress()).activity
+          if (a) {
+            const ended = this.mirrorActivity.running && !a.running
+            const startedMs = Date.parse(a.started_at)
+            const old = Number.isFinite(startedMs)
+              ? Date.now() - startedMs >= ACTIVITY_MIN_VISIBLE_MS
+              : true
+            this.mirrorActivity = {
+              running: a.running && old,
+              source: a.source ?? '',
+              fetched: a.fetched ?? 0,
+            }
+            // Cadence follows the real pass, not the reported one: a young pass
+            // has to be watched closely enough to catch it crossing over.
+            busy = a.running
+            // Pages are committed in batches, so they can be shown as they
+            // arrive rather than all at once at the end — which is when
+            // someone who just configured the source is watching hardest.
+            if (a.source === 'documents' || ended) this.#mirrorBatch?.()
+          }
+        } catch {
+          /* progress is advisory: a failure here must not surface anywhere */
+        }
+      }
+      this.#activityTimer = setTimeout(tick, busy ? ACTIVITY_BUSY_MS : ACTIVITY_IDLE_MS)
+    }
+    this.#activityTimer = setTimeout(tick, 0)
   }
 
   /**

@@ -342,6 +342,21 @@ export interface SyncProgress {
   error: string
   started_at: string
   finished_at: string
+  /**
+   * Any pass running in the server process, including the background watch
+   * loop — the fields above describe only the one-shot job this client can
+   * start. Absent on servers older than this field; treat that as "unknown",
+   * never as "idle".
+   */
+  activity?: {
+    running: boolean
+    /** issues | documents, '' when nothing is in flight. */
+    source: string
+    /** Running total for the current source's pass, reset when it changes. */
+    fetched: number
+    changed: number
+    started_at: string
+  }
 }
 
 /** Verify site+email+token via /myself, then store. Failures distinguished by ApiError.code. */

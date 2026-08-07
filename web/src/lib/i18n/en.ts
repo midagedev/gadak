@@ -803,6 +803,21 @@ export const en = {
   // Jira landed, a second source did not. Naming it keeps a wiki permission
   // error from reading as "none of this worked".
   'sync.partial': 'Issues synced. Documents failed: {message}',
+  // One wording for a running sync, rendered by every surface that reports it.
+  // The count is what separates a long pass from a stalled one.
+  'sync.busy': 'Syncing…',
+  'sync.busyIssues': 'Syncing issues…',
+  'sync.busyIssuesN': 'Syncing issues · {n}',
+  'sync.busyDocuments': 'Fetching documents…',
+  'sync.busyDocumentsN': 'Fetching documents · {n}',
+  // At rest: the verdict and the age together, so neither surface has to be
+  // read alongside the other to mean anything.
+  'sync.settledOk': 'Synced {when}',
+  'sync.settledDelayedWhen': 'Sync delayed · {when}',
+  'sync.settledFailedWhen': 'Sync failed · {when}',
+  'sync.settledFailed': 'Sync failed',
+  'sync.settledNever': 'Never synced',
+  'sync.settledChecking': 'Checking sync',
   'sync.projectsRequired': 'Add at least one project in settings before syncing.',
 
   /* ── Onboarding (first run) ── */

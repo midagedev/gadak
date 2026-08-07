@@ -13,6 +13,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { t, relativeTime, absTime } from '../../lib/i18n'
   import { isHostedDemo } from '../../lib/config'
+  import { mirrorLabel } from '../../lib/mirror-status'
 
   /** Relabel cadence. relativeTime is minute-granular below the hour, so a 1s
       tick would re-render 59 times to print the same string. */
@@ -38,10 +39,10 @@
 
   const label = $derived.by(() => {
     void tick // re-read the wall clock every tick
-    if (issues.mirrorSyncing) return t('freshness.syncing')
-    if (level === 'failed') return t('freshness.failed')
-    if (level === 'never') return t('freshness.never')
-    return t('freshness.synced', { when: relativeTime(syncedAt, 'long') })
+    // One wording for the mirror, shared with the sidebar's sync row — running
+    // or at rest, the two cannot describe the same mirror differently, and a
+    // pass the background loop started shows here too.
+    return mirrorLabel()
   })
 
   const title = $derived.by(() => {
@@ -56,7 +57,7 @@
   // Same semantic tones as the sidebar sync badge — no new colors. While a pull
   // runs the old state has stopped being the message, so it drops back to muted.
   const tone = $derived(
-    issues.mirrorSyncing
+    issues.mirrorBusy
       ? 'text-text-muted'
       : level === 'failed'
         ? 'text-status-reopen'
@@ -80,17 +81,17 @@
 {#if visible}
   <button
     type="button"
-    class="inline-flex h-control-sm flex-none items-center gap-1.5 rounded-md px-1.5 text-[12px] {tone} transition-colors {issues.mirrorSyncing
+    class="inline-flex h-control-sm flex-none items-center gap-1.5 rounded-md px-1.5 text-[12px] {tone} transition-colors {issues.mirrorBusy
       ? 'cursor-progress'
       : 'hover:bg-bg-hover hover:text-text-primary'}"
     data-testid="freshness-chip"
-    data-state={issues.mirrorSyncing ? 'syncing' : level}
-    disabled={issues.mirrorSyncing}
+    data-state={issues.mirrorBusy ? 'syncing' : level}
+    disabled={issues.mirrorBusy}
     aria-label={t('freshness.label')}
     {title}
     onclick={() => void issues.pullMirror()}
   >
-    {#if issues.mirrorSyncing}
+    {#if issues.mirrorBusy}
       <svg
         class="h-3 w-3 flex-none animate-spin"
         viewBox="0 0 12 12"

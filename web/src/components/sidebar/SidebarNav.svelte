@@ -4,7 +4,7 @@
    * team shared (api). Top: issue totals + last sync. Personalization (Wave 3)
    * sits above built-ins. View click = filters.applyConfig; active when it matches.
    */
-  import { t, formatNumber, relativeTime, formatTimeOfDay } from '../../lib/i18n'
+  import { t, formatNumber, relativeTime } from '../../lib/i18n'
   import { filterIssues, filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { views } from '../../stores/views.svelte'
@@ -14,6 +14,7 @@
   import { runSyncNow } from '../../lib/sync-now'
   import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
   import { config, isHostedDemo, workspaceName } from '../../lib/config'
+  import { busyLabel, fetchingDocuments, mirrorLabel } from '../../lib/mirror-status'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
@@ -60,8 +61,6 @@
     return counts
   })
 
-  const lastSyncLabel = $derived(issues.lastSync ? formatTimeOfDay(issues.lastSync) : '')
-
   const STATUS_LABEL: Record<string, string> = {
     healthy: t('sidebar.syncOk'),
     running: t('sidebar.syncing'),
@@ -85,15 +84,11 @@
       })
       .join('\n'),
   )
-  const syncLabel = $derived(
-    issues.syncHealth?.overall === 'failed'
-      ? t('sidebar.syncFailTitle')
-      : issues.syncHealth?.overall === 'warning'
-        ? t('sidebar.syncDelayedTitle')
-        : lastSyncLabel
-          ? t('sidebar.syncLabel', { when: lastSyncLabel })
-          : t('sidebar.syncChecking'),
-  )
+  // The mirror's one line, running or at rest. This row used to report "Synced
+  // 18:12" from the browser↔server delta cursor while the chip reported the
+  // mirror's own age — two different facts sharing a verb, and only the second
+  // is what anyone means by synced.
+  const syncLabel = $derived(mirrorLabel())
   const syncColor = $derived(
     issues.syncHealth?.overall === 'failed'
       ? 'text-status-reopen'
@@ -183,13 +178,16 @@
   // no pages, and nothing in flight. Re-runs after a pull because mirrorSyncing
   // is read here, which is what refreshes a failure into a success.
   $effect(() => {
-    if (!docsConfigured || pages.bySpace.length > 0 || issues.mirrorSyncing) return
+    if (!docsConfigured || pages.bySpace.length > 0 || fetchingDocuments()) return
     void getSyncRuns('confluence').then((runs) => (confluenceRuns = runs))
   })
 
   const docsEmptyState = $derived.by((): DocsEmptyState => {
     if (!docsConfigured) return 'off'
-    if (issues.mirrorSyncing) return 'syncing'
+    // Only while the mirror is fetching *documents*. An issue pass is the sync
+    // row's business, not this section's — that split is what made one mirror
+    // look like two.
+    if (fetchingDocuments()) return 'syncing'
     if (confluenceRuns === null) return 'never' // not asked yet — never claim failure
     if (confluenceRuns[0]?.error) return 'failed'
     if (confluenceRuns.length === 0) return 'never'
@@ -199,7 +197,9 @@
   const docsEmptyText = $derived.by(() => {
     switch (docsEmptyState) {
       case 'syncing':
-        return { title: t('sidebar.docsSyncing'), hint: '' }
+        // Literally the sync row's string, not a paraphrase of it: two places
+        // rendering one sentence cannot end up telling different stories.
+        return { title: busyLabel() ?? t('sidebar.docsSyncing'), hint: '' }
       case 'failed':
         return { title: t('sidebar.docsFetchFailed'), hint: t('sidebar.docsFetchFailedHint') }
       case 'never':
