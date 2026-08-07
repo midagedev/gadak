@@ -46,6 +46,26 @@
   // fills in the moment the index loads. Empty for a root page.
   const trail = $derived(key ? pages.ancestors(key) : [])
 
+  // Same rule as the sidebar: the space's name when the mirror has one, its key
+  // (monospace, and the tooltip either way) until then.
+  const spaceLabel = $derived(head ? pages.spaceLabel(head.space_key) : '')
+
+  /*
+   * Confluence gives every new space a homepage titled after the space itself,
+   * and every other page in the space hangs under it — so the raw trail repeats
+   * the space segment right after it. The mirror does not carry the space's
+   * `homepageId`, so this is a heuristic rather than an identity check: drop the
+   * first ancestor only when it is the chain's own root (no parent of its own)
+   * and its title is exactly the space label. Until the mirror learns the space
+   * name the label falls back to the key, the titles differ, and the duplicate
+   * stays — it resolves itself once the name loads.
+   */
+  const displayTrail = $derived.by(() => {
+    const first = trail[0]
+    if (!first || first.parent_id || !spaceLabel) return trail
+    return first.title === spaceLabel ? trail.slice(1) : trail
+  })
+
   // Both directions of the text-derived issue references, counted once — the
   // section renders them as one list (see RelatedIssues).
   const relatedIssueCount = $derived.by(() => {
@@ -90,9 +110,6 @@
         <!-- Where the page sits in its space. One line: ancestors give up width
              first, the open page keeps at most half. -->
         {#if head}
-          <!-- Same rule as the sidebar: the space's name when the mirror has
-               one, its key (monospace, and the tooltip either way) until then. -->
-          {@const spaceLabel = pages.spaceLabel(head.space_key)}
           <nav
             class="mb-2 flex items-center gap-1 overflow-hidden whitespace-nowrap text-micro text-text-muted"
             aria-label={t('doc.breadcrumb')}
@@ -104,7 +121,7 @@
             >
               {spaceLabel}
             </span>
-            {#each trail as a (a.key)}
+            {#each displayTrail as a (a.key)}
               <Icon name="chevron-right" size={12} class="text-text-muted" />
               <button
                 type="button"
