@@ -277,6 +277,13 @@ npm run build
 Add a test with any non-trivial logic — parsing, derived fields, sync cursors,
 or anything touching the schema.
 
+The E2E fixture server (`e2e/serve.sh`) serves the **built** UI from `dist/app`,
+not your source tree. After editing anything under `web/`, rebuild before you
+screenshot or judge the result by eye — otherwise you are looking at the last
+build and will draw conclusions from a screen the code no longer produces.
+`npx playwright test` rebuilds on its own; a manual capture against an
+already-running server does not.
+
 ### Handoff format
 
 ```
