@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Desktop: the native title bar is gone.** It spent 32px of window height
+  repeating a word the sidebar already shows. The window controls move into the
+  sidebar's first row, which reserves their corner and drags the window; the
+  same bundle served by `scry serve` is unchanged (`config.desktop`, served only
+  by the app, is what separates them).
 - **`scry skill install` — Claude Code skill without MCP.** Embeds
   `skills/scry/SKILL.md` in the binary and installs it to
   `~/.claude/skills/scry/` (or `./.claude/skills/scry/` with `--project`, or

@@ -10,6 +10,10 @@ If you already use the CLI, nothing changes underneath: the app reads and
 writes the same `~/.scry` profiles, and WAL means the app, `scry tui`, a
 `serve` instance, and your agent can hold the file at once.
 
+There is no title bar. It would have spent 32px saying "Scry" above a sidebar
+that already says `scry`, so the window controls sit in that sidebar row
+instead — which is also where you grab the window to move it.
+
 ## Install
 
 Download `Scry-<version>-arm64.dmg` from the

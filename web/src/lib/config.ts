@@ -51,6 +51,13 @@ export interface ScryConfig {
    * to paste a real token somewhere it can do them no good.
    */
   hostedDemo: boolean
+  /**
+   * True only inside the desktop app, which serves its own config.json. The app
+   * hides the native title bar, so the window controls land on top of the first
+   * row of the UI: that row has to reserve their corner and act as the drag
+   * handle. A browser tab has neither, hence the flag rather than a media query.
+   */
+  desktop: boolean
   features: ScryFeatures
 }
 
@@ -65,6 +72,7 @@ const DEFAULTS: ScryConfig = {
   productByGroup: {},
   staleThresholdHours: 72,
   hostedDemo: false,
+  desktop: false,
   features: {
     feed: false,
     push: false,
@@ -92,6 +100,11 @@ export function feature(name: keyof ScryFeatures): boolean {
 /** True on the public hosted demo. See ScryConfig.hostedDemo. */
 export function isHostedDemo(): boolean {
   return current.hostedDemo
+}
+
+/** True inside the desktop app window. See ScryConfig.desktop. */
+export function isDesktop(): boolean {
+  return current.desktop
 }
 
 /**

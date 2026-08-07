@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -45,6 +46,20 @@ func TestFallbackHandler(t *testing.T) {
 		h.ServeHTTP(rec, req)
 		if rec.Code != 200 || !strings.Contains(rec.Header().Get("Content-Type"), "json") {
 			t.Fatalf("got %d %q", rec.Code, rec.Header().Get("Content-Type"))
+		}
+		// The UI reserves the window-controls corner off this flag; without it
+		// the hidden title bar drops the traffic lights on the wordmark.
+		var doc map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+			t.Fatal(err)
+		}
+		if doc["desktop"] != true {
+			t.Fatalf("desktop flag missing: %v", doc["desktop"])
+		}
+		// Same document `scry serve` sends, plus the one key — a dropped field
+		// would switch off a surface in the app only.
+		if _, ok := doc["apiBase"]; !ok {
+			t.Fatalf("apiBase lost in the rewrite: %s", rec.Body.String())
 		}
 	})
 

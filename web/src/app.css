@@ -199,6 +199,32 @@
   }
 
   /*
+    Desktop app only (config.desktop). The native title bar is hidden
+    (mac.TitleBarHiddenInset), so the window content starts at y=0 and the
+    traffic lights sit inside the sidebar's first row instead of above it.
+
+    The numbers are read off the running window, not derived: the accessibility
+    API reports the three buttons at x=18/41/64, y=18, in 16px boxes holding a
+    12px circle — so they occupy 20…78 across and 20…32 down, relative to the
+    window. 90px leaves a 12px gap after the last one; padding-top 4px moves
+    this row's centre line from 24 to 26 to meet theirs.
+
+    The row is also the only place left to grab the window, so it carries the
+    drag property. It holds no controls, which is what makes that safe:
+    --wails-draggable inherits, and Wails reads it off the event target, so a
+    button inside a drag region stops responding to clicks.
+
+    Sets the paddings and replaces px-4 rather than overriding it — this rule
+    lives in the components layer, which loses to a utility of equal weight.
+  */
+  .desktop-titlebar-row {
+    padding-left: 90px;
+    padding-right: 1rem;
+    padding-top: 4px;
+    --wails-draggable: drag;
+  }
+
+  /*
     Detail panel enter: lock grid track width immediately (no layout animation —
     reflow is expensive); only opacity/transform slide over 160ms ease-out.
   */

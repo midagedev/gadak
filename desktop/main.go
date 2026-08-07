@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 	"log"
 	"net/http"
@@ -122,6 +123,11 @@ func run() error {
 		},
 		OnShutdown: func(context.Context) { cancel() },
 		Mac: &mac.Options{
+			// No native title bar: it spent 28px to repeat a word the sidebar
+			// already shows. The window controls stay (they move into the
+			// sidebar's first row, which reserves their width and is the drag
+			// handle — see .desktop-titlebar-row in web/src/app.css).
+			TitleBar: mac.TitleBarHiddenInset(),
 			About: &mac.AboutInfo{
 				Title:   "Scry",
 				Message: "Jira and Confluence, mirrored to your disk.",
@@ -158,6 +164,11 @@ func fallbackHandler(api http.Handler, ui fs.FS) http.Handler {
 			http.Error(w, `{"error":"config_unreadable"}`, http.StatusInternalServerError)
 			return
 		}
+		doc, err = withDesktopFlag(doc)
+		if err != nil {
+			http.Error(w, `{"error":"config_unreadable"}`, http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(doc)
@@ -176,4 +187,16 @@ func fallbackHandler(api http.Handler, ui fs.FS) http.Handler {
 		http.ServeFileFS(w, r, ui, "index.html")
 	})
 	return mux
+}
+
+// withDesktopFlag marks the config document the app serves. One web bundle is
+// shared with `scry serve`, and only here is the native title bar hidden — the
+// UI has to reserve the window controls' corner, and a browser tab must not.
+func withDesktopFlag(doc []byte) ([]byte, error) {
+	var m map[string]any
+	if err := json.Unmarshal(doc, &m); err != nil {
+		return nil, err
+	}
+	m["desktop"] = true
+	return json.Marshal(m)
 }
