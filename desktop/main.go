@@ -119,7 +119,10 @@ func run() error {
 						log.Printf("sync loop: load config: %v", err)
 						return
 					}
-					if err := syncer.Watch(ctx, cur, db, syncer.Options{Log: func(s string) { log.Print(s) }}); err != nil && ctx.Err() == nil {
+					if err := syncer.Watch(ctx, cur, db, syncer.Options{
+						Log:    func(s string) { log.Print(s) },
+						Reload: config.Load,
+					}); err != nil && ctx.Err() == nil {
 						log.Printf("sync loop stopped: %v", err)
 					}
 				}()

@@ -50,6 +50,10 @@ type Options struct {
 	// Notifier delivers OS desktop alerts for new personal-feed events after
 	// each successful Watch cycle. Nil uses OSNotifier. Never aborts the loop.
 	Notifier Notifier
+	// Reload re-reads the config at the top of each watch cycle. Nil keeps the
+	// config Watch was called with. A reload error is logged and the previous
+	// config stays in use: a momentarily unreadable file must not stop the mirror.
+	Reload func() (*config.Config, error)
 }
 
 type Result struct {
@@ -376,9 +380,16 @@ func approxCount(ctx context.Context, c *jira.Client, jql string) (int, bool) {
 // budget. After each successful cycle, new personal-feed events may produce one
 // OS desktop notification (see notifyAfterSync); notification failures never
 // stop the loop.
+//
+// When opts.Reload is set, each cycle re-reads config so a settings edit
+// (projects, Confluence, intervals) takes effect without restarting the process.
 func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) error {
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
 	every := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
 	reconcileEvery := time.Duration(cfg.EffectiveReconcileIntervalSec()) * time.Second
+	scope := syncScope(cfg)
 
 	tick := time.NewTicker(every)
 	defer tick.Stop()
@@ -387,6 +398,28 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 
 	o := opts
 	for {
+		if opts.Reload != nil {
+			next, err := opts.Reload()
+			if err != nil {
+				opts.logf("sync loop: reload config: %v", err)
+			} else if next != nil {
+				cfg = next
+				newEvery := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
+				newReconcile := time.Duration(cfg.EffectiveReconcileIntervalSec()) * time.Second
+				if newEvery != every {
+					every = newEvery
+					tick.Reset(every)
+				}
+				if newReconcile != reconcileEvery {
+					reconcileEvery = newReconcile
+					rtick.Reset(reconcileEvery)
+				}
+				if newScope := syncScope(cfg); newScope != scope {
+					opts.logf("sync scope changed: %s -> %s", scope, newScope)
+					scope = newScope
+				}
+			}
+		}
 		if _, err := Run(ctx, cfg, db, o); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -416,6 +449,34 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 		case <-rtick.C:
 			o.Reconcile = true
 		}
+	}
+}
+
+// syncScope is the part of the config that decides what gets mirrored. Watch
+// logs a line when it changes so a settings edit is visible in the log the
+// user is looking at. The string carries counts only — never project or space keys.
+func syncScope(cfg *config.Config) string {
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	var proj string
+	if len(cfg.Projects) == 0 {
+		proj = "all projects"
+	} else {
+		proj = fmt.Sprintf("%d projects", len(cfg.Projects))
+	}
+	if cfg.Confluence == nil {
+		return proj + ", confluence off"
+	}
+	switch n := len(cfg.Confluence.Spaces); {
+	case n == 0:
+		// Empty is not "nothing selected": it is every global space
+		// (see RunConfluence). Saying "0 spaces" would read as the opposite.
+		return proj + ", confluence on (all global spaces)"
+	case n == 1:
+		return proj + ", confluence on (1 space)"
+	default:
+		return fmt.Sprintf("%s, confluence on (%d spaces)", proj, n)
 	}
 }
 

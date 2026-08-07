@@ -226,14 +226,12 @@ func TestFirstSyncIsSingleFlightAndReportsProgress(t *testing.T) {
 	f, h, _ := onboarding(t)
 	f.hold, f.held = make(chan struct{}), make(chan struct{})
 	connect(t, h, f)
+	// Scope change with a credential starts a full sync automatically — that is
+	// the first flight. POST /sync/ while it runs must still 409.
 	if rec := send(t, h, http.MethodPut, apiBase+"settings/", `{"projects":["NMB"]}`); rec.Code != http.StatusOK {
 		t.Fatalf("settings: %d %s", rec.Code, rec.Body.String())
 	}
-
-	if rec := send(t, h, http.MethodPost, apiBase+"sync/", ""); rec.Code != http.StatusAccepted {
-		t.Fatalf("start: %d %s", rec.Code, rec.Body.String())
-	}
-	<-f.held // the run is inside its first search
+	<-f.held // the auto-started run is inside its first search
 
 	if p := progress(t, h); !p.Running || p.Phase != "syncing" || p.StartedAt == "" {
 		t.Fatalf("progress while running: %+v", p)
@@ -266,10 +264,8 @@ func TestStartSyncAcceptsIncrementalMode(t *testing.T) {
 	if rec := send(t, h, http.MethodPut, apiBase+"settings/", `{"projects":["NMB"]}`); rec.Code != http.StatusOK {
 		t.Fatalf("settings: %d %s", rec.Code, rec.Body.String())
 	}
-	// Seed a watermark so incremental is not forced full.
-	if rec := send(t, h, http.MethodPost, apiBase+"sync/", `{"mode":"full"}`); rec.Code != http.StatusAccepted {
-		t.Fatalf("full start: %d %s", rec.Code, rec.Body.String())
-	}
+	// Scope change auto-kicks a full sync (seeds the watermark); wait before
+	// probing incremental mode so we do not 409 against that job.
 	_ = waitDone(t, h)
 
 	if rec := send(t, h, http.MethodPost, apiBase+"sync/", `{"mode":"incremental"}`); rec.Code != http.StatusAccepted {

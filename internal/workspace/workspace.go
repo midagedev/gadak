@@ -276,9 +276,13 @@ func (r *Registry) WatchAll(ctx context.Context, primary string, logf func(strin
 			continue
 		}
 		cfg, db := entry.Cfg, entry.DB
-		profileName := name
+		profileName := name // local copy for the goroutine (Reload + log prefix)
 		go func() {
-			opts := syncer.Options{}
+			opts := syncer.Options{
+				Reload: func() (*config.Config, error) {
+					return config.LoadFor(profileName)
+				},
+			}
 			if logf != nil {
 				// Prefix with profile name only — no site/email/token.
 				opts.Log = func(s string) { logf("workspace " + profileName + ": " + s) }

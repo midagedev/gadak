@@ -45,6 +45,9 @@ type webConfigDoc struct {
 	ProductByGroup      map[string]config.Product `json:"productByGroup"`
 	StaleThresholdHours int                       `json:"staleThresholdHours"`
 	Features            map[string]bool           `json:"features"`
+	// ConfluenceEnabled is true when the wiki source is configured (cfg.Confluence
+	// non-nil). Boolean only — no site, token, or space list.
+	ConfluenceEnabled bool `json:"confluenceEnabled"`
 }
 
 // webConfig is the credential-free projection of the configuration. Site is the
@@ -68,6 +71,7 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		ProductByGroup:      products(cfg.ProductByGroup),
 		StaleThresholdHours: stale,
 		Features:            features(cfg.Features),
+		ConfluenceEnabled:   cfg.Confluence != nil,
 	}
 }
 
@@ -231,10 +235,12 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// Snapshot before we build next so scope comparison sees the pre-write config.
+	prev := s.config()
 	// Copy the live config so the credential block survives a settings write.
 	// site / email / token / tokenVerifiedAt / tokenOwner are never taken from
 	// the PUT body — those stay the credential endpoint's job.
-	next := *s.config()
+	next := *prev
 	next.Projects = in.Projects
 	next.FieldMap = in.FieldMap
 	// Field specs change only when the client sent the key. Hand edits are the
@@ -289,7 +295,58 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	s.cfg.Store(&next)
 	// Members and group rules feed the cached projection; it has to be rebuilt.
 	s.gen.Add(1)
+	// Scope change with a credential: kick a full sync. full=true because a
+	// newly added project's past issues never arrive on a watermark-based
+	// incremental — changing scope is exactly the backfill case. If a job is
+	// already running we skip (not an error); the response stays 200 + settings.
+	if scopeChanged(prev, &next) && next.HasCredential() {
+		_ = s.startSyncJob(&next, true)
+	}
 	writeJSON(w, http.StatusOK, s.settingsResponse(&next))
+}
+
+// scopeChanged reports whether the mirrored source set differs between two
+// configs. Order of project/space keys does not count; only set membership and
+// Confluence on/off do.
+func scopeChanged(prev, next *config.Config) bool {
+	if prev == nil {
+		prev = &config.Config{}
+	}
+	if next == nil {
+		next = &config.Config{}
+	}
+	if !sameStringSet(prev.Projects, next.Projects) {
+		return true
+	}
+	prevOn, nextOn := prev.Confluence != nil, next.Confluence != nil
+	if prevOn != nextOn {
+		return true
+	}
+	if !prevOn {
+		return false
+	}
+	return !sameStringSet(prev.Confluence.Spaces, next.Confluence.Spaces)
+}
+
+func sameStringSet(a, b []string) bool {
+	ma, mb := stringSet(a), stringSet(b)
+	if len(ma) != len(mb) {
+		return false
+	}
+	for k := range ma {
+		if _, ok := mb[k]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func stringSet(v []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(v))
+	for _, s := range v {
+		out[s] = struct{}{}
+	}
+	return out
 }
 
 func validateIntervals(syncSec, reconcileSec int) error {

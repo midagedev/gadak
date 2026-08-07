@@ -183,18 +183,30 @@ func (s *server) handleStartSync(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if !s.startSyncJob(cfg, full) {
+		fail(w, http.StatusConflict, "sync_in_progress")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, syncProgress())
+}
+
+// startSyncJob begins a background sync unless one is already running.
+// Returns false when a run was already in progress.
+func (s *server) startSyncJob(cfg *config.Config, full bool) bool {
+	if s.syncKick != nil {
+		return s.syncKick(cfg, full)
+	}
 	syncMu.Lock()
 	if syncJob.Running {
 		syncMu.Unlock()
-		fail(w, http.StatusConflict, "sync_in_progress")
-		return
+		return false
 	}
 	syncJob = progressDoc{Running: true, Phase: "syncing", StartedAt: store.Now()}
 	syncMu.Unlock()
 
 	// The request is answered immediately, so the run cannot hang off r.Context().
 	go runSyncJob(context.Background(), cfg, s.db, full)
-	writeJSON(w, http.StatusAccepted, syncProgress())
+	return true
 }
 
 func runSyncJob(ctx context.Context, cfg *config.Config, db *store.DB, full bool) {
@@ -206,17 +218,38 @@ func runSyncJob(ctx context.Context, cfg *config.Config, db *store.DB, full bool
 			syncMu.Unlock()
 		},
 	})
+	fetched, changed, deleted := res.Fetched, res.Changed, res.Deleted
+	jobErr := err
+	// Confluence is best-effort: a failure must not block Jira (same policy as
+	// sync.Watch). Only run after Jira succeeds; leave its error on the job so
+	// the UI can surface a partial failure without treating the whole job as a
+	// hard fail when Jira completed.
+	if jobErr == nil && cfg != nil && cfg.Confluence != nil {
+		cres, cerr := sync.RunConfluence(ctx, cfg, db, sync.Options{Full: full})
+		fetched += cres.Fetched
+		changed += cres.Changed
+		deleted += cres.Deleted
+		if cerr != nil {
+			jobErr = cerr
+		}
+	}
+
 	syncMu.Lock()
 	defer syncMu.Unlock()
 	syncJob.Running = false
 	syncJob.FinishedAt = store.Now()
-	syncJob.Fetched, syncJob.Changed, syncJob.Deleted = res.Fetched, res.Changed, res.Deleted
+	syncJob.Fetched, syncJob.Changed, syncJob.Deleted = fetched, changed, deleted
 	if err != nil {
-		// sync.Run and the Jira client both keep the token out of their errors.
+		// Jira failed: hard error. sync.Run keeps the token out of its errors.
 		syncJob.Phase, syncJob.Error = "error", err.Error()
 		return
 	}
+	// Jira succeeded. Confluence failure is recorded on Error but the job is
+	// still done — counters include both sources.
 	syncJob.Phase, syncJob.Done = "done", true
+	if jobErr != nil {
+		syncJob.Error = jobErr.Error()
+	}
 }
 
 func (s *server) handleSyncProgress(w http.ResponseWriter, r *http.Request) {
@@ -225,8 +258,25 @@ func (s *server) handleSyncProgress(w http.ResponseWriter, r *http.Request) {
 
 // handleSyncRuns lists recent meaningful sync runs, newest first. Backs the
 // history popover behind the sidebar's sync timestamp.
+//
+// ?source= selects which connector's history to return. Absent or "jira" is the
+// historical default (compat); "confluence" is the wiki source; anything else
+// is 400 invalid_source. The response echoes source so clients can tell rows
+// apart without reading store.SyncRun (which has no source field).
 func (s *server) handleSyncRuns(w http.ResponseWriter, r *http.Request) {
-	runs, err := s.db.SyncRuns(sourceID, 20)
+	src := strings.TrimSpace(r.URL.Query().Get("source"))
+	var id string
+	switch src {
+	case "", "jira":
+		src = "jira"
+		id = sourceID
+	case "confluence":
+		id = sync.ConfluenceSourceID
+	default:
+		fail(w, http.StatusBadRequest, "invalid_source")
+		return
+	}
+	runs, err := s.db.SyncRuns(id, 20)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -234,7 +284,7 @@ func (s *server) handleSyncRuns(w http.ResponseWriter, r *http.Request) {
 	if runs == nil {
 		runs = []store.SyncRun{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+	writeJSON(w, http.StatusOK, map[string]any{"runs": runs, "source": src})
 }
 
 func syncProgress() progressDoc {

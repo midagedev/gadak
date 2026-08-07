@@ -65,6 +65,10 @@ type server struct {
 	// starts without a credential; fired at most once via syncStarterOnce.
 	syncStarter     func()
 	syncStarterOnce sync.Once
+
+	// syncKick starts a background sync. Nil means the real one. Tests replace it
+	// to assert that a settings write asks for a resync without doing one.
+	syncKick func(cfg *config.Config, full bool) bool
 }
 
 // Handler is the HTTP API plus optional update-check control. It implements

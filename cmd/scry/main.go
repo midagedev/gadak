@@ -201,7 +201,10 @@ func cmdServe(args []string) error {
 					log.Printf("sync loop: load config: %v", err)
 					return
 				}
-				if err := syncer.Watch(ctx, cur, db, syncer.Options{Log: func(s string) { log.Print(s) }}); err != nil && ctx.Err() == nil {
+				if err := syncer.Watch(ctx, cur, db, syncer.Options{
+					Log:    func(s string) { log.Print(s) },
+					Reload: config.Load,
+				}); err != nil && ctx.Err() == nil {
 					log.Printf("sync loop stopped: %v", err)
 				}
 			}()
@@ -590,6 +593,9 @@ func cmdSync(args []string) error {
 	if *watch {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
+		// Same reload seam as serve: a `sync --watch` left running all day must
+		// notice a settings edit, not mirror yesterday's scope until restarted.
+		opts.Reload = config.Load
 		return syncer.Watch(ctx, cfg, db, opts)
 	}
 	runJira := *source == "all" || *source == "jira"
