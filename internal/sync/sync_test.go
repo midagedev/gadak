@@ -922,3 +922,119 @@ func TestFlushAPIUsageFailureDoesNotPropagate(t *testing.T) {
 		t.Errorf("TakeUsage should still zero the client: %+v", c.Usage())
 	}
 }
+
+// TestSyncRunKindString is the pure label contract for SyncRun.Kind — same
+// strings the pre-unification Jira defer produced (full|incremental, optional
+// +reconcile). Kept as a unit so a future skeleton edit fails loudly.
+func TestSyncRunKindString(t *testing.T) {
+	cases := []struct {
+		full, reconcile bool
+		want            string
+	}{
+		{false, false, "incremental"},
+		{true, false, "full"},
+		{false, true, "incremental+reconcile"},
+		{true, true, "full+reconcile"},
+	}
+	for _, tc := range cases {
+		if got := syncRunKind(tc.full, tc.reconcile); got != tc.want {
+			t.Errorf("syncRunKind(%v, %v) = %q, want %q", tc.full, tc.reconcile, got, tc.want)
+		}
+	}
+}
+
+// TestJiraSyncRunKinds proves the live Jira Run path still stamps the same
+// SyncRun.Kind values as before the runSource unification:
+//
+//	full            → "full+reconcile"  (full always runs reconcile)
+//	incremental     → "incremental"     (when something changed so the run is kept)
+//	+Reconcile flag → "incremental+reconcile"
+func TestJiraSyncRunKinds(t *testing.T) {
+	site := newSite(t, "en")
+	db := newMirror(t)
+	cfg := testConfig()
+	client := site.start()
+
+	// 1. Full → full+reconcile
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := db.SyncRuns(SourceID, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) < 1 {
+		t.Fatal("expected at least one SyncRun after full")
+	}
+	if runs[0].Kind != "full+reconcile" {
+		t.Fatalf("full kind = %q, want full+reconcile", runs[0].Kind)
+	}
+	t.Logf("jira full SyncRun.Kind = %q", runs[0].Kind)
+
+	// 2. Incremental that mutates a mirrored issue → incremental
+	// Bump NMB-1's updated so the incremental search window picks it up as a change.
+	raw := []byte(site.issues[0])
+	// Fixture issues are JSON objects; patch "updated" to a later stamp.
+	patched := strings.Replace(string(raw),
+		`"updated":"2026-08-02T10:00:00.000+0900"`,
+		`"updated":"2026-08-05T12:00:00.000+0900"`, 1)
+	if patched == string(raw) {
+		// Fallback: try the common en fixture stamp if the first pattern missed.
+		patched = strings.Replace(string(raw),
+			`"updated": "2026-08-02T10:00:00.000+0900"`,
+			`"updated": "2026-08-05T12:00:00.000+0900"`, 1)
+	}
+	site.issues[0] = json.RawMessage(patched)
+
+	res, err := Run(context.Background(), cfg, db.DB, Options{Client: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Full {
+		t.Fatal("expected incremental, got full")
+	}
+	runs, err = db.SyncRuns(SourceID, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Newest first; want an incremental entry (may still be full+reconcile only
+	// if changed=0 and the run was skipped — fail loudly if so).
+	var sawInc bool
+	for _, r := range runs {
+		t.Logf("jira SyncRun.Kind after incremental = %q (changed path)", r.Kind)
+		if r.Kind == "incremental" {
+			sawInc = true
+			break
+		}
+	}
+	if !sawInc {
+		// Incremental with changes should always record. Dump for diagnosis.
+		t.Fatalf("no incremental SyncRun; runs=%v res.Changed=%d", kindsOf(runs), res.Changed)
+	}
+
+	// 3. Reconcile-flagged incremental that deletes → incremental+reconcile
+	site.issues = site.issues[:1]
+	res, err = Run(context.Background(), cfg, db.DB, Options{Reconcile: true, Client: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted < 1 && res.Changed < 1 {
+		t.Fatalf("reconcile run left no mark (deleted=%d changed=%d); kind would be skipped", res.Deleted, res.Changed)
+	}
+	runs, err = db.SyncRuns(SourceID, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runs[0].Kind != "incremental+reconcile" {
+		t.Fatalf("reconcile kind = %q, want incremental+reconcile (runs=%v)", runs[0].Kind, kindsOf(runs))
+	}
+	t.Logf("jira reconcile SyncRun.Kind = %q", runs[0].Kind)
+}
+
+func kindsOf(runs []store.SyncRun) []string {
+	out := make([]string, len(runs))
+	for i, r := range runs {
+		out[i] = r.Kind
+	}
+	return out
+}

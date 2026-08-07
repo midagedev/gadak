@@ -28,56 +28,38 @@ const pageBatchSize = 50
 //
 // A failure leaves already-committed batches in place and does not advance the
 // watermark past the last successful batch.
-func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (res Result, err error) {
-	started := time.Now()
-	defer func() {
-		if err == nil && !res.Full && res.Changed == 0 && res.Deleted == 0 {
-			return
-		}
-		kind := "incremental"
-		if res.Full {
-			kind = "full"
-		}
-		run := store.SyncRun{
-			Kind:       kind,
-			StartedAt:  started.UTC().Format(time.RFC3339),
-			FinishedAt: time.Now().UTC().Format(time.RFC3339),
-			Fetched:    res.Fetched,
-			Changed:    res.Changed,
-			Deleted:    res.Deleted,
-		}
-		if err != nil {
-			run.Error = err.Error()
-		}
-		_ = db.AppendSyncRun(ConfluenceSourceID, run)
-	}()
+func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
+	var c *confluence.Client
+	return runSource(cfg, db, opts,
+		sourceIdent{ID: ConfluenceSourceID, Kind: "confluence"},
+		// No reconcile pass yet — kind stays full|incremental (no +reconcile).
+		// The label rule lives in runSource; flip this when delete-reconcile ships.
+		false,
+		"confluence ",
+		func() (string, usageTaker, error) {
+			if cfg.Confluence == nil {
+				return "", nil, errors.New("sync: confluence is not configured")
+			}
+			c = opts.ConfluenceClient
+			if c == nil {
+				c = confluence.New(cfg.Site, cfg.Email, cfg.Token)
+			}
+			return c.BaseURL(), c, nil
+		},
+		func(state store.SyncState, res *Result) error {
+			return runConfluencePass(ctx, c, cfg, db, opts, state, res)
+		},
+	)
+}
 
-	if cfg == nil || !cfg.HasCredential() {
-		return res, errors.New("sync: site, email and token are required")
-	}
-	if cfg.Confluence == nil {
-		return res, errors.New("sync: confluence is not configured")
-	}
-
-	c := opts.ConfluenceClient
-	if c == nil {
-		c = confluence.New(cfg.Site, cfg.Email, cfg.Token)
-	}
-	baseURL := c.BaseURL()
-	if err := db.UpsertSource(store.Source{ID: ConfluenceSourceID, Kind: "confluence", BaseURL: baseURL}); err != nil {
-		return res, err
-	}
-	state, err := db.SyncState(ConfluenceSourceID)
-	if err != nil {
-		return res, err
-	}
-	res.Full = opts.Full || state.Watermark == ""
-
+// runConfluencePass is the Confluence-specific body inside the shared runSource
+// skeleton. Usage flush is registered by runSource on the client from setup.
+func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Config, db *store.DB, opts Options, state store.SyncState, res *Result) error {
 	spaces := cfg.Confluence.Spaces
 	if len(spaces) == 0 {
 		listed, err := c.Spaces(ctx)
 		if err != nil {
-			return res, recordConfluence(db, err)
+			return record(db, ConfluenceSourceID, err)
 		}
 		// Path ①: empty config → Spaces() listing carries key/name/type.
 		var spaceRows []store.SpaceRow
@@ -95,15 +77,15 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 			}
 		}
 		if err := db.UpsertSpaces(ConfluenceSourceID, spaceRows); err != nil {
-			return res, err
+			return err
 		}
 	}
 	if len(spaces) == 0 {
 		opts.logf("confluence: no spaces in scope")
 		if err := db.RecordSync(ConfluenceSourceID, store.SyncResult{FullSync: res.Full}); err != nil {
-			return res, err
+			return err
 		}
-		return res, nil
+		return nil
 	}
 
 	var maxUTC, maxRaw string
@@ -179,7 +161,7 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 			cql := fmt.Sprintf(`space=%s AND type=page order by lastmodified asc`, cqlSpace(key))
 			opts.logf("confluence full sync: space %s", key)
 			if err := c.SearchPages(ctx, cql, processHits); err != nil {
-				return res, recordConfluence(db, err)
+				return record(db, ConfluenceSourceID, err)
 			}
 		}
 	} else {
@@ -192,24 +174,16 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 			cql := fmt.Sprintf(`space in (%s) AND type=page AND lastModified >= "%s" order by lastmodified asc`,
 				cqlSpaceList(group), floor)
 			if err := c.SearchPages(ctx, cql, processHits); err != nil {
-				return res, recordConfluence(db, err)
+				return record(db, ConfluenceSourceID, err)
 			}
 		}
 	}
 
 	res.Watermark = maxRaw
 	if err := db.RecordSync(ConfluenceSourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
-		return res, err
+		return err
 	}
-	elapsed := time.Since(started).Round(time.Second)
-	opts.logf("confluence done: %s fetched, %s changed in %s",
-		formatCount(res.Fetched), formatCount(res.Changed), elapsed)
-	return res, nil
-}
-
-func recordConfluence(db *store.DB, err error) error {
-	_ = db.RecordSync(ConfluenceSourceID, store.SyncResult{Err: err})
-	return err
+	return nil
 }
 
 // fetchPageRecord loads full body + comments for a search hit and maps to store.

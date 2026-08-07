@@ -99,69 +99,38 @@ func (o Options) phasef(source string) {
 //
 // An empty cfg.Projects means no project filter: the account's full visible
 // issue set is the scope (one Search, not one per project).
-func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (res Result, err error) {
-	started := time.Now()
-	// History: keep only runs worth remembering — a change, a full pass, or a
-	// failure. The watch loop's no-op incrementals would drown everything else.
-	defer func() {
-		if err == nil && !res.Full && res.Changed == 0 && res.Deleted == 0 {
-			return
-		}
-		kind := "incremental"
-		if res.Full {
-			kind = "full"
-		}
-		if opts.Reconcile || res.Full {
-			kind += "+reconcile"
-		}
-		run := store.SyncRun{
-			Kind:       kind,
-			StartedAt:  started.UTC().Format(time.RFC3339),
-			FinishedAt: time.Now().UTC().Format(time.RFC3339),
-			Fetched:    res.Fetched,
-			Changed:    res.Changed,
-			Deleted:    res.Deleted,
-		}
-		if err != nil {
-			run.Error = err.Error()
-		}
-		// Bookkeeping must never fail the sync that produced it.
-		_ = db.AppendSyncRun(SourceID, run)
-	}()
-	if !cfg.HasCredential() {
-		return res, errors.New("sync: site, email and token are required")
-	}
-	c := opts.Client
-	if c == nil {
-		c = jira.New(cfg.Site, cfg.Email, cfg.Token)
-	}
-	// Flush call-volume counters into the mirror for every exit path of this
-	// pass (success, transport failure, auth failure). Instrumentation must
-	// never fail the sync itself — see flushAPIUsage. Watch also lands here
-	// once per cycle, so one-shot and watch share this single flush point.
-	defer flushAPIUsage(db, c, opts.logf)
-	if err := db.UpsertSource(store.Source{ID: SourceID, Kind: "jira", BaseURL: c.BaseURL()}); err != nil {
-		return res, err
-	}
-	state, err := db.SyncState(SourceID)
-	if err != nil {
-		return res, err
-	}
-	// No watermark means nothing has been mirrored yet, so incremental has no
-	// floor to start from.
-	res.Full = opts.Full || state.Watermark == ""
+func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
+	var c *jira.Client
+	return runSource(cfg, db, opts,
+		sourceIdent{ID: SourceID, Kind: "jira"},
+		true, // SupportsReconcile: full and opts.Reconcile both run reconcile
+		"",
+		func() (string, usageTaker, error) {
+			c = opts.Client
+			if c == nil {
+				c = jira.New(cfg.Site, cfg.Email, cfg.Token)
+			}
+			return c.BaseURL(), c, nil
+		},
+		func(state store.SyncState, res *Result) error {
+			return runJiraPass(ctx, c, cfg, db, opts, state, res)
+		},
+	)
+}
 
+// runJiraPass is the Jira-specific body inside the shared runSource skeleton.
+func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *store.DB, opts Options, state store.SyncState, res *Result) error {
 	// Discovery mode: no configured custom fields yet — first full sync pulls
 	// *all so raw carries every custom value for auto-configuration.
 	discoveryMode := len(cfg.Fields) == 0 && len(cfg.FieldMap) == 0
 
 	cats, err := c.Statuses(ctx)
 	if err != nil {
-		return res, record(db, res, err)
+		return record(db, SourceID, err)
 	}
 	prios, err := c.Priorities(ctx)
 	if err != nil {
-		return res, record(db, res, err)
+		return record(db, SourceID, err)
 	}
 
 	fieldIDs := fieldList(cfg, res.Full)
@@ -250,7 +219,7 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (r
 			// is max(updated) over fetched pages, so ordering does not affect it.
 			beginSearch("full sync: every project this account can see", jql, true)
 			if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
-				return res, record(db, res, err)
+				return record(db, SourceID, err)
 			}
 		} else {
 			for _, p := range cfg.Projects {
@@ -260,7 +229,7 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (r
 				// is max(updated) over fetched pages, so ordering does not affect it.
 				beginSearch("full sync: "+p, jql, true)
 				if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
-					return res, record(db, res, err)
+					return record(db, SourceID, err)
 				}
 			}
 		}
@@ -271,20 +240,20 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (r
 			opts.logf("tip: run `scry sync --full` once to auto-configure custom fields")
 		}
 		if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
-			return res, record(db, res, err)
+			return record(db, SourceID, err)
 		}
 	}
 
 	res.Watermark = maxRaw
 	if err := db.RecordSync(SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
-		return res, err
+		return err
 	}
 
 	if opts.Reconcile || res.Full {
 		deleted, err := reconcile(ctx, c, db, cfg.Projects, opts)
 		res.Deleted = deleted
 		if err != nil {
-			return res, record(db, res, err)
+			return record(db, SourceID, err)
 		}
 	}
 
@@ -292,18 +261,14 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (r
 	if discoveryMode && res.Full {
 		if err := runDiscovery(ctx, c, cfg, db, opts); err != nil {
 			// cfg.Save failure propagates; other discovery errors are warnings.
-			return res, err
+			return err
 		}
 	} else if (res.Full || opts.Reconcile) && len(cfg.FieldSpecs()) > 0 {
 		if err := refreshFieldUsage(db, cfg); err != nil {
 			opts.logf("fields: usage refresh skipped: %v", err)
 		}
 	}
-
-	elapsed := time.Since(started).Round(time.Second)
-	opts.logf("done: %s fetched, %s changed, %s deleted in %s",
-		formatCount(res.Fetched), formatCount(res.Changed), formatCount(res.Deleted), elapsed)
-	return res, nil
+	return nil
 }
 
 // runDiscovery configures custom fields from the site catalog + mirror raw
@@ -501,45 +466,6 @@ func syncScope(cfg *config.Config) string {
 		return proj + ", confluence on (1 space)"
 	default:
 		return fmt.Sprintf("%s, confluence on (%d spaces)", proj, n)
-	}
-}
-
-// record stores last_error and returns the error unchanged. It passes no
-// watermark: a failed run must not advance it.
-func record(db *store.DB, res Result, err error) error {
-	_ = db.RecordSync(SourceID, store.SyncResult{Err: err})
-	return err
-}
-
-// flushAPIUsage takes the client's process-local counters and accumulates them
-// into api_usage for the current UTC day. One-shot `scry sync` and each Watch
-// cycle both go through Run, so this is the single flush point.
-//
-// A flush failure is logged and swallowed: rate-limit visibility must not break
-// the sync that produced the traffic.
-func flushAPIUsage(db *store.DB, c *jira.Client, logf func(string, ...any)) {
-	if db == nil || c == nil {
-		return
-	}
-	u := c.TakeUsage()
-	if u.Requests == 0 && u.Throttled == 0 && u.ServerErrors == 0 && u.Retries == 0 && u.WaitMS == 0 {
-		return
-	}
-	delta := store.APIUsageDelta{
-		Requests:     u.Requests,
-		Throttled:    u.Throttled,
-		ServerErrors: u.ServerErrors,
-		Retries:      u.Retries,
-		WaitMS:       u.WaitMS,
-	}
-	if !u.LastThrottledAt.IsZero() {
-		delta.LastThrottledAt = u.LastThrottledAt.UTC().Format("2006-01-02T15:04:05.000Z")
-	}
-	day := time.Now().UTC().Format("2006-01-02")
-	if err := db.AddAPIUsage(day, delta); err != nil {
-		if logf != nil {
-			logf("api usage flush: %v", err)
-		}
 	}
 }
 

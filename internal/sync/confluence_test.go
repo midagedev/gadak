@@ -618,3 +618,56 @@ func TestConfluence429ThenSucceeds(t *testing.T) {
 		t.Fatalf("fetched = %d, want 3 after 429 retry", res.Fetched)
 	}
 }
+
+// TestConfluenceRunFlushesAPIUsage: RunConfluence drains the client's TakeUsage
+// into store.api_usage the same way Run does for Jira (shared flushAPIUsage).
+func TestConfluenceRunFlushesAPIUsage(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA"})
+
+	if _, err := RunConfluence(context.Background(), cfg, db.DB, Options{
+		Full: true, ConfluenceClient: client,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	days, err := db.APIUsage(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(days) != 1 {
+		t.Fatalf("api_usage rows = %d, want 1", len(days))
+	}
+	if days[0].Requests < 1 {
+		t.Errorf("requests = %d, want at least the search/page calls", days[0].Requests)
+	}
+	if u := client.Usage(); u.Requests != 0 {
+		t.Errorf("client still holds %d requests after flush", u.Requests)
+	}
+}
+
+// TestConfluenceSyncRunKindNoReconcileSuffix: Confluence has no reconcile pass,
+// so SupportsReconcile=false — full stamps "full", never "full+reconcile".
+func TestConfluenceSyncRunKindNoReconcileSuffix(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA"})
+
+	if _, err := RunConfluence(context.Background(), cfg, db.DB, Options{
+		Full: true, ConfluenceClient: client, Reconcile: true, // flag ignored for kind
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := db.SyncRuns(ConfluenceSourceID, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) < 1 {
+		t.Fatal("expected a SyncRun after confluence full")
+	}
+	if runs[0].Kind != "full" {
+		t.Fatalf("confluence full kind = %q, want full (no +reconcile)", runs[0].Kind)
+	}
+}
