@@ -175,6 +175,20 @@
   let confluenceConfigured = $state(false)
   /** Pending on/off, applied on Save like every other field on this tab. */
   let confluenceOn = $state(false)
+
+  /*
+   * Choosing a space is the request to mirror it. Without this, picking one
+   * while the source was off and pressing Save sent {enabled:false, spaces:[]}
+   * — the chip sat on screen and the save discarded it silently, which is the
+   * failure this whole screen exists to remove.
+   *
+   * The button is left to carry the one case that genuinely needs a decision:
+   * turning the source on with *no* scope, which mirrors every team space.
+   * Turning it off clears the scope, so this can never fight that click.
+   */
+  $effect(() => {
+    if (spaceKeys.length > 0 && !confluenceOn) confluenceOn = true
+  })
   let spaceKeys = $state<string[]>([])
   let spaceOptions = $state<ScopeOption[]>([])
   let spacesLoading = $state(false)
@@ -374,39 +388,51 @@
     // Manual entry is on screen from the first frame: asking the site for its
     // projects can take many seconds when it is unreachable, and a spinner over
     // the one field that works without the site is the wrong trade.
+    /*
+     * Two independent lists, two independent requests. They used to run in
+     * sequence, so an unreachable Jira held the Confluence picker at "loading"
+     * for as long as the socket took to give up — one dead source hiding the
+     * other's controls, on the screen whose job is to configure both.
+     */
     projectsLoading = true
-    try {
-      const res = await api.getAvailableProjects()
-      projectOptions = res.projects.map((p) => ({
-        value: p.key,
-        label: p.name,
-        hint: p.projectTypeKey,
-      }))
-      if (!projectsTouched) {
-        projectsPickerReady = true
-        // The picker is now the field of record; drop the text mirror so a stale
-        // string can never win the next build().
-        projectsText = ''
+    const projects = (async () => {
+      try {
+        const res = await api.getAvailableProjects()
+        projectOptions = res.projects.map((p) => ({
+          value: p.key,
+          label: p.name,
+          hint: p.projectTypeKey,
+        }))
+        if (!projectsTouched) {
+          projectsPickerReady = true
+          // The picker is now the field of record; drop the text mirror so a
+          // stale string can never win the next build().
+          projectsText = ''
+        }
+      } catch {
+        // No credential (409) or the site is unreachable — the manual list stays.
+        projectsPickerReady = false
       }
-    } catch {
-      // No credential (409) or the site is unreachable — the manual list stays.
-      projectsPickerReady = false
-    }
-    projectsLoading = false
+      projectsLoading = false
+    })()
 
     // Loaded whether or not the source is on: picking spaces is how you decide
     // to turn it on, so the list has to arrive first.
     spacesLoading = true
-    try {
-      const res = await api.getSettingsSpaces()
-      spaceOptions = res.spaces.map((s) => ({ value: s.key, label: s.name, hint: s.type }))
-      // res.all_global_when_empty is the saved state's version of the same
-      // rule; the picker reads the pending switch instead, or the label would
-      // contradict the warning above it between a toggle and its save.
-    } catch {
-      spacesError = t('settings.spacesUnavailable')
-    }
-    spacesLoading = false
+    const spaces = (async () => {
+      try {
+        const res = await api.getSettingsSpaces()
+        spaceOptions = res.spaces.map((s) => ({ value: s.key, label: s.name, hint: s.type }))
+        // res.all_global_when_empty is the saved state's version of the same
+        // rule; the picker reads the pending switch instead, or the label would
+        // contradict the warning above it between a toggle and its save.
+      } catch {
+        spacesError = t('settings.spacesUnavailable')
+      }
+      spacesLoading = false
+    })()
+
+    await Promise.all([projects, spaces])
   }
 
   $effect(() => {
@@ -775,7 +801,13 @@
                 <button
                   type="button"
                   class="{ADD_BTN} flex-none self-start"
-                  onclick={() => (confluenceOn = false)}
+                  onclick={() => {
+                    confluenceOn = false
+                    // Scope goes with it: a stored selection under an off
+                    // source is a promise nothing keeps, and leaving it would
+                    // make the effect above switch the source straight back on.
+                    spaceKeys = []
+                  }}
                   data-testid="confluence-turn-off"
                 >
                   {t('settings.confluenceTurnOff')}

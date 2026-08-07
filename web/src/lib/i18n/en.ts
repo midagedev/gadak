@@ -619,7 +619,7 @@ export const en = {
   'settings.sourcesNoProjects': 'Nothing selected — no issue is mirrored.',
   'settings.confluenceTitle': 'Confluence',
   'settings.confluenceOffHint':
-    'Off for this profile — no wiki page is mirrored. Pick the spaces you want, then turn it on.',
+    'Off for this profile — no wiki page is mirrored. Choose spaces below to start, or turn it on for every team space.',
   'settings.confluenceOnHint': 'Wiki pages are mirrored alongside issues.',
   'settings.confluenceTurnOn': 'Turn on',
   'settings.confluenceTurnOnCount': 'Turn on for {n} spaces',

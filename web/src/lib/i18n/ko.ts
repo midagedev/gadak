@@ -617,7 +617,7 @@ export const ko = {
   'settings.sourcesNoProjects': '선택 없음 — 미러링되는 이슈가 없습니다.',
   'settings.confluenceTitle': 'Confluence',
   'settings.confluenceOffHint':
-    '이 프로필에서는 꺼져 있어 위키 문서가 미러링되지 않습니다. 원하는 스페이스를 고른 뒤 켜세요.',
+    '이 프로필에서는 꺼져 있어 위키 문서가 미러링되지 않습니다. 아래에서 스페이스를 고르면 시작되고, 팀 스페이스 전체로 켤 수도 있습니다.',
   'settings.confluenceOnHint': '위키 문서가 이슈와 함께 미러링됩니다.',
   'settings.confluenceTurnOn': '켜기',
   'settings.confluenceTurnOnCount': '{n}개 스페이스로 켜기',

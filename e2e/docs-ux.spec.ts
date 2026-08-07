@@ -383,17 +383,16 @@ test.describe('documents in the daily loop', () => {
     await turnOn.click()
     await expect(confluence.getByTestId('confluence-all-warning')).toBeVisible()
     await expect(confluence.getByTestId('confluence-turn-off')).toBeVisible()
+    // Turning it back off drops the scope with it — a stored selection under an
+    // off source is a promise nothing keeps.
     await confluence.getByTestId('confluence-turn-off').click()
     await expect(confluence.getByTestId('confluence-turn-on')).toBeVisible()
+    await expect(confluence.getByTestId('confluence-all-warning')).toHaveCount(0)
 
-    // The picker is reachable while the source is off — choosing spaces is how
-    // you decide to turn it on, so the list has to come first. The fixture's
-    // site yields no spaces, and the empty state reads as "nothing mirrored"
-    // rather than "every global space": off and all-spaces are opposite states
-    // that an empty list used to render identically.
-    const spaces = sources.getByTestId('scope-spaces')
-    await expect(spaces).toBeVisible()
-    await expect(spaces.getByTestId('scope-empty')).toContainText('no page is mirrored')
+    // Nothing is asserted about the space picker here: this fixture's site does
+    // not resolve, so whether the list lands as empty, as an error or as still
+    // loading is a property of a socket timing out, not of the app. The two
+    // stubbed tests below own the picker's states.
 
     // The site list is unreachable, so the picker falls back to manual keys and
     // still shows what is configured.
@@ -490,5 +489,61 @@ test.describe('documents in the daily loop', () => {
     await spaces.getByTestId('scope-option').first().click()
     await expect(spaces.getByTestId('scope-chip')).toHaveText([/ENG/])
     await expect(spaces.getByTestId('scope-empty')).toHaveCount(0)
+  })
+
+  test('choosing a space while Confluence is off saves it as on', async ({ page }) => {
+    /*
+     * The write path, which the picker test above deliberately does not cover —
+     * and which is where this broke: a space was picked, the chip appeared, and
+     * Save sent {enabled:false, spaces:[]}, discarding it without a word. The
+     * assertion is the PUT body, because the screen looked correct throughout.
+     */
+    const API = 'http://127.0.0.1:7877/api/v1/issues/'
+    await page.route(`${API}settings/`, async (route) => {
+      if (route.request().method() !== 'PUT') {
+        // Confluence off: no `confluence` key at all.
+        await route.fulfill({ json: { projects: ['NMB'], staleThresholdHours: 72 } })
+        return
+      }
+      await route.fulfill({ json: JSON.parse(route.request().postData() ?? '{}') })
+    })
+    await page.route(`${API}settings/spaces/`, (route) =>
+      route.fulfill({
+        json: {
+          spaces: [{ key: 'ENG', name: 'Engineering', type: 'global', selected: false }],
+          all_global_when_empty: false,
+          enabled: false,
+        },
+      }),
+    )
+
+    const puts: string[] = []
+    page.on('request', (r) => {
+      if (r.method() === 'PUT' && r.url().includes('settings/')) puts.push(r.postData() ?? '')
+    })
+
+    await gotoApp(page)
+    await openServerSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+
+    const confluence = dialog.getByTestId('sources-confluence')
+    await expect(confluence.getByTestId('confluence-turn-on')).toBeVisible()
+
+    const spaces = dialog.getByTestId('scope-spaces')
+    // Click first: the list opens on focus, and fill() alone leaves it closed.
+    await spaces.getByTestId('scope-input').click()
+    await spaces.getByTestId('scope-input').fill('Engineering')
+    await spaces.getByTestId('scope-option').first().click()
+    await expect(spaces.getByTestId('scope-chip')).toHaveText([/ENG/])
+
+    // Visible before it is saved: choosing a space is the request to mirror it,
+    // so the control flips without a second click to confirm what was asked.
+    await expect(confluence.getByTestId('confluence-turn-off')).toBeVisible()
+    await expect(confluence.getByTestId('confluence-turn-on')).toHaveCount(0)
+
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(() => puts.length).toBeGreaterThan(0)
+    expect(JSON.parse(puts[0]).confluence).toEqual({ enabled: true, spaces: ['ENG'] })
   })
 })
