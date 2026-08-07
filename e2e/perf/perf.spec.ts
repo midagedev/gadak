@@ -1,5 +1,5 @@
 /**
- * Interaction performance budgets (10k-issue fixture).
+ * Interaction performance budgets (10k-issue, 5k-page fixture).
  *
  * Budgets are pinned from local p95 with CI headroom — see README.md.
  * FAIL-first: pin only after a deliberately tight budget has failed once.
@@ -37,6 +37,13 @@ const BUDGETS = {
   searchKeystrokeMs: 100,
   // pinned 2026-08-06: local p95=8.7ms, budget=max(100, ceil(8.7*2))=100
   paletteOpenMs: 100,
+  // pinned 2026-08-07: local p95=29.2ms, budget=max(100, ceil(29.2*2))=100
+  // The fixture carried no documents at all until this release, so the axis was
+  // unmeasured and shipped unwindowed — 5,000 rows rebuilt on every tab switch.
+  // FAIL-first: the same budget against the pre-window list gave p95=1107.1ms
+  // (p50=777.3) — e2e/perf/.tmp/fail-first-docs-tab-switch.log. A list that
+  // stops windowing lands back there, which is what this budget catches.
+  docsTabSwitchMs: 100,
 } as const
 
 const SAMPLES = 20
@@ -53,6 +60,7 @@ test.describe('performance budgets (10k fixture)', () => {
       warmBootMs: await runWarmBoot(browser),
       searchKeystrokeMs: await runSearchKeystroke(browser),
       paletteOpenMs: await runPaletteOpen(browser),
+      docsTabSwitchMs: await runDocsTabSwitch(browser),
     }
 
     console.log('[perf] ── summary (ms) ──')
@@ -198,6 +206,35 @@ async function runPaletteOpen(browser: Browser): Promise<Stats> {
   return stats
 }
 
+async function runDocsTabSwitch(browser: Browser): Promise<Stats> {
+  const context = await browser.newContext({ locale: 'en-US' })
+  const page = await context.newPage()
+  await forceLocale(page)
+  await page.goto('/')
+  await waitInteractive(page)
+  await page.waitForTimeout(400)
+
+  await page.getByTestId('docs-documents').click()
+  await expect(page.getByTestId('docs-view')).toBeVisible({ timeout: 60_000 })
+
+  {
+    const ms = await measureDocsTabSwitch(page)
+    console.log(`[perf] docsTabSwitch warmup: ${ms.toFixed(1)}ms`)
+  }
+
+  const samples: number[] = []
+  for (let i = 0; i < SAMPLES; i++) {
+    const ms = await measureDocsTabSwitch(page)
+    samples.push(ms)
+    console.log(`[perf] docsTabSwitch sample ${i + 1}/${SAMPLES}: ${ms.toFixed(1)}ms`)
+  }
+  await context.close()
+
+  const stats = summarize(samples)
+  logStats('docsTabSwitch', stats, BUDGETS.docsTabSwitchMs)
+  return stats
+}
+
 // ── measurements ──────────────────────────────────────────────────────────
 
 async function measureColdBoot(
@@ -261,6 +298,27 @@ async function clearSearch(page: Page): Promise<void> {
   await input.click()
   await input.fill('')
   await expect(page.getByText(ISSUE_COUNT_RE).first()).toBeVisible({ timeout: 15_000 })
+}
+
+/**
+ * Alternate Updated ↔ By author and time the rebuild. Both tabs list the whole
+ * mirror, so this is the moment the old code spent building 5,000 rows; the
+ * count in the header is what proves the switch landed rather than the rows,
+ * which are now a screenful either way.
+ */
+async function measureDocsTabSwitch(page: Page): Promise<number> {
+  const view = page.getByTestId('docs-view')
+  const updated = view.getByTestId('docs-tab').filter({ hasText: 'Updated' })
+  const author = view.getByTestId('docs-tab').filter({ hasText: 'By author' })
+  const pressed = (await updated.getAttribute('aria-pressed')) === 'true'
+  const target = pressed ? author : updated
+
+  const t0 = await page.evaluate(() => performance.now())
+  await target.click()
+  await expect(target).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 })
+  await expect(view.getByTestId('doc-row').first()).toBeVisible({ timeout: 15_000 })
+  const t1 = await page.evaluate(() => performance.now())
+  return t1 - t0
 }
 
 async function measurePaletteOpen(page: Page): Promise<number> {
