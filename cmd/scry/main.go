@@ -26,6 +26,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -1322,63 +1323,55 @@ func main() {
 	if args[0] == "--version" || args[0] == "-v" {
 		args = []string{"version"}
 	}
-	var err error
-	switch args[0] {
-	case "serve":
-		err = cmdServe(args[1:])
-	case "init":
-		err = cmdInit(args[1:])
-	case "sync":
-		err = cmdSync(args[1:])
-	case "sql":
-		err = cmdSQL(args[1:])
-	case "api":
-		err = cmdAPI(args[1:])
-	case "issue":
-		err = cmdIssue(args[1:])
-	case "open":
-		err = cmdOpen(args[1:])
-	case "search":
-		err = cmdSearch(args[1:])
-	case "comment":
-		err = cmdComment(args[1:])
-	case "transition":
-		err = cmdTransition(args[1:])
-	case "assign":
-		err = cmdAssign(args[1:])
-	case "fields":
-		err = cmdFields(args[1:])
-	case "status":
-		err = cmdStatus(args[1:])
-	case "doctor":
-		err = cmdDoctor(args[1:])
-	case "mcp":
-		err = cmdMCP(args[1:])
-	case "skill":
-		err = cmdSkill(args[1:])
-	case "demo":
-		err = cmdDemo(args[1:])
-	case "export-static":
-		err = cmdExportStatic(args[1:])
-	case "tui":
-		err = cmdTUI(args[1:])
-	case "profiles":
-		err = cmdProfiles(args[1:])
-	case "install-service":
-		err = cmdInstallService(args[1:])
-	case "install-cli":
-		err = cmdInstallCLI(args[1:])
-	case "version":
-		err = cmdVersion(args[1:])
-	case "snapshot":
-		err = cmdSnapshot(args[1:])
-	case "team":
-		err = cmdTeam(args[1:])
-	default:
+	run, ok := commands[args[0]]
+	if !ok {
 		fmt.Print(usage)
 		os.Exit(2)
 	}
-	if err != nil {
+	if err := run(args[1:]); err != nil {
 		log.Fatalf("scry: %v", err)
 	}
+}
+
+// commands is the single registry of subcommands. Dispatch, the command-name
+// list, and help coverage all derive from this map (helps stays separate prose).
+// Aliases handled before lookup (help/--help/-h, --version/-v) are not entries.
+var commands = map[string]func([]string) error{
+	"api":             cmdAPI,
+	"assign":          cmdAssign,
+	"comment":         cmdComment,
+	"demo":            cmdDemo,
+	"doctor":          cmdDoctor,
+	"export-static":   cmdExportStatic,
+	"fields":          cmdFields,
+	"init":            cmdInit,
+	"install-cli":     cmdInstallCLI,
+	"install-service": cmdInstallService,
+	"issue":           cmdIssue,
+	"mcp":             cmdMCP,
+	"open":            cmdOpen,
+	"profiles":        cmdProfiles,
+	"search":          cmdSearch,
+	"serve":           cmdServe,
+	"skill":           cmdSkill,
+	"snapshot":        cmdSnapshot,
+	"sql":             cmdSQL,
+	"status":          cmdStatus,
+	"sync":            cmdSync,
+	"team":            cmdTeam,
+	"transition":      cmdTransition,
+	"tui":             cmdTUI,
+	"version":         cmdVersion,
+}
+
+// commandNames returns sorted keys of commands. helps has one entry per name;
+// tests assert the two sets stay equal so a new command without help (or a
+// leftover help for a removed command) fails CI, and that every name dispatches.
+func commandNames() []string {
+	names := make([]string, 0, len(commands))
+	for n := range commands {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
 }

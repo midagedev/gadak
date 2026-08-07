@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"strings"
 	"unicode/utf8"
 )
@@ -207,14 +208,17 @@ type Detail struct {
 	Custom map[string]any `json:"-"`
 }
 
-// Detail assembles one issue. An unknown key returns sql.ErrNoRows so the
-// handler can answer 404.
+// Detail assembles one issue. An unknown key returns ErrNotFound so the
+// handler can answer 404 without importing database/sql.
 func (db *DB) Detail(key string) (*Detail, error) {
 	var itemID string
 	var adf *string
 	var customJSON string
 	if err := db.sql.QueryRow(`SELECT item_id, description_adf, COALESCE(custom, '{}') FROM issues WHERE key = ?`, key).
 		Scan(&itemID, &adf, &customJSON); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	d := &Detail{

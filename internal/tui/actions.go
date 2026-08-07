@@ -50,14 +50,30 @@ func (l liveClient) UpdateFields(ctx context.Context, key string, fields map[str
 	return l.c.UpdateFields(ctx, key, fields)
 }
 
-// clientFactory builds a write client from config. Overridden in tests.
-var clientFactory = func(cfg *config.Config) writeClient {
+// defaultClientFactory builds a live Jira write client. Production default for
+// Model.clientFactory when unset.
+func defaultClientFactory(cfg *config.Config) writeClient {
 	return liveClient{c: jira.New(cfg.Site, cfg.Email, cfg.Token)}
 }
 
-// syncIssueFn re-reads one issue into the mirror after a write. Overridden in tests.
-var syncIssueFn = func(ctx context.Context, cfg *config.Config, db *store.DB, key string) error {
+// defaultSyncIssue re-reads one issue into the mirror after a write. Production
+// default for Model.syncIssueFn when unset.
+func defaultSyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string) error {
 	return syncer.SyncIssue(ctx, cfg, db, key, syncer.Options{})
+}
+
+func (m *Model) writeClientFor(cfg *config.Config) writeClient {
+	if m != nil && m.clientFactory != nil {
+		return m.clientFactory(cfg)
+	}
+	return defaultClientFactory(cfg)
+}
+
+func (m *Model) syncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string) error {
+	if m != nil && m.syncIssueFn != nil {
+		return m.syncIssueFn(ctx, cfg, db, key)
+	}
+	return defaultSyncIssue(ctx, cfg, db, key)
 }
 
 type openFormMsg struct {
@@ -88,7 +104,7 @@ func (m *Model) requireWrite() (writeClient, error) {
 	if m.cfg == nil || !m.cfg.HasCredential() {
 		return nil, fmt.Errorf("credential required — run `scry init`")
 	}
-	return clientFactory(m.cfg), nil
+	return m.writeClientFor(m.cfg), nil
 }
 
 func (m *Model) selectedKey() (string, bool) {
@@ -158,13 +174,13 @@ func (m *Model) startComment() tea.Cmd {
 					if text == "" {
 						return formResultMsg{note: "empty comment — cancelled"}
 					}
-					c := clientFactory(cfg)
+					c := m.writeClientFor(cfg)
 					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 					defer cancel()
 					if err := c.AddComment(ctx, key, jira.Doc(text, nil)); err != nil {
 						return formResultMsg{err: err}
 					}
-					if err := syncIssueFn(ctx, cfg, db, key); err != nil {
+					if err := m.syncIssue(ctx, cfg, db, key); err != nil {
 						return formResultMsg{err: fmt.Errorf("comment posted, mirror refresh failed: %w", err), key: key}
 					}
 					return formResultMsg{note: key + " comment posted", key: key}
@@ -184,7 +200,7 @@ func (m *Model) startTransition() tea.Cmd {
 	}
 	cfg, db := m.cfg, m.db
 	return func() tea.Msg {
-		c := clientFactory(cfg)
+		c := m.writeClientFor(cfg)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		list, err := c.Transitions(ctx, key)
@@ -222,7 +238,7 @@ func (m *Model) startTransition() tea.Cmd {
 					if err := c.Transition(ctx, key, tid); err != nil {
 						return formResultMsg{err: err}
 					}
-					if err := syncIssueFn(ctx, cfg, db, key); err != nil {
+					if err := m.syncIssue(ctx, cfg, db, key); err != nil {
 						return formResultMsg{err: fmt.Errorf("transition applied, mirror refresh failed: %w", err), key: key}
 					}
 					return formResultMsg{note: key + " transitioned", key: key}
@@ -275,13 +291,13 @@ func (m *Model) startAssignee() tea.Cmd {
 			form:  form,
 			submit: func() tea.Cmd {
 				return func() tea.Msg {
-					c := clientFactory(cfg)
+					c := m.writeClientFor(cfg)
 					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 					defer cancel()
 					if err := c.SetAssignee(ctx, key, accountID); err != nil {
 						return formResultMsg{err: err}
 					}
-					if err := syncIssueFn(ctx, cfg, db, key); err != nil {
+					if err := m.syncIssue(ctx, cfg, db, key); err != nil {
 						return formResultMsg{err: fmt.Errorf("assignee set, mirror refresh failed: %w", err), key: key}
 					}
 					note := key + " unassigned"
@@ -335,7 +351,7 @@ func (m *Model) startFieldEdit() tea.Cmd {
 		if len(allow) == 0 {
 			return formResultMsg{note: "no editable fields configured — see settings"}
 		}
-		c := clientFactory(cfg)
+		c := m.writeClientFor(cfg)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		meta, err := c.EditMeta(ctx, key)
@@ -403,7 +419,7 @@ func (m *Model) startFieldEdit() tea.Cmd {
 					if !ok || chosen == "" {
 						return formResultMsg{note: "no field selected"}
 					}
-					return openFieldValueForm(cfg, db, key, cand, custom)
+					return openFieldValueForm(m, cfg, db, key, cand, custom)
 				}
 			},
 		}
@@ -412,7 +428,7 @@ func (m *Model) startFieldEdit() tea.Cmd {
 
 // openFieldValueForm builds the second-stage value picker for one candidate.
 // Returned as tea.Msg so openFormMsg / formResultMsg both work as outcomes.
-func openFieldValueForm(cfg *config.Config, db *store.DB, key string, cand fieldEditCandidate, custom map[string]any) tea.Msg {
+func openFieldValueForm(m *Model, cfg *config.Config, db *store.DB, key string, cand fieldEditCandidate, custom map[string]any) tea.Msg {
 	title := key + " · " + cand.label
 	switch cand.kind {
 	case "multi_option", "version_array":
@@ -436,7 +452,7 @@ func openFieldValueForm(cfg *config.Config, db *store.DB, key string, cand field
 			title: title,
 			form:  form,
 			submit: func() tea.Cmd {
-				return fieldEditSubmit(cfg, db, key, alias, fieldID, kind, selected)
+				return fieldEditSubmit(m, cfg, db, key, alias, fieldID, kind, selected)
 			},
 		}
 	case "user":
@@ -472,7 +488,7 @@ func openFieldValueForm(cfg *config.Config, db *store.DB, key string, cand field
 			title: title,
 			form:  form,
 			submit: func() tea.Cmd {
-				return fieldEditSubmit(cfg, db, key, alias, fieldID, kind, []string{picked})
+				return fieldEditSubmit(m, cfg, db, key, alias, fieldID, kind, []string{picked})
 			},
 		}
 	default:
@@ -499,24 +515,24 @@ func openFieldValueForm(cfg *config.Config, db *store.DB, key string, cand field
 			title: title,
 			form:  form,
 			submit: func() tea.Cmd {
-				return fieldEditSubmit(cfg, db, key, alias, fieldID, kind, []string{picked})
+				return fieldEditSubmit(m, cfg, db, key, alias, fieldID, kind, []string{picked})
 			},
 		}
 	}
 }
 
-func fieldEditSubmit(cfg *config.Config, db *store.DB, key, alias, fieldID, kind string, ids []string) tea.Cmd {
+func fieldEditSubmit(m *Model, cfg *config.Config, db *store.DB, key, alias, fieldID, kind string, ids []string) tea.Cmd {
 	// Copy so the caller can reuse / mutate the slice after we return.
 	picked := append([]string(nil), ids...)
 	return func() tea.Msg {
-		c := clientFactory(cfg)
+		c := m.writeClientFor(cfg)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		value := fields.ValueFromIDs(kind, picked)
 		if err := c.UpdateFields(ctx, key, map[string]any{fieldID: value}); err != nil {
 			return formResultMsg{err: err}
 		}
-		if err := syncIssueFn(ctx, cfg, db, key); err != nil {
+		if err := m.syncIssue(ctx, cfg, db, key); err != nil {
 			return formResultMsg{err: fmt.Errorf("%s %s applied, mirror refresh failed: %w", key, alias, err), key: key}
 		}
 		return formResultMsg{note: key + " " + alias + " updated", key: key}

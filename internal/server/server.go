@@ -69,6 +69,12 @@ type server struct {
 	// syncKick starts a background sync. Nil means the real one. Tests replace it
 	// to assert that a settings write asks for a resync without doing one.
 	syncKick func(cfg *config.Config, full bool) bool
+
+	// Per-instance sync job and activity (not package-global): workspace mode
+	// runs one server per profile in the same process, so each must track its own.
+	syncMu   sync.Mutex
+	syncJob  progressDoc
+	activity mirrorActivity
 }
 
 // Handler is the HTTP API plus optional update-check control. It implements

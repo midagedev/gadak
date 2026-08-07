@@ -6,31 +6,54 @@ import (
 	"testing"
 )
 
-// TestHelpCoversAllCommands keeps the help table and the canonical command list
-// in lockstep: add a command without help (or leave a stale help entry) and CI
-// fails. main's switch must dispatch every name in commandNames — see the
-// comment on commandNames and the switch cases in main.
+// TestHelpCoversAllCommands keeps help prose, the commands registry, and
+// dispatch in lockstep: add a command without help (or leave a stale help
+// entry, or forget a run func) and CI fails. Every name in commands must have
+// a non-nil run func so main's map lookup actually dispatches.
 func TestHelpCoversAllCommands(t *testing.T) {
-	if len(commandNames) == 0 {
+	names := commandNames()
+	if len(names) == 0 {
 		t.Fatal("commandNames is empty")
 	}
-	seen := make(map[string]bool, len(commandNames))
-	for _, name := range commandNames {
+	if len(names) != len(commands) {
+		t.Errorf("commandNames has %d entries, commands has %d", len(names), len(commands))
+	}
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
 		if seen[name] {
 			t.Errorf("commandNames: duplicate %q", name)
 		}
 		seen[name] = true
+		run, ok := commands[name]
+		if !ok {
+			t.Errorf("command %q is in commandNames but not in commands", name)
+			continue
+		}
+		if run == nil {
+			t.Errorf("command %q has nil run func — will not dispatch", name)
+		}
 		if _, ok := helps[name]; !ok {
 			t.Errorf("command %q has no helps entry", name)
 		}
 	}
 	for name := range helps {
 		if !seen[name] {
-			t.Errorf("helps has %q but it is not in commandNames", name)
+			t.Errorf("helps has %q but it is not in commands", name)
 		}
 	}
-	if len(helps) != len(commandNames) {
-		t.Errorf("helps has %d entries, commandNames has %d", len(helps), len(commandNames))
+	for name, run := range commands {
+		if !seen[name] {
+			t.Errorf("commands has %q but it is not in commandNames()", name)
+		}
+		if run == nil {
+			t.Errorf("commands[%q] is nil", name)
+		}
+		if _, ok := helps[name]; !ok {
+			t.Errorf("commands has %q but no helps entry", name)
+		}
+	}
+	if len(helps) != len(commands) {
+		t.Errorf("helps has %d entries, commands has %d", len(helps), len(commands))
 	}
 }
 

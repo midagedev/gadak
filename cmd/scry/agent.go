@@ -12,7 +12,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -137,7 +136,7 @@ func cmdIssue(args []string) error {
 	warnIfStale()
 
 	d, err := db.Detail(key)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, store.ErrNotFound) {
 		return fmt.Errorf("%s is not in the mirror — check the key, or run `scry sync`", key)
 	}
 	if err != nil {

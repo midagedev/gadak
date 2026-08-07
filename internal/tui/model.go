@@ -119,6 +119,11 @@ type Model struct {
 	pageDetailKey string
 	// filterFrom remembers which mode opened / so Esc/Enter return there.
 	filterFrom mode
+
+	// Write-path dependencies. nil means production defaults (live Jira +
+	// sync.SyncIssue). Tests inject fakes here instead of package globals.
+	clientFactory func(*config.Config) writeClient
+	syncIssueFn   func(ctx context.Context, cfg *config.Config, db *store.DB, key string) error
 }
 
 // newModel builds a model without loading data (tests inject rows).
@@ -130,16 +135,18 @@ func newModel(cfg *config.Config, db *store.DB) Model {
 	sp.Spinner = spinner.Dot
 	sp.Style = styleSpinner
 	return Model{
-		cfg:       cfg,
-		db:        db,
-		tab:       TabAll,
-		mode:      modeList,
-		now:       time.Now(),
-		keys:      defaultKeys(),
-		spin:      sp,
-		loading:   db != nil, // initial mirror load; tests inject rows with db==nil
-		watches:   map[string]bool{},
-		feedFocus: store.FeedFocusAll,
+		cfg:           cfg,
+		db:            db,
+		tab:           TabAll,
+		mode:          modeList,
+		now:           time.Now(),
+		keys:          defaultKeys(),
+		spin:          sp,
+		loading:       db != nil, // initial mirror load; tests inject rows with db==nil
+		watches:       map[string]bool{},
+		feedFocus:     store.FeedFocusAll,
+		clientFactory: defaultClientFactory,
+		syncIssueFn:   defaultSyncIssue,
 	}
 }
 
@@ -1554,18 +1561,4 @@ func orDash(s string) string {
 		return "—"
 	}
 	return s
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

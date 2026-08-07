@@ -1,8 +1,8 @@
 package server
 
 import (
+	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -348,7 +348,7 @@ type detailResponse struct {
 func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	d, err := s.db.Detail(key)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, store.ErrNotFound) {
 		fail(w, http.StatusNotFound, "not_found")
 		return
 	}
@@ -569,7 +569,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 	// to a straight stream.
 	if s.cache != nil {
 		err := s.cache.Fill(id, func() (io.ReadCloser, attachcache.Meta, error) {
-			res, err := s.fetchAttachment(r, cfg, id)
+			res, err := s.fetchAttachment(r.Context(), cfg, id)
 			if err != nil {
 				return nil, attachcache.Meta{}, err
 			}
@@ -596,7 +596,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	res, err := s.fetchAttachment(r, cfg, id)
+	res, err := s.fetchAttachment(r.Context(), cfg, id)
 	switch {
 	case errors.Is(err, errAttachmentAuth):
 		fail(w, http.StatusConflict, "credential_rejected")
@@ -676,13 +676,9 @@ func (s *server) warmAttachments(cfg *config.Config, atts []detailAttachment) {
 		go func() {
 			for a := range jobs {
 				// Detached from the request: the browser may have moved on already.
-				req, err := http.NewRequest(http.MethodGet, "http://warm.invalid/", nil)
-				if err != nil {
-					continue
-				}
 				id := a.ID
 				if err := s.cache.Fill(id, func() (io.ReadCloser, attachcache.Meta, error) {
-					res, err := s.fetchAttachment(req, cfg, id)
+					res, err := s.fetchAttachment(context.Background(), cfg, id)
 					if err != nil {
 						return nil, attachcache.Meta{}, err
 					}
@@ -711,9 +707,9 @@ var (
 )
 
 // fetchAttachment performs the one call that leaves this process.
-func (s *server) fetchAttachment(r *http.Request, cfg *config.Config, id string) (*http.Response, error) {
+func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, id string) (*http.Response, error) {
 	target := strings.TrimRight(cfg.Site, "/") + "/rest/api/3/attachment/content/" + url.PathEscape(id)
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -18,7 +18,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	sysync "sync"
 
 	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/jira"
@@ -151,20 +150,11 @@ type mirrorActivity struct {
 }
 
 // progressResponse is GET/POST sync progress: the one-shot job fields plus the
-// process-wide activity slot. Existing field meanings are unchanged.
+// activity slot for this server instance. Existing field meanings are unchanged.
 type progressResponse struct {
 	progressDoc
 	Activity mirrorActivity `json:"activity"`
 }
-
-// One sync job at a time, process-wide.
-// ponytail: package-level because `scry serve` runs exactly one server; make it a
-// server field if a second instance ever shares this process.
-var (
-	syncMu   sysync.Mutex
-	syncJob  progressDoc
-	activity mirrorActivity
-)
 
 // startSyncBody is optional. Empty body keeps the historical full-sync default
 // (onboarding first run). Daily "Sync now" sends {"mode":"incremental"}.
@@ -207,7 +197,7 @@ func (s *server) handleStartSync(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusConflict, "sync_in_progress")
 		return
 	}
-	writeJSON(w, http.StatusAccepted, syncProgressResponse())
+	writeJSON(w, http.StatusAccepted, s.syncProgressResponse())
 }
 
 // startSyncJob begins a background sync unless one is already running.
@@ -216,33 +206,33 @@ func (s *server) startSyncJob(cfg *config.Config, full bool) bool {
 	if s.syncKick != nil {
 		return s.syncKick(cfg, full)
 	}
-	syncMu.Lock()
-	if syncJob.Running {
-		syncMu.Unlock()
+	s.syncMu.Lock()
+	if s.syncJob.Running {
+		s.syncMu.Unlock()
 		return false
 	}
-	syncJob = progressDoc{Running: true, Phase: "syncing", StartedAt: store.Now()}
-	syncMu.Unlock()
+	s.syncJob = progressDoc{Running: true, Phase: "syncing", StartedAt: store.Now()}
+	s.syncMu.Unlock()
 
 	// The request is answered immediately, so the run cannot hang off r.Context().
-	go runSyncJob(context.Background(), cfg, s.db, full)
+	go s.runSyncJob(context.Background(), cfg, full)
 	return true
 }
 
-func runSyncJob(ctx context.Context, cfg *config.Config, db *store.DB, full bool) {
+func (s *server) runSyncJob(ctx context.Context, cfg *config.Config, full bool) {
 	// Always close activity when the job finishes (success, Jira fail, panic).
-	defer reportActivityPhase(sync.PhaseIdle)
+	defer s.reportActivityPhase(sync.PhaseIdle)
 
-	reportActivityPhase(sync.PhaseIssues)
-	res, err := sync.Run(ctx, cfg, db, sync.Options{
+	s.reportActivityPhase(sync.PhaseIssues)
+	res, err := sync.Run(ctx, cfg, s.db, sync.Options{
 		Full: full,
 		Progress: func(fetched, changed int) {
-			syncMu.Lock()
-			syncJob.Fetched, syncJob.Changed = fetched, changed
-			if activity.Running {
-				activity.Fetched, activity.Changed = fetched, changed
+			s.syncMu.Lock()
+			s.syncJob.Fetched, s.syncJob.Changed = fetched, changed
+			if s.activity.Running {
+				s.activity.Fetched, s.activity.Changed = fetched, changed
 			}
-			syncMu.Unlock()
+			s.syncMu.Unlock()
 		},
 	})
 	fetched, changed, deleted := res.Fetched, res.Changed, res.Deleted
@@ -254,17 +244,17 @@ func runSyncJob(ctx context.Context, cfg *config.Config, db *store.DB, full bool
 	if jobErr == nil && cfg != nil && cfg.Confluence != nil {
 		// Job counters stay the sum of both sources; activity is per-source.
 		jiraFetched, jiraChanged := fetched, changed
-		reportActivityPhase(sync.PhaseDocuments)
-		cres, cerr := sync.RunConfluence(ctx, cfg, db, sync.Options{
+		s.reportActivityPhase(sync.PhaseDocuments)
+		cres, cerr := sync.RunConfluence(ctx, cfg, s.db, sync.Options{
 			Full: full,
 			Progress: func(f, c int) {
-				syncMu.Lock()
-				syncJob.Fetched = jiraFetched + f
-				syncJob.Changed = jiraChanged + c
-				if activity.Running {
-					activity.Fetched, activity.Changed = f, c
+				s.syncMu.Lock()
+				s.syncJob.Fetched = jiraFetched + f
+				s.syncJob.Changed = jiraChanged + c
+				if s.activity.Running {
+					s.activity.Fetched, s.activity.Changed = f, c
 				}
-				syncMu.Unlock()
+				s.syncMu.Unlock()
 			},
 		})
 		fetched += cres.Fetched
@@ -275,26 +265,26 @@ func runSyncJob(ctx context.Context, cfg *config.Config, db *store.DB, full bool
 		}
 	}
 
-	syncMu.Lock()
-	defer syncMu.Unlock()
-	syncJob.Running = false
-	syncJob.FinishedAt = store.Now()
-	syncJob.Fetched, syncJob.Changed, syncJob.Deleted = fetched, changed, deleted
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+	s.syncJob.Running = false
+	s.syncJob.FinishedAt = store.Now()
+	s.syncJob.Fetched, s.syncJob.Changed, s.syncJob.Deleted = fetched, changed, deleted
 	if err != nil {
 		// Jira failed: hard error. sync.Run keeps the token out of its errors.
-		syncJob.Phase, syncJob.Error = "error", err.Error()
+		s.syncJob.Phase, s.syncJob.Error = "error", err.Error()
 		return
 	}
 	// Jira succeeded. Confluence failure is recorded on Error but the job is
 	// still done — counters include both sources.
-	syncJob.Phase, syncJob.Done = "done", true
+	s.syncJob.Phase, s.syncJob.Done = "done", true
 	if jobErr != nil {
-		syncJob.Error = jobErr.Error()
+		s.syncJob.Error = jobErr.Error()
 	}
 }
 
 func (s *server) handleSyncProgress(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, syncProgressResponse())
+	writeJSON(w, http.StatusOK, s.syncProgressResponse())
 }
 
 // SyncActivityHooks returns the Phase and Progress callbacks a background
@@ -305,19 +295,19 @@ func (h *Handler) SyncActivityHooks() (phase func(string), progress func(fetched
 	if h == nil {
 		return nil, nil
 	}
-	return reportActivityPhase, reportActivityProgress
+	return h.s.reportActivityPhase, h.s.reportActivityProgress
 }
 
-// reportActivityPhase opens or closes the process-wide activity slot.
+// reportActivityPhase opens or closes this server's activity slot.
 // source "" ends the activity; any other value starts a new pass (counters reset).
-func reportActivityPhase(source string) {
-	syncMu.Lock()
-	defer syncMu.Unlock()
+func (s *server) reportActivityPhase(source string) {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
 	if source == sync.PhaseIdle {
-		activity = mirrorActivity{}
+		s.activity = mirrorActivity{}
 		return
 	}
-	activity = mirrorActivity{
+	s.activity = mirrorActivity{
 		Running:   true,
 		Source:    source,
 		StartedAt: store.Now(),
@@ -326,13 +316,13 @@ func reportActivityPhase(source string) {
 
 // reportActivityProgress updates counters for the current activity pass.
 // Ignored when nothing is in flight.
-func reportActivityProgress(fetched, changed int) {
-	syncMu.Lock()
-	defer syncMu.Unlock()
-	if !activity.Running {
+func (s *server) reportActivityProgress(fetched, changed int) {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+	if !s.activity.Running {
 		return
 	}
-	activity.Fetched, activity.Changed = fetched, changed
+	s.activity.Fetched, s.activity.Changed = fetched, changed
 }
 
 // handleSyncRuns lists recent meaningful sync runs, newest first. Backs the
@@ -366,10 +356,10 @@ func (s *server) handleSyncRuns(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"runs": runs, "source": src})
 }
 
-func syncProgress() progressDoc {
-	syncMu.Lock()
-	defer syncMu.Unlock()
-	doc := syncJob
+func (s *server) syncProgress() progressDoc {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+	doc := s.syncJob
 	if doc.Phase == "" {
 		doc.Phase = "idle"
 	}
@@ -377,12 +367,12 @@ func syncProgress() progressDoc {
 }
 
 // syncProgressResponse is the polled document: one-shot job fields plus activity.
-func syncProgressResponse() progressResponse {
-	syncMu.Lock()
-	defer syncMu.Unlock()
-	doc := syncJob
+func (s *server) syncProgressResponse() progressResponse {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+	doc := s.syncJob
 	if doc.Phase == "" {
 		doc.Phase = "idle"
 	}
-	return progressResponse{progressDoc: doc, Activity: activity}
+	return progressResponse{progressDoc: doc, Activity: s.activity}
 }

@@ -122,18 +122,13 @@ func TestWriteClientCommentErrorPath(t *testing.T) {
 
 func TestFakeWriteCommentAndSyncHook(t *testing.T) {
 	fw := &fakeWrite{}
-	prevFactory := clientFactory
-	prevSync := syncIssueFn
-	t.Cleanup(func() {
-		clientFactory = prevFactory
-		syncIssueFn = prevSync
-	})
-
 	var synced string
-	clientFactory = func(*config.Config) writeClient { return fw }
-	syncIssueFn = func(_ context.Context, _ *config.Config, _ *store.DB, key string) error {
-		synced = key
-		return nil
+	m := Model{
+		clientFactory: func(*config.Config) writeClient { return fw },
+		syncIssueFn: func(_ context.Context, _ *config.Config, _ *store.DB, key string) error {
+			synced = key
+			return nil
+		},
 	}
 
 	cfg := &config.Config{Site: "http://example.invalid", Email: "a@b.c", Token: "t"}
@@ -141,12 +136,12 @@ func TestFakeWriteCommentAndSyncHook(t *testing.T) {
 	key := "AAA-1"
 	body := "hello"
 	msg := func() formResultMsg {
-		c := clientFactory(cfg)
+		c := m.writeClientFor(cfg)
 		ctx := context.Background()
 		if err := c.AddComment(ctx, key, jira.Doc(body, nil)); err != nil {
 			return formResultMsg{err: err}
 		}
-		if err := syncIssueFn(ctx, cfg, nil, key); err != nil {
+		if err := m.syncIssue(ctx, cfg, nil, key); err != nil {
 			return formResultMsg{err: err, key: key}
 		}
 		return formResultMsg{note: key + " comment posted", key: key}
@@ -219,20 +214,14 @@ func optionMeta(id, value string) jira.FieldMeta {
 
 func TestFieldEditOptionSubmit(t *testing.T) {
 	fw := &fakeWrite{}
-	prevFactory := clientFactory
-	prevSync := syncIssueFn
-	t.Cleanup(func() {
-		clientFactory = prevFactory
-		syncIssueFn = prevSync
-	})
-	clientFactory = func(*config.Config) writeClient { return fw }
-	syncIssueFn = func(_ context.Context, _ *config.Config, _ *store.DB, _ string) error {
-		return nil
+	m := Model{
+		clientFactory: func(*config.Config) writeClient { return fw },
+		syncIssueFn:   func(_ context.Context, _ *config.Config, _ *store.DB, _ string) error { return nil },
 	}
 
 	cfg := &config.Config{Site: "http://example.invalid", Email: "a@b.c", Token: "t"}
 	// Same shape as fieldEditSubmit: set ids, run the cmd.
-	msg := fieldEditSubmit(cfg, nil, "AAA-1", "severity", "customfield_x", "option", []string{"10001"})().(formResultMsg)
+	msg := fieldEditSubmit(&m, cfg, nil, "AAA-1", "severity", "customfield_x", "option", []string{"10001"})().(formResultMsg)
 	if msg.err != nil {
 		t.Fatal(msg.err)
 	}
@@ -251,20 +240,14 @@ func TestFieldEditOptionSubmit(t *testing.T) {
 
 func TestFieldEditMultiClearSubmit(t *testing.T) {
 	fw := &fakeWrite{}
-	prevFactory := clientFactory
-	prevSync := syncIssueFn
-	t.Cleanup(func() {
-		clientFactory = prevFactory
-		syncIssueFn = prevSync
-	})
-	clientFactory = func(*config.Config) writeClient { return fw }
-	syncIssueFn = func(_ context.Context, _ *config.Config, _ *store.DB, _ string) error {
-		return nil
+	m := Model{
+		clientFactory: func(*config.Config) writeClient { return fw },
+		syncIssueFn:   func(_ context.Context, _ *config.Config, _ *store.DB, _ string) error { return nil },
 	}
 
 	cfg := &config.Config{Site: "http://example.invalid", Email: "a@b.c", Token: "t"}
 	// Nothing selected → empty multi payload.
-	msg := fieldEditSubmit(cfg, nil, "AAA-1", "tags", "customfield_x", "multi_option", nil)().(formResultMsg)
+	msg := fieldEditSubmit(&m, cfg, nil, "AAA-1", "tags", "customfield_x", "multi_option", nil)().(formResultMsg)
 	if msg.err != nil {
 		t.Fatal(msg.err)
 	}
@@ -285,16 +268,6 @@ func TestFieldEditNoEditableOnIssue(t *testing.T) {
 			"customfield_other": optionMeta("1", "X"),
 		},
 	}
-	prevFactory := clientFactory
-	prevSync := syncIssueFn
-	t.Cleanup(func() {
-		clientFactory = prevFactory
-		syncIssueFn = prevSync
-	})
-	clientFactory = func(*config.Config) writeClient { return fw }
-	syncIssueFn = func(_ context.Context, _ *config.Config, _ *store.DB, _ string) error {
-		return nil
-	}
 
 	cfg := &config.Config{
 		Site:  "http://example.invalid",
@@ -305,8 +278,10 @@ func TestFieldEditNoEditableOnIssue(t *testing.T) {
 		},
 	}
 	m := Model{
-		cfg: cfg,
-		all: []row{{lite: store.IssueLite{IssueKey: "AAA-1", Summary: "s"}}},
+		cfg:           cfg,
+		all:           []row{{lite: store.IssueLite{IssueKey: "AAA-1", Summary: "s"}}},
+		clientFactory: func(*config.Config) writeClient { return fw },
+		syncIssueFn:   func(_ context.Context, _ *config.Config, _ *store.DB, _ string) error { return nil },
 	}
 	m.visible = []int{0}
 	m.cursor = 0
@@ -327,14 +302,12 @@ func TestFieldEditNoEditableOnIssue(t *testing.T) {
 
 func TestFieldEditNoConfigured(t *testing.T) {
 	fw := &fakeWrite{}
-	prevFactory := clientFactory
-	t.Cleanup(func() { clientFactory = prevFactory })
-	clientFactory = func(*config.Config) writeClient { return fw }
 
 	cfg := &config.Config{Site: "http://example.invalid", Email: "a@b.c", Token: "t"}
 	m := Model{
-		cfg: cfg,
-		all: []row{{lite: store.IssueLite{IssueKey: "AAA-1"}}},
+		cfg:           cfg,
+		all:           []row{{lite: store.IssueLite{IssueKey: "AAA-1"}}},
+		clientFactory: func(*config.Config) writeClient { return fw },
 	}
 	m.visible = []int{0}
 	m.cursor = 0
@@ -369,16 +342,6 @@ func TestFieldEditOpensPickerThenSubmit(t *testing.T) {
 			"customfield_x": severity,
 		},
 	}
-	prevFactory := clientFactory
-	prevSync := syncIssueFn
-	t.Cleanup(func() {
-		clientFactory = prevFactory
-		syncIssueFn = prevSync
-	})
-	clientFactory = func(*config.Config) writeClient { return fw }
-	syncIssueFn = func(_ context.Context, _ *config.Config, _ *store.DB, _ string) error {
-		return nil
-	}
 
 	cfg := &config.Config{
 		Site:  "http://example.invalid",
@@ -395,8 +358,10 @@ func TestFieldEditOpensPickerThenSubmit(t *testing.T) {
 			IssueKey: "AAA-1",
 			Custom:   map[string]any{"severity": "Low"},
 		},
-		detailKey: "AAA-1",
-		mode:      modeDetail,
+		detailKey:     "AAA-1",
+		mode:          modeDetail,
+		clientFactory: func(*config.Config) writeClient { return fw },
+		syncIssueFn:   func(_ context.Context, _ *config.Config, _ *store.DB, _ string) error { return nil },
 	}
 
 	msg := m.startFieldEdit()()
@@ -406,7 +371,7 @@ func TestFieldEditOpensPickerThenSubmit(t *testing.T) {
 	}
 	// Simulate picking the only alias by invoking the stage-2 builder directly
 	// (same path as submit after the user selects).
-	stage2 := openFieldValueForm(cfg, nil, "AAA-1", fieldEditCandidate{
+	stage2 := openFieldValueForm(&m, cfg, nil, "AAA-1", fieldEditCandidate{
 		alias:   "severity",
 		label:   "Severity Level",
 		fieldID: "customfield_x",
@@ -422,7 +387,7 @@ func TestFieldEditOpensPickerThenSubmit(t *testing.T) {
 	// openFieldValueForm closes over `picked`; exercise fieldEditSubmit with the same args.
 	_ = of
 	_ = of2
-	result := fieldEditSubmit(cfg, nil, "AAA-1", "severity", "customfield_x", "option", []string{"10001"})().(formResultMsg)
+	result := fieldEditSubmit(&m, cfg, nil, "AAA-1", "severity", "customfield_x", "option", []string{"10001"})().(formResultMsg)
 	if result.err != nil {
 		t.Fatal(result.err)
 	}

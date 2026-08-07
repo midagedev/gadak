@@ -67,7 +67,7 @@ func newOnboardJira(t *testing.T) *onboardJira {
 }
 
 // onboarding hands back a server whose configuration is saveable (SCRY_HOME in a
-// temp dir) and a reset progress job, since the job is process-wide.
+// temp dir). Each New() gets a fresh per-instance sync job/activity slot.
 func onboarding(t *testing.T) (*onboardJira, http.Handler, string) {
 	t.Helper()
 	home := t.TempDir()
@@ -76,11 +76,6 @@ func onboarding(t *testing.T) (*onboardJira, http.Handler, string) {
 	db, cfg := fixture(t)
 	cfg.Site, cfg.Email, cfg.Token = "", "", ""
 	cfg.Projects = nil
-
-	syncMu.Lock()
-	syncJob = progressDoc{}
-	activity = mirrorActivity{}
-	syncMu.Unlock()
 
 	return f, New(db, cfg), home
 }

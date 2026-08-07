@@ -9,6 +9,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -19,6 +20,11 @@ import (
 
 	_ "modernc.org/sqlite" // pure-Go driver: the binary must build with CGO_ENABLED=0
 )
+
+// ErrNotFound means a single-row lookup (Detail, etc.) found no matching key.
+// Callers map it to 404 / "not in the mirror"; store code still uses
+// sql.ErrNoRows internally and wraps at the package boundary.
+var ErrNotFound = errors.New("not found")
 
 // DB is a handle on the mirror. Safe for concurrent use; writes are serialized.
 type DB struct {

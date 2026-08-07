@@ -7,37 +7,6 @@ import (
 	"strings"
 )
 
-// commandNames is the canonical list of subcommands main dispatches.
-// helps has one entry per name; tests assert the two sets stay equal so a
-// new command without help (or a leftover help for a removed command) fails CI.
-var commandNames = []string{
-	"api",
-	"assign",
-	"comment",
-	"demo",
-	"doctor",
-	"export-static",
-	"fields",
-	"init",
-	"install-cli",
-	"install-service",
-	"issue",
-	"mcp",
-	"open",
-	"profiles",
-	"search",
-	"serve",
-	"skill",
-	"snapshot",
-	"sql",
-	"status",
-	"sync",
-	"team",
-	"transition",
-	"tui",
-	"version",
-}
-
 // cmdHelp is the prose around a command. Flag names and descriptions for
 // flag.FlagSet commands are taken from the FlagSet via VisitAll at render
 // time so they cannot drift from the registration site. options is only

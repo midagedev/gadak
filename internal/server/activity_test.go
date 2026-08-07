@@ -20,10 +20,7 @@ func resetJobAndActivity(t *testing.T) *Handler {
 	db, cfg := fixture(t)
 	cfg.Site, cfg.Email, cfg.Token = "", "", ""
 	cfg.Projects = nil
-	syncMu.Lock()
-	syncJob = progressDoc{}
-	activity = mirrorActivity{}
-	syncMu.Unlock()
+	// New server instance starts with zero job/activity; no package-global reset.
 	return New(db, cfg)
 }
 

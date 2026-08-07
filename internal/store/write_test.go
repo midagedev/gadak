@@ -1,7 +1,6 @@
 package store
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -216,8 +215,8 @@ func TestDetailAssembly(t *testing.T) {
 		t.Error("description_adf missing")
 	}
 
-	if _, err := db.Detail("NMB-404"); !errors.Is(err, sql.ErrNoRows) {
-		t.Errorf("unknown key error = %v, want sql.ErrNoRows", err)
+	if _, err := db.Detail("NMB-404"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown key error = %v, want ErrNotFound", err)
 	}
 }
 

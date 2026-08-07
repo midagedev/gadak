@@ -171,43 +171,52 @@ func toolDefinitions() []Tool {
 }
 
 // callTool dispatches a tools/call. Failures that the agent can fix (bad SQL,
-// unknown key) return isError content, not JSON-RPC errors.
+// unknown key) return isError content, not JSON-RPC errors. This is the only
+// place that turns a Go error into (textResult(err.Error()), true).
 func (s *Server) callTool(name string, args map[string]any) (content []contentItem, isError bool) {
 	if err := s.ensureDB(); err != nil {
 		return textResult(err.Error()), true
 	}
+	var (
+		out []contentItem
+		err error
+	)
 	switch name {
 	case toolQuery:
-		return s.toolQuery(args)
+		out, err = s.toolQuery(args)
 	case toolSearch:
-		return s.toolSearch(args)
+		out, err = s.toolSearch(args)
 	case toolIssue:
-		return s.toolIssue(args)
+		out, err = s.toolIssue(args)
 	case toolStatus:
-		return s.toolStatus(args)
+		out, err = s.toolStatus(args)
 	default:
 		// Unknown tool is a protocol-level invalid params (caller should list first).
 		return textResult(fmt.Sprintf("unknown tool %q — use tools/list", name)), true
 	}
+	if err != nil {
+		return textResult(err.Error()), true
+	}
+	return out, false
 }
 
-func (s *Server) toolQuery(args map[string]any) ([]contentItem, bool) {
+func (s *Server) toolQuery(args map[string]any) ([]contentItem, error) {
 	sqlText, ok := stringArg(args, "sql")
 	if !ok || strings.TrimSpace(sqlText) == "" {
-		return textResult("scry_query requires {sql: string}"), true
+		return nil, errors.New("scry_query requires {sql: string}")
 	}
 	limit := intArg(args, "limit", 0)
 	res, err := runQuery(s.DBPath, sqlText, limit)
 	if err != nil {
-		return textResult(err.Error()), true
+		return nil, err
 	}
 	return marshalResult(res)
 }
 
-func (s *Server) toolSearch(args map[string]any) ([]contentItem, bool) {
+func (s *Server) toolSearch(args map[string]any) ([]contentItem, error) {
 	text, ok := stringArg(args, "text")
 	if !ok || strings.TrimSpace(text) == "" {
-		return textResult("scry_search requires {text: string}"), true
+		return nil, errors.New("scry_search requires {text: string}")
 	}
 	limit := intArg(args, "limit", 20)
 	if limit <= 0 {
@@ -218,12 +227,12 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, bool) {
 	}
 	res, err := s.db.Search(text, limit)
 	if err != nil {
-		return textResult(err.Error()), true
+		return nil, err
 	}
 	// Best match first: IssueLites order is not FTS rank, so re-order by key list.
 	all, err := s.db.IssueLites()
 	if err != nil {
-		return textResult(err.Error()), true
+		return nil, err
 	}
 	byKey := make(map[string]store.IssueLite, len(all))
 	for _, l := range all {
@@ -253,22 +262,22 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, bool) {
 	return marshalResult(map[string]any{"total": res.Total, "issues": hits, "pages": pages, "matches": matches})
 }
 
-func (s *Server) toolIssue(args map[string]any) ([]contentItem, bool) {
+func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 	key, ok := stringArg(args, "key")
 	if !ok || strings.TrimSpace(key) == "" {
-		return textResult("scry_issue requires {key: string}"), true
+		return nil, errors.New("scry_issue requires {key: string}")
 	}
 	key = strings.ToUpper(strings.TrimSpace(key))
 	d, err := s.db.Detail(key)
-	if errors.Is(err, sql.ErrNoRows) {
-		return textResult(fmt.Sprintf("%s is not in the mirror — check the key, or run `scry sync`", key)), true
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, fmt.Errorf("%s is not in the mirror — check the key, or run `scry sync`", key)
 	}
 	if err != nil {
-		return textResult(err.Error()), true
+		return nil, err
 	}
 	all, err := s.db.IssueLites()
 	if err != nil {
-		return textResult(err.Error()), true
+		return nil, err
 	}
 	var lite *store.IssueLite
 	for i := range all {
@@ -287,12 +296,12 @@ func (s *Server) toolIssue(args map[string]any) ([]contentItem, bool) {
 	return marshalResult(body)
 }
 
-func (s *Server) toolStatus(args map[string]any) ([]contentItem, bool) {
+func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	_ = args
 	st := map[string]any{"profile": s.Profile}
 	ss, err := s.db.SyncState("jira")
 	if err != nil {
-		return textResult(err.Error()), true
+		return nil, err
 	}
 	st["watermark"] = ss.Watermark
 	st["version"] = ss.Version
@@ -378,34 +387,33 @@ func textResult(msg string) []contentItem {
 
 // marshalResult encodes v as JSON text content, enforcing the byte budget by
 // dropping trailing rows when the payload is a queryResult.
-func marshalResult(v any) ([]contentItem, bool) {
+func marshalResult(v any) ([]contentItem, error) {
 	if qr, ok := v.(*queryResult); ok {
 		return marshalQueryResult(qr)
 	}
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		return textResult(err.Error()), true
+		return nil, err
 	}
 	if len(b) > maxResultBytes {
 		// Non-query payloads (detail/search/status) are still capped: return a
 		// short note rather than blowing the agent context.
-		msg := fmt.Sprintf("result exceeds %d bytes (%d); narrow the request (e.g. lower limit, or use scry_query for specific columns)", maxResultBytes, len(b))
-		return textResult(msg), true
+		return nil, fmt.Errorf("result exceeds %d bytes (%d); narrow the request (e.g. lower limit, or use scry_query for specific columns)", maxResultBytes, len(b))
 	}
-	return []contentItem{{Type: "text", Text: string(b)}}, false
+	return []contentItem{{Type: "text", Text: string(b)}}, nil
 }
 
-func marshalQueryResult(qr *queryResult) ([]contentItem, bool) {
+func marshalQueryResult(qr *queryResult) ([]contentItem, error) {
 	for {
 		b, err := json.MarshalIndent(qr, "", "  ")
 		if err != nil {
-			return textResult(err.Error()), true
+			return nil, err
 		}
 		if len(b) <= maxResultBytes {
-			return []contentItem{{Type: "text", Text: string(b)}}, false
+			return []contentItem{{Type: "text", Text: string(b)}}, nil
 		}
 		if len(qr.Rows) == 0 {
-			return textResult(fmt.Sprintf("a single row exceeds the %d-byte response cap; select fewer columns", maxResultBytes)), true
+			return nil, fmt.Errorf("a single row exceeds the %d-byte response cap; select fewer columns", maxResultBytes)
 		}
 		// Drop the last half of remaining rows until it fits.
 		cut := len(qr.Rows) / 2
