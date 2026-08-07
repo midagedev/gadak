@@ -165,6 +165,146 @@ func TestContentPreserved(t *testing.T) {
 	}
 }
 
+// TestDocumentsPreserved asserts wiki pages, spaces, item_refs, page items,
+// page comments, and page FTS survive the snapshot pipeline (silent data loss
+// otherwise: DOCS empty on a shared mirror).
+func TestDocumentsPreserved(t *testing.T) {
+	src := seedSource(t, seedOpts{withPages: true})
+	out := filepath.Join(t.TempDir(), "snap.db")
+	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	if _, err := Build(Options{From: src, Out: out, Seed: 1, Now: now}); err != nil {
+		t.Fatal(err)
+	}
+	dst := openRO(t, out)
+	defer dst.Close()
+
+	assertCount := func(q string, want int) {
+		t.Helper()
+		var n int
+		if err := dst.QueryRow(q).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != want {
+			t.Errorf("%s → %d, want %d", q, n, want)
+		}
+	}
+
+	// Issues still land.
+	assertCount(`SELECT COUNT(*) FROM issues`, 2)
+	// One space, two pages, one page→issue ref, one issue→page ref.
+	assertCount(`SELECT COUNT(*) FROM spaces`, 1)
+	assertCount(`SELECT COUNT(*) FROM pages`, 2)
+	assertCount(`SELECT COUNT(*) FROM items WHERE kind = 'page'`, 2)
+	assertCount(`SELECT COUNT(*) FROM item_refs`, 2)
+	// Issue comment (1) + page comment (1).
+	assertCount(`SELECT COUNT(*) FROM comments`, 2)
+	assertCount(`SELECT COUNT(*) FROM comments c
+		JOIN items it ON it.id = c.item_id WHERE it.kind = 'page'`, 1)
+
+	// Page projection fields round-trip (body_adf is body content — same as issues).
+	var spaceKey, bodyADF, excerpt, title string
+	var version int
+	err := dst.QueryRow(`
+		SELECT p.space_key, p.version, p.body_adf, p.excerpt, it.title
+		FROM pages p JOIN items it ON it.id = p.item_id
+		WHERE it.key = '100'`).Scan(&spaceKey, &version, &bodyADF, &excerpt, &title)
+	if err != nil {
+		t.Fatalf("page 100: %v", err)
+	}
+	if spaceKey != "ENG" {
+		t.Errorf("space_key = %q, want ENG", spaceKey)
+	}
+	if version != 3 {
+		t.Errorf("version = %d, want 3", version)
+	}
+	if title != "Runbook: gateway timeout" {
+		t.Errorf("title = %q", title)
+	}
+	if !strings.Contains(bodyADF, "runbookBody") {
+		t.Errorf("body_adf missing expected text: %q", bodyADF)
+	}
+	if excerpt == "" {
+		t.Error("excerpt empty")
+	}
+
+	// Space name join target.
+	var spaceName string
+	if err := dst.QueryRow(`SELECT name FROM spaces WHERE key = 'ENG'`).Scan(&spaceName); err != nil {
+		t.Fatal(err)
+	}
+	if spaceName != "Engineering" {
+		t.Errorf("space name = %q, want Engineering", spaceName)
+	}
+
+	// item_refs: page mentions issue; issue mentions page.
+	var via string
+	if err := dst.QueryRow(`
+		SELECT via FROM item_refs
+		WHERE item_id = 'confluence:100' AND target_kind = 'issue' AND target_key = 'NMB-1'`).
+		Scan(&via); err != nil {
+		t.Fatalf("page→issue ref: %v", err)
+	}
+	if via == "" {
+		t.Error("via empty on page→issue ref")
+	}
+	if err := dst.QueryRow(`
+		SELECT via FROM item_refs
+		WHERE item_id = 'jira:10001' AND target_kind = 'page' AND target_key = '100'`).
+		Scan(&via); err != nil {
+		t.Fatalf("issue→page ref: %v", err)
+	}
+
+	// FTS indexes page body and page comment text.
+	var hit int
+	if err := dst.QueryRow(`
+		SELECT COUNT(*) FROM items_fts f
+		JOIN items it ON it.rowid = f.rowid
+		WHERE it.kind = 'page' AND items_fts MATCH 'runbookBody'`).Scan(&hit); err != nil {
+		t.Fatalf("page body fts: %v", err)
+	}
+	if hit < 1 {
+		t.Error("expected FTS hit for page body word 'runbookBody'")
+	}
+	if err := dst.QueryRow(`
+		SELECT COUNT(*) FROM items_fts f
+		JOIN items it ON it.rowid = f.rowid
+		WHERE it.kind = 'page' AND items_fts MATCH 'pagecomment'`).Scan(&hit); err != nil {
+		t.Fatalf("page comment fts: %v", err)
+	}
+	if hit < 1 {
+		t.Error("expected FTS hit for page comment word 'pagecomment'")
+	}
+
+	// Personal scrub still holds when documents are present.
+	for _, table := range []string{"saved_views", "watches", "favorites", "feed_reads", "deleted_items", "enrichments", "api_usage"} {
+		var n int
+		if err := dst.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
+			t.Fatalf("%s: %v", table, err)
+		}
+		if n != 0 {
+			t.Errorf("%s count = %d, want 0", table, n)
+		}
+	}
+}
+
+// TestCredentialInPageRejected covers the pages body_adf/excerpt path of the
+// credential scan — a secret only in page content must refuse publish.
+func TestCredentialInPageRejected(t *testing.T) {
+	src := seedSource(t, seedOpts{withPages: true, withPageSecret: true})
+	out := filepath.Join(t.TempDir(), "snap.db")
+	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	_, err := Build(Options{From: src, Out: out, Seed: 1, Now: now, Force: true})
+	if err == nil {
+		t.Fatal("expected credential error for page body")
+	}
+	if !strings.Contains(err.Error(), "credential-shaped") {
+		t.Errorf("error = %v", err)
+	}
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		t.Errorf("output file exists after credential failure: %v", err)
+	}
+}
+
 func TestSpreadInvariants(t *testing.T) {
 	src := seedSource(t, seedOpts{spreadish: true})
 	out := filepath.Join(t.TempDir(), "snap.db")
@@ -418,9 +558,11 @@ func TestForceOverwrite(t *testing.T) {
 // --- fixtures ----------------------------------------------------------------
 
 type seedOpts struct {
-	withPersonal bool
-	withSecret   bool
-	spreadish    bool
+	withPersonal   bool
+	withSecret     bool
+	withPages      bool
+	withPageSecret bool
+	spreadish      bool
 }
 
 func seedSource(t *testing.T, o seedOpts) string {
@@ -434,6 +576,13 @@ func seedSource(t *testing.T, o seedOpts) string {
 		ID: "jira", Kind: "jira", BaseURL: "https://example.invalid",
 	}); err != nil {
 		t.Fatal(err)
+	}
+	if o.withPages {
+		if err := db.UpsertSource(store.Source{
+			ID: "confluence", Kind: "confluence", BaseURL: "https://example.invalid/wiki",
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -511,6 +660,73 @@ func seedSource(t *testing.T, o seedOpts) string {
 	if _, err := db.UpsertIssues(batch); err != nil {
 		t.Fatal(err)
 	}
+
+	if o.withPages {
+		if err := db.UpsertSpaces("confluence", []store.SpaceRow{
+			{Key: "ENG", Name: "Engineering", Kind: "global"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		pageBody := "runbookBody covers gateway timeout and NMB-1 recovery."
+		pageADF := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"runbookBody covers gateway timeout and NMB-1 recovery."}]}]}`)
+		if o.withPageSecret {
+			// ATATT-shaped token only in page ADF so issue path stays clean.
+			tok := "ATATT" + strings.Repeat("B", 30)
+			pageBody = "secret " + tok + " in page"
+			pageADF = json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"secret ` + tok + ` in page"}]}]}`)
+		}
+		cmADF := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"pagecomment confirms"}]}]}`)
+		if _, err := db.UpsertPages([]store.PageRecord{
+			{
+				Item: store.Item{
+					ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
+					Key: "100", Title: "Runbook: gateway timeout", BodyText: pageBody,
+					Author: "Dana", AuthorID: "acc-dana",
+					URL:       "https://example.invalid/wiki/spaces/ENG/pages/100",
+					CreatedAt: fmtT(t1c), UpdatedAt: fmtT(t1u),
+				},
+				Page: store.Page{
+					SpaceKey: "ENG", ParentID: "", Version: 3, Status: "current",
+					Labels:  []string{"runbook"},
+					BodyADF: pageADF,
+				},
+				Comments: []store.Comment{{
+					ID: "confluence:c-1", ExternalID: "pc-1", Author: "Lee", AuthorID: "acc-lee",
+					BodyADF: cmADF, BodyText: "pagecomment confirms the steps.",
+					CreatedAt: fmtT(t1c.Add(2 * time.Hour)), UpdatedAt: fmtT(t1c.Add(2 * time.Hour)),
+				}},
+			},
+			{
+				Item: store.Item{
+					ID: "confluence:200", SourceID: "confluence", Kind: "page", ExternalID: "200",
+					Key: "200", Title: "Architecture overview", BodyText: "platform topology",
+					Author: "Pat", AuthorID: "acc-pat",
+					URL:       "https://example.invalid/wiki/spaces/ENG/pages/200",
+					CreatedAt: fmtT(t2c), UpdatedAt: fmtT(t2u),
+				},
+				Page: store.Page{
+					SpaceKey: "ENG", ParentID: "100", Version: 1, Status: "current",
+					BodyADF: emptyADF,
+				},
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		// Explicit issue→page ref (UpsertIssues may or may not extract from body).
+		// Page→issue refs are written by UpsertPages from ADF/body text (NMB-1).
+		rawRefs, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := rawRefs.Exec(`
+			INSERT OR IGNORE INTO item_refs (item_id, target_kind, target_key, via)
+			VALUES ('jira:10001', 'page', '100', 'body')`); err != nil {
+			rawRefs.Close()
+			t.Fatal(err)
+		}
+		rawRefs.Close()
+	}
+
 	if err := db.RecordSync("jira", store.SyncResult{
 		Watermark: "2026-06-01T00:00:00.000Z",
 		FullSync:  true,
@@ -558,7 +774,10 @@ func logicalHash(t *testing.T, path string) string {
 	t.Helper()
 	db := openRO(t, path)
 	defer db.Close()
-	tables := []string{"sources", "items", "issues", "comments", "attachments", "changelog", "links", "sync_state"}
+	tables := []string{
+		"sources", "items", "issues", "pages", "spaces", "item_refs",
+		"comments", "attachments", "changelog", "links", "sync_state",
+	}
 	h := sha256.New()
 	for _, table := range tables {
 		cols, err := columnNames(db, table)

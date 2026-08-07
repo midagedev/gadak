@@ -9,8 +9,12 @@ import (
 )
 
 // tables scanned for credential-shaped strings (copy targets only).
+// pages/spaces/item_refs joined the copy set when documents became first-class
+// (v0.9–v0.10); body_adf/excerpt are body content and must be scanned like
+// issues.description_adf / items.body_text.
 var scanTables = []string{
-	"sources", "items", "issues", "comments", "attachments", "changelog", "links", "sync_state",
+	"sources", "items", "issues", "pages", "spaces", "item_refs",
+	"comments", "attachments", "changelog", "links", "sync_state",
 }
 
 // scanCredentials walks every TEXT column of the copy-target tables. On hit it
@@ -110,10 +114,12 @@ func textColumns(db *sql.DB, table string) ([]string, error) {
 
 func rowIDColumn(table string, cols []string) string {
 	switch table {
-	case "issues":
+	case "issues", "pages":
 		return "item_id"
-	case "links":
+	case "links", "item_refs":
 		return "item_id"
+	case "spaces":
+		return "key"
 	case "sync_state":
 		return "source_id"
 	case "sources", "items", "comments", "attachments", "changelog":

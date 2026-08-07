@@ -201,16 +201,15 @@ func buildInto(tmp string, opts Options) error {
 		return err
 	}
 
+	// Spaces are source metadata (no personal/credential payload beyond names).
+	// Copy before pages so joins in readers always resolve when the source had them.
+	if err := copySpaces(src, tx); err != nil {
+		return err
+	}
+
 	issues, err := loadIssues(src)
 	if err != nil {
 		return err
-	}
-	if len(issues) == 0 {
-		// Still write clean sync_state and finish.
-		if err := writeSyncState(tx, src, schemaVer); err != nil {
-			return err
-		}
-		return tx.Commit()
 	}
 
 	// Stable order: created_at, then key.
@@ -226,7 +225,11 @@ func buildInto(tmp string, opts Options) error {
 		return err
 	}
 
-	// Expand to scale target by cycling originals.
+	// Item ids present in the destination (originals + pages). Used for links
+	// and item_refs so clones never dangle and orphan refs are dropped.
+	keptIDs := map[string]bool{}
+
+	// Expand to scale target by cycling originals. Empty source → no issues.
 	planned := planIssues(issues, opts.Scale)
 	applySpread(planned, opts.Spread, opts.Now)
 
@@ -239,6 +242,8 @@ func buildInto(tmp string, opts Options) error {
 		if p.cloneSeq > 0 {
 			itemID = fmt.Sprintf("snap:clone:%d", p.cloneSeq)
 			key = nextKey(p.src.projectKey, p.src.key, nextNum)
+		} else {
+			keptIDs[itemID] = true
 		}
 		if err := insertIssueBundle(tx, p, itemID, key, children); err != nil {
 			return fmt.Errorf("write %s: %w", key, err)
@@ -247,6 +252,30 @@ func buildInto(tmp string, opts Options) error {
 
 	// Original links only (clone links skipped — avoids dangling target_keys).
 	if err := copyOriginalLinks(src, tx, planned); err != nil {
+		return err
+	}
+
+	// Documents: kind=page items + pages projection + their comments.
+	// No scale/clone (scale is an issue-volume tool); timestamps kept as source.
+	pages, err := loadPages(src)
+	if err != nil {
+		return err
+	}
+	sort.SliceStable(pages, func(i, j int) bool {
+		if pages[i].createdAt != pages[j].createdAt {
+			return pages[i].createdAt < pages[j].createdAt
+		}
+		return pages[i].key < pages[j].key
+	})
+	for _, p := range pages {
+		keptIDs[p.itemID] = true
+		if err := insertPageBundle(tx, p, children); err != nil {
+			return fmt.Errorf("write page %s: %w", p.key, err)
+		}
+	}
+
+	// Cross-refs only for items that actually landed (originals + all pages).
+	if err := copyItemRefs(src, tx, keptIDs); err != nil {
 		return err
 	}
 
@@ -609,6 +638,222 @@ func loadChildren(src *sql.DB) (children, error) {
 	return c, nil
 }
 
+// pageRow is one document (items row + pages projection) for snapshot copy.
+type pageRow struct {
+	itemID, key        string
+	createdAt          string
+	itemCols, pageCols map[string]any
+}
+
+func loadPages(src *sql.DB) ([]pageRow, error) {
+	ok, err := tableExists(src, "pages")
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+	itemCols, err := columnNames(src, "items")
+	if err != nil {
+		return nil, err
+	}
+	pageCols, err := columnNames(src, "pages")
+	if err != nil {
+		return nil, err
+	}
+	q := fmt.Sprintf(`
+		SELECT %s, %s
+		FROM pages p
+		JOIN items it ON it.id = p.item_id`,
+		qualify(itemCols, "it", "it_"),
+		qualify(pageCols, "p", "p_"),
+	)
+	rows, err := src.Query(q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	allCols := make([]string, 0, len(itemCols)+len(pageCols))
+	for _, c := range itemCols {
+		allCols = append(allCols, "it_"+c)
+	}
+	for _, c := range pageCols {
+		allCols = append(allCols, "p_"+c)
+	}
+
+	var out []pageRow
+	for rows.Next() {
+		vals, err := scanMap(rows, allCols)
+		if err != nil {
+			return nil, err
+		}
+		item := map[string]any{}
+		page := map[string]any{}
+		for _, c := range itemCols {
+			item[c] = vals["it_"+c]
+		}
+		for _, c := range pageCols {
+			page[c] = vals["p_"+c]
+		}
+		pr := pageRow{
+			itemID:    asString(item["id"]),
+			key:       asString(item["key"]),
+			createdAt: asString(item["created_at"]),
+			itemCols:  item,
+			pageCols:  page,
+		}
+		out = append(out, pr)
+	}
+	return out, rows.Err()
+}
+
+func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
+	item := copyMap(p.itemCols)
+	page := copyMap(p.pageCols)
+	itemID := p.itemID
+
+	// Destination may have columns the source lacks (body_adf, labels, excerpt).
+	if _, ok := page["body_adf"]; !ok {
+		page["body_adf"] = ""
+	}
+	if _, ok := page["labels"]; !ok {
+		page["labels"] = "[]"
+	}
+	if _, ok := page["excerpt"]; !ok {
+		page["excerpt"] = ""
+	}
+	if _, ok := page["parent_id"]; !ok {
+		page["parent_id"] = ""
+	}
+	if _, ok := page["status"]; !ok {
+		page["status"] = "current"
+	}
+	if page["version"] == nil {
+		page["version"] = 1
+	}
+
+	if err := insertRow(tx, "items", itemColumns, item); err != nil {
+		return err
+	}
+	if err := insertRow(tx, "pages", pageColumns, page); err != nil {
+		return err
+	}
+
+	// Page comments live on the shared comments table (same as issues).
+	comms := ch.commentsBy[itemID]
+	for _, row := range comms {
+		row = copyMap(row)
+		row["item_id"] = itemID
+		if err := insertRow(tx, "comments", commentColumns, row); err != nil {
+			return err
+		}
+	}
+	// Attachments metadata (no file bytes) — same policy as issue path.
+	for _, row := range ch.attachmentsBy[itemID] {
+		row = copyMap(row)
+		row["item_id"] = itemID
+		if err := insertRow(tx, "attachments", attachmentColumns, row); err != nil {
+			return err
+		}
+	}
+
+	// FTS — same contentless delete+insert path as issues / store.writeFTS.
+	var rowid int64
+	if err := tx.QueryRow(`SELECT rowid FROM items WHERE id = ?`, itemID).Scan(&rowid); err != nil {
+		return err
+	}
+	bodies := make([]string, 0, len(comms))
+	for _, row := range comms {
+		if bt := asString(row["body_text"]); bt != "" {
+			bodies = append(bodies, bt)
+		}
+	}
+	title := asString(item["title"])
+	body := asString(item["body_text"])
+	if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(
+		`INSERT INTO items_fts (rowid, title, body_text, comments_text) VALUES (?,?,?,?)`,
+		rowid, title, body, strings.Join(bodies, "\n"),
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func copySpaces(src *sql.DB, tx *sql.Tx) error {
+	ok, err := tableExists(src, "spaces")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	rows, err := src.Query(`
+		SELECT source_id, key, name, kind FROM spaces
+		ORDER BY source_id, key`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var sourceID, key, name, kind string
+		if err := rows.Scan(&sourceID, &key, &name, &kind); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(
+			`INSERT OR IGNORE INTO spaces (source_id, key, name, kind) VALUES (?,?,?,?)`,
+			sourceID, key, name, kind,
+		); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
+func copyItemRefs(src *sql.DB, tx *sql.Tx, keptIDs map[string]bool) error {
+	ok, err := tableExists(src, "item_refs")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	rows, err := src.Query(`
+		SELECT item_id, target_kind, target_key, via FROM item_refs
+		ORDER BY item_id, target_kind, target_key`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var itemID, targetKind, targetKey, via string
+		if err := rows.Scan(&itemID, &targetKind, &targetKey, &via); err != nil {
+			return err
+		}
+		if !keptIDs[itemID] {
+			continue
+		}
+		if _, err := tx.Exec(
+			`INSERT OR IGNORE INTO item_refs (item_id, target_kind, target_key, via) VALUES (?,?,?,?)`,
+			itemID, targetKind, targetKey, via,
+		); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
+func tableExists(db *sql.DB, name string) (bool, error) {
+	var n int
+	err := db.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, name,
+	).Scan(&n)
+	return n > 0, err
+}
+
 func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch children) error {
 	item := copyMap(p.src.itemCols)
 	issue := copyMap(p.src.issueCols)
@@ -785,6 +1030,10 @@ var (
 		"assignee_changed_at", "comment_count", "description_adf", "custom", "raw",
 		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key",
 	}
+	pageColumns = []string{
+		"item_id", "space_key", "parent_id", "version", "status",
+		"body_adf", "labels", "excerpt",
+	}
 	commentColumns = []string{
 		"id", "item_id", "external_id", "author", "author_id",
 		"body_adf", "body_text", "created_at", "updated_at",
@@ -845,6 +1094,26 @@ func insertRow(tx *sql.Tx, table string, cols []string, data map[string]any) err
 		}
 		if vals[indexOf(cols, "cloned_from")] == nil {
 			vals[indexOf(cols, "cloned_from")] = ""
+		}
+	}
+	if table == "pages" {
+		if vals[indexOf(cols, "version")] == nil {
+			vals[indexOf(cols, "version")] = 1
+		}
+		if vals[indexOf(cols, "parent_id")] == nil {
+			vals[indexOf(cols, "parent_id")] = ""
+		}
+		if vals[indexOf(cols, "status")] == nil {
+			vals[indexOf(cols, "status")] = "current"
+		}
+		if vals[indexOf(cols, "body_adf")] == nil {
+			vals[indexOf(cols, "body_adf")] = ""
+		}
+		if vals[indexOf(cols, "labels")] == nil {
+			vals[indexOf(cols, "labels")] = "[]"
+		}
+		if vals[indexOf(cols, "excerpt")] == nil {
+			vals[indexOf(cols, "excerpt")] = ""
 		}
 	}
 	q := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`,
