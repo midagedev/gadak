@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -348,4 +348,11 @@ CREATE TABLE item_refs (
   PRIMARY KEY (item_id, target_kind, target_key)
 );
 CREATE INDEX idx_item_refs_target ON item_refs(target_kind, target_key);
+`
+
+// schemaV17 stores each space's homepage content id (Confluence expand=homepage).
+// The UI drops the trail segment whose key equals homepage_id so the space
+// label is not repeated. Empty until a listing or per-space GET fills it.
+const schemaV17 = `
+ALTER TABLE spaces ADD COLUMN homepage_id TEXT NOT NULL DEFAULT '';
 `

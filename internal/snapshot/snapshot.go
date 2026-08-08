@@ -791,26 +791,22 @@ func copySpaces(src *sql.DB, tx *sql.Tx) error {
 	if !ok {
 		return nil
 	}
-	rows, err := src.Query(`
-		SELECT source_id, key, name, kind FROM spaces
-		ORDER BY source_id, key`)
+	// Map-based like pages: the source may predate later columns (homepage_id
+	// is v17), and asString turns an absent key into ''.
+	maps, err := loadTableMaps(src, "spaces")
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var sourceID, key, name, kind string
-		if err := rows.Scan(&sourceID, &key, &name, &kind); err != nil {
-			return err
-		}
+	for _, m := range maps {
 		if _, err := tx.Exec(
-			`INSERT OR IGNORE INTO spaces (source_id, key, name, kind) VALUES (?,?,?,?)`,
-			sourceID, key, name, kind,
+			`INSERT OR IGNORE INTO spaces (source_id, key, name, kind, homepage_id) VALUES (?,?,?,?,?)`,
+			asString(m["source_id"]), asString(m["key"]), asString(m["name"]),
+			asString(m["kind"]), asString(m["homepage_id"]),
 		); err != nil {
 			return err
 		}
 	}
-	return rows.Err()
+	return nil
 }
 
 func copyItemRefs(src *sql.DB, tx *sql.Tx, keptIDs map[string]bool) error {

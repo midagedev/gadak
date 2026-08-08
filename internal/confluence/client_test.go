@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -30,7 +31,7 @@ func TestSpacesPagesComments(t *testing.T) {
 		case r.URL.Path == "/wiki/rest/api/space":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"results": []map[string]any{
-					{"key": "AAA", "name": "Alpha", "type": "global"},
+					{"key": "AAA", "name": "Alpha", "type": "global", "homepage": map[string]any{"id": "11"}},
 					{"key": "BBB", "name": "Beta", "type": "global"},
 				},
 				"size": 2, "limit": 100, "start": 0,
@@ -234,6 +235,75 @@ func commentJSON(id, text, when string) map[string]any {
 			"number": 1, "when": when,
 			"by": map[string]any{"accountId": "acc-2", "displayName": "Bob Example"},
 		},
+	}
+}
+
+// TestSpacesExpandsHomepage is FAIL-first: Spaces requests expand=homepage and
+// parses homepage.id from each listing row.
+func TestSpacesExpandsHomepage(t *testing.T) {
+	var expand string
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/wiki/rest/api/space" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		expand = r.URL.Query().Get("expand")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{
+					"key": "ENG", "name": "Engineering", "type": "global",
+					"homepage": map[string]any{"id": "4242", "type": "page", "title": "Engineering"},
+				},
+			},
+			"size": 1, "limit": 100, "start": 0,
+		})
+	}))
+	spaces, err := c.Spaces(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expand != "homepage" {
+		t.Errorf("expand = %q, want homepage", expand)
+	}
+	if len(spaces) != 1 {
+		t.Fatalf("spaces = %+v", spaces)
+	}
+	if spaces[0].Homepage == nil || spaces[0].Homepage.ID != "4242" {
+		t.Errorf("Homepage = %+v, want id 4242", spaces[0].Homepage)
+	}
+}
+
+// TestSpaceByKey parses a single space; RequestURI shows path-escaped key.
+func TestSpaceByKey(t *testing.T) {
+	key := "ENG/X"
+	var sawURI string
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawURI = r.RequestURI
+		if r.URL.Query().Get("expand") != "homepage" {
+			t.Errorf("expand = %q, want homepage", r.URL.Query().Get("expand"))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"key": key, "name": "Eng X", "type": "global",
+			"homepage": map[string]any{"id": "99"},
+		})
+	}))
+	sp, err := c.Space(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	escaped := url.PathEscape(key)
+	if !strings.Contains(sawURI, "/wiki/rest/api/space/"+escaped) {
+		t.Errorf("RequestURI = %q, want path with PathEscape(%q)=%q", sawURI, key, escaped)
+	}
+	if !strings.Contains(sawURI, "expand=homepage") {
+		t.Errorf("RequestURI = %q, want expand=homepage", sawURI)
+	}
+	if sp.Key != key || sp.Name != "Eng X" {
+		t.Errorf("space = %+v", sp)
+	}
+	if sp.Homepage == nil || sp.Homepage.ID != "99" {
+		t.Errorf("Homepage = %+v, want id 99", sp.Homepage)
 	}
 }
 

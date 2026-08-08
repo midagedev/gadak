@@ -122,6 +122,20 @@ func (f *confFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"results": f.spaces, "size": len(f.spaces), "limit": 100, "start": 0,
 		})
+	case strings.HasPrefix(path, "/wiki/rest/api/space/"):
+		// Single-space GET (path ②): /wiki/rest/api/space/{key}?expand=homepage
+		key := strings.TrimPrefix(path, "/wiki/rest/api/space/")
+		if key == "" || strings.Contains(key, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		for _, s := range f.spaces {
+			if sk, _ := s["key"].(string); sk == key {
+				_ = json.NewEncoder(w).Encode(s)
+				return
+			}
+		}
+		http.NotFound(w, r)
 	case path == "/wiki/rest/api/content/search":
 		f.serveSearch(w, r)
 	case strings.HasSuffix(path, "/child/comment"):
@@ -436,12 +450,13 @@ func TestConfluenceFullSyncMapsPagesAndFTS(t *testing.T) {
 }
 
 // TestConfluenceSpacesFromListing is FAIL-first for path ①: empty config.spaces
-// calls Spaces() and UpsertSpaces with key/name/kind from the listing.
+// calls Spaces() and UpsertSpaces with key/name/kind/homepage from the listing.
 func TestConfluenceSpacesFromListing(t *testing.T) {
 	f := newConfFixture(t)
 	// Opaque Cloud-style key with a human name — the point of the feature.
 	f.spaces = []map[string]any{
-		{"key": "3dvBrsa61dIo", "name": "Engineering", "type": "global"},
+		{"key": "3dvBrsa61dIo", "name": "Engineering", "type": "global",
+			"homepage": map[string]any{"id": "9001"}},
 		{"key": "~personal", "name": "Ada personal", "type": "personal"},
 	}
 	f.pages = map[string]*confPage{
@@ -466,12 +481,15 @@ func TestConfluenceSpacesFromListing(t *testing.T) {
 		t.Fatalf("fetched = %d, want 1", res.Fetched)
 	}
 	raw := db.raw(t)
-	var name, kind string
-	if err := raw.QueryRow(`SELECT name, kind FROM spaces WHERE source_id = 'confluence' AND key = '3dvBrsa61dIo'`).Scan(&name, &kind); err != nil {
+	var name, kind, homepageID string
+	if err := raw.QueryRow(`SELECT name, kind, homepage_id FROM spaces WHERE source_id = 'confluence' AND key = '3dvBrsa61dIo'`).Scan(&name, &kind, &homepageID); err != nil {
 		t.Fatalf("spaces row: %v", err)
 	}
 	if name != "Engineering" || kind != "global" {
 		t.Errorf("space = name=%q kind=%q, want Engineering/global", name, kind)
+	}
+	if homepageID != "9001" {
+		t.Errorf("homepage_id = %q, want 9001", homepageID)
 	}
 	// Personal spaces are listed into the table but not synced as page scope.
 	if err := raw.QueryRow(`SELECT name, kind FROM spaces WHERE source_id = 'confluence' AND key = '~personal'`).Scan(&name, &kind); err != nil {
@@ -486,6 +504,101 @@ func TestConfluenceSpacesFromListing(t *testing.T) {
 	}
 	if len(pages) != 1 || pages[0].SpaceName != "Engineering" {
 		t.Errorf("PageLites = %+v, want SpaceName Engineering", pages)
+	}
+	if pages[0].SpaceHomepageID != "9001" {
+		t.Errorf("PageLites SpaceHomepageID = %q, want 9001", pages[0].SpaceHomepageID)
+	}
+}
+
+// TestConfluenceSpacesFromConfigGET is FAIL-first for path ②: config lists
+// spaces → per-space GET with expand=homepage stores homepage_id.
+func TestConfluenceSpacesFromConfigGET(t *testing.T) {
+	f := newConfFixture(t)
+	f.spaces = []map[string]any{
+		{"key": "AAA", "name": "Alpha", "type": "global",
+			"homepage": map[string]any{"id": "1000"}},
+		{"key": "BBB", "name": "Beta", "type": "global",
+			"homepage": map[string]any{"id": "2000"}},
+	}
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA", "BBB"})
+
+	if _, err := RunConfluence(context.Background(), cfg, db.DB, Options{
+		Full: true, ConfluenceClient: client,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	raw := db.raw(t)
+	for _, want := range []struct{ key, hp string }{
+		{"AAA", "1000"},
+		{"BBB", "2000"},
+	} {
+		var hp string
+		if err := raw.QueryRow(`SELECT homepage_id FROM spaces WHERE source_id = 'confluence' AND key = ?`, want.key).Scan(&hp); err != nil {
+			t.Fatalf("space %s: %v", want.key, err)
+		}
+		if hp != want.hp {
+			t.Errorf("space %s homepage_id = %q, want %q", want.key, hp, want.hp)
+		}
+	}
+}
+
+// TestConfluenceSpaceGET404DoesNotFailSync: a missing/restricted space key
+// is logged and skipped; the rest of the run still succeeds.
+func TestConfluenceSpaceGET404DoesNotFailSync(t *testing.T) {
+	f := newConfFixture(t)
+	// Only AAA is in the mock listing; NOPE will 404 on single-space GET.
+	f.spaces = []map[string]any{
+		{"key": "AAA", "name": "Alpha", "type": "global",
+			"homepage": map[string]any{"id": "1000"}},
+	}
+	// Restrict pages to AAA so BBB is not required.
+	f.pages = map[string]*confPage{
+		"1001": f.pages["1001"],
+		"1002": f.pages["1002"],
+	}
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA", "NOPE"})
+	var logs []string
+	res, err := RunConfluence(context.Background(), cfg, db.DB, Options{
+		Full: true, ConfluenceClient: client,
+		Log: func(line string) {
+			logs = append(logs, line)
+		},
+	})
+	if err != nil {
+		t.Fatalf("sync failed on space 404: %v", err)
+	}
+	if res.Fetched < 1 {
+		t.Fatalf("fetched = %d, want ≥ 1 (AAA pages still synced)", res.Fetched)
+	}
+	raw := db.raw(t)
+	var hp string
+	if err := raw.QueryRow(`SELECT homepage_id FROM spaces WHERE source_id = 'confluence' AND key = 'AAA'`).Scan(&hp); err != nil {
+		t.Fatal(err)
+	}
+	if hp != "1000" {
+		t.Errorf("AAA homepage_id = %q, want 1000", hp)
+	}
+	// NOPE must not have a spaces row from the failed GET.
+	var n int
+	if err := raw.QueryRow(`SELECT COUNT(*) FROM spaces WHERE source_id = 'confluence' AND key = 'NOPE'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("NOPE spaces rows = %d, want 0", n)
+	}
+	logged := false
+	for _, line := range logs {
+		if strings.Contains(line, "NOPE") {
+			logged = true
+			break
+		}
+	}
+	if !logged {
+		t.Errorf("expected log mentioning NOPE, got %v", logs)
 	}
 }
 

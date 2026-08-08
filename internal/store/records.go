@@ -145,10 +145,13 @@ type PageRecord struct {
 // connector maps its space listing or page-embedded space ref onto this.
 // Kind is the source type string (e.g. "global", "personal"); empty is allowed
 // when only a name is known from a page hit.
+// HomepageID is the content id of the space root page when known; empty on
+// page-hit upserts so they do not wipe a value filled by a space listing.
 type SpaceRow struct {
-	Key  string
-	Name string
-	Kind string
+	Key        string
+	Name       string
+	Kind       string
+	HomepageID string
 }
 
 // Batch is one page of sync output. Categories and Priorities come from the

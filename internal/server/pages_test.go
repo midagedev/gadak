@@ -195,6 +195,82 @@ func TestPagesResponseIncludesSpaceName(t *testing.T) {
 	}
 }
 
+// TestPagesResponseIncludesSpaceHomepageID is FAIL-first for
+// PageLite.space_homepage_id on the pages list API (join from spaces).
+func TestPagesResponseIncludesSpaceHomepageID(t *testing.T) {
+	db, cfg := fixture(t)
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x.atlassian.net/wiki"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSpaces(context.Background(), "confluence", []store.SpaceRow{
+		{Key: "PROD", Name: "Product", Kind: "global", HomepageID: "50"},
+		{Key: "ENG", Name: "Engineering", Kind: "global", HomepageID: "60"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
+	if _, err := db.UpsertPages(context.Background(), []store.PageRecord{
+		{
+			Item: store.Item{
+				ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
+				Key: "100", Title: "Child", BodyText: "x",
+				Author: "Dana", URL: "https://x/wiki/spaces/PROD/pages/100",
+				CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Page: store.Page{SpaceKey: "PROD", ParentID: "50", Version: 1, Status: "current", BodyADF: adf},
+		},
+		{
+			Item: store.Item{
+				ID: "confluence:200", SourceID: "confluence", Kind: "page", ExternalID: "200",
+				Key: "200", Title: "Other", BodyText: "y",
+				Author: "Pat", URL: "https://x/wiki/spaces/ENG/pages/200",
+				CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-07-15T00:00:00.000Z",
+			},
+			Page: store.Page{SpaceKey: "ENG", Version: 1, Status: "current", BodyADF: adf},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordSync(context.Background(), "confluence", store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z", FullSync: true}); err != nil {
+		t.Fatal(err)
+	}
+	h := New(db, cfg)
+
+	list := decode[struct {
+		Pages []store.PageLite `json:"pages"`
+		Total int              `json:"total"`
+	}](t, get(t, h, apiBase+"pages/", nil))
+	byKey := map[string]store.PageLite{}
+	for _, p := range list.Pages {
+		byKey[p.Key] = p
+	}
+	if byKey["100"].SpaceHomepageID != "50" {
+		t.Errorf("page 100 space_homepage_id = %q, want 50", byKey["100"].SpaceHomepageID)
+	}
+	if byKey["200"].SpaceHomepageID != "60" {
+		t.Errorf("page 200 space_homepage_id = %q, want 60", byKey["200"].SpaceHomepageID)
+	}
+
+	rec := get(t, h, apiBase+"pages/", nil)
+	var raw map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	pages, _ := raw["pages"].([]any)
+	if len(pages) == 0 {
+		t.Fatal("no pages in raw")
+	}
+	row, _ := pages[0].(map[string]any)
+	if _, ok := row["space_homepage_id"]; !ok {
+		t.Fatalf("space_homepage_id field missing in page row: %v", row)
+	}
+
+	detail := decode[store.PageDetail](t, get(t, h, apiBase+"pages/100/", nil))
+	if detail.SpaceHomepageID != "50" {
+		t.Errorf("detail space_homepage_id = %q, want 50", detail.SpaceHomepageID)
+	}
+}
+
 // TestPagesResponseIncludesLabels is FAIL-first for PageLite.Labels on the
 // pages list API (handler serializes store.PageLite — no handler change).
 func TestPagesResponseIncludesLabels(t *testing.T) {

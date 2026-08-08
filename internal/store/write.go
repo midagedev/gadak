@@ -228,9 +228,10 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	return true, err
 }
 
-// UpsertSpaces writes wiki space rows (key → name/kind) for a source. Empty
-// name/kind on conflict keeps the previous value so page-hit upserts (name
-// only) do not wipe kind filled by a full space listing.
+// UpsertSpaces writes wiki space rows (key → name/kind/homepage_id) for a
+// source. Empty name/kind/homepage_id on conflict keeps the previous value so
+// page-hit upserts (name only) do not wipe kind or homepage filled by a full
+// space listing or per-space GET.
 func (db *DB) UpsertSpaces(ctx context.Context, sourceID string, rows []SpaceRow) error {
 	if sourceID == "" || len(rows) == 0 {
 		return nil
@@ -241,11 +242,12 @@ func (db *DB) UpsertSpaces(ctx context.Context, sourceID string, rows []SpaceRow
 				continue
 			}
 			if _, err := tx.Exec(`
-				INSERT INTO spaces (source_id, key, name, kind) VALUES (?,?,?,?)
+				INSERT INTO spaces (source_id, key, name, kind, homepage_id) VALUES (?,?,?,?,?)
 				ON CONFLICT(source_id, key) DO UPDATE SET
 					name = CASE WHEN excluded.name != '' THEN excluded.name ELSE spaces.name END,
-					kind = CASE WHEN excluded.kind != '' THEN excluded.kind ELSE spaces.kind END`,
-				sourceID, r.Key, r.Name, r.Kind,
+					kind = CASE WHEN excluded.kind != '' THEN excluded.kind ELSE spaces.kind END,
+					homepage_id = CASE WHEN excluded.homepage_id != '' THEN excluded.homepage_id ELSE spaces.homepage_id END`,
+				sourceID, r.Key, r.Name, r.Kind, r.HomepageID,
 			); err != nil {
 				return fmt.Errorf("space %s: %w", r.Key, err)
 			}

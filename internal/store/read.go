@@ -301,7 +301,7 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 	// Outgoing page refs (this issue mentions pages).
 	refPages, err := db.pageLitesFromRefs(ctx, `
 		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
-		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
+		       COALESCE(sp.name, ''), COALESCE(sp.homepage_id, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
 		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
 		       COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]')
 		FROM item_refs r
@@ -318,7 +318,7 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 	// Incoming page backlinks (pages that mention this issue key).
 	backPages, err := db.pageLitesFromRefs(ctx, `
 		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
-		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
+		       COALESCE(sp.name, ''), COALESCE(sp.homepage_id, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
 		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
 		       COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]')
 		FROM item_refs r
@@ -341,7 +341,7 @@ func (db *DB) pageLitesFromRefs(ctx context.Context, query string, args ...any) 
 	err := each(ctx, db.sql, query, func(rows *sql.Rows) error {
 		var v PageLite
 		var labels string
-		if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.SpaceName, &v.ParentID,
+		if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.SpaceName, &v.SpaceHomepageID, &v.ParentID,
 			&v.Author, &v.UpdatedAt, &v.Version, &v.URL, &v.Excerpt, &labels); err != nil {
 			return err
 		}
@@ -364,11 +364,14 @@ type PageLite struct {
 	// SpaceName is the human-readable space title from the spaces table join.
 	// Empty when no spaces row is mirrored for this key (never omitted in JSON).
 	SpaceName string `json:"space_name"`
-	ParentID  string `json:"parent_id"`
-	Author    string `json:"author"`
-	UpdatedAt string `json:"updated_at"`
-	Version   int    `json:"version"`
-	URL       string `json:"url"`
+	// SpaceHomepageID is the content id of the space root page (spaces.homepage_id).
+	// Empty when the space row is missing or homepage has not been learned yet.
+	SpaceHomepageID string `json:"space_homepage_id"`
+	ParentID        string `json:"parent_id"`
+	Author          string `json:"author"`
+	UpdatedAt       string `json:"updated_at"`
+	Version         int    `json:"version"`
+	URL             string `json:"url"`
 	// Excerpt is a one-line body preview derived from body_adf (schema v15):
 	// whitespace-normalized, at most 200 runes. Empty when the body is empty.
 	Excerpt string   `json:"excerpt"`
@@ -400,7 +403,7 @@ func (db *DB) PageLites(ctx context.Context) ([]PageLite, error) {
 	out := []PageLite{}
 	err := each(ctx, db.sql, `
 		SELECT COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
-		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
+		       COALESCE(sp.name, ''), COALESCE(sp.homepage_id, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
 		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
 		       COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]')
 		FROM pages p
@@ -411,7 +414,7 @@ func (db *DB) PageLites(ctx context.Context) ([]PageLite, error) {
 		func(rows *sql.Rows) error {
 			var v PageLite
 			var labels string
-			if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.SpaceName, &v.ParentID,
+			if err := rows.Scan(&v.Key, &v.Title, &v.SpaceKey, &v.SpaceName, &v.SpaceHomepageID, &v.ParentID,
 				&v.Author, &v.UpdatedAt, &v.Version, &v.URL, &v.Excerpt, &labels); err != nil {
 				return err
 			}
@@ -430,14 +433,14 @@ func (db *DB) PageDetail(ctx context.Context, key string) (*PageDetail, error) {
 	var d PageDetail
 	err := db.sql.QueryRowContext(ctx, `
 		SELECT it.id, COALESCE(it.key, ''), COALESCE(it.title, ''), COALESCE(p.space_key, ''),
-		       COALESCE(sp.name, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
+		       COALESCE(sp.name, ''), COALESCE(sp.homepage_id, ''), COALESCE(p.parent_id, ''), COALESCE(it.author, ''),
 		       COALESCE(it.updated_at, ''), COALESCE(p.version, 0), COALESCE(it.url, ''),
 		       COALESCE(p.excerpt, ''), p.body_adf, COALESCE(p.labels, '[]')
 		FROM pages p
 		JOIN items it ON it.id = p.item_id
 		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
 		WHERE it.kind = 'page' AND it.key = ?`, key).
-		Scan(&itemID, &d.Key, &d.Title, &d.SpaceKey, &d.SpaceName, &d.ParentID,
+		Scan(&itemID, &d.Key, &d.Title, &d.SpaceKey, &d.SpaceName, &d.SpaceHomepageID, &d.ParentID,
 			&d.Author, &d.UpdatedAt, &d.Version, &d.URL, &d.Excerpt, &bodyADF, &labels)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -588,7 +591,7 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 	err := each(ctx, db.sql, `
 		SELECT it.kind, COALESCE(it.key, ''), COALESCE(it.title, ''),
 		       COALESCE(it.author, ''), COALESCE(it.updated_at, ''), COALESCE(it.url, ''),
-		       COALESCE(p.space_key, ''), COALESCE(sp.name, ''), COALESCE(p.parent_id, ''),
+		       COALESCE(p.space_key, ''), COALESCE(sp.name, ''), COALESCE(sp.homepage_id, ''), COALESCE(p.parent_id, ''),
 		       COALESCE(p.version, 0), COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]'),
 		       snippet(items_fts, 0, char(1), char(2), '…', 18),
 		       snippet(items_fts, 1, char(1), char(2), '…', 18),
@@ -606,13 +609,13 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 		ORDER BY rank
 		LIMIT ?`,
 		func(rows *sql.Rows) error {
-			var kind, key, title, author, updatedAt, url, spaceKey, spaceName, parentID, excerpt, labels string
+			var kind, key, title, author, updatedAt, url, spaceKey, spaceName, spaceHomepageID, parentID, excerpt, labels string
 			var version int
 			var snipTitle, snipBody, snipComment sql.NullString
 			var bodyText, commentsText string
 			var titleHit, bodyHit, commentHit int
 			if err := rows.Scan(&kind, &key, &title, &author, &updatedAt, &url,
-				&spaceKey, &spaceName, &parentID, &version, &excerpt, &labels,
+				&spaceKey, &spaceName, &spaceHomepageID, &parentID, &version, &excerpt, &labels,
 				&snipTitle, &snipBody, &snipComment, &bodyText, &commentsText,
 				&titleHit, &bodyHit, &commentHit); err != nil {
 				return err
@@ -625,7 +628,8 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 			case "page":
 				res.Pages = append(res.Pages, PageLite{
 					Key: key, Title: title, SpaceKey: spaceKey, SpaceName: spaceName,
-					ParentID: parentID, Author: author, UpdatedAt: updatedAt,
+					SpaceHomepageID: spaceHomepageID,
+					ParentID:        parentID, Author: author, UpdatedAt: updatedAt,
 					Version: version, URL: url, Excerpt: excerpt, Labels: parseArray(&labels),
 				})
 			}

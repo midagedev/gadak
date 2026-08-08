@@ -51,19 +51,16 @@
   const spaceLabel = $derived(head ? pages.spaceLabel(head.space_key) : '')
 
   /*
-   * Confluence gives every new space a homepage titled after the space itself,
-   * and every other page in the space hangs under it — so the raw trail repeats
-   * the space segment right after it. The mirror does not carry the space's
-   * `homepageId`, so this is a heuristic rather than an identity check: drop the
-   * first ancestor only when it is the chain's own root (no parent of its own)
-   * and its title is exactly the space label. Until the mirror learns the space
-   * name the label falls back to the key, the titles differ, and the duplicate
-   * stays — it resolves itself once the name loads.
+   * The homepage is the root of every document in the space; the space label
+   * already fills that slot in the breadcrumb. Drop the first ancestor only
+   * when its key equals the space's homepage_id. Mirrors that have not learned
+   * homepage_id yet (before the next sync, or demo.db) omit nothing.
    */
   const displayTrail = $derived.by(() => {
-    const first = trail[0]
-    if (!first || first.parent_id || !spaceLabel) return trail
-    return first.title === spaceLabel ? trail.slice(1) : trail
+    if (!head) return trail
+    const hp = pages.spaceHomepage(head.space_key)
+    if (hp && trail[0]?.key === hp) return trail.slice(1)
+    return trail
   })
 
   // Both directions of the text-derived issue references, counted once — the

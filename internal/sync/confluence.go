@@ -61,13 +61,17 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		if err != nil {
 			return record(ctx, db, ConfluenceSourceID, err)
 		}
-		// Path ①: empty config → Spaces() listing carries key/name/type.
+		// Path ①: empty config → Spaces() listing carries key/name/type/homepage.
 		var spaceRows []store.SpaceRow
 		for _, s := range listed {
 			if s.Key == "" {
 				continue
 			}
-			spaceRows = append(spaceRows, store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type})
+			row := store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type}
+			if s.Homepage != nil {
+				row.HomepageID = s.Homepage.ID
+			}
+			spaceRows = append(spaceRows, row)
 			// An empty config means "the team's wiki", not "every space I can
 			// see": Cloud gives each user a personal space, so an unfiltered
 			// listing is mostly ~accountid noise that also blows up CQL URLs.
@@ -75,6 +79,32 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			if s.Type == "global" {
 				spaces = append(spaces, s.Key)
 			}
+		}
+		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
+			return err
+		}
+	} else {
+		// Path ②: config lists spaces explicitly — no Spaces() listing, so
+		// fetch each space once per run for name/kind/homepage. A bad key or
+		// permission error is logged and skipped; the page pass still runs.
+		var spaceRows []store.SpaceRow
+		for _, key := range spaces {
+			if key == "" {
+				continue
+			}
+			s, err := c.Space(ctx, key)
+			if err != nil {
+				opts.logf("confluence: space %s: %v", key, err)
+				continue
+			}
+			row := store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type}
+			if row.Key == "" {
+				row.Key = key
+			}
+			if s.Homepage != nil {
+				row.HomepageID = s.Homepage.ID
+			}
+			spaceRows = append(spaceRows, row)
 		}
 		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
 			return err

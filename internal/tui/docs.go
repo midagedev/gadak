@@ -324,6 +324,10 @@ func filterPages(pages []store.PageLite, needle string) []store.PageLite {
 
 // docsBreadcrumb builds "SPACE › ancestor… › title" for key. Ancestors walk
 // parent_id via the full index (any space), cycle-defended — same as web.
+// When the target page's SpaceHomepageID is set and equals the outermost
+// ancestor key, that segment is omitted (the space label already fills that
+// slot). Empty homepage_id keeps the full trail — mirrors without a learned
+// homepage (e.g. demo.db before the next sync) skip nothing.
 func docsBreadcrumb(pages []store.PageLite, key string) string {
 	byKey := make(map[string]store.PageLite, len(pages))
 	for _, p := range pages {
@@ -333,8 +337,9 @@ func docsBreadcrumb(pages []store.PageLite, key string) string {
 	if !ok {
 		return key
 	}
-	// Ancestors outermost first.
-	var trail []string
+	// Ancestors outermost first (keys + titles so we can drop by identity).
+	type seg struct{ key, title string }
+	var trail []seg
 	seen := map[string]bool{key: true}
 	walk := cur
 	for walk.ParentID != "" {
@@ -343,14 +348,19 @@ func docsBreadcrumb(pages []store.PageLite, key string) string {
 			break
 		}
 		seen[parent.Key] = true
-		trail = append([]string{parent.Title}, trail...)
+		trail = append([]seg{{parent.Key, parent.Title}}, trail...)
 		walk = parent
+	}
+	if hp := cur.SpaceHomepageID; hp != "" && len(trail) > 0 && trail[0].key == hp {
+		trail = trail[1:]
 	}
 	parts := make([]string, 0, 2+len(trail))
 	if cur.SpaceKey != "" {
 		parts = append(parts, cur.SpaceKey)
 	}
-	parts = append(parts, trail...)
+	for _, s := range trail {
+		parts = append(parts, s.title)
+	}
 	parts = append(parts, cur.Title)
 	return strings.Join(parts, " › ")
 }

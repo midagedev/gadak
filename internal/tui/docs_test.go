@@ -142,6 +142,35 @@ func TestDocsBreadcrumb(t *testing.T) {
 	}
 }
 
+// TestDocsBreadcrumbOmitsHomepage drops the outermost ancestor when its key
+// equals SpaceHomepageID; empty homepage keeps the full trail.
+func TestDocsBreadcrumbOmitsHomepage(t *testing.T) {
+	// ENG home (e-root) is the space homepage; child trail should skip it.
+	pages := []store.PageLite{
+		{Key: "e-root", Title: "Engineering", SpaceKey: "ENG", ParentID: "", SpaceHomepageID: "e-root"},
+		{Key: "e-child", Title: "Child Page", SpaceKey: "ENG", ParentID: "e-root", SpaceHomepageID: "e-root"},
+		{Key: "e-grand", Title: "Grandchild", SpaceKey: "ENG", ParentID: "e-child", SpaceHomepageID: "e-root"},
+	}
+	if got := docsBreadcrumb(pages, "e-child"); got != "ENG › Child Page" {
+		t.Fatalf("child with homepage = %q, want ENG › Child Page", got)
+	}
+	if got := docsBreadcrumb(pages, "e-grand"); got != "ENG › Child Page › Grandchild" {
+		t.Fatalf("grand with homepage = %q, want ENG › Child Page › Grandchild", got)
+	}
+	// The homepage page itself has no ancestor trail — space › title.
+	if got := docsBreadcrumb(pages, "e-root"); got != "ENG › Engineering" {
+		t.Fatalf("homepage page = %q, want ENG › Engineering", got)
+	}
+	// Empty SpaceHomepageID: keep full trail (demo.db / pre-sync).
+	noHP := []store.PageLite{
+		{Key: "e-root", Title: "Engineering", SpaceKey: "ENG", ParentID: ""},
+		{Key: "e-child", Title: "Child Page", SpaceKey: "ENG", ParentID: "e-root"},
+	}
+	if got := docsBreadcrumb(noHP, "e-child"); got != "ENG › Engineering › Child Page" {
+		t.Fatalf("empty homepage keeps trail = %q", got)
+	}
+}
+
 func TestDocsEmptyState(t *testing.T) {
 	m := newModel(&config.Config{}, nil)
 	m.width, m.height = 100, 30

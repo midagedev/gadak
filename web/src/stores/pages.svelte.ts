@@ -131,9 +131,25 @@ class PagesStore {
     return names
   })
 
+  /** space key → homepage content id, empty ids dropped. Absent until a sync
+   *  has stored spaces.homepage_id (demo.db stays empty on purpose). */
+  spaceHomepages = $derived.by(() => {
+    const ids = new Map<string, string>()
+    for (const p of this.index) {
+      const hp = p.space_homepage_id ?? ''
+      if (hp && !ids.has(p.space_key)) ids.set(p.space_key, hp)
+    }
+    return ids
+  })
+
   /** What a space is called on screen: its name, or the key until one arrives. */
   spaceLabel(spaceKey: string): string {
     return this.spaceNames.get(spaceKey) || spaceKey
+  }
+
+  /** Homepage content id for a space, or '' when the mirror has not learned it. */
+  spaceHomepage(spaceKey: string): string {
+    return this.spaceHomepages.get(spaceKey) || ''
   }
 
   /** Pages grouped by space, spaces (by display name) and titles alphabetical. */

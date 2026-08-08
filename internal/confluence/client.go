@@ -102,11 +102,16 @@ func (c *Client) transport() atlhttp.Config {
 	}
 }
 
-// Space is one space listing row.
+// Space is one space listing row. Homepage is present when expand=homepage
+// was requested; its id is the content id of the space's root page (same
+// id scheme as Page.ID / pages.parent_id).
 type Space struct {
-	Key  string `json:"key"`
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Key      string `json:"key"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Homepage *struct {
+		ID string `json:"id"`
+	} `json:"homepage"`
 }
 
 // User is a Confluence account reference on version.by.
@@ -205,6 +210,7 @@ func (b ContentBody) ADFRaw() json.RawMessage {
 }
 
 // Spaces lists every space the credential can see (start/limit paging).
+// expand=homepage fills Space.Homepage so callers can store the root page id.
 func (c *Client) Spaces(ctx context.Context) ([]Space, error) {
 	out := []Space{}
 	for start := 0; ; {
@@ -214,7 +220,7 @@ func (c *Client) Spaces(ctx context.Context) ([]Space, error) {
 			Limit   int     `json:"limit"`
 			Start   int     `json:"start"`
 		}
-		p := fmt.Sprintf("%s/space?limit=100&start=%d", apiPath, start)
+		p := fmt.Sprintf("%s/space?limit=100&start=%d&expand=homepage", apiPath, start)
 		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
 			return nil, err
 		}
@@ -224,6 +230,17 @@ func (c *Client) Spaces(ctx context.Context) ([]Space, error) {
 		}
 		start += len(page.Results)
 	}
+}
+
+// Space fetches one space by key with expand=homepage. 404 wraps ErrNotFound
+// (same as Page); callers that tolerate a missing/restricted space skip it.
+func (c *Client) Space(ctx context.Context, key string) (Space, error) {
+	var out Space
+	p := fmt.Sprintf("%s/space/%s?expand=homepage", apiPath, url.PathEscape(key))
+	if err := c.do(ctx, http.MethodGet, p, nil, &out); err != nil {
+		return Space{}, err
+	}
+	return out, nil
 }
 
 // SearchPages runs a CQL search with expand=version,space and follows _links.next.

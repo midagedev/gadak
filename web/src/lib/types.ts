@@ -373,6 +373,10 @@ export interface PageLite {
   /** Human-readable space name. Empty until the space is mirrored, and absent
    *  on older servers — both fall back to `space_key` for display. */
   space_name?: string
+  /** Content id of the space's homepage (root page). Empty until learned, and
+   *  absent on older servers — both mean "do not drop the first breadcrumb
+   *  ancestor by identity". */
+  space_homepage_id?: string
   parent_id: string | null
   author: string | null
   updated_at: string | null
