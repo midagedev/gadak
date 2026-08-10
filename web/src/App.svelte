@@ -20,6 +20,7 @@
   import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { feature, isHostedDemo } from './lib/config'
   import { adoptRunningSync } from './lib/sync-now'
+  import { installDesktopLinkOpener } from './lib/desktop-links'
 
   /** Where the demo banner sends people who want the real thing. */
   const REPO_URL = 'https://github.com/midagedev/scry'
@@ -129,7 +130,12 @@
     views.init()
 
     const skeletonTimer = setTimeout(() => (showSkeleton = true), 120)
-    return () => clearTimeout(skeletonTimer)
+    // Desktop only: external links open the system browser (see lib/desktop-links).
+    const uninstallLinks = installDesktopLinkOpener()
+    return () => {
+      clearTimeout(skeletonTimer)
+      uninstallLinks()
+    }
   })
 
   function retry() {

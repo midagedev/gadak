@@ -44,7 +44,11 @@ func TestFallbackHandler(t *testing.T) {
 	}
 	reg := workspace.New()
 	t.Cleanup(func() { reg.Close() })
-	h := fallbackHandler(server.New(db, cfg), ui, reg)
+	openedURLs := []string{}
+	h := fallbackHandler(server.New(db, cfg), ui, reg, func(u string) error {
+		openedURLs = append(openedURLs, u)
+		return nil
+	})
 
 	t.Run("config.json", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/config.json", nil)
@@ -86,6 +90,37 @@ func TestFallbackHandler(t *testing.T) {
 		h.ServeHTTP(rec, req)
 		if rec.Code != 200 || !strings.Contains(rec.Body.String(), "<!doctype html>") {
 			t.Fatalf("got %d, body starts %q", rec.Code, rec.Body.String()[:min(80, rec.Body.Len())])
+		}
+	})
+
+	// The webview has no new-window delegate, so the web bundle routes external
+	// links here (lib/desktop-links.ts). http(s) with a host only — anything
+	// else must be refused, not handed to the system browser.
+	t.Run("desktop open routes http(s) to the browser and refuses the rest", func(t *testing.T) {
+		post := func(body string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest("POST", "/desktop/open", strings.NewReader(body))
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			return rec
+		}
+		if rec := post(`{"url":"https://example.atlassian.net/wiki/x"}`); rec.Code != 204 {
+			t.Fatalf("https: got %d body %s", rec.Code, rec.Body.String())
+		}
+		if len(openedURLs) != 1 || openedURLs[0] != "https://example.atlassian.net/wiki/x" {
+			t.Fatalf("opened = %v", openedURLs)
+		}
+		for _, bad := range []string{
+			`{"url":"file:///etc/passwd"}`,
+			`{"url":"javascript:alert(1)"}`,
+			`{"url":"/api/v1/issues/"}`,
+			`not json`,
+		} {
+			if rec := post(bad); rec.Code != 400 {
+				t.Fatalf("%s: got %d, want 400", bad, rec.Code)
+			}
+		}
+		if len(openedURLs) != 1 {
+			t.Fatalf("refused URL leaked to the browser: %v", openedURLs)
 		}
 	})
 }
@@ -152,7 +187,7 @@ func TestDesktopWorkspaceRoutes(t *testing.T) {
 	}
 	reg := workspace.New()
 	t.Cleanup(func() { reg.Close() })
-	h := fallbackHandler(server.New(db, primaryCfg), ui, reg)
+	h := fallbackHandler(server.New(db, primaryCfg), ui, reg, nil)
 
 	t.Run("workspace config.json is JSON", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/w/work/config.json", nil)

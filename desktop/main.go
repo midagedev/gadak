@@ -8,11 +8,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
 	"path"
 	"runtime"
 	"strings"
@@ -76,9 +78,10 @@ func run() error {
 	reg := workspace.New()
 	defer reg.Close()
 
-	// window is filled in below; the single-instance callback reads it when a
-	// second launch arrives.
+	// window and openURL are filled in below; the single-instance callback and
+	// the /desktop/open route read them once the app exists.
 	var window *application.WebviewWindow
+	var openURL func(string) error
 
 	app := application.New(application.Options{
 		// Name labels the macOS app menu; Name + Description are what the
@@ -90,7 +93,12 @@ func run() error {
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 		Assets: application.AssetOptions{
-			Handler: assetHandler(ui, fallbackHandler(api, ui, reg)),
+			Handler: assetHandler(ui, fallbackHandler(api, ui, reg, func(u string) error {
+				if openURL == nil {
+					return fmt.Errorf("browser not ready")
+				}
+				return openURL(u)
+			})),
 		},
 		SingleInstance: &application.SingleInstanceOptions{
 			// Per profile, not global: one window per mirror, and a second
@@ -105,6 +113,8 @@ func run() error {
 		},
 		OnShutdown: cancel,
 	})
+
+	openURL = app.Browser.OpenURL
 
 	// Self-update. nil on dev builds and on any configuration failure — see
 	// updater.go; the app runs identically either way, minus the menu item.
@@ -235,10 +245,41 @@ func assetHandler(ui fs.FS, next http.Handler) http.Handler {
 }
 
 // fallbackHandler serves whatever the Wails asset server does not find as a
-// static file: the API, /config.json, workspace mounts, and the SPA's
-// index.html for client-side routes.
-func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry) http.Handler {
+// static file: the API, /config.json, workspace mounts, the desktop-only
+// open-in-browser route, and the SPA's index.html for client-side routes.
+// openURL opens a link in the system browser; nil disables the route (503) —
+// it is bound to app.Browser.OpenURL after the application exists.
+func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openURL func(string) error) http.Handler {
 	mux := http.NewServeMux()
+	// The v3 webview has no new-window delegate, so target="_blank" clicks die
+	// inside it. The web bundle (in desktop mode only) routes external links
+	// here instead; only the webview can reach this — there is no TCP listener.
+	mux.HandleFunc("POST /desktop/open", func(w http.ResponseWriter, r *http.Request) {
+		if openURL == nil {
+			http.Error(w, `{"error":"unavailable"}`, http.StatusServiceUnavailable)
+			return
+		}
+		var body struct {
+			URL string `json:"url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+			return
+		}
+		// http(s) only: the mirror's URLs are web URLs, and nothing else
+		// (file:, javascript:, custom schemes) has any business here.
+		u, err := url.Parse(body.URL)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+			http.Error(w, `{"error":"bad_url"}`, http.StatusBadRequest)
+			return
+		}
+		if err := openURL(u.String()); err != nil {
+			log.Printf("open in browser: %v", err)
+			http.Error(w, `{"error":"open_failed"}`, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 	// PUT settings/ rewrites the config on disk, so re-read it per request
 	// (mirrors cmd/scry buildServeMux).
 	mux.HandleFunc("/config.json", func(w http.ResponseWriter, r *http.Request) {
