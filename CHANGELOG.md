@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Person filters no longer depend on Jira email visibility.** Assignee,
+  reporter, current-user, grouping, and configured user-field filters prefer
+  Jira account IDs while continuing to read email-valued saved views. Jira
+  Cloud sites that hide `emailAddress` now keep their full people facets, and
+  assigned issues no longer appear as unassigned merely because email is absent.
 - **`scry profiles` is an inventory now** — active marker, issue and document
   counts, last sync, and the site host (host only; never the URL, email or
   token), plus `--json`. There is deliberately no `switch`: the CLI writes to

@@ -6,6 +6,11 @@ import (
 	"github.com/midagedev/scry/internal/config"
 )
 
+// UserAccountIDsSuffix names the companion value stored beside a user-role
+// alias. The display value remains under the alias; IDs are always a []string
+// so single- and multi-user fields share one filter contract.
+const UserAccountIDsSuffix = "_account_ids"
+
 // SpecIDs is the flat shape store and sync use to coalesce without depending on
 // the full FieldSpec when only alias+ids+role are needed.
 type SpecIDs struct {
@@ -75,10 +80,11 @@ func Coalesce(specs []SpecIDs, extra map[string]json.RawMessage) map[string]any 
 			if !ok || !IsFilled(raw) {
 				continue
 			}
-			var v any
-			if json.Unmarshal(raw, &v) != nil {
+			var source any
+			if json.Unmarshal(raw, &source) != nil {
 				continue
 			}
+			v := source
 			if s.Role != "body" {
 				v = DisplayValue(v)
 				if !IsFilledAny(v) {
@@ -86,12 +92,40 @@ func Coalesce(specs []SpecIDs, extra map[string]json.RawMessage) map[string]any 
 				}
 			}
 			out[s.Alias] = v
+			if s.Role == "user" {
+				if ids := UserAccountIDs(source); len(ids) > 0 {
+					out[s.Alias+UserAccountIDsSuffix] = ids
+				}
+			}
 			break
 		}
 	}
 	if len(out) == 0 {
 		return nil
 	}
+	return out
+}
+
+// UserAccountIDs extracts Jira accountId values from one user object or an
+// array of users. Order is preserved and duplicates are removed.
+func UserAccountIDs(v any) []string {
+	seen := map[string]bool{}
+	var out []string
+	var visit func(any)
+	visit = func(value any) {
+		switch t := value.(type) {
+		case []any:
+			for _, el := range t {
+				visit(el)
+			}
+		case map[string]any:
+			if id, ok := t["accountId"].(string); ok && id != "" && !seen[id] {
+				seen[id] = true
+				out = append(out, id)
+			}
+		}
+	}
+	visit(v)
 	return out
 }
 

@@ -16,7 +16,7 @@ import { router, setParams } from '../lib/router.svelte'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 import { extractChosung, isChosungQuery } from '../lib/korean'
-import type { IssueLite, SearchMatch } from '../lib/types'
+import type { IssueLite, Member, SearchMatch } from '../lib/types'
 import {
   configToParams,
   defaultColumns,
@@ -200,10 +200,17 @@ class FiltersStore {
     const axes = this.dynamicAxes
     if (!axes.length) return {}
     const counters: Record<string, Map<string, number>> = {}
-    for (const a of axes) counters[a.key] = new Map()
+    const labels: Record<string, Map<string, string>> = {}
+    for (const a of axes) {
+      counters[a.key] = new Map()
+      labels[a.key] = new Map()
+    }
     for (const it of issues.allIssues) {
       for (const a of axes) {
-        for (const value of rowFieldValues(it, a.key)) bump(counters[a.key], value)
+        for (const entry of rowFieldEntries(it, a.key)) {
+          bump(counters[a.key], entry.value)
+          if (!labels[a.key].has(entry.value)) labels[a.key].set(entry.value, entry.label)
+        }
       }
     }
     const out: Record<string, FacetValue[]> = {}
@@ -211,7 +218,7 @@ class FiltersStore {
       const values: FacetValue[] = [...counters[a.key].entries()].map(([value, count]) => ({
         value,
         count,
-        label: value,
+        label: labels[a.key].get(value) ?? value,
       }))
       values.sort((x, y) => y.count - x.count || (x.label < y.label ? -1 : 1))
       out[a.key] = values
@@ -232,25 +239,23 @@ class FiltersStore {
   hasFilters = $derived(hasAnyFilter(this.#config.filters))
 
   /**
-   * Whether the current view is already scoped to "my issues" (my email in
+   * Whether the current view is already scoped to "my issues" (my account ID or email in
    *  assignee or reporter filters). Whole list is then mine, so per-row highlight
    *  is noise — turn it off.
    */
   scopedToMe = $derived.by(() => {
-    const e = me.email?.toLowerCase()
-    if (!e) return false
+    const mine = [me.accountId, me.email].filter((v): v is string => !!v)
+    if (!mine.length) return false
     const f = this.#config.filters
-    const has = (arr: string[]) => arr.some((x) => x.toLowerCase() === e)
+    const has = (arr: string[]) => arr.some((x) => mine.some((v) => sameIdentity(x, v)))
     return has(f.assignee_email) || has(f.reporter_email)
   })
 
-  /** Whether this issue is assigned to me (highlight check). Case-insensitive. */
+  /** Whether this issue is assigned to me (account ID first, email compatibility fallback). */
   isMine(issue: IssueLite): boolean {
-    const e = me.email
     return (
-      !!e &&
-      !!issue.assignee_email &&
-      issue.assignee_email.toLowerCase() === e.toLowerCase()
+      issueMatchesPerson(issue, 'assignee', me.accountId) ||
+      issueMatchesPerson(issue, 'assignee', me.email)
     )
   }
 
@@ -527,12 +532,34 @@ export function rowFieldValues(issue: IssueLite, alias: string): string[] {
   return []
 }
 
+const USER_ACCOUNT_IDS_SUFFIX = '_account_ids'
+
+interface FieldEntry {
+  value: string
+  label: string
+}
+
+/** Stable filter values for a custom user field, with display values as labels. */
+function rowFieldEntries(issue: IssueLite, alias: string): FieldEntry[] {
+  const labels = rowFieldValues(issue, alias)
+  const ids = rowFieldValues(issue, alias + USER_ACCOUNT_IDS_SUFFIX)
+  if (!ids.length) return labels.map((value) => ({ value, label: value }))
+  return ids.map((value, i) => ({ value, label: labels[i] ?? value }))
+}
+
+function rowFieldFilterValues(issue: IssueLite, alias: string): string[] {
+  const entries = rowFieldEntries(issue, alias)
+  const values = entries.map((entry) => entry.value)
+  for (const label of rowFieldValues(issue, alias)) if (!values.includes(label)) values.push(label)
+  return values
+}
+
 /** AND across dynamic axes, OR within one — same semantics as the static fields. */
 function matchesDynamicFields(fields: Record<string, string[]>, it: IssueLite): boolean {
   for (const alias in fields) {
     const selected = fields[alias]
     if (!selected.length) continue
-    if (!matchesSelected(selected, rowFieldValues(it, alias))) return false
+    if (!matchesSelected(selected, rowFieldFilterValues(it, alias))) return false
   }
   return true
 }
@@ -591,9 +618,9 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
   for (const it of all) {
     if (f.status_category.length && !f.status_category.includes(effectiveCategory(it))) continue
     if (f.status.length && !f.status.includes(it.status)) continue
-    if (f.assignee_email.length && !(it.assignee_email && f.assignee_email.includes(it.assignee_email)))
+    if (f.assignee_email.length && !f.assignee_email.some((v) => issueMatchesPerson(it, 'assignee', v)))
       continue
-    if (f.reporter_email.length && !(it.reporter_email && f.reporter_email.includes(it.reporter_email)))
+    if (f.reporter_email.length && !f.reporter_email.some((v) => issueMatchesPerson(it, 'reporter', v)))
       continue
     if (f.team_group.length && !(it.team_group && f.team_group.includes(it.team_group))) continue
     if (f.priority.length && !(it.priority && f.priority.includes(it.priority))) continue
@@ -624,7 +651,7 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
     if (f.labels.length && !it.labels.some((l) => f.labels.includes(l))) continue
 
     if (f.reopened && !(it.reopen_count > 0)) continue
-    if (f.unassigned && it.assignee_email) continue
+    if (f.unassigned && hasIssuePerson(it, 'assignee')) continue
     if (f.stale && !isStale(it)) continue
 
     if ((f.created_from || f.created_to) && !inRange(it.created_at, f.created_from, f.created_to))
@@ -653,6 +680,7 @@ export interface RelevanceContext {
   chosungQuery: boolean
   now: number
   myEmail: string | null
+  myAccountId: string | null
   recentKeys: Set<string>
 }
 
@@ -664,6 +692,7 @@ function buildRelevanceContext(rawQuery: string): RelevanceContext {
     chosungQuery: raw ? isChosungQuery(raw) : false,
     now: Date.now(),
     myEmail: me.email,
+    myAccountId: me.accountId,
     recentKeys: new Set(me.recentIssues.map((v) => v.key)),
   }
 }
@@ -707,7 +736,11 @@ function relevanceScore(issue: IssueLite, ctx: RelevanceContext): number {
   }
 
   // Personalization: assigned to me / recently viewed.
-  if (ctx.myEmail && issue.assignee_email === ctx.myEmail) score += 40
+  if (
+    issueMatchesPerson(issue, 'assignee', ctx.myAccountId) ||
+    issueMatchesPerson(issue, 'assignee', ctx.myEmail)
+  )
+    score += 40
   if (ctx.recentKeys.has(issue.issue_key)) score += 25
 
   return score
@@ -773,8 +806,11 @@ function groupKeyOf(
     case 'status':
       return { key: issue.status || '(none)', label: issue.status || t('group.noStatus') }
     case 'assignee':
-      return issue.assignee_email
-        ? { key: issue.assignee_email, label: issue.assignee || issue.assignee_email }
+      return personIdentity(issue, 'assignee')
+        ? {
+            key: personIdentity(issue, 'assignee')!,
+            label: issue.assignee || issue.assignee_email || personIdentity(issue, 'assignee')!,
+          }
         : { key: '', label: t('common.unassigned') }
     case 'priority':
       return { key: issue.priority || '', label: issue.priority || t('group.noPriority') }
@@ -921,7 +957,7 @@ function CATEGORY_LABEL(value: string): string {
 
 function buildChips(
   f: ViewFilters,
-  members: Map<string, { name: string }>,
+  members: Map<string, Member>,
   all: IssueLite[],
   fieldLabels: Map<string, string>,
 ): ActiveChip[] {
@@ -931,7 +967,7 @@ function buildChips(
       let label = value
       if (field === 'status_category') label = CATEGORY_LABEL(value)
       else if (field === 'assignee_email' || field === 'reporter_email')
-        label = members.get(value)?.name ?? value
+        label = facetLabel(field, value, all, members)
       else if (
         field === 'qa_run' ||
         field === 'qa_suite' ||
@@ -945,7 +981,8 @@ function buildChips(
   for (const [alias, values] of Object.entries(f.fields)) {
     const name = fieldLabels.get(alias) ?? FIELD_LABEL(alias)
     for (const value of values) {
-      chips.push({ kind: 'field', field: alias, value, label: t('filter.chipFieldValue', { field: name, value }) })
+      const display = dynamicFieldLabel(alias, value, all)
+      chips.push({ kind: 'field', field: alias, value, label: t('filter.chipFieldValue', { field: name, value: display }) })
     }
   }
   if (f.reopened) chips.push({ kind: 'flag', field: 'reopened', label: t('filter.flagReopened') })
@@ -962,7 +999,7 @@ function buildChips(
 
 function buildFacets(
   all: IssueLite[],
-  members: Map<string, { name: string }>,
+  members: Map<string, Member>,
 ): Record<MultiField, FacetValue[]> {
   const counters: Record<string, Map<string, number>> = {}
   for (const field of MULTI_FIELDS) counters[field] = new Map()
@@ -970,8 +1007,8 @@ function buildFacets(
   for (const it of all) {
     bump(counters.status_category, effectiveCategory(it))
     bump(counters.status, it.status)
-    if (it.assignee_email) bump(counters.assignee_email, it.assignee_email)
-    if (it.reporter_email) bump(counters.reporter_email, it.reporter_email)
+    bump(counters.assignee_email, personIdentity(it, 'assignee'))
+    bump(counters.reporter_email, personIdentity(it, 'reporter'))
     if (it.team_group) bump(counters.team_group, it.team_group)
     if (it.priority) bump(counters.priority, it.priority)
     if (it.severity) bump(counters.severity, it.severity)
@@ -1008,11 +1045,22 @@ function facetLabel(
   field: MultiField,
   value: string,
   all: IssueLite[],
-  members: Map<string, { name: string }>,
+  members: Map<string, Member>,
 ): string {
   if (field === 'status_category') return CATEGORY_LABEL(value)
-  if (field === 'assignee_email' || field === 'reporter_email')
-    return members.get(value)?.name ?? value
+  if (field === 'assignee_email' || field === 'reporter_email') {
+    const role = field === 'assignee_email' ? 'assignee' : 'reporter'
+    for (const issue of all) {
+      if (!issueMatchesPerson(issue, role, value)) continue
+      return issue[role] || issue[`${role}_email`] || value
+    }
+    const direct = members.get(value)
+    if (direct) return direct.name
+    for (const member of members.values()) {
+      if (member.jira_account_id === value) return member.name
+    }
+    return value
+  }
   if (field === 'qa_impact') {
     const labels: Record<string, string> = {
       blocking: t('filter.qaBlocking'),
@@ -1036,6 +1084,44 @@ function facetLabel(
       const found = (issue.qa_suites ?? []).find((suite) => suite.key === value)
       if (found) return found.path || found.label
     }
+  }
+  return value
+}
+
+type PersonRole = 'assignee' | 'reporter'
+
+export function personIdentity(issue: IssueLite, role: PersonRole): string | null {
+  return issue[`${role}_id`] ?? issue[`${role}_email`] ?? null
+}
+
+function sameIdentity(a: string, b: string): boolean {
+  return a === b || (a.includes('@') && b.includes('@') && a.toLowerCase() === b.toLowerCase())
+}
+
+export function issueMatchesPerson(
+  issue: IssueLite,
+  role: PersonRole,
+  value: string | null | undefined,
+): boolean {
+  if (!value) return false
+  const id = issue[`${role}_id`]
+  const email = issue[`${role}_email`]
+  if ((id && sameIdentity(id, value)) || (email && sameIdentity(email, value))) return true
+  // Saved views created before the ID migration carry email values. When Jira
+  // later hides that email on issue rows, the configured member directory can
+  // still resolve the legacy token to the stable account ID without a network call.
+  const configuredID = issues.memberOf(value)?.jira_account_id
+  return Boolean(id && configuredID && sameIdentity(id, configuredID))
+}
+
+function hasIssuePerson(issue: IssueLite, role: PersonRole): boolean {
+  return Boolean(issue[`${role}_id`] || issue[role] || issue[`${role}_email`])
+}
+
+function dynamicFieldLabel(alias: string, value: string, all: IssueLite[]): string {
+  for (const issue of all) {
+    const found = rowFieldEntries(issue, alias).find((entry) => entry.value === value)
+    if (found) return found.label
   }
   return value
 }

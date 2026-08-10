@@ -169,6 +169,7 @@
       chosungQuery,
       now: Date.now(),
       myEmail: me.email,
+      myAccountId: me.accountId,
       recentKeys: new Set(me.recentIssues.map((v) => v.key)),
     }
     return sortIssues(filterIssues(issues.allIssues, f), 'relevance', 'desc', ctx)

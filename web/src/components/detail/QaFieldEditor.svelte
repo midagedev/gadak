@@ -143,7 +143,9 @@
   }
 
   const meMember = $derived(me.identified && me.email ? issues.members.get(me.email) : undefined)
-  const reporterMember = $derived(issues.memberOf(issue.reporter_email))
+  const reporterMember = $derived(
+    issues.memberOfAccountId(issue.reporter_id) ?? issues.memberOf(issue.reporter_email),
+  )
 
   /** Local members (personalized) — me → reporter → name. Only with jira_account_id. */
   const localCands = $derived.by<Cand[]>(() => {
@@ -195,10 +197,10 @@
 
   async function pickUser(c: Cand | null) {
     busy = true
-    const ok = await write.setField(key, 'development_test_assignee', c ? c.account_id : null, {
-      development_test_assignee: c ? c.display_name : null,
-      development_test_assignee_email: c ? c.email : null,
-    })
+    const ok = await write.setField(key, field, c ? c.account_id : null, {
+      [field]: c ? c.display_name : null,
+      [`${field}_account_ids`]: c ? [c.account_id] : [],
+    } as Partial<IssueLite>)
     busy = false
     if (ok) open = false
   }
@@ -361,7 +363,9 @@
           <button
             type="button"
             role="option"
-            aria-selected={c.email != null && c.email === issue.development_test_assignee_email}
+            aria-selected={((issue as unknown as Record<string, unknown>)[`${field}_account_ids`] as
+              | string[]
+              | undefined)?.includes(c.account_id) ?? false}
             onclick={() => pickUser(c)}
             disabled={busy}
             class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:outline-none disabled:opacity-50"

@@ -75,7 +75,7 @@ scry sql --csv "…"    # header row plus CSV
 -- Prefer issues_full for titles (summary comes from items.title).
 SELECT key, status, priority, summary
 FROM issues_full
-WHERE assignee_email = 'dana@example.com' AND status_category != 'done'
+WHERE assignee_id = 'account-id-from-the-mirror' AND status_category != 'done'
 ORDER BY priority_rank, updated_at DESC;
 
 -- 2. What regressed — reopens are the highest-signal quality metric available

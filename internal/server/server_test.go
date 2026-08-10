@@ -65,7 +65,7 @@ func fixtureAt(t *testing.T) (*store.DB, *config.Config, string) {
 					Status: "진행 중", StatusID: "3", StatusCategory: "inprogress",
 					Priority: "High", Assignee: "김현철", AssigneeID: "acc-hc",
 					AssigneeEmail: "hc@example.com",
-					Reporter:      "박보고", ReporterEmail: "rp@example.com",
+					Reporter:      "박보고", ReporterID: "acc-rp", ReporterEmail: "rp@example.com",
 					Labels: []string{"batch"}, Components: []string{"api"},
 					DescriptionADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`),
 					// Aliases from the configured field map; the response spreads them.
@@ -282,6 +282,9 @@ func TestBootstrapShapeAndETag(t *testing.T) {
 	}
 	if cl, ok := byEmail["cl@example.com"]; !ok || cl.Name != "이클라" || cl.Group != nil {
 		t.Fatalf("derived member wrong: %+v ok=%v", cl, ok)
+	}
+	if rp, ok := byEmail["rp@example.com"]; !ok || rp.Name != "박보고" || deref(rp.JiraAccountID) != "acc-rp" {
+		t.Fatalf("reporter member wrong: %+v ok=%v", rp, ok)
 	}
 
 	// 304 on the tag we just got, and on the client's own `"in-<version>"` form.
@@ -520,7 +523,7 @@ func TestAttachmentProxyStreamsFromJira(t *testing.T) {
 func TestMe(t *testing.T) {
 	db, cfg := fixture(t)
 	got := decode[map[string]any](t, get(t, New(db, cfg), authBase+"me/", nil))
-	if got["email"] != "hc@example.com" || got["name"] != "현철" {
+	if got["email"] != "hc@example.com" || got["account_id"] != "acc-hc" || got["name"] != "현철" {
 		t.Fatalf("me %+v", got)
 	}
 	// No credential: 200 with a null identity, not 401 — the UI probes this on
@@ -703,8 +706,8 @@ func TestIssueLiteFieldNames(t *testing.T) {
 	// contract (contracts/api.md, "IssueLite").
 	for _, field := range []string{
 		"issue_key", "summary", "project_key", "issue_type", "status", "status_id",
-		"status_category", "priority", "priority_rank", "assignee", "assignee_email",
-		"reporter", "reporter_email", "labels", "components", "fix_versions", "epic_key",
+		"status_category", "priority", "priority_rank", "assignee", "assignee_id", "assignee_email",
+		"reporter", "reporter_id", "reporter_email", "labels", "components", "fix_versions", "epic_key",
 		"created_at", "updated_at", "status_changed_at", "resolved_at", "reopen_count",
 		"comment_count", "team_group",
 	} {
@@ -726,6 +729,20 @@ func TestIssueLiteFieldNames(t *testing.T) {
 	// An issue with no aliases still carries the stored fields.
 	if _, ok := rows["NMA-9"]["issue_key"]; !ok {
 		t.Errorf("row without aliases lost its fields: %v", rows["NMA-9"])
+	}
+}
+
+func TestGroupFallbackUsesAssigneeAccountID(t *testing.T) {
+	v := derivedView{
+		groupsEnabled:  true,
+		groupByAccount: map[string]string{"acc-hidden": "platform"},
+		groupByEmail:   map[string]string{"visible@example.com": "legacy"},
+	}
+	if got := deref(v.group(store.IssueLite{AssigneeID: nilIfEmpty("acc-hidden")})); got != "platform" {
+		t.Fatalf("account-id group = %q", got)
+	}
+	if got := deref(v.group(store.IssueLite{AssigneeEmail: nilIfEmpty("visible@example.com")})); got != "legacy" {
+		t.Fatalf("email fallback group = %q", got)
 	}
 }
 

@@ -58,8 +58,12 @@ export interface IssueLite {
   severity: string | null
 
   assignee: string | null
+  /** Stable Jira accountId. Older cached rows may omit it. */
+  assignee_id?: string | null
   assignee_email: string | null
   reporter: string | null
+  /** Stable Jira accountId. Older servers/cached rows may omit it. */
+  reporter_id?: string | null
   reporter_email: string | null
 
   labels: string[]

@@ -55,9 +55,10 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
   the same clock that writes `items.synced_at`. That cursor bound is inclusive,
   so a poll in the same millisecond as a write legitimately re-sends the row.
 - `members` is keyed by email: the mirror supplies the name and account id of
-  everyone who appears as an assignee, and `config.members` supplies
-  `group`, `department`, `job_role` and the avatar, winning on every conflict. A
-  reporter who is never an assignee cannot be keyed and is absent. `avatar_url`
+  everyone who appears as an assignee or reporter with a visible email, and
+  `config.members` supplies `group`, `department`, `job_role` and the avatar,
+  winning on every conflict. A person whose email Jira hides can still appear
+  when configured explicitly. `avatar_url`
   and `profile_image` carry the same value — the client reads the latter.
 - `sync_health.status` is one of `healthy` / `stale` / `failed` / `missing`, and
   `message` is `"ok"` when nothing is wrong (the client suppresses that line).
@@ -167,7 +168,7 @@ renaming or removing is not.
 ```
 issue_key, summary, project_key, issue_type, issue_type_id, status, status_id,
 status_category, priority, priority_rank, assignee, assignee_id, assignee_email,
-reporter, reporter_email, epic_key, labels[], components[], fix_versions[],
+reporter, reporter_id, reporter_email, epic_key, labels[], components[], fix_versions[],
 duedate, resolution, created_at, updated_at, status_changed_at, resolved_at,
 reopen_count, reopened_at, comment_count
 ```
@@ -183,7 +184,9 @@ configuration:
 - every `fieldMap` alias present in `issues.custom`, spread as a top-level key
   (`severity`, `solution`, `environment`, …). Aliases are serialized before the
   stored fields, so a stored field of the same name wins in the client's
-  `JSON.parse`.
+  `JSON.parse`. A user-role alias also carries `<alias>_account_ids` as an array
+  of stable Jira account IDs; the alias itself remains the display string (or
+  string array) so existing detail rendering and saved views remain readable.
 
 A third group comes from plugin enrichments: `deploy_status` from kind `deploy`,
 and `qa_impact_state` / `qa_impact_label` / `qa_runs` / `qa_suites` from kind
@@ -522,13 +525,13 @@ cannot bring the filter back.
 scry is a single-user local tool. There are no scry accounts and no session
 tokens. **Identity is the stored Jira credential** (`site` / email / API token in
 `~/.scry/config.json`, managed via `credential/`). `GET me/` projects that
-credential into `{email, name, department}` for the UI; when nothing is
+credential into `{email, account_id, name, department}` for the UI; when nothing is
 configured it answers `200 {"email": null}` so the boot probe never 4xxes.
 Writes that need Jira call out with that same credential. The UI has no login
 dialog — if identity is missing it opens the credential settings dialog instead.
 
 | Endpoint | Method | v0.1 behavior |
 | --- | --- | --- |
-| `me/` | GET | `{email, name, department}` from the stored credential and the configured member directory, with no call to Jira. `200 {"email": null}` when nothing is configured |
+| `me/` | GET | `{email, account_id, name, department}` from the stored credential and the configured member directory, with no call to Jira. `account_id` is null for credentials verified by an older build; `200 {"email": null}` when nothing is configured |
 | `login/` | POST | `404`. There are no scry accounts; use `PUT credential/` |
 | `logout/` | POST | `404`. Clear credentials with `DELETE credential/` instead |

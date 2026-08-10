@@ -324,7 +324,7 @@ func (s *server) handleMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"email": nil})
 		return
 	}
-	name, dept := cfg.Email, ""
+	name, dept, accountID := cfg.Email, "", cfg.AccountID
 	for _, m := range cfg.Members {
 		if m.Email != cfg.Email {
 			continue
@@ -335,10 +335,14 @@ func (s *server) handleMe(w http.ResponseWriter, r *http.Request) {
 			name = m.Name
 		}
 		dept = m.Department
+		if accountID == "" {
+			accountID = m.JiraAccountID
+		}
 		break
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"email":      cfg.Email,
+		"account_id": nilIfEmpty(accountID),
 		"name":       name,
 		"department": nilIfEmpty(dept),
 	})

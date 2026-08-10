@@ -118,7 +118,8 @@ calls `store.Search`, so there is no match field or snippet to surface.
 **Filters**
 
 - `status_category` → tab / category filter
-- `assignee_email` / `assignee` → assignee filter
+- `assignee_email` / `assignee` → assignee filter. The compatibility key accepts
+  either a Jira account ID (new web views) or an email (older saved views).
 - `q` / `text` → the `/` text filter
 - `unassigned` → unassigned-only
 

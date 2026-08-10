@@ -22,7 +22,9 @@ import type { DeployState, IssueLite } from './types'
 export interface ViewFilters {
   status_category: string[] // new | inprogress | done (effective buckets)
   status: string[] // Raw Jira status strings
+  /** Compatibility name: values are Jira account IDs when available, legacy emails otherwise. */
   assignee_email: string[]
+  /** Compatibility name: values are Jira account IDs when available, legacy emails otherwise. */
   reporter_email: string[]
   team_group: string[]
   labels: string[]

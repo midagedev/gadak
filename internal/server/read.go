@@ -776,6 +776,7 @@ type derivedView struct {
 	emailByAccount map[string]string
 	categories     map[string]string
 	groupByEmail   map[string]string
+	groupByAccount map[string]string
 	rules          []config.GroupRule
 	groupsEnabled  bool
 	// Plugin enrichments the list rows carry, by issue key. They are cached with
@@ -820,6 +821,7 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		emailByAccount: map[string]string{},
 		categories:     map[string]string{},
 		groupByEmail:   map[string]string{},
+		groupByAccount: map[string]string{},
 		rules:          cfg.GroupRules,
 		bodyAliases:    map[string]bool{},
 	}
@@ -836,16 +838,9 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		return nil, err
 	}
 	byEmail := map[string]*member{}
-	for i := range lites {
-		l := &lites[i]
-		if l.StatusID != "" && l.StatusCategory != "" {
-			v.categories[l.StatusID] = l.StatusCategory
-		}
-		// Only assignees carry an email in the mirror, so only they can seed the
-		// directory: members are keyed by email on the client.
-		email := deref(l.AssigneeEmail)
+	addMember := func(email string, name *string, accountID *string) {
 		if email == "" {
-			continue
+			return
 		}
 		m := byEmail[email]
 		if m == nil {
@@ -853,11 +848,21 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 			byEmail[email] = m
 		}
 		if m.Name == "" {
-			m.Name = deref(l.Assignee)
+			m.Name = deref(name)
 		}
 		if m.JiraAccountID == nil {
-			m.JiraAccountID = nilIfEmpty(deref(l.AssigneeID))
+			m.JiraAccountID = nilIfEmpty(deref(accountID))
 		}
+	}
+	for i := range lites {
+		l := &lites[i]
+		if l.StatusID != "" && l.StatusCategory != "" {
+			v.categories[l.StatusID] = l.StatusCategory
+		}
+		// The client directory remains keyed by email for contact/avatar metadata,
+		// but both issue people can seed it when Jira supplies one.
+		addMember(deref(l.AssigneeEmail), l.Assignee, l.AssigneeID)
+		addMember(deref(l.ReporterEmail), l.Reporter, l.ReporterID)
 	}
 	// Configuration wins: group, department, job role and avatar exist nowhere
 	// else.
@@ -886,6 +891,9 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		}
 		if cm.Group != "" {
 			v.groupByEmail[cm.Email] = cm.Group
+			if cm.JiraAccountID != "" {
+				v.groupByAccount[cm.JiraAccountID] = cm.Group
+			}
 			v.groupsEnabled = true
 		}
 	}
@@ -992,6 +1000,9 @@ func (v *derivedView) group(l store.IssueLite) *string {
 		if ruleMatches(r, l) {
 			return nilIfEmpty(r.Group)
 		}
+	}
+	if group := v.groupByAccount[deref(l.AssigneeID)]; group != "" {
+		return nilIfEmpty(group)
 	}
 	return nilIfEmpty(v.groupByEmail[deref(l.AssigneeEmail)])
 }

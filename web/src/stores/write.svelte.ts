@@ -387,6 +387,7 @@ class WriteStore {
       key,
       {
         assignee: user ? user.display_name : null,
+        assignee_id: user ? user.account_id : null,
         assignee_email: user ? user.email || null : null,
       },
       () => api.setAssignee(key, user ? user.account_id : null),

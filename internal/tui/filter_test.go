@@ -96,9 +96,9 @@ func TestBuildRowsPreLowercases(t *testing.T) {
 
 func TestApplyListFilterUnassignedAndEmail(t *testing.T) {
 	all := buildRows([]store.IssueLite{
-		{IssueKey: "A-1", Summary: "one", StatusCategory: "new", Assignee: strp("Ada"), AssigneeEmail: strp("ada@x.com")},
+		{IssueKey: "A-1", Summary: "one", StatusCategory: "new", Assignee: strp("Ada"), AssigneeID: strp("acc-ada"), AssigneeEmail: strp("ada@x.com")},
 		{IssueKey: "A-2", Summary: "two", StatusCategory: "new"},
-		{IssueKey: "A-3", Summary: "three", StatusCategory: "done", AssigneeEmail: strp("bob@x.com")},
+		{IssueKey: "A-3", Summary: "three", StatusCategory: "done", AssigneeID: strp("acc-bob")},
 	})
 	got := applyListFilter(all, listFilter{tab: TabAll, unassigned: true})
 	if len(got) != 1 || all[got[0]].lite.IssueKey != "A-2" {
@@ -107,6 +107,10 @@ func TestApplyListFilterUnassignedAndEmail(t *testing.T) {
 	got = applyListFilter(all, listFilter{tab: TabAll, assigneeEmail: "ada@x.com"})
 	if len(got) != 1 || all[got[0]].lite.IssueKey != "A-1" {
 		t.Fatalf("email: %#v", got)
+	}
+	got = applyListFilter(all, listFilter{tab: TabAll, assigneeEmail: "acc-bob"})
+	if len(got) != 1 || all[got[0]].lite.IssueKey != "A-3" {
+		t.Fatalf("account id: %#v", got)
 	}
 }
 

@@ -62,7 +62,7 @@ LIMIT or columns and retry. Never write to this database; writes go through Jira
 Examples:
 1) Open work for someone, most urgent first:
   SELECT key, status, priority, summary FROM issues_full
-  WHERE assignee_email = 'dana@example.com' AND status_category != 'done'
+  WHERE assignee_id = 'account-id-from-the-mirror' AND status_category != 'done'
   ORDER BY priority_rank, updated_at DESC LIMIT 20;
 
 2) Issues stuck in progress the longest:

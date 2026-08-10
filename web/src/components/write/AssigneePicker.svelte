@@ -53,7 +53,7 @@
   const serverUsers = $derived(userSearch.results)
   let inputEl: HTMLInputElement | null = $state(null)
 
-  const hasAssignee = $derived(Boolean(issue.assignee || issue.assignee_email))
+  const hasAssignee = $derived(Boolean(issue.assignee_id || issue.assignee || issue.assignee_email))
 
   function candOf(m: Member, label?: string): Cand {
     return {
@@ -97,7 +97,9 @@
       return r
     }
     const g1 = take([meMember], t('write.assignToMe'))
-    const g2 = take([issue.reporter_email ? issues.members.get(issue.reporter_email) : undefined])
+    const g2 = take([
+      issues.memberOfAccountId(issue.reporter_id) ?? issues.memberOf(issue.reporter_email),
+    ])
     const g3 = take(recentOf('assignee').map((acc) => memberByAccount.get(acc)))
     const g4 = take(
       assignableMembers.filter((m) => issue.team_group && m.group === issue.team_group).sort(byName),

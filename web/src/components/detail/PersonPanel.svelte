@@ -22,10 +22,10 @@
   import { issues } from '../../stores/issues.svelte'
   import { pages } from '../../stores/pages.svelte'
   import { selection } from '../../stores/selection.svelte'
-  import { filters } from '../../stores/filters.svelte'
+  import { filters, issueMatchesPerson } from '../../stores/filters.svelte'
   import { me } from '../../stores/me.svelte'
   import { emptyConfig, type ViewConfig } from '../../lib/view-config'
-  import type { AuthorComment } from '../../lib/types'
+  import type { AuthorComment, IssueLite } from '../../lib/types'
   import { onEscape } from '../../lib/dom-actions'
   // The list's Avatar, not detail/'s: the panel owner must wear the same
   // name-derived color the rows repeat, or the identity link breaks.
@@ -35,15 +35,22 @@
 
   const email = $derived(person.selectedEmail)
   const member = $derived(person.member)
+  const identity = $derived(member?.jira_account_id ?? email)
+  const matches = (issue: IssueLite, role: 'assignee' | 'reporter') =>
+    issueMatchesPerson(issue, role, member?.jira_account_id) || issueMatchesPerson(issue, role, email)
   // What this person is called on screen. Falls back to the email so a member
   // the directory has lost still gets a header rather than a blank one.
   const name = $derived(member?.display_name || member?.name || email || '')
 
   const assignedCount = $derived(
-    email ? issues.allIssues.reduce((n, i) => (i.assignee_email === email ? n + 1 : n), 0) : 0,
+    identity
+      ? issues.allIssues.reduce((n, i) => (matches(i, 'assignee') ? n + 1 : n), 0)
+      : 0,
   )
   const reportedCount = $derived(
-    email ? issues.allIssues.reduce((n, i) => (i.reporter_email === email ? n + 1 : n), 0) : 0,
+    identity
+      ? issues.allIssues.reduce((n, i) => (matches(i, 'reporter') ? n + 1 : n), 0)
+      : 0,
   )
   // Pages are grouped by author name, not by account id, so this is the count
   // the By-author tab will actually show. Zero hides the link: sending someone
@@ -59,16 +66,16 @@
   }
 
   function openAssigned(): void {
-    if (!email) return
+    if (!identity) return
     const c = emptyConfig()
-    c.filters.assignee_email = [email]
+    c.filters.assignee_email = [identity]
     applyView(c)
   }
 
   function openReported(): void {
-    if (!email) return
+    if (!identity) return
     const c = emptyConfig()
-    c.filters.reporter_email = [email]
+    c.filters.reporter_email = [identity]
     applyView(c)
   }
 

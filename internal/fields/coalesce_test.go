@@ -54,6 +54,32 @@ func TestDisplayValueShapes(t *testing.T) {
 	}
 }
 
+func TestCoalesceUserAccountIDs(t *testing.T) {
+	specs := []config.FieldSpec{
+		{Alias: "owner", IDs: []string{"customfield_10"}, Role: "user"},
+		{Alias: "reviewers", IDs: []string{"customfield_20"}, Role: "user"},
+	}
+	extra := map[string]json.RawMessage{
+		"customfield_10": json.RawMessage(`{"accountId":"acc-1","displayName":"Ada"}`),
+		"customfield_20": json.RawMessage(`[
+			{"accountId":"acc-2","displayName":"Grace"},
+			{"accountId":"acc-3","displayName":"Linus"}
+		]`),
+	}
+	got := CoalesceSpecs(specs, extra)
+	if got["owner"] != "Ada" {
+		t.Fatalf("owner display = %#v", got["owner"])
+	}
+	ownerIDs, ok := got["owner"+UserAccountIDsSuffix].([]string)
+	if !ok || len(ownerIDs) != 1 || ownerIDs[0] != "acc-1" {
+		t.Fatalf("owner ids = %#v", got["owner"+UserAccountIDsSuffix])
+	}
+	reviewerIDs, ok := got["reviewers"+UserAccountIDsSuffix].([]string)
+	if !ok || len(reviewerIDs) != 2 || reviewerIDs[0] != "acc-2" || reviewerIDs[1] != "acc-3" {
+		t.Fatalf("reviewer ids = %#v", got["reviewers"+UserAccountIDsSuffix])
+	}
+}
+
 func TestIsFilled(t *testing.T) {
 	cases := []struct {
 		raw  string

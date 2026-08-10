@@ -39,7 +39,7 @@ type listFilter struct {
 	statusCategories []string // exact match any; empty → use tab
 	text             string   // lowercased haystack substring
 	unassigned       bool
-	assigneeEmail    string // lowercased; match IssueLite.AssigneeEmail
+	assigneeEmail    string // legacy saved-view key; value may be email or account id
 }
 
 // row is one list entry with a pre-lowercased haystack for filter matching.
@@ -128,7 +128,8 @@ func applyListFilter(all []row, f listFilter) []int {
 		}
 		if f.assigneeEmail != "" {
 			email := strings.ToLower(deref(r.lite.AssigneeEmail))
-			if email == "" || email != f.assigneeEmail {
+			accountID := strings.ToLower(deref(r.lite.AssigneeID))
+			if email != f.assigneeEmail && accountID != f.assigneeEmail {
 				continue
 			}
 		}
