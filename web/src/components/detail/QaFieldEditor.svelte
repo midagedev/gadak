@@ -197,10 +197,10 @@
 
   async function pickUser(c: Cand | null) {
     busy = true
-    const ok = await write.setField(key, field, c ? c.account_id : null, {
-      [field]: c ? c.display_name : null,
-      [`${field}_account_ids`]: c ? [c.account_id] : [],
-    } as Partial<IssueLite>)
+    const ok = await write.setField(key, 'development_test_assignee', c ? c.account_id : null, {
+      development_test_assignee: c ? c.display_name : null,
+      development_test_assignee_email: c ? c.email : null,
+    })
     busy = false
     if (ok) open = false
   }
@@ -363,9 +363,7 @@
           <button
             type="button"
             role="option"
-            aria-selected={((issue as unknown as Record<string, unknown>)[`${field}_account_ids`] as
-              | string[]
-              | undefined)?.includes(c.account_id) ?? false}
+            aria-selected={c.email != null && c.email === issue.development_test_assignee_email}
             onclick={() => pickUser(c)}
             disabled={busy}
             class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:outline-none disabled:opacity-50"

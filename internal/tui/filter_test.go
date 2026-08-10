@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/store"
 )
 
@@ -111,6 +112,19 @@ func TestApplyListFilterUnassignedAndEmail(t *testing.T) {
 	got = applyListFilter(all, listFilter{tab: TabAll, assigneeEmail: "acc-bob"})
 	if len(got) != 1 || all[got[0]].lite.IssueKey != "A-3" {
 		t.Fatalf("account id: %#v", got)
+	}
+	got = applyListFilter(all, listFilter{tab: TabAll, assigneeEmail: "ACC-BOB"})
+	if len(got) != 0 {
+		t.Fatalf("account IDs must compare exactly: %#v", got)
+	}
+	resolved := configuredAssigneeAccountID([]config.Member{{
+		Email: "Bob@Example.com", JiraAccountID: "acc-bob",
+	}}, "bob@example.com")
+	got = applyListFilter(all, listFilter{
+		tab: TabAll, assigneeEmail: "bob@example.com", assigneeAccountID: resolved,
+	})
+	if len(got) != 1 || all[got[0]].lite.IssueKey != "A-3" {
+		t.Fatalf("configured legacy email: %#v", got)
 	}
 }
 

@@ -119,7 +119,9 @@ calls `store.Search`, so there is no match field or snippet to surface.
 
 - `status_category` → tab / category filter
 - `assignee_email` / `assignee` → assignee filter. The compatibility key accepts
-  either a Jira account ID (new web views) or an email (older saved views).
+  either a Jira account ID (new web views) or an email (older saved views). When
+  an issue no longer carries that email, configured members can map the legacy
+  email to its Jira account ID.
 - `q` / `text` → the `/` text filter
 - `unassigned` → unassigned-only
 

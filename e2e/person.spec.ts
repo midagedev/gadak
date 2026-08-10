@@ -54,38 +54,6 @@ test.describe('people axis', () => {
     await expect(page.getByText('198 issues')).toBeVisible()
   })
 
-  test('a configured user field filters by account ID while displaying the person name', async ({
-    page,
-  }) => {
-    await page.route('**/api/v1/issues/bootstrap/', async (route) => {
-      const response = await route.fetch()
-      const body = await response.json()
-      body.field_specs = [
-        ...(body.field_specs ?? []),
-        { alias: 'reviewer', label: 'Reviewer', role: 'user' },
-      ]
-      const project = body.issues[0].project_key
-      body.field_usage ??= {}
-      body.field_usage[project] ??= {}
-      body.field_usage[project].reviewer = 3
-      for (const [index, issue] of body.issues.slice(0, 3).entries()) {
-        const first = index < 2
-        issue.reviewer = first ? 'Reviewer One' : 'Reviewer Two'
-        issue.reviewer_account_ids = [first ? 'acc-reviewer-1' : 'acc-reviewer-2']
-      }
-      await route.fulfill({ response, json: body })
-    })
-    await gotoApp(page)
-
-    await page.getByRole('button', { name: '+ Filter' }).click()
-    await page.getByRole('button', { name: 'Reviewer', exact: true }).click()
-    await page.getByRole('button', { name: /Reviewer One\s+2/ }).click()
-
-    await expect(page.getByText('2 issues')).toBeVisible()
-    await expect(page.getByRole('button', { name: /Reviewer: Reviewer One/ })).toBeVisible()
-    expect(decodeURIComponent(page.url())).toContain('f.reviewer=acc-reviewer-1')
-  })
-
   test('palette finds a person, the panel lists their comments, a quick link filters the list', async ({
     page,
   }) => {

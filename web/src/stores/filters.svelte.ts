@@ -200,17 +200,10 @@ class FiltersStore {
     const axes = this.dynamicAxes
     if (!axes.length) return {}
     const counters: Record<string, Map<string, number>> = {}
-    const labels: Record<string, Map<string, string>> = {}
-    for (const a of axes) {
-      counters[a.key] = new Map()
-      labels[a.key] = new Map()
-    }
+    for (const a of axes) counters[a.key] = new Map()
     for (const it of issues.allIssues) {
       for (const a of axes) {
-        for (const entry of rowFieldEntries(it, a.key)) {
-          bump(counters[a.key], entry.value)
-          if (!labels[a.key].has(entry.value)) labels[a.key].set(entry.value, entry.label)
-        }
+        for (const value of rowFieldValues(it, a.key)) bump(counters[a.key], value)
       }
     }
     const out: Record<string, FacetValue[]> = {}
@@ -218,7 +211,7 @@ class FiltersStore {
       const values: FacetValue[] = [...counters[a.key].entries()].map(([value, count]) => ({
         value,
         count,
-        label: labels[a.key].get(value) ?? value,
+        label: value,
       }))
       values.sort((x, y) => y.count - x.count || (x.label < y.label ? -1 : 1))
       out[a.key] = values
@@ -532,34 +525,12 @@ export function rowFieldValues(issue: IssueLite, alias: string): string[] {
   return []
 }
 
-const USER_ACCOUNT_IDS_SUFFIX = '_account_ids'
-
-interface FieldEntry {
-  value: string
-  label: string
-}
-
-/** Stable filter values for a custom user field, with display values as labels. */
-function rowFieldEntries(issue: IssueLite, alias: string): FieldEntry[] {
-  const labels = rowFieldValues(issue, alias)
-  const ids = rowFieldValues(issue, alias + USER_ACCOUNT_IDS_SUFFIX)
-  if (!ids.length) return labels.map((value) => ({ value, label: value }))
-  return ids.map((value, i) => ({ value, label: labels[i] ?? value }))
-}
-
-function rowFieldFilterValues(issue: IssueLite, alias: string): string[] {
-  const entries = rowFieldEntries(issue, alias)
-  const values = entries.map((entry) => entry.value)
-  for (const label of rowFieldValues(issue, alias)) if (!values.includes(label)) values.push(label)
-  return values
-}
-
 /** AND across dynamic axes, OR within one — same semantics as the static fields. */
 function matchesDynamicFields(fields: Record<string, string[]>, it: IssueLite): boolean {
   for (const alias in fields) {
     const selected = fields[alias]
     if (!selected.length) continue
-    if (!matchesSelected(selected, rowFieldFilterValues(it, alias))) return false
+    if (!matchesSelected(selected, rowFieldValues(it, alias))) return false
   }
   return true
 }
@@ -981,8 +952,7 @@ function buildChips(
   for (const [alias, values] of Object.entries(f.fields)) {
     const name = fieldLabels.get(alias) ?? FIELD_LABEL(alias)
     for (const value of values) {
-      const display = dynamicFieldLabel(alias, value, all)
-      chips.push({ kind: 'field', field: alias, value, label: t('filter.chipFieldValue', { field: name, value: display }) })
+      chips.push({ kind: 'field', field: alias, value, label: t('filter.chipFieldValue', { field: name, value }) })
     }
   }
   if (f.reopened) chips.push({ kind: 'flag', field: 'reopened', label: t('filter.flagReopened') })
@@ -1003,12 +973,20 @@ function buildFacets(
 ): Record<MultiField, FacetValue[]> {
   const counters: Record<string, Map<string, number>> = {}
   for (const field of MULTI_FIELDS) counters[field] = new Map()
+  const assigneeLabels = new Map<string, string>()
+  const reporterLabels = new Map<string, string>()
 
   for (const it of all) {
     bump(counters.status_category, effectiveCategory(it))
     bump(counters.status, it.status)
-    bump(counters.assignee_email, personIdentity(it, 'assignee'))
-    bump(counters.reporter_email, personIdentity(it, 'reporter'))
+    const assignee = personIdentity(it, 'assignee')
+    const reporter = personIdentity(it, 'reporter')
+    bump(counters.assignee_email, assignee)
+    bump(counters.reporter_email, reporter)
+    if (assignee && !assigneeLabels.has(assignee))
+      assigneeLabels.set(assignee, it.assignee || it.assignee_email || assignee)
+    if (reporter && !reporterLabels.has(reporter))
+      reporterLabels.set(reporter, it.reporter || it.reporter_email || reporter)
     if (it.team_group) bump(counters.team_group, it.team_group)
     if (it.priority) bump(counters.priority, it.priority)
     if (it.severity) bump(counters.severity, it.severity)
@@ -1030,11 +1008,15 @@ function buildFacets(
 
   const out = {} as Record<MultiField, FacetValue[]>
   for (const field of MULTI_FIELDS) {
-    const values: FacetValue[] = [...counters[field].entries()].map(([value, count]) => ({
-      value,
-      count,
-      label: facetLabel(field, value, all, members),
-    }))
+    const values: FacetValue[] = [...counters[field].entries()].map(([value, count]) => {
+      const personLabel =
+        field === 'assignee_email'
+          ? assigneeLabels.get(value)
+          : field === 'reporter_email'
+            ? reporterLabels.get(value)
+            : undefined
+      return { value, count, label: personLabel ?? facetLabel(field, value, all, members) }
+    })
     values.sort((a, b) => b.count - a.count || (a.label < b.label ? -1 : 1))
     out[field] = values
   }
@@ -1091,7 +1073,7 @@ function facetLabel(
 type PersonRole = 'assignee' | 'reporter'
 
 export function personIdentity(issue: IssueLite, role: PersonRole): string | null {
-  return issue[`${role}_id`] ?? issue[`${role}_email`] ?? null
+  return issue[`${role}_id`] || issue[`${role}_email`] || null
 }
 
 function sameIdentity(a: string, b: string): boolean {
@@ -1107,23 +1089,17 @@ export function issueMatchesPerson(
   const id = issue[`${role}_id`]
   const email = issue[`${role}_email`]
   if ((id && sameIdentity(id, value)) || (email && sameIdentity(email, value))) return true
-  // Saved views created before the ID migration carry email values. When Jira
-  // later hides that email on issue rows, the configured member directory can
-  // still resolve the legacy token to the stable account ID without a network call.
-  const configuredID = issues.memberOf(value)?.jira_account_id
-  return Boolean(id && configuredID && sameIdentity(id, configuredID))
+  // During a cache upgrade either side can temporarily carry only one identity
+  // shape. The member directory bridges a known email alias and its account ID
+  // without adding a network call to the filter path.
+  const member = value.includes('@') ? issues.memberOf(value) : issues.memberOfAccountId(value)
+  if (!member) return false
+  if (id && member.jira_account_id && sameIdentity(id, member.jira_account_id)) return true
+  return Boolean(email && sameIdentity(email, member.email))
 }
 
 function hasIssuePerson(issue: IssueLite, role: PersonRole): boolean {
   return Boolean(issue[`${role}_id`] || issue[role] || issue[`${role}_email`])
-}
-
-function dynamicFieldLabel(alias: string, value: string, all: IssueLite[]): string {
-  for (const issue of all) {
-    const found = rowFieldEntries(issue, alias).find((entry) => entry.value === value)
-    if (found) return found.label
-  }
-  return value
 }
 
 function bump(m: Map<string, number>, key: string | null | undefined): void {

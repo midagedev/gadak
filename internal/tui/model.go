@@ -777,6 +777,9 @@ func (m *Model) refilter() {
 	needle := strings.ToLower(strings.TrimSpace(m.filter))
 	f := m.extraFilter
 	f.tab = m.tab
+	if m.cfg != nil && f.assigneeEmail != "" {
+		f.assigneeAccountID = configuredAssigneeAccountID(m.cfg.Members, f.assigneeEmail)
+	}
 	// Free-text from / merges with any text baked into the saved view.
 	if needle != "" {
 		f.text = needle

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/midagedev/scry/internal/config"
 	"github.com/midagedev/scry/internal/store"
 )
 
@@ -35,11 +36,12 @@ func (t Tab) Label() string {
 // listFilter is the full local filter applied to the issue list.
 // statusCategories, when non-empty, overrides tab for category matching.
 type listFilter struct {
-	tab              Tab
-	statusCategories []string // exact match any; empty → use tab
-	text             string   // lowercased haystack substring
-	unassigned       bool
-	assigneeEmail    string // legacy saved-view key; value may be email or account id
+	tab               Tab
+	statusCategories  []string // exact match any; empty → use tab
+	text              string   // lowercased haystack substring
+	unassigned        bool
+	assigneeEmail     string // legacy saved-view key; value may be email or account id
+	assigneeAccountID string // configured resolution for a legacy email token
 }
 
 // row is one list entry with a pre-lowercased haystack for filter matching.
@@ -127,9 +129,12 @@ func applyListFilter(all []row, f listFilter) []int {
 			}
 		}
 		if f.assigneeEmail != "" {
-			email := strings.ToLower(deref(r.lite.AssigneeEmail))
-			accountID := strings.ToLower(deref(r.lite.AssigneeID))
-			if email != f.assigneeEmail && accountID != f.assigneeEmail {
+			email := deref(r.lite.AssigneeEmail)
+			accountID := deref(r.lite.AssigneeID)
+			emailMatches := email != "" && strings.EqualFold(email, f.assigneeEmail)
+			idMatches := accountID == f.assigneeEmail ||
+				(f.assigneeAccountID != "" && accountID == f.assigneeAccountID)
+			if !emailMatches && !idMatches {
 				continue
 			}
 		}
@@ -139,6 +144,18 @@ func applyListFilter(all []row, f listFilter) []int {
 		out = append(out, i)
 	}
 	return out
+}
+
+func configuredAssigneeAccountID(members []config.Member, value string) string {
+	if !strings.Contains(value, "@") {
+		return ""
+	}
+	for _, member := range members {
+		if strings.EqualFold(member.Email, value) {
+			return member.JiraAccountID
+		}
+	}
+	return ""
 }
 
 // listSort is the list display sort from a saved view (display.sort / display.dir).
@@ -257,8 +274,9 @@ func parseSavedViewConfig(name string, raw json.RawMessage) appliedView {
 				}
 			}
 			if len(emails) > 0 {
-				// TUI applies the first email only (AND of multiple is rare).
-				av.filter.assigneeEmail = strings.ToLower(strings.TrimSpace(emails[0]))
+				// TUI applies the first person value only (AND of multiple is rare).
+				// Preserve account-ID case; email comparison is case-insensitive later.
+				av.filter.assigneeEmail = strings.TrimSpace(emails[0])
 				if len(emails) > 1 {
 					av.unsupported = append(av.unsupported, "assignee_email[1+]")
 				}
@@ -271,7 +289,7 @@ func parseSavedViewConfig(name string, raw json.RawMessage) appliedView {
 				if strings.EqualFold(s, "me") {
 					av.unsupported = append(av.unsupported, "assignee=me")
 				} else if strings.Contains(s, "@") {
-					av.filter.assigneeEmail = strings.ToLower(strings.TrimSpace(s))
+					av.filter.assigneeEmail = strings.TrimSpace(s)
 				} else {
 					av.filter.text = strings.ToLower(strings.TrimSpace(s))
 				}

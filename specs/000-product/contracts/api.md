@@ -165,6 +165,11 @@ The row shape used by `bootstrap`, `delta`, and every write response. Stored
 verbatim in IndexedDB, so **field names are a contract** — adding is safe,
 renaming or removing is not.
 
+Browser cache schema v2 clears v1 `issues` rows and the `sync` cursor once so
+the additive `reporter_id` projection reaches unchanged issues through a full
+bootstrap. The independent `write` metadata record is preserved, and v2 caches
+are reused without another invalidation.
+
 ```
 issue_key, summary, project_key, issue_type, issue_type_id, status, status_id,
 status_category, priority, priority_rank, assignee, assignee_id, assignee_email,
@@ -184,9 +189,7 @@ configuration:
 - every `fieldMap` alias present in `issues.custom`, spread as a top-level key
   (`severity`, `solution`, `environment`, …). Aliases are serialized before the
   stored fields, so a stored field of the same name wins in the client's
-  `JSON.parse`. A user-role alias also carries `<alias>_account_ids` as an array
-  of stable Jira account IDs; the alias itself remains the display string (or
-  string array) so existing detail rendering and saved views remain readable.
+  `JSON.parse`.
 
 A third group comes from plugin enrichments: `deploy_status` from kind `deploy`,
 and `qa_impact_state` / `qa_impact_label` / `qa_runs` / `qa_suites` from kind
