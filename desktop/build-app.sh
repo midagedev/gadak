@@ -34,11 +34,15 @@ test -f "$repo/dist/app/index.html" || {
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/bin"
 
-# UTType lives in UniformTypeIdentifiers on current SDKs; wails v2 does not
-# link it by itself.
-(cd "$repo/desktop" && CGO_LDFLAGS="-framework UniformTypeIdentifiers" \
-  go build -tags desktop,production -trimpath \
-  -ldflags "-s -w" \
+# wails v3 declares its own -framework UniformTypeIdentifiers (v2 did not, and
+# needed the flag passed in here).
+#
+# appVersion is what the updater compares against the releases feed, and its
+# release-version test is what gates self-updating at all: stamped from the tag
+# a release build self-updates, unstamped ("dev") or built off a tag
+# ("0.10.0-15-gabc1234") it does not.
+(cd "$repo/desktop" && go build -tags desktop,production -trimpath \
+  -ldflags "-s -w -X main.appVersion=${version#v}" \
   -o "$app/Contents/MacOS/scry-desktop" .)
 
 # CLI for agent wiring (scry mcp install, scry sql, …) without a separate brew
@@ -134,5 +138,27 @@ if [[ "${1:-}" == "--dmg" ]]; then
     echo "partial SCRY_NOTARY_* set — need KEY (path), KEY_ID, and ISSUER_ID; skipping notarization" >&2
   fi
 
+  # Update artifact for the in-app updater (desktop/updater.go): a zip holding
+  # exactly one .app, named so desktopAssetMatcher finds it on the release.
+  # Zipped after stapling so the ticket travels inside the archive, and with
+  # ditto rather than zip(1) — zip(1) drops the extended attributes the
+  # signature lives in, and the unpacked copy fails Gatekeeper.
+  #
+  # No --sequesterRsrc: that flag writes resource forks to a sibling __MACOSX
+  # tree, and the updater rejects any archive whose root holds more than one
+  # entry ("archive must contain exactly one top-level entry, got 2") — it has
+  # one path to swap the payload into. Plain --keepParent stores the same
+  # metadata inline and leaves Scry.app alone at the root.
+  zip="$out/scry-desktop-darwin-${arch}.zip"
+  rm -f "$zip"
+  ditto -c -k --keepParent "$app" "$zip"
+
+  # Digest sidecar the updater verifies the download against. The dmg rides
+  # along so a manual download can be checked the same way.
+  sums="$out/SHA256SUMS"
+  (cd "$out" && shasum -a 256 "$(basename "$zip")" "$(basename "$dmg")" > "$(basename "$sums")")
+
   echo "built $dmg"
+  echo "built $zip"
+  echo "built $sums"
 fi

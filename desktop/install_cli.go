@@ -3,27 +3,20 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/midagedev/scry/internal/clitool"
 )
 
 // appendInstallCLIMenu adds Tools → "Install Command Line Tool…" (macOS only).
-// wailsCtx is filled in OnStartup; the click handler no-ops until then.
-func appendInstallCLIMenu(appMenu *menu.Menu, wailsCtx *context.Context) {
+func appendInstallCLIMenu(appMenu *application.Menu) {
 	tools := appMenu.AddSubmenu("Tools")
-	tools.AddText("Install Command Line Tool…", nil, func(*menu.CallbackData) {
-		ctx := *wailsCtx
-		if ctx == nil {
-			return
-		}
-		handleInstallCLI(ctx)
+	tools.Add("Install Command Line Tool…").OnClick(func(*application.Context) {
+		handleInstallCLI()
 	})
 }
 
@@ -54,28 +47,22 @@ func bundleCLIPath() (string, error) {
 	return cli, nil
 }
 
-func handleInstallCLI(ctx context.Context) {
+func handleInstallCLI() {
 	source, err := bundleCLIPath()
 	if err != nil {
-		showDialog(ctx, runtime.ErrorDialog, "Command Line Tool", err.Error())
+		showError("Command Line Tool", err.Error())
 		return
 	}
 
 	plan, err := clitool.Resolve(source, "", os.Getenv("PATH"))
 	if err != nil {
-		showDialog(ctx, runtime.ErrorDialog, "Command Line Tool", humanInstallErr(err))
+		showError("Command Line Tool", humanInstallErr(err))
 		return
 	}
 
 	switch plan.Status {
 	case clitool.StatusLinked:
-		msg := fmt.Sprintf("Already installed:\n%s → %s",
-			clitool.TildeHome(plan.Dest), clitool.TildeHome(plan.Source))
-		if !plan.OnPath {
-			msg += pathOffMsg(ctx, plan.Dir)
-		}
-		msg += "\n\nNext: run  scry mcp install claude  in a terminal to connect your agent."
-		showDialog(ctx, runtime.InfoDialog, "Command Line Tool", msg)
+		showInfo("Command Line Tool", installedMsg(plan, "Already installed:"))
 		return
 
 	case clitool.StatusConflict:
@@ -87,46 +74,55 @@ func handleInstallCLI(ctx context.Context) {
 			detail = fmt.Sprintf("%s already exists (%s)",
 				clitool.TildeHome(plan.Dest), plan.ExistingKind)
 		}
-		choice, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-			Type:          runtime.QuestionDialog,
-			Title:         "Replace existing file?",
-			Message:       detail + "\n\nReplace it with a link to the Scry app’s CLI?",
-			Buttons:       []string{"Replace", "Cancel"},
-			DefaultButton: "Cancel",
-			CancelButton:  "Cancel",
+		// v3 dialogs answer through a button callback rather than a return
+		// value, so the rest of the install runs from inside Replace.
+		dialog := application.Get().Dialog.Question()
+		dialog.SetTitle("Replace existing file?")
+		dialog.SetMessage(detail + "\n\nReplace it with a link to the Scry app’s CLI?")
+		replace := dialog.AddButton("Replace")
+		cancel := dialog.AddButton("Cancel")
+		dialog.SetDefaultButton(cancel)
+		dialog.SetCancelButton(cancel)
+		replace.OnClick(func() {
+			if err := clitool.Install(plan, true); err != nil {
+				showError("Command Line Tool", humanInstallErr(err))
+				return
+			}
+			showInfo("Command Line Tool", installedMsg(plan, "Installed:"))
 		})
-		if err != nil || choice != "Replace" {
-			return
-		}
-		if err := clitool.Install(plan, true); err != nil {
-			showDialog(ctx, runtime.ErrorDialog, "Command Line Tool", humanInstallErr(err))
-			return
-		}
+		dialog.Show()
+		return
 
 	default: // missing
 		if err := clitool.Install(plan, false); err != nil {
-			showDialog(ctx, runtime.ErrorDialog, "Command Line Tool", humanInstallErr(err))
+			showError("Command Line Tool", humanInstallErr(err))
 			return
 		}
 	}
 
-	msg := fmt.Sprintf("Installed:\n%s → %s",
-		clitool.TildeHome(plan.Dest), clitool.TildeHome(plan.Source))
+	showInfo("Command Line Tool", installedMsg(plan, "Installed:"))
+}
+
+// installedMsg reports where the link landed, plus the PATH note and the next
+// step. headline is what changed ("Installed:" / "Already installed:").
+func installedMsg(plan clitool.Plan, headline string) string {
+	msg := fmt.Sprintf("%s\n%s → %s",
+		headline, clitool.TildeHome(plan.Dest), clitool.TildeHome(plan.Source))
 	if !plan.OnPath {
-		msg += pathOffMsg(ctx, plan.Dir)
+		msg += pathOffMsg(plan.Dir)
 	}
 	msg += "\n\nNext: run  scry mcp install claude  in a terminal to connect your agent."
-	showDialog(ctx, runtime.InfoDialog, "Command Line Tool", msg)
+	return msg
 }
 
 // pathOffMsg notes that dir is off PATH and copies PathExportLine to the clipboard.
-func pathOffMsg(ctx context.Context, dir string) string {
+func pathOffMsg(dir string) string {
 	line := clitool.PathExportLine(dir, os.Getenv("SHELL"))
 	copied := ""
-	if err := runtime.ClipboardSetText(ctx, line); err != nil {
-		copied = "\n(Could not copy to the clipboard — paste this yourself.)"
-	} else {
+	if application.Get().Clipboard.SetText(line) {
 		copied = "\nThat line was copied to the clipboard."
+	} else {
+		copied = "\n(Could not copy to the clipboard — paste this yourself.)"
 	}
 	return fmt.Sprintf(
 		"\n\nNote: %s is not on your PATH. Add it with:\n  %s%s",
@@ -134,12 +130,18 @@ func pathOffMsg(ctx context.Context, dir string) string {
 	)
 }
 
-func showDialog(ctx context.Context, kind runtime.DialogType, title, message string) {
-	_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-		Type:    kind,
-		Title:   title,
-		Message: message,
-	})
+func showInfo(title, message string) {
+	dialog := application.Get().Dialog.Info()
+	dialog.SetTitle(title)
+	dialog.SetMessage(message)
+	dialog.Show()
+}
+
+func showError(title, message string) {
+	dialog := application.Get().Dialog.Error()
+	dialog.SetTitle(title)
+	dialog.SetMessage(message)
+	dialog.Show()
 }
 
 // humanInstallErr keeps dialogs free of secrets; install errors are path/permission only.

@@ -107,7 +107,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: scry-desktop-dmg
-          path: desktop/build/Scry-*.dmg
+          path: |
+            desktop/build/Scry-*.dmg
+            desktop/build/scry-desktop-darwin-arm64.zip
+            desktop/build/SHA256SUMS
           if-no-files-found: error
 
       - name: Attach dmg to GitHub Release
@@ -123,6 +126,19 @@ jobs:
             echo "no dmg produced" >&2
             exit 1
           fi
+          # The in-app updater consumes the zip (its name carries GOOS+GOARCH
+          # for the default asset matcher) and SHA256SUMS for digest checks;
+          # the dmg stays the human install path. build-app.sh --dmg makes all
+          # three, after notarization so the zip carries the stapled bundle.
+          assets=("${dmgs[@]}")
+          for f in desktop/build/scry-desktop-darwin-arm64.zip desktop/build/SHA256SUMS; do
+            if [[ -f "$f" ]]; then
+              assets+=("$f")
+            else
+              echo "missing updater asset $f" >&2
+              exit 1
+            fi
+          done
           # The goreleaser job creates the Release; wait so we attach rather
           # than race-create. Fall back to creating a shell release if the
           # other job never appears (e.g. disabled on a fork).
@@ -137,4 +153,4 @@ jobs:
             echo "release $tag not found after wait — creating shell release for the dmg"
             gh release create "$tag" --title "$tag" --generate-notes
           fi
-          gh release upload "$tag" "${dmgs[@]}" --clobber
+          gh release upload "$tag" "${assets[@]}" --clobber

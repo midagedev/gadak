@@ -8,17 +8,17 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"io/fs"
 	"log"
+	"mime"
 	"net/http"
+	"path"
 	"runtime"
 	"strings"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	scry "github.com/midagedev/scry"
 	"github.com/midagedev/scry/internal/attachcache"
@@ -76,86 +76,116 @@ func run() error {
 	reg := workspace.New()
 	defer reg.Close()
 
+	// window is filled in below; the single-instance callback reads it when a
+	// second launch arrives.
+	var window *application.WebviewWindow
+
+	app := application.New(application.Options{
+		// Name labels the macOS app menu; Name + Description are what the
+		// About panel shows.
+		Name:        "Scry",
+		Description: "Jira and Confluence, mirrored to your disk.",
+		Mac: application.MacOptions{
+			// v2 quit when the only window closed; keep that.
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
+		},
+		Assets: application.AssetOptions{
+			Handler: assetHandler(ui, fallbackHandler(api, ui, reg)),
+		},
+		SingleInstance: &application.SingleInstanceOptions{
+			// Per profile, not global: one window per mirror, and a second
+			// profile (SCRY_PROFILE=work open -a Scry) gets its own window.
+			UniqueID: "com.midagedev.scry." + profileLockKey(),
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
+				if window != nil {
+					window.Restore()
+					window.Focus()
+				}
+			},
+		},
+		OnShutdown: cancel,
+	})
+
+	// Self-update. nil on dev builds and on any configuration failure — see
+	// updater.go; the app runs identically either way, minus the menu item.
+	up := initUpdater(app, appVersion)
+
 	// Without an Edit menu, macOS does not wire ⌘C/V/X/A into the webview —
-	// paste during onboarding would fail. AppMenu supplies About/Quit.
-	// wailsCtx is set in OnStartup so menu handlers can open native dialogs.
-	var wailsCtx context.Context
-	appMenu := menu.NewMenu()
-	appMenu.Append(menu.AppMenu())
-	appMenu.Append(menu.EditMenu())
+	// paste during onboarding would fail. The app menu supplies About/Quit.
+	// Built after application.New: the app menu takes its label from Name.
+	appMenu := app.NewMenu()
+	appMenu.AddRole(application.AppMenu)
+	appMenu.AddRole(application.EditMenu)
 	// Tools → Install Command Line Tool… (macOS only; no-op stub elsewhere).
 	if runtime.GOOS == "darwin" {
-		appendInstallCLIMenu(appMenu, &wailsCtx)
+		appendInstallCLIMenu(appMenu)
 	}
+	// Tools → Check for Updates… goes above the CLI item, so it is added after
+	// the submenu exists and prepended into it.
+	if up != nil {
+		appendCheckForUpdatesMenu(appMenu, up)
+	}
+	app.Menu.Set(appMenu)
 
-	app := &options.App{
+	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "Scry",
 		Width:     1280,
 		Height:    820,
 		MinWidth:  720,
 		MinHeight: 480,
-		Menu:      appMenu,
-		AssetServer: &assetserver.Options{
-			Assets:  ui,
-			Handler: fallbackHandler(api, ui, reg),
-		},
-		SingleInstanceLock: &options.SingleInstanceLock{
-			// Per profile, not global: one window per mirror, and a second
-			// profile (SCRY_PROFILE=work open -a Scry) gets its own window.
-			UniqueId: "com.midagedev.scry." + profileLockKey(),
-		},
-		OnStartup: func(startupCtx context.Context) {
-			wailsCtx = startupCtx
-			if dir, err := config.Dir(); err == nil {
-				api.StartUpdateCheck(ctx, dir)
-			}
-			// Same delayed-start seam as cmd/scry serve: with a credential the
-			// watch loop starts now; without one, in-app onboarding fires it.
-			startWatch := func() {
-				go func() {
-					// Reload so onboarding's save is what the loop runs with.
-					cur, err := config.Load()
-					if err != nil {
-						log.Printf("sync loop: load config: %v", err)
-						return
-					}
-					phase, progress := api.SyncActivityHooks()
-					if err := syncer.Watch(ctx, cur, db, syncer.Options{
-						Log:      func(s string) { log.Print(s) },
-						Reload:   config.Load,
-						Phase:    phase,
-						Progress: progress,
-					}); err != nil && ctx.Err() == nil {
-						log.Printf("sync loop stopped: %v", err)
-					}
-				}()
-			}
-			if cfg.HasCredential() {
-				startWatch()
-			} else {
-				api.SetSyncStarter(startWatch)
-			}
-			// Workspace loops start immediately — those profiles already carry
-			// their own credentials (primary may still be waiting on onboarding).
-			watched := reg.WatchAll(ctx, config.Profile(), func(s string) { log.Print(s) })
-			if len(watched) > 0 {
-				log.Printf("syncing %d workspace mirrors: %s", len(watched), strings.Join(watched, ", "))
-			}
-		},
-		OnShutdown: func(context.Context) { cancel() },
-		Mac: &mac.Options{
+		URL:       "/",
+		Mac: application.MacWindow{
 			// No native title bar: it spent 28px to repeat a word the sidebar
 			// already shows. The window controls stay (they move into the
 			// sidebar's first row, which reserves their width and is the drag
 			// handle — see .desktop-titlebar-row in web/src/app.css).
-			TitleBar: mac.TitleBarHiddenInset(),
-			About: &mac.AboutInfo{
-				Title:   "Scry",
-				Message: "Jira and Confluence, mirrored to your disk.",
-			},
+			TitleBar: application.MacTitleBarHiddenInset,
 		},
-	}
-	return wails.Run(app)
+	})
+
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		if dir, err := config.Dir(); err == nil {
+			api.StartUpdateCheck(ctx, dir)
+		}
+		// Same opt-out as the sidebar banner: updateCheck: false silences both.
+		if up != nil && cfg.UpdateCheckEnabled() {
+			go checkForUpdatesQuietly(ctx, up)
+		}
+		// Same delayed-start seam as cmd/scry serve: with a credential the
+		// watch loop starts now; without one, in-app onboarding fires it.
+		startWatch := func() {
+			go func() {
+				// Reload so onboarding's save is what the loop runs with.
+				cur, err := config.Load()
+				if err != nil {
+					log.Printf("sync loop: load config: %v", err)
+					return
+				}
+				phase, progress := api.SyncActivityHooks()
+				if err := syncer.Watch(ctx, cur, db, syncer.Options{
+					Log:      func(s string) { log.Print(s) },
+					Reload:   config.Load,
+					Phase:    phase,
+					Progress: progress,
+				}); err != nil && ctx.Err() == nil {
+					log.Printf("sync loop stopped: %v", err)
+				}
+			}()
+		}
+		if cfg.HasCredential() {
+			startWatch()
+		} else {
+			api.SetSyncStarter(startWatch)
+		}
+		// Workspace loops start immediately — those profiles already carry
+		// their own credentials (primary may still be waiting on onboarding).
+		watched := reg.WatchAll(ctx, config.Profile(), func(s string) { log.Print(s) })
+		if len(watched) > 0 {
+			log.Printf("syncing %d workspace mirrors: %s", len(watched), strings.Join(watched, ", "))
+		}
+	})
+
+	return app.Run()
 }
 
 // profileLockKey names the single-instance lock for the active profile.
@@ -165,6 +195,43 @@ func profileLockKey() string {
 		return p
 	}
 	return "default"
+}
+
+// assetHandler serves the embedded web UI and hands everything it does not
+// hold to next. v2's asset server took the file system and the fallback as two
+// separate options and did this split itself; v3 takes one handler, so the
+// split lives here — same rule: GET a file that exists, otherwise fall back.
+func assetHandler(ui fs.FS, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ui == nil || r.Method != http.MethodGet {
+			next.ServeHTTP(w, r)
+			return
+		}
+		name := path.Clean(strings.TrimPrefix(r.URL.Path, "/"))
+		file, err := ui.Open(name)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		defer file.Close()
+		info, err := file.Stat()
+		if err != nil || info.IsDir() {
+			// Directories (including the root) are client-side routes as far
+			// as this app is concerned: next serves index.html for them.
+			next.ServeHTTP(w, r)
+			return
+		}
+		// ServeContent, not ServeFileFS: the latter redirects /index.html to
+		// ./, and the webview should not be sent round a redirect.
+		if seeker, canSeek := file.(io.ReadSeeker); canSeek {
+			http.ServeContent(w, r, info.Name(), info.ModTime(), seeker)
+			return
+		}
+		if ctype := mime.TypeByExtension(path.Ext(info.Name())); ctype != "" {
+			w.Header().Set("Content-Type", ctype)
+		}
+		_, _ = io.Copy(w, file)
+	})
 }
 
 // fallbackHandler serves whatever the Wails asset server does not find as a
