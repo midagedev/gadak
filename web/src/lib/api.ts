@@ -138,6 +138,28 @@ export function getPageDetail(key: string): Promise<PageDetail> {
   return json<PageDetail>(`pages/${encodeURIComponent(key)}/`)
 }
 
+/**
+ * Re-fetch one issue from the upstream tracker into the mirror.
+ * Response shape matches other write endpoints (refreshed IssueLite).
+ */
+export function resyncIssue(issueKey: string): Promise<IssueWriteResponse> {
+  return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/resync/`, {
+    method: 'POST',
+  })
+}
+
+/**
+ * Re-fetch one mirrored wiki page. 204 with no body on success.
+ */
+export async function resyncPage(pageId: string): Promise<void> {
+  const res = await raw(`pages/${encodeURIComponent(pageId)}/resync/`, {
+    method: 'POST',
+  })
+  if (!res.ok) {
+    throw new ApiError(res.status, `POST pages/${pageId}/resync/ → ${res.status}`)
+  }
+}
+
 /* ── People axis ── */
 
 /**

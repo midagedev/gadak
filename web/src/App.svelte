@@ -21,6 +21,7 @@
   import { feature, isHostedDemo } from './lib/config'
   import { adoptRunningSync } from './lib/sync-now'
   import { installDesktopLinkOpener } from './lib/desktop-links'
+  import { installBrowseSessions } from './lib/browse.svelte'
 
   /** Where the demo banner sends people who want the real thing. */
   const REPO_URL = 'https://github.com/midagedev/scry'
@@ -130,11 +131,13 @@
     views.init()
 
     const skeletonTimer = setTimeout(() => (showSkeleton = true), 120)
-    // Desktop only: external links open the system browser (see lib/desktop-links).
+    // Desktop only: external links + in-app browse session tracking.
     const uninstallLinks = installDesktopLinkOpener()
+    const uninstallBrowse = installBrowseSessions()
     return () => {
       clearTimeout(skeletonTimer)
       uninstallLinks()
+      uninstallBrowse()
     }
   })
 

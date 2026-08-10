@@ -199,6 +199,39 @@ func (s *server) handleDeleteCredential(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, credential(&next))
 }
 
+/* ── single-item resync (no Jira write; re-read only) ── */
+
+// handleResync re-fetches one issue from Jira into the mirror and answers with
+// the refreshed IssueLite. Same shape as mutate after the write step is skipped.
+func (s *server) handleResync(w http.ResponseWriter, r *http.Request) {
+	c, cfg, ok := s.client(w)
+	if !ok {
+		return
+	}
+	key := r.PathValue("key")
+	if err := sync.SyncIssue(r.Context(), cfg, s.db, key, sync.Options{Client: c}); err != nil {
+		failJira(w, r, err)
+		return
+	}
+	s.respondIssue(w, r, key, nil)
+}
+
+// handlePageResync re-fetches one Confluence page into the mirror. Success is
+// 204: the client reloads detail separately. Must not advance the confluence
+// watermark (see sync.SyncPage).
+func (s *server) handlePageResync(w http.ResponseWriter, r *http.Request) {
+	_, cfg, ok := s.client(w)
+	if !ok {
+		return
+	}
+	id := r.PathValue("id")
+	if err := sync.SyncPage(r.Context(), cfg, s.db, id); err != nil {
+		failJira(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 /* ── transitions ── */
 
 type transitionDoc struct {

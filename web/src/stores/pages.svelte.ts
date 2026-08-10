@@ -120,6 +120,12 @@ class PagesStore {
   /** key → detail, for this tab's lifetime. */
   #details = new Map<string, PageDetail>()
 
+  /**
+   * Bumped by `invalidateDetail` so an open DocumentPanel re-fetches after a
+   * desktop browse resync (same role as write.detailNonce for issues).
+   */
+  detailNonce = $state(0)
+
   /** space key → name, empty names dropped. A space the mirror has not learned
    *  a name for is absent here, which is what `spaceLabel` falls back on. */
   spaceNames = $derived.by(() => {
@@ -407,6 +413,12 @@ class PagesStore {
     const d = await api.getPageDetail(key)
     this.#details.set(key, d)
     return d
+  }
+
+  /** Drop one page detail and signal open panels to reload. */
+  invalidateDetail(key: string): void {
+    this.#details.delete(key)
+    this.detailNonce++
   }
 
   setSearchHits(hits: PageLite[]): void {

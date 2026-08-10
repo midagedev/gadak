@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/sync"
 )
 
 // fakeJira is enough of Jira Cloud to drive the write-through paths, and it
@@ -75,7 +76,32 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"}]`))
 	case path == "/search/jql":
 		// The re-read. Status differs from the fixture on purpose.
-		_, _ = w.Write([]byte(`{"issues":[{"id":"1001","key":"NMB-1","fields":{
+		// Only answer for keys this fake knows (NMB-1 / newKey); anything else
+		// is an empty hit so SyncIssue can surface ErrNotFound → 404.
+		jql := ""
+		if raw := f.bodies[tag]; len(raw) > 0 {
+			var body struct {
+				JQL string `json:"jql"`
+			}
+			_ = json.Unmarshal(raw, &body)
+			jql = body.JQL
+		}
+		wantKeys := []string{`"NMB-1"`, `"` + f.newKey + `"`}
+		known := false
+		for _, k := range wantKeys {
+			if strings.Contains(jql, k) {
+				known = true
+				break
+			}
+		}
+		// empty jql (body not recorded yet on some paths) → treat as known for
+		// backward compatibility with tests that only assert the response shape.
+		if jql == "" || known {
+			key := "NMB-1"
+			if f.newKey != "" && strings.Contains(jql, `"`+f.newKey+`"`) {
+				key = f.newKey
+			}
+			_, _ = w.Write([]byte(`{"issues":[{"id":"1001","key":"` + key + `","fields":{
 			"summary":"batch worker drops the last page",
 			"status":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},
 			"project":{"key":"NMB"},"issuetype":{"id":"10004","name":"Bug"},
@@ -84,6 +110,9 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			"reporter":{"accountId":"acc-rp","displayName":"박보고","emailAddress":"rp@example.com"},
 			"created":"2026-07-01T00:00:00.000+0900","updated":"2026-08-04T12:00:00.000+0900"
 		}}],"isLast":true}`))
+		} else {
+			_, _ = w.Write([]byte(`{"issues":[],"isLast":true}`))
+		}
 	case strings.HasSuffix(path, "/transitions") && r.Method == http.MethodGet:
 		_, _ = w.Write([]byte(`{"transitions":[{"id":"31","name":"완료로","to":{"id":"10001","name":"완료","statusCategory":{"key":"done"}}}]}`))
 	case strings.HasSuffix(path, "/editmeta"):
@@ -461,6 +490,8 @@ func TestWritesRequireACredential(t *testing.T) {
 		{http.MethodPost, apiBase + "create/", `{"project_key":"NMB","issue_type":"1","summary":"x"}`},
 		{http.MethodGet, apiBase + "create-meta/", ""},
 		{http.MethodGet, apiBase + "users/?q=a", ""},
+		{http.MethodPost, apiBase + "NMB-1/resync/", ""},
+		{http.MethodPost, apiBase + "pages/100/resync/", ""},
 	} {
 		rec := send(t, h, tc.method, tc.path, tc.body)
 		if rec.Code != http.StatusConflict {
@@ -636,5 +667,186 @@ func TestTokenNeverReachesResponsesOrLogs(t *testing.T) {
 		if bytes.Contains(raw, []byte("secret-token")) {
 			t.Fatalf("token found in %s", path+suffix)
 		}
+	}
+}
+
+func TestIssueResyncRefreshesMirror(t *testing.T) {
+	f, h, _ := writable(t)
+
+	// Fixture row is 진행 중; fake re-read returns 완료 (Korean status names).
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/resync/", ``)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if !f.called("POST /search/jql") {
+		t.Fatalf("resync never hit Jira search: %v", f.calls)
+	}
+	var body struct {
+		Issue struct {
+			Status         string `json:"status"`
+			StatusCategory string `json:"status_category"`
+			Summary        string `json:"summary"`
+		} `json:"issue"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Issue.Status != "완료" || body.Issue.StatusCategory != "done" {
+		t.Fatalf("stale row returned: %+v", body.Issue)
+	}
+	if body.Issue.Summary != "batch worker drops the last page" {
+		t.Fatalf("summary %q", body.Issue.Summary)
+	}
+
+	// Mirror itself moved — bootstrap list row agrees with the response.
+	boot := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
+	var status string
+	for _, iss := range boot.Issues {
+		if iss.IssueKey == "NMB-1" {
+			status = iss.Status
+			break
+		}
+	}
+	if status != "완료" {
+		t.Fatalf("mirror status %q, want 완료 (bootstrap)", status)
+	}
+}
+
+func TestIssueResyncNotFound(t *testing.T) {
+	_, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"NOPE-9/resync/", ``)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := decode[map[string]string](t, rec)["error"]; got != "not_found" {
+		t.Fatalf("error %q", got)
+	}
+}
+
+// confPageMock is a minimal Confluence stand-in for page resync: GET content/{id}
+// and child comments. Title/body carry Hangul so localization traps show up.
+type confPageMock struct {
+	pages map[string]confPageMockRow
+}
+
+type confPageMockRow struct {
+	Title   string
+	Body    string
+	Space   string
+	Version int
+	When    string
+}
+
+func (m *confPageMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	path := r.URL.Path
+	if strings.HasSuffix(path, "/child/comment") {
+		_ = json.NewEncoder(w).Encode(map[string]any{"results": []any{}, "size": 0, "limit": 100})
+		return
+	}
+	if !strings.HasPrefix(path, "/wiki/rest/api/content/") {
+		http.NotFound(w, r)
+		return
+	}
+	id := strings.TrimPrefix(path, "/wiki/rest/api/content/")
+	if strings.Contains(id, "/") {
+		http.NotFound(w, r)
+		return
+	}
+	p, ok := m.pages[id]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	adf, _ := json.Marshal(map[string]any{
+		"type": "doc", "version": 1,
+		"content": []any{
+			map[string]any{"type": "paragraph", "content": []any{
+				map[string]any{"type": "text", "text": p.Body},
+			}},
+		},
+	})
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id": id, "type": "page", "status": "current", "title": p.Title,
+		"space": map[string]any{"key": p.Space, "name": "제품"},
+		"version": map[string]any{
+			"number": p.Version, "when": p.When,
+			"by": map[string]any{"accountId": "acc-1", "displayName": "김현철"},
+		},
+		"body": map[string]any{
+			"atlas_doc_format": map[string]any{"value": string(adf), "representation": "atlas_doc_format"},
+		},
+		"ancestors": []any{},
+		"metadata": map[string]any{
+			"labels": map[string]any{"results": []any{}, "size": 0, "limit": 25, "start": 0},
+		},
+	})
+}
+
+func TestPageResyncRefreshesMirror(t *testing.T) {
+	mock := &confPageMock{pages: map[string]confPageMockRow{
+		"100": {
+			Title: "빌링 품질 회의록 (개정)", Body: "개정된 본문 — 로그인 실패 재현",
+			Space: "PROD", Version: 3, When: "2026-08-05T15:00:00.000Z",
+		},
+	}}
+	srv := httptest.NewServer(mock)
+	t.Cleanup(srv.Close)
+
+	db, cfg := fixturePages(t)
+	cfg.Site = srv.URL
+	h := New(db, cfg)
+	before, err := db.SyncState(t.Context(), sync.ConfluenceSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := send(t, h, http.MethodPost, apiBase+"pages/100/resync/", ``)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// The one-page resync must not advance the source watermark: that page's
+	// lastModified would become the incremental floor and every page edited
+	// before it would be skipped on the next pass (sync.SyncPage's contract).
+	after, err := db.SyncState(t.Context(), sync.ConfluenceSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Watermark != before.Watermark {
+		t.Fatalf("watermark moved by single-page resync: %q -> %q", before.Watermark, after.Watermark)
+	}
+
+	detail := decode[struct {
+		Title   string          `json:"title"`
+		Version int             `json:"version"`
+		BodyADF json.RawMessage `json:"body_adf"`
+	}](t, get(t, h, apiBase+"pages/100/", nil))
+	if detail.Title != "빌링 품질 회의록 (개정)" {
+		t.Fatalf("title %q", detail.Title)
+	}
+	if detail.Version != 3 {
+		t.Fatalf("version %d, want 3", detail.Version)
+	}
+	if !strings.Contains(string(detail.BodyADF), "개정된 본문") {
+		t.Fatalf("body_adf missing Korean text: %s", detail.BodyADF)
+	}
+}
+
+func TestPageResyncNotFound(t *testing.T) {
+	mock := &confPageMock{pages: map[string]confPageMockRow{}}
+	srv := httptest.NewServer(mock)
+	t.Cleanup(srv.Close)
+
+	db, cfg := fixturePages(t)
+	cfg.Site = srv.URL
+	h := New(db, cfg)
+
+	rec := send(t, h, http.MethodPost, apiBase+"pages/99999/resync/", ``)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := decode[map[string]string](t, rec)["error"]; got != "not_found" {
+		t.Fatalf("error %q", got)
 	}
 }

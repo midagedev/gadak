@@ -45,10 +45,18 @@ func TestFallbackHandler(t *testing.T) {
 	reg := workspace.New()
 	t.Cleanup(func() { reg.Close() })
 	openedURLs := []string{}
+	browse := newBrowseWindows()
+	spawned := []string{} // "url|title" per spawn, in order
+	closers := []func(){} // simulate the user closing tab i
+	browse.spawn = func(url, title string, onClosing func()) error {
+		spawned = append(spawned, url+"|"+title)
+		closers = append(closers, onClosing)
+		return nil
+	}
 	h := fallbackHandler(server.New(db, cfg), ui, reg, func(u string) error {
 		openedURLs = append(openedURLs, u)
 		return nil
-	})
+	}, browse)
 
 	t.Run("config.json", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/config.json", nil)
@@ -123,6 +131,74 @@ func TestFallbackHandler(t *testing.T) {
 			t.Fatalf("refused URL leaked to the browser: %v", openedURLs)
 		}
 	})
+
+	// The in-app tab flow end to end at the handler seam: open two tabs, watch
+	// the state poll, close one, watch it disappear. URL validation must match
+	// /desktop/open — a tab window is still a webview pointed at the URL.
+	t.Run("desktop browse opens tabs and the state poll tracks closes", func(t *testing.T) {
+		post := func(body string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest("POST", "/desktop/browse", strings.NewReader(body))
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			return rec
+		}
+		state := func() []string {
+			req := httptest.NewRequest("GET", "/desktop/browse/state", nil)
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != 200 {
+				t.Fatalf("state: got %d body %s", rec.Code, rec.Body.String())
+			}
+			var doc struct {
+				Open []string `json:"open"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+				t.Fatal(err)
+			}
+			return doc.Open
+		}
+
+		rec := post(`{"url":"https://example.atlassian.net/browse/NMA-1","title":"NMA-1"}`)
+		if rec.Code != 201 {
+			t.Fatalf("browse: got %d body %s", rec.Code, rec.Body.String())
+		}
+		var first struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &first); err != nil || first.ID == "" {
+			t.Fatalf("no id in %s (%v)", rec.Body.String(), err)
+		}
+		if rec := post(`{"url":"https://example.atlassian.net/wiki/spaces/X/pages/42"}`); rec.Code != 201 {
+			t.Fatalf("second tab: got %d body %s", rec.Code, rec.Body.String())
+		}
+		if len(spawned) != 2 || spawned[0] != "https://example.atlassian.net/browse/NMA-1|NMA-1" {
+			t.Fatalf("spawned = %v", spawned)
+		}
+		// No title falls back to the host — the window needs some label.
+		if !strings.HasSuffix(spawned[1], "|example.atlassian.net") {
+			t.Fatalf("title fallback missing: %v", spawned[1])
+		}
+		if open := state(); len(open) != 2 {
+			t.Fatalf("open = %v", open)
+		}
+		closers[0]() // the user closes the first tab
+		if open := state(); len(open) != 1 || open[0] == first.ID {
+			t.Fatalf("after close, open = %v (closed id %s)", open, first.ID)
+		}
+
+		for _, bad := range []string{
+			`{"url":"file:///etc/passwd"}`,
+			`{"url":"javascript:alert(1)"}`,
+			`not json`,
+		} {
+			if rec := post(bad); rec.Code != 400 {
+				t.Fatalf("%s: got %d, want 400", bad, rec.Code)
+			}
+		}
+		if len(spawned) != 2 {
+			t.Fatalf("refused URL spawned a tab: %v", spawned)
+		}
+	})
 }
 
 // seedDesktopProfile writes config.json + scry.db under SCRY_HOME for tests that
@@ -187,7 +263,7 @@ func TestDesktopWorkspaceRoutes(t *testing.T) {
 	}
 	reg := workspace.New()
 	t.Cleanup(func() { reg.Close() })
-	h := fallbackHandler(server.New(db, primaryCfg), ui, reg, nil)
+	h := fallbackHandler(server.New(db, primaryCfg), ui, reg, nil, nil)
 
 	t.Run("workspace config.json is JSON", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/w/work/config.json", nil)

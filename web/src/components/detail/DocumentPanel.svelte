@@ -29,6 +29,8 @@
   const resource = createResource(
     () => pages.selectedKey,
     (k) => pages.detail(k),
+    // watch detailNonce so a desktop browse resync re-reads after cache drop
+    { watch: () => pages.detailNonce },
   )
   const detail = $derived(resource.data)
   const errorKind = $derived(resource.errorKind)

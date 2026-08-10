@@ -6,12 +6,13 @@ import (
 	"fmt"
 
 	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/scry/internal/confluence"
 	"github.com/midagedev/scry/internal/jira"
 	"github.com/midagedev/scry/internal/store"
 )
 
-// ErrNotFound means Jira answered but no issue with that key came back: it is
-// outside the credential's permissions, or it was just deleted.
+// ErrNotFound means the upstream answered but no issue/page with that key came
+// back: it is outside the credential's permissions, or it was just deleted.
 var ErrNotFound = errors.New("sync: issue not found upstream")
 
 // SyncIssue re-reads one issue and writes it to the mirror. Every write-through
@@ -67,4 +68,30 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 		return fmt.Errorf("%s: %w", key, ErrNotFound)
 	}
 	return nil
+}
+
+// SyncPage re-reads one Confluence page and writes it to the mirror. Used when
+// the desktop app closes an in-app browser tab after editing a wiki page: the
+// rewrite moves synced_at and bumps sync_state.version so the client's next
+// pages list / detail fetch sees the edit.
+//
+// Unlike a full Confluence pass (commitBatch in confluence.go), this must not
+// call RecordSync. A single page's lastModified must not become the source
+// watermark — that would jump incremental sync into the future and skip every
+// page modified in between. UpsertPages alone is enough: it rewrites the row
+// and bumps version without advancing the watermark.
+func SyncPage(ctx context.Context, cfg *config.Config, db *store.DB, id string) error {
+	if !cfg.HasCredential() {
+		return errors.New("sync: site, email and token are required")
+	}
+	c := confluence.New(cfg.Site, cfg.Email, cfg.Token)
+	rec, _, _, err := fetchPageRecord(ctx, c, confluence.Page{ID: id})
+	if err != nil {
+		if errors.Is(err, confluence.ErrNotFound) {
+			return fmt.Errorf("%s: %w", id, ErrNotFound)
+		}
+		return err
+	}
+	_, err = db.UpsertPages(ctx, []store.PageRecord{rec})
+	return err
 }

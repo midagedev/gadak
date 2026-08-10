@@ -211,6 +211,10 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("POST "+apiBase+"{key}/attachments/{$}", s.handleUpload)
 	mux.HandleFunc("PUT "+apiBase+"{key}/assignee/{$}", s.handleAssignee)
 	mux.HandleFunc("PATCH "+apiBase+"{key}/fields/{$}", s.handleFields)
+	// Single-item re-read after in-app browser edit (no upstream write).
+	// Three-segment pages/{id}/resync/ is a literal; {key}/resync/ is two-segment.
+	mux.HandleFunc("POST "+apiBase+"{key}/resync/{$}", s.handleResync)
+	mux.HandleFunc("POST "+apiBase+"pages/{id}/resync/{$}", s.handlePageResync)
 	// Deferred and cut endpoints (notifications, presence, mentions,
 	// data-quality, login/logout) fall through to here. The UI hides a surface on
 	// a clean 404 and only breaks on a 500.
