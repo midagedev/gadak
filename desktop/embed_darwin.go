@@ -34,6 +34,30 @@ static ScryEmbedUIDelegate *embedUIDelegate(void) {
 	return d;
 }
 
+// A bare WKWebView sends the AppleWebKit UA without the trailing
+// "Version/x Safari/y" tokens real Safari appends — and Atlassian's browser
+// sniffing reads exactly those, so the Confluence live editor answers
+// "unsupported browser" to an engine that is literally Safari's. Filling
+// applicationNameForUserAgent with the tokens makes the UA identical in shape
+// to Safari's own. The version comes off the installed Safari so it tracks OS
+// updates instead of rotting in a constant; the fallback only exists for a
+// machine with no /Applications/Safari.app.
+static NSString *safariUAFragment(void) {
+	static NSString *fragment = nil;
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		NSString *version =
+		    [[NSBundle bundleWithPath:@"/Applications/Safari.app"]
+		        objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+		if (version == nil || version.length == 0) {
+			version = @"26.0";
+		}
+		fragment = [[NSString stringWithFormat:@"Version/%@ Safari/605.1.15",
+		                                       version] retain];
+	});
+	return fragment;
+}
+
 // Frames arrive in the SPA's coordinate space: CSS px with y measured from the
 // top. The main webview fills the contentView 1:1 (points == CSS px), so only
 // the y axis needs flipping into AppKit's bottom-left origin.
@@ -54,6 +78,7 @@ static void *embedCreate(void *nsWindow, const char *url,
 		NSWindow *win = (NSWindow *)nsWindow;
 		NSView *content = [win contentView];
 		WKWebViewConfiguration *config = [[[WKWebViewConfiguration alloc] init] autorelease];
+		config.applicationNameForUserAgent = safariUAFragment();
 		wv = [[WKWebView alloc] initWithFrame:embedRect(content, x, y, w, h)
 		                        configuration:config];
 		wv.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
