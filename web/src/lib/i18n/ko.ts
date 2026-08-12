@@ -936,6 +936,16 @@ export const ko = {
   'shortcuts.paletteClose': '팔레트 닫기',
   'shortcuts.submitComment': '코멘트 등록',
 
+  /* ── In-app browser pane (desktop app only) ── */
+  'browse.paneLabel': '인앱 브라우저',
+  'browse.tabs': '열린 페이지',
+  'browse.back': 'Scry로 돌아가기',
+  'browse.openExternal': '시스템 브라우저에서 열기',
+  'browse.closeTab': '이 페이지 닫기',
+  'browse.loading': '{host} 여는 중…',
+  'browse.resume': '브라우저',
+  'browse.resumeHint': '{n}개 열림',
+
   /* ── App / shell ── */
   'app.loadFailed': '데이터를 불러오지 못했습니다. 네트워크/VPN 상태를 확인하세요.',
   'app.authGate': '로컬 서버에 연결할 수 없습니다.',

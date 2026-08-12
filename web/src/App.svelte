@@ -21,7 +21,7 @@
   import { feature, isHostedDemo } from './lib/config'
   import { adoptRunningSync } from './lib/sync-now'
   import { installDesktopLinkOpener } from './lib/desktop-links'
-  import { installBrowseSessions } from './lib/browse.svelte'
+  import { browse, installBrowseSessions } from './lib/browse.svelte'
 
   /** Where the demo banner sends people who want the real thing. */
   const REPO_URL = 'https://github.com/midagedev/scry'
@@ -53,6 +53,7 @@
   import ShortcutsDialog from './components/shell/ShortcutsDialog.svelte'
   import ToastHost from './components/write/ToastHost.svelte'
   import MediaViewer from './components/detail/MediaViewer.svelte'
+  import BrowseHost from './components/browse/BrowseHost.svelte'
   import { mediaViewer } from './stores/media-viewer.svelte'
   import { t } from './lib/i18n'
 
@@ -248,6 +249,14 @@
 
     // ── Esc: give back the selection first, then close panels ──
     if (key === 'Escape') {
+      // Browsing: Esc is the way back to Scry, same as the toolbar button. Only
+      // reachable while the SPA has focus — with the page focused the key goes
+      // to the native view and never arrives here.
+      if (browse.paneOpen) {
+        e.preventDefault()
+        browse.hidePane()
+        return
+      }
       // An open popover is BulkBar's to close (it also hears Esc from inside its
       // own search box, which this handler never sees).
       if (triage.menu) return
@@ -420,6 +429,35 @@
   // (stores/panel). Opening any of them is what closes the other two, so there
   // is nothing here to keep them from stacking.
   const panelOpen = $derived(panel.target !== null)
+
+  /*
+   * ── The in-app browser pane (desktop app only) ──
+   *
+   * `browseEnabled` is read once: it is config, not state, and everything the
+   * pane needs is behind it — no component, no listener, no /desktop request in
+   * a `scry serve` tab.
+   *
+   * The effect below is the whole reason the shell knows about browsing at all.
+   * An Atlassian page renders in a native view the app draws *over* this
+   * document, so every SPA surface that covers the screen — palette, dialog,
+   * media viewer — would open underneath the page instead of over it. Each of
+   * those flags already lives here, in one place, which is the only place the
+   * question "is something covering the app right now" can be answered.
+   */
+  const browseEnabled = browse.enabled
+
+  $effect(() => {
+    if (!browseEnabled) return
+    browse.setOverlayOpen(
+      write.settingsOpen ||
+        write.newIssueOpen ||
+        serverSettingsOpen ||
+        paletteOpen ||
+        shortcutsOpen ||
+        triage.commentKey !== null ||
+        mediaViewer.attachment !== null,
+    )
+  })
 </script>
 
 <svelte:window onkeydown={onGlobalKey} />
@@ -482,8 +520,10 @@
     <div
       class="issue-layout"
       class:detail-open={panelOpen}
+      class:browse-open={browse.paneOpen}
       data-testid="issue-layout"
       data-detail-open={panelOpen}
+      data-browse-open={browse.paneOpen}
     >
       <Sidebar>
         {#snippet children()}
@@ -514,6 +554,13 @@
           <PersonPanel />
         {/snippet}
       </RightPanel>
+
+      <!-- Over the detail area: an original page is what you asked to see
+           *instead of* Scry's copy, and the copy is still there when the pane
+           steps away. Nothing at all in a browser tab. -->
+      {#if browseEnabled}
+        <BrowseHost />
+      {/if}
     </div>
   </div>
 {/if}

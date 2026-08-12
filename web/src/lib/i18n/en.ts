@@ -944,6 +944,16 @@ export const en = {
   'shortcuts.paletteClose': 'Close the palette',
   'shortcuts.submitComment': 'Submit the comment',
 
+  /* ── In-app browser pane (desktop app only) ── */
+  'browse.paneLabel': 'In-app browser',
+  'browse.tabs': 'Open pages',
+  'browse.back': 'Back to Scry',
+  'browse.openExternal': 'Open in the system browser',
+  'browse.closeTab': 'Close this page',
+  'browse.loading': 'Opening {host}…',
+  'browse.resume': 'Browser',
+  'browse.resumeHint': '{n} open',
+
   /* ── App / shell ── */
   'app.loadFailed': 'Could not load data. Check network/VPN.',
   'app.authGate': 'Cannot connect to the local server.',

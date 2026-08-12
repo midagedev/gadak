@@ -186,16 +186,78 @@
     grid-template-columns: 272px minmax(680px, 1fr) clamp(500px, 34vw, 720px);
   }
 
+  /*
+    Explicit cells for all four children. The pane is placed on top of the
+    detail panel rather than beside it, and one explicitly-placed item is enough
+    to push every auto-placed sibling into the next row.
+  */
   .issue-sidebar {
+    grid-column: 1;
+    grid-row: 1;
     width: 272px;
     min-height: 0;
     overflow: hidden;
   }
 
   .issue-main-column {
+    grid-column: 2;
+    grid-row: 1;
     min-width: 0;
     min-height: 0;
     overflow: hidden;
+  }
+
+  /*
+    The browser pane (desktop app).
+
+    The native WKWebView draws over every pixel in this box, so nothing of the
+    SPA may be expected to show through it — the pane renders its own chrome
+    above the rectangle and leaves the rectangle empty (see BrowsePane).
+
+    Floating over everything but the sidebar is the default, and the docked
+    layout below is the exception, because the width a web page needs is not
+    the width a panel needs. A mirrored Jira page under ~700px renders as the
+    narrow layout Atlassian serves to phones, and the list has a floor of its
+    own (680px, see detail-open) below which its rows start clipping. Both fit
+    side by side from 1600px up and not one pixel sooner, so that is where the
+    pane takes a track instead of covering one.
+
+    Above the detail panel it replaces (55 > the panel's overlay tier of 50) and
+    below the toasts (60), which have to stay reachable while browsing.
+  */
+  .browse-pane {
+    position: fixed;
+    inset: 0 0 0 272px;
+    z-index: 55;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  @media (min-width: 1600px) {
+    /* The list keeps a working width; everything past it goes to the page. */
+    .issue-layout.browse-open,
+    .issue-layout.detail-open.browse-open {
+      grid-template-columns: 272px clamp(640px, 40vw, 800px) minmax(0, 1fr);
+    }
+
+    .browse-pane {
+      position: relative;
+      inset: auto;
+      grid-column: 3;
+      grid-row: 1;
+    }
+  }
+
+  /*
+    Re-entry pill: bottom of the content area, hard against the sidebar. The
+    opposite corner is the toast stack's, and a control that appears whenever
+    tabs exist cannot be sharing a corner with something that appears on write.
+  */
+  .browse-reentry {
+    position: fixed;
+    bottom: 1rem;
+    left: calc(272px + 1rem);
+    z-index: 40;
   }
 
   /*
@@ -229,6 +291,8 @@
     reflow is expensive); only opacity/transform slide over 160ms ease-out.
   */
   .issue-detail-panel {
+    grid-column: 3;
+    grid-row: 1;
     width: 0;
     min-width: 0;
     min-height: 0;
@@ -355,6 +419,14 @@
 
     .issue-sidebar {
       width: 208px;
+    }
+
+    .browse-pane {
+      left: 208px;
+    }
+
+    .browse-reentry {
+      left: calc(208px + 1rem);
     }
 
     .issue-detail-panel,

@@ -12,6 +12,7 @@
   import { filters, type IssueGroup } from '../../stores/filters.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { triage } from '../../stores/triage.svelte'
+  import { browse } from '../../lib/browse.svelte'
   import type { IssueLite } from '../../lib/types'
   import IssueRow from './IssueRow.svelte'
   import GroupHeader from './GroupHeader.svelte'
@@ -160,7 +161,14 @@
     data-testid="issue-list-scroller"
     class="h-full overflow-y-auto"
   >
-    <div class="relative" style:height="{total}px">
+    <!-- The margin only exists while the browse re-entry pill floats over this
+         corner: without it the pill sits on the last row's checkbox. Off
+         desktop, tabs never exist and the margin never appears. -->
+    <div
+      class="relative"
+      style:height="{total}px"
+      style:margin-bottom={browse.pillVisible ? '56px' : ''}
+    >
       {#each slice as row, i (start + i + (row.type === 'issue' ? row.issue.issue_key : 'h' + row.group.key))}
         <div class="absolute inset-x-0" style:top="{(start + i) * ROW_H}px" style:height="{ROW_H}px">
           {#if row.type === 'header'}

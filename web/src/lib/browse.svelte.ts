@@ -1,12 +1,26 @@
 /*
- * Desktop in-app browse sessions.
+ * The in-app browser pane: tabs, the rectangle they occupy, and the resync that
+ * follows one closing.
  *
- * When a Jira/Confluence URL opens in a native in-app tab (POST /desktop/browse),
- * we remember the tab id → {kind, key}. Closing the tab (or regaining main-window
- * focus) triggers a targeted resync so the open detail panel refreshes without a
- * full mirror pull.
+ * Atlassian forbids iframes, so an original page can only be shown by a native
+ * WKWebView the desktop app layers over this document. That view has no chrome
+ * and no idea what a tab is — everything visual belongs to the SPA, and this
+ * module is where that side of it lives:
  *
- * Installed only in desktop mode; browser `scry serve` never wires this up.
+ *   - which tabs exist, which one is showing, whether the pane is on screen
+ *   - the rectangle the native views must occupy, in this document's coordinates
+ *   - the targeted resync that runs when a tab closes or the window regains
+ *     focus, so an issue edited in Jira is current again by the time the pane
+ *     gets out of the way
+ *
+ * A native view draws over every SPA pixel inside its rectangle, which makes
+ * "what is visible" a decision only this side can make: `nativeActive` is that
+ * decision, and it is the one thing POSTed to /desktop/browse/activate. An open
+ * palette, dialog or media viewer sets `overlayOpen` and the answer becomes ""
+ * — otherwise the overlay opens underneath the page it was meant to cover.
+ *
+ * Installed only in desktop mode; browser `scry serve` never reaches any of it
+ * (`adopt` is the single entry point and returns immediately off desktop).
  */
 
 import * as api from './api'
@@ -21,142 +35,388 @@ import type { IssueLite } from './types'
 /** Matches classifyAtlassianLink kind — kept local to avoid a cycle with desktop-links. */
 export type BrowseKind = 'issue' | 'page' | 'other'
 
+/** One native tab, as the tab strip renders it. Title and URL are live: the
+ *  page can navigate itself, and the poll below is how we hear about it. */
+export interface BrowseTab {
+  id: string
+  title: string
+  url: string
+}
+
+/** The pane rectangle in this document's viewport, CSS px, y from the top. */
+export interface FrameRect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 interface BrowseSession {
   kind: BrowseKind
   key: string | null
 }
 
-const POLL_MS = 2000
+/**
+ * Fast enough that ⌘W (a native menu item the SPA never sees) reads as
+ * immediate, cheap enough to leave running: it is one local request, and only
+ * while a tab is open.
+ */
+const POLL_MS = 1000
 const FOCUS_THROTTLE_MS = 15_000
+/** Frame reports coalesce over a drag; the native side only needs the last one. */
+const FRAME_DEBOUNCE_MS = 50
 
-/** id → session metadata. Non-reactive: no UI binds this map. */
-const sessions = new Map<string, BrowseSession>()
-
-/** item throttle key (`issue:NMB-1` / `page:123`) → last successful resync attempt ms. */
-const lastResyncAt = new Map<string, number>()
-
-let pollTimer: ReturnType<typeof setInterval> | null = null
-
-function throttleKey(sess: BrowseSession): string | null {
-  if (!sess.key || sess.kind === 'other') return null
-  return `${sess.kind}:${sess.key}`
+function post(path: string, body: unknown): void {
+  void fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).catch(() => {
+    /* the app is the only server here; a failed local POST has no recovery */
+  })
 }
 
-function startPoll(): void {
-  if (pollTimer !== null) return
-  pollTimer = setInterval(() => {
-    void pollOpenTabs()
-  }, POLL_MS)
-}
+class BrowseStore {
+  /** Open tabs in strip order. */
+  tabs = $state<BrowseTab[]>([])
+  /** Which tab the pane shows. Survives the pane closing — the tabs do too. */
+  activeId = $state('')
+  /** Whether the pane occupies the detail area. */
+  paneOpen = $state(false)
 
-function stopPoll(): void {
-  if (pollTimer === null) return
-  clearInterval(pollTimer)
-  pollTimer = null
-}
+  #overlayOpen = $state(false)
 
-/**
- * Remember a tab opened via POST /desktop/browse. Starts state polling while
- * at least one session is open.
- */
-export function trackBrowseSession(
-  id: string,
-  kind: BrowseKind,
-  key: string | null,
-): void {
-  if (!isDesktop()) return
-  sessions.set(id, { kind, key })
-  startPoll()
-}
+  /** id → what was opened there, for the resync when it closes. */
+  #sessions = new Map<string, BrowseSession>()
+  /** `issue:NMB-1` / `page:123` → last resync, for the focus throttle. */
+  #lastResyncAt = new Map<string, number>()
 
-/**
- * Apply a write-shaped issue resync the same way write.svelte does after a
- * successful comment/transition: pool + IndexedDB, then detail cache miss +
- * detailNonce so an open DetailPanel reloads.
- */
-function applyIssueWriteResponse(issue: IssueLite | null | undefined): void {
-  if (!issue || !issue.issue_key) return
-  issues.pool.set(issue.issue_key, issue)
-  void db.putIssues([issue]).catch(() => {})
-  invalidate(issue.issue_key)
-  write.bumpDetail()
-}
+  #pollTimer: ReturnType<typeof setInterval> | null = null
+  /** Bumped on every local tab mutation so a poll that raced it is discarded. */
+  #gen = 0
 
-async function resyncSession(sess: BrowseSession, opts?: { throttle?: boolean }): Promise<void> {
-  if (sess.kind === 'other' || !sess.key) return
+  #lastSentActive: string | null = null
+  #frameTimer: ReturnType<typeof setTimeout> | null = null
+  #pendingFrame: FrameRect | null = null
+  #lastSentFrame: FrameRect | null = null
 
-  const tKey = throttleKey(sess)
-  if (opts?.throttle && tKey) {
-    const last = lastResyncAt.get(tKey) ?? 0
-    if (Date.now() - last < FOCUS_THROTTLE_MS) return
+  /** True only inside the desktop app. Nothing here renders or installs off it. */
+  get enabled(): boolean {
+    return isDesktop()
   }
 
-  try {
-    if (sess.kind === 'issue') {
-      const res = await api.resyncIssue(sess.key)
-      applyIssueWriteResponse(res.issue)
-    } else if (sess.kind === 'page') {
-      await api.resyncPage(sess.key)
-      pages.invalidateDetail(sess.key)
+  get activeTab(): BrowseTab | null {
+    return this.tabs.find((t) => t.id === this.activeId) ?? null
+  }
+
+  /**
+   * The re-entry pill is on screen: tabs exist but the pane is put away. The
+   * issue list reserves scroll room for it — the pill floats over the list's
+   * bottom-left corner, and the last row's checkbox must stay reachable.
+   */
+  get pillVisible(): boolean {
+    return this.tabs.length > 0 && !this.paneOpen
+  }
+
+  /**
+   * The tab the native layer should be showing — "" for none. The pane being
+   * off screen and an SPA overlay being up are the same answer for the same
+   * reason: a native view would be covering something it must not cover.
+   */
+  get nativeActive(): string {
+    if (!this.paneOpen || this.#overlayOpen) return ''
+    return this.tabs.some((t) => t.id === this.activeId) ? this.activeId : ''
+  }
+
+  /** Set by the shell whenever a full-surface SPA overlay opens or closes. */
+  setOverlayOpen(open: boolean): void {
+    if (this.#overlayOpen === open) return
+    this.#overlayOpen = open
+    this.#syncNative()
+  }
+
+  /**
+   * Remember a tab the app just created (POST /desktop/browse answered 201) and
+   * bring the pane forward. Creation activates the tab natively, so the sync
+   * below is usually a no-op — unless an overlay is up, in which case it is the
+   * hide that stops the new page drawing over it.
+   */
+  adopt(id: string, url: string, kind: BrowseKind, key: string | null): void {
+    if (!this.enabled) return
+    this.#gen++
+    this.#sessions.set(id, { kind, key })
+    if (!this.tabs.some((t) => t.id === id)) {
+      this.tabs = [...this.tabs, { id, title: '', url }]
     }
-    if (tKey) lastResyncAt.set(tKey, Date.now())
-  } catch (e) {
-    console.warn('[browse] resync failed', sess.kind, sess.key, e)
+    this.activeId = id
+    this.paneOpen = true
+    this.#lastSentActive = id
+    this.#syncNative()
+    this.#startPoll()
   }
-}
 
-async function pollOpenTabs(): Promise<void> {
-  if (sessions.size === 0) {
-    stopPoll()
-    return
+  /** Tab strip click. */
+  activate(id: string): void {
+    if (this.activeId === id && this.paneOpen) return
+    this.activeId = id
+    this.paneOpen = true
+    this.#syncNative()
   }
-  try {
-    const res = await fetch('/desktop/browse/state')
-    if (!res.ok) {
-      console.warn('[browse] state poll →', res.status)
+
+  /**
+   * Put the pane away without touching the tabs — they are still open, and the
+   * indicator brings them back. The tab being left is resynced now rather than
+   * on the focus throttle: this is the moment the person asked to see Scry's
+   * copy of what they were just looking at.
+   */
+  hidePane(): void {
+    if (!this.paneOpen) return
+    this.paneOpen = false
+    this.#syncNative()
+    const sess = this.#sessions.get(this.activeId)
+    if (sess) void this.#resync(sess)
+  }
+
+  /** The re-entry affordance. Noop with nothing to come back to. */
+  showPane(): void {
+    if (this.tabs.length === 0) return
+    if (!this.tabs.some((t) => t.id === this.activeId)) {
+      this.activeId = this.tabs[this.tabs.length - 1].id
+    }
+    this.paneOpen = true
+    this.#syncNative()
+  }
+
+  /** Close one tab: locally first so the strip reacts to the click, then the
+   *  native teardown and the resync for what was open there. */
+  closeTab(id: string): void {
+    const idx = this.tabs.findIndex((t) => t.id === id)
+    if (idx < 0) return
+    this.#gen++
+    const sess = this.#sessions.get(id)
+    this.#sessions.delete(id)
+    this.tabs = this.tabs.filter((t) => t.id !== id)
+    if (this.activeId === id) {
+      this.activeId = this.tabs[idx]?.id ?? this.tabs[idx - 1]?.id ?? ''
+    }
+    if (this.tabs.length === 0) {
+      this.paneOpen = false
+      this.#stopPoll()
+    }
+    this.#syncNative()
+    post('/desktop/browse/close', { id })
+    if (sess) void this.#resync(sess)
+  }
+
+  /** Current tab in the system browser — the escape hatch out of the pane. */
+  openActiveExternally(): void {
+    const url = this.activeTab?.url
+    if (url) post('/desktop/open', { url })
+  }
+
+  /**
+   * Report where the pane's content box is. Called on mount, on resize and on
+   * every poll tick — a layout change that moves the box without resizing it
+   * (the detail panel opening beneath) fires no ResizeObserver, and the native
+   * view has no way to notice on its own.
+   */
+  reportFrame(rect: FrameRect): void {
+    if (!this.enabled) return
+    const r = {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      w: Math.round(rect.w),
+      h: Math.round(rect.h),
+    }
+    if (r.w <= 0 || r.h <= 0) return
+    this.#pendingFrame = r
+    if (this.#frameTimer !== null) return
+    this.#frameTimer = setTimeout(() => {
+      this.#frameTimer = null
+      const f = this.#pendingFrame
+      this.#pendingFrame = null
+      if (!f) return
+      const last = this.#lastSentFrame
+      if (last && last.x === f.x && last.y === f.y && last.w === f.w && last.h === f.h) return
+      this.#lastSentFrame = f
+      post('/desktop/browse/frame', f)
+    }, FRAME_DEBOUNCE_MS)
+  }
+
+  // ── native activation ──
+
+  #syncNative(): void {
+    if (!this.enabled) return
+    const want = this.nativeActive
+    if (want === this.#lastSentActive) return
+    this.#lastSentActive = want
+    post('/desktop/browse/activate', { id: want })
+  }
+
+  // ── polling ──
+
+  #startPoll(): void {
+    if (this.#pollTimer !== null) return
+    this.#pollTimer = setInterval(() => {
+      void this.#poll()
+    }, POLL_MS)
+  }
+
+  #stopPoll(): void {
+    if (this.#pollTimer === null) return
+    clearInterval(this.#pollTimer)
+    this.#pollTimer = null
+  }
+
+  /**
+   * Reconcile with the native side. Two things only it knows: the live title and
+   * URL of each page, and that ⌘W closed a tab — the app's Close Tab menu item
+   * never reaches this document.
+   */
+  async #poll(): Promise<void> {
+    if (this.tabs.length === 0) {
+      this.#stopPoll()
       return
     }
-    const body = (await res.json()) as { open?: string[] }
-    const open = new Set(body.open ?? [])
+    const gen = this.#gen
+    let body: { open?: BrowseTab[]; active?: string }
+    try {
+      const res = await fetch('/desktop/browse/state')
+      if (!res.ok) return
+      body = (await res.json()) as { open?: BrowseTab[]; active?: string }
+    } catch {
+      return
+    }
+    // A tab opened or closed while this was in flight: that answer predates the
+    // change, and applying it would resurrect or drop the wrong tab.
+    if (gen !== this.#gen) return
+
+    const open = body.open ?? []
+    const live = new Set(open.map((t) => t.id))
     const closed: BrowseSession[] = []
-    for (const [id, sess] of sessions) {
-      if (!open.has(id)) {
-        sessions.delete(id)
-        closed.push(sess)
+    let closedIdx = -1
+    this.tabs.forEach((t, i) => {
+      if (live.has(t.id)) return
+      if (closedIdx < 0) closedIdx = i
+      const sess = this.#sessions.get(t.id)
+      this.#sessions.delete(t.id)
+      if (sess) closed.push(sess)
+    })
+
+    this.tabs = open.map((t) => ({ id: t.id, title: t.title ?? '', url: t.url ?? '' }))
+
+    if (!live.has(this.activeId)) {
+      this.activeId = this.tabs[closedIdx]?.id ?? this.tabs[this.tabs.length - 1]?.id ?? ''
+    }
+    if (this.tabs.length === 0) {
+      this.paneOpen = false
+      this.#stopPoll()
+    }
+    this.#syncNative()
+    for (const sess of closed) void this.#resync(sess)
+  }
+
+  // ── resync ──
+
+  #throttleKey(sess: BrowseSession): string | null {
+    if (!sess.key || sess.kind === 'other') return null
+    return `${sess.kind}:${sess.key}`
+  }
+
+  /**
+   * Apply a write-shaped issue resync the same way write.svelte does after a
+   * successful comment/transition: pool + IndexedDB, then detail cache miss +
+   * detailNonce so an open DetailPanel reloads.
+   */
+  #applyIssue(issue: IssueLite | null | undefined): void {
+    if (!issue || !issue.issue_key) return
+    issues.pool.set(issue.issue_key, issue)
+    void db.putIssues([issue]).catch(() => {})
+    invalidate(issue.issue_key)
+    write.bumpDetail()
+  }
+
+  async #resync(sess: BrowseSession, opts?: { throttle?: boolean }): Promise<void> {
+    if (sess.kind === 'other' || !sess.key) return
+
+    const tKey = this.#throttleKey(sess)
+    if (opts?.throttle && tKey) {
+      const last = this.#lastResyncAt.get(tKey) ?? 0
+      if (Date.now() - last < FOCUS_THROTTLE_MS) return
+    }
+
+    try {
+      if (sess.kind === 'issue') {
+        const res = await api.resyncIssue(sess.key)
+        this.#applyIssue(res.issue)
+      } else if (sess.kind === 'page') {
+        await api.resyncPage(sess.key)
+        pages.invalidateDetail(sess.key)
       }
+      if (tKey) this.#lastResyncAt.set(tKey, Date.now())
+    } catch (e) {
+      console.warn('[browse] resync failed', sess.kind, sess.key, e)
     }
-    for (const sess of closed) {
-      void resyncSession(sess)
+  }
+
+  /** Coming back to the window is the other moment Jira may have moved on.
+   *  One resync per item, however many tabs point at it. */
+  onWindowFocus = (): void => {
+    if (this.#sessions.size === 0) return
+    const seen = new Set<string>()
+    for (const sess of this.#sessions.values()) {
+      const tKey = this.#throttleKey(sess)
+      if (tKey) {
+        if (seen.has(tKey)) continue
+        seen.add(tKey)
+      }
+      void this.#resync(sess, { throttle: true })
     }
-    if (sessions.size === 0) stopPoll()
-  } catch (e) {
-    console.warn('[browse] state poll failed', e)
+  }
+
+  /** Teardown for the shell's onMount cleanup. */
+  reset(): void {
+    this.#stopPoll()
+    if (this.#frameTimer !== null) clearTimeout(this.#frameTimer)
+    this.#frameTimer = null
+    this.#pendingFrame = null
+    this.#lastSentFrame = null
+    this.#lastSentActive = null
+    this.#sessions.clear()
+    this.#lastResyncAt.clear()
+    this.tabs = []
+    this.activeId = ''
+    this.paneOpen = false
   }
 }
 
-function onWindowFocus(): void {
-  if (sessions.size === 0) return
-  // One resync per unique item (multiple tabs on the same issue share throttle).
-  const seen = new Set<string>()
-  for (const sess of sessions.values()) {
-    const tKey = throttleKey(sess)
-    if (tKey) {
-      if (seen.has(tKey)) continue
-      seen.add(tKey)
-    }
-    void resyncSession(sess, { throttle: true })
+export const browse = new BrowseStore()
+
+/**
+ * What a tab is called before its page has answered with a title: the issue key
+ * or page id if the URL carries one, the host otherwise. A blank tab is worse
+ * than an approximate one — the strip has to be readable the instant it appears.
+ */
+export function tabLabel(tab: BrowseTab): string {
+  if (tab.title.trim()) return tab.title.trim()
+  try {
+    const u = new URL(tab.url)
+    const browsePath = u.pathname.match(/\/browse\/([A-Z][A-Z0-9]*-\d+)/)
+    if (browsePath) return browsePath[1]
+    const wiki = u.pathname.match(/\/wiki\/spaces\/([^/]+)\/pages\/(\d+)/)
+    if (wiki) return `${wiki[1]} / ${wiki[2]}`
+    return u.host
+  } catch {
+    return tab.url
   }
 }
 
-/** Install focus listener + (when sessions exist) poller. Noop off desktop. */
+/** Install the focus listener. Noop off desktop; returns the uninstall. */
 export function installBrowseSessions(): () => void {
   if (!isDesktop()) return () => {}
-  window.addEventListener('focus', onWindowFocus)
-  // Polling starts lazily on first trackBrowseSession.
+  window.addEventListener('focus', browse.onWindowFocus)
   return () => {
-    window.removeEventListener('focus', onWindowFocus)
-    stopPoll()
-    sessions.clear()
-    lastResyncAt.clear()
+    window.removeEventListener('focus', browse.onWindowFocus)
+    browse.reset()
   }
 }

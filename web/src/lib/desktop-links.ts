@@ -6,7 +6,8 @@
  * external anchor here was written for. In desktop mode this intercepts those
  * clicks at the document and routes them:
  *
- *  - same origin as `config().jiraBaseUrl` → POST /desktop/browse (in-app tab)
+ *  - same origin as `config().jiraBaseUrl` → POST /desktop/browse, which opens
+ *    a tab in the in-app browser pane (see browse.svelte)
  *  - anything else, or no jiraBaseUrl → POST /desktop/open (system browser)
  *
  * Only absolute http(s) anchors are taken: the SPA's own links are relative,
@@ -15,7 +16,7 @@
  */
 
 import { config, isDesktop } from './config'
-import { trackBrowseSession } from './browse.svelte'
+import { browse } from './browse.svelte'
 
 export type AtlassianLinkKind = 'issue' | 'page' | 'other'
 
@@ -90,7 +91,7 @@ async function openInAppBrowser(
     if (res.status === 201) {
       const body = (await res.json()) as { id?: string }
       if (body.id) {
-        trackBrowseSession(body.id, classified.kind, classified.key)
+        browse.adopt(body.id, url, classified.kind, classified.key)
         return
       }
     }
