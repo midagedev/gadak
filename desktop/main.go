@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -18,6 +19,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"unsafe"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -79,11 +81,11 @@ func run() error {
 	defer reg.Close()
 
 	// window and openURL are filled in below; the single-instance callback and
-	// the /desktop/open route read them once the app exists. browse spawns real
-	// windows only after bindApp for the same reason.
+	// the /desktop/open route read them once the app exists. browse drives real
+	// webviews only after bind, for the same reason.
 	var window *application.WebviewWindow
 	var openURL func(string) error
-	browse := newBrowseWindows()
+	browse := newBrowseTabs()
 
 	app := application.New(application.Options{
 		// Name labels the macOS app menu; Name + Description are what the
@@ -117,7 +119,12 @@ func run() error {
 	})
 
 	openURL = app.Browser.OpenURL
-	closeCurrentTab := browse.bindApp(app)
+	browse.bind(newPlatformEmbedder(func() unsafe.Pointer {
+		if window == nil {
+			return nil
+		}
+		return window.NativeWindow()
+	}))
 
 	// Self-update. nil on dev builds and on any configuration failure — see
 	// updater.go; the app runs identically either way, minus the menu item.
@@ -129,18 +136,17 @@ func run() error {
 	appMenu := app.NewMenu()
 	appMenu.AddRole(application.AppMenu)
 	appMenu.AddRole(application.EditMenu)
-	// The Window menu exists for the in-app browser tabs: macOS puts the tab
-	// commands (next/previous tab, move tab to new window) in it once native
-	// tabs are on screen. ⌘W is deliberately not the stock CloseWindow role —
-	// that closes whatever window is focused, and on the main window it would
-	// quit the app (last window closed). Close Tab only acts on browse tabs.
 	appMenu.AddRole(application.WindowMenu)
+	// ⌘W closes the visible in-app browser tab and nothing else. It has to be
+	// a menu accelerator: with focus inside the embedded page the SPA never
+	// sees the keystroke. Deliberately not the stock CloseWindow role — that
+	// closes the focused window, and here that is the app.
 	if item := appMenu.FindByLabel("Window"); item != nil && item.IsSubmenu() {
 		win := item.GetSubmenu()
 		win.AddSeparator()
 		win.Add("Close Tab").
 			SetAccelerator("CmdOrCtrl+w").
-			OnClick(func(*application.Context) { closeCurrentTab() })
+			OnClick(func(*application.Context) { browse.CloseActive() })
 	}
 	// Tools → Install Command Line Tool… (macOS only; no-op stub elsewhere).
 	if runtime.GOOS == "darwin" {
@@ -265,9 +271,9 @@ func assetHandler(ui fs.FS, next http.Handler) http.Handler {
 // open-in-browser and browse-tab routes, and the SPA's index.html for
 // client-side routes. openURL opens a link in the system browser; nil disables
 // the route (503) — it is bound to app.Browser.OpenURL after the application
-// exists. browse opens in-app browser tabs; nil disables those routes the same
-// way.
-func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openURL func(string) error, browse *browseWindows) http.Handler {
+// exists. browse is the in-app browser pane registry; before bind() its routes
+// answer 503 the same way.
+func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openURL func(string) error, browse *browseTabs) http.Handler {
 	mux := http.NewServeMux()
 	// The v3 webview has no new-window delegate, so target="_blank" clicks die
 	// inside it. The web bundle (in desktop mode only) routes external links
@@ -298,22 +304,32 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
-	// In-app browser tabs. The SPA sends Atlassian-origin links here instead of
-	// /desktop/open (web/src/lib/desktop-links.ts decides which); each becomes
-	// a native macOS tab window. Same reachability story as /desktop/open: only
-	// the webview can call this, so the URL filter mirrors that route rather
-	// than re-deriving the configured site per workspace.
-	mux.HandleFunc("POST /desktop/browse", func(w http.ResponseWriter, r *http.Request) {
-		if browse == nil {
+	// The in-app browser pane. The SPA sends Atlassian-origin links here
+	// instead of /desktop/open (web/src/lib/desktop-links.ts decides which);
+	// each becomes an embedded webview tab layered over the pane rect the SPA
+	// reports. Same reachability story as /desktop/open: only the webview can
+	// call these, so the URL filter mirrors that route rather than re-deriving
+	// the configured site per workspace.
+	browseErr := func(w http.ResponseWriter, err error) {
+		switch {
+		case errors.Is(err, errBrowseUnavailable):
 			http.Error(w, `{"error":"unavailable"}`, http.StatusServiceUnavailable)
-			return
-		}
-		var body struct {
-			URL   string `json:"url"`
-			Title string `json:"title"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		default:
 			http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+		}
+	}
+	decodeInto := func(w http.ResponseWriter, r *http.Request, v any) bool {
+		if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+			http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+			return false
+		}
+		return true
+	}
+	mux.HandleFunc("POST /desktop/browse", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			URL string `json:"url"`
+		}
+		if !decodeInto(w, r, &body) {
 			return
 		}
 		u, err := url.Parse(body.URL)
@@ -321,30 +337,69 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 			http.Error(w, `{"error":"bad_url"}`, http.StatusBadRequest)
 			return
 		}
-		title := body.Title
-		if title == "" {
-			title = u.Host
-		}
-		id, err := browse.Open(u.String(), title)
+		id, err := browse.Open(u.String())
 		if err != nil {
 			log.Printf("open browse tab: %v", err)
-			http.Error(w, `{"error":"open_failed"}`, http.StatusInternalServerError)
+			browseErr(w, err)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(map[string]string{"id": id})
 	})
-	// The SPA polls this while it has tabs open; an id it knows that is no
-	// longer listed means that tab was closed — resync that item.
+	// The SPA polls this while it has tabs open: strip order, live titles for
+	// the tab labels, and the current URL so the pane can show where the user
+	// actually is. A known id missing from open means the tab closed (⌘W) —
+	// resync that item.
 	mux.HandleFunc("GET /desktop/browse/state", func(w http.ResponseWriter, r *http.Request) {
-		if browse == nil {
-			http.Error(w, `{"error":"unavailable"}`, http.StatusServiceUnavailable)
-			return
-		}
+		open, active := browse.State()
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		_ = json.NewEncoder(w).Encode(map[string][]string{"open": browse.OpenIDs()})
+		_ = json.NewEncoder(w).Encode(map[string]any{"open": open, "active": active})
+	})
+	// Which tab is visible; "" means none (the SPA is showing its own UI, or
+	// has an overlay up that must not be painted over by a native view).
+	mux.HandleFunc("POST /desktop/browse/activate", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ID string `json:"id"`
+		}
+		if !decodeInto(w, r, &body) {
+			return
+		}
+		if err := browse.Activate(body.ID); err != nil {
+			browseErr(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /desktop/browse/close", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ID string `json:"id"`
+		}
+		if !decodeInto(w, r, &body) {
+			return
+		}
+		if err := browse.CloseTab(body.ID); err != nil {
+			browseErr(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	// The pane rect in the SPA's own coordinates (CSS px, y from top). Sent on
+	// mount and on layout changes; window resizes track natively in between.
+	mux.HandleFunc("POST /desktop/browse/frame", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			X, Y, W, H float64
+		}
+		if !decodeInto(w, r, &body) {
+			return
+		}
+		if body.W < 0 || body.H < 0 {
+			http.Error(w, `{"error":"bad_frame"}`, http.StatusBadRequest)
+			return
+		}
+		browse.SetFrame(frameRect{X: body.X, Y: body.Y, W: body.W, H: body.H})
+		w.WriteHeader(http.StatusNoContent)
 	})
 	// PUT settings/ rewrites the config on disk, so re-read it per request
 	// (mirrors cmd/scry buildServeMux).

@@ -5,9 +5,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"unsafe"
 
 	scry "github.com/midagedev/scry"
 	"github.com/midagedev/scry/internal/config"
@@ -45,14 +47,9 @@ func TestFallbackHandler(t *testing.T) {
 	reg := workspace.New()
 	t.Cleanup(func() { reg.Close() })
 	openedURLs := []string{}
-	browse := newBrowseWindows()
-	spawned := []string{} // "url|title" per spawn, in order
-	closers := []func(){} // simulate the user closing tab i
-	browse.spawn = func(url, title string, onClosing func()) error {
-		spawned = append(spawned, url+"|"+title)
-		closers = append(closers, onClosing)
-		return nil
-	}
+	browse := newBrowseTabs()
+	emb := &fakeEmbedder{}
+	browse.bind(emb)
 	h := fallbackHandler(server.New(db, cfg), ui, reg, func(u string) error {
 		openedURLs = append(openedURLs, u)
 		return nil
@@ -132,17 +129,18 @@ func TestFallbackHandler(t *testing.T) {
 		}
 	})
 
-	// The in-app tab flow end to end at the handler seam: open two tabs, watch
-	// the state poll, close one, watch it disappear. URL validation must match
-	// /desktop/open — a tab window is still a webview pointed at the URL.
-	t.Run("desktop browse opens tabs and the state poll tracks closes", func(t *testing.T) {
-		post := func(body string) *httptest.ResponseRecorder {
-			req := httptest.NewRequest("POST", "/desktop/browse", strings.NewReader(body))
+	// The in-app browser pane at the handler seam: open two tabs (second takes
+	// over as active), switch, close, and move the pane rect. URL validation
+	// must match /desktop/open — an embedded tab is still a webview pointed at
+	// the URL.
+	t.Run("desktop browse pane lifecycle over the routes", func(t *testing.T) {
+		post := func(path, body string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest("POST", path, strings.NewReader(body))
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, req)
 			return rec
 		}
-		state := func() []string {
+		state := func() (open []map[string]string, active string) {
 			req := httptest.NewRequest("GET", "/desktop/browse/state", nil)
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, req)
@@ -150,15 +148,21 @@ func TestFallbackHandler(t *testing.T) {
 				t.Fatalf("state: got %d body %s", rec.Code, rec.Body.String())
 			}
 			var doc struct {
-				Open []string `json:"open"`
+				Open   []map[string]string `json:"open"`
+				Active string              `json:"active"`
 			}
 			if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 				t.Fatal(err)
 			}
-			return doc.Open
+			return doc.Open, doc.Active
 		}
 
-		rec := post(`{"url":"https://example.atlassian.net/browse/NMA-1","title":"NMA-1"}`)
+		// The SPA reports the pane rect before (or right after) the first tab.
+		if rec := post("/desktop/browse/frame", `{"x":320,"y":48,"w":800,"h":600}`); rec.Code != 204 {
+			t.Fatalf("frame: got %d body %s", rec.Code, rec.Body.String())
+		}
+
+		rec := post("/desktop/browse", `{"url":"https://example.atlassian.net/browse/NMA-1"}`)
 		if rec.Code != 201 {
 			t.Fatalf("browse: got %d body %s", rec.Code, rec.Body.String())
 		}
@@ -168,22 +172,63 @@ func TestFallbackHandler(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &first); err != nil || first.ID == "" {
 			t.Fatalf("no id in %s (%v)", rec.Body.String(), err)
 		}
-		if rec := post(`{"url":"https://example.atlassian.net/wiki/spaces/X/pages/42"}`); rec.Code != 201 {
+		if got := emb.frameOf(first.ID); got != (frameRect{X: 320, Y: 48, W: 800, H: 600}) {
+			t.Fatalf("tab created off the reported rect: %+v", got)
+		}
+
+		rec = post("/desktop/browse", `{"url":"https://example.atlassian.net/wiki/spaces/X/pages/42"}`)
+		if rec.Code != 201 {
 			t.Fatalf("second tab: got %d body %s", rec.Code, rec.Body.String())
 		}
-		if len(spawned) != 2 || spawned[0] != "https://example.atlassian.net/browse/NMA-1|NMA-1" {
-			t.Fatalf("spawned = %v", spawned)
+		var second struct {
+			ID string `json:"id"`
 		}
-		// No title falls back to the host — the window needs some label.
-		if !strings.HasSuffix(spawned[1], "|example.atlassian.net") {
-			t.Fatalf("title fallback missing: %v", spawned[1])
+		_ = json.Unmarshal(rec.Body.Bytes(), &second)
+
+		// Opening made the newest tab the visible one; the first hid.
+		open, active := state()
+		if len(open) != 2 || active != second.ID {
+			t.Fatalf("open=%v active=%q want active %q", open, active, second.ID)
 		}
-		if open := state(); len(open) != 2 {
-			t.Fatalf("open = %v", open)
+		if !emb.hidden(first.ID) || emb.hidden(second.ID) {
+			t.Fatalf("visibility: first hidden=%v second hidden=%v", emb.hidden(first.ID), emb.hidden(second.ID))
 		}
-		closers[0]() // the user closes the first tab
-		if open := state(); len(open) != 1 || open[0] == first.ID {
-			t.Fatalf("after close, open = %v (closed id %s)", open, first.ID)
+		// Live titles come off the webview for the tab strip.
+		if open[0]["title"] != "제목:"+emb.urlOf(first.ID) {
+			t.Fatalf("state title = %q", open[0]["title"])
+		}
+
+		// Switch back, then hide everything (SPA overlay up).
+		if rec := post("/desktop/browse/activate", `{"id":"`+first.ID+`"}`); rec.Code != 204 {
+			t.Fatalf("activate: got %d", rec.Code)
+		}
+		if emb.hidden(first.ID) {
+			t.Fatal("activate did not show the tab")
+		}
+		if rec := post("/desktop/browse/activate", `{"id":""}`); rec.Code != 204 {
+			t.Fatalf("hide all: got %d", rec.Code)
+		}
+		if !emb.hidden(first.ID) || !emb.hidden(second.ID) {
+			t.Fatal("hide-all left a native view over the SPA")
+		}
+
+		// A later frame report moves every tab, hidden ones included.
+		if rec := post("/desktop/browse/frame", `{"x":0,"y":48,"w":1200,"h":700}`); rec.Code != 204 {
+			t.Fatalf("re-frame: got %d", rec.Code)
+		}
+		if got := emb.frameOf(second.ID); got.W != 1200 {
+			t.Fatalf("hidden tab not re-framed: %+v", got)
+		}
+
+		if rec := post("/desktop/browse/close", `{"id":"`+first.ID+`"}`); rec.Code != 204 {
+			t.Fatalf("close: got %d", rec.Code)
+		}
+		open, _ = state()
+		if len(open) != 1 || open[0]["id"] != second.ID {
+			t.Fatalf("after close, open = %v", open)
+		}
+		if !emb.closed(first.ID) {
+			t.Fatal("close route never reached the native layer")
 		}
 
 		for _, bad := range []string{
@@ -191,15 +236,60 @@ func TestFallbackHandler(t *testing.T) {
 			`{"url":"javascript:alert(1)"}`,
 			`not json`,
 		} {
-			if rec := post(bad); rec.Code != 400 {
+			if rec := post("/desktop/browse", bad); rec.Code != 400 {
 				t.Fatalf("%s: got %d, want 400", bad, rec.Code)
 			}
 		}
-		if len(spawned) != 2 {
-			t.Fatalf("refused URL spawned a tab: %v", spawned)
+		if emb.created != 2 {
+			t.Fatalf("refused URL created a tab: %d", emb.created)
+		}
+		if rec := post("/desktop/browse/close", `{"id":"999"}`); rec.Code != 400 {
+			t.Fatalf("closing unknown tab: got %d, want 400", rec.Code)
 		}
 	})
 }
+
+// fakeEmbedder stands in for the native WKWebView layer. browseTabs assigns
+// ids "1","2",… in creation order, so helpers index by that same order.
+type fakeTab struct {
+	url    string
+	frame  frameRect
+	hid    bool
+	closed bool
+}
+
+type fakeEmbedder struct {
+	created int
+	byOrder []*fakeTab
+}
+
+func (f *fakeEmbedder) Create(url string, fr frameRect) (unsafe.Pointer, error) {
+	tab := &fakeTab{url: url, frame: fr, hid: true}
+	f.created++
+	f.byOrder = append(f.byOrder, tab)
+	return unsafe.Pointer(tab), nil
+}
+
+func (f *fakeEmbedder) SetFrame(wv unsafe.Pointer, fr frameRect) { (*fakeTab)(wv).frame = fr }
+func (f *fakeEmbedder) SetHidden(wv unsafe.Pointer, h bool)      { (*fakeTab)(wv).hid = h }
+func (f *fakeEmbedder) Close(wv unsafe.Pointer)                  { (*fakeTab)(wv).closed = true }
+func (f *fakeEmbedder) Info(wv unsafe.Pointer) (string, string) {
+	t := (*fakeTab)(wv)
+	return "제목:" + t.url, t.url
+}
+
+func (f *fakeEmbedder) tab(id string) *fakeTab {
+	n, err := strconv.Atoi(id)
+	if err != nil || n < 1 || n > len(f.byOrder) {
+		return &fakeTab{}
+	}
+	return f.byOrder[n-1]
+}
+
+func (f *fakeEmbedder) frameOf(id string) frameRect { return f.tab(id).frame }
+func (f *fakeEmbedder) hidden(id string) bool       { return f.tab(id).hid }
+func (f *fakeEmbedder) closed(id string) bool       { return f.tab(id).closed }
+func (f *fakeEmbedder) urlOf(id string) string      { return f.tab(id).url }
 
 // seedDesktopProfile writes config.json + scry.db under SCRY_HOME for tests that
 // must not touch the real ~/.scry tree.
@@ -263,7 +353,9 @@ func TestDesktopWorkspaceRoutes(t *testing.T) {
 	}
 	reg := workspace.New()
 	t.Cleanup(func() { reg.Close() })
-	h := fallbackHandler(server.New(db, primaryCfg), ui, reg, nil, nil)
+	// Unbound browse: the routes exist but answer 503 until bind() — the same
+	// state the app is in before application.New returns.
+	h := fallbackHandler(server.New(db, primaryCfg), ui, reg, nil, newBrowseTabs())
 
 	t.Run("workspace config.json is JSON", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/w/work/config.json", nil)

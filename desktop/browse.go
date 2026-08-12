@@ -2,121 +2,174 @@ package main
 
 import (
 	"errors"
-	"sort"
 	"strconv"
 	"sync"
-
-	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/wailsapp/wails/v3/pkg/events"
+	"unsafe"
 )
 
-// browseWindows tracks the in-app browser tabs: Atlassian pages opened as
-// native macOS tab windows so edits happen next to the mirror instead of in a
-// pile of browser tabs. The registry only holds ids — the SPA polls
-// GET /desktop/browse/state, diffs against the tabs it opened, and treats a
-// missing id as "tab closed, resync that item" (web/src/lib/browse.svelte.ts).
+// The in-app browser pane: Atlassian pages render in native WKWebViews layered
+// over the SPA (Atlassian forbids iframes, so this is the only way to put a
+// page inside the app's own layout). The SPA owns everything visual — the tab
+// strip, which tab is active, and the rectangle the pane occupies — and drives
+// this registry through the /desktop/browse routes. This side only bookkeeps
+// ids and forwards to the platform embedder.
 //
-// spawn is bound to the real window constructor once the application exists
-// (same late binding as openURL in run()); handler tests substitute a fake.
-type browseWindows struct {
-	mu    sync.Mutex
-	seq   int
-	open  map[string]struct{}
-	spawn func(url, title string, onClosing func()) error
+// One frame is shared by every tab: tabs are alternative contents of the same
+// pane, never side by side.
+
+// frameRect is the pane's rectangle in the SPA's coordinate space: CSS px,
+// y from the top. The platform layer flips it into native coordinates.
+type frameRect struct {
+	X, Y, W, H float64
 }
 
-func newBrowseWindows() *browseWindows {
-	return &browseWindows{open: map[string]struct{}{}}
+// embedder is the platform seam (macEmbedder on darwin; tests use a fake).
+type embedder interface {
+	Create(url string, f frameRect) (unsafe.Pointer, error)
+	SetFrame(wv unsafe.Pointer, f frameRect)
+	SetHidden(wv unsafe.Pointer, hidden bool)
+	Close(wv unsafe.Pointer)
+	Info(wv unsafe.Pointer) (title, url string)
 }
 
-// bindApp wires spawn to real webview windows. Called after application.New;
-// until then Open fails and the route answers 503. The returned func closes
-// the focused window if it is a browse tab — the Close Tab menu item (⌘W)
-// wants exactly that and must never close the main window.
-func (b *browseWindows) bindApp(app *application.App) (closeCurrentTab func()) {
-	var mu sync.Mutex
-	wins := map[uint]*application.WebviewWindow{}
-	b.spawn = func(url, title string, onClosing func()) error {
-		win := app.Window.NewWithOptions(application.WebviewWindowOptions{
-			Title:     title,
-			Width:     1200,
-			Height:    850,
-			MinWidth:  640,
-			MinHeight: 480,
-			URL:       url,
-			Mac: application.MacWindow{
-				// Preferred, not Automatic: every browse window asks to join a
-				// native tab group, and since the main Scry window keeps the
-				// wails default (tabbing disallowed), the only group they can
-				// form is with each other — one tabbed browser window.
-				TabbingMode: application.MacWindowTabbingModePreferred,
-			},
-		})
-		mu.Lock()
-		wins[win.ID()] = win
-		mu.Unlock()
-		// Fires for ⌘W on a tab as well as the close button. Window methods
-		// marshal to the main thread themselves, so no InvokeSync here.
-		win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
-			mu.Lock()
-			delete(wins, win.ID())
-			mu.Unlock()
-			onClosing()
-		})
-		return nil
-	}
-	return func() {
-		cur := app.Window.Current()
-		if cur == nil {
-			return
-		}
-		mu.Lock()
-		win := wins[cur.ID()]
-		mu.Unlock()
-		if win != nil {
-			win.Close()
-		}
-	}
+type browseTab struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
 }
 
-var errBrowseUnavailable = errors.New("browse windows not ready")
+type browseTabs struct {
+	mu     sync.Mutex
+	emb    embedder // nil until bind; routes answer 503 before that
+	seq    int
+	tabs   map[string]unsafe.Pointer
+	order  []string // insertion order, what the tab strip shows
+	active string   // "" = no tab visible (the SPA is showing itself)
+	frame  frameRect
+}
 
-func (b *browseWindows) Open(url, title string) (string, error) {
+var errBrowseUnavailable = errors.New("browse pane not ready")
+
+func newBrowseTabs() *browseTabs {
+	return &browseTabs{tabs: map[string]unsafe.Pointer{}}
+}
+
+// bind installs the platform embedder once the application (and main window)
+// exist. Until then Open fails and the routes answer 503.
+func (b *browseTabs) bind(emb embedder) {
 	b.mu.Lock()
-	spawn := b.spawn
-	b.seq++
-	id := strconv.Itoa(b.seq)
-	b.open[id] = struct{}{}
+	b.emb = emb
 	b.mu.Unlock()
-	if spawn == nil {
-		b.remove(id)
+}
+
+// Open creates a tab over the current pane rect and makes it the visible one.
+func (b *browseTabs) Open(url string) (string, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.emb == nil {
 		return "", errBrowseUnavailable
 	}
-	if err := spawn(url, title, func() { b.remove(id) }); err != nil {
-		b.remove(id)
+	wv, err := b.emb.Create(url, b.frame)
+	if err != nil {
 		return "", err
 	}
+	b.seq++
+	id := strconv.Itoa(b.seq)
+	b.tabs[id] = wv
+	b.order = append(b.order, id)
+	b.activateLocked(id)
 	return id, nil
 }
 
-func (b *browseWindows) remove(id string) {
-	b.mu.Lock()
-	delete(b.open, id)
-	b.mu.Unlock()
-}
-
-// OpenIDs answers the state poll. Sorted numerically so responses are stable.
-func (b *browseWindows) OpenIDs() []string {
+// Activate shows one tab and hides the rest; "" hides them all. The SPA also
+// uses "" while one of its own overlays (palette, media viewer) is up — a
+// native view otherwise draws over every SPA pixel in its rect.
+func (b *browseTabs) Activate(id string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	ids := make([]string, 0, len(b.open))
-	for id := range b.open {
-		ids = append(ids, id)
+	if b.emb == nil {
+		return errBrowseUnavailable
 	}
-	sort.Slice(ids, func(i, j int) bool {
-		a, _ := strconv.Atoi(ids[i])
-		z, _ := strconv.Atoi(ids[j])
-		return a < z
-	})
-	return ids
+	if id != "" {
+		if _, ok := b.tabs[id]; !ok {
+			return errors.New("no such tab")
+		}
+	}
+	b.activateLocked(id)
+	return nil
+}
+
+func (b *browseTabs) activateLocked(id string) {
+	for tid, wv := range b.tabs {
+		b.emb.SetHidden(wv, tid != id)
+	}
+	b.active = id
+}
+
+// CloseTab tears the webview down. The next active tab is the SPA's decision,
+// not ours: active just clears when the visible tab closes.
+func (b *browseTabs) CloseTab(id string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.emb == nil {
+		return errBrowseUnavailable
+	}
+	wv, ok := b.tabs[id]
+	if !ok {
+		return errors.New("no such tab")
+	}
+	b.emb.Close(wv)
+	delete(b.tabs, id)
+	for i, tid := range b.order {
+		if tid == id {
+			b.order = append(b.order[:i], b.order[i+1:]...)
+			break
+		}
+	}
+	if b.active == id {
+		b.active = ""
+	}
+	return nil
+}
+
+// CloseActive is the Close Tab menu item (⌘W). A no-op when the SPA is
+// frontmost — the stock CloseWindow role would quit the app instead.
+func (b *browseTabs) CloseActive() {
+	b.mu.Lock()
+	id := b.active
+	b.mu.Unlock()
+	if id != "" {
+		_ = b.CloseTab(id)
+	}
+}
+
+// SetFrame moves the pane. Applies to every tab — hidden ones must be in
+// place before they are shown. Window resizes are handled natively
+// (autoresizing margins); this is for the SPA's own layout changes.
+func (b *browseTabs) SetFrame(f frameRect) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.frame = f
+	if b.emb == nil {
+		return
+	}
+	for _, wv := range b.tabs {
+		b.emb.SetFrame(wv, f)
+	}
+}
+
+// State answers the SPA's poll: open tabs in strip order, with live
+// title/URL off each webview, plus which one is visible.
+func (b *browseTabs) State() (open []browseTab, active string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	open = []browseTab{}
+	for _, id := range b.order {
+		title, url := "", ""
+		if b.emb != nil {
+			title, url = b.emb.Info(b.tabs[id])
+		}
+		open = append(open, browseTab{ID: id, Title: title, URL: url})
+	}
+	return open, b.active
 }
