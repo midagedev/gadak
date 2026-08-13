@@ -1,14 +1,14 @@
 <script lang="ts">
   /* Optional surfaces, plus the two settings that belong to no other tab. */
   import { t } from '../../lib/i18n'
-  import type { ScryFeatures } from '../../lib/config'
+  import type { GadakFeatures } from '../../lib/config'
   import { me } from '../../stores/me.svelte'
   import { INPUT } from './controls'
   import type { SettingsDraft } from './draft'
 
   let { draft = $bindable() }: { draft: SettingsDraft } = $props()
 
-  const FEATURES: [keyof ScryFeatures, string, string][] = [
+  const FEATURES: [keyof GadakFeatures, string, string][] = [
     ['feed', t('settings.featureFeed'), t('settings.featureFeedDesc')],
     ['push', t('settings.featurePush'), t('settings.featurePushDesc')],
     ['deploy', t('settings.featureDeploy'), t('settings.featureDeployDesc')],

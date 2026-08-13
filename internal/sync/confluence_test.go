@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/confluence"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/confluence"
 
 	_ "modernc.org/sqlite"
 )

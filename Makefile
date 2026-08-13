@@ -3,7 +3,7 @@
 	hosted-demo hosted-demo-test
 
 build:
-	CGO_ENABLED=0 go build -trimpath -o bin/scry ./cmd/scry
+	CGO_ENABLED=0 go build -trimpath -o bin/gadak ./cmd/gadak
 
 vet:
 	go vet ./...
@@ -34,7 +34,7 @@ scan:
 	bash scripts/scan-internal.sh
 
 docker:
-	docker build -t scry .
+	docker build -t gadak .
 
 # Example enrichment plugins (examples/plugins/*) — self-tests on temp DBs.
 plugins-test:
@@ -70,7 +70,7 @@ media-web: media-deps
 	@mkdir -p $(MEDIA_DIR)
 	@echo "media-web: recording Playwright demo…"
 	rm -rf e2e/demo/test-results
-	SCRY_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/playwright.config.ts
+	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/playwright.config.ts
 	bash e2e/demo/export-video.sh
 
 media-tui: media-prep

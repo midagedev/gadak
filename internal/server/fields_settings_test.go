@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 func TestSettingsFieldSpecsAndUsageReadOnly(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	cfg.Fields = []config.FieldSpec{
 		{Alias: "severity", Label: "Severity Level", IDs: []string{"customfield_10", "customfield_20"}, Role: "facet", Kind: "option", Auto: true},

@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test'
  * Demo media recording config — separate from e2e/playwright.config.ts.
  * Records a single slow, readable web UI walkthrough for docs/media/.
  *
- * Run via `make media-web` (sets SCRY_MEDIA=1). Do not use for CI gates.
+ * Run via `make media-web` (sets GADAK_MEDIA=1). Do not use for CI gates.
  */
 export default defineConfig({
   testDir: '.',
@@ -42,7 +42,7 @@ export default defineConfig({
     trace: 'off',
   },
   webServer: {
-    command: 'SCRY_FRESHEN=1 bash e2e/serve.sh',
+    command: 'GADAK_FRESHEN=1 bash e2e/serve.sh',
     url: 'http://127.0.0.1:7877/healthz',
     // Demo recordings often re-run while a previous serve is still up.
     reuseExistingServer: true,

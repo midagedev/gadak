@@ -8,7 +8,7 @@ fictional values only (tasks T6.5/T6.8). This script re-applies that scrub to
 a fresh copy, so regenerating the snapshot is one command instead of a
 remembered ritual:
 
-    python3 scripts/scrub-demo-db.py ~/.scry/profiles/demo/scry.db examples/demo.db
+    python3 scripts/scrub-demo-db.py ~/.gadak/profiles/demo/gadak.db examples/demo.db
     ./scripts/scan-internal.sh   # must pass before committing
 
 Replacements (matching the original T6.5 scrub of the committed snapshot):

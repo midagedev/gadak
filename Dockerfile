@@ -23,7 +23,7 @@ COPY . .
 COPY --from=web /src/dist/app ./dist/app
 
 ENV CGO_ENABLED=0
-RUN go build -trimpath -ldflags="-s -w" -o /out/scry ./cmd/scry
+RUN go build -trimpath -ldflags="-s -w" -o /out/gadak ./cmd/gadak
 
 # ── 3. Runtime ───────────────────────────────────────────────────────────────
 # distroless/static: no shell, no package manager; ca-certificates included.
@@ -31,13 +31,13 @@ FROM gcr.io/distroless/static-debian12
 
 # The web UI is embedded in the binary (go:embed picks up dist/app during the
 # build stage), so the runtime image is just the binary.
-COPY --from=build /out/scry /usr/bin/scry
+COPY --from=build /out/gadak /usr/bin/gadak
 
-# Persist config + scry.db outside the container filesystem.
-ENV SCRY_HOME=/data
+# Persist config + gadak.db outside the container filesystem.
+ENV GADAK_HOME=/data
 VOLUME ["/data"]
 
 EXPOSE 7777
 
-ENTRYPOINT ["scry"]
+ENTRYPOINT ["gadak"]
 CMD ["serve", "--addr", "0.0.0.0:7777", "--allow-remote"]

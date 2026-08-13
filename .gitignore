@@ -10,12 +10,13 @@ dist/app/*
 !dist/app/.placeholder
 bin/
 # A stray `go build` in the repo root drops a binary named after the module.
+/gadak
 /scry
 build/
 coverage/
 
 # Local runtime data
-.scry/
+.gadak/
 *.db
 *.db-shm
 *.db-wal

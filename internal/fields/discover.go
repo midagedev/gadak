@@ -3,8 +3,8 @@ package fields
 import (
 	"sort"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/jira"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 // Discover groups the custom-field catalog by normalized display name, keeps

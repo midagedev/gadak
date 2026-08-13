@@ -16,7 +16,7 @@ type activityProgress struct {
 func resetJobAndActivity(t *testing.T) *Handler {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 	db, cfg := fixture(t)
 	cfg.Site, cfg.Email, cfg.Token = "", "", ""
 	cfg.Projects = nil

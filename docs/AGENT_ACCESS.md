@@ -9,9 +9,9 @@ layers to reach for, and what each one costs. The contract behind them is
 
 | | What it is | Reach for it when | Setup |
 | --- | --- | --- | --- |
-| **SQL** | the mirror file itself, `~/.scry/scry.db` | the question is relational, aggregated, or historical — "reopened twice and last touched by QA" is one query | none; `sqlite3` or `scry sql` |
-| **CLI** | `scry issue`, `search`, `comment`, `transition`, `assign` | one issue read whole, or one write to Jira | the binary, and `scry init` for writes |
-| **REST** | the read and write API `scry serve` exposes on loopback | the caller is not a shell — an editor extension, a script in another language, a browser | `scry serve` running |
+| **SQL** | the mirror file itself, `~/.gadak/gadak.db` | the question is relational, aggregated, or historical — "reopened twice and last touched by QA" is one query | none; `sqlite3` or `gadak sql` |
+| **CLI** | `gadak issue`, `search`, `comment`, `transition`, `assign` | one issue read whole, or one write to Jira | the binary, and `gadak init` for writes |
+| **REST** | the read and write API `gadak serve` exposes on loopback | the caller is not a shell — an editor extension, a script in another language, a browser | `gadak serve` running |
 
 SQL is the widest and the cheapest: no tool schema to read, no pagination, no
 rate limit, and only the columns asked for come back. The CLI exists because
@@ -29,10 +29,10 @@ None, for reading. If your agent can run a shell command, it can already query
 the mirror:
 
 ```bash
-sqlite3 ~/.scry/scry.db "select key, status, status_category from issues limit 5"
+sqlite3 ~/.gadak/gadak.db "select key, status, status_category from issues limit 5"
 ```
 
-For an agent on a command allowlist, grant `scry sql` instead of `sqlite3`: it
+For an agent on a command allowlist, grant `gadak sql` instead of `sqlite3`: it
 opens the database with SQLite's `mode=ro`, so a mistyped `UPDATE` fails on the
 connection rather than corrupting the mirror.
 
@@ -55,9 +55,9 @@ language and ignores `Accept-Language`. `status_category`, `status_id`, and
 ## Check staleness before acting
 
 ```bash
-scry status --json
+gadak status --json
 # or
-sqlite3 ~/.scry/scry.db "select watermark, last_error from sync_state"
+sqlite3 ~/.gadak/gadak.db "select watermark, last_error from sync_state"
 ```
 
 Confirm `last_error IS NULL` and that the watermark is recent before acting on an
@@ -65,38 +65,38 @@ answer: a mirror that silently stopped syncing looks exactly like a quiet
 backlog. `issue`, `search`, `comment`, `transition`, `assign`, and `fields` also
 print a one-line warning to stderr when the last sync failed or is over an hour
 old, so a stale answer says so without being asked. (`sql` and `status` do not;
-use `scry status --json` when you need an explicit freshness check.)
+use `gadak status --json` when you need an explicit freshness check.)
 
 ## Rules
 
 - **Never write to the database.** The next sync destroys direct writes. Changes
   go through Jira — the web UI, the write API, or the write commands.
-- **Do not depend on `issues.raw`.** It follows Jira's payload shape, not scry's
+- **Do not depend on `issues.raw`.** It follows Jira's payload shape, not gadak's
   contract.
 - **Do not poll.** `sync_state.version` changes only when something changed.
 - **Remember it is a mirror, not an archive.** Deleted issues disappear from it.
 
-## Escape hatch: `scry api`
+## Escape hatch: `gadak api`
 
 When the mirror does not model what you need — watchers, worklogs, sprint
 boards, user search, label bulk reads, Confluence REST that is not in the page
-mirror — use **`scry api`**. It sends the request with the profile's stored
+mirror — use **`gadak api`**. It sends the request with the profile's stored
 credential and prints the response body unchanged on stdout so an agent can
 parse it. It is not a second product surface; it is a deliberate hole in the
-fence for endpoints scry has not chosen to model.
+fence for endpoints gadak has not chosen to model.
 
 ```bash
 # Who am I (credential check / account id)
-scry api /rest/api/3/myself
+gadak api /rest/api/3/myself
 
 # Watchers on one issue (not in the mirror)
-scry api GET /rest/api/3/issue/ABC-1/watchers
+gadak api GET /rest/api/3/issue/ABC-1/watchers
 
 # Confluence spaces (path prefix /wiki/ → Confluence client; needs confluence enabled)
-scry api GET /wiki/api/v2/spaces --query limit=5
+gadak api GET /wiki/api/v2/spaces --query limit=5
 
 # Worklog write — requires --write; uses write retry policy (429/503 only)
-scry api POST /rest/api/3/issue/ABC-1/worklog --data @wl.json --write
+gadak api POST /rest/api/3/issue/ABC-1/worklog --data @wl.json --write
 ```
 
 **Read by default.** `GET` and `HEAD` run as-is. Any other method is refused
@@ -105,19 +105,19 @@ unless you pass **`--write`**, which also switches to the write retry policy
 URLs (`https://…`, `//host/…`) are rejected so a prompt-injected path cannot
 walk the token off your site.
 
-**Not on MCP.** `scry api` is CLI-only. MCP stays the four read tools
-(`scry_query`, `scry_search`, `scry_issue`, `scry_status`) with no write tools
+**Not on MCP.** `gadak api` is CLI-only. MCP stays the four read tools
+(`gadak_query`, `gadak_search`, `gadak_issue`, `gadak_status`) with no write tools
 and no raw proxy. A host without a shell is not given a full-credential REST
 tunnel: that would expand the blast radius of a compromised or confused agent
 beyond what the mirror contracts describe. If you need the escape hatch, grant
-the agent a shell and `scry api`.
+the agent a shell and `gadak api`.
 
 ## Why MCP is last, not first
 
-MCP is shipped (`scry mcp`) for hosts without a shell — Claude Desktop and the
+MCP is shipped (`gadak mcp`) for hosts without a shell — Claude Desktop and the
 like. Prefer the CLI or SQL when the agent can spawn a process: no tool schemas
 in the context window, and the same four capabilities. The MCP surface stays a
-thin wrapper: `scry_query`, `scry_search`, `scry_issue`, `scry_status`.
+thin wrapper: `gadak_query`, `gadak_search`, `gadak_issue`, `gadak_status`.
 Deliberately not one tool per question — every extra tool is context an agent
-must read before it can act, and `scry_query` plus the documented schema subsumes
+must read before it can act, and `gadak_query` plus the documented schema subsumes
 them all. Setup: [`MCP.md`](MCP.md).

@@ -11,20 +11,20 @@ import (
 	"testing/fstest"
 	"unsafe"
 
-	scry "github.com/midagedev/scry"
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/server"
-	"github.com/midagedev/scry/internal/store"
-	"github.com/midagedev/scry/internal/workspace"
+	gadak "github.com/midagedev/gadak"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/server"
+	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/workspace"
 )
 
 // Exercises the exact seams the webview depends on: config.json, the API
 // behind the browser guard (wails:// Origins, non-loopback Hosts), and the
-// SPA fallback. Run with SCRY_PROFILE=demo — the profile is resolved from the
+// SPA fallback. Run with GADAK_PROFILE=demo — the profile is resolved from the
 // environment at process start.
 func TestFallbackHandler(t *testing.T) {
 	if config.Profile() != "demo" {
-		t.Skip("run with SCRY_PROFILE=demo — refusing to open the default profile's mirror")
+		t.Skip("run with GADAK_PROFILE=demo — refusing to open the default profile's mirror")
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -40,7 +40,7 @@ func TestFallbackHandler(t *testing.T) {
 	}
 	defer db.Close()
 
-	ui, ok := scry.WebUI()
+	ui, ok := gadak.WebUI()
 	if !ok {
 		t.Fatal("no embedded web UI — run `npm run build` at the repo root first")
 	}
@@ -71,7 +71,7 @@ func TestFallbackHandler(t *testing.T) {
 		if doc["desktop"] != true {
 			t.Fatalf("desktop flag missing: %v", doc["desktop"])
 		}
-		// Same document `scry serve` sends, plus the one key — a dropped field
+		// Same document `gadak serve` sends, plus the one key — a dropped field
 		// would switch off a surface in the app only.
 		if _, ok := doc["apiBase"]; !ok {
 			t.Fatalf("apiBase lost in the rewrite: %s", rec.Body.String())
@@ -291,8 +291,8 @@ func (f *fakeEmbedder) hidden(id string) bool       { return f.tab(id).hid }
 func (f *fakeEmbedder) closed(id string) bool       { return f.tab(id).closed }
 func (f *fakeEmbedder) urlOf(id string) string      { return f.tab(id).url }
 
-// seedDesktopProfile writes config.json + scry.db under SCRY_HOME for tests that
-// must not touch the real ~/.scry tree.
+// seedDesktopProfile writes config.json + gadak.db under GADAK_HOME for tests that
+// must not touch the real ~/.gadak tree.
 func seedDesktopProfile(t *testing.T, name string, cfg *config.Config) {
 	t.Helper()
 	dir, err := config.DirFor(name)
@@ -313,7 +313,7 @@ func seedDesktopProfile(t *testing.T, name string, cfg *config.Config) {
 	if err := loaded.Save(); err != nil {
 		t.Fatal(err)
 	}
-	dbPath := filepath.Join(dir, "scry.db")
+	dbPath := filepath.Join(dir, "gadak.db")
 	db, err := store.Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
@@ -323,7 +323,7 @@ func seedDesktopProfile(t *testing.T, name string, cfg *config.Config) {
 
 func TestDesktopWorkspaceRoutes(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 	t.Cleanup(func() { config.SetProfile("") })
 	config.SetProfile("")
 

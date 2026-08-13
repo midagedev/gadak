@@ -15,9 +15,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/jira"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/store"
 
 	_ "modernc.org/sqlite" // the tests read the mirror over SQL to check columns the read API does not expose
 )
@@ -332,7 +332,7 @@ type mirror struct {
 
 func newMirror(t *testing.T) *mirror {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "scry.db")
+	path := filepath.Join(t.TempDir(), "gadak.db")
 	db, err := store.Open(path)
 	if err != nil {
 		t.Fatal(err)

@@ -3,7 +3,7 @@ package fields
 import (
 	"testing"
 
-	"github.com/midagedev/scry/internal/jira"
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 func field(name, typ, items, custom string) jira.FieldInfo {

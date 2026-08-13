@@ -1,0 +1,452 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+)
+
+// cmdHelp is the prose around a command. Flag names and descriptions for
+// flag.FlagSet commands are taken from the FlagSet via VisitAll at render
+// time so they cannot drift from the registration site. options is only
+// filled for commands that parse flags by hand.
+type cmdHelp struct {
+	summary  string
+	usage    string
+	options  []helpOption // manual Options lines; ignored when a FlagSet is given
+	examples []string
+	seeAlso  []string
+}
+
+type helpOption struct {
+	name string // without leading dashes, e.g. "full" or "json"
+	desc string
+}
+
+// helps is the per-command help table. Summaries recycle the top-level usage
+// constant; positionals and examples match the real cmdXxx implementations.
+var helps = map[string]cmdHelp{
+	"init": {
+		summary: "configure site and credentials (projects optional)",
+		usage:   "gadak [--profile <name>] init [--site URL] [--email ADDR] [--projects A,B] [--spaces KEYS|all|none] [--token-file PATH | --token-stdin] [--json]",
+		// FlagSet VisitAll supplies Options when `gadak init --help` runs; this
+		// list covers formatHelp(nil) and documents the env-only token path.
+		options: []helpOption{
+			{name: "site", desc: "Jira site URL (https://your-site.atlassian.net); env GADAK_SITE"},
+			{name: "email", desc: "account email; env GADAK_EMAIL"},
+			{name: "projects", desc: "project keys, comma-separated (optional — blank syncs every project you can see); env GADAK_PROJECTS"},
+			{name: "spaces", desc: "Confluence: KEY,KEY… | all (every space) | none (off); \"all\"/\"none\" reserved; omit to leave unchanged"},
+			{name: "token-file", desc: "read API token from this file"},
+			{name: "token-stdin", desc: "read API token from stdin"},
+			{name: "token", desc: "not accepted; use GADAK_TOKEN, --token-file, or --token-stdin"},
+			{name: "json", desc: "emit one JSON object on success"},
+		},
+		examples: []string{
+			"gadak init",
+			"gadak --profile demo init",
+			"GADAK_TOKEN=$(cat token) gadak init --site https://x.atlassian.net --email you@example.com --json",
+			"gadak init --site https://x.atlassian.net --email you@example.com --projects ABC --token-file ./token",
+			"gadak init --spaces ENG,PROD",
+			"gadak init --spaces all",
+			"gadak init --spaces none",
+		},
+		seeAlso: []string{"gadak sync", "gadak profiles"},
+	},
+	"sync": {
+		summary: "mirror Jira into the local SQLite database",
+		usage:   "gadak [--profile <name>] sync [--full] [--watch]",
+		examples: []string{
+			"gadak sync                 # incremental, what a serve loop does",
+			"gadak sync --full          # after changing projects or a mapping",
+			"gadak --profile demo sync  # against another site",
+		},
+		seeAlso: []string{"gadak serve", "gadak status"},
+	},
+	"serve": {
+		summary: "web UI and API on loopback (syncs by default when a credential is configured)",
+		usage:   "gadak [--profile <name>] serve [options]",
+		examples: []string{
+			"gadak serve",
+			"gadak serve --addr 127.0.0.1:7778 --no-open",
+			"gadak --profile demo serve --no-sync",
+		},
+		seeAlso: []string{"gadak sync", "gadak demo", "gadak install-service"},
+	},
+	"install-service": {
+		summary: "keep serve running across reboots (launchd / systemd user)",
+		usage:   "gadak [--profile <name>] install-service [--uninstall]",
+		examples: []string{
+			"gadak install-service",
+			"gadak install-service --uninstall",
+			"gadak --profile work install-service",
+		},
+		seeAlso: []string{"gadak serve"},
+	},
+	"install-cli": {
+		summary: "put this binary on PATH via a symlink (prefers a PATH entry, else ~/.local/bin)",
+		usage:   "gadak install-cli [--dir <path>] [--force] [--print]",
+		examples: []string{
+			"gadak install-cli",
+			"/Applications/Gadak.app/Contents/Resources/bin/gadak install-cli",
+			"gadak install-cli --dir /usr/local/bin",
+			"gadak install-cli --print",
+			"gadak install-cli --force",
+		},
+		seeAlso: []string{"gadak mcp install claude", "gadak version"},
+	},
+	"status": {
+		summary: "print sync state and row counts",
+		usage:   "gadak [--profile <name>] status [--json]",
+		examples: []string{
+			"gadak status",
+			"gadak status --json",
+			"gadak --profile demo status",
+		},
+		seeAlso: []string{"gadak sync", "gadak sql", "gadak doctor"},
+	},
+	"doctor": {
+		summary: "print redacted diagnostics safe to paste into a bug report",
+		usage:   "gadak [--profile <name>] doctor [--json]",
+		examples: []string{
+			"gadak doctor",
+			"gadak doctor --json",
+			"gadak --profile demo doctor",
+		},
+		seeAlso: []string{"gadak status", "gadak version"},
+	},
+	"demo": {
+		summary: "serve the bundled snapshot; no Jira account needed",
+		usage:   "gadak demo [options]",
+		examples: []string{
+			"gadak demo",
+			"gadak demo --addr 127.0.0.1:7879 --no-open",
+			"gadak demo --db examples/demo.db",
+		},
+		seeAlso: []string{"gadak serve", "gadak snapshot"},
+	},
+	"export-static": {
+		summary: "freeze a snapshot database into static JSON for a hosted demo",
+		usage:   "gadak export-static [options] <outdir>",
+		examples: []string{
+			"gadak export-static dist/static-demo",
+			"gadak export-static --db examples/demo.db out/",
+			"gadak export-static --api-base /gadak/api/v1/issues/ dist/demo",
+		},
+		seeAlso: []string{"gadak demo", "gadak snapshot"},
+	},
+	"tui": {
+		summary: "terminal issue navigator against the local mirror",
+		usage:   "gadak [--profile <name>] tui",
+		examples: []string{
+			"gadak tui",
+			"gadak --profile demo tui",
+		},
+		seeAlso: []string{"gadak serve", "gadak issue"},
+	},
+	"profiles": {
+		summary: "list profiles: which mirrors exist, which one this command used",
+		usage:   "gadak profiles [--json]",
+		examples: []string{
+			"gadak profiles",
+			"gadak profiles --json",
+		},
+		seeAlso: []string{"gadak init"},
+	},
+	"sql": {
+		summary: "run a read-only SQL query against the local mirror",
+		usage:   "gadak [--profile <name>] sql [--json|--csv] \"select ...\"",
+		options: []helpOption{
+			{name: "json", desc: "emit one JSON object per row"},
+			{name: "csv", desc: "emit CSV with a header row"},
+		},
+		examples: []string{
+			"gadak sql \"select count(*) from issues\"",
+			"gadak sql --json \"select key, status from issues_full limit 5\"",
+			"gadak sql --csv \"select key from issues where status_category = 'done'\"",
+		},
+		seeAlso: []string{"gadak issue", "gadak search", "gadak status"},
+	},
+	"api": {
+		summary: "call Atlassian REST with the stored credential (escape hatch for endpoints the mirror does not cover)",
+		usage:   "gadak [--profile <name>] api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status]",
+		examples: []string{
+			"gadak api /rest/api/3/myself",
+			"gadak api GET /rest/api/3/issue/ABC-1/watchers",
+			"gadak api GET /wiki/api/v2/spaces --query limit=5",
+			"gadak api POST /rest/api/3/issue/ABC-1/worklog --data @wl.json --write",
+		},
+		seeAlso: []string{"gadak issue", "gadak comment", "gadak fields"},
+	},
+	"issue": {
+		summary: "print full detail for one issue from the local mirror",
+		usage:   "gadak [--profile <name>] issue <KEY> [--json]",
+		examples: []string{
+			"gadak issue NMB-140",
+			"gadak issue NMB-140 --json",
+		},
+		seeAlso: []string{"gadak search", "gadak open", "gadak sql"},
+	},
+	"open": {
+		summary: "open the issue on your Jira site in the browser",
+		usage:   "gadak [--profile <name>] open <KEY>",
+		examples: []string{
+			"gadak open NMB-140",
+		},
+		seeAlso: []string{"gadak issue"},
+	},
+	"search": {
+		summary: "full-text search of titles, bodies, and comments in the mirror",
+		usage:   "gadak [--profile <name>] search [--limit N] [--json] \"text\"",
+		examples: []string{
+			"gadak search \"flaky upload\" --limit 5",
+			"gadak search \"idempotency\" --json",
+		},
+		seeAlso: []string{"gadak issue", "gadak sql"},
+	},
+	"comment": {
+		summary: "add a comment on Jira (needs a credential; write-through to the mirror)",
+		usage:   "gadak [--profile <name>] comment <KEY> -m <text|-> [--json]",
+		examples: []string{
+			"gadak comment NMB-140 -m \"Reproduced on staging.\"",
+			"gadak comment NMB-140 -m -          # body from stdin",
+			"gadak comment NMB-140 -m \"done\" --json",
+		},
+		seeAlso: []string{"gadak transition", "gadak assign", "gadak issue"},
+	},
+	"transition": {
+		summary: "change issue status on Jira (needs a credential; accepts transition id, name, or target status name)",
+		usage:   "gadak [--profile <name>] transition <KEY> <status-or-id> [--json]",
+		examples: []string{
+			"gadak transition NMB-140 \"In Review\"",
+			"gadak transition NMB-140 31",
+			"gadak transition NMB-140 Done --json",
+		},
+		seeAlso: []string{"gadak comment", "gadak assign", "gadak issue"},
+	},
+	"assign": {
+		summary: "set the assignee on Jira (needs a credential; pass - to unassign)",
+		usage:   "gadak [--profile <name>] assign <KEY> <email|-> [--json]",
+		examples: []string{
+			"gadak assign NMB-140 dana@example.com",
+			"gadak assign NMB-140 -                 # unassign",
+			"gadak assign NMB-140 dana@example.com --json",
+		},
+		seeAlso: []string{"gadak comment", "gadak transition", "gadak issue"},
+	},
+	"fields": {
+		summary: "report which custom fields are populated (samples the mirror; queries Jira)",
+		usage:   "gadak [--profile <name>] fields [--sample N] [--json] [--all] [--project KEY] [--apply]",
+		options: []helpOption{
+			{name: "sample", desc: "number of mirrored issues to sample (default 200)"},
+			{name: "json", desc: "emit JSON"},
+			{name: "all", desc: "include system fields (default: custom only)"},
+			{name: "project", desc: "limit the sample to one project key"},
+			{name: "apply", desc: "discover in-use custom fields from the mirror, save specs, and backfill (no re-download)"},
+		},
+		examples: []string{
+			"gadak fields",
+			"gadak fields --sample 100 --project NMB",
+			"gadak fields --all --json",
+			"gadak fields --apply",
+		},
+		seeAlso: []string{"gadak status", "gadak sync", "gadak sql"},
+	},
+	"mcp": {
+		summary: "MCP server on stdio for clients without a shell; install pins the profile",
+		usage:   "gadak [--profile <name>] mcp [install <client>]",
+		examples: []string{
+			"gadak mcp",
+			"gadak --profile demo mcp",
+			"gadak mcp install claude",
+			"gadak --profile demo mcp install claude --dry-run",
+			"gadak mcp install json",
+		},
+		seeAlso: []string{"gadak skill install", "gadak sql", "gadak issue", "gadak status", "gadak profiles"},
+	},
+	"skill": {
+		summary: "install the Claude Code skill (schema + query patterns; no MCP process)",
+		usage:   "gadak skill install [client] [--project] [--dir <path>] [--print] [--force]",
+		options: []helpOption{
+			{name: "project", desc: "install into ./.claude/skills/gadak/ under the current directory"},
+			{name: "dir", desc: "install into PATH/gadak/SKILL.md (overrides default and --project)"},
+			{name: "print", desc: "print the install plan without writing"},
+			{name: "force", desc: "overwrite when the existing file differs from the embedded skill"},
+		},
+		examples: []string{
+			"gadak skill install",
+			"gadak skill install claude",
+			"gadak skill install --print",
+			"gadak skill install --project",
+			"gadak skill install --dir /tmp/skills-preview --print",
+			"gadak skill install --force",
+		},
+		seeAlso: []string{"gadak mcp install", "gadak sql", "gadak issue"},
+	},
+	"snapshot": {
+		summary: "write a shareable copy of the mirror (no personal tables, no credentials)",
+		usage:   "gadak [--profile <name>] snapshot <out.db> [options]",
+		options: []helpOption{
+			{name: "from", desc: "source database path (default: this profile's mirror)"},
+			{name: "spread", desc: "restate timestamps across this window, keeping every issue's own order (e.g. 90d)"},
+			{name: "scale", desc: "clone issues onto new keys until the snapshot holds this many"},
+			{name: "seed", desc: "reserved for --scale determinism (default 1)"},
+			{name: "now", desc: "pin the clock to an RFC3339 timestamp for reproducible builds"},
+			{name: "force", desc: "overwrite out.db if it already exists"},
+		},
+		examples: []string{
+			"gadak snapshot out.db",
+			"gadak snapshot out.db --spread 90d --force        # spread a seeded set over 3 months",
+			"gadak snapshot bench.db --scale 10000             # benchmark fixture, no 10k-issue site",
+		},
+		seeAlso: []string{"gadak demo", "gadak export-static", "gadak sync"},
+	},
+	"team": {
+		summary: "export or import shareable team settings and saved views (no credentials)",
+		usage:   "gadak [--profile <name>] team export|import …",
+		options: []helpOption{
+			{name: "out", desc: "export: write to this file instead of stdout"},
+			{name: "with-members", desc: "export: include members (emails)"},
+			{name: "dry-run", desc: "import: print the merge plan without writing"},
+			{name: "overwrite", desc: "import: replace conflicting settings and same-named views"},
+		},
+		examples: []string{
+			"gadak team export --out gadak-team.json",
+			"gadak team import gadak-team.json --dry-run",
+			"gadak team import gadak-team.json",
+			"gadak team import gadak-team.json --overwrite",
+		},
+		seeAlso: []string{"gadak init", "gadak status"},
+	},
+	"version": {
+		summary: "print the gadak version",
+		usage:   "gadak version",
+		examples: []string{
+			"gadak version",
+		},
+	},
+}
+
+// newFlagSet builds a FlagSet whose -h/--help prints formatHelp to stdout and
+// exits 0 (flag.ExitOnError). Unknown flags still exit 2 after the same help.
+func newFlagSet(name string) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Print(formatHelp(name, fs))
+	}
+	return fs
+}
+
+// wantsHelp reports whether args contain -h or --help (for commands that do
+// not use flag.FlagSet).
+func wantsHelp(args []string) bool {
+	for _, a := range args {
+		if a == "-h" || a == "--help" {
+			return true
+		}
+	}
+	return false
+}
+
+// usageError keeps the existing one-line usage text and points at --help for
+// examples. The first line is intentionally unchanged for callers that match it.
+func usageError(cmd, line string) error {
+	return fmt.Errorf("%s\nrun \"gadak %s --help\" for examples", line, cmd)
+}
+
+// formatHelp renders the help text for name. When fs is non-nil, Options come
+// from VisitAll (double-dash names). When fs is nil, Options come from the
+// manual options slice on the help entry.
+func formatHelp(name string, fs *flag.FlagSet) string {
+	h, ok := helps[name]
+	if !ok {
+		return fmt.Sprintf("gadak: no help for %q\n", name)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "gadak %s — %s\n\n", name, h.summary)
+	fmt.Fprintf(&b, "Usage:\n  %s\n", h.usage)
+
+	optLines := optionLines(fs, h.options)
+	if len(optLines) > 0 {
+		b.WriteString("\nOptions:\n")
+		for _, line := range optLines {
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+	}
+
+	if len(h.examples) > 0 {
+		b.WriteString("\nExamples:\n")
+		for _, ex := range h.examples {
+			fmt.Fprintf(&b, "  %s\n", ex)
+		}
+	}
+
+	if len(h.seeAlso) > 0 {
+		fmt.Fprintf(&b, "\nSee also: %s\n", strings.Join(h.seeAlso, ", "))
+	}
+	return b.String()
+}
+
+// dashed renders a flag the way it is actually written. Go's flag package
+// accepts one or two dashes for any name, but a single-letter flag reads as
+// -m everywhere in this project's docs, and "--m" looks like a typo.
+func dashed(name string) string {
+	if len(name) == 1 {
+		return "-" + name
+	}
+	return "--" + name
+}
+
+func optionLines(fs *flag.FlagSet, manual []helpOption) []string {
+	type item struct {
+		name, desc, def string
+	}
+	var items []item
+	if fs != nil {
+		fs.VisitAll(func(f *flag.Flag) {
+			items = append(items, item{
+				name: dashed(f.Name),
+				desc: f.Usage,
+				def:  f.DefValue,
+			})
+		})
+	} else {
+		for _, o := range manual {
+			items = append(items, item{name: dashed(o.name), desc: o.desc})
+		}
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	width := 0
+	for _, it := range items {
+		if n := len(it.name); n > width {
+			width = n
+		}
+	}
+	lines := make([]string, 0, len(items))
+	for _, it := range items {
+		desc := it.desc
+		if showDefault(it.def) {
+			desc = fmt.Sprintf("%s (default %s)", desc, it.def)
+		}
+		lines = append(lines, fmt.Sprintf("  %-*s  %s", width, it.name, desc))
+	}
+	return lines
+}
+
+// showDefault omits zero-ish defaults that flag.PrintDefaults also hides.
+func showDefault(def string) bool {
+	switch def {
+	case "", "false", "0":
+		return false
+	default:
+		return true
+	}
+}
+
+// printHelp writes formatHelp to stdout. Used by non-FlagSet commands.
+func printHelp(name string) {
+	fmt.Fprint(os.Stdout, formatHelp(name, nil))
+}

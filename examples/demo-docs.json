@@ -1,5 +1,5 @@
 {
-  "generated_for": "scry demo",
+  "generated_for": "gadak demo",
   "spaces": [
     {
       "key": "ENG",
@@ -44,7 +44,7 @@
     {
       "space": "ENG",
       "title": "Engineering Meetings",
-      "body_storage": "<h2>Meeting notes</h2><p>Weekly eng sync and design reviews. Action items should carry issue keys when work is already filed in Jira so search and the scry mirror stay useful.</p><p>Publish notes the same day and tag Alex Kim for on-call relevant items so handoff is never oral-only. Design reviews need a clear approve / revise / reject outcome.</p><p>Child pages include recent syncs and the notification snooze design review.</p>"
+      "body_storage": "<h2>Meeting notes</h2><p>Weekly eng sync and design reviews. Action items should carry issue keys when work is already filed in Jira so search and the gadak mirror stay useful.</p><p>Publish notes the same day and tag Alex Kim for on-call relevant items so handoff is never oral-only. Design reviews need a clear approve / revise / reject outcome.</p><p>Child pages include recent syncs and the notification snooze design review.</p>"
     },
     {
       "space": "ENG",
@@ -74,7 +74,7 @@
     {
       "space": "PROD",
       "title": "Product Meetings",
-      "body_storage": "<h2>Product meeting notes</h2><p>Roadmap reviews and cross-functional syncs with engineering and support. Decisions should cite issue keys for traceability in scry search and the local mirror.</p><p>Keep notes bilingual-friendly when Korean stakeholders attend: either dual sections or a short Korean summary under the English body.</p><p>Default note owner rotates; Alex Kim covers eng-facing action items when product is out.</p>"
+      "body_storage": "<h2>Product meeting notes</h2><p>Roadmap reviews and cross-functional syncs with engineering and support. Decisions should cite issue keys for traceability in gadak search and the local mirror.</p><p>Keep notes bilingual-friendly when Korean stakeholders attend: either dual sections or a short Korean summary under the English body.</p><p>Default note owner rotates; Alex Kim covers eng-facing action items when product is out.</p>"
     },
     {
       "space": "PROD",

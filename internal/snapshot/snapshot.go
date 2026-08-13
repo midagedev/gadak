@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 	_ "modernc.org/sqlite"
 )
 

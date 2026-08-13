@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // handlePeopleComments answers GET /api/v1/issues/people/{author_id}/comments/?limit=

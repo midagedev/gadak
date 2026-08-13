@@ -15,8 +15,8 @@ Ordering and task detail live in `tasks.md` and `../../docs/ROADMAP.md`.
 | No installation-specific value in shipped code | `grep -rn` for site URL, company name, project keys, team labels, internal paths across `web/`, `tools/`, `cmd/` returns nothing outside example values |
 | The UI boots with no server | `npm run build` succeeds; opening `dist/app/index.html` paints the shell and falls back to config defaults |
 | Contracts written down | `contracts/api.md`, `contracts/sync.md`, `contracts/agent.md`, `data-model.md` exist and describe what the client actually sends |
-| `scry serve` serves the built UI and config | `curl /healthz`, `/config.json`, and `/` all succeed in CI |
-| Non-loopback bind refused | CI asserts `scry serve --addr 0.0.0.0:7778` exits non-zero |
+| `gadak serve` serves the built UI and config | `curl /healthz`, `/config.json`, and `/` all succeed in CI |
+| Non-loopback bind refused | CI asserts `gadak serve --addr 0.0.0.0:7778` exits non-zero |
 
 ## G1 — Store Contract
 
@@ -80,7 +80,7 @@ These are not CI fail gates — wall times vary by machine; re-run `make bench` 
 
 | Check | Evidence |
 | --- | --- |
-| `scry demo` works with no configuration and no credentials | Fresh-container run |
+| `gadak demo` works with no configuration and no credentials | Fresh-container run |
 | `examples/demo.db` contains no credential-shaped string and no real data | Scanner output in CI |
 | Snapshot timestamps are spread realistically | Distribution check on the fixture |
 | UI copy is English (with the original strings kept as a locale) | Manual review; blocks any public launch |

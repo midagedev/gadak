@@ -4,16 +4,16 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-05, after closing the v0.3 remainder (`scry snapshot`,
-TUI parity), the research-backed Later items (`scry fields`, call-volume
+Last updated: 2026-08-05, after closing the v0.3 remainder (`gadak snapshot`,
+TUI parity), the research-backed Later items (`gadak fields`, call-volume
 instrumentation at schema v6), and team config sharing.
 
 ## In one paragraph
 
 The tool works end to end on three surfaces over one SQLite mirror: the web UI
-(`scry serve`), the terminal UI (`scry tui`), and the CLI that doubles as the
-agent interface (`scry issue/search/comment/transition/assign/sql`, plus an MCP
-server for clients without a shell). `scry demo` runs the whole thing against a
+(`gadak serve`), the terminal UI (`gadak tui`), and the CLI that doubles as the
+agent interface (`gadak issue/search/comment/transition/assign/sql`, plus an MCP
+server for clients without a shell). `gadak demo` runs the whole thing against a
 bundled snapshot with no Jira account. Sync (full, incremental, reconcile), the
 read API, write-through, the settings UI, the enrichments plugin boundary with
 working examples, i18n, single-binary packaging, and a Playwright suite are
@@ -27,7 +27,7 @@ snapshot, not assumed.
 
 | Claim | Evidence |
 | --- | --- |
-| Full sync mirrors the demo site | 519 issues in ~5 s, `scry sync --full` |
+| Full sync mirrors the demo site | 519 issues in ~5 s, `gadak sync --full` |
 | Incremental sync is idempotent | Immediate re-run: fetched 193 (overlap window), changed 0, `version` unchanged |
 | Derived fields match seeded ground truth | 209/144/166 per category and 95 reopen transitions — the exact numbers the seeder wrote |
 | Live write-through | Comment and transition executed against real Jira; response carried the refreshed IssueLite (`comment_count` 0→1) |
@@ -37,14 +37,14 @@ snapshot, not assumed.
 | Derived reopen_reason / cloned_from | Live demo-site sync: 87 reopened issues, 42 carrying a derived reason |
 | Plugin examples end to end | `examples/plugins/github-prs` and `csv-import` run against a copy of the snapshot; the API then returns `linked_prs` and both the list badge (`deploy_status`) and detail `deploy` |
 | Single binary | `go build` embeds `dist/app`; a fresh binary with no `--static` serves the UI and `/api/v1/issues/bootstrap/` returns 200 |
-| Agent CLI | `scry issue NMB-20`, `scry search pagination`, `--json` shapes verified against the demo profile |
+| Agent CLI | `gadak issue NMB-20`, `gadak search pagination`, `--json` shapes verified against the demo profile |
 | Secret scan | `scripts/scan-internal.sh` clean across the tracked tree and the demo snapshot |
 | Release artifacts | `goreleaser release --snapshot` → six archives; the extracted darwin/arm64 binary serves the embedded UI and a 200 bootstrap with no `--static` |
 | MCP server | stdio JSON-RPC round trip: initialize / tools/list / all four tools; write SQL rejected as a tool error; stdout carries frames only |
 | Demo media | `make media` regenerates three GIFs and an MP4 from the snapshot; frames inspected for branding, English status/type names (list + issue detail — `examples/demo.db` 2026-08-06: status/type Hangul 0 rows; titles English), a healthy sync badge, and the attachment gallery + inline comment images |
 | Attachment cache | Fake-Jira test: one upstream fetch for two views, `immutable` validator on the second, and a cached image still served with the credential removed. Live: 0.6 ms from disk |
 | Inline comment images | Live demo site: three uploads, a comment carrying two media nodes with real UUIDs and `alt` filenames, both rendering in a browser at full resolution |
-| Offline attachments | `scry demo` imports `examples/attachments/`; both inline images render with no Jira account |
+| Offline attachments | `gadak demo` imports `examples/attachments/`; both inline images render with no Jira account |
 | Onboarding | Live site: credential rejected vs verified, four projects listed, 409 on a concurrent sync start, progress 100 → 193 → done |
 | Settings runtime panel | `GET settings/` carries profile, absolute DB and config paths, sizes, counts, watermark; a 5-second sync interval is refused with 400 and the credential survives a PUT |
 | Whole test tree | `go test ./...` green across store/jira/sync/server/tools; `npm run typecheck` 0 errors |
@@ -62,9 +62,9 @@ snapshot, not assumed.
 - `internal/server` — the whole HTTP contract (`contracts/api.md`): bootstrap
   ETag, delta, detail (history carries `from_category`/`to_category`), search,
   attachment proxy, write-through, `settings/`, enrichments merge.
-- `internal/config` — `~/.scry/config.json` (0600). **Profiles**: `--profile x` /
-  `SCRY_PROFILE` keep separate credentials and mirrors under
-  `~/.scry/profiles/x/` — this is how one machine points at a work site and the
+- `internal/config` — `~/.gadak/config.json` (0600). **Profiles**: `--profile x` /
+  `GADAK_PROFILE` keep separate credentials and mirrors under
+  `~/.gadak/profiles/x/` — this is how one machine points at a work site and the
   demo site at once.
 - `web/` — the Svelte app. Feature flags (`feed/push/deploy/qa/teamGroups`)
   actually gate their surfaces; staleness comes from `status_changed_at`; i18n
@@ -78,10 +78,10 @@ snapshot, not assumed.
   flight, LRU budget. Why it exists: proxying every image view contradicted the
   premise, and a cached image renders with no credential, which is what lets the
   offline snapshot show real screenshots.
-- `internal/snapshot` — `scry snapshot`. Builds a fresh schema and copies rows
+- `internal/snapshot` — `gadak snapshot`. Builds a fresh schema and copies rows
   into it rather than duplicating the file, so personal tables leave no residue;
   optional timestamp spreading and issue cloning for fixtures.
-- `internal/teamconfig` — `scry team export/import`. Whitelist-only settings
+- `internal/teamconfig` — `gadak team export/import`. Whitelist-only settings
   sharing; a reflection test refuses to compile past an unclassified `Config`
   field.
 - `internal/secretscan` — the credential-shaped patterns every outbound
@@ -123,7 +123,7 @@ secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
   needed to build, test, or review a change. The snapshot's personas are
   fictional.
 - Live-site verification uses a throwaway Atlassian site through a named profile
-  (`scry --profile demo …`). Credentials live outside the repo by construction —
+  (`gadak --profile demo …`). Credentials live outside the repo by construction —
   see [SECURITY.md](../SECURITY.md).
 
 ## Hard-won knowledge (do not rediscover these)
@@ -159,7 +159,7 @@ secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
     release would have failed its own before-hook. Output goes to `.release/`.
 13. **The sync-health badge reads `sources.synced_at`, not the watermark.** A
     quiet project's watermark stays in the past forever and would read as
-    permanently delayed; recordings freshen the former (`SCRY_FRESHEN=1`).
+    permanently delayed; recordings freshen the former (`GADAK_FRESHEN=1`).
 14. **`waitForLoadState('networkidle')` is a trap here.** The client polls for a
     delta every 15 s, so "no network for 500 ms" only becomes true after that
     poll fires. Wait on the boot payload instead.

@@ -2,8 +2,8 @@
 /**
  * Build the zero-install hosted demo into dist/hosted.
  *
- * 1. Vite build with VITE_HOSTED_DEMO=1 and base /scry/ (GitHub Pages project site)
- * 2. scry export-static freezes examples/demo.db → bootstrap/detail/attachments
+ * 1. Vite build with VITE_HOSTED_DEMO=1 and base /gadak/ (GitHub Pages project site)
+ * 2. gadak export-static freezes examples/demo.db → bootstrap/detail/attachments
  *
  * Usage (from repo root):
  *   node tools/hosted-demo/build.mjs
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outDir = join(root, 'dist', 'hosted')
-const basePath = process.env.SCRY_BASE_PATH || '/scry/'
+const basePath = process.env.GADAK_BASE_PATH || '/gadak/'
 const apiBase = basePath.endsWith('/')
   ? `${basePath}api/v1/issues/`
   : `${basePath}/api/v1/issues/`
@@ -36,25 +36,25 @@ function run(cmd, args, env = {}) {
   }
 }
 
-function findScryBin() {
+function findGadakBin() {
   const candidates = [
-    join(root, 'bin', 'scry'),
-    join(root, 'e2e', '.tmp', 'scry'),
-    'scry',
+    join(root, 'bin', 'gadak'),
+    join(root, 'e2e', '.tmp', 'gadak'),
+    'gadak',
   ]
   for (const c of candidates) {
-    if (c === 'scry') return c
+    if (c === 'gadak') return c
     if (existsSync(c)) return c
   }
   return null
 }
 
 // ── 1. Ensure binary ────────────────────────────────────────────────────────
-let bin = findScryBin()
-if (!bin || bin === 'scry') {
+let bin = findGadakBin()
+if (!bin || bin === 'gadak') {
   mkdirSync(join(root, 'bin'), { recursive: true })
-  run('go', ['build', '-trimpath', '-o', 'bin/scry', './cmd/scry'])
-  bin = join(root, 'bin', 'scry')
+  run('go', ['build', '-trimpath', '-o', 'bin/gadak', './cmd/gadak'])
+  bin = join(root, 'bin', 'gadak')
 }
 
 // ── 2. Vite hosted-demo build ───────────────────────────────────────────────
@@ -67,7 +67,7 @@ if (!existsSync(viteBin)) {
 }
 run(viteBin, ['build'], {
   VITE_HOSTED_DEMO: '1',
-  SCRY_BASE_PATH: basePath,
+  GADAK_BASE_PATH: basePath,
   HOSTED_OUT: outDir,
 })
 
@@ -84,7 +84,7 @@ if (!existsSync(indexPath)) {
 // The tab title is the one label a visitor sees before the app paints, and it
 // follows a bookmark or a shared link anywhere. Say "demo" there too.
 const indexHtml = readFileSync(indexPath, 'utf8')
-const titled = indexHtml.replace('<title>scry</title>', '<title>scry — live demo</title>')
+const titled = indexHtml.replace('<title>gadak</title>', '<title>gadak — live demo</title>')
 if (titled === indexHtml) {
   console.error('hosted-demo: could not retitle index.html — the <title> tag changed shape')
   process.exit(1)
@@ -115,6 +115,6 @@ if (!existsSync(boot) || !existsSync(detail)) {
 const bootSize = statSync(boot).size
 console.log(`hosted-demo: ready at ${outDir} (bootstrap ${bootSize} bytes, base ${basePath})`)
 console.log(`hosted-demo: serve with  npx serve dist -p 4173  then open http://127.0.0.1:4173${basePath}`)
-console.log('              (files live at dist/hosted; serve parent with a /scry rewrite, or:')
-console.log('               mkdir -p dist/pages/scry && cp -R dist/hosted/. dist/pages/scry/')
+console.log('              (files live at dist/hosted; serve parent with a /gadak rewrite, or:')
+console.log('               mkdir -p dist/pages/gadak && cp -R dist/hosted/. dist/pages/gadak/')
 console.log('               npx serve dist/pages -p 4173)')

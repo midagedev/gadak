@@ -2,17 +2,17 @@ import { test, expect, type ConsoleMessage, type Page } from '@playwright/test'
 
 /**
  * Zero-install hosted demo smoke: boot, client-side search, detail, attachment
- * image. Runs against the static snapshot (service worker + JSON), no scry
+ * image. Runs against the static snapshot (service worker + JSON), no gadak
  * binary and no Jira account.
  */
 
-const DEMO = '/scry/'
+const DEMO = '/gadak/'
 
 async function forceLocale(page: Page, locale: 'en' | 'ko' = 'en'): Promise<void> {
   await page.addInitScript((loc) => {
     try {
-      if (!localStorage.getItem('scry_locale')) {
-        localStorage.setItem('scry_locale', loc)
+      if (!localStorage.getItem('gadak_locale')) {
+        localStorage.setItem('gadak_locale', loc)
       }
     } catch {
       /* ignore */

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // Personal state lives in the local database only. A loopback-bound server has

@@ -76,7 +76,7 @@ class FavoritesStore {
     }
   }
 
-  /** One-shot: local scry:favorites → server, then clear the local key. */
+  /** One-shot: local gadak:favorites → server, then clear the local key. */
   async #migrateLocalToServer(): Promise<void> {
     const local = loadArray(FAVORITES_KEY)
     if (!local.length) return

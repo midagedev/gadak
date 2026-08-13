@@ -19,7 +19,7 @@ under 50ms — and then lets that number win arguments: fewer animations, a
 local database, preloaded threads. Linear says the same thing in words —
 "the seconds add up when you're taking the action multiple times."
 
-scry has no network in the read path at all, so its numbers must be more
+gadak has no network in the read path at all, so its numbers must be more
 aggressive than theirs, and they are enforced, not aspired to:
 
 - Interactions on the hot loop (list movement, filter toggles, opening an
@@ -29,7 +29,7 @@ aggressive than theirs, and they are enforced, not aspired to:
 - Animations are allowed only inside the budget, and never on the triage-key
   path (`j`/`k` repetition is exactly the case where "seconds add up").
 
-**Corollary: scry has no spinners.** The mirror is local; anything that shows
+**Corollary: gadak has no spinners.** The mirror is local; anything that shows
 a loading state in the read path is a bug in how we use the mirror, not a
 UI-polish item. (Writes that go to Jira are the exception — see §7.)
 
@@ -40,7 +40,7 @@ building the front end… there's nothing else you need to do" — no error
 handling, no waiting, no two code paths. Superhuman keeps "a database of your
 emails stored in your app or browser."
 
-scry already paid for this architecture. The principle is to keep collecting
+gadak already paid for this architecture. The principle is to keep collecting
 the dividend: instant filters, search while typing, undoable triage, every
 feature working offline. When designing a feature, the first question is
 "what does this look like when data access is free?" — because for us it is.
@@ -69,7 +69,7 @@ the other way around" (Linear Method). "Make the default the right thing for
 most users" (clig.dev). Raycast goes furthest: extensions that invent their
 own navigation get rejected — expressiveness is traded away for coherence.
 
-scry is single-user, which removes the usual excuse for settings: there is no
+gadak is single-user, which removes the usual excuse for settings: there is no
 second user to disagree with the default. The gate question for any new
 option: *are we adding this because the value genuinely differs per user
 (project/space scope — legitimate), or because we failed to decide (density,
@@ -82,7 +82,7 @@ The same trade applies to extension surfaces (`docs/PLUGINS.md`,
 
 Linear's design-refresh principles: "Don't compete for attention you haven't
 earned" and "Structure should be felt not seen." Density of information is
-scry's advantage (issues and docs in one screen); the way to keep it readable
+gadak's advantage (issues and docs in one screen); the way to keep it readable
 is not to remove data but to demote chrome — sidebar contrast below content,
 fewer separators, icons only where they carry information, status chips
 (freshness) quiet until they have something to say.
@@ -114,7 +114,7 @@ were unanimous:
   The container is a suffix, not a group header, so recency order survives.
   Names, not avatars.
 
-For scry, single-user and fully local, the surviving axes are: recently
+For gadak, single-user and fully local, the surviving axes are: recently
 viewed (local), recently updated (`updated_at`), author, favorites.
 "Popular", "following", "shared with me" have no meaning here and are
 deliberately absent. Tree hierarchy is kept for *orientation once a document
@@ -133,9 +133,9 @@ never a style choice.
 
 ## 8. Don't invent vocabulary
 
-Linear Method: "Don't invent terms if possible." scry mirrors Jira and
+Linear Method: "Don't invent terms if possible." gadak mirrors Jira and
 Confluence, so their words are our words — epic, sprint, space, page, label.
-A scry-only synonym forces users to maintain two vocabularies. The palette
+A gadak-only synonym forces users to maintain two vocabularies. The palette
 accepts aliases (§3) but displays canonical names.
 
 ## 9. Quality is a routine, not a taste
@@ -146,7 +146,7 @@ bug takes the same amount of work whether we do it right away or put it
 off"), and Quality Wednesdays (one small imperfection per engineer per week —
 born from a team mostly *failing to see* an inconsistency they were shown).
 
-scry's translations:
+gadak's translations:
 
 - A defect either gets fixed or gets a dated won't-fix with a reason.
   "Someday" is not a state.

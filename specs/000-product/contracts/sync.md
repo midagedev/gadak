@@ -127,13 +127,13 @@ display language and ignores `Accept-Language`. Two consequences:
 
 ## Watch mode
 
-`scry sync --watch` runs incremental sync on an interval (default 60 s) and a
-reconcile pass on a longer one (default 3600 s). `scry serve` runs the
+`gadak sync --watch` runs incremental sync on an interval (default 60 s) and a
+reconcile pass on a longer one (default 3600 s). `gadak serve` runs the
 same loop inside the server process so a single command is enough for normal use.
 
 ## Snapshot generation
 
-`scry snapshot <out.db>` produces a shareable database for demos and tests:
+`gadak snapshot <out.db>` produces a shareable database for demos and tests:
 
 - Copies `items`, `issues`, `comments`, `attachments` (metadata only),
   `changelog`, and `links`.

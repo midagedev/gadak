@@ -2,12 +2,19 @@
 
 ## Unreleased
 
-- **`scry profiles` is an inventory now** — active marker, issue and document
+- **Renamed to gadak.** The `scry` name collided with an existing enterprise
+  company and a crowded search space. The binary, home directory (`~/.gadak`),
+  env prefix (`GADAK_*`), MCP tools (`gadak_query` and friends), module path,
+  and desktop bundle id all changed. An existing `~/.scry` tree and `scry.db`
+  are renamed on first launch. `SCRY_*` environment variables are still read
+  when the `GADAK_*` equivalent is unset. Team-share files still accept the
+  old `scry_team_config` version key.
+- **`gadak profiles` is an inventory now** — active marker, issue and document
   counts, last sync, and the site host (host only; never the URL, email or
   token), plus `--json`. There is deliberately no `switch`: the CLI writes to
   Jira, so the target stays in the command you ran (`--profile`) or in the
-  shell you ran it from (`SCRY_PROFILE`), never in a file shared by every
-  terminal. `skills/scry/SKILL.md` states the rule for agents, which cannot see
+  shell you ran it from (`GADAK_PROFILE`), never in a file shared by every
+  terminal. `skills/gadak/SKILL.md` states the rule for agents, which cannot see
   ambient state at all.
 - **Workspaces work in the desktop app, and mounted mirrors now sync.** The
   sidebar's profile switcher was a `serve`-only feature: the app served neither
@@ -25,38 +32,38 @@
   10,000-page mirror in the desktop app's WebKit: **4,433ms → 68ms**, 90,013
   DOM nodes → 249. Scrolling was never the slow part, which is why this read as
   a freeze rather than as slowness.
-- **The perf fixture has documents.** It never did — `scry snapshot` copies the
+- **The perf fixture has documents.** It never did — `gadak snapshot` copies the
   issue axis only, so no budget could see the document lists, which is how the
   above shipped. New `docsTabSwitch` budget over a 5,000-page fixture. Note for
-  anyone using `scry snapshot` to share a mirror: it still drops pages and
+  anyone using `gadak snapshot` to share a mirror: it still drops pages and
   spaces, so what you hand over has no documents in it.
 - **Desktop: the native title bar is gone.** It spent 32px of window height
   repeating a word the sidebar already shows. The window controls move into the
   sidebar's first row, which reserves their corner and drags the window; the
-  same bundle served by `scry serve` is unchanged (`config.desktop`, served only
+  same bundle served by `gadak serve` is unchanged (`config.desktop`, served only
   by the app, is what separates them).
-- **`scry skill install` — Claude Code skill without MCP.** Embeds
-  `skills/scry/SKILL.md` in the binary and installs it to
-  `~/.claude/skills/scry/` (or `./.claude/skills/scry/` with `--project`, or
-  `--dir <path>/scry/`). Same content for brew users with no checkout.
+- **`gadak skill install` — Claude Code skill without MCP.** Embeds
+  `skills/gadak/SKILL.md` in the binary and installs it to
+  `~/.claude/skills/gadak/` (or `./.claude/skills/gadak/` with `--project`, or
+  `--dir <path>/gadak/`). Same content for brew users with no checkout.
   Identical file → already installed; differing content refuses unless
   `--force`. Prefer this when the agent has a shell; MCP remains for hosts
   that cannot spawn processes. See `docs/AGENT_SETUP.md`.
 - **Desktop menu: Install Command Line Tool…** macOS **Tools** menu runs the
-  same symlink install as `scry install-cli` against the CLI inside the app
-  bundle (`Contents/Resources/bin/scry`) — no terminal, no sudo. Conflict
+  same symlink install as `gadak install-cli` against the CLI inside the app
+  bundle (`Contents/Resources/bin/gadak`) — no terminal, no sudo. Conflict
   offers Replace / Cancel; when the install dir is off PATH, the export
   one-liner is copied to the clipboard. See `docs/DESKTOP.md`.
-- **`scry install-cli` — put the running binary on PATH.** Shared
+- **`gadak install-cli` — put the running binary on PATH.** Shared
   `internal/clitool` package (CLI + desktop). Default dir prefers a PATH
   entry: `~/.local/bin` if present on PATH, else `/usr/local/bin` when
   writable, else `~/.local/bin` (no sudo; `--dir` / `--force` / `--print`).
   After a desktop-only install you can still run
-  `/Applications/Scry.app/Contents/Resources/bin/scry install-cli`, or use
+  `/Applications/Gadak.app/Contents/Resources/bin/gadak install-cli`, or use
   the menu above. Warns when the install directory is not on `$PATH` and
-  points at `scry mcp install claude` next.
+  points at `gadak mcp install claude` next.
 
-- **`scry doctor` — redacted diagnostics for bug reports.** Prints versions,
+- **`gadak doctor` — redacted diagnostics for bug reports.** Prints versions,
   profile path (`~/…`), schema/migration level, mirror row counts, sync
   freshness (watermark presence + classified last error only), last-day
   `api_usage`, and Jira shape as counts (projects, custom-field mappings,
@@ -64,7 +71,7 @@
   project keys, field names, or raw error text. Works with no mirror and no
   credential. `--json` for the same document. Paste into issues; see
   `SUPPORT.md` and the bug report template.
-- **`scry api` — raw Atlassian REST escape hatch.** Call any site-relative
+- **`gadak api` — raw Atlassian REST escape hatch.** Call any site-relative
   path with the stored credential when the mirror does not cover the
   endpoint (watchers, worklogs, sprints, user search, Confluence REST under
   `/wiki/`, …). Read (`GET`/`HEAD`) by default; other methods need
@@ -81,8 +88,8 @@
   Assigned / Reported / Docs-by-author entries whose counts match what they
   open. Web-only this version (TUI.md says so).
 - **Search says why it matched.** Every hit carries
-  `matches[key] = {field: title|body|comment, snippet}` — in the API, `scry
-  search` (human and `--json`), and MCP `scry_search`. The web UI shows the
+  `matches[key] = {field: title|body|comment, snippet}` — in the API, `gadak
+  search` (human and `--json`), and MCP `gadak_search`. The web UI shows the
   matched comment or body line with the query highlighted; highlighting went
   word-level to match how FTS actually matches. Comment search always worked —
   now it looks like it.
@@ -117,12 +124,12 @@
 
 ## v0.8.0 — 2026-08-06
 
-- **Scry.app — the macOS desktop app.** The web UI in its own signed,
-  notarized window (`Scry-<version>-arm64.dmg` on every release), with **no
+- **Gadak.app — the macOS desktop app.** The web UI in its own signed,
+  notarized window (`Gadak-<version>-arm64.dmg` on every release), with **no
   local server at all**: the window reaches the mirror in-process, so ports,
   addresses, and conflicts stop existing as UX. First launch runs the same
   in-window setup as the browser; a second launch focuses the running window.
-  The bundle carries the CLI (`Contents/Resources/bin/scry`) so a
+  The bundle carries the CLI (`Contents/Resources/bin/gadak`) so a
   desktop-only install can still wire up an agent — see `docs/DESKTOP.md`.
 - **Sync starts after in-app onboarding.** `serve` (and the app) began the
   background watch loop only when a credential existed at boot; finishing
@@ -130,7 +137,7 @@
 
 ## v0.7.0 — 2026-08-06
 
-- **`scry mcp install <client>`.** Pins the current profile and absolute binary
+- **`gadak mcp install <client>`.** Pins the current profile and absolute binary
   path into an MCP host registration so clients that do not inherit shell env
   cannot silently attach to the default mirror. `claude` runs
   `claude mcp add` (or prints a manual command if the binary is missing);
@@ -149,7 +156,7 @@
   the sidebar.
 - **Mirror file permissions.** The database and its WAL/SHM sidecars are
   chmodded to `0600` and data directories to `0700` on open; older installs
-  are tightened the next time scry opens them.
+  are tightened the next time gadak opens them.
 - **A face.** Wordmark, logo, and a favicon the app never had; the README
   leads with the live demo and a hero clip.
 - **Demo speaks English.** The bundled snapshot's statuses, types, titles, and
@@ -157,10 +164,10 @@
   CJK search); page authors spread across five personas.
 - **`docs/FAQ.md`.** The hard questions answered with receipts — site load
   math, admin visibility, single-maintainer risk, agent data exposure.
-- **`scry.localhost`.** `serve` opens `http://scry.localhost` when the resolver
+- **`gadak.localhost`.** `serve` opens `http://gadak.localhost` when the resolver
   maps it to loopback.
 - **Port-conflict handling.** On a busy listen port, hand off to a running
-  scry or fall back to a free port instead of failing opaquely.
+  gadak or fall back to a free port instead of failing opaquely.
 - **Keyboard triage.** Sprint cleanup from the keyboard without touching the
   mouse; TUI `s` aliases `t` for transition (parity with the web flow).
 - **Freshness chip.** Surface the server↔Jira leg and pull the mirror on focus.
@@ -232,9 +239,9 @@
 
 ## v0.2.0 — 2026-08-05
 
-- **Team config sharing.** `scry team export` writes the views, field map,
+- **Team config sharing.** `gadak team export` writes the views, field map,
   group rules and thresholds a team agrees on into one file to commit next to
-  the code; `scry team import` merges it into a profile (`--dry-run` prints the
+  the code; `gadak team import` merges it into a profile (`--dry-run` prints the
   same plan the apply path runs, `--overwrite` replaces conflicts). Export is
   whitelist-only and a reflection test forces every new `Config` field to be
   classified as shareable or private. Credentials, account identity and
@@ -243,17 +250,17 @@
   credential keys is refused on import rather than silently ignored.
 - **Rate-limit visibility (schema v6).** The Jira client counts outbound
   attempts, 429s, 5xx, retries and backoff wait; each sync pass flushes them
-  into `api_usage` (one row per UTC day). Shown in `scry status`, `status
+  into `api_usage` (one row per UTC day). Shown in `gadak status`, `status
   --json`, `GET settings/` and the settings runtime panel — hidden while the
   count is zero. This is our own call volume, not Jira's remaining point
   budget, which the site does not expose. The retry policy itself is unchanged.
-- **`scry fields`.** Reports which custom fields are actually populated, by
+- **`gadak fields`.** Reports which custom fields are actually populated, by
   listing the site's fields and probing a stratified, deterministic sample of
   mirrored issues with `fields=*all`. Fields with real usage that are missing
   from `fieldMap` come with a paste-ready fragment; fields at zero are listed
   as the bloat. Not one SQL query over the mirror — the mirror only stores what
   `fieldMap` already names.
-- **`scry snapshot` (T6.4).** Builds a shareable copy by creating a fresh
+- **`gadak snapshot` (T6.4).** Builds a shareable copy by creating a fresh
   schema and copying rows into it, so dropped tables leave no residue.
   Personal state and `sync_state` counters stay behind. `--spread` restates
   timestamps across a window while preserving every issue's internal ordering,
@@ -268,7 +275,7 @@
   saved-view `sort` / `dir` / `group_by` support. Priority sorting keys on
   `priority_rank` rather than the localized priority name.
 - Favorites live in the mirror (`GET/PUT/DELETE favorites/`) instead of only in
-  browser storage, so `scry sql` and agents can see them; the hosted demo,
+  browser storage, so `gadak sql` and agents can see them; the hosted demo,
   which has no writable API, falls back to local storage.
 - Removed the `presence` client stack and its feature flag: the server has
   answered those endpoints with a permanent 404 since extraction, and the
@@ -276,13 +283,13 @@
 
 - **Zero-install hosted demo (v0.3).** Static snapshot of `examples/demo.db`
   (bootstrap + 519 detail JSON + attachment bytes) served by a demo-only service
-  worker on GitHub Pages — no binary, no account. `scry export-static`,
+  worker on GitHub Pages — no binary, no account. `gadak export-static`,
   `make hosted-demo`, `e2e/hosted/`, `.github/workflows/pages.yml`. ADR 0004
   addendum: static JSON+SW instead of sqlite-wasm (client already boots from
   bootstrap JSON; FTS is client-side typing search for the demo).
-- **Retention loop (v0.3).** `scry serve` starts the sync watch loop by default
+- **Retention loop (v0.3).** `gadak serve` starts the sync watch loop by default
   when a credential is configured (`--no-sync` opts out; `--sync` kept as a
-  deprecated alias). `scry install-service` writes a launchd agent or systemd
+  deprecated alias). `gadak install-service` writes a launchd agent or systemd
   user unit for `serve --no-open`. After each successful watch cycle, one OS
   desktop notification may fire for new personal-feed events (macOS
   `osascript`, Linux `notify-send`; config `notify`, default true; body is the
@@ -308,7 +315,7 @@
 - Replaced name-matching rules for resolution and reopen detection with status
   *category* rules, which are stable across sites and account languages. Dropped
   the internal `working_hours_in_status` field, which no code ever populated.
-- Added `scry serve`: serves the built UI, the runtime config document, and
+- Added `gadak serve`: serves the built UI, the runtime config document, and
   `/healthz`. Refuses to bind a non-loopback address without `--allow-remote`,
   because the mirror has no authentication.
 - Added a Jira seeding tool for populating a throwaway Jira site with releases,
@@ -318,7 +325,7 @@
   agent contracts under `specs/000-product/`.
 - Implemented that schema in `internal/store`: SQLite (pure-Go driver, so the
   binary needs no cgo) with WAL, a migration runner keyed on `PRAGMA
-  user_version` that refuses a database written by a newer scry, an FTS5 index
+  user_version` that refuses a database written by a newer gadak, an FTS5 index
   over titles, bodies and comment text, and the derived-field calculator
   (`status_changed_at`, `resolved_at`, `reopen_count`, `reopened_at`,
   `assignee_changed_at`, `comment_count`, `priority_rank`).

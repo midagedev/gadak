@@ -305,7 +305,7 @@ test.describe('documents in the daily loop', () => {
     const stale = body.pages[0]
     await page.addInitScript((key: string) => {
       localStorage.setItem(
-        'scry:recent',
+        'gadak:recent',
         JSON.stringify([{ key, viewed_at: '2000-01-01T00:00:00.000Z', kind: 'doc' }]),
       )
     }, stale.key)

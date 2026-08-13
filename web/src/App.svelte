@@ -24,7 +24,7 @@
   import { browse, installBrowseSessions } from './lib/browse.svelte'
 
   /** Where the demo banner sends people who want the real thing. */
-  const REPO_URL = 'https://github.com/midagedev/scry'
+  const REPO_URL = 'https://github.com/midagedev/gadak'
   import {
     emptyConfig,
     parseConfig,
@@ -249,7 +249,7 @@
 
     // ── Esc: give back the selection first, then close panels ──
     if (key === 'Escape') {
-      // Browsing: Esc is the way back to Scry, same as the toolbar button. Only
+      // Browsing: Esc is the way back to Gadak, same as the toolbar button. Only
       // reachable while the SPA has focus — with the page focused the key goes
       // to the native view and never arrives here.
       if (browse.paneOpen) {
@@ -435,7 +435,7 @@
    *
    * `browseEnabled` is read once: it is config, not state, and everything the
    * pane needs is behind it — no component, no listener, no /desktop request in
-   * a `scry serve` tab.
+   * a `gadak serve` tab.
    *
    * The effect below is the whole reason the shell knows about browsing at all.
    * An Atlassian page renders in a native view the app draws *over* this
@@ -556,7 +556,7 @@
       </RightPanel>
 
       <!-- Over the detail area: an original page is what you asked to see
-           *instead of* Scry's copy, and the copy is still there when the pane
+           *instead of* Gadak's copy, and the copy is still there when the pane
            steps away. Nothing at all in a browser tab. -->
       {#if browseEnabled}
         <BrowseHost />

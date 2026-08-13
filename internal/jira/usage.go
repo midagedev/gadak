@@ -1,7 +1,7 @@
 package jira
 
 import (
-	"github.com/midagedev/scry/internal/atlhttp"
+	"github.com/midagedev/gadak/internal/atlhttp"
 )
 
 // Usage is a point-in-time snapshot of this client's outbound Jira traffic.

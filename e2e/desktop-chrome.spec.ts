@@ -6,7 +6,7 @@ import { attachConsoleErrors, gotoApp } from './helpers'
  * inside the first row of the UI. That row has to reserve their corner and be
  * draggable — and a browser tab, which has neither, must not change at all.
  * Both halves are asserted here because the flag is the only thing separating
- * them: one bundle serves `scry serve` and the app.
+ * them: one bundle serves `gadak serve` and the app.
  *
  * Geometry only. Whether the traffic lights sit where this reserves space is a
  * native question no browser can answer; the app itself is the check for that.
@@ -34,7 +34,7 @@ test.describe('desktop title-bar row', () => {
     // Mark + wordmark. There are no window controls here to confuse it with.
     await expect(row.locator('span')).toHaveCount(2)
     // The wordmark starts where the nav below it does — nothing is reserved.
-    const box = await row.getByText('scry', { exact: true }).boundingBox()
+    const box = await row.getByText('gadak', { exact: true }).boundingBox()
     expect(box).not.toBeNull()
     expect(box!.x).toBeLessThan(40)
 
@@ -68,7 +68,7 @@ test.describe('desktop title-bar row', () => {
     // same baseline as the three buttons, which makes it read as a fourth one.
     await expect(row.locator('span')).toHaveCount(1)
 
-    const box = await row.getByText('scry', { exact: true }).boundingBox()
+    const box = await row.getByText('gadak', { exact: true }).boundingBox()
     expect(box).not.toBeNull()
     expect(box!.x).toBeGreaterThanOrEqual(90)
     // Centre line at 26, matching the buttons' — 24 would be 2px high.

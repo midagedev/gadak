@@ -6,7 +6,7 @@ package tui
 // sync even when nothing else is happening.
 //
 // All effects are gated on animOn (set once at startup): piped output, tests,
-// NO_COLOR, and SCRY_NO_ANIM all render the static styles instead. The colours
+// NO_COLOR, and GADAK_NO_ANIM all render the static styles instead. The colours
 // are our own neon ramp tuned to the same hues as the static palette in
 // styles.go, so a frozen frame and an animated one read as the same product.
 
@@ -17,12 +17,14 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	colorful "github.com/lucasb-eyer/go-colorful"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // animEnabled reports whether ambient animation should run at all.
-// SCRY_NO_ANIM and NO_COLOR both force the static look.
+// GADAK_NO_ANIM and NO_COLOR both force the static look.
 func animEnabled() bool {
-	return os.Getenv("SCRY_NO_ANIM") == "" && os.Getenv("NO_COLOR") == ""
+	return config.Env("NO_ANIM") == "" && os.Getenv("NO_COLOR") == ""
 }
 
 func hexC(s string) colorful.Color {

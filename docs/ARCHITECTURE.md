@@ -10,13 +10,13 @@ flowchart TB
     Jira["Jira Cloud REST API"]
   end
   subgraph Machine["Your machine"]
-    subgraph Binary["scry (single Go binary)"]
+    subgraph Binary["gadak (single Go binary)"]
       Sync["jira + sync<br/>full + incremental"]
       Store["store<br/>SQLite + FTS5"]
       API["server<br/>read API + write proxy"]
       UI["embedded UI / --static<br/>SPA + config.json"]
     end
-    DB[("~/.scry/scry.db")]
+    DB[("~/.gadak/gadak.db")]
     Browser["Browser<br/>Svelte SPA + IndexedDB"]
     Agent["Coding agent<br/>sqlite3"]
   end
@@ -44,7 +44,7 @@ rejected before the mux (`internal/server/browser_guard.go`, see
 
 | Package | Owns | Must not know about |
 | --- | --- | --- |
-| `cmd/scry` | CLI surface, flag parsing, wiring; agent commands currently call jira/SQL directly | HTTP handlers |
+| `cmd/gadak` | CLI surface, flag parsing, wiring; agent commands currently call jira/SQL directly | HTTP handlers |
 | `internal/config` | Config file, credential file permissions, client config document | HTTP handlers |
 | `internal/store` | Schema, migrations, queries, FTS, transactions | Jira field names, HTTP |
 | `internal/jira` | Jira REST client, field mapping, ADF flattening | HTTP handlers, SQL text |
@@ -72,7 +72,7 @@ bodies, long descriptions), and it is invoked on Enter, not per character.
 ## Data flow: reading
 
 ```
-scry sync         Jira REST -> neutral records -> upsert -> derived fields -> FTS rebuild -> version++
+gadak sync         Jira REST -> neutral records -> upsert -> derived fields -> FTS rebuild -> version++
 browser boot      IndexedDB -> paint -> GET bootstrap (If-None-Match) -> 304 or replace pool
 every 15s         GET delta?since=<cursor> -> upsert/delete in pool and IndexedDB
 open an issue     GET <key>/detail/ -> assembled from SQLite, cached per key in the client
@@ -82,8 +82,8 @@ type in search    in-memory filter; Enter adds GET search/ for body and comment 
 ## Data flow: writing
 
 ```
-UI action -> POST/PATCH/PUT to scry
-          -> scry calls Jira with the user's credential
+UI action -> POST/PATCH/PUT to gadak
+          -> gadak calls Jira with the user's credential
           -> on success: re-read that issue from Jira, upsert into SQLite, version++
           -> respond with the refreshed IssueLite
           -> client patches its pool and IndexedDB in place
@@ -126,8 +126,8 @@ is source-neutral; only the field schema it reads is Jira-shaped.
 
 - **No ORM.** Hand-written SQL against a schema that is documented, and
   promised where agents build on it (`specs/000-product/data-model.md`).
-- **No always-on daemon required.** `scry serve` runs the sync loop in-process
-  when a credential is configured. `scry install-service` is optional and writes
+- **No always-on daemon required.** `gadak serve` runs the sync loop in-process
+  when a credential is configured. `gadak install-service` is optional and writes
   a user-level launchd/systemd unit so that process survives reboot.
 - **No embedded UI assets in v0.1.** The binary serves `dist/app` from disk.
   Embedding via `embed.FS` is a packaging decision for the release, not an

@@ -1,4 +1,4 @@
-// Command bench-fixture builds a deterministic synthetic scry.db for latency
+// Command bench-fixture builds a deterministic synthetic gadak.db for latency
 // benchmarks (T6.7 / G5). No network: it only drives internal/store.
 //
 //	go run ./tools/bench-fixture -out /tmp/bench.db -issues 10000
@@ -13,11 +13,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 func main() {
-	out := flag.String("out", "", "path for the scry.db to create (required)")
+	out := flag.String("out", "", "path for the gadak.db to create (required)")
 	n := flag.Int("issues", 10000, "number of issues to generate")
 	seed := flag.Int64("seed", 42, "PRNG seed for reproducible fixtures")
 	batchSize := flag.Int("batch", 250, "issues per UpsertIssues transaction")

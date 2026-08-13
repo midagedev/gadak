@@ -213,16 +213,16 @@ test.describe('first-run onboarding', () => {
     // Step 4 — the sync result carries over, and the step says it is optional.
     await expect(wizard.getByText('Optional · Connect an agent')).toBeVisible()
     await expect(page.getByTestId('onboarding-sync-done')).toContainText('Mirrored 519 issues')
-    await expect(page.getByTestId('onboarding-cmd-claude')).toContainText('scry mcp install claude')
-    await expect(wizard.getByText('scry mcp install cursor')).toBeVisible()
-    await expect(wizard.getByText('scry mcp install codex')).toBeVisible()
+    await expect(page.getByTestId('onboarding-cmd-claude')).toContainText('gadak mcp install claude')
+    await expect(wizard.getByText('gadak mcp install cursor')).toBeVisible()
+    await expect(wizard.getByText('gadak mcp install codex')).toBeVisible()
     await expect(wizard.getByRole('link', { name: 'Agent setup' })).toBeVisible()
     await expect(wizard.getByRole('link', { name: 'Query recipes' })).toBeVisible()
 
     // The command is copied, not run: nothing here posts to the server.
     await page.getByTestId('onboarding-copy-claude').click()
     await expect(page.getByTestId('onboarding-copy-claude')).toHaveText('Copied')
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('scry mcp install claude')
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('gadak mcp install claude')
 
     // The mirror filling underneath must not yank the step away: a background
     // resync (the store's own visibilitychange path) lands rows in the pool

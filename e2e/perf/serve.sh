@@ -8,9 +8,9 @@ cd "$ROOT"
 
 TMP="$ROOT/e2e/perf/.tmp"
 HOME_DIR="$TMP/home"
-BIN="$TMP/scry"
+BIN="$TMP/gadak"
 FIXTURE="$TMP/fixture.db"
-DB="$HOME_DIR/scry.db"
+DB="$HOME_DIR/gadak.db"
 CFG="$HOME_DIR/config.json"
 ADDR="127.0.0.1:7878"
 
@@ -22,8 +22,8 @@ if [ ! -f "$FIXTURE" ]; then
 fi
 
 if [ ! -x "$BIN" ]; then
-  echo "[perf-serve] building scry binary…"
-  CGO_ENABLED=0 go build -o "$BIN" ./cmd/scry
+  echo "[perf-serve] building gadak binary…"
+  CGO_ENABLED=0 go build -o "$BIN" ./cmd/gadak
 fi
 
 if [ ! -f "$ROOT/dist/app/index.html" ]; then
@@ -48,10 +48,10 @@ EOF
 # Run migrations against the home copy (fixture may be an older schema shape
 # after snapshot rebuild — status opens the mirror cleanly).
 echo "[perf-serve] migrating fixture mirror…"
-SCRY_HOME="$HOME_DIR" "$BIN" status >/dev/null
+GADAK_HOME="$HOME_DIR" "$BIN" status >/dev/null
 
 COUNT="$(sqlite3 "$DB" 'SELECT COUNT(*) FROM issues;')"
-echo "[perf-serve] issues=$COUNT — serving on ${ADDR} (SCRY_HOME=$HOME_DIR)…"
+echo "[perf-serve] issues=$COUNT — serving on ${ADDR} (GADAK_HOME=$HOME_DIR)…"
 
-export SCRY_HOME="$HOME_DIR"
+export GADAK_HOME="$HOME_DIR"
 exec "$BIN" serve --addr "$ADDR" --static dist/app --no-open --no-sync

@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/jira"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 func catalogField(id, name, typ string) jira.FieldInfo {

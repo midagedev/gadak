@@ -9,14 +9,14 @@ cd "$ROOT"
 
 TMP="$ROOT/e2e/.tmp"
 HOME_DIR="$TMP/home"
-BIN="$TMP/scry"
-DB="$HOME_DIR/scry.db"
+BIN="$TMP/gadak"
+DB="$HOME_DIR/gadak.db"
 CFG="$HOME_DIR/config.json"
 
 mkdir -p "$TMP" "$HOME_DIR"
 
-echo "[e2e] building scry binary…"
-CGO_ENABLED=0 go build -o "$BIN" ./cmd/scry
+echo "[e2e] building gadak binary…"
+CGO_ENABLED=0 go build -o "$BIN" ./cmd/gadak
 
 echo "[e2e] building web UI…"
 npm run build
@@ -58,8 +58,8 @@ EOF
 # Recordings (not tests) freshen the sync clock: the committed snapshot ages, and
 # a demo that opens with "Sync delayed" reads as a defect rather than as the
 # freshness guard it is. Tests leave it unset so their timestamps stay fixed.
-if [ -n "${SCRY_FRESHEN:-}" ]; then
-  echo "[e2e] freshening sync clock (SCRY_FRESHEN)…"
+if [ -n "${GADAK_FRESHEN:-}" ]; then
+  echo "[e2e] freshening sync clock (GADAK_FRESHEN)…"
   sqlite3 "$DB" "UPDATE sync_state SET watermark = strftime('%Y-%m-%dT%H:%M:%S.000Z','now'),
                                        last_full_sync_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now'),
                                        last_error = NULL;
@@ -71,7 +71,7 @@ fi
 # binary to run migrations before injecting rows — otherwise a table added by a
 # later migration (api_usage) does not exist yet and sqlite3 aborts.
 echo "[e2e] migrating fixture mirror to the current schema…"
-SCRY_HOME="$HOME_DIR" "$BIN" status >/dev/null
+GADAK_HOME="$HOME_DIR" "$BIN" status >/dev/null
 
 echo "[e2e] injecting deploy enrichment on NMB-110…"
 sqlite3 "$DB" <<'SQL'
@@ -103,8 +103,8 @@ ON CONFLICT(day) DO UPDATE SET
   last_throttled_at = excluded.last_throttled_at;
 SQL
 
-export SCRY_HOME="$HOME_DIR"
-echo "[e2e] serving on 127.0.0.1:7877 (SCRY_HOME=$SCRY_HOME)…"
+export GADAK_HOME="$HOME_DIR"
+echo "[e2e] serving on 127.0.0.1:7877 (GADAK_HOME=$GADAK_HOME)…"
 # The snapshot references attachments whose bytes cannot be proxied (the fixture
 # credential is fake), so seed the cache from the committed images. Without this
 # the browser logs 502s and the console-hygiene spec fails.

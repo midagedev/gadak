@@ -119,6 +119,6 @@
     {/if}
 
     <dt class="text-text-muted">{t('settings.runtimeVersion')}</dt>
-    <dd class="font-mono text-text-primary">{runtime.scryVersion}</dd>
+    <dd class="font-mono text-text-primary">{runtime.gadakVersion}</dd>
   </dl>
 </section>

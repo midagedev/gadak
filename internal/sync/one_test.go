@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // TestSyncPageDoesNotAdvanceWatermark is the contract that keeps single-page

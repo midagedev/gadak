@@ -29,13 +29,13 @@ names the **row number** so a sheet is easy to fix.
 ## Quick start
 
 ```sh
-cp examples/demo.db /tmp/scry-plugin.db
+cp examples/demo.db /tmp/gadak-plugin.db
 
 python3 examples/plugins/csv-import/csv_import.py \
   examples/plugins/csv-import/sample.csv \
-  --db /tmp/scry-plugin.db
+  --db /tmp/gadak-plugin.db
 
-sqlite3 /tmp/scry-plugin.db <<'SQL'
+sqlite3 /tmp/gadak-plugin.db <<'SQL'
 SELECT key, kind, substr(payload, 1, 80) FROM enrichments
 WHERE source = 'spreadsheet' OR source = 'csv-import'
 ORDER BY key, kind;
@@ -48,7 +48,7 @@ SQL
 | Flag | Meaning |
 | --- | --- |
 | `CSV` | Path to the file |
-| `--db PATH` | Mirror path (default `$SCRY_HOME/scry.db` or `~/.scry/scry.db`) |
+| `--db PATH` | Mirror path (default `$GADAK_HOME/gadak.db` or `~/.gadak/gadak.db`) |
 | `--profile NAME` | Profile when `--db` is omitted |
 | `--allow-unknown-kind` | Accept kinds the UI does not render yet |
 | `--dry-run` | Print planned rows; no write, no version bump |

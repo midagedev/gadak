@@ -29,13 +29,19 @@ GITHUB_API = "https://api.github.com"
 
 
 def default_db_path(profile: str | None = None) -> Path:
-    home = os.environ.get("SCRY_HOME")
+    home = os.environ.get("GADAK_HOME") or os.environ.get("SCRY_HOME")
     if not home:
-        home = str(Path.home() / ".scry")
+        nxt = Path.home() / ".gadak"
+        prev = Path.home() / ".scry"
+        home = str(nxt if nxt.exists() or not prev.exists() else prev)
     base = Path(home)
     if profile and profile != "default":
-        return base / "profiles" / profile / "scry.db"
-    return base / "scry.db"
+        base = base / "profiles" / profile
+    nxt = base / "gadak.db"
+    prev = base / "scry.db"
+    if nxt.exists() or not prev.exists():
+        return nxt
+    return prev
 
 
 def utc_now() -> str:
@@ -115,7 +121,7 @@ def fetch_github_prs(repo: str, token: str, state: str = "all") -> list[dict[str
     """Paginate GET /repos/{repo}/pulls (GitHub REST)."""
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "scry-github-prs-plugin",
+        "User-Agent": "gadak-github-prs-plugin",
         "X-GitHub-Api-Version": "2022-11-28",
         "Authorization": f"Bearer {token}",
     }
@@ -158,7 +164,7 @@ def open_db(path: Path) -> sqlite3.Connection:
 
 
 def ensure_plugin_tables(conn: sqlite3.Connection) -> None:
-    """Minimal schema for self-tests (not a full scry mirror)."""
+    """Minimal schema for self-tests (not a full gadak mirror)."""
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS enrichments (
@@ -293,9 +299,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--db",
         default=None,
-        help="Path to scry.db (default: $SCRY_HOME/scry.db or ~/.scry/scry.db)",
+        help="Path to gadak.db (default: $GADAK_HOME/gadak.db or ~/.gadak/gadak.db)",
     )
-    p.add_argument("--profile", default=None, help="scry profile name (ignored if --db set)")
+    p.add_argument("--profile", default=None, help="gadak profile name (ignored if --db set)")
     p.add_argument(
         "--from-json",
         metavar="FILE",

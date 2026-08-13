@@ -13,17 +13,17 @@
 ```bash
 npm ci
 npm run build                    # web/ -> dist/app
-go build -o scry ./cmd/scry
-./scry serve                     # http://127.0.0.1:7777
+go build -o gadak ./cmd/gadak
+./gadak serve                     # http://127.0.0.1:7777
 ```
 
-`scry serve` works before any sync exists: it serves the UI and `config.json`,
+`gadak serve` works before any sync exists: it serves the UI and `config.json`,
 and the UI reports that nothing is configured.
 
 ## Frontend iteration
 
 ```bash
-./scry serve &                   # API + config on :7777
+./gadak serve &                   # API + config on :7777
 npm run dev                      # Vite on :5173, proxies /api and /config.json
 npm run typecheck                # svelte-check
 ```
@@ -52,7 +52,7 @@ Requirements and gotchas:
   that matches type or status names must do the same.
 - Jira assigns `created` at insert time and offers no way to backdate it, so
   seeded issues all share roughly one creation time. Realistic time spread is
-  applied by `scry snapshot`, not in Jira.
+  applied by `gadak snapshot`, not in Jira.
 - Deleting issues needs the "Delete Issues" permission, which the default
   company-managed permission scheme does not grant. Plan seeding runs so you do
   not need to undo them.

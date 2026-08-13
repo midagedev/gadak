@@ -1,4 +1,4 @@
-# GoReleaser config for scry.
+# GoReleaser config for gadak.
 # The web UI is compiled into the binary via go:embed (embed.go), so a release
 # archive is one self-contained binary. The release workflow runs `npm run
 # build` before goreleaser so dist/app is present at compile time.
@@ -8,7 +8,7 @@
 
 version: 2
 
-project_name: scry
+project_name: gadak
 
 # Release artifacts go to .release/, not dist/: `--clean` empties the output
 # directory, and dist/app holds the web build that go:embed needs at compile
@@ -22,9 +22,9 @@ before:
     - test -d dist/app
 
 builds:
-  - id: scry
-    main: ./cmd/scry
-    binary: scry
+  - id: gadak
+    main: ./cmd/gadak
+    binary: gadak
     env:
       - CGO_ENABLED=0
     goos:
@@ -92,7 +92,7 @@ notarize:
 # only com.apple.provenance, and `brew test` passes. A formula also covers Linux,
 # which casks do not. Revisit when signing/notarization lands.
 brews:
-  - name: scry
+  - name: gadak
     ids:
       - default
     repository:
@@ -102,18 +102,18 @@ brews:
         url: "git@github.com:midagedev/homebrew-tap.git"
         private_key: '{{ .Env.TAP_DEPLOY_KEY }}'
     directory: Formula
-    homepage: "https://github.com/midagedev/scry"
+    homepage: "https://github.com/midagedev/gadak"
     description: "Local SQLite mirror of your Jira issues — web UI, TUI, and agent SQL"
     license: "Apache-2.0"
-    commit_msg_template: "scry {{ .Tag }}"
+    commit_msg_template: "gadak {{ .Tag }}"
     # No deploy key, no formula push — a release must not fail because the
     # optional Homebrew step has no credential (forks). With the key: still
     # skipped for prerelease tags (v0.1.0-rc.1, etc.).
     skip_upload: '{{ if isEnvSet "TAP_DEPLOY_KEY" }}auto{{ else }}true{{ end }}'
     test: |
-      system "#{bin}/scry", "version"
+      system "#{bin}/gadak", "version"
     install: |
-      bin.install "scry"
+      bin.install "gadak"
 
 # Cosign / sbom / notarize: skipped for now (checksums.txt is the only artifact
 # integrity signal). Revisit before a public v1.
@@ -145,24 +145,24 @@ changelog:
 release:
   github:
     owner: midagedev
-    name: scry
+    name: gadak
   draft: false
   prerelease: auto
-  name_template: "scry {{.Tag}}"
+  name_template: "gadak {{.Tag}}"
   footer: |
     ## Install / upgrade
 
     ```bash
-    brew install midagedev/tap/scry     # first install
-    brew upgrade midagedev/tap/scry     # upgrade
+    brew install midagedev/tap/gadak     # first install
+    brew upgrade midagedev/tap/gadak     # upgrade
     # or
-    curl -fsSL https://raw.githubusercontent.com/midagedev/scry/main/scripts/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/midagedev/gadak/main/scripts/install.sh | sh
     ```
 
     Or download the archive for your OS/arch from this release, unpack it, and run:
 
     ```bash
-    ./scry init && ./scry serve --sync
+    ./gadak init && ./gadak serve --sync
     ```
 
     The web UI is embedded — the binary is the whole install. See the README for Docker and source builds. Running installs notice new releases on their own (daily anonymous check, `updateCheck: false` to opt out — see SECURITY.md).

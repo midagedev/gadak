@@ -324,7 +324,7 @@
   {#if issues.latestVersion}
     <div class="flex-none px-3 pb-1">
       <a
-        href={issues.releaseUrl || 'https://github.com/midagedev/scry/releases'}
+        href={issues.releaseUrl || 'https://github.com/midagedev/gadak/releases'}
         target="_blank"
         rel="noreferrer"
         class="block rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-micro text-accent-text transition-colors hover:bg-accent-subtle/50"

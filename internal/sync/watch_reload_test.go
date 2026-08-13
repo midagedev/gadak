@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // TestWatchReloadsConfigEachCycle: Reload runs at the top of every cycle and the

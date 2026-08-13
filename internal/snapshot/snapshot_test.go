@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 func TestParseWindow(t *testing.T) {

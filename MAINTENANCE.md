@@ -1,7 +1,7 @@
 # Maintenance
 
 How this project is run, written down before there is a queue to run it
-against. If you are deciding whether to depend on scry, this page is the
+against. If you are deciding whether to depend on gadak, this page is the
 honest part.
 
 ## Who maintains it
@@ -12,9 +12,9 @@ to. That is not a temporary state waiting to be fixed — it is the shape of the
 project, and everything below follows from it.
 
 The mitigation is not a promise to keep up. It is that **the mirror is
-disposable**: scry writes one SQLite file, and if the project stalls, you
-delete `~/.scry` and have lost nothing. Your Atlassian site was the source of
-truth the whole time. Depend on scry the way you depend on a useful script,
+disposable**: gadak writes one SQLite file, and if the project stalls, you
+delete `~/.gadak` and have lost nothing. Your Atlassian site was the source of
+truth the whole time. Depend on gadak the way you depend on a useful script,
 not the way you depend on a database.
 
 ## Releases
@@ -40,13 +40,13 @@ no outside users at all, and a report is worth more than a star.
 
 What makes a report actionable, in order:
 
-1. **`scry doctor` output.** It redacts keys, names, URLs and tokens, and it
+1. **`gadak doctor` output.** It redacts keys, names, URLs and tokens, and it
    answers most of the questions a reply would otherwise have to ask. Almost
    every real bug so far has come down to *someone else's Jira is not shaped
    like mine* — localized status names, team-managed vs company-managed
    projects, a custom-field catalogue an order of magnitude larger.
 2. What you expected, and what happened instead.
-3. Whether it reproduces against the bundled demo (`scry demo`). If it does,
+3. Whether it reproduces against the bundled demo (`gadak demo`). If it does,
    it is likely fixable this week. If it only happens on your site, expect a
    few rounds of questions, because there is no telemetry — deliberately — and
    your instance cannot be inspected from here.

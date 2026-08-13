@@ -267,7 +267,7 @@ test.describe('document screens survive a reload and a link', () => {
     await expect(page.getByTestId('space-docs-view')).toBeVisible()
     expect(await activeSidebarView(page)).toEqual(before)
 
-    const saved = await page.evaluate(() => localStorage.getItem('scry:last-view') ?? '')
+    const saved = await page.evaluate(() => localStorage.getItem('gadak:last-view') ?? '')
     for (const key of ['doc=', 'space=', 'dview=', 'docs=']) {
       expect(saved, `saved view must not carry ${key}`).not.toContain(key)
     }

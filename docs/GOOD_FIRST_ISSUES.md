@@ -4,10 +4,10 @@ Concrete starter work with code evidence. Prefer these over vague "docs polish"
 unless you have a specific gap in mind. Label candidates `good first issue` when
 filing.
 
-## 1. `scry export` for personal state (T1.4)
+## 1. `gadak export` for personal state (T1.4)
 
 **Why:** `saved_views`, `watches`, and `favorites` are the only rows a user
-loses if the mirror is deleted. The schema documents that `scry export` must dump
+loses if the mirror is deleted. The schema documents that `gadak export` must dump
 them; the command does not exist yet.
 
 **Where:**
@@ -17,25 +17,25 @@ them; the command does not exist yet.
   `favorites`
 - Store CRUD: `internal/store` personal helpers; HTTP already in
   `internal/server/personal.go`
-- CLI wiring: `cmd/scry/main.go` (new subcommand next to `status` / `sql`)
+- CLI wiring: `cmd/gadak/main.go` (new subcommand next to `status` / `sql`)
 
-**Done when:** `scry export` writes JSON (or a small archive) of the three
+**Done when:** `gadak export` writes JSON (or a small archive) of the three
 tables for the active profile; a round-trip test restores them into an empty DB;
 no credentials appear in the output.
 
-## 2. Resolve `@Name` mentions in `scry comment`
+## 2. Resolve `@Name` mentions in `gadak comment`
 
 **Why:** The web UI turns mentions into ADF mention nodes so people get notified.
 The CLI leaves `@Name` as plain text, so nobody is notified.
 
 **Where:**
 
-- `cmd/scry/agent.go` — comment path, explicit deferral:
+- `cmd/gadak/agent.go` — comment path, explicit deferral:
   `// No mention resolution: … ponytail: add it when someone asks, via the users endpoint the UI uses.`
 - Existing user search: `internal/jira` / server `handleUsers` (same lookup the UI uses)
 - ADF builder: `internal/jira` `Doc(…, mentions)` used by the server write path
 
-**Done when:** `scry comment KEY -m "thanks @Display Name"` resolves unambiguous
+**Done when:** `gadak comment KEY -m "thanks @Display Name"` resolves unambiguous
 names the same way the UI does, refuses ambiguous matches with candidates, and a
 unit test covers longest-name-wins (already tested for the server path).
 
@@ -61,16 +61,16 @@ calls.
 
 ## 4. Shell completion for the CLI
 
-**Why:** The CLI is hand-rolled (`flag` + a switch in `cmd/scry/main.go`) with no
+**Why:** The CLI is hand-rolled (`flag` + a switch in `cmd/gadak/main.go`) with no
 completion scripts. Completing subcommands (`issue`, `search`, `sql`, `sync`, …)
 and common flags is a small, self-contained UX win.
 
 **Where:**
 
-- Command list / usage: `cmd/scry/main.go` (`usage` string and the `switch` on
+- Command list / usage: `cmd/gadak/main.go` (`usage` string and the `switch` on
   `args[0]`)
-- Agent subcommands: `cmd/scry/agent.go`
-- No completion package exists today — add something like `scry completion bash`
+- Agent subcommands: `cmd/gadak/agent.go`
+- No completion package exists today — add something like `gadak completion bash`
   (and zsh/fish) that prints a script to stdout, documented in `README` or
   `CONTRIBUTING`
 

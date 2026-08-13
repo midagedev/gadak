@@ -1,5 +1,5 @@
-// Package workspace mounts additional scry profiles under /w/<name>/ and lists
-// them at GET /api/v1/workspaces. Shared by `scry serve` and the desktop app.
+// Package workspace mounts additional gadak profiles under /w/<name>/ and lists
+// them at GET /api/v1/workspaces. Shared by `gadak serve` and the desktop app.
 package workspace
 
 import (
@@ -11,11 +11,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/midagedev/scry/internal/attachcache"
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/server"
-	"github.com/midagedev/scry/internal/store"
-	syncer "github.com/midagedev/scry/internal/sync"
+	"github.com/midagedev/gadak/internal/attachcache"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/server"
+	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
 // workspaceNameRe is the only allowed shape for /w/<name>/ segments.

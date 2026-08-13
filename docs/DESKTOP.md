@@ -1,24 +1,24 @@
 # The desktop app
 
-Scry.app is the same scry — the web UI in its own macOS window, over the same
-mirror, with one structural difference from `scry serve`: **there is no local
+Gadak.app is the same gadak — the web UI in its own macOS window, over the same
+mirror, with one structural difference from `gadak serve`: **there is no local
 server.** The window talks to the mirror in-process, so there is no port, no
 address, no port conflict, and nothing new listening on your machine. Launch
 it twice and the running window comes forward instead.
 
 If you already use the CLI, nothing changes underneath: the app reads and
-writes the same `~/.scry` profiles, and WAL means the app, `scry tui`, a
+writes the same `~/.gadak` profiles, and WAL means the app, `gadak tui`, a
 `serve` instance, and your agent can hold the file at once.
 
-There is no title bar. It would have spent 32px saying "Scry" above a sidebar
-that already says `scry`, so the window controls sit in that sidebar row
+There is no title bar. It would have spent 32px saying "Gadak" above a sidebar
+that already says `gadak`, so the window controls sit in that sidebar row
 instead — which is also where you grab the window to move it.
 
 ## Install
 
-Download `Scry-<version>-arm64.dmg` from the
-[latest release](https://github.com/midagedev/scry/releases/latest), drag
-Scry.app to Applications. The dmg is Developer ID-signed and notarized
+Download `Gadak-<version>-arm64.dmg` from the
+[latest release](https://github.com/midagedev/gadak/releases/latest), drag
+Gadak.app to Applications. The dmg is Developer ID-signed and notarized
 (macOS, Apple Silicon; Intel and other platforms use the
 [CLI](../README.md#install)).
 
@@ -35,14 +35,14 @@ the same mirror. You don't choose one — the app **ships the CLI inside it**.
 Tool…** creates the symlink itself (user-writable location; no sudo, no
 terminal). If the install directory is not already on your PATH, the app
 copies a one-line shell snippet to the clipboard so you can paste it into
-your shell rc. When it succeeds, run `scry mcp install claude` once so your
+your shell rc. When it succeeds, run `gadak mcp install claude` once so your
 agent reads the same mirror the window shows.
 
 **2. From a terminal (same result).** If you already have a shell open:
 
 ```bash
-/Applications/Scry.app/Contents/Resources/bin/scry install-cli
-scry mcp install claude
+/Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
+gadak mcp install claude
 ```
 
 `install-cli` (and the menu item) prefer a directory already on PATH —
@@ -53,12 +53,12 @@ No sudo is required for the default locations.
 **3. Manual link (last resort):**
 
 ```bash
-sudo ln -sf "/Applications/Scry.app/Contents/Resources/bin/scry" /usr/local/bin/scry
+sudo ln -sf "/Applications/Gadak.app/Contents/Resources/bin/gadak" /usr/local/bin/gadak
 ```
 
 That is the whole relationship: the window is your view of the mirror, the
 SQLite file is your agent's view, and they are the same bytes. A brew install
-(`brew install midagedev/tap/scry`) works too and the two can coexist — the
+(`brew install midagedev/tap/gadak`) works too and the two can coexist — the
 binaries are identical per release; just avoid pointing a PATH at a stale copy.
 
 ## Profiles
@@ -67,7 +67,7 @@ The app opens the default profile. To pin a window to another mirror, launch
 with the profile in the environment:
 
 ```bash
-SCRY_PROFILE=work open -a Scry
+GADAK_PROFILE=work open -a Gadak
 ```
 
 Or switch inside the window: the sidebar lists every profile under
@@ -86,15 +86,15 @@ goes to until you switch.
   configured, whether or not you look at them today.
   Keeping a `serve` running alongside the app now multiplies rather than
   doubles: both processes poll every credentialed profile. Run one or the
-  other. `scry serve --no-sync` turns off all of them at once.
+  other. `gadak serve --no-sync` turns off all of them at once.
 - **Security posture:** unchanged from [SECURITY.md](../SECURITY.md), minus
   the local port: with no listener there is nothing for another local process
   or a hostile web page to connect to. The webview reaches the mirror through
   an in-process handler.
 - **Updates:** the app checks GitHub Releases once a day like the CLI
-  (`updateCheck: false` disables it). Updating is replacing Scry.app.
-- **Uninstall:** trash Scry.app; the mirror and credential live in `~/.scry`,
-  so offboarding fully is still `rm -rf ~/.scry`.
+  (`updateCheck: false` disables it). Updating is replacing Gadak.app.
+- **Uninstall:** trash Gadak.app; the mirror and credential live in `~/.gadak`,
+  so offboarding fully is still `rm -rf ~/.gadak`.
 
 ## Building from source
 

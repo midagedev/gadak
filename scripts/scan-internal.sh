@@ -14,8 +14,8 @@
 # vocabulary it exists to keep out. So the words live outside the tree and this
 # script only knows how to find them:
 #
-#   1. $SCRY_SCAN_WORDS     an extended-regex alternation, e.g. 'acme|acme-hub'
-#   2. $SCRY_SCAN_WORDLIST  path to a file, one word or regex per line
+#   1. $GADAK_SCAN_WORDS     an extended-regex alternation, e.g. 'acme|acme-hub'
+#   2. $GADAK_SCAN_WORDLIST  path to a file, one word or regex per line
 #   3. .scan-wordlist       same format, repo root, gitignored
 #
 # With none of those present the word check is skipped and says so — an outside
@@ -41,11 +41,11 @@ PAT_HOST='atlassian\.net'
 # Deployment-specific words, resolved from outside this file (see header).
 PAT_COMPANY=""
 words_source=""
-if [[ -n "${SCRY_SCAN_WORDS:-}" ]]; then
-  PAT_COMPANY="$SCRY_SCAN_WORDS"
-  words_source="\$SCRY_SCAN_WORDS"
+if [[ -n "${GADAK_SCAN_WORDS:-}" ]]; then
+  PAT_COMPANY="$GADAK_SCAN_WORDS"
+  words_source="\$GADAK_SCAN_WORDS"
 else
-  wordlist="${SCRY_SCAN_WORDLIST:-.scan-wordlist}"
+  wordlist="${GADAK_SCAN_WORDLIST:-.scan-wordlist}"
   if [[ -f "$wordlist" ]]; then
     # One pattern per line; blank lines and # comments ignored.
     PAT_COMPANY="$(grep -vE '^\s*(#|$)' "$wordlist" | paste -sd '|' -)"
@@ -109,7 +109,7 @@ echo "==> scanning ${file_count} tracked and untracked files"
 if [[ -n "$PAT_COMPANY" ]]; then
   echo "==> word list from ${words_source}"
 else
-  echo "==> no word list (set SCRY_SCAN_WORDS or .scan-wordlist) — word check skipped"
+  echo "==> no word list (set GADAK_SCAN_WORDS or .scan-wordlist) — word check skipped"
 fi
 
 if [[ -s "$text_list" ]]; then

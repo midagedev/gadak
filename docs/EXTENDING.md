@@ -1,6 +1,6 @@
-# Extending scry for your environment
+# Extending gadak for your environment
 
-scry is a local-first mirror of an issue tracker. The binary stays free of your
+gadak is a local-first mirror of an issue tracker. The binary stays free of your
 company’s CD pipeline, test manager, and org chart. You extend it in three
 places, each with a different cost and power trade-off.
 
@@ -14,9 +14,9 @@ contract itself, see [`PLUGINS.md`](PLUGINS.md).
 
 | Axis | Where | When to use | Network on keystroke path? |
 | --- | --- | --- | --- |
-| **Config** | `~/.scry/config.json` (or Settings UI) | Map custom fields, define team buckets, turn surfaces on/off, allowlist editable fields | No — applied in-process |
-| **Enrichments** | External process writes SQLite `enrichments` | Attach data from systems scry must not import (GitHub, CD, QA tools, spreadsheets) | No — plugin runs on its own schedule |
-| **Direct SQL** | `scry sql`, agents, reports | Ad-hoc questions, weekly digests, automations that *read* the mirror | No — reads the local file |
+| **Config** | `~/.gadak/config.json` (or Settings UI) | Map custom fields, define team buckets, turn surfaces on/off, allowlist editable fields | No — applied in-process |
+| **Enrichments** | External process writes SQLite `enrichments` | Attach data from systems gadak must not import (GitHub, CD, QA tools, spreadsheets) | No — plugin runs on its own schedule |
+| **Direct SQL** | `gadak sql`, agents, reports | Ad-hoc questions, weekly digests, automations that *read* the mirror | No — reads the local file |
 
 ### Config (`config.json`)
 
@@ -38,7 +38,7 @@ Full reference (defaults, floors, apply timing, hand-edit-only list):
 | `reconcileIntervalSec` | Deletion reconcile period in seconds (0 → 3600). Min 300 when set. Restart `serve`. |
 | `notify` | OS desktop notifications from the watch loop (default true). |
 
-Nothing installation-specific belongs in the scry **source tree**. Put it here.
+Nothing installation-specific belongs in the gadak **source tree**. Put it here.
 
 ### Enrichments (plugins)
 
@@ -57,7 +57,7 @@ payload tables: [`PLUGINS.md`](PLUGINS.md). Runnable examples:
 ### Direct SQL
 
 The mirror is a normal SQLite file. Agents and humans query it with
-`scry sql` (read-only). Cookbook queries live in the root
+`gadak sql` (read-only). Cookbook queries live in the root
 [`AGENTS.md`](../AGENTS.md) and [`docs/AGENT_ACCESS.md`](AGENT_ACCESS.md).
 
 **Never write mirrored issue fields by hand** — the next sync overwrites them.
@@ -78,37 +78,37 @@ like watches/favorites via the API).
 | QA impact column | **Enrichment** | `kind=qa` + `features.qa` (shape in [`PLUGINS.md`](PLUGINS.md)). |
 | A free-text review note | **Enrichment** | `kind=opinion` (JSON string payload). |
 | Spreadsheet-managed extras | **Enrichment** | [csv-import](../examples/plugins/csv-import/). |
-| Weekly reopen / load report | **SQL** | `scry sql` + cron; see AGENTS.md cookbook. |
-| “Has anyone hit this before?” | **SQL** | FTS via `items_fts` / `scry search`. |
-| Agent that comments or transitions | **CLI / REST** | `scry comment` / `scry transition` (writes go to Jira, then re-mirror). |
+| Weekly reopen / load report | **SQL** | `gadak sql` + cron; see AGENTS.md cookbook. |
+| “Has anyone hit this before?” | **SQL** | FTS via `items_fts` / `gadak search`. |
+| Agent that comments or transitions | **CLI / REST** | `gadak comment` / `gadak transition` (writes go to Jira, then re-mirror). |
 
 ---
 
 ## 3. Five-minute quick start
 
 Prerequisites: Python 3.9+, `sqlite3` CLI, a copy of the demo mirror (or your
-own `scry.db`).
+own `gadak.db`).
 
 ```sh
 # 0. Disposable DB
-cp examples/demo.db /tmp/scry-plugin.db
-sqlite3 /tmp/scry-plugin.db "SELECT version FROM sync_state;"
+cp examples/demo.db /tmp/gadak-plugin.db
+sqlite3 /tmp/gadak-plugin.db "SELECT version FROM sync_state;"
 
 # 1. PRs from a fixture (no GitHub token)
 python3 examples/plugins/github-prs/github_prs.py example/app \
-  --db /tmp/scry-plugin.db \
+  --db /tmp/gadak-plugin.db \
   --from-json examples/plugins/github-prs/sample-prs.json
 
 # 2. Mixed rows from a spreadsheet
 python3 examples/plugins/csv-import/csv_import.py \
   examples/plugins/csv-import/sample.csv \
-  --db /tmp/scry-plugin.db
+  --db /tmp/gadak-plugin.db
 
 # 3. Deploy stages from git tags (use your product repo, or --self-test)
 python3 examples/plugins/deploy-status/deploy_status.py --self-test
 
 # 4. Confirm
-sqlite3 /tmp/scry-plugin.db <<'SQL'
+sqlite3 /tmp/gadak-plugin.db <<'SQL'
 SELECT kind, COUNT(*) AS n FROM enrichments GROUP BY kind;
 SELECT key, kind, substr(payload,1,100) FROM enrichments ORDER BY key, kind;
 SELECT version FROM sync_state;
@@ -125,7 +125,7 @@ Live GitHub:
 
 ```sh
 export GH_TOKEN=…   # read-only is enough
-python3 examples/plugins/github-prs/github_prs.py owner/repo --db ~/.scry/scry.db
+python3 examples/plugins/github-prs/github_prs.py owner/repo --db ~/.gadak/gadak.db
 ```
 
 More detail per plugin: [`examples/plugins/README.md`](../examples/plugins/README.md).
@@ -138,30 +138,30 @@ More detail per plugin: [`examples/plugins/README.md`](../examples/plugins/READM
 
 ```cron
 # Every 15 minutes — PRs
-*/15 * * * * GH_TOKEN=… /usr/bin/python3 /opt/scry-plugins/github_prs.py myorg/app --db /home/you/.scry/scry.db >>/var/log/scry-prs.log 2>&1
+*/15 * * * * GH_TOKEN=… /usr/bin/python3 /opt/gadak-plugins/github_prs.py myorg/app --db /home/you/.gadak/gadak.db >>/var/log/gadak-prs.log 2>&1
 
 # Hourly — deploy from a maintained mirror clone
-0 * * * * /usr/bin/python3 /opt/scry-plugins/deploy_status.py /srv/product.git --db /home/you/.scry/scry.db >>/var/log/scry-deploy.log 2>&1
+0 * * * * /usr/bin/python3 /opt/gadak-plugins/deploy_status.py /srv/product.git --db /home/you/.gadak/gadak.db >>/var/log/gadak-deploy.log 2>&1
 ```
 
 ### launchd (macOS) sketch
 
-`~/Library/LaunchAgents/com.example.scry-prs.plist` → `StartInterval` 900,
+`~/Library/LaunchAgents/com.example.gadak-prs.plist` → `StartInterval` 900,
 `ProgramArguments` pointing at the same python invocation, `EnvironmentVariables`
-for `GH_TOKEN` / `SCRY_HOME`.
+for `GH_TOKEN` / `GADAK_HOME`.
 
 ### systemd timer sketch
 
-`scry-prs.service` (`Type=oneshot`) + `scry-prs.timer` (`OnUnitActiveSec=15m`).
+`gadak-prs.service` (`Type=oneshot`) + `gadak-prs.timer` (`OnUnitActiveSec=15m`).
 
 ### When nothing shows up in the UI
 
 1. **Did the plugin write?**
 
    ```sh
-   scry status --json
-   scry sql "SELECT kind, COUNT(*) FROM enrichments GROUP BY kind"
-   scry sql "SELECT key, kind, source, updated_at FROM enrichments ORDER BY updated_at DESC LIMIT 10"
+   gadak status --json
+   gadak sql "SELECT kind, COUNT(*) FROM enrichments GROUP BY kind"
+   gadak sql "SELECT key, kind, source, updated_at FROM enrichments ORDER BY updated_at DESC LIMIT 10"
    ```
 
 2. **Was `sync_state.version` bumped?** If the row is on disk but the client
@@ -182,7 +182,7 @@ for `GH_TOKEN` / `SCRY_HOME`.
 5. **Is the key present in the mirror?** Enrichments for unknown keys are
    stored but never joined into list/detail until that issue is mirrored.
 
-6. **Stale watermark?** `scry status --json` → `last_error` means the last Jira
+6. **Stale watermark?** `gadak status --json` → `last_error` means the last Jira
    sync failed; `watermark` only moves when the tracker changes.
 
 ---

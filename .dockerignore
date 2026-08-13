@@ -16,7 +16,7 @@ vendor
 *.out
 
 # Local runtime data and secrets
-.scry
+.gadak
 .private
 tmp
 *.db

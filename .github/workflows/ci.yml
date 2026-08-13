@@ -46,7 +46,7 @@ jobs:
         run: npm run build
 
       - name: Go build (static)
-        run: CGO_ENABLED=0 go build -trimpath -o /tmp/scry ./cmd/scry
+        run: CGO_ENABLED=0 go build -trimpath -o /tmp/gadak ./cmd/gadak
 
       - name: Go tests
         run: go test ./...
@@ -57,7 +57,7 @@ jobs:
       - name: Serve smoke
         run: |
           set -euo pipefail
-          /tmp/scry serve --addr 127.0.0.1:7777 &
+          /tmp/gadak serve --addr 127.0.0.1:7777 &
           pid=$!
           trap 'kill $pid 2>/dev/null || true' EXIT
           for _ in $(seq 1 30); do
@@ -71,7 +71,7 @@ jobs:
       - name: Refuse non-loopback bind without opt-in
         run: |
           set -euo pipefail
-          if /tmp/scry serve --addr 0.0.0.0:7778; then
+          if /tmp/gadak serve --addr 0.0.0.0:7778; then
             echo "expected a non-loopback bind to be refused" >&2
             exit 1
           fi
@@ -90,7 +90,7 @@ jobs:
         env:
           # Deployment-specific word list. Absent on forks, where the scanner
           # skips that check and still enforces tokens and tenant hostnames.
-          SCRY_SCAN_WORDS: ${{ secrets.SCRY_SCAN_WORDS }}
+          GADAK_SCAN_WORDS: ${{ secrets.GADAK_SCAN_WORDS }}
 
   e2e:
     name: Playwright E2E

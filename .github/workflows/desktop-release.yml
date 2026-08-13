@@ -51,7 +51,7 @@ jobs:
           MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
         run: |
           set -euo pipefail
-          KEYCHAIN_PATH="$RUNNER_TEMP/scry-signing.keychain-db"
+          KEYCHAIN_PATH="$RUNNER_TEMP/gadak-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
@@ -70,7 +70,7 @@ jobs:
             echo "no Developer ID Application identity in imported p12" >&2
             exit 1
           fi
-          echo "SCRY_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "GADAK_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
           echo "imported signing identity (name redacted)"
 
       - name: Prepare notarization key
@@ -95,21 +95,21 @@ jobs:
           fi
           chmod 600 "$KEY_PATH"
           {
-            echo "SCRY_NOTARY_KEY=$KEY_PATH"
-            echo "SCRY_NOTARY_KEY_ID=$MACOS_NOTARY_KEY_ID"
-            echo "SCRY_NOTARY_ISSUER_ID=$MACOS_NOTARY_ISSUER_ID"
+            echo "GADAK_NOTARY_KEY=$KEY_PATH"
+            echo "GADAK_NOTARY_KEY_ID=$MACOS_NOTARY_KEY_ID"
+            echo "GADAK_NOTARY_ISSUER_ID=$MACOS_NOTARY_ISSUER_ID"
           } >> "$GITHUB_ENV"
 
-      - name: Build Scry.app + dmg
+      - name: Build Gadak.app + dmg
         run: desktop/build-app.sh --dmg
 
       - name: Upload dmg artifact
         uses: actions/upload-artifact@v4
         with:
-          name: scry-desktop-dmg
+          name: gadak-desktop-dmg
           path: |
-            desktop/build/Scry-*.dmg
-            desktop/build/scry-desktop-darwin-arm64.zip
+            desktop/build/Gadak-*.dmg
+            desktop/build/gadak-desktop-darwin-arm64.zip
             desktop/build/SHA256SUMS
           if-no-files-found: error
 
@@ -121,7 +121,7 @@ jobs:
           set -euo pipefail
           tag="$GITHUB_REF_NAME"
           shopt -s nullglob
-          dmgs=(desktop/build/Scry-*.dmg)
+          dmgs=(desktop/build/Gadak-*.dmg)
           if [[ ${#dmgs[@]} -eq 0 ]]; then
             echo "no dmg produced" >&2
             exit 1
@@ -131,7 +131,7 @@ jobs:
           # the dmg stays the human install path. build-app.sh --dmg makes all
           # three, after notarization so the zip carries the stapled bundle.
           assets=("${dmgs[@]}")
-          for f in desktop/build/scry-desktop-darwin-arm64.zip desktop/build/SHA256SUMS; do
+          for f in desktop/build/gadak-desktop-darwin-arm64.zip desktop/build/SHA256SUMS; do
             if [[ -f "$f" ]]; then
               assets+=("$f")
             else

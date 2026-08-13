@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // browserGuard tests cover Host (DNS rebinding) and Origin (CSRF) checks

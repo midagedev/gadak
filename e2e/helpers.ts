@@ -7,8 +7,8 @@ import { expect, type ConsoleMessage, type Locator, type Page } from '@playwrigh
 export async function forceLocale(page: Page, locale: 'en' | 'ko' = 'en'): Promise<void> {
   await page.addInitScript((loc) => {
     try {
-      if (!localStorage.getItem('scry_locale')) {
-        localStorage.setItem('scry_locale', loc)
+      if (!localStorage.getItem('gadak_locale')) {
+        localStorage.setItem('gadak_locale', loc)
       }
     } catch {
       /* ignore */

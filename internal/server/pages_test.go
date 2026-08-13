@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // fixturePages extends the issue fixture with a confluence source and two pages.

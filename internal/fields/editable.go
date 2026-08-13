@@ -3,8 +3,8 @@ package fields
 import (
 	"encoding/json"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/jira"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 // EditKind maps a Jira field schema onto the editors the UI has. A field

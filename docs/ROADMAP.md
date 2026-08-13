@@ -15,8 +15,8 @@ search.
    proxy.
 4. Write-through: credentials, transitions, comments, attachments, assignee,
    field edits, creation.
-5. `scry sql` and `scry status --json` for agents.
-6. Demo snapshot and `scry demo`.
+5. `gadak sql` and `gadak status --json` for agents.
+6. Demo snapshot and `gadak demo`.
 
 ~~**Release blocker: the UI is Korean-only.**~~ Done — English-first with Korean
 kept as a locale.
@@ -44,7 +44,7 @@ keeps an installed mirror alive or removes a reason not to try one.
 - ✅ **Close the notification loop.** The watch feed is computed (`GET feed/`);
   OS notifications fire from the sync loop (macOS `osascript`, Linux
   `notify-send`) for new personal-feed events. Config: `notify` (default true).
-- ✅ **`scry install-service`.** launchd plist / systemd user unit so the mirror
+- ✅ **`gadak install-service`.** launchd plist / systemd user unit so the mirror
   survives reboot (`serve --no-open`). `--uninstall` removes it.
 - ✅ **`serve` syncs by default** when a credential is configured (`--no-sync`
   opts out). A stale mirror is the fastest way to lose a habit.
@@ -66,7 +66,7 @@ keeps an installed mirror alive or removes a reason not to try one.
   group keys outside the supported four stay reported as unsupported — the TUI
   has no text ranking, and faking a group is worse than saying so.
 - ✅ **UX and quality debt.** Per-command `--help` with real usage and
-  examples; `scry team` for sharing views and field mappings; favorites moved
+  examples; `gadak team` for sharing views and field mappings; favorites moved
   from browser storage into the mirror; the dead `presence` client stack
   removed; duplicate `initials` merged; storage keys renamed off the project's
   old name.
@@ -75,11 +75,11 @@ keeps an installed mirror alive or removes a reason not to try one.
 
 - ✅ **Rate-limit visibility.** The Jira client counts outbound attempts,
   429s, 5xx, retries, and backoff wait time; each sync cycle flushes into
-  `api_usage` (daily UTC rows). `scry status` / `status --json` and
+  `api_usage` (daily UTC rows). `gadak status` / `status --json` and
   `GET settings/` `runtime.apiUsage` expose today plus a 7-day rollup. This is
   **our process's call volume**, not Jira's remaining shared point budget —
   the site still does not expose that.
-- ✅ **Field-bloat report** (`scry fields`). Not a single SQL query: the mirror
+- ✅ **Field-bloat report** (`gadak fields`). Not a single SQL query: the mirror
   only stores custom fields listed in `fieldMap`, so the command lists fields
   from Jira (`GET /field`) and probes a stratified sample of mirrored issue
   keys with `fields=*all`. Rates are sample-based, not a site census.
@@ -100,7 +100,7 @@ keeps an installed mirror alive or removes a reason not to try one.
 Profiles (`--profile`) already isolate credential + mirror per site and cover
 the two-site case today. Promote them to a first-class switcher:
 
-- ✅ **One process, many mirrors** — settled and shipped: `scry serve` mounts
+- ✅ **One process, many mirrors** — settled and shipped: `gadak serve` mounts
   every sibling profile under `/w/<name>/` (full API, reads and write-through),
   opened lazily on first request. The trust boundary is unchanged — same
   loopback listener, same single OS user; the workspace list endpoint carries
@@ -111,8 +111,8 @@ the two-site case today. Promote them to a first-class switcher:
   per-workspace `config.json` (prefixed API bases), and keys IndexedDB and
   localStorage per workspace so two mirrors on one origin never share cache or
   favorites. Push notifications stay a primary-page feature.
-- ✅ TUI/CLI: `scry --profile` stays; `scry profiles` lists them (predates this
-  wave; `scry workspaces` as a separate verb was judged a duplicate).
+- ✅ TUI/CLI: `gadak --profile` stays; `gadak profiles` lists them (predates this
+  wave; `gadak workspaces` as a separate verb was judged a duplicate).
 
 Sequenced after v0.3 deliberately: retention loops for existing mirrors come
 before conveniences for hypothetical second sites.
@@ -176,7 +176,7 @@ product, speed is a feature, and trust in freshness is built in the UI.
 - **Agent wedge, front and center.** README leads with the agent story
   (the mirror is the substrate); one-command MCP setup per client
   (`claude mcp add` paste-blocks already exist in docs/AGENT_SETUP.md — promote
-  to a `scry mcp install <client>` verb); a 90-second demo of an agent
+  to a `gadak mcp install <client>` verb); a 90-second demo of an agent
   answering with issue+doc context no cloud API could assemble as fast.
 - **Offline write queue — revisit, don't build yet.** The v0.3-era deferral
   ("wait for observed demand") stands, but the 2026-08-06 review added a new
@@ -189,15 +189,15 @@ product, speed is a feature, and trust in freshness is built in the UI.
 The port and the terminal were the last pieces of accidental UX between a
 person and the mirror. Shipped 2026-08-06:
 
-- ✅ **Scry.app** — the web UI in a native macOS window with no local server
+- ✅ **Gadak.app** — the web UI in a native macOS window with no local server
   at all (in-process handler; no port, no conflicts, single-instance).
-  Signed + notarized `Scry-<ver>-arm64.dmg` attached to every release.
+  Signed + notarized `Gadak-<ver>-arm64.dmg` attached to every release.
 - ✅ **First run in the window.** The existing in-app onboarding carries the
   desktop case; finishing setup now also starts the background sync without
   a restart (previously boot-time only).
-- ✅ **The CLI rides inside the bundle** (`Contents/Resources/bin/scry`), so
+- ✅ **The CLI rides inside the bundle** (`Contents/Resources/bin/gadak`), so
   a desktop-only install still graduates to agent use — one symlink, then
-  `scry mcp install claude`. See `docs/DESKTOP.md`.
+  `gadak mcp install claude`. See `docs/DESKTOP.md`.
 
 Not in this wave: workspace switching in the app (one profile per window),
 Intel/universal builds, Windows/Linux shells.
@@ -210,7 +210,7 @@ Shipped 2026-08-06:
 - ✅ **The people axis.** A person is a thing you can open: their comments
   across issues and pages, plus assigned/reported/authored as one click each.
   Web-only this version (`docs/TUI.md` records the gap); agents reach the same
-  axis through `scry_query` — see the recipe in `docs/RECIPES.md`.
+  axis through `gadak_query` — see the recipe in `docs/RECIPES.md`.
 - ✅ **Search says why it matched**, everywhere the API reaches (CLI, MCP, web).
   Comment search always worked; now it looks like it.
 - ✅ **Page excerpts (schema v15)** on activity lists, web and TUI.
@@ -241,7 +241,7 @@ work mirror. Shipped 2026-08-07:
 - ✅ **A reading aid nobody asks for until they drag-read a long doc**: the
   block under the cursor lifts, in issue descriptions, page bodies, and
   comments alike.
-- ✅ **`scry snapshot` carries documents** — a shared mirror no longer arrives
+- ✅ **`gadak snapshot` carries documents** — a shared mirror no longer arrives
   with an empty DOCS section.
 - ✅ **A sixth perf axis** (`docsFilterKeystrokeMs`, pinned FAIL-first on the
   10k fixture) so the document filter can never quietly leave memory.
@@ -259,7 +259,7 @@ So the next stretch is not a feature wave. It is:
    mirror that already exists. Demand for the answer has to show up before the
    binary is worth anyone's evening.
 2. **Watch someone install it without help**, and write down where they stop.
-3. **Prepare for arrival rather than polish for absence** — `scry doctor`,
+3. **Prepare for arrival rather than polish for absence** — `gadak doctor`,
    [`MAINTENANCE.md`](../MAINTENANCE.md), and the narrowed schema contract in
    `specs/000-product/data-model.md` all exist so that a first real user costs
    hours instead of weeks.

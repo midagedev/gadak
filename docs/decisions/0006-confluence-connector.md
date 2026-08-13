@@ -20,7 +20,7 @@ source-neutral input contract). What does *not* exist is a connector interface â
    that writes pages into the existing spine: `sources` row `confluence`,
    `items.kind = "page"`, a new `pages` projection table (v9 migration),
    comments into the existing `comments` table, FTS via the existing
-   `writeFTS` path. Verified with `scry sql` and direct FTS queries.
+   `writeFTS` path. Verified with `gadak sql` and direct FTS queries.
 2. **R2 â€” read path.** Kind-aware search (`items` left-joined to its
    projection), a pages read API, ETag combining both sources' versions
    (the ponytail comment in `server.go` comes due).

@@ -10,11 +10,11 @@
 <div class="flex h-screen flex-col items-center justify-center gap-4 bg-bg-base px-6 text-center">
   <div class="flex items-center gap-2">
     <span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent"></span>
-    <span class="text-title font-semibold text-text-primary">scry</span>
+    <span class="text-title font-semibold text-text-primary">gadak</span>
   </div>
   <p class="max-w-sm text-body text-text-secondary">
     {t('app.authGate')}
-    <code class="text-text-primary">scry serve</code>
+    <code class="text-text-primary">gadak serve</code>
     {t('app.authGateHint')}
   </p>
   <div class="flex gap-2">

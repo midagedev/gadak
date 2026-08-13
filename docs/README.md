@@ -1,16 +1,16 @@
-# scry Documentation
+# gadak Documentation
 
 ## Start here
 
 - `STATE_OF_PLAY.md`: **picking this up? read this first.** What exists, what does
   not, the next task, and hard-won Jira behaviors
-- `../README.md`: what scry is, quick start, scope
+- `../README.md`: what gadak is, quick start, scope
 - `ROADMAP.md`: ordering and reasoning
 - `CONCEPT.md`: the idea and what follows from it
 - `ARCHITECTURE.md`: components, module boundaries, data flow
 - `EXTRACTION.md`: where this code came from, what was cut at extraction time
 
-## Using scry (humans and agents)
+## Using gadak (humans and agents)
 
 - `../AGENTS.md`: agent reference — SQL cookbook, CLI, REST, MCP
 - `AGENT_SETUP.md`: one paste per agent (Claude Code, Cursor, Codex, MCP)

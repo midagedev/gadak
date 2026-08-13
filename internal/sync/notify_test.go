@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 type fakeNotifier struct {
@@ -151,7 +151,7 @@ const errBoom = errString("boom")
 
 func openSyncDB(t *testing.T) *store.DB {
 	t.Helper()
-	db, err := store.Open(t.TempDir() + "/scry.db")
+	db, err := store.Open(t.TempDir() + "/gadak.db")
 	if err != nil {
 		t.Fatal(err)
 	}

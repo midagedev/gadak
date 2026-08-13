@@ -5,11 +5,11 @@ package fields
 import (
 	"strings"
 
-	"github.com/midagedev/scry/internal/jira"
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 // Classify maps a Jira field schema onto a display role and editor kind.
-// ok=false marks fields scry should never surface (plugin plumbing, ranks).
+// ok=false marks fields gadak should never surface (plugin plumbing, ranks).
 func Classify(f jira.FieldInfo) (role, kind string, ok bool) {
 	t := f.Schema.Type
 	items := f.Schema.Items

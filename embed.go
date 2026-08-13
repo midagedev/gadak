@@ -1,11 +1,11 @@
-// Package scry embeds the built web UI so a release is one self-contained
+// Package gadak embeds the built web UI so a release is one self-contained
 // binary. `npm run build` writes web assets to dist/app before `go build`;
 // without that step the embed carries only the committed placeholder and
-// WebUI reports ok=false, which `scry serve` turns into a helpful error.
+// WebUI reports ok=false, which `gadak serve` turns into a helpful error.
 //
-// It also embeds the Claude Code skill (skills/scry/SKILL.md) so
-// `scry skill install` works for brew installs without a source checkout.
-package scry
+// It also embeds the Claude Code skill (skills/gadak/SKILL.md) so
+// `gadak skill install` works for brew installs without a source checkout.
+package gadak
 
 import (
 	"embed"
@@ -15,7 +15,7 @@ import (
 //go:embed all:dist/app
 var distFS embed.FS
 
-//go:embed skills/scry/SKILL.md
+//go:embed skills/gadak/SKILL.md
 var skillMarkdown []byte
 
 // WebUI returns the embedded web assets rooted at the app directory. ok is
@@ -31,7 +31,7 @@ func WebUI() (fs.FS, bool) {
 	return sub, true
 }
 
-// SkillMarkdown returns the embedded Claude Code skill body (skills/scry/SKILL.md).
+// SkillMarkdown returns the embedded Claude Code skill body (skills/gadak/SKILL.md).
 // Callers must not modify the returned slice.
 func SkillMarkdown() []byte {
 	return skillMarkdown

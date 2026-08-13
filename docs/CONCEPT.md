@@ -2,7 +2,7 @@
 
 ## One line
 
-scry mirrors your issue tracker to local SQLite, then serves it to a browser UI
+gadak mirrors your issue tracker to local SQLite, then serves it to a browser UI
 and to your coding agent from the same file.
 
 ## The insight
@@ -34,7 +34,7 @@ to serve a different product than this one.
 
 **The mirror is disposable.** If the schema is a cache of someone else's truth,
 deleting it is always safe. That property is worth protecting, because the moment
-scry holds something irreplaceable it becomes infrastructure someone has to back
+gadak holds something irreplaceable it becomes infrastructure someone has to back
 up.
 
 ## The loop it optimizes

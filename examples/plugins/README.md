@@ -1,6 +1,6 @@
 # Example plugins
 
-scry never embeds third-party integrations. External processes write the
+gadak never embeds third-party integrations. External processes write the
 `enrichments` table; the server merges known kinds into list and detail
 responses. These directories are **copy-pasteable starting points** — each one
 runs with Python 3 stdlib only (plus `git` for deploy-status).
@@ -17,23 +17,23 @@ How to choose an extension axis: [`docs/EXTENDING.md`](../../docs/EXTENDING.md).
 ## Five-minute smoke test (offline)
 
 ```sh
-# from the scry repository root
-cp examples/demo.db /tmp/scry-plugin.db
-V0=$(sqlite3 /tmp/scry-plugin.db "SELECT version FROM sync_state LIMIT 1;")
+# from the gadak repository root
+cp examples/demo.db /tmp/gadak-plugin.db
+V0=$(sqlite3 /tmp/gadak-plugin.db "SELECT version FROM sync_state LIMIT 1;")
 
 python3 examples/plugins/github-prs/github_prs.py example/app \
-  --db /tmp/scry-plugin.db \
+  --db /tmp/gadak-plugin.db \
   --from-json examples/plugins/github-prs/sample-prs.json
 
 python3 examples/plugins/csv-import/csv_import.py \
   examples/plugins/csv-import/sample.csv \
-  --db /tmp/scry-plugin.db
+  --db /tmp/gadak-plugin.db
 
 # deploy-status needs a git repo; use --self-test for a synthetic one, or:
-# python3 examples/plugins/deploy-status/deploy_status.py /path/to/repo --db /tmp/scry-plugin.db
+# python3 examples/plugins/deploy-status/deploy_status.py /path/to/repo --db /tmp/gadak-plugin.db
 
-sqlite3 /tmp/scry-plugin.db "SELECT kind, COUNT(*) FROM enrichments GROUP BY kind;"
-sqlite3 /tmp/scry-plugin.db "SELECT version FROM sync_state;"
+sqlite3 /tmp/gadak-plugin.db "SELECT kind, COUNT(*) FROM enrichments GROUP BY kind;"
+sqlite3 /tmp/gadak-plugin.db "SELECT version FROM sync_state;"
 # version should be V0+2 after the two writers above
 ```
 

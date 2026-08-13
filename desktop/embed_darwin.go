@@ -13,9 +13,9 @@ package main
 // target="_blank"; with no delegate those clicks die (the same silence the
 // main webview had before /desktop/open). In an embedded pane a new window
 // makes no sense, so the request loads in place instead.
-@interface ScryEmbedUIDelegate : NSObject <WKUIDelegate>
+@interface GadakEmbedUIDelegate : NSObject <WKUIDelegate>
 @end
-@implementation ScryEmbedUIDelegate
+@implementation GadakEmbedUIDelegate
 - (WKWebView *)webView:(WKWebView *)webView
     createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration
                forNavigationAction:(WKNavigationAction *)navigationAction
@@ -27,10 +27,10 @@ package main
 }
 @end
 
-static ScryEmbedUIDelegate *embedUIDelegate(void) {
-	static ScryEmbedUIDelegate *d = nil;
+static GadakEmbedUIDelegate *embedUIDelegate(void) {
+	static GadakEmbedUIDelegate *d = nil;
 	static dispatch_once_t once;
-	dispatch_once(&once, ^{ d = [[ScryEmbedUIDelegate alloc] init]; });
+	dispatch_once(&once, ^{ d = [[GadakEmbedUIDelegate alloc] init]; });
 	return d;
 }
 

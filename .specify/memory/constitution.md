@@ -1,15 +1,15 @@
-# scry Constitution
+# gadak Constitution
 
 ## Article 1: The Mirror Is Disposable, Jira Is the Record
 
-scry never becomes the system of record. Deleting the database and re-syncing
+gadak never becomes the system of record. Deleting the database and re-syncing
 must always be a valid recovery. No state that a user would mourn may live only
-in scry, with one exception: local personal data (saved views, watches,
+in gadak, with one exception: local personal data (saved views, watches,
 favorites) which must be explicitly exportable.
 
 ## Article 2: Local First, No Service
 
-scry runs entirely on the user's machine. There is no scry backend, no account,
+gadak runs entirely on the user's machine. There is no gadak backend, no account,
 no telemetry, and no outbound traffic except to the user's own configured
 sources. Any feature that would require a hosted component is out of scope.
 
@@ -30,7 +30,7 @@ of what it adds.
 ## Article 5: Writes Go Straight Through
 
 Write actions call the source API directly and then refresh the affected rows.
-scry does not queue, batch, or reconcile writes, and it does not invent an
+gadak does not queue, batch, or reconcile writes, and it does not invent an
 offline write model. A failed write surfaces the source's own error.
 
 ## Article 6: The Store Is Source-Neutral

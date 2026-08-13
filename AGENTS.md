@@ -4,22 +4,22 @@ Two audiences. Pick your half:
 
 - **[Using the mirror](#using-the-mirror)** — you want answers about issues, or
   you want to comment, transition, or assign one. Most agents stop here.
-- **[Developing scry](#developing-scry)** — you are changing this repository.
+- **[Developing gadak](#developing-gadak)** — you are changing this repository.
 
 ## Using the mirror
 
-scry keeps a local SQLite mirror of Jira at `~/.scry/scry.db` (`--profile x` puts
-it under `~/.scry/profiles/x/`). Reads never touch the network. Writes go to Jira
+gadak keeps a local SQLite mirror of Jira at `~/.gadak/gadak.db` (`--profile x` puts
+it under `~/.gadak/profiles/x/`). Reads never touch the network. Writes go to Jira
 and re-read the issue into the mirror afterwards.
 
 Four layers. Use the lowest one that answers the question:
 
 | Layer | Use it for | Needs |
 | --- | --- | --- |
-| **SQL** | anything relational, aggregated, or historical | the file, or `scry sql` |
-| **CLI** | one issue, one search, one write | the `scry` binary |
-| **REST** | the same data from something that is not a shell | `scry serve` running |
-| **MCP** | shell-less clients only (Claude Desktop, etc.) | `scry mcp` — see [docs/MCP.md](docs/MCP.md) |
+| **SQL** | anything relational, aggregated, or historical | the file, or `gadak sql` |
+| **CLI** | one issue, one search, one write | the `gadak` binary |
+| **REST** | the same data from something that is not a shell | `gadak serve` running |
+| **MCP** | shell-less clients only (Claude Desktop, etc.) | `gadak mcp` — see [docs/MCP.md](docs/MCP.md) |
 
 ### Check freshness before you answer
 
@@ -29,7 +29,7 @@ clean and pipeable. (`sql`, `status`, `open`, `sync`, and others do not.) To
 check explicitly:
 
 ```bash
-scry status --json
+gadak status --json
 # {"profile":"…","issues":519,"comments":614,"watermark":"…",
 #  "version":6,"schema_version":6,"sync_count":1,"first_sync_at":"…"}
 ```
@@ -65,9 +65,9 @@ JSON arrays — reach them with `json_each`. Every column is listed in
 `specs/000-product/data-model.md`.
 
 ```bash
-scry sql "…"          # tab-separated, read-only
-scry sql --json "…"   # one JSON object per row
-scry sql --csv "…"    # header row plus CSV
+gadak sql "…"          # tab-separated, read-only
+gadak sql --json "…"   # one JSON object per row
+gadak sql --csv "…"    # header row plus CSV
 ```
 
 ```sql
@@ -120,74 +120,74 @@ Rules that come with the file:
 - **Never write to the database.** Writes are Jira's job; a row written directly
   is destroyed by the next sync. There is no exception for "just a label".
 - **Do not depend on `issues.raw`.** It is an escape hatch shaped by Jira's API,
-  not by scry's contract.
+  not by gadak's contract.
 - **Do not poll in a loop.** `sync_state.version` only moves when something
   changed; compare it instead.
 
 ### CLI reference
 
 ```bash
-scry issue NMB-140                   # fields, description, comments, history, links
-scry issue NMB-140 --json            # the `GET <key>/detail/` document plus the list row
-# `scry issue` is the context pack: one call returns everything an LLM needs
+gadak issue NMB-140                   # fields, description, comments, history, links
+gadak issue NMB-140 --json            # the `GET <key>/detail/` document plus the list row
+# `gadak issue` is the context pack: one call returns everything an LLM needs
 # about an issue — no follow-up requests, no pagination.
 
-scry open NMB-140                    # jump to the issue on the Jira site (boards, admin)
+gadak open NMB-140                    # jump to the issue on the Jira site (boards, admin)
 
-scry search "flaky upload" --limit 5
-scry search "idempotency" --json     # matching IssueLite rows, best match first
+gadak search "flaky upload" --limit 5
+gadak search "idempotency" --json     # matching IssueLite rows, best match first
 
-scry comment NMB-140 -m "Reproduced on staging; trace attached."
-scry comment NMB-140 -m -            # body from stdin, for anything multi-line
-scry transition NMB-140 "In Review"  # transition name, target status name, or id
-scry transition NMB-140 31
-scry assign NMB-140 dana@example.com
-scry assign NMB-140 -                # unassign
+gadak comment NMB-140 -m "Reproduced on staging; trace attached."
+gadak comment NMB-140 -m -            # body from stdin, for anything multi-line
+gadak transition NMB-140 "In Review"  # transition name, target status name, or id
+gadak transition NMB-140 31
+gadak assign NMB-140 dana@example.com
+gadak assign NMB-140 -                # unassign
 
-scry fields                          # custom-field usage on a sample (needs credential)
-scry fields --sample 100 --project NMB --json
+gadak fields                          # custom-field usage on a sample (needs credential)
+gadak fields --sample 100 --project NMB --json
 
-scry team export --out scry-team.json   # share views, fieldMap, group rules (no credentials)
-scry team import scry-team.json         # merge into this profile; try --dry-run first
+gadak team export --out gadak-team.json   # share views, fieldMap, group rules (no credentials)
+gadak team import gadak-team.json         # merge into this profile; try --dry-run first
 
-scry sync                            # incremental; --full re-fetches everything
-scry status --json
-scry sql --json "select count(*) from issues where reopen_count > 0"
-scry --profile demo status           # separate credential and mirror per profile
+gadak sync                            # incremental; --full re-fetches everything
+gadak status --json
+gadak sql --json "select count(*) from issues where reopen_count > 0"
+gadak --profile demo status           # separate credential and mirror per profile
 ```
 
 Text output for a search result or a write is one tab-separated line —
 `key`, `status`, `assignee`, `summary` — so `cut -f1` gives you keys. `--json` on
 a write answers `{"issue": {…IssueLite}}`, plus `"comment"` for `comment`.
 
-Writes need a credential and fail before calling Jira without one. `scry init`
+Writes need a credential and fail before calling Jira without one. `gadak init`
 takes the whole setup non-interactively, so an agent never has to drive a
 prompt — it only falls back to asking when stdin is a terminal *and* nothing was
 supplied:
 
 ```
-SCRY_TOKEN=$(cat token) scry init \
+GADAK_TOKEN=$(cat token) gadak init \
   --site https://your-site.atlassian.net --email you@example.com --projects ABC --json
 ```
 
 There is deliberately no `--token` flag: argv is visible in `ps` and lands in
-shell history. Pass the token as `SCRY_TOKEN`, `--token-file <path>`, or
-`--token-stdin`. Any flag or `SCRY_*` value switches init fully non-interactive,
+shell history. Pass the token as `GADAK_TOKEN`, `--token-file <path>`, or
+`--token-stdin`. Any flag or `GADAK_*` value switches init fully non-interactive,
 so a missing value fails immediately — listing what is missing — instead of
 blocking on a prompt no one is there to answer.
-A body written by `scry comment` is plain text: an `@Name` in it notifies nobody,
+A body written by `gadak comment` is plain text: an `@Name` in it notifies nobody,
 unlike the web UI's mention autocomplete.
 
-`scry transition` reports what is available when the name does not match, so a
+`gadak transition` reports what is available when the name does not match, so a
 failed guess tells you what to guess next:
 
 ```
-scry: no transition matching "Done" on NMB-140 — available: Start work (id 21, → 진행 중); Close (id 31, → 완료)
+gadak: no transition matching "Done" on NMB-140 — available: Start work (id 21, → 진행 중); Close (id 31, → 완료)
 ```
 
 ### REST
 
-While `scry serve` is running (loopback only, no auth by design):
+While `gadak serve` is running (loopback only, no auth by design):
 
 ```bash
 # Everything, once. Send the ETag back and an unchanged mirror answers 304.
@@ -222,18 +222,18 @@ The full endpoint list, response shapes, and error bodies are in
 ### MCP (for clients without a shell)
 
 If you can run shell commands, **stop here** — use SQL or the CLI above. MCP is
-only for hosts that cannot spawn `scry sql` / `scry issue` as one-shot processes.
+only for hosts that cannot spawn `gadak sql` / `gadak issue` as one-shot processes.
 
 ```bash
-scry mcp                          # stdio JSON-RPC; logs go to stderr only
-scry --profile demo mcp
+gadak mcp                          # stdio JSON-RPC; logs go to stderr only
+gadak --profile demo mcp
 ```
 
-Four tools, no more: `scry_query` (read-only SQL), `scry_search`, `scry_issue`,
-`scry_status`. There are no write tools on MCP. Setup examples (Claude Desktop
+Four tools, no more: `gadak_query` (read-only SQL), `gadak_search`, `gadak_issue`,
+`gadak_status`. There are no write tools on MCP. Setup examples (Claude Desktop
 config, profiles, troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
 
-## Developing scry
+## Developing gadak
 
 ### Required reading order
 
@@ -249,7 +249,7 @@ config, profiles, troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
 ### Development rules
 
 - The mirror is disposable and Jira is the record. Never add state that only
-  lives in scry, except local personal data, which must stay exportable.
+  lives in gadak, except local personal data, which must stay exportable.
 - Nothing installation-specific goes in code or in a built artifact. No site URL,
   project key, custom field id, status name, team label, or person.
 - Logic keys on ids and `statusCategory`, never on localized display names. Jira
@@ -285,7 +285,7 @@ will draw conclusions from a screen the code no longer produces.
 `npx playwright test` only rebuilds when it has to start the server itself. The
 config sets `reuseExistingServer`, so a server left running from an earlier run
 is reused as-is, `serve.sh` never re-runs, and your edits are simply absent.
-Stop it first (`pkill -f 'e2e/.tmp/scry'`) or run `npm run build` by hand.
+Stop it first (`pkill -f 'e2e/.tmp/gadak'`) or run `npm run build` by hand.
 
 ### Handoff format
 

@@ -22,8 +22,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/midagedev/scry/internal/jira"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // docsLine kinds for the docs list viewport (headers are non-navigable).

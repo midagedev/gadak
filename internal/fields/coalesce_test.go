@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/gadak/internal/config"
 )
 
 func TestCoalesceFirstFilled(t *testing.T) {

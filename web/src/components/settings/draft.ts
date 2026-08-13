@@ -2,7 +2,7 @@
  * The settings dialog's form model — one editable object between GET settings/
  * and PUT settings/.
  *
- * Most of it is `ScrySettings` verbatim, and the tabs bind straight into it.
+ * Most of it is `GadakSettings` verbatim, and the tabs bind straight into it.
  * The exceptions are the shapes a form can edit and a config file cannot:
  *  - records become ordered row arrays (a key being typed is briefly empty, and
  *    two rows may hold the same key until one of them is finished),
@@ -14,8 +14,8 @@
  * one pure function is what makes the payload checkable without a browser.
  */
 
-import type { ScrySettings, SettingsFieldSpec } from '../../lib/api'
-import type { ScryFeatures } from '../../lib/config'
+import type { GadakSettings, SettingsFieldSpec } from '../../lib/api'
+import type { GadakFeatures } from '../../lib/config'
 import type { MessageKey } from '../../lib/i18n'
 
 export interface Kv {
@@ -49,7 +49,7 @@ export interface MemberRow {
   avatar_url: string
 }
 
-export type FeatureFlags = Record<keyof ScryFeatures, boolean>
+export type FeatureFlags = Record<keyof GadakFeatures, boolean>
 
 export interface SettingsDraft {
   /** Picker selection; the field of record once the site's project list arrives. */
@@ -146,7 +146,7 @@ function resolveInterval(preset: number, customText: string): number {
  * `features` carries the flags forward: a hand-written JSON that omits one must
  * not silently switch it off, which is what merging into the current set buys.
  */
-export function toDraft(s: ScrySettings, features: FeatureFlags = NO_FEATURES): SettingsDraft {
+export function toDraft(s: GadakSettings, features: FeatureFlags = NO_FEATURES): SettingsDraft {
   const syncSec = s.syncIntervalSec ?? 0
   const syncPreset = pickPreset(syncSec, SYNC_PRESETS)
   const recSec = s.reconcileIntervalSec ?? 0
@@ -213,7 +213,7 @@ export function emptyDraft(): SettingsDraft {
  * `projectsPickerReady` decides which of the two project fields is the record:
  * the picker once the site answered, the manual text box while it has not.
  */
-export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): ScrySettings {
+export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): GadakSettings {
   const groupLabels: Record<string, string> = {}
   const groupColors: Record<string, string> = {}
   for (const row of d.groups) {

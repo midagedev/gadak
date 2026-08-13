@@ -1,5 +1,5 @@
-// Package clitool installs the scry binary onto PATH via a symlink.
-// Shared by `scry install-cli` and the desktop "Install Command Line Tool…"
+// Package clitool installs the gadak binary onto PATH via a symlink.
+// Shared by `gadak install-cli` and the desktop "Install Command Line Tool…"
 // menu so both surfaces use the same resolve / install / PATH-advice logic.
 package clitool
 
@@ -44,7 +44,7 @@ func Resolve(source, dirFlag, pathEnv string) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	dest := filepath.Join(dir, "scry")
+	dest := filepath.Join(dir, "gadak")
 
 	p := Plan{
 		Source: source,
@@ -109,7 +109,7 @@ func DefaultDir(pathEnv string) (string, error) {
 	}
 	localBin := filepath.Join(home, ".local", "bin")
 
-	// Prefer a directory the user's shell already searches, so `scry` works
+	// Prefer a directory the user's shell already searches, so `gadak` works
 	// immediately after install without editing rc files.
 	//
 	// 1. ~/.local/bin — common XDG-style location; only when it already exists
@@ -322,7 +322,7 @@ func isWritableDir(dir string) bool {
 	if err != nil || !fi.IsDir() {
 		return false
 	}
-	f, err := os.CreateTemp(dir, ".scry-write-test-*")
+	f, err := os.CreateTemp(dir, ".gadak-write-test-*")
 	if err != nil {
 		return false
 	}

@@ -1,12 +1,12 @@
 # The pain points, with receipts
 
-scry's pitch rests on claims about what hurts in Jira. This page is the
-evidence: recurring, sourced complaints from real users, and what scry does
+gadak's pitch rests on claims about what hurts in Jira. This page is the
+evidence: recurring, sourced complaints from real users, and what gadak does
 about each. Collected 2026-08; quality note — HN, Atlassian Community, and
 issue trackers below are first-hand user reports; vendor comparison blogs were
 excluded.
 
-## What scry addresses
+## What gadak addresses
 
 **1. Opening a ticket is slow.** The single most repeated complaint, across HN
 threads spanning 2018–2024. Root cause is architectural: one ticket render fans
@@ -20,7 +20,7 @@ round trips — this is the core of the product.
 **2. Search cannot find text you know is there.** Long-running threads on
 Atlassian's own forum about tokenization and ranking. The demand is proven by
 tools like [`jirafts`](https://pypi.org/project/jirafts) that download issues
-just to index them locally — the same move scry makes.
+just to index them locally — the same move gadak makes.
 [Atlassian Community qaq-p/91620](https://community.atlassian.com/forums/Jira-questions/Is-there-a-plan-to-make-JIRA-search-better/qaq-p/91620)
 
 **3. Notification floods get ignored wholesale.** ~60 Jira emails a day per
@@ -48,17 +48,17 @@ SQLite.
 (two decades open). The mirror satisfies the read half: everything you have
 synced — including cached attachments — renders with no network at all.
 
-## What scry deliberately does not address
+## What gadak deliberately does not address
 
 - Boards, sprints, and drag-and-drop accidents — board UI territory; use Jira.
 - Notification *scheme* design, permission schemes, workflow admin — server-side
   administration.
 - Velocity dashboards — the complaint behind them ("optimizing for Jira") is
-  cultural, and a dashboard feeds it. scry stays a triage tool on purpose.
+  cultural, and a dashboard feeds it. gadak stays a triage tool on purpose.
 - Jira Server / Data Center — untested, therefore unclaimed.
 
 ## Competitive note
 
 `jira-cli` and the TUI field (`jirust`, `jiratui`, …) all call the live API per
-command. Their draw is "never leave the terminal"; scry's is different — the
+command. Their draw is "never leave the terminal"; gadak's is different — the
 local mirror and SQL. The terminal surfaces are consequences, not the point.

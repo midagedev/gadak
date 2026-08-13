@@ -1,4 +1,4 @@
-module github.com/midagedev/scry
+module github.com/midagedev/gadak
 
 go 1.25.0
 

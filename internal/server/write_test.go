@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/sync"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/sync"
 )
 
 // fakeJira is enough of Jira Cloud to drive the write-through paths, and it
@@ -544,7 +544,7 @@ func TestJiraErrorsPassThrough(t *testing.T) {
 }
 
 func TestCredentialLifecycle(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	f := newFakeJira(t)
 	db, cfg := fixture(t)
 	cfg.Site, cfg.Email, cfg.Token = f.URL, "", ""
@@ -603,7 +603,7 @@ func TestCredentialLifecycle(t *testing.T) {
 }
 
 func TestRejectedCredentialIsNotStored(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	f := newFakeJira(t)
 	f.Close()
 	// A site that answers 401 to /myself.

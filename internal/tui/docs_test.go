@@ -9,8 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-runewidth"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // samplePages builds a two-space tree used by tree / breadcrumb / filter tests:

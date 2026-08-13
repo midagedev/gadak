@@ -1,5 +1,5 @@
 // Command seed-demo populates a throwaway Jira Cloud site with a realistic
-// demo backlog for scry screenshots and examples/demo.db.
+// demo backlog for gadak screenshots and examples/demo.db.
 //
 //	export JIRA_SITE=https://your-site.atlassian.net
 //	export JIRA_EMAIL=you@example.com

@@ -1,6 +1,6 @@
 # Security
 
-scry mirrors your issue tracker and wiki onto your own disk and hands that
+gadak mirrors your issue tracker and wiki onto your own disk and hands that
 mirror to tools you run yourself. That sentence is the whole threat model, so
 this document walks it end to end: what moves where, what never moves, and
 where in the code each claim is enforced — check the source, not our word.
@@ -10,7 +10,7 @@ where in the code each claim is enforced — check the source, not our word.
 Use GitHub private vulnerability reporting:
 
 ```text
-https://github.com/midagedev/scry/security/advisories/new
+https://github.com/midagedev/gadak/security/advisories/new
 ```
 
 Do **not** open a public issue for a vulnerability, and never include real
@@ -32,7 +32,7 @@ backports, and `main` / `0.0.0-dev` builds are best effort.
 
 ### What this project does not promise
 
-scry is maintained by one person in evenings and weekends. Saying so up front
+gadak is maintained by one person in evenings and weekends. Saying so up front
 is more useful than a response target that gets missed:
 
 - **No response-time commitment.** Reports are read and taken seriously; how
@@ -46,15 +46,15 @@ is more useful than a response target that gets missed:
   renewed build, macOS will refuse an already-downloaded `.app` — the fix is a
   new signed release, not something you can work around locally.
 
-### The blast radius of `scry api`
+### The blast radius of `gadak api`
 
-`scry api` sends requests to your site with your stored credential, so its
+`gadak api` sends requests to your site with your stored credential, so its
 reach is exactly your Atlassian account's permissions — no more, and no less.
 Three properties are worth knowing before an agent uses it:
 
-- **There is no audit log.** scry counts requests (`api_usage`) but does not
+- **There is no audit log.** gadak counts requests (`api_usage`) but does not
   record what was called. Your Atlassian site's own audit log is the record.
-- **`--write` is not reversible.** scry has no undo and no dry-run for
+- **`--write` is not reversible.** gadak has no undo and no dry-run for
   pass-through writes. A `DELETE` that reaches Jira is Jira's business from
   then on.
 - **A confused agent is inside the blast radius.** Issue text is written by
@@ -73,12 +73,12 @@ flowchart LR
     Wiki["Confluence REST"]
   end
   subgraph machine [Your machine — nothing below leaves it]
-    DB["~/.scry/scry.db (SQLite)"]
-    CFG["~/.scry/config.json (0600)"]
-    Serve["scry serve — loopback only"]
+    DB["~/.gadak/gadak.db (SQLite)"]
+    CFG["~/.gadak/config.json (0600)"]
+    Serve["gadak serve — loopback only"]
     UI["Browser UI"]
-    TUI["scry tui"]
-    Agent["Your coding agent<br/>(scry sql / MCP)"]
+    TUI["gadak tui"]
+    Agent["Your coding agent<br/>(gadak sql / MCP)"]
   end
   GH["GitHub Releases<br/>(version check, optional)"]
   Jira -->|"HTTPS, your token"| DB
@@ -100,20 +100,20 @@ Outbound traffic is exactly two destinations:
    (`internal/selfupdate/selfupdate.go`). `updateCheck: false` turns it off;
    dev builds never check.
 
-There is no scry account, no scry server, no telemetry, and no multi-user
+There is no gadak account, no gadak server, no telemetry, and no multi-user
 model — no roles, no audit log.
 
 Don't take our word for it — the claim is one grep:
 
 ```bash
 grep -rn 'http.NewRequest\|http.Get\|http.Post' --include='*.go' internal/ cmd/
-# every hit is your Atlassian site, the GitHub Releases check, or scry
+# every hit is your Atlassian site, the GitHub Releases check, or gadak
 # talking to itself on loopback (port probe, health check, cache warming)
 ```
 
 ## The credential
 
-- The API token lives in `~/.scry/config.json`, written atomically with mode
+- The API token lives in `~/.gadak/config.json`, written atomically with mode
   `0600` (`internal/config/config.go`, `Save`).
 - It is sent only as the `Authorization` header to your own site
   (`internal/jira/client.go`, `internal/confluence/client.go`). The Jira
@@ -122,11 +122,11 @@ grep -rn 'http.NewRequest\|http.Get\|http.Post' --include='*.go' internal/ cmd/
   returns a hint, never the token.
 - The database never stores credentials, so sharing a mirror snapshot cannot
   leak one. Two layers enforce this rather than trust it:
-  - `scry snapshot` scans every text column of the finished file (still a
+  - `gadak snapshot` scans every text column of the finished file (still a
     temp file) for credential-shaped strings (`internal/secretscan`) and
     refuses on a hit — the report names the table, row, and pattern, never
     the value, and `--force` cannot skip the check.
-  - `scry team export` is whitelist-only, and a reflection test forces every
+  - `gadak team export` is whitelist-only, and a reflection test forces every
     new config field to be classified shareable-or-private
     (`internal/teamconfig`).
 - The workspace list endpoint serves site + project names only; a test pins
@@ -134,9 +134,9 @@ grep -rn 'http.NewRequest\|http.Get\|http.Post' --include='*.go' internal/ cmd/
 
 ## The local server
 
-`scry serve` has **no authentication**, on purpose: it binds loopback and
+`gadak serve` has **no authentication**, on purpose: it binds loopback and
 refuses any other address unless you pass `--allow-remote`
-(`cmd/scry/main.go`). The security boundary is your OS user account
+(`cmd/gadak/main.go`). The security boundary is your OS user account
 — the same boundary that already protects `~/.ssh`. `--allow-remote` is not
 a multi-user mode: exposing the port publishes every issue the mirror holds
 to anyone who can reach it.
@@ -174,18 +174,18 @@ a prefix test or a broad regex is an XSS hole, not a simplification.
 
 ## The agent is the point — and the exposure
 
-Giving a coding agent your tracker's history is scry's purpose, so be precise
+Giving a coding agent your tracker's history is gadak's purpose, so be precise
 about what that means: **an agent that reads your mirror will send what it
-reads to whatever model it talks to.** scry does not change that math; it
-only removes the REST-API friction. What scry does control:
+reads to whatever model it talks to.** gadak does not change that math; it
+only removes the REST-API friction. What gadak does control:
 
-- `scry sql` opens the database read-only (SQLite `mode=ro`); the MCP
-  server's `scry_query` additionally rejects non-SELECT statements
+- `gadak sql` opens the database read-only (SQLite `mode=ro`); the MCP
+  server's `gadak_query` additionally rejects non-SELECT statements
   (`internal/mcp`). An agent on a narrow allowlist gets query access without
   getting arbitrary `sqlite3`.
 - Writes (comment, transition, assign) go through Jira's API with your
-  token's permissions — scry grants nothing your account doesn't have.
-- `scry api` is a raw REST escape hatch with the **same token permissions**
+  token's permissions — gadak grants nothing your account doesn't have.
+- `gadak api` is a raw REST escape hatch with the **same token permissions**
   as your account. It adds surface: any path the credential can reach on
   the configured site. Mitigations: absolute URLs (`https://…`, `//…`) are
   refused so the Authorization header never leaves that site; non-GET/HEAD
@@ -193,18 +193,18 @@ only removes the REST-API friction. What scry does control:
   through the existing clients (retry policy, `api_usage` counters). It is
   **not** exposed on MCP — only the CLI — so a shell-less host cannot open a
   full-credential proxy. Prefer the modeled write commands when they fit.
-- `scry mcp install` pins the binary path and profile into the registration,
+- `gadak mcp install` pins the binary path and profile into the registration,
   so an MCP host cannot silently attach to a different mirror than the one
   you chose.
 
 If your organization would not allow pasting an issue into the model's chat
 window, do not point the agent at that mirror. That policy question is real,
-and it is yours — scry keeps the data local precisely so the decision stays
+and it is yours — gadak keeps the data local precisely so the decision stays
 in your hands instead of a vendor's.
 
 ## Permissions and scope
 
-The mirror sees exactly what your Atlassian account sees — scry adds no
+The mirror sees exactly what your Atlassian account sees — gadak adds no
 elevation and no service account. Confluence mirroring defaults to **global
 (team) spaces only**; personal spaces sync only when named explicitly in
 config. Projects and spaces are allowlists in config, so a mirror can be
@@ -212,7 +212,7 @@ scoped down to what a given machine should hold.
 
 ## The mirror on disk
 
-`~/.scry/scry.db` is a plain SQLite file owned by your user, holding a copy
+`~/.gadak/gadak.db` is a plain SQLite file owned by your user, holding a copy
 of data you already had read access to. It is deliberately disposable: delete
 it and re-sync.
 
@@ -220,16 +220,16 @@ File modes enforce the user boundary: the database and its `-wal`/`-shm`
 sidecars are chmodded to `0600` and every data directory to `0700` on open
 (`internal/store/store.go`), matching the credential file (`0600`) and the
 attachment cache (`0700`). Older installs left at `0644`/`0755` are tightened
-the next time scry opens them.
+the next time gadak opens them.
 
 If your threat model includes other processes in your *own* account reading
 your files, full-disk encryption is the remaining tool — a local password on
 the file would only be obfuscation, and we would rather not pretend
 otherwise.
 
-Offboarding is one command: `rm -rf ~/.scry` removes the mirror, the
+Offboarding is one command: `rm -rf ~/.gadak` removes the mirror, the
 credential, and every profile. Nothing else on the machine or in Jira knows
-scry existed.
+gadak existed.
 
 ## Release artifacts
 
@@ -240,8 +240,8 @@ secure timestamp so already-published releases stay verifiable after the
 certificate expires. Verify one yourself:
 
 ```bash
-codesign --verify --strict --verbose=2 ./scry   # signature and requirement
-spctl --assess --type open --context context:primary-signature -vv ./scry
+codesign --verify --strict --verbose=2 ./gadak   # signature and requirement
+spctl --assess --type open --context context:primary-signature -vv ./gadak
 # → accepted, source=Notarized Developer ID
 ```
 

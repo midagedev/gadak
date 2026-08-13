@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // ImportOptions controls merge behaviour.
@@ -128,10 +128,18 @@ func ParseDocument(raw []byte) (Document, error) {
 		return Document{}, fmt.Errorf("invalid team config JSON: %w", err)
 	}
 	if doc.Version == 0 {
-		return Document{}, fmt.Errorf("missing required field scry_team_config (version)")
+		// Files written before the 2026-08 rename used scry_team_config.
+		var legacy struct {
+			Version int `json:"scry_team_config"`
+		}
+		_ = json.Unmarshal(raw, &legacy)
+		doc.Version = legacy.Version
+	}
+	if doc.Version == 0 {
+		return Document{}, fmt.Errorf("missing required field gadak_team_config (version)")
 	}
 	if doc.Version != CurrentFormat {
-		return Document{}, fmt.Errorf("unsupported scry_team_config version %d (this scry understands %d)", doc.Version, CurrentFormat)
+		return Document{}, fmt.Errorf("unsupported gadak_team_config version %d (this gadak understands %d)", doc.Version, CurrentFormat)
 	}
 	// Normalize empty view configs.
 	for i := range doc.Views {
@@ -173,7 +181,7 @@ func rejectCredentialKeys(raw []byte) error {
 		return nil
 	}
 	sort.Strings(found)
-	return fmt.Errorf("this file contains credentials or personal identity keys (%s) — do not share it; remove those keys and use a file produced by `scry team export`",
+	return fmt.Errorf("this file contains credentials or personal identity keys (%s) — do not share it; remove those keys and use a file produced by `gadak team export`",
 		strings.Join(found, ", "))
 }
 

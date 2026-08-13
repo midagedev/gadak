@@ -238,7 +238,7 @@ export const en = {
   'list.emptyTitle': 'No issues',
   'list.emptyHint': 'They will appear here when sync finishes.',
   'list.emptyRunSync': 'Run sync',
-  'list.emptySyncHint': 'Or keep the server running with scry serve for automatic updates.',
+  'list.emptySyncHint': 'Or keep the server running with gadak serve for automatic updates.',
   'list.bodyOnlyTitle': 'No local matches — found in body',
   'list.bodyOnlyHint': "See the 'Body matches' section above.",
   'list.noMatchTitle': 'No issues match',
@@ -335,7 +335,7 @@ export const en = {
   'sidebar.syncDelayedTitle': 'Sync delayed',
   'sidebar.syncLabel': 'Synced {when}',
   'sidebar.syncChecking': 'Checking sync',
-  'sidebar.updateAvailable': 'scry {version} is out — release notes',
+  'sidebar.updateAvailable': 'gadak {version} is out — release notes',
   'sidebar.syncNow': 'Sync now',
   'sidebar.syncNowTitle': 'Run an incremental sync now',
   'sidebar.syncHistory': 'Sync history',
@@ -678,12 +678,12 @@ export const en = {
     'Open issues in the same status longer than this are marked stale.',
   'settings.syncInterval': 'Incremental sync interval',
   'settings.syncIntervalHint':
-    'How often scry serve polls Jira for changes. 0 uses the default.',
+    'How often gadak serve polls Jira for changes. 0 uses the default.',
   'settings.reconcileInterval': 'Reconcile interval (deletions)',
   'settings.reconcileIntervalHint':
-    'How often scry serve re-lists keys to drop issues deleted upstream. 0 uses the default.',
+    'How often gadak serve re-lists keys to drop issues deleted upstream. 0 uses the default.',
   'settings.intervalApplies':
-    'Takes effect after restarting scry serve (the loop reads intervals once at startup).',
+    'Takes effect after restarting gadak serve (the loop reads intervals once at startup).',
   'settings.intervalDefault': 'Default',
   'settings.intervalCustom': 'Custom…',
   'settings.intervalSeconds': 'seconds',
@@ -705,7 +705,7 @@ export const en = {
   'settings.runtimeWatermark': 'Watermark',
   'settings.runtimeFullSync': 'Last full sync',
   'settings.runtimeLastError': 'Last sync error',
-  'settings.runtimeVersion': 'scry version',
+  'settings.runtimeVersion': 'gadak version',
   'settings.runtimeApiCalls': 'Jira calls',
   'settings.runtimeApiToday': '{n} today',
   'settings.runtimeApiWeek': '{n} in 7 days',
@@ -722,7 +722,7 @@ export const en = {
   'settings.featureFeedDesc': 'Activity feed of mentions, watches, and assignee changes',
   'settings.browserNotify': 'Desktop notifications (this browser)',
   'settings.browserNotifyDesc':
-    'Show a system notification when new feed items arrive while scry is open. Does not use web push.',
+    'Show a system notification when new feed items arrive while gadak is open. Does not use web push.',
   'settings.browserNotifyEnable': 'Allow notifications',
   'settings.browserNotifyGranted': 'Allowed',
   'settings.browserNotifyDenied': 'Blocked in browser settings',
@@ -766,7 +766,7 @@ export const en = {
   'settings.addMember': '+ Add member',
   'settings.discoveredFields': 'Discovered fields',
   'settings.discoveredFieldsHint':
-    'Auto-detected from your Jira on the first full sync. Edits here are pinned and survive re-discovery; `scry fields --apply` re-runs detection.',
+    'Auto-detected from your Jira on the first full sync. Edits here are pinned and survive re-discovery; `gadak fields --apply` re-runs detection.',
   'settings.noDiscoveredFields': 'Nothing discovered yet — run a full sync first.',
   'settings.pinned': 'pinned',
   'settings.roleFacet': 'chips',
@@ -859,7 +859,7 @@ export const en = {
   'onboarding.sitePlaceholder': 'https://your-team.atlassian.net',
   'onboarding.email': 'Jira account email',
   'onboarding.token': 'API token',
-  'onboarding.tokenHint': 'Stored locally in ~/.scry/config.json and sent only to your site.',
+  'onboarding.tokenHint': 'Stored locally in ~/.gadak/config.json and sent only to your site.',
   'onboarding.tokenLink': 'Create an API token',
   'onboarding.connect': 'Connect',
   'onboarding.connecting': 'Verifying…',
@@ -888,20 +888,20 @@ export const en = {
   'onboarding.syncStarting': 'Starting…',
   'onboarding.syncDone': 'Mirrored {n} issues.',
   'onboarding.syncServeHint':
-    'For automatic updates later, run scry serve (or use Sync now from the sidebar).',
+    'For automatic updates later, run gadak serve (or use Sync now from the sidebar).',
   /* Step 4 — optional. The mirror is full; this is where it gets a second reader. */
   'onboarding.stepAgent': 'Connect an agent',
   'onboarding.stepOptional': 'Optional',
   'onboarding.agentIntro': 'The mirror is filled. The last choice is what reads it.',
   'onboarding.agentWhy':
     'This app is one reader. The other is your coding agent — one command lets it query the mirror directly, without going back to Jira.',
-  'onboarding.agentCommandsLabel': 'Register scry with your agent',
+  'onboarding.agentCommandsLabel': 'Register gadak with your agent',
   'onboarding.agentCommandsHint': 'Run it in a terminal — your agent is a CLI, so you already have one.',
   'onboarding.agentSkillCaption':
     'Claude Code — installs a skill that teaches it the schema and the queries. No server; it loads only when a question needs it.',
   'onboarding.agentMcpCaption':
     'Or register an MCP server — the way in for a client with no shell. claude registers itself; cursor and codex print config to paste:',
-  'onboarding.agentNoCli': 'No scry in your terminal? In the desktop app: Tools → Install Command Line Tool…',
+  'onboarding.agentNoCli': 'No gadak in your terminal? In the desktop app: Tools → Install Command Line Tool…',
   'onboarding.agentDocsSetup': 'Agent setup',
   'onboarding.agentDocsRecipes': 'Query recipes',
   'onboarding.agentDone': 'Open the app',
@@ -911,7 +911,7 @@ export const en = {
   'onboarding.back': 'Back',
   'onboarding.switchAccount': 'Use a different account',
   'onboarding.openSettings': 'Open settings',
-  'onboarding.cliHint': 'The same setup is available as scry init in a terminal.',
+  'onboarding.cliHint': 'The same setup is available as gadak init in a terminal.',
 
   /* ── Keyboard shortcuts cheat sheet (?) ── */
   'shortcuts.title': 'Keyboard shortcuts',
@@ -947,7 +947,7 @@ export const en = {
   /* ── In-app browser pane (desktop app only) ── */
   'browse.paneLabel': 'In-app browser',
   'browse.tabs': 'Open pages',
-  'browse.back': 'Back to Scry',
+  'browse.back': 'Back to Gadak',
   'browse.openExternal': 'Open in the system browser',
   'browse.closeTab': 'Close this page',
   'browse.loading': 'Opening {host}…',

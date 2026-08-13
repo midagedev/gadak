@@ -19,17 +19,17 @@ outside the two above, open an issue and say what you are building — that is
 how it earns its way in.
 
 **When a migration goes wrong**, the mirror is disposable and the recovery is
-one line — `rm -rf ~/.scry && scry sync`. Nothing here is a source of truth;
+one line — `rm -rf ~/.gadak && gadak sync`. Nothing here is a source of truth;
 your Atlassian site is. Losing the mirror costs you the time to re-sync and
 nothing else.
 
-Default location: `~/.scry/scry.db`. Override with `--db` or `SCRY_DB`.
+Default location: `~/.gadak/gadak.db`. Override with `--db` or `GADAK_DB`.
 
 ## Conventions
 
 - Times are ISO-8601 UTC strings (`2026-08-04T09:15:00Z`). SQLite has no date
   type and string comparison sorts correctly for this format. Timestamps the
-  source provides are stored verbatim; the ones scry writes itself (`synced_at`,
+  source provides are stored verbatim; the ones gadak writes itself (`synced_at`,
   `deleted_items.deleted_at`) carry milliseconds (`2026-08-04T09:15:00.482Z`)
   because they are also `delta` cursors, and a whole-second cursor drops rows
   written in the second it was taken.
@@ -223,7 +223,7 @@ change. Comments reuse the `comments` table.
 
 Index: `(item_id, created_at)`.
 
-Jira's REST API exposes comments as a flat list with no thread parent, so scry
+Jira's REST API exposes comments as a flat list with no thread parent, so gadak
 stores them flat. Reply affordances in the UI are a mention convention, not a
 tree.
 
@@ -375,7 +375,7 @@ Revisit with `trigram` if body search in CJK proves weak.
 ## `saved_views`, `watches`, `favorites`
 
 Local personal state. These are the only rows a user would miss if the database
-were deleted, so `scry export` must be able to dump them.
+were deleted, so `gadak export` must be able to dump them.
 
 | Table | Columns |
 | --- | --- |

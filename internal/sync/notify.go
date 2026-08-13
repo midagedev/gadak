@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // Notifier delivers one OS desktop notification. Implementations must never
@@ -118,7 +118,7 @@ func notifyAfterSync(db *store.DB, cfg *config.Config, n Notifier) error {
 // "NMB-12 comment by Marco +2 more" with the issue title as body (no comment text).
 func summarizeFeedNotify(items []store.FeedItem) (title, body string) {
 	if len(items) == 0 {
-		return "scry", ""
+		return "gadak", ""
 	}
 	// Feed is newest-first; the head is the headline event.
 	head := items[0]

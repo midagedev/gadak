@@ -239,7 +239,7 @@ export const ko = {
   'list.emptyTitle': '이슈가 없습니다',
   'list.emptyHint': '동기화가 완료되면 여기 표시됩니다.',
   'list.emptyRunSync': '동기화 실행',
-  'list.emptySyncHint': '자동 갱신이 필요하면 scry serve 로 서버를 실행하세요.',
+  'list.emptySyncHint': '자동 갱신이 필요하면 gadak serve 로 서버를 실행하세요.',
   'list.bodyOnlyTitle': '로컬 매칭은 없지만 본문에서 찾았습니다',
   'list.bodyOnlyHint': "위 '본문 매칭' 섹션을 확인하세요.",
   'list.noMatchTitle': '조건에 맞는 이슈가 없습니다',
@@ -336,7 +336,7 @@ export const ko = {
   'sidebar.syncDelayedTitle': '동기화 지연',
   'sidebar.syncLabel': '동기화 {when}',
   'sidebar.syncChecking': '동기화 확인 중',
-  'sidebar.updateAvailable': 'scry {version} 업데이트가 나왔어요 — 릴리스 노트 보기',
+  'sidebar.updateAvailable': 'gadak {version} 업데이트가 나왔어요 — 릴리스 노트 보기',
   'sidebar.syncNow': '지금 동기화',
   'sidebar.syncNowTitle': '증분 동기화를 지금 실행',
   'sidebar.syncHistory': '동기화 내역',
@@ -674,12 +674,12 @@ export const ko = {
     '현재 상태에 이 시간 이상 머문 미해결 이슈를 지연으로 표시합니다.',
   'settings.syncInterval': '증분 동기화 주기',
   'settings.syncIntervalHint':
-    'scry serve 가 Jira 변경을 폴링하는 간격. 0 이면 기본값.',
+    'gadak serve 가 Jira 변경을 폴링하는 간격. 0 이면 기본값.',
   'settings.reconcileInterval': '삭제 정리(reconcile) 주기',
   'settings.reconcileIntervalHint':
     'upstream 에서 삭제된 이슈를 정리하기 위해 키를 재목록화하는 간격. 0 이면 기본값.',
   'settings.intervalApplies':
-    'scry serve 를 다시 시작해야 적용됩니다(루프는 기동 시 주기를 한 번만 읽음).',
+    'gadak serve 를 다시 시작해야 적용됩니다(루프는 기동 시 주기를 한 번만 읽음).',
   'settings.intervalDefault': '기본값',
   'settings.intervalCustom': '직접 입력…',
   'settings.intervalSeconds': '초',
@@ -701,7 +701,7 @@ export const ko = {
   'settings.runtimeWatermark': '워터마크',
   'settings.runtimeFullSync': '마지막 full sync',
   'settings.runtimeLastError': '마지막 동기화 오류',
-  'settings.runtimeVersion': 'scry 버전',
+  'settings.runtimeVersion': 'gadak 버전',
   'settings.runtimeApiCalls': 'Jira 호출',
   'settings.runtimeApiToday': '오늘 {n}회',
   'settings.runtimeApiWeek': '7일간 {n}회',
@@ -718,7 +718,7 @@ export const ko = {
   'settings.featureFeedDesc': '멘션·워치·담당자 변경을 모은 활동 피드',
   'settings.browserNotify': '데스크톱 알림 (이 브라우저)',
   'settings.browserNotifyDesc':
-    'scry가 열려 있을 때 새 피드 항목이 오면 시스템 알림을 표시합니다. 웹 푸시는 사용하지 않습니다.',
+    'gadak가 열려 있을 때 새 피드 항목이 오면 시스템 알림을 표시합니다. 웹 푸시는 사용하지 않습니다.',
   'settings.browserNotifyEnable': '알림 허용',
   'settings.browserNotifyGranted': '허용됨',
   'settings.browserNotifyDenied': '브라우저 설정에서 차단됨',
@@ -760,7 +760,7 @@ export const ko = {
   'settings.addMember': '+ 멤버 추가',
   'settings.discoveredFields': '발견된 필드',
   'settings.discoveredFieldsHint':
-    '첫 full sync에서 Jira로부터 자동 탐지됩니다. 여기서 수정하면 고정되어 재탐지에도 유지되고, `scry fields --apply`로 재탐지할 수 있습니다.',
+    '첫 full sync에서 Jira로부터 자동 탐지됩니다. 여기서 수정하면 고정되어 재탐지에도 유지되고, `gadak fields --apply`로 재탐지할 수 있습니다.',
   'settings.noDiscoveredFields': '아직 발견된 필드가 없습니다 — full sync를 먼저 실행하세요.',
   'settings.pinned': '고정됨',
   'settings.roleFacet': '칩',
@@ -851,7 +851,7 @@ export const ko = {
   'onboarding.sitePlaceholder': 'https://your-team.atlassian.net',
   'onboarding.email': 'Jira 계정 이메일',
   'onboarding.token': 'API 토큰',
-  'onboarding.tokenHint': '~/.scry/config.json 에만 저장되고, 당신의 사이트로만 전송됩니다.',
+  'onboarding.tokenHint': '~/.gadak/config.json 에만 저장되고, 당신의 사이트로만 전송됩니다.',
   'onboarding.tokenLink': 'API 토큰 만들기',
   'onboarding.connect': '연결',
   'onboarding.connecting': '검증 중…',
@@ -880,20 +880,20 @@ export const ko = {
   'onboarding.syncStarting': '시작 중…',
   'onboarding.syncDone': '{n}건 미러 완료.',
   'onboarding.syncServeHint':
-    '이후 자동 갱신은 scry serve 로 서버를 실행하거나 사이드바의 지금 동기화를 쓰세요.',
+    '이후 자동 갱신은 gadak serve 로 서버를 실행하거나 사이드바의 지금 동기화를 쓰세요.',
   /* 4단계 — 선택. 미러는 찼고, 여기서 두 번째 리더가 붙는다. */
   'onboarding.stepAgent': '에이전트 연결',
   'onboarding.stepOptional': '선택',
   'onboarding.agentIntro': '미러가 채워졌습니다. 이제 이걸 무엇으로 읽을지만 고르면 됩니다.',
   'onboarding.agentWhy':
     '지금 보고 있는 앱이 리더 하나이고, 다른 하나는 당신의 코딩 에이전트입니다. 명령 한 줄이면 에이전트가 Jira 를 다시 거치지 않고 이 미러에 직접 질의합니다.',
-  'onboarding.agentCommandsLabel': '에이전트에 scry 등록하기',
+  'onboarding.agentCommandsLabel': '에이전트에 gadak 등록하기',
   'onboarding.agentCommandsHint': '터미널에서 실행하세요 — 에이전트 자체가 CLI라 이미 하나 열려 있습니다.',
   'onboarding.agentSkillCaption':
     'Claude Code — 스키마와 쿼리 패턴을 알려 주는 스킬을 설치합니다. 서버가 필요 없고, 질문이 생길 때만 로드됩니다.',
   'onboarding.agentMcpCaption':
     '또는 MCP 서버로 등록 — 셸이 없는 클라이언트를 위한 경로입니다. claude 는 등록까지 대신 하고, cursor·codex 는 붙여넣을 설정을 출력합니다:',
-  'onboarding.agentNoCli': '터미널에 scry 가 없나요? 데스크톱 앱의 Tools → Install Command Line Tool… 을 쓰세요.',
+  'onboarding.agentNoCli': '터미널에 gadak 가 없나요? 데스크톱 앱의 Tools → Install Command Line Tool… 을 쓰세요.',
   'onboarding.agentDocsSetup': '에이전트 설정',
   'onboarding.agentDocsRecipes': '질의 레시피',
   'onboarding.agentDone': '앱 열기',
@@ -903,7 +903,7 @@ export const ko = {
   'onboarding.back': '뒤로',
   'onboarding.switchAccount': '다른 계정으로 연결',
   'onboarding.openSettings': '설정 열기',
-  'onboarding.cliHint': '같은 설정을 터미널에서 scry init 으로도 할 수 있습니다.',
+  'onboarding.cliHint': '같은 설정을 터미널에서 gadak init 으로도 할 수 있습니다.',
 
   /* ── 단축키 치트시트(?) ── */
   'shortcuts.title': '키보드 단축키',
@@ -939,7 +939,7 @@ export const ko = {
   /* ── In-app browser pane (desktop app only) ── */
   'browse.paneLabel': '인앱 브라우저',
   'browse.tabs': '열린 페이지',
-  'browse.back': 'Scry로 돌아가기',
+  'browse.back': 'Gadak로 돌아가기',
   'browse.openExternal': '시스템 브라우저에서 열기',
   'browse.closeTab': '이 페이지 닫기',
   'browse.loading': '{host} 여는 중…',

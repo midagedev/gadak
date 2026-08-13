@@ -7,15 +7,15 @@ Specs for TUI rounds quote the relevant sections; disagreements end in either
 a fixed change or a dated revision here.
 
 Sources are the observable rules of TUIs worth copying — lazygit, k9s, fzf,
-tig, gh-dash — plus the Charm (Bubble Tea/Bubbles/Lip Gloss) contracts scry
+tig, gh-dash — plus the Charm (Bubble Tea/Bubbles/Lip Gloss) contracts gadak
 is built on, clig.dev, and the NO_COLOR standard. Links at the end.
 (Established 2026-08-06.)
 
 ## 0. Lineage: resource browser, not pager
 
-`?` opens help and `/` narrows the current list. That places scry in the
+`?` opens help and `/` narrows the current list. That places gadak in the
 lazygit/k9s lineage, not the less/vim/tig lineage where `?` is reverse
-search. This is a declared choice: scry's `/` is not a pager search (there is
+search. This is a declared choice: gadak's `/` is not a pager search (there is
 no `n`/`N` and there should not be), it is a filter over a live list, k9s
 style. Requests that assume pager conventions are judged against this line.
 
@@ -38,14 +38,14 @@ jump-keys in panel titles (`showPanelJumps`); Bubbles' help bubble has
 short/full modes for the same reason. One tier is not enough: with only a
 reference, nobody opens it; with only hints, advanced keys die.
 
-scry has the status-bar strip and the `?` overlay. The remaining move from
+gadak has the status-bar strip and the `?` overlay. The remaining move from
 this pattern: mode labels carry their own keys (`docs (D)`, `feed (F)`) —
 with two domains in one app, the domain-switch keys deserve ambient display.
 
 ## 3. Going somewhere and narrowing here are different axes
 
 k9s separates `:` (navigate to a resource) from `/` (filter the current
-view); fzf's whole model is query-narrows, enter-selects. scry's `Ctrl+K`
+view); fzf's whole model is query-narrows, enter-selects. gadak's `Ctrl+K`
 palette is the navigate axis and `/` the narrow axis — keep them unmixed.
 
 Filters grow small grammars (k9s: `!` negation, `-l` labels, `-f` fuzzy;
@@ -60,7 +60,7 @@ nothing. tig splits `q` (pop one view) from `Q` (quit all). The only tools
 where esc quits are single-screen ones (fzf) — if there is a view stack,
 esc ≠ quit.
 
-scry's esc already steps back (detail → list, clear filter, leave feed).
+gadak's esc already steps back (detail → list, clear filter, leave feed).
 Open decision, recorded 2026-08-06: `q` currently quits from anywhere,
 including detail views where "close this" is the likelier intent. If revised,
 tig's `q`/`Q` split is the precedent; until then, esc is the documented way
@@ -69,7 +69,7 @@ to step back.
 ## 5. Color is a status vocabulary, and the terminal outranks us
 
 - **One color per state, no decorative color.** k9s skins bind colors to a
-  status enum (new/modify/error/kill/completed); scry's
+  status enum (new/modify/error/kill/completed); gadak's
   `colNew/colIP/colDone/colReopen` follows the same shape. clig.dev: "if
   everything is a different color, then the color means nothing."
 - **Degrade honestly.** Lip Gloss downsamples TrueColor → 256 → 16 → mono and
@@ -88,7 +88,7 @@ fzf dims the input, hides the cursor, and shows `(..)` while waiting, and
 debounces that very indicator so it never flickers. clig.dev: print something
 within 100ms; stuck progress reads as a crash.
 
-scry's read path is local and instant (see UX §1 — no spinners). The places
+gadak's read path is local and instant (see UX §1 — no spinners). The places
 this principle bites are the writes that go to Jira — comments, transitions,
 assignments, field edits — plus disk re-reads and heavy filters. Those need
 fzf-style treatment: visible waiting state, debounced, with cancel alive
@@ -106,7 +106,7 @@ resizes — a documented platform limit to remember.)
 
 ## 8. CJK width is a locale problem, and it is ours
 
-No surveyed source covers this axis; scry must, because its users type
+No surveyed source covers this axis; gadak must, because its users type
 Korean. Two distinct layers:
 
 - **Fonts** (covered in `docs/TUI.md`): glyph advance width is outside our

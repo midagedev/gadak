@@ -14,7 +14,7 @@ import (
 // names in the account's own language. A Korean account calls customfield_10019
 // "순위" where an English one says "Rank", so a name-derived alias is not the
 // same on two machines — and a fieldMap is exactly the thing teams share with
-// `scry team export`. An id-derived alias is ugly but identical everywhere.
+// `gadak team export`. An id-derived alias is ugly but identical everywhere.
 func SuggestAlias(name, fieldID string, used map[string]bool) string {
 	base := ASCIISlug(name)
 	if base == "" {

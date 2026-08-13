@@ -9,7 +9,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"github.com/midagedev/scry/internal/clitool"
+	"github.com/midagedev/gadak/internal/clitool"
 )
 
 // appendInstallCLIMenu adds Tools → "Install Command Line Tool…" (macOS only).
@@ -20,8 +20,8 @@ func appendInstallCLIMenu(appMenu *application.Menu) {
 	})
 }
 
-// bundleCLIPath returns Contents/Resources/bin/scry next to the desktop binary
-// (…/Contents/MacOS/scry-desktop). Empty path + error when not in a bundle.
+// bundleCLIPath returns Contents/Resources/bin/gadak next to the desktop binary
+// (…/Contents/MacOS/gadak-desktop). Empty path + error when not in a bundle.
 func bundleCLIPath() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
@@ -30,14 +30,14 @@ func bundleCLIPath() (string, error) {
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
-	// …/Scry.app/Contents/MacOS/scry-desktop → …/Contents/Resources/bin/scry
+	// …/Gadak.app/Contents/MacOS/gadak-desktop → …/Contents/Resources/bin/gadak
 	macosDir := filepath.Dir(exe)
 	contentsDir := filepath.Dir(macosDir)
-	cli := filepath.Join(contentsDir, "Resources", "bin", "scry")
+	cli := filepath.Join(contentsDir, "Resources", "bin", "gadak")
 	fi, err := os.Stat(cli)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("CLI binary not found at %s — open the installed Scry.app (not a dev build)", clitool.TildeHome(cli))
+			return "", fmt.Errorf("CLI binary not found at %s — open the installed Gadak.app (not a dev build)", clitool.TildeHome(cli))
 		}
 		return "", fmt.Errorf("stat CLI binary: %w", err)
 	}
@@ -78,7 +78,7 @@ func handleInstallCLI() {
 		// value, so the rest of the install runs from inside Replace.
 		dialog := application.Get().Dialog.Question()
 		dialog.SetTitle("Replace existing file?")
-		dialog.SetMessage(detail + "\n\nReplace it with a link to the Scry app’s CLI?")
+		dialog.SetMessage(detail + "\n\nReplace it with a link to the Gadak app’s CLI?")
 		replace := dialog.AddButton("Replace")
 		cancel := dialog.AddButton("Cancel")
 		dialog.SetDefaultButton(cancel)
@@ -111,7 +111,7 @@ func installedMsg(plan clitool.Plan, headline string) string {
 	if !plan.OnPath {
 		msg += pathOffMsg(plan.Dir)
 	}
-	msg += "\n\nNext: run  scry mcp install claude  in a terminal to connect your agent."
+	msg += "\n\nNext: run  gadak mcp install claude  in a terminal to connect your agent."
 	return msg
 }
 

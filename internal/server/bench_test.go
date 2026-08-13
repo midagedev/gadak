@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // seedBenchDB writes n synthetic issues with a fixed PRNG seed so timings are

@@ -1,14 +1,14 @@
 # Support
 
-scry is pre-release and support is best effort.
+gadak is pre-release and support is best effort.
 
 ## Before Opening an Issue
 
-1. **Paste `scry doctor` output.** Run `scry doctor` (or
-   `scry --profile <name> doctor`) and attach the full text. It is safe to put
+1. **Paste `gadak doctor` output.** Run `gadak doctor` (or
+   `gadak --profile <name> doctor`) and attach the full text. It is safe to put
    on a public tracker: counts and versions only — no API tokens, site
    hostnames, emails, project keys, custom-field names, or raw error strings.
-2. scry commit or version (`scry version`)
+2. gadak commit or version (`gadak version`)
 3. OS and architecture
 4. the command you ran, plus expected and actual behavior
 5. whether your projects are team-managed or company-managed
@@ -16,7 +16,7 @@ scry is pre-release and support is best effort.
    names — these are localized per account and it is a common cause
 
 Never paste real issue text, tokens, site URLs, or a database snapshot.
-`scry doctor` is the supported way to describe the environment without those.
+`gadak doctor` is the supported way to describe the environment without those.
 
 ## Read First
 
@@ -41,4 +41,4 @@ loopback guard, or HTML injection through issue content.
 - boards, sprints, reports, and automation
 - Jira Server / Data Center (Cloud only until someone can test DC)
 - multi-user or hosted deployment
-- anything that would require a scry service to exist
+- anything that would require a gadak service to exist

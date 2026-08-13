@@ -43,7 +43,7 @@ type DB struct {
 func Now() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
 
 // Open opens or creates the mirror at path and migrates it forward. A database
-// written by a newer scry is refused rather than used.
+// written by a newer gadak is refused rather than used.
 //
 // The data directory is created (and existing dirs tightened) to 0700; the DB
 // file and any -wal/-shm sidecars are set to 0600. Chmod failures are logged
@@ -114,7 +114,7 @@ func (db *DB) migrate() error {
 	}
 	want := len(migrations)
 	if have > want {
-		return fmt.Errorf("%s: schema version %d is newer than this build of scry supports (%d); upgrade scry or point --db elsewhere", db.path, have, want)
+		return fmt.Errorf("%s: schema version %d is newer than this build of gadak supports (%d); upgrade gadak or point --db elsewhere", db.path, have, want)
 	}
 	db.schemaVersion = want
 	if have == want {

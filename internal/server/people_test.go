@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 func peopleCommentsFixture(t *testing.T) (*store.DB, *config.Config) {

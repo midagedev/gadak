@@ -11,7 +11,7 @@ test.describe('boot', () => {
     // list.countIssues — en.ts: '{n} issues'
     await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
     // Sidebar wordmark and built-in nav labels (en.ts)
-    await expect(page.getByText('scry', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('gadak', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
     // Search placeholder (en.ts list.searchPlaceholder)
     await expect(page.getByPlaceholder(/Search issues/)).toBeVisible()

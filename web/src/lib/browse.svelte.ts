@@ -19,7 +19,7 @@
  * palette, dialog or media viewer sets `overlayOpen` and the answer becomes ""
  * — otherwise the overlay opens underneath the page it was meant to cover.
  *
- * Installed only in desktop mode; browser `scry serve` never reaches any of it
+ * Installed only in desktop mode; browser `gadak serve` never reaches any of it
  * (`adopt` is the single entry point and returns immediately off desktop).
  */
 
@@ -166,7 +166,7 @@ class BrowseStore {
   /**
    * Put the pane away without touching the tabs — they are still open, and the
    * indicator brings them back. The tab being left is resynced now rather than
-   * on the focus throttle: this is the moment the person asked to see Scry's
+   * on the focus throttle: this is the moment the person asked to see Gadak's
    * copy of what they were just looking at.
    */
   hidePane(): void {

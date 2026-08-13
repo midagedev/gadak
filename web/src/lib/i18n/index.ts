@@ -1,6 +1,6 @@
 /*
  * Thin i18n runtime — no library dependency.
- * Locale: localStorage scry_locale > navigator.language (ko*) > en.
+ * Locale: localStorage gadak_locale > navigator.language (ko*) > en.
  * Changing locale reloads the page (see setLocale).
  */
 
@@ -10,14 +10,14 @@ import { ko } from './ko'
 export type Locale = 'en' | 'ko'
 export type { MessageKey }
 
-const STORAGE_KEY = 'scry_locale'
+const STORAGE_KEY = 'gadak_locale'
 const catalogs: Record<Locale, Record<MessageKey, string>> = { en, ko }
 
 let current: Locale = 'en'
 
 function detectLocale(): Locale {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('scry_locale')
     if (stored === 'en' || stored === 'ko') return stored
   } catch {
     /* private mode / SSR-ish */

@@ -8,8 +8,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // feed applies a message and returns the updated model (discards cmds).
@@ -162,7 +162,7 @@ func TestRenderSmoke(t *testing.T) {
 	}
 	// Strip ANSI so assertions stay stable under style changes.
 	plain := stripANSI(view)
-	for _, want := range []string{"scry", "AAA-1", "all", "open"} {
+	for _, want := range []string{"gadak", "AAA-1", "all", "open"} {
 		if !strings.Contains(plain, want) {
 			t.Errorf("view missing %q\n%s", want, plain)
 		}

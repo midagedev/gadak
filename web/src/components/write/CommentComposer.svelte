@@ -20,7 +20,7 @@
   /** onsubmitted fires after a comment commits — the quick-comment dialog closes on it. */
   let { issueKey, onsubmitted }: { issueKey: string; onsubmitted?: () => void } = $props()
 
-  const DRAFT_PREFIX = 'scry:comment-draft:'
+  const DRAFT_PREFIX = 'gadak:comment-draft:'
 
   let text = $state('')
   let mentions = $state<CommentMention[]>([])

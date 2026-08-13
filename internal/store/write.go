@@ -571,7 +571,7 @@ func (db *DB) SetLastNotifiedAt(ctx context.Context, sourceID, at string) error 
 }
 
 // SavedView is a user's stored filter set. Personal state is the only thing in
-// this database a user would miss, so it is also the only thing `scry export`
+// this database a user would miss, so it is also the only thing `gadak export`
 // has to dump (Constitution Article 1).
 type SavedView struct {
 	ID        string          `json:"id"`
@@ -678,7 +678,7 @@ func (db *DB) setKey(ctx context.Context, table, key string, on bool) error {
 }
 
 // FreshenSyncClock stamps every sync timestamp as now. It exists for throwaway
-// fixtures — `scry demo` and the demo recordings — where the snapshot's real age
+// fixtures — `gadak demo` and the demo recordings — where the snapshot's real age
 // would surface as a stale-sync warning about data that is deliberately frozen.
 // Never call this on a mirror that syncs for real: it would hide a stalled sync.
 func (db *DB) FreshenSyncClock(ctx context.Context) error {

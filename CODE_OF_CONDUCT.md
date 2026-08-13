@@ -62,7 +62,7 @@ Instances of abusive, harassing, or otherwise unacceptable behavior can be
 reported privately through GitHub's advisory channel for this repository —
 the same private path `SECURITY.md` uses:
 
-https://github.com/midagedev/scry/security/advisories/new
+https://github.com/midagedev/gadak/security/advisories/new
 
 This is a single-maintainer project with no published email; the advisory
 channel is the one route only the maintainer can read. A public GitHub issue

@@ -10,11 +10,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/fields"
-	"github.com/midagedev/scry/internal/jira"
-	"github.com/midagedev/scry/internal/store"
-	syncer "github.com/midagedev/scry/internal/sync"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fields"
+	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
 // writeClient is the Jira surface the write actions need. Tests inject a fake.
@@ -102,7 +102,7 @@ func actionForm(fields ...huh.Field) *huh.Form {
 
 func (m *Model) requireWrite() (writeClient, error) {
 	if m.cfg == nil || !m.cfg.HasCredential() {
-		return nil, fmt.Errorf("credential required — run `scry init`")
+		return nil, fmt.Errorf("credential required — run `gadak init`")
 	}
 	return m.writeClientFor(m.cfg), nil
 }

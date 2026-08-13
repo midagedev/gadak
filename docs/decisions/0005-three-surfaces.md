@@ -5,7 +5,7 @@ Date: 2026-08-04
 
 ## Context
 
-scry has a web UI (Svelte, DOM), a TUI (`scry tui`, Bubble Tea), and a CLI that
+gadak has a web UI (Svelte, DOM), a TUI (`gadak tui`, Bubble Tea), and a CLI that
 doubles as the agent interface. That is three renderers for one SQLite mirror,
 and it invites an obvious consolidation: build the TUI well, then serve it in the
 browser through xterm.js and delete the web app. One layout, one keymap, one set

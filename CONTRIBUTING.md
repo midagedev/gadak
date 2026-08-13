@@ -1,6 +1,6 @@
 # Contributing
 
-scry is pre-release but working end to end: sync, the read API, write-through,
+gadak is pre-release but working end to end: sync, the read API, write-through,
 the web UI, the TUI, and the CLI are implemented and tested. What remains is
 release polish. `docs/STATE_OF_PLAY.md` and `specs/000-product/tasks.md` are the
 honest inventory — read them before assuming something is or is not there.
@@ -29,7 +29,7 @@ Requirements: Go 1.25+, Node.js 20+.
 ```bash
 npm ci
 npm run build              # writes dist/app; required before go build (go:embed)
-go build -o bin/scry ./cmd/scry
+go build -o bin/gadak ./cmd/gadak
 # or: make build
 ```
 

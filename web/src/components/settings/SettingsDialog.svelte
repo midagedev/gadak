@@ -1,6 +1,6 @@
 <script lang="ts">
   /*
-   * Server settings editor dialog (`~/.scry/config.json`, loopback-only API).
+   * Server settings editor dialog (`~/.gadak/config.json`, loopback-only API).
    *  - Open → GET settings/; save → PUT settings/ (full replace) → location.reload() on ok.
    *    config.json, bootstrap members, and group inject are all server-derived — full
    *    reload is the honest path.
@@ -13,7 +13,7 @@
   import { t, locale, setLocale, type Locale } from '../../lib/i18n'
   import { onMount } from 'svelte'
   import * as api from '../../lib/api'
-  import type { ScrySettings, SettingsRuntime } from '../../lib/api'
+  import type { GadakSettings, SettingsRuntime } from '../../lib/api'
   import { write } from '../../stores/write.svelte'
   import type { ScopeOption } from './ScopePicker.svelte'
   import { emptyDraft, toDraft, toSettings } from './draft'
@@ -96,7 +96,7 @@
   let jsonError = $state<string | null>(null)
 
   /** Expand server response (or JSON textarea) into form state. */
-  function load(s: ScrySettings) {
+  function load(s: GadakSettings) {
     draft = toDraft(s, draft.features)
     openMember = null
     if (s.runtime) {
@@ -107,7 +107,7 @@
   }
 
   /** Form state → PUT payload (full replace). Do not send runtime/site. */
-  function build(): ScrySettings {
+  function build(): GadakSettings {
     return toSettings(draft, projectsPickerReady)
   }
 
@@ -187,7 +187,7 @@
   function applyJson(text: string) {
     jsonText = text
     try {
-      load(JSON.parse(text) as ScrySettings)
+      load(JSON.parse(text) as GadakSettings)
       jsonError = null
     } catch {
       jsonError = t('settings.jsonParseError')
@@ -246,7 +246,7 @@
     <div class="flex-none border-b border-border-subtle px-5 pt-4">
       <h2 class="mb-0.5 text-title font-semibold text-text-primary">{t('settings.title')}</h2>
       <p class="mb-3 text-micro text-text-muted">
-        {t('settings.introBefore')} <span class="font-mono">~/.scry/config.json</span> {t('settings.introAfter')}
+        {t('settings.introBefore')} <span class="font-mono">~/.gadak/config.json</span> {t('settings.introAfter')}
       </p>
       <div class="flex gap-1">
         {#each TABS as [id, label] (id)}

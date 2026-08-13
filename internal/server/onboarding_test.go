@@ -66,12 +66,12 @@ func newOnboardJira(t *testing.T) *onboardJira {
 	return f
 }
 
-// onboarding hands back a server whose configuration is saveable (SCRY_HOME in a
+// onboarding hands back a server whose configuration is saveable (GADAK_HOME in a
 // temp dir). Each New() gets a fresh per-instance sync job/activity slot.
 func onboarding(t *testing.T) (*onboardJira, http.Handler, string) {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 	f := newOnboardJira(t)
 	db, cfg := fixture(t)
 	cfg.Site, cfg.Email, cfg.Token = "", "", ""

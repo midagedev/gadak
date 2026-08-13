@@ -3,9 +3,9 @@
  *
  * Role:
  *  - Identity (email/name/department) from GET auth/me/, which reads the stored
- *    Jira credential. There is no scry account and no session token.
+ *    Jira credential. There is no gadak account and no session token.
  *  - Personal feed / read state, feed toggle, recent issues (localStorage
- *    `scry:recent`, max 30).
+ *    `gadak:recent`, max 30).
  *  - Derived group (part) for smart default views.
  *
  * Watches, web push, and favorites live in their own stores
@@ -34,7 +34,7 @@ import type {
 export type { FeedFocus } from '../lib/types'
 
 /* Auth API lives outside the issues API base. Read at call time so a
- * loadConfig() override (hosted demo api/auth base under /scry/) is honoured —
+ * loadConfig() override (hosted demo api/auth base under /gadak/) is honoured —
  * a module-level capture would freeze DEFAULTS before config.json loads. */
 
 const RECENT_KEY = STORAGE_KEYS.recent
@@ -290,7 +290,7 @@ class MeStore {
     try {
       new Notification(title, {
         body: newest.summary || undefined,
-        tag: `scry-feed-${newest.event_id}`,
+        tag: `gadak-feed-${newest.event_id}`,
       })
     } catch {
       /* some browsers throw when the page is not visible / permission races */

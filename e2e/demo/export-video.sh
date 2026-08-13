@@ -11,7 +11,7 @@ mkdir -p "$OUT_DIR"
 WEBM="$(find "$RESULTS" -type f -name 'video.webm' | head -n 1 || true)"
 if [[ -z "${WEBM}" ]]; then
   echo "export-video: no video.webm under $RESULTS" >&2
-  echo "  run: SCRY_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/playwright.config.ts" >&2
+  echo "  run: GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/playwright.config.ts" >&2
   exit 1
 fi
 
@@ -33,7 +33,7 @@ ffmpeg -y -i "$WEBM" \
 FPS=9
 WIDTH=960
 # macOS mktemp requires the X's at the end of the template (before any suffix).
-PALETTE="$(mktemp "${TMPDIR:-/tmp}/scry-palette.XXXXXX").png"
+PALETTE="$(mktemp "${TMPDIR:-/tmp}/gadak-palette.XXXXXX").png"
 trap 'rm -f "$PALETTE"' EXIT
 
 make_gif() {

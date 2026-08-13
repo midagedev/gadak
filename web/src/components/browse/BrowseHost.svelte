@@ -4,7 +4,7 @@
    * whether it is on screen at all.
    *
    * Rendered only inside the desktop app (App.svelte gates it on isDesktop), so
-   * `scry serve` mounts none of this and ships no path into the /desktop routes.
+   * `gadak serve` mounts none of this and ships no path into the /desktop routes.
    *
    * The pane and the re-entry pill are alternatives: tabs stay open when the
    * pane is put away, and the pill is how they are found again. Nothing else is
@@ -19,7 +19,7 @@
   import Icon from '../ui/Icon.svelte'
 
   /*
-   * Opening something in the right panel is a request to see Scry's copy of it,
+   * Opening something in the right panel is a request to see Gadak's copy of it,
    * and the pane covers exactly that surface — leaving it up would make a click
    * on a list row look like it did nothing. The pane steps aside; the tabs stay.
    *

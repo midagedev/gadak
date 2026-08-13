@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 func strp(s string) *string { return &s }

@@ -19,7 +19,7 @@ Legend: **done** / **partial** / **todo**
 | T0.7 | Governance and license files | done | Apache-2.0 |
 | T0.8 | Specs, contracts, and architecture docs | done | This directory plus `docs/` |
 | T0.9 | Remove or plugin-ize the cut internal surfaces still present in the UI | done | Resolved by feature-flag gating, not deletion: `PrList` and `DeployTimeline` sit behind `features.deploy`, `QaImpact` and `QaFieldEditor` behind `features.qa`. The components stay in the tree so a tenant that has the data can switch them on |
-| T0.10 | Translate the UI to English with the current copy as a locale | done | `web/src/lib/i18n/` — thin `t()` + `en.ts`/`ko.ts` catalogs (~520 keys, key sets typechecked against each other), locale from `scry_locale` in localStorage > `navigator.language` > `en`. All three relative-time implementations unified; composed sentences rewritten as whole message keys. Source comments stay Korean by design |
+| T0.10 | Translate the UI to English with the current copy as a locale | done | `web/src/lib/i18n/` — thin `t()` + `en.ts`/`ko.ts` catalogs (~520 keys, key sets typechecked against each other), locale from `gadak_locale` in localStorage > `navigator.language` > `en`. All three relative-time implementations unified; composed sentences rewritten as whole message keys. Source comments stay Korean by design |
 | T0.11 | Wire the `features` flags to actual consumers | done | The flags were declared in `config.ts` and read by nobody, so `presence` still opened a WebSocket retry loop against a missing endpoint and the deploy/QA/team-group columns stayed in the catalog. Gating now runs through `feature()` in `config.ts` |
 | T0.12 | Compute staleness from `status_changed_at` | done | The UI read `working_hours_in_status`, a field no server populates (see `data-model.md`), so the "stale" view was always empty. Threshold is `staleThresholdHours` in config, default 72 |
 
@@ -30,7 +30,7 @@ Legend: **done** / **partial** / **todo**
 | T1.1 | Schema and migrations per `data-model.md` | done | `internal/store`, driver `modernc.org/sqlite` (no cgo). `TestSchemaMatchesDataModel` compares every table against the documented column list; `TestDocumentedExampleQueries` runs all four example queries |
 | T1.2 | WAL mode, sane pragmas, single-writer discipline | done | WAL + `busy_timeout=5000` + `foreign_keys=ON` + `synchronous=NORMAL` in the DSN so every pooled connection gets them; writes serialized by one mutex. `TestWALReaderNotBlockedByWriter` |
 | T1.3 | FTS5 table and rebuild-on-sync path | done | Contentless with `contentless_delete=1`; a changed item's row is deleted and re-inserted inside the same transaction as the upsert. Rebuild-on-sync is exercised by `TestChangedIssueReplacesChildrenAndDerivedFields` |
-| T1.4 | `saved_views` / `watches` / `favorites` plus `scry export` | partial | Tables and CRUD done (`TestPersonalState`); `scry export` not written |
+| T1.4 | `saved_views` / `watches` / `favorites` plus `gadak export` | partial | Tables and CRUD done (`TestPersonalState`); `gadak export` not written |
 | T1.5 | Schema-version check on open, refusing a newer database | done | `PRAGMA user_version` is the level, mirrored into `sync_state.schema_version`. `TestOpenRefusesNewerSchema` |
 
 ## T2 Jira connector
@@ -50,7 +50,7 @@ Legend: **done** / **partial** / **todo**
 
 | # | Task | State | Notes |
 | --- | --- | --- | --- |
-| T3.1 | `scry serve` with static UI, `config.json`, `/healthz` | done | `cmd/scry/main.go` |
+| T3.1 | `gadak serve` with static UI, `config.json`, `/healthz` | done | `cmd/gadak/main.go` |
 | T3.2 | Loopback-only bind with an explicit `--allow-remote` escape | done | The mirror has no auth; this is the only thing protecting it |
 | T3.3 | `bootstrap` and `delta` from SQLite, with ETag | done | `internal/server`. `"sv-<version>"` ETag with a 304 path that also accepts the client's own `"in-<version>"` hydration tag; `delta` drops the member payload when `mv` matches. `team_group` is injected from `groupRules` (assignee's configured group as the fallback) and configured field aliases are spread from `issues.custom` into the row. `TestBootstrapShapeAndETag`, `TestDeltaUpsertedAndDeleted`, `TestIssueLiteFieldNames` |
 | T3.4 | `detail` assembly | done | Status history carries `from_category`/`to_category` resolved through the mirror's own status id → category map, so a reopen is never inferred from a localized name. `TestDetailAssembly` |
@@ -82,14 +82,14 @@ Legend: **done** / **partial** / **todo**
 | # | Task | State |
 | --- | --- | --- |
 | T5.1 | Documented schema | done (`data-model.md`) |
-| T5.2 | `scry sql` read-only query path | done — `mode=ro` connection, tab-separated, `--json`, or `--csv`. NULL prints as empty in the row formats, not as Go's `<nil>` |
-| T5.3 | `scry status --json` | done |
-| T5.4 | MCP server | done — `scry mcp` stdio JSON-RPC (`internal/mcp`, no SDK). Tools: `scry_query` (SELECT/WITH only, row/byte caps), `scry_search`, `scry_issue`, `scry_status`. Protocol round-trip + write-SQL rejection tests in `internal/mcp/*_test.go`; docs in `docs/MCP.md` |
-| T5.5 | `scry issue <KEY> [--json]` | done — `store.Detail` plus the list row; `--json` is the `GET <key>/detail/` document with `issue` added. `TestIssueAndSearchReadTheMirror` |
-| T5.6 | `scry search <text> [--limit] [--json]` | done — FTS over titles, bodies and comments, best match first. Text output is `key\tstatus\tassignee\tsummary`, so `cut -f1` gives keys |
-| T5.7 | `scry comment <KEY> -m <text\|->` | done — write-through via `jira.AddComment` + `sync.SyncIssue`, same order as the server. Body is plain text: an `@Name` notifies nobody, unlike the UI's mention picker. `TestCommentSendsADFAndRefusesAnEmptyBody` |
-| T5.8 | `scry transition <KEY> <status-or-id>` | done — matches a transition id, its name, or its **target status** name (case-insensitive), because a caller knows the status it wants, not the verb the workflow uses. A miss lists what is available. `TestTransitionMatchesByNameAndReportsAlternatives` |
-| T5.9 | `scry assign <KEY> <email\|->` | done — configured member directory first, then Jira's user search; a bare `-` unassigns without asking Jira anything. Ambiguous matches are refused with the candidates, never guessed. `TestAssignResolvesEmailAndUnassigns` |
+| T5.2 | `gadak sql` read-only query path | done — `mode=ro` connection, tab-separated, `--json`, or `--csv`. NULL prints as empty in the row formats, not as Go's `<nil>` |
+| T5.3 | `gadak status --json` | done |
+| T5.4 | MCP server | done — `gadak mcp` stdio JSON-RPC (`internal/mcp`, no SDK). Tools: `gadak_query` (SELECT/WITH only, row/byte caps), `gadak_search`, `gadak_issue`, `gadak_status`. Protocol round-trip + write-SQL rejection tests in `internal/mcp/*_test.go`; docs in `docs/MCP.md` |
+| T5.5 | `gadak issue <KEY> [--json]` | done — `store.Detail` plus the list row; `--json` is the `GET <key>/detail/` document with `issue` added. `TestIssueAndSearchReadTheMirror` |
+| T5.6 | `gadak search <text> [--limit] [--json]` | done — FTS over titles, bodies and comments, best match first. Text output is `key\tstatus\tassignee\tsummary`, so `cut -f1` gives keys |
+| T5.7 | `gadak comment <KEY> -m <text\|->` | done — write-through via `jira.AddComment` + `sync.SyncIssue`, same order as the server. Body is plain text: an `@Name` notifies nobody, unlike the UI's mention picker. `TestCommentSendsADFAndRefusesAnEmptyBody` |
+| T5.8 | `gadak transition <KEY> <status-or-id>` | done — matches a transition id, its name, or its **target status** name (case-insensitive), because a caller knows the status it wants, not the verb the workflow uses. A miss lists what is available. `TestTransitionMatchesByNameAndReportsAlternatives` |
+| T5.9 | `gadak assign <KEY> <email\|->` | done — configured member directory first, then Jira's user search; a bare `-` unassigns without asking Jira anything. Ambiguous matches are refused with the candidates, never guessed. `TestAssignResolvesEmailAndUnassigns` |
 | T5.10 | Staleness warning on every issue command | done — one stderr line when the last sync failed or is over an hour old, so stdout stays pipeable. `contracts/agent.md`, "Staleness" |
 | T5.11 | `AGENTS.md` as the agent-facing reference | done — SQL cookbook, CLI reference, REST examples, staleness; `docs/AGENT_ACCESS.md` is the three-layer map that points at it |
 
@@ -99,8 +99,8 @@ re-read says so rather than reporting a failure the caller would retry.
 
 CLI wiring beyond T5: `init` (interactive, verifies against `/myself` before saving),
 `sync --full/--watch`, `serve --sync`, `demo`, `profiles`, and a global
-`--profile <name>` / `SCRY_PROFILE` that keeps separate credentials and mirrors
-under `~/.scry/profiles/<name>/` — the work/demo dual-account setup.
+`--profile <name>` / `GADAK_PROFILE` that keeps separate credentials and mirrors
+under `~/.gadak/profiles/<name>/` — the work/demo dual-account setup.
 
 ## T6 Demo and fixtures
 
@@ -109,11 +109,11 @@ under `~/.scry/profiles/<name>/` — the work/demo dual-account setup.
 | T6.1 | Jira seeding tool | done | `tools/seed-demo`: dataset-driven or generated, plus `--repair-states` |
 | T6.2 | Public demo site populated | done | 519 issues across three fictional products. Categories: 209 todo / 144 in progress / 166 done. Status-change depth 0–7 per issue. 95 reopen transitions, 339 issues with comments, 264 assigned, 61 link edges |
 | T6.3 | Authored (non-templated) issue bodies | done | 210 of the 519 are hand-authored: 210/210 unique summaries, 642/642 unique paragraphs, 339/339 unique comments. The other 309 are procedurally generated and visibly more repetitive in the detail panel |
-| T6.8 | Demo assignee display names | partial | The **committed snapshot** (`examples/demo.db`) is clean: emails and display names rewritten to fictional personas (Dana Whitfield, Marco Reyes, Priya Sharma, Alex Kim) and the site URL to `nimbus.example.com`, so `scry demo` and screenshots of it are safe. The **live site** still shows `midagedev+…` until each invitation is accepted; live-site screenshots stay blocked |
-| T6.4 | `scry snapshot` with timestamp spreading and volume scaling | done | `internal/snapshot` + `scry snapshot <out.db> [--from] [--spread 90d] [--scale N] [--seed N] [--now RFC3339] [--force]`. Builds a fresh schema and copies rows into it rather than duplicating the file, so deleted tables leave no residue and the output carries the current views and FTS. `saved_views` / `watches` / `favorites` / `feed_reads` / `enrichments` are dropped and `sync_state` is rewritten clean (no watermark, no `first_sync_at`, no `sync_count`). Spreading maps each issue's original `[created, updated]` span onto its new one and moves every child timestamp with it, so no comment or changelog entry escapes its issue. Verified against `examples/demo.db`: 519 issues, 90-day spread, 0 ordering violations across issues, comments, and changelog; `--scale 2000` → 2000 issues, 0 duplicate keys, 0 orphans, 0 dangling links; `--now` makes two builds byte-identical. A source with an `ATATT`-shaped string in an issue body is refused before publish, naming table/row/pattern but never the value, and leaves no temp file |
+| T6.8 | Demo assignee display names | partial | The **committed snapshot** (`examples/demo.db`) is clean: emails and display names rewritten to fictional personas (Dana Whitfield, Marco Reyes, Priya Sharma, Alex Kim) and the site URL to `nimbus.example.com`, so `gadak demo` and screenshots of it are safe. The **live site** still shows `midagedev+…` until each invitation is accepted; live-site screenshots stay blocked |
+| T6.4 | `gadak snapshot` with timestamp spreading and volume scaling | done | `internal/snapshot` + `gadak snapshot <out.db> [--from] [--spread 90d] [--scale N] [--seed N] [--now RFC3339] [--force]`. Builds a fresh schema and copies rows into it rather than duplicating the file, so deleted tables leave no residue and the output carries the current views and FTS. `saved_views` / `watches` / `favorites` / `feed_reads` / `enrichments` are dropped and `sync_state` is rewritten clean (no watermark, no `first_sync_at`, no `sync_count`). Spreading maps each issue's original `[created, updated]` span onto its new one and moves every child timestamp with it, so no comment or changelog entry escapes its issue. Verified against `examples/demo.db`: 519 issues, 90-day spread, 0 ordering violations across issues, comments, and changelog; `--scale 2000` → 2000 issues, 0 duplicate keys, 0 orphans, 0 dangling links; `--now` makes two builds byte-identical. A source with an `ATATT`-shaped string in an issue body is refused before publish, naming table/row/pattern but never the value, and leaves no temp file |
 | T6.5 | `examples/demo.db` committed, credential-scanned | done | 519 issues mirrored from the demo site, then scrubbed (see T6.8). Scan: zero `ATATT`/`ATCTT`/real emails/real names |
-| T6.6 | `scry demo` serving the bundled snapshot | done | Copies the snapshot into a throwaway temp home, serves it, deletes on exit. No Jira account, no config |
-| T6.7 | 10k-issue benchmark fixture for the latency target | done | `tools/bench-fixture` builds a deterministic 10k `scry.db` via `store.UpsertIssues` (`go run ./tools/bench-fixture -out /tmp/bench.db -issues 10000`). `internal/server/bench_test.go`: `TestBenchSmoke1k` + `BenchmarkBootstrap10k` / `BenchmarkSearch10k`. `make bench` records timings; not a CI fail gate (machine variance). Evidence in `gates.md` G5. |
+| T6.6 | `gadak demo` serving the bundled snapshot | done | Copies the snapshot into a throwaway temp home, serves it, deletes on exit. No Jira account, no config |
+| T6.7 | 10k-issue benchmark fixture for the latency target | done | `tools/bench-fixture` builds a deterministic 10k `gadak.db` via `store.UpsertIssues` (`go run ./tools/bench-fixture -out /tmp/bench.db -issues 10000`). `internal/server/bench_test.go`: `TestBenchSmoke1k` + `BenchmarkBootstrap10k` / `BenchmarkSearch10k`. `make bench` records timings; not a CI fail gate (machine variance). Evidence in `gates.md` G5. |
 
 ## T7 CI and release
 
@@ -123,7 +123,7 @@ under `~/.scry/profiles/<name>/` — the work/demo dual-account setup.
 | T7.2 | Go tests once there is Go logic to test | done |
 | T7.3 | Browser smoke test against the demo snapshot | done | Superseded by the Playwright suite (`e2e/`, 15 specs over `examples/demo.db`, CI job `e2e`) — it covers boot, search, detail, palette, settings, enrichment, locale, onboarding, and console hygiene. |
 | T7.4 | Secret and internal-string scan in CI | done | `scripts/scan-internal.sh` greps `git ls-files` + `strings examples/demo.db` for token-shaped API-token prefixes, a former company name, and non-allowlisted tenant hosts. CI job `scan` in `.github/workflows/ci.yml`. Real-name patterns skipped. Local: `make scan`. |
-| T7.5 | Dockerfile and container build | done | Multi-stage `Dockerfile` (node:20 → golang:1.25 CGO=0 → distroless/static). Volume `/data` as `SCRY_HOME`, `EXPOSE 7777`, `ENTRYPOINT ["scry"]` + `CMD serve --addr 0.0.0.0:7777 --allow-remote` (the UI is embedded, so no `--static`). `.dockerignore` present. README documents `docker run`. **Verified**: `docker build` → 24.1 MB image; `docker run -p 7941:7777` answers `healthz` 200, serves the embedded `index.html`, and `bootstrap/` returns 200. |
+| T7.5 | Dockerfile and container build | done | Multi-stage `Dockerfile` (node:20 → golang:1.25 CGO=0 → distroless/static). Volume `/data` as `GADAK_HOME`, `EXPOSE 7777`, `ENTRYPOINT ["gadak"]` + `CMD serve --addr 0.0.0.0:7777 --allow-remote` (the UI is embedded, so no `--static`). `.dockerignore` present. README documents `docker run`. **Verified**: `docker build` → 24.1 MB image; `docker run -p 7941:7777` answers `healthz` 200, serves the embedded `index.html`, and `bootstrap/` returns 200. |
 | T7.6 | Release process and signed binaries | done | `.goreleaser.yaml`: linux/darwin/windows × amd64/arm64, `CGO_ENABLED=0`, archives include `dist/app` (no `go:embed` yet — serve with `--static dist/app`). Checksums only (cosign deferred, commented). `.github/workflows/release.yml` on `v*` tags: npm build then goreleaser-action. |
 
 ## T8 Keyboard and command surface
@@ -140,7 +140,7 @@ seeded ground truth (95 reopen transitions), FTS, bootstrap/delta/detail/search,
 live write-through (comment + transition verified against real Jira), settings
 round-trip without a restart, and the enrichments plugin boundary.
 
-Since then the surfaces widened: a terminal UI (`scry tui`), agent-facing CLI
+Since then the surfaces widened: a terminal UI (`gadak tui`), agent-facing CLI
 commands plus an MCP server, working plugin examples, single-binary packaging via
 `go:embed`, a verified release pipeline (six archives, container image), and a
 scripted demo-media pipeline.

@@ -1,6 +1,6 @@
 package server
 
-// Delayed background-sync start for first-run onboarding: when `scry serve`
+// Delayed background-sync start for first-run onboarding: when `gadak serve`
 // starts without a credential, cmdServe registers a starter; the first
 // successful PUT onboarding/connect/ fires it exactly once (sync.Once).
 

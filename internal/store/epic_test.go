@@ -39,7 +39,7 @@ func epicIssue(id, key, title, parent string, level int) IssueRecord {
 // TestEpicKeyMigrationBackfill: v10 → v11 must backfill hierarchy_level from
 // raw and epic_key from the parent chain (story→epic, subtask→story→epic).
 func TestEpicKeyMigrationBackfill(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "scry.db")
+	path := filepath.Join(t.TempDir(), "gadak.db")
 	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)

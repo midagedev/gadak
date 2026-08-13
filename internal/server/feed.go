@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // handleGetFeed answers GET /api/v1/issues/feed/?focus=&limit=

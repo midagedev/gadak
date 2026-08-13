@@ -1,11 +1,11 @@
 # The terminal UI
 
 ```bash
-scry tui
+gadak tui
 ```
 
-Reads the same `~/.scry/scry.db` the web UI and your agent read. It never talks
-to Jira on its own — sync is `scry sync` or `scry serve` — except when you
+Reads the same `~/.gadak/gadak.db` the web UI and your agent read. It never talks
+to Jira on its own — sync is `gadak sync` or `gadak serve` — except when you
 comment, transition, reassign, or edit a field, which go straight through and
 then refresh that one issue in the mirror.
 
@@ -36,7 +36,7 @@ then refresh that one issue in the mirror.
 Multi-select (`x` in the web UI) is web-only for now — the TUI acts on the
 cursor row. Batch status/assignee changes live in the web list's bulk bar.
 
-Write keys are inert until a credential is configured (`scry init`); the status
+Write keys are inert until a credential is configured (`gadak init`); the status
 bar says so rather than failing at submit time.
 
 ### Mouse
@@ -51,7 +51,7 @@ addition, never a requirement.
 The header wordmark, active tab, and selected row breathe on a slow gradient
 even when nothing is happening; the filter query is highlighted in matching
 rows. All of it derives from one global tick and switches off automatically
-under `NO_COLOR`, or explicitly with `SCRY_NO_ANIM=1`. Piped output was never
+under `NO_COLOR`, or explicitly with `GADAK_NO_ANIM=1`. Piped output was never
 animated to begin with.
 
 ### Feed
@@ -184,5 +184,5 @@ up rich text, images, find-in-page, and screen readers to get it. See
 Triage is the scope: find the issue, read it, move it, watch it, skim the feed.
 Bulk edits, attachments, and rich-text rendering stay in the web UI. Saved views
 apply filters plus the sort/group keys listed above; unsupported values are
-reported, not faked. If you need the full filter surface, `scry sql` or the web
+reported, not faked. If you need the full filter surface, `gadak sql` or the web
 UI is faster.

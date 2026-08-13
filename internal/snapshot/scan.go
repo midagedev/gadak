@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/midagedev/scry/internal/secretscan"
+	"github.com/midagedev/gadak/internal/secretscan"
 )
 
 // tables scanned for credential-shaped strings (copy targets only).

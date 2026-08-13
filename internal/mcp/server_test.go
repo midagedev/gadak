@@ -19,7 +19,7 @@ func demoDB(t *testing.T) string {
 		t.Fatalf("read demo.db: %v (run tests from module root or with package path that resolves examples/)", err)
 	}
 	dir := t.TempDir()
-	dst := filepath.Join(dir, "scry.db")
+	dst := filepath.Join(dir, "gadak.db")
 	if err := os.WriteFile(dst, in, 0o600); err != nil {
 		t.Fatalf("copy demo.db: %v", err)
 	}
@@ -56,10 +56,10 @@ func TestProtocolRoundTrip(t *testing.T) {
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`,
 		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`,
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"scry_status","arguments":{}}}`,
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"scry_search","arguments":{"text":"upload","limit":3}}}`,
-		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"scry_query","arguments":{"sql":"SELECT key, status_category FROM issues LIMIT 2","limit":2}}}`,
-		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"scry_issue","arguments":{"key":"NMA-1"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"gadak_status","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"gadak_search","arguments":{"text":"upload","limit":3}}}`,
+		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"gadak_query","arguments":{"sql":"SELECT key, status_category FROM issues LIMIT 2","limit":2}}}`,
+		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"gadak_issue","arguments":{"key":"NMA-1"}}}`,
 		`{"jsonrpc":"2.0","id":7,"method":"ping"}`,
 	)
 	// notifications/initialized produces no response → 7 responses for 8 frames.
@@ -79,7 +79,7 @@ func TestProtocolRoundTrip(t *testing.T) {
 	if init.ProtocolVersion != ProtocolVersion {
 		t.Errorf("protocolVersion = %q, want %q", init.ProtocolVersion, ProtocolVersion)
 	}
-	if init.ServerInfo.Name != "scry" {
+	if init.ServerInfo.Name != "gadak" {
 		t.Errorf("serverInfo.name = %q", init.ServerInfo.Name)
 	}
 	if _, ok := init.Capabilities["tools"]; !ok {
@@ -109,7 +109,7 @@ func TestProtocolRoundTrip(t *testing.T) {
 	if len(list.Tools) != 4 {
 		t.Errorf("tools/list has %d tools, want 4", len(list.Tools))
 	}
-	// scry_query description must carry the localization warning and examples.
+	// gadak_query description must carry the localization warning and examples.
 	var qdesc string
 	for _, tool := range list.Tools {
 		if tool.Name == toolQuery {
@@ -118,11 +118,11 @@ func TestProtocolRoundTrip(t *testing.T) {
 	}
 	for _, needle := range []string{"status_category", "In Progress", "SELECT", "inprogress"} {
 		if !strings.Contains(qdesc, needle) {
-			t.Errorf("scry_query description missing %q", needle)
+			t.Errorf("gadak_query description missing %q", needle)
 		}
 	}
 
-	// scry_status
+	// gadak_status
 	statusText := callText(t, resps[2])
 	var status map[string]any
 	if err := json.Unmarshal([]byte(statusText), &status); err != nil {
@@ -135,7 +135,7 @@ func TestProtocolRoundTrip(t *testing.T) {
 		t.Errorf("status missing watermark: %v", status)
 	}
 
-	// scry_search
+	// gadak_search
 	searchText := callText(t, resps[3])
 	var search struct {
 		Total  int `json:"total"`
@@ -158,7 +158,7 @@ func TestProtocolRoundTrip(t *testing.T) {
 		}
 	}
 
-	// scry_query
+	// gadak_query
 	queryText := callText(t, resps[4])
 	var qr queryResult
 	if err := json.Unmarshal([]byte(queryText), &qr); err != nil {
@@ -171,7 +171,7 @@ func TestProtocolRoundTrip(t *testing.T) {
 		t.Errorf("query returned no rows: %+v", qr)
 	}
 
-	// scry_issue
+	// gadak_issue
 	issueText := callText(t, resps[5])
 	var issue map[string]any
 	if err := json.Unmarshal([]byte(issueText), &issue); err != nil {
@@ -298,7 +298,7 @@ func TestRejectNonSelectUnit(t *testing.T) {
 func TestMissingDBToolError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nope.db")
 	resps := session(t, path,
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scry_status","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"gadak_status","arguments":{}}}`,
 	)
 	var cr callResult
 	raw, _ := json.Marshal(resps[0].Result)
@@ -306,7 +306,7 @@ func TestMissingDBToolError(t *testing.T) {
 	if !cr.IsError {
 		t.Fatal("expected isError when DB missing")
 	}
-	if !strings.Contains(cr.Content[0].Text, "scry init") {
+	if !strings.Contains(cr.Content[0].Text, "gadak init") {
 		t.Errorf("guidance missing: %s", cr.Content[0].Text)
 	}
 }
@@ -314,7 +314,7 @@ func TestMissingDBToolError(t *testing.T) {
 func TestUnknownToolProtocolError(t *testing.T) {
 	db := demoDB(t)
 	resps := session(t, db,
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scry_delete","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"gadak_delete","arguments":{}}}`,
 	)
 	if resps[0].Error == nil {
 		t.Fatal("expected JSON-RPC error for unknown tool")

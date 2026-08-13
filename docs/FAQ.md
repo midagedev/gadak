@@ -1,6 +1,6 @@
 # Hard questions, answered first
 
-The questions a skeptical engineer asks before pointing scry at a company
+The questions a skeptical engineer asks before pointing gadak at a company
 Jira — answered here rather than discovered in a comment thread. Shorter
 answers live in the README; this page is the receipts.
 
@@ -16,28 +16,28 @@ runs **incremental** syncs: one search scoped to the updated-since watermark,
 which on a quiet project is a single call that returns nothing.
 
 The client respects `Retry-After` on 429/503 with backoff, and counts its own
-call volume per UTC day — visible in `scry status` and the settings runtime
+call volume per UTC day — visible in `gadak status` and the settings runtime
 panel. That counter is *our* process's volume, not the site's remaining
 shared rate budget: Atlassian does not expose that, so if many colleagues
 run heavy tools against the same site, the budget is shared whether those
-tools are scry or dashboards. Two levers keep scry a good citizen: scope the
+tools are gadak or dashboards. Two levers keep gadak a good citizen: scope the
 mirror with a project/space allowlist (Settings → Sources), and leave the
 default sync interval alone.
 
 To your site admin this looks like a normal API-token integration: the calls
 are attributed to the user who issued the token, over the official REST API.
-scry does nothing to disguise itself.
+gadak does nothing to disguise itself.
 
 Whether bulk-mirroring data you already have read access to complies with
-*your company's* policy is your company's question — scry cannot answer it,
+*your company's* policy is your company's question — gadak cannot answer it,
 and `SECURITY.md` says what leaves your machine (nothing) so you can ask it
-accurately. Offboarding is `rm -rf ~/.scry`.
+accurately. Offboarding is `rm -rf ~/.gadak`.
 
 ## Who makes this, and what happens if they stop?
 
 One person, at the moment. You should weigh that — and here is why it is
 less risky than it sounds: the mirror is a **disposable artifact of your own
-Jira**, not a database you migrate into. Delete scry and you have lost
+Jira**, not a database you migrate into. Delete gadak and you have lost
 nothing but a cache. The storage schema is documented, and the part of it you
 can build on is promised across versions
 (`specs/000-product/data-model.md`); the code is Apache-2.0, and the file is
@@ -48,7 +48,7 @@ in it.
 ## Several things open the same SQLite file — is that safe?
 
 Yes, by construction: the mirror runs in WAL mode, so one writer (the sync
-loop) and any number of readers coexist; `scry sql` and the MCP server open
+loop) and any number of readers coexist; `gadak sql` and the MCP server open
 the file **read-only** (`mode=ro`). The TUI and web UI read through the same
 store layer. You can run all of them at once — that is the intended shape.
 
@@ -63,7 +63,7 @@ the fence — the whole point here is that the data sits next to your agent.
 
 ## If an agent reads the mirror, where does my data go?
 
-To whatever model that agent talks to. scry sends nothing anywhere, but an
+To whatever model that agent talks to. gadak sends nothing anywhere, but an
 agent reading the mirror will — that is the honest trade of the whole
 category, stated plainly in [`SECURITY.md`](../SECURITY.md). Scope the mirror
 to what the agent should see (project/space allowlists, or a separate
@@ -74,4 +74,4 @@ profile) rather than assuming the pipe is private.
 Run the grep in [`SECURITY.md`](../SECURITY.md#data-flow) — every
 outbound request constructor in the tree resolves to your Atlassian site,
 the GitHub Releases version check (off by config, never in dev builds), or
-scry talking to itself on loopback.
+gadak talking to itself on loopback.

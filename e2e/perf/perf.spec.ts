@@ -4,14 +4,14 @@
  * Budgets are pinned from local p95 with CI headroom — see README.md.
  * FAIL-first: pin only after a deliberately tight budget has failed once.
  *
- * Guard: the main e2e suite discovers *.spec.ts under e2e/. Without SCRY_PERF
+ * Guard: the main e2e suite discovers *.spec.ts under e2e/. Without GADAK_PERF
  * these tests skip immediately so `npm run test:e2e` stays green and does not
  * need a main-config edit (ownership: e2e/perf only).
  */
 import { test, expect, type Browser, type Page, type Request } from '@playwright/test'
 import { performance } from 'node:perf_hooks'
 
-const RUN = !!process.env.SCRY_PERF
+const RUN = !!process.env.GADAK_PERF
 
 /** Expected issue count text on the 10k fixture (en-US locale). */
 const ISSUE_COUNT_RE = /10,000 issues|10000 issues/
@@ -63,7 +63,7 @@ const SAMPLES = 20
 type MetricName = keyof typeof BUDGETS
 
 test.describe('performance budgets (10k fixture)', () => {
-  test.skip(!RUN, 'set SCRY_PERF=1 (npm run test:perf)')
+  test.skip(!RUN, 'set GADAK_PERF=1 (npm run test:perf)')
 
   test('interaction metrics: warmup + 20 samples → p95 vs budget', async ({ browser }) => {
     // Measure everything first so FAIL-first / re-pin runs always print a full table.
@@ -515,7 +515,7 @@ async function assertIdbPrimed(page: Page, expected: number): Promise<void> {
 async function forceLocale(page: Page): Promise<void> {
   await page.addInitScript(() => {
     try {
-      localStorage.setItem('scry_locale', 'en')
+      localStorage.setItem('gadak_locale', 'en')
     } catch {
       /* ignore */
     }

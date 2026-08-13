@@ -1,6 +1,6 @@
-// Command scry-desktop wraps the scry web UI in a native window. There is no
+// Command gadak-desktop wraps the gadak web UI in a native window. There is no
 // TCP listener: the Wails asset server calls straight into the same
-// server.Handler that `scry serve` mounts, so ports, addresses, and the
+// server.Handler that `gadak serve` mounts, so ports, addresses, and the
 // browser guard's threat model (other pages reaching a loopback port) do not
 // apply — the webview is the only client that can reach this handler.
 package main
@@ -24,13 +24,13 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
-	scry "github.com/midagedev/scry"
-	"github.com/midagedev/scry/internal/attachcache"
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/server"
-	"github.com/midagedev/scry/internal/store"
-	syncer "github.com/midagedev/scry/internal/sync"
-	"github.com/midagedev/scry/internal/workspace"
+	gadak "github.com/midagedev/gadak"
+	"github.com/midagedev/gadak/internal/attachcache"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/server"
+	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
+	"github.com/midagedev/gadak/internal/workspace"
 )
 
 // appVersion is the desktop binary version string (overridable at link time by
@@ -69,7 +69,7 @@ func run() error {
 		api = server.NewWithCache(db, cfg, cache)
 	}
 
-	ui, ok := scry.WebUI()
+	ui, ok := gadak.WebUI()
 	if !ok {
 		log.Printf("warning: no web UI embedded — run `npm run build` at the repo root before building")
 	}
@@ -90,7 +90,7 @@ func run() error {
 	app := application.New(application.Options{
 		// Name labels the macOS app menu; Name + Description are what the
 		// About panel shows.
-		Name:        "Scry",
+		Name:        "Gadak",
 		Description: "Jira and Confluence, mirrored to your disk.",
 		Mac: application.MacOptions{
 			// v2 quit when the only window closed; keep that.
@@ -106,8 +106,8 @@ func run() error {
 		},
 		SingleInstance: &application.SingleInstanceOptions{
 			// Per profile, not global: one window per mirror, and a second
-			// profile (SCRY_PROFILE=work open -a Scry) gets its own window.
-			UniqueID: "com.midagedev.scry." + profileLockKey(),
+			// profile (GADAK_PROFILE=work open -a Gadak) gets its own window.
+			UniqueID: "com.midagedev.gadak." + profileLockKey(),
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
 				if window != nil {
 					window.Restore()
@@ -160,7 +160,7 @@ func run() error {
 	app.Menu.Set(appMenu)
 
 	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "Scry",
+		Title:     "Gadak",
 		Width:     1280,
 		Height:    820,
 		MinWidth:  720,
@@ -183,7 +183,7 @@ func run() error {
 		if up != nil && cfg.UpdateCheckEnabled() {
 			go checkForUpdatesQuietly(ctx, up)
 		}
-		// Same delayed-start seam as cmd/scry serve: with a credential the
+		// Same delayed-start seam as cmd/gadak serve: with a credential the
 		// watch loop starts now; without one, in-app onboarding fires it.
 		startWatch := func() {
 			go func() {
@@ -402,7 +402,7 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 		w.WriteHeader(http.StatusNoContent)
 	})
 	// PUT settings/ rewrites the config on disk, so re-read it per request
-	// (mirrors cmd/scry buildServeMux).
+	// (mirrors cmd/gadak buildServeMux).
 	mux.HandleFunc("/config.json", func(w http.ResponseWriter, r *http.Request) {
 		cur, err := config.Load()
 		if err != nil {
@@ -455,7 +455,7 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 }
 
 // withDesktopFlag marks the config document the app serves. One web bundle is
-// shared with `scry serve`, and only here is the native title bar hidden — the
+// shared with `gadak serve`, and only here is the native title bar hidden — the
 // UI has to reserve the window controls' corner, and a browser tab must not.
 func withDesktopFlag(doc []byte) ([]byte, error) {
 	var m map[string]any

@@ -15,9 +15,9 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/selfupdate"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/selfupdate"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // testRequest is httptest.NewRequest with Host set for the loopback API guard.
@@ -195,7 +195,7 @@ func TestBootstrapUpdateFields(t *testing.T) {
 	// Newer release → both fields present.
 	h.s.setUpdateInfo(selfupdate.Info{
 		Latest: "0.3.1",
-		URL:    "https://github.com/midagedev/scry/releases/tag/v0.3.1",
+		URL:    "https://github.com/midagedev/gadak/releases/tag/v0.3.1",
 	}, true)
 	body = decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
 	if body.LatestVersion != "0.3.1" {
@@ -208,7 +208,7 @@ func TestBootstrapUpdateFields(t *testing.T) {
 	// Same version → omit.
 	h.s.setUpdateInfo(selfupdate.Info{
 		Latest: "0.3.0",
-		URL:    "https://github.com/midagedev/scry/releases/tag/v0.3.0",
+		URL:    "https://github.com/midagedev/gadak/releases/tag/v0.3.0",
 	}, true)
 	body = decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
 	if body.LatestVersion != "" || body.ReleaseURL != "" {
@@ -218,7 +218,7 @@ func TestBootstrapUpdateFields(t *testing.T) {
 	// Older release than running → omit.
 	h.s.setUpdateInfo(selfupdate.Info{
 		Latest: "0.2.0",
-		URL:    "https://github.com/midagedev/scry/releases/tag/v0.2.0",
+		URL:    "https://github.com/midagedev/gadak/releases/tag/v0.2.0",
 	}, true)
 	body = decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
 	if body.LatestVersion != "" || body.ReleaseURL != "" {
@@ -601,7 +601,7 @@ func TestFavoritesRoundtrip(t *testing.T) {
 }
 
 func TestSettingsRoundtripPreservesCredential(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	h := New(db, cfg)
 

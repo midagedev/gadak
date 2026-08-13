@@ -9,7 +9,7 @@ commits (`git tag --contains`), maps tag names to environments, and writes
 
 ## Why
 
-Deploy badges and the detail timeline are already in the scry UI, gated by
+Deploy badges and the detail timeline are already in the gadak UI, gated by
 `features.deploy`. What is missing from core on purpose is any knowledge of
 *your* pipeline. This script is a template: swap the tag rules for your
 release naming, or replace the git scan with an API to your CD tool — the
@@ -75,11 +75,11 @@ counts.
 ## Quick start
 
 ```sh
-cp examples/demo.db /tmp/scry-plugin.db
+cp examples/demo.db /tmp/gadak-plugin.db
 
 # Use any local git repo whose commits mention keys that exist in the mirror.
 python3 examples/plugins/deploy-status/deploy_status.py /path/to/your/repo \
-  --db /tmp/scry-plugin.db
+  --db /tmp/gadak-plugin.db
 
 # Or dry-run first:
 python3 examples/plugins/deploy-status/deploy_status.py /path/to/your/repo --dry-run
@@ -101,8 +101,8 @@ The self-test builds a temporary repo with `NMB-1` / `NMB-2` commits and
 | Flag | Meaning |
 | --- | --- |
 | `REPO` | Path to a local git repository |
-| `--db PATH` | Mirror path (default `$SCRY_HOME/scry.db` or `~/.scry/scry.db`) |
-| `--profile NAME` | Profile under `$SCRY_HOME/profiles/` when `--db` is omitted |
+| `--db PATH` | Mirror path (default `$GADAK_HOME/gadak.db` or `~/.gadak/gadak.db`) |
+| `--profile NAME` | Profile under `$GADAK_HOME/profiles/` when `--db` is omitted |
 | `--tags PATTERNS` | Comma-separated tag globs (default above) |
 | `--dry-run` | Print planned rows; no write, no version bump |
 | `--self-test` | Built-in checks on a temp git repo + temp DB |

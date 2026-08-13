@@ -32,7 +32,7 @@ func TestHighlightMatch(t *testing.T) {
 }
 
 func TestShimmerKeepsText(t *testing.T) {
-	if got := stripANSI(shimmer("scry", 0.37)); got != "scry" {
+	if got := stripANSI(shimmer("gadak", 0.37)); got != "gadak" {
 		t.Fatalf("shimmer altered text: %q", got)
 	}
 }

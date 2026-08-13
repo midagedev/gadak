@@ -1,7 +1,7 @@
-// Package mcp implements a thin stdio MCP server over the local scry mirror.
+// Package mcp implements a thin stdio MCP server over the local gadak mirror.
 //
 // It is the access path for clients without a shell (Claude Desktop and similar).
-// Agents that can run commands should prefer `scry sql` / `scry issue` / `scry search`
+// Agents that can run commands should prefer `gadak sql` / `gadak issue` / `gadak search`
 // instead — see docs/MCP.md and contracts/agent.md.
 //
 // Protocol surface is deliberately small and implemented with the Go stdlib only:
@@ -16,7 +16,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // ProtocolVersion is the MCP protocol version this server speaks. When a client
@@ -37,7 +37,7 @@ const (
 type Server struct {
 	DBPath  string
 	Profile string
-	// Version is the scry binary version reported in serverInfo.
+	// Version is the gadak binary version reported in serverInfo.
 	Version string
 
 	mu sync.Mutex
@@ -152,10 +152,10 @@ func (s *Server) handleInitialize(msg rpcRequest) *rpcResponse {
 			"tools": map[string]any{},
 		},
 		"serverInfo": map[string]any{
-			"name":    "scry",
+			"name":    "gadak",
 			"version": s.Version,
 		},
-		"instructions": "scry is a local-first Jira mirror. Use scry_status for freshness, scry_search for free text, scry_issue for one key, and scry_query for SQL. Filter on status_category (new|inprogress|done), never localized status names. If you have a shell, prefer `scry sql` / `scry issue` over this MCP path.",
+		"instructions": "gadak is a local-first Jira mirror. Use gadak_status for freshness, gadak_search for free text, gadak_issue for one key, and gadak_query for SQL. Filter on status_category (new|inprogress|done), never localized status names. If you have a shell, prefer `gadak sql` / `gadak issue` over this MCP path.",
 	}
 	return okResponse(msg.ID, result)
 }
@@ -282,5 +282,5 @@ func bytesTrimSpace(b []byte) []byte {
 // Logf writes a diagnostic line to stderr. Never use the process logger against
 // stdout while serving MCP — that corrupts the JSON-RPC stream.
 func Logf(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "scry mcp: "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, "gadak mcp: "+format+"\n", args...)
 }

@@ -28,7 +28,7 @@ const html = `<!doctype html><meta charset="utf-8">
   .chip b { color:#8fb8ff; font-weight:600; }
 </style>
 <body>
-  <div class="name">scry</div>
+  <div class="name">gadak</div>
   <h1>A local-first Jira client</h1>
   <div class="sub">One binary mirrors your issues into SQLite — instant search,
   offline reads, and a database your coding agent can query.</div>

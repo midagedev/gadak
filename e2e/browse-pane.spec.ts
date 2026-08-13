@@ -13,7 +13,7 @@ import { mockBrowseRoutes, pretendDesktop, type BrowseMock } from './browse-mock
  * as a mock (see browse-mock.ts). The rectangle's contents are the only thing
  * out of reach here; the app itself is the check for those.
  *
- * The last test is the other half: one bundle serves `scry serve` and the app,
+ * The last test is the other half: one bundle serves `gadak serve` and the app,
  * and the flag is the only thing between them.
  */
 
@@ -103,7 +103,7 @@ test.describe('in-app browser pane', () => {
     await openInApp(page, 'NMB-110')
     await expect(page.getByTestId('browse-pane')).toBeVisible()
 
-    // Opening something else in the panel is a request to see Scry's copy: the
+    // Opening something else in the panel is a request to see Gadak's copy: the
     // pane steps aside, and the tab it was showing is still open behind it.
     await openIssue(page, 'NMB-111')
     await expect(page.getByTestId('browse-pane')).toHaveCount(0)
@@ -122,7 +122,7 @@ test.describe('in-app browser pane', () => {
     await expect(page.getByTestId('browse-url')).toHaveText(`${JIRA}/browse/NMB-110`)
     await expect.poll(() => mock.active()).toBe('1')
 
-    // Closing the visible tab hands the pane to its neighbour, not to Scry.
+    // Closing the visible tab hands the pane to its neighbour, not to Gadak.
     await tabs.nth(0).getByTestId('browse-tab-close').click()
     await expect(page.getByTestId('browse-tab')).toHaveCount(1)
     await expect(page.getByTestId('browse-pane')).toBeVisible()

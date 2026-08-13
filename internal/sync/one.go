@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/confluence"
-	"github.com/midagedev/scry/internal/jira"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/confluence"
+	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // ErrNotFound means the upstream answered but no issue/page with that key came

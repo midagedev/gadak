@@ -10,7 +10,7 @@ import (
 
 func TestDirForDefaultAndNamed(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 	t.Cleanup(func() { SetProfile("") })
 
 	root, err := DirFor("")
@@ -41,7 +41,7 @@ func TestDirForDefaultAndNamed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if db != filepath.Join(want, "scry.db") {
+	if db != filepath.Join(want, "gadak.db") {
 		t.Fatalf("DBPathFor: %q", db)
 	}
 	att, err := AttachmentDirFor("work")
@@ -71,9 +71,81 @@ func TestDirForDefaultAndNamed(t *testing.T) {
 	}
 }
 
+func TestEnvPrefersNewPrefixThenLegacy(t *testing.T) {
+	os.Unsetenv("GADAK_TOKEN")
+	t.Setenv("SCRY_TOKEN", "legacy")
+	if got := Env("TOKEN"); got != "legacy" {
+		t.Fatalf("Env(TOKEN) without GADAK_ = %q, want legacy", got)
+	}
+	t.Setenv("GADAK_TOKEN", "new")
+	if got := Env("TOKEN"); got != "new" {
+		t.Fatalf("Env(TOKEN) with both = %q, want new", got)
+	}
+}
+
+func TestHomeRootMigratesLegacyDir(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	os.Unsetenv("GADAK_HOME")
+	os.Unsetenv("SCRY_HOME")
+
+	legacy := filepath.Join(root, LegacyDirName)
+	if err := os.Mkdir(legacy, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, "config.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := homeRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(root, DirName)
+	if got != want {
+		t.Fatalf("homeRoot() = %q, want %q", got, want)
+	}
+	if _, err := os.Stat(filepath.Join(want, "config.json")); err != nil {
+		t.Fatalf("migrated config missing: %v", err)
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatalf("legacy dir still present: %v", err)
+	}
+}
+
+func TestDBPathMigratesLegacyFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	legacy := filepath.Join(home, LegacyDBFile)
+	if err := os.WriteFile(legacy, []byte("sqlite"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy+"-wal", []byte("wal"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := DBPathFor("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(home, DBFile)
+	if got != want {
+		t.Fatalf("DBPathFor = %q, want %q", got, want)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("migrated db missing: %v", err)
+	}
+	if _, err := os.Stat(want + "-wal"); err != nil {
+		t.Fatalf("migrated wal missing: %v", err)
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatalf("legacy db still present")
+	}
+}
+
 func TestLoadForMissingAndPresent(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 
 	// Missing file: empty config with dir set, no error.
 	c, err := LoadFor("aaa")
@@ -129,7 +201,7 @@ func TestLoadForMissingAndPresent(t *testing.T) {
 
 func TestSaveFollowsDirNotGlobalProfile(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 	t.Cleanup(func() { SetProfile("") })
 
 	// Global profile stays default; LoadFor("bbb") sets dir under profiles/bbb.
@@ -165,7 +237,7 @@ func TestSaveFollowsDirNotGlobalProfile(t *testing.T) {
 
 func TestLoadAndSaveDefaultUnchanged(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 	t.Cleanup(func() { SetProfile("") })
 	SetProfile("")
 
@@ -196,7 +268,7 @@ func TestSaveCreatesProfileDir0700(t *testing.T) {
 		t.Skip("file permission bits are not meaningful on Windows")
 	}
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 
 	c, err := LoadFor("sec")
 	if err != nil {
@@ -221,7 +293,7 @@ func TestSaveTightensExistingProfileDir(t *testing.T) {
 		t.Skip("file permission bits are not meaningful on Windows")
 	}
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 
 	dir := filepath.Join(home, "profiles", "loose")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -230,7 +302,7 @@ func TestSaveTightensExistingProfileDir(t *testing.T) {
 	if err := os.Chmod(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// Also leave the SCRY_HOME root loose — Save must tighten the profile dir.
+	// Also leave the GADAK_HOME root loose — Save must tighten the profile dir.
 	if err := os.Chmod(home, 0o755); err != nil {
 		t.Fatal(err)
 	}

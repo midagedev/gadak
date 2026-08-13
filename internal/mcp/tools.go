@@ -9,22 +9,22 @@ import (
 	"os"
 	"strings"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // Tool names match contracts/agent.md. Do not add tools without updating that
 // contract: every extra tool is context the agent must read before acting.
 const (
-	toolQuery  = "scry_query"
-	toolSearch = "scry_search"
-	toolIssue  = "scry_issue"
-	toolStatus = "scry_status"
+	toolQuery  = "gadak_query"
+	toolSearch = "gadak_search"
+	toolIssue  = "gadak_issue"
+	toolStatus = "gadak_status"
 )
 
 // toolQueryDescription is long on purpose: agents without AGENTS.md only see
 // this text, so the schema summary, the localization trap, and two working
 // examples have to live here.
-const toolQueryDescription = `Run a read-only SQL query against the local scry mirror (SQLite): Jira issues and Confluence wiki pages in one file.
+const toolQueryDescription = `Run a read-only SQL query against the local gadak mirror (SQLite): Jira issues and Confluence wiki pages in one file.
 
 Schema essentials:
 - items: source-neutral spine — id, key, title, body_text, created_at, updated_at
@@ -83,7 +83,7 @@ Examples:
 const toolSearchDescription = `Full-text search over issue and page titles, bodies, and comments (FTS5).
 Returns matching issue keys (with summary/status), page PageLite rows, and matches
 (key → {field: title|body|comment, snippet: plain text ~120 chars}), best match first.
-Prefer scry_query for relational or aggregated questions; use this for free-text recall.`
+Prefer gadak_query for relational or aggregated questions; use this for free-text recall.`
 
 const toolIssueDescription = `Fetch one issue by key with full detail: list fields plus description,
 comments, attachments, changelog history, and linked issues.
@@ -204,7 +204,7 @@ func (s *Server) callTool(name string, args map[string]any) (content []contentIt
 func (s *Server) toolQuery(args map[string]any) ([]contentItem, error) {
 	sqlText, ok := stringArg(args, "sql")
 	if !ok || strings.TrimSpace(sqlText) == "" {
-		return nil, errors.New("scry_query requires {sql: string}")
+		return nil, errors.New("gadak_query requires {sql: string}")
 	}
 	limit := intArg(args, "limit", 0)
 	res, err := runQuery(s.DBPath, sqlText, limit)
@@ -217,7 +217,7 @@ func (s *Server) toolQuery(args map[string]any) ([]contentItem, error) {
 func (s *Server) toolSearch(args map[string]any) ([]contentItem, error) {
 	text, ok := stringArg(args, "text")
 	if !ok || strings.TrimSpace(text) == "" {
-		return nil, errors.New("scry_search requires {text: string}")
+		return nil, errors.New("gadak_search requires {text: string}")
 	}
 	limit := intArg(args, "limit", 20)
 	if limit <= 0 {
@@ -266,12 +266,12 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, error) {
 func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 	key, ok := stringArg(args, "key")
 	if !ok || strings.TrimSpace(key) == "" {
-		return nil, errors.New("scry_issue requires {key: string}")
+		return nil, errors.New("gadak_issue requires {key: string}")
 	}
 	key = strings.ToUpper(strings.TrimSpace(key))
 	d, err := s.db.Detail(context.Background(), key)
 	if errors.Is(err, store.ErrNotFound) {
-		return nil, fmt.Errorf("%s is not in the mirror — check the key, or run `scry sync`", key)
+		return nil, fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", key)
 	}
 	if err != nil {
 		return nil, err
@@ -287,7 +287,7 @@ func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 			break
 		}
 	}
-	// Same shape as `scry issue --json`: list row plus flattened detail fields.
+	// Same shape as `gadak issue --json`: list row plus flattened detail fields.
 	body := map[string]any{"issue_key": d.IssueKey, "description_adf": d.DescriptionADF,
 		"comments": d.Comments, "attachments": d.Attachments, "history": d.History,
 		"linked_issues": d.LinkedIssues}
@@ -322,7 +322,7 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	if ss.SyncedAt != nil {
 		st["synced_at"] = *ss.SyncedAt
 	}
-	// Counts match `scry status --json`.
+	// Counts match `gadak status --json`.
 	for name, q := range map[string]string{
 		"issues":   "SELECT COUNT(*) FROM issues",
 		"comments": "SELECT COUNT(*) FROM comments",
@@ -399,7 +399,7 @@ func marshalResult(v any) ([]contentItem, error) {
 	if len(b) > maxResultBytes {
 		// Non-query payloads (detail/search/status) are still capped: return a
 		// short note rather than blowing the agent context.
-		return nil, fmt.Errorf("result exceeds %d bytes (%d); narrow the request (e.g. lower limit, or use scry_query for specific columns)", maxResultBytes, len(b))
+		return nil, fmt.Errorf("result exceeds %d bytes (%d); narrow the request (e.g. lower limit, or use gadak_query for specific columns)", maxResultBytes, len(b))
 	}
 	return []contentItem{{Type: "text", Text: string(b)}}, nil
 }
@@ -431,7 +431,7 @@ func marshalQueryResult(qr *queryResult) ([]contentItem, error) {
 // dbMissingMessage is the human guidance when the mirror file is absent.
 func dbMissingMessage(path string) string {
 	if _, err := os.Stat(path); err != nil {
-		return fmt.Sprintf("no mirror at %s — run `scry init && scry sync` first", path)
+		return fmt.Sprintf("no mirror at %s — run `gadak init && gadak sync` first", path)
 	}
 	return ""
 }

@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/confluence"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/confluence"
+	"github.com/midagedev/gadak/internal/store"
 )
 
-// Version is the scry release string exposed on GET settings/ under runtime.
-// cmd/scry should assign this from its ldflags version var at startup:
+// Version is the gadak release string exposed on GET settings/ under runtime.
+// cmd/gadak should assign this from its ldflags version var at startup:
 //
 //	server.Version = version
 //
@@ -93,7 +93,7 @@ type runtimeInfo struct {
 	SyncVersion    int64   `json:"syncVersion"`
 	LastFullSyncAt *string `json:"lastFullSyncAt,omitempty"`
 	LastError      *string `json:"lastError,omitempty"`
-	ScryVersion    string  `json:"scryVersion"`
+	GadakVersion   string  `json:"gadakVersion"`
 	// Defaults the UI shows as placeholders when the stored interval is 0.
 	DefaultSyncIntervalSec      int `json:"defaultSyncIntervalSec"`
 	DefaultReconcileIntervalSec int `json:"defaultReconcileIntervalSec"`
@@ -420,13 +420,13 @@ func (s *server) settingsResponse(cfg *config.Config) settingsDoc {
 func (s *server) runtimeInfo() *runtimeInfo {
 	info := &runtimeInfo{
 		Profile:                     profileDisplay(s.profile),
-		ScryVersion:                 Version,
+		GadakVersion:                Version,
 		DefaultSyncIntervalSec:      config.DefaultSyncIntervalSec,
 		DefaultReconcileIntervalSec: config.DefaultReconcileIntervalSec,
 	}
 	if d, err := config.DirFor(s.profile); err == nil {
 		info.ConfigPath = filepath.Join(d, "config.json")
-		dbPath := filepath.Join(d, "scry.db")
+		dbPath := filepath.Join(d, "gadak.db")
 		info.DBPath = dbPath
 		if st, err := os.Stat(dbPath); err == nil {
 			info.DBSizeBytes = st.Size()

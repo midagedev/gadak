@@ -3,7 +3,7 @@ package fields
 import (
 	"encoding/json"
 
-	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // SpecIDs is the flat shape store and sync use to coalesce without depending on

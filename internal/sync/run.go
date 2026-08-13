@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/midagedev/scry/internal/atlhttp"
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/atlhttp"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // sourceIdent names a connector in sources / sync_state / sync_runs.

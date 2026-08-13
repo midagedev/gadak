@@ -13,7 +13,7 @@ SQLite plus OPFS on the web), ElectricSQL (Postgres, last-write-wins only), Zero
 (query-driven, React-only), plus CRDT approaches like cr-sqlite and
 server-authoritative ones like SQLSync.
 
-The obvious question: should scry's browser client hold a SQLite replica instead
+The obvious question: should gadak's browser client hold a SQLite replica instead
 of its current IndexedDB cache plus in-memory filter engine?
 
 ## Decision
@@ -28,7 +28,7 @@ hosting with no binary and no Jira account.
 ## Why not for the data path
 
 1. **The latency those engines exist to hide does not exist here.** They earn
-   their complexity against a remote server over the public internet. scry's
+   their complexity against a remote server over the public internet. gadak's
    server is on loopback. The current client already meets the latency target
    (sub-50 ms filtering at 10k issues) with a shipped, in-daily-use engine.
 
@@ -42,7 +42,7 @@ hosting with no binary and no Jira account.
 
 3. **The upstream is wrong for all of them.** PowerSync, Electric, and Zero
    assume a Postgres (or similar) system of record plus their own sync service.
-   scry's system of record is Jira and its "server" is a single local binary.
+   gadak's system of record is Jira and its "server" is a single local binary.
    Adopting one would mean adding a database and a service — a direct
    contradiction of Constitution Article 2.
 
@@ -63,7 +63,7 @@ building, and having a Jira token.
 
 With `sqlite-wasm` reading a static snapshot over range requests, the demo
 becomes a URL. No install, no account, nothing to trust. The snapshot is already
-being produced for tests (`scry snapshot`), so the marginal work is a build
+being produced for tests (`gadak snapshot`), so the marginal work is a build
 target and a read-only data adapter behind the existing store interface — not a
 rewrite of the filter engine.
 
@@ -79,7 +79,7 @@ Constraints for that target:
 
 - `web/src/lib/db.ts` (IndexedDB) stays the client's durable cache.
 - A future adapter boundary is needed in the client so the data source can be
-  "scry server" or "static snapshot". That boundary is small today and should be
+  "gadak server" or "static snapshot". That boundary is small today and should be
   introduced when the demo target is built, not speculatively.
 - If the client ever needs genuine SQL — cross-issue aggregation in the UI, say —
   this decision gets revisited. Wanting SQL for its own sake is not that trigger.
@@ -90,7 +90,7 @@ Constraints for that target:
   have.
 - A second connector makes the client's field schema complex enough that
   hand-written filtering becomes the bottleneck.
-- Someone wants scry's mirror synced across their own machines, which is a real
+- Someone wants gadak's mirror synced across their own machines, which is a real
   problem these tools do solve — though libSQL embedded replicas or plain file
   sync would come first.
 
@@ -109,7 +109,7 @@ larger bundle and a second schema runtime to keep in step.
 
 Instead the hosted demo:
 
-1. Freezes `examples/demo.db` into static files with `scry export-static`
+1. Freezes `examples/demo.db` into static files with `gadak export-static`
    (`bootstrap.json`, `detail/<KEY>.json`, attachment bytes) — same handlers the
    live server uses, so the snapshot cannot drift from the API.
 2. Ships a demo-only service worker (`demo-sw.js`, gated by `VITE_HOSTED_DEMO=1`)

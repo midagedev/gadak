@@ -12,9 +12,9 @@ self.addEventListener('push', (event) => {
   }
 
   const unreadCount = Number(payload.unread_count || 0)
-  const notification = self.registration.showNotification(payload.title || 'scry', {
+  const notification = self.registration.showNotification(payload.title || 'gadak', {
     body: payload.body || 'New activity.',
-    tag: payload.tag || 'scry-feed',
+    tag: payload.tag || 'gadak-feed',
     renotify: true,
     data: { url: payload.url || DEFAULT_URL },
   })

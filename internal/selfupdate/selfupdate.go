@@ -23,7 +23,7 @@ type Info struct {
 
 // APIBase is the GitHub API origin + repo path for release lookups.
 // Tests replace it with an httptest server URL.
-var APIBase = "https://api.github.com/repos/midagedev/scry"
+var APIBase = "https://api.github.com/repos/midagedev/gadak"
 
 const (
 	cacheName = "update-check.json"

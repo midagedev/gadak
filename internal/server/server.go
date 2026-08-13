@@ -3,7 +3,7 @@
 // SQLite mirror; the one call that leaves this process is the attachment byte
 // proxy, which is also the only endpoint that needs credentials.
 //
-// The server has no authentication: `scry serve` refuses a non-loopback bind
+// The server has no authentication: `gadak serve` refuses a non-loopback bind
 // instead. Personal-state endpoints therefore never answer 401/403.
 package server
 
@@ -17,10 +17,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/midagedev/scry/internal/attachcache"
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/selfupdate"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/attachcache"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/selfupdate"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // sourceID is the only connector v0.1 configures. Both the ETag and the sync
@@ -86,11 +86,11 @@ type Handler struct {
 
 // ServeHTTP implements http.Handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Identity markers for a second `scry serve` that finds this port busy
-	// (cmd/scry port fallback). Fixed marker + profile — no version injection
+	// Identity markers for a second `gadak serve` that finds this port busy
+	// (cmd/gadak port fallback). Fixed marker + profile — no version injection
 	// into constructors. Set before browserGuard so every response carries them.
-	w.Header().Set("X-Scry", "1")
-	w.Header().Set("X-Scry-Profile", h.s.profile)
+	w.Header().Set("X-Gadak", "1")
+	w.Header().Set("X-Gadak-Profile", h.s.profile)
 	if !browserGuard(w, r) {
 		return
 	}
@@ -103,8 +103,8 @@ func New(db *store.DB, cfg *config.Config) *Handler {
 	return NewWithCache(db, cfg, nil)
 }
 
-// NewWithCache is New plus an attachment byte cache. `scry serve` passes one
-// rooted under SCRY_HOME; tests pass nil when they do not exercise attachments.
+// NewWithCache is New plus an attachment byte cache. `gadak serve` passes one
+// rooted under GADAK_HOME; tests pass nil when they do not exercise attachments.
 func NewWithCache(db *store.DB, cfg *config.Config, cache *attachcache.Cache) *Handler {
 	return newServer(db, cfg, cache, config.Profile())
 }
@@ -277,7 +277,7 @@ func (s *server) loopUpdateCheck(ctx context.Context, cacheDir string) {
 }
 
 // WebConfig renders the config document the UI fetches before mount
-// (`ScryConfig` in web/src/lib/config.ts). Credentials never appear in it.
+// (`GadakConfig` in web/src/lib/config.ts). Credentials never appear in it.
 func WebConfig(cfg *config.Config) ([]byte, error) {
 	return WebConfigBase(cfg, "")
 }

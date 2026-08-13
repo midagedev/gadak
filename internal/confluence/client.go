@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/midagedev/scry/internal/atlhttp"
+	"github.com/midagedev/gadak/internal/atlhttp"
 )
 
 // Label is one entry under metadata.labels.results (Confluence REST v1).

@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/midagedev/scry/internal/atlhttp"
+	"github.com/midagedev/gadak/internal/atlhttp"
 )
 
 const apiPath = "/rest/api/3"

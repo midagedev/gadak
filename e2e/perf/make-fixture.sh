@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # Deterministic ~10k-issue benchmark fixture for the perf gate suite.
-# examples/demo.db → scry snapshot --scale N --now <pinned> → e2e/perf/.tmp/fixture.db
+# examples/demo.db → gadak snapshot --scale N --now <pinned> → e2e/perf/.tmp/fixture.db
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 TMP="$ROOT/e2e/perf/.tmp"
-BIN="$TMP/scry"
+BIN="$TMP/gadak"
 SRC="$ROOT/examples/demo.db"
 OUT="$TMP/fixture.db"
 # Pin the clock so two builds are byte-identical (snapshot contract).
 NOW="2026-08-06T00:00:00Z"
 SEED=1
-# Target: ~10,000 issues. `scry snapshot --scale N` clones onto new keys until
+# Target: ~10,000 issues. `gadak snapshot --scale N` clones onto new keys until
 # the snapshot holds exactly N when N > source count (see internal/snapshot).
 TARGET=10000
 
@@ -42,8 +42,8 @@ echo "[perf-fixture] source: $SRC ($SRC_COUNT issues)"
 echo "[perf-fixture] N calculation: want ~${TARGET} issues; --scale ${N} yields exactly ${N} (N > source ${SRC_COUNT})"
 echo "[perf-fixture] --now ${NOW} --seed ${SEED} (deterministic)"
 
-echo "[perf-fixture] building scry binary…"
-CGO_ENABLED=0 go build -o "$BIN" ./cmd/scry
+echo "[perf-fixture] building gadak binary…"
+CGO_ENABLED=0 go build -o "$BIN" ./cmd/gadak
 
 echo "[perf-fixture] snapshot --scale ${N}…"
 "$BIN" snapshot "$OUT" \
@@ -53,7 +53,7 @@ echo "[perf-fixture] snapshot --scale ${N}…"
   --now "$NOW" \
   --force
 
-# Documents. `scry snapshot` carries the issue axis only — its copy list has no
+# Documents. `gadak snapshot` carries the issue axis only — its copy list has no
 # pages or spaces table — so a fixture built from it has zero documents, and a
 # gate over that fixture cannot see the document lists at all. That blind spot
 # is how an unwindowed list shipped. Cloned straight from the source mirror

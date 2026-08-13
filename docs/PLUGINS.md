@@ -1,6 +1,6 @@
 # Plugins
 
-scry mirrors an issue tracker. It does not know what a deployment is, what a test
+gadak mirrors an issue tracker. It does not know what a deployment is, what a test
 run is, or who reviewed what — and it never will, because every one of those
 integrations was the reason the tool it was extracted from could not be shared.
 
@@ -37,8 +37,8 @@ There is no foreign key on `key`: a plugin may write before the issue is
 mirrored, or for an issue that has left the mirror's scope. Rows for unknown keys
 are simply never read.
 
-The mirror lives at `~/.scry/scry.db` (or `$SCRY_HOME/scry.db`, or a profile under
-`~/.scry/profiles/<name>/scry.db`). It is opened in WAL mode, so a writer and the
+The mirror lives at `~/.gadak/gadak.db` (or `$GADAK_HOME/gadak.db`, or a profile under
+`~/.gadak/profiles/<name>/gadak.db`). It is opened in WAL mode, so a writer and the
 running server coexist without either blocking the other. Plugins should set
 `PRAGMA busy_timeout=5000` and keep transactions short.
 
@@ -68,7 +68,7 @@ garbage, but it also gets no error, so validate on your side.
 End to end, with the CLI:
 
 ```sh
-sqlite3 ~/.scry/scry.db <<'SQL'
+sqlite3 ~/.gadak/gadak.db <<'SQL'
 INSERT INTO enrichments (key, kind, payload, source, updated_at)
 VALUES ('NMB-42', 'deploy',
         json('{"status":{"state":"prod","merged_prs":2,"total_prs":2,"dev":null,"qa_release":null,"qa_swapped_at":null,"prod_at":"2026-08-04T02:00:00Z"},
@@ -253,7 +253,7 @@ Generic bulk path for any kind: [`examples/plugins/csv-import/`](../examples/plu
 ## Turning the surfaces on
 
 Merged data alone renders nothing. The UI gates each surface behind a feature
-flag in `~/.scry/config.json`, and every flag is off by default:
+flag in `~/.gadak/config.json`, and every flag is off by default:
 
 ```json
 { "features": { "deploy": true, "qa": true } }

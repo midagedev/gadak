@@ -1,7 +1,7 @@
 /**
  * Web UI demo recording for docs/media/web-demo.{gif,mp4}.
  *
- * Gated by SCRY_MEDIA=1 so the main suite skips it. This is a hero asset: a
+ * Gated by GADAK_MEDIA=1 so the main suite skips it. This is a hero asset: a
  * reader gives it two seconds, so it shows one thing first — the list collapsing
  * under the keystroke — and only then documents, spaces, and epics.
  *
@@ -18,7 +18,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { gotoApp, searchInput } from '../helpers'
 
-const isMedia = !!process.env.SCRY_MEDIA
+const isMedia = !!process.env.GADAK_MEDIA
 
 /** Pause between beats so a human can read the UI. */
 async function beat(page: Page, ms = 700): Promise<void> {
@@ -45,7 +45,7 @@ interface DemoPage {
 }
 
 test.describe('web UI demo', () => {
-  test.skip(!isMedia, 'SCRY_MEDIA=1 only — media pipeline recording')
+  test.skip(!isMedia, 'GADAK_MEDIA=1 only — media pipeline recording')
 
   test('search, documents, spaces, epics', async ({ page, request }) => {
     // ── Viewing history, so Documents opens on something ──────────────────
@@ -77,7 +77,7 @@ test.describe('web UI demo', () => {
     await page.addInitScript((keys: string[]) => {
       const base = Date.now()
       localStorage.setItem(
-        'scry:recent',
+        'gadak:recent',
         JSON.stringify(
           keys.map((key, i) => ({
             key,

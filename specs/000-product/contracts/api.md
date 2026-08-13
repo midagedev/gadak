@@ -240,13 +240,13 @@ Implementation notes that are part of the contract:
 ### Credential storage
 
 `PUT credential/` verifies the token against `/myself` and writes it to
-`~/.scry/config.json` with mode `0600`. It is never written to SQLite, a log, or
+`~/.gadak/config.json` with mode `0600`. It is never written to SQLite, a log, or
 a snapshot. `GET credential/` returns only `{configured, jira_email,
 display_name, verified_at, token_hint}` — never the token.
 
 ### First-run onboarding
 
-Three endpoints exist so a browser can finish setup with no CLI step: `scry serve`
+Three endpoints exist so a browser can finish setup with no CLI step: `gadak serve`
 plus the wizard is the whole path.
 
 | Endpoint | Method | Jira call | Status |
@@ -281,7 +281,7 @@ finished_at}` where `phase` is `idle | syncing | done | error`. The document
 carries counters only — no site, no email, nothing derived from the token — and
 `fetched`/`changed` advance per committed page, so a client polling every second
 can show issues arriving live. The job is process-wide state, matching the one
-server `scry serve` runs.
+server `gadak serve` runs.
 
 ### Field edits
 
@@ -379,7 +379,7 @@ is clean.
 ### `GET config.json` — R
 
 Served at the UI's base path, not under the API base. Shape is
-`ScryConfig` in `web/src/lib/config.ts`.
+`GadakConfig` in `web/src/lib/config.ts`.
 
 ```json
 {
@@ -406,7 +406,7 @@ mark every issue stale.
 ### `GET settings/` · `PUT settings/` — R
 
 The settings UI reads and writes the configuration through these. The document is
-the credential-free part of `~/.scry/config.json` — `projects`, `fieldMap`,
+the credential-free part of `~/.gadak/config.json` — `projects`, `fieldMap`,
 `bodyFields`, `editableFields`, `members`, `groupRules`, `groupLabels`,
 `groupColors`, `productByGroup`, `features`, `qaDashboardUrl`,
 `staleThresholdHours`, `syncIntervalSec`, `reconcileIntervalSec` — plus
@@ -422,11 +422,11 @@ read-only context for the UI:
   "staleThresholdHours": 72,
   "runtime": {
     "profile": "default",
-    "dbPath": "/Users/you/.scry/scry.db",
+    "dbPath": "/Users/you/.gadak/gadak.db",
     "dbSizeBytes": 4823040,
     "dbSizeHuman": "4.6 MB",
     "dbModifiedAt": "2026-08-04T09:15:00Z",
-    "configPath": "/Users/you/.scry/config.json",
+    "configPath": "/Users/you/.gadak/config.json",
     "issueCount": 519,
     "commentCount": 339,
     "schemaVersion": 3,
@@ -434,7 +434,7 @@ read-only context for the UI:
     "syncVersion": 41,
     "lastFullSyncAt": "2026-08-01T12:00:00.000Z",
     "lastError": null,
-    "scryVersion": "0.0.0-dev",
+    "gadakVersion": "0.0.0-dev",
     "defaultSyncIntervalSec": 60,
     "defaultReconcileIntervalSec": 3600,
     "apiUsage": {
@@ -486,10 +486,10 @@ A value below the floor answers `400` with a clear `error` string, e.g.
 `syncIntervalSec must be 0 (default) or >= 15 (got 5)`. Rejected writes do not
 touch the file.
 
-**Apply timing:** `scry serve` builds its Watch tickers once at process
+**Apply timing:** `gadak serve` builds its Watch tickers once at process
 start from the config loaded then. A successful `PUT` updates `config.json` and
 the in-process settings atomic immediately (group rules, features, etc.), but
-**interval changes take effect only after restarting** `scry serve`. The
+**interval changes take effect only after restarting** `gadak serve`. The
 UI states this explicitly.
 
 `staleThresholdHours` is how long an unresolved issue may sit in its current
@@ -501,8 +501,8 @@ the `stale` filter and the row badge pick it up.
 Read-only instance facts. **Never** includes credentials (`token`, `email`, or
 anything derived from them beyond the top-level `site` / `hasCredential` already
 documented). Paths are absolute. `profile` is `"default"` when no
-`--profile` / `SCRY_PROFILE` is set. `scryVersion` comes from `server.Version`
-(package var; `cmd/scry` should assign the ldflags version at startup — until
+`--profile` / `GADAK_PROFILE` is set. `gadakVersion` comes from `server.Version`
+(package var; `cmd/gadak` should assign the ldflags version at startup — until
 wired, the default is `0.0.0-dev`).
 
 `apiUsage` (optional) carries `{today, last_7_days}` counters for outbound Jira
@@ -519,9 +519,9 @@ cannot bring the filter back.
 
 ## Auth
 
-scry is a single-user local tool. There are no scry accounts and no session
+gadak is a single-user local tool. There are no gadak accounts and no session
 tokens. **Identity is the stored Jira credential** (`site` / email / API token in
-`~/.scry/config.json`, managed via `credential/`). `GET me/` projects that
+`~/.gadak/config.json`, managed via `credential/`). `GET me/` projects that
 credential into `{email, name, department}` for the UI; when nothing is
 configured it answers `200 {"email": null}` so the boot probe never 4xxes.
 Writes that need Jira call out with that same credential. The UI has no login
@@ -530,5 +530,5 @@ dialog — if identity is missing it opens the credential settings dialog instea
 | Endpoint | Method | v0.1 behavior |
 | --- | --- | --- |
 | `me/` | GET | `{email, name, department}` from the stored credential and the configured member directory, with no call to Jira. `200 {"email": null}` when nothing is configured |
-| `login/` | POST | `404`. There are no scry accounts; use `PUT credential/` |
+| `login/` | POST | `404`. There are no gadak accounts; use `PUT credential/` |
 | `logout/` | POST | `404`. Clear credentials with `DELETE credential/` instead |

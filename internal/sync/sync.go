@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/confluence"
-	"github.com/midagedev/scry/internal/fields"
-	"github.com/midagedev/scry/internal/jira"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/confluence"
+	"github.com/midagedev/gadak/internal/fields"
+	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // SourceID is the slug the Jira connector owns in `sources` and `sync_state`.
@@ -237,7 +237,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		jql := incrementalJQL(cfg.Projects, state.Watermark)
 		beginSearch("incremental: "+scopeLabel(cfg.Projects)+" — changes since "+sinceLabel(state.Watermark), jql, false)
 		if discoveryMode {
-			opts.logf("tip: run `scry sync --full` once to auto-configure custom fields")
+			opts.logf("tip: run `gadak sync --full` once to auto-configure custom fields")
 		}
 		if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
 			return record(ctx, db, SourceID, err)

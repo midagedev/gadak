@@ -18,7 +18,7 @@ import (
 
 const (
 	// updateRepo is the releases feed the updater reads.
-	updateRepo = "midagedev/scry"
+	updateRepo = "midagedev/gadak"
 	// updateChecksums is the sidecar the provider parses for the zip's sha256.
 	// Written by desktop/build-app.sh --dmg; goreleaser's own checksums.txt
 	// covers the CLI archives and is a different file.
@@ -67,8 +67,8 @@ func initUpdater(app *application.App, version string) *updater.Updater {
 
 // desktopAssetMatcher picks the desktop bundle zip by exact name. The
 // package's DefaultAssetMatcher takes the first asset whose filename contains
-// both GOOS and GOARCH, and on a scry release that is goreleaser's CLI archive
-// (scry_0.11.0_darwin_arm64.tar.gz), which unpacks to a bare CLI binary rather
+// both GOOS and GOARCH, and on a gadak release that is goreleaser's CLI archive
+// (gadak_0.11.0_darwin_arm64.tar.gz), which unpacks to a bare CLI binary rather
 // than an .app. Matching one name is also fail-closed: a release with no
 // desktop zip yields -1, which reads as "nothing to install here" instead of
 // installing the wrong artifact.
@@ -85,7 +85,7 @@ func desktopAssetMatcher(req updater.CheckRequest, assets []ghprovider.ReleaseAs
 // desktopAssetName is the release asset build-app.sh --dmg produces. Keep the
 // two in step: this string is the whole handshake between them.
 func desktopAssetName(platform, arch string) string {
-	return fmt.Sprintf("scry-desktop-%s-%s.zip", platform, arch)
+	return fmt.Sprintf("gadak-desktop-%s-%s.zip", platform, arch)
 }
 
 // appendCheckForUpdatesMenu puts "Check for Updates…" at the top of Tools,

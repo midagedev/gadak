@@ -1,9 +1,9 @@
 # Query recipes — the questions JQL cannot ask
 
-Every recipe runs as-is with `scry sql "…"` (SQLite `mode=ro`) and returns in
+Every recipe runs as-is with `gadak sql "…"` (SQLite `mode=ro`) and returns in
 single-digit milliseconds on the demo snapshot (measured: `1–2 ms`,
 `sqlite3 examples/demo.db` with `.timer on` on the reopen recipe below; full
-`scry sql` process wall-clock ≈16 ms including startup). `issues_full` is the
+`gadak sql` process wall-clock ≈16 ms including startup). `issues_full` is the
 view with the title included; add `--json` or `--csv` for machines. Timestamps
 are ISO-8601 UTC strings, so `julianday()` and string comparison both work.
 
@@ -51,7 +51,7 @@ order by created_at asc limit 20
 
 ## Full-text
 
-`scry search` (and the REST/MCP search path) rewrites bare terms as FTS5 prefix
+`gadak search` (and the REST/MCP search path) rewrites bare terms as FTS5 prefix
 matches, so Korean particles and verb endings are found (`로그인` → `로그인이`,
 `실패` → `실패합니다`) and English stems work too (`retri` → `retries`).
 Word *middles* still miss — searching `결제` will not hit `간편결제`.

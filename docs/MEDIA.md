@@ -68,7 +68,7 @@ do **not** run that pass yet — run it by hand (below) after recording.
 ## Regenerate everything
 
 ```bash
-# Prerequisites (already on a typical scry dev machine):
+# Prerequisites (already on a typical gadak dev machine):
 #   go, node ≥ 20, ffmpeg, vhs (brew install vhs), Playwright chromium
 
 make media
@@ -80,7 +80,7 @@ Individual targets:
 make media-web     # Playwright → webm → gif + mp4 (self-contained)
 make media-tui     # VHS TUI navigator            → needs the gifsicle pass
 make media-agent   # VHS Claude Code session      → needs setup + gifsicle pass
-make media-prep    # build scry + seed tools/tapes/.tmp from demo.db
+make media-prep    # build gadak + seed tools/tapes/.tmp from demo.db
 ```
 
 The two terminal clips need steps `make` does not run:
@@ -124,7 +124,7 @@ directly, and CI does not regenerate media.
 Re-shoot trap (2026-08-06): the demo config reuses an already-running 7877
 server (`reuseExistingServer: true`), so a stale fixture prints an orange
 `Sync delayed` chip into every frame. Restart the server (or re-run the
-`SCRY_FRESHEN` block in `e2e/serve.sh` against `e2e/.tmp/home/scry.db`)
+`GADAK_FRESHEN` block in `e2e/serve.sh` against `e2e/.tmp/home/gadak.db`)
 before recording.
 
 Note the video size in `e2e/demo/playwright.config.ts` must equal the viewport.
@@ -132,7 +132,7 @@ Playwright does not upscale into a larger video frame — it pins the capture in
 the top-left corner and pads the rest black.
 
 Config lives in `e2e/demo/playwright.config.ts` (separate from the E2E suite).
-The demo test is gated by `SCRY_MEDIA=1` so a plain
+The demo test is gated by `GADAK_MEDIA=1` so a plain
 `playwright test --config e2e/playwright.config.ts` still runs only the original
 10 specs (the demo file is discovered as **skipped**).
 
@@ -149,18 +149,18 @@ List → `/` filter typing (live `pagination` highlights) → clear → `D` docs
 
 Two scenes, both real:
 
-1. `claude mcp add scry -- scry mcp` — the one line that teaches an MCP client
+1. `claude mcp add gadak -- gadak mcp` — the one line that teaches an MCP client
    the mirror exists.
 2. A live Claude Code session answering *"Which epic has the most reopened
-   issues?"* — the model calls `scry_query` twice and answers with the epic
+   issues?"* — the model calls `gadak_query` twice and answers with the epic
    keys. Nothing is scripted, so takes differ; re-run until one reads well.
 
 The point of the clip: the agent answers a question **JQL cannot express**
 (reopen history aggregated by epic) from a local file, without scraping a UI.
 
 If the host has no Claude Code login, `prepare-agent.sh` refuses and the tape
-cannot run — the earlier CLI-only version of this tape (`scry search` / `scry
-sql` / `scry issue` / `scry status`) is in git history if you need a fallback.
+cannot run — the earlier CLI-only version of this tape (`gadak search` / `gadak
+sql` / `gadak issue` / `gadak status`) is in git history if you need a fallback.
 
 ## Font notes (Hangul alignment)
 
@@ -193,7 +193,7 @@ alignment — note that in the tape comment when you do.
   is a bare `$ ` — **no username, hostname, or home path**.
 - `HOME` is redirected to `tools/tapes/.tmp/fake-home` for the recording shell.
 - `agent.tape` goes further, because Claude Code prints paths and account
-  state. `prepare-agent.sh` builds `/private/tmp/scry-demo` (a neutral path, so
+  state. `prepare-agent.sh` builds `/private/tmp/gadak-demo` (a neutral path, so
   `claude mcp add` has nothing identifying to print), copies the credential file
   mode 0600, and copies **only** `accountUuid` / `organizationUuid` /
   `billingType` / `seatTier` from the account block — `organizationName`,
@@ -227,10 +227,10 @@ ffmpeg -y -ss 00:00:02 -i docs/media/web-demo.gif -frames:v 1 /tmp/web-frame.png
 ```text
 e2e/demo/
   playwright.config.ts   # video on, fixed viewport — not the E2E suite
-  web-demo.spec.ts       # SCRY_MEDIA=1 gated walkthrough
+  web-demo.spec.ts       # GADAK_MEDIA=1 gated walkthrough
   export-video.sh        # webm → gif (palette 2-pass) + mp4
 tools/tapes/
-  prepare.sh             # build binary, seed SCRY_HOME from demo.db
+  prepare.sh             # build binary, seed GADAK_HOME from demo.db
   prepare-agent.sh       # isolated HOME + auth for the Claude Code take
   tui.tape / agent.tape  # VHS scripts
   .tmp/                  # disposable (gitignored)

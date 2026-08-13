@@ -4,7 +4,7 @@
 #   Repo → Settings → Pages → Build and deployment → Source: GitHub Actions
 #
 # After the first successful run the demo is at:
-#   https://<owner>.github.io/scry/
+#   https://<owner>.github.io/gadak/
 #
 # Only examples/demo.db + examples/attachments (already scrubbed public fixtures)
 # are baked into the artifact. Never point export-static at a personal mirror.
@@ -48,7 +48,7 @@ jobs:
       - run: npm ci
 
       - name: Build binary
-        run: CGO_ENABLED=0 go build -trimpath -o bin/scry ./cmd/scry
+        run: CGO_ENABLED=0 go build -trimpath -o bin/gadak ./cmd/gadak
 
       - name: Build hosted demo (UI + static snapshot)
         run: node tools/hosted-demo/build.mjs

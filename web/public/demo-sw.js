@@ -2,7 +2,7 @@
  *
  * Only shipped when VITE_HOSTED_DEMO=1. Intercepts fetch() under the app's
  * apiBase / authBase and rewrites them onto the static snapshot files that
- * `scry export-static` baked next to the UI:
+ * `gadak export-static` baked next to the UI:
  *
  *   bootstrap/                         → bootstrap.json
  *   {key}/detail/                      → detail/{key}.json
@@ -11,11 +11,11 @@
  *   search/                            → 404 (client toasts; demo limit)
  *   POST|PUT|PATCH|DELETE              → 501 demo_read_only
  *
- * Scope is the Vite base path (e.g. /scry/ on GitHub Pages project sites).
+ * Scope is the Vite base path (e.g. /gadak/ on GitHub Pages project sites).
  */
 /* eslint-disable no-restricted-globals */
 
-const SCOPE = self.registration.scope // trailing slash, e.g. https://x.github.io/scry/
+const SCOPE = self.registration.scope // trailing slash, e.g. https://x.github.io/gadak/
 
 self.addEventListener('install', (event) => {
   // Activate on first visit without waiting for a tab close.

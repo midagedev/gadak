@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
-// seedProfile writes config.json and an empty migrated scry.db under SCRY_HOME
+// seedProfile writes config.json and an empty migrated gadak.db under GADAK_HOME
 // for the named profile ("" = default root).
 func seedProfile(t *testing.T, name string, cfg *config.Config) {
 	t.Helper()
@@ -38,7 +38,7 @@ func seedProfile(t *testing.T, name string, cfg *config.Config) {
 	if err := loaded.Save(); err != nil {
 		t.Fatal(err)
 	}
-	dbPath := filepath.Join(dir, "scry.db")
+	dbPath := filepath.Join(dir, "gadak.db")
 	db, err := store.Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func seedProfile(t *testing.T, name string, cfg *config.Config) {
 func setupHome(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 	t.Cleanup(func() { config.SetProfile("") })
 	config.SetProfile("")
 }

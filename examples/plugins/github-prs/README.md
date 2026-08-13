@@ -2,15 +2,15 @@
 
 Attach GitHub pull requests to mirrored issues as `kind='prs'` enrichments.
 
-The scry core never talks to GitHub. This script is a separate process: it
+The gadak core never talks to GitHub. This script is a separate process: it
 reads PRs (live API or a JSON fixture), finds issue keys like `NMB-42` in the
 branch name, title, and body, and upserts rows into `enrichments`.
 
 ## Why
 
-When someone opens an issue in the scry UI, they want the related PRs next to
+When someone opens an issue in the gadak UI, they want the related PRs next to
 the description — without waiting for a Jira development panel, and without
-baking a GitHub client into the scry binary.
+baking a GitHub client into the gadak binary.
 
 ## Payload contract
 
@@ -39,19 +39,19 @@ shares that flag today).
 
 - Python 3.9+ (stdlib only)
 - Live mode: `GH_TOKEN` (or `GITHUB_TOKEN`) with `repo` read access
-- A scry mirror SQLite file (`scry.db`)
+- A gadak mirror SQLite file (`gadak.db`)
 
 ## Quick start (offline, no token)
 
 ```sh
-# from the scry repo root
-cp examples/demo.db /tmp/scry-plugin.db
+# from the gadak repo root
+cp examples/demo.db /tmp/gadak-plugin.db
 
 python3 examples/plugins/github-prs/github_prs.py example/app \
-  --db /tmp/scry-plugin.db \
+  --db /tmp/gadak-plugin.db \
   --from-json examples/plugins/github-prs/sample-prs.json
 
-sqlite3 /tmp/scry-plugin.db \
+sqlite3 /tmp/gadak-plugin.db \
   "SELECT key, kind, payload FROM enrichments WHERE kind='prs' ORDER BY key;"
 ```
 
@@ -66,7 +66,7 @@ NMB-111|prs|[{"number":42,...}]
 
 ```sh
 export GH_TOKEN=ghp_...   # fine-grained or classic, read-only is enough
-python3 examples/plugins/github-prs/github_prs.py owner/repo --db ~/.scry/scry.db
+python3 examples/plugins/github-prs/github_prs.py owner/repo --db ~/.gadak/gadak.db
 ```
 
 ## Flags
@@ -74,8 +74,8 @@ python3 examples/plugins/github-prs/github_prs.py owner/repo --db ~/.scry/scry.d
 | Flag | Meaning |
 | --- | --- |
 | `REPO` | `owner/name` (required unless `--from-json`) |
-| `--db PATH` | Mirror path (default `$SCRY_HOME/scry.db` or `~/.scry/scry.db`) |
-| `--profile NAME` | Use `…/profiles/NAME/scry.db` when `--db` is omitted |
+| `--db PATH` | Mirror path (default `$GADAK_HOME/gadak.db` or `~/.gadak/gadak.db`) |
+| `--profile NAME` | Use `…/profiles/NAME/gadak.db` when `--db` is omitted |
 | `--from-json FILE` | Offline PR list (GitHub REST shape or `{ "pulls": [...] }`) |
 | `--state all\|open\|closed` | Live API filter (default `all`) |
 | `--dry-run` | Print planned rows; no write, no version bump |

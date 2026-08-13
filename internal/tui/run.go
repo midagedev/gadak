@@ -1,4 +1,4 @@
-// Package tui is the terminal issue navigator for scry.
+// Package tui is the terminal issue navigator for gadak.
 //
 // It reads the local mirror only for list/detail; write actions (comment,
 // transition, assignee) call Jira and re-mirror via sync.SyncIssue when a
@@ -10,8 +10,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // Run starts the issue navigator. It blocks until the user quits. version is
@@ -25,7 +25,7 @@ func Run(cfg *config.Config, db *store.DB, version string) error {
 	}
 	m := newModel(cfg, db)
 	m.version = version
-	// Ambient neon runs only in a real session: SCRY_NO_ANIM / NO_COLOR turn
+	// Ambient neon runs only in a real session: GADAK_NO_ANIM / NO_COLOR turn
 	// it off, and tests never set animOn at all.
 	m.animOn = animEnabled()
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())

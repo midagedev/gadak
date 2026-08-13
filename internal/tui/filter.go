@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // Tab is the status-category filter. Logic keys on status_category only.

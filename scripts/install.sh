@@ -1,22 +1,22 @@
 #!/bin/sh
-# Install scry from the latest GitHub Release into ~/.local/bin (or $SCRY_INSTALL_DIR).
+# Install gadak from the latest GitHub Release into ~/.local/bin (or $GADAK_INSTALL_DIR).
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/midagedev/scry/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/midagedev/gadak/main/scripts/install.sh | sh
 #
 # Env:
-#   SCRY_INSTALL_DIR  install directory (default: $HOME/.local/bin)
-#   SCRY_VERSION      release tag to install (default: latest), e.g. v0.1.0
-#   SCRY_REPO         owner/name (default: midagedev/scry)
+#   GADAK_INSTALL_DIR  install directory (default: $HOME/.local/bin)
+#   GADAK_VERSION      release tag to install (default: latest), e.g. v0.1.0
+#   GADAK_REPO         owner/name (default: midagedev/gadak)
 #
 # Verifies the archive against checksums.txt (sha256) from the same release.
 # POSIX sh; needs curl, tar, and either sha256sum or shasum.
 
 set -eu
 
-REPO="${SCRY_REPO:-midagedev/scry}"
-INSTALL_DIR="${SCRY_INSTALL_DIR:-${HOME}/.local/bin}"
-BIN_NAME="scry"
+REPO="${GADAK_REPO:-midagedev/gadak}"
+INSTALL_DIR="${GADAK_INSTALL_DIR:-${HOME}/.local/bin}"
+BIN_NAME="gadak"
 GITHUB_API="https://api.github.com"
 GITHUB_DL="https://github.com"
 
@@ -52,8 +52,8 @@ esac
 
 # --- version / assets -------------------------------------------------------
 
-if [ -n "${SCRY_VERSION:-}" ]; then
-  tag="$SCRY_VERSION"
+if [ -n "${GADAK_VERSION:-}" ]; then
+  tag="$GADAK_VERSION"
 else
   # Prefer the Releases "latest" redirect; fall back to the API.
   latest_url="$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
@@ -79,7 +79,7 @@ base_url="${GITHUB_DL}/${REPO}/releases/download/${tag}"
 archive_url="${base_url}/${archive}"
 checksums_url="${base_url}/checksums.txt"
 
-tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/scry-install.XXXXXX")"
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/gadak-install.XXXXXX")"
 cleanup() { rm -rf "$tmpdir"; }
 trap cleanup EXIT INT HUP TERM
 
@@ -87,7 +87,7 @@ printf 'install.sh: fetching %s (%s/%s)\n' "$tag" "$os" "$arch" >&2
 
 if ! curl -fsSL -o "${tmpdir}/${archive}" "$archive_url"; then
   err "download failed: ${archive_url}
-  Is there a published release for ${tag}? Archives look like scry_<version>_<os>_<arch>.tar.gz"
+  Is there a published release for ${tag}? Archives look like gadak_<version>_<os>_<arch>.tar.gz"
 fi
 
 if ! curl -fsSL -o "${tmpdir}/checksums.txt" "$checksums_url"; then
@@ -149,4 +149,4 @@ case ":${PATH}:" in
     ;;
 esac
 
-printf 'install.sh: done. Try: scry version && scry demo\n' >&2
+printf 'install.sh: done. Try: gadak version && gadak demo\n' >&2

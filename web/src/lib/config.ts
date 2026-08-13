@@ -3,7 +3,7 @@
  *
  * The built bundle must stay tenant-neutral: no Jira site URL, project key,
  * team label, or API base is allowed to be hardcoded in application code.
- * `scry serve` writes the effective config to `<base>config.json`, this module
+ * `gadak serve` writes the effective config to `<base>config.json`, this module
  * loads it before mount, and everything else reads it through `config()`.
  *
  * Missing or unreachable config falls back to DEFAULTS, so the app still boots
@@ -11,7 +11,7 @@
  */
 
 /** Optional surfaces. Each one needs a server capability that may be absent. */
-export interface ScryFeatures {
+export interface GadakFeatures {
   /** Personal activity feed (mentions, watched issues, assignment changes). */
   feed: boolean
   /** Web Push notifications for feed events. */
@@ -24,7 +24,7 @@ export interface ScryFeatures {
   teamGroups: boolean
 }
 
-export interface ScryConfig {
+export interface GadakConfig {
   /** Base path of the issues REST API, trailing slash included. */
   apiBase: string
   /** Base path of the auth API, trailing slash included. */
@@ -65,10 +65,10 @@ export interface ScryConfig {
    * handle. A browser tab has neither, hence the flag rather than a media query.
    */
   desktop: boolean
-  features: ScryFeatures
+  features: GadakFeatures
 }
 
-const DEFAULTS: ScryConfig = {
+const DEFAULTS: GadakConfig = {
   apiBase: '/api/v1/issues/',
   authBase: '/api/v1/auth/',
   jiraBaseUrl: '',
@@ -90,9 +90,9 @@ const DEFAULTS: ScryConfig = {
   },
 }
 
-let current: ScryConfig = DEFAULTS
+let current: GadakConfig = DEFAULTS
 
-export function config(): ScryConfig {
+export function config(): GadakConfig {
   return current
 }
 
@@ -101,16 +101,16 @@ export function config(): ScryConfig {
  * (column, filter field, grouping mode, panel, network call) asks here — a flag
  * that nobody reads is a flag that does nothing.
  */
-export function feature(name: keyof ScryFeatures): boolean {
+export function feature(name: keyof GadakFeatures): boolean {
   return current.features[name]
 }
 
-/** True on the public hosted demo. See ScryConfig.hostedDemo. */
+/** True on the public hosted demo. See GadakConfig.hostedDemo. */
 export function isHostedDemo(): boolean {
   return current.hostedDemo
 }
 
-/** True inside the desktop app window. See ScryConfig.desktop. */
+/** True inside the desktop app window. See GadakConfig.desktop. */
 export function isDesktop(): boolean {
   return current.desktop
 }
@@ -131,7 +131,7 @@ export function basePath(): string {
 }
 
 /**
- * Workspace mount name when the app is served under /w/<name>/ (one scry
+ * Workspace mount name when the app is served under /w/<name>/ (one gadak
  * process serving several profile mirrors), '' on the primary. Build-time
  * BASE_URL cannot know this — the same bundle serves every mount — so it is
  * derived from the URL path at runtime.
@@ -154,11 +154,11 @@ export function runtimeBase(): string {
  * Fetch `<base>config.json` and merge it over DEFAULTS. Never throws — a missing
  * or malformed file leaves the defaults in place so the shell still renders.
  */
-export async function loadConfig(): Promise<ScryConfig> {
+export async function loadConfig(): Promise<GadakConfig> {
   try {
     const res = await fetch(`${runtimeBase()}config.json`, { credentials: 'same-origin' })
     if (res.ok) {
-      const raw = (await res.json()) as Partial<ScryConfig>
+      const raw = (await res.json()) as Partial<GadakConfig>
       current = {
         ...DEFAULTS,
         ...raw,
@@ -166,7 +166,7 @@ export async function loadConfig(): Promise<ScryConfig> {
       }
     }
   } catch {
-    /* offline / not served by scry — keep defaults */
+    /* offline / not served by gadak — keep defaults */
   }
   return current
 }

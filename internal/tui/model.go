@@ -15,10 +15,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/jira"
-	"github.com/midagedev/scry/internal/selfupdate"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/selfupdate"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // mode is the top-level UI state.
@@ -960,11 +960,11 @@ func (m Model) viewList() string {
 
 // renderHeader: app name + profile chip + watermark/sync age on one bar.
 func (m Model) renderHeader(w int) string {
-	left := styleBrand.Render(" scry ")
+	left := styleBrand.Render(" gadak ")
 	if m.animOn {
 		// Brand wordmark shimmers with the global phase — the one place the
 		// gradient runs at full strength.
-		left = " " + shimmer("scry", m.animPhase) + " "
+		left = " " + shimmer("gadak", m.animPhase) + " "
 	}
 	if p := config.Profile(); p != "" {
 		left += styleChip.Render(p)

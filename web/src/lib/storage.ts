@@ -1,6 +1,6 @@
 /*
  * localStorage key helpers + one-shot migration.
- * Old prefix `issue-nav:` → `scry:`. Call once at app boot.
+ * Old prefixes `issue-nav:` and `scry:` → `gadak:`. Call once at app boot.
  */
 
 import { workspaceName } from './config'
@@ -13,25 +13,25 @@ const WS = workspaceName() ? `ws:${workspaceName()}:` : ''
 /** Keys in active use. */
 export const STORAGE_KEYS = {
   /** Fallback only — holds the set when the server does not accept favorites (hosted demo). */
-  favorites: `scry:${WS}favorites`,
+  favorites: `gadak:${WS}favorites`,
   /**
    * Favorites display order. The set itself is owned by the server (`favorites` table),
    * but that table has no order column and returns insert order only. Drag-made order is
    * this browser's display preference, so it lives here — intentional split of ownership
    * between set (server) and order (local).
    */
-  favoritesOrder: `scry:${WS}favorites-order`,
-  recent: `scry:${WS}recent`,
-  personalViews: `scry:${WS}personal-views`,
-  lastView: `scry:${WS}last-view`,
+  favoritesOrder: `gadak:${WS}favorites-order`,
+  recent: `gadak:${WS}recent`,
+  personalViews: `gadak:${WS}personal-views`,
+  lastView: `gadak:${WS}last-view`,
   /** Last document-view tab (viewed / updated / author). */
-  docsTab: `scry:${WS}docs-tab`,
+  docsTab: `gadak:${WS}docs-tab`,
 } as const
 
-/** Prefix for recency.ts (`scry:recent:` + kind). */
-export const RECENT_KIND_PREFIX = `scry:${WS}recent:`
+/** Prefix for recency.ts (`gadak:recent:` + kind). */
+export const RECENT_KIND_PREFIX = `gadak:${WS}recent:`
 
-/** Migration only — runtime reads/writes all use scry:. */
+/** Migration only — runtime reads/writes all use gadak:. */
 const LEGACY = {
   favorites: 'issue-nav:favorites',
   recent: 'issue-nav:recent',
@@ -45,10 +45,16 @@ const EXACT_MIGRATIONS: [string, string][] = [
   [LEGACY.recent, STORAGE_KEYS.recent],
   [LEGACY.personalViews, STORAGE_KEYS.personalViews],
   [LEGACY.lastView, STORAGE_KEYS.lastView],
+  [`scry:${WS}favorites`, STORAGE_KEYS.favorites],
+  [`scry:${WS}favorites-order`, STORAGE_KEYS.favoritesOrder],
+  [`scry:${WS}recent`, STORAGE_KEYS.recent],
+  [`scry:${WS}personal-views`, STORAGE_KEYS.personalViews],
+  [`scry:${WS}last-view`, STORAGE_KEYS.lastView],
+  [`scry:${WS}docs-tab`, STORAGE_KEYS.docsTab],
 ]
 
 /**
- * One-shot migrate of old `issue-nav:*` keys to `scry:*`.
+ * One-shot migrate of old `issue-nav:*` and `scry:*` keys to `gadak:*`.
  * If the new key already exists, leave its value and only drop the old key. Not reversible.
  * Quietly ignore localStorage exceptions (private mode, etc.) — same as other call sites.
  */
@@ -66,23 +72,26 @@ export function migrateStorageKeys(): void {
       localStorage.removeItem(oldKey)
     }
 
-    // Recency prefix scan: issue-nav:recent:<kind> → scry:recent:<kind>
-    // (exact `issue-nav:recent` already handled above — match colon prefix only)
-    const legacyRecentKeys: string[] = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i)
-      if (k && k.startsWith(LEGACY.recentKindPrefix)) legacyRecentKeys.push(k)
-    }
-    for (const oldKey of legacyRecentKeys) {
-      const kind = oldKey.slice(LEGACY.recentKindPrefix.length)
-      const newKey = RECENT_KIND_PREFIX + kind
-      const oldVal = localStorage.getItem(oldKey)
-      if (oldVal !== null && localStorage.getItem(newKey) === null) {
-        localStorage.setItem(newKey, oldVal)
-      }
-      localStorage.removeItem(oldKey)
-    }
+    migratePrefix(LEGACY.recentKindPrefix, RECENT_KIND_PREFIX)
+    migratePrefix('scry:recent:', RECENT_KIND_PREFIX)
+    migratePrefix('scry:comment-draft:', 'gadak:comment-draft:')
   } catch {
     /* private mode / unavailable — ignore */
+  }
+}
+
+function migratePrefix(oldPrefix: string, newPrefix: string): void {
+  const oldKeys: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)
+    if (k && k.startsWith(oldPrefix)) oldKeys.push(k)
+  }
+  for (const oldKey of oldKeys) {
+    const newKey = newPrefix + oldKey.slice(oldPrefix.length)
+    const oldVal = localStorage.getItem(oldKey)
+    if (oldVal !== null && localStorage.getItem(newKey) === null) {
+      localStorage.setItem(newKey, oldVal)
+    }
+    localStorage.removeItem(oldKey)
   }
 }

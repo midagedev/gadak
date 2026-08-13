@@ -5,8 +5,8 @@
 Populates a throwaway Jira Cloud site with a realistic backlog: releases,
 components, issues, real transition history, comments, and issue links.
 
-Used to produce the data behind scry's screenshots and `examples/demo.db`, and
-reusable by anyone who wants a demo Jira to point scry at.
+Used to produce the data behind gadak's screenshots and `examples/demo.db`, and
+reusable by anyone who wants a demo Jira to point gadak at.
 
 ```bash
 export JIRA_SITE=https://your-site.atlassian.net
@@ -56,7 +56,7 @@ go run ./tools/seed-demo --data examples/demo-seed.json --repair-states
   accounts. The script reads `project/{key}/statuses`, which is not localized.
 - Jira assigns `created` at insert time with no way to backdate, so seeded issues
   share roughly one creation time. Realistic time spread is applied by
-  `scry snapshot`, not here.
+  `gadak snapshot`, not here.
 - Deleting issues needs the "Delete Issues" permission, which the default
   company-managed scheme does not grant. Plan runs so you do not need to undo them.
 - Default workflows offer a direct `Backlog -> Done` edge. Taking it leaves a
@@ -76,7 +76,7 @@ go run ./tools/seed-demo --data examples/demo-seed.json --repair-states
 ## `hosted-demo`
 
 Builds the zero-install hosted demo into `dist/hosted/` (Vite with
-`VITE_HOSTED_DEMO=1` + `scry export-static` over `examples/demo.db`). See
+`VITE_HOSTED_DEMO=1` + `gadak export-static` over `examples/demo.db`). See
 `make hosted-demo` and ADR 0004 addendum.
 
 ```bash
@@ -86,7 +86,7 @@ node tools/hosted-demo/build.mjs
 
 ## `bench-fixture`
 
-Builds a deterministic synthetic `scry.db` for latency work (T6.7 / G5). No
+Builds a deterministic synthetic `gadak.db` for latency work (T6.7 / G5). No
 network — only `internal/store`.
 
 ```bash

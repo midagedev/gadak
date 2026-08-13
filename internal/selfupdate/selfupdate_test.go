@@ -53,7 +53,7 @@ func TestCheck_networkThenCache(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"tag_name": "v0.3.1",
-			"html_url": "https://github.com/midagedev/scry/releases/tag/v0.3.1",
+			"html_url": "https://github.com/midagedev/gadak/releases/tag/v0.3.1",
 		})
 	}))
 	t.Cleanup(srv.Close)
@@ -167,7 +167,7 @@ func TestCheck_staleCacheRefetches(t *testing.T) {
 		hits.Add(1)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"tag_name": "v0.4.0",
-			"html_url": "https://github.com/midagedev/scry/releases/tag/v0.4.0",
+			"html_url": "https://github.com/midagedev/gadak/releases/tag/v0.4.0",
 		})
 	}))
 	t.Cleanup(srv.Close)

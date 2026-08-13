@@ -75,7 +75,7 @@ func TestSchemaMatchesDataModel(t *testing.T) {
 }
 
 func TestMigrateForwardIsIdempotent(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "scry.db")
+	path := filepath.Join(t.TempDir(), "gadak.db")
 	db, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -111,7 +111,7 @@ func TestMigrateForwardIsIdempotent(t *testing.T) {
 }
 
 func TestOpenRefusesNewerSchema(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "scry.db")
+	path := filepath.Join(t.TempDir(), "gadak.db")
 	db, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +128,7 @@ func TestOpenRefusesNewerSchema(t *testing.T) {
 	raw.Close()
 
 	if _, err := Open(path); err == nil {
-		t.Fatal("opened a database written by a newer scry")
+		t.Fatal("opened a database written by a newer gadak")
 	} else if !strings.Contains(err.Error(), "newer") {
 		t.Fatalf("error should say the schema is newer, got: %v", err)
 	}
@@ -153,9 +153,9 @@ func TestPragmas(t *testing.T) {
 }
 
 // A reader must not wait on a writer: agents query this file with sqlite3 while
-// `scry sync --watch` is writing to it.
+// `gadak sync --watch` is writing to it.
 func TestWALReaderNotBlockedByWriter(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "scry.db")
+	path := filepath.Join(t.TempDir(), "gadak.db")
 	writer := openTemp(t, path)
 	seed(t, writer)
 
@@ -351,7 +351,7 @@ func TestAbsentTextIsNull(t *testing.T) {
 
 func openTemp(t *testing.T, path ...string) *DB {
 	t.Helper()
-	p := filepath.Join(t.TempDir(), "scry.db")
+	p := filepath.Join(t.TempDir(), "gadak.db")
 	if len(path) > 0 {
 		p = path[0]
 	}
@@ -366,7 +366,7 @@ func openTemp(t *testing.T, path ...string) *DB {
 // The first migration that has to apply to an already-shipped database: v1 was
 // released before the plugin boundary existed.
 func TestMigrateFromV1(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "scry.db")
+	path := filepath.Join(t.TempDir(), "gadak.db")
 	raw, err := sql.Open("sqlite", "file:"+path)
 	if err != nil {
 		t.Fatal(err)
@@ -434,7 +434,7 @@ func TestOpenSetsDBFileMode0600(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("file permission bits are not meaningful on Windows")
 	}
-	path := filepath.Join(t.TempDir(), "scry.db")
+	path := filepath.Join(t.TempDir(), "gadak.db")
 	db, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -460,7 +460,7 @@ func TestOpenTightensExistingDBMode(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("file permission bits are not meaningful on Windows")
 	}
-	path := filepath.Join(t.TempDir(), "scry.db")
+	path := filepath.Join(t.TempDir(), "gadak.db")
 	// Seed a world-readable DB the way SQLite historically left them.
 	raw, err := sql.Open("sqlite", "file:"+path)
 	if err != nil {
@@ -494,7 +494,7 @@ func TestOpenCreatesDataDir0700(t *testing.T) {
 	}
 	// Nested path so Open must create the data directory itself.
 	dir := filepath.Join(t.TempDir(), "nested", "data")
-	path := filepath.Join(dir, "scry.db")
+	path := filepath.Join(dir, "gadak.db")
 	db, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -522,7 +522,7 @@ func TestOpenTightensExistingDataDir(t *testing.T) {
 		t.Fatalf("setup: dir mode %04o, want 0755", got)
 	}
 
-	path := filepath.Join(dir, "scry.db")
+	path := filepath.Join(dir, "gadak.db")
 	db, err := Open(path)
 	if err != nil {
 		t.Fatal(err)

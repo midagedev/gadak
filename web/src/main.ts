@@ -10,7 +10,7 @@ if (!target) throw new Error('#app not found')
 /**
  * Hosted-demo only (VITE_HOSTED_DEMO=1): register the snapshot service worker
  * and wait until it controls this page so the first bootstrap/ fetch is
- * rewritten to bootstrap.json. Local `scry serve` builds never set the flag
+ * rewritten to bootstrap.json. Local `gadak serve` builds never set the flag
  * and never load demo-sw.js.
  *
  * Returns false when the demo cannot work here: no service-worker support, a
@@ -52,7 +52,7 @@ async function registerHostedDemoSW(): Promise<boolean> {
       new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 6000)),
     ])
   } catch (e) {
-    console.warn('[scry] hosted demo service worker failed to register', e)
+    console.warn('[gadak] hosted demo service worker failed to register', e)
     return false
   }
 }
@@ -108,7 +108,7 @@ void (async () => {
     return
   }
   await loadConfig()
-  // One-shot migrate issue-nav:* → scry:*. Before store onMount.
+  // One-shot migrate issue-nav:* → gadak:*. Before store onMount.
   migrateStorageKeys()
 
   // Clear boot shell and mount in its place.

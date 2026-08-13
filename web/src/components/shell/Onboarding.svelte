@@ -14,7 +14,7 @@
   /*
    * First-run setup, in the browser: connect → pick projects → first sync, then
    * an optional fourth step that connects an agent.
-   * `scry serve` plus this dialog is the whole path; the CLI is optional.
+   * `gadak serve` plus this dialog is the whole path; the CLI is optional.
    *
    * Shown in place of the list only while the mirror is empty AND setup is
    * incomplete (ListView gating) — once a single issue has synced this never
@@ -35,20 +35,20 @@
   let { onOpenSettings }: { onOpenSettings: () => void } = $props()
 
   const TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens'
-  const DOCS_BASE = 'https://github.com/midagedev/scry/blob/main/docs'
+  const DOCS_BASE = 'https://github.com/midagedev/gadak/blob/main/docs'
   const POLL_MS = 1000
 
-  // The CLI contract (cmd/scry/mcp_install.go): claude execs `claude mcp add`,
+  // The CLI contract (cmd/gadak/mcp_install.go): claude execs `claude mcp add`,
   // the other two print config to paste. Shown, never run — the server has no
   // endpoint for this on purpose, and anyone reading step 4 has a terminal.
-  // Two ways in, and the skill is first on purpose: what scry gives an agent is
+  // Two ways in, and the skill is first on purpose: what gadak gives an agent is
   // knowledge (the schema, the queries, the one filter mistake), not tools, so a
   // file that loads when it becomes relevant fits better than a server whose
   // tool definitions sit in context all session. MCP stays for clients with no
   // shell to run the CLI from.
-  const SKILL_COMMAND = 'scry skill install'
-  const CLAUDE_COMMAND = 'scry mcp install claude'
-  const MCP_COMMANDS = [CLAUDE_COMMAND, 'scry mcp install cursor', 'scry mcp install codex']
+  const SKILL_COMMAND = 'gadak skill install'
+  const CLAUDE_COMMAND = 'gadak mcp install claude'
+  const MCP_COMMANDS = [CLAUDE_COMMAND, 'gadak mcp install cursor', 'gadak mcp install codex']
 
   const INPUT =
     'h-control w-full rounded-md border border-border-strong bg-bg-base px-2.5 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-accent'

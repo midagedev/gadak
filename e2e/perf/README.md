@@ -4,7 +4,7 @@ Interaction latency budgets against a **~10,000-issue, 5,000-document** fixture.
 Budgets are not aspirations: they are **pinned from local p95** with CI headroom.
 
 The document half of that fixture is new in 2026-08-07, and its absence is worth
-recording: `scry snapshot` copies the issue axis only (its table list has no
+recording: `gadak snapshot` copies the issue axis only (its table list has no
 `pages` or `spaces`), so every fixture built from it held zero documents, and no
 budget could see the document lists at all. They shipped rendering every row —
 a 4.4s freeze in the desktop app on a 10,000-page mirror. A gate over a fixture
@@ -19,7 +19,7 @@ npm run test:perf
 
 What it does:
 
-1. `e2e/perf/make-fixture.sh` — `examples/demo.db` → `scry snapshot --scale 10000
+1. `e2e/perf/make-fixture.sh` — `examples/demo.db` → `gadak snapshot --scale 10000
    --now 2026-08-06T00:00:00Z` → `e2e/perf/.tmp/fixture.db` (gitignored), then
    the source mirror's 71 pages are cloned in SQL to 5,000 (snapshot cannot
    carry them). Clones drop `parent_id`: a cloned hierarchy would nest N copies
@@ -45,7 +45,7 @@ length decide the verdict. Anything that could actually answer a filter —
 `pages/`, `search/`, `bootstrap/`, `delta/` — still fails it.
 
 Main suite (`npm run test:e2e`) is untouched. This folder has its own
-`playwright.config.ts`. Specs skip unless `SCRY_PERF=1` so accidental discovery
+`playwright.config.ts`. Specs skip unless `GADAK_PERF=1` so accidental discovery
 by the main config does not fail CI.
 
 ## Budget philosophy
@@ -122,7 +122,7 @@ the measurement is honest and the new frontier is accepted.
 ```
 e2e/perf/
   make-fixture.sh      # deterministic 10k DB
-  serve.sh             # SCRY_HOME + scry serve :7878
+  serve.sh             # GADAK_HOME + gadak serve :7878
   playwright.config.ts
   perf.spec.ts         # budgets + instrumentation
   README.md

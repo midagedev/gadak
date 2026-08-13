@@ -130,7 +130,7 @@ func TestResolveAndInstall(t *testing.T) {
 		t.Skip("install-cli unsupported on windows")
 	}
 	root := t.TempDir()
-	source := filepath.Join(root, "scry-bin")
+	source := filepath.Join(root, "gadak-bin")
 	if err := os.WriteFile(source, []byte("x"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestInstallConflictRequiresForce(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	dest := filepath.Join(dir, "scry")
+	dest := filepath.Join(dir, "gadak")
 	if err := os.WriteFile(dest, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -219,8 +219,8 @@ func TestPathContainsAndExport(t *testing.T) {
 	if PathContains("/usr/bin:/bin", dir) {
 		t.Error("should not find dir")
 	}
-	line := PathExportLine("/opt/scry/bin", "/bin/zsh")
-	if !strings.Contains(line, ".zshrc") || !strings.Contains(line, `export PATH="/opt/scry/bin:$PATH"`) {
+	line := PathExportLine("/opt/gadak/bin", "/bin/zsh")
+	if !strings.Contains(line, ".zshrc") || !strings.Contains(line, `export PATH="/opt/gadak/bin:$PATH"`) {
 		t.Errorf("line = %q", line)
 	}
 }

@@ -1,10 +1,10 @@
 # Configuration reference
 
-scry stores its configuration in `~/.scry/config.json` (mode `0600`). A profile
-(`scry --profile x` or `SCRY_PROFILE=x`) moves both the file and the mirror under
-`~/.scry/profiles/<name>/`.
+gadak stores its configuration in `~/.gadak/config.json` (mode `0600`). A profile
+(`gadak --profile x` or `GADAK_PROFILE=x`) moves both the file and the mirror under
+`~/.gadak/profiles/<name>/`.
 
-A running `scry serve` also mounts every sibling profile as a **workspace**
+A running `gadak serve` also mounts every sibling profile as a **workspace**
 under `/w/<name>/` — full API, opened lazily on first request. The sidebar
 shows a switcher when more than one exists. `GET /api/v1/workspaces` lists
 them (name, site, projects — never credentials). Background sync, OS
@@ -26,13 +26,13 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 
 | Key | Type | Default | Where to edit | Applies |
 | --- | --- | --- | --- | --- |
-| `site` | string (URL) | _(empty)_ | Credential dialog / `PUT credential/` / `scry init` | Immediate for writes & deep links |
-| `email` | string | _(empty)_ | Credential dialog / `scry init` | Immediate |
-| `token` | string | _(empty)_ | Credential dialog / `scry init` | Immediate; **never** returned by `settings/` or `config.json` |
+| `site` | string (URL) | _(empty)_ | Credential dialog / `PUT credential/` / `gadak init` | Immediate for writes & deep links |
+| `email` | string | _(empty)_ | Credential dialog / `gadak init` | Immediate |
+| `token` | string | _(empty)_ | Credential dialog / `gadak init` | Immediate; **never** returned by `settings/` or `config.json` |
 | `tokenVerifiedAt` | string (RFC3339) | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `tokenOwner` | string | _(empty)_ | Set by successful credential verify | Read-only side effect |
-| `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sync / `scry init` | Next sync / list scope; UI reload after save |
-| `fields` | FieldSpec[] | `[]` | Auto on first full sync / `scry fields --apply` (read-only on Settings GET as `fieldSpecs`) | Next sync ingest; `fieldUsage` on Settings is project→alias fill counts |
+| `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sync / `gadak init` | Next sync / list scope; UI reload after save |
+| `fields` | FieldSpec[] | `[]` | Auto on first full sync / `gadak fields --apply` (read-only on Settings GET as `fieldSpecs`) | Next sync ingest; `fieldUsage` on Settings is project→alias fill counts |
 | `fieldMap` | map alias→field id | `{}` | Settings → Field mapping (legacy; synthesized into `fields` when `fields` is empty) | Next sync ingest |
 | `bodyFields` | string[] (field ids) | `[]` | Settings → Field mapping | Next sync (FTS body); additive with role=body specs |
 | `editableFields` | map alias→field id | `{}` | Settings → Field mapping (legacy; Kind-bearing specs also enable inline edit) | Immediate |
@@ -44,8 +44,8 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `features` | map of bool | keys: `feed`, `push`, `deploy`, `qa`, `teamGroups`; **`feed` defaults true when omitted**, others false | Settings → Features | Immediate after reload (client reads `config.json`) |
 | `qaDashboardUrl` | string | _(empty)_ | Settings → Features | Immediate after reload |
 | `staleThresholdHours` | int | `0` → client **72** | Settings → Sync | Immediate after reload |
-| `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | **After restart** of `scry serve` |
-| `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | **After restart** of `scry serve` |
+| `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | **After restart** of `gadak serve` |
+| `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | **After restart** of `gadak serve` |
 | `notify` | bool | **true** when absent | `config.json` (not on Settings UI) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
 | `updateCheck` | bool | **true** when absent | `config.json` (not on Settings UI) | Next `sync` / `status` / `serve` start; once-per-day GitHub release lookup (cached under the profile dir). Set `false` to opt out — no outbound traffic beyond Jira |
 
@@ -62,7 +62,7 @@ coalesces the first filled value.
 | `ids` | Field ids sharing that name, most-filled first |
 | `role` | `body` \| `facet` \| `user` \| `plain` |
 | `kind` | Editor: `option` \| `multi_option` \| `user` \| `version_array` \| empty |
-| `auto` | Discovery-owned; regenerated on `scry fields --apply` / re-discovery |
+| `auto` | Discovery-owned; regenerated on `gadak fields --apply` / re-discovery |
 
 When `fields` is empty, legacy `fieldMap` / `editableFields` are synthesized into
 specs for consumers. Discovery only writes `fields` (never rewrites `fieldMap`).
@@ -84,15 +84,15 @@ Below the floor → `400` with a clear `error` string; the file is not written.
 ### Why intervals need a restart
 
 `internal/sync.Watch` creates its tickers once at loop start from the `Config`
-passed in. `scry serve` starts that loop by default when a credential is
+passed in. `gadak serve` starts that loop by default when a credential is
 configured (`--no-sync` opts out). `PUT settings/` updates the on-disk file and
 the server’s atomic config for everything else (members, group rules,
-features…), but it does **not** rebuild the Watch tickers. Restart `scry serve`
+features…), but it does **not** rebuild the Watch tickers. Restart `gadak serve`
 to pick up new intervals.
 
 ### OS desktop notifications
 
-When the watch loop runs (`scry serve` with a credential, or `scry sync
+When the watch loop runs (`gadak serve` with a credential, or `gadak sync
 --watch`), each successful cycle may fire **one** bundled OS notification for
 new personal-feed events since `sync_state.last_notified_at` (macOS
 `osascript`, Linux `notify-send`; Windows is a quiet no-op). The body carries
@@ -101,7 +101,7 @@ the issue title only — never comment text. Set `"notify": false` in
 
 ### Update check
 
-Once a day, `scry sync` (after a successful run), `scry status`, and `scry
+Once a day, `gadak sync` (after a successful run), `gadak status`, and `gadak
 serve` may query GitHub's public releases API for this project and cache the
 answer under the profile directory (`update-check.json`). The request carries
 no account identifiers. Dev builds (`0.0.0-dev`) never check. Network errors
@@ -122,7 +122,7 @@ disable the lookup entirely (restores outbound traffic to Jira only).
 | `issueCount` / `commentCount` | Row counts in the mirror |
 | `schemaVersion` | Migration level |
 | `watermark` / `syncVersion` / `lastFullSyncAt` / `lastError` | From `sync_state` |
-| `scryVersion` | Build/version string (`server.Version`) |
+| `gadakVersion` | Build/version string (`server.Version`) |
 | `defaultSyncIntervalSec` / `defaultReconcileIntervalSec` | Placeholder defaults for the UI |
 
 Secrets never appear here. Paths have copy buttons in the Settings UI (including
@@ -130,10 +130,10 @@ a ready-to-paste `sqlite3 <dbPath>`).
 
 ---
 
-## Sharing team settings (`scry team export` / `import`)
+## Sharing team settings (`gadak team export` / `import`)
 
-Teams can commit a single file (for example `scry-team.json` in a repo) so a new
-member runs `scry init` then `scry team import scry-team.json` and gets the same
+Teams can commit a single file (for example `gadak-team.json` in a repo) so a new
+member runs `gadak init` then `gadak team import gadak-team.json` and gets the same
 views, field map, and group rules. Export is **whitelist-only**: new `Config`
 fields never leave the machine until someone explicitly adds them to the share
 list. Credentials and per-machine prefs are never included.
@@ -149,7 +149,7 @@ list. Credentials and per-machine prefs are never included.
 
 Import **merges** by default (fill empty settings keys; add views only when the
 name is new). `--overwrite` replaces conflicts. Prefer
-`scry team import FILE --dry-run` first. A file that contains credential keys
+`gadak team import FILE --dry-run` first. A file that contains credential keys
 (`site` / `token` / …) is rejected — do not hand-edit secrets into a share file.
 
 ---
@@ -158,43 +158,43 @@ name is new). `--overwrite` replaces conflicts. Prefer
 
 | Concern | How |
 | --- | --- |
-| Jira site / email / API token | Credential dialog, `PUT credential/`, or `scry init` — **not** settings PUT |
-| Unattended setup (agents, CI, provisioning) | `scry init` flags/env — see below |
-| Profile selection | CLI `--profile` / `SCRY_PROFILE` (separate home directory) |
-| `SCRY_HOME` override | Environment variable |
-| Binary version string in UI | `server.Version`, wired from `cmd/scry` ldflags by goreleaser (`main.version`); dev builds show `0.0.0-dev` |
-| Team views / field map / group rules (between people) | `scry team export` / `scry team import` (see above) |
-| Sync loop process | Start/stop `scry serve` (default when credentialed; `--no-sync` opts out) or `scry sync --watch` |
-| Keep serve across reboots | `scry install-service` (launchd / systemd user); `--uninstall` removes it |
+| Jira site / email / API token | Credential dialog, `PUT credential/`, or `gadak init` — **not** settings PUT |
+| Unattended setup (agents, CI, provisioning) | `gadak init` flags/env — see below |
+| Profile selection | CLI `--profile` / `GADAK_PROFILE` (separate home directory) |
+| `GADAK_HOME` override | Environment variable |
+| Binary version string in UI | `server.Version`, wired from `cmd/gadak` ldflags by goreleaser (`main.version`); dev builds show `0.0.0-dev` |
+| Team views / field map / group rules (between people) | `gadak team export` / `gadak team import` (see above) |
+| Sync loop process | Start/stop `gadak serve` (default when credentialed; `--no-sync` opts out) or `gadak sync --watch` |
+| Keep serve across reboots | `gadak install-service` (launchd / systemd user); `--uninstall` removes it |
 | OS desktop notifications | `"notify": false` in `config.json` to disable (default on) |
 
 There is no remaining day-to-day operational knob that only lives in the JSON
 file: intervals, projects, features, field maps, teams, and members are all on
 the Settings surface. Direct file edit still works for automation and recovery.
 
-### Unattended `scry init`
+### Unattended `gadak init`
 
 A prompt an agent cannot answer is a hang, so init is non-interactive whenever
 anything is supplied:
 
 | Value | Flag | Environment |
 | --- | --- | --- |
-| site | `--site <url>` | `SCRY_SITE` |
-| email | `--email <addr>` | `SCRY_EMAIL` |
-| projects | `--projects <A,B>` | `SCRY_PROJECTS` |
-| token | `--token-file <path>` / `--token-stdin` | `SCRY_TOKEN` |
+| site | `--site <url>` | `GADAK_SITE` |
+| email | `--email <addr>` | `GADAK_EMAIL` |
+| projects | `--projects <A,B>` | `GADAK_PROJECTS` |
+| token | `--token-file <path>` / `--token-stdin` | `GADAK_TOKEN` |
 
 Per value: flag beats environment beats the saved config. **There is no
 `--token` flag** — argv shows up in `ps` and shell history; passing one fails
 with a pointer to the three accepted paths.
 
-Using *any* flag or `SCRY_*` value turns prompting off entirely, so a missing
+Using *any* flag or `GADAK_*` value turns prompting off entirely, so a missing
 value errors with the list of what is missing rather than waiting on stdin.
 `--json` prints one object (`profile`, `account`, `site`, `projects`, `path`;
 never the token) and also forbids prompting, since a prompt would corrupt the
 document a caller is parsing.
 
-Running `scry init` bare in a terminal keeps the original behavior: all four
+Running `gadak init` bare in a terminal keeps the original behavior: all four
 values are re-asked with the current one shown, and an empty answer keeps it —
 which is how an expired token gets replaced. The credential is always verified
 against `/myself` before anything is written.
@@ -205,9 +205,9 @@ against `/myself` before anything is written.
 
 | Path | Role |
 | --- | --- |
-| `$SCRY_HOME/config.json` or `~/.scry/config.json` | Settings + credential (0600) |
-| `$SCRY_HOME/scry.db` | SQLite mirror |
-| `~/.scry/profiles/<name>/` | Isolated config + mirror per profile |
+| `$GADAK_HOME/config.json` or `~/.gadak/config.json` | Settings + credential (0600) |
+| `$GADAK_HOME/gadak.db` | SQLite mirror |
+| `~/.gadak/profiles/<name>/` | Isolated config + mirror per profile |
 
 Never write issue rows into the DB by hand — the next sync overwrites them. The
 supported external write table is `enrichments` (see [PLUGINS.md](PLUGINS.md)).

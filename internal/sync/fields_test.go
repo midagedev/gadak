@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/fields"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fields"
 )
 
 func TestFieldListDiscoveryMode(t *testing.T) {
@@ -52,7 +52,7 @@ func TestFieldListDiscoveryMode(t *testing.T) {
 
 func TestDiscoveryE2ETwoProjectsCoalesce(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 
 	// Two projects; same logical name "Severity Level" under different ids.
 	// ALPHA fills customfield_10; BETA fills customfield_20. Body role text on ALPHA.
@@ -193,7 +193,7 @@ func TestDiscoveryE2ETwoProjectsCoalesce(t *testing.T) {
 }
 
 func TestReingestCustomIdempotent(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	// Sync without field map: discovery mode *all, but empty catalog → no specs.
 	// Then apply explicit specs via ReingestCustom.
 	site := newSite(t, "en")

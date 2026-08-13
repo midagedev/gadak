@@ -5,14 +5,14 @@ import (
 	"time"
 )
 
-// timeLayout is the millisecond-UTC form store.Now and the rest of scry write.
+// timeLayout is the millisecond-UTC form store.Now and the rest of gadak write.
 const timeLayout = "2006-01-02T15:04:05.000Z"
 
 func formatTime(t time.Time) string {
 	return t.UTC().Format(timeLayout)
 }
 
-// parseTime accepts the ISO forms Jira and scry write, including numeric offsets.
+// parseTime accepts the ISO forms Jira and gadak write, including numeric offsets.
 func parseTime(s string) (time.Time, bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {

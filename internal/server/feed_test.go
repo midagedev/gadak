@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // feedFixture seeds a small mirror where cfg.Email is the assignee of NMB-1 and

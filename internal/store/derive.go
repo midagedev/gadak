@@ -25,7 +25,7 @@ type DeriveInput struct {
 	Links           []Link
 }
 
-// Derived holds the columns scry computes because the source does not provide
+// Derived holds the columns gadak computes because the source does not provide
 // them. Rules are documented in data-model.md, "Derived field rules".
 type Derived struct {
 	StatusChangedAt   *string

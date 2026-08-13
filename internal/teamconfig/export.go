@@ -6,24 +6,24 @@ import (
 	"sort"
 	"time"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/secretscan"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/secretscan"
+	"github.com/midagedev/gadak/internal/store"
 )
 
-// CurrentFormat is the only scry_team_config version this build understands.
+// CurrentFormat is the only gadak_team_config version this build understands.
 const CurrentFormat = 1
 
 // Document is the on-disk team share file.
 type Document struct {
-	Version    int          `json:"scry_team_config"`
+	Version    int          `json:"gadak_team_config"`
 	ExportedAt string       `json:"exported_at"`
 	Settings   TeamSettings `json:"settings"`
 	Views      []ExportView `json:"views"`
 }
 
 // TeamSettings holds only the whitelist of Config fields that may be shared.
-// JSON tags match config.Config so a human can diff against ~/.scry/config.json.
+// JSON tags match config.Config so a human can diff against ~/.gadak/config.json.
 type TeamSettings struct {
 	Projects            []string                  `json:"projects,omitempty"`
 	Fields              []config.FieldSpec        `json:"fields,omitempty"`

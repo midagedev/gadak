@@ -8,7 +8,7 @@
 
   let { draft = $bindable() }: { draft: SettingsDraft } = $props()
 
-  /** Any hand edit pins the row (auto:false) so `scry fields --apply` keeps it. */
+  /** Any hand edit pins the row (auto:false) so `gadak fields --apply` keeps it. */
   function touchSpec(i: number) {
     draft.specsTouched = true
     draft.specs[i] = { ...draft.specs[i], auto: false }

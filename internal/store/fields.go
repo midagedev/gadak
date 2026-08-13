@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/midagedev/scry/internal/fields"
-	"github.com/midagedev/scry/internal/jira"
+	"github.com/midagedev/gadak/internal/fields"
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 // FieldUsageRow is one (project, alias) fill statistic from field_usage.
@@ -288,7 +288,7 @@ func (db *DB) ComputeFieldUsage(ctx context.Context, aliases []string) ([]FieldU
 }
 
 // HasCustomFieldKeysInRaw reports whether any stored raw document contains a
-// customfield_ key under fields. Used by `scry fields --apply` to refuse when
+// customfield_ key under fields. Used by `gadak fields --apply` to refuse when
 // the mirror was never synced with custom fields.
 func (db *DB) HasCustomFieldKeysInRaw(ctx context.Context) (bool, error) {
 	found := false

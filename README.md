@@ -1,17 +1,17 @@
 <p align="center">
-  <img src="docs/media/wordmark-dark.png#gh-dark-mode-only" width="380" alt="scry">
-  <img src="docs/media/wordmark-light.png#gh-light-mode-only" width="380" alt="scry">
+  <img src="docs/media/wordmark-dark.svg#gh-dark-mode-only" width="380" alt="gadak">
+  <img src="docs/media/wordmark-light.svg#gh-light-mode-only" width="380" alt="gadak">
 </p>
 
 <p align="center">
-  <a href="https://github.com/midagedev/scry/releases"><img src="https://img.shields.io/github/v/release/midagedev/scry" alt="Latest Release"></a>
-  <a href="https://github.com/midagedev/scry/actions/workflows/ci.yml"><img src="https://github.com/midagedev/scry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/midagedev/gadak/releases"><img src="https://img.shields.io/github/v/release/midagedev/gadak" alt="Latest Release"></a>
+  <a href="https://github.com/midagedev/gadak/actions/workflows/ci.yml"><img src="https://github.com/midagedev/gadak/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
 </p>
 
 <p align="center"><b>Ask your Jira the questions Jira can't answer.</b></p>
 
-scry mirrors Jira *and* Confluence into one local SQLite file — issues,
+gadak mirrors Jira *and* Confluence into one local SQLite file — issues,
 comments, history, wiki pages — indexed together and searchable in
 milliseconds. Ask it yourself from a keyboard-driven web UI or a TUI; let your
 coding agent ask in plain SQL. One binary, no server, no account.
@@ -21,7 +21,7 @@ you delete a directory and have lost nothing: Jira stays the source of truth,
 and nothing you do here is stored anywhere else.
 
 <p align="center">
-  <a href="https://midagedev.github.io/scry/"><b>▶&nbsp; Open the live demo</b></a>
+  <a href="https://midagedev.github.io/gadak/"><b>▶&nbsp; Open the live demo</b></a>
   &nbsp;—&nbsp; 534 issues + 71 wiki pages, in your browser, right now.
 </p>
 
@@ -33,15 +33,15 @@ and nothing you do here is stored anywhere else.
 </p>
 
 ```bash
-brew install midagedev/tap/scry
+brew install midagedev/tap/gadak
 
-scry init && scry sync    # Jira (and Confluence) -> ~/.scry/scry.db
-scry serve                # http://scry.localhost:7777
-scry tui                  # same mirror, in your terminal (D toggles docs)
-scry sql "select key, summary from issues_full where reopen_count > 1"
+gadak init && gadak sync    # Jira (and Confluence) -> ~/.gadak/gadak.db
+gadak serve                # http://gadak.localhost:7777
+gadak tui                  # same mirror, in your terminal (D toggles docs)
+gadak sql "select key, summary from issues_full where reopen_count > 1"
 ```
 
-That last query is the point. `reopen_count` is not a Jira field — scry derives
+That last query is the point. `reopen_count` is not a Jira field — gadak derives
 it from the changelog while it syncs, along with `reopen_reason` and the epic a
 sub-task ultimately rolls up to. Your site cannot answer "what keeps coming
 back?" at all; a local mirror answers it in a line.
@@ -89,12 +89,12 @@ the terminal, and the agent read the same store.
 
 | | For | Looks like |
 | --- | --- | --- |
-| **Web UI** | all-day triage — a browser tab (`scry serve`) or its own macOS window ([desktop app](docs/DESKTOP.md), no port at all) | a list you triage without the mouse (`j/k` walk, `x` multi-select, `s`/`a`/`c` status·assignee·comment in place), epic grouping and rollups, saved views, a ⌘K palette that finds issues *and* wiki pages, `/` to narrow whichever screen you are on, a freshness chip that shows the mirror's age and pulls it on click, full issue detail (rich text, comments, history, attachments), and wiki documents as a first-class citizen: recency-first lists with label chips, a filter that marks its matches, deep-linkable pages (`?doc=`), and cross-references both ways — the documents an issue's text mentions on the issue, the issues a page mentions on the page |
-| **TUI** | people who live in the terminal | [`scry tui`](docs/TUI.md) — list, filter with live match highlight, `group_by=epic`, Ctrl+K palette, write actions, and `D` for the same wiki views with the same cross-references, all over the same mirror |
-| **CLI + SQL** | agents, scripts, one-off questions | `scry issue`, `scry search` (issues and pages), `scry sql`, plus the file itself |
+| **Web UI** | all-day triage — a browser tab (`gadak serve`) or its own macOS window ([desktop app](docs/DESKTOP.md), no port at all) | a list you triage without the mouse (`j/k` walk, `x` multi-select, `s`/`a`/`c` status·assignee·comment in place), epic grouping and rollups, saved views, a ⌘K palette that finds issues *and* wiki pages, `/` to narrow whichever screen you are on, a freshness chip that shows the mirror's age and pulls it on click, full issue detail (rich text, comments, history, attachments), and wiki documents as a first-class citizen: recency-first lists with label chips, a filter that marks its matches, deep-linkable pages (`?doc=`), and cross-references both ways — the documents an issue's text mentions on the issue, the issues a page mentions on the page |
+| **TUI** | people who live in the terminal | [`gadak tui`](docs/TUI.md) — list, filter with live match highlight, `group_by=epic`, Ctrl+K palette, write actions, and `D` for the same wiki views with the same cross-references, all over the same mirror |
+| **CLI + SQL** | agents, scripts, one-off questions | `gadak issue`, `gadak search` (issues and pages), `gadak sql`, plus the file itself |
 
 <p align="center">
-  <img src="docs/media/tui.gif" alt="scry tui: neon list with live filter highlighting, the Ctrl+K command palette, and issue detail" width="800">
+  <img src="docs/media/tui.gif" alt="gadak tui: neon list with live filter highlighting, the Ctrl+K command palette, and issue detail" width="800">
   <br>
   <sub>Generated from <a href="tools/tapes/tui.tape">tools/tapes/tui.tape</a> (VHS).</sub>
 </p>
@@ -112,7 +112,7 @@ headers show the epic's actual title, an epic's detail rolls up its children
 (`12 done / 14`), and both breadcrumbs — issue and document — are clickable.
 
 So is the seam between the sources. Jira and Confluence never tell each other
-what mentions what, but the text does: scry extracts issue keys from page
+what mentions what, but the text does: gadak extracts issue keys from page
 bodies and wiki links from issue text into an `item_refs` table while it
 syncs. That is why an issue can list the design docs that cite it and a page
 can list the tickets it references — a join neither product can make, and the
@@ -124,18 +124,18 @@ opens at the speed of the rest of the app — and keeps rendering offline.
 
 ## For agents
 
-This is half the reason scry exists, so it has its own reference:
+This is half the reason gadak exists, so it has its own reference:
 **[AGENTS.md](AGENTS.md)** — schema tour, query patterns, and the mistakes
 that silently return nothing. [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) is
 one paste per agent (Claude Code, Cursor, Codex, MCP). Hooking one up is one
 line:
 
 ```bash
-scry mcp install claude    # pins this binary and profile into the registration
+gadak mcp install claude    # pins this binary and profile into the registration
 ```
 
 <p align="center">
-  <img src="docs/media/agent.gif" alt="scry search, scry sql aggregation, and scry issue in a terminal" width="800">
+  <img src="docs/media/agent.gif" alt="gadak search, gadak sql aggregation, and gadak issue in a terminal" width="800">
   <br>
   <sub>A real agent session — one-line MCP registration, then a live cross-source answer.
   Generated from <a href="tools/tapes/agent.tape">tools/tapes/agent.tape</a> (VHS, unscripted model output).</sub>
@@ -146,21 +146,21 @@ full power:
 
 ```bash
 # What keeps coming back? (reopen_count is derived here — Jira has no such field)
-scry sql "select key, summary, reopen_count from issues_full
+gadak sql "select key, summary, reopen_count from issues_full
           where reopen_count > 0 order by reopened_at desc limit 20"
 
 # Full-text across issues AND wiki pages — one index, one query
-scry search "idempotency webhook"
+gadak search "idempotency webhook"
 
 # One issue whole, or a write straight through to Jira
-scry issue NMB-140 --json
-scry comment NMB-140 -m "Reproduced on staging."
+gadak issue NMB-140 --json
+gadak comment NMB-140 -m "Reproduced on staging."
 ```
 
-Reads are safe by construction: `scry sql` opens the database `mode=ro`, and
-MCP's `scry_query` additionally rejects anything that is not a SELECT — so an
+Reads are safe by construction: `gadak sql` opens the database `mode=ro`, and
+MCP's `gadak_query` additionally rejects anything that is not a SELECT — so an
 agent can be given the mirror without being given arbitrary `sqlite3`. When
-the mirror does not model an endpoint at all, [`scry api`](docs/AGENT_ACCESS.md)
+the mirror does not model an endpoint at all, [`gadak api`](docs/AGENT_ACCESS.md)
 passes the request through to your site: read-only unless you add `--write`,
 never on MCP.
 
@@ -168,7 +168,7 @@ Everything can hold the file at once — WAL with one writer (the sync loop),
 readers everywhere else — so `serve`, the TUI, and an agent coexist by design.
 
 One caveat we would rather you read here than discover later: **an agent that
-reads your mirror sends what it reads to whatever model it talks to.** scry
+reads your mirror sends what it reads to whatever model it talks to.** gadak
 itself sends nothing anywhere ([`SECURITY.md`](SECURITY.md)), but the agent
 will — scope the mirror to what the agent should see (project and space
 allowlists, or a separate profile).
@@ -183,11 +183,11 @@ token covers Jira and Confluence on the same site.
 app has the binary inside it:
 
 ```bash
-brew install midagedev/tap/scry     # macOS + Linux — the CLI, the web UI, the TUI
+brew install midagedev/tap/gadak     # macOS + Linux — the CLI, the web UI, the TUI
 ```
 
-or download `Scry-<version>-arm64.dmg` from the
-[latest release](https://github.com/midagedev/scry/releases/latest) for the
+or download `Gadak-<version>-arm64.dmg` from the
+[latest release](https://github.com/midagedev/gadak/releases/latest) for the
 [macOS app](docs/DESKTOP.md) — signed, notarized, sets itself up in its own
 window with no terminal at any point.
 
@@ -196,13 +196,13 @@ already on your disk; macOS just does not put an app bundle on your `PATH`.
 One command does:
 
 ```bash
-/Applications/Scry.app/Contents/Resources/bin/scry install-cli
+/Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
 ```
 
 Then first run:
 
 ```bash
-scry serve      # http://scry.localhost:7777 — setup happens in the browser
+gadak serve      # http://gadak.localhost:7777 — setup happens in the browser
 ```
 
 Other routes (install script, release archive, source build, Docker), wiki
@@ -214,11 +214,11 @@ mirroring, profiles for two sites, and the upgrade gotchas all live in
 Two axes, no forking required — see **[docs/EXTENDING.md](docs/EXTENDING.md)**.
 
 **Configuration** covers most of it, from the settings dialog or
-`~/.scry/config.json`: map your custom fields (severity, environment, whatever
+`~/.gadak/config.json`: map your custom fields (severity, environment, whatever
 your site calls them), classify issues into teams by label or component, choose
 which fields are inline-editable, set the staleness threshold and sync
 intervals, toggle features. Most keys apply without restart; sync intervals
-need a restart of `scry serve`. Full key table:
+need a restart of `gadak serve`. Full key table:
 [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 
 **The plugin boundary** covers the rest. The core contains zero GitHub, CD, or
@@ -233,12 +233,12 @@ schedule. The server merges them; the UI surfaces them. Working examples live in
 
 ```mermaid
 flowchart LR
-  Jira["Jira Cloud REST"] -->|"incremental sync"| DB["SQLite + FTS5<br/>~/.scry/scry.db"]
+  Jira["Jira Cloud REST"] -->|"incremental sync"| DB["SQLite + FTS5<br/>~/.gadak/gadak.db"]
   Wiki["Confluence REST"] -->|"incremental sync"| DB
-  DB --> Serve["scry serve"]
+  DB --> Serve["gadak serve"]
   Serve --> UI["Web UI<br/>(IndexedDB cache)"]
-  DB --> TUI["scry tui"]
-  DB --> Agent["Coding agent<br/>sqlite3 / scry sql / MCP"]
+  DB --> TUI["gadak tui"]
+  DB --> Agent["Coding agent<br/>sqlite3 / gadak sql / MCP"]
   UI -->|"writes"| Serve
   Serve -->|"writes"| Jira
 ```
@@ -265,7 +265,7 @@ which is half the point. See `docs/decisions/0003-local-process.md`.
 
 ## Good fit / bad fit
 
-| Use scry when… | Use Jira/Confluence directly when… |
+| Use gadak when… | Use Jira/Confluence directly when… |
 | --- | --- |
 | You search and triage the same projects every day and the latency hurts. | You need boards, sprints, reports, automation, permissions. |
 | You want an agent to reason over your tracker's history *and* your wiki. | You need administration, workflow editing, or document authoring. |
@@ -286,10 +286,10 @@ mirror is disposable — delete it and re-sync.
 
 - **[jira-cli](https://github.com/ankitpokhrel/jira-cli)** talks to Jira's REST
   API per command, so every listing is a network round trip and JQL is the query
-  language. scry queries a local mirror: millisecond filters, SQL joins over the
+  language. gadak queries a local mirror: millisecond filters, SQL joins over the
   changelog, offline reads — plus a web UI and TUI over the same file. If all you
   want is "create an issue from the terminal", jira-cli is lighter.
-- **Linear** is a different tracker. If your team can move, move. scry is for the
+- **Linear** is a different tracker. If your team can move, move. gadak is for the
   (much larger) group whose org keeps Jira: it gives you Linear-ish speed and
   keyboard flow without asking anyone for permission — it is a mirror, not a
   migration.
@@ -301,7 +301,7 @@ mirror is disposable — delete it and re-sync.
   history (reopen counts and reasons, honest epic ancestry) exists only in the
   mirror.
 - **Jira's own UI** stays the source of record and the place for boards,
-  sprints, and admin. scry does not replace it; it replaces waiting on it.
+  sprints, and admin. gadak does not replace it; it replaces waiting on it.
 
 ## More sources later
 
@@ -321,10 +321,10 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 - [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — one paste per agent (Claude Code, Cursor, Codex, MCP)
 - [`docs/DESKTOP.md`](docs/DESKTOP.md) — the macOS app: install, first run, and where the CLI fits
 - [`docs/RECIPES.md`](docs/RECIPES.md) — 13 questions JQL cannot ask, as ready-to-run SQL
-- [`docs/EXTENDING.md`](docs/EXTENDING.md) — fitting scry to your team
+- [`docs/EXTENDING.md`](docs/EXTENDING.md) — fitting gadak to your team
 - [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) — what exists, what does not
 - [`docs/CONCEPT.md`](docs/CONCEPT.md) — the product idea and the loop it optimizes
-- [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md) — the Jira complaints scry answers, with sources
+- [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md) — the Jira complaints gadak answers, with sources
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components and data flow
 - [`docs/TUI.md`](docs/TUI.md) — terminal UI keys, and CJK font guidance
 - [`docs/UX_PRINCIPLES.md`](docs/UX_PRINCIPLES.md) — the standard UI waves are measured against, with sources
@@ -349,11 +349,11 @@ what an agent does with the data — are answered head-on in
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) — and
 [`docs/GOOD_FIRST_ISSUES.md`](docs/GOOD_FIRST_ISSUES.md) if you want a place
 to start. Bug reports should include your Jira deployment type (Cloud), the
-scry commit, and the command you ran. Never paste real issue data, tokens, or
+gadak commit, and the command you ran. Never paste real issue data, tokens, or
 site URLs into a public issue.
 
-Using scry with an agent and hitting friction? That is exactly the feedback we
-want — [open an issue](https://github.com/midagedev/scry/issues) with the
+Using gadak with an agent and hitting friction? That is exactly the feedback we
+want — [open an issue](https://github.com/midagedev/gadak/issues) with the
 question you asked and what the agent did.
 
 ## License

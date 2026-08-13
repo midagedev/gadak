@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 func TestSettingsSyncIntervalsRoundtrip(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	h := New(db, cfg)
 
@@ -74,7 +74,7 @@ func TestSettingsSyncIntervalsRoundtrip(t *testing.T) {
 }
 
 func TestSettingsIntervalFloorsReject(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	h := New(db, cfg)
 
@@ -141,9 +141,9 @@ func TestSettingsIntervalFloorsReject(t *testing.T) {
 
 func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 	// Open the mirror at the profile's default path so runtime.dbPath matches.
-	dbPath := filepath.Join(home, "scry.db")
+	dbPath := filepath.Join(home, "gadak.db")
 	db, err := store.Open(dbPath)
 	if err != nil {
 		t.Fatalf("open: %v", err)
@@ -213,8 +213,8 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 	if rt.DefaultReconcileIntervalSec != config.DefaultReconcileIntervalSec {
 		t.Fatalf("default reconcile %d", rt.DefaultReconcileIntervalSec)
 	}
-	if rt.ScryVersion == "" {
-		t.Fatal("scryVersion empty")
+	if rt.GadakVersion == "" {
+		t.Fatal("gadakVersion empty")
 	}
 	if rt.DBSizeBytes <= 0 || rt.DBSizeHuman == "" || rt.DBSizeHuman == "—" {
 		t.Fatalf("db size bytes=%d human=%q", rt.DBSizeBytes, rt.DBSizeHuman)
@@ -287,7 +287,7 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 
 // TestPutSettingsConfluenceEnableFromOff: enabled:true + spaces turns Confluence on.
 func TestPutSettingsConfluenceEnableFromOff(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	cfg.Confluence = nil
 	if err := cfg.Save(); err != nil {
@@ -317,7 +317,7 @@ func TestPutSettingsConfluenceEnableFromOff(t *testing.T) {
 
 // TestPutSettingsConfluenceDisable: enabled:false turns off; pages stay on disk.
 func TestPutSettingsConfluenceDisable(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixturePages(t)
 	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"ENG"}}
 	if err := cfg.Save(); err != nil {
@@ -366,7 +366,7 @@ func TestPutSettingsConfluenceDisable(t *testing.T) {
 
 // TestPutSettingsConfluenceSpacesOnlyWhileOff: spaces without enabled still 400 when off.
 func TestPutSettingsConfluenceSpacesOnlyWhileOff(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	cfg.Confluence = nil
 	if err := cfg.Save(); err != nil {
@@ -396,7 +396,7 @@ func TestPutSettingsConfluenceSpacesOnlyWhileOff(t *testing.T) {
 
 // TestPutSettingsConfluenceSpacesOnlyWhileOn: spaces without enabled updates when on.
 func TestPutSettingsConfluenceSpacesOnlyWhileOn(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"OLD"}}
 	if err := cfg.Save(); err != nil {
@@ -426,7 +426,7 @@ func TestPutSettingsConfluenceSpacesOnlyWhileOn(t *testing.T) {
 
 // TestPutSettingsOmitsConfluenceKeyPreserves: no confluence key leaves config alone.
 func TestPutSettingsOmitsConfluenceKeyPreserves(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"KEEP"}}
 	if err := cfg.Save(); err != nil {
@@ -455,7 +455,7 @@ func TestPutSettingsOmitsConfluenceKeyPreserves(t *testing.T) {
 
 // TestPutSettingsConfluenceEnableReplacesSpaces: enabled:true while already on updates spaces.
 func TestPutSettingsConfluenceEnableReplacesSpaces(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"OLD"}}
 	if err := cfg.Save(); err != nil {
@@ -486,7 +486,7 @@ func TestPutSettingsConfluenceEnableReplacesSpaces(t *testing.T) {
 
 func TestSettingsRuntimeProfileName(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("demo")
 	t.Cleanup(func() { config.SetProfile("") })
 

@@ -19,10 +19,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/jira"
-	"github.com/midagedev/scry/internal/store"
-	"github.com/midagedev/scry/internal/sync"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/sync"
 )
 
 // maxProjects caps the picker list. A site with more projects than this is one

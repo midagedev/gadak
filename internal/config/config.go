@@ -1,4 +1,4 @@
-// Package config loads and saves ~/.scry/config.json.
+// Package config loads and saves ~/.gadak/config.json.
 //
 // Credentials (email/token) share the file with the site settings, but they
 // never reach the database, a log line, or a snapshot (constitution article 8).
@@ -156,12 +156,12 @@ func (c *Config) EffectiveReconcileIntervalSec() int {
 	return c.ReconcileIntervalSec
 }
 
-// profile comes from SetProfile (the --profile flag) or SCRY_PROFILE. Empty or
-// "default" means the root profile (~/.scry); anything else lives under
-// ~/.scry/profiles/<name>. Each profile gets its own config.json and scry.db, so
-// two sites can be used side by side without their credentials or mirrors
-// colliding.
-var profile = os.Getenv("SCRY_PROFILE")
+// profile comes from SetProfile (the --profile flag) or GADAK_PROFILE
+// (SCRY_PROFILE still works). Empty or "default" means the root profile
+// (~/.gadak); anything else lives under ~/.gadak/profiles/<name>. Each profile
+// gets its own config.json and gadak.db, so two sites can be used side by side
+// without their credentials or mirrors colliding.
+var profile = Env("PROFILE")
 
 // SetProfile is called by the CLI's --profile flag, which wins over the env var.
 func SetProfile(name string) { profile = name }
@@ -174,24 +174,55 @@ func Profile() string {
 	return profile
 }
 
-// scryHome is SCRY_HOME or ~/.scry (the root that holds the default profile and
-// the profiles/ subdirectory). Shared by DirFor and Profiles.
-func scryHome() (string, error) {
-	base := os.Getenv("SCRY_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".scry")
+// homeRoot is GADAK_HOME, else SCRY_HOME, else ~/.gadak. An existing ~/.scry
+// directory is renamed to ~/.gadak on first use so a pre-rename install keeps
+// its mirror. Shared by DirFor and Profiles.
+func homeRoot() (string, error) {
+	if base := Env("HOME"); base != "" {
+		return base, nil
 	}
-	return base, nil
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	next := filepath.Join(home, DirName)
+	prev := filepath.Join(home, LegacyDirName)
+	if err := migratePath(prev, next); err != nil {
+		if _, statErr := os.Stat(next); statErr != nil {
+			if _, oldErr := os.Stat(prev); oldErr == nil {
+				return prev, nil
+			}
+		}
+	}
+	return next, nil
+}
+
+// migratePath renames oldPath → newPath when newPath is absent and oldPath
+// exists. No-op if they are the same, if the destination already exists, or if
+// the source is missing.
+func migratePath(oldPath, newPath string) error {
+	if oldPath == "" || newPath == "" || oldPath == newPath {
+		return nil
+	}
+	if _, err := os.Stat(newPath); err == nil {
+		return nil
+	}
+	if _, err := os.Stat(oldPath); err != nil {
+		return nil
+	}
+	return os.Rename(oldPath, newPath)
+}
+
+func migrateDB(oldPath, newPath string) {
+	_ = migratePath(oldPath, newPath)
+	_ = migratePath(oldPath+"-wal", newPath+"-wal")
+	_ = migratePath(oldPath+"-shm", newPath+"-shm")
 }
 
 // DirFor is the config directory for a named profile. "" or "default" means the
-// root (SCRY_HOME / ~/.scry); any other name lives under profiles/<name>.
+// root (GADAK_HOME / ~/.gadak); any other name lives under profiles/<name>.
 func DirFor(profile string) (string, error) {
-	base, err := scryHome()
+	base, err := homeRoot()
 	if err != nil {
 		return "", err
 	}
@@ -201,7 +232,7 @@ func DirFor(profile string) (string, error) {
 	return filepath.Join(base, "profiles", profile), nil
 }
 
-// Dir is SCRY_HOME or ~/.scry, plus profiles/<name> when a profile is active.
+// Dir is GADAK_HOME or ~/.gadak, plus profiles/<name> when a profile is active.
 func Dir() (string, error) {
 	return DirFor(Profile())
 }
@@ -212,7 +243,9 @@ func DBPathFor(profile string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(d, "scry.db"), nil
+	next := filepath.Join(d, DBFile)
+	migrateDB(filepath.Join(d, LegacyDBFile), next)
+	return next, nil
 }
 
 // DBPath is the default SQLite path for the active profile.
@@ -238,7 +271,7 @@ func AttachmentDir() (string, error) {
 
 // Profiles lists the configured profile names, excluding the default one.
 func Profiles() ([]string, error) {
-	base, err := scryHome()
+	base, err := homeRoot()
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +329,7 @@ func Load() (*Config, error) {
 
 // Save writes the file atomically with mode 0600. When c.dir is set (LoadFor),
 // the write goes to that profile's config.json; otherwise the active Path().
-// The profile directory (and ~/.scry / SCRY_HOME when writing the default
+// The profile directory (and ~/.gadak / GADAK_HOME when writing the default
 // profile) is created and tightened to 0700; chmod failures are logged only.
 func (c *Config) Save() error {
 	var p string

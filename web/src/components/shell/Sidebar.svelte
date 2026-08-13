@@ -26,13 +26,13 @@
     {#if !desktop}
       <!-- Dropped next to the window controls: a 10px rounded square, one gap
            after three 12px circles, reads as a fourth traffic light. Nothing
-           is lost — the app already says Scry in the Dock and the menu bar. -->
+           is lost — the app already says Gadak in the Dock and the menu bar. -->
       <span
         class="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent"
         aria-hidden="true"
       ></span>
     {/if}
-    <span class="text-body font-semibold tracking-tight text-text-primary">scry</span>
+    <span class="text-body font-semibold tracking-tight text-text-primary">gadak</span>
   </div>
 
   <!-- Navigation slot -->

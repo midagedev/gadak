@@ -9,9 +9,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
-	scrySync "github.com/midagedev/scry/internal/sync"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
+	gadakSync "github.com/midagedev/gadak/internal/sync"
 )
 
 // putSettingsJSON issues PUT settings/ with the given body map.
@@ -29,7 +29,7 @@ func putSettingsJSON(t *testing.T, h http.Handler, body map[string]any) *httptes
 // TestPutSettingsScopeChangeKicksFullSync: changing projects (or confluence
 // scope) with a credential must ask for a full resync.
 func TestPutSettingsScopeChangeKicksFullSync(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	// Seed disk so Load/Save round-trips stay isolated.
 	if err := cfg.Save(); err != nil {
@@ -62,7 +62,7 @@ func TestPutSettingsScopeChangeKicksFullSync(t *testing.T) {
 
 // TestPutSettingsNonScopeNoKick: interval / stale-threshold alone must not resync.
 func TestPutSettingsNonScopeNoKick(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	if err := cfg.Save(); err != nil {
 		t.Fatalf("save: %v", err)
@@ -92,7 +92,7 @@ func TestPutSettingsNonScopeNoKick(t *testing.T) {
 // TestPutSettingsScopeChangeNoCredentialNoKick: without a token, scope edits
 // must not start a sync (nothing to authenticate with).
 func TestPutSettingsScopeChangeNoCredentialNoKick(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	cfg.Email, cfg.Token = "", ""
 	if err := cfg.Save(); err != nil {
@@ -129,7 +129,7 @@ func TestSyncRunsSourceFilter(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("append jira: %v", err)
 	}
-	if err := db.AppendSyncRun(context.Background(), scrySync.ConfluenceSourceID, store.SyncRun{
+	if err := db.AppendSyncRun(context.Background(), gadakSync.ConfluenceSourceID, store.SyncRun{
 		Kind: "full", StartedAt: "2026-08-01T00:02:00Z", FinishedAt: "2026-08-01T00:03:00Z",
 		Fetched: 9, Changed: 9,
 	}); err != nil {

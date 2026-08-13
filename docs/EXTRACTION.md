@@ -25,9 +25,9 @@ systems. The local Go server, sync, and agent surfaces have since been built out
 
 ## What the internal backend provided
 
-| Capability | Fate in scry |
+| Capability | Fate in gadak |
 | --- | --- |
-| Jira mirror in PostgreSQL, synced by cron | **Reimplemented** as a local SQLite mirror synced by `scry sync` |
+| Jira mirror in PostgreSQL, synced by cron | **Reimplemented** as a local SQLite mirror synced by `gadak sync` |
 | Derived fields (reopen counts, status timestamps, priority rank) | **Reimplemented**, with site-specific naming rules replaced by status categories |
 | Full-text search over descriptions and comments | **Reimplemented** on FTS5 |
 | Write proxy to Jira with per-user credentials | **Reimplemented** with credentials in a local config file |
@@ -39,8 +39,8 @@ systems. The local Go server, sync, and agent surfaces have since been built out
 | Test-management (Qase) context per issue | **Cut** |
 | Personal activity feed and Web Push | **Cut from the company backend.** A local watch-based feed later shipped in-core; Web Push (VAPID) remains deferred — see ROADMAP |
 | Multi-viewer presence over WebSocket | **Cut.** Meaningless in a single-user local tool |
-| Company SSO and session auth | **Cut.** There are no scry accounts; identity is the stored Jira credential only |
-| Email/password login dialog, `scry_token` localStorage, `Authorization: Token` | **Cut.** Frontend leftovers from the internal SSO; writes gate on credential settings alone |
+| Company SSO and session auth | **Cut.** There are no gadak accounts; identity is the stored Jira credential only |
+| Email/password login dialog, `gadak_token` localStorage, `Authorization: Token` | **Cut.** Frontend leftovers from the internal SSO; writes gate on credential settings alone |
 | Data-quality audit endpoint | **Cut** |
 
 ## What was scrubbed
@@ -69,16 +69,16 @@ issue; it is the failure mode that makes a public repository unpublishable.
 ## Behavior changes forced by generalization
 
 These are places where the internal rule was wrong outside its own installation,
-so scry uses a different one:
+so gadak uses a different one:
 
 1. **Reopen detection.** The internal version matched status names
-   (`"Reopened"`, and its Korean translation). scry counts transitions from a
+   (`"Reopened"`, and its Korean translation). gadak counts transitions from a
    `done`-category status to a non-`done` one, which is stable across every site
    and every account language.
 2. **Resolution detection.** Same problem, same fix: category, not name.
 3. **Staleness.** The internal version read a `working_hours_in_status` column
    that, on inspection, no code ever populated — the "stale" view was reading a
-   permanent zero. scry computes staleness from `status_changed_at` with a
+   permanent zero. gadak computes staleness from `status_changed_at` with a
    configurable threshold, and the dead column is not carried over.
 4. **Built-in views.** Presets that filtered on internal project keys, status
    names, and part groupings are replaced by six presets built only on axes that

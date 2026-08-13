@@ -12,7 +12,7 @@
  *  derivations (no server round-trip).
  */
 
-import { config, feature, type ScryFeatures } from './config'
+import { config, feature, type GadakFeatures } from './config'
 import { columnLabel, deployStateLabel } from './i18n'
 import type { DeployState, IssueLite } from './types'
 
@@ -117,7 +117,7 @@ export function COLUMNS(): ColumnDef[] {
 const COLUMN_KEYS = COLUMN_KEYS_ALL as readonly ColumnKey[]
 
 /** Columns tied to optional features — drop from the catalog when the flag is off. */
-const COLUMN_FEATURE: Partial<Record<ColumnKey, keyof ScryFeatures>> = {
+const COLUMN_FEATURE: Partial<Record<ColumnKey, keyof GadakFeatures>> = {
   qa_impact: 'qa',
   deploy: 'deploy',
   team_group: 'teamGroups',
@@ -194,7 +194,7 @@ export const MULTI_FIELDS = [
 export type MultiField = (typeof MULTI_FIELDS)[number]
 
 /** Filter fields from optional features — invalid in both filter menu and URL when flag is off. */
-const FIELD_FEATURE: Partial<Record<MultiField, keyof ScryFeatures>> = {
+const FIELD_FEATURE: Partial<Record<MultiField, keyof GadakFeatures>> = {
   team_group: 'teamGroups',
   qa_run: 'qa',
   qa_suite: 'qa',
@@ -213,7 +213,7 @@ export function filterFields(): MultiField[] {
 }
 
 /** Grouping axes from optional features. */
-const GROUP_FEATURE: Partial<Record<GroupBy, keyof ScryFeatures>> = {
+const GROUP_FEATURE: Partial<Record<GroupBy, keyof GadakFeatures>> = {
   team_group: 'teamGroups',
   product: 'teamGroups',
   qa_impact: 'qa',

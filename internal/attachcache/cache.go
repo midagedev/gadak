@@ -220,7 +220,7 @@ func (c *Cache) evict() {
 	}
 }
 
-// Stats reports the cache footprint, for the settings panel and `scry status`.
+// Stats reports the cache footprint, for the settings panel and `gadak status`.
 func (c *Cache) Stats() (files int, bytes int64) {
 	_ = filepath.WalkDir(c.dir, func(p string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || strings.HasSuffix(p, ".json") {
@@ -256,7 +256,7 @@ func writeMeta(p string, m Meta) error {
 }
 
 // ImportFile seeds an entry from a local file. It exists for fixtures: the
-// bundled demo snapshot ships attachment bytes so `scry demo` shows real images
+// bundled demo snapshot ships attachment bytes so `gadak demo` shows real images
 // with no Jira account, and a test can prime the cache without a fake server.
 func (c *Cache) ImportFile(id, path, contentType, filename string) error {
 	f, err := os.Open(path)

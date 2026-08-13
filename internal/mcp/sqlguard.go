@@ -144,7 +144,7 @@ func firstKeyword(s string) string {
 	return s[:end]
 }
 
-// queryResult is the JSON shape returned by scry_query.
+// queryResult is the JSON shape returned by gadak_query.
 type queryResult struct {
 	Columns   []string         `json:"columns"`
 	Rows      []map[string]any `json:"rows"`

@@ -27,13 +27,19 @@ KNOWN_KINDS = frozenset({"deploy", "qa", "prs", "opinion"})
 
 
 def default_db_path(profile: str | None = None) -> Path:
-    home = os.environ.get("SCRY_HOME")
+    home = os.environ.get("GADAK_HOME") or os.environ.get("SCRY_HOME")
     if not home:
-        home = str(Path.home() / ".scry")
+        nxt = Path.home() / ".gadak"
+        prev = Path.home() / ".scry"
+        home = str(nxt if nxt.exists() or not prev.exists() else prev)
     base = Path(home)
     if profile and profile != "default":
-        return base / "profiles" / profile / "scry.db"
-    return base / "scry.db"
+        base = base / "profiles" / profile
+    nxt = base / "gadak.db"
+    prev = base / "scry.db"
+    if nxt.exists() or not prev.exists():
+        return nxt
+    return prev
 
 
 def utc_now() -> str:
@@ -203,9 +209,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--db",
         default=None,
-        help="Path to scry.db (default: $SCRY_HOME/scry.db or ~/.scry/scry.db)",
+        help="Path to gadak.db (default: $GADAK_HOME/gadak.db or ~/.gadak/gadak.db)",
     )
-    p.add_argument("--profile", default=None, help="scry profile name (ignored if --db set)")
+    p.add_argument("--profile", default=None, help="gadak profile name (ignored if --db set)")
     p.add_argument(
         "--allow-unknown-kind",
         action="store_true",

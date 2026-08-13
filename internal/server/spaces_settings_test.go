@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/midagedev/scry/internal/config"
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // confSpacesMock is a minimal Confluence Cloud stand-in for GET settings/spaces/.
@@ -33,7 +33,7 @@ func (m *confSpacesMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func spacesHandler(t *testing.T, cfg *config.Config, mock *confSpacesMock) http.Handler {
 	t.Helper()
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, base := fixture(t)
 	// Keep credential shape; redirect site to the mock when one is provided.
 	cfg.Email = base.Email
@@ -60,7 +60,7 @@ func spacesHandler(t *testing.T, cfg *config.Config, mock *confSpacesMock) http.
 // TestSettingsSpacesOffNoCredential: discovery needs a credential even when
 // Confluence is off — no longer 400 confluence_not_configured.
 func TestSettingsSpacesOffNoCredential(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, base := fixture(t)
 	// Explicitly no credential, Confluence off.
 	live := &config.Config{
@@ -234,7 +234,7 @@ func TestSettingsSpacesEmptyMeansAllGlobalFlag(t *testing.T) {
 }
 
 func TestPutSettingsConfluenceSpacesRoundtrip(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"OLD"}}
 	if err := cfg.Save(); err != nil {
@@ -309,7 +309,7 @@ func TestPutSettingsConfluenceSpacesRoundtrip(t *testing.T) {
 }
 
 func TestPutSettingsConfluenceSpacesNotConfigured(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	// No Confluence section — PUT must not invent one.
 	cfg.Confluence = nil
@@ -354,7 +354,7 @@ func TestPutSettingsConfluenceSpacesNotConfigured(t *testing.T) {
 }
 
 func TestPutSettingsOmitsConfluenceKeyLeavesSpaces(t *testing.T) {
-	t.Setenv("SCRY_HOME", t.TempDir())
+	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
 	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"KEEP"}}
 	if err := cfg.Save(); err != nil {

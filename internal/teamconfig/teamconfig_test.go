@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/midagedev/scry/internal/config"
-	"github.com/midagedev/scry/internal/store"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // TestExportWhitelistCoversAllConfigFields forces every new Config field to be
@@ -312,7 +312,7 @@ func assertViewAction(t *testing.T, p Plan, name string, want ViewAction) {
 func TestDryRunNoChanges(t *testing.T) {
 	// Integration-style: write config file + views, build plan, do not Apply when dry-run.
 	home := t.TempDir()
-	t.Setenv("SCRY_HOME", home)
+	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
 
 	cfg := &config.Config{
@@ -325,7 +325,7 @@ func TestDryRunNoChanges(t *testing.T) {
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
-	db, err := store.Open(filepath.Join(home, "scry.db"))
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -381,10 +381,10 @@ func TestDryRunNoChanges(t *testing.T) {
 func TestImportRejectsCredentialKeys(t *testing.T) {
 	t.Parallel()
 	cases := []string{
-		`{"scry_team_config":1,"settings":{"site":"https://x.atlassian.net","fieldMap":{}}}`,
-		`{"scry_team_config":1,"settings":{"token":"ATATT` + strings.Repeat("a", 30) + `"}}`,
-		`{"scry_team_config":1,"email":"x@y.com","settings":{}}`,
-		`{"scry_team_config":1,"settings":{"account_id":"acc1"}}`,
+		`{"gadak_team_config":1,"settings":{"site":"https://x.atlassian.net","fieldMap":{}}}`,
+		`{"gadak_team_config":1,"settings":{"token":"ATATT` + strings.Repeat("a", 30) + `"}}`,
+		`{"gadak_team_config":1,"email":"x@y.com","settings":{}}`,
+		`{"gadak_team_config":1,"settings":{"account_id":"acc1"}}`,
 	}
 	for _, raw := range cases {
 		_, err := ParseDocument([]byte(raw))
@@ -410,7 +410,7 @@ func TestRoundTripExportImport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Setenv("SCRY_HOME", homeA)
+	t.Setenv("GADAK_HOME", homeA)
 	config.SetProfile("")
 	src := sampleConfig()
 	// Use a non-ATATT token so sampleConfig token never appears if something leaks
@@ -418,7 +418,7 @@ func TestRoundTripExportImport(t *testing.T) {
 	if err := src.Save(); err != nil {
 		t.Fatal(err)
 	}
-	dbA, err := store.Open(filepath.Join(homeA, "scry.db"))
+	dbA, err := store.Open(filepath.Join(homeA, "gadak.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -442,7 +442,7 @@ func TestRoundTripExportImport(t *testing.T) {
 	dbA.Close()
 
 	// Import into B (empty team settings, has its own credentials).
-	t.Setenv("SCRY_HOME", homeB)
+	t.Setenv("GADAK_HOME", homeB)
 	config.SetProfile("")
 	dst := &config.Config{
 		Site:  "https://example.atlassian.net",
@@ -452,7 +452,7 @@ func TestRoundTripExportImport(t *testing.T) {
 	if err := dst.Save(); err != nil {
 		t.Fatal(err)
 	}
-	dbB, err := store.Open(filepath.Join(homeB, "scry.db"))
+	dbB, err := store.Open(filepath.Join(homeB, "gadak.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,9 +551,20 @@ func TestScanBlocksTokenInFieldMap(t *testing.T) {
 
 func TestUnsupportedVersion(t *testing.T) {
 	t.Parallel()
-	_, err := ParseDocument([]byte(`{"scry_team_config":99,"settings":{},"views":[]}`))
+	_, err := ParseDocument([]byte(`{"gadak_team_config":99,"settings":{},"views":[]}`))
 	if err == nil || !strings.Contains(err.Error(), "unsupported") {
 		t.Fatalf("want unsupported version error, got %v", err)
+	}
+}
+
+func TestParseDocumentAcceptsLegacyVersionKey(t *testing.T) {
+	t.Parallel()
+	doc, err := ParseDocument([]byte(`{"scry_team_config":1,"settings":{"projects":["NMB"]},"views":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Version != 1 || len(doc.Settings.Projects) != 1 || doc.Settings.Projects[0] != "NMB" {
+		t.Fatalf("legacy document: %+v", doc)
 	}
 }
 
