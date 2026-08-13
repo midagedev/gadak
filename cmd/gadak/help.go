@@ -135,15 +135,6 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak demo", "gadak snapshot"},
 	},
-	"tui": {
-		summary: "terminal issue navigator against the local mirror",
-		usage:   "gadak [--profile <name>] tui",
-		examples: []string{
-			"gadak tui",
-			"gadak --profile demo tui",
-		},
-		seeAlso: []string{"gadak serve", "gadak issue"},
-	},
 	"profiles": {
 		summary: "list profiles: which mirrors exist, which one this command used",
 		usage:   "gadak profiles [--json]",

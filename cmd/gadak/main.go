@@ -1,6 +1,6 @@
 // Command gadak serves a local mirror of your issue tracker.
 //
-// Implemented: init, sync (--full/--watch), serve (syncs by default), tui,
+// Implemented: init, sync (--full/--watch), serve (syncs by default),
 // issue, search, comment, transition, assign, sql, status, doctor, mcp, skill,
 // demo, export-static, install-service, install-cli, profiles, version, snapshot, team.
 // See specs/000-product/tasks.md for the current state of each.
@@ -354,7 +354,7 @@ func printInitNextSteps() {
 	fmt.Print(`
 next:
   gadak sync                    fill the mirror (a few minutes on a first run)
-  gadak serve                   read it in the browser — or gadak tui to stay here
+  gadak serve                   read it in the browser
   gadak mcp install claude      let your coding agent query it (also: cursor, codex)
 
 docs/AGENT_SETUP.md has one paste per agent; docs/RECIPES.md has the questions
@@ -1065,7 +1065,6 @@ Commands:
   doctor           redacted diagnostics safe to paste into a bug report [--json]
   demo             serve the bundled snapshot, no Jira account needed
   export-static    freeze demo.db into static JSON for hosted demo  <outdir>
-  tui              terminal issue navigator (local mirror)
   profiles         list mirrors and which one this command used  [--json]
   version          print version
 
@@ -1158,7 +1157,6 @@ var commands = map[string]func([]string) error{
 	"sync":            cmdSync,
 	"team":            cmdTeam,
 	"transition":      cmdTransition,
-	"tui":             cmdTUI,
 	"version":         cmdVersion,
 }
 

@@ -9,11 +9,11 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
 </p>
 
-<p align="center"><b>Ask your Jira the questions Jira can't answer.</b></p>
+<p align="center"><b>Follow the thread.</b></p>
 
 gadak mirrors Jira *and* Confluence into one local SQLite file — issues,
 comments, history, wiki pages — indexed together and searchable in
-milliseconds. Ask it yourself from a keyboard-driven web UI or a TUI; let your
+milliseconds. Ask it yourself from a keyboard-driven web UI; let your
 coding agent ask in plain SQL. One binary, no server, no account.
 
 **The mirror is a cache you can throw away.** If this project stops tomorrow,
@@ -37,7 +37,6 @@ brew install midagedev/tap/gadak
 
 gadak init && gadak sync    # Jira (and Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
-gadak tui                  # same mirror, in your terminal (D toggles docs)
 gadak sql "select key, summary from issues_full where reopen_count > 1"
 ```
 
@@ -49,7 +48,7 @@ back?" at all; a local mirror answers it in a line.
 the demo snapshot.
 
 > **Status: working, pre-release.** Sync (both sources), the read API,
-> write-through, the web UI, the TUI, the CLI, settings, the plugin boundary,
+> write-through, the web UI, the CLI, settings, the plugin boundary,
 > and i18n are implemented and verified end to end against a live Atlassian
 > site. `docs/STATE_OF_PLAY.md` is the honest inventory.
 
@@ -82,29 +81,21 @@ closed them, and why?" is a join over the changelog. "Which epic is actually
 stuck?" is a rollup over the hierarchy. In Jira neither is a question you can
 ask; here they are `where reopen_count > 0` and a group-by on `epic_key`.
 
-All three fall out of the same move: mirror the data locally, then let the UI,
-the terminal, and the agent read the same store.
+All three fall out of the same move: mirror the data locally, then let the UI
+and the agent read the same store.
 
-## Three surfaces, one store
+## Two surfaces, one store
 
 | | For | Looks like |
 | --- | --- | --- |
 | **Web UI** | all-day triage — a browser tab (`gadak serve`) or its own macOS window ([desktop app](docs/DESKTOP.md), no port at all) | a list you triage without the mouse (`j/k` walk, `x` multi-select, `s`/`a`/`c` status·assignee·comment in place), epic grouping and rollups, saved views, a ⌘K palette that finds issues *and* wiki pages, `/` to narrow whichever screen you are on, a freshness chip that shows the mirror's age and pulls it on click, full issue detail (rich text, comments, history, attachments), and wiki documents as a first-class citizen: recency-first lists with label chips, a filter that marks its matches, deep-linkable pages (`?doc=`), and cross-references both ways — the documents an issue's text mentions on the issue, the issues a page mentions on the page |
-| **TUI** | people who live in the terminal | [`gadak tui`](docs/TUI.md) — list, filter with live match highlight, `group_by=epic`, Ctrl+K palette, write actions, and `D` for the same wiki views with the same cross-references, all over the same mirror |
 | **CLI + SQL** | agents, scripts, one-off questions | `gadak issue`, `gadak search` (issues and pages), `gadak sql`, plus the file itself |
 
-<p align="center">
-  <img src="docs/media/tui.gif" alt="gadak tui: neon list with live filter highlighting, the Ctrl+K command palette, and issue detail" width="800">
-  <br>
-  <sub>Generated from <a href="tools/tapes/tui.tape">tools/tapes/tui.tape</a> (VHS).</sub>
-</p>
-
 Writes go through to Jira and then refresh the mirror, so the list is correct
-a moment later without a full sync. Comment, transition, and assign work on
-all three surfaces; field edits work in the web UI and the TUI (values always
-come from what Jira allows, never free text). Issue creation is web-only
-today. The wiki mirror is read-only on purpose — Confluence stays the place
-where documents are written.
+a moment later without a full sync. Comment, transition, and assign work from
+the web UI and the CLI; field edits and issue creation are web-only today
+(values always come from what Jira allows, never free text). The wiki mirror
+is read-only on purpose — Confluence stays the place where documents are written.
 
 Hierarchy is first-class: `epic_key` is derived honestly (the nearest epic
 *ancestor*, so a sub-task groups under its epic, not its story), group-by-epic
@@ -165,7 +156,7 @@ passes the request through to your site: read-only unless you add `--write`,
 never on MCP.
 
 Everything can hold the file at once — WAL with one writer (the sync loop),
-readers everywhere else — so `serve`, the TUI, and an agent coexist by design.
+readers everywhere else — so `serve` and an agent coexist by design.
 
 One caveat we would rather you read here than discover later: **an agent that
 reads your mirror sends what it reads to whatever model it talks to.** gadak
@@ -183,7 +174,7 @@ token covers Jira and Confluence on the same site.
 app has the binary inside it:
 
 ```bash
-brew install midagedev/tap/gadak     # macOS + Linux — the CLI, the web UI, the TUI
+brew install midagedev/tap/gadak     # macOS + Linux — the CLI and the web UI
 ```
 
 or download `Gadak-<version>-arm64.dmg` from the
@@ -237,7 +228,6 @@ flowchart LR
   Wiki["Confluence REST"] -->|"incremental sync"| DB
   DB --> Serve["gadak serve"]
   Serve --> UI["Web UI<br/>(IndexedDB cache)"]
-  DB --> TUI["gadak tui"]
   DB --> Agent["Coding agent<br/>sqlite3 / gadak sql / MCP"]
   UI -->|"writes"| Serve
   Serve -->|"writes"| Jira
@@ -287,7 +277,7 @@ mirror is disposable — delete it and re-sync.
 - **[jira-cli](https://github.com/ankitpokhrel/jira-cli)** talks to Jira's REST
   API per command, so every listing is a network round trip and JQL is the query
   language. gadak queries a local mirror: millisecond filters, SQL joins over the
-  changelog, offline reads — plus a web UI and TUI over the same file. If all you
+  changelog, offline reads — plus a web UI over the same file. If all you
   want is "create an issue from the terminal", jira-cli is lighter.
 - **Linear** is a different tracker. If your team can move, move. gadak is for the
   (much larger) group whose org keeps Jira: it gives you Linear-ish speed and
@@ -326,9 +316,7 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 - [`docs/CONCEPT.md`](docs/CONCEPT.md) — the product idea and the loop it optimizes
 - [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md) — the Jira complaints gadak answers, with sources
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components and data flow
-- [`docs/TUI.md`](docs/TUI.md) — terminal UI keys, and CJK font guidance
 - [`docs/UX_PRINCIPLES.md`](docs/UX_PRINCIPLES.md) — the standard UI waves are measured against, with sources
-- [`docs/TUI_PRINCIPLES.md`](docs/TUI_PRINCIPLES.md) — its terminal counterpart: keys, color, width, CJK
 - [`docs/PLUGINS.md`](docs/PLUGINS.md) — the enrichment contract
 - [`docs/decisions/`](docs/decisions/) — why it is shaped this way
 - [`specs/000-product/`](specs/000-product/) — spec, data model, API and sync contracts

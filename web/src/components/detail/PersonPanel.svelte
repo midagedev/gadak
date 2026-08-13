@@ -92,7 +92,7 @@
         <div class="mb-3 flex items-start gap-3">
           <Avatar {name} {email} size={36} />
           <div class="min-w-0 flex-1">
-            <h2 class="truncate text-title font-semibold text-text-primary" data-testid="person-name">
+            <h2 class="type-subject truncate text-title text-text-primary" data-testid="person-name">
               {name}
             </h2>
             <p class="truncate text-micro text-text-muted" title={email}>{email}</p>

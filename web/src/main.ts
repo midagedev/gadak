@@ -68,25 +68,25 @@ function renderUnsupportedNotice(el: HTMLElement): void {
       <div style="max-width:420px;text-align:center;line-height:1.6">
         <!-- Inline rather than the Icon component: this notice renders instead
              of booting the app, so no Svelte tree exists yet. -->
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9aa3ad"
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6a6156"
              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
              aria-hidden="true" style="margin:0 auto 12px;display:block">
           <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
-        <h1 style="font-size:16px;margin:0 0 8px">이 브라우저에서는 데모를 열 수 없어요</h1>
-        <p style="font-size:13px;color:#9aa3ad;margin:0 0 6px">
+        <h1 style="font-size:16px;margin:0 0 8px;color:#1c1812">이 브라우저에서는 데모를 열 수 없어요</h1>
+        <p style="font-size:13px;color:#534c42;margin:0 0 6px">
           트위터·인스타그램 같은 인앱 브라우저는 데모가 쓰는 브라우저 기능(서비스 워커)을 막아 둡니다.
           Safari나 Chrome에서 직접 열면 바로 동작합니다.
         </p>
-        <p style="font-size:12px;color:#9aa3ad;margin:0 0 14px">
+        <p style="font-size:12px;color:#6a6156;margin:0 0 14px">
           In-app browsers (Twitter, Instagram, …) block the service worker this
           demo runs on. Open it in Safari or Chrome instead.
         </p>
-        <button id="copy-demo-url" style="font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid #364152;background:#1a212b;color:#e6e8eb;cursor:pointer">
+        <button id="copy-demo-url" style="font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid #b9ab92;background:#2e4560;color:#f4efe4;cursor:pointer">
           링크 복사 · Copy link
         </button>
-        <p style="font-size:11px;color:#6b7480;margin:12px 0 0;word-break:break-all">${url}</p>
+        <p style="font-size:11px;color:#6a6156;margin:12px 0 0;word-break:break-all">${url}</p>
       </div>
     </div>`
   document.getElementById('copy-demo-url')?.addEventListener('click', async (ev) => {

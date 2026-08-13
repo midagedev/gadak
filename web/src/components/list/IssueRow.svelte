@@ -236,7 +236,7 @@
        they asked for — the widest thing on the row surrendering to the narrowest
        (vision verdict 2026-08-07). The floor is a CSS minimum, never a measured
        one: this row is the 10k-row hot path and must not read layout. -->
-  <span class="min-w-[13ch] flex-1 truncate font-medium text-text-primary" title={issue.summary}>
+  <span class="min-w-[13ch] flex-1 truncate font-normal text-text-primary" title={issue.summary}>
     <Marks segs={summarySegs} />
     {#if filters.filters.reopened && issue.reopen_count > 0 && issue.reopen_reason}
       <!-- Inline reason only on reopen view — elsewhere the badge + its tooltip is enough -->
@@ -451,11 +451,11 @@
        column set heavier than the one those steps were measured against can
        still squeeze the strip, and 48px is where a chip stops being a word. -->
   {#if cols.has('labels') && shownLabels.length}
-    <span class="hidden min-w-0 shrink items-center gap-1 md:flex">
+    <span class="flex min-w-0 shrink items-center gap-1">
       {#each shownLabels as label, i (label)}
         <button
           type="button"
-          class="min-w-[3rem] max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary
+          class="min-w-[3rem] max-w-[110px] truncate rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary
             {i === 0 ? 'chipfold-first' : 'chipfold-rest'}"
           onclick={stop(() => filters.addValue('labels', label))}
           title={t('list.fieldValue', { field: t('common.labels'), value: label })}

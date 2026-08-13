@@ -1,44 +1,44 @@
 @import 'tailwindcss';
 
 /*
-  Issue Navigator design tokens (contract §3)
-  - Dark only. Density for repeated work (row 42px / body 13px) and clear hierarchy.
-  - 3-tier bg / 3-tier text / indigo accent / semantic status colors.
+  gadak design tokens (contract §3)
+  - Paper, not a dark dashboard. Density for repeated work (row 42px / body 13px).
+  - 3-tier bg / 3-tier text / 쪽빛 indigo thread / ink-like status colors.
   - Tailwind v4 @theme builds utilities (bg-*, text-*, border-*) from these vars.
 */
 @theme {
-  /* ── Background layers (canvas → panel → elevated → hover) ── */
-  --color-bg-base: #0c0f13; /* app canvas */
-  --color-bg-panel: #12161c; /* sidebar / right panel */
-  --color-bg-elevated: #181d24; /* cards / group headers */
-  --color-bg-hover: #1e242d; /* row hover / interaction */
-  --color-bg-active: #262e3b; /* selected */
+  /* ── Background layers ──
+     The page is the lightest surface (uncoated paper). Chrome sits a shade
+     warmer, like a manila folder, so the list wins attention. */
+  --color-bg-base: #f4efe4; /* page */
+  --color-bg-panel: #ebe3d2; /* sidebar / right panel */
+  --color-bg-elevated: #e4d9c4; /* cards / group headers */
+  --color-bg-hover: #d9cdb6; /* row hover */
+  --color-bg-active: #cfc0a4; /* selected */
 
   /* ── Text tiers ──
-     muted carries ~97 nodes on a busy screen, most of them at 11px. #747d89
-     measured 4.6:1 on the canvas and less on elevated surfaces — under AA for
-     text that small. #8b93a0 is 6.2:1 on canvas / 5.6:1 on bg-elevated, which
-     is the floor a whole tier of small text has to clear. (2026-08-06) */
-  --color-text-primary: #f0f2f5;
-  --color-text-secondary: #b2b8c1;
-  --color-text-muted: #8b93a0;
+     Ink on paper. muted is ~11px on a busy screen and must clear 4.5:1
+     against elevated cards (#635a4f on #e4d9c4 ≈ 4.8:1). */
+  --color-text-primary: #1c1812;
+  --color-text-secondary: #534c42;
+  --color-text-muted: #635a4f;
 
-  /* ── Borders (subtle → strong) ── */
-  --color-border-subtle: #252b34;
-  --color-border-strong: #343d49;
+  /* ── Borders ── */
+  --color-border-subtle: #d5c9b2;
+  --color-border-strong: #b9ab92;
 
-  /* ── Accent (indigo / violet) ── */
-  --color-accent: #6366f1;
-  --color-accent-hover: #818cf8;
-  --color-accent-subtle: #312e81; /* filled background */
-  --color-accent-text: #a5b4fc;
+  /* ── Accent: 쪽빛 (indigo dye), one thread on paper. Not electric violet. ── */
+  --color-accent: #2e4560;
+  --color-accent-hover: #24384e;
+  --color-accent-subtle: #d5dde8;
+  --color-accent-text: #2a4159;
 
-  /* ── Semantic status colors ── */
-  --color-status-new: #3b82f6; /* blue */
-  --color-status-inprogress: #eab308; /* yellow */
-  --color-status-done: #22c55e; /* green */
-  --color-status-reopen: #ef4444; /* red — reopen */
-  --color-status-stale: #f59e0b; /* amber — stale */
+  /* ── Semantic status — ink, not neon ── */
+  --color-status-new: #2f5d8c;
+  --color-status-inprogress: #8a6418;
+  --color-status-done: #2f5e42;
+  --color-status-reopen: #8f3530;
+  --color-status-stale: #8a6220;
 
   /* ── Density tokens ── */
   --spacing-row: 42px; /* list row height */
@@ -72,21 +72,19 @@
   --text-micro: 11px;
   --text-micro--line-height: 1.3;
   --text-body: 13px; /* body baseline */
-  --text-body--line-height: 1.35;
+  --text-body--line-height: 1.4;
   --text-title: 15px;
-  --text-title--line-height: 1.4;
-  --text-heading: 20px;
-  --text-heading--line-height: 1.25;
+  --text-title--line-height: 1.35;
+  --text-heading: 22px;
+  --text-heading--line-height: 1.22;
 
   /*
-    Overlay elevation. Tailwind's shadow-xl is 10%-black — on a #0c0f13 canvas
-    that is a shadow you cannot see, so modals and the palette sat flat on the
-    page. Depth on dark has to come from a rim light (the hairline) plus a
-    shadow dark enough to register against near-black. (2026-08-06)
+    Overlay elevation. On paper, depth is a warm umber shadow plus a hairline
+    the same family as the borders — not a white rim, not a black slab.
   */
   --shadow-overlay:
-    0 16px 48px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.4),
-    0 0 0 1px rgb(255 255 255 / 0.06);
+    0 18px 48px rgb(40 28 12 / 0.16), 0 4px 12px rgb(40 28 12 / 0.08),
+    0 0 0 1px rgb(40 28 12 / 0.08);
 
   /*
     Corner radius by nesting depth, not by widget name. The screen carried
@@ -105,29 +103,59 @@
     (2026-08-06)
   */
 
-  /* ── Fonts ── */
+  /* ── Fonts ──
+     No webfont. Latin display is Apple New York; Hangul cannot live there
+     (New York / Palatino / Georgia have no 한글), so the next faces are the
+     system gothics — Apple SD Gothic Neo, Noto Sans KR, Malgun Gothic —
+     or a title falls through to Apple Myungjo and looks like a newspaper.
+     Body starts at -apple-system so macOS pairs SF with SD Gothic itself.
+     Putting 'SF Pro Text' first broke that pairing. */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans CJK KR',
+    'Noto Sans KR', 'Malgun Gothic', 'Segoe UI', sans-serif;
+  --font-display:
+    'New York', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', 'Malgun Gothic',
+    'Iowan Old Style', ui-serif, Palatino, Georgia, serif;
   --font-mono:
-    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Malgun Gothic', monospace;
 }
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
   body {
     margin: 0;
     overflow: hidden;
-    background: #080a0d;
+    background: #e6dcc8;
     color: var(--color-text-primary);
     font-family: var(--font-sans);
     font-size: var(--text-body);
     line-height: var(--text-body--line-height);
     /* Tabular nums — tnum */
-    font-feature-settings: 'tnum' 1, 'cv01' 1;
+    font-feature-settings: 'tnum' 1, 'kern' 1;
+    font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /*
+    Named subjects — the wordmark, the issue/page title, a dialog's name.
+    New York at these sizes is already on disk; ligatures are the point of it.
+  */
+  .type-subject {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-weight: 600;
+    /* Hangul has no case and hates Latin display tracking. -0.01em still
+       tightens New York without crushing 한글 제목. */
+    letter-spacing: -0.01em;
+    font-feature-settings: 'liga' 1, 'kern' 1;
+  }
+  :lang(ko) .type-subject,
+  :lang(ko-KR) .type-subject {
+    letter-spacing: 0;
   }
 
   /* Dark scrollbar */
@@ -146,7 +174,7 @@
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #3a4048;
+    background: #a89880;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-corner {
@@ -166,7 +194,7 @@
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
-    background: #080a0d;
+    background: #e6dcc8;
   }
 
   .issue-layout {
@@ -314,7 +342,7 @@
       below, one tier quieter because the panel is part of the layout rather
       than floating over it.
     */
-    box-shadow: -12px 0 32px rgb(0 0 0 / 0.3);
+    box-shadow: -12px 0 32px rgb(40 28 12 / 0.12);
   }
 
   /*
@@ -337,10 +365,10 @@
     floor is 110px (13ch):
       3 chips  455 + 110 + 246 (widest strip: 110+61+67 and its gaps) = 811
       1 chip   455 + 110 + 136 (one 110px chip, a gap, and "+2")      = 701
-      0 chips  455 + 110 +  32 (the count on its own)                 = 597
-    Rounded up to 900 / 740 / 640 for the rows that carry more badges than the
-    ones measured. Under the last step even the count goes, the way every other
-    optional column drops out of a list this narrow.
+    Rounded up to 900 / 740. A later 640 step used to drop even the last chip
+    (and then the count), so a detail-open list read as having no labels.
+    2026-08-13: one chip always stays. A label is a route; hiding the word
+    is how the feature went missing.
 
     Written as max-width so a browser without container queries lands on the
     wide step — the behaviour that shipped — rather than on an empty strip.
@@ -365,25 +393,21 @@
   }
 
   @container issuerow (max-width: 739px) {
-    .chipfold-first,
+    .chipfold-rest {
+      display: none;
+    }
+    .chipfold-n-extra {
+      display: none;
+    }
     .chipfold-n-rest {
-      display: none;
-    }
-    .chipfold-n-all {
       display: block;
-    }
-  }
-
-  @container issuerow (max-width: 639px) {
-    .chipfold-n-all {
-      display: none;
     }
   }
 
   @media (min-width: 2201px) {
     .issue-layout {
       border-inline: 1px solid var(--color-border-subtle);
-      box-shadow: 0 0 40px rgb(0 0 0 / 0.24);
+      box-shadow: 0 0 40px rgb(40 28 12 / 0.12);
     }
   }
 
@@ -399,7 +423,7 @@
       z-index: 50;
       width: min(560px, calc(100vw - 272px));
       transform: translateX(100%);
-      box-shadow: -20px 0 48px rgb(0 0 0 / 0.38);
+      box-shadow: -20px 0 48px rgb(40 28 12 / 0.16);
       transition:
         transform 150ms ease-out,
         opacity 120ms ease-out;

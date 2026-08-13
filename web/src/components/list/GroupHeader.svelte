@@ -42,7 +42,7 @@
       onclick={() => selection.select(group.key)}
     >{group.prefix}</button>
   {/if}
-  <span class="truncate text-micro font-semibold uppercase tracking-wider text-text-muted">
+  <span class="truncate text-micro font-medium uppercase tracking-wide text-text-muted">
     {group.label || t('common.all')}
   </span>
   <span class="flex-none text-micro tabular-nums text-text-muted">

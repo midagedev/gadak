@@ -77,14 +77,12 @@ flowchart LR
     CFG["~/.gadak/config.json (0600)"]
     Serve["gadak serve — loopback only"]
     UI["Browser UI"]
-    TUI["gadak tui"]
     Agent["Your coding agent<br/>(gadak sql / MCP)"]
   end
   GH["GitHub Releases<br/>(version check, optional)"]
   Jira -->|"HTTPS, your token"| DB
   Wiki -->|"HTTPS, your token"| DB
   DB --> Serve --> UI
-  DB --> TUI
   DB --> Agent
   UI -->|"writes"| Serve -->|"writes"| Jira
   Serve -.->|"1 anonymous GET/day"| GH
@@ -153,7 +151,7 @@ methods reject any `Origin` that does not match the request host — a
 malicious page cannot post comments or transitions through your browser
 (CSRF) — and every request rejects `Host` values that are neither
 `localhost`, `*.localhost`, nor an IP literal, so a DNS name rebound to
-127.0.0.1 cannot read the mirror. CLI, TUI, and MCP clients send no
+127.0.0.1 cannot read the mirror. CLI and MCP clients send no
 Origin header and are unaffected.
 
 ## Rendered content is untrusted

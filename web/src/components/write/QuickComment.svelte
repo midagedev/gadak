@@ -39,7 +39,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[14vh] backdrop-blur-sm"
+  class="fixed inset-0 z-50 flex items-start justify-center bg-[#1c1812]/28 p-4 pt-[14vh] backdrop-blur-[2px]"
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) onclose()

@@ -210,6 +210,10 @@ No local queue, ever.
 | `<key>/comment/` | POST | `POST /issue/{key}/comment` (ADF) | R |
 | `<key>/attachments/` | POST | `POST /issue/{key}/attachments` | R |
 | `<key>/assignee/` | PUT | `PUT /issue/{key}/assignee` | R |
+| `<key>/labels/` | PUT | `PUT /issue/{key}` (`fields.labels`) | R |
+| `<key>/priority/` | PUT | `PUT /issue/{key}` (`fields.priority`) | R |
+| `<key>/summary/` | PUT | `PUT /issue/{key}` (`fields.summary`) | R |
+| `priorities/` | GET | `GET /priority` | R |
 | `<key>/fields/` | PATCH | `PUT /issue/{key}` | R |
 | `<key>/editmeta/` | GET | `GET /issue/{key}/editmeta` | R |
 | `create/` | POST | `POST /issue` | R |
@@ -236,6 +240,14 @@ Implementation notes that are part of the contract:
 - `<key>/comment/` accepts `attachment_ids` and ignores them. The files are
   already attached by the upload endpoint; embedding them in the body needs the
   ADF media id, which Jira only exposes through the attachment redirect.
+- `<key>/labels/` is a full replace. Send `{"labels":[]}` to clear. The server
+  trims and de-duplicates. This is not the custom-field allowlist
+  (`PATCH <key>/fields/`).
+- `<key>/priority/` takes `{"priority_id":"<id>"}` from `GET priorities/`
+  (site order, most urgent first). `null` or `""` clears. Names are not
+  accepted: Jira localizes them per account.
+- `<key>/summary/` takes `{"summary":"…"}`. Trim; empty is `400 summary_required`.
+  Longer than 255 runes is `400 summary_too_long`.
 
 ### Credential storage
 

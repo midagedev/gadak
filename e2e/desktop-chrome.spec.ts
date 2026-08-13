@@ -32,11 +32,13 @@ test.describe('desktop title-bar row', () => {
     const row = page.getByTestId(LOGO_ROW)
     await expect(row).toHaveCSS('padding-left', '16px')
     // Mark + wordmark. There are no window controls here to confuse it with.
-    await expect(row.locator('span')).toHaveCount(2)
+    await expect(row.getByTestId('sidebar-mark')).toBeVisible()
+    await expect(row.getByText('gadak', { exact: true })).toBeVisible()
     // The wordmark starts where the nav below it does — nothing is reserved.
     const box = await row.getByText('gadak', { exact: true }).boundingBox()
     expect(box).not.toBeNull()
-    expect(box!.x).toBeLessThan(40)
+    // 16px pad + 18px mark + 8px gap. Nothing reserved past that.
+    expect(box!.x).toBeLessThan(50)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
@@ -64,9 +66,9 @@ test.describe('desktop title-bar row', () => {
     )
     expect(draggable).toBe('drag')
 
-    // Wordmark only: the accent square is another small rounded shape on the
-    // same baseline as the three buttons, which makes it read as a fourth one.
-    await expect(row.locator('span')).toHaveCount(1)
+    // Wordmark only: a second small mark beside the traffic lights reads as a
+    // fourth button, so the app omits it (the Dock already names the window).
+    await expect(row.getByTestId('sidebar-mark')).toHaveCount(0)
 
     const box = await row.getByText('gadak', { exact: true }).boundingBox()
     expect(box).not.toBeNull()

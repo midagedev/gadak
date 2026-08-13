@@ -59,12 +59,8 @@ keeps an installed mirror alive or removes a reason not to try one.
   verified against the demo snapshot.
 - ✅ **Agent setup doc** — `docs/AGENT_SETUP.md`: paste-ready blocks for Claude
   Code / Cursor / Codex / MCP.
-- ✅ **TUI parity.** Feed focus tabs (`1`–`4`: all / assignee / reporter /
-  mention, each with its unread badge) and saved-view `display.sort` / `dir` /
-  `group_by`. Priority sorts on `priority_rank`, never the localized name, so
-  the same view orders the same way here and in the web UI. `relevance` and
-  group keys outside the supported four stay reported as unsupported — the TUI
-  has no text ranking, and faking a group is worse than saying so.
+- ✅ **TUI parity (retired 2026-08-13).** Shipped, then dropped — a second
+  human surface split attention. See `docs/decisions/0005-three-surfaces.md`.
 - ✅ **UX and quality debt.** Per-command `--help` with real usage and
   examples; `gadak team` for sharing views and field mappings; favorites moved
   from browser storage into the mirror; the dead `presence` client stack
@@ -209,7 +205,7 @@ Shipped 2026-08-06:
 
 - ✅ **The people axis.** A person is a thing you can open: their comments
   across issues and pages, plus assigned/reported/authored as one click each.
-  Web-only this version (`docs/TUI.md` records the gap); agents reach the same
+  Web-only this version; agents reach the same
   axis through `gadak_query` — see the recipe in `docs/RECIPES.md`.
 - ✅ **Search says why it matched**, everywhere the API reaches (CLI, MCP, web).
   Comment search always worked; now it looks like it.

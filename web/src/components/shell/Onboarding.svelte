@@ -31,6 +31,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
   import Icon from '../ui/Icon.svelte'
+  import BrandMark from '../ui/BrandMark.svelte'
 
   let { onOpenSettings }: { onOpenSettings: () => void } = $props()
 
@@ -259,10 +260,14 @@
 
 <div class="flex h-full items-start justify-center overflow-y-auto px-6 py-12" data-testid="onboarding">
   <div class="anim-enter w-full max-w-md">
+    <div class="mb-5 flex items-center gap-2">
+      <BrandMark size={18} class="text-accent" />
+      <span class="type-subject text-[18px] leading-none text-text-primary">gadak</span>
+    </div>
     <p class="text-micro uppercase tracking-wide text-text-muted">
       {step === 4 ? t('onboarding.stepOptional') : t('onboarding.stepOf', { n: step })} · {STEP_LABELS[step - 1]}
     </p>
-    <h2 class="mt-1 text-title font-semibold text-text-primary">{t('onboarding.title')}</h2>
+    <h2 class="type-subject mt-1 text-heading text-text-primary">{t('onboarding.title')}</h2>
     <p class="mt-1.5 text-[12px] text-text-secondary">
       {step === 4 ? t('onboarding.agentIntro') : t('onboarding.intro')}
     </p>

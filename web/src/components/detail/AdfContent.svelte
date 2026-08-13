@@ -61,8 +61,9 @@
    * Colors/spacing use app.css @theme CSS vars (single source).
    */
   .adf :global(p) {
-    margin: 0.5em 0;
-    line-height: 1.6;
+    margin: 0.55em 0;
+    line-height: 1.62;
+    color: var(--color-text-primary);
   }
   .adf :global(p:first-child) {
     margin-top: 0;
@@ -97,9 +98,9 @@
     headings get exactly two sizes and the rest of the ramp is weight and color,
     the technique the previous revision had already chosen for h4-h6:
 
-      panel title  20 / 600
-      h1           15 / 700
-      h2           15 / 600
+      panel title  22 / 600 display
+      h1           15 / 700 display
+      h2           15 / 600 display
       h3-h6        13 / 600, secondary
       body         13 / 400, secondary
 
@@ -109,12 +110,18 @@
     would cost the common page its only heading size to serve the rare one.
   */
   .adf :global(h1) {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
     font-size: var(--text-title);
     font-weight: 700;
+    letter-spacing: -0.015em;
     margin-top: 1.3em;
   }
   .adf :global(h2) {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
     font-size: var(--text-title);
+    letter-spacing: -0.015em;
     margin-top: 1.2em;
   }
   .adf :global(h3),

@@ -7,7 +7,7 @@ address, no port conflict, and nothing new listening on your machine. Launch
 it twice and the running window comes forward instead.
 
 If you already use the CLI, nothing changes underneath: the app reads and
-writes the same `~/.gadak` profiles, and WAL means the app, `gadak tui`, a
+writes the same `~/.gadak` profiles, and WAL means the app, a
 `serve` instance, and your agent can hold the file at once.
 
 There is no title bar. It would have spent 32px saying "Gadak" above a sidebar

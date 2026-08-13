@@ -7,6 +7,7 @@
    */
   import type { Snippet } from 'svelte'
   import { isDesktop } from '../../lib/config'
+  import BrandMark from '../ui/BrandMark.svelte'
 
   let { children }: { children?: Snippet } = $props()
   /** Desktop app: the hidden title bar puts the window controls in this row. */
@@ -24,15 +25,12 @@
     data-testid="sidebar-logo-row"
   >
     {#if !desktop}
-      <!-- Dropped next to the window controls: a 10px rounded square, one gap
-           after three 12px circles, reads as a fourth traffic light. Nothing
-           is lost — the app already says Gadak in the Dock and the menu bar. -->
-      <span
-        class="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent"
-        aria-hidden="true"
-      ></span>
+      <!-- Dropped next to the window controls in the app: a second small mark
+           beside three 12px circles reads as a fourth traffic light. The Dock
+           already says Gadak. -->
+      <BrandMark size={18} class="text-accent" data-testid="sidebar-mark" />
     {/if}
-    <span class="text-body font-semibold tracking-tight text-text-primary">gadak</span>
+    <span class="type-subject text-[18px] leading-none text-text-primary">gadak</span>
   </div>
 
   <!-- Navigation slot -->

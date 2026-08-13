@@ -264,6 +264,12 @@
         kbd: 'a',
         run: () => triage.requestMenu('assignee'),
       },
+      {
+        id: 'a:triage-labels',
+        label: t('palette.actionTriageLabels', { target }),
+        kbd: 'l',
+        run: () => triage.requestMenu('labels'),
+      },
     ]
     if (cursor) {
       out.push({
@@ -381,7 +387,7 @@
 </script>
 
 <div
-  class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[12vh] backdrop-blur-sm"
+  class="fixed inset-0 z-50 flex items-start justify-center bg-[#1c1812]/28 p-4 pt-[12vh] backdrop-blur-[2px]"
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) onclose()

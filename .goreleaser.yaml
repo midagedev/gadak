@@ -103,7 +103,7 @@ brews:
         private_key: '{{ .Env.TAP_DEPLOY_KEY }}'
     directory: Formula
     homepage: "https://github.com/midagedev/gadak"
-    description: "Local SQLite mirror of your Jira issues — web UI, TUI, and agent SQL"
+    description: "Local SQLite mirror of your Jira issues — web UI and agent SQL"
     license: "Apache-2.0"
     commit_msg_template: "gadak {{ .Tag }}"
     # No deploy key, no formula push — a release must not fail because the

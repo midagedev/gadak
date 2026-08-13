@@ -2,7 +2,7 @@
  * Issue Navigator — multi-select (bulk action) store
  *
  * Separate from single selection (selection: opens detail): a set of issue keys
- *  chosen for batch status/assignee changes. UI (checkboxes/BulkBar) is the only
+ *  chosen for batch status/assignee/label changes. UI (checkboxes/BulkBar) is the only
  *  reader/writer of this store.
  *
  *  - selected: selected issue_key set (SvelteSet — add/delete trigger reactivity).
@@ -13,7 +13,7 @@
  *  - retain: drop keys no longer visible after a view change (caller passes
  *      visible keys).
  *
- * ⚠️ Actual writes (status/assignee) do not live here — BulkBar batches
+ * ⚠️ Actual writes (status/assignee/labels) do not live here — BulkBar batches
  *    write store's per-issue optimistic methods.
  */
 

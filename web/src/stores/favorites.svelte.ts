@@ -57,7 +57,7 @@ class FavoritesStore {
       const res = await api.getFavorites()
       this.keys.clear()
       // Server returns add-order only. Prefer user drag order when present, then
-      // append keys that exist only on the server (added in another window/TUI).
+      // append keys that exist only on the server (added in another window).
       const wanted = new Set(res.keys)
       for (const k of loadArray(FAVORITES_ORDER_KEY)) {
         if (wanted.delete(k)) this.keys.add(k)

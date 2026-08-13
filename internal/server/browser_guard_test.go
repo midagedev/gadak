@@ -117,7 +117,7 @@ func TestBrowserGuardNoOriginAllowed(t *testing.T) {
 	db, _ := fixture(t)
 	h := New(db, &config.Config{})
 
-	// curl / CLI / TUI: no Origin header.
+	// curl / CLI: no Origin header.
 	req := httptest.NewRequest(http.MethodPost, apiBase+"NMB-1/comment/", nil)
 	req.Host = "127.0.0.1:7777"
 	req.Header.Set("Content-Type", "application/json")

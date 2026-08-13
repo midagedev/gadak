@@ -128,7 +128,7 @@ profile; workspaces sync when you use them.
 ## Staying current
 
 gadak checks GitHub Releases for a newer version once a day (anonymous, cached,
-`updateCheck: false` opts out) and says so in the web sidebar and the TUI — but
+`updateCheck: false` opts out) and says so in the web sidebar — but
 three things still catch people, learned the hard way:
 
 1. **A running `gadak serve` keeps its old code.** Upgrading the binary does not

@@ -213,6 +213,17 @@ curl -s -X POST localhost:7777/api/v1/issues/NMB-140/transition/ \
 # account_id comes from `GET users/?q=<email>`; null unassigns.
 curl -s -X PUT localhost:7777/api/v1/issues/NMB-140/assignee/ \
   -H 'Content-Type: application/json' -d '{"account_id":"5b10a2…"}'
+
+# Full replace. Empty array clears. Trim and de-dupe happen server-side.
+curl -s -X PUT localhost:7777/api/v1/issues/NMB-140/labels/ \
+  -H 'Content-Type: application/json' -d '{"labels":["batch","tech-debt"]}'
+
+# priority_id comes from `GET priorities/`; null clears. Do not send the name.
+curl -s -X PUT localhost:7777/api/v1/issues/NMB-140/priority/ \
+  -H 'Content-Type: application/json' -d '{"priority_id":"2"}'
+
+curl -s -X PUT localhost:7777/api/v1/issues/NMB-140/summary/ \
+  -H 'Content-Type: application/json' -d '{"summary":"Rename without opening Jira"}'
 ```
 
 A write with no stored credential answers `409 {"error":"credential_required"}`.
@@ -261,9 +272,6 @@ config, profiles, troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
   note it in `CHANGELOG.md`, and keep the documented example queries working.
 - Credentials never reach SQLite, a log, or a snapshot.
 - Derived fields are recomputed from the changelog, never carried forward.
-- Every web-UI feature wave gets a TUI follow-up in the same version: parity
-  where the TUI can express it, an honest "unsupported" report where it can't.
-  Silence is the only wrong answer (rule added 2026-08-06).
 
 ### Before sending changes
 

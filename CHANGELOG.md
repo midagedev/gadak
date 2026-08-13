@@ -1,7 +1,33 @@
 # Changelog
 
-## Unreleased
+## v0.12.0 — 2026-08-13
 
+- **Paper, not a dark dashboard.** The leftover scry look — glowing orb,
+  near-black canvas, electric indigo — was a crystal ball wearing a new name.
+  gadak is a strand (가닥): uncoated paper, sumi ink, one 쪽빛 thread. The mark
+  is 가 drawn as two strokes — ㄱ the thread you follow, ㅏ the other one —
+  not a typeset syllable. 16px favicon is just the ㄱ. Wordmarks, app icon,
+  and OG card use the same drawing; the web UI follows the same tokens.
+  The TUI is gone. It was a second product to keep in lockstep with the web UI,
+  and the energy is better spent on one surface people actually live in.
+- **Labels, on the list and on the issue.** The list used to fold every chip
+  away once the detail panel opened, so a labelled issue read as unlabelled.
+  One chip always stays. On the issue itself you can add and remove labels;
+  `PUT /api/v1/issues/<key>/labels/` replaces the array, writes through to
+  Jira, and re-reads the row. An empty array clears. Trim and de-dupe are
+  server-side. There is no `gadak label` — use the UI or curl.
+- **Labels on a selection.** The bulk bar (and `l`, same place as `s` / `a`)
+  adds a label to every selected issue that does not already have it, or
+  removes one that does. The list stays put. Skip / fail counts use the same
+  toast as the other batch verbs.
+- **Priority is a verb now.** The detail chip used to reprint a name. It
+  opens the site catalog (`GET priorities/`) and writes
+  `PUT /api/v1/issues/<key>/priority/` by id. `null` clears. Names are not
+  accepted — Jira translates them per account. Team-managed projects that
+  have no priority field fail at Jira, and the toast says so.
+- **The title is editable.** Click it. Enter saves, Esc restores.
+  `PUT /api/v1/issues/<key>/summary/` trims; empty and >255 runes are refused
+  here so Jira never sees them.
 - **Renamed to gadak.** The `scry` name collided with an existing enterprise
   company and a crowded search space. The binary, home directory (`~/.gadak`),
   env prefix (`GADAK_*`), MCP tools (`gadak_query` and friends), module path,

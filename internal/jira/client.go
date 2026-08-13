@@ -220,11 +220,18 @@ func (c *Client) Statuses(ctx context.Context) (map[string]string, error) {
 	return out, nil
 }
 
+// PriorityCatalog is the site's priority list, most urgent first. Names are in
+// the account language; writes should send the id.
+func (c *Client) PriorityCatalog(ctx context.Context) ([]NamedID, error) {
+	var list []NamedID
+	return list, c.do(ctx, http.MethodGet, apiPath+"/priority", nil, &list)
+}
+
 // Priorities returns the site's priority names, most urgent first, which is the
 // order priority_rank counts from.
 func (c *Client) Priorities(ctx context.Context) ([]string, error) {
-	var list []NamedID
-	if err := c.do(ctx, http.MethodGet, apiPath+"/priority", nil, &list); err != nil {
+	list, err := c.PriorityCatalog(ctx)
+	if err != nil {
 		return nil, err
 	}
 	out := make([]string, 0, len(list))

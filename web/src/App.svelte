@@ -171,9 +171,9 @@
 
   // ── Global shortcuts ──
   //  ⌘K/Ctrl+K = command palette (even while a field is focused).
-  //  List triage: j/k cursor, ↵ open, x select, s status, a assignee, c comment,
-  //    Esc drops the selection before it closes anything.
-  //  Detail open: s status / a assignee / c comment / x close.
+  //  List triage: j/k cursor, ↵ open, x select, s status, a assignee, l labels,
+  //    c comment, Esc drops the selection before it closes anything.
+  //  Detail open: s status / a assignee / l labels / c comment / x close.
   //  c with neither a cursor nor an open detail = new issue.
   //  One handler on purpose: the list used to run its own window listener, and
   //  two listeners racing is how Esc closed the detail *and* the selection.
@@ -274,7 +274,7 @@
 
     // ── x: pick the cursor row for a batch; falls back to closing panels ──
     if (key === 'x') {
-      // A document keeps x first: it is the panel on screen, and s/a/c have no
+      // A document keeps x first: it is the panel on screen, and s/a/l/c have no
       // meaning on a read-only page, so x is the only key that closes it. A
       // person reads the same way — nothing on that panel is triageable.
       if (pages.selectedKey) {
@@ -299,9 +299,9 @@
       return
     }
 
-    // ── s / a: the selection wins, then the open detail, then the cursor row ──
-    if (key === 's' || key === 'a') {
-      const menu = key === 's' ? 'status' : 'assignee'
+    // ── s / a / l: the selection wins, then the open detail, then the cursor row ──
+    if (key === 's' || key === 'a' || key === 'l') {
+      const menu = key === 's' ? 'status' : key === 'a' ? 'assignee' : 'labels'
       if (bulk.active || (!detailOpenNow && cursorKey)) {
         e.preventDefault()
         triage.requestMenu(menu)
@@ -309,6 +309,12 @@
       }
       if (detailOpenNow) {
         e.preventDefault()
+        if (key === 'l') {
+          const field = document.querySelector<HTMLInputElement>('[data-testid="label-editor-input"]')
+          if (field) field.focus()
+          else document.querySelector<HTMLButtonElement>('[data-testid="label-editor-add"]')?.click()
+          return
+        }
         const testid = key === 's' ? 'status-transition' : 'assignee-picker'
         document.querySelector<HTMLButtonElement>(`[data-testid="${testid}"]`)?.click()
       }

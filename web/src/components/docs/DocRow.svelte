@@ -128,7 +128,7 @@
 >
   <!-- Same tier as an issue row's summary — this list is a peer collection,
        not a secondary one (vision verdict 2026-08-06). -->
-  <span class="w-full truncate text-body font-medium text-text-primary"
+  <span class="w-full truncate text-body font-normal text-text-primary"
     ><Marks segs={titleSegs} /></span
   >
   <!-- Unread is the dot alone; painting the whole meta line accent put the

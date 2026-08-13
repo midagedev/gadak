@@ -68,6 +68,14 @@ test.describe('keyboard triage', () => {
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('bulk-assignee-menu')).toBeHidden()
 
+    // ── l opens the labels popover on the same selection ──
+    await page.keyboard.press('l')
+    const labelsMenu = page.getByTestId('bulk-labels-menu')
+    await expect(labelsMenu).toBeVisible()
+    await expect(labelsMenu.getByPlaceholder('Type a label')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('bulk-labels-menu')).toBeHidden()
+
     // ── Esc gives the selection back before it closes anything ──
     await page.keyboard.press('Escape')
     await expect(bar).toBeHidden()
@@ -147,6 +155,7 @@ test.describe('keyboard triage', () => {
 
     await expect(palette.getByText('Change status · 1 selected')).toBeVisible()
     await expect(palette.getByText('Change assignee · 1 selected')).toBeVisible()
+    await expect(palette.getByText('Change labels · 1 selected')).toBeVisible()
     await expect(palette.getByText(`Comment on ${key}`)).toBeVisible()
 
     // Running it from the palette lands in the same popover the key opens.
@@ -165,6 +174,7 @@ test.describe('keyboard triage', () => {
       'Select the row under the cursor',
       'Change status (selection, or the cursor row)',
       'Change assignee (selection, or the cursor row)',
+      'Change labels (selection, or the cursor row)',
       'Comment on the row under the cursor',
       'Clear the selection, then close the detail panel',
     ]) {

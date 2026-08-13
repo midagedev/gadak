@@ -166,13 +166,13 @@ const PANEL_STYLES: Record<string, string> = {
 
 /** Jira status-node color name → chip background hex. Key lookup, so safe. */
 const STATUS_COLORS: Record<string, string> = {
-  neutral: '#3a4048',
-  grey: '#3a4048',
-  purple: '#5b4b8a',
-  blue: '#2a4b7c',
-  red: '#7c2a2a',
-  yellow: '#7c6a2a',
-  green: '#2a5c3a',
+  neutral: '#e4d9c4',
+  grey: '#e4d9c4',
+  purple: '#ddd4e8',
+  blue: '#d5dde8',
+  red: '#edd8d4',
+  yellow: '#eadfc4',
+  green: '#d6e4d8',
 }
 
 /** Single node → HTML. */

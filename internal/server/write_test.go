@@ -257,6 +257,70 @@ func TestAssigneeSetAndClear(t *testing.T) {
 	if got := string(f.bodies["PUT /issue/NMB-1/assignee"]); got != `{"accountId":null}` {
 		t.Fatalf("clear body %s", got)
 	}
+}
+
+func TestPrioritySetAndClear(t *testing.T) {
+	f, h, _ := writable(t)
+	rec := get(t, h, apiBase+"priorities/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list → %d: %s", rec.Code, rec.Body.String())
+	}
+	got := decode[struct {
+		Priorities []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"priorities"`
+	}](t, rec)
+	if len(got.Priorities) != 3 || got.Priorities[0].ID != "1" || got.Priorities[0].Name != "Highest" {
+		t.Fatalf("catalog %v", got.Priorities)
+	}
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/priority/", `{"priority_id":"2"}`); rec.Code != http.StatusOK {
+		t.Fatalf("set → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); !strings.Contains(body, `"priority":{"id":"2"}`) {
+		t.Fatalf("set body %s", body)
+	}
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/priority/", `{"priority_id":null}`); rec.Code != http.StatusOK {
+		t.Fatalf("clear → %d", rec.Code)
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); !strings.Contains(body, `"priority":null`) {
+		t.Fatalf("clear body %s", body)
+	}
+}
+
+func TestSummarySet(t *testing.T) {
+	f, h, _ := writable(t)
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/summary/", `{"summary":"  renamed  "}`); rec.Code != http.StatusOK {
+		t.Fatalf("set → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); !strings.Contains(body, `"summary":"renamed"`) {
+		t.Fatalf("set body %s", body)
+	}
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/summary/", `{"summary":"  "}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("blank → %d", rec.Code)
+	}
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/summary/", `{}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("missing → %d", rec.Code)
+	}
+}
+
+func TestLabelsSetAndClear(t *testing.T) {
+	f, h, _ := writable(t)
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/labels/", `{"labels":[" batch ","tech-debt","batch"]}`); rec.Code != http.StatusOK {
+		t.Fatalf("set → %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := string(f.bodies["PUT /issue/NMB-1"]); !strings.Contains(got, `"labels":["batch","tech-debt"]`) {
+		t.Fatalf("set body %s", got)
+	}
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/labels/", `{"labels":[]}`); rec.Code != http.StatusOK {
+		t.Fatalf("clear → %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := string(f.bodies["PUT /issue/NMB-1"]); !strings.Contains(got, `"labels":[]`) {
+		t.Fatalf("clear body %s", got)
+	}
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/labels/", `{}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("missing labels → %d", rec.Code)
+	}
 	// watches/favorites share this PUT pattern with assignee; each must land correctly.
 	if rec := send(t, h, http.MethodPut, apiBase+"watches/NMB-1/", ``); rec.Code != http.StatusNoContent {
 		t.Fatalf("watch PUT → %d", rec.Code)
@@ -485,6 +549,10 @@ func TestWritesRequireACredential(t *testing.T) {
 		{http.MethodPost, apiBase + "NMB-1/transition/", `{"transition_id":"31"}`},
 		{http.MethodPost, apiBase + "NMB-1/comment/", `{"text":"hi"}`},
 		{http.MethodPut, apiBase + "NMB-1/assignee/", `{"account_id":null}`},
+		{http.MethodPut, apiBase + "NMB-1/labels/", `{"labels":["x"]}`},
+		{http.MethodPut, apiBase + "NMB-1/priority/", `{"priority_id":"2"}`},
+		{http.MethodPut, apiBase + "NMB-1/summary/", `{"summary":"x"}`},
+		{http.MethodGet, apiBase + "priorities/", ""},
 		{http.MethodPatch, apiBase + "NMB-1/fields/", `{"field":"solution","value":"1"}`},
 		{http.MethodGet, apiBase + "NMB-1/editmeta/", ""},
 		{http.MethodPost, apiBase + "create/", `{"project_key":"NMB","issue_type":"1","summary":"x"}`},

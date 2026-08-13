@@ -58,7 +58,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1812]/28 p-4 backdrop-blur-[2px]"
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) close()
@@ -71,7 +71,7 @@
     aria-modal="true"
     aria-label={t('jiraSettings.title')}
   >
-    <h2 class="mb-1 text-title font-semibold text-text-primary">{t('jiraSettings.heading')}</h2>
+    <h2 class="type-subject mb-1 text-[18px] leading-snug text-text-primary">{t('jiraSettings.heading')}</h2>
     <p class="mb-4 text-[12px] leading-relaxed text-text-muted">
       <!-- intro3 already ends in "Atlassian"; the line break below is the space
            before the link, so no literal belongs here. -->

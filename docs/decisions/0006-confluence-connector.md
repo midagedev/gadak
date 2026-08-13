@@ -25,7 +25,7 @@ source-neutral input contract). What does *not* exist is a connector interface â
    projection), a pages read API, ETag combining both sources' versions
    (the ponytail comment in `server.go` comes due).
 3. **R3 â€” UI.** Generic document detail view (reusing `AdfContent`,
-   `CommentList`, `AttachmentGallery`), unified search results, TUI later.
+   `CommentList`, `AttachmentGallery`), unified search results.
 
 Shape decisions:
 

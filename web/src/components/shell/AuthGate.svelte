@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../../lib/i18n'
+  import BrandMark from '../ui/BrandMark.svelte'
   /*
    * Auth gate — shown only when there's no cache and we got 401 (render-before-auth).
    * With a cache the app still renders; auth is rechecked quietly in the background.
@@ -9,8 +10,8 @@
 
 <div class="flex h-screen flex-col items-center justify-center gap-4 bg-bg-base px-6 text-center">
   <div class="flex items-center gap-2">
-    <span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent"></span>
-    <span class="text-title font-semibold text-text-primary">gadak</span>
+    <BrandMark size={20} class="text-accent" />
+    <span class="type-subject text-[20px] leading-none text-text-primary">gadak</span>
   </div>
   <p class="max-w-sm text-body text-text-secondary">
     {t('app.authGate')}

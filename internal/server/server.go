@@ -206,10 +206,14 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("GET "+apiBase+"create-meta/{$}", s.handleCreateMeta)
 	mux.HandleFunc("POST "+apiBase+"create/{$}", s.handleCreate)
 	mux.HandleFunc("GET "+apiBase+"users/{$}", s.handleUsers)
+	mux.HandleFunc("GET "+apiBase+"priorities/{$}", s.handlePriorities)
 	mux.HandleFunc("POST "+apiBase+"{key}/transition/{$}", s.handleTransition)
 	mux.HandleFunc("POST "+apiBase+"{key}/comment/{$}", s.handleComment)
 	mux.HandleFunc("POST "+apiBase+"{key}/attachments/{$}", s.handleUpload)
 	mux.HandleFunc("PUT "+apiBase+"{key}/assignee/{$}", s.handleAssignee)
+	mux.HandleFunc("PUT "+apiBase+"{key}/labels/{$}", s.handleLabels)
+	mux.HandleFunc("PUT "+apiBase+"{key}/priority/{$}", s.handlePriority)
+	mux.HandleFunc("PUT "+apiBase+"{key}/summary/{$}", s.handleSummary)
 	mux.HandleFunc("PATCH "+apiBase+"{key}/fields/{$}", s.handleFields)
 	// Single-item re-read after in-app browser edit (no upstream write).
 	// Three-segment pages/{id}/resync/ is a literal; {key}/resync/ is two-segment.

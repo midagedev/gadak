@@ -24,6 +24,7 @@ import type {
   FeedUnreadCounts,
   IssueWriteResponse,
   JiraCredential,
+  PrioritiesResponse,
   NotificationConfig,
   NotificationPreferences,
   PageDetail,
@@ -481,6 +482,41 @@ export function setAssignee(
     method: 'PUT',
     headers: JSON_HEADERS,
     body: JSON.stringify({ account_id: accountId }),
+  })
+}
+
+/* ── Labels ── */
+
+/** PUT <key>/labels/ — full replace. Send `[]` to clear. */
+export function setLabels(issueKey: string, labels: string[]): Promise<IssueWriteResponse> {
+  return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/labels/`, {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ labels }),
+  })
+}
+
+/* ── Priority ── */
+
+export function getPriorities(): Promise<PrioritiesResponse> {
+  return jsonW<PrioritiesResponse>('priorities/')
+}
+
+/** PUT <key>/priority/ — `null` clears. Send the site id, not the display name. */
+export function setPriority(issueKey: string, priorityId: string | null): Promise<IssueWriteResponse> {
+  return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/priority/`, {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ priority_id: priorityId }),
+  })
+}
+
+/** PUT <key>/summary/ — trim; empty is refused. */
+export function setSummary(issueKey: string, summary: string): Promise<IssueWriteResponse> {
+  return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/summary/`, {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ summary }),
   })
 }
 

@@ -4,14 +4,13 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-05, after closing the v0.3 remainder (`gadak snapshot`,
-TUI parity), the research-backed Later items (`gadak fields`, call-volume
-instrumentation at schema v6), and team config sharing.
+Last updated: 2026-08-13, v0.12.0 — paper identity, TUI retired, labels /
+priority / title write through to Jira.
 
 ## In one paragraph
 
-The tool works end to end on three surfaces over one SQLite mirror: the web UI
-(`gadak serve`), the terminal UI (`gadak tui`), and the CLI that doubles as the
+The tool works end to end on two surfaces over one SQLite mirror: the web UI
+(`gadak serve`, or the desktop window around it) and the CLI that doubles as the
 agent interface (`gadak issue/search/comment/transition/assign/sql`, plus an MCP
 server for clients without a shell). `gadak demo` runs the whole thing against a
 bundled snapshot with no Jira account. Sync (full, incremental, reconcile), the
@@ -41,7 +40,7 @@ snapshot, not assumed.
 | Secret scan | `scripts/scan-internal.sh` clean across the tracked tree and the demo snapshot |
 | Release artifacts | `goreleaser release --snapshot` → six archives; the extracted darwin/arm64 binary serves the embedded UI and a 200 bootstrap with no `--static` |
 | MCP server | stdio JSON-RPC round trip: initialize / tools/list / all four tools; write SQL rejected as a tool error; stdout carries frames only |
-| Demo media | `make media` regenerates three GIFs and an MP4 from the snapshot; frames inspected for branding, English status/type names (list + issue detail — `examples/demo.db` 2026-08-06: status/type Hangul 0 rows; titles English), a healthy sync badge, and the attachment gallery + inline comment images |
+| Demo media | `make media` regenerates two GIFs and an MP4 from the snapshot; frames inspected for branding, English status/type names (list + issue detail — `examples/demo.db` 2026-08-06: status/type Hangul 0 rows; titles English), a healthy sync badge, and the attachment gallery + inline comment images |
 | Attachment cache | Fake-Jira test: one upstream fetch for two views, `immutable` validator on the second, and a cached image still served with the credential removed. Live: 0.6 ms from disk |
 | Inline comment images | Live demo site: three uploads, a comment carrying two media nodes with real UUIDs and `alt` filenames, both rendering in a browser at full resolution |
 | Offline attachments | `gadak demo` imports `examples/attachments/`; both inline images render with no Jira account |
@@ -71,8 +70,6 @@ snapshot, not assumed.
   catalogs live in `web/src/lib/i18n/`.
 - `tools/seed-demo` — Go port of the demo-site seeder (the Python original is
   gone).
-- `internal/tui` — Bubble Tea terminal UI. Column widths in terminal cells
-  (`go-runewidth`), so CJK summaries stay aligned; see `docs/TUI.md`.
 - `internal/mcp` — stdio JSON-RPC server, four read-only tools, no SDK.
 - `internal/attachcache` — attachment bytes on disk, content-addressed, single
   flight, LRU budget. Why it exists: proxying every image view contradicted the

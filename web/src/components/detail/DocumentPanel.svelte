@@ -138,7 +138,7 @@
         {/if}
 
         <!-- Same tier as an issue's title: both are "the subject of this panel". -->
-        <h2 class="mb-2 text-heading font-semibold text-text-primary" data-testid="doc-title">
+        <h2 class="type-subject mb-2 text-heading text-text-primary" data-testid="doc-title">
           {head?.title ?? ''}
         </h2>
 

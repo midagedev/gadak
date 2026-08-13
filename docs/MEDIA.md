@@ -10,7 +10,6 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | --- | --- | --- |
 | `docs/media/web-demo.gif` | Playwright walkthrough | README hero (inline) |
 | `docs/media/web-demo.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
-| `docs/media/tui.gif` | VHS tape `tools/tapes/tui.tape` | README / docs — terminal navigator |
 | `docs/media/agent.gif` | VHS tape `tools/tapes/agent.tape` | README / docs — a real Claude Code session on the mirror |
 
 ## Size budget
@@ -19,7 +18,7 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | --- | --- | --- |
 | `web-demo.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | GitHub README inline limit; palette 2-pass |
 | `web-demo.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
-| `tui.gif` / `agent.gif` | soft ≤ 5 MB each | VHS output + `gifsicle -O3 --colors 64` |
+| `agent.gif` | soft ≤ 5 MB | VHS output + `gifsicle -O3 --colors 64` |
 
 ### Current committed sizes (re-measure after regen)
 
@@ -27,9 +26,8 @@ Measured 2026-08-06 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 
 | Asset | Size | Bytes (`ls -la`) | Duration | Resolution / fps |
 | --- | --- | --- | --- | --- |
-| `web-demo.gif` | 6.55 MB | 6549601 | 22.4 s | 960×600 @ 9 fps, 128-color palette |
-| `web-demo.mp4` | 0.95 MB | 952142 | 22.4 s | 1024×640 h264 |
-| `tui.gif` | 4.73 MB | 4728239 | 17.0 s | 1080×620, 77×24 cells, 64 colors |
+| `web-demo.gif` | 7.0 MB | 7348988 | 22.4 s | 960×600 @ 9 fps, 128-color palette |
+| `web-demo.mp4` | 1.1 MB | 1119359 | 22.4 s | 1024×640 h264 |
 | `agent.gif` | 305 KB | 304708 | 31.5 s | 1080×620, 77×24 cells, 64 colors |
 
 ## Readability comes first, and it costs bytes
@@ -44,9 +42,7 @@ So the recordings are deliberately small:
 - Web: viewport **1024×640**, not 1280×800. 1024 is the floor that still matches
   Tailwind's `lg:` breakpoint, below which the row's epic chip and trailing
   strip disappear and the UI stops looking like itself.
-- Terminals: **77 cols × 24 rows** (`Set Width 1080` / `Set FontSize 20`). Under
-  ~72 cols the TUI's summary column collapses into ellipses; past ~90 the glyphs
-  land under 13 px in the README.
+- Terminals (agent tape): **77 cols × 24 rows** (`Set Width 1080` / `Set FontSize 20`).
 
 **Web GIF tradeoff:** the walkthrough now carries six beats (search, unified
 search with documents, the docs tree, epic grouping, palette, epic rollup) at a
@@ -62,8 +58,8 @@ point anyone who wants a light asset at the MP4.
 **Terminal GIFs:** VHS's own encoder is generous (7–8 MB for these clips), and
 `Set Framerate` does not change the GIF's 25 fps frame table. Both tapes are
 finished with `gifsicle -O3 --colors 64`, which roughly halves them with no
-visible loss on a 64-colour terminal theme. `make media-tui` / `make media-agent`
-do **not** run that pass yet — run it by hand (below) after recording.
+visible loss on a 64-colour terminal theme. `make media-agent`
+does **not** run that pass yet — run it by hand (below) after recording.
 
 ## Regenerate everything
 
@@ -78,12 +74,12 @@ Individual targets:
 
 ```bash
 make media-web     # Playwright → webm → gif + mp4 (self-contained)
-make media-tui     # VHS TUI navigator            → needs the gifsicle pass
 make media-agent   # VHS Claude Code session      → needs setup + gifsicle pass
 make media-prep    # build gadak + seed tools/tapes/.tmp from demo.db
+make brand         # logo, wordmarks, favicons, OG card
 ```
 
-The two terminal clips need steps `make` does not run:
+The agent clip needs steps `make` does not run:
 
 ```bash
 # agent.gif only — an isolated HOME holding a copy of this machine's Claude
@@ -92,8 +88,8 @@ bash tools/tapes/prepare-agent.sh
 make media-agent
 bash tools/tapes/prepare-agent.sh --clean     # removes the credential copy
 
-# both terminal clips — VHS output is 2× the budget without this
-gifsicle -O3 --colors 64 docs/media/tui.gif -o docs/media/tui.gif
+# agent.gif — VHS output is 2× the budget without this
+gifsicle -O3 --colors 64 docs/media/agent.gif -o docs/media/agent.gif
 
 # agent.gif also gets its idle tail cut. Model latency varies per take, so find
 # the frame where the answer finishes and keep everything up to ~3 s after it
@@ -139,12 +135,6 @@ The demo test is gated by `GADAK_MEDIA=1` so a plain
 No caption overlays are injected into the DOM — the app code under `web/src/`
 is never touched by this pipeline.
 
-### TUI (`tui.gif`)
-
-List → `/` filter typing (live `pagination` highlights) → clear → `D` docs tree
-→ `j` down the tree → Enter for a page (breadcrumb + body) → Esc → `D` back →
-`Ctrl+K` palette → `q`.
-
 ### Agent (`agent.gif`)
 
 Two scenes, both real:
@@ -166,7 +156,7 @@ sql` / `gadak issue` / `gadak status`) is in git history if you need a fallback.
 
 The demo seed keeps some Korean Jira status/type labels (`완료`, `진행 중`,
 `버그`). Terminal columns need a **monospace CJK** font or Hangul cells
-mis-width and the TUI drifts.
+mis-width and the agent tape drifts.
 
 Tapes set:
 
@@ -211,7 +201,6 @@ Re-run `make media` whenever any of these change in a way that is visible:
 
 - `examples/demo.db` is regenerated (`tools/seed-demo` or similar)
 - Web UI layout / copy that appears in the walkthrough
-- TUI keybindings or list columns
 - CLI output shape for `search` / `sql` / `issue` / `status`
 
 The mirror is disposable; the scripts are the source of truth. After regenerating,
@@ -232,7 +221,7 @@ e2e/demo/
 tools/tapes/
   prepare.sh             # build binary, seed GADAK_HOME from demo.db
   prepare-agent.sh       # isolated HOME + auth for the Claude Code take
-  tui.tape / agent.tape  # VHS scripts
+  agent.tape             # VHS script
   .tmp/                  # disposable (gitignored)
 docs/media/              # committed outputs
 ```

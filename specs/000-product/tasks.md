@@ -76,6 +76,9 @@ Legend: **done** / **partial** / **todo**
 | T4.7 | Issue creation and create-meta | done | Filing outside the mirrored projects is refused up front: the re-read would never find the issue. `TestCreateIssue` |
 | T4.8 | Re-read and mirror refresh after every write | done | `sync.SyncIssue` — the same mapping and derived-field code a scheduled sync uses, with `Force` so the rewrite moves `synced_at` and the version, which is what makes the next delta and the ETag agree. A write that lands but fails to re-read reports `write_applied_mirror_stale` rather than a failure the user would retry |
 | T4.9 | `meta/write/` boot cache | partial | `create_meta` is real; the transition map is empty because the client already falls back to fetching an issue's transitions when the menu opens. No credential answers 200 with empty rather than blocking the boot |
+| T4.10 | Labels on an existing issue | done | `PUT <key>/labels/` is a full-array replace (empty clears; trim + de-dupe). Not the custom-field allowlist. `TestLabelsSetAndClear`. UI: `LabelEditor` on the detail header, same suggestion ranking as create |
+| T4.11 | Priority on an existing issue | done | `GET priorities/` is the site catalog (id + localized name). `PUT <key>/priority/` sends the id; null clears. `TestPrioritySetAndClear`. UI: `PriorityPicker` on the detail header |
+| T4.12 | Summary on an existing issue | done | `PUT <key>/summary/` trims; empty / >255 runes refused. `TestSummarySet`. UI: click the detail title |
 
 ## T5 Agent access
 
@@ -140,10 +143,11 @@ seeded ground truth (95 reopen transitions), FTS, bootstrap/delta/detail/search,
 live write-through (comment + transition verified against real Jira), settings
 round-trip without a restart, and the enrichments plugin boundary.
 
-Since then the surfaces widened: a terminal UI (`gadak tui`), agent-facing CLI
-commands plus an MCP server, working plugin examples, single-binary packaging via
-`go:embed`, a verified release pipeline (six archives, container image), and a
-scripted demo-media pipeline.
+Since then the surfaces widened: agent-facing CLI commands plus an MCP server,
+working plugin examples, single-binary packaging via `go:embed`, a verified
+release pipeline (six archives, container image), and a scripted demo-media
+pipeline. The terminal UI (`gadak tui`) shipped and was later retired — see
+`docs/decisions/0005-three-surfaces.md`.
 
 **Still open**: T6.8 live-site display names (waiting on
 invitation acceptance); the feed / push / presence surfaces, which are deliberate

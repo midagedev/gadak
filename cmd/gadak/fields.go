@@ -606,9 +606,7 @@ func printUsageTable(rows []fieldUsageRow) {
 	}
 	// Column widths in terminal cells, not bytes or runes: Jira returns field
 	// names in the account's language, so a Korean or Japanese name is routine
-	// here and each of its characters occupies two cells. This is the same
-	// contract the TUI keeps (docs/TUI.md, "Fonts, and why Korean or Japanese
-	// columns can look wrong") and the same helper it uses.
+	// here and each of its characters occupies two cells.
 	wName, wID, wType, wFilled, wAlias := 4, 2, 4, 6, 5 // header minima
 	aliasOf := func(r fieldUsageRow) string {
 		if r.Alias == "" && r.Suggested != "" {

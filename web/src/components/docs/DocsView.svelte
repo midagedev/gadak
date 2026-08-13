@@ -259,7 +259,7 @@
             data-author={item.author}
           >
             <span
-              class="truncate text-micro font-semibold uppercase tracking-wider text-text-muted"
+              class="truncate text-micro font-medium uppercase tracking-wide text-text-muted"
             >
               {item.author || t('docs.authorUnknown')}
             </span>

@@ -17,7 +17,6 @@
 - `AGENT_ACCESS.md`: which access layer to reach for
 - `RECIPES.md`: questions JQL cannot ask, as ready-to-run SQL
 - `MCP.md`: MCP server setup for hosts without a shell
-- `TUI.md`: terminal UI keys and CJK font guidance
 - `CONFIGURATION.md`: `config.json` keys, defaults, floors
 - `EXTENDING.md`: config, enrichments, and SQL extension axes
 - `PLUGINS.md`: enrichment contract and payload shapes
@@ -44,4 +43,4 @@
 - `decisions/0002-stack.md`: Go + SQLite, Svelte client
 - `decisions/0003-local-process.md`: why browser-only is impossible
 - `decisions/0004-browser-sqlite.md`: SQLite in the browser, demo only
-- `decisions/0005-three-surfaces.md`: web, TUI, and CLI over one store
+- `decisions/0005-three-surfaces.md`: two surfaces (web + CLI); TUI retired

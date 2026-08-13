@@ -15,8 +15,8 @@ import (
 // Host for HTTP/1.0 clients). DNS names are forbidden so a rebinding name
 // cannot read the mirror.
 //
-// Origin: state-changing methods only — missing Origin is allowed (CLI/TUI/
-// curl); present Origin must match r.Host exactly (scheme http or https).
+// Origin: state-changing methods only — missing Origin is allowed (CLI
+// and curl); present Origin must match r.Host exactly (scheme http or https).
 func browserGuard(w http.ResponseWriter, r *http.Request) bool {
 	if !allowedHost(r.Host) {
 		log.Printf("server: forbidden host %q on %s %s", r.Host, r.Method, r.URL.Path)

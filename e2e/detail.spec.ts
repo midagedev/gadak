@@ -69,7 +69,10 @@ test.describe('detail', () => {
     })
     expect(widest.width, 'the fixture must show label chips somewhere').toBeGreaterThan(0)
     const key = widest.key
-    const chips = scroller.locator(`[data-issue-key="${key}"] span.md\\:flex`).last()
+    const chips = scroller.locator(`[data-issue-key="${key}"] button[title^="Labels:"]`).first()
+    const strip = scroller.locator(`[data-issue-key="${key}"]`).locator('span').filter({
+      has: page.locator('button[title^="Labels:"]'),
+    })
     const chipped = scroller.locator(`[data-issue-key="${key}"]`)
 
     // Open some other row, so the row being measured is not also the selected
@@ -88,7 +91,7 @@ test.describe('detail', () => {
 
     // And the space came from the chips: that same row's strip is narrower than
     // it was with the whole column to itself.
-    const narrow = await chips.boundingBox()
+    const narrow = await strip.boundingBox()
     expect(narrow?.width ?? 0).toBeLessThan(widest.width)
 
     /*
@@ -114,9 +117,10 @@ test.describe('detail', () => {
     for (const chip of await visibleChips()) {
       expect(chip.width, `label chip "${chip.text}" width`).toBeGreaterThanOrEqual(40)
     }
-    // Dropped, not deleted: at this width the strip on the labelled row is the
-    // count alone, so the row still says it has labels.
-    expect((await chips.innerText()).trim()).toMatch(/^\+\d+$/)
+    // One chip always stays — a detail-open list that folds to "+3" reads as
+    // having no labels. Extra labels may still collapse to +N beside it.
+    expect((await chips.innerText()).trim().length).toBeGreaterThan(1)
+    expect((await chips.innerText()).trim()).not.toMatch(/^\+\d+$/)
 
     // The fold reverses. Widen until the list is back above the last step and
     // the chips return — otherwise "no frayed chips" would also be satisfied by
@@ -131,6 +135,109 @@ test.describe('detail', () => {
     for (const chip of await visibleChips()) {
       expect(chip.width, `wide-list label chip "${chip.text}" width`).toBeGreaterThanOrEqual(40)
     }
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('detail header offers a label editor when a credential is stored', async ({ page }) => {
+    /*
+     * The fixture credential is fake, so a real PUT would fail at Jira. This
+     * stops where triage.spec.ts stops: the add surface has to appear. The
+     * write itself is TestLabelsSetAndClear.
+     */
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    const input = searchInput(page)
+    await input.fill('NMB-110')
+    await expect(page.getByText('NMB-110').first()).toBeVisible()
+    await page
+      .locator('[data-testid="issue-list-scroller"] [role="button"]')
+      .filter({ hasText: 'NMB-110' })
+      .first()
+      .click()
+
+    const panel = page.getByTestId('issue-detail-panel')
+    await expect(panel).toBeVisible()
+    const editor = panel.getByTestId('label-editor')
+    await expect(editor).toBeVisible()
+
+    await editor.getByTestId('label-editor-add').click()
+    const field = editor.getByTestId('label-editor-input')
+    await expect(field).toBeVisible()
+    await field.fill('tech-debt')
+    await expect(field).toHaveValue('tech-debt')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('detail header offers a priority picker when a credential is stored', async ({ page }) => {
+    /*
+     * GET priorities/ would hit Jira; the fixture token is fake. The catalog
+     * is mocked so the menu can render. The write itself is TestPrioritySetAndClear.
+     */
+    const errors = attachConsoleErrors(page)
+    await page.route('**/api/v1/issues/priorities/', (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      return route.fulfill({
+        json: {
+          priorities: [
+            { id: '1', name: 'Highest' },
+            { id: '2', name: 'High' },
+            { id: '3', name: 'Medium' },
+            { id: '4', name: 'Low' },
+            { id: '5', name: 'Lowest' },
+          ],
+        },
+      })
+    })
+    await gotoApp(page)
+
+    const input = searchInput(page)
+    await input.fill('NMB-110')
+    await expect(page.getByText('NMB-110').first()).toBeVisible()
+    await page
+      .locator('[data-testid="issue-list-scroller"] [role="button"]')
+      .filter({ hasText: 'NMB-110' })
+      .first()
+      .click()
+
+    const panel = page.getByTestId('issue-detail-panel')
+    await expect(panel).toBeVisible()
+    const chip = panel.getByTestId('priority-picker')
+    await expect(chip).toBeVisible()
+    await chip.click()
+    const menu = page.getByRole('listbox', { name: 'Priority' })
+    await expect(menu).toBeVisible()
+    await expect(menu.getByRole('option', { name: 'None' })).toBeVisible()
+    await expect(menu.getByRole('option', { name: 'High', exact: true })).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('detail title becomes a field when clicked', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    const input = searchInput(page)
+    await input.fill('NMB-110')
+    await expect(page.getByText('NMB-110').first()).toBeVisible()
+    await page
+      .locator('[data-testid="issue-list-scroller"] [role="button"]')
+      .filter({ hasText: 'NMB-110' })
+      .first()
+      .click()
+
+    const panel = page.getByTestId('issue-detail-panel')
+    await expect(panel).toBeVisible()
+    const title = panel.getByTestId('title-editor')
+    await expect(title).toBeVisible()
+    await title.click()
+    const field = panel.getByTestId('title-editor-input')
+    await expect(field).toBeVisible()
+    await expect(field).toBeFocused()
+    await field.press('Escape')
+    await expect(panel.getByTestId('title-editor')).toBeVisible()
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

@@ -239,7 +239,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-[8vh] backdrop-blur-sm"
+  class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#1c1812]/28 p-4 pt-[8vh] backdrop-blur-[2px]"
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) close()
@@ -252,7 +252,7 @@
     aria-modal="true"
     aria-label={t('write.newIssue')}
   >
-    <h2 class="mb-4 text-title font-semibold text-text-primary">{t('write.newIssue')}</h2>
+    <h2 class="type-subject mb-4 text-[18px] leading-snug text-text-primary">{t('write.newIssue')}</h2>
 
     {#if loading}
       <div class="py-8 text-center text-body text-text-muted">{t('common.loading')}</div>

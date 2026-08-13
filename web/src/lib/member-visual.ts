@@ -2,7 +2,7 @@ import { config } from './config'
 import type { Member } from './types'
 
 /* Group (part/team) labels & colors are per-tenant via runtime config. Fallback: department hash color. */
-const DEPARTMENT_COLORS = ['#22d3ee', '#4ade80', '#facc15', '#f472b6', '#818cf8', '#fb923c']
+const DEPARTMENT_COLORS = ['#3a6a72', '#4a6e50', '#8a6418', '#8a4a62', '#3d4f6f', '#9a5a32']
 
 function hashIndex(value: string, length: number): number {
   let hash = 0

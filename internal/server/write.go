@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
@@ -374,6 +375,108 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"attachments": out})
 }
 
+/* ── priority ── */
+
+func (s *server) handlePriorities(w http.ResponseWriter, r *http.Request) {
+	c, _, ok := s.client(w)
+	if !ok {
+		return
+	}
+	list, err := c.PriorityCatalog(r.Context())
+	if err != nil {
+		failJira(w, r, err)
+		return
+	}
+	out := make([]map[string]string, 0, len(list))
+	for _, p := range list {
+		if p.ID == "" {
+			continue
+		}
+		out = append(out, map[string]string{"id": p.ID, "name": p.Name})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"priorities": out})
+}
+
+func (s *server) handlePriority(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		PriorityID *string `json:"priority_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	key := r.PathValue("key")
+	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+		id := strings.TrimSpace(deref(body.PriorityID))
+		if id == "" {
+			return nil, c.UpdateFields(ctx, key, map[string]any{"priority": nil})
+		}
+		return nil, c.UpdateFields(ctx, key, map[string]any{"priority": map[string]string{"id": id}})
+	})
+}
+
+/* ── summary ── */
+
+// Jira Cloud's own cap on the summary field.
+const maxSummary = 255
+
+func (s *server) handleSummary(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Summary *string `json:"summary"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Summary == nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	summary := strings.TrimSpace(*body.Summary)
+	if summary == "" {
+		fail(w, http.StatusBadRequest, "summary_required")
+		return
+	}
+	if utf8.RuneCountInString(summary) > maxSummary {
+		fail(w, http.StatusBadRequest, "summary_too_long")
+		return
+	}
+	key := r.PathValue("key")
+	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+		return nil, c.UpdateFields(ctx, key, map[string]any{"summary": summary})
+	})
+}
+
+/* ── labels ── */
+
+func (s *server) handleLabels(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Labels *[]string `json:"labels"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Labels == nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	labels := normalizeLabels(*body.Labels)
+	key := r.PathValue("key")
+	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+		return nil, c.UpdateFields(ctx, key, map[string]any{"labels": labels})
+	})
+}
+
+func normalizeLabels(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
+}
+
 /* ── assignee ── */
 
 func (s *server) handleAssignee(w http.ResponseWriter, r *http.Request) {
@@ -521,8 +624,8 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	if p.Priority != "" {
 		fields["priority"] = map[string]string{"name": p.Priority}
 	}
-	if len(p.Labels) > 0 {
-		fields["labels"] = p.Labels
+	if labels := normalizeLabels(p.Labels); len(labels) > 0 {
+		fields["labels"] = labels
 	}
 
 	key, err := c.CreateIssue(r.Context(), fields)

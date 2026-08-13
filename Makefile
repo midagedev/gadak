@@ -1,5 +1,5 @@
 .PHONY: build test vet typecheck bench scan docker plugins-test \
-	media media-web media-tui media-agent media-prep media-deps \
+	media media-web media-agent media-prep media-deps brand \
 	hosted-demo hosted-demo-test
 
 build:
@@ -47,10 +47,13 @@ plugins-test:
 # Requires: ffmpeg, vhs (charmbracelet), Node 20+, Playwright chromium, Go.
 MEDIA_DIR := docs/media
 
-media: media-web media-tui media-agent
+brand:
+	node tools/brand/render.mjs
+
+media: media-web media-agent
 	@echo "media: done → $(MEDIA_DIR)/"
 	@ls -lh $(MEDIA_DIR)/web-demo.gif $(MEDIA_DIR)/web-demo.mp4 \
-		$(MEDIA_DIR)/tui.gif $(MEDIA_DIR)/agent.gif
+		$(MEDIA_DIR)/agent.gif
 
 media-deps:
 	@command -v ffmpeg >/dev/null || { echo "media: ffmpeg required" >&2; exit 1; }
@@ -72,11 +75,6 @@ media-web: media-deps
 	rm -rf e2e/demo/test-results
 	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/playwright.config.ts
 	bash e2e/demo/export-video.sh
-
-media-tui: media-prep
-	@mkdir -p $(MEDIA_DIR)
-	@echo "media-tui: recording VHS tape…"
-	vhs tools/tapes/tui.tape
 
 media-agent: media-prep
 	@mkdir -p $(MEDIA_DIR)

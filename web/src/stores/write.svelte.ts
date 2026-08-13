@@ -3,7 +3,7 @@
  *
  * Role:
  *  - Personal Jira credential state (configured/jira_email/token_hint) + load/save/delete.
- *  - **Optimistic** wrapper for write actions (transition · assignee · comment · create):
+ *  - **Optimistic** wrapper for write actions (transition · assignee · labels · priority · summary · comment · create):
  *      ① Apply IssueLite to local pool (issues.pool) immediately → ② server call →
  *      ③ Confirm-replace with response issue (+ invalidate detail cache) →
  *      ④ On failure: restore snapshot + toast.
@@ -32,6 +32,7 @@ import type {
   EditMetaResponse,
   IssueLite,
   JiraUser,
+  PriorityOption,
   Transition,
   UploadedAttachment,
   WriteMetaCache,
@@ -65,6 +66,10 @@ class WriteStore {
   writeMetaProjects = $state<CreateMetaProject[]>([])
   writeMetaUpdatedAt = $state<string | null>(null)
   writeMetaLoaded = $state(false)
+
+  /** Site priority catalog (GET priorities/), most urgent first. */
+  priorities = $state<PriorityOption[]>([])
+  prioritiesLoaded = $state(false)
 
   /* ── Dialogs ── */
   settingsOpen = $state(false)
@@ -396,6 +401,76 @@ class WriteStore {
     return ok
   }
 
+  /* ── Labels ── */
+
+  /**
+   * Replace the issue's label array (optimistic). Empty clears. Trim and
+   * de-dupe match the server so the chip row does not flash a form the PUT
+   * would have dropped.
+   */
+  async setLabels(key: string, labels: string[]): Promise<boolean> {
+    const next = normalizeLabels(labels)
+    const prev = issues.pool.get(key)?.labels ?? []
+    const ok = await this.#writeIssue(
+      key,
+      { labels: next },
+      () => api.setLabels(key, next),
+      t('write.labelsFailed'),
+    )
+    if (ok) {
+      for (const l of next) {
+        if (!prev.includes(l)) recordRecent('label', l)
+      }
+    }
+    return ok
+  }
+
+  /* ── Priority ── */
+
+  /**
+   * Site catalog, most urgent first. Hosted demo synthesizes from the pool so
+   * the picker still opens; a real site is one GET /priority.
+   */
+  async loadPriorities(): Promise<boolean> {
+    if (this.prioritiesLoaded && this.priorities.length) return true
+    if (!(await this.ensureWritable())) return false
+    if (isHostedDemo()) {
+      this.priorities = demoPriorities(issues.allIssues)
+      this.prioritiesLoaded = true
+      return true
+    }
+    try {
+      const res = await api.getPriorities()
+      this.priorities = res.priorities
+      this.prioritiesLoaded = true
+      return true
+    } catch (e) {
+      this.#handleError(e, t('write.prioritiesFailed'))
+      return false
+    }
+  }
+
+  async setPriority(key: string, p: PriorityOption | null): Promise<boolean> {
+    const rank = p ? this.priorities.findIndex((x) => x.id === p.id) + 1 : 0
+    return this.#writeIssue(
+      key,
+      { priority: p ? p.name : null, priority_rank: p ? rank : 0 },
+      () => api.setPriority(key, p ? p.id : null),
+      t('write.priorityFailed'),
+    )
+  }
+
+  async setSummary(key: string, summary: string): Promise<boolean> {
+    const next = summary.trim()
+    if (!next) return false
+    return this.#writeIssue(
+      key,
+      { summary: next },
+      () => api.setSummary(key, next),
+      t('write.summaryFailed'),
+    )
+  }
+
   /* ── QA field inline edit ── */
 
   /**
@@ -586,6 +661,33 @@ class WriteStore {
     console.warn('[write]', fallback, e)
     this.toast(fallback, 'error')
   }
+}
+
+const DEMO_PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
+
+function demoPriorities(pool: IssueLite[]): PriorityOption[] {
+  const seen = new Map<string, number>()
+  for (const it of pool) {
+    if (!it.priority || seen.has(it.priority)) continue
+    seen.set(it.priority, it.priority_rank ?? 99)
+  }
+  if (seen.size === 0) return DEMO_PRIORITIES.map((name) => ({ id: name, name }))
+  return [...seen.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .map(([name]) => ({ id: name, name }))
+}
+
+/** Trim, drop empties, de-dupe. Same rules as the server's normalizeLabels. */
+function normalizeLabels(input: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of input) {
+    const s = raw.trim()
+    if (!s || seen.has(s)) continue
+    seen.add(s)
+    out.push(s)
+  }
+  return out
 }
 
 /** App-wide singleton. */

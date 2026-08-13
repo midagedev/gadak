@@ -49,7 +49,7 @@ in it.
 
 Yes, by construction: the mirror runs in WAL mode, so one writer (the sync
 loop) and any number of readers coexist; `gadak sql` and the MCP server open
-the file **read-only** (`mode=ro`). The TUI and web UI read through the same
+the file **read-only** (`mode=ro`). The web UI reads through the same
 store layer. You can run all of them at once — that is the intended shape.
 
 ## Why not the official Atlassian MCP / a Forge app / a browser extension?

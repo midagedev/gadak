@@ -13,7 +13,10 @@
   import IssueBreadcrumb from './IssueBreadcrumb.svelte'
   import WatchButton from '../personal/WatchButton.svelte'
   import StatusTransition from '../write/StatusTransition.svelte'
+  import PriorityPicker from '../write/PriorityPicker.svelte'
   import AssigneePicker from '../write/AssigneePicker.svelte'
+  import LabelEditor from '../write/LabelEditor.svelte'
+  import TitleEditor from '../write/TitleEditor.svelte'
   import Icon from '../ui/Icon.svelte'
 
   let { issue }: { issue: IssueLite } = $props()
@@ -69,12 +72,8 @@
   <!-- Where the issue sits in its epic. Renders nothing when it has no ancestors. -->
   <IssueBreadcrumb {issue} />
 
-  <!-- Title -->
-  <!-- The subject of the panel. At 16px it was 3px from the list rows behind
-       it, which is a difference you measure rather than see. -->
-  <h2 class="mb-3 text-heading font-semibold text-text-primary">
-    {issue.summary}
-  </h2>
+  <!-- Title. Same type-subject line; click to rename. -->
+  <TitleEditor {issue} />
 
   <!-- Meta chip row -->
   <div class="flex flex-wrap items-center gap-2 text-micro">
@@ -84,9 +83,7 @@
     {#if issue.issue_type}
       <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{issue.issue_type}</span>
     {/if}
-    {#if issue.priority}
-      <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{t('detail.priorityShort', { p: issue.priority })}</span>
-    {/if}
+    <PriorityPicker {issue} />
     {#if issue.severity}
       <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{t('detail.severityShort', { s: issue.severity })}</span>
     {/if}
@@ -119,15 +116,6 @@
         </span>
       </div>
     {/if}
-    {#if issue.labels.length > 0}
-      <div class="flex items-start gap-2">
-        <span class="w-12 flex-none pt-0.5 text-text-muted">{t('common.labels')}</span>
-        <span class="flex flex-wrap gap-1">
-          {#each issue.labels as l (l)}
-            <span class="rounded bg-bg-elevated px-1.5 py-0.5 text-text-secondary">{l}</span>
-          {/each}
-        </span>
-      </div>
-    {/if}
+    <LabelEditor {issue} />
   </div>
 </header>

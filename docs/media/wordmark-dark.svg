@@ -1,3 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="380" height="72" viewBox="0 0 380 72" role="img" aria-label="gadak">
-  <text x="8" y="52" fill="#e6e8eb" font-family="ui-serif, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif" font-size="48" font-weight="600" letter-spacing="-0.03em">gadak</text>
+  <g fill="none" transform="translate(6 10) scale(2.15)">
+    <g transform="translate(-0.6 0.2)">
+      <path d="M4.6 6.8c4.4-.6 8.6-.2 10.8 1.2c.25 3.6.2 7.4.1 11.4" stroke="#c5d0dc" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M18.7 5.8c.04 4.6.04 9 0 13.6" stroke="#8a7d68" stroke-width="1.9" stroke-linecap="round"/>
+      <path d="M18.7 12.2h3.7" stroke="#8a7d68" stroke-width="1.9" stroke-linecap="round"/>
+    </g>
+  </g>
+  <text x="68" y="50" fill="#f4efe4" font-family="'New York', 'Iowan Old Style', ui-serif, Palatino, Georgia, serif" font-size="42" font-weight="600" letter-spacing="-0.03em">gadak</text>
 </svg>

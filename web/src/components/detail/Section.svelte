@@ -29,7 +29,7 @@
 </script>
 
 <section class="px-5 py-4">
-  <h3 class="mb-3 flex items-center gap-2 text-micro font-semibold uppercase tracking-wider text-text-muted">
+  <h3 class="mb-3 flex items-center gap-2 text-micro font-medium uppercase tracking-wide text-text-muted">
     <span class="flex-none">{title}</span>
     {#if count !== undefined}
       <span class="flex-none text-micro tabular-nums text-text-muted">{count}</span>

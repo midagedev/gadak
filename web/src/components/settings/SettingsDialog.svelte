@@ -221,7 +221,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1812]/28 p-4 backdrop-blur-[2px]"
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) onclose()
@@ -244,7 +244,7 @@
   >
     <!-- Header + tabs -->
     <div class="flex-none border-b border-border-subtle px-5 pt-4">
-      <h2 class="mb-0.5 text-title font-semibold text-text-primary">{t('settings.title')}</h2>
+      <h2 class="type-subject mb-0.5 text-[18px] leading-snug text-text-primary">{t('settings.title')}</h2>
       <p class="mb-3 text-micro text-text-muted">
         {t('settings.introBefore')} <span class="font-mono">~/.gadak/config.json</span> {t('settings.introAfter')}
       </p>

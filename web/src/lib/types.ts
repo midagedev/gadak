@@ -541,6 +541,16 @@ export interface TransitionsResponse {
   transitions: Transition[]
 }
 
+/** One site priority (GET priorities/). Names follow the account language. */
+export interface PriorityOption {
+  id: string
+  name: string
+}
+
+export interface PrioritiesResponse {
+  priorities: PriorityOption[]
+}
+
 /** One assignee candidate (GET users/?q=). */
 export interface JiraUser {
   account_id: string
