@@ -13,9 +13,10 @@
 
 gadak mirrors Jira *and* Confluence into one local SQLite file — issues,
 comments, history, wiki pages — indexed together and searchable in
-milliseconds. Triage it yourself in the [macOS app](docs/DESKTOP.md) or a
-browser tab, or let a coding agent ask in plain SQL. One binary, one app,
-no gadak account.
+milliseconds. This window is where that work lives on your machine: triage
+it in the [macOS app](docs/DESKTOP.md) or a browser tab, or let a coding
+agent ask in plain SQL and point the same window at the answer. One binary,
+one app, no gadak account.
 
 **The mirror is a cache you can throw away.** If this project stops tomorrow,
 you delete a directory and have lost nothing: Jira stays the source of truth,
@@ -23,13 +24,13 @@ and nothing you do here is stored anywhere else.
 
 <p align="center">
   <a href="https://midagedev.github.io/gadak/"><b>▶&nbsp; Open the live demo</b></a>
-  &nbsp;—&nbsp; 534 issues + 71 wiki pages, in your browser, right now.
+  &nbsp;—&nbsp; 534 issues, in your browser, right now.
 </p>
 
 <p align="center">
   <img src="docs/media/web-demo.gif" alt="The paper list narrows as you type; an issue opens with labels, priority and a reopen badge; documents and epics sit in the same window" width="900">
   <br>
-  <sub>Search, an issue (title, priority, labels), documents, epics — the 0.12 paper UI.
+  <sub>Search, an issue (title, priority, labels), documents, epics — the paper UI.
   Generated from <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a> against the demo snapshot.</sub>
 </p>
 
@@ -48,10 +49,10 @@ That last query is the point. `reopen_count` is not a Jira field — gadak deriv
 it from the changelog while it syncs, along with `reopen_reason` and the epic a
 sub-task ultimately rolls up to. Your site cannot answer "what keeps coming
 back?" at all; a local mirror answers it in a line.
-[`docs/RECIPES.md`](docs/RECIPES.md) has thirteen more, each verified against
+[`docs/RECIPES.md`](docs/RECIPES.md) has the rest, each verified against
 the demo snapshot.
 
-> **Status: 0.12, still 0.x.** Sync (both sources), the read API, write-through,
+> **Status: 0.13, still 0.x.** Sync (both sources), the read API, write-through,
 > the desktop app, the web UI, the CLI, settings, the plugin boundary, and i18n
 > are implemented and verified end to end against a live Atlassian site.
 > `docs/STATE_OF_PLAY.md` is the honest inventory.
@@ -70,15 +71,24 @@ root cause.
 **Search is slow, and it is two searches.** Every filter change is a network
 round trip against a multi-tenant service — and the answer to "what do we know
 about idempotency?" is split between Jira search and Confluence search, which
-do not talk to each other. Once both are on local disk there is one FTS index:
-type a word, get the issues *and* the pages, instantly.
+do not talk to each other. Once both are on local disk there is one FTS index.
+**Search ⌘K** in the toolbar queries it across every issue (title, body,
+comments) and every document (title, body), ignoring the chips on the list,
+and labels the field that matched with a snippet. The box above the list only
+narrows this view.
+
+<p align="center">
+  <img src="docs/media/search.gif" alt="The Search ⌘K palette lists issues and wiki pages from one query; each row shows a match-field label and a snippet" width="900">
+  <br>
+  <sub>⌘K searches every issue and document, ignoring the list filters. The box above the list only narrows this view.</sub>
+</p>
 
 **Agents cannot read your team's context well.** A coding agent asked "what
 did we already fix in the billing flow, and what did we decide in the design
 doc?" has to page through two REST APIs, guess at JQL and CQL, and burn its
 context on JSON envelopes. Give it a SQLite file instead and it writes one
-query with a join and an FTS match. No tool schema, no pagination, no rate
-limit.
+query with a join and an FTS match. When the answer is a set you should look
+at, it points the window (`gadak views open`) instead of pasting a table.
 
 **You cannot see your own team's shape.** "Which issues came back after we
 closed them, and why?" is a join over the changelog. "Which epic is actually
@@ -92,7 +102,7 @@ and the agent read the same store.
 
 | | For | Looks like |
 | --- | --- | --- |
-| **App + Web UI** | all-day triage | the [macOS app](docs/DESKTOP.md) — no port, no local server — or the same UI in a browser tab (`gadak serve`). `j`/`k` walk the list, `x` selects, `s`/`a`/`l`/`c` change status, assignee, labels, or leave a comment without leaving the list. Click an issue to rename it, change priority, or edit labels. Paste a Jira filter URL or JQL into search and the chips apply; **Copy JQL** is the way back. Sync also pulls the filters you own or have starred into the sidebar. ⌘K finds issues *and* wiki pages. Documents are first-class: recency lists, deep links (`?doc=`), and cross-references both ways. In the app, the issue key or a wiki link opens the original Atlassian page in the same window; close the tab and the mirror re-reads what you just changed. |
+| **App + Web UI** | all-day triage | the [macOS app](docs/DESKTOP.md) — no port, no local server — or the same UI in a browser tab (`gadak serve`). `j`/`k` walk the list, `x` selects, `s`/`a`/`l`/`c` change status, assignee, labels, or leave a comment without leaving the list. Click an issue to rename it, change priority, or edit labels. Paste a Jira filter URL or JQL into the list box and the chips apply; **Copy JQL** is the way back. Sync also pulls the filters you own or have starred into the sidebar. Documents are first-class: recency lists, deep links (`?doc=`), and cross-references both ways. Modeled issue and wiki links open the native panel; the key in the header is the way out to Jira. Anything the mirror does not model — a board, a workflow screen, a Confluence draft — opens in the app's in-app tab (a system tab under `serve`); close it and the mirror re-reads. |
 | **CLI + SQL** | agents, scripts, one-off questions | `gadak issue`, `gadak search` (FTS, or `--jql` / a Jira URL), `gadak sql`, plus the file itself |
 
 Writes go through to Jira and then refresh the mirror, so the list is correct
@@ -100,10 +110,8 @@ a moment later without a full sync. Comment, transition, assign, labels,
 priority, and the title work from the app and the web UI; the CLI covers
 comment, transition, and assign today. Field edits and issue creation stay
 on that surface (values always come from what Jira allows, never free text).
-Anything the mirror cannot edit — a workflow screen, a Confluence draft — is
-a click away in the app's in-app browser, then a resync. The wiki mirror
-itself is read-only on purpose — Confluence stays the place where documents
-are written.
+The wiki mirror itself is read-only on purpose — Confluence stays the place
+where documents are written.
 
 Hierarchy is first-class: `epic_key` is derived honestly (the nearest epic
 *ancestor*, so a sub-task groups under its epic, not its story), group-by-epic
@@ -139,17 +147,25 @@ Then ask something Jira cannot:
 
 > what keeps coming back in billing, and did we write it down?
 
-The session runs the mirror, not the REST API:
+The session runs the mirror, not the REST API — SQL answers; views present:
 
 ```bash
 gadak sql "select key, summary, reopen_count from issues_full
           where reopen_count > 0 and summary like '%billing%'
           order by reopened_at desc"
 gadak search "billing incident"
+
+# Put that set on the running window (app or `gadak serve` tab)
+gadak sql "select key from issues_full where reopen_count > 1" \
+  | tail -n +2 | gadak views open --keys -
 ```
 
+`gadak views open` is the "open in gadak" verb. `gadak open NMB-140` is the
+other one: it leaves for Jira (`/browse/KEY` in the system browser). The
+names collide; the verbs do not.
+
 <p align="center">
-  <img src="docs/media/agent.gif" alt="An agent types gadak views open with a JQL filter; the paper list snaps to Project NMA and Category In Progress" width="800">
+  <img src="docs/media/agent.gif" alt="A terminal types gadak views open; the paper list in the running app snaps to that set" width="800">
   <br>
   <sub>The window follows the agent. <code>gadak views open</code> writes a one-shot hash; the running app or serve tab applies it.
   Generated from <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a> against the demo snapshot.</sub>
@@ -159,15 +175,9 @@ The interface is the database, so anything that can run a shell command has
 full power:
 
 ```bash
-# What keeps coming back? (reopen_count is derived here — Jira has no such field)
-gadak sql "select key, summary, reopen_count from issues_full
-          where reopen_count > 0 order by reopened_at desc limit 20"
-
 # The same JQL as a Jira dashboard or filter URL — paste the query or the URL
 gadak search --jql 'project = NMA AND statusCategory = "In Progress"'
 gadak search 'https://your-site.atlassian.net/issues/?jql=project%20%3D%20NMA'
-
-# Put the window on that view (running app or `gadak serve`)
 gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
 gadak views open "NMA in progress"
 
@@ -179,18 +189,22 @@ gadak issue NMB-140 --json
 gadak comment NMB-140 -m "Reproduced on staging."
 ```
 
-The search box in the app takes the same paste: a `jql=` URL or a clause list
-becomes chips, and **Copy JQL** on the filter bar is the way back into Jira.
+The list box takes the same paste: a `jql=` URL or a clause list becomes
+chips, and **Copy JQL** on the filter bar is the way back into Jira.
 Clauses gadak cannot express (sprint, WAS, OR across fields) are listed, never
 dropped on the floor. What JQL still cannot ask — reopen history, joins,
 aggregates — stays in `gadak sql` and [`docs/RECIPES.md`](docs/RECIPES.md).
 
 Reads are safe by construction: `gadak sql` opens the database `mode=ro`, and
 MCP's `gadak_query` additionally rejects anything that is not a SELECT — so an
-agent can be given the mirror without being given arbitrary `sqlite3`. When
-the mirror does not model an endpoint at all, [`gadak api`](docs/AGENT_ACCESS.md)
-passes the request through to your site: read-only unless you add `--write`,
-never on MCP.
+agent can be given the mirror without being given arbitrary `sqlite3`. MCP is
+five tools (`gadak_query`, `gadak_search`, `gadak_issue`, `gadak_status`,
+`gadak_show`) and does not write to the mirror or to Jira.
+`gadak_show` is how a host without a shell (Claude Desktop) presents: it
+writes a local ui-focus file so the running app shows the set. SQL answers;
+show presents. When the mirror does not model an endpoint at all,
+[`gadak api`](docs/AGENT_ACCESS.md) passes the request through to your site:
+read-only unless you add `--write`, never on MCP.
 
 Everything can hold the file at once — WAL with one writer (the sync loop),
 readers everywhere else — so `serve` and an agent coexist by design.
@@ -238,9 +252,12 @@ Two axes, no forking required — see **[docs/EXTENDING.md](docs/EXTENDING.md)**
 **Configuration** covers most of it, from the settings dialog or
 `~/.gadak/config.json`: map your custom fields (severity, environment, whatever
 your site calls them), classify issues into teams by label or component, choose
-which fields are inline-editable, set the staleness threshold and sync
-intervals, toggle features. Most keys apply without restart; sync intervals
-need a restart of `gadak serve`. Full key table:
+which fields are inline-editable, pick the Jira projects and Confluence spaces
+the mirror holds, set the staleness threshold and sync intervals, toggle
+features. The space list *is* the scope: drop a space and the next Confluence
+pass removes it from the mirror; add one and that space is fetched from the
+start. Most keys apply without restart; sync intervals need a restart of
+`gadak serve`. Key table:
 [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 
 **The plugin boundary** covers the rest. The core contains zero GitHub, CD, or
@@ -282,7 +299,7 @@ database, and the same spine is where the next source lands. See
 Jira Cloud deliberately sends no CORS headers on its REST API, so a static page
 cannot call it. Both alternatives that avoid a local process were considered and
 rejected because neither can hand a coding agent a queryable local database,
-which is half the point. See `docs/decisions/0003-local-process.md`.
+which is half the point. See [`docs/decisions/0003-local-process.md`](docs/decisions/0003-local-process.md).
 
 ## Good fit / bad fit
 
@@ -300,9 +317,7 @@ saved views, watches; field edits and issue creation in the app and the web UI.
 **Out of scope:** boards and sprint mechanics, project administration, workflow
 configuration, permission schemes, writing to the wiki, grouping the list by
 label (filter the chips instead). Those stay in Jira and Confluence; the
-macOS app opens them in the same window.
-**Not a sync engine:** Jira and Confluence are the systems of record. The
-mirror is disposable — delete it and re-sync.
+macOS app contains them in the same window.
 
 ## How it compares
 
@@ -336,13 +351,13 @@ romance; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is actually next.
 ## Documentation
 
 - [`docs/INSTALL.md`](docs/INSTALL.md) — every way in, first run, profiles, upgrades, Docker
-- [`AGENTS.md`](AGENTS.md) — the agent reference: SQL, CLI, REST
+- [`AGENTS.md`](AGENTS.md) — the agent reference: SQL, CLI, REST; [`docs/MCP.md`](docs/MCP.md) for the five-tool MCP surface
 - [`SECURITY.md`](SECURITY.md) — threat model, what leaves your machine, and where each claim lives in code
 - [`MAINTENANCE.md`](MAINTENANCE.md) — who maintains this, the release cadence, and what is refused
 - [`docs/FAQ.md`](docs/FAQ.md) — the hard questions: site load, one-person risk, concurrency, where agent data goes
 - [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — one paste per agent (Claude Code, Cursor, Codex, MCP)
 - [`docs/DESKTOP.md`](docs/DESKTOP.md) — the macOS app: install, first run, and where the CLI fits
-- [`docs/RECIPES.md`](docs/RECIPES.md) — 13 questions JQL cannot ask, as ready-to-run SQL
+- [`docs/RECIPES.md`](docs/RECIPES.md) — questions JQL cannot ask, as ready-to-run SQL
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) — fitting gadak to your team
 - [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) — what exists, what does not
 - [`docs/CONCEPT.md`](docs/CONCEPT.md) — the product idea and the loop it optimizes
