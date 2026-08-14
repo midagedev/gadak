@@ -314,6 +314,19 @@ type-scale sweep that used to sit here was the clearest example of the trap
   macOS-only menu code — three platforms of packaging and bug surface for a
   maintainer whose macOS build has not yet carried a real user. Linux first
   when the bar is met; it overlaps the agent audience most.
+- **Jira-less workspace (a local-only source).** The appeal is real — no
+  token, no approval, an agent-readable local tracker; the demo already
+  proves the read surface without a live site. But the write loop does not
+  exist (gadak never creates issues, even against Jira), and the moment
+  gadak holds the only copy, "delete a directory and have lost nothing"
+  stops being true — a durability promise a 0.x schema should not make.
+  Note the "Writing to the mirror" objection below is about conflict
+  resolution against a synced source; a source-less workspace has no sync,
+  so that argument does not close this one — these three bars do. Revisit
+  when **all three** hold: (1) `gadak export`/`import` and the pipe/schema
+  promises have shipped, (2) five independent asks naming a concrete use,
+  (3) a local write-model design note answers workflow, durability, and
+  backup.
 
 ## More sources later
 
