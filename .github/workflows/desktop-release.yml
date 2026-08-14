@@ -154,3 +154,73 @@ jobs:
             gh release create "$tag" --title "$tag" --generate-notes
           fi
           gh release upload "$tag" "${assets[@]}" --clobber
+
+      # `brew install midagedev/tap/gadak` is the app (decided 2026-08-15):
+      # this step renders the cask from the notarized dmg and pushes it to the
+      # tap with the same deploy key the goreleaser formula uses. The CLI-only
+      # formula is gadak-cli (.goreleaser.yaml). Skipped without the key
+      # (forks) and on prerelease tags, matching the formula's skip_upload.
+      - name: Publish Homebrew cask
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          if [[ -z "${TAP_DEPLOY_KEY:-}" ]]; then
+            echo "no TAP_DEPLOY_KEY — skipping cask publish (fork build)"
+            exit 0
+          fi
+          if [[ "$tag" == *-* ]]; then
+            echo "prerelease tag $tag — skipping cask publish"
+            exit 0
+          fi
+          version="${tag#v}"
+          dmg="desktop/build/Gadak-${version}-arm64.dmg"
+          if [[ ! -f "$dmg" ]]; then
+            echo "dmg $dmg not found — tag/build version mismatch" >&2
+            exit 1
+          fi
+          sha256=$(shasum -a 256 "$dmg" | awk '{print $1}')
+          cat > /tmp/gadak.rb <<EOF
+          cask "gadak" do
+            version "${version}"
+            sha256 "${sha256}"
+
+            url "https://github.com/midagedev/gadak/releases/download/v#{version}/Gadak-#{version}-arm64.dmg"
+            name "Gadak"
+            desc "Your Jira and Confluence in one local SQLite file - app, web UI, agent SQL/MCP"
+            homepage "https://github.com/midagedev/gadak"
+
+            depends_on arch: :arm64
+            depends_on macos: :monterey
+
+            app "Gadak.app"
+            # The bundle carries the CLI; this puts it on PATH, so the app
+            # install is also the CLI install. Conflicts with the gadak-cli
+            # formula's bin/gadak - install one or the other.
+            binary "#{appdir}/Gadak.app/Contents/Resources/bin/gadak"
+          end
+          EOF
+          eval "$(ssh-agent -s)"
+          ssh-add - <<< "$TAP_DEPLOY_KEY"
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+          git clone --depth 1 git@github.com:midagedev/homebrew-tap.git /tmp/tap
+          mkdir -p /tmp/tap/Casks
+          cp /tmp/gadak.rb /tmp/tap/Casks/gadak.rb
+          # Gate before pushing: a cask that does not pass style must fail the
+          # job, not land in the tap. brew style rejects files outside a tap,
+          # so link the clone in as the real tap first (measured locally).
+          mkdir -p "$(brew --repository)/Library/Taps/midagedev"
+          ln -sfn /tmp/tap "$(brew --repository)/Library/Taps/midagedev/homebrew-tap"
+          brew style --cask "$(brew --repository)/Library/Taps/midagedev/homebrew-tap/Casks/gadak.rb"
+          cd /tmp/tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/gadak.rb
+          if git diff --cached --quiet; then
+            echo "cask unchanged — nothing to push"
+            exit 0
+          fi
+          git commit -m "gadak cask ${tag}"
+          git push origin HEAD

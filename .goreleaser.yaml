@@ -85,14 +85,14 @@ notarize:
         wait: true
         timeout: 20m
 
-# GoReleaser deprecates `brews` in favour of `homebrew_casks`, but a cask is the
-# wrong shape here until the binaries are notarized: Homebrew stamps cask
-# downloads with com.apple.quarantine and Gatekeeper refuses to run an unsigned
-# Mach-O carrying it. Verified on a formula install — the installed binary has
-# only com.apple.provenance, and `brew test` passes. A formula also covers Linux,
-# which casks do not. Revisit when signing/notarization lands.
+# Naming (decided 2026-08-15): `brew install midagedev/tap/gadak` is the APP —
+# a cask published by .github/workflows/desktop-release.yml from the notarized
+# dmg (the old "cask needs notarization" hold resolved when signing landed in
+# v0.13). This formula is the CLI-only path and is named gadak-cli; it also
+# covers Linux, which casks do not. The cask's `binary` stanza already puts
+# the CLI on PATH, so installing both conflicts on bin/gadak — pick one.
 brews:
-  - name: gadak
+  - name: gadak-cli
     ids:
       - default
     repository:
@@ -105,7 +105,7 @@ brews:
     homepage: "https://github.com/midagedev/gadak"
     description: "Local SQLite mirror of your Jira issues — web UI and agent SQL"
     license: "Apache-2.0"
-    commit_msg_template: "gadak {{ .Tag }}"
+    commit_msg_template: "gadak-cli {{ .Tag }}"
     # No deploy key, no formula push — a release must not fail because the
     # optional Homebrew step has no credential (forks). With the key: still
     # skipped for prerelease tags (v0.1.0-rc.1, etc.).
