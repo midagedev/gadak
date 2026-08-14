@@ -4,13 +4,15 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-15 — the v0.13 wave: unified ⌘K search over issues *and*
-documents, a `keys` axis so an agent can put an exact set on the window
-(`views open --keys -`, MCP `gadak_show`), Confluence space scope that prunes
-and backfills itself (schema v19), `author_id` on changelog and attachments
-(v20), the account-id identity class closed across every surface, two security
-fixes (profile path escape, unguarded top-level routes), and the macOS window
-drag repair from issue #2. Last tagged: v0.13.0.
+Last updated: 2026-08-15 — the v0.14 wave: the MCP surface rebuilt around
+`query` with error echoes, the three pipe contracts written down (`issues_full`
++ RECIPES, `gadak sql` stdout, `views open --keys -`), `sql --no-header`,
+personal-row export/import, brew renamed so `gadak` is the app cask and
+`gadak-cli` the CLI formula, and the first live benchmark against a real site
+(`docs/BENCHMARKS.md`). Since the tag, on `main`: CLI writes grew `create`,
+`attach`, `edit` and batch creation, MCP tool calls stopped scanning the whole
+mirror, and the hosted demo dropped its service worker so in-app browsers can
+open it. Last tagged: v0.14.0.
 
 ## In one paragraph
 

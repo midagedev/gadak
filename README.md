@@ -74,7 +74,7 @@ gadak init && gadak sync    # Jira (and Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
 ```
 
-> **Status: 0.13, still 0.x.** Sync, read API, write-through, desktop, web, CLI, and MCP are verified against a live site. Honest inventory: [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md).
+> **Status: 0.14, still 0.x.** Sync, read API, write-through, desktop, web, CLI, and MCP are verified against a live site. Honest inventory: [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md).
 
 ## Why
 
@@ -100,8 +100,9 @@ on the list do not apply. That is why a comment-only word still finds the row.
 | **CLI + SQL** | agents, scripts | `gadak issue`, `gadak search` (FTS, `--jql`, or a Jira URL), `gadak sql`, plus the file |
 
 Writes go through to Jira, then the mirror refreshes. App and web: comment,
-transition, assign, labels, priority, title. CLI today: comment, transition,
-assign. Wiki mirror is read-only. Hierarchy, `item_refs`, attachments: [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
+transition, assign, labels, priority, title. CLI: `create` (single or
+`--batch`), `attach`, `edit`, `comment`, `transition`, `assign`. Wiki mirror
+is read-only. Hierarchy, `item_refs`, attachments: [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
 
 ## For agents
 

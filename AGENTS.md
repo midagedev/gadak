@@ -181,6 +181,11 @@ gadak views open "NMA in progress"       # open in gadak: focus the running app 
 gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
 gadak views save "Night triage" --jql 'assignee = currentUser() AND resolution is EMPTY'
 
+gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging"
+gadak create --batch -                # one JSON object per line on stdin
+gadak attach NMB-140 screenshot.png trace.log
+gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High
+
 gadak comment NMB-140 -m "Reproduced on staging; trace attached."
 gadak comment NMB-140 -m -            # body from stdin, for anything multi-line
 gadak transition NMB-140 "In Review"  # transition name, target status name, or id

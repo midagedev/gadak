@@ -109,8 +109,9 @@ re-reads.
 
 Writes go through to Jira and then refresh the mirror. Comment, transition,
 assign, labels, priority, and the title work from the app and the web UI; the
-CLI covers comment, transition, and assign. Field edits and issue creation stay
-on that surface (values always come from what Jira allows, never free text).
+CLI covers those plus `create`, `attach`, and `edit` (values always come from
+what Jira allows, never free text — an issue type or priority the CLI cannot
+match is refused with the names your site actually uses).
 The wiki mirror itself is read-only on purpose — Confluence stays the place
 where documents are written.
 

@@ -9,6 +9,10 @@
 #   3. README.md and docs/INSTALL.md say "N issues" matching examples/demo.db
 #   4. docs/STATE_OF_PLAY.md has no leftover "enables GitHub Pages"
 #   5. docs/, specs/, AGENTS.md carry no literal 519 (demo issue count moved)
+#   6. The version a reader sees first matches the latest tag: the README
+#      status lines (en + ko) and STATE_OF_PLAY's "Last tagged" (2026-08-15:
+#      README said 0.13 on a 0.14 tree, and the ko header claimed v0.14 while
+#      its own status line said 0.13 — found by the first-impression census)
 #
 # Usage: tools/doc-checks.sh
 # Exit 0 = clean, 1 = a check failed.
@@ -81,5 +85,24 @@ if [[ -n "$hits" ]]; then
   fail "stale 519 remnant:"$'\n'"$hits"
 fi
 ok "no 519 remnant in docs/ specs/ AGENTS.md"
+
+# ── 6. The front door names the version that is actually tagged ─────────
+# Skipped (not failed) in a tagless checkout: a shallow CI clone has no tags,
+# and this guard is about drift between files, not about tagging policy.
+tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+if [[ -z "$tag" ]]; then
+  ok "no tag reachable — version guard skipped"
+else
+  minor="${tag#v}"; minor="${minor%.*}"   # v0.14.0 → 0.14
+  for f in README.md README.ko.md; do
+    if ! grep -qE "(Status|상태): ${minor}(,| )" "$f"; then
+      fail "$f status line does not say ${minor} (latest tag ${tag})"
+    fi
+  done
+  if ! grep -q "Last tagged: ${tag}" docs/STATE_OF_PLAY.md; then
+    fail "docs/STATE_OF_PLAY.md does not say \"Last tagged: ${tag}\""
+  fi
+  ok "README (en+ko) and STATE_OF_PLAY agree with ${tag}"
+fi
 
 echo "doc-checks: all passed"

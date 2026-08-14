@@ -35,11 +35,14 @@ coexist; just avoid leaving a stale binary earlier in `PATH` (see
 ### Homebrew
 
 ```bash
-brew install midagedev/tap/gadak-cli
+brew install midagedev/tap/gadak        # the macOS app (ships the CLI too)
+brew install midagedev/tap/gadak-cli    # CLI only — also the Linux path
 ```
 
-macOS and Linux, from [`midagedev/homebrew-tap`][tap]. A formula, not a cask:
-gadak is a single CLI binary, which is what formulas are for. macOS release
+From [`midagedev/homebrew-tap`][tap]. `gadak` is a cask: it installs the
+signed, notarized macOS app and puts the same `gadak` binary on your PATH.
+`gadak-cli` is the formula for a machine that wants only the command — every
+Linux install, and any Mac where you do not want the app. macOS release
 binaries are signed with a Developer ID certificate and notarized by Apple —
 [`SECURITY.md`](../SECURITY.md) shows how to verify one yourself.
 
