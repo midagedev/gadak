@@ -39,6 +39,18 @@ That last query is the point: JQL has no `GROUP BY`. "Which epic is actually
 stuck?" is not a hard question — it is an unaskable one, until the data is a
 file. [`docs/RECIPES.md`](docs/RECIPES.md) has the rest.
 
+Measured against a live Cloud site (2,853 issues; medians, CLI startup
+included — [method and the losing rows](docs/BENCHMARKS.md)):
+
+| Question | REST API | `gadak` | |
+| --- | ---: | ---: | ---: |
+| Simple filter, 100 issues | 706 ms | 17 ms | 42× |
+| Open issues per epic (`GROUP BY`) | 3,924 ms · 7 API pages | 24 ms · one query | 162× |
+| Reopened-issue count | ≈ 20 min (every changelog) | 14.5 ms | — |
+
+And the other side: the first full sync takes minutes, every watch tick costs
+~6.6 s, and the mirror trails Jira by one sync interval.
+
 <details>
 <summary>▶ 90-second tour of the paper list (GIF, 7 MB)</summary>
 

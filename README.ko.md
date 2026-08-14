@@ -41,6 +41,18 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 데이터가 파일이 되기 전까지는. 나머지 레시피는
 [`docs/RECIPES.md`](docs/RECIPES.md)에 있습니다.
 
+실제 Cloud 사이트(이슈 2,853개)에서 실측한 값입니다 (중앙값, CLI 기동 포함 —
+[방법론과 gadak이 지는 행](docs/BENCHMARKS.md)):
+
+| 질문 | REST API | `gadak` | |
+| --- | ---: | ---: | ---: |
+| 단순 필터 100건 | 706 ms | 17 ms | 42× |
+| 에픽별 미해결 수 (`GROUP BY`) | 3,924 ms · API 7페이지 | 24 ms · 쿼리 1개 | 162× |
+| 리오픈된 이슈 수 | ≈ 20분 (전 changelog 순회) | 14.5 ms | — |
+
+반대편도: 첫 full sync는 몇 분이 걸리고, watch 틱마다 ~6.6초를 쓰고,
+미러는 동기화 주기만큼 Jira보다 늦습니다.
+
 <details>
 <summary>▶ 종이 리스트 90초 투어 (GIF, 7 MB)</summary>
 
