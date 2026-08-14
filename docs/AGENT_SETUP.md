@@ -19,7 +19,7 @@ machine already uses. Steps:
    .mcp.json or the Claude config. Tell me which source you found before
    using it. Do not go hunting through shell profiles or dotfiles for
    tokens — if nothing is already exposed, ask me for the token instead.
-2. Install gadak if missing: `brew install midagedev/tap/gadak`
+2. Install gadak if missing: `brew install midagedev/tap/gadak-cli`
    (or the install script in the repo README).
 3. Configure non-interactively — init never prompts when values are supplied:
    GADAK_TOKEN=<token> gadak init --site <url> --email <email> --json

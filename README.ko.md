@@ -11,7 +11,7 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.13 기준 번역입니다.</sub></p>
+<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.14 기준 번역입니다.</sub></p>
 
 내 Jira가 로컬 SQLite 파일 하나가 됩니다 — "어느 에픽이 막혀 있지?"가
 물을 수 없는 질문이 아니라 쿼리 한 줄이 됩니다.
@@ -56,7 +56,9 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 받아 창을 열거나, 터미널에서:
 
 ```bash
-brew install midagedev/tap/gadak
+brew install midagedev/tap/gadak        # 앱 — 번들된 CLI도 PATH에 올라갑니다
+# 또는 CLI만 (macOS + Linux):
+brew install midagedev/tap/gadak-cli
 gadak init && gadak sync    # Jira (그리고 Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
 ```
@@ -163,7 +165,7 @@ Atlassian Cloud 전용입니다. [API 토큰](https://id.atlassian.com/manage-pr
 **2. CLI** — 리눅스에서, 또는 같은 UI를 브라우저 탭으로:
 
 ```bash
-brew install midagedev/tap/gadak     # macOS + Linux
+brew install midagedev/tap/gadak-cli     # macOS + Linux
 gadak init && gadak sync
 gadak serve      # http://gadak.localhost:7777
 ```

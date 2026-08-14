@@ -13,8 +13,8 @@ much you want to install:
 | You want | Install | Do you also need the CLI? |
 |---|---|---|
 | A window to read and triage in | the desktop app | Not until you wire up an agent — and it is already inside the app |
-| Your agent to query the mirror | `brew install midagedev/tap/gadak` | That *is* the CLI |
-| To live in the terminal | `brew install midagedev/tap/gadak` | Same thing |
+| Your agent to query the mirror | `brew install midagedev/tap/gadak-cli` | That *is* the CLI |
+| To live in the terminal | `brew install midagedev/tap/gadak-cli` | Same thing |
 
 The catch worth knowing: macOS does not put an app bundle's contents on your
 `PATH`, so after installing only the app, typing `gadak` in a terminal still
@@ -35,7 +35,7 @@ coexist; just avoid leaving a stale binary earlier in `PATH` (see
 ### Homebrew
 
 ```bash
-brew install midagedev/tap/gadak
+brew install midagedev/tap/gadak-cli
 ```
 
 macOS and Linux, from [`midagedev/homebrew-tap`][tap]. A formula, not a cask:

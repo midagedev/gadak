@@ -54,7 +54,9 @@ Download [`Gadak-<version>-arm64.dmg`](https://github.com/midagedev/gadak/releas
 and open the window — or, from a terminal:
 
 ```bash
-brew install midagedev/tap/gadak
+brew install midagedev/tap/gadak        # the app — the bundled CLI lands on PATH too
+# or, CLI only (macOS + Linux):
+brew install midagedev/tap/gadak-cli
 gadak init && gadak sync    # Jira (and Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
 ```
@@ -156,7 +158,7 @@ an app on your `PATH`:
 **2. The CLI**, on Linux or for the same UI in a browser tab:
 
 ```bash
-brew install midagedev/tap/gadak     # macOS + Linux
+brew install midagedev/tap/gadak-cli     # macOS + Linux
 gadak init && gadak sync
 gadak serve      # http://gadak.localhost:7777
 ```
