@@ -1,5 +1,5 @@
 .PHONY: build test vet typecheck bench scan docker plugins-test \
-	media media-web media-search media-agent media-prep media-deps brand \
+	media media-web media-search media-agent media-mcp media-prep media-deps brand \
 	hosted-demo hosted-demo-test
 
 build:
@@ -50,8 +50,10 @@ MEDIA_DIR := docs/media
 brand:
 	node tools/brand/render.mjs
 
+# media-mcp is deliberately not here: it needs vhs and a Claude Code login,
+# and every run spends the operator's own model quota. Re-take it on purpose.
 media: media-web media-search media-agent
-	@echo "media: done → $(MEDIA_DIR)/"
+	@echo "media: done → $(MEDIA_DIR)/  (mcp.gif: make media-mcp)"
 	@ls -lh $(MEDIA_DIR)/web-demo.gif $(MEDIA_DIR)/web-demo.mp4 \
 		$(MEDIA_DIR)/search.gif $(MEDIA_DIR)/search.mp4 \
 		$(MEDIA_DIR)/agent.gif $(MEDIA_DIR)/agent.mp4
@@ -90,3 +92,63 @@ media-agent: media-deps
 	rm -rf e2e/demo/test-results-agent
 	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/agent.config.ts
 	bash e2e/demo/export-agent.sh
+
+# Live Claude Code + gadak MCP (VHS). Requires vhs and a Claude Code login;
+# prepare-agent.sh copies credentials into /private/tmp/gadak-demo.
+# Always finish with: bash tools/tapes/prepare-agent.sh --clean
+#
+# pin-demo.sh / strip-oauth.py are written into that isolated HOME (not the
+# repo). VHS cannot parse escaped $/" inside Type, so the tape runs these
+# by absolute path under Hide.
+define MCP_PIN_DEMO
+#!/usr/bin/env bash
+set -euo pipefail
+: "$${GADAK_HOME:?}"
+mkdir -p "$$HOME/.gadak" "$$HOME/bin"
+cp "$$GADAK_HOME/gadak.db" "$$HOME/.gadak/gadak.db"
+cp "$$GADAK_HOME/config.json" "$$HOME/.gadak/config.json"
+cp "$$(command -v gadak)" "$$HOME/bin/gadak"
+chmod 755 "$$HOME/bin/gadak"
+export PATH="$$HOME/bin:$$PATH"
+unset NO_COLOR
+export NODE_NO_WARNINGS=1
+python3 -c 'import json,os;p=os.path.expanduser("~/.claude/settings.json");d=json.load(open(p));d["disableClaudeAiConnectors"]=True;json.dump(d,open(p,"w"),indent=2)'
+endef
+export MCP_PIN_DEMO
+define MCP_STRIP_OAUTH
+import json, os
+p = os.path.expanduser("~/.claude.json")
+d = json.load(open(p))
+acc = d.get("oauthAccount") or {}
+keep = ("accountUuid", "organizationUuid", "billingType", "seatTier")
+d["oauthAccount"] = {k: acc[k] for k in keep if k in acc}
+d["hasAvailableSubscription"] = True
+ws = os.path.expanduser("~/workspace")
+projects = d.setdefault("projects", {})
+pr = projects.get(ws) or {}
+mcp = (pr.get("mcpServers") or {}).get("gadak") or {}
+mcp["command"] = os.path.expanduser("~/bin/gadak")
+mcp["args"] = ["mcp"]
+mcp["type"] = mcp.get("type") or "stdio"
+mcp["env"] = {"GADAK_HOME": os.path.expanduser("~/.gadak")}
+pr.setdefault("mcpServers", {})["gadak"] = mcp
+projects[ws] = pr
+json.dump(d, open(p, "w"), indent=2)
+endef
+export MCP_STRIP_OAUTH
+media-mcp:
+	@command -v vhs >/dev/null || { echo "media-mcp: vhs required (brew install vhs)" >&2; exit 1; }
+	@command -v go >/dev/null || { echo "media-mcp: go required" >&2; exit 1; }
+	@mkdir -p $(MEDIA_DIR)
+	bash tools/tapes/prepare.sh
+	bash tools/tapes/prepare-agent.sh
+	@printf '%s\n' "$$MCP_PIN_DEMO" > /private/tmp/gadak-demo/pin-demo.sh
+	@chmod +x /private/tmp/gadak-demo/pin-demo.sh
+	@printf '%s\n' "$$MCP_STRIP_OAUTH" > /private/tmp/gadak-demo/strip-oauth.py
+	@echo "media-mcp: recording VHS tape (live Claude Code + MCP)…"
+	vhs tools/tapes/mcp.tape
+	@if command -v gifsicle >/dev/null; then \
+		echo "media-mcp: gifsicle -O3 --colors 64"; \
+		gifsicle -O3 --colors 64 $(MEDIA_DIR)/mcp.gif -o $(MEDIA_DIR)/mcp.gif; \
+	fi
+	@echo "media-mcp: run  bash tools/tapes/prepare-agent.sh --clean  when finished"

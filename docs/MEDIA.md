@@ -14,6 +14,8 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | `docs/media/search.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/agent.gif` | Playwright split `e2e/demo/agent-demo.spec.ts` | README — agent pipes `sql` into `views open --keys -`, the paper list follows |
 | `docs/media/agent.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
+| `docs/media/mcp.gif` | VHS tape `tools/tapes/mcp.tape` | README — Claude Code registers `gadak mcp` and answers a question JQL cannot express |
+| `docs/media/mcp.mp4` | same tape, second `Output` line | Twitter / LinkedIn / anywhere GIF is too heavy |
 
 ## Size budget
 
@@ -25,6 +27,8 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | `search.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 | `agent.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | same README inline budget as the hero |
 | `agent.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
+| `mcp.gif` | **≤ 3.5 MB** | VHS + `gifsicle -O3 --colors 64`; cut the idle tail if still over |
+| `mcp.mp4` | soft ≤ 8 MB | VHS `Output` (h264) |
 
 ### Current committed sizes (re-measure after regen)
 
@@ -38,6 +42,8 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | `search.mp4` | 0.53 MB | 527808 | 7.4 s | 1024×640 h264 |
 | `agent.gif` | 4.2 MB | 4204366 | 12.0 s | 960×758 @ 9 fps, 128-color palette |
 | `agent.mp4` | 0.53 MB | 529791 | 12.0 s | 1024×808 h264 |
+| `mcp.gif` | 0.23 MB | 231229 | 33.0 s | 1080×620 @ 25 fps, 64 colors (gifsicle) |
+| `mcp.mp4` | 0.23 MB | 232341 | 33.0 s | 1080×620 h264 |
 
 ## Readability comes first, and it costs bytes
 
@@ -65,7 +71,7 @@ one-second smooth scroll. Cut a beat or a scroll before cutting resolution, and
 point anyone who wants a light asset at the MP4.
 
 **Terminal GIFs:** VHS's own encoder is generous, and `Set Framerate` does not
-change the GIF's 25 fps frame table. `make media-agent` finishes the take with
+change the GIF's 25 fps frame table. `make media-mcp` finishes the take with
 `gifsicle -O3 --colors 64` when `gifsicle` is on `PATH`, which roughly halves
 the file with no visible loss on a 64-colour paper theme.
 
@@ -74,7 +80,8 @@ the file with no visible loss on a 64-colour paper theme.
 ```bash
 # Prerequisites (already on a typical gadak dev machine):
 #   go, node ≥ 20, ffmpeg, Playwright chromium
-#   vhs is optional (tools/tapes/agent.tape, a CLI-only re-take)
+#   vhs + a Claude Code login — only for `make media-mcp`, which `make media`
+#   deliberately excludes (a live take spends your own model quota)
 
 make media
 ```
@@ -85,6 +92,7 @@ Individual targets:
 make media-web     # Playwright → webm → gif + mp4 (self-contained)
 make media-search  # Playwright: ⌘K All search → search.gif + search.mp4
 make media-agent   # Playwright split: sql \| views open --keys + paper list → gif + mp4
+make media-mcp     # VHS: claude mcp add + live Claude Code session on the mirror
 make media-prep    # build gadak + seed tools/tapes/.tmp from demo.db
 make brand         # logo, wordmarks, favicons, OG card
 ```
@@ -176,9 +184,66 @@ in the frame. No live model, no credential, no take-to-take drift. `--no-open`
 keeps the take from launching Gadak.app or a second tab.
 
 `tools/tapes/agent.tape` is the older CLI-only SQL take (status / reopen /
-search). It is not what the README embeds. `tools/tapes/prepare-agent.sh`
-still exists if you want a live Claude Code take. The README clip does not
-use either.
+search). It is not what the README embeds.
+
+### MCP (`mcp.gif`)
+
+Two scenes, both real, VHS tape `tools/tapes/mcp.tape`, **1080×620**,
+font 20 (same 77×24 / 800 px README convention as the other terminal tapes):
+
+1. `claude mcp add gadak -- gadak mcp` — the one line that teaches an MCP
+   client the mirror exists (`docs/AGENT_SETUP.md`).
+2. A live Claude Code session answering *"Which epic has the most reopened
+   issues? One line."* — a question JQL cannot express (reopen history
+   aggregated by epic). The model calls `gadak_query` (and only the MCP
+   tools `prepare-agent.sh` pre-allows). Nothing is scripted, so takes
+   differ; re-run until one reads well.
+
+Theme is **gadak-paper** (same JSON as `tools/tapes/agent.tape`). Claude
+Code's own UI is ink-on-paper on that background; the only token that
+vanishes is the collapsed tool-call *count* ("Called gadak  times" —
+the number is a bright color). The question, the "Calling gadak…" line,
+and the answer stay readable, so this take does not fall back to a dark
+theme.
+
+Everything visible comes from `examples/demo.db`. On that snapshot the
+query `SELECT epic_key, COUNT(*) FROM issues WHERE epic_key IS NOT NULL
+AND reopen_count > 0 GROUP BY epic_key` ties **NMA-177** (SDK developer
+experience), **NMB-197** (Notification overhaul), and **NMS-154**
+(Billing questions experience) at two reopened children each.
+
+`make media-mcp` requires `vhs` (fails with `media-mcp: vhs required
+(brew install vhs)` when missing), runs `prepare.sh` then
+`prepare-agent.sh`, records the tape, and runs `gifsicle -O3 --colors 64`
+when `gifsicle` is on `PATH`. Timing is not deterministic: if the GIF is
+still over 3.5 MB, cut the idle tail after the answer lands (VHS GIF
+frames are 25 fps regardless of `Set Framerate`):
+
+```bash
+gifsicle --info docs/media/mcp.gif | head -2          # total frame count
+gifsicle -O3 --colors 64 docs/media/mcp.gif '#0-N' -o docs/media/mcp.gif
+```
+
+#### Re-shoot procedure (credential copy)
+
+```bash
+# 1–2. seed the throwaway mirror + isolated HOME, write pin/strip helpers
+#     into that HOME, record, gifsicle. This is the supported path — raw
+#     `vhs tools/tapes/mcp.tape` needs those helpers already in
+#     /private/tmp/gadak-demo/ (make writes them; VHS cannot parse
+#     escaped $/" inside Type).
+make media-mcp
+
+# 3. inspect frames; re-run make media-mcp until a take reads
+ffmpeg -y -ss 00:00:02 -i docs/media/mcp.gif -frames:v 1 /tmp/mcp-frame.png
+
+# 4. LAST — remove the isolated HOME, including the credential copy
+bash tools/tapes/prepare-agent.sh --clean
+```
+
+`prepare-agent.sh` refuses if this machine has no Claude Code login
+(`~/.claude/.credentials.json`). Do not skip step 4: the isolated HOME
+at `/private/tmp/gadak-demo` holds a 0600 copy of that file.
 
 ### Layout of the pipeline (agent)
 
@@ -224,8 +289,9 @@ alignment — note that in the tape comment when you do.
 - `HOME` is redirected to `tools/tapes/.tmp/fake-home` for the recording shell.
 - Do not re-record against a real Jira mirror. If a frame ever shows a real
   company, person, or domain, discard the asset and re-seed from `examples/`.
-- `prepare-agent.sh` (optional live Claude take only) copies a credential into
-  an isolated HOME. Run `--clean` afterwards; it is not on the README path.
+- `prepare-agent.sh` (required for `make media-mcp`) copies a credential into
+  an isolated HOME at `/private/tmp/gadak-demo`. Run `--clean` afterwards —
+  it is the last step of every MCP re-shoot, including `make media`.
 
 ## When to re-record
 
@@ -234,6 +300,7 @@ Re-run `make media` whenever any of these change in a way that is visible:
 - `examples/demo.db` is regenerated (`tools/seed-demo` or similar)
 - Web UI layout / copy that appears in the walkthrough
 - CLI output shape for `search` / `sql` / `issue` / `status` / `views`
+- MCP tool names or the `claude mcp add gadak -- gadak mcp` registration line
 
 The mirror is disposable; the scripts are the source of truth. After regenerating,
 spot-check frames with `ffprobe` and a mid-clip PNG extract before committing:
@@ -258,8 +325,9 @@ e2e/demo/
   export-agent.sh        # webm → agent.gif + agent.mp4
 tools/tapes/
   prepare.sh             # build binary, seed GADAK_HOME from demo.db
-  prepare-agent.sh       # optional — isolated HOME for a live Claude take
+  prepare-agent.sh       # isolated HOME + auth for the live Claude MCP take
   agent.tape             # optional CLI-only VHS (not the README clip)
+  mcp.tape               # VHS: claude mcp add + live Claude Code session
   .tmp/                  # disposable (gitignored)
 docs/media/              # committed outputs
 ```
