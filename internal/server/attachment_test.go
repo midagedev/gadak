@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -144,6 +145,56 @@ func TestAttachmentCacheMissesAfterSiteSwitch(t *testing.T) {
 	}
 	if second.Body.String() != "SITE-B" {
 		t.Fatalf("site B → %q, want SITE-B (miss + refetch)", second.Body.String())
+	}
+}
+
+// An id the issue does not list is 404 — same as a foreign issue key.
+func TestAttachmentUnknownIdIsNotFound(t *testing.T) {
+	h, _, _, _, _ := attachmentFixture(t)
+	rec := get(t, h, apiBase+"NMB-1/attachments/99999/content/", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown id → %d %q, want 404", rec.Code, rec.Body.String())
+	}
+}
+
+// The URL id is the Jira external id when that column is set. The store row id
+// must not open the bytes (old Detail loop used ExternalID first).
+func TestAttachmentStoreIdDoesNotBypassExternalID(t *testing.T) {
+	h, _, _, _, _ := attachmentFixture(t)
+	rec := get(t, h, apiBase+"NMB-1/attachments/jira:a-1/content/", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("store id while external_id is set → %d %q, want 404", rec.Code, rec.Body.String())
+	}
+}
+
+// When external_id is empty, the content URL uses the store id (handleDetail).
+func TestAttachmentEmptyExternalIDFallsBackToStoreID(t *testing.T) {
+	db, _ := fixture(t)
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:9090", SourceID: "jira", ExternalID: "9090", Key: "NMB-90",
+				Title:     "local-only attachment",
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "NMB", IssueType: "Bug", StatusCategory: "new"},
+			Attachments: []store.Attachment{{
+				ID: "jira:local-att", Filename: "note.txt", MimeType: "text/plain",
+			}},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// No credential: belongs → 409, not listed → 404. Distinguishes membership
+	// from the fetch path.
+	h := New(db, &config.Config{})
+	owned := get(t, h, apiBase+"NMB-90/attachments/jira:local-att/content/", nil)
+	if owned.Code != http.StatusConflict {
+		t.Fatalf("empty external_id via store id → %d, want 409 (belongs, no credential)", owned.Code)
+	}
+	foreign := get(t, h, apiBase+"NMB-90/attachments/10021/content/", nil)
+	if foreign.Code != http.StatusNotFound {
+		t.Fatalf("other id on NMB-90 → %d, want 404", foreign.Code)
 	}
 }
 

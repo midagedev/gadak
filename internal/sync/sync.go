@@ -364,10 +364,12 @@ func approxCount(ctx context.Context, c *jira.Client, jql string) (int, bool) {
 
 // Watch runs incremental sync on an interval and reconcile on a longer one. A
 // transport failure is logged and retried on the next tick; a rejected
-// credential ends the loop, because every further request would only burn rate
-// budget. After each successful cycle, new personal-feed events may produce one
-// OS desktop notification (see notifyAfterSync); notification failures never
-// stop the loop.
+// credential (jira.ErrAuth) records last_error, logs once, and ends the loop,
+// because every further request would only burn rate budget. `gadak status`
+// and sync_health read that last_error. A later one-shot Run with a new token
+// still clears it. After each successful cycle, new personal-feed events may
+// produce one OS desktop notification (see notifyAfterSync); notification
+// failures never stop the loop.
 //
 // When opts.Reload is set, each cycle re-reads config so a settings edit
 // (projects, Confluence, intervals) takes effect without restarting the process.
@@ -415,6 +417,11 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 				return ctx.Err()
 			}
 			if errors.Is(err, jira.ErrAuth) {
+				// last_error is how `gadak status` and sync_health surface this
+				// (sourceHealth copies the column). Re-record so a future Run
+				// path that forgets record() cannot leave the loop silent.
+				_ = db.RecordSync(ctx, SourceID, store.SyncResult{Err: err})
+				opts.logf("sync failed: %v", err)
 				return err
 			}
 			opts.logf("sync failed: %v", err)

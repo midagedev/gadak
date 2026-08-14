@@ -392,6 +392,31 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 	return d, nil
 }
 
+// AttachmentBelongs reports whether the mirror lists attachmentID on issueKey.
+// The id is the Jira external id when that column is set, otherwise the store
+// row id — the same rule handleDetail uses when it builds content URLs.
+// One EXISTS query: serving bytes must not pay for Detail's comments/history/links/refs.
+func (db *DB) AttachmentBelongs(ctx context.Context, issueKey, attachmentID string) (bool, error) {
+	if issueKey == "" || attachmentID == "" {
+		return false, nil
+	}
+	var one int
+	err := db.sql.QueryRowContext(ctx, `
+		SELECT 1
+		FROM attachments a
+		JOIN issues i ON i.item_id = a.item_id
+		WHERE i.key = ?
+		  AND COALESCE(NULLIF(a.external_id, ''), a.id) = ?
+		LIMIT 1`, issueKey, attachmentID).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // pageLitesFromRefs runs a PageLite-shaped SELECT and returns the rows (nil when empty).
 func (db *DB) pageLitesFromRefs(ctx context.Context, query string, args ...any) ([]PageLite, error) {
 	var out []PageLite

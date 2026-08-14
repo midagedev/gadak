@@ -51,6 +51,11 @@ type fakeSite struct {
 	// filtersJSON, when set, is GET /filter/my. Default is an empty list so
 	// importFilters does not fail existing issue-sync tests.
 	filtersJSON []byte
+	// authStatus, when non-zero, is returned for every request. Watch tests use
+	// 401 (ErrAuth, loop must stop) and 500 (transport, loop must retry).
+	authStatus int
+	// hits is every request this site has seen, including authStatus short-circuits.
+	hits int
 }
 
 func newSite(t *testing.T, lang string) *fakeSite {
@@ -69,6 +74,11 @@ func (f *fakeSite) start() *jira.Client {
 func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.hits++
+	if f.authStatus != 0 {
+		http.Error(w, `{"errorMessages":["Client must be authenticated"]}`, f.authStatus)
+		return
+	}
 	switch {
 	case r.URL.Path == "/rest/api/3/status":
 		w.Write(statusesJSON(f.lang))

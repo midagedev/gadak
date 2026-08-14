@@ -667,25 +667,14 @@ func (s *server) attachmentCacheKey(issueKey, id string) string {
 }
 
 // attachmentBelongs reports whether the mirror lists id on issueKey. Used to
-// refuse a cached (or upstream) fetch under a foreign issue key.
+// refuse a cached (or upstream) fetch under a foreign issue key. One store
+// query (not Detail): comments/history/links/page-refs are not membership.
 func (s *server) attachmentBelongs(ctx context.Context, issueKey, id string) bool {
 	if issueKey == "" || id == "" {
 		return false
 	}
-	d, err := s.db.Detail(ctx, issueKey)
-	if err != nil || d == nil {
-		return false
-	}
-	for _, a := range d.Attachments {
-		aid := a.ExternalID
-		if aid == "" {
-			aid = a.ID
-		}
-		if aid == id {
-			return true
-		}
-	}
-	return false
+	ok, err := s.db.AttachmentBelongs(ctx, issueKey, id)
+	return err == nil && ok
 }
 
 // warmAttachments pre-downloads the inline-renderable attachments of an issue the
