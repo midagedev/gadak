@@ -172,6 +172,38 @@ func TestKeySeparatesSiteAndIssue(t *testing.T) {
 	}
 }
 
+func TestImportManifestUsesKeyAndDoesNotWriteRawID(t *testing.T) {
+	c, err := New(t.TempDir(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.png"), []byte("PNG"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	man := `{"attachments":[{"id":"100","file":"a.png","filename":"a.png","content_type":"image/png"}]}`
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(man), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	site := "https://a.example"
+	stats, err := c.ImportManifest(dir, site, "work", func(id string) (string, bool) {
+		return "NMB-1", id == "100"
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Seeded != 1 || len(stats.SkippedIDs) != 0 {
+		t.Fatalf("stats %+v", stats)
+	}
+	want := Key(site, "work", "NMB-1", "100")
+	if !c.Has(want) {
+		t.Fatal("missing scoped key")
+	}
+	if c.Has("100") {
+		t.Fatal("also wrote the raw id")
+	}
+}
+
 func TestFetchFailureLeavesNoEntry(t *testing.T) {
 	c, err := New(t.TempDir(), 0)
 	if err != nil {

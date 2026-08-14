@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -44,9 +45,9 @@ type Meta struct {
 // so a profile that changes sites cannot serve the previous site's bytes, and a
 // request for the wrong issue cannot read a cached id.
 //
-// An empty site keeps the legacy id-only form so snapshot ImportFile entries
-// (`gadak demo` writes no site) stay reachable. Existing id-only files on a
-// real site miss after this change (the safe invalidation).
+// An empty site keeps the legacy id-only form so snapshot imports for
+// `gadak demo` / export-static (no site) stay reachable. Existing id-only
+// files on a real site miss after this change (the safe invalidation).
 func Key(site, profile, issue, id string) string {
 	site = strings.TrimRight(strings.TrimSpace(site), "/")
 	if site == "" {
@@ -92,8 +93,8 @@ func New(dir string, maxBytes int64) (*Cache, error) {
 func (c *Cache) Dir() string { return c.dir }
 
 // path derives a filename from the cache key by hashing it. The key is
-// attachcache.Key(site, profile, issue, id) (or a raw id for demo ImportFile).
-// Hashing keeps a hostile key from escaping the directory.
+// attachcache.Key(site, profile, issue, id). Hashing keeps a hostile key
+// from escaping the directory.
 func (c *Cache) path(id string) string {
 	sum := sha256.Sum256([]byte(id))
 	name := hex.EncodeToString(sum[:])
@@ -280,10 +281,10 @@ func writeMeta(p string, m Meta) error {
 	return os.WriteFile(p, b, 0o600)
 }
 
-// ImportFile seeds an entry from a local file. It exists for fixtures: the
-// bundled demo snapshot ships attachment bytes so `gadak demo` shows real images
-// with no Jira account, and a test can prime the cache without a fake server.
-func (c *Cache) ImportFile(id, path, contentType, filename string) error {
+// ImportFile seeds an entry from a local file under the given cache key.
+// Callers that know site/profile/issue must pass Key(...); do not pass a raw
+// id when the site is set — that is the snapshot-import miss that D9 closed.
+func (c *Cache) ImportFile(key, path, contentType, filename string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -293,7 +294,73 @@ func (c *Cache) ImportFile(id, path, contentType, filename string) error {
 	if err != nil {
 		return err
 	}
-	return c.Fill(id, func() (io.ReadCloser, Meta, error) {
+	return c.Fill(key, func() (io.ReadCloser, Meta, error) {
 		return io.NopCloser(f), Meta{ContentType: contentType, Size: info.Size(), Filename: filename}, nil
 	})
+}
+
+// ImportStats is what a snapshot import reports: how many files landed, and
+// which manifest ids were skipped (not in the mirror).
+type ImportStats struct {
+	Seeded     int
+	SkippedIDs []string
+}
+
+// ImportManifest seeds the cache from a fixture directory's manifest.json.
+// Each file is stored under Key(site, profile, issue, id). issueForID must
+// return the issue key that owns id; ids it rejects are skipped — they are
+// never written under the raw id (that would reopen the D9 cross-site hole).
+func (c *Cache) ImportManifest(dir, site, profile string, issueForID func(id string) (issue string, ok bool)) (ImportStats, error) {
+	var stats ImportStats
+	raw, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return stats, nil
+		}
+		return stats, err
+	}
+	var manifest struct {
+		Attachments []struct {
+			ID          string `json:"id"`
+			File        string `json:"file"`
+			Filename    string `json:"filename"`
+			ContentType string `json:"content_type"`
+		} `json:"attachments"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return stats, err
+	}
+	if issueForID == nil {
+		issueForID = func(string) (string, bool) { return "", false }
+	}
+	for _, a := range manifest.Attachments {
+		if a.ID == "" {
+			stats.SkippedIDs = append(stats.SkippedIDs, "(empty id)")
+			continue
+		}
+		issue, ok := issueForID(a.ID)
+		if !ok || issue == "" {
+			stats.SkippedIDs = append(stats.SkippedIDs, a.ID)
+			continue
+		}
+		ck := Key(site, profile, issue, a.ID)
+		if err := c.ImportFile(ck, filepath.Join(dir, a.File), a.ContentType, a.Filename); err != nil {
+			return stats, fmt.Errorf("import %s: %w", a.File, err)
+		}
+		stats.Seeded++
+	}
+	return stats, nil
+}
+
+// MissReason explains a cache miss so a log can tell a key-scope mismatch
+// (legacy id-only file still on disk) from a true absence. It never serves
+// the legacy entry.
+func (c *Cache) MissReason(key, id string) string {
+	if c.Has(key) {
+		return "entry present"
+	}
+	if id != "" && key != id && c.Has(id) {
+		return "legacy id-only entry present (key scope mismatch)"
+	}
+	return "no cached bytes"
 }

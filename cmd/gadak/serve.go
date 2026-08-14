@@ -256,7 +256,10 @@ func cmdServe(args []string) error {
 	defer db.Close()
 
 	if opts.importAttachments != "" {
-		if err := importAttachmentDir(opts.importAttachments); err != nil {
+		dbPath, err := config.DBPath()
+		if err != nil {
+			log.Printf("warning: could not import attachments from %q: %v", opts.importAttachments, err)
+		} else if err := importAttachmentDir(opts.importAttachments, cfg.Site, config.Profile(), dbPath); err != nil {
 			log.Printf("warning: could not import attachments from %q: %v", opts.importAttachments, err)
 		}
 	}

@@ -577,6 +577,9 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 	// later view is local. A cache failure is not a request failure: fall through
 	// to a straight stream.
 	if s.cache != nil {
+		// Diagnose before the fetch: a scoped miss with a leftover id-only file
+		// is the snapshot-import key bug, not a cold cache.
+		log.Printf("server: attachment cache miss id=%s issue=%s: %s", id, issueKey, s.cache.MissReason(ck, id))
 		err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
 			res, err := s.fetchAttachment(r.Context(), cfg, id)
 			if err != nil {
@@ -714,6 +717,7 @@ func (s *server) warmAttachments(cfg *config.Config, issueKey string, atts []det
 				// Detached from the request: the browser may have moved on already.
 				id := a.ID
 				ck := s.attachmentCacheKey(issueKey, id)
+				log.Printf("server: attachment warm miss id=%s issue=%s: %s", id, issueKey, s.cache.MissReason(ck, id))
 				if err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
 					res, err := s.fetchAttachment(context.Background(), cfg, id)
 					if err != nil {

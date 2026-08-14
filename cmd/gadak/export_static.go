@@ -74,9 +74,13 @@ func cmdExportStatic(args []string) error {
 	}
 
 	cacheDir := filepath.Join(tmp, "attachments")
-	if err := importAttachmentsInto(*attachments, cacheDir); err != nil {
+	// Site is empty: NewWithCache below builds the same empty-site config, so
+	// Key collapses to the legacy id-only form (same as gadak demo).
+	stats, err := importAttachmentsInto(*attachments, cacheDir, "", config.Profile(), workDB)
+	if err != nil {
 		return fmt.Errorf("import attachments: %w", err)
 	}
+	logAttachmentImport("export-static: attachment import", stats)
 	cache, err := attachcache.New(cacheDir, 0)
 	if err != nil {
 		return err

@@ -907,56 +907,108 @@ func formatAPIUsageLine(u store.APIUsageSummary) string {
 // cmdDemo serves the bundled snapshot from a throwaway home, so evaluating the
 // UI needs no Jira account and cannot touch a real profile.
 // importDemoAttachments loads <snapshotDir>/attachments/ into the demo cache.
+// Demo config has no site, so Key collapses to the legacy id-only form.
 func importDemoAttachments(snapshotDir, home string) error {
-	return importAttachmentsInto(filepath.Join(snapshotDir, "attachments"),
-		filepath.Join(home, "attachments"))
+	stats, err := importAttachmentsInto(
+		filepath.Join(snapshotDir, "attachments"),
+		filepath.Join(home, "attachments"),
+		"", "",
+		filepath.Join(home, "gadak.db"),
+	)
+	logAttachmentImport("demo: attachment import", stats)
+	return err
 }
 
 // importAttachmentDir seeds this profile's cache from a manifest directory. It is
 // how a snapshot ships renderable images: bytes cannot be proxied without a
 // credential, so a fixture (the demo, the test server, a shared snapshot) hands
-// them over instead.
-func importAttachmentDir(dir string) error {
+// them over instead. site and profile must match the handler's
+// attachmentCacheKey (config.Site, config.Profile()).
+func importAttachmentDir(dir, site, profile, dbPath string) error {
 	cacheDir, err := config.AttachmentDir()
 	if err != nil {
 		return err
 	}
-	return importAttachmentsInto(dir, cacheDir)
+	stats, err := importAttachmentsInto(dir, cacheDir, site, profile, dbPath)
+	logAttachmentImport("attachment import", stats)
+	return err
 }
 
 // importAttachmentsInto is the shared body. A missing directory is not an error:
-// the snapshot simply has no images.
-func importAttachmentsInto(dir, cacheDir string) error {
+// the snapshot simply has no images. Every write goes through attachcache.Key;
+// ids the mirror does not own are skipped (never stored under the raw id).
+func importAttachmentsInto(dir, cacheDir, site, profile, dbPath string) (attachcache.ImportStats, error) {
 	manifestPath := filepath.Join(dir, "manifest.json")
-	raw, err := os.ReadFile(manifestPath)
-	if err != nil {
+	if _, err := os.Stat(manifestPath); err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return attachcache.ImportStats{}, nil
 		}
-		return err
+		return attachcache.ImportStats{}, err
 	}
-	var manifest struct {
-		Attachments []struct {
-			ID          string `json:"id"`
-			File        string `json:"file"`
-			Filename    string `json:"filename"`
-			ContentType string `json:"content_type"`
-		} `json:"attachments"`
-	}
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		return err
+	byID, err := attachmentIssueKeys(dbPath)
+	if err != nil {
+		return attachcache.ImportStats{}, err
 	}
 	cache, err := attachcache.New(cacheDir, 0)
 	if err != nil {
-		return err
+		return attachcache.ImportStats{}, err
 	}
-	for _, a := range manifest.Attachments {
-		src := filepath.Join(dir, a.File)
-		if err := cache.ImportFile(a.ID, src, a.ContentType, a.Filename); err != nil {
-			return fmt.Errorf("import %s: %w", a.File, err)
+	return cache.ImportManifest(dir, site, profile, func(id string) (string, bool) {
+		k, ok := byID[id]
+		return k, ok
+	})
+}
+
+// attachmentIssueKeys maps attachments.external_id and attachments.id to the
+// issue key that owns them. There is no store helper for this lookup (searched
+// before adding one); OpenReadOnly is the existing read-SQL surface.
+func attachmentIssueKeys(dbPath string) (map[string]string, error) {
+	if dbPath == "" {
+		return nil, fmt.Errorf("attachment import: empty mirror path")
+	}
+	db, err := store.OpenReadOnly(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	rows, err := db.Query(`
+		SELECT COALESCE(a.external_id, ''), a.id, i.key
+		FROM attachments a
+		JOIN issues i ON i.item_id = a.item_id
+		WHERE i.key IS NOT NULL AND i.key != ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var ext, id, key string
+		if err := rows.Scan(&ext, &id, &key); err != nil {
+			return nil, err
+		}
+		if ext != "" {
+			out[ext] = key
+		}
+		if id != "" {
+			out[id] = key
 		}
 	}
-	return nil
+	return out, rows.Err()
+}
+
+// logAttachmentImport is the one-line import summary (serve/demo/export-static).
+// A log line, not `gadak status`: import is a startup action, and status has no
+// slot for a one-shot fixture seed.
+func logAttachmentImport(prefix string, stats attachcache.ImportStats) {
+	if stats.Seeded == 0 && len(stats.SkippedIDs) == 0 {
+		return
+	}
+	if n := len(stats.SkippedIDs); n == 0 {
+		log.Printf("%s: seeded %d", prefix, stats.Seeded)
+		return
+	}
+	log.Printf("%s: seeded %d, skipped %d (not in mirror: %s)",
+		prefix, stats.Seeded, len(stats.SkippedIDs), strings.Join(stats.SkippedIDs, ", "))
 }
 
 // freshenDemoClock stamps the throwaway demo copy as just-synced.
