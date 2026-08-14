@@ -45,7 +45,12 @@ sqlite3 ~/.gadak/gadak.db "select key, status, status_category from issues limit
 
 For an agent on a command allowlist, grant `gadak sql` instead of `sqlite3`: it
 opens the database with SQLite's `mode=ro`, so a mistyped `UPDATE` fails on the
-connection rather than corrupting the mirror.
+connection rather than corrupting the mirror. `gadak sql` ATTACHes `local.db`
+as `local`, so `local.visits` (one row per view: `kind` `issue`|`page`, `key`,
+`viewed_at`) and `local.searches` (`query`, `searched_at`, `result_count`,
+optional `opened_kind`/`opened_key`) are ordinary SELECTs — do not ATTACH
+yourself. Counts are `count(*)`; the file is next to the mirror and survives
+deleting `gadak.db`. Search query text is personal and never leaves the machine.
 
 ## The one mistake to avoid
 

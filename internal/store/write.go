@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 )
@@ -706,6 +707,13 @@ func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (
 	})
 	if err != nil {
 		return 0, err
+	}
+	// Same pass as tombstone expiry: drop visit/search rows older than the
+	// raw window. A missing/unattached local.db must not fail the deletion.
+	if deleted > 0 {
+		if err := db.PruneLocalHistory(ctx); err != nil {
+			log.Printf("store: prune local history: %v", err)
+		}
 	}
 	return deleted, nil
 }

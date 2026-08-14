@@ -64,6 +64,16 @@ The schema in one paragraph: `items` is the source-neutral spine (title,
 JSON arrays — reach them with `json_each`. Every column is listed in
 `specs/000-product/data-model.md`.
 
+Personal history lives in a second file next to the mirror (`local.db`),
+ATTACHed as `local` when gadak opens the mirror — you do not type ATTACH.
+`local.visits` is one row per view (`kind` is `issue` or `page`; `key` is the
+issue key or page id; `viewed_at`). `local.searches` is one row per executed
+search (`query`, `searched_at`, `result_count`, and `opened_kind`/`opened_key`
+when something was opened from it). There is no stored counter: `count(*)`
+per key is the visit count. Rows older than 180 days are pruned. This file
+survives `rm gadak.db` and is never sent to Jira. Do not write search-query
+text into logs or tickets.
+
 ```bash
 gadak sql "…"          # tab-separated, read-only
 gadak sql --json "…"   # one JSON object per row
@@ -113,7 +123,24 @@ SELECT key, created_at, summary
 FROM issues_full
 WHERE status_category = 'new' AND assignee_id IS NULL AND priority_rank = 0
 ORDER BY created_at LIMIT 30;
+
+-- 9. Recently viewed issues (then present: gadak views open --keys -)
+SELECT key, MAX(viewed_at) AS last_seen, COUNT(*) AS n
+FROM local.visits
+WHERE kind = 'issue'
+GROUP BY key
+ORDER BY last_seen DESC
+LIMIT 20;
+
+-- 10. A search you ran, and what you opened from it
+SELECT query, opened_key, searched_at, result_count
+FROM local.searches
+WHERE query LIKE '%upload%'
+ORDER BY searched_at DESC
+LIMIT 20;
 ```
+
+Pipe keys from (9) into the running UI: `gadak sql "select key from local.visits where kind='issue' group by key order by max(viewed_at) desc" | tail -n +2 | gadak views open --keys -`.
 
 Rules that come with the file:
 
