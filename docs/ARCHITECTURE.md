@@ -115,7 +115,7 @@ web/src/
   components/  list/ (virtualized rows, filter bar, menus)
                detail/ (ADF, comments, history, attachments, links)
                write/ (composer, transitions, pickers, dialogs)
-               shell/ (layout, auth gate) · personal/ · presence/ · sidebar/
+               shell/ (layout, auth gate) · personal/ · sidebar/
 ```
 
 `stores/filters.svelte.ts` is the performance-critical file: it holds the filter

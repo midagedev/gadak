@@ -6,11 +6,14 @@ disagree, either the change is wrong or this document gets a dated revision —
 never a silent divergence.
 
 Every principle here is either (a) a published rule from a product that earned
-the right to be copied, with the source linked, or (b) a pattern we verified
-across several such products. Nothing below is folklore; where research could
-not find a primary source, the claim was dropped. Sources are collected at the
-end. (Established 2026-08-06, from a survey of Linear, Superhuman, Raycast,
-Notion, Confluence, Outline, Google Drive, Slab, and clig.dev.)
+the right to be copied, with the source linked, (b) a pattern we verified
+across several such products, or (c) a dated owner decision that constrains a
+surface this document already owns — currently the contained browser
+(§11–§13). Nothing below is folklore; where research could not find a primary
+source, the claim was dropped. Owner decisions name their spec. Sources are
+collected at the end. (Established 2026-08-06, from a survey of Linear,
+Superhuman, Raycast, Notion, Confluence, Outline, Google Drive, Slab, and
+clig.dev. §11–§13 added 2026-08-14.)
 
 ## 1. Speed is a budget, not a feature
 
@@ -167,6 +170,31 @@ exist at all." In practice for this repo: UI waves start from observed usage
 *what to draw* without *why this shape* produces work that "unravels the
 moment you actually use it."
 
+## 11. The shell is packaging; the mirror and the handoff are the product
+
+Owner decision, 2026-08-14 (`specs/001-dedicated-browser/spec.md`, G-a). A
+feature that grows the shell but not the mirror or the agent handoff is
+default-rejected. The pitch is "where your Jira lives", not "browser" — that
+word buys universality expectations (SSO, every page perfect) that an
+embedded WebView cannot honor.
+
+## 12. The in-app browser is an escape hatch, not a floor
+
+Owner decision, 2026-08-14 (`specs/001-dedicated-browser/spec.md`, G-b). No
+native surface may *require* the in-app browser. Feature requests aimed at
+the browser pane (history, bookmarks, extensions, persistent tabs) are
+default-rejected. The pane owns tabs, a rectangle, and post-close resync —
+nothing else.
+
+## 13. In-app tabs are session-scoped consumables
+
+Owner decision, 2026-08-14 (`specs/001-dedicated-browser/spec.md`, G-c).
+Retrieval ("I'll need this again") is the mirror's job: search, recents,
+favorites (§6). The components this constrains are the browse **tab strip**
+(`BrowsePane`, `data-testid="browse-tabs"`) and the **re-entry pill**
+(`BrowseHost`, `data-testid="browse-reentry"`). Neither may become a second
+sidebar. The success metric is retrievals that needed no tab, not tab count.
+
 ---
 
 ## What already embodies this (keep, and defend)
@@ -178,6 +206,8 @@ moment you actually use it."
 - Single-user opinionation (§4) — cheapest possible conditions; use them.
 - Honest states — freshness chip, explicit "unsupported" reporting — are the
   UI face of the receipts culture.
+- Contained browser as an escape hatch (§11–§13) — the tab strip and the
+  re-entry pill are session chrome, not a second sidebar.
 
 ## Sources
 
@@ -209,3 +239,6 @@ Navigation survey (§6):
 Secondary (interviews; quote as spoken views, not documented rules):
 [Saarinen's 10 rules](https://www.figma.com/blog/karri-saarinens-10-rules-for-crafting-products-that-stand-out/) ·
 [Ivan Zhao interviews](https://nesslabs.com/notion-featured-tool)
+
+Owner decisions (§11–§13):
+[`specs/001-dedicated-browser/spec.md`](../specs/001-dedicated-browser/spec.md) (2026-08-14)

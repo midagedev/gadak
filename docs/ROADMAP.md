@@ -246,13 +246,43 @@ work mirror. Shipped 2026-08-07:
 - ✅ **A sixth perf axis** (`docsFilterKeystrokeMs`, pinned FAIL-first on the
   10k fixture) so the document filter can never quietly leave memory.
 
-## Next — the only open question is whether anyone else wants this
+## v0.13 — the dedicated browser, and the agent that drives it
 
-Nine releases exist and, as of 2026-08-07, the measurable number of people
-outside this machine who have installed any of them is zero. That is the state
-the roadmap has to answer to, and no feature on any list below changes it.
+Owner decision, 2026-08-14 (`specs/001-dedicated-browser/spec.md`). The window
+is where Jira lives on the machine. What the mirror models is answered
+natively; what it does not is contained, not reimplemented. The window has a
+second user: the coding agent points at it (`gadak views open`) instead of
+pasting a table. SQL answers; views present.
 
-So the next stretch is not a feature wave. It is:
+Hierarchy, in order of what the product is: the mirror is the body; the
+browser feel is the packaging; the agent handoff is the differentiator. A
+feature that grows the shell but not the mirror or the handoff is
+default-rejected. The in-app pane is an escape hatch, not a floor — tabs, a
+rectangle, and post-close resync, nothing else. In-app tabs are
+session-scoped; retrieval stays the mirror's job (`docs/UX_PRINCIPLES.md`
+§11–§13).
+
+The contained-browser half exists only in Gadak.app (WKWebView; Atlassian
+forbids iframes). `gadak serve` users get native surfaces plus system tabs.
+`gadak open` stays the Jira escape hatch (system browser to `/browse/KEY`);
+`gadak views open` is the "open in gadak" verb.
+
+Work in this wave (see `specs/001-dedicated-browser/tasks.md`): a `keys`
+filter axis so an agent can show a result set; paste and body-link routing
+so modeled URLs open native; `views open` can focus one issue, take a key
+list, and print the link; retrieval finishes the anti-tab thesis (recents,
+palette filters); agent docs teach showing, not only answering.
+
+## Next — arrival started; questions still run in parallel
+
+The 2026-08-07 stance was no feature waves until a user showed up. That
+stance is amended, not dropped. PR #1 (external user; person filters keyed
+on Jira account ids; opened 2026-08-10, merged 2026-08-14) is the first
+arrival signal. v0.13 is aimed at the two audiences that arrival proved
+exist — agent-driven use and daily in-app living.
+
+Collecting questions and watching an install continue in parallel; they are
+not displaced by this wave:
 
 1. **Collect questions, not installs.** Ask people who live in Jira for one
    question they want to ask it and cannot, and answer it with SQL against a
@@ -261,15 +291,14 @@ So the next stretch is not a feature wave. It is:
 2. **Watch someone install it without help**, and write down where they stop.
 3. **Prepare for arrival rather than polish for absence** — `gadak doctor`,
    [`MAINTENANCE.md`](../MAINTENANCE.md), and the narrowed schema contract in
-   `specs/000-product/data-model.md` all exist so that a first real user costs
+   `specs/000-product/data-model.md` all exist so that a next real user costs
    hours instead of weeks.
 
-Deliberately **not** now, until there is a user to justify it: Show HN (a card
-that can be played once, and not before the install friction is known), a
-1.0 (0.x is the accurate label and the better shield), new sources, new
-surfaces, and UI polish rounds. The type-scale sweep that used to sit here was
-the clearest example of the trap — a hundred-odd class literals to tidy, for
-nobody.
+Deliberately **not** now: Show HN (a card that can be played once, and not
+before the install friction is known), a 1.0 (0.x is the accurate label and
+the better shield), new sources, new surfaces, and UI polish rounds. The
+type-scale sweep that used to sit here was the clearest example of the trap
+— a hundred-odd class literals to tidy, for nobody.
 
 ### Held, with the bar written down
 
@@ -295,7 +324,8 @@ nobody.
   Guessing at DC behavior is worse than declining to support it.
 - **Multi-user or hosted deployment.** Contradicts the security model, which is
   "one user, loopback only, no auth".
-- **Boards, sprints, reports.** Jira's own UI does these, and a partial
-  reimplementation is worse than a link.
+- **Boards, sprints, reports.** Jira's own UI does these. We contain that
+  page (in-app tab on desktop, system browser under `serve`); we do not
+  reimplement it.
 - **Writing to the mirror.** Jira is the record. Any local write model would need
   conflict resolution, which is a different product.
