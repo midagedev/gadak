@@ -12,7 +12,7 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | `docs/media/web-demo.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/search.gif` | Playwright `e2e/demo/search-demo.spec.ts` | README — ⌘K All search (ignores filters) |
 | `docs/media/search.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
-| `docs/media/agent.gif` | Playwright split `e2e/demo/agent-demo.spec.ts` | README — agent pipes `sql` into `views open --keys -`, the paper list follows |
+| `docs/media/agent.gif` | Playwright split `e2e/demo/agent-demo.spec.ts` | README — two beats: `sql` piped into `views open --keys -`, then `views open --jql`; the paper list follows both |
 | `docs/media/agent.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/mcp.gif` | VHS tape `tools/tapes/mcp.tape` | README — Claude Code registers `gadak mcp` and answers a question JQL cannot express |
 | `docs/media/mcp.mp4` | same tape, second `Output` line | Twitter / LinkedIn / anywhere GIF is too heavy |
@@ -40,8 +40,8 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | `web-demo.mp4` | 1.1 MB | 1073187 | 15.8 s | 1024×640 h264 |
 | `search.gif` | 3.7 MB | 3707159 | 7.4 s | 960×600 @ 9 fps, 128-color palette |
 | `search.mp4` | 0.53 MB | 527808 | 7.4 s | 1024×640 h264 |
-| `agent.gif` | 4.2 MB | 4204366 | 12.0 s | 960×758 @ 9 fps, 128-color palette |
-| `agent.mp4` | 0.53 MB | 529791 | 12.0 s | 1024×808 h264 |
+| `agent.gif` | 5.8 MB | 5814162 | 18.7 s | 960×758 @ 9 fps, 128-color palette |
+| `agent.mp4` | 0.69 MB | 687886 | 18.7 s | 1024×808 h264 |
 | `mcp.gif` | 0.36 MB | 357824 | 24.9 s | 1080×620 @ 25 fps, 64 colors (gifsicle) |
 | `mcp.mp4` | 0.28 MB | 276463 | 24.9 s | 1080×620 h264 |
 
@@ -161,7 +161,7 @@ is never touched by this pipeline.
 
 ### Agent (`agent.gif`)
 
-One take, two panes, ~12 s, viewport **1024×808**:
+One take, two panes, two beats, ~19 s, viewport **1024×808**:
 
 1. A paper terminal types
    `gadak sql "select key from issues where reopen_count>0 order by key limit 5" \`
@@ -176,6 +176,16 @@ One take, two panes, ~12 s, viewport **1024×808**:
    and **5 issues**. Sort reads **Given order**. Default `group_by` is still
    status category (`jql.Hash` with an empty Display does not emit `g=none`),
    so the five rows section into In progress / New
+4. The terminal clears and types
+   `gadak views open --jql 'project = NMA AND priority = High AND resolution is EMPTY'`.
+   The hash is `pj=NMA&pr=High&sc=new%2Cinprogress` and the list lands on four
+   chips — **Project: NMA**, **Priority: High**, and the two status categories
+   that `resolution is EMPTY` becomes (decision 0007) — at **22 issues**
+
+Beat 4 exists because the two beats are different promises: the pipe says any
+answer you can compute is a view, the JQL says you do not have to leave the
+query language you already know to get one. A reader who saw only the pipe
+would conclude gadak requires SQL.
 
 The command is typed in the wrapper, not in the app — `web/src/` stays
 untouched. The on-screen output is only the `hash\tks=…` line; the `web\t`

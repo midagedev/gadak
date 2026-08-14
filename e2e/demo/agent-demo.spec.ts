@@ -1,11 +1,21 @@
 /**
  * Agent-focus promo for docs/media/agent.{gif,mp4}.
  *
- * One recording, two panes: a paper terminal types
- * `gadak sql … | tail -n +2 | gadak views open --keys -` while the real app
- * sits underneath. On Enter the test runs that pipe against the serve fixture;
- * the iframe polls ui-focus and the list snaps to those keys. No live model,
- * no credential, no DOM caption burned into the app.
+ * One recording, two panes, two beats: a paper terminal types a command while
+ * the real app sits underneath, and on Enter the test runs it against the
+ * serve fixture — the iframe polls ui-focus and the list follows.
+ *
+ *   1. SQL   `gadak sql … | tail -n +2 | gadak views open --keys -`
+ *            → an arbitrary answer becomes the view (a `5 keys` chip).
+ *   2. JQL   `gadak views open --jql '…'`
+ *            → the query a Jira user already knows becomes chips
+ *              (project, priority, and unresolved, from one clause each).
+ *
+ * Two beats because the two are different promises. The first says any answer
+ * you can compute is a view; the second says you do not have to leave JQL to
+ * get one. A reader who only saw the pipe would think gadak needs SQL.
+ *
+ * No live model, no credential, no DOM caption burned into the app.
  *
  * Gated by GADAK_MEDIA=1. Viewport and video size must stay 1024×808
  * (see agent.config.ts) or Playwright letterboxes the capture.
@@ -27,6 +37,12 @@ const gadakHome = path.join(here, '../.tmp/home')
 // skips it (skills/gadak/SKILL.md, docs/RECIPES.md).
 const SQL = 'select key from issues where reopen_count>0 order by key limit 5'
 const COMMAND = `gadak sql "${SQL}" \\\n| tail -n +2 | gadak views open --keys -`
+
+// The same JQL a Jira user would paste into the navigator. `resolution is
+// EMPTY` is the interesting clause: it has no chip of its own and lands as
+// the two open status categories (decision 0007).
+const JQL = 'project = NMA AND priority = High AND resolution is EMPTY'
+const JQL_COMMAND = `gadak views open --jql \\\n  '${JQL}'`
 
 const FRAME = `<!DOCTYPE html>
 <html lang="en">
@@ -95,7 +111,7 @@ async function typeCommand(page: Page, text: string, delayMs: number): Promise<v
 test.describe('agent focus demo', () => {
   test.skip(!isMedia, 'GADAK_MEDIA=1 only — media pipeline recording')
 
-  test('sql | views open --keys snaps the paper list', async ({ page }) => {
+  test('sql keys, then jql chips, both land on the paper list', async ({ page }) => {
     await forceLocale(page, 'en')
     await page.setContent(FRAME, { waitUntil: 'domcontentloaded' })
 
@@ -134,6 +150,45 @@ test.describe('agent focus demo', () => {
       timeout: 5_000,
     })
     await expect(app.getByTestId('list-count')).toHaveText('5 issues')
-    await page.waitForTimeout(3600)
+    await page.waitForTimeout(2200)
+
+    // ── Beat 2: the same handoff, starting from JQL instead of SQL ──────────
+    await page.locator('#typed').evaluate((el) => {
+      el.textContent = ''
+    })
+    await page.locator('#out').evaluate((el) => {
+      el.textContent = ''
+    })
+    await page.locator('#cursor').evaluate((el) => el.classList.remove('off'))
+    await page.waitForTimeout(400)
+
+    await typeCommand(page, JQL_COMMAND, 34)
+    await page.locator('#cursor').evaluate((el) => el.classList.add('off'))
+    await page.waitForTimeout(180)
+
+    const ranJql = spawnSync(
+      'bash',
+      ['-c', `"${gadakBin}" views open --jql '${JQL}' --no-open`],
+      { env: { ...process.env, GADAK_HOME: gadakHome }, encoding: 'utf8' },
+    )
+    if (ranJql.status !== 0) {
+      throw new Error(`views open --jql failed: ${ranJql.stderr || ranJql.stdout}`)
+    }
+    const jqlHash =
+      (ranJql.stdout || '').split('\n').find((line) => line.startsWith('hash\t')) ?? ''
+    if (!jqlHash.startsWith('hash\tpj=')) {
+      throw new Error(`expected hash\\tpj=… from views open --jql, got: ${ranJql.stdout}`)
+    }
+    await page.locator('#out').evaluate((el, text) => {
+      el.textContent = text
+    }, jqlHash)
+
+    // One clause each: the project, the priority, and the pair of open status
+    // categories that `resolution is EMPTY` becomes.
+    const chips = app.getByTestId('filter-chip')
+    await expect(chips.filter({ hasText: /NMA/ })).toBeVisible({ timeout: 5_000 })
+    await expect(chips.filter({ hasText: /High/ })).toBeVisible()
+    await expect(chips.filter({ hasText: /5 keys/ })).toHaveCount(0)
+    await page.waitForTimeout(3400)
   })
 })

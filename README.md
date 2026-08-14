@@ -97,15 +97,17 @@ put a ticket and the design doc that drove it in the same sentence.
   <sub>Five tools; no writes to the mirror or to Jira. A host with a shell can use <code>gadak sql</code> instead. Setup: <a href="docs/MCP.md">docs/MCP.md</a>.</sub>
 </p>
 
-SQL answers; the window presents:
+SQL answers; the window presents. And if you already have the JQL, skip the
+SQL — the clauses land as chips:
 
 ```bash
 gadak sql "select key from issues_full where reopen_count > 1" \
   | tail -n +2 | gadak views open --keys -
+gadak views open --jql 'project = NMA AND priority = High AND resolution is EMPTY'
 ```
 
 <p align="center">
-  <img src="docs/media/agent.gif" alt="A terminal pipes gadak sql into gadak views open --keys -; the list in the running app snaps to those five keys with a 5 keys chip" width="800">
+  <img src="docs/media/agent.gif" alt="A terminal pipes gadak sql into gadak views open --keys - and the running app snaps to those five keys; then gadak views open --jql lands the same window on project, priority and unresolved chips" width="800">
   <br>
   <sub><code>gadak views open</code> writes a one-shot hash; the running app or serve tab applies it. Generated from <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a>.</sub>
 </p>
