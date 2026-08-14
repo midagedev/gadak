@@ -18,6 +18,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { write } from '../../stores/write.svelte'
   import { fieldEnabled, type MultiField } from '../../lib/view-config'
+  import { paletteShortcutLabel, requestOpenPalette } from '../../lib/unified-search'
   import Icon from '../ui/Icon.svelte'
 
   let text = $state(filters.filters.q)
@@ -212,7 +213,8 @@
   // lives in App.svelte's one global handler and finds this input by its testid.
 </script>
 
-<div class="relative">
+<div class="flex items-center gap-2">
+  <div class="relative min-w-0 flex-1">
   <div
     class="flex h-control items-center gap-2 rounded-md border border-border-strong/70 bg-bg-elevated px-3 shadow-sm shadow-black/10 focus-within:border-accent/70"
   >
@@ -226,7 +228,7 @@
       type="text"
       data-testid="search-input"
       placeholder={t('list.searchPlaceholder')}
-      title={t('list.searchHelp')}
+      title={t('list.searchHelp', { shortcut: paletteShortcutLabel() })}
       class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
       spellcheck="false"
       autocomplete="off"
@@ -234,8 +236,8 @@
     <button
       type="button"
       class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded text-micro font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-      title={t('list.searchHelp')}
-      aria-label={t('list.searchHelp')}
+      title={t('list.searchHelp', { shortcut: paletteShortcutLabel() })}
+      aria-label={t('list.searchHelp', { shortcut: paletteShortcutLabel() })}
       data-testid="search-help"
     >
       ?
@@ -302,4 +304,17 @@
       </button>
     </div>
   {/if}
+  </div>
+  <button
+    type="button"
+    data-testid="palette-open"
+    class="flex h-control flex-none items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+    title={t('palette.entryTitle', { shortcut: paletteShortcutLabel() })}
+    aria-label={t('palette.entryTitle', { shortcut: paletteShortcutLabel() })}
+    onclick={() => requestOpenPalette()}
+  >
+    <Icon name="search" size={14} class="text-text-muted" />
+    <span>{t('palette.entryLabel')}</span>
+    <kbd class="rounded border border-border-subtle px-1 text-micro text-text-muted">{paletteShortcutLabel()}</kbd>
+  </button>
 </div>

@@ -1,8 +1,10 @@
 <script lang="ts">
   /*
-   * Command palette (⌘K/Ctrl+K) — issue jump / apply view / run action.
-   *  - Matching is all local on the memory pool (zero network). Issues reuse list
+   * Command palette (⌘K/Ctrl+K) — issue jump / apply view / run action / all-search.
+   *  - Local sections stay on the memory pool (zero network). Issues reuse list
    *    filterIssues + relevance sort, so chosung search and key short-forms work.
+   *  - After a debounce, GET search/?q= fills an All-search section under them
+   *    (titles, bodies, comments; list filter chips are not sent).
    *  - Items are a flat array in section order → ↑↓ moves a single index.
    *  - Open/close and key bindings live in App.svelte (must open even while focused).
    */
@@ -18,6 +20,15 @@
   import { extractChosung, isChosungQuery } from '../../lib/korean'
   import { rankPages } from '../../lib/doc-search'
   import { highlightSegments } from '../../lib/format'
+  import { search } from '../../lib/api'
+  import { matchEvidence } from '../../lib/search-match'
+  import {
+    UNIFIED_FETCH_LIMIT,
+    createUnifiedSearch,
+    emptyUnifiedView,
+    projectUnifiedHits,
+    type UnifiedView,
+  } from '../../lib/unified-search'
   import { builtinViews } from '../../lib/builtin-views'
   import { emptyFilters, type ViewConfig } from '../../lib/view-config'
   import {
@@ -36,7 +47,7 @@
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
-  import type { IssueLite, Member, PageLite } from '../../lib/types'
+  import type { IssueLite, Member, PageLite, SearchMatch } from '../../lib/types'
   import Icon, { type IconName } from '../ui/Icon.svelte'
   import Marks from '../ui/Marks.svelte'
 
@@ -44,7 +55,7 @@
 
   // 'recent' is the empty-query list, which is issues and documents together in
   // visit order — one group, so neither kind claims the other's section.
-  type Section = 'person' | 'recent' | 'doc' | 'issue' | 'view' | 'action'
+  type Section = 'person' | 'recent' | 'doc' | 'issue' | 'view' | 'action' | 'unified'
 
   interface Item {
     id: string
@@ -67,6 +78,8 @@
     kbd?: string
     mono?: boolean
     testid?: string
+    /** Server-search evidence (body/comment). Title hits stay on the first line. */
+    match?: SearchMatch
     run: () => void
   }
 
@@ -74,8 +87,19 @@
   let idx = $state(0)
   let inputEl = $state<HTMLInputElement | null>(null)
   let listEl = $state<HTMLElement | null>(null)
+  let serverView = $state<UnifiedView>(emptyUnifiedView())
 
-  onMount(() => inputEl?.focus())
+  const unifiedSession = createUnifiedSearch({
+    fetch: (q) => search(q, UNIFIED_FETCH_LIMIT),
+    onView: (view) => {
+      serverView = view
+    },
+  })
+
+  onMount(() => {
+    inputEl?.focus()
+    return () => unifiedSession.cancel()
+  })
 
   const raw = $derived(query.trim())
   const needle = $derived(raw.toLowerCase())
@@ -348,6 +372,96 @@
     return defs.filter((d) => matches(d.label)).map((d) => ({ ...d, section: 'action' as const }))
   })
 
+  const localIssueKeys = $derived.by(() => {
+    const keys = new Set<string>()
+    for (const item of issueItems) {
+      if (item.id.startsWith('i:')) keys.add(item.id.slice(2))
+    }
+    return keys
+  })
+
+  const localPageKeys = $derived.by(() => {
+    const keys = new Set<string>()
+    for (const item of docItems) {
+      if (item.id.startsWith('d:')) keys.add(item.id.slice(2))
+    }
+    for (const item of issueItems) {
+      if (item.id.startsWith('d:')) keys.add(item.id.slice(2))
+    }
+    return keys
+  })
+
+  function matchFieldLabel(field: SearchMatch['field']): string {
+    if (field === 'comment') return t('palette.matchComment')
+    if (field === 'body') return t('palette.matchBody')
+    return t('palette.matchTitle')
+  }
+
+  function attachMatch(item: Item, match: SearchMatch | undefined, title: string): Item {
+    const evidence = matchEvidence(match, title, raw)
+    if (evidence && evidence !== 'title') item.match = evidence
+    return item
+  }
+
+  const unifiedItems = $derived.by<Item[]>(() => {
+    if (!needle || serverView.status !== 'ready') return []
+    const proj = projectUnifiedHits(serverView.response, localIssueKeys, localPageKeys)
+    const out: Item[] = []
+    for (const hit of proj.pages) {
+      if (!hit.page) continue
+      const item = docItem(hit.page, 'unified')
+      item.id = `u:d:${hit.page.key}`
+      item.testid = 'palette-unified-doc'
+      out.push(attachMatch(item, hit.match, hit.page.title))
+    }
+    for (const hit of proj.issues) {
+      const issue = issues.pool.get(hit.key)
+      const item = issue
+        ? issueItem(issue, 'unified')
+        : {
+            id: `u:i:${hit.key}`,
+            section: 'unified' as const,
+            label: hit.key,
+            mono: true,
+            run: () => selection.select(hit.key),
+          }
+      item.id = `u:i:${hit.key}`
+      item.testid = 'palette-unified-issue'
+      out.push(attachMatch(item, hit.match, issue?.summary ?? ''))
+    }
+    if (proj.truncated) {
+      out.push({
+        id: 'u:more',
+        section: 'unified',
+        label: t('palette.seeMore'),
+        icon: 'arrow-up-right',
+        testid: 'palette-unified-more',
+        run: () => {
+          me.closeFeed()
+          pages.closeDocs()
+          filters.setQuery(raw)
+          void filters.runServerSearch()
+        },
+      })
+    }
+    return out
+  })
+
+  $effect(() => {
+    unifiedSession.request(raw)
+  })
+
+  const unifiedBusy = $derived(
+    serverView.status === 'pending' ||
+      serverView.status === 'loading' ||
+      (Boolean(needle) && serverView.status === 'idle'),
+  )
+  const showUnifiedStatus = $derived(
+    Boolean(needle) &&
+      unifiedItems.length === 0 &&
+      (unifiedBusy || serverView.status === 'error' || serverView.status === 'ready'),
+  )
+
   // People lead when they match at all. The group only appears for a query that
   // names someone, which is a strong statement of intent — and putting it under
   // eight issue rows would leave the axis undiscoverable, which is the whole
@@ -363,6 +477,7 @@
     ...issueItems,
     ...viewItems,
     ...actionItems,
+    ...unifiedItems,
   ])
 
   const SECTION_LABEL: Record<Section, string> = {
@@ -372,10 +487,12 @@
     issue: t('palette.sectionIssues'),
     view: t('palette.sectionViews'),
     action: t('palette.sectionActions'),
+    unified: t('palette.sectionUnified'),
   }
 
   // Keep the highlight inside the viewport.
   $effect(() => {
+    if (idx >= items.length) idx = Math.max(0, items.length - 1)
     listEl?.querySelector(`[data-idx="${idx}"]`)?.scrollIntoView({ block: 'nearest' })
   })
 
@@ -443,7 +560,12 @@
       aria-label={t('palette.title')}
       class="min-h-0 flex-1 overflow-y-auto p-1"
     >
-      {#if items.length === 0}
+      {#if !needle}
+        <p class="px-2 pb-1 pt-2 text-micro text-text-muted" data-testid="palette-empty-hint">
+          {t('palette.emptyHint')}
+        </p>
+      {/if}
+      {#if items.length === 0 && !showUnifiedStatus}
         <p class="px-2 py-6 text-center text-[12px] text-text-muted">{t('palette.empty')}</p>
       {/if}
       {#each items as item, i (item.id)}
@@ -469,7 +591,7 @@
           data-idx={i}
           data-testid={item.testid}
           aria-selected={i === idx}
-          class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] {i === idx
+          class="flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left text-[12px] {i === idx
             ? 'bg-bg-active text-text-primary'
             : 'text-text-secondary hover:bg-bg-hover'}"
           onmousemove={() => (idx = i)}
@@ -478,45 +600,82 @@
             run(item)
           }}
         >
-          {#if item.icon}
-            <Icon name={item.icon} size={14} class={i === idx ? 'text-text-secondary' : 'text-text-muted'} />
-          {/if}
-          {#if item.badge}
+          <span class="flex w-full min-w-0 items-center gap-2">
+            {#if item.icon}
+              <Icon name={item.icon} size={14} class={i === idx ? 'text-text-secondary' : 'text-text-muted'} />
+            {/if}
+            {#if item.badge}
+              <span
+                class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-text-muted"
+              >
+                {item.badge}
+              </span>
+            {/if}
+            <!-- A document leads with its title, so the title is what gives up
+                 width; an issue leads with its key and lets the summary truncate. -->
             <span
-              class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-text-muted"
+              class="{item.badge ? 'min-w-0 flex-1 truncate' : 'flex-none'} {item.mono
+                ? 'font-mono text-accent-text'
+                : ''}"
             >
-              {item.badge}
+              <!-- Same mark as the list's search hits: the row shows the part of
+                   the title the query found. A chosung query marks nothing, and
+                   falls back to the plain title. -->
+              {#if item.segs}<Marks segs={item.segs} />{:else}{item.label}{/if}
             </span>
-          {/if}
-          <!-- A document leads with its title, so the title is what gives up
-               width; an issue leads with its key and lets the summary truncate. -->
-          <span
-            class="{item.badge ? 'min-w-0 flex-1 truncate' : 'flex-none'} {item.mono
-              ? 'font-mono text-accent-text'
-              : ''}"
-          >
-            <!-- Same mark as the list's search hits: the row shows the part of
-                 the title the query found. A chosung query marks nothing, and
-                 falls back to the plain title. -->
-            {#if item.segs}<Marks segs={item.segs} />{:else}{item.label}{/if}
+            {#if item.sub}
+              <span
+                class="truncate text-text-muted {item.badge
+                  ? 'max-w-[35%] flex-none'
+                  : 'min-w-0 flex-1'}"
+                >{#if item.subSegs}<Marks segs={item.subSegs} />{:else}{item.sub}{/if}</span
+              >
+            {/if}
+            {#if item.kbd}
+              <span class="ml-auto flex-none">
+                <kbd class="rounded border border-border-subtle px-1 text-micro text-text-muted">
+                  {item.kbd}
+                </kbd>
+              </span>
+            {/if}
           </span>
-          {#if item.sub}
+          {#if item.match?.snippet}
             <span
-              class="truncate text-text-muted {item.badge
-                ? 'max-w-[35%] flex-none'
-                : 'min-w-0 flex-1'}"
-              >{#if item.subSegs}<Marks segs={item.subSegs} />{:else}{item.sub}{/if}</span
+              class="flex w-full min-w-0 items-center gap-1 text-micro text-text-muted"
+              data-testid="palette-unified-snippet"
+              data-match-field={item.match.field}
             >
-          {/if}
-          {#if item.kbd}
-            <span class="ml-auto flex-none">
-              <kbd class="rounded border border-border-subtle px-1 text-micro text-text-muted">
-                {item.kbd}
-              </kbd>
+              <span class="flex-none">{matchFieldLabel(item.match.field)}</span>
+              <span class="min-w-0 flex-1 truncate"
+                ><Marks segs={highlightSegments(item.match.snippet, raw)} /></span
+              >
             </span>
           {/if}
         </button>
       {/each}
+      {#if showUnifiedStatus}
+        <div
+          role="presentation"
+          class="flex items-center gap-1.5 px-2 pb-1 pt-2 text-micro font-medium uppercase tracking-wide text-text-muted"
+          data-testid="palette-section"
+          data-section="unified"
+        >
+          <span>{t('palette.sectionUnified')}</span>
+        </div>
+        {#if unifiedBusy}
+          <p class="px-2 py-2 text-[12px] text-text-muted" data-testid="palette-unified-loading">
+            {t('list.searching')}
+          </p>
+        {:else if serverView.status === 'error'}
+          <p class="px-2 py-2 text-[12px] text-text-muted" data-testid="palette-unified-error">
+            {t('list.searchFailed')}
+          </p>
+        {:else}
+          <p class="px-2 py-2 text-[12px] text-text-muted" data-testid="palette-unified-empty">
+            {t('palette.empty')}
+          </p>
+        {/if}
+      {/if}
     </div>
 
     <div

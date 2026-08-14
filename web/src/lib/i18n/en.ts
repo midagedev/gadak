@@ -276,9 +276,9 @@ export const en = {
   'list.qaDone': 'QA done',
   'list.qaRun': 'QA run',
   'list.qaPending': 'QA pending',
-  'list.searchPlaceholder': 'Search, or paste JQL…',
+  'list.searchPlaceholder': 'Narrow this list, or paste JQL…',
   'list.searchHelp':
-    'Key, title, assignee. Paste Jira JQL or a filter URL to apply it. Tokens: @assignee #team !priority is:reopened|unassigned|stale. Enter runs body search.',
+    'Narrows this list (key, title, assignee, labels). Paste Jira JQL or a filter URL to apply it. Tokens: @assignee #team !priority is:reopened|unassigned|stale. Enter runs body search on this list. {shortcut} searches every issue and document, ignoring list filters.',
   'list.searchClear': 'Clear (Esc)',
   'list.searchOpen': 'Open with Enter',
   'omnibox.issueMissing': '{key} is not in the mirror',
@@ -821,7 +821,15 @@ export const en = {
 
   /* ── Command palette ── */
   'palette.title': 'Command palette',
-  'palette.placeholder': 'Jump to an issue, view, or action…',
+  'palette.placeholder': 'Jump to an issue, or search everything…',
+  'palette.emptyHint': 'Searches every issue and document.',
+  'palette.sectionUnified': 'All search (ignores filters)',
+  'palette.matchBody': 'Body match',
+  'palette.matchComment': 'Comment match',
+  'palette.matchTitle': 'Title match',
+  'palette.seeMore': 'See all results in the list',
+  'palette.entryLabel': 'Search',
+  'palette.entryTitle': 'Search everything ({shortcut})',
   'palette.sectionIssues': 'Issues',
   // Truncation, spelled out. "4 / 7" is reserved for the document screens'
   // filter fraction; the palette says "4 of 7" so the glyph keeps one meaning.
