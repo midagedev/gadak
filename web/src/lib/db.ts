@@ -16,7 +16,10 @@ import type { CacheMeta, IssueLite, WriteMetaCache } from './types'
 // Workspace mounts get their own database: two mirrors on one origin would
 // otherwise overwrite each other's cached issue pool.
 const DB_NAME = workspaceName() ? `issue-navigator:ws:${workspaceName()}` : 'issue-navigator'
-const DB_VERSION = 1
+// v2 invalidates IssueLite rows written before reporter_id joined the row
+// contract. SQLite already has the IDs, so one fresh bootstrap is sufficient;
+// write metadata is independent and remains warm.
+const DB_VERSION = 2
 
 interface IssueDB extends DBSchema {
   issues: {
@@ -42,12 +45,20 @@ let dbPromise: Promise<IDBPDatabase<IssueDB>> | null = null
 function db(): Promise<IDBPDatabase<IssueDB>> {
   if (!dbPromise) {
     const opening = openDB<IssueDB>(DB_NAME, DB_VERSION, {
-      upgrade(database) {
+      upgrade(database, oldVersion, _newVersion, transaction) {
         if (!database.objectStoreNames.contains('issues')) {
           database.createObjectStore('issues', { keyPath: 'issue_key' })
         }
         if (!database.objectStoreNames.contains('meta')) {
           database.createObjectStore('meta', { keyPath: 'key' })
+        }
+        // Existing v1 rows may not carry reporter_id. Clear only that legacy
+        // issue snapshot and its sync cursor: keeping the cursor could make an
+        // empty cache send If-None-Match and accept a 304. Fresh v2 databases
+        // and every later v2 reopen skip this branch entirely.
+        if (oldVersion > 0 && oldVersion < 2) {
+          void transaction.objectStore('issues').clear()
+          void transaction.objectStore('meta').delete('sync')
         }
       },
       // Yield the connection when another tab wants a higher-version upgrade (or delete).

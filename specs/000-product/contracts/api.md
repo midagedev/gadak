@@ -55,9 +55,10 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
   the same clock that writes `items.synced_at`. That cursor bound is inclusive,
   so a poll in the same millisecond as a write legitimately re-sends the row.
 - `members` is keyed by email: the mirror supplies the name and account id of
-  everyone who appears as an assignee, and `config.members` supplies
-  `group`, `department`, `job_role` and the avatar, winning on every conflict. A
-  reporter who is never an assignee cannot be keyed and is absent. `avatar_url`
+  everyone who appears as an assignee or reporter with a visible email, and
+  `config.members` supplies `group`, `department`, `job_role` and the avatar,
+  winning on every conflict. A person whose email Jira hides can still appear
+  when configured explicitly. `avatar_url`
   and `profile_image` carry the same value — the client reads the latter.
 - `sync_health.status` is one of `healthy` / `stale` / `failed` / `missing`, and
   `message` is `"ok"` when nothing is wrong (the client suppresses that line).
@@ -205,10 +206,15 @@ The row shape used by `bootstrap`, `delta`, and every write response. Stored
 verbatim in IndexedDB, so **field names are a contract** — adding is safe,
 renaming or removing is not.
 
+Browser cache schema v2 clears v1 `issues` rows and the `sync` cursor once so
+the additive `reporter_id` projection reaches unchanged issues through a full
+bootstrap. The independent `write` metadata record is preserved, and v2 caches
+are reused without another invalidation.
+
 ```
 issue_key, summary, project_key, issue_type, issue_type_id, status, status_id,
 status_category, priority, priority_rank, assignee, assignee_id, assignee_email,
-reporter, reporter_email, epic_key, labels[], components[], fix_versions[],
+reporter, reporter_id, reporter_email, epic_key, labels[], components[], fix_versions[],
 duedate, resolution, created_at, updated_at, status_changed_at, resolved_at,
 reopen_count, reopened_at, comment_count
 ```
@@ -575,13 +581,13 @@ cannot bring the filter back.
 gadak is a single-user local tool. There are no gadak accounts and no session
 tokens. **Identity is the stored Jira credential** (`site` / email / API token in
 `~/.gadak/config.json`, managed via `credential/`). `GET me/` projects that
-credential into `{email, name, department}` for the UI; when nothing is
+credential into `{email, account_id, name, department}` for the UI; when nothing is
 configured it answers `200 {"email": null}` so the boot probe never 4xxes.
 Writes that need Jira call out with that same credential. The UI has no login
 dialog — if identity is missing it opens the credential settings dialog instead.
 
 | Endpoint | Method | v0.1 behavior |
 | --- | --- | --- |
-| `me/` | GET | `{email, name, department}` from the stored credential and the configured member directory, with no call to Jira. `200 {"email": null}` when nothing is configured |
+| `me/` | GET | `{email, account_id, name, department}` from the stored credential and the configured member directory, with no call to Jira. `account_id` is null for credentials verified by an older build; `200 {"email": null}` when nothing is configured |
 | `login/` | POST | `404`. There are no gadak accounts; use `PUT credential/` |
 | `logout/` | POST | `404`. Clear credentials with `DELETE credential/` instead |

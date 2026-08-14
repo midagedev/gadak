@@ -12,6 +12,48 @@ import { attachConsoleErrors, gotoApp } from './helpers'
  * (2026-08-06 데모 저자 분산으로 전제 변경 — was single-member / 634 / 534).
  */
 test.describe('people axis', () => {
+  test('account IDs keep assigned and reported filters working when Jira hides emails', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/issues/bootstrap/', async (route) => {
+      const response = await route.fetch()
+      const body = await response.json()
+      for (const issue of body.issues) {
+        if (issue.assignee_id === 'demo-alex') issue.assignee_email = null
+        if (issue.reporter_id === 'demo-alex') issue.reporter_email = null
+      }
+      await route.fulfill({ response, json: body })
+    })
+    await gotoApp(page)
+
+    const openAlex = async () => {
+      await page.keyboard.press('ControlOrMeta+k')
+      await page.keyboard.type('alex', { delay: 20 })
+      await page.keyboard.press('Enter')
+      await expect(page.getByTestId('person-panel')).toBeVisible()
+    }
+
+    await openAlex()
+    const panel = page.getByTestId('person-panel')
+    await expect(panel.getByTestId('person-link-assigned')).toContainText('72')
+    await panel.getByTestId('person-link-assigned').click()
+    await expect(page.getByText('72 issues')).toBeVisible()
+    expect(decodeURIComponent(page.url())).toContain('as=demo-alex')
+
+    await openAlex()
+    await expect(panel.getByTestId('person-link-reported')).toContainText('198')
+    await panel.getByTestId('person-link-reported').click()
+    await expect(page.getByText('198 issues')).toBeVisible()
+    expect(decodeURIComponent(page.url())).toContain('rp=demo-alex')
+
+    // Existing saved links keep their email token. The member directory maps
+    // it to the account ID even though the intercepted issue rows hide email.
+    await page.goto('/#/?as=Demo%40Example.com')
+    await expect(page.getByText('72 issues')).toBeVisible()
+    await page.goto('/#/?rp=DEMO%40example.com')
+    await expect(page.getByText('198 issues')).toBeVisible()
+  })
+
   test('palette finds a person, the panel lists their comments, a quick link filters the list', async ({
     page,
   }) => {
@@ -20,10 +62,14 @@ test.describe('people axis', () => {
     await page.waitForTimeout(300)
 
     // Members ride the bootstrap payload, so matching a person must not cost a
-    // request — the same contract the issue section keeps.
+    // request — the same contract the issue section keeps. The ui-focus poll
+    // fires every 500ms whether or not anyone types (agent view focus,
+    // 2026-08-14), so it is excluded: it would trip this assertion on timing
+    // alone, not because typing caused a request.
     const apiDuringType: string[] = []
     page.on('request', (req) => {
-      if (req.url().includes('/api/')) apiDuringType.push(req.url())
+      const url = req.url()
+      if (url.includes('/api/') && !url.includes('/ui-focus/')) apiDuringType.push(url)
     })
 
     await page.keyboard.press('ControlOrMeta+k')

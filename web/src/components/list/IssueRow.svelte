@@ -374,8 +374,8 @@
       type="button"
       class="hidden max-w-[90px] flex-none truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
       title={t('list.fieldValue', { field: t('common.reporter'), value: issue.reporter })}
-      onclick={issue.reporter_email
-        ? stop(() => filters.addValue('reporter_email', issue.reporter_email!))
+      onclick={issue.reporter_id || issue.reporter_email
+        ? stop(() => filters.addValue('reporter_email', issue.reporter_id ?? issue.reporter_email!))
         : undefined}
     >
       {issue.reporter}
@@ -483,8 +483,8 @@
     <Avatar
       email={issue.assignee_email}
       name={issue.assignee}
-      onclick={issue.assignee_email
-        ? stop(() => filters.addValue('assignee_email', issue.assignee_email!))
+      onclick={issue.assignee_id || issue.assignee_email
+        ? stop(() => filters.addValue('assignee_email', issue.assignee_id ?? issue.assignee_email!))
         : undefined}
     />
   {/if}

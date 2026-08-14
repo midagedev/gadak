@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Person filters no longer depend on Jira email visibility** (#1, thanks
+  @elppaaa). Assignee, reporter, current-user, and grouping filters prefer
+  Jira account IDs while still accepting email-valued saved views when the
+  issue or member directory retains that alias. Existing browser issue caches
+  refresh once to receive the additive reporter ID; current caches and write
+  metadata stay warm. Jira Cloud sites that hide `emailAddress` now keep
+  their full people facets, and assigned issues no longer appear as
+  unassigned merely because email is absent.
 - **JQL in, JQL out.** Paste a Jira navigator URL or a dashboard `jql=`
   clause into the search box (or `gadak search --jql '…'` / the URL itself)
   and the matching chips apply against the mirror. **Copy JQL** on the filter

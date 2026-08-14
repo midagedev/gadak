@@ -16,7 +16,7 @@ import { router, setParams } from '../lib/router.svelte'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 import { extractChosung, isChosungQuery } from '../lib/korean'
-import type { IssueLite, SearchMatch } from '../lib/types'
+import type { IssueLite, Member, SearchMatch } from '../lib/types'
 import {
   configToParams,
   defaultColumns,
@@ -233,25 +233,23 @@ class FiltersStore {
   hasFilters = $derived(hasAnyFilter(this.#config.filters))
 
   /**
-   * Whether the current view is already scoped to "my issues" (my email in
+   * Whether the current view is already scoped to "my issues" (my account ID or email in
    *  assignee or reporter filters). Whole list is then mine, so per-row highlight
    *  is noise — turn it off.
    */
   scopedToMe = $derived.by(() => {
-    const e = me.email?.toLowerCase()
-    if (!e) return false
+    const mine = [me.accountId, me.email].filter((v): v is string => !!v)
+    if (!mine.length) return false
     const f = this.#config.filters
-    const has = (arr: string[]) => arr.some((x) => x.toLowerCase() === e)
+    const has = (arr: string[]) => arr.some((x) => mine.some((v) => sameIdentity(x, v)))
     return has(f.assignee_email) || has(f.reporter_email)
   })
 
-  /** Whether this issue is assigned to me (highlight check). Case-insensitive. */
+  /** Whether this issue is assigned to me (account ID first, email compatibility fallback). */
   isMine(issue: IssueLite): boolean {
-    const e = me.email
     return (
-      !!e &&
-      !!issue.assignee_email &&
-      issue.assignee_email.toLowerCase() === e.toLowerCase()
+      issueMatchesPerson(issue, 'assignee', me.accountId) ||
+      issueMatchesPerson(issue, 'assignee', me.email)
     )
   }
 
@@ -618,9 +616,9 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
   for (const it of all) {
     if (f.status_category.length && !f.status_category.includes(effectiveCategory(it))) continue
     if (f.status.length && !f.status.includes(it.status)) continue
-    if (f.assignee_email.length && !(it.assignee_email && f.assignee_email.includes(it.assignee_email)))
+    if (f.assignee_email.length && !f.assignee_email.some((v) => issueMatchesPerson(it, 'assignee', v)))
       continue
-    if (f.reporter_email.length && !(it.reporter_email && f.reporter_email.includes(it.reporter_email)))
+    if (f.reporter_email.length && !f.reporter_email.some((v) => issueMatchesPerson(it, 'reporter', v)))
       continue
     if (f.team_group.length && !(it.team_group && f.team_group.includes(it.team_group))) continue
     if (f.priority.length && !(it.priority && f.priority.includes(it.priority))) continue
@@ -651,7 +649,7 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
     if (f.labels.length && !it.labels.some((l) => f.labels.includes(l))) continue
 
     if (f.reopened && !(it.reopen_count > 0)) continue
-    if (f.unassigned && it.assignee_email) continue
+    if (f.unassigned && hasIssuePerson(it, 'assignee')) continue
     if (f.stale && !isStale(it)) continue
 
     if ((f.created_from || f.created_to) && !inRange(it.created_at, f.created_from, f.created_to))
@@ -680,6 +678,7 @@ export interface RelevanceContext {
   chosungQuery: boolean
   now: number
   myEmail: string | null
+  myAccountId: string | null
   recentKeys: Set<string>
 }
 
@@ -691,6 +690,7 @@ function buildRelevanceContext(rawQuery: string): RelevanceContext {
     chosungQuery: raw ? isChosungQuery(raw) : false,
     now: Date.now(),
     myEmail: me.email,
+    myAccountId: me.accountId,
     recentKeys: new Set(me.recentIssues.map((v) => v.key)),
   }
 }
@@ -734,7 +734,11 @@ function relevanceScore(issue: IssueLite, ctx: RelevanceContext): number {
   }
 
   // Personalization: assigned to me / recently viewed.
-  if (ctx.myEmail && issue.assignee_email === ctx.myEmail) score += 40
+  if (
+    issueMatchesPerson(issue, 'assignee', ctx.myAccountId) ||
+    issueMatchesPerson(issue, 'assignee', ctx.myEmail)
+  )
+    score += 40
   if (ctx.recentKeys.has(issue.issue_key)) score += 25
 
   return score
@@ -800,8 +804,11 @@ function groupKeyOf(
     case 'status':
       return { key: issue.status || '(none)', label: issue.status || t('group.noStatus') }
     case 'assignee':
-      return issue.assignee_email
-        ? { key: issue.assignee_email, label: issue.assignee || issue.assignee_email }
+      return personIdentity(issue, 'assignee')
+        ? {
+            key: personIdentity(issue, 'assignee')!,
+            label: issue.assignee || issue.assignee_email || personIdentity(issue, 'assignee')!,
+          }
         : { key: '', label: t('common.unassigned') }
     case 'priority':
       return { key: issue.priority || '', label: issue.priority || t('group.noPriority') }
@@ -948,7 +955,7 @@ function CATEGORY_LABEL(value: string): string {
 
 function buildChips(
   f: ViewFilters,
-  members: Map<string, { name: string }>,
+  members: Map<string, Member>,
   all: IssueLite[],
   fieldLabels: Map<string, string>,
 ): ActiveChip[] {
@@ -958,7 +965,7 @@ function buildChips(
       let label = value
       if (field === 'status_category') label = CATEGORY_LABEL(value)
       else if (field === 'assignee_email' || field === 'reporter_email')
-        label = members.get(value)?.name ?? value
+        label = facetLabel(field, value, all, members)
       else if (
         field === 'qa_run' ||
         field === 'qa_suite' ||
@@ -989,16 +996,24 @@ function buildChips(
 
 function buildFacets(
   all: IssueLite[],
-  members: Map<string, { name: string }>,
+  members: Map<string, Member>,
 ): Record<MultiField, FacetValue[]> {
   const counters: Record<string, Map<string, number>> = {}
   for (const field of MULTI_FIELDS) counters[field] = new Map()
+  const assigneeLabels = new Map<string, string>()
+  const reporterLabels = new Map<string, string>()
 
   for (const it of all) {
     bump(counters.status_category, effectiveCategory(it))
     bump(counters.status, it.status)
-    if (it.assignee_email) bump(counters.assignee_email, it.assignee_email)
-    if (it.reporter_email) bump(counters.reporter_email, it.reporter_email)
+    const assignee = personIdentity(it, 'assignee')
+    const reporter = personIdentity(it, 'reporter')
+    bump(counters.assignee_email, assignee)
+    bump(counters.reporter_email, reporter)
+    if (assignee && !assigneeLabels.has(assignee))
+      assigneeLabels.set(assignee, it.assignee || it.assignee_email || assignee)
+    if (reporter && !reporterLabels.has(reporter))
+      reporterLabels.set(reporter, it.reporter || it.reporter_email || reporter)
     if (it.team_group) bump(counters.team_group, it.team_group)
     if (it.priority) bump(counters.priority, it.priority)
     if (it.severity) bump(counters.severity, it.severity)
@@ -1020,11 +1035,15 @@ function buildFacets(
 
   const out = {} as Record<MultiField, FacetValue[]>
   for (const field of MULTI_FIELDS) {
-    const values: FacetValue[] = [...counters[field].entries()].map(([value, count]) => ({
-      value,
-      count,
-      label: facetLabel(field, value, all, members),
-    }))
+    const values: FacetValue[] = [...counters[field].entries()].map(([value, count]) => {
+      const personLabel =
+        field === 'assignee_email'
+          ? assigneeLabels.get(value)
+          : field === 'reporter_email'
+            ? reporterLabels.get(value)
+            : undefined
+      return { value, count, label: personLabel ?? facetLabel(field, value, all, members) }
+    })
     values.sort((a, b) => b.count - a.count || (a.label < b.label ? -1 : 1))
     out[field] = values
   }
@@ -1035,11 +1054,22 @@ function facetLabel(
   field: MultiField,
   value: string,
   all: IssueLite[],
-  members: Map<string, { name: string }>,
+  members: Map<string, Member>,
 ): string {
   if (field === 'status_category') return CATEGORY_LABEL(value)
-  if (field === 'assignee_email' || field === 'reporter_email')
-    return members.get(value)?.name ?? value
+  if (field === 'assignee_email' || field === 'reporter_email') {
+    const role = field === 'assignee_email' ? 'assignee' : 'reporter'
+    for (const issue of all) {
+      if (!issueMatchesPerson(issue, role, value)) continue
+      return issue[role] || issue[`${role}_email`] || value
+    }
+    const direct = members.get(value)
+    if (direct) return direct.name
+    for (const member of members.values()) {
+      if (member.jira_account_id === value) return member.name
+    }
+    return value
+  }
   if (field === 'qa_impact') {
     const labels: Record<string, string> = {
       blocking: t('filter.qaBlocking'),
@@ -1065,6 +1095,38 @@ function facetLabel(
     }
   }
   return value
+}
+
+type PersonRole = 'assignee' | 'reporter'
+
+export function personIdentity(issue: IssueLite, role: PersonRole): string | null {
+  return issue[`${role}_id`] || issue[`${role}_email`] || null
+}
+
+function sameIdentity(a: string, b: string): boolean {
+  return a === b || (a.includes('@') && b.includes('@') && a.toLowerCase() === b.toLowerCase())
+}
+
+export function issueMatchesPerson(
+  issue: IssueLite,
+  role: PersonRole,
+  value: string | null | undefined,
+): boolean {
+  if (!value) return false
+  const id = issue[`${role}_id`]
+  const email = issue[`${role}_email`]
+  if ((id && sameIdentity(id, value)) || (email && sameIdentity(email, value))) return true
+  // During a cache upgrade either side can temporarily carry only one identity
+  // shape. The member directory bridges a known email alias and its account ID
+  // without adding a network call to the filter path.
+  const member = value.includes('@') ? issues.memberOf(value) : issues.memberOfAccountId(value)
+  if (!member) return false
+  if (id && member.jira_account_id && sameIdentity(id, member.jira_account_id)) return true
+  return Boolean(email && sameIdentity(email, member.email))
+}
+
+function hasIssuePerson(issue: IssueLite, role: PersonRole): boolean {
+  return Boolean(issue[`${role}_id`] || issue[role] || issue[`${role}_email`])
 }
 
 function bump(m: Map<string, number>, key: string | null | undefined): void {

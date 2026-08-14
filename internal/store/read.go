@@ -27,6 +27,7 @@ type IssueLite struct {
 	AssigneeID     *string `json:"assignee_id"`
 	AssigneeEmail  *string `json:"assignee_email"`
 	Reporter       *string `json:"reporter"`
+	ReporterID     *string `json:"reporter_id"`
 	ReporterEmail  *string `json:"reporter_email"`
 	// EpicKey is the nearest hierarchy_level==1 ancestor (derived). Nil when
 	// none. Distinct from ParentKey, which is the direct parent only.
@@ -61,7 +62,7 @@ const issueLiteSelect = `
 	       COALESCE(i.issue_type, ''), COALESCE(i.issue_type_id, ''),
 	       COALESCE(i.status, ''), COALESCE(i.status_id, ''), COALESCE(i.status_category, ''),
 	       i.priority, i.priority_rank,
-	       i.assignee, i.assignee_id, i.assignee_email, i.reporter, i.reporter_email,
+	       i.assignee, i.assignee_id, i.assignee_email, i.reporter, i.reporter_id, i.reporter_email,
 	       i.epic_key, i.parent_key,
 	       COALESCE(i.labels, '[]'), COALESCE(i.components, '[]'), COALESCE(i.fix_versions, '[]'),
 	       i.duedate, i.resolution, i.created_at, i.updated_at,
@@ -96,7 +97,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 		var reopenReason, clonedFrom string
 		if err := rows.Scan(&v.IssueKey, &v.Summary, &v.ProjectKey, &v.IssueType, &v.IssueTypeID,
 			&v.Status, &v.StatusID, &v.StatusCategory, &v.Priority, &v.PriorityRank,
-			&v.Assignee, &v.AssigneeID, &v.AssigneeEmail, &v.Reporter, &v.ReporterEmail,
+			&v.Assignee, &v.AssigneeID, &v.AssigneeEmail, &v.Reporter, &v.ReporterID, &v.ReporterEmail,
 			&v.EpicKey, &v.ParentKey,
 			&labels, &components, &fixVersions,
 			&v.Duedate, &v.Resolution, &v.CreatedAt, &v.UpdatedAt,

@@ -151,6 +151,9 @@ func TestUpsertAndReadBack(t *testing.T) {
 	if one.ReporterEmail == nil || *one.ReporterEmail != "reporter.one@example.invalid" {
 		t.Errorf("reporter_email = %v", one.ReporterEmail)
 	}
+	if one.ReporterID == nil || *one.ReporterID != "acc-r1" {
+		t.Errorf("reporter_id = %v", one.ReporterID)
+	}
 	// Configured field aliases ride along so the server can spread them.
 	if one.Custom["severity"] != "S2" {
 		t.Errorf("custom = %v, want severity S2", one.Custom)

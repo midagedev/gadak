@@ -121,6 +121,7 @@ const EVENT_NOTIFY_KIND: Record<FeedItem['event_type'], MessageKey> = {
 class MeStore {
   /* ── Identity (from stored credential via auth/me/) ── */
   email = $state<string | null>(null)
+  accountId = $state<string | null>(null)
   name = $state<string | null>(null)
   department = $state<string | null>(null)
   /** init() finished — personalization UI can branch without a flash. */
@@ -208,12 +209,13 @@ class MeStore {
     if (!res.ok) return
     const data = (await res.json()) as {
       email: string | null
+      account_id?: string | null
       name?: string
       department?: string
     }
     if (data.email) {
       const wasIdentified = this.email !== null
-      this.#setUser(data.email, data.name ?? null, data.department ?? null)
+      this.#setUser(data.email, data.account_id ?? null, data.name ?? null, data.department ?? null)
       if (opts.loadPersonal && !wasIdentified) {
         await Promise.all([watches.load(), this.loadFeed(), push.load()])
         this.#startFeedPolling()
@@ -223,8 +225,14 @@ class MeStore {
     }
   }
 
-  #setUser(email: string, name: string | null, department: string | null): void {
+  #setUser(
+    email: string,
+    accountId: string | null,
+    name: string | null,
+    department: string | null,
+  ): void {
     this.email = email
+    this.accountId = accountId
     this.name = name
     this.department = department
   }
@@ -232,6 +240,7 @@ class MeStore {
   /** Drop identity and personal server state; keep favorites/recent. */
   #clearIdentity(): void {
     this.email = null
+    this.accountId = null
     this.name = null
     this.department = null
     watches.clear()

@@ -143,7 +143,9 @@
   }
 
   const meMember = $derived(me.identified && me.email ? issues.members.get(me.email) : undefined)
-  const reporterMember = $derived(issues.memberOf(issue.reporter_email))
+  const reporterMember = $derived(
+    issues.memberOfAccountId(issue.reporter_id) ?? issues.memberOf(issue.reporter_email),
+  )
 
   /** Local members (personalized) — me → reporter → name. Only with jira_account_id. */
   const localCands = $derived.by<Cand[]>(() => {

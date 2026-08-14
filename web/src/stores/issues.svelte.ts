@@ -48,6 +48,8 @@ class IssuesStore {
   pool = new SvelteMap<string, IssueLite>()
   /** email → Member (avatar/part). */
   members = new SvelteMap<string, Member>()
+  /** normalized email → Member, for case-insensitive legacy filter tokens. */
+  #membersByNormalizedEmail = new SvelteMap<string, Member>()
 
   /** True once cache hydration or first bootstrap finishes and the UI can run. */
   ready = $state(false)
@@ -161,7 +163,7 @@ class IssuesStore {
     try {
       const [cached, meta] = await Promise.all([db.getAllIssues(), db.getMeta()])
       if (meta) {
-        for (const m of meta.members) this.members.set(m.email, m)
+        for (const m of meta.members) this.#setMember(m)
         this.lastSync = meta.server_time
         this.#syncVersion = meta.sync_version
         this.#membersVersion = meta.members_version ?? ''
@@ -226,7 +228,8 @@ class IssuesStore {
     this.pool.clear()
     for (const it of data.issues) this.pool.set(it.issue_key, it)
     this.members.clear()
-    for (const m of data.members) this.members.set(m.email, m)
+    this.#membersByNormalizedEmail.clear()
+    for (const m of data.members) this.#setMember(m)
 
     this.lastSync = data.server_time
     this.#syncVersion = data.sync_version
@@ -281,7 +284,8 @@ class IssuesStore {
     // members arrive only when changed (omit → keep existing). Refresh hash when present.
     if (members) {
       this.members.clear()
-      for (const member of members) this.members.set(member.email, member)
+      this.#membersByNormalizedEmail.clear()
+      for (const member of members) this.#setMember(member)
     }
     if (membersVersion !== undefined) this.#membersVersion = membersVersion
     if (syncHealth) this.syncHealth = syncHealth
@@ -423,8 +427,23 @@ class IssuesStore {
     return this.pool.get(issueKey)
   }
 
+  #setMember(member: Member): void {
+    this.members.set(member.email, member)
+    this.#membersByNormalizedEmail.set(member.email.toLowerCase(), member)
+  }
+
   memberOf(email: string | null | undefined): Member | undefined {
-    return email ? this.members.get(email) : undefined
+    return email
+      ? (this.members.get(email) ?? this.#membersByNormalizedEmail.get(email.toLowerCase()))
+      : undefined
+  }
+
+  memberOfAccountId(accountId: string | null | undefined): Member | undefined {
+    if (!accountId) return undefined
+    for (const member of this.members.values()) {
+      if (member.jira_account_id === accountId) return member
+    }
+    return undefined
   }
 }
 

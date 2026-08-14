@@ -3,38 +3,40 @@
    * My Issues sidebar section ([personal]).
    *  Rows: assigned to me N / reported by me N / mentioned me (feed) N.
    *   - Assigned: filters.applyConfig(assignee + active statuses) → main list.
-   *   - Reported: reporter isn't in explore filter schema (assignee_email only) —
-   *     open personal feed on the "reported" focus tab (feed computes reporter).
+   *   - Reported: open personal feed on the "reported" focus tab.
    *   - Mentions/feed: open personal feed (all focus).
    *  Counts are $derived from the local pool (mentions = API result count).
    *  Without identity: prompt to set credentials.
    */
   import { t } from '../../lib/i18n'
-  import { filters } from '../../stores/filters.svelte'
+  import { filters, issueMatchesPerson } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
   import { effectiveCategory, emptyConfig, type ViewConfig } from '../../lib/view-config'
   import { feature } from '../../lib/config'
   import { isHostedDemo } from '../../lib/config'
+  import type { IssueLite } from '../../lib/types'
   import Icon from '../ui/Icon.svelte'
 
-  const myEmail = $derived(me.email)
+  const myIdentity = $derived(me.accountId ?? me.email)
+  const isMe = (issue: IssueLite, role: 'assignee' | 'reporter') =>
+    issueMatchesPerson(issue, role, me.accountId) || issueMatchesPerson(issue, role, me.email)
   // Without feed, hide "reported by me" / "feed" — no panel to open.
   const feedOn = feature('feed')
 
   // Counts use active (non-done) issues.
   const assignedCount = $derived(
-    myEmail
+    myIdentity
       ? issues.allIssues.filter(
-          (i) => i.assignee_email === myEmail && effectiveCategory(i) !== 'done',
+          (i) => isMe(i, 'assignee') && effectiveCategory(i) !== 'done',
         ).length
       : 0,
   )
   const reportedCount = $derived(
-    myEmail
+    myIdentity
       ? issues.allIssues.filter(
-          (i) => i.reporter_email === myEmail && effectiveCategory(i) !== 'done',
+          (i) => isMe(i, 'reporter') && effectiveCategory(i) !== 'done',
         ).length
       : 0,
   )
@@ -42,7 +44,7 @@
 
   function assigneeConfig(): ViewConfig {
     const c = emptyConfig()
-    c.filters.assignee_email = [myEmail!]
+    c.filters.assignee_email = [myIdentity!]
     c.filters.status_category = ['new', 'inprogress']
     return c
   }
