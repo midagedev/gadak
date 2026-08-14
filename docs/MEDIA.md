@@ -42,8 +42,8 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | `search.mp4` | 0.53 MB | 527808 | 7.4 s | 1024×640 h264 |
 | `agent.gif` | 4.2 MB | 4204366 | 12.0 s | 960×758 @ 9 fps, 128-color palette |
 | `agent.mp4` | 0.53 MB | 529791 | 12.0 s | 1024×808 h264 |
-| `mcp.gif` | 0.23 MB | 231229 | 33.0 s | 1080×620 @ 25 fps, 64 colors (gifsicle) |
-| `mcp.mp4` | 0.23 MB | 232341 | 33.0 s | 1080×620 h264 |
+| `mcp.gif` | 0.36 MB | 357824 | 24.9 s | 1080×620 @ 25 fps, 64 colors (gifsicle) |
+| `mcp.mp4` | 0.28 MB | 276463 | 24.9 s | 1080×620 h264 |
 
 ## Readability comes first, and it costs bytes
 
@@ -129,7 +129,7 @@ beat.
 3. Type `work` (local Documents + Issues sections highlight title hits), then
    `around` — the usearch.spec.ts comment-only token. Local rows empty; after
    the 250 ms debounce (`UNIFIED_DEBOUNCE_MS` in `web/src/lib/unified-search.ts`)
-   **ALL SEARCH (IGNORES FILTERS)** fills with issue rows and **Comment match**
+   **ALL SEARCH** fills with issue rows and **Comment match**
    snippets
 4. Enter on the first unified hit (**NMA-36**, not in the NMS chip) opens
    the issue; the last ~1.8 s hold the detail (the matching comment is on
@@ -193,11 +193,23 @@ font 20 (same 77×24 / 800 px README convention as the other terminal tapes):
 
 1. `claude mcp add gadak -- gadak mcp` — the one line that teaches an MCP
    client the mirror exists (`docs/AGENT_SETUP.md`).
-2. A live Claude Code session answering *"Which epic has the most reopened
-   issues? One line."* — a question JQL cannot express (reopen history
-   aggregated by epic). The model calls `gadak_query` (and only the MCP
-   tools `prepare-agent.sh` pre-allows). Nothing is scripted, so takes
-   differ; re-run until one reads well.
+2. A live Claude Code session answering *"Search our Jira and wiki for
+   idempotency. Answer in 3 lines."* — the question Jira cannot answer at
+   all, because the wiki is a second search. The model calls `gadak_search`
+   (and only the MCP tools `prepare-agent.sh` pre-allows). Nothing is
+   scripted, so takes differ; re-run until one reads well.
+
+   **Not a `reopen_count` question, deliberately.** That field already
+   carries the README quick start and the agent clip; a third use made the
+   demo read as if it were the only derived column gadak has.
+
+   Take notes worth keeping: pin the answer length (*"Answer in 3 lines"* —
+   "Brief." is not binding, and a long answer scrolls the question out of
+   frame). Extended thinking is off and `Task`/`Glob`/`Grep` are denied in
+   `prepare-agent.sh`; without those denies a take spawned an Explore
+   subagent and searched the *codebase*. Haiku was tried for speed and
+   rejected: it called `gadak_search` with the wrong argument name and then
+   reported "zero results" instead of the error.
 
 Theme is **gadak-paper** (same JSON as `tools/tapes/agent.tape`). Claude
 Code's own UI is ink-on-paper on that background; the only token that
@@ -206,11 +218,11 @@ the number is a bright color). The question, the "Calling gadak…" line,
 and the answer stay readable, so this take does not fall back to a dark
 theme.
 
-Everything visible comes from `examples/demo.db`. On that snapshot the
-query `SELECT epic_key, COUNT(*) FROM issues WHERE epic_key IS NOT NULL
-AND reopen_count > 0 GROUP BY epic_key` ties **NMA-177** (SDK developer
-experience), **NMB-197** (Notification overhaul), and **NMS-154**
-(Billing questions experience) at two reopened children each.
+Everything visible comes from `examples/demo.db`. On that snapshot
+`idempotency` matches **7 issues and 4 wiki pages** through the one FTS
+index, which is why the answer can put **NMA-142** and the Confluence page
+*API Platform Brief — Idempotency* (PROD space) in the same sentence — the
+join Jira and Confluence never make for you.
 
 `make media-mcp` requires `vhs` (fails with `media-mcp: vhs required
 (brew install vhs)` when missing), runs `prepare.sh` then

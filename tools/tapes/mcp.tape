@@ -80,17 +80,24 @@ Enter
 Set TypingSpeed 45ms
 Show
 
-# ── The session: a question JQL cannot express (reopen × epic) ─────────────
+# ── The session: one question, both sources ────────────────────────────────
+# Deliberately not a reopen_count question — that field carries the README
+# quick start and the agent clip already. This asks the thing Jira cannot
+# answer at all, because the wiki is a second search: 'idempotency' is in 7
+# issues and 4 pages of examples/demo.db, and one FTS index holds both.
 Type "claude"
 Enter
 Sleep 5s
 
-Type "Which epic has the most reopened issues? One line."
+Type "Search our Jira and wiki for idempotency. Answer in 3 lines."
 Sleep 600ms
 Enter
 
-# The model works here: tool calls to gadak_query stream in as they happen, and
-# the answer lands around 12–18 s. Hold on the answered frame — do not Ctrl+C
-# (that prints a resume UUID). Idle tail is cut in the gifsicle pass if the
-# GIF is still over 3.5 MB (docs/MEDIA.md).
-Sleep 20s
+# The model works here: tool calls to gadak_search stream in as they happen.
+# The wait a viewer sees is the model's, not gadak's — the mirror answers in
+# milliseconds, and a slow take reads as if the local file were the slow part.
+# So extended thinking is off (prepare-agent.sh). Haiku was tried and rejected:
+# it called gadak_search with the wrong argument name twice and then reported
+# "zero results" instead of the error — fast, and confidently wrong on camera.
+# Hold on the answered frame — do not Ctrl+C (that prints a resume UUID).
+Sleep 11s

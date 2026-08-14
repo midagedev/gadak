@@ -88,16 +88,26 @@ PY
 
 # Tool permissions live in settings so the recorded command line stays the one a
 # reader would type — no --allowedTools noise in the frame.
+#
+# Task/Glob/Grep are denied, not just Bash: without them a take spawned an
+# Explore subagent and searched the *codebase* for the word instead of asking
+# the mirror. The only tools left are gadak's, which is the point of the clip.
+# MAX_THINKING_TOKENS=0 turns extended thinking off — the wait a viewer reads
+# as gadak's latency is the model's, and this question needs no deliberation.
 cat >"$AGENT_HOME/.claude/settings.json" <<'EOF'
 {
   "model": "claude-sonnet-5",
   "permissions": {
     "allow": ["mcp__gadak__gadak_query", "mcp__gadak__gadak_search", "mcp__gadak__gadak_issue", "mcp__gadak__gadak_status"],
-    "deny": ["Bash", "Read", "Write", "Edit", "WebFetch", "WebSearch"],
+    "deny": ["Bash", "Read", "Write", "Edit", "WebFetch", "WebSearch", "Task", "Glob", "Grep"],
     "defaultMode": "default"
   },
   "includeCoAuthoredBy": false,
-  "env": { "DISABLE_AUTOUPDATER": "1", "DISABLE_TELEMETRY": "1" }
+  "env": {
+    "DISABLE_AUTOUPDATER": "1",
+    "DISABLE_TELEMETRY": "1",
+    "MAX_THINKING_TOKENS": "0"
+  }
 }
 EOF
 

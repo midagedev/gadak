@@ -39,12 +39,13 @@ and open the window — or, from a terminal:
 brew install midagedev/tap/gadak
 gadak init && gadak sync    # Jira (and Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
-gadak sql "select key, summary from issues_full where reopen_count > 1"
+gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
+           and epic_key <> '' group by epic_key order by 2 desc"
 ```
 
-That last query is the point. `reopen_count` is not a Jira field — gadak
-derives it from the changelog while it syncs. Your site cannot answer "what
-keeps coming back?" at all; [`docs/RECIPES.md`](docs/RECIPES.md) has the rest.
+That last query is the point: JQL has no `GROUP BY`. "Which epic is actually
+stuck?" is not a hard question — it is an unaskable one, until the data is a
+file. [`docs/RECIPES.md`](docs/RECIPES.md) has the rest.
 
 > **Status: 0.13, still 0.x.** Sync, read API, write-through, desktop, web, CLI, and MCP are verified against a live site. Honest inventory: [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md).
 
@@ -86,11 +87,12 @@ gadak skill install         # schema + query patterns, no extra process
 gadak mcp install claude    # pins this binary and profile into the registration
 ```
 
-Then ask something Jira cannot — "what keeps coming back in billing, and did
-we write it down?" The session reads the mirror, not the REST API.
+Then ask the thing Jira cannot answer at all, because the wiki is a second
+search: "what do we know about X?" One index holds both, so the answer can
+put a ticket and the design doc that drove it in the same sentence.
 
 <p align="center">
-  <img src="docs/media/mcp.gif" alt="Claude Code asks gadak's MCP server a question about the local mirror and answers from the file" width="800">
+  <img src="docs/media/mcp.gif" alt="Claude Code registers gadak as an MCP server, is asked to search Jira and the wiki for idempotency, calls gadak, and answers with an issue and the Confluence brief that drove it" width="800">
   <br>
   <sub>Five tools; no writes to the mirror or to Jira. A host with a shell can use <code>gadak sql</code> instead. Setup: <a href="docs/MCP.md">docs/MCP.md</a>.</sub>
 </p>
