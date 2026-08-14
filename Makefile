@@ -1,5 +1,5 @@
 .PHONY: build test vet typecheck bench scan docker plugins-test \
-	media media-web media-agent media-prep media-deps brand \
+	media media-web media-search media-agent media-prep media-deps brand \
 	hosted-demo hosted-demo-test
 
 build:
@@ -50,9 +50,10 @@ MEDIA_DIR := docs/media
 brand:
 	node tools/brand/render.mjs
 
-media: media-web media-agent
+media: media-web media-search media-agent
 	@echo "media: done → $(MEDIA_DIR)/"
 	@ls -lh $(MEDIA_DIR)/web-demo.gif $(MEDIA_DIR)/web-demo.mp4 \
+		$(MEDIA_DIR)/search.gif $(MEDIA_DIR)/search.mp4 \
 		$(MEDIA_DIR)/agent.gif $(MEDIA_DIR)/agent.mp4
 
 media-deps:
@@ -75,6 +76,13 @@ media-web: media-deps
 	rm -rf e2e/demo/test-results
 	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/playwright.config.ts
 	bash e2e/demo/export-video.sh
+
+media-search: media-deps
+	@mkdir -p $(MEDIA_DIR)
+	@echo "media-search: recording unified-search palette demo…"
+	rm -rf e2e/demo/test-results-search
+	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/search.config.ts
+	bash e2e/demo/export-search.sh
 
 media-agent: media-deps
 	@mkdir -p $(MEDIA_DIR)

@@ -10,7 +10,9 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | --- | --- | --- |
 | `docs/media/web-demo.gif` | Playwright walkthrough | README hero (inline) |
 | `docs/media/web-demo.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
-| `docs/media/agent.gif` | Playwright split `e2e/demo/agent-demo.spec.ts` | README — agent types `views open`, the paper list follows |
+| `docs/media/search.gif` | Playwright `e2e/demo/search-demo.spec.ts` | README — ⌘K All search (ignores filters) |
+| `docs/media/search.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
+| `docs/media/agent.gif` | Playwright split `e2e/demo/agent-demo.spec.ts` | README — agent pipes `sql` into `views open --keys -`, the paper list follows |
 | `docs/media/agent.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 
 ## Size budget
@@ -19,6 +21,8 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | --- | --- | --- |
 | `web-demo.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | GitHub README inline limit; palette 2-pass |
 | `web-demo.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
+| `search.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | same README inline budget as the hero (900 px render) |
+| `search.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 | `agent.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | same README inline budget as the hero |
 | `agent.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 
@@ -30,8 +34,10 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | --- | --- | --- | --- | --- |
 | `web-demo.gif` | 7.4 MB | 7368472 | 15.8 s | 960×600 @ 9 fps, 128-color palette |
 | `web-demo.mp4` | 1.1 MB | 1073187 | 15.8 s | 1024×640 h264 |
-| `agent.gif` | 3.4 MB | 3426864 | 8.7 s | 960×758 @ 9 fps, 128-color palette |
-| `agent.mp4` | 0.39 MB | 388891 | 8.7 s | 1024×808 h264 |
+| `search.gif` | 3.7 MB | 3707159 | 7.4 s | 960×600 @ 9 fps, 128-color palette |
+| `search.mp4` | 0.53 MB | 527808 | 7.4 s | 1024×640 h264 |
+| `agent.gif` | 4.2 MB | 4204366 | 12.0 s | 960×758 @ 9 fps, 128-color palette |
+| `agent.mp4` | 0.53 MB | 529791 | 12.0 s | 1024×808 h264 |
 
 ## Readability comes first, and it costs bytes
 
@@ -77,7 +83,8 @@ Individual targets:
 
 ```bash
 make media-web     # Playwright → webm → gif + mp4 (self-contained)
-make media-agent   # Playwright split: views open + paper list → gif + mp4
+make media-search  # Playwright: ⌘K All search → search.gif + search.mp4
+make media-agent   # Playwright split: sql \| views open --keys + paper list → gif + mp4
 make media-prep    # build gadak + seed tools/tapes/.tmp from demo.db
 make brand         # logo, wordmarks, favicons, OG card
 ```
@@ -103,6 +110,29 @@ clip is the browser tab against `examples/demo.db`. The spaces tree was
 dropped from this take — it did not earn its bytes next to the issue-detail
 beat.
 
+### Unified search (`search.gif`)
+
+~7.5 s, same viewport **1024×640** @ `deviceScaleFactor: 2` as the hero
+(README render width 900 px):
+
+1. Boot on `/#/?pj=NMS` — paper list, one chip **Project: NMS**, 157 issues,
+   toolbar **Search ⌘K** in frame
+2. ⌘K opens the palette (`Searches every issue and document.`)
+3. Type `work` (local Documents + Issues sections highlight title hits), then
+   `around` — the usearch.spec.ts comment-only token. Local rows empty; after
+   the 250 ms debounce (`UNIFIED_DEBOUNCE_MS` in `web/src/lib/unified-search.ts`)
+   **ALL SEARCH (IGNORES FILTERS)** fills with issue rows and **Comment match**
+   snippets
+4. Enter on the first unified hit (**NMA-36**, not in the NMS chip) opens
+   the issue; the last ~1.8 s hold the detail (the matching comment is on
+   screen) beside the still-active NMS chip
+
+`consequences` (usearch's page-body token) is not in this take: the last beat
+has to be an issue detail, and that token matches pages only.
+
+Config lives in `e2e/demo/search.config.ts`. Same `GADAK_MEDIA=1` gate as the
+other demo specs.
+
 Re-shoot trap (2026-08-06): a leftover :7877 from an earlier e2e run is not
 freshened, and "Sync delayed" prints into every frame. The demo config now
 starts a fresh server (`reuseExistingServer: false`) and `GADAK_FRESHEN=1`
@@ -123,19 +153,26 @@ is never touched by this pipeline.
 
 ### Agent (`agent.gif`)
 
-One take, two panes, ~9 s, viewport **1024×808**:
+One take, two panes, ~12 s, viewport **1024×808**:
 
 1. A paper terminal types
-   `gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'`
+   `gadak sql "select key from issues where reopen_count>0 order by key limit 5" \`
+   `| tail -n +2 | gadak views open --keys -`
+   (`tail -n +2` drops the `gadak sql` header row so it does not become a
+   fake key — `skills/gadak/SKILL.md`, `docs/RECIPES.md`)
 2. The real app (iframe, same 1024×640 frame as the hero) sits underneath
    on the default **All open** view (368 issues)
-3. On Enter the test runs that command against the serve fixture; the iframe
-   polls `GET ui-focus/` and the chips become **Category: In progress** +
-   **Project: NMA**, the sidebar highlights **Open in NMA**, and the count
-   drops to 55
+3. On Enter the test runs that pipe against the serve fixture (`--no-open`);
+   the iframe polls `GET ui-focus/` and the list becomes those five keys
+   (**NMA-1, NMA-100, NMA-102, NMA-11, NMA-118**), with a **5 keys** chip
+   and **5 issues**. Sort reads **Given order**. Default `group_by` is still
+   status category (`jql.Hash` with an empty Display does not emit `g=none`),
+   so the five rows section into In progress / New
 
 The command is typed in the wrapper, not in the app — `web/src/` stays
-untouched. No live model, no credential, no take-to-take drift. `--no-open`
+untouched. The on-screen output is only the `hash\tks=…` line; the `web\t`
+URL `views open` also prints is dropped so a loopback address does not land
+in the frame. No live model, no credential, no take-to-take drift. `--no-open`
 keeps the take from launching Gadak.app or a second tab.
 
 `tools/tapes/agent.tape` is the older CLI-only SQL take (status / reopen /
@@ -150,6 +187,9 @@ e2e/demo/
   agent.config.ts      # 1024×808, video on, fresh :7877
   agent-demo.spec.ts   # GADAK_MEDIA=1 gated split
   export-agent.sh      # webm → gif (palette 2-pass) + mp4
+  search.config.ts     # 1024×640, separate output dir
+  search-demo.spec.ts  # GADAK_MEDIA=1 gated ⌘K take
+  export-search.sh     # webm → search.gif + search.mp4
 ```
 
 ## Font notes (Hangul alignment)
@@ -210,6 +250,9 @@ e2e/demo/
   playwright.config.ts   # video on, fixed viewport — not the E2E suite
   web-demo.spec.ts       # GADAK_MEDIA=1 gated walkthrough
   export-video.sh        # webm → gif (palette 2-pass) + mp4
+  search.config.ts       # 1024×640, separate output dir
+  search-demo.spec.ts    # GADAK_MEDIA=1 gated ⌘K All-search take
+  export-search.sh       # webm → search.gif + search.mp4
   agent.config.ts        # 1024×808 split, separate output dir
   agent-demo.spec.ts     # GADAK_MEDIA=1 gated agent-focus take
   export-agent.sh        # webm → agent.gif + agent.mp4
