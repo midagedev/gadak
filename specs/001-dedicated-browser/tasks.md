@@ -67,30 +67,47 @@ Status: `[ ]` open · `[x]` done+evidence · `[-]` dropped (say why).
 
 ## Track W — web (web/src/ + e2e/, no Go)
 
-- [ ] W1. `keys` axis: ViewFilters.keys, `ks=` in MULTI_KEY/parse/
+- [x] W1. `keys` axis: ViewFilters.keys, `ks=` in MULTI_KEY/parse/
       serialize/emptyFilters, filterIssues membership (OR, exact key),
       keys chip ("N keys", clearable), given-order sort branch when keys
       active and sort is default — and the `q`→relevance promote must not
       fire for keys (census 03 §given-order, all five hook points).
-- [ ] W2. Omnibox paste routing per pinned contract (SearchBox onPaste +
+      Evidence: e2e/keys-focus.spec.ts "ks= URL is an OR of exact keys" +
+      "keys view via ui-focus" — 2 issues, chip "2 keys", given order.
+- [x] W2. Omnibox paste routing per pinned contract (SearchBox onPaste +
       Enter path): /browse/KEY → selection or miss-toast; filter=<id> →
       synced source_queries row or existing toast; wiki page id →
       pages.select; other same-site → desktop in-app tab / serve system
       browser. Nothing silently swallowed (the `not_jql` false return
       path dies).
-- [ ] W3. Body-link click routing: ADF `/browse/KEY` and mirrored wiki
+      Evidence: FAIL-first `issue-detail-panel` stayed hidden on HEAD;
+      after, e2e/omnibox.spec.ts paste/Enter/miss/filter/wiki all pass.
+      `not_jql` now toasts (SearchBox.svelte applyJql).
+- [x] W3. Body-link click routing: ADF `/browse/KEY` and mirrored wiki
       links → native panels on both surfaces; header key unchanged
       (escape hatch); unmodeled links unchanged.
-- [ ] W4. ui-focus poll pauses while `document.hidden` (keep 500 ms
+      Evidence: e2e/omnibox.spec.ts ADF body link → NMA-1 panel, no popup;
+      browse-pane.spec.ts header key still opens the in-app tab.
+- [x] W4. ui-focus poll pauses while `document.hidden` (keep 500 ms
       visible; visibilitychange already covers the return). One spec
       asserts no ui-focus requests while hidden.
-- [ ] W5. Palette: imported Jira filters (views.source) join the view
+      Evidence: FAIL-first 3–4 extra GETs while hidden on HEAD; after,
+      e2e/keys-focus.spec.ts "sends no requests while the tab is hidden" pass.
+      `document.documentElement.dataset.uiFocusPoll` is on|off.
+- [x] W5. Palette: imported Jira filters (views.source) join the view
       section, same matching as saved views.
-- [ ] W6. Recents finish §6: browse-tab issue/page visits record recents;
+      Evidence: e2e/omnibox.spec.ts "palette lists imported Jira filters"
+      — "Open in NMA" + "Jira filter" → pj=NMA.
+- [x] W6. Recents finish §6: browse-tab issue/page visits record recents;
       sidebar recents gain the doc slice (or a mixed list — pick the
       smaller diff, state which).
-- [ ] W7. e2e: keys view via ui-focus lands exact list in given order;
+      Evidence: mixed list in FavoritesNav (smaller than a second slice);
+      browse.adopt records issue/page; e2e/keys-focus.spec.ts seeds a doc
+      visit and clicks `recent-doc-*`.
+- [x] W7. e2e: keys view via ui-focus lands exact list in given order;
       `#/?issue=` focuses detail; /browse/KEY paste selects natively.
+      Evidence: `npx playwright test --config e2e/playwright.config.ts`
+      — 116 passed, 1 flaky (browse-pane 1px frame), exit 0.
 
 ## Track A — agent surface (skills/gadak/, docs/AGENT_*.md, docs/RECIPES.md,
 ## specs/000-product/contracts/agent.md) — after Track G flags exist

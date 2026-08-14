@@ -12,12 +12,16 @@
     { k: 'reopen_count', l: t('sort.reopenCount') },
   ]
   const RELEVANCE = { k: 'relevance' as SortKey, l: t('sort.relevance') }
+  const KEYS_SORT = { k: 'keys' as SortKey, l: t('sort.keys') }
 
   // Show relevance only while searching (or relevance is active) so auto-promote is visible.
+  // keys-order is the same kind of auto label — not a picker unless it is already on.
   const sorts = $derived(
-    filters.filters.q.trim() || filters.effectiveSort === 'relevance'
-      ? [RELEVANCE, ...BASE_SORTS]
-      : BASE_SORTS,
+    filters.effectiveSort === 'keys'
+      ? [KEYS_SORT, ...BASE_SORTS]
+      : filters.filters.q.trim() || filters.effectiveSort === 'relevance'
+        ? [RELEVANCE, ...BASE_SORTS]
+        : BASE_SORTS,
   )
 
   let open = $state(false)
@@ -39,7 +43,7 @@
   >
     <span>{t('sort.label')}</span>
     <span class="text-text-muted">
-      {[RELEVANCE, ...BASE_SORTS].find((s) => s.k === filters.effectiveSort)?.l}
+      {[KEYS_SORT, RELEVANCE, ...BASE_SORTS].find((s) => s.k === filters.effectiveSort)?.l}
     </span>
   </button>
 

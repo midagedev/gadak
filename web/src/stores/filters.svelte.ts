@@ -29,6 +29,7 @@ import {
   isStale,
   isViewParam,
   MULTI_FIELDS,
+  normalizeKeys,
   orderColumns,
   parseConfig,
   type ColumnKey,
@@ -72,7 +73,7 @@ export interface IssueGroup {
 /** One active filter chip rendered by FilterBar. */
 export interface ActiveChip {
   /** Which field/flag/range this chip represents. 'field' = discovered custom-field axis. */
-  kind: 'multi' | 'flag' | 'range' | 'field'
+  kind: 'multi' | 'flag' | 'range' | 'field' | 'keys'
   field: string
   value?: string // multi value
   label: string // display string
@@ -114,7 +115,10 @@ class FiltersStore {
    */
   get effectiveSort(): SortKey {
     const { filters: f, display: d } = this.#config
-    if (f.q.trim() && d.sort === 'updated') return 'relevance'
+    if (d.sort !== 'updated') return d.sort
+    // keys-only: keep the given order. q→relevance must not fire here.
+    if (f.keys.length && !f.q.trim()) return 'keys'
+    if (f.q.trim()) return 'relevance'
     return d.sort
   }
 
@@ -150,7 +154,7 @@ class FiltersStore {
     // Relevance needs query · recency · personalization together — pass context.
     const ctx: RelevanceContext | undefined =
       sort === 'relevance' ? buildRelevanceContext(f.q) : undefined
-    return sortIssues(list, sort, this.#config.display.dir, ctx)
+    return sortIssues(list, sort, this.#config.display.dir, ctx, f.keys)
   })
 
   /* ── Grouping (display.group_by). group_by=none → single group. ── */
@@ -323,6 +327,14 @@ class FiltersStore {
     this.#apply(c)
   }
 
+  /** Drop the keys axis (one chip, not per-key). */
+  clearKeys(): void {
+    if (!this.#config.filters.keys.length) return
+    const c = this.snapshot()
+    c.filters.keys = []
+    this.#apply(c)
+  }
+
   toggleFlag(flag: 'reopened' | 'unassigned' | 'stale'): void {
     const c = this.snapshot()
     c.filters[flag] = !c.filters[flag]
@@ -490,6 +502,7 @@ function mergeConfig(c: ViewConfig): ViewConfig {
   Object.assign(base.display, c.display)
   // Clone array refs. Columns may include ones for disabled features in a saved view — normalize.
   for (const field of MULTI_FIELDS) base.filters[field] = [...(c.filters[field] ?? [])]
+  base.filters.keys = normalizeKeys(base.filters.keys)
   // Saved views from before dynamic axes have no fields record at all.
   base.filters.fields = {}
   for (const [alias, arr] of Object.entries(c.filters.fields ?? {})) {
@@ -648,6 +661,11 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
       continue
     if (f.labels.length && !it.labels.some((l) => f.labels.includes(l))) continue
 
+    if (f.keys.length) {
+      const want = new Set(f.keys.map((k) => k.toUpperCase()))
+      if (!want.has(it.issue_key.toUpperCase())) continue
+    }
+
     if (f.reopened && !(it.reopen_count > 0)) continue
     if (f.unassigned && hasIssuePerson(it, 'assignee')) continue
     if (f.stale && !isStale(it)) continue
@@ -749,9 +767,23 @@ export function sortIssues(
   sort: SortKey,
   dir: 'asc' | 'desc',
   ctx?: RelevanceContext,
+  keyOrder?: readonly string[],
 ): IssueLite[] {
   const d: 1 | -1 = dir === 'asc' ? 1 : -1
   const arr = [...list]
+  if (sort === 'keys') {
+    const order = new Map<string, number>()
+    for (const [i, raw] of (keyOrder ?? []).entries()) {
+      const k = raw.toUpperCase()
+      if (!order.has(k)) order.set(k, i)
+    }
+    arr.sort((a, b) => {
+      const ai = order.get(a.issue_key.toUpperCase()) ?? Number.MAX_SAFE_INTEGER
+      const bi = order.get(b.issue_key.toUpperCase()) ?? Number.MAX_SAFE_INTEGER
+      return ai - bi
+    })
+    return arr
+  }
   if (sort === 'relevance') {
     // Relevance ignores dir (always higher score first). Cache scores; ties by newest update.
     const rc = ctx ?? buildRelevanceContext('')
@@ -960,7 +992,15 @@ function buildChips(
   fieldLabels: Map<string, string>,
 ): ActiveChip[] {
   const chips: ActiveChip[] = []
+  if (f.keys.length) {
+    chips.push({
+      kind: 'keys',
+      field: 'keys',
+      label: t('filter.chipKeys', { n: f.keys.length }),
+    })
+  }
   for (const field of MULTI_FIELDS) {
+    if (field === 'keys') continue
     for (const value of f[field]) {
       let label = value
       if (field === 'status_category') label = CATEGORY_LABEL(value)
@@ -999,7 +1039,10 @@ function buildFacets(
   members: Map<string, Member>,
 ): Record<MultiField, FacetValue[]> {
   const counters: Record<string, Map<string, number>> = {}
-  for (const field of MULTI_FIELDS) counters[field] = new Map()
+  for (const field of MULTI_FIELDS) {
+    if (field === 'keys') continue
+    counters[field] = new Map()
+  }
   const assigneeLabels = new Map<string, string>()
   const reporterLabels = new Map<string, string>()
 
@@ -1034,7 +1077,9 @@ function buildFacets(
   }
 
   const out = {} as Record<MultiField, FacetValue[]>
+  out.keys = []
   for (const field of MULTI_FIELDS) {
+    if (field === 'keys') continue
     const values: FacetValue[] = [...counters[field].entries()].map(([value, count]) => {
       const personLabel =
         field === 'assignee_email'

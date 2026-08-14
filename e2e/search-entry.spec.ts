@@ -36,7 +36,8 @@ test.describe('search entry points', () => {
 
     const apiDuringType: string[] = []
     page.on('request', (req) => {
-      if (req.url().includes('/api/')) apiDuringType.push(req.url())
+      const url = req.url()
+      if (url.includes('/api/') && !url.includes('/ui-focus/')) apiDuringType.push(url)
     })
 
     await page.keyboard.press('ControlOrMeta+k')
@@ -135,7 +136,8 @@ test.describe('search entry points', () => {
 
     const apiDuringType: string[] = []
     page.on('request', (req) => {
-      if (req.url().includes('/api/')) apiDuringType.push(req.url())
+      const url = req.url()
+      if (url.includes('/api/') && !url.includes('/ui-focus/')) apiDuringType.push(url)
     })
 
     const filter = page.getByTestId('docs-filter-input')

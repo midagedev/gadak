@@ -8,6 +8,7 @@
   import { t } from '../../lib/i18n'
   import type { AdfNode, DetailAttachment } from '../../lib/types'
   import { renderAdf } from '../../lib/adf'
+  import { tryOpenNativeLink } from '../../lib/omnibox'
   import { mediaViewer } from '../../stores/media-viewer.svelte'
 
   let {
@@ -32,10 +33,19 @@
   function onContentClick(event: MouseEvent) {
     const target = event.target as HTMLElement | null
     const trigger = target?.closest<HTMLElement>('[data-attachment-id]')
-    if (!trigger) return
-    const id = trigger.dataset.attachmentId
-    const attachment = attachments.find((item) => item.id === id)
-    if (attachment) mediaViewer.open(attachment)
+    if (trigger) {
+      const id = trigger.dataset.attachmentId
+      const attachment = attachments.find((item) => item.id === id)
+      if (attachment) mediaViewer.open(attachment)
+      return
+    }
+    const anchor = target?.closest('a[href]')
+    if (!anchor) return
+    const href = anchor.getAttribute('href') ?? ''
+    if (tryOpenNativeLink(href)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
   }
 
   $effect(() => {

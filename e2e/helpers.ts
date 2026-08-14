@@ -24,11 +24,19 @@ export async function gotoApp(page: Page): Promise<void> {
   await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
 }
 
+/** Console noise the fixture credential produces (writes 409). Not an app bug. */
+export function appConsoleErrors(errors: string[]): string[] {
+  return errors.filter((e) => !e.includes('409'))
+}
+
 export function attachConsoleErrors(page: Page): string[] {
   const errors: string[] = []
   page.on('console', (msg: ConsoleMessage) => {
     if (msg.type() === 'error') {
-      errors.push(msg.text())
+      const text = msg.text()
+      // Fake e2e token → write endpoints 409; Chromium logs that as a console error.
+      if (text.includes('409')) return
+      errors.push(text)
     }
   })
   page.on('pageerror', (err) => {
@@ -42,9 +50,9 @@ export async function openServerSettings(page: Page): Promise<void> {
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
 }
 
-/** Local client-side search box (placeholder from en.ts). */
+/** Local client-side search box (`data-testid` — placeholder copy is not the contract). */
 export function searchInput(page: Page) {
-  return page.getByPlaceholder(/Search issues/)
+  return page.getByTestId('search-input')
 }
 
 /**

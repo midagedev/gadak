@@ -149,15 +149,39 @@
         /* serve without the endpoint, or offline */
       }
     }
-    void applyFocus()
-    const focusTimer = setInterval(() => void applyFocus(), 500)
+    let focusTimer: ReturnType<typeof setInterval> | null = null
+    const markFocusPoll = (on: boolean) => {
+      document.documentElement.dataset.uiFocusPoll = on ? 'on' : 'off'
+    }
+    const startFocusPoll = () => {
+      if (focusTimer !== null) return
+      focusTimer = setInterval(() => void applyFocus(), 500)
+      markFocusPoll(true)
+    }
+    const stopFocusPoll = () => {
+      if (focusTimer === null) return
+      clearInterval(focusTimer)
+      focusTimer = null
+      markFocusPoll(false)
+    }
     const onVis = () => {
-      if (document.visibilityState === 'visible') void applyFocus()
+      if (document.visibilityState === 'visible') {
+        void applyFocus()
+        startFocusPoll()
+      } else {
+        stopFocusPoll()
+      }
+    }
+    if (document.visibilityState === 'visible') {
+      void applyFocus()
+      startFocusPoll()
+    } else {
+      markFocusPoll(false)
     }
     document.addEventListener('visibilitychange', onVis)
     return () => {
       clearTimeout(skeletonTimer)
-      clearInterval(focusTimer)
+      stopFocusPoll()
       document.removeEventListener('visibilitychange', onVis)
       uninstallLinks()
       uninstallBrowse()

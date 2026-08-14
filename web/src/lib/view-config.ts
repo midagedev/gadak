@@ -40,6 +40,11 @@ export interface ViewFilters {
   jira_project: string[] // issue_key prefix (ABC / XYZ ...)
   source_project: string[]
   /**
+   * Exact issue keys, given order. URL `ks` (comma-joined, uppercased).
+   * Empty = no constraint. Agent ranking when no explicit sort is set.
+   */
+  keys: string[]
+  /**
    * Discovered custom-field axes, keyed by spec alias. Which axes exist comes
    * from bootstrap field_specs, not from this schema — a board that uses 30
    * fields gets 30 possible axes, one that uses 2 gets 2. Serialized as
@@ -76,7 +81,7 @@ export type GroupBy =
 // 'relevance' = rank by search relevance when a query is present. Auto-promoted from
 // the default sort (updated); only serialized into the URL when explicitly chosen
 // (older URLs do not know relevance — keep backward compatible).
-export type SortKey = 'updated' | 'created' | 'priority' | 'reopen_count' | 'relevance'
+export type SortKey = 'updated' | 'created' | 'priority' | 'reopen_count' | 'relevance' | 'keys'
 export type SortDir = 'asc' | 'desc'
 
 /* ── List columns (trailing fields shown on a row) ──
@@ -192,8 +197,29 @@ export const MULTI_FIELDS = [
   'deploy_state',
   'jira_project',
   'source_project',
+  'keys',
 ] as const
 export type MultiField = (typeof MULTI_FIELDS)[number]
+
+/** Serialized as a multi-value param but not offered as a facet picker. */
+const HIDDEN_MULTI: ReadonlySet<MultiField> = new Set(['keys'])
+
+/** Max keys accepted from a URL or saved view (same cap as the CLI). */
+export const KEYS_CAP = 500
+
+/** Trim, uppercase, de-dupe (first wins), cap. Order is meaning. */
+export function normalizeKeys(keys: readonly string[]): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const raw of keys) {
+    const k = raw.trim().toUpperCase()
+    if (!k || seen.has(k)) continue
+    seen.add(k)
+    out.push(k)
+    if (out.length >= KEYS_CAP) break
+  }
+  return out
+}
 
 /** Filter fields from optional features — invalid in both filter menu and URL when flag is off. */
 const FIELD_FEATURE: Partial<Record<MultiField, keyof GadakFeatures>> = {
@@ -211,7 +237,7 @@ export function fieldEnabled(field: MultiField): boolean {
 
 /** Fields the filter menu exposes (excludes fields for disabled features). */
 export function filterFields(): MultiField[] {
-  return MULTI_FIELDS.filter(fieldEnabled)
+  return MULTI_FIELDS.filter((f) => !HIDDEN_MULTI.has(f) && fieldEnabled(f))
 }
 
 /** Grouping axes from optional features. */
@@ -250,6 +276,7 @@ export function emptyFilters(): ViewFilters {
     deploy_state: [],
     jira_project: [],
     source_project: [],
+    keys: [],
     fields: {},
     reopened: false,
     unassigned: false,
@@ -298,6 +325,7 @@ const MULTI_KEY: Record<MultiField, string> = {
   deploy_state: 'ds',
   jira_project: 'pj',
   source_project: 'spj',
+  keys: 'ks',
 }
 
 /**
@@ -354,6 +382,7 @@ export function parseConfig(params: URLSearchParams): ViewConfig {
     // Disabled-feature fields stay off even from the URL (shared links must not revive dead filters).
     f[field] = fieldEnabled(field) ? splitList(params.get(MULTI_KEY[field])) : []
   }
+  f.keys = normalizeKeys(f.keys)
   // Discovered-field axes: every `f.<alias>` param. Unknown aliases parse too —
   // a shared link may name a field this mirror simply has not discovered yet.
   for (const [key, raw] of params) {
@@ -407,7 +436,7 @@ function isGroupBy(v: string): v is GroupBy {
   )
 }
 function isSortKey(v: string): v is SortKey {
-  return ['updated', 'created', 'priority', 'reopen_count', 'relevance'].includes(v)
+  return ['updated', 'created', 'priority', 'reopen_count', 'relevance', 'keys'].includes(v)
 }
 
 /* ── Serialize: ViewConfig → URL param delta ──

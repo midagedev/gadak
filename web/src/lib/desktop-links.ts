@@ -27,8 +27,22 @@ export interface ClassifiedAtlassianLink {
 }
 
 const ISSUE_KEY_RE = /^[A-Z][A-Z0-9]*-\d+$/
-const BROWSE_PATH_RE = /\/browse\/([A-Z][A-Z0-9]*-\d+)(?:\/|$)/
+const BROWSE_PATH_RE = /\/browse\/([A-Za-z][A-Za-z0-9]*-\d+)(?:\/|$)/
 const WIKI_PAGE_PATH_RE = /\/wiki\/spaces\/[^/]+\/pages\/(\d+)/
+
+/** Issue key in a /browse/KEY path, uppercased. Null when the path is not one. */
+export function extractBrowseKey(href: string): string | null {
+  const m = href.match(BROWSE_PATH_RE)
+  if (!m) return null
+  const key = m[1].toUpperCase()
+  return ISSUE_KEY_RE.test(key) ? key : null
+}
+
+/** Confluence content id in a /wiki/spaces/…/pages/ID path. */
+export function extractWikiPageId(href: string): string | null {
+  const m = href.match(WIKI_PAGE_PATH_RE)
+  return m ? m[1] : null
+}
 
 /**
  * Classify an absolute Atlassian URL for in-app browse + optional resync.
@@ -56,14 +70,14 @@ export function classifyAtlassianLink(
     return { inApp: false, kind: 'other', key: null }
   }
 
-  const browse = url.pathname.match(BROWSE_PATH_RE)
-  if (browse && ISSUE_KEY_RE.test(browse[1])) {
-    return { inApp: true, kind: 'issue', key: browse[1] }
+  const issueKey = extractBrowseKey(url.pathname)
+  if (issueKey) {
+    return { inApp: true, kind: 'issue', key: issueKey }
   }
 
-  const wiki = url.pathname.match(WIKI_PAGE_PATH_RE)
-  if (wiki) {
-    return { inApp: true, kind: 'page', key: wiki[1] }
+  const wikiId = extractWikiPageId(url.pathname)
+  if (wikiId) {
+    return { inApp: true, kind: 'page', key: wikiId }
   }
 
   return { inApp: true, kind: 'other', key: null }
@@ -99,6 +113,20 @@ async function openInAppBrowser(
     /* network / parse — fall through to system browser */
   }
   openSystemBrowser(url)
+}
+
+/**
+ * Same-site Atlassian URL → in-app tab on desktop, system browser under serve.
+ * Off-site URLs always go to the system browser (desktop) or a new tab (serve).
+ */
+export function openContainedUrl(url: string): void {
+  const classified = classifyAtlassianLink(url, config().jiraBaseUrl || null)
+  if (isDesktop()) {
+    if (classified.inApp) void openInAppBrowser(url, classified)
+    else openSystemBrowser(url)
+    return
+  }
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 /** Install the interceptor; returns the uninstall function (noop off desktop). */

@@ -11,7 +11,7 @@
    */
   import { t } from '../../lib/i18n'
   import { parseJql } from '../../lib/api'
-  import { looksLikeJql } from '../../lib/jql'
+  import { applyOmniboxAction, classifyOmnibox } from '../../lib/omnibox'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
@@ -132,7 +132,10 @@
     applyingJql = true
     try {
       const res = await parseJql(raw, me.email)
-      if (res.error === 'not_jql') return false
+      if (res.error === 'not_jql') {
+        write.toast(res.message || t('filter.jqlParseFailed'), 'info')
+        return true
+      }
       if (res.error) {
         write.toast(res.message || t('filter.jqlParseFailed'), 'error')
         return true
@@ -155,9 +158,10 @@
 
   async function onPaste(e: ClipboardEvent) {
     const raw = e.clipboardData?.getData('text') ?? ''
-    if (!looksLikeJql(raw)) return
+    const action = classifyOmnibox(raw)
+    if (action.kind === 'text') return
     e.preventDefault()
-    await applyJql(raw)
+    await applyOmniboxAction(action, applyJql)
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -182,10 +186,11 @@
       e.preventDefault()
       if (showJump && jumpKey) {
         selection.select(jumpKey)
-      } else if (text.trim() && looksLikeJql(text)) {
-        void applyJql(text)
       } else if (text.trim()) {
-        void filters.runServerSearch()
+        void (async () => {
+          const handled = await applyOmniboxAction(classifyOmnibox(text), applyJql)
+          if (!handled) await filters.runServerSearch()
+        })()
       }
     } else if (e.key === 'Escape') {
       e.preventDefault()

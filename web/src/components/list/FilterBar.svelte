@@ -128,6 +128,7 @@
         if (chip.kind === 'multi') filters.removeValue(chip.field as MultiField, chip.value!)
         else if (chip.kind === 'field') filters.removeFieldValue(chip.field, chip.value!)
         else if (chip.kind === 'flag') filters.toggleFlag(chip.field as 'reopened' | 'unassigned' | 'stale')
+        else if (chip.kind === 'keys') filters.clearKeys()
         else filters.setRange(chip.field as 'created' | 'updated', null, null)
       }}
       title={t('filter.remove')}
