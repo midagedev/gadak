@@ -8,6 +8,18 @@ import (
 	"strings"
 )
 
+// GuardBrowser wraps next so Host/Origin checks run before any route.
+// Mount this on the top-level serve mux so routes registered outside Handler
+// (/config.json, /healthz, /api/v1/workspaces, /w/) cannot skip the guard.
+func GuardBrowser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !browserGuard(w, r) {
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // browserGuard rejects browser-origin CSRF and DNS-rebinding before the mux.
 // Returns false when the response was already written (caller must not continue).
 //

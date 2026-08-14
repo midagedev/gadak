@@ -67,7 +67,7 @@ func seedProfile(t *testing.T, home, name string, cfg *config.Config) {
 	_ = db.Close()
 }
 
-func testServeMux(t *testing.T) (*http.ServeMux, *workspace.Registry) {
+func testServeMux(t *testing.T) (http.Handler, *workspace.Registry) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -112,11 +112,17 @@ func testServeMux(t *testing.T) (*http.ServeMux, *workspace.Registry) {
 	return buildServeMux(api, spa, reg), reg
 }
 
+func loopbackGet(path string) *http.Request {
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Host = "127.0.0.1"
+	return req
+}
+
 func TestWorkspacesListNoSecrets(t *testing.T) {
 	mux, _ := testServeMux(t)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/workspaces", nil))
+	mux.ServeHTTP(rec, loopbackGet("/api/v1/workspaces"))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
 	}
@@ -228,7 +234,7 @@ func TestWorkspaceConfigJSON(t *testing.T) {
 	mux, _ := testServeMux(t)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/w/work/config.json", nil))
+	mux.ServeHTTP(rec, loopbackGet("/w/work/config.json"))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
 	}
@@ -254,6 +260,39 @@ func TestWorkspaceConfigJSON(t *testing.T) {
 	}
 }
 
+func TestServeMuxRejectsForeignHostOnTopLevelRoutes(t *testing.T) {
+	mux, _ := testServeMux(t)
+
+	for _, path := range []string{"/config.json", "/api/v1/workspaces"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Host = "attacker.example"
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("%s Host=attacker.example status %d, want 403; body %s", path, rec.Code, rec.Body.String())
+			continue
+		}
+		var body map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Errorf("%s decode: %v body %s", path, err, rec.Body.String())
+			continue
+		}
+		if body["error"] != "forbidden_host" {
+			t.Errorf("%s error %q, want forbidden_host", path, body["error"])
+		}
+	}
+
+	for _, path := range []string{"/config.json", "/api/v1/workspaces"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Host = "127.0.0.1"
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s Host=127.0.0.1 status %d, want 200; body %s", path, rec.Code, rec.Body.String())
+		}
+	}
+}
+
 func TestWorkspaceBadName404(t *testing.T) {
 	mux, _ := testServeMux(t)
 
@@ -263,7 +302,7 @@ func TestWorkspaceBadName404(t *testing.T) {
 		"/w/no-such-profile/api/v1/issues/bootstrap/",
 	} {
 		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		mux.ServeHTTP(rec, loopbackGet(path))
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("%s → %d, want 404", path, rec.Code)
 		}

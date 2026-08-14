@@ -12,7 +12,7 @@ import (
 // buildServeMux wires the serve HTTP tree: primary API + SPA, workspace mounts,
 // and the workspace list. Extracted so tests can exercise routing without a
 // real listener or flag parse.
-func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Registry) *http.ServeMux {
+func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Registry) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -42,5 +42,5 @@ func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Reg
 		mux.HandleFunc("/w/", reg.Handler(spa, version))
 	}
 	mux.Handle("/", spa)
-	return mux
+	return server.GuardBrowser(mux)
 }

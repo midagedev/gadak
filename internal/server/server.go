@@ -80,21 +80,19 @@ type server struct {
 // Handler is the HTTP API plus optional update-check control. It implements
 // http.Handler; mount it at "/api/".
 type Handler struct {
-	mux *http.ServeMux
-	s   *server
+	mux     *http.ServeMux
+	guarded http.Handler
+	s       *server
 }
 
 // ServeHTTP implements http.Handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Identity markers for a second `gadak serve` that finds this port busy
 	// (cmd/gadak port fallback). Fixed marker + profile — no version injection
-	// into constructors. Set before browserGuard so every response carries them.
+	// into constructors. Set before the guard so every response carries them.
 	w.Header().Set("X-Gadak", "1")
 	w.Header().Set("X-Gadak-Profile", h.s.profile)
-	if !browserGuard(w, r) {
-		return
-	}
-	h.mux.ServeHTTP(w, r)
+	h.guarded.ServeHTTP(w, r)
 }
 
 // New returns the API handler. Mount it at "/api/" — the patterns below carry
@@ -227,7 +225,9 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// data-quality, login/logout) fall through to here. The UI hides a surface on
 	// a clean 404 and only breaks on a 500.
 	mux.HandleFunc("/", handleNotFound)
-	return &Handler{mux: mux, s: s}
+	h := &Handler{mux: mux, s: s}
+	h.guarded = GuardBrowser(mux)
+	return h
 }
 
 // StartUpdateCheck runs a GitHub release lookup immediately and every 24h.
