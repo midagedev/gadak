@@ -3,7 +3,7 @@
  *
  * Paper list with one project chip, then ⌘K. The typed token is the
  * usearch.spec.ts comment-only fixture (`workaround`) — local title matching
- * cannot see it, so All search (ignores filters) is what fills in, with a
+ * cannot see it, so All search is what fills in, with a
  * Comment match snippet. Enter opens the issue. No DOM caption, no app edits.
  *
  * Gated by GADAK_MEDIA=1. Viewport and video size must stay 1024×640

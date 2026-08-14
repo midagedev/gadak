@@ -78,7 +78,7 @@ and labels the field that matched with a snippet. The box above the list only
 narrows this view.
 
 <p align="center">
-  <img src="docs/media/search.gif" alt="A Project chip is on the list; ⌘K opens the palette, a comment-only word is typed, and All search (ignores filters) fills with rows from other projects, each labelled Comment match with a snippet" width="900">
+  <img src="docs/media/search.gif" alt="A Project chip is on the list; ⌘K opens the palette, a comment-only word is typed, and All search fills with rows from other projects, each labelled Comment match with a snippet" width="900">
   <br>
   <sub>⌘K searches titles, bodies and comments — the chip on the list does not apply.
   Generated from <a href="e2e/demo/search-demo.spec.ts">e2e/demo/search-demo.spec.ts</a> against the demo snapshot.</sub>

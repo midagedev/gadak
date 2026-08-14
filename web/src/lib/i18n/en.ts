@@ -823,7 +823,7 @@ export const en = {
   'palette.title': 'Command palette',
   'palette.placeholder': 'Jump to an issue, or search everything…',
   'palette.emptyHint': 'Searches every issue and document.',
-  'palette.sectionUnified': 'All search (ignores filters)',
+  'palette.sectionUnified': 'All search',
   'palette.matchBody': 'Body match',
   'palette.matchComment': 'Comment match',
   'palette.matchTitle': 'Title match',

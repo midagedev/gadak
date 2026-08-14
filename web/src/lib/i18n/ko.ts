@@ -817,7 +817,7 @@ export const ko = {
   'palette.title': '커맨드 팔레트',
   'palette.placeholder': '이슈로 이동, 또는 전체 검색…',
   'palette.emptyHint': '이슈·문서 전체를 검색합니다.',
-  'palette.sectionUnified': '전체 검색 (필터 무시)',
+  'palette.sectionUnified': '전체 검색',
   'palette.matchBody': '본문 매치',
   'palette.matchComment': '댓글 매치',
   'palette.matchTitle': '제목 매치',
