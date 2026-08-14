@@ -1,5 +1,66 @@
 # Changelog
 
+## v0.14.0 — 2026-08-15
+
+The maintainer-review release: seven builders of loved developer tools were
+asked, per lens, why gadak would or would not be loved — and every confirmed
+finding either shipped or got a bar written down. The theme is trust:
+surfaces that fail loudly instead of silently, docs that match the code, and
+measured numbers instead of adjectives.
+
+- **The first agent call succeeds, or says why not.** A small model called
+  `gadak_search` with `{query: …}` — the argument name of every search tool
+  on earth — got a terse error, and reported it as "no results". That was a
+  schema defect, not a model defect: the primary argument is now `query`
+  (`text`/`q` stay as aliases), every tool error starts with `ERROR:` and
+  echoes the argument keys it actually received, and the MCP instructions
+  teach `gadak_query` as the default tool instead of telling the model to
+  leave (`If you have a shell…` is install-time advice and now lives only in
+  the docs). `gadak_issue` over the response cap sheds oldest comments and
+  says `truncated` instead of dying whole.
+- **The pipe is a promise now.** Three things are contracted while 0.x:
+  `issues_full` + the RECIPES queries, `gadak sql` stdout (header TSV by
+  default, `--no-header` to omit, `--json` one object per row, never a banner
+  on stdout), and `views open --keys -` (stdin, comma/whitespace, first-seen
+  order). A typo'd flag like `--pretty` used to be silently joined into the
+  SQL — blank output, exit 0; it is now a loud usage error that names the
+  token.
+- **`gadak export` / `gadak import`.** The rows you would actually miss —
+  saved views, watches, favorites — leave in one JSON (no credentials, no
+  site URL) and come back with upsert semantics. The round-trip is the test:
+  export, delete the mirror, resync, import, the named view is back.
+- **Measured, with the losing rows.** A live-site benchmark against a
+  2,853-issue Cloud project: 42× on a simple filter, 162× on the epic
+  GROUP BY (7 API pages vs one query), and the reopen count — ~20 minutes of
+  changelog crawling over REST vs 14.5 ms locally. Also printed: minutes of
+  first sync, 6.6 s per watch tick, one interval of staleness.
+  `docs/BENCHMARKS.md` has the method; `tools/bench-live.py` runs it against
+  your own mirror.
+- **The settings dialog stops lying.** Emptying the project selection said
+  "no issue is mirrored" while the backend syncs *everything the account can
+  see* — the copy now says so, and says the full sync starts on save. The
+  web-push toggle (a deliberately cut feature whose endpoints 404) is gone.
+  "Applies after restarting gadak serve" was false — config reloads on the
+  next tick. Copy now branches on one `surface()` (serve / desktop / hosted):
+  the app names its own sync loop, hides the in-tab notification row (the
+  menu-bar notifications already cover it), and the sqlite3 button says
+  "paste in a terminal".
+- **The hosted demo lands on Epic breakdown** — open work grouped by epic,
+  the README's "which epic is stuck?" on screen before a single click,
+  instead of a bare all-open list.
+- **`brew install midagedev/tap/gadak` is the app now.** The cask carries
+  Gadak.app *and* puts the bundled CLI on PATH; `gadak-cli` is the CLI-only
+  formula (macOS + Linux). The old hold on casks — unsigned binaries — was
+  resolved when notarization shipped in v0.13; only the comment didn't know.
+- **Docs told the truth again**: a 40-finding census against the code fixed
+  shipped-but-documented-as-pending features, the over-broad "schema is a
+  public contract" phrasing (it is three promises, stated in one shared
+  sentence everywhere), Rovo comparison honesty (it does search both sources
+  now; it still cannot aggregate), and the numbers that rot — enforced from
+  now on by `tools/doc-checks.sh`. Also: a Korean README (`README.ko.md`),
+  and a repo `CLAUDE.md` so every session and agent starts from the same
+  contract.
+
 ## v0.13.0 — 2026-08-14
 
 - **One search box that searches everything.** ⌘K — or the new **Search ⌘K**
