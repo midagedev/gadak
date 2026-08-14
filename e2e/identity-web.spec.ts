@@ -6,7 +6,7 @@ import { matchesIdFirst, prioritySortRank } from '../web/src/lib/view-config'
 
 /**
  * B-identity-web: I9 / L1 / I5 / C5 / C6 / C7.
- * I8 is not asserted here — PageLite wire has no author_id (report-only).
+ * I8 is asserted in tail-audit.spec.ts — PageLite carries author_id since 1988d2b.
  */
 
 test.describe('identity-web unit (no browser state)', () => {

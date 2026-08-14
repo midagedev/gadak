@@ -24,7 +24,10 @@ window drag, GitHub issue #2 (FIX-drag, PR #3). **D6 D7** landed with Track G.
 
 That is every P0 and every P1 from this audit except the four below.
 
-Still open, named so they are not re-derived:
+~~Still open~~ — all four items below were closed by `1988d2b`
+(2026-08-14: I8 author_id on all five PageLite SELECTs, C5 profile on the
+config document, priority_id on the wire, the views-open discovery seam).
+Kept for the record; verified stale on 2026-08-15 (GDK-3 investigation).
 
 - **I8** — `PageLite` carries no `author_id`, so By-author still groups on the
   display name. Needs a store SELECT + JSON field, then the web grouping.
