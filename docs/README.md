@@ -6,8 +6,9 @@
   not, the next task, and hard-won Jira behaviors
 - `../README.md`: what gadak is, quick start, scope
 - `ROADMAP.md`: ordering and reasoning
-- `CONCEPT.md`: the idea and what follows from it
+- `CONCEPT.md`: the idea, the two surfaces, and good-fit / bad-fit
 - `ARCHITECTURE.md`: components, module boundaries, data flow
+- `FAQ.md`: hard questions, and how gadak compares to jira-cli / Linear / Rovo
 - `EXTRACTION.md`: where this code came from, what was cut at extraction time
 
 ## Using gadak (humans and agents)

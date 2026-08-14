@@ -54,12 +54,12 @@ store layer. You can run all of them at once — that is the intended shape.
 
 ## Why not the official Atlassian MCP / a Forge app / a browser extension?
 
-The README's [comparison table](../README.md#how-it-compares) is the long
-answer. The short one: a network MCP answers one question per round trip and
-cannot join issues to wiki pages, aggregate across a backlog, or work
-offline; the derived history columns (`reopen_count`, time-in-status) exist
-only because the mirror is local. A Forge app runs on Atlassian's side of
-the fence — the whole point here is that the data sits next to your agent.
+The long answer is [How it compares](#how-it-compares) below. The short one:
+a network MCP answers one question per round trip and cannot join issues to
+wiki pages, aggregate across a backlog, or work offline; the derived history
+columns (`reopen_count`, time-in-status) exist only because the mirror is
+local. A Forge app runs on Atlassian's side of the fence — the whole point
+here is that the data sits next to your agent.
 
 ## If an agent reads the mirror, where does my data go?
 
@@ -75,3 +75,24 @@ Run the grep in [`SECURITY.md`](../SECURITY.md#data-flow) — every
 outbound request constructor in the tree resolves to your Atlassian site,
 the GitHub Releases version check (off by config, never in dev builds), or
 gadak talking to itself on loopback.
+
+## How it compares
+
+- **[jira-cli](https://github.com/ankitpokhrel/jira-cli)** talks to Jira's REST
+  API per command, so every listing is a network round trip and JQL is the query
+  language. gadak queries a local mirror: millisecond filters, SQL joins over the
+  changelog, offline reads — plus an app and a web UI over the same file. If all
+  you want is "create an issue from the terminal", jira-cli is lighter.
+- **Linear** is a different tracker. If your team can move, move. gadak is for
+  the (much larger) group whose org keeps Jira: it gives you Linear-ish speed
+  and keyboard flow without asking anyone for permission — it is a mirror, not a
+  migration.
+- **Atlassian's Rovo MCP server** gives agents official, hosted access to the
+  same data — worth using if it fits. The architectural difference: a network
+  MCP cannot join issues to wiki pages, aggregate, or work offline, every call
+  costs tokens and rate budget, and it answers only the questions its tools
+  anticipated. A local SQLite file has none of those limits, and derived
+  history (reopen counts and reasons, honest epic ancestry) exists only in the
+  mirror.
+- **Jira's own UI** stays the source of record and the place for boards,
+  sprints, and admin. gadak does not replace it; it replaces waiting on it.

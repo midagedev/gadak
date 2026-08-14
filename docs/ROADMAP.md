@@ -315,6 +315,15 @@ type-scale sweep that used to sit here was the clearest example of the trap
   maintainer whose macOS build has not yet carried a real user. Linux first
   when the bar is met; it overlaps the agent audience most.
 
+## More sources later
+
+Confluence was the proof: the second connector merged against the same spine,
+the same FTS index, and the same read contracts without reshaping the database
+(decision 0006). The pattern — mirror, project, index — is what the next
+source rides too. Candidates are ranked by user demand, not by roadmap
+romance; the ordered work above is what is actually next. New sources are
+deliberately not now (see the arrival stance in **Next**).
+
 ## Considered and not planned
 
 - **Bidirectional sync engines** (PowerSync, Electric, Zero). Wrong shape: they

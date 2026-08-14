@@ -48,6 +48,15 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | **After restart** of `gadak serve` |
 | `notify` | bool | **true** when absent | `config.json` (not on Settings UI) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
 | `updateCheck` | bool | **true** when absent | `config.json` (not on Settings UI) | Next `sync` / `status` / `serve` start; once-per-day GitHub release lookup (cached under the profile dir). Set `false` to opt out — no outbound traffic beyond Jira |
+| `confluence` | object or absent | absent = wiki mirror off | Settings → Sources | Next Confluence pass |
+| `confluence.spaces` | string[] | `[]` = every *global* space; personal spaces only if named (`internal/config/config.go`) | Settings → Sources | Next Confluence pass |
+
+The space list *is* the scope: drop a space and the next Confluence pass
+removes it from the mirror; add one and that space is fetched from the start
+(per-space watermark, schema v19 — see
+[`runbooks/confluence-space-scope.md`](runbooks/confluence-space-scope.md)).
+Most keys apply without restart; `syncIntervalSec` and
+`reconcileIntervalSec` need a restart of `gadak serve`.
 
 ### `fields` (FieldSpec)
 

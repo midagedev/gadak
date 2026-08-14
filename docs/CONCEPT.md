@@ -16,6 +16,11 @@ They have one cause: the data lives only behind an API. Fix the location and bot
 improve at once. A local mirror makes filtering a memory operation and makes the
 history queryable with SQL.
 
+The wiki next door is the same problem twice. Half of what an agent needs is not
+in the tracker; "what do we know about X?" is split across Jira search and
+Confluence search, which do not talk to each other. One file holds both: one FTS
+index, joins across sources, no token spent on pagination.
+
 That is the whole idea. Everything else is consequence.
 
 ## What follows from it
@@ -77,6 +82,55 @@ What the product *is*, in order:
 Steps 1 through 4 are what the extracted application already does in daily use.
 Steps 5 and 6 are what make it worth publishing: SQL answers; views present.
 
+## Two surfaces
+
+| | For | Looks like |
+| --- | --- | --- |
+| **App + Web UI** | all-day triage | the [macOS app](DESKTOP.md) — no port, no local server — or the same UI in a browser tab (`gadak serve`) |
+| **CLI + SQL** | agents, scripts, one-off questions | `gadak issue`, `gadak search` (FTS, or `--jql` / a Jira URL), `gadak sql`, plus the file itself |
+
+`j`/`k` walk the list, `x` selects, `s`/`a`/`l`/`c` change status, assignee,
+labels, or leave a comment without leaving the list. Click an issue to rename
+it, change priority, or edit labels. Paste a Jira filter URL or JQL into the
+list box and the chips apply; **Copy JQL** is the way back
+([decision 0007](decisions/0007-jql-subset.md)). Sync also pulls the filters
+you own or have starred into the sidebar.
+
+**Search ⌘K** in the toolbar queries titles, bodies, and comments across every
+issue and every document, ignoring the chips on the list, and labels the field
+that matched with a snippet. The box above the list only narrows this view.
+
+Documents are first-class: recency lists, deep links (`?doc=`), and
+cross-references both ways. Modeled issue and wiki links open the native
+panel; the key in the header is the way out to Jira. Anything the mirror does
+not model — a board, a workflow screen, a Confluence draft — opens in the
+app's in-app tab (a system tab under `serve`); close it and the mirror
+re-reads.
+
+Writes go through to Jira and then refresh the mirror. Comment, transition,
+assign, labels, priority, and the title work from the app and the web UI; the
+CLI covers comment, transition, and assign. Field edits and issue creation stay
+on that surface (values always come from what Jira allows, never free text).
+The wiki mirror itself is read-only on purpose — Confluence stays the place
+where documents are written.
+
+Hierarchy is first-class: `epic_key` is derived honestly (the nearest epic
+*ancestor*, so a sub-task groups under its epic, not its story), group-by-epic
+headers show the epic's actual title, an epic's detail rolls up its children
+(`12 done / 14`), and both breadcrumbs — issue and document — are clickable.
+"Which issues came back after we closed them, and why?" is `where reopen_count
+> 0`. "Which epic is actually stuck?" is a group-by on `epic_key`. In Jira
+neither is a question you can ask.
+
+Jira and Confluence never tell each other what mentions what, but the text
+does: gadak extracts issue keys from page bodies and wiki links from issue
+text into an `item_refs` table while it syncs. That is why an issue can list
+the design docs that cite it and a page can list the tickets it references.
+
+Attachments are local too. The first view of an image caches its bytes next to
+the mirror and every later view is a disk read, so a screenshot-heavy issue
+opens at the speed of the rest of the app — and keeps rendering offline.
+
 ## Why not the alternatives
 
 **A faster Jira client.** Any client that calls Jira per interaction inherits
@@ -101,3 +155,21 @@ Not a Jira replacement — we do not reimplement boards, dashboards, or the rest
 of Jira's UI; we contain those pages so the window can hold what the mirror
 refuses to model. Not a sync engine. Not an archive. Not multi-user. Not a
 place to put anything you cannot afford to lose.
+
+## Good fit / bad fit
+
+| Use gadak when… | Use Jira/Confluence directly when… |
+| --- | --- |
+| You search and triage the same projects every day and the latency hurts. | You need boards, sprints, reports, automation, permissions. |
+| You want an agent to reason over your tracker's history *and* your wiki. | You need administration, workflow editing, or document authoring. |
+| You want offline reading of everything you have access to. | A minute of staleness matters. |
+| Your tracker holds tens of thousands of issues and Jira's UI struggles. | Your team is small enough that Jira already feels instant. |
+
+**In scope:** issue fields, descriptions, comments, attachments, changelog,
+links, epic hierarchy, status transitions, assignee, labels, priority, title,
+wiki pages (bodies, comments, labels), full-text search across all of it,
+saved views, watches; field edits and issue creation in the app and the web UI.
+**Out of scope:** boards and sprint mechanics, project administration, workflow
+configuration, permission schemes, writing to the wiki, grouping the list by
+label (filter the chips instead). Those stay in Jira and Confluence; the
+macOS app contains them in the same window.

@@ -73,11 +73,19 @@ bodies, long descriptions), and it is invoked on Enter, not per character.
 
 ```
 gadak sync         Jira REST -> neutral records -> upsert -> derived fields -> FTS rebuild -> version++
+                  Confluence REST -> same spine; incremental CQL plus a comments-only
+                  pass (comment edits do not bump a page's version)
 browser boot      IndexedDB -> paint -> GET bootstrap (If-None-Match) -> 304 or replace pool
 every 15s         GET delta?since=<cursor> -> upsert/delete in pool and IndexedDB
 open an issue     GET <key>/detail/ -> assembled from SQLite, cached per key in the client
 type in search    in-memory filter; Enter adds GET search/ for body and comment text
 ```
+
+Sync is incremental with an overlap on the watermark, plus a reconcile pass so
+deletions do not linger. The storage spine is source-neutral (`items` + per-kind
+projections + one FTS index): Confluence merged without reshaping the database,
+and the same spine is where the next source lands
+(`decisions/0006-confluence-connector.md`).
 
 ## Data flow: writing
 
@@ -100,9 +108,12 @@ questions people and agents actually ask ("what regressed", "what is stuck") are
 not answerable from Jira's current-state fields alone, and computing them per
 query would be slow and duplicated across callers.
 
-Every rule that could depend on an installation's vocabulary keys on
-`statusCategory` instead of a status name. See `../specs/000-product/data-model.md`
-for the rules and `EXTRACTION.md` for what changed from the internal original.
+The sources do not provide: `reopen_count` and `reopen_reason`,
+`status_changed_at`, `resolved_at`, `cloned_from`, and the honest `epic_key`
+(nearest epic ancestor). Every rule that could depend on an installation's
+vocabulary keys on `statusCategory` and ids, never on a localized name. See
+`../specs/000-product/data-model.md` for the rules and `EXTRACTION.md` for what
+changed from the internal original.
 
 ## Frontend structure
 
