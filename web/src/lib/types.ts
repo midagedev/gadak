@@ -58,6 +58,9 @@ export interface IssueLite {
   /** Stable Jira issue-type id. Older cached rows may omit it. */
   issue_type_id?: string
   priority: string | null
+  /** Stable Jira priority id. Older cached rows and current mirrors omit it
+   *  (no issues.priority_id column yet) — match falls back to `priority`. */
+  priority_id?: string | null
   priority_rank: number | null
   severity: string | null
 
@@ -387,6 +390,9 @@ export interface PageLite {
   space_homepage_id?: string
   parent_id: string | null
   author: string | null
+  /** Stable author account id. Older servers/cached rows omit it — group
+   *  by this when present, else the display name. */
+  author_id?: string | null
   updated_at: string | null
   version: number
   url: string

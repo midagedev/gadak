@@ -514,6 +514,51 @@ func TestSettingsRuntimeProfileName(t *testing.T) {
 	}
 }
 
+func TestWebConfigProfileName(t *testing.T) {
+	t.Cleanup(func() { config.SetProfile("") })
+
+	config.SetProfile("")
+	doc, err := WebConfig(&config.Config{Site: "https://x.example"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got webConfigDoc
+	if err := json.Unmarshal(doc, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Profile != "default" {
+		t.Errorf("empty profile = %q, want default", got.Profile)
+	}
+
+	config.SetProfile("work")
+	doc, err = WebConfig(&config.Config{Site: "https://x.example"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(doc, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Profile != "work" {
+		t.Errorf("named profile = %q, want work", got.Profile)
+	}
+
+	// Workspace mount names the profile from the path, not the process primary.
+	config.SetProfile("work")
+	doc, err = WebConfigBase(&config.Config{Site: "https://x.example"}, "/w/demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(doc, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Profile != "demo" {
+		t.Errorf("/w/demo profile = %q, want demo", got.Profile)
+	}
+	if got.APIBase != "/w/demo"+apiBase {
+		t.Errorf("apiBase = %q", got.APIBase)
+	}
+}
+
 func TestHumanBytes(t *testing.T) {
 	cases := []struct {
 		n    int64

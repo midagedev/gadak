@@ -49,6 +49,11 @@ type webConfigDoc struct {
 	// ConfluenceEnabled is true when the wiki source is configured (cfg.Confluence
 	// non-nil). Boolean only — no site, token, or space list.
 	ConfluenceEnabled bool `json:"confluenceEnabled"`
+	// Profile is the gadak profile name this document belongs to. Empty and
+	// "default" both serialize as "default" (same as `gadak doctor --json`
+	// and `gadak profiles`), so two primaries on one origin never share a
+	// client cache key.
+	Profile string `json:"profile"`
 }
 
 // webConfig is the credential-free projection of the configuration. Site is the
@@ -73,6 +78,7 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		StaleThresholdHours: stale,
 		Features:            features(cfg.Features),
 		ConfluenceEnabled:   cfg.Confluence != nil,
+		Profile:             profileDisplay(config.Profile()),
 	}
 }
 

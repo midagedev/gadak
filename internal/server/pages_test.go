@@ -29,7 +29,7 @@ func fixturePages(t *testing.T) (*store.DB, *config.Config) {
 			Item: store.Item{
 				ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
 				Key: "100", Title: "빌링 품질 회의록", BodyText: "빌링 품질 논의",
-				Author: "Dana", URL: "https://x/wiki/spaces/PROD/pages/100",
+				Author: "Dana", AuthorID: "acc-dana", URL: "https://x/wiki/spaces/PROD/pages/100",
 				CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
 			},
 			Page: store.Page{SpaceKey: "PROD", Version: 2, Status: "current", BodyADF: adf},
@@ -363,5 +363,30 @@ func TestHealthExposesConfluenceWhenSourcePresent(t *testing.T) {
 		if src.Key == "confluence" {
 			t.Fatal("confluence source exposed without sources row")
 		}
+	}
+}
+
+func TestPagesResponseIncludesAuthorID(t *testing.T) {
+	db, cfg := fixturePages(t)
+	h := New(db, cfg)
+	list := decode[struct {
+		Pages []store.PageLite `json:"pages"`
+	}](t, get(t, h, apiBase+"pages/", nil))
+	var dana *store.PageLite
+	for i := range list.Pages {
+		if list.Pages[i].Key == "100" {
+			dana = &list.Pages[i]
+			break
+		}
+	}
+	if dana == nil {
+		t.Fatalf("page 100 missing: %+v", list.Pages)
+	}
+	if dana.AuthorID != "acc-dana" {
+		t.Errorf("page 100 author_id = %q, want acc-dana", dana.AuthorID)
+	}
+	detail := decode[store.PageDetail](t, get(t, h, apiBase+"pages/100/", nil))
+	if detail.AuthorID != "acc-dana" {
+		t.Errorf("detail author_id = %q", detail.AuthorID)
 	}
 }
