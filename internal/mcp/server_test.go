@@ -2,12 +2,17 @@ package mcp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/jql"
+	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/uifocus"
 )
 
 // demoDB copies examples/demo.db into a temp dir so tests never touch the tree.
@@ -29,9 +34,17 @@ func demoDB(t *testing.T) string {
 // session drives a full stdio-style exchange against an in-memory pair of pipes.
 func session(t *testing.T, dbPath string, frames ...string) []rpcResponse {
 	t.Helper()
+	return sessionProfile(t, dbPath, "", frames...)
+}
+
+func sessionProfile(t *testing.T, dbPath, profile string, frames ...string) []rpcResponse {
+	t.Helper()
+	if os.Getenv("GADAK_HOME") == "" {
+		t.Setenv("GADAK_HOME", t.TempDir())
+	}
 	in := strings.Join(frames, "\n") + "\n"
 	var out bytes.Buffer
-	srv := New(dbPath, "", "test")
+	srv := New(dbPath, profile, "test")
 	if err := srv.Serve(strings.NewReader(in), &out); err != nil {
 		t.Fatalf("Serve: %v", err)
 	}
@@ -60,11 +73,12 @@ func TestProtocolRoundTrip(t *testing.T) {
 		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"gadak_search","arguments":{"text":"upload","limit":3}}}`,
 		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"gadak_query","arguments":{"sql":"SELECT key, status_category FROM issues LIMIT 2","limit":2}}}`,
 		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"gadak_issue","arguments":{"key":"NMA-1"}}}`,
-		`{"jsonrpc":"2.0","id":7,"method":"ping"}`,
+		`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"gadak_show","arguments":{"keys":["NMA-1","NMA-2"]}}}`,
+		`{"jsonrpc":"2.0","id":8,"method":"ping"}`,
 	)
-	// notifications/initialized produces no response → 7 responses for 8 frames.
-	if len(resps) != 7 {
-		t.Fatalf("got %d responses, want 7", len(resps))
+	// notifications/initialized produces no response → 8 responses for 9 frames.
+	if len(resps) != 8 {
+		t.Fatalf("got %d responses, want 8", len(resps))
 	}
 
 	// initialize: speak our version even when client asked for an older one.
@@ -86,7 +100,7 @@ func TestProtocolRoundTrip(t *testing.T) {
 		t.Error("capabilities.tools missing")
 	}
 
-	// tools/list: exactly the four contracted tools.
+	// tools/list: exactly the five contracted tools.
 	var list struct {
 		Tools []Tool `json:"tools"`
 	}
@@ -101,13 +115,13 @@ func TestProtocolRoundTrip(t *testing.T) {
 			t.Errorf("tool %s has nil inputSchema", tool.Name)
 		}
 	}
-	for _, want := range []string{toolQuery, toolSearch, toolIssue, toolStatus} {
+	for _, want := range []string{toolQuery, toolSearch, toolIssue, toolStatus, toolShow} {
 		if !names[want] {
 			t.Errorf("tools/list missing %s", want)
 		}
 	}
-	if len(list.Tools) != 4 {
-		t.Errorf("tools/list has %d tools, want 4", len(list.Tools))
+	if len(list.Tools) != 5 {
+		t.Errorf("tools/list has %d tools, want 5", len(list.Tools))
 	}
 	// gadak_query description must carry the localization warning and examples.
 	var qdesc string
@@ -187,9 +201,38 @@ func TestProtocolRoundTrip(t *testing.T) {
 		t.Error("issue missing history")
 	}
 
+	// gadak_show
+	var showDesc string
+	for _, tool := range list.Tools {
+		if tool.Name == toolShow {
+			showDesc = tool.Description
+		}
+	}
+	for _, needle := range []string{"500 ms", "2 minute", "does not return", "does not open"} {
+		if !strings.Contains(showDesc, needle) {
+			t.Errorf("gadak_show description missing %q", needle)
+		}
+	}
+	showText := callText(t, resps[6])
+	var show struct {
+		Hash        string   `json:"hash"`
+		Applied     []string `json:"applied"`
+		Unsupported []string `json:"unsupported"`
+		File        string   `json:"file"`
+	}
+	if err := json.Unmarshal([]byte(showText), &show); err != nil {
+		t.Fatalf("show JSON: %v\n%s", err, showText)
+	}
+	if show.Hash != "ks=NMA-1,NMA-2" {
+		t.Errorf("show hash = %q, want ks=NMA-1,NMA-2", show.Hash)
+	}
+	if show.File == "" {
+		t.Error("show missing focus file path")
+	}
+
 	// ping
-	if resps[6].Error != nil {
-		t.Errorf("ping error: %+v", resps[6].Error)
+	if resps[7].Error != nil {
+		t.Errorf("ping error: %+v", resps[7].Error)
 	}
 }
 
@@ -308,6 +351,185 @@ func TestMissingDBToolError(t *testing.T) {
 	}
 	if !strings.Contains(cr.Content[0].Text, "gadak init") {
 		t.Errorf("guidance missing: %s", cr.Content[0].Text)
+	}
+}
+
+func TestShowWritesFocusForProfile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	db := demoDB(t)
+	args, _ := json.Marshal(map[string]any{
+		"name":      toolShow,
+		"arguments": map[string]any{"keys": []string{"NMA-1", "NMA-2"}},
+	})
+	resps := sessionProfile(t, db, "work",
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":`+string(args)+`}`,
+	)
+	text := callText(t, resps[0])
+	var body struct {
+		Hash        string   `json:"hash"`
+		Applied     []string `json:"applied"`
+		Unsupported []string `json:"unsupported"`
+		File        string   `json:"file"`
+	}
+	if err := json.Unmarshal([]byte(text), &body); err != nil {
+		t.Fatalf("show JSON: %v\n%s", err, text)
+	}
+	wantHash := "ks=NMA-1,NMA-2"
+	if body.Hash != wantHash {
+		t.Fatalf("hash = %q, want %q", body.Hash, wantHash)
+	}
+	wantFile, err := uifocus.PathFor("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body.File != wantFile {
+		t.Fatalf("file = %q, want %q", body.File, wantFile)
+	}
+	raw, err := os.ReadFile(wantFile)
+	if err != nil {
+		t.Fatalf("read focus file: %v", err)
+	}
+	var req struct {
+		Hash string `json:"hash"`
+	}
+	if err := json.Unmarshal(raw, &req); err != nil {
+		t.Fatalf("focus file JSON: %v\n%s", err, raw)
+	}
+	if req.Hash != wantHash {
+		t.Fatalf("focus file hash = %q, want %q", req.Hash, wantHash)
+	}
+	if _, err := os.Stat(filepath.Join(home, "ui-focus.json")); !os.IsNotExist(err) {
+		t.Fatalf("default-profile focus file should be absent: %v", err)
+	}
+}
+
+func TestShowInputExclusive(t *testing.T) {
+	db := demoDB(t)
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{"none", map[string]any{}},
+		{"keys+jql", map[string]any{"keys": []string{"NMA-1"}, "jql": "project = NMA"}},
+		{"issue+name", map[string]any{"issue": "NMA-1", "name": "x"}},
+		{"all four", map[string]any{
+			"jql": "project = NMA", "keys": []string{"NMA-1"},
+			"issue": "NMA-1", "name": "x",
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload, _ := json.Marshal(map[string]any{"name": toolShow, "arguments": tc.args})
+			resps := session(t, db,
+				`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":`+string(payload)+`}`,
+			)
+			if len(resps) != 1 {
+				t.Fatalf("want 1 response, got %d", len(resps))
+			}
+			if resps[0].Error != nil {
+				t.Fatalf("want tool-level error, got JSON-RPC: %+v", resps[0].Error)
+			}
+			var cr callResult
+			raw, _ := json.Marshal(resps[0].Result)
+			if err := json.Unmarshal(raw, &cr); err != nil {
+				t.Fatal(err)
+			}
+			if !cr.IsError {
+				t.Fatalf("expected isError; content=%v", cr.Content)
+			}
+			if len(cr.Content) == 0 || !strings.Contains(cr.Content[0].Text, "exactly one") {
+				t.Fatalf("want exactly-one error, got %v", cr.Content)
+			}
+		})
+	}
+}
+
+func TestShowJQLUnsupportedPartial(t *testing.T) {
+	db := demoDB(t)
+	args, _ := json.Marshal(map[string]any{
+		"name":      toolShow,
+		"arguments": map[string]any{"jql": `project = NMA AND sprint = 12`},
+	})
+	resps := session(t, db,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":`+string(args)+`}`,
+	)
+	text := callText(t, resps[0])
+	var body struct {
+		Hash        string   `json:"hash"`
+		Applied     []string `json:"applied"`
+		Unsupported []string `json:"unsupported"`
+	}
+	if err := json.Unmarshal([]byte(text), &body); err != nil {
+		t.Fatalf("show JSON: %v\n%s", err, text)
+	}
+	if !strings.Contains(body.Hash, "pj=NMA") {
+		t.Fatalf("supported project was not applied: hash=%q", body.Hash)
+	}
+	if strings.Contains(strings.ToLower(body.Hash), "sprint") {
+		t.Fatalf("unsupported sprint leaked into hash: %q", body.Hash)
+	}
+	joined := strings.Join(body.Unsupported, " | ")
+	if !strings.Contains(strings.ToLower(joined), "sprint") {
+		t.Fatalf("unsupported missing sprint: %v", body.Unsupported)
+	}
+	applied := strings.Join(body.Applied, " ")
+	if !strings.Contains(applied, "project") {
+		t.Fatalf("applied missing project: %v", body.Applied)
+	}
+}
+
+func TestShowNameUsesStoredViewLookup(t *testing.T) {
+	dbPath := demoDB(t)
+	db, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := json.RawMessage(`{"filters":{"jira_project":["NMA"]},"display":{}}`)
+	if err := db.PutSavedView(context.Background(), store.SavedView{
+		ID: "cli-tm-m-unique-view-zz9", Name: "TM-M unique view zz9", Config: cfg,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	f := jql.EmptyFilter()
+	f.JiraProject = []string{"NMA"}
+	wantHash := jql.Hash(f, jql.Display{})
+
+	args, _ := json.Marshal(map[string]any{
+		"name":      toolShow,
+		"arguments": map[string]any{"name": "TM-M unique view zz9"},
+	})
+	resps := session(t, dbPath,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":`+string(args)+`}`,
+	)
+	text := callText(t, resps[0])
+	var body struct {
+		Hash string `json:"hash"`
+	}
+	if err := json.Unmarshal([]byte(text), &body); err != nil {
+		t.Fatalf("show JSON: %v\n%s", err, text)
+	}
+	if body.Hash != wantHash {
+		t.Fatalf("name hash = %q, want %q (same as CLI hashFromConfig)", body.Hash, wantHash)
+	}
+}
+
+func TestShowKeysNoMirror(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nope.db")
+	args, _ := json.Marshal(map[string]any{
+		"name":      toolShow,
+		"arguments": map[string]any{"keys": []string{"NMA-1", "NMA-2"}},
+	})
+	resps := session(t, path,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":`+string(args)+`}`,
+	)
+	text := callText(t, resps[0])
+	if !strings.Contains(text, "ks=NMA-1,NMA-2") {
+		t.Fatalf("keys without mirror: %s", text)
 	}
 }
 

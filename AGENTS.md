@@ -251,9 +251,11 @@ gadak mcp                          # stdio JSON-RPC; logs go to stderr only
 gadak --profile demo mcp
 ```
 
-Four tools, no more: `gadak_query` (read-only SQL), `gadak_search`, `gadak_issue`,
-`gadak_status`. There are no write tools on MCP. Setup examples (Claude Desktop
-config, profiles, troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
+Five tools: `gadak_query` (read-only SQL), `gadak_search`, `gadak_issue`,
+`gadak_status`, `gadak_show`. MCP does not write to the mirror or to Jira;
+`gadak_show` writes a local ui-focus file so the running app presents the set
+(SQL answers; show presents). Setup examples (Claude Desktop config, profiles,
+troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
 
 ## Developing gadak
 
