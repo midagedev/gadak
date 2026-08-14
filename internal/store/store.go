@@ -64,6 +64,12 @@ func Open(path string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Personal history is a sibling file (local.db), ATTACHed as `local` by
+	// attachLocalHook on every connection. Create/migrate it first so the hook
+	// finds the file; a failure here must not refuse the mirror.
+	if err := EnsureLocal(path); err != nil {
+		log.Printf("store: local.db: %v", err)
+	}
 	db := &DB{sql: sqlDB, path: path}
 	if err := db.migrate(); err != nil {
 		sqlDB.Close()
@@ -73,6 +79,7 @@ func Open(path string) (*DB, error) {
 	// when they exist. SQLite mints new sidecars with the main file's mode, so
 	// 0600 on the DB is enough for later writes; we still chmod any that exist.
 	secureDBFiles(path)
+	secureDBFiles(LocalPath(path))
 	return db, nil
 }
 

@@ -152,6 +152,11 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// Literal patterns beat `{key}/{action}/` and `{key}/detail/`.
 	mux.HandleFunc("GET "+apiBase+"feed/{$}", s.handleGetFeed)
 	mux.HandleFunc("POST "+apiBase+"feed/read/{$}", s.handleMarkFeedRead)
+	// Local history (local.db). Literals beat `{key}/{action}/`.
+	mux.HandleFunc("GET "+apiBase+"history/{$}", s.handleGetHistory)
+	mux.HandleFunc("POST "+apiBase+"history/visits/{$}", s.handlePostVisit)
+	mux.HandleFunc("POST "+apiBase+"history/searches/{$}", s.handlePostSearch)
+	mux.HandleFunc("PATCH "+apiBase+"history/searches/{id}/{$}", s.handlePatchSearch)
 	// People axis: comments by author (exact author_id). Three-segment path so it
 	// does not collide with `{key}/{action}/`.
 	mux.HandleFunc("GET "+apiBase+"people/{author_id}/comments/{$}", s.handlePeopleComments)

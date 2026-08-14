@@ -520,7 +520,9 @@ func openReadOnly() (*sql.DB, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("no mirror at %s — run `gadak sync` first", path)
 	}
-	return sql.Open("sqlite", "file:"+path+"?mode=ro")
+	// OpenReadOnly ATTACHes local.db (creates an empty one if the profile
+	// predates history) so `SELECT … FROM local.visits` works without ATTACH.
+	return store.OpenReadOnly(path)
 }
 
 func cmdSQL(args []string) error {

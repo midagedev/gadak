@@ -312,6 +312,24 @@ func DBPath() (string, error) {
 	return DBPathFor(Profile())
 }
 
+// LocalDBFile is the personal-history SQLite filename (visits/searches).
+// It sits next to the mirror and is never sent to Jira or into a snapshot.
+const LocalDBFile = "local.db"
+
+// LocalDBPathFor is local.db for the named profile (same directory as gadak.db).
+func LocalDBPathFor(profile string) (string, error) {
+	d, err := DirFor(profile)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(d, LocalDBFile), nil
+}
+
+// LocalDBPath is local.db for the active profile.
+func LocalDBPath() (string, error) {
+	return LocalDBPathFor(Profile())
+}
+
 // AttachmentDirFor is where attachment bytes are cached for the named profile.
 func AttachmentDirFor(profile string) (string, error) {
 	d, err := DirFor(profile)
