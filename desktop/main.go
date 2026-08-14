@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -166,13 +167,26 @@ func run() error {
 		MinWidth:  720,
 		MinHeight: 480,
 		URL:       "/",
+		// --wails-draggable is not a native hit-test. The v3 runtime module
+		// (internal/runtime/.../drag.ts) attaches capture-phase listeners and
+		// posts wails:drag / wails:drag:doubleclick. Official examples put
+		// <script type="module" src="/wails/runtime.js"> in the page; this
+		// bundle also serves `gadak serve`, so the tag is not in index.html.
+		// Evaluate the import after navigation so `/` and `/w/` remounts both
+		// get drag. The asset-server middleware serves /wails/runtime.js
+		// before our mux — this is not a fallback for a swallowed path.
+		JS: `void import("/wails/runtime.js")`,
 		Mac: application.MacWindow{
 			// No native title bar: it spent 28px to repeat a word the sidebar
 			// already shows. The window controls stay (they move into the
-			// sidebar's first row, which reserves their width and is the drag
-			// handle — see .desktop-titlebar-row in web/src/app.css).
+			// sidebar's first row, which reserves their width and is a drag
+			// handle — see .desktop-titlebar-row in web/src/app.css). The
+			// list toolbar is the other handle (.desktop-drag-region).
 			TitleBar: application.MacTitleBarHiddenInset,
 		},
+	})
+	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+		log.Print("wails runtime ready — --wails-draggable listeners are attached")
 	})
 
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
@@ -240,6 +254,10 @@ func assetHandler(ui fs.FS, next http.Handler) http.Handler {
 			return
 		}
 		name := path.Clean(strings.TrimPrefix(r.URL.Path, "/"))
+		if name == "index.html" {
+			serveDesktopIndex(w, ui)
+			return
+		}
 		file, err := ui.Open(name)
 		if err != nil {
 			next.ServeHTTP(w, r)
@@ -435,7 +453,7 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 		api.ServeHTTP(w, r)
 	}))
 	spa := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFileFS(w, r, ui, "index.html")
+		serveDesktopIndex(w, ui)
 	})
 	if reg != nil {
 		ws := reg.Handler(spa, appVersion)
@@ -449,9 +467,43 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// SPA fallback: unknown paths are client-side routes.
-		http.ServeFileFS(w, r, ui, "index.html")
+		serveDesktopIndex(w, ui)
 	})
 	return mux
+}
+
+// wailsRuntimeScript is how every v3 example loads drag. The same index.html
+// is embedded for `gadak serve`, so the tag cannot live in the file; only
+// this desktop handler injects it.
+const wailsRuntimeScript = `<script type="module" src="/wails/runtime.js"></script>`
+
+func injectWailsRuntime(html []byte) []byte {
+	if bytes.Contains(html, []byte("/wails/runtime.js")) {
+		return html
+	}
+	if i := bytes.LastIndex(html, []byte("</head>")); i >= 0 {
+		out := make([]byte, 0, len(html)+len(wailsRuntimeScript))
+		out = append(out, html[:i]...)
+		out = append(out, wailsRuntimeScript...)
+		out = append(out, html[i:]...)
+		return out
+	}
+	return append(append([]byte(nil), html...), wailsRuntimeScript...)
+}
+
+func serveDesktopIndex(w http.ResponseWriter, ui fs.FS) {
+	if ui == nil {
+		http.Error(w, "no ui", http.StatusNotFound)
+		return
+	}
+	raw, err := fs.ReadFile(ui, "index.html")
+	if err != nil {
+		http.Error(w, "index.html missing", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(injectWailsRuntime(raw))
 }
 
 // withDesktopFlag marks the config document the app serves. One web bundle is

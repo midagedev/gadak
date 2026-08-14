@@ -299,19 +299,53 @@
     window. 90px leaves a 12px gap after the last one; padding-top 4px moves
     this row's centre line from 24 to 26 to meet theirs.
 
-    The row is also the only place left to grab the window, so it carries the
-    drag property. It holds no controls, which is what makes that safe:
-    --wails-draggable inherits, and Wails reads it off the event target, so a
-    button inside a drag region stops responding to clicks.
+    The row is one of two grab surfaces (the list toolbar is the other —
+    .desktop-drag-region). It holds no controls, which is what makes a full-
+    row drag property safe: --wails-draggable inherits, and Wails reads it
+    off the event target, so a button inside a drag region stops responding
+    to clicks.
 
     Sets the paddings and replaces px-4 rather than overriding it — this rule
     lives in the components layer, which loses to a utility of equal weight.
+
+    user-select is none only on this class, which the sidebar applies under
+    config.desktop. A browser tab never gets the class.
   */
   .desktop-titlebar-row {
     padding-left: 90px;
     padding-right: 1rem;
     padding-top: 4px;
     --wails-draggable: drag;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /*
+    Main-column grab strip. ListView adds this class under config.desktop so
+    the search/filter band moves the window. Interactive clusters inside take
+    .desktop-no-drag (and the descendant :is() rule below is the backstop
+    when a new control is not wrapped).
+  */
+  .desktop-drag-region {
+    --wails-draggable: drag;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .desktop-no-drag {
+    --wails-draggable: no-drag;
+  }
+
+  .desktop-drag-region
+    :is(button, input, textarea, select, a, [role='button'], [role='textbox'], [role='combobox'], [role='tab']),
+  .desktop-titlebar-row :is(button, input, textarea, select, a, [role='button']) {
+    --wails-draggable: no-drag;
+  }
+
+  .desktop-drag-region :is(input, textarea),
+  .desktop-no-drag :is(input, textarea) {
+    user-select: text;
+    -webkit-user-select: text;
   }
 
   /*
