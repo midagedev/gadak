@@ -131,6 +131,26 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak serve", "gadak snapshot"},
 	},
+	"export": {
+		summary: "dump saved views, watches, and favorites as JSON (no credentials)",
+		usage:   "gadak [--profile <name>] export [--out FILE]",
+		options: []helpOption{
+			{name: "out", desc: "write to this file instead of stdout"},
+		},
+		examples: []string{
+			"gadak export",
+			"gadak export --out gadak-personal.json",
+		},
+		seeAlso: []string{"gadak import", "gadak team export", "gadak export-static"},
+	},
+	"import": {
+		summary: "restore saved views, watches, and favorites from a gadak export file (file wins on name/key conflict)",
+		usage:   "gadak [--profile <name>] import <FILE>",
+		examples: []string{
+			"gadak import gadak-personal.json",
+		},
+		seeAlso: []string{"gadak export", "gadak team import"},
+	},
 	"export-static": {
 		summary: "freeze a snapshot database into static JSON for a hosted demo",
 		usage:   "gadak export-static [options] <outdir>",

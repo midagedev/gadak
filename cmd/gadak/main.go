@@ -2,7 +2,8 @@
 //
 // Implemented: init, sync (--full/--watch), serve (syncs by default),
 // issue, search, comment, transition, assign, sql, status, doctor, mcp, skill,
-// demo, export-static, install-service, install-cli, profiles, version, snapshot, team.
+// demo, export-static, export, import, install-service, install-cli, profiles,
+// version, snapshot, team.
 // See specs/000-product/tasks.md for the current state of each.
 //
 // The agent-facing commands live in agent.go; AGENTS.md is their reference.
@@ -1232,6 +1233,8 @@ Reading the mirror (no network; see AGENTS.md):
   views      list/open Jira filters      [list|show|open|save]  (alias: view)
   sql        read-only SQL               [--json|--csv] [--no-header] "select ..."
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
+  export     dump saved views, watches, favorites as JSON  [--out FILE]
+  import     restore them from a gadak export file         <FILE>
   mcp        MCP server on stdio; mcp install <client> pins profile (docs/MCP.md)
   skill      install Claude Code skill (schema + queries; no MCP process)
 
@@ -1332,8 +1335,10 @@ var commands = map[string]func([]string) error{
 	"comment":         cmdComment,
 	"demo":            cmdDemo,
 	"doctor":          cmdDoctor,
+	"export":          cmdExport,
 	"export-static":   cmdExportStatic,
 	"fields":          cmdFields,
+	"import":          cmdImport,
 	"init":            cmdInit,
 	"install-cli":     cmdInstallCLI,
 	"install-service": cmdInstallService,

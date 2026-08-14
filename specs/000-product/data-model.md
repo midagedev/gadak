@@ -381,7 +381,8 @@ Revisit with `trigram` if body search in CJK proves weak.
 ## `saved_views`, `watches`, `favorites`
 
 Local personal state. These are the only rows a user would miss if the database
-were deleted, so `gadak export` must be able to dump them.
+were deleted, so `gadak export` dumps them and `gadak import` restores them
+(name or key conflict: the file wins).
 
 | Table | Columns |
 | --- | --- |

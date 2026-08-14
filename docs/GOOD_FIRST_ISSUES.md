@@ -4,24 +4,11 @@ Concrete starter work with code evidence. Prefer these over vague "docs polish"
 unless you have a specific gap in mind. Label candidates `good first issue` when
 filing.
 
-## 1. `gadak export` for personal state (T1.4)
+## 1. `gadak export` for personal state (T1.4) — done
 
-**Why:** `saved_views`, `watches`, and `favorites` are the only rows a user
-loses if the mirror is deleted. The schema documents that `gadak export` must dump
-them; the command does not exist yet.
-
-**Where:**
-
-- Spec: `specs/000-product/tasks.md` T1.4 (tables and CRUD done; export not written)
-- Contract: `specs/000-product/data-model.md` — section `saved_views`, `watches`,
-  `favorites`
-- Store CRUD: `internal/store` personal helpers; HTTP already in
-  `internal/server/personal.go`
-- CLI wiring: `cmd/gadak/main.go` (new subcommand next to `status` / `sql`)
-
-**Done when:** `gadak export` writes JSON (or a small archive) of the three
-tables for the active profile; a round-trip test restores them into an empty DB;
-no credentials appear in the output.
+Shipped: `gadak export [--out FILE]` / `gadak import <FILE>` dump and restore
+`saved_views`, `watches`, and `favorites`. Round-trip coverage is
+`TestExportImportRoundTripDemoDB` in `cmd/gadak/export_test.go`.
 
 ## 2. Resolve `@Name` mentions in `gadak comment`
 
