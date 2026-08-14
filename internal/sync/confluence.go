@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -157,8 +158,21 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		return nil
 	}
 
-	processHits := func(spaceMaxUTC, spaceMaxRaw *string) func([]confluence.Page) error {
+	noteFetched := func(ids map[string]struct{}) func([]confluence.Page) {
+		return func(hits []confluence.Page) {
+			for _, h := range hits {
+				if h.ID != "" {
+					ids[h.ID] = struct{}{}
+				}
+			}
+		}
+	}
+
+	processHits := func(spaceMaxUTC, spaceMaxRaw *string, seen map[string]struct{}) func([]confluence.Page) error {
 		return func(hits []confluence.Page) error {
+			if seen != nil {
+				noteFetched(seen)(hits)
+			}
 			batch := make([]store.PageRecord, 0, pageBatchSize)
 			spaceByKey := map[string]store.SpaceRow{}
 			for _, hit := range hits {
@@ -210,10 +224,23 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		}
 		fetchedBefore := res.Fetched
 		var spaceMaxUTC, spaceMaxRaw string
-		if err := c.SearchPages(ctx, cql, processHits(&spaceMaxUTC, &spaceMaxRaw)); err != nil {
+		seen := map[string]struct{}{}
+		if err := c.SearchPages(ctx, cql, processHits(&spaceMaxUTC, &spaceMaxRaw, seen)); err != nil {
 			return record(ctx, db, ConfluenceSourceID, err)
 		}
 		opts.logf("confluence: space %s floor=%s fetched=%d", key, floorLabel, res.Fetched-fetchedBefore)
+
+		// comments-only pass: one type=comment CQL per incremental space.
+		// Pages already fetched above are skipped. Full/backfill already
+		// loaded every page's comments, so they skip this pass.
+		if !backfill {
+			if err := commentsOnlyPass(ctx, c, opts, key, wms[key], seen,
+				&spaceMaxUTC, &spaceMaxRaw, &maxUTC, &maxRaw,
+				processHits(&spaceMaxUTC, &spaceMaxRaw, seen)); err != nil {
+				return record(ctx, db, ConfluenceSourceID, err)
+			}
+		}
+
 		if spaceMaxRaw == "" {
 			return nil
 		}
@@ -364,6 +391,119 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 		})
 	}
 	return rec, spaceName, when, nil
+}
+
+// commentsOnlyPass finds pages whose comments changed without a body edit.
+// Cost cap: one CQL per incremental space (type=comment + lastModified floor).
+// Hits are resolved to container page IDs; pages already fetched in the page
+// pass are skipped. Never a full-space refetch (that would undo C4).
+//
+// Decision 0006 described a comments-only pass on a global watermark. The
+// floor is now per-space (spaces.watermark) so a failed space cannot inherit
+// another space's comment cursor. Watermark advances to max(page, comment)
+// lastModified so a quiet wiki does not rescan every comment since the last
+// body edit on every Watch tick.
+func commentsOnlyPass(
+	ctx context.Context,
+	c *confluence.Client,
+	opts Options,
+	spaceKey, watermark string,
+	seen map[string]struct{},
+	spaceMaxUTC, spaceMaxRaw, maxUTC, maxRaw *string,
+	fetch func([]confluence.Page) error,
+) error {
+	cql := fmt.Sprintf(`space=%s AND type=comment AND lastModified >= "%s" order by lastmodified asc`,
+		cqlSpace(spaceKey), cqlTime(watermark))
+	var commentHits int
+	need := map[string]struct{}{}
+	err := c.SearchPages(ctx, cql, func(hits []confluence.Page) error {
+		for _, hit := range hits {
+			commentHits++
+			if when := hit.Version.When; when != "" {
+				iso := jira.ISOTime(when)
+				if iso > *spaceMaxUTC {
+					*spaceMaxUTC, *spaceMaxRaw = iso, when
+				}
+				if iso > *maxUTC {
+					*maxUTC, *maxRaw = iso, when
+				}
+			}
+			pid, err := resolveCommentContainer(ctx, c, hit)
+			if err != nil {
+				opts.logf("confluence: comments-only skip %s: %v", hit.ID, err)
+				continue
+			}
+			if pid == "" {
+				opts.logf("confluence: comments-only skip %s (no container page)", hit.ID)
+				continue
+			}
+			if _, ok := seen[pid]; ok {
+				continue
+			}
+			need[pid] = struct{}{}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	pages := make([]confluence.Page, 0, len(need))
+	for id := range need {
+		pages = append(pages, confluence.Page{ID: id})
+	}
+	if len(pages) > 0 {
+		if err := fetch(pages); err != nil {
+			return err
+		}
+	}
+	opts.logf("confluence: comments-only space %s pages=%d comment_hits=%d",
+		spaceKey, len(pages), commentHits)
+	return nil
+}
+
+// reCommentPageID / reCommentWebUIPage extract the container page from a
+// comment search hit's webui. store.reWikiPage requires /wiki/spaces/ which
+// Cloud webui often omits (/spaces/KEY/pages/ID or pageId=).
+var (
+	reCommentPageID    = regexp.MustCompile(`(?i)pageId=(\d+)`)
+	reCommentWebUIPage = regexp.MustCompile(`/pages/(\d+)`)
+)
+
+func commentContainerFromWebUI(webui string) string {
+	if webui == "" {
+		return ""
+	}
+	if m := reCommentPageID.FindStringSubmatch(webui); len(m) == 2 {
+		return m[1]
+	}
+	if m := reCommentWebUIPage.FindStringSubmatch(webui); len(m) == 2 {
+		return m[1]
+	}
+	return ""
+}
+
+// resolveCommentContainer maps a type=comment search hit to its page id.
+// Prefer _links.webui (no extra GET). Fallback: GET the comment and take
+// the first ancestor (page; replies list the page first, then the parent
+// comment).
+func resolveCommentContainer(ctx context.Context, c *confluence.Client, hit confluence.Page) (string, error) {
+	if hit.Type == "page" && hit.ID != "" {
+		return hit.ID, nil
+	}
+	if id := commentContainerFromWebUI(hit.Links.WebUI); id != "" {
+		return id, nil
+	}
+	if hit.ID == "" {
+		return "", nil
+	}
+	full, err := c.Page(ctx, hit.ID)
+	if err != nil {
+		return "", err
+	}
+	if n := len(full.Ancestors); n > 0 {
+		return full.Ancestors[0].ID, nil
+	}
+	return "", nil
 }
 
 func pageURL(c *confluence.Client, spaceKey, pageID string) string {

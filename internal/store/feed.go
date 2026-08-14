@@ -210,7 +210,7 @@ type issueMeta struct {
 }
 
 type rawChange struct {
-	ID, ItemID, At, Author, Field, FromValue, ToValue string
+	ID, ItemID, At, Author, AuthorID, Field, FromValue, ToValue string
 }
 
 type rawComment struct {
@@ -218,7 +218,7 @@ type rawComment struct {
 }
 
 type rawAttach struct {
-	ID, ItemID, Filename, Author, CreatedAt string
+	ID, ItemID, Filename, Author, AuthorID, CreatedAt string
 }
 
 func (db *DB) computeFeedEvents(ctx context.Context, me FeedIdentity, now time.Time) ([]FeedItem, error) {
@@ -296,7 +296,7 @@ func (db *DB) computeFeedEvents(ctx context.Context, me FeedIdentity, now time.T
 		if !ok {
 			continue
 		}
-		if isSelfActor(me, "", ch.Author) {
+		if isSelfActor(me, ch.AuthorID, ch.Author) {
 			continue
 		}
 		switch ch.Field {
@@ -428,7 +428,7 @@ func (db *DB) computeFeedEvents(ctx context.Context, me FeedIdentity, now time.T
 		if !ok {
 			continue
 		}
-		if isSelfActor(me, "", a.Author) {
+		if isSelfActor(me, a.AuthorID, a.Author) {
 			continue
 		}
 		reasons := relevance(me, iss, watches, false)
@@ -499,7 +499,7 @@ func (db *DB) loadIssueMeta(ctx context.Context) (map[string]issueMeta, error) {
 
 func (db *DB) loadChangelogSince(ctx context.Context, since string) ([]rawChange, error) {
 	rows, err := db.sql.QueryContext(ctx, `
-		SELECT id, item_id, COALESCE(at,''), COALESCE(author,''), COALESCE(field,''),
+		SELECT id, item_id, COALESCE(at,''), COALESCE(author,''), COALESCE(author_id,''), COALESCE(field,''),
 		       COALESCE(from_value,''), COALESCE(to_value,'')
 		FROM changelog WHERE at >= ?`, since)
 	if err != nil {
@@ -509,7 +509,7 @@ func (db *DB) loadChangelogSince(ctx context.Context, since string) ([]rawChange
 	var out []rawChange
 	for rows.Next() {
 		var c rawChange
-		if err := rows.Scan(&c.ID, &c.ItemID, &c.At, &c.Author, &c.Field, &c.FromValue, &c.ToValue); err != nil {
+		if err := rows.Scan(&c.ID, &c.ItemID, &c.At, &c.Author, &c.AuthorID, &c.Field, &c.FromValue, &c.ToValue); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -539,7 +539,7 @@ func (db *DB) loadCommentsSince(ctx context.Context, since string) ([]rawComment
 
 func (db *DB) loadAttachmentsSince(ctx context.Context, since string) ([]rawAttach, error) {
 	rows, err := db.sql.QueryContext(ctx, `
-		SELECT id, item_id, COALESCE(filename,''), COALESCE(author,''), COALESCE(created_at,'')
+		SELECT id, item_id, COALESCE(filename,''), COALESCE(author,''), COALESCE(author_id,''), COALESCE(created_at,'')
 		FROM attachments WHERE created_at >= ?`, since)
 	if err != nil {
 		return nil, err
@@ -548,7 +548,7 @@ func (db *DB) loadAttachmentsSince(ctx context.Context, since string) ([]rawAtta
 	var out []rawAttach
 	for rows.Next() {
 		var a rawAttach
-		if err := rows.Scan(&a.ID, &a.ItemID, &a.Filename, &a.Author, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.ItemID, &a.Filename, &a.Author, &a.AuthorID, &a.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -602,17 +602,16 @@ func isMe(me FeedIdentity, id, email string) bool {
 	return false
 }
 
-// isSelfActor excludes actions the local user performed. Only when the actor is
-// identifiable (author_id and/or author display name).
+// isSelfActor excludes actions the local user performed. author_id wins when
+// both sides have one (same display name, two accounts, must not collide).
+// Name fallback is only for legacy rows whose author_id is NULL.
 func isSelfActor(me FeedIdentity, authorID, author string) bool {
-	if me.AccountID != "" && authorID != "" && authorID == me.AccountID {
-		return true
+	if me.AccountID != "" && authorID != "" {
+		return authorID == me.AccountID
 	}
 	if me.DisplayName != "" && author != "" && author == me.DisplayName {
 		return true
 	}
-	// Email is not stored on changelog/attachment author fields, but comments
-	// and items may have author_id only — covered above.
 	return false
 }
 

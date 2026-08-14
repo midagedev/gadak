@@ -1098,3 +1098,81 @@ func kindsOf(runs []store.SyncRun) []string {
 	}
 	return out
 }
+
+// TestKoreanChangelogWithoutFieldIDRecordsStatus is FAIL-first for C10: a
+// Korean-account changelog item with no fieldId must still store field=status
+// so Derive sees the reopen.
+func TestKoreanChangelogWithoutFieldIDRecordsStatus(t *testing.T) {
+	issue := map[string]any{
+		"id": "20001", "key": "NMB-KO",
+		"fields": map[string]any{
+			"summary":   "korean changelog",
+			"project":   map[string]any{"key": "NMB"},
+			"issuetype": map[string]any{"id": "10004", "name": "버그"},
+			"status":    statusObj("1", "ko"),
+			"reporter":  map[string]any{"accountId": "acc-sam", "displayName": "Sam", "emailAddress": "sam@example.com"},
+			"created":   "2026-07-01T10:00:00.000+0900",
+			"updated":   "2026-08-04T10:00:00.000+0900",
+		},
+		"changelog": map[string]any{"total": 2, "histories": []any{
+			map[string]any{
+				"id": "hk1", "created": "2026-07-10T10:00:00.000+0900",
+				"author": map[string]any{"accountId": "acc-sam", "displayName": "Sam"},
+				"items": []any{map[string]any{
+					"field": "상태", "from": "1", "fromString": "할 일",
+					"to": "5", "toString": "완료",
+				}},
+			},
+			map[string]any{
+				"id": "hk2", "created": "2026-08-01T10:00:00.000+0900",
+				"author": map[string]any{"accountId": "acc-sam", "displayName": "Sam"},
+				"items": []any{map[string]any{
+					"field": "상태", "from": "5", "fromString": "완료",
+					"to": "1", "toString": "할 일",
+				}},
+			},
+		}},
+	}
+	b, err := json.Marshal(issue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site := &fakeSite{t: t, lang: "ko", issues: []json.RawMessage{b}, pageSize: 10, failOffset: -1,
+		changelog: map[string]string{}, comments: map[string]string{}}
+	db := newMirror(t)
+	cfg := testConfig()
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: site.start()}); err != nil {
+		t.Fatal(err)
+	}
+
+	var field string
+	if err := db.raw(t).QueryRow(`SELECT field FROM changelog WHERE id = 'jira:hk2:0'`).Scan(&field); err != nil {
+		t.Fatalf("changelog row: %v", err)
+	}
+	if field != "status" {
+		t.Errorf("C10: stored field = %q, want status (localized 상태 must not be stored)", field)
+	}
+	one := lite(t, db, "NMB-KO")
+	if one.ReopenCount != 1 {
+		t.Errorf("C10: reopen_count = %d, want 1 (Derive missed 상태)", one.ReopenCount)
+	}
+}
+
+func TestChangelogFieldIDPrefersStableID(t *testing.T) {
+	got := changelogField(jira.HistoryItem{Field: "상태", FieldID: "status"})
+	if got != "status" {
+		t.Errorf("fieldId present: got %q", got)
+	}
+	got = changelogField(jira.HistoryItem{Field: "상태"})
+	if got != "status" {
+		t.Errorf("korean fallback: got %q, want status", got)
+	}
+	got = changelogField(jira.HistoryItem{Field: "Status"})
+	if got != "status" {
+		t.Errorf("english fallback: got %q, want status", got)
+	}
+	got = changelogField(jira.HistoryItem{Field: "커스텀", FieldID: "customfield_9"})
+	if got != "customfield_9" {
+		t.Errorf("custom fieldId: got %q", got)
+	}
+}

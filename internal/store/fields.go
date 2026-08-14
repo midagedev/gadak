@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/fields"
@@ -99,6 +100,7 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 	// mirror would cost gigabytes; each raw lives only for its own iteration.
 	type update struct {
 		itemID     string
+		sourceID   string
 		rowid      int64
 		title      string
 		bodyText   string
@@ -107,16 +109,16 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 	}
 	var updates []update
 	rs, err := db.sql.QueryContext(ctx, `
-		SELECT i.item_id, it.rowid, COALESCE(it.title, ''), COALESCE(it.body_text, ''),
+		SELECT i.item_id, it.source_id, it.rowid, COALESCE(it.title, ''), COALESCE(it.body_text, ''),
 		       COALESCE(i.custom, '{}'), COALESCE(i.raw, ''), COALESCE(i.description_adf, '')
 		FROM issues i JOIN items it ON it.id = i.item_id`)
 	if err != nil {
 		return 0, err
 	}
 	for rs.Next() {
-		var itemID, title, bodyText, customJSON, raw, descADF string
+		var itemID, sourceID, title, bodyText, customJSON, raw, descADF string
 		var rowid int64
-		if err := rs.Scan(&itemID, &rowid, &title, &bodyText, &customJSON, &raw, &descADF); err != nil {
+		if err := rs.Scan(&itemID, &sourceID, &rowid, &title, &bodyText, &customJSON, &raw, &descADF); err != nil {
 			rs.Close()
 			return 0, err
 		}
@@ -152,6 +154,7 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 		}
 		updates = append(updates, update{
 			itemID:     itemID,
+			sourceID:   sourceID,
 			rowid:      rowid,
 			title:      title,
 			bodyText:   newBody,
@@ -177,14 +180,24 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 		}
 		chunk := updates[i:end]
 		err := db.write(ctx, func(tx *sql.Tx) error {
+			sources := map[string]bool{}
+			now := Now()
 			for _, u := range chunk {
 				if _, err := tx.Exec(`UPDATE issues SET custom = ? WHERE item_id = ?`, u.customJSON, u.itemID); err != nil {
 					return err
 				}
-				if _, err := tx.Exec(`UPDATE items SET body_text = ? WHERE id = ?`, u.bodyText, u.itemID); err != nil {
+				if _, err := tx.Exec(`UPDATE items SET body_text = ?, synced_at = ? WHERE id = ?`, u.bodyText, now, u.itemID); err != nil {
 					return err
 				}
 				if err := writeFTS(tx, u.rowid, u.title, u.bodyText, u.comments); err != nil {
+					return err
+				}
+				if u.sourceID != "" {
+					sources[u.sourceID] = true
+				}
+			}
+			for id := range sources {
+				if err := bumpVersion(tx, id, db.schemaVersion); err != nil {
 					return err
 				}
 			}
@@ -194,6 +207,7 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 			return 0, fmt.Errorf("reingest custom batch: %w", err)
 		}
 	}
+	log.Printf("store: reingest custom rewrote %d issues (version/synced_at bumped)", len(updates))
 	return len(updates), nil
 }
 

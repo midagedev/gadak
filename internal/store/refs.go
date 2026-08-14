@@ -66,9 +66,12 @@ func ExtractIssueRefsFromPage(bodyADF, bodyText string, knownProjects map[string
 	return refsFromMap(best, "issue")
 }
 
-// ExtractPageRefsFromIssue finds Confluence page IDs in an issue description and
-// its comment bodies. Both URL shapes use via=url. Duplicates collapse to one.
-func ExtractPageRefsFromIssue(bodyText string, commentBodies []string) []ItemRef {
+// ExtractPageRefsFromIssue finds Confluence page IDs in an issue description
+// (raw ADF + flattened text) and its comment bodies. Scanning ADF is what
+// picks up link marks and inlineCards that PlainText drops — the same raw
+// scan ExtractIssueRefsFromPage already does in the other direction.
+// Both URL shapes use via=url. Duplicates collapse to one.
+func ExtractPageRefsFromIssue(bodyADF, bodyText string, commentBodies []string) []ItemRef {
 	seen := map[string]struct{}{}
 	scan := func(s string) {
 		if s == "" {
@@ -85,6 +88,7 @@ func ExtractPageRefsFromIssue(bodyText string, commentBodies []string) []ItemRef
 			}
 		}
 	}
+	scan(bodyADF)
 	scan(bodyText)
 	for _, c := range commentBodies {
 		scan(c)
@@ -209,20 +213,21 @@ func backfillItemRefs(tx *sql.Tx) error {
 		}
 	}
 
-	// Issues: body_text + comments → page IDs.
+	// Issues: ADF + body_text + comments → page IDs.
 	type issueRow struct {
-		id, key, body string
+		id, key, body, adf string
 	}
 	var issues []issueRow
 	irows, err := tx.Query(`
-		SELECT id, COALESCE(key, ''), COALESCE(body_text, '')
-		FROM items WHERE kind = 'issue'`)
+		SELECT it.id, COALESCE(it.key, ''), COALESCE(it.body_text, ''), COALESCE(i.description_adf, '')
+		FROM items it JOIN issues i ON i.item_id = it.id
+		WHERE it.kind = 'issue'`)
 	if err != nil {
 		return err
 	}
 	for irows.Next() {
 		var r issueRow
-		if err := irows.Scan(&r.id, &r.key, &r.body); err != nil {
+		if err := irows.Scan(&r.id, &r.key, &r.body, &r.adf); err != nil {
 			irows.Close()
 			return err
 		}
@@ -237,20 +242,23 @@ func backfillItemRefs(tx *sql.Tx) error {
 	// Load all comment bodies keyed by item_id in one pass.
 	commentsByItem := map[string][]string{}
 	crows, err := tx.Query(`
-		SELECT c.item_id, COALESCE(c.body_text, '')
+		SELECT c.item_id, COALESCE(c.body_text, ''), COALESCE(c.body_adf, '')
 		FROM comments c
 		JOIN items it ON it.id = c.item_id AND it.kind = 'issue'`)
 	if err != nil {
 		return err
 	}
 	for crows.Next() {
-		var id, body string
-		if err := crows.Scan(&id, &body); err != nil {
+		var id, body, adf string
+		if err := crows.Scan(&id, &body, &adf); err != nil {
 			crows.Close()
 			return err
 		}
 		if body != "" {
 			commentsByItem[id] = append(commentsByItem[id], body)
+		}
+		if adf != "" {
+			commentsByItem[id] = append(commentsByItem[id], adf)
 		}
 	}
 	if err := crows.Err(); err != nil {
@@ -260,7 +268,7 @@ func backfillItemRefs(tx *sql.Tx) error {
 	crows.Close()
 
 	for _, r := range issues {
-		refs := filterSelfRef(ExtractPageRefsFromIssue(r.body, commentsByItem[r.id]), r.key)
+		refs := filterSelfRef(ExtractPageRefsFromIssue(r.adf, r.body, commentsByItem[r.id]), r.key)
 		if err := replaceItemRefs(tx, r.id, refs); err != nil {
 			return err
 		}

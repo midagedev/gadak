@@ -65,6 +65,11 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 		return err
 	}
 	if !found {
+		n, delErr := db.DeleteItems(ctx, SourceID, []string{key})
+		if delErr != nil {
+			return delErr
+		}
+		opts.logf("sync: tombstone %s (%d rows)", key, n)
 		return fmt.Errorf("%s: %w", key, ErrNotFound)
 	}
 	return nil
@@ -88,6 +93,10 @@ func SyncPage(ctx context.Context, cfg *config.Config, db *store.DB, id string) 
 	rec, _, _, err := fetchPageRecord(ctx, c, confluence.Page{ID: id})
 	if err != nil {
 		if errors.Is(err, confluence.ErrNotFound) {
+			// SyncPage has no Options logger; DeleteItems is the count surface.
+			if _, delErr := db.DeleteItems(ctx, ConfluenceSourceID, []string{id}); delErr != nil {
+				return delErr
+			}
 			return fmt.Errorf("%s: %w", id, ErrNotFound)
 		}
 		return err

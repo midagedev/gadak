@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -383,4 +383,13 @@ CREATE INDEX source_queries_source ON source_queries(source_id, favourite, name)
 // full. A space added after a broad sync must not inherit sync_state.watermark.
 const schemaV19 = `
 ALTER TABLE spaces ADD COLUMN watermark TEXT;
+`
+
+// schemaV20 adds account ids on changelog and attachment authors. Display
+// names collide across people and change on rename; feed self-exclusion and
+// later readers key on author_id when present, and fall back to author for
+// rows migrated from v19 (NULL).
+const schemaV20 = `
+ALTER TABLE changelog ADD COLUMN author_id TEXT;
+ALTER TABLE attachments ADD COLUMN author_id TEXT;
 `

@@ -62,7 +62,7 @@ func TestExtractPageRefsFromIssueURLShapes(t *testing.T) {
 		`pageId=2002 is the old link`,
 		`also /wiki/spaces/DEMO/pages/1001 again`,
 	}
-	got := ExtractPageRefsFromIssue(body, comments)
+	got := ExtractPageRefsFromIssue("", body, comments)
 	want := []ItemRef{
 		{TargetKind: "page", TargetKey: "1001", Via: "url"},
 		{TargetKind: "page", TargetKey: "2002", Via: "url"},
@@ -72,11 +72,44 @@ func TestExtractPageRefsFromIssueURLShapes(t *testing.T) {
 	}
 }
 
+// TestExtractPageRefsFromADFLinkMark is FAIL-first for C8: an issue whose
+// flattened body_text has no URL must still produce a page ref from an ADF
+// link mark / inlineCard (the page→issue direction already scans raw ADF).
+func TestUpsertIssuesWritesPageRefsFromADFLinkMark(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"see the runbook","marks":[{"type":"link","attrs":{"href":"https://x.example/wiki/spaces/ENG/pages/4242"}}]}]}]}`)
+	if _, err := db.UpsertIssues(context.Background(), Batch{
+		Categories: map[string]string{"1": "new"},
+		Records: []IssueRecord{{
+			Item: Item{
+				ID: "jira:8", SourceID: "jira", Kind: "issue", ExternalID: "8",
+				Key: "NMB-8", Title: "adf only", BodyText: "see the runbook",
+				CreatedAt: ago(1), UpdatedAt: ago(1),
+			},
+			Issue: Issue{
+				ProjectKey: "NMB", IssueType: "Task", IssueTypeID: "1",
+				Status: "To Do", StatusID: "1", StatusCategory: "new",
+				DescriptionADF: adf,
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := loadRefs(t, db, "jira:8")
+	want := []ItemRef{{TargetKind: "page", TargetKey: "4242", Via: "url"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("C8: ADF link-mark refs = %+v, want %+v", got, want)
+	}
+}
+
 func TestExtractPageRefsEmpty(t *testing.T) {
-	if got := ExtractPageRefsFromIssue("", nil); got != nil {
+	if got := ExtractPageRefsFromIssue("", "", nil); got != nil {
 		t.Errorf("empty = %v, want nil", got)
 	}
-	if got := ExtractPageRefsFromIssue("no links here", []string{"still none"}); got != nil {
+	if got := ExtractPageRefsFromIssue("", "no links here", []string{"still none"}); got != nil {
 		t.Errorf("no matches = %v, want nil", got)
 	}
 }
