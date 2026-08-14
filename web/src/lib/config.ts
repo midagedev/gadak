@@ -155,6 +155,43 @@ export function workspaceName(): string {
   return m ? m[1] : ''
 }
 
+/** Host of a Jira site URL, or '' when none. Used only as a cache partition. */
+export function siteHost(siteUrl: string): string {
+  const raw = siteUrl.trim()
+  if (!raw) return ''
+  try {
+    const u = new URL(raw.includes('://') ? raw : `https://${raw}`)
+    return u.host.toLowerCase()
+  } catch {
+    return raw.toLowerCase().replace(/[^a-z0-9.-]+/g, '-')
+  }
+}
+
+/**
+ * Cache partition for IndexedDB / localStorage. Distinct workspace mounts and
+ * distinct Jira sites must never share a pool — a re-init on `/` used to
+ * upsert site B into site A's cache because the key was workspace-only.
+ */
+export function composeCacheScope(workspace: string, siteUrl: string): string {
+  const parts: string[] = []
+  const ws = workspace.trim()
+  if (ws) parts.push(`ws:${ws}`)
+  const host = siteHost(siteUrl)
+  if (host) parts.push(`site:${host}`)
+  return parts.join('|')
+}
+
+/** Active partition. Empty on the hosted demo (no site, no workspace). */
+export function cacheScopeId(): string {
+  return composeCacheScope(workspaceName(), config().jiraBaseUrl)
+}
+
+/** Expose the active partition so a mixed-profile cache is visible immediately. */
+export function applyCacheScopeDebug(): void {
+  if (typeof document === 'undefined') return
+  document.documentElement.dataset.cacheScope = cacheScopeId() || 'primary'
+}
+
 /**
  * Where this page's config.json and API live: the workspace mount when
  * present, the build base otherwise.

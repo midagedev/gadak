@@ -51,8 +51,12 @@ export interface IssueLite {
   issue_key: string
   summary: string
   status: string
+  /** Stable Jira status id. Older cached rows may omit it. */
+  status_id?: string
   status_category: string // Raw Jira category string (effective bucket is StatusCategory)
   issue_type: string
+  /** Stable Jira issue-type id. Older cached rows may omit it. */
+  issue_type_id?: string
   priority: string | null
   priority_rank: number | null
   severity: string | null

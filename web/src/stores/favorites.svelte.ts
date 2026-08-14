@@ -14,8 +14,12 @@ import { SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
 import { STORAGE_KEYS } from '../lib/storage'
 
-const FAVORITES_KEY = STORAGE_KEYS.favorites
-const FAVORITES_ORDER_KEY = STORAGE_KEYS.favoritesOrder
+function favoritesKey(): string {
+  return STORAGE_KEYS.favorites
+}
+function favoritesOrderKey(): string {
+  return STORAGE_KEYS.favoritesOrder
+}
 
 function loadArray(key: string): string[] {
   try {
@@ -59,7 +63,7 @@ class FavoritesStore {
       // Server returns add-order only. Prefer user drag order when present, then
       // append keys that exist only on the server (added in another window).
       const wanted = new Set(res.keys)
-      for (const k of loadArray(FAVORITES_ORDER_KEY)) {
+      for (const k of loadArray(favoritesOrderKey())) {
         if (wanted.delete(k)) this.keys.add(k)
       }
       for (const k of res.keys) {
@@ -72,13 +76,13 @@ class FavoritesStore {
       console.warn('[me] 즐겨찾기 서버 로드 실패 — localStorage 폴백', e)
       this.#local = true
       this.keys.clear()
-      for (const key of loadArray(FAVORITES_KEY)) this.keys.add(key)
+      for (const key of loadArray(favoritesKey())) this.keys.add(key)
     }
   }
 
   /** One-shot: local gadak:favorites → server, then clear the local key. */
   async #migrateLocalToServer(): Promise<void> {
-    const local = loadArray(FAVORITES_KEY)
+    const local = loadArray(favoritesKey())
     if (!local.length) return
     for (const key of local) {
       if (this.keys.has(key)) continue
@@ -89,12 +93,12 @@ class FavoritesStore {
         // Write rejected (e.g. 501 demo_read_only) — keep local path.
         console.warn('[me] 즐겨찾기 이관 실패 — localStorage 유지', e)
         this.#local = true
-        saveArray(FAVORITES_KEY, [...new Set([...this.keys, ...local])])
+        saveArray(favoritesKey(), [...new Set([...this.keys, ...local])])
         return
       }
     }
     try {
-      localStorage.removeItem(FAVORITES_KEY)
+      localStorage.removeItem(favoritesKey())
     } catch {
       /* private mode */
     }
@@ -116,7 +120,7 @@ class FavoritesStore {
     else this.keys.add(key)
 
     if (this.#local) {
-      saveArray(FAVORITES_KEY, [...this.keys])
+      saveArray(favoritesKey(), [...this.keys])
       return
     }
 
@@ -127,7 +131,7 @@ class FavoritesStore {
       // Hosted demo / offline: keep the optimistic state and store locally.
       console.warn('[me] 즐겨찾기 서버 쓰기 실패 — localStorage 폴백', e)
       this.#local = true
-      saveArray(FAVORITES_KEY, [...this.keys])
+      saveArray(favoritesKey(), [...this.keys])
     }
   }
 
@@ -145,8 +149,8 @@ class FavoritesStore {
     for (const key of ordered) this.keys.add(key)
     // Always persist order locally — server favorites has no order column, and
     // session-only drag order reshuffles on every refresh (regression).
-    saveArray(FAVORITES_ORDER_KEY, ordered)
-    if (this.#local) saveArray(FAVORITES_KEY, ordered)
+    saveArray(favoritesOrderKey(), ordered)
+    if (this.#local) saveArray(favoritesKey(), ordered)
   }
 }
 

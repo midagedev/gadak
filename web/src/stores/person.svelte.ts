@@ -1,13 +1,12 @@
 /*
  * People-axis store — who is open in the right panel, and what they wrote.
  *
- * The person is held by email because that is what keys `issues.members`, the
- * directory the client already has; the comment request keys on the account id
- * that member carries (`jira_account_id`), which is the same identifier the
- * mirror stores as `comments.author_id`. A member without one is a person the
- * mirror has never seen act, so the panel says so instead of guessing by name:
- * two people can share a display name, and a wrong match here would attribute
- * someone's words to someone else.
+ * The person is held by account id when the directory has one, otherwise by
+ * email. The comment request keys on `jira_account_id`, which is the same
+ * identifier the mirror stores as `comments.author_id`. A member without one
+ * is a person the mirror has never seen act, so the panel says so instead of
+ * guessing by name: two people can share a display name, and a wrong match
+ * here would attribute someone's words to someone else.
  *
  * Nothing is cached beyond the open person. The comment list is the one part of
  * this app that is a request rather than a pool read (bodies are not in the
@@ -56,18 +55,18 @@ class PersonStore {
 
   /** The open person's directory row, when the member set still has them. */
   get member(): Member | undefined {
-    return issues.memberOf(this.selectedEmail)
+    const id = this.selectedEmail
+    return issues.memberOf(id) ?? issues.memberOfAccountId(id)
   }
 
-  /** Open a person. Takes the panel from an issue or a document — one detail
-   *  surface at a time, which is what the panel union guarantees. */
-  select(email: string): void {
-    if (this.selectedEmail === email) return
-    panel.show('person', email)
+  /** Open a person. `identity` is account id when known, else email. */
+  select(identity: string): void {
+    if (!identity || this.selectedEmail === identity) return
+    panel.show('person', identity)
     this.comments = []
     this.total = 0
     this.error = null
-    void this.#load(email)
+    void this.#load(identity)
   }
 
   clear(): void {
@@ -89,9 +88,10 @@ class PersonStore {
     if (email) void this.#load(email)
   }
 
-  async #load(email: string): Promise<void> {
+  async #load(identity: string): Promise<void> {
     const my = ++this.#gen
-    const accountId = issues.memberOf(email)?.jira_account_id
+    const member = issues.memberOf(identity) ?? issues.memberOfAccountId(identity)
+    const accountId = member?.jira_account_id || (identity.includes('@') ? '' : identity)
     if (!accountId) {
       this.error = 'unlinked'
       this.loading = false

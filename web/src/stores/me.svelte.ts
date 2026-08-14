@@ -37,7 +37,6 @@ export type { FeedFocus } from '../lib/types'
  * loadConfig() override (hosted demo api/auth base under /gadak/) is honoured —
  * a module-level capture would freeze DEFAULTS before config.json loads. */
 
-const RECENT_KEY = STORAGE_KEYS.recent
 const RECENT_MAX = 30
 
 /** What a recent entry points at. Absent in anything stored before documents
@@ -58,7 +57,7 @@ function visitId(kind: RecentKind, key: string): string {
 
 function loadRecent(): RecentVisit[] {
   try {
-    const raw = localStorage.getItem(RECENT_KEY)
+    const raw = localStorage.getItem(STORAGE_KEYS.recent)
     if (!raw) return []
     const values = JSON.parse(raw) as unknown
     if (!Array.isArray(values)) return []
@@ -100,9 +99,9 @@ function isRecentVisit(value: unknown): value is RecentVisit {
 
 function saveRecent(visits: RecentVisit[]): void {
   try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify(visits))
+    localStorage.setItem(STORAGE_KEYS.recent, JSON.stringify(visits))
   } catch (e) {
-    console.warn(`[me] ${RECENT_KEY} 저장 실패`, e)
+    console.warn(`[me] ${STORAGE_KEYS.recent} 저장 실패`, e)
   }
 }
 
@@ -158,8 +157,12 @@ class MeStore {
 
   /** My group (member directory email match). Used for smart defaults. */
   get group(): string | null {
+    if (this.accountId) {
+      const byId = issues.memberOfAccountId(this.accountId)
+      if (byId?.group) return byId.group
+    }
     if (!this.email) return null
-    return issues.members.get(this.email)?.group ?? null
+    return issues.memberOf(this.email)?.group ?? null
   }
 
   #initialized = false

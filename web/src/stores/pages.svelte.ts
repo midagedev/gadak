@@ -287,6 +287,7 @@ class PagesStore {
   /** Load the index once. A server without the endpoint (404) just leaves it empty. */
   async init(): Promise<void> {
     if (this.loaded) return
+    this.docsTab = loadDocsTab()
     try {
       const res = await api.getPages()
       this.index = res.pages ?? []
@@ -309,6 +310,10 @@ class PagesStore {
       const res = await api.getPages()
       this.index = res.pages ?? []
       this.loaded = true
+      // Index refresh is a new snapshot — drop tab-lifetime bodies so an open
+      // DocumentPanel cannot keep a pre-sync ADF tree.
+      this.#details.clear()
+      this.detailNonce++
     } catch (e) {
       console.warn('[pages] 문서 목록 갱신 실패', e)
     }

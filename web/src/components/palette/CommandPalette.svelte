@@ -201,15 +201,18 @@
     return scored
       .sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label))
       .slice(0, 5)
-      .map(({ member, label }) => ({
-        id: `p:${member.email}`,
-        section: 'person' as const,
-        label,
-        icon: 'user' as const,
-        sub: member.email,
-        testid: 'palette-person-row',
-        run: () => person.select(member.email),
-      }))
+      .map(({ member, label }) => {
+        const identity = member.jira_account_id || member.email
+        return {
+          id: `p:${identity}`,
+          section: 'person' as const,
+          label,
+          icon: 'user' as const,
+          sub: member.email || member.jira_account_id || '',
+          testid: 'palette-person-row',
+          run: () => person.select(identity),
+        }
+      })
   })
 
   function applyView(config: ViewConfig) {

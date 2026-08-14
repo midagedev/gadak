@@ -324,7 +324,7 @@
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
       title={t('list.fieldValue', { field: t('common.type'), value: issue.issue_type })}
-      onclick={stop(() => filters.addValue('issue_type', issue.issue_type))}
+      onclick={stop(() => filters.addValue('issue_type', issue.issue_type_id || issue.issue_type))}
     >
       {issue.issue_type}
     </button>
@@ -334,7 +334,7 @@
       type="button"
       class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
       title={t('list.fieldValue', { field: t('common.status'), value: issue.status })}
-      onclick={stop(() => filters.addValue('status', issue.status))}
+      onclick={stop(() => filters.addValue('status', issue.status_id || issue.status))}
     >
       {issue.status}
     </button>
@@ -482,6 +482,7 @@
   {#if cols.has('assignee')}
     <Avatar
       email={issue.assignee_email}
+      accountId={issue.assignee_id}
       name={issue.assignee}
       onclick={issue.assignee_id || issue.assignee_email
         ? stop(() => filters.addValue('assignee_email', issue.assignee_id ?? issue.assignee_email!))

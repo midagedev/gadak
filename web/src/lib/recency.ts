@@ -11,15 +11,14 @@
  *          'create-type:<project>', 'label'
  */
 
-import { RECENT_KIND_PREFIX } from './storage'
+import { recentKindPrefix } from './storage'
 
-const PREFIX = RECENT_KIND_PREFIX
 const MAX = 10
 
 /** Recent values for a kind (newest first). Empty array if none. */
 export function recentOf(kind: string): string[] {
   try {
-    const raw = localStorage.getItem(PREFIX + kind)
+    const raw = localStorage.getItem(recentKindPrefix() + kind)
     if (!raw) return []
     const arr = JSON.parse(raw) as unknown
     return Array.isArray(arr) ? (arr.filter((v) => typeof v === 'string') as string[]) : []
@@ -33,7 +32,7 @@ export function recordRecent(kind: string, value: string): void {
   if (!value) return
   try {
     const next = [value, ...recentOf(kind).filter((v) => v !== value)].slice(0, MAX)
-    localStorage.setItem(PREFIX + kind, JSON.stringify(next))
+    localStorage.setItem(recentKindPrefix() + kind, JSON.stringify(next))
   } catch {
     /* localStorage unavailable — ignore */
   }

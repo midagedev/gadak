@@ -219,7 +219,7 @@
     disabled={busy}
   >
     {#if hasAssignee}
-      <Avatar name={issue.assignee} email={issue.assignee_email} size={16} />
+      <Avatar name={issue.assignee} email={issue.assignee_email} accountId={issue.assignee_id} size={16} />
       <span class="text-text-secondary">{issue.assignee ?? issue.assignee_email}</span>
     {:else}
       <span class="text-text-muted italic">{t('common.unassigned')}</span>
