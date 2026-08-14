@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -41,6 +42,23 @@ import (
 //     TestCreateRefusesWithoutCredential
 //  9. Dispatch + help (usage, --type 작업 example, Writing-through line)
 //     TestCreateIsRegisteredAndHelpMentionsNonEnglishType
+//
+// --batch - (GDK-20):
+// 10. Happy 3-line batch: input order, 3 POSTs, 3 stdout lines
+//     TestCreateBatchHappyPathPreservesOrder
+// 11. Per-line override beats flag default
+//     TestCreateBatchLineOverridesFlagDefaults
+// 12. Line-2 create failure: line-1 printed, exit non-zero, stderr names
+//     line 2, no line-3 POST
+//     TestCreateBatchStopsOnCreateFailure
+// 13. Malformed JSON line: named line, expected shape, no create
+//     TestCreateBatchMalformedJSONCreatesNothing
+// 14. --batch + positional summary → usage error
+//     TestCreateBatchRejectsPositionalSummary
+// 15. --json: one object per line, created+issue (single-create shape)
+//     TestCreateBatchJSONOneObjectPerLine
+// 16. Per-line attach validated before that line's create
+//     TestCreateBatchAttachValidatesBeforeCreate
 
 func TestCreateHappyPathSendsFieldsAndPrintsReread(t *testing.T) {
 	f := newFakeJira(t)
@@ -624,6 +642,350 @@ func TestCreateStdinMinusMDoesNotJoinIntoSummary(t *testing.T) {
 	if !strings.Contains(sent, "from stdin") {
 		t.Errorf("description %s", sent)
 	}
+}
+
+func TestCreateBatchHappyPathPreservesOrder(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, ""+
+		"{\"summary\":\"first\"}\n"+
+		"\n"+
+		"{\"summary\":\"second\"}\n"+
+		"{\"summary\":\"third\"}\n")
+
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("batch: %v\n%s", err, out)
+	}
+	if n := countCalls(f, "POST /issue"); n != 3 {
+		t.Fatalf("POST /issue count %d in %v", n, f.calls)
+	}
+	lines := nonEmptyLines(out)
+	if len(lines) != 3 {
+		t.Fatalf("stdout lines %q", out)
+	}
+	want := []struct{ key, summary string }{
+		{"NMB-42", "first"},
+		{"NMB-43", "second"},
+		{"NMB-44", "third"},
+	}
+	for i, w := range want {
+		fields := strings.Split(lines[i], "\t")
+		if len(fields) != 2 {
+			t.Errorf("line %d: want KEY\\tsummary, got %d fields in %q", i+1, len(fields), lines[i])
+		}
+		key, summary := tsvKeySummary(lines[i])
+		if key != w.key || summary != w.summary {
+			t.Errorf("line %d: %q want %s / %s", i+1, lines[i], w.key, w.summary)
+		}
+		if !strings.Contains(f.createBodies[i], `"summary":"`+w.summary+`"`) {
+			t.Errorf("POST %d missing summary %q: %s", i+1, w.summary, f.createBodies[i])
+		}
+	}
+}
+
+func TestCreateBatchLineOverridesFlagDefaults(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, ""+
+		"{\"summary\":\"from flags\"}\n"+
+		"{\"summary\":\"from line\",\"project\":\"GDK\",\"type\":\"Task\",\"labels\":[\"fromline\"],\"description\":\"line body\"}\n")
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"--batch", "-",
+			"--project", "NMB", "--type", "Task",
+			"--label", "fromflag",
+			"-m", "flag body",
+		})
+	})
+	if err != nil {
+		t.Fatalf("batch: %v", err)
+	}
+	if len(f.createBodies) != 2 {
+		t.Fatalf("bodies %d: %v", len(f.createBodies), f.createBodies)
+	}
+	first, second := f.createBodies[0], f.createBodies[1]
+	for _, want := range []string{`"key":"NMB"`, `"id":"10001"`, `"summary":"from flags"`, `"labels":["fromflag"]`, `"text":"flag body"`} {
+		if !strings.Contains(first, want) {
+			t.Errorf("line 1 POST missing %s: %s", want, first)
+		}
+	}
+	for _, want := range []string{`"key":"GDK"`, `"id":"10001"`, `"summary":"from line"`, `"labels":["fromline"]`, `"text":"line body"`} {
+		if !strings.Contains(second, want) {
+			t.Errorf("line 2 POST missing %s: %s", want, second)
+		}
+	}
+	if strings.Contains(second, "fromflag") || strings.Contains(second, "flag body") {
+		t.Errorf("line 2 still carries flag defaults: %s", second)
+	}
+}
+
+func TestCreateBatchStopsOnCreateFailure(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	f.failNthCreate = 2
+	withStdin(t, ""+
+		"{\"summary\":\"kept\"}\n"+
+		"{\"summary\":\"fails\"}\n"+
+		"{\"summary\":\"never\"}\n")
+
+	stdout, stderr, err := captureBoth(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task"})
+	})
+	if err == nil {
+		t.Fatal("expected line-2 create failure")
+	}
+	if !strings.Contains(err.Error(), "line 2") {
+		t.Errorf("error must name line 2: %v", err)
+	}
+	if !strings.Contains(err.Error(), "forced create failure") {
+		t.Errorf("error must carry the Jira message: %v", err)
+	}
+	lines := nonEmptyLines(stdout)
+	if len(lines) != 1 {
+		t.Fatalf("stdout must be the first success only, got %q", stdout)
+	}
+	key, summary := tsvKeySummary(lines[0])
+	if key != "NMB-42" || summary != "kept" {
+		t.Errorf("printed %q", lines[0])
+	}
+	if n := countCalls(f, "POST /issue"); n != 2 {
+		t.Fatalf("want 2 POSTs (line 3 must not create), got %d in %v", n, f.calls)
+	}
+	if f.nextCreateN != 43 {
+		t.Fatalf("nextCreateN=%d, want 43 (failed create must not consume a key)", f.nextCreateN)
+	}
+	_ = stderr
+}
+
+func TestCreateBatchMalformedJSONCreatesNothing(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, "{\"summary\":\"ok\"\n") // missing closing brace
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task"})
+	})
+	if err == nil {
+		t.Fatal("expected malformed JSON error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "line 1") {
+		t.Errorf("must name line 1: %v", err)
+	}
+	if !strings.Contains(msg, `"summary"`) || !strings.Contains(msg, "attach") {
+		t.Errorf("must remind of the expected shape: %v", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("malformed JSON reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateBatchMalformedJSONAfterSuccessStops(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, ""+
+		"{\"summary\":\"kept\"}\n"+
+		"\n"+
+		"{not-json}\n"+
+		"{\"summary\":\"never\"}\n")
+
+	stdout, _, err := captureBoth(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task"})
+	})
+	if err == nil {
+		t.Fatal("expected malformed JSON on line 3")
+	}
+	if !strings.Contains(err.Error(), "line 3") {
+		t.Errorf("physical line number, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), `"summary"`) {
+		t.Errorf("shape reminder: %v", err)
+	}
+	lines := nonEmptyLines(stdout)
+	if len(lines) != 1 {
+		t.Fatalf("stdout %q", stdout)
+	}
+	if n := countCalls(f, "POST /issue"); n != 1 {
+		t.Fatalf("POSTs %d in %v", n, f.calls)
+	}
+}
+
+func TestCreateBatchRejectsNonDashValue(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"--batch", "issues.jsonl", "--project", "NMB", "--type", "Task"})
+	})
+	if err == nil || !strings.Contains(err.Error(), "--batch only accepts -") {
+		t.Fatalf("--batch path: %v", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateBatchRejectsPositionalSummary(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, "{\"summary\":\"unused\"}\n")
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"a summary", "--batch", "-", "--project", "NMB", "--type", "Task"})
+	})
+	if err == nil || !strings.Contains(err.Error(), "usage:") {
+		t.Fatalf("expected usage error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "--batch") && !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("usage error should name the conflict: %v", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("positional+batch reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateBatchJSONOneObjectPerLine(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, ""+
+		"{\"summary\":\"alpha\"}\n"+
+		"{\"summary\":\"beta\"}\n")
+
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("batch --json: %v\n%s", err, out)
+	}
+	dec := json.NewDecoder(strings.NewReader(out))
+	var got []struct {
+		Issue   store.IssueLite `json:"issue"`
+		Created struct {
+			Key string `json:"key"`
+		} `json:"created"`
+	}
+	for dec.More() {
+		var row struct {
+			Issue   store.IssueLite `json:"issue"`
+			Created struct {
+				Key string `json:"key"`
+			} `json:"created"`
+		}
+		if err := dec.Decode(&row); err != nil {
+			t.Fatalf("decode %q: %v", out, err)
+		}
+		got = append(got, row)
+	}
+	if len(got) != 2 {
+		t.Fatalf("json objects %d in %q", len(got), out)
+	}
+	if got[0].Created.Key != "NMB-42" || got[0].Issue.IssueKey != "NMB-42" || got[0].Issue.Summary != "alpha" {
+		t.Errorf("row 0 %+v", got[0])
+	}
+	if got[1].Created.Key != "NMB-43" || got[1].Issue.IssueKey != "NMB-43" || got[1].Issue.Summary != "beta" {
+		t.Errorf("row 1 %+v", got[1])
+	}
+	if got[0].Issue.Status != "완료" || got[1].Issue.Status != "완료" {
+		t.Errorf("json issue is not the re-read row: %+v", got)
+	}
+}
+
+func TestCreateBatchAttachValidatesBeforeCreate(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	missing := filepath.Join(t.TempDir(), "typo.png")
+	withStdin(t, fmt.Sprintf("{\"summary\":\"with typo\",\"attach\":[%q]}\n{\"summary\":\"never\"}\n", missing))
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task"})
+	})
+	if err == nil || !strings.Contains(err.Error(), missing) {
+		t.Fatalf("typo: %v", err)
+	}
+	if !strings.Contains(err.Error(), "line 1") {
+		t.Errorf("must name line 1: %v", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("create reached Jira: %v", f.calls)
+	}
+	if len(f.uploads) != 0 {
+		t.Fatalf("uploaded despite typo: %+v", f.uploads)
+	}
+}
+
+func TestCreateBatchAttachValidatesThatLineOnly(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	missing := filepath.Join(t.TempDir(), "typo.png")
+	withStdin(t, fmt.Sprintf("{\"summary\":\"ok\"}\n{\"summary\":\"bad\",\"attach\":[%q]}\n{\"summary\":\"never\"}\n", missing))
+
+	stdout, _, err := captureBoth(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task"})
+	})
+	if err == nil || !strings.Contains(err.Error(), missing) {
+		t.Fatalf("typo: %v", err)
+	}
+	if !strings.Contains(err.Error(), "line 2") {
+		t.Errorf("must name line 2: %v", err)
+	}
+	lines := nonEmptyLines(stdout)
+	if len(lines) != 1 {
+		t.Fatalf("stdout %q", stdout)
+	}
+	if n := countCalls(f, "POST /issue"); n != 1 {
+		t.Fatalf("POSTs %d in %v", n, f.calls)
+	}
+}
+
+func withStdin(t *testing.T, s string) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		_, _ = w.WriteString(s)
+		_ = w.Close()
+	}()
+	saved := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = saved })
+}
+
+func countCalls(f *fakeJira, tag string) int {
+	n := 0
+	for _, c := range f.calls {
+		if c == tag {
+			n++
+		}
+	}
+	return n
+}
+
+func nonEmptyLines(s string) []string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		if strings.TrimSpace(line) != "" {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+func tsvKeySummary(line string) (key, summary string) {
+	fields := strings.Split(strings.TrimRight(line, "\n"), "\t")
+	if len(fields) == 0 {
+		return "", ""
+	}
+	key = fields[0]
+	if len(fields) > 0 {
+		summary = fields[len(fields)-1]
+	}
+	return key, summary
 }
 
 func captureBoth(t *testing.T, fn func() error) (stdout, stderr string, err error) {

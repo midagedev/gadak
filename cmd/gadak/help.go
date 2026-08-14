@@ -263,10 +263,11 @@ var helps = map[string]cmdHelp{
 	},
 	"create": {
 		summary: "create an issue on Jira (needs a credential; write-through to the mirror)",
-		usage:   "gadak [--profile <name>] create <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
+		usage:   "gadak [--profile <name>] create <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
 		examples: []string{
 			"gadak create Fix the flaky gate --project NMB --type Task -m \"repro on staging\" --label batch",
 			"gadak create 로그인 실패 --project NMB --type 작업",
+			`printf '%s\n' '{"summary":"one"}' '{"summary":"two"}' | gadak create --batch - --project NMB --type Task`,
 		},
 		seeAlso: []string{"gadak attach", "gadak edit", "gadak comment", "gadak transition", "gadak assign", "gadak issue"},
 	},

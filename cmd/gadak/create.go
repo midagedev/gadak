@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,9 +13,14 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-const createUsage = "usage: gadak create <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]"
+const createUsage = "usage: gadak create <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]"
+
+// createBatchShape is the one-line reminder printed when a --batch line is
+// not an object we can file. Field names match createBatchLine.
+const createBatchShape = `{"summary": "...", "type"?: "...", "project"?: "...", "labels"?: [...], "description"?: "plain text", "attach"?: ["path", ...]}`
 
 // labelFlags collects repeated --label values.
 type labelFlags []string
@@ -36,6 +42,7 @@ func cmdCreate(args []string) error {
 	fs.Var(&attachFiles, "attach", "file to upload after create (repeatable)")
 	text := fs.String("m", "", "description as plain text; `-` reads it from stdin")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs summary, and may set type, project, labels, description, attach")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("create", fs))
 		return nil
@@ -47,6 +54,20 @@ func cmdCreate(args []string) error {
 	if err != nil {
 		return err
 	}
+
+	if *batch != "" {
+		if *batch != "-" {
+			return fmt.Errorf("--batch only accepts - (JSON lines on stdin)")
+		}
+		if *text == "-" {
+			return fmt.Errorf("--batch - already reads stdin; -m - cannot be used together")
+		}
+		if strings.TrimSpace(strings.Join(pos, " ")) != "" {
+			return usageError("create", "usage: gadak create: --batch and a summary are mutually exclusive")
+		}
+		return cmdCreateBatch(*projectFlag, *typeFlag, *text, []string(labels), []string(attachFiles), *asJSON)
+	}
+
 	summary := strings.TrimSpace(strings.Join(pos, " "))
 	if summary == "" {
 		return usageError("create", createUsage)
@@ -67,50 +88,9 @@ func cmdCreate(args []string) error {
 	}
 
 	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
-		project, err := resolveCreateProject(*projectFlag, cfg.Projects)
+		key, extra, err := createOne(ctx, cfg, c, *projectFlag, *typeFlag, summary, body, []string(labels), attachFiles)
 		if err != nil {
 			return err
-		}
-		meta, err := c.CreateMeta(ctx, []string{project})
-		if err != nil {
-			return err
-		}
-		proj, types, err := createMetaFor(meta, project)
-		if err != nil {
-			return err
-		}
-		typeID, err := resolveCreateType(*typeFlag, types)
-		if err != nil {
-			return err
-		}
-
-		fields := map[string]any{
-			"project":   map[string]string{"key": proj.Key},
-			"issuetype": map[string]string{"id": typeID},
-			"summary":   summary,
-		}
-		if strings.TrimSpace(body) != "" {
-			fields["description"] = jira.Doc(body, nil)
-		}
-		if len(labels) > 0 {
-			fields["labels"] = []string(labels)
-		}
-
-		key, err := c.CreateIssue(ctx, fields)
-		if err != nil {
-			return err
-		}
-		extra := map[string]any{"created": map[string]string{"key": key}}
-		if len(attachFiles) > 0 {
-			attached, err := uploadAttachPaths(ctx, c, key, attachFiles)
-			if err != nil {
-				var p *attachPartialError
-				if errors.As(err, &p) {
-					return fmt.Errorf("created %s, but attaching %s failed: %w", key, p.failed, p.err)
-				}
-				return fmt.Errorf("created %s, but attaching failed: %w", key, err)
-			}
-			extra["attached"] = attached
 		}
 		err = emitAfterWrite(ctx, cfg, db, c, key, *asJSON, extra)
 		var missed writeNotMirroredError
@@ -130,6 +110,159 @@ func cmdCreate(args []string) error {
 		}
 		return err
 	})
+}
+
+// createBatchLine is one stdin object for --batch -. Absent optional fields
+// fall back to the matching flag; a present empty labels/attach array is an
+// override (no labels / no files), not a fall-through.
+type createBatchLine struct {
+	Summary     string    `json:"summary"`
+	Type        string    `json:"type"`
+	Project     string    `json:"project"`
+	Labels      *[]string `json:"labels"`
+	Description string    `json:"description"`
+	Attach      *[]string `json:"attach"`
+}
+
+func cmdCreateBatch(projectFlag, typeFlag, defaultBody string, defaultLabels, defaultAttach []string, asJSON bool) error {
+	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
+		sc := bufio.NewScanner(os.Stdin)
+		lineNo := 0
+		for sc.Scan() {
+			lineNo++
+			raw := strings.TrimSpace(sc.Text())
+			if raw == "" {
+				continue
+			}
+			var rec createBatchLine
+			if err := json.Unmarshal([]byte(raw), &rec); err != nil {
+				return fmt.Errorf("line %d: invalid JSON: %v\nexpected %s", lineNo, err, createBatchShape)
+			}
+			summary := strings.TrimSpace(rec.Summary)
+			if summary == "" {
+				return fmt.Errorf("line %d: missing summary\nexpected %s", lineNo, createBatchShape)
+			}
+			projectWant := rec.Project
+			if strings.TrimSpace(projectWant) == "" {
+				projectWant = projectFlag
+			}
+			typeWant := rec.Type
+			if strings.TrimSpace(typeWant) == "" {
+				typeWant = typeFlag
+			}
+			labels := defaultLabels
+			if rec.Labels != nil {
+				labels = *rec.Labels
+			}
+			body := rec.Description
+			if strings.TrimSpace(body) == "" {
+				body = defaultBody
+			}
+			attach := defaultAttach
+			if rec.Attach != nil {
+				attach = *rec.Attach
+			}
+			key, extra, err := createOne(ctx, cfg, c, projectWant, typeWant, summary, body, labels, attach)
+			if err != nil {
+				return fmt.Errorf("line %d: %w", lineNo, err)
+			}
+			if err := emitBatchLine(ctx, cfg, db, c, key, summary, asJSON, extra); err != nil {
+				return fmt.Errorf("line %d: %w", lineNo, err)
+			}
+		}
+		if err := sc.Err(); err != nil {
+			return fmt.Errorf("reading --batch stdin: %w", err)
+		}
+		return nil
+	})
+}
+
+// createOne resolves project/type, POSTs the issue, and uploads attachments.
+// Attach paths are validated before CreateIssue. The caller prints / refreshes.
+func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectWant, typeWant, summary, body string, labels, attach []string) (string, map[string]any, error) {
+	if len(attach) > 0 {
+		if err := validateAttachPaths(attach); err != nil {
+			return "", nil, err
+		}
+	}
+	project, err := resolveCreateProject(projectWant, cfg.Projects)
+	if err != nil {
+		return "", nil, err
+	}
+	meta, err := c.CreateMeta(ctx, []string{project})
+	if err != nil {
+		return "", nil, err
+	}
+	proj, types, err := createMetaFor(meta, project)
+	if err != nil {
+		return "", nil, err
+	}
+	typeID, err := resolveCreateType(typeWant, types)
+	if err != nil {
+		return "", nil, err
+	}
+
+	fields := map[string]any{
+		"project":   map[string]string{"key": proj.Key},
+		"issuetype": map[string]string{"id": typeID},
+		"summary":   summary,
+	}
+	if strings.TrimSpace(body) != "" {
+		fields["description"] = jira.Doc(body, nil)
+	}
+	if len(labels) > 0 {
+		fields["labels"] = labels
+	}
+
+	key, err := c.CreateIssue(ctx, fields)
+	if err != nil {
+		return "", nil, err
+	}
+	extra := map[string]any{"created": map[string]string{"key": key}}
+	if len(attach) > 0 {
+		attached, err := uploadAttachPaths(ctx, c, key, attach)
+		if err != nil {
+			var p *attachPartialError
+			if errors.As(err, &p) {
+				return key, extra, fmt.Errorf("created %s, but attaching %s failed: %w", key, p.failed, p.err)
+			}
+			return key, extra, fmt.Errorf("created %s, but attaching failed: %w", key, err)
+		}
+		extra["attached"] = attached
+	}
+	return key, extra, nil
+}
+
+// emitBatchLine refreshes the new key the same way emitAfterWrite does.
+// Text is KEY<tab>summary (batch contract); --json reuses emitAfterWrite.
+func emitBatchLine(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client, key, summary string, asJSON bool, extra map[string]any) error {
+	if asJSON {
+		err := emitAfterWrite(ctx, cfg, db, c, key, true, extra)
+		var missed writeNotMirroredError
+		if errors.As(err, &missed) {
+			fmt.Fprintf(os.Stderr, "warning: %s\n", missed.Error())
+			body := map[string]any{"created": map[string]string{"key": key}}
+			if att, ok := extra["attached"]; ok {
+				body["attached"] = att
+			}
+			return json.NewEncoder(os.Stdout).Encode(body)
+		}
+		return err
+	}
+	if err := syncer.SyncIssue(ctx, cfg, db, key, syncer.Options{Client: c}); err != nil {
+		return fmt.Errorf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %w", key, err)
+	}
+	lites, err := lookup(db, []string{key})
+	if err != nil {
+		return err
+	}
+	if len(lites) == 0 {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", writeNotMirroredError{Key: key}.Error())
+		fmt.Printf("%s\t%s\n", key, summary)
+		return nil
+	}
+	fmt.Printf("%s\t%s\n", lites[0].IssueKey, lites[0].Summary)
+	return nil
 }
 
 // resolveCreateProject uses --project, or the sole configured project key.

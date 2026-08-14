@@ -37,8 +37,10 @@ type fakeJira struct {
 
 	// create support (additive; existing write tests never hit these paths)
 	created          map[string]createdIssue
+	createBodies     []string // every POST /issue body, in order (bodies map keeps only the last)
 	lastCreatedKey   string
 	nextCreateN      int
+	failNthCreate    int  // 1-based; 0 = never fail
 	skipCreateReread bool // POST /issue succeeds but /search/jql ignores the new key
 	rereadStatus     int  // when non-zero, POST /search/jql fails with this status
 
@@ -136,6 +138,13 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *fakeJira) handleCreateIssue(w http.ResponseWriter) {
+	body := f.bodies["POST /issue"]
+	f.createBodies = append(f.createBodies, body)
+	if f.failNthCreate > 0 && len(f.createBodies) == f.failNthCreate {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"errorMessages":["forced create failure"]}`))
+		return
+	}
 	var req struct {
 		Fields struct {
 			Project struct {
@@ -148,7 +157,7 @@ func (f *fakeJira) handleCreateIssue(w http.ResponseWriter) {
 			Labels  []string `json:"labels"`
 		} `json:"fields"`
 	}
-	_ = json.Unmarshal([]byte(f.bodies["POST /issue"]), &req)
+	_ = json.Unmarshal([]byte(body), &req)
 	project := req.Fields.Project.Key
 	if project == "" {
 		project = "NMB"
