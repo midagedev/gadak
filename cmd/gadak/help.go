@@ -24,6 +24,12 @@ type helpOption struct {
 	desc string
 }
 
+// spacesFlagUsage is the --spaces description for both the FlagSet and
+// `gadak help init`. It must match internal/sync/confluence.go: empty
+// Spaces lists type=="global" only; personal spaces are included only
+// when named. Do not say "every space" / "everything".
+const spacesFlagUsage = `Confluence spaces: KEY,KEY… | all (every global space; name a personal space to include it) | none (off); "all"/"none" are reserved`
+
 // helps is the per-command help table. Summaries recycle the top-level usage
 // constant; positionals and examples match the real cmdXxx implementations.
 var helps = map[string]cmdHelp{
@@ -36,7 +42,7 @@ var helps = map[string]cmdHelp{
 			{name: "site", desc: "Jira site URL (https://your-site.atlassian.net); env GADAK_SITE"},
 			{name: "email", desc: "account email; env GADAK_EMAIL"},
 			{name: "projects", desc: "project keys, comma-separated (optional — blank syncs every project you can see); env GADAK_PROJECTS"},
-			{name: "spaces", desc: "Confluence: KEY,KEY… | all (every space) | none (off); \"all\"/\"none\" reserved; omit to leave unchanged"},
+			{name: "spaces", desc: spacesFlagUsage + `; omit to leave unchanged`},
 			{name: "token-file", desc: "read API token from this file"},
 			{name: "token-stdin", desc: "read API token from stdin"},
 			{name: "token", desc: "not accepted; use GADAK_TOKEN, --token-file, or --token-stdin"},

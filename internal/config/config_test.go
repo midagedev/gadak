@@ -2,10 +2,12 @@ package config
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -119,6 +121,119 @@ func TestEnvPrefersNewPrefixThenLegacy(t *testing.T) {
 	t.Setenv("GADAK_TOKEN", "new")
 	if got := Env("TOKEN"); got != "new" {
 		t.Fatalf("Env(TOKEN) with both = %q, want new", got)
+	}
+	// D2: an empty GADAK_* export is unset, not a value that hides SCRY_*.
+	t.Setenv("GADAK_TOKEN", "")
+	t.Setenv("SCRY_TOKEN", "legacy")
+	if got := Env("TOKEN"); got != "legacy" {
+		t.Fatalf("Env(TOKEN) with empty GADAK_ = %q, want legacy", got)
+	}
+}
+
+func TestEnvEmptyNewPrefixFallsBackAcrossSuffixes(t *testing.T) {
+	suffixes := []string{"TOKEN", "HOME", "PROFILE", "SITE", "EMAIL", "PROJECTS"}
+	for _, suffix := range suffixes {
+		t.Setenv(EnvPrefix+suffix, "")
+		t.Setenv(LegacyEnvPrefix+suffix, "legacy-"+suffix)
+		if got := Env(suffix); got != "legacy-"+suffix {
+			t.Errorf("Env(%s) with empty %s = %q, want %q", suffix, EnvPrefix+suffix, got, "legacy-"+suffix)
+		}
+	}
+}
+
+func TestHomeRootWarnsWhenBothDirsExist(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("GADAK_HOME", "")
+	t.Setenv("SCRY_HOME", "")
+	dualHomeWarnOnce = sync.Once{}
+
+	legacy := filepath.Join(root, LegacyDirName)
+	next := filepath.Join(root, DirName)
+	if err := os.Mkdir(legacy, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, "config.json"), []byte(`{"site":"https://legacy.example.invalid"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(next, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(next, "config.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stderr := captureStderr(t, func() {
+		got, err := homeRoot()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != next {
+			t.Fatalf("homeRoot() = %q, want %q", got, next)
+		}
+	})
+	if _, err := os.Stat(legacy); err != nil {
+		t.Fatalf("legacy dir must be left in place: %v", err)
+	}
+	if !strings.Contains(stderr, legacy) {
+		t.Fatalf("warning must name leftover path %q, got %q", legacy, stderr)
+	}
+	if !strings.Contains(stderr, next) {
+		t.Fatalf("warning must name the path in use %q, got %q", next, stderr)
+	}
+	if !strings.Contains(stderr, "ignor") {
+		t.Fatalf("warning must say the leftover is ignored, got %q", stderr)
+	}
+}
+
+func TestHomeRootSkipsDualWarnWhenGADAKHOMESet(t *testing.T) {
+	root := t.TempDir()
+	override := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("GADAK_HOME", override)
+	t.Setenv("SCRY_HOME", "")
+	if err := os.Mkdir(filepath.Join(root, LegacyDirName), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, DirName), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dualHomeWarnOnce = sync.Once{}
+	stderr := captureStderr(t, func() {
+		got, err := homeRoot()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != override {
+			t.Fatalf("homeRoot() = %q, want GADAK_HOME %q", got, override)
+		}
+	})
+	if stderr != "" {
+		t.Fatalf("GADAK_HOME override must not warn about ~/.scry: %q", stderr)
+	}
+}
+
+func TestHomeRootSilentWhenOnlyOneExists(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("GADAK_HOME", "")
+	t.Setenv("SCRY_HOME", "")
+
+	next := filepath.Join(root, DirName)
+	if err := os.Mkdir(next, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stderr := captureStderr(t, func() {
+		got, err := homeRoot()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != next {
+			t.Fatalf("homeRoot() = %q, want %q", got, next)
+		}
+	})
+	if stderr != "" {
+		t.Fatalf("only %s exists; want no warning, got %q", next, stderr)
 	}
 }
 
@@ -361,4 +476,60 @@ func TestSaveTightensExistingProfileDir(t *testing.T) {
 	if got := fi.Mode().Perm(); got != 0o700 {
 		t.Errorf("after Save: profile dir mode = %04o, want 0700", got)
 	}
+}
+
+func TestRequireExistingProfileMissingListsAvailable(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() { SetProfile("") })
+
+	for _, name := range []string{"demo", "work"} {
+		if err := os.MkdirAll(filepath.Join(home, "profiles", name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	SetProfile("")
+	if err := RequireExistingProfile(); err != nil {
+		t.Fatalf("default profile must be allowed: %v", err)
+	}
+
+	SetProfile("demo")
+	if err := RequireExistingProfile(); err != nil {
+		t.Fatalf("existing named profile must be allowed: %v", err)
+	}
+
+	SetProfile("nosuch")
+	err := RequireExistingProfile()
+	if err == nil {
+		t.Fatal("missing named profile must error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `profile "nosuch" not found`) {
+		t.Errorf("error %q, want profile not found", msg)
+	}
+	if !strings.Contains(msg, `gadak init --profile "nosuch"`) {
+		t.Errorf("error %q, want init hint", msg)
+	}
+	if !strings.Contains(msg, "available: demo, work") {
+		t.Errorf("error %q, want available: demo, work", msg)
+	}
+	if _, statErr := os.Stat(filepath.Join(home, "profiles", "nosuch")); !os.IsNotExist(statErr) {
+		t.Fatalf("RequireExistingProfile must not create the dir; stat=%v", statErr)
+	}
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	fn()
+	os.Stderr = old
+	_ = w.Close()
+	b, _ := io.ReadAll(r)
+	return string(b)
 }
