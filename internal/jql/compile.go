@@ -59,7 +59,7 @@ func Parse(input string, opts Opts) Result {
 		res.Message = KeyLimitMessage(c.keyCount)
 		return res
 	}
-	res.JQL, res.Omitted = Emit(c.f, c.d, EmitOpts{Email: opts.Email})
+	res.JQL, res.Omitted = Emit(c.f, c.d, EmitOpts{Email: opts.Email, AccountID: opts.AccountID})
 	return res
 }
 

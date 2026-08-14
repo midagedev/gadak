@@ -241,6 +241,63 @@ func TestComposeServeURLAndPrefix(t *testing.T) {
 	}
 }
 
+func TestViewsSaveResolvesCurrentUserToAccountID(t *testing.T) {
+	cfg := mirror(t, "https://unused.example.com")
+	cfg.AccountID = "acc-me"
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"save", "Mine", "--jql", `assignee = currentUser()`, "--json"})
+	})
+	if err != nil {
+		t.Fatalf("save: %v\n%s", err, out)
+	}
+
+	db, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	saved, err := db.SavedViews(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved) != 1 {
+		t.Fatalf("saved views %d", len(saved))
+	}
+	var body struct {
+		Filters jql.Filter `json:"filters"`
+	}
+	if err := json.Unmarshal(saved[0].Config, &body); err != nil {
+		t.Fatalf("config %s: %v", saved[0].Config, err)
+	}
+	if len(body.Filters.AssigneeEmail) != 1 || body.Filters.AssigneeEmail[0] != "acc-me" {
+		t.Fatalf("saved assignee %+v (want acc-me); stdout %s", body.Filters.AssigneeEmail, out)
+	}
+}
+
+func TestViewsOpenCurrentUserHashUsesAccountID(t *testing.T) {
+	cfg := mirror(t, "https://unused.example.com")
+	cfg.AccountID = "acc-me"
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"open", "--no-open", "--json", "--jql", `assignee = currentUser()`})
+	})
+	if err != nil {
+		t.Fatalf("open: %v\n%s", err, out)
+	}
+	if strings.Contains(out, "currentUser") {
+		t.Fatalf("hash still has currentUser(): %s", out)
+	}
+	if !strings.Contains(out, "as=acc-me") {
+		t.Fatalf("hash missing as=acc-me: %s", out)
+	}
+}
+
 func TestSearchJQLKeysReturnsThoseIssues(t *testing.T) {
 	mirror(t, "https://unused.example.com")
 	out, err := capture(t, func() error {
