@@ -75,6 +75,15 @@ Jira does not report deletions in a search result, so absence has to be proven.
 Reconcile is a separate pass because it is the only operation whose cost scales
 with total issue count rather than change volume.
 
+## Saved filters
+
+After a successful Jira issue pass, sync lists the account's owned and starred
+filters (`GET /rest/api/3/filter/my?includeFavourites=true`) and replaces
+`source_queries` for source `jira`. Each JQL is compiled with the same subset
+as paste. Failure is logged and the previous rows stay — a filter-list 500
+must not undo a finished issue pass. Dashboards are not imported (they are
+gadget layouts).
+
 ## Derived field computation
 
 Computed after each issue's changelog is written, in one pass over that issue's
@@ -137,7 +146,9 @@ same loop inside the server process so a single command is enough for normal use
 
 - Copies `items`, `issues`, `comments`, `attachments` (metadata only),
   `changelog`, and `links`.
-- Drops `saved_views`, `watches`, `favorites`, and every credential-bearing row.
+- Drops `saved_views`, `watches`, `favorites`, `source_queries`, and every
+  credential-bearing row. Jira filters are site-specific; they are not
+  personal state, but they do not belong in a shareable snapshot either.
 - Optionally rewrites timestamps to spread them over a requested window, because
   Jira assigns `created` at insert time and seeded demo data is otherwise all
   created within minutes of itself.

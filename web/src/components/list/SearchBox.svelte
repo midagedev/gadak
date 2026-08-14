@@ -5,13 +5,18 @@
    *  ② Inline tokens: @assignee · #team · !priority · is:reopened|unassigned|stale —
    *     autocomplete then convert to filters.
    *  ③ Issue-key jump (DEN-123/den123).
-   *  ④ Enter → server full-text (body/comments).
+   *  ④ Paste or Enter of JQL / a Jira jql= URL → POST jql/, apply chips.
+   *  ⑤ Enter on ordinary text → server full-text (body/comments).
    *  `/` focuses from anywhere; Esc clears.
    */
   import { t } from '../../lib/i18n'
+  import { parseJql } from '../../lib/api'
+  import { looksLikeJql } from '../../lib/jql'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
+  import { me } from '../../stores/me.svelte'
   import { selection } from '../../stores/selection.svelte'
+  import { write } from '../../stores/write.svelte'
   import { fieldEnabled, type MultiField } from '../../lib/view-config'
   import Icon from '../ui/Icon.svelte'
 
@@ -120,6 +125,41 @@
     sugIdxRaw = 0
   }
 
+  let applyingJql = $state(false)
+
+  async function applyJql(raw: string): Promise<boolean> {
+    if (applyingJql) return true
+    applyingJql = true
+    try {
+      const res = await parseJql(raw, me.email)
+      if (res.error === 'not_jql') return false
+      if (res.error) {
+        write.toast(res.message || t('filter.jqlParseFailed'), 'error')
+        return true
+      }
+      filters.applyJqlResult(res)
+      text = res.filters?.q ?? ''
+      if (res.unsupported?.length) {
+        write.toast(t('filter.jqlPartial', { clauses: res.unsupported.join('; ') }), 'info')
+      } else {
+        write.toast(t('filter.jqlApplied'), 'success')
+      }
+      return true
+    } catch {
+      write.toast(t('filter.jqlNotAvailable'), 'error')
+      return true
+    } finally {
+      applyingJql = false
+    }
+  }
+
+  async function onPaste(e: ClipboardEvent) {
+    const raw = e.clipboardData?.getData('text') ?? ''
+    if (!looksLikeJql(raw)) return
+    e.preventDefault()
+    await applyJql(raw)
+  }
+
   function onKeydown(e: KeyboardEvent) {
     if (suggestions.length > 0) {
       if (e.key === 'ArrowDown') {
@@ -142,6 +182,8 @@
       e.preventDefault()
       if (showJump && jumpKey) {
         selection.select(jumpKey)
+      } else if (text.trim() && looksLikeJql(text)) {
+        void applyJql(text)
       } else if (text.trim()) {
         void filters.runServerSearch()
       }
@@ -174,6 +216,7 @@
       bind:this={inputEl}
       bind:value={text}
       oninput={onInput}
+      onpaste={onPaste}
       onkeydown={onKeydown}
       type="text"
       data-testid="search-input"

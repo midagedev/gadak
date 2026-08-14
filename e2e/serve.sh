@@ -75,6 +75,26 @@ GADAK_HOME="$HOME_DIR" "$BIN" status >/dev/null
 
 echo "[e2e] injecting deploy enrichment on NMB-110…"
 sqlite3 "$DB" <<'SQL'
+INSERT INTO source_queries
+  (id, source_id, external_id, name, query_text, config, favourite, owner, applied, unsupported, updated_at)
+VALUES (
+  'jira:e2e-open-nma',
+  'jira',
+  'e2e-open-nma',
+  'Open in NMA',
+  'project = NMA AND statusCategory = "In Progress"',
+  '{"filters":{"jira_project":["NMA"],"status_category":["inprogress"]},"display":{"group_by":"status_category"}}',
+  1,
+  'Dana',
+  '["project","statusCategory"]',
+  '[]',
+  datetime('now')
+)
+ON CONFLICT(id) DO UPDATE SET
+  name = excluded.name,
+  query_text = excluded.query_text,
+  config = excluded.config;
+
 INSERT INTO enrichments (key, kind, payload, source, updated_at)
 VALUES (
   'NMB-110',

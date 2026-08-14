@@ -53,11 +53,10 @@ brand:
 media: media-web media-agent
 	@echo "media: done → $(MEDIA_DIR)/"
 	@ls -lh $(MEDIA_DIR)/web-demo.gif $(MEDIA_DIR)/web-demo.mp4 \
-		$(MEDIA_DIR)/agent.gif
+		$(MEDIA_DIR)/agent.gif $(MEDIA_DIR)/agent.mp4
 
 media-deps:
 	@command -v ffmpeg >/dev/null || { echo "media: ffmpeg required" >&2; exit 1; }
-	@command -v vhs >/dev/null || { echo "media: vhs required (brew install vhs)" >&2; exit 1; }
 	@command -v go >/dev/null || { echo "media: go required" >&2; exit 1; }
 	@if [ ! -x node_modules/.bin/playwright ]; then \
 		echo "media: npm ci…"; \
@@ -67,6 +66,7 @@ media-deps:
 	./node_modules/.bin/playwright install chromium
 
 media-prep: media-deps
+	@command -v vhs >/dev/null || { echo "media-prep: vhs required (brew install vhs)" >&2; exit 1; }
 	bash tools/tapes/prepare.sh
 
 media-web: media-deps
@@ -76,11 +76,9 @@ media-web: media-deps
 	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/playwright.config.ts
 	bash e2e/demo/export-video.sh
 
-media-agent: media-prep
+media-agent: media-deps
 	@mkdir -p $(MEDIA_DIR)
-	@echo "media-agent: recording VHS tape…"
-	vhs tools/tapes/agent.tape
-	@if command -v gifsicle >/dev/null; then \
-		echo "media-agent: gifsicle -O3 --colors 64"; \
-		gifsicle -O3 --colors 64 $(MEDIA_DIR)/agent.gif -o $(MEDIA_DIR)/agent.gif; \
-	fi
+	@echo "media-agent: recording agent-focus demo…"
+	rm -rf e2e/demo/test-results-agent
+	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/agent.config.ts
+	bash e2e/demo/export-agent.sh

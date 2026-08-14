@@ -61,7 +61,14 @@ agents that prefer not to write SQL for it.
 ```bash
 gadak sql "select count(*) from issues where reopen_count > 0"
 gadak sql --json "select key, summary from issues limit 5"
+gadak search --jql 'project = NMA AND statusCategory = "In Progress"' --json
+gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
 ```
+
+`search --jql` (or a pasted navigator URL) applies the documented JQL subset
+against the mirror. `views open` writes a one-shot hash the running app or
+serve tab applies — do not describe chips to the human; set them. Flags may
+sit on either side of the query.
 
 Opens the database read-only and rejects anything that is not a `SELECT` or
 `WITH`. It exists so an agent that has been given a narrow command allowlist can

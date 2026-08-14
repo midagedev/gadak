@@ -11,7 +11,7 @@
 import { t } from '../lib/i18n'
 import * as api from '../lib/api'
 import { STORAGE_KEYS } from '../lib/storage'
-import type { SavedView } from '../lib/types'
+import type { SavedView, SourceView } from '../lib/types'
 import type { ViewConfig } from '../lib/view-config'
 
 const LS_KEY = STORAGE_KEYS.personalViews
@@ -45,6 +45,7 @@ function savePersonal(views: PersonalView[]): void {
 class ViewsStore {
   personal = $state<PersonalView[]>([])
   team = $state<SavedView[]>([])
+  source = $state<SourceView[]>([])
   teamLoaded = $state(false)
 
   init(): void {
@@ -56,6 +57,7 @@ class ViewsStore {
     try {
       const res = await api.getViews()
       this.team = res.views
+      this.source = res.source ?? []
     } catch (e) {
       console.warn('[views] 팀 뷰 로드 실패', e)
     } finally {

@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -355,4 +355,25 @@ CREATE INDEX idx_item_refs_target ON item_refs(target_kind, target_key);
 // label is not repeated. Empty until a listing or per-space GET fills it.
 const schemaV17 = `
 ALTER TABLE spaces ADD COLUMN homepage_id TEXT NOT NULL DEFAULT '';
+`
+
+// schemaV18 mirrors named queries from a connector (Jira saved filters).
+// Disposable: Jira is the record; a re-sync replaces the source's rows.
+// Distinct from saved_views, which are authored in gadak.
+const schemaV18 = `
+CREATE TABLE source_queries (
+  id           TEXT PRIMARY KEY,
+  source_id    TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+  external_id  TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  query_text   TEXT NOT NULL,
+  config       TEXT NOT NULL,
+  favourite    INTEGER NOT NULL DEFAULT 0,
+  owner        TEXT,
+  applied      TEXT,
+  unsupported  TEXT,
+  updated_at   TEXT
+);
+CREATE UNIQUE INDEX source_queries_ext ON source_queries(source_id, external_id);
+CREATE INDEX source_queries_source ON source_queries(source_id, favourite, name);
 `

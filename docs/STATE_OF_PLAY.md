@@ -4,8 +4,9 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-13, v0.12.0 — paper identity, TUI retired, labels /
-priority / title write through to Jira.
+Last updated: 2026-08-14 — JQL paste/copy, Jira saved-filter import, and
+`gadak views open` focusing the running UI. v0.12.0 remains the last tagged
+release.
 
 ## In one paragraph
 
@@ -32,15 +33,18 @@ snapshot, not assumed.
 | Live write-through | Comment and transition executed against real Jira; response carried the refreshed IssueLite (`comment_count` 0→1) |
 | Settings round-trip without restart | `PUT settings/` → `config.json` reflects immediately; `groupRules` classified 39 issues on the next read |
 | Plugin boundary | Two SQL statements (insert into `enrichments`, bump `sync_state.version`) surfaced a deploy badge and PR list in the API |
-| Browser E2E | `playwright test --config e2e/playwright.config.ts` → 19/19 against `examples/demo.db` (`e2e/*.spec.ts` only; `demo/` and `hosted/` ignored) |
+| Browser E2E | `playwright test --config e2e/playwright.config.ts` against `examples/demo.db` (`e2e/*.spec.ts` only; `demo/` and `hosted/` ignored) |
 | Derived reopen_reason / cloned_from | Live demo-site sync: 87 reopened issues, 42 carrying a derived reason |
 | Plugin examples end to end | `examples/plugins/github-prs` and `csv-import` run against a copy of the snapshot; the API then returns `linked_prs` and both the list badge (`deploy_status`) and detail `deploy` |
 | Single binary | `go build` embeds `dist/app`; a fresh binary with no `--static` serves the UI and `/api/v1/issues/bootstrap/` returns 200 |
 | Agent CLI | `gadak issue NMB-20`, `gadak search pagination`, `--json` shapes verified against the demo profile |
+| JQL subset | `internal/jql` parse/emit/match tests; `gadak search --jql` and `POST /api/v1/issues/jql/` round-trip `project` + `statusCategory` against the fixture |
+| Jira filter import | Sync `GET /filter/my?includeFavourites=true` → `source_queries`; sidebar **Jira filters**; partial JQL listed |
+| Agent view focus | `gadak views open --jql '…'` writes `ui-focus.json`; the app / serve tab applies the hash; `--no-open` for tests |
 | Secret scan | `scripts/scan-internal.sh` clean across the tracked tree and the demo snapshot |
 | Release artifacts | `goreleaser release --snapshot` → six archives; the extracted darwin/arm64 binary serves the embedded UI and a 200 bootstrap with no `--static` |
 | MCP server | stdio JSON-RPC round trip: initialize / tools/list / all four tools; write SQL rejected as a tool error; stdout carries frames only |
-| Demo media | `make media` regenerates two GIFs and an MP4 from the snapshot; frames inspected for branding, English status/type names (list + issue detail — `examples/demo.db` 2026-08-06: status/type Hangul 0 rows; titles English), a healthy sync badge, and the attachment gallery + inline comment images |
+| Demo media | `make media` regenerates the hero GIF/MP4 and the agent-focus split (terminal + paper list) from the snapshot |
 | Attachment cache | Fake-Jira test: one upstream fetch for two views, `immutable` validator on the second, and a cached image still served with the credential removed. Live: 0.6 ms from disk |
 | Inline comment images | Live demo site: three uploads, a comment carrying two media nodes with real UUIDs and `alt` filenames, both rendering in a browser at full resolution |
 | Offline attachments | `gadak demo` imports `examples/attachments/`; both inline images render with no Jira account |

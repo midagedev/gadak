@@ -49,9 +49,14 @@ Jira issues are mirrored to a local SQLite file. Prefer these over any Jira API:
 - `gadak issue <KEY>` — everything about one issue (fields, description,
   comments, history, links) in one call. Add `--json` for structure.
 - `gadak search "<text>" --json` — full-text over summaries, bodies, comments.
+  A Jira URL or `--jql "…"` applies the documented JQL subset instead;
+  unsupported clauses are listed on stderr — do not hide them.
 - `gadak sql "<select …>"` — read-only SQL (SQLite mode=ro). Schema:
   specs/000-product/data-model.md in the gadak repo (or
   `SELECT sql FROM sqlite_master WHERE type IN ('table','view')`).
+- `gadak views` / `gadak views open --jql "…"` — list mirrored Jira filters
+  and put the running app or serve tab on that view. Do not describe chips
+  to the user; set them.
 - `gadak comment <KEY> -m "…"`, `gadak transition <KEY> "<status>"` — writes go
   through to Jira.
 

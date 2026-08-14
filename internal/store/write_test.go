@@ -610,6 +610,26 @@ func TestPersonalState(t *testing.T) {
 		t.Errorf("view survived deletion: %+v", views)
 	}
 
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReplaceSourceQueries(context.Background(), "jira", []SourceQuery{
+		{ID: "jira:1", ExternalID: "1", Name: "Starred", QueryText: "project = NMA", Config: json.RawMessage(`{}`), Favourite: true},
+		{ID: "jira:2", ExternalID: "2", Name: "Alpha", QueryText: "type = Bug", Config: json.RawMessage(`{}`)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	qs, err := db.SourceQueries(context.Background(), "jira")
+	if err != nil || len(qs) != 2 || qs[0].Name != "Starred" || qs[1].Name != "Alpha" {
+		t.Fatalf("source_queries = %+v err=%v", qs, err)
+	}
+	if err := db.ReplaceSourceQueries(context.Background(), "jira", nil); err != nil {
+		t.Fatal(err)
+	}
+	if qs, _ := db.SourceQueries(context.Background(), "jira"); len(qs) != 0 {
+		t.Fatalf("replace empty left %+v", qs)
+	}
+
 	for _, c := range []struct {
 		set  func(context.Context, string, bool) error
 		get  func(context.Context) ([]string, error)

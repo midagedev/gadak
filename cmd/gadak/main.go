@@ -1071,7 +1071,8 @@ Commands:
 Reading the mirror (no network; see AGENTS.md):
   issue      full detail for one issue    <KEY> [--json]
   open       open the issue on your Jira site in the browser  <KEY>
-  search     full-text search            [--limit N] [--json] "text"
+  search     full-text or JQL            [--jql] [--emit] [--limit N] [--json] "text|JQL|URL"
+  views      list/open Jira filters      [list|show|open|save]  (alias: view)
   sql        read-only SQL               [--json|--csv] "select ..."
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
   mcp        MCP server on stdio; mcp install <client> pins profile (docs/MCP.md)
@@ -1158,6 +1159,8 @@ var commands = map[string]func([]string) error{
 	"team":            cmdTeam,
 	"transition":      cmdTransition,
 	"version":         cmdVersion,
+	"view":            cmdViews,
+	"views":           cmdViews,
 }
 
 // commandNames returns sorted keys of commands. helps has one entry per name;

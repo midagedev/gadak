@@ -203,6 +203,48 @@ func TestIssueAndSearchReadTheMirror(t *testing.T) {
 	if body.Total != 1 || body.Issues[0].IssueKey != "NMB-1" {
 		t.Fatalf("search --json %+v", body)
 	}
+
+	out, err = capture(t, func() error {
+		return cmdSearch([]string{"--jql", `project = NMB AND statusCategory = "In Progress"`})
+	})
+	if err != nil {
+		t.Fatalf("search --jql: %v", err)
+	}
+	if fields := strings.Split(strings.TrimSpace(out), "\t"); len(fields) != 4 || fields[0] != "NMB-1" {
+		t.Fatalf("jql search line %q", out)
+	}
+
+	out, err = capture(t, func() error {
+		return cmdSearch([]string{"--jql", "--emit", `project = NMB AND statusCategory = "In Progress"`})
+	})
+	if err != nil {
+		t.Fatalf("search --emit: %v", err)
+	}
+	if !strings.Contains(out, "project = NMB") || !strings.Contains(out, `statusCategory = "In Progress"`) {
+		t.Fatalf("emit %q", out)
+	}
+
+	out, err = capture(t, func() error {
+		return cmdSearch([]string{
+			"--jql", `project = NMB AND statusCategory = "In Progress"`, "--json", "--limit", "3",
+		})
+	})
+	if err != nil {
+		t.Fatalf("search --jql … --json: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, `"issue_key":"NMB-1"`) && !strings.Contains(out, `"NMB-1"`) {
+		t.Fatalf("trailing --json swallowed into JQL: %s", out)
+	}
+
+	out, err = capture(t, func() error {
+		return cmdSearch([]string{"https://example.atlassian.net/issues/?jql=project%20%3D%20NMB"})
+	})
+	if err != nil {
+		t.Fatalf("search URL: %v", err)
+	}
+	if !strings.Contains(out, "NMB-1") {
+		t.Fatalf("url search %q", out)
+	}
 }
 
 // A query that starts with a `--` comment is what an agent pastes out of

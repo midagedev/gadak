@@ -129,6 +129,10 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("GET "+apiBase+"bootstrap/{$}", s.handleBootstrap)
 	mux.HandleFunc("GET "+apiBase+"delta/{$}", s.handleDelta)
 	mux.HandleFunc("GET "+apiBase+"search/{$}", s.handleSearch)
+	mux.HandleFunc("GET "+apiBase+"ui-focus/{$}", s.handleUIFocus)
+	mux.HandleFunc("GET "+apiBase+"jql/{$}", s.handleJql)
+	mux.HandleFunc("POST "+apiBase+"jql/{$}", s.handleJql)
+	mux.HandleFunc("POST "+apiBase+"jql/emit/{$}", s.handleJqlEmit)
 	// Confluence pages list (R2). Detail shares GET {key}/{action}/ below —
 	// ServeMux rejects pages/{key}/ vs {key}/detail/ (both match pages/detail/).
 	// ETag on the list is confluence sync_state.version only; jira bootstrap/

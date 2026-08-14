@@ -124,6 +124,20 @@ export function jiraBrowseUrl(issueKey: string): string | null {
   return base ? `${base}/browse/${encodeURIComponent(issueKey)}` : null
 }
 
+/**
+ * Jira issue navigator for a saved filter (`?filter=<id>`), falling back to
+ * the raw JQL when we only have the query text. Null with no site configured.
+ */
+export function jiraFilterUrl(filterId: string, jql?: string): string | null {
+  const base = config().jiraBaseUrl.replace(/\/+$/, '')
+  if (!base) return null
+  const id = filterId.trim()
+  if (id) return `${base}/issues/?filter=${encodeURIComponent(id)}`
+  const q = (jql ?? '').trim()
+  if (q) return `${base}/issues/?jql=${encodeURIComponent(q)}`
+  return null
+}
+
 /** Vite `base` at runtime, always with a trailing slash. */
 export function basePath(): string {
   const base = import.meta.env.BASE_URL || '/'

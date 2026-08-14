@@ -186,12 +186,37 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak issue"},
 	},
+	"view": {
+		summary: "list, show, or focus a Jira filter / saved view (alias of views)",
+		usage:   "gadak [--profile <name>] view [list|show|open|save] [--no-open] …",
+		examples: []string{
+			"gadak view",
+			"gadak view open \"NMA in progress\"",
+		},
+		seeAlso: []string{"gadak views", "gadak search"},
+	},
+	"views": {
+		summary: "list Jira filters and saved views; open one in the running UI",
+		usage:   "gadak [--profile <name>] views [list|show <name>|open <name>|save <name> --jql '…'] [--json] [--no-open]",
+		examples: []string{
+			"gadak views",
+			"gadak views show \"NMA in progress\"",
+			"gadak views open \"NMA in progress\"",
+			"gadak views open --jql 'project = NMA AND statusCategory = \"In Progress\"'",
+			"gadak views open --jql 'project = NMA' --no-open",
+			"gadak views save \"Night triage\" --jql 'assignee = currentUser() AND resolution is EMPTY'",
+		},
+		seeAlso: []string{"gadak search", "gadak sync"},
+	},
 	"search": {
-		summary: "full-text search of titles, bodies, and comments in the mirror",
-		usage:   "gadak [--profile <name>] search [--limit N] [--json] \"text\"",
+		summary: "full-text search, or a JQL / Jira-URL filter against the mirror",
+		usage:   "gadak [--profile <name>] search [--jql] [--emit] [--limit N] [--json] \"text|JQL|URL\"",
 		examples: []string{
 			"gadak search \"flaky upload\" --limit 5",
 			"gadak search \"idempotency\" --json",
+			"gadak search --jql 'project = NMA AND statusCategory = \"In Progress\"'",
+			"gadak search 'https://your-site.atlassian.net/issues/?jql=project%20%3D%20NMA'",
+			"gadak search --jql --emit 'assignee = currentUser()'",
 		},
 		seeAlso: []string{"gadak issue", "gadak sql"},
 	},
@@ -326,6 +351,52 @@ func newFlagSet(name string) *flag.FlagSet {
 		fmt.Print(formatHelp(name, fs))
 	}
 	return fs
+}
+
+// parseAround pulls known flags out of args in any position and Parse()s them.
+// The leftover is the positional query or name. Agents type
+// `gadak search --jql '…' --json`; Go's FlagSet would otherwise swallow
+// --json into the JQL because it stops at the first non-flag.
+func parseAround(fs *flag.FlagSet, args []string) (rest []string, err error) {
+	needVal := map[string]bool{}
+	fs.VisitAll(func(f *flag.Flag) {
+		need := true
+		if bf, ok := f.Value.(interface{ IsBoolFlag() bool }); ok && bf.IsBoolFlag() {
+			need = false
+		}
+		needVal["-"+f.Name] = need
+		needVal["--"+f.Name] = need
+	})
+	var flagArgs, pos []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			pos = append(pos, args[i+1:]...)
+			break
+		}
+		if a == "-" || !strings.HasPrefix(a, "-") {
+			pos = append(pos, a)
+			continue
+		}
+		name, _, inline := strings.Cut(a, "=")
+		need, known := needVal[name]
+		if !known {
+			pos = append(pos, a)
+			continue
+		}
+		flagArgs = append(flagArgs, a)
+		if !inline && need {
+			if i+1 >= len(args) {
+				return nil, fmt.Errorf("flag needs an argument: %s", name)
+			}
+			i++
+			flagArgs = append(flagArgs, args[i])
+		}
+	}
+	if err := fs.Parse(flagArgs); err != nil {
+		return nil, err
+	}
+	return pos, nil
 }
 
 // wantsHelp reports whether args contain -h or --help (for commands that do

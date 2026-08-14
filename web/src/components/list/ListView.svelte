@@ -92,7 +92,7 @@
     <div class="flex items-center gap-2.5">
       <div class="min-w-0 flex-1"><FilterBar /></div>
       <FreshnessChip />
-      <span class="flex-none text-[12px] text-text-muted">
+      <span data-testid="list-count" class="flex-none text-[12px] text-text-muted">
         {t('list.countIssues', { n: formatNumber(visibleCount) })}
       </span>
     </div>

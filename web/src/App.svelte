@@ -19,6 +19,7 @@
   import { router } from './lib/router.svelte'
   import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { feature, isHostedDemo } from './lib/config'
+  import { takeUIFocus } from './lib/api'
   import { adoptRunningSync } from './lib/sync-now'
   import { installDesktopLinkOpener } from './lib/desktop-links'
   import { browse, installBrowseSessions } from './lib/browse.svelte'
@@ -135,8 +136,29 @@
     // Desktop only: external links + in-app browse session tracking.
     const uninstallLinks = installDesktopLinkOpener()
     const uninstallBrowse = installBrowseSessions()
+    const applyFocus = async () => {
+      if (isHostedDemo()) return
+      try {
+        const hash = await takeUIFocus()
+        if (!hash) return
+        me.closeFeed()
+        pages.closeDocs()
+        const q = hash.startsWith('?') ? hash.slice(1) : hash
+        location.hash = q ? `#/?${q}` : '#/'
+      } catch {
+        /* serve without the endpoint, or offline */
+      }
+    }
+    void applyFocus()
+    const focusTimer = setInterval(() => void applyFocus(), 500)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void applyFocus()
+    }
+    document.addEventListener('visibilitychange', onVis)
     return () => {
       clearTimeout(skeletonTimer)
+      clearInterval(focusTimer)
+      document.removeEventListener('visibilitychange', onVis)
       uninstallLinks()
       uninstallBrowse()
     }

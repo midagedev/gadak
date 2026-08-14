@@ -8,7 +8,9 @@ view with the title included; add `--json` or `--csv` for machines. Timestamps
 are ISO-8601 UTC strings, so `julianday()` and string comparison both work.
 
 None of these are expressible in JQL — that is the point. JQL cannot join, see
-the changelog as data, aggregate, or read derived history.
+the changelog as data, aggregate, or read derived history. The inverse — a
+Jira filter you already have — is `gadak search --jql '…'` (or paste the URL
+into the search box), not this file.
 
 ## Triage
 

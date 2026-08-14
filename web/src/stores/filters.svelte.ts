@@ -24,6 +24,7 @@ import {
   DYN_FIELD_PREFIX,
   effectiveCategory,
   emptyConfig,
+  emptyFilters,
   hasAnyFilter,
   isStale,
   isViewParam,
@@ -384,6 +385,32 @@ class FiltersStore {
   applyConfig(config: ViewConfig): void {
     this.clearServerSearch()
     this.#apply(mergeConfig(config))
+  }
+
+  /**
+   * Replace filters with a parsed JQL result. Keeps the current grouping and
+   * columns; takes ORDER BY when the query named one.
+   */
+  applyJqlResult(
+    parsed: {
+      filters: ViewFilters
+      display?: { sort?: string; dir?: string }
+    },
+  ): void {
+    const cur = this.snapshot()
+    const next = emptyConfig()
+    next.filters = { ...emptyFilters(), ...parsed.filters }
+    next.display.group_by = cur.display.group_by
+    next.display.columns = cur.display.columns
+    const sort = parsed.display?.sort
+    if (sort === 'updated' || sort === 'created' || sort === 'priority' || sort === 'reopen_count') {
+      next.display.sort = sort
+    } else {
+      next.display.sort = cur.display.sort
+    }
+    const dir = parsed.display?.dir
+    next.display.dir = dir === 'asc' || dir === 'desc' ? dir : cur.display.dir
+    this.applyConfig(next)
   }
 
   /** Current view config (for save). */

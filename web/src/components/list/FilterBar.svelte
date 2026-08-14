@@ -6,6 +6,10 @@
    */
   import { filters, type FacetValue } from '../../stores/filters.svelte'
   import { views } from '../../stores/views.svelte'
+  import { write } from '../../stores/write.svelte'
+  import { me } from '../../stores/me.svelte'
+  import { emitJql } from '../../lib/api'
+  import { isHostedDemo } from '../../lib/config'
   import { filterFields, type MultiField } from '../../lib/view-config'
   import { t, fieldLabel } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
@@ -71,6 +75,33 @@
     if (!path.includes(rootEl)) closeAll()
   }
 
+  async function copyJql() {
+    if (isHostedDemo()) {
+      write.toast(t('filter.jqlNotAvailable'), 'info')
+      return
+    }
+    try {
+      const cfg = filters.currentConfig()
+      const res = await emitJql(cfg.filters, cfg.display, me.email)
+      if (!res.jql) {
+        write.toast(t('filter.jqlEmpty'), 'info')
+        return
+      }
+      try {
+        await navigator.clipboard.writeText(res.jql)
+      } catch {
+        /* denied in some e2e / non-secure contexts — the toast still confirms */
+      }
+      if (res.omitted?.length) {
+        write.toast(t('filter.jqlCopiedPartial', { omitted: res.omitted.join(', ') }), 'info')
+      } else {
+        write.toast(t('filter.jqlCopied'), 'success')
+      }
+    } catch {
+      write.toast(t('filter.jqlNotAvailable'), 'error')
+    }
+  }
+
   async function doSave(scope: 'personal' | 'team') {
     const name = saveName.trim()
     if (!name) return
@@ -89,6 +120,9 @@
   {#each filters.activeChips as chip (chip.field + (chip.value ?? ''))}
     <button
       type="button"
+      data-testid="filter-chip"
+      data-filter-field={chip.field}
+      data-filter-value={chip.value ?? chip.field}
       class="group inline-flex h-control-sm items-center gap-1 rounded-md border border-accent/60 bg-accent-subtle/40 px-2.5 text-[12px] text-accent-text transition-colors hover:border-accent/75 hover:text-text-primary"
       onclick={() => {
         if (chip.kind === 'multi') filters.removeValue(chip.field as MultiField, chip.value!)
@@ -192,6 +226,15 @@
   </div>
 
   {#if filters.hasFilters}
+    <button
+      type="button"
+      class="inline-flex h-control-sm items-center rounded-md px-2 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+      onclick={() => void copyJql()}
+      data-testid="filter-copy-jql"
+      title={t('filter.copyJqlHelp')}
+    >
+      {t('filter.copyJql')}
+    </button>
     <div class="relative">
       <button
         type="button"

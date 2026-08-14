@@ -136,6 +136,13 @@ gadak open NMB-140                    # jump to the issue on the Jira site (boar
 
 gadak search "flaky upload" --limit 5
 gadak search "idempotency" --json     # matching IssueLite rows, best match first
+gadak search --jql 'project = NMA AND statusCategory = "In Progress"'
+gadak search 'https://your-site.atlassian.net/issues/?jql=project%20%3D%20NMA'
+
+gadak views                              # Jira filters (after sync) + saved views
+gadak views open "NMA in progress"       # focus the running app or serve tab
+gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
+gadak views save "Night triage" --jql 'assignee = currentUser() AND resolution is EMPTY'
 
 gadak comment NMB-140 -m "Reproduced on staging; trace attached."
 gadak comment NMB-140 -m -            # body from stdin, for anything multi-line

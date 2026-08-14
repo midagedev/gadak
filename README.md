@@ -92,8 +92,8 @@ and the agent read the same store.
 
 | | For | Looks like |
 | --- | --- | --- |
-| **App + Web UI** | all-day triage | the [macOS app](docs/DESKTOP.md) — no port, no local server — or the same UI in a browser tab (`gadak serve`). `j`/`k` walk the list, `x` selects, `s`/`a`/`l`/`c` change status, assignee, labels, or leave a comment without leaving the list. Click an issue to rename it, change priority, or edit labels. ⌘K finds issues *and* wiki pages. Documents are first-class: recency lists, deep links (`?doc=`), and cross-references both ways. In the app, the issue key or a wiki link opens the original Atlassian page in the same window; close the tab and the mirror re-reads what you just changed. |
-| **CLI + SQL** | agents, scripts, one-off questions | `gadak issue`, `gadak search` (issues and pages), `gadak sql`, plus the file itself |
+| **App + Web UI** | all-day triage | the [macOS app](docs/DESKTOP.md) — no port, no local server — or the same UI in a browser tab (`gadak serve`). `j`/`k` walk the list, `x` selects, `s`/`a`/`l`/`c` change status, assignee, labels, or leave a comment without leaving the list. Click an issue to rename it, change priority, or edit labels. Paste a Jira filter URL or JQL into search and the chips apply; **Copy JQL** is the way back. Sync also pulls the filters you own or have starred into the sidebar. ⌘K finds issues *and* wiki pages. Documents are first-class: recency lists, deep links (`?doc=`), and cross-references both ways. In the app, the issue key or a wiki link opens the original Atlassian page in the same window; close the tab and the mirror re-reads what you just changed. |
+| **CLI + SQL** | agents, scripts, one-off questions | `gadak issue`, `gadak search` (FTS, or `--jql` / a Jira URL), `gadak sql`, plus the file itself |
 
 Writes go through to Jira and then refresh the mirror, so the list is correct
 a moment later without a full sync. Comment, transition, assign, labels,
@@ -126,18 +126,33 @@ opens at the speed of the rest of the app — and keeps rendering offline.
 This is half the reason gadak exists, so it has its own reference:
 **[AGENTS.md](AGENTS.md)** — schema tour, query patterns, and the mistakes
 that silently return nothing. [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) is
-one paste per agent (Claude Code, Cursor, Codex, MCP). Hooking one up is one
-line:
+one paste per agent (Claude Code, Cursor, Codex, MCP). Claude Code, if it
+already has a shell:
 
 ```bash
+gadak skill install         # schema + query patterns, no extra process
+# or, for hosts without a shell (Claude Desktop):
 gadak mcp install claude    # pins this binary and profile into the registration
 ```
 
+Then ask something Jira cannot:
+
+> what keeps coming back in billing, and did we write it down?
+
+The session runs the mirror, not the REST API:
+
+```bash
+gadak sql "select key, summary, reopen_count from issues_full
+          where reopen_count > 0 and summary like '%billing%'
+          order by reopened_at desc"
+gadak search "billing incident"
+```
+
 <p align="center">
-  <img src="docs/media/agent.gif" alt="Terminal: gadak status, a SQL query for reopened issues, then gadak search" width="800">
+  <img src="docs/media/agent.gif" alt="An agent types gadak views open with a JQL filter; the paper list snaps to Project NMA and Category In Progress" width="800">
   <br>
-  <sub>What an agent types against the mirror — status, a question JQL cannot ask, then one-index search.
-  Generated from <a href="tools/tapes/agent.tape">tools/tapes/agent.tape</a> (VHS, demo snapshot).</sub>
+  <sub>The window follows the agent. <code>gadak views open</code> writes a one-shot hash; the running app or serve tab applies it.
+  Generated from <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a> against the demo snapshot.</sub>
 </p>
 
 The interface is the database, so anything that can run a shell command has
@@ -148,6 +163,14 @@ full power:
 gadak sql "select key, summary, reopen_count from issues_full
           where reopen_count > 0 order by reopened_at desc limit 20"
 
+# The same JQL as a Jira dashboard or filter URL — paste the query or the URL
+gadak search --jql 'project = NMA AND statusCategory = "In Progress"'
+gadak search 'https://your-site.atlassian.net/issues/?jql=project%20%3D%20NMA'
+
+# Put the window on that view (running app or `gadak serve`)
+gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
+gadak views open "NMA in progress"
+
 # Full-text across issues AND wiki pages — one index, one query
 gadak search "idempotency webhook"
 
@@ -155,6 +178,12 @@ gadak search "idempotency webhook"
 gadak issue NMB-140 --json
 gadak comment NMB-140 -m "Reproduced on staging."
 ```
+
+The search box in the app takes the same paste: a `jql=` URL or a clause list
+becomes chips, and **Copy JQL** on the filter bar is the way back into Jira.
+Clauses gadak cannot express (sprint, WAS, OR across fields) are listed, never
+dropped on the floor. What JQL still cannot ask — reopen history, joins,
+aggregates — stays in `gadak sql` and [`docs/RECIPES.md`](docs/RECIPES.md).
 
 Reads are safe by construction: `gadak sql` opens the database `mode=ro`, and
 MCP's `gadak_query` additionally rejects anything that is not a SELECT — so an

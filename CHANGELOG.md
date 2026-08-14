@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+- **JQL in, JQL out.** Paste a Jira navigator URL or a dashboard `jql=`
+  clause into the search box (or `gadak search --jql '…'` / the URL itself)
+  and the matching chips apply against the mirror. **Copy JQL** on the filter
+  bar is the way back into Jira. The subset is AND of `=`, `IN`, `IS EMPTY`,
+  date comparisons, `text ~`, `currentUser()`, and `ORDER BY`. Everything
+  else — WAS, sprint, cross-field OR, saved filter ids — is listed and never
+  silently dropped. `POST /api/v1/issues/jql/` and `jql/emit/` are the same
+  parser the CLI uses. Flags may sit on either side of the query
+  (`gadak search --jql '…' --json`). The TUI is gone as of 0.12, so there is
+  no TUI follow-up for this wave.
+- **Claude usage is back on the README.** `gadak skill install` (or MCP),
+  then a question Jira cannot answer, then the SQL the session actually runs.
+- **Jira saved filters land in the sidebar.** Sync pulls the account's owned
+  and starred filters (`GET /filter/my?includeFavourites=true`), compiles each
+  JQL with the same subset as paste, and lists them under **Jira filters**.
+  Schema **v18** adds `source_queries` for those rows. Dashboards stay in Jira
+  — they are gadget layouts; the filters behind them come across when you own
+  or star them. Partial JQL is listed, never dropped. Each row has an
+  open-in-Jira control (`/issues/?filter=<id>`) — the desktop app takes it in
+  the in-app browser; `gadak serve` opens a tab. Snapshots leave the table
+  empty (site-specific names).
+- **`gadak views`.** List Jira filters and saved views, `show` one, `open` it
+  in the running desktop app or serve tab (`#/?pj=…&sc=…`), or `save` a JQL
+  as a named view. `gadak view` is the same command. An agent can put the
+  human on a filter without describing the chips. `--no-open` / `GADAK_NO_OPEN`
+  writes the hash and leaves the window alone (tests, scripts). A named
+  `--profile` is forwarded to Gadak.app so the file and the window match.
+  The README agent clip is this loop: the command types, the list follows.
+
 ## v0.12.0 — 2026-08-13
 
 - **Paper, not a dark dashboard.** The leftover scry look — glowing orb,

@@ -413,14 +413,15 @@ function isSortKey(v: string): v is SortKey {
  */
 
 export function configToParams(config: ViewConfig): Record<string, string | null> {
-  const { filters: f, display: d } = config
+  const f = config.filters ?? emptyFilters()
+  const d = config.display ?? defaultDisplay()
   const out: Record<string, string | null> = {}
 
   for (const field of MULTI_FIELDS) {
-    const arr = f[field]
+    const arr = f[field] ?? []
     out[MULTI_KEY[field]] = arr.length ? arr.join(',') : null
   }
-  for (const [alias, arr] of Object.entries(f.fields)) {
+  for (const [alias, arr] of Object.entries(f.fields ?? {})) {
     out[DYN_FIELD_PREFIX + alias] = arr.length ? arr.join(',') : null
   }
   const flags: string[] = []
@@ -441,10 +442,11 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   out[DIR_KEY] = d.dir !== 'desc' ? d.dir : null
 
   // Columns: omit when default (clean URL); all-off preserved as 'none'.
+  // A Jira-imported view may omit columns; treat that as the catalog default.
+  const cols = d.columns ?? defaultColumns()
   const def = defaultColumns()
-  const colsEqDefault =
-    d.columns.length === def.length && d.columns.every((c, i) => c === def[i])
-  out[COLS_KEY] = colsEqDefault ? null : d.columns.length ? d.columns.join(',') : COLS_NONE
+  const colsEqDefault = cols.length === def.length && cols.every((c, i) => c === def[i])
+  out[COLS_KEY] = colsEqDefault ? null : cols.length ? cols.join(',') : COLS_NONE
 
   return out
 }

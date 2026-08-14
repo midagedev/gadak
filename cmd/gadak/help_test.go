@@ -115,6 +115,25 @@ func TestUsageErrorPointsAtHelp(t *testing.T) {
 	}
 }
 
+func TestParseAroundKeepsTrailingFlags(t *testing.T) {
+	fs := newFlagSet("search")
+	jql := fs.Bool("jql", false, "")
+	asJSON := fs.Bool("json", false, "")
+	limit := fs.Int("limit", 20, "")
+	pos, err := parseAround(fs, []string{
+		"--jql", `project = NMA AND statusCategory = "In Progress"`, "--json", "--limit", "3",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !*jql || !*asJSON || *limit != 3 {
+		t.Fatalf("flags jql=%v json=%v limit=%d", *jql, *asJSON, *limit)
+	}
+	if got := strings.Join(pos, " "); got != `project = NMA AND statusCategory = "In Progress"` {
+		t.Fatalf("query %q", got)
+	}
+}
+
 func firstLine(s string) string {
 	if i := strings.IndexByte(s, '\n'); i >= 0 {
 		return s[:i]

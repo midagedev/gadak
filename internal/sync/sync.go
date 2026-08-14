@@ -268,6 +268,9 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			opts.logf("fields: usage refresh skipped: %v", err)
 		}
 	}
+
+	// Owned + starred filters. Failure must not undo the issue pass.
+	importFilters(ctx, c, cfg, db, opts)
 	return nil
 }
 

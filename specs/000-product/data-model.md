@@ -383,6 +383,27 @@ were deleted, so `gadak export` must be able to dump them.
 | `watches` | `key` PK, `created_at` |
 | `favorites` | `key` PK, `created_at` |
 
+## `source_queries` (v18)
+
+Named queries mirrored from a connector. Jira fills this with the account's
+owned and starred saved filters; a re-sync replaces that source's rows. Not
+personal state: delete the database and they come back from Jira. Distinct
+from `saved_views`, which are authored in gadak.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | TEXT PK | `"<source_id>:<external_id>"` |
+| `source_id` | TEXT | FK `sources.id` |
+| `external_id` | TEXT | Filter id on the source |
+| `name` | TEXT | Display name |
+| `query_text` | TEXT | Original query (JQL for Jira) |
+| `config` | TEXT | Compiled ViewConfig JSON (filters + display) |
+| `favourite` | INTEGER | 1 if starred on the source |
+| `owner` | TEXT | Display name of the owner |
+| `applied` | TEXT | JSON string array of JQL clauses that compiled |
+| `unsupported` | TEXT | JSON string array of clauses that did not |
+| `updated_at` | TEXT | |
+
 ## `feed_reads`
 
 Local personal-feed read receipts. Feed events are not stored as rows: the

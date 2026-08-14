@@ -16,6 +16,7 @@
 - `AGENT_SETUP.md`: one paste per agent (Claude Code, Cursor, Codex, MCP)
 - `AGENT_ACCESS.md`: which access layer to reach for
 - `RECIPES.md`: questions JQL cannot ask, as ready-to-run SQL
+- `decisions/0007-jql-subset.md`: JQL is a filter interchange, not an engine
 - `MCP.md`: MCP server setup for hosts without a shell
 - `CONFIGURATION.md`: `config.json` keys, defaults, floors
 - `EXTENDING.md`: config, enrichments, and SQL extension axes

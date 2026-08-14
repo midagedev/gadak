@@ -132,7 +132,24 @@ WHERE c.author = 'Dana Whitfield' ORDER BY c.created_at DESC LIMIT 20;
 ```
 
 `gadak search "…"` is the shortcut when a query is overkill; `--json` includes a
-`pages` array, and every hit says which field matched.
+`pages` array, and every hit says which field matched. If the user pastes Jira
+JQL or a navigator URL, use `gadak search --jql '…'` (or pass the URL as the
+query). Clauses the subset cannot express are printed on stderr and must be
+repeated to the user — do not pretend the list is what Jira would have shown.
+
+To put the human on a view, do not describe the filters — set them:
+
+```bash
+gadak views                         # names after `gadak sync` (owned + starred Jira filters)
+gadak views open "the name"         # focuses the running desktop app or serve tab
+gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
+gadak views save "Night triage" --jql '…'   # keep a named view in the mirror
+```
+
+`views open` writes a one-shot hash the UI applies; it also opens a serve tab
+when one is listening, and focuses Gadak.app on macOS (the `--profile` is
+passed through so the window and the file match). `--no-open` writes the hash
+only. Confirm you named `--profile` if the user has more than one mirror.
 
 ## One issue, and writes
 

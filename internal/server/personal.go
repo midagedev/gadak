@@ -53,6 +53,18 @@ func (s *server) view(v store.SavedView) savedView {
 	}
 }
 
+type sourceView struct {
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Config      json.RawMessage `json:"config"`
+	JQL         string          `json:"jql"`
+	ExternalID  string          `json:"external_id,omitempty"`
+	Favourite   bool            `json:"favourite"`
+	Owner       string          `json:"owner,omitempty"`
+	Applied     []string        `json:"applied"`
+	Unsupported []string        `json:"unsupported"`
+}
+
 func (s *server) handleGetViews(w http.ResponseWriter, r *http.Request) {
 	stored, err := s.db.SavedViews(r.Context())
 	if err != nil {
@@ -63,7 +75,21 @@ func (s *server) handleGetViews(w http.ResponseWriter, r *http.Request) {
 	for _, v := range stored {
 		views = append(views, s.view(v))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"views": views})
+	src, err := s.db.SourceQueries(r.Context(), "jira")
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	source := make([]sourceView, 0, len(src))
+	for _, q := range src {
+		source = append(source, sourceView{
+			ID: q.ID, Name: q.Name, Config: q.Config, JQL: q.QueryText,
+			ExternalID: q.ExternalID,
+			Favourite:  q.Favourite, Owner: q.Owner,
+			Applied: q.Applied, Unsupported: q.Unsupported,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"views": views, "source": source})
 }
 
 func (s *server) handlePostView(w http.ResponseWriter, r *http.Request) {

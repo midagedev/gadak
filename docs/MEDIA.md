@@ -10,7 +10,8 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | --- | --- | --- |
 | `docs/media/web-demo.gif` | Playwright walkthrough | README hero (inline) |
 | `docs/media/web-demo.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
-| `docs/media/agent.gif` | VHS tape `tools/tapes/agent.tape` | README / docs — the CLI an agent types against the mirror |
+| `docs/media/agent.gif` | Playwright split `e2e/demo/agent-demo.spec.ts` | README — agent types `views open`, the paper list follows |
+| `docs/media/agent.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 
 ## Size budget
 
@@ -18,7 +19,8 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | --- | --- | --- |
 | `web-demo.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | GitHub README inline limit; palette 2-pass |
 | `web-demo.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
-| `agent.gif` | soft ≤ 5 MB | VHS output + `gifsicle -O3 --colors 64` |
+| `agent.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | same README inline budget as the hero |
+| `agent.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 
 ### Current committed sizes (re-measure after regen)
 
@@ -28,7 +30,8 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | --- | --- | --- | --- | --- |
 | `web-demo.gif` | 7.4 MB | 7368472 | 15.8 s | 960×600 @ 9 fps, 128-color palette |
 | `web-demo.mp4` | 1.1 MB | 1073187 | 15.8 s | 1024×640 h264 |
-| `agent.gif` | 143 KB | 143360 | 14.4 s | 1080×500, paper/ink theme, 64 colors |
+| `agent.gif` | 3.4 MB | 3426864 | 8.7 s | 960×758 @ 9 fps, 128-color palette |
+| `agent.mp4` | 0.39 MB | 388891 | 8.7 s | 1024×808 h264 |
 
 ## Readability comes first, and it costs bytes
 
@@ -42,7 +45,9 @@ So the recordings are deliberately small:
 - Web: viewport **1024×640**, not 1280×800. 1024 is the floor that still matches
   Tailwind's `lg:` breakpoint, below which the row's epic chip and trailing
   strip disappear and the UI stops looking like itself.
-- Terminals (agent tape): **77 cols × 24 rows** (`Set Width 1080` / `Set FontSize 20`).
+- Agent clip: **1024×808** — a 168 px paper terminal stacked on the same
+  1024×640 app frame as the hero. Do not scale the iframe; the list has to
+  match the hero's glyph size.
 
 **Web GIF tradeoff:** the 0.12 walkthrough is four beats (search, an open
 issue, documents, epics) on the paper UI. `export-video.sh` starts at
@@ -62,7 +67,8 @@ the file with no visible loss on a 64-colour paper theme.
 
 ```bash
 # Prerequisites (already on a typical gadak dev machine):
-#   go, node ≥ 20, ffmpeg, vhs (brew install vhs), Playwright chromium
+#   go, node ≥ 20, ffmpeg, Playwright chromium
+#   vhs is optional (tools/tapes/agent.tape, a CLI-only re-take)
 
 make media
 ```
@@ -71,7 +77,7 @@ Individual targets:
 
 ```bash
 make media-web     # Playwright → webm → gif + mp4 (self-contained)
-make media-agent   # VHS CLI tape against demo.db → gifsicle when present
+make media-agent   # Playwright split: views open + paper list → gif + mp4
 make media-prep    # build gadak + seed tools/tapes/.tmp from demo.db
 make brand         # logo, wordmarks, favicons, OG card
 ```
@@ -117,21 +123,34 @@ is never touched by this pipeline.
 
 ### Agent (`agent.gif`)
 
-Three scenes, each cleared before the next so a TSV never scrolls off:
+One take, two panes, ~9 s, viewport **1024×808**:
 
-1. `gadak status` — 534 issues, watermark, no network
-2. `gadak sql` — reopen counts, a field Jira does not expose and JQL cannot
-   aggregate
-3. `gadak search 'idempotency'` — one index, tab-separated hits
+1. A paper terminal types
+   `gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'`
+2. The real app (iframe, same 1024×640 frame as the hero) sits underneath
+   on the default **All open** view (368 issues)
+3. On Enter the test runs that command against the serve fixture; the iframe
+   polls `GET ui-focus/` and the chips become **Category: In progress** +
+   **Project: NMA**, the sidebar highlights **Open in NMA**, and the count
+   drops to 55
 
-The tape is deterministic: VHS types the commands, the binary prints against
-`examples/demo.db`. No model, no credential, no take-to-take drift. Paper/ink
-theme so the clip sits next to the web GIF. Search titles wrap at 77 cols —
-that is the readability tradeoff in the sizing note above, not a recording
-bug.
+The command is typed in the wrapper, not in the app — `web/src/` stays
+untouched. No live model, no credential, no take-to-take drift. `--no-open`
+keeps the take from launching Gadak.app or a second tab.
 
-`tools/tapes/prepare-agent.sh` still exists if you want a live Claude Code
-take. The README clip does not use it.
+`tools/tapes/agent.tape` is the older CLI-only SQL take (status / reopen /
+search). It is not what the README embeds. `tools/tapes/prepare-agent.sh`
+still exists if you want a live Claude Code take. The README clip does not
+use either.
+
+### Layout of the pipeline (agent)
+
+```text
+e2e/demo/
+  agent.config.ts      # 1024×808, video on, fresh :7877
+  agent-demo.spec.ts   # GADAK_MEDIA=1 gated split
+  export-agent.sh      # webm → gif (palette 2-pass) + mp4
+```
 
 ## Font notes (Hangul alignment)
 
@@ -174,7 +193,7 @@ Re-run `make media` whenever any of these change in a way that is visible:
 
 - `examples/demo.db` is regenerated (`tools/seed-demo` or similar)
 - Web UI layout / copy that appears in the walkthrough
-- CLI output shape for `search` / `sql` / `issue` / `status`
+- CLI output shape for `search` / `sql` / `issue` / `status` / `views`
 
 The mirror is disposable; the scripts are the source of truth. After regenerating,
 spot-check frames with `ffprobe` and a mid-clip PNG extract before committing:
@@ -191,10 +210,13 @@ e2e/demo/
   playwright.config.ts   # video on, fixed viewport — not the E2E suite
   web-demo.spec.ts       # GADAK_MEDIA=1 gated walkthrough
   export-video.sh        # webm → gif (palette 2-pass) + mp4
+  agent.config.ts        # 1024×808 split, separate output dir
+  agent-demo.spec.ts     # GADAK_MEDIA=1 gated agent-focus take
+  export-agent.sh        # webm → agent.gif + agent.mp4
 tools/tapes/
   prepare.sh             # build binary, seed GADAK_HOME from demo.db
   prepare-agent.sh       # optional — isolated HOME for a live Claude take
-  agent.tape             # VHS script (CLI against demo.db)
+  agent.tape             # optional CLI-only VHS (not the README clip)
   .tmp/                  # disposable (gitignored)
 docs/media/              # committed outputs
 ```

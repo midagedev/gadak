@@ -13,7 +13,7 @@
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
   import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
-  import { config, isHostedDemo, workspaceName } from '../../lib/config'
+  import { config, isHostedDemo, jiraFilterUrl, workspaceName } from '../../lib/config'
   import { busyLabel, fetchingDocuments, mirrorLabel } from '../../lib/mirror-status'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
@@ -31,6 +31,13 @@
     me.closeFeed()
     pages.closeDocs()
     filters.applyConfig(config)
+  }
+
+  function applySource(v: (typeof views.source)[number]) {
+    applyView(v.config)
+    if (v.unsupported?.length) {
+      write.toast(t('filter.jqlPartial', { clauses: v.unsupported.join('; ') }), 'info')
+    }
   }
 
   /** Order-independent canonical string for comparing configs. */
@@ -51,6 +58,7 @@
   const activeBuiltin = $derived(activeId(builtins))
   const activePersonal = $derived(activeId(views.personal))
   const activeTeam = $derived(activeId(views.team))
+  const activeSource = $derived(activeId(views.source))
   const builtinCounts = $derived.by(() => {
     const counts = new Map<string, number>()
     for (const view of builtins) {
@@ -445,6 +453,49 @@
         </button>
       {/each}
     </div>
+
+    <!-- Jira saved filters (owned + starred). No delete — Jira is the record. -->
+    {#if views.source.length}
+      <div class="mb-3" data-testid="sidebar-jira-filters">
+        {@render sectionHeader(t('sidebar.jiraFilters'))}
+        {#each views.source as v (v.id)}
+          {@const href = jiraFilterUrl(v.external_id ?? '', v.jql)}
+          <div
+            class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {activeSource ===
+            v.id
+              ? 'bg-bg-active'
+              : 'hover:bg-bg-hover'}"
+          >
+            <button
+              type="button"
+              class="min-w-0 flex-1 truncate text-left {activeSource === v.id
+                ? 'text-text-primary'
+                : 'text-text-secondary group-hover:text-text-primary'}"
+              onclick={() => applySource(v)}
+              title={v.jql || undefined}
+              data-testid="sidebar-jira-filter"
+              data-filter-id={v.id}
+            >
+              {#if v.favourite}<span class="mr-1 text-micro text-text-muted" aria-hidden="true">★</span>{/if}{v.name}
+            </button>
+            {#if href}
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-accent-text group-hover:opacity-100"
+                title={t('sidebar.openFilterInJira')}
+                aria-label={t('sidebar.openFilterInJira')}
+                data-testid="sidebar-jira-filter-open"
+                onclick={(e) => e.stopPropagation()}
+              >
+                <Icon name="arrow-up-right" size={13} />
+              </a>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
 
     <!-- Personal views -->
     {#if views.personal.length}

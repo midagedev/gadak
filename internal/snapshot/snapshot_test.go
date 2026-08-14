@@ -53,7 +53,7 @@ func TestPersonalDataDropped(t *testing.T) {
 	}
 	db := openRO(t, out)
 	defer db.Close()
-	for _, table := range []string{"saved_views", "watches", "favorites", "feed_reads"} {
+	for _, table := range []string{"saved_views", "watches", "favorites", "feed_reads", "source_queries"} {
 		var n int
 		if err := db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
 			t.Fatalf("%s: %v", table, err)
@@ -277,7 +277,7 @@ func TestDocumentsPreserved(t *testing.T) {
 	}
 
 	// Personal scrub still holds when documents are present.
-	for _, table := range []string{"saved_views", "watches", "favorites", "feed_reads", "deleted_items", "enrichments", "api_usage"} {
+	for _, table := range []string{"saved_views", "watches", "favorites", "feed_reads", "deleted_items", "enrichments", "api_usage", "source_queries"} {
 		var n int
 		if err := dst.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
 			t.Fatalf("%s: %v", table, err)
@@ -745,6 +745,8 @@ func seedSource(t *testing.T, o seedOpts) string {
 			`INSERT INTO watches (key, created_at) VALUES ('NMB-1','2026-01-01T00:00:00.000Z')`,
 			`INSERT INTO favorites (key, created_at) VALUES ('NMB-2','2026-01-01T00:00:00.000Z')`,
 			`INSERT INTO feed_reads (event_id, read_at) VALUES ('e1','2026-01-01T00:00:00.000Z')`,
+			`INSERT INTO source_queries (id, source_id, external_id, name, query_text, config, favourite, updated_at)
+			 VALUES ('jira:1','jira','1','Open in NMA','project = NMA','{}',1,'2026-01-01T00:00:00.000Z')`,
 		} {
 			if _, err := raw.Exec(q); err != nil {
 				raw.Close()

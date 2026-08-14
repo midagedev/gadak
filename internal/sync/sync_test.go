@@ -48,6 +48,9 @@ type fakeSite struct {
 	allJQLs []string
 	// fieldCatalog, when set, is returned from GET /rest/api/3/field (discovery).
 	fieldCatalog []map[string]any
+	// filtersJSON, when set, is GET /filter/my. Default is an empty list so
+	// importFilters does not fail existing issue-sync tests.
+	filtersJSON []byte
 }
 
 func newSite(t *testing.T, lang string) *fakeSite {
@@ -85,6 +88,12 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.child(w, f.changelog, r.URL.Path, "/changelog")
 	case strings.HasSuffix(r.URL.Path, "/comment"):
 		f.child(w, f.comments, r.URL.Path, "/comment")
+	case r.URL.Path == "/rest/api/3/filter/my":
+		if f.filtersJSON != nil {
+			w.Write(f.filtersJSON)
+			return
+		}
+		w.Write([]byte(`[]`))
 	default:
 		f.t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 		http.Error(w, "no", http.StatusNotFound)
@@ -478,6 +487,57 @@ func TestFullSyncMapsEverything(t *testing.T) {
 	}
 	if state.LastError != nil {
 		t.Errorf("last_error = %v", *state.LastError)
+	}
+}
+
+func TestImportFiltersCompilesJQLIntoSourceQueries(t *testing.T) {
+	site := newSite(t, "en")
+	site.filtersJSON = []byte(`[
+		{"id":"10000","name":"Open in NMB","jql":"project = NMB AND statusCategory = \"In Progress\"","favourite":true,
+		 "owner":{"displayName":"Dana"}},
+		{"id":"10001","name":"Sprint board","jql":"project = NMB AND sprint in openSprints()","favourite":false,
+		 "owner":{"displayName":"Dana"}}
+	]`)
+	db := newMirror(t)
+	if _, err := Run(context.Background(), testConfig(), db.DB, Options{Full: true, Client: site.start()}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.SourceQueries(context.Background(), SourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("source_queries %d", len(got))
+	}
+	// Starred first.
+	if got[0].Name != "Open in NMB" || !got[0].Favourite {
+		t.Fatalf("first %+v", got[0])
+	}
+	var cfg struct {
+		Filters struct {
+			JiraProject    []string `json:"jira_project"`
+			StatusCategory []string `json:"status_category"`
+		} `json:"filters"`
+	}
+	if err := json.Unmarshal(got[0].Config, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Filters.JiraProject) != 1 || cfg.Filters.JiraProject[0] != "NMB" {
+		t.Fatalf("compiled project %+v", cfg.Filters.JiraProject)
+	}
+	if len(cfg.Filters.StatusCategory) != 1 || cfg.Filters.StatusCategory[0] != "inprogress" {
+		t.Fatalf("compiled category %+v", cfg.Filters.StatusCategory)
+	}
+	// Sprint is listed, not silently dropped; project still applied.
+	if got[1].Name != "Sprint board" {
+		t.Fatalf("second %q", got[1].Name)
+	}
+	if len(got[1].Unsupported) == 0 {
+		t.Fatal("expected sprint to be unsupported")
+	}
+	joined := strings.Join(got[1].Applied, " ")
+	if !strings.Contains(joined, "project") {
+		t.Fatalf("applied %v", got[1].Applied)
 	}
 }
 

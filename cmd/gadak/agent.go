@@ -26,6 +26,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -241,24 +242,35 @@ func indent(s string) string {
 /* ── search ── */
 
 func cmdSearch(args []string) error {
-	// The query is peeled off first so flags may follow it, which is how anyone
-	// actually types this: `gadak search "flaky upload" --limit 5`.
-	pos, rest := leading(args, 1)
+	// Flags may sit before or after the query. `gadak search "flaky" --limit 5`
+	// and `gadak search --jql 'project = NMA' --json` both have to work;
+	// FlagSet alone swallows a trailing --json into the JQL.
 	fs := newFlagSet("search")
 	limit := fs.Int("limit", 20, "maximum matches")
 	asJSON := fs.Bool("json", false, "emit matching IssueLite rows as JSON")
-	if err := fs.Parse(rest); err != nil {
+	forceJQL := fs.Bool("jql", false, "treat the query as JQL (or a Jira URL with jql=)")
+	emitOnly := fs.Bool("emit", false, "print the canonical JQL and exit (no search)")
+	pos, err := parseAround(fs, args)
+	if err != nil {
 		return err
 	}
-	query := strings.TrimSpace(strings.Join(append(pos, fs.Args()...), " "))
+	query := strings.TrimSpace(strings.Join(pos, " "))
 	if query == "" {
-		return usageError("search", `usage: gadak search [--limit N] [--json] "text"`)
+		return usageError("search", `usage: gadak search [--jql] [--emit] [--limit N] [--json] "text|JQL|URL"`)
 	}
-	// An unquoted multi-word query swallows the flags that follow it, and FTS would
-	// then quietly match nothing rather than fail. Say so instead.
-	if strings.Contains(query, " -") {
+	asJQL := *forceJQL || jql.LooksLike(query)
+	// An unquoted multi-word FTS query swallows the flags that follow it.
+	// JQL uses `-7d` and must not trip this.
+	if !asJQL && strings.Contains(query, " -") {
 		return fmt.Errorf("quote the search text: %q reads a flag as part of the query", query)
 	}
+	if asJQL {
+		return searchJQL(query, *limit, *asJSON, *emitOnly, *forceJQL)
+	}
+	if *emitOnly {
+		return fmt.Errorf("--emit needs JQL (pass --jql or paste a Jira URL / JQL clause)")
+	}
+
 	db, err := openStore()
 	if err != nil {
 		return err
@@ -304,6 +316,154 @@ func cmdSearch(args []string) error {
 		fmt.Println(line)
 	}
 	return nil
+}
+
+func searchJQL(query string, limit int, asJSON, emitOnly, force bool) error {
+	opts := jql.Opts{Email: configuredEmail()}
+	parsed := jql.Parse(query, opts)
+	if parsed.Error == jql.ErrNotJQL && !force {
+		return fmt.Errorf("not JQL: %s", parsed.Message)
+	}
+	if parsed.Error != "" {
+		switch parsed.Error {
+		case jql.ErrFilterID:
+			return fmt.Errorf("%s", parsed.Message)
+		case jql.ErrParse:
+			return fmt.Errorf("cannot parse JQL: %s", parsed.Message)
+		default:
+			return fmt.Errorf("jql: %s", parsed.Message)
+		}
+	}
+
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	warnIfStale()
+
+	lites, err := db.IssueLites(context.Background())
+	if err != nil {
+		return err
+	}
+	people := jql.PeopleFromIssues(jqlIssues(lites))
+	jql.ResolvePeople(&parsed, people, opts.Email)
+
+	if emitOnly {
+		if asJSON {
+			return json.NewEncoder(os.Stdout).Encode(parsed)
+		}
+		if parsed.JQL != "" {
+			fmt.Println(parsed.JQL)
+		}
+		warnJQL(parsed)
+		return nil
+	}
+	if len(parsed.Applied) == 0 && len(parsed.Unsupported) > 0 {
+		return fmt.Errorf("cannot apply JQL — %s", strings.Join(parsed.Unsupported, "; "))
+	}
+
+	matched := make([]store.IssueLite, 0)
+	for _, l := range lites {
+		if jql.Match(jqlIssue(l), parsed.Filters) {
+			matched = append(matched, l)
+		}
+	}
+	sortJQL(matched, parsed.Display)
+	if limit > 0 && len(matched) > limit {
+		matched = matched[:limit]
+	}
+	warnJQL(parsed)
+
+	if asJSON {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"total":       len(matched),
+			"issues":      matched,
+			"pages":       []store.PageLite{},
+			"jql":         parsed.JQL,
+			"applied":     parsed.Applied,
+			"unsupported": parsed.Unsupported,
+		})
+	}
+	for _, l := range matched {
+		fmt.Println(summaryLine(l))
+	}
+	return nil
+}
+
+func warnJQL(parsed jql.Result) {
+	if len(parsed.Unsupported) == 0 {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "warning: JQL skipped %s\n", strings.Join(parsed.Unsupported, "; "))
+}
+
+func configuredEmail() string {
+	cfg, err := config.Load()
+	if err != nil || cfg == nil {
+		return ""
+	}
+	return cfg.Email
+}
+
+func jqlIssue(l store.IssueLite) jql.Issue {
+	return jql.Issue{
+		Key:            l.IssueKey,
+		Project:        l.ProjectKey,
+		Status:         l.Status,
+		StatusCategory: l.StatusCategory,
+		Type:           l.IssueType,
+		Priority:       deref(l.Priority, ""),
+		Assignee:       deref(l.Assignee, ""),
+		AssigneeEmail:  deref(l.AssigneeEmail, ""),
+		AssigneeID:     deref(l.AssigneeID, ""),
+		Reporter:       deref(l.Reporter, ""),
+		ReporterEmail:  deref(l.ReporterEmail, ""),
+		Labels:         l.Labels,
+		Components:     l.Components,
+		FixVersions:    l.FixVersions,
+		CreatedAt:      deref(l.CreatedAt, ""),
+		UpdatedAt:      deref(l.UpdatedAt, ""),
+	}
+}
+
+func jqlIssues(lites []store.IssueLite) []jql.Issue {
+	out := make([]jql.Issue, len(lites))
+	for i, l := range lites {
+		out[i] = jqlIssue(l)
+	}
+	return out
+}
+
+func sortJQL(list []store.IssueLite, d jql.Display) {
+	dir := 1
+	if d.Dir != "asc" {
+		dir = -1
+	}
+	lessTime := func(a, b *string) bool {
+		av, bv := deref(a, ""), deref(b, "")
+		if dir < 0 {
+			return av > bv
+		}
+		return av < bv
+	}
+	sort.SliceStable(list, func(i, j int) bool {
+		a, b := list[i], list[j]
+		switch d.Sort {
+		case "created":
+			return lessTime(a.CreatedAt, b.CreatedAt)
+		case "priority":
+			if a.PriorityRank != b.PriorityRank {
+				if dir < 0 {
+					return a.PriorityRank < b.PriorityRank
+				}
+				return a.PriorityRank > b.PriorityRank
+			}
+			return deref(a.UpdatedAt, "") > deref(b.UpdatedAt, "")
+		default:
+			return lessTime(a.UpdatedAt, b.UpdatedAt)
+		}
+	})
 }
 
 /* ── writes ── */

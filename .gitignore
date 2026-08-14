@@ -27,6 +27,7 @@ e2e/perf/.tmp/
 
 # Playwright
 test-results/
+test-results-agent/
 playwright-report/
 blob-report/
 playwright/.cache/

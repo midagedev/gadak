@@ -149,6 +149,47 @@ when more than one column hits). `snippet` is plain text only — no HTML and no
 highlight markers; clients highlight against their own query. Always present
 (empty object when there are no hits).
 
+### `GET|POST jql/` — R
+
+Parse a JQL string or a Jira navigator URL into the same filter object the UI
+serializes into the hash. The parser is the documented subset in
+`internal/jql`: AND of `=`, `IN`, `IS EMPTY`, date comparisons, `text ~`,
+`currentUser()`, and `ORDER BY`. Clauses outside the subset are listed in
+`unsupported` and are never applied.
+
+GET takes `?q=` and optional `?email=` (for `currentUser()`). POST takes
+`{"input","email"}`. Empty input is `400 jql_required`. A saved-filter URL
+(`?filter=123` with no `jql=`) answers `200` with `error: "filter_id"` — the
+id is not in the mirror.
+
+```json
+{
+  "input": "project = NMA AND statusCategory = \"In Progress\"",
+  "jql": "project = NMA AND statusCategory = \"In Progress\"",
+  "filters": { "jira_project": ["NMA"], "status_category": ["inprogress"] },
+  "display": { "sort": "updated", "dir": "desc" },
+  "applied": ["project", "statusCategory"],
+  "unsupported": [],
+  "error": "",
+  "message": ""
+}
+```
+
+### `GET ui-focus/` — R
+
+One-shot view hash left by `gadak views open`. `200 {"hash":"pj=NMA&sc=inprogress"}`
+then the file is deleted. `204` when nothing is pending. The SPA applies it
+as `#/?<hash>`.
+
+### `POST jql/emit/` — R
+
+The inverse: a `ViewFilters` (+ optional display and email) becomes JQL.
+gadak-only flags (`reopened`, `stale`, …) are listed in `omitted`.
+
+```json
+{ "jql": "project = NMA AND statusCategory = \"In Progress\"", "omitted": ["reopened"] }
+```
+
 ### `GET <key>/attachments/<id>/content/` — R
 
 Streams or `303`-redirects to the attachment bytes, fetched from Jira on demand
@@ -322,7 +363,7 @@ has no editor, so `editmeta/` leaves it out and an edit to it is refused.
 
 | Endpoint | Method | Backing | Status |
 | --- | --- | --- | --- |
-| `views/` | GET / POST | `saved_views` | R |
+| `views/` | GET / POST | `saved_views`; GET also carries `source` (mirrored Jira filters) | R |
 | `views/<id>/` | DELETE | `saved_views` | R |
 | `watches/` | GET | `watches` | R |
 | `watches/<key>/` | PUT / DELETE | `watches` | R |

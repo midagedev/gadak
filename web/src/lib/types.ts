@@ -511,6 +511,21 @@ export interface SavedView<C = import('./view-config').ViewConfig> {
 
 export interface ViewsResponse {
   views: SavedView[]
+  /** Named queries mirrored from Jira (owned + starred filters). */
+  source?: SourceView[]
+}
+
+export interface SourceView<C = import('./view-config').ViewConfig> {
+  id: string
+  name: string
+  config: C
+  jql: string
+  /** Jira filter id, used to open `/issues/?filter=`. */
+  external_id?: string
+  favourite: boolean
+  owner?: string
+  applied: string[]
+  unsupported: string[]
 }
 
 /** Watch list response. */

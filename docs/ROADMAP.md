@@ -113,9 +113,13 @@ the two-site case today. Promote them to a first-class switcher:
 Sequenced after v0.3 deliberately: retention loops for existing mirrors come
 before conveniences for hypothetical second sites.
 
-- **JQL → SQL bridge** also waits here: it removes a migration tax for
-  arriving users, so it needs arriving users — and real JQL corpora to test
-  against, or a half-working translator fails in trust-destroying ways.
+- ✅ **JQL ↔ filter** (2026-08-14) — not a SQL bridge. A documented subset
+  maps to the in-memory ViewFilters the UI already applies, both directions,
+  on the search box and `gadak search --jql`. Unsupported clauses are listed.
+  Sync imports owned/starred Jira filters into `source_queries` (sidebar +
+  `gadak views`). `gadak views open` focuses the running app or serve tab.
+  A JQL → SQL compiler for questions the filter cannot express is still
+  waiting on a real corpus; until then `gadak sql` is the way to ask them.
 
 ## v0.6 — the second source, and structure
 

@@ -127,6 +127,48 @@ export function search(q: string, limit = 200): Promise<SearchResponse> {
   return json<SearchResponse>(`search/?q=${encodeURIComponent(q)}&limit=${limit}`)
 }
 
+/** JQL / Jira-URL → ViewFilters. Unsupported clauses are listed, never dropped. */
+export interface JqlParseResult {
+  input?: string
+  jql: string
+  filters: import('./view-config').ViewFilters
+  display: { sort?: string; dir?: string }
+  applied: string[]
+  unsupported: string[]
+  omitted?: string[]
+  error?: string
+  message?: string
+}
+
+export function parseJql(input: string, email?: string | null): Promise<JqlParseResult> {
+  return json<JqlParseResult>('jql/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input, email: email ?? '' }),
+  })
+}
+
+/** One-shot view hash left by `gadak views open`. null when nothing is pending. */
+export async function takeUIFocus(): Promise<string | null> {
+  const res = await raw('ui-focus/')
+  if (res.status === 204 || res.status === 404) return null
+  if (!res.ok) return null
+  const body = (await res.json()) as { hash?: string }
+  return body.hash?.trim() ? body.hash : null
+}
+
+export function emitJql(
+  filters: import('./view-config').ViewFilters,
+  display: import('./view-config').ViewDisplay,
+  email?: string | null,
+): Promise<{ jql: string; omitted: string[] }> {
+  return json('jql/emit/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filters, display, email: email ?? '' }),
+  })
+}
+
 /* ── Mirrored wiki pages (docs) ── */
 
 /** Every mirrored page, without bodies. Small enough to hold in memory. */

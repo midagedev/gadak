@@ -7,6 +7,7 @@ import { ApiError } from './api'
 import { t } from './i18n'
 import { issues } from '../stores/issues.svelte'
 import { pages } from '../stores/pages.svelte'
+import { views } from '../stores/views.svelte'
 import { write, type ToastKind } from '../stores/write.svelte'
 
 const POLL_MS = 1000
@@ -120,6 +121,11 @@ async function doSync(mode: 'full' | 'incremental', quiet: boolean): Promise<voi
       await pages.reload()
     } catch {
       /* page index refresh is best-effort */
+    }
+    try {
+      await views.loadTeam()
+    } catch {
+      /* Jira filters land on the next GET views/ */
     }
     // A finished job can still carry an error: Confluence is best-effort, so a
     // wiki failure leaves the Jira pass done and its issues worth keeping. Said
