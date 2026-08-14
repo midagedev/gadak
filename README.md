@@ -78,9 +78,10 @@ and labels the field that matched with a snippet. The box above the list only
 narrows this view.
 
 <p align="center">
-  <img src="docs/media/search.gif" alt="The Search ⌘K palette lists issues and wiki pages from one query; each row shows a match-field label and a snippet" width="900">
+  <img src="docs/media/search.gif" alt="A Project chip is on the list; ⌘K opens the palette, a comment-only word is typed, and All search (ignores filters) fills with rows from other projects, each labelled Comment match with a snippet" width="900">
   <br>
-  <sub>⌘K searches every issue and document, ignoring the list filters. The box above the list only narrows this view.</sub>
+  <sub>⌘K searches titles, bodies and comments — the chip on the list does not apply.
+  Generated from <a href="e2e/demo/search-demo.spec.ts">e2e/demo/search-demo.spec.ts</a> against the demo snapshot.</sub>
 </p>
 
 **Agents cannot read your team's context well.** A coding agent asked "what
@@ -165,9 +166,9 @@ other one: it leaves for Jira (`/browse/KEY` in the system browser). The
 names collide; the verbs do not.
 
 <p align="center">
-  <img src="docs/media/agent.gif" alt="A terminal types gadak views open; the paper list in the running app snaps to that set" width="800">
+  <img src="docs/media/agent.gif" alt="A terminal pipes gadak sql into gadak views open --keys -; the list in the running app snaps to those five keys with a 5 keys chip" width="800">
   <br>
-  <sub>The window follows the agent. <code>gadak views open</code> writes a one-shot hash; the running app or serve tab applies it.
+  <sub>SQL answers; the window presents. <code>gadak views open</code> writes a one-shot hash; the running app or serve tab applies it.
   Generated from <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a> against the demo snapshot.</sub>
 </p>
 

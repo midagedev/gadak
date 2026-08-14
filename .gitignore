@@ -61,3 +61,4 @@ scratch/
 # Local desktop build output (desktop/build-app.sh, `go build ./...` in desktop/)
 desktop/build/
 desktop/desktop
+e2e/demo/test-results-search/
