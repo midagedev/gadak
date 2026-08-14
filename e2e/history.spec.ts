@@ -49,6 +49,10 @@ async function waitVisit(page: Page): Promise<void> {
 }
 
 async function openIssue(page: Page, key: string): Promise<void> {
+  // An open panel overlaps the list at CI's viewport width, so the next row
+  // click lands on the panel instead. Closing first is also the real flow:
+  // you leave one issue before you open the next.
+  await closeDetail(page)
   const input = searchInput(page)
   await input.fill(key)
   await expect(
