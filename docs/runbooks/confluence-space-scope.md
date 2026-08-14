@@ -4,10 +4,12 @@ Symptom, seen on a real work mirror 2026-08-14: the DOCS view shows dozens of
 spaces the user never selected, and the one space they did select shows only a
 handful of documents.
 
-This runbook is the manual fix. The underlying bugs are tracked in
-`specs/001-dedicated-browser/audit-findings.md` (Confluence scope-prune and
-scope-widen backfill) and are being closed in the sync layer; until that ships,
-this is how you repair a mirror by hand.
+**The sync layer now closes this class on its own** (v0.13, schema v19):
+every successful Confluence pass prunes pages whose space left the config
+scope, and each space carries its own watermark — a newly-selected (or
+snapshot-restored) space has none, so its next pass is a floor-less full
+backfill. Diagnose with `select key, watermark from spaces`. This runbook
+remains for older builds and for verifying that the automation did its job.
 
 ## Why it happens
 
