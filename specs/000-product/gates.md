@@ -24,8 +24,8 @@ Ordering and task detail live in `tasks.md` and `../../docs/ROADMAP.md`.
 
 | Check | Evidence |
 | --- | --- |
-| Schema matches `data-model.md` exactly | `TestSchemaMatchesDataModel` compares `PRAGMA table_info` for all fourteen tables against the documented column lists, in document order |
-| Migrations apply forward from empty and from each released version | `TestMigrateForwardIsIdempotent`: empty file to current level, then reopening an already-migrated database applies nothing and preserves its rows. Only one version is released so far, so "each released version" is one case |
+| Schema matches `data-model.md` exactly | `TestSchemaMatchesDataModel` compares `PRAGMA table_info` for the tables listed in `data-model.md` against the documented column lists, in document order |
+| Migrations apply forward from empty and from each released schema | `TestMigrateForwardIsIdempotent`: empty file to current level (`len(migrations)`), then reopening an already-migrated database applies nothing and preserves its rows |
 | A newer schema version is refused, not silently used | `TestOpenRefusesNewerSchema` sets `user_version` past the binary's level and asserts `Open` fails with an error naming the mismatch |
 | Every documented example query runs | `TestDocumentedExampleQueries` executes all four queries from `data-model.md` verbatim against a fixture and asserts each returns the rows it should |
 | WAL enabled; a reader is not blocked by a writer | `TestPragmas` for the pragmas; `TestWALReaderNotBlockedByWriter` opens a second connection and reads while a write transaction is held open, failing on a 2 s timeout (`busy_timeout` is 5 s, so a blocked reader hangs rather than erroring) |

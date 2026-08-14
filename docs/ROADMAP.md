@@ -100,8 +100,9 @@ the two-site case today. Promote them to a first-class switcher:
   every sibling profile under `/w/<name>/` (full API, reads and write-through),
   opened lazily on first request. The trust boundary is unchanged — same
   loopback listener, same single OS user; the workspace list endpoint carries
-  site + projects only, never credentials (test-enforced). Background sync and
-  the update check stay on the primary; workspaces sync on demand.
+  site + projects only, never credentials (test-enforced). HTTP mounts are
+  lazy; every credentialed profile gets a watch loop at boot. The update
+  check stays on the primary.
 - ✅ **Web: workspace picker in the sidebar** — served from
   `GET /api/v1/workspaces`; the SPA detects its mount from the URL, fetches the
   per-workspace `config.json` (prefixed API bases), and keys IndexedDB and
@@ -156,9 +157,10 @@ The organizing ideas of this wave: the product is "an agent-aware memory of
 your team's work" and the fast mirror is the wedge; the sync engine is the
 product, speed is a feature, and trust in freshness is built in the UI.
 
-- **Freshness as a feeling.** `sync-on-focus` (web regains focus + mirror older
-  than N → sync now) and a visible freshness chip ("synced 12s ago") in the
-  header. No webhooks, no server — the loopback model stays.
+- ✅ **Freshness as a feeling.** `sync-on-focus` (web regains focus + mirror older
+  than N → incremental pull; `issues.svelte.ts`) and a visible freshness chip
+  (`FreshnessChip` in the list header). No webhooks, no server — the loopback
+  model stays.
   ~~A cheap head-check between polls (one `updated >= -5m` count query gates
   whether a delta pull runs at all).~~ Dropped 2026-08-06 on measurement, and
   the original is kept because the argument comes back the moment the interval
@@ -169,14 +171,13 @@ product, speed is a feature, and trust in freshness is built in the UI.
   a 10k-issue fixture (`tools/bench-fixture`), enforced in CI: cold boot →
   interactive, keystroke → search results, palette open, panel switch. Budgets
   pinned from real measurements first (FAIL-first), not aspirations.
-- **Keyboard triage flow.** The palette exists; the flow doesn't. `j/k` move,
-  `x` select, `s` status, `a` assign, `c` comment on the list itself — a sprint
-  cleanup should never need the mouse. Every action also registered in the
-  palette.
+- ✅ **Keyboard triage flow.** `j/k` move, `x` select, `s` status, `a` assign,
+  `l` labels, `c` comment on the list (`web/src/App.svelte`,
+  `stores/triage.svelte.ts`, `e2e/triage.spec.ts`). Every action also
+  registered in the palette.
 - **Agent wedge, front and center.** README leads with the agent story
-  (the mirror is the substrate); one-command MCP setup per client
-  (`claude mcp add` paste-blocks already exist in docs/AGENT_SETUP.md — promote
-  to a `gadak mcp install <client>` verb); a 90-second demo of an agent
+  (the mirror is the substrate); `gadak mcp install <client>` shipped
+  (`docs/MCP.md`); a 90-second demo of an agent
   answering with issue+doc context no cloud API could assemble as fast.
 - **Offline write queue — revisit, don't build yet.** The v0.3-era deferral
   ("wait for observed demand") stands, but the 2026-08-06 review added a new

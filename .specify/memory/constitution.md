@@ -15,10 +15,13 @@ sources. Any feature that would require a hosted component is out of scope.
 
 ## Article 3: The Database Is a Public Interface
 
-The SQLite schema is a contract, not an implementation detail. Agents and
-scripts query it directly. Schema changes follow the same review bar as HTTP API
-changes: documented in `specs/000-product/data-model.md`, migrated forward, and
-noted in `CHANGELOG.md`.
+The SQLite schema is documented in `specs/000-product/data-model.md`. While the
+version is 0.x, the 0.x contract is the three promises in `data-model.md`:
+`issues_full` and the RECIPES queries, `gadak sql` stdout, and
+`gadak views open --keys -`. Everything else is documented so you can read it,
+not promised so you can build on it. Schema changes follow the same review bar
+as HTTP API changes: documented in that file, migrated forward, and noted in
+`CHANGELOG.md`.
 
 ## Article 4: Speed Is the Feature
 

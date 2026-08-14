@@ -10,7 +10,7 @@ Legend: **done** / **partial** / **todo**
 
 | # | Task | State | Notes |
 | --- | --- | --- | --- |
-| T0.1 | Move the web application into `web/` | done | 73 source files, Svelte 5 + Vite + Tailwind 4 |
+| T0.1 | Move the web application into `web/` | done | Svelte 5 + Vite + Tailwind 4 |
 | T0.2 | Runtime config layer replacing hardcoded internals | done | `web/src/lib/config.ts`, fetched before mount |
 | T0.3 | Strip every internal string from the app source | done | Verified: no site URL, company name, project key, team label, or internal path in `web/` |
 | T0.4 | Generalize built-in views to tenant-neutral axes | done | Presets now use only `status_category`, `unassigned`, `reopened`, `stale`, `updated_from` |
@@ -54,11 +54,11 @@ Legend: **done** / **partial** / **todo**
 | T3.2 | Loopback-only bind with an explicit `--allow-remote` escape | done | The mirror has no auth; this is the only thing protecting it |
 | T3.3 | `bootstrap` and `delta` from SQLite, with ETag | done | `internal/server`. `"sv-<version>"` ETag with a 304 path that also accepts the client's own `"in-<version>"` hydration tag; `delta` drops the member payload when `mv` matches. `team_group` is injected from `groupRules` (assignee's configured group as the fallback) and configured field aliases are spread from `issues.custom` into the row. `TestBootstrapShapeAndETag`, `TestDeltaUpsertedAndDeleted`, `TestIssueLiteFieldNames` |
 | T3.4 | `detail` assembly | done | Status history carries `from_category`/`to_category` resolved through the mirror's own status id → category map, so a reopen is never inferred from a localized name. `TestDetailAssembly` |
-| T3.5 | `search` over FTS5 | done | `{keys, total}` straight from `store.Search`. `TestSearchHitsCommentText` |
+| T3.5 | `search` over FTS5 | done | `{keys, pages, total, matches}` from `store.Search`. `TestSearchHitsCommentText` |
 | T3.6 | Attachment content proxy | done | Streams from Jira with Basic auth, no credential → `409 credential_required`, a rejected token → the same so the UI reopens its dialog. `nosniff` always, and anything scriptable (SVG included) is forced to download. `TestAttachmentProxyStreamsFromJira` |
 | T3.7 | Saved views and watches endpoints | done | Local only, never 401/403. `TestPersonalStateRoundtrip` |
 | T3.8 | Deferred endpoints returning a clean `404` | done | One catch-all under both bases, with an `{"error": …}` body. `TestDeferredEndpointsAre404` |
-| T3.9 | `settings/` read and write for the settings UI | done | Credential-free config projection; a write preserves the credential block and invalidates the cached member/group projection. Also exposes `syncIntervalSec` / `reconcileIntervalSec` (floors 15s / 300s; 0 = default 60 / 3600) and a read-only `runtime` panel (paths, sizes, counts, watermark — no secrets). Interval changes need `serve --sync` restart. `TestSettingsRoundtripPreservesCredential`, `TestSettingsSyncIntervalsRoundtrip`, `TestSettingsIntervalFloorsReject`, `TestSettingsRuntimeReadOnlyNoSecrets`, `TestWebConfigHidesCredential`. Docs: `docs/CONFIGURATION.md` |
+| T3.9 | `settings/` read and write for the settings UI | done | Credential-free config projection; a write preserves the credential block and invalidates the cached member/group projection. Also exposes `syncIntervalSec` / `reconcileIntervalSec` (floors 15s / 300s; 0 = default 60 / 3600) and a read-only `runtime` panel (paths, sizes, counts, watermark — no secrets). Interval changes are picked up on the next watch tick. `TestSettingsRoundtripPreservesCredential`, `TestSettingsSyncIntervalsRoundtrip`, `TestSettingsIntervalFloorsReject`, `TestSettingsRuntimeReadOnlyNoSecrets`, `TestWebConfigHidesCredential`. Docs: `docs/CONFIGURATION.md` |
 | T3.10 | Merge plugin `enrichments` into the list and detail responses | done | `docs/PLUGINS.md` is the payload contract. Wrapped or bare payloads both work, invalid JSON is dropped instead of corrupting the document, and an enrichment can never shadow a mirrored field. `TestEnrichmentsMerge`, `TestEnrichmentCannotShadowMirroredFields` |
 | T3.11 | Runnable example plugins + extending guide | done | `examples/plugins/{github-prs,deploy-status,csv-import}/` (Python 3 stdlib; `--db`/`--dry-run`/idempotent upsert + `sync_state.version` bump; `--from-json` offline path for github-prs). `docs/EXTENDING.md` (config / enrichments / SQL axes + recipes). `docs/PLUGINS.md` payload tables verified against `internal/server/read.go` + `web/src/lib/types.ts`. `make plugins-test` runs all three self-tests. Evidence: copy `examples/demo.db` → temp, run github-prs `--from-json` + csv-import twice → row counts stable, version +2 per plugin pair; deploy-status `--self-test` builds a temp git repo |
 | T3.12 | First-run onboarding in the browser (`serve` only, no CLI step) | done | `internal/server/onboarding.go`: `PUT onboarding/connect/` (verifies via `/myself` and is the only writer of `site`), `GET projects/available/` (proxies `/project/search`, 500-project cap with `truncated`), `POST sync/` (single-flight background full sync, `409 sync_in_progress`) and `GET sync/progress/` (counters only, fed by the new `sync.Options.Progress` per-page callback). UI: `web/src/components/shell/Onboarding.svelte` is a 3-step wizard — connect, live project picker, first sync whose count climbs and then lands on the filled list via `issues.refresh()`, no reload. `internal/server/onboarding_test.go`, `e2e/onboarding.spec.ts` |
@@ -110,11 +110,11 @@ under `~/.gadak/profiles/<name>/` — the work/demo dual-account setup.
 | # | Task | State | Notes |
 | --- | --- | --- | --- |
 | T6.1 | Jira seeding tool | done | `tools/seed-demo`: dataset-driven or generated, plus `--repair-states` |
-| T6.2 | Public demo site populated | done | 519 issues across three fictional products. Categories: 209 todo / 144 in progress / 166 done. Status-change depth 0–7 per issue. 95 reopen transitions, 339 issues with comments, 264 assigned, 61 link edges |
-| T6.3 | Authored (non-templated) issue bodies | done | 210 of the 519 are hand-authored: 210/210 unique summaries, 642/642 unique paragraphs, 339/339 unique comments. The other 309 are procedurally generated and visibly more repetitive in the detail panel |
+| T6.2 | Public demo site populated | done | 534 issues across three fictional products (15 epics parenting 163 issues). Categories: 224 todo / 144 in progress / 166 done. Status-change depth 0–7 per issue. 95 reopen transitions, 340 issues with comments, 264 assigned, 122 link edges. Plus 71 wiki pages in two spaces |
+| T6.3 | Authored (non-templated) issue bodies | done | 210 issues are hand-authored: 210/210 unique summaries, 642/642 unique paragraphs, 339/339 unique comments. The other issues are procedurally generated and visibly more repetitive in the detail panel |
 | T6.8 | Demo assignee display names | partial | The **committed snapshot** (`examples/demo.db`) is clean: emails and display names rewritten to fictional personas (Dana Whitfield, Marco Reyes, Priya Sharma, Alex Kim) and the site URL to `nimbus.example.com`, so `gadak demo` and screenshots of it are safe. The **live site** still shows `midagedev+…` until each invitation is accepted; live-site screenshots stay blocked |
-| T6.4 | `gadak snapshot` with timestamp spreading and volume scaling | done | `internal/snapshot` + `gadak snapshot <out.db> [--from] [--spread 90d] [--scale N] [--seed N] [--now RFC3339] [--force]`. Builds a fresh schema and copies rows into it rather than duplicating the file, so deleted tables leave no residue and the output carries the current views and FTS. `saved_views` / `watches` / `favorites` / `feed_reads` / `enrichments` are dropped and `sync_state` is rewritten clean (no watermark, no `first_sync_at`, no `sync_count`). Spreading maps each issue's original `[created, updated]` span onto its new one and moves every child timestamp with it, so no comment or changelog entry escapes its issue. Verified against `examples/demo.db`: 519 issues, 90-day spread, 0 ordering violations across issues, comments, and changelog; `--scale 2000` → 2000 issues, 0 duplicate keys, 0 orphans, 0 dangling links; `--now` makes two builds byte-identical. A source with an `ATATT`-shaped string in an issue body is refused before publish, naming table/row/pattern but never the value, and leaves no temp file |
-| T6.5 | `examples/demo.db` committed, credential-scanned | done | 519 issues mirrored from the demo site, then scrubbed (see T6.8). Scan: zero `ATATT`/`ATCTT`/real emails/real names |
+| T6.4 | `gadak snapshot` with timestamp spreading and volume scaling | done | `internal/snapshot` + `gadak snapshot <out.db> [--from] [--spread 90d] [--scale N] [--seed N] [--now RFC3339] [--force]`. Builds a fresh schema and copies rows into it rather than duplicating the file, so deleted tables leave no residue and the output carries the current views and FTS. `saved_views` / `watches` / `favorites` / `feed_reads` / `enrichments` are dropped and `sync_state` is rewritten clean (no watermark, no `first_sync_at`, no `sync_count`). Spreading maps each issue's original `[created, updated]` span onto its new one and moves every child timestamp with it, so no comment or changelog entry escapes its issue. Verified against `examples/demo.db`: 534 issues, 90-day spread, 0 ordering violations across issues, comments, and changelog; `--scale 2000` → 2000 issues, 0 duplicate keys, 0 orphans, 0 dangling links; `--now` makes two builds byte-identical. A source with an `ATATT`-shaped string in an issue body is refused before publish, naming table/row/pattern but never the value, and leaves no temp file |
+| T6.5 | `examples/demo.db` committed, credential-scanned | done | 534 issues mirrored from the demo site, then scrubbed (see T6.8). Scan: zero `ATATT`/`ATCTT`/real emails/real names |
 | T6.6 | `gadak demo` serving the bundled snapshot | done | Copies the snapshot into a throwaway temp home, serves it, deletes on exit. No Jira account, no config |
 | T6.7 | 10k-issue benchmark fixture for the latency target | done | `tools/bench-fixture` builds a deterministic 10k `gadak.db` via `store.UpsertIssues` (`go run ./tools/bench-fixture -out /tmp/bench.db -issues 10000`). `internal/server/bench_test.go`: `TestBenchSmoke1k` + `BenchmarkBootstrap10k` / `BenchmarkSearch10k`. `make bench` records timings; not a CI fail gate (machine variance). Evidence in `gates.md` G5. |
 
@@ -124,10 +124,10 @@ under `~/.gadak/profiles/<name>/` — the work/demo dual-account setup.
 | --- | --- | --- |
 | T7.1 | CI: Go build and vet, frontend typecheck and build | done |
 | T7.2 | Go tests once there is Go logic to test | done |
-| T7.3 | Browser smoke test against the demo snapshot | done | Superseded by the Playwright suite (`e2e/`, 15 specs over `examples/demo.db`, CI job `e2e`) — it covers boot, search, detail, palette, settings, enrichment, locale, onboarding, and console hygiene. |
+| T7.3 | Browser smoke test against the demo snapshot | done | Superseded by the Playwright suite (`e2e/`, 33 specs in `e2e/*.spec.ts` over `examples/demo.db`, CI job `e2e`; config ignores `demo/`, `hosted/`, `perf/`) — it covers boot, search, detail, palette, settings, enrichment, locale, onboarding, and console hygiene. |
 | T7.4 | Secret and internal-string scan in CI | done | `scripts/scan-internal.sh` greps `git ls-files` + `strings examples/demo.db` for token-shaped API-token prefixes, a former company name, and non-allowlisted tenant hosts. CI job `scan` in `.github/workflows/ci.yml`. Real-name patterns skipped. Local: `make scan`. |
 | T7.5 | Dockerfile and container build | done | Multi-stage `Dockerfile` (node:20 → golang:1.25 CGO=0 → distroless/static). Volume `/data` as `GADAK_HOME`, `EXPOSE 7777`, `ENTRYPOINT ["gadak"]` + `CMD serve --addr 0.0.0.0:7777 --allow-remote` (the UI is embedded, so no `--static`). `.dockerignore` present. README documents `docker run`. **Verified**: `docker build` → 24.1 MB image; `docker run -p 7941:7777` answers `healthz` 200, serves the embedded `index.html`, and `bootstrap/` returns 200. |
-| T7.6 | Release process and signed binaries | done | `.goreleaser.yaml`: linux/darwin/windows × amd64/arm64, `CGO_ENABLED=0`, archives include `dist/app` (no `go:embed` yet — serve with `--static dist/app`). Checksums only (cosign deferred, commented). `.github/workflows/release.yml` on `v*` tags: npm build then goreleaser-action. |
+| T7.6 | Release process and signed binaries | done | `.goreleaser.yaml`: linux/darwin/windows × amd64/arm64, `CGO_ENABLED=0`. UI compiled in via `embed.go`; `--static` is dev-only. Checksums only (cosign deferred, commented). `.github/workflows/release.yml` on `v*` tags: npm build then goreleaser-action. |
 
 ## T8 Keyboard and command surface
 
@@ -138,7 +138,7 @@ under `~/.gadak/profiles/<name>/` — the work/demo dual-account setup.
 ## Critical path to something usable
 
 **Done.** The full loop works end to end against the public demo site: full sync
-(519 issues in ~5 s), idempotent incremental sync, derived fields matching the
+(534 issues in ~5 s), idempotent incremental sync, derived fields matching the
 seeded ground truth (95 reopen transitions), FTS, bootstrap/delta/detail/search,
 live write-through (comment + transition verified against real Jira), settings
 round-trip without a restart, and the enrichments plugin boundary.
@@ -150,6 +150,5 @@ pipeline. The terminal UI (`gadak tui`) shipped and was later retired — see
 `docs/decisions/0005-three-surfaces.md`.
 
 **Still open**: T6.8 live-site display names (waiting on
-invitation acceptance); the feed / push / presence surfaces, which are deliberate
-404s until a local watch-based design lands in v0.2 — the one place a user
-migrating from the internal predecessor loses a feature they had.
+invitation acceptance); push / presence remain deferred (VAPID / multi-viewer).
+The watch feed shipped (`GET feed/`, `features.feed` defaults on).

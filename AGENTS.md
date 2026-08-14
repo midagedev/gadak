@@ -30,8 +30,8 @@ check explicitly:
 
 ```bash
 gadak status --json
-# {"profile":"…","issues":519,"comments":614,"watermark":"…",
-#  "version":6,"schema_version":6,"sync_count":1,"first_sync_at":"…"}
+# {"profile":"…","issues":534,"comments":634,"watermark":"…",
+#  "version":6,"schema_version":20,"sync_count":1,"first_sync_at":"…"}
 ```
 
 A `last_error` field means the last sync failed. A quiet project's `watermark`
@@ -75,9 +75,10 @@ survives `rm gadak.db` and is never sent to Jira. Do not write search-query
 text into logs or tickets.
 
 ```bash
-gadak sql "…"          # tab-separated, read-only
-gadak sql --json "…"   # one JSON object per row
-gadak sql --csv "…"    # header row plus CSV
+gadak sql "…"              # header row plus TSV, read-only
+gadak sql --no-header "…"  # TSV/CSV without the header row
+gadak sql --json "…"       # one JSON object per row
+gadak sql --csv "…"        # header row plus CSV
 ```
 
 ```sql
@@ -145,7 +146,7 @@ ORDER BY searched_at DESC
 LIMIT 20;
 ```
 
-Pipe keys from (9) into the running UI: `gadak sql "select key from local.visits where kind='issue' group by key order by max(viewed_at) desc" | tail -n +2 | gadak views open --keys -`.
+Pipe keys from (9) into the running UI: `gadak sql --no-header "select key from local.visits where kind='issue' group by key order by max(viewed_at) desc" | gadak views open --keys -` (or keep the header and `tail -n +2`).
 
 Rules that come with the file:
 

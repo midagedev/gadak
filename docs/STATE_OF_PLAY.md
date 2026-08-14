@@ -4,14 +4,13 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-14 — the v0.13 wave: unified ⌘K search over issues *and*
+Last updated: 2026-08-15 — the v0.13 wave: unified ⌘K search over issues *and*
 documents, a `keys` axis so an agent can put an exact set on the window
 (`views open --keys -`, MCP `gadak_show`), Confluence space scope that prunes
 and backfills itself (schema v19), `author_id` on changelog and attachments
 (v20), the account-id identity class closed across every surface, two security
 fixes (profile path escape, unguarded top-level routes), and the macOS window
-drag repair from issue #2. v0.12.0 remains the last tagged release; v0.13 is
-being cut from this state.
+drag repair from issue #2. Last tagged: v0.13.0.
 
 ## In one paragraph
 
@@ -32,9 +31,9 @@ snapshot, not assumed.
 
 | Claim | Evidence |
 | --- | --- |
-| Full sync mirrors the demo site | 519 issues in ~5 s, `gadak sync --full` |
+| Full sync mirrors the demo site | 534 issues in ~5 s, `gadak sync --full` |
 | Incremental sync is idempotent | Immediate re-run: fetched 193 (overlap window), changed 0, `version` unchanged |
-| Derived fields match seeded ground truth | 209/144/166 per category and 95 reopen transitions — the exact numbers the seeder wrote |
+| Derived fields match seeded ground truth | 224/144/166 per category and 95 reopen transitions — `examples/demo.db` counts |
 | Live write-through | Comment and transition executed against real Jira; response carried the refreshed IssueLite (`comment_count` 0→1) |
 | Settings round-trip without restart | `PUT settings/` → `config.json` reflects immediately; `groupRules` classified 39 issues on the next read |
 | Plugin boundary | Two SQL statements (insert into `enrichments`, bump `sync_state.version`) surfaced a deploy badge and PR list in the API |
@@ -114,7 +113,7 @@ never shadow mirrored fields.
 | Item | Task | Note |
 | --- | --- | --- |
 | Live-site assignee display names | T6.8 | The committed snapshot is clean (fictional personas); the live site shows placeholder handles until each invitation is accepted. Affects live-site screenshots only |
-| Zero-install hosted demo | v0.3 | Code done: static JSON + demo-sw.js (not sqlite-wasm), `make hosted-demo` → `dist/hosted/`, Pages workflow ready. Remaining: human enables GitHub Pages once |
+| Zero-install hosted demo | v0.3 | Live at https://midagedev.github.io/gadak/ — static JSON + demo-sw.js (not sqlite-wasm). `make hosted-demo` → `dist/hosted/`; Pages workflow deploys on `main` |
 | Web push (VAPID) | v0.2 | Still deferred; `features.push` stays false; in-tab Notification only |
 | Bootstrap payload cost at 10k | G5 | ≈61 ms/op on an M4 Pro — over the 50 ms product target, but it is a once-per-boot cost and the client caches it in IndexedDB. Streaming or a columnar payload is the lever if it matters |
 

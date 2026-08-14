@@ -140,11 +140,12 @@ is source-neutral; only the field schema it reads is Jira-shaped.
 - **No always-on daemon required.** `gadak serve` runs the sync loop in-process
   when a credential is configured. `gadak install-service` is optional and writes
   a user-level launchd/systemd unit so that process survives reboot.
-- **No embedded UI assets in v0.1.** The binary serves `dist/app` from disk.
-  Embedding via `embed.FS` is a packaging decision for the release, not an
-  architectural one.
-- **No plugin system.** A new source is a new package and a rebuild. The
-  connector boundary is the store's data contract (`store.Batch` and friends in
-  `internal/store/records.go`), not a Go interface — with two concrete
-  connectors that contract is cheaper to hold than an interface designed from
-  one example (decision 0006).
+- **Embedded UI, `--static` override.** Default is `go:embed` of `dist/app`
+  (`embed.go`). `--static` serves a directory from disk (dev rebuilds without
+  recompiling the binary).
+- **No in-process source-plugin loader.** A new source is a new package and a
+  rebuild. Enrichments are out-of-process (`docs/PLUGINS.md`,
+  `examples/plugins/`). The connector boundary is the store's data contract
+  (`store.Batch` and friends in `internal/store/records.go`), not a Go
+  interface — with two concrete connectors that contract is cheaper to hold
+  than an interface designed from one example (decision 0006).

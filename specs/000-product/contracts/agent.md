@@ -6,7 +6,7 @@ exists, so it gets a contract rather than a paragraph in the README.
 ## The interface is the database
 
 ```bash
-sqlite3 ~/.gadak/gadak.db "select key, summary from issues where status_category != 'done'"
+sqlite3 ~/.gadak/gadak.db "select key, summary from issues_full where status_category != 'done'"
 ```
 
 No tool schema, no endpoint list, no rate limit, no pagination. An agent that can
@@ -37,8 +37,11 @@ is the "open in gadak" verb.
 
 ## Guarantees
 
-1. **The schema is versioned.** Released columns are never repurposed. A rename
-   keeps the old name readable for one minor version.
+1. **The 0.x contract is the three promises in `../data-model.md`:**
+   `issues_full` and the RECIPES queries, `gadak sql` stdout, and
+   `gadak views open --keys -`. A column any of those names is never
+   repurposed. A rename of a promised column keeps the old name readable
+   for one minor version.
 2. **The example queries in `../data-model.md` keep working** across minor
    versions. They are the executable part of this contract.
 3. **`status_category`, `issue_type_id`, and `status_id` are stable across sites
@@ -66,7 +69,7 @@ agents that prefer not to write SQL for it.
 
 ```bash
 gadak sql "select count(*) from issues where reopen_count > 0"
-gadak sql --json "select key, summary from issues limit 5"
+gadak sql --json "select key, summary from issues_full limit 5"
 gadak search --jql 'project = NMA AND statusCategory = "In Progress"' --json
 gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
 gadak views open --keys 'NMA-1,NMA-2'
@@ -104,7 +107,7 @@ file as `gadak views open`); SQL answers; show presents.
 | Tool | Shape |
 | --- | --- |
 | `gadak_query` | `{sql, limit?}` → rows. Read-only (`mode=ro` + SELECT/WITH only), default limit 200, hard max 1000, byte-capped; truncation is reported in the result |
-| `gadak_search` | `{text, limit?}` → `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field: title\|body\|comment, snippet}` plain text |
+| `gadak_search` | `{query, limit?}` (aliases: `text`, `q`) → `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field: title\|body\|comment, snippet}` plain text |
 | `gadak_issue` | `{key}` → full detail including comments and history (plus list fields) |
 | `gadak_status` | `{}` → sync state (watermark, version, last_error, counts) |
 | `gadak_show` | `{jql}` \| `{keys}` \| `{issue}` \| `{name}` (exactly one) → `{hash, applied, unsupported, file}`. Writes the process profile's ui-focus file; does not open a window; does not return issue rows |

@@ -135,7 +135,7 @@ plus the schema in `specs/000-product/data-model.md` subsumes pre-baked queries.
 | Tool | Arguments | Returns |
 | --- | --- | --- |
 | `gadak_query` | `{sql: string, limit?: number}` | `{columns, rows, count, truncated?, …}` — **SELECT/WITH only**, default limit 200, hard max 1000, byte-capped |
-| `gadak_search` | `{text: string, limit?: number}` | `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field, snippet}` (plain text) |
+| `gadak_search` | `{query: string, limit?: number}` (aliases: `text`, `q`) | `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field, snippet}` (plain text) |
 | `gadak_issue` | `{key: string}` | Full detail (comments, history, links) plus list fields |
 | `gadak_status` | `{}` | Watermark, version, last_error, row counts |
 | `gadak_show` | `{jql}` \| `{keys: string[]}` \| `{issue}` \| `{name}` (exactly one) | `{hash, applied, unsupported, file}` — writes the process profile's ui-focus file; the running window picks it up (500 ms visible / 2 min TTL); does not open a window or return issue rows |

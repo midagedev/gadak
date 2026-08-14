@@ -1,6 +1,6 @@
 # 002 — History: what you looked at, and what you searched for
 
-Status: draft (2026-08-14). Author: lead, from three requests in one session.
+Status: implemented in v0.13 (2026-08-14). Author: lead, from three requests in one session.
 
 ## The requests
 
@@ -15,17 +15,21 @@ They are one feature. (1) is the surface, (2) is the data, (3) is the payoff.
 
 ## Where we are
 
-`me.recordRecent()` (`web/src/stores/me.svelte.ts:438`) writes
-`{key, viewed_at, kind}` into localStorage and, on a repeat visit, **deletes the
-old entry and unshifts a new one**. Cap is 30 (`RECENT_MAX`), scoped per
-site+workspace since C5.
+Shipped in v0.13 (`CHANGELOG.md`, `internal/store/local.go`).
+`me.recordRecent()` (`web/src/stores/me.svelte.ts:456`) still keeps a 30-deep
+sidebar list in localStorage, and also POSTs an append-only visit
+(`POST history/visits/`). (`me.svelte.ts:438` is `openFeed`, not
+`recordRecent`.)
 
-So today: last-seen time survives, visit count does not exist, the timeline is
-one-deep, and none of it is reachable from SQL, the CLI, or an agent — it lives
-in one browser's localStorage.
+The store ATTACHes `local.db` when it opens the mirror: `local.visits` is one
+row per view (`kind` is `issue` or `page`; `key`; `viewed_at`);
+`local.searches` is one row per executed search. There is no stored counter:
+`count(*)` per key is the visit count. Rows older than 180 days are pruned.
+SQL, the CLI, and MCP can read them; `gadak views open --keys -` presents.
+The sidebar recents header opens `HistoryView`.
 
-Request (2) is therefore not "add a counter"; it is **stop throwing the events
-away**.
+The original localStorage-only design (last-seen only, no counts, invisible
+to SQL) is what this spec replaced.
 
 ## The shape
 

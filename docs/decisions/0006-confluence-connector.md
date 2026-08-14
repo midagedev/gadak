@@ -63,3 +63,11 @@ Shape decisions:
   a parallel structure would fork FTS, comments, and attachments handling.
 - **Interface-first refactor of `internal/sync`**: churn in the most
   battle-tested package of the codebase for zero user-visible change.
+
+## Addendum (2026-08-15)
+
+Empty `confluence.spaces` means every **global** space. Personal spaces are
+mirrored only when named (`internal/config/config.go`;
+`docs/CONFIGURATION.md`). The accepted body above still says
+"every space the account can see" — that wording is superseded by this rule,
+not rewritten in place.

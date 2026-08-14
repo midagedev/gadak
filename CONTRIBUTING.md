@@ -66,7 +66,8 @@ schema access, or security checks.
 - **Jira concepts leaking into `internal/store`, or SQL leaking into the
   connector.** The boundary is what makes a second source possible.
 - **A schema change without a migration and a `data-model.md` update.** The
-  schema is a public contract; agents query it directly.
+  0.x contract is the three promises in `data-model.md`: `issues_full` and
+  the RECIPES queries, `gadak sql` stdout, and `gadak views open --keys -`.
 - **Credentials anywhere near SQLite, logs, or snapshots.**
 
 ## Public Repo Hygiene

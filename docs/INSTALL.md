@@ -110,7 +110,8 @@ already cover it. Add to `~/.gadak/config.json`:
 "confluence": { "spaces": ["ENG", "PROD"] }
 ```
 
-Empty `spaces` means every space the account can see. `gadak sync` then pulls
+Empty `spaces` means every *global* space; personal spaces only if named.
+`gadak sync` then pulls
 pages (current version, comments, labels) alongside issues —
 `--source jira|confluence|all` narrows a run. Pages land in the same FTS index,
 the sidebar grows a DOCS tree, and search answers across both.
@@ -122,8 +123,10 @@ under `~/.gadak/profiles/demo/`. One `gadak serve` then serves every profile:
 each mounts under `/w/<name>/` (full API, reads and writes, opened on first
 request), and when there is more than one, the web sidebar grows a WORKSPACES
 switcher. Same loopback listener, same single user — the workspace list never
-exposes credentials. Background sync and notifications stay on the primary
-profile; workspaces sync when you use them.
+exposes credentials. HTTP mounts are lazy (opened on first request);
+**every profile that has a credential gets its own watch loop**, not just
+the one `serve` started on — same rule as the desktop app
+([DESKTOP.md](DESKTOP.md)). Notifications stay on the primary.
 
 ## Staying current
 

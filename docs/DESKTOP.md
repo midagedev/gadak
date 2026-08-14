@@ -35,14 +35,15 @@ the same mirror. You don't choose one — the app **ships the CLI inside it**.
 Tool…** creates the symlink itself (user-writable location; no sudo, no
 terminal). If the install directory is not already on your PATH, the app
 copies a one-line shell snippet to the clipboard so you can paste it into
-your shell rc. When it succeeds, run `gadak mcp install claude` once so your
-agent reads the same mirror the window shows.
+your shell rc. When it succeeds, the next step is `gadak skill install`
+(Claude Code). For shell-less hosts like Claude Desktop: `gadak mcp install claude`.
 
 **2. From a terminal (same result).** If you already have a shell open:
 
 ```bash
 /Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
-gadak mcp install claude
+gadak skill install
+gadak mcp install claude   # shell-less hosts only
 ```
 
 `install-cli` (and the menu item) prefer a directory already on PATH —

@@ -28,12 +28,13 @@ issues, put them on the app:
 gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
 gadak views open --keys 'NMA-1,NMA-2'
 gadak views open NMB-140
-gadak sql "select key from issues_full where status_category != 'done'" | tail -n +2 | gadak views open --keys -
+gadak sql --no-header "select key from issues_full where status_category != 'done'" | gadak views open --keys -
 ```
 
 `--keys` accepts comma or whitespace; `--keys -` reads stdin. First-seen order
 is kept, so the SQL `ORDER BY` is what the list shows. `gadak sql` prints a
-header row first — skip it (`tail -n +2`) or that header becomes a key.
+header row first — skip it with `--no-header` (or `tail -n +2`) or that header
+becomes a key.
 `--keys` cannot be combined with `--jql` or a view name.
 
 `gadak open <KEY>` is the Jira escape hatch (system browser to `/browse/KEY`).
@@ -112,8 +113,9 @@ Some columns exist only here, derived from the changelog while syncing:
 `reopen_count`, `reopened_at`, `reopen_reason`, and `epic_key` (the nearest
 level-1 ancestor). Jira cannot answer questions about these at all.
 
-Output modes: `gadak sql "…"` is tab-separated *with a header row*, `--json`
-gives one object per row, `--csv` is header plus CSV.
+Output modes: `gadak sql "…"` is tab-separated *with a header row*,
+`--no-header` omits that row (TSV and `--csv`), `--json` gives one object per
+row, `--csv` is header plus CSV.
 
 ## Queries that cover most questions
 
@@ -168,7 +170,7 @@ gadak views                         # names after `gadak sync` (owned + starred 
 gadak views open "the name"         # focuses the running desktop app or serve tab
 gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
 gadak views open --keys 'NMA-1,NMA-2'
-gadak sql "select key from issues_full where status_category != 'done'" | tail -n +2 | gadak views open --keys -
+gadak sql --no-header "select key from issues_full where status_category != 'done'" | gadak views open --keys -
 gadak views open NMB-140            # focus that issue's detail (a stored view with that name wins)
 gadak views save "Night triage" --jql '…'   # keep a named view in the mirror
 ```

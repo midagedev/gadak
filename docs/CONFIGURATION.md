@@ -7,9 +7,10 @@ gadak stores its configuration in `~/.gadak/config.json` (mode `0600`). A profil
 A running `gadak serve` also mounts every sibling profile as a **workspace**
 under `/w/<name>/` — full API, opened lazily on first request. The sidebar
 shows a switcher when more than one exists. `GET /api/v1/workspaces` lists
-them (name, site, projects — never credentials). Background sync, OS
-notifications, and the update check stay on the profile `serve` was started
-with; workspace mirrors sync on demand.
+them (name, site, projects — never credentials). HTTP mounts are lazy;
+**every credentialed profile gets a watch loop at boot** (same as the
+desktop app). OS notifications and the update check stay on the profile
+`serve` was started with.
 
 Most day-to-day keys are editable from the web **Settings** dialog
 (`GET` / `PUT /api/v1/issues/settings/`). Credentials use a separate endpoint
@@ -44,8 +45,8 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `features` | map of bool | keys: `feed`, `push`, `deploy`, `qa`, `teamGroups`; **`feed` defaults true when omitted**, others false | Settings → Features | Immediate after reload (client reads `config.json`) |
 | `qaDashboardUrl` | string | _(empty)_ | Settings → Features | Immediate after reload |
 | `staleThresholdHours` | int | `0` → client **72** | Settings → Sync | Immediate after reload |
-| `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | **After restart** of `gadak serve` |
-| `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | **After restart** of `gadak serve` |
+| `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | Next watch tick; no process restart |
+| `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | Next watch tick; no process restart |
 | `notify` | bool | **true** when absent | `config.json` (not on Settings UI) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
 | `updateCheck` | bool | **true** when absent | `config.json` (not on Settings UI) | Next `sync` / `status` / `serve` start; once-per-day GitHub release lookup (cached under the profile dir). Set `false` to opt out — no outbound traffic beyond Jira |
 | `confluence` | object or absent | absent = wiki mirror off | Settings → Sources | Next Confluence pass |
@@ -56,7 +57,7 @@ removes it from the mirror; add one and that space is fetched from the start
 (per-space watermark, schema v19 — see
 [`runbooks/confluence-space-scope.md`](runbooks/confluence-space-scope.md)).
 Most keys apply without restart; `syncIntervalSec` and
-`reconcileIntervalSec` need a restart of `gadak serve`.
+`reconcileIntervalSec` are picked up on the next watch tick.
 
 ### `fields` (FieldSpec)
 
@@ -90,14 +91,15 @@ PUT ignores both so it cannot wipe discovery.
 Below the floor → `400` with a clear `error` string; the file is not written.
 `0` always means “use default”.
 
-### Why intervals need a restart
+### Interval changes (no process restart)
 
-`internal/sync.Watch` creates its tickers once at loop start from the `Config`
-passed in. `gadak serve` starts that loop by default when a credential is
-configured (`--no-sync` opts out). `PUT settings/` updates the on-disk file and
-the server’s atomic config for everything else (members, group rules,
-features…), but it does **not** rebuild the Watch tickers. Restart `gadak serve`
-to pick up new intervals.
+`internal/sync.Watch` reloads config each cycle when `opts.Reload` is set
+(`gadak serve` passes `config.Load`). A new `syncIntervalSec` /
+`reconcileIntervalSec` is applied with `tick.Reset` on that cycle — picked up
+on the next watch tick, no process restart. `PUT settings/` updates the
+on-disk file and the server’s atomic config immediately; the watch loop
+reads it on the next cycle. `gadak serve` starts the loop by default when a
+credential is configured (`--no-sync` opts out).
 
 ### OS desktop notifications
 

@@ -90,12 +90,10 @@ so gadak uses a different one:
 
 ## Still to do
 
-- **`PrList`, `DeployTimeline`, and `QaImpact` are still in the tree.** They
-  render nothing without data and their config-driven links are inert, but they
-  should either move behind a plugin boundary or be deleted. Leaving them is a
-  deliberate, temporary choice: deleting them touches the detail panel and the
-  type surface, and that refactor is not worth doing in the same change as the
-  extraction.
+- ~~**`PrList`, `DeployTimeline`, and `QaImpact` are still in the tree.**~~
+  Done via feature flags, same as T0.9: `PrList` / `DeployTimeline` sit
+  behind `features.deploy`, `QaImpact` behind `features.qa`. They stay in
+  the tree so a tenant that has the data can switch them on.
 - ~~**The UI is Korean-only.**~~ Done: the copy is English-first with Korean
   kept as a locale (`web/src/lib/i18n/`). Source comments are still partly
   Korean; translating them is cosmetic, not blocking.

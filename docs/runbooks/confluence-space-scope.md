@@ -11,24 +11,27 @@ snapshot-restored) space has none, so its next pass is a floor-less full
 backfill. Diagnose with `select key, watermark from spaces`. This runbook
 remains for older builds and for verifying that the automation did its job.
 
-## Why it happens
+## Why it happened (pre-v0.13)
 
-Three separate gaps stack up:
+Three separate gaps stacked up. v0.13 (schema v19) closed them in the sync
+layer — this section is the older-build diagnosis; the sqlite3 steps below
+remain the fallback when you are on a pre-v0.13 binary or want to verify
+the automation.
 
-1. **Narrowing scope does not prune.** Confluence sync has no delete-reconcile
-   (`internal/sync/confluence.go`, "no reconcile pass yet"). Once a space's
-   pages are mirrored, narrowing `config.confluence.spaces` stops *fetching*
-   them but never *deletes* them. The issue axis prunes out-of-scope keys
-   (`store.DeleteItems`); Confluence does not.
-2. **Widening scope does not backfill.** Incremental sync only pulls pages with
-   `lastModified >= watermark`. The watermark is global and already recent, so a
-   newly-selected space yields only its recently-edited pages — its older
-   documents never come down.
-3. **The watermark is shared across spaces**, so a space added today inherits a
+1. **Narrowing scope did not prune.** Confluence sync had no delete-reconcile
+   (`internal/sync/confluence.go`, before v0.13). Once a space's
+   pages were mirrored, narrowing `config.confluence.spaces` stopped *fetching*
+   them but never *deleted* them. The issue axis pruned out-of-scope keys
+   (`store.DeleteItems`); Confluence did not.
+2. **Widening scope did not backfill.** Incremental sync only pulled pages with
+   `lastModified >= watermark`. The watermark was global and already recent, so a
+   newly-selected space yielded only its recently-edited pages — its older
+   documents never came down.
+3. **The watermark was shared across spaces**, so a space added today inherited a
    watermark from yesterday's broad sync.
 
-Net effect: old broad-sync pages linger (gap 1) and the newly-scoped space is
-half-empty (gap 2).
+Net effect on those builds: old broad-sync pages lingered (gap 1) and the
+newly-scoped space was half-empty (gap 2).
 
 ## Diagnose
 

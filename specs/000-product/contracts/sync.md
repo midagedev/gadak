@@ -25,8 +25,8 @@ when the schema version changed.
 ```
 for each configured project:
   JQL: project = <KEY> ORDER BY created ASC
-  GET /rest/api/3/search/jql
-    fields: <field list>          # explicit, never *all
+  POST /rest/api/3/search/jql
+    fields: <field list>          # explicit, except *all on first discovery full-sync
     expand: changelog
     maxResults: 100
     nextPageToken: <cursor>       # token pagination, not startAt
@@ -45,8 +45,10 @@ Notes:
   histories. When an issue reports a truncated changelog, sync fetches
   `GET /issue/{key}/changelog` separately and pages it.
 - Comments are paged separately for issues with more than the inline limit.
-- The field list comes from configuration. Requesting `*all` on a large site is
-  slow and pulls custom fields nobody mapped.
+- The field list comes from configuration. `*all` is used only for the first
+  discovery full-sync (no `fields` / `fieldMap` yet); after that the list is
+  explicit. Requesting `*all` on a large site is slow and pulls custom fields
+  nobody mapped.
 
 ## Incremental sync
 
@@ -145,7 +147,7 @@ same loop inside the server process so a single command is enough for normal use
 `gadak snapshot <out.db>` produces a shareable database for demos and tests:
 
 - Copies `items`, `issues`, `comments`, `attachments` (metadata only),
-  `changelog`, and `links`.
+  `changelog`, `links`, `pages`, `spaces`, and `item_refs`.
 - Drops `saved_views`, `watches`, `favorites`, `source_queries`, and every
   credential-bearing row. Jira filters are site-specific; they are not
   personal state, but they do not belong in a shareable snapshot either.

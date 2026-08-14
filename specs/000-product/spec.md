@@ -94,8 +94,10 @@ disposable.
 - No write is ever buffered locally.
 
 ### FR5 Agent access
-- The schema is documented and migrated forward; a released schema column is
-  never repurposed.
+- The schema is documented and migrated forward. The 0.x contract is the
+  three promises in `data-model.md`: `issues_full` and the RECIPES queries,
+  `gadak sql` stdout, and `gadak views open --keys -`. A column any of those
+  names is never repurposed.
 - `gadak sql <query>` provides a convenience read-only path, but direct
   `sqlite3` use is fully supported and preferred.
 

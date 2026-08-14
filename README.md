@@ -200,9 +200,11 @@ ranked by demand: [`docs/ROADMAP.md`](docs/ROADMAP.md#more-sources-later).
 ## Who makes this
 
 One person, currently. Weigh that — and the other side: the mirror is a
-disposable cache of your own Jira, the schema is a [documented public
-contract](specs/000-product/data-model.md), the license is Apache-2.0, and
-the file is plain SQLite. Hard questions: [`docs/FAQ.md`](docs/FAQ.md).
+disposable cache of your own Jira, the 0.x contract is the three promises
+in [data-model.md](specs/000-product/data-model.md) (`issues_full` and the
+RECIPES queries, `gadak sql` stdout, and `gadak views open --keys -`), the
+license is Apache-2.0, and the file is plain SQLite. Hard questions:
+[`docs/FAQ.md`](docs/FAQ.md).
 
 ## Contributing and feedback
 

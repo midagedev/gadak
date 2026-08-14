@@ -28,7 +28,8 @@ aggressive than theirs, and they are enforced, not aspired to:
 - Interactions on the hot loop (list movement, filter toggles, opening an
   issue) budget at **50ms**; view transitions at **100ms**.
 - The e2e perf suite (`e2e/perf/`) pins measured p95 ceilings — cold boot,
-  warm boot, search, palette — and fails the build when they regress.
+  warm boot, search, palette. It is an opt-in local suite (`GADAK_PERF=1`);
+  `e2e/playwright.config.ts` ignores `perf/` and CI does not run it.
 - Animations are allowed only inside the budget, and never on the triage-key
   path (`j`/`k` repetition is exactly the case where "seconds add up").
 

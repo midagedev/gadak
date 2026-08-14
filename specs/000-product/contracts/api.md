@@ -128,9 +128,9 @@ therefore only a fallback.
 
 ### `GET search/?q=<text>&limit=<n>` — R
 
-Server-side full-text over description and comment bodies via FTS5. The client
-already does substring and chosung matching over the warm pool, so this endpoint
-exists only to reach text the client does not hold.
+Server-side full-text over issue and page titles, bodies, and comments via
+FTS5. ⌘K uses this. `keys` / `total` are issue hits; `pages` are document
+hits; `matches` maps each returned key to the winning field.
 
 ```json
 {
@@ -193,8 +193,9 @@ gadak-only flags (`reopened`, `stale`, …) are listed in `omitted`.
 
 ### `GET <key>/attachments/<id>/content/` — R
 
-Streams or `303`-redirects to the attachment bytes, fetched from Jira on demand
-with the user's credentials. Never mirrored to disk.
+Streams attachment bytes: metadata lives in SQLite; bytes are cached on disk
+(`internal/attachcache`) and fetched from Jira on a miss. A cached image
+still renders with no credential.
 
 The client validates that a media URL matches exactly
 `<apiBase><key>/attachments/<id>/content/` before using it as an image source,
@@ -375,8 +376,27 @@ has no editor, so `editmeta/` leaves it out and an edit to it is refused.
 | `watches/<key>/` | PUT / DELETE | `watches` | R |
 | `favorites/` | GET | `favorites` | R |
 | `favorites/<key>/` | PUT / DELETE | `favorites` | R |
+| `feed/` | GET | computed from the mirror; receipts in `feed_reads` | R |
+| `feed/read/` | POST | `feed_reads` | R |
 
-Stored locally. `403`/`401` is never correct for these on a loopback bind.
+Stored locally (feed events are computed at query time). `403`/`401` is never
+correct for these on a loopback bind.
+
+### `GET feed/?focus=&limit=` — R
+
+Personal watch feed (`internal/server/feed.go`). `focus` is
+`all` | `assignee` | `reporter` | `mention`. Default `limit` is 80, hard max
+200, window 30 days. `features.feed` defaults on.
+
+```json
+{ "items": [], "unread_counts": { "all": 0, "assignee": 0, "reporter": 0, "mention": 0 } }
+```
+
+### `POST feed/read/` — R
+
+Body: `{event_ids?: string[], issue_keys?: string[], all?: boolean}`. At least
+one of those must be set (`400 nothing_to_mark` otherwise). Answers
+`{updated, unread_counts}`.
 
 ## People axis
 
@@ -423,8 +443,7 @@ UI can render an empty person header.
 
 | Endpoint | Status | Reason |
 | --- | --- | --- |
-| `feed/`, `feed/read/` | D | Needs a per-user event stream. Local watch-based feed is a v0.2 design. |
-| `notifications/config/`, `notifications/subscription/` | D | Web Push needs VAPID keys; only meaningful once the feed exists. |
+| `notifications/config/`, `notifications/subscription/` | D | Web Push needs VAPID keys. In-tab Notification is what shipped with the feed. |
 | `presence-ticket/`, `ws/issues/` | X | Multi-viewer presence has no meaning in a single-user local tool. |
 | `mentions/` | X | The client already had no caller for it. |
 | `data-quality/` | X | Internal audit surface. |
@@ -486,7 +505,7 @@ read-only context for the UI:
     "dbSizeHuman": "4.6 MB",
     "dbModifiedAt": "2026-08-04T09:15:00Z",
     "configPath": "/Users/you/.gadak/config.json",
-    "issueCount": 519,
+    "issueCount": 534,
     "commentCount": 339,
     "schemaVersion": 3,
     "watermark": "2026-08-04T09:15:00.000Z",
@@ -545,11 +564,10 @@ A value below the floor answers `400` with a clear `error` string, e.g.
 `syncIntervalSec must be 0 (default) or >= 15 (got 5)`. Rejected writes do not
 touch the file.
 
-**Apply timing:** `gadak serve` builds its Watch tickers once at process
-start from the config loaded then. A successful `PUT` updates `config.json` and
-the in-process settings atomic immediately (group rules, features, etc.), but
-**interval changes take effect only after restarting** `gadak serve`. The
-UI states this explicitly.
+**Apply timing:** `gadak serve` passes `Reload: config.Load` into `Watch`.
+A successful `PUT` updates `config.json` and the in-process settings atomic
+immediately (group rules, features, etc.). Interval changes are picked up on
+the next watch tick (`tick.Reset`); no process restart.
 
 `staleThresholdHours` is how long an unresolved issue may sit in its current
 status — measured from `status_changed_at`, falling back to `updated_at` — before

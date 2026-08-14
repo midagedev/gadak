@@ -8,7 +8,7 @@ All assets are produced from **scripts** against the scrubbed snapshot
 
 | File | Source | Use |
 | --- | --- | --- |
-| `docs/media/web-demo.gif` | Playwright walkthrough | README hero (inline) |
+| `docs/media/web-demo.gif` | Playwright walkthrough | README tour (folded `<details>`, not inline hero) |
 | `docs/media/web-demo.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/search.gif` | Playwright `e2e/demo/search-demo.spec.ts` | README — ⌘K All search (ignores filters) |
 | `docs/media/search.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
