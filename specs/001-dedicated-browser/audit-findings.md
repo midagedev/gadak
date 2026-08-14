@@ -10,6 +10,25 @@ before listing it here. `[verified]` = lead read the cited lines.
 Severity: **P0** data loss / credential exposure / security · **P1** wrong
 answer or silent omission · **P2** edge UX / staleness.
 
+## Closure status (v0.13 wave)
+
+Closed and merged: **S1 S2** (B-security) · **I1–I4** (B-identity-go) ·
+**D1 D2 D3 D11** (B-cli-A) · **C1 C2 C4 C8 C9 C10 I7** (B-sync-store) ·
+**I5-client I9-web L1 C5-partial C6 C7** (B-identity-web) · Confluence
+scope prune + per-space watermark backfill, which subsumes **C3**
+(B-sync-conf; the manual repair in `docs/runbooks/confluence-space-scope.md`
+is now a fallback, not the fix).
+
+In flight: **D4 D5 D12 I6** (B-cli-B) · **D8 D9 D10 I5-server** (B-srv) ·
+window drag, GitHub issue #2 (FIX-drag). **D6 D7** landed with Track G.
+
+Still open, named so they are not re-derived: **I8** (PageLite carries no
+`author_id`, so By-author still groups on the display name) · the rest of
+**C5** (`config.json` has the site but not the profile name, so two
+profiles on one origin *and* one site can still share a pool) ·
+`priority_id` is not on the wire, so the priority filter stays name-keyed ·
+everything under P2 below.
+
 ## The headline
 
 PR #1 closed the account-id bug on **one** surface (the web issue filter).
