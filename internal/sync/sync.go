@@ -306,7 +306,7 @@ func runDiscovery(ctx context.Context, c *jira.Client, cfg *config.Config, db *s
 		return nil
 	}
 	opts.logf("fields: discovered %s custom fields in use — labels, filters, and editors configured", formatCount(len(specs)))
-	opts.logf("fields: backfilled %s issues from the mirror (no re-download)", formatCount(n))
+	opts.logf("fields: backfilled %s issues from the mirror (version/synced_at bumped, no re-download)", formatCount(n))
 	return nil
 }
 
@@ -636,19 +636,18 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 			MimeType:   at.MimeType,
 			Size:       at.Size,
 			Author:     at.Author.DisplayName,
+			AuthorID:   at.Author.AccountID,
 			CreatedAt:  jira.ISOTime(at.Created),
 		})
 	}
 	for _, h := range histories {
 		for i, it := range h.Items {
-			field := it.FieldID
-			if field == "" {
-				field = strings.ToLower(it.Field)
-			}
+			field := changelogField(it)
 			rec.Changelog = append(rec.Changelog, store.ChangeEntry{
 				ID:        fmt.Sprintf("%s:%s:%d", SourceID, h.ID, i),
 				At:        jira.ISOTime(h.Created),
 				Author:    h.Author.DisplayName,
+				AuthorID:  h.Author.AccountID,
 				Field:     field,
 				FromValue: it.FromString,
 				FromID:    it.From,
@@ -705,6 +704,65 @@ func fieldList(cfg *config.Config, full bool) []string {
 		}
 	}
 	return out
+}
+
+// changelogFieldNames maps localized (and English) changelog display names to
+// Jira fieldIds. I searched for an existing axis (priority_rank, FieldIDSlug,
+// Derive field switch) and found none that translates a missing fieldId.
+var changelogFieldNames = map[string]string{
+	"status":           "status",
+	"assignee":         "assignee",
+	"reporter":         "reporter",
+	"priority":         "priority",
+	"summary":          "summary",
+	"description":      "description",
+	"issuetype":        "issuetype",
+	"issue type":       "issuetype",
+	"resolution":       "resolution",
+	"labels":           "labels",
+	"components":       "components",
+	"fix version":      "fixVersions",
+	"fix versions":     "fixVersions",
+	"affects version":  "versions",
+	"affects versions": "versions",
+	"due date":         "duedate",
+	"environment":      "environment",
+	"상태":               "status",
+	"담당자":              "assignee",
+	"보고자":              "reporter",
+	"우선순위":             "priority",
+	"우선 순위":            "priority",
+	"요약":               "summary",
+	"설명":               "description",
+	"이슈 유형":            "issuetype",
+	"이슈 타입":            "issuetype",
+	"해결":               "resolution",
+	"해결책":              "resolution",
+	"레이블":              "labels",
+	"구성 요소":            "components",
+	"수정 버전":            "fixVersions",
+	"ステータス":            "status",
+	"担当者":              "assignee",
+}
+
+// changelogField is the locale-stable changelog field key Derive and the feed
+// switch on. fieldId wins; without it a stable name map is used; last resort
+// is lowercase (English system fields).
+func changelogField(it jira.HistoryItem) string {
+	if it.FieldID != "" {
+		return it.FieldID
+	}
+	if it.Field == "" {
+		return ""
+	}
+	if id, ok := changelogFieldNames[it.Field]; ok {
+		return id
+	}
+	lower := strings.ToLower(it.Field)
+	if id, ok := changelogFieldNames[lower]; ok {
+		return id
+	}
+	return lower
 }
 
 func names(list []jira.NamedID) []string {

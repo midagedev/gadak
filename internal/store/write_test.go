@@ -373,6 +373,85 @@ func TestSearchKoreanAndPrefix(t *testing.T) {
 	}
 }
 
+// TestUpsertPagesUnchangedDoesNotBumpVersion is FAIL-first for C4: a quiet
+// wiki's overlap re-fetch must not move sync_state.version. A real body or
+// comment change must still bump (the old "always rewrite" existed so
+// comments-only edits were not dropped).
+func TestUpsertPagesUnchangedDoesNotBumpVersion(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, Source{ID: "confluence", Kind: "confluence"}); err != nil {
+		t.Fatal(err)
+	}
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"same"}]}]}`)
+	cm := Comment{
+		ID: "confluence:c1", ExternalID: "c1", Author: "Lee", AuthorID: "acc-lee",
+		BodyADF:   json.RawMessage(`{"type":"doc","version":1,"content":[]}`),
+		BodyText:  "first",
+		CreatedAt: ago(2), UpdatedAt: ago(2),
+	}
+	rec := PageRecord{
+		Item: Item{
+			ID: "confluence:p1", SourceID: "confluence", Kind: "page", ExternalID: "p1",
+			Key: "p1", Title: "Doc", BodyText: "same",
+			Author: "Dana", AuthorID: "acc-dana",
+			URL:       "https://x.example/wiki/spaces/ENG/pages/p1",
+			CreatedAt: ago(3), UpdatedAt: ago(1),
+		},
+		Page:     Page{SpaceKey: "ENG", Version: 2, Status: "current", Labels: []string{"ops"}, BodyADF: adf},
+		Comments: []Comment{cm},
+	}
+	if n, err := db.UpsertPages(ctx, []PageRecord{rec}); err != nil || n != 1 {
+		t.Fatalf("seed UpsertPages n=%d err=%v", n, err)
+	}
+	before, err := db.SyncState(ctx, "confluence")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := db.UpsertPages(ctx, []PageRecord{rec})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("C4: unchanged re-upsert changed %d rows, want 0", n)
+	}
+	after, err := db.SyncState(ctx, "confluence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Version != before.Version {
+		t.Errorf("C4: version moved %d -> %d on unchanged page", before.Version, after.Version)
+	}
+
+	// Body change still bumps.
+	changed := rec
+	changed.Item.BodyText = "edited"
+	changed.Page.BodyADF = json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"edited"}]}]}`)
+	changed.Page.Version = 3
+	if n, err := db.UpsertPages(ctx, []PageRecord{changed}); err != nil || n != 1 {
+		t.Fatalf("body change n=%d err=%v, want 1", n, err)
+	}
+	bodyState, _ := db.SyncState(ctx, "confluence")
+	if bodyState.Version <= after.Version {
+		t.Errorf("C4 regression: body change did not bump version (%d)", bodyState.Version)
+	}
+
+	// Comment-only change still bumps.
+	withComment := changed
+	withComment.Comments = append(withComment.Comments, Comment{
+		ID: "confluence:c2", ExternalID: "c2", Author: "Pat", AuthorID: "acc-pat",
+		BodyText: "new comment", CreatedAt: ago(0), UpdatedAt: ago(0),
+	})
+	if n, err := db.UpsertPages(ctx, []PageRecord{withComment}); err != nil || n != 1 {
+		t.Fatalf("comment change n=%d err=%v, want 1", n, err)
+	}
+	cmState, _ := db.SyncState(ctx, "confluence")
+	if cmState.Version <= bodyState.Version {
+		t.Errorf("C4 regression: comment change did not bump version (%d)", cmState.Version)
+	}
+}
+
 func TestUnchangedUpsertIsANoOp(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)

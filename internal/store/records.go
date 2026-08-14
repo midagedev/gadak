@@ -84,6 +84,7 @@ type Attachment struct {
 	MimeType   string
 	Size       int64
 	Author     string
+	AuthorID   string
 	CreatedAt  string
 }
 
@@ -93,6 +94,7 @@ type ChangeEntry struct {
 	ID        string
 	At        string
 	Author    string
+	AuthorID  string
 	Field     string // "status", "assignee", "priority", ...
 	FromValue string
 	FromID    string

@@ -165,6 +165,8 @@ type DetailAttachment struct {
 	Filename   string `json:"filename"`
 	MimeType   string `json:"mime_type"`
 	Size       int64  `json:"size"`
+	Author     string `json:"author,omitempty"`
+	AuthorID   string `json:"author_id,omitempty"`
 	CreatedAt  string `json:"created_at"`
 }
 
@@ -174,6 +176,7 @@ type DetailAttachment struct {
 type DetailChange struct {
 	At        string `json:"at"`
 	Author    string `json:"author"`
+	AuthorID  string `json:"author_id,omitempty"`
 	Field     string `json:"field"`
 	FromValue string `json:"from_value"`
 	FromID    string `json:"from_id"`
@@ -252,11 +255,11 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 
 	if err := each(ctx, db.sql, `
 		SELECT id, COALESCE(external_id,''), COALESCE(filename,''), COALESCE(mime_type,''),
-		       COALESCE(size,0), COALESCE(created_at,'')
+		       COALESCE(size,0), COALESCE(author,''), COALESCE(author_id,''), COALESCE(created_at,'')
 		FROM attachments WHERE item_id = ? ORDER BY created_at, id`,
 		func(rows *sql.Rows) error {
 			var a DetailAttachment
-			if err := rows.Scan(&a.ID, &a.ExternalID, &a.Filename, &a.MimeType, &a.Size, &a.CreatedAt); err != nil {
+			if err := rows.Scan(&a.ID, &a.ExternalID, &a.Filename, &a.MimeType, &a.Size, &a.Author, &a.AuthorID, &a.CreatedAt); err != nil {
 				return err
 			}
 			d.Attachments = append(d.Attachments, a)
@@ -266,13 +269,13 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 	}
 
 	if err := each(ctx, db.sql, `
-		SELECT COALESCE(at,''), COALESCE(author,''), COALESCE(field,''),
+		SELECT COALESCE(at,''), COALESCE(author,''), COALESCE(author_id,''), COALESCE(field,''),
 		       COALESCE(from_value,''), COALESCE(from_id,''),
 		       COALESCE(to_value,''), COALESCE(to_id,'')
 		FROM changelog WHERE item_id = ? ORDER BY at, id`,
 		func(rows *sql.Rows) error {
 			var c DetailChange
-			if err := rows.Scan(&c.At, &c.Author, &c.Field, &c.FromValue, &c.FromID, &c.ToValue, &c.ToID); err != nil {
+			if err := rows.Scan(&c.At, &c.Author, &c.AuthorID, &c.Field, &c.FromValue, &c.FromID, &c.ToValue, &c.ToID); err != nil {
 				return err
 			}
 			d.History = append(d.History, c)

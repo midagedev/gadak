@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -182,10 +183,10 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	}
 	for _, a := range r.Attachments {
 		if _, err := tx.Exec(`
-			INSERT INTO attachments (id, item_id, external_id, filename, mime_type, size, author, created_at)
-			VALUES (?,?,?,?,?,?,?,?)`,
+			INSERT INTO attachments (id, item_id, external_id, filename, mime_type, size, author, author_id, created_at)
+			VALUES (?,?,?,?,?,?,?,?,?)`,
 			a.ID, it.ID, nz(a.ExternalID), nz(a.Filename), nz(a.MimeType), a.Size,
-			nz(a.Author), nz(a.CreatedAt),
+			nz(a.Author), nz(a.AuthorID), nz(a.CreatedAt),
 		); err != nil {
 			return false, err
 		}
@@ -196,9 +197,9 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			id = fmt.Sprintf("%s:%d", it.ID, i)
 		}
 		if _, err := tx.Exec(`
-			INSERT INTO changelog (id, item_id, at, author, field, from_value, from_id, to_value, to_id)
-			VALUES (?,?,?,?,?,?,?,?,?)`,
-			id, it.ID, nz(e.At), nz(e.Author), nz(e.Field),
+			INSERT INTO changelog (id, item_id, at, author, author_id, field, from_value, from_id, to_value, to_id)
+			VALUES (?,?,?,?,?,?,?,?,?,?)`,
+			id, it.ID, nz(e.At), nz(e.Author), nz(e.AuthorID), nz(e.Field),
 			nz(e.FromValue), nz(e.FromID), nz(e.ToValue), nz(e.ToID),
 		); err != nil {
 			return false, err
@@ -217,8 +218,17 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		return false, err
 	}
 
-	// Text-derived page refs from description + comments (after comments written).
-	pageRefs := filterSelfRef(ExtractPageRefsFromIssue(it.BodyText, bodies), it.Key)
+	// Text-derived page refs from raw ADF + flattened text (after comments written).
+	commentBlobs := make([]string, 0, len(r.Comments)*2)
+	for _, c := range r.Comments {
+		if len(c.BodyADF) > 0 {
+			commentBlobs = append(commentBlobs, string(c.BodyADF))
+		}
+		if c.BodyText != "" {
+			commentBlobs = append(commentBlobs, c.BodyText)
+		}
+	}
+	pageRefs := filterSelfRef(ExtractPageRefsFromIssue(string(is.DescriptionADF), it.BodyText, commentBlobs), it.Key)
 	if err := replaceItemRefs(tx, it.ID, pageRefs); err != nil {
 		return false, err
 	}
@@ -391,9 +401,10 @@ func (db *DB) PruneConfluenceSpaces(ctx context.Context, sourceID string, keepKe
 }
 
 // UpsertPages writes document records in a single transaction and returns how
-// many items it actually changed. Unlike issues, pages always rewrite when
-// called: comments can change without bumping the page's updated_at, so a
-// version-equality skip would drop the comments-only pass.
+// many items it actually changed. A page whose stored body, meta and comments
+// match the incoming record is skipped (no version bump). Comment-only edits
+// still bump because comments are part of the compare — that is the comments-
+// only trap the old always-rewrite path existed to close.
 func (db *DB) UpsertPages(ctx context.Context, records []PageRecord) (int, error) {
 	if len(records) == 0 {
 		return 0, nil
@@ -437,11 +448,26 @@ func upsertPageRecord(tx *sql.Tx, r PageRecord, knownProjects map[string]bool) (
 	if it.Kind == "" {
 		it.Kind = "page"
 	}
+	r.Item.Kind = it.Kind
+	if pg := &r.Page; pg.Status == "" {
+		pg.Status = "current"
+	}
+	if r.Page.Version <= 0 {
+		r.Page.Version = 1
+	}
+
+	unchanged, err := pageRecordUnchanged(tx, r)
+	if err != nil {
+		return false, err
+	}
+	if unchanged {
+		return false, nil
+	}
+
 	syncedAt := Now()
 
-	// Always rewrite: comment-only edits do not advance the page's updated_at.
 	var rowid int64
-	err := tx.QueryRow(`
+	err = tx.QueryRow(`
 		INSERT INTO items (id, source_id, kind, external_id, key, title, body_text,
 		                   author, author_id, url, created_at, updated_at, synced_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -517,6 +543,108 @@ func upsertPageRecord(tx *sql.Tx, r PageRecord, knownProjects map[string]bool) (
 
 	_, err = tx.Exec(`DELETE FROM deleted_items WHERE source_id = ? AND key = ?`, it.SourceID, it.Key)
 	return true, err
+}
+
+// pageRecordUnchanged reports whether the stored page (item + projection +
+// comments) already matches r. Compared fields — keep this list in lockstep
+// with the write below, or a silent skip will leave the client stale:
+//
+//	items: title, body_text, author, author_id, url, created_at, updated_at,
+//	       external_id, key
+//	pages: space_key, parent_id, version, status, body_adf, labels
+//	comments: id, external_id, author, author_id, body_adf, body_text,
+//	          created_at, updated_at (order-independent, keyed by id)
+//
+// excerpt is derived from body_adf and is not compared. synced_at is the
+// write stamp and is not compared.
+func pageRecordUnchanged(tx *sql.Tx, r PageRecord) (bool, error) {
+	it := r.Item
+	pg := r.Page
+	var (
+		title, body, author, authorID, url, created, updated string
+		extID, key                                           string
+		space, parent, status, adf, labels                   string
+		version                                              int
+	)
+	err := tx.QueryRow(`
+		SELECT COALESCE(it.title,''), COALESCE(it.body_text,''),
+		       COALESCE(it.author,''), COALESCE(it.author_id,''), COALESCE(it.url,''),
+		       COALESCE(it.created_at,''), COALESCE(it.updated_at,''),
+		       COALESCE(it.external_id,''), COALESCE(it.key,''),
+		       COALESCE(p.space_key,''), COALESCE(p.parent_id,''), p.version,
+		       COALESCE(p.status,''), COALESCE(p.body_adf,''), COALESCE(p.labels,'[]')
+		FROM items it JOIN pages p ON p.item_id = it.id
+		WHERE it.id = ?`, it.ID).Scan(
+		&title, &body, &author, &authorID, &url, &created, &updated,
+		&extID, &key, &space, &parent, &version, &status, &adf, &labels,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	bodyADF := ""
+	if len(pg.BodyADF) > 0 {
+		bodyADF = string(pg.BodyADF)
+	}
+	if title != it.Title || body != it.BodyText ||
+		author != it.Author || authorID != it.AuthorID || url != it.URL ||
+		created != it.CreatedAt || updated != it.UpdatedAt ||
+		extID != it.ExternalID || key != it.Key ||
+		space != pg.SpaceKey || parent != pg.ParentID || version != pg.Version ||
+		status != pg.Status || adf != bodyADF || labels != jsonArray(pg.Labels) {
+		return false, nil
+	}
+
+	rows, err := tx.Query(`
+		SELECT id, COALESCE(external_id,''), COALESCE(author,''), COALESCE(author_id,''),
+		       COALESCE(body_adf,''), COALESCE(body_text,''),
+		       COALESCE(created_at,''), COALESCE(updated_at,'')
+		FROM comments WHERE item_id = ?`, it.ID)
+	if err != nil {
+		return false, err
+	}
+	type snap struct {
+		id, ext, author, authorID, adf, body, created, updated string
+	}
+	var have []snap
+	for rows.Next() {
+		var s snap
+		if err := rows.Scan(&s.id, &s.ext, &s.author, &s.authorID, &s.adf, &s.body, &s.created, &s.updated); err != nil {
+			rows.Close()
+			return false, err
+		}
+		have = append(have, s)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return false, err
+	}
+	rows.Close()
+
+	want := make([]snap, 0, len(r.Comments))
+	for _, c := range r.Comments {
+		adf := ""
+		if len(c.BodyADF) > 0 {
+			adf = string(c.BodyADF)
+		}
+		want = append(want, snap{
+			id: c.ID, ext: c.ExternalID, author: c.Author, authorID: c.AuthorID,
+			adf: adf, body: c.BodyText, created: c.CreatedAt, updated: c.UpdatedAt,
+		})
+	}
+	if len(have) != len(want) {
+		return false, nil
+	}
+	sort.Slice(have, func(i, j int) bool { return have[i].id < have[j].id })
+	sort.Slice(want, func(i, j int) bool { return want[i].id < want[j].id })
+	for i := range have {
+		if have[i] != want[i] {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // writeFTS rebuilds one row of the contentless index. Contentless FTS5 has no

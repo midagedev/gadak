@@ -172,6 +172,10 @@ func (f *confFixture) serveSearch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "injected search failure", http.StatusBadRequest)
 		return
 	}
+	if strings.Contains(cql, "type=comment") {
+		f.serveCommentSearch(w, cql)
+		return
+	}
 	var results []map[string]any
 	// Collect and sort by When ascending.
 	ids := make([]string, 0, len(f.pages))
@@ -205,6 +209,84 @@ func (f *confFixture) serveSearch(w http.ResponseWriter, r *http.Request) {
 		"results": results,
 		"_links":  map[string]string{},
 	})
+}
+
+func (f *confFixture) serveCommentSearch(w http.ResponseWriter, cql string) {
+	type hit struct {
+		page *confPage
+		cm   confComment
+	}
+	var hits []hit
+	for _, p := range f.pages {
+		if !commentSpaceMatch(cql, p.Space) {
+			continue
+		}
+		var walk func(confComment)
+		walk = func(cm confComment) {
+			if !commentWhenMatch(cql, cm.When) {
+				return
+			}
+			hits = append(hits, hit{page: p, cm: cm})
+			for _, r := range cm.Replies {
+				walk(r)
+			}
+		}
+		for _, cm := range p.Comments {
+			walk(cm)
+		}
+	}
+	for i := 0; i < len(hits); i++ {
+		for j := i + 1; j < len(hits); j++ {
+			if hits[j].cm.When < hits[i].cm.When ||
+				(hits[j].cm.When == hits[i].cm.When && hits[j].cm.ID < hits[i].cm.ID) {
+				hits[i], hits[j] = hits[j], hits[i]
+			}
+		}
+	}
+	results := make([]map[string]any, 0, len(hits))
+	for _, h := range hits {
+		results = append(results, map[string]any{
+			"id": h.cm.ID, "type": "comment", "status": "current",
+			"title": "Re: " + h.page.Title,
+			"space": map[string]any{"key": h.page.Space, "name": f.spaceName(h.page.Space)},
+			"version": map[string]any{
+				"number": 1, "when": h.cm.When,
+				"by": map[string]any{"accountId": "acc-2", "displayName": "Bob Example"},
+			},
+			"_links": map[string]string{
+				"webui": fmt.Sprintf("/spaces/%s/pages/%s?focusedCommentId=%s",
+					h.page.Space, h.page.ID, h.cm.ID),
+			},
+		})
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"results": results,
+		"_links":  map[string]string{},
+	})
+}
+
+func commentSpaceMatch(cql, space string) bool {
+	if i := strings.Index(cql, `space="`); i >= 0 {
+		rest := cql[i+len(`space="`):]
+		end := strings.Index(rest, `"`)
+		if end >= 0 && space != rest[:end] {
+			return false
+		}
+	}
+	return true
+}
+
+func commentWhenMatch(cql, when string) bool {
+	i := strings.Index(cql, `lastModified >= "`)
+	if i < 0 {
+		return true
+	}
+	rest := cql[i+len(`lastModified >= "`):]
+	end := strings.Index(rest, `"`)
+	if end <= 0 {
+		return true
+	}
+	return !pageWhenBeforeFloor(when, rest[:end])
 }
 
 func cqlMatch(cql string, p *confPage) bool {
@@ -717,6 +799,77 @@ func TestConfluenceIncrementalAdvancesWatermark(t *testing.T) {
 	}
 }
 
+// TestConfluenceCommentsOnlyPassWithoutPageTouch is FAIL-first for C2: a new
+// comment whose page lastModified did not move must still land in the mirror.
+// Decision 0006's comments-only pass; cost cap is one type=comment CQL per
+// incremental space (not a full-space refetch).
+func TestConfluenceCommentsOnlyPassWithoutPageTouch(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA"})
+
+	if _, err := RunConfluence(context.Background(), cfg, db.DB, Options{
+		Full: true, ConfluenceClient: client,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	raw := db.raw(t)
+	var before int
+	if err := raw.QueryRow(`SELECT COUNT(*) FROM comments WHERE item_id = 'confluence:1001'`).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if before != 1 {
+		t.Fatalf("comments before = %d, want 1", before)
+	}
+
+	// Page version/when stay put. Only a new comment appears.
+	f.mu.Lock()
+	f.pages["1001"].Comments = append(f.pages["1001"].Comments, confComment{
+		ID: "c1001c", Text: "comment without page edit", When: "2026-08-10T09:00:00.000Z",
+	})
+	f.mu.Unlock()
+
+	var logs []string
+	if _, err := RunConfluence(context.Background(), cfg, db.DB, Options{
+		ConfluenceClient: client,
+		Log:              func(line string) { logs = append(logs, line) },
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var after int
+	if err := raw.QueryRow(`SELECT COUNT(*) FROM comments WHERE item_id = 'confluence:1001'`).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if after != 2 {
+		t.Fatalf("C2: comments after = %d, want 2 (comment-only pass missed)", after)
+	}
+	var body string
+	if err := raw.QueryRow(`SELECT body_text FROM comments WHERE id = 'confluence:c1001c'`).Scan(&body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body, "comment without page edit") {
+		t.Errorf("new comment body = %q", body)
+	}
+
+	// Cost cap: incremental AAA must issue a type=comment CQL (one extra
+	// search, not one GET per page in the space).
+	var commentCQL int
+	for _, cql := range f.searches {
+		if strings.Contains(cql, `space="AAA"`) && strings.Contains(cql, "type=comment") {
+			commentCQL++
+		}
+	}
+	if commentCQL != 1 {
+		t.Errorf("C2: type=comment CQL count = %d, want 1; searches=%v", commentCQL, f.searches)
+	}
+	joined := strings.Join(logs, "\n")
+	if !strings.Contains(joined, "comments-only") {
+		t.Errorf("C2: missing comments-only count log, got %v", logs)
+	}
+}
+
 func TestConfluenceCommentOnlyChange(t *testing.T) {
 	f := newConfFixture(t)
 	client := f.start()
@@ -877,30 +1030,53 @@ func TestConfluenceIncrementalPerSpaceCQL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(f.searches) != 2 {
-		t.Errorf("SearchPages calls = %d, want 2 (one CQL per space)", len(f.searches))
-	}
-	var aaa, bbb string
+	var aaaPage, bbbPage, aaaComment, bbbComment string
+	pageCalls, commentCalls := 0, 0
 	for _, cql := range f.searches {
-		if strings.Contains(cql, `space="AAA"`) {
-			aaa = cql
-		}
-		if strings.Contains(cql, `space="BBB"`) {
-			bbb = cql
-		}
 		if strings.Contains(cql, "space in (") {
 			t.Errorf("chunked space-in CQL still used: %s", cql)
 		}
+		switch {
+		case strings.Contains(cql, "type=comment"):
+			commentCalls++
+			if strings.Contains(cql, `space="AAA"`) {
+				aaaComment = cql
+			}
+			if strings.Contains(cql, `space="BBB"`) {
+				bbbComment = cql
+			}
+		case strings.Contains(cql, "type=page"):
+			pageCalls++
+			if strings.Contains(cql, `space="AAA"`) {
+				aaaPage = cql
+			}
+			if strings.Contains(cql, `space="BBB"`) {
+				bbbPage = cql
+			}
+		}
 	}
-	if aaa == "" || bbb == "" {
-		t.Fatalf("missing per-space CQL: searches=%v", f.searches)
+	if pageCalls != 2 {
+		t.Errorf("type=page SearchPages = %d, want 2 (one per space); searches=%v", pageCalls, f.searches)
+	}
+	if aaaPage == "" || bbbPage == "" {
+		t.Fatalf("missing per-space page CQL: searches=%v", f.searches)
 	}
 	wantFloor := cqlTime("2026-01-01T00:00:00.000Z")
-	if !strings.Contains(aaa, `lastModified >= "`+wantFloor+`"`) {
-		t.Errorf("AAA CQL = %q, want lastModified >= %q", aaa, wantFloor)
+	if !strings.Contains(aaaPage, `lastModified >= "`+wantFloor+`"`) {
+		t.Errorf("AAA page CQL = %q, want lastModified >= %q", aaaPage, wantFloor)
 	}
-	if strings.Contains(bbb, "lastModified") {
-		t.Errorf("BBB CQL = %q, want full-backfill (no lastModified)", bbb)
+	if strings.Contains(bbbPage, "lastModified") {
+		t.Errorf("BBB page CQL = %q, want full-backfill (no lastModified)", bbbPage)
+	}
+	// Incremental AAA also runs one comments-only CQL; backfill BBB must not.
+	if commentCalls != 1 || aaaComment == "" {
+		t.Errorf("comments-only CQL: count=%d aaa=%q searches=%v", commentCalls, aaaComment, f.searches)
+	}
+	if bbbComment != "" {
+		t.Errorf("BBB backfill must not issue type=comment CQL: %s", bbbComment)
+	}
+	if aaaComment != "" && !strings.Contains(aaaComment, `lastModified >= "`+wantFloor+`"`) {
+		t.Errorf("AAA comment CQL = %q, want same floor %q", aaaComment, wantFloor)
 	}
 
 	joined := strings.Join(logs, "\n")
