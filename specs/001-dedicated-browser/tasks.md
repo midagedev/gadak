@@ -90,10 +90,28 @@ Status: `[ ]` open · `[x]` done+evidence · `[-]` dropped (say why).
 - [ ] A4. RECIPES.md: one worked recipe ends in `views open --keys -`.
 - [ ] A5. Changelog entry for the wave (Unreleased).
 
+## Track M — MCP `gadak_show` (after Track G merges; internal/mcp/ +
+## contracts/agent.md + docs/MCP.md)
+
+- [ ] M1. Contract revision first: contracts/agent.md and docs/MCP.md
+      restate the MCP rule as "no writes to the mirror or to Jira";
+      presentation (ui-focus) is a permitted local act, ranked below SQL
+      (SQL answers; show presents).
+- [ ] M2. `gadak_show` tool: input `{jql} | {keys: [..]} | {issue} | {name}`
+      (exactly one), compiles through internal/jql (keys → `ks=` hash,
+      issue → `issue=` hash, name → stored view via the same lookup the
+      CLI uses), writes ui-focus for the process profile, returns
+      `{hash, applied, unsupported}`. Never opens windows itself —
+      the running UI picks the file up (500 ms visible / 2 min TTL);
+      say so in the tool description.
+- [ ] M3. server_test.go tool-count and name-list assertions updated
+      (5 tools); a test proves write SQL is still rejected and that
+      `gadak_show` writes the focus file where the profile expects it.
+- [ ] M4. Every "four tools" claim swept: AGENTS.md, docs/MCP.md,
+      docs/AGENT_ACCESS.md, SKILL.md coordinate with Track A.
+
 ## Deferred, named
 
-- MCP `gadak_show` — owner call needed: revises the "read-only, four
-  tools" contract (census 04 lists the full touch set when approved).
 - fsnotify → Wails event for desktop focus latency (census 05 option E) —
   only if 2 GET/s visible-tab polling ever matters.
 - Favorite docs; `gadak open <url>`; workspace-aware `gadak open` — out of

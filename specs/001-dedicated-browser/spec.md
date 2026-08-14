@@ -49,10 +49,11 @@ Hierarchy, in order of what the product *is*:
   in parallel; it is not displaced by this wave.
 - **Agent interface ranking.** The database stays the agent's *answer*
   interface (contracts/agent.md). `gadak views open` is the *presentation*
-  interface. SQL answers; views present. MCP presentation (`gadak_show`)
-  is **deferred pending an owner call** — it contradicts the written
-  "MCP is read-only, no fourth tool" contract and needs that contract
-  revised first, not silently violated.
+  interface. SQL answers; views present. **MCP grows `gadak_show`** (owner
+  call, 2026-08-14): the "read-only" contract line is revised to what it
+  always meant — *no writes to the mirror or to Jira*. Focusing the
+  human's UI is a local presentation act, the same class as `views open`,
+  and a shell-less host (Claude Desktop) has no other way to do it.
 - **`gadak open` stays the Jira escape hatch** (system browser to
   `/browse/KEY`); `gadak views open` is the "open in gadak" verb. Docs must
   say this out loud — the two names collide in the mind.
