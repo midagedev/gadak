@@ -526,7 +526,7 @@ func openReadOnly() (*sql.DB, error) {
 }
 
 func cmdSQL(args []string) error {
-	// The two flags are matched by name wherever they appear instead of with
+	// Flags are matched by name wherever they appear instead of with
 	// flag.Parse, because a query legitimately starts with `--` — a SQL comment,
 	// which flag.Parse reads as an undefined flag and refuses. That is exactly what
 	// happens when an agent pastes a commented query out of AGENTS.md.
@@ -534,7 +534,7 @@ func cmdSQL(args []string) error {
 		printHelp("sql")
 		return nil
 	}
-	var asJSON, asCSV bool
+	var asJSON, asCSV, noHeader bool
 	var words []string
 	for _, a := range args {
 		switch a {
@@ -542,13 +542,15 @@ func cmdSQL(args []string) error {
 			asJSON = true
 		case "--csv", "-csv":
 			asCSV = true
+		case "--no-header", "-no-header":
+			noHeader = true
 		default:
 			words = append(words, a)
 		}
 	}
 	query := strings.TrimSpace(strings.Join(words, " "))
 	if query == "" {
-		return usageError("sql", `usage: gadak sql [--json|--csv] "select ..."`)
+		return usageError("sql", `usage: gadak sql [--json|--csv] [--no-header] "select ..."`)
 	}
 	db, err := openReadOnly()
 	if err != nil {
@@ -569,11 +571,15 @@ func cmdSQL(args []string) error {
 	switch {
 	case asCSV:
 		csvOut = csv.NewWriter(os.Stdout)
-		if err := csvOut.Write(cols); err != nil {
-			return err
+		if !noHeader {
+			if err := csvOut.Write(cols); err != nil {
+				return err
+			}
 		}
 	case !asJSON:
-		fmt.Println(strings.Join(cols, "\t"))
+		if !noHeader {
+			fmt.Println(strings.Join(cols, "\t"))
+		}
 	}
 	vals := make([]any, len(cols))
 	ptrs := make([]any, len(cols))
@@ -1181,7 +1187,7 @@ Reading the mirror (no network; see AGENTS.md):
   open       open the issue on your Jira site in the browser  <KEY>
   search     full-text or JQL            [--jql] [--emit] [--limit N] [--json] "text|JQL|URL"
   views      list/open Jira filters      [list|show|open|save]  (alias: view)
-  sql        read-only SQL               [--json|--csv] "select ..."
+  sql        read-only SQL               [--json|--csv] [--no-header] "select ..."
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
   mcp        MCP server on stdio; mcp install <client> pins profile (docs/MCP.md)
   skill      install Claude Code skill (schema + queries; no MCP process)

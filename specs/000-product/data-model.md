@@ -3,11 +3,21 @@
 Agents and scripts query this schema directly, so it is versioned, migrated
 forward, and documented here.
 
-**How much of it is a contract, while the version is 0.x.** Two things are
-promised: the `issues_full` view, and the queries printed in
-[`docs/RECIPES.md`](../../docs/RECIPES.md). Those keep working across minor
-versions, and a column either of them names is never repurposed or silently
-retyped. Everything else — base tables, indexes, internal columns, the FTS
+**How much of it is a contract, while the version is 0.x.** Three things are
+promised:
+
+1. The `issues_full` view, and the queries printed in
+   [`docs/RECIPES.md`](../../docs/RECIPES.md). Those keep working across minor
+   versions, and a column either of them names is never repurposed or silently
+   retyped.
+2. `gadak sql` stdout: default is one header row plus TSV data rows;
+   `--no-header` omits the header (TSV and `--csv`); `--json` is one object
+   per row. stdout never carries banners or progress logs (those go to
+   stderr).
+3. `gadak views open --keys -` reads keys from stdin, splits on commas or
+   whitespace, and keeps first-seen order.
+
+Everything else — base tables, indexes, internal columns, the FTS
 shadow tables — is documented so you can read it, not promised so you can build
 on it. It changed fifteen times in the first month and will change again.
 
@@ -15,7 +25,7 @@ This is deliberately narrower than the earlier wording, which promised the
 whole schema. A contract that a solo maintainer cannot honour is worse than a
 small one that holds: it is easier to widen a promise later than to take one
 back from someone who already built on it. If you need a guarantee on a column
-outside the two above, open an issue and say what you are building — that is
+outside the three above, open an issue and say what you are building — that is
 how it earns its way in.
 
 **When a migration goes wrong**, the mirror is disposable and the recovery is
@@ -42,13 +52,9 @@ Default location: `~/.gadak/gadak.db`. Override with `--db` or `GADAK_DB`.
 ## Source neutrality
 
 `items` is the source-neutral spine: anything with a title, body, author, and
-timestamp fits it. `issues` holds the Jira-specific projection. A second
-connector (Confluence is the intended next one) adds its own projection table and
-reuses `items`, `items_fts`, `sync_state`, and the whole search path unchanged.
-
-v0.1 ships only the Jira projection. The spine exists from the start because
-retrofitting it later would mean rewriting every query an agent has already
-written against the shipped schema.
+timestamp fits it. `issues` holds the Jira-specific projection. `pages` holds
+the Confluence projection (decision 0006). A second connector reuses `items`,
+`items_fts`, `sync_state`, and the whole search path unchanged.
 
 ```mermaid
 erDiagram

@@ -228,6 +228,47 @@ func TestViewsOpenKeysStdin(t *testing.T) {
 	}
 }
 
+func TestViewsOpenKeysStdinMixedFirstSeen(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	config.SetProfile("")
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Commas, spaces, tabs, and newlines mixed; NMA-3 repeats. First-seen order.
+	go func() {
+		_, _ = w.WriteString("NMA-3, nma-1\nNMA-2 NMA-3\tNMA-4\n")
+		_ = w.Close()
+	}()
+	saved := os.Stdin
+	os.Stdin = r
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"open", "--no-open", "--json", "--keys", "-"})
+	})
+	os.Stdin = saved
+	if err != nil {
+		t.Fatalf("open --keys - mixed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "ks=NMA-3,NMA-1,NMA-2,NMA-4") {
+		t.Fatalf("first-seen order lost: %s", out)
+	}
+	var body struct {
+		Keys []string `json:"keys"`
+	}
+	if err := json.Unmarshal([]byte(out), &body); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	want := []string{"NMA-3", "NMA-1", "NMA-2", "NMA-4"}
+	if len(body.Keys) != len(want) {
+		t.Fatalf("keys %v want %v", body.Keys, want)
+	}
+	for i := range want {
+		if body.Keys[i] != want[i] {
+			t.Fatalf("keys %v want %v", body.Keys, want)
+		}
+	}
+}
+
 func TestViewsOpenKeysExclusive(t *testing.T) {
 	err := cmdViews([]string{"open", "--keys", "NMA-1", "--jql", "project = NMA"})
 	if err == nil || !strings.Contains(err.Error(), "--keys cannot be combined") {

@@ -161,16 +161,17 @@ from sync_state where source_id = 'jira'
 SQL answers; `gadak views open` presents. When the ask is to *see* a set, pipe
 the keys into the running app instead of pasting a table. `--keys` keeps
 first-seen order, so the `ORDER BY` is what the list shows. `gadak sql` prints
-a header row first — skip it, or that word becomes a key. Select only `key`:
+a header row first — skip it (`tail -n +2`), or that word becomes a key. Select only `key`:
 `--keys` splits on commas and whitespace.
+`-- or: gadak sql --no-header "…" (same rows, no header line)`.
 
 **Put this label's unresolved issues on screen:**
 
 ```bash
-gadak sql "select i.key
+gadak sql --no-header "select i.key
 from issues_full i, json_each(i.labels) l
 where json_valid(i.labels) and l.value = 'batch' and i.status_category != 'done'
-order by i.priority_rank, i.updated_at desc" | tail -n +2 | gadak views open --keys -
+order by i.priority_rank, i.updated_at desc" | gadak views open --keys -
 ```
 
 ---

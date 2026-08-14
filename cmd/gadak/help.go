@@ -152,15 +152,17 @@ var helps = map[string]cmdHelp{
 	},
 	"sql": {
 		summary: "run a read-only SQL query against the local mirror",
-		usage:   "gadak [--profile <name>] sql [--json|--csv] \"select ...\"",
+		usage:   "gadak [--profile <name>] sql [--json|--csv] [--no-header] \"select ...\"",
 		options: []helpOption{
 			{name: "json", desc: "emit one JSON object per row"},
 			{name: "csv", desc: "emit CSV with a header row"},
+			{name: "no-header", desc: "omit the TSV/CSV header row (no-op with --json)"},
 		},
 		examples: []string{
 			"gadak sql \"select count(*) from issues\"",
 			"gadak sql --json \"select key, status from issues_full limit 5\"",
 			"gadak sql --csv \"select key from issues where status_category = 'done'\"",
+			"gadak sql --no-header \"select key from issues limit 5\"",
 		},
 		seeAlso: []string{"gadak issue", "gadak search", "gadak status"},
 	},

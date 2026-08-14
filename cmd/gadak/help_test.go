@@ -98,6 +98,9 @@ func TestRenderHelpManualCommand(t *testing.T) {
 	if !strings.Contains(out, "--json") || !strings.Contains(out, "--csv") {
 		t.Errorf("sql Options missing --json/--csv:\n%s", out)
 	}
+	if !strings.Contains(out, "--no-header") {
+		t.Errorf("sql Options missing --no-header:\n%s", out)
+	}
 	if strings.Contains(out, "Usage of ") {
 		t.Errorf("default flag header in sql help:\n%s", out)
 	}
