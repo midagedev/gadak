@@ -31,9 +31,9 @@ type usageTaker interface {
 // accumulation, RecordSync, and any source-specific work (reconcile, discovery).
 //
 // SupportsReconcile controls the +reconcile kind suffix. Jira sets true (full
-// and opts.Reconcile both trigger reconcile). Confluence sets false — it has
-// no reconcile pass yet; the label rule lives here so a future pass can flip
-// the flag without re-forking the skeleton.
+// and opts.Reconcile both trigger reconcile). Confluence sets true once space
+// prune ships; the flag is the kind label only — each source still owns its
+// reconcile body.
 func runSource(
 	ctx context.Context,
 	cfg *config.Config,
