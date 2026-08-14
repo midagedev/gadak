@@ -47,6 +47,10 @@ type Product struct {
 	Label string `json:"label"`
 }
 
+// Config is the on-disk profile document (~/.gadak/config.json, or
+// ~/.gadak/profiles/<name>/config.json). Credentials share this file with
+// site settings but never reach the database, a log, or a snapshot; the file
+// is written 0600.
 type Config struct {
 	// The credential and what it connects to. Token is never copied out of this file.
 	Site     string   `json:"site,omitempty"` // https://your-site.atlassian.net

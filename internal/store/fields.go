@@ -8,8 +8,8 @@ import (
 	"log"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/fields"
-	"github.com/midagedev/gadak/internal/jira"
 )
 
 // FieldUsageRow is one (project, alias) fill statistic from field_usage.
@@ -132,18 +132,18 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 		// body = description plain + body field ids (same additive rule as sync.build).
 		var bodyParts []string
 		if descADF != "" {
-			if t := jira.PlainText(json.RawMessage(descADF)); t != "" {
+			if t := adf.PlainText(json.RawMessage(descADF)); t != "" {
 				bodyParts = append(bodyParts, t)
 			}
 		}
 		// If description_adf empty, try fields.description from raw.
 		if len(bodyParts) == 0 {
-			if t := jira.PlainText(fieldVals["description"]); t != "" {
+			if t := adf.PlainText(fieldVals["description"]); t != "" {
 				bodyParts = append(bodyParts, t)
 			}
 		}
 		for _, id := range bodyFieldIDs {
-			if t := jira.PlainText(fieldVals[id]); t != "" {
+			if t := adf.PlainText(fieldVals[id]); t != "" {
 				bodyParts = append(bodyParts, t)
 			}
 		}

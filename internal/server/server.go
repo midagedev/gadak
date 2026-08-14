@@ -1,7 +1,8 @@
-// Package server serves the HTTP read API the web UI already speaks
-// (specs/000-product/contracts/api.md). Every response is assembled from the
-// SQLite mirror; the one call that leaves this process is the attachment byte
-// proxy, which is also the only endpoint that needs credentials.
+// Package server is the loopback HTTP mux for the web UI and the API
+// (specs/000-product/contracts/api.md). Reads are assembled from the SQLite
+// mirror. Write-through endpoints call Jira and re-read the issue into the
+// mirror. Credentials are needed for those writes and for fetching attachment
+// bytes that are not already on disk.
 //
 // The server has no authentication: `gadak serve` refuses a non-loopback bind
 // instead. Personal-state endpoints therefore never answer 401/403.

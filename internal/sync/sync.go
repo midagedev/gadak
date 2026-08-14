@@ -1,5 +1,6 @@
-// Package sync fills the mirror from Jira. It only ever writes to the mirror,
-// never to Jira, and the rules it implements are in
+// Package sync fills the mirror from the configured sources (Jira, and
+// Confluence when enabled). It only ever writes to the mirror, never to Jira
+// or Confluence, and the rules it implements are in
 // specs/000-product/contracts/sync.md.
 package sync
 
@@ -43,6 +44,10 @@ var baseFields = []string{
 	"comment", "attachment", "issuelinks",
 }
 
+// Options tunes one Run or Watch cycle. A nil Client or ConfluenceClient is
+// built from cfg; a nil Notifier uses OSNotifier and never aborts the loop; a
+// Reload error keeps the previous config so a momentarily unreadable file
+// cannot stop the mirror.
 type Options struct {
 	Full      bool
 	Reconcile bool
@@ -70,6 +75,10 @@ type Options struct {
 	Reload func() (*config.Config, error)
 }
 
+// Result is the tally of one source pass (Run or RunConfluence).
+// Fetched/Changed/Deleted count what this pass touched. Full is true when
+// the pass had no watermark to increment from, or the caller asked for one.
+// Watermark is the newest upstream timestamp recorded on success.
 type Result struct {
 	Full      bool
 	Fetched   int

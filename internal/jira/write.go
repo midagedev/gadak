@@ -84,6 +84,9 @@ type Transition struct {
 	To   Status `json:"to"`
 }
 
+// Transitions lists the status changes Jira will currently accept on key.
+// Each entry's To carries StatusCategory so callers can key on the stable
+// category; names are localized per account.
 func (c *Client) Transitions(ctx context.Context, key string) ([]Transition, error) {
 	var out struct {
 		Transitions []Transition `json:"transitions"`
@@ -92,11 +95,16 @@ func (c *Client) Transitions(ctx context.Context, key string) ([]Transition, err
 	return out.Transitions, c.do(ctx, http.MethodGet, p, nil, &out)
 }
 
+// Transition performs the transition id on key. It uses the write retry
+// policy: only 429 and 503 are retried, because a 500 may mean Jira already
+// acted.
 func (c *Client) Transition(ctx context.Context, key, transitionID string) error {
 	body := map[string]any{"transition": map[string]string{"id": transitionID}}
 	return c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/transitions", apiPath, url.PathEscape(key)), body, nil)
 }
 
+// AddComment posts an ADF body (not plain text). Mentions must already be
+// mention nodes — a leftover "@Name" string notifies nobody.
 func (c *Client) AddComment(ctx context.Context, key string, adf json.RawMessage) (Comment, error) {
 	var out Comment
 	body := map[string]any{"body": adf}

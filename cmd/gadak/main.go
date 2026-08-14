@@ -1,10 +1,8 @@
 // Command gadak serves a local mirror of your issue tracker.
 //
-// Implemented: init, sync (--full/--watch), serve (syncs by default),
-// issue, search, comment, transition, assign, sql, status, doctor, mcp, skill,
-// demo, export-static, export, import, install-service, install-cli, profiles,
-// version, snapshot, team.
-// See specs/000-product/tasks.md for the current state of each.
+// The command list is the `usage` string and the `commands` map in this file;
+// do not maintain a second inventory here. See specs/000-product/tasks.md for
+// the current state of each command.
 //
 // The agent-facing commands live in agent.go; AGENTS.md is their reference.
 package main

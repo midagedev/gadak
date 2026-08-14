@@ -1,5 +1,5 @@
-// Package jira is a thin REST client for Jira Cloud: enough of the API to fill
-// the mirror, and nothing else. It never writes to Jira from this file.
+// Package jira is the Atlassian Cloud REST client: read paths plus
+// user-initiated writes.
 //
 // The token lives only in the Authorization header. It is never put in an error,
 // a log line or a URL (constitution article 8), which is why transport reports
@@ -26,6 +26,10 @@ const apiPath = "/rest/api/3"
 // rate budget (contracts/sync.md, "Rate limits and backoff").
 var ErrAuth = errors.New("jira: credential rejected")
 
+// Client talks to one Atlassian Cloud site over REST. The credential is held
+// only as an Authorization header value; it is never copied into an error, a
+// log line, or a URL. Retries and Backoff apply to reads; writes use a
+// narrower policy (see write).
 type Client struct {
 	base string
 	auth string
@@ -41,6 +45,8 @@ type Client struct {
 	usage atlhttp.Meter
 }
 
+// New builds a Client for site using Basic auth (email:token). The HTTP
+// client times out at 60s; Retries is 5; the first Backoff is 1s.
 func New(site, email, token string) *Client {
 	return &Client{
 		base:    strings.TrimRight(site, "/"),
