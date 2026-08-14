@@ -42,6 +42,7 @@ export interface ViewFilters {
   /**
    * Exact issue keys, given order. URL `ks` (comma-joined, uppercased).
    * Empty = no constraint. Agent ranking when no explicit sort is set.
+   * Unset grouping defaults to none so that order is not shredded into buckets.
    */
   keys: string[]
   /**
@@ -298,6 +299,17 @@ export function defaultDisplay(): ViewDisplay {
   }
 }
 
+/**
+ * Grouping used when the URL / saved view did not name one.
+ * Keys views stay flat so `views open --keys` first-seen order is the
+ * painted order. An explicit `g=` or a saved `group_by` still wins.
+ * `keys` is optional: Jira-imported views and pre-keys saved views omit it,
+ * and SidebarNav calls configToParams on those at boot.
+ */
+export function defaultGroupBy(filters: { keys?: readonly string[] } | null | undefined): GroupBy {
+  return (filters?.keys?.length ?? 0) > 0 ? 'none' : 'status_category'
+}
+
 export function emptyConfig(): ViewConfig {
   return { filters: emptyFilters(), display: defaultDisplay() }
 }
@@ -402,6 +414,7 @@ export function parseConfig(params: URLSearchParams): ViewConfig {
   f.q = params.get(Q_KEY) ?? ''
 
   const d = defaultDisplay()
+  d.group_by = defaultGroupBy(f)
   const g = params.get(GROUP_KEY)
   if (g && isGroupBy(g)) d.group_by = g
   const s = params.get(SORT_KEY)
@@ -467,8 +480,10 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   out[RANGE_KEY.updated_to] = f.updated_to || null
   out[Q_KEY] = f.q ? f.q : null
 
-  // Status-category grouping is the default. Explicit g=none preserves "no sections".
-  out[GROUP_KEY] = d.group_by !== 'status_category' ? d.group_by : null
+  // Omit g when it matches the contextual default (status_category normally;
+  // none on a keys view). Explicit g=status_category on a keys view must
+  // serialize or parseConfig would flatten it again.
+  out[GROUP_KEY] = d.group_by !== defaultGroupBy(f) ? d.group_by : null
   out[SORT_KEY] = d.sort !== 'updated' ? d.sort : null
   out[DIR_KEY] = d.dir !== 'desc' ? d.dir : null
 
