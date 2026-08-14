@@ -54,6 +54,18 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 - `make media`는 `media-mcp`를 포함하지 않는다 — mcp 클립은 Claude 로그인과
   실모델 호출이 필요해서 기여자에게 강제하지 않는다 (`docs/MEDIA.md`).
 
+## 백로그·전략 문서 (도그푸딩)
+
+- **백로그 원본은 Jira `GDK` 프로젝트** (midagedev 개인 사이트, `gadak
+  --profile oss`). 세션 태스크 리스트는 이번 세션의 실행 단위일 뿐 —
+  세션을 넘길 백로그는 GDK에 이슈로 등록한다. 조회는 gadak으로(도그푸딩):
+  `gadak --profile oss sql "..."`.
+- 홍보 전략·멘토 보고서·벤치 원자료는 **Confluence `GDK` 스페이스**.
+  비공개 전략 문서를 공개 레포(scratch/ 포함)에 새로 만들지 않는다.
+- GitHub Issues는 **사용자 인바운드 전용** — 들어오면 GDK로 미러.
+- 백로그 작업 중 걸리는 write 격차는 그 자리에서 GDK에 `write-gap`
+  라벨로 등록한다.
+
 ## 문서
 
 - **영문 README가 원본**, `README.ko.md`는 번역(헤더에 기준 버전 명시) —
