@@ -316,8 +316,9 @@ type-scale sweep that used to sit here was the clearest example of the trap
   when the bar is met; it overlaps the agent audience most.
 - **Jira-less workspace (a local-only source).** The appeal is real — no
   token, no approval, an agent-readable local tracker; the demo already
-  proves the read surface without a live site. But the write loop does not
-  exist (gadak never creates issues, even against Jira), and the moment
+  proves the read surface without a live site. But every write path gadak
+  has goes *through* Jira (the app creates issues against Jira, never
+  locally), and the moment
   gadak holds the only copy, "delete a directory and have lost nothing"
   stops being true — a durability promise a 0.x schema should not make.
   Note the "Writing to the mirror" objection below is about conflict
