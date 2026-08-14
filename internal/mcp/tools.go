@@ -305,13 +305,14 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Best match first: IssueLites order is not FTS rank, so re-order by key list.
-	all, err := s.db.IssueLites(context.Background())
+	// Best match first: IssueLitesByKeys returns rows in the ranked key order.
+	// Missing keys (FTS hit without an issues row) still emit {key} below.
+	lites, err := s.db.IssueLitesByKeys(context.Background(), res.Keys)
 	if err != nil {
 		return nil, err
 	}
-	byKey := make(map[string]store.IssueLite, len(all))
-	for _, l := range all {
+	byKey := make(map[string]store.IssueLite, len(lites))
+	for _, l := range lites {
 		byKey[l.IssueKey] = l
 	}
 	type hit struct {
@@ -351,16 +352,13 @@ func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	all, err := s.db.IssueLites(context.Background())
+	lites, err := s.db.IssueLitesByKeys(context.Background(), []string{key})
 	if err != nil {
 		return nil, err
 	}
 	var lite *store.IssueLite
-	for i := range all {
-		if all[i].IssueKey == key {
-			lite = &all[i]
-			break
-		}
+	if len(lites) > 0 {
+		lite = &lites[0]
 	}
 	// Same shape as `gadak issue --json`: list row plus flattened detail fields.
 	body := map[string]any{"issue_key": d.IssueKey, "description_adf": d.DescriptionADF,
@@ -761,8 +759,7 @@ func (s *Server) marshalResult(v any) ([]contentItem, error) {
 }
 
 // marshalIssueResult shrinks comments (newest kept) when the payload exceeds
-// the byte cap. Search stays on marshalResult — full IssueLites scan is out of
-// this round.
+// the byte cap. Search stays on marshalResult (its payload is already limited).
 func (s *Server) marshalIssueResult(body map[string]any) ([]contentItem, error) {
 	capn := s.resultCap()
 	comments := issueComments(body)

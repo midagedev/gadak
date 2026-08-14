@@ -89,6 +89,52 @@ func (db *DB) IssueLitesSince(ctx context.Context, since string) ([]IssueLite, e
 	return db.issueLites(ctx, issueLiteSelect+` WHERE it.synced_at >= ? ORDER BY it.updated_at DESC`, since)
 }
 
+// IssueLitesByKeys returns the IssueLite rows for keys, in the order asked.
+// Missing and empty keys are skipped. Duplicate keys yield duplicate rows.
+// The SQL IN-list is de-duplicated; callers that need FTS rank pass the
+// ranked key list and get that order back.
+func (db *DB) IssueLitesByKeys(ctx context.Context, keys []string) ([]IssueLite, error) {
+	if len(keys) == 0 {
+		return []IssueLite{}, nil
+	}
+	seen := make(map[string]struct{}, len(keys))
+	uniq := make([]string, 0, len(keys))
+	for _, k := range keys {
+		if k == "" {
+			continue
+		}
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		uniq = append(uniq, k)
+	}
+	if len(uniq) == 0 {
+		return []IssueLite{}, nil
+	}
+	// Same IN-placeholder shape as PruneConfluenceSpaces (write.go).
+	qs := strings.Repeat("?,", len(uniq)-1) + "?"
+	args := make([]any, len(uniq))
+	for i, k := range uniq {
+		args[i] = k
+	}
+	rows, err := db.issueLites(ctx, issueLiteSelect+` WHERE i.key IN (`+qs+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	byKey := make(map[string]IssueLite, len(rows))
+	for _, l := range rows {
+		byKey[l.IssueKey] = l
+	}
+	out := make([]IssueLite, 0, len(keys))
+	for _, k := range keys {
+		if l, ok := byKey[k]; ok {
+			out = append(out, l)
+		}
+	}
+	return out, nil
+}
+
 func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]IssueLite, error) {
 	rows, err := db.sql.QueryContext(ctx, query, args...)
 	if err != nil {

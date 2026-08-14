@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -198,6 +199,9 @@ func TestProtocolRoundTrip(t *testing.T) {
 	}
 	if _, ok := issue["comments"]; !ok {
 		t.Error("issue missing comments")
+	}
+	if _, ok := issue["issue"]; !ok {
+		t.Error("issue missing list row (IssueLite)")
 	}
 	if _, ok := issue["history"]; !ok {
 		t.Error("issue missing history")
@@ -806,6 +810,70 @@ func TestMarshalIssueResultErrorsWhenStillOverCap(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "result exceeds") {
 		t.Errorf("want existing exceeds error, got %v", err)
+	}
+}
+
+func TestSearchHydrationMatchesFullScanOrder(t *testing.T) {
+	// The old path loaded every IssueLite then reordered by FTS keys. The new
+	// path must emit the same {key,summary,status} rows in the same order.
+	path := demoDB(t)
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	res, err := db.Search(context.Background(), "upload", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, err := db.IssueLites(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	byKey := make(map[string]store.IssueLite, len(all))
+	for _, l := range all {
+		byKey[l.IssueKey] = l
+	}
+	type hit struct {
+		Key     string `json:"key"`
+		Summary string `json:"summary"`
+		Status  string `json:"status"`
+	}
+	want := make([]hit, 0, len(res.Keys))
+	for _, k := range res.Keys {
+		if l, ok := byKey[k]; ok {
+			want = append(want, hit{Key: l.IssueKey, Summary: l.Summary, Status: l.Status})
+		} else {
+			want = append(want, hit{Key: k})
+		}
+	}
+	cr := callToolRaw(t, path, toolSearch, map[string]any{"query": "upload", "limit": 3})
+	if cr.IsError {
+		t.Fatalf("search error: %v", cr.Content)
+	}
+	var got struct {
+		Issues []hit `json:"issues"`
+	}
+	if err := json.Unmarshal([]byte(cr.Content[0].Text), &got); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Issues, want) {
+		t.Fatalf("issues=%+v\nwant   =%+v", got.Issues, want)
+	}
+}
+
+func TestToolsDoNotFullScanIssueLites(t *testing.T) {
+	// GDK-10: gadak_search / gadak_issue used to load every IssueLite per call.
+	// The store now has IssueLitesByKeys; these two handlers must ride it.
+	src, err := os.ReadFile("tools.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(src, []byte(".IssueLites(")) {
+		t.Fatal("tools.go still calls IssueLites (full mirror scan); use IssueLitesByKeys")
+	}
+	if !bytes.Contains(src, []byte(".IssueLitesByKeys(")) {
+		t.Fatal("tools.go never calls IssueLitesByKeys")
 	}
 }
 
