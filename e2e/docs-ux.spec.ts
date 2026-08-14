@@ -407,8 +407,8 @@ test.describe('documents in the daily loop', () => {
     await expect(fallback.locator('input')).toHaveValue('NMB, NMA, NMS')
     await expect(sources.getByTestId('scope-projects')).toHaveCount(0)
 
-    // Scope edits land on the next sync, and the tab says so.
-    await expect(sources).toContainText('next sync')
+    // Scope change + credential kicks a full sync on save (settings.go).
+    await expect(sources).toContainText('full sync immediately')
 
     await dialog.getByRole('button', { name: 'Close' }).click()
     await expect(dialog).toHaveCount(0)

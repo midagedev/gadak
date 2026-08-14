@@ -687,8 +687,8 @@ export const ko = {
   'settings.tabTeams': '팀/그룹',
   'settings.tabMembers': '멤버',
   'settings.tabFields': '필드 매핑',
-  'settings.introBefore': '서버의',
-  'settings.introAfter': '을 직접 편집합니다. 저장하면 앱이 새로고침됩니다.',
+  'settings.introBefore': '이 프로필의',
+  'settings.introAfter': '을 편집합니다. 저장 후 창을 다시 읽습니다.',
   'settings.loading': '불러오는 중…',
   'settings.loadFailed': '설정을 불러오지 못했습니다.',
   'settings.saveFailed': '설정 저장에 실패했습니다.',
@@ -699,7 +699,8 @@ export const ko = {
     '사이트에서 프로젝트 목록을 읽지 못해, 여기서는 키를 직접 입력합니다.',
   'settings.sourcesProjects': 'Jira 프로젝트',
   'settings.sourcesProjectsHint': '선택한 프로젝트만 미러링합니다.',
-  'settings.sourcesNoProjects': '선택 없음 — 미러링되는 이슈가 없습니다.',
+  'settings.sourcesNoProjects':
+    '선택 없음 — 이 계정이 볼 수 있는 모든 프로젝트가 미러링됩니다.',
   'settings.confluenceTitle': 'Confluence',
   'settings.confluenceOffHint':
     '이 프로필에서는 꺼져 있어 위키 문서가 미러링되지 않습니다. 아래에서 스페이스를 고르면 시작되고, 팀 스페이스 전체로 켤 수도 있습니다.',
@@ -716,7 +717,7 @@ export const ko = {
   'settings.sourcesNoSpaces': '선택 없음 — 미러링되는 문서가 없습니다.',
   'settings.showPersonalSpaces': '개인 스페이스도 표시',
   'settings.spacesUnavailable': 'Confluence에서 스페이스 목록을 읽지 못했습니다.',
-  'settings.sourcesApplyHint': '범위 변경은 다음 sync부터 반영됩니다.',
+  'settings.sourcesApplyHint': '저장하면 전체 동기화를 바로 시작합니다',
   'settings.scopeLoading': '목록을 불러오는 중…',
   'settings.scopeNoMatch': '일치하는 항목 없음',
   'settings.scopeHint': '↑↓ 이동 · Enter 추가 · Esc 닫기',
@@ -729,11 +730,14 @@ export const ko = {
   'settings.syncInterval': '증분 동기화 주기',
   'settings.syncIntervalHint':
     'gadak serve 가 Jira 변경을 폴링하는 간격. 0 이면 기본값.',
+  'settings.syncIntervalHintDesktop':
+    '이 창의 백그라운드 동기화가 Jira를 보는 간격. 0이면 기본값.',
   'settings.reconcileInterval': '삭제 정리(reconcile) 주기',
   'settings.reconcileIntervalHint':
     'upstream 에서 삭제된 이슈를 정리하기 위해 키를 재목록화하는 간격. 0 이면 기본값.',
-  'settings.intervalApplies':
-    'gadak serve 를 다시 시작해야 적용됩니다(루프는 기동 시 주기를 한 번만 읽음).',
+  'settings.reconcileIntervalHintDesktop':
+    '이 창의 백그라운드 동기화가 upstream에서 삭제된 이슈를 정리하려고 키를 재목록화하는 간격. 0이면 기본값.',
+  'settings.intervalApplies': '다음 동기화 틱에 적용됩니다. 재시작 불필요.',
   'settings.intervalDefault': '기본값',
   'settings.intervalCustom': '직접 입력…',
   'settings.intervalSeconds': '초',
@@ -764,13 +768,17 @@ export const ko = {
   'settings.copy': '복사',
   'settings.copied': '복사됨',
   'settings.copySqlite': 'sqlite3 명령 복사',
+  'settings.copySqliteDesktop': '터미널에 붙여넣을 sqlite3 명령 복사',
+  'settings.copySqliteLabelDesktop': 'sqlite3 (터미널에 붙여넣기)',
   'settings.none': '—',
   'settings.personalToken': '개인 Jira API 토큰 설정 →',
   'settings.credsElsewhere':
     '자격증명은 이 화면이 아니라 별도 다이얼로그에서 관리합니다.',
   'settings.featureFeed': '개인 피드',
   'settings.featureFeedDesc': '멘션·워치·담당자 변경을 모은 활동 피드',
-  'settings.browserNotify': '데스크톱 알림 (이 브라우저)',
+  'settings.featureFeedDescDesktop':
+    '목록의 피드 패널을 켭니다. 시스템 알림(메뉴바)은 별개로 항상 동작합니다.',
+  'settings.browserNotify': '브라우저 탭 알림',
   'settings.browserNotifyDesc':
     'gadak가 열려 있을 때 새 피드 항목이 오면 시스템 알림을 표시합니다. 웹 푸시는 사용하지 않습니다.',
   'settings.browserNotifyEnable': '알림 허용',
@@ -786,7 +794,7 @@ export const ko = {
   'settings.featureQaDesc': '이슈별 테스트 런·스위트 — 외부 QA 도구 필요',
   'settings.featureTeams': '파트 분류',
   'settings.featureTeamsDesc':
-    '멤버를 파트로 묶어 필터·그룹핑 — 아래 팀/그룹 설정 필요',
+    '멤버를 파트로 묶어 필터·그룹핑 — Teams / groups 탭에서 규칙 설정',
   'settings.qaDashboardUrl': 'QA 대시보드 URL (선택)',
   'settings.groupLabels': '그룹 라벨·색상',
   'settings.groupKey': '그룹 키',

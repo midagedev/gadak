@@ -167,6 +167,11 @@
         <span class="max-[760px]:hidden">{t('feed.markAllRead')}</span>
       </button>
     {/if}
+    <!--
+      Still gated on feature('push'). Features no longer draws a push toggle,
+      so this only mounts when config.json / Advanced JSON already has the
+      flag on. Closes the "turn the toggle on → bell appears → 404" path.
+    -->
     {#if feature('push')}
       <NotificationSettings />
     {/if}

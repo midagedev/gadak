@@ -691,8 +691,8 @@ export const en = {
   'settings.tabTeams': 'Teams / groups',
   'settings.tabMembers': 'Members',
   'settings.tabFields': 'Field mapping',
-  'settings.introBefore': "Edit the server's",
-  'settings.introAfter': 'directly. Saving reloads the app.',
+  'settings.introBefore': "Edit this profile's",
+  'settings.introAfter': '. After saving, this window is re-read.',
   'settings.loading': 'Loading…',
   'settings.loadFailed': 'Could not load settings.',
   'settings.saveFailed': 'Could not save settings.',
@@ -703,7 +703,8 @@ export const en = {
     'The project list could not be read from the site, so keys are entered by hand here.',
   'settings.sourcesProjects': 'Jira projects',
   'settings.sourcesProjectsHint': 'Only these projects are mirrored.',
-  'settings.sourcesNoProjects': 'Nothing selected — no issue is mirrored.',
+  'settings.sourcesNoProjects':
+    'Nothing selected — every project this account can see is mirrored.',
   'settings.confluenceTitle': 'Confluence',
   'settings.confluenceOffHint':
     'Off for this profile — no wiki page is mirrored. Choose spaces below to start, or turn it on for every team space.',
@@ -720,7 +721,7 @@ export const en = {
   'settings.sourcesNoSpaces': 'Nothing selected — no page is mirrored.',
   'settings.showPersonalSpaces': 'Show personal spaces',
   'settings.spacesUnavailable': 'Could not read the space list from Confluence.',
-  'settings.sourcesApplyHint': 'Scope changes take effect from the next sync.',
+  'settings.sourcesApplyHint': 'Saving starts a full sync immediately.',
   'settings.scopeLoading': 'Loading the list…',
   'settings.scopeNoMatch': 'No match',
   'settings.scopeHint': '↑↓ move · Enter add · Esc close',
@@ -733,11 +734,14 @@ export const en = {
   'settings.syncInterval': 'Incremental sync interval',
   'settings.syncIntervalHint':
     'How often gadak serve polls Jira for changes. 0 uses the default.',
+  'settings.syncIntervalHintDesktop':
+    "How often this window's background sync looks at Jira. 0 uses the default.",
   'settings.reconcileInterval': 'Reconcile interval (deletions)',
   'settings.reconcileIntervalHint':
     'How often gadak serve re-lists keys to drop issues deleted upstream. 0 uses the default.',
-  'settings.intervalApplies':
-    'Takes effect after restarting gadak serve (the loop reads intervals once at startup).',
+  'settings.reconcileIntervalHintDesktop':
+    "How often this window's background sync re-lists keys to drop issues deleted upstream. 0 uses the default.",
+  'settings.intervalApplies': 'Applies on the next sync tick; no restart needed.',
   'settings.intervalDefault': 'Default',
   'settings.intervalCustom': 'Custom…',
   'settings.intervalSeconds': 'seconds',
@@ -768,13 +772,17 @@ export const en = {
   'settings.copy': 'Copy',
   'settings.copied': 'Copied',
   'settings.copySqlite': 'Copy sqlite3 command',
+  'settings.copySqliteDesktop': 'Copy sqlite3 command to paste in a terminal',
+  'settings.copySqliteLabelDesktop': 'sqlite3 (paste in a terminal)',
   'settings.none': '—',
   'settings.personalToken': 'Personal Jira API token settings →',
   'settings.credsElsewhere':
     'Credentials are managed in a separate dialog, not here.',
   'settings.featureFeed': 'Personal feed',
   'settings.featureFeedDesc': 'Activity feed of mentions, watches, and assignee changes',
-  'settings.browserNotify': 'Desktop notifications (this browser)',
+  'settings.featureFeedDescDesktop':
+    'Turns on the list\'s feed panel. System notifications (menu bar) are separate and always run.',
+  'settings.browserNotify': 'Browser tab notifications',
   'settings.browserNotifyDesc':
     'Show a system notification when new feed items arrive while gadak is open. Does not use web push.',
   'settings.browserNotifyEnable': 'Allow notifications',
@@ -792,7 +800,7 @@ export const en = {
     'Per-issue test runs and suites — needs an external QA tool',
   'settings.featureTeams': 'Team grouping',
   'settings.featureTeamsDesc':
-    'Group members into teams for filters and grouping — configure Teams / groups below',
+    'Group members into teams for filters and grouping — configure rules in the Teams / groups tab',
   'settings.qaDashboardUrl': 'QA dashboard URL (optional)',
   'settings.groupLabels': 'Group labels & colors',
   'settings.groupKey': 'Group key',

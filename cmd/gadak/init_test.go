@@ -297,7 +297,7 @@ func TestInitAllowsEmptyProjects(t *testing.T) {
 			t.Fatalf("init without projects: %v", err)
 		}
 	})
-	if !strings.Contains(out, "no project filter — syncing everything this account can see; narrow it later in Settings → Sync") {
+	if !strings.Contains(out, "no project filter — syncing everything this account can see; narrow it later in Settings → Sources") {
 		t.Fatalf("expected empty-projects guidance line: %q", out)
 	}
 	cfg, err := config.Load()

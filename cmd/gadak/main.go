@@ -379,7 +379,7 @@ func cmdInit(args []string) error {
 		fmt.Printf("saved %s\n", p)
 	}
 	if len(cfg.Projects) == 0 {
-		fmt.Println("no project filter — syncing everything this account can see; narrow it later in Settings → Sync")
+		fmt.Println("no project filter — syncing everything this account can see; narrow it later in Settings → Sources")
 	}
 	printInitNextSteps()
 	return nil

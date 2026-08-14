@@ -68,6 +68,10 @@
       <span class="text-micro text-text-muted">
         {projectsLoading ? t('settings.scopeLoading') : t('settings.projectsManual')}
       </span>
+      <!-- Same meaning as the picker's emptyLabel: [] = every visible project. -->
+      {#if !projectsLoading && !draft.projectsText.trim()}
+        <span class="text-micro text-text-muted">{t('settings.sourcesNoProjects')}</span>
+      {/if}
     </label>
   {/if}
 

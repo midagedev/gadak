@@ -4,8 +4,11 @@
    * am I editing, where does it live, how much is in it.
    */
   import { t } from '../../lib/i18n'
+  import { surface } from '../../lib/config'
   import type { SettingsRuntime } from '../../lib/api'
   import { COPY_BTN } from './controls'
+
+  const onDesktop = surface() === 'desktop'
 
   let { runtime }: { runtime: SettingsRuntime } = $props()
 
@@ -52,10 +55,14 @@
           <button
             type="button"
             class={COPY_BTN}
-            title={t('settings.copySqlite')}
+            title={t(onDesktop ? 'settings.copySqliteDesktop' : 'settings.copySqlite')}
             onclick={() => copyText('sqlite', `sqlite3 ${runtime.dbPath}`)}
           >
-            {copiedKey === 'sqlite' ? t('settings.copied') : 'sqlite3'}
+            {copiedKey === 'sqlite'
+              ? t('settings.copied')
+              : onDesktop
+                ? t('settings.copySqliteLabelDesktop')
+                : 'sqlite3'}
           </button>
         {/if}
       </div>

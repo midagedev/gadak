@@ -122,6 +122,21 @@ export function isDesktop(): boolean {
   return current.desktop
 }
 
+/** Which shell is showing this bundle. Settings copy branches here. */
+export type GadakSurface = 'serve' | 'desktop' | 'hosted'
+
+/**
+ * Single surface discriminator for settings copy and control visibility.
+ * `hostedDemo` wins if both flags were ever set: the public snapshot is not
+ * the desktop app. Callers that already used isDesktop()/isHostedDemo() for
+ * chrome (title bar, write gate) keep those; new settings branches use this.
+ */
+export function surface(): GadakSurface {
+  if (current.hostedDemo) return 'hosted'
+  if (current.desktop) return 'desktop'
+  return 'serve'
+}
+
 /**
  * Deep link to the issue on the configured Jira site. Returns null when no site
  * is configured, so callers render plain text instead of a broken link.

@@ -1,9 +1,12 @@
 <script lang="ts">
   /* How often the mirror refreshes, and how old is "stale". */
   import { t } from '../../lib/i18n'
+  import { surface } from '../../lib/config'
   import Icon from '../ui/Icon.svelte'
   import { INPUT, SELECT, SELECT_CHEVRON, ADD_BTN } from './controls'
   import { RECONCILE_PRESETS, SYNC_PRESETS, type SettingsDraft } from './draft'
+
+  const onDesktop = surface() === 'desktop'
 
   let {
     draft = $bindable(),
@@ -54,7 +57,9 @@
         <span class="text-micro text-text-muted">{t('settings.intervalSeconds')}</span>
       {/if}
     </div>
-    <span class="text-micro text-text-muted">{t('settings.syncIntervalHint')}</span>
+    <span class="text-micro text-text-muted"
+      >{onDesktop ? t('settings.syncIntervalHintDesktop') : t('settings.syncIntervalHint')}</span
+    >
   </div>
 
   <div class="flex flex-col gap-1">
@@ -89,7 +94,11 @@
         <span class="text-micro text-text-muted">{t('settings.intervalSeconds')}</span>
       {/if}
     </div>
-    <span class="text-micro text-text-muted">{t('settings.reconcileIntervalHint')}</span>
+    <span class="text-micro text-text-muted"
+      >{onDesktop
+        ? t('settings.reconcileIntervalHintDesktop')
+        : t('settings.reconcileIntervalHint')}</span
+    >
   </div>
   <p class="text-micro leading-relaxed text-text-muted">{t('settings.intervalApplies')}</p>
 

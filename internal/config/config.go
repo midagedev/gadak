@@ -87,8 +87,9 @@ type Config struct {
 	AttachmentCacheMB int `json:"attachmentCacheMB,omitempty"`
 
 	// Sync periods in seconds. 0 means use DefaultSyncIntervalSec /
-	// DefaultReconcileIntervalSec. serve's Watch loop reads these once at start,
-	// so a change only takes effect after the process restarts.
+	// DefaultReconcileIntervalSec. Watch re-reads config on each cycle when
+	// opts.Reload is set (serve, desktop, and workspace all pass config.Load),
+	// so a change applies on the next tick without restarting the process.
 	SyncIntervalSec      int `json:"syncIntervalSec,omitempty"`
 	ReconcileIntervalSec int `json:"reconcileIntervalSec,omitempty"`
 

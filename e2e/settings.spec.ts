@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, openServerSettings } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
+import { ko } from '../web/src/lib/i18n/ko'
 
 const SETTINGS_URL = 'http://127.0.0.1:7877/api/v1/issues/settings/'
 
@@ -52,5 +54,59 @@ test.describe('settings dialog', () => {
     // seed guarantees. \d+ would let "0 today" pass and defeat the guard above.
     await expect(dialog.getByText(/\d{4,} today/)).toBeVisible()
     await expect(dialog.getByText('2 throttled')).toBeVisible()
+  })
+})
+
+/*
+ * Settings-audit contracts (false copy / dead toggle). These two assertions
+ * failed against the pre-fix catalogs and Features tab (FAIL-first 2026-08-15):
+ * sourcesNoProjects said "no issue is mirrored" / "미러링되는 이슈가 없습니다",
+ * and Features rendered a "Web push" checkbox that saved a flag whose
+ * endpoints 404.
+ */
+test.describe('settings copy contracts', () => {
+  test('empty-project label says every project (en/ko catalogs)', () => {
+    expect(en['settings.sourcesNoProjects']).toMatch(/every project/)
+    expect(ko['settings.sourcesNoProjects']).toContain('모든 프로젝트')
+  })
+
+  test('Features tab does not render the web-push toggle', async ({ page }) => {
+    await gotoApp(page)
+    await openServerSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await dialog.getByRole('button', { name: 'Features', exact: true }).click()
+    await expect(dialog.getByText('Personal feed')).toBeVisible()
+    await expect(dialog.getByText('Web push', { exact: true })).toHaveCount(0)
+  })
+
+  test('empty project picker label includes every project', async ({ page }) => {
+    const API = 'http://127.0.0.1:7877/api/v1/issues/'
+    await page.route(`${API}settings/`, (route) =>
+      route.fulfill({
+        json: { projects: [], staleThresholdHours: 72 },
+      }),
+    )
+    await page.route(`${API}projects/available/`, (route) =>
+      route.fulfill({
+        json: {
+          projects: [{ key: 'NMB', name: 'Nimbus Backend', projectTypeKey: 'software' }],
+          truncated: false,
+        },
+      }),
+    )
+    await page.route(`${API}settings/spaces/`, (route) =>
+      route.fulfill({
+        json: { spaces: [], all_global_when_empty: false, enabled: false },
+      }),
+    )
+
+    await gotoApp(page)
+    await openServerSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+
+    const projects = dialog.getByTestId('scope-projects')
+    await expect(projects).toBeVisible()
+    await expect(projects.getByTestId('scope-empty')).toContainText('every project')
   })
 })

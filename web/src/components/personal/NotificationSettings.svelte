@@ -1,4 +1,11 @@
 <script lang="ts">
+  /*
+   * Unreachable from the Settings Features tab: the push toggle was removed
+   * (VAPID / web push is not implemented; subscribe endpoints 404). This
+   * component still mounts when feature('push') is already true in
+   * config.json or Advanced JSON. Keep the tree until that decision;
+   * do not delete (lead note, audit #43 #44).
+   */
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
   import { push } from '../../stores/push.svelte'

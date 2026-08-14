@@ -32,7 +32,7 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `token` | string | _(empty)_ | Credential dialog / `gadak init` | Immediate; **never** returned by `settings/` or `config.json` |
 | `tokenVerifiedAt` | string (RFC3339) | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `tokenOwner` | string | _(empty)_ | Set by successful credential verify | Read-only side effect |
-| `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sync / `gadak init` | Next sync / list scope; UI reload after save |
+| `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sources / `gadak init` | Next sync / list scope; UI reload after save |
 | `fields` | FieldSpec[] | `[]` | Auto on first full sync / `gadak fields --apply` (read-only on Settings GET as `fieldSpecs`) | Next sync ingest; `fieldUsage` on Settings is project→alias fill counts |
 | `fieldMap` | map alias→field id | `{}` | Settings → Field mapping (legacy; synthesized into `fields` when `fields` is empty) | Next sync ingest |
 | `bodyFields` | string[] (field ids) | `[]` | Settings → Field mapping | Next sync (FTS body); additive with role=body specs |
