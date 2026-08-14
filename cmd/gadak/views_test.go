@@ -67,8 +67,34 @@ func TestViewsOpenWritesFocus(t *testing.T) {
 	}
 }
 
+// stubViewsLaunchSeams replaces serve discovery + both launch paths.
+// hits == nil means "no serve". Callers must not leave the vars swapped.
+func stubViewsLaunchSeams(t *testing.T, hits []serveHit) (openedWeb *bool, openedDesk *bool) {
+	t.Helper()
+	savedDiscover, savedOpen, savedStart := discoverServes, openFocusURL, startOpen
+	web, desk := false, false
+	t.Cleanup(func() {
+		discoverServes, openFocusURL, startOpen = savedDiscover, savedOpen, savedStart
+	})
+	discoverServes = func() []serveHit { return hits }
+	openFocusURL = func(u string) error {
+		web = true
+		t.Errorf("openFocusURL must not run under --no-open (url %s)", u)
+		return nil
+	}
+	startOpen = func(args ...string) error {
+		desk = true
+		t.Errorf("startOpen must not run under --no-open (args %v)", args)
+		return nil
+	}
+	return &web, &desk
+}
+
 func TestViewsOpenNoOpenSkipsLaunch(t *testing.T) {
 	mirror(t, "https://unused.example.com")
+	// Inject an empty discovery so a live gadak serve on this machine cannot
+	// flip the assertion. Concern is launch, not the URL.
+	web, desk := stubViewsLaunchSeams(t, nil)
 	out, err := capture(t, func() error {
 		return cmdViews([]string{"open", "--jql", `project = NMA AND statusCategory = "In Progress"`, "--no-open", "--json"})
 	})
@@ -76,21 +102,29 @@ func TestViewsOpenNoOpenSkipsLaunch(t *testing.T) {
 		t.Fatalf("open: %v\n%s", err, out)
 	}
 	var body struct {
-		Hash    string `json:"hash"`
-		File    bool   `json:"file"`
-		Web     string `json:"web"`
-		Desktop bool   `json:"desktop"`
+		Hash    string     `json:"hash"`
+		File    bool       `json:"file"`
+		Web     string     `json:"web"`
+		Desktop bool       `json:"desktop"`
+		Serve   serveDebug `json:"serve"`
 	}
 	if err := json.Unmarshal([]byte(out), &body); err != nil {
 		t.Fatalf("decode %s: %v", out, err)
 	}
-	if !body.File || body.Web != "" || body.Desktop || !strings.Contains(body.Hash, "pj=NMA") {
+	if !body.File || body.Desktop || !strings.Contains(body.Hash, "pj=NMA") {
 		t.Fatalf("no-open %+v", body)
+	}
+	if body.Web != "" {
+		t.Fatalf("injected empty discovery must yield empty web, got %q", body.Web)
+	}
+	if *web || *desk {
+		t.Fatalf("launch happened: web=%v desk=%v", *web, *desk)
 	}
 }
 
 func TestViewsOpenEnvNoOpen(t *testing.T) {
 	mirror(t, "https://unused.example.com")
+	web, desk := stubViewsLaunchSeams(t, nil)
 	t.Setenv("GADAK_NO_OPEN", "1")
 	out, err := capture(t, func() error {
 		return cmdViews([]string{"open", "--jql", `project = NMA`, "--json"})
@@ -98,8 +132,49 @@ func TestViewsOpenEnvNoOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v\n%s", err, out)
 	}
-	if !strings.Contains(out, `"desktop":false`) || !strings.Contains(out, `"web":""`) {
-		t.Fatalf("GADAK_NO_OPEN still launched: %s", out)
+	if !strings.Contains(out, `"desktop":false`) {
+		t.Fatalf("GADAK_NO_OPEN still launched desktop: %s", out)
+	}
+	if *web || *desk {
+		t.Fatalf("GADAK_NO_OPEN launched: web=%v desk=%v out=%s", *web, *desk, out)
+	}
+}
+
+// G4: a discovered serve prints the full URL even under --no-open, and still
+// does not launch. This is the contract the old web=="" assertion contradicted.
+func TestViewsOpenNoOpenPrintsURLWhenServeFound(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	web, desk := stubViewsLaunchSeams(t, []serveHit{{
+		base: "http://127.0.0.1:7777", profile: "", port: "7777",
+	}})
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"open", "--jql", `project = NMA`, "--no-open", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("open: %v\n%s", err, out)
+	}
+	var body struct {
+		Web     string     `json:"web"`
+		Desktop bool       `json:"desktop"`
+		Serve   serveDebug `json:"serve"`
+	}
+	if err := json.Unmarshal([]byte(out), &body); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if !strings.Contains(body.Web, "http://127.0.0.1:7777") || !strings.Contains(body.Web, "pj=NMA") {
+		t.Fatalf("G4 want serve URL, got %q", body.Web)
+	}
+	if body.Desktop {
+		t.Fatalf("desktop focused under --no-open: %+v", body)
+	}
+	if body.Serve.Base != "http://127.0.0.1:7777" || body.Serve.Port != "7777" {
+		t.Fatalf("serve debug %+v", body.Serve)
+	}
+	if len(body.Serve.Ports) == 0 {
+		t.Fatal("serve.ports must list the probed set")
+	}
+	if *web || *desk {
+		t.Fatalf("G4 launched despite --no-open: web=%v desk=%v", *web, *desk)
 	}
 }
 

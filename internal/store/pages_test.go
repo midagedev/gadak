@@ -217,6 +217,201 @@ func TestPageBodyADFColumnRoundTrip(t *testing.T) {
 	}
 }
 
+// TestPageLiteAuthorID is FAIL-first for I8: every PageLite SELECT carries
+// items.author_id so By-author can group on identity, not the display name.
+func TestPageLiteAuthorID(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x"}); err != nil {
+		t.Fatal(err)
+	}
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"see /browse/NMB-1"}]}]}`)
+	if _, err := db.UpsertIssues(context.Background(), Batch{
+		Categories: map[string]string{"1": "new"},
+		Records: []IssueRecord{{
+			Item: Item{
+				ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+				Key: "NMB-1", Title: "one", BodyText: "see /wiki/spaces/ENG/pages/101",
+				CreatedAt: ago(2), UpdatedAt: ago(1),
+			},
+			Issue: Issue{ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+				Status: "To Do", StatusID: "1", StatusCategory: "new"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertPages(context.Background(), []PageRecord{
+		{
+			Item: Item{
+				ID: "confluence:101", SourceID: "confluence", Kind: "page", ExternalID: "101",
+				Key: "101", Title: "Kim A notes", BodyText: "see /browse/NMB-1",
+				Author: "Kim", AuthorID: "acc-kim-a",
+				URL:       "https://x/wiki/spaces/ENG/pages/101",
+				CreatedAt: ago(2), UpdatedAt: ago(1),
+			},
+			Page: Page{SpaceKey: "ENG", Version: 1, Status: "current", BodyADF: adf},
+		},
+		{
+			Item: Item{
+				ID: "confluence:102", SourceID: "confluence", Kind: "page", ExternalID: "102",
+				Key: "102", Title: "Kim B notes", BodyText: "other kim",
+				Author: "Kim", AuthorID: "acc-kim-b",
+				URL:       "https://x/wiki/spaces/ENG/pages/102",
+				CreatedAt: ago(3), UpdatedAt: ago(2),
+			},
+			Page: Page{SpaceKey: "ENG", Version: 1, Status: "current",
+				BodyADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`)},
+		},
+		{
+			Item: Item{
+				ID: "confluence:103", SourceID: "confluence", Kind: "page", ExternalID: "103",
+				Key: "103", Title: "Legacy name only", BodyText: "no account id",
+				Author:    "Pat",
+				URL:       "https://x/wiki/spaces/ENG/pages/103",
+				CreatedAt: ago(4), UpdatedAt: ago(3),
+			},
+			Page: Page{SpaceKey: "ENG", Version: 1, Status: "current",
+				BodyADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`)},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	pages, err := db.PageLites(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	byKey := map[string]PageLite{}
+	for _, p := range pages {
+		byKey[p.Key] = p
+	}
+	if byKey["101"].AuthorID != "acc-kim-a" || byKey["101"].Author != "Kim" {
+		t.Errorf("PageLites 101 = %+v", byKey["101"])
+	}
+	if byKey["102"].AuthorID != "acc-kim-b" {
+		t.Errorf("PageLites 102 author_id = %q", byKey["102"].AuthorID)
+	}
+	if byKey["103"].AuthorID != "" || byKey["103"].Author != "Pat" {
+		t.Errorf("PageLites 103 = %+v", byKey["103"])
+	}
+
+	raw, err := json.Marshal(byKey["101"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["author_id"] != "acc-kim-a" {
+		t.Errorf("PageLite JSON author_id = %v (%s)", m["author_id"], raw)
+	}
+
+	d, err := db.PageDetail(context.Background(), "101")
+	if err != nil || d == nil {
+		t.Fatalf("PageDetail: %v %#v", err, d)
+	}
+	if d.AuthorID != "acc-kim-a" {
+		t.Errorf("PageDetail.AuthorID = %q", d.AuthorID)
+	}
+
+	res, err := db.Search(context.Background(), "Kim A", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, p := range res.Pages {
+		if p.Key == "101" {
+			found = true
+			if p.AuthorID != "acc-kim-a" {
+				t.Errorf("Search PageLite author_id = %q", p.AuthorID)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("Search missed 101: %+v", res.Pages)
+	}
+
+	issue, err := db.Detail(context.Background(), "NMB-1")
+	if err != nil || issue == nil {
+		t.Fatalf("Detail: %v %#v", err, issue)
+	}
+	if len(issue.RefPages) == 0 {
+		t.Fatal("RefPages empty — pageLitesFromRefs path not exercised")
+	}
+	gotRef := false
+	for _, p := range issue.RefPages {
+		if p.Key == "101" {
+			gotRef = true
+			if p.AuthorID != "acc-kim-a" {
+				t.Errorf("RefPages author_id = %q", p.AuthorID)
+			}
+		}
+	}
+	if !gotRef {
+		t.Errorf("RefPages = %+v, want 101", issue.RefPages)
+	}
+	gotBack := false
+	for _, p := range issue.BacklinkPages {
+		if p.Key == "101" {
+			gotBack = true
+			if p.AuthorID != "acc-kim-a" {
+				t.Errorf("BacklinkPages author_id = %q", p.AuthorID)
+			}
+		}
+	}
+	if !gotBack {
+		t.Errorf("BacklinkPages = %+v, want 101", issue.BacklinkPages)
+	}
+}
+
+// TestIssueLitePriorityIDOnWire documents the wire field. There is no
+// issues.priority_id column (schema + sync are out of this track), so the
+// value is the empty string — clients fall back to the display name.
+func TestIssueLitePriorityIDOnWire(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{
+		Categories: map[string]string{"1": "new"},
+		Priorities: []string{"Highest", "High"},
+		Records: []IssueRecord{{
+			Item: Item{
+				ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+				Key: "NMB-1", Title: "p", CreatedAt: ago(1), UpdatedAt: ago(1),
+			},
+			Issue: Issue{
+				ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+				Status: "To Do", StatusID: "1", StatusCategory: "new",
+				Priority: "High",
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.IssueLites(context.Background())
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("IssueLites: %v %+v", err, rows)
+	}
+	if rows[0].PriorityID != "" {
+		t.Errorf("PriorityID = %q, want empty until a schema column exists", rows[0].PriorityID)
+	}
+	raw, err := json.Marshal(rows[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m["priority_id"]; !ok {
+		t.Fatalf("priority_id missing from IssueLite JSON: %s", raw)
+	}
+}
+
 func TestPageLitesOrder(t *testing.T) {
 	db := openTemp(t)
 	seedPagesWithIssues(t, db)

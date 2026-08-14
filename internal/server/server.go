@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -297,6 +298,10 @@ func WebConfigBase(cfg *config.Config, prefix string) ([]byte, error) {
 	if prefix != "" {
 		doc.APIBase = prefix + apiBase
 		doc.AuthBase = prefix + authBase
+	}
+	// /w/<name>/config.json is that profile's document, not the process primary.
+	if name, ok := strings.CutPrefix(prefix, "/w/"); ok && name != "" {
+		doc.Profile = profileDisplay(name)
 	}
 	return json.Marshal(doc)
 }

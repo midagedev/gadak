@@ -65,6 +65,12 @@ export interface GadakConfig {
    * handle. A browser tab has neither, hence the flag rather than a media query.
    */
   desktop: boolean
+  /**
+   * gadak profile this document belongs to. Servers send `"default"` for the
+   * unnamed profile (same as `gadak doctor --json`). Older documents omit it;
+   * DEFAULTS fill `"default"`.
+   */
+  profile: string
   features: GadakFeatures
 }
 
@@ -81,6 +87,7 @@ const DEFAULTS: GadakConfig = {
   confluenceEnabled: false,
   hostedDemo: false,
   desktop: false,
+  profile: 'default',
   features: {
     feed: false,
     push: false,
@@ -167,23 +174,34 @@ export function siteHost(siteUrl: string): string {
   }
 }
 
+/** Stable profile token for cache keys and config.json. Empty/"default" → "default". */
+export function profileName(raw: string | null | undefined): string {
+  const p = (raw ?? '').trim()
+  return !p || p === 'default' ? 'default' : p
+}
+
 /**
- * Cache partition for IndexedDB / localStorage. Distinct workspace mounts and
- * distinct Jira sites must never share a pool — a re-init on `/` used to
- * upsert site B into site A's cache because the key was workspace-only.
+ * Cache partition for IndexedDB / localStorage. Distinct workspace mounts,
+ * Jira sites, and (on `/`) named profiles must never share a pool.
+ * `profile` is omitted when it is the default name so existing default-profile
+ * caches keep their key; a named primary on the same origin+site does not.
  */
-export function composeCacheScope(workspace: string, siteUrl: string): string {
+export function composeCacheScope(workspace: string, siteUrl: string, profile?: string): string {
   const parts: string[] = []
   const ws = workspace.trim()
   if (ws) parts.push(`ws:${ws}`)
   const host = siteHost(siteUrl)
   if (host) parts.push(`site:${host}`)
+  if (!ws) {
+    const p = profileName(profile ?? config().profile)
+    if (p !== 'default') parts.push(`profile:${p}`)
+  }
   return parts.join('|')
 }
 
 /** Active partition. Empty on the hosted demo (no site, no workspace). */
 export function cacheScopeId(): string {
-  return composeCacheScope(workspaceName(), config().jiraBaseUrl)
+  return composeCacheScope(workspaceName(), config().jiraBaseUrl, config().profile)
 }
 
 /** Expose the active partition so a mixed-profile cache is visible immediately. */

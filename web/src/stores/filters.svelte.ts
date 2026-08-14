@@ -636,7 +636,7 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
     if (f.reporter_email.length && !f.reporter_email.some((v) => issueMatchesPerson(it, 'reporter', v)))
       continue
     if (f.team_group.length && !(it.team_group && f.team_group.includes(it.team_group))) continue
-    if (f.priority.length && !matchesIdFirst(f.priority, null, it.priority)) continue
+    if (f.priority.length && !matchesIdFirst(f.priority, it.priority_id, it.priority)) continue
     if (f.severity.length && !(it.severity && f.severity.includes(it.severity))) continue
     if (f.issue_type.length && !matchesIdFirst(f.issue_type, it.issue_type_id, it.issue_type)) continue
     if (!matchesSelected(f.components, it.components)) continue

@@ -53,6 +53,12 @@ export interface AuthorGroup {
   pages: PageLite[]
 }
 
+/** Group key: author_id when present, else the display name (legacy rows). */
+export function pageAuthorGroupKey(p: Pick<PageLite, 'author' | 'author_id'>): string {
+  const id = (p.author_id ?? '').trim()
+  return id || (p.author ?? '')
+}
+
 /** The three axes the document view offers. Parallel tabs, never merged
  *  (UX_PRINCIPLES §6): viewed is your return path, updated is everyone's
  *  activity, author answers "who wrote this". */
@@ -200,13 +206,16 @@ class PagesStore {
   byAuthor = $derived.by<AuthorGroup[]>(() => {
     const groups = new Map<string, PageLite[]>()
     for (const p of this.index) {
-      const author = p.author ?? ''
-      const list = groups.get(author)
+      const key = pageAuthorGroupKey(p)
+      const list = groups.get(key)
       if (list) list.push(p)
-      else groups.set(author, [p])
+      else groups.set(key, [p])
     }
     return [...groups.entries()]
-      .map(([author, list]) => ({ author, pages: [...list].sort(byUpdatedDesc) }))
+      .map(([, list]) => ({
+        author: list[0]?.author ?? '',
+        pages: [...list].sort(byUpdatedDesc),
+      }))
       .sort((a, b) => byUpdatedDesc(a.pages[0], b.pages[0]))
   })
 
@@ -399,11 +408,15 @@ class PagesStore {
     this.focusAuthor = author
   }
 
-  /** How many mirrored pages carry this author name. Display names are what the
-   *  By-author tab groups by, so this counts exactly what that tab will show. */
+  /** How many mirrored pages belong to this author. Matches author_id first,
+   *  then the display name so the person panel (which still passes a name)
+   *  keeps landing on a group. */
   pagesByAuthorCount(author: string): number {
     if (!author) return 0
-    return this.index.reduce((n, p) => (p.author === author ? n + 1 : n), 0)
+    return this.index.reduce((n, p) => {
+      if ((p.author_id ?? '') === author || (p.author ?? '') === author) return n + 1
+      return n
+    }, 0)
   }
 
   /** Row data for the open page — header renders before the body arrives. */

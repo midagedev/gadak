@@ -195,11 +195,11 @@ func viewsOpen(args []string) error {
 	}
 	skipOpen := *noOpenFlag || envNoOpen()
 	// G4: always resolve the URL (even under --no-open); only launch when asked.
-	web := serveFocusURL(hash)
+	web, serveDbg := resolveServeFocus(hash)
 	desk := false
 	if !skipOpen {
 		if web != "" {
-			if err := openBrowser(web); err != nil {
+			if err := openFocusURL(web); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: could not open %s (%v)\n", web, err)
 			}
 		}
@@ -226,6 +226,7 @@ func viewsOpen(args []string) error {
 		"file":    true,
 		"web":     web,
 		"desktop": desk,
+		"serve":   serveDbg,
 	}
 	if len(keys) > 0 {
 		out["keys"] = keys
@@ -498,15 +499,60 @@ type serveTarget struct {
 	profile string
 }
 
+// serveHit is one discovered listener. Production fills this from loopback
+// probes; tests inject discoverServes so a live gadak serve cannot flip gates.
+type serveHit struct {
+	base    string
+	profile string
+	port    string
+}
+
+// serveDebug is the --json explanation of how a serve base was chosen.
+// Added as a new object (existing keys stay stable).
+type serveDebug struct {
+	Ports   []string `json:"ports"`
+	Base    string   `json:"base,omitempty"`
+	Profile string   `json:"profile,omitempty"`
+	Port    string   `json:"port,omitempty"`
+}
+
+// openFocusURL is the browser-launch seam for views open. Production calls
+// openBrowser; tests replace it so --no-open assertions do not depend on
+// whether a listener exists.
+var openFocusURL = openBrowser
+
+// discoverServes is the single serve-discovery seam. serveFocusURL and
+// (production) listServes both go through it. Tests replace it.
+var discoverServes = func() []serveHit {
+	var out []serveHit
+	for _, port := range serveProbePorts() {
+		got := probeGadakOnPort(port, 0)
+		if !got.IsGadak {
+			continue
+		}
+		out = append(out, serveHit{
+			base:    prettyOpenURL("127.0.0.1", port, nil),
+			profile: got.Profile,
+			port:    port,
+		})
+	}
+	return out
+}
+
 // serveFocusURL is the URL a tab should open, including /w/<profile>/ when
 // this CLI profile is not the serve process's primary. Empty when no serve
 // is listening. Does not launch a browser.
 func serveFocusURL(hash string) string {
-	t := findServeTarget()
+	u, _ := resolveServeFocus(hash)
+	return u
+}
+
+func resolveServeFocus(hash string) (string, serveDebug) {
+	t, dbg := findServeTarget()
 	if t.base == "" {
-		return ""
+		return "", dbg
 	}
-	return composeServeURL(t.base, workspacePrefix(config.Profile(), t.profile), hash)
+	return composeServeURL(t.base, workspacePrefix(config.Profile(), t.profile), hash), dbg
 }
 
 func composeServeURL(base, prefix, hash string) string {
@@ -524,23 +570,30 @@ func workspacePrefix(cliProfile, serveProfile string) string {
 	return "/w/" + name
 }
 
-func findServeTarget() serveTarget {
+func findServeTarget() (serveTarget, serveDebug) {
 	want := config.Profile()
+	dbg := serveDebug{Ports: serveProbePorts()}
 	var any serveTarget
-	for _, port := range serveProbePorts() {
-		got := probeGadakOnPort(port, 0)
-		if !got.IsGadak {
-			continue
-		}
-		base := prettyOpenURL("127.0.0.1", port, nil)
-		if profileEq(got.Profile, want) {
-			return serveTarget{base: base, profile: got.Profile}
+	var anyPort string
+	for _, hit := range discoverServes() {
+		t := serveTarget{base: hit.base, profile: hit.profile}
+		if profileEq(hit.profile, want) {
+			dbg.Base = hit.base
+			dbg.Profile = hit.profile
+			dbg.Port = hit.port
+			return t, dbg
 		}
 		if any.base == "" {
-			any = serveTarget{base: base, profile: got.Profile}
+			any = t
+			anyPort = hit.port
 		}
 	}
-	return any
+	if any.base != "" {
+		dbg.Base = any.base
+		dbg.Profile = any.profile
+		dbg.Port = anyPort
+	}
+	return any, dbg
 }
 
 func serveProbePorts() []string {
@@ -625,11 +678,8 @@ var desktopAppRunning = func() bool {
 
 var listServes = func() []gadakProbe {
 	var out []gadakProbe
-	for _, port := range serveProbePorts() {
-		got := probeGadakOnPort(port, 0)
-		if got.IsGadak {
-			out = append(out, got)
-		}
+	for _, hit := range discoverServes() {
+		out = append(out, gadakProbe{IsGadak: true, Profile: hit.profile})
 	}
 	return out
 }
