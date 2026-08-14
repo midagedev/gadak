@@ -121,6 +121,19 @@ func (c *Client) UpdateFields(ctx context.Context, key string, fields map[string
 	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s", apiPath, url.PathEscape(key)), body, nil)
 }
 
+// EditIssue PUTs /issue/{key} with fields and/or update. Either map may be
+// empty; empty maps are omitted so a labels-only edit is {"update":…} only.
+func (c *Client) EditIssue(ctx context.Context, key string, fields, update map[string]any) error {
+	body := map[string]any{}
+	if len(fields) > 0 {
+		body["fields"] = fields
+	}
+	if len(update) > 0 {
+		body["update"] = update
+	}
+	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s", apiPath, url.PathEscape(key)), body, nil)
+}
+
 // FieldMeta is one editable field as Jira describes it: what it accepts and, for
 // a closed set, every value it accepts.
 type FieldMeta struct {

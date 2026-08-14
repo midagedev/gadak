@@ -263,12 +263,30 @@ var helps = map[string]cmdHelp{
 	},
 	"create": {
 		summary: "create an issue on Jira (needs a credential; write-through to the mirror)",
-		usage:   "gadak [--profile <name>] create <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [-m <text|->] [--json]",
+		usage:   "gadak [--profile <name>] create <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
 		examples: []string{
 			"gadak create Fix the flaky gate --project NMB --type Task -m \"repro on staging\" --label batch",
 			"gadak create 로그인 실패 --project NMB --type 작업",
 		},
-		seeAlso: []string{"gadak comment", "gadak transition", "gadak assign", "gadak issue"},
+		seeAlso: []string{"gadak attach", "gadak edit", "gadak comment", "gadak transition", "gadak assign", "gadak issue"},
+	},
+	"attach": {
+		summary: "attach files on Jira (needs a credential; write-through to the mirror)",
+		usage:   "gadak [--profile <name>] attach <KEY> <file>... [--json]",
+		examples: []string{
+			"gadak attach NMB-140 ./screenshot.png",
+			"gadak attach NMB-140 ./trace.log ./out.mp4 --json",
+		},
+		seeAlso: []string{"gadak create", "gadak edit", "gadak issue"},
+	},
+	"edit": {
+		summary: "edit summary, description, labels, or priority on Jira (needs a credential; write-through to the mirror)",
+		usage:   "gadak [--profile <name>] edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--json]",
+		examples: []string{
+			"gadak edit NMB-140 --summary \"Rename without opening Jira\"",
+			"gadak edit NMB-140 --label +batch --label -legacy --priority High",
+		},
+		seeAlso: []string{"gadak create", "gadak attach", "gadak comment", "gadak issue"},
 	},
 	"transition": {
 		summary: "change issue status on Jira (needs a credential; accepts transition id, name, or target status name)",

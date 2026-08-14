@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -479,6 +480,119 @@ func TestCreateSummaryStartingWithDashIsPositional(t *testing.T) {
 	}
 	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"summary":"-this broke"`) {
 		t.Fatalf("leading dash eaten: %s", sent)
+	}
+}
+
+func TestCreateAttachValidatesBeforeCreate(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	missing := filepath.Join(t.TempDir(), "typo.png")
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"with attach typo", "--project", "NMB", "--type", "Task",
+			"--attach", missing,
+		})
+	})
+	if err == nil || !strings.Contains(err.Error(), missing) {
+		t.Fatalf("typo: %v", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("create reached Jira: %v", f.calls)
+	}
+	if len(f.uploads) != 0 {
+		t.Fatalf("uploaded despite typo: %+v", f.uploads)
+	}
+}
+
+func TestCreateAttachUploadFailureReportsKeyAndDoesNotRetry(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	f.failNthAttach = 1
+	p := filepath.Join(t.TempDir(), "shot.png")
+	if err := os.WriteFile(p, []byte("PNG"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"created then attach fails", "--project", "NMB", "--type", "Task",
+			"--attach", p,
+		})
+	})
+	if err == nil {
+		t.Fatal("expected attach failure after create")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "NMB-42") {
+		t.Errorf("error must name the new key: %q", msg)
+	}
+	if !strings.Contains(msg, "shot.png") && !strings.Contains(msg, p) {
+		t.Errorf("error must name the file: %q", msg)
+	}
+	nCreate := 0
+	for _, c := range f.calls {
+		if c == "POST /issue" {
+			nCreate++
+		}
+	}
+	if nCreate != 1 {
+		t.Fatalf("create retried or skipped: %d POSTs in %v", nCreate, f.calls)
+	}
+	if f.nextCreateN != 43 {
+		t.Fatalf("nextCreateN=%d, want 43 (no second create)", f.nextCreateN)
+	}
+}
+
+func TestCreateAttachJSONIncludesAttached(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	dir := t.TempDir()
+	a := filepath.Join(dir, "a.png")
+	b := filepath.Join(dir, "b.log")
+	if err := os.WriteFile(a, []byte("A"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(b, []byte("B"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"with files", "--project", "NMB", "--type", "Task",
+			"--attach", a, "--attach", b, "--json",
+		})
+	})
+	if err != nil {
+		t.Fatalf("create --attach --json: %v\n%s", err, out)
+	}
+	if !f.called("POST /issue") {
+		t.Fatalf("create not called: %v", f.calls)
+	}
+	if len(f.uploads) != 2 || f.uploads[0].Filename != "a.png" || f.uploads[1].Filename != "b.log" {
+		t.Fatalf("uploads %+v", f.uploads)
+	}
+	if f.uploads[0].Key != "NMB-42" {
+		t.Fatalf("uploaded to %q, want NMB-42", f.uploads[0].Key)
+	}
+	var res struct {
+		Issue   store.IssueLite `json:"issue"`
+		Created struct {
+			Key string `json:"key"`
+		} `json:"created"`
+		Attached []struct {
+			ID       string `json:"id"`
+			Filename string `json:"filename"`
+		} `json:"attached"`
+	}
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if res.Created.Key != "NMB-42" || res.Issue.IssueKey != "NMB-42" {
+		t.Fatalf("json %+v", res)
+	}
+	if len(res.Attached) != 2 || res.Attached[0].ID != "20001" || res.Attached[1].Filename != "b.log" {
+		t.Fatalf("attached %+v", res.Attached)
 	}
 }
 

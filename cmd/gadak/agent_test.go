@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -38,6 +41,18 @@ type fakeJira struct {
 	nextCreateN      int
 	skipCreateReread bool // POST /issue succeeds but /search/jql ignores the new key
 	rereadStatus     int  // when non-zero, POST /search/jql fails with this status
+
+	// attach support (additive; existing write tests never hit these paths)
+	uploads       []recordedUpload
+	failNthAttach int // 1-based; 0 = never fail
+}
+
+// recordedUpload is one multipart POST /issue/{key}/attachments the fake saw.
+type recordedUpload struct {
+	Key      string
+	Filename string
+	Content  string
+	Token    string
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
@@ -51,7 +66,8 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/rest/api/3")
 	tag := r.Method + " " + path
 	f.calls = append(f.calls, tag)
-	if body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)); err == nil && len(body) > 0 {
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if len(body) > 0 {
 		f.bodies[tag] = string(body)
 	}
 	if r.Header.Get("Authorization") == "" {
@@ -102,6 +118,8 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`[{"accountId":"acc-mr","displayName":"Marco Reyes","emailAddress":"marco@example.com","active":true}]`))
 	case path == "/issue" && r.Method == http.MethodPost:
 		f.handleCreateIssue(w)
+	case strings.HasSuffix(path, "/attachments") && r.Method == http.MethodPost:
+		f.handleAttach(w, r, path, body)
 	case path == "/issue/createmeta":
 		_, _ = w.Write([]byte(`{"projects":[
 			{"key":"NMB","name":"Numbers","issuetypes":[
@@ -151,6 +169,34 @@ func (f *fakeJira) handleCreateIssue(w http.ResponseWriter) {
 		}
 	}
 	_, _ = w.Write([]byte(`{"id":"` + id + `","key":"` + key + `"}`))
+}
+
+func (f *fakeJira) handleAttach(w http.ResponseWriter, r *http.Request, path string, body []byte) {
+	key := strings.TrimPrefix(strings.TrimSuffix(path, "/attachments"), "/issue/")
+	rec := recordedUpload{Key: key, Token: r.Header.Get("X-Atlassian-Token")}
+	if _, params, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err == nil {
+		mr := multipart.NewReader(bytes.NewReader(body), params["boundary"])
+		if part, err := mr.NextPart(); err == nil {
+			rec.Filename = part.FileName()
+			b, _ := io.ReadAll(part)
+			rec.Content = string(b)
+			_ = part.Close()
+		}
+	}
+	f.uploads = append(f.uploads, rec)
+	if f.failNthAttach > 0 && len(f.uploads) == f.failNthAttach {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"errorMessages":["forced attach failure"]}`))
+		return
+	}
+	id := strconv.Itoa(20000 + len(f.uploads))
+	filename := rec.Filename
+	if filename == "" {
+		filename = "file"
+	}
+	_ = json.NewEncoder(w).Encode([]map[string]any{
+		{"id": id, "filename": filename, "mimeType": "application/octet-stream", "size": len(rec.Content)},
+	})
 }
 
 func fakeTypeName(id string) string {
@@ -498,11 +544,17 @@ func TestWritesRefuseToRunWithoutACredential(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	tmp := filepath.Join(t.TempDir(), "note.txt")
+	if err := os.WriteFile(tmp, []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for name, run := range map[string]func() error{
 		"comment":    func() error { return cmdComment([]string{"NMB-1", "-m", "hello"}) },
 		"transition": func() error { return cmdTransition([]string{"NMB-1", "완료"}) },
 		"assign":     func() error { return cmdAssign([]string{"NMB-1", "marco@example.com"}) },
 		"create":     func() error { return cmdCreate([]string{"a summary", "--project", "NMB", "--type", "Task"}) },
+		"attach":     func() error { return cmdAttach([]string{"NMB-1", tmp}) },
+		"edit":       func() error { return cmdEdit([]string{"NMB-1", "--summary", "renamed"}) },
 	} {
 		_, err := capture(t, run)
 		if err == nil || !strings.Contains(err.Error(), "gadak init") {

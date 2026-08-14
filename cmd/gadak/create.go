@@ -14,7 +14,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const createUsage = "usage: gadak create <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [-m <text|->] [--json]"
+const createUsage = "usage: gadak create <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]"
 
 // labelFlags collects repeated --label values.
 type labelFlags []string
@@ -32,6 +32,8 @@ func cmdCreate(args []string) error {
 	typeFlag := fs.String("type", "", "issue type name or id from createmeta")
 	var labels labelFlags
 	fs.Var(&labels, "label", "label (repeatable)")
+	var attachFiles labelFlags
+	fs.Var(&attachFiles, "attach", "file to upload after create (repeatable)")
 	text := fs.String("m", "", "description as plain text; `-` reads it from stdin")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
@@ -57,6 +59,11 @@ func cmdCreate(args []string) error {
 			return err
 		}
 		body = string(buf)
+	}
+	if len(attachFiles) > 0 {
+		if err := validateAttachPaths(attachFiles); err != nil {
+			return err
+		}
 	}
 
 	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
@@ -94,6 +101,17 @@ func cmdCreate(args []string) error {
 			return err
 		}
 		extra := map[string]any{"created": map[string]string{"key": key}}
+		if len(attachFiles) > 0 {
+			attached, err := uploadAttachPaths(ctx, c, key, attachFiles)
+			if err != nil {
+				var p *attachPartialError
+				if errors.As(err, &p) {
+					return fmt.Errorf("created %s, but attaching %s failed: %w", key, p.failed, p.err)
+				}
+				return fmt.Errorf("created %s, but attaching failed: %w", key, err)
+			}
+			extra["attached"] = attached
+		}
 		err = emitAfterWrite(ctx, cfg, db, c, key, *asJSON, extra)
 		var missed writeNotMirroredError
 		if errors.As(err, &missed) {
@@ -101,9 +119,11 @@ func cmdCreate(args []string) error {
 			// Print it and exit 0 — retrying would create a second issue.
 			fmt.Fprintf(os.Stderr, "warning: %s\n", missed.Error())
 			if *asJSON {
-				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"created": map[string]string{"key": key},
-				})
+				body := map[string]any{"created": map[string]string{"key": key}}
+				if att, ok := extra["attached"]; ok {
+					body["attached"] = att
+				}
+				return json.NewEncoder(os.Stdout).Encode(body)
 			}
 			fmt.Println(key)
 			return nil

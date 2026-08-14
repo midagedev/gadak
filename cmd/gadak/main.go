@@ -1242,7 +1242,9 @@ Atlassian REST escape hatch (needs a credential; not on MCP):
   api        raw REST call    [METHOD] <PATH> [--query k=v] [--data …] [--write] [--status]
 
 Writing through to Jira (needs a credential):
-  create     create an issue  <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [-m <text|->] [--json]
+  create     create an issue  <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]
+  attach     attach files     <KEY> <file>... [--json]
+  edit       edit an issue    <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--json]
   comment    add a comment    <KEY> -m <text|-> [--json]
   transition change status    <KEY> <status-or-id> [--json]
   assign     set assignee     <KEY> <email|-> [--json]
@@ -1333,10 +1335,12 @@ func helpTail(args []string) bool {
 var commands = map[string]func([]string) error{
 	"api":             cmdAPI,
 	"assign":          cmdAssign,
+	"attach":          cmdAttach,
 	"comment":         cmdComment,
 	"create":          cmdCreate,
 	"demo":            cmdDemo,
 	"doctor":          cmdDoctor,
+	"edit":            cmdEdit,
 	"export":          cmdExport,
 	"export-static":   cmdExportStatic,
 	"fields":          cmdFields,
