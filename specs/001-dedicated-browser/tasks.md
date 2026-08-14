@@ -138,22 +138,32 @@ Status: `[ ]` open · `[x]` done+evidence · `[-]` dropped (say why).
 ## Track M — MCP `gadak_show` (after Track G merges; internal/mcp/ +
 ## contracts/agent.md + docs/MCP.md)
 
-- [ ] M1. Contract revision first: contracts/agent.md and docs/MCP.md
+- [x] M1. Contract revision first: contracts/agent.md and docs/MCP.md
       restate the MCP rule as "no writes to the mirror or to Jira";
       presentation (ui-focus) is a permitted local act, ranked below SQL
       (SQL answers; show presents).
-- [ ] M2. `gadak_show` tool: input `{jql} | {keys: [..]} | {issue} | {name}`
+      Evidence: agent.md "Not on MCP" + MCP.md intro both carry the
+      restated rule and "SQL answers; show presents".
+- [x] M2. `gadak_show` tool: input `{jql} | {keys: [..]} | {issue} | {name}`
       (exactly one), compiles through internal/jql (keys → `ks=` hash,
       issue → `issue=` hash, name → stored view via the same lookup the
       CLI uses), writes ui-focus for the process profile, returns
       `{hash, applied, unsupported}`. Never opens windows itself —
       the running UI picks the file up (500 ms visible / 2 min TTL);
       say so in the tool description.
-- [ ] M3. server_test.go tool-count and name-list assertions updated
+      Evidence: internal/mcp/tools.go toolShow + toolShowDescription;
+      returns {hash, applied, unsupported, file}; live `--profile work`
+      wrote profiles/work/ui-focus.json, default file absent.
+- [x] M3. server_test.go tool-count and name-list assertions updated
       (5 tools); a test proves write SQL is still rejected and that
       `gadak_show` writes the focus file where the profile expects it.
-- [ ] M4. Every "four tools" claim swept: AGENTS.md, docs/MCP.md,
+      Evidence: len(tools)==5 + toolShow in name list;
+      TestWriteSQLRejected unchanged; TestShowWritesFocusForProfile.
+- [x] M4. Every "four tools" claim swept: AGENTS.md, docs/MCP.md,
       docs/AGENT_ACCESS.md, SKILL.md coordinate with Track A.
+      Evidence: AGENTS.md/MCP.md/AGENT_ACCESS.md/STATE_OF_PLAY.md say
+      five; SKILL.md never claimed a count (checked); 000-product
+      tasks.md T5.4 note updated by the lead.
 
 ## Deferred, named
 

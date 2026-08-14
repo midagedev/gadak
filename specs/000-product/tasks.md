@@ -87,7 +87,7 @@ Legend: **done** / **partial** / **todo**
 | T5.1 | Documented schema | done (`data-model.md`) |
 | T5.2 | `gadak sql` read-only query path | done — `mode=ro` connection, tab-separated, `--json`, or `--csv`. NULL prints as empty in the row formats, not as Go's `<nil>` |
 | T5.3 | `gadak status --json` | done |
-| T5.4 | MCP server | done — `gadak mcp` stdio JSON-RPC (`internal/mcp`, no SDK). Tools: `gadak_query` (SELECT/WITH only, row/byte caps), `gadak_search`, `gadak_issue`, `gadak_status`. Protocol round-trip + write-SQL rejection tests in `internal/mcp/*_test.go`; docs in `docs/MCP.md` |
+| T5.4 | MCP server | done — `gadak mcp` stdio JSON-RPC (`internal/mcp`, no SDK). Tools: `gadak_query` (SELECT/WITH only, row/byte caps), `gadak_search`, `gadak_issue`, `gadak_status`, `gadak_show` (presentation via ui-focus, v0.13). Protocol round-trip + write-SQL rejection tests in `internal/mcp/*_test.go`; docs in `docs/MCP.md` |
 | T5.5 | `gadak issue <KEY> [--json]` | done — `store.Detail` plus the list row; `--json` is the `GET <key>/detail/` document with `issue` added. `TestIssueAndSearchReadTheMirror` |
 | T5.6 | `gadak search <text> [--limit] [--json]` | done — FTS over titles, bodies and comments, best match first. Text output is `key\tstatus\tassignee\tsummary`, so `cut -f1` gives keys |
 | T5.7 | `gadak comment <KEY> -m <text\|->` | done — write-through via `jira.AddComment` + `sync.SyncIssue`, same order as the server. Body is plain text: an `@Name` notifies nobody, unlike the UI's mention picker. `TestCommentSendsADFAndRefusesAnEmptyBody` |
