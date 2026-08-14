@@ -81,7 +81,7 @@ func installCLI(w io.Writer, source, dir string, force, printOnly bool, pathEnv,
 	if p.Status == clitool.StatusLinked {
 		fmt.Fprintf(w, "already installed: %s → %s\n", clitool.TildeHome(p.Dest), clitool.TildeHome(p.Source))
 		advisePATH(w, p.Dir, pathEnv, shell)
-		fmt.Fprintf(w, "next: gadak mcp install claude\n")
+		fmt.Fprintf(w, "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)\n")
 		return nil
 	}
 
@@ -91,7 +91,7 @@ func installCLI(w io.Writer, source, dir string, force, printOnly bool, pathEnv,
 
 	fmt.Fprintf(w, "installed: %s → %s\n", clitool.TildeHome(p.Dest), clitool.TildeHome(p.Source))
 	advisePATH(w, p.Dir, pathEnv, shell)
-	fmt.Fprintf(w, "next: gadak mcp install claude\n")
+	fmt.Fprintf(w, "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)\n")
 	return nil
 }
 

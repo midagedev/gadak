@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -34,7 +35,8 @@ const (
 // toolQueryDescription is long on purpose: agents without AGENTS.md only see
 // this text, so the schema summary, the localization trap, and two working
 // examples have to live here.
-const toolQueryDescription = `Run a read-only SQL query against the local gadak mirror (SQLite): Jira issues and Confluence wiki pages in one file.
+const toolQueryDescription = `Default tool for anything countable, grouped, joined, historical, or derived (reopen_count, status_changed_at, epic_key).
+Run a read-only SQL query against the local gadak mirror (SQLite): Jira issues and Confluence wiki pages in one file.
 
 Schema essentials:
 - items: source-neutral spine — id, key, title, body_text, created_at, updated_at
@@ -90,10 +92,17 @@ Examples:
   JOIN pages p ON p.item_id = it.id
   WHERE items_fts MATCH 'billing' LIMIT 10;`
 
-const toolSearchDescription = `Full-text search over issue and page titles, bodies, and comments (FTS5).
-Returns matching issue keys (with summary/status), page PageLite rows, and matches
-(key → {field: title|body|comment, snippet: plain text ~120 chars}), best match first.
-Prefer gadak_query for relational or aggregated questions; use this for free-text recall.`
+const toolSearchDescription = `Find issues and wiki pages by a recalled phrase (FTS5 over titles, bodies, comments of both).
+
+Use ONLY when the user does not have keys yet and is remembering wording
+("the ticket about webhook retry"). Argument: {query: string, limit?: number}.
+Aliases: text, q.
+
+Do NOT use this for counts, grouping, "who is loaded", "what is stuck",
+"what was reopened", time windows, or epic rollups. Those are gadak_query.
+
+Returns {total, issues:[{key,summary,status}], pages, matches}.
+Then hydrate one key with gadak_issue, or present keys with gadak_show.`
 
 const toolIssueDescription = `Fetch one issue by key with full detail: list fields plus description,
 comments, attachments, changelog history, and linked issues.
@@ -147,9 +156,17 @@ func toolDefinitions() []Tool {
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"text": map[string]any{
+					"query": map[string]any{
 						"type":        "string",
 						"description": "Free-text search query (FTS5 syntax; plain phrases work).",
+					},
+					"text": map[string]any{
+						"type":        "string",
+						"description": "Alias of query.",
+					},
+					"q": map[string]any{
+						"type":        "string",
+						"description": "Alias of query.",
 					},
 					"limit": map[string]any{
 						"type":        "integer",
@@ -158,7 +175,7 @@ func toolDefinitions() []Tool {
 						"maximum":     hardRowLimit,
 					},
 				},
-				"required":             []string{"text"},
+				"required":             []string{},
 				"additionalProperties": false,
 			},
 		},
@@ -219,13 +236,14 @@ func toolDefinitions() []Tool {
 
 // callTool dispatches a tools/call. Failures that the agent can fix (bad SQL,
 // unknown key) return isError content, not JSON-RPC errors. This is the only
-// place that turns a Go error into (textResult(err.Error()), true).
+// place that turns a Go error into isError text; withErrorPrefix owns the
+// ERROR: token so models cannot mistake a failure for an empty result.
 func (s *Server) callTool(name string, args map[string]any) (content []contentItem, isError bool) {
 	// gadak_show keys/issue/jql do not read the mirror (same as views open --keys / KEY / --jql).
 	// Name lookup opens it inside toolShow. Other tools still require the file.
 	if name != toolShow {
 		if err := s.ensureDB(); err != nil {
-			return textResult(err.Error()), true
+			return textResult(withErrorPrefix(err.Error())), true
 		}
 	}
 	var (
@@ -245,10 +263,10 @@ func (s *Server) callTool(name string, args map[string]any) (content []contentIt
 		out, err = s.toolShow(args)
 	default:
 		// Unknown tool is a protocol-level invalid params (caller should list first).
-		return textResult(fmt.Sprintf("unknown tool %q — use tools/list", name)), true
+		return textResult(withErrorPrefix(fmt.Sprintf("unknown tool %q — use tools/list", name))), true
 	}
 	if err != nil {
-		return textResult(err.Error()), true
+		return textResult(withErrorPrefix(err.Error())), true
 	}
 	return out, false
 }
@@ -263,13 +281,18 @@ func (s *Server) toolQuery(args map[string]any) ([]contentItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	return marshalResult(res)
+	return s.marshalResult(res)
 }
 
 func (s *Server) toolSearch(args map[string]any) ([]contentItem, error) {
-	text, ok := stringArg(args, "text")
-	if !ok || strings.TrimSpace(text) == "" {
-		return nil, errors.New("gadak_search requires {text: string}")
+	text, via, ok := searchQueryArg(args)
+	if !ok {
+		return nil, fmt.Errorf("ERROR: gadak_search missing query string. You sent argument keys: [%s].\nRetry with {query: string, limit?: number}. Aliases accepted: text, q.\nThis is not an empty search result.", receivedArgKeys(args))
+	}
+	if via == "query" {
+		Logf("search arg via %q", via)
+	} else {
+		Logf("search arg via alias %q", via)
 	}
 	limit := intArg(args, "limit", 20)
 	if limit <= 0 {
@@ -312,7 +335,7 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, error) {
 	if matches == nil {
 		matches = map[string]store.SearchMatch{}
 	}
-	return marshalResult(map[string]any{"total": res.Total, "issues": hits, "pages": pages, "matches": matches})
+	return s.marshalResult(map[string]any{"total": res.Total, "issues": hits, "pages": pages, "matches": matches})
 }
 
 func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
@@ -346,7 +369,7 @@ func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 	if lite != nil {
 		body["issue"] = *lite
 	}
-	return marshalResult(body)
+	return s.marshalIssueResult(body)
 }
 
 func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
@@ -384,7 +407,7 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 			st[name] = n
 		}
 	}
-	return marshalResult(st)
+	return s.marshalResult(st)
 }
 
 func (s *Server) toolShow(args map[string]any) ([]contentItem, error) {
@@ -458,7 +481,7 @@ func (s *Server) toolShow(args map[string]any) ([]contentItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	return marshalResult(map[string]any{
+	return s.marshalResult(map[string]any{
 		"hash":        hash,
 		"applied":     applied,
 		"unsupported": unsupported,
@@ -649,6 +672,29 @@ func stringArg(args map[string]any, key string) (string, bool) {
 	return s, ok
 }
 
+// searchQueryArg picks the first non-empty string among query, text, q.
+func searchQueryArg(args map[string]any) (text, via string, ok bool) {
+	for _, key := range []string{"query", "text", "q"} {
+		s, present := stringArg(args, key)
+		if present && strings.TrimSpace(s) != "" {
+			return s, key, true
+		}
+	}
+	return "", "", false
+}
+
+func receivedArgKeys(args map[string]any) string {
+	if len(args) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(args))
+	for k := range args {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, ", ")
+}
+
 func intArg(args map[string]any, key string, def int) int {
 	if args == nil {
 		return def
@@ -679,35 +725,93 @@ func textResult(msg string) []contentItem {
 	return []contentItem{{Type: "text", Text: msg}}
 }
 
+// withErrorPrefix is the single owner of the isError body prefix so a model
+// cannot mistake a tool failure for an empty result.
+func withErrorPrefix(msg string) string {
+	if strings.HasPrefix(msg, "ERROR:") {
+		return msg
+	}
+	return "ERROR: " + msg
+}
+
+func (s *Server) resultCap() int {
+	if s != nil && s.resultByteCap > 0 {
+		return s.resultByteCap
+	}
+	return maxResultBytes
+}
+
 // marshalResult encodes v as JSON text content, enforcing the byte budget by
 // dropping trailing rows when the payload is a queryResult.
-func marshalResult(v any) ([]contentItem, error) {
+func (s *Server) marshalResult(v any) ([]contentItem, error) {
+	capn := s.resultCap()
 	if qr, ok := v.(*queryResult); ok {
-		return marshalQueryResult(qr)
+		return marshalQueryResult(qr, capn)
 	}
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return nil, err
 	}
-	if len(b) > maxResultBytes {
+	if len(b) > capn {
 		// Non-query payloads (detail/search/status) are still capped: return a
 		// short note rather than blowing the agent context.
-		return nil, fmt.Errorf("result exceeds %d bytes (%d); narrow the request (e.g. lower limit, or use gadak_query for specific columns)", maxResultBytes, len(b))
+		return nil, fmt.Errorf("result exceeds %d bytes (%d); narrow the request (e.g. lower limit, or use gadak_query for specific columns)", capn, len(b))
 	}
 	return []contentItem{{Type: "text", Text: string(b)}}, nil
 }
 
-func marshalQueryResult(qr *queryResult) ([]contentItem, error) {
+// marshalIssueResult shrinks comments (newest kept) when the payload exceeds
+// the byte cap. Search stays on marshalResult — full IssueLites scan is out of
+// this round.
+func (s *Server) marshalIssueResult(body map[string]any) ([]contentItem, error) {
+	capn := s.resultCap()
+	comments := issueComments(body)
+	original := len(comments)
+	for {
+		b, err := json.MarshalIndent(body, "", "  ")
+		if err != nil {
+			return nil, err
+		}
+		if len(b) <= capn {
+			return []contentItem{{Type: "text", Text: string(b)}}, nil
+		}
+		if len(comments) == 0 {
+			return nil, fmt.Errorf("result exceeds %d bytes (%d); narrow the request (e.g. lower limit, or use gadak_query for specific columns)", capn, len(b))
+		}
+		// Detail comments are oldest-first (created_at, id). Drop the oldest half.
+		cut := len(comments) / 2
+		if cut < 1 {
+			cut = 1
+		}
+		comments = comments[cut:]
+		body["comments"] = comments
+		body["truncated"] = true
+		body["comments_omitted"] = original - len(comments)
+	}
+}
+
+func issueComments(body map[string]any) []store.DetailComment {
+	if body == nil {
+		return nil
+	}
+	c, ok := body["comments"].([]store.DetailComment)
+	if !ok {
+		return nil
+	}
+	return c
+}
+
+func marshalQueryResult(qr *queryResult, capn int) ([]contentItem, error) {
 	for {
 		b, err := json.MarshalIndent(qr, "", "  ")
 		if err != nil {
 			return nil, err
 		}
-		if len(b) <= maxResultBytes {
+		if len(b) <= capn {
 			return []contentItem{{Type: "text", Text: string(b)}}, nil
 		}
 		if len(qr.Rows) == 0 {
-			return nil, fmt.Errorf("a single row exceeds the %d-byte response cap; select fewer columns", maxResultBytes)
+			return nil, fmt.Errorf("a single row exceeds the %d-byte response cap; select fewer columns", capn)
 		}
 		// Drop the last half of remaining rows until it fits.
 		cut := len(qr.Rows) / 2
@@ -717,7 +821,7 @@ func marshalQueryResult(qr *queryResult) ([]contentItem, error) {
 		qr.Rows = qr.Rows[:len(qr.Rows)-cut]
 		qr.Count = len(qr.Rows)
 		qr.Truncated = true
-		qr.TruncationReason = fmt.Sprintf("response exceeded %d bytes; rows dropped — select fewer columns or lower limit", maxResultBytes)
+		qr.TruncationReason = fmt.Sprintf("response exceeded %d bytes; rows dropped — select fewer columns or lower limit", capn)
 	}
 }
 

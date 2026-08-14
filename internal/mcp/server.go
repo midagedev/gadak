@@ -40,6 +40,10 @@ type Server struct {
 	// Version is the gadak binary version reported in serverInfo.
 	Version string
 
+	// resultByteCap overrides the JSON payload cap. Zero means maxResultBytes
+	// (256KiB). Tests lower it; production must stay at the default.
+	resultByteCap int
+
 	mu sync.Mutex
 	db *store.DB
 }
@@ -155,7 +159,34 @@ func (s *Server) handleInitialize(msg rpcRequest) *rpcResponse {
 			"name":    "gadak",
 			"version": s.Version,
 		},
-		"instructions": "gadak is a local-first Jira mirror. Use gadak_status for freshness, gadak_search for free text, gadak_issue for one key, gadak_query for SQL, and gadak_show to present a view in the running app (it does not return answers). Filter on status_category (new|inprogress|done), never localized status names. MCP does not write to the mirror or to Jira. If you have a shell, prefer `gadak sql` / `gadak issue` over this MCP path.",
+		"instructions": `You are querying a local SQLite mirror of this machine's Jira and Confluence.
+Reads are free and offline. You cannot write to Jira or to this database
+through these tools.
+
+Pick the tool by the shape of the question:
+- gadak_query is the default. Anything countable, grouped, joined,
+  historical, or derived (reopen_count, status_changed_at, epic_key;
+  days-in-status is computed from status_changed_at, not a column).
+  SQLite SELECT or WITH only. Prefer the issues_full view when you
+  need a title. Filter on status_category
+  (new|inprogress|done) or status_id / issue_type_id — never
+  status = 'In Progress' or other display names. Those are localized
+  per Jira account and return zero rows with no error.
+- gadak_search only for recalled wording when you do not have keys.
+  Argument name is query (string). Aliases: text, q.
+- gadak_issue when you have one key and need comments, history, links.
+- gadak_status before any answer you will act on. Read last_error and
+  watermark.
+- gadak_show to put keys on the human's running gadak window. It
+  returns no issue rows. After you have keys, call show; do not paste
+  a markdown table.
+
+If a tool returns a message starting with ERROR:, that is not "no
+rows" — retry with the field names it lists. Empty rows after a
+status-name WHERE usually mean a localized name: rewrite using
+status_category and retry. A result with truncation_reason is
+incomplete; tighten LIMIT or columns. Do not treat a truncated page
+as the full set.`,
 	}
 	return okResponse(msg.ID, result)
 }

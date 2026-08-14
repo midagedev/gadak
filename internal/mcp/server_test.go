@@ -3,7 +3,9 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -349,6 +351,9 @@ func TestMissingDBToolError(t *testing.T) {
 	if !cr.IsError {
 		t.Fatal("expected isError when DB missing")
 	}
+	if !strings.HasPrefix(cr.Content[0].Text, "ERROR:") {
+		t.Errorf("isError must start with ERROR:, got %s", cr.Content[0].Text)
+	}
 	if !strings.Contains(cr.Content[0].Text, "gadak init") {
 		t.Errorf("guidance missing: %s", cr.Content[0].Text)
 	}
@@ -438,7 +443,10 @@ func TestShowInputExclusive(t *testing.T) {
 			if !cr.IsError {
 				t.Fatalf("expected isError; content=%v", cr.Content)
 			}
-			if len(cr.Content) == 0 || !strings.Contains(cr.Content[0].Text, "exactly one") {
+			if len(cr.Content) == 0 || !strings.HasPrefix(cr.Content[0].Text, "ERROR:") {
+				t.Fatalf("isError must start with ERROR:, got %v", cr.Content)
+			}
+			if !strings.Contains(cr.Content[0].Text, "exactly one") {
 				t.Fatalf("want exactly-one error, got %v", cr.Content)
 			}
 		})
@@ -564,6 +572,322 @@ func TestStdoutIsOnlyJSONRPC(t *testing.T) {
 			t.Fatalf("line %d missing jsonrpc: %s", i, line)
 		}
 	}
+}
+
+func TestSearchAcceptsQueryAliasAndQ(t *testing.T) {
+	db := demoDB(t)
+	for _, args := range []map[string]any{
+		{"query": "upload"},
+		{"q": "upload"},
+		{"text": "upload"},
+	} {
+		t.Run(fmtArgs(args), func(t *testing.T) {
+			cr := callToolRaw(t, db, toolSearch, args)
+			if cr.IsError {
+				t.Fatalf("isError for %v: %v", args, cr.Content)
+			}
+			if len(cr.Content) == 0 {
+				t.Fatal("empty content")
+			}
+			var search struct {
+				Total  int              `json:"total"`
+				Issues []map[string]any `json:"issues"`
+				Pages  []map[string]any `json:"pages"`
+			}
+			if err := json.Unmarshal([]byte(cr.Content[0].Text), &search); err != nil {
+				t.Fatalf("search JSON: %v\n%s", err, cr.Content[0].Text)
+			}
+			if search.Total <= 0 && len(search.Issues) == 0 && len(search.Pages) == 0 {
+				t.Fatalf("expected search hits for upload via %v; body=%s", args, cr.Content[0].Text)
+			}
+		})
+	}
+}
+
+func TestSearchQueryArgPriority(t *testing.T) {
+	text, via, ok := searchQueryArg(map[string]any{"query": "a", "text": "b", "q": "c"})
+	if !ok || text != "a" || via != "query" {
+		t.Fatalf("query should win: text=%q via=%q ok=%v", text, via, ok)
+	}
+	text, via, ok = searchQueryArg(map[string]any{"query": "  ", "text": "b", "q": "c"})
+	if !ok || text != "b" || via != "text" {
+		t.Fatalf("empty query falls through to text: text=%q via=%q ok=%v", text, via, ok)
+	}
+	text, via, ok = searchQueryArg(map[string]any{"q": "c"})
+	if !ok || text != "c" || via != "q" {
+		t.Fatalf("q alone: text=%q via=%q ok=%v", text, via, ok)
+	}
+	if _, _, ok = searchQueryArg(map[string]any{"limit": 3}); ok {
+		t.Fatal("limit-only must not yield a query string")
+	}
+}
+
+func TestSearchMissingQueryIsErrorNotEmptyResult(t *testing.T) {
+	db := demoDB(t)
+	cr := callToolRaw(t, db, toolSearch, map[string]any{"limit": 3})
+	if !cr.IsError {
+		t.Fatalf("expected isError; content=%v", cr.Content)
+	}
+	if len(cr.Content) == 0 {
+		t.Fatal("empty error content")
+	}
+	text := cr.Content[0].Text
+	if !strings.HasPrefix(text, "ERROR:") {
+		t.Errorf("error must start with ERROR:, got %q", text)
+	}
+	if !strings.Contains(text, "argument keys: [limit]") {
+		t.Errorf("missing argument keys: [limit] in %q", text)
+	}
+	if !strings.Contains(text, "not an empty search result") {
+		t.Errorf("missing empty-result disclaimer in %q", text)
+	}
+}
+
+func TestToolsListQueryBeforeSearch(t *testing.T) {
+	db := demoDB(t)
+	resps := session(t, db, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
+	var list struct {
+		Tools []Tool `json:"tools"`
+	}
+	mustResult(t, resps[0], &list)
+	qi, si := -1, -1
+	for i, tool := range list.Tools {
+		switch tool.Name {
+		case toolQuery:
+			qi = i
+		case toolSearch:
+			si = i
+			props, _ := tool.InputSchema["properties"].(map[string]any)
+			if props == nil {
+				t.Fatal("gadak_search inputSchema.properties missing")
+			}
+			for _, key := range []string{"query", "text", "q"} {
+				if _, ok := props[key]; !ok {
+					t.Errorf("gadak_search schema missing %q", key)
+				}
+			}
+			rawReq, ok := tool.InputSchema["required"]
+			if !ok {
+				t.Error("gadak_search required missing, want []")
+			} else if req, isArr := rawReq.([]any); !isArr {
+				t.Errorf("gadak_search required = %#v (%T), want []", rawReq, rawReq)
+			} else if len(req) != 0 {
+				t.Errorf("gadak_search required = %#v, want empty", rawReq)
+			}
+		}
+	}
+	if qi < 0 || si < 0 {
+		t.Fatalf("missing tools: query=%d search=%d", qi, si)
+	}
+	if qi >= si {
+		t.Fatalf("gadak_query index %d is not before gadak_search %d", qi, si)
+	}
+}
+
+func TestInitializeInstructionsPreferQuery(t *testing.T) {
+	db := demoDB(t)
+	resps := session(t, db, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
+	var init struct {
+		Instructions string `json:"instructions"`
+	}
+	mustResult(t, resps[0], &init)
+	if strings.Contains(init.Instructions, "If you have a shell") {
+		t.Errorf("instructions still contain install-time shell advice: %q", init.Instructions)
+	}
+	if !strings.Contains(init.Instructions, "gadak_query is the default") {
+		t.Errorf("instructions missing gadak_query is the default: %q", init.Instructions)
+	}
+}
+
+func TestIssueTruncatesCommentsUnderByteCap(t *testing.T) {
+	db := demoDB(t)
+	seeded := seedLargeIssueComments(t, db, "NMA-1", 40, 8000)
+	// Production cap (256KiB). 40×8KiB comments exceed it; recovery must
+	// return a truncated body instead of isError.
+	cr := callToolRaw(t, db, toolIssue, map[string]any{"key": "NMA-1"})
+	if cr.IsError {
+		t.Fatalf("gadak_issue should truncate, not error: %v", cr.Content)
+	}
+	if len(cr.Content) == 0 {
+		t.Fatal("empty content")
+	}
+	var body struct {
+		Truncated       bool `json:"truncated"`
+		CommentsOmitted int  `json:"comments_omitted"`
+		Comments        []struct {
+			ID        string `json:"id"`
+			CreatedAt string `json:"created_at"`
+		} `json:"comments"`
+	}
+	if err := json.Unmarshal([]byte(cr.Content[0].Text), &body); err != nil {
+		t.Fatalf("issue JSON: %v\n%s", err, cr.Content[0].Text)
+	}
+	if !body.Truncated {
+		t.Error("expected truncated=true")
+	}
+	if body.CommentsOmitted <= 0 {
+		t.Errorf("comments_omitted = %d, want > 0", body.CommentsOmitted)
+	}
+	if body.CommentsOmitted+len(body.Comments) != seeded {
+		t.Errorf("omitted %d + kept %d != seeded %d", body.CommentsOmitted, len(body.Comments), seeded)
+	}
+	// Newest kept: last seeded comment (highest created_at) must remain.
+	if len(body.Comments) == 0 {
+		t.Fatal("kept no comments")
+	}
+	last := body.Comments[len(body.Comments)-1]
+	if last.ID != "mcp-fat-039" {
+		t.Errorf("newest kept id = %q, want mcp-fat-039 (oldest-first store order)", last.ID)
+	}
+}
+
+func TestMarshalIssueResultFitsByDroppingOldestComments(t *testing.T) {
+	// Unit path with an injected cap (production stays 256KiB).
+	s := New("", "", "test")
+	s.resultByteCap = 900
+	comments := make([]store.DetailComment, 8)
+	for i := range comments {
+		comments[i] = store.DetailComment{
+			ID:        fmt.Sprintf("c-%d", i),
+			Body:      strings.Repeat("m", 200),
+			CreatedAt: fmt.Sprintf("2026-01-01T00:00:%02dZ", i),
+		}
+	}
+	body := map[string]any{
+		"issue_key":       "NMA-1",
+		"description_adf": json.RawMessage(`{}`),
+		"comments":        comments,
+		"attachments":     []store.DetailAttachment{},
+		"history":         []store.DetailChange{},
+		"linked_issues":   []store.DetailLink{},
+	}
+	out, err := s.marshalIssueResult(body)
+	if err != nil {
+		t.Fatalf("marshalIssueResult: %v", err)
+	}
+	if len(out) == 0 {
+		t.Fatal("empty content")
+	}
+	var got struct {
+		Truncated       bool `json:"truncated"`
+		CommentsOmitted int  `json:"comments_omitted"`
+		Comments        []struct {
+			ID string `json:"id"`
+		} `json:"comments"`
+	}
+	if err := json.Unmarshal([]byte(out[0].Text), &got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Truncated {
+		t.Error("expected truncated=true")
+	}
+	if got.CommentsOmitted <= 0 {
+		t.Errorf("comments_omitted = %d", got.CommentsOmitted)
+	}
+	if len(got.Comments) == 0 || got.Comments[len(got.Comments)-1].ID != "c-7" {
+		t.Errorf("expected newest comment c-7 kept, got %+v", got.Comments)
+	}
+}
+
+func TestMarshalIssueResultErrorsWhenStillOverCap(t *testing.T) {
+	s := New("", "", "test")
+	s.resultByteCap = 200
+	body := map[string]any{
+		"issue_key":       "NMA-1",
+		"description_adf": json.RawMessage(`"` + strings.Repeat("D", 400) + `"`),
+		"comments":        []store.DetailComment{},
+		"attachments":     []store.DetailAttachment{},
+		"history":         []store.DetailChange{},
+		"linked_issues":   []store.DetailLink{},
+	}
+	_, err := s.marshalIssueResult(body)
+	if err == nil {
+		t.Fatal("expected error when payload exceeds cap with no comments left")
+	}
+	if !strings.Contains(err.Error(), "result exceeds") {
+		t.Errorf("want existing exceeds error, got %v", err)
+	}
+}
+
+func TestWriteSQLErrorPrefixed(t *testing.T) {
+	// A2: every isError body starts with ERROR: (one existing write-SQL path).
+	db := demoDB(t)
+	args, _ := json.Marshal(map[string]any{
+		"name":      toolQuery,
+		"arguments": map[string]any{"sql": "DELETE FROM issues"},
+	})
+	resps := session(t, db,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":`+string(args)+`}`,
+	)
+	var cr callResult
+	raw, _ := json.Marshal(resps[0].Result)
+	if err := json.Unmarshal(raw, &cr); err != nil {
+		t.Fatal(err)
+	}
+	if !cr.IsError || len(cr.Content) == 0 {
+		t.Fatalf("expected isError, got %+v", cr)
+	}
+	if !strings.HasPrefix(cr.Content[0].Text, "ERROR:") {
+		t.Errorf("isError text must start with ERROR:, got %q", cr.Content[0].Text)
+	}
+}
+
+func callToolRaw(t *testing.T, db string, name string, args map[string]any) callResult {
+	t.Helper()
+	payload, err := json.Marshal(map[string]any{"name": name, "arguments": args})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resps := session(t, db, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":`+string(payload)+`}`)
+	if len(resps) != 1 {
+		t.Fatalf("want 1 response, got %d", len(resps))
+	}
+	if resps[0].Error != nil {
+		t.Fatalf("JSON-RPC error: %+v", resps[0].Error)
+	}
+	var cr callResult
+	raw, _ := json.Marshal(resps[0].Result)
+	if err := json.Unmarshal(raw, &cr); err != nil {
+		t.Fatal(err)
+	}
+	return cr
+}
+
+func fmtArgs(args map[string]any) string {
+	keys := make([]string, 0, len(args))
+	for k := range args {
+		keys = append(keys, k)
+	}
+	return strings.Join(keys, ",")
+}
+
+func seedLargeIssueComments(t *testing.T, dbPath, key string, n, bodyBytes int) int {
+	t.Helper()
+	db, err := sql.Open("sqlite", "file:"+dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var itemID string
+	if err := db.QueryRow(`SELECT item_id FROM issues WHERE key = ?`, key).Scan(&itemID); err != nil {
+		t.Fatalf("item_id for %s: %v", key, err)
+	}
+	body := strings.Repeat("x", bodyBytes)
+	for i := 0; i < n; i++ {
+		id := fmt.Sprintf("mcp-fat-%03d", i)
+		at := fmt.Sprintf("2026-08-01T00:00:%02dZ", i)
+		if _, err := db.Exec(
+			`INSERT INTO comments (id, item_id, author, body_text, created_at, updated_at) VALUES (?,?,?,?,?,?)`,
+			id, itemID, "seed", body, at, at,
+		); err != nil {
+			t.Fatalf("insert comment %s: %v", id, err)
+		}
+	}
+	var total int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM comments WHERE item_id = ?`, itemID).Scan(&total); err != nil {
+		t.Fatal(err)
+	}
+	return total
 }
 
 func mustResult(t *testing.T, r rpcResponse, dest any) {

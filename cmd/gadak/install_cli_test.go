@@ -40,7 +40,7 @@ func TestInstallCLINewSymlink(t *testing.T) {
 	if !strings.Contains(out, "installed:") {
 		t.Errorf("expected installed: line, got:\n%s", out)
 	}
-	if !strings.Contains(out, "next: gadak mcp install claude") {
+	if !strings.Contains(out, "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)") {
 		t.Errorf("expected next-step line, got:\n%s", out)
 	}
 }
@@ -82,6 +82,9 @@ func TestInstallCLIAlreadySameTarget(t *testing.T) {
 	out := buf.String()
 	if !strings.Contains(out, "already installed") {
 		t.Errorf("expected already installed, got:\n%s", out)
+	}
+	if !strings.Contains(out, "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)") {
+		t.Errorf("expected next-step line, got:\n%s", out)
 	}
 	// Still points at source.
 	got, _ := os.Readlink(dest)
