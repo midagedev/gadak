@@ -13,8 +13,9 @@
 
 gadak mirrors Jira *and* Confluence into one local SQLite file — issues,
 comments, history, wiki pages — indexed together and searchable in
-milliseconds. Triage it yourself in a keyboard-driven web UI, or let a
-coding agent ask in plain SQL. One binary, no server, no gadak account.
+milliseconds. Triage it yourself in the [macOS app](docs/DESKTOP.md) or a
+browser tab, or let a coding agent ask in plain SQL. One binary, one app,
+no gadak account.
 
 **The mirror is a cache you can throw away.** If this project stops tomorrow,
 you delete a directory and have lost nothing: Jira stays the source of truth,
@@ -32,6 +33,9 @@ and nothing you do here is stored anywhere else.
   Generated from <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a> against the demo snapshot.</sub>
 </p>
 
+Download [`Gadak-<version>-arm64.dmg`](https://github.com/midagedev/gadak/releases/latest)
+and open the window — or, from a terminal:
+
 ```bash
 brew install midagedev/tap/gadak
 
@@ -48,7 +52,7 @@ back?" at all; a local mirror answers it in a line.
 the demo snapshot.
 
 > **Status: 0.12, still 0.x.** Sync (both sources), the read API, write-through,
-> the web UI, the desktop app, the CLI, settings, the plugin boundary, and i18n
+> the desktop app, the web UI, the CLI, settings, the plugin boundary, and i18n
 > are implemented and verified end to end against a live Atlassian site.
 > `docs/STATE_OF_PLAY.md` is the honest inventory.
 
@@ -88,17 +92,18 @@ and the agent read the same store.
 
 | | For | Looks like |
 | --- | --- | --- |
-| **Web UI** | all-day triage | a browser tab (`gadak serve`) or a [macOS window](docs/DESKTOP.md) with no port at all. `j`/`k` walk the list, `x` selects, `s`/`a`/`l`/`c` change status, assignee, labels, or leave a comment without leaving the list. Click an issue to rename it, change priority, or edit labels. ⌘K finds issues *and* wiki pages. Documents are first-class: recency lists, deep links (`?doc=`), and cross-references both ways. In the app, the issue key (or a wiki link) opens the original Atlassian page in the same window; close the tab and the mirror re-reads what you just changed. |
+| **App + Web UI** | all-day triage | the [macOS app](docs/DESKTOP.md) — no port, no local server — or the same UI in a browser tab (`gadak serve`). `j`/`k` walk the list, `x` selects, `s`/`a`/`l`/`c` change status, assignee, labels, or leave a comment without leaving the list. Click an issue to rename it, change priority, or edit labels. ⌘K finds issues *and* wiki pages. Documents are first-class: recency lists, deep links (`?doc=`), and cross-references both ways. In the app, the issue key or a wiki link opens the original Atlassian page in the same window; close the tab and the mirror re-reads what you just changed. |
 | **CLI + SQL** | agents, scripts, one-off questions | `gadak issue`, `gadak search` (issues and pages), `gadak sql`, plus the file itself |
 
 Writes go through to Jira and then refresh the mirror, so the list is correct
 a moment later without a full sync. Comment, transition, assign, labels,
-priority, and the title work from the web UI; the CLI covers comment,
-transition, and assign today. Field edits and issue creation stay web-only
-(values always come from what Jira allows, never free text). Anything the
-mirror cannot edit — a workflow screen, a Confluence draft — is a click away
-in the app's in-app browser, then a resync. The wiki mirror itself is
-read-only on purpose — Confluence stays the place where documents are written.
+priority, and the title work from the app and the web UI; the CLI covers
+comment, transition, and assign today. Field edits and issue creation stay
+on that surface (values always come from what Jira allows, never free text).
+Anything the mirror cannot edit — a workflow screen, a Confluence draft — is
+a click away in the app's in-app browser, then a resync. The wiki mirror
+itself is read-only on purpose — Confluence stays the place where documents
+are written.
 
 Hierarchy is first-class: `epic_key` is derived honestly (the nearest epic
 *ancestor*, so a sub-task groups under its epic, not its story), group-by-epic
@@ -173,30 +178,24 @@ Atlassian Cloud only, and you need an
 [API token](https://id.atlassian.com/manage-profile/security/api-tokens) — one
 token covers Jira and Confluence on the same site.
 
-**You install one thing.** There is a single binary and a single app, and the
-app has the binary inside it:
-
-```bash
-brew install midagedev/tap/gadak     # macOS + Linux — the CLI and the web UI
-```
-
-or download `Gadak-<version>-arm64.dmg` from the
-[latest release](https://github.com/midagedev/gadak/releases/latest) for the
-[macOS app](docs/DESKTOP.md) — signed, notarized, sets itself up in its own
-window with no terminal at any point.
-
-If you took the app and later want an agent on the same mirror, the CLI is
-already on your disk; macOS just does not put an app bundle on your `PATH`.
-One command does:
+**1. The [macOS app](docs/DESKTOP.md).** Download
+`Gadak-<version>-arm64.dmg` from the
+[latest release](https://github.com/midagedev/gadak/releases/latest), drag
+Gadak.app to Applications, open it. Signed and notarized. First launch walks
+through site, email, token, and projects in the window — no port, no
+terminal. The CLI is already inside the bundle; macOS just does not put an
+app on your `PATH`. When you want an agent on the same mirror:
 
 ```bash
 /Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
 ```
 
-Then first run:
+**2. The CLI**, if you are on Linux or you want the same UI in a browser tab:
 
 ```bash
-gadak serve      # http://gadak.localhost:7777 — setup happens in the browser
+brew install midagedev/tap/gadak     # macOS + Linux
+gadak init && gadak sync
+gadak serve      # http://gadak.localhost:7777
 ```
 
 Other routes (install script, release archive, source build, Docker), wiki
@@ -229,8 +228,8 @@ schedule. The server merges them; the UI surfaces them. Working examples live in
 flowchart LR
   Jira["Jira Cloud REST"] -->|"incremental sync"| DB["SQLite + FTS5<br/>~/.gadak/gadak.db"]
   Wiki["Confluence REST"] -->|"incremental sync"| DB
-  DB --> Serve["gadak serve"]
-  Serve --> UI["Web UI<br/>(IndexedDB cache)"]
+  DB --> Serve["gadak serve / app"]
+  Serve --> UI["App + Web UI<br/>(IndexedDB cache)"]
   DB --> Agent["Coding agent<br/>sqlite3 / gadak sql / MCP"]
   UI -->|"writes"| Serve
   Serve -->|"writes"| Jira
@@ -268,7 +267,7 @@ which is half the point. See `docs/decisions/0003-local-process.md`.
 **In scope:** issue fields, descriptions, comments, attachments, changelog,
 links, epic hierarchy, status transitions, assignee, labels, priority, title,
 wiki pages (bodies, comments, labels), full-text search across all of it,
-saved views, watches; field edits and issue creation on the web UI.
+saved views, watches; field edits and issue creation in the app and the web UI.
 **Out of scope:** boards and sprint mechanics, project administration, workflow
 configuration, permission schemes, writing to the wiki, grouping the list by
 label (filter the chips instead). Those stay in Jira and Confluence; the
@@ -281,7 +280,7 @@ mirror is disposable — delete it and re-sync.
 - **[jira-cli](https://github.com/ankitpokhrel/jira-cli)** talks to Jira's REST
   API per command, so every listing is a network round trip and JQL is the query
   language. gadak queries a local mirror: millisecond filters, SQL joins over the
-  changelog, offline reads — plus a web UI over the same file. If all you
+  changelog, offline reads — plus an app and a web UI over the same file. If all you
   want is "create an issue from the terminal", jira-cli is lighter.
 - **Linear** is a different tracker. If your team can move, move. gadak is for the
   (much larger) group whose org keeps Jira: it gives you Linear-ish speed and
