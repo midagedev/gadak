@@ -30,6 +30,7 @@
     type UnifiedView,
   } from '../../lib/unified-search'
   import { builtinViews } from '../../lib/builtin-views'
+  import { showIssueList } from '../../lib/show-issue-list'
   import { emptyFilters, type ViewConfig } from '../../lib/view-config'
   import {
     filterIssues,
@@ -240,9 +241,7 @@
   })
 
   function applyView(config: ViewConfig) {
-    me.closeFeed()
-    pages.closeDocs()
-    filters.applyConfig(config)
+    showIssueList(config)
   }
 
   const viewItems = $derived.by<Item[]>(() => {
@@ -440,9 +439,9 @@
         icon: 'arrow-up-right',
         testid: 'palette-unified-more',
         run: () => {
-          me.closeFeed()
-          pages.closeDocs()
-          filters.setQuery(raw)
+          const c = filters.currentConfig()
+          c.filters.q = raw
+          showIssueList(c)
           void filters.runServerSearch()
         },
       })

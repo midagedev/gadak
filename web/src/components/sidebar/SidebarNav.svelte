@@ -10,6 +10,7 @@
   import { views } from '../../stores/views.svelte'
   import { me } from '../../stores/me.svelte'
   import { pages } from '../../stores/pages.svelte'
+  import { showIssueList } from '../../lib/show-issue-list'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
   import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
@@ -26,11 +27,9 @@
 
   const builtins = builtinViews()
 
-  /** Apply view = close personal feed if open (back to list) then apply filters. */
+  /** Apply view = give ListView the column, then the filters. */
   function applyView(config: ViewConfig) {
-    me.closeFeed()
-    pages.closeDocs()
-    filters.applyConfig(config)
+    showIssueList(config)
   }
 
   function applySource(v: (typeof views.source)[number]) {

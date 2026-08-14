@@ -22,8 +22,8 @@
   import { issues } from '../../stores/issues.svelte'
   import { pages } from '../../stores/pages.svelte'
   import { selection } from '../../stores/selection.svelte'
-  import { filters, issueMatchesPerson } from '../../stores/filters.svelte'
-  import { me } from '../../stores/me.svelte'
+  import { issueMatchesPerson } from '../../stores/filters.svelte'
+  import { showIssueList } from '../../lib/show-issue-list'
   import { emptyConfig, type ViewConfig } from '../../lib/view-config'
   import type { AuthorComment, IssueLite } from '../../lib/types'
   import { onEscape } from '../../lib/dom-actions'
@@ -62,9 +62,7 @@
   /** Land on a list built from nothing but this filter, so the chip's count and
    *  the resulting list are the same number. */
   function applyView(config: ViewConfig): void {
-    me.closeFeed()
-    pages.closeDocs()
-    filters.applyConfig(config)
+    showIssueList(config)
   }
 
   function openAssigned(): void {

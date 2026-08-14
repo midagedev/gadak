@@ -20,9 +20,8 @@ import { issues } from '../stores/issues.svelte'
 import { pages } from '../stores/pages.svelte'
 import { selection } from '../stores/selection.svelte'
 import { views } from '../stores/views.svelte'
-import { filters } from '../stores/filters.svelte'
-import { me } from '../stores/me.svelte'
 import { write } from '../stores/write.svelte'
+import { showIssueList } from './show-issue-list'
 import type { ViewConfig } from './view-config'
 
 export type OmniboxAction =
@@ -39,9 +38,7 @@ function sameSite(href: string): boolean {
 }
 
 function applySourceConfig(config: ViewConfig, unsupported?: string[]): void {
-  me.closeFeed()
-  pages.closeDocs()
-  filters.applyConfig(config)
+  showIssueList(config)
   if (unsupported?.length) {
     write.toast(t('filter.jqlPartial', { clauses: unsupported.join('; ') }), 'info')
   }

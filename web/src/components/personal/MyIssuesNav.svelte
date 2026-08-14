@@ -2,17 +2,18 @@
   /*
    * My Issues sidebar section ([personal]).
    *  Rows: assigned to me N / reported by me N / mentioned me (feed) N.
-   *   - Assigned: filters.applyConfig(assignee + active statuses) → main list.
+   *   - Assigned: showIssueList(assignee + active statuses) → main list.
    *   - Reported: open personal feed on the "reported" focus tab.
    *   - Mentions/feed: open personal feed (all focus).
    *  Counts are $derived from the local pool (mentions = API result count).
    *  Without identity: prompt to set credentials.
    */
   import { t } from '../../lib/i18n'
-  import { filters, issueMatchesPerson } from '../../stores/filters.svelte'
+  import { issueMatchesPerson } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
+  import { showIssueList } from '../../lib/show-issue-list'
   import { effectiveCategory, emptyConfig, type ViewConfig } from '../../lib/view-config'
   import { feature } from '../../lib/config'
   import { isHostedDemo } from '../../lib/config'
@@ -50,8 +51,7 @@
   }
 
   function applyAssignee() {
-    me.closeFeed()
-    filters.applyConfig(assigneeConfig())
+    showIssueList(assigneeConfig())
   }
 </script>
 

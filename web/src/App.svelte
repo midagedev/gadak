@@ -20,6 +20,7 @@
   import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { feature, isHostedDemo } from './lib/config'
   import { takeUIFocus } from './lib/api'
+  import { showIssueList } from './lib/show-issue-list'
   import { adoptRunningSync } from './lib/sync-now'
   import { installDesktopLinkOpener } from './lib/desktop-links'
   import { browse, installBrowseSessions } from './lib/browse.svelte'
@@ -145,10 +146,18 @@
       try {
         const hash = await takeUIFocus()
         if (!hash) return
-        me.closeFeed()
-        pages.closeDocs()
-        const q = hash.startsWith('?') ? hash.slice(1) : hash
-        location.hash = q ? `#/?${q}` : '#/'
+        const q = hash.startsWith('#/?')
+          ? hash.slice(3)
+          : hash.startsWith('?')
+            ? hash.slice(1)
+            : hash
+        // Column latches first (showIssueList → applyConfig replaceState).
+        // Then the CLI's literal hash, so ks=A,B stays unescaped. Do not
+        // replaceState+hashchange here: that re-parses location.hash before
+        // applyConfig's router write and can drop the focus view.
+        showIssueList(parseConfig(new URLSearchParams(q)))
+        const next = q ? `#/?${q}` : '#/'
+        if (location.hash !== next) location.hash = next
       } catch {
         /* serve without the endpoint, or offline */
       }
