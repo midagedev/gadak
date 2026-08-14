@@ -165,7 +165,8 @@ offline reads â€” yes. Boards, admin, wiki authoring, or a minute of staleness â
 stay in Jira. [`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit).
 
 **How it compares.** jira-cli talks to the live API per command. Linear is a
-different tracker. Rovo MCP is hosted and cannot join or go offline.
+different tracker. Rovo MCP searches both sources too, but it is hosted: no
+aggregate, no offline, and every call spends tokens.
 [`docs/FAQ.md`](docs/FAQ.md#how-it-compares).
 
 **More sources later.** Confluence proved the spine is neutral. Next source,
