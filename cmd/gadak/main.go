@@ -536,7 +536,7 @@ func cmdSQL(args []string) error {
 	}
 	var asJSON, asCSV, noHeader bool
 	var words []string
-	for _, a := range args {
+	for i, a := range args {
 		switch a {
 		case "--json", "-json":
 			asJSON = true
@@ -545,6 +545,13 @@ func cmdSQL(args []string) error {
 		case "--no-header", "-no-header":
 			noHeader = true
 		default:
+			// A flag never contains whitespace. A single argv that starts
+			// with `--` and contains a space is a quoted query (SQL comment
+			// plus the statement), not a flag candidate — flag.Parse cannot
+			// tell those apart, which is why this command matches flags by name.
+			if sqlFlagCandidate(a) && sqlQueryFollows(args, i+1) {
+				return usageError("sql", fmt.Sprintf("unknown flag %s", a))
+			}
 			words = append(words, a)
 		}
 	}
@@ -619,6 +626,42 @@ func cmdSQL(args []string) error {
 		return csvOut.Error()
 	}
 	return nil
+}
+
+func sqlKnownFlag(a string) bool {
+	switch a {
+	case "--json", "-json", "--csv", "-csv", "--no-header", "-no-header":
+		return true
+	}
+	return false
+}
+
+// sqlFlagCandidate reports whether a is an unknown `--…` token. Flags have
+// no whitespace; a quoted argv that starts with `--` and contains a space is
+// a SQL comment plus a statement, not a flag.
+func sqlFlagCandidate(a string) bool {
+	if !strings.HasPrefix(a, "--") || sqlKnownFlag(a) {
+		return false
+	}
+	return !strings.ContainsAny(a, " \t\n\r")
+}
+
+// sqlQueryFollows reports a later argv that looks like SQL, not another flag.
+// Used so `gadak sql --pretty` (lone token) stays a comment-only query, while
+// `gadak sql --pretty "select …"` is a typo'd flag in front of a real query.
+func sqlQueryFollows(args []string, from int) bool {
+	for _, a := range args[from:] {
+		if sqlKnownFlag(a) {
+			continue
+		}
+		if sqlFlagCandidate(a) {
+			continue
+		}
+		if strings.TrimSpace(a) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func cell(v any) any {

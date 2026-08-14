@@ -957,7 +957,7 @@ export const ko = {
   'onboarding.agentSkillCaption':
     'Claude Code — 스키마와 쿼리 패턴을 알려 주는 스킬을 설치합니다. 서버가 필요 없고, 질문이 생길 때만 로드됩니다.',
   'onboarding.agentMcpCaption':
-    '또는 MCP 서버로 등록 — 셸이 없는 클라이언트를 위한 경로입니다. claude 는 등록까지 대신 하고, cursor·codex 는 붙여넣을 설정을 출력합니다:',
+    '또는 MCP 서버로 등록 — 셸이 없는 호스트(Claude Desktop)를 위한 경로입니다. claude 는 등록까지 대신 하고, cursor·codex 는 붙여넣을 설정을 출력합니다:',
   'onboarding.agentNoCli': '터미널에 gadak 가 없나요? 데스크톱 앱의 Tools → Install Command Line Tool… 을 쓰세요.',
   'onboarding.agentDocsSetup': '에이전트 설정',
   'onboarding.agentDocsRecipes': '질의 레시피',

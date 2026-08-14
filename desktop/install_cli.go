@@ -111,7 +111,7 @@ func installedMsg(plan clitool.Plan, headline string) string {
 	if !plan.OnPath {
 		msg += pathOffMsg(plan.Dir)
 	}
-	msg += "\n\nNext: run  gadak mcp install claude  in a terminal to connect your agent."
+	msg += "\n\nnext: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)"
 	return msg
 }
 

@@ -965,7 +965,7 @@ export const en = {
   'onboarding.agentSkillCaption':
     'Claude Code — installs a skill that teaches it the schema and the queries. No server; it loads only when a question needs it.',
   'onboarding.agentMcpCaption':
-    'Or register an MCP server — the way in for a client with no shell. claude registers itself; cursor and codex print config to paste:',
+    'Or register an MCP server — the way in for a shell-less host (Claude Desktop). claude registers itself; cursor and codex print config to paste:',
   'onboarding.agentNoCli': 'No gadak in your terminal? In the desktop app: Tools → Install Command Line Tool…',
   'onboarding.agentDocsSetup': 'Agent setup',
   'onboarding.agentDocsRecipes': 'Query recipes',

@@ -98,3 +98,33 @@ func TestSQLNoHeaderOmitsCSVHeader(t *testing.T) {
 		t.Fatalf("csv first row %q is not an issue key", first)
 	}
 }
+
+func TestSQLUnknownFlagIsUsageError(t *testing.T) {
+	sqlDemoHome(t)
+	out, err := capture(t, func() error {
+		return cmdSQL([]string{"--pretty", "select key from issues limit 1"})
+	})
+	if err == nil {
+		t.Fatalf("unknown flag --pretty must be a usage error, got nil err and stdout %q", out)
+	}
+	if !strings.Contains(err.Error(), "--pretty") {
+		t.Fatalf("usage error must echo --pretty, got %v", err)
+	}
+	if !strings.Contains(err.Error(), `run "gadak sql --help"`) {
+		t.Fatalf("want usageError help pointer, got %v", err)
+	}
+}
+
+func TestSQLQuotedCommentQueryStillRuns(t *testing.T) {
+	sqlDemoHome(t)
+	out, err := capture(t, func() error {
+		return cmdSQL([]string{"-- comment\nselect key from issues limit 1"})
+	})
+	if err != nil {
+		t.Fatalf("quoted SQL starting with -- comment: %v\n%s", err, out)
+	}
+	first, _, _ := strings.Cut(out, "\n")
+	if first != "key" {
+		t.Fatalf("want header, got %q\n%s", first, out)
+	}
+}
