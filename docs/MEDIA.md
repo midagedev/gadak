@@ -10,7 +10,7 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | --- | --- | --- |
 | `docs/media/web-demo.gif` | Playwright walkthrough | README hero (inline) |
 | `docs/media/web-demo.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
-| `docs/media/agent.gif` | VHS tape `tools/tapes/agent.tape` | README / docs — a real Claude Code session on the mirror |
+| `docs/media/agent.gif` | VHS tape `tools/tapes/agent.tape` | README / docs — the CLI an agent types against the mirror |
 
 ## Size budget
 
@@ -22,13 +22,13 @@ All assets are produced from **scripts** against the scrubbed snapshot
 
 ### Current committed sizes (re-measure after regen)
 
-Measured 2026-08-06 via `ls -la docs/media/` (decimal MB = bytes/1e6):
+Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 
 | Asset | Size | Bytes (`ls -la`) | Duration | Resolution / fps |
 | --- | --- | --- | --- | --- |
-| `web-demo.gif` | 7.0 MB | 7348988 | 22.4 s | 960×600 @ 9 fps, 128-color palette |
-| `web-demo.mp4` | 1.1 MB | 1119359 | 22.4 s | 1024×640 h264 |
-| `agent.gif` | 305 KB | 304708 | 31.5 s | 1080×620, 77×24 cells, 64 colors |
+| `web-demo.gif` | 7.4 MB | 7368472 | 15.8 s | 960×600 @ 9 fps, 128-color palette |
+| `web-demo.mp4` | 1.1 MB | 1073187 | 15.8 s | 1024×640 h264 |
+| `agent.gif` | 143 KB | 143360 | 14.4 s | 1080×500, paper/ink theme, 64 colors |
 
 ## Readability comes first, and it costs bytes
 
@@ -44,10 +44,8 @@ So the recordings are deliberately small:
   strip disappear and the UI stops looking like itself.
 - Terminals (agent tape): **77 cols × 24 rows** (`Set Width 1080` / `Set FontSize 20`).
 
-**Web GIF tradeoff:** the walkthrough now carries six beats (search, unified
-search with documents, the docs tree, epic grouping, palette, epic rollup) at a
-larger logical scale, and that does not fit the prefer-≤5 MB target — it lands
-around 7 MB against the 8 MB hard limit. `export-video.sh` starts at
+**Web GIF tradeoff:** the 0.12 walkthrough is four beats (search, an open
+issue, documents, epics) on the paper UI. `export-video.sh` starts at
 `fps=9 width=960 colors=128` and steps down to `8/960/96`, then `8/900/64`.
 Note that fewer colors does **not** reliably shrink a GIF here: bayer dither
 noise compresses worse, so a 96-colour pass can come out larger than a 128 one.
@@ -55,11 +53,10 @@ Motion is the real cost — an instant `scrollTop` jump costs a fraction of a
 one-second smooth scroll. Cut a beat or a scroll before cutting resolution, and
 point anyone who wants a light asset at the MP4.
 
-**Terminal GIFs:** VHS's own encoder is generous (7–8 MB for these clips), and
-`Set Framerate` does not change the GIF's 25 fps frame table. Both tapes are
-finished with `gifsicle -O3 --colors 64`, which roughly halves them with no
-visible loss on a 64-colour terminal theme. `make media-agent`
-does **not** run that pass yet — run it by hand (below) after recording.
+**Terminal GIFs:** VHS's own encoder is generous, and `Set Framerate` does not
+change the GIF's 25 fps frame table. `make media-agent` finishes the take with
+`gifsicle -O3 --colors 64` when `gifsicle` is on `PATH`, which roughly halves
+the file with no visible loss on a 64-colour paper theme.
 
 ## Regenerate everything
 
@@ -74,28 +71,9 @@ Individual targets:
 
 ```bash
 make media-web     # Playwright → webm → gif + mp4 (self-contained)
-make media-agent   # VHS Claude Code session      → needs setup + gifsicle pass
+make media-agent   # VHS CLI tape against demo.db → gifsicle when present
 make media-prep    # build gadak + seed tools/tapes/.tmp from demo.db
 make brand         # logo, wordmarks, favicons, OG card
-```
-
-The agent clip needs steps `make` does not run:
-
-```bash
-# agent.gif only — an isolated HOME holding a copy of this machine's Claude
-# Code credentials, so the take is a real session with no identity on screen.
-bash tools/tapes/prepare-agent.sh
-make media-agent
-bash tools/tapes/prepare-agent.sh --clean     # removes the credential copy
-
-# agent.gif — VHS output is 2× the budget without this
-gifsicle -O3 --colors 64 docs/media/agent.gif -o docs/media/agent.gif
-
-# agent.gif also gets its idle tail cut. Model latency varies per take, so find
-# the frame where the answer finishes and keep everything up to ~3 s after it
-# (frames are 25 fps regardless of `Set Framerate`):
-gifsicle --info docs/media/agent.gif | head -2          # total frame count
-gifsicle -O3 --colors 64 docs/media/agent.gif '#0-786' -o docs/media/agent.gif
 ```
 
 Outputs land in `docs/media/`. Commit them — the README references the paths
@@ -105,23 +83,25 @@ directly, and CI does not regenerate media.
 
 ### Web UI (`web-demo`)
 
-~22 s of readable motion, viewport **1024×640** @ `deviceScaleFactor: 2`:
+~20 s of readable motion, viewport **1024×640** @ `deviceScaleFactor: 2`:
 
-1. Boot — 534-issue list
-2. Instant local search with per-keystroke narrowing and `<mark>` highlights
-3. Sidebar **Documents** — the Viewed tab, then **Updated** (every page,
-   newest edit first, rows reading `author · time · in space`), then one
-   page open in the document panel with its breadcrumb trail
-4. **Spaces** disclosure — a space as a flat list, then its Tree toggle,
-   one branch opened
-5. Sidebar **Epics** built-in view: the open backlog re-sectioned by epic in
-   one click, headers carrying the epic key and summary
+1. Boot — paper list, 가 mark, 534 issues, labels on the rows
+2. Instant local search (`pagination`) with per-keystroke narrowing and `<mark>`
+3. **NMA-123** open beside the list — title, priority, labels, reopen badge
+4. Sidebar **Documents** — Viewed, then one page open with its breadcrumb
+   and the issues it cites
+5. Sidebar **Epics**: the same backlog re-sectioned by epic
 
-Re-shoot trap (2026-08-06): the demo config reuses an already-running 7877
-server (`reuseExistingServer: true`), so a stale fixture prints an orange
-`Sync delayed` chip into every frame. Restart the server (or re-run the
-`GADAK_FRESHEN` block in `e2e/serve.sh` against `e2e/.tmp/home/gadak.db`)
-before recording.
+The in-app Jira/Confluence pane is desktop-only (a native WKWebView). This
+clip is the browser tab against `examples/demo.db`. The spaces tree was
+dropped from this take — it did not earn its bytes next to the issue-detail
+beat.
+
+Re-shoot trap (2026-08-06): a leftover :7877 from an earlier e2e run is not
+freshened, and "Sync delayed" prints into every frame. The demo config now
+starts a fresh server (`reuseExistingServer: false`) and `GADAK_FRESHEN=1`
+in `e2e/serve.sh` updates the snapshot clock. Stop a leftover with
+`pkill -f 'e2e/.tmp/gadak'` if a recording still shows the orange chip.
 
 Note the video size in `e2e/demo/playwright.config.ts` must equal the viewport.
 Playwright does not upscale into a larger video frame — it pins the capture in
@@ -137,20 +117,21 @@ is never touched by this pipeline.
 
 ### Agent (`agent.gif`)
 
-Two scenes, both real:
+Three scenes, each cleared before the next so a TSV never scrolls off:
 
-1. `claude mcp add gadak -- gadak mcp` — the one line that teaches an MCP client
-   the mirror exists.
-2. A live Claude Code session answering *"Which epic has the most reopened
-   issues?"* — the model calls `gadak_query` twice and answers with the epic
-   keys. Nothing is scripted, so takes differ; re-run until one reads well.
+1. `gadak status` — 534 issues, watermark, no network
+2. `gadak sql` — reopen counts, a field Jira does not expose and JQL cannot
+   aggregate
+3. `gadak search 'idempotency'` — one index, tab-separated hits
 
-The point of the clip: the agent answers a question **JQL cannot express**
-(reopen history aggregated by epic) from a local file, without scraping a UI.
+The tape is deterministic: VHS types the commands, the binary prints against
+`examples/demo.db`. No model, no credential, no take-to-take drift. Paper/ink
+theme so the clip sits next to the web GIF. Search titles wrap at 77 cols —
+that is the readability tradeoff in the sizing note above, not a recording
+bug.
 
-If the host has no Claude Code login, `prepare-agent.sh` refuses and the tape
-cannot run — the earlier CLI-only version of this tape (`gadak search` / `gadak
-sql` / `gadak issue` / `gadak status`) is in git history if you need a fallback.
+`tools/tapes/prepare-agent.sh` still exists if you want a live Claude Code
+take. The README clip does not use it.
 
 ## Font notes (Hangul alignment)
 
@@ -182,18 +163,10 @@ alignment — note that in the tape comment when you do.
 - VHS tapes `source tools/tapes/.tmp/env.sh` under `Hide` so the visible prompt
   is a bare `$ ` — **no username, hostname, or home path**.
 - `HOME` is redirected to `tools/tapes/.tmp/fake-home` for the recording shell.
-- `agent.tape` goes further, because Claude Code prints paths and account
-  state. `prepare-agent.sh` builds `/private/tmp/gadak-demo` (a neutral path, so
-  `claude mcp add` has nothing identifying to print), copies the credential file
-  mode 0600, and copies **only** `accountUuid` / `organizationUuid` /
-  `billingType` / `seatTier` from the account block — `organizationName`,
-  `displayName` and `emailAddress` are the operator's real identity and are
-  dropped. It also unsets inherited `CLAUDE_CODE_*` variables, which otherwise
-  put warning banners on screen that no ordinary user would see. Run
-  `prepare-agent.sh --clean` when you are done: it holds a copy of a live
-  credential.
 - Do not re-record against a real Jira mirror. If a frame ever shows a real
   company, person, or domain, discard the asset and re-seed from `examples/`.
+- `prepare-agent.sh` (optional live Claude take only) copies a credential into
+  an isolated HOME. Run `--clean` afterwards; it is not on the README path.
 
 ## When to re-record
 
@@ -220,8 +193,8 @@ e2e/demo/
   export-video.sh        # webm → gif (palette 2-pass) + mp4
 tools/tapes/
   prepare.sh             # build binary, seed GADAK_HOME from demo.db
-  prepare-agent.sh       # isolated HOME + auth for the Claude Code take
-  agent.tape             # VHS script
+  prepare-agent.sh       # optional — isolated HOME for a live Claude take
+  agent.tape             # VHS script (CLI against demo.db)
   .tmp/                  # disposable (gitignored)
 docs/media/              # committed outputs
 ```

@@ -3,7 +3,9 @@
  *
  * Gated by GADAK_MEDIA=1 so the main suite skips it. This is a hero asset: a
  * reader gives it two seconds, so it shows one thing first — the list collapsing
- * under the keystroke — and only then documents, spaces, and epics.
+ * under the keystroke — then an issue (labels, priority, title, reopen),
+ * documents, and epics. The in-app Jira pane is a desktop WKWebView; this
+ * recording is the browser tab against demo.db, not a reconstruction of that.
  *
  * Four rules learned the hard way:
  *  - Never `waitForLoadState('networkidle')`. The client polls for a delta every
@@ -19,6 +21,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { gotoApp, searchInput } from '../helpers'
 
 const isMedia = !!process.env.GADAK_MEDIA
+const ISSUE = 'NMA-123'
 
 /** Pause between beats so a human can read the UI. */
 async function beat(page: Page, ms = 700): Promise<void> {
@@ -47,7 +50,7 @@ interface DemoPage {
 test.describe('web UI demo', () => {
   test.skip(!isMedia, 'GADAK_MEDIA=1 only — media pipeline recording')
 
-  test('search, documents, spaces, epics', async ({ page, request }) => {
+  test('search, issue, documents, epics', async ({ page, request }) => {
     // ── Viewing history, so Documents opens on something ──────────────────
     // Viewed is the default tab and it is this browser's own return path, so a
     // first-ever profile lands on the empty state — an honest screen, and a
@@ -61,12 +64,8 @@ test.describe('web UI demo', () => {
     const latin = [...index.pages]
       .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''))
       .filter((p) => isLatin(p.title))
-    // The newest page is what the Updated tab will open later — keep it out of
-    // the history so that click lands on a row the viewer has not seen yet.
     const history: DemoPage[] = []
     for (const p of latin.slice(1)) {
-      // One per space first: the row's "in SPACE" suffix says nothing when
-      // every line repeats the same space.
       if (history.some((h) => h.space_key === p.space_key)) continue
       history.push(p)
     }
@@ -92,24 +91,39 @@ test.describe('web UI demo', () => {
     await gotoApp(page)
     await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
-    // Short settle for the trailing boot requests. Deliberately not networkidle.
     await beat(page, 900)
 
     // ── The pitch: type, and hundreds of issues become a handful ──────────
     const input = searchInput(page)
     await input.click()
     await beat(page, 250)
-    // Slow enough to read each narrowing step; the count and the <mark>
-    // highlights are the whole point of this beat.
     await input.pressSequentially('pagination', { delay: 140 })
     await expect(page.locator('mark').first()).toBeVisible({ timeout: 10_000 })
     await beat(page, 1500)
     await input.fill('')
-    await beat(page, 500)
+    await beat(page, 400)
+
+    // ── An issue — title, priority, labels, reopen (the 0.12 verbs) ───────
+    await input.pressSequentially(ISSUE, { delay: 70 })
+    const row = page.locator(
+      `[data-testid="issue-list-scroller"] [data-issue-key="${ISSUE}"]`,
+    )
+    await expect(row).toBeVisible()
+    await beat(page, 400)
+    await row.locator('span.flex-1').first().click()
+    const issuePanel = page.getByTestId('issue-detail-panel')
+    await expect(issuePanel).toBeVisible()
+    await expect(issuePanel.getByTestId('title-editor')).toBeVisible()
+    await expect(issuePanel.getByTestId('priority-picker')).toBeVisible()
+    await expect(issuePanel.getByTestId('label-editor')).toBeVisible()
+    await expect(issuePanel.getByText(/reopened/i).first()).toBeVisible()
+    await beat(page, 2000)
+    await issuePanel.getByTestId('issue-detail-close').click()
+    await expect(page.getByTestId('issue-layout')).toHaveAttribute('data-detail-open', 'false')
+    await input.fill('')
+    await beat(page, 350)
 
     // ── Documents: the mirror is not only Jira ────────────────────────────
-    // One sidebar entry, and the main column becomes the document view. Viewed
-    // is where you were; each row is one sentence — author, when, which space.
     const docsSection = page.getByTestId('docs-section')
     await docsSection.scrollIntoViewIfNeeded()
     await beat(page, 300)
@@ -117,71 +131,24 @@ test.describe('web UI demo', () => {
     const docsView = page.getByTestId('docs-view')
     await expect(docsView).toBeVisible()
     await expect(docsView.getByTestId('doc-row').first()).toBeVisible()
-    await beat(page, 1500)
+    await beat(page, 1400)
 
-    // Updated is everyone else's activity over the same index — the question a
-    // wiki answers badly and a local mirror answers instantly.
-    await docsView.getByTestId('docs-tab').filter({ hasText: 'Updated' }).click()
-    await expect(docsView.getByTestId('doc-row').first()).toContainText(latin[0].title)
-    await beat(page, 1600)
-
-    // A row opens the page beside the list, which keeps its place.
     await docsView.getByTestId('doc-row').first().click()
     const docPanel = page.getByTestId('doc-panel')
     await expect(docPanel).toBeVisible()
     await expect(docPanel.getByTestId('doc-title')).toBeVisible()
-    await beat(page, 1900)
-    // x is the document panel's close key; the space beat wants the full column.
+    await beat(page, 1800)
     await page.keyboard.press('x')
     await expect(docPanel).toHaveCount(0)
     await beat(page, 300)
 
-    // ── One space: flat by default, hierarchy on demand ───────────────────
-    await docsSection.getByTestId('docs-spaces').click()
-    const spaceRow = docsSection.getByTestId('docs-space').filter({ hasText: 'ENG' })
-    await expect(spaceRow).toBeVisible()
-    await beat(page, 500)
-    await spaceRow.click()
-    const spaceView = page.getByTestId('space-docs-view')
-    await expect(spaceView.getByTestId('doc-row').first()).toBeVisible()
-    await beat(page, 1300)
-
-    // The toggle that gives the hierarchy back, on the same screen rather than
-    // in a nav that grows with the wiki.
-    await spaceView.getByTestId('space-tree-toggle').click()
-    await expect(spaceView.getByTestId('doc-tree-node').first()).toBeVisible()
-    await beat(page, 1100)
-    // The toggle opens the roots only, so the frame is a list of section names
-    // until one of them is opened — a beat that shows a hierarchy has to show
-    // two levels of it.
-    const nodes = spaceView.getByTestId('doc-tree-node')
-    await nodes.filter({ hasText: 'Runbooks' }).getByTestId('doc-tree-toggle').click()
-    await expect(nodes.filter({ hasText: 'Runbook — Rate Limit Storm' })).toBeVisible()
-    await beat(page, 1600)
-    // Collapse the disclosure so the sidebar is back to its resting shape.
-    await docsSection.getByTestId('docs-spaces').click()
-    await beat(page, 350)
-
     // ── Epics: re-section the same list by the hierarchy Jira hides ───────
-    // One built-in view, not a menu dive: headers carry the epic key and summary.
     const epics = page.getByRole('button', { name: /Epics/ })
     await epics.scrollIntoViewIfNeeded()
     await epics.click()
-    const headers = page.getByTestId('group-header')
-    await expect(headers.first()).toBeVisible()
-    await beat(page, 1600)
-    // Down a couple of sections: one epic header is a feature, several in a row
-    // are the hierarchy. Jump rather than smooth-scroll — a 1 s animation of a
-    // full-width list is the single most expensive thing this GIF can contain.
-    await page.getByTestId('issue-list-scroller').evaluate((el) => {
-      el.scrollTop = 900
-    })
+    await expect(page.getByTestId('group-header').first()).toBeVisible()
     await beat(page, 1800)
 
-    // ── Rest on the grouped list for a clean loop ─────────────────────────
-    await page.getByTestId('issue-list-scroller').evaluate((el) => {
-      el.scrollTop = 0
-    })
     await expect(listCount(page)).toBeVisible()
     await beat(page, 1400)
   })

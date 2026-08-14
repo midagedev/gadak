@@ -80,3 +80,7 @@ media-agent: media-prep
 	@mkdir -p $(MEDIA_DIR)
 	@echo "media-agent: recording VHS tape…"
 	vhs tools/tapes/agent.tape
+	@if command -v gifsicle >/dev/null; then \
+		echo "media-agent: gifsicle -O3 --colors 64"; \
+		gifsicle -O3 --colors 64 $(MEDIA_DIR)/agent.gif -o $(MEDIA_DIR)/agent.gif; \
+	fi

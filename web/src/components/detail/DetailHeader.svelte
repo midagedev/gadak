@@ -58,6 +58,7 @@
       <button
         type="button"
         onclick={() => selection.clear()}
+        data-testid="issue-detail-close"
         class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         aria-label={t('common.close')}
         title={t('common.closeEsc')}

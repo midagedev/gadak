@@ -13,8 +13,8 @@
 
 gadak mirrors Jira *and* Confluence into one local SQLite file — issues,
 comments, history, wiki pages — indexed together and searchable in
-milliseconds. Ask it yourself from a keyboard-driven web UI; let your
-coding agent ask in plain SQL. One binary, no server, no account.
+milliseconds. Triage it yourself in a keyboard-driven web UI, or let a
+coding agent ask in plain SQL. One binary, no server, no gadak account.
 
 **The mirror is a cache you can throw away.** If this project stops tomorrow,
 you delete a directory and have lost nothing: Jira stays the source of truth,
@@ -26,10 +26,10 @@ and nothing you do here is stored anywhere else.
 </p>
 
 <p align="center">
-  <img src="docs/media/web-demo.gif" alt="Typing in the search box narrows issues instantly, with matches highlighted; the sidebar lists wiki spaces as a tree" width="900">
+  <img src="docs/media/web-demo.gif" alt="The paper list narrows as you type; an issue opens with labels, priority and a reopen badge; documents and epics sit in the same window" width="900">
   <br>
-  <sub>Every clip in this README is generated from a script against the committed demo snapshot —
-  this one from <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a>. What you see is what CI checks.</sub>
+  <sub>Search, an issue (title, priority, labels), documents, epics — the 0.12 paper UI.
+  Generated from <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a> against the demo snapshot.</sub>
 </p>
 
 ```bash
@@ -47,10 +47,10 @@ back?" at all; a local mirror answers it in a line.
 [`docs/RECIPES.md`](docs/RECIPES.md) has thirteen more, each verified against
 the demo snapshot.
 
-> **Status: working, pre-release.** Sync (both sources), the read API,
-> write-through, the web UI, the CLI, settings, the plugin boundary,
-> and i18n are implemented and verified end to end against a live Atlassian
-> site. `docs/STATE_OF_PLAY.md` is the honest inventory.
+> **Status: 0.12, still 0.x.** Sync (both sources), the read API, write-through,
+> the web UI, the desktop app, the CLI, settings, the plugin boundary, and i18n
+> are implemented and verified end to end against a live Atlassian site.
+> `docs/STATE_OF_PLAY.md` is the honest inventory.
 
 ## Why
 
@@ -88,14 +88,17 @@ and the agent read the same store.
 
 | | For | Looks like |
 | --- | --- | --- |
-| **Web UI** | all-day triage — a browser tab (`gadak serve`) or its own macOS window ([desktop app](docs/DESKTOP.md), no port at all) | a list you triage without the mouse (`j/k` walk, `x` multi-select, `s`/`a`/`c` status·assignee·comment in place), epic grouping and rollups, saved views, a ⌘K palette that finds issues *and* wiki pages, `/` to narrow whichever screen you are on, a freshness chip that shows the mirror's age and pulls it on click, full issue detail (rich text, comments, history, attachments), and wiki documents as a first-class citizen: recency-first lists with label chips, a filter that marks its matches, deep-linkable pages (`?doc=`), and cross-references both ways — the documents an issue's text mentions on the issue, the issues a page mentions on the page |
+| **Web UI** | all-day triage | a browser tab (`gadak serve`) or a [macOS window](docs/DESKTOP.md) with no port at all. `j`/`k` walk the list, `x` selects, `s`/`a`/`l`/`c` change status, assignee, labels, or leave a comment without leaving the list. Click an issue to rename it, change priority, or edit labels. ⌘K finds issues *and* wiki pages. Documents are first-class: recency lists, deep links (`?doc=`), and cross-references both ways. In the app, the issue key (or a wiki link) opens the original Atlassian page in the same window; close the tab and the mirror re-reads what you just changed. |
 | **CLI + SQL** | agents, scripts, one-off questions | `gadak issue`, `gadak search` (issues and pages), `gadak sql`, plus the file itself |
 
 Writes go through to Jira and then refresh the mirror, so the list is correct
-a moment later without a full sync. Comment, transition, and assign work from
-the web UI and the CLI; field edits and issue creation are web-only today
-(values always come from what Jira allows, never free text). The wiki mirror
-is read-only on purpose — Confluence stays the place where documents are written.
+a moment later without a full sync. Comment, transition, assign, labels,
+priority, and the title work from the web UI; the CLI covers comment,
+transition, and assign today. Field edits and issue creation stay web-only
+(values always come from what Jira allows, never free text). Anything the
+mirror cannot edit — a workflow screen, a Confluence draft — is a click away
+in the app's in-app browser, then a resync. The wiki mirror itself is
+read-only on purpose — Confluence stays the place where documents are written.
 
 Hierarchy is first-class: `epic_key` is derived honestly (the nearest epic
 *ancestor*, so a sub-task groups under its epic, not its story), group-by-epic
@@ -126,10 +129,10 @@ gadak mcp install claude    # pins this binary and profile into the registration
 ```
 
 <p align="center">
-  <img src="docs/media/agent.gif" alt="gadak search, gadak sql aggregation, and gadak issue in a terminal" width="800">
+  <img src="docs/media/agent.gif" alt="Terminal: gadak status, a SQL query for reopened issues, then gadak search" width="800">
   <br>
-  <sub>A real agent session — one-line MCP registration, then a live cross-source answer.
-  Generated from <a href="tools/tapes/agent.tape">tools/tapes/agent.tape</a> (VHS, unscripted model output).</sub>
+  <sub>What an agent types against the mirror — status, a question JQL cannot ask, then one-index search.
+  Generated from <a href="tools/tapes/agent.tape">tools/tapes/agent.tape</a> (VHS, demo snapshot).</sub>
 </p>
 
 The interface is the database, so anything that can run a shell command has
@@ -263,12 +266,13 @@ which is half the point. See `docs/decisions/0003-local-process.md`.
 | Your tracker holds tens of thousands of issues and Jira's UI struggles. | Your team is small enough that Jira already feels instant. |
 
 **In scope:** issue fields, descriptions, comments, attachments, changelog,
-links, epic hierarchy, status transitions, assignee, wiki pages (bodies,
-comments, labels), full-text search across all of it, saved views, watches;
-field edits and issue creation on the web UI.
+links, epic hierarchy, status transitions, assignee, labels, priority, title,
+wiki pages (bodies, comments, labels), full-text search across all of it,
+saved views, watches; field edits and issue creation on the web UI.
 **Out of scope:** boards and sprint mechanics, project administration, workflow
-configuration, permission schemes, writing to the wiki, and anything requiring
-Jira's own UI.
+configuration, permission schemes, writing to the wiki, grouping the list by
+label (filter the chips instead). Those stay in Jira and Confluence; the
+macOS app opens them in the same window.
 **Not a sync engine:** Jira and Confluence are the systems of record. The
 mirror is disposable — delete it and re-sync.
 
