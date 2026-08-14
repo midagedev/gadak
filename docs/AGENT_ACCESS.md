@@ -19,6 +19,17 @@ rate limit, and only the columns asked for come back. The CLI exists because
 things every agent needs and neither is a pleasant query. REST exists because not
 every caller has a shell.
 
+**SQL answers; `gadak views open` presents.** The three rows above are how an
+agent *answers*. Presentation is a different axis:
+
+| | What it is | Reach for it when | Setup |
+| --- | --- | --- | --- |
+| **Views** | `gadak views open` (`--jql`, `--keys`, `--keys -`, or a KEY) | the human should *see* the set in gadak, not in a pasted table | a running Gadak.app or `gadak serve` tab |
+
+The database stays the answer interface. `gadak open` is the Jira escape hatch
+(system browser to `/browse/KEY`); `gadak views open` is the "open in gadak"
+verb.
+
 There is no fourth layer for writes: the CLI and REST write paths both call Jira
 and then re-read the issue into the mirror. Writing to SQLite directly is not a
 shortcut, it is data loss on the next sync.

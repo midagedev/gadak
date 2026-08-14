@@ -112,17 +112,28 @@ Status: `[ ]` open · `[x]` done+evidence · `[-]` dropped (say why).
 ## Track A — agent surface (skills/gadak/, docs/AGENT_*.md, docs/RECIPES.md,
 ## specs/000-product/contracts/agent.md) — after Track G flags exist
 
-- [ ] A1. SKILL.md: "show, don't paste" — a trigger in the front-matter
+- [x] A1. SKILL.md: "show, don't paste" — a trigger in the front-matter
       description ("user wants to *see* issues → put them on the app"),
       a decision rule up top (table only when no UI or the user asked for
       a document), `gadak sql … | gadak views open --keys -` recipe,
       `gadak open` vs `views open` disambiguation.
-- [ ] A2. AGENT_SETUP.md: Cursor and Codex blocks gain the views lines
+      Evidence: `skills/gadak/SKILL.md` front-matter + top-of-body rule;
+      pipe uses `tail -n +2` because `gadak sql` TSV prints a header row.
+- [x] A2. AGENT_SETUP.md: Cursor and Codex blocks gain the views lines
       Claude Code already has.
-- [ ] A3. AGENT_ACCESS.md: presentation layer row (SQL answers; views
+      Evidence: Cursor `.cursor/rules` and Codex `AGENTS.md` blocks now
+      carry `gadak views` / `views open --jql` / `--keys -` + "do not
+      describe chips; set them".
+- [x] A3. AGENT_ACCESS.md: presentation layer row (SQL answers; views
       present); agent.md gets the same ranking sentence.
-- [ ] A4. RECIPES.md: one worked recipe ends in `views open --keys -`.
-- [ ] A5. Changelog entry for the wave (Unreleased).
+      Evidence: AGENT_ACCESS.md Views row + ranking paragraph;
+      `contracts/agent.md` "SQL answers; views present" after the
+      database-is-the-interface section; `--keys` / KEY examples added.
+- [x] A4. RECIPES.md: one worked recipe ends in `views open --keys -`.
+      Evidence: new "Show on the app" section — label + unresolved →
+      `tail -n +2 | gadak views open --keys -`.
+- [-] A5. Changelog entry for the wave (Unreleased).
+      Lead's at wave close (Track A briefing: do not touch CHANGELOG.md).
 
 ## Track M — MCP `gadak_show` (after Track G merges; internal/mcp/ +
 ## contracts/agent.md + docs/MCP.md)
