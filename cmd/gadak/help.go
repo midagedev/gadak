@@ -197,12 +197,15 @@ var helps = map[string]cmdHelp{
 	},
 	"views": {
 		summary: "list Jira filters and saved views; open one in the running UI",
-		usage:   "gadak [--profile <name>] views [list|show <name>|open <name>|save <name> --jql '…'] [--json] [--no-open]",
+		usage:   "gadak [--profile <name>] views [list|show <name>|open <name|KEY>|save <name> --jql '…'] [--keys …] [--json] [--no-open]",
 		examples: []string{
 			"gadak views",
 			"gadak views show \"NMA in progress\"",
 			"gadak views open \"NMA in progress\"",
+			"gadak views open NMB-140",
 			"gadak views open --jql 'project = NMA AND statusCategory = \"In Progress\"'",
+			"gadak views open --keys 'NMA-1,NMA-2'",
+			"gadak views open --keys -",
 			"gadak views open --jql 'project = NMA' --no-open",
 			"gadak views save \"Night triage\" --jql 'assignee = currentUser() AND resolution is EMPTY'",
 		},

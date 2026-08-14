@@ -1,7 +1,9 @@
 package jql
 
 import (
+	"encoding/json"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -288,5 +290,131 @@ func TestStatusCategoryId(t *testing.T) {
 	res := Parse(`statusCategory = 4`, fixedOpts())
 	if len(res.Filters.StatusCategory) != 1 || res.Filters.StatusCategory[0] != "inprogress" {
 		t.Fatalf("%+v (%s)", res.Filters.StatusCategory, res.Message)
+	}
+}
+
+// G1 FAIL-first: key IN must be a Keys axis, not a stuffed text needle.
+// On HEAD this fails: Match is empty (needle is "NMA-1 NMA-2") and Emit
+// writes text ~ "NMA-1 NMA-2". The fix populates Filter.Keys.
+func TestKeyInMatchAndEmit(t *testing.T) {
+	res := Parse(`key in (NMA-1, NMA-2)`, fixedOpts())
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	if res.Filters.Q != "" {
+		t.Fatalf("key IN stuffed q: %q", res.Filters.Q)
+	}
+	if got := res.Filters.Keys; len(got) != 2 || got[0] != "NMA-1" || got[1] != "NMA-2" {
+		t.Fatalf("Keys %+v", got)
+	}
+	a := Issue{Key: "NMA-1", Project: "NMA"}
+	b := Issue{Key: "nma-2", Project: "NMA"}
+	miss := Issue{Key: "NMA-3", Project: "NMA"}
+	if !Match(a, res.Filters) {
+		t.Error("NMA-1 should match key in (NMA-1, NMA-2)")
+	}
+	if !Match(b, res.Filters) {
+		t.Error("nma-2 should match key in (NMA-1, NMA-2) case-insensitively")
+	}
+	if Match(miss, res.Filters) {
+		t.Error("NMA-3 should not match")
+	}
+	emitted, omitted := Emit(res.Filters, Display{}, EmitOpts{})
+	if len(omitted) != 0 {
+		t.Fatalf("omitted %v", omitted)
+	}
+	if strings.Contains(emitted, "text ~") {
+		t.Errorf("emit lost the key axis: %q", emitted)
+	}
+	if !strings.Contains(emitted, `key in (`) ||
+		!strings.Contains(emitted, "NMA-1") ||
+		!strings.Contains(emitted, "NMA-2") {
+		t.Errorf("emit %q", emitted)
+	}
+	h := Hash(res.Filters, Display{})
+	if !strings.Contains(h, "ks=NMA-1,NMA-2") {
+		t.Errorf("hash %q", h)
+	}
+	if QueryURL(h) != "#/?"+h || HashURL(res.Filters, Display{}) != "#/?"+h {
+		t.Errorf("HashURL %q", HashURL(res.Filters, Display{}))
+	}
+}
+
+func TestKeyEqualsAndAliases(t *testing.T) {
+	for _, q := range []string{
+		`key = nma-1`,
+		`issuekey = NMA-1`,
+		`issue = NMA-1`,
+		`key = "nma-1"`,
+	} {
+		res := Parse(q, fixedOpts())
+		if res.Error != "" {
+			t.Fatalf("%s: %s: %s", q, res.Error, res.Message)
+		}
+		if got := res.Filters.Keys; len(got) != 1 || got[0] != "NMA-1" {
+			t.Fatalf("%s → Keys %+v", q, got)
+		}
+		if res.Filters.Q != "" {
+			t.Fatalf("%s stuffed q: %q", q, res.Filters.Q)
+		}
+		emitted, _ := Emit(res.Filters, Display{}, EmitOpts{})
+		if emitted != `key = "NMA-1"` {
+			t.Fatalf("%s emit %q", q, emitted)
+		}
+	}
+}
+
+func TestKeyOrderPreservedAndDeduped(t *testing.T) {
+	res := Parse(`key in (NMA-2, nma-1, NMA-2, NMA-1)`, fixedOpts())
+	if got := res.Filters.Keys; len(got) != 2 || got[0] != "NMA-2" || got[1] != "NMA-1" {
+		t.Fatalf("Keys %+v", got)
+	}
+	h := Hash(res.Filters, Display{})
+	if !strings.Contains(h, "ks=NMA-2,NMA-1") {
+		t.Fatalf("hash %q", h)
+	}
+}
+
+func TestKeyLimit(t *testing.T) {
+	vals := make([]string, MaxKeys+1)
+	for i := range vals {
+		vals[i] = "NMA-" + strconv.Itoa(i+1)
+	}
+	res := Parse("key in ("+strings.Join(vals, ", ")+")", fixedOpts())
+	if res.Error != ErrTooManyKeys {
+		t.Fatalf("error %q want %q (%s)", res.Error, ErrTooManyKeys, res.Message)
+	}
+	if !strings.Contains(res.Message, "501") || !strings.Contains(res.Message, "500") {
+		t.Fatalf("message %q", res.Message)
+	}
+	if err := CheckKeyLimit(MaxKeys + 1); err == nil || !strings.Contains(err.Error(), "501") {
+		t.Fatalf("CheckKeyLimit %v", err)
+	}
+	if err := CheckKeyLimit(MaxKeys); err != nil {
+		t.Fatalf("CheckKeyLimit(%d) %v", MaxKeys, err)
+	}
+}
+
+func TestSplitKeysCommaAndSpace(t *testing.T) {
+	got := SplitKeys("NMA-1, nma-2  NMA-3\nNMA-1")
+	if len(got) != 3 || got[0] != "NMA-1" || got[1] != "NMA-2" || got[2] != "NMA-3" {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestEmptyFilterKeysMarshal(t *testing.T) {
+	b, err := json.Marshal(EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"keys":[]`) {
+		t.Fatalf("empty Keys must marshal as []: %s", b)
+	}
+}
+
+func TestMatchKeysEmptyIsUnconstrained(t *testing.T) {
+	it := Issue{Key: "NMA-1"}
+	if !Match(it, EmptyFilter()) {
+		t.Fatal("empty Keys must not constrain")
 	}
 }

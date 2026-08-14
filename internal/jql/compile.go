@@ -54,6 +54,11 @@ func Parse(input string, opts Opts) Result {
 	res.Display = c.d
 	res.Applied = c.applied
 	res.Unsupported = c.unsupported
+	if c.keyCount > MaxKeys {
+		res.Error = ErrTooManyKeys
+		res.Message = KeyLimitMessage(c.keyCount)
+		return res
+	}
 	res.JQL, res.Omitted = Emit(c.f, c.d, EmitOpts{Email: opts.Email})
 	return res
 }
@@ -65,6 +70,7 @@ type compiler struct {
 	applied      []string
 	unsupported  []string
 	seenMultiAND map[string]bool
+	keyCount     int // set when Keys exceeds MaxKeys
 }
 
 func (c *compiler) skip(clause string) {
@@ -445,17 +451,9 @@ func (c *compiler) compileKey(cl *clause) {
 	if vs == nil {
 		return
 	}
-	// A key is a text query the list already treats as an issue-key match.
-	c.f.Q = strings.Join(mergeUnique(splitQ(c.f.Q), vs), " ")
+	c.f.Keys = mergeUniqueUpper(c.f.Keys, vs)
+	c.keyCount = len(c.f.Keys)
 	c.mark("key")
-}
-
-func splitQ(q string) []string {
-	q = strings.TrimSpace(q)
-	if q == "" {
-		return nil
-	}
-	return []string{q}
 }
 
 func (c *compiler) compileResolution(cl *clause) {
@@ -665,6 +663,22 @@ func mergeUnique(dst, src []string) []string {
 		}
 		seen[k] = true
 		dst = append(dst, s)
+	}
+	return dst
+}
+
+func mergeUniqueUpper(dst, src []string) []string {
+	seen := make(map[string]bool, len(dst))
+	for _, d := range dst {
+		seen[strings.ToUpper(d)] = true
+	}
+	for _, s := range src {
+		k := strings.ToUpper(strings.TrimSpace(s))
+		if k == "" || seen[k] {
+			continue
+		}
+		seen[k] = true
+		dst = append(dst, k)
 	}
 	return dst
 }

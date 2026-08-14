@@ -8,6 +8,9 @@ func Match(it Issue, f Filter) bool {
 	if len(f.JiraProject) > 0 && !containsFold(f.JiraProject, it.Project) {
 		return false
 	}
+	if len(f.Keys) > 0 && !containsFold(f.Keys, it.Key) {
+		return false
+	}
 	if len(f.StatusCategory) > 0 && !containsFold(f.StatusCategory, effectiveCategory(it.StatusCategory)) {
 		return false
 	}
