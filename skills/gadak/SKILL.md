@@ -119,6 +119,7 @@ gives one object per row, `--csv` is header plus CSV.
 
 ```sql
 -- Someone's open work, most urgent first
+-- assignee_email can be empty when the site hides emails; prefer assignee_id after looking it up by name.
 SELECT key, status, priority, summary FROM issues_full
 WHERE assignee_email = 'dana@example.com' AND status_category != 'done'
 ORDER BY priority_rank, updated_at DESC;

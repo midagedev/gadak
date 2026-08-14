@@ -11,9 +11,11 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
+A local SQLite file of your Jira — so "which epic is stuck?" is one query, not an unaskable one.
+
 gadak mirrors Jira *and* Confluence into one local SQLite file — issues,
-comments, history, wiki pages — indexed together and searchable in
-milliseconds. This window is where that work lives on your machine: triage
+comments, history, wiki pages — indexed together and searchable locally.
+This window is where that work lives on your machine: triage
 it in the [macOS app](docs/DESKTOP.md) or a browser tab, or let a coding
 agent ask in plain SQL and point the same window at the answer. One binary,
 one app, no gadak account.
@@ -26,11 +28,25 @@ you delete a directory and have lost nothing: Jira stays the source of truth.
   &nbsp;—&nbsp; 534 issues, in your browser, right now.
 </p>
 
+```bash
+gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
+           and epic_key <> '' group by epic_key order by 2 desc"
+```
+
+That last query is the point: JQL has no `GROUP BY`. "Which epic is actually
+stuck?" is not a hard question — it is an unaskable one, until the data is a
+file. [`docs/RECIPES.md`](docs/RECIPES.md) has the rest.
+
+<details>
+<summary>▶ 90-second tour of the paper list (GIF, 7 MB)</summary>
+
 <p align="center">
   <img src="docs/media/web-demo.gif" alt="The paper list narrows as you type; an issue opens with labels, priority and a reopen badge; documents and epics sit in the same window" width="900">
   <br>
   <sub>Generated from <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a> against the demo snapshot.</sub>
 </p>
+
+</details>
 
 Download [`Gadak-<version>-arm64.dmg`](https://github.com/midagedev/gadak/releases/latest)
 and open the window — or, from a terminal:
@@ -39,13 +55,7 @@ and open the window — or, from a terminal:
 brew install midagedev/tap/gadak
 gadak init && gadak sync    # Jira (and Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
-gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
-           and epic_key <> '' group by epic_key order by 2 desc"
 ```
-
-That last query is the point: JQL has no `GROUP BY`. "Which epic is actually
-stuck?" is not a hard question — it is an unaskable one, until the data is a
-file. [`docs/RECIPES.md`](docs/RECIPES.md) has the rest.
 
 > **Status: 0.13, still 0.x.** Sync, read API, write-through, desktop, web, CLI, and MCP are verified against a live site. Honest inventory: [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md).
 
@@ -87,16 +97,6 @@ gadak skill install         # schema + query patterns, no extra process
 gadak mcp install claude    # pins this binary and profile into the registration
 ```
 
-Then ask the thing Jira cannot answer at all, because the wiki is a second
-search: "what do we know about X?" One index holds both, so the answer can
-put a ticket and the design doc that drove it in the same sentence.
-
-<p align="center">
-  <img src="docs/media/mcp.gif" alt="Claude Code registers gadak as an MCP server, is asked to search Jira and the wiki for idempotency, calls gadak, and answers with an issue and the Confluence brief that drove it" width="800">
-  <br>
-  <sub>Five tools; no writes to the mirror or to Jira. A host with a shell can use <code>gadak sql</code> instead. Setup: <a href="docs/MCP.md">docs/MCP.md</a>.</sub>
-</p>
-
 SQL answers; the window presents. And if you already have the JQL, skip the
 SQL — the clauses land as chips:
 
@@ -110,6 +110,18 @@ gadak views open --jql 'project = NMA AND priority = High AND resolution is EMPT
   <img src="docs/media/agent.gif" alt="A terminal pipes gadak sql into gadak views open --keys - and the running app snaps to those five keys; then gadak views open --jql lands the same window on project, priority and unresolved chips" width="800">
   <br>
   <sub><code>gadak views open</code> writes a one-shot hash; the running app or serve tab applies it. Generated from <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a>.</sub>
+</p>
+
+For hosts without a shell (Claude Desktop), the same mirror is an MCP
+server. Ask the thing Jira cannot answer at all, because the wiki is a
+second search: "what do we know about X?" One index holds both, so the
+answer can put a ticket and the design doc that drove it in the same
+sentence.
+
+<p align="center">
+  <img src="docs/media/mcp.gif" alt="Claude Code registers gadak as an MCP server, is asked to search Jira and the wiki for idempotency, calls gadak, and answers with an issue and the Confluence brief that drove it" width="800">
+  <br>
+  <sub>Five tools; no writes to the mirror or to Jira. A host with a shell can use <code>gadak sql</code> instead. Setup: <a href="docs/MCP.md">docs/MCP.md</a>.</sub>
 </p>
 
 `gadak views open` is the "open in gadak" verb; `gadak open KEY` leaves for

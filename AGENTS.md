@@ -81,11 +81,16 @@ gadak sql --csv "…"    # header row plus CSV
 ```
 
 ```sql
+-- Find a person's ids first; email may be empty if the site hides it.
+SELECT DISTINCT assignee, assignee_id, assignee_email FROM issues
+WHERE assignee LIKE '%dana%' OR assignee_email LIKE '%dana%';
+
 -- 1. Someone's open work, most urgent first.
 -- Prefer issues_full for titles (summary comes from items.title).
+-- assignee_id is the value from the lookup above.
 SELECT key, status, priority, summary
 FROM issues_full
-WHERE assignee_id = 'account-id-from-the-mirror' AND status_category != 'done'
+WHERE assignee_id = '<id from the lookup above>' AND status_category != 'done'
 ORDER BY priority_rank, updated_at DESC;
 
 -- 2. What regressed — reopens are the highest-signal quality metric available

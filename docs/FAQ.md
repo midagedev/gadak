@@ -80,8 +80,9 @@ gadak talking to itself on loopback.
 
 - **[jira-cli](https://github.com/ankitpokhrel/jira-cli)** talks to Jira's REST
   API per command, so every listing is a network round trip and JQL is the query
-  language. gadak queries a local mirror: millisecond filters, SQL joins over the
-  changelog, offline reads — plus an app and a web UI over the same file. If all
+  language. gadak queries a local mirror: filters without a network round trip,
+  SQL joins over the changelog, offline reads — plus an app and a web UI over
+  the same file. If all
   you want is "create an issue from the terminal", jira-cli is lighter.
 - **Linear** is a different tracker. If your team can move, move. gadak is for
   the (much larger) group whose org keeps Jira: it gives you Linear-ish speed

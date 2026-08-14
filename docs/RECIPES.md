@@ -33,14 +33,15 @@ where status_category = 'inprogress'
 order by status_changed_at asc limit 20
 ```
 
-**What went straight back after a "Done"?** Transitions as rows:
+**What went straight back after a "Done"?**
 
 ```sql
-select i.key, ch.at, ch.author, ch.from_value, ch.to_value
-from changelog ch
-join issues i on i.item_id = ch.item_id
-where ch.field = 'status' and ch.from_value = 'Done'
-order by ch.at desc limit 20
+-- from_value/to_value hold display names and localize per site; reopen_count is derived from status *categories* and is stable.
+select key, summary, reopen_count, reopened_at, reopen_reason
+from issues_full
+where reopen_count > 0
+order by reopen_count desc, reopened_at desc
+limit 20
 ```
 
 **Unassigned and new, oldest first** — the queue nobody owns:
