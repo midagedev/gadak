@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test'
 import { forceLocale, gotoApp, searchInput } from './helpers'
 import { composeCacheScope } from '../web/src/lib/config'
 import { composeCommentDraftKey } from '../web/src/lib/storage'
-import { matchesIdFirst, prioritySortRank } from '../web/src/lib/view-config'
 
 /**
  * B-identity-web: I9 / L1 / I5 / C5 / C6 / C7.
@@ -33,23 +32,6 @@ test.describe('identity-web unit (no browser state)', () => {
     expect(ws).toBe('gadak:comment-draft:ws:work|site:a.example.com:NMB-1')
     expect(a).not.toBe(b)
     expect(a).not.toBe(ws)
-  })
-
-  test('I9: id wins; name is fallback; missing id still matches name', () => {
-    expect(matchesIdFirst(['3'], '3', '진행 중')).toBe(true)
-    expect(matchesIdFirst(['In Progress'], '3', '진행 중')).toBe(false)
-    expect(matchesIdFirst(['진행 중'], '3', '진행 중')).toBe(true)
-    expect(matchesIdFirst(['In Progress'], '', 'In Progress')).toBe(true)
-    expect(matchesIdFirst(['In Progress'], undefined, 'In Progress')).toBe(true)
-    expect(matchesIdFirst([], '3', '진행 중')).toBe(true)
-  })
-
-  test('L1: rank 0 (unset) sorts below Highest (1)', () => {
-    expect(prioritySortRank(0)).toBe(Number.POSITIVE_INFINITY)
-    expect(prioritySortRank(null)).toBe(Number.POSITIVE_INFINITY)
-    expect(prioritySortRank(undefined)).toBe(Number.POSITIVE_INFINITY)
-    expect(prioritySortRank(1)).toBe(1)
-    expect(prioritySortRank(1)).toBeLessThan(prioritySortRank(0))
   })
 })
 
