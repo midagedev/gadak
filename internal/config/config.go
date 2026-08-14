@@ -11,7 +11,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 )
 
 // Member is one entry of the static member directory injected through settings.
@@ -219,9 +221,41 @@ func migrateDB(oldPath, newPath string) {
 	_ = migratePath(oldPath+"-shm", newPath+"-shm")
 }
 
+// maxProfileNameLen is the longest allowed named-profile directory name.
+const maxProfileNameLen = 64
+
+// profileNameRe is the only allowed shape for a named profile. Empty and
+// "default" are handled separately (they mean the root, not a directory name).
+var profileNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
+// validProfileName is the single owner of profile-name checks. Every path
+// that turns a name into a directory goes through DirFor, which calls this.
+func validProfileName(name string) error {
+	if name == "" || name == "default" {
+		return nil
+	}
+	switch {
+	case name == "." || name == "..":
+		return fmt.Errorf("invalid profile name %q: cannot be %q", name, name)
+	case strings.ContainsRune(name, 0):
+		return fmt.Errorf("invalid profile name %q: contains a null byte", name)
+	case strings.ContainsAny(name, `/\`):
+		return fmt.Errorf("invalid profile name %q: contains a path separator", name)
+	case len(name) > maxProfileNameLen:
+		return fmt.Errorf("invalid profile name %q: longer than %d characters", name, maxProfileNameLen)
+	case !profileNameRe.MatchString(name):
+		return fmt.Errorf("invalid profile name %q: must start with a letter or digit and contain only letters, digits, '.', '_' or '-'", name)
+	}
+	return nil
+}
+
 // DirFor is the config directory for a named profile. "" or "default" means the
 // root (GADAK_HOME / ~/.gadak); any other name lives under profiles/<name>.
+// Names that fail validProfileName return an error and no path.
 func DirFor(profile string) (string, error) {
+	if err := validProfileName(profile); err != nil {
+		return "", err
+	}
 	base, err := homeRoot()
 	if err != nil {
 		return "", err

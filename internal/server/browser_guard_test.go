@@ -12,6 +12,42 @@ import (
 // browserGuard tests cover Host (DNS rebinding) and Origin (CSRF) checks
 // wired into Handler.ServeHTTP before the mux. See browser_guard.go.
 
+func TestGuardBrowserWrapsNext(t *testing.T) {
+	var hit bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hit = true
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	h := GuardBrowser(next)
+
+	req := httptest.NewRequest(http.MethodGet, "/config.json", nil)
+	req.Host = "attacker.example"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status %d, want 403; body %s", rec.Code, rec.Body.String())
+	}
+	if got := decode[map[string]string](t, rec)["error"]; got != "forbidden_host" {
+		t.Fatalf("error %q, want forbidden_host", got)
+	}
+	if hit {
+		t.Fatal("next handler ran for forbidden host")
+	}
+
+	hit = false
+	req2 := httptest.NewRequest(http.MethodGet, "/config.json", nil)
+	req2.Host = "127.0.0.1"
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("loopback status %d, want 200; body %s", rec2.Code, rec2.Body.String())
+	}
+	if !hit {
+		t.Fatal("next handler did not run for loopback host")
+	}
+}
+
 func TestBrowserGuardForbiddenOrigin(t *testing.T) {
 	db, _ := fixture(t)
 	h := New(db, &config.Config{}) // no credential → past the guard would be 409

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -68,6 +69,44 @@ func TestDirForDefaultAndNamed(t *testing.T) {
 	}
 	if d != home {
 		t.Fatalf("Dir() default = %q, want %q", d, home)
+	}
+}
+
+func TestDirForRejectsPathEscape(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+
+	for _, name := range []string{"../..", "../../.ssh", ".."} {
+		got, err := DirFor(name)
+		if err == nil {
+			t.Errorf("DirFor(%q) = %q, want error (path escapes %q)", name, got, home)
+			continue
+		}
+		if !strings.Contains(err.Error(), "invalid profile name") {
+			t.Errorf("DirFor(%q) error %v, want invalid profile name", name, err)
+		}
+		if got != "" {
+			t.Errorf("DirFor(%q) returned path %q with error, want empty", name, got)
+		}
+	}
+	if _, err := LoadFor("../../.ssh"); err == nil {
+		t.Fatal("LoadFor(\"../../.ssh\") succeeded, want error")
+	}
+	escaped := filepath.Join(filepath.Dir(home), ".ssh")
+	if _, err := os.Stat(escaped); !os.IsNotExist(err) {
+		t.Fatalf("escaped path %q appeared: %v", escaped, err)
+	}
+
+	for _, name := range []string{"work", "demo-1"} {
+		got, err := DirFor(name)
+		if err != nil {
+			t.Errorf("DirFor(%q) unexpected error: %v", name, err)
+			continue
+		}
+		want := filepath.Join(home, "profiles", name)
+		if got != want {
+			t.Errorf("DirFor(%q) = %q, want %q", name, got, want)
+		}
 	}
 }
 
