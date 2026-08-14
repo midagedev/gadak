@@ -36,6 +36,8 @@
   const email = $derived(person.selectedEmail)
   const member = $derived(person.member)
   const identity = $derived(member?.jira_account_id ?? email)
+  /** Address line: real email when the directory has one, else the identity key. */
+  const contact = $derived(member?.email || email || '')
   const matches = (issue: IssueLite, role: 'assignee' | 'reporter') =>
     issueMatchesPerson(issue, role, member?.jira_account_id) || issueMatchesPerson(issue, role, email)
   // What this person is called on screen. Falls back to the email so a member
@@ -97,12 +99,14 @@
     <div class="relative z-10 flex-none bg-bg-panel">
       <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
         <div class="mb-3 flex items-start gap-3">
-          <Avatar {name} {email} size={36} />
+          <Avatar {name} email={member?.email || email} accountId={member?.jira_account_id} size={36} />
           <div class="min-w-0 flex-1">
             <h2 class="type-subject truncate text-title text-text-primary" data-testid="person-name">
               {name}
             </h2>
-            <p class="truncate text-micro text-text-muted" title={email}>{email}</p>
+            {#if contact}
+              <p class="truncate text-micro text-text-muted" title={contact}>{contact}</p>
+            {/if}
           </div>
           <button
             type="button"

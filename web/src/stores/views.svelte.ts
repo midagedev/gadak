@@ -14,7 +14,9 @@ import { STORAGE_KEYS } from '../lib/storage'
 import type { SavedView, SourceView } from '../lib/types'
 import type { ViewConfig } from '../lib/view-config'
 
-const LS_KEY = STORAGE_KEYS.personalViews
+function personalViewsKey(): string {
+  return STORAGE_KEYS.personalViews
+}
 
 export interface PersonalView {
   id: string
@@ -25,7 +27,7 @@ export interface PersonalView {
 
 function loadPersonal(): PersonalView[] {
   try {
-    const raw = localStorage.getItem(LS_KEY)
+    const raw = localStorage.getItem(personalViewsKey())
     if (!raw) return []
     const arr = JSON.parse(raw) as PersonalView[]
     return Array.isArray(arr) ? arr : []
@@ -36,7 +38,7 @@ function loadPersonal(): PersonalView[] {
 
 function savePersonal(views: PersonalView[]): void {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(views))
+    localStorage.setItem(personalViewsKey(), JSON.stringify(views))
   } catch (e) {
     console.warn('[views] 개인 뷰 저장 실패', e)
   }

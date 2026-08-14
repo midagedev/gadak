@@ -28,10 +28,12 @@ import {
   hasAnyFilter,
   isStale,
   isViewParam,
+  matchesIdFirst,
   MULTI_FIELDS,
   normalizeKeys,
   orderColumns,
   parseConfig,
+  prioritySortRank,
   type ColumnKey,
   type GroupBy,
   type MultiField,
@@ -628,15 +630,15 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
   const out: IssueLite[] = []
   for (const it of all) {
     if (f.status_category.length && !f.status_category.includes(effectiveCategory(it))) continue
-    if (f.status.length && !f.status.includes(it.status)) continue
+    if (f.status.length && !matchesIdFirst(f.status, it.status_id, it.status)) continue
     if (f.assignee_email.length && !f.assignee_email.some((v) => issueMatchesPerson(it, 'assignee', v)))
       continue
     if (f.reporter_email.length && !f.reporter_email.some((v) => issueMatchesPerson(it, 'reporter', v)))
       continue
     if (f.team_group.length && !(it.team_group && f.team_group.includes(it.team_group))) continue
-    if (f.priority.length && !(it.priority && f.priority.includes(it.priority))) continue
+    if (f.priority.length && !matchesIdFirst(f.priority, null, it.priority)) continue
     if (f.severity.length && !(it.severity && f.severity.includes(it.severity))) continue
-    if (f.issue_type.length && !f.issue_type.includes(it.issue_type)) continue
+    if (f.issue_type.length && !matchesIdFirst(f.issue_type, it.issue_type_id, it.issue_type)) continue
     if (!matchesSelected(f.components, it.components)) continue
     if (!matchesSelected(f.fix_versions, it.fix_versions)) continue
     if (!matchesDynamicFields(f.fields, it)) continue
@@ -804,12 +806,15 @@ export function sortIssues(
         return diff !== 0 ? diff : cmpStr(a.updated_at, b.updated_at, -1)
       }
       case 'priority': {
-        // priority_rank: lower = higher priority. null always sorts last.
-        const ar = a.priority_rank
-        const br = b.priority_rank
-        if (ar == null && br == null) return cmpStr(a.updated_at, b.updated_at, -1)
-        if (ar == null) return 1
-        if (br == null) return -1
+        // priority_rank: lower = higher priority. Unset is 0 on the wire (not
+        // null) and always sorts last, so untriaged never outranks Highest.
+        const ar = prioritySortRank(a.priority_rank)
+        const br = prioritySortRank(b.priority_rank)
+        const aUnset = ar === Number.POSITIVE_INFINITY
+        const bUnset = br === Number.POSITIVE_INFINITY
+        if (aUnset && bUnset) return cmpStr(a.updated_at, b.updated_at, -1)
+        if (aUnset) return 1
+        if (bUnset) return -1
         const diff = (ar - br) * d
         return diff !== 0 ? diff : cmpStr(a.updated_at, b.updated_at, -1)
       }
@@ -834,7 +839,10 @@ function groupKeyOf(
       return { key: category, label }
     }
     case 'status':
-      return { key: issue.status || '(none)', label: issue.status || t('group.noStatus') }
+      return {
+        key: issue.status_id || issue.status || '(none)',
+        label: issue.status || t('group.noStatus'),
+      }
     case 'assignee':
       return personIdentity(issue, 'assignee')
         ? {
@@ -854,7 +862,10 @@ function groupKeyOf(
       // Group→product mapping is org-specific; read from runtime config.
       return config().productByGroup[issue.team_group ?? ''] ?? { key: '', label: t('group.noProduct') }
     case 'issue_type':
-      return { key: issue.issue_type || '', label: issue.issue_type || t('group.noType') }
+      return {
+        key: issue.issue_type_id || issue.issue_type || '',
+        label: issue.issue_type || t('group.noType'),
+      }
     case 'development_test_result': {
       const result = issue.development_test_result?.trim()
       return result ? { key: result, label: result } : { key: 'none', label: t('group.none') }
@@ -971,7 +982,7 @@ export function buildGroups(list: IssueLite[], by: GroupBy): IssueGroup[] {
 }
 
 function rankOf(issue: IssueLite | undefined): number {
-  return issue?.priority_rank ?? Number.MAX_SAFE_INTEGER
+  return prioritySortRank(issue?.priority_rank)
 }
 
 /* ── Active chips ── */
@@ -1045,10 +1056,16 @@ function buildFacets(
   }
   const assigneeLabels = new Map<string, string>()
   const reporterLabels = new Map<string, string>()
+  const statusLabels = new Map<string, string>()
+  const typeLabels = new Map<string, string>()
 
   for (const it of all) {
     bump(counters.status_category, effectiveCategory(it))
-    bump(counters.status, it.status)
+    const statusToken = it.status_id || it.status
+    if (statusToken) {
+      bump(counters.status, statusToken)
+      if (!statusLabels.has(statusToken)) statusLabels.set(statusToken, it.status || statusToken)
+    }
     const assignee = personIdentity(it, 'assignee')
     const reporter = personIdentity(it, 'reporter')
     bump(counters.assignee_email, assignee)
@@ -1060,7 +1077,13 @@ function buildFacets(
     if (it.team_group) bump(counters.team_group, it.team_group)
     if (it.priority) bump(counters.priority, it.priority)
     if (it.severity) bump(counters.severity, it.severity)
-    if (it.issue_type) bump(counters.issue_type, it.issue_type)
+    {
+      const typeToken = it.issue_type_id || it.issue_type
+      if (typeToken) {
+        bump(counters.issue_type, typeToken)
+        if (!typeLabels.has(typeToken)) typeLabels.set(typeToken, it.issue_type || typeToken)
+      }
+    }
     for (const value of it.components) bump(counters.components, value)
     for (const value of it.fix_versions) bump(counters.fix_versions, value)
     for (const run of it.qa_runs ?? []) bump(counters.qa_run, run.key)
@@ -1087,7 +1110,9 @@ function buildFacets(
           : field === 'reporter_email'
             ? reporterLabels.get(value)
             : undefined
-      return { value, count, label: personLabel ?? facetLabel(field, value, all, members) }
+      const named =
+        field === 'status' ? statusLabels.get(value) : field === 'issue_type' ? typeLabels.get(value) : undefined
+      return { value, count, label: personLabel ?? named ?? facetLabel(field, value, all, members) }
     })
     values.sort((a, b) => b.count - a.count || (a.label < b.label ? -1 : 1))
     out[field] = values

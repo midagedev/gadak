@@ -1,7 +1,7 @@
 import { mount } from 'svelte'
 import './app.css'
 import App from './App.svelte'
-import { basePath, loadConfig } from './lib/config'
+import { applyCacheScopeDebug, basePath, loadConfig } from './lib/config'
 import { migrateStorageKeys } from './lib/storage'
 
 const target = document.getElementById('app')
@@ -108,6 +108,7 @@ void (async () => {
     return
   }
   await loadConfig()
+  applyCacheScopeDebug()
   // One-shot migrate issue-nav:* → gadak:*. Before store onMount.
   migrateStorageKeys()
 

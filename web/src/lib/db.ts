@@ -10,12 +10,13 @@
  */
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-import { workspaceName } from './config'
+import { cacheScopeId } from './config'
 import type { CacheMeta, IssueLite, WriteMetaCache } from './types'
 
-// Workspace mounts get their own database: two mirrors on one origin would
-// otherwise overwrite each other's cached issue pool.
-const DB_NAME = workspaceName() ? `issue-navigator:ws:${workspaceName()}` : 'issue-navigator'
+/** IndexedDB name for a cache partition. Empty scope keeps the historic name. */
+export function issueCacheDbName(scope = cacheScopeId()): string {
+  return scope ? `issue-navigator:${scope}` : 'issue-navigator'
+}
 // v2 invalidates IssueLite rows written before reporter_id joined the row
 // contract. SQLite already has the IDs, so one fresh bootstrap is sufficient;
 // write metadata is independent and remains warm.
@@ -44,7 +45,7 @@ let dbPromise: Promise<IDBPDatabase<IssueDB>> | null = null
 
 function db(): Promise<IDBPDatabase<IssueDB>> {
   if (!dbPromise) {
-    const opening = openDB<IssueDB>(DB_NAME, DB_VERSION, {
+    const opening = openDB<IssueDB>(issueCacheDbName(), DB_VERSION, {
       upgrade(database, oldVersion, _newVersion, transaction) {
         if (!database.objectStoreNames.contains('issues')) {
           database.createObjectStore('issues', { keyPath: 'issue_key' })

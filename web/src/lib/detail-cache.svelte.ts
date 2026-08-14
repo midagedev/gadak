@@ -18,6 +18,21 @@ const MAX = 50
 const cache = new Map<string, DetailResponse>()
 /** key → in-flight Promise (coalesce duplicate requests). */
 const inflight = new Map<string, Promise<DetailResponse>>()
+/** Bumped on every invalidation so an open panel re-fetches. */
+let epoch = $state(0)
+
+function publishDebug(): void {
+  if (typeof document === 'undefined') return
+  document.documentElement.dataset.detailCache = [...cache.keys()].join(',')
+}
+
+export function cacheEpoch(): number {
+  return epoch
+}
+
+export function isCached(key: string): boolean {
+  return cache.has(key)
+}
 
 /** LRU: move a recently used key to the end. */
 function touch(key: string, value: DetailResponse): void {
@@ -46,11 +61,15 @@ export function getDetailCached(key: string): Promise<DetailResponse> {
 
   const p = getDetail(key)
     .then((data) => {
-      touch(key, data)
+      // Dropped from inflight = invalidated while in flight — do not re-cache stale bytes.
+      if (inflight.get(key) === p) {
+        touch(key, data)
+        publishDebug()
+      }
       return data
     })
     .finally(() => {
-      inflight.delete(key)
+      if (inflight.get(key) === p) inflight.delete(key)
     })
   inflight.set(key, p)
   return p
@@ -65,16 +84,20 @@ export function prefetchDetail(key: string): void {
   void getDetailCached(key).catch(() => {})
 }
 
-/** Invalidate one key (issue updated_at changed). */
+/** Invalidate one key (issue updated_at changed). Single owner for every reload path. */
 export function invalidate(key: string): void {
   cache.delete(key)
   inflight.delete(key)
+  epoch++
+  publishDebug()
 }
 
-/** Invalidate all (tests / re-login etc.). */
+/** Invalidate all (tests / re-login / full bootstrap). */
 export function invalidateAll(): void {
   cache.clear()
   inflight.clear()
+  epoch++
+  publishDebug()
 }
 
 /**

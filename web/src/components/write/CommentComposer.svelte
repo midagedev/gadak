@@ -15,12 +15,11 @@
   import { createUserSearch } from '../../lib/user-search.svelte'
   import type { CommentMention, JiraUser, UploadedAttachment } from '../../lib/types'
   import { isHostedDemo } from '../../lib/config'
+  import { commentDraftKey } from '../../lib/storage'
   import Icon from '../ui/Icon.svelte'
 
   /** onsubmitted fires after a comment commits — the quick-comment dialog closes on it. */
   let { issueKey, onsubmitted }: { issueKey: string; onsubmitted?: () => void } = $props()
-
-  const DRAFT_PREFIX = 'gadak:comment-draft:'
 
   let text = $state('')
   let mentions = $state<CommentMention[]>([])
@@ -35,7 +34,7 @@
   let dragOver = $state(false)
 
   function draftKey(key: string): string {
-    return DRAFT_PREFIX + key
+    return commentDraftKey(key)
   }
 
   function loadDraft(key: string): string {

@@ -22,7 +22,7 @@
   import { write } from '../../stores/write.svelte'
   import { feature, isHostedDemo } from '../../lib/config'
   import type { AdfNode } from '../../lib/types'
-  import { getDetailCached, invalidate } from '../../lib/detail-cache.svelte'
+  import { cacheEpoch, getDetailCached, invalidate } from '../../lib/detail-cache.svelte'
   import { createResource } from '../../lib/resource.svelte'
   import { onEscape } from '../../lib/dom-actions'
   import { jiraUrl } from './format'
@@ -51,7 +51,7 @@
   const resource = createResource(
     () => selection.selectedKey,
     (k) => getDetailCached(k),
-    { watch: () => write.detailNonce },
+    { watch: () => write.detailNonce + cacheEpoch() },
   )
   const detail = $derived(resource.data)
   const errorKind = $derived(resource.errorKind)

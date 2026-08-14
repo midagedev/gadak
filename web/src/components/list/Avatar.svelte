@@ -10,20 +10,25 @@
 
   let {
     email,
+    accountId = null,
     name = null,
     size = 20,
     onclick,
   }: {
     email: string | null
+    accountId?: string | null
     name?: string | null
     size?: number
     onclick?: (e: MouseEvent) => void
   } = $props()
 
-  const member = $derived(email ? issues.memberOf(email) : undefined)
+  const member = $derived(
+    (accountId ? issues.memberOfAccountId(accountId) : undefined) ??
+      (email ? issues.memberOf(email) : undefined),
+  )
   const displayName = $derived(member?.name ?? name ?? email ?? t('common.unassigned'))
   const img = $derived(member?.profile_image ?? null)
-  const ini = $derived(initials(member?.name ?? name, email))
+  const ini = $derived(initials(member?.name ?? name, email ?? accountId))
   const orgColor = $derived(memberOrgColor(member))
   const tooltip = $derived(memberTooltip(member, displayName))
 
@@ -59,7 +64,7 @@
     '#3a5270',
     '#5c4870',
   ]
-  const bg = $derived(PALETTE[colorIndex(email ?? name ?? '')])
+  const bg = $derived(PALETTE[colorIndex(accountId ?? email ?? name ?? '')])
 
   /* Which image URL failed, rather than a bare "did it fail" flag. This row is
      recycled through the virtual list, so the next member arrives in the same
@@ -92,7 +97,7 @@
       loading="lazy"
       onerror={() => (brokenSrc = img)}
     />
-  {:else if email || name}
+  {:else if email || name || accountId}
     <span
       class="flex h-full w-full items-center justify-center font-semibold text-white"
       style:background={bg}

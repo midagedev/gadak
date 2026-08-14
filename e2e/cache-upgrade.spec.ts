@@ -1,7 +1,8 @@
 import { expect, test, type Page, type Request } from '@playwright/test'
 import { gotoApp } from './helpers'
 
-const DB_NAME = 'issue-navigator'
+// e2e/serve.sh writes site https://nimbus.example.com — see composeCacheScope.
+const DB_NAME = 'issue-navigator:site:nimbus.example.com'
 
 interface CacheState {
   version: number

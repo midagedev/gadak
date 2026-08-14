@@ -17,7 +17,8 @@ import { SvelteMap } from 'svelte/reactivity'
 import type { FieldSpec, IssueLite, Member, SyncHealth, SyncSourceHealth } from '../lib/types'
 import * as api from '../lib/api'
 import * as db from '../lib/db'
-import { isHostedDemo } from '../lib/config'
+import { applyCacheScopeDebug, isHostedDemo } from '../lib/config'
+import { invalidate, invalidateAll } from '../lib/detail-cache.svelte'
 import type { CacheMeta } from '../lib/types'
 
 const POLL_MS = 15_000
@@ -46,10 +47,12 @@ export type MirrorPuller = (mode: 'full' | 'incremental', quiet: boolean) => Pro
 class IssuesStore {
   /** issue_key → IssueLite. Delta replaces individual Map entries → only those rows re-render. */
   pool = new SvelteMap<string, IssueLite>()
-  /** email → Member (avatar/part). */
+  /** email or account id → Member (avatar/part). Email-less people key on account id. */
   members = new SvelteMap<string, Member>()
   /** normalized email → Member, for case-insensitive legacy filter tokens. */
   #membersByNormalizedEmail = new SvelteMap<string, Member>()
+  /** jira_account_id → Member. O(1) on the filter path. */
+  #membersByAccountId = new SvelteMap<string, Member>()
 
   /** True once cache hydration or first bootstrap finishes and the UI can run. */
   ready = $state(false)
@@ -158,6 +161,7 @@ class IssuesStore {
   async init(): Promise<void> {
     if (this.#initialized) return
     this.#initialized = true
+    applyCacheScopeDebug()
 
     // ① Hydration
     try {
@@ -227,9 +231,9 @@ class IssuesStore {
     // Full replace (drop stale tombstone leftovers)
     this.pool.clear()
     for (const it of data.issues) this.pool.set(it.issue_key, it)
-    this.members.clear()
-    this.#membersByNormalizedEmail.clear()
+    this.#clearMembers()
     for (const m of data.members) this.#setMember(m)
+    invalidateAll()
 
     this.lastSync = data.server_time
     this.#syncVersion = data.sync_version
@@ -279,12 +283,17 @@ class IssuesStore {
     syncHealth?: SyncHealth,
     membersVersion?: string,
   ): Promise<void> {
-    for (const it of upserted) this.pool.set(it.issue_key, it)
-    for (const key of deletedKeys) this.pool.delete(key)
+    for (const it of upserted) {
+      this.pool.set(it.issue_key, it)
+      invalidate(it.issue_key)
+    }
+    for (const key of deletedKeys) {
+      this.pool.delete(key)
+      invalidate(key)
+    }
     // members arrive only when changed (omit → keep existing). Refresh hash when present.
     if (members) {
-      this.members.clear()
-      this.#membersByNormalizedEmail.clear()
+      this.#clearMembers()
       for (const member of members) this.#setMember(member)
     }
     if (membersVersion !== undefined) this.#membersVersion = membersVersion
@@ -427,23 +436,36 @@ class IssuesStore {
     return this.pool.get(issueKey)
   }
 
+  #clearMembers(): void {
+    this.members.clear()
+    this.#membersByNormalizedEmail.clear()
+    this.#membersByAccountId.clear()
+  }
+
   #setMember(member: Member): void {
-    this.members.set(member.email, member)
-    this.#membersByNormalizedEmail.set(member.email.toLowerCase(), member)
+    const email = member.email?.trim() ?? ''
+    const accountId = member.jira_account_id?.trim() ?? ''
+    if (email) {
+      this.members.set(email, member)
+      this.#membersByNormalizedEmail.set(email.toLowerCase(), member)
+    } else if (accountId) {
+      this.members.set(accountId, member)
+    }
+    if (accountId) this.#membersByAccountId.set(accountId, member)
   }
 
   memberOf(email: string | null | undefined): Member | undefined {
-    return email
-      ? (this.members.get(email) ?? this.#membersByNormalizedEmail.get(email.toLowerCase()))
-      : undefined
+    if (!email) return undefined
+    return (
+      this.members.get(email) ??
+      this.#membersByNormalizedEmail.get(email.toLowerCase()) ??
+      this.#membersByAccountId.get(email)
+    )
   }
 
   memberOfAccountId(accountId: string | null | undefined): Member | undefined {
     if (!accountId) return undefined
-    for (const member of this.members.values()) {
-      if (member.jira_account_id === accountId) return member
-    }
-    return undefined
+    return this.#membersByAccountId.get(accountId) ?? this.members.get(accountId)
   }
 }
 

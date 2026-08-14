@@ -499,6 +499,38 @@ export const RESOLVED_STATUS_NAMES = new Set([
 
 export type StatusCategory = 'new' | 'inprogress' | 'done'
 
+/**
+ * Filter token match: id first, display name only as a fallback for legacy
+ * saved views that still store a localized name. Empty `selected` is no
+ * constraint (same as the other multi-value axes).
+ */
+export function matchesIdFirst(
+  selected: string[],
+  id: string | null | undefined,
+  name: string | null | undefined,
+): boolean {
+  if (selected.length === 0) return true
+  const idv = (id ?? '').trim()
+  if (idv && selected.includes(idv)) return true
+  const namev = name ?? ''
+  if (namev && selected.includes(namev)) {
+    if (import.meta.env?.DEV && idv) {
+      console.debug('[filter] name fallback', { id: idv, name: namev })
+    }
+    return true
+  }
+  return false
+}
+
+/**
+ * Sort key for priority_rank. The wire sends 0 for unset (not null); 0 must
+ * sort as the lowest priority, never as more urgent than Highest (usually 1).
+ */
+export function prioritySortRank(rank: number | null | undefined): number {
+  if (rank == null || rank === 0) return Number.POSITIVE_INFINITY
+  return rank
+}
+
 /** Trust server status_category first; fall back to status name only when absent. */
 export function effectiveCategory(issue: IssueLite): StatusCategory {
   const sc = (issue.status_category ?? '').toLowerCase()
