@@ -358,9 +358,12 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The issue's attachment list changed, so the mirror has to catch up before the
-	// detail panel re-renders.
+	// detail panel re-renders. Jira already accepted the upload: a re-read
+	// failure is 502 write_applied_mirror_stale (contracts/api.md), not 200.
 	if err := sync.SyncIssue(r.Context(), cfg, s.db, key, sync.Options{Client: c}); err != nil {
 		log.Printf("server: mirror refresh after upload to %s: %v", key, err)
+		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		return
 	}
 	out := make([]map[string]any, 0, len(uploaded))
 	for _, a := range uploaded {

@@ -418,7 +418,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 			Size:        a.Size,
 			IsImage:     strings.HasPrefix(a.MimeType, "image/"),
 			IsVideo:     strings.HasPrefix(a.MimeType, "video/"),
-			CacheStatus: s.cacheStatus(id),
+			CacheStatus: s.cacheStatus(d.IssueKey, id),
 			CreatedAt:   nilIfEmpty(a.CreatedAt),
 			ContentURL:  attachmentURL(d.IssueKey, id),
 		})
@@ -463,7 +463,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	// Start pulling the images down while the client renders the rest of the
 	// detail, so opening an issue with screenshots does not wait on Jira twice.
-	s.warmAttachments(s.config(), res.Attachments)
+	s.warmAttachments(s.config(), res.IssueKey, res.Attachments)
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -551,9 +551,18 @@ var proxyClient = &http.Client{Timeout: 2 * time.Minute}
 // attachment keeps working with no credential at all — which is how the bundled
 // demo snapshot shows real images offline.
 func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
+	issueKey := r.PathValue("key")
 	id := r.PathValue("id")
+	// Membership first: a cached id must not be readable under another issue
+	// key, and a site switch cannot serve leftover bytes for an issue the new
+	// mirror does not own.
+	if !s.attachmentBelongs(r.Context(), issueKey, id) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	ck := s.attachmentCacheKey(issueKey, id)
 	if s.cache != nil {
-		if served := s.serveCached(w, r, id); served {
+		if served := s.serveCached(w, r, ck); served {
 			return
 		}
 	}
@@ -568,7 +577,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 	// later view is local. A cache failure is not a request failure: fall through
 	// to a straight stream.
 	if s.cache != nil {
-		err := s.cache.Fill(id, func() (io.ReadCloser, attachcache.Meta, error) {
+		err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
 			res, err := s.fetchAttachment(r.Context(), cfg, id)
 			if err != nil {
 				return nil, attachcache.Meta{}, err
@@ -580,7 +589,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 		})
 		switch {
 		case err == nil:
-			if s.serveCached(w, r, id) {
+			if s.serveCached(w, r, ck) {
 				return
 			}
 		case errors.Is(err, errAttachmentAuth):
@@ -642,23 +651,50 @@ func (s *server) serveCached(w http.ResponseWriter, r *http.Request, id string) 
 
 // cacheStatus is what the client shows next to an attachment: "ready" once the
 // bytes are local, "pending" while they still have to come from Jira.
-func (s *server) cacheStatus(id string) string {
-	if s.cache == nil || !s.cache.Has(id) {
+func (s *server) cacheStatus(issueKey, id string) string {
+	if s.cache == nil || !s.cache.Has(s.attachmentCacheKey(issueKey, id)) {
 		return "pending"
 	}
 	return "ready"
 }
 
+// attachmentCacheKey is the on-disk identity: site + profile + issue + id.
+func (s *server) attachmentCacheKey(issueKey, id string) string {
+	return attachcache.Key(s.config().Site, s.profile, issueKey, id)
+}
+
+// attachmentBelongs reports whether the mirror lists id on issueKey. Used to
+// refuse a cached (or upstream) fetch under a foreign issue key.
+func (s *server) attachmentBelongs(ctx context.Context, issueKey, id string) bool {
+	if issueKey == "" || id == "" {
+		return false
+	}
+	d, err := s.db.Detail(ctx, issueKey)
+	if err != nil || d == nil {
+		return false
+	}
+	for _, a := range d.Attachments {
+		aid := a.ExternalID
+		if aid == "" {
+			aid = a.ID
+		}
+		if aid == id {
+			return true
+		}
+	}
+	return false
+}
+
 // warmAttachments pre-downloads the inline-renderable attachments of an issue the
 // user just opened, so the images are local before the browser asks for them.
 // Bounded and fire-and-forget: a failure only means the proxy path handles it.
-func (s *server) warmAttachments(cfg *config.Config, atts []detailAttachment) {
+func (s *server) warmAttachments(cfg *config.Config, issueKey string, atts []detailAttachment) {
 	if s.cache == nil || !cfg.HasCredential() {
 		return
 	}
 	var pending []detailAttachment
 	for _, a := range atts {
-		if (a.IsImage || a.IsVideo) && !s.cache.Has(a.ID) {
+		if (a.IsImage || a.IsVideo) && !s.cache.Has(s.attachmentCacheKey(issueKey, a.ID)) {
 			pending = append(pending, a)
 		}
 	}
@@ -677,7 +713,8 @@ func (s *server) warmAttachments(cfg *config.Config, atts []detailAttachment) {
 			for a := range jobs {
 				// Detached from the request: the browser may have moved on already.
 				id := a.ID
-				if err := s.cache.Fill(id, func() (io.ReadCloser, attachcache.Meta, error) {
+				ck := s.attachmentCacheKey(issueKey, id)
+				if err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
 					res, err := s.fetchAttachment(context.Background(), cfg, id)
 					if err != nil {
 						return nil, attachcache.Meta{}, err
@@ -838,20 +875,37 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		return nil, err
 	}
 	byEmail := map[string]*member{}
+	byAccount := map[string]*member{}
 	addMember := func(email string, name *string, accountID *string) {
-		if email == "" {
+		email = strings.TrimSpace(email)
+		acc := strings.TrimSpace(deref(accountID))
+		if email == "" && acc == "" {
 			return
 		}
-		m := byEmail[email]
+		var m *member
+		if acc != "" {
+			m = byAccount[acc]
+		}
+		if m == nil && email != "" {
+			m = byEmail[email]
+		}
 		if m == nil {
-			m = &member{Email: email}
-			byEmail[email] = m
+			m = &member{}
+		}
+		if m.Email == "" && email != "" {
+			m.Email = email
 		}
 		if m.Name == "" {
 			m.Name = deref(name)
 		}
-		if m.JiraAccountID == nil {
-			m.JiraAccountID = nilIfEmpty(deref(accountID))
+		if m.JiraAccountID == nil && acc != "" {
+			m.JiraAccountID = nilIfEmpty(acc)
+		}
+		if acc != "" {
+			byAccount[acc] = m
+		}
+		if email != "" {
+			byEmail[email] = m
 		}
 	}
 	for i := range lites {
@@ -859,8 +913,10 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		if l.StatusID != "" && l.StatusCategory != "" {
 			v.categories[l.StatusID] = l.StatusCategory
 		}
-		// The client directory remains keyed by email for contact/avatar metadata,
-		// but both issue people can seed it when Jira supplies one.
+		// Seed from either identifier. Key is account_id when present so an
+		// email-hidden site still populates ⌘K / person / avatar; email-only
+		// rows still join. Same person as an id-only row plus an email row
+		// collapses to one member.
 		addMember(deref(l.AssigneeEmail), l.Assignee, l.AssigneeID)
 		addMember(deref(l.ReporterEmail), l.Reporter, l.ReporterID)
 	}
@@ -871,9 +927,18 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 			continue
 		}
 		m := byEmail[cm.Email]
+		if m == nil && cm.JiraAccountID != "" {
+			m = byAccount[cm.JiraAccountID]
+		}
 		if m == nil {
 			m = &member{Email: cm.Email}
-			byEmail[cm.Email] = m
+		}
+		if m.Email == "" {
+			m.Email = cm.Email
+		}
+		byEmail[cm.Email] = m
+		if cm.JiraAccountID != "" {
+			byAccount[cm.JiraAccountID] = m
 		}
 		if cm.Name != "" {
 			m.Name = cm.Name
@@ -899,14 +964,33 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 	}
 	v.groupsEnabled = v.groupsEnabled || len(cfg.GroupRules) > 0
 
-	v.members = make([]member, 0, len(byEmail))
-	for _, m := range byEmail {
-		if m.JiraAccountID != nil {
+	seen := map[*member]struct{}{}
+	v.members = make([]member, 0, len(byEmail)+len(byAccount))
+	collect := func(m *member) {
+		if m == nil {
+			return
+		}
+		if _, ok := seen[m]; ok {
+			return
+		}
+		seen[m] = struct{}{}
+		if m.JiraAccountID != nil && m.Email != "" {
 			v.emailByAccount[*m.JiraAccountID] = m.Email
 		}
 		v.members = append(v.members, *m)
 	}
-	sort.Slice(v.members, func(i, j int) bool { return v.members[i].Email < v.members[j].Email })
+	for _, m := range byAccount {
+		collect(m)
+	}
+	for _, m := range byEmail {
+		collect(m)
+	}
+	sort.Slice(v.members, func(i, j int) bool {
+		if v.members[i].Email != v.members[j].Email {
+			return v.members[i].Email < v.members[j].Email
+		}
+		return deref(v.members[i].JiraAccountID) < deref(v.members[j].JiraAccountID)
+	})
 	v.membersVersion = hashMembers(v.members)
 	return v, nil
 }

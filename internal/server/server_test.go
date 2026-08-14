@@ -520,6 +520,76 @@ func TestAttachmentProxyStreamsFromJira(t *testing.T) {
 	}
 }
 
+// I5: a roster row with account_id and no email must appear in members.
+// addMember currently returns on empty email and drops them.
+func TestMembersIncludeAccountIDOnlyRosterRows(t *testing.T) {
+	db, cfg := fixture(t)
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Force: true,
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:bot-1", SourceID: "jira", ExternalID: "bot-1", Key: "NMB-80",
+				Title: "automation", CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-07-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "NMB", IssueType: "Task", Status: "할 일", StatusID: "1", StatusCategory: "new",
+				Assignee: "Jira Automation", AssigneeID: "acc-bot", AssigneeEmail: "",
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	h := New(db, cfg)
+	body := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
+	var bot *member
+	for i := range body.Members {
+		if deref(body.Members[i].JiraAccountID) == "acc-bot" {
+			bot = &body.Members[i]
+			break
+		}
+	}
+	if bot == nil {
+		t.Fatalf("account-id-only assignee missing from members: %+v", body.Members)
+	}
+	if bot.Name != "Jira Automation" {
+		t.Fatalf("account-id-only member %+v", bot)
+	}
+
+	// A later row for the same account that also has an email must merge, not
+	// produce a second directory entry.
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Force: true,
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:bot-2", SourceID: "jira", ExternalID: "bot-2", Key: "NMB-81",
+				Title: "same bot with email", CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-07-02T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "NMB", IssueType: "Task", Status: "할 일", StatusID: "1", StatusCategory: "new",
+				Assignee: "Jira Automation", AssigneeID: "acc-bot", AssigneeEmail: "bot@example.invalid",
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body = decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
+	bots := 0
+	var merged *member
+	for i := range body.Members {
+		if deref(body.Members[i].JiraAccountID) == "acc-bot" {
+			bots++
+			merged = &body.Members[i]
+		}
+	}
+	if bots != 1 {
+		t.Fatalf("acc-bot members = %d, want 1 (dedup id-only + email row): %+v", bots, body.Members)
+	}
+	if merged == nil || merged.Email != "bot@example.invalid" {
+		t.Fatalf("merged bot member %+v", merged)
+	}
+}
+
 func TestMe(t *testing.T) {
 	db, cfg := fixture(t)
 	got := decode[map[string]any](t, get(t, New(db, cfg), authBase+"me/", nil))

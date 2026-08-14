@@ -25,12 +25,13 @@ type fakeJira struct {
 	*httptest.Server
 	t *testing.T
 
-	calls    []string                   // "METHOD /path"
-	bodies   map[string]json.RawMessage // last body per "METHOD /path"
-	status   int                        // when non-zero, the next mutating call fails with it
-	errBody  string
-	newKey   string // key POST /issue answers with
-	editMeta string // editmeta fields object
+	calls        []string                   // "METHOD /path"
+	bodies       map[string]json.RawMessage // last body per "METHOD /path"
+	status       int                        // when non-zero, the next mutating call fails with it
+	errBody      string
+	newKey       string // key POST /issue answers with
+	editMeta     string // editmeta fields object
+	rereadStatus int    // when non-zero, GET /search/jql (mirror re-read) fails with it
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
@@ -75,6 +76,10 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 	case path == "/priority":
 		_, _ = w.Write([]byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"}]`))
 	case path == "/search/jql":
+		if f.rereadStatus != 0 {
+			w.WriteHeader(f.rereadStatus)
+			return
+		}
 		// The re-read. Status differs from the fixture on purpose.
 		// Only answer for keys this fake knows (NMB-1 / newKey); anything else
 		// is an empty hit so SyncIssue can surface ErrNotFound → 404.
@@ -496,6 +501,35 @@ func TestUploadProxiesAndReturnsContentURL(t *testing.T) {
 	// Missing file part is the client's error, not Jira's.
 	if rec := send(t, h, http.MethodPost, apiBase+"NMB-1/attachments/", `{}`); rec.Code != http.StatusBadRequest {
 		t.Fatalf("no file → %d", rec.Code)
+	}
+}
+
+// D10: Jira accepted the upload but the mirror re-read failed. Contract is
+// 502 write_applied_mirror_stale, not 200 with the uploaded ids.
+func TestUploadMirrorRereadFailureIs502(t *testing.T) {
+	f, h, _ := writable(t)
+	// 422 is not retried by atlhttp (500/502/503/504 are), so the test
+	// observes the handler's own status instead of a 15s retry budget.
+	f.rereadStatus = http.StatusUnprocessableEntity
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	part, _ := mw.CreateFormFile("file", "shot.png")
+	_, _ = part.Write([]byte("PNGBYTES"))
+	_ = mw.Close()
+
+	req := testRequest(http.MethodPost, apiBase+"NMB-1/attachments/", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("stale-mirror upload → %d %s, want 502", rec.Code, rec.Body.String())
+	}
+	if got := decode[map[string]string](t, rec)["error"]; got != "write_applied_mirror_stale" {
+		t.Fatalf("error %q, want write_applied_mirror_stale", got)
+	}
+	if !f.called("POST /issue/NMB-1/attachments") {
+		t.Fatalf("upload never reached Jira: %v", f.calls)
 	}
 }
 

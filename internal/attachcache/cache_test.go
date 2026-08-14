@@ -150,6 +150,28 @@ func TestOversizedEntryIsRejectedNotTruncated(t *testing.T) {
 	}
 }
 
+func TestKeySeparatesSiteAndIssue(t *testing.T) {
+	c, err := New(t.TempDir(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kA := Key("https://a.example", "work", "NMB-1", "100")
+	kB := Key("https://b.example", "work", "NMB-1", "100")
+	kIssue := Key("https://a.example", "work", "NMB-2", "100")
+	if err := c.Fill(kA, fetcher("A", "image/png")); err != nil {
+		t.Fatal(err)
+	}
+	if c.Has(kB) || c.Has(kIssue) || c.Has("100") {
+		t.Fatal("scoped fill was visible under another key")
+	}
+	if !c.Has(kA) {
+		t.Fatal("scoped fill missing under its own key")
+	}
+	if Key("", "work", "NMB-1", "100") != "100" {
+		t.Fatal("empty site must keep the legacy id-only key (demo ImportFile)")
+	}
+}
+
 func TestFetchFailureLeavesNoEntry(t *testing.T) {
 	c, err := New(t.TempDir(), 0)
 	if err != nil {

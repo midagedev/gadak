@@ -40,6 +40,30 @@ type Meta struct {
 	Filename    string `json:"filename,omitempty"`
 }
 
+// Key is the on-disk identity for an attachment. Site (and issue) are mixed in
+// so a profile that changes sites cannot serve the previous site's bytes, and a
+// request for the wrong issue cannot read a cached id.
+//
+// An empty site keeps the legacy id-only form so snapshot ImportFile entries
+// (`gadak demo` writes no site) stay reachable. Existing id-only files on a
+// real site miss after this change (the safe invalidation).
+func Key(site, profile, issue, id string) string {
+	site = strings.TrimRight(strings.TrimSpace(site), "/")
+	if site == "" {
+		return id
+	}
+	var b strings.Builder
+	b.Grow(len(site) + len(profile) + len(issue) + len(id) + 3)
+	b.WriteString(site)
+	b.WriteByte('\x1f')
+	b.WriteString(profile)
+	b.WriteByte('\x1f')
+	b.WriteString(issue)
+	b.WriteByte('\x1f')
+	b.WriteString(id)
+	return b.String()
+}
+
 // Cache is a content-addressed store under one directory. Safe for concurrent
 // use; a miss for the same id collapses into a single fetch.
 type Cache struct {
@@ -67,8 +91,9 @@ func New(dir string, maxBytes int64) (*Cache, error) {
 // Dir is the directory the cache owns.
 func (c *Cache) Dir() string { return c.dir }
 
-// path derives a filename from the attachment id by hashing it. Jira ids are
-// numeric today, but hashing keeps a hostile id from escaping the directory.
+// path derives a filename from the cache key by hashing it. The key is
+// attachcache.Key(site, profile, issue, id) (or a raw id for demo ImportFile).
+// Hashing keeps a hostile key from escaping the directory.
 func (c *Cache) path(id string) string {
 	sum := sha256.Sum256([]byte(id))
 	name := hex.EncodeToString(sum[:])

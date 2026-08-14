@@ -359,3 +359,86 @@ func TestSameProfile(t *testing.T) {
 		t.Fatal("different names")
 	}
 }
+
+func watchingHas(names []string, want string) bool {
+	for _, n := range names {
+		if n == want {
+			return true
+		}
+	}
+	return false
+}
+
+// D8: a profile that gains a credential after WatchAll must get a loop when
+// EnsureWatches runs (the single "credential appeared" scan). Today WatchAll
+// is boot-only, so this fails until the rescan owner exists.
+func TestWatchStartsWhenCredentialAppearsAfterBoot(t *testing.T) {
+	setupHome(t)
+	seedProfile(t, "late", &config.Config{
+		Site: "http://127.0.0.1:1", Email: "a@example.invalid", Token: "",
+	})
+
+	reg := New()
+	t.Cleanup(func() { reg.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	started := reg.WatchAll(ctx, "", func(string) {})
+	if watchingHas(started, "late") {
+		t.Fatalf("WatchAll started no-credential profile: %v", started)
+	}
+
+	seedProfile(t, "late", &config.Config{
+		Site: "http://127.0.0.1:1", Email: "a@example.invalid", Token: "test-token",
+	})
+	got := reg.EnsureWatches()
+	if !watchingHas(got, "late") {
+		t.Fatalf("EnsureWatches after credential appeared: started %v, watching %v", got, reg.Watching())
+	}
+	if !watchingHas(reg.Watching(), "late") {
+		t.Fatalf("Watching() missing late after EnsureWatches: %v", reg.Watching())
+	}
+	// Second scan must not start another loop.
+	if again := reg.EnsureWatches(); len(again) != 0 {
+		t.Fatalf("second EnsureWatches started %v", again)
+	}
+}
+
+// D8 onboarding path: PUT onboarding/connect/ on a workspace must start that
+// profile's Watch (SetSyncStarter on the workspace handler).
+func TestWorkspaceConnectStartsWatch(t *testing.T) {
+	setupHome(t)
+	seedProfile(t, "late", &config.Config{
+		Site: "", Email: "", Token: "",
+	})
+
+	jira := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/myself") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"accountId":"acc-1","displayName":"Pat","emailAddress":"a@example.invalid"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(jira.Close)
+
+	reg := New()
+	t.Cleanup(func() { reg.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	_ = reg.WatchAll(ctx, "", func(string) {})
+
+	h := reg.Handler(http.NotFoundHandler(), "test-ver")
+	body := `{"site":"` + jira.URL + `","jira_email":"a@example.invalid","api_token":"tok"}`
+	req := httptest.NewRequest(http.MethodPut, "/w/late/api/v1/issues/onboarding/connect/", strings.NewReader(body))
+	req.Host = "127.0.0.1:7777"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("connect → %d %s", rec.Code, rec.Body.String())
+	}
+	if !watchingHas(reg.Watching(), "late") {
+		t.Fatalf("workspace connect did not start Watch: watching %v", reg.Watching())
+	}
+}
