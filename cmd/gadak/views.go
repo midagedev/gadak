@@ -203,7 +203,22 @@ func viewsOpen(args []string) error {
 				fmt.Fprintf(os.Stderr, "warning: could not open %s (%v)\n", web, err)
 			}
 		}
-		desk = focusDesktopApp()
+		var ferr error
+		desk, ferr = focusDesktopApp()
+		if ferr != nil {
+			// A serve URL already presented the view (including /w/<profile>/
+			// on another profile's process). Do not fail the command; the
+			// desktop raise would have stolen the wrong window.
+			if web != "" {
+				fmt.Fprintf(os.Stderr, "warning: %v\n", ferr)
+				desk = false
+			} else {
+				if !*asJSON {
+					fmt.Printf("hash\t%s\n", hash)
+				}
+				return ferr
+			}
+		}
 	}
 	out := map[string]any{
 		"name":    label,
@@ -567,20 +582,142 @@ func envNoOpen() bool {
 	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
-func focusDesktopApp() bool {
+// desktopFocusAction is the D5 decision: raise the existing same-profile
+// app, refuse to steal another profile's window, or do nothing.
+type desktopFocusAction int
+
+const (
+	desktopFocusNone desktopFocusAction = iota
+	desktopFocusRaise
+	desktopFocusError
+)
+
+// desktopAppExists / startOpen / listServes are the D5 seams. Production
+// talks to the real app bundle and loopback probes; tests replace them.
+var desktopAppExists = func() bool {
+	_, err := os.Stat("/Applications/Gadak.app")
+	return err == nil
+}
+
+var startOpen = func(args ...string) error {
+	return exec.Command("open", args...).Start()
+}
+
+// desktopProcessName is the executable inside Gadak.app
+// (Contents/MacOS/gadak-desktop). pgrep -x matches this, not the bundle
+// display name "Gadak". Single owner — every running-app check goes through
+// lookDesktopProcess(desktopProcessName).
+const desktopProcessName = "gadak-desktop"
+
+// lookDesktopProcess is the pgrep seam. Production runs `pgrep -xq <name>`;
+// tests replace it so they can assert the name without touching a live process.
+var lookDesktopProcess = func(name string) bool {
+	return exec.Command("pgrep", "-xq", name).Run() == nil
+}
+
+// desktopAppRunning is true when a Gadak.app process is already up.
+// open -a launches the default profile when nothing is running; we only
+// raise when the process exists so a CLI `gadak serve --profile X` does
+// not spawn a default window.
+var desktopAppRunning = func() bool {
+	return lookDesktopProcess(desktopProcessName)
+}
+
+var listServes = func() []gadakProbe {
+	var out []gadakProbe
+	for _, port := range serveProbePorts() {
+		got := probeGadakOnPort(port, 0)
+		if got.IsGadak {
+			out = append(out, got)
+		}
+	}
+	return out
+}
+
+// decideDesktopFocus is the single owner of "may we run open -a?".
+// The desktop app serves in-process and does not bind the CLI probe ports,
+// so a matching serve is sufficient but not necessary. If the app process
+// is up, raise it. Error only when there is no app process and no serve
+// at all — that is the case where open -a would launch the default profile
+// under a named request (D5: do not silently focus/launch another profile).
+func decideDesktopFocus(appInstalled, appRunning bool, want string, running []gadakProbe) (desktopFocusAction, string) {
+	if !appInstalled {
+		return desktopFocusNone, ""
+	}
+	wantN := want
+	if wantN == "default" {
+		wantN = ""
+	}
+	var seen []string
+	match := false
+	for _, p := range running {
+		if !p.IsGadak {
+			continue
+		}
+		got := p.Profile
+		if got == "default" {
+			got = ""
+		}
+		label := got
+		if label == "" {
+			label = "default"
+		}
+		seen = append(seen, label)
+		if got == wantN {
+			match = true
+		}
+	}
+	if appRunning {
+		return desktopFocusRaise, ""
+	}
+	if match {
+		// CLI serve is the UI; do not launch Gadak.app (that would be default).
+		return desktopFocusNone, ""
+	}
+	name := wantN
+	if name == "" {
+		name = "default"
+	}
+	if len(seen) == 0 && wantN != "" {
+		return desktopFocusError, noProfileWindowMsg(name, seen)
+	}
+	if len(seen) == 0 {
+		// Default profile, Gadak.app present, nothing listening: launch it.
+		return desktopFocusRaise, ""
+	}
+	// Some other profile's serve is up. The web path already opened /w/<want>/.
+	// Do not open -a (would launch or raise the wrong profile).
+	return desktopFocusNone, ""
+}
+
+func noProfileWindowMsg(name string, running []string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "no window for profile %q", name)
+	if len(running) > 0 {
+		fmt.Fprintf(&b, " (running: %s)", strings.Join(running, ", "))
+	}
+	if name == "default" {
+		b.WriteString(" — start it with `gadak serve` or switch workspace in the running app")
+	} else {
+		fmt.Fprintf(&b, " — start it with `gadak serve --profile %s` or switch workspace in the running app", name)
+	}
+	return b.String()
+}
+
+func focusDesktopApp() (bool, error) {
 	if runtime.GOOS != "darwin" {
-		return false
+		return false, nil
 	}
-	if _, err := os.Stat("/Applications/Gadak.app"); err != nil {
-		return false
+	act, msg := decideDesktopFocus(desktopAppExists(), desktopAppRunning(), config.Profile(), listServes())
+	switch act {
+	case desktopFocusRaise:
+		if err := startOpen("-a", "Gadak"); err != nil {
+			return false, nil
+		}
+		return true, nil
+	case desktopFocusError:
+		return false, fmt.Errorf("%s", msg)
+	default:
+		return false, nil
 	}
-	args := []string{"-a", "Gadak"}
-	if p := strings.TrimSpace(config.Profile()); p != "" && p != "default" {
-		// Same profile the CLI just wrote ui-focus.json into. Without this,
-		// `open -a` focuses whichever Gadak window is already up — often the
-		// default profile, which will never see the file.
-		args = []string{"--env", "GADAK_PROFILE=" + p, "-a", "Gadak"}
-	}
-	cmd := exec.Command("open", args...)
-	return cmd.Start() == nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -49,7 +50,7 @@ func TestViewsListAndShow(t *testing.T) {
 func TestViewsOpenWritesFocus(t *testing.T) {
 	mirror(t, "https://unused.example.com")
 	out, err := capture(t, func() error {
-		return cmdViews([]string{"open", "--jql", `project = NMA AND statusCategory = "In Progress"`, "--json"})
+		return cmdViews([]string{"open", "--jql", `project = NMA AND statusCategory = "In Progress"`, "--no-open", "--json"})
 	})
 	if err != nil {
 		t.Fatalf("open: %v\n%s", err, out)
@@ -238,6 +239,205 @@ func TestComposeServeURLAndPrefix(t *testing.T) {
 		return f
 	}(), jql.Display{}) != "#/?ks=NMA-1,NMA-2" {
 		t.Fatal("HashURL should match QueryURL(Hash)")
+	}
+}
+
+func TestDesktopAppRunningPgrepName(t *testing.T) {
+	var got string
+	saved := lookDesktopProcess
+	t.Cleanup(func() { lookDesktopProcess = saved })
+	lookDesktopProcess = func(name string) bool {
+		got = name
+		return true
+	}
+	if !desktopAppRunning() {
+		t.Fatal("desktopAppRunning should report the injected match")
+	}
+	// Gadak.app/Contents/MacOS/gadak-desktop — pgrep -x matches this, not "Gadak".
+	if desktopProcessName != "gadak-desktop" {
+		t.Fatalf("desktopProcessName = %q, want gadak-desktop", desktopProcessName)
+	}
+	if got != desktopProcessName {
+		t.Fatalf("pgrep name = %q, want %q", got, desktopProcessName)
+	}
+}
+
+func TestDecideDesktopFocusWrongProfileDoesNotRaise(t *testing.T) {
+	// App not running; only another profile's serve. open -a would launch
+	// default — D5 forbids that. A serve exists, so this is not an error
+	// (the web path already opened /w/work/); just do not raise.
+	running := []gadakProbe{{IsGadak: true, Profile: "default"}}
+	act, msg := decideDesktopFocus(true, false, "work", running)
+	if act != desktopFocusNone {
+		t.Fatalf("must not open -a for another profile's serve, got %d (%s)", act, msg)
+	}
+}
+
+func TestDecideDesktopFocusDefaultAppRunningDespiteOtherServe(t *testing.T) {
+	// Side regression: default desktop up + unrelated `gadak serve --profile work`
+	// must still raise the default app. Serve occupancy cannot name the desktop window.
+	running := []gadakProbe{{IsGadak: true, Profile: "work"}}
+	act, msg := decideDesktopFocus(true, true, "", running)
+	if act != desktopFocusRaise {
+		t.Fatalf("default app running must raise even with another serve, got %d (%s)", act, msg)
+	}
+}
+
+func TestDecideDesktopFocusNamedNoAppNoServeErrors(t *testing.T) {
+	act, msg := decideDesktopFocus(true, false, "work", nil)
+	if act != desktopFocusError {
+		t.Fatalf("named profile with no app and no serve must error, got %d", act)
+	}
+	if !strings.Contains(msg, `profile "work"`) {
+		t.Fatalf("msg should name the wanted profile: %q", msg)
+	}
+	if !strings.Contains(msg, "gadak serve --profile work") {
+		t.Fatalf("msg should tell the user how to start it: %q", msg)
+	}
+}
+
+func TestDecideDesktopFocusSameProfileRaises(t *testing.T) {
+	running := []gadakProbe{{IsGadak: true, Profile: "work"}}
+	act, msg := decideDesktopFocus(true, true, "work", running)
+	if act != desktopFocusRaise {
+		t.Fatalf("same-profile window must raise, got %d (%s)", act, msg)
+	}
+	act, msg = decideDesktopFocus(true, true, "", []gadakProbe{{IsGadak: true, Profile: ""}})
+	if act != desktopFocusRaise {
+		t.Fatalf("default-on-default must raise, got %d (%s)", act, msg)
+	}
+	act, msg = decideDesktopFocus(true, false, "work", running)
+	if act != desktopFocusNone {
+		t.Fatalf("matching CLI serve must not launch Gadak.app, got %d (%s)", act, msg)
+	}
+}
+
+func TestDecideDesktopFocusNamedWithoutWindowErrors(t *testing.T) {
+	// Desktop app serves in-process and does not open the CLI probe ports.
+	// App running + no serve + named profile must raise, not error.
+	act, msg := decideDesktopFocus(true, true, "work", nil)
+	if act != desktopFocusRaise {
+		t.Fatalf("app running, no serve, named profile must raise, got %d (%s)", act, msg)
+	}
+}
+
+func TestDecideDesktopFocusDefaultLaunchesWhenIdle(t *testing.T) {
+	act, msg := decideDesktopFocus(true, false, "", nil)
+	if act != desktopFocusRaise {
+		t.Fatalf("default with no occupant should launch, got %d (%s)", act, msg)
+	}
+	act, _ = decideDesktopFocus(false, false, "work", nil)
+	if act != desktopFocusNone {
+		t.Fatalf("no app bundle: action = %d", act)
+	}
+}
+
+func TestFocusDesktopAppWrongProfileDoesNotOpen(t *testing.T) {
+	savedExists, savedRunning, savedList, savedOpen := desktopAppExists, desktopAppRunning, listServes, startOpen
+	t.Cleanup(func() {
+		config.SetProfile("")
+		desktopAppExists, desktopAppRunning, listServes, startOpen = savedExists, savedRunning, savedList, savedOpen
+	})
+	config.SetProfile("work")
+	desktopAppExists = func() bool { return true }
+	desktopAppRunning = func() bool { return false }
+	listServes = func() []gadakProbe {
+		return []gadakProbe{{IsGadak: true, Profile: "default"}}
+	}
+	opened := false
+	startOpen = func(args ...string) error {
+		opened = true
+		t.Errorf("must not call open: %v", args)
+		return nil
+	}
+	ok, err := focusDesktopApp()
+	if runtime.GOOS != "darwin" {
+		if ok || err != nil {
+			t.Fatalf("non-darwin: focused=%v err=%v", ok, err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("other serve is not a hard error (web path handles it): %v", err)
+	}
+	if opened {
+		t.Fatal("open -a must not run for the wrong profile")
+	}
+	if ok {
+		t.Fatal("desktop focused flag must be false")
+	}
+}
+
+func TestFocusDesktopAppNamedNoServeRaises(t *testing.T) {
+	savedExists, savedRunning, savedList, savedOpen := desktopAppExists, desktopAppRunning, listServes, startOpen
+	t.Cleanup(func() {
+		config.SetProfile("")
+		desktopAppExists, desktopAppRunning, listServes, startOpen = savedExists, savedRunning, savedList, savedOpen
+	})
+	config.SetProfile("work")
+	desktopAppExists = func() bool { return true }
+	desktopAppRunning = func() bool { return true }
+	listServes = func() []gadakProbe { return nil }
+	var got []string
+	startOpen = func(args ...string) error {
+		got = append([]string(nil), args...)
+		return nil
+	}
+	ok, err := focusDesktopApp()
+	if runtime.GOOS != "darwin" {
+		if ok || err != nil {
+			t.Fatalf("non-darwin: focused=%v err=%v", ok, err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("desktop-only named profile must raise, not error: %v", err)
+	}
+	if !ok {
+		t.Fatal("desktop-only named profile should report focused")
+	}
+	if len(got) < 2 || got[0] != "-a" || got[1] != "Gadak" {
+		t.Fatalf("open args = %v, want -a Gadak", got)
+	}
+}
+
+func TestFocusDesktopAppSameProfileOpensWithoutEnv(t *testing.T) {
+	savedExists, savedRunning, savedList, savedOpen := desktopAppExists, desktopAppRunning, listServes, startOpen
+	t.Cleanup(func() {
+		config.SetProfile("")
+		desktopAppExists, desktopAppRunning, listServes, startOpen = savedExists, savedRunning, savedList, savedOpen
+	})
+	config.SetProfile("work")
+	desktopAppExists = func() bool { return true }
+	desktopAppRunning = func() bool { return true }
+	listServes = func() []gadakProbe {
+		return []gadakProbe{{IsGadak: true, Profile: "work"}}
+	}
+	var got []string
+	startOpen = func(args ...string) error {
+		got = append([]string(nil), args...)
+		return nil
+	}
+	ok, err := focusDesktopApp()
+	if runtime.GOOS != "darwin" {
+		if ok || err != nil {
+			t.Fatalf("non-darwin: focused=%v err=%v", ok, err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("same-profile raise: %v", err)
+	}
+	if !ok {
+		t.Fatal("same-profile raise should report focused")
+	}
+	for _, a := range got {
+		if a == "-n" || strings.HasPrefix(a, "--env") {
+			t.Fatalf("must not pass -n or --env: %v", got)
+		}
+	}
+	if len(got) < 2 || got[0] != "-a" || got[1] != "Gadak" {
+		t.Fatalf("open args = %v, want -a Gadak", got)
 	}
 }
 
