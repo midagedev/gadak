@@ -10,7 +10,7 @@
  *   make hosted-demo
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -83,13 +83,42 @@ if (!existsSync(indexPath)) {
 
 // The tab title is the one label a visitor sees before the app paints, and it
 // follows a bookmark or a shared link anywhere. Say "demo" there too.
+// Social meta is hosted-only: injected here, never in web/index.html.
 const indexHtml = readFileSync(indexPath, 'utf8')
 const titled = indexHtml.replace('<title>gadak</title>', '<title>gadak — live demo</title>')
 if (titled === indexHtml) {
   console.error('hosted-demo: could not retitle index.html — the <title> tag changed shape')
   process.exit(1)
 }
-writeFileSync(indexPath, titled)
+const socialMeta = `
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="gadak">
+    <meta property="og:title" content="gadak — Follow the thread.">
+    <meta property="og:description" content="Jira and Confluence in one local SQLite file — search it, query it, point your agent at it. This is the live demo.">
+    <meta property="og:url" content="https://midagedev.github.io/gadak/">
+    <meta property="og:image" content="https://midagedev.github.io/gadak/og.png">
+    <meta property="og:image:width" content="1280">
+    <meta property="og:image:height" content="640">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="gadak — Follow the thread.">
+    <meta name="twitter:description" content="Jira and Confluence in one local SQLite file — search it, query it, point your agent at it. This is the live demo.">`
+if (!titled.includes('</title>')) {
+  console.error('hosted-demo: could not inject social meta — the </title> tag is missing')
+  process.exit(1)
+}
+const withMeta = titled.replace('</title>', `</title>${socialMeta}`)
+if (withMeta === titled) {
+  console.error('hosted-demo: could not inject social meta — the </title> tag is missing')
+  process.exit(1)
+}
+writeFileSync(indexPath, withMeta)
+
+const ogSrc = join(root, 'docs', 'media', 'og.png')
+if (!existsSync(ogSrc)) {
+  console.error('hosted-demo: docs/media/og.png missing')
+  process.exit(1)
+}
+copyFileSync(ogSrc, join(outDir, 'og.png'))
 
 // ── 3. Freeze demo.db into static JSON ──────────────────────────────────────
 // Flags before positional outdir (Go flag.Parse stops at the first non-flag).

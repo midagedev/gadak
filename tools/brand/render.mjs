@@ -104,8 +104,13 @@ const jobs = [
         <div class="copy">
           <div class="name">gadak</div>
           <h1>Follow the thread.</h1>
-          <p>Jira and Confluence, mirrored locally — a file you can search,
-          a database your agent can query.</p>
+          <p>Jira and Confluence in one local SQLite file —
+          one query answers what the API cannot.</p>
+          <div class="proof">
+            <span>17 ms reads</span>
+            <span>GROUP BY in one query</span>
+            <span>agents speak SQL to it</span>
+          </div>
         </div>
       </body>`,
       `
@@ -117,6 +122,8 @@ const jobs = [
       h1 { font:600 72px/1.05 ui-serif,'Iowan Old Style',Palatino,Georgia,serif;
            letter-spacing:-0.03em; margin:18px 0 22px; }
       p { font-size:26px; color:${MUTED}; max-width:700px; }
+      .proof { display:flex; gap:40px; margin-top:36px; font-size:20px;
+               color:${MUTED}; white-space:nowrap; }
       `,
     ),
   },
