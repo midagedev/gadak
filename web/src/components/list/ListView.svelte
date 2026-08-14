@@ -27,11 +27,13 @@
   import EmptyState from './EmptyState.svelte'
   import Onboarding, { onboardingHold } from '../shell/Onboarding.svelte'
   import FreshnessChip from '../shell/FreshnessChip.svelte'
-  import { config } from '../../lib/config'
+  import { config, isDesktop } from '../../lib/config'
   import { me } from '../../stores/me.svelte'
   import { runSyncNow } from '../../lib/sync-now'
 
   let { onOpenSettings }: { onOpenSettings?: () => void } = $props()
+  /** Desktop app: this toolbar is the main-column window-drag strip. */
+  const desktop = isDesktop()
 
   const visibleCount = $derived(filters.visibleIssues.length)
   /** Body/comment hits, minus any row that could not say why it is here. A
@@ -82,15 +84,30 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <!-- Toolbar -->
-  <div class="flex-none border-b border-border-strong/70 bg-bg-panel/35 px-4 py-3">
+  <!-- Toolbar. In the desktop app this band is the main-column drag handle;
+       each interactive cluster opts out so a click still reaches the control. -->
+  <div
+    class="flex-none border-b border-border-strong/70 bg-bg-panel/35 px-4 py-3"
+    class:desktop-drag-region={desktop}
+    data-testid="list-toolbar"
+  >
     <div class="mb-2.5 flex items-center gap-2.5">
-      <div class="min-w-0 flex-1"><SearchBox /></div>
-      <ColumnsMenu />
-      <DisplayMenu />
+      {#if desktop}
+        <div class="desktop-no-drag min-w-0 flex-1"><SearchBox /></div>
+        <div class="desktop-no-drag"><ColumnsMenu /></div>
+        <div class="desktop-no-drag"><DisplayMenu /></div>
+      {:else}
+        <div class="min-w-0 flex-1"><SearchBox /></div>
+        <ColumnsMenu />
+        <DisplayMenu />
+      {/if}
     </div>
     <div class="flex items-center gap-2.5">
-      <div class="min-w-0 flex-1"><FilterBar /></div>
+      {#if desktop}
+        <div class="desktop-no-drag min-w-0 flex-1"><FilterBar /></div>
+      {:else}
+        <div class="min-w-0 flex-1"><FilterBar /></div>
+      {/if}
       <FreshnessChip />
       <span data-testid="list-count" class="flex-none text-[12px] text-text-muted">
         {t('list.countIssues', { n: formatNumber(visibleCount) })}
