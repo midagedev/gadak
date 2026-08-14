@@ -32,29 +32,38 @@ Status: `[ ]` open · `[x]` done+evidence · `[-]` dropped (say why).
 ## Track G — Go (internal/jql/, cmd/gadak/views.go + views tests,
 ## internal/uifocus/, internal/server/focus.go + jql/focus tests)
 
-- [ ] G1. `keys` axis in internal/jql per pinned contract: types (Keys,
+- [x] G1. `keys` axis in internal/jql per pinned contract: types (Keys,
       `[]` marshal), compile (`key/issuekey/issue` = / IN → Keys; the q
       stuffing dies), emit (`key =` / `key in (…)`), match (exact,
       case-insensitive), hash (`ks=`, comma-joined, order preserved).
-      FAIL-first: a test on current HEAD proving `key in (A,B)` yields an
-      empty match set / lossy emit, committed with the fix flipping it.
-- [ ] G2. `views open --keys 'A,B C'` (comma/whitespace), `--keys -`
+      FAIL-first: `TestKeyInMatchAndEmit` on HEAD — parse `"expected ) at 11"`
+      (unquoted hyphen), then after lexer-only `"key IN stuffed q: \"NMA-1 NMA-2\""`;
+      now PASS (`go test ./internal/jql/ -run TestKeyInMatchAndEmit`).
+- [x] G2. `views open --keys 'A,B C'` (comma/whitespace), `--keys -`
       (stdin, one key per line or whitespace; pipes from `gadak sql`),
       cap 500 with a loud error; `--keys` composes with nothing else
       (exclusive with `--jql` and a positional name).
-- [ ] G3. `views open NMB-140`: a positional matching `^[A-Z][A-Z0-9]*-\d+$`
+      `TestViewsOpenKeysNoMirror` / `Stdin` / `Exclusive` / `Cap`; binary
+      `{"hash":"ks=NMA-1,NMA-2",…}` and `echo NMA-1 | … --keys -` → `hash\tks=NMA-1`.
+- [x] G3. `views open NMB-140`: a positional matching `^[A-Z][A-Z0-9]*-\d+$`
       that is not a stored view name focuses detail — hash `issue=KEY`.
       Stored-view names win when both match.
-- [ ] G4. Print the link: `views open` (and `--json`) always prints the
+      `TestViewsOpenPositionalIssueKey` (`issue=NMB-140`); `TestViewsOpenStoredViewWinsOverKeyShape`.
+- [x] G4. Print the link: `views open` (and `--json`) always prints the
       hash and, when a serve base is found, the full URL — even under
       `--no-open`. Revive `jql.HashURL` for it or delete the dead helper.
-- [ ] G5. Multi-profile focus: `GET /w/<name>/api/v1/issues/ui-focus/`
+      `serveFocusURL` always resolves; `QueryURL`/`HashURL` revived;
+      `TestComposeServeURLAndPrefix`.
+- [x] G5. Multi-profile focus: `GET /w/<name>/api/v1/issues/ui-focus/`
       reads that profile's file (workspace server passes its profile to
       uifocus), and `openServeOnHash` prefixes `/w/<name>/` when the
       target profile is not the serve process's primary. Test: workspace
       handler consumes the right file.
-- [ ] G6. `gadak search --jql 'key in (…)'` returns those issues (falls
+      `TestHandlerUIFocusReadsProfileFile` + `TestWorkspaceFocusTakesProfileFile`
+      + `TestTakeForUsesProfileDir`.
+- [x] G6. `gadak search --jql 'key in (…)'` returns those issues (falls
       out of G1 match; assert it).
+      `TestSearchJQLKeysReturnsThoseIssues`: `key in (NMB-1)` → NMB-1; `key in (NMA-999)` misses.
 
 ## Track W — web (web/src/ + e2e/, no Go)
 

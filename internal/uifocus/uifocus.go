@@ -26,7 +26,12 @@ type request struct {
 
 // Path is the focus file for the active profile.
 func Path() (string, error) {
-	d, err := config.Dir()
+	return PathFor(config.Profile())
+}
+
+// PathFor is the focus file for a named profile ("" / "default" = root).
+func PathFor(profile string) (string, error) {
+	d, err := config.DirFor(profile)
 	if err != nil {
 		return "", err
 	}
@@ -35,8 +40,16 @@ func Path() (string, error) {
 
 // Write records a view hash (query string, no #/?) for the running UI to apply.
 func Write(hash string) error {
-	p, err := Path()
+	return WriteFor(config.Profile(), hash)
+}
+
+// WriteFor records a view hash for the named profile's UI.
+func WriteFor(profile, hash string) error {
+	p, err := PathFor(profile)
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		return err
 	}
 	body, err := json.Marshal(request{Hash: hash, At: time.Now().UTC().Format(time.RFC3339)})
@@ -49,7 +62,13 @@ func Write(hash string) error {
 // Take returns a still-fresh hash and deletes the file. ok is false when
 // there is nothing to apply (missing, empty, or stale).
 func Take() (hash string, ok bool, err error) {
-	p, err := Path()
+	return TakeFor(config.Profile())
+}
+
+// TakeFor is Take for a named profile. Workspace mounts pass the /w/<name>
+// segment so they do not consume the process-primary file.
+func TakeFor(profile string) (hash string, ok bool, err error) {
+	p, err := PathFor(profile)
 	if err != nil {
 		return "", false, err
 	}

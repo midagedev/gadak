@@ -14,6 +14,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/uifocus"
 )
 
 // seedProfile writes config.json and an empty migrated gadak.db under GADAK_HOME
@@ -107,6 +108,47 @@ func TestHandlerRoutesToProfileAPI(t *testing.T) {
 	}
 	if len(boot.Issues) != 1 || boot.Issues[0].IssueKey != "BBB-1" {
 		t.Fatalf("want BBB-1 from work mirror, got %+v", boot.Issues)
+	}
+}
+
+func TestHandlerUIFocusReadsProfileFile(t *testing.T) {
+	setupHome(t)
+	seedProfile(t, "", &config.Config{
+		Site: "http://127.0.0.1:1", Email: "a@example.invalid", Token: "test-token", Projects: []string{"AAA"},
+	})
+	seedProfile(t, "work", &config.Config{
+		Site: "http://127.0.0.1:1", Email: "b@example.invalid", Token: "test-token", Projects: []string{"BBB"},
+	})
+	if err := uifocus.WriteFor("work", "ks=BBB-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := uifocus.WriteFor("", "ks=AAA-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	reg := New()
+	t.Cleanup(func() { reg.Close() })
+	h := reg.Handler(http.NotFoundHandler(), "test-ver")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/w/work/api/v1/issues/ui-focus/", nil)
+	req.Host = "127.0.0.1:7777"
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Hash string `json:"hash"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Hash != "ks=BBB-1" {
+		t.Fatalf("workspace handler consumed %q, want ks=BBB-1", body.Hash)
+	}
+	hash, ok, err := uifocus.TakeFor("")
+	if err != nil || !ok || hash != "ks=AAA-1" {
+		t.Fatalf("default file should be untouched: %q ok=%v err=%v", hash, ok, err)
 	}
 }
 

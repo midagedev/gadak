@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -14,6 +16,9 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/uifocus"
 )
+
+// issueKeyPat is the G3 positional: a Jira key, compared after ToUpper.
+var issueKeyPat = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d+$`)
 
 type listedView struct {
 	Kind        string          `json:"kind"` // jira | saved
@@ -128,24 +133,48 @@ func viewsShow(args []string) error {
 func viewsOpen(args []string) error {
 	fs := newFlagSet("views")
 	jqlFlag := fs.String("jql", "", "open this JQL as a view (instead of a stored name)")
+	keysFlag := fs.String("keys", "", "issue keys (comma or whitespace); - reads stdin")
 	asJSON := fs.Bool("json", false, "emit the hash and where it was sent")
 	noOpenFlag := fs.Bool("no-open", false, "write the hash only; do not open a window")
 	pos, err := parseAround(fs, args)
 	if err != nil {
 		return err
 	}
+	keysRaw := strings.TrimSpace(*keysFlag)
+	jqlRaw := strings.TrimSpace(*jqlFlag)
+	name := strings.TrimSpace(strings.Join(pos, " "))
+	if keysRaw != "" && (jqlRaw != "" || name != "") {
+		return usageError("views", "--keys cannot be combined with --jql or a view name")
+	}
+
 	var hash, label string
-	if strings.TrimSpace(*jqlFlag) != "" {
-		h, err := hashFromJQL(*jqlFlag)
+	var keys []string
+	switch {
+	case keysRaw != "":
+		keys, err = readKeysFlag(keysRaw)
+		if err != nil {
+			return err
+		}
+		if err := jql.CheckKeyLimit(len(keys)); err != nil {
+			return err
+		}
+		if len(keys) == 0 {
+			return usageError("views", `usage: gadak views open --keys 'KEY,KEY' | --keys -`)
+		}
+		f := jql.EmptyFilter()
+		f.Keys = keys
+		hash, label = jql.Hash(f, jql.Display{}), "keys"
+	case jqlRaw != "":
+		h, err := hashFromJQL(jqlRaw)
 		if err != nil {
 			return err
 		}
 		hash, label = h, "jql"
-	} else {
-		name := strings.TrimSpace(strings.Join(pos, " "))
-		if name == "" {
-			return usageError("views", `usage: gadak views open <name-or-id> | --jql '…'`)
-		}
+	case name == "":
+		return usageError("views", `usage: gadak views open <name-or-id|KEY> | --jql '…' | --keys '…'`)
+	case looksLikeIssueKey(name):
+		hash, label = issueOrExactView(name)
+	default:
 		db, err := openStore()
 		if err != nil {
 			return err
@@ -165,9 +194,15 @@ func viewsOpen(args []string) error {
 		return err
 	}
 	skipOpen := *noOpenFlag || envNoOpen()
-	web, desk := "", false
+	// G4: always resolve the URL (even under --no-open); only launch when asked.
+	web := serveFocusURL(hash)
+	desk := false
 	if !skipOpen {
-		web = openServeOnHash(hash)
+		if web != "" {
+			if err := openBrowser(web); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not open %s (%v)\n", web, err)
+			}
+		}
 		desk = focusDesktopApp()
 	}
 	out := map[string]any{
@@ -176,6 +211,9 @@ func viewsOpen(args []string) error {
 		"file":    true,
 		"web":     web,
 		"desktop": desk,
+	}
+	if len(keys) > 0 {
+		out["keys"] = keys
 	}
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(out)
@@ -191,6 +229,67 @@ func viewsOpen(args []string) error {
 		fmt.Fprintln(os.Stderr, "warning: no running UI found — opened nothing; the hash is waiting if you launch the app or serve within two minutes")
 	}
 	return nil
+}
+
+func readKeysFlag(raw string) ([]string, error) {
+	if raw == "-" {
+		buf, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("reading keys from stdin: %w", err)
+		}
+		raw = string(buf)
+	}
+	return jql.SplitKeys(raw), nil
+}
+
+func looksLikeIssueKey(s string) bool {
+	return issueKeyPat.MatchString(strings.ToUpper(strings.TrimSpace(s)))
+}
+
+// issueOrExactView focuses detail (issue=KEY) unless a stored view has that
+// exact name/id — the view wins. Hash generation does not need a mirror.
+func issueOrExactView(name string) (hash, label string) {
+	if db, err := openStore(); err == nil {
+		v, ferr := findExactView(db, name)
+		_ = db.Close()
+		if ferr == nil && v.Hash != "" {
+			return v.Hash, v.Name
+		}
+	}
+	k := normalizeKey(name)
+	return "issue=" + k, k
+}
+
+func findExactView(db *store.DB, name string) (listedView, error) {
+	list, err := loadViews(db)
+	if err != nil {
+		return listedView{}, err
+	}
+	want := strings.ToLower(strings.TrimSpace(name))
+	var exact []listedView
+	for _, v := range list {
+		id := strings.ToLower(v.ID)
+		nm := strings.ToLower(v.Name)
+		ext := ""
+		if i := strings.LastIndex(v.ID, ":"); i >= 0 {
+			ext = strings.ToLower(v.ID[i+1:])
+		}
+		if id == want || nm == want || ext == want {
+			exact = append(exact, v)
+		}
+	}
+	switch len(exact) {
+	case 1:
+		return exact[0], nil
+	case 0:
+		return listedView{}, fmt.Errorf("no view matching %q", name)
+	default:
+		names := make([]string, len(exact))
+		for i, h := range exact {
+			names[i] = h.Name
+		}
+		return listedView{}, fmt.Errorf("%q matches %d views — be more specific: %s", name, len(exact), strings.Join(names, "; "))
+	}
 }
 
 func viewsSave(args []string) error {
@@ -358,38 +457,78 @@ func compactJQL(s string) string {
 	return s
 }
 
-func openServeOnHash(hash string) string {
-	base := findServeBase()
-	if base == "" {
-		return ""
-	}
-	frag := "#/"
-	if hash != "" {
-		frag = "#/?" + hash
-	}
-	u := strings.TrimRight(base, "/") + "/" + frag
-	if err := openBrowser(u); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not open %s (%v)\n", u, err)
-		return u
-	}
-	return u
+type serveTarget struct {
+	base    string
+	profile string
 }
 
-func findServeBase() string {
+// serveFocusURL is the URL a tab should open, including /w/<profile>/ when
+// this CLI profile is not the serve process's primary. Empty when no serve
+// is listening. Does not launch a browser.
+func serveFocusURL(hash string) string {
+	t := findServeTarget()
+	if t.base == "" {
+		return ""
+	}
+	return composeServeURL(t.base, workspacePrefix(config.Profile(), t.profile), hash)
+}
+
+func composeServeURL(base, prefix, hash string) string {
+	return strings.TrimRight(base, "/") + prefix + "/" + jql.QueryURL(hash)
+}
+
+func workspacePrefix(cliProfile, serveProfile string) string {
+	if profileEq(cliProfile, serveProfile) {
+		return ""
+	}
+	name := cliProfile
+	if name == "" || name == "default" {
+		name = "default"
+	}
+	return "/w/" + name
+}
+
+func findServeTarget() serveTarget {
 	want := config.Profile()
+	var any serveTarget
+	for _, port := range serveProbePorts() {
+		got := probeGadakOnPort(port, 0)
+		if !got.IsGadak {
+			continue
+		}
+		base := prettyOpenURL("127.0.0.1", port, nil)
+		if profileEq(got.Profile, want) {
+			return serveTarget{base: base, profile: got.Profile}
+		}
+		if any.base == "" {
+			any = serveTarget{base: base, profile: got.Profile}
+		}
+	}
+	return any
+}
+
+func serveProbePorts() []string {
 	ports := make([]string, 0, 24)
 	for p := 7777; p <= 7797; p++ {
 		ports = append(ports, fmt.Sprintf("%d", p))
 	}
 	ports = append(ports, "7878")
-	for _, port := range ports {
-		got := probeGadakOnPort(port, 0)
-		if !got.IsGadak || !profileEq(got.Profile, want) {
-			continue
-		}
-		return prettyOpenURL("127.0.0.1", port, nil)
+	return ports
+}
+
+// openServeOnHash resolves the URL and opens a browser. Kept for callers that
+// still want the combined action; views open uses serveFocusURL + openBrowser
+// so --no-open can still print the link.
+func openServeOnHash(hash string) string {
+	u := serveFocusURL(hash)
+	if u == "" {
+		return ""
 	}
-	return ""
+	if err := openBrowser(u); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not open %s (%v)\n", u, err)
+		return u
+	}
+	return u
 }
 
 func profileEq(got, want string) bool {

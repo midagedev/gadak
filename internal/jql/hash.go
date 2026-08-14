@@ -33,6 +33,7 @@ func Hash(f Filter, d Display) string {
 	addList("ds", f.DeployState)
 	addList("pj", f.JiraProject)
 	addList("spj", f.SourceProject)
+	addList("ks", f.Keys)
 	for alias, vals := range f.Fields {
 		if len(vals) > 0 {
 			p.Set("f."+alias, strings.Join(vals, ","))
@@ -75,14 +76,26 @@ func Hash(f Filter, d Display) string {
 	if d.Dir != "" && d.Dir != "desc" {
 		p.Set("d", d.Dir)
 	}
-	return p.Encode()
+	h := p.Encode()
+	// Encode() turns commas into %2C. The pinned ks= contract (and the web
+	// parser's split-on-comma) is the literal comma form; leave other axes
+	// encoded so existing hashes stay byte-identical.
+	if len(f.Keys) > 0 {
+		joined := strings.Join(f.Keys, ",")
+		h = strings.Replace(h, "ks="+url.QueryEscape(joined), "ks="+joined, 1)
+	}
+	return h
+}
+
+// QueryURL is the fragment a gadak window applies to an already-encoded Hash().
+func QueryURL(hash string) string {
+	if hash == "" {
+		return "#/"
+	}
+	return "#/?" + hash
 }
 
 // HashURL is the fragment a gadak window applies: "#/?" + Hash.
 func HashURL(f Filter, d Display) string {
-	h := Hash(f, d)
-	if h == "" {
-		return "#/"
-	}
-	return "#/?" + h
+	return QueryURL(Hash(f, d))
 }

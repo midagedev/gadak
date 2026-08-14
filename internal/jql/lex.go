@@ -180,5 +180,7 @@ func isIdentStart(r rune) bool {
 }
 
 func isIdentCont(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+	// Hyphen is part of an unquoted issue key (NMA-1). Jira's JQL accepts it;
+	// without this, `key in (NMA-1, NMA-2)` never reaches compile.
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-'
 }
