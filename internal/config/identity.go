@@ -20,9 +20,12 @@ const (
 	LegacyEnvPrefix = "SCRY_"
 )
 
-// Env returns GADAK_<suffix>, then SCRY_<suffix> if the new name is unset.
+// Env returns GADAK_<suffix>, then SCRY_<suffix> if the new name is unset
+// or empty. An empty GADAK_* value is treated as unset so a blank export
+// cannot hide a real SCRY_* fallback (decision 0007: read SCRY_* when
+// GADAK_* is unset).
 func Env(suffix string) string {
-	if v, ok := os.LookupEnv(EnvPrefix + suffix); ok {
+	if v := os.Getenv(EnvPrefix + suffix); v != "" {
 		return v
 	}
 	return os.Getenv(LegacyEnvPrefix + suffix)

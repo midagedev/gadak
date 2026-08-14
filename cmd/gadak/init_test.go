@@ -13,6 +13,19 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 )
 
+// clearCredentialEnv treats every GADAK_* / SCRY_* init source as unset.
+// After D2, empty GADAK_* falls through to SCRY_*, so both prefixes must
+// be cleared when a test wants flags-only / missing-env behavior.
+func clearCredentialEnv(t *testing.T) {
+	t.Helper()
+	for _, k := range []string{
+		"GADAK_SITE", "GADAK_EMAIL", "GADAK_TOKEN", "GADAK_PROJECTS",
+		"SCRY_SITE", "SCRY_EMAIL", "SCRY_TOKEN", "SCRY_PROJECTS",
+	} {
+		t.Setenv(k, "")
+	}
+}
+
 // myselfServer answers GET /rest/api/3/myself the way verifyCredential expects.
 func myselfServer(t *testing.T) *httptest.Server {
 	t.Helper()
@@ -53,10 +66,7 @@ func TestInitFlagsNoPrompt(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	// Clear env sources so only flags count.
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_TOKEN", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	config.SetProfile("")
 
 	srv := myselfServer(t)
@@ -99,9 +109,7 @@ func TestInitFlagsNoPrompt(t *testing.T) {
 func TestInitTokenFromEnv(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	secret := "env-supplied-token-value-xyz"
 	t.Setenv("GADAK_TOKEN", secret)
 	config.SetProfile("")
@@ -133,10 +141,7 @@ func TestInitTokenFromEnv(t *testing.T) {
 func TestInitMissingNonTTY(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_TOKEN", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	config.SetProfile("")
 
 	withClosedStdin(t, func() {
@@ -172,10 +177,7 @@ func TestInitMissingNonTTY(t *testing.T) {
 func TestInitAllowsEmptyProjects(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_TOKEN", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	config.SetProfile("")
 
 	srv := myselfServer(t)
@@ -232,10 +234,7 @@ func TestInitRejectsTokenFlag(t *testing.T) {
 func TestInitJSONNoTokenLeak(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_TOKEN", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	config.SetProfile("work")
 	t.Cleanup(func() { config.SetProfile("") })
 
@@ -304,10 +303,7 @@ func runInitWithSpaces(t *testing.T, spaces string) *config.Config {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_TOKEN", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	config.SetProfile("")
 	srv := myselfServer(t)
 	args := []string{
@@ -371,10 +367,7 @@ func TestInitSpacesNone(t *testing.T) {
 	// Start with Confluence on, then none should clear it.
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_TOKEN", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	config.SetProfile("")
 	// Seed an on state via first init with --spaces ENG.
 	srv := myselfServer(t)
@@ -427,10 +420,7 @@ func TestInitSpacesNone(t *testing.T) {
 func TestInitSpacesFlagAbsentLeavesConfluence(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_TOKEN", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	config.SetProfile("")
 	srv := myselfServer(t)
 	// Seed with Confluence on.
@@ -477,10 +467,7 @@ func TestInitSpacesJSONShapes(t *testing.T) {
 	// --spaces ENG,PROD → ["ENG","PROD"]
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_TOKEN", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	config.SetProfile("")
 	srv := myselfServer(t)
 
@@ -536,10 +523,7 @@ func TestInitSpacesJSONShapes(t *testing.T) {
 func TestInitClassicReplacesTokenOnly(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_TOKEN", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	config.SetProfile("")
 
 	srv := myselfServer(t)
@@ -605,10 +589,7 @@ func (f failReader) Read(p []byte) (int, error) {
 func TestInitAnyFlagDisablesPrompt(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	t.Setenv("GADAK_SITE", "")
-	t.Setenv("GADAK_EMAIL", "")
-	t.Setenv("GADAK_TOKEN", "")
-	t.Setenv("GADAK_PROJECTS", "")
+	clearCredentialEnv(t)
 	config.SetProfile("")
 
 	savedTerm := initIsTerminal
@@ -641,5 +622,189 @@ func TestInitAnyFlagDisablesPrompt(t *testing.T) {
 	}
 	if strings.Contains(first, "projects") {
 		t.Errorf("projects is optional but listed missing: %s", first)
+	}
+}
+
+func TestInitSpacesPreservesPersonalKeyCase(t *testing.T) {
+	cfg := runInitWithSpaces(t, "~abcDef")
+	if cfg.Confluence == nil || len(cfg.Confluence.Spaces) != 1 || cfg.Confluence.Spaces[0] != "~abcDef" {
+		t.Fatalf("want Spaces [~abcDef] (case preserved), got %+v", cfg.Confluence)
+	}
+	cfg2 := runInitWithSpaces(t, "eng,~abcDef")
+	if cfg2.Confluence == nil || len(cfg2.Confluence.Spaces) != 2 ||
+		cfg2.Confluence.Spaces[0] != "eng" || cfg2.Confluence.Spaces[1] != "~abcDef" {
+		t.Fatalf("want Spaces [eng ~abcDef] (no ToUpper), got %+v", cfg2.Confluence)
+	}
+}
+
+func TestStatusUnknownProfileDoesNotCreate(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	if err := os.MkdirAll(filepath.Join(home, "profiles", "demo"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, "profiles", "work"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { config.SetProfile("") })
+	config.SetProfile("nosuch")
+
+	err := cmdStatus(nil)
+	if err == nil {
+		t.Fatal("status on a missing named profile must error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `profile "nosuch" not found`) {
+		t.Errorf("error %q, want profile not found", msg)
+	}
+	if !strings.Contains(msg, `gadak init --profile "nosuch"`) {
+		t.Errorf("error %q, want init hint", msg)
+	}
+	if !strings.Contains(msg, "available: demo, work") {
+		t.Errorf("error %q, want available list", msg)
+	}
+
+	missing := filepath.Join(home, "profiles", "nosuch")
+	if _, statErr := os.Stat(missing); !os.IsNotExist(statErr) {
+		t.Fatalf("must not create profile dir %s; stat=%v", missing, statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(missing, "gadak.db")); !os.IsNotExist(statErr) {
+		t.Fatalf("must not create mirror; stat=%v", statErr)
+	}
+}
+
+func TestStatusExistingNamedProfileOK(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	dir := filepath.Join(home, "profiles", "demo")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { config.SetProfile("") })
+	config.SetProfile("demo")
+
+	if err := cmdStatus(nil); err != nil {
+		t.Fatalf("existing named profile status: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "gadak.db")); err != nil {
+		t.Fatalf("status may create the mirror inside an existing profile dir: %v", err)
+	}
+}
+
+func TestStatusDefaultProfileMayCreate(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() { config.SetProfile("") })
+	config.SetProfile("")
+
+	if err := cmdStatus(nil); err != nil {
+		t.Fatalf("default profile status: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "gadak.db")); err != nil {
+		t.Fatalf("default profile may create the first-run mirror: %v", err)
+	}
+}
+
+func TestParseSpaceKeysPreservesCase(t *testing.T) {
+	got := parseSpaceKeys(" ~abcDef , ENG ")
+	if len(got) != 2 || got[0] != "~abcDef" || got[1] != "ENG" {
+		t.Fatalf("parseSpaceKeys = %v, want [~abcDef ENG]", got)
+	}
+	// Project keys still upper-case; that path must not change.
+	proj := parseProjectKeys("~abcDef")
+	if len(proj) != 1 || proj[0] != "~ABCDEF" {
+		t.Fatalf("parseProjectKeys = %v, want [~ABCDEF]", proj)
+	}
+}
+
+func TestOpenStoreAllowedWhenCreateFlagSet(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() {
+		config.SetProfile("")
+		allowProfileCreate = false
+	})
+	config.SetProfile("onboard")
+	allowProfileCreate = true
+	db, err := openStore()
+	if err != nil {
+		t.Fatalf("serve-like create: %v", err)
+	}
+	_ = db.Close()
+	if _, err := os.Stat(filepath.Join(home, "profiles", "onboard", "gadak.db")); err != nil {
+		t.Fatalf("allowProfileCreate should mint the mirror: %v", err)
+	}
+}
+
+func TestVersionIgnoresMissingProfile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() {
+		config.SetProfile("")
+		allowProfileCreate = false
+	})
+	config.SetProfile("typo")
+
+	if err := checkProfileForCommand("version", nil); err != nil {
+		t.Fatalf("version must not require an existing profile, got %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(home, "profiles", "typo")); !os.IsNotExist(statErr) {
+		t.Fatalf("version must not create the profile dir; stat=%v", statErr)
+	}
+}
+
+func TestHelpStatusIgnoresMissingProfile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() {
+		config.SetProfile("")
+		allowProfileCreate = false
+	})
+	config.SetProfile("typo")
+
+	// gadak help status is rewritten in main to [status --help].
+	if err := checkProfileForCommand("status", []string{"--help"}); err != nil {
+		t.Fatalf("help status must not require an existing profile, got %v", err)
+	}
+	if err := checkProfileForCommand("status", []string{"-h"}); err != nil {
+		t.Fatalf("status -h must not require an existing profile, got %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(home, "profiles", "typo")); !os.IsNotExist(statErr) {
+		t.Fatalf("help must not create the profile dir; stat=%v", statErr)
+	}
+}
+
+func TestProfileCreateWhitelist(t *testing.T) {
+	if !profileCreateOK["init"] || !profileCreateOK["serve"] {
+		t.Fatal("init and serve must be allowed to create a named profile")
+	}
+	if !profileIndependent["version"] {
+		t.Fatal("version must be profile-independent (no require, no create)")
+	}
+	if profileCreateOK["version"] {
+		t.Fatal("version must not be on the create whitelist")
+	}
+	for _, name := range []string{"status", "sql", "issue", "search", "sync"} {
+		if profileCreateOK[name] {
+			t.Errorf("%s must not be on the create whitelist", name)
+		}
+	}
+}
+
+func TestSQLUnknownProfileDoesNotCreate(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() { config.SetProfile("") })
+	config.SetProfile("nosuch")
+
+	err := cmdSQL([]string{"select 1"})
+	if err == nil {
+		t.Fatal("sql on a missing named profile must error")
+	}
+	if !strings.Contains(err.Error(), `profile "nosuch" not found`) {
+		t.Errorf("error %q, want profile not found", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(home, "profiles", "nosuch")); !os.IsNotExist(statErr) {
+		t.Fatalf("must not create profile dir; stat=%v", statErr)
 	}
 }

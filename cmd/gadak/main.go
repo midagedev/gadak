@@ -79,11 +79,39 @@ func spaHandlerFS(fsys fs.FS) http.Handler {
 }
 
 func openStore() (*store.DB, error) {
+	if err := rejectUnknownProfile(); err != nil {
+		return nil, err
+	}
 	path, err := config.DBPath()
 	if err != nil {
 		return nil, err
 	}
 	return store.Open(path)
+}
+
+// profileCreateOK is the command whitelist that may mint a named profile
+// directory (init writes config; serve is the onboarding path). Every other
+// command errors if --profile / GADAK_PROFILE names a missing directory (D3).
+var profileCreateOK = map[string]bool{
+	"init":  true,
+	"serve": true,
+}
+
+// profileIndependent commands never read or create a profile directory, so a
+// typo in GADAK_PROFILE / --profile must not fail them (D3 regression: version).
+var profileIndependent = map[string]bool{
+	"version": true,
+}
+
+// allowProfileCreate is set by main for profileCreateOK commands so
+// openStore / openReadOnly (which serve still calls) can create.
+var allowProfileCreate bool
+
+func rejectUnknownProfile() error {
+	if allowProfileCreate {
+		return nil
+	}
+	return config.RequireExistingProfile()
 }
 
 // stdinIsTerminal reports whether stdin is a character device. Used so init can
@@ -101,9 +129,23 @@ var initIsTerminal = stdinIsTerminal
 // parseProjectKeys splits a comma-separated project list the same way the
 // interactive init path always has: trim, upper-case, drop empties.
 func parseProjectKeys(s string) []string {
+	return parseCSVKeys(s, true)
+}
+
+// parseSpaceKeys splits a Confluence space-key list. Keys are case-sensitive
+// (personal spaces are ~accountId); unlike project keys they are not upper-cased.
+func parseSpaceKeys(s string) []string {
+	return parseCSVKeys(s, false)
+}
+
+func parseCSVKeys(s string, upper bool) []string {
 	var out []string
 	for _, p := range strings.Split(s, ",") {
-		if p = strings.TrimSpace(strings.ToUpper(p)); p != "" {
+		p = strings.TrimSpace(p)
+		if upper {
+			p = strings.ToUpper(p)
+		}
+		if p != "" {
 			out = append(out, p)
 		}
 	}
@@ -130,7 +172,7 @@ func cmdInit(args []string) error {
 	projectsFlag := fs.String("projects", "", "project keys, comma-separated (optional — blank syncs every project you can see)")
 	// Confluence: reserved words "all" / "none" (case-insensitive); any other
 	// value is a comma-separated space-key list. Flag absent leaves Confluence alone.
-	spacesFlag := fs.String("spaces", "", "Confluence spaces: KEY,KEY… | all (every space you can see) | none (off); \"all\"/\"none\" are reserved")
+	spacesFlag := fs.String("spaces", "", spacesFlagUsage)
 	tokenFile := fs.String("token-file", "", "read API token from this file")
 	tokenStdin := fs.Bool("token-stdin", false, "read API token from stdin")
 	// Defined only so a mistaken `--token secret` gets a clear error instead of
@@ -281,10 +323,10 @@ func cmdInit(args []string) error {
 		case strings.EqualFold(*spacesFlag, "none"):
 			cfg.Confluence = nil
 		case strings.EqualFold(*spacesFlag, "all"):
-			// Empty Spaces = every space the account can see.
+			// Empty Spaces = every *global* space (internal/sync/confluence.go).
 			cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{}}
 		default:
-			cfg.Confluence = &config.ConfluenceConfig{Spaces: parseProjectKeys(*spacesFlag)}
+			cfg.Confluence = &config.ConfluenceConfig{Spaces: parseSpaceKeys(*spacesFlag)}
 		}
 	}
 
@@ -334,7 +376,7 @@ func cmdInit(args []string) error {
 }
 
 // initConfluenceJSON is the --json shape for Confluence after init:
-// "off" | "all" | ["ENG","PROD"].
+// "off" | "all" (the --spaces all token: every global space) | ["ENG","PROD"].
 func initConfluenceJSON(cfg *config.Config) any {
 	if cfg == nil || cfg.Confluence == nil {
 		return "off"
@@ -459,6 +501,9 @@ func printUpdateNotice(cfg *config.Config, withURL bool) {
 // openReadOnly gives sql/status a connection that cannot write, so a typo'd
 // UPDATE cannot corrupt the mirror while the server holds the single writer.
 func openReadOnly() (*sql.DB, error) {
+	if err := rejectUnknownProfile(); err != nil {
+		return nil, err
+	}
 	path, err := config.DBPath()
 	if err != nil {
 		return nil, err
@@ -1126,9 +1171,44 @@ func main() {
 		fmt.Print(usage)
 		os.Exit(2)
 	}
+	if err := checkProfileForCommand(args[0], args[1:]); err != nil {
+		log.Fatalf("gadak: %v", err)
+	}
 	if err := run(args[1:]); err != nil {
 		log.Fatalf("gadak: %v", err)
 	}
+}
+
+// checkProfileForCommand is the D3 gate used by main after alias rewrite
+// (help X → X --help, --version → version). Version is profile-independent.
+// A trailing --help/-h is static help and must not require a profile.
+// Create-ok commands may mint a directory; everything else requires the
+// named profile to already exist.
+func checkProfileForCommand(cmd string, rest []string) error {
+	if profileIndependent[cmd] {
+		return nil
+	}
+	if helpTail(rest) {
+		return nil
+	}
+	if profileCreateOK[cmd] {
+		allowProfileCreate = true
+		return nil
+	}
+	return config.RequireExistingProfile()
+}
+
+// helpTail reports a static help invocation: the last arg is --help or -h
+// (the shape main rewrites `gadak help status` into).
+func helpTail(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[len(args)-1] {
+	case "--help", "-h":
+		return true
+	}
+	return false
 }
 
 // commands is the single registry of subcommands. Dispatch, the command-name

@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // Member is one entry of the static member directory injected through settings.
@@ -196,7 +197,31 @@ func homeRoot() (string, error) {
 			}
 		}
 	}
+	warnIfDualHome(prev, next)
 	return next, nil
+}
+
+// dualHomeWarnOnce keeps the leftover-home warning to one line per process
+// (homeRoot is called several times per command).
+var dualHomeWarnOnce sync.Once
+
+// warnIfDualHome is the single owner of the D1 surface: when both the
+// legacy ~/.scry tree and ~/.gadak exist, migratePath is a no-op and the
+// old mirror is silently abandoned. We do not merge (data-loss risk);
+// we name both paths on stderr so the leftover is visible.
+func warnIfDualHome(prev, next string) {
+	if prev == "" || next == "" || prev == next {
+		return
+	}
+	if _, err := os.Stat(prev); err != nil {
+		return
+	}
+	if _, err := os.Stat(next); err != nil {
+		return
+	}
+	dualHomeWarnOnce.Do(func() {
+		fmt.Fprintf(os.Stderr, "gadak: leftover data at %s is being ignored; using %s\n", prev, next)
+	})
 }
 
 // migratePath renames oldPath → newPath when newPath is absent and oldPath
@@ -301,6 +326,42 @@ func AttachmentDirFor(profile string) (string, error) {
 // with it).
 func AttachmentDir() (string, error) {
 	return AttachmentDirFor(Profile())
+}
+
+// RequireExistingProfile is the single owner of "may this named profile be
+// used without creating it?". The default profile (empty / "default") is
+// always allowed so first-run can mint ~/.gadak. A named profile whose
+// directory does not exist is an error; names that do exist are listed so
+// a typo is obvious.
+func RequireExistingProfile() error {
+	name := Profile()
+	if name == "" {
+		return nil
+	}
+	d, err := DirFor(name)
+	if err != nil {
+		return err
+	}
+	fi, err := os.Stat(d)
+	if err == nil {
+		if !fi.IsDir() {
+			return fmt.Errorf("profile %q is not a directory (%s)", name, d)
+		}
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return err
+	}
+	names, listErr := Profiles()
+	if listErr != nil {
+		names = nil
+	}
+	sort.Strings(names)
+	msg := fmt.Sprintf("profile %q not found; run gadak init --profile %q", name, name)
+	if len(names) > 0 {
+		msg += fmt.Sprintf(" (available: %s)", strings.Join(names, ", "))
+	}
+	return fmt.Errorf("%s", msg)
 }
 
 // Profiles lists the configured profile names, excluding the default one.
