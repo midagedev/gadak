@@ -8,7 +8,9 @@ description: >
   says about something, what is stuck or untriaged, how a release is shaped, or
   anything that would otherwise mean paging through Jira search. Also use
   before writing a comment, transition, or assignment, since those go through
-  the same tool.
+  the same tool. When the user wants to *see* issues — show them, put them on
+  screen, open this list — do not render a markdown table; open them in the
+  gadak app with `gadak views open`.
 ---
 
 # Asking the mirror
@@ -16,6 +18,27 @@ description: >
 gadak keeps a local SQLite mirror of Jira (and optionally Confluence) at
 `~/.gadak/gadak.db`. Reads never touch the network, so queries are free and fast:
 prefer a query over asking the user to look something up.
+
+**Show, don't paste.** SQL answers; `gadak views open` presents. Render a
+markdown table or other document artifact only when there is no UI to focus,
+or when the user explicitly asked for a document. If they asked to *see* the
+issues, put them on the app:
+
+```bash
+gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
+gadak views open --keys 'NMA-1,NMA-2'
+gadak views open NMB-140
+gadak sql "select key from issues_full where status_category != 'done'" | tail -n +2 | gadak views open --keys -
+```
+
+`--keys` accepts comma or whitespace; `--keys -` reads stdin. First-seen order
+is kept, so the SQL `ORDER BY` is what the list shows. `gadak sql` prints a
+header row first — skip it (`tail -n +2`) or that header becomes a key.
+`--keys` cannot be combined with `--jql` or a view name.
+
+`gadak open <KEY>` is the Jira escape hatch (system browser to `/browse/KEY`).
+`gadak views open` is the "open in gadak" verb (focus the running app or serve
+tab). The names collide; the verbs do not.
 
 First, check it is there and current:
 
@@ -89,8 +112,8 @@ Some columns exist only here, derived from the changelog while syncing:
 `reopen_count`, `reopened_at`, `reopen_reason`, and `epic_key` (the nearest
 level-1 ancestor). Jira cannot answer questions about these at all.
 
-Output modes: `gadak sql "…"` is tab-separated, `--json` gives one object per
-row, `--csv` adds a header row.
+Output modes: `gadak sql "…"` is tab-separated *with a header row*, `--json`
+gives one object per row, `--csv` is header plus CSV.
 
 ## Queries that cover most questions
 
@@ -143,13 +166,19 @@ To put the human on a view, do not describe the filters — set them:
 gadak views                         # names after `gadak sync` (owned + starred Jira filters)
 gadak views open "the name"         # focuses the running desktop app or serve tab
 gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
+gadak views open --keys 'NMA-1,NMA-2'
+gadak sql "select key from issues_full where status_category != 'done'" | tail -n +2 | gadak views open --keys -
+gadak views open NMB-140            # focus that issue's detail (a stored view with that name wins)
 gadak views save "Night triage" --jql '…'   # keep a named view in the mirror
 ```
 
-`views open` writes a one-shot hash the UI applies; it also opens a serve tab
-when one is listening, and focuses Gadak.app on macOS (the `--profile` is
-passed through so the window and the file match). `--no-open` writes the hash
-only. Confirm you named `--profile` if the user has more than one mirror.
+`views open` writes a one-shot hash the UI applies (`ks=` for `--keys`,
+`issue=` for a positional key); it also opens a serve tab when one is
+listening, and focuses Gadak.app on macOS (the `--profile` is passed through
+so the window and the file match). `--no-open` writes the hash only. `--json`
+prints the hash and where it was sent. Confirm you named `--profile` if the
+user has more than one mirror. `gadak open` is the Jira-site escape hatch;
+`gadak views open` is open-in-gadak.
 
 ## One issue, and writes
 

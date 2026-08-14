@@ -17,6 +17,12 @@ This is a deliberate rejection of the alternative: designing a REST or MCP
 surface that exposes N pre-baked questions. Every such surface is a guess about
 what will be asked. SQL is not a guess.
 
+The database stays the agent's *answer* interface. `gadak views open` is the
+*presentation* interface. SQL answers; views present. When the human should see
+the set, focus the running app instead of pasting a markdown table. `gadak open`
+is the Jira escape hatch (system browser to `/browse/KEY`); `gadak views open`
+is the "open in gadak" verb.
+
 ## Why this beats calling Jira directly
 
 | | Jira REST | gadak mirror |
@@ -63,12 +69,16 @@ gadak sql "select count(*) from issues where reopen_count > 0"
 gadak sql --json "select key, summary from issues limit 5"
 gadak search --jql 'project = NMA AND statusCategory = "In Progress"' --json
 gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
+gadak views open --keys 'NMA-1,NMA-2'
+gadak views open --keys -
+gadak views open NMB-140
 ```
 
 `search --jql` (or a pasted navigator URL) applies the documented JQL subset
 against the mirror. `views open` writes a one-shot hash the running app or
-serve tab applies — do not describe chips to the human; set them. Flags may
-sit on either side of the query.
+serve tab applies (`--jql`, `--keys` / `--keys -`, or a positional KEY) — do
+not describe chips to the human; set them. Flags may sit on either side of the
+query.
 
 Opens the database read-only and rejects anything that is not a `SELECT` or
 `WITH`. It exists so an agent that has been given a narrow command allowlist can

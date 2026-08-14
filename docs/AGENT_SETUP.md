@@ -54,9 +54,11 @@ Jira issues are mirrored to a local SQLite file. Prefer these over any Jira API:
 - `gadak sql "<select …>"` — read-only SQL (SQLite mode=ro). Schema:
   specs/000-product/data-model.md in the gadak repo (or
   `SELECT sql FROM sqlite_master WHERE type IN ('table','view')`).
-- `gadak views` / `gadak views open --jql "…"` — list mirrored Jira filters
-  and put the running app or serve tab on that view. Do not describe chips
-  to the user; set them.
+- `gadak views` / `gadak views open --jql "…"` / `gadak views open --keys -` —
+  list mirrored Jira filters and put the running app or serve tab on that
+  view. Do not describe chips to the user; set them. When the user wants to
+  *see* issues, do not paste a table — `gadak views open`. `gadak open` is
+  the Jira-site escape hatch; `gadak views open` is open-in-gadak.
 - `gadak comment <KEY> -m "…"`, `gadak transition <KEY> "<status>"` — writes go
   through to Jira.
 
@@ -78,6 +80,9 @@ When the user asks about Jira issues, use the gadak CLI against the local
 mirror: `gadak issue <KEY> --json`, `gadak search "<text>" --json`, or
 `gadak sql "<select …>"` (read-only). Filter on status_category, not display
 names. Use the `issues_full` view — it includes the issue title as `summary`.
+`gadak views` / `gadak views open --jql "…"` / `gadak views open --keys -`
+— list mirrored Jira filters and put the running app or serve tab on that
+view. Do not describe chips to the user; set them.
 ```
 
 ## Codex — `AGENTS.md` (repo root)
@@ -89,6 +94,8 @@ Use the gadak local mirror, not the Jira REST API:
 `gadak issue <KEY> --json` · `gadak search "<text>" --json` ·
 `gadak sql "<read-only select>"`. Filter on `status_category` and ids, never
 display names. Use the `issues_full` view for titles.
+`gadak views` / `gadak views open --jql "…"` / `gadak views open --keys -`
+puts the running app on a view — do not describe chips; set them.
 ```
 
 ## Skill or MCP?
