@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.13.0 — 2026-08-14
 
 - **One search box that searches everything.** ⌘K — or the new **Search ⌘K**
   button in the list toolbar, because a shortcut nobody can see is a feature
@@ -11,6 +11,26 @@
   the two searches were the same control before, which is exactly why nobody
   could tell what was being searched. The server could always answer this; only
   the UI was hiding it.
+- **History, in a file the mirror cannot take with it.** What you opened and
+  what you searched for are now recorded — in a *second* SQLite file,
+  `~/.gadak/local.db`, beside the mirror. That separation is the point: the
+  mirror stays a cache you can delete without losing anything gadak wrote for
+  you, and `export-static` and snapshots cannot leak your reading history.
+  The sidebar's recents header opens a first-class **History** view: issues,
+  documents and searches on one timeline, grouped by day, with a visit count
+  once you have opened something twice. Searches replay when clicked. The
+  store `ATTACH`es `local.db` when it opens the mirror, so an agent joins
+  `local.visits` to `issues` in a single `gadak sql` — "the issues I looked at
+  this week" is a query, not a feature request. There is no clear-history
+  button yet: the delete endpoint is not written, and a button that cannot do
+  what it says is worse than none.
+- **The issue list stops losing to the document screen.** From a document,
+  "Assigned to me" changed the URL and left you where you were. The main
+  column's occupants — feed, space, documents, list — were independent
+  latches, so every "show me the list" call site had to remember to drop all
+  of them, and one did not. That intent now has a single owner and every path
+  goes through it. Opening an issue deliberately does not: that is a panel,
+  not a column, and a test pins the difference.
 - **The window follows the agent.** A `keys` axis (`ks=` in the URL) makes an
   arbitrary set of issue keys a first-class view, so an agent can hand you the
   answer instead of pasting a table:
@@ -73,7 +93,9 @@
   window that belongs to the profile you asked for rather than whichever one
   was up; a workspace credentialed after `serve` started begins syncing; the
   attachment cache is keyed by site and issue, so a site switch cannot serve
-  the wrong bytes and an unrelated issue key cannot fetch a cached one; and a
+  the wrong bytes and an unrelated issue key cannot fetch a cached one — and
+  the snapshot importer writes under that same key, which it did not at first,
+  leaving every seeded image unreachable on a profile with a site set; and a
   failed mirror re-read after an upload returns the 502 the contract specifies
   instead of a 200 that claims otherwise.
 - **Person filters no longer depend on Jira email visibility** (#1, thanks
