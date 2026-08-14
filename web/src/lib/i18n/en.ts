@@ -549,6 +549,29 @@ export const en = {
   /* How many pages sit under a collapsed branch of the tree. */
   'docs.treeChildCount': '{n} pages under this one',
 
+  /* ── History (visits + searches from local.db) ── */
+  'history.title': 'History',
+  'history.openAll': 'All',
+  'history.tabAll': 'All',
+  'history.tabIssues': 'Issues',
+  'history.tabDocs': 'Documents',
+  'history.tabSearches': 'Searches',
+  'history.groupToday': 'Today',
+  'history.groupYesterday': 'Yesterday',
+  'history.groupThisWeek': 'This week',
+  'history.groupOlder': 'Older',
+  'history.visitCount': '{n} times',
+  'history.empty': 'Nothing viewed or searched yet',
+  'history.emptyHint': 'Issues and documents you open, and searches you run, appear here.',
+  'history.filterEmpty': 'No matches',
+  'history.filterPlaceholder': 'Filter',
+  'history.filterLabel': 'Filter history',
+  'history.filterClear': 'Clear filter',
+  'history.openAsList': 'Show issues in list',
+  'history.loadMore': 'Load more',
+  'history.searchResults': '{n} results',
+  'history.searchOpened': 'Opened {key}',
+
   /* ── Person panel (people axis) ── */
   'person.comments': 'Comments',
   'person.noComments': 'No comments from this person in the mirror.',
@@ -848,6 +871,7 @@ export const en = {
   'palette.viewSource': 'Jira filter',
   'palette.actionNewIssue': 'New issue',
   'palette.actionSettings': 'Open settings',
+  'palette.actionHistory': 'Open history',
   'palette.actionResetFilters': 'Reset filters',
   'palette.actionToggleReopened': 'Toggle reopened filter',
   'palette.actionToggleUnassigned': 'Toggle unassigned filter',

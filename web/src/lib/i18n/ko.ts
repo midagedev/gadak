@@ -548,6 +548,29 @@ export const ko = {
   /* 접힌 가지 아래에 몇 개가 있는지. */
   'docs.treeChildCount': '이 아래 문서 {n}개',
 
+  /* ── History (visits + searches from local.db) ── */
+  'history.title': '히스토리',
+  'history.openAll': '전체',
+  'history.tabAll': '전체',
+  'history.tabIssues': '이슈',
+  'history.tabDocs': '문서',
+  'history.tabSearches': '검색',
+  'history.groupToday': '오늘',
+  'history.groupYesterday': '어제',
+  'history.groupThisWeek': '이번 주',
+  'history.groupOlder': '그 이전',
+  'history.visitCount': '{n}회',
+  'history.empty': '열람하거나 검색한 항목이 없습니다',
+  'history.emptyHint': '연 이슈·문서와 실행한 검색이 여기에 모입니다.',
+  'history.filterEmpty': '일치하는 항목 없음',
+  'history.filterPlaceholder': '좁히기',
+  'history.filterLabel': '히스토리 좁히기',
+  'history.filterClear': '좁히기 지우기',
+  'history.openAsList': '이슈 목록으로 보기',
+  'history.loadMore': '더 보기',
+  'history.searchResults': '결과 {n}개',
+  'history.searchOpened': '{key} 열람',
+
   /* ── Person panel (people axis) ── */
   'person.comments': '코멘트',
   'person.noComments': '미러에 이 사람의 코멘트가 없습니다.',
@@ -840,6 +863,7 @@ export const ko = {
   'palette.viewSource': '지라 필터',
   'palette.actionNewIssue': '새 이슈',
   'palette.actionSettings': '설정 열기',
+  'palette.actionHistory': '히스토리 열기',
   'palette.actionResetFilters': '필터 초기화',
   'palette.actionToggleReopened': '재오픈 필터 토글',
   'palette.actionToggleUnassigned': '미할당 필터 토글',

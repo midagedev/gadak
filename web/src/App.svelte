@@ -47,6 +47,7 @@
   import PersonalFeed from './components/personal/PersonalFeed.svelte'
   import DocsView from './components/docs/DocsView.svelte'
   import SpaceDocsView from './components/docs/SpaceDocsView.svelte'
+  import HistoryView from './components/history/HistoryView.svelte'
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
   import QuickComment from './components/write/QuickComment.svelte'
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
@@ -105,6 +106,8 @@
     if (router.params.get('dview') === 'tree') pages.spaceTree = true
   } else if (router.params.get('docs') === '1') {
     pages.docsView = true
+  } else if (router.params.get('hist') === '1') {
+    pages.historyView = true
   } else if (initialDocKey) {
     /*
      * A link to a page with nothing behind it lands on the document screen, not
@@ -283,7 +286,11 @@
     //  than letting each list bind its own listener (the list used to, which is
     //  why `/` did nothing on a document screen).
     if (key === '/') {
-      const testid = pages.open ? 'docs-filter-input' : 'search-input'
+      const testid = pages.historyView
+        ? 'history-filter-input'
+        : pages.open
+          ? 'docs-filter-input'
+          : 'search-input'
       // The feed has nothing to narrow — no field, no key.
       const field = me.feedOpen && feature('feed')
         ? null
@@ -471,20 +478,27 @@
   // inside a space, so a pass that saw them one at a time would be reading a
   // half-applied screen.
   bindParams({
-    params: ['space', 'docs', 'dview'],
+    params: ['space', 'docs', 'dview', 'hist'],
     read: () => ({
       space: pages.spaceView,
       docs: pages.docsView ? '1' : null,
       dview: pages.spaceTree ? 'tree' : null,
+      hist: pages.historyView ? '1' : null,
     }),
-    write: ({ space, docs, dview }) => {
+    write: ({ space, docs, dview, hist }) => {
       if (space) {
         pages.openSpace(space)
         pages.spaceTree = dview === 'tree'
       } else if (docs === '1') {
         pages.spaceView = null
         pages.spaceTree = false
+        pages.historyView = false
         pages.docsView = true
+      } else if (hist === '1') {
+        pages.spaceView = null
+        pages.spaceTree = false
+        pages.docsView = false
+        pages.historyView = true
       } else {
         pages.closeDocs()
       }
@@ -603,6 +617,8 @@
                this column, so it never has to close the docs view first. -->
           {#if me.feedOpen && feature('feed')}
             <PersonalFeed />
+          {:else if pages.historyView}
+            <HistoryView />
           {:else if pages.spaceView !== null}
             <SpaceDocsView space={pages.spaceView} />
           {:else if pages.docsView}

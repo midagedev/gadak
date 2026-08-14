@@ -30,8 +30,12 @@ import type {
   PageDetail,
   PagesResponse,
   SavedView,
+  HistoryPage,
+  HistoryVisitKind,
+  SearchEvent,
   SearchResponse,
   TransitionsResponse,
+  VisitEvent,
   UsersResponse,
   ViewsResponse,
   WatchesResponse,
@@ -125,6 +129,54 @@ export function getDetail(issueKey: string): Promise<DetailResponse> {
 
 export function search(q: string, limit = 200): Promise<SearchResponse> {
   return json<SearchResponse>(`search/?q=${encodeURIComponent(q)}&limit=${limit}`)
+}
+
+/* ── Personal history (local.db; POST is a side effect, never blocks the UI) ── */
+
+export function postVisit(kind: HistoryVisitKind, key: string): Promise<VisitEvent> {
+  return json<VisitEvent>('history/visits/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, key }),
+  })
+}
+
+export function postSearch(body: {
+  query: string
+  result_count: number
+  opened_kind?: string
+  opened_key?: string
+}): Promise<SearchEvent> {
+  return json<SearchEvent>('history/searches/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function patchSearch(
+  id: number,
+  openedKind: HistoryVisitKind,
+  openedKey: string,
+): Promise<SearchEvent> {
+  return json<SearchEvent>(`history/searches/${id}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ opened_kind: openedKind, opened_key: openedKey }),
+  })
+}
+
+export function getHistory(opts?: {
+  kind?: string
+  limit?: number
+  cursor?: string
+}): Promise<HistoryPage> {
+  const q = new URLSearchParams()
+  if (opts?.kind) q.set('kind', opts.kind)
+  if (opts?.limit != null) q.set('limit', String(opts.limit))
+  if (opts?.cursor) q.set('cursor', opts.cursor)
+  const qs = q.toString()
+  return json<HistoryPage>(qs ? `history/?${qs}` : 'history/')
 }
 
 /** JQL / Jira-URL → ViewFilters. Unsupported clauses are listed, never dropped. */

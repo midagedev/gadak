@@ -20,7 +20,10 @@
 import { t, type MessageKey } from '../lib/i18n'
 import * as api from '../lib/api'
 import { config, feature } from '../lib/config'
+import { SEARCH_DEDUPE_MS, VISIT_DEBOUNCE_MS } from '../lib/history'
 import { STORAGE_KEYS } from '../lib/storage'
+import type { HistoryVisitKind } from '../lib/types'
+import { history } from './history.svelte'
 import { issues } from './issues.svelte'
 import { watches } from './watches.svelte'
 import { push } from './push.svelte'
@@ -171,6 +174,17 @@ class MeStore {
   #prevUnreadAll = 0
   /** Whether the first successful feed load has set #prevUnreadAll (avoid notify on boot). */
   #feedBaselineReady = false
+
+  /** Last posted visit id (`issue:KEY` / `doc:KEY`) and when. Consecutive
+   *  repeats inside VISIT_DEBOUNCE_MS are remounts; A→B→A is two visits of A. */
+  #lastPostedVisit = ''
+  #lastPostedVisitAt = 0
+  #lastSearchId: number | null = null
+  #lastSearchKeys = new Set<string>()
+  #lastSearchQuery = ''
+  #lastSearchPostedAt = 0
+  /** Set when the result is opened before POST history/searches/ returns. */
+  #pendingOpened: { kind: HistoryVisitKind; key: string } | null = null
 
   /**
    * Boot:
@@ -433,8 +447,12 @@ class MeStore {
     this.feedOpen = !this.feedOpen
   }
 
-  /* ── Recent issues and documents (local) ── */
+  /* ── Recent issues and documents (local + server visit) ── */
 
+  /**
+   * One owner for "I looked at this": optimistic local recents (sidebar)
+   * and an append-only server visit. Callers must not POST visits themselves.
+   */
   recordRecent(key: string, kind: RecentKind = 'issue'): void {
     if (!key) return
     const id = visitId(kind, key)
@@ -444,6 +462,142 @@ class MeStore {
     ].slice(0, RECENT_MAX)
     this.recent = next
     saveRecent(next)
+
+    const serverKind: HistoryVisitKind = kind === 'doc' ? 'page' : 'issue'
+    const now = Date.now()
+    const repeat = this.#lastPostedVisit === id && now - this.#lastPostedVisitAt < VISIT_DEBOUNCE_MS
+    if (!repeat) {
+      this.#lastPostedVisit = id
+      this.#lastPostedVisitAt = now
+      void api
+        .postVisit(serverKind, key)
+        .then((row) => {
+          history.noteItem({
+            type: 'visit',
+            id: row.id,
+            kind: row.kind,
+            key: row.key,
+            at: row.viewed_at,
+          })
+        })
+        .catch((e) => {
+          console.debug('[history] visit not recorded', serverKind, key, e)
+        })
+    }
+    this.#linkSearchOpen(serverKind, key)
+  }
+
+  /**
+   * One executed server search. Typing in the list box is not a search —
+   * only Enter (and the palette's committed unified query) land here.
+   */
+  recordSearch(
+    query: string,
+    resultCount: number,
+    resultKeys: readonly string[],
+    opened?: { kind: HistoryVisitKind; key: string },
+  ): void {
+    const q = query
+    const now = Date.now()
+    if (
+      !opened &&
+      this.#lastSearchQuery === q &&
+      now - this.#lastSearchPostedAt < SEARCH_DEDUPE_MS
+    ) {
+      this.#lastSearchKeys = new Set(resultKeys)
+      return
+    }
+    this.#lastSearchQuery = q
+    this.#lastSearchPostedAt = now
+    this.#lastSearchKeys = new Set(resultKeys)
+    this.#pendingOpened = opened ?? null
+    const body: {
+      query: string
+      result_count: number
+      opened_kind?: string
+      opened_key?: string
+    } = { query: q, result_count: resultCount }
+    if (opened) {
+      body.opened_kind = opened.kind
+      body.opened_key = opened.key
+    }
+    void api
+      .postSearch(body)
+      .then((row) => {
+        history.noteItem({
+          type: 'search',
+          id: row.id,
+          query: row.query,
+          result_count: row.result_count,
+          opened_kind: row.opened_kind,
+          opened_key: row.opened_key,
+          at: row.searched_at,
+        })
+        const pending = this.#pendingOpened
+        this.#pendingOpened = null
+        if (opened) {
+          this.#lastSearchId = null
+          return
+        }
+        if (pending && this.#lastSearchKeys.has(pending.key)) {
+          this.#lastSearchId = null
+          void api
+            .patchSearch(row.id, pending.kind, pending.key)
+            .then((updated) => {
+              history.noteItem({
+                type: 'search',
+                id: updated.id,
+                query: updated.query,
+                result_count: updated.result_count,
+                opened_kind: updated.opened_kind,
+                opened_key: updated.opened_key,
+                at: updated.searched_at,
+              })
+            })
+            .catch((e) => {
+              console.debug('[history] search open not recorded', e)
+            })
+          return
+        }
+        this.#lastSearchId = row.id
+      })
+      .catch((e) => {
+        console.debug('[history] search not recorded', e)
+      })
+  }
+
+  /** Drop the pending "opened from this search" link (results were cleared). */
+  clearSearchLink(): void {
+    this.#lastSearchId = null
+    this.#lastSearchKeys = new Set()
+    this.#pendingOpened = null
+  }
+
+  #linkSearchOpen(kind: HistoryVisitKind, key: string): void {
+    if (!this.#lastSearchKeys.has(key)) return
+    const id = this.#lastSearchId
+    if (!id) {
+      this.#pendingOpened = { kind, key }
+      return
+    }
+    this.#lastSearchId = null
+    this.#pendingOpened = null
+    void api
+      .patchSearch(id, kind, key)
+      .then((row) => {
+        history.noteItem({
+          type: 'search',
+          id: row.id,
+          query: row.query,
+          result_count: row.result_count,
+          opened_kind: row.opened_kind,
+          opened_key: row.opened_key,
+          at: row.searched_at,
+        })
+      })
+      .catch((e) => {
+        console.debug('[history] search open not recorded', e)
+      })
   }
 }
 

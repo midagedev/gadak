@@ -453,6 +453,8 @@ class FiltersStore {
       // servers omit the field entirely → no docs group).
       pages.setSearchHits(res.pages ?? [])
       this.searchError = null
+      const resultKeys = [...(res.keys ?? []), ...(res.pages ?? []).map((p) => p.key)]
+      me.recordSearch(q, res.total ?? resultKeys.length, resultKeys)
     } catch (e) {
       console.warn('[filters] 서버 검색 실패', e)
       this.serverMatchKeys = []
@@ -471,6 +473,7 @@ class FiltersStore {
     pages.clearSearchHits()
     this.serverMatchQuery = ''
     this.searchError = null
+    me.clearSearchLink()
   }
 
   /** Issues hit by body match but missing from local results (extra section). */

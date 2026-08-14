@@ -202,12 +202,25 @@
   </div>
 {/if}
 
-{#if recentItems.length}
-  <div class="mb-3">
-    <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
+<div class="mb-3">
+  <div class="flex items-center px-3 py-1">
+    <span class="text-micro font-medium uppercase tracking-wide text-text-muted">
       {t('personal.recent')}
-    </div>
-    {#each recentItems as item (item.page ? `d:${item.page.key}` : `i:${item.issue!.issue_key}`)}
+    </span>
+    <button
+      type="button"
+      class="ml-auto text-micro font-medium uppercase tracking-wide text-text-muted transition-colors hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+      data-testid="history-open"
+      aria-current={pages.historyView ? 'page' : undefined}
+      onclick={() => {
+        me.closeFeed()
+        pages.openHistory()
+      }}
+    >
+      {t('history.openAll')}
+    </button>
+  </div>
+  {#each recentItems as item (item.page ? `d:${item.page.key}` : `i:${item.issue!.issue_key}`)}
       {#if item.page}
         <div
           data-testid={`recent-doc-${item.page.key}`}
@@ -291,4 +304,3 @@
       {/if}
     {/each}
   </div>
-{/if}

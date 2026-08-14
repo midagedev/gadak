@@ -244,6 +244,26 @@
     showIssueList(config)
   }
 
+  function searchResultKeys(): string[] {
+    if (serverView.status !== 'ready') return []
+    const res = serverView.response
+    return [...(res.keys ?? []), ...(res.pages ?? []).map((p) => p.key)]
+  }
+
+  /** Record the committed unified query once. Local typing is not a search. */
+  function flushPaletteSearch(opened?: { kind: 'issue' | 'page'; key: string }): void {
+    if (serverView.status !== 'ready') return
+    const q = serverView.query
+    if (!q) return
+    const res = serverView.response
+    me.recordSearch(q, res.total ?? 0, searchResultKeys(), opened)
+  }
+
+  function closePalette(): void {
+    flushPaletteSearch()
+    onclose()
+  }
+
   const viewItems = $derived.by<Item[]>(() => {
     const out: Item[] = []
     const push = (id: string, name: string, sub: string, config: ViewConfig, icon?: IconName) => {
@@ -353,6 +373,14 @@
         run: () => void write.openNewIssue(),
       },
       { id: 'a:settings', label: t('palette.actionSettings'), run: onOpenSettings },
+      {
+        id: 'a:history',
+        label: t('palette.actionHistory'),
+        run: () => {
+          me.closeFeed()
+          pages.openHistory()
+        },
+      },
       { id: 'a:reset', label: t('palette.actionResetFilters'), run: () => filters.clearAll() },
       { id: 'a:reopened', label: t('palette.actionToggleReopened'), run: () => filters.toggleFlag('reopened') },
       { id: 'a:unassigned', label: t('palette.actionToggleUnassigned'), run: () => filters.toggleFlag('unassigned') },
@@ -414,6 +442,11 @@
       const item = docItem(hit.page, 'unified')
       item.id = `u:d:${hit.page.key}`
       item.testid = 'palette-unified-doc'
+      const open = item.run
+      item.run = () => {
+        flushPaletteSearch({ kind: 'page', key: hit.page!.key })
+        open()
+      }
       out.push(attachMatch(item, hit.match, hit.page.title))
     }
     for (const hit of proj.issues) {
@@ -429,6 +462,11 @@
           }
       item.id = `u:i:${hit.key}`
       item.testid = 'palette-unified-issue'
+      const open = item.run
+      item.run = () => {
+        flushPaletteSearch({ kind: 'issue', key: hit.key })
+        open()
+      }
       out.push(attachMatch(item, hit.match, issue?.summary ?? ''))
     }
     if (proj.truncated) {
@@ -439,6 +477,7 @@
         icon: 'arrow-up-right',
         testid: 'palette-unified-more',
         run: () => {
+          flushPaletteSearch()
           const c = filters.currentConfig()
           c.filters.q = raw
           showIssueList(c)
@@ -500,13 +539,13 @@
 
   function run(item: Item) {
     item.run()
-    onclose()
+    closePalette()
   }
 
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault()
-      onclose()
+      closePalette()
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
       if (items.length) idx = (idx + 1) % items.length
@@ -525,7 +564,7 @@
   class="fixed inset-0 z-50 flex items-start justify-center bg-[#1c1812]/28 p-4 pt-[12vh] backdrop-blur-[2px]"
   role="presentation"
   onclick={(e) => {
-    if (e.target === e.currentTarget) onclose()
+    if (e.target === e.currentTarget) closePalette()
   }}
 >
   <div

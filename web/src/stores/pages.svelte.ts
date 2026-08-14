@@ -102,6 +102,11 @@ class PagesStore {
   docsView = $state(false)
   /** One space's document list owns the main column; the space key, or null. */
   spaceView = $state<string | null>(null)
+  /**
+   * History view owns the main column. Same exclusive layer as docsView /
+   * spaceView — feed still overlays without closing it.
+   */
+  historyView = $state(false)
   /** Which axis the document view is showing. */
   docsTab = $state<DocsTab>(loadDocsTab())
   /** Author group the By-author tab should scroll to once, set by an arrival
@@ -361,25 +366,46 @@ class PagesStore {
   toggleDocs(): void {
     const wasOnlyDocs = this.docsView && this.spaceView === null
     this.spaceView = null
+    this.historyView = false
     this.docsView = !wasOnlyDocs
   }
 
   /** A space row: its flat document list takes the column from the tabbed view. */
   openSpace(spaceKey: string): void {
     this.docsView = false
+    this.historyView = false
     this.spaceView = spaceKey
     // The flat list is how a page is found (UX_PRINCIPLES §6); arriving at a
     // space is not the request for a hierarchy, so each arrival starts flat.
     this.spaceTree = false
   }
 
+  /**
+   * Leave every exclusive main-column surface (docs, one space, history).
+   * Call sites that mean "back to the issue list" go through here so a new
+   * surface cannot stick the way docs once did.
+   */
   closeDocs(): void {
     this.docsView = false
     this.spaceView = null
+    this.historyView = false
     this.focusAuthor = null
     this.spaceTree = false
     // The narrowing belongs to the screen that was left, not to the next one.
     this.docsLabel = null
+  }
+
+  openHistory(): void {
+    this.docsView = false
+    this.spaceView = null
+    this.spaceTree = false
+    this.docsLabel = null
+    this.focusAuthor = null
+    this.historyView = true
+  }
+
+  closeHistory(): void {
+    this.historyView = false
   }
 
   /** Narrow every document screen to one label, or clear it (null). */
@@ -403,6 +429,7 @@ class PagesStore {
    *  one that was asked for can sit well down the page. */
   openDocsByAuthor(author: string): void {
     this.spaceView = null
+    this.historyView = false
     this.docsView = true
     this.selectTab('author')
     this.focusAuthor = author

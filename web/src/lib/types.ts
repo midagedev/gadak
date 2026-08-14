@@ -374,6 +374,51 @@ export interface SearchResponse {
   matches?: Record<string, SearchMatch>
 }
 
+/* ── Personal history (local.db; never sent to Jira) ── */
+
+/** POST `history/visits/` body `kind`. Server rejects anything else. */
+export type HistoryVisitKind = 'issue' | 'page'
+
+/** POST `history/visits/` response. */
+export interface VisitEvent {
+  id: number
+  kind: HistoryVisitKind
+  key: string
+  viewed_at: string
+}
+
+/** POST / PATCH `history/searches/` response. */
+export interface SearchEvent {
+  id: number
+  query: string
+  searched_at: string
+  result_count: number
+  opened_kind: string | null
+  opened_key: string | null
+}
+
+/**
+ * One GET `history/` row. `type` is `visit` or `search`; visit fields and
+ * search fields are omitted on the other kind (server `omitempty`).
+ */
+export interface HistoryItem {
+  type: 'visit' | 'search'
+  id: number
+  kind?: string
+  key?: string
+  query?: string
+  result_count?: number | null
+  opened_kind?: string | null
+  opened_key?: string | null
+  at: string
+}
+
+/** GET `history/` page. `next_cursor` is absent on the last page. */
+export interface HistoryPage {
+  items: HistoryItem[]
+  next_cursor?: string
+}
+
 /* ── Mirrored wiki pages (docs) ── */
 
 /** One mirrored wiki page, without body. Sidebar rows and search hits use this. */
