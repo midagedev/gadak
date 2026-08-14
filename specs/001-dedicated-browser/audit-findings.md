@@ -19,15 +19,28 @@ scope prune + per-space watermark backfill, which subsumes **C3**
 (B-sync-conf; the manual repair in `docs/runbooks/confluence-space-scope.md`
 is now a fallback, not the fix).
 
-In flight: **D4 D5 D12 I6** (B-cli-B) · **D8 D9 D10 I5-server** (B-srv) ·
-window drag, GitHub issue #2 (FIX-drag). **D6 D7** landed with Track G.
+Also closed: **D4 D5 D12 I6** (B-cli-B) · **D8 D9 D10 I5-server** (B-srv) ·
+window drag, GitHub issue #2 (FIX-drag, PR #3). **D6 D7** landed with Track G.
 
-Still open, named so they are not re-derived: **I8** (PageLite carries no
-`author_id`, so By-author still groups on the display name) · the rest of
-**C5** (`config.json` has the site but not the profile name, so two
-profiles on one origin *and* one site can still share a pool) ·
-`priority_id` is not on the wire, so the priority filter stays name-keyed ·
-everything under P2 below.
+That is every P0 and every P1 from this audit except the four below.
+
+Still open, named so they are not re-derived:
+
+- **I8** — `PageLite` carries no `author_id`, so By-author still groups on the
+  display name. Needs a store SELECT + JSON field, then the web grouping.
+- **The rest of C5** — `config.json` carries the site but not the profile name,
+  so two profiles on one origin *and* one site can still share a cached pool.
+- **`priority_id` is not on the wire**, so the priority filter stays name-keyed
+  (status and type are id-first as of B-identity-web).
+- **A gate that reads the machine, not the code**: `TestViewsOpenNoOpenSkipsLaunch`
+  and `TestViewsOpenEnvNoOpen` assert `web == ""`, but `views open` discovers a
+  serve base by probing real listeners — so the suite is red for any contributor
+  who happens to have `gadak serve` running. Measured, not theorised: with a
+  listener on :7878 both fail; with none, `go test ./...` exits 0. This also
+  contradicts Track G's G4 ("print the URL even under `--no-open`"), so the fix
+  is a discovery seam plus an assertion about launching, not about the URL.
+
+Everything under P2 below is untouched and still open.
 
 ## The headline
 
