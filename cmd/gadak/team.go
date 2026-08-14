@@ -11,6 +11,9 @@ import (
 	"github.com/midagedev/gadak/internal/teamconfig"
 )
 
+// saveConfig is cfg.Save, replaced in tests to inject a Save failure (D12).
+var saveConfig = func(c *config.Config) error { return c.Save() }
+
 func cmdTeam(args []string) error {
 	if len(args) == 0 || wantsHelp(args) && (len(args) == 1 || args[0] == "-h" || args[0] == "--help") {
 		printHelp("team")
@@ -219,7 +222,12 @@ See also: gadak team export
 		return nil
 	}
 
-	if err := teamconfig.ApplyPlan(cfg, db, plan); err != nil {
+	// Config first, then views (D12). A Save failure must leave views
+	// unwritten so a retry still has something to apply instead of
+	// skipping already-imported names.
+	settingsPlan := plan
+	settingsPlan.Views = nil
+	if err := teamconfig.ApplyPlan(cfg, db, settingsPlan); err != nil {
 		return err
 	}
 	cfg.Site = credSite
@@ -229,7 +237,12 @@ See also: gadak team export
 	cfg.TokenVerifiedAt = credVerified
 	cfg.AccountID = credAcct
 
-	if err := cfg.Save(); err != nil {
+	if err := saveConfig(cfg); err != nil {
+		return err
+	}
+	viewsPlan := plan
+	viewsPlan.Settings = nil
+	if err := teamconfig.ApplyPlan(cfg, db, viewsPlan); err != nil {
 		return err
 	}
 	fmt.Println("import applied")

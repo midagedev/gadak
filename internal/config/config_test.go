@@ -519,6 +519,16 @@ func TestRequireExistingProfileMissingListsAvailable(t *testing.T) {
 	}
 }
 
+func TestApplyVerifiedIdentity(t *testing.T) {
+	var c Config
+	c.ApplyVerifiedIdentity("acc-1", "Ada", "2026-08-14T00:00:00.000Z")
+	if c.AccountID != "acc-1" || c.TokenOwner != "Ada" || c.TokenVerifiedAt != "2026-08-14T00:00:00.000Z" {
+		t.Fatalf("got id=%q owner=%q at=%q", c.AccountID, c.TokenOwner, c.TokenVerifiedAt)
+	}
+	var n *Config
+	n.ApplyVerifiedIdentity("x", "y", "z") // nil receiver must not panic
+}
+
 func captureStderr(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()

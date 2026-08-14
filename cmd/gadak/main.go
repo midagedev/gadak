@@ -334,15 +334,20 @@ func cmdInit(args []string) error {
 		return fmt.Errorf("site, email, and token are all required")
 	}
 	// Same verification as the server credential / onboarding endpoints (jira /myself).
+	// Auth rejection is fatal. A transport / site error is a warning: save the
+	// credential without identity fields so offline init still works (I6).
+	name := ""
 	me, err := jira.New(cfg.Site, cfg.Email, cfg.Token).Myself(context.Background())
 	if err != nil {
 		if errors.Is(err, jira.ErrAuth) {
 			// Restore the pre-jira.Myself hint: org API keys are a common mistake.
 			return fmt.Errorf("credential check failed: %w (org API keys do not work; use a user token)", err)
 		}
-		return fmt.Errorf("credential check failed: %w", err)
+		fmt.Fprintf(os.Stderr, "warning: credential check failed (%v); saved without account_id — re-run init when the site is reachable\n", err)
+	} else {
+		cfg.ApplyVerifiedIdentity(me.AccountID, me.DisplayName, store.Now())
+		name = me.DisplayName
 	}
-	name := me.DisplayName
 	if err := cfg.Save(); err != nil {
 		return err
 	}
@@ -367,7 +372,11 @@ func cmdInit(args []string) error {
 			Confluence: initConfluenceJSON(cfg),
 		})
 	}
-	fmt.Printf("verified as %s — saved %s\n", name, p)
+	if name != "" {
+		fmt.Printf("verified as %s — saved %s\n", name, p)
+	} else {
+		fmt.Printf("saved %s\n", p)
+	}
 	if len(cfg.Projects) == 0 {
 		fmt.Println("no project filter — syncing everything this account can see; narrow it later in Settings → Sync")
 	}

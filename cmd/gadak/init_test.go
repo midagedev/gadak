@@ -38,7 +38,7 @@ func myselfServer(t *testing.T) *httptest.Server {
 			t.Errorf("myself: missing Authorization")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"displayName":"Test User"}`))
+		_, _ = w.Write([]byte(`{"displayName":"Test User","accountId":"acc-test"}`))
 	}))
 	t.Cleanup(srv.Close)
 	return srv
@@ -60,6 +60,108 @@ func withClosedStdin(t *testing.T, fn func()) {
 		_ = r.Close()
 	}()
 	fn()
+}
+
+func TestInitStoresAccountID(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+
+	srv := myselfServer(t)
+	withClosedStdin(t, func() {
+		if _, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "agent@example.com",
+				"--token-file", writeTokenFile(t, home, "id-token"),
+			})
+		}); err != nil {
+			t.Fatalf("init: %v", err)
+		}
+	})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AccountID != "acc-test" {
+		t.Fatalf("AccountID = %q, want acc-test", cfg.AccountID)
+	}
+	if cfg.TokenOwner != "Test User" {
+		t.Fatalf("TokenOwner = %q, want Test User", cfg.TokenOwner)
+	}
+	if cfg.TokenVerifiedAt == "" {
+		t.Fatal("TokenVerifiedAt is empty")
+	}
+}
+
+func TestInitOfflineSavesWithoutIdentity(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+
+	// 418 is not auth and is not a retryable 429/503, so this stays fast.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+		_, _ = w.Write([]byte(`{"errorMessages":["unreachable"]}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	withClosedStdin(t, func() {
+		if _, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "offline@example.com",
+				"--token-file", writeTokenFile(t, home, "offline-token"),
+			})
+		}); err != nil {
+			t.Fatalf("offline init must save credentials: %v", err)
+		}
+	})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Site != srv.URL || cfg.Email != "offline@example.com" || cfg.Token != "offline-token" {
+		t.Fatalf("credentials not saved: site=%q email=%q token=%q", cfg.Site, cfg.Email, cfg.Token)
+	}
+	if cfg.AccountID != "" || cfg.TokenOwner != "" || cfg.TokenVerifiedAt != "" {
+		t.Fatalf("offline init must not invent identity: id=%q owner=%q at=%q", cfg.AccountID, cfg.TokenOwner, cfg.TokenVerifiedAt)
+	}
+}
+
+func TestInitAuthFailureDoesNotSave(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"errorMessages":["auth"]}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	withClosedStdin(t, func() {
+		_, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "bad@example.com",
+				"--token-file", writeTokenFile(t, home, "bad-token"),
+			})
+		})
+		if err == nil {
+			t.Fatal("expected auth failure")
+		}
+		if !strings.Contains(err.Error(), "credential check failed") {
+			t.Fatalf("want credential check failed, got %v", err)
+		}
+	})
+	p, _ := config.Path()
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Fatalf("auth failure must not write config; stat=%v", err)
+	}
 }
 
 func TestInitFlagsNoPrompt(t *testing.T) {

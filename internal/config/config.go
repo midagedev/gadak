@@ -463,6 +463,19 @@ func ensurePrivateDir(dir string) error {
 	return nil
 }
 
+// ApplyVerifiedIdentity stamps the three fields a successful Jira /myself
+// call produces. CLI init uses this; the server onboarding path writes the
+// same keys inline (internal/server/onboarding.go, write.go) — that package
+// is outside this change's file boundary.
+func (c *Config) ApplyVerifiedIdentity(accountID, displayName, verifiedAt string) {
+	if c == nil {
+		return
+	}
+	c.AccountID = accountID
+	c.TokenOwner = displayName
+	c.TokenVerifiedAt = verifiedAt
+}
+
 // HasCredential reports whether writes and the attachment proxy are possible.
 func (c *Config) HasCredential() bool {
 	return c.Site != "" && c.Email != "" && c.Token != ""
