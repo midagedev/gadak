@@ -8,6 +8,34 @@ import { test, expect, type ConsoleMessage, type Page } from '@playwright/test'
 
 const DEMO = '/gadak/'
 
+/** Placeholder copy is not the contract (see e2e/helpers.ts searchInput). */
+function searchInput(page: Page) {
+  return page.getByTestId('search-input')
+}
+
+/**
+ * Built-in Epic breakdown: open work grouped by epic — the README's
+ * "which epic is stuck?" question. Grouping renders section headers, so the
+ * first paint shows at least two epic groups.
+ */
+async function expectEpicBreakdownLanding(page: Page): Promise<void> {
+  // Every view groups by status_category by default, so header presence is
+  // not the discriminator — the URL `g` param is: it is only written when
+  // group_by differs from that default (view-config GROUP_KEY).
+  await expect(page).toHaveURL(/[?&]g=epic(?:&|$)/)
+  await expect(page.locator('[data-testid="group-header"]').first()).toBeVisible()
+}
+
+/**
+ * The demo lands on Epic breakdown. Switch to the All open built-in (same
+ * applyConfig path as the sidebar) before a key search — it restores the
+ * default status_category grouping, dropping `g=epic` from the URL.
+ */
+async function applyAllOpen(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /All open/ }).click()
+  await expect(page).not.toHaveURL(/[?&]g=epic(?:&|$)/)
+}
+
 async function forceLocale(page: Page, locale: 'en' | 'ko' = 'en'): Promise<void> {
   await page.addInitScript((loc) => {
     try {
@@ -30,6 +58,14 @@ function attachConsoleErrors(page: Page): string[] {
 }
 
 test.describe('hosted demo', () => {
+  test('first paint opens the Epic breakdown view', async ({ page }) => {
+    await forceLocale(page, 'en')
+    await page.goto(DEMO)
+
+    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
+    await expectEpicBreakdownLanding(page)
+  })
+
   test('boots 534 issues, searches, opens detail with attachment image', async ({
     page,
   }) => {
@@ -41,10 +77,12 @@ test.describe('hosted demo', () => {
 
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
     await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 60_000 })
-    await expect(page.getByPlaceholder(/Search issues/)).toBeVisible()
+    await expectEpicBreakdownLanding(page)
+    await applyAllOpen(page)
+    await expect(searchInput(page)).toBeVisible()
 
     // Client-side (in-memory) search — no server FTS on the hosted snapshot.
-    const input = page.getByPlaceholder(/Search issues/)
+    const input = searchInput(page)
     await input.fill('NMB-110')
     await expect(page.getByText(/1 issues?|1 issue/)).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText('NMB-110').first()).toBeVisible()
@@ -111,12 +149,17 @@ test.describe('hosted demo', () => {
     await forceLocale(page, 'en')
     const writes: string[] = []
     page.on('request', (r) => {
-      if (!['GET', 'HEAD'].includes(r.method())) writes.push(`${r.method()} ${r.url()}`)
+      if (['GET', 'HEAD'].includes(r.method())) return
+      // Opening an issue POSTs local.db visit/search rows (api.ts postVisit).
+      // The SW answers 501; the request still fires. Not a Jira write.
+      if (/\/history\/(visits|searches)\//.test(r.url())) return
+      writes.push(`${r.method()} ${r.url()}`)
     })
     await page.goto(DEMO)
 
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
-    await page.getByPlaceholder(/Search issues/).fill('NMB-110')
+    await applyAllOpen(page)
+    await searchInput(page).fill('NMB-110')
     await page
       .locator('[data-testid="issue-list-scroller"] [role="button"]')
       .filter({ hasText: 'NMB-110' })

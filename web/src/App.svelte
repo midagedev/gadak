@@ -33,6 +33,7 @@
     VIEW_PARAM_KEYS,
     type ViewConfig,
   } from './lib/view-config'
+  import { builtinViews } from './lib/builtin-views'
   import { STORAGE_KEYS } from './lib/storage'
   import Sidebar from './components/shell/Sidebar.svelte'
   import MainColumn from './components/shell/MainColumn.svelte'
@@ -402,6 +403,7 @@
 
   // ── Smart default: once. Never override URL view params. ──
   //  Priority: URL > last-used view (localStorage) > own group preset.
+  //  Hosted demo only: Reopened instead of all-open (see applyStartupView).
   //  Wait until members + auth check finish so group matching can work.
   let startupDone = false
   $effect(() => {
@@ -425,6 +427,22 @@
   function applyStartupView() {
     // Respect URL view params (shared link / refresh).
     if (VIEW_PARAM_KEYS.some((k) => router.params.get(k))) return
+
+    // Hosted demo: land on the built-in Epic breakdown — open work grouped
+    // by epic, the README's "which epic is stuck?" question. Chosen over
+    // Reopened deliberately: grouping is universal, while a reopen workflow
+    // is team-specific and reads as someone else's process. Same applyConfig
+    // path as the sidebar. Dual-gate so gadak serve / the desktop app keep
+    // the existing default even if config.json is wrong: VITE_HOSTED_DEMO is
+    // compile-time (regular bundles never set it); isHostedDemo() is the
+    // runtime config.json flag.
+    if (import.meta.env.VITE_HOSTED_DEMO === '1' && isHostedDemo()) {
+      const epicBreakdown = builtinViews().find((v) => v.id === 'epic-breakdown')
+      if (epicBreakdown) {
+        filters.applyConfig(epicBreakdown.config)
+        return
+      }
+    }
 
     // 1) Restore last-used view
     let last: string | null = null
