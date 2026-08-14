@@ -1,10 +1,11 @@
 /**
  * Agent-focus promo for docs/media/agent.{gif,mp4}.
  *
- * One recording, two panes: a paper terminal types `gadak views open --jql …`
- * while the real app sits underneath. On Enter the test runs that command
- * against the serve fixture; the iframe polls ui-focus and the chips land.
- * No live model, no credential, no DOM caption burned into the app.
+ * One recording, two panes: a paper terminal types
+ * `gadak sql … | tail -n +2 | gadak views open --keys -` while the real app
+ * sits underneath. On Enter the test runs that pipe against the serve fixture;
+ * the iframe polls ui-focus and the list snaps to those keys. No live model,
+ * no credential, no DOM caption burned into the app.
  *
  * Gated by GADAK_MEDIA=1. Viewport and video size must stay 1024×808
  * (see agent.config.ts) or Playwright letterboxes the capture.
@@ -22,8 +23,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const gadakBin = path.join(here, '../.tmp/gadak')
 const gadakHome = path.join(here, '../.tmp/home')
 
-const COMMAND = `gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'`
-const OUTPUT = 'hash\tpj=NMA&sc=inprogress'
+// Header row from `gadak sql` would become a fake key; the documented pipe
+// skips it (skills/gadak/SKILL.md, docs/RECIPES.md).
+const SQL = 'select key from issues where reopen_count>0 order by key limit 5'
+const COMMAND = `gadak sql "${SQL}" \\\n| tail -n +2 | gadak views open --keys -`
 
 const FRAME = `<!DOCTYPE html>
 <html lang="en">
@@ -92,7 +95,7 @@ async function typeCommand(page: Page, text: string, delayMs: number): Promise<v
 test.describe('agent focus demo', () => {
   test.skip(!isMedia, 'GADAK_MEDIA=1 only — media pipeline recording')
 
-  test('views open snaps the paper list', async ({ page }) => {
+  test('sql | views open --keys snaps the paper list', async ({ page }) => {
     await forceLocale(page, 'en')
     await page.setContent(FRAME, { waitUntil: 'domcontentloaded' })
 
@@ -106,29 +109,31 @@ test.describe('agent focus demo', () => {
     await page.waitForTimeout(180)
 
     const ran = spawnSync(
-      gadakBin,
+      'bash',
       [
-        'views',
-        'open',
-        '--jql',
-        `project = NMA AND statusCategory = "In Progress"`,
-        '--no-open',
+        '-c',
+        `"${gadakBin}" sql '${SQL}' | tail -n +2 | "${gadakBin}" views open --keys - --no-open`,
       ],
       { env: { ...process.env, GADAK_HOME: gadakHome }, encoding: 'utf8' },
     )
     if (ran.status !== 0) {
-      throw new Error(`views open failed: ${ran.stderr || ran.stdout}`)
+      throw new Error(`sql | views open --keys failed: ${ran.stderr || ran.stdout}`)
+    }
+    // Print only the hash line. The command also emits web\thttp://… when a
+    // serve tab is listening — that URL must not land in a public frame.
+    const hashLine =
+      (ran.stdout || '').split('\n').find((line) => line.startsWith('hash\t')) ?? ''
+    if (!hashLine.startsWith('hash\tks=')) {
+      throw new Error(`expected hash\\tks=… from views open, got: ${ran.stdout}`)
     }
     await page.locator('#out').evaluate((el, text) => {
       el.textContent = text
-    }, OUTPUT)
+    }, hashLine)
 
-    await expect(app.getByTestId('filter-chip').filter({ hasText: 'NMA' })).toBeVisible({
+    await expect(app.getByTestId('filter-chip').filter({ hasText: /5 keys/ })).toBeVisible({
       timeout: 5_000,
     })
-    await expect(app.getByTestId('filter-chip').filter({ hasText: 'In Progress' })).toBeVisible()
-    await expect(app.getByTestId('list-count')).not.toHaveText(/534/)
-    await expect(app.getByTestId('sidebar-jira-filter')).toBeVisible()
+    await expect(app.getByTestId('list-count')).toHaveText('5 issues')
     await page.waitForTimeout(3600)
   })
 })
