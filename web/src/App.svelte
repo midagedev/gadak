@@ -57,6 +57,7 @@
   import BrowseHost from './components/browse/BrowseHost.svelte'
   import { mediaViewer } from './stores/media-viewer.svelte'
   import { t } from './lib/i18n'
+  import { bindPaletteOpener } from './lib/unified-search'
 
   const LAST_VIEW_KEY = STORAGE_KEYS.lastView
 
@@ -125,6 +126,9 @@
   // in: nothing after this turns a bare `?doc=` into a document screen.
 
   onMount(() => {
+    const unbindPalette = bindPaletteOpener(() => {
+      paletteOpen = true
+    })
     void issues.init()
     void me.init()
     void pages.init() // Sidebar DOCS section; hides itself when the mirror has none
@@ -180,6 +184,7 @@
     }
     document.addEventListener('visibilitychange', onVis)
     return () => {
+      unbindPalette()
       clearTimeout(skeletonTimer)
       stopFocusPoll()
       document.removeEventListener('visibilitychange', onVis)

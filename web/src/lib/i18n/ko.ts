@@ -277,9 +277,9 @@ export const ko = {
   'list.qaDone': 'QA 완료',
   'list.qaRun': 'QA 차수',
   'list.qaPending': 'QA 대기',
-  'list.searchPlaceholder': '검색, 또는 JQL 붙여넣기…',
+  'list.searchPlaceholder': '이 목록에서 좁히기, 또는 JQL 붙여넣기…',
   'list.searchHelp':
-    '키·제목·담당자. 지라 JQL이나 필터 URL을 붙여넣으면 적용됩니다. 토큰: @담당자 #파트 !우선순위 is:reopened|unassigned|stale. Enter로 본문 검색.',
+    '이 목록을 좁힙니다 (키·제목·담당자·라벨). 지라 JQL이나 필터 URL을 붙여넣으면 적용됩니다. 토큰: @담당자 #파트 !우선순위 is:reopened|unassigned|stale. Enter로 이 목록에서 본문 검색. {shortcut}은 이슈·문서 전체를 검색하며 목록 필터를 무시합니다.',
   'list.searchClear': '지우기 (Esc)',
   'list.searchOpen': 'Enter로 열기',
   'omnibox.issueMissing': '미러에 {key}가 없습니다',
@@ -815,7 +815,15 @@ export const ko = {
 
   /* ── Command palette ── */
   'palette.title': '커맨드 팔레트',
-  'palette.placeholder': '이슈·뷰·액션으로 이동…',
+  'palette.placeholder': '이슈로 이동, 또는 전체 검색…',
+  'palette.emptyHint': '이슈·문서 전체를 검색합니다.',
+  'palette.sectionUnified': '전체 검색 (필터 무시)',
+  'palette.matchBody': '본문 매치',
+  'palette.matchComment': '댓글 매치',
+  'palette.matchTitle': '제목 매치',
+  'palette.seeMore': '목록에서 전체 결과 보기',
+  'palette.entryLabel': '검색',
+  'palette.entryTitle': '전체 검색 ({shortcut})',
   'palette.sectionIssues': '이슈',
   'palette.docCount': '{total}개 중 {shown}개',
   'palette.sectionDocs': '문서',
