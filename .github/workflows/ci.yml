@@ -54,6 +54,11 @@ jobs:
       - name: Frontend typecheck
         run: npm run typecheck
 
+      # Pure-logic web specs (vitest, no browser). The Playwright job below
+      # stays the browser tier; this one is seconds, so it runs in the fast job.
+      - name: Frontend unit tests
+        run: npm run test:unit
+
       - name: Serve smoke
         run: |
           set -euo pipefail
