@@ -3,7 +3,7 @@
  *
  * Web Push subscription + server notification preferences. Loaded when identity
  * appears; cleared when it disappears. Gated by features.push, workspace, and
- * hosted-demo (demo-sw owns the scope there).
+ * hosted-demo (the snapshot is read-only; its in-page fetch adapter answers the API).
  */
 
 import { t } from '../lib/i18n'
@@ -52,8 +52,8 @@ class PushStore {
 
   /** Skip config fetch and SW registration when push is off. */
   async load(): Promise<void> {
-    // Hosted demo: demo-sw.js owns the scope — registering sw.js here would
-    // replace it and every API call would fall through to 404s.
+    // Hosted demo: the static snapshot has no push backend, and sw.js has no
+    // business on that origin — the in-page fetch adapter serves the API.
     if (isHostedDemo()) return
     // Workspace mounts: sw.js at the root scope would push for the primary
     // mirror, not this one. Push stays a primary-page feature.

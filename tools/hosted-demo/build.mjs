@@ -71,10 +71,6 @@ run(viteBin, ['build'], {
   HOSTED_OUT: outDir,
 })
 
-if (!existsSync(join(outDir, 'demo-sw.js'))) {
-  console.error('hosted-demo: demo-sw.js missing from build output')
-  process.exit(1)
-}
 const indexPath = join(outDir, 'index.html')
 if (!existsSync(indexPath)) {
   console.error('hosted-demo: index.html missing from build output')

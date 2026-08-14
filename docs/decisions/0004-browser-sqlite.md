@@ -124,3 +124,22 @@ browser (cross-issue aggregation, agent-style queries in the page). Wanting a
 URL people can open without installing is not that trigger; static JSON already
 provides it.
 
+## Addendum (2026-08-15) — in-page fetch adapter, not a service worker
+
+**Status:** accepted for the hosted demo (GDK-23).
+
+The 2026-08 addendum shipped the snapshot behind `demo-sw.js`. That worker's
+only job was URL rewriting onto the static JSON plus `501 demo_read_only` on
+writes — nothing that needs a worker thread or a secure-context SW.
+
+X / Instagram / KakaoTalk in-app browsers (WKWebView family) restrict service
+workers, so the shared URL painted a full-screen "unsupported" notice instead
+of the product. The rewrite table now lives in `web/src/lib/hosted-fetch.ts`
+as a `window.fetch` wrapper, gated by `VITE_HOSTED_DEMO=1` and
+`config.hostedDemo`. Attachment `content_url` fields are rewritten in JSON
+because `<img src>` never goes through `fetch`. Returning visitors unregister
+the stale worker; already-open tabs keep the old controller until reload.
+
+The static-JSON decision itself is unchanged: still `gadak export-static`,
+still no sqlite-wasm, still no server FTS on the snapshot.
+

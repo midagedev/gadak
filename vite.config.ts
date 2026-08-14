@@ -1,4 +1,4 @@
-import { unlinkSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
@@ -10,7 +10,6 @@ import tailwindcss from '@tailwindcss/vite'
 // which is what keeps the service worker scope and manifest correct.
 // Hosted demo (GitHub Pages project site) builds with GADAK_BASE_PATH=/gadak/.
 const base = process.env.GADAK_BASE_PATH || '/'
-const hostedDemo = process.env.VITE_HOSTED_DEMO === '1'
 // Hosted demo must not clobber dist/app (go:embed). Set HOSTED_OUT to a separate
 // directory (Makefile uses dist/hosted).
 const defaultOutDir = process.env.HOSTED_OUT
@@ -39,30 +38,11 @@ function keepEmbedPlaceholder(): Plugin {
   }
 }
 
-// demo-sw.js lives in web/public so Vite copies it, but the normal local build
-// must not ship it — only the hosted-demo target registers or needs it.
-function stripDemoSW(): Plugin {
-  let resolvedOut = defaultOutDir
-  return {
-    name: 'gadak-strip-demo-sw',
-    configResolved(cfg) {
-      resolvedOut = resolve(cfg.root, cfg.build.outDir)
-    },
-    closeBundle() {
-      if (hostedDemo) return
-      try {
-        unlinkSync(resolve(resolvedOut, 'demo-sw.js'))
-      } catch {
-        /* not present */
-      }
-    },
-  }
-}
 
 export default defineConfig({
   root: 'web',
   base,
-  plugins: [svelte(), tailwindcss(), keepEmbedPlaceholder(), stripDemoSW()],
+  plugins: [svelte(), tailwindcss(), keepEmbedPlaceholder()],
   build: {
     outDir: defaultOutDir,
     emptyOutDir: true,

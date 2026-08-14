@@ -15,7 +15,7 @@ const pagesRoot = join(root, 'dist', 'pages')
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'hosted.spec.ts',
+  testMatch: '*.spec.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,

@@ -113,7 +113,7 @@ never shadow mirrored fields.
 | Item | Task | Note |
 | --- | --- | --- |
 | Live-site assignee display names | T6.8 | The committed snapshot is clean (fictional personas); the live site shows placeholder handles until each invitation is accepted. Affects live-site screenshots only |
-| Zero-install hosted demo | v0.3 | Live at https://midagedev.github.io/gadak/ — static JSON + demo-sw.js (not sqlite-wasm). `make hosted-demo` → `dist/hosted/`; Pages workflow deploys on `main` |
+| Zero-install hosted demo | v0.3 | Live at https://midagedev.github.io/gadak/ — static JSON + an in-page fetch adapter (not sqlite-wasm; the former demo-sw.js was retired for in-app browsers, decision 0004 addendum). `make hosted-demo` → `dist/hosted/`; Pages workflow deploys on `main` |
 | Web push (VAPID) | v0.2 | Still deferred; `features.push` stays false; in-tab Notification only |
 | Bootstrap payload cost at 10k | G5 | ≈61 ms/op on an M4 Pro — over the 50 ms product target, but it is a once-per-boot cost and the client caches it in IndexedDB. Streaming or a columnar payload is the lever if it matters |
 
