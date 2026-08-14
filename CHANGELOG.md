@@ -2,6 +2,80 @@
 
 ## Unreleased
 
+- **One search box that searches everything.** ⌘K — or the new **Search ⌘K**
+  button in the list toolbar, because a shortcut nobody can see is a feature
+  nobody finds — queries the whole mirror: every issue title, body and comment,
+  every document title and body, in one FTS index, *ignoring the filter chips
+  on the list*. Each row says which field matched and shows the snippet. The
+  box above the list keeps its old job and now says so ("narrow this list"):
+  the two searches were the same control before, which is exactly why nobody
+  could tell what was being searched. The server could always answer this; only
+  the UI was hiding it.
+- **The window follows the agent.** A `keys` axis (`ks=` in the URL) makes an
+  arbitrary set of issue keys a first-class view, so an agent can hand you the
+  answer instead of pasting a table:
+  `gadak sql "…" | tail -n +2 | gadak views open --keys -` puts exactly those
+  issues, in that order, on the running app or `serve` tab. `gadak views open
+  NMB-140` focuses one issue. Two verbs that read alike now differ plainly:
+  `gadak views open` opens *in gadak*, `gadak open` leaves for Jira.
+- **MCP gains a fifth tool, `gadak_show`**, so a host without a shell (Claude
+  Desktop) can present too — pass one of `jql` / `keys` / `issue` / `name` and
+  the running window applies it. The MCP contract is restated to match what it
+  actually does: no writes to the mirror or to Jira; presentation is a
+  permitted local act, ranked below SQL. SQL answers; show presents.
+- **Confluence space scope is now real.** Narrowing the space list used to stop
+  *fetching* a space without ever *removing* it, and widening it only pulled
+  pages newer than a shared watermark — so a mirror could hold thousands of
+  pages from spaces you had deselected while the space you did select showed a
+  handful of documents. Each space now carries its own watermark (schema
+  **v19**): a newly selected or restored space backfills in full, one space's
+  failure cannot skip another's history, and every successful pass removes the
+  spaces that left the scope. Found on a real work mirror; the manual repair in
+  `docs/runbooks/confluence-space-scope.md` is now a fallback, not the fix.
+- **The account-id bug class is closed, not patched.** #1 fixed one surface;
+  the same defect — an optional Jira field used as identity — was open on eight
+  more. People now resolve to account ids across JQL, saved views, the import
+  of Jira filters, the member directory, and the web's filters and caches, with
+  email kept as a fallback for rows written before ids were stored. On a site
+  that hides `emailAddress`, `assignee = currentUser()` no longer returns
+  nothing and email-less teammates no longer vanish from ⌘K, avatars and
+  grouping. Changelog and attachment authors gain `author_id` (schema **v20**),
+  so same-named people stop colliding in the feed.
+- **Security.** A profile name could escape the home directory — `--profile
+  ../../.ssh` wrote a token-bearing `config.json` there and chmodded the
+  directory; profile names are now validated where paths are built, not at the
+  call sites. The browser guard also ran only *inside* the API handler, leaving
+  `/config.json`, `/healthz` and `/api/v1/workspaces` reachable by a
+  DNS-rebinding page, which exposed your site URL, project keys and every
+  profile's name; the guard now wraps the whole mux.
+- **The macOS window can be dragged** (#2, thanks @wafe). It never could: the
+  Wails runtime module was not loaded, so `--wails-draggable` was inert, and
+  with the native title bar hidden there was no fallback strip — dragging the
+  header selected text instead. The runtime is now loaded, the list toolbar is
+  a second drag handle, and drag regions suppress text selection.
+- **Sync and cache coherence.** Comment-only edits on a wiki page reach the
+  mirror (one `type=comment` query per space per pass); an unchanged page no
+  longer bumps the version, so a quiet wiki stops invalidating the browser's
+  bootstrap every 60 seconds; issue→page links are read from raw ADF, so link
+  marks and inline cards count; a deleted issue is tombstoned by a single-item
+  sync instead of lingering until the hourly reconcile; changelog fields are
+  identified by id rather than a lower-cased localized name, so a Korean
+  account records status transitions and reopen counts; and field discovery
+  bumps the version it changes, so an open client stops 304-ing past new
+  custom fields.
+- **CLI and server honesty.** An unknown `--profile` errors with the list of
+  real ones instead of minting an empty home; an empty `GADAK_*` variable no
+  longer shadows its `SCRY_*` fallback; a leftover `~/.scry` beside `~/.gadak`
+  says so rather than silently abandoning the old mirror; `install-service`
+  writes one unit per profile and propagates a systemd failure; `team import`
+  cannot leave views behind when the save fails; `gadak init` stores the
+  account identity the web onboarding already stored; `views open` raises the
+  window that belongs to the profile you asked for rather than whichever one
+  was up; a workspace credentialed after `serve` started begins syncing; the
+  attachment cache is keyed by site and issue, so a site switch cannot serve
+  the wrong bytes and an unrelated issue key cannot fetch a cached one; and a
+  failed mirror re-read after an upload returns the 502 the contract specifies
+  instead of a 200 that claims otherwise.
 - **Person filters no longer depend on Jira email visibility** (#1, thanks
   @elppaaa). Assignee, reporter, current-user, and grouping filters prefer
   Jira account IDs while still accepting email-valued saved views when the
