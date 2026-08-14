@@ -126,13 +126,17 @@ Rules that come with the file:
 
 ### CLI reference
 
+`gadak open` is the Jira escape hatch (system browser to `/browse/KEY`);
+`gadak views open` is the "open in gadak" verb (focus the running app or
+serve tab). The names collide; the verbs do not.
+
 ```bash
 gadak issue NMB-140                   # fields, description, comments, history, links
 gadak issue NMB-140 --json            # the `GET <key>/detail/` document plus the list row
 # `gadak issue` is the context pack: one call returns everything an LLM needs
 # about an issue — no follow-up requests, no pagination.
 
-gadak open NMB-140                    # jump to the issue on the Jira site (boards, admin)
+gadak open NMB-140                    # Jira escape hatch: system browser to /browse/KEY
 
 gadak search "flaky upload" --limit 5
 gadak search "idempotency" --json     # matching IssueLite rows, best match first
@@ -140,7 +144,7 @@ gadak search --jql 'project = NMA AND statusCategory = "In Progress"'
 gadak search 'https://your-site.atlassian.net/issues/?jql=project%20%3D%20NMA'
 
 gadak views                              # Jira filters (after sync) + saved views
-gadak views open "NMA in progress"       # focus the running app or serve tab
+gadak views open "NMA in progress"       # open in gadak: focus the running app or serve tab
 gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
 gadak views save "Night triage" --jql 'assignee = currentUser() AND resolution is EMPTY'
 

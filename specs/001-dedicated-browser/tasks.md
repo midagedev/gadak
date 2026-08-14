@@ -8,18 +8,26 @@ Status: `[ ]` open · `[x]` done+evidence · `[-]` dropped (say why).
 
 ## Track D — docs (docs/ + README.md + SECURITY.md only)
 
-- [ ] D1. CONCEPT.md: "The browser it replaces" section — the statement,
+- [x] D1. CONCEPT.md: "The browser it replaces" section — the statement,
       the hierarchy, contain-don't-reimplement; extend the optimized loop
       with the agent handoff step. Keep the existing insight text.
-- [ ] D2. UX_PRINCIPLES.md: guardrails G-a/G-b/G-c as principles, with the
+      Evidence: `docs/CONCEPT.md` new section + loop step 6; insight
+      paragraph unchanged.
+- [x] D2. UX_PRINCIPLES.md: guardrails G-a/G-b/G-c as principles, with the
       tab-strip/pill named as the component G-c constrains.
-- [ ] D3. ROADMAP.md: v0.13 wave section; amend "Next" per spec.md
+      Evidence: §11–§13 name tab strip + re-entry pill.
+- [x] D3. ROADMAP.md: v0.13 wave section; amend "Next" per spec.md
       (PR #1 = first arrival signal; parallel, not displaced).
-- [ ] D4. SECURITY.md: WKWebView cookie session = second credential
+      Evidence: `docs/ROADMAP.md` v0.13 + rewritten Next.
+- [x] D4. SECURITY.md: WKWebView cookie session = second credential
       surface, desktop-only, distinct from the API token.
-- [ ] D5. ARCHITECTURE.md: drop the removed `presence/` line (doc rot).
-- [ ] D6. AGENTS.md + docs: `gadak open` = Jira escape hatch vs
+      Evidence: new "The in-app page session (desktop only)" section.
+- [x] D5. ARCHITECTURE.md: drop the removed `presence/` line (doc rot).
+      Evidence: `grep -n presence docs/ARCHITECTURE.md` → 0.
+- [x] D6. AGENTS.md + docs: `gadak open` = Jira escape hatch vs
       `gadak views open` = open in gadak, said where both are introduced.
+      Evidence: `AGENTS.md` CLI reference prose + comments; ROADMAP v0.13
+      restates the pair.
 
 ## Track G — Go (internal/jql/, cmd/gadak/views.go + views tests,
 ## internal/uifocus/, internal/server/focus.go + jql/focus tests)

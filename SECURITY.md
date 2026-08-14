@@ -154,6 +154,28 @@ malicious page cannot post comments or transitions through your browser
 127.0.0.1 cannot read the mirror. CLI and MCP clients send no
 Origin header and are unaffected.
 
+## The in-app page session (desktop only)
+
+Gadak.app can show an Atlassian page the mirror does not model by layering a
+native WKWebView over the window (`desktop/embed_darwin.go`,
+`desktop/browse.go`). That view is a second credential surface: it carries
+WebKit's cookie session for the site, which is not the API token in
+`~/.gadak/config.json`. The two are separate. The token is what sync and
+write-through use; the cookie session is what the embedded page uses to
+render as you.
+
+gadak does not read, write, or store those cookies. `embedCreate` builds a
+`WKWebViewConfiguration` and sets only the user-agent fragment; it does not
+install a `websiteDataStore`. No `*.go` / `*.ts` / `*.svelte` file in this
+repository calls a cookie API. WebKit owns the session.
+
+The surface exists only in Gadak.app. `gadak serve` never mounts the browse
+pane (`web/src/lib/browse.svelte.ts` returns immediately off desktop);
+unmodeled pages there open as ordinary `target="_blank"` system-browser
+tabs, whose session is the system browser's. `rm -rf ~/.gadak` still
+removes the API token and the mirror; it does not clear WebKit's website
+data.
+
 ## Rendered content is untrusted
 
 Issue descriptions, comments, and wiki bodies are attacker-influenced text —
