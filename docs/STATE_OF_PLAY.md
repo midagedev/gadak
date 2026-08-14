@@ -4,9 +4,14 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-14 — JQL paste/copy, Jira saved-filter import, and
-`gadak views open` focusing the running UI. v0.12.0 remains the last tagged
-release.
+Last updated: 2026-08-14 — the v0.13 wave: unified ⌘K search over issues *and*
+documents, a `keys` axis so an agent can put an exact set on the window
+(`views open --keys -`, MCP `gadak_show`), Confluence space scope that prunes
+and backfills itself (schema v19), `author_id` on changelog and attachments
+(v20), the account-id identity class closed across every surface, two security
+fixes (profile path escape, unguarded top-level routes), and the macOS window
+drag repair from issue #2. v0.12.0 remains the last tagged release; v0.13 is
+being cut from this state.
 
 ## In one paragraph
 
