@@ -35,7 +35,8 @@ Storing one row per visit (rather than a counter) is what makes counts *and*
 timelines *and* "yesterday afternoon" all fall out of the same table, and it
 matches how `reopen_count` already works here: derive, don't store.
 
-Two tables, both local-authored (never sent to Jira, never fetched from it):
+Two tables, both local-authored (never sent to Jira, never fetched from it), in
+a database of gadak's own — see "Its own database file" below:
 
 - `visits` — one row per view: kind (`issue` | `page`), key, `viewed_at`,
   and the profile's own identity is implicit (the mirror is per-profile).
@@ -46,36 +47,56 @@ Two tables, both local-authored (never sent to Jira, never fetched from it):
 `searches` is what turns *"검색했었던 거"* from a vague memory into a row: the
 query you typed is a better recall key than the issue key you forgot.
 
-### Why the mirror and not localStorage
+### Not localStorage: SQL, or the agent story dies
 
-Precedent exists: `saved_views`, `favorites`, and `feed_reads` are already
-local-authored tables in the mirror (`internal/store/schema.go:141,154,196`).
-History joins them.
-
-The decisive reason is request (3). In the mirror, history is reachable by
-`gadak sql`, by `gadak_query` over MCP, and by every agent — and then
+Request (3) decides this. In a database, history is reachable by `gadak sql`, by
+`gadak_query` over MCP, and by every agent — and then
 `gadak views open --keys -` / `gadak_show` puts the answer back on screen.
 "SQL answers; show presents" already covers the agent story end to end, so
-**this feature needs no new MCP tool**. In localStorage it would be invisible
-to all of that, forever.
+**this feature needs no new MCP tool**. In localStorage it would be invisible to
+all of that, forever.
 
-### The contract this strains, and how it is settled
+### Its own database file, not the mirror
+
+`saved_views`, `favorites`, and `feed_reads` live in the mirror today
+(`internal/store/schema.go:141,154,196`), so the mirror looks like the obvious
+home. It is the wrong one.
 
 "The mirror is a cache you can throw away" is true of Jira-derived rows: delete
-the file and a sync rebuilds them. It is **not** true of history — nothing can
-reconstruct what you looked at. `favorites` and `saved_views` already carry this
-exposure with no preservation path (verified: no export/restore path exists for
-them today).
+the file and a sync rebuilds them. Nothing rebuilds what you looked at. Putting
+history in `gadak.db` would make the project's most-repeated promise quietly
+destructive for the first time, and would need preservation machinery — an
+export/restore that every rebuild path has to remember to call — to undo the
+damage of its own placement.
 
-So this spec owns a gap that predates it:
+So: **a second SQLite file for data gadak authors itself.** Working name
+`~/.gadak/local.db` (per profile, beside the mirror).
 
-> Local-authored tables (`saved_views`, `favorites`, `feed_reads`, `visits`,
-> `searches`) must survive a mirror rebuild.
+This is structural rather than procedural:
 
-Either the rebuild path preserves them, or there is an export/import that the
-rebuild path uses. Deciding which is part of the work; shipping history without
-it is not acceptable, because it would make "throw the mirror away" quietly
-destructive for the first time.
+- The mirror goes back to being genuinely disposable. `rm gadak.db` is safe
+  again, with no caveat and no restore step to forget.
+- Its schema versions independently. The mirror is already at v20; personal
+  data should not be riding a migration sequence driven by Jira field changes.
+- **Snapshot and `export-static` cannot leak it.** They copy named tables out of
+  the mirror; a separate file is out of reach by construction, not by a
+  maintainer remembering to exclude it. For search-query history — which can
+  contain anything the user typed — that is the difference between a policy and
+  a guarantee.
+- Backup is one small file.
+
+It stays queryable in one breath: the store **ATTACHes `local.db` when it opens
+the mirror**, so `local.visits` joins `issues` in a single SELECT. The read-only
+guard is unaffected — it rejects non-SELECT statements, and a SELECT across an
+already-attached schema is an ordinary SELECT (verified against
+`internal/mcp/sqlguard.go:34`). Agents must never need to type `ATTACH`
+themselves; if they do, the seam is in the wrong place.
+
+`saved_views`, `favorites` and `feed_reads` belong in `local.db` by the same
+argument and carry the same exposure today. Moving them is a data migration with
+real risk, so it is **not** in the first cut: this spec establishes the file and
+puts new data there. Their move gets its own round, and this spec is the reason
+it exists.
 
 ### Retention
 
