@@ -16,12 +16,13 @@ profile and publish your numbers.
 | One issue + full changelog | 1,055 ms | 54 ms | 20× |
 | Free-text search | 520 ms | 78 ms | 7× |
 | **Open issues per epic (GROUP BY)** | 3,924 ms — 7 API pages, aggregated client-side | 24 ms — one query | **162×** |
-| **Reopened-issue count** | not expressible — walking every changelog measured ≈ 414 ms/issue, ≈ 20 min for this corpus | 14.5 ms | — |
+| **A count over the change history** (measured: issues that ever left Done) | not expressible — walking every changelog measured ≈ 414 ms/issue, ≈ 20 min for this corpus | 14.5 ms | — |
 
 The first three rows are "faster". The last two are the point: past a page
 size, JQL answers stop being slow and start being **unaskable** — the API can
 hand you rows but not the aggregate, so every GROUP BY becomes a paging loop
-in your code, and anything derived from the changelog becomes a crawl.
+in your code, and anything derived from the changelog — time spent per
+status, what bounced back from Done, who touched what — becomes a crawl.
 
 ## Where gadak loses
 

@@ -164,10 +164,10 @@ is never touched by this pipeline.
 One take, two panes, two beats, ~19 s, viewport **1024×808**:
 
 1. A paper terminal types
-   `gadak sql "select key from issues where reopen_count>0 order by key limit 5" \`
-   `| tail -n +2 | gadak views open --keys -`
-   (`tail -n +2` drops the `gadak sql` header row so it does not become a
-   fake key — `skills/gadak/SKILL.md`, `docs/RECIPES.md`)
+   `gadak sql --no-header "select key from issues where status_category='inprogress' order by status_changed_at asc limit 5" \`
+   `| gadak views open --keys -`
+   ("stuck the longest in progress" — universal, where a reopen workflow is
+   team-specific; `--no-header` keeps the header row from becoming a fake key)
 2. The real app (iframe, same 1024×640 frame as the hero) sits underneath
    on the default **All open** view (368 issues)
 3. On Enter the test runs that pipe against the serve fixture (`--no-open`);

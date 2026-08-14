@@ -47,8 +47,9 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 | 질문 | REST API | `gadak` | |
 | --- | ---: | ---: | ---: |
 | 단순 필터 100건 | 706 ms | 17 ms | 42× |
+| 이슈 하나 + 전체 히스토리 | 1,055 ms | 54 ms | 20× |
 | 에픽별 미해결 수 (`GROUP BY`) | 3,924 ms · API 7페이지 | 24 ms · 쿼리 1개 | 162× |
-| 리오픈된 이슈 수 | ≈ 20분 (전 changelog 순회) | 14.5 ms | — |
+| 변경 이력을 걸치는 모든 질문 | ≈ 20분 (전 changelog 순회) | 쿼리 1개 | — |
 
 반대편도: 첫 full sync는 몇 분이 걸리고, watch 틱마다 ~6.6초를 쓰고,
 미러는 동기화 주기만큼 Jira보다 늦습니다.
@@ -123,8 +124,8 @@ SQL이 답하고, 창이 보여 줍니다. 이미 JQL이 있다면 SQL을 건너
 절이 그대로 칩이 됩니다:
 
 ```bash
-gadak sql "select key from issues_full where reopen_count > 1" \
-  | tail -n +2 | gadak views open --keys -
+gadak sql --no-header "select key from issues_full where status_category = 'inprogress'
+                       order by status_changed_at asc limit 5" | gadak views open --keys -
 gadak views open --jql 'project = NMA AND priority = High AND resolution is EMPTY'
 ```
 

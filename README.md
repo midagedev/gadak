@@ -45,8 +45,9 @@ included — [method and the losing rows](docs/BENCHMARKS.md)):
 | Question | REST API | `gadak` | |
 | --- | ---: | ---: | ---: |
 | Simple filter, 100 issues | 706 ms | 17 ms | 42× |
+| One issue with its full history | 1,055 ms | 54 ms | 20× |
 | Open issues per epic (`GROUP BY`) | 3,924 ms · 7 API pages | 24 ms · one query | 162× |
-| Reopened-issue count | ≈ 20 min (every changelog) | 14.5 ms | — |
+| Anything over the change history | ≈ 20 min (crawl every changelog) | one query | — |
 
 And the other side: the first full sync takes minutes, every watch tick costs
 ~6.6 s, and the mirror trails Jira by one sync interval.
@@ -117,8 +118,8 @@ SQL answers; the window presents. And if you already have the JQL, skip the
 SQL — the clauses land as chips:
 
 ```bash
-gadak sql "select key from issues_full where reopen_count > 1" \
-  | tail -n +2 | gadak views open --keys -
+gadak sql --no-header "select key from issues_full where status_category = 'inprogress'
+                       order by status_changed_at asc limit 5" | gadak views open --keys -
 gadak views open --jql 'project = NMA AND priority = High AND resolution is EMPTY'
 ```
 

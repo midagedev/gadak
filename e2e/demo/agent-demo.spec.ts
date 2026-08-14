@@ -5,7 +5,7 @@
  * the real app sits underneath, and on Enter the test runs it against the
  * serve fixture — the iframe polls ui-focus and the list follows.
  *
- *   1. SQL   `gadak sql … | tail -n +2 | gadak views open --keys -`
+ *   1. SQL   `gadak sql --no-header … | gadak views open --keys -`
  *            → an arbitrary answer becomes the view (a `5 keys` chip).
  *   2. JQL   `gadak views open --jql '…'`
  *            → the query a Jira user already knows becomes chips
@@ -33,10 +33,12 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const gadakBin = path.join(here, '../.tmp/gadak')
 const gadakHome = path.join(here, '../.tmp/home')
 
-// Header row from `gadak sql` would become a fake key; the documented pipe
-// skips it (skills/gadak/SKILL.md, docs/RECIPES.md).
-const SQL = 'select key from issues where reopen_count>0 order by key limit 5'
-const COMMAND = `gadak sql "${SQL}" \\\n| tail -n +2 | gadak views open --keys -`
+// "Stuck the longest in progress" — a universal question (every team has
+// in-progress work; not every team reopens issues), and one JQL cannot rank
+// this way. --no-header keeps the header row from becoming a fake key.
+const SQL =
+  "select key from issues where status_category='inprogress' order by status_changed_at asc limit 5"
+const COMMAND = `gadak sql --no-header "${SQL}" \\\n| gadak views open --keys -`
 
 // The same JQL a Jira user would paste into the navigator. `resolution is
 // EMPTY` is the interesting clause: it has no chip of its own and lands as
@@ -128,7 +130,8 @@ test.describe('agent focus demo', () => {
       'bash',
       [
         '-c',
-        `"${gadakBin}" sql '${SQL}' | tail -n +2 | "${gadakBin}" views open --keys - --no-open`,
+        // Double quotes: the SQL contains single-quoted literals ('inprogress').
+        `"${gadakBin}" sql --no-header "${SQL}" | "${gadakBin}" views open --keys - --no-open`,
       ],
       { env: { ...process.env, GADAK_HOME: gadakHome }, encoding: 'utf8' },
     )
