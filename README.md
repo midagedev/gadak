@@ -11,6 +11,8 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
+<p align="center"><sub>English · <a href="README.ko.md">한국어</a></sub></p>
+
 A local SQLite file of your Jira — so "which epic is stuck?" is one query, not an unaskable one.
 
 gadak mirrors Jira *and* Confluence into one local SQLite file — issues,
