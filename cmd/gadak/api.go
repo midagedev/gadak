@@ -33,19 +33,25 @@ func (q *queryFlags) Set(v string) error {
 	return nil
 }
 
+const apiUsage = "usage: gadak api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status]"
+
 func cmdAPI(args []string) error {
-	pos, rest := leading(args, 2)
 	fs := newFlagSet("api")
 	var queries queryFlags
 	fs.Var(&queries, "query", "query parameter k=v (repeatable; value is URL-encoded)")
 	dataFlag := fs.String("data", "", "request body: literal, @file, or - for stdin")
 	writeFlag := fs.Bool("write", false, "allow non-GET/HEAD methods (uses write retry policy)")
 	statusFlag := fs.Bool("status", false, "print HTTP <code> to stderr in addition to the body")
-	if err := fs.Parse(rest); err != nil {
+	// Flags may sit before, between, or after METHOD/PATH. leading()+Parse
+	// only accepted flags after the two positionals (GDK-14).
+	pos, err := parseAround(fs, args)
+	if err != nil {
 		return err
 	}
-	if len(fs.Args()) > 0 {
-		return usageError("api", "usage: gadak api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status]")
+	for _, a := range pos {
+		if a != "-" && strings.HasPrefix(a, "-") {
+			return usageError("api", fmt.Sprintf("unknown flag %s", a))
+		}
 	}
 
 	method, path, err := parseAPIMethodPath(pos)
@@ -125,22 +131,40 @@ func cmdAPI(args []string) error {
 
 func parseAPIMethodPath(pos []string) (method, path string, err error) {
 	if len(pos) == 0 {
-		return "", "", usageError("api", "usage: gadak api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status]")
+		return "", "", usageError("api", apiUsage)
+	}
+	if len(pos) > 2 {
+		return "", "", fmt.Errorf("unexpected argument %q", pos[2])
 	}
 	if len(pos) == 1 {
 		if looksLikeMethod(pos[0]) {
 			return "", "", usageError("api", "usage: gadak api [METHOD] <PATH> … — path is required and must start with /")
 		}
+		if err := requireAPIPath(pos[0]); err != nil {
+			return "", "", err
+		}
 		return http.MethodGet, pos[0], nil
 	}
 	// Two positionals: METHOD PATH, or a mistaken second arg.
 	if looksLikeMethod(pos[0]) {
+		if err := requireAPIPath(pos[1]); err != nil {
+			return "", "", err
+		}
 		return pos[0], pos[1], nil
 	}
 	if strings.HasPrefix(pos[0], "/") {
-		return "", "", fmt.Errorf("unexpected argument %q after path — put flags after the path (e.g. --query k=v)", pos[1])
+		return "", "", fmt.Errorf("unexpected argument %q after path", pos[1])
 	}
-	return "", "", usageError("api", "usage: gadak api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status]")
+	return "", "", usageError("api", apiUsage)
+}
+
+// requireAPIPath is the cheap CLI shape check: a PATH always starts with /.
+// rejectAPIPath then refuses absolute / scheme-relative URLs.
+func requireAPIPath(path string) error {
+	if path == "" || !strings.HasPrefix(path, "/") {
+		return fmt.Errorf("path must start with / (got %q)", path)
+	}
+	return nil
 }
 
 func looksLikeMethod(s string) bool {

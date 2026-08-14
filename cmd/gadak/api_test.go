@@ -435,3 +435,134 @@ func TestAPI_DefaultMethodGET(t *testing.T) {
 		t.Errorf("method = %q", method)
 	}
 }
+
+func TestAPI_FlagsAnyPosition(t *testing.T) {
+	var gotMethod, gotPath, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(srv.Close)
+	apiMirror(t, srv.URL, false)
+
+	const (
+		body = `{"timeSpent":"1h"}`
+		path = "/rest/api/3/issue/A-1/worklog"
+	)
+	cases := []struct {
+		name     string
+		args     []string
+		wantBody string
+	}{
+		{"after", []string{"PUT", path, "--write", "--data", body}, body},
+		// Field incident 2026-08-15: flags before METHOD/PATH were a usage error.
+		{"before", []string{"--write", "PUT", path, "--data", body}, body},
+		{"between", []string{"PUT", "--write", path, "--data", body}, body},
+		{"split", []string{"--write", "PUT", "--data", body, path}, body},
+		// A PATH always starts with /; --data's value must not be taken as PATH.
+		{"dataLooksLikePath", []string{"--data", "/not-the-path", "PUT", path, "--write"}, "/not-the-path"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotMethod, gotPath, gotBody = "", "", ""
+			out, _, err := captureErr(t, func() error { return cmdAPI(tc.args) })
+			if err != nil {
+				t.Fatalf("cmdAPI %v: %v\n%s", tc.args, err, out)
+			}
+			if gotMethod != http.MethodPut || gotPath != path || gotBody != tc.wantBody {
+				t.Fatalf("got %s %s body=%q want PUT %s body=%q", gotMethod, gotPath, gotBody, path, tc.wantBody)
+			}
+		})
+	}
+}
+
+func TestAPI_DataStdinFlagBeforeMethod(t *testing.T) {
+	var gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(srv.Close)
+	apiMirror(t, srv.URL, false)
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := os.Stdin
+	os.Stdin = r
+	go func() {
+		_, _ = w.Write([]byte(`{"from":"stdin-before"}`))
+		_ = w.Close()
+	}()
+	_, _, err = captureErr(t, func() error {
+		return cmdAPI([]string{"--data", "-", "PUT", "/rest/api/3/issue/A-1/worklog", "--write"})
+	})
+	os.Stdin = saved
+	if err != nil {
+		t.Fatalf("stdin before METHOD: %v", err)
+	}
+	if gotBody != `{"from":"stdin-before"}` {
+		t.Fatalf("body = %q", gotBody)
+	}
+}
+
+func TestAPI_UnknownFlagErrors(t *testing.T) {
+	// parseAround leaves unknown dashes in the positional list; cmdAPI must
+	// return (not os.Exit) so a typo is a usage error in any position.
+	for _, args := range [][]string{
+		{"--pretty", "GET", "/rest/api/3/myself"},
+		{"GET", "--pretty", "/rest/api/3/myself"},
+		{"GET", "/rest/api/3/myself", "--pretty"},
+	} {
+		_, _, err := captureErr(t, func() error { return cmdAPI(args) })
+		if err == nil || !strings.Contains(err.Error(), "--pretty") {
+			t.Fatalf("%v: want unknown --pretty, got %v", args, err)
+		}
+		if !strings.Contains(err.Error(), `run "gadak api --help"`) {
+			t.Fatalf("%v: want usageError help pointer, got %v", args, err)
+		}
+	}
+}
+
+func TestParseAPIMethodPath(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		pos        []string
+		wantMethod string
+		wantPath   string
+		wantErr    string
+	}{
+		{[]string{"/rest/api/3/myself"}, http.MethodGet, "/rest/api/3/myself", ""},
+		{[]string{"PUT", "/rest/api/3/issue/A-1"}, "PUT", "/rest/api/3/issue/A-1", ""},
+		{[]string{"put", "/x"}, "put", "/x", ""},
+		{[]string{}, "", "", "usage:"},
+		{[]string{"PUT"}, "", "", "path is required"},
+		{[]string{"PUT", "rest/no-slash"}, "", "", "must start with /"},
+		{[]string{"/already", "extra"}, "", "", "unexpected argument"},
+		{[]string{"PUT", "/x", "extra"}, "", "", "unexpected argument"},
+	}
+	for _, tc := range cases {
+		t.Run(strings.Join(tc.pos, " "), func(t *testing.T) {
+			t.Parallel()
+			method, path, err := parseAPIMethodPath(tc.pos)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("err = %v, want %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("err = %v", err)
+			}
+			if method != tc.wantMethod || path != tc.wantPath {
+				t.Fatalf("got %s %s want %s %s", method, path, tc.wantMethod, tc.wantPath)
+			}
+		})
+	}
+}
