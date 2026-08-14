@@ -17,13 +17,13 @@ func Match(it Issue, f Filter) bool {
 	if len(f.Status) > 0 && !containsFold(f.Status, it.Status) {
 		return false
 	}
-	if f.Unassigned && it.AssigneeEmail != "" {
+	if f.Unassigned && hasAssignee(it) {
 		return false
 	}
 	if len(f.AssigneeEmail) > 0 && !matchPerson(f.AssigneeEmail, it.AssigneeEmail, it.Assignee, it.AssigneeID) {
 		return false
 	}
-	if len(f.ReporterEmail) > 0 && !matchPerson(f.ReporterEmail, it.ReporterEmail, it.Reporter, "") {
+	if len(f.ReporterEmail) > 0 && !matchPerson(f.ReporterEmail, it.ReporterEmail, it.Reporter, it.ReporterID) {
 		return false
 	}
 	if len(f.IssueType) > 0 && !containsFold(f.IssueType, it.Type) {
@@ -65,6 +65,12 @@ func effectiveCategory(sc string) string {
 	default:
 		return s
 	}
+}
+
+func hasAssignee(it Issue) bool {
+	return strings.TrimSpace(it.AssigneeID) != "" ||
+		strings.TrimSpace(it.AssigneeEmail) != "" ||
+		strings.TrimSpace(it.Assignee) != ""
 }
 
 func matchPerson(want []string, email, name, id string) bool {

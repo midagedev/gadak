@@ -31,7 +31,7 @@ func importFilters(ctx context.Context, c *jira.Client, cfg *config.Config, db *
 			Favourite:  f.Favourite,
 			Owner:      f.Owner,
 		}
-		q.Config, q.Applied, q.Unsupported = compileFilter(f.JQL, cfg.Email, people)
+		q.Config, q.Applied, q.Unsupported = compileFilter(f.JQL, people, identityFromConfig(cfg))
 		out = append(out, q)
 	}
 	if err := db.ReplaceSourceQueries(ctx, SourceID, out); err != nil {
@@ -41,12 +41,19 @@ func importFilters(ctx context.Context, c *jira.Client, cfg *config.Config, db *
 	opts.logf("filters: %d from Jira", len(out))
 }
 
-func compileFilter(jqlText, email string, people []jql.Person) (json.RawMessage, []string, []string) {
-	parsed := jql.Parse(jqlText, jql.Opts{Email: email})
+func identityFromConfig(cfg *config.Config) jql.Identity {
+	if cfg == nil {
+		return jql.Identity{}
+	}
+	return jql.Identity{Email: cfg.Email, AccountID: cfg.AccountID}
+}
+
+func compileFilter(jqlText string, people []jql.Person, me jql.Identity) (json.RawMessage, []string, []string) {
+	parsed := jql.Parse(jqlText, jql.Opts{Email: me.Email, AccountID: me.AccountID})
 	if parsed.Error != "" {
 		return emptyViewConfig(), nil, []string{parsed.Message}
 	}
-	jql.ResolvePeople(&parsed, people, email)
+	jql.ResolveIdentity(&parsed, people, me)
 	type display struct {
 		GroupBy string `json:"group_by"`
 		Sort    string `json:"sort,omitempty"`
@@ -84,6 +91,7 @@ func peopleFromDB(ctx context.Context, db *store.DB) []jql.Person {
 			AssigneeID:    derefPtr(l.AssigneeID),
 			Reporter:      derefPtr(l.Reporter),
 			ReporterEmail: derefPtr(l.ReporterEmail),
+			ReporterID:    derefPtr(l.ReporterID),
 		}
 	}
 	return jql.PeopleFromIssues(issues)

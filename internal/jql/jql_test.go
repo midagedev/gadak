@@ -418,3 +418,121 @@ func TestMatchKeysEmptyIsUnconstrained(t *testing.T) {
 		t.Fatal("empty Keys must not constrain")
 	}
 }
+
+// I1 FAIL-first: an email-hidden roster row must resolve by name/account id
+// to AccountID, then Match the issue that only carries that id.
+func TestI1EmailHiddenNameResolvesToAccountID(t *testing.T) {
+	people := []Person{{AccountID: "acc-me", Name: "Me", DisplayName: "Me User", Email: ""}}
+	res := Parse(`assignee = Me`, Opts{})
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	ResolvePeople(&res, people, "")
+	if got := res.Filters.AssigneeEmail; len(got) != 1 || got[0] != "acc-me" {
+		t.Fatalf("resolved assignee %+v unsupported %v", got, res.Unsupported)
+	}
+	it := Issue{AssigneeID: "acc-me", AssigneeEmail: ""}
+	if !Match(it, res.Filters) {
+		t.Fatal("email-hidden assignee should match via account id")
+	}
+}
+
+// I1 FAIL-first: currentUser() + configured account id must match an
+// issue that has AssigneeID and no email.
+func TestI1CurrentUserAccountIDMatchesHiddenAssignee(t *testing.T) {
+	res := Parse(`assignee = currentUser()`, Opts{})
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	ResolveIdentity(&res, nil, Identity{AccountID: "acc-me"})
+	if got := res.Filters.AssigneeEmail; len(got) != 1 || got[0] != "acc-me" {
+		t.Fatalf("currentUser resolved %+v unsupported %v", got, res.Unsupported)
+	}
+	it := Issue{AssigneeID: "acc-me", AssigneeEmail: ""}
+	if !Match(it, res.Filters) {
+		t.Fatal("currentUser() via account id should match AssigneeID")
+	}
+}
+
+// I1 reporter symmetry: email-hidden reporter matches on ReporterID.
+func TestI1CurrentUserAccountIDMatchesHiddenReporter(t *testing.T) {
+	res := Parse(`reporter = currentUser()`, Opts{})
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	ResolveIdentity(&res, nil, Identity{AccountID: "acc-me"})
+	if got := res.Filters.ReporterEmail; len(got) != 1 || got[0] != "acc-me" {
+		t.Fatalf("currentUser reporter resolved %+v unsupported %v", got, res.Unsupported)
+	}
+	it := Issue{ReporterID: "acc-me", ReporterEmail: ""}
+	if !Match(it, res.Filters) {
+		t.Fatal("currentUser() via account id should match ReporterID")
+	}
+}
+
+// I2 FAIL-first: assignee is EMPTY must not treat an id-only assignee as empty.
+func TestI2UnassignedIgnoresIDOnlyAssignee(t *testing.T) {
+	it := Issue{AssigneeID: "acc-1", AssigneeEmail: ""}
+	if Match(it, Filter{Unassigned: true}) {
+		t.Fatal("id-only assignee must not match assignee is EMPTY")
+	}
+	bare := Issue{}
+	if !Match(bare, Filter{Unassigned: true}) {
+		t.Fatal("no id/email/name should match unassigned")
+	}
+}
+
+// Legacy fallback: a roster row with email and no account id still resolves.
+func TestLegacyEmailOnlyPersonStillMatches(t *testing.T) {
+	people := []Person{{Email: "old@example.com", Name: "Old", AccountID: ""}}
+	res := Parse(`assignee = Old`, Opts{})
+	ResolvePeople(&res, people, "")
+	if got := res.Filters.AssigneeEmail; len(got) != 1 || got[0] != "old@example.com" {
+		t.Fatalf("legacy email %+v unsupported %v", got, res.Unsupported)
+	}
+	if !Match(Issue{AssigneeEmail: "old@example.com"}, res.Filters) {
+		t.Fatal("email-only person should still match")
+	}
+}
+
+// Ambiguous same-name people stay unsupported after id-bodied resolve.
+func TestAmbiguousNameStaysUnsupported(t *testing.T) {
+	people := []Person{
+		{AccountID: "acc-1", Name: "Kim", Email: ""},
+		{AccountID: "acc-2", Name: "Kim", Email: ""},
+	}
+	res := Parse(`assignee = Kim`, Opts{})
+	ResolvePeople(&res, people, "")
+	if len(res.Filters.AssigneeEmail) != 0 {
+		t.Fatalf("ambiguous should not apply: %+v", res.Filters.AssigneeEmail)
+	}
+	blob := strings.Join(res.Unsupported, " ")
+	if !strings.Contains(blob, "ambiguous") {
+		t.Fatalf("want ambiguous, got %q", blob)
+	}
+}
+
+func TestPeopleFromIssuesCollectsReporterID(t *testing.T) {
+	people := PeopleFromIssues([]Issue{{
+		Reporter: "Rep", ReporterEmail: "", ReporterID: "acc-rp",
+	}})
+	if len(people) != 1 || people[0].AccountID != "acc-rp" {
+		t.Fatalf("reporter roster %+v", people)
+	}
+}
+
+func TestResolveUnsupportedReasons(t *testing.T) {
+	res := Parse(`assignee = currentUser()`, Opts{})
+	ResolveIdentity(&res, nil, Identity{})
+	blob := strings.Join(res.Unsupported, " ")
+	if !strings.Contains(blob, "이메일 없음") {
+		t.Fatalf("empty identity: %q", blob)
+	}
+
+	res = Parse(`assignee = Nobody`, Opts{})
+	ResolvePeople(&res, nil, "")
+	blob = strings.Join(res.Unsupported, " ")
+	if !strings.Contains(blob, "미러에 없음") {
+		t.Fatalf("missing person: %q", blob)
+	}
+}

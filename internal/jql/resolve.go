@@ -3,10 +3,19 @@ package jql
 import "strings"
 
 // ResolvePeople replaces assignee/reporter display names and account ids
-// with emails from the mirror. Unresolved values move to Unsupported rather
-// than silently matching nothing. currentUser() becomes opts email, or is
-// refused when no identity is configured.
+// with the matched person's account id (email fallback). Unresolved values
+// move to Unsupported rather than silently matching nothing. currentUser()
+// becomes me, which this wrapper treats as an email.
+//
+// Prefer ResolveIdentity when the configured account id is known.
 func ResolvePeople(res *Result, people []Person, me string) {
+	ResolveIdentity(res, people, Identity{Email: me})
+}
+
+// ResolveIdentity is the identity owner: currentUser() becomes AccountID
+// when set, otherwise Email; roster lookups return AccountID when the
+// matched person has one. Email-less roster rows are not skipped.
+func ResolveIdentity(res *Result, people []Person, me Identity) {
 	if res == nil {
 		return
 	}
@@ -14,22 +23,19 @@ func ResolvePeople(res *Result, people []Person, me string) {
 	res.Filters.ReporterEmail = resolveList(res.Filters.ReporterEmail, people, me, "reporter", &res.Unsupported)
 }
 
-func resolveList(vals []string, people []Person, me, field string, unsupported *[]string) []string {
+func resolveList(vals []string, people []Person, me Identity, field string, unsupported *[]string) []string {
 	if len(vals) == 0 {
 		return vals
 	}
 	var out []string
 	for _, v := range vals {
 		if strings.EqualFold(v, "currentUser()") {
-			if me == "" {
-				addUnsup(unsupported, field+" = currentUser() (no configured identity)")
+			ident := currentUserIdent(me, people)
+			if ident == "" {
+				addUnsup(unsupported, field+" = currentUser() (이메일 없음)")
 				continue
 			}
-			out = appendUniqueFold(out, me)
-			continue
-		}
-		if looksLikeEmail(v) {
-			out = appendUniqueFold(out, v)
+			out = appendUniqueFold(out, ident)
 			continue
 		}
 		matches := lookupPerson(v, people)
@@ -37,7 +43,11 @@ func resolveList(vals []string, people []Person, me, field string, unsupported *
 		case 1:
 			out = appendUniqueFold(out, matches[0])
 		case 0:
-			addUnsup(unsupported, field+" = "+v+" (no one in the mirror matches)")
+			if looksLikeEmail(v) {
+				out = appendUniqueFold(out, v)
+				continue
+			}
+			addUnsup(unsupported, field+" = "+v+" (미러에 없음)")
 		default:
 			addUnsup(unsupported, field+" = "+v+" (ambiguous in the mirror)")
 		}
@@ -45,23 +55,55 @@ func resolveList(vals []string, people []Person, me, field string, unsupported *
 	return out
 }
 
+func currentUserIdent(me Identity, people []Person) string {
+	if me.AccountID != "" {
+		return me.AccountID
+	}
+	if me.Email == "" {
+		return ""
+	}
+	if matches := lookupPerson(me.Email, people); len(matches) == 1 {
+		return matches[0]
+	}
+	return me.Email
+}
+
 func lookupPerson(v string, people []Person) []string {
-	var emails []string
+	var ids []string
 	seen := map[string]bool{}
 	for _, p := range people {
-		if p.Email == "" {
+		if !personMatches(v, p) {
 			continue
 		}
-		if eqFold(v, p.Email) || eqFold(v, p.Name) || eqFold(v, p.DisplayName) || eqFold(v, p.AccountID) {
-			k := strings.ToLower(p.Email)
-			if seen[k] {
-				continue
-			}
-			seen[k] = true
-			emails = append(emails, p.Email)
+		ident := personIdent(p)
+		if ident == "" {
+			continue
 		}
+		k := strings.ToLower(ident)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		ids = append(ids, ident)
 	}
-	return emails
+	return ids
+}
+
+func personMatches(v string, p Person) bool {
+	return eqFold(v, p.Email) || eqFold(v, p.Name) || eqFold(v, p.DisplayName) || eqFold(v, p.AccountID)
+}
+
+func personIdent(p Person) string {
+	if p.AccountID != "" {
+		return p.AccountID
+	}
+	if p.Email != "" {
+		return p.Email
+	}
+	if p.Name != "" {
+		return p.Name
+	}
+	return p.DisplayName
 }
 
 func looksLikeEmail(s string) bool {
@@ -112,7 +154,7 @@ func PeopleFromIssues(issues []Issue) []Person {
 	}
 	for _, it := range issues {
 		add(it.AssigneeEmail, it.Assignee, it.AssigneeID)
-		add(it.ReporterEmail, it.Reporter, "")
+		add(it.ReporterEmail, it.Reporter, it.ReporterID)
 	}
 	out := make([]Person, 0, len(seen))
 	for _, p := range seen {

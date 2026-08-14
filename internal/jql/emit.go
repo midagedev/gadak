@@ -5,9 +5,10 @@ import (
 	"strings"
 )
 
-// EmitOpts controls how identity is written back (currentUser vs email).
+// EmitOpts controls how identity is written back (currentUser vs email/id).
 type EmitOpts struct {
-	Email string
+	Email     string
+	AccountID string
 }
 
 var bareIdent = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
@@ -44,7 +45,7 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 	if len(f.AssigneeEmail) > 0 {
 		vals := make([]string, 0, len(f.AssigneeEmail))
 		for _, e := range f.AssigneeEmail {
-			if opts.Email != "" && strings.EqualFold(e, opts.Email) {
+			if isConfiguredMe(e, opts) {
 				vals = append(vals, "currentUser()")
 			} else {
 				vals = append(vals, quote(e))
@@ -122,6 +123,16 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 		jql += "ORDER BY " + field + " " + strings.ToUpper(dir)
 	}
 	return jql, omitted
+}
+
+func isConfiguredMe(v string, opts EmitOpts) bool {
+	if opts.AccountID != "" && strings.EqualFold(v, opts.AccountID) {
+		return true
+	}
+	if opts.Email != "" && strings.EqualFold(v, opts.Email) {
+		return true
+	}
+	return false
 }
 
 func statusCategoryJira(cat string) string {

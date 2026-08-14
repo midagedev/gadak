@@ -65,6 +65,40 @@ func TestJqlParseAndEmit(t *testing.T) {
 	}
 }
 
+func TestJqlReporterNameResolvesToAccountID(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	rec := send(t, h, http.MethodPost, apiBase+"jql/",
+		`{"input":"reporter = \"박보고\""}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	got := decode[jql.Result](t, rec)
+	if len(got.Filters.ReporterEmail) != 1 || got.Filters.ReporterEmail[0] != "acc-rp" {
+		t.Fatalf("reporter_email %+v (want acc-rp)", got.Filters.ReporterEmail)
+	}
+}
+
+func TestJqlCurrentUserResolvesToAccountID(t *testing.T) {
+	db, cfg := fixture(t)
+	cfg.AccountID = "acc-hc"
+	h := New(db, cfg)
+
+	rec := send(t, h, http.MethodPost, apiBase+"jql/",
+		`{"input":"assignee = currentUser()"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	got := decode[jql.Result](t, rec)
+	if got.Error != "" {
+		t.Fatalf("error %s: %s", got.Error, got.Message)
+	}
+	if len(got.Filters.AssigneeEmail) != 1 || got.Filters.AssigneeEmail[0] != "acc-hc" {
+		t.Fatalf("assignee_email %+v (want acc-hc)", got.Filters.AssigneeEmail)
+	}
+}
+
 func TestUIFocusTakeIsOneShot(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)

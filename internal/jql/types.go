@@ -72,8 +72,15 @@ const MaxKeys = 500
 
 // Opts control parse-time evaluation (dates, currentUser).
 type Opts struct {
-	Now   time.Time
-	Email string // currentUser(); empty leaves the function unsupported
+	Now       time.Time
+	Email     string // currentUser() fallback when AccountID is empty
+	AccountID string // currentUser() body when set
+}
+
+// Identity is the configured Jira user ResolvePeople substitutes for currentUser().
+type Identity struct {
+	Email     string
+	AccountID string
 }
 
 // Issue is the source-neutral row Match compares to a Filter. Callers map
@@ -90,6 +97,7 @@ type Issue struct {
 	AssigneeID     string
 	Reporter       string
 	ReporterEmail  string
+	ReporterID     string
 	Labels         []string
 	Components     []string
 	FixVersions    []string

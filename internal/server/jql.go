@@ -38,21 +38,17 @@ func (s *server) handleJql(w http.ResponseWriter, r *http.Request) {
 		}
 		input, email = req.Input, req.Email
 	}
-	if email == "" {
-		if cfg := s.config(); cfg != nil {
-			email = cfg.Email
-		}
-	}
+	me := configuredIdentity(s, email)
 	if input == "" {
 		fail(w, http.StatusBadRequest, "jql_required")
 		return
 	}
 
-	res := jql.Parse(input, jql.Opts{Now: time.Now(), Email: email})
+	res := jql.Parse(input, jql.Opts{Now: time.Now(), Email: me.Email, AccountID: me.AccountID})
 	if res.Error == "" {
 		if lites, err := s.db.IssueLites(r.Context()); err == nil {
-			jql.ResolvePeople(&res, peopleFromLites(lites), email)
-			res.JQL, res.Omitted = jql.Emit(res.Filters, res.Display, jql.EmitOpts{Email: email})
+			jql.ResolveIdentity(&res, peopleFromLites(lites), me)
+			res.JQL, res.Omitted = jql.Emit(res.Filters, res.Display, jql.EmitOpts{Email: me.Email, AccountID: me.AccountID})
 		}
 	}
 	writeJSON(w, http.StatusOK, res)
@@ -68,17 +64,23 @@ func (s *server) handleJqlEmit(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_json")
 		return
 	}
-	email := req.Email
-	if email == "" {
-		if cfg := s.config(); cfg != nil {
-			email = cfg.Email
-		}
-	}
-	canonical, omitted := jql.Emit(req.Filters, req.Display, jql.EmitOpts{Email: email})
+	me := configuredIdentity(s, req.Email)
+	canonical, omitted := jql.Emit(req.Filters, req.Display, jql.EmitOpts{Email: me.Email, AccountID: me.AccountID})
 	writeJSON(w, http.StatusOK, map[string]any{
 		"jql":     canonical,
 		"omitted": omitted,
 	})
+}
+
+func configuredIdentity(s *server, email string) jql.Identity {
+	me := jql.Identity{Email: email}
+	if cfg := s.config(); cfg != nil {
+		if me.Email == "" {
+			me.Email = cfg.Email
+		}
+		me.AccountID = cfg.AccountID
+	}
+	return me
 }
 
 func peopleFromLites(lites []store.IssueLite) []jql.Person {
@@ -90,6 +92,7 @@ func peopleFromLites(lites []store.IssueLite) []jql.Person {
 			AssigneeID:    deref(l.AssigneeID),
 			Reporter:      deref(l.Reporter),
 			ReporterEmail: deref(l.ReporterEmail),
+			ReporterID:    deref(l.ReporterID),
 		}
 	}
 	return jql.PeopleFromIssues(issues)

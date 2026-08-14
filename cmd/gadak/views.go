@@ -308,14 +308,17 @@ func viewsSave(args []string) error {
 	if err != nil {
 		return err
 	}
-	email := ""
-	if cfg != nil {
-		email = cfg.Email
-	}
-	parsed := jql.Parse(*jqlFlag, jql.Opts{Email: email})
+	me := identityFromConfig(cfg)
+	parsed := jql.Parse(*jqlFlag, jql.Opts{Email: me.Email, AccountID: me.AccountID})
 	if parsed.Error != "" {
 		return fmt.Errorf("jql: %s", parsed.Message)
 	}
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	jql.ResolveIdentity(&parsed, peopleFromStore(db), me)
 	body, err := json.Marshal(struct {
 		Filters jql.Filter  `json:"filters"`
 		Display jql.Display `json:"display"`
@@ -323,11 +326,6 @@ func viewsSave(args []string) error {
 	if err != nil {
 		return err
 	}
-	db, err := openStore()
-	if err != nil {
-		return err
-	}
-	defer db.Close()
 	id := "cli-" + strings.ReplaceAll(strings.ToLower(name), " ", "-")
 	v := store.SavedView{ID: id, Name: name, Config: body}
 	if err := db.PutSavedView(context.Background(), v); err != nil {
@@ -428,25 +426,48 @@ func hashFromConfig(raw json.RawMessage) string {
 
 func hashFromJQL(text string) (string, error) {
 	cfg, err := config.Load()
-	email := ""
-	if err == nil && cfg != nil {
-		email = cfg.Email
+	me := jql.Identity{}
+	if err == nil {
+		me = identityFromConfig(cfg)
 	}
-	parsed := jql.Parse(text, jql.Opts{Email: email})
+	parsed := jql.Parse(text, jql.Opts{Email: me.Email, AccountID: me.AccountID})
 	if parsed.Error != "" {
 		return "", fmt.Errorf("jql: %s", parsed.Message)
 	}
-	if email != "" {
-		for i, a := range parsed.Filters.AssigneeEmail {
-			if strings.EqualFold(a, "currentUser()") {
-				parsed.Filters.AssigneeEmail[i] = email
-			}
-		}
-	}
+	jql.ResolveIdentity(&parsed, nil, me)
 	if len(parsed.Unsupported) > 0 {
 		fmt.Fprintf(os.Stderr, "warning: JQL skipped %s\n", strings.Join(parsed.Unsupported, "; "))
 	}
 	return jql.Hash(parsed.Filters, parsed.Display), nil
+}
+
+func identityFromConfig(cfg *config.Config) jql.Identity {
+	if cfg == nil {
+		return jql.Identity{}
+	}
+	return jql.Identity{Email: cfg.Email, AccountID: cfg.AccountID}
+}
+
+func peopleFromStore(db *store.DB) []jql.Person {
+	if db == nil {
+		return nil
+	}
+	lites, err := db.IssueLites(context.Background())
+	if err != nil {
+		return nil
+	}
+	issues := make([]jql.Issue, len(lites))
+	for i, l := range lites {
+		issues[i] = jql.Issue{
+			Assignee:      deref(l.Assignee, ""),
+			AssigneeEmail: deref(l.AssigneeEmail, ""),
+			AssigneeID:    deref(l.AssigneeID, ""),
+			Reporter:      deref(l.Reporter, ""),
+			ReporterEmail: deref(l.ReporterEmail, ""),
+			ReporterID:    deref(l.ReporterID, ""),
+		}
+	}
+	return jql.PeopleFromIssues(issues)
 }
 
 func compactJQL(s string) string {
