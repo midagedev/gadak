@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19}
 
 const schemaV1 = `
 CREATE TABLE sources (
@@ -376,4 +376,11 @@ CREATE TABLE source_queries (
 );
 CREATE UNIQUE INDEX source_queries_ext ON source_queries(source_id, external_id);
 CREATE INDEX source_queries_source ON source_queries(source_id, favourite, name);
+`
+
+// schemaV19 is the per-space incremental floor for wiki sync. NULL/empty means
+// the space has not been backfilled yet and the next pass must fetch it in
+// full. A space added after a broad sync must not inherit sync_state.watermark.
+const schemaV19 = `
+ALTER TABLE spaces ADD COLUMN watermark TEXT;
 `

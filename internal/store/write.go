@@ -256,6 +256,140 @@ func (db *DB) UpsertSpaces(ctx context.Context, sourceID string, rows []SpaceRow
 	})
 }
 
+// ConfluenceSpaceWatermarks returns each space key's incremental floor for
+// sourceID. A missing or NULL watermark is "". Callers treat empty as
+// "not yet backfilled" and run a full fetch for that space.
+func (db *DB) ConfluenceSpaceWatermarks(ctx context.Context, sourceID string) (map[string]string, error) {
+	out := map[string]string{}
+	if sourceID == "" {
+		return out, nil
+	}
+	rows, err := db.sql.QueryContext(ctx, `SELECT key, watermark FROM spaces WHERE source_id = ?`, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key string
+		var wm sql.NullString
+		if err := rows.Scan(&key, &wm); err != nil {
+			return nil, err
+		}
+		if wm.Valid {
+			out[key] = wm.String
+		} else {
+			out[key] = ""
+		}
+	}
+	return out, rows.Err()
+}
+
+// SetSpaceWatermark writes one space's incremental floor. An unknown key is
+// inserted so a just-scoped space can be stamped after its first successful
+// pass without a separate UpsertSpaces.
+func (db *DB) SetSpaceWatermark(ctx context.Context, sourceID, key, watermark string) error {
+	if sourceID == "" || key == "" {
+		return nil
+	}
+	return db.write(ctx, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`
+			INSERT INTO spaces (source_id, key, name, kind, homepage_id, watermark)
+			VALUES (?, ?, '', '', '', ?)
+			ON CONFLICT(source_id, key) DO UPDATE SET watermark = excluded.watermark`,
+			sourceID, key, nz(watermark))
+		return err
+	})
+}
+
+// PruneConfluenceSpaces deletes mirrored wiki pages (and their items, FTS
+// rows, and cascaded children) whose space_key is not in keepKeys, then
+// drops the matching spaces rows. keepKeys empty is a no-op so a zero-scope
+// call cannot wipe the mirror. The returned count is the number of pages
+// removed (space-row-only cleanup is not counted).
+func (db *DB) PruneConfluenceSpaces(ctx context.Context, sourceID string, keepKeys []string) (int, error) {
+	if sourceID == "" || len(keepKeys) == 0 {
+		return 0, nil
+	}
+	keep := make(map[string]struct{}, len(keepKeys))
+	args := []any{sourceID}
+	for _, k := range keepKeys {
+		if k == "" {
+			continue
+		}
+		if _, ok := keep[k]; ok {
+			continue
+		}
+		keep[k] = struct{}{}
+		args = append(args, k)
+	}
+	if len(keep) == 0 {
+		return 0, nil
+	}
+	qs := strings.Repeat("?,", len(keep)-1) + "?"
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT i.key FROM items i
+		JOIN pages p ON p.item_id = i.id
+		WHERE i.source_id = ? AND p.space_key NOT IN (`+qs+`)`, args...)
+	if err != nil {
+		return 0, err
+	}
+	var gone []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		gone = append(gone, key)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, err
+	}
+	rows.Close()
+
+	n, err := db.DeleteItems(ctx, sourceID, gone)
+	if err != nil {
+		return 0, err
+	}
+	err = db.write(ctx, func(tx *sql.Tx) error {
+		srows, err := tx.QueryContext(ctx, `SELECT key FROM spaces WHERE source_id = ?`, sourceID)
+		if err != nil {
+			return err
+		}
+		var drop []string
+		for srows.Next() {
+			var key string
+			if err := srows.Scan(&key); err != nil {
+				srows.Close()
+				return err
+			}
+			if _, ok := keep[key]; !ok {
+				drop = append(drop, key)
+			}
+		}
+		if err := srows.Err(); err != nil {
+			srows.Close()
+			return err
+		}
+		srows.Close()
+		for _, key := range drop {
+			if _, err := tx.Exec(`DELETE FROM spaces WHERE source_id = ? AND key = ?`, sourceID, key); err != nil {
+				return err
+			}
+		}
+		if len(drop) == 0 || n > 0 {
+			// DeleteItems already bumped version when pages were removed.
+			return nil
+		}
+		return bumpVersion(tx, sourceID, db.schemaVersion)
+	})
+	if err != nil {
+		return n, err
+	}
+	return n, nil
+}
+
 // UpsertPages writes document records in a single transaction and returns how
 // many items it actually changed. Unlike issues, pages always rewrite when
 // called: comments can change without bumping the page's updated_at, so a

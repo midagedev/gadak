@@ -15,6 +15,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
+	"github.com/midagedev/gadak/internal/store"
 
 	_ "modernc.org/sqlite"
 )
@@ -31,6 +32,12 @@ type confFixture struct {
 
 	// rateLimitOnce makes the next Spaces call return 429 then succeed.
 	rateLimitOnce atomic.Bool
+
+	// searches records every CQL body SearchPages sent.
+	searches []string
+	// failIfCQLContains, when non-empty, makes serveSearch return 400 for a
+	// matching CQL (not 500: atlhttp would retry).
+	failIfCQLContains string
 }
 
 type confPage struct {
@@ -160,6 +167,11 @@ func (f *confFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (f *confFixture) serveSearch(w http.ResponseWriter, r *http.Request) {
 	cql := r.URL.Query().Get("cql")
+	f.searches = append(f.searches, cql)
+	if f.failIfCQLContains != "" && strings.Contains(cql, f.failIfCQLContains) {
+		http.Error(w, "injected search failure", http.StatusBadRequest)
+		return
+	}
 	var results []map[string]any
 	// Collect and sort by When ascending.
 	ids := make([]string, 0, len(f.pages))
@@ -198,18 +210,15 @@ func (f *confFixture) serveSearch(w http.ResponseWriter, r *http.Request) {
 func cqlMatch(cql string, p *confPage) bool {
 	// Very small CQL interpreter for tests. Space keys arrive quoted
 	// (space="AAA") since the always-quote fix for digit-leading keys.
-	if strings.Contains(cql, `space="AAA"`) {
-		if p.Space != "AAA" {
-			return false
-		}
-	}
-	if strings.Contains(cql, `space="BBB"`) {
-		if p.Space != "BBB" {
+	if i := strings.Index(cql, `space="`); i >= 0 {
+		rest := cql[i+len(`space="`):]
+		end := strings.Index(rest, `"`)
+		if end >= 0 && p.Space != rest[:end] {
 			return false
 		}
 	}
 	if strings.Contains(cql, "space in (") {
-		// e.g. space in (AAA, BBB)
+		// e.g. space in (AAA, BBB) — legacy chunk form.
 		if !strings.Contains(cql, p.Space) {
 			return false
 		}
@@ -491,12 +500,14 @@ func TestConfluenceSpacesFromListing(t *testing.T) {
 	if homepageID != "9001" {
 		t.Errorf("homepage_id = %q, want 9001", homepageID)
 	}
-	// Personal spaces are listed into the table but not synced as page scope.
-	if err := raw.QueryRow(`SELECT name, kind FROM spaces WHERE source_id = 'confluence' AND key = '~personal'`).Scan(&name, &kind); err != nil {
-		t.Fatalf("personal space row: %v", err)
+	// Empty config = global page scope; personal space rows are pruned unless
+	// the key is named in config.spaces (same rule as page fetch).
+	var personalRows int
+	if err := raw.QueryRow(`SELECT COUNT(*) FROM spaces WHERE source_id = 'confluence' AND key = '~personal'`).Scan(&personalRows); err != nil {
+		t.Fatal(err)
 	}
-	if name != "Ada personal" || kind != "personal" {
-		t.Errorf("personal = name=%q kind=%q", name, kind)
+	if personalRows != 0 {
+		t.Errorf("personal space rows after empty-config prune = %d, want 0", personalRows)
 	}
 	pages, err := db.PageLites(context.Background())
 	if err != nil {
@@ -507,6 +518,56 @@ func TestConfluenceSpacesFromListing(t *testing.T) {
 	}
 	if pages[0].SpaceHomepageID != "9001" {
 		t.Errorf("PageLites SpaceHomepageID = %q, want 9001", pages[0].SpaceHomepageID)
+	}
+}
+
+// TestConfluenceEmptyConfigSecondPassDoesNotBumpVersion is FAIL-first for the
+// path-① insert/prune thrash: listing still contains a personal space, but a
+// quiet second pass must not bump sync_state.version (that invalidates the
+// client ETag every Watch cycle). The space watermark is walked past the only
+// page so this assertion is not the C4 overlap rewrite.
+func TestConfluenceEmptyConfigSecondPassDoesNotBumpVersion(t *testing.T) {
+	f := newConfFixture(t)
+	f.spaces = []map[string]any{
+		{"key": "3dvBrsa61dIo", "name": "Engineering", "type": "global",
+			"homepage": map[string]any{"id": "9001"}},
+		{"key": "~personal", "name": "Ada personal", "type": "personal"},
+	}
+	f.pages = map[string]*confPage{
+		"9001": {
+			ID: "9001", Space: "3dvBrsa61dIo", Title: "Root",
+			Version: 1, When: "2026-08-01T10:00:00.000Z",
+			BodyADF: `{"type":"doc","version":1,"content":[]}`,
+		},
+	}
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg(nil)
+	ctx := context.Background()
+
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSpaceWatermark(ctx, ConfluenceSourceID, "3dvBrsa61dIo", "2026-08-01T12:00:00.000Z"); err != nil {
+		t.Fatal(err)
+	}
+	st1, err := db.SyncState(ctx, ConfluenceSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st1.Version == 0 {
+		t.Fatal("precondition: first pass must have moved version")
+	}
+
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	st2, err := db.SyncState(ctx, ConfluenceSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st2.Version != st1.Version {
+		t.Fatalf("second empty-config pass bumped version %d -> %d", st1.Version, st2.Version)
 	}
 }
 
@@ -760,16 +821,16 @@ func TestConfluenceRunFlushesAPIUsage(t *testing.T) {
 	}
 }
 
-// TestConfluenceSyncRunKindNoReconcileSuffix: Confluence has no reconcile pass,
-// so SupportsReconcile=false — full stamps "full", never "full+reconcile".
-func TestConfluenceSyncRunKindNoReconcileSuffix(t *testing.T) {
+// TestConfluenceSyncRunKindReconcileSuffix: space prune is the Confluence
+// reconcile, so SupportsReconcile=true — full stamps "full+reconcile".
+func TestConfluenceSyncRunKindReconcileSuffix(t *testing.T) {
 	f := newConfFixture(t)
 	client := f.start()
 	db := newMirror(t)
 	cfg := confCfg([]string{"AAA"})
 
 	if _, err := RunConfluence(context.Background(), cfg, db.DB, Options{
-		Full: true, ConfluenceClient: client, Reconcile: true, // flag ignored for kind
+		Full: true, ConfluenceClient: client,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -780,7 +841,283 @@ func TestConfluenceSyncRunKindNoReconcileSuffix(t *testing.T) {
 	if len(runs) < 1 {
 		t.Fatal("expected a SyncRun after confluence full")
 	}
-	if runs[0].Kind != "full" {
-		t.Fatalf("confluence full kind = %q, want full (no +reconcile)", runs[0].Kind)
+	if runs[0].Kind != "full+reconcile" {
+		t.Fatalf("confluence full kind = %q, want full+reconcile", runs[0].Kind)
+	}
+}
+
+// TestConfluenceIncrementalPerSpaceCQL: AAA has a watermark → lastModified
+// floor; BBB has none → full-backfill CQL (no lastModified). No space-in chunks.
+func TestConfluenceIncrementalPerSpaceCQL(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, store.Source{ID: ConfluenceSourceID, Kind: "confluence", BaseURL: client.BaseURL()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSpaces(ctx, ConfluenceSourceID, []store.SpaceRow{
+		{Key: "AAA", Name: "Alpha", Kind: "global"},
+		{Key: "BBB", Name: "Beta", Kind: "global"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSpaceWatermark(ctx, ConfluenceSourceID, "AAA", "2026-01-01T00:00:00.000Z"); err != nil {
+		t.Fatal(err)
+	}
+
+	var logs []string
+	if _, err := RunConfluence(ctx, confCfg([]string{"AAA", "BBB"}), db.DB, Options{
+		ConfluenceClient: client,
+		Log:              func(line string) { logs = append(logs, line) },
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(f.searches) != 2 {
+		t.Errorf("SearchPages calls = %d, want 2 (one CQL per space)", len(f.searches))
+	}
+	var aaa, bbb string
+	for _, cql := range f.searches {
+		if strings.Contains(cql, `space="AAA"`) {
+			aaa = cql
+		}
+		if strings.Contains(cql, `space="BBB"`) {
+			bbb = cql
+		}
+		if strings.Contains(cql, "space in (") {
+			t.Errorf("chunked space-in CQL still used: %s", cql)
+		}
+	}
+	if aaa == "" || bbb == "" {
+		t.Fatalf("missing per-space CQL: searches=%v", f.searches)
+	}
+	wantFloor := cqlTime("2026-01-01T00:00:00.000Z")
+	if !strings.Contains(aaa, `lastModified >= "`+wantFloor+`"`) {
+		t.Errorf("AAA CQL = %q, want lastModified >= %q", aaa, wantFloor)
+	}
+	if strings.Contains(bbb, "lastModified") {
+		t.Errorf("BBB CQL = %q, want full-backfill (no lastModified)", bbb)
+	}
+
+	joined := strings.Join(logs, "\n")
+	if !strings.Contains(joined, "confluence: space AAA floor=") {
+		t.Errorf("missing AAA floor log, got %v", logs)
+	}
+	if !strings.Contains(joined, "confluence: space BBB floor=full-backfill") {
+		t.Errorf("missing BBB full-backfill log, got %v", logs)
+	}
+}
+
+// TestConfluenceSpaceWatermarkIsolation: A succeeds, B's SearchPages fails.
+// A's per-space watermark advances; B stays empty; the next run still
+// full-backfills B (global watermark must not become B's floor).
+func TestConfluenceSpaceWatermarkIsolation(t *testing.T) {
+	f := newConfFixture(t)
+	f.failIfCQLContains = `space="BBB"`
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, store.Source{ID: ConfluenceSourceID, Kind: "confluence", BaseURL: client.BaseURL()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSpaces(ctx, ConfluenceSourceID, []store.SpaceRow{
+		{Key: "AAA", Name: "Alpha", Kind: "global"},
+		{Key: "BBB", Name: "Beta", Kind: "global"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSpaceWatermark(ctx, ConfluenceSourceID, "AAA", "2026-01-01T00:00:00.000Z"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := RunConfluence(ctx, confCfg([]string{"AAA", "BBB"}), db.DB, Options{
+		ConfluenceClient: client,
+	})
+	if err == nil {
+		t.Fatal("expected BBB search to fail the pass")
+	}
+
+	wms, err := db.ConfluenceSpaceWatermarks(ctx, ConfluenceSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wms["AAA"] == "" || wms["AAA"] == "2026-01-01T00:00:00.000Z" {
+		t.Errorf("AAA watermark not advanced after success: %q", wms["AAA"])
+	}
+	if wms["BBB"] != "" {
+		t.Errorf("BBB watermark = %q, want empty (failed space must stay unset)", wms["BBB"])
+	}
+
+	f.failIfCQLContains = ""
+	f.searches = nil
+	if _, err := RunConfluence(ctx, confCfg([]string{"AAA", "BBB"}), db.DB, Options{
+		ConfluenceClient: client,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var bbb string
+	for _, cql := range f.searches {
+		if strings.Contains(cql, `space="BBB"`) {
+			bbb = cql
+		}
+	}
+	if bbb == "" {
+		t.Fatalf("second run issued no BBB CQL: %v", f.searches)
+	}
+	if strings.Contains(bbb, "lastModified") {
+		t.Errorf("second-run BBB CQL = %q; global/A watermark leaked into B's floor", bbb)
+	}
+}
+
+// TestConfluenceSyncPrunesOutOfScopeSpaces: config AAA only, mirror already
+// holds AAA+BBB+CCC pages → after a pass only AAA remains.
+func TestConfluenceSyncPrunesOutOfScopeSpaces(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
+	if err := db.UpsertSource(ctx, store.Source{ID: ConfluenceSourceID, Kind: "confluence", BaseURL: client.BaseURL()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertPages(ctx, []store.PageRecord{
+		{
+			Item: store.Item{
+				ID: "confluence:a1", SourceID: ConfluenceSourceID, Kind: "page",
+				ExternalID: "a1", Key: "a1", Title: "A page", BodyText: "a",
+				CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-01T00:00:00.000Z",
+			},
+			Page: store.Page{SpaceKey: "AAA", Version: 1, Status: "current", BodyADF: adf},
+		},
+		{
+			Item: store.Item{
+				ID: "confluence:b1", SourceID: ConfluenceSourceID, Kind: "page",
+				ExternalID: "b1", Key: "b1", Title: "B page", BodyText: "b",
+				CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-01T00:00:00.000Z",
+			},
+			Page: store.Page{SpaceKey: "BBB", Version: 1, Status: "current", BodyADF: adf},
+		},
+		{
+			Item: store.Item{
+				ID: "confluence:c1", SourceID: ConfluenceSourceID, Kind: "page",
+				ExternalID: "c1", Key: "c1", Title: "C page", BodyText: "c",
+				CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-01T00:00:00.000Z",
+			},
+			Page: store.Page{SpaceKey: "CCC", Version: 1, Status: "current", BodyADF: adf},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSpaces(ctx, ConfluenceSourceID, []store.SpaceRow{
+		{Key: "AAA", Name: "Alpha", Kind: "global"},
+		{Key: "BBB", Name: "Beta", Kind: "global"},
+		{Key: "CCC", Name: "Gamma", Kind: "global"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var logs []string
+	res, err := RunConfluence(ctx, confCfg([]string{"AAA"}), db.DB, Options{
+		Full: true, ConfluenceClient: client,
+		Log: func(line string) { logs = append(logs, line) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted < 2 {
+		t.Fatalf("Deleted = %d, want ≥ 2 (BBB+CCC)", res.Deleted)
+	}
+
+	raw := db.raw(t)
+	rows, err := raw.Query(`SELECT space_key, COUNT(*) FROM pages GROUP BY space_key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	got := map[string]int{}
+	for rows.Next() {
+		var k string
+		var n int
+		if err := rows.Scan(&k, &n); err != nil {
+			t.Fatal(err)
+		}
+		got[k] = n
+	}
+	if len(got) != 1 || got["AAA"] < 1 {
+		t.Errorf("pages by space = %v, want only AAA", got)
+	}
+
+	wrows, err := raw.Query(`SELECT key, watermark FROM spaces WHERE source_id = 'confluence' ORDER BY key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer wrows.Close()
+	var keys []string
+	for wrows.Next() {
+		var k string
+		var wm sql.NullString
+		if err := wrows.Scan(&k, &wm); err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, k)
+		if k == "AAA" && (!wm.Valid || wm.String == "") {
+			t.Error("AAA watermark empty after full pass")
+		}
+	}
+	if len(keys) != 1 || keys[0] != "AAA" {
+		t.Errorf("spaces keys = %v, want [AAA]", keys)
+	}
+
+	prunedLog := false
+	for _, line := range logs {
+		if strings.Contains(line, "confluence: pruned") && strings.Contains(line, "AAA") {
+			prunedLog = true
+		}
+	}
+	if !prunedLog {
+		t.Errorf("missing prune log, got %v", logs)
+	}
+}
+
+// TestConfluenceNamedPersonalSpaceIsKept: a personal key named in config
+// survives prune (empty-config would drop it).
+func TestConfluenceNamedPersonalSpaceIsKept(t *testing.T) {
+	f := newConfFixture(t)
+	f.spaces = []map[string]any{
+		{"key": "AAA", "name": "Alpha", "type": "global"},
+		{"key": "~personal", "name": "Ada personal", "type": "personal"},
+	}
+	f.pages["9001"] = &confPage{
+		ID: "9001", Space: "~personal", Title: "My notes",
+		Version: 1, When: "2026-08-01T10:00:00.000Z",
+		BodyADF: `{"type":"doc","version":1,"content":[]}`,
+	}
+	client := f.start()
+	db := newMirror(t)
+	if _, err := RunConfluence(context.Background(), confCfg([]string{"AAA", "~personal"}), db.DB, Options{
+		Full: true, ConfluenceClient: client,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	raw := db.raw(t)
+	var n int
+	if err := raw.QueryRow(`SELECT COUNT(*) FROM spaces WHERE source_id = 'confluence' AND key = '~personal'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("named personal space rows = %d, want 1", n)
+	}
+	if err := raw.QueryRow(`SELECT COUNT(*) FROM pages WHERE space_key = '~personal'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("named personal pages = %d, want 1", n)
 	}
 }

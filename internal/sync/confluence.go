@@ -24,17 +24,19 @@ const confluenceOverlap = 5 * time.Minute
 const pageBatchSize = 50
 
 // RunConfluence does one Confluence mirror pass: full or incremental.
-// Attachments, delete reconcile, and changelog are out of scope for R1.
+// Attachments and changelog are out of scope for R1. Every successful pass
+// prunes pages whose space is outside the current config/listing scope.
+// Incremental floors are per-space (spaces.watermark); a failed space does
+// not move its own watermark or any other space's.
 //
-// A failure leaves already-committed batches in place and does not advance the
-// watermark past the last successful batch.
+// A failure leaves already-committed batches in place.
 func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
 	var c *confluence.Client
 	return runSource(ctx, cfg, db, opts,
 		sourceIdent{ID: ConfluenceSourceID, Kind: "confluence"},
-		// No reconcile pass yet — kind stays full|incremental (no +reconcile).
-		// The label rule lives in runSource; flip this when delete-reconcile ships.
-		false,
+		// Space-scope prune is the Confluence reconcile. The flag only suffixes
+		// SyncRun.Kind; prune itself is called from runConfluencePass.
+		true,
 		"confluence ",
 		func() (string, usageTaker, error) {
 			if cfg.Confluence == nil {
@@ -67,18 +69,21 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			if s.Key == "" {
 				continue
 			}
+			// An empty config means "the team's wiki", not "every space I can
+			// see": Cloud gives each user a personal space, so an unfiltered
+			// listing is mostly ~accountid noise that also blows up CQL URLs.
+			// Personal spaces stay reachable by naming them in config.spaces
+			// (path ② upserts those). Upserting them here just so prune can
+			// delete them would bump version every Watch cycle.
+			if s.Type != "global" {
+				continue
+			}
 			row := store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type}
 			if s.Homepage != nil {
 				row.HomepageID = s.Homepage.ID
 			}
 			spaceRows = append(spaceRows, row)
-			// An empty config means "the team's wiki", not "every space I can
-			// see": Cloud gives each user a personal space, so an unfiltered
-			// listing is mostly ~accountid noise that also blows up CQL URLs.
-			// Personal spaces stay reachable by naming them in config.spaces.
-			if s.Type == "global" {
-				spaces = append(spaces, s.Key)
-			}
+			spaces = append(spaces, s.Key)
 		}
 		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
 			return err
@@ -118,11 +123,18 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		return nil
 	}
 
+	wms, err := db.ConfluenceSpaceWatermarks(ctx, ConfluenceSourceID)
+	if err != nil {
+		return err
+	}
+
 	var maxUTC, maxRaw string
-	// Per-batch watermark advance so a crash mid-run resumes. FullSync stamp
-	// is applied only on the final RecordSync after the whole pass.
 	// batchSpaces: path ② (config listed spaces) collects names from page hits;
 	// also a harmless refresh when path ① already wrote spaces from Spaces().
+	// Watermarks are committed per space after that space finishes — never
+	// from a mid-space page batch (a later space's failure must not inherit
+	// this space's floor, and this space's floor must not move until its
+	// fetch completed).
 	commitBatch := func(batch []store.PageRecord, batchSpaces []store.SpaceRow) error {
 		if len(batch) == 0 {
 			return nil
@@ -138,11 +150,6 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		}
 		res.Fetched += len(batch)
 		res.Changed += changed
-		if maxRaw != "" {
-			if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: maxRaw}); err != nil {
-				return err
-			}
-		}
 		if opts.Progress != nil {
 			opts.Progress(res.Fetched, res.Changed)
 		}
@@ -150,64 +157,98 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		return nil
 	}
 
-	processHits := func(hits []confluence.Page) error {
-		batch := make([]store.PageRecord, 0, pageBatchSize)
-		spaceByKey := map[string]store.SpaceRow{}
-		for _, hit := range hits {
-			rec, spaceName, when, err := fetchPageRecord(ctx, c, hit)
-			if errors.Is(err, confluence.ErrNotFound) {
-				// Deleted or view-restricted between the listing and the fetch —
-				// routine on a busy site; the reconcile of a later full sync
-				// removes any stale mirror row.
-				opts.logf("confluence: skip %s (gone: %v)", hit.ID, err)
-				continue
-			}
-			if err != nil {
-				return err
-			}
-			if sk := rec.Page.SpaceKey; sk != "" {
-				spaceByKey[sk] = store.SpaceRow{Key: sk, Name: spaceName}
-			}
-			batch = append(batch, rec)
-			if when != "" {
-				iso := jira.ISOTime(when)
-				if iso > maxUTC {
-					maxUTC, maxRaw = iso, when
+	processHits := func(spaceMaxUTC, spaceMaxRaw *string) func([]confluence.Page) error {
+		return func(hits []confluence.Page) error {
+			batch := make([]store.PageRecord, 0, pageBatchSize)
+			spaceByKey := map[string]store.SpaceRow{}
+			for _, hit := range hits {
+				rec, spaceName, when, err := fetchPageRecord(ctx, c, hit)
+				if errors.Is(err, confluence.ErrNotFound) {
+					// Deleted or view-restricted between the listing and the fetch —
+					// routine on a busy site; the next successful prune removes any
+					// stale mirror row that has left scope.
+					opts.logf("confluence: skip %s (gone: %v)", hit.ID, err)
+					continue
 				}
-			}
-			if len(batch) >= pageBatchSize {
-				if err := commitBatch(batch, spaceRowsFromMap(spaceByKey)); err != nil {
+				if err != nil {
 					return err
 				}
-				batch = batch[:0]
-				spaceByKey = map[string]store.SpaceRow{}
+				if sk := rec.Page.SpaceKey; sk != "" {
+					spaceByKey[sk] = store.SpaceRow{Key: sk, Name: spaceName}
+				}
+				batch = append(batch, rec)
+				if when != "" {
+					iso := jira.ISOTime(when)
+					if iso > *spaceMaxUTC {
+						*spaceMaxUTC, *spaceMaxRaw = iso, when
+					}
+					if iso > maxUTC {
+						maxUTC, maxRaw = iso, when
+					}
+				}
+				if len(batch) >= pageBatchSize {
+					if err := commitBatch(batch, spaceRowsFromMap(spaceByKey)); err != nil {
+						return err
+					}
+					batch = batch[:0]
+					spaceByKey = map[string]store.SpaceRow{}
+				}
 			}
+			return commitBatch(batch, spaceRowsFromMap(spaceByKey))
 		}
-		return commitBatch(batch, spaceRowsFromMap(spaceByKey))
+	}
+
+	syncSpace := func(key string, backfill bool) error {
+		var cql, floorLabel string
+		if backfill {
+			floorLabel = "full-backfill"
+			cql = fmt.Sprintf(`space=%s AND type=page order by lastmodified asc`, cqlSpace(key))
+		} else {
+			floorLabel = wms[key]
+			cql = fmt.Sprintf(`space=%s AND type=page AND lastModified >= "%s" order by lastmodified asc`,
+				cqlSpace(key), cqlTime(wms[key]))
+		}
+		fetchedBefore := res.Fetched
+		var spaceMaxUTC, spaceMaxRaw string
+		if err := c.SearchPages(ctx, cql, processHits(&spaceMaxUTC, &spaceMaxRaw)); err != nil {
+			return record(ctx, db, ConfluenceSourceID, err)
+		}
+		opts.logf("confluence: space %s floor=%s fetched=%d", key, floorLabel, res.Fetched-fetchedBefore)
+		if spaceMaxRaw == "" {
+			return nil
+		}
+		if err := db.SetSpaceWatermark(ctx, ConfluenceSourceID, key, spaceMaxRaw); err != nil {
+			return err
+		}
+		wms[key] = spaceMaxRaw
+		// Compatibility: sync_state.watermark stays the max across spaces so
+		// status/doctor/freshness keep working. It is not an incremental floor.
+		if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: spaceMaxRaw}); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	if res.Full {
 		for _, key := range spaces {
-			cql := fmt.Sprintf(`space=%s AND type=page order by lastmodified asc`, cqlSpace(key))
-			opts.logf("confluence full sync: space %s", key)
-			if err := c.SearchPages(ctx, cql, processHits); err != nil {
-				return record(ctx, db, ConfluenceSourceID, err)
+			if err := syncSpace(key, true); err != nil {
+				return err
 			}
 		}
 	} else {
-		floor := cqlTime(state.Watermark)
-		opts.logf("confluence incremental: since %s", floor)
-		// Space filter in chunks: quoted keys are ~15+ chars each on real Cloud
-		// sites, and one `space in (…)` clause over every visible space blew
-		// past URL limits (observed 414 with the CDN in front of *.atlassian.net).
-		for _, group := range chunkStrings(spaces, cqlSpaceChunk) {
-			cql := fmt.Sprintf(`space in (%s) AND type=page AND lastModified >= "%s" order by lastmodified asc`,
-				cqlSpaceList(group), floor)
-			if err := c.SearchPages(ctx, cql, processHits); err != nil {
-				return record(ctx, db, ConfluenceSourceID, err)
+		for _, key := range spaces {
+			if err := syncSpace(key, wms[key] == ""); err != nil {
+				return err
 			}
 		}
 	}
+
+	pruned, err := db.PruneConfluenceSpaces(ctx, ConfluenceSourceID, spaces)
+	if err != nil {
+		return err
+	}
+	res.Deleted += pruned
+	opts.logf("confluence: pruned %d out-of-scope pages (kept: %s)", pruned, strings.Join(spaces, ", "))
 
 	res.Watermark = maxRaw
 	if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
@@ -346,28 +387,6 @@ func spaceRowsFromMap(m map[string]store.SpaceRow) []store.SpaceRow {
 // error, and quoting a key that didn't need it is harmless.
 func cqlSpace(key string) string {
 	return fmt.Sprintf("%q", key)
-}
-
-// cqlSpaceChunk bounds how many space keys ride one `space in (…)` query.
-// Keys travel URL-encoded with quotes (~20 bytes each); 15 keeps the whole
-// request a few hundred bytes under even conservative proxy URL limits.
-const cqlSpaceChunk = 15
-
-func chunkStrings(all []string, size int) [][]string {
-	var out [][]string
-	for i := 0; i < len(all); i += size {
-		end := min(i+size, len(all))
-		out = append(out, all[i:end])
-	}
-	return out
-}
-
-func cqlSpaceList(keys []string) string {
-	parts := make([]string, 0, len(keys))
-	for _, k := range keys {
-		parts = append(parts, cqlSpace(k))
-	}
-	return strings.Join(parts, ", ")
 }
 
 // cqlTime renders watermark minus overlap as CQL lastModified accepts:
