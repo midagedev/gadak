@@ -1,6 +1,6 @@
 package main
 
-// The agent-facing commands: one issue, one search, and the three writes, each
+// The agent-facing commands: one issue, one search, and the writes, each
 // self-contained enough for a coding agent to run from a shell with no session
 // and no state beyond the mirror and the stored credential
 // (specs/000-product/contracts/agent.md).
@@ -468,16 +468,27 @@ func sortJQL(list []store.IssueLite, d jql.Display) {
 
 /* ── writes ── */
 
-// mutate is the whole write-through shape: call Jira, re-read the issue into the
-// mirror, then print the refreshed row. A failure between the two is reported as
-// such, because retrying it would repeat the write Jira already accepted.
-func mutate(key string, asJSON bool, fn func(context.Context, *jira.Client) (map[string]any, error)) error {
+// errNoCredential is the refusal mutate and create share: writes go to Jira.
+var errNoCredential = errors.New("no Jira credential — run `gadak init` first (writes go to Jira, not to the mirror)")
+
+// writeNotMirroredError is the lookup miss after a write Jira already accepted.
+// mutate returns it (non-zero). create prints the new key with this wording
+// and exits 0 — the write happened.
+type writeNotMirroredError struct{ Key string }
+
+func (e writeNotMirroredError) Error() string {
+	return fmt.Sprintf("write applied to %s, but it is not in the mirror — is it outside the configured projects?", e.Key)
+}
+
+// withWriteSession loads the credential, opens the store, and hands the caller
+// a Jira client. Shared by mutate and create so the refusal string cannot drift.
+func withWriteSession(fn func(context.Context, *config.Config, *store.DB, *jira.Client) error) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 	if !cfg.HasCredential() {
-		return errors.New("no Jira credential — run `gadak init` first (writes go to Jira, not to the mirror)")
+		return errNoCredential
 	}
 	db, err := openStore()
 	if err != nil {
@@ -485,13 +496,14 @@ func mutate(key string, asJSON bool, fn func(context.Context, *jira.Client) (map
 	}
 	defer db.Close()
 	warnIfStale()
+	return fn(context.Background(), cfg, db, jira.New(cfg.Site, cfg.Email, cfg.Token))
+}
 
-	ctx := context.Background()
-	c := jira.New(cfg.Site, cfg.Email, cfg.Token)
-	extra, err := fn(ctx, c)
-	if err != nil {
-		return err
-	}
+// emitAfterWrite is the write-through tail: re-read the issue into the mirror
+// and print the refreshed row. A failure between the write and the re-read is
+// reported as such, because retrying it would repeat the write Jira already
+// accepted.
+func emitAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client, key string, asJSON bool, extra map[string]any) error {
 	if err := syncer.SyncIssue(ctx, cfg, db, key, syncer.Options{Client: c}); err != nil {
 		return fmt.Errorf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %w", key, err)
 	}
@@ -500,7 +512,7 @@ func mutate(key string, asJSON bool, fn func(context.Context, *jira.Client) (map
 		return err
 	}
 	if len(lites) == 0 {
-		return fmt.Errorf("write applied to %s, but it is not in the mirror — is it outside the configured projects?", key)
+		return writeNotMirroredError{Key: key}
 	}
 	if asJSON {
 		body := map[string]any{"issue": lites[0]}
@@ -511,6 +523,18 @@ func mutate(key string, asJSON bool, fn func(context.Context, *jira.Client) (map
 	}
 	fmt.Println(summaryLine(lites[0]))
 	return nil
+}
+
+// mutate is the whole write-through shape: call Jira, re-read the issue into the
+// mirror, then print the refreshed row.
+func mutate(key string, asJSON bool, fn func(context.Context, *jira.Client) (map[string]any, error)) error {
+	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
+		extra, err := fn(ctx, c)
+		if err != nil {
+			return err
+		}
+		return emitAfterWrite(ctx, cfg, db, c, key, asJSON, extra)
+	})
 }
 
 func cmdComment(args []string) error {

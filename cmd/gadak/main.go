@@ -1242,6 +1242,7 @@ Atlassian REST escape hatch (needs a credential; not on MCP):
   api        raw REST call    [METHOD] <PATH> [--query k=v] [--data …] [--write] [--status]
 
 Writing through to Jira (needs a credential):
+  create     create an issue  <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [-m <text|->] [--json]
   comment    add a comment    <KEY> -m <text|-> [--json]
   transition change status    <KEY> <status-or-id> [--json]
   assign     set assignee     <KEY> <email|-> [--json]
@@ -1333,6 +1334,7 @@ var commands = map[string]func([]string) error{
 	"api":             cmdAPI,
 	"assign":          cmdAssign,
 	"comment":         cmdComment,
+	"create":          cmdCreate,
 	"demo":            cmdDemo,
 	"doctor":          cmdDoctor,
 	"export":          cmdExport,

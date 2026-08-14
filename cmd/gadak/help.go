@@ -261,6 +261,15 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak transition", "gadak assign", "gadak issue"},
 	},
+	"create": {
+		summary: "create an issue on Jira (needs a credential; write-through to the mirror)",
+		usage:   "gadak [--profile <name>] create <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [-m <text|->] [--json]",
+		examples: []string{
+			"gadak create Fix the flaky gate --project NMB --type Task -m \"repro on staging\" --label batch",
+			"gadak create 로그인 실패 --project NMB --type 작업",
+		},
+		seeAlso: []string{"gadak comment", "gadak transition", "gadak assign", "gadak issue"},
+	},
 	"transition": {
 		summary: "change issue status on Jira (needs a credential; accepts transition id, name, or target status name)",
 		usage:   "gadak [--profile <name>] transition <KEY> <status-or-id> [--json]",

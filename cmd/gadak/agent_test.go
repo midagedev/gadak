@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -20,15 +21,27 @@ import (
 // the printed line. The issue it hands back on the re-read is deliberately
 // *different* from the seeded row (status 완료), which is how a test proves the
 // write refreshed the mirror instead of reprinting what was already there.
+type createdIssue struct {
+	key, id, project, summary, typeID, typeName string
+	labels                                      []string
+}
+
 type fakeJira struct {
 	*httptest.Server
 	t      *testing.T
 	calls  []string
 	bodies map[string]string
+
+	// create support (additive; existing write tests never hit these paths)
+	created          map[string]createdIssue
+	lastCreatedKey   string
+	nextCreateN      int
+	skipCreateReread bool // POST /issue succeeds but /search/jql ignores the new key
+	rereadStatus     int  // when non-zero, POST /search/jql fails with this status
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
-	f := &fakeJira{t: t, bodies: map[string]string{}}
+	f := &fakeJira{t: t, bodies: map[string]string{}, created: map[string]createdIssue{}, nextCreateN: 42}
 	f.Server = httptest.NewServer(http.HandlerFunc(f.route))
 	t.Cleanup(f.Close)
 	return f
@@ -52,6 +65,24 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 	case path == "/priority":
 		_, _ = w.Write([]byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"}]`))
 	case path == "/search/jql":
+		if f.rereadStatus != 0 {
+			w.WriteHeader(f.rereadStatus)
+			return
+		}
+		jql := ""
+		if raw := f.bodies[tag]; raw != "" {
+			var body struct {
+				JQL string `json:"jql"`
+			}
+			_ = json.Unmarshal([]byte(raw), &body)
+			jql = body.JQL
+		}
+		for key, ci := range f.created {
+			if strings.Contains(jql, `"`+key+`"`) {
+				f.writeCreatedSearch(w, ci)
+				return
+			}
+		}
 		_, _ = w.Write([]byte(`{"issues":[{"id":"1001","key":"NMB-1","fields":{
 			"summary":"batch worker drops the last page",
 			"status":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},
@@ -69,10 +100,91 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			"created":"2026-08-04T12:00:00.000+0900"}`))
 	case path == "/user/search":
 		_, _ = w.Write([]byte(`[{"accountId":"acc-mr","displayName":"Marco Reyes","emailAddress":"marco@example.com","active":true}]`))
+	case path == "/issue" && r.Method == http.MethodPost:
+		f.handleCreateIssue(w)
+	case path == "/issue/createmeta":
+		_, _ = w.Write([]byte(`{"projects":[
+			{"key":"NMB","name":"Numbers","issuetypes":[
+				{"id":"10001","name":"Task"},
+				{"id":"10002","name":"작업"},
+				{"id":"10004","name":"Bug"}]},
+			{"key":"GDK","name":"Gadak","issuetypes":[
+				{"id":"10001","name":"Task"}]}
+		]}`))
 	default:
 		// transitions POST and assignee PUT answer 204, like Jira.
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func (f *fakeJira) handleCreateIssue(w http.ResponseWriter) {
+	var req struct {
+		Fields struct {
+			Project struct {
+				Key string `json:"key"`
+			} `json:"project"`
+			IssueType struct {
+				ID string `json:"id"`
+			} `json:"issuetype"`
+			Summary string   `json:"summary"`
+			Labels  []string `json:"labels"`
+		} `json:"fields"`
+	}
+	_ = json.Unmarshal([]byte(f.bodies["POST /issue"]), &req)
+	project := req.Fields.Project.Key
+	if project == "" {
+		project = "NMB"
+	}
+	n := f.nextCreateN
+	if n == 0 {
+		n = 42
+	}
+	f.nextCreateN = n + 1
+	key := project + "-" + strconv.Itoa(n)
+	id := "90" + strconv.Itoa(n)
+	typeName := fakeTypeName(req.Fields.IssueType.ID)
+	f.lastCreatedKey = key
+	if !f.skipCreateReread {
+		f.created[key] = createdIssue{
+			key: key, id: id, project: project, summary: req.Fields.Summary,
+			typeID: req.Fields.IssueType.ID, typeName: typeName, labels: req.Fields.Labels,
+		}
+	}
+	_, _ = w.Write([]byte(`{"id":"` + id + `","key":"` + key + `"}`))
+}
+
+func fakeTypeName(id string) string {
+	switch id {
+	case "10002":
+		return "작업"
+	case "10004":
+		return "Bug"
+	default:
+		return "Task"
+	}
+}
+
+func (f *fakeJira) writeCreatedSearch(w http.ResponseWriter, ci createdIssue) {
+	hit := map[string]any{
+		"id":  ci.id,
+		"key": ci.key,
+		"fields": map[string]any{
+			"summary": ci.summary,
+			"status": map[string]any{
+				"id": "10001", "name": "완료",
+				"statusCategory": map[string]string{"key": "done"},
+			},
+			"project":   map[string]string{"key": ci.project},
+			"issuetype": map[string]string{"id": ci.typeID, "name": ci.typeName},
+			"assignee":  map[string]string{"accountId": "acc-hc", "displayName": "Dana Whitfield"},
+			"created":   "2026-07-01T00:00:00.000+0900",
+			"updated":   "2026-08-04T12:00:00.000+0900",
+		},
+	}
+	if len(ci.labels) > 0 {
+		hit["fields"].(map[string]any)["labels"] = ci.labels
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"issues": []any{hit}, "isLast": true})
 }
 
 func (f *fakeJira) called(tag string) bool {
@@ -390,6 +502,7 @@ func TestWritesRefuseToRunWithoutACredential(t *testing.T) {
 		"comment":    func() error { return cmdComment([]string{"NMB-1", "-m", "hello"}) },
 		"transition": func() error { return cmdTransition([]string{"NMB-1", "완료"}) },
 		"assign":     func() error { return cmdAssign([]string{"NMB-1", "marco@example.com"}) },
+		"create":     func() error { return cmdCreate([]string{"a summary", "--project", "NMB", "--type", "Task"}) },
 	} {
 		_, err := capture(t, run)
 		if err == nil || !strings.Contains(err.Error(), "gadak init") {
