@@ -56,8 +56,8 @@ store layer. You can run all of them at once — that is the intended shape.
 
 The long answer is [How it compares](#how-it-compares) below. The short one:
 a network MCP answers one question per round trip and cannot aggregate across
-a backlog or work offline; the derived history columns (`reopen_count`,
-time-in-status) exist only because the mirror is local. A Forge app runs on
+a backlog or work offline; derived history (`reopen_count`, and days-in-status
+computed from `status_changed_at`) exists only because the mirror is local. A Forge app runs on
 Atlassian's side of the fence — the whole point here is that the data sits
 next to your agent.
 
