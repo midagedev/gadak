@@ -155,7 +155,7 @@ func (s *Server) handleInitialize(msg rpcRequest) *rpcResponse {
 			"name":    "gadak",
 			"version": s.Version,
 		},
-		"instructions": "gadak is a local-first Jira mirror. Use gadak_status for freshness, gadak_search for free text, gadak_issue for one key, and gadak_query for SQL. Filter on status_category (new|inprogress|done), never localized status names. If you have a shell, prefer `gadak sql` / `gadak issue` over this MCP path.",
+		"instructions": "gadak is a local-first Jira mirror. Use gadak_status for freshness, gadak_search for free text, gadak_issue for one key, gadak_query for SQL, and gadak_show to present a view in the running app (it does not return answers). Filter on status_category (new|inprogress|done), never localized status names. MCP does not write to the mirror or to Jira. If you have a shell, prefer `gadak sql` / `gadak issue` over this MCP path.",
 	}
 	return okResponse(msg.ID, result)
 }
@@ -179,7 +179,7 @@ func (s *Server) handleToolsCall(msg rpcRequest) *rpcResponse {
 	}
 	// Unknown tool names are protocol errors so clients can surface them cleanly.
 	switch params.Name {
-	case toolQuery, toolSearch, toolIssue, toolStatus:
+	case toolQuery, toolSearch, toolIssue, toolStatus, toolShow:
 	default:
 		return errResponse(msg.ID, codeInvalidParams, "unknown tool: "+params.Name)
 	}

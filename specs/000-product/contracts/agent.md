@@ -97,7 +97,9 @@ gadak --profile demo mcp
 
 Implemented as a thin stdlib server (`internal/mcp`) over the same schema. No
 MCP SDK dependency. Protocol version `2025-03-26` (a client that asks for another
-version is answered with this one, not rejected).
+version is answered with this one, not rejected). MCP does not write to the
+mirror or to Jira. `gadak_show` is a local presentation act (the same ui-focus
+file as `gadak views open`); SQL answers; show presents.
 
 | Tool | Shape |
 | --- | --- |
@@ -105,15 +107,17 @@ version is answered with this one, not rejected).
 | `gadak_search` | `{text, limit?}` → `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field: title\|body\|comment, snippet}` plain text |
 | `gadak_issue` | `{key}` → full detail including comments and history (plus list fields) |
 | `gadak_status` | `{}` → sync state (watermark, version, last_error, counts) |
+| `gadak_show` | `{jql}` \| `{keys}` \| `{issue}` \| `{name}` (exactly one) → `{hash, applied, unsupported, file}`. Writes the process profile's ui-focus file; does not open a window; does not return issue rows |
 
 Tool execution failures (bad SQL, missing key, no mirror) return
 `isError: true` with a readable message so the agent can fix and retry.
 Protocol violations use JSON-RPC error codes. Missing DB guidance:
 `run gadak init && gadak sync`.
 
-Deliberately not planned: one tool per question, or any write tool. `gadak_query`
-plus the documented schema subsumes pre-baked reads, and every extra tool is
-context an agent has to read before it can act. Writes stay on the CLI and REST.
+Deliberately not planned: one tool per question, or any write to the mirror or
+to Jira. `gadak_query` plus the documented schema subsumes pre-baked reads, and
+every extra tool is context an agent has to read before it can act. Jira writes
+stay on the CLI and REST. Presentation stays `gadak_show` / `gadak views open`.
 
 ## Anti-patterns
 

@@ -43,7 +43,7 @@ snapshot, not assumed.
 | Agent view focus | `gadak views open --jql '…'` writes `ui-focus.json`; the app / serve tab applies the hash; `--no-open` for tests |
 | Secret scan | `scripts/scan-internal.sh` clean across the tracked tree and the demo snapshot |
 | Release artifacts | `goreleaser release --snapshot` → six archives; the extracted darwin/arm64 binary serves the embedded UI and a 200 bootstrap with no `--static` |
-| MCP server | stdio JSON-RPC round trip: initialize / tools/list / all four tools; write SQL rejected as a tool error; stdout carries frames only |
+| MCP server | stdio JSON-RPC round trip: initialize / tools/list / all five tools; write SQL rejected as a tool error; stdout carries frames only |
 | Demo media | `make media` regenerates the hero GIF/MP4 and the agent-focus split (terminal + paper list) from the snapshot |
 | Attachment cache | Fake-Jira test: one upstream fetch for two views, `immutable` validator on the second, and a cached image still served with the credential removed. Live: 0.6 ms from disk |
 | Inline comment images | Live demo site: three uploads, a comment carrying two media nodes with real UUIDs and `alt` filenames, both rendering in a browser at full resolution |
@@ -74,7 +74,7 @@ snapshot, not assumed.
   catalogs live in `web/src/lib/i18n/`.
 - `tools/seed-demo` — Go port of the demo-site seeder (the Python original is
   gone).
-- `internal/mcp` — stdio JSON-RPC server, four read-only tools, no SDK.
+- `internal/mcp` — stdio JSON-RPC server, five tools (four reads plus `gadak_show` for presentation), no writes to the mirror or to Jira, no SDK.
 - `internal/attachcache` — attachment bytes on disk, content-addressed, single
   flight, LRU budget. Why it exists: proxying every image view contradicted the
   premise, and a cached image renders with no credential, which is what lets the

@@ -1,9 +1,10 @@
 # MCP server
 
 `gadak mcp` speaks the [Model Context Protocol](https://modelcontextprotocol.io/)
-over **stdio JSON-RPC 2.0**. It is a thin, read-only wrapper around the same
-local SQLite mirror that `gadak sql`, `gadak issue`, and `gadak search` already
-expose.
+over **stdio JSON-RPC 2.0**. It is a thin wrapper around the same local SQLite
+mirror that `gadak sql`, `gadak issue`, and `gadak search` already expose. It
+does not write to the mirror or to Jira. `gadak_show` writes only a local
+ui-focus file so the running app can present a view (SQL answers; show presents).
 
 The agent contract is `specs/000-product/contracts/agent.md`. This page is the
 setup and troubleshooting guide.
@@ -16,7 +17,7 @@ If the agent has a shell, **prefer the CLI and SQL**:
 | --- | --- |
 | `gadak sql` / `sqlite3 ~/.gadak/gadak.db` | Relational, aggregated, or historical questions |
 | `gadak issue` / `gadak search` | One key, or free-text recall |
-| `gadak comment` / `transition` / `assign` | Writes (MCP has **no** write tools) |
+| `gadak comment` / `transition` / `assign` | Writes (MCP does not write to Jira or the mirror) |
 | **`gadak mcp`** | The client has **no shell** (Claude Desktop, some IDE hosts) |
 
 MCP is deliberately not the primary interface. Every tool schema is context the
@@ -127,8 +128,9 @@ gadak answers with its own version and does not reject the session.
 
 ## Tools
 
-Exactly four tools. There is no plan to add one tool per question — `gadak_query`
+Exactly five tools. There is no plan to add one tool per question — `gadak_query`
 plus the schema in `specs/000-product/data-model.md` subsumes pre-baked queries.
+`gadak_show` is presentation, not another way to answer.
 
 | Tool | Arguments | Returns |
 | --- | --- | --- |
@@ -136,6 +138,7 @@ plus the schema in `specs/000-product/data-model.md` subsumes pre-baked queries.
 | `gadak_search` | `{text: string, limit?: number}` | `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field, snippet}` (plain text) |
 | `gadak_issue` | `{key: string}` | Full detail (comments, history, links) plus list fields |
 | `gadak_status` | `{}` | Watermark, version, last_error, row counts |
+| `gadak_show` | `{jql}` \| `{keys: string[]}` \| `{issue}` \| `{name}` (exactly one) | `{hash, applied, unsupported, file}` — writes the process profile's ui-focus file; the running window picks it up (500 ms visible / 2 min TTL); does not open a window or return issue rows |
 
 ### Filtering rule (same as the CLI)
 

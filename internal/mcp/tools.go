@@ -7,10 +7,19 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/uifocus"
 )
+
+// issueKeyPat is the same positional key shape as cmd/gadak/views.go
+// (`^[A-Z][A-Z0-9]*-\d+$`, compared after ToUpper). Copied because extracting
+// it would require editing views.go, which this track cannot touch.
+var issueKeyPat = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d+$`)
 
 // Tool names match contracts/agent.md. Do not add tools without updating that
 // contract: every extra tool is context the agent must read before acting.
@@ -19,6 +28,7 @@ const (
 	toolSearch = "gadak_search"
 	toolIssue  = "gadak_issue"
 	toolStatus = "gadak_status"
+	toolShow   = "gadak_show"
 )
 
 // toolQueryDescription is long on purpose: agents without AGENTS.md only see
@@ -92,6 +102,14 @@ Use when you need the whole conversation around a single key (e.g. NMB-140).`
 const toolStatusDescription = `Return mirror freshness: watermark, version, last_error, last_full_sync_at,
 schema_version, and row counts (issues, comments). Check this before acting on
 answers that matter — a stalled watermark can mean a quiet project or a broken sync.`
+
+// toolShowDescription is the presentation tool: it writes ui-focus and returns
+// no issue rows. Numbers are from the running UI (500 ms poll) and uifocus.MaxAge.
+const toolShowDescription = `Focus the running gadak app or serve tab on a view. This tool only presents — it does not return issue data or answers. The running gadak window picks the request up within 500 ms while visible (2 minute TTL); gadak_show does not open a window itself.
+
+Pass exactly one of: jql (documented JQL subset or navigator URL), keys (issue keys, given order, cap 500), issue (one key's detail), or name (stored or synced view; same lookup as gadak views open <name>). SQL answers; show presents.
+
+Writes a local ui-focus file for this process profile and returns {hash, applied, unsupported, file}. Does not write to the mirror or to Jira.`
 
 // Tool is one entry in tools/list.
 type Tool struct {
@@ -168,6 +186,34 @@ func toolDefinitions() []Tool {
 				"additionalProperties": false,
 			},
 		},
+		{
+			Name:        toolShow,
+			Description: toolShowDescription,
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"jql": map[string]any{
+						"type":        "string",
+						"description": "JQL subset or navigator URL. Unsupported clauses are listed and not applied.",
+					},
+					"keys": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"maxItems":    jql.MaxKeys,
+						"description": "Issue keys in given order (cap 500). Writes ks= comma-joined.",
+					},
+					"issue": map[string]any{
+						"type":        "string",
+						"description": "Issue key to focus in detail (e.g. NMB-140). Writes issue=KEY.",
+					},
+					"name": map[string]any{
+						"type":        "string",
+						"description": "Saved view or synced Jira filter name (same lookup as gadak views open <name>).",
+					},
+				},
+				"additionalProperties": false,
+			},
+		},
 	}
 }
 
@@ -175,8 +221,12 @@ func toolDefinitions() []Tool {
 // unknown key) return isError content, not JSON-RPC errors. This is the only
 // place that turns a Go error into (textResult(err.Error()), true).
 func (s *Server) callTool(name string, args map[string]any) (content []contentItem, isError bool) {
-	if err := s.ensureDB(); err != nil {
-		return textResult(err.Error()), true
+	// gadak_show keys/issue/jql do not read the mirror (same as views open --keys / KEY / --jql).
+	// Name lookup opens it inside toolShow. Other tools still require the file.
+	if name != toolShow {
+		if err := s.ensureDB(); err != nil {
+			return textResult(err.Error()), true
+		}
 	}
 	var (
 		out []contentItem
@@ -191,6 +241,8 @@ func (s *Server) callTool(name string, args map[string]any) (content []contentIt
 		out, err = s.toolIssue(args)
 	case toolStatus:
 		out, err = s.toolStatus(args)
+	case toolShow:
+		out, err = s.toolShow(args)
 	default:
 		// Unknown tool is a protocol-level invalid params (caller should list first).
 		return textResult(fmt.Sprintf("unknown tool %q — use tools/list", name)), true
@@ -335,6 +387,221 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	return marshalResult(st)
 }
 
+func (s *Server) toolShow(args map[string]any) ([]contentItem, error) {
+	which, err := showInputs(args)
+	if err != nil {
+		return nil, err
+	}
+	var (
+		hash        string
+		applied     []string
+		unsupported []string
+	)
+	switch which {
+	case "jql":
+		text, _ := stringArg(args, "jql")
+		hash, applied, unsupported, err = s.hashFromJQL(strings.TrimSpace(text))
+		if err != nil {
+			return nil, err
+		}
+	case "keys":
+		raw, _, kerr := stringSliceArg(args, "keys")
+		if kerr != nil {
+			return nil, kerr
+		}
+		keys := jql.SplitKeys(strings.Join(raw, ","))
+		if err := jql.CheckKeyLimit(len(keys)); err != nil {
+			return nil, err
+		}
+		if len(keys) == 0 {
+			return nil, errors.New("gadak_show keys is empty")
+		}
+		f := jql.EmptyFilter()
+		f.Keys = keys
+		hash = jql.Hash(f, jql.Display{})
+		applied = []string{"keys"}
+	case "issue":
+		raw, _ := stringArg(args, "issue")
+		k := strings.ToUpper(strings.TrimSpace(raw))
+		if !issueKeyPat.MatchString(k) {
+			return nil, fmt.Errorf("gadak_show issue %q is not a Jira key (want ABC-123)", raw)
+		}
+		hash = "issue=" + k
+		applied = []string{"issue"}
+	case "name":
+		name, _ := stringArg(args, "name")
+		name = strings.TrimSpace(name)
+		if err := s.ensureDB(); err != nil {
+			return nil, err
+		}
+		v, err := findView(s.db, name)
+		if err != nil {
+			return nil, err
+		}
+		if v.Hash == "" {
+			return nil, fmt.Errorf("view %q has no gadak hash — nothing to focus", v.Name)
+		}
+		hash, applied, unsupported = v.Hash, v.Applied, v.Unsupported
+	default:
+		return nil, errors.New("gadak_show requires exactly one of jql, keys, issue, or name")
+	}
+	if applied == nil {
+		applied = []string{}
+	}
+	if unsupported == nil {
+		unsupported = []string{}
+	}
+	if err := uifocus.WriteFor(s.Profile, hash); err != nil {
+		return nil, err
+	}
+	path, err := uifocus.PathFor(s.Profile)
+	if err != nil {
+		return nil, err
+	}
+	return marshalResult(map[string]any{
+		"hash":        hash,
+		"applied":     applied,
+		"unsupported": unsupported,
+		"file":        path,
+	})
+}
+
+// showInputs returns the single provided axis, or an error when zero or several
+// of jql/keys/issue/name are set. Empty strings do not count; a present keys
+// array does (even if empty — that fails later as "keys is empty").
+func showInputs(args map[string]any) (string, error) {
+	var fields []string
+	if s, ok := stringArg(args, "jql"); ok && strings.TrimSpace(s) != "" {
+		fields = append(fields, "jql")
+	}
+	if _, present, err := stringSliceArg(args, "keys"); err != nil {
+		return "", err
+	} else if present {
+		fields = append(fields, "keys")
+	}
+	if s, ok := stringArg(args, "issue"); ok && strings.TrimSpace(s) != "" {
+		fields = append(fields, "issue")
+	}
+	if s, ok := stringArg(args, "name"); ok && strings.TrimSpace(s) != "" {
+		fields = append(fields, "name")
+	}
+	if len(fields) != 1 {
+		if len(fields) == 0 {
+			return "", errors.New("gadak_show requires exactly one of jql, keys, issue, or name")
+		}
+		return "", fmt.Errorf("gadak_show requires exactly one of jql, keys, issue, or name (got %s)", strings.Join(fields, ", "))
+	}
+	return fields[0], nil
+}
+
+// hashFromJQL matches cmd/gadak/views.go hashFromJQL: parse, resolve identity
+// with a nil roster (views open --jql does not load people), return Hash.
+// Applied/unsupported are returned instead of being printed to stderr.
+func (s *Server) hashFromJQL(text string) (hash string, applied, unsupported []string, err error) {
+	cfg, loadErr := config.LoadFor(s.Profile)
+	me := jql.Identity{}
+	if loadErr == nil {
+		me = jql.Identity{Email: cfg.Email, AccountID: cfg.AccountID}
+	}
+	parsed := jql.Parse(text, jql.Opts{Email: me.Email, AccountID: me.AccountID})
+	if parsed.Error != "" {
+		return "", nil, nil, fmt.Errorf("jql: %s", parsed.Message)
+	}
+	jql.ResolveIdentity(&parsed, nil, me)
+	return jql.Hash(parsed.Filters, parsed.Display), parsed.Applied, parsed.Unsupported, nil
+}
+
+// listedView and findView are a copy of cmd/gadak/views.go loadViews/findView/
+// hashFromConfig (including the id-suffix and substring match). Extracting
+// would require editing views.go, which this track cannot touch.
+type listedView struct {
+	Kind        string
+	ID          string
+	Name        string
+	Hash        string
+	Applied     []string
+	Unsupported []string
+}
+
+func loadViews(db *store.DB) ([]listedView, error) {
+	var out []listedView
+	src, err := db.SourceQueries(context.Background(), "jira")
+	if err != nil {
+		return nil, err
+	}
+	for _, q := range src {
+		out = append(out, listedView{
+			Kind: "jira", ID: q.ID, Name: q.Name,
+			Hash: hashFromConfig(q.Config), Applied: q.Applied, Unsupported: q.Unsupported,
+		})
+	}
+	saved, err := db.SavedViews(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range saved {
+		out = append(out, listedView{
+			Kind: "saved", ID: s.ID, Name: s.Name,
+			Hash: hashFromConfig(s.Config),
+		})
+	}
+	return out, nil
+}
+
+func findView(db *store.DB, name string) (listedView, error) {
+	list, err := loadViews(db)
+	if err != nil {
+		return listedView{}, err
+	}
+	want := strings.ToLower(strings.TrimSpace(name))
+	var exact, sub []listedView
+	for _, v := range list {
+		id := strings.ToLower(v.ID)
+		nm := strings.ToLower(v.Name)
+		ext := ""
+		if i := strings.LastIndex(v.ID, ":"); i >= 0 {
+			ext = strings.ToLower(v.ID[i+1:])
+		}
+		if id == want || nm == want || ext == want {
+			exact = append(exact, v)
+			continue
+		}
+		if strings.Contains(nm, want) || strings.Contains(id, want) {
+			sub = append(sub, v)
+		}
+	}
+	hits := exact
+	if len(hits) == 0 {
+		hits = sub
+	}
+	switch len(hits) {
+	case 1:
+		return hits[0], nil
+	case 0:
+		return listedView{}, fmt.Errorf("no view matching %q — run `gadak views` (sync first if you expected Jira filters)", name)
+	default:
+		names := make([]string, len(hits))
+		for i, h := range hits {
+			names[i] = h.Name
+		}
+		return listedView{}, fmt.Errorf("%q matches %d views — be more specific: %s", name, len(hits), strings.Join(names, "; "))
+	}
+}
+
+func hashFromConfig(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var c struct {
+		Filters jql.Filter  `json:"filters"`
+		Display jql.Display `json:"display"`
+	}
+	if err := json.Unmarshal(raw, &c); err != nil {
+		return ""
+	}
+	return jql.Hash(c.Filters, c.Display)
+}
+
 func countQuery(dbPath, q string, n *int) error {
 	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro")
 	if err != nil {
@@ -342,6 +609,32 @@ func countQuery(dbPath, q string, n *int) error {
 	}
 	defer db.Close()
 	return db.QueryRow(q).Scan(n)
+}
+
+func stringSliceArg(args map[string]any, key string) (vals []string, present bool, err error) {
+	if args == nil {
+		return nil, false, nil
+	}
+	v, ok := args[key]
+	if !ok || v == nil {
+		return nil, false, nil
+	}
+	switch t := v.(type) {
+	case []string:
+		return t, true, nil
+	case []any:
+		out := make([]string, 0, len(t))
+		for i, item := range t {
+			s, ok := item.(string)
+			if !ok {
+				return nil, true, fmt.Errorf("gadak_show keys[%d] must be a string", i)
+			}
+			out = append(out, s)
+		}
+		return out, true, nil
+	default:
+		return nil, true, errors.New("gadak_show keys must be an array of strings")
+	}
 }
 
 func stringArg(args map[string]any, key string) (string, bool) {
