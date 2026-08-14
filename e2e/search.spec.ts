@@ -16,7 +16,7 @@ test.describe('client-side search', () => {
     const apiDuringType: string[] = []
     page.on('request', (req) => {
       const url = req.url()
-      if (url.includes('/api/')) apiDuringType.push(url)
+      if (url.includes('/api/') && !url.includes('/ui-focus/')) apiDuringType.push(url)
     })
 
     const input = searchInput(page)

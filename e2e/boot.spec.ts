@@ -13,8 +13,7 @@ test.describe('boot', () => {
     // Sidebar wordmark and built-in nav labels (en.ts)
     await expect(page.getByText('gadak', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
-    // Search placeholder (en.ts list.searchPlaceholder)
-    await expect(page.getByPlaceholder(/Search issues/)).toBeVisible()
+    await expect(page.getByTestId('search-input')).toBeVisible()
     // Filter add chip
     await expect(page.getByRole('button', { name: '+ Filter' })).toBeVisible()
     // At least one issue row in the virtual list

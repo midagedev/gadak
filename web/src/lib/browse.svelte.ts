@@ -28,6 +28,7 @@ import * as db from './db'
 import { isDesktop } from './config'
 import { invalidate } from './detail-cache.svelte'
 import { issues } from '../stores/issues.svelte'
+import { me } from '../stores/me.svelte'
 import { pages } from '../stores/pages.svelte'
 import { write } from '../stores/write.svelte'
 import type { IssueLite } from './types'
@@ -145,6 +146,9 @@ class BrowseStore {
     if (!this.enabled) return
     this.#gen++
     this.#sessions.set(id, { kind, key })
+    if (key && (kind === 'issue' || kind === 'page')) {
+      me.recordRecent(key, kind === 'page' ? 'doc' : 'issue')
+    }
     if (!this.tabs.some((t) => t.id === id)) {
       this.tabs = [...this.tabs, { id, title: '', url }]
     }

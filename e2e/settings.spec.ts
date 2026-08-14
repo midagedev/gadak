@@ -46,7 +46,11 @@ test.describe('settings dialog', () => {
     // has been counted, so asserting the numbers — not just the label — is what
     // keeps a silently dropped runtime.apiUsage from passing.
     await expect(dialog.getByText('Jira calls')).toBeVisible()
-    await expect(dialog.getByText('1204 today')).toBeVisible()
+    // Seed is 1204; earlier tests in this process also increment today's
+    // counter (write-meta against the fake site), so the exact seed is not
+    // stable — but it only ever grows, so require at least the four digits the
+    // seed guarantees. \d+ would let "0 today" pass and defeat the guard above.
+    await expect(dialog.getByText(/\d{4,} today/)).toBeVisible()
     await expect(dialog.getByText('2 throttled')).toBeVisible()
   })
 })

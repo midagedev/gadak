@@ -226,6 +226,21 @@
     for (const v of builtinViews()) push(`vb:${v.id}`, v.name, t('palette.viewBuiltin'), v.config, v.icon)
     for (const v of views.personal) push(`vp:${v.id}`, v.name, t('palette.viewPersonal'), v.config)
     for (const v of views.team) push(`vt:${v.id}`, v.name, t('palette.viewTeam'), v.config)
+    for (const v of views.source) {
+      if (!matches(v.name)) continue
+      out.push({
+        id: `vs:${v.id}`,
+        section: 'view',
+        label: v.name,
+        sub: t('palette.viewSource'),
+        run: () => {
+          applyView(v.config)
+          if (v.unsupported?.length) {
+            write.toast(t('filter.jqlPartial', { clauses: v.unsupported.join('; ') }), 'info')
+          }
+        },
+      })
+    }
     return out
   })
 
