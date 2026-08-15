@@ -1,8 +1,8 @@
 # Tasks
 
-Current state of every piece of v0.1. This file is the honest inventory — if
-something is marked done here, it works; if it is not, no amount of README
-enthusiasm changes that.
+Honest state of every piece. This is the inventory [AGENTS.md](../../AGENTS.md)
+points at as required reading — if something is marked done here, it works; if
+it is not, no amount of README enthusiasm changes that.
 
 Legend: **done** / **partial** / **todo**
 
@@ -30,7 +30,7 @@ Legend: **done** / **partial** / **todo**
 | T1.1 | Schema and migrations per `data-model.md` | done | `internal/store`, driver `modernc.org/sqlite` (no cgo). `TestSchemaMatchesDataModel` compares every table against the documented column list; `TestDocumentedExampleQueries` runs all four example queries |
 | T1.2 | WAL mode, sane pragmas, single-writer discipline | done | WAL + `busy_timeout=5000` + `foreign_keys=ON` + `synchronous=NORMAL` in the DSN so every pooled connection gets them; writes serialized by one mutex. `TestWALReaderNotBlockedByWriter` |
 | T1.3 | FTS5 table and rebuild-on-sync path | done | Contentless with `contentless_delete=1`; a changed item's row is deleted and re-inserted inside the same transaction as the upsert. Rebuild-on-sync is exercised by `TestChangedIssueReplacesChildrenAndDerivedFields` |
-| T1.4 | `saved_views` / `watches` / `favorites` plus `gadak export` | partial | Tables and CRUD done (`TestPersonalState`); `gadak export` not written |
+| T1.4 | `saved_views` / `watches` / `favorites` plus `gadak export` | done | Tables and CRUD (`TestPersonalState` in `internal/store/write_test.go`). `gadak export [--out FILE]` / `gadak import <FILE>` dump and restore those three tables (`cmd/gadak/export.go`, `import.go`; `TestExportImportRoundTripDemoDB`). The file carries no credentials. |
 | T1.5 | Schema-version check on open, refusing a newer database | done | `PRAGMA user_version` is the level, mirrored into `sync_state.schema_version`. `TestOpenRefusesNewerSchema` |
 
 ## T2 Jira connector
@@ -124,7 +124,7 @@ under `~/.gadak/profiles/<name>/` — the work/demo dual-account setup.
 | --- | --- | --- |
 | T7.1 | CI: Go build and vet, frontend typecheck and build | done |
 | T7.2 | Go tests once there is Go logic to test | done |
-| T7.3 | Browser smoke test against the demo snapshot | done | Superseded by the Playwright suite (`e2e/`, 33 specs in `e2e/*.spec.ts` over `examples/demo.db`, CI job `e2e`; config ignores `demo/`, `hosted/`, `perf/`) — it covers boot, search, detail, palette, settings, enrichment, locale, onboarding, and console hygiene. |
+| T7.3 | Browser smoke test against the demo snapshot | done | Superseded by the Playwright suite (`e2e/`, 35 specs in `e2e/*.spec.ts` over `examples/demo.db`, CI job `e2e`; config ignores `demo/`, `hosted/`, `perf/`) — it covers boot, search, detail, palette, settings, enrichment, locale, onboarding, and console hygiene. |
 | T7.4 | Secret and internal-string scan in CI | done | `scripts/scan-internal.sh` greps `git ls-files` + `strings examples/demo.db` for token-shaped API-token prefixes, a former company name, and non-allowlisted tenant hosts. CI job `scan` in `.github/workflows/ci.yml`. Real-name patterns skipped. Local: `make scan`. |
 | T7.5 | Dockerfile and container build | done | Multi-stage `Dockerfile` (node:20 → golang:1.25 CGO=0 → distroless/static). Volume `/data` as `GADAK_HOME`, `EXPOSE 7777`, `ENTRYPOINT ["gadak"]` + `CMD serve --addr 0.0.0.0:7777 --allow-remote` (the UI is embedded, so no `--static`). `.dockerignore` present. README documents `docker run`. **Verified**: `docker build` → 24.1 MB image; `docker run -p 7941:7777` answers `healthz` 200, serves the embedded `index.html`, and `bootstrap/` returns 200. |
 | T7.6 | Release process and signed binaries | done | `.goreleaser.yaml`: linux/darwin/windows × amd64/arm64, `CGO_ENABLED=0`. UI compiled in via `embed.go`; `--static` is dev-only. Checksums only (cosign deferred, commented). `.github/workflows/release.yml` on `v*` tags: npm build then goreleaser-action. |

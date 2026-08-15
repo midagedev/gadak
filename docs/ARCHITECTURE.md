@@ -8,10 +8,11 @@ One binary, one database, one origin.
 flowchart TB
   subgraph Remote
     Jira["Jira Cloud REST API"]
+    Confluence["Confluence Cloud REST API"]
   end
   subgraph Machine["Your machine"]
     subgraph Binary["gadak (single Go binary)"]
-      Sync["jira + sync<br/>full + incremental"]
+      Sync["jira + confluence + sync<br/>full + incremental"]
       Store["store<br/>SQLite + FTS5"]
       API["server<br/>read API + write proxy"]
       UI["embedded UI / --static<br/>SPA + config.json"]
@@ -22,6 +23,7 @@ flowchart TB
   end
 
   Jira -->|"read"| Sync
+  Confluence -->|"read"| Sync
   Sync --> Store
   Store <--> DB
   Store --> API
@@ -31,6 +33,9 @@ flowchart TB
   API -->|"writes"| Jira
   DB -->|"read-only"| Agent
 ```
+
+Confluence is a peer source (`internal/confluence`, `decisions/0006-confluence-connector.md`):
+the wiki mirror is read-only, so writes in this picture still go only to Jira.
 
 The single-origin property is not incidental. Because the UI and the API are
 served from the same localhost origin, the server never emits a CORS header —
@@ -42,17 +47,32 @@ rejected before the mux (`internal/server/browser_guard.go`, see
 
 ## Module boundaries
 
-| Package | Owns | Must not know about |
-| --- | --- | --- |
-| `cmd/gadak` | CLI surface, flag parsing, wiring; agent commands currently call jira/SQL directly | HTTP handlers |
-| `internal/config` | Config file, credential file permissions, client config document | HTTP handlers |
-| `internal/store` | Schema, migrations, queries, FTS, transactions | Jira field names, HTTP |
-| `internal/jira` | Jira REST client, field mapping, ADF flattening | HTTP handlers, SQL text |
-| `internal/sync` | Full/incremental/reconcile passes over the jira client into the store | HTTP handlers, browser |
-| `internal/server` | Routing, the API contract, static/embed serving, attachment proxy | SQL text, Jira REST paths |
-| `web/` | Everything the browser does | Anything server-side |
+`internal/` is a spine, not a package inventory. A listing here would rot
+the same way a command inventory in `cmd/gadak/main.go` did. The arrows:
 
-The rule that matters: **`internal/store` never imports anything Jira-shaped, and
+- **Sources** (`internal/jira`, `internal/confluence`) talk HTTP to Atlassian
+  and produce store records. They do not write SQL.
+- **`internal/store`** owns the SQLite schema, migrations, queries, FTS, and
+  derived fields. It does not import `internal/jira`. Shared ADF flattening
+  lives in `internal/adf` (plain `json.RawMessage`, no Jira types).
+- **`internal/sync`** drives those clients into the store (full / incremental
+  / reconcile). It is not an HTTP server and does not talk to the browser.
+- **`internal/server`** is the HTTP contract the UI speaks
+  (`specs/000-product/contracts/api.md`). Production handlers call the store;
+  they do not embed SQL text. Write-through and the attachment proxy do call
+  Jira (and therefore know some REST paths).
+- **`cmd/gadak`** is the CLI and the process that wires `gadak serve`. It
+  constructs `server.Handler` and the mux; it must not *implement* the issue
+  API. Origin glue that still lives here: `/healthz`, `/config.json`,
+  `/w/<name>/` mounts, and the SPA file server (`serve.go`, `workspaces.go`).
+- **`internal/config`** owns `config.json` and credential file permissions.
+  It does not import `net/http`.
+- **`web/`** is the browser app. It talks HTTP only.
+
+Everything else under `internal/` attaches to that spine. Do not treat this
+section as a directory listing.
+
+The rule that matters: **`internal/store` does not import `internal/jira`, and
 `internal/jira` never writes SQL.** The jira package produces neutral records;
 the store persists them. That boundary is what makes a second source a new
 package rather than a rewrite (Constitution Article 6).
@@ -117,21 +137,14 @@ changed from the internal original.
 
 ## Frontend structure
 
-```
-web/src/
-  lib/         config, API client, IndexedDB, ADF renderer, view config, router,
-               Korean chosung search, formatting
-  stores/      issues (pool + sync), filters (the filter/group/sort engine),
-               me (identity, watches, favorites), views, write (write orchestration)
-  components/  list/ (virtualized rows, filter bar, menus)
-               detail/ (ADF, comments, history, attachments, links)
-               write/ (composer, transitions, pickers, dialogs)
-               shell/ (layout, auth gate) · personal/ · sidebar/
-```
+The browser app lives under `web/src/{lib,stores,components}`. A file or
+folder listing here would rot — those trees grow. Open the directories.
 
-`stores/filters.svelte.ts` is the performance-critical file: it holds the filter
-engine that must stay under the latency budget at ten thousand issues. Its logic
-is source-neutral; only the field schema it reads is Jira-shaped.
+`stores/filters.svelte.ts` is the performance-critical file: it holds the
+in-memory filter/group/sort engine (`filterIssues`, `visibleIssues`) that must
+stay under the interaction-latency budget measured against the 10k-issue
+fixture (`e2e/perf/`). Matching keys on ids and `status_category`. Only the
+field schema it reads is Jira-shaped.
 
 ## What is deliberately absent
 

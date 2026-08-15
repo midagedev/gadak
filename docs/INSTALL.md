@@ -1,5 +1,11 @@
 # Install
 
+**Glossary.** A *profile* is the directory on disk (`--profile`,
+`~/.gadak/profiles/<name>/`, `gadak profiles`). A *workspace* is that same
+profile mounted on the serve origin (`GET /api/v1/workspaces`, `/w/<name>/`,
+the sidebar switcher). There is no `gadak workspaces` command — that invocation
+prints top-level usage and exits 2.
+
 Atlassian Cloud only. You need an API token from
 <https://id.atlassian.com/manage-profile/security/api-tokens> — one token
 covers both Jira and Confluence on the same site.
@@ -121,15 +127,16 @@ the sidebar grows a DOCS tree, and search answers across both.
 
 ## Two sites at once
 
-Profiles: `gadak --profile demo init` keeps a separate credential and mirror
-under `~/.gadak/profiles/demo/`. One `gadak serve` then serves every profile:
-each mounts under `/w/<name>/` (full API, reads and writes, opened on first
+`gadak --profile demo init` keeps a separate credential and mirror under
+`~/.gadak/profiles/demo/`. One `gadak serve` then mounts every profile as a
+workspace under `/w/<name>/` (full API, reads and writes, opened on first
 request), and when there is more than one, the web sidebar grows a WORKSPACES
-switcher. Same loopback listener, same single user — the workspace list never
-exposes credentials. HTTP mounts are lazy (opened on first request);
-**every profile that has a credential gets its own watch loop**, not just
-the one `serve` started on — same rule as the desktop app
-([DESKTOP.md](DESKTOP.md)). Notifications stay on the primary.
+switcher. Same loopback listener, same single user — `GET /api/v1/workspaces`
+never exposes credentials. HTTP mounts are lazy (opened on first request);
+**every credentialed profile gets its own watch loop**, not just the one
+`serve` started on — same rule as the desktop app
+([DESKTOP.md](DESKTOP.md)). Notifications stay on the primary. The disk
+inventory is `gadak profiles`; there is no `gadak workspaces` command.
 
 ## Staying current
 

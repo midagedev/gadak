@@ -41,8 +41,20 @@
 
 ## Decisions
 
+Two files on disk share the number `0007`
+(`0007-jql-subset.md` and `0007-rename-to-gadak.md`). The filenames are left
+as they are — renumbering a decision file is a revision, and decisions are
+addendum-only. This index lists every file.
+
 - `decisions/0001-project-shape.md`: extracted client, new local server
 - `decisions/0002-stack.md`: Go + SQLite, Svelte client
 - `decisions/0003-local-process.md`: why browser-only is impossible
 - `decisions/0004-browser-sqlite.md`: SQLite in the browser, demo only
-- `decisions/0005-three-surfaces.md`: two surfaces (web + CLI); TUI retired
+- `decisions/0005-three-surfaces.md`: **superseded** (2026-08-13) — title is
+  "Two surfaces over one store" (web + CLI; TUI retired); filename still says
+  three-surfaces
+- `decisions/0006-confluence-connector.md`: Confluence as a second source, same spine
+- `decisions/0007-jql-subset.md`: JQL is a filter interchange, not an engine
+  (accepted, 2026-08-14)
+- `decisions/0007-rename-to-gadak.md`: product renamed from scry to gadak
+  (2026-08-13; the file has no Status line)

@@ -1,16 +1,23 @@
 # Configuration reference
 
-gadak stores its configuration in `~/.gadak/config.json` (mode `0600`). A profile
-(`gadak --profile x` or `GADAK_PROFILE=x`) moves both the file and the mirror under
+**Glossary.** A *profile* is the directory on disk (`gadak --profile x` or
+`GADAK_PROFILE=x` moves both `config.json` and the mirror under
+`~/.gadak/profiles/<name>/`). A *workspace* is that same profile mounted on
+the serve origin (`/w/<name>/`, `GET /api/v1/workspaces`, the sidebar
+switcher). There is no `gadak workspaces` command — that invocation prints
+top-level usage and exits 2.
+
+gadak stores its configuration in `~/.gadak/config.json` (mode `0600`). A
+named profile moves both the file and the mirror under
 `~/.gadak/profiles/<name>/`.
 
-A running `gadak serve` also mounts every sibling profile as a **workspace**
+A running `gadak serve` also mounts every sibling profile as a workspace
 under `/w/<name>/` — full API, opened lazily on first request. The sidebar
 shows a switcher when more than one exists. `GET /api/v1/workspaces` lists
 them (name, site, projects — never credentials). HTTP mounts are lazy;
 **every credentialed profile gets a watch loop at boot** (same as the
 desktop app). OS notifications and the update check stay on the profile
-`serve` was started with.
+`serve` was started with (the primary workspace).
 
 Most day-to-day keys are editable from the web **Settings** dialog
 (`GET` / `PUT /api/v1/issues/settings/`). Credentials use a separate endpoint
@@ -20,6 +27,25 @@ under `runtime`.
 Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 [specs/000-product/contracts/api.md](../specs/000-product/contracts/api.md)
 (settings section).
+
+### Naming layers
+
+`config.json`, the HTTP issue contract, and SQL do not share one identifier
+style. Existing names stay; do not rename a field to "fix" the mix.
+
+| Layer | Where | Convention | Examples |
+| --- | --- | --- | --- |
+| On-disk config | `~/.gadak/config.json` (`internal/config/config.go`) | New keys follow the file's existing camelCase. A few keys are already snake_case; leave them. | camelCase: `tokenVerifiedAt`, `fieldMap`. Existing snake_case: `account_id`, `display_name`. |
+| Issue/read HTTP | `specs/000-product/contracts/api.md` (`IssueLite`, detail, feed) | New fields are snake_case. | Wire `issue_key`; the SQL column is `key`. |
+| SQL | `gadak.db` (`specs/000-product/data-model.md`) | Documented column names. | `issues.key`, `items.key` |
+
+Settings `GET`/`PUT` (`/api/v1/issues/settings/`) and `config.json` served to
+the browser reuse the on-disk key names (camelCase) rather than translating
+them into the issue-contract snake_case. That is the config layer on an HTTP
+path, not a third style.
+
+Never introduce a third style (kebab-case, PascalCase, a new prefix). Do not
+rename an existing field.
 
 ---
 
@@ -48,7 +74,7 @@ Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 | `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | Next watch tick; no process restart |
 | `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | Next watch tick; no process restart |
 | `notify` | bool | **true** when absent | `config.json` (not on Settings UI) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
-| `updateCheck` | bool | **true** when absent | `config.json` (not on Settings UI) | Next `sync` / `status` / `serve` start; once-per-day GitHub release lookup (cached under the profile dir). Set `false` to opt out — no outbound traffic beyond Jira |
+| `updateCheck` | bool | **true** when absent | `config.json` (not on Settings UI) | Next `sync` / `status` / `serve` start; once-per-day GitHub release lookup (cached under the profile directory on disk). Set `false` to opt out — no outbound traffic beyond Jira |
 | `confluence` | object or absent | absent = wiki mirror off | Settings → Sources | Next Confluence pass |
 | `confluence.spaces` | string[] | `[]` = every *global* space; personal spaces only if named (`internal/config/config.go`) | Settings → Sources | Next Confluence pass |
 
@@ -114,10 +140,11 @@ the issue title only — never comment text. Set `"notify": false` in
 
 Once a day, `gadak sync` (after a successful run), `gadak status`, and `gadak
 serve` may query GitHub's public releases API for this project and cache the
-answer under the profile directory (`update-check.json`). The request carries
-no account identifiers. Dev builds (`0.0.0-dev`) never check. Network errors
-and rate limits are silent. Set `"updateCheck": false` in `config.json` to
-disable the lookup entirely (restores outbound traffic to Jira only).
+answer under that profile's directory on disk (`update-check.json`). The
+request carries no account identifiers. Dev builds (`0.0.0-dev`) never check.
+Network errors and rate limits are silent. Set `"updateCheck": false` in
+`config.json` to disable the lookup entirely (restores outbound traffic to
+Jira only).
 
 ---
 
@@ -171,7 +198,7 @@ name is new). `--overwrite` replaces conflicts. Prefer
 | --- | --- |
 | Jira site / email / API token | Credential dialog, `PUT credential/`, or `gadak init` — **not** settings PUT |
 | Unattended setup (agents, CI, provisioning) | `gadak init` flags/env — see below |
-| Profile selection | CLI `--profile` / `GADAK_PROFILE` (separate home directory) |
+| Profile selection (the disk directory; serve mounts it as a workspace) | CLI `--profile` / `GADAK_PROFILE` (separate home directory) |
 | `GADAK_HOME` override | Environment variable |
 | Binary version string in UI | `server.Version`, wired from `cmd/gadak` ldflags by goreleaser (`main.version`); dev builds show `0.0.0-dev` |
 | Team views / field map / group rules (between people) | `gadak team export` / `gadak team import` (see above) |
