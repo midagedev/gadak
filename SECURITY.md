@@ -95,8 +95,9 @@ Outbound traffic is exactly two destinations:
    cached under the profile directory; credentials never travel with them.
 2. **GitHub Releases**, at most one anonymous version-check GET per day,
    cached on disk, carrying no identifier and no local data
-   (`internal/selfupdate/selfupdate.go`). `updateCheck: false` turns it off;
-   dev builds never check.
+   (`internal/selfupdate/selfupdate.go`). That lookup feeds the sidebar
+   banner; it does not download a desktop zip or swap the app. `updateCheck:
+   false` turns it off; dev builds never check.
 
 There is no gadak account, no gadak server, no telemetry, and no multi-user
 model — no roles, no audit log.
@@ -104,7 +105,7 @@ model — no roles, no audit log.
 Don't take our word for it — the claim is one grep:
 
 ```bash
-grep -rn 'http.NewRequest\|http.Get\|http.Post' --include='*.go' internal/ cmd/
+grep -rn 'http.NewRequest\|http.Get\|http.Post' --include='*.go' internal/ cmd/ desktop/
 # every hit is your Atlassian site, the GitHub Releases check, or gadak
 # talking to itself on loopback (port probe, health check, cache warming)
 ```

@@ -103,14 +103,31 @@ jobs:
       - name: Build Gadak.app + dmg
         run: desktop/build-app.sh --dmg
 
+      # Recurrence gate (notify-only decision 2026-08-15, GDK-58/59/60/61/64):
+      # v0.14.0 apps match gadak-desktop-darwin-<arch>.zip exactly and would
+      # self-swap if that name reappears. The dmg is the only install path.
+      # desktop/ must not reimport wails/v3/pkg/updater.
+      - name: Notify-only — no updater zip, no wails updater import
+        run: |
+          set -euo pipefail
+          if grep -n 'wails/v3/pkg/updater' desktop/*.go; then
+            echo "desktop/ reimports wails/v3/pkg/updater" >&2
+            exit 1
+          fi
+          shopt -s nullglob
+          zips=(desktop/build/*.zip)
+          if [[ ${#zips[@]} -ne 0 ]]; then
+            echo "desktop/build contains zip(s); notify-only releases must not ship one:" >&2
+            printf '%s\n' "${zips[@]}" >&2
+            exit 1
+          fi
+
       - name: Upload dmg artifact
         uses: actions/upload-artifact@v4
         with:
           name: gadak-desktop-dmg
           path: |
             desktop/build/Gadak-*.dmg
-            desktop/build/gadak-desktop-darwin-arm64.zip
-            desktop/build/SHA256SUMS
           if-no-files-found: error
 
       - name: Attach dmg to GitHub Release
@@ -126,19 +143,10 @@ jobs:
             echo "no dmg produced" >&2
             exit 1
           fi
-          # The in-app updater consumes the zip (its name carries GOOS+GOARCH
-          # for the default asset matcher) and SHA256SUMS for digest checks;
-          # the dmg stays the human install path. build-app.sh --dmg makes all
-          # three, after notarization so the zip carries the stapled bundle.
+          # Notify-only (decision 2026-08-15): the dmg is the only install
+          # path. v0.14.0 apps match gadak-desktop-darwin-<arch>.zip exactly;
+          # this release must not ship that name so they cannot self-swap.
           assets=("${dmgs[@]}")
-          for f in desktop/build/gadak-desktop-darwin-arm64.zip desktop/build/SHA256SUMS; do
-            if [[ -f "$f" ]]; then
-              assets+=("$f")
-            else
-              echo "missing updater asset $f" >&2
-              exit 1
-            fi
-          done
           # The goreleaser job creates the Release; wait so we attach rather
           # than race-create. Fall back to creating a shell release if the
           # other job never appears (e.g. disabled on a fork).

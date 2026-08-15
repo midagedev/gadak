@@ -61,42 +61,28 @@ Current ship shape is **arm64 only** (`Gadak-<ver>-arm64.dmg`). A universal
 
 ## Updates
 
-The dmg is how you install; after that the app updates itself. Wails v3's
-updater reads the GitHub releases feed, downloads the new bundle, verifies its
-sha256, swaps the `.app` and relaunches — Tools → **Check for Updates…**, or
-automatically at startup.
+The dmg (or `brew install --cask gadak`) is how you install, and how you
+upgrade. The app does not download a replacement bundle or swap itself.
 
-Two release assets make that work, both produced by `build-app.sh --dmg`:
+It does the same once-a-day anonymous GitHub Releases lookup as `gadak serve`
+(`internal/selfupdate`, cached on disk as `update-check.json`). When the
+cached tag is newer than the running build, the sidebar shows a banner that
+links to the release notes. `updateCheck: false` turns the lookup off — that
+is the only GitHub traffic, so the opt-out restores outbound traffic to Jira
+only. Dev builds (`dev` / `0.0.0-dev`) never check.
 
-| Asset | Why |
-| --- | --- |
-| `gadak-desktop-darwin-<arch>.zip` | the `.app`, zipped with `ditto` **after** stapling so the notarization ticket and the signature's extended attributes survive — `ditto -c -k --keepParent`, and *not* `--sequesterRsrc`, which adds a `__MACOSX` sibling that trips the updater's one-top-level-entry rule |
-| `SHA256SUMS` | `shasum -a 256` over the zip and the dmg; the updater checks the download against it |
+Install a newer build with:
 
-The asset name is an exact-match handshake with `desktopAssetMatcher` in
-`updater.go`. The framework's default matcher takes the first asset whose name
-contains both GOOS and GOARCH, which on a gadak release is goreleaser's CLI
-tarball (`gadak_<ver>_darwin_arm64.tar.gz`) — that unpacks to a bare binary, not
-a bundle. Matching one name instead means a release without the desktop zip
-reads as "nothing to install" rather than installing the wrong thing.
+```bash
+brew upgrade --cask gadak
+```
 
-Two ways updates stay off:
+or download `Gadak-<version>-arm64.dmg` from the
+[latest release](https://github.com/midagedev/gadak/releases/latest).
 
-- **Dev builds never self-update.** `appVersion` has to be an exact release
-  version (`0.11.0` / `v0.11.0`); the `dev` default and `git describe` output
-  for an untagged commit (`v0.10.0-15-gabc1234`) both fail that test, and the
-  Tools item is not added at all.
-- **`updateCheck: false`** in the config turns off the startup check — the same
-  switch that silences the sidebar's update banner. The menu item still works;
-  it just never happens on its own.
-
-The startup check is silent: it uses `Updater.Check`, which does the round trip
-with no UI, and only opens the update window when there is actually something
-to install. An up-to-date machine sees nothing.
-
-Verification is digest-only for now (no `PublicKey`, so no Ed25519 release
-signature). The `.app` inside the zip is signed and notarized either way, so
-Gatekeeper checks it again on launch; release signing is a separate track.
+`build-app.sh --dmg` produces only the dmg. It must not emit
+`gadak-desktop-darwin-<arch>.zip`: v0.14.0 apps match that name exactly and
+would try to self-swap.
 
 ## How it hangs together
 

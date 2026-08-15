@@ -93,7 +93,9 @@ goes to until you switch.
   or a hostile web page to connect to. The webview reaches the mirror through
   an in-process handler.
 - **Updates:** the app checks GitHub Releases once a day like the CLI
-  (`updateCheck: false` disables it). Updating is replacing Gadak.app.
+  (`updateCheck: false` disables it) and shows a sidebar banner when a newer
+  release exists. Installing it is `brew upgrade --cask gadak` or downloading
+  the new dmg — the app does not swap itself.
 - **Uninstall:** trash Gadak.app; the mirror and credential live in `~/.gadak`,
   so offboarding fully is still `rm -rf ~/.gadak`.
 

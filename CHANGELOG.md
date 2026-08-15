@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.14.1 — Unreleased
+
+- **The macOS app is notify-only again.** Removed the never-exercised in-app
+  self-updater (Wails `pkg/updater`): digest verification was fail-open and
+  the swap was non-atomic (GDK-58/59/60). The sidebar banner still names a
+  newer release; installing it is `brew upgrade --cask gadak` or a new dmg.
+  v0.14.1 ships no `gadak-desktop-darwin-<arch>.zip`, so a v0.14.0 app in
+  the wild cannot self-swap. Docs realigned (GDK-61/64).
+
 ## v0.14.0 — 2026-08-15
 
 The maintainer-review release: seven builders of loved developer tools were

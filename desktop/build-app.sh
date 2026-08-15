@@ -37,10 +37,9 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/bin"
 # wails v3 declares its own -framework UniformTypeIdentifiers (v2 did not, and
 # needed the flag passed in here).
 #
-# appVersion is what the updater compares against the releases feed, and its
-# release-version test is what gates self-updating at all: stamped from the tag
-# a release build self-updates, unstamped ("dev") or built off a tag
-# ("0.10.0-15-gabc1234") it does not.
+# appVersion is what the sidebar banner compares (desktop/main.go copies it
+# onto server.Version). A release tag stamps a bare semver; the "dev" default
+# is mapped to 0.0.0-dev and never checks.
 (cd "$repo/desktop" && go build -tags desktop,production -trimpath \
   -ldflags "-s -w -X main.appVersion=${version#v}" \
   -o "$app/Contents/MacOS/gadak-desktop" .)
@@ -138,27 +137,8 @@ if [[ "${1:-}" == "--dmg" ]]; then
     echo "partial GADAK_NOTARY_* set — need KEY (path), KEY_ID, and ISSUER_ID; skipping notarization" >&2
   fi
 
-  # Update artifact for the in-app updater (desktop/updater.go): a zip holding
-  # exactly one .app, named so desktopAssetMatcher finds it on the release.
-  # Zipped after stapling so the ticket travels inside the archive, and with
-  # ditto rather than zip(1) — zip(1) drops the extended attributes the
-  # signature lives in, and the unpacked copy fails Gatekeeper.
-  #
-  # No --sequesterRsrc: that flag writes resource forks to a sibling __MACOSX
-  # tree, and the updater rejects any archive whose root holds more than one
-  # entry ("archive must contain exactly one top-level entry, got 2") — it has
-  # one path to swap the payload into. Plain --keepParent stores the same
-  # metadata inline and leaves Gadak.app alone at the root.
-  zip="$out/gadak-desktop-darwin-${arch}.zip"
-  rm -f "$zip"
-  ditto -c -k --keepParent "$app" "$zip"
-
-  # Digest sidecar the updater verifies the download against. The dmg rides
-  # along so a manual download can be checked the same way.
-  sums="$out/SHA256SUMS"
-  (cd "$out" && shasum -a 256 "$(basename "$zip")" "$(basename "$dmg")" > "$(basename "$sums")")
-
+  # Notify-only (2026-08-15): the dmg is the only desktop artifact. Do not
+  # emit gadak-desktop-darwin-<arch>.zip — v0.14.0 apps match that name
+  # exactly and would self-swap.
   echo "built $dmg"
-  echo "built $zip"
-  echo "built $sums"
 fi

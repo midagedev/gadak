@@ -34,11 +34,20 @@ import (
 	"github.com/midagedev/gadak/internal/workspace"
 )
 
-// appVersion is the desktop binary version string (overridable at link time by
-// a future build script; default keeps local builds identifiable).
+// appVersion is stamped by desktop/build-app.sh (-X main.appVersion). The
+// default ("dev") keeps local builds identifiable. StartUpdateCheck compares
+// server.Version, which cmd/gadak assigns from its own ldflags; without the
+// same assignment here the sidebar banner stays silent (Version is 0.0.0-dev).
 var appVersion = "dev"
 
 func main() {
+	// Same assignment cmd/gadak/main.go makes. "dev" is this file's default;
+	// selfupdate.Check only skips the CLI default ("0.0.0-dev").
+	if appVersion == "" || appVersion == "dev" {
+		server.Version = "0.0.0-dev"
+	} else {
+		server.Version = strings.TrimPrefix(appVersion, "v")
+	}
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
@@ -127,10 +136,6 @@ func run() error {
 		return window.NativeWindow()
 	}))
 
-	// Self-update. nil on dev builds and on any configuration failure — see
-	// updater.go; the app runs identically either way, minus the menu item.
-	up := initUpdater(app, appVersion)
-
 	// Without an Edit menu, macOS does not wire ⌘C/V/X/A into the webview —
 	// paste during onboarding would fail. The app menu supplies About/Quit.
 	// Built after application.New: the app menu takes its label from Name.
@@ -152,11 +157,6 @@ func run() error {
 	// Tools → Install Command Line Tool… (macOS only; no-op stub elsewhere).
 	if runtime.GOOS == "darwin" {
 		appendInstallCLIMenu(appMenu)
-	}
-	// Tools → Check for Updates… goes above the CLI item, so it is added after
-	// the submenu exists and prepended into it.
-	if up != nil {
-		appendCheckForUpdatesMenu(appMenu, up)
 	}
 	app.Menu.Set(appMenu)
 
@@ -190,12 +190,13 @@ func run() error {
 	})
 
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
-		if dir, err := config.Dir(); err == nil {
-			api.StartUpdateCheck(ctx, dir)
-		}
-		// Same opt-out as the sidebar banner: updateCheck: false silences both.
-		if up != nil && cfg.UpdateCheckEnabled() {
-			go checkForUpdatesQuietly(ctx, up)
+		// Sidebar banner only (internal/selfupdate). updateCheck: false
+		// silences it; StartUpdateCheck also no-ops internally when disabled.
+		// Installing an update is brew cask / a new dmg — no in-app swap.
+		if cfg.UpdateCheckEnabled() {
+			if dir, err := config.Dir(); err == nil {
+				api.StartUpdateCheck(ctx, dir)
+			}
 		}
 		// Same delayed-start seam as cmd/gadak serve: with a credential the
 		// watch loop starts now; without one, in-app onboarding fires it.

@@ -74,7 +74,7 @@ rename an existing field.
 | `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | Next watch tick; no process restart |
 | `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | Next watch tick; no process restart |
 | `notify` | bool | **true** when absent | `config.json` (not on Settings UI) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
-| `updateCheck` | bool | **true** when absent | `config.json` (not on Settings UI) | Next `sync` / `status` / `serve` start; once-per-day GitHub release lookup (cached under the profile directory on disk). Set `false` to opt out — no outbound traffic beyond Jira |
+| `updateCheck` | bool | **true** when absent | `config.json` (not on Settings UI) | Next `sync` / `status` / `serve` / desktop start; once-per-day GitHub release lookup (cached under the profile directory on disk). Set `false` to opt out — no outbound traffic beyond Jira |
 | `confluence` | object or absent | absent = wiki mirror off | Settings → Sources | Next Confluence pass |
 | `confluence.spaces` | string[] | `[]` = every *global* space; personal spaces only if named (`internal/config/config.go`) | Settings → Sources | Next Confluence pass |
 
@@ -138,13 +138,14 @@ the issue title only — never comment text. Set `"notify": false` in
 
 ### Update check
 
-Once a day, `gadak sync` (after a successful run), `gadak status`, and `gadak
-serve` may query GitHub's public releases API for this project and cache the
-answer under that profile's directory on disk (`update-check.json`). The
-request carries no account identifiers. Dev builds (`0.0.0-dev`) never check.
-Network errors and rate limits are silent. Set `"updateCheck": false` in
-`config.json` to disable the lookup entirely (restores outbound traffic to
-Jira only).
+Once a day, `gadak sync` (after a successful run), `gadak status`, `gadak
+serve`, and the desktop app may query GitHub's public releases API for this
+project and cache the answer under that profile's directory on disk
+(`update-check.json`). The request carries no account identifiers. Dev
+builds (`0.0.0-dev`) never check. Network errors and rate limits are silent.
+Set `"updateCheck": false` in `config.json` to disable the lookup entirely
+(restores outbound traffic to Jira only). The lookup only feeds the sidebar
+banner; installing an update is `brew upgrade --cask gadak` or a new dmg.
 
 ---
 
