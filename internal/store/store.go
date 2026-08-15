@@ -75,6 +75,13 @@ func Open(path string) (*DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	// After migrate: a copied or externally-produced database can carry an
+	// items_fts whose DDL this build cannot write to (GDK-112). One row read
+	// on a healthy mirror; a rebuild only when the shape disagrees.
+	if err := db.repairItemsFTS(context.Background()); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	// After migrate so -wal/-shm (created on first use under WAL) are present
 	// when they exist. SQLite mints new sidecars with the main file's mode, so
 	// 0600 on the DB is enough for later writes; we still chmod any that exist.
