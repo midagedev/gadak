@@ -2,9 +2,10 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vi
 import { installHostedFetch } from './hosted-fetch'
 
 /**
- * Runtime gate. Compile-time VITE_HOSTED_DEMO=1 is set in vitest.config.ts
- * (installHostedFetch no-ops without it). config.ts has no setter; this is
- * the isHostedDemo() seam the module already calls per request.
+ * Runtime gate. This file runs in the `hosted-adapter` vitest project
+ * (VITE_HOSTED_DEMO='1', same as tools/hosted-demo/build.mjs). The
+ * compile-time-off branch is hosted-fetch.off.test.ts. config.ts has no
+ * setter; this is the isHostedDemo() seam the module already calls per request.
  */
 const hosted = vi.hoisted(() => ({ on: true }))
 
@@ -244,8 +245,11 @@ describe('installHostedFetch rewrite table', () => {
   test('hostedDemo off: even an api URL passthroughs', async () => {
     hosted.on = false
     const res = await win().fetch('/api/v1/issues/bootstrap/')
-    expect(res.status).toBe(404)
+    expect(res.status, 'build flag on + isHostedDemo() false must not intercept').toBe(404)
     expect(await res.text()).toBe('missing')
-    expect(nativeCalls.some((c) => c.href.includes('/api/v1/issues/bootstrap'))).toBe(true)
+    expect(
+      nativeCalls.some((c) => c.href.includes('/api/v1/issues/bootstrap')),
+      'build flag on + isHostedDemo() false must not intercept',
+    ).toBe(true)
   })
 })
