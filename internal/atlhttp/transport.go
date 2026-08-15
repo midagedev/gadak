@@ -45,6 +45,7 @@ type Config struct {
 //
 // A completed HTTP response always returns err == nil with the status and body
 // (including non-2xx). err is reserved for transport failures and bad paths.
+// JSON call helpers use Do, which classifies 401/403 as ErrAuth; Raw stays here.
 func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte, hasBody, mutating bool) (int, []byte, error) {
 	fullURL, err := resolveURL(cfg.Base, cfg.ErrPrefix, path)
 	if err != nil {

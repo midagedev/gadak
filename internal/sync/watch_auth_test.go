@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/midagedev/gadak/internal/atlhttp"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
@@ -576,6 +577,12 @@ func TestIsRejectedCredential(t *testing.T) {
 	if !isRejectedCredential(fmtWrap(confluence.ErrAuth)) {
 		t.Fatal("wrapped confluence.ErrAuth not detected")
 	}
+	if !isRejectedCredential(atlhttp.ErrAuth) {
+		t.Fatal("bare atlhttp.ErrAuth not detected")
+	}
+	if !isRejectedCredential(fmtWrap(atlhttp.ErrAuth)) {
+		t.Fatal("wrapped atlhttp.ErrAuth not detected")
+	}
 	if !isRejectedCredential(thirdAuth{}) {
 		t.Fatal("third-source RejectedCredential implementer not detected — the class is still open")
 	}
@@ -591,14 +598,59 @@ func TestIsRejectedCredential(t *testing.T) {
 	if isRejectedCredential(errors.New("confluence: 500 from the source")) {
 		t.Fatal("confluence transport text must not be a rejected credential")
 	}
+	if errors.Is(jira.ErrAuth, confluence.ErrAuth) {
+		t.Fatal("jira.ErrAuth must not match confluence.ErrAuth — failJira vs settings Spaces would mis-label")
+	}
+	if !errors.Is(jira.ErrAuth, atlhttp.ErrAuth) {
+		t.Fatal("jira.ErrAuth must unwrap to atlhttp.ErrAuth")
+	}
+	if !errors.Is(confluence.ErrAuth, atlhttp.ErrAuth) {
+		t.Fatal("confluence.ErrAuth must unwrap to atlhttp.ErrAuth")
+	}
 }
 
 func fmtWrap(err error) error {
 	return fmt.Errorf("GET /rest/x: %w (401 Unauthorized)", err)
 }
 
+// TestNewAtlhttpClientRejectedWithoutSyncRegistration: a third connector
+// that only uses the transport — no package ErrAuth, not in
+// defaultWatchSources — must still be isRejectedCredential on 401.
+func TestNewAtlhttpClientRejectedWithoutSyncRegistration(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"Client must be authenticated"}`, http.StatusUnauthorized)
+	}))
+	t.Cleanup(srv.Close)
+	cfg := atlhttp.Config{
+		Base:      srv.URL,
+		Auth:      "Basic x",
+		HTTP:      srv.Client(),
+		Retries:   1,
+		Backoff:   0,
+		ErrPrefix: "third",
+	}
+	_, _, err := atlhttp.Do(context.Background(), cfg, http.MethodGet, "/rest/ping", nil, false, false)
+	if err == nil {
+		t.Fatal("Do on 401 must return an error (the shared identity)")
+	}
+	if !isRejectedCredential(err) {
+		t.Fatalf("isRejectedCredential(%v) = false — a new atlhttp client must be detected without a sync branch", err)
+	}
+	if !errors.Is(err, atlhttp.ErrAuth) {
+		t.Fatalf("errors.Is(%v, atlhttp.ErrAuth) = false", err)
+	}
+	if !strings.Contains(err.Error(), "third:") {
+		t.Fatalf("err = %q, want third: so last_error names the credential", err.Error())
+	}
+	if strings.Contains(err.Error(), "jira:") || strings.Contains(err.Error(), "confluence:") {
+		t.Fatalf("err = %q, must not borrow another source's prefix", err.Error())
+	}
+}
+
 func TestEveryWatchSourceHasAuthCoverage(t *testing.T) {
 	// Adding a source to Watch without an auth-sentinel test must fail here.
+	// The sentinel must share atlhttp.ErrAuth so a new client using Do is
+	// detected without a branch in isRejectedCredential.
 	want := map[string]error{
 		SourceID:           jira.ErrAuth,
 		ConfluenceSourceID: confluence.ErrAuth,
@@ -616,6 +668,12 @@ func TestEveryWatchSourceHasAuthCoverage(t *testing.T) {
 		}
 		if !isRejectedCredential(fmtWrap(sent)) {
 			t.Errorf("watch source %q wrapped sentinel not detected", src.id)
+		}
+		if !errors.Is(sent, atlhttp.ErrAuth) {
+			t.Errorf("watch source %q sentinel does not unwrap to atlhttp.ErrAuth — register via atlhttp.Auth so a new client is detected without a sync branch", src.id)
+		}
+		if !strings.Contains(sent.Error(), src.id+":") {
+			t.Errorf("watch source %q sentinel = %q, want %s: so last_error names the credential", src.id, sent, src.id)
 		}
 	}
 	for id := range want {

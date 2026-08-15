@@ -7,34 +7,25 @@ import (
 
 	"github.com/midagedev/gadak/internal/atlhttp"
 	"github.com/midagedev/gadak/internal/config"
-	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 )
-
-// rejectedCredential is the sentinel a source client's auth error implements
-// so Watch can stop retrying that source without a per-source branch.
-// A third source inherits this rule by putting RejectedCredential() on its
-// ErrAuth — it does not add a case here. jira.ErrAuth predates the method
-// (internal/jira is outside this round) and is recognized by errors.Is.
-type rejectedCredential interface {
-	RejectedCredential()
-}
 
 // isRejectedCredential reports whether err is a dead credential from any
 // source. Transport errors (500, timeout, DNS) must stay false.
 //
-// Owner of the detection rule: any error implementing rejectedCredential,
-// plus the jira.ErrAuth adapter (plain errors.New; internal/jira is outside
-// this round). A third source does not add a branch here.
+// Owner of the detection rule: atlhttp.ErrAuth (what Do returns on 401/403)
+// or any error implementing atlhttp.RejectedCredential. A third source that
+// uses atlhttp.Do is covered without a branch here. A source that is not
+// built on atlhttp still implements the method.
 func isRejectedCredential(err error) bool {
 	if err == nil {
 		return false
 	}
-	var rc rejectedCredential
+	var rc atlhttp.RejectedCredential
 	if errors.As(err, &rc) {
 		return true
 	}
-	return errors.Is(err, jira.ErrAuth)
+	return errors.Is(err, atlhttp.ErrAuth)
 }
 
 // watchSource is one connector in the Watch cycle. Adding a third source

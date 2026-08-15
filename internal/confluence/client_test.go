@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/midagedev/gadak/internal/atlhttp"
 )
 
 func testClient(t *testing.T, h http.Handler) *Client {
@@ -355,5 +357,8 @@ func TestErrAuthUnwrapsForErrorsIs(t *testing.T) {
 	}
 	if !strings.Contains(ErrAuth.Error(), "confluence:") {
 		t.Fatalf("ErrAuth = %q, want the confluence: prefix so last_error distinguishes the source", ErrAuth)
+	}
+	if !errors.Is(wrapped, atlhttp.ErrAuth) {
+		t.Fatalf("errors.Is(%v, atlhttp.ErrAuth) = false", wrapped)
 	}
 }

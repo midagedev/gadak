@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -22,9 +21,11 @@ import (
 
 const apiPath = "/rest/api/3"
 
-// ErrAuth aborts a run immediately: retrying a bad credential just burns the
-// rate budget (contracts/sync.md, "Rate limits and backoff").
-var ErrAuth = errors.New("jira: credential rejected")
+// ErrAuth is the Jira-named rejected credential. It unwraps to
+// atlhttp.ErrAuth so Watch detects it without a per-source branch.
+// Error() keeps the "jira:" prefix so last_error names the source.
+// Callers keep using errors.Is(err, jira.ErrAuth).
+var ErrAuth = atlhttp.Auth("jira")
 
 // Client talks to one Atlassian Cloud site over REST. The credential is held
 // only as an Authorization header value; it is never copied into an error, a
@@ -104,15 +105,12 @@ func (c *Client) call(ctx context.Context, method, path string, body, out any, m
 			return err
 		}
 	}
-	status, data, err := atlhttp.DoRaw(ctx, c.transport(), method, path, payload, hasBody, mutating)
+	status, data, err := atlhttp.Do(ctx, c.transport(), method, path, payload, hasBody, mutating)
 	if err != nil {
 		return err
 	}
-	statusLine := fmt.Sprintf("%d %s", status, http.StatusText(status))
-	switch {
-	case status == http.StatusUnauthorized, status == http.StatusForbidden:
-		return fmt.Errorf("%s %s: %w (%s)", method, path, ErrAuth, statusLine)
-	case status >= 300:
+	if status >= 300 {
+		statusLine := fmt.Sprintf("%d %s", status, http.StatusText(status))
 		return apiError(method, path, status, statusLine, data)
 	}
 	if out == nil || len(data) == 0 {

@@ -372,8 +372,8 @@ func approxCount(ctx context.Context, c *jira.Client, jql string) (int, bool) {
 
 // Watch runs incremental sync on an interval and reconcile on a longer one. A
 // transport failure is logged and retried on the next tick; a rejected
-// credential (isRejectedCredential — jira.ErrAuth or any error implementing
-// RejectedCredential, including confluence.ErrAuth) records last_error, logs
+// credential (isRejectedCredential — atlhttp.ErrAuth or any error implementing
+// atlhttp.RejectedCredential) records last_error, logs
 // once, and stops retrying that source, because every further request would
 // only burn rate budget. Jira is fatal (the loop ends). Confluence is not:
 // Jira mirroring keeps going when only the wiki side is rejected. `gadak

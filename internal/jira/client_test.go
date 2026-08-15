@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/midagedev/gadak/internal/atlhttp"
 )
 
 func testClient(t *testing.T, h http.Handler) *Client {
@@ -59,6 +62,39 @@ func TestAuthFailureAbortsWithoutRetry(t *testing.T) {
 	// Article 8: the token never reaches an error string.
 	if strings.Contains(err.Error(), "secret-token") {
 		t.Error("error message leaked the credential")
+	}
+}
+
+func TestAuthForbiddenAbortsWithoutRetry(t *testing.T) {
+	calls := 0
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.Error(w, `{"errorMessages":["forbidden"]}`, http.StatusForbidden)
+	}))
+	_, err := c.Statuses(context.Background())
+	if !errors.Is(err, ErrAuth) {
+		t.Fatalf("err = %v, want ErrAuth", err)
+	}
+	if calls != 1 {
+		t.Errorf("attempts = %d, want 1", calls)
+	}
+}
+
+// TestErrAuthMatchesCallerIdiom pins errors.Is(err, jira.ErrAuth) used by
+// internal/server/onboarding.go, internal/server/write.go, and cmd/gadak/init.go.
+func TestErrAuthMatchesCallerIdiom(t *testing.T) {
+	wrapped := fmt.Errorf("GET /rest/api/3/myself: %w (401 Unauthorized)", ErrAuth)
+	if !errors.Is(wrapped, ErrAuth) {
+		t.Fatalf("errors.Is(%v, jira.ErrAuth) = false", wrapped)
+	}
+	if !errors.Is(wrapped, atlhttp.ErrAuth) {
+		t.Fatalf("errors.Is(%v, atlhttp.ErrAuth) = false", wrapped)
+	}
+	if !strings.Contains(ErrAuth.Error(), "jira:") {
+		t.Fatalf("ErrAuth = %q, want the jira: prefix so last_error distinguishes the source", ErrAuth)
+	}
+	if wrapped.Error() == ErrAuth.Error() {
+		t.Fatal("wrapped error must keep method/path so last_error names the call")
 	}
 }
 

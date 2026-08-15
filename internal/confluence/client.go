@@ -48,21 +48,11 @@ const apiPath = "/rest/api"
 // site; callers skip that page instead of aborting the run.
 var ErrNotFound = errors.New("confluence: content not found")
 
-// authError is the 401/403 sentinel. Watch detects it via errors.As on
-// rejectedCredential (and callers via errors.Is(err, ErrAuth)). A third
-// source inherits the same stop-retrying rule by putting RejectedCredential
-// on its own ErrAuth — Watch does not grow a new branch.
-type authError struct{}
-
-func (authError) Error() string { return "confluence: credential rejected" }
-
-// RejectedCredential marks a dead credential: retrying only burns requests
-// against the user's site. sync.isRejectedCredential keys on this method.
-func (authError) RejectedCredential() {}
-
-// ErrAuth aborts a run immediately: retrying a bad credential just burns the
-// rate budget.
-var ErrAuth error = authError{}
+// ErrAuth is the Confluence-named rejected credential. It unwraps to
+// atlhttp.ErrAuth so Watch detects it without a per-source branch.
+// Error() keeps the "confluence:" prefix so last_error names the source.
+// Callers keep using errors.Is(err, confluence.ErrAuth).
+var ErrAuth = atlhttp.Auth("confluence")
 
 // Client talks to Confluence Cloud under <site>/wiki.
 type Client struct {
@@ -392,14 +382,12 @@ func (c *Client) call(ctx context.Context, method, path string, body, out any, m
 			return err
 		}
 	}
-	status, data, err := atlhttp.DoRaw(ctx, c.transport(), method, path, payload, hasBody, mutating)
+	status, data, err := atlhttp.Do(ctx, c.transport(), method, path, payload, hasBody, mutating)
 	if err != nil {
 		return err
 	}
 	statusLine := fmt.Sprintf("%d %s", status, http.StatusText(status))
 	switch {
-	case status == http.StatusUnauthorized, status == http.StatusForbidden:
-		return fmt.Errorf("%s %s: %w (%s)", method, path, ErrAuth, statusLine)
 	case status == http.StatusNotFound:
 		return fmt.Errorf("%s %s: %w: %s", method, path, ErrNotFound, atlhttp.Snippet(data))
 	case status >= 300:
