@@ -51,7 +51,12 @@ export function installHostedFetch(): void {
   // Returning visitors still have the old snapshot service worker controlling
   // this origin. Fire-and-forget: an already-open tab keeps that controller
   // until reload.
-  if (navigator.serviceWorker) {
+  //
+  // `navigator` is guarded the same way `window` is above: this module is
+  // exercised under vitest's node environment, and a global `navigator` only
+  // exists from Node 21 on. Without the guard the unit suite passes on a newer
+  // local Node and throws on CI's.
+  if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
     void navigator.serviceWorker.getRegistrations().then((rs) => {
       for (const r of rs) void r.unregister()
     })

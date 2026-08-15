@@ -96,7 +96,27 @@ beforeAll(() => {
       }),
   )
   attachWindow(stubFetch)
-  installHostedFetch()
+
+  // Install with no global `navigator`, which is CI's Node and not
+  // necessarily yours: Node grew a global `navigator` in 21, so an
+  // unguarded `navigator.serviceWorker` in installHostedFetch passes
+  // locally and throws in CI. Deleting it here reproduces that on any
+  // Node, and `installed` latches, so this is the one install that runs
+  // the service-worker cleanup path.
+  const hadNavigator = 'navigator' in globalThis
+  const savedNavigator = (globalThis as { navigator?: unknown }).navigator
+  Reflect.deleteProperty(globalThis, 'navigator')
+  try {
+    installHostedFetch()
+  } finally {
+    if (hadNavigator) {
+      Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        writable: true,
+        value: savedNavigator,
+      })
+    }
+  }
 })
 
 beforeEach(() => {
