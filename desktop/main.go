@@ -135,6 +135,10 @@ func run() error {
 		}
 		return window.NativeWindow()
 	}))
+	// With focus inside an embedded Jira page the SPA never sees keyDowns —
+	// its Escape → hide-browse dies there (GDK-78). The native monitor hands
+	// that one key back; ⌘W never needed it only because menus see keys first.
+	installEscapeRelay()
 
 	// Without an Edit menu, macOS does not wire ⌘C/V/X/A into the webview —
 	// paste during onboarding would fail. The app menu supplies About/Quit.
@@ -396,6 +400,13 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 			ID string `json:"id"`
 		}
 		if !decodeInto(w, r, &body) {
+			return
+		}
+		// "" closes everything: a freshly mounted SPA document asks this on
+		// boot so a predecessor's webviews cannot outlive it (GDK-80).
+		if body.ID == "" {
+			browse.CloseAll()
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		if err := browse.CloseTab(body.ID); err != nil {

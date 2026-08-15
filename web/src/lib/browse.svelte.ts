@@ -27,7 +27,8 @@
 
 import * as api from './api'
 import * as db from './db'
-import { isDesktop } from './config'
+import { config, isDesktop } from './config'
+import { classifyAtlassianLink } from './browse-classify'
 import { invalidate } from './detail-cache.svelte'
 import { issues } from '../stores/issues.svelte'
 import { me } from '../stores/me.svelte'
@@ -36,7 +37,7 @@ import { write } from '../stores/write.svelte'
 import type { IssueLite } from './types'
 import { resolveBrowseStack, type BrowseStack } from './browse-stack'
 
-/** Matches classifyAtlassianLink kind — kept local to avoid a cycle with desktop-links. */
+/** The classifyAtlassianLink kind — one type across the pane and the leaf. */
 export type BrowseKind = 'issue' | 'page' | 'other'
 
 /** One native tab, as the tab strip renders it. Title and URL are live: the
@@ -58,6 +59,9 @@ export interface FrameRect {
 interface BrowseSession {
   kind: BrowseKind
   key: string | null
+  /** The URL the session was last classified from — the poll compares the
+   *  live tab URL against it and re-classifies on a change (GDK-79). */
+  url: string
 }
 
 /**
@@ -70,11 +74,12 @@ const FOCUS_THROTTLE_MS = 15_000
 /** Frame reports coalesce over a drag; the native side only needs the last one. */
 const FRAME_DEBOUNCE_MS = 50
 
-function post(path: string, body: unknown): void {
+function post(path: string, body: unknown, opts?: { keepalive?: boolean }): void {
   void fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    keepalive: opts?.keepalive,
   }).catch(() => {
     /* the app is the only server here; a failed local POST has no recovery */
   })
@@ -168,7 +173,7 @@ class BrowseStore {
   adopt(id: string, url: string, kind: BrowseKind, key: string | null): void {
     if (!this.enabled) return
     this.#gen++
-    this.#sessions.set(id, { kind, key })
+    this.#sessions.set(id, { kind, key, url })
     if (key && (kind === 'issue' || kind === 'page')) {
       me.recordRecent(key, kind === 'page' ? 'doc' : 'issue')
     }
@@ -192,16 +197,22 @@ class BrowseStore {
 
   /**
    * Put the pane away without touching the tabs — they are still open, and the
-   * indicator brings them back. The tab being left is resynced now rather than
-   * on the focus throttle: this is the moment the person asked to see Gadak's
-   * copy of what they were just looking at.
+   * indicator brings them back. The thing being returned to is resynced now
+   * rather than on the focus throttle: this is the moment the person asked to
+   * see Gadak's copy of what they were just looking at.
+   *
+   * `reveal` is what the SPA is about to show in the pane's place (BrowseHost
+   * hides the pane because the panel target changed) — that, not the tab's
+   * open-time key, is what must be current. Without it, what gets resynced is
+   * the active tab's session, which the poll keeps classified from the tab's
+   * live URL (GDK-79).
    */
-  hidePane(): void {
+  hidePane(reveal?: { kind: BrowseKind; key: string | null }): void {
     if (!this.paneOpen) return
     this.paneOpen = false
     this.#syncNative()
-    const sess = this.#sessions.get(this.activeId)
-    if (sess) void this.#resync(sess)
+    const target = reveal ?? this.#sessions.get(this.activeId)
+    if (target) void this.#resync(target)
   }
 
   /** The re-entry affordance. Noop with nothing to come back to. */
@@ -332,6 +343,19 @@ class BrowseStore {
 
     this.tabs = open.map((t) => ({ id: t.id, title: t.title ?? '', url: t.url ?? '' }))
 
+    // A page can navigate itself; the session's kind/key must follow the live
+    // URL or every later resync (tab close, window focus, pane hide) fetches
+    // whatever the tab opened on, not what it shows (GDK-79).
+    const base = config().jiraBaseUrl || null
+    for (const t of this.tabs) {
+      const sess = this.#sessions.get(t.id)
+      if (!sess || !t.url || sess.url === t.url) continue
+      sess.url = t.url
+      const c = classifyAtlassianLink(t.url, base)
+      sess.kind = c.kind
+      sess.key = c.key
+    }
+
     if (!live.has(this.activeId)) {
       this.activeId = this.tabs[closedIdx]?.id ?? this.tabs[this.tabs.length - 1]?.id ?? ''
     }
@@ -345,7 +369,7 @@ class BrowseStore {
 
   // ── resync ──
 
-  #throttleKey(sess: BrowseSession): string | null {
+  #throttleKey(sess: { kind: BrowseKind; key: string | null }): string | null {
     if (!sess.key || sess.kind === 'other') return null
     return `${sess.kind}:${sess.key}`
   }
@@ -363,7 +387,7 @@ class BrowseStore {
     write.bumpDetail()
   }
 
-  async #resync(sess: BrowseSession, opts?: { throttle?: boolean }): Promise<void> {
+  async #resync(sess: { kind: BrowseKind; key: string | null }, opts?: { throttle?: boolean }): Promise<void> {
     if (sess.kind === 'other' || !sess.key) return
 
     const tKey = this.#throttleKey(sess)
@@ -409,6 +433,13 @@ class BrowseStore {
     this.#pendingFrame = null
     this.#lastSentFrame = null
     this.#lastSentActive = null
+    // A workspace switch is a full navigation: this document is about to go
+    // away, and the native webviews layered over it must not outlive it and
+    // end up over the next workspace (GDK-80). keepalive is what lets these
+    // requests survive the unload.
+    for (const t of this.tabs) {
+      post('/desktop/browse/close', { id: t.id }, { keepalive: true })
+    }
     this.#sessions.clear()
     this.#lastResyncAt.clear()
     this.tabs = []
@@ -443,6 +474,11 @@ export function tabLabel(tab: BrowseTab): string {
 /** Install the focus listener. Noop off desktop; returns the uninstall. */
 export function installBrowseSessions(): () => void {
   if (!isDesktop()) return () => {}
+  // A fresh document owns no tabs: anything still open natively belongs to
+  // the previous document (workspace switch, reload) and would sit over this
+  // one — the mount-time close-all is the belt to reset()'s suspenders, for
+  // when the unload-time requests never made it (GDK-80).
+  post('/desktop/browse/close', { id: '' })
   window.addEventListener('focus', browse.onWindowFocus)
   return () => {
     window.removeEventListener('focus', browse.onWindowFocus)

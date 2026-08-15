@@ -246,6 +246,19 @@ func TestFallbackHandler(t *testing.T) {
 		if rec := post("/desktop/browse/close", `{"id":"999"}`); rec.Code != 400 {
 			t.Fatalf("closing unknown tab: got %d, want 400", rec.Code)
 		}
+
+		// Close-all ("" id): what a freshly mounted SPA document sends on
+		// boot, so a predecessor's webviews cannot outlive it (GDK-80).
+		if rec := post("/desktop/browse/close", `{"id":""}`); rec.Code != 204 {
+			t.Fatalf("close-all: got %d", rec.Code)
+		}
+		open, active = state()
+		if len(open) != 0 || active != "" {
+			t.Fatalf("after close-all, open=%v active=%q", open, active)
+		}
+		if !emb.closed(second.ID) {
+			t.Fatal("close-all left a native view alive")
+		}
 	})
 }
 

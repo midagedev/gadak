@@ -66,6 +66,83 @@ static NSRect embedRect(NSView *content, double x, double y, double w, double h)
 	return NSMakeRect(x, ch - y - h, w, h);
 }
 
+// ── Escape relay (GDK-78) ─────────────────────────────────────────────
+// A keyDown inside an embedded WKWebView belongs to that page's web process:
+// the SPA never sees it, so its Escape → hide-browse binding is dead exactly
+// when the pane is up (⌘W works only because it is a menu accelerator). This
+// monitor hands Escape back: when the first responder sits inside an embedded
+// view, the event is swallowed and a synthetic Escape is posted after focus
+// moves to the app's own webview, whose keydown listener runs the same path
+// as if it had focus all along. The SPA stays the single owner of what
+// Escape means; every other key passes through untouched.
+
+static NSMutableSet *embedViews(void) {
+	static NSMutableSet *views = nil;
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{ views = [[NSMutableSet alloc] init]; });
+	return views;
+}
+
+static BOOL viewInsideEmbeds(NSView *v) {
+	for (NSView *cur = v; cur != nil; cur = cur.superview) {
+		if ([embedViews() containsObject:cur]) return YES;
+	}
+	return NO;
+}
+
+// The app's own webview, however deeply the framework wrapped it: the first
+// WKWebView in the content view's tree that is not one of ours.
+static WKWebView *mainWebViewIn(NSView *v) {
+	for (NSView *child in v.subviews) {
+		if ([child isKindOfClass:[WKWebView class]] && ![embedViews() containsObject:child]) {
+			return (WKWebView *)child;
+		}
+	}
+	for (NSView *child in v.subviews) {
+		WKWebView *found = mainWebViewIn(child);
+		if (found != nil) return found;
+	}
+	return nil;
+}
+
+static NSEvent *gadakEscapeMonitor(NSEvent *event) {
+	if (event.keyCode != 53) return event;  // kVK_Escape
+	NSWindow *win = event.window;
+	if (win == nil) return event;
+	id fr = win.firstResponder;
+	if (![fr isKindOfClass:[NSView class]]) return event;
+	if (!viewInsideEmbeds((NSView *)fr)) return event;
+	WKWebView *main = mainWebViewIn(win.contentView);
+	if (main != nil) {
+		[win makeFirstResponder:main];
+	}
+	NSEvent *synthetic = [NSEvent
+	    keyEventWithType:NSEventTypeKeyDown
+	                location:NSZeroPoint
+	           modifierFlags:0
+	               timestamp:[NSDate timeIntervalSinceReferenceDate]
+	            windowNumber:win.windowNumber
+	                 context:nil
+	              characters:@"\x1b"
+	 charactersIgnoringModifiers:@"\x1b"
+	               isARepeat:NO
+	                 keyCode:53];
+	if (synthetic != nil) {
+		[NSApp postEvent:synthetic atStart:YES];
+	}
+	return nil;  // swallowed; the relayed copy is on its way to the SPA
+}
+
+static void embedInstallEscapeRelay(void) {
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		[NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+		                                      handler:^NSEvent *(NSEvent *event) {
+		                                          return gadakEscapeMonitor(event);
+		                                      }];
+	});
+}
+
 // embedCreate builds a hidden WKWebView over the app's webview and starts the
 // load. Returned +1 retained; embedClose releases. The width/height autoresize
 // mask keeps all four margins pinned, so live window resizes track natively
@@ -84,6 +161,7 @@ static void *embedCreate(void *nsWindow, const char *url,
 		wv.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 		wv.UIDelegate = embedUIDelegate();
 		wv.hidden = YES;
+		[embedViews() addObject:wv];
 		[content addSubview:wv];
 		NSURL *u = [NSURL URLWithString:s];
 		if (u != nil) {
@@ -111,6 +189,7 @@ static void embedSetHidden(void *webView, bool hidden) {
 static void embedClose(void *webView) {
 	dispatch_async(dispatch_get_main_queue(), ^{
 		WKWebView *wv = (WKWebView *)webView;
+		[embedViews() removeObject:wv];
 		[wv removeFromSuperview];
 		[wv release];
 	});
@@ -153,6 +232,12 @@ type macEmbedder struct {
 
 func newPlatformEmbedder(window func() unsafe.Pointer) embedder {
 	return &macEmbedder{window: window}
+}
+
+// installEscapeRelay is darwin's answer to GDK-78; other platforms have no
+// embedded webviews to steal keystrokes in the first place.
+func installEscapeRelay() {
+	C.embedInstallEscapeRelay()
 }
 
 func (m *macEmbedder) Create(url string, f frameRect) (unsafe.Pointer, error) {

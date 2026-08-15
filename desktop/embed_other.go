@@ -16,6 +16,9 @@ func newPlatformEmbedder(func() unsafe.Pointer) embedder {
 	return stubEmbedder{}
 }
 
+// No embedded webviews off darwin, so there is nothing to relay Escape past.
+func installEscapeRelay() {}
+
 func (stubEmbedder) Create(string, frameRect) (unsafe.Pointer, error) {
 	return nil, errors.New("in-app browser pane is macOS-only")
 }

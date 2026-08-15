@@ -12,8 +12,8 @@
    * it safe to sit inside the layout grid.
    */
   import { untrack } from 'svelte'
-  import { browse } from '../../lib/browse.svelte'
-  import { panel } from '../../stores/panel.svelte'
+  import { browse, type BrowseKind } from '../../lib/browse.svelte'
+  import { panel, type PanelKind } from '../../stores/panel.svelte'
   import { t } from '../../lib/i18n'
   import BrowsePane from './BrowsePane.svelte'
   import Icon from '../ui/Icon.svelte'
@@ -25,14 +25,24 @@
    *
    * Only on a *change*, never on mount: the pane is opened by a link click that
    * leaves the panel target alone, and a run at mount would close it on sight.
+   *
+   * The new target rides along as `reveal`: what the pane uncovers is what the
+   * return resync must make current, not whatever the tab opened on (GDK-79).
    */
+  const REVEAL_KIND: Record<PanelKind, BrowseKind | undefined> = {
+    issue: 'issue',
+    doc: 'page',
+    person: undefined,
+  }
   let lastTarget = untrack(() => panel.target)
   $effect(() => {
     const target = panel.target
     untrack(() => {
       if (target === lastTarget) return
       lastTarget = target
-      if (target !== null) browse.hidePane()
+      if (target === null) return
+      const kind = REVEAL_KIND[target.kind]
+      browse.hidePane(kind ? { kind, key: target.key } : undefined)
     })
   })
 </script>

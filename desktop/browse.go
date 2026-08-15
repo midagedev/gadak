@@ -143,6 +143,25 @@ func (b *browseTabs) CloseActive() {
 	}
 }
 
+// CloseAll tears every tab down at once. A workspace switch is a full
+// navigation: the outgoing document asks for its tabs on unload, and the
+// next document asks once more on mount for anything those unload-time
+// requests missed — a native webview that outlives its document sits over
+// the freshly mounted workspace (GDK-80). No-op when the pane never bound.
+func (b *browseTabs) CloseAll() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.emb == nil {
+		return
+	}
+	for id, wv := range b.tabs {
+		b.emb.Close(wv)
+		delete(b.tabs, id)
+	}
+	b.order = nil
+	b.active = ""
+}
+
 // SetFrame moves the pane. Applies to every tab — hidden ones must be in
 // place before they are shown. Window resizes are handled natively
 // (autoresizing margins); this is for the SPA's own layout changes.
