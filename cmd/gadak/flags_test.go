@@ -54,6 +54,7 @@ func createFlagSetForTest() *flag.FlagSet {
 	fs := newFlagSet("create")
 	fs.String("project", "", "")
 	fs.String("type", "", "")
+	fs.String("priority", "", "")
 	var labels labelFlags
 	fs.Var(&labels, "label", "")
 	var attach labelFlags
@@ -77,12 +78,12 @@ func TestParseAroundUnknownFlagBeforePositional(t *testing.T) {
 
 func TestParseAroundUnknownFlagAfterPositional(t *testing.T) {
 	fs := createFlagSetForTest()
-	pos, err := parseAround(fs, []string{"fix the gate", "--project", "GDK", "--priority", "Low"})
+	pos, err := parseAround(fs, []string{"fix the gate", "--project", "GDK", "--pretty"})
 	if err == nil {
-		t.Fatalf("unknown --priority swallowed as positional %q", pos)
+		t.Fatalf("unknown --pretty swallowed as positional %q", pos)
 	}
-	if !strings.Contains(err.Error(), "unknown flag --priority") {
-		t.Fatalf("want unknown flag --priority, got %v", err)
+	if !strings.Contains(err.Error(), "unknown flag --pretty") {
+		t.Fatalf("want unknown flag --pretty, got %v", err)
 	}
 }
 
@@ -93,7 +94,7 @@ func TestParseAroundUnknownFlagListsAccepted(t *testing.T) {
 		t.Fatal("expected unknown --summary")
 	}
 	// VisitAll sorts by name. dashed("m") is -m. File: help.go newUnknownFlag.
-	want := "unknown flag --summary — accepted: --attach, --batch, --json, --label, -m, --project, --type\nrun \"gadak create --help\" for examples"
+	want := "unknown flag --summary — accepted: --attach, --batch, --json, --label, -m, --priority, --project, --type\nrun \"gadak create --help\" for examples"
 	if err.Error() != want {
 		t.Fatalf("exact message:\n got %q\nwant %q", err.Error(), want)
 	}
@@ -137,12 +138,12 @@ func TestParseAroundDoubleDashStopsFlags(t *testing.T) {
 
 func TestParseAroundInlineUnknown(t *testing.T) {
 	fs := createFlagSetForTest()
-	pos, err := parseAround(fs, []string{"title", "--priority=Low"})
+	pos, err := parseAround(fs, []string{"title", "--pretty=Low"})
 	if err == nil {
-		t.Fatalf("--priority=Low swallowed as positional %q", pos)
+		t.Fatalf("--pretty=Low swallowed as positional %q", pos)
 	}
-	if !strings.Contains(err.Error(), "unknown flag --priority=Low") && !strings.Contains(err.Error(), "unknown flag --priority") {
-		t.Fatalf("want unknown --priority=Low, got %v", err)
+	if !strings.Contains(err.Error(), "unknown flag --pretty=Low") && !strings.Contains(err.Error(), "unknown flag --pretty") {
+		t.Fatalf("want unknown --pretty=Low, got %v", err)
 	}
 }
 
@@ -184,7 +185,7 @@ func TestParseAroundRejectsUnknownOnFlagSetCommands(t *testing.T) {
 		flags []string // bool flags as "name"; value flags as "name="
 	}
 	cmds := []spec{
-		{name: "create", flags: []string{"project=", "type=", "label=", "attach=", "m=", "json", "batch="}},
+		{name: "create", flags: []string{"project=", "type=", "priority=", "label=", "attach=", "m=", "json", "batch="}},
 		{name: "edit", flags: []string{"summary=", "m=", "label=", "priority=", "json"}},
 		{name: "attach", flags: []string{"json"}},
 		{name: "search", flags: []string{"limit=", "json", "jql", "emit"}},
@@ -255,14 +256,14 @@ func TestCreateUnknownFlagAfterPositionalWritesNothing(t *testing.T) {
 		return cmdCreate([]string{
 			"Fix the flaky gate",
 			"--project", "NMB", "--type", "Task",
-			"--priority", "Low",
+			"--pretty",
 		})
 	})
 	if err == nil {
-		t.Fatalf("unknown --priority after summary: expected error, got success; Jira calls %v", f.calls)
+		t.Fatalf("unknown --pretty after summary: expected error, got success; Jira calls %v", f.calls)
 	}
-	if !strings.Contains(err.Error(), "unknown flag --priority") {
-		t.Fatalf("want unknown --priority, got %v", err)
+	if !strings.Contains(err.Error(), "unknown flag --pretty") {
+		t.Fatalf("want unknown --pretty, got %v", err)
 	}
 	if f.called("POST /issue") {
 		t.Fatalf("unknown flag reached Jira: %v", f.calls)
@@ -299,7 +300,7 @@ func TestCreateUnknownFlagListsAccepted(t *testing.T) {
 	if !strings.Contains(msg, "accepted:") {
 		t.Fatalf("must list accepted flags: %q", msg)
 	}
-	for _, want := range []string{"--project", "--type", "-m", "--json"} {
+	for _, want := range []string{"--project", "--type", "-m", "--json", "--priority"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("accepted list missing %s: %q", want, msg)
 		}

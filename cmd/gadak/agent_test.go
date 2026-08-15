@@ -47,6 +47,12 @@ type fakeJira struct {
 	// attach support (additive; existing write tests never hit these paths)
 	uploads       []recordedUpload
 	failNthAttach int // 1-based; 0 = never fail
+
+	// lang selects localized catalog names the way internal/sync/sync_test.go
+	// statusesJSON does. Priority ids stay stable; names follow the account
+	// language. The sync fake's /priority list is still English-only — this
+	// CLI fake does not inherit that gap.
+	lang string
 }
 
 // recordedUpload is one multipart POST /issue/{key}/attachments the fake saw.
@@ -81,7 +87,7 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`[{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}},
 			{"id":"10001","name":"완료","statusCategory":{"key":"done"}}]`))
 	case path == "/priority":
-		_, _ = w.Write([]byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"}]`))
+		_, _ = w.Write(f.prioritiesJSON())
 	case path == "/search/jql":
 		if f.rereadStatus != 0 {
 			w.WriteHeader(f.rereadStatus)
@@ -217,6 +223,16 @@ func fakeTypeName(id string) string {
 	default:
 		return "Task"
 	}
+}
+
+// prioritiesJSON is GET /priority. Same three ids as the English catalog;
+// lang=="ko" uses Jira Cloud's Korean default names so create/edit resolve
+// by the name the account actually sees.
+func (f *fakeJira) prioritiesJSON() []byte {
+	if f != nil && f.lang == "ko" {
+		return []byte(`[{"id":"1","name":"가장 높음"},{"id":"2","name":"높음"},{"id":"3","name":"보통"}]`)
+	}
+	return []byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"}]`)
 }
 
 func (f *fakeJira) writeCreatedSearch(w http.ResponseWriter, ci createdIssue) {

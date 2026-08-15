@@ -64,6 +64,20 @@ import (
 // 17. Dash-leading token is an unknown flag, not a summary
 //     TestCreateSummaryStartingWithDashIsUnknownFlag
 //     TestCreateLeadingDashSummaryAfterDoubleDash (flags_test.go)
+//
+// --priority (GDK-42):
+// 18. Name and id both land as priority.id in POST /issue
+//     TestCreatePriorityByNameAndID
+// 19. Korean-locale catalog name resolves to the same id
+//     TestCreatePriorityResolvesKoreanName
+// 20. Unknown name lists the catalog; no POST /issue
+//     TestCreatePriorityUnmatchedListsCatalogWritesNothing
+// 21. --batch -: flag default, per-line override, unmatched line writes nothing
+//     TestCreateBatchPriorityFromFlagAndLineOverride
+//     TestCreateBatchPriorityUnmatchedWritesNothing
+// 22. Genuinely unknown flag still rejected (GDK-41)
+//     TestCreateUnknownFlagExitStatus (flags_test.go; --pretty)
+//     TestCreateHelpListsPriorityFlag
 
 func TestCreateHappyPathSendsFieldsAndPrintsReread(t *testing.T) {
 	f := newFakeJira(t)
@@ -949,6 +963,225 @@ func TestCreateBatchAttachValidatesThatLineOnly(t *testing.T) {
 	}
 	if n := countCalls(f, "POST /issue"); n != 1 {
 		t.Fatalf("POSTs %d in %v", n, f.calls)
+	}
+}
+
+func TestCreatePriorityByNameAndID(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"by name", "--project", "NMB", "--type", "Task", "--priority", "High"})
+	})
+	if err != nil {
+		t.Fatalf("priority High: %v", err)
+	}
+	if !f.called("GET /priority") {
+		t.Fatalf("PriorityCatalog not called: %v", f.calls)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"priority":{"id":"2"}`) {
+		t.Fatalf("name High should send id 2: %s", sent)
+	}
+	pri, post := -1, -1
+	for i, c := range f.calls {
+		if c == "GET /priority" && pri < 0 {
+			pri = i
+		}
+		if c == "POST /issue" && post < 0 {
+			post = i
+		}
+	}
+	if pri < 0 || post < 0 || pri > post {
+		t.Fatalf("catalog must resolve before create: %v", f.calls)
+	}
+
+	_, err = capture(t, func() error {
+		return cmdCreate([]string{"by id", "--project", "NMB", "--type", "Task", "--priority", "1"})
+	})
+	if err != nil {
+		t.Fatalf("priority id 1: %v", err)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"priority":{"id":"1"}`) {
+		t.Fatalf("id 1 should send id 1: %s", sent)
+	}
+
+	_, err = capture(t, func() error {
+		return cmdCreate([]string{"case fold", "--project", "NMB", "--type", "Task", "--priority", "medium"})
+	})
+	if err != nil {
+		t.Fatalf("priority medium: %v", err)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"priority":{"id":"3"}`) {
+		t.Fatalf("case-insensitive Medium: %s", sent)
+	}
+}
+
+func TestCreatePriorityResolvesKoreanName(t *testing.T) {
+	f := newFakeJira(t)
+	f.lang = "ko"
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"korean priority", "--project", "NMB", "--type", "Task", "--priority", "높음"})
+	})
+	if err != nil {
+		t.Fatalf("priority 높음: %v", err)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"priority":{"id":"2"}`) {
+		t.Fatalf("높음 should send id 2: %s", sent)
+	}
+
+	_, err = capture(t, func() error {
+		return cmdCreate([]string{"korean highest", "--project", "NMB", "--type", "Task", "--priority", "가장 높음"})
+	})
+	if err != nil {
+		t.Fatalf("priority 가장 높음: %v", err)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"priority":{"id":"1"}`) {
+		t.Fatalf("가장 높음 should send id 1: %s", sent)
+	}
+
+	// English display names are not a second key. The catalog is already in
+	// the account language (PriorityCatalog); matching "High" here would
+	// reintroduce the localized-name trap.
+	_, err = capture(t, func() error {
+		return cmdCreate([]string{"english on ko", "--project", "NMB", "--type", "Task", "--priority", "High"})
+	})
+	if err == nil {
+		t.Fatal("English High must not match a Korean catalog")
+	}
+	if !strings.Contains(err.Error(), `no priority matching "High"`) || !strings.Contains(err.Error(), "높음 (id 2)") {
+		t.Fatalf("want Korean catalog listed, got %v", err)
+	}
+	// Two successful creates already POSTed; this miss must not add a third.
+	if n := countCalls(f, "POST /issue"); n != 2 {
+		t.Fatalf("English miss reached Jira: %d POSTs in %v", n, f.calls)
+	}
+}
+
+func TestCreatePriorityUnmatchedListsCatalogWritesNothing(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"no such priority", "--project", "NMB", "--type", "Task", "--priority", "Urgent"})
+	})
+	if err == nil {
+		t.Fatal("expected unmatched priority error")
+	}
+	for _, want := range []string{`no priority matching "Urgent"`, "Highest (id 1)", "High (id 2)", "Medium (id 3)"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q missing %q", err, want)
+		}
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("unmatched priority reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateOmitsPriorityWhenNoneGiven(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"no priority", "--project", "NMB", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	sent := f.bodies["POST /issue"]
+	if strings.Contains(sent, `"priority"`) {
+		t.Fatalf("priority sent when flag omitted: %s", sent)
+	}
+	// SyncIssue's re-read also hits GET /priority (site catalog). The
+	// contract is that the create POST itself has no priority field.
+}
+
+func TestCreateBatchPriorityFromFlagAndLineOverride(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, ""+
+		"{\"summary\":\"from flag\"}\n"+
+		"{\"summary\":\"from line\",\"priority\":\"Medium\"}\n"+
+		"{\"summary\":\"id on line\",\"priority\":\"1\"}\n")
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"--batch", "-",
+			"--project", "NMB", "--type", "Task",
+			"--priority", "High",
+		})
+	})
+	if err != nil {
+		t.Fatalf("batch: %v", err)
+	}
+	if len(f.createBodies) != 3 {
+		t.Fatalf("bodies %d: %v", len(f.createBodies), f.createBodies)
+	}
+	if !strings.Contains(f.createBodies[0], `"priority":{"id":"2"}`) {
+		t.Errorf("line 1 should use flag High → id 2: %s", f.createBodies[0])
+	}
+	if !strings.Contains(f.createBodies[1], `"priority":{"id":"3"}`) {
+		t.Errorf("line 2 should override to Medium → id 3: %s", f.createBodies[1])
+	}
+	if !strings.Contains(f.createBodies[2], `"priority":{"id":"1"}`) {
+		t.Errorf("line 3 should override to id 1: %s", f.createBodies[2])
+	}
+}
+
+func TestCreateBatchPriorityUnmatchedWritesNothing(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, ""+
+		"{\"summary\":\"kept\"}\n"+
+		"{\"summary\":\"bad\",\"priority\":\"Urgent\"}\n"+
+		"{\"summary\":\"never\"}\n")
+
+	stdout, _, err := captureBoth(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task", "--priority", "High"})
+	})
+	if err == nil {
+		t.Fatal("expected unmatched priority on line 2")
+	}
+	if !strings.Contains(err.Error(), "line 2") {
+		t.Errorf("must name line 2: %v", err)
+	}
+	if !strings.Contains(err.Error(), `no priority matching "Urgent"`) {
+		t.Errorf("must list the miss: %v", err)
+	}
+	for _, want := range []string{"Highest (id 1)", "High (id 2)"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q missing %q", err, want)
+		}
+	}
+	lines := nonEmptyLines(stdout)
+	if len(lines) != 1 {
+		t.Fatalf("stdout must be the first success only, got %q", stdout)
+	}
+	if n := countCalls(f, "POST /issue"); n != 1 {
+		t.Fatalf("want 1 POST (line 2 must not create), got %d in %v", n, f.calls)
+	}
+	if !strings.Contains(f.createBodies[0], `"priority":{"id":"2"}`) {
+		t.Errorf("line 1 POST missing flag priority: %s", f.createBodies[0])
+	}
+}
+
+func TestCreateHelpListsPriorityFlag(t *testing.T) {
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"--help"})
+	})
+	if err != nil {
+		t.Fatalf("create --help: %v", err)
+	}
+	if !strings.Contains(out, "--priority") {
+		t.Fatalf("help Options missing --priority:\n%s", out)
+	}
+	if !strings.Contains(out, "--priority") || !strings.Contains(helps["create"].usage, "--priority") {
+		t.Errorf("usage line missing --priority: %s", helps["create"].usage)
+	}
+	joined := strings.Join(helps["create"].examples, "\n")
+	if !strings.Contains(joined, "--priority") {
+		t.Errorf("examples missing --priority:\n%s", joined)
 	}
 }
 

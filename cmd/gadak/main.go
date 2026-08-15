@@ -167,7 +167,7 @@ Atlassian REST escape hatch (needs a credential; not on MCP):
   api        raw REST call    [METHOD] <PATH> [--query k=v] [--data …] [--write] [--status]
 
 Writing through to Jira (needs a credential):
-  create     create an issue  [--] <SUMMARY> [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]
+  create     create an issue  [--] <SUMMARY> [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]
   attach     attach files     <KEY> <file>... [--json]
   edit       edit an issue    <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--json]
   comment    add a comment    <KEY> -m <text|-> [--json]

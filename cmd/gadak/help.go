@@ -264,10 +264,11 @@ var helps = map[string]cmdHelp{
 	},
 	"create": {
 		summary: "create an issue on Jira (needs a credential; write-through to the mirror)",
-		usage:   "gadak [--profile <name>] create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
+		usage:   "gadak [--profile <name>] create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
 		examples: []string{
 			"gadak create Fix the flaky gate --project NMB --type Task -m \"repro on staging\" --label batch",
 			"gadak create 로그인 실패 --project NMB --type 작업",
+			"gadak create Night triage item --project NMB --type Task --priority High",
 			"gadak create --project NMB --type Task -- --rollback-on-failure",
 			`printf '%s\n' '{"summary":"one"}' '{"summary":"two"}' | gadak create --batch - --project NMB --type Task`,
 		},
