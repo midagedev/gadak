@@ -280,3 +280,20 @@ func cmdServe(args []string) error {
 	startServeLoops(ctx, api, db, cfg, reg, opts.noSync, opts.withSync)
 	return runServeHTTP(ctx, mux, opts.addr, opts.addrPinned, opts.noOpen, cfg)
 }
+
+// openOnceUp opens the browser as soon as the server answers /healthz, so the
+// tab never lands on a connection error. Gives up quietly after ~5s — a browser
+// failing to open must never take the server down with it.
+func openOnceUp(u string) {
+	for i := 0; i < 50; i++ {
+		res, err := http.Get(u + "/healthz")
+		if err == nil {
+			res.Body.Close()
+			if err := openBrowser(u); err != nil {
+				log.Printf("could not open a browser: %v — visit %s", err, u)
+			}
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
