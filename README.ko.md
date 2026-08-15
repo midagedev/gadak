@@ -232,7 +232,8 @@ Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/
 미러는 내 Jira의 버려도 되는 캐시이고, 스키마의 약속 범위는
 [문서화되어](specs/000-product/data-model.md) 있으며, 라이선스는
 Apache-2.0이고, 파일은 무엇으로든 읽히는 평범한 SQLite입니다. 어려운
-질문들: [`docs/FAQ.md`](docs/FAQ.md).
+질문들: [`docs/FAQ.md`](docs/FAQ.md). 믿지 않아도 되는 것들, 각 항목마다
+확인 명령과 함께: [`PROMISES.md`](PROMISES.md).
 
 ## 기여와 피드백
 

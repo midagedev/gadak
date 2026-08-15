@@ -17,6 +17,9 @@
 #      display name (GDK-28/29). FAIL-first: the pre-fix format.ts table
 #      `/highest|긴급|가장 높음|blocker/` (and friends) is kept at
 #      /tmp/gadak-priority-gdk28/format.ts and fails this grep.
+#   8. PROMISES.md names the same outbound destinations SECURITY.md
+#      enumerates (GDK-104). FAIL-first 2026-08-15: adding "| plausible.io"
+#      to the PROMISES.md marker made this check fail before it was reverted.
 #
 # Usage: tools/doc-checks.sh
 # Exit 0 = clean, 1 = a check failed.
@@ -147,5 +150,44 @@ if [[ -n "$name_hits" ]]; then
   fail "web logic keys status/priority/type on a display name:"$'\n'"$name_hits"
 fi
 ok "web logic does not key status/priority/type on a display name"
+
+# ── 8. PROMISES.md outbound list agrees with SECURITY.md ────────────────
+# SECURITY.md enumerates outbound destinations as a numbered list under
+# "Outbound traffic is exactly N destinations:"; PROMISES.md repeats that set
+# in an <!-- outbound: A | B --> marker beside its own outbound promise. A
+# destination added to one file must not leave the other claiming fewer.
+outbound_diff="$(python3 - <<'PY'
+import re
+from pathlib import Path
+
+words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+norm = lambda s: re.sub(r"\W+", " ", s).strip().lower()
+
+sec = Path("SECURITY.md").read_text()
+# Everything from the claim to the next heading: a destination appended after
+# a blank line is still inside the section and must still be counted.
+m = re.search(r"Outbound traffic is exactly (\w+) destinations?:\n(.*?)(?=\n## |\Z)", sec, re.S)
+if not m:
+    print('SECURITY.md: no "Outbound traffic is exactly N destinations:" list')
+    raise SystemExit
+declared = re.findall(r"^\d+\.\s+\*\*(.+?)\*\*", m.group(2), re.M)
+if words.get(m.group(1)) != len(declared):
+    print(f'SECURITY.md says "{m.group(1)}" destinations but lists {len(declared)}')
+    raise SystemExit
+
+pm = re.search(r"<!--\s*outbound:(.+?)-->", Path("PROMISES.md").read_text())
+if not pm:
+    print("PROMISES.md: no <!-- outbound: … --> marker")
+    raise SystemExit
+listed = {norm(x) for x in pm.group(1).split("|")}
+if listed != {norm(x) for x in declared}:
+    print(f"PROMISES.md lists {sorted(listed)}; SECURITY.md declares "
+          f"{sorted(norm(x) for x in declared)}")
+PY
+)"
+if [[ -n "$outbound_diff" ]]; then
+  fail "PROMISES.md outbound list disagrees with SECURITY.md:"$'\n'"$outbound_diff"
+fi
+ok "PROMISES.md outbound list matches SECURITY.md"
 
 echo "doc-checks: all passed"

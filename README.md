@@ -227,7 +227,8 @@ disposable cache of your own Jira, the 0.x contract is the three promises
 in [data-model.md](specs/000-product/data-model.md) (`issues_full` and the
 RECIPES queries, `gadak sql` stdout, and `gadak views open --keys -`), the
 license is Apache-2.0, and the file is plain SQLite. Hard questions:
-[`docs/FAQ.md`](docs/FAQ.md).
+[`docs/FAQ.md`](docs/FAQ.md). What you do not have to take on trust, each with
+the command that checks it: [`PROMISES.md`](PROMISES.md).
 
 ## Contributing and feedback
 
