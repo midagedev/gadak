@@ -84,20 +84,61 @@ describe('initials / colorIndex', () => {
   })
 })
 
-describe('priorityMeta (EN + KO names from format.ts:137–144)', () => {
-  test('maps both language names onto the same level', () => {
-    expect(priorityMeta('Highest').level).toBe(5)
-    expect(priorityMeta('긴급').level).toBe(5)
-    expect(priorityMeta('High').level).toBe(4)
-    expect(priorityMeta('높음').level).toBe(4)
-    expect(priorityMeta('Medium').level).toBe(3)
-    expect(priorityMeta('보통').level).toBe(3)
-    expect(priorityMeta('Low').level).toBe(2)
-    expect(priorityMeta('낮음').level).toBe(2)
-    expect(priorityMeta('Lowest').level).toBe(1)
-    expect(priorityMeta('가장 낮음').level).toBe(1)
-    expect(priorityMeta(null).level).toBe(0)
-    expect(priorityMeta(null).label).toBe('None')
+describe('priorityMeta (rank, not name)', () => {
+  test.each([
+    { rank: 0, name: null, level: 0, label: 'None' },
+    { rank: 1, name: 'Highest', level: 5, label: 'Highest' },
+    { rank: 2, name: 'High', level: 4, label: 'High' },
+    { rank: 3, name: 'Medium', level: 3, label: 'Medium' },
+    { rank: 4, name: 'Low', level: 2, label: 'Low' },
+    { rank: 5, name: 'Lowest', level: 1, label: 'Lowest' },
+    { rank: null, name: null, level: 0, label: 'None' },
+    { rank: undefined, name: null, level: 0, label: 'None' },
+  ] as const)('rank $rank / $name → level $level, label untouched', ({ rank, name, level, label }) => {
+    const meta = priorityMeta(rank, name)
+    expect(meta.level).toBe(level)
+    expect(meta.label).toBe(label)
+  })
+
+  test('localized name does not change the level: French/German rank 1 == Highest rank 1', () => {
+    const en = priorityMeta(1, 'Highest')
+    const fr = priorityMeta(1, 'La plus haute')
+    const de = priorityMeta(1, 'Höchste')
+    expect(fr.level).toBe(en.level)
+    expect(de.level).toBe(en.level)
+    expect(en.level).toBe(5)
+    expect(fr.label).toBe('La plus haute')
+    expect(de.label).toBe('Höchste')
+  })
+
+  test('Korean name is a label only: rank 2 + 높음 is the same level as High', () => {
+    const meta = priorityMeta(2, '높음')
+    expect(meta.level).toBe(priorityMeta(2, 'High').level)
+    expect(meta.label).toBe('높음')
+  })
+
+  test('missing rank keeps the row: unset styling, label untouched', () => {
+    const meta = priorityMeta(undefined, 'Highest')
+    expect(meta.level).toBe(0)
+    expect(meta.label).toBe('Highest')
+    expect(meta.color).toBe('var(--color-border-strong)')
+  })
+
+  test('rank 0 with a leftover name is unset, not name-matched', () => {
+    const meta = priorityMeta(0, 'Highest')
+    expect(meta.level).toBe(0)
+    expect(meta.label).toBe('Highest')
+  })
+
+  test('colors are paper tokens; rank 6 clamps to the coolest step', () => {
+    expect(priorityMeta(1, 'x').color).toBe('var(--color-status-reopen)')
+    expect(priorityMeta(2, 'x').color).toBe('var(--color-status-inprogress)')
+    expect(priorityMeta(3, 'x').color).toBe('var(--color-status-new)')
+    expect(priorityMeta(4, 'x').color).toBe('var(--color-text-secondary)')
+    expect(priorityMeta(5, 'x').color).toBe('var(--color-text-muted)')
+    expect(priorityMeta(6, 'x').color).toBe('var(--color-text-muted)')
+    expect(priorityMeta(6, 'x').level).toBe(1)
+    expect(priorityMeta(0, null).color).toBe('var(--color-border-strong)')
   })
 })
 

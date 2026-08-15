@@ -21,10 +21,11 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   stdout 형식 / `views open --keys -` 의미. 원본:
   `specs/000-product/data-model.md` 상단. 문서에서 "스키마 전체가 계약"
   이라고 쓰지 마라.
-- **상태는 display name으로 필터하지 않는다.** `status = 'In Progress'`는
-  한국어 계정에서 소리 없이 0행이다. 항상 `status_category`
-  (new|inprogress|done) 또는 `status_id`. 이 함정은 코드·문서·툴 설명
-  어디서든 재발 금지.
+- **상태·우선순위·이슈 유형은 display name으로 키하지 않는다.**
+  `status = 'In Progress'`는 한국어 계정에서 소리 없이 0행이다. 항상
+  `status_category` (new|inprogress|done) 또는 `status_id`; 우선순위는
+  `priority_rank` (또는 `priority_id`); 유형은 `issue_type_id`. 이 함정은
+  코드·문서·툴 설명 어디서든 재발 금지.
 - `time-in-status`는 저장 컬럼이 아니다 — `status_changed_at`에서 계산.
   (`data-model.md`가 "deliberately absent"로 명시.)
 - decisions/ 문서는 **개정하지 않는다. Addendum만 추가.**

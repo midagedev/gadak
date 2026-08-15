@@ -18,7 +18,7 @@
   let busy = $state(false)
   let listEl = $state<HTMLDivElement | null>(null)
 
-  const meta = $derived(priorityMeta(issue.priority))
+  const meta = $derived(priorityMeta(issue.priority_rank, issue.priority))
   const canEdit = $derived(me.identified)
   const options = $derived(write.priorities)
 
@@ -118,8 +118,8 @@
           <span class="h-1.5 w-1.5 flex-none rounded-full border border-dashed border-border-strong"></span>
           {t('common.none')}
         </button>
-        {#each options as p (p.id)}
-          {@const opt = priorityMeta(p.name)}
+        {#each options as p, i (p.id)}
+          {@const opt = priorityMeta(i + 1, p.name)}
           <button
             type="button"
             role="option"

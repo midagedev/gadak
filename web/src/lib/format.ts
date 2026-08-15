@@ -127,21 +127,41 @@ export function colorIndex(seed: string | null | undefined, buckets = 8): number
 
 export interface PriorityMeta {
   label: string
-  /** Semantic color (hex for Tailwind arbitrary values). */
+  /** Semantic color — paper token (`var(--color-*)`), never a raw hex. */
   color: string
-  /** Bar fill level 1–5 (icon render). */
+  /** Bar fill level 0–5 (icon render). Inverse of rank: 1 (hottest) → 5. */
   level: number
 }
 
-/** priority string → display meta. Matches both KO and EN names. */
-export function priorityMeta(priority: string | null): PriorityMeta {
-  const p = (priority ?? '').toLowerCase()
-  if (/highest|긴급|가장 높음|blocker/.test(p)) return { label: priority ?? '', color: '#ef4444', level: 5 }
-  if (/high|높음|major/.test(p)) return { label: priority ?? '', color: '#f97316', level: 4 }
-  if (/medium|보통|normal/.test(p)) return { label: priority ?? '', color: '#eab308', level: 3 }
-  if (/lowest|가장 낮음|매우 ?낮음|trivial/.test(p)) return { label: priority ?? '', color: '#64748b', level: 1 }
-  if (/low|낮음|minor/.test(p)) return { label: priority ?? '', color: '#3b82f6', level: 2 }
-  return { label: priority ?? t('common.none'), color: '#64748b', level: 0 }
+/* Paper tokens, hottest → coolest. No distinct orange/yellow token exists
+ * apart from --color-status-inprogress (stale is nearly the same hex). */
+const PRIORITY_COLOR = [
+  'var(--color-border-strong)', // 0 unset / missing rank
+  'var(--color-status-reopen)', // rank 1
+  'var(--color-status-inprogress)', // rank 2
+  'var(--color-status-new)', // rank 3
+  'var(--color-text-secondary)', // rank 4
+  'var(--color-text-muted)', // rank 5+
+] as const
+
+/**
+ * Display meta for a priority. Keys on rank (1 = most urgent on the wire,
+ * 0 / absent / non-finite = unset). The name is the human label only —
+ * never a match key. `(rank, name)` rather than the whole issue so the
+ * picker catalog (id+name, most-urgent-first) can pass `index + 1`.
+ */
+export function priorityMeta(
+  rank: number | null | undefined,
+  name: string | null | undefined,
+): PriorityMeta {
+  const label = name ?? t('common.none')
+  const n = typeof rank === 'number' && Number.isFinite(rank) ? rank : 0
+  if (n < 1) {
+    return { label, color: PRIORITY_COLOR[0], level: 0 }
+  }
+  const idx = n >= 5 ? 5 : n
+  const level = n >= 5 ? 1 : 6 - n
+  return { label, color: PRIORITY_COLOR[idx], level }
 }
 
 /* ── Status category meta ── */

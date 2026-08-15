@@ -200,7 +200,7 @@
   </button>
 
   <!-- Priority -->
-  <PriorityIcon priority={issue.priority} />
+  <PriorityIcon priority={issue.priority} rank={issue.priority_rank} />
 
   <!-- Status dot (click = category filter) -->
   <button

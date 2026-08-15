@@ -13,6 +13,10 @@
 #      status lines (en + ko) and STATE_OF_PLAY's "Last tagged" (2026-08-15:
 #      README said 0.13 on a 0.14 tree, and the ko header claimed v0.14 while
 #      its own status line said 0.13 — found by the first-impression census)
+#   7. Web logic does not key status / priority / issue type on a localized
+#      display name (GDK-28/29). FAIL-first: the pre-fix format.ts table
+#      `/highest|긴급|가장 높음|blocker/` (and friends) is kept at
+#      /tmp/gadak-priority-gdk28/format.ts and fails this grep.
 #
 # Usage: tools/doc-checks.sh
 # Exit 0 = clean, 1 = a check failed.
@@ -104,5 +108,44 @@ else
   fi
   ok "README (en+ko) and STATE_OF_PLAY agree with ${tag}"
 fi
+
+# ── 7. Web logic does not key status/priority/type on display names ─────
+# Jira translates status, priority, and issue-type names per account and
+# ignores Accept-Language. A regex/equality on the English or Korean default
+# name is a silent no-op everywhere else (French "La plus haute" lost its
+# color; `status = 'In Progress'` is 0 rows on a Korean account).
+#
+# Scope: web/src/{lib,components,stores} logic files.
+#   excluded: lib/i18n/**          — catalogs ARE display names
+#             *.test.ts / *.spec.ts — fixtures pass names through as labels
+# Patterns: the locale-name regex/alternation tables deleted from format.ts
+# (GDK-28) and the same shape for status / issue-type equality on a
+# Jira-default EN/KO display name.
+#
+# Deliberately not matched (would fail the current tree; sibling issues):
+#   - NewIssueDialog.svelte inferType `name.toLowerCase() === 'bug'`
+#   - view-config.ts RESOLVED_STATUS_NAMES (legacy fallback when
+#     status_category is absent)
+name_hits="$(
+  grep -RInE \
+    --include='*.ts' --include='*.svelte' \
+    --exclude='*.test.ts' --exclude='*.spec.ts' \
+    -e 'highest\|긴급|긴급\|가장 높음|가장 높음\|blocker' \
+    -e 'high\|높음\|major' \
+    -e 'medium\|보통\|normal' \
+    -e 'lowest\|가장 낮음|매우 \?낮음\|trivial' \
+    -e 'low\|낮음\|minor' \
+    -e "status[[:space:]]*===[[:space:]]*['\"]In Progress['\"]" \
+    -e "status[[:space:]]*===[[:space:]]*['\"]진행 중['\"]" \
+    -e "issue_type[[:space:]]*===[[:space:]]*['\"]Bug['\"]" \
+    -e "issue_type[[:space:]]*===[[:space:]]*['\"]버그['\"]" \
+    web/src/lib web/src/components web/src/stores \
+    | grep -v '/i18n/' \
+    || true
+)"
+if [[ -n "$name_hits" ]]; then
+  fail "web logic keys status/priority/type on a display name:"$'\n'"$name_hits"
+fi
+ok "web logic does not key status/priority/type on a display name"
 
 echo "doc-checks: all passed"

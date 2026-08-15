@@ -1,13 +1,14 @@
 <script lang="ts">
   /*
    * Priority icon ([explore]). Linear-style 4 bars (fill by level).
-   *  Level 0 (none) is a faint dashed bar. Color from priorityMeta.
+   *  Level 0 (unset / missing rank) is unfilled bars. Color from rank via
+   *  priorityMeta — the name is the tooltip label only.
    */
   import { t } from '../../lib/i18n'
   import { priorityMeta } from '../../lib/format'
 
-  let { priority }: { priority: string | null } = $props()
-  const meta = $derived(priorityMeta(priority))
+  let { priority, rank }: { priority: string | null; rank: number | null } = $props()
+  const meta = $derived(priorityMeta(rank, priority))
   // 4 bars: levels 1–5 → how many filled (0 = none)
   const bars = [1, 2, 3, 4]
   const filled = $derived(Math.min(4, Math.max(0, meta.level - 1)))
