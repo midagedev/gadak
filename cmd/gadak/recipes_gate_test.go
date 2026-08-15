@@ -93,6 +93,21 @@ func pipeQueryFromRecipes(t *testing.T, fences []string) string {
 	return ""
 }
 
+// TestWeeklyReopenScriptQuotesFirstRecipe keeps examples/compose/
+// weekly-reopen.sh welded to the first RECIPES fence it quotes (GDK-109):
+// the script is a copy of a contract surface, and without this check a
+// recipe revision would rot it silently.
+func TestWeeklyReopenScriptQuotesFirstRecipe(t *testing.T) {
+	fences := extractSQLFences(t, recipesDoc(t))
+	raw, err := os.ReadFile(filepath.Join("..", "..", "examples", "compose", "weekly-reopen.sh"))
+	if err != nil {
+		t.Fatalf("read examples/compose/weekly-reopen.sh: %v", err)
+	}
+	if !strings.Contains(string(raw), strings.TrimSpace(fences[0])) {
+		t.Fatalf("examples/compose/weekly-reopen.sh no longer quotes the first docs/RECIPES.md query verbatim:\n%s", strings.TrimSpace(fences[0]))
+	}
+}
+
 // TestRecipesSQLToViewsOpenPipePreservesKeyOrder gates the documented pipe
 // (docs/RECIPES.md:176-181): `gadak sql --no-header '<key query>' | gadak
 // views open --keys -` must present the same keys in the same order —
