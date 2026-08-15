@@ -29,7 +29,7 @@
 
   /** Where the demo banner sends people who want the real thing. */
   const REPO_URL = 'https://github.com/midagedev/gadak'
-  import { parseConfig, VIEW_PARAM_KEYS } from './lib/view-config'
+  import { parseView, VIEW_PARAM_KEYS } from './lib/view-config'
   import { builtinViews } from './lib/builtin-views'
   import { STORAGE_KEYS } from './lib/storage'
   import Sidebar from './components/shell/Sidebar.svelte'
@@ -156,7 +156,9 @@
         // Then the CLI's literal hash, so ks=A,B stays unescaped. Do not
         // replaceState+hashchange here: that re-parses location.hash before
         // applyConfig's router write and can drop the focus view.
-        showIssueList(parseConfig(new URLSearchParams(q)))
+        const focused = parseView(new URLSearchParams(q))
+        showIssueList(focused.config)
+        filters.notifyKeysCapped(focused.keys)
         const next = q ? `#/?${q}` : '#/'
         if (location.hash !== next) location.hash = next
       } catch {
@@ -270,20 +272,33 @@
     if (startupDone) return
     if (!issues.ready || !me.authChecked) return
     startupDone = true
-    applyStartupView(
-      {
-        urlHasViewParam: VIEW_PARAM_KEYS.some((k) => router.params.get(k)),
-        // Dual-gate so gadak serve / the desktop app keep the existing default
-        // even if config.json is wrong: VITE_HOSTED_DEMO is compile-time;
-        // isHostedDemo() is the runtime config.json flag.
-        hostedDemo: import.meta.env.VITE_HOSTED_DEMO === '1' && isHostedDemo(),
-        epicBreakdown: builtinViews().find((v) => v.id === 'epic-breakdown')?.config,
-        lastViewKey: readLastViewKey(LAST_VIEW_KEY),
-        teamGroupEnabled: feature('teamGroups'),
-        group: me.group,
-      },
-      (c) => filters.applyConfig(c),
-    )
+    const startupInput = {
+      urlHasViewParam: VIEW_PARAM_KEYS.some((k) => router.params.get(k)),
+      // Dual-gate so gadak serve / the desktop app keep the existing default
+      // even if config.json is wrong: VITE_HOSTED_DEMO is compile-time;
+      // isHostedDemo() is the runtime config.json flag.
+      hostedDemo: import.meta.env.VITE_HOSTED_DEMO === '1' && isHostedDemo(),
+      epicBreakdown: builtinViews().find((v) => v.id === 'epic-breakdown')?.config,
+      lastViewKey: readLastViewKey(LAST_VIEW_KEY),
+      teamGroupEnabled: feature('teamGroups'),
+      group: me.group,
+    }
+    applyStartupView(startupInput, (c) => filters.applyConfig(c))
+    // lastViewKey apply writes the capped ks; recover given from the stored string.
+    if (
+      !startupInput.urlHasViewParam &&
+      !(startupInput.hostedDemo && startupInput.epicBreakdown) &&
+      startupInput.lastViewKey
+    ) {
+      filters.notifyKeysCapped(parseView(new URLSearchParams(startupInput.lastViewKey)).keys)
+    }
+  })
+
+  // GDK-35: one toast per distinct truncated ks. viewKey (not render) is the
+  // signal — typing q= re-runs this but notifyKeysCapped de-dupes the same list.
+  $effect(() => {
+    void filters.viewKey
+    filters.notifyKeysCapped(filters.keysNormalization)
   })
 
   // ── Persist last-used view (after smart default, on every view change) ──

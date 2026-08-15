@@ -1,15 +1,54 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
+import { en } from './i18n/en'
+import { ko } from './i18n/ko'
 import {
   KEYS_CAP,
   configToParams,
   defaultGroupBy,
   emptyConfig,
   matchesIdFirst,
+  normalizeKeys,
   orderColumns,
   parseConfig,
+  parseView,
   prioritySortRank,
   type ViewConfig,
 } from './view-config'
+
+/*
+ * GDK-35 contract coverage (clause → assertion names):
+ *
+ *   cap value
+ *     KEYS_CAP is 500
+ *     KEYS_CAP matches jql.MaxKeys
+ *
+ *   first-500 ordering
+ *     KEYS_CAP is enforced on parse
+ *     normalizeKeys keeps the first KEYS_CAP in given order
+ *
+ *   de-dupe still first-wins
+ *     parse normalizes keys: trim, uppercase, first-wins de-dupe
+ *     normalizeKeys first-wins before the cap (dupe after 500 unique is not a new slot)
+ *
+ *   truncation observable in the return
+ *     normalizeKeys reports given on overflow
+ *     parseView surfaces the same given as normalizeKeys
+ *
+ *   exactly-500 input does NOT report truncation (off-by-one)
+ *     normalizeKeys at KEYS_CAP is not truncated
+ *     parseView of exactly KEYS_CAP keys is not truncated
+ *
+ *   501 input DOES report truncation
+ *     normalizeKeys at KEYS_CAP+1 is truncated
+ *     parseView of KEYS_CAP+1 keys is truncated
+ *
+ *   both catalogs have the new keys
+ *     en catalog has filter.keysCapped with the CLI wording
+ *     ko catalog has filter.keysCapped with 키 (not 이슈)
+ */
 
 /**
  * Drop nulls the way setParams does (web/src/lib/router.svelte.ts:79–80).
@@ -177,6 +216,9 @@ describe('view-config URL contract', () => {
     )
   })
 
+  // GDK-35 (2026-08-15): the old assertion treated silent truncation as
+  // correct. Silence was the bug — the cap and first-500 order stay; the
+  // return must also say how many keys were given.
   test('KEYS_CAP is enforced on parse', () => {
     const keys = Array.from({ length: KEYS_CAP + 3 }, (_, i) => `NMB-${i + 1}`)
     const parsed = parseConfig(new URLSearchParams({ ks: keys.join(',') }))
@@ -184,6 +226,13 @@ describe('view-config URL contract', () => {
     expect(parsed.filters.keys).toHaveLength(KEYS_CAP)
     expect(parsed.filters.keys[0]).toBe('NMB-1')
     expect(parsed.filters.keys[KEYS_CAP - 1]).toBe(`NMB-${KEYS_CAP}`)
+    const nk = normalizeKeys(keys)
+    expect(nk.given).toBe(KEYS_CAP + 3)
+    expect(nk.keys).toEqual(parsed.filters.keys)
+    const viewed = parseView(new URLSearchParams({ ks: keys.join(',') }))
+    expect(viewed.keys.given).toBe(KEYS_CAP + 3)
+    expect(viewed.keys.keys).toEqual(parsed.filters.keys)
+    expect(viewed.config.filters.keys).toEqual(parsed.filters.keys)
   })
 
   test('parse normalizes keys: trim, uppercase, first-wins de-dupe', () => {
@@ -215,5 +264,118 @@ describe('matchesIdFirst / prioritySortRank (moved from e2e/identity-web.spec.ts
     expect(prioritySortRank(undefined)).toBe(Number.POSITIVE_INFINITY)
     expect(prioritySortRank(1)).toBe(1)
     expect(prioritySortRank(1)).toBeLessThan(prioritySortRank(0))
+  })
+})
+
+function nKeys(n: number, start = 1): string[] {
+  return Array.from({ length: n }, (_, i) => `NMB-${start + i}`)
+}
+
+describe('GDK-35 keys cap', () => {
+  test('KEYS_CAP is 500', () => {
+    expect(KEYS_CAP).toBe(500)
+  })
+
+  test('KEYS_CAP matches jql.MaxKeys', () => {
+    const src = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), '../../../internal/jql/types.go'),
+      'utf8',
+    )
+    const m = src.match(/^\s*const MaxKeys = (\d+)\s*$/m)
+    expect(m, 'const MaxKeys = N in internal/jql/types.go').toBeTruthy()
+    expect(Number(m![1])).toBe(KEYS_CAP)
+  })
+
+  test('normalizeKeys keeps the first KEYS_CAP in given order', () => {
+    const raw = [...nKeys(KEYS_CAP + 2), 'NMB-1']
+    const nk = normalizeKeys(raw)
+    expect(nk.keys).toHaveLength(KEYS_CAP)
+    expect(nk.keys[0]).toBe('NMB-1')
+    expect(nk.keys[1]).toBe('NMB-2')
+    expect(nk.keys[KEYS_CAP - 1]).toBe(`NMB-${KEYS_CAP}`)
+    expect(nk.keys).not.toContain(`NMB-${KEYS_CAP + 1}`)
+  })
+
+  test('normalizeKeys first-wins before the cap (dupe after 500 unique is not a new slot)', () => {
+    const raw = [...nKeys(KEYS_CAP), 'nmb-1', ' NMB-2 ', `NMB-${KEYS_CAP + 1}`]
+    const nk = normalizeKeys(raw)
+    expect(nk.given).toBe(KEYS_CAP + 1)
+    expect(nk.keys).toHaveLength(KEYS_CAP)
+    expect(nk.keys[0]).toBe('NMB-1')
+    expect(nk.keys).not.toContain(`NMB-${KEYS_CAP + 1}`)
+  })
+
+  test('normalizeKeys reports given on overflow', () => {
+    const raw = nKeys(KEYS_CAP + 7)
+    const nk = normalizeKeys(raw)
+    expect(nk.given).toBe(KEYS_CAP + 7)
+    expect(nk.keys).toHaveLength(KEYS_CAP)
+    expect(nk.given).toBeGreaterThan(nk.keys.length)
+  })
+
+  test('parseView surfaces the same given as normalizeKeys', () => {
+    const raw = nKeys(KEYS_CAP + 4)
+    const nk = normalizeKeys(raw)
+    const viewed = parseView(new URLSearchParams({ ks: raw.join(',') }))
+    expect(viewed.keys.given).toBe(nk.given)
+    expect(viewed.keys.keys).toEqual(nk.keys)
+    expect(viewed.config.filters.keys).toEqual(nk.keys)
+  })
+
+  test('normalizeKeys at KEYS_CAP is not truncated', () => {
+    const raw = nKeys(KEYS_CAP)
+    const nk = normalizeKeys(raw)
+    expect(nk.given).toBe(KEYS_CAP)
+    expect(nk.keys).toHaveLength(KEYS_CAP)
+    expect(nk.given).toBe(nk.keys.length)
+  })
+
+  test('parseView of exactly KEYS_CAP keys is not truncated', () => {
+    const raw = nKeys(KEYS_CAP)
+    const viewed = parseView(new URLSearchParams({ ks: raw.join(',') }))
+    expect(viewed.keys.given).toBe(KEYS_CAP)
+    expect(viewed.keys.keys).toHaveLength(KEYS_CAP)
+    expect(viewed.keys.given).toBe(viewed.keys.keys.length)
+  })
+
+  test('normalizeKeys at KEYS_CAP+1 is truncated', () => {
+    const raw = nKeys(KEYS_CAP + 1)
+    const nk = normalizeKeys(raw)
+    expect(nk.given).toBe(KEYS_CAP + 1)
+    expect(nk.keys).toHaveLength(KEYS_CAP)
+    expect(nk.keys[KEYS_CAP - 1]).toBe(`NMB-${KEYS_CAP}`)
+    expect(nk.keys).not.toContain(`NMB-${KEYS_CAP + 1}`)
+  })
+
+  test('parseView of KEYS_CAP+1 keys is truncated', () => {
+    const raw = nKeys(KEYS_CAP + 1)
+    const viewed = parseView(new URLSearchParams({ ks: raw.join(',') }))
+    expect(viewed.keys.given).toBe(KEYS_CAP + 1)
+    expect(viewed.keys.keys).toHaveLength(KEYS_CAP)
+    expect(viewed.config.filters.keys).toHaveLength(KEYS_CAP)
+  })
+
+  test('empty and whitespace tokens do not inflate given', () => {
+    const nk = normalizeKeys(['NMB-1', '', '  ', 'nmb-1', 'NMB-2'])
+    expect(nk.given).toBe(2)
+    expect(nk.keys).toEqual(['NMB-1', 'NMB-2'])
+    expect(nk.given).toBe(nk.keys.length)
+  })
+
+  test('en catalog has filter.keysCapped with the CLI wording', () => {
+    // CLI KeyLimitMessage (internal/jql/keys.go:21):
+    //   "key list has %d values; the limit is %d"
+    expect(en['filter.keysCapped']).toMatch(/^key list has \{given\} values; the limit is \{limit\}/)
+    expect(en['filter.keysCapped']).toContain('{shown}')
+    expect(en['filter.keysCapped']).toContain('keys')
+    expect(en['filter.keysCapped']).not.toMatch(/issues/i)
+  })
+
+  test('ko catalog has filter.keysCapped with 키 (not 이슈)', () => {
+    expect(ko['filter.keysCapped']).toContain('{given}')
+    expect(ko['filter.keysCapped']).toContain('{limit}')
+    expect(ko['filter.keysCapped']).toContain('{shown}')
+    expect(ko['filter.keysCapped']).toContain('키')
+    expect(ko['filter.keysCapped']).not.toContain('이슈')
   })
 })

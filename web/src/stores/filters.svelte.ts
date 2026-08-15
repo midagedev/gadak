@@ -28,12 +28,14 @@ import {
   hasAnyFilter,
   isStale,
   isViewParam,
+  KEYS_CAP,
   matchesIdFirst,
   MULTI_FIELDS,
   normalizeKeys,
   orderColumns,
-  parseConfig,
+  parseView,
   prioritySortRank,
+  type NormalizedKeys,
   type ColumnKey,
   type GroupBy,
   type MultiField,
@@ -49,6 +51,7 @@ import {
   fieldLabel,
   t,
 } from '../lib/i18n'
+import { write } from './write.svelte'
 
 /** Outcome of `runServerSearch`. The engine does not toast or write `pages`. */
 export type ServerSearchOutcome =
@@ -132,6 +135,38 @@ class FiltersStore {
    *  list uses this as the signal to reset scroll/cursor only when the view really changed. */
   get viewKey(): string {
     return this.#viewKey
+  }
+
+  /**
+   * Unique-given vs kept for the current URL `ks`.
+   * One-step debug: `given > keys.length` means the view was capped
+   * (KEYS_CAP == internal/jql.MaxKeys).
+   */
+  get keysNormalization(): NormalizedKeys {
+    const ks = router.params.get('ks')
+    return normalizeKeys(ks ? ks.split(',') : [])
+  }
+
+  #keysToastSig = ''
+
+  /**
+   * Toast once per distinct truncated key list.
+   * Reset the sig only when given < KEYS_CAP (cannot be a truncated view).
+   * A 500-key list might be the cap remnant of a 501-key paste — do not
+   * reset there or applyConfig/search would re-toast the same overflow.
+   */
+  notifyKeysCapped(nk: NormalizedKeys): void {
+    if (nk.given <= KEYS_CAP) {
+      if (nk.given < KEYS_CAP) this.#keysToastSig = ''
+      return
+    }
+    const sig = `${nk.given}:${nk.keys.join(',')}`
+    if (sig === this.#keysToastSig) return
+    this.#keysToastSig = sig
+    write.toast(
+      t('filter.keysCapped', { given: nk.given, limit: KEYS_CAP, shown: nk.keys.length }),
+      'info',
+    )
   }
 
   /* ── Server full-text search results (volatile; not part of view serialization) ── */
@@ -400,6 +435,7 @@ class FiltersStore {
   /** Apply a saved/default view wholesale. */
   applyConfig(config: ViewConfig): void {
     this.clearServerSearch()
+    this.notifyKeysCapped(normalizeKeys(config.filters?.keys ?? []))
     this.#apply(mergeConfig(config))
   }
 
@@ -497,7 +533,8 @@ type ViewDisplayRef = ViewConfig['display']
 
 function parseFromKey(viewKey: string): ViewConfig {
   // viewKey is "k=v&k=v" of view params only → rehydrate via URLSearchParams and parse.
-  return parseConfig(new URLSearchParams(viewKey))
+  // $derived — no toast here. App.svelte $effect + applyConfig notify.
+  return parseView(new URLSearchParams(viewKey)).config
 }
 
 /** Normalize config to full shape (partial-config defense) + clone array refs. */
@@ -507,7 +544,7 @@ function mergeConfig(c: ViewConfig): ViewConfig {
   Object.assign(base.display, c.display)
   // Clone array refs. Columns may include ones for disabled features in a saved view — normalize.
   for (const field of MULTI_FIELDS) base.filters[field] = [...(c.filters[field] ?? [])]
-  base.filters.keys = normalizeKeys(base.filters.keys)
+  base.filters.keys = normalizeKeys(base.filters.keys).keys
   // Saved views from before dynamic axes have no fields record at all.
   base.filters.fields = {}
   for (const [alias, arr] of Object.entries(c.filters.fields ?? {})) {

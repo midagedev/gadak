@@ -216,6 +216,8 @@ export const ko = {
   'filter.searchField': '{field} 검색',
   'filter.chipFieldValue': '{field}: {value}',
   'filter.chipKeys': '키 {n}개',
+  // CLI KeyLimitMessage (internal/jql/keys.go:21) + shown count (GDK-35).
+  'filter.keysCapped': '키 목록에 값이 {given}개입니다. 한도는 {limit}개입니다. {shown}개 키를 표시합니다.',
   'filter.chipCreatedRange': '생성 {from}~{to}',
   'filter.chipUpdatedRange': '갱신 {from}~{to}',
   'filter.flagReopened': '재오픈',

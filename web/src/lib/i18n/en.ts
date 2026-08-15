@@ -215,6 +215,8 @@ export const en = {
   'filter.searchField': 'Search {field}',
   'filter.chipFieldValue': '{field}: {value}',
   'filter.chipKeys': '{n} keys',
+  // CLI KeyLimitMessage (internal/jql/keys.go:21) + shown count (GDK-35).
+  'filter.keysCapped': 'key list has {given} values; the limit is {limit}. Showing {shown} keys.',
   'filter.chipCreatedRange': 'Created {from}–{to}',
   'filter.chipUpdatedRange': 'Updated {from}–{to}',
   'filter.flagReopened': 'Reopened',

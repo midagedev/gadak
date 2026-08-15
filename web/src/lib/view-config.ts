@@ -205,21 +205,42 @@ export type MultiField = (typeof MULTI_FIELDS)[number]
 /** Serialized as a multi-value param but not offered as a facet picker. */
 const HIDDEN_MULTI: ReadonlySet<MultiField> = new Set(['keys'])
 
-/** Max keys accepted from a URL or saved view (same cap as the CLI). */
+/**
+ * Max keys accepted from a URL or saved view.
+ * Same ceiling as `MaxKeys` in internal/jql/types.go (CLI CheckKeyLimit /
+ * KeyLimitMessage). The two constants are one contract; view-config.test.ts
+ * "KEYS_CAP matches jql.MaxKeys" fails if they drift.
+ *
+ * Truncation keeps the first KEYS_CAP after trim / uppercase / first-wins.
+ * It is not silent: `normalizeKeys` / `parseView` return `given` (unique
+ * count before the cap). On a live view, `filters.keysNormalization` is
+ * the one-step answer to "why is this smaller than the ks I asked for?".
+ */
 export const KEYS_CAP = 500
 
+/** Result of cap + first-wins de-dupe. Callers must take `.keys`; `.given` is in the same object. */
+export interface NormalizedKeys {
+  /** First KEYS_CAP unique keys, first-wins order. */
+  keys: string[]
+  /**
+   * Unique keys after trim/uppercase/first-wins, before the cap.
+   * `given > keys.length` means truncation. Equal (including 0 and KEYS_CAP)
+   * means none. Same number CheckKeyLimit sees after SplitKeys.
+   */
+  given: number
+}
+
 /** Trim, uppercase, de-dupe (first wins), cap. Order is meaning. */
-export function normalizeKeys(keys: readonly string[]): string[] {
+export function normalizeKeys(keys: readonly string[]): NormalizedKeys {
   const out: string[] = []
   const seen = new Set<string>()
   for (const raw of keys) {
     const k = raw.trim().toUpperCase()
     if (!k || seen.has(k)) continue
     seen.add(k)
-    out.push(k)
-    if (out.length >= KEYS_CAP) break
+    if (out.length < KEYS_CAP) out.push(k)
   }
-  return out
+  return { keys: out, given: seen.size }
 }
 
 /** Filter fields from optional features — invalid in both filter menu and URL when flag is off. */
@@ -388,13 +409,14 @@ function splitList(v: string | null): string[] {
     .filter(Boolean)
 }
 
-export function parseConfig(params: URLSearchParams): ViewConfig {
+export function parseView(params: URLSearchParams): { config: ViewConfig; keys: NormalizedKeys } {
   const f = emptyFilters()
   for (const field of MULTI_FIELDS) {
     // Disabled-feature fields stay off even from the URL (shared links must not revive dead filters).
     f[field] = fieldEnabled(field) ? splitList(params.get(MULTI_KEY[field])) : []
   }
-  f.keys = normalizeKeys(f.keys)
+  const keys = normalizeKeys(f.keys)
+  f.keys = keys.keys
   // Discovered-field axes: every `f.<alias>` param. Unknown aliases parse too —
   // a shared link may name a field this mirror simply has not discovered yet.
   for (const [key, raw] of params) {
@@ -426,7 +448,11 @@ export function parseConfig(params: URLSearchParams): ViewConfig {
   const cl = params.get(COLS_KEY)
   if (cl) d.columns = cl === COLS_NONE ? [] : orderColumns(splitList(cl))
 
-  return { filters: f, display: d }
+  return { config: { filters: f, display: d }, keys }
+}
+
+export function parseConfig(params: URLSearchParams): ViewConfig {
+  return parseView(params).config
 }
 
 function isGroupBy(v: string): v is GroupBy {
