@@ -220,9 +220,13 @@ class WriteStore {
     }
   }
 
-  async saveCredential(jiraEmail: string, apiToken: string): Promise<{ ok: boolean; error?: string }> {
+  async saveCredential(
+    jiraEmail: string,
+    apiToken: string,
+    tokenExpiresAt?: string,
+  ): Promise<{ ok: boolean; error?: string }> {
     try {
-      const c = await api.saveCredential(jiraEmail, apiToken)
+      const c = await api.saveCredential(jiraEmail, apiToken, tokenExpiresAt)
       this.#applyCredential(c)
       await me.refreshIdentity()
       this.toast(t('write.credSaved'), 'success')

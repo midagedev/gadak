@@ -378,6 +378,10 @@ export const en = {
   'freshness.titleStale': 'Mirror is behind — last successful sync {when}. Click to sync now.',
   'freshness.titleFailed': 'Last sync failed: {message}\nClick to retry.',
   'freshness.titleNever': 'The mirror has never synced. Click to sync now.',
+  'freshness.tokenExpiring': 'Token expires in {n} days',
+  'freshness.tokenExpiringOne': 'Token expires in 1 day',
+  'freshness.tokenExpiringToday': 'Token expires today',
+  'freshness.tokenExpired': 'API token expired',
 
   /* ── Builtin views ── */
   'view.allOpen.name': 'All open',
@@ -693,6 +697,8 @@ export const en = {
   'jiraSettings.connected': 'Connected',
   'jiraSettings.tokenDots': 'Token …{hint}',
   'jiraSettings.verified': 'Verified {when}',
+  'jiraSettings.tokenExpires': "Expires (from Atlassian's create dialog)",
+  'jiraSettings.tokenExpiresHint': 'Optional. Leave blank to assume the default one-year lifetime.',
 
   /* ── Server settings ── */
   'settings.title': 'Settings',
@@ -944,6 +950,9 @@ export const en = {
   'onboarding.email': 'Jira account email',
   'onboarding.token': 'API token',
   'onboarding.tokenHint': 'Stored locally in ~/.gadak/config.json and sent only to your site.',
+  'onboarding.tokenExpires': "Expires (from Atlassian's create dialog)",
+  'onboarding.tokenExpiresHint': 'Optional. Leave blank to assume the default one-year lifetime.',
+  'onboarding.errExpires': 'That expiry date is not a date (YYYY-MM-DD).',
   'onboarding.tokenLink': 'Create an API token',
   'onboarding.connect': 'Connect',
   'onboarding.connecting': 'Verifying…',
@@ -1087,6 +1096,7 @@ export const WRITE_ERROR_KEYS = {
   project_not_mirrored: 'write.projectNotMirrored',
   field_not_editable: 'write.fieldNotEditable',
   site_required: 'write.siteRequired',
+  invalid_token_expires: 'onboarding.errExpires',
 } as const satisfies Record<string, MessageKey>
 
 const GADAK_ERROR_CODE = /^[a-z][a-z0-9_]*$/

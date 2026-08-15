@@ -245,8 +245,9 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	// Snapshot before we build next so scope comparison sees the pre-write config.
 	prev := s.config()
 	// Copy the live config so the credential block survives a settings write.
-	// site / email / token / tokenVerifiedAt / tokenOwner are never taken from
-	// the PUT body — those stay the credential endpoint's job.
+	// site / email / token / tokenVerifiedAt / tokenOwner / tokenExpiresAt /
+	// tokenExpirySource are never taken from the PUT body — those stay the
+	// credential endpoint's job.
 	next := *prev
 	next.Projects = in.Projects
 	next.FieldMap = in.FieldMap

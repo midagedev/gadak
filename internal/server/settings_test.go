@@ -17,6 +17,8 @@ import (
 func TestSettingsSyncIntervalsRoundtrip(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)
+	cfg.TokenExpiresAt = "2027-01-15T00:00:00.000Z"
+	cfg.TokenExpirySource = config.TokenExpirySourceUser
 	h := New(db, cfg)
 
 	// Valid custom intervals persist and re-read.
@@ -56,6 +58,9 @@ func TestSettingsSyncIntervalsRoundtrip(t *testing.T) {
 	// Credential block must survive.
 	if saved.Token != "secret-token" || saved.Email != "hc@example.com" {
 		t.Fatalf("credential lost: email=%q token=%q", saved.Email, saved.Token)
+	}
+	if saved.TokenExpiresAt != "2027-01-15T00:00:00.000Z" || saved.TokenExpirySource != config.TokenExpirySourceUser {
+		t.Fatalf("token expiry lost: at=%q source=%q", saved.TokenExpiresAt, saved.TokenExpirySource)
 	}
 
 	// Zero means "use defaults" and is accepted.

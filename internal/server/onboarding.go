@@ -32,9 +32,10 @@ const maxProjects = 500
 /* ── step 1: connect ── */
 
 type connectDoc struct {
-	Site      string `json:"site"`
-	JiraEmail string `json:"jira_email"`
-	APIToken  string `json:"api_token"`
+	Site           string `json:"site"`
+	JiraEmail      string `json:"jira_email"`
+	APIToken       string `json:"api_token"`
+	TokenExpiresAt string `json:"token_expires_at"`
 }
 
 // handleConnect verifies the credential against Jira /myself before storing it,
@@ -71,6 +72,10 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	next.Site, next.Email, next.Token = site, email, token
 	next.TokenOwner, next.TokenVerifiedAt = me.DisplayName, store.Now()
 	next.AccountID = me.AccountID
+	if err := next.ApplyTokenExpiry(in.TokenExpiresAt, next.TokenVerifiedAt); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_token_expires")
+		return
+	}
 	if err := next.Save(); err != nil {
 		serverError(w, r, err)
 		return

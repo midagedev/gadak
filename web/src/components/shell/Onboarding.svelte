@@ -68,6 +68,7 @@
   let site = $state('')
   let email = $state('')
   let token = $state('')
+  let tokenExpires = $state('')
   let connecting = $state(false)
   let connectError = $state<string | null>(null)
   let owner = $state('')
@@ -77,7 +78,7 @@
     connecting = true
     connectError = null
     try {
-      const cred = await api.connectJira(site.trim(), email.trim(), token)
+      const cred = await api.connectJira(site.trim(), email.trim(), token, tokenExpires)
       owner = cred.display_name || cred.jira_email
       // The credential is the identity, so the rest of the app has to re-read it.
       await me.refreshIdentity()
@@ -100,6 +101,7 @@
     }
     if (code === 'site_required') return t('onboarding.errSite')
     if (code === 'email_and_token_required') return t('onboarding.errFields')
+    if (code === 'invalid_token_expires') return t('onboarding.errExpires')
     return t('onboarding.errConnect', { message: reason(e) })
   }
 
@@ -309,6 +311,11 @@
               {t('onboarding.tokenLink')}
             </a>
           </span>
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-micro font-medium text-text-secondary">{t('onboarding.tokenExpires')}</span>
+          <input class={INPUT} type="date" name="token_expires_at" bind:value={tokenExpires} />
+          <span class="text-micro text-text-muted">{t('onboarding.tokenExpiresHint')}</span>
         </label>
 
         {#if connectError}

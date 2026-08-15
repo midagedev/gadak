@@ -63,6 +63,13 @@ type Config struct {
 	// returned in a response.
 	TokenVerifiedAt string `json:"tokenVerifiedAt,omitempty"`
 	TokenOwner      string `json:"tokenOwner,omitempty"`
+	// TokenExpiresAt is when the stored API token stops working (RFC3339).
+	// Set on connect / replace: the date typed from Atlassian's create
+	// dialog, or verification time plus 365 days when that field was skipped.
+	// There is no Atlassian API for this; the token string is opaque.
+	// TokenExpirySource is "user" or "assumed" so a warning can hedge.
+	TokenExpiresAt    string `json:"tokenExpiresAt,omitempty"`
+	TokenExpirySource string `json:"tokenExpirySource,omitempty"`
 	// AccountID is the Jira accountId returned by /myself. Used for feed
 	// relevance (assignee/reporter/mention) and self-action filtering. Empty
 	// when the credential was never verified against a live site.

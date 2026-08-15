@@ -27,18 +27,28 @@
 
   const health = $derived(issues.mirrorHealth)
   const syncedAt = $derived(health?.synced_at ?? null)
+  const token = $derived(issues.syncHealth?.token_expiry)
 
-  type Level = 'fresh' | 'stale' | 'failed' | 'never'
+  type Level = 'fresh' | 'stale' | 'failed' | 'never' | 'expiring' | 'expired'
   const level = $derived.by<Level>(() => {
     const status = health?.status
     if (status === 'failed') return 'failed'
+    if (token?.state === 'expired') return 'expired'
     if (status === 'missing' || !syncedAt) return 'never'
+    if (token?.state === 'expiring') return 'expiring'
     if (status === 'stale') return 'stale'
     return 'fresh'
   })
 
   const label = $derived.by(() => {
     void tick // re-read the wall clock every tick
+    if (!issues.mirrorBusy && token?.state === 'expired') return t('freshness.tokenExpired')
+    if (!issues.mirrorBusy && token?.state === 'expiring') {
+      const n = token.days_left
+      if (n === 0) return t('freshness.tokenExpiringToday')
+      if (n === 1) return t('freshness.tokenExpiringOne')
+      if (n != null) return t('freshness.tokenExpiring', { n })
+    }
     // One wording for the mirror, shared with the sidebar's sync row — running
     // or at rest, the two cannot describe the same mirror differently, and a
     // pass the background loop started shows here too.
@@ -47,6 +57,12 @@
 
   const title = $derived.by(() => {
     void tick
+    if (token?.message) {
+      if (level === 'failed' && health?.message) {
+        return `${token.message}\n${t('freshness.titleFailed', { message: health.message })}`
+      }
+      return token.message
+    }
     if (level === 'failed') return t('freshness.titleFailed', { message: health?.message ?? '' })
     if (level === 'never') return t('freshness.titleNever')
     const key = level === 'stale' ? 'freshness.titleStale' : 'freshness.titleFresh'
@@ -56,19 +72,20 @@
 
   // Same semantic tones as the sidebar sync badge — no new colors. While a pull
   // runs the old state has stopped being the message, so it drops back to muted.
+  // Expired reuses the failed (reopen) tone; expiring reuses stale.
   const tone = $derived(
     issues.mirrorBusy
       ? 'text-text-muted'
-      : level === 'failed'
+      : level === 'failed' || level === 'expired'
         ? 'text-status-reopen'
-        : level === 'stale' || level === 'never'
+        : level === 'stale' || level === 'never' || level === 'expiring'
           ? 'text-status-stale'
           : 'text-text-muted',
   )
   const dot = $derived(
-    level === 'failed'
+    level === 'failed' || level === 'expired'
       ? 'bg-status-reopen'
-      : level === 'stale' || level === 'never'
+      : level === 'stale' || level === 'never' || level === 'expiring'
         ? 'bg-status-stale'
         : 'bg-status-done',
   )

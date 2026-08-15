@@ -36,7 +36,7 @@ const spacesFlagUsage = `Confluence spaces: KEY,KEY… | all (every global space
 var helps = map[string]cmdHelp{
 	"init": {
 		summary: "configure site and credentials (projects optional)",
-		usage:   "gadak [--profile <name>] init [--site URL] [--email ADDR] [--projects A,B] [--spaces KEYS|all|none] [--token-file PATH | --token-stdin] [--json]",
+		usage:   "gadak [--profile <name>] init [--site URL] [--email ADDR] [--projects A,B] [--spaces KEYS|all|none] [--token-file PATH | --token-stdin] [--token-expires DATE] [--json]",
 		// FlagSet VisitAll supplies Options when `gadak init --help` runs; this
 		// list covers formatHelp(nil) and documents the env-only token path.
 		options: []helpOption{
@@ -46,6 +46,7 @@ var helps = map[string]cmdHelp{
 			{name: "spaces", desc: spacesFlagUsage + `; omit to leave unchanged`},
 			{name: "token-file", desc: "read API token from this file"},
 			{name: "token-stdin", desc: "read API token from stdin"},
+			{name: "token-expires", desc: "token expiry date from Atlassian's create dialog (YYYY-MM-DD or RFC3339); omit to assume 365 days from verification"},
 			{name: "token", desc: "not accepted; use GADAK_TOKEN, --token-file, or --token-stdin"},
 			{name: "json", desc: "emit one JSON object on success"},
 		},

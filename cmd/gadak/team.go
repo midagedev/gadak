@@ -199,6 +199,7 @@ See also: gadak team export
 	// we still snapshot and restore them before Save as a hard guarantee.
 	credSite, credEmail, credToken := cfg.Site, cfg.Email, cfg.Token
 	credOwner, credVerified, credAcct := cfg.TokenOwner, cfg.TokenVerifiedAt, cfg.AccountID
+	credExpires, credExpirySrc := cfg.TokenExpiresAt, cfg.TokenExpirySource
 
 	db, err := openStore()
 	if err != nil {
@@ -239,6 +240,8 @@ See also: gadak team export
 	cfg.TokenOwner = credOwner
 	cfg.TokenVerifiedAt = credVerified
 	cfg.AccountID = credAcct
+	cfg.TokenExpiresAt = credExpires
+	cfg.TokenExpirySource = credExpirySrc
 
 	if err := saveConfig(cfg); err != nil {
 		return err

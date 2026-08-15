@@ -16,6 +16,7 @@
 
   let jiraEmail = $state(write.jiraEmail || me.email || '')
   let apiToken = $state('')
+  let tokenExpires = $state('')
   let error = $state<string | null>(null)
   let busy = $state(false)
   let emailEl: HTMLInputElement | null = $state(null)
@@ -29,10 +30,11 @@
     if (busy) return
     error = null
     busy = true
-    const res = await write.saveCredential(jiraEmail.trim(), apiToken.trim())
+    const res = await write.saveCredential(jiraEmail.trim(), apiToken.trim(), tokenExpires)
     busy = false
     if (res.ok) {
       apiToken = ''
+      tokenExpires = ''
     } else {
       error = res.error ?? t('write.credSaveFailed')
     }
@@ -126,6 +128,15 @@
           class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 font-mono text-body text-text-primary outline-none focus:border-accent"
           placeholder="ATATT3x…"
         />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-micro text-text-secondary">{t('jiraSettings.tokenExpires')}</span>
+        <input
+          bind:value={tokenExpires}
+          type="date"
+          class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none focus:border-accent"
+        />
+        <span class="text-micro text-text-muted">{t('jiraSettings.tokenExpiresHint')}</span>
       </label>
 
       {#if error}

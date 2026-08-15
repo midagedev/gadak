@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -16,9 +17,10 @@ type syncSource struct {
 }
 
 type syncHealth struct {
-	Overall   string       `json:"overall"`
-	CheckedAt string       `json:"checked_at"`
-	Sources   []syncSource `json:"sources"`
+	Overall     string             `json:"overall"`
+	CheckedAt   string             `json:"checked_at"`
+	Sources     []syncSource       `json:"sources"`
+	TokenExpiry config.TokenExpiry `json:"token_expiry"`
 }
 
 /* ── sync health ── */
@@ -54,7 +56,16 @@ func (s *server) health(ctx context.Context, st store.SyncState) syncHealth {
 			}
 		}
 	}
-	return syncHealth{Overall: overall, CheckedAt: store.Now(), Sources: sources}
+	// Token expiry is computed here (one owner: config.AssessTokenExpiry) and
+	// attached so the chip can warn without a second clock. It does not change
+	// overall: settledLabel treats overall==warning as a delayed *mirror*,
+	// which an expiring token is not.
+	return syncHealth{
+		Overall:     overall,
+		CheckedAt:   store.Now(),
+		Sources:     sources,
+		TokenExpiry: s.config().TokenExpiryAt(time.Now().UTC()),
+	}
 }
 
 func (s *server) sourceHealth(key, label string, st store.SyncState) syncSource {

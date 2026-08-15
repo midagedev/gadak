@@ -148,8 +148,9 @@ func (s *server) handleGetCredential(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handlePutCredential(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		JiraEmail string `json:"jira_email"`
-		APIToken  string `json:"api_token"`
+		JiraEmail      string `json:"jira_email"`
+		APIToken       string `json:"api_token"`
+		TokenExpiresAt string `json:"token_expires_at"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
@@ -179,6 +180,10 @@ func (s *server) handlePutCredential(w http.ResponseWriter, r *http.Request) {
 	next.Email, next.Token = body.JiraEmail, body.APIToken
 	next.TokenOwner, next.TokenVerifiedAt = me.DisplayName, store.Now()
 	next.AccountID = me.AccountID
+	if err := next.ApplyTokenExpiry(body.TokenExpiresAt, next.TokenVerifiedAt); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_token_expires")
+		return
+	}
 	if err := next.Save(); err != nil {
 		serverError(w, r, err)
 		return
@@ -191,6 +196,7 @@ func (s *server) handlePutCredential(w http.ResponseWriter, r *http.Request) {
 func (s *server) handleDeleteCredential(w http.ResponseWriter, r *http.Request) {
 	next := *s.config()
 	next.Email, next.Token, next.TokenOwner, next.TokenVerifiedAt, next.AccountID = "", "", "", "", ""
+	next.ClearTokenExpiry()
 	if err := next.Save(); err != nil {
 		serverError(w, r, err)
 		return

@@ -93,6 +93,37 @@ func TestInitStoresAccountID(t *testing.T) {
 	if cfg.TokenVerifiedAt == "" {
 		t.Fatal("TokenVerifiedAt is empty")
 	}
+	if cfg.TokenExpirySource != config.TokenExpirySourceAssumed || cfg.TokenExpiresAt == "" {
+		t.Fatalf("verified init should assume expiry: source=%q at=%q", cfg.TokenExpirySource, cfg.TokenExpiresAt)
+	}
+}
+
+func TestInitStoresUserExpiry(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+
+	srv := myselfServer(t)
+	withClosedStdin(t, func() {
+		if _, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "agent@example.com",
+				"--token-file", writeTokenFile(t, home, "id-token"),
+				"--token-expires", "2027-04-01",
+			})
+		}); err != nil {
+			t.Fatalf("init: %v", err)
+		}
+	})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TokenExpirySource != config.TokenExpirySourceUser || cfg.TokenExpiresAt != "2027-04-01T00:00:00.000Z" {
+		t.Fatalf("user expiry: source=%q at=%q", cfg.TokenExpirySource, cfg.TokenExpiresAt)
+	}
 }
 
 func TestInitOfflineSavesWithoutIdentity(t *testing.T) {
@@ -128,6 +159,9 @@ func TestInitOfflineSavesWithoutIdentity(t *testing.T) {
 	}
 	if cfg.AccountID != "" || cfg.TokenOwner != "" || cfg.TokenVerifiedAt != "" {
 		t.Fatalf("offline init must not invent identity: id=%q owner=%q at=%q", cfg.AccountID, cfg.TokenOwner, cfg.TokenVerifiedAt)
+	}
+	if cfg.TokenExpiresAt != "" || cfg.TokenExpirySource != "" {
+		t.Fatalf("offline init must not invent expiry: at=%q source=%q", cfg.TokenExpiresAt, cfg.TokenExpirySource)
 	}
 }
 

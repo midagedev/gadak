@@ -79,6 +79,9 @@ func cmdInit(args []string) error {
 	spacesFlag := fs.String("spaces", "", spacesFlagUsage)
 	tokenFile := fs.String("token-file", "", "read API token from this file")
 	tokenStdin := fs.Bool("token-stdin", false, "read API token from stdin")
+	// Date from Atlassian's create dialog. Omitted → assume 365 days from
+	// a successful /myself (config.ApplyTokenExpiry). No Atlassian API for this.
+	tokenExpires := fs.String("token-expires", "", "token expiry date from Atlassian's create dialog (YYYY-MM-DD or RFC3339); omit to assume 365 days from verification")
 	// Defined only so a mistaken `--token secret` gets a clear error instead of
 	// "flag provided but not defined"; the value must never be accepted (ps/history).
 	tokenFlag := fs.String("token", "", "not accepted; use GADAK_TOKEN, --token-file, or --token-stdin")
@@ -104,12 +107,14 @@ func cmdInit(args []string) error {
 	envProjects := config.Env("PROJECTS")
 
 	// Any supply flag or env forces non-interactive; half-prompted states are unpredictable for agents.
-	suppliedFlag := *siteFlag != "" || *emailFlag != "" || *projectsFlag != "" || *spacesFlag != "" || *tokenFile != "" || *tokenStdin
+	suppliedFlag := *siteFlag != "" || *emailFlag != "" || *projectsFlag != "" || *spacesFlag != "" || *tokenFile != "" || *tokenStdin || *tokenExpires != ""
 	suppliedEnv := envSite != "" || envEmail != "" || envToken != "" || envProjects != ""
 	classic := initIsTerminal() && !*jsonOut && !suppliedFlag && !suppliedEnv
 
 	var site, email, token string
 	var projects []string
+	prevToken := cfg.Token
+	expiresFromPrompt := ""
 
 	if classic {
 		// Start from saved values; empty answers keep them (token never echoed).
@@ -141,6 +146,12 @@ func cmdInit(args []string) error {
 		}
 		if v := prompt(tokenLabel, ""); v != "" {
 			token = v
+		}
+		// Ask when the token is new or this profile has no stored date yet
+		// (upgrade from a pre-expiry config). Keep an existing date when the
+		// token is unchanged.
+		if token != prevToken || cfg.TokenExpiresAt == "" {
+			expiresFromPrompt = prompt("Token expiry date (YYYY-MM-DD, from Atlassian's create dialog; blank assumes 1 year)", "")
 		}
 		projects = parseProjectKeys(prompt("Project keys, comma-separated (optional — blank syncs every project you can see)", strings.Join(projects, ",")))
 	} else {
@@ -251,6 +262,13 @@ func cmdInit(args []string) error {
 	} else {
 		cfg.ApplyVerifiedIdentity(me.AccountID, me.DisplayName, store.Now())
 		name = me.DisplayName
+	}
+	userExpires := *tokenExpires
+	if classic {
+		userExpires = expiresFromPrompt
+	}
+	if err := cfg.ApplyTokenExpiryIfNeeded(userExpires, cfg.TokenVerifiedAt, token != prevToken); err != nil {
+		return fmt.Errorf("token expiry: %w", err)
 	}
 	if err := cfg.Save(); err != nil {
 		return err

@@ -149,10 +149,20 @@ export interface SyncSourceHealth {
   message: string
 }
 
+export interface TokenExpiry {
+  state: 'ok' | 'expiring' | 'expired' | 'unknown'
+  days_left?: number
+  expires_at?: string
+  source?: 'user' | 'assumed' | string
+  urgent?: boolean
+  message?: string
+}
+
 export interface SyncHealth {
   overall: 'healthy' | 'warning' | 'failed'
   checked_at: string
   sources: SyncSourceHealth[]
+  token_expiry?: TokenExpiry
 }
 
 /* ── ADF (Atlassian Document Format) ──

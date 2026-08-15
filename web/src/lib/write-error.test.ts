@@ -46,6 +46,7 @@ describe('writeErrorMessage', () => {
       project_not_mirrored: en['write.projectNotMirrored'],
       field_not_editable: en['write.fieldNotEditable'],
       site_required: en['write.siteRequired'],
+      invalid_token_expires: en['onboarding.errExpires'],
     }
     for (const [code, sentence] of Object.entries(want)) {
       expect(writeErrorMessage(code, FALLBACK, t), code).toBe(sentence)

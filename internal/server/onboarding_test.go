@@ -120,6 +120,40 @@ func TestConnectVerifiesStoresSiteAndHidesTheToken(t *testing.T) {
 	if saved["token"] != "tok-secret" {
 		t.Fatalf("token not stored in the config file")
 	}
+	if saved["tokenExpirySource"] != "assumed" {
+		t.Fatalf("skipped date should assume: %v", saved["tokenExpirySource"])
+	}
+	if saved["tokenExpiresAt"] == nil || saved["tokenExpiresAt"] == "" {
+		t.Fatal("assumed tokenExpiresAt missing")
+	}
+}
+
+func TestConnectStoresUserExpiry(t *testing.T) {
+	f, h, home := onboarding(t)
+	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
+		`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"tok-secret","token_expires_at":"2027-03-01"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	saved := savedConfig(t, home)
+	if saved["tokenExpirySource"] != "user" {
+		t.Fatalf("source %v, want user", saved["tokenExpirySource"])
+	}
+	if saved["tokenExpiresAt"] != "2027-03-01T00:00:00.000Z" {
+		t.Fatalf("expires %v", saved["tokenExpiresAt"])
+	}
+}
+
+func TestConnectRejectsInvalidExpiry(t *testing.T) {
+	f, h, home := onboarding(t)
+	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
+		`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"tok-secret","token_expires_at":"soon"}`)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_token_expires") {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(home, "config.json")); !os.IsNotExist(err) {
+		t.Fatalf("invalid expiry must not write config: %v", err)
+	}
 }
 
 func TestNormalizeSiteAcceptsWhatPeoplePaste(t *testing.T) {

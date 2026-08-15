@@ -379,6 +379,10 @@ export const ko = {
   'freshness.titleStale': '미러가 지연됐습니다 — 마지막 성공 동기화 {when}. 클릭하면 지금 동기화합니다.',
   'freshness.titleFailed': '마지막 동기화 실패: {message}\n클릭하면 재시도합니다.',
   'freshness.titleNever': '미러가 아직 한 번도 동기화되지 않았습니다. 클릭하면 지금 동기화합니다.',
+  'freshness.tokenExpiring': '토큰이 {n}일 후 만료',
+  'freshness.tokenExpiringOne': '토큰이 1일 후 만료',
+  'freshness.tokenExpiringToday': '토큰이 오늘 만료',
+  'freshness.tokenExpired': 'API 토큰 만료됨',
 
   /* ── Builtin views ── */
   'view.allOpen.name': '전체 미해결',
@@ -688,6 +692,8 @@ export const ko = {
   'jiraSettings.connected': '연결됨',
   'jiraSettings.tokenDots': '토큰 …{hint}',
   'jiraSettings.verified': '검증 {when}',
+  'jiraSettings.tokenExpires': '만료일 (Atlassian 발급 화면의 날짜)',
+  'jiraSettings.tokenExpiresHint': '선택. 비우면 기본 수명(1년)으로 가정합니다.',
 
   /* ── Server settings ── */
   'settings.title': '설정',
@@ -935,6 +941,9 @@ export const ko = {
   'onboarding.email': 'Jira 계정 이메일',
   'onboarding.token': 'API 토큰',
   'onboarding.tokenHint': '~/.gadak/config.json 에만 저장되고, 당신의 사이트로만 전송됩니다.',
+  'onboarding.tokenExpires': '만료일 (Atlassian 발급 화면의 날짜)',
+  'onboarding.tokenExpiresHint': '선택. 비우면 기본 수명(1년)으로 가정합니다.',
+  'onboarding.errExpires': '만료일이 날짜가 아닙니다 (YYYY-MM-DD).',
   'onboarding.tokenLink': 'API 토큰 만들기',
   'onboarding.connect': '연결',
   'onboarding.connecting': '검증 중…',

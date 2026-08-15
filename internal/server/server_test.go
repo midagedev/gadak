@@ -941,3 +941,25 @@ func TestSyncHealth(t *testing.T) {
 		t.Fatal("staleness window wrong")
 	}
 }
+
+func TestSyncHealthTokenExpiry(t *testing.T) {
+	db, cfg := fixture(t)
+	if err := db.RecordSync(context.Background(), sourceID, store.SyncResult{Watermark: "2026-08-04T00:00:00.000Z"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg.TokenExpiresAt = time.Now().UTC().Add(5*24*time.Hour + time.Hour).Format(config.TokenTimeFormat)
+	cfg.TokenExpirySource = config.TokenExpirySourceAssumed
+	got := decode[bootstrapResponse](t, get(t, New(db, cfg), apiBase+"bootstrap/", nil)).SyncHealth
+	if got.Overall != "healthy" {
+		t.Fatalf("expiring token must not flip overall (that would read as a delayed mirror): %+v", got)
+	}
+	if got.TokenExpiry.State != config.TokenExpiryExpiring || got.TokenExpiry.Message == "" {
+		t.Fatalf("token_expiry %+v", got.TokenExpiry)
+	}
+	if !strings.Contains(got.TokenExpiry.Message, "assumed from the default lifetime") {
+		t.Fatalf("assumed hedge missing: %q", got.TokenExpiry.Message)
+	}
+	if got.TokenExpiry.DaysLeft == nil || *got.TokenExpiry.DaysLeft != 5 {
+		t.Fatalf("days_left %v", got.TokenExpiry.DaysLeft)
+	}
+}

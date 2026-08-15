@@ -427,11 +427,18 @@ export function getCredential(): Promise<JiraCredential> {
   return jsonW<JiraCredential>('credential/')
 }
 
-export function saveCredential(jiraEmail: string, apiToken: string): Promise<JiraCredential> {
+export function saveCredential(
+  jiraEmail: string,
+  apiToken: string,
+  tokenExpiresAt?: string,
+): Promise<JiraCredential> {
+  const body: Record<string, string> = { jira_email: jiraEmail, api_token: apiToken }
+  const expires = tokenExpiresAt?.trim()
+  if (expires) body.token_expires_at = expires
   return jsonW<JiraCredential>('credential/', {
     method: 'PUT',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ jira_email: jiraEmail, api_token: apiToken }),
+    body: JSON.stringify(body),
   })
 }
 
@@ -484,11 +491,15 @@ export function connectJira(
   site: string,
   jiraEmail: string,
   apiToken: string,
+  tokenExpiresAt?: string,
 ): Promise<JiraCredential> {
+  const body: Record<string, string> = { site, jira_email: jiraEmail, api_token: apiToken }
+  const expires = tokenExpiresAt?.trim()
+  if (expires) body.token_expires_at = expires
   return jsonW<JiraCredential>('onboarding/connect/', {
     method: 'PUT',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ site, jira_email: jiraEmail, api_token: apiToken }),
+    body: JSON.stringify(body),
   })
 }
 

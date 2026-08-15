@@ -679,6 +679,9 @@ func TestCredentialLifecycle(t *testing.T) {
 	if err != nil || saved.Token != "tok-SECRET-1234" {
 		t.Fatalf("not persisted: %+v %v", saved, err)
 	}
+	if saved.TokenExpirySource != config.TokenExpirySourceAssumed || saved.TokenExpiresAt == "" {
+		t.Fatalf("replace-token should assume expiry: source=%q at=%q", saved.TokenExpirySource, saved.TokenExpiresAt)
+	}
 	// The file holding a token is readable by its owner only.
 	path, _ := config.Path()
 	info, err := os.Stat(path)
@@ -699,8 +702,29 @@ func TestCredentialLifecycle(t *testing.T) {
 	if got := decode[credentialDoc](t, get(t, h, apiBase+"credential/", nil)); got.Configured || got.TokenHint != "" {
 		t.Fatalf("survived deletion: %+v", got)
 	}
-	if saved, _ := config.Load(); saved.Token != "" || saved.TokenOwner != "" {
+	if saved, _ := config.Load(); saved.Token != "" || saved.TokenOwner != "" || saved.TokenExpiresAt != "" || saved.TokenExpirySource != "" {
 		t.Fatalf("token left on disk: %+v", saved)
+	}
+}
+
+func TestPutCredentialStoresUserExpiry(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	f := newFakeJira(t)
+	db, cfg := fixture(t)
+	cfg.Site, cfg.Email, cfg.Token = f.URL, "", ""
+	h := New(db, cfg)
+
+	rec := send(t, h, http.MethodPut, apiBase+"credential/",
+		`{"jira_email":"hc@example.com","api_token":"tok-SECRET-1234","token_expires_at":"2027-06-15"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("put → %d: %s", rec.Code, rec.Body.String())
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.TokenExpirySource != config.TokenExpirySourceUser || saved.TokenExpiresAt != "2027-06-15T00:00:00.000Z" {
+		t.Fatalf("user expiry: source=%q at=%q", saved.TokenExpirySource, saved.TokenExpiresAt)
 	}
 }
 

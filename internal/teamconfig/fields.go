@@ -34,6 +34,8 @@ var neverExportConfigFields = []string{
 	"Token",
 	"TokenVerifiedAt",
 	"TokenOwner",
+	"TokenExpiresAt",
+	"TokenExpirySource",
 	"AccountID",
 	"AttachmentCacheMB",
 	"SyncIntervalSec",
@@ -47,10 +49,12 @@ var neverExportConfigFields = []string{
 // of these at the top level or inside "settings" — even if a human added them
 // by hand. Names match Config json tags.
 var credentialJSONKeys = map[string]bool{
-	"site":            true,
-	"email":           true,
-	"token":           true,
-	"tokenVerifiedAt": true,
-	"tokenOwner":      true,
-	"account_id":      true,
+	"site":              true,
+	"email":             true,
+	"token":             true,
+	"tokenVerifiedAt":   true,
+	"tokenOwner":        true,
+	"tokenExpiresAt":    true,
+	"tokenExpirySource": true,
+	"account_id":        true,
 }

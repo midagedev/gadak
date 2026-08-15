@@ -57,6 +57,11 @@ func cmdStatus(args []string) error {
 	st["api_usage"] = usage
 
 	cfg, _ := config.Load()
+	var tokenExpiry config.TokenExpiry
+	if cfg != nil {
+		tokenExpiry = cfg.TokenExpiryAt(time.Now().UTC())
+		st["token_expiry"] = tokenExpiry
+	}
 	var updateInfo selfupdate.Info
 	var updateOK bool
 	if cfg != nil && cfg.UpdateCheckEnabled() {
@@ -81,6 +86,9 @@ func cmdStatus(args []string) error {
 	}
 	if line := formatAPIUsageLine(usage); line != "" {
 		fmt.Printf("%-18s %s\n", "api (today)", line)
+	}
+	if tokenExpiry.Message != "" {
+		fmt.Println(tokenExpiry.Message)
 	}
 	if updateOK && selfupdate.Newer(version, updateInfo.Latest) {
 		fmt.Printf("update: v%s available (running v%s) — brew upgrade midagedev/tap/gadak\n",

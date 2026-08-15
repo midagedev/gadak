@@ -67,13 +67,15 @@ func TestExportWhitelistCoversAllConfigFields(t *testing.T) {
 
 func sampleConfig() *config.Config {
 	return &config.Config{
-		Site:            "https://example.atlassian.net",
-		Email:           "secret-user@example.com",
-		Token:           "ATATT" + strings.Repeat("x", 30),
-		AccountID:       "acc-secret-99",
-		TokenOwner:      "Secret Owner",
-		TokenVerifiedAt: "2026-01-01T00:00:00Z",
-		Projects:        []string{"NMB", "NMA"},
+		Site:              "https://example.atlassian.net",
+		Email:             "secret-user@example.com",
+		Token:             "ATATT" + strings.Repeat("x", 30),
+		AccountID:         "acc-secret-99",
+		TokenOwner:        "Secret Owner",
+		TokenVerifiedAt:   "2026-01-01T00:00:00Z",
+		TokenExpiresAt:    "2027-01-01T00:00:00Z",
+		TokenExpirySource: "assumed",
+		Projects:          []string{"NMB", "NMA"},
 		FieldMap: map[string]string{
 			"storyPoints": "customfield_10016",
 		},
@@ -121,12 +123,15 @@ func TestExportOmitsCredentialsAsStrings(t *testing.T) {
 		cfg.AccountID,
 		cfg.TokenOwner,
 		cfg.TokenVerifiedAt,
+		cfg.TokenExpiresAt,
 		`"site"`,
 		`"email"`,
 		`"token"`,
 		`"account_id"`,
 		`"tokenOwner"`,
 		`"tokenVerifiedAt"`,
+		`"tokenExpiresAt"`,
+		`"tokenExpirySource"`,
 		`"syncIntervalSec"`,
 		`"reconcileIntervalSec"`,
 		`"notify"`,
@@ -385,6 +390,8 @@ func TestImportRejectsCredentialKeys(t *testing.T) {
 		`{"gadak_team_config":1,"settings":{"token":"ATATT` + strings.Repeat("a", 30) + `"}}`,
 		`{"gadak_team_config":1,"email":"x@y.com","settings":{}}`,
 		`{"gadak_team_config":1,"settings":{"account_id":"acc1"}}`,
+		`{"gadak_team_config":1,"settings":{"tokenExpiresAt":"2027-01-01T00:00:00Z"}}`,
+		`{"gadak_team_config":1,"tokenExpirySource":"assumed","settings":{}}`,
 	}
 	for _, raw := range cases {
 		_, err := ParseDocument([]byte(raw))
