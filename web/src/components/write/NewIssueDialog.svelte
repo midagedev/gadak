@@ -5,7 +5,7 @@
    *    only when empty.
    *  - Defaults (quiet suggestions):
    *      Project ① recent create ② current filter source_project ③ selected issue ④ first
-   *      Type = per-project recent (else Bug, else first type)
+   *      Type = per-project recent (else first type from create-meta)
    *      Assignee = empty (no force)
    *  - Labels: autocomplete by project frequency in local pool + recent on top.
    *  - On success: close + selection.select(new key) → detail opens (recency via createIssue).
@@ -130,9 +130,8 @@
     const p = projects.find((x) => x.key === pk)
     if (!p) return ''
     const types = p.issue_types
+    // Last-used type id for this project, else create-meta order (never a localized name).
     for (const r of recentOf(`create-type:${pk}`)) if (types.some((t) => t.id === r)) return r
-    const bug = types.find((t) => t.name.toLowerCase() === 'bug')
-    if (bug) return bug.id
     return types[0]?.id ?? ''
   }
 

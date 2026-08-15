@@ -17,6 +17,7 @@
 import { SvelteMap, SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
 import { t } from '../lib/i18n'
+import { writeErrorMessage } from '../lib/i18n/en'
 import { ApiError } from '../lib/api'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
@@ -227,8 +228,11 @@ class WriteStore {
       this.toast(t('write.credSaved'), 'success')
       return { ok: true }
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : t('write.credSaveFailed')
-      return { ok: false, error: msg }
+      if (e instanceof ApiError) {
+        console.warn('[write] saveCredential', e.code ?? e.message, e)
+        return { ok: false, error: writeErrorMessage(e.code, t('write.credSaveFailed'), t) }
+      }
+      return { ok: false, error: t('write.credSaveFailed') }
     }
   }
 
@@ -633,8 +637,11 @@ class WriteStore {
       this.toast(t('write.issueCreated', { key: res.issue.issue_key }), 'success')
       return { ok: true, key: res.issue.issue_key }
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : t('write.createFailed')
-      return { ok: false, error: msg }
+      if (e instanceof ApiError) {
+        console.warn('[write] create', e.code ?? e.message, e)
+        return { ok: false, error: writeErrorMessage(e.code, t('write.createFailed'), t) }
+      }
+      return { ok: false, error: t('write.createFailed') }
     }
   }
 
@@ -656,7 +663,10 @@ class WriteStore {
         this.openSettings()
         return
       }
-      this.toast(e.message || fallback, 'error')
+      // Raw code stays in the console; the toast is always a catalog sentence
+      // (or Jira prose). Unknown snake_case codes use fallback, never e.message.
+      console.warn('[write]', e.code ?? e.message, e)
+      this.toast(writeErrorMessage(e.code, fallback, t), 'error')
       return
     }
     console.warn('[write]', fallback, e)

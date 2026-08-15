@@ -122,8 +122,7 @@ fi
 # (GDK-28) and the same shape for status / issue-type equality on a
 # Jira-default EN/KO display name.
 #
-# Deliberately not matched (would fail the current tree; sibling issues):
-#   - NewIssueDialog.svelte inferType `name.toLowerCase() === 'bug'`
+# Deliberately not matched (would fail the current tree; sibling issue):
 #   - view-config.ts RESOLVED_STATUS_NAMES (legacy fallback when
 #     status_category is absent)
 name_hits="$(
@@ -139,6 +138,7 @@ name_hits="$(
     -e "status[[:space:]]*===[[:space:]]*['\"]진행 중['\"]" \
     -e "issue_type[[:space:]]*===[[:space:]]*['\"]Bug['\"]" \
     -e "issue_type[[:space:]]*===[[:space:]]*['\"]버그['\"]" \
+    -e "name[[:space:]]*\.[[:space:]]*toLowerCase\(\)[[:space:]]*===[[:space:]]*['\"](bug|story|task|epic|sub-task|버그|스토리|작업|에픽)['\"]" \
     web/src/lib web/src/components web/src/stores \
     | grep -v '/i18n/' \
     || true

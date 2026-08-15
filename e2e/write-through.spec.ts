@@ -194,9 +194,9 @@ test.describe('write-through', () => {
 
   test('failed transition rolls back the chip and surfaces an error toast', async ({ page }) => {
     // 502 {error: jira_unavailable} is write.go failJira's default for an
-    // unexpected Jira error. jsonW sets ApiError.message to that code, and
-    // write.#handleError toasts e.message — so the user sees the raw code,
-    // not write.transitionFailed. Assert that (do not fix it here).
+    // unexpected Jira error. writeErrorMessage maps that code to
+    // write.jiraUnavailable — never the raw code, never the operation
+    // fallback unless the code is unknown.
     const { issue } = await captureIssue(page)
     const panel = await openIssue(page)
     const chip = panel.getByTestId('status-transition')
@@ -221,7 +221,7 @@ test.describe('write-through', () => {
     await expect.poll(() => posted).toBe(true)
     const toast = page.getByTestId('toast').and(page.getByRole('alert'))
     await expect(toast).toBeVisible()
-    await expect(toast).toContainText('jira_unavailable')
+    await expect(toast).toContainText('Could not reach Jira.')
     await expect(chip).toContainText(before)
     await expect(chip).not.toContainText(TRANSITION.to_status)
     await expect(chip).not.toContainText(SERVER_STATUS)

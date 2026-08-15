@@ -620,6 +620,14 @@ export const ko = {
   'write.needToken': '먼저 개인 Jira API 토큰을 설정하세요.',
   'write.tokenRejected':
     'Jira API 토큰이 거부되었습니다 — 새 개인 토큰으로 교체하세요.',
+  'write.jiraUnavailable': 'Jira에 연결하지 못했습니다.',
+  'write.mirrorStale':
+    '변경은 Jira에 저장됐지만 로컬 사본을 갱신하지 못했습니다. 다시 시도하지 마세요.',
+  'write.notFound': '이슈를 찾을 수 없습니다.',
+  'write.summaryTooLong': '제목은 255자를 넘을 수 없습니다.',
+  'write.projectNotMirrored': '이 미러에 없는 프로젝트입니다.',
+  'write.fieldNotEditable': '그 필드는 편집할 수 없습니다.',
+  'write.siteRequired': '먼저 설정에서 Jira 사이트를 지정하세요.',
   'write.transitionFailed': '상태 전환에 실패했습니다.',
   'write.assignFailed': '담당자 변경에 실패했습니다.',
   'write.priorityFailed': '우선순위 변경에 실패했습니다.',
