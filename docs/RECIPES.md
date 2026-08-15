@@ -12,6 +12,12 @@ the changelog as data, aggregate, or read derived history. The inverse — a
 Jira filter you already have — is `gadak search --jql '…'` (or paste the URL
 into the search box), not this file.
 
+Every recipe also runs against the demo snapshot in a plain browser tab, no
+install, no account: [open the epic `GROUP BY` in Datasette
+Lite](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
+and edit the SQL in place — the URL carries the query, so the link you share
+is the answer.
+
 ## Triage
 
 **What keeps coming back?** Reopen counts are derived at sync time from the

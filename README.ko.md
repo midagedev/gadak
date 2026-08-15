@@ -41,6 +41,11 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 데이터가 파일이 되기 전까지는. 나머지 레시피는
 [`docs/RECIPES.md`](docs/RECIPES.md)에 있습니다.
 
+설치 없이 지금 바로 이 쿼리를 실행해 보세요: [Datasette Lite가 이 탭에 데모
+스냅샷을
+불러오고](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
+SQL은 브라우저 안에서 돌아갑니다.
+
 실제 Cloud 사이트(이슈 2,853개)에서 실측한 값입니다 (중앙값, CLI 기동 포함 —
 [방법론과 gadak이 지는 행](docs/BENCHMARKS.md)):
 

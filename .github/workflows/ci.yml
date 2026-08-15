@@ -97,6 +97,28 @@ jobs:
           # skips that check and still enforces tokens and tenant hostnames.
           GADAK_SCAN_WORDS: ${{ secrets.GADAK_SCAN_WORDS }}
 
+      - name: Snapshot portability (Datasette Lite contract)
+        run: |
+          set -euo pipefail
+          DB=examples/demo.db
+          # The snapshot is opened by Datasette Lite in the reader's browser
+          # (GDK-101), whose SQLite predates contentless_delete (3.43). A
+          # snapshot regenerated without the scrub script's FTS rebuild makes
+          # every Lite page fail with `unrecognized option`.
+          schema=$(sqlite3 "$DB" "SELECT sql FROM sqlite_master WHERE name='items_fts'")
+          if grep -q contentless_delete <<<"$schema"; then
+            echo "items_fts carries contentless_delete — Datasette Lite returns Error 500." >&2
+            echo "Regenerate: python3 scripts/scrub-demo-db.py <demo-profile.db> examples/demo.db" >&2
+            exit 1
+          fi
+          # Read-only open without -shm/-wal siblings (how the raw URL opens).
+          hits=$(sqlite3 -readonly "$DB" "SELECT count(*) FROM items_fts WHERE items_fts MATCH 'upload'")
+          [ "$hits" -gt 0 ] || { echo "FTS probe returned 0 rows" >&2; exit 1; }
+          rows=$(sqlite3 -readonly "$DB" \
+            "SELECT count(*) FROM (SELECT epic_key, count(*) FROM issues_full WHERE resolved_at IS NULL AND epic_key <> '' GROUP BY epic_key)")
+          [ "$rows" -gt 0 ] || { echo "epic GROUP BY (the linked demo query) returned 0 rows" >&2; exit 1; }
+          echo "snapshot portable: fts_hits=$hits epic_rows=$rows"
+
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest

@@ -39,6 +39,11 @@ That last query is the point: JQL has no `GROUP BY`. "Which epic is actually
 stuck?" is not a hard question — it is an unaskable one, until the data is a
 file. [`docs/RECIPES.md`](docs/RECIPES.md) has the rest.
 
+Run that query now, nothing installed: [Datasette Lite loads the demo
+snapshot in this
+tab](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
+and the SQL runs client-side.
+
 Measured against a live Cloud site (2,853 issues; medians, CLI startup
 included — [method and the losing rows](docs/BENCHMARKS.md)):
 

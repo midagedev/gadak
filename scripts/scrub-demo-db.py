@@ -17,6 +17,15 @@ Replacements (matching the original T6.5 scrub of the committed snapshot):
   - the real site host             -> nimbus.example.com
 Gravatar URLs are left as-is, same as the original scrub (opaque hashes,
 already in the committed snapshot).
+
+The snapshot is also served raw and opened in the reader's browser by
+Datasette Lite (GDK-101), whose SQLite (pyodide) is older than the mirror's
+build target: `contentless_delete=1` (SQLite 3.43+, internal/store/schema.go)
+makes every Lite page fail with `unrecognized option`. The mirror keeps the
+option — its engine is modern and needs row replacement — but the snapshot is
+read-only, so this script rebuilds its FTS without it (same tokenizer, same
+content, verified by MATCH-count probes). CI rejects a snapshot that regresses
+on this (see the "snapshot portability" step in ci.yml).
 """
 
 import re
@@ -40,6 +49,60 @@ def scrub_text(value: str) -> str:
     for pat, repl in REPLACEMENTS:
         value = pat.sub(repl, value)
     return value
+
+
+def rebuild_portable_fts(con: sqlite3.Connection) -> None:
+    """Rebuild items_fts without options Datasette Lite's SQLite cannot parse.
+
+    Contentless tables return no stored text, so parity is checked with MATCH
+    counts over a fixed probe set (plus total row count) before and after.
+    Comment text is re-concatenated in insertion order, matching writeFTS in
+    internal/store/write.go.
+    """
+    fts_sql = con.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'items_fts'"
+    ).fetchone()
+    if not fts_sql or "contentless_delete" not in (fts_sql[0] or ""):
+        return  # already portable
+
+    probes = ["upload", "retri*", "webhook AND retry", "로그인"]
+    before = {"rows": con.execute("SELECT count(*) FROM items_fts").fetchone()[0]}
+    before.update(
+        {p: con.execute(
+            "SELECT count(*) FROM items_fts WHERE items_fts MATCH ?", (p,)
+        ).fetchone()[0] for p in probes}
+    )
+
+    con.execute("DROP TABLE items_fts")
+    con.execute(
+        "CREATE VIRTUAL TABLE items_fts USING fts5("
+        "title, body_text, comments_text, content='', "
+        "tokenize='unicode61 remove_diacritics 2')"
+    )
+    con.execute(
+        """
+        INSERT INTO items_fts (rowid, title, body_text, comments_text)
+        SELECT i.rowid, i.title, COALESCE(i.body_text, ''),
+               COALESCE((SELECT group_concat(body_text, char(10))
+                         FROM (SELECT body_text FROM comments
+                               WHERE item_id = i.id AND body_text <> ''
+                               ORDER BY rowid)), '')
+        FROM items i
+        """
+    )
+
+    after = {"rows": con.execute("SELECT count(*) FROM items_fts").fetchone()[0]}
+    after.update(
+        {p: con.execute(
+            "SELECT count(*) FROM items_fts WHERE items_fts MATCH ?", (p,)
+        ).fetchone()[0] for p in probes}
+    )
+    if before != after:
+        raise SystemExit(
+            f"FTS rebuild changed search behavior: {before} -> {after}"
+        )
+    con.commit()
+    print(f"rebuilt items_fts without contentless_delete ({after['rows']} rows)")
 
 
 def main() -> int:
@@ -90,7 +153,25 @@ def main() -> int:
                 )
                 total += 1
     con.commit()
+
+    rebuild_portable_fts(con)
+
     con.execute("VACUUM")
+    # The snapshot is served as bare bytes (raw.githubusercontent) and opened
+    # by tools that may not be able to create -shm/-wal siblings; leave it as
+    # a plain rollback-journal file.
+    mode = con.execute("PRAGMA journal_mode=DELETE").fetchone()[0]
+    if mode.lower() != "delete":
+        print(f"could not leave the snapshot in rollback-journal mode (got {mode})",
+              file=sys.stderr)
+        return 1
+
+    fts_sql = con.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'items_fts'"
+    ).fetchone()
+    if fts_sql and "contentless_delete" in (fts_sql[0] or ""):
+        print("items_fts still carries contentless_delete after rebuild", file=sys.stderr)
+        return 1
 
     leftovers = 0
     for table in tables:
