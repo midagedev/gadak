@@ -1,10 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	_ "modernc.org/sqlite"
 
 	"github.com/midagedev/gadak/internal/config"
 )
@@ -126,5 +130,61 @@ func TestSQLQuotedCommentQueryStillRuns(t *testing.T) {
 	first, _, _ := strings.Cut(out, "\n")
 	if first != "key" {
 		t.Fatalf("want header, got %q\n%s", first, out)
+	}
+}
+
+// setJiraSyncedAt rewrites the jira source's synced_at in the test-home mirror
+// so warnIfStale's hour arithmetic (agent.go: staleAfter, synced_at parsed as
+// RFC3339, last_error empty in demo.db) is deterministic whatever demo.db's
+// fixture vintage is.
+func setJiraSyncedAt(t *testing.T, at time.Time) {
+	t.Helper()
+	path, err := config.DBPath()
+	if err != nil {
+		t.Fatalf("db path: %v", err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open mirror writable: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`UPDATE sources SET synced_at = ? WHERE id = 'jira'`, at.UTC().Format(time.RFC3339)); err != nil {
+		t.Fatalf("set synced_at: %v", err)
+	}
+}
+
+func TestSQLWarnsOnStaleMirror(t *testing.T) {
+	sqlDemoHome(t)
+	setJiraSyncedAt(t, time.Now().Add(-2*time.Hour))
+	staleOut, staleErr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues limit 3"})
+	})
+	if err != nil {
+		t.Fatalf("sql on stale mirror: %v\n%s", err, staleOut)
+	}
+	lines := strings.Split(strings.TrimSuffix(staleErr, "\n"), "\n")
+	if len(lines) != 1 || !strings.HasPrefix(lines[0], "warning: mirror last synced") {
+		t.Fatalf("stale mirror must warn exactly once on stderr, got %q", staleErr)
+	}
+
+	setJiraSyncedAt(t, time.Now())
+	freshOut, freshErr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues limit 3"})
+	})
+	if err != nil {
+		t.Fatalf("sql on fresh mirror: %v\n%s", err, freshOut)
+	}
+	if freshErr != "" {
+		t.Fatalf("fresh mirror must stay quiet on stderr, got %q", freshErr)
+	}
+	if freshOut != staleOut {
+		t.Fatalf("stdout must be identical stale vs fresh\nstale:\n%s\nfresh:\n%s", staleOut, freshOut)
+	}
+	first, _, _ := strings.Cut(freshOut, "\n")
+	if first != "key" {
+		t.Fatalf("first stdout row must stay the header, got %q", first)
+	}
+	if !looksLikeIssueKey(strings.Split(strings.TrimSuffix(freshOut, "\n"), "\n")[1]) {
+		t.Fatalf("stdout must still carry data rows, got %q", freshOut)
 	}
 }

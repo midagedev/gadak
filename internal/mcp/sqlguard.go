@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -144,6 +145,13 @@ func firstKeyword(s string) string {
 	return s[:end]
 }
 
+// displayNameFilterRe matches a comparison against a display-name column:
+// status, issue_type (also the Jira-API spelling issuetype), or priority.
+// Word boundaries keep the stable id/category spellings from matching —
+// status_id, status_category, issue_type_id, priority_rank all continue with
+// `_…` where the pattern requires `=`, and a leading `_` is not a boundary.
+var displayNameFilterRe = regexp.MustCompile(`(?i)\b(status|issue_type|issuetype|priority)\s*=`)
+
 // queryResult is the JSON shape returned by gadak_query.
 type queryResult struct {
 	Columns   []string         `json:"columns"`
@@ -154,6 +162,11 @@ type queryResult struct {
 	// a tighter LIMIT or fewer columns when they see it.
 	TruncationReason string `json:"truncation_reason,omitempty"`
 	RowLimit         int    `json:"row_limit"`
+	// Warning is set only when the query returned zero rows while comparing a
+	// display-name column: Jira localizes status/priority/type names per
+	// account, so the empty result is usually the locale trap, not "nothing
+	// matches". omitempty keeps the field absent everywhere else.
+	Warning string `json:"warning,omitempty"`
 }
 
 // runQuery opens the mirror read-only, enforces SELECT/WITH, and caps rows.
@@ -210,6 +223,9 @@ func runQuery(dbPath string, query string, limit int) (*queryResult, error) {
 		return nil, err
 	}
 	out.Count = len(out.Rows)
+	if out.Count == 0 && displayNameFilterRe.MatchString(stripSQLComments(query)) {
+		out.Warning = "zero rows with a display-name filter; status/priority/type are localized — retry with status_category, priority_rank, or issue_type_id"
+	}
 	return out, nil
 }
 
