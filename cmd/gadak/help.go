@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -263,10 +264,11 @@ var helps = map[string]cmdHelp{
 	},
 	"create": {
 		summary: "create an issue on Jira (needs a credential; write-through to the mirror)",
-		usage:   "gadak [--profile <name>] create <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
+		usage:   "gadak [--profile <name>] create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
 		examples: []string{
 			"gadak create Fix the flaky gate --project NMB --type Task -m \"repro on staging\" --label batch",
 			"gadak create 로그인 실패 --project NMB --type 작업",
+			"gadak create --project NMB --type Task -- --rollback-on-failure",
 			`printf '%s\n' '{"summary":"one"}' '{"summary":"two"}' | gadak create --batch - --project NMB --type Task`,
 		},
 		seeAlso: []string{"gadak attach", "gadak edit", "gadak comment", "gadak transition", "gadak assign", "gadak issue"},
@@ -416,6 +418,11 @@ func newFlagSet(name string) *flag.FlagSet {
 // The leftover is the positional query or name. Agents type
 // `gadak search --jql '…' --json`; Go's FlagSet would otherwise swallow
 // --json into the JQL because it stops at the first non-flag.
+//
+// A token that starts with `-` and is not a registered flag is rejected
+// (GDK-41). Bare `-` is a value. `--` ends flag parsing so a positional that
+// starts with `-` can be passed. New commands inherit this by using
+// newFlagSet + parseAround.
 func parseAround(fs *flag.FlagSet, args []string) (rest []string, err error) {
 	needVal := map[string]bool{}
 	fs.VisitAll(func(f *flag.Flag) {
@@ -440,8 +447,7 @@ func parseAround(fs *flag.FlagSet, args []string) (rest []string, err error) {
 		name, _, inline := strings.Cut(a, "=")
 		need, known := needVal[name]
 		if !known {
-			pos = append(pos, a)
-			continue
+			return nil, newUnknownFlag(fs, a)
 		}
 		flagArgs = append(flagArgs, a)
 		if !inline && need {
@@ -458,10 +464,56 @@ func parseAround(fs *flag.FlagSet, args []string) (rest []string, err error) {
 	return pos, nil
 }
 
+// unknownFlagErr is a rejected dash-token. main maps it to process exit 2
+// so a mistyped flag is the same class of failure as an unknown subcommand,
+// not a generic log.Fatalf (exit 1).
+type unknownFlagErr struct {
+	token    string
+	accepted []string
+	cmd      string
+}
+
+func (e *unknownFlagErr) Error() string {
+	var b strings.Builder
+	if len(e.accepted) == 0 {
+		fmt.Fprintf(&b, "unknown flag %s", e.token)
+	} else {
+		fmt.Fprintf(&b, "unknown flag %s — accepted: %s", e.token, strings.Join(e.accepted, ", "))
+	}
+	fmt.Fprintf(&b, "\nrun \"gadak %s --help\" for examples", e.cmd)
+	return b.String()
+}
+
+// newUnknownFlag lists the FlagSet's accepted names the way resolveCreateType
+// lists available types: one line, enough to recover without a second invocation.
+func newUnknownFlag(fs *flag.FlagSet, token string) error {
+	var accepted []string
+	fs.VisitAll(func(f *flag.Flag) {
+		accepted = append(accepted, dashed(f.Name))
+	})
+	return &unknownFlagErr{token: token, accepted: accepted, cmd: fs.Name()}
+}
+
+// exitStatus is the process code main uses for a command error.
+// unknown flags are usage (2); everything else stays 1.
+func exitStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+	var u *unknownFlagErr
+	if errors.As(err, &u) {
+		return 2
+	}
+	return 1
+}
+
 // wantsHelp reports whether args contain -h or --help (for commands that do
 // not use flag.FlagSet).
 func wantsHelp(args []string) bool {
 	for _, a := range args {
+		if a == "--" {
+			return false
+		}
 		if a == "-h" || a == "--help" {
 			return true
 		}

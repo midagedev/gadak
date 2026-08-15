@@ -513,8 +513,8 @@ func TestAPI_DataStdinFlagBeforeMethod(t *testing.T) {
 }
 
 func TestAPI_UnknownFlagErrors(t *testing.T) {
-	// parseAround leaves unknown dashes in the positional list; cmdAPI must
-	// return (not os.Exit) so a typo is a usage error in any position.
+	// parseAround rejects unknown dashes and returns (not os.Exit) so a typo
+	// is a usage error in any position.
 	for _, args := range [][]string{
 		{"--pretty", "GET", "/rest/api/3/myself"},
 		{"GET", "--pretty", "/rest/api/3/myself"},

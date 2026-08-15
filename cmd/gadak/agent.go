@@ -71,6 +71,10 @@ func normalizeKey(s string) string { return strings.ToUpper(strings.TrimSpace(s)
 // them: Go's flag package stops parsing at the first non-flag, which would make
 // `gadak comment NMB-1 -m ok` silently drop the -m. A bare `-` is a value, not a
 // flag — it is how `assign` unassigns.
+//
+// Callers that take positionals should use parseAround instead (GDK-41): it
+// applies the same peel and rejects an unknown dash-token. leading stays for
+// the peel-only shape; it does not know the FlagSet, so it cannot reject.
 func leading(args []string, n int) (positional, rest []string) {
 	for len(args) > 0 && len(positional) < n && (args[0] == "-" || !strings.HasPrefix(args[0], "-")) {
 		positional = append(positional, args[0])
@@ -118,10 +122,14 @@ func deref(s *string, fallback string) string {
 /* ── issue ── */
 
 func cmdIssue(args []string) error {
-	pos, rest := leading(args, 1)
 	fs := newFlagSet("issue")
 	asJSON := fs.Bool("json", false, "emit the detail document as JSON")
-	if err := fs.Parse(rest); err != nil {
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("issue", fs))
+		return nil
+	}
+	pos, err := parseAround(fs, args)
+	if err != nil {
 		return err
 	}
 	if len(pos) == 0 {
@@ -250,6 +258,10 @@ func cmdSearch(args []string) error {
 	asJSON := fs.Bool("json", false, "emit matching IssueLite rows as JSON")
 	forceJQL := fs.Bool("jql", false, "treat the query as JQL (or a Jira URL with jql=)")
 	emitOnly := fs.Bool("emit", false, "print the canonical JQL and exit (no search)")
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("search", fs))
+		return nil
+	}
 	pos, err := parseAround(fs, args)
 	if err != nil {
 		return err
@@ -538,11 +550,15 @@ func mutate(key string, asJSON bool, fn func(context.Context, *jira.Client) (map
 }
 
 func cmdComment(args []string) error {
-	pos, rest := leading(args, 1)
 	fs := newFlagSet("comment")
 	text := fs.String("m", "", "comment body; `-` reads it from stdin")
 	asJSON := fs.Bool("json", false, "emit JSON")
-	if err := fs.Parse(rest); err != nil {
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("comment", fs))
+		return nil
+	}
+	pos, err := parseAround(fs, args)
+	if err != nil {
 		return err
 	}
 	if len(pos) == 0 {
@@ -576,10 +592,14 @@ func cmdComment(args []string) error {
 }
 
 func cmdTransition(args []string) error {
-	pos, rest := leading(args, 2)
 	fs := newFlagSet("transition")
 	asJSON := fs.Bool("json", false, "emit JSON")
-	if err := fs.Parse(rest); err != nil {
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("transition", fs))
+		return nil
+	}
+	pos, err := parseAround(fs, args)
+	if err != nil {
 		return err
 	}
 	if len(pos) < 2 {
@@ -587,7 +607,7 @@ func cmdTransition(args []string) error {
 	}
 	key := normalizeKey(pos[0])
 	// Trailing words join the target so an unquoted `In Review` still works.
-	want := strings.TrimSpace(strings.Join(append(pos[1:], fs.Args()...), " "))
+	want := strings.TrimSpace(strings.Join(pos[1:], " "))
 
 	return mutate(key, *asJSON, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
 		list, err := c.Transitions(ctx, key)
@@ -615,10 +635,14 @@ func cmdTransition(args []string) error {
 }
 
 func cmdAssign(args []string) error {
-	pos, rest := leading(args, 2)
 	fs := newFlagSet("assign")
 	asJSON := fs.Bool("json", false, "emit JSON")
-	if err := fs.Parse(rest); err != nil {
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("assign", fs))
+		return nil
+	}
+	pos, err := parseAround(fs, args)
+	if err != nil {
 		return err
 	}
 	if len(pos) < 2 {
@@ -680,11 +704,16 @@ func resolveAccount(ctx context.Context, c *jira.Client, who string) (string, er
 // gadak is the fast path for reading; this is the escape hatch for everything
 // the mirror deliberately does not do (boards, admin, workflow).
 func cmdOpen(args []string) error {
+	fs := newFlagSet("open")
 	if wantsHelp(args) {
-		printHelp("open")
+		fmt.Fprint(os.Stdout, formatHelp("open", fs))
 		return nil
 	}
-	if len(args) == 0 {
+	pos, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) == 0 {
 		return usageError("open", "usage: gadak open <KEY>")
 	}
 	cfg, err := config.Load()
@@ -694,7 +723,7 @@ func cmdOpen(args []string) error {
 	if cfg.Site == "" {
 		return errors.New("no Jira site configured — run `gadak init` first")
 	}
-	u := strings.TrimRight(cfg.Site, "/") + "/browse/" + url.PathEscape(normalizeKey(args[0]))
+	u := strings.TrimRight(cfg.Site, "/") + "/browse/" + url.PathEscape(normalizeKey(pos[0]))
 	if err := openBrowser(u); err != nil {
 		return fmt.Errorf("could not open a browser (%v) — the URL is %s", err, u)
 	}

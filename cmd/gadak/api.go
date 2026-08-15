@@ -42,8 +42,12 @@ func cmdAPI(args []string) error {
 	dataFlag := fs.String("data", "", "request body: literal, @file, or - for stdin")
 	writeFlag := fs.Bool("write", false, "allow non-GET/HEAD methods (uses write retry policy)")
 	statusFlag := fs.Bool("status", false, "print HTTP <code> to stderr in addition to the body")
-	// Flags may sit before, between, or after METHOD/PATH. leading()+Parse
-	// only accepted flags after the two positionals (GDK-14).
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("api", fs))
+		return nil
+	}
+	// Flags may sit before, between, or after METHOD/PATH. parseAround
+	// rejects unknown dashes (GDK-41); the loop below is defense in depth.
 	pos, err := parseAround(fs, args)
 	if err != nil {
 		return err

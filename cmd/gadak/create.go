@@ -16,7 +16,7 @@ import (
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-const createUsage = "usage: gadak create <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]"
+const createUsage = "usage: gadak create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]"
 
 // createBatchShape is the one-line reminder printed when a --batch line is
 // not an object we can file. Field names match createBatchLine.
@@ -49,7 +49,8 @@ func cmdCreate(args []string) error {
 	}
 	// Flags may sit before, after, or between summary words. parseAround keeps
 	// an unquoted multi-word summary intact the way cmdTransition joins a
-	// status name, and treats an unknown leading dash as summary text.
+	// status name. An unknown dash-token is rejected; a summary that starts
+	// with `-` goes after `--`.
 	pos, err := parseAround(fs, args)
 	if err != nil {
 		return err

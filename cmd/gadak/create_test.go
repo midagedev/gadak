@@ -59,6 +59,11 @@ import (
 //     TestCreateBatchJSONOneObjectPerLine
 // 16. Per-line attach validated before that line's create
 //     TestCreateBatchAttachValidatesBeforeCreate
+//
+// Unknown flags (GDK-41; clause table lives in flags_test.go):
+// 17. Dash-leading token is an unknown flag, not a summary
+//     TestCreateSummaryStartingWithDashIsUnknownFlag
+//     TestCreateLeadingDashSummaryAfterDoubleDash (flags_test.go)
 
 func TestCreateHappyPathSendsFieldsAndPrintsReread(t *testing.T) {
 	f := newFakeJira(t)
@@ -486,18 +491,24 @@ func TestCreateIsRegisteredAndHelpMentionsNonEnglishType(t *testing.T) {
 
 // Self-review defect classes.
 
-func TestCreateSummaryStartingWithDashIsPositional(t *testing.T) {
+func TestCreateSummaryStartingWithDashIsUnknownFlag(t *testing.T) {
+	// Was: TestCreateSummaryStartingWithDashIsPositional — that assertion
+	// protected the swallow that GDK-41 closes. A summary that starts with
+	// `-` now goes after `--` (TestCreateLeadingDashSummaryAfterDoubleDash).
 	f := newFakeJira(t)
 	mirror(t, f.URL)
 
 	_, err := capture(t, func() error {
 		return cmdCreate([]string{"-this", "broke", "--project", "NMB", "--type", "Task"})
 	})
-	if err != nil {
-		t.Fatalf("leading-dash summary: %v", err)
+	if err == nil {
+		t.Fatalf("-this treated as summary; Jira calls %v", f.calls)
 	}
-	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"summary":"-this broke"`) {
-		t.Fatalf("leading dash eaten: %s", sent)
+	if !strings.Contains(err.Error(), "unknown flag -this") {
+		t.Fatalf("want unknown flag -this, got %v", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("leading-dash token reached Jira: %v", f.calls)
 	}
 }
 

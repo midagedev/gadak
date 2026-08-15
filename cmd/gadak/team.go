@@ -169,6 +169,9 @@ See also: gadak team export
 			dryRun = true
 		case a == "--overwrite" || a == "-overwrite":
 			overwrite = true
+		case a == "-":
+			// stdin, same idiom as -m - / --keys - / --batch -
+			positionals = append(positionals, a)
 		case strings.HasPrefix(a, "-"):
 			return fmt.Errorf("unknown flag %s", a)
 		default:
