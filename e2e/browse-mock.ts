@@ -133,6 +133,14 @@ export async function mockBrowseRoutes(
 
   await page.route('**/desktop/browse/close', async (route) => {
     const { id } = route.request().postDataJSON() as { id?: string }
+    // "" closes everything — what a freshly mounted SPA document asks for on
+    // boot so a predecessor's tabs cannot outlive it (GDK-80).
+    if (id === '') {
+      tabs.length = 0
+      active = ''
+      await route.fulfill({ status: 204, body: '' })
+      return
+    }
     const i = tabs.findIndex((t) => t.id === id)
     if (i < 0) {
       await route.fulfill(json({ error: 'no such tab' }, 400))
