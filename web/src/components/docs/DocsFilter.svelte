@@ -12,6 +12,7 @@
    */
   import Icon from '../ui/Icon.svelte'
   import { t } from '../../lib/i18n'
+  import { applyServerSearchOutcome } from '../../lib/server-search'
   import { filters } from '../../stores/filters.svelte'
   import { pages } from '../../stores/pages.svelte'
 
@@ -25,7 +26,7 @@
     if (!q) return
     pages.closeDocs()
     filters.setQuery(q)
-    void filters.runServerSearch()
+    void filters.runServerSearch().then(applyServerSearchOutcome)
   }
 
   // Esc is SearchBox's contract: clear what is typed, and give the keyboard back

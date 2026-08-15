@@ -12,6 +12,7 @@
   import { t } from '../../lib/i18n'
   import { parseJql } from '../../lib/api'
   import { applyOmniboxAction, classifyOmnibox } from '../../lib/omnibox'
+  import { applyServerSearchOutcome } from '../../lib/server-search'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
@@ -190,7 +191,7 @@
       } else if (text.trim()) {
         void (async () => {
           const handled = await applyOmniboxAction(classifyOmnibox(text), applyJql)
-          if (!handled) await filters.runServerSearch()
+          if (!handled) applyServerSearchOutcome(await filters.runServerSearch())
         })()
       }
     } else if (e.key === 'Escape') {
@@ -210,7 +211,8 @@
 
   // `/` is not bound here. It belongs to whatever narrowing field the screen has
   // — this box on the list, the filter on a document screen — so the binding
-  // lives in App.svelte's one global handler and finds this input by its testid.
+  // lives in the shell's one window handler (lib/keymap.svelte.ts) and finds
+  // this input by its testid.
 </script>
 
 <div class="flex items-center gap-2">

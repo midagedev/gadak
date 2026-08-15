@@ -9,6 +9,7 @@
   import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
   import { untrack } from 'svelte'
+  import { applyServerSearchOutcome } from '../../lib/server-search'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
@@ -207,7 +208,7 @@
           title={t('list.searchFailed')}
           hint={filters.searchError}
           actionLabel={t('list.searchRetry')}
-          onAction={() => void filters.runServerSearch()}
+          onAction={() => void filters.runServerSearch().then(applyServerSearchOutcome)}
         />
       {:else if filters.serverMatchQuery && extra.length}
         <EmptyState

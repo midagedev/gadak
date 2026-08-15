@@ -22,6 +22,7 @@
   import { pages } from '../../stores/pages.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
+  import { applyServerSearchOutcome } from '../../lib/server-search'
   import { filters } from '../../stores/filters.svelte'
   import { me } from '../../stores/me.svelte'
   import EmptyState from '../list/EmptyState.svelte'
@@ -125,7 +126,7 @@
       me.closeFeed()
       pages.closeDocs()
       filters.setQuery(entry.query)
-      void filters.runServerSearch()
+      void filters.runServerSearch().then(applyServerSearchOutcome)
       return
     }
     if (entry.kind === 'page') pages.select(entry.key)

@@ -16,7 +16,7 @@ import { router, setParams } from '../lib/router.svelte'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 import { extractChosung, isChosungQuery } from '../lib/korean'
-import type { IssueLite, Member, SearchMatch } from '../lib/types'
+import type { IssueLite, Member, PageLite, SearchMatch } from '../lib/types'
 import {
   configToParams,
   defaultColumns,
@@ -49,8 +49,12 @@ import {
   fieldLabel,
   t,
 } from '../lib/i18n'
-import { write } from './write.svelte'
-import { pages } from './pages.svelte'
+
+/** Outcome of `runServerSearch`. The engine does not toast or write `pages`. */
+export type ServerSearchOutcome =
+  | { status: 'empty' }
+  | { status: 'ok'; pages: PageLite[] }
+  | { status: 'error' }
 
 /* ── Derived group types ── */
 
@@ -438,9 +442,9 @@ class FiltersStore {
 
   /* ── Server full-text search ── */
 
-  async runServerSearch(): Promise<void> {
+  async runServerSearch(): Promise<ServerSearchOutcome> {
     const q = this.#config.filters.q.trim()
-    if (!q) return
+    if (!q) return { status: 'empty' }
     this.searching = true
     this.serverMatchQuery = q
     try {
@@ -449,19 +453,16 @@ class FiltersStore {
       // Why each hit matched — issues and pages share one map, so it stays here
       // rather than being split across two stores.
       this.serverMatches = res.matches ?? {}
-      // Page hits ride the same response; the docs store owns them (older
-      // servers omit the field entirely → no docs group).
-      pages.setSearchHits(res.pages ?? [])
       this.searchError = null
       const resultKeys = [...(res.keys ?? []), ...(res.pages ?? []).map((p) => p.key)]
       me.recordSearch(q, res.total ?? resultKeys.length, resultKeys)
+      return { status: 'ok', pages: res.pages ?? [] }
     } catch (e) {
       console.warn('[filters] 서버 검색 실패', e)
       this.serverMatchKeys = []
       this.serverMatches = {}
-      pages.clearSearchHits()
       this.searchError = q
-      write.toast(t('list.searchFailed'), 'error')
+      return { status: 'error' }
     } finally {
       this.searching = false
     }
@@ -470,7 +471,6 @@ class FiltersStore {
   clearServerSearch(): void {
     if (this.serverMatchKeys.length) this.serverMatchKeys = []
     this.serverMatches = {}
-    pages.clearSearchHits()
     this.serverMatchQuery = ''
     this.searchError = null
     me.clearSearchLink()

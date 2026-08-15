@@ -31,6 +31,7 @@
   } from '../../lib/unified-search'
   import { builtinViews } from '../../lib/builtin-views'
   import { showIssueList } from '../../lib/show-issue-list'
+  import { applyServerSearchOutcome } from '../../lib/server-search'
   import { emptyFilters, type ViewConfig } from '../../lib/view-config'
   import {
     filterIssues,
@@ -481,7 +482,7 @@
           const c = filters.currentConfig()
           c.filters.q = raw
           showIssueList(c)
-          void filters.runServerSearch()
+          void filters.runServerSearch().then(applyServerSearchOutcome)
         },
       })
     }

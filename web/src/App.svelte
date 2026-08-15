@@ -18,6 +18,8 @@
   import { triage } from './stores/triage.svelte'
   import { router } from './lib/router.svelte'
   import { bindParam, bindParams } from './lib/url-sync.svelte'
+  import { createGlobalKeyHandler } from './lib/keymap.svelte'
+  import { applyStartupView, readLastViewKey } from './lib/startup-view'
   import { feature, isHostedDemo } from './lib/config'
   import { takeUIFocus } from './lib/api'
   import { showIssueList } from './lib/show-issue-list'
@@ -27,12 +29,7 @@
 
   /** Where the demo banner sends people who want the real thing. */
   const REPO_URL = 'https://github.com/midagedev/gadak'
-  import {
-    emptyConfig,
-    parseConfig,
-    VIEW_PARAM_KEYS,
-    type ViewConfig,
-  } from './lib/view-config'
+  import { parseConfig, VIEW_PARAM_KEYS } from './lib/view-config'
   import { builtinViews } from './lib/builtin-views'
   import { STORAGE_KEYS } from './lib/storage'
   import Sidebar from './components/shell/Sidebar.svelte'
@@ -234,183 +231,59 @@
   })
 
   // ── Global shortcuts ──
-  //  ⌘K/Ctrl+K = command palette (even while a field is focused).
-  //  List triage: j/k cursor, ↵ open, x select, s status, a assignee, l labels,
-  //    c comment, Esc drops the selection before it closes anything.
-  //  Detail open: s status / a assignee / l labels / c comment / x close.
-  //  c with neither a cursor nor an open detail = new issue.
-  //  One handler on purpose: the list used to run its own window listener, and
-  //  two listeners racing is how Esc closed the detail *and* the selection.
-  //  Keep ShortcutsDialog in sync — document only keys that have handlers.
-  function onGlobalKey(e: KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-      e.preventDefault()
-      paletteOpen = !paletteOpen
-      return
-    }
-    if (e.metaKey || e.ctrlKey || e.altKey) return
-    const el = e.target as HTMLElement | null
-    if (el) {
-      const tag = el.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) return
-    }
-    // Other modal layers own their keys; cheat sheet can still toggle with ?.
-    if (
-      write.settingsOpen ||
-      write.newIssueOpen ||
-      serverSettingsOpen ||
-      paletteOpen ||
-      triage.commentKey
-    )
-      return
-    if (shortcutsOpen) {
-      if (e.key === '?') {
-        e.preventDefault()
-        shortcutsOpen = false
-      }
-      return
-    }
-
-    const key = e.key
-    const detailOpenNow = selection.selectedKey !== null
-    const cursorKey = triage.listActive ? triage.cursorKey : null
-
-    if (key === '?') {
-      e.preventDefault()
-      shortcutsOpen = true
-      return
-    }
-
-    // ── / : narrow whatever is in the main column ──
-    //  One key, one meaning: go to the field that narrows this screen. Which
-    //  field that is belongs to the screen, so this asks the main column rather
-    //  than letting each list bind its own listener (the list used to, which is
-    //  why `/` did nothing on a document screen).
-    if (key === '/') {
-      const testid = pages.historyView
-        ? 'history-filter-input'
-        : pages.open
-          ? 'docs-filter-input'
-          : 'search-input'
-      // The feed has nothing to narrow — no field, no key.
-      const field = me.feedOpen && feature('feed')
-        ? null
-        : document.querySelector<HTMLInputElement>(`[data-testid="${testid}"]`)
-      if (field) {
-        e.preventDefault()
-        field.focus()
-      }
-      return
-    }
-
-    // ── List cursor ──
-    if (triage.listActive && (key === 'j' || key === 'k')) {
-      e.preventDefault()
-      triage.move(key === 'j' ? 1 : -1)
-      return
-    }
-    if (key === 'Enter' && cursorKey) {
-      e.preventDefault()
-      selection.select(cursorKey)
-      return
-    }
-
-    // ── Esc: give back the selection first, then close panels ──
-    if (key === 'Escape') {
-      // Browsing: Esc is the way back to Gadak, same as the toolbar button. Only
-      // reachable while the SPA has focus — with the page focused the key goes
-      // to the native view and never arrives here.
-      if (browse.paneOpen) {
-        e.preventDefault()
-        browse.hidePane()
-        return
-      }
-      // An open popover is BulkBar's to close (it also hears Esc from inside its
-      // own search box, which this handler never sees).
-      if (triage.menu) return
-      if (bulk.active) {
-        e.preventDefault()
-        bulk.clear()
-        return
-      }
-      if (detailOpenNow) {
-        e.preventDefault()
-        selection.clear()
-      }
-      return
-    }
-
-    // ── x: pick the cursor row for a batch; falls back to closing panels ──
-    if (key === 'x') {
-      // A document keeps x first: it is the panel on screen, and s/a/l/c have no
-      // meaning on a read-only page, so x is the only key that closes it. A
-      // person reads the same way — nothing on that panel is triageable.
-      if (pages.selectedKey) {
-        e.preventDefault()
-        pages.clear()
-        return
-      }
-      if (person.selectedEmail) {
-        e.preventDefault()
-        person.clear()
-        return
-      }
-      if (cursorKey) {
-        e.preventDefault()
-        bulk.toggle(cursorKey)
-        return
-      }
-      if (detailOpenNow) {
-        e.preventDefault()
-        selection.clear()
-      }
-      return
-    }
-
-    // ── s / a / l: the selection wins, then the open detail, then the cursor row ──
-    if (key === 's' || key === 'a' || key === 'l') {
-      const menu = key === 's' ? 'status' : key === 'a' ? 'assignee' : 'labels'
-      if (bulk.active || (!detailOpenNow && cursorKey)) {
-        e.preventDefault()
-        triage.requestMenu(menu)
-        return
-      }
-      if (detailOpenNow) {
-        e.preventDefault()
-        if (key === 'l') {
-          const field = document.querySelector<HTMLInputElement>('[data-testid="label-editor-input"]')
-          if (field) field.focus()
-          else document.querySelector<HTMLButtonElement>('[data-testid="label-editor-add"]')?.click()
-          return
-        }
-        const testid = key === 's' ? 'status-transition' : 'assignee-picker'
-        document.querySelector<HTMLButtonElement>(`[data-testid="${testid}"]`)?.click()
-      }
-      return
-    }
-
-    if (key === 'c') {
-      e.preventDefault()
-      if (detailOpenNow) {
-        document.querySelector<HTMLTextAreaElement>('[data-testid="comment-composer"]')?.focus()
-      } else if (cursorKey) {
-        triage.openComment(cursorKey)
-      } else {
-        write.openNewIssue()
-      }
-    }
-  }
+  //  One <svelte:window> listener on purpose: the list used to run its own,
+  //  and two listeners racing is how Esc closed the detail *and* the selection.
+  //  Resolution lives in lib/keymap.svelte.ts.
+  const onGlobalKey = createGlobalKeyHandler({
+    get paletteOpen() {
+      return paletteOpen
+    },
+    set paletteOpen(v) {
+      paletteOpen = v
+    },
+    get shortcutsOpen() {
+      return shortcutsOpen
+    },
+    set shortcutsOpen(v) {
+      shortcutsOpen = v
+    },
+    get serverSettingsOpen() {
+      return serverSettingsOpen
+    },
+    write,
+    triage,
+    selection,
+    pages,
+    person,
+    bulk,
+    browse,
+    me,
+    feature,
+  })
 
   // ── Smart default: once. Never override URL view params. ──
   //  Priority: URL > last-used view (localStorage) > own group preset.
-  //  Hosted demo only: Reopened instead of all-open (see applyStartupView).
+  //  Hosted demo only: Epic breakdown instead of all-open (see applyStartupView).
   //  Wait until members + auth check finish so group matching can work.
   let startupDone = false
   $effect(() => {
     if (startupDone) return
     if (!issues.ready || !me.authChecked) return
     startupDone = true
-    applyStartupView()
+    applyStartupView(
+      {
+        urlHasViewParam: VIEW_PARAM_KEYS.some((k) => router.params.get(k)),
+        // Dual-gate so gadak serve / the desktop app keep the existing default
+        // even if config.json is wrong: VITE_HOSTED_DEMO is compile-time;
+        // isHostedDemo() is the runtime config.json flag.
+        hostedDemo: import.meta.env.VITE_HOSTED_DEMO === '1' && isHostedDemo(),
+        epicBreakdown: builtinViews().find((v) => v.id === 'epic-breakdown')?.config,
+        lastViewKey: readLastViewKey(LAST_VIEW_KEY),
+        teamGroupEnabled: feature('teamGroups'),
+        group: me.group,
+      },
+      (c) => filters.applyConfig(c),
+    )
   })
 
   // ── Persist last-used view (after smart default, on every view change) ──
@@ -424,52 +297,11 @@
     }
   })
 
-  function applyStartupView() {
-    // Respect URL view params (shared link / refresh).
-    if (VIEW_PARAM_KEYS.some((k) => router.params.get(k))) return
-
-    // Hosted demo: land on the built-in Epic breakdown — open work grouped
-    // by epic, the README's "which epic is stuck?" question. Chosen over
-    // Reopened deliberately: grouping is universal, while a reopen workflow
-    // is team-specific and reads as someone else's process. Same applyConfig
-    // path as the sidebar. Dual-gate so gadak serve / the desktop app keep
-    // the existing default even if config.json is wrong: VITE_HOSTED_DEMO is
-    // compile-time (regular bundles never set it); isHostedDemo() is the
-    // runtime config.json flag.
-    if (import.meta.env.VITE_HOSTED_DEMO === '1' && isHostedDemo()) {
-      const epicBreakdown = builtinViews().find((v) => v.id === 'epic-breakdown')
-      if (epicBreakdown) {
-        filters.applyConfig(epicBreakdown.config)
-        return
-      }
-    }
-
-    // 1) Restore last-used view
-    let last: string | null = null
-    try {
-      last = localStorage.getItem(LAST_VIEW_KEY)
-    } catch {
-      last = null
-    }
-    if (last) {
-      filters.applyConfig(parseConfig(new URLSearchParams(last)))
-      return
-    }
-
-    // 2) Group preset when taxonomy is on and identity has a group
-    if (feature('teamGroups') && me.group) {
-      const c: ViewConfig = emptyConfig()
-      c.filters.team_group = [me.group]
-      c.filters.status_category = ['new', 'inprogress']
-      filters.applyConfig(c)
-      return
-    }
-
-    // No identity / no group → all open issues
-    const c: ViewConfig = emptyConfig()
-    c.filters.status_category = ['new', 'inprogress']
-    filters.applyConfig(c)
-  }
+  // Engine-internal clears (applyConfig / clearAll / emptied q) drop page hits
+  // without the filter engine importing the pages store.
+  $effect(() => {
+    if (!filters.serverMatchQuery) untrack(() => pages.clearSearchHits())
+  })
 
   /*
    * ── State ↔ URL ──
