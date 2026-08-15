@@ -3,6 +3,8 @@ package confluence
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -338,5 +340,20 @@ func TestRawRejectsAbsoluteURL(t *testing.T) {
 		if strings.Contains(err.Error(), "secret-token") {
 			t.Errorf("token leaked in %v", err)
 		}
+	}
+}
+
+// TestErrAuthUnwrapsForErrorsIs pins the settings.go idiom
+// (errors.Is(err, confluence.ErrAuth)) after ErrAuth became a typed sentinel.
+func TestErrAuthUnwrapsForErrorsIs(t *testing.T) {
+	wrapped := fmt.Errorf("GET /rest/api/space: %w (401 Unauthorized)", ErrAuth)
+	if !errors.Is(wrapped, ErrAuth) {
+		t.Fatalf("errors.Is(%v, ErrAuth) = false", wrapped)
+	}
+	if wrapped.Error() == ErrAuth.Error() {
+		t.Fatal("wrapped error must keep method/path so last_error names the call")
+	}
+	if !strings.Contains(ErrAuth.Error(), "confluence:") {
+		t.Fatalf("ErrAuth = %q, want the confluence: prefix so last_error distinguishes the source", ErrAuth)
 	}
 }

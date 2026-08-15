@@ -7,8 +7,128 @@ import (
 
 	"github.com/midagedev/gadak/internal/atlhttp"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 )
+
+// rejectedCredential is the sentinel a source client's auth error implements
+// so Watch can stop retrying that source without a per-source branch.
+// A third source inherits this rule by putting RejectedCredential() on its
+// ErrAuth — it does not add a case here. jira.ErrAuth predates the method
+// (internal/jira is outside this round) and is recognized by errors.Is.
+type rejectedCredential interface {
+	RejectedCredential()
+}
+
+// isRejectedCredential reports whether err is a dead credential from any
+// source. Transport errors (500, timeout, DNS) must stay false.
+//
+// Owner of the detection rule: any error implementing rejectedCredential,
+// plus the jira.ErrAuth adapter (plain errors.New; internal/jira is outside
+// this round). A third source does not add a branch here.
+func isRejectedCredential(err error) bool {
+	if err == nil {
+		return false
+	}
+	var rc rejectedCredential
+	if errors.As(err, &rc) {
+		return true
+	}
+	return errors.Is(err, jira.ErrAuth)
+}
+
+// watchSource is one connector in the Watch cycle. Adding a third source
+// means appending a row; applyWatchErr owns the auth rule for every row.
+type watchSource struct {
+	id      string
+	phase   string
+	failLog string // existing log format: "sync failed: %v" / "confluence sync failed: %v"
+	enabled func(*config.Config) bool
+	run     func(context.Context, *config.Config, *store.DB, Options) (Result, error)
+	// fatal: a rejected credential ends Watch. Jira is fatal (the product
+	// cannot mirror issues without it). Confluence is not: Jira must keep
+	// ticking when only the wiki side is rejected.
+	fatal  bool
+	notify bool // fire notifyAfterSync after a successful pass (Jira)
+}
+
+func defaultWatchSources() []watchSource {
+	return []watchSource{
+		{
+			id:      SourceID,
+			phase:   PhaseIssues,
+			failLog: "sync failed: %v",
+			enabled: func(*config.Config) bool { return true },
+			run:     Run,
+			fatal:   true,
+			notify:  true,
+		},
+		{
+			id:      ConfluenceSourceID,
+			phase:   PhaseDocuments,
+			failLog: "confluence sync failed: %v",
+			enabled: func(c *config.Config) bool { return c != nil && c.Confluence != nil },
+			run:     RunConfluence,
+			fatal:   false,
+			notify:  false,
+		},
+	}
+}
+
+// applyWatchErr is the single owner of Watch's "rejected credential stops
+// retrying this source" rule. Every source in defaultWatchSources goes
+// through here. A third source is covered by construction.
+//
+// Transport errors are logged and the cycle continues. A rejected credential
+// is re-recorded on last_error (status / doctor / sync_health read that
+// column) and either ends Watch (src.fatal) or marks the source dead so
+// later ticks skip it (non-fatal).
+func applyWatchErr(ctx context.Context, db *store.DB, src watchSource, err error, logf func(string, ...any), dead map[string]bool) error {
+	if err == nil {
+		return nil
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if logf != nil {
+		logf(src.failLog, err)
+	}
+	if !isRejectedCredential(err) {
+		return nil
+	}
+	if db != nil {
+		_ = db.RecordSync(ctx, src.id, store.SyncResult{Err: err})
+	}
+	if src.fatal {
+		return err
+	}
+	if dead != nil {
+		dead[src.id] = true
+	}
+	return nil
+}
+
+// sourceLastErrors is the one-call answer to "why did watch stop, and which
+// credential was it?". It reads last_error for every Watch source. Same
+// columns `gadak doctor` classifies as sync.<id>.last_error and
+// `gadak sql --json "select source_id, last_error from sync_state where last_error is not null"`
+// prints.
+func sourceLastErrors(ctx context.Context, db *store.DB) (map[string]string, error) {
+	out := map[string]string{}
+	if db == nil {
+		return out, nil
+	}
+	for _, src := range defaultWatchSources() {
+		st, err := db.SyncState(ctx, src.id)
+		if err != nil {
+			return nil, err
+		}
+		if st.LastError != nil && *st.LastError != "" {
+			out[src.id] = *st.LastError
+		}
+	}
+	return out, nil
+}
 
 // sourceIdent names a connector in sources / sync_state / sync_runs.
 type sourceIdent struct {

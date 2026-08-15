@@ -7,7 +7,6 @@ package sync
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -373,10 +372,15 @@ func approxCount(ctx context.Context, c *jira.Client, jql string) (int, bool) {
 
 // Watch runs incremental sync on an interval and reconcile on a longer one. A
 // transport failure is logged and retried on the next tick; a rejected
-// credential (jira.ErrAuth) records last_error, logs once, and ends the loop,
-// because every further request would only burn rate budget. `gadak status`
-// and sync_health read that last_error. A later one-shot Run with a new token
-// still clears it. After each successful cycle, new personal-feed events may
+// credential (isRejectedCredential — jira.ErrAuth or any error implementing
+// RejectedCredential, including confluence.ErrAuth) records last_error, logs
+// once, and stops retrying that source, because every further request would
+// only burn rate budget. Jira is fatal (the loop ends). Confluence is not:
+// Jira mirroring keeps going when only the wiki side is rejected. `gadak
+// doctor` (sync.<id>.last_error) and sync_health read that last_error.
+// `gadak status --json` last_error is the Jira row only. A later one-shot
+// Run / RunConfluence with a new token still clears it. After each successful
+// Jira cycle, new personal-feed events may
 // produce one OS desktop notification (see notifyAfterSync); notification
 // failures never stop the loop.
 //
@@ -397,6 +401,9 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 
 	o := opts
 	defer o.phasef(PhaseIdle)
+	dead := map[string]bool{}
+	sources := defaultWatchSources()
+	cred := watchCredential(cfg)
 	for {
 		if opts.Reload != nil {
 			next, err := opts.Reload()
@@ -404,6 +411,13 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 				opts.logf("sync loop: reload config: %v", err)
 			} else if next != nil {
 				cfg = next
+				if nextCred := watchCredential(cfg); nextCred != cred {
+					// Skip is per-credential: a settings token rotation must
+					// retry a previously-rejected source. Same credential
+					// keeps the skip so we do not 401 every tick.
+					dead = map[string]bool{}
+					cred = nextCred
+				}
 				newEvery := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
 				newReconcile := time.Duration(cfg.EffectiveReconcileIntervalSec()) * time.Second
 				if newEvery != every {
@@ -420,32 +434,20 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 				}
 			}
 		}
-		o.phasef(PhaseIssues)
-		if _, err := Run(ctx, cfg, db, o); err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
+		for _, src := range sources {
+			if !src.enabled(cfg) || dead[src.id] {
+				continue
 			}
-			if errors.Is(err, jira.ErrAuth) {
-				// last_error is how `gadak status` and sync_health surface this
-				// (sourceHealth copies the column). Re-record so a future Run
-				// path that forgets record() cannot leave the loop silent.
-				_ = db.RecordSync(ctx, SourceID, store.SyncResult{Err: err})
-				opts.logf("sync failed: %v", err)
-				return err
-			}
-			opts.logf("sync failed: %v", err)
-		} else if err := notifyAfterSync(db, cfg, o.Notifier); err != nil {
-			// Desktop notify is best-effort: never abort the watch loop.
-			opts.logf("notify: %v", err)
-		}
-		// Confluence is best-effort: a failure must not block Jira's next tick.
-		if cfg.Confluence != nil {
-			o.phasef(PhaseDocuments)
-			if _, err := RunConfluence(ctx, cfg, db, o); err != nil {
-				if ctx.Err() != nil {
-					return ctx.Err()
+			o.phasef(src.phase)
+			_, runErr := src.run(ctx, cfg, db, o)
+			if runErr == nil && src.notify {
+				if nerr := notifyAfterSync(db, cfg, o.Notifier); nerr != nil {
+					// Desktop notify is best-effort: never abort the watch loop.
+					opts.logf("notify: %v", nerr)
 				}
-				opts.logf("confluence sync failed: %v", err)
+			}
+			if err := applyWatchErr(ctx, db, src, runErr, opts.logf, dead); err != nil {
+				return err
 			}
 		}
 		o.Full, o.Reconcile = false, false
@@ -458,6 +460,16 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 			o.Reconcile = true
 		}
 	}
+}
+
+// watchCredential is the identity the Watch skip map is keyed on. Site,
+// email, or token changing is a new credential; a previously-rejected
+// source must be retried (TestWatchConfluenceResumesAfterCredentialReload).
+func watchCredential(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Site + "\x00" + cfg.Email + "\x00" + cfg.Token
 }
 
 // syncScope is the part of the config that decides what gets mirrored. Watch

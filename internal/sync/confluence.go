@@ -100,6 +100,11 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			}
 			s, err := c.Space(ctx, key)
 			if err != nil {
+				// A bad/restricted key is skippable; a rejected credential is
+				// not — continuing would 401 again on SearchPages.
+				if isRejectedCredential(err) {
+					return record(ctx, db, ConfluenceSourceID, err)
+				}
 				opts.logf("confluence: space %s: %v", key, err)
 				continue
 			}

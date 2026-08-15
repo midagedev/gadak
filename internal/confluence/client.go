@@ -48,9 +48,21 @@ const apiPath = "/rest/api"
 // site; callers skip that page instead of aborting the run.
 var ErrNotFound = errors.New("confluence: content not found")
 
+// authError is the 401/403 sentinel. Watch detects it via errors.As on
+// rejectedCredential (and callers via errors.Is(err, ErrAuth)). A third
+// source inherits the same stop-retrying rule by putting RejectedCredential
+// on its own ErrAuth — Watch does not grow a new branch.
+type authError struct{}
+
+func (authError) Error() string { return "confluence: credential rejected" }
+
+// RejectedCredential marks a dead credential: retrying only burns requests
+// against the user's site. sync.isRejectedCredential keys on this method.
+func (authError) RejectedCredential() {}
+
 // ErrAuth aborts a run immediately: retrying a bad credential just burns the
 // rate budget.
-var ErrAuth = errors.New("confluence: credential rejected")
+var ErrAuth error = authError{}
 
 // Client talks to Confluence Cloud under <site>/wiki.
 type Client struct {
