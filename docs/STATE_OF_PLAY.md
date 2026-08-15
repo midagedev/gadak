@@ -4,15 +4,17 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-15 — the v0.14 wave: the MCP surface rebuilt around
-`query` with error echoes, the three pipe contracts written down (`issues_full`
-+ RECIPES, `gadak sql` stdout, `views open --keys -`), `sql --no-header`,
-personal-row export/import, brew renamed so `gadak` is the app cask and
-`gadak-cli` the CLI formula, and the first live benchmark against a real site
-(`docs/BENCHMARKS.md`). Since the tag, on `main`: CLI writes grew `create`,
-`attach`, `edit` and batch creation, MCP tool calls stopped scanning the whole
-mirror, and the hosted demo dropped its service worker so in-app browsers can
-open it. Last tagged: v0.14.0.
+Last updated: 2026-08-15 — v0.14.1, the dogfooding-day release: CLI writes
+grew `create`, `attach`, `edit` and batch creation; the hosted demo dropped
+its service worker for an in-page fetch adapter and gained a static first
+frame readable at phone width; the browse pane yields to dialogs and toasts;
+and the never-exercised in-app self-updater was removed — the macOS app is
+notify-only (banner + brew/dmg), and releases deliberately ship no
+`gadak-desktop-darwin-<arch>.zip`. The v0.14.0 base under it: the MCP surface
+rebuilt around `query` with error echoes, the three pipe contracts written
+down (`issues_full` + RECIPES, `gadak sql` stdout, `views open --keys -`),
+personal-row export/import, brew renamed so `gadak` is the app cask, and the
+first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.14.1.
 
 ## In one paragraph
 
