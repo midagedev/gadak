@@ -50,6 +50,11 @@ export interface KeyContext {
   bulkActive: boolean
   pageSelected: boolean
   personSelected: boolean
+  /**
+   * False until the list has absorbed the boot-time first view commit.
+   * j/k/x in that window are held, not applied to the unfiltered pool.
+   */
+  keysReady: boolean
 }
 
 export type KeyCommand =
@@ -72,6 +77,7 @@ export type KeyCommand =
   | { type: 'focus-comment' }
   | { type: 'open-comment-cursor' }
   | { type: 'new-issue' }
+  | { type: 'hold-boot-key'; key: string }
 
 export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
   return {
@@ -97,7 +103,29 @@ export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
     bulkActive: false,
     pageSelected: false,
     personSelected: false,
+    keysReady: true,
     ...over,
+  }
+}
+
+/** List keys that must not land on the unfiltered boot pool. */
+export function isBootHoldKey(key: string): boolean {
+  return key === 'j' || key === 'k' || key === 'x'
+}
+
+/**
+ * Replay keys held during boot against the committed list.
+ * Same verbs the live handler uses (move / toggle-bulk), so j then x
+ * is "cursor on the first committed row, then select it".
+ */
+export function replayHeldListKeys(
+  keys: readonly string[],
+  act: { move: (dir: 1 | -1) => void; toggleCursor: () => void },
+): void {
+  for (const key of keys) {
+    if (key === 'j') act.move(1)
+    else if (key === 'k') act.move(-1)
+    else if (key === 'x') act.toggleCursor()
   }
 }
 
@@ -156,6 +184,10 @@ export function resolveGlobalKey(ctx: KeyContext): KeyCommand {
     }
   }
 
+  if (ctx.listActive && !ctx.keysReady && isBootHoldKey(key)) {
+    return { type: 'hold-boot-key', key }
+  }
+
   if (ctx.listActive && (key === 'j' || key === 'k')) {
     return { type: 'move-list', dir: key === 'j' ? 1 : -1 }
   }
@@ -212,8 +244,10 @@ export interface GlobalKeyHost {
     commentKey: string | null
     listActive: boolean
     cursorKey: string | null
+    keysReady: boolean
     menu: string | null
     move: (dir: 1 | -1) => void
+    holdBootKey: (key: string) => void
     requestMenu: (menu: TriageMenuKey) => unknown
     openComment: (key: string) => void
   }
@@ -244,6 +278,7 @@ function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
     docsOpen: host.pages.open,
     listActive: host.triage.listActive,
     cursorKey: host.triage.cursorKey,
+    keysReady: host.triage.keysReady,
     detailOpen: host.selection.selectedKey !== null,
     browsePaneOpen: host.browse.paneOpen,
     triageMenuOpen: Boolean(host.triage.menu),
@@ -348,11 +383,25 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     case 'new-issue':
       e.preventDefault()
       host.write.openNewIssue()
+      return
+    case 'hold-boot-key':
+      e.preventDefault()
+      host.triage.holdBootKey(cmd.key)
+      return
   }
+}
+
+function exposeLastKeyCmd(type: KeyCommand['type']): void {
+  if (typeof document === 'undefined') return
+  document.documentElement.dataset.lastKeyCmd = type
 }
 
 export function createGlobalKeyHandler(host: GlobalKeyHost): (e: KeyboardEvent) => void {
   return function onGlobalKey(e: KeyboardEvent) {
-    dispatchKeyCommand(e, resolveGlobalKey(contextFromEvent(e, host)), host)
+    const cmd = resolveGlobalKey(contextFromEvent(e, host))
+    // One-step: "what did that keystroke do?" — hold-boot-key means it
+    // arrived before keysReady. Same dataset surface as cacheScope / uiFocusPoll.
+    exposeLastKeyCmd(cmd.type)
+    dispatchKeyCommand(e, cmd, host)
   }
 }

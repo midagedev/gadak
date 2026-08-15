@@ -2,8 +2,10 @@ import { describe, expect, test } from 'vitest'
 import {
   DETAIL_TESTID,
   NARROW_FIELD_TESTID,
+  isBootHoldKey,
   keyContext,
   narrowFieldTestId,
+  replayHeldListKeys,
   resolveGlobalKey,
 } from './keymap.svelte'
 
@@ -194,5 +196,94 @@ describe('resolveGlobalKey', () => {
       resolveGlobalKey(keyContext({ key: 'c', listActive: true, cursorKey: 'NMB-1' })),
     ).toEqual({ type: 'open-comment-cursor' })
     expect(resolveGlobalKey(keyContext({ key: 'c' }))).toEqual({ type: 'new-issue' })
+  })
+
+  /*
+   * GDK-46 unit: keys before the startup commit do not vanish
+   *   happy:    j/k/x before keysReady are held when the list is mounted
+   *   boundary: j before keysReady is ignored when the list is not mounted
+   */
+  test('j/k/x before keysReady are held when the list is mounted', () => {
+    expect(
+      resolveGlobalKey(keyContext({ key: 'j', listActive: true, keysReady: false })),
+    ).toEqual({ type: 'hold-boot-key', key: 'j' })
+    expect(
+      resolveGlobalKey(keyContext({ key: 'k', listActive: true, keysReady: false })),
+    ).toEqual({ type: 'hold-boot-key', key: 'k' })
+    expect(
+      resolveGlobalKey(keyContext({ key: 'x', listActive: true, keysReady: false })),
+    ).toEqual({ type: 'hold-boot-key', key: 'x' })
+  })
+
+  test('j before keysReady is ignored when the list is not mounted', () => {
+    expect(resolveGlobalKey(keyContext({ key: 'j', keysReady: false }))).toEqual({
+      type: 'ignore',
+    })
+  })
+
+  test('?/ and ⌘K still work before keysReady', () => {
+    expect(resolveGlobalKey(keyContext({ key: '?', keysReady: false, listActive: true }))).toEqual({
+      type: 'open-shortcuts',
+    })
+    expect(resolveGlobalKey(keyContext({ key: '/', keysReady: false, listActive: true }))).toEqual({
+      type: 'focus-narrow',
+      testid: 'search-input',
+    })
+    expect(
+      resolveGlobalKey(keyContext({ key: 'k', metaKey: true, keysReady: false, listActive: true })),
+    ).toEqual({ type: 'toggle-palette' })
+  })
+
+  test('j after keysReady still moves', () => {
+    expect(resolveGlobalKey(keyContext({ key: 'j', listActive: true, keysReady: true }))).toEqual({
+      type: 'move-list',
+      dir: 1,
+    })
+  })
+})
+
+describe('boot-held list keys', () => {
+  test('isBootHoldKey is only j/k/x', () => {
+    expect(isBootHoldKey('j')).toBe(true)
+    expect(isBootHoldKey('k')).toBe(true)
+    expect(isBootHoldKey('x')).toBe(true)
+    expect(isBootHoldKey('s')).toBe(false)
+    expect(isBootHoldKey('c')).toBe(false)
+  })
+
+  test('replay j then x is move then toggle', () => {
+    const calls: string[] = []
+    replayHeldListKeys(['j', 'x'], {
+      move: (dir) => calls.push(`move:${dir}`),
+      toggleCursor: () => calls.push('toggle'),
+    })
+    expect(calls).toEqual(['move:1', 'toggle'])
+  })
+
+  test('replay x alone is only toggle (no invented cursor move)', () => {
+    const calls: string[] = []
+    replayHeldListKeys(['x'], {
+      move: (dir) => calls.push(`move:${dir}`),
+      toggleCursor: () => calls.push('toggle'),
+    })
+    expect(calls).toEqual(['toggle'])
+  })
+
+  test('replay k then unknown keys only moves up', () => {
+    const calls: string[] = []
+    replayHeldListKeys(['k', 's', ''], {
+      move: (dir) => calls.push(`move:${dir}`),
+      toggleCursor: () => calls.push('toggle'),
+    })
+    expect(calls).toEqual(['move:-1'])
+  })
+
+  test('empty hold list is a no-op', () => {
+    const calls: string[] = []
+    replayHeldListKeys([], {
+      move: (dir) => calls.push(`move:${dir}`),
+      toggleCursor: () => calls.push('toggle'),
+    })
+    expect(calls).toEqual([])
   })
 })

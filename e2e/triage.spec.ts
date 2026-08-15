@@ -1,5 +1,11 @@
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, gotoApp } from './helpers'
+import {
+  attachConsoleErrors,
+  forceLocale,
+  gotoApp,
+  gotoAppBeforeStartup,
+  holdAuthMe,
+} from './helpers'
 
 /**
  * Keyboard triage (v0.7): clearing a sprint without the mouse. The suite runs
@@ -211,5 +217,147 @@ test.describe('keyboard triage', () => {
     ]) {
       await expect(sheet.getByText(label, { exact: true })).toBeVisible()
     }
+  })
+})
+
+/*
+ * GDK-46 — keystrokes during boot vs the startup view commit.
+ *
+ * Clause → test
+ *  keys before the startup commit do not vanish
+ *    happy:    j/x before commit still have a cursor and a selection after it
+ *    boundary: x alone (no j) before commit does not invent a selection
+ *  the startup commit still applies its filter
+ *    happy:    after commit the URL has sc= and list-count is no longer the pool
+ *    boundary: a URL that already has view params is kept (not overwritten)
+ *  a user-initiated view change still resets the cursor
+ *    happy:    after ready, j then remove a chip → no cursor
+ *    boundary: after ready, no cursor, remove a chip → still no cursor
+ *  a cursor on a row the startup filter removes is never placed
+ *    happy:    after j+commit the cursor row is still in the filtered list
+ *    boundary: x-only (above) — no cursor is fabricated onto a filtered-out row
+ *  selection (x) survives the same window
+ *    happy:    covered by j/x before commit
+ *    boundary: j, x, x before commit → selection empty after commit (toggle)
+ *
+ * Delay: 1500ms. 80ms reproduced 4/8; 200ms missed when the sequence
+ * finished after the commit. 1500ms is longer than fixture bootstrap+paint,
+ * and continue() also waits for the test to release, so a slow machine
+ * cannot press after the commit. This is a test harness delay, not a
+ * product timeout.
+ */
+const AUTH_ME_DELAY_MS = 1500
+
+function releaseable(): { released: Promise<void>; release: () => void } {
+  let release: () => void = () => {}
+  const released = new Promise<void>((r) => {
+    release = r
+  })
+  return { released, release }
+}
+
+test.describe('keyboard triage during boot (GDK-46)', () => {
+  test.afterEach(async ({ page }, info) => {
+    if (info.status === info.expectedStatus) return
+    console.error(`[triage-boot] ${info.title} ${await triageState(page)}`)
+  })
+
+  test('j/x before the startup commit still have a cursor and a selection after it', async ({
+    page,
+  }) => {
+    const { released, release } = releaseable()
+    await holdAuthMe(page, { delayMs: AUTH_ME_DELAY_MS, released })
+    await gotoAppBeforeStartup(page)
+
+    // Inside the window: list is the unfiltered pool, hash has no sc= yet.
+    await expect(page).not.toHaveURL(/[#?&]sc=/)
+    await expect(page.getByTestId('list-count')).toHaveText('534 issues')
+
+    await page.keyboard.press('j')
+    await page.keyboard.press('x')
+    release()
+
+    await expect(page).toHaveURL(/[#?&]sc=/, { timeout: 30_000 })
+    await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
+
+    await expect(page.locator('html')).toHaveAttribute('data-keys-ready', 'true')
+
+    const key = await cursorKey(page)
+    expect(key, await triageState(page)).not.toEqual('')
+    await expect(page.getByTestId('bulk-bar')).toBeVisible()
+    await expect(page.getByTestId('bulk-bar').getByText('1 selected')).toBeVisible()
+    // Cursor landed on a row the committed filter still shows.
+    await expect(page.locator(`[data-issue-key="${key}"][data-cursor="true"]`)).toHaveCount(1)
+  })
+
+  test('x alone before commit does not invent a selection', async ({ page }) => {
+    const { released, release } = releaseable()
+    await holdAuthMe(page, { delayMs: AUTH_ME_DELAY_MS, released })
+    await gotoAppBeforeStartup(page)
+
+    await expect(page.locator('html')).toHaveAttribute('data-keys-ready', 'false')
+    await page.keyboard.press('x')
+    await expect(page.locator('html')).toHaveAttribute('data-last-key-cmd', 'hold-boot-key')
+    release()
+
+    await expect(page).toHaveURL(/[#?&]sc=/, { timeout: 30_000 })
+    await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
+    await expect(page.locator('html')).toHaveAttribute('data-keys-ready', 'true')
+    await expect(page.locator('[data-cursor="true"]')).toHaveCount(0)
+    await expect(page.getByTestId('bulk-bar')).toBeHidden()
+  })
+
+  test('j/x/x before commit leaves the selection empty (toggle)', async ({ page }) => {
+    const { released, release } = releaseable()
+    await holdAuthMe(page, { delayMs: AUTH_ME_DELAY_MS, released })
+    await gotoAppBeforeStartup(page)
+
+    await page.keyboard.press('j')
+    await page.keyboard.press('x')
+    await page.keyboard.press('x')
+    release()
+
+    await expect(page).toHaveURL(/[#?&]sc=/, { timeout: 30_000 })
+    const key = await cursorKey(page)
+    expect(key, await triageState(page)).not.toEqual('')
+    await expect(page.getByTestId('bulk-bar')).toBeHidden()
+  })
+
+  test('a URL that already has view params is kept through delayed auth', async ({ page }) => {
+    const { released, release } = releaseable()
+    await holdAuthMe(page, { delayMs: AUTH_ME_DELAY_MS, released })
+    await forceLocale(page, 'en')
+    await page.goto('/#/?sc=done')
+    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
+    await expect(page).toHaveURL(/sc=done/)
+
+    await page.keyboard.press('j')
+    await page.keyboard.press('x')
+    release()
+
+    await expect(page.locator('html')).toHaveAttribute('data-keys-ready', 'true', { timeout: 30_000 })
+    await expect(page).toHaveURL(/sc=done/)
+    await expect(page).not.toHaveURL(/sc=new/)
+    const key = await cursorKey(page)
+    expect(key, await triageState(page)).not.toEqual('')
+    await expect(page.getByTestId('bulk-bar').getByText('1 selected')).toBeVisible()
+  })
+
+  test('removing a filter chip after ready resets the cursor', async ({ page }) => {
+    await gotoApp(page)
+    await pressUntilCursor(page, 'j')
+    await expect(page.locator('[data-cursor="true"]')).toHaveCount(1)
+
+    await page.getByTestId('filter-chip').filter({ hasText: 'New' }).click()
+    await expect(page.locator('[data-cursor="true"]')).toHaveCount(0)
+  })
+
+  test('removing a filter chip with no cursor leaves none', async ({ page }) => {
+    await gotoApp(page)
+    await expect(page.locator('[data-cursor="true"]')).toHaveCount(0)
+
+    await page.getByTestId('filter-chip').filter({ hasText: 'New' }).click()
+    await expect(page.locator('[data-cursor="true"]')).toHaveCount(0)
   })
 })

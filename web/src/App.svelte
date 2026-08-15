@@ -263,6 +263,12 @@
     feature,
   })
 
+  // Inspectable next to cacheScope / uiFocusPoll: was the list ready for keys?
+  $effect(() => {
+    document.documentElement.dataset.keysReady = triage.keysReady ? 'true' : 'false'
+    document.documentElement.dataset.cursorKey = triage.cursorKey ?? ''
+  })
+
   // ── Smart default: once. Never override URL view params. ──
   //  Priority: URL > last-used view (localStorage) > own group preset.
   //  Hosted demo only: Epic breakdown instead of all-open (see applyStartupView).
@@ -284,6 +290,10 @@
       group: me.group,
     }
     applyStartupView(startupInput, (c) => filters.applyConfig(c))
+    // End of boot view writes. Future boot sources must run *before* this
+    // line — after it, the list becomes a keyboard target and a later hash
+    // write is a user view change (resets the cursor).
+    triage.noteStartupViewApplied()
     // lastViewKey apply writes the capped ks; recover given from the stored string.
     if (
       !startupInput.urlHasViewParam &&

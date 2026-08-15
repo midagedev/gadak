@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import { emptyConfig, parseConfig, type ViewConfig } from './view-config'
-import { applyStartupView, decideStartupView, type StartupViewInput } from './startup-view'
+import {
+  applyStartupView,
+  decideStartupView,
+  startupViewTick,
+  type StartupViewInput,
+} from './startup-view'
 
 function input(over: Partial<StartupViewInput> = {}): StartupViewInput {
   return {
@@ -126,5 +131,36 @@ describe('applyStartupView', () => {
     const expected = emptyConfig()
     expected.filters.status_category = ['new', 'inprogress']
     expect(applied).toEqual([expected])
+  })
+})
+
+/*
+ * GDK-46 unit — startupViewTick
+ *   keys before commit do not vanish:  first tick after apply is mark-ready
+ *   user view change still resets:     later tick with a new viewKey
+ *   same-view after ready is not a reset (boundary of the reset clause)
+ */
+describe('startupViewTick (GDK-46 readiness rule)', () => {
+  test('before the startup view is applied the list waits', () => {
+    expect(startupViewTick(false, false)).toBe('wait')
+    expect(startupViewTick(false, true, 'sc=done', '')).toBe('wait')
+  })
+
+  test('the first tick after apply marks ready instead of resetting', () => {
+    expect(startupViewTick(true, false, 'sc=new,inprogress', '')).toBe('mark-ready')
+    expect(startupViewTick(true, false, 'sc=new,inprogress', 'sc=new,inprogress')).toBe(
+      'mark-ready',
+    )
+  })
+
+  test('a later tick with a new viewKey resets the cursor', () => {
+    expect(startupViewTick(true, true, 'sc=done', 'sc=new,inprogress')).toBe('reset-cursor')
+  })
+
+  test('a later tick with the same viewKey does not reset', () => {
+    expect(startupViewTick(true, true, 'sc=new,inprogress', 'sc=new,inprogress')).toBe(
+      'same-view',
+    )
+    expect(startupViewTick(true, true, '', '')).toBe('same-view')
   })
 })

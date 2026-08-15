@@ -9,6 +9,7 @@
    *  Perf: scroll only computes top(translate); no full recompute.
    */
   import { onMount, untrack } from 'svelte'
+  import { startupViewTick } from '../../lib/startup-view'
   import { filters, type IssueGroup } from '../../stores/filters.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { triage } from '../../stores/triage.svelte'
@@ -48,6 +49,8 @@
   let scrollTop = $state(0)
   let viewportH = $state(0)
   let scroller = $state<HTMLDivElement | null>(null)
+  /** Last viewKey we already handled. A re-run from scroller bind must not reset. */
+  let lastHandledViewKey = ''
   const cursorKey = $derived(triage.cursorKey)
 
   const total = $derived(rows.length * ROW_H)
@@ -119,10 +122,27 @@
   })
 
   // Real view (filter/group/sort) changes scroll to top (ignore data deltas).
+  // The boot-time first commit is not a user view change: wait until App has
+  // applied the startup view, then mark keys ready (replay held j/k/x) instead
+  // of wiping a cursor that never belonged to this view.
   $effect(() => {
-    void filters.viewKey
-    if (scroller) scroller.scrollTop = 0
+    const vk = filters.viewKey
+    const applied = triage.startupViewApplied
+    // scroller bind is not a view change — do not subscribe.
+    untrack(() => {
+      if (scroller) scroller.scrollTop = 0
+    })
     scrollTop = 0
+    // untrack keysReady: markKeysReady flips it; tracking would re-run and
+    // resetCursor the keys we just replayed.
+    const tick = startupViewTick(applied, untrack(() => triage.keysReady), vk, lastHandledViewKey)
+    if (tick === 'wait' || tick === 'same-view') return
+    if (tick === 'mark-ready') {
+      triage.markKeysReady()
+      lastHandledViewKey = vk
+      return
+    }
+    lastHandledViewKey = vk
     triage.resetCursor()
   })
 

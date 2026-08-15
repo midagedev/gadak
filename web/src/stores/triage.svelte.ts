@@ -9,6 +9,9 @@
  *  - cursorKey: row under the keyboard cursor (highlight + scroll follow).
  *  - listActive: IssueList is mounted. Feed / onboarding / empty states replace
  *      it, and the triage keys must stay inert there.
+ *  - keysReady / startupViewApplied: the boot-time first view has committed
+ *      (GDK-46). j/k/x arriving earlier are held and replayed against the
+ *      committed list; they never land on the unfiltered pool.
  *  - menu: which BulkBar popover is open. BulkBar renders it; mouse and keyboard
  *      both go through this so `s` / `a` / `l` can open it without a click.
  *  - commentKey: issue the quick-comment dialog is composing on (null = closed).
@@ -17,6 +20,7 @@
  *    composer, so the credential gate keeps its single implementation.
  */
 
+import { replayHeldListKeys } from '../lib/keymap.svelte'
 import { visibleKeys } from '../lib/visible-order'
 import { bulk } from './bulk.svelte'
 
@@ -27,10 +31,18 @@ class TriageStore {
   cursorKey = $state<string | null>(null)
   /** IssueList is on screen. */
   listActive = $state(false)
+  /**
+   * App has run applyStartupView (keep-url or write). The list is not a
+   * keyboard target until it has observed this and flipped keysReady.
+   */
+  startupViewApplied = $state(false)
+  /** The list has absorbed the boot-time first view. Subsequent viewKey changes reset the cursor. */
+  keysReady = $state(false)
   /** Open bulk popover, or null. */
   menu = $state<TriageMenu | null>(null)
   /** Quick-comment target issue, or null. */
   commentKey = $state<string | null>(null)
+  #heldBootKeys: string[] = []
 
   setCursor(key: string | null): void {
     this.cursorKey = key
@@ -81,6 +93,37 @@ class TriageStore {
   /** View change (filter/sort/group): the old cursor row may be gone. */
   resetCursor(): void {
     this.cursorKey = null
+  }
+
+  /** Call once the startup view decision has been applied (or kept). */
+  noteStartupViewApplied(): void {
+    this.startupViewApplied = true
+  }
+
+  /** Hold a j/k/x that arrived before keysReady. No-op once ready. */
+  holdBootKey(key: string): void {
+    if (this.keysReady) return
+    this.#heldBootKeys.push(key)
+  }
+
+  /**
+   * Flip keysReady and replay held j/k/x against the *current* visible
+   * list (the committed view). A row the startup filter removed is never
+   * the cursor: move() reads visibleKeys() as of this call.
+   */
+  markKeysReady(): void {
+    if (this.keysReady) return
+    this.keysReady = true
+    const held = this.#heldBootKeys
+    this.#heldBootKeys = []
+    replayHeldListKeys(held, {
+      move: (dir) => {
+        this.move(dir)
+      },
+      toggleCursor: () => {
+        if (this.cursorKey) bulk.toggle(this.cursorKey)
+      },
+    })
   }
 }
 

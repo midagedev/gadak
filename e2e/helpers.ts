@@ -34,6 +34,42 @@ export async function gotoApp(page: Page): Promise<void> {
   await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
 }
 
+/**
+ * Boot until the unfiltered list paints — and stop there.
+ *
+ * gotoApp waits for applyStartupView's hash write (GDK-39) so ordinary
+ * keyboard specs never see this window. GDK-46 is about the window itself,
+ * so those specs must bypass that wait on purpose.
+ */
+export async function gotoAppBeforeStartup(page: Page): Promise<void> {
+  await forceLocale(page, 'en')
+  await page.goto('/')
+  await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
+}
+
+/**
+ * Hold GET auth/me/ until both `delayMs` and `released` have settled.
+ *
+ * applyStartupView waits on me.authChecked, which flips in the `finally`
+ * after this request. A delay alone is racy on a slow machine (keys land
+ * after the commit). Gating continue() on the test's own release is what
+ * keeps the keystrokes inside the window.
+ */
+export async function holdAuthMe(
+  page: Page,
+  opts: { delayMs: number; released: Promise<void> },
+): Promise<void> {
+  await page.route('**/api/v1/auth/me/**', async (route) => {
+    await Promise.all([
+      new Promise<void>((r) => setTimeout(r, opts.delayMs)),
+      opts.released,
+    ])
+    await route.continue()
+  })
+}
+
 /** Console noise the fixture credential produces (writes 409). Not an app bug. */
 export function appConsoleErrors(errors: string[]): string[] {
   return errors.filter((e) => !e.includes('409'))

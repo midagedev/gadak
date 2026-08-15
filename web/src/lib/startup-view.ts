@@ -66,3 +66,28 @@ export function applyStartupView(
   const decision = decideStartupView(input)
   if (decision.kind === 'apply') applyConfig(decision.config)
 }
+
+/**
+ * What the list's viewKey effect does on this tick.
+ *
+ * wait:         boot view not applied yet — do not reset, do not accept keys
+ * mark-ready:   this tick *is* the boot commit — flip keysReady, replay holds
+ * same-view:    keysReady, but viewKey did not change (scroller bind, etc.)
+ * reset-cursor: a user (or post-boot) view change — intended reset
+ *
+ * Owned here so a future view source that writes the hash during boot cannot
+ * invent another meaning; IssueList is the only caller.
+ */
+export type StartupViewTick = 'wait' | 'mark-ready' | 'same-view' | 'reset-cursor'
+
+export function startupViewTick(
+  startupViewApplied: boolean,
+  keysReady: boolean,
+  viewKey = '',
+  lastHandledViewKey = '',
+): StartupViewTick {
+  if (!startupViewApplied) return 'wait'
+  if (!keysReady) return 'mark-ready'
+  if (viewKey === lastHandledViewKey) return 'same-view'
+  return 'reset-cursor'
+}
