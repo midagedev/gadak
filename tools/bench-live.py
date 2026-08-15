@@ -7,7 +7,7 @@ Env:    GADAK_BIN=/path/to/gadak                  (default: gadak on PATH)
 Reads site/email/token from the profile's config.json to call the REST API
 directly; never prints them. Results (docs/BENCHMARKS.md) mask the project
 key. Run on a quiet machine; medians of 5 (3 for paged scenarios)."""
-import json, os, subprocess, time, statistics, base64, urllib.request, urllib.parse, ssl, sys
+import json, os, subprocess, time, statistics, base64, urllib.request, urllib.parse, ssl, sys, atexit
 
 PROFILE = sys.argv[1] if len(sys.argv) > 1 else ""
 HOME = os.path.expanduser(f"~/.gadak/profiles/{PROFILE}") if PROFILE else os.path.expanduser("~/.gadak")
@@ -19,6 +19,18 @@ AUTH = "Basic " + base64.b64encode(f"{EMAIL}:{TOKEN}".encode()).decode()
 PROJ = cfg["projects"][0]
 GADAK = os.environ.get("GADAK_BIN", "gadak")
 ENVP = {**os.environ}
+
+# The GitHub release check is an outbound network call that must not sit
+# inside timed numbers. config.json owns the switch, so flip it for this run
+# and restore the file byte-for-byte on the way out (GDK-94).
+_cfg_path = f"{HOME}/config.json"
+_cfg_orig = open(_cfg_path).read()
+atexit.register(lambda: open(_cfg_path, "w").write(_cfg_orig))
+if json.loads(_cfg_orig).get("updateCheck", True):
+    _cfg = json.loads(_cfg_orig)
+    _cfg["updateCheck"] = False
+    open(_cfg_path, "w").write(json.dumps(_cfg))
+    print("# update check disabled for this run (config restored on exit)\n")
 
 def rest(path, params=None, method="GET", body=None):
     url = SITE + path + (("?" + urllib.parse.urlencode(params)) if params else "")
@@ -125,15 +137,45 @@ print(f"    └ per-issue changelog ≈ {per_issue:.0f} ms → {ISSUES} issues �
 
 # ── 6. gadak이 지는 행 ─────────────────────────────
 R['cli_startup'] = bench("6a gadak CLI startup (select 1)", lambda: cli(["sql", "--no-header", "select 1"]))
-def incr_sync():
+
+def sync_run(extra):
     t0 = time.perf_counter()
-    r = subprocess.run([GADAK] + (["--profile", PROFILE] if PROFILE else []) + ["sync"], capture_output=True, text=True)
-    return time.perf_counter() - t0, r.stdout[-100:]
-R['sync_incr'] = bench("6b gadak sync (incremental, quiet site)", incr_sync, reps=2)
+    r = subprocess.run([GADAK] + (["--profile", PROFILE] if PROFILE else []) + ["sync"] + extra,
+                       capture_output=True, text=True, env=ENVP)
+    dt = time.perf_counter() - t0
+    if r.returncode != 0:
+        raise RuntimeError(f"sync fail {extra}: {r.stderr[-200:]}")
+    return dt, r.stdout
+
+def sync_counts(out):
+    """fetched/changed lines, whatever the sync flavor printed."""
+    lines = [l.strip() for l in out.splitlines() if "fetched" in l]
+    return " | ".join(lines) or "(no counts)"
+
+# Where a tick's time actually goes — the tax split by source. On a quiet
+# site these are the numbers behind the "watch tick" row in BENCHMARKS.md.
+for src in ("jira", "confluence", "all"):
+    runs = []
+    note = ""
+    for _ in range(2):
+        dt, out = sync_run(["--source", src])
+        runs.append(dt)
+        note = sync_counts(out)
+    R[f'sync_{src}'] = statistics.median(runs)
+    print(f"{'6b gadak sync --source ' + src:46s} median {R[f'sync_{src}']*1000:9.0f} ms   "
+          f"min {min(runs)*1000:8.0f}  max {max(runs)*1000:8.0f}  (n=2)  [{note}]")
+
+# First full sync, wall clock, n=1 by definition. This is the row that used
+# to read "minutes, size-dependent" — run it on a throwaway profile or one
+# you are willing to re-fetch (GDK-94).
+dt, out = sync_run(["--full"])
+R['sync_full'] = dt
+print(f"{'6c gadak sync --full (wall clock)':46s} {'':18s}{dt*1000:9.0f} ms   [{sync_counts(out)}]")
 
 print("\n# summary ratios")
 print(f"simple filter : REST {R['rest_filter']:.0f}ms vs sql {R['sql_filter']:.0f}ms  ({R['rest_filter']/R['sql_filter']:.0f}x)")
 print(f"issue detail  : REST {R['rest_issue']:.0f}ms vs cli {R['cli_issue']:.0f}ms  ({R['rest_issue']/R['cli_issue']:.0f}x)")
 print(f"text search   : REST {R['rest_text']:.0f}ms vs cli {R['cli_text']:.0f}ms  ({R['rest_text']/R['cli_text']:.0f}x)")
 print(f"epic group by : REST {R['rest_group']:.0f}ms vs sql {R['sql_group']:.0f}ms  ({R['rest_group']/R['sql_group']:.0f}x)")
-print(f"losing rows   : incremental sync {R['sync_incr']:.0f}ms; CLI startup {R['cli_startup']:.0f}ms per invocation")
+print(f"losing rows   : tick all={R['sync_all']*1000:.0f}ms (jira {R['sync_jira']*1000:.0f} / confluence {R['sync_confluence']*1000:.0f}); "
+      f"first full sync {R['sync_full']/60:.1f} min ({ISSUES} issues); CLI startup {R['cli_startup']:.0f}ms per invocation")

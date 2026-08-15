@@ -54,8 +54,10 @@ included — [method and the losing rows](docs/BENCHMARKS.md)):
 | Open issues per epic (`GROUP BY`) | 3,924 ms · 7 API pages | 24 ms · one query | 162× |
 | Anything over the change history | ≈ 20 min (crawl every changelog) | one query | — |
 
-And the other side: the first full sync takes minutes, every watch tick costs
-~6.6 s, and the mirror trails Jira by one sync interval.
+And the other side: the first full sync measured 26.4 s for 534 issues and
+7.2 min for 2,865 ([method and the losing rows](docs/BENCHMARKS.md)), every
+watch tick costs ~6.7 s on a quiet site, and the mirror trails Jira by one
+sync interval.
 
 <details>
 <summary>▶ 90-second tour of the paper list (GIF, 7 MB)</summary>

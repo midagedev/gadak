@@ -12,8 +12,11 @@ roughly **N/100 search calls**, plus one extra call per issue only when an
 issue's comments or history are too long to arrive embedded
 (`internal/sync/sync.go`, `internal/jira/client.go`). A 10,000-issue project
 is on the order of a hundred-plus requests, once. After that the watch loop
-runs **incremental** syncs: one search scoped to the updated-since watermark,
-which on a quiet project is a single call that returns nothing.
+runs **incremental** syncs: one watermark-scoped search per source. That is
+not "one empty call": on the measured quiet site a tick fetched 16 issues
+and 1 page that matched the window — 0 of them changed — and cost 6.7 s of
+wall clock; what a tick costs tracks what the watermark window matches, not
+what changed ([`docs/BENCHMARKS.md`](BENCHMARKS.md#where-gadak-loses)).
 
 The client respects `Retry-After` on 429/503 with backoff, and counts its own
 call volume per UTC day — visible in `gadak status` and the settings runtime

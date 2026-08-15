@@ -26,14 +26,25 @@ status, what bounced back from Done, who touched what — becomes a crawl.
 
 ## Where gadak loses
 
-Honesty row, on the same corpus and machine:
+Honesty rows, measured 2026-08-15 (same evening re-run, corpus now 2,865
+issues; the table above was measured at 2,853). Wall clock via the same
+harness's `--source jira` / `--source confluence` split and one `--full` run
+per profile:
 
 | Cost | Measured |
 | --- | ---: |
-| First full sync (one-time, ~N/100 API calls) | minutes, size-dependent — see [`docs/FAQ.md`](FAQ.md#what-load-does-this-put-on-my-atlassian-site) |
-| Incremental sync (each watch tick) | 6.6 s |
+| First full sync, 534 issues + 71 pages | 26.4 s (re-fetch of identical data) |
+| First full sync, 2,865 issues + 438 pages | 7.2 min (re-fetch of identical data) |
+| Incremental sync (each watch tick, quiet site) | 6.7 s — jira 2.2 s (16 issues fetched, 0 changed), confluence 2.2 s (1 page, 0 changed); the combined tick runs longer than its two halves |
 | CLI process startup, every invocation | 15 ms |
 | Freshness | the mirror trails Jira by up to one sync interval |
+
+Two shapes to read out of that: the tick's cost tracks what the watermark
+window *matches*, not what *changed* — the demo site, whose Confluence
+watermark is ten days old, spends 19.4 s of a 21.4 s tick re-reading 71
+unchanged pages — and a tick costs real seconds even when nothing changed,
+so the honest unit for a watch loop is "one tick ≈ 7 s of work every
+interval", not "a single call that returns nothing".
 
 If you need this minute's Jira state, ask Jira. gadak trades a sync interval
 of staleness for reads that cost nothing.
