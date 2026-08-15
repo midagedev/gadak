@@ -21,7 +21,17 @@ export async function gotoApp(page: Page): Promise<void> {
   await forceLocale(page, 'en')
   await page.goto('/')
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+  // Sidebar pool size — visible as soon as bootstrap lands, *before* the
+  // startup view. A "534 issues" match is not "the list is ready for keys".
   await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+  // applyStartupView waits for me.authChecked (favorites + GET auth/me/ +
+  // personal loads) and then writes the default all-open filter into the
+  // hash. IssueList's viewKey effect resetCursor()s on that write, so a
+  // j/k/x that landed on the unfiltered 534-row list is wiped. Wait on the
+  // hash *and* the refiltered count — Playwright auto-wait, not a sleep —
+  // so keyboard tests start after that commit. (GDK-39)
+  await expect(page).toHaveURL(/[#?&]sc=/, { timeout: 30_000 })
+  await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
 }
 
 /** Console noise the fixture credential produces (writes 409). Not an app bug. */

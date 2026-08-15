@@ -7,26 +7,53 @@ import { attachConsoleErrors, gotoApp } from './helpers'
  * would start — the popovers render, nothing is applied.
  */
 
-const cursorRow = (page: Page) => page.locator('[data-cursor="true"]')
+/** URL + list-count + cursor, for a failure log that does not need a local repro. */
+async function triageState(page: Page): Promise<string> {
+  const list = await page.getByTestId('list-count').textContent().catch(() => '?')
+  const key = await page.evaluate(() => {
+    const el = document.querySelector('[data-cursor="true"]')
+    return el?.getAttribute('data-issue-key') ?? null
+  })
+  return `url=${page.url()} list=${list} cursor=${key ?? '-'}`
+}
 
-/** Issue key of the row under the cursor. */
+/** Issue key of the row under the cursor, once the row is painted. */
 async function cursorKey(page: Page): Promise<string> {
-  await expect(cursorRow(page)).toHaveCount(1)
-  return (await cursorRow(page).getAttribute('data-issue-key')) ?? ''
+  let key = ''
+  await expect
+    .poll(async () => {
+      key = await page.evaluate(() => {
+        const rows = document.querySelectorAll('[data-cursor="true"]')
+        if (rows.length !== 1) return ''
+        return rows[0].getAttribute('data-issue-key') ?? ''
+      })
+      return key
+    })
+    .not.toEqual('')
+  return key
+}
+
+/** Press a key and wait until the list cursor is an observable row. */
+async function pressUntilCursor(page: Page, key: string): Promise<string> {
+  await page.keyboard.press(key)
+  return cursorKey(page)
 }
 
 test.describe('keyboard triage', () => {
+  test.afterEach(async ({ page }, info) => {
+    if (info.status === info.expectedStatus) return
+    console.error(`[triage] ${info.title} ${await triageState(page)}`)
+  })
+
   test('j/k move the cursor, x builds a selection, s opens the status popover', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
     // ── j/k ──
-    await page.keyboard.press('j')
-    const first = await cursorKey(page)
+    const first = await pressUntilCursor(page, 'j')
     expect(first).not.toEqual('')
 
-    await page.keyboard.press('j')
-    const second = await cursorKey(page)
+    const second = await pressUntilCursor(page, 'j')
     expect(second).not.toEqual(first)
 
     await page.keyboard.press('k')
@@ -40,7 +67,11 @@ test.describe('keyboard triage', () => {
     await expect(bar).toBeVisible()
     await expect(bar.getByText('1 selected')).toBeVisible()
 
-    await page.keyboard.press('j')
+    // Assert the cursor actually moved before the second x — otherwise x
+    // toggles the same row and "2 selected" never appears (GDK-39).
+    const afterFirst = await cursorKey(page)
+    const afterMove = await pressUntilCursor(page, 'j')
+    expect(afterMove, await triageState(page)).not.toEqual(afterFirst)
     await page.keyboard.press('x')
     await expect(bar.getByText('2 selected')).toBeVisible()
 
@@ -86,13 +117,15 @@ test.describe('keyboard triage', () => {
   test('Esc clears the selection before closing the detail panel', async ({ page }) => {
     await gotoApp(page)
 
-    await page.keyboard.press('j')
+    await pressUntilCursor(page, 'j')
     await page.keyboard.press('Enter')
     const panel = page.getByTestId('issue-detail-panel')
     await expect(panel).toBeVisible()
 
     // Select a second row while the panel is open.
-    await page.keyboard.press('j')
+    const before = await cursorKey(page)
+    const moved = await pressUntilCursor(page, 'j')
+    expect(moved, await triageState(page)).not.toEqual(before)
     await page.keyboard.press('x')
     await expect(page.getByTestId('bulk-bar')).toBeVisible()
 
@@ -109,8 +142,7 @@ test.describe('keyboard triage', () => {
   test('s on a bare cursor row promotes it into the selection first', async ({ page }) => {
     await gotoApp(page)
 
-    await page.keyboard.press('j')
-    const key = await cursorKey(page)
+    const key = await pressUntilCursor(page, 'j')
 
     await page.keyboard.press('s')
     const bar = page.getByTestId('bulk-bar')
@@ -127,8 +159,7 @@ test.describe('keyboard triage', () => {
   test('c composes on the cursor row without opening the detail panel', async ({ page }) => {
     await gotoApp(page)
 
-    await page.keyboard.press('j')
-    const key = await cursorKey(page)
+    const key = await pressUntilCursor(page, 'j')
 
     await page.keyboard.press('c')
     const dialog = page.getByTestId('quick-comment')
@@ -145,7 +176,7 @@ test.describe('keyboard triage', () => {
   test('the palette carries the same actions, named for their target', async ({ page }) => {
     await gotoApp(page)
 
-    await page.keyboard.press('j')
+    await pressUntilCursor(page, 'j')
     await page.keyboard.press('x')
     const key = await cursorKey(page)
 

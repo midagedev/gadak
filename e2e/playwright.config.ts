@@ -18,7 +18,11 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: {
     baseURL: 'http://127.0.0.1:7877',
-    trace: 'on-first-retry',
+    // Local retries are 0, so on-first-retry produced no trace for the
+    // GDK-39 flake. retain-on-failure + a screenshot keep the key sequence
+    // and the URL/list-count in the artifact without retrying the test.
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
     locale: 'en-US',
   },
   webServer: {
