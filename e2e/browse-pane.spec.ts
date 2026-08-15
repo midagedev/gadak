@@ -221,6 +221,53 @@ test.describe('in-app browser pane', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  test('at 1280×820 the palette is on top of the browse pane and clickable', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1280, height: 820 })
+    await pretendDesktop(page)
+    const mock = await mockBrowseRoutes(page)
+    await gotoApp(page)
+
+    await openIssue(page, 'NMB-110')
+    await openInApp(page, 'NMB-110')
+    await expect(page.getByTestId('browse-pane')).toBeVisible()
+    await expect.poll(() => mock.active()).toBe('1')
+
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await page.keyboard.press('ControlOrMeta+k')
+    await expect(palette).toBeVisible()
+    await expect.poll(() => mock.active()).toBe('')
+    await expect(page.locator('html')).toHaveAttribute('data-browse-yield', 'on')
+    await expect(page.getByTestId('browse-pane')).toHaveAttribute('data-browse-yield', 'true')
+
+    const box = await palette.boundingBox()
+    expect(box).not.toBeNull()
+    const hit = await page.evaluate(
+      ({ x, y }) => {
+        const el = document.elementFromPoint(x, y)
+        return el?.closest('[role="dialog"]')?.getAttribute('aria-label') ?? null
+      },
+      { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 },
+    )
+    expect(hit, 'palette must be the frontmost surface at the shipped window size').toBe(
+      'Command palette',
+    )
+
+    await palette.getByRole('combobox').click()
+    await page.keyboard.type('NMB-110')
+    await expect(palette.getByRole('option').first()).toContainText('NMB-110')
+
+    await page.keyboard.press('Escape')
+    await expect(palette).toBeHidden()
+    await expect.poll(() => mock.active()).toBe('1')
+    await expect(page.locator('html')).toHaveAttribute('data-browse-yield', 'off')
+    await expect(page.getByTestId('browse-pane')).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('a browser tab has no pane and asks the desktop routes for nothing', async ({
     page,
   }) => {

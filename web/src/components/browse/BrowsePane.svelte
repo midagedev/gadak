@@ -15,6 +15,7 @@
    * two-step control grid in app.css.
    */
   import { browse, tabLabel } from '../../lib/browse.svelte'
+  import { applyToastReservation } from '../../lib/browse-stack'
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
 
@@ -37,7 +38,15 @@
     const el = viewport
     if (!el) return
     const r = el.getBoundingClientRect()
-    browse.reportFrame({ x: r.x, y: r.y, w: r.width, h: r.height })
+    let next = { x: r.x, y: r.y, w: r.width, h: r.height }
+    if (browse.stack.reserveToast) {
+      const host = document.querySelector('[data-testid="toast-host"]')
+      if (host) {
+        const t = host.getBoundingClientRect()
+        next = applyToastReservation(next, { x: t.x, y: t.y, w: t.width, h: t.height })
+      }
+    }
+    browse.reportFrame(next)
   }
 
   /*
@@ -49,9 +58,12 @@
   $effect(() => {
     const el = viewport
     if (!el) return
+    const reserve = browse.stack.reserveToast
     report()
     const ro = new ResizeObserver(report)
     ro.observe(el)
+    const host = reserve ? document.querySelector('[data-testid="toast-host"]') : null
+    if (host) ro.observe(host)
     window.addEventListener('resize', report)
     const tick = setInterval(report, 1000)
     return () => {
@@ -66,6 +78,7 @@
   class="browse-pane flex h-full min-w-0 flex-col border-l border-border-subtle bg-bg-panel"
   aria-label={t('browse.paneLabel')}
   data-testid="browse-pane"
+  data-browse-yield={browse.stack.chromeYields ? 'true' : undefined}
 >
   <!-- ── Tab strip ──
        h-12, which is the sidebar's first row: in the app that row is the title

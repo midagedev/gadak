@@ -14,10 +14,12 @@
  *     gets out of the way
  *
  * A native view draws over every SPA pixel inside its rectangle, which makes
- * "what is visible" a decision only this side can make: `nativeActive` is that
- * decision, and it is the one thing POSTed to /desktop/browse/activate. An open
- * palette, dialog or media viewer sets `overlayOpen` and the answer becomes ""
- * — otherwise the overlay opens underneath the page it was meant to cover.
+ * "what is visible" a decision only this side can make. `resolveBrowseStack`
+ * is the single owner: an open palette / dialog / media viewer hides the
+ * native view *and* yields the SPA chrome below the dialog tier; a toast
+ * leaves the page up and shrinks the reported rectangle so the toast host
+ * stays visible. `nativeActive` is what that decision POSTs to
+ * /desktop/browse/activate.
  *
  * Installed only in desktop mode; browser `gadak serve` never reaches any of it
  * (`adopt` is the single entry point and returns immediately off desktop).
@@ -32,6 +34,7 @@ import { me } from '../stores/me.svelte'
 import { pages } from '../stores/pages.svelte'
 import { write } from '../stores/write.svelte'
 import type { IssueLite } from './types'
+import { resolveBrowseStack, type BrowseStack } from './browse-stack'
 
 /** Matches classifyAtlassianLink kind — kept local to avoid a cycle with desktop-links. */
 export type BrowseKind = 'issue' | 'page' | 'other'
@@ -85,7 +88,8 @@ class BrowseStore {
   /** Whether the pane occupies the detail area. */
   paneOpen = $state(false)
 
-  #overlayOpen = $state(false)
+  #dialogOpen = $state(false)
+  #toastVisible = $state(false)
 
   /** id → what was opened there, for the resync when it closes. */
   #sessions = new Map<string, BrowseSession>()
@@ -120,19 +124,38 @@ class BrowseStore {
   }
 
   /**
+   * The stacking decision for the current pane / dialog / toast facts.
+   * Inspectable from the shell (`data-browse-*` on <html>) and from
+   * `browse.stack` in a debugger.
+   */
+  stack: BrowseStack = $derived.by(() =>
+    resolveBrowseStack({
+      paneOpen: this.paneOpen,
+      dialogOpen: this.#dialogOpen,
+      toastVisible: this.#toastVisible,
+    }),
+  )
+
+  /**
    * The tab the native layer should be showing — "" for none. The pane being
    * off screen and an SPA overlay being up are the same answer for the same
    * reason: a native view would be covering something it must not cover.
    */
   get nativeActive(): string {
-    if (!this.paneOpen || this.#overlayOpen) return ''
+    if (!this.stack.nativeVisible) return ''
     return this.tabs.some((t) => t.id === this.activeId) ? this.activeId : ''
   }
 
-  /** Set by the shell whenever a full-surface SPA overlay opens or closes. */
-  setOverlayOpen(open: boolean): void {
-    if (this.#overlayOpen === open) return
-    this.#overlayOpen = open
+  /**
+   * Set by the shell whenever a full-surface SPA overlay or the toast host
+   * changes. This is the only writer of the stacking inputs.
+   */
+  setSurface(flags: { dialogOpen: boolean; toastVisible: boolean }): void {
+    if (this.#dialogOpen === flags.dialogOpen && this.#toastVisible === flags.toastVisible) {
+      return
+    }
+    this.#dialogOpen = flags.dialogOpen
+    this.#toastVisible = flags.toastVisible
     this.#syncNative()
   }
 
@@ -391,6 +414,8 @@ class BrowseStore {
     this.tabs = []
     this.activeId = ''
     this.paneOpen = false
+    this.#dialogOpen = false
+    this.#toastVisible = false
   }
 }
 

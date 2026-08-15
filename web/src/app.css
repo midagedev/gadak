@@ -251,7 +251,11 @@
     pane takes a track instead of covering one.
 
     Above the detail panel it replaces (55 > the panel's overlay tier of 50) and
-    below the toasts (60), which have to stay reachable while browsing.
+    below the toasts (60). An open SPA dialog sets data-browse-yield, which
+    drops this to the re-entry pill's tier (40) so the dialog is the front
+    surface — native hide alone is not enough, because this chrome is still
+    a full overlay under 1600px. A toast never changes this z-index; the
+    native rectangle is inset instead (see applyToastReservation).
   */
   .browse-pane {
     position: fixed;
@@ -259,6 +263,10 @@
     z-index: 55;
     min-width: 0;
     min-height: 0;
+  }
+
+  .browse-pane[data-browse-yield] {
+    z-index: 40;
   }
 
   @media (min-width: 1600px) {

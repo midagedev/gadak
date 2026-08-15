@@ -396,22 +396,32 @@
    * An Atlassian page renders in a native view the app draws *over* this
    * document, so every SPA surface that covers the screen — palette, dialog,
    * media viewer — would open underneath the page instead of over it. Each of
-   * those flags already lives here, in one place, which is the only place the
-   * question "is something covering the app right now" can be answered.
+   * those flags already lives here, in one place; `browse.setSurface` is the
+   * only writer, and `resolveBrowseStack` is the only decision.
    */
   const browseEnabled = browse.enabled
 
   $effect(() => {
     if (!browseEnabled) return
-    browse.setOverlayOpen(
-      write.settingsOpen ||
+    browse.setSurface({
+      dialogOpen:
+        write.settingsOpen ||
         write.newIssueOpen ||
         serverSettingsOpen ||
         paletteOpen ||
         shortcutsOpen ||
         triage.commentKey !== null ||
         mediaViewer.attachment !== null,
-    )
+      toastVisible: write.toasts.length > 0,
+    })
+  })
+
+  // Inspectable next to keysReady: which layer of the browse stack is up.
+  $effect(() => {
+    const s = browse.stack
+    document.documentElement.dataset.browseNative = s.nativeVisible ? 'on' : 'off'
+    document.documentElement.dataset.browseYield = s.chromeYields ? 'on' : 'off'
+    document.documentElement.dataset.browseToastReserve = s.reserveToast ? 'on' : 'off'
   })
 </script>
 
