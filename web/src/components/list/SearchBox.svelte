@@ -20,11 +20,21 @@
   import { write } from '../../stores/write.svelte'
   import { fieldEnabled, type MultiField } from '../../lib/view-config'
   import { paletteShortcutLabel, requestOpenPalette } from '../../lib/unified-search'
+  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
 
   let text = $state(filters.filters.q)
   let inputEl = $state<HTMLInputElement | null>(null)
   let sugIdxRaw = $state(0)
+
+  /*
+   * The `?` spells out what this box accepts. On a mouse the title does it on
+   * hover; a touch screen has no hover, so the same string also has to be
+   * reachable by tapping. It shares the one popover slot under the field with
+   * the token candidates below — help wins it while it is open, and typing
+   * gives it back.
+   */
+  let helpOpen = $state(false)
 
   // Sync input when q changes externally (view apply, etc.) if not typing.
   $effect(() => {
@@ -125,6 +135,7 @@
   function onInput() {
     filters.setQuery(text)
     sugIdxRaw = 0
+    helpOpen = false
   }
 
   let applyingJql = $state(false)
@@ -196,7 +207,11 @@
       }
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      if (suggestions.length) {
+      if (helpOpen) {
+        // The help is over the field; the first Esc gives that slot back
+        // before Esc goes back to meaning "clear the query".
+        helpOpen = false
+      } else if (suggestions.length) {
         // Close token candidates only — keep last word; blur closes the popup
         ;(e.target as HTMLElement).blur()
       } else if (text) {
@@ -216,7 +231,12 @@
 </script>
 
 <div class="flex items-center gap-2">
-  <div class="relative min-w-0 flex-1">
+  <!-- The boundary for the help popover's outside click: it has to hold the
+       `?` too, or the click that closes the panel would reopen it. -->
+  <div
+    class="relative min-w-0 flex-1"
+    use:onOutsideClick={{ handler: () => (helpOpen = false), enabled: helpOpen }}
+  >
   <div
     class="flex h-control items-center gap-2 rounded-md border border-border-strong/70 bg-bg-elevated px-3 shadow-sm shadow-black/10 focus-within:border-accent/70"
   >
@@ -240,7 +260,9 @@
       class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded text-micro font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
       title={t('list.searchHelp', { shortcut: paletteShortcutLabel() })}
       aria-label={t('list.searchHelp', { shortcut: paletteShortcutLabel() })}
+      aria-expanded={helpOpen}
       data-testid="search-help"
+      onclick={() => (helpOpen = !helpOpen)}
     >
       ?
     </button>
@@ -265,8 +287,19 @@
     {/if}
   </div>
 
-  <!-- Token autocomplete / jump -->
-  {#if suggestions.length > 0}
+  <!-- Help (tapped `?`) / token autocomplete / jump — one slot under the field -->
+  {#if helpOpen}
+    <div
+      use:onEscape={(e) => {
+        e.preventDefault()
+        helpOpen = false
+      }}
+      class="anim-enter absolute left-0 top-full z-30 mt-1 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-2 text-[12px] leading-relaxed text-text-secondary shadow-overlay"
+      data-testid="search-help-panel"
+    >
+      {t('list.searchHelp', { shortcut: paletteShortcutLabel() })}
+    </div>
+  {:else if suggestions.length > 0}
     <div
       class="anim-enter absolute left-0 top-full z-30 mt-1 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
     >
