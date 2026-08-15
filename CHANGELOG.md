@@ -1,13 +1,49 @@
 # Changelog
 
-## v0.14.1 — Unreleased
+## v0.14.1 — 2026-08-15
+
+One day of dogfooding gadak's own backlog through gadak, shipped as it
+landed: the first CLI write verbs, a demo that finally works where people
+actually tap it, and the removal of an updater that had never earned trust.
 
 - **The macOS app is notify-only again.** Removed the never-exercised in-app
   self-updater (Wails `pkg/updater`): digest verification was fail-open and
   the swap was non-atomic (GDK-58/59/60). The sidebar banner still names a
   newer release; installing it is `brew upgrade --cask gadak` or a new dmg.
   v0.14.1 ships no `gadak-desktop-darwin-<arch>.zip`, so a v0.14.0 app in
-  the wild cannot self-swap. Docs realigned (GDK-61/64).
+  the wild cannot self-swap. Docs realigned (GDK-61/64). Found on the way:
+  the desktop banner had been silent in every release build because
+  `server.Version` was never assigned there — now wired.
+- **The first write verbs: `gadak create`, `gadak attach`, `gadak edit`.**
+  Create takes `--project`, `--type`, `--priority`, labels, a description
+  from stdin, files to attach, and `--batch -` for JSON lines — everything
+  this backlog's own migration to Jira needed. Unknown flags are rejected
+  instead of being folded into the summary.
+- **The hosted demo works inside in-app browsers** (GDK-23, GDK-51). The
+  snapshot service worker is gone — an in-page fetch adapter serves the
+  frozen mirror, so the X/Slack webviews that blocked workers now boot. And
+  the first paint is no longer 4px text: a static first frame (claim,
+  tap-to-load demo video, a selectable `brew install`, the repo link) is
+  injected at build time and reads at phone width before any JS arrives.
+- **The browse pane yields** (GDK-76/77). At the shipped window size the
+  in-app browser pane sat over the command palette and every dialog; toasts
+  painted under the native page. Stacking now has one owner and the palette
+  is frontmost and clickable while browsing.
+- **Boot keystrokes are held, not dropped** (GDK-46). `j`/`k`/`x` pressed
+  while the startup view is still committing replay in order once keys are
+  ready, instead of silently acting on the wrong list.
+- **Failures say what happened.** A failed write reports in the reader's
+  language, not a Go error chain; a truncated key list says how many keys
+  were given and shown (GDK-35); a rejected credential stops the watch loop
+  for every source — Confluence included — and leaves a visible trace
+  (GDK-24, GDK-48).
+- **Priority colors read the rank, not the account's language** — a Korean
+  Jira no longer renders every priority as the fallback color.
+- **Faster agent surface**: MCP tools stop scanning the whole mirror per
+  call; attachment ownership is one query.
+- **A web unit tier**: 100+ component/logic specs run in ~300ms on every
+  push, alongside the browser e2e set; the HTTP transport and the secret
+  scanner got their first tests.
 
 ## v0.14.0 — 2026-08-15
 
