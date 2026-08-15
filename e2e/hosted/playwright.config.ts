@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
  * Browser checks against the static hosted-demo output (dist/hosted under /gadak/).
  * Not part of CI — run via `make hosted-demo` (builds + tests) or
  * `npx playwright test --config e2e/hosted/playwright.config.ts` after a build.
+ * first-frame.spec.ts is the GDK-55 390×844 readability gate.
  *
  * Layout: dist/pages/gadak/ holds the built demo; `npx serve dist/pages` makes
  * http://127.0.0.1:4173/gadak/ resolve correctly with GADAK_BASE_PATH=/gadak/.

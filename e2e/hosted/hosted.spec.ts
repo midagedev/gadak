@@ -1,4 +1,5 @@
 import { test, expect, type ConsoleMessage, type Page } from '@playwright/test'
+import { dismissHostedFirstFrame } from './helpers'
 
 /**
  * Zero-install hosted demo smoke: boot, client-side search, detail, attachment
@@ -61,6 +62,7 @@ test.describe('hosted demo', () => {
   test('first paint opens the Epic breakdown view', async ({ page }) => {
     await forceLocale(page, 'en')
     await page.goto(DEMO)
+    await dismissHostedFirstFrame(page)
 
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
     await expectEpicBreakdownLanding(page)
@@ -74,6 +76,7 @@ test.describe('hosted demo', () => {
 
     // Service worker registration needs a secure context / localhost — fine on 127.0.0.1.
     await page.goto(DEMO)
+    await dismissHostedFirstFrame(page)
 
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
     await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 60_000 })
@@ -123,6 +126,7 @@ test.describe('hosted demo', () => {
   test('says it is a demo and never offers to take a Jira token', async ({ page }) => {
     await forceLocale(page, 'en')
     await page.goto(DEMO)
+    await dismissHostedFirstFrame(page)
 
     // Without this the page reads as a real Jira client someone left signed in,
     // and the next thing a visitor looks for is where to put their token.
@@ -156,6 +160,7 @@ test.describe('hosted demo', () => {
       writes.push(`${r.method()} ${r.url()}`)
     })
     await page.goto(DEMO)
+    await dismissHostedFirstFrame(page)
 
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
     await applyAllOpen(page)

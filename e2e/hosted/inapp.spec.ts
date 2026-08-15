@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { dismissHostedFirstFrame } from './helpers'
 
 /**
  * GDK-23: hosted demo must boot in in-app browsers that lack service workers.
@@ -82,6 +83,7 @@ test.describe('hosted demo in an in-app browser', () => {
     await forceLocale(page, 'en')
     await shadowServiceWorker(page)
     await page.goto(DEMO)
+    await dismissHostedFirstFrame(page)
 
     const proof = await page.evaluate(
       () => (navigator as Navigator & { serviceWorker?: unknown }).serviceWorker,
@@ -123,6 +125,7 @@ test.describe('hosted demo in an in-app browser', () => {
     await forceLocale(page, 'en')
     await shadowServiceWorker(page)
     await page.goto(DEMO)
+    await dismissHostedFirstFrame(page)
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
 
     const delta = await page.evaluate(async () => {

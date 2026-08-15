@@ -3,11 +3,13 @@
  * Build the zero-install hosted demo into dist/hosted.
  *
  * 1. Vite build with VITE_HOSTED_DEMO=1 and base /gadak/ (GitHub Pages project site)
- * 2. gadak export-static freezes examples/demo.db → bootstrap/detail/attachments
+ * 2. Inject the static first frame into dist/hosted/index.html (GDK-51)
+ * 3. gadak export-static freezes examples/demo.db → bootstrap/detail/attachments
  *
  * Usage (from repo root):
  *   node tools/hosted-demo/build.mjs
  *   make hosted-demo
+ *   ./tools/hosted-demo/preview.sh   # serve dist/hosted at :4173/gadak/
  */
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -107,7 +109,53 @@ if (withMeta === titled) {
   console.error('hosted-demo: could not inject social meta — the </title> tag is missing')
   process.exit(1)
 }
-writeFileSync(indexPath, withMeta)
+
+// Static first frame (GDK-51): inline HTML+CSS so a 390px in-app browser
+// can read the claim before the SPA bundle / bootstrap.json arrive.
+// Do not put this in web/index.html — gadak serve and the desktop app
+// must keep painting the existing boot shell with no frame.
+const framePath = join(root, 'tools', 'hosted-demo', 'first-frame.html')
+if (!existsSync(framePath)) {
+  console.error('hosted-demo: tools/hosted-demo/first-frame.html missing')
+  process.exit(1)
+}
+let frameHtml = readFileSync(framePath, 'utf8').trim()
+if (!frameHtml.includes('data-testid="hosted-first-frame"')) {
+  console.error('hosted-demo: first-frame.html is missing the hosted-first-frame test id')
+  process.exit(1)
+}
+
+const mp4Src = join(root, 'docs', 'media', 'web-demo.mp4')
+if (!existsSync(mp4Src)) {
+  console.error('hosted-demo: docs/media/web-demo.mp4 missing')
+  process.exit(1)
+}
+copyFileSync(mp4Src, join(outDir, 'web-demo.mp4'))
+
+// Poster is a still, not the 1.1MB mp4. ffmpeg is optional: Pages CI may
+// not have it. Fall back to the OG card already copied below.
+const posterOut = join(outDir, 'web-demo-poster.jpg')
+const ff = spawnSync(
+  'ffmpeg',
+  ['-y', '-ss', '00:00:02', '-i', mp4Src, '-frames:v', '1', '-q:v', '5', posterOut],
+  { cwd: root, stdio: 'pipe' },
+)
+if (ff.status !== 0 || !existsSync(posterOut)) {
+  frameHtml = frameHtml.replace('src="web-demo-poster.jpg"', 'src="og.png"')
+  console.log('hosted-demo: ffmpeg poster skipped — using og.png')
+}
+
+if (!withMeta.includes('<body>')) {
+  console.error('hosted-demo: could not inject first frame — the <body> tag is missing')
+  process.exit(1)
+}
+const withFrame = withMeta.replace('<body>', `<body>\n${frameHtml}\n`)
+if (withFrame === withMeta || !withFrame.includes('data-testid="hosted-first-frame"')) {
+  console.error('hosted-demo: could not inject first frame — the <body> tag changed shape')
+  process.exit(1)
+}
+writeFileSync(indexPath, withFrame)
+console.log(`hosted-demo: first frame injected (${Buffer.byteLength(frameHtml, 'utf8')} bytes)`)
 
 const ogSrc = join(root, 'docs', 'media', 'og.png')
 if (!existsSync(ogSrc)) {
