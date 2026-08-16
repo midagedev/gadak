@@ -190,4 +190,29 @@ if [[ -n "$outbound_diff" ]]; then
 fi
 ok "PROMISES.md outbound list matches SECURITY.md"
 
+# ── 9. Both onboarding paths warn about the token traps before the 401 ──
+# The web form and `gadak init` ask for the same token, and Atlassian's page
+# offers three things that look like one: a scoped token (recommended first),
+# an org key from admin.atlassian.com, and the user token that actually works.
+# Each surface carries its own copy — TS and Go share no string table — so the
+# invariant is pinned here instead: whoever edits one is told about the other.
+token_copy_missing=""
+for f in web/src/lib/i18n/en.ts web/src/lib/i18n/ko.ts cmd/gadak/init.go; do
+  # The hint on the credential prompt, not the error shown after a rejection:
+  # a warning that arrives after the failure it describes is the bug (GDK-98).
+  case "$f" in
+    *init.go) hint="$(sed -n '/tokenTrapHint/,/^$/p' "$f")" ;;
+    *)        hint="$(sed -n "/'onboarding.tokenHint'/,/^  '/p" "$f")" ;;
+  esac
+  # ATATT/ATCTT are Atlassian's own prefixes and read the same in every
+  # locale; the scoped-token trap is prose, so the Korean copy says 스코프.
+  for trap in 'ATATT' 'ATCTT' 'scope|스코프'; do
+    grep -Eqi -- "$trap" <<<"$hint" || token_copy_missing+="  $f: token hint does not name ${trap%%|*}"$'\n'
+  done
+done
+if [[ -n "$token_copy_missing" ]]; then
+  fail "an onboarding surface asks for a token without naming every trap (GDK-98):"$'\n'"$token_copy_missing"
+fi
+ok "web + CLI token prompts both name the scoped / ATATT / ATCTT traps"
+
 echo "doc-checks: all passed"

@@ -18,6 +18,13 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
+// tokenTrapHint is what the interactive prompt says before asking for a token.
+// The web onboarding form says the same three things in
+// web/src/lib/i18n/{en,ko}.ts — no string table spans TS and Go, so
+// tools/doc-checks.sh asserts that both surfaces still name every trap.
+const tokenTrapHint = `  Use "Create API token" with no scopes — a user token (ATATT…).
+  A scoped token, or an org key from admin.atlassian.com (ATCTT…), cannot sign in to a site URL.`
+
 // stdinIsTerminal reports whether stdin is a character device. Used so init can
 // refuse to block on a prompt when an agent or pipe is driving the CLI.
 func stdinIsTerminal() bool {
@@ -139,6 +146,12 @@ func cmdInit(args []string) error {
 		}
 		site = strings.TrimRight(prompt("Jira site URL (https://your-site.atlassian.net)", site), "/")
 		email = prompt("Account email", email)
+		// Two of the three things Atlassian's token page offers 401 against a
+		// site URL, and it recommends one of those two first. Say so before the
+		// paste, not after the rejection — after the 401 there is nothing left
+		// to do but explain it (GDK-98). The web onboarding form carries the
+		// same three facts; tools/doc-checks.sh pins the two together.
+		fmt.Println(tokenTrapHint)
 		// Token: keep-hint in the label only — never print the secret as [current].
 		tokenLabel := "API token (id.atlassian.com/manage-profile/security/api-tokens)"
 		if token != "" {

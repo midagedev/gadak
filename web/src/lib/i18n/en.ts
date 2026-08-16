@@ -949,11 +949,15 @@ export const en = {
   'onboarding.sitePlaceholder': 'https://your-team.atlassian.net',
   'onboarding.email': 'Jira account email',
   'onboarding.token': 'API token',
-  // Atlassian's token page now offers "Create API token with scopes" first, and
-  // a scoped token 401s here — so the warning sits next to the link that leads
-  // to that page, where it can still prevent the failure.
+  // Atlassian's token page offers three things that look like one, and two of
+  // them 401 here: a *scoped* token (which its page recommends first) and an
+  // org key from admin.atlassian.com. Naming all three next to the link that
+  // leads there is the only place the failure can still be prevented — after
+  // the 401 there is nothing left to do but explain it (GDK-98).
+  // tools/doc-checks.sh pins this against the `gadak init` prompt, which says
+  // the same thing to the same person on the other surface.
   'onboarding.tokenHint':
-    'Stored locally in ~/.gadak/config.json and sent only to your site. Create it without scopes — a scoped token cannot sign in to a site URL.',
+    'Stored locally in ~/.gadak/config.json and sent only to your site. Use "Create API token" with no scopes — a user token (ATATT…). A scoped token, or an org key from admin.atlassian.com (ATCTT…), cannot sign in to a site URL.',
   'onboarding.tokenExpires': "Expires (from Atlassian's create dialog)",
   'onboarding.tokenExpiresHint': 'Optional. Leave blank to assume the default one-year lifetime.',
   'onboarding.errExpires': 'That expiry date is not a date (YYYY-MM-DD).',

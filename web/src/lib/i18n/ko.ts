@@ -941,7 +941,7 @@ export const ko = {
   'onboarding.email': 'Jira 계정 이메일',
   'onboarding.token': 'API 토큰',
   'onboarding.tokenHint':
-    '~/.gadak/config.json 에만 저장되고, 당신의 사이트로만 전송됩니다. 스코프 없이 만드세요 — 스코프 토큰은 사이트 URL 로 로그인할 수 없습니다.',
+    '~/.gadak/config.json 에만 저장되고, 당신의 사이트로만 전송됩니다. "Create API token" 으로 스코프 없이 만든 사용자 토큰(ATATT…)이 필요합니다. 스코프 토큰이나 admin.atlassian.com 의 조직 키(ATCTT…)는 사이트 URL 로 로그인할 수 없습니다.',
   'onboarding.tokenExpires': '만료일 (Atlassian 발급 화면의 날짜)',
   'onboarding.tokenExpiresHint': '선택. 비우면 기본 수명(1년)으로 가정합니다.',
   'onboarding.errExpires': '만료일이 날짜가 아닙니다 (YYYY-MM-DD).',
