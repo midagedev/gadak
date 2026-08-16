@@ -20,7 +20,7 @@
   import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { createGlobalKeyHandler } from './lib/keymap.svelte'
   import { applyStartupView, readLastViewKey } from './lib/startup-view'
-  import { feature, isHostedDemo } from './lib/config'
+  import { feature, hasServerVerb, isHostedDemo } from './lib/config'
   import { takeUIFocus } from './lib/api'
   import { showIssueList } from './lib/show-issue-list'
   import { adoptRunningSync } from './lib/sync-now'
@@ -544,7 +544,10 @@
   <QuickComment issueKey={triage.commentKey} onclose={() => triage.closeComment()} />
 {/if}
 
-{#if serverSettingsOpen}
+<!-- Second line of defense behind the absent entry point: even a keyboard
+     shortcut or deep link cannot mount the server settings dialog where no
+     server exists to edit (it 404s on load and renders an error screen). -->
+{#if serverSettingsOpen && hasServerVerb('settings')}
   <SettingsDialog onclose={() => (serverSettingsOpen = false)} />
 {/if}
 

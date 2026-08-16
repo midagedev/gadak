@@ -287,6 +287,9 @@ export const ko = {
   'omnibox.issueMissing': '미러에 {key}가 없습니다',
   'list.searching': '검색중…',
   'list.searchFailed': '본문 검색에 실패했습니다. 연결을 확인한 뒤 다시 시도하세요.',
+  // 서버 FTS가 없는 배포(정적 스냅샷). 실패가 아니다: 네트워크는 멀쩡하고
+  // 제목·키 검색은 여전히 돌았다.
+  'list.searchBodyUnavailable': '이 스냅샷은 제목과 키만 검색합니다.',
   'list.searchRetry': '본문 검색 다시 시도',
   'list.matchInComment': '댓글에서',
   'list.docMatchCount': '문서 {n}건 · "{q}"',
@@ -322,6 +325,7 @@ export const ko = {
   'sidebar.openFilterInJira': '이 필터를 지라에서 열기',
   'sidebar.docsNoneTitle': '미러링된 문서 없음',
   'sidebar.docsNoneHint': '설정 → 소스에서 Confluence를 켜세요.',
+  'sidebar.docsUnavailable': '이 스냅샷에는 이슈만 들어 있습니다.',
   // Confluence가 켜져 있는데도 미러가 비어 있는 네 가지 이유. 위의 CTA는
   // 그중 "꺼져 있음" 하나에만 해당한다.
   'sidebar.docsSyncing': '문서를 가져오는 중…',

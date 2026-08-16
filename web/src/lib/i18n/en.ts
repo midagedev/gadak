@@ -286,6 +286,9 @@ export const en = {
   'omnibox.issueMissing': '{key} is not in the mirror',
   'list.searching': 'Searching…',
   'list.searchFailed': 'Could not search body text. Check the connection and try again.',
+  // A deployment with no server FTS (static snapshot). Not a failure: the
+  // network is fine, and title/key search still ran.
+  'list.searchBodyUnavailable': 'This snapshot searches titles and keys only.',
   'list.searchRetry': 'Retry body search',
   'list.matchInComment': 'in a comment',
   'list.docMatchCount': '{n} documents · "{q}"',
@@ -321,6 +324,7 @@ export const en = {
   'sidebar.openFilterInJira': 'Open this filter in Jira',
   'sidebar.docsNoneTitle': 'No documents mirrored',
   'sidebar.docsNoneHint': 'Turn on Confluence in Settings → Sources.',
+  'sidebar.docsUnavailable': 'This snapshot carries issues only.',
   // Confluence is on and the mirror still holds no pages. Four different
   // reasons, four different sentences: the CTA above belongs to "off" alone.
   'sidebar.docsSyncing': 'Fetching documents…',

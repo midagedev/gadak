@@ -241,6 +241,7 @@
     role="dialog"
     aria-modal="true"
     aria-label={t('settings.title')}
+    data-testid="settings-dialog"
   >
     <!-- Header + tabs -->
     <div class="flex-none border-b border-border-subtle px-5 pt-4">

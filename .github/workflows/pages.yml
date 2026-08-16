@@ -53,6 +53,15 @@ jobs:
       - name: Build hosted demo (UI + static snapshot)
         run: node tools/hosted-demo/build.mjs
 
+      # GDK-52: the hosted browser gate runs in CI now, not only locally — a
+      # false-state regression on the snapshot (feature entry points that 404)
+      # must fail the build that would publish it.
+      - name: Install Playwright chromium
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Hosted demo browser gate (GDK-52)
+        run: ./node_modules/.bin/playwright test --config e2e/hosted/playwright.config.ts
+
       - name: Tenant-neutrality / secret scan
         run: |
           set -euo pipefail

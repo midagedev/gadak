@@ -191,4 +191,66 @@ test.describe('hosted demo', () => {
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
     await expect(page.getByText('Does the write path feel real here?')).toHaveCount(0)
   })
+
+  /*
+   * GDK-52 — the snapshot must not advertise verbs it cannot answer.
+   *
+   * Three surfaces, three tests, on purpose. Playwright stops a test at its
+   * first failed assertion, so one test covering all three would report the
+   * search regression and say nothing about docs or settings — the next round
+   * would then be debugging blind. Split, a red run names the surface.
+   */
+
+  test('body search says what it searches, and never asks (GDK-52)', async ({ page }) => {
+    await forceLocale(page, 'en')
+    const searchRequests: string[] = []
+    page.on('request', (r) => {
+      if (/\/api\/v1\/issues\/search/.test(r.url())) searchRequests.push(`${r.method()} ${r.url()}`)
+    })
+    await page.goto(DEMO)
+    await dismissHostedFirstFrame(page)
+
+    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
+    await applyAllOpen(page)
+
+    // The snapshot has no server FTS (ADR 0004 addendum) and the network is
+    // fine — so "check the connection" would be a lie. The page must say what
+    // is true (titles/keys only) and must not even send the request.
+    await searchInput(page).fill('performance')
+    await searchInput(page).press('Enter')
+    await expect(page.getByText('This snapshot searches titles and keys only.')).toBeVisible()
+    await expect(page.getByText('Check the connection and try again')).toHaveCount(0)
+    expect(searchRequests, `search requests:\n${searchRequests.join('\n')}`).toEqual([])
+  })
+
+  test('the docs section offers no errand it cannot serve (GDK-52)', async ({ page }) => {
+    await forceLocale(page, 'en')
+    await page.goto(DEMO)
+    await dismissHostedFirstFrame(page)
+    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
+
+    // Unavailable is not unconfigured: the snapshot carries issues only, and
+    // sending the visitor to Settings for it is an errand with no destination.
+    const cta = page.locator('[data-testid="docs-empty-cta"][data-state="unavailable"]')
+    await expect(cta).toBeVisible()
+    await expect(cta).toContainText('This snapshot carries issues only.')
+    await expect(page.getByText('Turn on Confluence in Settings')).toHaveCount(0)
+  })
+
+  test('no path opens the server settings dialog (GDK-52)', async ({ page }) => {
+    await forceLocale(page, 'en')
+    await page.goto(DEMO)
+    await dismissHostedFirstFrame(page)
+    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
+
+    // The dialog edits a live server's config, and on the snapshot its own
+    // load (settings/ → 404) is an error screen. The docs CTA is the path that
+    // used to go there, so it is the one worth clicking.
+    await page.locator('[data-testid="docs-empty-cta"]').click()
+    await expect(page.getByTestId('settings-dialog')).toHaveCount(0)
+
+    // The footer entry point is absent altogether — not disabled, absent: the
+    // errand this dialog serves does not exist on a static snapshot.
+    await expect(page.locator('button[title^="Server settings"]')).toHaveCount(0)
+  })
 })

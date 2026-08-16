@@ -11,7 +11,7 @@
  * All derived values (visibleIssues/groups/facets) are local — no server round-trip.
  */
 
-import { config } from '../lib/config'
+import { config, hasServerVerb } from '../lib/config'
 import { router, setParams } from '../lib/router.svelte'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
@@ -58,6 +58,8 @@ export type ServerSearchOutcome =
   | { status: 'empty' }
   | { status: 'ok'; pages: PageLite[] }
   | { status: 'error' }
+  /** No server FTS in this deployment (static snapshot) — not a failure. */
+  | { status: 'unavailable' }
 
 /* ── Derived group types ── */
 
@@ -481,6 +483,11 @@ class FiltersStore {
   async runServerSearch(): Promise<ServerSearchOutcome> {
     const q = this.#config.filters.q.trim()
     if (!q) return { status: 'empty' }
+    // One gate for every caller (SearchBox, ListView, palette, docs filter,
+    // history): a snapshot with no server FTS never sends the request that
+    // would 404. Client-side title/key matching is untouched — this is "not
+    // applicable here", not "failed".
+    if (!hasServerVerb('bodySearch')) return { status: 'unavailable' }
     this.searching = true
     this.serverMatchQuery = q
     try {

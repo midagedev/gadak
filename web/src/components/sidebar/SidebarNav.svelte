@@ -14,7 +14,13 @@
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
   import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
-  import { config, isHostedDemo, jiraFilterUrl, workspaceName } from '../../lib/config'
+  import {
+    config,
+    hasServerVerb,
+    isHostedDemo,
+    jiraFilterUrl,
+    workspaceName,
+  } from '../../lib/config'
   import { busyLabel, fetchingDocuments, mirrorLabel } from '../../lib/mirror-status'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
@@ -180,17 +186,18 @@
   })
 
   /*
-   * An empty DOCS section has four causes, and telling someone to go connect a
+   * An empty DOCS section has five causes, and telling someone to go connect a
    * source is right for exactly one of them. It was wrong for the user who had
    * just chosen a space and saved: the app kept asking for what it already had.
    *
+   * unavailable — this deployment has no docs server at all (static snapshot).
    * off      — Confluence is not configured. The CTA belongs here and only here.
    * syncing  — a pull is running. Status, not an errand.
    * failed   — the last Confluence pass errored. Say so; the reason is in the title.
    * never    — configured, nothing fetched yet. The one state with an action here.
    * empty    — fetched fine, and the chosen spaces hold nothing. Blame the selection.
    */
-  type DocsEmptyState = 'off' | 'syncing' | 'failed' | 'never' | 'empty'
+  type DocsEmptyState = 'off' | 'syncing' | 'failed' | 'never' | 'empty' | 'unavailable'
 
   let confluenceRuns = $state<SyncRun[] | null>(null)
   const docsConfigured = $derived(config().confluenceEnabled)
@@ -204,6 +211,10 @@
   })
 
   const docsEmptyState = $derived.by((): DocsEmptyState => {
+    // First question, before "is it configured": does this deployment have a
+    // docs server to configure at all. A static snapshot is not "off" — there
+    // is no Settings screen that could switch it on.
+    if (!hasServerVerb('docs')) return 'unavailable'
     if (!docsConfigured) return 'off'
     // Only while the mirror is fetching *documents*. An issue pass is the sync
     // row's business, not this section's — that split is what made one mirror
@@ -217,6 +228,8 @@
 
   const docsEmptyText = $derived.by(() => {
     switch (docsEmptyState) {
+      case 'unavailable':
+        return { title: t('sidebar.docsUnavailable'), hint: '' }
       case 'syncing':
         // Literally the sync row's string, not a paraphrase of it: two places
         // rendering one sentence cannot end up telling different stories.
@@ -234,6 +247,7 @@
 
   /** 'never' is the one state the user can act on without leaving the sidebar. */
   function onDocsEmptyClick() {
+    if (docsEmptyState === 'unavailable') return
     if (docsEmptyState === 'syncing') return
     if (docsEmptyState === 'never') {
       void issues.pullMirror('full')
@@ -552,21 +566,25 @@
           class="flex w-full items-start gap-2 rounded-md px-3 py-1.5 text-left transition-colors {docsEmptyState ===
           'syncing'
             ? 'cursor-progress'
-            : 'hover:bg-bg-hover'}"
+            : docsEmptyState === 'unavailable'
+              ? 'cursor-default'
+              : 'hover:bg-bg-hover'}"
           data-testid="docs-empty-cta"
           data-state={docsEmptyState}
           title={docsEmptyState === 'failed' ? (confluenceRuns?.[0]?.error ?? '') : ''}
           onclick={onDocsEmptyClick}
         >
-          <!-- Four causes, four silhouettes. The gear is reserved for the one
+          <!-- Five causes, five silhouettes. The gear is reserved for the one
                state that is genuinely unconfigured: once the source is on, a
-               gear would say "set this up" about something already set up. -->
+               gear would say "set this up" about something already set up. The
+               unavailable snapshot shares search-x with 'empty' — nothing to
+               find either way — but never the gear: there is nowhere to go. -->
           <Icon
             name={docsEmptyState === 'failed'
               ? 'warning'
               : docsEmptyState === 'syncing' || docsEmptyState === 'never'
                 ? 'refresh'
-                : docsEmptyState === 'empty'
+                : docsEmptyState === 'empty' || docsEmptyState === 'unavailable'
                   ? 'search-x'
                   : 'settings'}
             size={15}
@@ -690,17 +708,22 @@
     {/if}
   </div>
 
-  <!-- Settings / identity area (sidebar footer) -->
+  <!-- Settings / identity area (sidebar footer). The server settings entry
+       point is absent — not disabled — wherever there is no server to edit:
+       on a static snapshot the dialog's own load (settings/ → 404) is an
+       error screen, so the errand it offers does not exist. -->
   <div class="flex-none border-t border-border-subtle px-3 py-2">
-    <button
-      type="button"
-      class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-      onclick={onOpenSettings}
-      title={t('sidebar.serverSettings')}
-    >
-      <Icon name="settings" size={14} />
-      {t('sidebar.settings')}
-    </button>
+    {#if hasServerVerb('settings')}
+      <button
+        type="button"
+        class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        onclick={onOpenSettings}
+        title={t('sidebar.serverSettings')}
+      >
+        <Icon name="settings" size={14} />
+        {t('sidebar.settings')}
+      </button>
+    {/if}
     {#if me.identified}
       <button
         type="button"
