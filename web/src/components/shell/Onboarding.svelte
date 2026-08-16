@@ -259,7 +259,14 @@
   })
 
   const fetched = $derived(progress?.fetched ?? 0)
-  const canContinue = $derived(picked.length > 0 && !saving)
+  // Zero picked is a scope, not an empty form: the CLI, PUT settings/ and
+  // POST sync/ have all read an empty project list as "every project this
+  // account can see" (internal/server/onboarding.go handleStartSync). The
+  // wizard was the only surface calling it illegal, which made the one path a
+  // first-time user is on demand a decision the product does not require —
+  // and on a large site, the picker is truncated anyway, so "select all" was
+  // never the same thing as "everything" (GDK-99).
+  const canContinue = $derived(!saving)
   const STEP_LABELS = [
     t('onboarding.stepCredential'),
     t('onboarding.stepProjects'),

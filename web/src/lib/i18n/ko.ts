@@ -927,7 +927,6 @@ export const ko = {
   'sync.settledFailed': '동기화 실패',
   'sync.settledNever': '동기화한 적 없음',
   'sync.settledChecking': '동기화 확인 중',
-  'sync.projectsRequired': '동기화 전에 설정에서 프로젝트를 하나 이상 추가하세요.',
 
   /* ── 온보딩(첫 실행) ── */
   'onboarding.title': '미러 설정하기',
@@ -957,7 +956,8 @@ export const ko = {
   'onboarding.errSite': 'Jira 사이트 URL 을 입력하세요. 예: https://your-team.atlassian.net',
   'onboarding.errFields': '이메일과 API 토큰이 모두 필요합니다.',
   'onboarding.errConnect': 'Jira 에 연결할 수 없습니다: {message}',
-  'onboarding.projectsIntro': '미러할 프로젝트를 고르세요. 나중에 설정에서 바꿀 수 있습니다.',
+  'onboarding.projectsIntro':
+    '미러할 프로젝트를 고르세요. 하나도 고르지 않으면 볼 수 있는 모든 프로젝트를 미러합니다 — 나중에 만들어지는 것까지. 설정에서 바꿀 수 있습니다.',
   'onboarding.loadingProjects': '프로젝트 불러오는 중…',
   'onboarding.errProjects': '프로젝트 목록을 가져오지 못했습니다: {message}',
   'onboarding.projectsTruncated': '앞쪽 {n}개만 표시했습니다. 나머지는 설정에서 추가하세요.',

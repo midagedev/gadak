@@ -83,9 +83,6 @@ async function doSync(mode: 'full' | 'incremental', quiet: boolean): Promise<voi
       say(t('write.tokenRejected'), 'error')
       openSettings()
       return
-    } else if (e instanceof ApiError && e.code === 'projects_required') {
-      say(t('sync.projectsRequired'), 'error')
-      return
     } else {
       const msg = e instanceof ApiError ? e.code ?? e.message : String(e)
       say(t('sync.failed', { message: msg }), 'error')

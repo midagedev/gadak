@@ -936,7 +936,6 @@ export const en = {
   'sync.settledFailed': 'Sync failed',
   'sync.settledNever': 'Never synced',
   'sync.settledChecking': 'Checking sync',
-  'sync.projectsRequired': 'Add at least one project in settings before syncing.',
 
   /* ── Onboarding (first run) ── */
   'onboarding.title': 'Set up your mirror',
@@ -979,7 +978,11 @@ export const en = {
   'onboarding.errSite': 'Enter your Jira site URL, for example https://your-team.atlassian.net.',
   'onboarding.errFields': 'Email and API token are both required.',
   'onboarding.errConnect': 'Could not reach Jira: {message}',
-  'onboarding.projectsIntro': 'Pick the projects to mirror. You can change this later in settings.',
+  // Naming the empty case here is the point of GDK-99: leaving the list alone
+  // is the choice that keeps working as the site grows, so it must not read
+  // like an unfinished form.
+  'onboarding.projectsIntro':
+    'Pick the projects to mirror, or pick none to mirror every project you can see — including ones created later. You can change this in settings.',
   'onboarding.loadingProjects': 'Loading projects…',
   'onboarding.errProjects': 'Could not list projects: {message}',
   'onboarding.projectsTruncated': 'Showing the first {n} projects; add any others in settings.',

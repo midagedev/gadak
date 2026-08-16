@@ -251,11 +251,14 @@ test.describe('first-run onboarding', () => {
     await expect(page.getByText('Ship the first mirrored issue')).toBeVisible()
   })
 
-  test('a rejected credential says so and stays on step 1', async ({ page }) => {
-    await mockFirstRun(page)
-    await page.route(`${API}onboarding/connect/`, (route) =>
-      route.fulfill({ status: 401, json: { error: 'credential_rejected' } }),
-    )
+  // The CLI and the settings screen have always read an empty project list as
+  // "every project this account can see". Only the wizard called zero a
+  // mistake, so the one path a first-time user is actually on demanded a
+  // decision the product does not require (GDK-99).
+  test('picking no projects is a choice: the sync starts and mirrors everything', async ({
+    page,
+  }) => {
+    const flow = await mockWizard(page)
 
     await forceLocale(page, 'en')
     await page.goto('/')
@@ -264,11 +267,63 @@ test.describe('first-run onboarding', () => {
     await expect(wizard).toBeVisible({ timeout: 30_000 })
     await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
     await wizard.locator('input[name="email"]').fill('dana@example.com')
-    await wizard.locator('input[name="token"]').fill('wrong')
+    await wizard.locator('input[name="token"]').fill('super-secret-token')
     await wizard.getByRole('button', { name: 'Connect', exact: true }).click()
 
-    await expect(page.getByTestId('onboarding-error')).toContainText('Jira rejected')
-    await expect(page.getByTestId('onboarding-error')).toContainText('Org API keys')
-    await expect(page.getByTestId('onboarding-connect')).toBeVisible()
+    await expect(page.getByTestId('onboarding-projects')).toBeVisible()
+    // Deliberately touch nothing — and press the affordance that says so.
+    await wizard.getByRole('button', { name: 'Select none' }).click()
+    await expect(wizard.getByText('0 selected')).toBeVisible()
+
+    const start = wizard.getByRole('button', { name: 'Start first sync' })
+    await expect(start).toBeEnabled()
+    await start.click()
+
+    // The empty list has to reach the server as an empty list: a client that
+    // "helpfully" substituted every visible key would pin today's catalogue
+    // into the config, and a project created next week would never sync.
+    await expect(page.getByTestId('onboarding-agent')).toBeVisible({ timeout: 20_000 })
+    expect(flow.savedProjects).toEqual([])
   })
+
+  // Jira answers every bad credential with the same 401, and only one of the
+  // traps is recognisable from the pasted token — the ATCTT prefix of an org
+  // key. So the server sends two codes and the wizard says two different
+  // things (GDK-69); asserting only one of them would let the other rot.
+  for (const tc of [
+    {
+      name: 'a scoped or mistyped token gets the check the user can run',
+      code: 'credential_rejected',
+      token: 'wrong',
+      says: 'Scoped tokens',
+    },
+    {
+      name: 'an org key is named outright, because its prefix gives it away',
+      code: 'credential_rejected_org_key',
+      token: `ATCTT${'x'.repeat(30)}`,
+      says: 'Org API keys',
+    },
+  ]) {
+    test(`a rejected credential stays on step 1 — ${tc.name}`, async ({ page }) => {
+      await mockFirstRun(page)
+      await page.route(`${API}onboarding/connect/`, (route) =>
+        route.fulfill({ status: 401, json: { error: tc.code } }),
+      )
+
+      await forceLocale(page, 'en')
+      await page.goto('/')
+
+      const wizard = page.getByTestId('onboarding')
+      await expect(wizard).toBeVisible({ timeout: 30_000 })
+      await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
+      await wizard.locator('input[name="email"]').fill('dana@example.com')
+      await wizard.locator('input[name="token"]').fill(tc.token)
+      await wizard.getByRole('button', { name: 'Connect', exact: true }).click()
+
+      const err = page.getByTestId('onboarding-error')
+      await expect(err).toContainText('Jira rejected')
+      await expect(err).toContainText(tc.says)
+      await expect(page.getByTestId('onboarding-connect')).toBeVisible()
+    })
+  }
 })

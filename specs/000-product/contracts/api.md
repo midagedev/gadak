@@ -335,7 +335,8 @@ document. Body is optional: empty (or `{"mode":"full"}`) runs a full sync
 (onboarding first run); `{"mode":"incremental"}` runs an incremental pass for
 daily “Sync now”. Unknown `mode` is `400 invalid_mode`. It is single-flight: a
 second call while one is running is `409 sync_in_progress`. An incomplete setup
-is `400 credential_required` or `400 projects_required`. `GET sync/progress/`
+is `400 credential_required`; an empty project list is a scope, not an
+incomplete setup — it means every project the account can see. `GET sync/progress/`
 polls `{running, phase, fetched, changed, deleted, done, error, started_at,
 finished_at}` where `phase` is `idle | syncing | done | error`. The document
 carries counters only — no site, no email, nothing derived from the token — and
