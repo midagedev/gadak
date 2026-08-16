@@ -6,9 +6,18 @@
 <script lang="ts">
   /*
    * Toast host (write). Bottom-right stack over write.toasts.
-   *  Errors in red; others neutral. Click dismisses immediately.
+   *  Each kind carries a registry glyph so success and error stay
+   *  distinguishable when the done/reopen tokens collapse under
+   *  deuteranopia. Click dismisses immediately.
    */
-  import { write } from '../../stores/write.svelte'
+  import { write, type ToastKind } from '../../stores/write.svelte'
+  import Icon, { type IconName } from '../ui/Icon.svelte'
+
+  const TOAST_ICON: Record<ToastKind, IconName> = {
+    success: 'check-circle',
+    error: 'warning',
+    info: 'info',
+  }
 
   let hostEl = $state<HTMLDivElement | null>(null)
   $effect(() => {
@@ -31,14 +40,17 @@
       aria-live={toast.kind === 'error' ? 'assertive' : 'polite'}
       onclick={() => write.dismissToast(toast.id)}
       data-testid="toast"
-      class="anim-toast pointer-events-auto max-w-sm rounded-lg border px-3 py-2 text-left text-[12px] shadow-overlay transition-colors {toast.kind ===
+      class="anim-toast pointer-events-auto inline-flex max-w-sm items-center gap-1.5 rounded-lg border px-3 py-2 text-left text-[12px] shadow-overlay transition-colors {toast.kind ===
       'error'
         ? 'border-status-reopen/40 bg-status-reopen/15 text-status-reopen'
         : toast.kind === 'success'
           ? 'border-status-done/40 bg-status-done/15 text-status-done'
           : 'border-border-strong bg-bg-elevated text-text-secondary'}"
     >
-      {toast.message}
+      <span class="flex-none" data-testid="toast-icon" data-icon={TOAST_ICON[toast.kind]}>
+        <Icon name={TOAST_ICON[toast.kind]} size={14} />
+      </span>
+      <span class="min-w-0">{toast.message}</span>
     </button>
   {/each}
 </div>

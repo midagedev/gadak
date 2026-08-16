@@ -4,7 +4,7 @@
   import { filters } from '../../stores/filters.svelte'
   import { CATEGORY_META } from '../../lib/format'
   import { groupByEnabled, type GroupBy, type StatusCategory } from '../../lib/view-config'
-  import Icon from '../ui/Icon.svelte'
+  import Icon, { type IconName } from '../ui/Icon.svelte'
 
   const ALL_OPTIONS: { key: GroupBy; label: string }[] = [
     { key: 'status_category', label: t('group.byStatusCategory') },
@@ -70,6 +70,21 @@
     if (index === 1) return 'var(--color-status-inprogress)'
     return 'var(--color-text-muted)'
   }
+
+  /* 6px swatches cannot carry a hatch or border. Pass/fail (and the same
+     done/reopen pair on QA impact) get a legend glyph instead. */
+  function groupGlyph(key: string): IconName | null {
+    if (filters.display.group_by === 'development_test_result') {
+      const k = key.toLowerCase()
+      if (k === 'fail') return 'warning'
+      if (k === 'pass') return 'check-circle'
+    }
+    if (filters.display.group_by === 'qa_impact') {
+      if (key === 'blocking') return 'warning'
+      if (key === 'verified') return 'check-circle'
+    }
+    return null
+  }
 </script>
 
 <svelte:document onclick={onDocClick} />
@@ -118,6 +133,7 @@
     <div class="min-w-0 flex-1 overflow-x-auto">
       <div class="flex w-max items-center gap-3 whitespace-nowrap text-[12px]">
         {#each shownGroups as group, i (group.key || `empty-${i}`)}
+          {@const glyph = groupGlyph(group.key)}
           <!-- A chip names a section of the list below, so it is the way to
                that section (the list owns where it sits — see filters.revealGroup). -->
           <button
@@ -129,6 +145,9 @@
               class="h-1.5 w-1.5 rounded-full"
               style:background={groupColor(group.key, i)}
             ></span>
+            {#if glyph}
+              <Icon name={glyph} size={12} />
+            {/if}
             <span class="max-w-36 truncate">{group.label || t('common.all')}</span>
             <span class="font-mono text-micro text-text-muted">{group.counts.total}</span>
           </button>
