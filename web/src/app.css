@@ -453,6 +453,44 @@
     }
   }
 
+  /*
+    Narrow-regime scrim (GDK-127). Below 1439px the detail panel is a fixed
+    overlay over a list column that keeps the full remaining width — at 1420
+    the column is 1148px and the panel covers its last 560px. The rows lay
+    out to the hidden column edge, so `truncate` never engages and glyphs
+    slice mid-glyph at the panel's edge (measured 2026-08-17: every visible
+    title box ran to 1040–1202px under a panel starting at 860px, scrollWidth
+    == clientWidth, no ellipsis anywhere).
+
+    The fix is the signal, not the geometry: the covering becomes a declared
+    overlay by dimming what it covers, so the slice reads as "under the
+    panel" instead of as a rendering fault. Narrowing the list instead
+    (audit shape a) only holds down to ~1370px — the heaviest row measures
+    455px of fixed parts + a 110px title floor, so at 1280 (list 508px) the
+    trailing columns themselves start clipping. Below 1439 the panel is a
+    peek, not a modal: pointer-events stays none, so j/k and clicks on the
+    visible rows keep working, and Esc/x close exactly as before.
+
+    The tint is the house dialog backdrop token verbatim (bg-[#1c1812]/28 +
+    2px blur — JiraKeySettings, SettingsDialog, CommandPalette), so the peek
+    and the modals dim the app the same way. Mounted at every width and
+    hidden by default: above 1439px nothing ever makes it visible, so the
+    docked regime is byte-identical. One tier under the overlay panel (50)
+    and every dialog (50); toasts (60), the browse pane (55) and the media
+    viewer (70) stay above it.
+  */
+  .issue-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgb(28 24 18 / 0.28);
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 120ms ease-out;
+  }
+
   @media (max-width: 1439px) {
     .issue-layout,
     .issue-layout.detail-open {
@@ -474,6 +512,13 @@
     .issue-detail-panel.is-open {
       width: min(560px, calc(100vw - 272px));
       transform: translateX(0);
+    }
+
+    /* The scrim fades in with the panel it sanctions (120ms opacity — the
+       panel's own opacity leg) and leaves with it the same way. */
+    .issue-scrim.is-open {
+      visibility: visible;
+      opacity: 1;
     }
   }
 
@@ -559,6 +604,9 @@
     .issue-detail-panel {
       transition: none;
       transform: none;
+    }
+    .issue-scrim {
+      transition: none;
     }
   }
 }

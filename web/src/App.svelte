@@ -608,6 +608,17 @@
         {/snippet}
       </RightPanel>
 
+      <!-- Narrow-regime scrim (GDK-127): below 1439px the panel beside this is
+           a fixed overlay, and a cover with no signal reads as a rendering
+           fault — titles sliced mid-glyph at its edge. Mounted at every width
+           but hidden outside the overlay regime (app.css, .issue-scrim). -->
+      <div
+        class="issue-scrim"
+        class:is-open={panelOpen}
+        data-testid="issue-scrim"
+        aria-hidden="true"
+      ></div>
+
       <!-- Over the detail area: an original page is what you asked to see
            *instead of* Gadak's copy, and the copy is still there when the pane
            steps away. Nothing at all in a browser tab. -->
