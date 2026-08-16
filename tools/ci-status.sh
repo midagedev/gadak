@@ -90,10 +90,20 @@ for prev in $(git rev-list -n 10 "$SHA^" 2>/dev/null || true); do
   break
 done
 
-if grep -qE '^(failure|cancelled|timed_out)' <<<"$ROWS"; then
+if grep -qE '^(failure|timed_out)' <<<"$ROWS"; then
   echo "ci-status: RED. tools/ci-status.sh is not the fix — read the log:" >&2
   echo "  gh run list --commit $SHORT" >&2
   echo "  gh run view <id> --log-failed" >&2
   exit 1
+fi
+# A cancelled run is the absence of a verdict, not a bad one — pushing twice in
+# a row cancels the first commit's run by design (the workflow's concurrency
+# group). Calling that red would make this tool cry wolf on every quick series,
+# and a tool that cries wolf is one people stop running, which is the failure
+# GDK-57 is about. Say what is actually true: this commit was never judged.
+if grep -qE '^cancelled' <<<"$ROWS"; then
+  echo "ci-status: no verdict for $SHORT — a run was cancelled, which normally means a later push superseded it." >&2
+  echo "           Check the commit that superseded it: tools/ci-status.sh \$(git rev-parse HEAD)" >&2
+  exit 2
 fi
 echo "ci-status: green."
