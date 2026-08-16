@@ -132,10 +132,3 @@ export async function applyOmniboxAction(
       return true
   }
 }
-
-export async function handleOmniboxInput(
-  raw: string,
-  applyJql: (input: string) => Promise<boolean>,
-): Promise<boolean> {
-  return applyOmniboxAction(classifyOmnibox(raw), applyJql)
-}

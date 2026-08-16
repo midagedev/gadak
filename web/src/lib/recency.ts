@@ -37,11 +37,3 @@ export function recordRecent(kind: string, value: string): void {
     /* localStorage unavailable — ignore */
   }
 }
-
-/**
- * Recent rank index (0 = most recent, missing → Infinity). Drop into a sort comparator.
- */
-export function recentRank(kind: string, value: string): number {
-  const i = recentOf(kind).indexOf(value)
-  return i === -1 ? Infinity : i
-}

@@ -332,6 +332,7 @@ class IssuesStore {
     this.#pollTimer = setInterval(() => {
       void this.#sync()
     }, POLL_MS)
+    // Module-lifetime, never removed on purpose.
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return
       void this.#sync()

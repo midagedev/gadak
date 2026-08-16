@@ -189,7 +189,7 @@
       style:height="{total}px"
       style:margin-bottom={browse.pillVisible ? '56px' : ''}
     >
-      {#each slice as row, i (start + i + (row.type === 'issue' ? row.issue.issue_key : 'h' + row.group.key))}
+      {#each slice as row, i (row.type === 'issue' ? row.issue.issue_key : 'h' + row.group.key)}
         <div class="absolute inset-x-0" style:top="{(start + i) * ROW_H}px" style:height="{ROW_H}px">
           {#if row.type === 'header'}
             <GroupHeader

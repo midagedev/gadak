@@ -30,8 +30,3 @@ export function rowMetrics(): { row: number; rowExcerpt: number; control: number
   }
   return cache
 }
-
-/** Test seam: forget the cached read (nothing in the app changes these). */
-export function resetRowMetrics(): void {
-  cache = null
-}

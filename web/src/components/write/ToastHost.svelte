@@ -1,12 +1,26 @@
+<script module lang="ts">
+  /** Published once on mount. BrowsePane reads this instead of querySelector. */
+  export const toastHostSlot: { el: HTMLElement | null } = { el: null }
+</script>
+
 <script lang="ts">
   /*
    * Toast host (write). Bottom-right stack over write.toasts.
    *  Errors in red; others neutral. Click dismisses immediately.
    */
   import { write } from '../../stores/write.svelte'
+
+  let hostEl = $state<HTMLDivElement | null>(null)
+  $effect(() => {
+    toastHostSlot.el = hostEl
+    return () => {
+      if (toastHostSlot.el === hostEl) toastHostSlot.el = null
+    }
+  })
 </script>
 
 <div
+  bind:this={hostEl}
   class="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-2"
   data-testid="toast-host"
 >

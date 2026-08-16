@@ -30,10 +30,6 @@ export function cacheEpoch(): number {
   return epoch
 }
 
-export function isCached(key: string): boolean {
-  return cache.has(key)
-}
-
 /** LRU: move a recently used key to the end. */
 function touch(key: string, value: DetailResponse): void {
   cache.delete(key)

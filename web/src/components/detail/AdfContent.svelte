@@ -25,7 +25,6 @@
     emptyLabel?: string
   } = $props()
 
-  let contentElement = $state<HTMLDivElement | null>(null)
   const html = $derived(renderAdf(node, { issueKey, attachments }))
   const hasHtml = $derived(html.trim().length > 0)
   const hasFallback = $derived(!!fallback && fallback.trim().length > 0)
@@ -47,17 +46,12 @@
       event.stopPropagation()
     }
   }
-
-  $effect(() => {
-    const element = contentElement
-    if (!element) return
-    element.addEventListener('click', onContentClick)
-    return () => element.removeEventListener('click', onContentClick)
-  })
 </script>
 
 {#if hasHtml}
-  <div class="adf" bind:this={contentElement}>{@html html}</div>
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="adf" onclick={onContentClick}>{@html html}</div>
 {:else if hasFallback}
   <!-- Plain-text fallback when ADF missing/unparseable (preserve newlines) -->
   <div class="adf whitespace-pre-wrap">{fallback}</div>

@@ -119,6 +119,12 @@ class FiltersStore {
     return this.#config.display
   }
 
+  /** Shared column set — every IssueRow reads this instead of allocating its own. */
+  #columnSet = $derived(new Set(this.#config.display.columns))
+  get columnSet(): Set<ColumnKey> {
+    return this.#columnSet
+  }
+
   /**
    * Sort actually applied. With a query and default sort (updated), auto-promote
    *  to relevance. (An explicit other sort wins — but updated is indistinguishable

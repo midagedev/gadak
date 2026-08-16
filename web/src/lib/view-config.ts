@@ -13,7 +13,7 @@
  */
 
 import { config, feature, type GadakFeatures } from './config'
-import { columnLabel, deployStateLabel } from './i18n'
+import { columnLabel } from './i18n'
 import type { DeployState, IssueLite } from './types'
 
 /* ── Filter state ── */
@@ -274,7 +274,7 @@ export function groupByEnabled(by: GroupBy): boolean {
   return !f || feature(f)
 }
 
-export const FLAG_FIELDS = ['reopened', 'unassigned', 'stale'] as const
+const FLAG_FIELDS = ['reopened', 'unassigned', 'stale'] as const
 export type FlagField = (typeof FLAG_FIELDS)[number]
 
 /* ── Defaults ── */
@@ -586,23 +586,6 @@ export function effectiveCategory(issue: IssueLite): StatusCategory {
  */
 export function deployStateOf(issue: IssueLite): DeployState {
   return issue.deploy_status?.state ?? 'none'
-}
-
-/** Deploy-stage labels (shared by filter facets/chips) — active locale. */
-export function DEPLOY_STATE_LABEL(): Record<DeployState, string> {
-  return {
-    none: deployStateLabel('none'),
-    merged: deployStateLabel('merged'),
-    dev: deployStateLabel('dev'),
-    qa_preview: deployStateLabel('qa_preview'),
-    qa: deployStateLabel('qa'),
-    prod: deployStateLabel('prod'),
-  }
-}
-
-/** Label for a single deploy stage. */
-export function deployLabel(state: DeployState): string {
-  return deployStateLabel(state)
 }
 
 /**

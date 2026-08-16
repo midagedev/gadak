@@ -60,7 +60,7 @@
     t('list.fieldValue', { field: t('common.labels'), value: issue.labels.join(', ') }),
   )
   // Visible column set (view settings). O(1) check per trailing field.
-  const cols = $derived(new Set(filters.display.columns))
+  const cols = $derived(filters.columnSet)
   // Query highlight (title·key). Empty q → single segment, same render cost.
   const summarySegs = $derived(highlightSegments(issue.summary, filters.filters.q))
   const keySegs = $derived(highlightSegments(issue.issue_key, filters.filters.q))

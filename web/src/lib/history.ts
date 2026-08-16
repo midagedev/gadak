@@ -120,16 +120,3 @@ export function issueKeysOf(entries: readonly TimelineEntry[]): string[] {
   }
   return keys
 }
-
-/** Local narrowing: key, title, query, or the item opened from a search. */
-export function entryMatches(entry: TimelineEntry, raw: string, title: string): boolean {
-  const needle = raw.trim()
-  if (!needle) return true
-  const n = needle.toLowerCase()
-  const hay =
-    entry.type === 'search' ? [entry.query, entry.openedKey ?? ''] : [entry.key, title]
-  for (const h of hay) {
-    if (h.toLowerCase().includes(n)) return true
-  }
-  return false
-}

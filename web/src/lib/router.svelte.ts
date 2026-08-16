@@ -63,11 +63,6 @@ export function navigate(path: string, params?: URLSearchParams | Record<string,
   location.hash = serialize({ path, params: sp })
 }
 
-/** Read one query param (null if missing). */
-export function getParam(key: string): string | null {
-  return current.params.get(key)
-}
-
 /**
  * Merge-update several query params — preserve the rest.
  * `null` removes that key. Path stays. `replace=true` rewrites the current

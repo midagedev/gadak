@@ -416,6 +416,7 @@ class MeStore {
     this.#feedPollTimer = setInterval(() => {
       if (this.identified) void this.loadFeed()
     }, 15_000)
+    // Module-lifetime, never removed on purpose.
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && this.identified) void this.loadFeed()
     })

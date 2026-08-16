@@ -18,6 +18,7 @@
   import { applyToastReservation } from '../../lib/browse-stack'
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
+  import { toastHostSlot } from '../write/ToastHost.svelte'
 
   let viewport = $state<HTMLDivElement | null>(null)
 
@@ -40,7 +41,7 @@
     const r = el.getBoundingClientRect()
     let next = { x: r.x, y: r.y, w: r.width, h: r.height }
     if (browse.stack.reserveToast) {
-      const host = document.querySelector('[data-testid="toast-host"]')
+      const host = toastHostSlot.el
       if (host) {
         const t = host.getBoundingClientRect()
         next = applyToastReservation(next, { x: t.x, y: t.y, w: t.width, h: t.height })
@@ -62,7 +63,7 @@
     report()
     const ro = new ResizeObserver(report)
     ro.observe(el)
-    const host = reserve ? document.querySelector('[data-testid="toast-host"]') : null
+    const host = reserve ? toastHostSlot.el : null
     if (host) ro.observe(host)
     window.addEventListener('resize', report)
     const tick = setInterval(report, 1000)
