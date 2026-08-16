@@ -230,4 +230,28 @@ if [[ -n "$hardcoded" ]]; then
 fi
 ok "Node version has one owner (.nvmrc), read by every workflow"
 
+# ── 11. A Playwright webServer command names its own interpreter ─────────
+# Same class as check 10, different shell: Playwright hands `webServer.command`
+# to /bin/sh, which is bash on a developer's mac and dash on the CI runner. The
+# hosted config opened its inline command with `set -euo pipefail` and died on
+# the runner with "Illegal option -o pipefail" — after passing every local run
+# (GDK-52). An inline string does not say which shell reads it, so bash-only
+# syntax there is green until the one machine that matters disagrees. Put the
+# script in a file with a shebang and invoke it as `bash <path>`, the way
+# e2e/serve.sh already does.
+bashism_inline=""
+while IFS= read -r cfg; do
+  # The command value only; a bash-only construct in a comment is not a bug.
+  cmd="$(sed -n "/command:/,/,$/p" "$cfg")"
+  for bashism in 'pipefail' '\[\[' '<<<' '\$\{[A-Za-z_]*[/^,]'; do
+    if grep -Eq -- "$bashism" <<<"$cmd" && ! grep -Eq -- "command: *'bash " <<<"$cmd"; then
+      bashism_inline+="  $cfg: inline webServer.command uses bash-only syntax (${bashism})"$'\n'
+    fi
+  done
+done < <(find e2e -name 'playwright.config.ts')
+if [[ -n "$bashism_inline" ]]; then
+  fail "a Playwright webServer command relies on bash but is run by /bin/sh (dash on CI, GDK-52):"$'\n'"$bashism_inline"
+fi
+ok "Playwright webServer commands are POSIX or name bash explicitly"
+
 echo "doc-checks: all passed"
