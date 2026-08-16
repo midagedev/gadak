@@ -4,7 +4,15 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-15 — v0.14.1, the dogfooding-day release: CLI writes
+Last updated: 2026-08-16 — v0.14.2, the onboarding-and-recovery release:
+every token trap Atlassian's own page offers is now named *before* the paste
+rather than after the 401, a rejected token is recoverable from the read path
+(not just from a write), picking no projects is a scope instead of an
+unfinished form, the embedded agent skill knows the write verbs the CLI
+actually has, `gadak skill install` treats an upgrade as an upgrade, a quiet
+Confluence tick reads zero page bodies (19.4s of a 21.4s tick), and
+`gadak issue <KEY> --derive` explains where the derived columns came from.
+Under it, v0.14.1, the dogfooding-day release: CLI writes
 grew `create`, `attach`, `edit` and batch creation; the hosted demo dropped
 its service worker for an in-page fetch adapter and gained a static first
 frame readable at phone width; the browse pane yields to dialogs and toasts;
@@ -14,7 +22,7 @@ notify-only (banner + brew/dmg), and releases deliberately ship no
 rebuilt around `query` with error echoes, the three pipe contracts written
 down (`issues_full` + RECIPES, `gadak sql` stdout, `views open --keys -`),
 personal-row export/import, brew renamed so `gadak` is the app cask, and the
-first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.14.1.
+first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.14.2.
 
 ## In one paragraph
 

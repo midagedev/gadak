@@ -1,5 +1,71 @@
 # Changelog
 
+## v0.14.2 — 2026-08-16
+
+The release about the first ten minutes and the day the token dies. Nothing
+here is a new capability so much as an existing one that finally tells you
+what it is doing.
+
+- **Every token trap is named before the paste, not after the 401** (GDK-69,
+  GDK-98). Atlassian's token page offers three things that look like one, and
+  two of them cannot sign in to a site URL: a *scoped* token — which that page
+  now recommends first — and an org key from admin.atlassian.com. gadak only
+  ever said so after the rejection. Both the web form and `gadak init` now say
+  it up front. Behind a 401, the one trap that is recognisable from the token
+  itself (the ATCTT prefix) is named outright; the rest share a message that
+  hands you a check you can run, because Jira answers all of them identically
+  and inventing a distinction would be worse than admitting there isn't one.
+- **A rejected token is recoverable without writing** (GDK-68). Only the write
+  path used to offer the replace-token dialog, so a person who reads the
+  mirror saw a dead freshness chip and a technical error string. The sync
+  progress document now carries `error_code`, classified by the one function
+  that already owned that rule, and the chip, the palette and the empty-mirror
+  CTA all reach the same dialog. A wiki-only 401 deliberately does *not*
+  count: the Jira pass authenticated with the same token moments earlier, so
+  that is a permission gap, not a dead credential.
+- **Picking no projects is a choice** (GDK-99). The CLI and settings have
+  always read an empty project list as "everything this account can see". The
+  first-run wizard was the only surface calling it illegal — Start sat
+  disabled next to its own "Select none" button — which forced a decision the
+  product does not require, and the wrong one on a large site, where the
+  picker is truncated and "select all" was never "everything".
+- **`gadak skill install` treats an upgrade as an upgrade** (GDK-92). After
+  `brew upgrade` the installed skill is the previous release's own copy, so it
+  differed, so the one-liner in our own docs turned red. Provenance is now
+  decided by content hash — an install receipt, plus a frozen table of the
+  digests shipped before receipts existed. A file *you* wrote is still
+  refused; that refusal is the feature. `doctor` grew skill and MCP lines, so
+  "is my skill current?" is one command.
+- **The embedded skill knows the verbs the CLI has** (GDK-91). It described
+  reads plus comment/transition/assign and stopped there, so an agent with the
+  skill loaded answered "gadak cannot create issues" or reached for the REST
+  API. v0.14.1 shipped `create`, `attach` and `edit`; the file agents read
+  never learned.
+- **A quiet Confluence tick reads zero page bodies** (GDK-113). A sync tick
+  took 21.4s, and 19.4s of it re-read 71 unchanged wiki pages: minute-grained
+  CQL kept returning the same cluster forever, and nothing decided between a
+  search hit and a body fetch. One owner decides now, and `gadak sync` prints
+  the tally so the next person can check without adding printlns.
+- **`gadak issue <KEY> --derive`** (GDK-111) prints how the derived columns
+  were computed — the changelog by status *category*, and the rows behind
+  `reopen_count`, `resolved_at`, `reopen_reason` and `epic_key`. It calls the
+  same derivation the sync path calls; a second copy would agree with the
+  first only until one of them changed.
+- **History keeps its order** (GDK-26): "Show issues in list" no longer
+  regroups by status, which is the one thing that pane exists to show.
+- Also: token expiry is recorded and warned about before the sync dies
+  (GDK-67/70), the browse pane yields Escape and stops outliving its document
+  (GDK-78/79/80), `gadak sql` warns on a stale mirror and `gadak_query` flags
+  display-name zero rows (GDK-90), `Open` repairs an `items_fts` this build
+  cannot write (GDK-112), the search-help `?` works on touch (GDK-53),
+  `examples/compose` lands as pure shell (GDK-109), the Datasette Lite deep
+  link is pinned (GDK-101), and `PROMISES.md` is gated against `SECURITY.md`
+  (GDK-104).
+- **Process, because it failed twice in one day** (GDK-57): the Node version
+  had five owners and none a shell could read — `.nvmrc` is the single one
+  now — and `tools/ci-status.sh` answers "did what I just pushed pass?", which
+  is the question that went unasked while main sat red for an hour.
+
 ## v0.14.1 — 2026-08-15
 
 One day of dogfooding gadak's own backlog through gadak, shipped as it
