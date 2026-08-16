@@ -4,6 +4,7 @@
    */
   import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
+  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import type { SortKey } from '../../lib/view-config'
   const BASE_SORTS: { k: SortKey; l: string }[] = [
     { k: 'updated', l: t('sort.updated') },
@@ -25,16 +26,27 @@
   )
 
   let open = $state(false)
-  let rootEl = $state<HTMLDivElement | null>(null)
 
-  function onDocClick(e: MouseEvent) {
-    if (rootEl && !rootEl.contains(e.target as Node)) open = false
+  // Spend Esc so one keystroke cannot also clear the detail panel.
+  // preventDefault is what DetailPanel declines; stopPropagation is what the
+  // shell keymap needs — it does not read defaultPrevented, and its
+  // svelte:window listener is registered first. The delegated onkeydown
+  // below reaches the event while it still walks the focused trigger.
+  function onEsc(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !open) return
+    e.preventDefault()
+    e.stopPropagation()
+    open = false
   }
 </script>
 
-<svelte:document onclick={onDocClick} />
-
-<div bind:this={rootEl} class="relative">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="relative"
+  onkeydown={onEsc}
+  use:onEscape={onEsc}
+  use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
+>
   <button
     type="button"
     class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"

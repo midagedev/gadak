@@ -12,6 +12,7 @@
   import { isHostedDemo } from '../../lib/config'
   import { filterFields, type MultiField } from '../../lib/view-config'
   import { t, fieldLabel } from '../../lib/i18n'
+  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
 
   /** One pickable axis: a static field or a discovered custom-field alias. */
@@ -32,7 +33,6 @@
   let valueQuery = $state('')
   let saveOpen = $state(false)
   let saveName = $state('')
-  let rootEl = $state<HTMLDivElement | null>(null)
 
   const activeSet = $derived.by(() => {
     // Selected values for the open field (for checkmarks)
@@ -69,10 +69,16 @@
     saveOpen = false
   }
 
-  function onDocClick(e: MouseEvent) {
-    if (!rootEl) return
-    const path = e.composedPath()
-    if (!path.includes(rootEl)) closeAll()
+  // Spend Esc so one keystroke cannot also clear the detail panel.
+  // preventDefault is what DetailPanel declines; stopPropagation is what the
+  // shell keymap needs — it does not read defaultPrevented, and its
+  // svelte:window listener is registered first. The delegated onkeydown
+  // below reaches the event while it still walks the focused trigger.
+  function onEsc(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || (!open && !saveOpen)) return
+    e.preventDefault()
+    e.stopPropagation()
+    closeAll()
   }
 
   async function copyJql() {
@@ -113,9 +119,13 @@
   }
 </script>
 
-<svelte:document onclick={onDocClick} />
-
-<div bind:this={rootEl} class="flex flex-wrap items-center gap-1.5">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="flex flex-wrap items-center gap-1.5"
+  onkeydown={onEsc}
+  use:onEscape={onEsc}
+  use:onOutsideClick={{ handler: closeAll, enabled: open || saveOpen }}
+>
   <!-- Active chips -->
   {#each filters.activeChips as chip (chip.field + (chip.value ?? ''))}
     <button
