@@ -483,6 +483,48 @@ type PageDetail struct {
 	BacklinkIssueKeys []string `json:"backlink_issue_keys,omitempty"`
 }
 
+// PageStamp is the mirror's record of one page's upstream identity: the
+// source's version number and the lastModified the row was written from.
+// Both together, never the number alone — a rollback can reuse a number.
+type PageStamp struct {
+	Version   int
+	UpdatedAt string
+}
+
+// PageStamps returns the version stamp of every mirrored page in one space,
+// keyed by the source's own page id (items.external_id). It exists so an
+// incremental sync can answer "do I already hold this page?" from the mirror
+// instead of spending a body fetch to find out — a search hit already carries
+// version.number and version.when.
+//
+// The mirror is a disposable cache, so a missing or malformed row simply
+// means "fetch it": callers must treat an absent key as unknown, never as
+// unchanged.
+func (db *DB) PageStamps(ctx context.Context, sourceID, spaceKey string) (map[string]PageStamp, error) {
+	out := map[string]PageStamp{}
+	if sourceID == "" || spaceKey == "" {
+		return out, nil
+	}
+	err := each(ctx, db.sql, `
+		SELECT COALESCE(it.external_id, ''), COALESCE(p.version, 0), COALESCE(it.updated_at, '')
+		FROM pages p
+		JOIN items it ON it.id = p.item_id
+		WHERE it.source_id = ? AND it.kind = 'page' AND p.space_key = ?`,
+		func(rows *sql.Rows) error {
+			var id string
+			var st PageStamp
+			if err := rows.Scan(&id, &st.Version, &st.UpdatedAt); err != nil {
+				return err
+			}
+			if id == "" {
+				return nil
+			}
+			out[id] = st
+			return nil
+		}, sourceID, spaceKey)
+	return out, err
+}
+
 // PageLites returns every mirrored page, ordered by space then title.
 func (db *DB) PageLites(ctx context.Context) ([]PageLite, error) {
 	out := []PageLite{}

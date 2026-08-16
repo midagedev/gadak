@@ -35,6 +35,10 @@ type confFixture struct {
 
 	// searches records every CQL body SearchPages sent.
 	searches []string
+	// bodyGETs records, in order, every GET /content/{id} the fixture served —
+	// i.e. every page-body fetch. It is the cost the incremental pass is
+	// supposed to avoid on an unchanged corpus (GDK-113).
+	bodyGETs []string
 	// failIfCQLContains, when non-empty, makes serveSearch return 400 for a
 	// matching CQL (not 500: atlhttp would retry).
 	failIfCQLContains string
@@ -153,6 +157,7 @@ func (f *confFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
+		f.bodyGETs = append(f.bodyGETs, id)
 		p := f.pages[id]
 		if p == nil {
 			http.NotFound(w, r)
@@ -380,6 +385,24 @@ func confCommentJSON(c confComment) map[string]any {
 			"by": map[string]any{"accountId": "acc-2", "displayName": "Bob Example"},
 		},
 	}
+}
+
+// bodyFetches returns the page ids whose bodies the fixture has served since
+// the last resetCounters, in order. One entry = one GET /content/{id} = one
+// full body+comments read of a page.
+func (f *confFixture) bodyFetches() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.bodyGETs...)
+}
+
+// resetCounters clears the per-tick recorders so a test can measure exactly
+// one sync tick.
+func (f *confFixture) resetCounters() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.bodyGETs = nil
+	f.searches = nil
 }
 
 func (f *confFixture) spaceName(key string) string {
@@ -1259,6 +1282,241 @@ func TestConfluenceSyncPrunesOutOfScopeSpaces(t *testing.T) {
 	}
 	if !prunedLog {
 		t.Errorf("missing prune log, got %v", logs)
+	}
+}
+
+// confADF wraps text in a one-paragraph ADF document, the same shape
+// newConfFixture builds for its own pages.
+func confADF(text string) string {
+	b, _ := json.Marshal(map[string]any{
+		"type": "doc", "version": 1,
+		"content": []any{
+			map[string]any{"type": "paragraph", "content": []any{
+				map[string]any{"type": "text", "text": text},
+			}},
+		},
+	})
+	return string(b)
+}
+
+// bunchedPages builds n pages in one space whose lastModified stamps all land
+// inside the same minute. That is the real corpus shape behind GDK-113 (a
+// seeded/imported wiki, and the demo profile): every page sits inside
+// cqlTime's overlap window of the newest one, so every incremental CQL
+// returns all of them forever.
+func bunchedPages(space string, n int) map[string]*confPage {
+	out := make(map[string]*confPage, n)
+	for i := 0; i < n; i++ {
+		id := fmt.Sprintf("%d", 5000+i)
+		out[id] = &confPage{
+			ID: id, Space: space, Title: "Page " + id,
+			Version: 1,
+			When:    fmt.Sprintf("2026-08-02T09:00:%02d.000Z", i),
+			BodyADF: confADF("body of " + id),
+		}
+	}
+	return out
+}
+
+// TestConfluenceQuietIncrementalFetchesNoPageBodies is FAIL-first for GDK-113.
+// Every page of the corpus sits inside cqlTime's overlap window, so the
+// incremental CQL keeps returning all of them; before the fetch gate the pass
+// then pulled every body again on every tick (the measured 19.4 s of a 21.4 s
+// tick). Contract: a tick over an unchanged corpus fetches zero page bodies —
+// and keeps fetching zero on the tick after that, because the symptom was that
+// it never stopped repeating.
+func TestConfluenceQuietIncrementalFetchesNoPageBodies(t *testing.T) {
+	f := newConfFixture(t)
+	const pages = 6
+	f.pages = bunchedPages("AAA", pages)
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA"})
+	ctx := context.Background()
+
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(f.bodyFetches()); got != pages {
+		t.Fatalf("precondition: full sync body fetches = %d, want %d", got, pages)
+	}
+
+	// Tick 2 and 3: nothing changed upstream.
+	for tick := 2; tick <= 3; tick++ {
+		f.resetCounters()
+		res, err := RunConfluence(ctx, cfg, db.DB, Options{ConfluenceClient: client})
+		if err != nil {
+			t.Fatalf("tick %d: %v", tick, err)
+		}
+		if res.Full {
+			t.Fatalf("tick %d must be incremental", tick)
+		}
+		if got := f.bodyFetches(); len(got) != 0 {
+			t.Errorf("tick %d fetched %d page bodies over an unchanged corpus, want 0: %v",
+				tick, len(got), got)
+		}
+		if res.PageBodies != 0 || res.PageSkips != pages {
+			t.Errorf("tick %d: PageBodies=%d PageSkips=%d, want 0/%d",
+				tick, res.PageBodies, res.PageSkips, pages)
+		}
+		if res.Fetched != 0 || res.Changed != 0 {
+			t.Errorf("tick %d: Fetched=%d Changed=%d, want 0/0", tick, res.Fetched, res.Changed)
+		}
+		// The search itself still runs — one CQL per space plus the
+		// comments-only CQL. Only the per-page GETs are gone.
+		if len(f.searches) == 0 {
+			t.Errorf("tick %d issued no CQL at all; the pass must still look", tick)
+		}
+	}
+
+	// The mirror is intact: the skip did not delete or blank anything.
+	var stored int
+	if err := db.raw(t).QueryRow(`SELECT COUNT(*) FROM pages`).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored != pages {
+		t.Errorf("pages in mirror after quiet ticks = %d, want %d", stored, pages)
+	}
+}
+
+// TestConfluenceOverlapWindowChangeIsStillFetched guards the other direction:
+// the fetch gate must not turn cqlTime's overlap window into a blind spot. The
+// overlap exists because CQL's lastModified is minute-granular, so a real edit
+// can carry a stamp *below* the stored watermark. That page must still be
+// pulled, and it must be the only one pulled.
+func TestConfluenceOverlapWindowChangeIsStillFetched(t *testing.T) {
+	f := newConfFixture(t)
+	f.pages = map[string]*confPage{
+		"7001": {ID: "7001", Space: "AAA", Title: "A", Version: 1,
+			When: "2026-08-02T09:00:00.000Z", BodyADF: confADF("a body")},
+		"7002": {ID: "7002", Space: "AAA", Title: "B", Version: 1,
+			When: "2026-08-02T09:02:00.000Z", BodyADF: confADF("b body")},
+		"7003": {ID: "7003", Space: "AAA", Title: "C", Version: 1,
+			When: "2026-08-02T09:05:00.000Z", BodyADF: confADF("c body")},
+	}
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA"})
+	ctx := context.Background()
+
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	// Watermark is now 09:05 (page C). Edit A with a stamp below it — exactly
+	// what confluenceOverlap is for.
+	f.mu.Lock()
+	f.pages["7001"].Version = 2
+	f.pages["7001"].When = "2026-08-02T09:04:00.000Z"
+	f.pages["7001"].BodyADF = confADF("a body, edited inside the overlap")
+	f.mu.Unlock()
+
+	f.resetCounters()
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := f.bodyFetches()
+	if len(got) != 1 || got[0] != "7001" {
+		t.Fatalf("body fetches = %v, want exactly [7001]", got)
+	}
+	if res.Changed != 1 {
+		t.Errorf("Changed = %d, want 1", res.Changed)
+	}
+	var body string
+	if err := db.raw(t).QueryRow(`SELECT body_text FROM items WHERE key = '7001'`).Scan(&body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body, "edited inside the overlap") {
+		t.Errorf("body_text = %q, want the edited body", body)
+	}
+}
+
+// TestConfluenceBackfillIgnoresFetchGate: a space with no watermark backfills
+// every body even when the mirror already holds those rows. Full/backfill is
+// the mirror's repair path — it may not trust local rows, or `--full` would
+// stop being able to fix a mangled page.
+func TestConfluenceBackfillIgnoresFetchGate(t *testing.T) {
+	f := newConfFixture(t)
+	const pages = 4
+	f.pages = bunchedPages("AAA", pages)
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA"})
+	ctx := context.Background()
+
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	// Space watermark lost (never-synced space, or a restore): the pass must
+	// backfill it, not trust the rows it already has.
+	if err := db.SetSpaceWatermark(ctx, ConfluenceSourceID, "AAA", ""); err != nil {
+		t.Fatal(err)
+	}
+	f.resetCounters()
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(f.bodyFetches()); got != pages {
+		t.Fatalf("backfill body fetches = %d, want %d (a backfill must re-read every body)", got, pages)
+	}
+	if res.PageSkips != 0 {
+		t.Errorf("PageSkips = %d during backfill, want 0", res.PageSkips)
+	}
+
+	// And an explicit full pass keeps re-reading too.
+	f.resetCounters()
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(f.bodyFetches()); got != pages {
+		t.Errorf("--full body fetches = %d, want %d", got, pages)
+	}
+}
+
+// TestConfluenceSkippedPageStillReachableByCommentsOnly: a page the gate skips
+// must stay OUT of the pass's already-fetched set. Comments do not bump a page's
+// version, so the comments-only pass is the only path left for a comment added
+// to an otherwise-unchanged page — if a skipped page counted as "already
+// fetched", that comment would never land.
+func TestConfluenceSkippedPageStillReachableByCommentsOnly(t *testing.T) {
+	f := newConfFixture(t)
+	f.pages = map[string]*confPage{
+		"8001": {ID: "8001", Space: "AAA", Title: "A", Version: 1,
+			When: "2026-08-02T09:00:00.000Z", BodyADF: confADF("a body")},
+		"8002": {ID: "8002", Space: "AAA", Title: "B", Version: 1,
+			When: "2026-08-02T09:00:30.000Z", BodyADF: confADF("b body")},
+	}
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA"})
+	ctx := context.Background()
+
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	// Page 8001 keeps its version and its stamp; only a comment appears. Both
+	// pages are still inside the overlap window, so both come back as hits.
+	f.mu.Lock()
+	f.pages["8001"].Comments = append(f.pages["8001"].Comments, confComment{
+		ID: "c8001", Text: "landed via comments-only", When: "2026-08-02T09:06:00.000Z",
+	})
+	f.mu.Unlock()
+
+	f.resetCounters()
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	got := f.bodyFetches()
+	if len(got) != 1 || got[0] != "8001" {
+		t.Fatalf("body fetches = %v, want exactly [8001] (comments-only must reach a gate-skipped page)", got)
+	}
+	var body string
+	if err := db.raw(t).QueryRow(`SELECT body_text FROM comments WHERE id = 'confluence:c8001'`).Scan(&body); err != nil {
+		t.Fatalf("new comment on a gate-skipped page never landed: %v", err)
+	}
+	if !strings.Contains(body, "landed via comments-only") {
+		t.Errorf("comment body = %q", body)
 	}
 }
 

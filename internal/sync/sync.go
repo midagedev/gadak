@@ -84,6 +84,14 @@ type Result struct {
 	Changed   int
 	Deleted   int
 	Watermark string
+	// PageBodies and PageSkips are the Confluence pass's body-read tally: how
+	// many page bodies this pass went to the source for (a hit that turned out
+	// to be deleted still counts — the request was spent), and how many search
+	// hits pageFetchGate answered from the mirror instead. They are the answer
+	// to "how many bodies did that tick fetch?" — a quiet tick over an
+	// unchanged corpus must report PageBodies 0. Jira leaves both at 0.
+	PageBodies int
+	PageSkips  int
 }
 
 func (o Options) logf(format string, args ...any) {

@@ -28,7 +28,9 @@ const pageBatchSize = 50
 // Attachments and changelog are out of scope for R1. Every successful pass
 // prunes pages whose space is outside the current config/listing scope.
 // Incremental floors are per-space (spaces.watermark); a failed space does
-// not move its own watermark or any other space's.
+// not move its own watermark or any other space's. A floor selects candidates,
+// it does not decide fetches: pageFetchGate does, and an incremental tick over
+// an unchanged space reads zero page bodies.
 //
 // A failure leaves already-committed batches in place.
 func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
@@ -163,24 +165,25 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		return nil
 	}
 
-	noteFetched := func(ids map[string]struct{}) func([]confluence.Page) {
-		return func(hits []confluence.Page) {
-			for _, h := range hits {
-				if h.ID != "" {
-					ids[h.ID] = struct{}{}
-				}
-			}
-		}
-	}
-
-	processHits := func(spaceMaxUTC, spaceMaxRaw *string, seen map[string]struct{}) func([]confluence.Page) error {
+	processHits := func(spaceMaxUTC, spaceMaxRaw *string, gate *pageFetchGate) func([]confluence.Page) error {
 		return func(hits []confluence.Page) error {
-			if seen != nil {
-				noteFetched(seen)(hits)
-			}
 			batch := make([]store.PageRecord, 0, pageBatchSize)
 			spaceByKey := map[string]store.SpaceRow{}
 			for _, hit := range hits {
+				if !gate.needsBody(hit) {
+					// The mirror already holds this page at this exact version and
+					// stamp: the hit is inside cqlTime's floor window, not a change.
+					// Its stamp still counts toward the watermark — we have just
+					// verified the mirror is current through it — and the page stays
+					// OUT of the gate's fetched set so the comments-only pass can
+					// still reach it if only a comment moved.
+					res.PageSkips++
+					noteStamp(hit.Version.When, spaceMaxUTC, spaceMaxRaw)
+					noteStamp(hit.Version.When, &maxUTC, &maxRaw)
+					continue
+				}
+				gate.markFetched(hit.ID)
+				res.PageBodies++
 				rec, spaceName, when, err := fetchPageRecord(ctx, c, hit)
 				if errors.Is(err, confluence.ErrNotFound) {
 					// Deleted or view-restricted between the listing and the fetch —
@@ -196,15 +199,8 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 					spaceByKey[sk] = store.SpaceRow{Key: sk, Name: spaceName}
 				}
 				batch = append(batch, rec)
-				if when != "" {
-					iso := jira.ISOTime(when)
-					if iso > *spaceMaxUTC {
-						*spaceMaxUTC, *spaceMaxRaw = iso, when
-					}
-					if iso > maxUTC {
-						maxUTC, maxRaw = iso, when
-					}
-				}
+				noteStamp(when, spaceMaxUTC, spaceMaxRaw)
+				noteStamp(when, &maxUTC, &maxRaw)
 				if len(batch) >= pageBatchSize {
 					if err := commitBatch(batch, spaceRowsFromMap(spaceByKey)); err != nil {
 						return err
@@ -227,21 +223,28 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			cql = fmt.Sprintf(`space=%s AND type=page AND lastModified >= "%s" order by lastmodified asc`,
 				cqlSpace(key), cqlTime(wms[key]))
 		}
-		fetchedBefore := res.Fetched
+		bodiesBefore, skipsBefore := res.PageBodies, res.PageSkips
 		var spaceMaxUTC, spaceMaxRaw string
-		seen := map[string]struct{}{}
-		if err := c.SearchPages(ctx, cql, processHits(&spaceMaxUTC, &spaceMaxRaw, seen)); err != nil {
+		// One gate per space, built from the mirror's own rows. Backfill gets a
+		// nil gate: a full/backfill pass is the mirror's repair path and must
+		// re-read every body regardless of what the local rows claim.
+		gate, err := newPageFetchGate(ctx, db, key, backfill)
+		if err != nil {
+			return err
+		}
+		if err := c.SearchPages(ctx, cql, processHits(&spaceMaxUTC, &spaceMaxRaw, gate)); err != nil {
 			return record(ctx, db, ConfluenceSourceID, err)
 		}
-		opts.logf("confluence: space %s floor=%s fetched=%d", key, floorLabel, res.Fetched-fetchedBefore)
+		opts.logf("confluence: space %s floor=%s fetched=%d unchanged=%d", key, floorLabel,
+			res.PageBodies-bodiesBefore, res.PageSkips-skipsBefore)
 
 		// comments-only pass: one type=comment CQL per incremental space.
 		// Pages already fetched above are skipped. Full/backfill already
 		// loaded every page's comments, so they skip this pass.
 		if !backfill {
-			if err := commentsOnlyPass(ctx, c, opts, key, wms[key], seen,
+			if err := commentsOnlyPass(ctx, c, opts, key, wms[key], gate,
 				&spaceMaxUTC, &spaceMaxRaw, &maxUTC, &maxRaw,
-				processHits(&spaceMaxUTC, &spaceMaxRaw, seen)); err != nil {
+				processHits(&spaceMaxUTC, &spaceMaxRaw, gate)); err != nil {
 				return record(ctx, db, ConfluenceSourceID, err)
 			}
 		}
@@ -289,9 +292,107 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	return nil
 }
 
+// pageFetchGate is the single owner of "does this search hit need a body
+// fetch?" for one space pass. Both paths that can pull a page body — the
+// type=page pass and the comments-only pass — go through it, so the
+// already-mirrored decision, the already-fetched-this-tick decision and the
+// tally live in one place instead of being spread over the two callers.
+//
+// Why it exists (GDK-113): cqlTime renders the floor at minute granularity and
+// subtracts confluenceOverlap, so every page modified within that window of the
+// space watermark comes back as a hit on every tick — forever, because the
+// watermark can never advance past the newest page. Without this gate the pass
+// spent a GET /content/{id} plus its comment paging on each of them, which was
+// 19.4 s of a measured 21.4 s tick. Narrowing the window cannot close that (a
+// zero overlap still returns the whole minute); only asking the mirror can.
+//
+// A nil gate always says yes. That is the backfill/full case: a full pass is
+// the mirror's repair path and must re-read every body regardless of what the
+// local rows claim.
+type pageFetchGate struct {
+	// have is the mirror's version stamp per source page id, loaded once per
+	// space. Absent means unknown, which always means fetch.
+	have map[string]store.PageStamp
+	// fetched is every page id this pass has already pulled (or attempted) a
+	// body for. The comments-only pass consults it so a page touched by both
+	// passes costs one GET, not two.
+	fetched map[string]struct{}
+}
+
+// newPageFetchGate loads one space's mirrored stamps. backfill returns a nil
+// gate — see the type comment.
+func newPageFetchGate(ctx context.Context, db *store.DB, spaceKey string, backfill bool) (*pageFetchGate, error) {
+	if backfill {
+		return nil, nil
+	}
+	have, err := db.PageStamps(ctx, ConfluenceSourceID, spaceKey)
+	if err != nil {
+		return nil, err
+	}
+	return &pageFetchGate{have: have, fetched: map[string]struct{}{}}, nil
+}
+
+// needsBody reports whether hit's body must be pulled. It says no only when the
+// mirror holds that page at exactly the hit's version number *and* the hit's
+// lastModified: a number alone can be reused after a restore, and a stamp alone
+// is minute-coarse in CQL. Anything missing, zero or different is fetched —
+// the mirror is a disposable cache, so the safe answer is always "fetch".
+func (g *pageFetchGate) needsBody(hit confluence.Page) bool {
+	if g == nil || hit.ID == "" {
+		return true
+	}
+	if _, done := g.fetched[hit.ID]; done {
+		return false
+	}
+	if hit.Version.Number <= 0 || hit.Version.When == "" {
+		return true
+	}
+	st, ok := g.have[hit.ID]
+	if !ok || st.Version != hit.Version.Number || st.UpdatedAt == "" {
+		return true
+	}
+	return st.UpdatedAt != jira.ISOTime(hit.Version.When)
+}
+
+// markFetched records that this pass pulled (or tried to pull) id's body.
+// A nil gate keeps no state: backfill fetches everything exactly once anyway,
+// and it runs no comments-only pass to dedupe against.
+func (g *pageFetchGate) markFetched(id string) {
+	if g == nil || id == "" {
+		return
+	}
+	g.fetched[id] = struct{}{}
+}
+
+// alreadyFetched reports whether this pass has already pulled id's body. It is
+// how the comments-only pass avoids a second GET — and, just as importantly,
+// why a gate-skipped page is NOT in the set: comments do not bump a page's
+// version, so the comments-only pass must stay able to reach it.
+func (g *pageFetchGate) alreadyFetched(id string) bool {
+	if g == nil {
+		return false
+	}
+	_, ok := g.fetched[id]
+	return ok
+}
+
+// noteStamp folds one source lastModified into a running max pair (UTC-normalised
+// for comparison, raw for storage). Empty is ignored.
+func noteStamp(when string, maxUTC, maxRaw *string) {
+	if when == "" {
+		return
+	}
+	iso := jira.ISOTime(when)
+	if iso > *maxUTC {
+		*maxUTC, *maxRaw = iso, when
+	}
+}
+
 // fetchPageRecord loads full body + comments for a search hit and maps to store.
 // Comments are always re-fetched even when the page version is unchanged
-// (comments do not bump page version — the comments-only trap).
+// (comments do not bump page version — the comments-only trap). For a page the
+// fetch gate skipped this is not reached at all; commentsOnlyPass is what keeps
+// that page's comments current.
 // spaceName is the human space title from the full page (fallback: search hit).
 func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.Page) (store.PageRecord, string, string, error) {
 	full, err := c.Page(ctx, hit.ID)
@@ -400,8 +501,12 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 
 // commentsOnlyPass finds pages whose comments changed without a body edit.
 // Cost cap: one CQL per incremental space (type=comment + lastModified floor).
-// Hits are resolved to container page IDs; pages already fetched in the page
-// pass are skipped. Never a full-space refetch (that would undo C4).
+// Hits are resolved to container page IDs; pages the page pass already fetched
+// are skipped via the gate. Never a full-space refetch (that would undo C4).
+//
+// A page the gate skipped is deliberately *not* "already fetched": its body is
+// unchanged but its comments may not be, and this pass is the only path left
+// to them.
 //
 // Decision 0006 described a comments-only pass on a global watermark. The
 // floor is now per-space (spaces.watermark) so a failed space cannot inherit
@@ -413,7 +518,7 @@ func commentsOnlyPass(
 	c *confluence.Client,
 	opts Options,
 	spaceKey, watermark string,
-	seen map[string]struct{},
+	gate *pageFetchGate,
 	spaceMaxUTC, spaceMaxRaw, maxUTC, maxRaw *string,
 	fetch func([]confluence.Page) error,
 ) error {
@@ -424,15 +529,8 @@ func commentsOnlyPass(
 	err := c.SearchPages(ctx, cql, func(hits []confluence.Page) error {
 		for _, hit := range hits {
 			commentHits++
-			if when := hit.Version.When; when != "" {
-				iso := jira.ISOTime(when)
-				if iso > *spaceMaxUTC {
-					*spaceMaxUTC, *spaceMaxRaw = iso, when
-				}
-				if iso > *maxUTC {
-					*maxUTC, *maxRaw = iso, when
-				}
-			}
+			noteStamp(hit.Version.When, spaceMaxUTC, spaceMaxRaw)
+			noteStamp(hit.Version.When, maxUTC, maxRaw)
 			pid, err := resolveCommentContainer(ctx, c, hit)
 			if err != nil {
 				opts.logf("confluence: comments-only skip %s: %v", hit.ID, err)
@@ -442,7 +540,7 @@ func commentsOnlyPass(
 				opts.logf("confluence: comments-only skip %s (no container page)", hit.ID)
 				continue
 			}
-			if _, ok := seen[pid]; ok {
+			if gate.alreadyFetched(pid) {
 				continue
 			}
 			need[pid] = struct{}{}

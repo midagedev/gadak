@@ -80,8 +80,11 @@ func cmdSync(args []string) error {
 		if cres.Full {
 			kind = "full"
 		}
-		fmt.Printf("confluence %s sync: fetched %d pages, changed %d, watermark %s\n",
-			kind, cres.Fetched, cres.Changed, cres.Watermark)
+		// bodies/unchanged is the tick's body-read tally: a quiet tick over an
+		// unchanged wiki must read 0 bodies. It is printed so "how many bodies
+		// did that tick fetch?" is answerable from the command (GDK-113).
+		fmt.Printf("confluence %s sync: fetched %d pages (%d bodies read, %d unchanged), changed %d, watermark %s\n",
+			kind, cres.Fetched, cres.PageBodies, cres.PageSkips, cres.Changed, cres.Watermark)
 	}
 	printUpdateNotice(cfg, false)
 	return nil
