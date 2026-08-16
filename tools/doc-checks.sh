@@ -215,4 +215,19 @@ if [[ -n "$token_copy_missing" ]]; then
 fi
 ok "web + CLI token prompts both name the scoped / ATATT / ATCTT traps"
 
+# ── 10. One owner for the Node version ──────────────────────────────────
+# GDK-57: the hosted fetch adapter read a bare `navigator`, which Node has had
+# since 21. Local (24) was green, CI (20) was red, and the gap hid the defect
+# through several pushes. A version pinned in five workflow files and nowhere
+# a developer's shell can read is a gap that reopens on its own, so .nvmrc is
+# the single owner and every workflow reads it.
+if [[ ! -f .nvmrc ]]; then
+  fail ".nvmrc is missing — it is the one place the Node version is declared (GDK-57)"
+fi
+hardcoded="$(grep -rn 'node-version:' .github/workflows/ || true)"
+if [[ -n "$hardcoded" ]]; then
+  fail "a workflow pins Node inline instead of reading .nvmrc (GDK-57):"$'\n'"$hardcoded"
+fi
+ok "Node version has one owner (.nvmrc), read by every workflow"
+
 echo "doc-checks: all passed"
