@@ -114,7 +114,7 @@ func TestEditableAliasesLegacyWins(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("aliases=%v", got)
 	}
-	// Legacy replaces the FieldSpecs entry for the same alias.
+	// Leftover EditableFields replaces the Fields entry for the same alias.
 	if !reflect.DeepEqual(got["severity"].IDs, []string{"customfield_legacy"}) {
 		t.Fatalf("severity legacy IDs: %+v", got["severity"])
 	}

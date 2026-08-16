@@ -24,21 +24,22 @@ func EditKind(m jira.FieldMeta) string {
 }
 
 // EditableAlias maps an alias onto candidate field ids and a preferred kind.
-// Legacy EditableFields win over FieldSpecs for the same alias; specs with an
-// empty Kind are display-only and do not enter the write path.
+// Specs with an empty Kind are display-only and do not enter the write path.
+// Leftover EditableFields (in-memory / settings PUT that skipped LoadFor)
+// still overlay and win on alias collision so those callers keep working.
 type EditableAlias struct {
 	IDs  []string
 	Kind string // preferred kind from the spec when set; empty → use editmeta
 }
 
-// EditableAliases builds the write allowlist from FieldSpecs (Kind set) plus
-// legacy EditableFields (legacy wins on alias collision).
+// EditableAliases builds the write allowlist from Fields (Kind set) plus
+// leftover EditableFields (legacy wins on alias collision).
 func EditableAliases(cfg *config.Config) map[string]EditableAlias {
 	out := map[string]EditableAlias{}
 	if cfg == nil {
 		return out
 	}
-	for _, s := range cfg.FieldSpecs() {
+	for _, s := range cfg.Fields {
 		if s.Kind == "" || s.Alias == "" || len(s.IDs) == 0 {
 			continue
 		}
@@ -49,7 +50,7 @@ func EditableAliases(cfg *config.Config) map[string]EditableAlias {
 		if alias == "" || id == "" {
 			continue
 		}
-		// Legacy wins: replace any auto-discovered entry for the same alias.
+		// Leftover in-memory map wins: replace any Fields entry for the alias.
 		out[alias] = EditableAlias{IDs: []string{id}}
 	}
 	return out

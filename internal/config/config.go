@@ -76,12 +76,16 @@ type Config struct {
 	AccountID string `json:"account_id,omitempty"`
 
 	// Sync field mapping (contracts/sync.md, "Field mapping").
-	// Fields is the sole truth when present. FieldMap/EditableFields remain for
-	// legacy configs; FieldSpecs() synthesizes them into one shape.
-	Fields         []FieldSpec       `json:"fields,omitempty"`
-	FieldMap       map[string]string `json:"fieldMap,omitempty"`       // alias -> customfield_xxxxx (legacy)
-	BodyFields     []string          `json:"bodyFields,omitempty"`     // ADF custom-field ids to fold into FTS
-	EditableFields map[string]string `json:"editableFields,omitempty"` // alias -> field id (legacy write allowlist)
+	// Fields is the sole on-disk truth. FieldMap/EditableFields exist only as
+	// unmarshal targets so LoadFor can migrate a pre-Fields config once.
+	Fields []FieldSpec `json:"fields,omitempty"`
+	// FieldMap is a migration-only unmarshal target (alias → customfield id).
+	// LoadFor converts it into Fields and clears it; new writes must not set it.
+	FieldMap   map[string]string `json:"fieldMap,omitempty"`
+	BodyFields []string          `json:"bodyFields,omitempty"` // ADF custom-field ids to fold into FTS
+	// EditableFields is a migration-only unmarshal target (alias → field id).
+	// LoadFor overlays it onto Fields (legacy wins per alias) and clears it.
+	EditableFields map[string]string `json:"editableFields,omitempty"`
 
 	// Optional surfaces carried over from the tool this was extracted from.
 	Members        []Member           `json:"members,omitempty"`
@@ -444,6 +448,12 @@ func LoadFor(profile string) (*Config, error) {
 		return nil, fmt.Errorf("%s: %w", p, err)
 	}
 	c.dir = d
+	if changed, shape := c.NormalizeLegacyFields(); changed {
+		if err := c.Save(); err != nil {
+			return nil, fmt.Errorf("%s: migrate field mapping: %w", p, err)
+		}
+		fmt.Fprintf(os.Stderr, "gadak: rewrote %s: migrated field mapping from %s to fields\n", p, shape)
+	}
 	return &c, nil
 }
 
@@ -527,9 +537,10 @@ func (c *Config) UpdateCheckEnabled() bool {
 	return *c.UpdateCheck
 }
 
-// FieldSpecs returns the effective field specs. Legacy configs that predate
-// Fields carry FieldMap/EditableFields instead; synthesize specs from them so
-// every consumer reads one shape. Fields, when present, is the sole truth.
+// FieldSpecs returns the effective field specs. After LoadFor, this is Fields.
+// In-memory configs that never went through LoadFor (tests, settings PUT)
+// may still carry only FieldMap; synthesize the same Label/Role defaults
+// the migration writes so those callers keep working until they switch.
 func (c *Config) FieldSpecs() []FieldSpec {
 	if c == nil {
 		return nil
@@ -537,18 +548,50 @@ func (c *Config) FieldSpecs() []FieldSpec {
 	if len(c.Fields) > 0 {
 		return c.Fields
 	}
-	if len(c.FieldMap) == 0 {
+	return synthesizeFromFieldMap(c.FieldMap)
+}
+
+// NormalizeLegacyFields converts leftover FieldMap/EditableFields into Fields
+// using FieldSpecs() synthesis plus the EditableFields overlay (legacy wins
+// per alias) and clears the legacy maps. No disk write — LoadFor persists.
+// shape names the keys that were present, for the rewrite log line.
+func (c *Config) NormalizeLegacyFields() (changed bool, shape string) {
+	if c == nil {
+		return false, ""
+	}
+	var parts []string
+	if len(c.FieldMap) > 0 {
+		parts = append(parts, "fieldMap")
+	}
+	if len(c.EditableFields) > 0 {
+		parts = append(parts, "editableFields")
+	}
+	if len(parts) == 0 {
+		return false, ""
+	}
+	if len(c.Fields) > 0 {
+		parts = append(parts, "fields")
+	}
+	c.Fields = overlayEditableFields(cloneFieldSpecs(c.FieldSpecs()), c.EditableFields)
+	c.FieldMap = nil
+	c.EditableFields = nil
+	return true, strings.Join(parts, "+")
+}
+
+// synthesizeFromFieldMap is the historical FieldMap → FieldSpec conversion.
+// Label defaults to the alias, Role to "facet", Auto false, Kind empty.
+func synthesizeFromFieldMap(fm map[string]string) []FieldSpec {
+	if len(fm) == 0 {
 		return nil
 	}
-	out := make([]FieldSpec, 0, len(c.FieldMap))
-	// Stable order for tests and logs.
-	aliases := make([]string, 0, len(c.FieldMap))
-	for a := range c.FieldMap {
+	out := make([]FieldSpec, 0, len(fm))
+	aliases := make([]string, 0, len(fm))
+	for a := range fm {
 		aliases = append(aliases, a)
 	}
 	sort.Strings(aliases)
 	for _, alias := range aliases {
-		id := c.FieldMap[alias]
+		id := fm[alias]
 		if id == "" {
 			continue
 		}
@@ -559,6 +602,58 @@ func (c *Config) FieldSpecs() []FieldSpec {
 			Role:  "facet",
 			Auto:  false,
 		})
+	}
+	return out
+}
+
+// overlayEditableFields applies the legacy write allowlist onto specs.
+// An existing alias keeps Label/Role/Kind and takes the leftover id;
+// a new alias is synthesized with the same FieldMap defaults.
+func overlayEditableFields(specs []FieldSpec, editable map[string]string) []FieldSpec {
+	if len(editable) == 0 {
+		return specs
+	}
+	byAlias := make(map[string]int, len(specs))
+	for i, s := range specs {
+		if s.Alias != "" {
+			byAlias[s.Alias] = i
+		}
+	}
+	aliases := make([]string, 0, len(editable))
+	for a := range editable {
+		aliases = append(aliases, a)
+	}
+	sort.Strings(aliases)
+	for _, alias := range aliases {
+		id := editable[alias]
+		if alias == "" || id == "" {
+			continue
+		}
+		if i, ok := byAlias[alias]; ok {
+			specs[i].IDs = []string{id}
+			continue
+		}
+		specs = append(specs, FieldSpec{
+			Alias: alias,
+			Label: alias,
+			IDs:   []string{id},
+			Role:  "facet",
+			Auto:  false,
+		})
+	}
+	return specs
+}
+
+func cloneFieldSpecs(in []FieldSpec) []FieldSpec {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]FieldSpec, len(in))
+	for i, s := range in {
+		out[i] = s
+		if s.IDs != nil {
+			out[i].IDs = append([]string(nil), s.IDs...)
+		}
 	}
 	return out
 }

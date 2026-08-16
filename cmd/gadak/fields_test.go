@@ -5,8 +5,24 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
 )
+
+func TestIdsToAliasFirstAliasWins(t *testing.T) {
+	got := idsToAlias([]config.FieldSpec{
+		{Alias: "severity", IDs: []string{"customfield_10", "customfield_20"}},
+		{Alias: "other", IDs: []string{"customfield_10"}},
+		{Alias: "", IDs: []string{"customfield_30"}},
+	})
+	want := map[string]string{
+		"customfield_10": "other", // id sort then alias sort: other < severity
+		"customfield_20": "severity",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+}
 
 func TestSampleIssueKeysDeterministicAndStratified(t *testing.T) {
 	// Three projects with uneven sizes; created_at spans each project's history.
@@ -156,7 +172,7 @@ func TestAsciiSlugDropsNonASCII(t *testing.T) {
 	}
 	// Jira localizes field names, so a Korean account sees "순위" where an
 	// English one sees "Rank". An alias built from that name would differ per
-	// machine, and a fieldMap is shared between machines.
+	// machine, and a fields spec is shared between machines.
 	if got := fields.ASCIISlug("순위"); got != "" {
 		t.Errorf("ASCIISlug(%q) = %q, want empty so the caller falls back to the id", "순위", got)
 	}

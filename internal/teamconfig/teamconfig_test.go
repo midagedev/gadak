@@ -141,11 +141,14 @@ func TestExportOmitsCredentialsAsStrings(t *testing.T) {
 			t.Errorf("export JSON must not contain %q\n%s", forbidden, s)
 		}
 	}
-	// Team material is present.
-	for _, want := range []string{`"fieldMap"`, `"groupRules"`, `"projects"`, "NMB", "customfield_10016"} {
+	// Team material is present (Fields shape, not leftover fieldMap).
+	for _, want := range []string{`"fields"`, `"groupRules"`, `"projects"`, "NMB", "customfield_10016"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("export missing %q\n%s", want, s)
 		}
+	}
+	if strings.Contains(s, `"fieldMap"`) || strings.Contains(s, `"editableFields"`) {
+		t.Errorf("export must not write leftover keys\n%s", s)
 	}
 }
 
@@ -182,13 +185,13 @@ func TestMembersDefaultExcluded(t *testing.T) {
 func TestMergeRules(t *testing.T) {
 	t.Parallel()
 	existing := &config.Config{
-		FieldMap: map[string]string{"old": "customfield_1"},
+		Fields:   []config.FieldSpec{{Alias: "old", Label: "old", IDs: []string{"customfield_1"}, Role: "facet"}},
 		Projects: []string{"KEEP"},
 	}
 	incoming := Document{
 		Version: CurrentFormat,
 		Settings: TeamSettings{
-			FieldMap:   map[string]string{"new": "customfield_2"},
+			Fields:     []config.FieldSpec{{Alias: "new", Label: "new", IDs: []string{"customfield_2"}, Role: "facet"}},
 			Projects:   []string{"IN"},
 			GroupRules: []config.GroupRule{{Group: "g", Projects: []string{"X"}}},
 		},
@@ -203,7 +206,7 @@ func TestMergeRules(t *testing.T) {
 
 	// Default: skip non-empty settings and same-named views; add missing.
 	plan := BuildPlan(existing, existingViews, incoming, ImportOptions{})
-	assertSettingAction(t, plan, "fieldMap", SettingSkip)
+	assertSettingAction(t, plan, "fields", SettingSkip)
 	assertSettingAction(t, plan, "projects", SettingSkip)
 	assertSettingAction(t, plan, "groupRules", SettingAdd)
 	assertViewAction(t, plan, "Mine", ViewSkip)
@@ -211,25 +214,25 @@ func TestMergeRules(t *testing.T) {
 
 	// Overwrite: replace conflicts.
 	planO := BuildPlan(existing, existingViews, incoming, ImportOptions{Overwrite: true})
-	assertSettingAction(t, planO, "fieldMap", SettingReplace)
+	assertSettingAction(t, planO, "fields", SettingReplace)
 	assertSettingAction(t, planO, "projects", SettingReplace)
 	assertViewAction(t, planO, "Mine", ViewReplace)
 	assertViewAction(t, planO, "New view", ViewAdd)
 
-	// Apply default merge and ensure existing fieldMap untouched, groupRules filled.
+	// Apply default merge and ensure existing Fields untouched, groupRules filled.
 	db := openTestDB(t)
 	// DB starts with Mine so skip/add behaviour matches the plan inputs.
 	if err := db.PutSavedView(context.Background(), store.SavedView{ID: "id1", Name: "Mine", Config: json.RawMessage(`{"a":0}`)}); err != nil {
 		t.Fatal(err)
 	}
 	cfg := *existing
-	cfg.FieldMap = copyStringMap(existing.FieldMap)
+	cfg.Fields = copyFieldSpecs(existing.Fields)
 	cfg.Projects = copyStrings(existing.Projects)
 	if err := ApplyPlan(&cfg, db, plan); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.FieldMap["old"] != "customfield_1" || len(cfg.FieldMap) != 1 {
-		t.Errorf("fieldMap should be unchanged, got %v", cfg.FieldMap)
+	if len(cfg.Fields) != 1 || cfg.Fields[0].Alias != "old" || cfg.Fields[0].IDs[0] != "customfield_1" {
+		t.Errorf("fields should be unchanged, got %v", cfg.Fields)
 	}
 	if len(cfg.GroupRules) != 1 || cfg.GroupRules[0].Group != "g" {
 		t.Errorf("groupRules should be added, got %v", cfg.GroupRules)
@@ -255,7 +258,7 @@ func TestMergeRules(t *testing.T) {
 
 	// Overwrite plan against the same DB: Mine replaced, New view skipped (already exists).
 	cfg2 := *existing
-	cfg2.FieldMap = map[string]string{"old": "customfield_1"}
+	cfg2.Fields = copyFieldSpecs(existing.Fields)
 	viewsNow, _ := db.SavedViews(context.Background())
 	planO2 := BuildPlan(&cfg2, viewsNow, incoming, ImportOptions{Overwrite: true})
 	assertViewAction(t, planO2, "Mine", ViewReplace)
@@ -263,8 +266,8 @@ func TestMergeRules(t *testing.T) {
 	if err := ApplyPlan(&cfg2, db, planO2); err != nil {
 		t.Fatal(err)
 	}
-	if cfg2.FieldMap["new"] != "customfield_2" {
-		t.Errorf("overwrite should replace fieldMap, got %v", cfg2.FieldMap)
+	if len(cfg2.Fields) != 1 || cfg2.Fields[0].Alias != "new" || cfg2.Fields[0].IDs[0] != "customfield_2" {
+		t.Errorf("overwrite should replace fields, got %v", cfg2.Fields)
 	}
 	views, _ = db.SavedViews(context.Background())
 	var mine store.SavedView
@@ -325,7 +328,7 @@ func TestDryRunNoChanges(t *testing.T) {
 		Email:    "keep@example.com",
 		Token:    "keep-token-not-atlassian-shape",
 		Projects: []string{"OLD"},
-		FieldMap: map[string]string{"x": "customfield_1"},
+		Fields:   []config.FieldSpec{{Alias: "x", Label: "x", IDs: []string{"customfield_1"}, Role: "facet"}},
 	}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
@@ -370,7 +373,7 @@ func TestDryRunNoChanges(t *testing.T) {
 	if after.Site != cfg.Site || after.Email != cfg.Email || after.Token != cfg.Token {
 		t.Fatal("dry-run must not touch credentials")
 	}
-	if after.FieldMap["x"] != "customfield_1" || len(after.Projects) != 1 || after.Projects[0] != "OLD" {
+	if len(after.Fields) != 1 || after.Fields[0].Alias != "x" || after.Fields[0].IDs[0] != "customfield_1" || len(after.Projects) != 1 || after.Projects[0] != "OLD" {
 		t.Fatalf("dry-run changed settings: %+v", after)
 	}
 	viewsAfter, _ := db.SavedViews(context.Background())
@@ -490,8 +493,12 @@ func TestRoundTripExportImport(t *testing.T) {
 	if !reflect.DeepEqual(loaded.Projects, src.Projects) {
 		t.Errorf("projects: got %v want %v", loaded.Projects, src.Projects)
 	}
-	if !reflect.DeepEqual(loaded.FieldMap, src.FieldMap) {
-		t.Errorf("fieldMap: got %v want %v", loaded.FieldMap, src.FieldMap)
+	// Export synthesizes leftover FieldMap into Fields; import applies that.
+	if len(loaded.Fields) != 1 || loaded.Fields[0].Alias != "storyPoints" || loaded.Fields[0].IDs[0] != "customfield_10016" {
+		t.Errorf("fields: got %+v", loaded.Fields)
+	}
+	if len(loaded.FieldMap) != 0 || len(loaded.EditableFields) != 0 {
+		t.Errorf("legacy keys must not be imported: fieldMap=%v editable=%v", loaded.FieldMap, loaded.EditableFields)
 	}
 	if !reflect.DeepEqual(loaded.GroupRules, src.GroupRules) {
 		t.Errorf("groupRules: got %v want %v", loaded.GroupRules, src.GroupRules)
@@ -572,6 +579,102 @@ func TestParseDocumentAcceptsLegacyVersionKey(t *testing.T) {
 	}
 	if doc.Version != 1 || len(doc.Settings.Projects) != 1 || doc.Settings.Projects[0] != "NMB" {
 		t.Fatalf("legacy document: %+v", doc)
+	}
+}
+
+func TestImportBothShapesLegacyWinsConflictingAlias(t *testing.T) {
+	t.Parallel()
+	// Same precedence as EditableAliases: Fields first, then editableFields
+	// overwrites the id for a shared alias. fieldMap is ignored while Fields
+	// is present (FieldSpecs sole-truth).
+	raw := []byte(`{
+  "gadak_team_config": 1,
+  "settings": {
+    "fields": [
+      {
+        "alias": "severity",
+        "label": "Severity Level",
+        "ids": ["customfield_10"],
+        "role": "facet",
+        "kind": "option"
+      }
+    ],
+    "fieldMap": {
+      "severity": "customfield_99",
+      "storyPoints": "customfield_10016"
+    },
+    "editableFields": {
+      "severity": "customfield_legacy"
+    }
+  },
+  "views": []
+}`)
+	doc, err := ParseDocument(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Settings.FieldMap) != 0 || len(doc.Settings.EditableFields) != 0 {
+		t.Fatalf("import must convert leftover keys before merge: fieldMap=%v editable=%v",
+			doc.Settings.FieldMap, doc.Settings.EditableFields)
+	}
+	if len(doc.Settings.Fields) != 1 {
+		t.Fatalf("want converted Fields (FieldMap-only alias dropped), got %+v", doc.Settings.Fields)
+	}
+	s := doc.Settings.Fields[0]
+	if s.Alias != "severity" || !reflect.DeepEqual(s.IDs, []string{"customfield_legacy"}) {
+		t.Fatalf("legacy editableFields must win the id, got %+v", s)
+	}
+	if s.Label != "Severity Level" || s.Kind != "option" || s.Role != "facet" {
+		t.Fatalf("overlay must keep Label/Role/Kind, got %+v", s)
+	}
+
+	cfg := &config.Config{}
+	plan := BuildPlan(cfg, nil, doc, ImportOptions{})
+	assertSettingAction(t, plan, "fields", SettingAdd)
+	for _, sc := range plan.Settings {
+		if sc.Key == "fieldMap" || sc.Key == "editableFields" {
+			t.Fatalf("plan must not carry retired keys, got %+v", plan.Settings)
+		}
+	}
+	if err := ApplyPlan(cfg, openTestDB(t), plan); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cfg.Fields, doc.Settings.Fields) {
+		t.Fatalf("apply Fields: got %+v want %+v", cfg.Fields, doc.Settings.Fields)
+	}
+	if len(cfg.FieldMap) != 0 || len(cfg.EditableFields) != 0 {
+		t.Fatalf("apply must not write legacy keys: fieldMap=%v editable=%v", cfg.FieldMap, cfg.EditableFields)
+	}
+}
+
+func TestExportWritesOnlyFieldsShape(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		FieldMap:       map[string]string{"storyPoints": "customfield_10016"},
+		EditableFields: map[string]string{"storyPoints": "customfield_10016"},
+	}
+	raw, err := MarshalDocument(BuildDocument(cfg, nil, ExportOptions{
+		Now: time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	if strings.Contains(s, `"fieldMap"`) || strings.Contains(s, `"editableFields"`) {
+		t.Fatalf("export must not write legacy keys:\n%s", s)
+	}
+	if !strings.Contains(s, `"fields"`) || !strings.Contains(s, "customfield_10016") {
+		t.Fatalf("export must write synthesized Fields:\n%s", s)
+	}
+	var doc Document
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Settings.Fields) != 1 || doc.Settings.Fields[0].Alias != "storyPoints" {
+		t.Fatalf("exported Fields: %+v", doc.Settings.Fields)
+	}
+	if doc.Settings.Fields[0].Label != "storyPoints" || doc.Settings.Fields[0].Role != "facet" {
+		t.Fatalf("export synthesis defaults: %+v", doc.Settings.Fields[0])
 	}
 }
 

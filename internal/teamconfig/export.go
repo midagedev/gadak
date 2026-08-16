@@ -25,10 +25,14 @@ type Document struct {
 // TeamSettings holds only the whitelist of Config fields that may be shared.
 // JSON tags match config.Config so a human can diff against ~/.gadak/config.json.
 type TeamSettings struct {
-	Projects            []string                  `json:"projects,omitempty"`
-	Fields              []config.FieldSpec        `json:"fields,omitempty"`
-	FieldMap            map[string]string         `json:"fieldMap,omitempty"`
-	BodyFields          []string                  `json:"bodyFields,omitempty"`
+	Projects []string           `json:"projects,omitempty"`
+	Fields   []config.FieldSpec `json:"fields,omitempty"`
+	// FieldMap is a migration-only unmarshal target for team files written
+	// before export dropped the legacy shape. Import converts it into Fields.
+	FieldMap   map[string]string `json:"fieldMap,omitempty"`
+	BodyFields []string          `json:"bodyFields,omitempty"`
+	// EditableFields is a migration-only unmarshal target. Import overlays
+	// it onto Fields (legacy wins per alias) and clears it before merge.
 	EditableFields      map[string]string         `json:"editableFields,omitempty"`
 	Members             []config.Member           `json:"members,omitempty"`
 	GroupRules          []config.GroupRule        `json:"groupRules,omitempty"`
@@ -67,10 +71,8 @@ func BuildDocument(cfg *config.Config, views []store.SavedView, opts ExportOptio
 	}
 	s := TeamSettings{
 		Projects:            copyStrings(cfg.Projects),
-		Fields:              copyFieldSpecs(cfg.Fields),
-		FieldMap:            copyStringMap(cfg.FieldMap),
+		Fields:              exportFieldSpecs(cfg),
 		BodyFields:          copyStrings(cfg.BodyFields),
-		EditableFields:      copyStringMap(cfg.EditableFields),
 		GroupRules:          copyGroupRules(cfg.GroupRules),
 		GroupLabels:         copyStringMap(cfg.GroupLabels),
 		GroupColors:         copyStringMap(cfg.GroupColors),
@@ -216,6 +218,23 @@ func copyFieldSpecs(in []config.FieldSpec) []config.FieldSpec {
 		}
 	}
 	return out
+}
+
+// exportFieldSpecs writes the Fields shape only. An in-memory config that
+// still has leftover keys is converted the same way LoadFor persists.
+func exportFieldSpecs(cfg *config.Config) []config.FieldSpec {
+	if cfg == nil {
+		return nil
+	}
+	tmp := *cfg
+	tmp.Fields = copyFieldSpecs(cfg.Fields)
+	tmp.FieldMap = copyStringMap(cfg.FieldMap)
+	tmp.EditableFields = copyStringMap(cfg.EditableFields)
+	tmp.NormalizeLegacyFields()
+	if len(tmp.Fields) > 0 {
+		return tmp.Fields
+	}
+	return copyFieldSpecs(cfg.Fields)
 }
 
 func copyConfluence(in *config.ConfluenceConfig) *config.ConfluenceConfig {

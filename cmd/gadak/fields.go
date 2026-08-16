@@ -1,9 +1,9 @@
 package main
 
 // gadak fields reports which Jira fields are actually populated on a stratified
-// sample of mirrored issues. The mirror only stores fieldMap-mapped custom
-// fields, so this command must ask Jira (field catalog + *all search) rather
-// than run a pure SQL report over the local database.
+// sample of mirrored issues. The mirror only stores mapped custom fields, so
+// this command must ask Jira (field catalog + *all search) rather than run a
+// pure SQL report over the local database.
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 )
 
 // mapSuggestMinRate is the filled-fraction threshold above which an unmapped
-// custom field is suggested for fieldMap. Sample-based, not a site census.
+// custom field is suggested for fields. Sample-based, not a site census.
 const mapSuggestMinRate = 0.10
 
 // fieldsSampleBatch is how many issue keys go into one Search JQL `key in (...)`.
@@ -144,7 +144,7 @@ func cmdFields(args []string) error {
 		return err
 	}
 
-	report := buildFieldReport(catalog, filled, len(keys), cfg.FieldMap, *showAll)
+	report := buildFieldReport(catalog, filled, len(keys), cfg.Fields, *showAll)
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"sample":             len(keys),
@@ -480,32 +480,43 @@ func quoteJiraKeys(keys []string) string {
 	return strings.Join(parts, ", ")
 }
 
-// reverseFieldMap turns alias->id into id->alias (first alias wins if duplicates).
-func reverseFieldMap(fm map[string]string) map[string]string {
-	out := make(map[string]string, len(fm))
-	// Stable: sort aliases so the same id always maps to the same alias.
-	aliases := make([]string, 0, len(fm))
-	for a := range fm {
-		aliases = append(aliases, a)
-	}
-	sort.Strings(aliases)
-	for _, a := range aliases {
-		id := fm[a]
-		if id == "" {
+// idsToAlias turns FieldSpec ids into id→alias (first alias wins if duplicates).
+func idsToAlias(specs []config.FieldSpec) map[string]string {
+	out := make(map[string]string)
+	type pair struct{ id, alias string }
+	var pairs []pair
+	for _, s := range specs {
+		if s.Alias == "" {
 			continue
 		}
-		if _, ok := out[id]; !ok {
-			out[id] = a
+		for _, id := range s.IDs {
+			if id == "" {
+				continue
+			}
+			pairs = append(pairs, pair{id: id, alias: s.Alias})
+		}
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].id != pairs[j].id {
+			return pairs[i].id < pairs[j].id
+		}
+		return pairs[i].alias < pairs[j].alias
+	})
+	for _, p := range pairs {
+		if _, ok := out[p.id]; !ok {
+			out[p.id] = p.alias
 		}
 	}
 	return out
 }
 
-func buildFieldReport(catalog []jira.FieldInfo, filled map[string]int, sampled int, fieldMap map[string]string, showAll bool) fieldReport {
-	idToAlias := reverseFieldMap(fieldMap)
+func buildFieldReport(catalog []jira.FieldInfo, filled map[string]int, sampled int, specs []config.FieldSpec, showAll bool) fieldReport {
+	idToAlias := idsToAlias(specs)
 	usedAliases := map[string]bool{}
-	for a := range fieldMap {
-		usedAliases[a] = true
+	for _, s := range specs {
+		if s.Alias != "" {
+			usedAliases[s.Alias] = true
+		}
 	}
 
 	var rows []fieldUsageRow
@@ -580,7 +591,7 @@ func printFieldReport(report fieldReport, sampleN, mirrored, projects int) {
 
 	if len(report.suggestedMap) > 0 {
 		fmt.Println()
-		fmt.Printf("Suggested fieldMap additions (≥%.0f%% filled, not in config):\n", mapSuggestMinRate*100)
+		fmt.Printf("Suggested fields (≥%.0f%% filled, not in config):\n", mapSuggestMinRate*100)
 		// Stable key order for paste-friendly output.
 		aliases := make([]string, 0, len(report.suggestedMap))
 		for a := range report.suggestedMap {
@@ -630,5 +641,5 @@ func printUsageTable(rows []fieldUsageRow) {
 			pad(r.Name, wName), pad(r.ID, wID), pad(r.Type, wType),
 			wFilled, r.Filled, r.Rate*100, aliasOf(r))
 	}
-	fmt.Println("(* = alias suggestion; the field is not in fieldMap yet)")
+	fmt.Println("(* = alias suggestion; the field is not in fields yet)")
 }

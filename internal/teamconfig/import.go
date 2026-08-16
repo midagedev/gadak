@@ -41,7 +41,7 @@ const (
 
 // SettingChange is one planned settings field update.
 type SettingChange struct {
-	Key    string // JSON key (e.g. "fieldMap")
+	Key    string // JSON key (e.g. "fields")
 	Action SettingAction
 }
 
@@ -150,7 +150,28 @@ func ParseDocument(raw []byte) (Document, error) {
 			return Document{}, fmt.Errorf("views[%d]: name is required", i)
 		}
 	}
+	normalizeLegacySettings(&doc.Settings)
 	return doc, nil
+}
+
+// normalizeLegacySettings converts leftover fieldMap/editableFields into
+// Fields using the same synthesis LoadFor persists, then drops the old keys
+// so merge is Fields-vs-Fields.
+func normalizeLegacySettings(s *TeamSettings) {
+	if s == nil {
+		return
+	}
+	tmp := config.Config{
+		Fields:         copyFieldSpecs(s.Fields),
+		FieldMap:       copyStringMap(s.FieldMap),
+		EditableFields: copyStringMap(s.EditableFields),
+	}
+	if changed, _ := tmp.NormalizeLegacyFields(); !changed {
+		return
+	}
+	s.Fields = tmp.Fields
+	s.FieldMap = nil
+	s.EditableFields = nil
 }
 
 // rejectCredentialKeys walks top-level and settings object keys. If any
@@ -234,9 +255,7 @@ func planSettings(cur *config.Config, in TeamSettings, overwrite bool) []Setting
 	items := []item{
 		{key: "projects", empty: len(cur.Projects) == 0, hasIn: len(in.Projects) > 0},
 		{key: "fields", empty: len(cur.Fields) == 0, hasIn: len(in.Fields) > 0},
-		{key: "fieldMap", empty: len(cur.FieldMap) == 0, hasIn: len(in.FieldMap) > 0},
 		{key: "bodyFields", empty: len(cur.BodyFields) == 0, hasIn: len(in.BodyFields) > 0},
-		{key: "editableFields", empty: len(cur.EditableFields) == 0, hasIn: len(in.EditableFields) > 0},
 		{key: "members", empty: len(cur.Members) == 0, hasIn: len(in.Members) > 0},
 		{key: "groupRules", empty: len(cur.GroupRules) == 0, hasIn: len(in.GroupRules) > 0},
 		{key: "groupLabels", empty: len(cur.GroupLabels) == 0, hasIn: len(in.GroupLabels) > 0},
@@ -329,12 +348,8 @@ func applySetting(cfg *config.Config, key string, in TeamSettings) error {
 		cfg.Projects = copyStrings(in.Projects)
 	case "fields":
 		cfg.Fields = copyFieldSpecs(in.Fields)
-	case "fieldMap":
-		cfg.FieldMap = copyStringMap(in.FieldMap)
 	case "bodyFields":
 		cfg.BodyFields = copyStrings(in.BodyFields)
-	case "editableFields":
-		cfg.EditableFields = copyStringMap(in.EditableFields)
 	case "members":
 		cfg.Members = copyMembers(in.Members)
 	case "groupRules":

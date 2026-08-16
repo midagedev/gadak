@@ -101,13 +101,7 @@ func countSettingsKeys(s teamconfig.TeamSettings) int {
 	if len(s.Fields) > 0 {
 		n++
 	}
-	if len(s.FieldMap) > 0 {
-		n++
-	}
 	if len(s.BodyFields) > 0 {
-		n++
-	}
-	if len(s.EditableFields) > 0 {
 		n++
 	}
 	if len(s.Members) > 0 {

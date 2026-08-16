@@ -58,9 +58,11 @@ func TestSettingsFieldSpecsAndUsageReadOnly(t *testing.T) {
 	if len(saved.Fields) != 1 || saved.Fields[0].Alias != "severity" {
 		t.Fatalf("PUT wiped Fields: %+v", saved.Fields)
 	}
-	// fieldMap from PUT did apply
-	if saved.FieldMap["noise"] != "customfield_1" {
-		t.Fatalf("fieldMap not applied: %+v", saved.FieldMap)
+	// PUT still writes fieldMap, but LoadFor migrates leftover keys. Fields
+	// is already set, so FieldSpecs sole-truth drops the map (noise is not
+	// unioned in). GDK-149: this file is outside the migration whitelist.
+	if len(saved.FieldMap) != 0 {
+		t.Fatalf("Load must migrate leftover fieldMap, still %v", saved.FieldMap)
 	}
 }
 
