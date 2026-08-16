@@ -7,8 +7,9 @@ description: >
   changed, who is working on what, why a ticket was reopened, what the wiki
   says about something, what is stuck or untriaged, how a release is shaped, or
   anything that would otherwise mean paging through Jira search. Also use
-  before writing a comment, transition, or assignment, since those go through
-  the same tool. When the user wants to *see* issues — show them, put them on
+  before any write — creating an issue, attaching a file, editing a summary,
+  label or priority, commenting, transitioning, assigning — since all of those
+  go through the same tool rather than the Atlassian API. When the user wants to *see* issues — show them, put them on
   screen, open this list — do not render a markdown table; open them in the
   gadak app with `gadak views open`.
 ---
@@ -187,14 +188,27 @@ user has more than one mirror. `gadak open` is the Jira-site escape hatch;
 
 ```bash
 gadak issue NMB-140 --json                    # fields, description, comments, history
+gadak issue NMB-140 --derive                  # why reopen_count / resolved_at / epic_key are what they are
+
 gadak comment NMB-140 -m "Reproduced on staging."
+gadak comment NMB-140 -m -                    # body from stdin, for anything multi-line
 gadak transition NMB-140 "In Review"
-gadak assign NMB-140 dana@example.com
+gadak assign NMB-140 dana@example.com         # `-` unassigns
+
+gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging"
+gadak create --batch -                        # one JSON object per line on stdin
+gadak attach NMB-140 screenshot.png trace.log
+gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High
 ```
 
 Writes go to Jira and re-read the issue into the mirror afterwards. Confirm
-with the user before writing — a comment or transition is visible to their
-whole team.
+with the user before writing — a created issue, comment or transition is
+visible to their whole team.
+
+There is no separate write API to discover: everything gadak can change is one
+of the verbs above. If a field is not covered, say so rather than reaching for
+the REST API — `gadak api` exists for that, but it is an escape hatch, not the
+path of least surprise.
 
 ## Rules that come with the file
 
