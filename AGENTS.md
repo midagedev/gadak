@@ -163,6 +163,15 @@ Rules that come with the file:
 `gadak views open` is the "open in gadak" verb (focus the running app or
 serve tab). The names collide; the verbs do not.
 
+**Handing a view to a human.** `gadak views open` acts — it pulls the window
+forward now. When you would rather offer than act, or you are on a host with
+no shell, use the link instead: every `views open` prints a `deeplink` line
+(and a `"deeplink"` field under `--json`) of the form
+`gadak://view/w/<profile>?<hash>`. Put that in your message and the person
+decides when to click. Unlike the `web` field beside it, it is always there —
+`web` needs a `serve` already listening to know which port to name, and is
+empty otherwise. Opening one needs the macOS desktop app installed.
+
 ```bash
 gadak issue NMB-140                   # fields, description, comments, history, links
 gadak issue NMB-140 --json            # the `GET <key>/detail/` document plus the list row

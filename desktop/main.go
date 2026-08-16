@@ -97,6 +97,11 @@ func run() error {
 	var openURL func(string) error
 	browse := newBrowseTabs()
 
+	// Both gadak:// delivery routes go through one function; see deeplink.go
+	// for why they are two. Assigned after the window exists, for the same
+	// reason openURL is — the single-instance callback can fire before then.
+	var applyDeepLink func(string)
+
 	app := application.New(application.Options{
 		// Name labels the macOS app menu; Name + Description are what the
 		// About panel shows.
@@ -118,10 +123,19 @@ func run() error {
 			// Per profile, not global: one window per mirror, and a second
 			// profile (GADAK_PROFILE=work open -a Gadak) gets its own window.
 			UniqueID: "com.midagedev.gadak." + profileLockKey(),
-			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
-				if window != nil {
-					window.Restore()
-					window.Focus()
+			OnSecondInstanceLaunch: func(d application.SecondInstanceData) {
+				if window == nil {
+					return
+				}
+				window.Restore()
+				window.Focus()
+				// A gadak:// launch arrives as a second instance: macOS starts
+				// a process, wails captures the pending Apple Event there and
+				// forwards the URL in argv. Raise first, then navigate — the
+				// user asked for a view, and the window they get should be the
+				// one showing it.
+				if raw := firstDeepLinkArg(d.Args); raw != "" && applyDeepLink != nil {
+					applyDeepLink(raw)
 				}
 			},
 		},
@@ -192,6 +206,18 @@ func run() error {
 	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		log.Print("wails runtime ready — --wails-draggable listeners are attached")
 	})
+
+	applyDeepLink = deepLinkNavigator(config.Profile(), func(path string) {
+		window.SetURL(path)
+		window.Restore()
+		window.Focus()
+	})
+	// The other delivery route: the app was already running, so the Apple
+	// Event reaches this process and wails emits it as an application event.
+	app.Event.OnApplicationEvent(events.Common.ApplicationLaunchedWithUrl,
+		func(e *application.ApplicationEvent) {
+			applyDeepLink(e.Context().URL())
+		})
 
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		// Sidebar banner only (internal/selfupdate). updateCheck: false

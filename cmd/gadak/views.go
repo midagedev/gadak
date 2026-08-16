@@ -12,9 +12,11 @@ import (
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/deeplink"
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/uifocus"
+	"github.com/midagedev/gadak/internal/workspace"
 )
 
 // issueKeyPat is the G3 positional: a Jira key, compared after ToUpper.
@@ -196,6 +198,7 @@ func viewsOpen(args []string) error {
 	skipOpen := *noOpenFlag || envNoOpen()
 	// G4: always resolve the URL (even under --no-open); only launch when asked.
 	web, serveDbg := resolveServeFocus(hash)
+	link := deepLinkURL(config.Profile(), hash)
 	desk := false
 	if !skipOpen {
 		if web != "" {
@@ -204,7 +207,7 @@ func viewsOpen(args []string) error {
 			}
 		}
 		var ferr error
-		desk, ferr = focusDesktopApp()
+		desk, ferr = focusDesktopApp(link)
 		if ferr != nil {
 			// A serve URL already presented the view (including /w/<profile>/
 			// on another profile's process). Do not fail the command; the
@@ -221,12 +224,13 @@ func viewsOpen(args []string) error {
 		}
 	}
 	out := map[string]any{
-		"name":    label,
-		"hash":    hash,
-		"file":    true,
-		"web":     web,
-		"desktop": desk,
-		"serve":   serveDbg,
+		"name":     label,
+		"hash":     hash,
+		"file":     true,
+		"web":      web,
+		"desktop":  desk,
+		"serve":    serveDbg,
+		"deeplink": link,
 	}
 	if len(keys) > 0 {
 		out["keys"] = keys
@@ -235,6 +239,9 @@ func viewsOpen(args []string) error {
 		return json.NewEncoder(os.Stdout).Encode(out)
 	}
 	fmt.Printf("hash\t%s\n", hash)
+	if link != "" {
+		fmt.Printf("deeplink\t%s\n", link)
+	}
 	if web != "" {
 		fmt.Printf("web\t%s\n", web)
 	}
@@ -552,22 +559,28 @@ func resolveServeFocus(hash string) (string, serveDebug) {
 	if t.base == "" {
 		return "", dbg
 	}
-	return composeServeURL(t.base, workspacePrefix(config.Profile(), t.profile), hash), dbg
+	return composeServeURL(t.base, workspace.Prefix(config.Profile(), t.profile), hash), dbg
 }
 
 func composeServeURL(base, prefix, hash string) string {
 	return strings.TrimRight(base, "/") + prefix + "/" + jql.QueryURL(hash)
 }
 
-func workspacePrefix(cliProfile, serveProfile string) string {
-	if profileEq(cliProfile, serveProfile) {
-		return ""
-	}
-	name := cliProfile
-	if name == "" || name == "default" {
-		name = "default"
-	}
-	return "/w/" + name
+// deepLinkURL is the gadak:// link for a view — the one form of handoff that
+// needs neither a shell nor a running serve, which is what makes it the one
+// an agent can put in a chat message.
+//
+// It is always computable, unlike the "web" field beside it in `views open
+// --json`: that one is empty unless a serve is already listening, because it
+// has to be told which port to name. This is a pure function of the profile
+// and the hash, so an agent that built a view always has something to hand
+// over. What it does not promise is that anything will answer — that needs
+// the desktop app installed, which is macOS-only today.
+//
+// Built from the same prefix the serve URL uses, so the two links describe
+// the same view; desktop/deeplink.go reverses exactly this.
+func deepLinkURL(profile, hash string) string {
+	return deeplink.Compose(deeplink.ActionView, workspace.Prefix(profile, ""), hash)
 }
 
 func findServeTarget() (serveTarget, serveDebug) {
@@ -577,7 +590,7 @@ func findServeTarget() (serveTarget, serveDebug) {
 	var anyPort string
 	for _, hit := range discoverServes() {
 		t := serveTarget{base: hit.base, profile: hit.profile}
-		if profileEq(hit.profile, want) {
+		if workspace.ProfileEq(hit.profile, want) {
 			dbg.Base = hit.base
 			dbg.Profile = hit.profile
 			dbg.Port = hit.port
@@ -620,16 +633,6 @@ func openServeOnHash(hash string) string {
 	return u
 }
 
-func profileEq(got, want string) bool {
-	norm := func(s string) string {
-		if s == "default" {
-			return ""
-		}
-		return s
-	}
-	return norm(got) == norm(want)
-}
-
 func envNoOpen() bool {
 	v := strings.TrimSpace(os.Getenv("GADAK_NO_OPEN"))
 	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
@@ -654,6 +657,19 @@ var desktopAppExists = func() bool {
 
 var startOpen = func(args ...string) error {
 	return exec.Command("open", args...).Start()
+}
+
+// startOpenWait is startOpen for a launch whose failure has to be seen.
+//
+// The deep-link path needs it: an installed Gadak.app older than the
+// gadak:// scheme does not register a handler, and `open` reports that only
+// through its exit status — measured 2026-08-16, rc=1 with
+// kLSApplicationNotFoundErr in ~9ms. startOpen's Start() would discard it and
+// the user would watch nothing happen. Waiting costs nothing at that speed,
+// and on the success path `open` returns as soon as LaunchServices accepts
+// the request rather than when the app finishes launching.
+var startOpenWait = func(args ...string) error {
+	return exec.Command("open", args...).Run()
 }
 
 // desktopProcessName is the executable inside Gadak.app
@@ -754,13 +770,32 @@ func noProfileWindowMsg(name string, running []string) string {
 	return b.String()
 }
 
-func focusDesktopApp() (bool, error) {
+// focusDesktopApp raises Gadak.app on the view named by link, when the D5
+// rules allow raising at all.
+//
+// link is the gadak:// URL for what we are focusing, and it is the preferred
+// way in: one `open` both launches-or-raises the app and tells it which view
+// to show, where `open -a Gadak` only raises and leaves the uifocus file to
+// carry the view separately. That file is written either way — a serve tab
+// reads it too — but as the desktop app's channel it had two failure modes
+// the link does not: the two-minute freshness window, and a hash consumed
+// per workspace mount, so one written for a profile the window is not
+// currently showing is never applied.
+//
+// An empty link, or an installed app too old to register the scheme, falls
+// back to the raise-only path with the file. That is why this branch waits
+// on `open`: an unregistered scheme is reported through the exit status and
+// nowhere else.
+func focusDesktopApp(link string) (bool, error) {
 	if runtime.GOOS != "darwin" {
 		return false, nil
 	}
 	act, msg := decideDesktopFocus(desktopAppExists(), desktopAppRunning(), config.Profile(), listServes())
 	switch act {
 	case desktopFocusRaise:
+		if link != "" && startOpenWait(link) == nil {
+			return true, nil
+		}
 		if err := startOpen("-a", "Gadak"); err != nil {
 			return false, nil
 		}

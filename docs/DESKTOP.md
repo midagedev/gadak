@@ -62,6 +62,66 @@ SQLite file is your agent's view, and they are the same bytes. A brew install
 (`brew install midagedev/tap/gadak`) works too and the two can coexist — the
 binaries are identical per release; just avoid pointing a PATH at a stale copy.
 
+## The `gadak://` scheme
+
+The app registers `gadak://`, so a piece of gadak can be handed over as a link
+instead of a command:
+
+```
+gadak://view?issue=NMB-140                    # the default mirror
+gadak://view/w/work?ks=NMA-1,NMA-2            # a key list on the "work" mirror
+gadak://view/w/oss?pj=GDK&sc=inprogress       # a filtered list
+```
+
+Clicking one raises the app — launching it first if it was closed — and shows
+that view. You do not have to build these by hand: every `gadak views open`
+prints the link for what it just opened, as a `deeplink` line and as a
+`"deeplink"` field under `--json`.
+
+This is what an agent hands you when it has built a list. Its alternative was
+to run `gadak views open` itself, which needs a shell and a running `serve`,
+and which yanks the window forward mid-sentence rather than letting you
+choose. `gadak views open` now uses the same link internally: one `open` both
+raises the app and says which view to show.
+
+### The grammar
+
+```
+gadak://<action>[/w/<profile>][/<subject>][?<params>]
+```
+
+`<action>` is what the link asks for; `/w/<profile>` is the same workspace
+segment the web UI uses, in the same position; `<subject>` is what the action
+acts on; `<params>` is a view hash.
+
+`view` is the only action today, and that is a fact about the UI rather than
+a limit of the scheme: the view hash — which includes `issue=KEY` for the
+detail panel — is currently the only part of the app that has a URL at all.
+Documents, people, the settings tabs, and setup are opened by internal calls
+with nothing to name them; making them addressable is what unlocks actions
+for them (GDK-124), and each is then one entry in the table in
+`desktop/deeplink.go`.
+
+The split is deliberate. A link lives in a chat log forever and is opened by
+whatever version happens to be installed, so the **grammar** must not change
+while the **action list** grows. A gadak that meets a link for an action it
+does not have says so — *"this link needs a newer Gadak"* — rather than
+calling the link malformed.
+
+### Read-only by construction
+
+Any web page can put a `gadak://` link on it, so the scheme carries no verb:
+a link says *where to go*, never what to do. The worst a hostile link can
+achieve is that you look at the wrong thing. Links are refused if they name
+an action that is not a plain word, carry a profile or subject that is not a
+plain name, try to traverse a path, or exceed the size limits
+(`internal/deeplink`). Actions that submit or write will not be added.
+
+macOS only: it is the bundle's `Info.plist` that registers the scheme, and
+there is no Linux or Windows desktop app. Elsewhere, the `web` field from
+`gadak views open --json` is the link to hand over — it needs a running
+`serve`, which those platforms have.
+
 ## Profiles
 
 The app opens the default profile. To pin a window to another mirror, launch

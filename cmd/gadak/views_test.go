@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"runtime"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/workspace"
 )
 
 func TestViewsListAndShow(t *testing.T) {
@@ -72,9 +74,11 @@ func TestViewsOpenWritesFocus(t *testing.T) {
 func stubViewsLaunchSeams(t *testing.T, hits []serveHit) (openedWeb *bool, openedDesk *bool) {
 	t.Helper()
 	savedDiscover, savedOpen, savedStart := discoverServes, openFocusURL, startOpen
+	savedWait := startOpenWait
 	web, desk := false, false
 	t.Cleanup(func() {
 		discoverServes, openFocusURL, startOpen = savedDiscover, savedOpen, savedStart
+		startOpenWait = savedWait
 	})
 	discoverServes = func() []serveHit { return hits }
 	openFocusURL = func(u string) error {
@@ -87,7 +91,102 @@ func stubViewsLaunchSeams(t *testing.T, hits []serveHit) (openedWeb *bool, opene
 		t.Errorf("startOpen must not run under --no-open (args %v)", args)
 		return nil
 	}
+	// The deep-link path is the one that runs `open` with a URL. Stubbed for
+	// the same reason as the others, and because the real one would hand a
+	// gadak:// URL to LaunchServices from a unit test.
+	startOpenWait = func(args ...string) error {
+		desk = true
+		t.Errorf("startOpenWait must not run under --no-open (args %v)", args)
+		return nil
+	}
 	return &web, &desk
+}
+
+// stubFocusSeams sets up a "raise is allowed" world and captures both launch
+// paths, so a test can assert which one ran.
+func stubFocusSeams(t *testing.T) (deepLinked *[]string, raised *[]string, deepLinkErr *error) {
+	t.Helper()
+	savedExists, savedRunning, savedList := desktopAppExists, desktopAppRunning, listServes
+	savedOpen, savedWait := startOpen, startOpenWait
+	t.Cleanup(func() {
+		desktopAppExists, desktopAppRunning, listServes = savedExists, savedRunning, savedList
+		startOpen, startOpenWait = savedOpen, savedWait
+	})
+	desktopAppExists = func() bool { return true }
+	desktopAppRunning = func() bool { return true }
+	listServes = func() []gadakProbe { return nil }
+	var viaLink, viaRaise []string
+	var linkErr error
+	startOpenWait = func(args ...string) error {
+		viaLink = append([]string(nil), args...)
+		return linkErr
+	}
+	startOpen = func(args ...string) error {
+		viaRaise = append([]string(nil), args...)
+		return nil
+	}
+	return &viaLink, &viaRaise, &linkErr
+}
+
+// The deep link is preferred because it does in one call what `open -a` plus
+// the uifocus file did in two, and without the file's two-minute window or
+// its per-mount consumption.
+func TestFocusDesktopAppPrefersTheDeepLink(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("focusDesktopApp is a no-op off darwin")
+	}
+	viaLink, viaRaise, _ := stubFocusSeams(t)
+	const link = "gadak://view/w/work?ks=NMA-1"
+	ok, err := focusDesktopApp(link)
+	if err != nil || !ok {
+		t.Fatalf("focusDesktopApp(%q) = %v, %v; want true, nil", link, ok, err)
+	}
+	if len(*viaLink) != 1 || (*viaLink)[0] != link {
+		t.Fatalf("open args %v, want exactly [%q]", *viaLink, link)
+	}
+	if len(*viaRaise) != 0 {
+		t.Fatalf("open -a also ran (%v); the deep link already raised the app", *viaRaise)
+	}
+}
+
+// The compatibility case, and the reason the deep-link branch waits on `open`
+// at all: a Gadak.app older than the scheme registers no handler, `open`
+// answers kLSApplicationNotFoundErr, and without this fallback the user
+// watches nothing happen.
+func TestFocusDesktopAppFallsBackWhenTheSchemeIsUnregistered(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("focusDesktopApp is a no-op off darwin")
+	}
+	viaLink, viaRaise, linkErr := stubFocusSeams(t)
+	*linkErr = errors.New("No application knows how to open URL")
+	ok, err := focusDesktopApp("gadak://view/w/work?ks=NMA-1")
+	if err != nil || !ok {
+		t.Fatalf("fallback must still focus: ok=%v err=%v", ok, err)
+	}
+	if len(*viaLink) == 0 {
+		t.Fatal("the deep link was never attempted")
+	}
+	if len(*viaRaise) != 2 || (*viaRaise)[0] != "-a" || (*viaRaise)[1] != "Gadak" {
+		t.Fatalf("fallback args %v, want [-a Gadak]", *viaRaise)
+	}
+}
+
+// No link to offer — `views open` composes "" only when there is no hash —
+// so the old path is the whole path.
+func TestFocusDesktopAppWithoutALinkRaisesOnly(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("focusDesktopApp is a no-op off darwin")
+	}
+	viaLink, viaRaise, _ := stubFocusSeams(t)
+	if ok, err := focusDesktopApp(""); err != nil || !ok {
+		t.Fatalf("focusDesktopApp(\"\") = %v, %v; want true, nil", ok, err)
+	}
+	if len(*viaLink) != 0 {
+		t.Fatalf("open ran with %v for an empty link", *viaLink)
+	}
+	if len(*viaRaise) != 2 || (*viaRaise)[0] != "-a" {
+		t.Fatalf("raise args %v, want [-a Gadak]", *viaRaise)
+	}
 }
 
 func TestViewsOpenNoOpenSkipsLaunch(t *testing.T) {
@@ -102,11 +201,12 @@ func TestViewsOpenNoOpenSkipsLaunch(t *testing.T) {
 		t.Fatalf("open: %v\n%s", err, out)
 	}
 	var body struct {
-		Hash    string     `json:"hash"`
-		File    bool       `json:"file"`
-		Web     string     `json:"web"`
-		Desktop bool       `json:"desktop"`
-		Serve   serveDebug `json:"serve"`
+		Hash     string     `json:"hash"`
+		File     bool       `json:"file"`
+		Web      string     `json:"web"`
+		Desktop  bool       `json:"desktop"`
+		DeepLink string     `json:"deeplink"`
+		Serve    serveDebug `json:"serve"`
 	}
 	if err := json.Unmarshal([]byte(out), &body); err != nil {
 		t.Fatalf("decode %s: %v", out, err)
@@ -116,6 +216,16 @@ func TestViewsOpenNoOpenSkipsLaunch(t *testing.T) {
 	}
 	if body.Web != "" {
 		t.Fatalf("injected empty discovery must yield empty web, got %q", body.Web)
+	}
+	// The whole point of the deep link: it is there in exactly the case that
+	// leaves `web` empty. An agent with no running serve still has something
+	// to hand over, and this is the assertion that keeps that true.
+	if body.DeepLink != deepLinkURL(config.Profile(), body.Hash) {
+		t.Fatalf("deeplink %q does not match the composed link for hash %q",
+			body.DeepLink, body.Hash)
+	}
+	if !strings.HasPrefix(body.DeepLink, "gadak://view") {
+		t.Fatalf("deeplink %q is not a gadak:// link", body.DeepLink)
 	}
 	if *web || *desk {
 		t.Fatalf("launch happened: web=%v desk=%v", *web, *desk)
@@ -332,17 +442,14 @@ func TestViewsOpenStoredViewWinsOverKeyShape(t *testing.T) {
 }
 
 func TestComposeServeURLAndPrefix(t *testing.T) {
-	if got := workspacePrefix("work", "work"); got != "" {
-		t.Fatalf("same profile prefix %q", got)
-	}
-	if got := workspacePrefix("work", ""); got != "/w/work" {
-		t.Fatalf("other primary prefix %q", got)
-	}
-	if got := workspacePrefix("", "work"); got != "/w/default" {
-		t.Fatalf("default-on-named prefix %q", got)
-	}
-	if got := workspacePrefix("default", ""); got != "" {
-		t.Fatalf("default==empty prefix %q", got)
+	// The prefix rule's own cases live with the rule, in
+	// internal/workspace (TestPrefix) — the desktop app's deep-link handler
+	// needs the same answer, and a copy here would be the second definition.
+	// What this test owns is the seam: the URL `views open` hands the user is
+	// the shared prefix joined to the hash, not a locally reinvented path.
+	if got := composeServeURL("http://127.0.0.1:7777",
+		workspace.Prefix("work", ""), "ks=NMA-1,NMA-2"); got != "http://127.0.0.1:7777/w/work/#/?ks=NMA-1,NMA-2" {
+		t.Fatalf("views open URL through the shared prefix: %q", got)
 	}
 	got := composeServeURL("http://127.0.0.1:7777", "/w/work", "ks=NMA-1,NMA-2")
 	want := "http://127.0.0.1:7777/w/work/#/?ks=NMA-1,NMA-2"
@@ -466,7 +573,7 @@ func TestFocusDesktopAppWrongProfileDoesNotOpen(t *testing.T) {
 		t.Errorf("must not call open: %v", args)
 		return nil
 	}
-	ok, err := focusDesktopApp()
+	ok, err := focusDesktopApp("")
 	if runtime.GOOS != "darwin" {
 		if ok || err != nil {
 			t.Fatalf("non-darwin: focused=%v err=%v", ok, err)
@@ -499,7 +606,7 @@ func TestFocusDesktopAppNamedNoServeRaises(t *testing.T) {
 		got = append([]string(nil), args...)
 		return nil
 	}
-	ok, err := focusDesktopApp()
+	ok, err := focusDesktopApp("")
 	if runtime.GOOS != "darwin" {
 		if ok || err != nil {
 			t.Fatalf("non-darwin: focused=%v err=%v", ok, err)
@@ -534,7 +641,7 @@ func TestFocusDesktopAppSameProfileOpensWithoutEnv(t *testing.T) {
 		got = append([]string(nil), args...)
 		return nil
 	}
-	ok, err := focusDesktopApp()
+	ok, err := focusDesktopApp("")
 	if runtime.GOOS != "darwin" {
 		if ok || err != nil {
 			t.Fatalf("non-darwin: focused=%v err=%v", ok, err)

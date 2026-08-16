@@ -80,6 +80,24 @@ cat > "$app/Contents/Info.plist" <<PLIST
 	<key>LSMinimumSystemVersion</key><string>12.0</string>
 	<key>NSHighResolutionCapable</key><true/>
 	<key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+	<!-- gadak:// — the one way to hand someone a view without a shell.
+	     An agent that built a filtered list can put a link in chat; clicking
+	     it launches or raises this app on that view. LaunchServices reads
+	     this on install, so a scheme added here reaches a machine only after
+	     the new bundle lands there.
+
+	     Read-only by construction: the handler in main.go accepts nothing
+	     but a view hash, so the worst a hostile page's gadak:// link can
+	     achieve is that you look at the wrong list. Do not add a verb. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key><string>com.midagedev.gadak.view</string>
+			<key>CFBundleTypeRole</key><string>Viewer</string>
+			<key>CFBundleURLSchemes</key>
+			<array><string>gadak</string></array>
+		</dict>
+	</array>
 </dict>
 </plist>
 PLIST
