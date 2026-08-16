@@ -18,7 +18,7 @@
     <span class="flex-1">{t('settings.memberEmail')}</span>
     <span class="w-24 flex-none">{t('settings.memberName')}</span>
     <span class="w-20 flex-none">{t('common.group')}</span>
-    <span class="flex-1">Jira accountId</span>
+    <span class="flex-1">{t('settings.memberAccountId')}</span>
     <span class="w-12 flex-none"></span>
   </div>
   {#each draft.members as row, i (i)}

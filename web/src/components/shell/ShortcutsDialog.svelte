@@ -20,7 +20,10 @@
       title: t('shortcuts.sectionGlobal'),
       rows: [
         [`${mod} K`, t('shortcuts.palette')],
-        ['c', t('shortcuts.newIssue')],
+        // `c` resolves three ways in keymap.svelte.ts (detail open → focus
+        // comment, list cursor → comment, otherwise new issue) — the caption
+        // keeps this row honest about being the fallback case.
+        ['c', t('shortcuts.newIssueContext')],
         ['?', t('shortcuts.help')],
       ],
     },

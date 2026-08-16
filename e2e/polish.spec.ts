@@ -17,7 +17,7 @@ test.describe('keyboard cheat sheet', () => {
     // CommandPalette / CommentComposer). 1-4 style view switches do not exist.
     for (const label of [
       'Open the command palette',
-      'New issue',
+      'New issue (when no detail or cursor)',
       'Move cursor down',
       'Focus the search or filter box',
       'Submit the comment',

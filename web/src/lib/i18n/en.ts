@@ -539,7 +539,7 @@ export const en = {
   'docs.authorUnknown': 'Unknown author',
   'docs.viewedEmpty': 'Documents you open will appear here',
   'docs.viewedEmptyHint': 'Until then, Updated shows what changed across every space.',
-  'docs.recentEmpty': 'No mirrored documents yet.',
+  'docs.recentEmpty': 'No mirrored documents yet',
   'docs.backToIssues': 'Back to issues',
   /* The field narrows what is on screen; Enter leaves for the whole mirror. The
      placeholder carries both, because Enter changing screens has to be asked
@@ -610,7 +610,7 @@ export const en = {
 
   /* ── QA field editor ── */
   'qaEditor.none': 'None',
-  'qaEditor.noVersions': 'No versions available.',
+  'qaEditor.noVersions': 'No versions available',
   'qaEditor.searchVersion': 'Search versions',
   'qaEditor.searchPerson': 'Search name or email',
   'qaEditor.clearAssignee': 'Clear assignee',
@@ -842,6 +842,7 @@ export const en = {
   'settings.cloudPart': 'Cloud part',
   'settings.memberEmail': 'Email',
   'settings.memberName': 'Name',
+  'settings.memberAccountId': 'Jira accountId',
   'settings.displayName': 'Display name',
   'settings.department': 'Department',
   'settings.jobTitle': 'Title',
@@ -1038,7 +1039,7 @@ export const en = {
   'shortcuts.sectionPalette': 'Command palette',
   'shortcuts.sectionCompose': 'Composing',
   'shortcuts.palette': 'Open the command palette',
-  'shortcuts.newIssue': 'New issue',
+  'shortcuts.newIssueContext': 'New issue (when no detail or cursor)',
   'shortcuts.help': 'Show this cheat sheet',
   'shortcuts.moveDown': 'Move cursor down',
   'shortcuts.moveUp': 'Move cursor up',
