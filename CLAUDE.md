@@ -63,6 +63,9 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   MCP(`gadak mcp install claude`)는 셸 없는 호스트(Claude Desktop)용.
 - `make media`는 `media-mcp`를 포함하지 않는다 — mcp 클립은 Claude 로그인과
   실모델 호출이 필요해서 기여자에게 강제하지 않는다 (`docs/MEDIA.md`).
+- **마이너 버전 태그 전에 전체 코드 감사를 1회 돈다** (사용자 지시
+  2026-08-16). 절차·축·이슈 등록 방식은 `docs/runbooks/release-audit.md`.
+  결과는 GDK에 부모 이슈(`quality` 라벨) + 하위 이슈로 등록한다.
 
 ## 백로그·전략 문서 (도그푸딩)
 
