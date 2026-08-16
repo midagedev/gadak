@@ -133,6 +133,46 @@ func TestFormatMCPInstallCodex(t *testing.T) {
 	}
 }
 
+func TestFormatMCPInstallRaycast(t *testing.T) {
+	const exe = "/usr/local/bin/gadak"
+	got := formatMCPInstallRaycast(exe, "")
+	// Where to open: Raycast registers MCP servers through a form, not a file.
+	if !strings.Contains(got, "Manage MCP Servers") || !strings.Contains(got, "Install New Server") {
+		t.Fatalf("missing form path:\n%s", got)
+	}
+	// Transport must be named: picking the wrong transport breaks everything.
+	if !strings.Contains(got, "Standard Input/Output") {
+		t.Fatalf("missing stdio transport:\n%s", got)
+	}
+	if !strings.Contains(got, exe) {
+		t.Fatalf("missing command:\n%s", got)
+	}
+	if !strings.Contains(got, "mcp") {
+		t.Fatalf("missing mcp argument:\n%s", got)
+	}
+	// Default profile must stay out of the form values.
+	if strings.Contains(got, "--profile") {
+		t.Fatalf("default profile leaked:\n%s", got)
+	}
+	// Raycast has no config file to paste into — never a JSON snippet.
+	if strings.Contains(got, "mcpServers") {
+		t.Fatalf("must not print an mcpServers snippet:\n%s", got)
+	}
+
+	got = formatMCPInstallRaycast(exe, "demo")
+	if !strings.Contains(got, "--profile demo") {
+		t.Fatalf("missing profile args:\n%s", got)
+	}
+	if !strings.Contains(got, exe) {
+		t.Fatalf("missing command with profile:\n%s", got)
+	}
+	// A profile with a space must be quoted so it survives the form field.
+	got = formatMCPInstallRaycast(exe, "my work")
+	if !strings.Contains(got, `"my work"`) {
+		t.Fatalf("spaced profile not quoted:\n%s", got)
+	}
+}
+
 func TestClaudeNotFoundError(t *testing.T) {
 	err := errClaudeNotFound("/opt/gadak", "demo")
 	s := err.Error()

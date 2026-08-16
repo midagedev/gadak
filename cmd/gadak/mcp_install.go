@@ -6,6 +6,7 @@ package main
 //
 // claude: exec `claude mcp add` (PATH lookup; dry-run prints only).
 // cursor / codex / json: print paste-ready config (no exec).
+// raycast: print form values — Raycast has no config file to paste into.
 
 import (
 	"encoding/json"
@@ -102,6 +103,30 @@ func formatMCPInstallCodex(exe, profile string) string {
 	return b.String()
 }
 
+// formatMCPInstallRaycast prints the values to fill into Raycast's
+// "Install New Server" form. It deliberately writes no file and prints no
+// JSON snippet: Raycast's manual (manual.raycast.com/ai/model-context-protocol,
+// checked 2026-08-16) documents no MCP config path or schema, and its settings
+// tree holds no MCP file on disk — the form is the only registration path, so
+// the most a CLI can do is hand the user the exact field values.
+func formatMCPInstallRaycast(exe, profile string) string {
+	args := mcpServerArgs(profile)
+	// The form takes one Arguments field; quote tokens with spaces so a
+	// human can retype them losslessly (shellQuote leaves bare tokens alone).
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = shellQuote(a)
+	}
+	var b strings.Builder
+	b.WriteString("Raycast → Manage MCP Servers → Install New Server — fill the form with:\n\n")
+	fmt.Fprintf(&b, "  Name:       gadak\n")
+	fmt.Fprintf(&b, "  Transport:  Standard Input/Output (stdio)\n")
+	fmt.Fprintf(&b, "  Command:    %s\n", exe)
+	fmt.Fprintf(&b, "  Arguments:  %s\n", strings.Join(quoted, " "))
+	b.WriteString("\nRaycast registers MCP servers through this form only — there is no\nconfig file to paste into.\n")
+	return b.String()
+}
+
 func errClaudeNotFound(exe, profile string) error {
 	return fmt.Errorf("claude not found on PATH\n\nInstall Claude Code, or run manually:\n  %s",
 		formatClaudeMCPAddCommand(exe, profile))
@@ -124,6 +149,7 @@ Clients:
   claude   run ` + "`claude mcp add`" + ` with this binary and profile baked in
   cursor   print Cursor MCP config to paste (.cursor/mcp.json)
   codex    print Codex MCP config to paste (~/.codex/config.toml)
+  raycast  print the values to fill into Raycast's Install New Server form
   json     print mcpServers JSON snippet only
 
 Options:
@@ -136,6 +162,7 @@ Examples:
   gadak --profile demo mcp install json
   gadak mcp install cursor
   gadak mcp install codex
+  gadak mcp install raycast
 
 See also: gadak mcp, gadak profiles, docs/MCP.md, docs/AGENT_SETUP.md
 `)
@@ -182,11 +209,14 @@ func cmdMCPInstall(args []string) error {
 	case "codex":
 		fmt.Print(formatMCPInstallCodex(exe, profile))
 		return nil
+	case "raycast":
+		fmt.Print(formatMCPInstallRaycast(exe, profile))
+		return nil
 	case "json":
 		fmt.Print(formatMCPInstallJSON(exe, profile))
 		return nil
 	default:
-		return fmt.Errorf("unknown client %q — supported: claude, cursor, codex, json\nrun \"gadak mcp install --help\" for examples", client)
+		return fmt.Errorf("unknown client %q — supported: claude, cursor, codex, raycast, json\nrun \"gadak mcp install --help\" for examples", client)
 	}
 }
 

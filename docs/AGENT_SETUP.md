@@ -138,7 +138,9 @@ gadak mcp install claude
 
 That runs the same registration the manual line below does (absolute binary
 path + optional `--profile`). Other hosts: `gadak mcp install cursor|codex|json`
-prints a paste block.
+prints a paste block; `gadak mcp install raycast` prints the values for
+Raycast's *Install New Server* form (Raycast has no MCP config file to paste
+into, and its AI/MCP features may require a paid plan).
 
 The shortest manual path, verified end to end (this is the line in the README GIF):
 

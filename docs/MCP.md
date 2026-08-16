@@ -55,6 +55,7 @@ gadak --profile demo mcp install claude
 gadak mcp install claude --dry-run    # print the command only
 gadak mcp install cursor              # paste block for .cursor/mcp.json
 gadak mcp install codex               # paste block for ~/.codex/config.toml
+gadak mcp install raycast             # form values for Raycast's Install New Server
 gadak mcp install json                # mcpServers JSON snippet
 gadak mcp install                     # list clients
 ```
@@ -62,7 +63,8 @@ gadak mcp install                     # list clients
 `claude` runs `claude mcp add` when the binary is on `PATH`; if it is missing,
 the error prints the manual command. If the server name is already registered,
 gadak shows claude's message, prints `already registered`, and exits 0.
-`cursor` / `codex` / `json` never exec — they only print.
+`cursor` / `codex` / `json` never exec — they only print. `raycast` prints the
+values for its Install New Server form (see below).
 
 ## Claude Desktop
 
@@ -125,6 +127,21 @@ Any MCP host that can spawn a stdio server:
 
 Protocol version spoken: `2025-03-26`. If the client requests another version,
 gadak answers with its own version and does not reject the session.
+
+## Raycast
+
+Raycast (1.98+) speaks MCP over stdio but exposes **no config file**: its manual
+documents no settings path, and none exists on disk. Registration is form-only:
+
+```bash
+gadak mcp install raycast
+```
+
+This prints the values for Raycast → **Manage MCP Servers** → **Install New
+Server**: Name `gadak`, Transport *Standard Input/Output*, Command = this
+binary's absolute path, Arguments `mcp` (or `--profile <name> mcp` when a
+profile is set — the flag comes first, as it does on the command line).
+Raycast's AI/MCP features may require a paid plan.
 
 ## Tools
 
