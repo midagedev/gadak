@@ -940,7 +940,8 @@ export const ko = {
   'onboarding.sitePlaceholder': 'https://your-team.atlassian.net',
   'onboarding.email': 'Jira 계정 이메일',
   'onboarding.token': 'API 토큰',
-  'onboarding.tokenHint': '~/.gadak/config.json 에만 저장되고, 당신의 사이트로만 전송됩니다.',
+  'onboarding.tokenHint':
+    '~/.gadak/config.json 에만 저장되고, 당신의 사이트로만 전송됩니다. 스코프 없이 만드세요 — 스코프 토큰은 사이트 URL 로 로그인할 수 없습니다.',
   'onboarding.tokenExpires': '만료일 (Atlassian 발급 화면의 날짜)',
   'onboarding.tokenExpiresHint': '선택. 비우면 기본 수명(1년)으로 가정합니다.',
   'onboarding.errExpires': '만료일이 날짜가 아닙니다 (YYYY-MM-DD).',
@@ -951,6 +952,8 @@ export const ko = {
   'onboarding.errRejected': 'Jira 가 이메일/토큰을 거부했습니다. 둘 다 확인해 주세요.',
   'onboarding.errRejectedOrgKey':
     '조직 API 키(admin.atlassian.com 의 ATCTT)는 동작하지 않습니다 — 사용자 API 토큰(ATATT)을 만드세요.',
+  'onboarding.errRejectedScoped':
+    '스코프 토큰("Create API token with scopes")은 Atlassian 클라우드 API 용이라 사이트 URL 에는 쓸 수 없습니다 — id.atlassian.com 에서 확인하고, 붙여넣은 토큰이 스코프 토큰이면 스코프 없는 토큰을 새로 만드세요.',
   'onboarding.errSite': 'Jira 사이트 URL 을 입력하세요. 예: https://your-team.atlassian.net',
   'onboarding.errFields': '이메일과 API 토큰이 모두 필요합니다.',
   'onboarding.errConnect': 'Jira 에 연결할 수 없습니다: {message}',

@@ -95,9 +95,17 @@
   /** Each failure gets its own sentence — a rejected token is not an unreachable site. */
   function connectMessage(e: unknown): string {
     const code = e instanceof ApiError ? e.code : null
-    if (code === 'credential_rejected') {
-      // CLI init already warns about org keys; surface the same hard-won hint here.
+    // Three different mistakes reach Jira as the same 401, and only one of them
+    // is recognisable from the token itself: the server answers
+    // credential_rejected_org_key when the pasted token carries the ATCTT prefix
+    // (internal/server/onboarding.go). Everything else — a scoped token, or a
+    // plain typo — stays credential_rejected, so that branch names the scoped
+    // trap with a check the user can run instead of a verdict we cannot make.
+    if (code === 'credential_rejected_org_key') {
       return `${t('onboarding.errRejected')} ${t('onboarding.errRejectedOrgKey')}`
+    }
+    if (code === 'credential_rejected') {
+      return `${t('onboarding.errRejected')} ${t('onboarding.errRejectedScoped')}`
     }
     if (code === 'site_required') return t('onboarding.errSite')
     if (code === 'email_and_token_required') return t('onboarding.errFields')

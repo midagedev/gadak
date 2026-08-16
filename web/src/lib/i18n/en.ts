@@ -949,7 +949,11 @@ export const en = {
   'onboarding.sitePlaceholder': 'https://your-team.atlassian.net',
   'onboarding.email': 'Jira account email',
   'onboarding.token': 'API token',
-  'onboarding.tokenHint': 'Stored locally in ~/.gadak/config.json and sent only to your site.',
+  // Atlassian's token page now offers "Create API token with scopes" first, and
+  // a scoped token 401s here — so the warning sits next to the link that leads
+  // to that page, where it can still prevent the failure.
+  'onboarding.tokenHint':
+    'Stored locally in ~/.gadak/config.json and sent only to your site. Create it without scopes — a scoped token cannot sign in to a site URL.',
   'onboarding.tokenExpires': "Expires (from Atlassian's create dialog)",
   'onboarding.tokenExpiresHint': 'Optional. Leave blank to assume the default one-year lifetime.',
   'onboarding.errExpires': 'That expiry date is not a date (YYYY-MM-DD).',
@@ -958,8 +962,16 @@ export const en = {
   'onboarding.connecting': 'Verifying…',
   'onboarding.connectedAs': 'Connected as {name}',
   'onboarding.errRejected': 'Jira rejected that email and token. Check both and try again.',
+  // Only fires now when the pasted token actually carries the ATCTT prefix
+  // (internal/server/onboarding.go rejectedCredentialCode), so this sentence
+  // states a fact about the token in the box rather than a possibility.
   'onboarding.errRejectedOrgKey':
     'Org API keys (ATCTT from admin.atlassian.com) do not work — create a user API token (ATATT) instead.',
+  // The other rejections are indistinguishable at the server: a scoped token
+  // and a mistyped one both come back as a bare 401. So this sentence hands the
+  // user the check they can run themselves — which list their token is in.
+  'onboarding.errRejectedScoped':
+    'Scoped tokens ("Create API token with scopes") are issued for Atlassian\'s cloud API, not for your site URL — open id.atlassian.com and, if the token you pasted is a scoped one, create one without scopes.',
   'onboarding.errSite': 'Enter your Jira site URL, for example https://your-team.atlassian.net.',
   'onboarding.errFields': 'Email and API token are both required.',
   'onboarding.errConnect': 'Could not reach Jira: {message}',

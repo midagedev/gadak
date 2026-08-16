@@ -62,7 +62,7 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	me, err := jira.New(site, email, token).Myself(r.Context())
 	if err != nil {
 		if errors.Is(err, jira.ErrAuth) {
-			fail(w, http.StatusUnauthorized, "credential_rejected")
+			fail(w, http.StatusUnauthorized, rejectedCredentialCode(token))
 			return
 		}
 		failJira(w, r, err)
@@ -86,6 +86,36 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	s.fireSyncStarterIfNeeded(hadCredential)
 	// Same credential document the settings UI reads — never the token itself.
 	writeJSON(w, http.StatusOK, credential(&next))
+}
+
+// orgKeyPrefix is the organization API key Atlassian issues from
+// admin.atlassian.com. Those keys authenticate against organization admin APIs
+// only and 401 against every product endpoint (docs/STATE_OF_PLAY.md,
+// "hard-won knowledge" #1); the same prefix is what internal/secretscan keys on.
+const orgKeyPrefix = "ATCTT"
+
+// rejectedCredentialCode names the token trap behind a 401 when the pasted
+// token gives it away, so the client can say which mistake this is instead of
+// listing every one of them.
+//
+// Only the organization key is recognisable here. The other trap at this
+// moment is a *scoped* token ("Create API token with scopes"), which is issued
+// for api.atlassian.com/ex/{product}/{cloudId} and cannot Basic-auth against a
+// site URL — but nothing in this repository documents a prefix that separates a
+// scoped token from a classic one, and the 401 body that might is dropped at
+// the internal/atlhttp boundary (atlhttp.Do turns 401/403 into a bodyless
+// AuthError). So a scoped token and a mistyped one share the generic code and
+// the copy behind it names both, rather than a prefix rule being invented here.
+//
+// Classification happens only after Jira has already rejected the credential:
+// a prefix is a hint about a live service, not a right to refuse a token this
+// build has never sent. The token is read, never returned, logged, or embedded
+// in the code — the result is one of two constants.
+func rejectedCredentialCode(token string) string {
+	if strings.HasPrefix(token, orgKeyPrefix) {
+		return "credential_rejected_org_key"
+	}
+	return "credential_rejected"
 }
 
 // normalizeSite accepts what people paste: with or without a scheme, with or

@@ -185,6 +185,40 @@ func TestConnectReportsARejectedCredential(t *testing.T) {
 	}
 }
 
+// TestConnectNamesTheTokenTrapItCanRecognise pins which of the three
+// connect-time token traps the 401 tells apart. Jira answers all three
+// identically, so the only evidence is what was pasted: an organization key
+// gives itself away by its ATCTT prefix (STATE_OF_PLAY.md "hard-won knowledge"
+// #1), while a scoped token carries no prefix of its own and therefore has to
+// share the generic code with a plain wrong password — the copy behind that
+// code is what names the scoped case. Equality, not Contains: the org-key code
+// has the generic one as a substring, so Contains would pass without
+// distinguishing anything.
+func TestConnectNamesTheTokenTrapItCanRecognise(t *testing.T) {
+	for _, tc := range []struct{ name, token, code string }{
+		{"organization key", "ATCTT" + strings.Repeat("x", 30), "credential_rejected_org_key"},
+		{"scoped token", "ATATT" + strings.Repeat("y", 30), "credential_rejected"},
+		{"plain wrong token", "nope", "credential_rejected"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, h, _ := onboarding(t)
+			f.authStatus = http.StatusUnauthorized
+
+			rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
+				`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"`+tc.token+`"}`)
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+			}
+			if got := decode[map[string]string](t, rec)["error"]; got != tc.code {
+				t.Fatalf("error code %q, want %q", got, tc.code)
+			}
+			if strings.Contains(rec.Body.String(), tc.token) {
+				t.Fatal("the rejected token was echoed back to the client")
+			}
+		})
+	}
+}
+
 func TestConnectRequiresSiteAndCredential(t *testing.T) {
 	f, h, _ := onboarding(t)
 	for _, tc := range []struct{ name, body, code string }{
