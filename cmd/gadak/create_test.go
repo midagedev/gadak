@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,6 +80,20 @@ import (
 // 22. Genuinely unknown flag still rejected (GDK-41)
 //     TestCreateUnknownFlagExitStatus (flags_test.go; --pretty)
 //     TestCreateHelpListsPriorityFlag
+//
+// --parent (GDK-19 / GDK-86 parent half):
+// 23. --parent KEY lands as fields.parent.key; invalid shape writes nothing
+//     TestCreateParentLandsInPayload
+//     TestCreateParentInvalidKeyWritesNothing
+// 24. --batch -: flag default, per-line override; invalid line writes nothing
+//     TestCreateBatchParentFromFlagAndLineOverride
+//     TestCreateBatchParentInvalidWritesNothing
+// 25. Write-through refresh stores parent_key
+//     TestCreateParentMirrorRefreshLandsParentKey
+// 26. Jira hierarchy rejection is surfaced verbatim
+//     TestCreateParentRejectedByJiraSurfacesMessage
+// 27. Help / usage enumerate --parent
+//     TestCreateHelpListsParentFlag
 
 func TestCreateHappyPathSendsFieldsAndPrintsReread(t *testing.T) {
 	f := newFakeJira(t)
@@ -801,7 +817,7 @@ func TestCreateBatchMalformedJSONCreatesNothing(t *testing.T) {
 	if !strings.Contains(msg, "line 1") {
 		t.Errorf("must name line 1: %v", err)
 	}
-	if !strings.Contains(msg, `"summary"`) || !strings.Contains(msg, "attach") {
+	if !strings.Contains(msg, `"summary"`) || !strings.Contains(msg, "attach") || !strings.Contains(msg, "parent") {
 		t.Errorf("must remind of the expected shape: %v", err)
 	}
 	if f.called("POST /issue") {
@@ -1251,4 +1267,349 @@ func captureBoth(t *testing.T, fn func() error) (stdout, stderr string, err erro
 	outB, _ := io.ReadAll(or)
 	errB, _ := io.ReadAll(er)
 	return string(outB), string(errB), err
+}
+
+func TestCreateParentLandsInPayload(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"child of the audit", "--project", "NMB", "--type", "Task",
+			"--parent", "nmb-1",
+		})
+	})
+	if err != nil {
+		t.Fatalf("create --parent: %v", err)
+	}
+	if !f.called("POST /issue") {
+		t.Fatalf("CreateIssue not called; calls %v", f.calls)
+	}
+	sent := f.bodies["POST /issue"]
+	if !strings.Contains(sent, `"parent":{"key":"NMB-1"}`) {
+		t.Fatalf("parent key not sent (or not normalized): %s", sent)
+	}
+	for _, want := range []string{`"key":"NMB"`, `"id":"10001"`, `"summary":"child of the audit"`} {
+		if !strings.Contains(sent, want) {
+			t.Errorf("POST /issue missing %s: %s", want, sent)
+		}
+	}
+}
+
+func TestCreateOmitsParentWhenNoneGiven(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"no parent", "--project", "NMB", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	sent := f.bodies["POST /issue"]
+	if strings.Contains(sent, `"parent"`) {
+		t.Fatalf("parent sent when flag omitted: %s", sent)
+	}
+}
+
+func TestCreateParentInvalidKeyWritesNothing(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"bad parent", "--project", "NMB", "--type", "Task", "--parent", "not-a-key"})
+	})
+	if err == nil {
+		t.Fatal("expected invalid parent key error")
+	}
+	if !strings.Contains(err.Error(), `not a Jira key (want ABC-123)`) {
+		t.Fatalf("wording: %v", err)
+	}
+	if !strings.Contains(err.Error(), "not-a-key") {
+		t.Fatalf("error should name the value: %v", err)
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("invalid parent reached Jira: %v", f.calls)
+	}
+
+	_, err = capture(t, func() error {
+		return cmdCreate([]string{"none is not a create parent", "--project", "NMB", "--type", "Task", "--parent", "none"})
+	})
+	if err == nil || !strings.Contains(err.Error(), `not a Jira key (want ABC-123)`) {
+		t.Fatalf("create --parent none must be a key error, got %v", err)
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("--parent none reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateBatchParentFromFlagAndLineOverride(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, ""+
+		"{\"summary\":\"from flag\"}\n"+
+		"{\"summary\":\"from line\",\"parent\":\"GDK-1\"}\n")
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"--batch", "-",
+			"--project", "NMB", "--type", "Task",
+			"--parent", "NMB-1",
+		})
+	})
+	if err != nil {
+		t.Fatalf("batch: %v", err)
+	}
+	if len(f.createBodies) != 2 {
+		t.Fatalf("bodies %d: %v", len(f.createBodies), f.createBodies)
+	}
+	if !strings.Contains(f.createBodies[0], `"parent":{"key":"NMB-1"}`) {
+		t.Errorf("line 1 should use flag parent NMB-1: %s", f.createBodies[0])
+	}
+	if !strings.Contains(f.createBodies[1], `"parent":{"key":"GDK-1"}`) {
+		t.Errorf("line 2 should override to GDK-1: %s", f.createBodies[1])
+	}
+	if strings.Contains(f.createBodies[1], `"parent":{"key":"NMB-1"}`) {
+		t.Errorf("line 2 still carries flag parent: %s", f.createBodies[1])
+	}
+}
+
+func TestCreateBatchParentInvalidWritesNothing(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, ""+
+		"{\"summary\":\"kept\"}\n"+
+		"{\"summary\":\"bad\",\"parent\":\"not-a-key\"}\n"+
+		"{\"summary\":\"never\"}\n")
+
+	stdout, _, err := captureBoth(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task", "--parent", "NMB-1"})
+	})
+	if err == nil {
+		t.Fatal("expected invalid parent on line 2")
+	}
+	if !strings.Contains(err.Error(), "line 2") {
+		t.Errorf("must name line 2: %v", err)
+	}
+	if !strings.Contains(err.Error(), `not a Jira key (want ABC-123)`) {
+		t.Errorf("must use the key wording: %v", err)
+	}
+	lines := nonEmptyLines(stdout)
+	if len(lines) != 1 {
+		t.Fatalf("stdout must be the first success only, got %q", stdout)
+	}
+	if n := countCalls(f, "POST /issue"); n != 1 {
+		t.Fatalf("want 1 POST (line 2 must not create), got %d in %v", n, f.calls)
+	}
+	if !strings.Contains(f.createBodies[0], `"parent":{"key":"NMB-1"}`) {
+		t.Errorf("line 1 POST missing flag parent: %s", f.createBodies[0])
+	}
+}
+
+func TestCreateParentMirrorRefreshLandsParentKey(t *testing.T) {
+	f := newFakeJira(t)
+	echoParentOnReread(t, f)
+	mirror(t, f.URL)
+
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"child of the audit", "--project", "NMB", "--type", "Task",
+			"--parent", "NMB-1", "--json",
+		})
+	})
+	if err != nil {
+		t.Fatalf("create --parent --json: %v\n%s", err, out)
+	}
+	var res struct {
+		Issue store.IssueLite `json:"issue"`
+	}
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if res.Issue.ParentKey == nil || *res.Issue.ParentKey != "NMB-1" {
+		t.Fatalf("mirror parent_key = %v, want NMB-1", res.Issue.ParentKey)
+	}
+	if res.Issue.IssueKey != "NMB-42" {
+		t.Fatalf("json issue %+v", res.Issue)
+	}
+}
+
+func TestCreateParentRejectedByJiraSurfacesMessage(t *testing.T) {
+	f := newFakeJira(t)
+	rejectParentWrite(t, f, "NMB-999", "Issue type cannot be a child of the selected parent.")
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"hierarchy miss", "--project", "NMB", "--type", "Task",
+			"--parent", "NMB-999",
+		})
+	})
+	if err == nil {
+		t.Fatal("expected Jira hierarchy rejection")
+	}
+	if !strings.Contains(err.Error(), "Issue type cannot be a child of the selected parent.") {
+		t.Fatalf("must carry Jira's message, got %v", err)
+	}
+	if !f.called("POST /issue") {
+		t.Fatalf("valid key must reach Jira: %v", f.calls)
+	}
+}
+
+func TestCreateHelpListsParentFlag(t *testing.T) {
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"--help"})
+	})
+	if err != nil {
+		t.Fatalf("create --help: %v", err)
+	}
+	if !strings.Contains(out, "--parent") {
+		t.Fatalf("help Options missing --parent:\n%s", out)
+	}
+	if !strings.Contains(helps["create"].usage, "--parent") {
+		t.Errorf("usage line missing --parent: %s", helps["create"].usage)
+	}
+	if !strings.Contains(createUsage, "--parent") {
+		t.Errorf("createUsage missing --parent: %s", createUsage)
+	}
+}
+
+// echoParentOnReread rewrites the fake's /search/jql payload so a created or
+// edited issue's fields.parent matches the last write. The harness itself
+// lives in agent_test.go (outside this round's file whitelist).
+func echoParentOnReread(t *testing.T, f *fakeJira) {
+	t.Helper()
+	parents := map[string]string{}
+	inner := f.Config.Handler
+	f.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec := httptest.NewRecorder()
+		inner.ServeHTTP(rec, r)
+
+		path := strings.TrimPrefix(r.URL.Path, "/rest/api/3")
+		switch {
+		case r.Method == http.MethodPost && path == "/issue":
+			if k := f.lastCreatedKey; k != "" {
+				if p, set, clear := parentFieldFromWriteBody(f.bodies["POST /issue"]); set {
+					if clear {
+						delete(parents, k)
+					} else {
+						parents[k] = p
+					}
+				}
+			}
+		case r.Method == http.MethodPut && strings.HasPrefix(path, "/issue/") && strings.Count(path, "/") == 2:
+			key := strings.TrimPrefix(path, "/issue/")
+			if p, set, clear := parentFieldFromWriteBody(f.bodies[r.Method+" "+path]); set {
+				if clear {
+					delete(parents, key)
+				} else {
+					parents[key] = p
+				}
+			}
+		}
+
+		body := rec.Body.Bytes()
+		if path == "/search/jql" {
+			body = injectParentIntoSearch(body, parents)
+		}
+		for k, vs := range rec.Header() {
+			for _, v := range vs {
+				w.Header().Add(k, v)
+			}
+		}
+		status := rec.Code
+		if status == 0 {
+			status = http.StatusOK
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write(body)
+	})
+}
+
+// rejectParentWrite answers 400 with jiraMsg when a create/edit payload
+// names that parent key, so tests can assert Jira's wording is not rewritten.
+func rejectParentWrite(t *testing.T, f *fakeJira, parentKey, jiraMsg string) {
+	t.Helper()
+	inner := f.Config.Handler
+	f.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec := httptest.NewRecorder()
+		inner.ServeHTTP(rec, r)
+		path := strings.TrimPrefix(r.URL.Path, "/rest/api/3")
+		isWrite := (r.Method == http.MethodPost && path == "/issue") ||
+			(r.Method == http.MethodPut && strings.HasPrefix(path, "/issue/") && strings.Count(path, "/") == 2)
+		if isWrite {
+			tag := r.Method + " " + path
+			if p, set, _ := parentFieldFromWriteBody(f.bodies[tag]); set && p == parentKey {
+				msg, _ := json.Marshal(jiraMsg)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"errorMessages":[` + string(msg) + `]}`))
+				return
+			}
+		}
+		for k, vs := range rec.Header() {
+			for _, v := range vs {
+				w.Header().Add(k, v)
+			}
+		}
+		status := rec.Code
+		if status == 0 {
+			status = http.StatusOK
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write(rec.Body.Bytes())
+	})
+}
+
+func parentFieldFromWriteBody(body string) (key string, set, clear bool) {
+	var req struct {
+		Fields map[string]json.RawMessage `json:"fields"`
+	}
+	if json.Unmarshal([]byte(body), &req) != nil || req.Fields == nil {
+		return "", false, false
+	}
+	raw, ok := req.Fields["parent"]
+	if !ok {
+		return "", false, false
+	}
+	if string(raw) == "null" {
+		return "", true, true
+	}
+	var p struct {
+		Key string `json:"key"`
+	}
+	if json.Unmarshal(raw, &p) != nil || p.Key == "" {
+		return "", false, false
+	}
+	return p.Key, true, false
+}
+
+func injectParentIntoSearch(body []byte, parents map[string]string) []byte {
+	var doc map[string]any
+	if json.Unmarshal(body, &doc) != nil {
+		return body
+	}
+	issues, _ := doc["issues"].([]any)
+	if len(issues) == 0 {
+		return body
+	}
+	issue, _ := issues[0].(map[string]any)
+	if issue == nil {
+		return body
+	}
+	key, _ := issue["key"].(string)
+	parent, ok := parents[key]
+	if !ok {
+		return body
+	}
+	fields, _ := issue["fields"].(map[string]any)
+	if fields == nil {
+		return body
+	}
+	fields["parent"] = map[string]string{"key": parent}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return body
+	}
+	return out
 }

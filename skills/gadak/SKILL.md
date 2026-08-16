@@ -195,10 +195,10 @@ gadak comment NMB-140 -m -                    # body from stdin, for anything mu
 gadak transition NMB-140 "In Review"
 gadak assign NMB-140 dana@example.com         # `-` unassigns
 
-gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging"
+gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging" --parent NMB-1
 gadak create --batch -                        # one JSON object per line on stdin
 gadak attach NMB-140 screenshot.png trace.log
-gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High
+gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none
 ```
 
 Writes go to Jira and re-read the issue into the mirror afterwards. Confirm

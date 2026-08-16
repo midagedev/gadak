@@ -11,7 +11,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 )
 
-const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--json]"
+const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--parent KEY|none] [--json]"
 
 func cmdEdit(args []string) error {
 	fs := newFlagSet("edit")
@@ -20,6 +20,7 @@ func cmdEdit(args []string) error {
 	var labels labelFlags
 	fs.Var(&labels, "label", "`+name` or `-name` (repeatable)")
 	priority := fs.String("priority", "", "priority name or id")
+	parent := fs.String("parent", "", "parent issue key; `none` clears")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("edit", fs))
@@ -34,7 +35,7 @@ func cmdEdit(args []string) error {
 	}
 	key := normalizeKey(pos[0])
 
-	var hasSummary, hasM, hasLabel, hasPriority bool
+	var hasSummary, hasM, hasLabel, hasPriority, hasParent bool
 	fs.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "summary":
@@ -45,13 +46,32 @@ func cmdEdit(args []string) error {
 			hasLabel = true
 		case "priority":
 			hasPriority = true
+		case "parent":
+			hasParent = true
 		}
 	})
-	if !hasSummary && !hasM && !hasLabel && !hasPriority {
+	if !hasSummary && !hasM && !hasLabel && !hasPriority && !hasParent {
 		return usageError("edit", editUsage)
 	}
 	if hasSummary && strings.TrimSpace(*summary) == "" {
 		return usageError("edit", editUsage)
+	}
+
+	var parentKey string
+	var clearParent bool
+	if hasParent {
+		if strings.TrimSpace(*parent) == "none" {
+			clearParent = true
+		} else {
+			var perr error
+			parentKey, perr = parseParentKey(*parent, "edit")
+			if perr != nil {
+				return perr
+			}
+			if parentKey == "" {
+				return usageError("edit", editUsage)
+			}
+		}
 	}
 
 	body := *text
@@ -97,6 +117,13 @@ func cmdEdit(args []string) error {
 				return nil, err
 			}
 			fields["priority"] = map[string]string{"id": id}
+		}
+		if hasParent {
+			if clearParent {
+				fields["parent"] = nil
+			} else {
+				fields["parent"] = map[string]string{"key": parentKey}
+			}
 		}
 		return nil, c.EditIssue(ctx, key, fields, update)
 	})

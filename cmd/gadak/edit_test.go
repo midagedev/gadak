@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // Contract ↔ assertion:
@@ -32,6 +34,19 @@ import (
 //     TestEditIsRegisteredAndHelpShowsLabelSyntax
 // 11. Self-review: label names may contain + / - after the verb prefix
 //     TestEditLabelInternalPlusMinus
+//
+// --parent (GDK-19 / GDK-86 parent half):
+// 12. --parent KEY re-parents; --parent none clears; invalid shape writes nothing
+//     TestEditParentReparents
+//     TestEditParentNoneClears
+//     TestEditParentInvalidKeyWritesNothing
+// 13. --parent alone is an edit (not a usage error)
+//     TestEditParentAlone
+// 14. Write-through refresh stores / clears parent_key
+//     TestEditParentMirrorRefreshLandsParentKey
+//     TestEditParentNoneClearsMirrorParentKey
+// 15. Jira hierarchy rejection is surfaced verbatim
+//     TestEditParentRejectedByJiraSurfacesMessage
 
 func TestEditSummaryAlone(t *testing.T) {
 	f := newFakeJira(t)
@@ -274,7 +289,7 @@ func TestEditNoFlagsIsUsageError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "usage: gadak edit") {
 		t.Fatalf("no flags: %v", err)
 	}
-	for _, want := range []string{"--summary", "-m", "--label", "--priority"} {
+	for _, want := range []string{"--summary", "-m", "--label", "--priority", "--parent"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("usage %q missing %q", err, want)
 		}
@@ -433,5 +448,156 @@ func TestEditLabelMinusValueIsNotAFlag(t *testing.T) {
 	body := f.bodies["PUT /issue/NMB-1"]
 	if !strings.Contains(body, `"remove":"legacy"`) {
 		t.Fatalf("remove verb: %s", body)
+	}
+}
+
+func TestEditParentReparents(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--parent", "gdk-1"})
+	})
+	if err != nil {
+		t.Fatalf("edit --parent: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if !strings.Contains(body, `"parent":{"key":"GDK-1"}`) {
+		t.Fatalf("reparent PUT: %s", body)
+	}
+	if strings.Contains(body, `"update"`) {
+		t.Errorf("parent-only must not send update: %s", body)
+	}
+}
+
+func TestEditParentNoneClears(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--parent", "none"})
+	})
+	if err != nil {
+		t.Fatalf("edit --parent none: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if !strings.Contains(body, `"parent":null`) {
+		t.Fatalf("clear parent: %s", body)
+	}
+}
+
+func TestEditParentInvalidKeyWritesNothing(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--parent", "not-a-key"})
+	})
+	if err == nil {
+		t.Fatal("expected invalid parent key error")
+	}
+	if !strings.Contains(err.Error(), `not a Jira key (want ABC-123)`) {
+		t.Fatalf("wording: %v", err)
+	}
+	if !strings.Contains(err.Error(), "not-a-key") {
+		t.Fatalf("error should name the value: %v", err)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("invalid parent reached Jira: %v", f.calls)
+	}
+
+	_, err = capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--parent", "NONE"})
+	})
+	if err == nil || !strings.Contains(err.Error(), `not a Jira key (want ABC-123)`) {
+		t.Fatalf("NONE is not the literal none: %v", err)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("NONE reached Jira: %v", f.calls)
+	}
+}
+
+func TestEditParentAlone(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--parent", "NMB-2"})
+	})
+	if err != nil {
+		t.Fatalf("--parent alone must be an edit: %v", err)
+	}
+	if !f.called("PUT /issue/NMB-1") {
+		t.Fatalf("calls %v", f.calls)
+	}
+}
+
+func TestEditParentMirrorRefreshLandsParentKey(t *testing.T) {
+	f := newFakeJira(t)
+	echoParentOnReread(t, f)
+	mirror(t, f.URL)
+
+	out, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--parent", "GDK-1", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("edit --parent --json: %v\n%s", err, out)
+	}
+	var res struct {
+		Issue store.IssueLite `json:"issue"`
+	}
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if res.Issue.ParentKey == nil || *res.Issue.ParentKey != "GDK-1" {
+		t.Fatalf("mirror parent_key = %v, want GDK-1", res.Issue.ParentKey)
+	}
+}
+
+func TestEditParentNoneClearsMirrorParentKey(t *testing.T) {
+	f := newFakeJira(t)
+	echoParentOnReread(t, f)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--parent", "GDK-1"})
+	})
+	if err != nil {
+		t.Fatalf("reparent: %v", err)
+	}
+
+	out, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--parent", "none", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("clear: %v\n%s", err, out)
+	}
+	var res struct {
+		Issue store.IssueLite `json:"issue"`
+	}
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if res.Issue.ParentKey != nil {
+		t.Fatalf("cleared parent_key = %v, want nil", *res.Issue.ParentKey)
+	}
+}
+
+func TestEditParentRejectedByJiraSurfacesMessage(t *testing.T) {
+	f := newFakeJira(t)
+	rejectParentWrite(t, f, "NMB-999", "Issue type cannot be a child of the selected parent.")
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--parent", "NMB-999"})
+	})
+	if err == nil {
+		t.Fatal("expected Jira hierarchy rejection")
+	}
+	if !strings.Contains(err.Error(), "Issue type cannot be a child of the selected parent.") {
+		t.Fatalf("must carry Jira's message, got %v", err)
+	}
+	if !f.called("PUT /issue/NMB-1") {
+		t.Fatalf("valid key must reach Jira: %v", f.calls)
 	}
 }
