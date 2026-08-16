@@ -27,6 +27,7 @@
 
 import { untrack } from 'svelte'
 import { router, setParams } from './router.svelte'
+import type { PlaceParamKey } from './url-state'
 
 /** The value of each bound param — `null` meaning absent, both in the URL and
  *  in whatever state mirrors it. */
@@ -54,9 +55,14 @@ function differs<K extends string>(
  * show a half-decided state. `read` reports what the params would be for the
  * current state; `write` applies a set of param values to the state.
  *
+ * K must be a registered place param (PLACE_PARAM_KEYS in lib/url-state): a
+ * type error, not a convention, is what keeps the set of URL params a list
+ * someone reviews — the view params have their own single owner in
+ * view-config and never travel through this protocol.
+ *
  * Call during component initialisation (it registers an `$effect`).
  */
-export function bindParams<K extends string>(spec: {
+export function bindParams<K extends PlaceParamKey>(spec: {
   params: readonly K[]
   read: () => ParamValues<K>
   write: (next: ParamValues<K>) => void
@@ -85,16 +91,17 @@ export function bindParams<K extends string>(spec: {
   })
 }
 
-/** One param, one value. Sugar over {@link bindParams}. */
+/** One param, one value. Sugar over {@link bindParams}; the key must be a
+ *  registered place param (see bindParams). */
 export function bindParam(spec: {
-  param: string
+  param: PlaceParamKey
   read: () => string | null
   write: (next: string | null) => void
 }): void {
   const { param, read, write } = spec
   bindParams({
     params: [param],
-    read: () => ({ [param]: read() }) as ParamValues<string>,
+    read: () => ({ [param]: read() }) as ParamValues<typeof param>,
     write: (next) => write(next[param]),
   })
 }

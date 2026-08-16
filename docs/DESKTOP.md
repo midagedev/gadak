@@ -94,13 +94,16 @@ gadak://<action>[/w/<profile>][/<subject>][?<params>]
 segment the web UI uses, in the same position; `<subject>` is what the action
 acts on; `<params>` is a view hash.
 
-`view` is the only action today, and that is a fact about the UI rather than
-a limit of the scheme: the view hash — which includes `issue=KEY` for the
-detail panel — is currently the only part of the app that has a URL at all.
-Documents, people, the settings tabs, and setup are opened by internal calls
-with nothing to name them; making them addressable is what unlocks actions
-for them (GDK-124), and each is then one entry in the table in
-`desktop/deeplink.go`.
+`view` is the only action today, and it goes further than its name suggests:
+the hash carries every filter and display setting, plus which panel and which
+screen you are on — `issue=KEY`, `doc=KEY`, `space=`, and so on. Anything the
+web app can put in its URL, a `gadak://view` link can carry, with no change
+here. Which is why the work of adding surfaces is on the UI side (GDK-124),
+not on the scheme.
+
+A second action is for something the hash cannot express — a place with no
+URL, or a different kind of address entirely. Each is then one entry in the
+table in `desktop/deeplink.go`.
 
 The split is deliberate. A link lives in a chat log forever and is opened by
 whatever version happens to be installed, so the **grammar** must not change

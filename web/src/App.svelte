@@ -12,7 +12,7 @@
   import { person } from './stores/person.svelte'
   import { panel } from './stores/panel.svelte'
   import { filters } from './stores/filters.svelte'
-  import { me } from './stores/me.svelte'
+  import { me, type FeedFocus } from './stores/me.svelte'
   import { write } from './stores/write.svelte'
   import { bulk } from './stores/bulk.svelte'
   import { triage } from './stores/triage.svelte'
@@ -49,7 +49,7 @@
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
   import QuickComment from './components/write/QuickComment.svelte'
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
-  import SettingsDialog from './components/settings/SettingsDialog.svelte'
+  import SettingsDialog, { isSettingsTab, type Tab } from './components/settings/SettingsDialog.svelte'
   import CommandPalette from './components/palette/CommandPalette.svelte'
   import ShortcutsDialog from './components/shell/ShortcutsDialog.svelte'
   import ToastHost from './components/write/ToastHost.svelte'
@@ -61,8 +61,19 @@
 
   const LAST_VIEW_KEY = STORAGE_KEYS.lastView
 
-  /** Server settings dialog (sidebar gear). Shell-local — no need for a store. */
+  /** Server settings dialog (sidebar gear). Shell-local — no need for a store.
+   *  The tab is lifted out of the dialog so the `settings=` place binding
+   *  (lib/url-state) can read and set it; closing resets it, which is what
+   *  the dialog's unmount used to do for free — every open starts on `sync`. */
   let serverSettingsOpen = $state(false)
+  let serverSettingsTab = $state<Tab>('sync')
+
+  /** Every close path — Esc, backdrop, the URL losing `settings=` — resets the
+   *  tab with it. */
+  function closeServerSettings(): void {
+    serverSettingsOpen = false
+    serverSettingsTab = 'sync'
+  }
   /** Command palette (⌘K). Only opened from here, so shell-local too. */
   let paletteOpen = $state(false)
   /** Shortcut cheat sheet (?). */
@@ -126,6 +137,41 @@
   // are what carry it out to the URL — they seed themselves from the URL for
   // exactly that reason (see lib/url-sync). It happens here, once, on the way
   // in: nothing after this turns a bare `?doc=` into a document screen.
+
+  /*
+   * The three surfaces that stayed memory-only while `issue` and `doc` grew
+   * links: the third right-panel kind, the personal feed, the settings
+   * dialog. One pattern for all three — presence means open, the value says
+   * which — and the restore-before-bind rule above applies to them for the
+   * same reason: a binding's first pass would otherwise read the un-opened
+   * state as "the URL dropped the param" and erase it.
+   */
+  const initialPerson = router.params.get('person')
+  if (initialPerson) person.select(initialPerson)
+
+  /** The feed's focus slices (FeedFocus), for validating an incoming `feed=`
+   *  value. PersonalFeed keeps its own labelled copy for its tabs; only this
+   *  binding needs the bare closed list. */
+  const FEED_FOCUSES: readonly FeedFocus[] = ['all', 'assignee', 'reporter', 'mention']
+  const isFeedFocus = (v: string): v is FeedFocus => (FEED_FOCUSES as readonly string[]).includes(v)
+
+  // The feed and the settings dialog are registered only where the surface
+  // exists. On a deployment that cannot answer, an arriving param is left
+  // alone in the URL — neither honored nor erased (a feed-less deployment has
+  // no feed screen; the hosted snapshot has no settings server to edit, the
+  // same rule the render guard on the dialog already keeps).
+  if (feature('feed')) {
+    const focus = router.params.get('feed')
+    if (focus !== null) me.openFeed(isFeedFocus(focus) ? focus : 'all')
+  }
+
+  if (hasServerVerb('settings')) {
+    const settingsTab = router.params.get('settings')
+    if (settingsTab !== null) {
+      serverSettingsOpen = true
+      serverSettingsTab = isSettingsTab(settingsTab) ? settingsTab : 'sync'
+    }
+  }
 
   onMount(() => {
     const unbindPalette = bindPaletteOpener(() => {
@@ -385,6 +431,46 @@
   // is nothing here to keep them from stacking.
   const panelOpen = $derived(panel.target !== null)
 
+  // The third right-panel kind, in the shape of the two above it: the value is
+  // the identity (account id or email — stores/person carries it opaquely),
+  // absence is the closed panel.
+  bindParam({
+    param: 'person',
+    read: () => person.selectedEmail,
+    write: (identity) => (identity ? person.select(identity) : person.clear()),
+  })
+
+  // The feed as a main-column screen. An unrecognized focus falls back to
+  // 'all' — openFeed's own default — rather than being rejected: the link can
+  // still name the place when this build no longer knows the slice, and a
+  // param that opens nothing reads as a broken link.
+  if (feature('feed')) {
+    bindParam({
+      param: 'feed',
+      read: () => (me.feedOpen ? me.feedFocus : null),
+      write: (v) => (v === null ? me.closeFeed() : me.openFeed(isFeedFocus(v) ? v : 'all')),
+    })
+  }
+
+  // The settings dialog. An unknown tab lands on 'sync', not a blank dialog —
+  // the tab list will grow, and a link from before a rename must keep opening
+  // something real. Registered only where the settings verb exists, so the
+  // hosted snapshot neither opens nor rewrites a `settings=` param.
+  if (hasServerVerb('settings')) {
+    bindParam({
+      param: 'settings',
+      read: () => (serverSettingsOpen ? serverSettingsTab : null),
+      write: (v) => {
+        if (v === null) {
+          closeServerSettings()
+        } else {
+          serverSettingsOpen = true
+          serverSettingsTab = isSettingsTab(v) ? v : 'sync'
+        }
+      },
+    })
+  }
+
   /*
    * ── The in-app browser pane (desktop app only) ──
    *
@@ -548,7 +634,7 @@
      shortcut or deep link cannot mount the server settings dialog where no
      server exists to edit (it 404s on load and renders an error screen). -->
 {#if serverSettingsOpen && hasServerVerb('settings')}
-  <SettingsDialog onclose={() => (serverSettingsOpen = false)} />
+  <SettingsDialog onclose={closeServerSettings} bind:tab={serverSettingsTab} />
 {/if}
 
 {#if shortcutsOpen}

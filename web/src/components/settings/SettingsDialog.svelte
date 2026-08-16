@@ -1,3 +1,25 @@
+<script module lang="ts">
+  /** The settings tabs, in header order. Exported so App can validate an
+   *  incoming `settings=` place param (lib/url-state) against the real tab
+   *  list instead of a second copy; TABS below attaches labels to these ids. */
+  export type Tab = 'sync' | 'sources' | 'features' | 'groups' | 'members' | 'fields'
+  export const SETTINGS_TABS: readonly Tab[] = [
+    'sync',
+    'sources',
+    'features',
+    'groups',
+    'members',
+    'fields',
+  ]
+
+  /** Type guard for URL values: an unknown tab name (a link from before this
+   *  build renamed or added tabs) must land on the default, not a blank
+   *  dialog. */
+  export function isSettingsTab(v: string): v is Tab {
+    return (SETTINGS_TABS as readonly string[]).includes(v)
+  }
+</script>
+
 <script lang="ts">
   /*
    * Server settings editor dialog (`~/.gadak/config.json`, loopback-only API).
@@ -28,9 +50,12 @@
   import { trapFocus } from '../../lib/focus-trap'
   import Icon from '../ui/Icon.svelte'
 
-  let { onclose }: { onclose: () => void } = $props()
+  // `tab` is bindable so the `settings=` URL binding in App can read which tab
+  // is open and set one on arrival; the default matches every open before the
+  // prop existed. Closing resets it (App's closeServerSettings), which is what
+  // the dialog's unmount used to do for free.
+  let { onclose, tab = $bindable('sync') }: { onclose: () => void; tab?: Tab } = $props()
 
-  type Tab = 'sync' | 'sources' | 'features' | 'groups' | 'members' | 'fields'
   const TABS: [Tab, string][] = [
     ['sync', t('settings.tabSync')],
     ['sources', t('settings.tabSources')],
@@ -43,7 +68,6 @@
   let loading = $state(true)
   let saving = $state(false)
   let error = $state<string | null>(null)
-  let tab = $state<Tab>('sync')
 
   /** Everything the form edits. Replaced wholesale by a load, mutated in place
    *  by the tabs, and turned back into a payload by `toSettings`. */

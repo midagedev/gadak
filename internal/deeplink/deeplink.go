@@ -30,10 +30,13 @@
 // handler, and an older app meeting a newer link produces "this link needs a
 // newer Gadak" instead of a parse error.
 //
-// Measured 2026-08-16: exactly one part of the UI is URL-addressable today —
-// the view hash (which includes `issue=KEY` for the detail panel). Documents,
-// people, the settings tabs, and onboarding are opened by store calls with no
-// URL to name them. Actions for those wait on that, not on this file.
+// What `view` can say is decided on the web side: the hash carries the view
+// params (filters, display) and the place params (which panel and screen —
+// issue, doc, person, feed, settings tab…). The registry of place params is
+// web/src/lib/url-state.ts; a param registered there is linkable from here
+// the same moment, with no change in this package. A second action is for
+// what a hash cannot express — a place with no URL, or a different kind of
+// address entirely.
 //
 // # Security posture
 //
