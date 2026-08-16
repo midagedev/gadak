@@ -44,6 +44,12 @@ export const STORAGE_KEYS = {
   },
 }
 
+/**
+ * Appearance preference. Not site-partitioned — it is a per-browser choice
+ * (same as `gadak_locale`), not a per-mirror setting.
+ */
+export const THEME_STORAGE_KEY = 'gadak:theme'
+
 /** Prefix for recency.ts (`gadak:recent:` + kind). */
 export function recentKindPrefix(): string {
   return `gadak:${keyPrefix()}recent:`

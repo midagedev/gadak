@@ -865,6 +865,12 @@ export const ko = {
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
 
+  /* ── Theme (per-browser; settings + palette) ── */
+  'theme.label': '테마',
+  'theme.system': '시스템',
+  'theme.light': '라이트',
+  'theme.dark': '다크',
+
   /* ── Command palette ── */
   'palette.title': '커맨드 팔레트',
   'palette.placeholder': '이슈로 이동, 또는 전체 검색…',
@@ -898,6 +904,7 @@ export const ko = {
   'palette.actionToggleUnassigned': '미할당 필터 토글',
   'palette.actionToggleStale': '정체 필터 토글',
   'palette.actionLocale': '언어를 {lang} 로 전환',
+  'palette.actionTheme': '테마를 {mode} 로 전환',
   'palette.actionSyncStatus': '동기화 상태 보기',
   'palette.actionSyncNow': '지금 동기화',
   'palette.syncToast': '{overall} · 동기화 {when}',

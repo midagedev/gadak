@@ -33,6 +33,13 @@
    *  Same modal pattern as JiraKeySettings (Esc / backdrop close).
    */
   import { t, locale, setLocale, type Locale } from '../../lib/i18n'
+  import {
+    THEME_MODES,
+    parseThemePreference,
+    readThemePreference,
+    setThemePreference,
+    type ThemePreference,
+  } from '../../lib/theme'
   import { onMount } from 'svelte'
   import * as api from '../../lib/api'
   import type { GadakSettings, SettingsRuntime } from '../../lib/api'
@@ -240,6 +247,16 @@
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose()
   }
+
+  // Per-browser, like locale: not part of the server PUT. Local state so the
+  // select updates without a reload (setThemePreference does not navigate).
+  let themePref = $state<ThemePreference>(readThemePreference())
+
+  function onThemeChange(event: Event): void {
+    const next = parseThemePreference((event.currentTarget as HTMLSelectElement).value)
+    setThemePreference(next)
+    themePref = next
+  }
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -350,8 +367,25 @@
     </div>
 
 
-    <!-- locale -->
+    <!-- per-browser prefs (not server config): theme leads, locale keeps the
+         trailing slot above the save footer. -->
     <div class="flex flex-none items-center gap-2 border-t border-border-subtle px-5 py-2">
+      <label class="flex items-center gap-2 text-[12px] text-text-secondary">
+        <span>{t('theme.label')}</span>
+        <span class="relative flex">
+          <select
+            class="{SELECT} w-auto"
+            data-testid="theme-picker"
+            value={themePref}
+            onchange={onThemeChange}
+          >
+            {#each THEME_MODES as mode (mode.name)}
+              <option value={mode.name}>{t(mode.labelKey)}</option>
+            {/each}
+          </select>
+          <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+        </span>
+      </label>
       <label class="flex items-center gap-2 text-[12px] text-text-secondary">
         <span>{t('settings.locale')}</span>
         <span class="relative flex">

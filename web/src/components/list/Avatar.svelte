@@ -33,36 +33,20 @@
   const tooltip = $derived(memberTooltip(member, displayName))
 
   /*
-    Initials fallback palette (8 steps). Rebuilt 2026-08-06 by search rather than
-    by eye, against four things the old set broke:
-
-      · White initials clear AA. Four of the eight old swatches did not —
-        #ca8a04 measured 2.94:1. That caps L* near 49, since 4.5:1 against white
-        means relative luminance 0.175.
-      · One tonal family. The old spread was L* 43-62, so some avatars read as
-        filled and others as washed out. This one is L* 43-50.
-      · Red belongs to meaning, not to people. The old #dc2626 was the reopen
-        badge's own red sitting in the same row as the badge, and #7c3aed
-        reached chroma 102 — louder than any signal it shared a row with. The
-        whole hue band around the reopen red is now excluded, brand indigo with
-        it, and nothing exceeds chroma 72.
-      · Spread around the wheel. Four of the old eight crowded the green-cyan
-        band (hues 124/147/185/233, closest pair only dE2000 17.3); two do now.
-
-    Worst pair on the 2026-08-06 set was dE2000 19.1 — the measured ceiling at
-    this L* with AA-white initials, not a target missed. 2026-08-13 pulled
-    chroma toward ink so the discs sit on paper instead of glowing on it; same
-    L* band, same exclusions (no reopen-red, no brand indigo as a person).
+    Initials fallback palette (8 steps). Hex lives in app.css (--color-avatar-*);
+    light values keep the 2026-08-06/08-13 constraints (AA initials, one tonal
+    family, no reopen-red / brand indigo, wheel spread). Dark lifts L only.
+    Initials cut the page colour (--color-bg-base), not white.
   */
   const PALETTE = [
-    '#8b4058',
-    '#8b5338',
-    '#7a6230',
-    '#55562c',
-    '#356040',
-    '#2a5c54',
-    '#3a5270',
-    '#5c4870',
+    'var(--color-avatar-0)',
+    'var(--color-avatar-1)',
+    'var(--color-avatar-2)',
+    'var(--color-avatar-3)',
+    'var(--color-avatar-4)',
+    'var(--color-avatar-5)',
+    'var(--color-avatar-6)',
+    'var(--color-avatar-7)',
   ]
   const bg = $derived(PALETTE[colorIndex(accountId ?? email ?? name ?? '')])
 
@@ -99,7 +83,7 @@
     />
   {:else if email || name || accountId}
     <span
-      class="flex h-full w-full items-center justify-center font-semibold text-white"
+      class="flex h-full w-full items-center justify-center font-semibold text-bg-base"
       style:background={bg}
       style:font-size="{Math.max(10, Math.round(size * 0.5))}px"
     >
@@ -107,7 +91,7 @@
     </span>
   {:else}
     <span
-      class="flex h-full w-full items-center justify-center border border-dashed border-[#5b6b80] text-text-muted"
+      class="flex h-full w-full items-center justify-center border border-dashed border-border-strong text-text-muted"
       style:font-size="{Math.round(size * 0.5)}px"
       aria-hidden="true"
     >

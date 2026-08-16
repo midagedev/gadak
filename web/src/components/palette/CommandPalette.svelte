@@ -49,6 +49,7 @@
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
+  import { THEME_MODES, setThemePreference } from '../../lib/theme'
   import type { IssueLite, Member, PageLite, SearchMatch } from '../../lib/types'
   import Icon, { type IconName } from '../ui/Icon.svelte'
   import Marks from '../ui/Marks.svelte'
@@ -393,6 +394,11 @@
         }),
         run: () => setLocale(locale() === 'ko' ? 'en' : 'ko'),
       },
+      ...THEME_MODES.map((mode) => ({
+        id: `a:theme-${mode.name}`,
+        label: t('palette.actionTheme', { mode: t(mode.labelKey) }),
+        run: () => setThemePreference(mode.name),
+      })),
       { id: 'a:sync', label: t('palette.actionSyncStatus'), run: syncStatusToast },
       {
         id: 'a:sync-now',

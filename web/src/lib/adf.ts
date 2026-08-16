@@ -158,21 +158,25 @@ function renderAttachment(attachment: DetailAttachment, compact = false): string
 /** Panel type → Tailwind color combo (border / bg tint / text). */
 const PANEL_STYLES: Record<string, string> = {
   info: 'border-status-new/40 bg-status-new/10',
-  note: 'border-accent/40 bg-accent/10',
+  // The other four key off status inks, which sit high on the ladder in both
+  // themes. --color-accent is a fill, not an ink: in dark it lands below the
+  // panel ground and the note outline all but disappears (measured 1.30 vs
+  // the family's 1.90–2.19). accent-text is the ink counterpart, same hue.
+  note: 'border-accent-text/40 bg-accent-text/10',
   success: 'border-status-done/40 bg-status-done/10',
   warning: 'border-status-stale/40 bg-status-stale/10',
   error: 'border-status-reopen/40 bg-status-reopen/10',
 }
 
-/** Jira status-node color name → chip background hex. Key lookup, so safe. */
+/** Jira status-node color name → chip background. Tokens live in app.css. */
 const STATUS_COLORS: Record<string, string> = {
-  neutral: '#e4d9c4',
-  grey: '#e4d9c4',
-  purple: '#ddd4e8',
-  blue: '#d5dde8',
-  red: '#edd8d4',
-  yellow: '#eadfc4',
-  green: '#d6e4d8',
+  neutral: 'var(--color-lozenge-neutral)',
+  grey: 'var(--color-lozenge-neutral)',
+  purple: 'var(--color-lozenge-purple)',
+  blue: 'var(--color-lozenge-blue)',
+  red: 'var(--color-lozenge-red)',
+  yellow: 'var(--color-lozenge-yellow)',
+  green: 'var(--color-lozenge-green)',
 }
 
 /** Single node → HTML. */

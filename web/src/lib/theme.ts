@@ -1,0 +1,78 @@
+/*
+ * Theme registry and tri-state preference (light / dark / system).
+ *
+ * Adding a palette: one token block in app.css + one entry in THEMES.
+ * The picker iterates THEME_MODES and must not be edited for a new theme.
+ *
+ * data-theme is the override; prefers-color-scheme is the default.
+ * system → no data-theme attribute (CSS media query applies dark tokens).
+ * light / dark → data-theme wins over the OS.
+ */
+
+import type { MessageKey } from './i18n'
+import { THEME_STORAGE_KEY } from './storage'
+
+export const THEMES = [
+  { name: 'light', labelKey: 'theme.light' satisfies MessageKey },
+  { name: 'dark', labelKey: 'theme.dark' satisfies MessageKey },
+] as const
+
+export const THEME_MODES = [
+  { name: 'system', labelKey: 'theme.system' satisfies MessageKey },
+  ...THEMES,
+] as const
+
+export type ThemeName = (typeof THEMES)[number]['name']
+export type ThemePreference = (typeof THEME_MODES)[number]['name']
+
+const PREFERENCE_SET: ReadonlySet<string> = new Set(THEME_MODES.map((m) => m.name))
+
+export function isThemePreference(value: unknown): value is ThemePreference {
+  return typeof value === 'string' && PREFERENCE_SET.has(value)
+}
+
+/** Missing or unknown stored values are system (the product default). */
+export function parseThemePreference(raw: string | null | undefined): ThemePreference {
+  return isThemePreference(raw) ? raw : 'system'
+}
+
+/**
+ * Attribute written on <html>. null means remove it so the media query
+ * can see :root:not([data-theme='light']).
+ */
+export function dataThemeAttr(pref: ThemePreference): ThemeName | null {
+  return pref === 'system' ? null : pref
+}
+
+export function readThemePreference(): ThemePreference {
+  try {
+    return parseThemePreference(localStorage.getItem(THEME_STORAGE_KEY))
+  } catch {
+    return 'system'
+  }
+}
+
+export function writeThemePreference(pref: ThemePreference): void {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, pref)
+  } catch {
+    /* private mode / unavailable */
+  }
+}
+
+export function applyThemePreference(pref: ThemePreference): void {
+  if (typeof document === 'undefined') return
+  const attr = dataThemeAttr(pref)
+  if (attr === null) document.documentElement.removeAttribute('data-theme')
+  else document.documentElement.setAttribute('data-theme', attr)
+}
+
+export function setThemePreference(pref: ThemePreference): void {
+  writeThemePreference(pref)
+  applyThemePreference(pref)
+}
+
+/** Blocking boot: must run before first paint of the app shell. */
+export function applyThemeAtBoot(): void {
+  applyThemePreference(readThemePreference())
+}

@@ -872,6 +872,12 @@ export const en = {
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
 
+  /* ── Theme (per-browser; settings + palette) ── */
+  'theme.label': 'Theme',
+  'theme.system': 'System',
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
+
   /* ── Command palette ── */
   'palette.title': 'Command palette',
   'palette.placeholder': 'Jump to an issue, or search everything…',
@@ -907,6 +913,7 @@ export const en = {
   'palette.actionToggleUnassigned': 'Toggle unassigned filter',
   'palette.actionToggleStale': 'Toggle stale filter',
   'palette.actionLocale': 'Switch language to {lang}',
+  'palette.actionTheme': 'Switch theme to {mode}',
   'palette.actionSyncStatus': 'Show sync status',
   'palette.actionSyncNow': 'Sync now',
   'palette.syncToast': '{overall} · synced {when}',

@@ -40,6 +40,38 @@
   --color-status-reopen: #8f3530;
   --color-status-stale: #8a6220;
 
+  /* ── Shell / focus / chrome that used to be hardcoded ── */
+  --color-shell: #e6dcc8; /* mat outside the max-width layout */
+  --color-focus-ring: #2e4560;
+  --color-scrim: rgb(28 24 18 / 0.28);
+  --color-scrollbar-hover: #a89880;
+
+  /* Jira ADF status lozenges (adf.ts STATUS_COLORS) */
+  --color-lozenge-neutral: #e4d9c4;
+  --color-lozenge-purple: #ddd4e8;
+  --color-lozenge-blue: #d5dde8;
+  --color-lozenge-red: #edd8d4;
+  --color-lozenge-yellow: #eadfc4;
+  --color-lozenge-green: #d6e4d8;
+
+  /* Initials avatar discs (Avatar.svelte PALETTE) */
+  --color-avatar-0: #8b4058;
+  --color-avatar-1: #8b5338;
+  --color-avatar-2: #7a6230;
+  --color-avatar-3: #55562c;
+  --color-avatar-4: #356040;
+  --color-avatar-5: #2a5c54;
+  --color-avatar-6: #3a5270;
+  --color-avatar-7: #5c4870;
+
+  /* Department ring fallbacks (member-visual.ts DEPARTMENT_COLORS) */
+  --color-dept-0: #3a6a72;
+  --color-dept-1: #4a6e50;
+  --color-dept-2: #8a6418;
+  --color-dept-3: #8a4a62;
+  --color-dept-4: #3d4f6f;
+  --color-dept-5: #9a5a32;
+
   /* ── Density tokens ── */
   --spacing-row: 42px; /* list row height */
   --spacing-row-excerpt: 59px; /* document row carrying a one-line body preview */
@@ -121,14 +153,146 @@
     'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Malgun Gothic', monospace;
 }
 
-@layer base {
-  html {
-    color-scheme: light;
+/*
+  color-scheme must sit outside @layer. index.html's boot stylesheet is
+  unlayered (`:root { color-scheme: light }`), and an unlayered rule beats
+  every layered one regardless of specificity — a layered `color-scheme:
+  dark` would leave form controls and scrollbars light on a dark page.
+*/
+:root {
+  color-scheme: light;
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
   }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+@layer base {
+  /*
+    Theme mechanism (design §5.1). @theme above keeps the light values.
+    Dark redefines the same --color-* properties here under BOTH the
+    media query and the explicit data-theme override. No color lives
+    only inside the media query — tools/theme-check.mjs asserts parity.
+  */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --color-bg-base: #160f04;
+      --color-bg-panel: #201608;
+      --color-bg-elevated: #2a1e0f;
+      --color-bg-hover: #362717;
+      --color-bg-active: #42301f;
+      --color-shell: #0f0901;
+      --color-text-primary: #e7e0d4;
+      --color-text-secondary: #a59b8d;
+      --color-text-muted: #8f8273;
+      --color-border-subtle: #362919;
+      --color-border-strong: #544332;
+      --color-accent: #365375;
+      --color-accent-hover: #456489;
+      --color-accent-subtle: #192739;
+      --color-accent-text: #91aecd;
+      --color-focus-ring: #91aecd;
+      --color-status-new: #769eca;
+      --color-status-inprogress: #a9864b;
+      --color-status-done: #80ac8f;
+      --color-status-reopen: #de8f87;
+      --color-status-stale: #aa8752;
+      --color-scrim: rgb(10 6 1 / 0.62);
+      --color-scrollbar-hover: #8f8273;
+      --color-lozenge-neutral: #312713;
+      --color-lozenge-purple: #30253d;
+      --color-lozenge-blue: #1b2c41;
+      --color-lozenge-red: #41211c;
+      --color-lozenge-yellow: #37290a;
+      --color-lozenge-green: #173222;
+      --color-avatar-0: #ce7c94;
+      --color-avatar-1: #c3866a;
+      --color-avatar-2: #ab925f;
+      --color-avatar-3: #96986b;
+      --color-avatar-4: #719f7b;
+      --color-avatar-5: #6c9e95;
+      --color-avatar-6: #7c97b8;
+      --color-avatar-7: #a18bb8;
+      --color-dept-0: #53848c;
+      --color-dept-1: #608566;
+      --color-dept-2: #9c752e;
+      --color-dept-3: #ab6780;
+      --color-dept-4: #697c9f;
+      --color-dept-5: #ad6c44;
+      --shadow-overlay:
+        0 18px 48px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.4),
+        0 0 0 1px rgb(231 224 212 / 0.1);
+    }
+
+    :root:not([data-theme='light']) .bg-accent:not(:disabled) {
+      box-shadow: inset 0 0 0 1px var(--color-accent-hover);
+    }
+  }
+
+  :root[data-theme='dark'] {
+    --color-bg-base: #160f04;
+    --color-bg-panel: #201608;
+    --color-bg-elevated: #2a1e0f;
+    --color-bg-hover: #362717;
+    --color-bg-active: #42301f;
+    --color-shell: #0f0901;
+    --color-text-primary: #e7e0d4;
+    --color-text-secondary: #a59b8d;
+    --color-text-muted: #8f8273;
+    --color-border-subtle: #362919;
+    --color-border-strong: #544332;
+    --color-accent: #365375;
+    --color-accent-hover: #456489;
+    --color-accent-subtle: #192739;
+    --color-accent-text: #91aecd;
+    --color-focus-ring: #91aecd;
+    --color-status-new: #769eca;
+    --color-status-inprogress: #a9864b;
+    --color-status-done: #80ac8f;
+    --color-status-reopen: #de8f87;
+    --color-status-stale: #aa8752;
+    --color-scrim: rgb(10 6 1 / 0.62);
+    --color-scrollbar-hover: #8f8273;
+    --color-lozenge-neutral: #312713;
+    --color-lozenge-purple: #30253d;
+    --color-lozenge-blue: #1b2c41;
+    --color-lozenge-red: #41211c;
+    --color-lozenge-yellow: #37290a;
+    --color-lozenge-green: #173222;
+    --color-avatar-0: #ce7c94;
+    --color-avatar-1: #c3866a;
+    --color-avatar-2: #ab925f;
+    --color-avatar-3: #96986b;
+    --color-avatar-4: #719f7b;
+    --color-avatar-5: #6c9e95;
+    --color-avatar-6: #7c97b8;
+    --color-avatar-7: #a18bb8;
+    --color-dept-0: #53848c;
+    --color-dept-1: #608566;
+    --color-dept-2: #9c752e;
+    --color-dept-3: #ab6780;
+    --color-dept-4: #697c9f;
+    --color-dept-5: #ad6c44;
+    --shadow-overlay:
+      0 18px 48px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.4),
+      0 0 0 1px rgb(231 224 212 / 0.1);
+  }
+
+  :root[data-theme='dark'] .bg-accent:not(:disabled) {
+    box-shadow: inset 0 0 0 1px var(--color-accent-hover);
+  }
+
   body {
     margin: 0;
     overflow: hidden;
-    background: #e6dcc8;
+    background: var(--color-shell);
     color: var(--color-text-primary);
     font-family: var(--font-sans);
     font-size: var(--text-body);
@@ -174,7 +338,7 @@
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #a89880;
+    background: var(--color-scrollbar-hover);
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-corner {
@@ -183,7 +347,7 @@
 
   /* Focus ring — accent */
   :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--color-focus-ring);
     outline-offset: 1px;
   }
 }
@@ -194,7 +358,7 @@
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
-    background: #e6dcc8;
+    background: var(--color-shell);
   }
 
   .issue-layout {
@@ -446,6 +610,8 @@
     }
   }
 
+  /* Design §3 FIX: mat vs sidebar edge is only visible ≥2200px. One
+     border-subtle line (already the rule; kept, not restyled). */
   @media (min-width: 2201px) {
     .issue-layout {
       border-inline: 1px solid var(--color-border-subtle);
@@ -483,7 +649,7 @@
     position: fixed;
     inset: 0;
     z-index: 49;
-    background: rgb(28 24 18 / 0.28);
+    background: var(--color-scrim);
     backdrop-filter: blur(2px);
     pointer-events: none;
     visibility: hidden;

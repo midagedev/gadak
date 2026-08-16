@@ -1,20 +1,39 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <!-- Not a mobile app: phones get the desktop layout scaled to fit instead
          of a squeezed column. 1100 matches the layout's comfortable minimum. -->
     <meta name="viewport" content="width=1100" />
-    <meta name="theme-color" content="#ebe3d2" />
+    <meta name="theme-color" content="#ebe3d2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#201608" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/png" sizes="32x32" href="./icon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="./icon-16.png" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <title>gadak</title>
     <!--
+      저장된 테마 선택을 첫 페인트 전에 적용한다. 모듈 스크립트(main.ts)는
+      번들을 받은 뒤에야 실행되므로, 다크 사용자가 매 부팅마다 크림색 셸을
+      한 번 보게 된다 — 그 창을 닫는 것이 이 블로킹 스크립트다.
+      키는 web/src/lib/storage.ts의 THEME_STORAGE_KEY와 같아야 하고,
+      web/src/lib/boot-theme.test.ts가 두 값이 갈라지면 실패한다.
+    -->
+    <script>
+      try {
+        var p = localStorage.getItem('gadak:theme')
+        if (p === 'light' || p === 'dark') document.documentElement.setAttribute('data-theme', p)
+      } catch (e) {
+        /* private mode: OS 설정을 따른다 */
+      }
+    </script>
+    <!--
       인라인 크리티컬 CSS (Linear 식 inlined app shell).
-      번들/스타일 로드 전에도 다크 배경과 스켈레톤이 즉시 페인트되어
-      흰 플래시(FOUC) 없이 부팅한다.
+      번들/스타일 로드 전에도 지면과 스켈레톤이 즉시 페인트되어
+      플래시(FOUC) 없이 부팅한다. 색의 단일 소유자는 app.css의 토큰이다 —
+      아래 --boot-* 는 번들 CSS가 도착하기 전 몇 프레임 동안만 쓰이는
+      폴백이고, 도착하는 즉시 var(--color-*)가 이긴다. 그래서 이 규칙이
+      unlayered여도 app.css의 @layer 규칙을 덮어쓰지 않는다.
     -->
     <style>
       :root {
@@ -24,12 +43,28 @@
         --boot-line: #d5c9b2;
         --boot-skeleton: #e4d9c4;
       }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --boot-bg: #0f0901;
+        --boot-panel: #201608;
+        --boot-line: #362919;
+        --boot-skeleton: #2a1e0f;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --boot-bg: #0f0901;
+          --boot-panel: #201608;
+          --boot-line: #362919;
+          --boot-skeleton: #2a1e0f;
+        }
+      }
       html,
       body {
         margin: 0;
         height: 100%;
-        background: var(--boot-bg);
-        color: #1c1812;
+        background: var(--color-shell, var(--boot-bg));
+        color: var(--color-text-primary, #1c1812);
         font-family:
           -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         font-feature-settings: 'tnum' 1;
@@ -46,8 +81,8 @@
       .boot-sidebar {
         width: 272px;
         flex: 0 0 272px;
-        border-right: 1px solid var(--boot-line);
-        background: var(--boot-panel);
+        border-right: 1px solid var(--color-border-subtle, var(--boot-line));
+        background: var(--color-bg-panel, var(--boot-panel));
         padding: 16px 12px;
       }
       .boot-main {
@@ -58,7 +93,7 @@
         gap: 8px;
       }
       .boot-skel {
-        background: var(--boot-skeleton);
+        background: var(--color-bg-elevated, var(--boot-skeleton));
         border-radius: 6px;
         animation: boot-pulse 1.2s ease-in-out infinite;
       }

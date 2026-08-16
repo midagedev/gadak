@@ -14,6 +14,7 @@
     "build:hosted": "node tools/hosted-demo/build.mjs",
     "preview": "vite preview",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "theme-check": "node tools/theme-check.mjs",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",

@@ -1,4 +1,4 @@
-.PHONY: build test vet typecheck bench scan docker plugins-test \
+.PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
 	media media-web media-search media-agent media-mcp media-prep media-deps brand \
 	hosted-demo hosted-demo-test
 
@@ -13,6 +13,9 @@ test:
 
 typecheck:
 	npm run typecheck
+
+theme-check:
+	node tools/theme-check.mjs
 
 # Zero-install hosted demo (static UI + demo.db snapshot for GitHub Pages).
 # Output: dist/hosted/. Does not touch dist/app (go:embed).

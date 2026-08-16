@@ -4,6 +4,12 @@ import App from './App.svelte'
 import { applyCacheScopeDebug, loadConfig } from './lib/config'
 import { installHostedFetch } from './lib/hosted-fetch'
 import { migrateStorageKeys } from './lib/storage'
+import { applyThemeAtBoot } from './lib/theme'
+
+// Before the async config load — index.html ships data-theme="light" so the
+// boot shell has a theme; strip or replace it now so the first real paint
+// matches the stored preference (system = no attribute).
+applyThemeAtBoot()
 
 const target = document.getElementById('app')
 if (!target) throw new Error('#app not found')

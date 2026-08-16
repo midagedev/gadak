@@ -1,0 +1,41 @@
+/*
+ * index.html's boot script is the only code that runs before the bundle, so
+ * it cannot import anything — the theme storage key is spelled there by hand.
+ * These pin the two halves together. The failure they block is silent and
+ * total: a dark-mode user's stored choice is ignored on every cold boot and
+ * they see the cream shell flash before the app corrects itself.
+ */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+import { THEME_STORAGE_KEY } from './storage'
+import { THEMES } from './theme'
+
+const html = readFileSync(join(__dirname, '../../index.html'), 'utf8')
+
+describe('the boot script agrees with the app', () => {
+  it('reads the same storage key storage.ts writes', () => {
+    expect(html).toContain(`localStorage.getItem('${THEME_STORAGE_KEY}')`)
+  })
+
+  it('honors every registered theme by name', () => {
+    // A theme added to THEMES but not to the boot script would apply only
+    // after hydration — the flash this whole mechanism exists to prevent.
+    for (const theme of THEMES) {
+      expect(html, `boot script must accept '${theme.name}'`).toContain(`'${theme.name}'`)
+    }
+  })
+
+  it('ships no hardcoded data-theme on <html>', () => {
+    // A baked-in attribute wins over prefers-color-scheme forever: it is
+    // exactly what made the OS setting unreadable at boot.
+    expect(html).not.toMatch(/<html[^>]*data-theme=/)
+  })
+
+  it('paints the boot shell from tokens, with the inline values as fallback', () => {
+    // The inline stylesheet is unlayered and would otherwise outrank app.css's
+    // layered rules forever, pinning the mat to the light value in both themes.
+    expect(html).toContain('var(--color-shell, var(--boot-bg))')
+  })
+})
