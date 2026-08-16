@@ -200,4 +200,64 @@ test.describe('freshness chip', () => {
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  /*
+   * GDK-68: a dead token must be recoverable from the read path. The job's
+   * failure reaches the poller as a code (error_code), and the chip click —
+   * the only affordance a user who never writes has — must open the same
+   * replace-token dialog the write path opens (write.tokenRejected copy).
+   */
+  test('a rejected credential turns the chip click into the replace-token dialog', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    await page.route(`${API}sync/`, (route) =>
+      route.fulfill({
+        status: 202,
+        json: {
+          running: true,
+          phase: 'syncing',
+          fetched: 0,
+          changed: 0,
+          deleted: 0,
+          done: false,
+          error: '',
+          started_at: 'now',
+          finished_at: '',
+        },
+      }),
+    )
+    // The started job fails on a dead credential: error phase plus the
+    // machine-readable code. error stays prose — the app must key on the code.
+    await page.route(`${API}sync/progress/`, (route) =>
+      route.fulfill({
+        json: {
+          running: false,
+          phase: 'error',
+          fetched: 0,
+          changed: 0,
+          deleted: 0,
+          done: false,
+          error: 'GET /rest/api/3/status: jira: credential rejected (401 Unauthorized)',
+          error_code: 'credential_rejected',
+          started_at: 'now',
+          finished_at: 'now',
+        },
+      }),
+    )
+
+    const chip = page.getByTestId('freshness-chip')
+    await expect(chip).toBeVisible()
+    await chip.click()
+
+    await expect(
+      page.getByTestId('toast').filter({ hasText: 'Your Jira API token was rejected' }),
+    ).toBeVisible({ timeout: 10_000 })
+    // The write path's replace-token dialog, opened without ever writing.
+    await expect(page.getByRole('dialog', { name: 'Jira credentials' })).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })

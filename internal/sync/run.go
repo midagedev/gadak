@@ -10,14 +10,16 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// isRejectedCredential reports whether err is a dead credential from any
+// IsRejectedCredential reports whether err is a dead credential from any
 // source. Transport errors (500, timeout, DNS) must stay false.
 //
 // Owner of the detection rule: atlhttp.ErrAuth (what Do returns on 401/403)
 // or any error implementing atlhttp.RejectedCredential. A third source that
 // uses atlhttp.Do is covered without a branch here. A source that is not
-// built on atlhttp still implements the method.
-func isRejectedCredential(err error) bool {
+// built on atlhttp still implements the method. Exported for the server's
+// sync progress document — every surface reads this one rule as a code
+// instead of matching error prose.
+func IsRejectedCredential(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -84,7 +86,7 @@ func applyWatchErr(ctx context.Context, db *store.DB, src watchSource, err error
 	if logf != nil {
 		logf(src.failLog, err)
 	}
-	if !isRejectedCredential(err) {
+	if !IsRejectedCredential(err) {
 		return nil
 	}
 	if db != nil {

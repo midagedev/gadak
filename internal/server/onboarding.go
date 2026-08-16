@@ -167,7 +167,14 @@ type progressDoc struct {
 	Done    bool   `json:"done"`
 	// Error is the failure text for the user. Jira's own message is safe here —
 	// the client never sends the token in a URL or a body Jira echoes back.
-	Error      string `json:"error"`
+	Error string `json:"error"`
+	// ErrorCode is the machine-readable classification of Error, present only
+	// when the failure means the stored credential was rejected:
+	// "credential_rejected", the same code the write path answers 409 with.
+	// Every other failure — transport (500, timeout, DNS), or a wiki-only
+	// failure after the Jira pass succeeded — leaves it absent, so clients key
+	// recovery affordances on this field and never on the Error prose.
+	ErrorCode  string `json:"error_code,omitempty"`
 	StartedAt  string `json:"started_at"`
 	FinishedAt string `json:"finished_at"`
 }
@@ -308,10 +315,21 @@ func (s *server) runSyncJob(ctx context.Context, cfg *config.Config, full bool) 
 	if err != nil {
 		// Jira failed: hard error. sync.Run keeps the token out of its errors.
 		s.syncJob.Phase, s.syncJob.Error = "error", err.Error()
+		// One owner decides "this failure means the credential is dead" —
+		// sync.IsRejectedCredential — and this is the only place its answer
+		// reaches the wire, as a code the client can act on.
+		if sync.IsRejectedCredential(err) {
+			s.syncJob.ErrorCode = "credential_rejected"
+		}
 		return
 	}
 	// Jira succeeded. Confluence failure is recorded on Error but the job is
-	// still done — counters include both sources.
+	// still done — counters include both sources. Deliberately no ErrorCode
+	// here, even for a wiki 401: the Jira pass authenticated with the same
+	// token moments earlier, so a wiki-only rejection is a product permission
+	// gap, not a dead credential (the same split Watch makes — Jira rejection
+	// fatal, wiki rejection not). Telling the user to replace a working token
+	// is the failure mode ErrorCode exists to avoid.
 	s.syncJob.Phase, s.syncJob.Done = "done", true
 	if jobErr != nil {
 		s.syncJob.Error = jobErr.Error()

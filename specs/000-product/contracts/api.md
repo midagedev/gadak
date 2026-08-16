@@ -337,8 +337,16 @@ daily “Sync now”. Unknown `mode` is `400 invalid_mode`. It is single-flight:
 second call while one is running is `409 sync_in_progress`. An incomplete setup
 is `400 credential_required`; an empty project list is a scope, not an
 incomplete setup — it means every project the account can see. `GET sync/progress/`
-polls `{running, phase, fetched, changed, deleted, done, error, started_at,
-finished_at}` where `phase` is `idle | syncing | done | error`. The document
+polls `{running, phase, fetched, changed, deleted, done, error, error_code,
+started_at, finished_at}` where `phase` is `idle | syncing | done | error`.
+`error_code` is present only when the failure means the stored credential was
+rejected (`credential_rejected`, the same code the write path answers with) —
+one rule (the sync package's `IsRejectedCredential`) classifies, and clients
+key recovery affordances on the code, never on `error` prose. A transport
+failure (500, timeout, DNS) leaves it absent, and so does a wiki-only failure
+after the Jira pass succeeded (`phase` `done` with `error`): the same token
+authenticated against Jira moments earlier, so that is a product permission
+gap, not a dead token. The document
 carries counters only — no site, no email, nothing derived from the token — and
 `fetched`/`changed` advance per committed page, so a client polling every second
 can show issues arriving live. The job is process-wide state, matching the one

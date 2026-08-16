@@ -103,6 +103,14 @@ async function doSync(mode: 'full' | 'incremental', quiet: boolean): Promise<voi
     }
     if (p.running) continue
     if (p.phase === 'error') {
+      // A dead token is the one sync failure with a recovery action: the same
+      // replace-token dialog the write path opens. The classification arrives
+      // as a code — the error text is prose and must never be matched.
+      if (p.error_code === 'credential_rejected') {
+        say(t('write.tokenRejected'), 'error')
+        openSettings()
+        return
+      }
       say(t('sync.failed', { message: p.error || p.phase }), 'error')
       return
     }

@@ -17,10 +17,29 @@ import (
 // single-flight test keeps a run in progress deterministically.
 type onboardJira struct {
 	*httptest.Server
-	authStatus int           // non-zero: /myself answers with it
+	authStatus int // non-zero: /myself answers with it
+	// syncStatus, when non-zero, is what the sync trio (/status, /priority,
+	// /search/jql) answers with — how a token that verified at connect time is
+	// made dead (401) or the site flaky (5xx) before a sync runs.
+	syncStatus int
 	hold       chan struct{} // non-nil: first /search/jql waits on it
 	held       chan struct{} // closed once that search is waiting
 	projects   string        // /project/search body
+}
+
+// failSync answers the request with f.syncStatus when one is armed. A 5xx gets
+// Retry-After: 1 so the transport's five attempts cost ~4s of fixed waits
+// instead of 1+2+4+8s of exponential backoff — the error class is unchanged,
+// only the wait between retries is pinned.
+func (f *onboardJira) failSync(w http.ResponseWriter) bool {
+	if f.syncStatus == 0 {
+		return false
+	}
+	if f.syncStatus >= 500 {
+		w.Header().Set("Retry-After", "1")
+	}
+	w.WriteHeader(f.syncStatus)
+	return true
 }
 
 func newOnboardJira(t *testing.T) *onboardJira {
@@ -43,10 +62,19 @@ func newOnboardJira(t *testing.T) *onboardJira {
 		case strings.HasPrefix(path, "/project/search"):
 			_, _ = w.Write([]byte(f.projects))
 		case path == "/status":
+			if f.failSync(w) {
+				return
+			}
 			_, _ = w.Write([]byte(`[{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}}]`))
 		case path == "/priority":
+			if f.failSync(w) {
+				return
+			}
 			_, _ = w.Write([]byte(`[{"id":"2","name":"High"}]`))
 		case path == "/search/jql":
+			if f.failSync(w) {
+				return
+			}
 			searches++
 			if searches == 1 && f.hold != nil {
 				close(f.held)
@@ -345,6 +373,47 @@ func TestStartSyncAcceptsIncrementalMode(t *testing.T) {
 	}
 }
 
+// The polled progress document must classify a dead credential as a code, not
+// leave it as prose. The two tests below decode the raw JSON with their own
+// struct (not progressDoc) so the same assertion compiles — and fails — against
+// a server that does not classify yet.
+func TestSyncProgressClassifiesARejectedCredential(t *testing.T) {
+	f, h, _ := onboarding(t)
+	connect(t, h, f)
+	// The token verified at connect, then died — the read-only user's situation.
+	f.syncStatus = http.StatusUnauthorized
+
+	if rec := send(t, h, http.MethodPost, apiBase+"sync/", ""); rec.Code != http.StatusAccepted {
+		t.Fatalf("start: %d %s", rec.Code, rec.Body.String())
+	}
+	phase, errText, errCode := waitCodes(t, h)
+	if phase != "error" || errText == "" {
+		t.Fatalf("job should fail hard: phase %q error %q", phase, errText)
+	}
+	if errCode != "credential_rejected" {
+		t.Fatalf("error_code %q, want credential_rejected — a dead token must be a code the client can act on", errCode)
+	}
+}
+
+// A transport-class failure (here: the source answering 500) must NOT carry the
+// credential code: the mirror must not tell the user to replace a working token.
+func TestSyncProgressLeavesATransportFailureUnclassified(t *testing.T) {
+	f, h, _ := onboarding(t)
+	connect(t, h, f)
+	f.syncStatus = http.StatusInternalServerError
+
+	if rec := send(t, h, http.MethodPost, apiBase+"sync/", ""); rec.Code != http.StatusAccepted {
+		t.Fatalf("start: %d %s", rec.Code, rec.Body.String())
+	}
+	phase, errText, errCode := waitCodes(t, h)
+	if phase != "error" || errText == "" {
+		t.Fatalf("job should fail hard: phase %q error %q", phase, errText)
+	}
+	if errCode != "" {
+		t.Fatalf("error_code %q on a transport failure — a 500 is not a rejected credential", errCode)
+	}
+}
+
 func connect(t *testing.T, h http.Handler, f *onboardJira) {
 	t.Helper()
 	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
@@ -377,6 +446,32 @@ func waitDone(t *testing.T, h http.Handler) progressDoc {
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("sync did not finish: %+v", p)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// waitCodes is waitDone for the classification fields, decoded from raw JSON so
+// the assertion does not depend on progressDoc growing the field first.
+func waitCodes(t *testing.T, h http.Handler) (phase, errText, errCode string) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		rec := get(t, h, apiBase+"sync/progress/", nil)
+		var doc struct {
+			Running   bool   `json:"running"`
+			Phase     string `json:"phase"`
+			Error     string `json:"error"`
+			ErrorCode string `json:"error_code"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+			t.Fatalf("decode progress: %v", err)
+		}
+		if !doc.Running && doc.Phase != "syncing" {
+			return doc.Phase, doc.Error, doc.ErrorCode
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("sync did not finish: %+v", doc)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

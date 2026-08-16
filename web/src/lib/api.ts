@@ -467,6 +467,13 @@ export interface SyncProgress {
   deleted: number
   done: boolean
   error: string
+  /**
+   * Machine-readable classification of `error`, present only when the failure
+   * means the stored credential was rejected ("credential_rejected" — the same
+   * code the write path's 409 uses). Absent on older servers and on every
+   * other failure; key recovery affordances on this, never on `error` prose.
+   */
+  error_code?: string
   started_at: string
   finished_at: string
   /**

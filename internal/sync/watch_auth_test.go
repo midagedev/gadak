@@ -565,37 +565,37 @@ func (thirdAuth) Error() string       { return "third: credential rejected" }
 func (thirdAuth) RejectedCredential() {}
 
 func TestIsRejectedCredential(t *testing.T) {
-	if !isRejectedCredential(jira.ErrAuth) {
+	if !IsRejectedCredential(jira.ErrAuth) {
 		t.Fatal("jira.ErrAuth not detected")
 	}
-	if !isRejectedCredential(fmtWrap(jira.ErrAuth)) {
+	if !IsRejectedCredential(fmtWrap(jira.ErrAuth)) {
 		t.Fatal("wrapped jira.ErrAuth not detected")
 	}
-	if !isRejectedCredential(confluence.ErrAuth) {
+	if !IsRejectedCredential(confluence.ErrAuth) {
 		t.Fatal("confluence.ErrAuth not detected — a third source that only implements RejectedCredential() would also be missed")
 	}
-	if !isRejectedCredential(fmtWrap(confluence.ErrAuth)) {
+	if !IsRejectedCredential(fmtWrap(confluence.ErrAuth)) {
 		t.Fatal("wrapped confluence.ErrAuth not detected")
 	}
-	if !isRejectedCredential(atlhttp.ErrAuth) {
+	if !IsRejectedCredential(atlhttp.ErrAuth) {
 		t.Fatal("bare atlhttp.ErrAuth not detected")
 	}
-	if !isRejectedCredential(fmtWrap(atlhttp.ErrAuth)) {
+	if !IsRejectedCredential(fmtWrap(atlhttp.ErrAuth)) {
 		t.Fatal("wrapped atlhttp.ErrAuth not detected")
 	}
-	if !isRejectedCredential(thirdAuth{}) {
+	if !IsRejectedCredential(thirdAuth{}) {
 		t.Fatal("third-source RejectedCredential implementer not detected — the class is still open")
 	}
-	if !isRejectedCredential(fmtWrap(thirdAuth{})) {
+	if !IsRejectedCredential(fmtWrap(thirdAuth{})) {
 		t.Fatal("wrapped third-source implementer not detected")
 	}
-	if isRejectedCredential(nil) {
+	if IsRejectedCredential(nil) {
 		t.Fatal("nil must not be a rejected credential")
 	}
-	if isRejectedCredential(errors.New("GET /x: 500 Internal Server Error")) {
+	if IsRejectedCredential(errors.New("GET /x: 500 Internal Server Error")) {
 		t.Fatal("transport error must not be a rejected credential")
 	}
-	if isRejectedCredential(errors.New("confluence: 500 from the source")) {
+	if IsRejectedCredential(errors.New("confluence: 500 from the source")) {
 		t.Fatal("confluence transport text must not be a rejected credential")
 	}
 	if errors.Is(jira.ErrAuth, confluence.ErrAuth) {
@@ -615,7 +615,7 @@ func fmtWrap(err error) error {
 
 // TestNewAtlhttpClientRejectedWithoutSyncRegistration: a third connector
 // that only uses the transport — no package ErrAuth, not in
-// defaultWatchSources — must still be isRejectedCredential on 401.
+// defaultWatchSources — must still be IsRejectedCredential on 401.
 func TestNewAtlhttpClientRejectedWithoutSyncRegistration(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"Client must be authenticated"}`, http.StatusUnauthorized)
@@ -633,8 +633,8 @@ func TestNewAtlhttpClientRejectedWithoutSyncRegistration(t *testing.T) {
 	if err == nil {
 		t.Fatal("Do on 401 must return an error (the shared identity)")
 	}
-	if !isRejectedCredential(err) {
-		t.Fatalf("isRejectedCredential(%v) = false — a new atlhttp client must be detected without a sync branch", err)
+	if !IsRejectedCredential(err) {
+		t.Fatalf("IsRejectedCredential(%v) = false — a new atlhttp client must be detected without a sync branch", err)
 	}
 	if !errors.Is(err, atlhttp.ErrAuth) {
 		t.Fatalf("errors.Is(%v, atlhttp.ErrAuth) = false", err)
@@ -650,7 +650,7 @@ func TestNewAtlhttpClientRejectedWithoutSyncRegistration(t *testing.T) {
 func TestEveryWatchSourceHasAuthCoverage(t *testing.T) {
 	// Adding a source to Watch without an auth-sentinel test must fail here.
 	// The sentinel must share atlhttp.ErrAuth so a new client using Do is
-	// detected without a branch in isRejectedCredential.
+	// detected without a branch in IsRejectedCredential.
 	want := map[string]error{
 		SourceID:           jira.ErrAuth,
 		ConfluenceSourceID: confluence.ErrAuth,
@@ -663,10 +663,10 @@ func TestEveryWatchSourceHasAuthCoverage(t *testing.T) {
 			continue
 		}
 		seen[src.id] = true
-		if !isRejectedCredential(sent) {
-			t.Errorf("watch source %q sentinel %v is not isRejectedCredential — the source will retry a dead credential forever", src.id, sent)
+		if !IsRejectedCredential(sent) {
+			t.Errorf("watch source %q sentinel %v is not IsRejectedCredential — the source will retry a dead credential forever", src.id, sent)
 		}
-		if !isRejectedCredential(fmtWrap(sent)) {
+		if !IsRejectedCredential(fmtWrap(sent)) {
 			t.Errorf("watch source %q wrapped sentinel not detected", src.id)
 		}
 		if !errors.Is(sent, atlhttp.ErrAuth) {
