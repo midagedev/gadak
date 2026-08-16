@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/jql"
@@ -492,7 +493,7 @@ func printDerivation(l store.IssueLite, d *store.Detail) error {
 	// a display name's terminal width is not its rune count, so anything padded
 	// after one would drift out of line.
 	fmt.Println("\nchangelog, oldest first")
-	fmt.Printf("  %-4s %-24s %-12s %-24s %s\n", "#", "at", "field", "category", "value")
+	fmt.Printf("  %-4s %-24s %-18s %-22s %s\n", "#", "at", "field", "category", "value")
 	reopenRows := []string{}
 	resolvedRow := ""
 	statusRow, assigneeRow := "", ""
@@ -522,7 +523,7 @@ func printDerivation(l store.IssueLite, d *store.Detail) error {
 			// reader assume it counted.
 			note += "  ← no timestamp, skipped by every rule"
 		}
-		fmt.Printf("  %-4s %-24s %-12s %-24s %s%s\n", n, h.At, h.Field, cats,
+		fmt.Printf("  %-4s %-24s %-18s %-22s %s%s\n", n, h.At, h.Field, cats,
 			side(h.FromValue, h.FromID)+" → "+side(h.ToValue, h.ToID), note)
 	}
 	if len(d.History) == 0 {
@@ -586,6 +587,12 @@ func printDerivation(l store.IssueLite, d *store.Detail) error {
 // sees, plus the id every rule actually keys on. An empty end is the field
 // being set or cleared, which is not the same as an empty name.
 func side(value, id string) string {
+	// A rich-text custom field carries a whole document, and a row of the table
+	// is a row: without this, one edit to such a field pushed the rules the
+	// reader came for off the screen — measured, 206 lines for one issue.
+	// Two of these share a row, so each gets half the budget; the full value is
+	// still one `gadak issue <KEY>` away.
+	value = clip(value, 40)
 	switch {
 	case value == "" && id == "":
 		return "—"
@@ -617,15 +624,24 @@ func plural(n int, one, many string) string {
 // output's own field-name check relies on. The untruncated text is printed in
 // the evidence block underneath.
 func oneLine(s, empty string) string {
-	s = strings.Join(strings.Fields(s), " ")
+	s = clip(s, 72)
 	if s == "" {
 		return empty
 	}
-	const max = 72
-	if r := []rune(s); len(r) > max {
-		return string(r[:max]) + "…"
-	}
 	return s
+}
+
+// clip flattens a value onto one line and cuts it to a column budget. Columns,
+// not runes: a Hangul or CJK rune occupies two cells, so a rune-counted cut
+// renders twice as wide as the same cut in ASCII — which is how a 72-"character"
+// column landed at 144 on a Korean issue. runewidth is already this binary's
+// width authority (fields.go pads its tables with it).
+func clip(s string, cols int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if runewidth.StringWidth(s) <= cols {
+		return s
+	}
+	return runewidth.Truncate(s, cols, "…")
 }
 
 func orNone(s string) string {
