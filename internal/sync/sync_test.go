@@ -981,7 +981,7 @@ func TestFlushAPIUsageFailureDoesNotPropagate(t *testing.T) {
 	}
 	_ = db.Close()
 	var logs []string
-	flushAPIUsage(context.Background(), db.DB, c, func(format string, args ...any) {
+	FlushAPIUsage(context.Background(), db.DB, c, func(format string, args ...any) {
 		logs = append(logs, fmt.Sprintf(format, args...))
 	})
 	if len(logs) != 1 || !strings.Contains(logs[0], "api usage flush") {

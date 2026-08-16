@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // TestOpenCreatesLocalSchemaAndSelectWorks is FAIL-first: before local.db,
@@ -204,7 +206,7 @@ func TestRecordSearchAndSetOpened(t *testing.T) {
 func TestPruneLocalHistoryDropsOnlyOldRows(t *testing.T) {
 	db := openTemp(t)
 	ctx := context.Background()
-	old := time.Now().UTC().Add(-200 * 24 * time.Hour).Format("2006-01-02T15:04:05.000Z")
+	old := time.Now().UTC().Add(-200 * 24 * time.Hour).Format(config.ISOMilli)
 	recent := Now()
 	if _, err := db.sql.ExecContext(ctx, `INSERT INTO local.visits (kind, key, viewed_at) VALUES ('issue', 'OLD-1', ?), ('issue', 'NEW-1', ?)`, old, recent); err != nil {
 		t.Fatal(err)
@@ -235,7 +237,7 @@ func TestPruneLocalHistoryWiredToDeleteItems(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)
 	ctx := context.Background()
-	old := time.Now().UTC().Add(-200 * 24 * time.Hour).Format("2006-01-02T15:04:05.000Z")
+	old := time.Now().UTC().Add(-200 * 24 * time.Hour).Format(config.ISOMilli)
 	if _, err := db.sql.ExecContext(ctx, `INSERT INTO local.visits (kind, key, viewed_at) VALUES ('issue', 'OLD-1', ?)`, old); err != nil {
 		t.Fatal(err)
 	}

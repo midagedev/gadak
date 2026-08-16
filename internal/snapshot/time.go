@@ -3,13 +3,12 @@ package snapshot
 import (
 	"strings"
 	"time"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
-// timeLayout is the millisecond-UTC form store.Now and the rest of gadak write.
-const timeLayout = "2006-01-02T15:04:05.000Z"
-
 func formatTime(t time.Time) string {
-	return t.UTC().Format(timeLayout)
+	return t.UTC().Format(config.ISOMilli)
 }
 
 // parseTime accepts the ISO forms Jira and gadak write, including numeric offsets.
@@ -19,7 +18,7 @@ func parseTime(s string) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	layouts := []string{
-		timeLayout,
+		config.ISOMilli,
 		"2006-01-02T15:04:05Z",
 		"2006-01-02T15:04:05.000-0700",
 		"2006-01-02T15:04:05-0700",

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -599,7 +600,7 @@ func seedSource(t *testing.T, o seedOpts) string {
 		t2u = base.Add(3 * time.Hour)
 	}
 	fmtT := func(tm time.Time) string {
-		return tm.UTC().Format("2006-01-02T15:04:05.000Z")
+		return tm.UTC().Format(config.ISOMilli)
 	}
 	body := "The idempotency key is dropped when the gateway times out."
 	if o.withSecret {

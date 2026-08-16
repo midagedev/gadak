@@ -19,6 +19,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/midagedev/gadak/internal/config"
+
 	_ "modernc.org/sqlite" // pure-Go driver: the binary must build with CGO_ENABLED=0
 )
 
@@ -36,11 +38,10 @@ type DB struct {
 	mu sync.Mutex // single-writer discipline, see write()
 }
 
-// Now is the timestamp format every column the store itself writes uses. The
-// server hands the same value to clients as the `delta` cursor, so it must come
-// from here. Milliseconds are not decoration: a whole-second cursor would drop a
-// row written in the same second the cursor was taken.
-func Now() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
+// Now returns UTC now in config.ISOMilli. The server hands this value to
+// clients as the `delta` cursor; see that constant for why milliseconds
+// are required.
+func Now() string { return time.Now().UTC().Format(config.ISOMilli) }
 
 // Open opens or creates the mirror at path and migrates it forward. A database
 // written by a newer gadak is refused rather than used.

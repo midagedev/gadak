@@ -12,16 +12,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
-	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
 // queryFlags collects repeated --query k=v options.
@@ -97,9 +97,11 @@ func cmdAPI(args []string) error {
 	var (
 		status int
 		out    []byte
-		client *jira.Client // for usage flush; nil when routed to Confluence
 	)
 
+	// Flush rate-budget counters even when the call failed: the request left
+	// the process. A missing/broken DB must not hide the API result. Failures
+	// are logged (sync.FlushAPIUsage), never returned.
 	if isWikiPath(path) {
 		if cfg.Confluence == nil {
 			return errors.New("Confluence is not enabled for this profile — set confluence in config (or enable it in the web UI) before calling /wiki/ paths; gadak will not use the wiki API against a source you left off")
@@ -107,13 +109,22 @@ func cmdAPI(args []string) error {
 		// Client base is already …/wiki; strip the routing prefix.
 		cc := confluence.New(cfg.Site, cfg.Email, cfg.Token)
 		status, out, err = cc.Raw(ctx, method, stripWikiPrefix(path), body, mutating)
+		if db, oerr := openStore(); oerr != nil {
+			log.Printf("api usage flush: %v", oerr)
+		} else {
+			syncer.FlushAPIUsage(ctx, db, cc, log.Printf)
+			_ = db.Close()
+		}
 	} else {
-		client = jira.New(cfg.Site, cfg.Email, cfg.Token)
+		client := jira.New(cfg.Site, cfg.Email, cfg.Token)
 		status, out, err = client.Raw(ctx, method, path, body, mutating)
+		if db, oerr := openStore(); oerr != nil {
+			log.Printf("api usage flush: %v", oerr)
+		} else {
+			syncer.FlushAPIUsage(ctx, db, client, log.Printf)
+			_ = db.Close()
+		}
 	}
-	// Flush rate-budget counters even when the call failed: the request left the
-	// process. A missing/broken DB must not hide the API result.
-	flushAPIUsageLocal(client)
 	if err != nil {
 		return err
 	}
@@ -287,34 +298,4 @@ func httpStatusDetail(status int, body []byte) string {
 		return s[:400] + "…"
 	}
 	return s
-}
-
-// flushAPIUsageLocal mirrors sync.flushAPIUsage: accumulate the client's
-// process-local counters into api_usage for the current UTC day. Open/write
-// failures are swallowed so instrumentation never hides the API result.
-func flushAPIUsageLocal(c *jira.Client) {
-	if c == nil {
-		return
-	}
-	u := c.TakeUsage()
-	if u.Requests == 0 && u.Throttled == 0 && u.ServerErrors == 0 && u.Retries == 0 && u.WaitMS == 0 {
-		return
-	}
-	db, err := openStore()
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	delta := store.APIUsageDelta{
-		Requests:     u.Requests,
-		Throttled:    u.Throttled,
-		ServerErrors: u.ServerErrors,
-		Retries:      u.Retries,
-		WaitMS:       u.WaitMS,
-	}
-	if !u.LastThrottledAt.IsZero() {
-		delta.LastThrottledAt = u.LastThrottledAt.UTC().Format("2006-01-02T15:04:05.000Z")
-	}
-	day := time.Now().UTC().Format("2006-01-02")
-	_ = db.AddAPIUsage(context.Background(), day, delta)
 }

@@ -60,7 +60,7 @@ func TestNotifyAfterSyncBootstrapNoFire(t *testing.T) {
 
 func TestNotifyAfterSyncFiresForNewEvents(t *testing.T) {
 	db := openSyncDB(t)
-	now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+	now := time.Now().UTC().Format(config.ISOMilli)
 	seedFeedIssue(t, db, "NMB-9", "acc-me", []store.Comment{{
 		ID: "jira:c-new", ExternalID: "c-new", Author: "Marco", AuthorID: "acc-marco",
 		BodyText: "secret body must not appear", CreatedAt: now, UpdatedAt: now,
@@ -68,7 +68,7 @@ func TestNotifyAfterSyncFiresForNewEvents(t *testing.T) {
 	cfg := &config.Config{
 		Email: "me@example.com", AccountID: "acc-me", TokenOwner: "Me",
 	}
-	past := time.Now().UTC().Add(-2 * time.Hour).Format("2006-01-02T15:04:05.000Z")
+	past := time.Now().UTC().Add(-2 * time.Hour).Format(config.ISOMilli)
 	if err := db.SetLastNotifiedAt(context.Background(), SourceID, past); err != nil {
 		t.Fatal(err)
 	}
@@ -123,12 +123,12 @@ func TestNotifyDisabled(t *testing.T) {
 
 func TestNotifyFailureDoesNotAdvanceWatermark(t *testing.T) {
 	db := openSyncDB(t)
-	now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+	now := time.Now().UTC().Format(config.ISOMilli)
 	seedFeedIssue(t, db, "NMB-2", "acc-me", []store.Comment{{
 		ID: "jira:c-fail", ExternalID: "c-fail", Author: "Marco", AuthorID: "acc-m",
 		BodyText: "x", CreatedAt: now, UpdatedAt: now,
 	}})
-	past := time.Now().UTC().Add(-time.Hour).Format("2006-01-02T15:04:05.000Z")
+	past := time.Now().UTC().Add(-time.Hour).Format(config.ISOMilli)
 	if err := db.SetLastNotifiedAt(context.Background(), SourceID, past); err != nil {
 		t.Fatal(err)
 	}
@@ -165,8 +165,8 @@ func openSyncDB(t *testing.T) *store.DB {
 func seedFeedIssue(t *testing.T, db *store.DB, key, assigneeID string, comments []store.Comment) {
 	t.Helper()
 	itemID := "jira:" + key
-	now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-	old := time.Now().UTC().AddDate(0, 0, -5).Format("2006-01-02T15:04:05.000Z")
+	now := time.Now().UTC().Format(config.ISOMilli)
+	old := time.Now().UTC().AddDate(0, 0, -5).Format(config.ISOMilli)
 	batch := store.Batch{
 		Categories: map[string]string{"1": "new", "3": "inprogress"},
 		Priorities: []string{"Medium"},

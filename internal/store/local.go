@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/midagedev/gadak/internal/config"
+
 	sqlite "modernc.org/sqlite"
 )
 
@@ -519,7 +521,7 @@ func historySQL(kind string, cur historyCursor, limit int) (string, []any) {
 // PruneLocalHistory deletes visit/search rows older than LocalRetention.
 // Called from the same pass as tombstone expiry (DeleteItems).
 func (db *DB) PruneLocalHistory(ctx context.Context) error {
-	cutoff := time.Now().UTC().Add(-LocalRetention).Format("2006-01-02T15:04:05.000Z")
+	cutoff := time.Now().UTC().Add(-LocalRetention).Format(config.ISOMilli)
 	return db.write(ctx, func(tx *sql.Tx) error {
 		return pruneLocalHistoryTx(ctx, tx, cutoff)
 	})

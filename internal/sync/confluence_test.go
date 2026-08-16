@@ -326,7 +326,7 @@ func cqlMatch(cql string, p *confPage) bool {
 
 func pageWhenBeforeFloor(when, floor string) bool {
 	// floor: 2006-01-02 15:04  when: 2006-01-02T15:04:05.000Z
-	wt, err1 := time.Parse("2006-01-02T15:04:05.000Z", when)
+	wt, err1 := time.Parse(config.ISOMilli, when)
 	if err1 != nil {
 		wt, err1 = time.Parse(time.RFC3339, when)
 	}
@@ -970,7 +970,7 @@ func TestConfluence429ThenSucceeds(t *testing.T) {
 }
 
 // TestConfluenceRunFlushesAPIUsage: RunConfluence drains the client's TakeUsage
-// into store.api_usage the same way Run does for Jira (shared flushAPIUsage).
+// into store.api_usage the same way Run does for Jira (shared FlushAPIUsage).
 func TestConfluenceRunFlushesAPIUsage(t *testing.T) {
 	f := newConfFixture(t)
 	client := f.start()

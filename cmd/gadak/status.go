@@ -118,7 +118,7 @@ func formatAPIUsageLine(u store.APIUsageSummary) string {
 			at = u.Last7Days.LastThrottledAt
 		}
 		if at != nil && *at != "" {
-			if t, err := time.Parse("2006-01-02T15:04:05.000Z", *at); err == nil {
+			if t, err := time.Parse(config.ISOMilli, *at); err == nil {
 				line += fmt.Sprintf(" (last %s)", t.UTC().Format("15:04Z"))
 			} else if t, err := time.Parse(time.RFC3339, *at); err == nil {
 				line += fmt.Sprintf(" (last %s)", t.UTC().Format("15:04Z"))

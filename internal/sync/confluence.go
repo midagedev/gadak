@@ -638,7 +638,7 @@ func cqlTime(watermark string) string {
 	t, err := time.Parse(jira.Layout, watermark)
 	if err != nil {
 		if t, err = time.Parse(time.RFC3339, watermark); err != nil {
-			if t, err = time.Parse("2006-01-02T15:04:05.000Z", watermark); err != nil {
+			if t, err = time.Parse(config.ISOMilli, watermark); err != nil {
 				t = time.Now().Add(-24 * time.Hour)
 			}
 		}

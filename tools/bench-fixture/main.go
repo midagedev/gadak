@@ -13,6 +13,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -107,7 +108,7 @@ func generate(path string, n int, seed int64, batchSize int) error {
 	}
 
 	if err := db.RecordSync(context.Background(), "jira", store.SyncResult{
-		Watermark: base.Add(time.Duration(n) * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z"),
+		Watermark: base.Add(time.Duration(n) * time.Hour).UTC().Format(config.ISOMilli),
 		FullSync:  true,
 	}); err != nil {
 		return fmt.Errorf("record sync: %w", err)
@@ -156,8 +157,8 @@ func makeRecord(
 			Key: key, Title: title, BodyText: body,
 			Author: "Reporter", AuthorID: "acc-reporter",
 			URL:       "https://example.invalid/browse/" + key,
-			CreatedAt: created.UTC().Format("2006-01-02T15:04:05.000Z"),
-			UpdatedAt: updated.UTC().Format("2006-01-02T15:04:05.000Z"),
+			CreatedAt: created.UTC().Format(config.ISOMilli),
+			UpdatedAt: updated.UTC().Format(config.ISOMilli),
 		},
 		Issue: store.Issue{
 			ProjectKey: proj, IssueType: ty.name, IssueTypeID: ty.id,
@@ -175,7 +176,7 @@ func makeRecord(
 		if i == 0 {
 			cBody = "comment carries benchneedle for fts"
 		}
-		cAt := updated.Add(-time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+		cAt := updated.Add(-time.Hour).UTC().Format(config.ISOMilli)
 		rec.Comments = []store.Comment{{
 			ID: "jira:c-" + extID, ExternalID: "c-" + extID,
 			Author: "Ada Lovelace", AuthorID: "acc-ada",
@@ -190,7 +191,7 @@ func makeRecord(
 			to = statuses[1]
 		}
 		rec.Changelog = []store.ChangeEntry{{
-			ID: "jira:h-" + extID, At: updated.UTC().Format("2006-01-02T15:04:05.000Z"),
+			ID: "jira:h-" + extID, At: updated.UTC().Format(config.ISOMilli),
 			Author: "Ada Lovelace", Field: "status",
 			FromValue: from.name, FromID: from.id,
 			ToValue: to.name, ToID: to.id,

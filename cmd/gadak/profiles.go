@@ -281,7 +281,7 @@ func relativeAge(iso string, now time.Time) string {
 	t, err := time.Parse(time.RFC3339, iso)
 	if err != nil {
 		for _, layout := range []string{
-			"2006-01-02T15:04:05.000Z",
+			config.ISOMilli,
 			"2006-01-02T15:04:05Z07:00",
 			"2006-01-02T15:04:05.000-0700",
 		} {

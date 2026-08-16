@@ -26,9 +26,9 @@ const (
 	// TokenExpiryUrgentDays is the first day the warning is urgent (inclusive).
 	TokenExpiryUrgentDays = 3
 
-	// TokenTimeFormat matches store.Now() so assumed dates line up with
-	// tokenVerifiedAt in the same file.
-	TokenTimeFormat = "2006-01-02T15:04:05.000Z"
+	// TokenTimeFormat is ISOMilli so assumed dates line up with
+	// tokenVerifiedAt and every other store timestamp.
+	TokenTimeFormat = ISOMilli
 )
 
 // TokenExpiry is the computed warning state for a stored API token.

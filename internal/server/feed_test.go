@@ -27,8 +27,8 @@ func feedFixture(t *testing.T) (*store.DB, *config.Config) {
 	}
 	now := time.Now().UTC()
 	// Keep created/updated recent so the 30-day window always includes them.
-	ts := now.Add(-2 * 24 * time.Hour).Format("2006-01-02T15:04:05.000Z")
-	ts2 := now.Add(-1 * 24 * time.Hour).Format("2006-01-02T15:04:05.000Z")
+	ts := now.Add(-2 * 24 * time.Hour).Format(config.ISOMilli)
+	ts2 := now.Add(-1 * 24 * time.Hour).Format(config.ISOMilli)
 	if _, err := db.UpsertIssues(context.Background(), store.Batch{
 		Categories: map[string]string{"1": "new", "3": "inprogress"},
 		Priorities: []string{"High"},

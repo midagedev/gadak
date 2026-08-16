@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // Feed window and default page size match the client contract
@@ -162,7 +164,7 @@ func (db *DB) MarkFeedRead(ctx context.Context, opts MarkFeedReadOpts) (MarkFeed
 	}
 	now := Now()
 	if !opts.Now.IsZero() {
-		now = opts.Now.UTC().Format("2006-01-02T15:04:05.000Z")
+		now = opts.Now.UTC().Format(config.ISOMilli)
 	}
 	updated := 0
 	err = db.write(ctx, func(tx *sql.Tx) error {
@@ -227,7 +229,7 @@ func (db *DB) computeFeedEvents(ctx context.Context, me FeedIdentity, now time.T
 	} else {
 		now = now.UTC()
 	}
-	since := now.AddDate(0, 0, -FeedWindowDays).Format("2006-01-02T15:04:05.000Z")
+	since := now.AddDate(0, 0, -FeedWindowDays).Format(config.ISOMilli)
 
 	watches, err := db.watchSet(ctx)
 	if err != nil {

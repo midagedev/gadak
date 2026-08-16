@@ -3,6 +3,8 @@ package jira
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // The payload shapes below are only the parts sync maps. Everything else stays
@@ -191,5 +193,5 @@ func ISOTime(s string) string {
 			return s
 		}
 	}
-	return t.UTC().Format("2006-01-02T15:04:05.000Z")
+	return t.UTC().Format(config.ISOMilli)
 }

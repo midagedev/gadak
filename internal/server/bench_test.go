@@ -74,8 +74,8 @@ func seedBenchDB(tb testing.TB, n int, seed int64) (*store.DB, *config.Config) {
 				Item: store.Item{
 					ID: "jira:" + extID, SourceID: "jira", Kind: "issue", ExternalID: extID,
 					Key: key, Title: title, BodyText: body,
-					CreatedAt: created.UTC().Format("2006-01-02T15:04:05.000Z"),
-					UpdatedAt: updated.UTC().Format("2006-01-02T15:04:05.000Z"),
+					CreatedAt: created.UTC().Format(config.ISOMilli),
+					UpdatedAt: updated.UTC().Format(config.ISOMilli),
 				},
 				Issue: store.Issue{
 					ProjectKey: proj, IssueType: ty.name, IssueTypeID: ty.id,
@@ -88,7 +88,7 @@ func seedBenchDB(tb testing.TB, n int, seed int64) (*store.DB, *config.Config) {
 				if i == 0 {
 					cBody = "comment carries benchneedle for fts"
 				}
-				cAt := updated.UTC().Format("2006-01-02T15:04:05.000Z")
+				cAt := updated.UTC().Format(config.ISOMilli)
 				rec.Comments = []store.Comment{{
 					ID: "jira:c-" + extID, ExternalID: "c-" + extID,
 					Author: "Ada", BodyADF: emptyADF, BodyText: cBody,

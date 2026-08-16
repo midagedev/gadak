@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
 func TestIssueLitesByKeys(t *testing.T) {
@@ -193,8 +195,8 @@ func seedManyIssues(tb testing.TB, n int) *DB {
 				Item: Item{
 					ID: "jira:" + extID, SourceID: "jira", Kind: "issue", ExternalID: extID,
 					Key: fmt.Sprintf("%s-%d", proj, num), Title: fmt.Sprintf("bench issue %d", num),
-					CreatedAt: created.UTC().Format("2006-01-02T15:04:05.000Z"),
-					UpdatedAt: created.UTC().Format("2006-01-02T15:04:05.000Z"),
+					CreatedAt: created.UTC().Format(config.ISOMilli),
+					UpdatedAt: created.UTC().Format(config.ISOMilli),
 				},
 				Issue: Issue{
 					ProjectKey: proj, IssueType: "Task", IssueTypeID: "10002",

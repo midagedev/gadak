@@ -129,7 +129,7 @@ type sourceIdent struct {
 	Kind string // store Source.Kind
 }
 
-// usageTaker is the client surface flushAPIUsage needs. *jira.Client and
+// usageTaker is the client surface FlushAPIUsage needs. *jira.Client and
 // *confluence.Client both implement it (TakeUsage returns atlhttp.Usage).
 type usageTaker interface {
 	TakeUsage() atlhttp.Usage
@@ -190,10 +190,10 @@ func runSource(
 	}
 	// Flush call-volume counters into the mirror for every exit path of this
 	// pass (success, transport failure, auth failure). Instrumentation must
-	// never fail the sync itself — see flushAPIUsage. Watch also lands here
+	// never fail the sync itself — see FlushAPIUsage. Watch also lands here
 	// once per cycle, so one-shot and watch share this single flush point.
 	if usage != nil {
-		defer flushAPIUsage(ctx, db, usage, opts.logf)
+		defer FlushAPIUsage(ctx, db, usage, opts.logf)
 	}
 	if err := db.UpsertSource(ctx, store.Source{ID: src.ID, Kind: src.Kind, BaseURL: baseURL}); err != nil {
 		return res, err
@@ -237,15 +237,13 @@ func record(ctx context.Context, db *store.DB, sourceID string, err error) error
 	return err
 }
 
-// flushAPIUsage takes the client's process-local counters and accumulates them
+// FlushAPIUsage takes the client's process-local counters and accumulates them
 // into api_usage for the current UTC day. Jira and Confluence clients both
-// satisfy usageTaker. One-shot sync and each Watch cycle go through runSource,
-// so this is the single flush point per source pass.
-//
-// A flush failure is logged and swallowed: rate-limit visibility must not break
-// the sync that produced the traffic. api_usage is day-keyed with no source
-// column — both connectors accumulate into the same daily row (schema contract).
-func flushAPIUsage(ctx context.Context, db *store.DB, c usageTaker, logf func(string, ...any)) {
+// satisfy usageTaker. One-shot sync, each Watch cycle, and `gadak api` go
+// through this function so CLI and sync share one flush policy: a failure is
+// logged and swallowed. api_usage is day-keyed with no source column — both
+// connectors accumulate into the same daily row (schema contract).
+func FlushAPIUsage(ctx context.Context, db *store.DB, c usageTaker, logf func(string, ...any)) {
 	if db == nil || c == nil {
 		return
 	}
@@ -261,7 +259,7 @@ func flushAPIUsage(ctx context.Context, db *store.DB, c usageTaker, logf func(st
 		WaitMS:       u.WaitMS,
 	}
 	if !u.LastThrottledAt.IsZero() {
-		delta.LastThrottledAt = u.LastThrottledAt.UTC().Format("2006-01-02T15:04:05.000Z")
+		delta.LastThrottledAt = u.LastThrottledAt.UTC().Format(config.ISOMilli)
 	}
 	day := time.Now().UTC().Format("2006-01-02")
 	if err := db.AddAPIUsage(ctx, day, delta); err != nil {
