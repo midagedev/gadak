@@ -256,6 +256,13 @@ describe('matchesIdFirst / prioritySortRank (moved from e2e/identity-web.spec.ts
     expect(matchesIdFirst(['In Progress'], '', 'In Progress')).toBe(true)
     expect(matchesIdFirst(['In Progress'], undefined, 'In Progress')).toBe(true)
     expect(matchesIdFirst([], '3', '진행 중')).toBe(true)
+    // Priority twin (moved from e2e/tail-audit): English selected name must
+    // not match a localized display when an id is present on the row.
+    expect(matchesIdFirst(['1'], '1', 'Highest')).toBe(true)
+    expect(matchesIdFirst(['Highest'], '1', 'Highest')).toBe(true)
+    expect(matchesIdFirst(['Highest'], '1', '최고')).toBe(false)
+    expect(matchesIdFirst(['Highest'], '', 'Highest')).toBe(true)
+    expect(matchesIdFirst(['Highest'], undefined, 'Highest')).toBe(true)
   })
 
   test('L1: rank 0 (unset) sorts below Highest (1)', () => {

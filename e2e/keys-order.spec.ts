@@ -1,10 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
 import { appConsoleErrors, attachConsoleErrors, forceLocale } from './helpers'
-import {
-  configToParams,
-  emptyConfig,
-  parseConfig,
-} from '../web/src/lib/view-config'
 
 /*
  * GDK-2: a keys view (ks=, no g) must paint FLAT in the given order.
@@ -21,10 +16,6 @@ const ORDERED = ['NMA-11', 'NMA-1', 'NMA-118'] as const
 const GROUPED = ['NMA-1', 'NMA-11', 'NMA-118'] as const
 const KS = ORDERED.join(',')
 
-function parse(q: string) {
-  return parseConfig(new URLSearchParams(q))
-}
-
 async function openKeys(page: Page, extra = ''): Promise<string[]> {
   await forceLocale(page, 'en')
   const errors = attachConsoleErrors(page)
@@ -39,42 +30,6 @@ async function rowKeys(page: Page): Promise<string[]> {
     .locator('[data-testid="issue-list-scroller"] [data-issue-key]')
     .evaluateAll((els) => els.map((el) => el.getAttribute('data-issue-key') ?? ''))
 }
-
-test.describe('keys-order unit (no browser state)', () => {
-  test('unset g on a keys view defaults to none; explicit g wins', () => {
-    expect(parse(`ks=${KS}`).display.group_by).toBe('none')
-    expect(parse(`ks=${KS}`).display.sort).toBe('updated')
-    expect(parse(`ks=${KS}&g=status_category`).display.group_by).toBe('status_category')
-    expect(parse(`ks=${KS}&g=none`).display.group_by).toBe('none')
-    expect(parse('').display.group_by).toBe('status_category')
-    expect(parse('g=none').display.group_by).toBe('none')
-  })
-
-  test('configToParams omits g for the keys-view default and emits an override', () => {
-    const keysNone = emptyConfig()
-    keysNone.filters.keys = [...ORDERED]
-    keysNone.display.group_by = 'none'
-    expect(configToParams(keysNone).g).toBeNull()
-
-    const keysGrouped = emptyConfig()
-    keysGrouped.filters.keys = [...ORDERED]
-    keysGrouped.display.group_by = 'status_category'
-    expect(configToParams(keysGrouped).g).toBe('status_category')
-
-    const plain = emptyConfig()
-    expect(configToParams(plain).g).toBeNull()
-
-    const plainNone = emptyConfig()
-    plainNone.display.group_by = 'none'
-    expect(configToParams(plainNone).g).toBe('none')
-
-    // Jira-imported / pre-keys saved views omit filters.keys. SidebarNav
-    // calls configToParams on every view at boot — must not throw.
-    const legacy = emptyConfig()
-    delete (legacy.filters as { keys?: string[] }).keys
-    expect(configToParams(legacy).g).toBeNull()
-  })
-})
 
 test.describe('keys-order e2e', () => {
   test('ks= without g is flat in the given order; Breakdown Progress restores headers', async ({

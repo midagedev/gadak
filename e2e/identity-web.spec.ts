@@ -1,39 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { forceLocale, gotoApp, searchInput } from './helpers'
-import { composeCacheScope } from '../web/src/lib/config'
-import { composeCommentDraftKey } from '../web/src/lib/storage'
 
 /**
  * B-identity-web: I9 / L1 / I5 / C5 / C6 / C7.
- * I8 is asserted in tail-audit.spec.ts — PageLite carries author_id since 1988d2b.
+ * I8 is asserted in web/src/stores/pages.test.ts — PageLite carries author_id since 1988d2b.
+ * C5/C6 unit cases live in web/src/lib/config-scope.test.ts and storage.test.ts.
  */
-
-test.describe('identity-web unit (no browser state)', () => {
-  test('C5: distinct sites never share a cache scope', () => {
-    const a = composeCacheScope('', 'https://a.example.com')
-    const b = composeCacheScope('', 'https://b.example.com')
-    expect(a).toBe('site:a.example.com')
-    expect(b).toBe('site:b.example.com')
-    expect(a).not.toBe(b)
-  })
-
-  test('C5: workspace + site both appear, empty site stays workspace-only', () => {
-    expect(composeCacheScope('work', 'https://a.example.com')).toBe('ws:work|site:a.example.com')
-    expect(composeCacheScope('work', '')).toBe('ws:work')
-    expect(composeCacheScope('', '')).toBe('')
-  })
-
-  test('C6: draft keys split by workspace and by site', () => {
-    const a = composeCommentDraftKey('', 'https://a.example.com', 'NMB-1')
-    const b = composeCommentDraftKey('', 'https://b.example.com', 'NMB-1')
-    const ws = composeCommentDraftKey('work', 'https://a.example.com', 'NMB-1')
-    expect(a).toBe('gadak:comment-draft:site:a.example.com:NMB-1')
-    expect(b).toBe('gadak:comment-draft:site:b.example.com:NMB-1')
-    expect(ws).toBe('gadak:comment-draft:ws:work|site:a.example.com:NMB-1')
-    expect(a).not.toBe(b)
-    expect(a).not.toBe(ws)
-  })
-})
 
 test.describe('identity-web e2e', () => {
   test('I9: status_id filter matches when the display name is localized', async ({ page }) => {

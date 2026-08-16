@@ -39,13 +39,18 @@ async function gotoParams(page: Page, query: string): Promise<void> {
   await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
 }
 
+/** 1 list + N detail fetches. Static for the server lifetime (workers: 1). */
+let cachedPageDetails: PageDetail[] | undefined
+
 /** Every mirrored page, with its issue references resolved. */
 async function pageDetails(request: Page['request']): Promise<PageDetail[]> {
+  if (cachedPageDetails) return cachedPageDetails
   const list = (await (await request.get(PAGES_URL)).json()) as { pages: PageRow[] }
   const out: PageDetail[] = []
   for (const p of list.pages) {
     out.push((await (await request.get(`${PAGES_URL}${p.key}/`)).json()) as PageDetail)
   }
+  cachedPageDetails = out
   return out
 }
 

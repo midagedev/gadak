@@ -6,6 +6,7 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: '.',
+  globalSetup: './helpers.ts',
   // demo/ is the recording pipeline; hosted/ has its own config (static Pages
   // smoke). Excluding both keeps the suite honest ("N passed", not "N + skipped").
   testIgnore: ['**/demo/**', '**/hosted/**', '**/perf/**'],

@@ -1,3 +1,4 @@
+import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { defineConfig } from 'vitest/config'
 
 // Separate from vite.config.ts so the app build keeps root: 'web', the
@@ -9,6 +10,11 @@ import { defineConfig } from 'vitest/config'
 // The default `unit` project matches a normal `gadak serve` / desktop
 // build (flag unset). The hosted-adapter project is the only place the
 // flag is '1' — same value tools/hosted-demo/build.mjs sets.
+//
+// pages-store is a third project: pages.test.ts imports pageAuthorGroupKey
+// from pages.svelte.ts, which uses runes and pulls the store graph. The
+// default unit project has no svelte plugin on purpose (HistoryView /
+// SearchBox tests parse .svelte source with svelte/compiler instead).
 //
 // Use test.env, not vite `define`. Vitest's deleteDefineConfig copies
 // import.meta.env.* defines onto process.env, so a hosted-project define
@@ -22,7 +28,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: ['web/src/**/*.test.ts'],
-          exclude: ['web/src/lib/hosted-fetch.test.ts'],
+          exclude: ['web/src/lib/hosted-fetch.test.ts', 'web/src/stores/pages.test.ts'],
           // Pin empty so a leftover VITE_HOSTED_DEMO=1 in the shell cannot
           // turn the adapter on for the production-default suite.
           env: { VITE_HOSTED_DEMO: '' },
@@ -34,6 +40,15 @@ export default defineConfig({
           name: 'hosted-adapter',
           include: ['web/src/lib/hosted-fetch.test.ts'],
           env: { VITE_HOSTED_DEMO: '1' },
+        },
+      },
+      {
+        plugins: [svelte()],
+        test: {
+          name: 'pages-store',
+          environment: 'node',
+          include: ['web/src/stores/pages.test.ts'],
+          env: { VITE_HOSTED_DEMO: '' },
         },
       },
     ],

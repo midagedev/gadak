@@ -124,6 +124,9 @@ ON CONFLICT(day) DO UPDATE SET
 SQL
 
 export GADAK_HOME="$HOME_DIR"
+SERVED_SHA="$(git rev-parse HEAD)"
+echo "[e2e] served git SHA ${SERVED_SHA}"
+printf '%s\n' "$SERVED_SHA" > "$TMP/served-sha"
 echo "[e2e] serving on 127.0.0.1:7877 (GADAK_HOME=$GADAK_HOME)…"
 # The snapshot references attachments whose bytes cannot be proxied (the fixture
 # credential is fake), so seed the cache from the committed images. Without this

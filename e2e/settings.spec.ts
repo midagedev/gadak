@@ -1,7 +1,5 @@
 import { test, expect } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, openServerSettings } from './helpers'
-import { en } from '../web/src/lib/i18n/en'
-import { ko } from '../web/src/lib/i18n/ko'
 
 const SETTINGS_URL = 'http://127.0.0.1:7877/api/v1/issues/settings/'
 
@@ -65,11 +63,6 @@ test.describe('settings dialog', () => {
  * endpoints 404.
  */
 test.describe('settings copy contracts', () => {
-  test('empty-project label says every project (en/ko catalogs)', () => {
-    expect(en['settings.sourcesNoProjects']).toMatch(/every project/)
-    expect(ko['settings.sourcesNoProjects']).toContain('모든 프로젝트')
-  })
-
   test('Features tab does not render the web-push toggle', async ({ page }) => {
     await gotoApp(page)
     await openServerSettings(page)

@@ -1,4 +1,34 @@
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { expect, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
+
+const E2E_DIR = dirname(fileURLToPath(import.meta.url))
+
+/** Fail when reuseExistingServer attached to a binary built at another HEAD. */
+export function assertServedGitSha(): void {
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: join(E2E_DIR, '..'),
+    encoding: 'utf8',
+  }).trim()
+  const stamp = join(E2E_DIR, '.tmp', 'served-sha')
+  if (!existsSync(stamp)) {
+    throw new Error(
+      `stale dev server: missing ${stamp}. reuseExistingServer picked up a process that was not started by e2e/serve.sh. Stop it (pkill -f 'e2e/.tmp/gadak') and re-run.`,
+    )
+  }
+  const served = readFileSync(stamp, 'utf8').trim()
+  if (served !== head) {
+    throw new Error(
+      `stale dev server: serve.sh built ${served} but HEAD is ${head}. reuseExistingServer picked up an old one. Stop it (pkill -f 'e2e/.tmp/gadak') and re-run.`,
+    )
+  }
+}
+
+export default function globalSetup(): void {
+  assertServedGitSha()
+}
 
 /**
  * Seed locale only when unset so catalog assertions match en.ts by default,

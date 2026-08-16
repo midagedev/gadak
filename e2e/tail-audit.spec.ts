@@ -1,51 +1,11 @@
 import { expect, test } from '@playwright/test'
-import { composeCacheScope, profileName } from '../web/src/lib/config'
-import { matchesIdFirst } from '../web/src/lib/view-config'
 import { gotoApp } from './helpers'
-
-/** Same rule as pageAuthorGroupKey in web/src/stores/pages.svelte.ts. */
-function pageAuthorGroupKey(p: { author?: string | null; author_id?: string | null }): string {
-  const id = (p.author_id ?? '').trim()
-  return id || (p.author ?? '')
-}
 
 /**
  * B-tail: I8 author_id grouping, C5 profile in cache scope, priority id-first.
+ * Unit cases: web/src/stores/pages.test.ts, config-scope.test.ts, view-config.test.ts.
  * The env-dependent `views open` gate is a Go test (cmd/gadak/views_test.go).
  */
-
-test.describe('tail-audit unit (no browser state)', () => {
-  test('I8: group key is author_id, then display name', () => {
-    expect(pageAuthorGroupKey({ author: 'Kim', author_id: 'acc-1' })).toBe('acc-1')
-    expect(pageAuthorGroupKey({ author: 'Kim', author_id: 'acc-2' })).toBe('acc-2')
-    expect(pageAuthorGroupKey({ author: 'Kim', author_id: '' })).toBe('Kim')
-    expect(pageAuthorGroupKey({ author: 'Kim' })).toBe('Kim')
-    expect(pageAuthorGroupKey({ author: '', author_id: '' })).toBe('')
-  })
-
-  test('C5: named profile on / is a distinct scope; default is omitted', () => {
-    const def = composeCacheScope('', 'https://a.example.com', 'default')
-    const named = composeCacheScope('', 'https://a.example.com', 'work')
-    expect(def).toBe('site:a.example.com')
-    expect(named).toBe('site:a.example.com|profile:work')
-    expect(def).not.toBe(named)
-    // Workspace already partitions; profile is not double-counted.
-    expect(composeCacheScope('work', 'https://a.example.com', 'work')).toBe(
-      'ws:work|site:a.example.com',
-    )
-    expect(profileName('')).toBe('default')
-    expect(profileName('default')).toBe('default')
-    expect(profileName('work')).toBe('work')
-  })
-
-  test('priority: id wins; name is fallback for saved views', () => {
-    expect(matchesIdFirst(['1'], '1', 'Highest')).toBe(true)
-    expect(matchesIdFirst(['Highest'], '1', 'Highest')).toBe(true)
-    expect(matchesIdFirst(['Highest'], '1', '최고')).toBe(false)
-    expect(matchesIdFirst(['Highest'], '', 'Highest')).toBe(true)
-    expect(matchesIdFirst(['Highest'], undefined, 'Highest')).toBe(true)
-  })
-})
 
 test.describe('tail-audit e2e', () => {
   test('C5: config.json names the profile (default)', async ({ request, page }) => {
