@@ -72,6 +72,11 @@ type Options struct {
 	// config Watch was called with. A reload error is logged and the previous
 	// config stays in use: a momentarily unreadable file must not stop the mirror.
 	Reload func() (*config.Config, error)
+	// Tick, when > 0, is the Watch interval. The zero value derives from
+	// cfg.EffectiveSyncIntervalSec() (an integer number of seconds), which is
+	// the production path. Tests set a sub-second Tick so they do not sit on
+	// that 1s floor.
+	Tick time.Duration
 }
 
 // Result is the tally of one source pass (Run or RunConfluence).
@@ -399,6 +404,9 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 		cfg = &config.Config{}
 	}
 	every := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
+	if opts.Tick > 0 {
+		every = opts.Tick
+	}
 	reconcileEvery := time.Duration(cfg.EffectiveReconcileIntervalSec()) * time.Second
 	scope := syncScope(cfg)
 
@@ -427,6 +435,9 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 					cred = nextCred
 				}
 				newEvery := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
+				if opts.Tick > 0 {
+					newEvery = opts.Tick
+				}
 				newReconcile := time.Duration(cfg.EffectiveReconcileIntervalSec()) * time.Second
 				if newEvery != every {
 					every = newEvery

@@ -9,7 +9,7 @@ vet:
 	go vet ./...
 
 test:
-	go test ./...
+	go test ./... -count=1
 
 typecheck:
 	npm run typecheck

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/store"
+	gadakSync "github.com/midagedev/gadak/internal/sync"
 )
 
 // onboardJira is the slice of Jira the onboarding endpoints touch: /myself for
@@ -401,6 +407,14 @@ func TestSyncProgressLeavesATransportFailureUnclassified(t *testing.T) {
 	f, h, _ := onboarding(t)
 	connect(t, h, f)
 	f.syncStatus = http.StatusInternalServerError
+	// Production jira.New is Retries=5, Backoff=1s; failSync pins Retry-After
+	// at 1s so those five attempts still cost ~4s. Same-package syncKick
+	// injects the watch_auth_test idiom (Retries/Backoff = 1, 0) so the
+	// classification contract is unchanged and the wait is not.
+	hh := h.(*Handler)
+	hh.s.syncKick = func(cfg *config.Config, full bool) bool {
+		return kickSyncFastTransport(hh.s, cfg, full)
+	}
 
 	if rec := send(t, h, http.MethodPost, apiBase+"sync/", ""); rec.Code != http.StatusAccepted {
 		t.Fatalf("start: %d %s", rec.Code, rec.Body.String())
@@ -412,6 +426,54 @@ func TestSyncProgressLeavesATransportFailureUnclassified(t *testing.T) {
 	if errCode != "" {
 		t.Fatalf("error_code %q on a transport failure — a 500 is not a rejected credential", errCode)
 	}
+}
+
+// kickSyncFastTransport is startSyncJob + runSyncJob with a jira.Client that
+// does not ride production backoff. Same error classification as runSyncJob
+// (IsRejectedCredential → credential_rejected; a 500 stays unclassified).
+// Copied idiom: watch_auth_test.go startConfAuth / clientOnStub
+// (Retries, Backoff = 1, 0). Confluence is omitted: this test's config has none.
+func kickSyncFastTransport(s *server, cfg *config.Config, full bool) bool {
+	s.syncMu.Lock()
+	if s.syncJob.Running {
+		s.syncMu.Unlock()
+		return false
+	}
+	s.syncJob = progressDoc{Running: true, Phase: "syncing", StartedAt: store.Now()}
+	s.syncMu.Unlock()
+
+	c := jira.New(cfg.Site, cfg.Email, cfg.Token)
+	c.Retries, c.Backoff = 1, 0
+	go func() {
+		defer s.reportActivityPhase(gadakSync.PhaseIdle)
+		s.reportActivityPhase(gadakSync.PhaseIssues)
+		res, err := gadakSync.Run(context.Background(), cfg, s.db, gadakSync.Options{
+			Full:   full,
+			Client: c,
+			Progress: func(fetched, changed int) {
+				s.syncMu.Lock()
+				s.syncJob.Fetched, s.syncJob.Changed = fetched, changed
+				if s.activity.Running {
+					s.activity.Fetched, s.activity.Changed = fetched, changed
+				}
+				s.syncMu.Unlock()
+			},
+		})
+		s.syncMu.Lock()
+		defer s.syncMu.Unlock()
+		s.syncJob.Running = false
+		s.syncJob.FinishedAt = store.Now()
+		s.syncJob.Fetched, s.syncJob.Changed, s.syncJob.Deleted = res.Fetched, res.Changed, res.Deleted
+		if err != nil {
+			s.syncJob.Phase, s.syncJob.Error = "error", err.Error()
+			if gadakSync.IsRejectedCredential(err) {
+				s.syncJob.ErrorCode = "credential_rejected"
+			}
+			return
+		}
+		s.syncJob.Phase, s.syncJob.Done = "done", true
+	}()
+	return true
 }
 
 func connect(t *testing.T, h http.Handler, f *onboardJira) {

@@ -17,6 +17,15 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 )
 
+// Watch tests inject Tick so they do not sit on EffectiveSyncIntervalSec's
+// 1-second integer floor. Sleeps and next-tick deadlines scale with it
+// (1.5× and 2× the tick); the contracts they protect are unchanged.
+const (
+	testTick           = 100 * time.Millisecond
+	testSleepAfterStop = 150 * time.Millisecond
+	testNextTickWait   = 200 * time.Millisecond
+)
+
 // Clause coverage (each clause has a happy path and a violation/boundary):
 //
 //	ErrAuth stops the source
@@ -63,6 +72,7 @@ func TestWatchStopsOnErrAuth(t *testing.T) {
 	go func() {
 		done <- Watch(ctx, cfg, db.DB, Options{
 			Client: client,
+			Tick:   testTick,
 			Log: func(line string) {
 				mu.Lock()
 				logs = append(logs, line)
@@ -88,7 +98,7 @@ func TestWatchStopsOnErrAuth(t *testing.T) {
 		t.Fatal("Watch returned ErrAuth without requesting Jira")
 	}
 
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(testSleepAfterStop)
 	site.mu.Lock()
 	hitsLater := site.hits
 	site.mu.Unlock()
@@ -152,10 +162,10 @@ func TestWatchRetriesTransportError(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- Watch(ctx, cfg, db.DB, Options{Client: client})
+		done <- Watch(ctx, cfg, db.DB, Options{Client: client, Tick: testTick})
 	}()
 
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testNextTickWait)
 	for {
 		site.mu.Lock()
 		n := site.hits
@@ -239,6 +249,7 @@ func watchBoth(t *testing.T, jiraAuth, confAuth int) (*fakeSite, *confAuthStub, 
 		done <- Watch(ctx, cfg, db.DB, Options{
 			Client:           jclient,
 			ConfluenceClient: cclient,
+			Tick:             testTick,
 			Log: func(line string) {
 				mu.Lock()
 				logs = append(logs, line)
@@ -297,7 +308,7 @@ func TestWatchStopsOnConfluenceErrAuth(t *testing.T) {
 		t.Fatal("Watch never requested Jira — confluence-dead must not skip the Jira pass")
 	}
 
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(testSleepAfterStop)
 	hitsLater := stub.count()
 	if hitsLater != hitsAfterStop {
 		t.Fatalf("Watch requested Confluence %d more times after ErrAuth (hits %d → %d)",
@@ -305,7 +316,7 @@ func TestWatchStopsOnConfluenceErrAuth(t *testing.T) {
 	}
 
 	// Jira must keep ticking on the next interval.
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testNextTickWait)
 	for {
 		site.mu.Lock()
 		n := site.hits
@@ -401,7 +412,7 @@ func TestWatchStopsOnConfluenceForbidden(t *testing.T) {
 	if hitsAfter == 0 {
 		t.Fatal("Watch recorded confluence last_error without requesting Confluence")
 	}
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(testSleepAfterStop)
 	if got := stub.count(); got != hitsAfter {
 		t.Fatalf("Watch requested Confluence %d more times after 403 (hits %d → %d)",
 			got-hitsAfter, hitsAfter, got)
@@ -423,7 +434,7 @@ func TestWatchRetriesConfluenceTransportError(t *testing.T) {
 	_, stub, db, cancel, done, _, _ := watchBoth(t, 0, http.StatusInternalServerError)
 	defer cancel()
 
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testNextTickWait)
 	for {
 		if stub.count() >= 2 {
 			break
@@ -519,7 +530,7 @@ func lastErrorFromWatch(t *testing.T, jiraAuth, confAuth int, sourceID string) s
 		defer cancel()
 		done := make(chan error, 1)
 		go func() {
-			done <- Watch(ctx, cfg, db.DB, Options{Client: client})
+			done <- Watch(ctx, cfg, db.DB, Options{Client: client, Tick: testTick})
 		}()
 		select {
 		case err := <-done:
@@ -758,7 +769,7 @@ func TestWatchConfluenceResumesAfterCredentialReload(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- Watch(ctx, cfg, db.DB, Options{
-			Client: jclient, ConfluenceClient: cclient, Reload: reload,
+			Client: jclient, ConfluenceClient: cclient, Reload: reload, Tick: testTick,
 		})
 	}()
 
@@ -767,7 +778,7 @@ func TestWatchConfluenceResumesAfterCredentialReload(t *testing.T) {
 	if hitsDead == 0 {
 		t.Fatal("no Confluence request before reload")
 	}
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(testSleepAfterStop)
 	if stub.count() != hitsDead {
 		t.Fatalf("Confluence hits moved %d → %d before the token changed", hitsDead, stub.count())
 	}
@@ -779,7 +790,7 @@ func TestWatchConfluenceResumesAfterCredentialReload(t *testing.T) {
 	token = "new-token"
 	mu.Unlock()
 
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testNextTickWait)
 	for stub.count() <= hitsDead {
 		if time.Now().After(deadline) {
 			t.Fatalf("Confluence hits stayed at %d after token reload — skip must be per-credential, not process-lifetime", hitsDead)

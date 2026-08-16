@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"unicode"
 )
@@ -33,7 +34,7 @@ type docSQL struct {
 	line   int    // 1-based line of the opening fence — failures name it
 	title  string // the fence's `--` heading, quoted in failures
 	sql    string
-	min    int // rows the query must return against examples/demo.db
+	min    int  // rows the query must return against examples/demo.db
 	ignore bool // documented but never executed (wrong-shape examples)
 }
 
@@ -131,7 +132,8 @@ func docTitle(body []string) string {
 // seed fixture is too small for the aggregate queries). The repo fixture is
 // immutable and Open migrates (and writes WAL sidecars), so tests never open
 // it in place. A missing or unreadable fixture is Fatal, never Skip: a gate
-// that quietly skips is not a gate.
+// that quietly skips is not a gate. Writing tests keep this path; read-only
+// tests share openDemoRO.
 func openDemoCopy(t *testing.T) *DB {
 	t.Helper()
 	in, err := os.ReadFile(filepath.Join("..", "..", "examples", "demo.db"))
@@ -148,6 +150,46 @@ func openDemoCopy(t *testing.T) *DB {
 	}
 	t.Cleanup(func() { db.Close() })
 	return db
+}
+
+// openDemoRO returns a process-wide read-only handle on a single copy of
+// examples/demo.db. Used only by tests that never write; a writing test
+// keeps its own throwaway copy via openDemoCopy / a local ReadFile.
+var (
+	demoROOnce sync.Once
+	demoRO     *DB
+	demoROErr  error
+)
+
+func openDemoRO(t *testing.T) *DB {
+	t.Helper()
+	demoROOnce.Do(func() {
+		in, err := os.ReadFile(filepath.Join("..", "..", "examples", "demo.db"))
+		if err != nil {
+			demoROErr = fmt.Errorf("read examples/demo.db: %w", err)
+			return
+		}
+		dir, err := os.MkdirTemp("", "gadak-demo-ro-")
+		if err != nil {
+			demoROErr = fmt.Errorf("temp dir: %w", err)
+			return
+		}
+		path := filepath.Join(dir, "gadak.db")
+		if err := os.WriteFile(path, in, 0o600); err != nil {
+			demoROErr = fmt.Errorf("copy examples/demo.db into %s: %w", path, err)
+			return
+		}
+		db, err := Open(path)
+		if err != nil {
+			demoROErr = fmt.Errorf("open demo ro: %w", err)
+			return
+		}
+		demoRO = db
+	})
+	if demoROErr != nil {
+		t.Fatalf("openDemoRO: %v", demoROErr)
+	}
+	return demoRO
 }
 
 // TestDocumentedExampleQueries executes every runnable ```sql fence in
@@ -175,7 +217,7 @@ func TestDocumentedExampleQueries(t *testing.T) {
 	}
 	t.Logf("docs/DERIVE.md: %d sql fences parsed (%d runnable, %d ignored)", len(fences), runnable, len(fences)-runnable)
 
-	db := openDemoCopy(t)
+	db := openDemoRO(t)
 	for _, f := range fences {
 		if f.ignore {
 			continue
