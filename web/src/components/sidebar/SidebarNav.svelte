@@ -4,6 +4,7 @@
    * team shared (api). Top: issue totals + last sync. Personalization (Wave 3)
    * sits above built-ins. View click = filters.applyConfig; active when it matches.
    */
+  import { onMount } from 'svelte'
   import { t, formatNumber, relativeTime } from '../../lib/i18n'
   import { filterIssues, filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
@@ -16,6 +17,7 @@
   import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
   import {
     config,
+    feature,
     hasServerVerb,
     isHostedDemo,
     jiraFilterUrl,
@@ -60,10 +62,17 @@
     for (const v of views) if (canon(v.config) === currentCanon) return v.id
     return null
   }
-  const activeBuiltin = $derived(activeId(builtins))
-  const activePersonal = $derived(activeId(views.personal))
-  const activeTeam = $derived(activeId(views.team))
-  const activeSource = $derived(activeId(views.source))
+  // View-row tint means "this is the list you are on". Docs, history, and
+  // the feed (when that surface exists) take the column; space is selection
+  // on top of the still-current view, so its place-row lights without
+  // clearing this match. Feed is gated the same way App.svelte renders it.
+  const mainColumnIsList = $derived(
+    !(feature('feed') && me.feedOpen) && !pages.historyView && !pages.docsView,
+  )
+  const activeBuiltin = $derived(mainColumnIsList ? activeId(builtins) : null)
+  const activePersonal = $derived(mainColumnIsList ? activeId(views.personal) : null)
+  const activeTeam = $derived(mainColumnIsList ? activeId(views.team) : null)
+  const activeSource = $derived(mainColumnIsList ? activeId(views.source) : null)
   const builtinCounts = $derived.by(() => {
     const counts = new Map<string, number>()
     for (const view of builtins) {
@@ -143,7 +152,7 @@
 
   /* ── Workspaces (one process, several profile mirrors) ── */
   let workspaceList = $state<WorkspaceInfo[]>([])
-  $effect(() => {
+  onMount(() => {
     void getWorkspaces().then((list) => (workspaceList = list))
   })
   /** The mirror this page is looking at: URL mount, or the serve primary. */

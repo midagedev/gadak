@@ -162,8 +162,10 @@ test.describe('place params', () => {
      *
      * This runs the strong case — every place param honored at once (the
      * fixture defaults the feed on): panels open, the feed's own sidebar row
-     * lit as a place highlight, and the view match still reading exactly what
-     * it read before any of them arrived.
+     * lit as a place highlight. While the feed holds the main column no view
+     * row is tinted (GDK-133: the highlight follows the main column), so the
+     * view match is read where it is readable — after the feed closes, it
+     * must be exactly what it was before any place param arrived.
      */
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
@@ -180,6 +182,14 @@ test.describe('place params', () => {
     // The feed screen took the main column — honored, not merely carried.
     await expect(feedClose(page)).toBeVisible()
     expect(page.url()).toContain('feed=reporter')
+    // GDK-133: the feed owns the main column, so no view row is tinted now.
+    expect(await activeSidebarView(page)).toEqual([])
+    // Closing the overlays proves the view config was never touched: the
+    // same view lights right back up once the list owns the column again.
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('settings-dialog')).toHaveCount(0)
+    await feedClose(page).click()
+    await expect(page.getByTestId('issue-layout')).toBeVisible()
     expect(await activeSidebarView(page)).toEqual(before)
 
     const saved = await page.evaluate(() => localStorage.getItem('gadak:last-view') ?? '')
