@@ -59,6 +59,12 @@ jobs:
       - name: Frontend unit tests
         run: npm run test:unit
 
+      # Palette contract: contrast floors, ladder shape, ink rank, and the
+      # anti-slop bounds that keep a theme from drifting into a cool-gray
+      # ground. Parses app.css, so it catches a hand-edited hex.
+      - name: Theme check
+        run: npm run theme-check
+
       - name: Serve smoke
         run: |
           set -euo pipefail
@@ -146,3 +152,25 @@ jobs:
 
       - name: Run browser E2E
         run: npx playwright test --config e2e/playwright.config.ts
+
+  # Nested module (desktop/go.mod). package main imports wails v3, which does
+  # not compile on Linux with CGO_ENABLED=0 (undefined pointer in the linux
+  # files). Handler/deeplink tests are platform-neutral; this runner is the
+  # link. No real window: Restore/Focus and dock reopen are not exercised.
+  desktop:
+    name: Desktop tests
+    runs-on: macos-14
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+          cache: true
+
+      - name: Desktop Go build, test, vet
+        run: cd desktop && go build ./... && go test ./... -count=1 && go vet ./...

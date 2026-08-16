@@ -127,8 +127,7 @@ func run() error {
 				if window == nil {
 					return
 				}
-				window.Restore()
-				window.Focus()
+				raiseWindow(window)
 				// A gadak:// launch arrives as a second instance: macOS starts
 				// a process, wails captures the pending Apple Event there and
 				// forwards the URL in argv. Raise first, then navigate — the
@@ -178,45 +177,29 @@ func run() error {
 	}
 	app.Menu.Set(appMenu)
 
-	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "Gadak",
-		Width:     1280,
-		Height:    820,
-		MinWidth:  720,
-		MinHeight: 480,
-		URL:       "/",
-		// --wails-draggable is not a native hit-test. The v3 runtime module
-		// (internal/runtime/.../drag.ts) attaches capture-phase listeners and
-		// posts wails:drag / wails:drag:doubleclick. Official examples put
-		// <script type="module" src="/wails/runtime.js"> in the page; this
-		// bundle also serves `gadak serve`, so the tag is not in index.html.
-		// Evaluate the import after navigation so `/` and `/w/` remounts both
-		// get drag. The asset-server middleware serves /wails/runtime.js
-		// before our mux — this is not a fallback for a swallowed path.
-		JS: `void import("/wails/runtime.js")`,
-		Mac: application.MacWindow{
-			// No native title bar: it spent 28px to repeat a word the sidebar
-			// already shows. The window controls stay (they move into the
-			// sidebar's first row, which reserves their width and is a drag
-			// handle — see .desktop-titlebar-row in web/src/app.css). The
-			// list toolbar is the other handle (.desktop-drag-region).
-			TitleBar: application.MacTitleBarHiddenInset,
-		},
-	})
+	window = app.Window.NewWithOptions(mainWindowOptions())
 	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		log.Print("wails runtime ready — --wails-draggable listeners are attached")
 	})
 
 	applyDeepLink = deepLinkNavigator(config.Profile(), func(path string) {
 		window.SetURL(path)
-		window.Restore()
-		window.Focus()
+		raiseWindow(window)
 	})
 	// The other delivery route: the app was already running, so the Apple
 	// Event reaches this process and wails emits it as an application event.
 	app.Event.OnApplicationEvent(events.Common.ApplicationLaunchedWithUrl,
 		func(e *application.ApplicationEvent) {
 			applyDeepLink(e.Context().URL())
+		})
+	// Dock click (minimised or no visible window). wails' own handler only
+	// Show()s when HasVisibleWindows is false; a miniaturised window is still
+	// "visible", so Restore+Focus is the same raise the second-instance path
+	// already uses. The event is defined on every GOOS and never fires off
+	// darwin — same as ApplicationLaunchedWithUrl.
+	app.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen,
+		func(*application.ApplicationEvent) {
+			raiseWindow(window)
 		})
 
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
@@ -272,6 +255,41 @@ func profileLockKey() string {
 		return p
 	}
 	return "default"
+}
+
+// mainWindowOptions is the single construction site for the window so a test
+// can pin that /wails/runtime.js is not also loaded via the JS option.
+// serveDesktopIndex injects the <script> tag into every index.html response.
+func mainWindowOptions() application.WebviewWindowOptions {
+	return application.WebviewWindowOptions{
+		Title:     "Gadak",
+		Width:     1280,
+		Height:    820,
+		MinWidth:  720,
+		MinHeight: 480,
+		URL:       "/",
+		// No JS: option. /wails/runtime.js is injected once by
+		// serveDesktopIndex so a navigation does not load the module twice
+		// (the option ran on every navigation, on top of the <script> tag).
+		Mac: application.MacWindow{
+			// No native title bar: it spent 28px to repeat a word the sidebar
+			// already shows. The window controls stay (they move into the
+			// sidebar's first row, which reserves their width and is a drag
+			// handle — see .desktop-titlebar-row in web/src/app.css). The
+			// list toolbar is the other handle (.desktop-drag-region).
+			TitleBar: application.MacTitleBarHiddenInset,
+		},
+	}
+}
+
+// raiseWindow is the one raise path: second-instance, deeplink, and dock
+// reopen. Restore un-minimises; Focus brings the window forward.
+func raiseWindow(w *application.WebviewWindow) {
+	if w == nil {
+		return
+	}
+	w.Restore()
+	w.Focus()
 }
 
 // assetHandler serves the embedded web UI and hands everything it does not

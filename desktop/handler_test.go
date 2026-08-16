@@ -395,6 +395,18 @@ func TestDesktopWorkspaceRoutes(t *testing.T) {
 		}
 	})
 
+	t.Run("workspace SPA index has one runtime.js", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/w/work/", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != 200 {
+			t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+		}
+		if n := strings.Count(rec.Body.String(), "/wails/runtime.js"); n != 1 {
+			t.Fatalf("runtime.js refs = %d\n%s", n, rec.Body.String())
+		}
+	})
+
 	t.Run("workspaces list is JSON", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/workspaces", nil)
 		rec := httptest.NewRecorder()
