@@ -23,6 +23,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { applyServerSearchOutcome } from '../../lib/server-search'
+  import { showIssueList } from '../../lib/show-issue-list'
   import { filters } from '../../stores/filters.svelte'
   import { me } from '../../stores/me.svelte'
   import EmptyState from '../list/EmptyState.svelte'
@@ -133,13 +134,22 @@
     else selection.select(entry.key)
   }
 
+  /**
+   * Hand the visited issues to the list *in visit order*. `emptyConfig()`
+   * carries `defaultDisplay()`, whose grouping is `status_category`, so the
+   * grouping is named here rather than left to the default — otherwise the
+   * order this pane exists to show is shredded into status buckets, and
+   * `configToParams` (whose contextual default for a keys view is already
+   * `none`) writes the regrouping into the URL as `g=status_category`.
+   * Order itself needs no sort: `filters.effectiveSort` promotes a keys-only
+   * view to the `keys` sort, which is the given order.
+   */
   function openAsList(): void {
     if (!listKeys.length) return
     const c = emptyConfig()
     c.filters.keys = listKeys
-    me.closeFeed()
-    pages.closeDocs()
-    filters.applyConfig(c)
+    c.display.group_by = 'none'
+    showIssueList(c)
   }
 
   function onFilterKey(e: KeyboardEvent): void {
