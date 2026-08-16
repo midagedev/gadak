@@ -33,8 +33,12 @@
     <span class="type-subject text-[18px] leading-none text-text-primary">gadak</span>
   </div>
 
-  <!-- Navigation slot -->
-  <nav class="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+  <!-- Navigation slot. This nav is the named scroll-region frame; the
+       overflowing leaf (and the spacer) is the child .scroll-region.
+       overflow-y-auto here was a second clip that never scrolled — the
+       child is h-full. pb-3 is inset under the pinned footer, not
+       last-row breathing room. -->
+  <nav class="scroll-region min-h-0 flex-1 px-2 pb-3">
     {@render children?.()}
   </nav>
 </aside>

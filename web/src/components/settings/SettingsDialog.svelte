@@ -306,7 +306,11 @@
     </div>
 
     <!-- Body -->
-    <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[12px]">
+    <div
+      class="scroll-region min-h-0 flex-1 px-5 pt-4 text-[12px]"
+      style="--scroll-pad-bottom: 1rem"
+      data-testid="settings-scroll"
+    >
       {#if loading}
         <p class="py-8 text-center text-text-muted">{t('settings.loading')}</p>
       {:else}

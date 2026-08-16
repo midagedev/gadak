@@ -606,7 +606,7 @@
       id="palette-list"
       role="listbox"
       aria-label={t('palette.title')}
-      class="min-h-0 flex-1 overflow-y-auto p-1"
+      class="scroll-region min-h-0 flex-1 px-1 pt-1"
     >
       {#if !needle}
         <p class="px-2 pb-1 pt-2 text-micro text-text-muted" data-testid="palette-empty-hint">

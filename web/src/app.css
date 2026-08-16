@@ -746,6 +746,32 @@
     }
   }
 
+  /*
+    Scroll region. Flex items with overflow-y:auto drop padding-bottom from
+    the scrollable overflow, so the last row sits on the clip edge and a
+    Hangul 받침 is cut through its x-height. An in-flow ::after always
+    extends scrollHeight. Scale with --scroll-pad-bottom (default 12px).
+    Padding, not a fade: the three surfaces do not share one fill
+    (panel / inset cards / active row), so a gradient would smear, and
+    chrome recedes (docs/UX_PRINCIPLES.md §5).
+  */
+  .scroll-region {
+    --scroll-pad-bottom: 0.75rem;
+  }
+  /* Leaf only. A wrapper that also carries the class (sidebar nav around
+     a pinned footer) must not grow a second scroller or a spacer under
+     the footer. */
+  .scroll-region:not(:has(.scroll-region)) {
+    overflow-y: auto;
+  }
+  .scroll-region:not(:has(.scroll-region))::after {
+    content: '';
+    display: block;
+    flex-shrink: 0;
+    height: var(--scroll-pad-bottom);
+    pointer-events: none;
+  }
+
   /* Toast — slide in from the right. */
   .anim-toast {
     animation: in-slide-right 0.18s ease-out;
