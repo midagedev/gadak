@@ -7,11 +7,16 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/clitool"
@@ -34,7 +39,11 @@ Options:
   --project   install into ./.claude/skills/gadak/ (current working directory)
   --dir PATH  install into PATH/gadak/SKILL.md (overrides default and --project)
   --print     print the install plan without writing
-  --force     overwrite when the existing file differs from the embedded skill
+  --force     overwrite a SKILL.md gadak did not write (hand-edited or your own)
+
+Upgrades are not conflicts: when the file already there is a copy gadak
+installed earlier, it is replaced in place and the command prints "updated:".
+Only a file gadak did not write needs --force.
 
 Install locations (when --dir is omitted):
   default     ~/.claude/skills/gadak/SKILL.md
@@ -149,8 +158,12 @@ func resolveSkillDest(project bool, dirFlag string) (string, error) {
 	return filepath.Join(home, ".claude", "skills", "gadak", "SKILL.md"), nil
 }
 
-// installSkill writes content to dest (or plans with printOnly). Byte-identical
-// existing file → already installed (exit 0). Differing content without force → error.
+// installSkill writes content to dest (or plans with printOnly).
+//
+//	identical  nothing to do (exit 0)
+//	stale      a copy gadak wrote, now behind → overwrite, print "updated:"
+//	conflict   a file gadak did not write → refuse unless force
+//	missing    → install
 func installSkill(w io.Writer, content []byte, dest string, force, printOnly bool) error {
 	if len(content) == 0 {
 		return fmt.Errorf("embedded skill is empty — this binary was built without skills/gadak/SKILL.md")
@@ -169,28 +182,34 @@ func installSkill(w io.Writer, content []byte, dest string, force, printOnly boo
 			fmt.Fprintf(w, "status:  missing (would install)\n")
 		case "identical":
 			fmt.Fprintf(w, "status:  already installed (identical)\n")
-		case "differs":
+		case "stale":
+			fmt.Fprintf(w, "status:  stale (gadak installed it; would update)\n")
+		case "conflict":
 			fmt.Fprintf(w, "status:  differs (use --force to overwrite)\n")
 		}
 		return nil
 	}
 
+	// verb is what the user is told happened. An upgrade of our own copy is an
+	// "updated:", so the log of a brew upgrade reads differently from a first
+	// install — that difference is the whole point of GDK-92.
+	verb := "installed"
 	switch status {
 	case "identical":
 		fmt.Fprintf(w, "already installed: %s\n", clitool.TildeHome(dest))
 		fmt.Fprintf(w, "next: restart the agent or open a new session so it picks up the skill\n")
 		return nil
-	case "differs":
+	case "stale":
+		verb = "updated"
+	case "conflict":
 		if !force {
-			return fmt.Errorf("%s exists and differs from the embedded skill — re-run with --force to overwrite (your edits will be lost)",
-				clitool.TildeHome(dest))
+			return errSkillConflict(dest, existing)
 		}
 	case "missing":
 		// install below
 	default:
 		return fmt.Errorf("internal: unknown skill dest status %q", status)
 	}
-	_ = existing // only used for status classification
 
 	dir := filepath.Dir(dest)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -218,14 +237,30 @@ func installSkill(w io.Writer, content []byte, dest string, force, printOnly boo
 	if err := os.Rename(tmpName, dest); err != nil {
 		return fmt.Errorf("install %s: %w", clitool.TildeHome(dest), err)
 	}
+	// The receipt is what makes the *next* upgrade a no-question overwrite.
+	// Failing to write it costs nothing today, so it never fails the install.
+	if err := writeSkillReceipt(dir, skillDigest(content)); err != nil {
+		fmt.Fprintf(w, "note: could not record the install receipt in %s — the next upgrade may ask for --force\n",
+			clitool.TildeHome(dir))
+	}
 
-	fmt.Fprintf(w, "installed: %s\n", clitool.TildeHome(dest))
+	fmt.Fprintf(w, "%s: %s\n", verb, clitool.TildeHome(dest))
 	fmt.Fprintf(w, "next: restart the agent or open a new session so it picks up the skill\n")
 	return nil
 }
 
 // skillDestStatus classifies dest relative to content.
-// Returns status "missing" | "identical" | "differs", and existing bytes when present.
+//
+//	missing    nothing at dest
+//	identical  byte-equal to content — nothing to do
+//	stale      gadak wrote it and it has since fallen behind: either it still
+//	           matches the receipt gadak left beside it, or its digest is one of
+//	           the copies gadak shipped before receipts existed
+//	conflict   anything else — someone else's file, or gadak's file after a hand
+//	           edit. Only --force replaces it.
+//
+// Identity is the content hash, never mtime: `brew upgrade` rewrites timestamps
+// and `git checkout` restores them, so neither says who wrote the bytes.
 func skillDestStatus(dest string, content []byte) (status string, existing []byte, err error) {
 	fi, err := os.Lstat(dest)
 	if err != nil {
@@ -244,5 +279,141 @@ func skillDestStatus(dest string, content []byte) (status string, existing []byt
 	if bytes.Equal(existing, content) {
 		return "identical", existing, nil
 	}
-	return "differs", existing, nil
+	if skillIsOurs(filepath.Dir(dest), existing) {
+		return "stale", existing, nil
+	}
+	return "conflict", existing, nil
+}
+
+// ---------------------------------------------------------------------------
+// Provenance: telling gadak's own copy from the user's file (GDK-92)
+//
+// Before this, "differs from the embedded skill" was read as "the user edited
+// it", so every `brew upgrade` turned the documented one-liner red. The two
+// cases are told apart by content hash:
+//
+//   1. a receipt gadak leaves beside SKILL.md on every install. If the file
+//      still hashes to what the receipt says gadak wrote, gadak wrote it and
+//      nobody has touched it since. This is the mechanism going forward — it
+//      needs no per-release maintenance.
+//   2. legacySkillDigests, for the installs that predate the receipt.
+//
+// A file that matches neither is the user's, and the refusal stands.
+// ---------------------------------------------------------------------------
+
+// skillReceiptName sits next to SKILL.md. It is a disposable cache, not data:
+// delete it and the worst that happens is the next upgrade asks for --force.
+const skillReceiptName = ".gadak-skill.json"
+
+// skillReceipt records what gadak last wrote at a destination. Only SHA256 is
+// compared; the other fields are there so a human who opens the file can tell
+// what put it there and when.
+type skillReceipt struct {
+	SHA256       string `json:"sha256"`
+	GadakVersion string `json:"gadak_version"`
+	InstalledAt  string `json:"installed_at"`
+}
+
+// legacySkillDigests are the SHA-256 digests of every skills/gadak/SKILL.md
+// gadak shipped *before* installs started leaving a receipt.
+//
+// This set is FROZEN — it is the backfill for pre-receipt installs only, and it
+// must not grow. Every release from this one on writes skillReceiptName, so its
+// own body is recognised by the receipt rather than by a new entry here. (An
+// append-only table that a release could forget to update is exactly the bug
+// this round is closing, so there is nothing to append to.)
+//
+// Derived 2026-08-16 from `git log --follow -- skills/gadak/SKILL.md`: seven
+// revisions, of which the newest is the current embed and is deliberately
+// absent — that one classifies as "identical", not "stale". The two oldest
+// lived at skills/scry/SKILL.md, before the rename to gadak.
+var legacySkillDigests = map[string]string{
+	"37c489c4475984c1a9c33852828640c4833dda7f20d939063af6f944ccd40565": "79a70f3",
+	"a00da5247df29926d88d4948f1ba16e36ea1c9cda1eb8728a2a9cc2d2ff1b594": "3d7a65b",
+	"be5be92dfc76faed5a330dd905895efcbc6a433fc782fa566c6c1653956e9a32": "c7628ef",
+	"5a6ca6f702ade9f91fa740f80b1600fe781508c82b17dfbee242b5f506d9b3ab": "eed711e",
+	"5a6d63ae45af97344c0b91052ef59abbc763de815e277aa6a12bd2d8981f06fd": "1096106",
+	"1f7000999eaebdeade1995b97373a083a3cc9f02673a8798020f463e3b7d27d8": "f2b8d94",
+}
+
+// skillIsOurs reports whether gadak wrote these exact bytes.
+func skillIsOurs(dir string, existing []byte) bool {
+	digest := skillDigest(existing)
+	if r, ok := readSkillReceipt(dir); ok && r.SHA256 == digest {
+		return true
+	}
+	_, ok := legacySkillDigests[digest]
+	return ok
+}
+
+func skillDigest(content []byte) string {
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])
+}
+
+// readSkillReceipt returns the receipt in dir. A missing, unreadable, corrupt
+// or digest-less receipt is simply "no receipt" — it degrades to the legacy
+// digest table and, failing that, to the refusal.
+func readSkillReceipt(dir string) (skillReceipt, bool) {
+	raw, err := os.ReadFile(filepath.Join(dir, skillReceiptName))
+	if err != nil {
+		return skillReceipt{}, false
+	}
+	var r skillReceipt
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return skillReceipt{}, false
+	}
+	if r.SHA256 == "" {
+		return skillReceipt{}, false
+	}
+	return r, true
+}
+
+func writeSkillReceipt(dir, digest string) error {
+	raw, err := json.MarshalIndent(skillReceipt{
+		SHA256:       digest,
+		GadakVersion: version,
+		InstalledAt:  time.Now().UTC().Format(time.RFC3339),
+	}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, skillReceiptName), append(raw, '\n'), 0o644)
+}
+
+// errSkillConflict refuses a file gadak did not write. When the file carries
+// `name: gadak` the message says so, because that is the confusing case: the
+// frontmatter says "gadak" but the bytes are not any skill gadak shipped, which
+// means someone edited it — and their edit is what --force would destroy.
+func errSkillConflict(dest string, existing []byte) error {
+	msg := fmt.Sprintf("%s exists and differs from the embedded skill — re-run with --force to overwrite (your edits will be lost)",
+		clitool.TildeHome(dest))
+	if skillFrontmatterName(existing) == "gadak" {
+		msg += "\nit declares `name: gadak` but its contents match no skill gadak shipped, so it is treated as your edit"
+	}
+	return errors.New(msg)
+}
+
+// skillFrontmatterName returns the `name:` value of a leading YAML frontmatter
+// block, or "". It is used only to sharpen the refusal message, never as a
+// licence to overwrite: a user who edits gadak's own skill keeps `name: gadak`
+// in it, so trusting that line would delete exactly the edits the refusal
+// exists to protect.
+func skillFrontmatterName(content []byte) string {
+	const fence = "---\n"
+	s := string(content)
+	if !strings.HasPrefix(s, fence) {
+		return ""
+	}
+	body := s[len(fence):]
+	end := strings.Index(body, "\n---")
+	if end < 0 {
+		return ""
+	}
+	for _, line := range strings.Split(body[:end], "\n") {
+		if v, ok := strings.CutPrefix(line, "name:"); ok {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }

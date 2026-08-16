@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	gadak "github.com/midagedev/gadak"
+	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -39,8 +41,28 @@ type doctorReport struct {
 	Credential    string                `json:"credential"`
 	Site          string                `json:"site"`
 	Email         string                `json:"email"`
+	Skill         doctorSkill           `json:"skill"`
+	MCP           doctorMCP             `json:"mcp"`
 	Sync          map[string]doctorSync `json:"sync"`
 	APIUsage      doctorAPIUsage        `json:"api_usage"`
+}
+
+// doctorSkill answers "is my Claude Code skill current?" without the user
+// having to diff files by hand. Identity is the content hash, never mtime.
+type doctorSkill struct {
+	Status string `json:"status"` // missing | stale | current
+	Scope  string `json:"scope"`  // user | project
+	Path   string `json:"path"`   // tilde-abbreviated (user) or repo-relative (project)
+}
+
+// doctorMCP reports whether gadak is registered as an MCP server. Only the
+// config file and the scope name are reported — never the project directory a
+// local registration is filed under, which would put the user's working path in
+// a document the banner promises is safe to paste.
+type doctorMCP struct {
+	Status string `json:"status"`          // absent | registered
+	Scope  string `json:"scope,omitempty"` // user | local | project | other
+	Path   string `json:"path,omitempty"`  // tilde-abbreviated config path
 }
 
 type doctorMirror struct {
@@ -134,6 +156,12 @@ func collectDoctor() doctorReport {
 		}
 	}
 
+	// Agent wiring is independent of the mirror, and the mirror branch below
+	// returns early — collect it first so a user with no mirror still gets the
+	// answer to "is my skill current?".
+	rep.Skill = collectSkillStatus()
+	rep.MCP = collectMCPStatus()
+
 	path, err := config.DBPath()
 	if err != nil {
 		rep.Mirror = doctorMirror{Status: "open_error", Detail: "path unavailable"}
@@ -216,6 +244,110 @@ func collectDoctor() doctorReport {
 	}
 
 	return rep
+}
+
+// collectSkillStatus reuses the installer's own classifier (skillDestStatus in
+// skill.go), so `gadak doctor` and `gadak skill install --print` can never
+// disagree about the same file.
+func collectSkillStatus() doctorSkill {
+	content := gadak.SkillMarkdown()
+
+	userDest, userErr := resolveSkillDest(false, "")
+	if userErr == nil {
+		if status, _, err := skillDestStatus(userDest, content); err == nil && status != "missing" {
+			return doctorSkill{Status: doctorSkillWord(status), Scope: "user", Path: tildeHome(userDest)}
+		}
+	}
+	// Nothing at the user scope — a `--project` install still counts. Report it
+	// with the literal relative path: printing the working directory would put
+	// the user's project name in a report meant to be pasted in public.
+	if projDest, err := resolveSkillDest(true, ""); err == nil {
+		if status, _, err := skillDestStatus(projDest, content); err == nil && status != "missing" {
+			return doctorSkill{
+				Status: doctorSkillWord(status),
+				Scope:  "project",
+				Path:   filepath.Join(".claude", "skills", "gadak", "SKILL.md"),
+			}
+		}
+	}
+	path := "unknown"
+	if userErr == nil {
+		path = tildeHome(userDest)
+	}
+	return doctorSkill{Status: "missing", Scope: "user", Path: path}
+}
+
+// doctorSkillWord maps the installer's four-way classification onto the three
+// words doctor reports. "conflict" (a file gadak did not write) reports as
+// stale because either way what the agent loads is not this binary's skill;
+// `gadak skill install --print` is the command that tells the two apart.
+func doctorSkillWord(installStatus string) string {
+	if installStatus == "identical" {
+		return "current"
+	}
+	return "stale"
+}
+
+// claudeMCPConfig is the slice of Claude Code's config that says whether gadak
+// is registered. `claude mcp add` (what `gadak mcp install claude` runs) files
+// the entry under projects[<cwd>] at its default scope, and under the top-level
+// mcpServers at user scope.
+type claudeMCPConfig struct {
+	MCPServers map[string]json.RawMessage `json:"mcpServers"`
+	Projects   map[string]struct {
+		MCPServers map[string]json.RawMessage `json:"mcpServers"`
+	} `json:"projects"`
+}
+
+// claudeConfigMaxBytes caps the read of a config file doctor does not own.
+const claudeConfigMaxBytes = 32 << 20
+
+func collectMCPStatus() doctorMCP {
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		cfgPath := filepath.Join(home, ".claude.json")
+		if cfg, ok := readClaudeMCPConfig(cfgPath); ok {
+			if _, found := cfg.MCPServers["gadak"]; found {
+				return doctorMCP{Status: "registered", Scope: "user", Path: tildeHome(cfgPath)}
+			}
+			if cwd, err := os.Getwd(); err == nil {
+				if _, found := cfg.Projects[cwd].MCPServers["gadak"]; found {
+					return doctorMCP{Status: "registered", Scope: "local", Path: tildeHome(cfgPath)}
+				}
+			}
+			for _, p := range cfg.Projects {
+				if _, found := p.MCPServers["gadak"]; found {
+					// Registered, but filed under some other directory — the
+					// directory itself is never printed.
+					return doctorMCP{Status: "registered", Scope: "other", Path: tildeHome(cfgPath)}
+				}
+			}
+		}
+	}
+	// Project-scoped registrations live in a .mcp.json beside the checkout.
+	if cfg, ok := readClaudeMCPConfig(".mcp.json"); ok {
+		if _, found := cfg.MCPServers["gadak"]; found {
+			return doctorMCP{Status: "registered", Scope: "project", Path: ".mcp.json"}
+		}
+	}
+	return doctorMCP{Status: "absent"}
+}
+
+// readClaudeMCPConfig is best-effort: a missing, oversized, or unparsable file
+// is simply "no registration found". doctor never writes to it.
+func readClaudeMCPConfig(path string) (claudeMCPConfig, bool) {
+	fi, err := os.Stat(path)
+	if err != nil || fi.IsDir() || fi.Size() > claudeConfigMaxBytes {
+		return claudeMCPConfig{}, false
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return claudeMCPConfig{}, false
+	}
+	var cfg claudeMCPConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return claudeMCPConfig{}, false
+	}
+	return cfg, true
 }
 
 func collectSync(db *store.DB, sourceID string) doctorSync {
@@ -310,6 +442,17 @@ func formatDoctorText(r doctorReport) string {
 	line("site", r.Site)
 	line("email", r.Email)
 
+	if r.Skill.Path != "" {
+		line("skill", r.Skill.Status+" ("+r.Skill.Path+")")
+	} else {
+		line("skill", r.Skill.Status)
+	}
+	if r.MCP.Path != "" {
+		line("mcp", r.MCP.Status+" ("+r.MCP.Path+", "+r.MCP.Scope+")")
+	} else {
+		line("mcp", r.MCP.Status)
+	}
+
 	for _, src := range []string{"jira", "confluence"} {
 		s, ok := r.Sync[src]
 		if !ok {
@@ -331,29 +474,12 @@ func formatDoctorText(r doctorReport) string {
 }
 
 // tildeHome shortens an absolute path under the user's home to ~/… so doctor
-// output never embeds the account username.
+// output never embeds the account username. It is clitool.TildeHome — the one
+// implementation, kept behind this name so doctor's many call sites stay short.
+// GADAK_HOME may sit outside $HOME (tests, CI); such a path is returned cleaned
+// but otherwise as-is, since it carries no home prefix to strip.
 func tildeHome(path string) string {
-	if path == "" {
-		return path
-	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return filepath.Clean(path)
-	}
-	clean := filepath.Clean(path)
-	homeClean := filepath.Clean(home)
-	if clean == homeClean {
-		return "~"
-	}
-	sep := string(filepath.Separator)
-	if strings.HasPrefix(clean, homeClean+sep) {
-		return "~" + clean[len(homeClean):]
-	}
-	// GADAK_HOME may sit outside $HOME (tests, CI). Still strip any path segment
-	// that looks like a username by refusing to print the raw home prefix when
-	// the env override is used — leave absolute paths that are not under home
-	// as-is only when they already contain no home component.
-	return clean
+	return clitool.TildeHome(path)
 }
 
 // redactSite never returns a hostname. Atlassian Cloud sites collapse to a

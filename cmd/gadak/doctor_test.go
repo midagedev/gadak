@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -16,6 +17,9 @@ import (
 func TestDoctorNoMirrorSucceeds(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
+	// doctor now reports on ~/.claude too (GDK-92); keep the suite off the
+	// developer's real agent config.
+	t.Setenv("HOME", home)
 	config.SetProfile("")
 
 	out, err := capture(t, func() error { return cmdDoctor(nil) })
@@ -37,6 +41,9 @@ func TestDoctorNoMirrorSucceeds(t *testing.T) {
 func TestDoctorDemoDBCounts(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
+	// doctor now reports on ~/.claude too (GDK-92); keep the suite off the
+	// developer's real agent config.
+	t.Setenv("HOME", home)
 	config.SetProfile("")
 
 	src := filepath.Join("..", "..", "examples", "demo.db")
@@ -81,8 +88,15 @@ func TestDoctorDemoDBCounts(t *testing.T) {
 }
 
 func TestDoctorRedaction(t *testing.T) {
+	// Capture the real home before isolating: the leak check at the bottom is
+	// about the *account* username, so it must keep asking about the real one.
+	realHome, realHomeErr := os.UserHomeDir()
+
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
+	// doctor now reports on ~/.claude too (GDK-92); keep the suite off the
+	// developer's real agent config.
+	t.Setenv("HOME", home)
 	config.SetProfile("")
 
 	// Seed a tiny mirror with project keys that must never appear in output.
@@ -185,8 +199,8 @@ func TestDoctorRedaction(t *testing.T) {
 		}
 	}
 	// Username from the temp path must not appear if home-relative.
-	if home, err := os.UserHomeDir(); err == nil {
-		base := filepath.Base(home)
+	if realHomeErr == nil {
+		base := filepath.Base(realHome)
 		// Only flag when the home base is a plausible username length and
 		// appears as a path segment (not as part of unrelated words).
 		if base != "" && base != "tmp" && strings.Contains(out, "/"+base+"/") {
@@ -198,6 +212,9 @@ func TestDoctorRedaction(t *testing.T) {
 func TestDoctorJSONMatchesHumanFields(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
+	// doctor now reports on ~/.claude too (GDK-92); keep the suite off the
+	// developer's real agent config.
+	t.Setenv("HOME", home)
 	config.SetProfile("")
 
 	// Empty home is enough — doctor succeeds without a mirror.
@@ -250,6 +267,119 @@ func TestDoctorJSONMatchesHumanFields(t *testing.T) {
 	if rep.Credential != "absent" || rep.Site != "none" || rep.Email != "none" {
 		t.Fatalf("empty config: credential=%q site=%q email=%q", rep.Credential, rep.Site, rep.Email)
 	}
+}
+
+// TestDoctorReportsSkillAndMCP — GDK-92. A user whose skill is a release behind
+// had no way to find out; doctor now answers it. Identity is the content hash,
+// never mtime, so the whole test drives the file bytes.
+func TestDoctorReportsSkillAndMCP(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	// --project would resolve against the package directory; keep it inside the
+	// scratch home so the real checkout is never consulted.
+	t.Chdir(home)
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, human)
+	}
+	if !strings.Contains(human, "skill:") {
+		t.Fatalf("doctor grew no skill line:\n%s", human)
+	}
+	if !strings.Contains(human, "mcp:") {
+		t.Fatalf("doctor grew no mcp line:\n%s", human)
+	}
+	if got := doctorValue(t, human, "skill"); !strings.HasPrefix(got, "missing") {
+		t.Errorf("empty home: skill = %q, want missing", got)
+	}
+	if got := doctorValue(t, human, "mcp"); !strings.HasPrefix(got, "absent") {
+		t.Errorf("no claude config: mcp = %q, want absent", got)
+	}
+
+	dest := filepath.Join(home, ".claude", "skills", "gadak", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, gadak.SkillMarkdown(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	human, err = capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	if got := doctorValue(t, human, "skill"); !strings.HasPrefix(got, "current") {
+		t.Errorf("byte-equal skill = %q, want current", got)
+	}
+	if !strings.Contains(human, "~/.claude/skills/gadak/SKILL.md") {
+		t.Errorf("skill line should carry the tilde-abbreviated path, got:\n%s", human)
+	}
+
+	// One byte behind is stale — same file name, same mtime granularity.
+	if err := os.WriteFile(dest, append(append([]byte{}, gadak.SkillMarkdown()...), '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	human, err = capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	if got := doctorValue(t, human, "skill"); !strings.HasPrefix(got, "stale") {
+		t.Errorf("one-byte-behind skill = %q, want stale", got)
+	}
+
+	// Claude Code's user-scope MCP registration.
+	claudeCfg := filepath.Join(home, ".claude.json")
+	if err := os.WriteFile(claudeCfg, []byte(`{"mcpServers":{"gadak":{"command":"gadak","args":["mcp"]}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	human, err = capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	if got := doctorValue(t, human, "mcp"); !strings.HasPrefix(got, "registered") {
+		t.Errorf("registered server: mcp = %q, want registered", got)
+	}
+	if !strings.Contains(human, "~/.claude.json") {
+		t.Errorf("mcp line should carry the tilde-abbreviated config path, got:\n%s", human)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v", err)
+	}
+	var rep doctorReport
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.Skill.Status != "stale" || rep.Skill.Scope != "user" || rep.Skill.Path != "~/.claude/skills/gadak/SKILL.md" {
+		t.Errorf("json skill = %+v", rep.Skill)
+	}
+	if rep.MCP.Status != "registered" || rep.MCP.Scope != "user" || rep.MCP.Path != "~/.claude.json" {
+		t.Errorf("json mcp = %+v", rep.MCP)
+	}
+	// The JSON tags are the contract: name them literally, so a rename of a
+	// struct field cannot pass by silently.
+	for _, want := range []string{`"skill"`, `"mcp"`, `"status"`, `"scope"`, `"path"`} {
+		if !strings.Contains(raw, want) {
+			t.Errorf("JSON report missing %s:\n%s", want, raw)
+		}
+	}
+}
+
+// doctorValue pulls one "key: value" line out of the human report so the tests
+// assert on the value, not on the column padding.
+func doctorValue(t *testing.T, out, key string) string {
+	t.Helper()
+	for _, line := range strings.Split(out, "\n") {
+		rest, ok := strings.CutPrefix(line, key+":")
+		if !ok {
+			continue
+		}
+		return strings.TrimSpace(rest)
+	}
+	t.Fatalf("no %q line in doctor output:\n%s", key, out)
+	return ""
 }
 
 func TestClassifyLastError(t *testing.T) {
