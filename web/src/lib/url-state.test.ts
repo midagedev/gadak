@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { PLACE_PARAM_KEYS, VIEW_ALIAS_KEYS, isPlaceParam } from './url-state'
+import { PLACE_PARAM_KEYS, isPlaceParam } from './url-state'
 import { VIEW_PARAM_KEYS, isViewParam } from './view-config'
 
 /*
@@ -17,7 +17,7 @@ const KEY_SHAPE = /^[a-z][a-z0-9_.]{0,63}$/
 
 describe('url param registry', () => {
   test('no key is both a place param and a view param', () => {
-    const view = new Set(VIEW_PARAM_KEYS)
+    const view = new Set<string>(VIEW_PARAM_KEYS)
     const both = PLACE_PARAM_KEYS.filter((k) => view.has(k))
     // A key in both would end up inside saved views.
     expect(both).toEqual([])
@@ -38,12 +38,6 @@ describe('url param registry', () => {
     for (const key of PLACE_PARAM_KEYS) {
       expect(key, `${key} must match keyPattern (internal/deeplink)`).toMatch(KEY_SHAPE)
     }
-  })
-
-  test("VIEW_ALIAS_KEYS mirrors view-config's VIEW_PARAM_KEYS exactly", () => {
-    // The mirror exists because VIEW_PARAM_KEYS is string[] and cannot carry
-    // its literals into a type; this is what keeps the copy from drifting.
-    expect([...VIEW_ALIAS_KEYS].sort()).toEqual([...VIEW_PARAM_KEYS].sort())
   })
 
   test('excluded names stay out of the registry', () => {

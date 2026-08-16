@@ -340,7 +340,7 @@ export function emptyConfig(): ViewConfig {
  *  (owned by selection / sidebar respectively).
  */
 
-const MULTI_KEY: Record<MultiField, string> = {
+const MULTI_KEY = {
   status_category: 'sc',
   status: 'st',
   assignee_email: 'as',
@@ -359,7 +359,7 @@ const MULTI_KEY: Record<MultiField, string> = {
   jira_project: 'pj',
   source_project: 'spj',
   keys: 'ks',
-}
+} as const satisfies Record<MultiField, string>
 
 /**
  * Discovered-field axes serialize as `f.<alias>` params. The alias is the
@@ -369,7 +369,7 @@ export const DYN_FIELD_PREFIX = 'f.'
 
 /** Every view-affecting param, dynamic axes included (`issue` is selection, not view). */
 export function isViewParam(key: string): boolean {
-  return key.startsWith(DYN_FIELD_PREFIX) || VIEW_PARAM_KEYS.includes(key)
+  return key.startsWith(DYN_FIELD_PREFIX) || (VIEW_PARAM_KEYS as readonly string[]).includes(key)
 }
 
 const RANGE_KEY = {
@@ -387,8 +387,18 @@ const DIR_KEY = 'd'
 const COLS_KEY = 'cl' // Comma-joined column list. All off = 'none'
 const COLS_NONE = 'none'
 
+type StaticViewAlias =
+  | typeof Q_KEY
+  | (typeof MULTI_KEY)[keyof typeof MULTI_KEY]
+  | (typeof RANGE_KEY)[keyof typeof RANGE_KEY]
+  | typeof FLAG_KEY
+  | typeof GROUP_KEY
+  | typeof SORT_KEY
+  | typeof DIR_KEY
+  | typeof COLS_KEY
+
 /** Every param key involved in view serialization (stable viewKey; fixed order). */
-export const VIEW_PARAM_KEYS: string[] = [
+export const VIEW_PARAM_KEYS = [
   Q_KEY,
   ...Object.values(MULTI_KEY),
   ...Object.values(RANGE_KEY),
@@ -397,7 +407,9 @@ export const VIEW_PARAM_KEYS: string[] = [
   SORT_KEY,
   DIR_KEY,
   COLS_KEY,
-]
+] as const satisfies readonly StaticViewAlias[]
+
+export type ViewParamKey = (typeof VIEW_PARAM_KEYS)[number]
 
 /* ── Parse: URLSearchParams → ViewConfig ── */
 

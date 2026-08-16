@@ -1,3 +1,5 @@
+import type { ViewParamKey } from './view-config'
+
 /*
  * The URL's second job: naming where you are, not what you filter.
  *
@@ -56,42 +58,11 @@ export const PLACE_PARAM_KEYS = [
 export type PlaceParamKey = (typeof PLACE_PARAM_KEYS)[number]
 
 /**
- * The static view-param aliases, mirrored from view-config's VIEW_PARAM_KEYS —
- * which is typed `string[]` and so cannot carry its literals into a union.
- * url-state.test.ts asserts the two lists hold the same keys, so a new alias
- * in view-config fails the suite until it is registered here too.
+ * Closed view-param aliases. Owned by view-config (`VIEW_PARAM_KEYS` as const);
+ * re-exported so `UrlParamKey` can name the closed view half without restating
+ * the list. A new alias in view-config is a `ViewParamKey` by the compiler.
  */
-export const VIEW_ALIAS_KEYS = [
-  'q',
-  'sc',
-  'st',
-  'as',
-  'rp',
-  'gr',
-  'lb',
-  'pr',
-  'sv',
-  'ty',
-  'co',
-  'fx',
-  'qr',
-  'qs',
-  'qi',
-  'ds',
-  'pj',
-  'spj',
-  'ks',
-  'cf',
-  'ct',
-  'uf',
-  'ut',
-  'fl',
-  'g',
-  's',
-  'd',
-  'cl',
-] as const
-export type ViewParamKey = (typeof VIEW_ALIAS_KEYS)[number]
+export type { ViewParamKey }
 
 /**
  * Every key the app gives meaning to: a place param, a view param, or a
