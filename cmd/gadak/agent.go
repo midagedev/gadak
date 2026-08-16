@@ -282,7 +282,7 @@ const deriveNull = "(null)"
 
 // unmappedCategory labels a status id the mirror has no category for. Derive
 // treats it as not-done, which can only ever miss a reopen, never invent one
-// (specs/000-product/data-model.md, "Derived field rules").
+// (docs/DERIVE.md, "Derived field rules").
 const unmappedCategory = "(unmapped)"
 
 // deriveContext is the sync-time DeriveInput rebuilt from the mirror. The

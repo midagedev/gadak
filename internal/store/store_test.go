@@ -193,61 +193,10 @@ func TestWALReaderNotBlockedByWriter(t *testing.T) {
 	}
 }
 
-// exampleQueries are copied verbatim from the "Example queries" section of
-// specs/000-product/data-model.md. They are the contract in practice.
-var exampleQueries = []struct {
-	name    string
-	sql     string
-	wantMin int
-}{
-	{"reopened last month", `
-		SELECT key, summary, reopen_count, reopened_at
-		FROM issues_full
-		WHERE reopen_count > 0 AND reopened_at > datetime('now', '-1 month')
-		ORDER BY reopen_count DESC, reopened_at DESC`, 1},
-	{"full text across bodies and comments", `
-		SELECT i.key, it.title
-		FROM items_fts f
-		JOIN items it ON it.rowid = f.rowid
-		JOIN issues i ON i.item_id = it.id
-		WHERE items_fts MATCH 'idempotency AND retry'
-		LIMIT 20`, 1},
-	{"open work per assignee", `
-		SELECT COALESCE(assignee, '(unassigned)') AS who, COUNT(*) AS open
-		FROM issues
-		WHERE project_key = 'NMB' AND status_category != 'done'
-		GROUP BY who ORDER BY open DESC`, 2},
-	{"time in current status", `
-		SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS days
-		FROM issues
-		WHERE status_category = 'inprogress'
-		ORDER BY days DESC LIMIT 20`, 1},
-}
-
-func TestDocumentedExampleQueries(t *testing.T) {
-	db := openTemp(t)
-	seed(t, db)
-	for _, q := range exampleQueries {
-		rows, err := db.sql.QueryContext(context.Background(), q.sql)
-		if err != nil {
-			t.Errorf("%s: %v", q.name, err)
-			continue
-		}
-		n := 0
-		for rows.Next() {
-			n++
-		}
-		err = rows.Err()
-		rows.Close()
-		if err != nil {
-			t.Errorf("%s: %v", q.name, err)
-			continue
-		}
-		if n < q.wantMin {
-			t.Errorf("%s returned %d rows, want at least %d", q.name, n, q.wantMin)
-		}
-	}
-}
+// The documented example queries moved to docs/DERIVE.md and are executed
+// from there by TestDocumentedExampleQueries (docsql_test.go). The hand-copied
+// list that used to live here was the GDK-89 gap: the doc claimed to be locked
+// while the test ran a stale copy.
 
 func TestIssuesFullView(t *testing.T) {
 	db := openTemp(t)

@@ -158,29 +158,9 @@ detail lookups, which arrive by key.
 
 ### Derived field rules
 
-Each rule is computed during sync from the changelog, and every rule that would
-otherwise depend on site-specific naming keys on `statusCategory` instead.
-
-| Field | Rule |
-| --- | --- |
-| `status_changed_at` | Timestamp of the newest changelog entry whose field is `status` |
-| `resolved_at` | Timestamp of the newest transition whose target category is `done`; NULL if the current category is not `done` |
-| `reopen_count` | Count of changelog transitions from a `done`-category status to a non-`done` one |
-| `reopened_at` | Timestamp of the newest such transition |
-| `assignee_changed_at` | Timestamp of the newest changelog entry whose field is `assignee` |
-| `priority_rank` | Position in the site's priority list, 1-based; 0 when unset or unknown |
-| `items.body_text` | ADF flattened to plain text, plus any custom fields configured as body text. It lives on the spine, not on `issues`, because it is what FTS indexes |
-| `comment_count` | Number of rows in `comments` for the issue |
-| `reopen_reason` | Body text of the earliest comment created at or after `reopened_at`, capped at 1000 bytes on a rune boundary. A heuristic: it surfaces the explanation on teams where whoever reopens says why in a comment. Empty when never reopened or no comment followed |
-| `cloned_from` | Target of an inward link whose type name contains "clone" (Jira's default "Cloners" type). Caveat: link type names are site configuration created in the site's language — a non-English clone type derives nothing, and there is no language-stable id to key on. The read API also exposes `source_project`, the key's project prefix |
-
-A status id the site's status list does not cover counts as **not** `done`. That
-direction is deliberate: it can only miss a reopen, never invent one.
-
-Deliberately absent: time-in-status. The internal system this was extracted from
-carried a `working_hours_in_status` column that no code ever populated, and the
-UI's "stale" view read it as always zero. Staleness is computed from
-`status_changed_at` instead, with the threshold in configuration.
+Moved to [`docs/DERIVE.md`](../../docs/DERIVE.md) — one file for every column
+gadak computes rather than mirrors, with the reasoning behind each rule and
+copy-paste queries a test executes verbatim against `examples/demo.db`.
 
 ## `spaces` (v14, `homepage_id` v17)
 
@@ -513,36 +493,8 @@ popover in the web UI (`GET sync/runs/`).
 
 ## Example queries
 
-These are the contract in practice. They must keep working across minor versions,
-and `TestDocumentedExampleQueries` in `internal/store` runs each of them verbatim
-against a fixture so an edit here that no longer parses fails the build. The join
-is spelled out rather than `USING (item_id)` because the spine's primary key is
-`items.id`, and `key` exists on both tables.
-
-```sql
--- Everything reopened in the last month, worst first
-SELECT key, summary, reopen_count, reopened_at
-FROM issues_full
-WHERE reopen_count > 0 AND reopened_at > datetime('now', '-1 month')
-ORDER BY reopen_count DESC, reopened_at DESC;
-
--- Full-text across bodies and comments
-SELECT i.key, it.title
-FROM items_fts f
-JOIN items it ON it.rowid = f.rowid
-JOIN issues i ON i.item_id = it.id
-WHERE items_fts MATCH 'idempotency AND retry'
-LIMIT 20;
-
--- Open work per assignee in one project
-SELECT COALESCE(assignee, '(unassigned)') AS who, COUNT(*) AS open
-FROM issues
-WHERE project_key = 'NMB' AND status_category != 'done'
-GROUP BY who ORDER BY open DESC;
-
--- How long has each in-progress issue been sitting?
-SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS days
-FROM issues
-WHERE status_category = 'inprogress'
-ORDER BY days DESC LIMIT 20;
-```
+Moved to [`docs/DERIVE.md`](../../docs/DERIVE.md) — every documented SQL query
+lives in that one file now, and `TestDocumentedExampleQueries` in
+`internal/store` executes each `sql` fence there verbatim against a copy of
+`examples/demo.db`, so an edit that no longer parses (or returns too few rows)
+fails the build.

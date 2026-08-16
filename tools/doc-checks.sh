@@ -254,4 +254,21 @@ if [[ -n "$bashism_inline" ]]; then
 fi
 ok "Playwright webServer commands are POSIX or name bash explicitly"
 
+# ── 12. The derived-field rule table has one home ────────────────────────
+# GDK-88: what a derived column means and how it is made lives in
+# docs/DERIVE.md and only there. The rule table is recognized by its header
+# row, `| Field | Rule |` — the schema column tables use different headers
+# (`| Column | Type | Notes |`) and must not trip this check. A copy that
+# springs up anywhere else is the next drift: two tables, one of them stale.
+rule_table_hits="$(
+  grep -rFn --include='*.md' '| Field | Rule |' \
+    AGENTS.md skills/gadak/SKILL.md specs/000-product/data-model.md docs \
+    | grep -v '^docs/DERIVE.md:' \
+    || true
+)"
+if [[ -n "$rule_table_hits" ]]; then
+  fail "the derived-field rule table exists outside docs/DERIVE.md (GDK-88):"$'\n'"$rule_table_hits"
+fi
+ok "derived-field rule table lives only in docs/DERIVE.md"
+
 echo "doc-checks: all passed"

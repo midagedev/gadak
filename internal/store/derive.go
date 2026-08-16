@@ -26,7 +26,8 @@ type DeriveInput struct {
 }
 
 // Derived holds the columns gadak computes because the source does not provide
-// them. Rules are documented in data-model.md, "Derived field rules".
+// them. Rules are documented in docs/DERIVE.md, and a test there requires every
+// field of this struct to appear in that file.
 type Derived struct {
 	StatusChangedAt   *string
 	ResolvedAt        *string
