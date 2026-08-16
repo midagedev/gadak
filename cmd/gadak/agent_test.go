@@ -591,3 +591,287 @@ func TestWritesRefuseToRunWithoutACredential(t *testing.T) {
 		t.Errorf("called Jira anyway: %v", f.calls)
 	}
 }
+
+/* ── issue --derive (GDK-111) ── */
+
+// seedDerivable adds a second issue to the mirror mirror() already created, with
+// a changelog that exercises every rule store.Derive implements: a resolution
+// that is later undone, two reopens (one of them into a status the site's
+// category list does not cover), an assignee change, and a comment that follows
+// the last reopen. It goes in through db.UpsertIssues — the same path the
+// connector uses — so the stored derived columns are store.Derive's own output
+// and never a hand-written expectation.
+//
+// Status display names are Korean while the ids stay the site's: a rule that
+// branched on a name instead of a category would score this issue differently
+// from the English site, which is the defect data-model.md's "Derived field
+// rules" and the repo CLAUDE.md both call out.
+//
+// It also parks one issue in each of the workflow's other statuses. The site's
+// status list is fetched from Jira at sync time and never mirrored, so an
+// offline reader can only recover a status id's category from an issue that
+// currently sits in it — the same shape a real mirror has, where every status
+// the workflow uses is occupied by something.
+func seedDerivable(t *testing.T) {
+	t.Helper()
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+
+	ko := map[string]string{"1": "해야 할 일", "3": "진행 중", "5": "완료", "9": "릴리즈 대기"}
+	at := func(day int) string { return "2026-07-0" + strconv.Itoa(day) + "T00:00:00.000Z" }
+	status := func(day int, from, to string) store.ChangeEntry {
+		return store.ChangeEntry{
+			ID: "jira:h7-" + strconv.Itoa(day), At: at(day), Author: "Dana Whitfield",
+			Field: "status", FromValue: ko[from], FromID: from, ToValue: ko[to], ToID: to,
+		}
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		// "9" is deliberately absent: an id the site's status list does not cover
+		// counts as not-done, which can only ever miss a reopen (data-model.md).
+		Categories: map[string]string{"1": "new", "3": "inprogress", "5": "done"},
+		Priorities: []string{"Highest", "High", "Medium"},
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1007", SourceID: "jira", Kind: "issue", ExternalID: "1007", Key: "NMB-7",
+				Title:     "the retry fix keeps coming back",
+				CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-07-08T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "10004",
+				Status: ko["3"], StatusID: "3", StatusCategory: "inprogress",
+				Priority: "Medium", Assignee: "Grace Okafor", AssigneeID: "acc-go",
+			},
+			Comments: []store.Comment{
+				{ID: "jira:c-7a", ExternalID: "c-7a", Author: "Marco Reyes",
+					BodyText: "before the last reopen", CreatedAt: at(2)},
+				{ID: "jira:c-7b", ExternalID: "c-7b", Author: "Grace Okafor",
+					BodyText: "the retry fix regressed on the sandbox gateway", CreatedAt: "2026-07-06T01:00:00.000Z"},
+				{ID: "jira:c-7c", ExternalID: "c-7c", Author: "Dana Whitfield",
+					BodyText: "a later comment", CreatedAt: at(8)},
+			},
+			Changelog: []store.ChangeEntry{
+				status(1, "1", "3"),
+				status(2, "3", "5"), // into done
+				status(3, "5", "1"), // reopen #1
+				{ID: "jira:h7-4", At: at(4), Author: "Dana Whitfield",
+					Field: "assignee", FromValue: "Dana Whitfield", ToValue: "Grace Okafor"},
+				status(5, "1", "5"), // into done again
+				status(6, "5", "9"), // reopen #2: 9 is unmapped, so not done
+				status(7, "9", "3"), // unmapped -> inprogress is not a reopen
+			},
+			Links: []store.Link{{Type: "Cloners", Direction: "inward", TargetKey: "NMS-42"}},
+		}, anchor("1008", "NMB-8", "1", "new", ko), anchor("1009", "NMB-9", "5", "done", ko)},
+	}); err != nil {
+		t.Fatalf("seed NMB-7: %v", err)
+	}
+}
+
+// anchor is an issue parked in one status, so the mirror carries that status
+// id's category. No changelog: its only job is to be somewhere.
+func anchor(id, key, statusID, category string, names map[string]string) store.IssueRecord {
+	return store.IssueRecord{
+		Item: store.Item{
+			ID: "jira:" + id, SourceID: "jira", Kind: "issue", ExternalID: id, Key: key,
+			Title: "parked in " + names[statusID], CreatedAt: "2026-07-01T00:00:00.000Z",
+			UpdatedAt: "2026-07-01T00:00:00.000Z",
+		},
+		Issue: store.Issue{
+			ProjectKey: "NMB", IssueType: "Task", IssueTypeID: "10001",
+			Status: names[statusID], StatusID: statusID, StatusCategory: category,
+		},
+	}
+}
+
+// issuesColumns is the set contract 2 is checked against: the real column names
+// of the issues table, read from the mirror rather than typed out here.
+func issuesColumns(t *testing.T) map[string]bool {
+	t.Helper()
+	db, err := openReadOnly()
+	if err != nil {
+		t.Fatalf("open read-only: %v", err)
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT name FROM pragma_table_info('issues')`)
+	if err != nil {
+		t.Fatalf("pragma: %v", err)
+	}
+	defer rows.Close()
+	cols := map[string]bool{}
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		cols[n] = true
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !cols["reopen_count"] {
+		t.Fatalf("pragma returned no issues columns: %v", cols)
+	}
+	return cols
+}
+
+// derivedFieldNames pulls every `name = value` head off the rendered derivation.
+// The command prints a derived field name in column 0 and nothing else there,
+// which is what makes contract 2 checkable instead of eyeballed.
+func derivedFieldNames(out string) []string {
+	var names []string
+	for _, line := range strings.Split(out, "\n") {
+		if line == "" || line[0] == ' ' || line[0] == '\t' {
+			continue
+		}
+		name, _, ok := strings.Cut(line, " = ")
+		if !ok || strings.ContainsAny(name, " \t") {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+// TestIssueDeriveShowsTheDerivation is the recurrence gate for GDK-111. It pins
+// the rendered derivation against the very values internal/store/derive_test.go
+// asserts (TestDerive's "multiple reopens keep the newest" and "an unmapped
+// status counts as not done", and TestDeriveReopenReason), by reading them back
+// off the row store.Derive itself wrote.
+func TestIssueDeriveShowsTheDerivation(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	seedDerivable(t)
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"nmb-7", "--derive"}) })
+	if err != nil {
+		t.Fatalf("issue --derive: %v\n%s", err, out)
+	}
+
+	// The stored row is store.Derive's output at sync time; the command must
+	// print the same numbers by calling the same function, not by recomputing.
+	db, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lites, err := lookup(db, []string{"NMB-7"})
+	if err != nil || len(lites) != 1 {
+		t.Fatalf("lookup: %v %d", err, len(lites))
+	}
+	_ = db.Close()
+	l := lites[0]
+	if l.ReopenCount != 2 {
+		t.Fatalf("fixture stored reopen_count = %d, want 2 — the seed no longer matches derive_test.go", l.ReopenCount)
+	}
+	if l.ResolvedAt != nil {
+		t.Fatalf("fixture stored resolved_at = %q, want NULL (the issue is not done now)", *l.ResolvedAt)
+	}
+
+	for _, want := range []string{
+		// reopen_count, and the two rows that produced it, by category.
+		"reopen_count = 2",
+		"2026-07-03T00:00:00.000Z",
+		"2026-07-06T00:00:00.000Z",
+		"reopened_at = 2026-07-06T00:00:00.000Z",
+		// resolved_at is NULL and the output says which rule cleared it.
+		"resolved_at = (null)",
+		// Categories, never display names, are what the rules key on.
+		"done → new",
+		"inprogress → done",
+		// An id the site's category list does not cover is named as such.
+		"(unmapped)",
+		// The comment reopen_reason came from, identified.
+		"the retry fix regressed on the sandbox gateway",
+		// Fields the same one pass computes.
+		"assignee_changed_at = 2026-07-04T00:00:00.000Z",
+		"status_changed_at = 2026-07-07T00:00:00.000Z",
+		"cloned_from = NMS-42",
+		"priority_rank = 3",
+		"comment_count = 3",
+		// Calling the same function must reproduce what the sync wrote.
+		"every value above matches what the last sync wrote",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("--derive output missing %q:\n%s", want, out)
+		}
+	}
+	// Korean display names must be shown (they are the operator's vocabulary)
+	// without any rule keying on them.
+	if !strings.Contains(out, "진행 중") {
+		t.Errorf("--derive dropped the site's own status names:\n%s", out)
+	}
+
+	// Contract 2: every field name the derivation prints is a real issues column.
+	cols := issuesColumns(t)
+	names := derivedFieldNames(out)
+	if len(names) < 8 {
+		t.Fatalf("only %d derived field names found — the output shape changed: %v", len(names), names)
+	}
+	unknown := []string{}
+	for _, n := range names {
+		if !cols[n] {
+			unknown = append(unknown, n)
+		}
+	}
+	if len(unknown) != 0 {
+		t.Errorf("--derive invented %d field names that are not issues columns: %v", len(unknown), unknown)
+	}
+
+	// An issue with no reopen must still explain itself rather than print nothing.
+	out, err = capture(t, func() error { return cmdIssue([]string{"NMB-1", "--derive"}) })
+	if err != nil {
+		t.Fatalf("issue --derive (no reopen): %v", err)
+	}
+	for _, want := range []string{"reopen_count = 0", "reopen_reason = (empty)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("--derive on a never-reopened issue missing %q:\n%s", want, out)
+		}
+	}
+
+	// --json is an agent-facing contract; --derive must not reshape it.
+	out, err = capture(t, func() error { return cmdIssue([]string{"NMB-7", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue --json: %v", err)
+	}
+	if strings.Contains(out, "derivation") || !strings.Contains(out, `"reopen_count": 2`) {
+		t.Errorf("--json changed shape:\n%s", out)
+	}
+}
+
+// TestIssueDeriveReportsAnIncompleteCategoryMap pins the honest-failure half of
+// the command. The site's status list is fetched from Jira during sync and is
+// not mirrored, so an offline recomputation can lose a status id no issue sits
+// in any more. When that happens --derive must say so and show the divergence
+// from the stored column — never print the smaller number as if it were fact.
+func TestIssueDeriveReportsAnIncompleteCategoryMap(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	seedDerivable(t)
+
+	// NMB-9 was the only issue sitting in status 5, so removing it takes the
+	// "done" category for that id out of everything an offline reader can see.
+	db, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DeleteItems(context.Background(), "jira", []string{"NMB-9"}); err != nil {
+		t.Fatalf("delete NMB-9: %v", err)
+	}
+	_ = db.Close()
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"NMB-7", "--derive"}) })
+	if err != nil {
+		t.Fatalf("issue --derive: %v", err)
+	}
+	for _, want := range []string{
+		"NOT covered",
+		"reopen_count: stored 2, recomputed 0",
+		"re-run `gadak sync`",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("--derive hid an incomplete category map, missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "every value above matches what the last sync wrote") {
+		t.Errorf("--derive claimed agreement while the category map was short:\n%s", out)
+	}
+}
