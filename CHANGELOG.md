@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.15.1 — DRAFT
+## v0.15.1 — 2026-08-17
 
 - **`gadak raycast install`** (GDK-182). Embeds the Raycast extension and
   registers it with a one-shot `npx ray develop`, so a brew or app-bundle
