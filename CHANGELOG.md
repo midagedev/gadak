@@ -1,5 +1,133 @@
 # Changelog
 
+## v0.15.0 — unreleased
+
+<!-- DRAFT — finalize at tag time. Placeholders marked [PENDING] track rounds
+     still in flight; remove or resolve every one before tagging. -->
+
+The release that opens gadak outward. A view or an issue is now a link any
+app can hand over, search is fast enough to drive somebody else's UI
+keystroke by keystroke, and Raycast gets a documented way in. Inside, a dark
+theme built to the same paper-and-ink standard as the light one — and the
+first run of a new ritual: a full-codebase audit before every minor.
+
+### A gadak is now an address
+
+- **`gadak://` deep links** (GDK-119). The macOS app registers a URL scheme,
+  so a piece of gadak travels as a link instead of a shell command:
+  `gadak://view?issue=NMB-140`, `gadak://view/w/oss?pj=GDK&sc=inprogress`.
+  `gadak views open` prints the link next to the http one. The grammar
+  carries no verb and no payload — a link says *where to go*, never what to
+  do — and the parser deliberately owns only the shape, so new actions are a
+  handler-table entry, not a grammar change. This is the first release whose
+  shipped artifact actually claims the scheme; the release check now tests
+  the installed bundle, not the script that writes it.
+- **Every place has a name in the URL** (GDK-124). The person panel, the
+  personal feed and the settings tab join the issue, document and space
+  params — nine place params in one reviewed registry
+  (`web/src/lib/url-state.ts`). A param registered there is deep-linkable
+  the same moment, with no Go change; compose and credential forms are
+  deliberately excluded, and the registry is where that refusal is enforced.
+- **Raycast, both doors** (GDK-117). `gadak mcp install raycast` prints the
+  values for Raycast's *Install New Server* form (Raycast ≥1.98 speaks MCP
+  over stdio but has no config file to write into). For the keystroke-fast
+  path, the local search that a Raycast extension would sit on measures
+  p50 ~2–4 ms over HTTP and ~24 ms per CLI spawn on the demo mirror — under
+  a "feels instant" budget either way.
+- **An issue can name its parent** (GDK-19 in part, toward GDK-86).
+  `gadak create --parent KEY` and `gadak edit --parent KEY` write the
+  sub-issue relationship through Jira; the mirror learns it on the next
+  tick. Link types (`blocks`, …) and components editing remain open.
+- **Typing an issue key finds that issue** (GDK-170). Server search used to
+  index only title/body/comments — `NMB-140` returned four wiki pages that
+  mention the issue and not the issue itself — and ranked with bare bm25. A
+  key query is now a lookup promoted above FTS (case-insensitive, `nmb140`
+  and prefix forms included, never evicted by the limit), FTS columns are
+  weighted title > body > comment, and the web defers to the server's order
+  instead of re-ranking it — so the CLI, the REST route, MCP and the list
+  all give the same answer. `gadak search --explain` answers "why is this
+  row above that one".
+
+### A dark theme, and a place for the next one
+
+- **Dark** (GDK-154, GDK-156, GDK-162). Warm ground, ink foregrounds, the
+  same paper metaphor as light — with the anti-slop rule encoded as a CI
+  contract (`tools/theme-check.mjs`): hue must stay warm, chroma inside the
+  reference band, so a generic cool-gray dark cannot land by accident. A
+  blocking boot script reads the stored preference before first paint (no
+  flash), and adding a third theme is now one definition block plus a
+  registry entry. The picker lives where the app's other per-browser
+  settings already were — settings dialog and ⌘K palette, not new chrome.
+- **Success and failure stop being told by colour alone** (GDK-158). Toasts
+  carry per-kind icons and the breakdown bar carries glyphs, so a
+  deuteranopic reader gets the same answer everyone else does.
+- **Both palettes clear the same measured floors** (GDK-157, GDK-159,
+  GDK-171). Status inks in both themes now pass pairwise ΔE separation in
+  normal *and* deuteranopic vision — dark's in-progress and stale were ΔE
+  0.008 apart, one colour twice. The search highlight gets its own token
+  instead of borrowing a status colour (which vanished on the selected
+  row), and each theme derives its own: the light mark carried light text
+  at 1.18:1 when transplanted into dark. The gate now measures the text
+  that actually sits on the mark, in both themes, so that class of
+  transplant cannot land again.
+
+### The list behaves like a AAA list
+
+- **The right side of a row is a column you can scan** (GDK-128). Labels,
+  staleness and the trailing strip sit in fixed-width slots instead of
+  drifting up to 274 px per row; container queries retune the widths per
+  regime instead of hiding information.
+- **The last row stops being cut in half** (GDK-131). A flex scroller drops
+  its own padding-bottom in scrollable overflow — one shared container rule
+  (`.scroll-region`) now owns the bottom inset everywhere, instead of a
+  per-panel `pb-3` that never worked.
+- **Esc closes what it looks at** (GDK-132, GDK-133). The three list header
+  menus close on Escape and outside-click through the same `dom-actions`
+  owner every other menu uses, and the sidebar stops highlighting a view row
+  while a feed or document screen owns the main column.
+- **A covering panel declares itself** (GDK-127). Below 1440 px the detail
+  panel overlays the list behind a scrim instead of silently sitting on top
+  of live rows.
+- **One concept, one Korean word** (GDK-135). The ko catalog stops mixing
+  용어 for the same concept across dialogs, toasts and empty states.
+
+### Honesty at the edges
+
+- **A hosted snapshot no longer advertises verbs it cannot answer**
+  (GDK-52). Server-dependent affordances (FTS, settings, docs freshness)
+  key off the capability document instead of optimism, so the demo and any
+  static mirror stop rendering dead buttons — and the e2e webServer names
+  its shell instead of assuming one.
+- **The legacy field mapping retires itself** (GDK-149). A config still
+  carrying `fieldMap`/`editableFields` is rewritten to `fields` once, at
+  load, with one stderr line saying so; exports stop emitting the legacy
+  keys. (Follow-up GDK-173: the rewrite must not refuse to start the app
+  when the home is read-only.)
+- **The desktop app stops loading its runtime twice** (GDK-150). The wails
+  runtime is injected server-side only, a dock-icon click reopens the closed
+  window, and the desktop module finally builds and tests in CI on macOS.
+
+### The audit, and what it deleted
+
+First run of the per-minor full-codebase audit (GDK-125/126; the procedure
+is now `docs/runbooks/release-audit.md`). Eighteen findings fixed in this
+release; the rest carry `carryover-v0.15` labels. Highlights, best measured
+in lines removed:
+
+- Timestamps get one owner — `config.ISOMilli` replaces 34 quoted format
+  literals across 19 files (GDK-148); `VIEW_PARAM_KEYS` becomes the type
+  instead of feeding a mirror list and the drift test both die (GDK-147);
+  Svelte hygiene drops positional list keys, a toast-host reach-in and eight
+  dead exports (GDK-152).
+- The test pyramid gets enforced downward: sixteen browser tests become
+  vitest units — one of them was asserting a contract that no longer
+  existed (GDK-145); the Go suite stops sleeping on wall clocks, ~12 s
+  faster (GDK-144); the three untested pure modules and the Jira URL
+  composition get real cases (GDK-146).
+- `docs/DERIVE.md` becomes the single home for derived-field semantics, and
+  its SQL examples are executed by a test, so the doc cannot drift from the
+  code it documents (GDK-88, GDK-89).
+
 ## v0.14.2 — 2026-08-16
 
 The release about the first ten minutes and the day the token dies. Nothing

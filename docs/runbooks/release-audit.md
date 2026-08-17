@@ -54,6 +54,19 @@ GDK sub-issue with an `upstream` label, holding a minimal repro or a
 concrete API sketch, so it can become a wails issue or PR. A workaround in
 our tree should point at the upstream ticket it is waiting on.
 
+**Verify the shipped bundle, not the script that writes it.** Anything the
+OS reads from `Info.plist` — the `gadak://` scheme above all — is invisible
+to a source test: the repo can be right while the artifact is wrong, and the
+symptom is a link that does nothing at all. Before tagging, install the built
+app the way a user does (dmg → /Applications, not the repo's `build/`),
+confirm `lsregister -dump | grep gadak:` binds to that copy, and open one
+link cold (app not running) and one warm. A locally built copy registered
+during development will out-claim the installed one — unregister it first,
+or the test proves nothing about what ships.
+
+The same rule generalizes: for any capability the OS or another app consumes
+(scheme, file type, service), the release audit tests the installed artifact.
+
 ### 4. Simplify
 
 The standing bias for every axis: the best refactor deletes code. Count
