@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -672,6 +674,10 @@ type SearchResult struct {
 	Total   int                    `json:"total"`
 	Matches map[string]SearchMatch `json:"matches"`
 	Explain []SearchExplain        `json:"explain,omitempty"`
+	// ElapsedMS is the searchAll wall time in milliseconds. Search leaves it
+	// 0 (omitted from JSON); SearchExplain fills it so --explain can name
+	// the query cost without changing the default Search contract.
+	ElapsedMS float64 `json:"elapsed_ms,omitempty"`
 
 	ftsHits []ftsHit // unexported: FTS stream order + bm25, for merge/explain
 }
@@ -735,6 +741,7 @@ func (db *DB) searchAll(ctx context.Context, query string, limit int, explain bo
 	if limit <= 0 {
 		limit = 50
 	}
+	start := time.Now()
 
 	var keyHits []keyHit
 	if looksLikeKey(query) {
@@ -760,7 +767,11 @@ func (db *DB) searchAll(ctx context.Context, query string, limit int, explain bo
 		}
 		fts = res
 	}
-	return mergeSearch(keyHits, fts, limit, explain), nil
+	out := mergeSearch(keyHits, fts, limit, explain)
+	if explain {
+		out.ElapsedMS = float64(time.Since(start).Microseconds()) / 1000
+	}
+	return out, nil
 }
 
 func mergeSearch(keyHits []keyHit, fts SearchResult, limit int, explain bool) SearchResult {
@@ -847,13 +858,15 @@ func ftsPrefixQuery(q string) string {
 
 func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (SearchResult, error) {
 	res := SearchResult{Keys: []string{}, Pages: []PageLite{}, Matches: map[string]SearchMatch{}}
-	// Column-filtered MATCH expressions detect which FTS column hit. items_fts
-	// is contentless (content=''), so FTS5 snippet()/highlight() return NULL —
-	// we still SELECT them for non-contentless compatibility, and fall back to
-	// source text + column filters when markers are absent.
-	titleMatch := "title : " + match
-	bodyMatch := "body_text : " + match
-	commentMatch := "comments_text : " + match
+	// Two-pass: the inner query resolves only rowid+bm25+LIMIT (the MATCH/rank
+	// scan we have to pay). Snippets, comment concat, and body_text run on at
+	// most `limit` rows. Column hits used to be three correlated
+	// EXISTS(... MATCH 'title : …') probes — on a contentless FTS those re-scan
+	// the prefix posting list per returned row (GDK-166: ~75 ms × 3 × limit
+	// for q="p" on 20k). Field attribution is the same prefix test in Go on
+	// the source text we already fetch for snippets.
+	// items_fts is contentless (content=''), so FTS5 snippet()/highlight()
+	// return NULL — we still SELECT them for non-contentless compatibility.
 	rank := ftsRankSQL()
 	err := each(ctx, db.sql, `
 		SELECT it.kind, COALESCE(it.key, ''), COALESCE(it.title, ''),
@@ -865,28 +878,29 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 		       snippet(items_fts, 2, char(1), char(2), '…', 18),
 		       COALESCE(it.body_text, ''),
 		       COALESCE((SELECT group_concat(c.body_text, char(10)) FROM comments c WHERE c.item_id = it.id), ''),
-		       EXISTS(SELECT 1 FROM items_fts WHERE rowid = f.rowid AND items_fts MATCH ?),
-		       EXISTS(SELECT 1 FROM items_fts WHERE rowid = f.rowid AND items_fts MATCH ?),
-		       EXISTS(SELECT 1 FROM items_fts WHERE rowid = f.rowid AND items_fts MATCH ?),
-		       `+rank+`
-		FROM items_fts f
-		JOIN items it ON it.rowid = f.rowid
+		       ranked.rank
+		FROM (
+			SELECT rowid, `+rank+` AS rank
+			FROM items_fts
+			WHERE items_fts MATCH ?
+			ORDER BY `+rank+`
+			LIMIT ?
+		) ranked
+		JOIN items_fts ON items_fts.rowid = ranked.rowid
+		JOIN items it ON it.rowid = ranked.rowid
 		LEFT JOIN pages p ON p.item_id = it.id
 		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
-		WHERE items_fts MATCH ?
-		ORDER BY `+rank+`
-		LIMIT ?`,
+		ORDER BY ranked.rank`,
 		func(rows *sql.Rows) error {
 			var kind, key, title, author, authorID, updatedAt, url, spaceKey, spaceName, spaceHomepageID, parentID, excerpt, labels string
 			var version int
 			var snipTitle, snipBody, snipComment sql.NullString
 			var bodyText, commentsText string
-			var titleHit, bodyHit, commentHit int
 			var score float64
 			if err := rows.Scan(&kind, &key, &title, &author, &authorID, &updatedAt, &url,
 				&spaceKey, &spaceName, &spaceHomepageID, &parentID, &version, &excerpt, &labels,
 				&snipTitle, &snipBody, &snipComment, &bodyText, &commentsText,
-				&titleHit, &bodyHit, &commentHit, &score); err != nil {
+				&score); err != nil {
 				return err
 			}
 			switch kind {
@@ -907,13 +921,15 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 				if m, ok := resolveSearchMatch(
 					snipTitle.String, snipBody.String, snipComment.String,
 					title, bodyText, commentsText, rawQuery,
-					titleHit != 0, bodyHit != 0, commentHit != 0,
+					ftsColumnPrefixHit(title, rawQuery),
+					ftsColumnPrefixHit(bodyText, rawQuery),
+					ftsColumnPrefixHit(commentsText, rawQuery),
 				); ok {
 					res.Matches[key] = m
 				}
 			}
 			return nil
-		}, titleMatch, bodyMatch, commentMatch, match, limit)
+		}, match, limit)
 	res.Total = len(res.Keys) + len(res.Pages)
 	return res, err
 }
@@ -1016,6 +1032,72 @@ func makeSearchSnippet(text, rawQuery string) string {
 		snip = snip + "…"
 	}
 	return snip
+}
+
+// ftsColumnPrefixHit reports whether text would satisfy a column-filtered
+// prefix MATCH for rawQuery (AND of snippet tokens, each as a token prefix).
+// Used instead of EXISTS(... MATCH 'title : …') so field attribution does
+// not re-scan the FTS prefix posting list per returned row.
+func ftsColumnPrefixHit(text, rawQuery string) bool {
+	toks := snippetTokens(rawQuery)
+	if len(toks) == 0 || text == "" {
+		return false
+	}
+	for _, tok := range toks {
+		if !ftsHasTokenPrefix(text, tok) {
+			return false
+		}
+	}
+	return true
+}
+
+// ftsHasTokenPrefix is a unicode61-shaped scan: hyphen and other
+// non-token runes split both sides, then the query tokens must appear
+// consecutively (each as a prefix). "REL-140" therefore hits "See REL-140."
+// (tokens rel+140) and "p" hits "payment" but not mid-token "Aperture".
+func ftsHasTokenPrefix(text, prefix string) bool {
+	qToks := ftsTokens(prefix)
+	if len(qToks) == 0 {
+		return false
+	}
+	textToks := ftsTokens(text)
+	for i := 0; i+len(qToks) <= len(textToks); i++ {
+		ok := true
+		for j, q := range qToks {
+			if !strings.HasPrefix(textToks[i+j], q) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
+func ftsTokens(s string) []string {
+	var out []string
+	var b strings.Builder
+	flush := func() {
+		if b.Len() > 0 {
+			out = append(out, b.String())
+			b.Reset()
+		}
+	}
+	for _, r := range strings.ToLower(s) {
+		if isFTSTokenRune(r) {
+			b.WriteRune(r)
+			continue
+		}
+		flush()
+	}
+	flush()
+	return out
+}
+
+func isFTSTokenRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
 }
 
 // snippetTokens pulls plain search words out of a raw user query for windowing.

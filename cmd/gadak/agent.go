@@ -760,7 +760,7 @@ func cmdSearch(args []string) error {
 	asJSON := fs.Bool("json", false, "emit matching IssueLite rows as JSON")
 	forceJQL := fs.Bool("jql", false, "treat the query as JQL (or a Jira URL with jql=)")
 	emitOnly := fs.Bool("emit", false, "print the canonical JQL and exit (no search)")
-	explain := fs.Bool("explain", false, "print why each hit ranked: key-exact, key-prefix, or fts with bm25 score and column")
+	explain := fs.Bool("explain", false, "print why each hit ranked: key-exact, key-prefix, or fts with bm25 score and column; --json adds elapsed_ms")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("search", fs))
 		return nil
@@ -825,6 +825,7 @@ func cmdSearch(args []string) error {
 				ex = []store.SearchExplain{}
 			}
 			body["explain"] = ex
+			body["elapsed_ms"] = res.ElapsedMS
 		}
 		return json.NewEncoder(os.Stdout).Encode(body)
 	}
@@ -849,6 +850,9 @@ func cmdSearch(args []string) error {
 			line += formatSearchExplain(byExplain[p.Key])
 		}
 		fmt.Println(line)
+	}
+	if *explain {
+		fmt.Printf("query %.1fms\n", res.ElapsedMS)
 	}
 	return nil
 }
