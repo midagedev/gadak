@@ -158,6 +158,8 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("POST "+apiBase+"history/visits/{$}", s.handlePostVisit)
 	mux.HandleFunc("POST "+apiBase+"history/searches/{$}", s.handlePostSearch)
 	mux.HandleFunc("PATCH "+apiBase+"history/searches/{id}/{$}", s.handlePatchSearch)
+	// Recent-use history (local.db). Literals beat `{key}/{action}/`.
+	s.registerRecency(mux)
 	// People axis: comments by author (exact author_id). Three-segment path so it
 	// does not collide with `{key}/{action}/`.
 	mux.HandleFunc("GET "+apiBase+"people/{author_id}/comments/{$}", s.handlePeopleComments)

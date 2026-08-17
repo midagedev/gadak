@@ -21,7 +21,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { filters } from '../../stores/filters.svelte'
-  import { recentOf } from '../../lib/recency'
+  import { recentOf, whenReady } from '../../lib/recency'
   import type { CreateMetaProject, JiraUser } from '../../lib/types'
   import Icon from '../ui/Icon.svelte'
 
@@ -76,13 +76,20 @@
   const issueTypes = $derived(selectedProject?.issue_types ?? [])
 
   onMount(() => {
+    void initDefaults()
+  })
+
+  async function initDefaults() {
+    // Wait for local.db recency (and the one-shot localStorage absorb) so
+    // inferType sees the same values CLI/SQL would. Timeout is inside whenReady.
+    await whenReady()
     if (write.writeMetaProjects.length) {
       loading = false
       applyDefaults()
     } else {
       void loadFallback()
     }
-  })
+  }
 
   async function loadFallback() {
     loading = true

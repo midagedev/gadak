@@ -42,8 +42,8 @@ func cmdImport(args []string) error {
 	if err := applyPersonalExport(db, doc); err != nil {
 		return err
 	}
-	fmt.Printf("imported %d views, %d watches, %d favorites\n",
-		len(doc.Views), len(doc.Watches), len(doc.Favorites))
+	fmt.Printf("imported %d views, %d watches, %d favorites, %d recents\n",
+		len(doc.Views), len(doc.Watches), len(doc.Favorites), len(doc.Recents))
 	return nil
 }
 
@@ -58,6 +58,7 @@ func parsePersonalExport(raw []byte) (personalExport, []string, error) {
 		"views":        true,
 		"watches":      true,
 		"favorites":    true,
+		"recents":      true,
 	}
 	var unknown []string
 	for k := range top {
@@ -127,7 +128,7 @@ func applyPersonalExport(db *store.DB, doc personalExport) error {
 			return err
 		}
 	}
-	return nil
+	return db.ImportRecents(ctx, doc.Recents)
 }
 
 func newPersonalViewID() string {

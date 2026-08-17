@@ -64,6 +64,9 @@ func TestExportImportRoundTripDemoDB(t *testing.T) {
 	if err := db.SetFavorite(context.Background(), "NMB-2", true); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.RecordRecent(context.Background(), "create-type:NMB", "10002"); err != nil {
+		t.Fatal(err)
+	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +90,9 @@ func TestExportImportRoundTripDemoDB(t *testing.T) {
 	}
 	if !strings.Contains(body, "NMB-1") || !strings.Contains(body, "NMB-2") {
 		t.Fatalf("watch/favorite missing from export:\n%s", body)
+	}
+	if !strings.Contains(body, "create-type:NMB") || !strings.Contains(body, "10002") {
+		t.Fatalf("recent missing from export:\n%s", body)
 	}
 	for _, secret := range []string{cfg.Site, cfg.Email, cfg.Token} {
 		if strings.Contains(body, secret) {
@@ -150,6 +156,13 @@ func TestExportImportRoundTripDemoDB(t *testing.T) {
 	}
 	if !containsKey(favs, "NMB-2") {
 		t.Fatalf("favorite not restored: %v", favs)
+	}
+	recents, err := db.Recents(context.Background(), "create-type:NMB")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recents) != 1 || recents[0].Value != "10002" {
+		t.Fatalf("recent not restored: %+v", recents)
 	}
 }
 
@@ -239,8 +252,8 @@ func TestImportFileWinsNameConflict(t *testing.T) {
 func TestExportHelpDistinctFromExportStatic(t *testing.T) {
 	ex := formatHelp("export", nil)
 	st := formatHelp("export-static", nil)
-	if !strings.Contains(ex, "views") || !strings.Contains(ex, "watches") || !strings.Contains(ex, "favorites") {
-		t.Fatalf("export help must name the three personal tables:\n%s", ex)
+	if !strings.Contains(ex, "views") || !strings.Contains(ex, "watches") || !strings.Contains(ex, "favorites") || !strings.Contains(ex, "recents") {
+		t.Fatalf("export help must name the personal tables:\n%s", ex)
 	}
 	if strings.Contains(ex, "hosted demo") || strings.Contains(strings.ToLower(ex), "static json") {
 		t.Fatalf("export help collides with export-static:\n%s", ex)

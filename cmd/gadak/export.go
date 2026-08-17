@@ -15,8 +15,8 @@ import (
 // accepts. Bump together with a documented format change.
 const personalExportVersion = 1
 
-// personalExport is the on-disk dump of the three personal tables in the
-// mirror (saved_views, watches, favorites). It is not a team-config file
+// personalExport is the on-disk dump of personal tables (saved_views,
+// watches, favorites, and local.recents). It is not a team-config file
 // (that is gadak_team_config) and it never carries credentials.
 type personalExport struct {
 	Version    int               `json:"gadak_export"`
@@ -24,6 +24,7 @@ type personalExport struct {
 	Views      []store.SavedView `json:"views"`
 	Watches    []string          `json:"watches"`
 	Favorites  []string          `json:"favorites"`
+	Recents    []store.Recent    `json:"recents"`
 }
 
 func cmdExport(args []string) error {
@@ -55,6 +56,10 @@ func cmdExport(args []string) error {
 	if err != nil {
 		return err
 	}
+	recents, err := db.Recents(ctx, "")
+	if err != nil {
+		return err
+	}
 
 	doc := personalExport{
 		Version:    personalExportVersion,
@@ -62,6 +67,7 @@ func cmdExport(args []string) error {
 		Views:      views,
 		Watches:    watches,
 		Favorites:  favorites,
+		Recents:    recents,
 	}
 	raw, err := marshalPersonalExport(doc)
 	if err != nil {
@@ -75,8 +81,8 @@ func cmdExport(args []string) error {
 	if err := os.WriteFile(*outPath, raw, 0o600); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "exported %d views, %d watches, %d favorites to %s\n",
-		len(doc.Views), len(doc.Watches), len(doc.Favorites), *outPath)
+	fmt.Fprintf(os.Stderr, "exported %d views, %d watches, %d favorites, %d recents to %s\n",
+		len(doc.Views), len(doc.Watches), len(doc.Favorites), len(doc.Recents), *outPath)
 	return nil
 }
 
@@ -89,6 +95,9 @@ func marshalPersonalExport(doc personalExport) ([]byte, error) {
 	}
 	if doc.Favorites == nil {
 		doc.Favorites = []string{}
+	}
+	if doc.Recents == nil {
+		doc.Recents = []store.Recent{}
 	}
 	raw, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {

@@ -27,6 +27,9 @@ func TestOpenCreatesLocalSchemaAndSelectWorks(t *testing.T) {
 	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM local.searches`).Scan(&n); err != nil {
 		t.Fatalf("local.searches after Open: %v", err)
 	}
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM local.recents`).Scan(&n); err != nil {
+		t.Fatalf("local.recents after Open: %v", err)
+	}
 }
 
 // Existing install: mirror only, no local.db. Open must recreate the schema
@@ -374,5 +377,143 @@ func TestRecordVisitRejectsBadKind(t *testing.T) {
 	_, err := db.RecordVisit(context.Background(), "ticket", "NMB-1")
 	if err == nil || !strings.Contains(err.Error(), "kind") {
 		t.Fatalf("got %v, want kind error", err)
+	}
+}
+
+// TestRecordRecentReadableViaSQL is the GDK-224 parity gate: a value written
+// the way the web/API will write it must come back from gadak sql (the CLI
+// / Raycast / MCP path). FAIL-first: before localSchemaV2 this SELECT was
+// "no such table: local.recents".
+func TestRecordRecentReadableViaSQL(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if _, err := db.RecordRecent(ctx, "create-type:NMB", "10002"); err != nil {
+		t.Fatal(err)
+	}
+	var value string
+	if err := db.sql.QueryRowContext(ctx, `
+		SELECT value FROM local.recents
+		WHERE kind = 'create-type:NMB'
+		ORDER BY used_at DESC, id DESC
+		LIMIT 1`).Scan(&value); err != nil {
+		t.Fatalf("SQL read after RecordRecent: %v", err)
+	}
+	if value != "10002" {
+		t.Fatalf("value = %q, want 10002", value)
+	}
+}
+
+func TestRecordRecentDedupCapAndOrder(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if _, err := db.RecordRecent(ctx, "assignee", "old"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	if _, err := db.RecordRecent(ctx, "assignee", "mid"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	if _, err := db.RecordRecent(ctx, "assignee", "old"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.Recents(ctx, "assignee")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Value != "old" || got[1].Value != "mid" {
+		t.Fatalf("after re-record old: %+v", got)
+	}
+
+	for i := 0; i < RecentCap+3; i++ {
+		time.Sleep(time.Millisecond)
+		if _, err := db.RecordRecent(ctx, "label", "l"+string(rune('a'+i))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	labels, err := db.Recents(ctx, "label")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(labels) != RecentCap {
+		t.Fatalf("label count = %d, want %d", len(labels), RecentCap)
+	}
+}
+
+func TestAbsorbRecentsFillsWithoutPromotingOverExisting(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if _, err := db.RecordRecent(ctx, "create-type:NMB", "server-first"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AbsorbRecents(ctx, map[string][]string{
+		"create-type:NMB": {"ls-new", "server-first", "ls-old"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.Recents(ctx, "create-type:NMB")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("items = %+v", got)
+	}
+	if got[0].Value != "server-first" {
+		t.Fatalf("server row must stay first, got %+v", got)
+	}
+	if got[1].Value != "ls-new" || got[2].Value != "ls-old" {
+		t.Fatalf("absorbed fill order: %+v", got)
+	}
+
+	if err := db.AbsorbRecents(ctx, map[string][]string{
+		"create-type:NMB": {"ls-new", "server-first"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	again, err := db.Recents(ctx, "create-type:NMB")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(again) != 3 {
+		t.Fatalf("re-absorb must not drop or duplicate: %+v", again)
+	}
+}
+
+func TestLocalMigrationV2AddsRecents(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gadak.db")
+	local := LocalPath(path)
+	raw, err := sql.Open("sqlite", "file:"+local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(localSchemaV1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`PRAGMA user_version = 1`); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	var n int
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM local.recents`).Scan(&n); err != nil {
+		t.Fatalf("recents after v1→v2: %v", err)
+	}
+}
+
+func TestRecordRecentRejectsEmpty(t *testing.T) {
+	db := openTemp(t)
+	if _, err := db.RecordRecent(context.Background(), "", "x"); err == nil {
+		t.Fatal("empty kind accepted")
+	}
+	if _, err := db.RecordRecent(context.Background(), "assignee", ""); err == nil {
+		t.Fatal("empty value accepted")
 	}
 }

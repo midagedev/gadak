@@ -29,7 +29,7 @@ const LocalRetention = 180 * 24 * time.Hour
 
 // localMigrations is independent of the mirror's migrations slice. Index+1 is
 // PRAGMA user_version on local.db.
-var localMigrations = []string{localSchemaV1}
+var localMigrations = []string{localSchemaV1, localSchemaV2}
 
 const localSchemaV1 = `
 CREATE TABLE visits (
@@ -50,6 +50,20 @@ CREATE TABLE searches (
   opened_key   TEXT
 );
 CREATE INDEX searches_searched_at ON searches(searched_at);
+`
+
+// localSchemaV2 is recent-use history (picker ranking: assignee, transition,
+// create-type, …). Newest-first, de-duped, cap RecentCap per kind — the same
+// contract the web localStorage helper used to own alone.
+const localSchemaV2 = `
+CREATE TABLE recents (
+  id      INTEGER PRIMARY KEY,
+  kind    TEXT NOT NULL,
+  value   TEXT NOT NULL,
+  used_at TEXT NOT NULL,
+  UNIQUE(kind, value)
+);
+CREATE INDEX recents_kind_used_at ON recents(kind, used_at);
 `
 
 func init() {
@@ -533,4 +547,225 @@ func pruneLocalHistoryTx(ctx context.Context, tx *sql.Tx, cutoff string) error {
 	}
 	_, err := tx.ExecContext(ctx, `DELETE FROM local.searches WHERE searched_at < ?`, cutoff)
 	return err
+}
+
+// RecentCap is the per-kind ceiling. Matches web/src/lib/recency.ts MAX.
+const RecentCap = 10
+
+// Recent is one (kind, value) pair in local.recents. Unlike visits, the same
+// pair is one row: recording it again only moves used_at to now.
+type Recent struct {
+	Kind   string `json:"kind"`
+	Value  string `json:"value"`
+	UsedAt string `json:"used_at"`
+}
+
+// RecordRecent puts value at the front of kind (de-dup, cap RecentCap).
+// Empty kind or value is refused. Kind is an opaque string — same names the
+// web helper already used (assignee, transition:<project>, create-type:<project>, …).
+func (db *DB) RecordRecent(ctx context.Context, kind, value string) (Recent, error) {
+	var zero Recent
+	kind = strings.TrimSpace(kind)
+	value = strings.TrimSpace(value)
+	if kind == "" {
+		return zero, errors.New("kind required")
+	}
+	if value == "" {
+		return zero, errors.New("value required")
+	}
+	at := Now()
+	err := db.write(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO local.recents (kind, value, used_at) VALUES (?,?,?)
+			ON CONFLICT(kind, value) DO UPDATE SET used_at = excluded.used_at`,
+			kind, value, at); err != nil {
+			return err
+		}
+		return trimRecentsKind(ctx, tx, kind)
+	})
+	if err != nil {
+		return zero, err
+	}
+	return Recent{Kind: kind, Value: value, UsedAt: at}, nil
+}
+
+// Recents returns recent-use rows newest-first. Empty kind lists every kind.
+func (db *DB) Recents(ctx context.Context, kind string) ([]Recent, error) {
+	kind = strings.TrimSpace(kind)
+	q := `SELECT kind, value, used_at FROM local.recents`
+	args := []any{}
+	if kind != "" {
+		q += ` WHERE kind = ?`
+		args = append(args, kind)
+	}
+	q += ` ORDER BY used_at DESC, id DESC`
+	rows, err := db.sql.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Recent{}
+	for rows.Next() {
+		var r Recent
+		if err := rows.Scan(&r.Kind, &r.Value, &r.UsedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// AbsorbRecents merges a localStorage dump into local.recents. Existing
+// server rows stay in front (they are already the owner); incoming values
+// not already present fill the remainder, still capped at RecentCap per kind.
+// Incoming slices are newest-first, same as recentOf().
+func (db *DB) AbsorbRecents(ctx context.Context, kinds map[string][]string) error {
+	if len(kinds) == 0 {
+		return nil
+	}
+	return db.write(ctx, func(tx *sql.Tx) error {
+		for kind, incoming := range kinds {
+			kind = strings.TrimSpace(kind)
+			if kind == "" {
+				continue
+			}
+			existing, err := recentsKindTx(ctx, tx, kind)
+			if err != nil {
+				return err
+			}
+			merged := mergeRecentValues(existing, incoming)
+			if err := replaceKindRecents(ctx, tx, kind, merged); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// ImportRecents upserts export-file rows. File used_at wins for a (kind, value)
+// pair; each kind is then trimmed to RecentCap newest. Local-only pairs stay
+// if they still fit in the cap.
+func (db *DB) ImportRecents(ctx context.Context, items []Recent) error {
+	if len(items) == 0 {
+		return nil
+	}
+	return db.write(ctx, func(tx *sql.Tx) error {
+		affected := map[string]bool{}
+		for _, it := range items {
+			kind := strings.TrimSpace(it.Kind)
+			value := strings.TrimSpace(it.Value)
+			if kind == "" || value == "" {
+				continue
+			}
+			at := strings.TrimSpace(it.UsedAt)
+			if at == "" {
+				at = Now()
+			}
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO local.recents (kind, value, used_at) VALUES (?,?,?)
+				ON CONFLICT(kind, value) DO UPDATE SET used_at = excluded.used_at`,
+				kind, value, at); err != nil {
+				return err
+			}
+			affected[kind] = true
+		}
+		for kind := range affected {
+			if err := trimRecentsKind(ctx, tx, kind); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func recentsKindTx(ctx context.Context, tx *sql.Tx, kind string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT value FROM local.recents
+		WHERE kind = ?
+		ORDER BY used_at DESC, id DESC`, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+func mergeRecentValues(existing, incoming []string) []string {
+	seen := make(map[string]bool, RecentCap)
+	out := make([]string, 0, RecentCap)
+	add := func(v string) bool {
+		v = strings.TrimSpace(v)
+		if v == "" || seen[v] {
+			return true
+		}
+		seen[v] = true
+		out = append(out, v)
+		return len(out) < RecentCap
+	}
+	for _, v := range existing {
+		if !add(v) {
+			return out
+		}
+	}
+	for _, v := range incoming {
+		if !add(v) {
+			return out
+		}
+	}
+	return out
+}
+
+func replaceKindRecents(ctx context.Context, tx *sql.Tx, kind string, values []string) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM local.recents WHERE kind = ?`, kind); err != nil {
+		return err
+	}
+	base := time.Now().UTC()
+	for i, v := range values {
+		at := base.Add(-time.Duration(i) * time.Millisecond).Format(config.ISOMilli)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO local.recents (kind, value, used_at) VALUES (?,?,?)`, kind, v, at); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func trimRecentsKind(ctx context.Context, tx *sql.Tx, kind string) error {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id FROM local.recents
+		WHERE kind = ?
+		ORDER BY used_at DESC, id DESC`, kind)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	if len(ids) <= RecentCap {
+		return nil
+	}
+	for _, id := range ids[RecentCap:] {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM local.recents WHERE id = ?`, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
