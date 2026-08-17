@@ -1,0 +1,81 @@
+# Weekly snapshot of GitHub release download_count and 14-day traffic.
+# Traffic is a rolling window — without this, history disappears.
+#
+# Snapshots live on the `stats` branch (stats/<YYYY-MM-DD>.json), not on
+# main, so the default-branch history is not polluted with data commits.
+#
+# Traffic endpoints need push access. contents: write is the minimum this
+# workflow asks for. If traffic/* still 403s under GITHUB_TOKEN, the script
+# records the endpoint in errors[] and the rest of the snapshot still
+# lands. Then store a PAT (public_repo or repo) as a secret and swap
+# GH_TOKEN to it — do not loosen this workflow's permissions to guess.
+#
+# This workflow is not a CI gate: no pull_request trigger.
+
+name: Release stats
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stats
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Snapshot downloads and traffic
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Capture snapshot
+        id: capture
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gadak-stats
+          outfile=$(bash tools/release-stats.sh --out /tmp/gadak-stats --repo "${{ github.repository }}")
+          test -f "$outfile"
+          echo "outfile=$outfile" >> "$GITHUB_OUTPUT"
+          echo "stamp=$(basename "$outfile" .json)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit onto the stats branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          src="${{ steps.capture.outputs.outfile }}"
+          stamp="${{ steps.capture.outputs.stamp }}"
+          test -f "$src"
+          test -n "$stamp"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin stats >/dev/null; then
+            git fetch origin stats
+            git checkout -B stats origin/stats
+          else
+            # First run: orphan so these commits are not descendants of main
+            # and do not appear in the default-branch log.
+            git checkout --orphan stats
+            git rm -rf --quiet . >/dev/null 2>&1 || true
+            git clean -fdx
+          fi
+
+          mkdir -p stats
+          cp "$src" "stats/${stamp}.json"
+          git add -- "stats/${stamp}.json"
+          if git diff --cached --quiet; then
+            echo "stats/${stamp}.json unchanged; not committing"
+            exit 0
+          fi
+          git commit -m "stats: ${stamp}"
+          git push origin HEAD:stats

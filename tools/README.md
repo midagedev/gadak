@@ -121,3 +121,31 @@ real backlog.
   what produces a real reopen in the changelog.
 - `links[].target` is an index into the same array.
 - `assignee_slot` is mapped to whatever accounts `--assignees` provides.
+
+## `release-stats`
+
+Writes one JSON snapshot of GitHub release asset `download_count` and the
+14-day traffic window (`/traffic/clones`, `/traffic/views`). Traffic is a
+rolling window; a periodic snapshot is the only history. This talks to
+GitHub's API from a workflow or a human — it is not product telemetry.
+
+```bash
+tools/release-stats.sh --out /tmp/stats
+# writes /tmp/stats/<YYYY-MM-DD>.json (UTC stamp). Same-day reruns overwrite.
+
+tools/release-stats.sh --out /tmp/stats --repo midagedev/gadak --stamp 2026-08-18
+```
+
+`--repo` defaults to `midagedev/gadak`. `--stamp` defaults to UTC today.
+Requires `gh` and `jq`. A traffic 403 is recorded in `errors[]` and the rest
+of the file is still written (exit 0); if every endpoint fails, exit 1 and
+no file is written.
+
+`.github/workflows/stats.yml` runs this weekly (Monday 06:00 UTC) and on
+`workflow_dispatch`, and commits `stats/<stamp>.json` on the `stats` branch.
+
+Per-release cumulative downloads:
+
+```bash
+jq -r '.releases[] | "\(.tag)\t\(.downloads_total)"' stats/2026-08-18.json
+```
