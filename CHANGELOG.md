@@ -101,8 +101,11 @@ first run of a new ritual: a full-codebase audit before every minor.
 - **The legacy field mapping retires itself** (GDK-149). A config still
   carrying `fieldMap`/`editableFields` is rewritten to `fields` once, at
   load, with one stderr line saying so; exports stop emitting the legacy
-  keys. (Follow-up GDK-173: the rewrite must not refuse to start the app
-  when the home is read-only.)
+  keys. And the rewrite is a convenience, not a precondition (GDK-173): on a
+  read-only home it becomes a warning and the app runs on the in-memory
+  mapping instead of refusing to start — a locked-down directory stays
+  locked instead of being silently chmod-unlocked, and `gadak status` now
+  names a config it cannot read instead of swallowing the error.
 - **The desktop app stops loading its runtime twice** (GDK-150). The wails
   runtime is injected server-side only, a dock-icon click reopens the closed
   window, and the desktop module finally builds and tests in CI on macOS.
@@ -127,6 +130,12 @@ in lines removed:
 - `docs/DERIVE.md` becomes the single home for derived-field semantics, and
   its SQL examples are executed by a test, so the doc cannot drift from the
   code it documents (GDK-88, GDK-89).
+- Chosung (초성) search retires, product-wide (GDK-168). It existed only in
+  the web while the CLI, REST, MCP and Raycast all lacked it, its cost sat
+  on the hottest per-keystroke path, and a chosung hit could never highlight
+  *why* it matched. ~144 lines removed, nothing added in their place; a
+  jamo-only query is now a plain miss on every surface, which at least is
+  the same answer everywhere.
 
 ## v0.14.2 — 2026-08-16
 
