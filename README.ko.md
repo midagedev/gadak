@@ -13,12 +13,12 @@
 
 <p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.15 기준 번역입니다.</sub></p>
 
-내 Jira가 로컬 SQLite 파일 하나가 됩니다 — "어느 에픽이 막혀 있지?"가
-물을 수 없는 질문이 아니라 쿼리 한 줄이 됩니다.
+내 Jira를 로컬 SQLite 파일 하나로 — "어느 에픽이 막혀 있지?"가 물을 수
+없는 질문이 아니라 쿼리 한 줄이 됩니다.
 
 gadak은 Jira *그리고* Confluence를 로컬 SQLite 파일 하나로 미러링합니다 —
 이슈, 코멘트, 히스토리, 위키 문서가 한 인덱스에 들어가고, 검색은 네트워크
-없이 로컬에서 끝납니다. 그 작업이 내 머신에 사는 창이 이 창입니다:
+없이 로컬에서 끝납니다. 그 데이터가 내 머신에서 사는 자리가 이 창입니다:
 [macOS 앱](docs/DESKTOP.md)이나 브라우저 탭에서 트리아지하고, 코딩
 에이전트가 SQL로 묻고 같은 창에 답을 띄우게 하세요. 바이너리 하나,
 앱 하나, gadak 계정은 없습니다.
@@ -36,7 +36,7 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
            and epic_key <> '' group by epic_key order by 2 desc"
 ```
 
-이 마지막 쿼리가 핵심입니다: JQL에는 `GROUP BY`가 없습니다. "어느 에픽이
+위 쿼리가 핵심입니다: JQL에는 `GROUP BY`가 없습니다. "어느 에픽이
 실제로 막혀 있나"는 어려운 질문이 아니라 **물을 수 없는** 질문입니다 —
 데이터가 파일이 되기 전까지는. 나머지 레시피는
 [`docs/RECIPES.md`](docs/RECIPES.md)에 있습니다.
@@ -83,8 +83,8 @@ gadak serve                # http://gadak.localhost:7777
 ```
 
 > **상태: 0.15, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
-> 데스크톱, 웹, CLI, MCP가 실제 사이트에 대해 검증되어 있습니다. 정직한
-> 재고 목록: [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md).
+> 데스크톱, 웹, CLI, MCP가 실제 사이트에 대해 검증되어 있습니다. 숨김 없는
+> 현황은 [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md)에.
 
 ## 왜 만들었나
 
@@ -93,9 +93,9 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
 원인은 같습니다: 데이터가 파일이 아니라서.
 [`docs/CONCEPT.md`](docs/CONCEPT.md) · [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md).
 
-⌘K는 하나의 인덱스입니다 — 제목, 본문, 코멘트, 이슈와 문서 전부.
-리스트에 걸린 칩은 적용되지 않습니다. 코멘트에만 있는 단어로도 그 행이
-찾아지는 이유입니다.
+인덱스는 ⌘K 하나입니다 — 제목, 본문, 코멘트, 이슈와 문서가 전부 거기
+들어갑니다. 리스트에 걸린 칩은 여기 적용되지 않습니다. 코멘트에만 나온
+단어로도 그 행이 잡히는 이유입니다.
 
 <p align="center">
   <img src="docs/media/search.gif" alt="리스트에 Project 칩이 걸린 상태에서 ⌘K로 팔레트를 열고 코멘트에만 있는 단어를 입력하면, 다른 프로젝트의 행들이 Comment match 라벨과 스니펫을 달고 전체 검색을 채운다" width="900">
@@ -111,7 +111,8 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
 | **CLI + SQL** | 에이전트, 스크립트 | `gadak issue`, `gadak search`(FTS, `--jql`, Jira URL), `gadak sql`, 그리고 파일 그 자체 |
 
 쓰기는 Jira로 통과된 뒤 미러가 갱신됩니다. 앱·웹: 코멘트, 상태 전이,
-담당자, 라벨, 우선순위, 제목. CLI는 현재: 코멘트, 상태 전이, 담당자.
+담당자, 라벨, 우선순위, 제목. CLI: `create`(단건 또는 `--batch`),
+`attach`, `edit`, `comment`, `transition`, `assign`.
 위키 미러는 읽기 전용입니다. 계층 구조, `item_refs`, 첨부:
 [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
 창은 라이트와 다크에서 같은 종이 메타포를 유지합니다 — 테마는 시스템을
@@ -128,9 +129,9 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
   <sub>키스트로크 하나가 <code>gadak search --json</code> 한 번이고, Enter가 딥링크입니다. 저장된 뷰도 같은 길로 갑니다 — <code>gadak views open</code>이 링크를 출력합니다.</sub>
 </p>
 
-Raycast 확장은 Raycast Store로 향하는 중입니다. 그 전에도 키로 열기
-절반은 확장이 전혀 필요 없습니다 — `gadak://view?issue={argument}`를 넣은
-Raycast Quicklink가 오늘 그대로 동작합니다.
+Raycast 확장은 스토어 등록을 진행 중입니다. 등록 전에도 키로 여는 쪽
+절반에는 확장이 아예 필요 없습니다 — `gadak://view?issue={argument}`를
+넣은 Raycast Quicklink면 오늘 그대로 됩니다.
 
 ## 에이전트를 위해
 
@@ -179,17 +180,6 @@ JQL로 여전히 물을 수 없는 것은 `gadak sql`과
 엔드포인트로의 통로입니다 — `--write` 없이는 읽기 전용, MCP에는 절대
 없습니다.
 
-그리고 에이전트만이 아닙니다: 바이너리를 실행하고 URL을 열 수 있는 것이면
-무엇이든 같은 두 개의 문을 씁니다. `gadak search --json`은 호출당 ~20ms에
-답하고, `gadak://` 딥링크는 그 결과를 데스크톱 앱에서 엽니다 — 런처에
-필요한 전부입니다. Raycast에서:
-
-<p align="center">
-  <img src="docs/media/raycast.gif" alt="Raycast가 타이핑마다 로컬 gadak 미러를 검색한다 — 텍스트 질의는 매치된 스니펫을 볼드와 필드 태그로 보여주고, 이슈 키를 그대로 치면 그 이슈가 나오며, Enter는 gadak:// 딥링크로 Gadak 앱에서 연다" width="800">
-  <br>
-  <sub>키스트로크 하나가 로컬 미러에 대한 <code>gadak search --json</code> 한 번이고, Enter가 <code>gadak://view?issue=…</code>입니다. 저장된 뷰도 같은 길로 갑니다 — <code>gadak views open</code>이 링크를 출력합니다. 스킴: <a href="docs/DESKTOP.md">docs/DESKTOP.md</a>.</sub>
-</p>
-
 **미러를 읽는 에이전트는 읽은 것을 자기가 쓰는 모델로 보냅니다.** gadak
 자신은 아무것도 보내지 않습니다([`SECURITY.md`](SECURITY.md)). 에이전트가
 봐도 되는 범위로 미러를 좁히세요.
@@ -231,17 +221,17 @@ gadak serve      # http://gadak.localhost:7777
 Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/0003-local-process.md).
 
 **맞는 곳 / 안 맞는 곳.** 매일의 검색 지연, 트래커 *와* 위키를 함께 보는
-에이전트, 오프라인 읽기 — 맞습니다. 보드, 어드민, 위키 저작, 1분의
-신선도가 아쉬운 일 — Jira에 남기세요.
+에이전트, 오프라인 읽기 — 맞습니다. 보드, 어드민, 위키 저작, 그리고 1분의
+지연도 안 되는 일 — Jira에 남기세요.
 [`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit).
 
-**비교.** jira-cli는 커맨드마다 라이브 API를 부릅니다. Linear는 다른
+**비교.** jira-cli는 커맨드마다 라이브 API를 호출합니다. Linear는 다른
 트래커입니다. Rovo MCP도 두 소스를 함께 검색하지만 호스팅형입니다 — 집계
 불가, 오프라인 불가, 호출마다 토큰이 나갑니다.
 [`docs/FAQ.md`](docs/FAQ.md#how-it-compares).
 
-**다음 소스.** Confluence가 스파인이 소스 중립임을 증명했습니다. 다음
-소스는 수요 순: [`docs/ROADMAP.md`](docs/ROADMAP.md#more-sources-later).
+**다음 소스.** Confluence가 뼈대가 소스 중립임을 증명했습니다. 다음
+소스는 수요 순으로: [`docs/ROADMAP.md`](docs/ROADMAP.md#more-sources-later).
 
 ## 문서
 
@@ -257,11 +247,12 @@ Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/
 ## 누가 만드나
 
 현재는 한 사람입니다. 그 사실을 저울에 올리세요 — 그리고 반대편도:
-미러는 내 Jira의 버려도 되는 캐시이고, 스키마의 약속 범위는
-[문서화되어](specs/000-product/data-model.md) 있으며, 라이선스는
-Apache-2.0이고, 파일은 무엇으로든 읽히는 평범한 SQLite입니다. 어려운
-질문들: [`docs/FAQ.md`](docs/FAQ.md). 믿지 않아도 되는 것들, 각 항목마다
-확인 명령과 함께: [`PROMISES.md`](PROMISES.md).
+미러는 내 Jira의 버려도 되는 캐시이고, 0.x가 약속하는 것은
+[data-model.md](specs/000-product/data-model.md)의 세 가지(`issues_full`과
+RECIPES 쿼리들, `gadak sql`의 stdout, `gadak views open --keys -`)뿐이며,
+라이선스는 Apache-2.0이고, 파일은 무엇으로든 읽히는 평범한 SQLite입니다.
+어려운 질문들: [`docs/FAQ.md`](docs/FAQ.md). 믿지 않아도 되는 것들, 각
+항목마다 확인 명령과 함께: [`PROMISES.md`](PROMISES.md).
 
 ## 기여와 피드백
 
