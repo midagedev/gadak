@@ -17,7 +17,9 @@ export interface Route {
   params: URLSearchParams
 }
 
-function parseHash(hash: string): Route {
+// Exported for promote-search (GDK-164): the boot-time querystring promotion
+// must read and rebuild the hash with the same grammar the router lives by.
+export function parseHash(hash: string): Route {
   // location.hash is "#..." or ""
   const raw = hash.startsWith('#') ? hash.slice(1) : hash
   const qIndex = raw.indexOf('?')

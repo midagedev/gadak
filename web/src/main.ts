@@ -3,6 +3,7 @@ import './app.css'
 import App from './App.svelte'
 import { applyCacheScopeDebug, loadConfig } from './lib/config'
 import { installHostedFetch } from './lib/hosted-fetch'
+import { applySearchPromotion } from './lib/promote-search'
 import { migrateStorageKeys } from './lib/storage'
 import { applyThemeAtBoot } from './lib/theme'
 
@@ -20,6 +21,11 @@ if (!target) throw new Error('#app not found')
 // Hosted demo: wrap fetch before the first request so bootstrap/ does not 404
 // on a static host. No service worker — in-app browsers reject those.
 void (async () => {
+  // GDK-164: promote /?issue=KEY (and other app params) into the hash before
+  // App reads it. Silent no-op of a querystring deep link is the worst
+  // outcome (internal/deeplink). Router already imported `current` from the
+  // empty hash — applySearchPromotion fires hashchange when the hash moves.
+  applySearchPromotion()
   installHostedFetch()
   await loadConfig()
   applyCacheScopeDebug()
