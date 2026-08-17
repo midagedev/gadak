@@ -1,8 +1,18 @@
 <script module lang="ts">
+  import { isDesktop } from '../../lib/config'
+  import { isVisibleSettingsTab, visibleSettingsTabs } from '../../lib/integrations'
+
   /** The settings tabs, in header order. Exported so App can validate an
    *  incoming `settings=` place param (lib/url-state) against the real tab
    *  list instead of a second copy; TABS below attaches labels to these ids. */
-  export type Tab = 'sync' | 'sources' | 'features' | 'groups' | 'members' | 'fields'
+  export type Tab =
+    | 'sync'
+    | 'sources'
+    | 'features'
+    | 'groups'
+    | 'members'
+    | 'fields'
+    | 'integrations'
   export const SETTINGS_TABS: readonly Tab[] = [
     'sync',
     'sources',
@@ -10,13 +20,16 @@
     'groups',
     'members',
     'fields',
+    'integrations',
   ]
 
   /** Type guard for URL values: an unknown tab name (a link from before this
    *  build renamed or added tabs) must land on the default, not a blank
-   *  dialog. */
+   *  dialog. `integrations` counts as unknown outside the desktop app, whose
+   *  mux is the only place its `/desktop/*` routes exist — a link pasted out
+   *  of the app must not open a tab that can only fail here. */
   export function isSettingsTab(v: string): v is Tab {
-    return (SETTINGS_TABS as readonly string[]).includes(v)
+    return isVisibleSettingsTab(v, SETTINGS_TABS, isDesktop())
   }
 </script>
 
@@ -54,6 +67,7 @@
   import GroupsTab from './GroupsTab.svelte'
   import MembersTab from './MembersTab.svelte'
   import FieldsTab from './FieldsTab.svelte'
+  import IntegrationsTab from './IntegrationsTab.svelte'
   import { trapFocus } from '../../lib/focus-trap'
   import Icon from '../ui/Icon.svelte'
 
@@ -63,14 +77,23 @@
   // the dialog's unmount used to do for free.
   let { onclose, tab = $bindable('sync') }: { onclose: () => void; tab?: Tab } = $props()
 
-  const TABS: [Tab, string][] = [
-    ['sync', t('settings.tabSync')],
-    ['sources', t('settings.tabSources')],
-    ['features', t('settings.tabFeatures')],
-    ['groups', t('settings.tabTeams')],
-    ['members', t('settings.tabMembers')],
-    ['fields', t('settings.tabFields')],
-  ]
+  const LABELS: Record<Tab, string> = {
+    sync: t('settings.tabSync'),
+    sources: t('settings.tabSources'),
+    features: t('settings.tabFeatures'),
+    groups: t('settings.tabTeams'),
+    members: t('settings.tabMembers'),
+    fields: t('settings.tabFields'),
+    integrations: t('settings.tabIntegrations'),
+  }
+  /* Header order is SETTINGS_TABS order, minus the tabs this surface has no
+     server for (Integrations is desktop-only). One list, so the header and the
+     `settings=` URL guard can never disagree about what exists. */
+  const TABS: [Tab, string][] = visibleSettingsTabs(SETTINGS_TABS, isDesktop()).map((id) => [
+    id,
+    LABELS[id],
+  ])
+  const showIntegrations = TABS.some(([id]) => id === 'integrations')
 
   let loading = $state(true)
   let saving = $state(false)
@@ -314,8 +337,11 @@
       {#if loading}
         <p class="py-8 text-center text-text-muted">{t('settings.loading')}</p>
       {:else}
-        <!-- This mirror — read-only runtime facts (always above tab content) -->
-        {#if runtime}
+        <!-- This mirror — read-only runtime facts, above tab content. Except
+             Integrations: its subject is the three install cards, and this
+             block is tall enough to push all of them below the fold (vision
+             verdict 2026-08-17) — and none of its facts are about installs. -->
+        {#if runtime && tab !== 'integrations'}
           <RuntimeMirror {runtime} />
         {/if}
 
@@ -339,6 +365,8 @@
           <GroupsTab bind:draft />
         {:else if tab === 'members'}
           <MembersTab bind:draft bind:openMember />
+        {:else if tab === 'integrations' && showIntegrations}
+          <IntegrationsTab />
         {:else}
           <FieldsTab bind:draft />
         {/if}

@@ -398,6 +398,11 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+	// Settings → Integrations. Desktop-only: gadak serve does not mount these.
+	// List is local-file / local-process detection; install streams the
+	// bundled CLI (gadak raycast|skill|mcp install) line by line.
+	mux.HandleFunc("GET /desktop/integrations", handleIntegrationsGET)
+	mux.HandleFunc("POST /desktop/integrations/{id}/install", handleIntegrationsInstall)
 	// The in-app browser pane. The SPA sends Atlassian-origin links here
 	// instead of /desktop/open (web/src/lib/desktop-links.ts decides which);
 	// each becomes an embedded webview tab layered over the pane rect the SPA
@@ -628,8 +633,8 @@ type bufferedResponse struct {
 	buf    bytes.Buffer
 }
 
-func (b *bufferedResponse) Header() http.Header { return b.header }
-func (b *bufferedResponse) WriteHeader(code int) { b.code = code }
+func (b *bufferedResponse) Header() http.Header         { return b.header }
+func (b *bufferedResponse) WriteHeader(code int)        { b.code = code }
 func (b *bufferedResponse) Write(p []byte) (int, error) { return b.buf.Write(p) }
 
 func withDesktopFlag(doc []byte) ([]byte, error) {

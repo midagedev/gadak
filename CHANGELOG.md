@@ -9,6 +9,14 @@
   Recently updated issues (from the already-loaded pool — still zero
   requests per keystroke) under Recently viewed, plus saved views, so a
   fresh profile opens onto a list instead of an empty box.
+- **Settings → Integrations** (GDK-185, desktop app only). One tab lists
+  the agent surfaces gadak installs into — Raycast extension, Claude Code
+  skill, Claude Desktop MCP — with honest detection (installed, not
+  installed, or *unknown*, each a distinct state), the exact command it is
+  about to run, and a live log of the install. The verdict comes from the
+  stream's final `exit=<code>` line, never from silence: a broken stream
+  reads as "result unknown", not success. The routes live on the desktop
+  app's own mux, so `gadak serve` and the hosted demo never offer the tab.
 
 ## v0.15.0 — 2026-08-17
 
