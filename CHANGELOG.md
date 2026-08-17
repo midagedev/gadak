@@ -47,6 +47,15 @@ first run of a new ritual: a full-codebase audit before every minor.
   instead of re-ranking it — so the CLI, the REST route, MCP and the list
   all give the same answer. `gadak search --explain` answers "why is this
   row above that one".
+- **Search is fast enough to sit under someone else's keystroke** (GDK-166).
+  On a 20k-item mirror a single letter cost up to 1.6 s — not the FTS scan
+  but three per-row column probes re-reading the index for every returned
+  row. The profile, not the hypothesis, picked the cut: rank resolves first,
+  payload work happens on at most `limit` rows, and the same query now
+  answers in ~110 ms worst-case (14–37× depending on shape), with common
+  tokens inside the 50 ms instant-search budget. A deterministic 20k fixture
+  and a budget gate keep it that way, and `--explain` reports the query's
+  wall time so the next slow keystroke names itself.
 
 ### A dark theme, and a place for the next one
 
