@@ -39,15 +39,15 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 			t.Fatalf("json: %v\n%s", err, rec.Body.String())
 		}
-		if len(doc.Items) != 3 {
-			t.Fatalf("len(items)=%d want 3: %s", len(doc.Items), rec.Body.String())
+		if len(doc.Items) != 4 {
+			t.Fatalf("len(items)=%d want 4: %s", len(doc.Items), rec.Body.String())
 		}
 		return doc.Items
 	}
 
 	items := get()
-	wantIDs := []string{"raycast", "skill", "mcp-claude"}
-	wantCmd := []string{"gadak raycast install", "gadak skill install claude", "gadak mcp install claude"}
+	wantIDs := []string{"command-line-tool", "raycast", "skill", "mcp-claude"}
+	wantCmd := []string{"gadak install-cli", "gadak raycast install", "gadak skill install claude", "gadak mcp install claude"}
 	for i, id := range wantIDs {
 		if items[i]["id"] != id {
 			t.Fatalf("items[%d].id=%v want %s", i, items[i]["id"], id)
@@ -56,17 +56,17 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 			t.Fatalf("items[%d].command=%v want %s", i, items[i]["command"], wantCmd[i])
 		}
 	}
-	if items[0]["installed"] != false {
-		t.Fatalf("raycast installed=%v want false", items[0]["installed"])
-	}
 	if items[1]["installed"] != false {
-		t.Fatalf("skill installed=%v want false", items[1]["installed"])
+		t.Fatalf("raycast installed=%v want false", items[1]["installed"])
 	}
-	if items[1]["prerequisite"] != nil {
-		t.Fatalf("skill prerequisite=%v want null", items[1]["prerequisite"])
+	if items[2]["installed"] != false {
+		t.Fatalf("skill installed=%v want false", items[2]["installed"])
 	}
-	if items[0]["detail"] != "~/.gadak/raycast-extension" {
-		t.Fatalf("raycast detail=%v", items[0]["detail"])
+	if items[2]["prerequisite"] != nil {
+		t.Fatalf("skill prerequisite=%v want null", items[2]["prerequisite"])
+	}
+	if items[1]["detail"] != "~/.gadak/raycast-extension" {
+		t.Fatalf("raycast detail=%v", items[1]["detail"])
 	}
 
 	if err := os.MkdirAll(filepath.Join(gadakHome, "raycast-extension"), 0o755); err != nil {
@@ -84,11 +84,11 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 	}
 
 	items = get()
-	if items[0]["installed"] != true {
-		t.Fatalf("raycast after touch: installed=%v want true", items[0]["installed"])
-	}
 	if items[1]["installed"] != true {
-		t.Fatalf("skill after touch: installed=%v want true", items[1]["installed"])
+		t.Fatalf("raycast after touch: installed=%v want true", items[1]["installed"])
+	}
+	if items[2]["installed"] != true {
+		t.Fatalf("skill after touch: installed=%v want true", items[2]["installed"])
 	}
 }
 

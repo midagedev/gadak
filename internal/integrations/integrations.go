@@ -16,11 +16,13 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 )
 
-// IDs are part of the GET/POST contract. Order of List is fixed.
+// IDs are part of the GET/POST contract. Order of List is fixed:
+// command-line-tool, raycast, skill, mcp-claude.
 const (
-	IDRaycast   = "raycast"
-	IDSkill     = "skill"
-	IDMCPClaude = "mcp-claude"
+	IDCommandLineTool = "command-line-tool"
+	IDRaycast         = "raycast"
+	IDSkill           = "skill"
+	IDMCPClaude       = "mcp-claude"
 )
 
 const mcpProbeTimeout = 3 * time.Second
@@ -36,6 +38,12 @@ var fileIsExec = isExecutable
 var npmFallbackPaths = []string{
 	"/opt/homebrew/bin/npm",
 	"/usr/local/bin/npm",
+}
+
+// gadakFallbackPaths: LookPath("gadak") then these, first existing+executable wins.
+var gadakFallbackPaths = []string{
+	"/opt/homebrew/bin/gadak",
+	"/usr/local/bin/gadak",
 }
 
 // Prerequisite is a local dependency the install verb needs.
@@ -55,14 +63,17 @@ type Item struct {
 	Prerequisite *Prerequisite `json:"prerequisite"`
 }
 
-// List returns the three catalog rows in contract order: raycast, skill, mcp-claude.
+// List returns the four catalog rows in contract order:
+// command-line-tool, raycast, skill, mcp-claude.
 func List() []Item {
-	return []Item{raycastItem(), skillItem(), mcpClaudeItem()}
+	return []Item{commandLineToolItem(), raycastItem(), skillItem(), mcpClaudeItem()}
 }
 
 // InstallArgs is the argv tail for the bundled gadak CLI. ok is false for an unknown id.
 func InstallArgs(id string) ([]string, bool) {
 	switch id {
+	case IDCommandLineTool:
+		return []string{"install-cli"}, true
 	case IDRaycast:
 		return []string{"raycast", "install"}, true
 	case IDSkill:
@@ -71,6 +82,28 @@ func InstallArgs(id string) ([]string, bool) {
 		return []string{"mcp", "install", "claude"}, true
 	default:
 		return nil, false
+	}
+}
+
+func commandLineToolItem() Item {
+	path, ok := resolveGadak(lookPath, fileIsExec)
+	if !ok {
+		return Item{
+			ID:           IDCommandLineTool,
+			Title:        "Command line tool",
+			Installed:    boolPtr(false),
+			Detail:       "not on PATH",
+			Command:      "gadak install-cli",
+			Prerequisite: nil,
+		}
+	}
+	return Item{
+		ID:           IDCommandLineTool,
+		Title:        "Command line tool",
+		Installed:    boolPtr(true),
+		Detail:       clitool.TildeHome(path),
+		Command:      "gadak install-cli",
+		Prerequisite: nil,
 	}
 }
 
@@ -176,15 +209,24 @@ func skillPath() string {
 
 // resolveNPM mirrors cmd/gadak/raycast.go resolveNPM: PATH, then npmFallbackPaths.
 func resolveNPM(look func(string) (string, error), present func(string) bool) (string, bool) {
+	return resolveNamed("npm", npmFallbackPaths, look, present)
+}
+
+// resolveGadak is LookPath("gadak"), then gadakFallbackPaths.
+func resolveGadak(look func(string) (string, error), present func(string) bool) (string, bool) {
+	return resolveNamed("gadak", gadakFallbackPaths, look, present)
+}
+
+func resolveNamed(name string, fallbacks []string, look func(string) (string, error), present func(string) bool) (string, bool) {
 	if look != nil {
-		if p, err := look("npm"); err == nil && p != "" {
+		if p, err := look(name); err == nil && p != "" {
 			return p, true
 		}
 	}
 	if present == nil {
 		present = isExecutable
 	}
-	for _, c := range npmFallbackPaths {
+	for _, c := range fallbacks {
 		if present(c) {
 			return c, true
 		}

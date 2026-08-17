@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/midagedev/gadak/internal/clitool"
 )
 
 func TestListOrderAndDetectFlip(t *testing.T) {
@@ -17,26 +19,29 @@ func TestListOrderAndDetectFlip(t *testing.T) {
 	t.Setenv("GADAK_HOME", gadakHome)
 
 	items := List()
-	if len(items) != 3 {
-		t.Fatalf("len=%d want 3", len(items))
+	if len(items) != 4 {
+		t.Fatalf("len=%d want 4", len(items))
 	}
-	if items[0].ID != IDRaycast || items[1].ID != IDSkill || items[2].ID != IDMCPClaude {
-		t.Fatalf("order %q %q %q", items[0].ID, items[1].ID, items[2].ID)
+	if items[0].ID != IDCommandLineTool || items[1].ID != IDRaycast || items[2].ID != IDSkill || items[3].ID != IDMCPClaude {
+		t.Fatalf("order %q %q %q %q", items[0].ID, items[1].ID, items[2].ID, items[3].ID)
 	}
-	if items[0].Installed == nil || *items[0].Installed {
-		t.Fatalf("raycast want false, got %v", items[0].Installed)
+	if items[0].Command != "gadak install-cli" {
+		t.Fatalf("cli command=%q", items[0].Command)
 	}
 	if items[1].Installed == nil || *items[1].Installed {
-		t.Fatalf("skill want false, got %v", items[1].Installed)
+		t.Fatalf("raycast want false, got %v", items[1].Installed)
 	}
-	if items[1].Prerequisite != nil {
-		t.Fatalf("skill prerequisite=%v want nil", items[1].Prerequisite)
+	if items[2].Installed == nil || *items[2].Installed {
+		t.Fatalf("skill want false, got %v", items[2].Installed)
 	}
-	if items[0].Detail != "~/.gadak/raycast-extension" {
-		t.Fatalf("raycast detail=%q", items[0].Detail)
+	if items[2].Prerequisite != nil {
+		t.Fatalf("skill prerequisite=%v want nil", items[2].Prerequisite)
 	}
-	if items[1].Detail != "~/.claude/skills/gadak/SKILL.md" {
-		t.Fatalf("skill detail=%q", items[1].Detail)
+	if items[1].Detail != "~/.gadak/raycast-extension" {
+		t.Fatalf("raycast detail=%q", items[1].Detail)
+	}
+	if items[2].Detail != "~/.claude/skills/gadak/SKILL.md" {
+		t.Fatalf("skill detail=%q", items[2].Detail)
 	}
 
 	if err := os.MkdirAll(filepath.Join(gadakHome, "raycast-extension"), 0o755); err != nil {
@@ -54,24 +59,24 @@ func TestListOrderAndDetectFlip(t *testing.T) {
 	}
 
 	items = List()
-	if items[0].Installed == nil || !*items[0].Installed {
-		t.Fatalf("raycast after touch: %v", items[0].Installed)
-	}
 	if items[1].Installed == nil || !*items[1].Installed {
-		t.Fatalf("skill after touch: %v", items[1].Installed)
+		t.Fatalf("raycast after touch: %v", items[1].Installed)
+	}
+	if items[2].Installed == nil || !*items[2].Installed {
+		t.Fatalf("skill after touch: %v", items[2].Installed)
 	}
 
 	// package.json without node_modules is an interrupted install: still
 	// installed (Update re-runs the verb) but the detail says so.
-	if !strings.Contains(items[0].Detail, "node_modules missing") {
-		t.Fatalf("raycast detail should flag missing node_modules, got %q", items[0].Detail)
+	if !strings.Contains(items[1].Detail, "node_modules missing") {
+		t.Fatalf("raycast detail should flag missing node_modules, got %q", items[1].Detail)
 	}
 	if err := os.MkdirAll(filepath.Join(gadakHome, "raycast-extension", "node_modules"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	items = List()
-	if strings.Contains(items[0].Detail, "incomplete") {
-		t.Fatalf("raycast detail should be clean with node_modules present, got %q", items[0].Detail)
+	if strings.Contains(items[1].Detail, "incomplete") {
+		t.Fatalf("raycast detail should be clean with node_modules present, got %q", items[1].Detail)
 	}
 }
 
@@ -80,9 +85,77 @@ func TestInstallArgs(t *testing.T) {
 	if !ok || strings.Join(args, " ") != "skill install claude" {
 		t.Fatalf("skill args=%v ok=%v", args, ok)
 	}
+	args, ok = InstallArgs(IDCommandLineTool)
+	if !ok || len(args) != 1 || args[0] != "install-cli" {
+		t.Fatalf("cli args=%v ok=%v want [install-cli]", args, ok)
+	}
 	if _, ok := InstallArgs("nope"); ok {
 		t.Fatal("unknown id must be false")
 	}
+}
+
+func TestCommandLineToolDetectFlip(t *testing.T) {
+	oldLook := lookPath
+	oldExec := fileIsExec
+	t.Cleanup(func() {
+		lookPath = oldLook
+		fileIsExec = oldExec
+	})
+
+	// Empty PATH plus no fallbacks: the machine's /opt/homebrew/bin/gadak
+	// must not leak into this row.
+	empty := t.TempDir()
+	t.Setenv("PATH", empty)
+	lookPath = exec.LookPath
+	fileIsExec = func(string) bool { return false }
+
+	item := itemByID(t, List(), IDCommandLineTool)
+	if item.Installed == nil || *item.Installed {
+		t.Fatalf("empty PATH: installed=%v want false", item.Installed)
+	}
+	if item.Detail != "not on PATH" {
+		t.Fatalf("empty PATH: detail=%q want not on PATH", item.Detail)
+	}
+	if item.Title != "Command line tool" || item.Command != "gadak install-cli" {
+		t.Fatalf("title=%q command=%q", item.Title, item.Command)
+	}
+
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "gadak")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+
+	item = itemByID(t, List(), IDCommandLineTool)
+	if item.Installed == nil || !*item.Installed {
+		t.Fatalf("PATH gadak: installed=%v want true", item.Installed)
+	}
+	if item.Detail != clitool.TildeHome(bin) {
+		t.Fatalf("PATH gadak: detail=%q want %q", item.Detail, clitool.TildeHome(bin))
+	}
+
+	// Fallback: LookPath misses, a well-known path is executable.
+	lookPath = func(string) (string, error) { return "", os.ErrNotExist }
+	fileIsExec = func(p string) bool { return p == "/usr/local/bin/gadak" }
+	item = itemByID(t, List(), IDCommandLineTool)
+	if item.Installed == nil || !*item.Installed {
+		t.Fatalf("fallback: installed=%v want true", item.Installed)
+	}
+	if item.Detail != "/usr/local/bin/gadak" {
+		t.Fatalf("fallback: detail=%q", item.Detail)
+	}
+}
+
+func itemByID(t *testing.T, items []Item, id string) Item {
+	t.Helper()
+	for _, it := range items {
+		if it.ID == id {
+			return it
+		}
+	}
+	t.Fatalf("no item %q in %d rows", id, len(items))
+	return Item{}
 }
 
 func TestItemJSONKeepsNulls(t *testing.T) {

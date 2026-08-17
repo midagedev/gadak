@@ -156,10 +156,33 @@ func run() error {
 	installEscapeRelay()
 
 	// Without an Edit menu, macOS does not wire ⌘C/V/X/A into the webview —
-	// paste during onboarding would fail. The app menu supplies About/Quit.
+	// paste during onboarding would fail. The app menu supplies About/Quit
+	// and Settings… ⌘, (CLI install lives on Settings → Integrations).
 	// Built after application.New: the app menu takes its label from Name.
 	appMenu := app.NewMenu()
-	appMenu.AddRole(application.AppMenu)
+	if runtime.GOOS == "darwin" {
+		gadakMenu := appMenu.AddSubmenu("Gadak")
+		gadakMenu.AddRole(application.About)
+		gadakMenu.AddSeparator()
+		gadakMenu.Add("Settings…").
+			SetAccelerator("CmdOrCtrl+,").
+			OnClick(func(*application.Context) {
+				if window == nil || applyDeepLink == nil {
+					return
+				}
+				applyDeepLink("gadak://view?settings=sync")
+			})
+		gadakMenu.AddSeparator()
+		gadakMenu.AddRole(application.ServicesMenu)
+		gadakMenu.AddSeparator()
+		gadakMenu.AddRole(application.Hide)
+		gadakMenu.AddRole(application.HideOthers)
+		gadakMenu.AddRole(application.UnHide)
+		gadakMenu.AddSeparator()
+		gadakMenu.AddRole(application.Quit)
+	} else {
+		appMenu.AddRole(application.AppMenu)
+	}
 	appMenu.AddRole(application.EditMenu)
 	appMenu.AddRole(application.WindowMenu)
 	// ⌘W closes the visible in-app browser tab and nothing else. It has to be
@@ -172,10 +195,6 @@ func run() error {
 		win.Add("Close Tab").
 			SetAccelerator("CmdOrCtrl+w").
 			OnClick(func(*application.Context) { browse.CloseActive() })
-	}
-	// Tools → Install Command Line Tool… (macOS only; no-op stub elsewhere).
-	if runtime.GOOS == "darwin" {
-		appendInstallCLIMenu(appMenu)
 	}
 	app.Menu.Set(appMenu)
 
