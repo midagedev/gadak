@@ -748,10 +748,11 @@ export interface WriteMetaCache {
   cached_at: string
 }
 
-/** POST create/ request body. */
+/** POST create/ request body. Only summary is required (GDK-218): omitted
+ * project/type resolve server-side (flag → profile default → sole option). */
 export interface CreateIssuePayload {
-  project_key: string
-  issue_type: string // issue_type id from create-meta
+  project_key?: string
+  issue_type?: string // issue_type id from create-meta
   summary: string
   description_text?: string
   assignee_account_id?: string | null

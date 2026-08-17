@@ -639,7 +639,7 @@ class WriteStore {
   }
 
   /** On success: add the new issue to the pool and return issue_key (dialog selects/closes). */
-  async createIssue(payload: CreateIssueInput): Promise<{ ok: boolean; key?: string; error?: string }> {
+  async createIssue(payload: CreateIssuePayload): Promise<{ ok: boolean; key?: string; error?: string }> {
     if (!(await this.ensureWritable())) return { ok: false }
     const summary = payload.summary.trim()
     if (!summary) return { ok: false, error: t('write.titleRequired') }
@@ -647,7 +647,7 @@ class WriteStore {
     // Which optional fields were left off — empty string is "omit", not "set empty".
     console.info('[write] create request', { body, omitted: omittedCreateFields(body) })
     try {
-      const res = (await api.createIssue(body as unknown as CreateIssuePayload)) as CreateWriteResponse
+      const res = (await api.createIssue(body)) as CreateWriteResponse
       this.#applyIssue(res.issue)
       // Recency keys on ids, never display names (type id, not issue_type).
       const project =
@@ -735,21 +735,6 @@ function normalizeLabels(input: string[]): string[] {
   return out
 }
 
-/**
- * POST create/ body after GDK-218: only summary is required. types.ts still
- * types project_key/issue_type as required (that file is owned by another
- * round), so callers here use this looser input and omit empty optionals.
- */
-export type CreateIssueInput = {
-  summary: string
-  project_key?: string
-  issue_type?: string
-  description_text?: string
-  assignee_account_id?: string | null
-  priority?: string
-  labels?: string[]
-}
-
 type CreateWriteResponse = {
   issue: IssueLite
   resolved?: {
@@ -767,8 +752,8 @@ const CREATE_OPTIONAL = [
   'labels',
 ] as const
 
-function compactCreatePayload(input: CreateIssueInput): Record<string, unknown> {
-  const body: Record<string, unknown> = { summary: input.summary.trim() }
+function compactCreatePayload(input: CreateIssuePayload): CreateIssuePayload {
+  const body: CreateIssuePayload = { summary: input.summary.trim() }
   const project = input.project_key?.trim()
   if (project) body.project_key = project
   const type = input.issue_type?.trim()
@@ -786,7 +771,7 @@ function compactCreatePayload(input: CreateIssueInput): Record<string, unknown> 
   return body
 }
 
-function omittedCreateFields(body: Record<string, unknown>): string[] {
+function omittedCreateFields(body: CreateIssuePayload): string[] {
   return CREATE_OPTIONAL.filter((k) => !(k in body))
 }
 
