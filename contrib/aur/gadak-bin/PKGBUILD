@@ -1,0 +1,31 @@
+# gadak-bin — AUR package for the prebuilt Linux CLI tarball.
+# Maintainer contact is filled in when this file is pushed to
+# ssh://aur@aur.archlinux.org/gadak-bin.git (see README.md).
+# This in-repo copy does not store an email address.
+#
+# linux tarball contents (v0.15.2, tar -tzf): LICENSE NOTICE README.md gadak
+# No completion scripts or man page — do not install what is not in the archive.
+#
+# GoReleaser names archives with GOARCH (amd64/arm64); Arch uses
+# x86_64/aarch64. source_* maps between the two.
+
+pkgname=gadak-bin
+pkgver=0.15.2
+pkgrel=1
+pkgdesc='Local SQLite mirror of Jira and Confluence — web UI and agent SQL'
+arch=('x86_64' 'aarch64')
+url='https://github.com/midagedev/gadak'
+license=('Apache-2.0')
+provides=('gadak')
+conflicts=('gadak')
+source_x86_64=("https://github.com/midagedev/gadak/releases/download/v${pkgver}/gadak_${pkgver}_linux_amd64.tar.gz")
+source_aarch64=("https://github.com/midagedev/gadak/releases/download/v${pkgver}/gadak_${pkgver}_linux_arm64.tar.gz")
+sha256sums_x86_64=('697432a2d2d0a857007eb6d8018cf0a15c4b0fd4a9cb084b8406cb43775359bd')
+sha256sums_aarch64=('704b4be8e3a55d73f7ea592ab16611a2b5e79dbb152aff2703944b9241e21cda')
+
+package() {
+  install -Dm755 gadak "${pkgdir}/usr/bin/gadak"
+  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  # NOTICE ships in the tarball; Apache-2.0 §4(d) requires redistributing it.
+  install -Dm644 NOTICE "${pkgdir}/usr/share/licenses/${pkgname}/NOTICE"
+}
