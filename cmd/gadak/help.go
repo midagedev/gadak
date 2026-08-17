@@ -243,10 +243,11 @@ var helps = map[string]cmdHelp{
 	},
 	"search": {
 		summary: "full-text search, or a JQL / Jira-URL filter against the mirror",
-		usage:   "gadak [--profile <name>] search [--jql] [--emit] [--limit N] [--json] \"text|JQL|URL\"",
+		usage:   "gadak [--profile <name>] search [--jql] [--emit] [--limit N] [--json] [--explain] \"text|JQL|URL\"",
 		examples: []string{
 			"gadak search \"flaky upload\" --limit 5",
 			"gadak search \"idempotency\" --json",
+			"gadak search NMB-140 --explain",
 			"gadak search --jql 'project = NMA AND statusCategory = \"In Progress\"'",
 			"gadak search 'https://your-site.atlassian.net/issues/?jql=project%20%3D%20NMA'",
 			"gadak search --jql --emit 'assignee = currentUser()'",

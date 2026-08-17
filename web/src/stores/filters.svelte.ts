@@ -203,7 +203,7 @@ class FiltersStore {
     // Relevance needs query · recency · personalization together — pass context.
     const ctx: RelevanceContext | undefined =
       sort === 'relevance' ? buildRelevanceContext(f.q) : undefined
-    return sortIssues(list, sort, this.#config.display.dir, ctx, f.keys)
+    return sortIssues(list, sort, this.#config.display.dir, ctx, f.keys, this.serverMatchKeys)
   })
 
   /* ── Grouping (display.group_by). group_by=none → single group. ── */
@@ -823,6 +823,7 @@ export function sortIssues(
   dir: 'asc' | 'desc',
   ctx?: RelevanceContext,
   keyOrder?: readonly string[],
+  serverOrder?: readonly string[],
 ): IssueLite[] {
   const d: 1 | -1 = dir === 'asc' ? 1 : -1
   const arr = [...list]
@@ -841,10 +842,29 @@ export function sortIssues(
   }
   if (sort === 'relevance') {
     // Relevance ignores dir (always higher score first). Cache scores; ties by newest update.
+    // When the server ranked a set, that order is the primary key for those
+    // issues; local score only ranks issues the server did not return.
     const rc = ctx ?? buildRelevanceContext('')
     const scoreOf = new Map<string, number>()
     for (const it of arr) scoreOf.set(it.issue_key, relevanceScore(it, rc))
+    let serverAt: Map<string, number> | undefined
+    if (serverOrder?.length) {
+      serverAt = new Map()
+      for (const [i, raw] of serverOrder.entries()) {
+        const k = raw.toUpperCase()
+        if (!serverAt.has(k)) serverAt.set(k, i)
+      }
+    }
     arr.sort((a, b) => {
+      if (serverAt) {
+        const ai = serverAt.get(a.issue_key.toUpperCase())
+        const bi = serverAt.get(b.issue_key.toUpperCase())
+        const aIn = ai !== undefined
+        const bIn = bi !== undefined
+        if (aIn && bIn && ai !== bi) return (ai as number) - (bi as number)
+        if (aIn && !bIn) return -1
+        if (!aIn && bIn) return 1
+      }
       const diff = (scoreOf.get(b.issue_key) ?? 0) - (scoreOf.get(a.issue_key) ?? 0)
       return diff !== 0 ? diff : cmpStr(a.updated_at, b.updated_at, -1)
     })

@@ -760,6 +760,7 @@ func cmdSearch(args []string) error {
 	asJSON := fs.Bool("json", false, "emit matching IssueLite rows as JSON")
 	forceJQL := fs.Bool("jql", false, "treat the query as JQL (or a Jira URL with jql=)")
 	emitOnly := fs.Bool("emit", false, "print the canonical JQL and exit (no search)")
+	explain := fs.Bool("explain", false, "print why each hit ranked: key-exact, key-prefix, or fts with bm25 score and column")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("search", fs))
 		return nil
@@ -770,7 +771,7 @@ func cmdSearch(args []string) error {
 	}
 	query := strings.TrimSpace(strings.Join(pos, " "))
 	if query == "" {
-		return usageError("search", `usage: gadak search [--jql] [--emit] [--limit N] [--json] "text|JQL|URL"`)
+		return usageError("search", `usage: gadak search [--jql] [--emit] [--limit N] [--json] [--explain] "text|JQL|URL"`)
 	}
 	asJQL := *forceJQL || jql.LooksLike(query)
 	// An unquoted multi-word FTS query swallows the flags that follow it.
@@ -792,11 +793,16 @@ func cmdSearch(args []string) error {
 	defer db.Close()
 	warnIfStale()
 
-	res, err := db.Search(context.Background(), query, *limit)
+	var res store.SearchResult
+	if *explain {
+		res, err = db.SearchExplain(context.Background(), query, *limit)
+	} else {
+		res, err = db.Search(context.Background(), query, *limit)
+	}
 	if err != nil {
 		return err
 	}
-	// Best match first: lookup preserves the order FTS ranked the keys in.
+	// Best match first: lookup preserves the order Search ranked the keys in.
 	lites, err := lookup(db, res.Keys)
 	if err != nil {
 		return err
@@ -810,14 +816,26 @@ func cmdSearch(args []string) error {
 		if pages == nil {
 			pages = []store.PageLite{}
 		}
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+		body := map[string]any{
 			"total": res.Total, "issues": lites, "pages": pages, "matches": matches,
-		})
+		}
+		if *explain {
+			ex := res.Explain
+			if ex == nil {
+				ex = []store.SearchExplain{}
+			}
+			body["explain"] = ex
+		}
+		return json.NewEncoder(os.Stdout).Encode(body)
 	}
+	byExplain := indexSearchExplain(res.Explain)
 	for _, l := range lites {
 		line := summaryLine(l)
 		if m, ok := matches[l.IssueKey]; ok && (m.Field == "comment" || m.Field == "body") {
 			line += fmt.Sprintf(" (%s: %s)", m.Field, m.Snippet)
+		}
+		if *explain {
+			line += formatSearchExplain(byExplain[l.IssueKey])
 		}
 		fmt.Println(line)
 	}
@@ -827,9 +845,40 @@ func cmdSearch(args []string) error {
 		if m, ok := matches[p.Key]; ok && (m.Field == "comment" || m.Field == "body") {
 			line += fmt.Sprintf(" (%s: %s)", m.Field, m.Snippet)
 		}
+		if *explain {
+			line += formatSearchExplain(byExplain[p.Key])
+		}
 		fmt.Println(line)
 	}
 	return nil
+}
+
+func indexSearchExplain(rows []store.SearchExplain) map[string]store.SearchExplain {
+	out := make(map[string]store.SearchExplain, len(rows))
+	for _, e := range rows {
+		if _, ok := out[e.Key]; !ok {
+			out[e.Key] = e
+		}
+	}
+	return out
+}
+
+// formatSearchExplain is the text suffix for --explain. Reasons are the
+// store values key-exact, key-prefix, and fts; fts also prints the winning
+// column and bm25 score when the store supplied them.
+func formatSearchExplain(e store.SearchExplain) string {
+	if e.Reason == "" {
+		return ""
+	}
+	if e.Reason == "fts" {
+		if e.Score != nil && e.Field != "" {
+			return fmt.Sprintf(" (%s %s bm25=%.4f)", e.Reason, e.Field, *e.Score)
+		}
+		if e.Field != "" {
+			return fmt.Sprintf(" (%s %s)", e.Reason, e.Field)
+		}
+	}
+	return fmt.Sprintf(" (%s)", e.Reason)
 }
 
 func searchJQL(query string, limit int, asJSON, emitOnly, force bool) error {

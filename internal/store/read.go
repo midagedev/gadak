@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 )
@@ -648,27 +649,84 @@ type SearchMatch struct {
 	Snippet string `json:"snippet"`
 }
 
-// SearchResult is a kind-aware FTS hit list. Keys are issue keys (best match
-// first among issues in the ranked window); Pages are page hits in the same
-// ranked window. Total is the number of hits returned (keys + pages), matching
+// SearchExplain is why one returned hit sits where it does. Reason is
+// "key-exact", "key-prefix", or "fts". Field and Score are set only for fts
+// (winning column and bm25). Filled only by SearchExplain; Search leaves
+// Explain nil so the normal path does not allocate it.
+type SearchExplain struct {
+	Key    string   `json:"key"`
+	Reason string   `json:"reason"`
+	Field  string   `json:"field,omitempty"`
+	Score  *float64 `json:"score,omitempty"`
+}
+
+// SearchResult is a kind-aware hit list. Keys are issue keys (key-lookup
+// hits first, then FTS among issues); Pages are page hits in the same
+// window. Total is the number of hits returned (keys + pages), matching
 // the pre-R2 meaning of total = len(results after limit).
-// Matches maps each returned issue or page key to the winning column match.
+// Matches maps each returned issue or page key to the winning FTS column
+// match when FTS contributed one.
 type SearchResult struct {
 	Keys    []string               `json:"keys"`
 	Pages   []PageLite             `json:"pages"`
 	Total   int                    `json:"total"`
 	Matches map[string]SearchMatch `json:"matches"`
+	Explain []SearchExplain        `json:"explain,omitempty"`
+
+	ftsHits []ftsHit // unexported: FTS stream order + bm25, for merge/explain
+}
+
+type ftsHit struct {
+	kind  string
+	key   string
+	score float64
 }
 
 // searchSnippetRunes is the target plain-snippet length (~120 runes).
 const searchSnippetRunes = 120
 
-// Search runs an FTS5 query over titles, bodies and comment text and returns
-// matching issues and pages, best match first. Bare terms are rewritten as
-// quoted prefix queries (see ftsPrefixQuery). A query FTS5 cannot parse is
-// retried as a literal phrase rather than surfaced as an error, because this is
-// fed raw user input. limit applies to the combined FTS result set.
+// ftsBM25Title/Body/Comments are the bm25 column weights for items_fts
+// (title, body_text, comments_text). Measured 2026-08-17:
+//
+//   - Relevance fixture, default equal weights: a 24-repeat body hit (REL-B)
+//     ranked above a single title hit (REL-T): [REL-B, REL-T, REL-C].
+//   - 10 / 2 / 1 still left REL-B first (body tf outweighed the title column).
+//   - 20 / 2 / 1 flips that fixture to [REL-T, REL-B, REL-C].
+//   - examples/demo.db "retry": default started NMA-111 (body-heavy);
+//     20 / 2 / 1 (same as 10 / 2 / 1) promoted title hits NMA-57, NMA-67 first.
+//   - "NMB-140" as an FTS query still matches only mention pages (the key
+//     is not indexed); the key lookup below is what puts NMB-140 first.
+//
+// Do not invent a second ranker — these weights plus key promotion are
+// the whole scoring model.
+const (
+	ftsBM25Title    = 20.0
+	ftsBM25Body     = 2.0
+	ftsBM25Comments = 1.0
+)
+
+func ftsRankSQL() string {
+	return fmt.Sprintf("bm25(items_fts, %g, %g, %g)", ftsBM25Title, ftsBM25Body, ftsBM25Comments)
+}
+
+// Search runs a key lookup (when the query looks like a key) then an FTS5
+// query over titles, bodies and comment text. Key hits are reserved at the
+// front of Keys/Pages so FTS cannot drop them when filling limit. Bare terms
+// are rewritten as quoted prefix queries (see ftsPrefixQuery). A query FTS5
+// cannot parse is retried as a literal phrase rather than surfaced as an
+// error, because this is fed raw user input. limit applies to the combined
+// result (key hits + FTS), with key hits taking slots first.
 func (db *DB) Search(ctx context.Context, query string, limit int) (SearchResult, error) {
+	return db.searchAll(ctx, query, limit, false)
+}
+
+// SearchExplain is Search plus a per-hit reason list. The FTS query is the
+// same; only the returned Explain slice is extra.
+func (db *DB) SearchExplain(ctx context.Context, query string, limit int) (SearchResult, error) {
+	return db.searchAll(ctx, query, limit, true)
+}
+
+func (db *DB) searchAll(ctx context.Context, query string, limit int, explain bool) (SearchResult, error) {
 	empty := SearchResult{Keys: []string{}, Pages: []PageLite{}, Matches: map[string]SearchMatch{}}
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -677,12 +735,91 @@ func (db *DB) Search(ctx context.Context, query string, limit int) (SearchResult
 	if limit <= 0 {
 		limit = 50
 	}
-	match := ftsPrefixQuery(query)
-	res, err := db.search(ctx, match, query, limit)
-	if err != nil {
-		return db.search(ctx, `"`+strings.ReplaceAll(query, `"`, `""`)+`"`, query, limit)
+
+	var keyHits []keyHit
+	if looksLikeKey(query) {
+		hits, err := db.lookupKeyHits(ctx, query, limit)
+		if err != nil {
+			return empty, err
+		}
+		keyHits = hits
 	}
-	return res, nil
+
+	fts := empty
+	if len(keyHits) < limit {
+		match := ftsPrefixQuery(query)
+		res, err := db.search(ctx, match, query, limit)
+		if err != nil {
+			res, err = db.search(ctx, `"`+strings.ReplaceAll(query, `"`, `""`)+`"`, query, limit)
+			if err != nil {
+				if len(keyHits) == 0 {
+					return empty, err
+				}
+				res = empty
+			}
+		}
+		fts = res
+	}
+	return mergeSearch(keyHits, fts, limit, explain), nil
+}
+
+func mergeSearch(keyHits []keyHit, fts SearchResult, limit int, explain bool) SearchResult {
+	out := SearchResult{Keys: []string{}, Pages: []PageLite{}, Matches: map[string]SearchMatch{}}
+	if explain {
+		out.Explain = []SearchExplain{}
+	}
+	ftsPages := make(map[string]PageLite, len(fts.Pages))
+	for _, p := range fts.Pages {
+		ftsPages[p.Key] = p
+	}
+	seen := map[string]bool{}
+	add := func(kind, key, reason, field string, score *float64, page *PageLite) {
+		if key == "" || seen[key] || len(out.Keys)+len(out.Pages) >= limit {
+			return
+		}
+		switch kind {
+		case "issue":
+			out.Keys = append(out.Keys, key)
+		case "page":
+			if page == nil {
+				if p, ok := ftsPages[key]; ok {
+					cp := p
+					page = &cp
+				}
+			}
+			if page == nil {
+				return
+			}
+			out.Pages = append(out.Pages, *page)
+		default:
+			return
+		}
+		seen[key] = true
+		if m, ok := fts.Matches[key]; ok {
+			out.Matches[key] = m
+			if field == "" {
+				field = m.Field
+			}
+		}
+		if explain {
+			e := SearchExplain{Key: key, Reason: reason, Field: field}
+			if score != nil {
+				sc := *score
+				e.Score = &sc
+			}
+			out.Explain = append(out.Explain, e)
+		}
+	}
+
+	for _, h := range keyHits {
+		add(h.kind, h.key, h.reason, "", nil, h.page)
+	}
+	for _, h := range fts.ftsHits {
+		score := h.score
+		add(h.kind, h.key, "fts", "", &score, nil)
+	}
+	out.Total = len(out.Keys) + len(out.Pages)
+	return out
 }
 
 // ftsPrefixQuery rewrites bare terms into quoted prefix queries ("텀"*).
@@ -717,6 +854,7 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 	titleMatch := "title : " + match
 	bodyMatch := "body_text : " + match
 	commentMatch := "comments_text : " + match
+	rank := ftsRankSQL()
 	err := each(ctx, db.sql, `
 		SELECT it.kind, COALESCE(it.key, ''), COALESCE(it.title, ''),
 		       COALESCE(it.author, ''), COALESCE(it.author_id, ''), COALESCE(it.updated_at, ''), COALESCE(it.url, ''),
@@ -729,13 +867,14 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 		       COALESCE((SELECT group_concat(c.body_text, char(10)) FROM comments c WHERE c.item_id = it.id), ''),
 		       EXISTS(SELECT 1 FROM items_fts WHERE rowid = f.rowid AND items_fts MATCH ?),
 		       EXISTS(SELECT 1 FROM items_fts WHERE rowid = f.rowid AND items_fts MATCH ?),
-		       EXISTS(SELECT 1 FROM items_fts WHERE rowid = f.rowid AND items_fts MATCH ?)
+		       EXISTS(SELECT 1 FROM items_fts WHERE rowid = f.rowid AND items_fts MATCH ?),
+		       `+rank+`
 		FROM items_fts f
 		JOIN items it ON it.rowid = f.rowid
 		LEFT JOIN pages p ON p.item_id = it.id
 		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
 		WHERE items_fts MATCH ?
-		ORDER BY rank
+		ORDER BY `+rank+`
 		LIMIT ?`,
 		func(rows *sql.Rows) error {
 			var kind, key, title, author, authorID, updatedAt, url, spaceKey, spaceName, spaceHomepageID, parentID, excerpt, labels string
@@ -743,10 +882,11 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 			var snipTitle, snipBody, snipComment sql.NullString
 			var bodyText, commentsText string
 			var titleHit, bodyHit, commentHit int
+			var score float64
 			if err := rows.Scan(&kind, &key, &title, &author, &authorID, &updatedAt, &url,
 				&spaceKey, &spaceName, &spaceHomepageID, &parentID, &version, &excerpt, &labels,
 				&snipTitle, &snipBody, &snipComment, &bodyText, &commentsText,
-				&titleHit, &bodyHit, &commentHit); err != nil {
+				&titleHit, &bodyHit, &commentHit, &score); err != nil {
 				return err
 			}
 			switch kind {
@@ -763,6 +903,7 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 				})
 			}
 			if key != "" {
+				res.ftsHits = append(res.ftsHits, ftsHit{kind: kind, key: key, score: score})
 				if m, ok := resolveSearchMatch(
 					snipTitle.String, snipBody.String, snipComment.String,
 					title, bodyText, commentsText, rawQuery,

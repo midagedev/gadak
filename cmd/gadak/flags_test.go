@@ -188,7 +188,7 @@ func TestParseAroundRejectsUnknownOnFlagSetCommands(t *testing.T) {
 		{name: "create", flags: []string{"project=", "type=", "priority=", "label=", "attach=", "m=", "json", "batch="}},
 		{name: "edit", flags: []string{"summary=", "m=", "label=", "priority=", "json"}},
 		{name: "attach", flags: []string{"json"}},
-		{name: "search", flags: []string{"limit=", "json", "jql", "emit"}},
+		{name: "search", flags: []string{"limit=", "json", "jql", "emit", "explain"}},
 		{name: "api", flags: []string{"query=", "data=", "write", "status"}},
 		{name: "views", flags: []string{"jql=", "keys=", "json", "no-open"}},
 		{name: "issue", flags: []string{"json"}},
