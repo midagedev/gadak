@@ -11,7 +11,7 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.15 기준 번역입니다.</sub></p>
+<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.15.1 기준 번역입니다.</sub></p>
 
 내 Jira를 로컬 SQLite 파일 하나로 — "어느 에픽이 막혀 있지?"가 물을 수
 없는 질문이 아니라 쿼리 한 줄이 됩니다.
@@ -131,22 +131,18 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
 
 그 런처는 이미 있습니다: 타이핑마다 이슈와 위키 문서를 검색하는 Raycast
 확장이고, [Raycast Store에 제출되어](https://github.com/raycast/extensions/pull/30297)
-심사 중입니다. v0.15.1부터는 이 한 줄로 설치합니다:
+심사 중입니다. 심사가 끝나기 전에도, 이미 설치된 바이너리에서 한 줄로
+설치됩니다(확장이 내장되어 있어 체크아웃이 필요 없습니다):
 
 ```sh
 gadak raycast install
 ```
 
-이전 버전이라면 저장소를 클론해 같은 확장을 직접 불러오세요:
-
-```sh
-git clone https://github.com/midagedev/gadak && cd gadak/contrib/raycast
-npm ci && npm run dev   # 확장이 Raycast에 등록됩니다. dev 모드는 꺼도 유지됩니다
-```
-
-이것도 번거롭다면, 키로 여는 쪽 절반에는 확장이 아예 필요 없습니다 —
-`gadak://view?issue={argument}`를 넣은 Raycast Quicklink면 오늘 그대로
-됩니다.
+macOS 앱에서는 같은 설치가 버튼입니다 — **설정 → 연동**이 Raycast·에이전트
+스킬·MCP를 한 목록으로 보여주고, 무엇이 설치되어 있는지 표시하며, 화면에
+적힌 바로 그 명령을 실행합니다. 확장 자체를 만지려면:
+[`contrib/raycast/`](contrib/raycast/). 확장 없이 가려면, 키로 여는 쪽
+절반은 `gadak://view?issue={argument}`를 넣은 Raycast Quicklink로 됩니다.
 
 ## 에이전트를 위해
 
@@ -158,6 +154,9 @@ gadak skill install         # 스키마 + 쿼리 패턴, 별도 프로세스 없
 # 또는, 셸이 없는 호스트(Claude Desktop)라면:
 gadak mcp install claude    # 이 바이너리와 프로필을 등록에 고정
 ```
+
+두 설치(그리고 Raycast까지)는 macOS 앱에서는 버튼이기도 합니다 — 설치
+상태를 정직하게 보여주는 **설정 → 연동**.
 
 SQL이 답하고, 창이 보여 줍니다. 이미 JQL이 있다면 SQL을 건너뛰세요 —
 절이 그대로 칩이 됩니다:

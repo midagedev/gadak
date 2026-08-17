@@ -126,22 +126,19 @@ whatever can do those two things becomes a surface. A launcher, say:
 
 That launcher exists: a Raycast extension that searches issues and wiki
 documents as you type, [submitted to the Raycast Store](https://github.com/raycast/extensions/pull/30297).
-From v0.15.1:
+Until the review lands, one command installs it from the binary you already
+have (embedded, no checkout):
 
 ```sh
 gadak raycast install
 ```
 
-On earlier versions, clone the repo and load the same extension by hand:
-
-```sh
-git clone https://github.com/midagedev/gadak && cd gadak/contrib/raycast
-npm ci && npm run dev   # imports the extension into Raycast, then keep or stop dev mode
-```
-
-No patience for any of that? A Raycast Quicklink pointed at
-`gadak://view?issue={argument}` covers the open-by-key half today, no
-extension required.
+The macOS app has the same install as a button — **Settings → Integrations**
+lists Raycast, the agent skill and MCP, shows what is already installed, and
+runs the exact command it prints. Building on the extension itself:
+[`contrib/raycast/`](contrib/raycast/). And with no extension at all, a
+Raycast Quicklink pointed at `gadak://view?issue={argument}` covers the
+open-by-key half.
 
 ## For agents
 
@@ -153,6 +150,9 @@ gadak skill install         # schema + query patterns, no extra process
 # or, for hosts without a shell (Claude Desktop):
 gadak mcp install claude    # pins this binary and profile into the registration
 ```
+
+Both installs (and the Raycast one) are also buttons in the macOS app,
+with install state shown honestly: **Settings → Integrations**.
 
 SQL answers; the window presents. And if you already have the JQL, skip the
 SQL — the clauses land as chips:
