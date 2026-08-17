@@ -110,8 +110,10 @@ Writes go through to Jira, then the mirror refreshes. App and web: comment,
 transition, assign, labels, priority, title. CLI: `create` (single or
 `--batch`), `attach`, `edit`, `comment`, `transition`, `assign`. Wiki mirror
 is read-only. Hierarchy, `item_refs`, attachments: [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
-The window keeps one paper metaphor in light and dark; the theme follows
-the system, or the toggle in settings and ⌘K.
+The window keeps one paper metaphor across four palettes — `light`, a
+neutral-cool `dark`, blue-black `ink`, and warm `ember`. The theme follows
+the system unless you pick one, and it belongs to the workspace, not the
+browser: `gadak config set appearance.theme ink`.
 
 And two surfaces is not a closed list. Reading the mirror is one binary
 call (`gadak search --json`, ~20 ms), and opening anything in the app is
@@ -153,6 +155,14 @@ gadak mcp install claude    # pins this binary and profile into the registration
 
 Both installs (and the Raycast one) are also buttons in the macOS app,
 with install state shown honestly: **Settings → Integrations**.
+
+Setup is not a screen an agent has to click, either. Every field the
+settings dialog edits is a CLI verb over the same validation:
+
+```bash
+gadak config list                          # every editable path + its value
+gadak config set appearance.theme ink      # per workspace, applied live
+```
 
 SQL answers; the window presents. And if you already have the JQL, skip the
 SQL — the clauses land as chips:

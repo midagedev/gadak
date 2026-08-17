@@ -11,7 +11,7 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.15.1 기준 번역입니다.</sub></p>
+<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.15.2 기준 번역입니다.</sub></p>
 
 내 Jira를 로컬 SQLite 파일 하나로 — "어느 에픽이 막혀 있지?"가 물을 수
 없는 질문이 아니라 쿼리 한 줄이 됩니다.
@@ -115,8 +115,10 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
 `attach`, `edit`, `comment`, `transition`, `assign`.
 위키 미러는 읽기 전용입니다. 계층 구조, `item_refs`, 첨부:
 [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
-창은 라이트와 다크에서 같은 종이 메타포를 유지합니다 — 테마는 시스템을
-따르거나, 설정과 ⌘K의 토글로 바꿉니다.
+창은 네 팔레트에서 같은 종이 메타포를 유지합니다 — `light`, 중립-쿨
+`dark`, 블루-블랙 `ink`, 웜 `ember`. 테마는 고르지 않으면 시스템을 따르고,
+브라우저가 아니라 **워크스페이스**에 속합니다:
+`gadak config set appearance.theme ink`.
 
 그리고 두 표면은 닫힌 목록이 아닙니다. 미러를 읽는 것은 바이너리 호출
 하나(`gadak search --json`, ~20ms)이고, 앱에서 무언가를 여는 것은 URL
@@ -157,6 +159,14 @@ gadak mcp install claude    # 이 바이너리와 프로필을 등록에 고정
 
 두 설치(그리고 Raycast까지)는 macOS 앱에서는 버튼이기도 합니다 — 설치
 상태를 정직하게 보여주는 **설정 → 연동**.
+
+설정도 에이전트가 화면을 눌러야 하는 일이 아닙니다. 설정 다이얼로그가
+편집하는 모든 필드가 같은 검증을 지나는 CLI 동사입니다:
+
+```bash
+gadak config list                          # 편집 가능한 전체 경로와 현재값
+gadak config set appearance.theme ink      # 워크스페이스별, 즉시 적용
+```
 
 SQL이 답하고, 창이 보여 줍니다. 이미 JQL이 있다면 SQL을 건너뛰세요 —
 절이 그대로 칩이 됩니다:

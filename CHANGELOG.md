@@ -1,11 +1,54 @@
 # Changelog
 
-## 0.15.2 — DRAFT
+## v0.15.2 — 2026-08-17
 
-- **A bare number finds the issue** (GDK-186). Typing `4152` now matches
-  `CRWN-4152` (any project with that number): the exact number ranks with
-  key-exact, a shorter digit run works as a number prefix. One code path, so
-  the CLI, the Raycast extension, ⌘K's server search and MCP all get it.
+The release where settings stop being a screen. Every field the dialog
+edits is a CLI verb, so an agent can set up a workspace end to end — and
+the first thing that travels that way is the look.
+
+### Settings are an agent surface
+
+- **`gadak config list | get | set`** (GDK-193). One path→validate table
+  behind both the CLI and `PUT /api/settings`, so the two can never disagree
+  about what a setting accepts. `gadak config list` prints every editable
+  path with its current value; an unknown path exits 64 and prints the list.
+  Credentials stay with `gadak init`. The skill documents the verb.
+- **Themes live in `config.json`** (GDK-190), which is a per-workspace file:
+  `gadak --profile oss config set appearance.theme ink` dresses that
+  workspace and leaves the others alone. The window writes through the same
+  API, so picking a theme in the UI and setting it from a terminal are the
+  same act. One browser's `/` and `/w/oss` tabs keep their own look.
+
+### Three darks, and one of them is yours
+
+- **`dark` is a neutral-cool charcoal now** (GDK-190). The old ground was
+  amber-brown and read as a tint nobody asked for; the ink stays barely warm
+  so the window is still paper and ink rather than a grey panel.
+- **`ink`** is a new blue-black palette with a cyan-blue accent.
+- **`ember`** preserves the previous warm dark byte for byte — if that was
+  your look, pick it and nothing changed. `theme-check` now discovers
+  palettes from the CSS and holds each to its own ground contract.
+
+### Smaller things that were in the way
+
+- **A bare number finds the issue** (GDK-186). Typing `4152` matches
+  `CRWN-4152` in any project: the exact number ranks with key-exact, a
+  shorter digit run is a number prefix. One code path, so the CLI, the
+  Raycast extension, ⌘K's server search and MCP all get it.
+- **Settings → Integrations** (GDK-185, desktop only) lists the surfaces
+  gadak installs into — command line tool, Raycast extension, Claude Code
+  skill, Claude Desktop MCP — with four-way truth (installed, not
+  installed, unknown, failed), the exact command it runs, and a live log.
+  The verdict is the stream's final `exit=` line, never silence.
+- **The menu stops installing** (GDK-189). Tools → Install Command Line
+  Tool is gone (it is a row in Integrations now) and the app menu gains
+  Settings… ⌘,.
+- **The ⌘K palette is never blank** (GDK-184). An empty query shows
+  recently updated issues under recently viewed, plus saved views — a fresh
+  profile opens onto a list. View rows carry a kind glyph and say what they
+  open (GDK-191).
+- The settings dialog stops repeating its **This mirror** block above every
+  tab; it lives at the foot of Sync, the tab its facts are about (GDK-188).
 - The desktop install log strips ANSI color codes — `ray develop` colors
   its output even into a pipe.
 
