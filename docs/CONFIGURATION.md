@@ -20,9 +20,9 @@ desktop app). OS notifications and the update check stay on the profile
 `serve` was started with (the primary workspace).
 
 Most day-to-day keys are editable from the web **Settings** dialog
-(`GET` / `PUT /api/v1/issues/settings/`). Credentials use a separate endpoint
-(`credential/`). A few operational facts are read-only on the settings response
-under `runtime`.
+(`GET` / `PUT /api/v1/issues/settings/`) and from `gadak config`. Credentials
+use a separate endpoint (`credential/`) or `gadak init`. A few operational
+facts are read-only on the settings response under `runtime`.
 
 Full field mapping and plugin axes: [EXTENDING.md](EXTENDING.md). HTTP shapes:
 [specs/000-product/contracts/api.md](../specs/000-product/contracts/api.md)
@@ -49,34 +49,95 @@ rename an existing field.
 
 ---
 
+## `gadak config`
+
+`gadak config` reads and writes the same profile `config.json` the Settings
+dialog uses. The path catalog and the validators live in
+`internal/config/settings.go` — Settings PUT, the dialog, and this command
+do not keep separate rules for a field they share.
+
+```
+gadak config list
+gadak config list --json
+gadak config get <path>
+gadak config get <path> --json
+gadak config set <path> <value>
+gadak config set <path> <value> --json
+```
+
+`--profile` / `GADAK_PROFILE` selects the file (`~/.gadak/config.json`, or
+`~/.gadak/profiles/<name>/config.json`). Theme and every other catalog
+path are therefore per workspace. See [Files and permissions](#files-and-permissions).
+
+`list` prints one TSV row per catalog path (`path`, JSON value, description)
+and ends with a credentials reminder. `--json` is one object
+(`settings` + `note`). `get` prints the JSON value; `--json` wraps
+`{"path","value"}`. `set` prints the stored value the same way. `set`
+accepts JSON, or a bare scalar (`dark`, `true`, `30`); arrays and objects
+need JSON. A value of `-` reads stdin.
+
+An unknown path exits **64** and prints every valid path. Credentials
+(`site`, `email`, `token`) are not catalog paths — use `gadak init`.
+
+`gadak config list` is the live catalog (28 paths). Three of them are not
+on the Settings PUT document and are not on the Settings form:
+`notify`, `updateCheck`, `attachmentCacheMB`. PUT leaves those three
+untouched (it copies the live file, then overwrites the fields it knows).
+
+### `appearance.theme`
+
+Validation is **shape only**: empty or `system` (stored as the zero value),
+or a lowercase identifier `[a-z0-9-]{1,32}`. Palette names belong to the
+web so a new palette does not need a server deploy. The picker today
+iterates `system`, `light`, `dark`, `ink`, `ember`
+(`web/src/lib/theme.ts`).
+
+### `PUT /api/v1/issues/settings/` is a replace
+
+The path is `/api/v1/issues/settings/` (`apiBase` + `settings/`), not
+`/api/v1/settings/`. A successful PUT assigns the writable fields from the
+body and preserves credentials. Omitted assigned fields become empty
+(projects, maps, members, groups, intervals, …). Omitted `features` is
+normalized (`feed` defaults on; the other flags default off). Partial
+edits are GET then PUT — the dialog's `save` and the theme picker both do
+that.
+
+Three keys are omit-to-preserve, so an older client cannot wipe them:
+`fields` (discovery output), `confluence`, `appearance`. `runtime`, `site`,
+and `hasCredential` on the body are ignored.
+
+---
+
 ## Keys
 
 | Key | Type | Default | Where to edit | Applies |
 | --- | --- | --- | --- | --- |
-| `site` | string (URL) | _(empty)_ | Credential dialog / `PUT credential/` / `gadak init` | Immediate for writes & deep links |
-| `email` | string | _(empty)_ | Credential dialog / `gadak init` | Immediate |
-| `token` | string | _(empty)_ | Credential dialog / `gadak init` | Immediate; **never** returned by `settings/` or `config.json` |
+| `site` | string (URL) | _(empty)_ | Credential dialog / `PUT credential/` / `gadak init` (not `gadak config`) | Immediate for writes & deep links |
+| `email` | string | _(empty)_ | Credential dialog / `gadak init` (not `gadak config`) | Immediate |
+| `token` | string | _(empty)_ | Credential dialog / `gadak init` (not `gadak config`) | Immediate; **never** returned by `settings/` or `config.json` |
 | `tokenVerifiedAt` | string (RFC3339) | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `tokenOwner` | string | _(empty)_ | Set by successful credential verify | Read-only side effect |
-| `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sources / `gadak init` | Next sync / list scope; UI reload after save |
-| `fields` | FieldSpec[] | `[]` | Auto on first full sync / `gadak fields --apply` (read-only on Settings GET as `fieldSpecs`) | Next sync ingest; `fieldUsage` on Settings is project→alias fill counts |
-| `fieldMap` | map alias→field id | `{}` | Settings → Field mapping (legacy; synthesized into `fields` when `fields` is empty) | Next sync ingest |
-| `bodyFields` | string[] (field ids) | `[]` | Settings → Field mapping | Next sync (FTS body); additive with role=body specs |
-| `editableFields` | map alias→field id | `{}` | Settings → Field mapping (legacy; Kind-bearing specs also enable inline edit) | Immediate |
-| `members` | Member[] | `[]` | Settings → Members | Immediate (cached projection invalidated) |
-| `groupRules` | GroupRule[] | `[]` | Settings → Teams | Immediate |
-| `groupLabels` | map | `{}` | Settings → Teams | Immediate |
-| `groupColors` | map | `{}` | Settings → Teams | Immediate |
-| `productByGroup` | map → `{key,label}` | `{}` | Settings → Teams | Immediate |
-| `features` | map of bool | keys: `feed`, `push`, `deploy`, `qa`, `teamGroups`; **`feed` defaults true when omitted**, others false | Settings → Features | Immediate after reload (client reads `config.json`) |
-| `qaDashboardUrl` | string | _(empty)_ | Settings → Features | Immediate after reload |
-| `staleThresholdHours` | int | `0` → client **72** | Settings → Sync | Immediate after reload |
-| `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) | Next watch tick; no process restart |
-| `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) | Next watch tick; no process restart |
-| `notify` | bool | **true** when absent | `config.json` (not on Settings UI) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
-| `updateCheck` | bool | **true** when absent | `config.json` (not on Settings UI) | Next `sync` / `status` / `serve` / desktop start; once-per-day GitHub release lookup (cached under the profile directory on disk). Set `false` to opt out — no outbound traffic beyond Jira |
-| `confluence` | object or absent | absent = wiki mirror off | Settings → Sources | Next Confluence pass |
-| `confluence.spaces` | string[] | `[]` = every *global* space; personal spaces only if named (`internal/config/config.go`) | Settings → Sources | Next Confluence pass |
+| `appearance.theme` | string | empty → **system** | Settings theme picker / `gadak config set appearance.theme` | Immediate after reload; shape `[a-z0-9-]{1,32}` (see above) |
+| `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sources / `gadak init` / `gadak config set projects` | Next sync / list scope; UI reload after save |
+| `fields` | FieldSpec[] | `[]` | Auto on first full sync / `gadak fields --apply` / `gadak config set fields` (read-only on Settings GET as `fieldSpecs`) | Next sync ingest; `fieldUsage` on Settings is project→alias fill counts |
+| `fieldMap` | map alias→field id | `{}` | Settings → Field mapping / `gadak config` (legacy; synthesized into `fields` when `fields` is empty) | Next sync ingest |
+| `bodyFields` | string[] (field ids) | `[]` | Settings → Field mapping / `gadak config` | Next sync (FTS body); additive with role=body specs |
+| `editableFields` | map alias→field id | `{}` | Settings → Field mapping / `gadak config` (legacy; Kind-bearing specs also enable inline edit) | Immediate |
+| `members` | Member[] | `[]` | Settings → Members / `gadak config` | Immediate (cached projection invalidated) |
+| `groupRules` | GroupRule[] | `[]` | Settings → Teams / `gadak config` | Immediate |
+| `groupLabels` | map | `{}` | Settings → Teams / `gadak config` | Immediate |
+| `groupColors` | map | `{}` | Settings → Teams / `gadak config` | Immediate |
+| `productByGroup` | map → `{key,label}` | `{}` | Settings → Teams / `gadak config` | Immediate |
+| `features` | map of bool | keys: `feed`, `push`, `deploy`, `qa`, `teamGroups`; **`feed` defaults true when omitted**, others false | Settings → Features / `gadak config set features` or `features.<name>` | Immediate after reload (client reads `config.json`) |
+| `qaDashboardUrl` | string | _(empty)_ | Settings → Features / `gadak config` | Immediate after reload |
+| `staleThresholdHours` | int | `0` → client **72** | Settings → Sync / `gadak config` | Immediate after reload |
+| `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) / `gadak config` | Next watch tick; no process restart |
+| `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) / `gadak config` | Next watch tick; no process restart |
+| `notify` | bool | **true** when absent | `gadak config set notify` / `config.json` (not on Settings UI or Settings PUT) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
+| `updateCheck` | bool | **true** when absent | `gadak config set updateCheck` / `config.json` (not on Settings UI or Settings PUT) | Next `sync` / `status` / `serve` / desktop start; once-per-day GitHub release lookup (cached under the profile directory on disk). Set `false` to opt out — no outbound traffic beyond Jira |
+| `attachmentCacheMB` | int | `0` → package **512** | `gadak config set attachmentCacheMB` / `config.json` (not on Settings UI or Settings PUT) | Cap (MB) for the on-disk cache opened when a workspace mounts; `0` becomes the package default |
+| `confluence` | object or absent | absent = wiki mirror off | Settings → Sources / `gadak config set confluence` | Next Confluence pass |
+| `confluence.spaces` | string[] | `[]` = every *global* space; personal spaces only if named (`internal/config/config.go`) | Settings → Sources / `gadak config set confluence.spaces` | Next Confluence pass |
 
 The space list *is* the scope: drop a space and the next Confluence pass
 removes it from the mirror; add one and that space is fetched from the start
@@ -115,7 +176,8 @@ PUT ignores both so it cannot wipe discovery.
 | `reconcileIntervalSec` | 300 seconds (5 minutes) |
 
 Below the floor → `400` with a clear `error` string; the file is not written.
-`0` always means “use default”.
+`gadak config set` uses the same `ValidateIntervals` and refuses the write
+the same way. `0` always means “use default”.
 
 ### Interval changes (no process restart)
 
@@ -134,7 +196,8 @@ When the watch loop runs (`gadak serve` with a credential, or `gadak sync
 new personal-feed events since `sync_state.last_notified_at` (macOS
 `osascript`, Linux `notify-send`; Windows is a quiet no-op). The body carries
 the issue title only — never comment text. Set `"notify": false` in
-`config.json` to opt out. Notifications never write `feed_reads`.
+`config.json`, or `gadak config set notify false`, to opt out. Notifications
+never write `feed_reads`.
 
 ### Update check
 
@@ -143,8 +206,9 @@ serve`, and the desktop app may query GitHub's public releases API for this
 project and cache the answer under that profile's directory on disk
 (`update-check.json`). The request carries no account identifiers. Dev
 builds (`0.0.0-dev`) never check. Network errors and rate limits are silent.
-Set `"updateCheck": false` in `config.json` to disable the lookup entirely
-(restores outbound traffic to Jira only). The lookup only feeds the sidebar
+Set `"updateCheck": false` in `config.json`, or `gadak config set updateCheck
+false`, to disable the lookup entirely (restores outbound traffic to Jira
+only). The lookup only feeds the sidebar
 banner; installing an update is `brew upgrade --cask gadak` or a new dmg.
 
 ---
@@ -205,11 +269,15 @@ name is new). `--overwrite` replaces conflicts. Prefer
 | Team views / field map / group rules (between people) | `gadak team export` / `gadak team import` (see above) |
 | Sync loop process | Start/stop `gadak serve` (default when credentialed; `--no-sync` opts out) or `gadak sync --watch` |
 | Keep serve across reboots | `gadak install-service` (launchd / systemd user); `--uninstall` removes it |
-| OS desktop notifications | `"notify": false` in `config.json` to disable (default on) |
+| OS desktop notifications | `gadak config set notify false` (default on) |
+| GitHub release lookup | `gadak config set updateCheck false` (default on) |
+| Attachment cache cap | `gadak config set attachmentCacheMB` (`0` = package default 512) |
 
-There is no remaining day-to-day operational knob that only lives in the JSON
-file: intervals, projects, features, field maps, teams, and members are all on
-the Settings surface. Direct file edit still works for automation and recovery.
+There is no remaining day-to-day operational knob that only lives in a hand
+edit of the JSON file. Settings and `gadak config` share
+`internal/config/settings.go`; `notify`, `updateCheck`, and
+`attachmentCacheMB` are on `gadak config` only (not on Settings PUT). Direct
+file edit still works for automation and recovery.
 
 ### Unattended `gadak init`
 
