@@ -125,6 +125,18 @@ export function parseExitLine(line: string): number | null {
   return m ? Number(m[1]) : null
 }
 
+/**
+ * Drop ANSI CSI sequences from one line of command output.
+ *
+ * `npx ray develop` colors its output even into a pipe, so without this the
+ * log panel shows `[36minfo[39m` literally (seen live, v0.15.1). The pre is
+ * plain text — there is nothing downstream to interpret the codes.
+ */
+export function stripAnsi(line: string): string {
+  // eslint-disable-next-line no-control-regex
+  return line.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
+}
+
 export interface InstallStreamState {
   /** Program output, sentinel excluded, in order. */
   lines: string[]
@@ -177,7 +189,8 @@ export function feedInstallStream(state: InstallStreamState, chunk: string): Ins
   const { lines, buffer } = splitLines(state.buffer, chunk)
   const out = [...state.lines]
   let held = [...state.held]
-  for (const line of lines) {
+  for (const raw of lines) {
+    const line = stripAnsi(raw)
     if (held.length > 0) {
       // Trailing blank lines do not dethrone a candidate: "last non-empty".
       if (line.trim() === '') {

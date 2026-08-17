@@ -14,6 +14,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   actionLabelKind,
+  stripAnsi,
   endInstallStream,
   feedInstallStream,
   fetchIntegrations,
@@ -598,5 +599,28 @@ describe('postInstall', () => {
       throw new Error('socket hang up')
     })
     expect(result).toEqual({ failure: 'unavailable', status: 0 })
+  })
+})
+
+describe('stripAnsi', () => {
+  const ESC = '\u001b'
+  test('drops CSI color sequences, seen live from ray develop (v0.15.1)', () => {
+    expect(stripAnsi(`${ESC}[36minfo${ESC}[39m  - entry points ["src/search.tsx"]`)).toBe(
+      'info  - entry points ["src/search.tsx"]',
+    )
+    expect(stripAnsi(`${ESC}[32mready${ESC}[39m - built extension successfully`)).toBe(
+      'ready - built extension successfully',
+    )
+  })
+
+  test('leaves literal brackets alone — "[Batch]" is text, not a control code', () => {
+    expect(stripAnsi('[Batch] Modify window')).toBe('[Batch] Modify window')
+    expect(stripAnsi('a [36m without ESC')).toBe('a [36m without ESC')
+  })
+
+  test('is applied by feedInstallStream so the log never shows codes', () => {
+    const s = feedInstallStream(newInstallStream(), `${ESC}[36minfo${ESC}[39m ok\nexit=0\n`)
+    expect(s.lines).toEqual(['info ok'])
+    expect(endInstallStream(s).exitCode).toBe(0)
   })
 })
