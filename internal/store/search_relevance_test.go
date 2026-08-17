@@ -273,6 +273,39 @@ func TestLooksLikeKey(t *testing.T) {
 	}
 }
 
+func TestNumericQueryMatchesKeyNumber(t *testing.T) {
+	// Field find (2026-08-17, GDK-186): "4152" returned nothing for CRWN-4152
+	// — the number half of a key was never a lookup form, so the one query a
+	// person actually types off a list gets zero rows.
+	db := openTemp(t)
+	seedSearchRelevance(t, db)
+
+	res, err := db.SearchExplain(context.Background(), "140", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byKey := map[string]string{}
+	for _, e := range res.Explain {
+		byKey[e.Key] = e.Reason
+	}
+	if byKey["REL-140"] != "key-exact" {
+		t.Fatalf("numeric exact: REL-140 reason = %q (explain %+v), want key-exact", byKey["REL-140"], res.Explain)
+	}
+
+	// A shorter digit run is a number prefix, same tier as a key prefix.
+	pref, err := db.SearchExplain(context.Background(), "14", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byKey = map[string]string{}
+	for _, e := range pref.Explain {
+		byKey[e.Key] = e.Reason
+	}
+	if byKey["REL-140"] != "key-prefix" {
+		t.Fatalf("numeric prefix: REL-140 reason = %q, want key-prefix", byKey["REL-140"])
+	}
+}
+
 func TestSearchExplainReasons(t *testing.T) {
 	db := openTemp(t)
 	seedSearchRelevance(t, db)

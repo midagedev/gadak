@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.2 — DRAFT
+
+- **A bare number finds the issue** (GDK-186). Typing `4152` now matches
+  `CRWN-4152` (any project with that number): the exact number ranks with
+  key-exact, a shorter digit run works as a number prefix. One code path, so
+  the CLI, the Raycast extension, ⌘K's server search and MCP all get it.
+- The desktop install log strips ANSI color codes — `ray develop` colors
+  its output even into a pipe.
+
 ## v0.15.1 — 2026-08-17
 
 - **`gadak raycast install`** (GDK-182). Embeds the Raycast extension and

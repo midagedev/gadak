@@ -77,11 +77,29 @@ func (db *DB) lookupKeyHits(ctx context.Context, q string, limit int) ([]keyHit,
 	if rec := reconstructJiraKey(q); rec != "" && !strings.EqualFold(rec, q) {
 		forms = append(forms, rec)
 	}
+	// An all-digit query is the number half of a key: a person reads
+	// "CRWN-4152" off a list and types "4152" (GDK-186). The exact number is
+	// an exact lookup for any project; a shorter run is a prefix on it.
+	digits := allDigitsQuery(q)
 
 	seen := map[string]bool{}
 	var exact, prefix []keyHit
 	for _, form := range forms {
 		hits, err := db.keysEqual(ctx, form)
+		if err != nil {
+			return nil, err
+		}
+		for _, h := range hits {
+			if seen[h.key] {
+				continue
+			}
+			seen[h.key] = true
+			h.reason = "key-exact"
+			exact = append(exact, h)
+		}
+	}
+	if digits != "" {
+		hits, err := db.keysNumberEqual(ctx, digits, limit)
 		if err != nil {
 			return nil, err
 		}
@@ -108,6 +126,20 @@ func (db *DB) lookupKeyHits(ctx context.Context, q string, limit int) ([]keyHit,
 			prefix = append(prefix, h)
 		}
 	}
+	if digits != "" {
+		hits, err := db.keysNumberPrefix(ctx, digits, limit)
+		if err != nil {
+			return nil, err
+		}
+		for _, h := range hits {
+			if seen[h.key] {
+				continue
+			}
+			seen[h.key] = true
+			h.reason = "key-prefix"
+			prefix = append(prefix, h)
+		}
+	}
 	out := append(exact, prefix...)
 	if len(out) > limit {
 		out = out[:limit]
@@ -117,6 +149,40 @@ func (db *DB) lookupKeyHits(ctx context.Context, q string, limit int) ([]keyHit,
 
 func (db *DB) keysEqual(ctx context.Context, key string) ([]keyHit, error) {
 	return db.scanKeyHits(ctx, keyLookupSQL+` WHERE it.key = ? COLLATE NOCASE`, key)
+}
+
+// allDigitsQuery returns the normalized query when it is nothing but digits
+// ("4152", "#4152"), else "". Pure digit queries are the one form the
+// PROJ-then-digits reconstruction can never cover.
+func allDigitsQuery(q string) string {
+	n := normKey(q)
+	if n == "" {
+		return ""
+	}
+	for _, r := range n {
+		if r < '0' || r > '9' {
+			return ""
+		}
+	}
+	return n
+}
+
+// keysNumberEqual finds keys whose number half is exactly n: PROJ-<n> for any
+// project. Page ids have no dash, so they never match here — their exact
+// lookup is keysEqual.
+func (db *DB) keysNumberEqual(ctx context.Context, n string, limit int) ([]keyHit, error) {
+	return db.scanKeyHits(ctx, keyLookupSQL+`
+		WHERE it.key LIKE ? ESCAPE '\' COLLATE NOCASE
+		ORDER BY it.key
+		LIMIT ?`, "%-"+n, limit)
+}
+
+// keysNumberPrefix finds keys whose number half starts with n.
+func (db *DB) keysNumberPrefix(ctx context.Context, n string, limit int) ([]keyHit, error) {
+	return db.scanKeyHits(ctx, keyLookupSQL+`
+		WHERE it.key LIKE ? ESCAPE '\' COLLATE NOCASE
+		ORDER BY it.key
+		LIMIT ?`, "%-"+n+"%", limit)
 }
 
 func (db *DB) keysPrefix(ctx context.Context, prefix string, limit int) ([]keyHit, error) {
