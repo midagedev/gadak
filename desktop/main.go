@@ -117,7 +117,9 @@ func run() error {
 					return fmt.Errorf("browser not ready")
 				}
 				return openURL(u)
-			}, browse)),
+			}, browse, func(text string) bool {
+				return application.Get().Clipboard.SetText(text)
+			})),
 		},
 		SingleInstance: &application.SingleInstanceOptions{
 			// Per profile, not global: one window per mirror, and a second
@@ -340,7 +342,7 @@ func assetHandler(ui fs.FS, next http.Handler) http.Handler {
 // the route (503) — it is bound to app.Browser.OpenURL after the application
 // exists. browse is the in-app browser pane registry; before bind() its routes
 // answer 503 the same way.
-func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openURL func(string) error, browse *browseTabs) http.Handler {
+func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openURL func(string) error, browse *browseTabs, setClipboard func(string) bool) http.Handler {
 	mux := http.NewServeMux()
 	// The v3 webview has no new-window delegate, so target="_blank" clicks die
 	// inside it. The web bundle (in desktop mode only) routes external links
@@ -367,6 +369,31 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 		if err := openURL(u.String()); err != nil {
 			log.Printf("open in browser: %v", err)
 			http.Error(w, `{"error":"open_failed"}`, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	// navigator.clipboard is dead inside the wails webview — measured on the
+	// installed 0.15 build: writeText rejected while the UI's old
+	// catch-and-confirm toast still said "copied" (GDK-178). The web bundle
+	// (desktop mode only, lib/copy-text.ts) posts the text here and the app
+	// writes the system pasteboard, the same call install_cli.go uses. Only
+	// the webview can reach this — there is no TCP listener.
+	mux.HandleFunc("POST /desktop/clipboard", func(w http.ResponseWriter, r *http.Request) {
+		if setClipboard == nil {
+			http.Error(w, `{"error":"unavailable"}`, http.StatusServiceUnavailable)
+			return
+		}
+		var body struct {
+			Text string `json:"text"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Text == "" {
+			http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+			return
+		}
+		if !setClipboard(body.Text) {
+			log.Printf("clipboard: SetText refused %d bytes", len(body.Text))
+			http.Error(w, `{"error":"clipboard_failed"}`, http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -518,6 +545,34 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 			// routes pass the browser guard.
 			r.Header.Del("Origin")
 			r.Host = "127.0.0.1"
+			// A workspace page in this webview is still the desktop app. The
+			// registry serves the base web config (it also serves plain
+			// `gadak serve`), so the desktop flag must be stamped here — the
+			// same one the root /config.json gets — or the SPA on /w/<name>/
+			// thinks it is in a browser and uses transports that are dead in
+			// the webview (GDK-178: navigator.clipboard rejected while the
+			// copy toast said copied; /desktop/open interception, same class).
+			if strings.HasSuffix(r.URL.Path, "/config.json") {
+				rec := &bufferedResponse{header: http.Header{}, code: http.StatusOK}
+				ws(rec, r)
+				body := rec.buf.Bytes()
+				if rec.code == http.StatusOK {
+					if doc, err := withDesktopFlag(body); err == nil {
+						body = doc
+					}
+				}
+				for k, vs := range rec.header {
+					if k == "Content-Length" {
+						continue
+					}
+					for _, v := range vs {
+						w.Header().Add(k, v)
+					}
+				}
+				w.WriteHeader(rec.code)
+				_, _ = w.Write(body)
+				return
+			}
 			ws(w, r)
 		})
 	}
@@ -565,6 +620,18 @@ func serveDesktopIndex(w http.ResponseWriter, ui fs.FS) {
 // withDesktopFlag marks the config document the app serves. One web bundle is
 // shared with `gadak serve`, and only here is the native title bar hidden — the
 // UI has to reserve the window controls' corner, and a browser tab must not.
+// bufferedResponse captures a handler's response so the /w/ config.json can
+// be stamped with the desktop flag before it leaves (see fallbackHandler).
+type bufferedResponse struct {
+	header http.Header
+	code   int
+	buf    bytes.Buffer
+}
+
+func (b *bufferedResponse) Header() http.Header { return b.header }
+func (b *bufferedResponse) WriteHeader(code int) { b.code = code }
+func (b *bufferedResponse) Write(p []byte) (int, error) { return b.buf.Write(p) }
+
 func withDesktopFlag(doc []byte) ([]byte, error) {
 	var m map[string]any
 	if err := json.Unmarshal(doc, &m); err != nil {

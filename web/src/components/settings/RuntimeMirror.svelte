@@ -4,6 +4,7 @@
    * am I editing, where does it live, how much is in it.
    */
   import { t } from '../../lib/i18n'
+  import { copyText } from '../../lib/copy-text'
   import { surface } from '../../lib/config'
   import type { SettingsRuntime } from '../../lib/api'
   import { COPY_BTN } from './controls'
@@ -19,16 +20,15 @@
   )
   let copiedKey = $state<string | null>(null)
 
-  async function copyText(key: string, text: string) {
+  async function copyValue(key: string, text: string) {
     if (!text) return
-    try {
-      await navigator.clipboard.writeText(text)
+    // copy-text.ts owns the desktop-vs-web transport (GDK-178); the copied
+    // state only ever shows on a write that actually happened.
+    if (await copyText(text)) {
       copiedKey = key
       setTimeout(() => {
         if (copiedKey === key) copiedKey = null
       }, 1500)
-    } catch {
-      /* clipboard may be denied — ignore */
     }
   }
 </script>
@@ -49,14 +49,14 @@
       <div class="flex flex-wrap items-center gap-1.5">
         <span class="break-all font-mono text-text-primary">{runtime.dbPath || t('settings.none')}</span>
         {#if runtime.dbPath}
-          <button type="button" class={COPY_BTN} onclick={() => copyText('db', runtime.dbPath)}>
+          <button type="button" class={COPY_BTN} onclick={() => copyValue('db', runtime.dbPath)}>
             {copiedKey === 'db' ? t('settings.copied') : t('settings.copy')}
           </button>
           <button
             type="button"
             class={COPY_BTN}
             title={t(onDesktop ? 'settings.copySqliteDesktop' : 'settings.copySqlite')}
-            onclick={() => copyText('sqlite', `sqlite3 ${runtime.dbPath}`)}
+            onclick={() => copyValue('sqlite', `sqlite3 ${runtime.dbPath}`)}
           >
             {copiedKey === 'sqlite'
               ? t('settings.copied')
@@ -82,7 +82,7 @@
           <button
             type="button"
             class={COPY_BTN}
-            onclick={() => copyText('cfg', runtime.configPath)}
+            onclick={() => copyValue('cfg', runtime.configPath)}
           >
             {copiedKey === 'cfg' ? t('settings.copied') : t('settings.copy')}
           </button>

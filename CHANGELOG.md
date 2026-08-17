@@ -131,6 +131,14 @@ first run of a new ritual: a full-codebase audit before every minor.
   mapping instead of refusing to start — a locked-down directory stays
   locked instead of being silently chmod-unlocked, and `gadak status` now
   names a config it cannot read instead of swallowing the error.
+- **Copy means copied** (GDK-178). Every copy affordance used to confirm
+  before checking: inside the desktop webview `navigator.clipboard` rejects,
+  so the button toasted "copied" over an unchanged pasteboard — and a
+  workspace page (`/w/<profile>`) didn't even know it was in the desktop
+  app, so every desktop-only transport was dead there. One owner now moves
+  text to the clipboard (through the app itself on desktop), the toast
+  reports what actually happened, and workspace pages carry the desktop
+  flag. Verified by clicking the installed build and reading the pasteboard.
 - **An attachment is fetched at most once, as promised** (GDK-177). The
   attachment cache's single-flight had a window where a caller arriving
   just after a download finished refetched the same file. CI caught it as

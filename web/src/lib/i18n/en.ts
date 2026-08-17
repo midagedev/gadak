@@ -498,6 +498,7 @@ export const en = {
   'detail.openJira': 'Open in Jira',
   'detail.copyLink': 'Copy link',
   'detail.linkCopied': 'Copied',
+  'clipboard.copyFailed': 'Could not copy — the clipboard refused the write.',
   'detail.reopened': 'Reopened',
   'detail.reopenTimes': 'Reopened ×{n}',
   'detail.priorityShort': 'Prio {p}',

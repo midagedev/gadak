@@ -10,6 +10,7 @@
   import { me } from '../../stores/me.svelte'
   import { emitJql } from '../../lib/api'
   import { isHostedDemo } from '../../lib/config'
+  import { copyText } from '../../lib/copy-text'
   import { filterFields, type MultiField } from '../../lib/view-config'
   import { t, fieldLabel } from '../../lib/i18n'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
@@ -93,10 +94,9 @@
         write.toast(t('filter.jqlEmpty'), 'info')
         return
       }
-      try {
-        await navigator.clipboard.writeText(res.jql)
-      } catch {
-        /* denied in some e2e / non-secure contexts — the toast still confirms */
+      if (!(await copyText(res.jql))) {
+        write.toast(t('clipboard.copyFailed'), 'error')
+        return
       }
       if (res.omitted?.length) {
         write.toast(t('filter.jqlCopiedPartial', { omitted: res.omitted.join(', ') }), 'info')

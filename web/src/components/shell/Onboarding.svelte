@@ -26,6 +26,7 @@
    * never read back.
    */
   import { t, formatNumber } from '../../lib/i18n'
+  import { copyText } from '../../lib/copy-text'
   import * as api from '../../lib/api'
   import { ApiError } from '../../lib/api'
   import { issues } from '../../stores/issues.svelte'
@@ -232,14 +233,13 @@
   let copiedCommand = $state<string | null>(null)
 
   async function copyCommand(command: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(command)
+    // copy-text.ts owns the desktop-vs-web transport (GDK-178); the copied
+    // state only ever shows on a write that actually happened.
+    if (await copyText(command)) {
       copiedCommand = command
       setTimeout(() => {
         if (copiedCommand === command) copiedCommand = null
       }, 1500)
-    } catch {
-      /* clipboard may be denied — ignore */
     }
   }
 

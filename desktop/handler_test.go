@@ -50,10 +50,14 @@ func TestFallbackHandler(t *testing.T) {
 	browse := newBrowseTabs()
 	emb := &fakeEmbedder{}
 	browse.bind(emb)
+	var clipboardWrites []string
 	h := fallbackHandler(server.New(db, cfg), ui, reg, func(u string) error {
 		openedURLs = append(openedURLs, u)
 		return nil
-	}, browse)
+	}, browse, func(text string) bool {
+		clipboardWrites = append(clipboardWrites, text)
+		return true
+	})
 
 	t.Run("config.json", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/config.json", nil)
@@ -126,6 +130,32 @@ func TestFallbackHandler(t *testing.T) {
 		}
 		if len(openedURLs) != 1 {
 			t.Fatalf("refused URL leaked to the browser: %v", openedURLs)
+		}
+	})
+
+	// navigator.clipboard is dead in the wails webview (GDK-178) — the web
+	// bundle posts here instead. The write must be observable, and an empty
+	// or malformed body refused, so a caller can toast honestly off the code.
+	t.Run("desktop clipboard writes the pasteboard through the app", func(t *testing.T) {
+		post := func(body string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest("POST", "/desktop/clipboard", strings.NewReader(body))
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			return rec
+		}
+		if rec := post(`{"text":"gadak://view?issue=NMB-1"}`); rec.Code != 204 {
+			t.Fatalf("write: got %d body %s", rec.Code, rec.Body.String())
+		}
+		if len(clipboardWrites) != 1 || clipboardWrites[0] != "gadak://view?issue=NMB-1" {
+			t.Fatalf("clipboard writes = %v", clipboardWrites)
+		}
+		for _, bad := range []string{`{"text":""}`, `not json`} {
+			if rec := post(bad); rec.Code != 400 {
+				t.Fatalf("%s: got %d, want 400", bad, rec.Code)
+			}
+		}
+		if len(clipboardWrites) != 1 {
+			t.Fatalf("refused body reached the pasteboard: %v", clipboardWrites)
 		}
 	})
 
@@ -368,7 +398,7 @@ func TestDesktopWorkspaceRoutes(t *testing.T) {
 	t.Cleanup(func() { reg.Close() })
 	// Unbound browse: the routes exist but answer 503 until bind() — the same
 	// state the app is in before application.New returns.
-	h := fallbackHandler(server.New(db, primaryCfg), ui, reg, nil, newBrowseTabs())
+	h := fallbackHandler(server.New(db, primaryCfg), ui, reg, nil, newBrowseTabs(), nil)
 
 	t.Run("workspace config.json is JSON", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/w/work/config.json", nil)
@@ -388,6 +418,12 @@ func TestDesktopWorkspaceRoutes(t *testing.T) {
 		}
 		if doc["apiBase"] != "/w/work/api/v1/issues/" {
 			t.Fatalf("apiBase %v", doc["apiBase"])
+		}
+		// A workspace page in this webview is still the desktop app. Without
+		// the stamp the SPA on /w/<name>/ used browser transports that are
+		// dead in the webview (GDK-178: clipboard silently broken there).
+		if doc["desktop"] != true {
+			t.Fatalf("workspace config must carry desktop:true, got %v", doc["desktop"])
 		}
 		// Must not be SPA HTML.
 		if strings.Contains(rec.Body.String(), "<!doctype html>") {

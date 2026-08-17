@@ -499,6 +499,7 @@ export const ko = {
   'detail.openJira': 'Jira 원본 열기',
   'detail.copyLink': '링크 복사',
   'detail.linkCopied': '복사됨',
+  'clipboard.copyFailed': '복사하지 못했습니다 — 클립보드가 쓰기를 거부했습니다.',
   'detail.reopened': '재오픈됨',
   'detail.reopenTimes': '재오픈 ×{n}',
   'detail.priorityShort': '우선 {p}',
