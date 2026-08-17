@@ -628,17 +628,47 @@ class WriteStore {
 
   /* ── Create issue ── */
 
+  /**
+   * Palette instant-create: summary only. Same createIssue path as the form;
+   * project/type are resolved server-side (internal/create).
+   */
+  async createFromSummary(summary: string): Promise<{ ok: boolean; key?: string; error?: string }> {
+    const s = summary.trim()
+    if (!s) return { ok: false, error: t('write.titleRequired') }
+    return this.createIssue({ summary: s })
+  }
+
   /** On success: add the new issue to the pool and return issue_key (dialog selects/closes). */
-  async createIssue(payload: CreateIssuePayload): Promise<{ ok: boolean; key?: string; error?: string }> {
+  async createIssue(payload: CreateIssueInput): Promise<{ ok: boolean; key?: string; error?: string }> {
     if (!(await this.ensureWritable())) return { ok: false }
+    const summary = payload.summary.trim()
+    if (!summary) return { ok: false, error: t('write.titleRequired') }
+    const body = compactCreatePayload({ ...payload, summary })
+    // Which optional fields were left off — empty string is "omit", not "set empty".
+    console.info('[write] create request', { body, omitted: omittedCreateFields(body) })
     try {
-      const res = await api.createIssue(payload)
+      const res = (await api.createIssue(body as unknown as CreateIssuePayload)) as CreateWriteResponse
       this.#applyIssue(res.issue)
-      // Success only: project/type/label recency (new-issue defaults + autocomplete personalization)
-      recordRecent('create-project', payload.project_key)
-      recordRecent(`create-type:${payload.project_key}`, payload.issue_type)
-      for (const l of payload.labels ?? []) recordRecent('label', l)
-      this.toast(t('write.issueCreated', { key: res.issue.issue_key }), 'success')
+      // Recency keys on ids, never display names (type id, not issue_type).
+      const project =
+        typeof body.project_key === 'string' && body.project_key
+          ? body.project_key
+          : this.projectOf(res.issue)
+      const typeId =
+        typeof body.issue_type === 'string' && body.issue_type
+          ? body.issue_type
+          : (res.issue.issue_type_id ?? '')
+      if (project) recordRecent('create-project', project)
+      if (project && typeId) recordRecent(`create-type:${project}`, typeId)
+      const labels = Array.isArray(body.labels) ? body.labels.filter((l) => typeof l === 'string') : []
+      for (const l of labels) recordRecent('label', l)
+      this.toast(createdToast(res.issue), 'success')
+      console.info('[write] create result', {
+        key: res.issue.issue_key,
+        type: res.issue.issue_type,
+        project: res.issue.source_project,
+        resolved: res.resolved,
+      })
       return { ok: true, key: res.issue.issue_key }
     } catch (e) {
       if (e instanceof ApiError) {
@@ -703,6 +733,70 @@ function normalizeLabels(input: string[]): string[] {
     out.push(s)
   }
   return out
+}
+
+/**
+ * POST create/ body after GDK-218: only summary is required. types.ts still
+ * types project_key/issue_type as required (that file is owned by another
+ * round), so callers here use this looser input and omit empty optionals.
+ */
+export type CreateIssueInput = {
+  summary: string
+  project_key?: string
+  issue_type?: string
+  description_text?: string
+  assignee_account_id?: string | null
+  priority?: string
+  labels?: string[]
+}
+
+type CreateWriteResponse = {
+  issue: IssueLite
+  resolved?: {
+    project?: { value?: string; source?: string }
+    issue_type?: { value?: string; source?: string }
+  }
+}
+
+const CREATE_OPTIONAL = [
+  'project_key',
+  'issue_type',
+  'description_text',
+  'assignee_account_id',
+  'priority',
+  'labels',
+] as const
+
+function compactCreatePayload(input: CreateIssueInput): Record<string, unknown> {
+  const body: Record<string, unknown> = { summary: input.summary.trim() }
+  const project = input.project_key?.trim()
+  if (project) body.project_key = project
+  const type = input.issue_type?.trim()
+  if (type) body.issue_type = type
+  const desc = input.description_text?.trim()
+  if (desc) body.description_text = desc
+  const assignee = input.assignee_account_id?.trim()
+  if (assignee) body.assignee_account_id = assignee
+  const priority = input.priority?.trim()
+  if (priority) body.priority = priority
+  if (input.labels?.length) {
+    const labels = normalizeLabels(input.labels)
+    if (labels.length) body.labels = labels
+  }
+  return body
+}
+
+function omittedCreateFields(body: Record<string, unknown>): string[] {
+  return CREATE_OPTIONAL.filter((k) => !(k in body))
+}
+
+/** Visible guess only: key plus the type name and project the server filled. */
+function createdToast(issue: IssueLite): string {
+  const key = issue.issue_key
+  const type = (issue.issue_type ?? '').trim()
+  const project = (issue.source_project ?? '').trim()
+  if (type && project) return t('write.issueCreatedFilled', { key, type, project })
+  return t('write.issueCreated', { key })
 }
 
 /** App-wide singleton. */

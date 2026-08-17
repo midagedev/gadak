@@ -87,6 +87,8 @@
     testid?: string
     /** Server-search evidence (body/comment). Title hits stay on the first line. */
     match?: SearchMatch
+    /** Instant-create stays open until the request settles (failure must keep the query). */
+    stayOpen?: boolean
     run: () => void
   }
 
@@ -514,18 +516,42 @@
     return out
   })
 
+  let createBusy = $state(false)
+
+  async function createFromPalette(summary: string) {
+    if (createBusy) return
+    createBusy = true
+    try {
+      const res = await write.createFromSummary(summary)
+      if (res.ok) {
+        closePalette()
+        return
+      }
+      if (!res.error) {
+        // Write gate opened settings — drop the palette so that dialog is visible.
+        closePalette()
+        return
+      }
+      write.toast(res.error, 'error')
+    } finally {
+      createBusy = false
+    }
+  }
+
   const actionItems = $derived.by<Item[]>(() => {
     // `c` belongs to the cursor row while there is one, so the badge moves with
     // it — two rows both claiming `c` would be a lie about one of them.
     const cIsComment = triageItems.some((d) => d.id === 'a:triage-comment')
+    const newIssue: Omit<Item, 'section'> = {
+      id: 'a:new',
+      label: t('palette.actionNewIssue'),
+      kbd: cIsComment ? undefined : 'c',
+      testid: 'palette-new-issue',
+      run: () => void write.openNewIssue(),
+    }
     const defs: Omit<Item, 'section'>[] = [
       ...triageItems,
-      {
-        id: 'a:new',
-        label: t('palette.actionNewIssue'),
-        kbd: cIsComment ? undefined : 'c',
-        run: () => void write.openNewIssue(),
-      },
+      newIssue,
       { id: 'a:settings', label: t('palette.actionSettings'), run: onOpenSettings },
       {
         id: 'a:history',
@@ -558,7 +584,30 @@
         run: () => void runSyncNow('incremental'),
       },
     ]
-    return defs.filter((d) => matches(d.label)).map((d) => ({ ...d, section: 'action' as const }))
+    const out: Item[] = defs
+      .filter((d) => matches(d.label))
+      .map((d) => ({ ...d, section: 'action' as const }))
+    if (!raw) return out
+    // Instant-create is the typed text — it is not filtered by the action name.
+    // It goes AFTER every matched action: create writes to Jira, so it must
+    // never be the pre-selected Enter target when the user typed an action's
+    // name ("Sync now" + Enter must sync, not file an issue titled "Sync now").
+    // With no other match it is first anyway, which is the capture flow.
+    const createNow: Item = {
+      id: 'a:create-now',
+      section: 'action',
+      label: t('palette.actionCreateIssue', { summary: raw }),
+      testid: 'palette-create-now',
+      stayOpen: true,
+      run: () => {
+        void createFromPalette(raw)
+      },
+    }
+    out.push(createNow)
+    if (!out.some((d) => d.id === 'a:new')) {
+      out.push({ ...newIssue, section: 'action' })
+    }
+    return out
   })
 
   const localIssueKeys = $derived.by(() => {
@@ -703,7 +752,7 @@
 
   function run(item: Item) {
     item.run()
-    closePalette()
+    if (!item.stayOpen) closePalette()
   }
 
   function onKeydown(e: KeyboardEvent) {

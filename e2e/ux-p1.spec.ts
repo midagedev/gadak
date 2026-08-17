@@ -112,7 +112,9 @@ test.describe('UX P1', () => {
     const palette = page.getByRole('dialog', { name: 'Command palette' })
     await expect(palette).toBeVisible()
     await page.keyboard.type('Sync now', { delay: 15 })
-    const option = palette.getByRole('option', { name: /Sync now/i })
+    // exact: the palette's instant-create row (GDK-217) echoes the query, so
+    // any typed text also appears inside `Create "Sync now"`.
+    const option = palette.getByRole('option', { name: 'Sync now', exact: true })
     await expect(option).toBeVisible()
     await option.click()
 

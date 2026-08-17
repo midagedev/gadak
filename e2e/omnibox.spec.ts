@@ -146,7 +146,11 @@ test.describe('omnibox paste routing', () => {
     const palette = page.getByRole('dialog', { name: 'Command palette' })
     await expect(palette).toBeVisible()
     await page.keyboard.type('Open in NMA', { delay: 15 })
-    const row = palette.getByRole('option').filter({ hasText: 'Open in NMA' })
+    // Skip the instant-create row (GDK-217): it echoes the query, so it also
+    // contains 'Open in NMA'. The row under test is the Jira-filter view.
+    const row = palette
+      .locator('[role="option"]:not([data-testid="palette-create-now"])')
+      .filter({ hasText: 'Open in NMA' })
     await expect(row).toBeVisible()
     await expect(row).toContainText('Jira filter')
     await row.click()

@@ -632,6 +632,7 @@ export const en = {
   'write.createFailed': 'Could not create issue.',
   'write.metaFailed': 'Could not load create metadata.',
   'write.issueCreated': 'Created {key}.',
+  'write.issueCreatedFilled': 'Created {key} · {type} · {project}',
   'write.needToken': 'Set your personal Jira API token first.',
   'write.tokenRejected':
     'Your Jira API token was rejected — replace it with a new personal token.',
@@ -953,6 +954,7 @@ export const en = {
   'palette.viewFilterOne': '1 filter',
   'palette.viewFilters': '{n} filters',
   'palette.actionNewIssue': 'New issue',
+  'palette.actionCreateIssue': 'Create "{summary}"',
   'palette.actionSettings': 'Open settings',
   'palette.actionHistory': 'Open history',
   'palette.actionResetFilters': 'Reset filters',

@@ -630,6 +630,7 @@ export const ko = {
   'write.createFailed': '이슈 생성에 실패했습니다.',
   'write.metaFailed': '생성 메타를 불러오지 못했습니다.',
   'write.issueCreated': '{key} 이슈를 생성했습니다.',
+  'write.issueCreatedFilled': '{key} · {type} · {project} 이슈를 만들었습니다.',
   'write.needToken': '먼저 개인 Jira API 토큰을 설정하세요.',
   'write.tokenRejected':
     'Jira API 토큰이 거부되었습니다 — 새 개인 토큰으로 교체하세요.',
@@ -940,6 +941,7 @@ export const ko = {
   'palette.viewFilterOne': '필터 1개',
   'palette.viewFilters': '필터 {n}개',
   'palette.actionNewIssue': '새 이슈',
+  'palette.actionCreateIssue': '"{summary}" 이슈 만들기',
   'palette.actionSettings': '설정 열기',
   'palette.actionHistory': '히스토리 열기',
   'palette.actionResetFilters': '필터 초기화',
