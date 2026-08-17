@@ -1,7 +1,12 @@
 <script lang="ts">
   /*
-   * Read-only instance facts, above the tab content on every tab: which mirror
-   * am I editing, where does it live, how much is in it.
+   * Read-only instance facts, at the foot of the Sync tab: which mirror am I
+   * editing, where does it live, how much is in it, when did it last pull.
+   *
+   * One place, not one per tab (GDK-188). Repeated above every tab's content it
+   * pushed each tab's own subject down to say the same things again, and none of
+   * those things were about members, fields or groups. They are all about the
+   * state of the sync, which is the tab that now owns it.
    */
   import { t } from '../../lib/i18n'
   import { copyText } from '../../lib/copy-text'
@@ -33,9 +38,11 @@
   }
 </script>
 
+<!-- No outer margin: the tab is a gap-4 column and owns the spacing. -->
 <section
-  class="mb-4 rounded-md border border-border-subtle bg-bg-base/60 px-3 py-2.5"
+  class="rounded-md border border-border-subtle bg-bg-base/60 px-3 py-2.5"
   aria-label={t('settings.thisMirror')}
+  data-testid="runtime-mirror"
 >
   <div class="mb-2 text-micro font-medium uppercase tracking-wide text-text-muted">
     {t('settings.thisMirror')}

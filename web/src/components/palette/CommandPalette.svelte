@@ -32,7 +32,7 @@
   import { builtinViews } from '../../lib/builtin-views'
   import { showIssueList } from '../../lib/show-issue-list'
   import { applyServerSearchOutcome } from '../../lib/server-search'
-  import { emptyFilters, type ViewConfig } from '../../lib/view-config'
+  import { MULTI_FIELDS, emptyFilters, type ViewConfig, type ViewFilters } from '../../lib/view-config'
   import {
     filterIssues,
     filters,
@@ -304,21 +304,131 @@
     onclose()
   }
 
+  /*
+   * A view row has to answer three things at a glance: what it is called, which
+   * kind of view it is, and what it opens. Built-ins came with a glyph and the
+   * three saved kinds came with none, and every sub line was a single kind word
+   * — so the section read as two lists, and no row answered the third question.
+   * (GDK-191)
+   *
+   * The kind glyphs are picked for what they already mean elsewhere, and around
+   * the ones this screen has already spent: `user` marks a person in the People
+   * section above, and inbox/layers/clock/zap and the rest belong to the
+   * built-in views in this very section.
+   */
+  const VIEW_KIND_ICON = {
+    /** Saved by me, like a starred issue is kept by me. */
+    personal: 'star',
+    /** A shared board of work, owned by more than one person. */
+    team: 'layout-dashboard',
+    /** Mirrored from the site — the same glyph the browse pane uses for "out there". */
+    source: 'globe',
+  } as const satisfies Record<'personal' | 'team' | 'source', IconName>
+
+  /**
+   * Active filter axes, minus the two the clue names outright. Counting axes and
+   * not values is what makes "2 filters" mean "two things narrowed" rather than
+   * "two labels picked on one axis".
+   */
+  function filterAxisCount(f: Partial<ViewFilters>): number {
+    let n = 0
+    for (const field of MULTI_FIELDS) {
+      if (field === 'jira_project' || field === 'keys') continue
+      if ((f[field] ?? []).length) n++
+    }
+    const dyn = f.fields ?? {}
+    for (const alias in dyn) if ((dyn[alias] ?? []).length) n++
+    if (f.reopened) n++
+    if (f.unassigned) n++
+    if (f.stale) n++
+    if (f.created_from || f.created_to) n++
+    if (f.updated_from || f.updated_to) n++
+    if ((f.q ?? '').trim()) n++
+    return n
+  }
+
+  /**
+   * What a saved view opens, read off the config the row is already holding —
+   * never a request, because every section of this palette runs on the memory
+   * pool (file header) and a sub line is not worth breaking that for.
+   *
+   * Projects lead: it is the axis people name a view by. Three keys stop being a
+   * clue and become a list, so they collapse to a count. Configs arriving from
+   * Jira are partial (only the clauses that translated), so every axis is read
+   * defensively.
+   */
+  function viewClue(config: ViewConfig | undefined): string {
+    const f = config?.filters as Partial<ViewFilters> | undefined
+    if (!f) return ''
+    const parts: string[] = []
+    const projects = f.jira_project ?? []
+    if (projects.length && projects.length <= 2) {
+      parts.push(projects.join(', '))
+    } else if (projects.length) {
+      parts.push(t('palette.viewProjects', { n: formatNumber(projects.length) }))
+    }
+    const keys = (f.keys ?? []).length
+    if (keys) {
+      parts.push(keys === 1 ? t('palette.viewKeyOne') : t('palette.viewKeys', { n: formatNumber(keys) }))
+    }
+    const axes = filterAxisCount(f)
+    if (axes) {
+      parts.push(axes === 1 ? t('palette.viewFilterOne') : t('palette.viewFilters', { n: formatNumber(axes) }))
+    }
+    return parts.join(' · ')
+  }
+
+  /** Kind first, then the clue — one shape for all four kinds of view row. */
+  function viewSub(kind: string, clue: string): string {
+    return clue ? `${kind} · ${clue}` : kind
+  }
+
   const viewItems = $derived.by<Item[]>(() => {
     const out: Item[] = []
-    const push = (id: string, name: string, sub: string, config: ViewConfig, icon?: IconName) => {
-      if (matches(name)) out.push({ id, section: 'view', label: name, sub, icon, run: () => applyView(config) })
+    const push = (id: string, name: string, sub: string, config: ViewConfig, icon: IconName) => {
+      if (!matches(name)) return
+      out.push({
+        id,
+        section: 'view',
+        label: name,
+        sub,
+        icon,
+        testid: 'palette-view-row',
+        run: () => applyView(config),
+      })
     }
-    for (const v of builtinViews()) push(`vb:${v.id}`, v.name, t('palette.viewBuiltin'), v.config, v.icon)
-    for (const v of views.personal) push(`vp:${v.id}`, v.name, t('palette.viewPersonal'), v.config)
-    for (const v of views.team) push(`vt:${v.id}`, v.name, t('palette.viewTeam'), v.config)
+    // A built-in carries a written hint, which says what it opens better than a
+    // count of its filters ever could.
+    for (const v of builtinViews()) {
+      push(`vb:${v.id}`, v.name, viewSub(t('palette.viewBuiltin'), v.hint ?? ''), v.config, v.icon)
+    }
+    for (const v of views.personal) {
+      push(
+        `vp:${v.id}`,
+        v.name,
+        viewSub(t('palette.viewPersonal'), viewClue(v.config)),
+        v.config,
+        VIEW_KIND_ICON.personal,
+      )
+    }
+    for (const v of views.team) {
+      push(
+        `vt:${v.id}`,
+        v.name,
+        viewSub(t('palette.viewTeam'), viewClue(v.config)),
+        v.config,
+        VIEW_KIND_ICON.team,
+      )
+    }
     for (const v of views.source) {
       if (!matches(v.name)) continue
       out.push({
         id: `vs:${v.id}`,
         section: 'view',
         label: v.name,
-        sub: t('palette.viewSource'),
+        sub: viewSub(t('palette.viewSource'), viewClue(v.config)),
+        icon: VIEW_KIND_ICON.source,
+        testid: 'palette-view-row',
         run: () => {
           applyView(v.config)
           if (v.unsupported?.length) {

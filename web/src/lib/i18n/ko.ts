@@ -904,6 +904,8 @@ export const ko = {
   'theme.system': '시스템',
   'theme.light': '라이트',
   'theme.dark': '다크',
+  'theme.ink': '잉크',
+  'theme.ember': '엠버',
 
   /* ── Command palette ── */
   'palette.title': '커맨드 팔레트',
@@ -931,6 +933,11 @@ export const ko = {
   'palette.viewPersonal': '내 뷰',
   'palette.viewTeam': '팀 뷰',
   'palette.viewSource': 'Jira 필터',
+  'palette.viewProjects': '프로젝트 {n}개',
+  'palette.viewKeyOne': '키 1개',
+  'palette.viewKeys': '키 {n}개',
+  'palette.viewFilterOne': '필터 1개',
+  'palette.viewFilters': '필터 {n}개',
   'palette.actionNewIssue': '새 이슈',
   'palette.actionSettings': '설정 열기',
   'palette.actionHistory': '히스토리 열기',

@@ -60,7 +60,6 @@
   import type { ScopeOption } from './ScopePicker.svelte'
   import { emptyDraft, toDraft, toSettings } from './draft'
   import { SELECT, SELECT_CHEVRON } from './controls'
-  import RuntimeMirror from './RuntimeMirror.svelte'
   import SyncTab from './SyncTab.svelte'
   import SourcesTab from './SourcesTab.svelte'
   import FeaturesTab from './FeaturesTab.svelte'
@@ -337,16 +336,19 @@
       {#if loading}
         <p class="py-8 text-center text-text-muted">{t('settings.loading')}</p>
       {:else}
-        <!-- This mirror — read-only runtime facts, above tab content. Except
-             Integrations: its subject is the three install cards, and this
-             block is tall enough to push all of them below the fold (vision
-             verdict 2026-08-17) — and none of its facts are about installs. -->
-        {#if runtime && tab !== 'integrations'}
-          <RuntimeMirror {runtime} />
-        {/if}
-
+        <!-- The runtime mirror (read-only instance facts) is the Sync tab's
+             own footer now, not a block above every tab: repeated on all seven
+             it pushed each tab's subject down — far enough on Integrations to
+             put all three install cards below the fold (vision verdict
+             2026-08-17) — to state facts about the sync. (GDK-188) -->
         {#if tab === 'sync'}
-          <SyncTab bind:draft {defaultSyncSec} {defaultReconcileSec} onOpenJiraKey={openJiraKey} />
+          <SyncTab
+            bind:draft
+            {defaultSyncSec}
+            {defaultReconcileSec}
+            {runtime}
+            onOpenJiraKey={openJiraKey}
+          />
         {:else if tab === 'sources'}
           <SourcesTab
             bind:draft

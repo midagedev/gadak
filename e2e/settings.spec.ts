@@ -37,6 +37,44 @@ test.describe('settings dialog', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  /*
+   * GDK-188: the runtime mirror is a fact about the mirror's sync state, so it
+   * belongs to the Sync tab, once — repeated above every tab it pushed each
+   * tab's own subject down for facts that tab was not about.
+   */
+  test('the runtime mirror renders once, at the bottom of the Sync tab', async ({ page }) => {
+    await gotoApp(page)
+    await openServerSettings(page)
+
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    const mirror = dialog.getByRole('region', { name: 'This mirror' })
+
+    // Sync is the default tab.
+    await expect(mirror).toHaveCount(1)
+
+    // Below the tab's own controls, not above them: the intervals are the
+    // subject of the tab, the mirror is the reference under it.
+    const order = await dialog.evaluate((root) => {
+      const region = root.querySelector('section[aria-label="This mirror"]')
+      const token = Array.from(root.querySelectorAll('button')).find((b) =>
+        (b.textContent ?? '').includes('Personal Jira API token'),
+      )
+      if (!region || !token) return 'missing'
+      return region.compareDocumentPosition(token) & Node.DOCUMENT_POSITION_PRECEDING
+        ? 'after-sync-controls'
+        : 'before-sync-controls'
+    })
+    expect(order).toBe('after-sync-controls')
+
+    for (const tab of ['Sources', 'Features', 'Teams / groups', 'Members', 'Field mapping']) {
+      await dialog.getByRole('button', { name: tab, exact: true }).click()
+      await expect(mirror, `mirror must not render on the ${tab} tab`).toHaveCount(0)
+    }
+
+    await dialog.getByRole('button', { name: 'Sync', exact: true }).click()
+    await expect(mirror).toHaveCount(1)
+  })
+
   test('shows our own Jira call volume, including throttling', async ({ page }) => {
     await gotoApp(page)
     await openServerSettings(page)

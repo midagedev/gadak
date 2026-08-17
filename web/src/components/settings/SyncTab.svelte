@@ -3,20 +3,27 @@
   import { t } from '../../lib/i18n'
   import { surface } from '../../lib/config'
   import Icon from '../ui/Icon.svelte'
+  import type { SettingsRuntime } from '../../lib/api'
   import { INPUT, SELECT, SELECT_CHEVRON, ADD_BTN } from './controls'
   import { RECONCILE_PRESETS, SYNC_PRESETS, type SettingsDraft } from './draft'
+  import RuntimeMirror from './RuntimeMirror.svelte'
 
   const onDesktop = surface() === 'desktop'
 
+  // `runtime` is null until the settings load lands (and on an older server
+  // that sends no runtime block at all) — the mirror simply has nothing to
+  // mirror then, which is not an error state to report.
   let {
     draft = $bindable(),
     defaultSyncSec,
     defaultReconcileSec,
+    runtime = null,
     onOpenJiraKey,
   }: {
     draft: SettingsDraft
     defaultSyncSec: number
     defaultReconcileSec: number
+    runtime?: SettingsRuntime | null
     onOpenJiraKey: () => void
   } = $props()
 </script>
@@ -121,4 +128,11 @@
       {t('settings.credsElsewhere')}
     </p>
   </div>
+
+  <!-- Read-only facts about the mirror these intervals drive: last pull,
+       watermark, size, last error. Under the controls, because the controls are
+       the subject of the tab and this is the reference for them. (GDK-188) -->
+  {#if runtime}
+    <RuntimeMirror {runtime} />
+  {/if}
 </div>

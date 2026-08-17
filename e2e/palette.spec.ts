@@ -94,6 +94,110 @@ test.describe('command palette', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  /*
+   * GDK-191: the Views section mixed row shapes — built-ins had a glyph and the
+   * saved kinds had none, and every sub line was a single kind word, so the
+   * rows said what they were and never what they would open. Both halves are
+   * read off data the palette already holds: the built-in hint and the saved
+   * view's own config. A clue that cost a request would break the zero-network
+   * rule this palette is built on (file header), so the request count is part
+   * of the same assertion.
+   */
+  test('every view row carries a kind icon and a clue from its own config', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    const API = 'http://127.0.0.1:7877/api/v1/issues/'
+
+    // A personal view lives in localStorage; the fixture ships the Jira filter
+    // ("Open in NMA", NMA + statusCategory). The team layer has none, so this
+    // adds one to the real response rather than replacing it.
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'gadak:personal-views',
+        JSON.stringify([
+          {
+            id: 'e2e-personal',
+            name: 'Nimbus blocked',
+            created_at: new Date().toISOString(),
+            config: {
+              filters: {
+                jira_project: ['NMB'],
+                status_category: ['inprogress'],
+                labels: ['api'],
+              },
+              display: { group_by: 'status_category', sort: 'updated', dir: 'desc' },
+            },
+          },
+        ]),
+      )
+    })
+    await page.route(`${API}views/`, async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback()
+      const res = await route.fetch()
+      const body = (await res.json()) as { views?: unknown[] }
+      body.views = [
+        ...(body.views ?? []),
+        {
+          id: 'e2e-team',
+          name: 'Release triage',
+          owner_email: 'dana@example.com',
+          owner_name: 'Dana',
+          created_at: null,
+          updated_at: null,
+          config: {
+            filters: { jira_project: ['NMB', 'NMA', 'NMS'], stale: true },
+            display: { group_by: 'status_category', sort: 'updated', dir: 'desc' },
+          },
+        },
+      ]
+      await route.fulfill({ response: res, json: body })
+    })
+
+    await gotoApp(page)
+
+    const apiAfterOpen: string[] = []
+    page.on('request', (req) => {
+      const url = req.url()
+      if (url.includes('/api/') && !url.includes('/ui-focus/')) apiAfterOpen.push(url)
+    })
+
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+
+    // Empty query: the saved kinds take the section (builtin-views.ts keeps its
+    // own glyph, so the built-in row is asserted with a query below).
+    const rows = {
+      personal: palette.getByRole('option', { name: /My view/ }),
+      team: palette.getByRole('option', { name: /Team view/ }),
+      source: palette.getByRole('option', { name: /Jira filter/ }),
+    }
+    for (const [kind, row] of Object.entries(rows)) {
+      await expect(row, `${kind} row`).toHaveCount(1)
+      await expect(row.locator('svg'), `${kind} row icon`).toHaveCount(1)
+    }
+
+    // The clue is what the view opens, off the config the row already holds.
+    await expect(rows.personal).toContainText('NMB')
+    await expect(rows.personal).toContainText('2 filters')
+    // Three keys stop being a clue and become a list, so they collapse to a count.
+    await expect(rows.team).toContainText('3 projects')
+    await expect(rows.team).toContainText('1 filter')
+    await expect(rows.source).toContainText('NMA')
+
+    // A built-in answers with its written hint instead of a filter count.
+    await page.keyboard.type('Stale', { delay: 20 })
+    const builtin = palette.getByRole('option', { name: /Built-in view/ }).first()
+    await expect(builtin).toContainText('Stuck in one status too long')
+    await expect(builtin.locator('svg')).toHaveCount(1)
+
+    expect(
+      apiAfterOpen.filter((u) => !u.includes('/search/')),
+      `expected no /api/ requests from the palette, got:\n${apiAfterOpen.join('\n')}`,
+    ).toEqual([])
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('empty query lists recently viewed first and keeps those keys out of updated', async ({
     page,
   }) => {

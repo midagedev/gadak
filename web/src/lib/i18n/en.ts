@@ -911,6 +911,8 @@ export const en = {
   'theme.system': 'System',
   'theme.light': 'Light',
   'theme.dark': 'Dark',
+  'theme.ink': 'Ink',
+  'theme.ember': 'Ember',
 
   /* ── Command palette ── */
   'palette.title': 'Command palette',
@@ -940,6 +942,15 @@ export const en = {
   'palette.viewPersonal': 'My view',
   'palette.viewTeam': 'Team view',
   'palette.viewSource': 'Jira filter',
+  // What a saved view opens, from its own config (GDK-191). One filter is the
+  // common case for a saved view, so these two carry a singular of their own
+  // rather than shipping "1 filters" on a row people read every day. Projects
+  // only ever collapse to a count at three or more.
+  'palette.viewProjects': '{n} projects',
+  'palette.viewKeyOne': '1 key',
+  'palette.viewKeys': '{n} keys',
+  'palette.viewFilterOne': '1 filter',
+  'palette.viewFilters': '{n} filters',
   'palette.actionNewIssue': 'New issue',
   'palette.actionSettings': 'Open settings',
   'palette.actionHistory': 'Open history',
