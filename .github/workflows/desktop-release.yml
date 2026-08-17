@@ -231,4 +231,19 @@ jobs:
             exit 0
           fi
           git commit -m "gadak cask ${tag}"
-          git push origin HEAD
+          # The formula (goreleaser, Release workflow) and this cask land in
+          # the same tap on every tag, and the two workflows race: v0.15.0's
+          # cask push was rejected non-fast-forward seconds after the formula
+          # landed (run 32006831707). The two writers touch different files
+          # (Formula/ vs Casks/), so rebase onto the moving tip and retry.
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD; then
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt) — rebasing onto the tap tip"
+            git fetch origin main
+            git rebase origin/main
+            sleep $((attempt * 3))
+          done
+          echo "cask push failed after 5 attempts" >&2
+          exit 1
