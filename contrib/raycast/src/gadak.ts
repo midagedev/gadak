@@ -50,8 +50,15 @@ export function resolveGadakBinary(pref?: string): string | null {
   return null;
 }
 
+let cachedProfilesBin: string | undefined;
+let cachedProfilesStdout: string | undefined;
+let profilesInflight: Promise<string> | null = null;
+
 export function forgetResolvedGadak(): void {
   cachedPath = undefined;
+  cachedProfilesBin = undefined;
+  cachedProfilesStdout = undefined;
+  profilesInflight = null;
 }
 
 export function deepLink(key: string, profile: string): string {
@@ -65,6 +72,130 @@ export function docLink(key: string, profile: string): string {
   // Same grammar, document screen: docs/DESKTOP.md `doc=KEY`.
   const w = profile ? `/w/${encodeURIComponent(profile)}` : "";
   return `gadak://view${w}?doc=${encodeURIComponent(key)}`;
+}
+
+/**
+ * Assemble `https://<host>/browse/<KEY>` from a profiles `site_host` and an
+ * issue key. Returns null when the host cannot be normalized (empty, a
+ * non-http(s) scheme, unparseable, or not a hostname). The key is always
+ * `encodeURIComponent`'d so path characters cannot change the URL path.
+ * Matches the web `jiraBrowseUrl` path shape and CLI `gadak open` host/key
+ * join; always https, host-only — `site_host` is documented as host-only
+ * (`cmd/gadak/profiles.go` siteHostOnly) but this still strips a scheme or
+ * path if one is mixed in.
+ */
+export function jiraBrowseUrl(
+  siteHost: string,
+  issueKey: string,
+): string | null {
+  const key = issueKey.trim();
+  if (!key) return null;
+
+  const raw = siteHost.trim();
+  if (!raw) return null;
+  // Protocol-relative input is not a host and is not http(s).
+  if (raw.startsWith("//")) return null;
+
+  const schemeMatch = raw.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+  if (schemeMatch) {
+    const scheme = schemeMatch[1].toLowerCase();
+    if (scheme !== "http" && scheme !== "https") return null;
+  }
+
+  let host = "";
+  try {
+    const parsed = new URL(schemeMatch ? raw : `https://${raw}`);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    host = parsed.hostname;
+  } catch {
+    return null;
+  }
+
+  host = host.replace(/\.+$/, "").toLowerCase();
+  if (!isSafeHostname(host)) return null;
+
+  return `https://${host}/browse/${encodeURIComponent(key)}`;
+}
+
+/** DNS-shaped hostname (or IPv4). Single labels and empty hosts are rejected. */
+function isSafeHostname(host: string): boolean {
+  return /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(
+    host,
+  );
+}
+
+/**
+ * Pick `site_host` from `gadak profiles --json` stdout. Returns "" (unknown)
+ * for non-JSON, a missing/empty `profiles` array, a missing row, or an
+ * old CLI whose rows have no `site_host` string. A named profile preference
+ * is matched exactly and does not fall back to the active row (wrong-site
+ * open). An empty preference uses the `active: true` row.
+ */
+export function siteHostFromProfiles(
+  stdout: string,
+  profilePref: string,
+): string {
+  const trimmed = stdout.trim();
+  if (!trimmed) return "";
+  let doc: unknown;
+  try {
+    doc = JSON.parse(trimmed);
+  } catch {
+    return "";
+  }
+  if (!doc || typeof doc !== "object") return "";
+  const profiles = (doc as { profiles?: unknown }).profiles;
+  if (!Array.isArray(profiles) || profiles.length === 0) return "";
+
+  const rows = profiles.filter(
+    (p): p is Record<string, unknown> => !!p && typeof p === "object",
+  );
+  const pref = profilePref.trim();
+  const picked = pref
+    ? rows.find((p) => p.name === pref)
+    : rows.find((p) => p.active === true);
+  if (!picked) return "";
+  const host = picked.site_host;
+  return typeof host === "string" ? host.trim() : "";
+}
+
+/** One `gadak profiles --json` per binary; pick the host in memory after that. */
+export function resolveSiteHost(
+  bin: string,
+  profilePref: string,
+): Promise<string> {
+  return loadProfilesStdout(bin).then((stdout) =>
+    siteHostFromProfiles(stdout, profilePref),
+  );
+}
+
+function loadProfilesStdout(bin: string): Promise<string> {
+  if (cachedProfilesBin === bin && cachedProfilesStdout !== undefined) {
+    return Promise.resolve(cachedProfilesStdout);
+  }
+  if (profilesInflight && cachedProfilesBin === bin) {
+    return profilesInflight;
+  }
+  cachedProfilesBin = bin;
+  const requested = bin;
+  profilesInflight = new Promise((resolve) => {
+    execFile(
+      bin,
+      ["profiles", "--json"],
+      { maxBuffer: 1024 * 1024 },
+      (err, stdout) => {
+        const text = err ? "" : String(stdout ?? "");
+        if (cachedProfilesBin === requested) {
+          cachedProfilesStdout = text;
+          profilesInflight = null;
+        }
+        resolve(text);
+      },
+    );
+  });
+  return profilesInflight;
 }
 
 export type Issue = {

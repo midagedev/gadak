@@ -47,6 +47,24 @@
       "label": "Show milliseconds in the results header",
       "description": "Include the search time in milliseconds in the results header.",
       "default": false
+    },
+    {
+      "name": "defaultAction",
+      "type": "dropdown",
+      "required": false,
+      "title": "Default Action",
+      "description": "Which action Enter performs on an issue: open it in the Gadak app, or open its Jira page in the browser.",
+      "default": "gadak",
+      "data": [
+        {
+          "title": "Open in Gadak",
+          "value": "gadak"
+        },
+        {
+          "title": "Open in Jira",
+          "value": "jira"
+        }
+      ]
     }
   ],
   "dependencies": {

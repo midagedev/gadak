@@ -6,8 +6,12 @@ hit in the Gadak app.
 Each keystroke runs `gadak search --json --limit 20` against the on-disk
 mirror. Results come in two sections: issues, then documents (Confluence
 pages). Enter opens `gadak://view?issue=<KEY>` for an issue and
-`gadak://view?doc=<ID>` for a document. When a profile preference is set,
-the links gain a `/w/<profile>` segment.
+`gadak://view?doc=<ID>` for a document. Issue rows also have **Open in Jira**,
+which opens `https://<site_host>/browse/<KEY>` in the browser when
+`gadak profiles --json` supplies a `site_host` for the selected profile.
+The **Default Action** preference can swap those two on Enter (`⌘↵` is the
+other). When a profile preference is set, the gadak links gain a
+`/w/<profile>` segment.
 
 ## How this differs from the API-based Jira extensions
 
@@ -19,8 +23,8 @@ the [Gadak app](https://github.com/midagedev/gadak) instead:
 - results are instant (~20 ms) and work **offline**
 - one search covers **Jira issues and Confluence pages** together
 - no Atlassian credentials in Raycast — the mirror on disk is the source
-- Enter lands in the Gadak app (full detail, comments, transitions), not a
-  browser tab
+- Enter lands in the Gadak app by default (full detail, comments, transitions);
+  issue rows can also open the Jira page in the browser
 
 The trade-off is the requirement: it only makes sense if you use Gadak,
 and results are as fresh as the mirror's last sync (about a minute behind
@@ -57,3 +61,4 @@ guide. Search does not create a mirror.
 | Gadak Binary        | empty   | Absolute path. Empty uses the discovery list above.                                                   |
 | Profile             | empty   | Passed as `gadak --profile`. Empty uses gadak's default profile and a deeplink with no `/w/` segment. |
 | Show search latency | off     | When on, the results header includes the search time in milliseconds.                                 |
+| Default Action      | Gadak   | Which action Enter performs on an issue: open it in the Gadak app, or open its Jira page in the browser. |

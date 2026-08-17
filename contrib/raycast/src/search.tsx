@@ -15,7 +15,9 @@ import {
   docLink,
   forgetResolvedGadak,
   isSearchFail,
+  jiraBrowseUrl,
   resolveGadakBinary,
+  resolveSiteHost,
   runRecent,
   runSearch,
   searchErrorDetail,
@@ -27,6 +29,64 @@ import {
   type RecentOk,
   type SearchFail,
 } from "./gadak";
+
+/** Local shape so tsc does not depend on generated raycast-env.d.ts. */
+type SearchPrefs = {
+  gadakPath?: string;
+  profile?: string;
+  showLatency?: boolean;
+  defaultAction?: string;
+};
+
+const CMD_RETURN: { modifiers: Array<"cmd">; key: "return" } = {
+  modifiers: ["cmd"],
+  key: "return",
+};
+
+/** Open in Gadak + Open in Jira. First child is Enter; secondary gets ⌘↵.
+ *  Jira is omitted when the browse URL cannot be assembled; Enter then
+ *  stays on the deep link even if the preference is "jira". */
+function IssueOpenActions({
+  issueKey,
+  profile,
+  siteHost,
+  defaultAction,
+}: {
+  issueKey: string;
+  profile: string;
+  siteHost: string;
+  defaultAction: "gadak" | "jira";
+}) {
+  const jiraUrl = jiraBrowseUrl(siteHost, issueKey);
+  const jiraPrimary = defaultAction === "jira" && jiraUrl !== null;
+  const gadakAction = (
+    <Action
+      title="Open in Gadak"
+      icon={Icon.ArrowRight}
+      shortcut={jiraPrimary ? CMD_RETURN : undefined}
+      onAction={() => open(deepLink(issueKey, profile))}
+    />
+  );
+  const jiraAction = jiraUrl ? (
+    <Action.OpenInBrowser
+      title="Open in Jira"
+      icon={Icon.Globe}
+      url={jiraUrl}
+      shortcut={jiraPrimary ? undefined : CMD_RETURN}
+    />
+  ) : null;
+  return jiraPrimary ? (
+    <>
+      {jiraAction}
+      {gadakAction}
+    </>
+  ) : (
+    <>
+      {gadakAction}
+      {jiraAction}
+    </>
+  );
+}
 
 /** "3h ago" — coarse on purpose; the row is a memory aid, not a report. */
 function relativeTime(iso: string): string {
@@ -108,10 +168,11 @@ function SearchErrorView({ fail }: { fail: SearchFail }) {
 }
 
 export default function Command() {
-  const prefs = getPreferenceValues<Preferences.Search>();
+  const prefs = getPreferenceValues<SearchPrefs>();
   const bin = resolveGadakBinary(prefs.gadakPath);
   const profile = prefs.profile?.trim() ?? "";
   const showLatency = Boolean(prefs.showLatency);
+  const defaultAction = prefs.defaultAction === "jira" ? "jira" : "gadak";
 
   const [text, setText] = useState("");
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -122,6 +183,7 @@ export default function Command() {
   const [detail, setDetail] = useState(true);
   const [error, setError] = useState<SearchFail | null>(null);
   const [recent, setRecent] = useState<RecentOk | null>(null);
+  const [siteHost, setSiteHost] = useState("");
   const seq = useRef(0);
 
   // The empty-query home. Loaded once per profile; a failure means the
@@ -131,6 +193,19 @@ export default function Command() {
     let live = true;
     runRecent(bin, profile).then((r) => {
       if (live) setRecent(r);
+    });
+    return () => {
+      live = false;
+    };
+  }, [bin, profile]);
+
+  // site_host for Open in Jira. Must not sit on the search path: one
+  // `gadak profiles --json` per binary, failure → hide the action.
+  useEffect(() => {
+    if (!bin) return;
+    let live = true;
+    resolveSiteHost(bin, profile).then((h) => {
+      if (live) setSiteHost(h);
     });
     return () => {
       live = false;
@@ -269,10 +344,11 @@ export default function Command() {
                     }
                     actions={
                       <ActionPanel>
-                        <Action
-                          title="Open in Gadak"
-                          icon={Icon.ArrowRight}
-                          onAction={() => open(deepLink(it.issue_key, profile))}
+                        <IssueOpenActions
+                          issueKey={it.issue_key}
+                          profile={profile}
+                          siteHost={siteHost}
+                          defaultAction={defaultAction}
                         />
                         <Action
                           title={detail ? "Hide Detail" : "Show Detail"}
@@ -384,17 +460,20 @@ export default function Command() {
                   ]}
                   actions={
                     <ActionPanel>
-                      <Action
-                        title="Open in Gadak"
-                        icon={Icon.ArrowRight}
-                        onAction={() =>
-                          open(
-                            v.kind === "page"
-                              ? docLink(v.key, profile)
-                              : deepLink(v.key, profile),
-                          )
-                        }
-                      />
+                      {v.kind === "page" ? (
+                        <Action
+                          title="Open in Gadak"
+                          icon={Icon.ArrowRight}
+                          onAction={() => open(docLink(v.key, profile))}
+                        />
+                      ) : (
+                        <IssueOpenActions
+                          issueKey={v.key}
+                          profile={profile}
+                          siteHost={siteHost}
+                          defaultAction={defaultAction}
+                        />
+                      )}
                       <Action.CopyToClipboard
                         title="Copy Deep Link"
                         icon={Icon.Link}
@@ -434,10 +513,11 @@ export default function Command() {
                     ]}
                     actions={
                       <ActionPanel>
-                        <Action
-                          title="Open in Gadak"
-                          icon={Icon.ArrowRight}
-                          onAction={() => open(deepLink(u.key, profile))}
+                        <IssueOpenActions
+                          issueKey={u.key}
+                          profile={profile}
+                          siteHost={siteHost}
+                          defaultAction={defaultAction}
                         />
                         <Action.CopyToClipboard
                           title="Copy Deep Link"
