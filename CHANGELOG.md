@@ -34,6 +34,15 @@ first run of a new ritual: a full-codebase audit before every minor.
   path, the local search that a Raycast extension would sit on measures
   p50 ~2–4 ms over HTTP and ~24 ms per CLI spawn on the demo mirror — under
   a "feels instant" budget either way.
+- **The product produces the links it consumes** (GDK-163, GDK-164). The
+  consumer side worked all along; nothing emitted an issue link. Now the
+  issue detail carries a copy-link action (gadak:// plus the http form),
+  `gadak issue KEY --link` prints both through the same composer `views
+  open` uses, and docs/DESKTOP.md states the issue-link form as a contract
+  an extension author can build against. And the querystring shape external
+  tools actually paste — `/?issue=NMB-140`, no `#/` — used to boot the
+  default view and silently drop the param; at boot those params now
+  promote into the hash and the link lands where it pointed.
 - **An issue can name its parent** (GDK-19 in part, toward GDK-86).
   `gadak create --parent KEY` and `gadak edit --parent KEY` write the
   sub-issue relationship through Jira; the mirror learns it on the next
@@ -99,6 +108,13 @@ first run of a new ritual: a full-codebase audit before every minor.
   of live rows.
 - **One concept, one Korean word** (GDK-135). The ko catalog stops mixing
   용어 for the same concept across dialogs, toasts and empty states.
+- **A half-composed syllable is not a query** (GDK-169). Typing 딥링크
+  flashed the list empty on alternating keystrokes because every IME
+  intermediate (딥ㄹ, 딥리) was committed as a real search. One shared
+  helper now owns the rule for the search box and the palette: nothing
+  commits while composition is active, composition end commits the final
+  text, and Enter stays with the IME instead of jumping. English typing is
+  untouched.
 
 ### Honesty at the edges
 
@@ -115,6 +131,11 @@ first run of a new ritual: a full-codebase audit before every minor.
   mapping instead of refusing to start — a locked-down directory stays
   locked instead of being silently chmod-unlocked, and `gadak status` now
   names a config it cannot read instead of swallowing the error.
+- **An attachment is fetched at most once, as promised** (GDK-177). The
+  attachment cache's single-flight had a window where a caller arriving
+  just after a download finished refetched the same file. CI caught it as
+  a flaky test; the assertion was right and the window was real. The cache
+  now answers from disk inside the lock.
 - **The desktop app stops loading its runtime twice** (GDK-150). The wails
   runtime is injected server-side only, a dock-icon click reopens the closed
   window, and the desktop module finally builds and tests in CI on macOS.
