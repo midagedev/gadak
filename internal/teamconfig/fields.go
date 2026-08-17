@@ -43,6 +43,13 @@ var neverExportConfigFields = []string{
 	"Notify",
 	"UpdateCheck",
 	"Appearance",
+	// Default project/type are site- and project-bound ids (plus an optional
+	// display label). Another account's createmeta will not share those type
+	// ids, so exporting them would file as the wrong type or fail. Personal,
+	// not team consensus.
+	"DefaultProject",
+	"DefaultIssueTypeID",
+	"DefaultIssueType",
 }
 
 // credentialJSONKeys are JSON object keys that mean "this file carries

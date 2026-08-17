@@ -11,6 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/create"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -94,6 +97,22 @@ import (
 //     TestCreateParentRejectedByJiraSurfacesMessage
 // 27. Help / usage enumerate --parent
 //     TestCreateHelpListsParentFlag
+//
+// defaults (GDK-218):
+// 28. Type/project: flag → config default → sole → fail (no types[0])
+//     TestCreateOmitsTypeUsesConfigDefault
+//     TestCreateResolveTypeTable
+//     TestCreateResolveProjectTable
+//     TestCreateUsesDefaultProjectWhenAmbiguous
+//     TestCreateSoleTypeWhenProjectHasOne
+//     TestCreateStaleDefaultTypeErrors
+//     TestCreateFlagTypeBeatsConfigDefault
+//     TestCreateTypeOmittedListsAvailable (still fails with no config)
+// 29. --json resolved.{project,issue_type}.{value,source}
+//     TestCreateOmitsTypeUsesConfigDefault
+//     TestCreateUsesDefaultProjectWhenAmbiguous
+// 30. defaultIssueTypeId is digits, never a display name
+//     TestValidateDefaultIssueTypeIDRejectsNames
 
 func TestCreateHappyPathSendsFieldsAndPrintsReread(t *testing.T) {
 	f := newFakeJira(t)
@@ -1612,4 +1631,241 @@ func injectParentIntoSearch(body []byte, parents map[string]string) []byte {
 		return body
 	}
 	return out
+}
+
+// GDK-218: a configured default type id must let create omit --type.
+// FAIL-first: on the pre-change resolveCreateType this errors "pass --type".
+func TestCreateOmitsTypeUsesConfigDefault(t *testing.T) {
+	f := newFakeJira(t)
+	cfg := mirror(t, f.URL)
+	cfg.DefaultIssueTypeID = "10001"
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"from default type", "--project", "NMB", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("create with defaultIssueTypeId and no --type: %v\n%s", err, out)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"id":"10001"`) {
+		t.Fatalf("default type id not sent: %s", sent)
+	}
+	var res struct {
+		Created struct {
+			Key string `json:"key"`
+		} `json:"created"`
+		Resolved struct {
+			IssueType struct {
+				Value  string `json:"value"`
+				Source string `json:"source"`
+			} `json:"issue_type"`
+		} `json:"resolved"`
+	}
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if res.Created.Key != "NMB-42" {
+		t.Fatalf("created %+v", res.Created)
+	}
+	if res.Resolved.IssueType.Value != "10001" || res.Resolved.IssueType.Source != "config" {
+		t.Fatalf("resolved issue_type %+v", res.Resolved.IssueType)
+	}
+}
+
+func TestCreateResolveTypeTable(t *testing.T) {
+	many := []jira.NamedID{
+		{ID: "10001", Name: "Task"},
+		{ID: "10002", Name: "작업"},
+		{ID: "10004", Name: "Bug"},
+	}
+	one := []jira.NamedID{{ID: "10001", Name: "Task"}}
+	cfg := func(id string) *config.Config {
+		return &config.Config{DefaultIssueTypeID: id}
+	}
+	cases := []struct {
+		name, want, project string
+		types               []jira.NamedID
+		cfg                 *config.Config
+		value, source, err  string
+	}{
+		{"flag name", "Task", "NMB", many, nil, "10001", create.SourceFlag, ""},
+		{"flag id", "10004", "NMB", many, nil, "10004", create.SourceFlag, ""},
+		{"flag korean", "작업", "NMB", many, nil, "10002", create.SourceFlag, ""},
+		{"config", "", "NMB", many, cfg("10001"), "10001", create.SourceConfig, ""},
+		{"sole", "", "GDK", one, nil, "10001", create.SourceSole, ""},
+		{"omitted no evidence", "", "NMB", many, nil, "", "", "pass --type"},
+		{"stale default", "", "NMB", many, cfg("99999"), "", "", "99999"},
+		{"stale does not fall to sole", "", "GDK", one, cfg("99999"), "", "", "99999"},
+		{"flag beats config", "Bug", "NMB", many, cfg("10001"), "10004", create.SourceFlag, ""},
+		{"config name is not an id", "", "NMB", many, cfg("Task"), "", "", "Task"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := create.Type(tc.want, tc.types, tc.cfg, tc.project)
+			if tc.err != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.err) {
+					t.Fatalf("err %v, want %q", err, tc.err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Value != tc.value || got.Source != tc.source {
+				t.Fatalf("got %+v, want value=%s source=%s", got, tc.value, tc.source)
+			}
+		})
+	}
+}
+
+func TestCreateResolveProjectTable(t *testing.T) {
+	cases := []struct {
+		name, want    string
+		cfg           *config.Config
+		value, source string
+		err           string
+	}{
+		{"flag", "NMB", &config.Config{Projects: []string{"NMA", "NMB"}, DefaultProject: "NMA"}, "NMB", create.SourceFlag, ""},
+		{"config", "", &config.Config{Projects: []string{"NMA", "NMB"}, DefaultProject: "NMB"}, "NMB", create.SourceConfig, ""},
+		{"sole", "", &config.Config{Projects: []string{"NMB"}}, "NMB", create.SourceSole, ""},
+		{"ambiguous", "", &config.Config{Projects: []string{"NMA", "NMB"}}, "", "", "pass --project"},
+		{"none", "", &config.Config{}, "", "", "pass --project"},
+		{"flag beats config", "GDK", &config.Config{DefaultProject: "NMB", Projects: []string{"NMB", "GDK"}}, "GDK", create.SourceFlag, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := create.Project(tc.want, tc.cfg)
+			if tc.err != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.err) {
+					t.Fatalf("err %v, want %q", err, tc.err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Value != tc.value || got.Source != tc.source {
+				t.Fatalf("got %+v, want value=%s source=%s", got, tc.value, tc.source)
+			}
+		})
+	}
+}
+
+func TestCreateUsesDefaultProjectWhenAmbiguous(t *testing.T) {
+	f := newFakeJira(t)
+	cfg := mirror(t, f.URL)
+	cfg.Projects = []string{"NMA", "NMB", "NMS"}
+	cfg.DefaultProject = "NMB"
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"from default project", "--type", "Task", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("create: %v\n%s", err, out)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"key":"NMB"`) {
+		t.Fatalf("default project not sent: %s", sent)
+	}
+	if !strings.Contains(out, `"source":"config"`) || !strings.Contains(out, `"value":"NMB"`) {
+		t.Fatalf("resolved project missing from json: %s", out)
+	}
+}
+
+func TestCreateSoleTypeWhenProjectHasOne(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"sole type", "--project", "GDK", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("create: %v\n%s", err, out)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"id":"10001"`) {
+		t.Fatalf("sole type not sent: %s", sent)
+	}
+	if !strings.Contains(out, `"source":"sole"`) {
+		t.Fatalf("resolved type source not sole: %s", out)
+	}
+}
+
+func TestCreateStaleDefaultTypeErrors(t *testing.T) {
+	f := newFakeJira(t)
+	cfg := mirror(t, f.URL)
+	cfg.DefaultIssueTypeID = "99999"
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"stale default", "--project", "NMB"})
+	})
+	if err == nil {
+		t.Fatal("expected stale default error")
+	}
+	msg := err.Error()
+	for _, want := range []string{"99999", "not available", "NMB", "Task (id 10001)"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q missing %q", msg, want)
+		}
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("stale default reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateFlagTypeBeatsConfigDefault(t *testing.T) {
+	f := newFakeJira(t)
+	cfg := mirror(t, f.URL)
+	cfg.DefaultIssueTypeID = "10001"
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"flag wins", "--project", "NMB", "--type", "Bug"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"id":"10004"`) {
+		t.Fatalf("flag type not sent: %s", sent)
+	}
+}
+
+func TestCreateHelpMentionsConfiguredDefaults(t *testing.T) {
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"--help"})
+	})
+	if err != nil {
+		t.Fatalf("create --help: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "configured default") {
+		t.Fatalf("--help missing configured default wording:\n%s", out)
+	}
+}
+
+func TestValidateDefaultIssueTypeIDRejectsNames(t *testing.T) {
+	if _, err := config.ValidateDefaultIssueTypeID("Task"); err == nil {
+		t.Fatal("display name accepted")
+	}
+	if _, err := config.ValidateDefaultIssueTypeID("작업"); err == nil {
+		t.Fatal("localized name accepted")
+	}
+	got, err := config.ValidateDefaultIssueTypeID("10001")
+	if err != nil || got != "10001" {
+		t.Fatalf("id: %q %v", got, err)
+	}
+	got, err = config.ValidateDefaultIssueTypeID("  ")
+	if err != nil || got != "" {
+		t.Fatalf("empty: %q %v", got, err)
+	}
+	if _, err := config.ValidateDefaultProject("NMB extra"); err == nil {
+		t.Fatal("whitespace project accepted")
+	}
 }

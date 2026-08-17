@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
@@ -605,7 +606,11 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
-	if p.ProjectKey == "" || p.IssueType == "" || strings.TrimSpace(p.Summary) == "" {
+	// Only the summary is required now that project and type resolve to
+	// defaults below. The code keeps its old name: callers and the i18n
+	// catalog key on it (web/src/lib/i18n/en.ts), and renaming a wire code to
+	// tidy it would break them for no gain in what the reader is told.
+	if strings.TrimSpace(p.Summary) == "" {
 		fail(w, http.StatusBadRequest, "project_issue_type_and_summary_required")
 		return
 	}
@@ -613,25 +618,48 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	proj, err := create.Project(p.ProjectKey, cfg)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
 	// An issue filed outside the mirrored projects would never come back from the
 	// re-read, so refuse it here rather than answering with a stale-mirror error.
-	if !contains(cfg.Projects, p.ProjectKey) {
+	if !contains(cfg.Projects, proj.Value) {
 		fail(w, http.StatusBadRequest, "project_not_mirrored")
 		return
 	}
+	meta, err := c.CreateMeta(r.Context(), []string{proj.Value})
+	if err != nil {
+		failJira(w, r, err)
+		return
+	}
+	metaProj, types, err := create.MetaFor(meta, proj.Value)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	typ, err := create.Type(p.IssueType, types, cfg, proj.Value)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
 	fields := map[string]any{
-		"project":   map[string]string{"key": p.ProjectKey},
-		"issuetype": map[string]string{"id": p.IssueType},
+		"project":   map[string]string{"key": metaProj.Key},
+		"issuetype": map[string]string{"id": typ.Value},
 		"summary":   p.Summary,
 	}
+	// Optional fields are omitted, never sent as "". Empty string is "no
+	// value" (resolve / skip), not "set this field to empty".
 	if strings.TrimSpace(p.DescriptionText) != "" {
 		fields["description"] = jira.Doc(p.DescriptionText, nil)
 	}
 	if id := deref(p.AssigneeAccountID); id != "" {
 		fields["assignee"] = map[string]string{"accountId": id}
 	}
-	if p.Priority != "" {
-		fields["priority"] = map[string]string{"name": p.Priority}
+	if pri := strings.TrimSpace(p.Priority); pri != "" {
+		fields["priority"] = map[string]string{"name": pri}
 	}
 	if labels := normalizeLabels(p.Labels); len(labels) > 0 {
 		fields["labels"] = labels
@@ -647,7 +675,12 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
 		return
 	}
-	s.respondIssue(w, r, key, nil)
+	s.respondIssue(w, r, key, map[string]any{
+		"resolved": map[string]any{
+			"project":    proj,
+			"issue_type": typ,
+		},
+	})
 }
 
 /* ── metadata ── */

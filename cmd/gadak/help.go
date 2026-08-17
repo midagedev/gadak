@@ -75,6 +75,8 @@ var helps = map[string]cmdHelp{
 			"gadak config set syncIntervalSec 30",
 			"gadak config set features.feed true",
 			"gadak config set projects '[\"NMB\",\"NMA\"]'",
+			"gadak config set defaultProject NMB",
+			"gadak config set defaultIssueTypeId 10001",
 		},
 		seeAlso: []string{"gadak init", "gadak status"},
 	},
@@ -151,7 +153,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak serve", "gadak snapshot"},
 	},
 	"export": {
-		summary: "dump saved views, watches, and favorites as JSON (no credentials)",
+		summary: "dump saved views, watches, favorites, and recents as JSON (no credentials)",
 		usage:   "gadak [--profile <name>] export [--out FILE]",
 		options: []helpOption{
 			{name: "out", desc: "write to this file instead of stdout"},
@@ -163,7 +165,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak import", "gadak team export", "gadak export-static"},
 	},
 	"import": {
-		summary: "restore saved views, watches, and favorites from a gadak export file (file wins on name/key conflict)",
+		summary: "restore saved views, watches, favorites, and recents from a gadak export file (file wins on name/key conflict)",
 		usage:   "gadak [--profile <name>] import <FILE>",
 		examples: []string{
 			"gadak import gadak-personal.json",

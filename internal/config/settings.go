@@ -16,6 +16,42 @@ var FeatureNames = []string{"feed", "push", "deploy", "qa", "teamGroups"}
 // deploy. system / light / dark always match.
 var themeIdentRe = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
 
+// issueTypeIDRe is a Jira Cloud issue type id (digits). Display names are
+// rejected so a Korean account cannot store "Task" and silently miss "작업".
+var issueTypeIDRe = regexp.MustCompile(`^[0-9]+$`)
+
+// ValidateDefaultIssueTypeID accepts empty (unset) or a Jira issue type id.
+func ValidateDefaultIssueTypeID(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	if !issueTypeIDRe.MatchString(s) {
+		return "", fmt.Errorf("defaultIssueTypeId must be a Jira issue type id (digits), not a display name (got %q)", s)
+	}
+	return s, nil
+}
+
+// ValidateDefaultIssueType stores an optional display label. Resolution
+// never reads this value.
+func ValidateDefaultIssueType(s string) (string, error) {
+	return strings.TrimSpace(s), nil
+}
+
+// ValidateDefaultProject accepts empty (unset) or a project key with no
+// whitespace. Membership in Projects is not checked here — that list can
+// be empty ("every project") and can change after the default is set.
+func ValidateDefaultProject(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	if strings.ContainsAny(s, " \t\n\r") {
+		return "", fmt.Errorf("defaultProject must be a project key (got %q)", s)
+	}
+	return s, nil
+}
+
 // ValidateTheme accepts empty/"system" (stored as "") and any lowercase
 // identifier. "system", "light", and "dark" are always valid.
 func ValidateTheme(s string) (string, error) {
@@ -279,6 +315,60 @@ func buildSettings() []Setting {
 					return err
 				}
 				c.Projects = v
+				return nil
+			},
+		},
+		{
+			Path:        "defaultProject",
+			Root:        "defaultProject",
+			Description: "project key used when create omits --project / project_key (empty = unset)",
+			Get:         func(c *Config) any { return c.DefaultProject },
+			Set: func(c *Config, raw json.RawMessage) error {
+				s, err := decodeString(raw, "defaultProject")
+				if err != nil {
+					return err
+				}
+				v, err := ValidateDefaultProject(s)
+				if err != nil {
+					return err
+				}
+				c.DefaultProject = v
+				return nil
+			},
+		},
+		{
+			Path:        "defaultIssueTypeId",
+			Root:        "defaultIssueTypeId",
+			Description: "Jira issue type id used when create omits --type / issue_type (empty = unset; not a display name)",
+			Get:         func(c *Config) any { return c.DefaultIssueTypeID },
+			Set: func(c *Config, raw json.RawMessage) error {
+				s, err := decodeString(raw, "defaultIssueTypeId")
+				if err != nil {
+					return err
+				}
+				v, err := ValidateDefaultIssueTypeID(s)
+				if err != nil {
+					return err
+				}
+				c.DefaultIssueTypeID = v
+				return nil
+			},
+		},
+		{
+			Path:        "defaultIssueType",
+			Root:        "defaultIssueType",
+			Description: "optional display label for defaultIssueTypeId; create never resolves against this name",
+			Get:         func(c *Config) any { return c.DefaultIssueType },
+			Set: func(c *Config, raw json.RawMessage) error {
+				s, err := decodeString(raw, "defaultIssueType")
+				if err != nil {
+					return err
+				}
+				v, err := ValidateDefaultIssueType(s)
+				if err != nil {
+					return err
+				}
+				c.DefaultIssueType = v
 				return nil
 			},
 		},

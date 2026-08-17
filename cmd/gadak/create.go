@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
@@ -34,8 +35,8 @@ func (l *labelFlags) Set(v string) error {
 
 func cmdCreate(args []string) error {
 	fs := newFlagSet("create")
-	projectFlag := fs.String("project", "", "project key; omitted uses the sole configured project")
-	typeFlag := fs.String("type", "", "issue type name or id from createmeta")
+	projectFlag := fs.String("project", "", "project key; omitted uses the configured default, else the sole configured project")
+	typeFlag := fs.String("type", "", "issue type name or id from createmeta; omitted uses the configured default id, else the project's only type")
 	priorityFlag := fs.String("priority", "", "priority name or id")
 	parentFlag := fs.String("parent", "", "parent issue key")
 	var labels labelFlags
@@ -108,6 +109,9 @@ func cmdCreate(args []string) error {
 				body := map[string]any{"created": map[string]string{"key": key}}
 				if att, ok := extra["attached"]; ok {
 					body["attached"] = att
+				}
+				if res, ok := extra["resolved"]; ok {
+					body["resolved"] = res
 				}
 				return json.NewEncoder(os.Stdout).Encode(body)
 			}
@@ -207,26 +211,26 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	if err != nil {
 		return "", nil, err
 	}
-	project, err := resolveCreateProject(projectWant, cfg.Projects)
+	projRes, err := create.Project(projectWant, cfg)
 	if err != nil {
 		return "", nil, err
 	}
-	meta, err := c.CreateMeta(ctx, []string{project})
+	meta, err := c.CreateMeta(ctx, []string{projRes.Value})
 	if err != nil {
 		return "", nil, err
 	}
-	proj, types, err := createMetaFor(meta, project)
+	proj, types, err := create.MetaFor(meta, projRes.Value)
 	if err != nil {
 		return "", nil, err
 	}
-	typeID, err := resolveCreateType(typeWant, types)
+	typeRes, err := create.Type(typeWant, types, cfg, projRes.Value)
 	if err != nil {
 		return "", nil, err
 	}
 
 	fields := map[string]any{
 		"project":   map[string]string{"key": proj.Key},
-		"issuetype": map[string]string{"id": typeID},
+		"issuetype": map[string]string{"id": typeRes.Value},
 		"summary":   summary,
 	}
 	if strings.TrimSpace(body) != "" {
@@ -254,7 +258,13 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	if err != nil {
 		return "", nil, err
 	}
-	extra := map[string]any{"created": map[string]string{"key": key}}
+	extra := map[string]any{
+		"created": map[string]string{"key": key},
+		"resolved": map[string]any{
+			"project":    projRes,
+			"issue_type": typeRes,
+		},
+	}
 	if len(attach) > 0 {
 		attached, err := uploadAttachPaths(ctx, c, key, attach)
 		if err != nil {
@@ -280,6 +290,9 @@ func emitBatchLine(ctx context.Context, cfg *config.Config, db *store.DB, c *jir
 			body := map[string]any{"created": map[string]string{"key": key}}
 			if att, ok := extra["attached"]; ok {
 				body["attached"] = att
+			}
+			if res, ok := extra["resolved"]; ok {
+				body["resolved"] = res
 			}
 			return json.NewEncoder(os.Stdout).Encode(body)
 		}
@@ -313,48 +326,8 @@ func parseParentKey(raw, cmd string) (string, error) {
 	return normalizeKey(raw), nil
 }
 
-// resolveCreateProject uses --project, or the sole configured project key.
-// Zero or two-or-more configured keys without --project is an error that
-// lists what is configured.
-func resolveCreateProject(flag string, configured []string) (string, error) {
-	if p := strings.TrimSpace(flag); p != "" {
-		return p, nil
-	}
-	if len(configured) == 1 && strings.TrimSpace(configured[0]) != "" {
-		return configured[0], nil
-	}
-	if len(configured) == 0 {
-		return "", errors.New("pass --project")
-	}
-	return "", fmt.Errorf("pass --project, configured: %s", strings.Join(configured, ", "))
-}
-
-func createMetaFor(meta []jira.CreateMetaProject, project string) (jira.CreateMetaProject, []jira.NamedID, error) {
-	for _, p := range meta {
-		if strings.EqualFold(p.Key, project) {
-			return p, p.IssueTypes, nil
-		}
-	}
-	return jira.CreateMetaProject{}, nil, fmt.Errorf("this credential cannot create issues in %s", project)
-}
-
-func resolveCreateType(want string, types []jira.NamedID) (string, error) {
-	want = strings.TrimSpace(want)
-	if want == "" {
-		return "", fmt.Errorf("pass --type, available: %s", formatCreateTypes(types))
-	}
-	for _, t := range types {
-		if t.ID == want || strings.EqualFold(t.Name, want) {
-			return t.ID, nil
-		}
-	}
-	return "", fmt.Errorf("no issue type matching %q — available: %s", want, formatCreateTypes(types))
-}
-
+// formatCreateTypes is the Name (id N) list used by resolvePriority in edit.go
+// (same package). Type resolution itself lives in internal/create.
 func formatCreateTypes(types []jira.NamedID) string {
-	parts := make([]string, 0, len(types))
-	for _, t := range types {
-		parts = append(parts, fmt.Sprintf("%s (id %s)", t.Name, t.ID))
-	}
-	return strings.Join(parts, "; ")
+	return create.FormatTypes(types)
 }

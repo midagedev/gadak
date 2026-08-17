@@ -25,13 +25,14 @@ type fakeJira struct {
 	*httptest.Server
 	t *testing.T
 
-	calls        []string                   // "METHOD /path"
-	bodies       map[string]json.RawMessage // last body per "METHOD /path"
-	status       int                        // when non-zero, the next mutating call fails with it
-	errBody      string
-	newKey       string // key POST /issue answers with
-	editMeta     string // editmeta fields object
-	rereadStatus int    // when non-zero, GET /search/jql (mirror re-read) fails with it
+	calls          []string                   // "METHOD /path"
+	bodies         map[string]json.RawMessage // last body per "METHOD /path"
+	status         int                        // when non-zero, the next mutating call fails with it
+	errBody        string
+	newKey         string // key POST /issue answers with
+	editMeta       string // editmeta fields object
+	rereadStatus   int    // when non-zero, GET /search/jql (mirror re-read) fails with it
+	createMetaJSON string // when set, GET /issue/createmeta answers this
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
@@ -134,6 +135,10 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 	case path == "/issue" && r.Method == http.MethodPost:
 		_, _ = w.Write([]byte(`{"id":"1001","key":"` + f.newKey + `"}`))
 	case path == "/issue/createmeta":
+		if f.createMetaJSON != "" {
+			_, _ = w.Write([]byte(f.createMetaJSON))
+			return
+		}
 		_, _ = w.Write([]byte(`{"projects":[{"key":"NMB","name":"Numbers","issuetypes":[{"id":"10004","name":"Bug"}]}]}`))
 	case path == "/user/search":
 		_, _ = w.Write([]byte(`[{"accountId":"acc-cl","displayName":"이클라","emailAddress":"cl@example.com",
@@ -460,6 +465,139 @@ func TestCreateIssue(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"issue"`) {
 		t.Errorf("no issue in response: %s", rec.Body.String())
+	}
+}
+
+const manyCreateTypes = `{"projects":[{"key":"NMB","name":"Numbers","issuetypes":[
+	{"id":"10001","name":"Task"},{"id":"10002","name":"작업"},{"id":"10004","name":"Bug"}]}]}`
+
+func TestCreateIssueOmitsTypeUsesConfigDefault(t *testing.T) {
+	f, h, cfg := writable(t)
+	f.createMetaJSON = manyCreateTypes
+	cfg.DefaultIssueTypeID = "10001"
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","summary":"from default"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if !strings.Contains(sent, `"id":"10001"`) {
+		t.Fatalf("default type not sent: %s", sent)
+	}
+	if !strings.Contains(rec.Body.String(), `"source":"config"`) {
+		t.Errorf("resolved source missing: %s", rec.Body.String())
+	}
+}
+
+func TestCreateIssueOmitsTypeUsesSole(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","summary":"sole type"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if !strings.Contains(sent, `"id":"10004"`) {
+		t.Fatalf("sole type not sent: %s", sent)
+	}
+	if !strings.Contains(rec.Body.String(), `"source":"sole"`) {
+		t.Errorf("resolved source missing: %s", rec.Body.String())
+	}
+}
+
+func TestCreateIssueOmitsTypeFailsWhenMany(t *testing.T) {
+	f, h, _ := writable(t)
+	f.createMetaJSON = manyCreateTypes
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","summary":"needs a type"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "pass --type") {
+		t.Errorf("error %s", rec.Body.String())
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("omitted type reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateIssueStaleDefaultType(t *testing.T) {
+	f, h, cfg := writable(t)
+	f.createMetaJSON = manyCreateTypes
+	cfg.DefaultIssueTypeID = "99999"
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","summary":"stale"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"99999", "not available", "NMB"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("error %s missing %q", body, want)
+		}
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("stale default reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateIssueDefaultProject(t *testing.T) {
+	f, h, cfg := writable(t)
+	cfg.DefaultProject = "NMB"
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"issue_type":"10004","summary":"from default project"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if !strings.Contains(sent, `"key":"NMB"`) {
+		t.Fatalf("default project not sent: %s", sent)
+	}
+}
+
+func TestCreateIssueEmptyOptionalFieldsOmittedFromPayload(t *testing.T) {
+	f, h, cfg := writable(t)
+	f.createMetaJSON = manyCreateTypes
+	cfg.DefaultIssueTypeID = "10001"
+
+	// Empty string is "no value", not "set empty". issue_type:"" must resolve
+	// via the default; description/priority must not appear on the Jira body.
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"","summary":"omit empties","description_text":"","priority":"","labels":[]}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if !strings.Contains(sent, `"id":"10001"`) {
+		t.Fatalf("resolved type missing: %s", sent)
+	}
+	if strings.Contains(sent, `"id":""`) {
+		t.Fatalf("empty issue type id sent: %s", sent)
+	}
+	for _, forbidden := range []string{`"description"`, `"priority"`, `"labels"`} {
+		if strings.Contains(sent, forbidden) {
+			t.Errorf("optional field %s present in payload: %s", forbidden, sent)
+		}
+	}
+}
+
+func TestCreateIssueEmptySummaryStillRequired(t *testing.T) {
+	f, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":""}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := decode[map[string]string](t, rec)["error"]; got != "project_issue_type_and_summary_required" {
+		t.Fatalf("error %q", got)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("empty summary reached Jira: %v", f.calls)
 	}
 }
 

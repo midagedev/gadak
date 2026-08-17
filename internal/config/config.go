@@ -58,6 +58,18 @@ type Config struct {
 	Token    string   `json:"token,omitempty"`
 	Projects []string `json:"projects,omitempty"`
 
+	// DefaultProject is the project key used when create omits --project /
+	// project_key. Site-bound: never team-exported. Empty means unset.
+	DefaultProject string `json:"defaultProject,omitempty"`
+	// DefaultIssueTypeID is the Jira issue type id used when create omits
+	// --type / issue_type. Stored as id, never a localized display name —
+	// a Korean account's "Task" is "작업". Empty means unset. Display names
+	// are not a fallback; see DefaultIssueType.
+	DefaultIssueTypeID string `json:"defaultIssueTypeId,omitempty"`
+	// DefaultIssueType is an optional display label for DefaultIssueTypeID.
+	// Resolution never reads this field (names localize per account).
+	DefaultIssueType string `json:"defaultIssueType,omitempty"`
+
 	// Result of verifying the credential: when `PUT credential/` last confirmed it
 	// against /myself, and who owns it. Unlike the token itself, both may be
 	// returned in a response.
