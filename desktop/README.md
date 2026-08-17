@@ -1,15 +1,17 @@
 # gadak desktop
 
-A native macOS window around the same embedded web UI — with **no TCP
+A native window around the same embedded web UI — with **no TCP
 listener at all**. The Wails asset server calls straight into the
 `server.Handler` that `gadak serve` mounts, so ports, addresses, and port
 conflicts stop existing as UX. A second launch focuses the running window
 (single-instance lock) instead of hunting for a free port.
 
 Status: **macOS app bundle + signed/notarized dmg on tag releases** (arm64), on
-`wails/v3` (beta). The module stays a nested Go module so the wails dependency
-tree and its CGO requirement never touch the CLI build or the non-macOS CI
-matrix. No `wails3` CLI: plain `go build`, no bindings, HTTP only.
+`wails/v3` (beta). Linux is a from-source AppImage pack (`desktop/build-linux.sh`);
+this tree's tag workflow does not upload that file. The module stays a nested
+Go module so the wails dependency tree and its CGO requirement never touch the
+CLI build or the non-macOS CI matrix. No `wails3` CLI: plain `go build`, no
+bindings, HTTP only.
 
 ## Build
 
@@ -18,6 +20,22 @@ npm run build                 # at the repo root — the app embeds dist/app
 desktop/build-app.sh          # → desktop/build/Gadak.app
 desktop/build-app.sh --dmg    # → desktop/build/Gadak-<version>-arm64.dmg as well
 ```
+
+Linux (must run on Linux; CGO plus GTK4 / WebKitGTK 6.0 headers — see below):
+
+```bash
+desktop/build-linux.sh              # → desktop/build/Gadak.AppDir
+desktop/build-linux.sh --appimage   # → desktop/build/Gadak-<version>-x86_64.AppImage as well
+```
+
+The AppImage name uses the AppImage / `uname -m` labels (`x86_64`, `aarch64`),
+not the macOS dmg labels (`amd64`, `arm64`). Both scripts stamp the version
+from the same `version=` line in `desktop/build-app.sh` (`git describe --tags --always`).
+
+`build-linux.sh` exits 64 on usage / unknown arguments and 69 when a required
+tool is missing (`go`, `pkg-config`, `cc`, `magick`/`convert`/`ffmpeg`, the
+`gtk4` and `webkitgtk-6.0` pkg-config modules, and `appimagetool` when
+`--appimage` is passed).
 
 The bundle includes:
 
@@ -32,6 +50,50 @@ sudo ln -sf "/Applications/Gadak.app/Contents/Resources/bin/gadak" /usr/local/bi
 ```
 
 Then `gadak mcp install claude` (and friends) work from a desktop-only install.
+
+The Linux AppDir includes the same two binaries under `usr/bin/`
+(`gadak-desktop` and `gadak`). `AppRun` prepends that directory to `PATH` for
+the running app. A `.desktop` file in the AppDir declares
+`MimeType=x-scheme-handler/gadak`; this script does not register the handler
+with the host.
+
+### Linux build prerequisites
+
+wails v3 (`v3.0.0-beta.6`, `desktop/go.mod`) compiles the Linux host with
+`#cgo pkg-config: gtk4 webkitgtk-6.0`. `CGO_ENABLED=0` does not compile (see
+the comment on the desktop job in `.github/workflows/ci.yml`). Do not pass
+`-tags gtk3`: that is the webkit2gtk 4.1 legacy stack, and wails plans to
+remove it in v3.1.
+
+Development packages as listed by that wails release's doctor (not installed
+or compiled against in this repository's CI):
+
+| Distro family | GTK4 | WebKitGTK 6.0 |
+| --- | --- | --- |
+| Debian / Ubuntu | `libgtk-4-dev` | `libwebkitgtk-6.0-dev` |
+| Fedora | `gtk4-devel` | `webkitgtk6.0-devel` |
+| Arch | `gtk4` | `webkitgtk-6.0` |
+| openSUSE | `gtk4-devel` | `webkitgtk-6_0-devel` |
+
+Also required: `pkg-config`, a C compiler, and one of ImageMagick (`magick` /
+`convert`) or `ffmpeg` to resize `docs/media/logo.png`. `--appimage` needs
+`appimagetool` already on `PATH`. The script does not download packers.
+
+`build-linux.sh --appimage` produces only the AppImage. It must not emit a
+zip: v0.14.0 apps match `gadak-desktop-*-<arch>.zip` and would try to
+self-swap (same rule as `build-app.sh --dmg`).
+
+### NVIDIA and Wayland
+
+wails v3's GTK4 Linux host (the library this module links) sets
+`WEBKIT_DISABLE_DMABUF_RENDERER=1` at process start when `/sys/module/nvidia`
+exists. Their comment says this avoids blank windows and `Error 71 (Protocol
+error)` on both X11 and Wayland, because the proprietary NVIDIA driver fails
+`gbm_bo_map()` when importing DMA-BUF. You can export the same variable
+yourself if a window stays blank.
+
+This repository has not run the desktop app on a Linux NVIDIA or Wayland
+machine. Other compositor-specific workarounds are unverified.
 
 ### Signing and notarization
 
@@ -106,6 +168,10 @@ would try to self-swap.
 - No workspace switcher (`/w/<profile>/` mounts) — single profile per window.
 - Onboarding for a machine with no credential is a separate track; until that
   lands, `gadak init` (or the bundled CLI) remains the setup path.
-- macOS only; building still needs the Xcode command line tools. (The
+- macOS is the shipped desktop artifact (signed/notarized dmg). Linux is a
+  from-source AppImage pack; this repository's CI does not build or run it.
+  The in-app Jira/Confluence pane (`embed_darwin.go`) is still macOS-only —
+  other platforms get the stub in `embed_other.go`.
+- macOS builds still need the Xcode command line tools. (The
   `UniformTypeIdentifiers` link flag `build-app.sh` used to pass by hand is
   gone — wails v3 declares that framework itself.)
