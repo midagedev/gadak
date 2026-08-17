@@ -654,7 +654,9 @@
             {/if}
             {#if item.badge}
               <span
-                class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-text-muted"
+                class="flex-none rounded {i === idx
+                  ? 'bg-bg-base'
+                  : 'bg-bg-elevated'} px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-text-muted"
               >
                 {item.badge}
               </span>

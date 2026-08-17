@@ -11,6 +11,12 @@
  * Extra check.mjs ports that prevent quiet palette drift: status-ink floors
  * and rank, text-primary chroma, mat darker than the page.
  *
+ * GDK-157 / GDK-159 axes (both themes):
+ *   pairwise status-ink ΔEok (normal ≥0.05, deuteranopia ≥0.04)
+ *   search-match token isolation (ΔEok ≥0.06 vs every ground and chip token)
+ *   search-match text contrast (the ink Marks.svelte actually paints ≥4.5)
+ *   per-role ink contrast (text ≥4.5 on base/panel/elevated, dot ≥3.0 on hover/active)
+ *
  * Usage: node tools/theme-check.mjs
  */
 import { readFileSync } from 'node:fs'
@@ -53,6 +59,32 @@ const hex2oklab = (hex) => {
     1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
     0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
   ]
+}
+const dEok = (a, b) => {
+  const A = hex2oklab(a)
+  const B = hex2oklab(b)
+  return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2])
+}
+const rgb2hex = (rgb) =>
+  '#' +
+  rgb
+    .map((v) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0'))
+    .join('')
+// Machado 2009 deuteranopia, severity 1.0. Same matrix as the GDK-157
+// design scripts (analyse.mjs / verify.mjs). Do not substitute another.
+const DEUT_M = [
+  [0.367322, 0.860646, -0.227968],
+  [0.280085, 0.672501, 0.047413],
+  [-0.01182, 0.04294, 0.968881],
+]
+const deut = (hex) => {
+  const [r, g, b] = hex2rgb(hex)
+  return rgb2hex(DEUT_M.map((row) => row[0] * r + row[1] * g + row[2] * b))
+}
+const alphaOver = (fg, bg, a) => {
+  const f = hex2rgb(fg)
+  const b = hex2rgb(bg)
+  return rgb2hex([0, 1, 2].map((i) => f[i] * a + b[i] * (1 - a)))
 }
 const hex2oklch = (hex) => {
   const [L, a, b] = hex2oklab(hex)
@@ -231,7 +263,7 @@ for (const s of STATS) {
     if (!gHex) continue
     const v = cr(fgHex, gHex)
     const floor = g === 'bg-hover' || g === 'bg-active' ? 3 : 4.5
-    if (v < floor) fail(`${s} on ${g} = ${v}, floor ${floor}`)
+    if (v < floor) fail(`${s} ${fgHex} on ${g} ${gHex} = ${v}, floor ${floor}`)
   }
 }
 const lightHex = (name) => hexOf(light, name)
@@ -240,7 +272,16 @@ if (STATS.every((s) => hexOf(dark, s) && hexOf(light, s) && hexOf(dark, 'bg-base
   const dr = rankOf(dark)
   console.log('  light rank', lr.replace(/status-/g, ''))
   console.log('  dark  rank', dr.replace(/status-/g, ''))
-  if (lr !== dr) fail('status inks changed their relative loudness in translation')
+  if (lr !== dr) {
+    const dump = (pal) =>
+      STATS.map((s) => {
+        const h = hexOf(pal, s)
+        return `${s.replace('status-', '')} ${h} cr=${cr(h, hexOf(pal, 'bg-base'))}`
+      }).join(', ')
+    fail(
+      `status inks changed their relative loudness in translation — light [${dump(light)}] vs dark [${dump(dark)}]`,
+    )
+  }
 }
 
 console.log('\n=== extras: text chroma, mat below the page ===')
@@ -258,6 +299,132 @@ if (shellHex && pageHex) {
   console.log(`  shell L ${(shellL * 100).toFixed(1)} vs page L ${(pageL * 100).toFixed(1)}`)
   if (shellL >= pageL) fail('the mat is lighter than the page — it will glow around the layout')
 }
+
+// ── GDK-157 / GDK-159 ────────────────────────────────────────────────
+const PAIR_N = 0.05
+const PAIR_D = 0.04
+const MARK_DE = 0.06
+const CHIP_GROUNDS = ['bg-base', 'bg-elevated', 'bg-active']
+
+function checkPairwise(label, pal) {
+  console.log(`  ${label}`)
+  const hexes = STATS.map((s) => [s, hexOf(pal, s)])
+  if (hexes.some(([, h]) => !h)) {
+    for (const [s, h] of hexes) {
+      if (!h) fail(`${label} --color-${s} is not a hex token`)
+    }
+    return
+  }
+  for (let i = 0; i < hexes.length; i++) {
+    for (let j = i + 1; j < hexes.length; j++) {
+      const [aN, aH] = hexes[i]
+      const [bN, bH] = hexes[j]
+      const n = dEok(aH, bH)
+      const d = dEok(deut(aH), deut(bH))
+      const a = aN.replace('status-', '')
+      const b = bN.replace('status-', '')
+      console.log(`    ${a}/${b}  ΔEok ${n.toFixed(3)}  deut ${d.toFixed(3)}`)
+      if (n < PAIR_N) fail(`${label} ${a}/${b} ${aH}/${bH} ΔEok ${n.toFixed(3)} < ${PAIR_N}`)
+      if (d < PAIR_D) {
+        fail(
+          `${label} ${a}/${b} ${deut(aH)}/${deut(bH)} deuteranopia ΔEok ${d.toFixed(3)} < ${PAIR_D}`,
+        )
+      }
+    }
+  }
+}
+
+console.log('\n=== pairwise status-ink ΔEok (both themes) ===')
+checkPairwise('light', light)
+checkPairwise('dark', dark)
+
+function checkSearchMatch(label, pal) {
+  console.log(`  ${label}`)
+  const mark = hexOf(pal, 'search-match')
+  if (!mark) {
+    fail(`${label} missing --color-search-match`)
+    const stale = hexOf(pal, 'status-stale')
+    const base = hexOf(pal, 'bg-base')
+    const active = hexOf(pal, 'bg-active')
+    if (stale && base && active) {
+      const washed = alphaOver(stale, base, 0.3)
+      console.log(
+        `    current stale/30 on base vs bg-active ΔEok ${dEok(washed, active).toFixed(3)} (the collision this token replaces)`,
+      )
+    }
+    return
+  }
+  const names = [...new Set([...GROUNDS, ...CHIP_GROUNDS])]
+  for (const g of names) {
+    const gh = hexOf(pal, g)
+    if (!gh) {
+      fail(`${label} --color-${g} is not a hex token`)
+      continue
+    }
+    const v = dEok(mark, gh)
+    console.log(`    vs ${g}: ${v.toFixed(3)}`)
+    if (v < MARK_DE) fail(`${label} search-match ${mark} vs ${g} ${gh} ΔEok ${v.toFixed(3)} < ${MARK_DE}`)
+  }
+}
+
+// Coupled to Marks.svelte: the hit <mark> is `bg-search-match text-text-primary`
+// (not text-inherit — muted/secondary cannot clear 4.5:1 on any visible dark
+// mark). If that class list changes, this axis is invalid until retargeted.
+const MARK_TEXT_FLOOR = 4.5
+function checkSearchMatchText(label, pal) {
+  console.log(`  ${label}`)
+  const mark = hexOf(pal, 'search-match')
+  const fg = hexOf(pal, 'text-primary')
+  if (!mark) {
+    fail(`${label} missing --color-search-match`)
+    return
+  }
+  if (!fg) {
+    fail(`${label} missing --color-text-primary`)
+    return
+  }
+  const v = cr(fg, mark)
+  process.stdout.write(`    text-primary ${fg} on search-match ${mark}: ${v}`)
+  if (v < MARK_TEXT_FLOOR) {
+    console.log(`  < ${MARK_TEXT_FLOOR}`)
+    fail(`${label} text-primary ${fg} on search-match ${mark} = ${v} < ${MARK_TEXT_FLOOR}`)
+  } else console.log()
+}
+
+console.log('\n=== search-match isolation (both themes) ===')
+checkSearchMatch('light', light)
+checkSearchMatch('dark', dark)
+
+console.log('\n=== search-match text contrast (Marks.svelte text-text-primary) ===')
+checkSearchMatchText('light', light)
+checkSearchMatchText('dark', dark)
+
+function checkRoleFloors(label, pal) {
+  console.log(`  ${label}`)
+  for (const s of STATS) {
+    const fgHex = hexOf(pal, s)
+    if (!fgHex) {
+      fail(`${label} --color-${s} is not a hex token`)
+      continue
+    }
+    for (const g of GROUNDS) {
+      const gHex = hexOf(pal, g)
+      if (!gHex) continue
+      const v = cr(fgHex, gHex)
+      const floor = g === 'bg-hover' || g === 'bg-active' ? 3 : 4.5
+      const role = floor === 4.5 ? 'text' : 'dot'
+      process.stdout.write(`    ${s.replace('status-', '')} ${role} on ${g}: ${v}`)
+      if (v < floor) {
+        console.log(`  < ${floor}`)
+        fail(`${label} ${s} ${fgHex} ${role} on ${g} ${gHex} = ${v}, floor ${floor}`)
+      } else console.log()
+    }
+  }
+}
+
+console.log('\n=== per-role ink contrast floors (both themes) ===')
+checkRoleFloors('light', light)
+checkRoleFloors('dark', dark)
 
 console.log(`\n=== ${fails === 0 ? 'ALL CHECKS PASS' : fails + ' FAILURES'} ===`)
 process.exit(fails === 0 ? 0 : 1)

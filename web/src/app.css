@@ -35,10 +35,16 @@
 
   /* ── Semantic status — ink, not neon ── */
   --color-status-new: #2f5d8c;
-  --color-status-inprogress: #8a6418;
-  --color-status-done: #2f5e42;
+  --color-status-inprogress: #7e5904; /* P4: L 52.9→49.1, clears 3 role floors */
+  --color-status-done: #1c4c31; /* P2: L 44.0→37.5, separates from reopen under deuteranopia */
   --color-status-reopen: #8f3530;
-  --color-status-stale: #8a6220;
+  --color-status-stale: #734701; /* P3: was ΔEok 0.009 from inprogress */
+
+  /* Search match. The ladder already occupies L 81–95, so no lightness
+     separates this mark from every ground — chroma carries it. Must not
+     be an alpha of a ground (that fades on the selected row and matches
+     the label chips). */
+  --color-search-match: #ffc579; /* P1: L86.0 C0.115 H73 */
 
   /* ── Shell / focus / chrome that used to be hardcoded ── */
   --color-shell: #e6dcc8; /* mat outside the max-width layout */
@@ -199,11 +205,12 @@
       --color-accent-subtle: #192739;
       --color-accent-text: #91aecd;
       --color-focus-ring: #91aecd;
-      --color-status-new: #769eca;
-      --color-status-inprogress: #a9864b;
-      --color-status-done: #80ac8f;
-      --color-status-reopen: #de8f87;
-      --color-status-stale: #aa8752;
+      --color-status-new: #6696c3;
+      --color-status-inprogress: #b28a44;
+      --color-status-done: #90bea0;
+      --color-status-reopen: #e18179;
+      --color-status-stale: #d19b5a;
+      --color-search-match: #724900;
       --color-scrim: rgb(10 6 1 / 0.62);
       --color-scrollbar-hover: #8f8273;
       --color-lozenge-neutral: #312713;
@@ -253,11 +260,12 @@
     --color-accent-subtle: #192739;
     --color-accent-text: #91aecd;
     --color-focus-ring: #91aecd;
-    --color-status-new: #769eca;
-    --color-status-inprogress: #a9864b;
-    --color-status-done: #80ac8f;
-    --color-status-reopen: #de8f87;
-    --color-status-stale: #aa8752;
+    --color-status-new: #6696c3;
+    --color-status-inprogress: #b28a44;
+    --color-status-done: #90bea0;
+    --color-status-reopen: #e18179;
+    --color-status-stale: #d19b5a;
+    --color-search-match: #724900;
     --color-scrim: rgb(10 6 1 / 0.62);
     --color-scrollbar-hover: #8f8273;
     --color-lozenge-neutral: #312713;
