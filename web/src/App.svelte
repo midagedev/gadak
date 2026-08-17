@@ -59,6 +59,14 @@
   import { mediaViewer } from './stores/media-viewer.svelte'
   import { t } from './lib/i18n'
   import { bindPaletteOpener } from './lib/unified-search'
+  import {
+    applyOverlayChrome,
+    isOverlayModal,
+    layoutTokenStyle,
+    readViewportRegime,
+    subscribeViewportRegime,
+    type ViewportRegime,
+  } from './lib/viewport-regime'
 
   const LAST_VIEW_KEY = STORAGE_KEYS.lastView
 
@@ -190,6 +198,9 @@
     // Desktop only: external links + in-app browse session tracking.
     const uninstallLinks = installDesktopLinkOpener()
     const uninstallBrowse = installBrowseSessions()
+    const unsubRegime = subscribeViewportRegime((r) => {
+      viewportRegime = r
+    })
     const applyFocus = async () => {
       if (isHostedDemo()) return
       try {
@@ -250,6 +261,7 @@
       document.removeEventListener('visibilitychange', onVis)
       uninstallLinks()
       uninstallBrowse()
+      unsubRegime()
     }
   })
 
@@ -433,6 +445,27 @@
   // is nothing here to keep them from stacking.
   const panelOpen = $derived(panel.target !== null)
 
+  /*
+   * GDK-201: docked | overlay is owned by viewport-regime.ts. Scrim, inert,
+   * dialog role, and focus trap all derive from overlayModal — CSS must not
+   * independently decide to cover the list.
+   */
+  let viewportRegime = $state<ViewportRegime>(readViewportRegime())
+  const overlayModal = $derived(isOverlayModal(viewportRegime, panelOpen))
+  let layoutEl = $state<HTMLElement | null>(null)
+
+  $effect(() => {
+    const el = layoutEl
+    const modal = overlayModal
+    if (!el) return
+    return applyOverlayChrome(el, modal)
+  })
+
+  function closeOpenPanel(): void {
+    const t = panel.target
+    if (t) panel.close(t.kind)
+  }
+
   // The third right-panel kind, in the shape of the two above it: the value is
   // the identity (account id or email — stores/person carries it opaquely),
   // absence is the closed panel.
@@ -577,6 +610,9 @@
       data-testid="issue-layout"
       data-detail-open={panelOpen}
       data-browse-open={browse.paneOpen}
+      data-viewport-regime={viewportRegime}
+      style={layoutTokenStyle()}
+      bind:this={layoutEl}
     >
       <Sidebar>
         {#snippet children()}
@@ -610,15 +646,14 @@
         {/snippet}
       </RightPanel>
 
-      <!-- Narrow-regime scrim (GDK-127): below 1439px the panel beside this is
-           a fixed overlay, and a cover with no signal reads as a rendering
-           fault — titles sliced mid-glyph at its edge. Mounted at every width
-           but hidden outside the overlay regime (app.css, .issue-scrim). -->
+      <!-- Overlay-regime scrim (GDK-201): only when overlayModal is true.
+           Click closes; pointer-events are live. Docked has nothing to cover. -->
       <div
         class="issue-scrim"
-        class:is-open={panelOpen}
+        class:is-open={overlayModal}
         data-testid="issue-scrim"
         aria-hidden="true"
+        onclick={overlayModal ? closeOpenPanel : undefined}
       ></div>
 
       <!-- Over the detail area: an original page is what you asked to see

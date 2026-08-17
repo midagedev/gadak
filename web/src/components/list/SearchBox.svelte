@@ -245,11 +245,15 @@
   // this input by its testid.
 </script>
 
-<div class="flex items-center gap-2">
+<!-- flex-wrap + the input's min-width floor: the field's fixed innards (icon,
+     `?`, kbd, padding) are ~90px, so letting it shrink to 0 paints them over
+     the palette button (seen at 1120 docked, GDK-201). Below the floor the
+     button wraps under the field instead of being overlapped. -->
+<div class="flex flex-wrap items-center gap-2">
   <!-- The boundary for the help popover's outside click: it has to hold the
        `?` too, or the click that closes the panel would reopen it. -->
   <div
-    class="relative min-w-0 flex-1"
+    class="relative min-w-[150px] flex-1"
     use:onOutsideClick={{ handler: () => (helpOpen = false), enabled: helpOpen }}
   >
   <div

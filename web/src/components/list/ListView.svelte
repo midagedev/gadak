@@ -92,13 +92,17 @@
     class:desktop-drag-region={desktop}
     data-testid="list-toolbar"
   >
-    <div class="mb-2.5 flex items-center gap-2.5">
+    <!-- flex-wrap + a content floor on the search slot: with min-w-0 the row
+         squeezed SearchBox below its fixed innards at the docked floor
+         (GDK-201, 1120px) and glyphs painted over each other. Menus wrap
+         under the field before anything overlaps. -->
+    <div class="mb-2.5 flex flex-wrap items-center gap-2.5">
       {#if desktop}
-        <div class="desktop-no-drag min-w-0 flex-1"><SearchBox /></div>
+        <div class="desktop-no-drag min-w-[260px] flex-1"><SearchBox /></div>
         <div class="desktop-no-drag"><ColumnsMenu /></div>
         <div class="desktop-no-drag"><DisplayMenu /></div>
       {:else}
-        <div class="min-w-0 flex-1"><SearchBox /></div>
+        <div class="min-w-[260px] flex-1"><SearchBox /></div>
         <ColumnsMenu />
         <DisplayMenu />
       {/if}

@@ -1,31 +1,30 @@
 /*
- * GDK-127: with an issue open below 1440px, the detail panel covers the list
- * and row titles are sliced mid-glyph at the panel's edge.
+ * GDK-127: with an issue open, no title may be clipped without an ellipsis,
+ * and the panel may never paint over list text silently. Covering is
+ * sanctioned exactly when a scrim is present.
  *
- * The measured cause (2026-08-17, unmodified source): at ≤1439px the layout
- * switches to the overlay regime (`272px minmax(0,1fr)` grid + a
- * `position: fixed` panel), but the list column keeps the FULL remaining
- * width — at 1420 the column is 1148px while the panel covers its last 560px.
- * Row title boxes therefore lay out to the hidden column edge, their text
- * fits those boxes (scrollWidth == clientWidth), `truncate` never engages,
- * and the glyphs past the panel's left edge are cut by the panel itself,
- * with nothing telling the eye that covering is intended.
- *
- * The fix contract, one rule at every width: no title may be clipped without
- * an ellipsis, and the panel may never paint over list text silently. Wide
- * widths keep the docked three-track grid (titles ellipsize at the column
- * edge, which is the panel's edge). Narrow widths are the overlay regime of
- * shape (b): the covering is sanctioned exactly when a scrim is present
- * (the dialog backdrop token), and Esc still closes (keymap: browse → menu
- * → bulk → detail).
+ * GDK-201 (2026-08-18) revises the split, it does not relax the rule.
+ * The 1440px boundary was a fake-modal overlay: the panel covered the list
+ * and a visual-only scrim (`pointer-events: none`) promised a dialog the
+ * clicks did not honour. Docked floor is now derived:
+ *   sidebar 272 + list min 390 + detail min 440 = 1102 → contract 1100px
+ * so 1100–1439 is a three-track grid (no scrim), and <1100 is a real modal
+ * (scrim click closes, background is inert). See web/src/lib/viewport-regime.ts.
  */
 import { test, expect, type Page } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
+import { VIEWPORT_DOCKED_MIN_PX } from '../web/src/lib/viewport-regime'
 
-/** 1440/1500 pin the docked regime; 1420/1360/1280 are the overlay regime
- * (1280 is the default logical width of a 13" MacBook — the daily case). */
-const DOCKED_WIDTHS = [1500, 1440]
-const OVERLAY_WIDTHS = [1420, 1360, 1280]
+/*
+ * Widths derived from VIEWPORT_DOCKED_MIN_PX (1100), not chosen:
+ *   1500 / 1440  pin the previously-docked wide band still docks
+ *   1280         13" MacBook default — the daily case, now docked (was overlay)
+ *   1120         docked floor + 20
+ *   1080         overlay ceiling − 20
+ *   960          well below the floor
+ */
+const DOCKED_WIDTHS = [1500, 1440, 1280, VIEWPORT_DOCKED_MIN_PX + 20]
+const OVERLAY_WIDTHS = [VIEWPORT_DOCKED_MIN_PX - 20, 960]
 
 /** One row's title, with everything the two rules read. */
 interface TitleMetric {
@@ -43,9 +42,11 @@ interface TitleMetric {
 async function measure(page: Page): Promise<{
   overlay: boolean
   scrim: boolean
+  regime: string | null
   titles: TitleMetric[]
 }> {
   return page.evaluate(() => {
+    const layout = document.querySelector('[data-testid="issue-layout"]')
     const panel = document.querySelector('[data-testid="issue-detail-panel"]')!
     const scrimEl = document.querySelector('[data-testid="issue-scrim"]')
     const panelLeft = Math.round(panel.getBoundingClientRect().left)
@@ -80,7 +81,12 @@ async function measure(page: Page): Promise<{
         hit,
       })
     }
-    return { overlay, scrim, titles }
+    return {
+      overlay,
+      scrim,
+      regime: layout?.getAttribute('data-viewport-regime') ?? null,
+      titles,
+    }
   })
 }
 
@@ -108,11 +114,12 @@ async function openPanelBesideMigrateRows(page: Page): Promise<void> {
 
 function expectRuleOne(m: { titles: TitleMetric[] }): void {
   /*
-   * Rule 1 (task text, verbatim reading): every visible title either ends
-   * left of the panel, or its text fits its own box with ellipsis armed —
-   * `scrollWidth <= clientWidth` is the "nothing is being cut by the box"
-   * branch, not the "ellipsis is drawn" one (that would be the > sign); a
-   * title that fits its box cannot lose glyphs to its own truncation.
+   * Rule 1 — docked geometry only (GDK-127, kept). Every visible title
+   * either ends left of the panel, or its text fits its own box with
+   * ellipsis armed. Overlay at <1100 covers the list by construction, so
+   * this inequality cannot hold (measured 2026-08-18: at 1080, NMA-152
+   * right=686 panelLeft=520 scrollW=396 clientW=228). Silent-cover there
+   * is closed by rule 2 + the real-modal assertions, not by this check.
    */
   expect(m.titles.length, 'the fixture must show rows').toBeGreaterThan(0)
   for (const t of m.titles) {
@@ -141,6 +148,10 @@ function expectRuleTwo(m: { overlay: boolean; scrim: boolean; titles: TitleMetri
   }
 }
 
+async function currentIssueKey(page: Page): Promise<string | null> {
+  return page.locator('[data-testid="issue-list-scroller"] [data-issue-key][aria-current="true"]').getAttribute('data-issue-key')
+}
+
 for (const width of DOCKED_WIDTHS) {
   test.describe(`docked regime ${width}px`, () => {
     test.use({ viewport: { width, height: 900 } })
@@ -150,13 +161,50 @@ for (const width of DOCKED_WIDTHS) {
       await openPanelBesideMigrateRows(page)
 
       const m = await measure(page)
-      // ≥1440px keeps the three-track grid: the panel is a grid item, not an
-      // overlay. If this goes red, the wide regime changed — it must not.
+      // ≥1100px keeps the three-track grid: the panel is a grid item, not an
+      // overlay. If this goes red, the docked floor moved — it must not.
       expect(m.overlay, 'the panel must be docked (grid track), not fixed').toBe(false)
+      expect(m.regime, 'data-viewport-regime is the single owner').toBe('docked')
+      expect(m.scrim, 'docked regime has nothing to cover, so no scrim').toBe(false)
       expectRuleOne(m)
       expectRuleTwo(m)
 
+      // GDK-201: the list stays interactive. Click a row that is not the
+      // selected one (the selected row is often nth(0) after the list
+      // scrolls it into view).
+      await expect(page.getByTestId('issue-scrim')).toBeHidden()
+      const openKey = await currentIssueKey(page)
+      const other = page
+        .locator('[data-testid="issue-list-scroller"] [data-issue-key]:not([aria-current="true"])')
+        .first()
+      await expect(other).toBeVisible()
+      const otherKey = await other.getAttribute('data-issue-key')
+      expect(otherKey, 'fixture must have a second row').toBeTruthy()
+      expect(otherKey).not.toBe(openKey)
+      await other.click()
+      await expect(
+        page.locator(`[data-testid="issue-list-scroller"] [data-issue-key="${otherKey}"]`),
+      ).toHaveAttribute('aria-current', 'true')
+
       expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+    })
+
+    test('toolbar controls never paint over each other', async ({ page }) => {
+      // GDK-201 vision verdict (2026-08-18): at 1120 the search field's fixed
+      // innards (icon, `?`, kbd) shrank past their own width and painted under
+      // the palette button. The contract: the `?` help button and the palette
+      // opener occupy disjoint boxes at every docked width.
+      await openPanelBesideMigrateRows(page)
+      const help = await page.getByTestId('search-help').boundingBox()
+      const open = await page.getByTestId('palette-open').boundingBox()
+      expect(help, 'search-help must render').toBeTruthy()
+      expect(open, 'palette-open must render').toBeTruthy()
+      const disjoint =
+        help!.x + help!.width <= open!.x ||
+        open!.x + open!.width <= help!.x ||
+        help!.y + help!.height <= open!.y ||
+        open!.y + open!.height <= help!.y
+      expect(disjoint, 'search help and palette opener overlap').toBe(true)
     })
   })
 }
@@ -170,8 +218,10 @@ for (const width of OVERLAY_WIDTHS) {
       await openPanelBesideMigrateRows(page)
 
       const m = await measure(page)
-      expect(m.overlay, 'below 1439px the panel must be the fixed overlay').toBe(true)
-      expectRuleOne(m)
+      expect(m.overlay, 'below 1100px the panel must be the fixed overlay').toBe(true)
+      expect(m.regime, 'data-viewport-regime is the single owner').toBe('overlay')
+      // Rule 1 is docked-only: overlay covers the list on purpose. Rule 2
+      // plus the modal test below are what sanction the covering.
       expectRuleTwo(m)
 
       // Esc still closes (keymap: browse → menu → bulk → detail) — and takes
@@ -184,11 +234,55 @@ for (const width of OVERLAY_WIDTHS) {
       expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
     })
 
+    test('scrim click closes; the list under it does not receive the click', async ({ page }) => {
+      /*
+       * GDK-201: overlay is a real modal. The list is inert and the scrim
+       * is the click target; a click on a row must not change the selection,
+       * and a click on the scrim must close the panel.
+       */
+      const errors = attachConsoleErrors(page)
+      await openPanelBesideMigrateRows(page)
+
+      const openKey = await currentIssueKey(page)
+      expect(openKey).toBeTruthy()
+
+      const probe = await page.evaluate(() => {
+        const row = document.querySelector<HTMLElement>(
+          '[data-testid="issue-list-scroller"] [data-issue-key]',
+        )
+        const main = document.querySelector<HTMLElement>('.issue-main-column')
+        const scrimEl = document.querySelector('[data-testid="issue-scrim"]')
+        if (!row) return { hit: 'none', mainInert: !!main?.inert }
+        const r = row.getBoundingClientRect()
+        const el = document.elementFromPoint(r.left + 24, r.top + r.height / 2)
+        let hit = 'none'
+        if (el) {
+          if (scrimEl && (el === scrimEl || scrimEl.contains(el))) hit = 'scrim'
+          else if (el.closest('[data-issue-key]')) hit = 'row'
+          else hit = el.className?.toString().slice(0, 40) || el.tagName
+        }
+        return { hit, mainInert: !!main?.inert }
+      })
+      expect(probe.hit, 'a click on the list must hit the scrim, not a row').toBe('scrim')
+      expect(probe.mainInert, 'the list column is inert while the overlay is open').toBe(true)
+      expect(await currentIssueKey(page)).toBe(openKey)
+
+      // Left of the panel: sidebar is 272px, so x=300 is list-under-scrim.
+      // The scrim element's center sits under the panel and is not clickable.
+      await page.getByTestId('issue-scrim').click({ position: { x: 300, y: 400 } })
+      await expect(page.getByTestId('issue-detail-panel')).toBeHidden()
+      await expect(page.getByTestId('issue-scrim')).toBeHidden()
+
+      expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+    })
+
     test('j/k still moves the cursor while the panel is open', async ({ page }) => {
       /*
-       * The panel is a peek, not a modal: the scrim is visual only
-       * (pointer-events: none), so list keyboard navigation must be exactly
-       * what it was. This pins the "keys unchanged" clause of the contract.
+       * Overlay is a pointer/AT modal (inert + scrim + aria-modal). The
+       * global keymap remains the single owner of keys (browse → menu →
+       * bulk → detail), so j/k still moves the list cursor — the same
+       * handler that keeps s/a/l/c working on the open issue. Esc still
+       * closes.
        */
       const errors = attachConsoleErrors(page)
       await openPanelBesideMigrateRows(page)
