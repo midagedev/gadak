@@ -430,6 +430,81 @@ func TestIssueAndSearchReadTheMirror(t *testing.T) {
 	}
 }
 
+// TestIssueLink is the GDK-163 producer: gadak issue KEY --link prints the
+// same gadak:// form views open composes (deeplink.Compose + workspace.Prefix),
+// and --json names the fields deeplink / web so the two commands agree.
+func TestIssueLink(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	// A live serve on this machine must not flip the web field.
+	stubViewsLaunchSeams(t, nil)
+
+	const want = "gadak://view?issue=NMB-1"
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"nmb-1", "--link"}) })
+	if err != nil {
+		t.Fatalf("issue --link: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "deeplink\t"+want+"\n") {
+		t.Fatalf("issue --link missing exact deeplink line:\n%s", out)
+	}
+	if strings.Contains(out, "\nweb\t") || strings.HasPrefix(out, "web\t") {
+		t.Fatalf("empty discovery must omit the web line, got:\n%s", out)
+	}
+
+	out, err = capture(t, func() error { return cmdIssue([]string{"NMB-1", "--link", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue --link --json: %v\n%s", err, out)
+	}
+	var body struct {
+		DeepLink string `json:"deeplink"`
+		Web      string `json:"web"`
+	}
+	if err := json.Unmarshal([]byte(out), &body); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if body.DeepLink != want {
+		t.Fatalf("deeplink %q, want %q", body.DeepLink, want)
+	}
+	if body.Web != "" {
+		t.Fatalf("web %q, want empty under empty discovery", body.Web)
+	}
+
+	// Named profile: same composer, same /w/<name> rule as views open.
+	if got := deepLinkURL("oss", "issue=NMB-1"); got != "gadak://view/w/oss?issue=NMB-1" {
+		t.Fatalf("named-profile link %q, want gadak://view/w/oss?issue=NMB-1", got)
+	}
+
+	if _, err := capture(t, func() error { return cmdIssue([]string{"NMB-404", "--link"}) }); err == nil {
+		t.Error("issue --link on an unknown key should be an error, not a dead link")
+	}
+}
+
+func TestIssueLinkPrintsWebWhenServeFound(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	stubViewsLaunchSeams(t, []serveHit{{
+		base: "http://127.0.0.1:7777", profile: "", port: "7777",
+	}})
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"NMB-1", "--link", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue --link --json: %v\n%s", err, out)
+	}
+	var body struct {
+		DeepLink string `json:"deeplink"`
+		Web      string `json:"web"`
+	}
+	if err := json.Unmarshal([]byte(out), &body); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if body.DeepLink != "gadak://view?issue=NMB-1" {
+		t.Fatalf("deeplink %q", body.DeepLink)
+	}
+	const wantWeb = "http://127.0.0.1:7777/#/?issue=NMB-1"
+	if body.Web != wantWeb {
+		t.Fatalf("web %q, want %q", body.Web, wantWeb)
+	}
+}
+
 // A query that starts with a `--` comment is what an agent pastes out of
 // AGENTS.md, and flag.Parse would read that leading `--` as an undefined flag.
 func TestSQLTakesACommentedQueryAndEmitsCSV(t *testing.T) {

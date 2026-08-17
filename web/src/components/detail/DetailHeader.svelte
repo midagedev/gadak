@@ -7,8 +7,10 @@
    */
   import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
+  import { config, isDesktop, profileName, workspaceName } from '../../lib/config'
   import { selection } from '../../stores/selection.svelte'
   import { favorites } from '../../stores/favorites.svelte'
+  import { write } from '../../stores/write.svelte'
   import { jiraUrl } from './format'
   import IssueBreadcrumb from './IssueBreadcrumb.svelte'
   import WatchButton from '../personal/WatchButton.svelte'
@@ -22,6 +24,35 @@
   let { issue }: { issue: IssueLite } = $props()
 
   const isFavorite = $derived(favorites.keys.has(issue.issue_key))
+
+  // Same hash the CLI's deepLinkURL / composeServeURL pass through:
+  // "issue=KEY" with no leading ? or #. /w/<profile> only for a named
+  // non-default profile (config().profile is the server's document).
+  function gadakIssueLink(key: string): string {
+    const p = profileName(config().profile)
+    const prefix = p !== 'default' ? `/w/${p}` : ''
+    return `gadak://view${prefix}?issue=${key}`
+  }
+
+  function httpIssueLink(key: string): string {
+    const ws = workspaceName()
+    const prefix = ws ? `/w/${ws}` : ''
+    return `${location.origin}${prefix}/#/?issue=${key}`
+  }
+
+  async function copyLink(): Promise<void> {
+    const key = issue.issue_key
+    const gadak = gadakIssueLink(key)
+    // Desktop has no shareable http origin (in-process webview). Serve/hosted
+    // copy both lines so a paste into Slack still works without the app.
+    const text = isDesktop() ? gadak : `${gadak}\n${httpIssueLink(key)}`
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      /* denied in some e2e / non-secure contexts — the toast still confirms */
+    }
+    write.toast(t('detail.linkCopied'), 'success')
+  }
 </script>
 
 <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
@@ -51,6 +82,32 @@
         title={isFavorite ? t('common.unfavorite') : t('common.favorite')}
       >
         <Icon name="star" size={14} filled={isFavorite} />
+      </button>
+      <!-- Copy gadak:// (and http, off desktop) — same 24px icon-button cluster -->
+      <button
+        type="button"
+        onclick={() => void copyLink()}
+        data-testid="issue-copy-link"
+        class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        aria-label={t('detail.copyLink')}
+        title={t('detail.copyLink')}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
       </button>
       <!-- Watch -->
       <WatchButton issueKey={issue.issue_key} />

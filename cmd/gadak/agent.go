@@ -127,6 +127,7 @@ func cmdIssue(args []string) error {
 	fs := newFlagSet("issue")
 	asJSON := fs.Bool("json", false, "emit the detail document as JSON")
 	derive := fs.Bool("derive", false, "instead of the detail, show how the derived fields were computed: the changelog by status category, and the rows behind reopen_count, resolved_at, reopen_reason and epic_key")
+	link := fs.Bool("link", false, "print the gadak:// issue link (and the http form when a serve is listening)")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("issue", fs))
 		return nil
@@ -136,13 +137,16 @@ func cmdIssue(args []string) error {
 		return err
 	}
 	if len(pos) == 0 {
-		return usageError("issue", "usage: gadak issue <KEY> [--json] [--derive]")
+		return usageError("issue", "usage: gadak issue <KEY> [--json] [--derive] [--link]")
 	}
 	// The --json document is what agents parse; --derive is prose for a person.
 	// Folding one into the other would reshape a contract that already has
 	// consumers, so the combination is refused rather than silently ignored.
 	if *asJSON && *derive {
 		return usageError("issue", "--derive and --json cannot be combined: --derive is a human-readable explanation, and --json is the document agents parse")
+	}
+	if *link && *derive {
+		return usageError("issue", "--derive and --link cannot be combined: --derive explains the stored columns, and --link prints the issue's address")
 	}
 	key := normalizeKey(pos[0])
 
@@ -152,6 +156,10 @@ func cmdIssue(args []string) error {
 	}
 	defer db.Close()
 	warnIfStale()
+
+	if *link {
+		return printIssueLink(db, key, *asJSON)
+	}
 
 	d, err := db.Detail(context.Background(), key)
 	if errors.Is(err, store.ErrNotFound) {
@@ -182,6 +190,37 @@ func cmdIssue(args []string) error {
 		return printDerivation(lites[0], d)
 	}
 	printIssue(lites[0], d)
+	return nil
+}
+
+// printIssueLink is `gadak issue KEY --link`: the same gadak:// composer
+// views open uses (deepLinkURL → deeplink.Compose), plus the http form when
+// a serve is discoverable the same way. --json names the fields deeplink and
+// web so the two commands agree. The key must already be in the mirror — a
+// typo should not produce a dead link that looks real.
+func printIssueLink(db *store.DB, key string, asJSON bool) error {
+	lites, err := lookup(db, []string{key})
+	if err != nil {
+		return err
+	}
+	if len(lites) == 0 {
+		return fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", key)
+	}
+	hash := "issue=" + key
+	link := deepLinkURL(config.Profile(), hash)
+	web := serveFocusURL(hash)
+	if asJSON {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"deeplink": link,
+			"web":      web,
+		})
+	}
+	if link != "" {
+		fmt.Printf("deeplink\t%s\n", link)
+	}
+	if web != "" {
+		fmt.Printf("web\t%s\n", web)
+	}
 	return nil
 }
 

@@ -201,12 +201,13 @@ var helps = map[string]cmdHelp{
 	},
 	"issue": {
 		summary: "print full detail for one issue from the local mirror",
-		usage:   "gadak [--profile <name>] issue <KEY> [--json]",
+		usage:   "gadak [--profile <name>] issue <KEY> [--json] [--derive] [--link]",
 		examples: []string{
 			"gadak issue NMB-140",
 			"gadak issue NMB-140 --json",
+			"gadak issue NMB-140 --link",
 		},
-		seeAlso: []string{"gadak search", "gadak open", "gadak sql"},
+		seeAlso: []string{"gadak search", "gadak open", "gadak sql", "gadak views open"},
 	},
 	"open": {
 		summary: "open the issue on your Jira site in the browser",

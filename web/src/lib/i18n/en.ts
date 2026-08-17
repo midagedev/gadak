@@ -496,6 +496,8 @@ export const en = {
   'detail.notFound': 'Could not find this issue. It may have been deleted.',
   'detail.loadFailed': 'Could not load details.',
   'detail.openJira': 'Open in Jira',
+  'detail.copyLink': 'Copy link',
+  'detail.linkCopied': 'Copied',
   'detail.reopened': 'Reopened',
   'detail.reopenTimes': 'Reopened ×{n}',
   'detail.priorityShort': 'Prio {p}',

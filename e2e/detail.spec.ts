@@ -241,4 +241,31 @@ test.describe('detail', () => {
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  test('copy-link writes the gadak:// and http issue forms to the clipboard', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    await gotoApp(page)
+
+    const input = searchInput(page)
+    await input.fill('NMB-110')
+    await expect(page.getByText('NMB-110').first()).toBeVisible()
+    await page
+      .locator('[data-testid="issue-list-scroller"] [role="button"]')
+      .filter({ hasText: 'NMB-110' })
+      .first()
+      .click()
+
+    const panel = page.getByTestId('issue-detail-panel')
+    await expect(panel).toBeVisible()
+    const copy = panel.getByTestId('issue-copy-link')
+    await expect(copy).toBeVisible()
+    await copy.click()
+
+    const origin = new URL(page.url()).origin
+    const want = `gadak://view?issue=NMB-110\n${origin}/#/?issue=NMB-110`
+    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(want)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })

@@ -84,6 +84,28 @@ and which yanks the window forward mid-sentence rather than letting you
 choose. `gadak views open` now uses the same link internally: one `open` both
 raises the app and says which view to show.
 
+### Issue links
+
+A single issue is the `view` action with the place parameter `issue=KEY`:
+
+```
+gadak://view?issue=NMB-140              # default mirror
+gadak://view/w/oss?issue=NMB-140        # named profile
+```
+
+`/w/<profile>` is the same rule as the rest of this section: omit it on the
+default mirror; include it for any other profile. The http form a running
+`serve` answers is that hash on the serve origin:
+
+```
+http://127.0.0.1:7777/#/?issue=NMB-140
+http://127.0.0.1:7777/w/oss/#/?issue=NMB-140
+```
+
+`gadak issue NMB-140 --link` prints the `gadak://` form always, and the http
+form when a serve is discoverable the same way `gadak views open` finds one.
+`--json` names the fields `deeplink` and `web`, matching `views open --json`.
+
 ### The grammar
 
 ```

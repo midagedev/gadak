@@ -497,6 +497,8 @@ export const ko = {
   'detail.notFound': '이 이슈를 찾을 수 없습니다. 삭제되었을 수 있습니다.',
   'detail.loadFailed': '상세를 불러오지 못했습니다.',
   'detail.openJira': 'Jira 원본 열기',
+  'detail.copyLink': '링크 복사',
+  'detail.linkCopied': '복사됨',
   'detail.reopened': '재오픈됨',
   'detail.reopenTimes': '재오픈 ×{n}',
   'detail.priorityShort': '우선 {p}',
