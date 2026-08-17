@@ -1,8 +1,11 @@
 <script lang="ts">
   /*
    * Issue row ([explore]). Fixed 42px (virtual scroll assumption).
-   *  Layout: priority icon · status dot · key (mono) · title · label chips (≤3+n)
-   *  · reopen/stale badges · assignee · relative time.
+   *  Layout: priority icon · status dot · key (mono) · title · trailing scan
+   *  columns (fixed-width slots). Off columns are omitted — no hole. An on
+   *  column keeps its width when the row has no value, so the same field
+   *  shares an x. Breakpoints hide the whole slot (sm 640 / md 768 / lg 1024 /
+   *  xl 1280), they do not squeeze. Title takes leftover and truncates.
    *  Chip/dot/avatar click = add that value as a filter (stopPropagation vs row select).
    *  Tint and cursor ring are separate: checking a row must not hide where the
    *  keyboard is, or the next x lands blind.
@@ -24,6 +27,7 @@
   import { categoryOf, CATEGORY_META, relativeTime, absTime, highlightSegments } from '../../lib/format'
   import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
+  import { config } from '../../lib/config'
   import { isStale, statusAgeHours } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
   import Avatar from './Avatar.svelte'
@@ -50,8 +54,31 @@
   const isFavorite = $derived(favorites.keys.has(issue.issue_key))
   const isWatching = $derived(watches.keys.has(issue.issue_key))
   // Stale (time in current status). Badge is day-based — floor at 1 so sub-day reads "day 1".
+  // Weight follows magnitude (multiples of the configured threshold). A single
+  // maximum-emphasis chip on every stale row warns about nothing.
   const stale = $derived(isStale(issue))
   const staleDays = $derived(Math.max(1, Math.round(statusAgeHours(issue) / 24)))
+  const staleBand = $derived.by((): 'quiet' | 'mid' | 'loud' | null => {
+    if (!stale) return null
+    const threshold = config().staleThresholdHours
+    if (!(threshold > 0)) return 'loud'
+    const ratio = statusAgeHours(issue) / threshold
+    if (ratio <= 2) return 'quiet'
+    if (ratio <= 4) return 'mid'
+    return 'loud'
+  })
+  const staleBandClass = $derived.by(() => {
+    switch (staleBand) {
+      case 'quiet':
+        return 'text-text-muted'
+      case 'mid':
+        return 'bg-status-stale/10 text-status-stale/80'
+      case 'loud':
+        return 'bg-status-stale/15 font-medium text-status-stale'
+      default:
+        return ''
+    }
+  })
   const shownLabels = $derived(issue.labels.slice(0, 3))
   const extraLabels = $derived(Math.max(0, issue.labels.length - 3))
   // Every count in the strip points at the same list, so a folded chip is still
@@ -246,248 +273,323 @@
     {/if}
   </span>
 
+  <!-- Trailing scan columns. Fixed-width flex slots, not inline flow: an on
+       column occupies its width even when this row has no value, so the field
+       shares an x. An off column is not rendered (no hole). Breakpoint classes
+       live on the slot so a hide drops the column instead of leaving a gap. -->
+  <div class="flex min-w-0 shrink items-center gap-2.5" data-testid="issue-row-trail">
   <!-- Badges: reopen / stale -->
-  {#if cols.has('reopen') && issue.reopen_count > 0}
-    <button
-      type="button"
-      class="flex flex-none items-center gap-1 rounded bg-status-reopen/15 px-1.5 py-0.5 text-micro font-medium text-status-reopen transition-colors hover:bg-status-reopen/25"
-      title={issue.reopen_reason ? t('list.reopenCountReason', { n: issue.reopen_count, reason: issue.reopen_reason }) : t('list.reopenCount', { n: issue.reopen_count })}
-      onclick={stop(() => filters.toggleFlag('reopened'))}
-    >
-      <!-- currentColor keeps the glyph inside the badge's red: reopen count is a
-           semantic signal, and the icon must not read cooler than the number. -->
-      <Icon name="rotate-ccw" size={11} />
-      {issue.reopen_count}
-    </button>
+  {#if cols.has('reopen')}
+    <div class="flex w-9 flex-none items-center justify-start overflow-hidden" data-col="reopen">
+      {#if issue.reopen_count > 0}
+        <button
+          type="button"
+          class="flex flex-none items-center gap-1 rounded bg-status-reopen/15 px-1.5 py-0.5 text-micro font-medium text-status-reopen transition-colors hover:bg-status-reopen/25"
+          title={issue.reopen_reason ? t('list.reopenCountReason', { n: issue.reopen_count, reason: issue.reopen_reason }) : t('list.reopenCount', { n: issue.reopen_count })}
+          onclick={stop(() => filters.toggleFlag('reopened'))}
+        >
+          <!-- currentColor keeps the glyph inside the badge's red: reopen count is a
+               semantic signal, and the icon must not read cooler than the number. -->
+          <Icon name="rotate-ccw" size={11} />
+          {issue.reopen_count}
+        </button>
+      {/if}
+    </div>
   {/if}
-  {#if cols.has('stale') && stale}
-    <span
-      class="flex flex-none items-center gap-1 rounded bg-status-stale/15 px-1.5 py-0.5 text-micro font-medium text-status-stale"
-      title={t('list.staleDays', { n: staleDays })}
-    >
-      <!-- The mark the string used to carry as an emoji. Same treatment as the
-           reopen badge beside it: currentColor, so it stays inside the badge's
-           amber instead of arriving in whatever colors the platform's ⏳ ships. -->
-      <Icon name="hourglass" size={11} />
-      {t('list.staleDaysShort', { n: staleDays })}
-    </span>
+  {#if cols.has('stale')}
+    <!-- 56px, not 44: the chip measures 48px in English and ~51 in Korean, so
+         the narrower slot clipped "13일" through its 받침 — the same way the
+         scroll edge did before GDK-131. Three-digit day counts still overflow
+         and need their own answer. -->
+    <div class="stale-slot flex flex-none items-center justify-start overflow-hidden" data-col="stale">
+      {#if stale}
+        <span
+          class="flex flex-none items-center gap-1 rounded px-1.5 py-0.5 text-micro {staleBandClass}"
+          data-stale-band={staleBand}
+          title={t('list.staleDays', { n: staleDays })}
+        >
+          <!-- The mark the string used to carry as an emoji. Same treatment as the
+               reopen badge beside it: currentColor, so it stays inside the badge's
+               amber instead of arriving in whatever colors the platform's ⏳ ships. -->
+          <span class="stale-glyph flex"><Icon name="hourglass" size={11} /></span>
+          {t('list.staleDaysShort', { n: staleDays })}
+        </span>
+      {/if}
+    </div>
   {/if}
 
-  {#if cols.has('qa_impact') && qaImpactMeta}
-    <button
-      type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-micro font-medium transition-opacity hover:opacity-80 xl:inline-flex {qaImpactMeta.cls}"
-      title={issue.qa_runs?.map((run) => run.label).join(', ') || issue.qa_impact_label}
-      onclick={stop(() => filters.addValue('qa_impact', issue.qa_impact_state))}
-    >
-      {qaImpactMeta.label}
-    </button>
+  {#if cols.has('qa_impact')}
+    <div class="hidden w-24 flex-none items-center overflow-hidden xl:flex" data-col="qa_impact">
+      {#if qaImpactMeta}
+        <button
+          type="button"
+          class="inline-flex max-w-full truncate rounded px-1.5 py-0.5 text-micro font-medium transition-opacity hover:opacity-80 {qaImpactMeta.cls}"
+          title={issue.qa_runs?.map((run) => run.label).join(', ') || issue.qa_impact_label}
+          onclick={stop(() => filters.addValue('qa_impact', issue.qa_impact_state))}
+        >
+          {qaImpactMeta.label}
+        </button>
+      {/if}
+    </div>
   {/if}
 
   <!-- Deploy-stage badge (qa=teal emphasis / others muted) -->
-  {#if cols.has('deploy') && deployMeta}
-    <button
-      type="button"
-      class="flex flex-none items-center gap-1 rounded px-1.5 py-0.5 text-micro font-medium transition-opacity hover:opacity-80 {deployMeta.cls}"
-      title={deployState === 'qa'
-        ? t('deploy.qaSwapDone')
-        : t('deploy.stageTitle', { label: deployMeta.label })}
-      onclick={stop(() => filters.addValue('deploy_state', deployState))}
-    >
-      {#if deployMeta.dot}
-        <span class="h-1.5 w-1.5 flex-none rounded-full bg-[#2dd4bf]"></span>
+  {#if cols.has('deploy')}
+    <div class="flex w-10 flex-none items-center overflow-hidden" data-col="deploy">
+      {#if deployMeta}
+        <button
+          type="button"
+          class="flex min-w-0 items-center gap-1 truncate rounded px-1.5 py-0.5 text-micro font-medium transition-opacity hover:opacity-80 {deployMeta.cls}"
+          title={deployState === 'qa'
+            ? t('deploy.qaSwapDone')
+            : t('deploy.stageTitle', { label: deployMeta.label })}
+          onclick={stop(() => filters.addValue('deploy_state', deployState))}
+        >
+          {#if deployMeta.dot}
+            <span class="h-1.5 w-1.5 flex-none rounded-full bg-[#2dd4bf]"></span>
+          {/if}
+          {deployMeta.label}
+        </button>
+      {:else if deployStale}
+        <span
+          class="max-w-full truncate rounded bg-status-stale/12 px-1.5 py-0.5 text-micro font-medium text-status-stale/80"
+          title={t('deploy.resolvedNoRelease')}
+        >
+          {t('deploy.notDeployed')}
+        </span>
       {/if}
-      {deployMeta.label}
-    </button>
-  {:else if cols.has('deploy') && deployStale}
-    <span
-      class="flex-none rounded bg-status-stale/12 px-1.5 py-0.5 text-micro font-medium text-status-stale/80"
-      title={t('deploy.resolvedNoRelease')}
-    >
-      {t('deploy.notDeployed')}
-    </span>
+    </div>
   {/if}
 
-  <!-- Optional columns (view settings) — only when valued; most add a filter on click -->
-  {#if cols.has('severity') && issue.severity}
-    <button
-      type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
-      title={t('list.fieldValue', { field: t('common.severity'), value: issue.severity })}
-      onclick={stop(() => filters.addValue('severity', issue.severity!))}
-    >
-      {issue.severity}
-    </button>
-  {/if}
-  {#if cols.has('issue_type') && issue.issue_type}
-    <button
-      type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
-      title={t('list.fieldValue', { field: t('common.type'), value: issue.issue_type })}
-      onclick={stop(() => filters.addValue('issue_type', issue.issue_type_id || issue.issue_type))}
-    >
-      {issue.issue_type}
-    </button>
-  {/if}
-  {#if cols.has('status') && issue.status}
-    <button
-      type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary sm:inline-flex"
-      title={t('list.fieldValue', { field: t('common.status'), value: issue.status })}
-      onclick={stop(() => filters.addValue('status', issue.status_id || issue.status))}
-    >
-      {issue.status}
-    </button>
-  {/if}
-  {#if cols.has('dev_test_result') && issue.development_test_result}
-    <button
-      type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
-      title={t('list.fieldValue', { field: t('column.dev_test_result'), value: issue.development_test_result })}
-      onclick={stop(() => filters.addFieldValue('development_test_result', issue.development_test_result!))}
-    >
-      {issue.development_test_result}
-    </button>
-  {/if}
-  {#if cols.has('environment') && issue.environment}
-    <button
-      type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
-      title={t('list.fieldValue', { field: t('column.environment'), value: issue.environment })}
-      onclick={stop(() => filters.addFieldValue('environment', issue.environment!))}
-    >
-      {issue.environment}
-    </button>
-  {/if}
-  {#if cols.has('team_group') && issue.team_group}
-    <button
-      type="button"
-      class="hidden flex-none rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
-      title={t('list.fieldValue', { field: t('column.team_group'), value: issue.team_group })}
-      onclick={stop(() => filters.addValue('team_group', issue.team_group!))}
-    >
-      {issue.team_group}
-    </button>
-  {/if}
-  {#if cols.has('reporter') && issue.reporter}
-    <button
-      type="button"
-      class="hidden max-w-[90px] flex-none truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary md:inline-flex"
-      title={t('list.fieldValue', { field: t('common.reporter'), value: issue.reporter })}
-      onclick={issue.reporter_id || issue.reporter_email
-        ? stop(() => filters.addValue('reporter_email', issue.reporter_id ?? issue.reporter_email!))
-        : undefined}
-    >
-      {issue.reporter}
-    </button>
-  {/if}
-  {#if cols.has('comment_count') && issue.comment_count > 0}
-    <span class="hidden flex-none items-center gap-1 text-micro text-text-muted sm:flex" title={t('list.commentCount', { n: issue.comment_count })}>
-      <Icon name="message-square" size={11} />
-      {issue.comment_count}
-    </span>
-  {/if}
-  {#if cols.has('fix_versions') && issue.fix_versions.length}
-    <span class="hidden flex-none items-center gap-1 lg:flex">
-      <button
-        type="button"
-        class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
-        title={`Fix Version: ${issue.fix_versions.join(', ')}`}
-        onclick={stop(() => filters.addValue('fix_versions', issue.fix_versions[0]))}
-      >
-        {issue.fix_versions[0]}
-      </button>
-      {#if issue.fix_versions.length > 1}
-        <span class="text-micro text-text-muted">+{issue.fix_versions.length - 1}</span>
+  <!-- Optional columns (view settings). Slot is reserved when the column is
+       on; empty rows keep the width so later fields do not shift. -->
+  {#if cols.has('severity')}
+    <div class="hidden w-20 flex-none items-center overflow-hidden sm:flex" data-col="severity">
+      {#if issue.severity}
+        <button
+          type="button"
+          class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          title={t('list.fieldValue', { field: t('common.severity'), value: issue.severity })}
+          onclick={stop(() => filters.addValue('severity', issue.severity!))}
+        >
+          {issue.severity}
+        </button>
       {/if}
-    </span>
+    </div>
   {/if}
-  {#if cols.has('components') && issue.components.length}
-    <span class="hidden flex-none items-center gap-1 lg:flex">
-      <button
-        type="button"
-        class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
-        title={t('list.fieldValue', { field: t('field.components'), value: issue.components.join(', ') })}
-        onclick={stop(() => filters.addValue('components', issue.components[0]))}
-      >
-        {issue.components[0]}
-      </button>
-      {#if issue.components.length > 1}
-        <span class="text-micro text-text-muted">+{issue.components.length - 1}</span>
+  {#if cols.has('issue_type')}
+    <div class="hidden w-20 flex-none items-center overflow-hidden sm:flex" data-col="issue_type">
+      {#if issue.issue_type}
+        <button
+          type="button"
+          class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          title={t('list.fieldValue', { field: t('common.type'), value: issue.issue_type })}
+          onclick={stop(() => filters.addValue('issue_type', issue.issue_type_id || issue.issue_type))}
+        >
+          {issue.issue_type}
+        </button>
       {/if}
-    </span>
+    </div>
   {/if}
-  {#if cols.has('created') && issue.created_at}
-    <span class="hidden w-10 flex-none text-right text-micro text-text-muted sm:inline" title={t('list.createdAt', { time: absTime(issue.created_at) })}>
-      {relativeTime(issue.created_at)}
-    </span>
+  {#if cols.has('status')}
+    <div class="hidden w-20 flex-none items-center overflow-hidden sm:flex" data-col="status">
+      {#if issue.status}
+        <button
+          type="button"
+          class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          title={t('list.fieldValue', { field: t('common.status'), value: issue.status })}
+          onclick={stop(() => filters.addValue('status', issue.status_id || issue.status))}
+        >
+          {issue.status}
+        </button>
+      {/if}
+    </div>
+  {/if}
+  {#if cols.has('dev_test_result')}
+    <div class="hidden w-24 flex-none items-center overflow-hidden md:flex" data-col="dev_test_result">
+      {#if issue.development_test_result}
+        <button
+          type="button"
+          class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          title={t('list.fieldValue', { field: t('column.dev_test_result'), value: issue.development_test_result })}
+          onclick={stop(() => filters.addFieldValue('development_test_result', issue.development_test_result!))}
+        >
+          {issue.development_test_result}
+        </button>
+      {/if}
+    </div>
+  {/if}
+  {#if cols.has('environment')}
+    <div class="hidden w-20 flex-none items-center overflow-hidden md:flex" data-col="environment">
+      {#if issue.environment}
+        <button
+          type="button"
+          class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          title={t('list.fieldValue', { field: t('column.environment'), value: issue.environment })}
+          onclick={stop(() => filters.addFieldValue('environment', issue.environment!))}
+        >
+          {issue.environment}
+        </button>
+      {/if}
+    </div>
+  {/if}
+  {#if cols.has('team_group')}
+    <div class="hidden w-20 flex-none items-center overflow-hidden md:flex" data-col="team_group">
+      {#if issue.team_group}
+        <button
+          type="button"
+          class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          title={t('list.fieldValue', { field: t('column.team_group'), value: issue.team_group })}
+          onclick={stop(() => filters.addValue('team_group', issue.team_group!))}
+        >
+          {issue.team_group}
+        </button>
+      {/if}
+    </div>
+  {/if}
+  {#if cols.has('reporter')}
+    <div class="hidden w-[90px] flex-none items-center overflow-hidden md:flex" data-col="reporter">
+      {#if issue.reporter}
+        <button
+          type="button"
+          class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          title={t('list.fieldValue', { field: t('common.reporter'), value: issue.reporter })}
+          onclick={issue.reporter_id || issue.reporter_email
+            ? stop(() => filters.addValue('reporter_email', issue.reporter_id ?? issue.reporter_email!))
+            : undefined}
+        >
+          {issue.reporter}
+        </button>
+      {/if}
+    </div>
+  {/if}
+  {#if cols.has('comment_count')}
+    <div class="hidden w-10 flex-none items-center overflow-hidden sm:flex" data-col="comment_count">
+      {#if issue.comment_count > 0}
+        <span class="flex items-center gap-1 text-micro text-text-muted" title={t('list.commentCount', { n: issue.comment_count })}>
+          <Icon name="message-square" size={11} />
+          {issue.comment_count}
+        </span>
+      {/if}
+    </div>
+  {/if}
+  {#if cols.has('fix_versions')}
+    <div class="hidden w-[110px] flex-none items-center overflow-hidden lg:flex" data-col="fix_versions">
+      {#if issue.fix_versions.length}
+        <span class="flex min-w-0 items-center gap-1">
+          <button
+            type="button"
+            class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+            title={`Fix Version: ${issue.fix_versions.join(', ')}`}
+            onclick={stop(() => filters.addValue('fix_versions', issue.fix_versions[0]))}
+          >
+            {issue.fix_versions[0]}
+          </button>
+          {#if issue.fix_versions.length > 1}
+            <span class="text-micro text-text-muted">+{issue.fix_versions.length - 1}</span>
+          {/if}
+        </span>
+      {/if}
+    </div>
+  {/if}
+  {#if cols.has('components')}
+    <div class="hidden w-[110px] flex-none items-center overflow-hidden lg:flex" data-col="components">
+      {#if issue.components.length}
+        <span class="flex min-w-0 items-center gap-1">
+          <button
+            type="button"
+            class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+            title={t('list.fieldValue', { field: t('field.components'), value: issue.components.join(', ') })}
+            onclick={stop(() => filters.addValue('components', issue.components[0]))}
+          >
+            {issue.components[0]}
+          </button>
+          {#if issue.components.length > 1}
+            <span class="text-micro text-text-muted">+{issue.components.length - 1}</span>
+          {/if}
+        </span>
+      {/if}
+    </div>
+  {/if}
+  {#if cols.has('created')}
+    <div class="hidden w-10 flex-none items-center overflow-hidden sm:flex" data-col="created">
+      {#if issue.created_at}
+        <span class="w-10 text-right text-micro text-text-muted" title={t('list.createdAt', { time: absTime(issue.created_at) })}>
+          {relativeTime(issue.created_at)}
+        </span>
+      {/if}
+    </div>
   {/if}
 
   <!-- Epic chip. It lives in the trailing strip, not beside the key: an optional
        element before the title would move every summary's left edge by its width,
-       and the title column is what the eye scans down. -->
-  {#if epicKey}
-    <button
-      type="button"
-      class="hidden max-w-[84px] flex-none truncate rounded px-1.5 py-0.5 font-mono text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-accent-text lg:inline-block"
-      data-testid="epic-chip"
-      title={t('list.fieldValue', { field: t('common.epic'), value: epicSummary ?? epicKey })}
-      onclick={stop(() => selection.select(epicKey))}
-    >
-      {epicKey}
-    </button>
-  {/if}
-
-  <!-- Label chips. The one shrinkable thing on the trailing strip, so the space
-       the title's floor claims back is taken from here rather than from a
-       badge that means something the chips do not: a label is a route, and a
-       route can wait for its own row to be read first.
-
-       It is given back by dropping whole chips, never by grinding them down —
-       a chip narrower than the word it carries stops being a label and starts
-       looking like a fault. The width steps and the reasoning are in app.css
-       (.chipfold-*); here each step's count is rendered so that CSS only has to
-       choose between them. `min-w-[3rem]` is the last line of that rule: a
-       column set heavier than the one those steps were measured against can
-       still squeeze the strip, and 48px is where a chip stops being a word. -->
-  {#if cols.has('labels') && shownLabels.length}
-    <span class="flex min-w-0 shrink items-center gap-1">
-      {#each shownLabels as label, i (label)}
+       and the title column is what the eye scans down. Slot is reserved whenever
+       the list is not already sectioned by epic, so later columns stay put. -->
+  {#if filters.display.group_by !== 'epic'}
+    <div class="hidden w-16 flex-none items-center overflow-hidden lg:flex" data-col="epic">
+      {#if epicKey}
         <button
           type="button"
-          class="min-w-[3rem] max-w-[110px] truncate rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary
-            {i === 0 ? 'chipfold-first' : 'chipfold-rest'}"
-          onclick={stop(() => filters.addValue('labels', label))}
-          title={t('list.fieldValue', { field: t('common.labels'), value: label })}
+          class="max-w-[84px] truncate rounded px-1.5 py-0.5 font-mono text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-accent-text"
+          data-testid="epic-chip"
+          title={t('list.fieldValue', { field: t('common.epic'), value: epicSummary ?? epicKey })}
+          onclick={stop(() => selection.select(epicKey))}
         >
-          {label}
+          {epicKey}
         </button>
-      {/each}
-      <!-- The counters wear a faint chip tint (weaker than a hovered label, +4px
-           width in total) because at the narrowest step no real chip is left to
-           anchor them: a bare "+1" beside the epic key reads as the key column's
-           continuation, not the label column's residue (vision verdict
-           2026-08-07). -->
-      {#if extraLabels}
-        <span class="chipfold-n-extra flex-none rounded bg-bg-elevated/70 px-0.5 text-micro text-text-muted" title={allLabelsTitle}>+{extraLabels}</span>
       {/if}
-      {#if issue.labels.length > 1}
-        <span class="chipfold-n-rest flex-none rounded bg-bg-elevated/70 px-0.5 text-micro text-text-muted" title={allLabelsTitle}>+{issue.labels.length - 1}</span>
+    </div>
+  {/if}
+
+  <!-- Label chips. Still the one shrinkable slot: a fixed basis so the column
+       shares an x, and shrink so the title's 13ch floor can claim space back.
+       Chips fold via .chipfold-* (row + slot containers); they are never ground
+       down. `min-w-[3rem]` is the last line of that rule. -->
+  {#if cols.has('labels')}
+    <span
+      class="chipfold-labels flex shrink items-center gap-1 overflow-hidden"
+      data-col="labels"
+    >
+      {#if shownLabels.length}
+        {#each shownLabels as label, i (label)}
+          <button
+            type="button"
+            class="min-w-[3rem] max-w-[110px] truncate rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary
+              {i === 0 ? 'chipfold-first' : 'chipfold-rest'}"
+            onclick={stop(() => filters.addValue('labels', label))}
+            title={t('list.fieldValue', { field: t('common.labels'), value: label })}
+          >
+            {label}
+          </button>
+        {/each}
+        <!-- The counters wear a faint chip tint (weaker than a hovered label, +4px
+             width in total) because at the narrowest step no real chip is left to
+             anchor them: a bare "+1" beside the epic key reads as the key column's
+             continuation, not the label column's residue (vision verdict
+             2026-08-07). -->
+        {#if extraLabels}
+          <span class="chipfold-n-extra flex-none rounded bg-bg-elevated/70 px-0.5 text-micro text-text-muted" title={allLabelsTitle}>+{extraLabels}</span>
+        {/if}
+        {#if issue.labels.length > 1}
+          <span class="chipfold-n-rest flex-none rounded bg-bg-elevated/70 px-0.5 text-micro text-text-muted" title={allLabelsTitle}>+{issue.labels.length - 1}</span>
+        {/if}
+        <span class="chipfold-n-all flex-none rounded bg-bg-elevated/70 px-0.5 text-micro text-text-muted" title={allLabelsTitle}>+{issue.labels.length}</span>
       {/if}
-      <span class="chipfold-n-all flex-none rounded bg-bg-elevated/70 px-0.5 text-micro text-text-muted" title={allLabelsTitle}>+{issue.labels.length}</span>
     </span>
   {/if}
 
   <!-- Assignee -->
   {#if cols.has('assignee')}
-    <Avatar
-      email={issue.assignee_email}
-      accountId={issue.assignee_id}
-      name={issue.assignee}
-      onclick={issue.assignee_id || issue.assignee_email
-        ? stop(() => filters.addValue('assignee_email', issue.assignee_id ?? issue.assignee_email!))
-        : undefined}
-    />
+    <div class="flex h-5 w-5 flex-none items-center justify-center" data-col="assignee">
+      <Avatar
+        email={issue.assignee_email}
+        accountId={issue.assignee_id}
+        name={issue.assignee}
+        onclick={issue.assignee_id || issue.assignee_email
+          ? stop(() => filters.addValue('assignee_email', issue.assignee_id ?? issue.assignee_email!))
+          : undefined}
+      />
+    </div>
   {/if}
 
   <!-- Relative updated time. Freshness is weight, not accent: on a list sorted
@@ -500,11 +602,13 @@
       class="w-10 flex-none text-right text-micro {isFresh
         ? 'font-medium text-text-secondary'
         : 'text-text-muted'}"
+      data-col="updated"
       title={absTime(issue.updated_at)}
     >
       {relativeTime(issue.updated_at)}
     </span>
   {/if}
+  </div>
   </div>
 
   <!-- The matched text, when the row came back from a server search for a

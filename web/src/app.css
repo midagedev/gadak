@@ -583,9 +583,94 @@
     container: issuerow / inline-size;
   }
 
+  /*
+    Labels slot after GDK-128 is a fixed-basis column (76px, one chip).
+    Fold against the slot too: a wide row would otherwise still draw 3 chips
+    inside that width and wrap (row height is 42px and must not change).
+  */
+  .chipfold-labels {
+    container: labelfold / inline-size;
+    /* Width lives here, not as a utility: the container queries below adjust
+       it, and a Tailwind w-* would outrank them from the utilities layer. */
+    width: 76px;
+    min-width: 3rem;
+  }
+
+  /* Default state, declared BEFORE the queries that turn them on: same layer,
+     same specificity, so a later rule wins outright. Declared after, this hid
+     the labels fold's "+N" at every width — the fold measured correct and
+     showed nothing. */
   .chipfold-n-rest,
   .chipfold-n-all {
     display: none;
+  }
+
+  @container labelfold (max-width: 219px) {
+    .chipfold-rest,
+    .chipfold-n-extra {
+      display: none;
+    }
+    .chipfold-n-rest {
+      display: block;
+    }
+  }
+
+  @container labelfold (max-width: 71px) {
+    .chipfold-n-rest,
+    .chipfold-n-extra,
+    .chipfold-n-all {
+      display: none;
+    }
+  }
+
+  /*
+    A wide row can afford more than one label chip. The row container caps at
+    1360px, and at 1300+ the title still has slack it was spending on empty
+    space (measured: no title truncates at those widths), so the slot doubles.
+    140px is where the gain stops — the chip's own max-width is 110px.
+  */
+  @container issuerow (min-width: 1300px) {
+    .chipfold-labels {
+      width: 140px;
+    }
+  }
+
+  /*
+    …and gives it back on a squeezed row. The stale slot needs 56px so a
+    Korean "13일" is not clipped, and at the overlay regime that 12px is
+    exactly what the title needs to stay ellipsized inside its own box
+    (GDK-127's rule). Only the fold's "+N" renders at this width anyway.
+  */
+  /*
+    The stale slot holds a chip that measures 48px in English and ~51 in
+    Korean, so 44px cut "13일" through its 받침. Width lives here rather than
+    as a utility so the squeezed case below can take it back.
+    Measured row widths: 752 at a 1024 viewport, 1008 at 1280 (docked or with
+    the panel overlaying — the row keeps its width and the panel covers it),
+    1168 at 1440, 1360 from 1600 up where the layout caps.
+  */
+  .stale-slot {
+    width: 56px;
+  }
+
+  /*
+    A squeezed row gives the 12px back to the title. The column breakpoints
+    are viewport-keyed, so an overlaying detail panel leaves the row carrying
+    a full-width column set inside 700px, and the title stops being able to
+    ellipsize inside its own box (GDK-127's rule). The hourglass is
+    decoration — the number and the tooltip carry the meaning — so it is what
+    goes, not a column.
+  */
+  @container issuerow (max-width: 1100px) {
+    .chipfold-labels {
+      width: 64px;
+    }
+    .stale-slot {
+      width: 44px;
+    }
+    .stale-glyph {
+      display: none;
+    }
   }
 
   @container issuerow (max-width: 899px) {
