@@ -114,6 +114,23 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
 담당자, 라벨, 우선순위, 제목. CLI는 현재: 코멘트, 상태 전이, 담당자.
 위키 미러는 읽기 전용입니다. 계층 구조, `item_refs`, 첨부:
 [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
+창은 라이트와 다크에서 같은 종이 메타포를 유지합니다 — 테마는 시스템을
+따르거나, 설정과 ⌘K의 토글로 바꿉니다.
+
+그리고 두 표면은 닫힌 목록이 아닙니다. 미러를 읽는 것은 바이너리 호출
+하나(`gadak search --json`, ~20ms)이고, 앱에서 무언가를 여는 것은 URL
+하나(`gadak://view?issue=…` — [스킴](docs/DESKTOP.md))입니다. 그 둘을 할
+수 있는 것이면 무엇이든 표면이 됩니다. 예컨대 런처:
+
+<p align="center">
+  <img src="docs/media/raycast.gif" alt="Raycast가 타이핑마다 로컬 gadak 미러를 검색한다 — 텍스트 질의는 매치된 스니펫을 볼드와 필드 태그로 보여주고, 이슈 키를 그대로 치면 그 이슈가 나오며, Enter는 gadak:// 딥링크로 Gadak 앱에서 연다" width="800">
+  <br>
+  <sub>키스트로크 하나가 <code>gadak search --json</code> 한 번이고, Enter가 딥링크입니다. 저장된 뷰도 같은 길로 갑니다 — <code>gadak views open</code>이 링크를 출력합니다.</sub>
+</p>
+
+Raycast 확장은 Raycast Store로 향하는 중입니다. 그 전에도 키로 열기
+절반은 확장이 전혀 필요 없습니다 — `gadak://view?issue={argument}`를 넣은
+Raycast Quicklink가 오늘 그대로 동작합니다.
 
 ## 에이전트를 위해
 
