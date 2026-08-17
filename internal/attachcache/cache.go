@@ -143,6 +143,14 @@ func (c *Cache) Fill(id string, fetch func() (io.ReadCloser, Meta, error)) error
 		}
 		return errors.New("attachcache: concurrent fill failed")
 	}
+	// Cached means no fetch — owned here, not by callers. Without this, a
+	// caller arriving between a flight's completion and its own Has check
+	// refetches the same id (GDK-177, caught as a CI flake in the
+	// single-flight test).
+	if c.Has(id) {
+		c.mu.Unlock()
+		return nil
+	}
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	c.flight[id] = wg
