@@ -16,7 +16,18 @@ const html = readFileSync(join(__dirname, '../../index.html'), 'utf8')
 
 describe('the boot script agrees with the app', () => {
   it('reads the same storage key storage.ts writes', () => {
-    expect(html).toContain(`localStorage.getItem('${THEME_STORAGE_KEY}')`)
+    // Hand-spelled: the boot script cannot import themeStorageKey().
+    expect(html).toContain(`'${THEME_STORAGE_KEY}'`)
+    expect(html).toContain(`'${THEME_STORAGE_KEY}:'`)
+    expect(html).toMatch(/localStorage\.getItem\(\s*key\s*\)/)
+  })
+
+  it('derives the workspace key from the same /w/<name> path as storage.ts', () => {
+    const storageSrc = readFileSync(join(__dirname, 'storage.ts'), 'utf8')
+    const re = '/^\\/w\\/([A-Za-z0-9_-]+)(\\/|$)/'
+    expect(storageSrc, 'storage.ts must own the path regex').toContain(re)
+    expect(html, 'boot script must hand-spell the same path regex').toContain(re)
+    expect(html).toContain(`${THEME_STORAGE_KEY}:`)
   })
 
   it('honors every registered theme by name', () => {

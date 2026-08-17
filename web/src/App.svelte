@@ -32,6 +32,7 @@
   import { parseView, VIEW_PARAM_KEYS } from './lib/view-config'
   import { builtinViews } from './lib/builtin-views'
   import { STORAGE_KEYS } from './lib/storage'
+  import { hydrateThemeFromServer } from './lib/theme'
   import Sidebar from './components/shell/Sidebar.svelte'
   import MainColumn from './components/shell/MainColumn.svelte'
   import RightPanel from './components/shell/RightPanel.svelte'
@@ -177,6 +178,7 @@
     const unbindPalette = bindPaletteOpener(() => {
       paletteOpen = true
     })
+    void hydrateThemeFromServer()
     void issues.init()
     void me.init()
     void pages.init() // Sidebar DOCS section; hides itself when the mirror has none

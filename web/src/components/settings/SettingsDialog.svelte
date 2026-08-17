@@ -49,8 +49,8 @@
   import {
     THEME_MODES,
     parseThemePreference,
+    persistThemePreference,
     readThemePreference,
-    setThemePreference,
     type ThemePreference,
   } from '../../lib/theme'
   import { onMount } from 'svelte'
@@ -270,13 +270,14 @@
     if (e.key === 'Escape') onclose()
   }
 
-  // Per-browser, like locale: not part of the server PUT. Local state so the
-  // select updates without a reload (setThemePreference does not navigate).
+  // Instant apply + write-through to this workspace's settings. Not the
+  // dialog draft — persist reads the server document so an unsaved form
+  // is not flushed by a theme click.
   let themePref = $state<ThemePreference>(readThemePreference())
 
   function onThemeChange(event: Event): void {
     const next = parseThemePreference((event.currentTarget as HTMLSelectElement).value)
-    setThemePreference(next)
+    void persistThemePreference(next)
     themePref = next
   }
 </script>
@@ -401,8 +402,7 @@
     </div>
 
 
-    <!-- per-browser prefs (not server config): theme leads, locale keeps the
-         trailing slot above the save footer. -->
+    <!-- theme write-throughs immediately; locale stays per-browser. -->
     <div class="flex flex-none items-center gap-2 border-t border-border-subtle px-5 py-2">
       <label class="flex items-center gap-2 text-[12px] text-text-secondary">
         <span>{t('theme.label')}</span>

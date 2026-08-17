@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { composeCommentDraftKey } from './storage'
+import { composeCommentDraftKey, THEME_STORAGE_KEY, themeStorageKeyFromPath } from './storage'
 
 describe('composeCommentDraftKey', () => {
   test('C6: draft keys split by workspace and by site', () => {
@@ -11,5 +11,20 @@ describe('composeCommentDraftKey', () => {
     expect(ws).toBe('gadak:comment-draft:ws:work|site:a.example.com:NMB-1')
     expect(a).not.toBe(b)
     expect(a).not.toBe(ws)
+  })
+})
+
+describe('themeStorageKeyFromPath', () => {
+  test('default mount keeps the unscoped key; /w/<name> is a distinct mirror', () => {
+    expect(themeStorageKeyFromPath('/')).toBe(THEME_STORAGE_KEY)
+    expect(themeStorageKeyFromPath('/issues')).toBe(THEME_STORAGE_KEY)
+    expect(themeStorageKeyFromPath('/wiki')).toBe(THEME_STORAGE_KEY)
+    expect(themeStorageKeyFromPath('/w/')).toBe(THEME_STORAGE_KEY)
+    expect(themeStorageKeyFromPath('/w/oss')).toBe(`${THEME_STORAGE_KEY}:oss`)
+    expect(themeStorageKeyFromPath('/w/oss/')).toBe(`${THEME_STORAGE_KEY}:oss`)
+    expect(themeStorageKeyFromPath('/w/oss/issues')).toBe(`${THEME_STORAGE_KEY}:oss`)
+    expect(themeStorageKeyFromPath('/w/work')).toBe(`${THEME_STORAGE_KEY}:work`)
+    expect(themeStorageKeyFromPath('/w/oss')).not.toBe(themeStorageKeyFromPath('/'))
+    expect(themeStorageKeyFromPath('/w/oss')).not.toBe(themeStorageKeyFromPath('/w/work'))
   })
 })

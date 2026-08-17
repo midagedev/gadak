@@ -134,4 +134,32 @@ describe('applyThemePreference', () => {
     installMocks(null)
     expect(readThemePreference()).toBe('system')
   })
+
+  test('/ and /w/oss keep distinct boot-mirror keys', () => {
+    installMocks(null)
+    const originalWindow = globalThis.window
+    try {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { location: { pathname: '/w/oss' } },
+      })
+      setThemePreference('ink')
+      expect(store.get(`${THEME_STORAGE_KEY}:oss`)).toBe('ink')
+      expect(store.has(THEME_STORAGE_KEY)).toBe(false)
+
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { location: { pathname: '/' } },
+      })
+      expect(readThemePreference()).toBe('system')
+      setThemePreference('dark')
+      expect(store.get(THEME_STORAGE_KEY)).toBe('dark')
+      expect(store.get(`${THEME_STORAGE_KEY}:oss`)).toBe('ink')
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+    }
+  })
 })

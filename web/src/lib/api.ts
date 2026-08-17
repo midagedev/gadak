@@ -790,6 +790,11 @@ export interface GadakSettings {
   fieldSpecs?: SettingsFieldSpec[]
   /** project → alias → filled (read-only). */
   fieldUsage?: Record<string, Record<string, number>>
+  /**
+   * UI look. GET always sends it (empty stored → "system"). Omit on PUT
+   * to keep the stored value — the document is otherwise a full replace.
+   */
+  appearance?: { theme?: string }
 }
 
 /** One recorded sync pass (meaningful runs only: changed something, full, or failed). */

@@ -45,10 +45,28 @@ export const STORAGE_KEYS = {
 }
 
 /**
- * Appearance preference. Not site-partitioned — it is a per-browser choice
- * (same as `gadak_locale`), not a per-mirror setting.
+ * Appearance boot-mirror prefix. Workspace-scoped (`/w/<name>` →
+ * `gadak:theme:<name>`), not site-partitioned — the boot script in
+ * index.html has no config.json, so the path is the only partition it
+ * can see. Default mount (`/`) keeps the unscoped key.
  */
 export const THEME_STORAGE_KEY = 'gadak:theme'
+
+/** Same path rule as `workspaceName()` — kept here so the boot script can match it. */
+export const THEME_WORKSPACE_PATH_RE = /^\/w\/([A-Za-z0-9_-]+)(\/|$)/
+
+/** Derive the boot-mirror key from a pathname. `/` and `/w/oss` stay distinct. */
+export function themeStorageKeyFromPath(pathname: string): string {
+  const m = pathname.match(THEME_WORKSPACE_PATH_RE)
+  return m ? `${THEME_STORAGE_KEY}:${m[1]}` : THEME_STORAGE_KEY
+}
+
+/** Active boot-mirror key for this page. Safe when `window` is missing (tests). */
+export function themeStorageKey(): string {
+  const path =
+    typeof window !== 'undefined' && window.location ? window.location.pathname : '/'
+  return themeStorageKeyFromPath(path)
+}
 
 /** Prefix for recency.ts (`gadak:recent:` + kind). */
 export function recentKindPrefix(): string {

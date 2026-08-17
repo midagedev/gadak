@@ -16,12 +16,15 @@
       저장된 테마 선택을 첫 페인트 전에 적용한다. 모듈 스크립트(main.ts)는
       번들을 받은 뒤에야 실행되므로, 다크 사용자가 매 부팅마다 크림색 셸을
       한 번 보게 된다 — 그 창을 닫는 것이 이 블로킹 스크립트다.
-      키는 web/src/lib/storage.ts의 THEME_STORAGE_KEY와 같아야 하고,
-      web/src/lib/boot-theme.test.ts가 두 값이 갈라지면 실패한다.
+      키는 web/src/lib/storage.ts의 themeStorageKeyFromPath와 같아야 하고
+      (/w/<name>이면 gadak:theme:<name>, 아니면 gadak:theme),
+      web/src/lib/boot-theme.test.ts가 손 철자와 경로 파생이 갈라지면 실패한다.
     -->
     <script>
       try {
-        var p = localStorage.getItem('gadak:theme')
+        var m = location.pathname.match(/^\/w\/([A-Za-z0-9_-]+)(\/|$)/)
+        var key = m ? 'gadak:theme:' + m[1] : 'gadak:theme'
+        var p = localStorage.getItem(key)
         if (['light', 'dark', 'ink', 'ember'].indexOf(p) >= 0) {
           document.documentElement.setAttribute('data-theme', p)
         }

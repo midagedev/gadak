@@ -1,6 +1,19 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { gotoApp, openServerSettings } from './helpers'
 import { THEMES } from '../web/src/lib/theme'
+
+const SETTINGS_URL = 'http://127.0.0.1:7877/api/v1/issues/settings/'
+
+async function waitServerTheme(request: APIRequestContext, theme: string): Promise<void> {
+  await expect
+    .poll(async () => {
+      const res = await request.get(SETTINGS_URL)
+      if (!res.ok()) return null
+      const body = (await res.json()) as { appearance?: { theme?: string } }
+      return body.appearance?.theme ?? null
+    })
+    .toBe(theme)
+}
 
 /** Settings dialog select — same handle the sidebar picker used to carry. */
 async function themePicker(page: Page) {
@@ -57,6 +70,15 @@ async function readTokens(page: Page) {
 }
 
 test.describe('theme', () => {
+  test.afterEach(async ({ request }) => {
+    const res = await request.get(SETTINGS_URL)
+    if (!res.ok()) return
+    const body = (await res.json()) as Record<string, unknown>
+    await request.put(SETTINGS_URL, {
+      data: { ...body, appearance: { theme: 'system' } },
+    })
+  })
+
   test('light default is unchanged without a stored choice', async ({ page }) => {
     // Pin light so a dark host OS cannot flip system-default. The contract is
     // "no stored preference + light scheme = today's hex".
@@ -85,7 +107,10 @@ test.describe('theme', () => {
     expect(bg).toBe('rgb(13, 14, 16)')
   })
 
-  test('every registered palette is in the picker and paints its own ground', async ({ page }) => {
+  test('every registered palette is in the picker and paints its own ground', async ({
+    page,
+    request,
+  }) => {
     // The registry contract is "token block in app.css + entry in THEMES".
     // This is the end of that promise: a name in THEMES with no CSS block would
     // sit in the picker and select to nothing, which no unit test can see.
@@ -104,9 +129,10 @@ test.describe('theme', () => {
     expect(seen.get('dark')).toBe(DARK.base)
     expect(seen.get('ink')).toBe(INK.base)
     expect(seen.get('ember')).toBe(EMBER.base)
+    await waitServerTheme(request, THEMES[THEMES.length - 1].name)
   })
 
-  test('ember preserves the warm dark, ink is its own blue-black', async ({ page }) => {
+  test('ember preserves the warm dark, ink is its own blue-black', async ({ page, request }) => {
     await page.emulateMedia({ colorScheme: 'light' })
     await gotoApp(page)
     const picker = await themePicker(page)
@@ -125,6 +151,7 @@ test.describe('theme', () => {
     expect(ink.accent).toBe(INK.accent)
     expect(ink.scheme).toMatch(/dark/i)
 
+    await waitServerTheme(request, 'ink')
     // Survives a cold boot through the blocking boot script, not just hydration.
     await page.reload()
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
@@ -133,13 +160,17 @@ test.describe('theme', () => {
     expect(afterReload.dataTheme).toBe('ink')
   })
 
-  test('picker dark survives reload; system follows the emulated scheme', async ({ page }) => {
+  test('picker dark survives reload; system follows the emulated scheme', async ({
+    page,
+    request,
+  }) => {
     await page.emulateMedia({ colorScheme: 'dark' })
     await gotoApp(page)
     const picker = await themePicker(page)
     await picker.selectOption('dark')
     expect((await readTokens(page)).base).toBe(DARK.base)
     expect(await page.evaluate(() => localStorage.getItem('gadak:theme'))).toBe('dark')
+    await waitServerTheme(request, 'dark')
 
     await page.reload()
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
@@ -154,9 +185,10 @@ test.describe('theme', () => {
     expect(asSystem.base).toBe(DARK.base)
     expect(asSystem.dataTheme).toBeNull()
     expect(await page.evaluate(() => localStorage.getItem('gadak:theme'))).toBe('system')
+    await waitServerTheme(request, 'system')
   })
 
-  test('palette action applies dark and persists', async ({ page }) => {
+  test('palette action applies dark and persists', async ({ page, request }) => {
     await page.emulateMedia({ colorScheme: 'light' })
     await gotoApp(page)
     await page.keyboard.press('ControlOrMeta+k')
@@ -167,6 +199,7 @@ test.describe('theme', () => {
     await expect(option).toBeVisible()
     await option.click()
     await expect(palette).toBeHidden()
+    await waitServerTheme(request, 'dark')
 
     const tokens = await readTokens(page)
     expect(tokens.base).toBe(DARK.base)
@@ -183,5 +216,32 @@ test.describe('theme', () => {
     expect(afterReload.dataTheme).toBe('dark')
     expect(afterReload.scheme).toMatch(/dark/i)
     expect(await page.evaluate(() => localStorage.getItem('gadak:theme'))).toBe('dark')
+  })
+
+  test('picker theme survives wiping localStorage (server is the source)', async ({
+    page,
+    request,
+  }) => {
+    // Origin is this workspace's settings document, not the boot mirror.
+    // After a picker change, clearing localStorage and reloading must still
+    // paint the chosen palette — hydrate reads appearance.theme.
+    await page.emulateMedia({ colorScheme: 'light' })
+    await gotoApp(page)
+    const picker = await themePicker(page)
+    await picker.selectOption('ink')
+    expect((await readTokens(page)).dataTheme).toBe('ink')
+
+    // Write-through is GET→PUT; wait until the server actually has it so a
+    // wipe+reload cannot race an in-flight persist (and so FAIL-first on the
+    // current local-only path is "server never took the theme").
+    await waitServerTheme(request, 'ink')
+
+    await page.evaluate(() => localStorage.clear())
+    await page.reload()
+    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+    await expect.poll(async () => (await readTokens(page)).dataTheme).toBe('ink')
+    const afterWipe = await readTokens(page)
+    expect(afterWipe.base).toBe(INK.base)
+    expect(afterWipe.dataTheme).toBe('ink')
   })
 })

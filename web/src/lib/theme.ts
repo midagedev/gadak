@@ -12,8 +12,10 @@
  * light / dark → data-theme wins over the OS.
  */
 
+import { getSettings, putSettings } from './api'
+import { isHostedDemo } from './config'
 import type { MessageKey } from './i18n'
-import { THEME_STORAGE_KEY } from './storage'
+import { themeStorageKey } from './storage'
 
 export const THEMES = [
   { name: 'light', labelKey: 'theme.light' satisfies MessageKey },
@@ -51,7 +53,7 @@ export function dataThemeAttr(pref: ThemePreference): ThemeName | null {
 
 export function readThemePreference(): ThemePreference {
   try {
-    return parseThemePreference(localStorage.getItem(THEME_STORAGE_KEY))
+    return parseThemePreference(localStorage.getItem(themeStorageKey()))
   } catch {
     return 'system'
   }
@@ -59,7 +61,7 @@ export function readThemePreference(): ThemePreference {
 
 export function writeThemePreference(pref: ThemePreference): void {
   try {
-    localStorage.setItem(THEME_STORAGE_KEY, pref)
+    localStorage.setItem(themeStorageKey(), pref)
   } catch {
     /* private mode / unavailable */
   }
@@ -80,4 +82,58 @@ export function setThemePreference(pref: ThemePreference): void {
 /** Blocking boot: must run before first paint of the app shell. */
 export function applyThemeAtBoot(): void {
   applyThemePreference(readThemePreference())
+}
+
+/**
+ * Instant local apply, then read-modify-write this workspace's settings
+ * document. Shared by the settings picker and the ⌘K action. Does not
+ * touch the settings-dialog draft — GET is the server's current state.
+ * Hosted demo has no settings server; local only.
+ */
+export function persistThemePreference(pref: ThemePreference): Promise<void> {
+  setThemePreference(pref)
+  const run = persistChain.then(
+    () => writeThroughTheme(pref),
+    () => writeThroughTheme(pref),
+  )
+  persistChain = run.catch(() => {
+    /* keep the chain alive after a failure */
+  })
+  return run
+}
+
+let persistChain: Promise<void> = Promise.resolve()
+
+async function writeThroughTheme(pref: ThemePreference): Promise<void> {
+  if (isHostedDemo()) return
+  try {
+    const current = await getSettings()
+    await putSettings({ ...current, appearance: { theme: pref } })
+  } catch {
+    try {
+      const { write } = await import('../stores/write.svelte')
+      const { t } = await import('./i18n')
+      write.toast(t('theme.savedLocally'), 'info')
+    } catch {
+      console.warn('gadak: theme saved locally only')
+    }
+  }
+}
+
+/**
+ * After first paint: server appearance wins, including "system". Missing
+ * `appearance` (old server) or a failed GET leaves the local mirror alone.
+ */
+export async function hydrateThemeFromServer(): Promise<void> {
+  if (isHostedDemo()) return
+  const localBefore = readThemePreference()
+  try {
+    const settings = await getSettings()
+    if (!settings.appearance) return
+    const remote = parseThemePreference(settings.appearance.theme)
+    if (readThemePreference() !== localBefore) return
+    if (remote !== localBefore) setThemePreference(remote)
+  } catch {
+    console.warn('gadak: theme settings unavailable; keeping local preference')
+  }
 }

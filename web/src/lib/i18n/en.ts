@@ -913,6 +913,7 @@ export const en = {
   'theme.dark': 'Dark',
   'theme.ink': 'Ink',
   'theme.ember': 'Ember',
+  'theme.savedLocally': 'Saved on this device only. The server did not take the theme.',
 
   /* ── Command palette ── */
   'palette.title': 'Command palette',

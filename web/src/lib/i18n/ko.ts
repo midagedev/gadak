@@ -906,6 +906,7 @@ export const ko = {
   'theme.dark': '다크',
   'theme.ink': '잉크',
   'theme.ember': '엠버',
+  'theme.savedLocally': '이 기기에만 저장됨. 서버에 테마를 쓰지 못했습니다.',
 
   /* ── Command palette ── */
   'palette.title': '커맨드 팔레트',
