@@ -37,12 +37,12 @@ const LIGHT = {
 // The system-default dark: neutral-cool charcoal since GDK-190.
 const DARK = {
   base: '#0d0e10',
-  text: '#dfe4ef',
+  text: '#eae6dd',
   accent: '#3a5b80',
 } as const
 
 const INK = {
-  base: '#0e131b',
+  base: '#101621',
   text: '#e0e7f2',
   accent: '#2f6285',
 } as const

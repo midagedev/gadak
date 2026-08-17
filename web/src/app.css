@@ -197,9 +197,9 @@
       --color-bg-hover: #25272d;
       --color-bg-active: #2f313a;
       --color-shell: #08080a;
-      --color-text-primary: #dfe4ef;
-      --color-text-secondary: #9ba7bd;
-      --color-text-muted: #8b96ab;
+      --color-text-primary: #eae6dd;
+      --color-text-secondary: #a8a49c;
+      --color-text-muted: #96928a;
       --color-border-subtle: #272a31;
       --color-border-strong: #464b57;
       --color-accent: #3a5b80;
@@ -252,9 +252,9 @@
     --color-bg-hover: #25272d;
     --color-bg-active: #2f313a;
     --color-shell: #08080a;
-    --color-text-primary: #dfe4ef;
-    --color-text-secondary: #9ba7bd;
-    --color-text-muted: #8b96ab;
+    --color-text-primary: #eae6dd;
+    --color-text-secondary: #a8a49c;
+    --color-text-muted: #96928a;
     --color-border-subtle: #272a31;
     --color-border-strong: #464b57;
     --color-accent: #3a5b80;
@@ -305,20 +305,20 @@
     lightness, so the two never read as the same theme at a glance.
   */
   :root[data-theme='ink'] {
-    --color-bg-base: #0e131b;
-    --color-bg-panel: #131a24;
-    --color-bg-elevated: #1a222e;
-    --color-bg-hover: #232d3c;
-    --color-bg-active: #2e3a4b;
-    --color-shell: #090c11;
+    --color-bg-base: #101621;
+    --color-bg-panel: #151d2a;
+    --color-bg-elevated: #1d2736;
+    --color-bg-hover: #273347;
+    --color-bg-active: #33415a;
+    --color-shell: #0b0f15;
     --color-text-primary: #e0e7f2;
-    --color-text-secondary: #98a8c2;
+    --color-text-secondary: #a3b2c9;
     --color-text-muted: #8695ae;
     --color-border-subtle: #26303f;
     --color-border-strong: #42536b;
     --color-accent: #2f6285;
     --color-accent-hover: #3d7699;
-    --color-accent-subtle: #132b3d;
+    --color-accent-subtle: #16344a;
     --color-accent-text: #86c2dd;
     --color-focus-ring: #86c2dd;
     --color-status-new: #6696c3;
