@@ -11,7 +11,9 @@ description: >
   label or priority, commenting, transitioning, assigning — since all of those
   go through the same tool rather than the Atlassian API. When the user wants to *see* issues — show them, put them on
   screen, open this list — do not render a markdown table; open them in the
-  gadak app with `gadak views open`.
+  gadak app with `gadak views open`. Also use when changing gadak itself
+  (theme, sync interval, feature flags, projects): that is `gadak config`,
+  not an edit of config.json and not the settings dialog.
 ---
 
 # Asking the mirror
@@ -209,6 +211,32 @@ There is no separate write API to discover: everything gadak can change is one
 of the verbs above. If a field is not covered, say so rather than reaching for
 the REST API — `gadak api` exists for that, but it is an escape hatch, not the
 path of least surprise.
+
+## Profile settings
+
+An agent configures the profile through the CLI. Do not hand-edit
+`~/.gadak/config.json` and do not drive the Settings dialog.
+
+```bash
+gadak config list                         # every editable path, current value, one-line description
+gadak config list --json
+gadak config get appearance.theme
+gadak config set appearance.theme dark
+gadak config set syncIntervalSec 30
+gadak config set features.feed true
+gadak config set projects '["NMB","NMA"]'
+```
+
+`--json` on `list` and `get` (and `set`, which prints the stored value).
+Unknown paths exit 64 and print the valid list. `set` accepts JSON or a
+bare scalar (`dark`, `true`, `30`); arrays and objects need JSON.
+
+Credentials (site, email, token) stay on `gadak init` — they are not
+`config set` paths. `gadak config list` says so.
+
+`appearance.theme` is `system` (the default, not persisted), `light`,
+`dark`, or a lowercase palette id (`[a-z0-9-]{1,32}`). Palette names
+belong to the web; the CLI only checks the shape.
 
 ## Rules that come with the file
 

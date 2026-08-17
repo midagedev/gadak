@@ -139,6 +139,7 @@ Usage:
 Commands:
   init             configure site, credentials, and projects
                    [--site] [--email] [--projects] [--spaces] [--token-file|--token-stdin] [--json]
+  config           get or set profile settings     [list|get <path>|set <path> <value>] [--json]
   sync             mirror Jira into SQLite   [--full] [--watch]
   serve            web UI + API on loopback  [--addr] [--static] [--no-sync] [--no-open] [--allow-remote]
                    (syncs by default when a credential is configured; --no-sync opts out)
@@ -265,6 +266,7 @@ var commands = map[string]func([]string) error{
 	"assign":          cmdAssign,
 	"attach":          cmdAttach,
 	"comment":         cmdComment,
+	"config":          cmdConfig,
 	"create":          cmdCreate,
 	"demo":            cmdDemo,
 	"doctor":          cmdDoctor,

@@ -59,7 +59,24 @@ var helps = map[string]cmdHelp{
 			"gadak init --spaces all",
 			"gadak init --spaces none",
 		},
-		seeAlso: []string{"gadak sync", "gadak profiles"},
+		seeAlso: []string{"gadak sync", "gadak profiles", "gadak config"},
+	},
+	"config": {
+		summary: "get or set profile settings (everything the Settings dialog can edit)",
+		usage:   "gadak [--profile <name>] config [list|get <path>|set <path> <value>] [--json]",
+		options: []helpOption{
+			{name: "json", desc: "emit JSON (list and get; set prints the stored value)"},
+		},
+		examples: []string{
+			"gadak config list",
+			"gadak config list --json",
+			"gadak config get appearance.theme",
+			"gadak config set appearance.theme dark",
+			"gadak config set syncIntervalSec 30",
+			"gadak config set features.feed true",
+			"gadak config set projects '[\"NMB\",\"NMA\"]'",
+		},
+		seeAlso: []string{"gadak init", "gadak status"},
 	},
 	"sync": {
 		summary: "mirror Jira into the local SQLite database",
@@ -498,8 +515,16 @@ func newUnknownFlag(fs *flag.FlagSet, token string) error {
 	return &unknownFlagErr{token: token, accepted: accepted, cmd: fs.Name()}
 }
 
+// exitCoder is a command error that names its process status (e.g. unknown
+// config path → 64). unknownFlagErr stays a separate 2 so a mistyped flag
+// does not change class.
+type exitCoder interface {
+	ExitCode() int
+}
+
 // exitStatus is the process code main uses for a command error.
-// unknown flags are usage (2); everything else stays 1.
+// unknown flags are usage (2); an exitCoder keeps the code it named;
+// everything else stays 1.
 func exitStatus(err error) int {
 	if err == nil {
 		return 0
@@ -507,6 +532,10 @@ func exitStatus(err error) int {
 	var u *unknownFlagErr
 	if errors.As(err, &u) {
 		return 2
+	}
+	var c exitCoder
+	if errors.As(err, &c) {
+		return c.ExitCode()
 	}
 	return 1
 }

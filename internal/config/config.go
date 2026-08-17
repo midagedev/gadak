@@ -118,6 +118,11 @@ type Config struct {
 	// set false to opt out (restores the prior "outbound is only Jira" model).
 	UpdateCheck *bool `json:"updateCheck,omitempty"`
 
+	// Appearance is the look of the web/desktop UI. Nil (or empty Theme) means
+	// "system" and is not written — the default is not persisted. A pointer so
+	// encoding/json omitempty can drop the block; a zero struct would write {}.
+	Appearance *Appearance `json:"appearance,omitempty"`
+
 	// Confluence, when non-nil, enables the wiki-page mirror (second source).
 	// Spaces empty means every *global* space — not every space the account can
 	// see, which is what this comment used to claim and what a warning written
@@ -129,6 +134,11 @@ type Config struct {
 	// dir is the profile directory this Config was loaded from (or will save to).
 	// Unexported so it never appears in JSON; set by LoadFor.
 	dir string
+}
+
+// Appearance is the look block in config.json. Empty Theme means "system".
+type Appearance struct {
+	Theme string `json:"theme,omitempty"`
 }
 
 // ConfluenceConfig is the optional wiki-page source. Presence (non-nil) is the
@@ -558,6 +568,14 @@ func (c *Config) UpdateCheckEnabled() bool {
 		return true
 	}
 	return *c.UpdateCheck
+}
+
+// EffectiveTheme is the UI theme id. Empty on disk means "system".
+func (c *Config) EffectiveTheme() string {
+	if c == nil || c.Appearance == nil || c.Appearance.Theme == "" {
+		return "system"
+	}
+	return c.Appearance.Theme
 }
 
 // FieldSpecs returns the effective field specs. After LoadFor, this is Fields.

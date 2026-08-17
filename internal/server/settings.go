@@ -31,9 +31,9 @@ var Version = "0.0.0-dev"
 // always carries a real number.
 const defaultStaleHours = 72
 
-// Every optional surface a config flag can switch on. Unknown keys in the
-// configuration are dropped: a flag nobody reads is a flag that does nothing.
-var featureNames = []string{"feed", "push", "deploy", "qa", "teamGroups"}
+// featureNames aliases config.FeatureNames so existing tests in this package
+// keep compiling. The names themselves live in the config package.
+var featureNames = config.FeatureNames
 
 type webConfigDoc struct {
 	APIBase             string                    `json:"apiBase"`
@@ -147,6 +147,11 @@ type settingsDoc struct {
 	// on; enabled:false turns it off; spaces alone still requires it already on.
 	Confluence *settingsConfluenceDoc `json:"confluence,omitempty"`
 
+	// Appearance is the UI look. A pointer so older clients that omit the key
+	// on PUT cannot wipe a stored theme. GET always populates it (empty
+	// stored theme → "system").
+	Appearance *config.Appearance `json:"appearance,omitempty"`
+
 	// Read-only context for the UI. Ignored on PUT — the site and the token are
 	// the credential endpoint's business (T4). runtime is assembled per request.
 	// fieldSpecs / fieldUsage are discovery output; PUT must not clobber Fields.
@@ -238,7 +243,7 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
-	if err := validateIntervals(in.SyncIntervalSec, in.ReconcileIntervalSec); err != nil {
+	if err := config.ValidateIntervals(in.SyncIntervalSec, in.ReconcileIntervalSec); err != nil {
 		fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -264,23 +269,15 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	// spaces alone (enabled omitted) → replace Spaces only when already on;
 	// still 400 confluence_not_configured when off (legacy path).
 	if in.Confluence != nil {
-		switch {
-		case in.Confluence.Enabled != nil && !*in.Confluence.Enabled:
-			next.Confluence = nil
-		case in.Confluence.Enabled != nil && *in.Confluence.Enabled:
-			// Always assign a fresh struct — never mutate a shared nested pointer.
-			next.Confluence = &config.ConfluenceConfig{Spaces: strs(in.Confluence.Spaces)}
-		default:
-			// enabled omitted: spaces-only update, same as before.
-			if next.Confluence == nil {
-				fail(w, http.StatusBadRequest, "confluence_not_configured")
-				return
-			}
-			// Copy the section so we do not mutate the shared atomic config
-			// pointer's nested struct before Save succeeds.
-			cc := *next.Confluence
-			cc.Spaces = strs(in.Confluence.Spaces)
-			next.Confluence = &cc
+		if err := config.ApplyConfluence(&next, in.Confluence.Enabled, in.Confluence.Spaces); err != nil {
+			fail(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+	if in.Appearance != nil {
+		if err := config.ApplyAppearance(&next, *in.Appearance); err != nil {
+			fail(w, http.StatusBadRequest, err.Error())
+			return
 		}
 	}
 	next.BodyFields = in.BodyFields
@@ -357,22 +354,6 @@ func stringSet(v []string) map[string]struct{} {
 	return out
 }
 
-func validateIntervals(syncSec, reconcileSec int) error {
-	if syncSec < 0 {
-		return fmt.Errorf("syncIntervalSec must be 0 (default) or a positive number of seconds")
-	}
-	if syncSec > 0 && syncSec < config.MinSyncIntervalSec {
-		return fmt.Errorf("syncIntervalSec must be 0 (default) or >= %d (got %d)", config.MinSyncIntervalSec, syncSec)
-	}
-	if reconcileSec < 0 {
-		return fmt.Errorf("reconcileIntervalSec must be 0 (default) or a positive number of seconds")
-	}
-	if reconcileSec > 0 && reconcileSec < config.MinReconcileIntervalSec {
-		return fmt.Errorf("reconcileIntervalSec must be 0 (default) or >= %d (got %d)", config.MinReconcileIntervalSec, reconcileSec)
-	}
-	return nil
-}
-
 func settings(cfg *config.Config) settingsDoc {
 	doc := settingsDoc{
 		Projects:             strs(cfg.Projects),
@@ -391,6 +372,7 @@ func settings(cfg *config.Config) settingsDoc {
 		ReconcileIntervalSec: cfg.ReconcileIntervalSec,
 		Site:                 cfg.Site,
 		HasCredential:        cfg.HasCredential(),
+		Appearance:           &config.Appearance{Theme: cfg.EffectiveTheme()},
 	}
 	if cfg.Confluence != nil {
 		doc.Confluence = &settingsConfluenceDoc{Spaces: strs(cfg.Confluence.Spaces)}
@@ -501,17 +483,7 @@ func humanBytes(n int64) string {
 // wins; missing keys stay off except feed, which defaults on so the personal
 // feed surface is available without a config edit (still overridable to false).
 func features(set map[string]bool) map[string]bool {
-	out := make(map[string]bool, len(featureNames))
-	for _, name := range featureNames {
-		if set != nil {
-			if v, ok := set[name]; ok {
-				out[name] = v
-				continue
-			}
-		}
-		out[name] = name == "feed"
-	}
-	return out
+	return config.NormalizeFeatures(set)
 }
 
 func strs(v []string) []string {

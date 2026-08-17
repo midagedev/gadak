@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -578,6 +579,179 @@ func TestHumanBytes(t *testing.T) {
 	for _, tc := range cases {
 		if got := humanBytes(tc.n); got != tc.want {
 			t.Errorf("humanBytes(%d) = %q, want %q", tc.n, got, tc.want)
+		}
+	}
+}
+
+func TestPutSettingsAppearanceRoundtrip(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"appearance":          map[string]any{"theme": "dark"},
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT appearance → %d %s", rec.Code, rec.Body.String())
+	}
+	var probe map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &probe); err != nil {
+		t.Fatal(err)
+	}
+	app, _ := probe["appearance"].(map[string]any)
+	if app == nil || app["theme"] != "dark" {
+		t.Fatalf("response appearance=%v", probe["appearance"])
+	}
+
+	again := get(t, h, apiBase+"settings/", nil)
+	if err := json.Unmarshal(again.Body.Bytes(), &probe); err != nil {
+		t.Fatal(err)
+	}
+	app, _ = probe["appearance"].(map[string]any)
+	if app == nil || app["theme"] != "dark" {
+		t.Fatalf("re-GET appearance=%v", probe["appearance"])
+	}
+
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Appearance == nil || saved.Appearance.Theme != "dark" {
+		t.Fatalf("disk theme %+v", saved.Appearance)
+	}
+	if saved.Token != "secret-token" {
+		t.Fatalf("credential lost: %q", saved.Token)
+	}
+
+	// system (the default) is accepted and not persisted as a named theme.
+	putBody["appearance"] = map[string]any{"theme": "system"}
+	b, _ = json.Marshal(putBody)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT system → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Appearance != nil {
+		t.Fatalf("system must store nil, got %+v", saved.Appearance)
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &probe); err != nil {
+		t.Fatal(err)
+	}
+	app, _ = probe["appearance"].(map[string]any)
+	if app == nil || app["theme"] != "system" {
+		t.Fatalf("GET-shape after system = %v", probe["appearance"])
+	}
+}
+
+func TestPutSettingsAppearanceRejectsShape(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	// Seed a valid theme so a rejected PUT must not clobber it.
+	seed := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"appearance":          map[string]any{"theme": "dark"},
+	}
+	b, _ := json.Marshal(seed)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("seed → %d %s", rec.Code, rec.Body.String())
+	}
+
+	bad := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"appearance":          map[string]any{"theme": "Dark"},
+	}
+	b, _ = json.Marshal(bad)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400; body %s", rec.Code, rec.Body.String())
+	}
+	var errBody map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errBody["error"], "appearance.theme") {
+		t.Fatalf("error %q", errBody["error"])
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Appearance == nil || saved.Appearance.Theme != "dark" {
+		t.Fatalf("rejected PUT overwrote theme: %+v", saved.Appearance)
+	}
+}
+
+func TestPutSettingsOmitsAppearancePreserves(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	cfg.Appearance = &config.Appearance{Theme: "dark"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	h := New(db, cfg)
+
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 48,
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Appearance == nil || saved.Appearance.Theme != "dark" {
+		t.Fatalf("appearance wiped: %+v", saved.Appearance)
+	}
+}
+
+func TestSettingsCatalogCoversPUTFields(t *testing.T) {
+	readOnly := map[string]bool{
+		"site": true, "hasCredential": true, "runtime": true,
+		"fieldSpecs": true, "fieldUsage": true,
+	}
+	typ := reflect.TypeOf(settingsDoc{})
+	want := map[string]bool{}
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if name == "" || name == "-" || readOnly[name] {
+			continue
+		}
+		want[name] = true
+	}
+	if !want["appearance"] {
+		t.Fatal("settingsDoc is missing appearance — PUT cannot carry the theme")
+	}
+	have := map[string]bool{}
+	for _, s := range config.Settings() {
+		if s.Root != "" {
+			have[s.Root] = true
+		}
+	}
+	for tag := range want {
+		if !have[tag] {
+			t.Errorf("PUT field %q has no gadak config path (config.Settings Root)", tag)
 		}
 	}
 }
