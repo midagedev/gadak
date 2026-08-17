@@ -5,6 +5,10 @@
 - **`gadak raycast install`** (GDK-182). Embeds the Raycast extension and
   registers it with a one-shot `npx ray develop`, so a brew or app-bundle
   install does not need a checkout while the store review is pending.
+- **⌘K palette home is never blank** (GDK-184). An empty query now shows
+  Recently updated issues (from the already-loaded pool — still zero
+  requests per keystroke) under Recently viewed, plus saved views, so a
+  fresh profile opens onto a list instead of an empty box.
 
 ## v0.15.0 — 2026-08-17
 

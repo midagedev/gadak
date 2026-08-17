@@ -901,6 +901,7 @@ export const en = {
   'palette.sectionViews': 'Views',
   'palette.sectionActions': 'Actions',
   'palette.recent': 'Recently viewed',
+  'palette.updated': 'Recently updated',
   'palette.empty': 'No matches',
   'palette.hintNav': '↑↓ move · Enter run · Esc close',
   'palette.hintHelp': 'shortcuts',

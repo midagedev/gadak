@@ -892,6 +892,7 @@ export const ko = {
   'palette.sectionViews': '뷰',
   'palette.sectionActions': '액션',
   'palette.recent': '최근 본 항목',
+  'palette.updated': '최근 갱신',
   'palette.empty': '일치하는 항목 없음',
   'palette.hintNav': '↑↓ 이동 · Enter 실행 · Esc 닫기',
   'palette.hintHelp': '단축키',

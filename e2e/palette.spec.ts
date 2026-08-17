@@ -58,4 +58,65 @@ test.describe('command palette', () => {
     await page.keyboard.press('Escape')
     await expect(palette).toBeHidden()
   })
+
+  test('empty query with no visits still lists recently updated issues', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.addInitScript(() => {
+      localStorage.setItem('gadak:recent', '[]')
+    })
+    await gotoApp(page)
+
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+
+    // GDK-184: a brand-new profile has no visits, but the home must still
+    // be a list — recently-updated issues from the already-loaded pool.
+    const options = palette.getByRole('option')
+    await expect(options.first()).toBeVisible()
+    expect(await options.count()).toBeGreaterThan(0)
+
+    await expect(palette.locator('[data-section="updated"]')).toBeVisible()
+    await expect(palette.locator('[data-section="updated"]')).toHaveText(/recently updated/i)
+
+    const updated = palette.getByTestId('palette-updated-row')
+    await expect(updated.first()).toBeVisible()
+    const n = await updated.count()
+    expect(n).toBeGreaterThan(0)
+    expect(n).toBeLessThanOrEqual(5)
+
+    await expect(palette.locator('[data-section="recent"]')).toHaveCount(0)
+
+    // ↑↓ walks the flat item list across sections (no extra nav state).
+    await page.keyboard.press('ArrowDown')
+    await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('empty query lists recently viewed first and keeps those keys out of updated', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'gadak:recent',
+        JSON.stringify([{ key: 'NMB-110', viewed_at: new Date().toISOString(), kind: 'issue' }]),
+      )
+    })
+    await gotoApp(page)
+
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+
+    await expect(palette.locator('[data-section="recent"]')).toBeVisible()
+    await expect(palette.getByRole('option').first()).toContainText('NMB-110')
+
+    const updated = palette.getByTestId('palette-updated-row')
+    await expect(updated.first()).toBeVisible()
+    await expect(updated.filter({ hasText: /^NMB-110\b/ })).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })

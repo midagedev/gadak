@@ -56,9 +56,13 @@
 
   let { onclose, onOpenSettings }: { onclose: () => void; onOpenSettings: () => void } = $props()
 
-  // 'recent' is the empty-query list, which is issues and documents together in
-  // visit order — one group, so neither kind claims the other's section.
-  type Section = 'person' | 'recent' | 'doc' | 'issue' | 'view' | 'action' | 'unified'
+  // Empty-query home: 'recent' is visits (issues + documents, visit order —
+  // one group so neither kind claims the other's section); 'updated' is the
+  // in-memory recently-updated issue slice. A query replaces both with the
+  // usual match sections.
+  type Section = 'person' | 'recent' | 'updated' | 'doc' | 'issue' | 'view' | 'action' | 'unified'
+
+  const HOME_LIMIT = 5
 
   interface Item {
     id: string
@@ -190,7 +194,7 @@
           const issue = issues.pool.get(visit.key)
           if (issue) out.push(issueItem(issue, 'recent'))
         }
-        if (out.length >= 5) break
+        if (out.length >= HOME_LIMIT) break
       }
       return out
     }
@@ -207,6 +211,35 @@
     return sortIssues(filterIssues(issues.allIssues, f), 'relevance', 'desc', ctx)
       .slice(0, 8)
       .map((issue) => issueItem(issue))
+  })
+
+  /**
+   * Empty-query home: issues that moved recently. Reads the already-loaded
+   * pool (issues.allIssues) — same zero-network rule as people. Sort on
+   * IssueLite.updated_at; keys already in Recent are skipped so the two
+   * sections do not repeat a row.
+   */
+  const updatedItems = $derived.by<Item[]>(() => {
+    if (needle) return []
+    const recentKeys = new Set<string>()
+    for (const visit of me.recent) {
+      if (visit.kind !== 'doc') recentKeys.add(visit.key)
+    }
+    for (const item of issueItems) {
+      if (item.id.startsWith('i:')) recentKeys.add(item.id.slice(2))
+    }
+    const ranked = [...issues.allIssues].sort((a, b) =>
+      (b.updated_at ?? '').localeCompare(a.updated_at ?? ''),
+    )
+    const out: Item[] = []
+    for (const issue of ranked) {
+      if (recentKeys.has(issue.issue_key)) continue
+      const item = issueItem(issue, 'updated')
+      item.testid = 'palette-updated-row'
+      out.push(item)
+      if (out.length >= HOME_LIMIT) break
+    }
+    return out
   })
 
   /**
@@ -293,6 +326,10 @@
           }
         },
       })
+    }
+    if (!needle) {
+      const saved = out.filter((item) => !item.id.startsWith('vb:'))
+      return (saved.length > 0 ? saved : out).slice(0, HOME_LIMIT)
     }
     return out
   })
@@ -419,6 +456,9 @@
     for (const item of issueItems) {
       if (item.id.startsWith('i:')) keys.add(item.id.slice(2))
     }
+    for (const item of updatedItems) {
+      if (item.id.startsWith('i:')) keys.add(item.id.slice(2))
+    }
     return keys
   })
 
@@ -528,6 +568,7 @@
     ...peopleItems,
     ...docItems,
     ...issueItems,
+    ...updatedItems,
     ...viewItems,
     ...actionItems,
     ...unifiedItems,
@@ -536,6 +577,7 @@
   const SECTION_LABEL: Record<Section, string> = {
     person: t('palette.sectionPeople'),
     recent: t('palette.recent'),
+    updated: t('palette.updated'),
     doc: t('palette.sectionDocs'),
     issue: t('palette.sectionIssues'),
     view: t('palette.sectionViews'),
