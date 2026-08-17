@@ -214,6 +214,13 @@ gadak sql --json "select count(*) from issues where reopen_count > 0"
 gadak --profile demo status           # separate credential and mirror per profile
 ```
 
+Keystroke-driven clients (a typeahead UI, Raycast) should not send every IME
+intermediate as a query: Korean composition produces jamo states that match
+nothing and flash the result list empty. If the host exposes composition
+events, commit the query only when composition ends. If it does not (Raycast's
+input has no composition visibility), keep the last non-empty result set
+visible when a query returns 0 rows.
+
 Text output for a search result or a write is one tab-separated line —
 `key`, `status`, `assignee`, `summary` — so `cut -f1` gives you keys. `--json` on
 a write answers `{"issue": {…IssueLite}}`, plus `"comment"` for `comment`.

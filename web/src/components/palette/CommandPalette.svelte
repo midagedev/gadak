@@ -9,6 +9,7 @@
    *  - Open/close and key bindings live in App.svelte (must open even while focused).
    */
   import { onMount } from 'svelte'
+  import { createCompositionCommit } from '../../lib/composition-commit'
   import { trapFocus } from '../../lib/focus-trap'
   import {
     formatNumber,
@@ -85,8 +86,17 @@
     run: () => void
   }
 
+  // `draft` is the live input (browser-owned during IME). `query` is the
+  // committed needle — GDK-169: mid-composition states are never committed
+  // as queries.
+  let draft = $state('')
   let query = $state('')
   let idx = $state(0)
+
+  const ime = createCompositionCommit((q) => {
+    query = q
+    idx = 0
+  })
   let inputEl = $state<HTMLInputElement | null>(null)
   let listEl = $state<HTMLElement | null>(null)
   let serverView = $state<UnifiedView>(emptyUnifiedView())
@@ -545,6 +555,9 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
+    if ((e.isComposing || ime.composing) && e.key === 'Enter') {
+      return
+    }
     if (e.key === 'Escape') {
       e.preventDefault()
       closePalette()
@@ -580,8 +593,10 @@
       <Icon name="search" size={15} class="text-text-muted" />
       <input
         bind:this={inputEl}
-        bind:value={query}
-        oninput={() => (idx = 0)}
+        bind:value={draft}
+        oninput={(e) => ime.oninput(e, draft)}
+        oncompositionstart={ime.oncompositionstart}
+        oncompositionend={(e) => ime.oncompositionend(e, draft)}
         onkeydown={onKeydown}
         type="text"
         role="combobox"

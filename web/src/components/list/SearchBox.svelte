@@ -21,6 +21,7 @@
   import { fieldEnabled, type MultiField } from '../../lib/view-config'
   import { paletteShortcutLabel, requestOpenPalette } from '../../lib/unified-search'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { createCompositionCommit } from '../../lib/composition-commit'
   import Icon from '../ui/Icon.svelte'
 
   let text = $state(filters.filters.q)
@@ -132,10 +133,19 @@
     inputEl?.focus()
   }
 
-  function onInput() {
-    filters.setQuery(text)
+  // GDK-169: mid-composition states are never committed as queries.
+  const ime = createCompositionCommit((q) => {
+    filters.setQuery(q)
+  })
+
+  function onInput(e: Event) {
+    ime.oninput(e, text)
     sugIdxRaw = 0
     helpOpen = false
+  }
+
+  function onCompositionEnd(e: CompositionEvent) {
+    ime.oncompositionend(e, text)
   }
 
   let applyingJql = $state(false)
@@ -178,6 +188,11 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
+    // IME confirm (Enter) / next-candidate (Tab) must not run jump or
+    // server-search — preventDefault here would also steal the key from the IME.
+    if ((e.isComposing || ime.composing) && (e.key === 'Enter' || e.key === 'Tab')) {
+      return
+    }
     if (suggestions.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -245,6 +260,8 @@
       bind:this={inputEl}
       bind:value={text}
       oninput={onInput}
+      oncompositionstart={ime.oncompositionstart}
+      oncompositionend={onCompositionEnd}
       onpaste={onPaste}
       onkeydown={onKeydown}
       type="text"
