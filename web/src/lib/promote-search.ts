@@ -11,7 +11,7 @@
 
 import { isPlaceParam } from './url-state'
 import { isViewParam } from './view-config'
-import { parseHash, serialize } from './router.svelte'
+import { parseHash, serialize } from './hash'
 
 export interface PromotedUrl {
   hash: string

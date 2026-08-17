@@ -10,29 +10,13 @@
  *  serialization is [explore]'s job** — we do not interpret what any key means.
  */
 
-export interface Route {
-  /** Path part of the hash (leading `#` stripped, before `?`). Default `/`. e.g. `/board` */
-  path: string
-  /** Parsed query string after the path. */
-  params: URLSearchParams
-}
-
-// Exported for promote-search (GDK-164): the boot-time querystring promotion
-// must read and rebuild the hash with the same grammar the router lives by.
-export function parseHash(hash: string): Route {
-  // location.hash is "#..." or ""
-  const raw = hash.startsWith('#') ? hash.slice(1) : hash
-  const qIndex = raw.indexOf('?')
-  const path = (qIndex === -1 ? raw : raw.slice(0, qIndex)) || '/'
-  const query = qIndex === -1 ? '' : raw.slice(qIndex + 1)
-  return { path: path.startsWith('/') ? path : '/' + path, params: new URLSearchParams(query) }
-}
-
-/** Route → hash string (`#/path?a=b`). No trailing `?` when the query is empty. */
-export function serialize(route: Route): string {
-  const qs = route.params.toString()
-  return '#' + route.path + (qs ? '?' + qs : '')
-}
+// The grammar itself lives in hash.ts (pure, importable without runes —
+// GDK-164 needed it from the vitest unit project). Re-exported so this file
+// stays the one surface router consumers import.
+import { parseHash, serialize } from './hash'
+export { parseHash, serialize } from './hash'
+export type { Route } from './hash'
+import type { Route } from './hash'
 
 // Current hash state (reactive). Kept in sync via hashchange.
 let current = $state<Route>(parseHash(typeof location !== 'undefined' ? location.hash : ''))
