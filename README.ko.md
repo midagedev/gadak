@@ -162,6 +162,17 @@ JQL로 여전히 물을 수 없는 것은 `gadak sql`과
 엔드포인트로의 통로입니다 — `--write` 없이는 읽기 전용, MCP에는 절대
 없습니다.
 
+그리고 에이전트만이 아닙니다: 바이너리를 실행하고 URL을 열 수 있는 것이면
+무엇이든 같은 두 개의 문을 씁니다. `gadak search --json`은 호출당 ~20ms에
+답하고, `gadak://` 딥링크는 그 결과를 데스크톱 앱에서 엽니다 — 런처에
+필요한 전부입니다. Raycast에서:
+
+<p align="center">
+  <img src="docs/media/raycast.gif" alt="Raycast가 타이핑마다 로컬 gadak 미러를 검색한다 — 텍스트 질의는 매치된 스니펫을 볼드와 필드 태그로 보여주고, 이슈 키를 그대로 치면 그 이슈가 나오며, Enter는 gadak:// 딥링크로 Gadak 앱에서 연다" width="800">
+  <br>
+  <sub>키스트로크 하나가 로컬 미러에 대한 <code>gadak search --json</code> 한 번이고, Enter가 <code>gadak://view?issue=…</code>입니다. 저장된 뷰도 같은 길로 갑니다 — <code>gadak views open</code>이 링크를 출력합니다. 스킴: <a href="docs/DESKTOP.md">docs/DESKTOP.md</a>.</sub>
+</p>
+
 **미러를 읽는 에이전트는 읽은 것을 자기가 쓰는 모델로 보냅니다.** gadak
 자신은 아무것도 보내지 않습니다([`SECURITY.md`](SECURITY.md)). 에이전트가
 봐도 되는 범위로 미러를 좁히세요.

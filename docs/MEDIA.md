@@ -4,6 +4,15 @@ Regenerable GIF/MP4 clips for the public README hero, social posts, and docs.
 All assets are produced from **scripts** against the scrubbed snapshot
 `examples/demo.db` — no hand-recorded screen captures, no real company data.
 
+One asset bends the first half of that rule without touching the second:
+`raycast.*` records a native Raycast overlay handing off to the installed
+app through a `gadak://` link, which no headless browser can drive. The
+setup *and* the take are still a script (`tools/record-raycast.sh` — it
+reseeds the demo profile from the snapshot first, captures only the app
+window's rectangle, and scrubs the signed-in account line in the encode),
+but the script runs on a live screen, so review the frames before
+committing a regen.
+
 ## Assets
 
 | File | Source | Use |
@@ -16,6 +25,8 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | `docs/media/agent.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/mcp.gif` | VHS tape `tools/tapes/mcp.tape` | README — Claude Code registers `gadak mcp` and answers a question JQL cannot express |
 | `docs/media/mcp.mp4` | same tape, second `Output` line | Twitter / LinkedIn / anywhere GIF is too heavy |
+| `docs/media/raycast.gif` | scripted live take `tools/record-raycast.sh` | README — Raycast searches the mirror per keystroke, Enter opens the hit via `gadak://` |
+| `docs/media/raycast.mp4` | same take, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 
 ## Size budget
 
@@ -29,6 +40,8 @@ All assets are produced from **scripts** against the scrubbed snapshot
 | `agent.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 | `mcp.gif` | **≤ 3.5 MB** | VHS + `gifsicle -O3 --colors 64`; cut the idle tail if still over |
 | `mcp.mp4` | soft ≤ 8 MB | VHS `Output` (h264) |
+| `raycast.gif` | **≤ 3.5 MB** | dark overlay + small motion area compress well; 960 px @ 10 fps lands ~1 MB |
+| `raycast.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 
 ### Current committed sizes (re-measure after regen)
 
@@ -44,6 +57,8 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | `agent.mp4` | 0.69 MB | 687886 | 18.7 s | 1024×808 h264 |
 | `mcp.gif` | 0.36 MB | 357824 | 24.9 s | 1080×620 @ 25 fps, 64 colors (gifsicle) |
 | `mcp.mp4` | 0.28 MB | 276463 | 24.9 s | 1080×620 h264 |
+| `raycast.gif` | 0.98 MB | 982043 | 13.2 s | 960×579 @ 10 fps, 128-color palette (measured 2026-08-17) |
+| `raycast.mp4` | 0.26 MB | 255880 | 13.2 s | 1088×656 h264 (measured 2026-08-17) |
 
 ## Readability comes first, and it costs bytes
 
@@ -94,6 +109,7 @@ make media-search  # Playwright: ⌘K All search → search.gif + search.mp4
 make media-agent   # Playwright split: sql \| views open --keys + paper list → gif + mp4
 make media-mcp     # VHS: claude mcp add + live Claude Code session on the mirror
 make media-prep    # build gadak + seed tools/tapes/.tmp from demo.db
+tools/record-raycast.sh  # scripted LIVE take (not in make media): Raycast → gadak:// — needs Raycast + installed app
 make brand         # logo, wordmarks, favicons, OG card
 ```
 

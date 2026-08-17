@@ -157,6 +157,17 @@ opens the file `mode=ro`; MCP's `gadak_query` rejects anything that is not a
 SELECT. [`gadak api`](docs/AGENT_ACCESS.md) is the pass-through for endpoints
 the mirror does not model — read-only unless `--write`, never on MCP.
 
+And it is not only agents: anything that can run a binary and open a URL
+gets the same two doors. `gadak search --json` answers in ~20 ms per call,
+and a `gadak://` deep link opens the hit in the desktop app — which is all
+a launcher needs. From Raycast:
+
+<p align="center">
+  <img src="docs/media/raycast.gif" alt="Raycast searches the local gadak mirror as you type — a text query shows the matched snippet in bold with a field tag, then typing the bare issue key finds that issue, and Enter opens it in the Gadak app through a gadak:// deep link" width="800">
+  <br>
+  <sub>Each keystroke is one <code>gadak search --json</code> against the local mirror; Enter is <code>gadak://view?issue=…</code>. A saved view travels the same way — <code>gadak views open</code> prints the link. Scheme: <a href="docs/DESKTOP.md">docs/DESKTOP.md</a>.</sub>
+</p>
+
 **An agent that reads your mirror sends what it reads to whatever model it
 talks to.** gadak itself sends nothing ([`SECURITY.md`](SECURITY.md)). Scope
 the mirror to what the agent should see.
