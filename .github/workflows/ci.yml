@@ -174,3 +174,27 @@ jobs:
 
       - name: Desktop Go build, test, vet
         run: cd desktop && go build ./... && go test ./... -count=1 && go vet ./...
+
+      # GDK-167: anything the OS reads from Info.plist is invisible to a
+      # source test — the repo can be right while the artifact is wrong, and
+      # the symptom is a gadak:// link that does nothing at all. So build the
+      # actual bundle and assert the claim on the artifact, not the script
+      # that writes it. (The runbook's install/lsregister half needs a real
+      # user session; this covers the plist-in-artifact class in CI.)
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build the app bundle
+        run: npm ci && npm run build && desktop/build-app.sh
+
+      - name: The shipped bundle claims gadak://
+        run: |
+          plist=desktop/build/Gadak.app/Contents/Info.plist
+          test -f "$plist" || { echo "no Info.plist in the built bundle" >&2; exit 1; }
+          scheme="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:0' "$plist")"
+          [ "$scheme" = "gadak" ] || { echo "bundle claims '$scheme', want 'gadak'" >&2; exit 1; }
+          test -x desktop/build/Gadak.app/Contents/MacOS/gadak-desktop || { echo "bundle has no executable" >&2; exit 1; }
+          echo "artifact claims gadak:// — ok"
