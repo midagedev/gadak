@@ -129,9 +129,19 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
   <sub>키스트로크 하나가 <code>gadak search --json</code> 한 번이고, Enter가 딥링크입니다. 저장된 뷰도 같은 길로 갑니다 — <code>gadak views open</code>이 링크를 출력합니다.</sub>
 </p>
 
-Raycast 확장은 스토어 등록을 진행 중입니다. 등록 전에도 키로 여는 쪽
-절반에는 확장이 아예 필요 없습니다 — `gadak://view?issue={argument}`를
-넣은 Raycast Quicklink면 오늘 그대로 됩니다.
+그 런처는 이미 있습니다: 타이핑마다 이슈와 위키 문서를 검색하는 Raycast
+확장이고, [Raycast Store에 제출되어](https://github.com/raycast/extensions/pull/30297)
+심사 중입니다. 심사가 끝나기 전에는 이 저장소에서 직접 설치할 수
+있습니다 — 같은 코드입니다:
+
+```sh
+git clone https://github.com/midagedev/gadak && cd gadak/contrib/raycast
+npm ci && npm run dev   # 확장이 Raycast에 등록됩니다. dev 모드는 꺼도 유지됩니다
+```
+
+이것도 번거롭다면, 키로 여는 쪽 절반에는 확장이 아예 필요 없습니다 —
+`gadak://view?issue={argument}`를 넣은 Raycast Quicklink면 오늘 그대로
+됩니다.
 
 ## 에이전트를 위해
 

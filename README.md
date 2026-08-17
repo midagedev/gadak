@@ -124,9 +124,18 @@ whatever can do those two things becomes a surface. A launcher, say:
   <sub>Each keystroke is one <code>gadak search --json</code>; Enter is the deep link. A saved view travels the same way — <code>gadak views open</code> prints its link.</sub>
 </p>
 
-The Raycast extension is headed for the Raycast Store; until it lands, the
-open-by-key half needs no extension at all — a Raycast Quicklink pointed at
-`gadak://view?issue={argument}` does it today.
+That launcher exists: a Raycast extension that searches issues and wiki
+documents as you type, [submitted to the Raycast Store](https://github.com/raycast/extensions/pull/30297).
+Until the review lands, install it from this repo — it is the same code:
+
+```sh
+git clone https://github.com/midagedev/gadak && cd gadak/contrib/raycast
+npm ci && npm run dev   # imports the extension into Raycast, then keep or stop dev mode
+```
+
+No patience for any of that? A Raycast Quicklink pointed at
+`gadak://view?issue={argument}` covers the open-by-key half today, no
+extension required.
 
 ## For agents
 
