@@ -56,8 +56,15 @@ test.describe('keys view and ui-focus', () => {
     })
 
     await expect.poll(() => hits.length).toBeGreaterThan(0)
-    const before = hits.length
     await hideDocument(page)
+    // Snapshot AFTER the page has processed visibilitychange, past one full
+    // poll period so a tick dispatched before the transition has drained
+    // (GDK-175, 2026-08-17: snapshotting before hideDocument raced the
+    // 500 ms interval — a request sent while still visible landed after the
+    // snapshot and read as "polled while hidden"). The contract measured is
+    // unchanged: no NEW requests while hidden.
+    await page.waitForTimeout(600)
+    const before = hits.length
     await page.waitForTimeout(1600)
     expect(
       hits.length,
