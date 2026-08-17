@@ -53,6 +53,10 @@ type fakeJira struct {
 	// language. The sync fake's /priority list is still English-only — this
 	// CLI fake does not inherit that gap.
 	lang string
+
+	// transitionsJSON overrides GET /transitions. Empty keeps the default
+	// Korean-named Start work / Close pair the existing write tests rely on.
+	transitionsJSON string
 }
 
 // recordedUpload is one multipart POST /issue/{key}/attachments the fake saw.
@@ -115,6 +119,10 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			"created":"2026-07-01T00:00:00.000+0900","updated":"2026-08-04T12:00:00.000+0900"
 		}}],"isLast":true}`))
 	case strings.HasSuffix(path, "/transitions") && r.Method == http.MethodGet:
+		if f.transitionsJSON != "" {
+			_, _ = w.Write([]byte(f.transitionsJSON))
+			return
+		}
 		_, _ = w.Write([]byte(`{"transitions":[
 			{"id":"21","name":"Start work","to":{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}}},
 			{"id":"31","name":"Close","to":{"id":"10001","name":"완료","statusCategory":{"key":"done"}}}]}`))

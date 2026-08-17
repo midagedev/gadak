@@ -1197,7 +1197,7 @@ func cmdTransition(args []string) error {
 		return err
 	}
 	if len(pos) < 2 {
-		return usageError("transition", "usage: gadak transition <KEY> <status-or-id> [--json]")
+		return usageError("transition", "usage: gadak transition <KEY> <status-or-id|new|inprogress|done> [--json]")
 	}
 	key := normalizeKey(pos[0])
 	// Trailing words join the target so an unquoted `In Review` still works.
@@ -1208,24 +1208,103 @@ func cmdTransition(args []string) error {
 		if err != nil {
 			return nil, err
 		}
-		// Matching the target status name as well as the transition's own name: sites
-		// name transitions arbitrarily ("Start work" → In Progress), and the caller
-		// knows the status it wants, not the verb this workflow uses for it.
+		id, err := pickTransition(key, want, list)
+		if err != nil {
+			return nil, err
+		}
+		return nil, c.Transition(ctx, key, id)
+	})
+}
+
+// pickTransition resolves want against the issue's available transitions.
+// Paths ①②③ stay first-match on id / transition name / target status name so
+// existing callers do not move. Category tokens (new|inprogress|done) are a
+// last-resort fallback; two landings in that category refuse rather than
+// picking the first.
+func pickTransition(key, want string, list []jira.Transition) (string, error) {
+	for _, t := range list {
+		if t.ID == want || strings.EqualFold(t.Name, want) || strings.EqualFold(t.To.Name, want) {
+			return t.ID, nil
+		}
+	}
+	if token, ok := statusCategoryToken(want); ok {
+		var hits []jira.Transition
 		for _, t := range list {
-			if t.ID == want || strings.EqualFold(t.Name, want) || strings.EqualFold(t.To.Name, want) {
-				return nil, c.Transition(ctx, key, t.ID)
+			if cat, ok := transitionCategory(t); ok && cat == token {
+				hits = append(hits, t)
 			}
 		}
-		available := make([]string, 0, len(list))
+		switch len(hits) {
+		case 1:
+			return hits[0].ID, nil
+		case 0:
+			// fall through to the shared miss error, which names reachable tokens
+		default:
+			parts := make([]string, 0, len(hits))
+			for _, t := range hits {
+				parts = append(parts, fmt.Sprintf("%s (id %s, → %s)", t.Name, t.ID, t.To.Name))
+			}
+			return "", fmt.Errorf("transition %q is ambiguous on %s — %d transitions land there: %s",
+				want, key, len(hits), strings.Join(parts, "; "))
+		}
+	}
+	return "", noTransitionMatch(key, want, list)
+}
+
+// statusCategoryToken accepts only the three values data-model.md documents.
+// jira.Category and jql.mapStatusCategory both fold aliases (todo, indeterminate)
+// onto those values; applying either to the user token would reopen the
+// localization trap this command is closing.
+func statusCategoryToken(s string) (string, bool) {
+	switch strings.ToLower(s) {
+	case "new", "inprogress", "done":
+		return strings.ToLower(s), true
+	default:
+		return "", false
+	}
+}
+
+// transitionCategory maps a transition's Jira statusCategory key onto the
+// three documented tokens. Empty and unknown keys are refused: jira.Category
+// folds those to "new", which would move the issue on a damaged payload.
+func transitionCategory(t jira.Transition) (string, bool) {
+	switch t.To.StatusCategory.Key {
+	case "new", "indeterminate", "inprogress", "done":
+		return jira.Category(t.To.StatusCategory.Key), true
+	default:
+		return "", false
+	}
+}
+
+func noTransitionMatch(key, want string, list []jira.Transition) error {
+	available := make([]string, 0, len(list))
+	for _, t := range list {
+		available = append(available, fmt.Sprintf("%s (id %s, → %s)", t.Name, t.ID, t.To.Name))
+	}
+	if len(available) == 0 {
+		return fmt.Errorf("%s has no available transitions for this credential", key)
+	}
+	msg := fmt.Sprintf("no transition matching %q on %s — available: %s",
+		want, key, strings.Join(available, "; "))
+	if cats := reachableCategories(list); len(cats) > 0 {
+		msg += "\nalso accepts a status category: " + strings.Join(cats, ", ")
+	}
+	return errors.New(msg)
+}
+
+func reachableCategories(list []jira.Transition) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, token := range []string{"new", "inprogress", "done"} {
 		for _, t := range list {
-			available = append(available, fmt.Sprintf("%s (id %s, → %s)", t.Name, t.ID, t.To.Name))
+			cat, ok := transitionCategory(t)
+			if ok && cat == token && !seen[token] {
+				seen[token] = true
+				out = append(out, token)
+			}
 		}
-		if len(available) == 0 {
-			return nil, fmt.Errorf("%s has no available transitions for this credential", key)
-		}
-		return nil, fmt.Errorf("no transition matching %q on %s — available: %s",
-			want, key, strings.Join(available, "; "))
-	})
+	}
+	return out
 }
 
 func cmdAssign(args []string) error {
