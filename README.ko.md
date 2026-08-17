@@ -231,6 +231,19 @@ gadak init && gadak sync
 gadak serve      # http://gadak.localhost:7777
 ```
 
+Homebrew 없이 리눅스에 설치하려면
+[최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
+`gadak_<version>_linux_amd64.tar.gz`(또는 `linux_arm64`)와 `checksums.txt`를
+받으세요. 아카이브 하나가 설치 전부입니다 — 웹 UI는 바이너리 안에 있습니다.
+
+```bash
+sha256sum --ignore-missing -c checksums.txt
+tar -xzf gadak_<version>_linux_amd64.tar.gz
+# `gadak`을 PATH에 두세요
+gadak serve             # http://gadak.localhost:7777
+gadak install-service   # 선택: systemd --user, 재부팅 후에도 serve 유지
+```
+
 설치 스크립트, 릴리스 아카이브, 소스 빌드, Docker, 위키 미러링, 프로필,
 업그레이드: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 

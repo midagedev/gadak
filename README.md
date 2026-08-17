@@ -226,6 +226,20 @@ gadak init && gadak sync
 gadak serve      # http://gadak.localhost:7777
 ```
 
+Linux without Homebrew: from the
+[latest release](https://github.com/midagedev/gadak/releases/latest),
+download `gadak_<version>_linux_amd64.tar.gz` (or `linux_arm64`) and
+`checksums.txt`. One archive is the whole install — the web UI is inside
+the binary.
+
+```bash
+sha256sum --ignore-missing -c checksums.txt
+tar -xzf gadak_<version>_linux_amd64.tar.gz
+# put `gadak` on PATH
+gadak serve             # http://gadak.localhost:7777
+gadak install-service   # optional: systemd --user, survives reboot
+```
+
 Install script, release archive, source, Docker, wiki mirroring, profiles,
 upgrades: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 
