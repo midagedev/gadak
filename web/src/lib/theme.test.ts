@@ -13,13 +13,20 @@ import {
 
 describe('theme registry', () => {
   test('THEMES is the palette catalog; system is a mode, not a palette', () => {
-    expect(THEMES.map((t) => t.name)).toEqual(['light', 'dark'])
-    expect(THEMES.map((t) => t.labelKey)).toEqual(['theme.light', 'theme.dark'])
-    expect(THEME_MODES.map((m) => m.name)).toEqual(['system', 'light', 'dark'])
+    expect(THEMES.map((t) => t.name)).toEqual(['light', 'dark', 'ink', 'ember'])
+    expect(THEMES.map((t) => t.labelKey)).toEqual([
+      'theme.light',
+      'theme.dark',
+      'theme.ink',
+      'theme.ember',
+    ])
+    expect(THEME_MODES.map((m) => m.name)).toEqual(['system', 'light', 'dark', 'ink', 'ember'])
     expect(THEME_MODES.map((m) => m.labelKey)).toEqual([
       'theme.system',
       'theme.light',
       'theme.dark',
+      'theme.ink',
+      'theme.ember',
     ])
   })
 
@@ -41,11 +48,11 @@ describe('parseThemePreference', () => {
     expect(parseThemePreference('DARK')).toBe('system')
   })
 
-  test('accepts the three stored values', () => {
-    expect(parseThemePreference('system')).toBe('system')
-    expect(parseThemePreference('light')).toBe('light')
-    expect(parseThemePreference('dark')).toBe('dark')
-    expect(isThemePreference('dark')).toBe(true)
+  test('accepts every registered mode and nothing else', () => {
+    for (const mode of THEME_MODES) {
+      expect(parseThemePreference(mode.name)).toBe(mode.name)
+      expect(isThemePreference(mode.name)).toBe(true)
+    }
     expect(isThemePreference('sepia')).toBe(false)
   })
 })
@@ -53,8 +60,9 @@ describe('parseThemePreference', () => {
 describe('dataThemeAttr', () => {
   test('system clears the attribute so the media query can apply', () => {
     expect(dataThemeAttr('system')).toBeNull()
-    expect(dataThemeAttr('light')).toBe('light')
-    expect(dataThemeAttr('dark')).toBe('dark')
+    for (const theme of THEMES) {
+      expect(dataThemeAttr(theme.name)).toBe(theme.name)
+    }
   })
 })
 

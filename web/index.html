@@ -6,7 +6,7 @@
          of a squeezed column. 1100 matches the layout's comfortable minimum. -->
     <meta name="viewport" content="width=1100" />
     <meta name="theme-color" content="#ebe3d2" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#201608" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#131417" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/png" sizes="32x32" href="./icon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="./icon-16.png" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
@@ -22,7 +22,9 @@
     <script>
       try {
         var p = localStorage.getItem('gadak:theme')
-        if (p === 'light' || p === 'dark') document.documentElement.setAttribute('data-theme', p)
+        if (['light', 'dark', 'ink', 'ember'].indexOf(p) >= 0) {
+          document.documentElement.setAttribute('data-theme', p)
+        }
       } catch (e) {
         /* private mode: OS 설정을 따른다 */
       }
@@ -43,7 +45,25 @@
         --boot-line: #d5c9b2;
         --boot-skeleton: #e4d9c4;
       }
+      /* 다크 계열 팔레트마다 셸 4색이 필요하다 — 없으면 그 테마 사용자는
+         부팅마다 크림색 셸을 한 번 본다. boot-theme.test.ts가 등록된 테마마다
+         이 블록의 존재를 강제한다. 값은 app.css의 shell / bg-panel /
+         border-subtle / bg-elevated. */
       :root[data-theme='dark'] {
+        color-scheme: dark;
+        --boot-bg: #08080a;
+        --boot-panel: #131417;
+        --boot-line: #272a31;
+        --boot-skeleton: #1b1d22;
+      }
+      :root[data-theme='ink'] {
+        color-scheme: dark;
+        --boot-bg: #090c11;
+        --boot-panel: #131a24;
+        --boot-line: #26303f;
+        --boot-skeleton: #1a222e;
+      }
+      :root[data-theme='ember'] {
         color-scheme: dark;
         --boot-bg: #0f0901;
         --boot-panel: #201608;
@@ -53,10 +73,10 @@
       @media (prefers-color-scheme: dark) {
         :root:not([data-theme='light']) {
           color-scheme: dark;
-          --boot-bg: #0f0901;
-          --boot-panel: #201608;
-          --boot-line: #362919;
-          --boot-skeleton: #2a1e0f;
+          --boot-bg: #08080a;
+          --boot-panel: #131417;
+          --boot-line: #272a31;
+          --boot-skeleton: #1b1d22;
         }
       }
       html,

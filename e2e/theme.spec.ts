@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { gotoApp, openServerSettings } from './helpers'
+import { THEMES } from '../web/src/lib/theme'
 
 /** Settings dialog select — same handle the sidebar picker used to carry. */
 async function themePicker(page: Page) {
@@ -20,7 +21,23 @@ const LIGHT = {
   accent: '#2e4560',
 } as const
 
+// The system-default dark: neutral-cool charcoal since GDK-190.
 const DARK = {
+  base: '#0d0e10',
+  text: '#dfe4ef',
+  accent: '#3a5b80',
+} as const
+
+const INK = {
+  base: '#0e131b',
+  text: '#e0e7f2',
+  accent: '#2f6285',
+} as const
+
+// ember carries the warm dark gadak shipped through 0.14 forward under its own
+// name. These three hexes are the ones DARK held before GDK-190 — if they drift,
+// the continuity promise made to users who chose that ground is broken.
+const EMBER = {
   base: '#160f04',
   text: '#e7e0d4',
   accent: '#365375',
@@ -65,7 +82,55 @@ test.describe('theme', () => {
     const bg = await page
       .getByTestId('issue-layout')
       .evaluate((el) => getComputedStyle(el).backgroundColor)
-    expect(bg).toBe('rgb(22, 15, 4)')
+    expect(bg).toBe('rgb(13, 14, 16)')
+  })
+
+  test('every registered palette is in the picker and paints its own ground', async ({ page }) => {
+    // The registry contract is "token block in app.css + entry in THEMES".
+    // This is the end of that promise: a name in THEMES with no CSS block would
+    // sit in the picker and select to nothing, which no unit test can see.
+    await page.emulateMedia({ colorScheme: 'light' })
+    await gotoApp(page)
+    const picker = await themePicker(page)
+    const seen = new Map<string, string>()
+    for (const theme of THEMES) {
+      await picker.selectOption(theme.name)
+      const { base } = await readTokens(page)
+      expect(base, `${theme.name} must define --color-bg-base`).toMatch(/^#[0-9a-f]{6}$/)
+      const collision = [...seen].find(([, hex]) => hex === base)
+      expect(collision, `${theme.name} and ${collision?.[0]} paint the same ground ${base}`).toBeUndefined()
+      seen.set(theme.name, base)
+    }
+    expect(seen.get('dark')).toBe(DARK.base)
+    expect(seen.get('ink')).toBe(INK.base)
+    expect(seen.get('ember')).toBe(EMBER.base)
+  })
+
+  test('ember preserves the warm dark, ink is its own blue-black', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' })
+    await gotoApp(page)
+    const picker = await themePicker(page)
+
+    await picker.selectOption('ember')
+    const ember = await readTokens(page)
+    expect(ember.base).toBe(EMBER.base)
+    expect(ember.text).toBe(EMBER.text)
+    expect(ember.accent).toBe(EMBER.accent)
+    expect(ember.scheme).toMatch(/dark/i)
+
+    await picker.selectOption('ink')
+    const ink = await readTokens(page)
+    expect(ink.base).toBe(INK.base)
+    expect(ink.text).toBe(INK.text)
+    expect(ink.accent).toBe(INK.accent)
+    expect(ink.scheme).toMatch(/dark/i)
+
+    // Survives a cold boot through the blocking boot script, not just hydration.
+    await page.reload()
+    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+    const afterReload = await readTokens(page)
+    expect(afterReload.base).toBe(INK.base)
+    expect(afterReload.dataTheme).toBe('ink')
   })
 
   test('picker dark survives reload; system follows the emulated scheme', async ({ page }) => {

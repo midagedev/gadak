@@ -27,6 +27,23 @@ describe('the boot script agrees with the app', () => {
     }
   })
 
+  it('paints a boot shell for every dark-family theme', () => {
+    // Accepting the name is only half of it. Without --boot-* for that theme
+    // the attribute is set and the shell still paints from :root — the cream
+    // flash, for exactly the users who chose a dark palette to avoid it.
+    for (const theme of THEMES) {
+      if (theme.name === 'light') continue
+      const block = html.match(
+        new RegExp(`:root\\[data-theme='${theme.name}'\\]\\s*\\{([^}]*)\\}`),
+      )
+      expect(block, `boot stylesheet needs a :root[data-theme='${theme.name}'] block`).not.toBeNull()
+      for (const v of ['--boot-bg', '--boot-panel', '--boot-line', '--boot-skeleton']) {
+        expect(block![1], `${theme.name} boot shell must set ${v}`).toContain(v)
+      }
+      expect(block![1], `${theme.name} must set color-scheme: dark`).toContain('color-scheme: dark')
+    }
+  })
+
   it('ships no hardcoded data-theme on <html>', () => {
     // A baked-in attribute wins over prefers-color-scheme forever: it is
     // exactly what made the OS setting unreadable at boot.

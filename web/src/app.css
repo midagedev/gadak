@@ -176,7 +176,9 @@
     color-scheme: dark;
   }
 }
-:root[data-theme='dark'] {
+:root[data-theme='dark'],
+:root[data-theme='ink'],
+:root[data-theme='ember'] {
   color-scheme: dark;
 }
 
@@ -189,40 +191,40 @@
   */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme='light']) {
-      --color-bg-base: #160f04;
-      --color-bg-panel: #201608;
-      --color-bg-elevated: #2a1e0f;
-      --color-bg-hover: #362717;
-      --color-bg-active: #42301f;
-      --color-shell: #0f0901;
-      --color-text-primary: #e7e0d4;
-      --color-text-secondary: #a59b8d;
-      --color-text-muted: #8f8273;
-      --color-border-subtle: #362919;
-      --color-border-strong: #544332;
-      --color-accent: #365375;
-      --color-accent-hover: #456489;
-      --color-accent-subtle: #192739;
-      --color-accent-text: #91aecd;
-      --color-focus-ring: #91aecd;
+      --color-bg-base: #0d0e10;
+      --color-bg-panel: #131417;
+      --color-bg-elevated: #1b1d22;
+      --color-bg-hover: #25272d;
+      --color-bg-active: #2f313a;
+      --color-shell: #08080a;
+      --color-text-primary: #dfe4ef;
+      --color-text-secondary: #9ba7bd;
+      --color-text-muted: #8b96ab;
+      --color-border-subtle: #272a31;
+      --color-border-strong: #464b57;
+      --color-accent: #3a5b80;
+      --color-accent-hover: #4a6d95;
+      --color-accent-subtle: #1a2534;
+      --color-accent-text: #97b3d2;
+      --color-focus-ring: #97b3d2;
       --color-status-new: #6696c3;
       --color-status-inprogress: #b28a44;
       --color-status-done: #90bea0;
       --color-status-reopen: #e18179;
       --color-status-stale: #d19b5a;
-      --color-search-match: #724900;
-      --color-scrim: rgb(10 6 1 / 0.62);
-      --color-scrollbar-hover: #8f8273;
-      --color-lozenge-neutral: #312713;
-      --color-lozenge-purple: #30253d;
-      --color-lozenge-blue: #1b2c41;
-      --color-lozenge-red: #41211c;
-      --color-lozenge-yellow: #37290a;
-      --color-lozenge-green: #173222;
+      --color-search-match: #6d4a05;
+      --color-scrim: rgb(6 7 9 / 0.66);
+      --color-scrollbar-hover: #8d95a3;
+      --color-lozenge-neutral: #1b1d22;
+      --color-lozenge-purple: #2c2740;
+      --color-lozenge-blue: #1a2a3f;
+      --color-lozenge-red: #3c211f;
+      --color-lozenge-yellow: #332a10;
+      --color-lozenge-green: #173124;
       --color-avatar-0: #ce7c94;
       --color-avatar-1: #c3866a;
-      --color-avatar-2: #ab925f;
-      --color-avatar-3: #96986b;
+      --color-avatar-2: #b0934f;
+      --color-avatar-3: #959a63;
       --color-avatar-4: #719f7b;
       --color-avatar-5: #6c9e95;
       --color-avatar-6: #7c97b8;
@@ -235,7 +237,7 @@
       --color-dept-5: #ad6c44;
       --shadow-overlay:
         0 18px 48px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.4),
-        0 0 0 1px rgb(231 224 212 / 0.1);
+        0 0 0 1px rgb(223 228 239 / 0.1);
     }
 
     :root:not([data-theme='light']) .bg-accent:not(:disabled) {
@@ -244,6 +246,125 @@
   }
 
   :root[data-theme='dark'] {
+    --color-bg-base: #0d0e10;
+    --color-bg-panel: #131417;
+    --color-bg-elevated: #1b1d22;
+    --color-bg-hover: #25272d;
+    --color-bg-active: #2f313a;
+    --color-shell: #08080a;
+    --color-text-primary: #dfe4ef;
+    --color-text-secondary: #9ba7bd;
+    --color-text-muted: #8b96ab;
+    --color-border-subtle: #272a31;
+    --color-border-strong: #464b57;
+    --color-accent: #3a5b80;
+    --color-accent-hover: #4a6d95;
+    --color-accent-subtle: #1a2534;
+    --color-accent-text: #97b3d2;
+    --color-focus-ring: #97b3d2;
+    --color-status-new: #6696c3;
+    --color-status-inprogress: #b28a44;
+    --color-status-done: #90bea0;
+    --color-status-reopen: #e18179;
+    --color-status-stale: #d19b5a;
+    --color-search-match: #6d4a05;
+    --color-scrim: rgb(6 7 9 / 0.66);
+    --color-scrollbar-hover: #8d95a3;
+    --color-lozenge-neutral: #1b1d22;
+    --color-lozenge-purple: #2c2740;
+    --color-lozenge-blue: #1a2a3f;
+    --color-lozenge-red: #3c211f;
+    --color-lozenge-yellow: #332a10;
+    --color-lozenge-green: #173124;
+    --color-avatar-0: #ce7c94;
+    --color-avatar-1: #c3866a;
+    --color-avatar-2: #b0934f;
+    --color-avatar-3: #959a63;
+    --color-avatar-4: #719f7b;
+    --color-avatar-5: #6c9e95;
+    --color-avatar-6: #7c97b8;
+    --color-avatar-7: #a18bb8;
+    --color-dept-0: #53848c;
+    --color-dept-1: #608566;
+    --color-dept-2: #9c752e;
+    --color-dept-3: #ab6780;
+    --color-dept-4: #697c9f;
+    --color-dept-5: #ad6c44;
+    --shadow-overlay:
+      0 18px 48px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.4),
+      0 0 0 1px rgb(223 228 239 / 0.1);
+  }
+
+  :root[data-theme='dark'] .bg-accent:not(:disabled) {
+    box-shadow: inset 0 0 0 1px var(--color-accent-hover);
+  }
+
+  /*
+    ink — the same layout at a deeper, bluer temperature. Chroma is what
+    separates it from dark (ground C ~0.018 vs ~0.005 at the page), not
+    lightness, so the two never read as the same theme at a glance.
+  */
+  :root[data-theme='ink'] {
+    --color-bg-base: #0e131b;
+    --color-bg-panel: #131a24;
+    --color-bg-elevated: #1a222e;
+    --color-bg-hover: #232d3c;
+    --color-bg-active: #2e3a4b;
+    --color-shell: #090c11;
+    --color-text-primary: #e0e7f2;
+    --color-text-secondary: #98a8c2;
+    --color-text-muted: #8695ae;
+    --color-border-subtle: #26303f;
+    --color-border-strong: #42536b;
+    --color-accent: #2f6285;
+    --color-accent-hover: #3d7699;
+    --color-accent-subtle: #132b3d;
+    --color-accent-text: #86c2dd;
+    --color-focus-ring: #86c2dd;
+    --color-status-new: #6696c3;
+    --color-status-inprogress: #b28a44;
+    --color-status-done: #90bea0;
+    --color-status-reopen: #e18179;
+    --color-status-stale: #d19b5a;
+    --color-search-match: #71500a;
+    --color-scrim: rgb(5 9 14 / 0.66);
+    --color-scrollbar-hover: #8b9aac;
+    --color-lozenge-neutral: #1a222e;
+    --color-lozenge-purple: #2b2c4a;
+    --color-lozenge-blue: #152f48;
+    --color-lozenge-red: #3f2528;
+    --color-lozenge-yellow: #372e14;
+    --color-lozenge-green: #153529;
+    --color-avatar-0: #ce7c94;
+    --color-avatar-1: #c3866a;
+    --color-avatar-2: #b0934f;
+    --color-avatar-3: #959a63;
+    --color-avatar-4: #719f7b;
+    --color-avatar-5: #6c9e95;
+    --color-avatar-6: #7c97b8;
+    --color-avatar-7: #a18bb8;
+    --color-dept-0: #53848c;
+    --color-dept-1: #608566;
+    --color-dept-2: #9c752e;
+    --color-dept-3: #ab6780;
+    --color-dept-4: #697c9f;
+    --color-dept-5: #ad6c44;
+    --shadow-overlay:
+      0 18px 48px rgb(0 0 0 / 0.6), 0 4px 12px rgb(0 0 0 / 0.42),
+      0 0 0 1px rgb(224 231 242 / 0.1);
+  }
+
+  :root[data-theme='ink'] .bg-accent:not(:disabled) {
+    box-shadow: inset 0 0 0 1px var(--color-accent-hover);
+  }
+
+  /*
+    ember — the warm dark this product shipped through 0.14, kept under its own
+    name so the people who chose gadak for that ground still have it. These
+    values are a copy, not a redesign: do not "improve" them. tools/theme-check
+    holds the GDK-154 warm-paper anti-slop axis here now.
+  */
+  :root[data-theme='ember'] {
     --color-bg-base: #160f04;
     --color-bg-panel: #201608;
     --color-bg-elevated: #2a1e0f;
@@ -293,7 +414,7 @@
       0 0 0 1px rgb(231 224 212 / 0.1);
   }
 
-  :root[data-theme='dark'] .bg-accent:not(:disabled) {
+  :root[data-theme='ember'] .bg-accent:not(:disabled) {
     box-shadow: inset 0 0 0 1px var(--color-accent-hover);
   }
 

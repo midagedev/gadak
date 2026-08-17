@@ -1,8 +1,11 @@
 /*
  * Theme registry and tri-state preference (light / dark / system).
  *
- * Adding a palette: one token block in app.css + one entry in THEMES.
- * The picker iterates THEME_MODES and must not be edited for a new theme.
+ * Adding a palette: a token block in app.css (both the :root[data-theme] rule
+ * and the color-scheme rule outside @layer), an entry in THEMES, a label in
+ * en.ts/ko.ts, and the name + --boot-* shell in index.html's boot script.
+ * boot-theme.test.ts and tools/theme-check.mjs hold every one of those; the
+ * picker iterates THEME_MODES and must not be edited for a new theme.
  *
  * data-theme is the override; prefers-color-scheme is the default.
  * system → no data-theme attribute (CSS media query applies dark tokens).
@@ -15,6 +18,8 @@ import { THEME_STORAGE_KEY } from './storage'
 export const THEMES = [
   { name: 'light', labelKey: 'theme.light' satisfies MessageKey },
   { name: 'dark', labelKey: 'theme.dark' satisfies MessageKey },
+  { name: 'ink', labelKey: 'theme.ink' satisfies MessageKey },
+  { name: 'ember', labelKey: 'theme.ember' satisfies MessageKey },
 ] as const
 
 export const THEME_MODES = [
