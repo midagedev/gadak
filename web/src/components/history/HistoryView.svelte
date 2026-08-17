@@ -7,7 +7,6 @@
   import { untrack } from 'svelte'
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber, relativeSeenLabel, absTime } from '../../lib/i18n'
-  import { extractChosung, isChosungQuery } from '../../lib/korean'
   import {
     aggregateHistory,
     dateGroup,
@@ -51,13 +50,11 @@
   const filterText = $derived(history.filterText)
   const raw = $derived(filterText.trim())
   const needle = $derived(raw.toLowerCase())
-  const chosungQuery = $derived(raw ? isChosungQuery(raw) : false)
   const filtering = $derived(needle !== '')
 
   function textMatch(hay: string): boolean {
     if (!needle) return true
-    if (hay.toLowerCase().includes(needle)) return true
-    return chosungQuery && extractChosung(hay).includes(needle)
+    return hay.toLowerCase().includes(needle)
   }
 
   function titleOf(entry: TimelineEntry): string {

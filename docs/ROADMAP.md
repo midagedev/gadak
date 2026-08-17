@@ -228,7 +228,7 @@ principle, connected to nothing. This wave came out of using it for real on a
 work mirror. Shipped 2026-08-07:
 
 - ✅ **Search reaches every screen.** The ⌘K palette matches page titles
-  (chosung included) above the issues; `/` focuses whichever narrowing field
+  above the issues; `/` focuses whichever narrowing field
   the screen in front of you has; the document screens gained a local filter
   whose Enter hands the query to the one unified results surface.
 - ✅ **Document screens carry their own weight.** Deep links (`?doc=`,

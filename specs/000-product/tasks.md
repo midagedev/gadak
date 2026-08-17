@@ -133,7 +133,7 @@ under `~/.gadak/profiles/<name>/` — the work/demo dual-account setup.
 
 | # | Task | State | Notes |
 | --- | --- | --- | --- |
-| T8.1 | Command palette (⌘K/Ctrl+K) | done | `web/src/components/palette/CommandPalette.svelte`, mounted and key-bound in `App.svelte`. Three sections off one input: issue jump (reuses `filterIssues` + relevance sort, so key shortforms and 초성 queries work), views (built-in + personal + team), and actions (new issue, settings, reset filters, reopened/unassigned/stale toggles, locale switch, sync status toast). Empty query lists recently viewed issues. Every keystroke is a memory-pool computation — `e2e/palette.spec.ts` asserts zero `/api/` requests while typing, and that ⌘K opens even with a text input focused |
+| T8.1 | Command palette (⌘K/Ctrl+K) | done | `web/src/components/palette/CommandPalette.svelte`, mounted and key-bound in `App.svelte`. Three sections off one input: issue jump (reuses `filterIssues` + relevance sort, so key shortforms work; 초성 matching retired in GDK-168), views (built-in + personal + team), and actions (new issue, settings, reset filters, reopened/unassigned/stale toggles, locale switch, sync status toast). Empty query lists recently viewed issues. Every keystroke is a memory-pool computation — `e2e/palette.spec.ts` asserts zero `/api/` requests while typing, and that ⌘K opens even with a text input focused |
 
 ## Critical path to something usable
 

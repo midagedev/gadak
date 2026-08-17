@@ -13,7 +13,6 @@
   import { t, formatNumber } from '../../lib/i18n'
   import { highlightSegments, mergeAdjacentHits } from '../../lib/format'
   import { pages, type PageNode } from '../../stores/pages.svelte'
-  import { isChosungQuery } from '../../lib/korean'
   import { pageMatches } from '../../lib/doc-search'
   import EmptyState from '../list/EmptyState.svelte'
   import DocsFilter from './DocsFilter.svelte'
@@ -32,7 +31,6 @@
   let filterText = $state('')
   const raw = $derived(filterText.trim())
   const needle = $derived(raw.toLowerCase())
-  const chosungQuery = $derived(raw ? isChosungQuery(raw) : false)
   const labelFilter = $derived(pages.docsLabel)
   const filtering = $derived(needle !== '' || labelFilter !== null)
   const matched = $derived.by(() => {
@@ -40,7 +38,7 @@
     const keys = new Set<string>()
     for (const page of all) {
       if (labelFilter !== null && !(page.labels ?? []).includes(labelFilter)) continue
-      if (pageMatches(page, needle, chosungQuery, label, { author: true })) keys.add(page.key)
+      if (pageMatches(page, needle, label, { author: true })) keys.add(page.key)
     }
     return keys
   })

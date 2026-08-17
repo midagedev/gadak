@@ -15,7 +15,6 @@ import { config, hasServerVerb } from '../lib/config'
 import { router, setParams } from '../lib/router.svelte'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
-import { extractChosung, isChosungQuery } from '../lib/korean'
 import type { IssueLite, Member, PageLite, SearchMatch } from '../lib/types'
 import {
   configToParams,
@@ -630,24 +629,8 @@ function matchesDynamicFields(fields: Record<string, string[]>, it: IssueLite): 
   return true
 }
 
-/* ── Chosung (initial-consonant) cache ──
- *  title+assignee chosung string is computed once per issue; updated_at is the
- *  cache signature. Delta updates change the signature → auto-invalidate
- *  (avoids recomputing over ~10.5K issues).
- */
-const chosungCache = new Map<string, { sig: string; text: string }>()
-
-function issueChosung(issue: IssueLite): string {
-  const sig = issue.updated_at ?? ''
-  const cached = chosungCache.get(issue.issue_key)
-  if (cached && cached.sig === sig) return cached.text
-  const text = extractChosung(`${issue.summary} ${issue.assignee ?? ''}`)
-  chosungCache.set(issue.issue_key, { sig, text })
-  return text
-}
-
-/** Local text match (key/title/assignee/labels). chosungQuery also partial-matches chosung strings. */
-function textMatch(issue: IssueLite, needle: string, chosungQuery: boolean): boolean {
+/** Local text match (key/title/assignee/labels). */
+function textMatch(issue: IssueLite, needle: string): boolean {
   const hay = [
     issue.issue_key,
     issue.summary,
@@ -658,12 +641,10 @@ function textMatch(issue: IssueLite, needle: string, chosungQuery: boolean): boo
     .join(' ')
     .toLowerCase()
   if (hay.includes(needle)) return true
-  // Short issue-key form (den1234). Jamo queries (ㅋㅌㅂ) make normKey '' so
-  // includes('') would match everything — skip empty results.
+  // Short issue-key form (den1234). A needle that normalizes to '' must not
+  // run includes('') — that would match every row.
   const nk = normKey(needle)
   if (nk && normKey(issue.issue_key).includes(nk)) return true
-  // Chosung query ("ㅋㅌㅂ") partial-matches title·assignee chosung strings
-  if (chosungQuery && issueChosung(issue).includes(needle)) return true
   return false
 }
 
@@ -678,8 +659,6 @@ function inRange(iso: string | null, from: string | null, to: string | null): bo
 export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
   const raw = f.q.trim()
   const needle = raw.toLowerCase()
-  // Chosung check once per query (outside the issue loop).
-  const chosungQuery = raw ? isChosungQuery(raw) : false
   const out: IssueLite[] = []
   for (const it of all) {
     if (f.status_category.length && !f.status_category.includes(effectiveCategory(it))) continue
@@ -730,7 +709,7 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
     if ((f.updated_from || f.updated_to) && !inRange(it.updated_at, f.updated_from, f.updated_to))
       continue
 
-    if (needle && !textMatch(it, needle, chosungQuery)) continue
+    if (needle && !textMatch(it, needle)) continue
     out.push(it)
   }
   return out
@@ -744,11 +723,10 @@ function cmpStr(a: string | null, b: string | null, dir: 1 | -1): number {
 
 /* ── Relevance ranking ──
  *  Score = match strength for needle + recency + personalization bonuses.
- *  needle is already trim·lowercased. chosungQuery also considers chosung strings.
+ *  needle is already trim·lowercased.
  */
 export interface RelevanceContext {
   needle: string
-  chosungQuery: boolean
   now: number
   myEmail: string | null
   myAccountId: string | null
@@ -760,7 +738,6 @@ function buildRelevanceContext(rawQuery: string): RelevanceContext {
   const raw = rawQuery.trim()
   return {
     needle: raw.toLowerCase(),
-    chosungQuery: raw ? isChosungQuery(raw) : false,
     now: Date.now(),
     myEmail: me.email,
     myAccountId: me.accountId,
@@ -775,15 +752,13 @@ function relevanceScore(issue: IssueLite, ctx: RelevanceContext): number {
   const keyLower = issue.issue_key.toLowerCase()
   const summaryLower = issue.summary.toLowerCase()
 
-  // Match strength (strongest location only as base) — key > title > chosung > assignee·labels.
+  // Match strength (strongest location only as base) — key > title > assignee·labels.
   let base = 0
   if (keyLower === needle || normKey(issue.issue_key) === normKey(needle)) base = 1000
   else if (keyLower.startsWith(needle) || normKey(issue.issue_key).startsWith(normKey(needle)))
     base = 500
   else if (summaryLower.startsWith(needle)) base = 300
   else if (summaryLower.includes(needle)) base = 100
-
-  if (base === 0 && ctx.chosungQuery && issueChosung(issue).includes(needle)) base = 80
 
   if (base === 0) {
     const assignee = (issue.assignee ?? '').toLowerCase()

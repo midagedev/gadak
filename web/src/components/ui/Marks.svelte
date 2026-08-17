@@ -12,9 +12,9 @@
    * cannot clear 4.5:1 on any visible dark mark (tools/theme-check.mjs asserts
    * this pair). Keep the class list and that axis in lockstep.
    *
-   * A caller with nothing to mark (a chosung query matches no literal run)
-   * passes the plain text instead — `highlightSegments` returns a single unhit
-   * segment for that case, so it renders the same either way.
+   * A caller with nothing to mark passes the plain text instead —
+   * `highlightSegments` returns a single unhit segment for that case, so it
+   * renders the same either way.
    */
   let { segs }: { segs: { text: string; hit: boolean }[] } = $props()
 </script>

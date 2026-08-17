@@ -72,9 +72,9 @@
   /*
    * Why this row is here, marked in it. A filter that only removes rows leaves
    * the ones it kept unexplained, which reads as an arbitrary list — the same
-   * gap the issue list closed with these marks. Chosung queries have no literal
-   * slice to mark and simply come back whole; so do the rows matched by their
-   * space or author, which is why those two clauses are marked as well.
+   * gap the issue list closed with these marks. A query with no literal slice
+   * in a clause comes back whole; rows matched by their space or author still
+   * need those two clauses marked as well.
    *
    * Every clause the row draws is marked, not only the ones the filter reads.
    * The excerpt and the labels are not in the haystack (doc-search.ts), but a

@@ -15,7 +15,6 @@
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type DocsTab } from '../../stores/pages.svelte'
-  import { isChosungQuery } from '../../lib/korean'
   import { pageMatches } from '../../lib/doc-search'
   import type { PageLite } from '../../lib/types'
   import EmptyState from '../list/EmptyState.svelte'
@@ -43,7 +42,6 @@
   let filterText = $state('')
   const raw = $derived(filterText.trim())
   const needle = $derived(raw.toLowerCase())
-  const chosungQuery = $derived(raw ? isChosungQuery(raw) : false)
   /** The label a chip click put on the screen, and the way back out of it. */
   const label = $derived(pages.docsLabel)
   const filtering = $derived(needle !== '' || label !== null)
@@ -52,7 +50,7 @@
   const keep = $derived(
     (page: PageLite) =>
       (label === null || (page.labels ?? []).includes(label)) &&
-      pageMatches(page, needle, chosungQuery, pages.spaceLabel(page.space_key), { author: true }),
+      pageMatches(page, needle, pages.spaceLabel(page.space_key), { author: true }),
   )
   const narrow = $derived((list: PageLite[]) => (filtering ? list.filter(keep) : list))
 

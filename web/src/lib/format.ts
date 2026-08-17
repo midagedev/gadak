@@ -26,8 +26,8 @@ export function absTime(iso: string | null): string {
 
 /* ── Search-term highlighting ── */
 
-/** Case-insensitive substring split, one span per query word. Chosung /
- *  key-shortcut hits have no slices → no highlight.
+/** Case-insensitive substring split, one span per query word. Key-shortcut
+ *  hits have no slices → no highlight.
  *
  *  Words are highlighted separately because that is how the query was answered:
  *  the search matches each word on its own, so "webhook replay" returns a title

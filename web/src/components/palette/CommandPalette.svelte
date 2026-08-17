@@ -2,7 +2,7 @@
   /*
    * Command palette (⌘K/Ctrl+K) — issue jump / apply view / run action / all-search.
    *  - Local sections stay on the memory pool (zero network). Issues reuse list
-   *    filterIssues + relevance sort, so chosung search and key short-forms work.
+   *    filterIssues + relevance sort, so key short-forms work.
    *  - After a debounce, GET search/?q= fills an All-search section under them
    *    (titles, bodies, comments; list filter chips are not sent).
    *  - Items are a flat array in section order → ↑↓ moves a single index.
@@ -17,7 +17,6 @@
     setLocale,
     t,
   } from '../../lib/i18n'
-  import { extractChosung, isChosungQuery } from '../../lib/korean'
   import { rankPages } from '../../lib/doc-search'
   import { highlightSegments } from '../../lib/format'
   import { search } from '../../lib/api'
@@ -106,13 +105,11 @@
 
   const raw = $derived(query.trim())
   const needle = $derived(raw.toLowerCase())
-  const chosungQuery = $derived(raw ? isChosungQuery(raw) : false)
 
-  /** Match view/action names — substring + chosung query. */
+  /** Match view/action names — substring. */
   function matches(text: string): boolean {
     if (!needle) return true
-    if (text.toLowerCase().includes(needle)) return true
-    return chosungQuery && extractChosung(text).includes(needle)
+    return text.toLowerCase().includes(needle)
   }
 
   function issueItem(issue: IssueLite, section: Section = 'issue'): Item {
@@ -143,14 +140,13 @@
   }
 
   /**
-   * Documents matched by the query — title first, then the space it lives in,
-   * with chosung covering the Korean titles a Latin keyboard cannot type in
-   * full. Four rows: the section sits above the issues and is a way in, not the
+   * Documents matched by the query — title first, then the space it lives in.
+   * Four rows: the section sits above the issues and is a way in, not the
    * place to read a result set (that is the list's search section, which Enter
    * in the document filter goes to).
    */
   const docMatches = $derived.by<PageLite[]>(() =>
-    needle ? rankPages(pages.index, needle, chosungQuery, (key) => pages.spaceLabel(key)) : [],
+    needle ? rankPages(pages.index, needle, (key) => pages.spaceLabel(key)) : [],
   )
 
   const DOC_LIMIT = 4
@@ -193,7 +189,6 @@
     // Relevance context matches the list (match strength + recency + personalization).
     const ctx: RelevanceContext = {
       needle,
-      chosungQuery,
       now: Date.now(),
       myEmail: me.email,
       myAccountId: me.accountId,
@@ -669,8 +664,8 @@
                 : ''}"
             >
               <!-- Same mark as the list's search hits: the row shows the part of
-                   the title the query found. A chosung query marks nothing, and
-                   falls back to the plain title. -->
+                   the title the query found. A caller with nothing to mark falls
+                   back to the plain title. -->
               {#if item.segs}<Marks segs={item.segs} />{:else}{item.label}{/if}
             </span>
             {#if item.sub}

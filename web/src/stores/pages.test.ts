@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { IssueLite } from '../lib/types'
-import { sortIssues, type RelevanceContext } from './filters.svelte'
+import { emptyFilters } from '../lib/view-config'
+import { filterIssues, sortIssues, type RelevanceContext } from './filters.svelte'
 import { pageAuthorGroupKey } from './pages.svelte'
 
 describe('pageAuthorGroupKey', () => {
@@ -67,7 +68,6 @@ function issue(partial: Pick<IssueLite, 'issue_key' | 'summary'> & Partial<Issue
 
 const relevanceCtx: RelevanceContext = {
   needle: 'rel-1',
-  chosungQuery: false,
   now: Date.parse('2026-08-01T00:00:00.000Z'),
   myEmail: null,
   myAccountId: null,
@@ -105,5 +105,17 @@ describe('sortIssues server deference', () => {
       'REL-2',
     ])
     expect(got.map((i) => i.issue_key)).toEqual(['REL-2', 'REL-1', 'REL-3'])
+  })
+})
+
+describe('retired jamo-only issue match (GDK-168)', () => {
+  test('a jamo-only query against the issue text-match path', () => {
+    const f = emptyFilters()
+    f.q = 'ㅋㅌㅂ'
+    const hit = issue({ issue_key: 'NMB-1', summary: '커트백 가이드' })
+    const miss = issue({ issue_key: 'NMB-2', summary: 'unrelated latin title' })
+    expect(() => filterIssues([hit, miss], f)).not.toThrow()
+    const got = filterIssues([hit, miss], f)
+    expect(got).toEqual([])
   })
 })

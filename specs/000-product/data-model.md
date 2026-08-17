@@ -353,9 +353,9 @@ re-inserting it; `contentless_delete=1` (SQLite 3.43+) is what allows the delete
 without re-supplying the previous column values.
 
 `unicode61` is used rather than a CJK-aware tokenizer because the fallback path
-matters more than perfect segmentation: Korean initial-consonant (chosung)
-search and substring narrowing already happen client-side over the warm issue
-pool, and FTS is for body and comment text where prefix matching is enough.
+matters more than perfect segmentation: Korean substring narrowing already
+happens client-side over the warm issue pool, and FTS is for body and comment
+text where prefix matching is enough.
 Revisit with `trigram` if body search in CJK proves weak.
 
 ## `saved_views`, `watches`, `favorites`
