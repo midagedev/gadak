@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -68,5 +70,37 @@ func TestStatusJSONIncludesTokenExpiry(t *testing.T) {
 	}
 	if doc.TokenExpiry.Message == "" {
 		t.Fatal("json message empty")
+	}
+}
+
+func TestStatusSurfacesConfigLoadError(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+
+	if err := os.WriteFile(filepath.Join(home, "config.json"), []byte(`{`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, err := captureBoth(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status must still succeed when config is unreadable: %v", err)
+	}
+	if !strings.Contains(stderr, "gadak: config:") {
+		t.Fatalf("stderr must name the config problem, got %q", stderr)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("stdout json %q: %v", stdout, err)
+	}
+	if _, ok := doc["issues"]; !ok {
+		t.Fatalf("mirror stats missing: %s", stdout)
+	}
+	ce, _ := doc["config_error"].(string)
+	if ce == "" {
+		t.Fatalf("json missing config_error: %s", stdout)
+	}
+	if !strings.Contains(ce, "config.json") {
+		t.Fatalf("config_error must name the path, got %q", ce)
 	}
 }

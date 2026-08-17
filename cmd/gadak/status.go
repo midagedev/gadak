@@ -56,7 +56,14 @@ func cmdStatus(args []string) error {
 	}
 	st["api_usage"] = usage
 
-	cfg, _ := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		// Soft: the mirror is already open. Name the config problem on
+		// stderr (and in --json) so `gadak status` can diagnose a locked
+		// or corrupt file instead of swallowing the error.
+		fmt.Fprintf(os.Stderr, "gadak: config: %v\n", err)
+		st["config_error"] = err.Error()
+	}
 	var tokenExpiry config.TokenExpiry
 	if cfg != nil {
 		tokenExpiry = cfg.TokenExpiryAt(time.Now().UTC())

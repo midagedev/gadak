@@ -430,6 +430,13 @@ func Path() (string, error) {
 
 // LoadFor reads config.json for the named profile. Missing file returns an empty
 // Config with dir set (not an error), matching Load's convention.
+//
+// LoadFor is the single owner of the field-mapping rewrite rule: leftover
+// fieldMap/editableFields are always normalized in memory so callers never see
+// the legacy shape. A failed Save is a stderr warning, not a load error — a
+// read-only home must still serve (the rewrite is a convenience, not a
+// precondition). Callers (serve, desktop, MCP, status) must not re-implement
+// this tolerate-the-write-failure rule.
 func LoadFor(profile string) (*Config, error) {
 	d, err := DirFor(profile)
 	if err != nil {
@@ -450,9 +457,10 @@ func LoadFor(profile string) (*Config, error) {
 	c.dir = d
 	if changed, shape := c.NormalizeLegacyFields(); changed {
 		if err := c.Save(); err != nil {
-			return nil, fmt.Errorf("%s: migrate field mapping: %w", p, err)
+			fmt.Fprintf(os.Stderr, "gadak: %s: migrate field mapping: %v (running with in-memory fields; will retry rewrite on next load)\n", p, err)
+		} else {
+			fmt.Fprintf(os.Stderr, "gadak: rewrote %s: migrated field mapping from %s to fields\n", p, shape)
 		}
-		fmt.Fprintf(os.Stderr, "gadak: rewrote %s: migrated field mapping from %s to fields\n", p, shape)
 	}
 	return &c, nil
 }
@@ -486,16 +494,31 @@ func (c *Config) Save() error {
 	}
 	tmp := p + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		_ = os.Remove(tmp)
 		return err
 	}
-	return os.Rename(tmp, p)
+	if err := os.Rename(tmp, p); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
-// ensurePrivateDir creates dir at 0700 and chmods an existing one to 0700 so
-// older installs left at 0755 are quietly tightened (migration of H-2).
+// ensurePrivateDir creates dir at 0700 and tightens an existing owner-writable
+// directory to 0700 so older installs left at 0755 are quietly locked down
+// (migration of H-2). It does not add owner-write: a 0555 (or otherwise
+// owner-locked) directory stays locked and Save's write fails, so a read-only
+// home is not silently unlocked.
 func ensurePrivateDir(dir string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
+	}
+	fi, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
+	if fi.Mode().Perm()&0o200 == 0 {
+		return nil
 	}
 	if err := os.Chmod(dir, 0o700); err != nil {
 		log.Printf("config: chmod %s: %v", dir, err)

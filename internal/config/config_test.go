@@ -529,6 +529,24 @@ func TestApplyVerifiedIdentity(t *testing.T) {
 	n.ApplyVerifiedIdentity("x", "y", "z") // nil receiver must not panic
 }
 
+func TestSaveRemovesTmpOnRenameFailure(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "config.json")
+	if err := os.Mkdir(dest, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, "keep"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := &Config{dir: dir, Site: "https://example.atlassian.net"}
+	if err := c.Save(); err == nil {
+		t.Fatal("Save: expected rename failure when dest is a directory")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "config.json.tmp")); !os.IsNotExist(err) {
+		t.Fatalf("leftover config.json.tmp: %v", err)
+	}
+}
+
 func captureStderr(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()

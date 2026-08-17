@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -245,5 +246,92 @@ func TestLoadForBothShapesUsesFieldSpecsThenEditableOverlay(t *testing.T) {
 	}
 	if _, ok := disk["editableFields"]; ok {
 		t.Fatalf("disk still has editableFields: %s", raw)
+	}
+}
+
+// TestLoadForMigratesLegacyWhenDirReadOnly is GDK-173: a locked home must
+// still load. Normalize in memory; a failed rewrite is a warning, not an error.
+func TestLoadForMigratesLegacyWhenDirReadOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not meaningful on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() { SetProfile("") })
+	SetProfile("")
+
+	path := filepath.Join(home, "config.json")
+	legacy := `{
+  "site": "https://example.atlassian.net",
+  "fieldMap": {
+    "storyPoints": "customfield_10016"
+  },
+  "editableFields": {
+    "storyPoints": "customfield_10016"
+  }
+}
+`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(home, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(home, 0o700) })
+
+	probe := filepath.Join(home, ".write-probe")
+	if f, err := os.OpenFile(probe, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600); err == nil {
+		_ = f.Close()
+		_ = os.Remove(probe)
+		t.Skip("filesystem still allows write as owner; cannot assert read-only migrate")
+	}
+
+	var c *Config
+	stderr := captureStderr(t, func() {
+		var err error
+		c, err = LoadFor("")
+		if err != nil {
+			t.Fatalf("LoadFor: %v", err)
+		}
+	})
+	if c == nil {
+		t.Fatal("LoadFor returned nil config")
+	}
+	if len(c.FieldMap) != 0 || len(c.EditableFields) != 0 {
+		t.Fatalf("callers must not see legacy keys: fieldMap=%v editable=%v", c.FieldMap, c.EditableFields)
+	}
+	if len(c.Fields) != 1 || c.Fields[0].Alias != "storyPoints" {
+		t.Fatalf("in-memory Fields = %+v", c.Fields)
+	}
+	if strings.Contains(stderr, "rewrote") {
+		t.Fatalf("must not claim the rewrite succeeded, got %q", stderr)
+	}
+	if !strings.Contains(stderr, path) {
+		t.Fatalf("warning must name the path %q, got %q", path, stderr)
+	}
+	if !strings.Contains(stderr, "migrate field mapping") {
+		t.Fatalf("warning must be greppable as migrate field mapping, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "retry") {
+		t.Fatalf("warning must say the rewrite will be retried, got %q", stderr)
+	}
+	if strings.Count(stderr, "\n") != 1 || !strings.HasSuffix(stderr, "\n") {
+		t.Fatalf("warning must be one line, got %q", stderr)
+	}
+
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Fatalf("leftover %s.tmp: %v", path, err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var disk map[string]any
+	if err := json.Unmarshal(raw, &disk); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := disk["fieldMap"]; !ok {
+		t.Fatalf("read-only load rewrote disk: %s", raw)
 	}
 }
