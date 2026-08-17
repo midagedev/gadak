@@ -11,7 +11,7 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.14 기준 번역입니다.</sub></p>
+<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.15 기준 번역입니다.</sub></p>
 
 내 Jira가 로컬 SQLite 파일 하나가 됩니다 — "어느 에픽이 막혀 있지?"가
 물을 수 없는 질문이 아니라 쿼리 한 줄이 됩니다.
@@ -82,7 +82,7 @@ gadak init && gadak sync    # Jira (그리고 Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
 ```
 
-> **상태: 0.14, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
+> **상태: 0.15, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
 > 데스크톱, 웹, CLI, MCP가 실제 사이트에 대해 검증되어 있습니다. 정직한
 > 재고 목록: [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md).
 

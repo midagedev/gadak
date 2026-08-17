@@ -4,7 +4,16 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-16 — v0.14.2, the onboarding-and-recovery release:
+Last updated: 2026-08-17 — v0.15.0, the release that opens gadak outward:
+`gadak://` deep links with producers on every surface (a copy-link action on
+the detail, `gadak issue KEY --link`, and a documented contract for extension
+authors), search fast enough to sit under someone else's keystroke (key
+lookup before FTS, 20k-mirror worst case 1.6s → 110ms), a dark theme built
+to the same measured contracts as light, Korean IME composition that no
+longer flashes the list, chosung matching retired product-wide, and the
+first run of the per-minor full-codebase audit (28 findings fixed, the rest
+labeled `carryover-v0.15`).
+Under it, v0.14.2, the onboarding-and-recovery release:
 every token trap Atlassian's own page offers is now named *before* the paste
 rather than after the 401, a rejected token is recoverable from the read path
 (not just from a write), picking no projects is a scope instead of an
@@ -22,7 +31,7 @@ notify-only (banner + brew/dmg), and releases deliberately ship no
 rebuilt around `query` with error echoes, the three pipe contracts written
 down (`issues_full` + RECIPES, `gadak sql` stdout, `views open --keys -`),
 personal-row export/import, brew renamed so `gadak` is the app cask, and the
-first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.14.2.
+first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.15.0.
 
 ## In one paragraph
 

@@ -1,9 +1,6 @@
 # Changelog
 
-## v0.15.0 — unreleased
-
-<!-- DRAFT — finalize at tag time. Placeholders marked [PENDING] track rounds
-     still in flight; remove or resolve every one before tagging. -->
+## v0.15.0 — 2026-08-17
 
 The release that opens gadak outward. A view or an issue is now a link any
 app can hand over, search is fast enough to drive somebody else's UI
