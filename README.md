@@ -126,7 +126,13 @@ whatever can do those two things becomes a surface. A launcher, say:
 
 That launcher exists: a Raycast extension that searches issues and wiki
 documents as you type, [submitted to the Raycast Store](https://github.com/raycast/extensions/pull/30297).
-Until the review lands, install it from this repo — it is the same code:
+From v0.15.1:
+
+```sh
+gadak raycast install
+```
+
+On earlier versions, clone the repo and load the same extension by hand:
 
 ```sh
 git clone https://github.com/midagedev/gadak && cd gadak/contrib/raycast

@@ -47,6 +47,7 @@ var profileCreateOK = map[string]bool{
 // typo in GADAK_PROFILE / --profile must not fail them (D3 regression: version).
 var profileIndependent = map[string]bool{
 	"version": true,
+	"raycast": true,
 }
 
 // allowProfileCreate is set by main for profileCreateOK commands so
@@ -162,6 +163,7 @@ Reading the mirror (no network; see AGENTS.md):
   import     restore them from a gadak export file         <FILE>
   mcp        MCP server on stdio; mcp install <client> pins profile (docs/MCP.md)
   skill      install Claude Code skill (schema + queries; no MCP process)
+  raycast    install the Raycast search extension
 
 Atlassian REST escape hatch (needs a credential; not on MCP):
   api        raw REST call    [METHOD] <PATH> [--query k=v] [--data …] [--write] [--status]
@@ -278,6 +280,7 @@ var commands = map[string]func([]string) error{
 	"mcp":             cmdMCP,
 	"open":            cmdOpen,
 	"profiles":        cmdProfiles,
+	"raycast":         cmdRaycast,
 	"search":          cmdSearch,
 	"serve":           cmdServe,
 	"skill":           cmdSkill,

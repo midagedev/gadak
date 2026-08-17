@@ -131,8 +131,13 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
 
 그 런처는 이미 있습니다: 타이핑마다 이슈와 위키 문서를 검색하는 Raycast
 확장이고, [Raycast Store에 제출되어](https://github.com/raycast/extensions/pull/30297)
-심사 중입니다. 심사가 끝나기 전에는 이 저장소에서 직접 설치할 수
-있습니다 — 같은 코드입니다:
+심사 중입니다. v0.15.1부터는 이 한 줄로 설치합니다:
+
+```sh
+gadak raycast install
+```
+
+이전 버전이라면 저장소를 클론해 같은 확장을 직접 불러오세요:
 
 ```sh
 git clone https://github.com/midagedev/gadak && cd gadak/contrib/raycast
