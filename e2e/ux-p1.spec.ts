@@ -61,7 +61,14 @@ test.describe('UX P1', () => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
     await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
-    await page.waitForTimeout(300)
+    // The focus-time mirror pull fires on a stale fixture, and runSyncNow is
+    // single-flight: clicking while it runs joins that run instead of starting
+    // one, so the POST this test is about never happens. Waiting on the chip
+    // waits for the state the assertion depends on, not for a fixed delay —
+    // under full-suite load 300ms was not enough and this failed as a flake.
+    await expect(page.getByTestId('freshness-chip')).not.toHaveAttribute('data-state', 'syncing', {
+      timeout: 30_000,
+    })
 
     let syncBody: unknown = null
     await page.route(`${API}sync/`, async (route) => {
