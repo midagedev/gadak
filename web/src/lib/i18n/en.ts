@@ -55,6 +55,7 @@ export const en = {
   'common.project': 'Project',
   'common.title': 'Title',
   'common.description': 'Description',
+  'common.due': 'Due date',
   'common.group': 'Group',
   'common.detail': 'Details',
   'common.feed': 'Feed',

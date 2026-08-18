@@ -60,8 +60,17 @@ func TestInRangeEmptyRaw(t *testing.T) {
 	if InRange("", Instant, "2026-08-18", "", seoul(t)) {
 		t.Fatal("empty timestamp with a lower bound must fail")
 	}
+	if InRange("", Date, "", "2026-09-01", seoul(t)) {
+		t.Fatal("undated value with only an upper bound must fail")
+	}
+	if InRange("", Instant, "", "2026-09-01", seoul(t)) {
+		t.Fatal("empty timestamp with only an upper bound must fail")
+	}
 	if !InRange("", Instant, "", "", seoul(t)) {
-		t.Fatal("empty timestamp with no lower bound must pass")
+		t.Fatal("empty timestamp with no bounds must pass")
+	}
+	if !InRange("", Date, "", "", seoul(t)) {
+		t.Fatal("undated value with no bounds must pass")
 	}
 }
 

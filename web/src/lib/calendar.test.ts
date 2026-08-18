@@ -39,9 +39,13 @@ describe('calendar owner (aligned with internal/calendar)', () => {
     expect(laDay).toBe('2026-08-19')
   })
 
-  test('empty raw: pass only when there is no lower bound', () => {
+  test('empty raw: pass only when no bound is set', () => {
     expect(inRange(null, 'instant', '2026-08-18', null, seoul)).toBe(false)
     expect(inRange(null, 'instant', null, null, seoul)).toBe(true)
+    expect(inRange(null, 'date', null, '2026-09-01', seoul)).toBe(false)
+    expect(inRange('', 'date', null, '2026-09-01', seoul)).toBe(false)
+    expect(inRange(null, 'date', null, null, seoul)).toBe(true)
+    expect(inRange(null, 'date', '2026-08-18', null, seoul)).toBe(false)
   })
 
   test('explain reports the decision', () => {

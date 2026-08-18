@@ -56,6 +56,7 @@ export const ko = {
   'common.project': '프로젝트',
   'common.title': '제목',
   'common.description': '설명',
+  'common.due': '기한',
   'common.group': '그룹',
   'common.detail': '상세',
   'common.feed': '피드',

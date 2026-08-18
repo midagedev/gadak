@@ -78,7 +78,7 @@ export function calendarDay(
 
 /**
  * Inclusive YYYY-MM-DD compare after calendarDay.
- * Empty raw passes only when from is unset (same as the old inRange).
+ * Empty raw fails when any bound is set; with no bounds it still passes.
  */
 export function inRange(
   raw: string | null | undefined,
@@ -87,7 +87,7 @@ export function inRange(
   to: string | null | undefined,
   zone: CalendarZone = localZone(),
 ): boolean {
-  if (!raw) return !from
+  if (!raw) return !from && !to
   const day = calendarDay(raw, kind, zone)
   if (!day) return false
   if (from && day < from) return false
