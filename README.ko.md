@@ -244,6 +244,11 @@ gadak serve             # http://gadak.localhost:7777
 gadak install-service   # 선택: systemd --user, 재부팅 후에도 serve 유지
 ```
 
+Arch 리눅스: 검증된 `PKGBUILD`가
+[`contrib/aur/gadak-bin`](contrib/aur/gadak-bin)에 있습니다 — 거기서
+`makepkg -si`. 아직 AUR에는 없습니다. 업스트림 등록이 닫혀 있습니다
+([`docs/INSTALL.md`](docs/INSTALL.md#arch-linux)).
+
 설치 스크립트, 릴리스 아카이브, 소스 빌드, Docker, 위키 미러링, 프로필,
 업그레이드: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 

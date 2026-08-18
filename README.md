@@ -240,6 +240,11 @@ gadak serve             # http://gadak.localhost:7777
 gadak install-service   # optional: systemd --user, survives reboot
 ```
 
+Arch Linux: a checked `PKGBUILD` lives in
+[`contrib/aur/gadak-bin`](contrib/aur/gadak-bin) — `makepkg -si` there. Not in
+the AUR yet; upstream registration is closed
+([`docs/INSTALL.md`](docs/INSTALL.md#arch-linux)).
+
 Install script, release archive, source, Docker, wiki mirroring, profiles,
 upgrades: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 

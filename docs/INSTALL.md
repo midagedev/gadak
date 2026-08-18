@@ -54,6 +54,38 @@ binaries are signed with a Developer ID certificate and notarized by Apple —
 
 [tap]: https://github.com/midagedev/homebrew-tap
 
+### Arch Linux
+
+`gadak-bin` is **not in the AUR**. New AUR account registration has been closed
+upstream since the August 2026 supply-chain incidents, and the `aur-general`
+list says there is no manual path in the meantime. The package itself is
+written and checked, so publishing is one push whenever registration returns.
+
+Until then, build it from the PKGBUILD in this repository:
+
+```bash
+sudo pacman -S --needed base-devel
+git clone --depth 1 https://github.com/midagedev/gadak
+cd gadak/contrib/aur/gadak-bin
+makepkg -si            # fetches the release tarball, verifies sha256, installs
+gadak version
+```
+
+This installs the same prebuilt release binary as the tarball path above.
+`package()` only places files — there is no `build()`, no `prepare()`, no
+install hook, so nothing in this package executes code at install time — and
+each release archive's sha256 is pinned in the `PKGBUILD`. `options=('!strip')`
+keeps the installed `/usr/bin/gadak` byte-identical to the archive member, so
+verifying the release checksum still means something after pacman has installed
+it. [`contrib/aur/gadak-bin/verify.sh`](../contrib/aur/gadak-bin/verify.sh)
+asserts all of that in a throwaway Arch container, from any host with Docker.
+
+Upgrading is the one thing this costs you: `pacman -Syu` cannot update a
+package pacman did not get from a repository, so pull and run `makepkg -si`
+again. Gadak notices a new release on its own and shows the notes in Settings —
+it will not print an upgrade command there on Arch, because there is not an
+honest one to print yet.
+
 ### Desktop app (macOS)
 
 Download `Gadak-<version>-arm64.dmg` from the
@@ -142,7 +174,7 @@ inventory is `gadak profiles`; there is no `gadak workspaces` command.
 
 gadak checks GitHub Releases for a newer version once a day (anonymous, cached,
 `updateCheck: false` opts out) and says so in the web sidebar — but
-three things still catch people, learned the hard way:
+four things still catch people, learned the hard way:
 
 1. **A running `gadak serve` keeps its old code.** Upgrading the binary does not
    touch a process that is already up — restart it (or re-run
@@ -153,6 +185,10 @@ three things still catch people, learned the hard way:
 3. **Check what `gadak` actually resolves to.** `which -a gadak` — a leftover
    `go install` build in `~/go/bin` earlier in `PATH` will shadow the brew
    binary forever, versions be damned.
+4. **A `makepkg -si` install is invisible to `pacman -Syu`** ([Arch
+   Linux](#arch-linux)). pacman only upgrades what a repository gave it, so
+   nothing will ever tell you at the package-manager level; pull the repo and
+   rebuild.
 
 `gadak --version` against the
 [releases page](https://github.com/midagedev/gadak/releases) settles any doubt,
