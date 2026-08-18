@@ -601,3 +601,75 @@ func TestEditParentRejectedByJiraSurfacesMessage(t *testing.T) {
 		t.Fatalf("valid key must reach Jira: %v", f.calls)
 	}
 }
+
+func TestEditDueSetsDate(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--due", "2026-09-01"})
+	})
+	if err != nil {
+		t.Fatalf("edit --due: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if !strings.Contains(body, `"duedate":"2026-09-01"`) {
+		t.Fatalf("set due: %s", body)
+	}
+}
+
+func TestEditDueNoneClears(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--due", "none"})
+	})
+	if err != nil {
+		t.Fatalf("edit --due none: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if !strings.Contains(body, `"duedate":null`) {
+		t.Fatalf("clear due: %s", body)
+	}
+}
+
+func TestEditDueInvalidWritesNothing(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--due", "01/09/2026"})
+	})
+	if err == nil {
+		t.Fatal("expected invalid --due error")
+	}
+	if !strings.Contains(err.Error(), "want YYYY-MM-DD") {
+		t.Fatalf("wording: %v", err)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("invalid --due reached Jira: %v", f.calls)
+	}
+}
+
+func TestEditDueNoneProcessedBeforeFormat(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--due", "none"})
+	})
+	if err != nil {
+		t.Fatalf("--due none must clear, not fail format: %v", err)
+	}
+	if !f.called("PUT /issue/NMB-1") {
+		t.Fatalf("calls %v", f.calls)
+	}
+
+	_, err = capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--due", "NONE"})
+	})
+	if err == nil || !strings.Contains(err.Error(), "want YYYY-MM-DD") {
+		t.Fatalf("NONE is not the literal none: %v", err)
+	}
+}

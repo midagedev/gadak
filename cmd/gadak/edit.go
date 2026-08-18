@@ -11,7 +11,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 )
 
-const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--parent KEY|none] [--json]"
+const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]"
 
 func cmdEdit(args []string) error {
 	fs := newFlagSet("edit")
@@ -20,6 +20,7 @@ func cmdEdit(args []string) error {
 	var labels labelFlags
 	fs.Var(&labels, "label", "`+name` or `-name` (repeatable)")
 	priority := fs.String("priority", "", "priority name or id")
+	due := fs.String("due", "", "due date (YYYY-MM-DD); `none` clears")
 	parent := fs.String("parent", "", "parent issue key; `none` clears")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
@@ -35,7 +36,7 @@ func cmdEdit(args []string) error {
 	}
 	key := normalizeKey(pos[0])
 
-	var hasSummary, hasM, hasLabel, hasPriority, hasParent bool
+	var hasSummary, hasM, hasLabel, hasPriority, hasParent, hasDue bool
 	fs.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "summary":
@@ -48,13 +49,32 @@ func cmdEdit(args []string) error {
 			hasPriority = true
 		case "parent":
 			hasParent = true
+		case "due":
+			hasDue = true
 		}
 	})
-	if !hasSummary && !hasM && !hasLabel && !hasPriority && !hasParent {
+	if !hasSummary && !hasM && !hasLabel && !hasPriority && !hasParent && !hasDue {
 		return usageError("edit", editUsage)
 	}
 	if hasSummary && strings.TrimSpace(*summary) == "" {
 		return usageError("edit", editUsage)
+	}
+
+	var dueDate string
+	var clearDue bool
+	if hasDue {
+		if strings.TrimSpace(*due) == "none" {
+			clearDue = true
+		} else {
+			var derr error
+			dueDate, derr = parseDueDate(*due, "edit")
+			if derr != nil {
+				return derr
+			}
+			if dueDate == "" {
+				return usageError("edit", editUsage)
+			}
+		}
 	}
 
 	var parentKey string
@@ -123,6 +143,13 @@ func cmdEdit(args []string) error {
 				fields["parent"] = nil
 			} else {
 				fields["parent"] = map[string]string{"key": parentKey}
+			}
+		}
+		if hasDue {
+			if clearDue {
+				fields["duedate"] = nil
+			} else {
+				fields["duedate"] = dueDate
 			}
 		}
 		return nil, c.EditIssue(ctx, key, fields, update)

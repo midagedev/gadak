@@ -644,6 +644,9 @@ class WriteStore {
     const summary = payload.summary.trim()
     if (!summary) return { ok: false, error: t('write.titleRequired') }
     const body = compactCreatePayload({ ...payload, summary })
+    if (body.duedate && !dueDateLiteral(body.duedate)) {
+      return { ok: false, error: `duedate "${body.duedate}" is not a date (want YYYY-MM-DD)` }
+    }
     // Which optional fields were left off — empty string is "omit", not "set empty".
     console.info('[write] create request', { body, omitted: omittedCreateFields(body) })
     try {
@@ -673,7 +676,7 @@ class WriteStore {
     } catch (e) {
       if (e instanceof ApiError) {
         console.warn('[write] create', e.code ?? e.message, e)
-        return { ok: false, error: writeErrorMessage(e.code, t('write.createFailed'), t) }
+        return { ok: false, error: formatWriteRejection(e, t('write.createFailed')) }
       }
       return { ok: false, error: t('write.createFailed') }
     }
@@ -698,9 +701,10 @@ class WriteStore {
         return
       }
       // Raw code stays in the console; the toast is always a catalog sentence
-      // (or Jira prose). Unknown snake_case codes use fallback, never e.message.
+      // (or Jira prose + jira_errors). Unknown snake_case codes use fallback,
+      // never e.message.
       console.warn('[write]', e.code ?? e.message, e)
-      this.toast(writeErrorMessage(e.code, fallback, t), 'error')
+      this.toast(formatWriteRejection(e, fallback), 'error')
       return
     }
     console.warn('[write]', fallback, e)
@@ -750,7 +754,19 @@ const CREATE_OPTIONAL = [
   'assignee_account_id',
   'priority',
   'labels',
+  'duedate',
 ] as const
+
+/** Literal YYYY-MM-DD. Not Date.parse — that turns a date-only into a timestamp. */
+const DUE_DATE_LITERAL = /^(\d{4})-(\d{2})-(\d{2})$/
+
+function dueDateLiteral(s: string): boolean {
+  const m = DUE_DATE_LITERAL.exec(s)
+  if (!m) return false
+  const month = Number(m[2])
+  const day = Number(m[3])
+  return month >= 1 && month <= 12 && day >= 1 && day <= 31
+}
 
 function compactCreatePayload(input: CreateIssuePayload): CreateIssuePayload {
   const body: CreateIssuePayload = { summary: input.summary.trim() }
@@ -768,7 +784,23 @@ function compactCreatePayload(input: CreateIssuePayload): CreateIssuePayload {
     const labels = normalizeLabels(input.labels)
     if (labels.length) body.labels = labels
   }
+  const due = input.duedate?.trim()
+  if (due) body.duedate = due
   return body
+}
+
+/** Jira's Message() plus any jira_errors the message did not already carry. */
+function formatWriteRejection(e: ApiError, fallback: string): string {
+  const head = writeErrorMessage(e.code, fallback, t)
+  if (!e.jiraErrors) return head
+  const extras: string[] = []
+  for (const [field, val] of Object.entries(e.jiraErrors)) {
+    if (typeof val !== 'string' || !val) continue
+    if (head.includes(val)) continue
+    extras.push(`${field}: ${val}`)
+  }
+  if (extras.length === 0) return head
+  return [head, ...extras].join('; ')
 }
 
 function omittedCreateFields(body: CreateIssuePayload): string[] {
