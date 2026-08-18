@@ -22,6 +22,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/originbind"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
 )
@@ -33,10 +34,11 @@ const maxProjects = 500
 /* ── step 1: connect ── */
 
 type connectDoc struct {
-	Site           string `json:"site"`
-	JiraEmail      string `json:"jira_email"`
-	APIToken       string `json:"api_token"`
-	TokenExpiresAt string `json:"token_expires_at"`
+	Site              string `json:"site"`
+	JiraEmail         string `json:"jira_email"`
+	APIToken          string `json:"api_token"`
+	TokenExpiresAt    string `json:"token_expires_at"`
+	ReplaceStandalone bool   `json:"replace_standalone"`
 }
 
 // handleConnect verifies the credential against Jira /myself before storing it,
@@ -58,6 +60,21 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "email_and_token_required")
 		return
 	}
+	// Refuse before /myself: a standalone workspace that holds local issues
+	// must not send the pasted token anywhere, and must not write it to disk.
+	if err := originbind.RefuseReplace(s.config(), in.ReplaceStandalone); err != nil {
+		var refused *originbind.ReplaceRefusedError
+		if errors.As(err, &refused) {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"error":   originbind.ErrCodeReplaceRefused,
+				"issues":  refused.Issues,
+				"persist": refused.Persist,
+			})
+			return
+		}
+		serverError(w, r, err)
+		return
+	}
 	// Snapshot before save: first credential may need to kick the serve Watch loop.
 	hadCredential := s.config().HasCredential()
 	me, err := origin.Connected(site, email, token).Myself(r.Context())
@@ -77,6 +94,7 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_token_expires")
 		return
 	}
+	originbind.ClearStandalone(&next)
 	if err := next.Save(); err != nil {
 		serverError(w, r, err)
 		return

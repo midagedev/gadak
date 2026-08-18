@@ -250,6 +250,7 @@ func TestDoctorJSONMatchesHumanFields(t *testing.T) {
 		"schema_version:",
 		"migrations:",
 		"credential:",
+		"workspace:",
 		"site:",
 		"email:",
 		"api_usage.day:",
@@ -380,6 +381,52 @@ func doctorValue(t *testing.T, out, key string) string {
 	}
 	t.Fatalf("no %q line in doctor output:\n%s", key, out)
 	return ""
+}
+
+func TestDoctorReportsStandaloneWithCredential(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	const planted = "NOT-A-REAL-TOKEN-doctor-inconsistent"
+	cfg := &config.Config{Kind: config.KindStandalone, Token: planted}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	if strings.Contains(out, planted) {
+		t.Fatalf("doctor leaked the token:\n%s", out)
+	}
+	got := doctorValue(t, out, "workspace")
+	if !strings.Contains(got, "kind=standalone") {
+		t.Errorf("workspace line missing kind=standalone: %q", got)
+	}
+	if !strings.Contains(got, "credential=yes") {
+		t.Errorf("workspace line missing credential=yes: %q", got)
+	}
+	if !strings.Contains(got, "inconsistent") {
+		t.Errorf("standalone-with-token must say inconsistent: %q", got)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	if strings.Contains(raw, planted) {
+		t.Fatalf("json leaked the token:\n%s", raw)
+	}
+	var rep doctorReport
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if !rep.Workspace.Inconsistent || !rep.Workspace.HasCredential || rep.Workspace.Kind != config.KindStandalone {
+		t.Fatalf("json workspace = %+v", rep.Workspace)
+	}
 }
 
 func TestClassifyLastError(t *testing.T) {
