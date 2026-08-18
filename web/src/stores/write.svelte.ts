@@ -712,15 +712,12 @@ class WriteStore {
   }
 }
 
-const DEMO_PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
-
 function demoPriorities(pool: IssueLite[]): PriorityOption[] {
   const seen = new Map<string, number>()
   for (const it of pool) {
     if (!it.priority || seen.has(it.priority)) continue
     seen.set(it.priority, it.priority_rank ?? 99)
   }
-  if (seen.size === 0) return DEMO_PRIORITIES.map((name) => ({ id: name, name }))
   return [...seen.entries()]
     .sort((a, b) => a[1] - b[1])
     .map(([name]) => ({ id: name, name }))
@@ -752,7 +749,7 @@ const CREATE_OPTIONAL = [
   'issue_type',
   'description_text',
   'assignee_account_id',
-  'priority',
+  'priority_id',
   'labels',
   'duedate',
 ] as const
@@ -778,8 +775,8 @@ function compactCreatePayload(input: CreateIssuePayload): CreateIssuePayload {
   if (desc) body.description_text = desc
   const assignee = input.assignee_account_id?.trim()
   if (assignee) body.assignee_account_id = assignee
-  const priority = input.priority?.trim()
-  if (priority) body.priority = priority
+  const priority = input.priority_id?.trim()
+  if (priority) body.priority_id = priority
   if (input.labels?.length) {
     const labels = normalizeLabels(input.labels)
     if (labels.length) body.labels = labels

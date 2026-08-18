@@ -765,7 +765,8 @@ export interface CreateIssuePayload {
   summary: string
   description_text?: string
   assignee_account_id?: string | null
-  priority?: string
+  /** Site priority id from GET priorities/. Omit when unset. */
+  priority_id?: string
   labels?: string[]
   /** Calendar date (YYYY-MM-DD). Omit when unset — do not send "". */
   duedate?: string

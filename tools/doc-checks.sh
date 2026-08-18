@@ -125,6 +125,10 @@ fi
 # (GDK-28) and the same shape for status / issue-type equality on a
 # Jira-default EN/KO display name.
 #
+# Also: a plain string literal of a Jira-default name (GDK-248). The
+# pipe-table grep cannot see `['Highest', 'High', ...]` because there is
+# no `\|`. High/Medium/Low are omitted — too many other meanings.
+#
 # Deliberately not matched (would fail the current tree; sibling issue):
 #   - view-config.ts RESOLVED_STATUS_NAMES (legacy fallback when
 #     status_category is absent)
@@ -142,14 +146,32 @@ name_hits="$(
     -e "issue_type[[:space:]]*===[[:space:]]*['\"]Bug['\"]" \
     -e "issue_type[[:space:]]*===[[:space:]]*['\"]버그['\"]" \
     -e "name[[:space:]]*\.[[:space:]]*toLowerCase\(\)[[:space:]]*===[[:space:]]*['\"](bug|story|task|epic|sub-task|버그|스토리|작업|에픽)['\"]" \
+    -e "['\"]Highest['\"]" \
+    -e "['\"]Lowest['\"]" \
+    -e "['\"]In Progress['\"]" \
+    -e "['\"]Sub-task['\"]" \
     web/src/lib web/src/components web/src/stores \
     | grep -v '/i18n/' \
     || true
 )"
 if [[ -n "$name_hits" ]]; then
-  fail "web logic keys status/priority/type on a display name:"$'\n'"$name_hits"
+  fail "web logic keys status/priority/type on a display name — send GET /priorities/ catalog id via create.PriorityField(id); names follow the account language:"$'\n'"$name_hits"
 fi
 ok "web logic does not key status/priority/type on a display name"
+
+# Go writes must send priority/status/issuetype by id, never by name.
+# This is the real closure: every surface (web, CLI, future) hits Jira here.
+go_name_hits="$(
+  grep -RInE \
+    --include='*.go' --exclude='*_test.go' \
+    -e '\["(priority|status|issuetype)"\][[:space:]]*=[[:space:]]*map\[string\]string\{[[:space:]]*"name"' \
+    internal cmd \
+    || true
+)"
+if [[ -n "$go_name_hits" ]]; then
+  fail "Go write sends priority/status/issuetype by name — send priority via create.PriorityField(id); names follow the account language:"$'\n'"$go_name_hits"
+fi
+ok "Go writes do not send priority/status/issuetype by display name"
 
 # ── 8. PROMISES.md outbound list agrees with SECURITY.md ────────────────
 # SECURITY.md enumerates outbound destinations as a numbered list under

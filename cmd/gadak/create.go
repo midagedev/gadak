@@ -257,11 +257,11 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 		if err != nil {
 			return "", nil, err
 		}
-		id, err := resolvePriority(p, list)
+		id, err := create.Priority(p, list)
 		if err != nil {
 			return "", nil, err
 		}
-		fields["priority"] = map[string]string{"id": id}
+		fields["priority"] = create.PriorityField(id)
 	}
 	if parentKey != "" {
 		fields["parent"] = map[string]string{"key": parentKey}
@@ -372,10 +372,4 @@ func parseParentKey(raw, cmd string) (string, error) {
 		return "", fmt.Errorf("gadak %s --parent %q is not a Jira key (want ABC-123)", cmd, raw)
 	}
 	return normalizeKey(raw), nil
-}
-
-// formatCreateTypes is the Name (id N) list used by resolvePriority in edit.go
-// (same package). Type resolution itself lives in internal/create.
-func formatCreateTypes(types []jira.NamedID) string {
-	return create.FormatTypes(types)
 }

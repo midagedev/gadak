@@ -22,7 +22,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { filters } from '../../stores/filters.svelte'
   import { recentOf, whenReady } from '../../lib/recency'
-  import type { CreateMetaProject, JiraUser } from '../../lib/types'
+  import type { CreateMetaProject, JiraUser, PriorityOption } from '../../lib/types'
   import Icon from '../ui/Icon.svelte'
 
   // A native <select> keeps its keyboard model and its OS popup; only the closed
@@ -32,8 +32,6 @@
     'h-control w-full appearance-none rounded-md border border-border-strong bg-bg-base pl-2.5 pr-7 text-body text-text-primary outline-none focus:border-accent'
   const SELECT_CHEVRON =
     'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-text-muted'
-
-  const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
 
   let loading = $state(true)
   let loadError = $state<string | null>(null)
@@ -47,6 +45,9 @@
   let summary = $state('')
   let description = $state('')
   let priority = $state('')
+  let priorities = $state<PriorityOption[]>([])
+  let prioritiesError = $state<string | null>(null)
+  let prioritiesLoading = $state(true)
   let duedate = $state('')
 
   // Assignee (optional)
@@ -78,7 +79,22 @@
 
   onMount(() => {
     void initDefaults()
+    void loadPriorities()
   })
+
+  async function loadPriorities() {
+    prioritiesLoading = true
+    prioritiesError = null
+    try {
+      const res = await api.getPriorities()
+      priorities = res.priorities.filter((p) => p.id)
+    } catch {
+      priorities = []
+      prioritiesError = t('write.prioritiesFailed')
+    } finally {
+      prioritiesLoading = false
+    }
+  }
 
   async function initDefaults() {
     // Wait for local.db recency (and the one-shot localStorage absorb) so
@@ -223,7 +239,7 @@
       summary: s,
       description_text: description.trim() || undefined,
       assignee_account_id: assignee?.account_id ?? undefined,
-      priority: priority || undefined,
+      priority_id: priority || undefined,
       labels: labels.length ? labels : undefined,
       duedate: duedate || undefined,
     })
@@ -368,14 +384,22 @@
           <label class="flex w-32 flex-none flex-col gap-1">
             <span class="text-micro text-text-secondary">{t('common.priority')}</span>
             <span class="relative flex">
-              <select bind:value={priority} class={SELECT}>
+              <select
+                bind:value={priority}
+                class={SELECT}
+                disabled={!!prioritiesError || prioritiesLoading}
+                data-testid="new-issue-priority"
+              >
                 <option value="">{t('common.defaultParen')}</option>
-                {#each PRIORITIES as p (p)}
-                  <option value={p}>{p}</option>
+                {#each priorities as p (p.id)}
+                  <option value={p.id}>{p.name}</option>
                 {/each}
               </select>
               <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
             </span>
+            {#if prioritiesError}
+              <span class="text-micro text-status-reopen">{prioritiesError}</span>
+            {/if}
           </label>
         </div>
 

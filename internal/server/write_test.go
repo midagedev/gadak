@@ -568,7 +568,7 @@ func TestCreateIssueEmptyOptionalFieldsOmittedFromPayload(t *testing.T) {
 	// Empty string is "no value", not "set empty". issue_type:"" must resolve
 	// via the default; description/priority must not appear on the Jira body.
 	rec := send(t, h, http.MethodPost, apiBase+"create/",
-		`{"project_key":"NMB","issue_type":"","summary":"omit empties","description_text":"","priority":"","labels":[]}`)
+		`{"project_key":"NMB","issue_type":"","summary":"omit empties","description_text":"","priority_id":"","labels":[]}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
 	}
@@ -583,6 +583,35 @@ func TestCreateIssueEmptyOptionalFieldsOmittedFromPayload(t *testing.T) {
 		if strings.Contains(sent, forbidden) {
 			t.Errorf("optional field %s present in payload: %s", forbidden, sent)
 		}
+	}
+}
+
+func TestCreateIssueSendsPriorityByID(t *testing.T) {
+	f, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"with pri","priority_id":"2"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if !strings.Contains(sent, `"priority":{"id":"2"}`) {
+		t.Fatalf("priority id missing: %s", sent)
+	}
+	if strings.Contains(sent, `"priority":{"name"`) {
+		t.Fatalf("priority sent by name: %s", sent)
+	}
+}
+
+func TestCreateIssueIgnoresPriorityNameField(t *testing.T) {
+	f, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"old name","priority":"High"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if strings.Contains(sent, `"priority"`) {
+		t.Fatalf("legacy priority name must not reach Jira: %s", sent)
 	}
 }
 

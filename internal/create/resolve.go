@@ -1,6 +1,6 @@
-// Package create is the single owner of project and issue-type resolution
-// for gadak create (CLI and REST). Both surfaces must call these functions
-// so a default cannot exist on one path and not the other.
+// Package create is the single owner of project, issue-type, and priority
+// resolution for gadak create (CLI and REST). Both surfaces must call these
+// functions so a default cannot exist on one path and not the other.
 package create
 
 import (
@@ -116,4 +116,25 @@ func FormatTypes(types []jira.NamedID) string {
 		parts = append(parts, fmt.Sprintf("%s (id %s)", t.Name, t.ID))
 	}
 	return strings.Join(parts, "; ")
+}
+
+// Priority resolves a user-supplied name or id against the site catalog.
+// Names follow the account language; the return is always the catalog id.
+func Priority(want string, list []jira.NamedID) (id string, err error) {
+	want = strings.TrimSpace(want)
+	if want == "" {
+		return "", fmt.Errorf("pass --priority, available: %s", FormatTypes(list))
+	}
+	for _, p := range list {
+		if p.ID == want || strings.EqualFold(p.Name, want) {
+			return p.ID, nil
+		}
+	}
+	return "", fmt.Errorf("no priority matching %q — available: %s", want, FormatTypes(list))
+}
+
+// PriorityField is the Jira fields.priority value: always an id, never a
+// localized name. Create and edit both send this shape.
+func PriorityField(id string) map[string]string {
+	return map[string]string{"id": id}
 }
