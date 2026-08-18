@@ -66,8 +66,9 @@ function normalizePrerequisite(v: unknown): IntegrationPrerequisite | null {
 /**
  * `GET /desktop/integrations` body → items, in the order the server sent them.
  *
- * The order is the server's (raycast, skill, mcp-claude): it is the reading
- * order of the setup, so the UI must not re-sort it. Anything unusable is
+ * The order is the server's (command-line-tool, then raycast when the host
+ * offers it, skill, mcp-claude): it is the reading order of the setup, so
+ * the UI must not re-sort it. Windows omits raycast. Anything unusable is
  * dropped rather than drawn as a nameless card.
  */
 export function normalizeIntegrations(body: unknown): IntegrationItem[] {

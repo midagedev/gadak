@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +18,7 @@ import (
 )
 
 // IDs are part of the GET/POST contract. Order of List is fixed:
-// command-line-tool, raycast, skill, mcp-claude.
+// command-line-tool, raycast (omitted on Windows), skill, mcp-claude.
 const (
 	IDCommandLineTool = "command-line-tool"
 	IDRaycast         = "raycast"
@@ -63,18 +64,46 @@ type Item struct {
 	Prerequisite *Prerequisite `json:"prerequisite"`
 }
 
-// List returns the four catalog rows in contract order:
-// command-line-tool, raycast, skill, mcp-claude.
+// List returns the catalog rows for this host's GOOS, in contract order:
+// command-line-tool, raycast (darwin/linux only), skill, mcp-claude.
+// Windows omits raycast — Raycast does not exist there, and a row whose
+// Install button can run would lie (GDK-244).
 func List() []Item {
-	return []Item{commandLineToolItem(), raycastItem(), skillItem(), mcpClaudeItem()}
+	return ListFor(runtime.GOOS)
 }
 
-// InstallArgs is the argv tail for the bundled gadak CLI. ok is false for an unknown id.
+// ListFor is List with an explicit GOOS so the Windows catalog can be
+// pinned on any host (same shape as clitool.ResolveFor).
+func ListFor(goos string) []Item {
+	items := []Item{commandLineToolItem()}
+	if raycastOffered(goos) {
+		items = append(items, raycastItem())
+	}
+	items = append(items, skillItem(), mcpClaudeItem())
+	return items
+}
+
+// raycastOffered is the single owner of "does this OS get a Raycast row".
+// The install endpoint uses the same predicate via InstallArgsFor.
+func raycastOffered(goos string) bool {
+	return goos != "windows"
+}
+
+// InstallArgs is the argv tail for the bundled gadak CLI. ok is false for an
+// unknown id, and for raycast on Windows.
 func InstallArgs(id string) ([]string, bool) {
+	return InstallArgsFor(id, runtime.GOOS)
+}
+
+// InstallArgsFor is InstallArgs with an explicit GOOS.
+func InstallArgsFor(id, goos string) ([]string, bool) {
 	switch id {
 	case IDCommandLineTool:
 		return []string{"install-cli"}, true
 	case IDRaycast:
+		if !raycastOffered(goos) {
+			return nil, false
+		}
 		return []string{"raycast", "install"}, true
 	case IDSkill:
 		return []string{"skill", "install", "claude"}, true
@@ -297,6 +326,10 @@ func isExecutable(path string) bool {
 	fi, err := os.Stat(path)
 	if err != nil || fi.IsDir() {
 		return false
+	}
+	// Windows file modes are not POSIX execute bits; a regular file is enough.
+	if runtime.GOOS == "windows" {
+		return true
 	}
 	return fi.Mode()&0o111 != 0
 }

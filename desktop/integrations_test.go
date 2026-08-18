@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -39,8 +40,12 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 			t.Fatalf("json: %v\n%s", err, rec.Body.String())
 		}
-		if len(doc.Items) != 4 {
-			t.Fatalf("len(items)=%d want 4: %s", len(doc.Items), rec.Body.String())
+		wantN := 4
+		if runtime.GOOS == "windows" {
+			wantN = 3
+		}
+		if len(doc.Items) != wantN {
+			t.Fatalf("len(items)=%d want %d: %s", len(doc.Items), wantN, rec.Body.String())
 		}
 		return doc.Items
 	}
@@ -48,6 +53,10 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 	items := get()
 	wantIDs := []string{"command-line-tool", "raycast", "skill", "mcp-claude"}
 	wantCmd := []string{"gadak install-cli", "gadak raycast install", "gadak skill install claude", "gadak mcp install claude"}
+	if runtime.GOOS == "windows" {
+		wantIDs = []string{"command-line-tool", "skill", "mcp-claude"}
+		wantCmd = []string{"gadak install-cli", "gadak skill install claude", "gadak mcp install claude"}
+	}
 	for i, id := range wantIDs {
 		if items[i]["id"] != id {
 			t.Fatalf("items[%d].id=%v want %s", i, items[i]["id"], id)
@@ -56,17 +65,26 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 			t.Fatalf("items[%d].command=%v want %s", i, items[i]["command"], wantCmd[i])
 		}
 	}
-	if items[1]["installed"] != false {
-		t.Fatalf("raycast installed=%v want false", items[1]["installed"])
+	byID := map[string]map[string]any{}
+	for _, it := range items {
+		id, _ := it["id"].(string)
+		byID[id] = it
 	}
-	if items[2]["installed"] != false {
-		t.Fatalf("skill installed=%v want false", items[2]["installed"])
+	if runtime.GOOS != "windows" {
+		if byID["raycast"]["installed"] != false {
+			t.Fatalf("raycast installed=%v want false", byID["raycast"]["installed"])
+		}
+		if byID["raycast"]["detail"] != "~/.gadak/raycast-extension" {
+			t.Fatalf("raycast detail=%v", byID["raycast"]["detail"])
+		}
+	} else if _, ok := byID["raycast"]; ok {
+		t.Fatal("windows GET must not include raycast")
 	}
-	if items[2]["prerequisite"] != nil {
-		t.Fatalf("skill prerequisite=%v want null", items[2]["prerequisite"])
+	if byID["skill"]["installed"] != false {
+		t.Fatalf("skill installed=%v want false", byID["skill"]["installed"])
 	}
-	if items[1]["detail"] != "~/.gadak/raycast-extension" {
-		t.Fatalf("raycast detail=%v", items[1]["detail"])
+	if byID["skill"]["prerequisite"] != nil {
+		t.Fatalf("skill prerequisite=%v want null", byID["skill"]["prerequisite"])
 	}
 
 	if err := os.MkdirAll(filepath.Join(gadakHome, "raycast-extension"), 0o755); err != nil {
@@ -84,11 +102,48 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 	}
 
 	items = get()
-	if items[1]["installed"] != true {
-		t.Fatalf("raycast after touch: installed=%v want true", items[1]["installed"])
+	byID = map[string]map[string]any{}
+	for _, it := range items {
+		id, _ := it["id"].(string)
+		byID[id] = it
 	}
-	if items[2]["installed"] != true {
-		t.Fatalf("skill after touch: installed=%v want true", items[2]["installed"])
+	if runtime.GOOS != "windows" {
+		if byID["raycast"]["installed"] != true {
+			t.Fatalf("raycast after touch: installed=%v want true", byID["raycast"]["installed"])
+		}
+	}
+	if byID["skill"]["installed"] != true {
+		t.Fatalf("skill after touch: installed=%v want true", byID["skill"]["installed"])
+	}
+}
+
+func TestDesktopCLICandidatesWindowsSibling(t *testing.T) {
+	got := desktopCLICandidates(`C:\bundle`, "windows")
+	want := []string{
+		filepath.Join(`C:\bundle`, "..", "Resources", "bin", "gadak"),
+		filepath.Join(`C:\bundle`, "gadak.exe"),
+		filepath.Join(`C:\bundle`, "gadak"),
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v want %v", got, want)
+		}
+	}
+}
+
+func TestDesktopCLIOKForWindowsIgnoresUnixMode(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "gadak.exe")
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !desktopCLIOKFor(p, "windows") {
+		t.Fatal("windows must accept a regular file without a POSIX execute bit")
+	}
+	if desktopCLIOKFor(p, "darwin") {
+		t.Fatal("darwin must still require the execute bit")
 	}
 }
 
@@ -125,6 +180,19 @@ func TestIntegrationsPOSTUnknownID(t *testing.T) {
 	integrationsMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/desktop/integrations/nope/install", nil))
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("got %d want 404 body %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestIntegrationsPOSTRaycastOnWindowsIsUnknown(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		// The GOOS seam lives in InstallArgsFor; pin it there. This test
+		// is the handler-level check for a Windows process.
+		t.Skip("handler uses runtime.GOOS; InstallArgsFor is pinned in integrations_test")
+	}
+	rec := httptest.NewRecorder()
+	integrationsMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/desktop/integrations/raycast/install", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("windows raycast POST: %d want 404 body %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -185,7 +253,7 @@ func TestIntegrationsPOSTConflict(t *testing.T) {
 func TestIntegrationsPOSTMissingCLI(t *testing.T) {
 	t.Setenv("GADAK_DESKTOP_CLI", filepath.Join(t.TempDir(), "no-such-gadak"))
 	rec := httptest.NewRecorder()
-	integrationsMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/desktop/integrations/raycast/install", nil))
+	integrationsMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/desktop/integrations/skill/install", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("POST: %d %s", rec.Code, rec.Body.String())
 	}

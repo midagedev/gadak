@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -69,8 +70,9 @@ func endInstall(id string) {
 }
 
 // resolveDesktopCLI is the bundled gadak used to run install verbs.
-// Order: GADAK_DESKTOP_CLI (test override, exclusive), then
-// <os.Executable>/../Resources/bin/gadak, LookPath("gadak"),
+// Order: GADAK_DESKTOP_CLI (test override, exclusive), then the
+// candidates next to this executable (macOS app-bundle Resources/bin,
+// Windows portable sibling gadak.exe), LookPath("gadak"),
 // /opt/homebrew/bin/gadak, /usr/local/bin/gadak.
 func resolveDesktopCLI() (string, error) {
 	if p := os.Getenv("GADAK_DESKTOP_CLI"); p != "" {
@@ -80,9 +82,10 @@ func resolveDesktopCLI() (string, error) {
 		return "", fmt.Errorf("gadak CLI not found at GADAK_DESKTOP_CLI=%s", p)
 	}
 	if exe, err := os.Executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "..", "Resources", "bin", "gadak")
-		if desktopCLIOK(p) {
-			return p, nil
+		for _, p := range desktopCLICandidates(filepath.Dir(exe), runtime.GOOS) {
+			if desktopCLIOK(p) {
+				return p, nil
+			}
 		}
 	}
 	if p, err := exec.LookPath("gadak"); err == nil && p != "" {
@@ -96,10 +99,30 @@ func resolveDesktopCLI() (string, error) {
 	return "", fmt.Errorf("gadak CLI not found")
 }
 
+// desktopCLICandidates is every path we try next to the desktop executable
+// before falling back to PATH. goos is explicit so tests can pin the
+// Windows sibling without running there.
+func desktopCLICandidates(exeDir, goos string) []string {
+	out := []string{filepath.Join(exeDir, "..", "Resources", "bin", "gadak")}
+	if goos == "windows" {
+		out = append(out, filepath.Join(exeDir, "gadak.exe"), filepath.Join(exeDir, "gadak"))
+	} else {
+		out = append(out, filepath.Join(exeDir, "gadak"))
+	}
+	return out
+}
+
 func desktopCLIOK(p string) bool {
+	return desktopCLIOKFor(p, runtime.GOOS)
+}
+
+func desktopCLIOKFor(p, goos string) bool {
 	fi, err := os.Stat(p)
 	if err != nil || fi.IsDir() {
 		return false
+	}
+	if goos == "windows" {
+		return true
 	}
 	return fi.Mode()&0o111 != 0
 }

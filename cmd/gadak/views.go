@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -648,9 +649,16 @@ const (
 	desktopFocusError
 )
 
+// desktopFocusGOOS is the platform seam for focusDesktopApp. Production is
+// runtime.GOOS; tests inject "windows" on a Linux/macOS host.
+var desktopFocusGOOS = runtime.GOOS
+
 // desktopAppExists / startOpen / listServes are the D5 seams. Production
 // talks to the real app bundle and loopback probes; tests replace them.
 var desktopAppExists = func() bool {
+	if desktopFocusGOOS == "windows" {
+		return findWindowsDesktopExe() != ""
+	}
 	_, err := os.Stat("/Applications/Gadak.app")
 	return err == nil
 }
@@ -678,9 +686,13 @@ var startOpenWait = func(args ...string) error {
 // lookDesktopProcess(desktopProcessName).
 const desktopProcessName = "gadak-desktop"
 
-// lookDesktopProcess is the pgrep seam. Production runs `pgrep -xq <name>`;
-// tests replace it so they can assert the name without touching a live process.
+// lookDesktopProcess is the process-census seam. Production uses pgrep on
+// Unix and tasklist on Windows (inbox, not PowerShell); tests replace it
+// so they can assert the name without touching a live process.
 var lookDesktopProcess = func(name string) bool {
+	if desktopFocusGOOS == "windows" {
+		return lookWindowsProcess(name)
+	}
 	return exec.Command("pgrep", "-xq", name).Run() == nil
 }
 
@@ -787,12 +799,15 @@ func noProfileWindowMsg(name string, running []string) string {
 // on `open`: an unregistered scheme is reported through the exit status and
 // nowhere else.
 func focusDesktopApp(link string) (bool, error) {
-	if runtime.GOOS != "darwin" {
+	if desktopFocusGOOS != "darwin" && desktopFocusGOOS != "windows" {
 		return false, nil
 	}
 	act, msg := decideDesktopFocus(desktopAppExists(), desktopAppRunning(), config.Profile(), listServes())
 	switch act {
 	case desktopFocusRaise:
+		if desktopFocusGOOS == "windows" {
+			return raiseDesktopWindows(link)
+		}
 		if link != "" && startOpenWait(link) == nil {
 			return true, nil
 		}
@@ -805,4 +820,85 @@ func focusDesktopApp(link string) (bool, error) {
 	default:
 		return false, nil
 	}
+}
+
+// startWindowsDesktop launches the portable gadak-desktop.exe. A second
+// instance is forwarded by wails SingleInstance (raise + applyDeepLink);
+// a first instance reads the gadak:// arg after the window is ready.
+var startWindowsDesktop = startWindowsDesktopImpl
+
+// raiseWindowsWindow brings the existing Gadak window forward by title.
+var raiseWindowsWindow = raiseWindowsWindowImpl
+
+func raiseDesktopWindows(link string) (bool, error) {
+	err := startWindowsDesktop(link)
+	raised := raiseWindowsWindow()
+	if err != nil {
+		if raised && link == "" {
+			return true, nil
+		}
+		if raised && link != "" {
+			return false, fmt.Errorf("raised Gadak but could not deliver the link: %w", err)
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
+func startWindowsDesktopImpl(link string) error {
+	exe := findWindowsDesktopExe()
+	if exe == "" {
+		return fmt.Errorf("gadak-desktop.exe not found next to this CLI or on PATH")
+	}
+	var args []string
+	if link != "" {
+		args = []string{link}
+	}
+	return exec.Command(exe, args...).Start()
+}
+
+// findWindowsDesktopExe is the portable-bundle layout: gadak.exe and
+// gadak-desktop.exe sit in the same directory (desktop/build-windows.ps1).
+func findWindowsDesktopExe() string {
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		for _, name := range []string{"gadak-desktop.exe", "gadak-desktop"} {
+			p := filepath.Join(dir, name)
+			if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+				return p
+			}
+		}
+	}
+	if p, err := exec.LookPath("gadak-desktop.exe"); err == nil {
+		return p
+	}
+	if p, err := exec.LookPath("gadak-desktop"); err == nil {
+		return p
+	}
+	return ""
+}
+
+func lookWindowsProcess(name string) bool {
+	image := name
+	if !strings.HasSuffix(strings.ToLower(image), ".exe") {
+		image += ".exe"
+	}
+	// tasklist is the inbox census. golang.org/x/sys/windows is
+	// GOOS-constrained and this file is compiled on every platform; we do
+	// not shell out to PowerShell.
+	if runtime.GOOS != "windows" {
+		return false
+	}
+	out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq "+image, "/NH").Output()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(string(out)), strings.ToLower(image))
+}
+
+func raiseWindowsWindowImpl() bool {
+	if runtime.GOOS != "windows" {
+		return false
+	}
+	return raiseGadakWindowByTitle("Gadak")
 }
