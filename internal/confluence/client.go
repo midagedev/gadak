@@ -1,5 +1,8 @@
 // Package confluence is a thin REST client for Confluence Cloud: enough of the
-// API to fill the page mirror, and nothing else. It never writes to Confluence.
+// API to fill the page mirror, plus the user-initiated page writes that go
+// through the origin (create / update). It never writes to gadak's SQLite
+// mirror — after a write, callers re-read from the origin (and, on a later
+// surface, SyncPage the same way SyncIssue follows a Jira write).
 //
 // The token lives only in the Authorization header. It is never put in an error,
 // a log line or a URL (constitution article 8).
@@ -54,6 +57,36 @@ var ErrNotFound = errors.New("confluence: content not found")
 // Error() keeps the "confluence:" prefix so last_error names the source.
 // Callers keep using errors.Is(err, confluence.ErrAuth).
 var ErrAuth = atlhttp.Auth("confluence")
+
+// APIError is a non-2xx Confluence answer with its HTTP status. Callers
+// distinguish a stale version (409) from other rejections with Status or
+// errors.Is(err, ErrConflict) — not by matching a human-readable substring.
+// The shape follows jira.APIError.
+type APIError struct {
+	Status int
+	Body   string
+}
+
+func (e *APIError) Error() string {
+	if e == nil {
+		return "confluence: <nil>"
+	}
+	if e.Body != "" {
+		return fmt.Sprintf("confluence: %d: %s", e.Status, e.Body)
+	}
+	return fmt.Sprintf("confluence: %d", e.Status)
+}
+
+// Is reports whether target is an APIError with the same Status. That is
+// how ErrConflict matches any 409, including a wrapped one.
+func (e *APIError) Is(target error) bool {
+	t, ok := target.(*APIError)
+	return ok && e != nil && t != nil && e.Status == t.Status
+}
+
+// ErrConflict is a 409. On update, that is a stale version.number: the
+// caller refetches and decides. This client does not retry a 409.
+var ErrConflict = &APIError{Status: http.StatusConflict}
 
 // Client talks to Confluence Cloud under <site>/wiki.
 type Client struct {
@@ -391,6 +424,79 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	return c.call(ctx, method, path, body, out, false)
 }
 
+// write is do() with the retry policy a state-changing request needs. A 500
+// may mean Confluence already acted, so only 429 and 503 are retried. A 409
+// (stale version) is never retried — it is returned as ErrConflict.
+func (c *Client) write(ctx context.Context, method, path string, body, out any) error {
+	return c.call(ctx, method, path, body, out, true)
+}
+
+// CreatePage POSTs a page to the origin. ADF is the atlas_doc_format value
+// as a JSON string (the same representation the read path already handles).
+// parentID, when non-empty, is sent as ancestors[0].id.
+//
+// The returned page is a GET of the new id, not the request body and not
+// the POST envelope — the origin is the record.
+func (c *Client) CreatePage(ctx context.Context, spaceKey, title, adf string, parentID string) (Page, error) {
+	body := map[string]any{
+		"type":  "page",
+		"title": title,
+		"space": map[string]any{"key": spaceKey},
+		"body": map[string]any{
+			"atlas_doc_format": map[string]any{
+				"value":          adf,
+				"representation": "atlas_doc_format",
+			},
+		},
+	}
+	if parentID != "" {
+		body["ancestors"] = []map[string]string{{"id": parentID}}
+	}
+	var created Page
+	if err := c.write(ctx, http.MethodPost, apiPath+"/content", body, &created); err != nil {
+		return Page{}, err
+	}
+	if created.ID == "" {
+		return created, nil
+	}
+	got, err := c.Page(ctx, created.ID)
+	if err != nil {
+		return created, fmt.Errorf("confluence: create landed, read failed: %w", err)
+	}
+	return got, nil
+}
+
+// UpdatePage PUTs a page. nextVersion must be the origin's current
+// version.number + 1. A stale number is a 409 / ErrConflict — the caller
+// refetches and decides; this method does not retry.
+//
+// The returned page is a GET after the write, same as CreatePage.
+func (c *Client) UpdatePage(ctx context.Context, id, title, adf string, nextVersion int) (Page, error) {
+	body := map[string]any{
+		"type":  "page",
+		"title": title,
+		"version": map[string]any{
+			"number": nextVersion,
+		},
+		"body": map[string]any{
+			"atlas_doc_format": map[string]any{
+				"value":          adf,
+				"representation": "atlas_doc_format",
+			},
+		},
+	}
+	p := fmt.Sprintf("%s/content/%s", apiPath, url.PathEscape(id))
+	var written Page
+	if err := c.write(ctx, http.MethodPut, p, body, &written); err != nil {
+		return Page{}, err
+	}
+	got, err := c.Page(ctx, id)
+	if err != nil {
+		return written, fmt.Errorf("confluence: update landed, read failed: %w", err)
+	}
+	return got, nil
+}
+
 // Raw sends a request and returns the HTTP status and response body without
 // JSON decoding. Path is relative to the wiki origin (e.g. /rest/api/… or
 // /api/v2/… — not the /wiki prefix). Absolute URLs are rejected. mutating
@@ -420,7 +526,11 @@ func (c *Client) call(ctx context.Context, method, path string, body, out any, m
 	case status == http.StatusNotFound:
 		return fmt.Errorf("%s %s: %w: %s", method, path, ErrNotFound, atlhttp.Snippet(data))
 	case status >= 300:
-		return fmt.Errorf("%s %s: %s: %s", method, path, statusLine, atlhttp.Snippet(data))
+		body := atlhttp.Snippet(data)
+		if body == "" {
+			body = statusLine
+		}
+		return fmt.Errorf("%s %s: %w", method, path, &APIError{Status: status, Body: body})
 	}
 	if out == nil || len(data) == 0 {
 		return nil

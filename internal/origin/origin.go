@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
 	issuetap "github.com/midagedev/issuetap"
 )
@@ -22,6 +23,18 @@ const PersistRel = "origin/issuetap.yaml"
 // create/createmeta have somewhere to file. Issuetap also creates a project
 // on first write if a caller names another key.
 const DefaultProjectKey = "STD"
+
+// DefaultSpaceKey is the wiki space seeded into a new standalone origin so
+// page create has somewhere to file. Short and obviously local — not a
+// display name, and not a site-specific key.
+const DefaultSpaceKey = "LOC"
+
+// DefaultConfluenceConfig is what initStandalone should write so the wiki
+// sync pass is on and scoped to the seeded space. Presence of the block is
+// the on switch (internal/sync/confluence.go).
+func DefaultConfluenceConfig() *config.ConfluenceConfig {
+	return &config.ConfluenceConfig{Spaces: []string{DefaultSpaceKey}}
+}
 
 // in-process Basic credentials presented to issuetap. They never leave this
 // process: they are not written to config, a log, or disk. Issuetap rejects
@@ -84,6 +97,7 @@ func Describe(cfg *config.Config) (kind, origin string) {
 type session struct {
 	emb    *issuetap.Embedded
 	client *jira.Client
+	wiki   *confluence.Client
 }
 
 var (
@@ -92,6 +106,38 @@ var (
 )
 
 func standaloneClient(cfg *config.Config) (*jira.Client, error) {
+	s, err := standaloneSession(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return s.client, nil
+}
+
+// Wiki is the single owner of "this workspace's Confluence client".
+// A connected workspace gets confluence.New(site, email, token).
+// A standalone workspace shares the in-process issuetap handler with Client.
+func Wiki(cfg *config.Config) (*confluence.Client, error) {
+	if cfg == nil {
+		return nil, errors.New("origin: nil config")
+	}
+	if cfg.IsStandalone() {
+		return standaloneWiki(cfg)
+	}
+	if cfg.Site == "" || cfg.Email == "" || cfg.Token == "" {
+		return nil, errNeedCredential
+	}
+	return confluence.New(cfg.Site, cfg.Email, cfg.Token), nil
+}
+
+func standaloneWiki(cfg *config.Config) (*confluence.Client, error) {
+	s, err := standaloneSession(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return s.wiki, nil
+}
+
+func standaloneSession(cfg *config.Config) (*session, error) {
 	dir, err := profileDir(cfg)
 	if err != nil {
 		return nil, err
@@ -104,7 +150,7 @@ func standaloneClient(cfg *config.Config) (*jira.Client, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	if s, ok := live[persist]; ok {
-		return s.client, nil
+		return s, nil
 	}
 
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
@@ -119,14 +165,23 @@ func standaloneClient(cfg *config.Config) (*jira.Client, error) {
 		return nil, fmt.Errorf("origin: issuetap: %w", err)
 	}
 
+	tr := &handlerTransport{h: emb}
+
 	c := Connected("", inProcessUser, inProcessSecret)
 	if c.HTTP == nil {
 		c.HTTP = &http.Client{}
 	}
-	c.HTTP.Transport = &handlerTransport{h: emb}
+	c.HTTP.Transport = tr
 
-	live[persist] = &session{emb: emb, client: c}
-	return c, nil
+	w := confluence.New("", inProcessUser, inProcessSecret)
+	if w.HTTP == nil {
+		w.HTTP = &http.Client{}
+	}
+	w.HTTP.Transport = tr
+
+	s := &session{emb: emb, client: c, wiki: w}
+	live[persist] = s
+	return s, nil
 }
 
 func profileDir(cfg *config.Config) (string, error) {
@@ -157,12 +212,20 @@ func Close() error {
 }
 
 // defaultStandaloneFixture is applied only when PersistPath does not yet
-// exist. It names one project so createmeta/create have a target; it does
-// not seed issues. When the persist file is present, issuetap skips this.
-var defaultStandaloneFixture = []byte(`projects:
-  - id: "10000"
-    key: STD
-    name: Standalone
-    type: software
-    style: classic
-`)
+// exist. It names one project so createmeta/create have a target, and one
+// space so page create has a target; it does not seed issues or pages.
+// When the persist file is present, issuetap skips this.
+//
+// Keys come from DefaultProjectKey / DefaultSpaceKey so the literals are
+// not scattered.
+var defaultStandaloneFixture = []byte("projects:\n" +
+	"  - id: \"10000\"\n" +
+	"    key: " + DefaultProjectKey + "\n" +
+	"    name: Standalone\n" +
+	"    type: software\n" +
+	"    style: classic\n" +
+	"spaces:\n" +
+	"  - id: \"40000\"\n" +
+	"    key: " + DefaultSpaceKey + "\n" +
+	"    name: Local\n" +
+	"    type: global\n")
