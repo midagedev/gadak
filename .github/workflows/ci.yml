@@ -233,29 +233,38 @@ jobs:
       # wails v3's Linux host is GTK4 + WebKitGTK 6.0 and needs CGO. The 4.1
       # (gtk3) stack is the legacy tag and is deliberately not installed.
       - name: GTK4 / WebKitGTK 6.0 development packages
-        timeout-minutes: 6
+        timeout-minutes: 12
         run: |
           set -eu
-          # A hung Ubuntu mirror, not a build problem, is what this guards.
-          # On 2026-08-18 `apt-get update` went silent for 24 minutes on
-          # noble-security and ate the job's whole 25-minute budget, so a PR
-          # was reported as a Linux build timeout when nothing had been built
-          # yet. Unbounded by default, apt waits forever; bound each request,
-          # retry, and cap the step so a stuck mirror costs six minutes and
-          # names itself instead of impersonating a failed build.
+          # A stalled Ubuntu mirror, not a build problem, is what this guards.
+          # Twice on 2026-08-18 azure.archive.ubuntu.com Ign'd every request
+          # and the archive.ubuntu.com fallback then went silent mid-index for
+          # 24 minutes, so a PR was reported as a Linux *build* timeout before
+          # anything had been compiled.
+          #
+          # Acquire::*::Timeout does not catch this: the socket is not idle,
+          # it is trickling, and apt has no minimum-speed option. So the wall
+          # clock has to come from outside apt — `timeout` per attempt, which
+          # is also what makes the retry loop reachable at all (with only the
+          # apt options, attempt 1 never returned and 2 and 3 never ran).
           opts=(-o Acquire::Retries=3
                 -o Acquire::http::Timeout=20
                 -o Acquire::https::Timeout=20)
-          for attempt in 1 2 3; do
-            sudo apt-get "${opts[@]}" update && break
-            if [ "$attempt" = 3 ]; then
-              echo "apt-get update failed three times — mirror trouble, not a build failure" >&2
-              exit 1
-            fi
-            echo "apt-get update failed (attempt $attempt), retrying" >&2
-            sleep 5
-          done
-          sudo apt-get "${opts[@]}" install -y --no-install-recommends \
+          apt_try() {
+            for attempt in 1 2 3; do
+              # timeout under sudo, so it signals apt-get directly rather
+              # than relying on sudo to forward.
+              sudo timeout -k 10 150 apt-get "${opts[@]}" "$@" && return 0
+              if [ "$attempt" = 3 ]; then
+                echo "apt-get $1 failed or stalled three times — mirror trouble, not a build failure" >&2
+                return 1
+              fi
+              echo "apt-get $1 failed or stalled (attempt $attempt), retrying" >&2
+              sleep 10
+            done
+          }
+          apt_try update
+          apt_try install -y --no-install-recommends \
             libgtk-4-dev libwebkitgtk-6.0-dev pkg-config imagemagick
 
       - name: Build the web UI
