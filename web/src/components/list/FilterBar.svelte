@@ -167,7 +167,7 @@
       title={t('filter.remove')}
       class:order-last={chip.kind === 'range'}
     >
-      <span class="truncate max-w-[180px]">{chip.label}</span>
+      <span class="truncate {chip.kind === 'range' ? 'max-w-[220px]' : 'max-w-[180px]'}">{chip.label}</span>
       <Icon name="x" size={12} class="text-text-muted transition-colors group-hover:text-status-reopen" />
     </button>
   {/each}

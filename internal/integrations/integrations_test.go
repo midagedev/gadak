@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -296,4 +297,65 @@ func TestLookPathDefaultIsExecLookPath(t *testing.T) {
 		t.Fatal("lookPath is nil")
 	}
 	_, _ = exec.LookPath("true")
+}
+
+// Raycast does not exist on Windows. The catalog must not offer a row whose
+// Install button can run (GDK-244). ListFor is the GOOS seam so this pins
+// the Windows catalog on a Linux/macOS CI host.
+func TestListForWindowsOmitsRaycast(t *testing.T) {
+	items := ListFor("windows")
+	ids := make([]string, len(items))
+	for i, it := range items {
+		ids[i] = it.ID
+		if it.ID == IDRaycast {
+			t.Fatalf("windows catalog must not include raycast: %+v", it)
+		}
+	}
+	want := []string{IDCommandLineTool, IDSkill, IDMCPClaude}
+	if len(ids) != len(want) {
+		t.Fatalf("windows ids=%v want %v", ids, want)
+	}
+	for i, id := range want {
+		if ids[i] != id {
+			t.Fatalf("windows ids=%v want %v", ids, want)
+		}
+	}
+}
+
+func TestListForDarwinKeepsRaycast(t *testing.T) {
+	items := ListFor("darwin")
+	if len(items) != 4 {
+		t.Fatalf("darwin len=%d want 4", len(items))
+	}
+	if items[1].ID != IDRaycast {
+		t.Fatalf("darwin order %v", []string{items[0].ID, items[1].ID, items[2].ID, items[3].ID})
+	}
+}
+
+func TestInstallArgsForWindowsRejectsRaycast(t *testing.T) {
+	if args, ok := InstallArgsFor(IDRaycast, "windows"); ok {
+		t.Fatalf("windows must not install raycast, args=%v", args)
+	}
+	if _, ok := InstallArgsFor(IDSkill, "windows"); !ok {
+		t.Fatal("skill must still be installable on windows")
+	}
+	if _, ok := InstallArgsFor(IDCommandLineTool, "windows"); !ok {
+		t.Fatal("command-line-tool must still be installable on windows")
+	}
+	if _, ok := InstallArgsFor(IDRaycast, "darwin"); !ok {
+		t.Fatal("darwin must still install raycast")
+	}
+}
+
+func TestListMatchesListForThisGOOS(t *testing.T) {
+	got := List()
+	want := ListFor(runtime.GOOS)
+	if len(got) != len(want) {
+		t.Fatalf("List len=%d ListFor(%s) len=%d", len(got), runtime.GOOS, len(want))
+	}
+	for i := range got {
+		if got[i].ID != want[i].ID {
+			t.Fatalf("List[%d]=%q ListFor=%q", i, got[i].ID, want[i].ID)
+		}
+	}
 }

@@ -113,10 +113,10 @@ func Day(raw string, kind Kind, z Zone) (string, bool) {
 }
 
 // InRange is an inclusive YYYY-MM-DD compare after Day.
-// An empty raw passes only when from is empty (same as the old inRange).
+// An empty raw fails when any bound is set; with no bounds it still passes.
 func InRange(raw string, kind Kind, from, to string, z Zone) bool {
 	if strings.TrimSpace(raw) == "" {
-		return strings.TrimSpace(from) == ""
+		return strings.TrimSpace(from) == "" && strings.TrimSpace(to) == ""
 	}
 	day, ok := Day(raw, kind, z)
 	if !ok {

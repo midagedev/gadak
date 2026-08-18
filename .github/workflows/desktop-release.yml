@@ -247,3 +247,122 @@ jobs:
           done
           echo "cask push failed after 5 attempts" >&2
           exit 1
+
+  # Unsigned Windows portable zip. No certificate in 0.16 (GDK-211), so this
+  # job never looks for one. An installer would add SmartScreen/SAC friction
+  # without making the bytes more trustworthy, so the asset is a zip of the
+  # directory desktop/build-windows.ps1 already builds.
+  desktop-windows:
+    name: Windows app + zip
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build web UI
+        shell: pwsh
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path -LiteralPath dist/app)) { throw "dist/app missing" }
+
+      - name: Pack Windows portable zips
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./desktop/build-windows.ps1 --arch x64 --archive
+          ./desktop/build-windows.ps1 --arch arm64 --archive
+
+      # Recurrence gate (same decision as the macOS job, 2026-08-15):
+      # v0.14.0 apps match gadak-desktop-<os>-<arch>.zip exactly and would
+      # self-swap. The Windows asset is Gadak-<ver>-windows-<x64|arm64>.zip
+      # so it cannot be that name (different prefix, version in the middle,
+      # pack label x64 not amd64). It also cannot collide with the CLI zip
+      # gadak_<ver>_windows_<amd64|arm64>.zip from goreleaser.
+      - name: Notify-only — no updater zip name
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bad = @(Get-ChildItem -Path desktop/build -File -Filter 'gadak-desktop-*.zip' -ErrorAction SilentlyContinue)
+          if ($bad.Count -ne 0) {
+            Write-Host 'desktop/build contains zip(s) in the updater namespace:'
+            $bad | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
+          $zips = @(Get-ChildItem -Path desktop/build -File -Filter 'Gadak-*-windows-*.zip')
+          if ($zips.Count -eq 0) {
+            Write-Host 'no Gadak-*-windows-*.zip produced'
+            exit 1
+          }
+          foreach ($exe in @('gadak-desktop.exe', 'gadak.exe')) {
+            $hits = @(Get-ChildItem -Path desktop/build -Recurse -File -Filter $exe)
+            if ($hits.Count -eq 0) {
+              Write-Host "packed tree is missing $exe"
+              exit 1
+            }
+          }
+          Write-Host ("windows assets: {0}" -f ($zips.Name -join ', '))
+
+      - name: Upload Windows zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gadak-desktop-windows
+          path: |
+            desktop/build/Gadak-*-windows-*.zip
+          if-no-files-found: error
+
+      - name: Attach zip to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $tag = $env:GITHUB_REF_NAME
+          $zips = @(Get-ChildItem -Path desktop/build -File -Filter 'Gadak-*-windows-*.zip')
+          if ($zips.Count -eq 0) {
+            Write-Host 'no Windows zip produced' -ForegroundColor Red
+            exit 1
+          }
+          foreach ($z in $zips) {
+            if ($z.Name -like 'gadak-desktop-*.zip') {
+              Write-Host ("refusing to upload {0}: v0.14.0 apps match gadak-desktop-<os>-<arch>.zip" -f $z.Name)
+              exit 1
+            }
+          }
+          $found = $false
+          foreach ($i in 1..60) {
+            gh release view $tag 1>$null 2>$null
+            if ($LASTEXITCODE -eq 0) {
+              $found = $true
+              break
+            }
+            Write-Host "waiting for release $tag ($i/60)…"
+            Start-Sleep -Seconds 10
+          }
+          if (-not $found) {
+            Write-Host "release $tag not found after wait — creating shell release for the zip"
+            gh release create $tag --title $tag --generate-notes
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          $paths = @($zips | ForEach-Object { $_.FullName })
+          gh release upload $tag @paths --clobber
+          if ($LASTEXITCODE -ne 0) { exit 1 }

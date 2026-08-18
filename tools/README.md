@@ -144,6 +144,26 @@ no file is written.
 `.github/workflows/stats.yml` runs this weekly (Monday 06:00 UTC) and on
 `workflow_dispatch`, and commits `stats/<stamp>.json` on the `stats` branch.
 
+## `winsmoke.ps1`
+
+Manual / real-machine Windows startup gate (GDK-244). **Not a CI job** —
+GitHub `windows-latest` has no interactive desktop, so a capture there is
+black. Run it on a real Windows session (or `schtasks /create /it`).
+
+Launches `gadak-desktop.exe` from a portable pack directory, waits for the
+window, records hwnd/rect/style, counts WebView2 children, captures the
+screen, asserts it is not black, closes the app, and checks `GADAK_HOME`
+did not touch `%USERPROFILE%\.gadak`. Exit 0 / 1 / 64 / 69. The app has no
+TCP listener by design; "no port open" is a pass.
+
+The file is UTF-8 **with BOM** (Windows PowerShell 5.1 otherwise reads it
+as the system ANSI page).
+
+```powershell
+# After desktop/build-windows.ps1 has written the portable directory:
+tools/winsmoke.ps1 -BundleDir desktop\\build\\Gadak-<ver>-x64 -OutDir $env:TEMP\\gadak-winsmoke\\out
+```
+
 Per-release cumulative downloads:
 
 ```bash

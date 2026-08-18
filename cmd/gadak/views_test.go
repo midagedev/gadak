@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -106,12 +105,16 @@ func stubViewsLaunchSeams(t *testing.T, hits []serveHit) (openedWeb *bool, opene
 // paths, so a test can assert which one ran.
 func stubFocusSeams(t *testing.T) (deepLinked *[]string, raised *[]string, deepLinkErr *error) {
 	t.Helper()
+	savedGOOS := desktopFocusGOOS
 	savedExists, savedRunning, savedList := desktopAppExists, desktopAppRunning, listServes
 	savedOpen, savedWait := startOpen, startOpenWait
 	t.Cleanup(func() {
+		desktopFocusGOOS = savedGOOS
 		desktopAppExists, desktopAppRunning, listServes = savedExists, savedRunning, savedList
 		startOpen, startOpenWait = savedOpen, savedWait
 	})
+	// These tests pin the macOS `open` path; the Windows path has its own cases.
+	desktopFocusGOOS = "darwin"
 	desktopAppExists = func() bool { return true }
 	desktopAppRunning = func() bool { return true }
 	listServes = func() []gadakProbe { return nil }
@@ -132,9 +135,6 @@ func stubFocusSeams(t *testing.T) (deepLinked *[]string, raised *[]string, deepL
 // the uifocus file did in two, and without the file's two-minute window or
 // its per-mount consumption.
 func TestFocusDesktopAppPrefersTheDeepLink(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("focusDesktopApp is a no-op off darwin")
-	}
 	viaLink, viaRaise, _ := stubFocusSeams(t)
 	const link = "gadak://view/w/work?ks=NMA-1"
 	ok, err := focusDesktopApp(link)
@@ -154,9 +154,6 @@ func TestFocusDesktopAppPrefersTheDeepLink(t *testing.T) {
 // answers kLSApplicationNotFoundErr, and without this fallback the user
 // watches nothing happen.
 func TestFocusDesktopAppFallsBackWhenTheSchemeIsUnregistered(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("focusDesktopApp is a no-op off darwin")
-	}
 	viaLink, viaRaise, linkErr := stubFocusSeams(t)
 	*linkErr = errors.New("No application knows how to open URL")
 	ok, err := focusDesktopApp("gadak://view/w/work?ks=NMA-1")
@@ -174,9 +171,6 @@ func TestFocusDesktopAppFallsBackWhenTheSchemeIsUnregistered(t *testing.T) {
 // No link to offer — `views open` composes "" only when there is no hash —
 // so the old path is the whole path.
 func TestFocusDesktopAppWithoutALinkRaisesOnly(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("focusDesktopApp is a no-op off darwin")
-	}
 	viaLink, viaRaise, _ := stubFocusSeams(t)
 	if ok, err := focusDesktopApp(""); err != nil || !ok {
 		t.Fatalf("focusDesktopApp(\"\") = %v, %v; want true, nil", ok, err)
@@ -556,11 +550,16 @@ func TestDecideDesktopFocusDefaultLaunchesWhenIdle(t *testing.T) {
 }
 
 func TestFocusDesktopAppWrongProfileDoesNotOpen(t *testing.T) {
+	savedGOOS := desktopFocusGOOS
 	savedExists, savedRunning, savedList, savedOpen := desktopAppExists, desktopAppRunning, listServes, startOpen
+	savedWin := startWindowsDesktop
 	t.Cleanup(func() {
 		config.SetProfile("")
+		desktopFocusGOOS = savedGOOS
 		desktopAppExists, desktopAppRunning, listServes, startOpen = savedExists, savedRunning, savedList, savedOpen
+		startWindowsDesktop = savedWin
 	})
+	desktopFocusGOOS = "darwin"
 	config.SetProfile("work")
 	desktopAppExists = func() bool { return true }
 	desktopAppRunning = func() bool { return false }
@@ -573,13 +572,11 @@ func TestFocusDesktopAppWrongProfileDoesNotOpen(t *testing.T) {
 		t.Errorf("must not call open: %v", args)
 		return nil
 	}
-	ok, err := focusDesktopApp("")
-	if runtime.GOOS != "darwin" {
-		if ok || err != nil {
-			t.Fatalf("non-darwin: focused=%v err=%v", ok, err)
-		}
-		return
+	startWindowsDesktop = func(link string) error {
+		t.Errorf("must not launch windows desktop: %s", link)
+		return nil
 	}
+	ok, err := focusDesktopApp("")
 	if err != nil {
 		t.Fatalf("other serve is not a hard error (web path handles it): %v", err)
 	}
@@ -592,11 +589,14 @@ func TestFocusDesktopAppWrongProfileDoesNotOpen(t *testing.T) {
 }
 
 func TestFocusDesktopAppNamedNoServeRaises(t *testing.T) {
+	savedGOOS := desktopFocusGOOS
 	savedExists, savedRunning, savedList, savedOpen := desktopAppExists, desktopAppRunning, listServes, startOpen
 	t.Cleanup(func() {
 		config.SetProfile("")
+		desktopFocusGOOS = savedGOOS
 		desktopAppExists, desktopAppRunning, listServes, startOpen = savedExists, savedRunning, savedList, savedOpen
 	})
+	desktopFocusGOOS = "darwin"
 	config.SetProfile("work")
 	desktopAppExists = func() bool { return true }
 	desktopAppRunning = func() bool { return true }
@@ -607,12 +607,6 @@ func TestFocusDesktopAppNamedNoServeRaises(t *testing.T) {
 		return nil
 	}
 	ok, err := focusDesktopApp("")
-	if runtime.GOOS != "darwin" {
-		if ok || err != nil {
-			t.Fatalf("non-darwin: focused=%v err=%v", ok, err)
-		}
-		return
-	}
 	if err != nil {
 		t.Fatalf("desktop-only named profile must raise, not error: %v", err)
 	}
@@ -625,11 +619,14 @@ func TestFocusDesktopAppNamedNoServeRaises(t *testing.T) {
 }
 
 func TestFocusDesktopAppSameProfileOpensWithoutEnv(t *testing.T) {
+	savedGOOS := desktopFocusGOOS
 	savedExists, savedRunning, savedList, savedOpen := desktopAppExists, desktopAppRunning, listServes, startOpen
 	t.Cleanup(func() {
 		config.SetProfile("")
+		desktopFocusGOOS = savedGOOS
 		desktopAppExists, desktopAppRunning, listServes, startOpen = savedExists, savedRunning, savedList, savedOpen
 	})
+	desktopFocusGOOS = "darwin"
 	config.SetProfile("work")
 	desktopAppExists = func() bool { return true }
 	desktopAppRunning = func() bool { return true }
@@ -642,12 +639,6 @@ func TestFocusDesktopAppSameProfileOpensWithoutEnv(t *testing.T) {
 		return nil
 	}
 	ok, err := focusDesktopApp("")
-	if runtime.GOOS != "darwin" {
-		if ok || err != nil {
-			t.Fatalf("non-darwin: focused=%v err=%v", ok, err)
-		}
-		return
-	}
 	if err != nil {
 		t.Fatalf("same-profile raise: %v", err)
 	}
@@ -661,6 +652,77 @@ func TestFocusDesktopAppSameProfileOpensWithoutEnv(t *testing.T) {
 	}
 	if len(got) < 2 || got[0] != "-a" || got[1] != "Gadak" {
 		t.Fatalf("open args = %v, want -a Gadak", got)
+	}
+}
+
+// Windows is no longer a silent false (GDK-244): decideDesktopFocus still
+// owns the table, and a raise launches the portable exe with the gadak://
+// link so the running app navigates. The GOOS seam lets this run on Linux CI.
+func TestFocusDesktopAppWindowsLaunchesExeWithLink(t *testing.T) {
+	savedGOOS := desktopFocusGOOS
+	savedExists, savedRunning, savedList := desktopAppExists, desktopAppRunning, listServes
+	savedStart := startWindowsDesktop
+	savedRaise := raiseWindowsWindow
+	t.Cleanup(func() {
+		desktopFocusGOOS = savedGOOS
+		desktopAppExists, desktopAppRunning, listServes = savedExists, savedRunning, savedList
+		startWindowsDesktop, raiseWindowsWindow = savedStart, savedRaise
+	})
+	desktopFocusGOOS = "windows"
+	desktopAppExists = func() bool { return true }
+	desktopAppRunning = func() bool { return true }
+	listServes = func() []gadakProbe { return nil }
+	var started string
+	startWindowsDesktop = func(link string) error {
+		started = link
+		return nil
+	}
+	raiseWindowsWindow = func() bool { return true }
+
+	const link = "gadak://view?ks=NMA-1"
+	ok, err := focusDesktopApp(link)
+	if err != nil || !ok {
+		t.Fatalf("windows focus = %v, %v; want true, nil", ok, err)
+	}
+	if started != link {
+		t.Fatalf("started %q, want the gadak:// link", started)
+	}
+}
+
+func TestFocusDesktopAppWindowsRespectsDecideNone(t *testing.T) {
+	savedGOOS := desktopFocusGOOS
+	savedExists, savedRunning, savedList := desktopAppExists, desktopAppRunning, listServes
+	savedStart := startWindowsDesktop
+	t.Cleanup(func() {
+		config.SetProfile("")
+		desktopFocusGOOS = savedGOOS
+		desktopAppExists, desktopAppRunning, listServes = savedExists, savedRunning, savedList
+		startWindowsDesktop = savedStart
+	})
+	desktopFocusGOOS = "windows"
+	config.SetProfile("work")
+	desktopAppExists = func() bool { return true }
+	desktopAppRunning = func() bool { return false }
+	listServes = func() []gadakProbe {
+		return []gadakProbe{{IsGadak: true, Profile: "default"}}
+	}
+	startWindowsDesktop = func(link string) error {
+		t.Errorf("must not launch when decide says none (link %s)", link)
+		return nil
+	}
+	ok, err := focusDesktopApp("gadak://view/w/work?ks=NMA-1")
+	if ok || err != nil {
+		t.Fatalf("wrong-profile windows focus = %v, %v; want false, nil", ok, err)
+	}
+}
+
+func TestFocusDesktopAppLinuxStillNoop(t *testing.T) {
+	savedGOOS := desktopFocusGOOS
+	t.Cleanup(func() { desktopFocusGOOS = savedGOOS })
+	desktopFocusGOOS = "linux"
+	ok, err := focusDesktopApp("gadak://view?ks=NMA-1")
+	if ok || err != nil {
+		t.Fatalf("linux focus = %v, %v; want false, nil", ok, err)
 	}
 }
 

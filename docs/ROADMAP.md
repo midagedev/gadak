@@ -307,14 +307,14 @@ type-scale sweep that used to sit here was the clearest example of the trap
   notification is the natural surface. Quiet by default: this is a mirror,
   not another thing that interrupts you. Worth doing once someone other than
   the author leaves the app running all day.
-- **Windows and Linux shells** — **not until 10 people have asked.** Wails
-  builds all three and the no-listener architecture ports unchanged, so this
-  is not a technical wall; it is WebView2 bootstrap and an installer on
-  Windows (plus a code-signing decision, or SmartScreen greets every
-  download), webkit2gtk and AppImage/.deb on Linux, and splitting the
-  macOS-only menu code — three platforms of packaging and bug surface for a
-  maintainer whose macOS build has not yet carried a real user. Linux first
-  when the bar is met; it overlaps the agent audience most.
+- **Windows and Linux shells** — 0.16 ships an **unsigned Windows portable
+  zip** (`Gadak-<ver>-windows-x64.zip` / `windows-arm64`) attached by
+  `.github/workflows/desktop-release.yml`. No installer (unsigned MSI/setup
+  is more friction than a zip) and no Authenticode cert (signing is
+  GDK-211). Linux remains held: webkit2gtk and AppImage/.deb, and splitting
+  the macOS-only menu code, for a maintainer whose macOS build has not yet
+  carried a real user. Linux first when the earlier "10 people have asked"
+  bar is met; it overlaps the agent audience most.
 - **Jira-less workspace (a local-only source).** The appeal is real — no
   token, no approval, an agent-readable local tracker; the demo already
   proves the read surface without a live site. But every write path gadak

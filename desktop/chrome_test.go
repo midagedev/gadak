@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -74,5 +76,30 @@ func TestPrintWindowChromeFlag(t *testing.T) {
 	}
 	if !printWindowChromeIfRequested([]string{"--print-window-chrome"}) {
 		t.Fatal("flag not recognized")
+	}
+}
+
+func TestPrintIntegrationsFlag(t *testing.T) {
+	if printIntegrationsIfRequested(nil) {
+		t.Fatal("empty args should not print")
+	}
+	if printIntegrationsIfRequested([]string{"--print-window-chrome"}) {
+		t.Fatal("chrome flag is not the integrations query")
+	}
+	if printIntegrationsIfRequested([]string{"gadak://view"}) {
+		t.Fatal("deeplink is not the integrations query")
+	}
+	if !printIntegrationsIfRequested([]string{"--print-integrations"}) {
+		t.Fatal("flag not recognized")
+	}
+}
+
+func TestWebView2MissingMessageNamesRuntimeAndInstaller(t *testing.T) {
+	msg := webview2UserMessage(errors.New("no webview2 found"))
+	if !strings.Contains(msg, "WebView2") {
+		t.Fatalf("message must name WebView2:\n%s", msg)
+	}
+	if !strings.Contains(msg, webview2EvergreenURL) {
+		t.Fatalf("message must point at the Evergreen installer:\n%s", msg)
 	}
 }

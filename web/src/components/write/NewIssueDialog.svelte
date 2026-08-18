@@ -380,7 +380,7 @@
         </div>
 
         <label class="flex flex-col gap-1">
-          <span class="text-micro text-text-secondary">duedate</span>
+          <span class="text-micro text-text-secondary">{t('common.due')}</span>
           <input
             bind:value={duedate}
             type="date"

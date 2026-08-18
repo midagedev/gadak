@@ -95,6 +95,51 @@ its own window with **no local server at all**: no port, no address, nothing
 new listening. First launch walks through setup in the window.
 [`DESKTOP.md`](DESKTOP.md) has the details.
 
+### Desktop app (Windows)
+
+From 0.16, the same GitHub Release attaches a Windows portable zip:
+`Gadak-<version>-windows-x64.zip` or `Gadak-<version>-windows-arm64.zip`.
+Unzip and run `gadak-desktop.exe`. The pack is a directory (the two exes at
+the root), not an installer — 0.16 has no Authenticode certificate, and an
+unsigned installer is more friction than a zip.
+
+It is the same web UI in a native Windows window with **no local server**:
+no port, no address, nothing new listening (`desktop/main.go`). First launch
+walks through setup in the window. The window needs the Evergreen WebView2
+runtime (Microsoft documents that Windows 11 includes it, and that many
+Windows 10 machines already have it via Edge). If the window never appears,
+install the runtime from
+<https://developer.microsoft.com/en-us/microsoft-edge/webview2/>.
+
+The build is **unsigned**. Signing is planned (GDK-211); this page does not
+name a date.
+
+Windows may show one of two dialogs. Neither is a virus finding:
+
+- **Microsoft Defender SmartScreen:** **Windows protected your PC**, then
+  **More info** / **Run anyway**. SmartScreen has a per-file override.
+- **Smart App Control:** **Smart App Control blocked an app that may be
+  unsafe.** Microsoft's FAQ says there is currently **no way to bypass
+  Smart App Control for one app**
+  ([Smart App Control FAQ](https://support.microsoft.com/en-us/windows/smart-app-control-frequently-asked-questions-285ea03d-fa88-4d56-882e-6698afdb7003)).
+  Do **not** turn Smart App Control off.
+
+If the desktop exe is blocked, use the CLI path that has been shipping on
+every release: download `gadak_<version>_windows_amd64.zip` (or
+`windows_arm64`) and `checksums.txt` from the same release, unzip, put
+`gadak.exe` on `PATH`, then:
+
+```powershell
+gadak init
+gadak sync
+gadak serve      # http://gadak.localhost:7777
+```
+
+That CLI zip is the reliable Windows route for 0.16. The measured unsigned
+CLI (`gadak.exe`) has run without this block.
+
+[`DESKTOP.md`](DESKTOP.md) has the rest of the window.
+
 ### Install script
 
 ```bash
@@ -109,7 +154,11 @@ Downloads the latest GitHub Release for your OS/arch, verifies `checksums.txt`
 
 Download the archive for your OS/arch from
 [GitHub Releases](https://github.com/midagedev/gadak/releases), verify against
-`checksums.txt`, unpack, and put `gadak` on your `PATH`.
+`checksums.txt`, unpack, and put `gadak` on your `PATH`. Windows CLI archives
+are `gadak_<version>_windows_amd64.zip` and `gadak_<version>_windows_arm64.zip`
+(goreleaser). The desktop pack is a different file —
+`Gadak-<version>-windows-x64.zip` / `windows-arm64` — and is not in
+`checksums.txt` (same as the macOS dmg).
 
 ### Build from source
 
@@ -134,8 +183,9 @@ gadak serve                    # http://gadak.localhost:7777
 
 The first run walks you through it in the browser: paste your site, email, and
 token, pick projects from your site's own list, and watch the first sync fill
-the mirror. (The desktop app runs the same setup in its own window — no
-terminal at any point.) If you would rather stay in the terminal,
+the mirror. (The desktop app — macOS dmg or the Windows portable zip — runs
+the same setup in its own window — no terminal at any point.) If you would
+rather stay in the terminal,
 `gadak init && gadak sync` does the same thing. `gadak serve` keeps the mirror
 fresh in the background whenever a credential is configured (`--no-sync` opts
 out). To survive reboot:

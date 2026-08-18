@@ -18,7 +18,7 @@ A local SQLite file of your Jira — so "which epic is stuck?" is one query, not
 gadak mirrors Jira *and* Confluence into one local SQLite file — issues,
 comments, history, wiki pages — indexed together and searchable locally.
 This window is where that work lives on your machine: triage
-it in the [macOS app](docs/DESKTOP.md) or a browser tab, or let a coding
+it in the [desktop app](docs/DESKTOP.md) or a browser tab, or let a coding
 agent ask in plain SQL and point the same window at the answer. One binary,
 one app, no gadak account.
 
@@ -70,12 +70,19 @@ sync interval.
 
 </details>
 
-Download [`Gadak-<version>-arm64.dmg`](https://github.com/midagedev/gadak/releases/latest)
-and open the window — or, from a terminal:
+macOS: download [`Gadak-<version>-arm64.dmg`](https://github.com/midagedev/gadak/releases/latest)
+and open the window.
+
+Windows (from 0.16): download [`Gadak-<version>-windows-x64.zip`](https://github.com/midagedev/gadak/releases/latest)
+(or `windows-arm64`), unzip, run `gadak-desktop.exe`. The build is unsigned —
+if Windows blocks it, use the CLI path below. Details:
+[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+
+Or, from a terminal:
 
 ```bash
-brew install midagedev/tap/gadak        # the app — the bundled CLI lands on PATH too
-# or, CLI only (macOS + Linux):
+brew install midagedev/tap/gadak        # the macOS app — the bundled CLI lands on PATH too
+# CLI only (macOS + Linux via brew; Windows from the release zip):
 brew install midagedev/tap/gadak-cli
 gadak init && gadak sync    # Jira (and Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
@@ -103,7 +110,7 @@ on the list do not apply. That is why a comment-only word still finds the row.
 
 | | For | Looks like |
 | --- | --- | --- |
-| **App + Web UI** | all-day triage | [macOS app](docs/DESKTOP.md) (no port) or `gadak serve`. `j`/`k` walk, `x` selects, `s`/`a`/`l`/`c` change status, assignee, labels, or comment from the list. |
+| **App + Web UI** | all-day triage | [desktop app](docs/DESKTOP.md) (no port) or `gadak serve`. `j`/`k` walk, `x` selects, `s`/`a`/`l`/`c` change status, assignee, labels, or comment from the list. |
 | **CLI + SQL** | agents, scripts | `gadak issue`, `gadak search` (FTS, `--jql`, or a Jira URL), `gadak sql`, plus the file |
 
 Writes go through to Jira, then the mirror refreshes. App and web: comment,
@@ -208,23 +215,39 @@ the mirror to what the agent should see.
 Atlassian Cloud only. One [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
 covers Jira and Confluence on the same site.
 
-**1. The [macOS app](docs/DESKTOP.md).** Download `Gadak-<version>-arm64.dmg`
-from the [latest release](https://github.com/midagedev/gadak/releases/latest),
-drag to Applications. Signed and notarized. First launch walks through site,
-email, token, and projects. The CLI is inside the bundle; macOS does not put
-an app on your `PATH`:
+**1. The [desktop app](docs/DESKTOP.md).**
+
+macOS: download `Gadak-<version>-arm64.dmg` from the
+[latest release](https://github.com/midagedev/gadak/releases/latest), drag to
+Applications. Signed and notarized. First launch walks through site, email,
+token, and projects. The CLI is inside the bundle; macOS does not put an app
+on your `PATH`:
 
 ```bash
 /Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
 ```
 
-**2. The CLI**, on Linux or for the same UI in a browser tab:
+Windows (from 0.16): download `Gadak-<version>-windows-x64.zip` (or
+`windows-arm64`) from the same release, unzip, run `gadak-desktop.exe`.
+Unsigned (signing is GDK-211). If Windows shows **Windows protected your PC**
+or **Smart App Control blocked an app that may be unsafe**, that is not a
+virus finding — use the CLI path below. Do not turn Smart App Control off.
+[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+
+**2. The CLI**, on Linux, Windows, or for the same UI in a browser tab:
 
 ```bash
 brew install midagedev/tap/gadak-cli     # macOS + Linux
 gadak init && gadak sync
 gadak serve      # http://gadak.localhost:7777
 ```
+
+Windows without Homebrew: from the
+[latest release](https://github.com/midagedev/gadak/releases/latest), download
+`gadak_<version>_windows_amd64.zip` (or `windows_arm64`) and `checksums.txt`.
+Unzip, put `gadak.exe` on `PATH`, then `gadak init && gadak sync && gadak serve`.
+This is the reliable Windows route in 0.16 if the unsigned desktop exe is
+blocked.
 
 Linux without Homebrew: from the
 [latest release](https://github.com/midagedev/gadak/releases/latest),
@@ -272,7 +295,7 @@ ranked by demand: [`docs/ROADMAP.md`](docs/ROADMAP.md#more-sources-later).
 
 ## Documentation
 
-- [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — install, first run, the macOS app
+- [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — install, first run, the desktop app
 - [`AGENTS.md`](AGENTS.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, one paste per host
 - [`docs/RECIPES.md`](docs/RECIPES.md) — questions JQL cannot ask, as SQL
 - [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](MAINTENANCE.md) — threat model, site load, who maintains this

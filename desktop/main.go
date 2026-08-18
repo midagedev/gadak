@@ -29,6 +29,7 @@ import (
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/integrations"
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
@@ -43,6 +44,9 @@ var appVersion = "dev"
 
 func main() {
 	if printWindowChromeIfRequested(os.Args[1:]) {
+		return
+	}
+	if printIntegrationsIfRequested(os.Args[1:]) {
 		return
 	}
 	// Same assignment cmd/gadak/main.go makes. "dev" is this file's default;
@@ -111,6 +115,9 @@ func run() error {
 		// About panel shows.
 		Name:        "Gadak",
 		Description: "Jira and Confluence, mirrored to your disk.",
+		// wails still os.Exit(1) after this returns. We show a dialog and
+		// write stderr first so a missing WebView2 is not a silent death.
+		ErrorHandler: handleDesktopFatal,
 		Mac: application.MacOptions{
 			// v2 quit when the only window closed; keep that.
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
@@ -219,6 +226,14 @@ func run() error {
 	window = app.Window.NewWithOptions(mainWindowOptions())
 	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		log.Print("wails runtime ready — --wails-draggable listeners are attached")
+		// Windows (and Linux) deliver a first-launch gadak:// as argv. macOS
+		// uses ApplicationLaunchedWithUrl for that; applying argv there too
+		// would navigate twice.
+		if runtime.GOOS != "darwin" && applyDeepLink != nil {
+			if raw := firstDeepLinkArg(os.Args[1:]); raw != "" {
+				applyDeepLink(raw)
+			}
+		}
 	})
 
 	applyDeepLink = deepLinkNavigator(config.Profile(), func(path string) {
@@ -329,6 +344,68 @@ func printWindowChromeIfRequested(args []string) bool {
 		}
 	}
 	return false
+}
+
+// printIntegrationsIfRequested is the one-command probe for "what would
+// Settings → Integrations show on this host". Same shape as
+// --print-window-chrome: match the exact flag, print, exit, no window.
+func printIntegrationsIfRequested(args []string) bool {
+	for _, a := range args {
+		if a == "--print-integrations" {
+			enc := json.NewEncoder(os.Stdout)
+			_ = enc.Encode(map[string]any{"items": integrations.List()})
+			return true
+		}
+	}
+	return false
+}
+
+// webview2EvergreenURL is Microsoft's Evergreen Runtime installer page.
+// Named in the missing-runtime dialog and on stderr.
+const webview2EvergreenURL = "https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
+
+func isMissingWebView2(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	if strings.Contains(s, "no webview2 found") {
+		return true
+	}
+	if !strings.Contains(s, "webview2") {
+		return false
+	}
+	return strings.Contains(s, "not found") ||
+		strings.Contains(s, "does not exist") ||
+		strings.Contains(s, "runtime version")
+}
+
+func webview2UserMessage(err error) string {
+	var b strings.Builder
+	if isMissingWebView2(err) {
+		b.WriteString("Gadak needs the Microsoft Edge WebView2 Runtime, which was not found on this PC.")
+	} else if err != nil {
+		b.WriteString("Gadak could not start its window.\n\n")
+		b.WriteString(err.Error())
+	} else {
+		b.WriteString("Gadak could not start its window.")
+	}
+	b.WriteString("\n\nInstall the Evergreen Runtime from:\n")
+	b.WriteString(webview2EvergreenURL)
+	return b.String()
+}
+
+func handleDesktopFatal(err error) {
+	msg := webview2UserMessage(err)
+	fmt.Fprintln(os.Stderr, msg)
+	showNativeError("Gadak", msg)
+}
+
+func showNativeError(title, text string) {
+	if runtime.GOOS != "windows" {
+		return
+	}
+	windowsMessageBox(title, text)
 }
 
 func applyWindowChrome(opts *application.WebviewWindowOptions, chrome string) {
