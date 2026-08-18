@@ -270,23 +270,56 @@ func resolveNamed(name string, fallbacks []string, look func(string) (string, er
 // changes, the probe degrades to unknown — never to a false positive.
 const mcpNotRegisteredMarker = "No MCP server named"
 
+// probeOutcome says *why* a probe ended, which the *bool cannot: unknown has
+// two causes and they are not interchangeable. A wrong answer is a product
+// bug; running out of time is the machine being busy. Tests that assert which
+// answer the CLI gives must be able to tell the difference, or a loaded
+// machine turns into a red build about the wrong thing (GDK-303).
+type probeOutcome int
+
+const (
+	probeAnswered   probeOutcome = iota // the process exited and we read it
+	probeNotStarted                     // exec failed
+	probeTimedOut                       // mcpProbeTimeout fired first
+)
+
+func (o probeOutcome) String() string {
+	switch o {
+	case probeAnswered:
+		return "answered"
+	case probeNotStarted:
+		return "not-started"
+	case probeTimedOut:
+		return "timed-out"
+	}
+	return "unknown"
+}
+
 // probeClaudeMCP runs `claude mcp get gadak` with a short timeout.
 // Exit 0 is installed=true; exit non-zero with the not-registered wording is
 // a definitive installed=false; any other failure or timeout is unknown (nil).
 // Mirrors cmd/gadak/mcp_install.go mcpInstallClaude's execLookPath("claude") rule
 // for finding the binary; the get probe itself is desktop-status only.
+func probeClaudeMCP(claudePath string) *bool {
+	installed, _ := probeClaudeMCPOutcome(claudePath)
+	return installed
+}
+
+// probeClaudeMCPOutcome is probeClaudeMCP plus the reason. Production reads
+// only the answer; the outcome exists so a test can assert "the CLI said no"
+// rather than "the CLI said no, or we gave up waiting".
 //
 // The timer starts after Start so a starved test goroutine cannot expire the
 // budget before the process exists (CommandContext+WithTimeout before Start
 // returned unknown for an `exit 0` stub under go test ./... load).
-func probeClaudeMCP(claudePath string) *bool {
+func probeClaudeMCPOutcome(claudePath string) (*bool, probeOutcome) {
 	cmd := exec.Command(claudePath, "mcp", "get", "gadak")
 	var out limitedBuf
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	setProbeProcAttr(cmd)
 	if err := cmd.Start(); err != nil {
-		return nil
+		return nil, probeNotStarted
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -296,11 +329,11 @@ func probeClaudeMCP(claudePath string) *bool {
 	case err := <-done:
 		if err != nil {
 			if strings.Contains(out.String(), mcpNotRegisteredMarker) {
-				return boolPtr(false)
+				return boolPtr(false), probeAnswered
 			}
-			return nil
+			return nil, probeAnswered
 		}
-		return boolPtr(true)
+		return boolPtr(true), probeAnswered
 	case <-timer.C:
 		killProbe(cmd)
 		// Bound the reap: if Kill did not take, do not pin GET behind a child.
@@ -310,7 +343,7 @@ func probeClaudeMCP(claudePath string) *bool {
 		case <-done:
 		case <-reap.C:
 		}
-		return nil
+		return nil, probeTimedOut
 	}
 }
 
