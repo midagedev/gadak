@@ -18,6 +18,14 @@ url='https://github.com/midagedev/gadak'
 license=('Apache-2.0')
 provides=('gadak')
 conflicts=('gadak')
+# The tarball ships an already-built release binary, so makepkg must not
+# touch it. Default options do two harmful things here (measured with
+# `makepkg` + `namcap` in an archlinux container, 0.15.2): strip rewrites
+# the binary we published, so what a person installs no longer matches the
+# release checksum they can verify; and debug-package extraction on a Go
+# binary with no DWARF produces an empty gadak-bin-debug whose .build-id
+# symlink dangles (namcap E). Both are off by contract, not by accident.
+options=('!strip' '!debug')
 source_x86_64=("https://github.com/midagedev/gadak/releases/download/v${pkgver}/gadak_${pkgver}_linux_amd64.tar.gz")
 source_aarch64=("https://github.com/midagedev/gadak/releases/download/v${pkgver}/gadak_${pkgver}_linux_arm64.tar.gz")
 sha256sums_x86_64=('697432a2d2d0a857007eb6d8018cf0a15c4b0fd4a9cb084b8406cb43775359bd')

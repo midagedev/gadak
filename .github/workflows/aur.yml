@@ -1,0 +1,51 @@
+# The AUR package is checked by tools that exist only on Arch (makepkg,
+# namcap), so for as long as nobody here ran Arch it was reviewed by reading
+# it. That is how it shipped a PKGBUILD that produced a second, empty
+# gadak-bin-debug package with a dangling .build-id symlink (namcap E) and
+# that let makepkg strip the binary we published, so the release checksum a
+# person can verify no longer matched what pacman installed.
+#
+# contrib/aur/gadak-bin/verify.sh builds the package in a throwaway Arch
+# container and asserts both of those, plus that .SRCINFO — which must be in
+# the AUR commit and cannot be produced without makepkg — is not stale.
+#
+# Path-scoped: it downloads a real release tarball, and nothing outside
+# contrib/aur/ can change its answer.
+name: AUR
+
+on:
+  pull_request:
+    paths: ['contrib/aur/**', '.github/workflows/aur.yml']
+  push:
+    branches: [main]
+    paths: ['contrib/aur/**', '.github/workflows/aur.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aur-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: AUR package builds and installs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and check gadak-bin in an Arch container
+        run: ./contrib/aur/gadak-bin/verify.sh
+
+      # verify.sh regenerates .SRCINFO from PKGBUILD. If that leaves a diff,
+      # the committed one was written from an older PKGBUILD — the AUR would
+      # publish metadata that disagrees with the recipe next to it.
+      - name: .SRCINFO is not stale
+        run: |
+          if ! git diff --exit-code contrib/aur/gadak-bin/.SRCINFO; then
+            echo "::error::.SRCINFO is stale — run contrib/aur/gadak-bin/verify.sh and commit the result" >&2
+            exit 1
+          fi
+          echo ".SRCINFO matches PKGBUILD — ok"

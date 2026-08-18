@@ -8,7 +8,8 @@
 # Rewrites pkgver, resets pkgrel to 1, and replaces sha256sums_x86_64 /
 # sha256sums_aarch64 with the linux amd64/arm64 lines from that tag's
 # checksums.txt. Regenerates .SRCINFO when makepkg is on PATH; otherwise
-# prints the command to run on Arch. Does not compute hashes locally.
+# points at verify.sh, which runs makepkg in a container. Does not compute
+# hashes locally.
 #
 # Exit 64 = usage / bad arguments
 #      69 = a required tool is missing
@@ -137,6 +138,6 @@ if command -v makepkg >/dev/null 2>&1; then
   (cd "$here" && makepkg --printsrcinfo > .SRCINFO)
   echo "update.sh: wrote ${here}/.SRCINFO"
 else
-  echo "update.sh: makepkg not found; on Arch regenerate .SRCINFO with:" >&2
-  echo "  makepkg --printsrcinfo > .SRCINFO" >&2
+  echo "update.sh: makepkg not found; regenerate .SRCINFO and check the package with:" >&2
+  echo "  contrib/aur/gadak-bin/verify.sh" >&2
 fi

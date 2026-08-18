@@ -29,6 +29,23 @@ not install those.
 The web UI is compiled into the binary (`go:embed`); the tarball is the
 whole install.
 
+## Checking the package (any host with Docker)
+
+```bash
+./verify.sh
+```
+
+Builds `gadak-bin` in a throwaway Arch container against the real
+published tarball and asserts: sha256 validation ran and passed, exactly
+one package was produced, `namcap` reports no `E:` line, `gadak version`
+prints `pkgver`, and the installed `/usr/bin/gadak` is byte-identical to
+the tarball member. It regenerates `.SRCINFO` in place — commit that with
+the `PKGBUILD` it came from. CI runs the same script whenever anything
+under `contrib/aur/` changes (`.github/workflows/aur.yml`).
+
+`makepkg` and `namcap` are Arch tools, but no Arch machine is needed to
+run them. Exit 69 means Docker is missing or its daemon is down.
+
 ## Prerequisites (first publish)
 
 1. An [AUR](https://aur.archlinux.org/) account.
@@ -51,20 +68,11 @@ git -c init.defaultBranch=master clone ssh://aur@aur.archlinux.org/gadak-bin.git
 # empty-repo warning is expected when the package does not exist yet
 ```
 
-Copy `PKGBUILD` from this directory into the clone. Add the
-`Maintainer:` line. Generate `.SRCINFO` **on Arch** (`makepkg` is not
-on macOS):
-
-```bash
-makepkg --printsrcinfo > .SRCINFO
-```
-
-Verify the package builds and the binary runs before you push:
-
-```bash
-makepkg -si
-gadak version
-```
+Run `./verify.sh` here first, then copy `PKGBUILD` and `.SRCINFO` from
+this directory into the clone and add the `Maintainer:` line. The
+maintainer name and address are **public and permanent** — they land in
+the AUR git history and on the package page — so use a public-facing
+identity, not a work address.
 
 Then, in the AUR clone only:
 
@@ -92,15 +100,12 @@ From this directory, on any machine with `curl`:
 
 `update.sh` rewrites `pkgver`, resets `pkgrel` to 1, and replaces the
 two linux sha256 values from that tag's `checksums.txt`. It does not
-compute hashes itself. If `makepkg` is on PATH it regenerates
-`.SRCINFO`; otherwise it prints:
+compute hashes itself. Then run `./verify.sh` — it regenerates
+`.SRCINFO` for the new `pkgver` and proves the new tarball actually
+installs, which is the half `update.sh` cannot check.
 
-```bash
-makepkg --printsrcinfo > .SRCINFO
-```
-
-Copy the updated `PKGBUILD` (and `.SRCINFO` if regenerated) into the
-AUR clone, commit, and push.
+Copy the updated `PKGBUILD` and `.SRCINFO` into the AUR clone, commit,
+and push.
 
 A `pkgrel`-only rebuild (same upstream version, packaging fix) is a
 hand edit of `pkgrel` — do not run `update.sh` for that, because it
@@ -110,18 +115,22 @@ Automation is allowed. The guidelines say it cannot replace reading the
 upstream release (license, dependencies, and other notable changes still
 need a person).
 
-## Verification on Arch
+## Known namcap warnings
 
-On an Arch machine or container:
+`verify.sh` fails on `E:` and prints `W:` without failing. Two warnings
+are expected and are properties of the released binary, not of this
+package:
 
-```bash
-makepkg -si
-gadak version
+```
+ELF file ('usr/bin/gadak') lacks FULL RELRO, check LDFLAGS.
+ELF file ('usr/bin/gadak') lacks PIE.
 ```
 
-Optional, from the [PKGBUILD](https://wiki.archlinux.org/title/PKGBUILD)
-page: `namcap PKGBUILD` for common packaging mistakes.
+Go does not build position-independent executables by default. Changing
+that is a GoReleaser decision about every platform's binary, not
+something to paper over here — and the fix must not be to strip or
+rebuild the binary in `package()`, because then what pacman installs is
+no longer the artifact whose checksum people can verify.
 
-`makepkg` and `namcap` are Arch tools. The checks that run from this
-repository are `bash -n PKGBUILD`, `bash -n update.sh`, and comparing
-the `sha256sums_*` values to the release `checksums.txt`.
+`W: Missing Maintainer tag` is expected too: the tag is added on the AUR
+clone, and this in-repo copy deliberately stores no address.
