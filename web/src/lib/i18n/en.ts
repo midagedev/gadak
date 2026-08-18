@@ -1107,6 +1107,16 @@ export const en = {
   'onboarding.switchAccount': 'Use a different account',
   'onboarding.openSettings': 'Open settings',
   'onboarding.cliHint': 'The same setup is available as gadak init in a terminal.',
+  // GDK-247: PUT onboarding/connect/ 409 standalone_data_present. Facts match
+  // cmd/gadak/init.go's ReplaceRefusedError sentence (via workspace.RefuseReplace).
+  'onboarding.standaloneBlocked':
+    'This workspace is standalone and holds {n} locally originated issues. They exist only here — no Jira site has a copy. Connecting a site here will let a later sync delete them from the mirror.',
+  'onboarding.standalonePersist': 'Origin persist file: {path}',
+  'onboarding.standaloneOtherWorkspace':
+    'Connect the site in a separate workspace: gadak --profile <name> init (list workspaces with gadak profiles).',
+  'onboarding.standaloneReplaceConfirm':
+    'Replace this workspace anyway. A later sync will delete these issues from the mirror.',
+  'onboarding.standaloneReplace': 'Replace and connect',
 
   /* ── Keyboard shortcuts cheat sheet (?) ── */
   'shortcuts.title': 'Keyboard shortcuts',

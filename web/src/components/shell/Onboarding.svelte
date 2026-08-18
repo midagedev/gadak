@@ -73,21 +73,35 @@
   let connecting = $state(false)
   let connectError = $state<string | null>(null)
   let owner = $state('')
+  let standaloneBlock = $state<{ issues: number; persist: string } | null>(null)
+  let replaceStandalone = $state(false)
 
   async function connect(event: SubmitEvent): Promise<void> {
     event.preventDefault()
+    // Second request only after an explicit confirm — never auto-retry the 409.
+    if (standaloneBlock && !replaceStandalone) return
     connecting = true
     connectError = null
     try {
-      const cred = await api.connectJira(site.trim(), email.trim(), token, tokenExpires)
+      const cred = await api.connectJira(site.trim(), email.trim(), token, tokenExpires, {
+        replaceStandalone,
+      })
       owner = cred.display_name || cred.jira_email
       // The credential is the identity, so the rest of the app has to re-read it.
       await me.refreshIdentity()
       token = '' // no reason to keep it in a live component
+      standaloneBlock = null
+      replaceStandalone = false
       step = 2
       void loadProjects()
     } catch (e) {
-      connectError = connectMessage(e)
+      if (e instanceof api.StandaloneDataPresentError) {
+        standaloneBlock = { issues: e.issues, persist: e.persist }
+        replaceStandalone = false
+        connectError = null
+      } else {
+        connectError = connectMessage(e)
+      }
     } finally {
       connecting = false
     }
@@ -111,6 +125,7 @@
     if (code === 'site_required') return t('onboarding.errSite')
     if (code === 'email_and_token_required') return t('onboarding.errFields')
     if (code === 'invalid_token_expires') return t('onboarding.errExpires')
+    if (code === 'standalone_data_present') return t('onboarding.standaloneBlocked', { n: 0 })
     return t('onboarding.errConnect', { message: reason(e) })
   }
 
@@ -333,6 +348,27 @@
           <span class="text-micro text-text-muted">{t('onboarding.tokenExpiresHint')}</span>
         </label>
 
+        {#if standaloneBlock}
+          <div class="flex flex-col gap-2" role="alert" data-testid="onboarding-standalone-block">
+            <p class="text-[12px] text-status-reopen">
+              {t('onboarding.standaloneBlocked', { n: standaloneBlock.issues })}
+            </p>
+            <p class="font-mono text-micro text-text-secondary" data-testid="onboarding-standalone-persist">
+              {t('onboarding.standalonePersist', { path: standaloneBlock.persist })}
+            </p>
+            <p class="text-micro text-text-secondary">{t('onboarding.standaloneOtherWorkspace')}</p>
+            <label class="flex items-start gap-2 text-[12px] text-text-secondary">
+              <input
+                type="checkbox"
+                class="mt-0.5 accent-accent"
+                data-testid="onboarding-replace-standalone"
+                bind:checked={replaceStandalone}
+              />
+              <span>{t('onboarding.standaloneReplaceConfirm')}</span>
+            </label>
+          </div>
+        {/if}
+
         {#if connectError}
           <div class="flex flex-col gap-1" role="alert" data-testid="onboarding-error">
             <p class="text-[12px] text-status-reopen">{connectError}</p>
@@ -348,8 +384,16 @@
         {/if}
 
         <div class="flex items-center gap-2">
-          <button class={PRIMARY} type="submit" disabled={connecting}>
-            {connecting ? t('onboarding.connecting') : t('onboarding.connect')}
+          <button
+            class={PRIMARY}
+            type="submit"
+            disabled={connecting || (!!standaloneBlock && !replaceStandalone)}
+          >
+            {connecting
+              ? t('onboarding.connecting')
+              : standaloneBlock
+                ? t('onboarding.standaloneReplace')
+                : t('onboarding.connect')}
           </button>
           <button class={GHOST} type="button" onclick={onOpenSettings}>{t('onboarding.openSettings')}</button>
         </div>

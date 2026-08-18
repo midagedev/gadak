@@ -67,6 +67,18 @@ export class ApiError extends Error {
   }
 }
 
+/** 409 standalone_data_present from PUT onboarding/connect/. */
+export class StandaloneDataPresentError extends ApiError {
+  issues: number
+  persist: string
+  constructor(status: number, issues: number, persist: string) {
+    super(status, 'standalone_data_present', 'standalone_data_present')
+    this.name = 'StandaloneDataPresentError'
+    this.issues = issues
+    this.persist = persist
+  }
+}
+
 /** Shared fetch — path is relative to the API base. */
 async function raw(path: string, init?: RequestInit): Promise<Response> {
   return fetch(config().apiBase + path, {
@@ -494,20 +506,48 @@ export interface SyncProgress {
 }
 
 /** Verify site+email+token via /myself, then store. Failures distinguished by ApiError.code. */
-export function connectJira(
+export async function connectJira(
   site: string,
   jiraEmail: string,
   apiToken: string,
   tokenExpiresAt?: string,
+  opts?: { replaceStandalone?: boolean },
 ): Promise<JiraCredential> {
-  const body: Record<string, string> = { site, jira_email: jiraEmail, api_token: apiToken }
+  const body: Record<string, unknown> = { site, jira_email: jiraEmail, api_token: apiToken }
   const expires = tokenExpiresAt?.trim()
   if (expires) body.token_expires_at = expires
-  return jsonW<JiraCredential>('onboarding/connect/', {
+  if (opts?.replaceStandalone) body.replace_standalone = true
+  const res = await raw('onboarding/connect/', {
     method: 'PUT',
     headers: JSON_HEADERS,
     body: JSON.stringify(body),
   })
+  if (!res.ok) {
+    let code: string | null = null
+    let issues = 0
+    let persist = ''
+    let message = `PUT onboarding/connect/ → ${res.status}`
+    try {
+      const doc = (await res.json()) as {
+        error?: string
+        issues?: number
+        persist?: string
+      }
+      if (doc.error) {
+        code = doc.error
+        message = doc.error
+      }
+      if (typeof doc.issues === 'number') issues = doc.issues
+      if (typeof doc.persist === 'string') persist = doc.persist
+    } catch {
+      /* No body / non-JSON — keep default message */
+    }
+    if (res.status === 409 && code === 'standalone_data_present') {
+      throw new StandaloneDataPresentError(res.status, issues, persist)
+    }
+    throw new ApiError(res.status, message, code)
+  }
+  return (await res.json()) as JiraCredential
 }
 
 /** Real project list for the site. `truncated` means the list was capped at 500. */

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	gadakSync "github.com/midagedev/gadak/internal/sync"
 )
@@ -474,6 +476,156 @@ func kickSyncFastTransport(s *server, cfg *config.Config, full bool) bool {
 		s.syncJob.Phase, s.syncJob.Done = "done", true
 	}()
 	return true
+}
+
+// standaloneConnectEnv is a standalone workspace whose in-process server is
+// ready for PUT onboarding/connect/. issueCount seeds gadak.db under
+// GADAK_HOME (the path LocalData counts) — the fixture DB used by the
+// handler is a different file and is not what the replace guard reads.
+func standaloneConnectEnv(t *testing.T, issueCount int) (*onboardJira, http.Handler, string) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	f := newOnboardJira(t)
+	db, cfg := fixture(t)
+	cfg.Site, cfg.Email, cfg.Token = "", "", ""
+	cfg.Projects = nil
+	cfg.Kind = config.KindStandalone
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if issueCount > 0 {
+		seedLocalMirrorIssues(t, issueCount)
+	}
+	return f, New(db, cfg), home
+}
+
+func seedLocalMirrorIssues(t *testing.T, n int) {
+	t.Helper()
+	path, err := config.DBPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: ""}); err != nil {
+		t.Fatal(err)
+	}
+	recs := make([]store.IssueRecord, n)
+	for i := 0; i < n; i++ {
+		key := fmt.Sprintf("STD-%d", i+1)
+		recs[i] = store.IssueRecord{
+			Item: store.Item{
+				ID: "jira:" + key, SourceID: "jira", ExternalID: key, Key: key,
+				Title: "local " + key, CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-07-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "STD", Status: "To Do", StatusID: "1", StatusCategory: "new"},
+		}
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"1": "new"},
+		Records:    recs,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConnectRefusesStandaloneWithLocalData(t *testing.T) {
+	const secret = "tok-must-not-land-on-disk"
+	f, h, home := standaloneConnectEnv(t, 2)
+
+	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
+		`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"`+secret+`"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Error   string `json:"error"`
+		Issues  int    `json:"issues"`
+		Persist string `json:"persist"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v body %s", err, rec.Body.String())
+	}
+	if body.Error != "standalone_data_present" {
+		t.Fatalf("error %q, want standalone_data_present", body.Error)
+	}
+	if body.Issues < 1 {
+		t.Fatalf("issues = %d, want >= 1", body.Issues)
+	}
+	wantPersist := origin.PersistPath(home)
+	if body.Persist != wantPersist {
+		t.Fatalf("persist %q, want %q", body.Persist, wantPersist)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(home, "config.json"))
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if strings.Contains(string(raw), secret) {
+		t.Fatalf("refused connect wrote the token to disk:\n%s", raw)
+	}
+	saved := savedConfig(t, home)
+	if tok, ok := saved["token"]; ok && tok != "" && tok != nil {
+		t.Fatalf("token present on disk after 409: %v", tok)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.IsStandalone() {
+		t.Fatal("refused connect must leave the workspace standalone")
+	}
+	if cfg.Token != "" {
+		t.Fatal("refused connect must not store a token")
+	}
+}
+
+func TestConnectReplaceStandaloneClearsKind(t *testing.T) {
+	f, h, home := standaloneConnectEnv(t, 2)
+
+	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
+		`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"tok","replace_standalone":true}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Kind != "" {
+		t.Fatalf("Kind = %q, want empty", cfg.Kind)
+	}
+	if cfg.IsStandalone() {
+		t.Fatal("replace_standalone must leave IsStandalone false")
+	}
+	saved := savedConfig(t, home)
+	if saved["token"] != "tok" {
+		t.Fatalf("token after replace: %v", saved["token"])
+	}
+}
+
+func TestConnectEmptyStandaloneClearsKind(t *testing.T) {
+	f, h, _ := standaloneConnectEnv(t, 0)
+
+	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
+		`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"tok"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("empty standalone should connect: %d %s", rec.Code, rec.Body.String())
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Kind != "" {
+		t.Fatalf("Kind = %q, want empty", cfg.Kind)
+	}
+	if cfg.IsStandalone() {
+		t.Fatal("empty standalone connect must leave IsStandalone false")
+	}
 }
 
 func connect(t *testing.T, h http.Handler, f *onboardJira) {

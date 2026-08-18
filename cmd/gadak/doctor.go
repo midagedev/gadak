@@ -16,6 +16,7 @@ import (
 	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/originbind"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -48,6 +49,19 @@ type doctorReport struct {
 	MCP           doctorMCP             `json:"mcp"`
 	Sync          map[string]doctorSync `json:"sync"`
 	APIUsage      doctorAPIUsage        `json:"api_usage"`
+	Workspace     doctorWorkspace       `json:"workspace"`
+}
+
+// doctorWorkspace is the one-line consistency view: kind, whether a site
+// token is stored (never the token itself), the origin persist path, and
+// how many locally originated issues LocalData counts. Inconsistent is
+// standalone-with-a-token — the state GDK-247 closes on the write path.
+type doctorWorkspace struct {
+	Kind          string `json:"kind"`
+	HasCredential bool   `json:"has_credential"`
+	Persist       string `json:"persist"`
+	LocalIssues   int    `json:"local_issues"`
+	Inconsistent  bool   `json:"inconsistent"`
 }
 
 // doctorSkill answers "is my Claude Code skill current?" without the user
@@ -139,6 +153,9 @@ func collectDoctor() doctorReport {
 			Day: time.Now().UTC().Format("2006-01-02"),
 		},
 		Migrations: "unknown",
+		Workspace: doctorWorkspace{
+			Kind: config.KindConnected,
+		},
 	}
 
 	if path, err := config.DBPath(); err == nil {
@@ -167,6 +184,15 @@ func collectDoctor() doctorReport {
 			rep.Origin = tildeHome(src)
 		} else {
 			rep.Origin = src
+		}
+		n, persist, _ := originbind.LocalData(cfg)
+		hasTok := cfg.Token != ""
+		rep.Workspace = doctorWorkspace{
+			Kind:          cfg.WorkspaceKind(),
+			HasCredential: hasTok,
+			Persist:       tildeHome(persist),
+			LocalIssues:   n,
+			Inconsistent:  cfg.IsStandalone() && hasTok,
 		}
 	}
 
@@ -408,6 +434,7 @@ func formatDoctorText(r doctorReport) string {
 	line("profile", r.Profile)
 	line("workspace_kind", r.WorkspaceKind)
 	line("origin", r.Origin)
+	line("workspace", formatDoctorWorkspace(r.Workspace))
 	line("mirror_path", r.MirrorPath)
 
 	switch r.Mirror.Status {
@@ -487,6 +514,23 @@ func formatDoctorText(r doctorReport) string {
 	line("api_usage.retries", strconv.FormatInt(r.APIUsage.Retries, 10))
 
 	return b.String()
+}
+
+func formatDoctorWorkspace(w doctorWorkspace) string {
+	cred := "no"
+	if w.HasCredential {
+		cred = "yes"
+	}
+	persist := w.Persist
+	if persist == "" {
+		persist = "none"
+	}
+	s := fmt.Sprintf("kind=%s credential=%s persist=%s issues=%d",
+		w.Kind, cred, persist, w.LocalIssues)
+	if w.Inconsistent {
+		s += " inconsistent"
+	}
+	return s
 }
 
 // tildeHome shortens an absolute path under the user's home to ~/… so doctor
