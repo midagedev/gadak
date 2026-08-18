@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Print the N slowest tests and packages from a `go test -json` stream.
+
+Usage: tools/slowest [-n N] [file]
+  file   go test -json output (default: stdin)
+  -n N   how many rows per list (default: 10)
+
+Exit 2 = usage / bad arguments
+     1 = the input could not be read
+     0 = printed the lists (empty input prints empty lists)
+"""
+from __future__ import annotations
+
+import json
+import sys
+
+
+DEFAULT_N = 10
+
+
+def usage(msg=None):
+    if msg:
+        print(f"slowest: {msg}", file=sys.stderr)
+    print("usage: tools/slowest [-n N] [file]", file=sys.stderr)
+    raise SystemExit(2)
+
+
+def parse_args(argv):
+    n = DEFAULT_N
+    path = None
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            print(__doc__.strip())
+            raise SystemExit(0)
+        if a in ("-n", "--n"):
+            if i + 1 >= len(argv):
+                usage("-n needs a positive integer")
+            n = parse_n(argv[i + 1])
+            i += 2
+            continue
+        if a.startswith("-n") and a != "-n":
+            n = parse_n(a[2:])
+            i += 1
+            continue
+        if a.startswith("-"):
+            usage(f"unknown flag {a}")
+        if path is not None:
+            usage(f"unexpected argument {a}")
+        path = a
+        i += 1
+    return n, path
+
+
+def parse_n(s):
+    try:
+        n = int(s)
+    except ValueError:
+        usage(f"N must be a positive integer, got {s!r}")
+    if n <= 0:
+        usage(f"N must be a positive integer, got {s!r}")
+    return n
+
+
+def collect(stream):
+    tests = []
+    packages = []
+    for raw in stream:
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if ev.get("Action") != "pass":
+            continue
+        elapsed = ev.get("Elapsed")
+        if not isinstance(elapsed, (int, float)):
+            continue
+        pkg = ev.get("Package") or ""
+        name = ev.get("Test")
+        if name:
+            tests.append((float(elapsed), name, pkg))
+        elif pkg:
+            packages.append((float(elapsed), pkg))
+    tests.sort(key=lambda r: (-r[0], r[1], r[2]))
+    packages.sort(key=lambda r: (-r[0], r[1]))
+    return tests, packages
+
+
+def fmt_sec(s):
+    return f"{s:.3f}s"
+
+
+def print_block(title, rows, n, render):
+    print(f"{title} (n={n}):")
+    if not rows:
+        print("  (none)")
+        return
+    for row in rows[:n]:
+        print(render(row))
+
+
+def main(argv):
+    n, path = parse_args(argv)
+    if path is None:
+        if sys.stdin.isatty():
+            usage("pass a file or pipe a go test -json stream")
+        stream = sys.stdin
+    else:
+        try:
+            stream = open(path, encoding="utf-8")
+        except OSError as e:
+            print(f"slowest: {e}", file=sys.stderr)
+            raise SystemExit(1)
+    try:
+        tests, packages = collect(stream)
+    finally:
+        if path is not None:
+            stream.close()
+    print_block(
+        "slowest tests",
+        tests,
+        n,
+        lambda r: f"  {fmt_sec(r[0]):>10}  {r[1]}  {r[2]}",
+    )
+    print()
+    print_block(
+        "slowest packages",
+        packages,
+        n,
+        lambda r: f"  {fmt_sec(r[0]):>10}  {r[1]}",
+    )
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

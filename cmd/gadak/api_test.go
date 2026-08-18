@@ -167,6 +167,12 @@ func TestAPI_POSTWithWriteAndRetryPolicy(t *testing.T) {
 	})
 
 	t.Run("429 retried", func(t *testing.T) {
+		// Retry-After:0 falls through to the client's Backoff (1s in
+		// production). Tests own a zero wait; the retry itself is still asserted.
+		zero := time.Duration(0)
+		apiBackoffOverride = &zero
+		t.Cleanup(func() { apiBackoffOverride = nil })
+
 		calls := int32(0)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			n := atomic.AddInt32(&calls, 1)

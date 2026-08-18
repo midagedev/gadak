@@ -26,7 +26,9 @@ const (
 	IDMCPClaude       = "mcp-claude"
 )
 
-const mcpProbeTimeout = 3 * time.Second
+// mcpProbeTimeout is the production probe budget. Tests may assign a
+// shorter value and restore it with t.Cleanup.
+var mcpProbeTimeout = 3 * time.Second
 
 // lookPath is exec.LookPath; tests inject a stub.
 var lookPath = exec.LookPath

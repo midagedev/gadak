@@ -13,7 +13,23 @@ import (
 	"github.com/midagedev/gadak/internal/clitool"
 )
 
+// stubNoClaude makes List/ListFor skip the MCP probe. Catalogue tests
+// whose subject is not the probe must call this; TestMCPProbe* install
+// their own lookPath. Matches the existing lookPath + t.Cleanup idiom.
+func stubNoClaude(t *testing.T) {
+	t.Helper()
+	prev := lookPath
+	lookPath = func(name string) (string, error) {
+		if name == "claude" {
+			return "", os.ErrNotExist
+		}
+		return prev(name)
+	}
+	t.Cleanup(func() { lookPath = prev })
+}
+
 func TestListOrderAndDetectFlip(t *testing.T) {
+	stubNoClaude(t)
 	home := t.TempDir()
 	gadakHome := filepath.Join(home, ".gadak")
 	t.Setenv("HOME", home)
@@ -96,10 +112,9 @@ func TestInstallArgs(t *testing.T) {
 }
 
 func TestCommandLineToolDetectFlip(t *testing.T) {
-	oldLook := lookPath
+	stubNoClaude(t)
 	oldExec := fileIsExec
 	t.Cleanup(func() {
-		lookPath = oldLook
 		fileIsExec = oldExec
 	})
 
@@ -107,7 +122,6 @@ func TestCommandLineToolDetectFlip(t *testing.T) {
 	// must not leak into this row.
 	empty := t.TempDir()
 	t.Setenv("PATH", empty)
-	lookPath = exec.LookPath
 	fileIsExec = func(string) bool { return false }
 
 	item := itemByID(t, List(), IDCommandLineTool)
@@ -275,6 +289,10 @@ func TestMCPProbeTrueOnExitZero(t *testing.T) {
 }
 
 func TestMCPProbeTimeoutIsUnknown(t *testing.T) {
+	prev := mcpProbeTimeout
+	mcpProbeTimeout = 50 * time.Millisecond // short value is owned by this test
+	t.Cleanup(func() { mcpProbeTimeout = prev })
+
 	dir := t.TempDir()
 	slow := filepath.Join(dir, "claude")
 	if err := os.WriteFile(slow, []byte("#!/bin/sh\nsleep 10\nexit 0\n"), 0o755); err != nil {
@@ -303,6 +321,7 @@ func TestLookPathDefaultIsExecLookPath(t *testing.T) {
 // Install button can run (GDK-244). ListFor is the GOOS seam so this pins
 // the Windows catalog on a Linux/macOS CI host.
 func TestListForWindowsOmitsRaycast(t *testing.T) {
+	stubNoClaude(t)
 	items := ListFor("windows")
 	ids := make([]string, len(items))
 	for i, it := range items {
@@ -323,6 +342,7 @@ func TestListForWindowsOmitsRaycast(t *testing.T) {
 }
 
 func TestListForDarwinKeepsRaycast(t *testing.T) {
+	stubNoClaude(t)
 	items := ListFor("darwin")
 	if len(items) != 4 {
 		t.Fatalf("darwin len=%d want 4", len(items))
@@ -348,6 +368,7 @@ func TestInstallArgsForWindowsRejectsRaycast(t *testing.T) {
 }
 
 func TestListMatchesListForThisGOOS(t *testing.T) {
+	stubNoClaude(t)
 	got := List()
 	want := ListFor(runtime.GOOS)
 	if len(got) != len(want) {
@@ -357,5 +378,29 @@ func TestListMatchesListForThisGOOS(t *testing.T) {
 		if got[i].ID != want[i].ID {
 			t.Fatalf("List[%d]=%q ListFor=%q", i, got[i].ID, want[i].ID)
 		}
+	}
+}
+
+// TestCataloguePathDoesNotExecClaude is the class gate: List/ListFor must
+// not spawn a subprocess. A poison claude on PATH is exec'd if lookPath
+// still resolves (the pre-fix catalogue tests) or if production stops
+// honoring the lookPath seam and shells out.
+func TestCataloguePathDoesNotExecClaude(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "execed")
+	bin := filepath.Join(dir, "claude")
+	script := "#!/bin/sh\nprintf ran >'" + marker + "'\nexit 0\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	stubNoClaude(t)
+
+	_ = List()
+	_ = ListFor("darwin")
+	_ = ListFor("windows")
+
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("catalogue List/ListFor must not exec claude")
 	}
 }
