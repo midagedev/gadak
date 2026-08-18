@@ -65,6 +65,148 @@ func parseCSVKeys(s string, upper bool) []string {
 	return out
 }
 
+// replaceStandaloneUsage is the --replace-standalone help text. It names
+// what is lost: locally originated issues have no Jira copy, and a later
+// sync treats them as upstream deletions.
+const replaceStandaloneUsage = "replace this standalone workspace with a Jira site; locally originated issues exist only here and a later sync will delete them from the mirror"
+
+// standaloneReplaceErrCode is the --json "error" value when a connected
+// init refuses to take over a standalone workspace that holds data.
+const standaloneReplaceErrCode = "standalone_data_present"
+
+// refuseStandaloneReplace stops a connected init from silently changing
+// which origin owns a standalone workspace that holds locally originated
+// issues. An empty standalone workspace (tried it, nothing filed) is not
+// a hazard and is allowed through.
+func refuseStandaloneReplace(cfg *config.Config, replace, jsonOut bool) error {
+	if cfg == nil || !cfg.IsStandalone() || replace {
+		return nil
+	}
+	n, persist, err := standaloneLocalData(cfg)
+	if err != nil {
+		return fmt.Errorf("cannot replace standalone workspace: %w", err)
+	}
+	if n == 0 {
+		return nil
+	}
+	msg := standaloneReplaceMessage(n, persist)
+	if jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetEscapeHTML(false)
+		if encErr := enc.Encode(struct {
+			Error   string `json:"error"`
+			Issues  int    `json:"issues"`
+			Persist string `json:"persist"`
+			Hint    string `json:"hint"`
+		}{
+			Error:   standaloneReplaceErrCode,
+			Issues:  n,
+			Persist: persist,
+			Hint:    "gadak --profile <name> init",
+		}); encErr != nil {
+			return fmt.Errorf("%s\n(also failed to encode JSON: %v)", msg, encErr)
+		}
+	}
+	return errors.New(msg)
+}
+
+func standaloneReplaceMessage(n int, persist string) string {
+	noun, exist := "issues", "they exist only here"
+	if n == 1 {
+		noun, exist = "issue", "it exists only here"
+	}
+	return fmt.Sprintf("this workspace is standalone and holds %d locally originated %s; %s — no Jira site has a copy\norigin persist file: %s\nconnect the site in a separate workspace: gadak --profile <name> init\n(list workspaces with gadak profiles)\nto replace this workspace anyway (a later sync will delete these issues from the mirror): --replace-standalone",
+		n, noun, exist, persist)
+}
+
+// standaloneLocalData reports how many locally originated issues this
+// standalone workspace holds, and the origin persist path (via
+// origin.PersistPath — never rebuilt from string pieces).
+//
+// "Holds data" is max(mirror issues, origin issues):
+//   - mirror: SELECT COUNT(*) FROM issues, only if gadak.db already exists
+//     (store.Open would create it)
+//   - origin: Search on the in-process origin, only if the persist file
+//     already exists (origin.Client would create it)
+//
+// init --standalone creates a persist file with a project fixture and no
+// issues, so that empty-origin case is n==0 and the common "I tried it,
+// now I want to connect" path is not blocked.
+func standaloneLocalData(cfg *config.Config) (n int, persist string, err error) {
+	dir := ""
+	if cfg != nil {
+		dir = cfg.Directory()
+	}
+	if dir == "" {
+		dir, err = config.Dir()
+		if err != nil {
+			return 0, "", err
+		}
+	}
+	persist = origin.PersistPath(dir)
+
+	mirrorN, err := standaloneMirrorIssueCount()
+	if err != nil {
+		return 0, persist, err
+	}
+	originN, err := standaloneOriginIssueCount(cfg, persist)
+	if err != nil {
+		return 0, persist, err
+	}
+	n = mirrorN
+	if originN > n {
+		n = originN
+	}
+	return n, persist, nil
+}
+
+func standaloneMirrorIssueCount() (int, error) {
+	path, err := config.DBPath()
+	if err != nil {
+		return 0, err
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	if st.IsDir() {
+		return 0, nil
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+	return db.TableCount(context.Background(), "issues")
+}
+
+func standaloneOriginIssueCount(cfg *config.Config, persist string) (int, error) {
+	if persist == "" {
+		return 0, nil
+	}
+	if _, err := os.Stat(persist); err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	c, err := origin.Client(cfg)
+	if err != nil {
+		return 0, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	n := 0
+	err = c.Search(ctx, "ORDER BY created ASC", []string{"summary"}, false, func(issues []jira.Issue) error {
+		n += len(issues)
+		return nil
+	})
+	return n, err
+}
+
 // initMissingError lists every value still empty and how to supply it without a
 // prompt. reason is why prompting was skipped (not a TTY, --json, --token-stdin).
 // projects is optional (empty = every project the account can see).
@@ -97,6 +239,8 @@ func cmdInit(args []string) error {
 	jsonOut := fs.Bool("json", false, "emit one JSON object on success")
 	// Quiet beta: independent workspace, no Jira site or credential.
 	standalone := fs.Bool("standalone", false, "create an independent workspace (no Jira site or credential)")
+	// Long name on purpose: a typo or a stray -f must not flip the origin.
+	replaceStandalone := fs.Bool("replace-standalone", false, replaceStandaloneUsage)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -118,6 +262,9 @@ func cmdInit(args []string) error {
 	envProjects := config.Env("PROJECTS")
 
 	if *standalone {
+		if *replaceStandalone {
+			return fmt.Errorf("--standalone cannot be combined with --replace-standalone")
+		}
 		if *siteFlag != "" || *emailFlag != "" || *tokenFile != "" || *tokenStdin || *tokenExpires != "" ||
 			envSite != "" || envEmail != "" || envToken != "" {
 			return fmt.Errorf("--standalone cannot be combined with a site, email, or token")
@@ -126,6 +273,13 @@ func cmdInit(args []string) error {
 			return fmt.Errorf("--standalone cannot be combined with --spaces")
 		}
 		return initStandalone(cfg, *jsonOut, *projectsFlag)
+	}
+
+	// Close the class "a command silently changes which origin owns this
+	// workspace". An empty standalone workspace is not a hazard; one that
+	// holds locally originated issues is (GDK-238).
+	if err := refuseStandaloneReplace(cfg, *replaceStandalone, *jsonOut); err != nil {
+		return err
 	}
 
 	// Any supply flag or env forces non-interactive; half-prompted states are unpredictable for agents.
@@ -259,7 +413,7 @@ func cmdInit(args []string) error {
 	cfg.Email = email
 	cfg.Token = token
 	cfg.Projects = projects
-	// A connected init replaces a previous standalone workspace.
+	// Reached only after refuseStandaloneReplace (or --replace-standalone).
 	cfg.Kind = ""
 
 	// Confluence: flag absent leaves the section untouched.
