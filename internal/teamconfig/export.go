@@ -36,6 +36,7 @@ type TeamSettings struct {
 	EditableFields      map[string]string         `json:"editableFields,omitempty"`
 	Members             []config.Member           `json:"members,omitempty"`
 	GroupRules          []config.GroupRule        `json:"groupRules,omitempty"`
+	GroupQuery          string                    `json:"groupQuery,omitempty"`
 	GroupLabels         map[string]string         `json:"groupLabels,omitempty"`
 	GroupColors         map[string]string         `json:"groupColors,omitempty"`
 	ProductByGroup      map[string]config.Product `json:"productByGroup,omitempty"`
@@ -74,6 +75,7 @@ func BuildDocument(cfg *config.Config, views []store.SavedView, opts ExportOptio
 		Fields:              exportFieldSpecs(cfg),
 		BodyFields:          copyStrings(cfg.BodyFields),
 		GroupRules:          copyGroupRules(cfg.GroupRules),
+		GroupQuery:          cfg.GroupQuery,
 		GroupLabels:         copyStringMap(cfg.GroupLabels),
 		GroupColors:         copyStringMap(cfg.GroupColors),
 		ProductByGroup:      copyProductMap(cfg.ProductByGroup),

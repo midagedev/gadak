@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **`groupQuery`** classifies `team_group` with one read-only `SELECT`/`WITH`
+  over the mirror (`issues_full`, `json_each`, `REGEXP`). Runs when the derived
+  view is rebuilt, not on a keystroke. Empty group = unclassified; NULL or a
+  missing key falls through to existing `groupRules` and the assignee's member
+  group. The query is team-exportable. `groupRules` stays the three-list
+  form — do not grow it into a DSL. Settings PUT omits-to-preserve so older
+  clients cannot wipe a stored query.
+
 ## v0.15.2 — 2026-08-17
 
 The release where settings stop being a screen. Every field the dialog

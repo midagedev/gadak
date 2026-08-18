@@ -125,6 +125,7 @@ and `hasCredential` on the body are ignored.
 | `editableFields` | map alias→field id | `{}` | Settings → Field mapping / `gadak config` (legacy; Kind-bearing specs also enable inline edit) | Immediate |
 | `members` | Member[] | `[]` | Settings → Members / `gadak config` | Immediate (cached projection invalidated) |
 | `groupRules` | GroupRule[] | `[]` | Settings → Teams / `gadak config` | Immediate |
+| `groupQuery` | string (SQL) | `""` | Settings → Teams / `gadak config set groupQuery` | Immediate (derived view rebuild) |
 | `groupLabels` | map | `{}` | Settings → Teams / `gadak config` | Immediate |
 | `groupColors` | map | `{}` | Settings → Teams / `gadak config` | Immediate |
 | `productByGroup` | map → `{key,label}` | `{}` | Settings → Teams / `gadak config` | Immediate |
@@ -145,6 +146,36 @@ removes it from the mirror; add one and that space is fetched from the start
 [`runbooks/confluence-space-scope.md`](runbooks/confluence-space-scope.md)).
 Most keys apply without restart; `syncIntervalSec` and
 `reconcileIntervalSec` are picked up on the next watch tick.
+
+### `groupQuery`
+
+Optional classifier for team groups that do not fit `groupRules` (three
+AND-lists). One `SELECT` or `WITH` returning **two columns**: issue key, group.
+It runs when the derived view is rebuilt (config save or sync version), never
+on a keystroke. `REGEXP` is available (`col REGEXP '(?i)invoice'`).
+
+| Second column | Meaning |
+| --- | --- |
+| `'billing'` | assign that group |
+| `''` | unclassified — stop, do not fall through |
+| `NULL` or a key the query omits | fall through to `groupRules`, then the assignee's member `group` |
+
+Site-specific `CASE` belongs in this string (and in `gadak team export`), not
+in gadak source. Writes, `PRAGMA`, `ATTACH`, and multiple statements are
+rejected on save.
+
+```sql
+SELECT i.key,
+  CASE
+    WHEN EXISTS (SELECT 1 FROM json_each(i.labels) e WHERE e.value = 'skip-triage') THEN ''
+    WHEN i.components REGEXP '(?i)invoice|payment'
+      OR coalesce(json_extract(i.custom, '$.billing_code'), '') REGEXP '(?i)invoice'
+      THEN 'billing'
+    WHEN EXISTS (SELECT 1 FROM json_each(i.labels) e WHERE e.value = 'backend') THEN 'platform'
+    ELSE NULL
+  END
+FROM issues_full i
+```
 
 ### `fields` (FieldSpec)
 
@@ -245,7 +276,7 @@ list. Credentials and per-machine prefs are never included.
 | --- | --- |
 | `projects` | `site`, `email`, `token` |
 | `fields`, `fieldMap`, `bodyFields`, `editableFields` | `account_id`, `tokenOwner`, `tokenVerifiedAt` |
-| `groupRules`, `groupLabels`, `groupColors`, `productByGroup` | `syncIntervalSec`, `reconcileIntervalSec` |
+| `groupRules`, `groupQuery`, `groupLabels`, `groupColors`, `productByGroup` | `syncIntervalSec`, `reconcileIntervalSec` |
 | `features`, `qaDashboardUrl`, `staleThresholdHours` | `notify`, `updateCheck`, `attachmentCacheMB` |
 | `members` only with `export --with-members` (emails; stderr warns) | personal machine intervals / notification prefs |
 | saved views (`name` + `config`; new ids on import) | view `id` / timestamps |

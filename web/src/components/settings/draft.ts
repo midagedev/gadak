@@ -75,6 +75,7 @@ export interface SettingsDraft {
   groups: GroupRow[]
   products: ProductRow[]
   rules: RuleRow[]
+  groupQuery: string
   members: MemberRow[]
   fieldMap: Kv[]
   editableFields: Kv[]
@@ -183,6 +184,7 @@ export function toDraft(s: GadakSettings, features: FeatureFlags = NO_FEATURES):
       labels: joinCsv(r.labels),
       components: joinCsv(r.components),
     })),
+    groupQuery: s.groupQuery ?? '',
     members: (s.members ?? []).map((m) => ({
       email: m.email ?? '',
       name: m.name ?? '',
@@ -250,6 +252,7 @@ export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): Gada
         labels: splitCsv(r.labels),
         components: splitCsv(r.components),
       })),
+    groupQuery: d.groupQuery,
     members: d.members
       .filter((m) => m.email.trim())
       .map((m) => ({ ...m, email: m.email.trim() })),

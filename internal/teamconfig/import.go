@@ -258,6 +258,7 @@ func planSettings(cur *config.Config, in TeamSettings, overwrite bool) []Setting
 		{key: "bodyFields", empty: len(cur.BodyFields) == 0, hasIn: len(in.BodyFields) > 0},
 		{key: "members", empty: len(cur.Members) == 0, hasIn: len(in.Members) > 0},
 		{key: "groupRules", empty: len(cur.GroupRules) == 0, hasIn: len(in.GroupRules) > 0},
+		{key: "groupQuery", empty: cur.GroupQuery == "", hasIn: in.GroupQuery != ""},
 		{key: "groupLabels", empty: len(cur.GroupLabels) == 0, hasIn: len(in.GroupLabels) > 0},
 		{key: "groupColors", empty: len(cur.GroupColors) == 0, hasIn: len(in.GroupColors) > 0},
 		{key: "productByGroup", empty: len(cur.ProductByGroup) == 0, hasIn: len(in.ProductByGroup) > 0},
@@ -354,6 +355,8 @@ func applySetting(cfg *config.Config, key string, in TeamSettings) error {
 		cfg.Members = copyMembers(in.Members)
 	case "groupRules":
 		cfg.GroupRules = copyGroupRules(in.GroupRules)
+	case "groupQuery":
+		cfg.GroupQuery = in.GroupQuery
 	case "groupLabels":
 		cfg.GroupLabels = copyStringMap(in.GroupLabels)
 	case "groupColors":

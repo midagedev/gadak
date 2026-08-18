@@ -223,10 +223,10 @@ reopen_count, reopened_at, comment_count
 Two groups of fields are added on top of the stored row, both from
 configuration:
 
-- `team_group`, when `groupRules` or a member `group` is configured. The first
-  matching rule wins — conditions are ANDed, values inside one condition are
-  ORed, an empty condition is always true — and the assignee's configured group
-  is the fallback. With no taxonomy configured the key is **omitted**, not null,
+- `team_group`, when `groupQuery`, `groupRules`, or a member `group` is configured.
+  Order: `groupQuery` hit (empty string = unclassified, stop) → first matching
+  `groupRules` row → assignee's member group. A `groupQuery` NULL or missing key
+  falls through. With no taxonomy configured the key is **omitted**, not null,
   so the client's group surfaces stay empty rather than showing one bogus bucket.
 - every `fieldMap` alias present in `issues.custom`, spread as a top-level key
   (`severity`, `solution`, `environment`, …). Aliases are serialized before the

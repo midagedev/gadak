@@ -537,6 +537,7 @@ type derivedView struct {
 	groupByEmail   map[string]string
 	groupByAccount map[string]string
 	rules          []config.GroupRule
+	queryGroup     map[string]string
 	groupsEnabled  bool
 	// Plugin enrichments the list rows carry, by issue key. They are cached with
 	// everything else here, which is exactly as fresh as the ETag: a plugin that
@@ -684,6 +685,14 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 			v.groupsEnabled = true
 		}
 	}
+	if q := strings.TrimSpace(cfg.GroupQuery); q != "" {
+		hits, err := s.db.GroupQueryHits(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		v.queryGroup = hits
+		v.groupsEnabled = true
+	}
 	v.groupsEnabled = v.groupsEnabled || len(cfg.GroupRules) > 0
 
 	seen := map[*member]struct{}{}
@@ -801,6 +810,9 @@ func pick(p json.RawMessage, field string) json.RawMessage {
 func (v *derivedView) group(l store.IssueLite) *string {
 	if !v.groupsEnabled {
 		return nil
+	}
+	if g, ok := v.queryGroup[l.IssueKey]; ok {
+		return nilIfEmpty(g)
 	}
 	for _, r := range v.rules {
 		if ruleMatches(r, l) {

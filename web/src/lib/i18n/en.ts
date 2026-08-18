@@ -872,6 +872,9 @@ export const en = {
   'settings.rulesFirstWins': 'first match wins',
   'settings.rulesDetail':
     '. Conditions in a row are AND; values within a list are OR; empty conditions always match.',
+  'settings.groupQuery': 'Classification SQL',
+  'settings.groupQueryHint':
+    'Optional. One SELECT or WITH returning (issue key, group). Empty group = unclassified. NULL or a missing key falls through to the rules above, then the assignee’s member group. Runs when the list is rebuilt, not on each keystroke. Site-specific logic belongs here, not in the binary.',
   'settings.projectsCol': 'Projects',
   'settings.componentsCol': 'Components',
   'settings.cloudPart': 'Cloud part',

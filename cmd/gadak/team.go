@@ -110,6 +110,9 @@ func countSettingsKeys(s teamconfig.TeamSettings) int {
 	if len(s.GroupRules) > 0 {
 		n++
 	}
+	if s.GroupQuery != "" {
+		n++
+	}
 	if len(s.GroupLabels) > 0 {
 		n++
 	}

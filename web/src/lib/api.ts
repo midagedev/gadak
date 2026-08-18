@@ -769,6 +769,8 @@ export interface GadakSettings {
   editableFields?: Record<string, string>
   members?: SettingsMember[]
   groupRules?: SettingsGroupRule[]
+  /** Optional SELECT/WITH (key, group). Omitted on PUT leaves the stored query. */
+  groupQuery?: string
   groupLabels?: Record<string, string>
   groupColors?: Record<string, string>
   productByGroup?: Record<string, { key: string; label: string }>
