@@ -86,7 +86,7 @@ Steps 5 and 6 are what make it worth publishing: SQL answers; views present.
 
 | | For | Looks like |
 | --- | --- | --- |
-| **App + Web UI** | all-day triage | the [macOS app](DESKTOP.md) — no port, no local server — or the same UI in a browser tab (`gadak serve`) |
+| **App + Web UI** | all-day triage | the [desktop app](DESKTOP.md) — no port, no local server — or the same UI in a browser tab (`gadak serve`) |
 | **CLI + SQL** | agents, scripts, one-off questions | `gadak issue`, `gadak search` (FTS, or `--jql` / a Jira URL), `gadak sql`, plus the file itself |
 
 `j`/`k` walk the list, `x` selects, `s`/`a`/`l`/`c` change status, assignee,

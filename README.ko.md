@@ -19,7 +19,7 @@
 gadak은 Jira *그리고* Confluence를 로컬 SQLite 파일 하나로 미러링합니다 —
 이슈, 코멘트, 히스토리, 위키 문서가 한 인덱스에 들어가고, 검색은 네트워크
 없이 로컬에서 끝납니다. 그 데이터가 내 머신에서 사는 자리가 이 창입니다:
-[macOS 앱](docs/DESKTOP.md)이나 브라우저 탭에서 트리아지하고, 코딩
+[데스크톱 앱](docs/DESKTOP.md)이나 브라우저 탭에서 트리아지하고, 코딩
 에이전트가 SQL로 묻고 같은 창에 답을 띄우게 하세요. 바이너리 하나,
 앱 하나, gadak 계정은 없습니다.
 
@@ -71,12 +71,20 @@ SQL은 브라우저 안에서 돌아갑니다.
 
 </details>
 
-[`Gadak-<version>-arm64.dmg`](https://github.com/midagedev/gadak/releases/latest)를
-받아 창을 열거나, 터미널에서:
+macOS: [`Gadak-<version>-arm64.dmg`](https://github.com/midagedev/gadak/releases/latest)를
+받아 창을 엽니다.
+
+Windows (0.16부터): [`Gadak-<version>-windows-x64.zip`](https://github.com/midagedev/gadak/releases/latest)
+(또는 `windows-arm64`)을 받아 압축을 풀고 `gadak-desktop.exe`를 실행합니다.
+이 빌드는 서명되어 있지 않습니다 — Windows가 막으면 아래 CLI 경로를
+쓰세요. 자세한 내용:
+[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+
+또는 터미널에서:
 
 ```bash
-brew install midagedev/tap/gadak        # 앱 — 번들된 CLI도 PATH에 올라갑니다
-# 또는 CLI만 (macOS + Linux):
+brew install midagedev/tap/gadak        # macOS 앱 — 번들된 CLI도 PATH에 올라갑니다
+# CLI만 (macOS + Linux는 brew; Windows는 릴리스 zip):
 brew install midagedev/tap/gadak-cli
 gadak init && gadak sync    # Jira (그리고 Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
@@ -107,7 +115,7 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
 
 | | 용도 | 모습 |
 | --- | --- | --- |
-| **앱 + 웹 UI** | 종일 트리아지 | [macOS 앱](docs/DESKTOP.md)(포트 없음) 또는 `gadak serve`. `j`/`k`로 이동, `x`로 선택, `s`/`a`/`l`/`c`로 리스트에서 바로 상태·담당자·라벨·코멘트 변경 |
+| **앱 + 웹 UI** | 종일 트리아지 | [데스크톱 앱](docs/DESKTOP.md)(포트 없음) 또는 `gadak serve`. `j`/`k`로 이동, `x`로 선택, `s`/`a`/`l`/`c`로 리스트에서 바로 상태·담당자·라벨·코멘트 변경 |
 | **CLI + SQL** | 에이전트, 스크립트 | `gadak issue`, `gadak search`(FTS, `--jql`, Jira URL), `gadak sql`, 그리고 파일 그 자체 |
 
 쓰기는 Jira로 통과된 뒤 미러가 갱신됩니다. 앱·웹: 코멘트, 상태 전이,
@@ -213,8 +221,9 @@ JQL로 여전히 물을 수 없는 것은 `gadak sql`과
 Atlassian Cloud 전용입니다. [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
 하나로 같은 사이트의 Jira와 Confluence를 모두 커버합니다.
 
-**1. [macOS 앱](docs/DESKTOP.md).**
-[최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
+**1. [데스크톱 앱](docs/DESKTOP.md).**
+
+macOS: [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
 `Gadak-<version>-arm64.dmg`를 받아 Applications로 드래그하세요. 서명·공증
 완료. 첫 실행이 사이트, 이메일, 토큰, 프로젝트 선택을 안내합니다. CLI는
 번들 안에 있습니다 — macOS는 앱을 `PATH`에 올려 주지 않으므로:
@@ -223,13 +232,28 @@ Atlassian Cloud 전용입니다. [API 토큰](https://id.atlassian.com/manage-pr
 /Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
 ```
 
-**2. CLI** — 리눅스에서, 또는 같은 UI를 브라우저 탭으로:
+Windows (0.16부터): 같은 릴리스에서 `Gadak-<version>-windows-x64.zip`(또는
+`windows-arm64`)을 받아 압축을 풀고 `gadak-desktop.exe`를 실행하세요. 서명은
+없습니다(GDK-211). Windows가 **Windows protected your
+PC** 또는 **Smart App Control blocked an app that may be unsafe**를 보여
+주면 바이러스 탐지가 아닙니다 — 아래 CLI 경로를 쓰세요. Smart App Control을
+끄지 마세요.
+[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+
+**2. CLI** — 리눅스, Windows, 또는 같은 UI를 브라우저 탭으로:
 
 ```bash
 brew install midagedev/tap/gadak-cli     # macOS + Linux
 gadak init && gadak sync
 gadak serve      # http://gadak.localhost:7777
 ```
+
+Homebrew 없이 Windows에 설치하려면
+[최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
+`gadak_<version>_windows_amd64.zip`(또는 `windows_arm64`)과 `checksums.txt`를
+받으세요. 압축을 풀고 `gadak.exe`를 `PATH`에 둔 뒤
+`gadak init && gadak sync && gadak serve`. 서명되지 않은 데스크톱 exe가
+막히면 0.16에서 믿을 수 있는 Windows 경로입니다.
 
 Homebrew 없이 리눅스에 설치하려면
 [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
@@ -277,7 +301,7 @@ Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/
 
 ## 문서
 
-- [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — 설치, 첫 실행, macOS 앱
+- [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — 설치, 첫 실행, 데스크톱 앱
 - [`AGENTS.md`](AGENTS.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, 호스트별 붙여넣기 한 번
 - [`docs/RECIPES.md`](docs/RECIPES.md) — JQL이 못 묻는 질문들, SQL로
 - [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](MAINTENANCE.md) — 위협 모델, 사이트 부하, 누가 유지하는가

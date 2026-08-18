@@ -1,10 +1,15 @@
 # The desktop app
 
-Gadak.app is the same gadak — the web UI in its own macOS window, over the same
+The desktop app is the same gadak — the web UI in its own window, over the same
 mirror, with one structural difference from `gadak serve`: **there is no local
 server.** The window talks to the mirror in-process, so there is no port, no
-address, no port conflict, and nothing new listening on your machine. Launch
-it twice and the running window comes forward instead.
+address, no port conflict, and nothing new listening on your machine
+(`desktop/main.go`). Launch it twice and the running window comes forward
+instead.
+
+On macOS the window is `Gadak.app` (no title bar: the traffic lights sit in
+the sidebar). On Windows it is `gadak-desktop.exe` from the portable zip,
+with ordinary Windows chrome.
 
 If you already use the CLI, nothing changes underneath: the app reads and
 writes the same `~/.gadak` profiles, and WAL means the app, a
@@ -16,11 +21,19 @@ instead — which is also where you grab the window to move it.
 
 ## Install
 
-Download `Gadak-<version>-arm64.dmg` from the
+**macOS.** Download `Gadak-<version>-arm64.dmg` from the
 [latest release](https://github.com/midagedev/gadak/releases/latest), drag
 Gadak.app to Applications. The dmg is Developer ID-signed and notarized
-(macOS, Apple Silicon; Intel and other platforms use the
-[CLI](../README.md#install)).
+(Apple Silicon).
+
+**Windows (from 0.16).** Download `Gadak-<version>-windows-x64.zip` or
+`Gadak-<version>-windows-arm64.zip` from the same release, unzip, run
+`gadak-desktop.exe`. Unsigned — signing is GDK-211. If Windows blocks the
+exe, use the CLI zip and `gadak serve`. Do not turn Smart App Control off.
+The wording and the CLI fallback live in
+[INSTALL.md](INSTALL.md#desktop-app-windows).
+
+Intel Macs and Linux use the [CLI](../README.md#install).
 
 First launch walks you through setup in the window — Jira site, email, API
 token (from <https://id.atlassian.com/manage-profile/security/api-tokens>),
@@ -143,10 +156,12 @@ an action that is not a plain word, carry a profile or subject that is not a
 plain name, try to traverse a path, or exceed the size limits
 (`internal/deeplink`). Actions that submit or write will not be added.
 
-macOS only: it is the bundle's `Info.plist` that registers the scheme, and
-there is no Linux or Windows desktop app. Elsewhere, the `web` field from
+macOS registers the scheme from the bundle's `Info.plist`. The Windows
+portable zip does not write `HKCU\SOFTWARE\Classes\gadak` (that registration
+is not part of the pack). On Linux, and on Windows when you are using
+`gadak serve` instead of the exe, the `web` field from
 `gadak views open --json` is the link to hand over — it needs a running
-`serve`, which those platforms have.
+`serve`.
 
 ## Profiles
 

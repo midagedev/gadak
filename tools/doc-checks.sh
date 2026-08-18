@@ -271,4 +271,44 @@ if [[ -n "$rule_table_hits" ]]; then
 fi
 ok "derived-field rule table lives only in docs/DERIVE.md"
 
+# ── 13. Windows install exists; never tell a user to turn SAC off ────────
+# GDK-244/245: 0.16 ships an unsigned Windows desktop zip. README used to
+# say "CLI only (macOS + Linux)" and "the macOS app" as if that were the
+# only window. A check that only pins the version (check 6) would stay
+# green while those sentences came back. The SAC rule is sharper: Microsoft
+# documents no per-app override, and this project must not offer "turn
+# Smart App Control off" as a workaround (once offered, someone will).
+win_zip_missing=""
+for f in README.md README.ko.md docs/INSTALL.md docs/DESKTOP.md; do
+  grep -q 'windows-x64' "$f" || win_zip_missing+="  $f: no windows-x64 asset name"$'\n'
+done
+if [[ -n "$win_zip_missing" ]]; then
+  fail "Windows desktop zip is not named in the install docs (GDK-245):"$'\n'"$win_zip_missing"
+fi
+if ! grep -q 'Smart App Control' docs/INSTALL.md; then
+  fail "docs/INSTALL.md does not name Smart App Control (GDK-245)"
+fi
+if ! grep -q 'GDK-211' docs/INSTALL.md; then
+  fail "docs/INSTALL.md does not name GDK-211 (signing planned, no date)"
+fi
+sac_off="$(
+  grep -nEi 'turn(ing)?[[:space:]]+((smart[[:space:]]+app[[:space:]]+control)|SAC)[[:space:]]+off|disable[[:space:]]+((smart[[:space:]]+app[[:space:]]+control)|SAC)|스마트[[:space:]]*앱[[:space:]]*제어를[[:space:]]*끄' \
+    README.md README.ko.md docs/INSTALL.md docs/DESKTOP.md \
+    || true
+)"
+# The docs must mention the prohibition. A line that says "Do not turn …
+# off" is the contract; a line that tells the user to turn it off is not.
+# Fail only when an imperative/how-to (turn/disable) is not a prohibition.
+if [[ -n "$sac_off" ]]; then
+  bad_off=""
+  while IFS= read -r line; do
+    echo "$line" | grep -Eiq 'do[[:space:]]*(\*\*)?not|don'\''t|never|끄지 마' && continue
+    bad_off+="  $line"$'\n'
+  done <<< "$sac_off"
+  if [[ -n "$bad_off" ]]; then
+    fail "install docs tell the user to turn Smart App Control off:"$'\n'"$bad_off"
+  fi
+fi
+ok "Windows desktop zip is documented; SAC-off is not offered"
+
 echo "doc-checks: all passed"
