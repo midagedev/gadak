@@ -255,6 +255,10 @@ Homebrew 없이 Windows에 설치하려면
 `gadak init && gadak sync && gadak serve`. 서명되지 않은 데스크톱 exe가
 막히면 0.16에서 믿을 수 있는 Windows 경로입니다.
 
+Scoop 매니페스트는 [`contrib/scoop`](contrib/scoop)에 있습니다. 버킷은
+아직 게시되지 않았고, Windows 머신에서 `scoop install`을 돌린 적도 없습니다
+([`docs/INSTALL.md`](docs/INSTALL.md#scoop-windows-cli)).
+
 Homebrew 없이 리눅스에 설치하려면
 [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
 `gadak_<version>_linux_amd64.tar.gz`(또는 `linux_arm64`)와 `checksums.txt`를

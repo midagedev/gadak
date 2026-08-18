@@ -86,6 +86,26 @@ again. Gadak notices a new release on its own and shows the notes in Settings �
 it will not print an upgrade command there on Arch, because there is not an
 honest one to print yet.
 
+### Scoop (Windows CLI)
+
+Status: **not in a published bucket; `scoop install` has not been run on a Windows machine.**
+<!-- PUBLISH: replace the Status line with:
+scoop bucket add gadak https://github.com/midagedev/scoop-gadak
+scoop install gadak
+-->
+
+The in-repo manifest is [`contrib/scoop/gadak.json`](../contrib/scoop/gadak.json).
+It is checked offline (Scoop's schema, sha256 against that tag's
+`checksums.txt`, zip members). It is the Windows CLI (`gadak.exe`) — the
+same file as `gadak_<version>_windows_amd64.zip` / `windows_arm64` — not
+the desktop zip `Gadak-<version>-windows-x64.zip`. Scoop's app name is
+`gadak` (Windows-only, that is the command on `PATH`). Homebrew uses
+`gadak` for the macOS app cask and `gadak-cli` for this same CLI.
+
+Until the bucket exists, install from the zip under
+[Desktop app (Windows)](#desktop-app-windows) or
+[Release binary](#release-binary).
+
 ### Desktop app (macOS)
 
 Download `Gadak-<version>-arm64.dmg` from the

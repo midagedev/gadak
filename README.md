@@ -249,6 +249,10 @@ Unzip, put `gadak.exe` on `PATH`, then `gadak init && gadak sync && gadak serve`
 This is the reliable Windows route in 0.16 if the unsigned desktop exe is
 blocked.
 
+A Scoop manifest lives in [`contrib/scoop`](contrib/scoop). The bucket
+is not published and `scoop install` has not been run on a Windows machine
+([`docs/INSTALL.md`](docs/INSTALL.md#scoop-windows-cli)).
+
 Linux without Homebrew: from the
 [latest release](https://github.com/midagedev/gadak/releases/latest),
 download `gadak_<version>_linux_amd64.tar.gz` (or `linux_arm64`) and
