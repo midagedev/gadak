@@ -12,6 +12,14 @@ import { write, type ToastKind } from '../stores/write.svelte'
 
 const POLL_MS = 1000
 let inflight: Promise<void> | null = null
+/**
+ * Whether the in-flight run is allowed to speak. Single-flight used to carry
+ * the quietness of whoever started the run, so a person who pressed Sync now
+ * while the focus-time background pull was still going joined a silent run and
+ * saw nothing at all happen — no request of their own, no toast. Asking out
+ * loud upgrades the run in progress; a background pull never downgrades one.
+ */
+let inflightQuiet = true
 
 export interface SyncNowOptions {
   /**
@@ -28,9 +36,18 @@ export function runSyncNow(
   mode: 'full' | 'incremental' = 'incremental',
   opts: SyncNowOptions = {},
 ): Promise<void> {
-  if (inflight) return inflight
-  inflight = doSync(mode, opts.quiet ?? false).finally(() => {
+  const quiet = opts.quiet ?? false
+  if (inflight) {
+    if (!quiet && inflightQuiet) {
+      inflightQuiet = false
+      write.toast(t('sync.starting'))
+    }
+    return inflight
+  }
+  inflightQuiet = quiet
+  inflight = doSync(mode).finally(() => {
     inflight = null
+    inflightQuiet = true
   })
   return inflight
 }
@@ -57,16 +74,19 @@ export async function adoptRunningSync(): Promise<void> {
   await issues.pullMirror('incremental', true)
 }
 
-async function doSync(mode: 'full' | 'incremental', quiet: boolean): Promise<void> {
+async function doSync(mode: 'full' | 'incremental'): Promise<void> {
+  // Read inflightQuiet at each call, never capture it: a Sync now that lands
+  // mid-run flips it, and the outcome of this run is what that person is
+  // waiting to hear.
   const say = (message: string, kind: ToastKind = 'info') => {
-    if (!quiet) {
+    if (!inflightQuiet) {
       write.toast(message, kind)
       return
     }
     if (kind === 'error') console.warn('[sync-now]', message)
   }
   const openSettings = () => {
-    if (!quiet) write.openSettings()
+    if (!inflightQuiet) write.openSettings()
   }
 
   say(t('sync.starting'))

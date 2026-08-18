@@ -116,6 +116,21 @@ func cachePath(dir string) string {
 	return filepath.Join(dir, cacheName)
 }
 
+// DropCache removes the cached release so the next Check hits the network
+// even inside the 24h TTL — what a person means by "check for updates now".
+// A missing file is success. Callers must not rebuild the filename
+// themselves: this package owns it, and a copy of the literal elsewhere
+// would go on pointing at the old name after a rename here.
+func DropCache(dir string) error {
+	if dir == "" {
+		return nil
+	}
+	if err := os.Remove(cachePath(dir)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func readFreshCache(dir string) (Info, bool) {
 	data, err := os.ReadFile(cachePath(dir))
 	if err != nil {

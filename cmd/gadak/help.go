@@ -111,7 +111,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak serve"},
 	},
 	"install-cli": {
-		summary: "put this binary on PATH via a symlink (prefers a PATH entry, else ~/.local/bin)",
+		summary: "put this binary on PATH (prefers a PATH entry, else ~/.local/bin)",
 		usage:   "gadak install-cli [--dir <path>] [--force] [--print]",
 		examples: []string{
 			"gadak install-cli",

@@ -1,14 +1,65 @@
 <script lang="ts">
   /* How often the mirror refreshes, and how old is "stale". */
+  import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
-  import { surface } from '../../lib/config'
+  import { config, surface } from '../../lib/config'
+  import { copyText } from '../../lib/copy-text'
+  import { issues } from '../../stores/issues.svelte'
+  import { write } from '../../stores/write.svelte'
   import Icon from '../ui/Icon.svelte'
   import type { SettingsRuntime } from '../../lib/api'
-  import { INPUT, SELECT, SELECT_CHEVRON, ADD_BTN } from './controls'
+  import { INPUT, SELECT, SELECT_CHEVRON, ADD_BTN, COPY_BTN } from './controls'
   import { RECONCILE_PRESETS, SYNC_PRESETS, type SettingsDraft } from './draft'
   import RuntimeMirror from './RuntimeMirror.svelte'
 
   const onDesktop = surface() === 'desktop'
+
+  type UpdateDoc = {
+    latest?: string
+    release_url?: string
+    newer?: boolean
+    last_user_check_at?: string
+    last_user_status?: string
+  }
+
+  let copiedBrew = $state(false)
+  let lastUserAt = ''
+
+  async function pullUpdate(): Promise<void> {
+    try {
+      const res = await fetch(config().apiBase + 'update/', { credentials: 'same-origin' })
+      if (!res.ok) return
+      const data = (await res.json()) as UpdateDoc
+      // Apply only when newer — never clear a delta-injected banner.
+      if (data.newer && data.latest) {
+        issues.applyUpdateInfo(data.latest, data.release_url ?? '')
+      }
+      if (!data.last_user_check_at || data.last_user_check_at === lastUserAt) return
+      const age = Date.now() - Date.parse(data.last_user_check_at)
+      if (!Number.isFinite(age) || age < 0 || age >= 15_000) return
+      lastUserAt = data.last_user_check_at
+      if (data.last_user_status === 'current') write.toast(t('settings.updateCurrent'), 'success')
+      else if (data.last_user_status === 'error') write.toast(t('settings.updateFailed'), 'error')
+      else if (data.last_user_status === 'dev') write.toast(t('settings.updateDev'), 'info')
+    } catch {
+      /* snapshot is advisory */
+    }
+  }
+
+  onMount(() => {
+    void pullUpdate()
+    const id = setInterval(() => void pullUpdate(), 2000)
+    return () => clearInterval(id)
+  })
+
+  async function copyBrew(): Promise<void> {
+    if (await copyText(t('settings.updateBrew'))) {
+      copiedBrew = true
+      setTimeout(() => {
+        copiedBrew = false
+      }, 1500)
+    }
+  }
 
   // `runtime` is null until the settings load lands (and on an older server
   // that sends no runtime block at all) — the mirror simply has nothing to
@@ -128,6 +179,44 @@
       {t('settings.credsElsewhere')}
     </p>
   </div>
+
+  <section
+    class="rounded-md border border-border-subtle bg-bg-base/60 px-3 py-2.5"
+    data-testid="settings-update"
+  >
+    <div class="mb-2 text-micro font-medium uppercase tracking-wide text-text-muted">
+      {t('settings.updateTitle')}
+    </div>
+    {#if issues.latestVersion}
+      <p class="text-micro text-text-primary">
+        {t('sidebar.updateAvailable', { version: issues.latestVersion })}
+      </p>
+      {#if issues.releaseUrl}
+        <a
+          href={issues.releaseUrl}
+          target="_blank"
+          rel="noreferrer"
+          class="mt-1 inline-block text-micro text-accent-text hover:underline"
+          data-testid="settings-update-link"
+        >
+          {t('settings.updateReleaseNotes')}
+        </a>
+      {/if}
+    {/if}
+    <!-- brew is the macOS install path. Naming it on Linux or Windows would
+         hand the reader a command that does not exist; there the release link
+         above is the whole answer. Unknown OS (static export) stays silent. -->
+    {#if config().os === 'darwin'}
+      <div class="mt-2 flex flex-wrap items-center gap-1.5">
+        <span class="font-mono text-micro text-text-primary" data-testid="settings-update-brew"
+          >{t('settings.updateBrew')}</span
+        >
+        <button type="button" class={COPY_BTN} onclick={() => void copyBrew()}>
+          {copiedBrew ? t('settings.copied') : t('settings.copy')}
+        </button>
+      </div>
+    {/if}
+  </section>
 
   <!-- Read-only facts about the mirror these intervals drive: last pull,
        watermark, size, last error. Under the controls, because the controls are

@@ -8,8 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -223,6 +225,192 @@ func TestBootstrapUpdateFields(t *testing.T) {
 	body = decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
 	if body.LatestVersion != "" || body.ReleaseURL != "" {
 		t.Fatalf("older release should omit fields, got latest=%q url=%q", body.LatestVersion, body.ReleaseURL)
+	}
+}
+
+func TestDeltaUpdateFields(t *testing.T) {
+	// GDK-214: delta is the 15s poll path. A newer release cached after
+	// bootstrap must ride this document — bootstrap's ETag is sync version
+	// and will 304, so this is the only live delivery.
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	prev := Version
+	t.Cleanup(func() { Version = prev })
+	Version = "0.3.0"
+
+	// Decode as a map so omitempty is visible as a missing key, not "".
+	raw := func() map[string]any {
+		t.Helper()
+		rec := get(t, h, apiBase+"delta/", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+		}
+		var m map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return m
+	}
+
+	body := raw()
+	if _, ok := body["latest_version"]; ok {
+		t.Fatalf("expected empty update fields, got latest=%v url=%v", body["latest_version"], body["release_url"])
+	}
+	if _, ok := body["release_url"]; ok {
+		t.Fatalf("expected omitted release_url, got %v", body["release_url"])
+	}
+
+	h.s.setUpdateInfo(selfupdate.Info{
+		Latest: "0.3.1",
+		URL:    "https://github.com/midagedev/gadak/releases/tag/v0.3.1",
+	}, true)
+	body = raw()
+	if body["latest_version"] != "0.3.1" {
+		t.Fatalf("latest_version %v", body["latest_version"])
+	}
+	if body["release_url"] == nil || body["release_url"] == "" {
+		t.Fatal("release_url empty")
+	}
+
+	h.s.setUpdateInfo(selfupdate.Info{
+		Latest: "0.3.0",
+		URL:    "https://github.com/midagedev/gadak/releases/tag/v0.3.0",
+	}, true)
+	body = raw()
+	if _, ok := body["latest_version"]; ok {
+		t.Fatalf("same version should omit fields, got latest=%v url=%v", body["latest_version"], body["release_url"])
+	}
+
+	h.s.setUpdateInfo(selfupdate.Info{
+		Latest: "0.2.0",
+		URL:    "https://github.com/midagedev/gadak/releases/tag/v0.2.0",
+	}, true)
+	body = raw()
+	if _, ok := body["latest_version"]; ok {
+		t.Fatalf("older release should omit fields, got latest=%v url=%v", body["latest_version"], body["release_url"])
+	}
+}
+
+func TestForceCheckBypassesCache(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"tag_name": "v0.4.0",
+			"html_url": "https://github.com/midagedev/gadak/releases/tag/v0.4.0",
+		})
+	}))
+	t.Cleanup(srv.Close)
+	prevAPI := selfupdate.APIBase
+	selfupdate.APIBase = srv.URL
+	t.Cleanup(func() { selfupdate.APIBase = prevAPI })
+
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+	prev := Version
+	t.Cleanup(func() { Version = prev })
+	Version = "0.3.0"
+
+	dir := t.TempDir()
+	fresh := selfupdate.Info{
+		Latest:    "0.3.1",
+		URL:       "https://example.invalid/old",
+		CheckedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	data, err := json.Marshal(fresh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "update-check.json"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Cached Check must not increment hits — otherwise the force-check
+	// assertion would pass even if CheckNow did not bypass the file.
+	if info, ok := selfupdate.Check(context.Background(), dir, "0.3.0", true); !ok || info.Latest != "0.3.1" {
+		t.Fatalf("precondition: cache should serve 0.3.1, ok=%v latest=%q", ok, info.Latest)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("precondition: cache must not hit network, hits=%d", hits.Load())
+	}
+
+	got := h.CheckNow(context.Background(), dir)
+	if hits.Load() != 1 {
+		t.Fatalf("force check hits=%d, want 1", hits.Load())
+	}
+	if got.Latest != "0.4.0" {
+		t.Fatalf("latest %q", got.Latest)
+	}
+	if !got.Newer || got.Status != "newer" {
+		t.Fatalf("status %+v", got)
+	}
+
+	var body map[string]any
+	rec := get(t, h, apiBase+"delta/", nil)
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["latest_version"] != "0.4.0" {
+		t.Fatalf("delta latest_version %v", body["latest_version"])
+	}
+}
+
+func TestForceCheckDevSkipsNetwork(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		hits.Add(1)
+	}))
+	t.Cleanup(srv.Close)
+	prevAPI := selfupdate.APIBase
+	selfupdate.APIBase = srv.URL
+	t.Cleanup(func() { selfupdate.APIBase = prevAPI })
+
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+	prev := Version
+	t.Cleanup(func() { Version = prev })
+	Version = "0.0.0-dev"
+
+	got := h.CheckNow(context.Background(), t.TempDir())
+	if got.Status != "dev" {
+		t.Fatalf("status %q", got.Status)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("dev force check must not hit network, hits=%d", hits.Load())
+	}
+}
+
+func TestUpdateSnapshotEndpoint(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+	prev := Version
+	t.Cleanup(func() { Version = prev })
+	Version = "0.3.0"
+
+	rec := get(t, h, apiBase+"update/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	got := decode[UpdateStatus](t, rec)
+	if got.Current != "0.3.0" {
+		t.Fatalf("current %q", got.Current)
+	}
+	if got.Latest != "" {
+		t.Fatalf("expected no latest, got %q", got.Latest)
+	}
+
+	h.s.setUpdateInfo(selfupdate.Info{
+		Latest:    "0.3.1",
+		URL:       "https://github.com/midagedev/gadak/releases/tag/v0.3.1",
+		CheckedAt: "2026-08-18T00:00:00Z",
+	}, true)
+	got = decode[UpdateStatus](t, get(t, h, apiBase+"update/", nil))
+	if got.Latest != "0.3.1" || !got.Newer {
+		t.Fatalf("%+v", got)
+	}
+	if got.CheckedAt != "2026-08-18T00:00:00Z" {
+		t.Fatalf("checked_at %q", got.CheckedAt)
 	}
 }
 

@@ -8,10 +8,11 @@ conflicts stop existing as UX. A second launch focuses the running window
 
 Status: **macOS app bundle + signed/notarized dmg on tag releases** (arm64), on
 `wails/v3` (beta). Linux is a from-source AppImage pack (`desktop/build-linux.sh`);
-this tree's tag workflow does not upload that file. The module stays a nested
-Go module so the wails dependency tree and its CGO requirement never touch the
-CLI build or the non-macOS CI matrix. No `wails3` CLI: plain `go build`, no
-bindings, HTTP only.
+Windows is a from-source portable directory (`desktop/build-windows.ps1`).
+This tree's tag workflow does not upload the Linux or Windows packs. The module
+stays a nested Go module so the wails dependency tree and its CGO requirement
+never touch the CLI build or the non-macOS CI matrix. No `wails3` CLI: plain
+`go build`, no bindings, HTTP only.
 
 ## Build
 
@@ -28,14 +29,23 @@ desktop/build-linux.sh              # → desktop/build/Gadak.AppDir
 desktop/build-linux.sh --appimage   # → desktop/build/Gadak-<version>-x86_64.AppImage as well
 ```
 
-The AppImage name uses the AppImage / `uname -m` labels (`x86_64`, `aarch64`),
-not the macOS dmg labels (`amd64`, `arm64`). Both scripts stamp the version
-from the same `version=` line in `desktop/build-app.sh` (`git describe --tags --always`).
+Windows (must run on Windows; see WebView2 below):
 
-`build-linux.sh` exits 64 on usage / unknown arguments and 69 when a required
-tool is missing (`go`, `pkg-config`, `cc`, `magick`/`convert`/`ffmpeg`, the
-`gtk4` and `webkitgtk-6.0` pkg-config modules, and `appimagetool` when
-`--appimage` is passed).
+```powershell
+desktop/build-windows.ps1   # → desktop/build/Gadak-<version>-x64/
+```
+
+The Windows directory name uses the Windows pack labels (`x64`, `arm64`), not
+the macOS dmg labels (`amd64`, `arm64`) or the AppImage / `uname -m` labels
+(`x86_64`, `aarch64`). All three scripts stamp the version from the same
+`version=` line in `desktop/build-app.sh` (`git describe --tags --always`).
+
+`build-linux.sh` and `build-windows.ps1` exit 64 on usage / unknown arguments
+and 69 when a required tool is missing. For Windows that is `go` (and `git`
+when Git Bash is not on `PATH` to eval the `version=` line). `build-linux.sh`
+also needs `pkg-config`, `cc`, `magick`/`convert`/`ffmpeg`, the `gtk4` and
+`webkitgtk-6.0` pkg-config modules, and `appimagetool` when `--appimage` is
+passed.
 
 The bundle includes:
 
@@ -56,6 +66,11 @@ The Linux AppDir includes the same two binaries under `usr/bin/`
 the running app. A `.desktop` file in the AppDir declares
 `MimeType=x-scheme-handler/gadak`; this script does not register the handler
 with the host.
+
+The Windows portable directory includes the same two binaries at the root
+(`gadak-desktop.exe` and `gadak.exe`). `gadak.exe install-cli` copies
+`gadak.exe` onto PATH (Windows has no default symlink right). Protocol-handler
+registration (`HKCU\SOFTWARE\Classes\gadak`) is not part of this pack.
 
 ### Linux build prerequisites
 
@@ -81,6 +96,53 @@ Also required: `pkg-config`, a C compiler, and one of ImageMagick (`magick` /
 
 `build-linux.sh --appimage` produces only the AppImage. It must not emit a
 zip: v0.14.0 apps match `gadak-desktop-*-<arch>.zip` and would try to
+self-swap (same rule as `build-app.sh --dmg`). `build-windows.ps1` writes
+only the directory tree for the same reason.
+
+### Windows build prerequisites
+
+wails v3 (`v3.0.0-beta.6`, `desktop/go.mod`) talks to WebView2 over COM. The
+pack script sets `CGO_ENABLED=0`. This script has not been executed on a
+Windows machine in this repository (the authoring runner is darwin).
+
+Required: Go, and `dist/app` from `npm run build` at the repo root. Git is
+required only when `bash` is missing, so the script can run the same
+`git describe --tags --always` formula as `desktop/build-app.sh`.
+
+### WebView2
+
+**Decision: Evergreen runtime, not a Fixed Version bundle.** A Fixed Version
+tree is hundreds of MB, and this pack is a directory — there is no installer
+to keep a private runtime current. Microsoft documents that Windows 11
+includes the Evergreen runtime and that many Windows 10 machines already
+have it via Edge; **this repository has not checked either claim on a
+Windows machine.**
+
+What happens if the runtime is missing is taken from the wails v3.0.0-beta.6
+source this module links, **not from launching `gadak-desktop.exe` on a
+machine without WebView2** (that has not been done):
+
+- `webviewloader` reports `no webview2 found`
+  (`internal/webview2/webviewloader/find_dll.go`).
+- `Chromium.errorCallback` logs the error and calls `os.Exit(1)`
+  (`internal/webview2/pkg/edge/chromium.go`).
+- `gadak-desktop` does not set an `ErrorHandler`, so there is no in-app
+  download dialog — the process exits.
+
+Install the Evergreen runtime from
+<https://developer.microsoft.com/en-us/microsoft-edge/webview2/>.
+
+### SmartScreen
+
+The portable exe is **unsigned**. Signing is a separate decision (GDK-211).
+Windows SmartScreen is expected to warn on a first download of an unsigned
+exe (`Windows protected your PC` / More info / Run anyway). Reputation is
+built after distribution, not before. This dialog has **not** been captured
+on a Windows machine in this repository — treat the wording as the usual
+SmartScreen unsigned-download prompt, not as a measured screenshot.
+
+`build-windows.ps1` produces only the directory. It must not emit a zip:
+v0.14.0 apps match `gadak-desktop-*-<arch>.zip` and would try to
 self-swap (same rule as `build-app.sh --dmg`).
 
 ### NVIDIA and Wayland
@@ -169,9 +231,10 @@ would try to self-swap.
 - Onboarding for a machine with no credential is a separate track; until that
   lands, `gadak init` (or the bundled CLI) remains the setup path.
 - macOS is the shipped desktop artifact (signed/notarized dmg). Linux is a
-  from-source AppImage pack; this repository's CI does not build or run it.
-  The in-app Jira/Confluence pane (`embed_darwin.go`) is still macOS-only —
-  other platforms get the stub in `embed_other.go`.
+  from-source AppImage pack; Windows is a from-source unsigned portable
+  directory. This repository's tag workflow does not upload the Linux or
+  Windows packs. The in-app Jira/Confluence pane (`embed_darwin.go`) is still
+  macOS-only — other platforms get the stub in `embed_other.go`.
 - macOS builds still need the Xcode command line tools. (The
   `UniformTypeIdentifiers` link flag `build-app.sh` used to pass by hand is
   gone — wails v3 declares that framework itself.)

@@ -84,6 +84,13 @@ export interface GadakConfig {
    * DEFAULTS fill `"default"`.
    */
   profile: string
+  /**
+   * GOOS of the process serving this document — the machine an upgrade would
+   * happen on. Empty means unknown (static export, hosted demo, an older
+   * server), and copy that names a platform command must stay silent rather
+   * than guess: `brew upgrade --cask gadak` is wrong on Linux and Windows.
+   */
+  os: string
   features: GadakFeatures
 }
 
@@ -102,6 +109,7 @@ const DEFAULTS: GadakConfig = {
   desktop: false,
   windowChrome: WINDOW_CHROME_NATIVE,
   profile: 'default',
+  os: '',
   features: {
     feed: false,
     push: false,

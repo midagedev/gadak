@@ -274,3 +274,87 @@ jobs:
           set -e
           [ "$rc" = 69 ] || { echo "missing appimagetool exited $rc, want 69" >&2; exit 1; }
           echo "exit-code contract — ok"
+
+  # The Windows pack was authored on macOS, which cannot run it at all — the
+  # round said so and shipped the script unexercised, same as the Linux one.
+  # This job is where the claim gets tested: a real Windows runner running the
+  # real script. install-cli's copy path is also Windows-only behaviour that no
+  # other job can execute, so it runs here for real rather than through an
+  # injected GOOS.
+  desktop-windows:
+    name: Desktop Windows build
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build the web UI
+        run: npm ci && npm run build
+
+      - name: Pack the Windows app
+        shell: pwsh
+        run: ./desktop/build-windows.ps1
+
+      - name: The packed tree carries both binaries
+        shell: pwsh
+        run: |
+          $bundle = Get-ChildItem -Path desktop/build -Directory -Filter 'Gadak-*' | Select-Object -First 1
+          if (-not $bundle) { throw "build-windows.ps1 produced no bundle directory" }
+          foreach ($exe in 'gadak-desktop.exe', 'gadak.exe') {
+            $p = Join-Path $bundle.FullName $exe
+            if (-not (Test-Path -LiteralPath $p)) { throw "missing $exe in $($bundle.Name)" }
+          }
+          # The CLI in the pack must be the one that runs, not a cross-built
+          # stub: ask it for its version.
+          & (Join-Path $bundle.FullName 'gadak.exe') version
+          if ($LASTEXITCODE -ne 0) { throw "gadak.exe version exited $LASTEXITCODE" }
+          Write-Host "windows pack tree — ok"
+          exit 0
+
+      # In a child process, not in this step's own runspace: a non-zero
+      # $LASTEXITCODE left behind at the end of a pwsh step is what the runner
+      # reads as the step's result, so checking it in place fails the job even
+      # when the assertion passed. A child process also runs the script the way
+      # a person would.
+      - name: Bad arguments exit 64
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath pwsh -NoNewWindow -Wait -PassThru `
+            -ArgumentList '-NoProfile', '-File', './desktop/build-windows.ps1', '--nope'
+          if ($p.ExitCode -ne 64) { throw "bad argument exited $($p.ExitCode), want 64" }
+          Write-Host "exit-code contract — ok"
+          exit 0
+
+      # install-cli copies on Windows because a symlink needs elevation. Only
+      # a Windows runner can show that the copy actually lands and runs.
+      - name: install-cli copies a working gadak.exe
+        shell: pwsh
+        run: |
+          $bundle = Get-ChildItem -Path desktop/build -Directory -Filter 'Gadak-*' | Select-Object -First 1
+          $dest = Join-Path $env:RUNNER_TEMP 'clibin'
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          & (Join-Path $bundle.FullName 'gadak.exe') install-cli --dir $dest
+          if ($LASTEXITCODE -ne 0) { throw "install-cli exited $LASTEXITCODE" }
+          $installed = Join-Path $dest 'gadak.exe'
+          if (-not (Test-Path -LiteralPath $installed)) { throw "install-cli left no gadak.exe in $dest" }
+          & $installed version
+          if ($LASTEXITCODE -ne 0) { throw "the installed copy did not run" }
+          # Re-running must be a no-op, not a conflict.
+          & (Join-Path $bundle.FullName 'gadak.exe') install-cli --dir $dest
+          if ($LASTEXITCODE -ne 0) { throw "second install-cli exited $LASTEXITCODE" }
+          Write-Host "install-cli copy path — ok"
+          exit 0

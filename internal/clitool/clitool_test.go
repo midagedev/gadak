@@ -1,12 +1,28 @@
 package clitool
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestInstallMethodForWindowsIsCopy(t *testing.T) {
+	if got := installMethodFor("windows"); got != MethodCopy {
+		t.Fatalf("installMethodFor(windows) = %q, want %q", got, MethodCopy)
+	}
+	if got := destBaseFor("windows"); got != "gadak.exe" {
+		t.Fatalf("destBaseFor(windows) = %q, want %q", got, "gadak.exe")
+	}
+	if got := installMethodFor("darwin"); got != MethodSymlink {
+		t.Fatalf("installMethodFor(darwin) = %q, want %q", got, MethodSymlink)
+	}
+	if got := destBaseFor("linux"); got != "gadak" {
+		t.Fatalf("destBaseFor(linux) = %q, want %q", got, "gadak")
+	}
+}
 
 func TestDefaultDirThreeCases(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -122,6 +138,139 @@ func TestResolveDirExplicitSkipsHeuristic(t *testing.T) {
 	}
 	if got != dir {
 		t.Errorf("explicit dir = %q, want %q", got, dir)
+	}
+}
+
+func TestResolveForWindowsPlansCopy(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "gadak-bin")
+	if err := os.WriteFile(source, []byte("payload"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "bin")
+	p, err := ResolveFor(source, dir, dir, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Method != MethodCopy {
+		t.Fatalf("Method = %q, want %q", p.Method, MethodCopy)
+	}
+	if filepath.Base(p.Dest) != "gadak.exe" {
+		t.Fatalf("Dest base = %q, want gadak.exe (Dest=%q)", filepath.Base(p.Dest), p.Dest)
+	}
+	if p.Status != StatusMissing {
+		t.Fatalf("status = %q, want missing", p.Status)
+	}
+	if p.PrintStatusLine() != "status:  missing (would copy)" {
+		t.Fatalf("print = %q", p.PrintStatusLine())
+	}
+}
+
+func TestInstallForWindowsCopies(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "gadak-bin")
+	body := []byte("windows-cli-bytes")
+	if err := os.WriteFile(source, body, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "bin")
+	p, err := ResolveFor(source, dir, dir, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Install(p, false); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Lstat(p.Dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("windows install created a symlink")
+	}
+	if !fi.Mode().IsRegular() {
+		t.Fatalf("dest mode = %v, want regular file", fi.Mode())
+	}
+	got, err := os.ReadFile(p.Dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(body) {
+		t.Fatalf("copied bytes = %q, want %q", got, body)
+	}
+
+	p2, err := ResolveFor(source, dir, dir, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p2.Status != StatusLinked {
+		t.Fatalf("re-resolve status = %q, want linked", p2.Status)
+	}
+	if err := Install(p2, false); err != nil {
+		t.Fatalf("re-install no-op: %v", err)
+	}
+	if p2.AlreadyInstalledLine() != fmt.Sprintf("already installed: %s (copy of %s)", TildeHome(p2.Dest), TildeHome(p2.Source)) {
+		t.Fatalf("already line = %q", p2.AlreadyInstalledLine())
+	}
+}
+
+func TestInstallForWindowsConflictRequiresForce(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "new")
+	if err := os.WriteFile(source, []byte("new"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(dir, "gadak.exe")
+	if err := os.WriteFile(dest, []byte("old binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p, err := ResolveFor(source, dir, dir, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Status != StatusConflict {
+		t.Fatalf("status = %q, want conflict", p.Status)
+	}
+	if err := Install(p, false); err == nil {
+		t.Fatal("expected conflict error")
+	}
+	raw, _ := os.ReadFile(dest)
+	if string(raw) != "old binary" {
+		t.Fatalf("dest mutated without --force: %q", raw)
+	}
+	if err := Install(p, true); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "new" {
+		t.Fatalf("after force: %q", got)
+	}
+	fi, err := os.Lstat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("force install created a symlink")
+	}
+}
+
+func TestPathExportAdviseForWindowsNamesDirOnly(t *testing.T) {
+	line, rc := PathExportAdviseFor(`/Users/x/.local/bin`, "", "windows")
+	if rc != "" {
+		t.Fatalf("rc = %q, want empty (no verified Windows rc)", rc)
+	}
+	if !strings.Contains(line, "user PATH") {
+		t.Fatalf("line = %q", line)
+	}
+	if strings.Contains(line, "export PATH") || strings.Contains(line, ".zshrc") {
+		t.Fatalf("windows advise leaked a unix one-liner: %q", line)
 	}
 }
 
