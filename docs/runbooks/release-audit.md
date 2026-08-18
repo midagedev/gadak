@@ -83,7 +83,7 @@ A check expressible one rung lower is a finding.
   (the URL-param registry pattern — unregistered keys are a *type* error —
   is the house example).
 - Go tests must stay fast; that is the language's gift. Anything slow gets
-  measured (`go test -count=1 ./... -json | tools/slowest`) and either
+  measured (`go test -count=1 ./... -json > /tmp/gadak-gotest.json` then `tools/slowest /tmp/gadak-gotest.json`) and either
   justified or moved behind a tag.
 - Heavy or redundant tests are findings too — a test that re-proves what a
   type or a cheaper test already holds is cost, not coverage.

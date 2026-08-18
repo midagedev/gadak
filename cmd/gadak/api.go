@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
@@ -33,6 +34,11 @@ func (q *queryFlags) Set(v string) error {
 }
 
 const apiUsage = "usage: gadak api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status]"
+
+// apiBackoffOverride, when non-nil, replaces the Jira client's first retry
+// wait after origin.Client. Tests pin a tiny value so a 429 retry is
+// asserted without the production 1s Backoff. Nil in production.
+var apiBackoffOverride *time.Duration
 
 func cmdAPI(args []string) error {
 	fs := newFlagSet("api")
@@ -121,6 +127,9 @@ func cmdAPI(args []string) error {
 		client, oerr := origin.Client(cfg)
 		if oerr != nil {
 			return oerr
+		}
+		if apiBackoffOverride != nil {
+			client.Backoff = *apiBackoffOverride
 		}
 		status, out, err = client.Raw(ctx, method, path, body, mutating)
 		if db, oerr := openStore(); oerr != nil {

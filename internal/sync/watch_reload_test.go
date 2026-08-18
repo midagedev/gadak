@@ -44,6 +44,7 @@ func TestWatchReloadsConfigEachCycle(t *testing.T) {
 			Full:   true,
 			Client: client,
 			Reload: reload,
+			Tick:   testTick, // existing Watch seam; do not sit on the 1s floor
 			Log: func(line string) {
 				if strings.HasPrefix(line, "done:") {
 					select {
