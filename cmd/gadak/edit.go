@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/jira"
 )
 
@@ -132,7 +133,7 @@ func cmdEdit(args []string) error {
 			if err != nil {
 				return nil, err
 			}
-			id, err := resolvePriority(*priority, list)
+			id, err := create.Priority(*priority, list)
 			if err != nil {
 				return nil, err
 			}
@@ -176,17 +177,4 @@ func labelUpdateOps(labels []string) ([]any, error) {
 		}
 	}
 	return ops, nil
-}
-
-func resolvePriority(want string, list []jira.NamedID) (string, error) {
-	want = strings.TrimSpace(want)
-	if want == "" {
-		return "", fmt.Errorf("pass --priority, available: %s", formatCreateTypes(list))
-	}
-	for _, p := range list {
-		if p.ID == want || strings.EqualFold(p.Name, want) {
-			return p.ID, nil
-		}
-	}
-	return "", fmt.Errorf("no priority matching %q — available: %s", want, formatCreateTypes(list))
 }

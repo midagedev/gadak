@@ -431,7 +431,7 @@ func (s *server) handlePriority(w http.ResponseWriter, r *http.Request) {
 		if id == "" {
 			return nil, c.UpdateFields(ctx, key, map[string]any{"priority": nil})
 		}
-		return nil, c.UpdateFields(ctx, key, map[string]any{"priority": map[string]string{"id": id}})
+		return nil, c.UpdateFields(ctx, key, map[string]any{"priority": create.PriorityField(id)})
 	})
 }
 
@@ -652,7 +652,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		Summary           string   `json:"summary"`
 		DescriptionText   string   `json:"description_text"`
 		AssigneeAccountID *string  `json:"assignee_account_id"`
-		Priority          string   `json:"priority"`
+		PriorityID        string   `json:"priority_id"`
 		Labels            []string `json:"labels"`
 		Duedate           string   `json:"duedate"`
 	}
@@ -712,8 +712,8 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	if id := deref(p.AssigneeAccountID); id != "" {
 		fields["assignee"] = map[string]string{"accountId": id}
 	}
-	if pri := strings.TrimSpace(p.Priority); pri != "" {
-		fields["priority"] = map[string]string{"name": pri}
+	if id := strings.TrimSpace(p.PriorityID); id != "" {
+		fields["priority"] = create.PriorityField(id)
 	}
 	if labels := normalizeLabels(p.Labels); len(labels) > 0 {
 		fields["labels"] = labels

@@ -33,6 +33,12 @@ async function fulfillJSON(route: Route, json: unknown, status = 200): Promise<v
 }
 
 /** Fixture Jira is fake — create-meta never returns. Seed local write-meta. */
+const PRIORITY_CATALOG = [
+  { id: '1', name: '가장 높음' },
+  { id: '2', name: '높음' },
+  { id: '3', name: '보통' },
+]
+
 async function stubCreateMeta(page: Page): Promise<void> {
   await page.route('**/api/v1/issues/meta/write/', async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
@@ -45,6 +51,10 @@ async function stubCreateMeta(page: Page): Promise<void> {
   await page.route('**/api/v1/issues/create-meta/', async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
     await fulfillJSON(route, { projects: CREATE_PROJECTS })
+  })
+  await page.route('**/api/v1/issues/priorities/', async (route) => {
+    if (route.request().method() !== 'GET') return route.continue()
+    await fulfillJSON(route, { priorities: PRIORITY_CATALOG })
   })
 }
 
@@ -103,6 +113,47 @@ test.describe('duedate write + jira_errors', () => {
     expect(posted!.duedate).toBe('2026-09-01')
     expect(posted!.summary).toBe('gdk-223 due set')
     expect(JSON.stringify(posted)).not.toMatch(/ATATT|Bearer |api_token/i)
+
+    expect(
+      errors.filter((e) => !e.includes('400')),
+      `console errors:\n${errors.join('\n')}`,
+    ).toEqual([])
+  })
+
+  test('new-issue dialog POSTs catalog priority_id, not the display name', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    const template = await bootWithCreateMeta(page)
+
+    let posted: CreateBody | null = null
+    await page.route('**/api/v1/issues/create/', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      posted = route.request().postDataJSON() as CreateBody
+      await fulfillJSON(route, {
+        issue: {
+          ...template,
+          issue_key: 'GDK-248',
+          summary: posted.summary,
+          issue_type: 'Task',
+          source_project: 'NMB',
+        },
+      })
+    })
+
+    const dialog = await openNewIssue(page)
+    const select = dialog.getByTestId('new-issue-priority')
+    const named = select.locator('option[value="2"]')
+    await expect(named).toHaveText('높음')
+    await expect(select.locator('option[value="1"]')).toHaveText('가장 높음')
+    await expect(select.locator('option', { hasText: /^Highest$/ })).toHaveCount(0)
+
+    await dialog.getByPlaceholder(en['write.issueTitle']).fill('gdk-248 priority id')
+    await select.selectOption('2')
+    await dialog.getByRole('button', { name: en['common.create'] }).click()
+
+    await expect.poll(() => posted).not.toBeNull()
+    expect(posted!.priority_id).toBe('2')
+    expect(posted).not.toHaveProperty('priority')
+    expect(posted!.summary).toBe('gdk-248 priority id')
 
     expect(
       errors.filter((e) => !e.includes('400')),
