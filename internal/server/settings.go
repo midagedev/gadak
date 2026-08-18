@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -54,6 +55,12 @@ type webConfigDoc struct {
 	// and `gadak profiles`), so two primaries on one origin never share a
 	// client cache key.
 	Profile string `json:"profile"`
+	// OS is the GOOS of the process serving this document — the machine an
+	// upgrade would happen on. The UI needs it because upgrade instructions
+	// are per-platform: `brew upgrade --cask gadak` is a macOS command, and
+	// printing it to a Linux reader is simply wrong. Absent (static export,
+	// hosted demo) means "unknown", and the UI then names no command.
+	OS string `json:"os,omitempty"`
 }
 
 // webConfig is the credential-free projection of the configuration. Site is the
@@ -79,6 +86,7 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		Features:            features(cfg.Features),
 		ConfluenceEnabled:   cfg.Confluence != nil,
 		Profile:             profileDisplay(config.Profile()),
+		OS:                  runtime.GOOS,
 	}
 }
 

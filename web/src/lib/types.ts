@@ -364,6 +364,9 @@ export interface DeltaResponse {
   /** Discovery output; a delta-only tab must still learn about it. Older servers omit. */
   field_specs?: FieldSpec[]
   field_usage?: Record<string, Record<string, number>>
+  /** Set only when a newer release than the running build is published. */
+  latest_version?: string
+  release_url?: string
 }
 
 /** Which column of the full-text index a hit came from, and the text around it.

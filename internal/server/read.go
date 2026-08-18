@@ -120,6 +120,10 @@ type deltaResponse struct {
 	// must still learn about a discovery that ran after its bootstrap.
 	FieldSpecs []fieldSpecOut            `json:"field_specs"`
 	FieldUsage map[string]map[string]int `json:"field_usage"`
+	// LatestVersion / ReleaseURL come from updateFields — the same source
+	// bootstrap uses. Absent when the server does not know of a newer release.
+	LatestVersion string `json:"latest_version,omitempty"`
+	ReleaseURL    string `json:"release_url,omitempty"`
 }
 
 /* ── bootstrap / delta ── */
@@ -145,7 +149,7 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	latest, releaseURL := s.bootstrapUpdate()
+	latest, releaseURL := s.updateFields()
 	writeJSON(w, http.StatusOK, bootstrapResponse{
 		ServerTime:     store.Now(),
 		SyncVersion:    st.Version,
@@ -223,6 +227,7 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	latest, releaseURL := s.updateFields()
 	res := deltaResponse{
 		ServerTime:     store.Now(),
 		Upserted:       view.issues(upserted),
@@ -231,6 +236,8 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		SyncHealth:     s.health(r.Context(), st),
 		FieldSpecs:     s.fieldSpecsOut(),
 		FieldUsage:     s.fieldUsageOut(r.Context()),
+		LatestVersion:  latest,
+		ReleaseURL:     releaseURL,
 	}
 	// members ride along only when the client's hash is stale.
 	if r.URL.Query().Get("mv") != view.membersVersion {

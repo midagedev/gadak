@@ -176,6 +176,20 @@ func run() error {
 				}
 				applyDeepLink("gadak://view?settings=sync")
 			})
+		gadakMenu.Add("Check for Updates…").
+			OnClick(func(*application.Context) {
+				// Network I/O off the click path. Settings opens after the
+				// check so GET update/ already has the result.
+				go func() {
+					if dir, err := config.Dir(); err == nil {
+						_ = api.CheckNow(context.Background(), dir)
+					}
+					if window == nil || applyDeepLink == nil {
+						return
+					}
+					applyDeepLink("gadak://view?settings=sync")
+				}()
+			})
 		gadakMenu.AddSeparator()
 		gadakMenu.AddRole(application.ServicesMenu)
 		gadakMenu.AddSeparator()

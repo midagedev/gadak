@@ -261,6 +261,9 @@ class IssuesStore {
     // Discovery may run server-side long after this tab bootstrapped.
     if (delta.field_specs) this.fieldSpecs = delta.field_specs
     if (delta.field_usage) this.fieldUsage = delta.field_usage
+    // Same omitempty contract as bootstrap: absent means no newer release.
+    this.latestVersion = delta.latest_version ?? ''
+    this.releaseUrl = delta.release_url ?? ''
     await this.applyDelta(
       delta.upserted,
       delta.deleted_keys,
@@ -430,6 +433,12 @@ class IssuesStore {
   /** Manual refresh (tab focus / user trigger). */
   async refresh(): Promise<void> {
     await this.#sync()
+  }
+
+  /** Apply a newer-release snapshot (GET update/ after a user-initiated check). */
+  applyUpdateInfo(latest: string, url: string): void {
+    this.latestVersion = latest
+    this.releaseUrl = url
   }
 
   /** Convenience lookup. */
