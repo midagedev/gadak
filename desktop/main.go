@@ -17,6 +17,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"runtime"
 	"strings"
@@ -41,6 +42,9 @@ import (
 var appVersion = "dev"
 
 func main() {
+	if printWindowChromeIfRequested(os.Args[1:]) {
+		return
+	}
 	// Same assignment cmd/gadak/main.go makes. "dev" is this file's default;
 	// selfupdate.Check only skips the CLI default ("0.0.0-dev").
 	if appVersion == "" || appVersion == "dev" {
@@ -278,11 +282,58 @@ func profileLockKey() string {
 	return "default"
 }
 
+// Window chrome is one fact: do the window controls sit in the content
+// (traffic-light inset) or in a native title bar? Window options and the
+// config.json document both consume this; they must not decide independently.
+// Values name the chrome, not the GOOS — a later platform that uses the same
+// inset layout should return the inset token, not a new "is Mac" flag.
+const (
+	windowChromeNative             = "native"
+	windowChromeTrafficLightsInset = "traffic-lights-inset"
+)
+
+func windowChrome() string {
+	return windowChromeFor(runtime.GOOS)
+}
+
+func windowChromeFor(goos string) string {
+	if goos == "darwin" {
+		return windowChromeTrafficLightsInset
+	}
+	return windowChromeNative
+}
+
+// printWindowChromeIfRequested is the one-command probe for "why is there a
+// gap / a native title bar". doctor.go would be the natural home but cannot
+// import this module (and must not copy the GOOS rule). Matches the exact
+// flag only — argv also carries gadak:// deeplinks.
+func printWindowChromeIfRequested(args []string) bool {
+	for _, a := range args {
+		if a == "--print-window-chrome" {
+			fmt.Printf("window_chrome=%s\n", windowChrome())
+			return true
+		}
+	}
+	return false
+}
+
+func applyWindowChrome(opts *application.WebviewWindowOptions, chrome string) {
+	if chrome != windowChromeTrafficLightsInset {
+		return
+	}
+	// No native title bar: it spent 28px to repeat a word the sidebar
+	// already shows. The window controls stay (they move into the
+	// sidebar's first row, which reserves their width and is a drag
+	// handle — see .desktop-titlebar-row in web/src/app.css). The
+	// list toolbar is the other handle (.desktop-drag-region).
+	opts.Mac.TitleBar = application.MacTitleBarHiddenInset
+}
+
 // mainWindowOptions is the single construction site for the window so a test
 // can pin that /wails/runtime.js is not also loaded via the JS option.
 // serveDesktopIndex injects the <script> tag into every index.html response.
 func mainWindowOptions() application.WebviewWindowOptions {
-	return application.WebviewWindowOptions{
+	opts := application.WebviewWindowOptions{
 		Title:     "Gadak",
 		Width:     1280,
 		Height:    820,
@@ -292,15 +343,9 @@ func mainWindowOptions() application.WebviewWindowOptions {
 		// No JS: option. /wails/runtime.js is injected once by
 		// serveDesktopIndex so a navigation does not load the module twice
 		// (the option ran on every navigation, on top of the <script> tag).
-		Mac: application.MacWindow{
-			// No native title bar: it spent 28px to repeat a word the sidebar
-			// already shows. The window controls stay (they move into the
-			// sidebar's first row, which reserves their width and is a drag
-			// handle — see .desktop-titlebar-row in web/src/app.css). The
-			// list toolbar is the other handle (.desktop-drag-region).
-			TitleBar: application.MacTitleBarHiddenInset,
-		},
 	}
+	applyWindowChrome(&opts, windowChrome())
+	return opts
 }
 
 // raiseWindow is the one raise path: second-instance, deeplink, and dock
@@ -641,9 +686,6 @@ func serveDesktopIndex(w http.ResponseWriter, ui fs.FS) {
 	_, _ = w.Write(injectWailsRuntime(raw))
 }
 
-// withDesktopFlag marks the config document the app serves. One web bundle is
-// shared with `gadak serve`, and only here is the native title bar hidden — the
-// UI has to reserve the window controls' corner, and a browser tab must not.
 // bufferedResponse captures a handler's response so the /w/ config.json can
 // be stamped with the desktop flag before it leaves (see fallbackHandler).
 type bufferedResponse struct {
@@ -656,11 +698,16 @@ func (b *bufferedResponse) Header() http.Header         { return b.header }
 func (b *bufferedResponse) WriteHeader(code int)        { b.code = code }
 func (b *bufferedResponse) Write(p []byte) (int, error) { return b.buf.Write(p) }
 
+// withDesktopFlag marks the config document the app serves. One web bundle is
+// shared with `gadak serve`. desktop=true is "this is the app"; windowChrome
+// is whether traffic lights sit in the content (the sidebar row reserves
+// their corner only then). A browser tab gets neither.
 func withDesktopFlag(doc []byte) ([]byte, error) {
 	var m map[string]any
 	if err := json.Unmarshal(doc, &m); err != nil {
 		return nil, err
 	}
 	m["desktop"] = true
+	m["windowChrome"] = windowChrome()
 	return json.Marshal(m)
 }

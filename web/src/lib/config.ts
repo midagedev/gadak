@@ -10,6 +10,12 @@
  * (with optional surfaces switched off) when served as plain static files.
  */
 
+export const WINDOW_CHROME_NATIVE = 'native'
+export const WINDOW_CHROME_TRAFFIC_LIGHTS_INSET = 'traffic-lights-inset'
+export type WindowChrome =
+  | typeof WINDOW_CHROME_NATIVE
+  | typeof WINDOW_CHROME_TRAFFIC_LIGHTS_INSET
+
 /** Optional surfaces. Each one needs a server capability that may be absent. */
 export interface GadakFeatures {
   /** Personal activity feed (mentions, watched issues, assignment changes). */
@@ -59,12 +65,19 @@ export interface GadakConfig {
    */
   hostedDemo: boolean
   /**
-   * True only inside the desktop app, which serves its own config.json. The app
-   * hides the native title bar, so the window controls land on top of the first
-   * row of the UI: that row has to reserve their corner and act as the drag
-   * handle. A browser tab has neither, hence the flag rather than a media query.
+   * True only inside the desktop app, which serves its own config.json. A
+   * browser tab is not the app — chrome (title-bar inset vs native) is a
+   * separate field, because not every desktop window hides its title bar.
    */
   desktop: boolean
+  /**
+   * Where the window controls live. `traffic-lights-inset` means they sit
+   * inside the first content row (that row reserves their corner). `native`
+   * means the platform draws a title bar — do not reserve the macOS
+   * traffic-light gap. The desktop app always sends this next to `desktop`.
+   * Documents that omit it keep the old meaning: desktop implied inset.
+   */
+  windowChrome: WindowChrome
   /**
    * gadak profile this document belongs to. Servers send `"default"` for the
    * unnamed profile (same as `gadak doctor --json`). Older documents omit it;
@@ -87,6 +100,7 @@ const DEFAULTS: GadakConfig = {
   confluenceEnabled: false,
   hostedDemo: false,
   desktop: false,
+  windowChrome: WINDOW_CHROME_NATIVE,
   profile: 'default',
   features: {
     feed: false,
@@ -120,6 +134,40 @@ export function isHostedDemo(): boolean {
 /** True inside the desktop app window. See GadakConfig.desktop. */
 export function isDesktop(): boolean {
   return current.desktop
+}
+
+export function parseWindowChrome(raw: unknown): WindowChrome | undefined {
+  if (raw === WINDOW_CHROME_TRAFFIC_LIGHTS_INSET || raw === WINDOW_CHROME_NATIVE) {
+    return raw
+  }
+  return undefined
+}
+
+/**
+ * Chrome token for a config document. A missing field keeps the pre-GDK-207
+ * meaning (desktop implied traffic lights in the content) so older mocks and
+ * documents do not silently drop the inset. An explicit `native` wins.
+ */
+export function resolveWindowChrome(doc: {
+  desktop?: boolean
+  windowChrome?: unknown
+}): WindowChrome {
+  return parseWindowChrome(doc.windowChrome) ?? (doc.desktop ? WINDOW_CHROME_TRAFFIC_LIGHTS_INSET : WINDOW_CHROME_NATIVE)
+}
+
+/** Current window chrome. See GadakConfig.windowChrome. */
+export function windowChrome(): WindowChrome {
+  return current.windowChrome
+}
+
+/** True when the window controls sit in the first content row. */
+export function trafficLightsInContent(): boolean {
+  return current.windowChrome === WINDOW_CHROME_TRAFFIC_LIGHTS_INSET
+}
+
+/** Logo-row classes: 90px inset + drag only when traffic lights are in content. */
+export function sidebarLogoRowClass(): string {
+  return trafficLightsInContent() ? 'desktop-titlebar-row' : 'px-4'
 }
 
 /** Which shell is showing this bundle. Settings copy branches here. */
@@ -283,6 +331,7 @@ export async function loadConfig(): Promise<GadakConfig> {
         ...DEFAULTS,
         ...raw,
         features: { ...DEFAULTS.features, ...(raw.features ?? {}) },
+        windowChrome: resolveWindowChrome(raw),
       }
     }
   } catch {

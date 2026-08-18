@@ -75,8 +75,11 @@ func TestFallbackHandler(t *testing.T) {
 		if doc["desktop"] != true {
 			t.Fatalf("desktop flag missing: %v", doc["desktop"])
 		}
-		// Same document `gadak serve` sends, plus the one key — a dropped field
-		// would switch off a surface in the app only.
+		if doc["windowChrome"] != windowChrome() {
+			t.Fatalf("windowChrome %v != owner %s", doc["windowChrome"], windowChrome())
+		}
+		// Same document `gadak serve` sends, plus the desktop keys — a dropped
+		// field would switch off a surface in the app only.
 		if _, ok := doc["apiBase"]; !ok {
 			t.Fatalf("apiBase lost in the rewrite: %s", rec.Body.String())
 		}
@@ -424,6 +427,9 @@ func TestDesktopWorkspaceRoutes(t *testing.T) {
 		// dead in the webview (GDK-178: clipboard silently broken there).
 		if doc["desktop"] != true {
 			t.Fatalf("workspace config must carry desktop:true, got %v", doc["desktop"])
+		}
+		if doc["windowChrome"] != windowChrome() {
+			t.Fatalf("workspace windowChrome %v != owner %s", doc["windowChrome"], windowChrome())
 		}
 		// Must not be SPA HTML.
 		if strings.Contains(rec.Body.String(), "<!doctype html>") {

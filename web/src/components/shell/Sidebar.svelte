@@ -6,22 +6,23 @@
    * under `components/sidebar/` and injected into this slot.
    */
   import type { Snippet } from 'svelte'
-  import { isDesktop } from '../../lib/config'
+  import { isDesktop, sidebarLogoRowClass } from '../../lib/config'
   import BrandMark from '../ui/BrandMark.svelte'
 
   let { children }: { children?: Snippet } = $props()
-  /** Desktop app: the hidden title bar puts the window controls in this row. */
+  /** Desktop app: BrandMark is omitted so it is not a fourth traffic light. */
   const desktop = isDesktop()
+  /** Traffic lights in this row (not merely "we are the desktop app"). */
+  const logoRowClass = sidebarLogoRowClass()
 </script>
 
 <aside
   class="issue-sidebar flex h-full flex-none flex-col border-r border-border-subtle bg-bg-panel"
 >
-  <!-- Logo wordmark (no header chrome — density first). In the desktop app this
-       row doubles as the title bar: it holds the window controls and drags the
-       window. -->
+  <!-- Logo wordmark (no header chrome — density first). When traffic lights
+       sit in the content this row reserves their corner and is a drag handle. -->
   <div
-    class="flex h-12 flex-none items-center gap-2 {desktop ? 'desktop-titlebar-row' : 'px-4'}"
+    class="flex h-12 flex-none items-center gap-2 {logoRowClass}"
     data-testid="sidebar-logo-row"
   >
     {#if !desktop}

@@ -598,9 +598,11 @@
   }
 
   /*
-    Desktop app only (config.desktop). The native title bar is hidden
-    (mac.TitleBarHiddenInset), so the window content starts at y=0 and the
-    traffic lights sit inside the sidebar's first row instead of above it.
+    Traffic-lights-inset chrome only (config.windowChrome). The native title
+    bar is hidden (mac.TitleBarHiddenInset), so the window content starts at
+    y=0 and the traffic lights sit inside the sidebar's first row instead of
+    above it. A native title bar (Linux / Windows, or a browser tab) must
+    not get this class — there are no lights to reserve, and 90px is empty.
 
     The numbers are read off the running window, not derived: the accessibility
     API reports the three buttons at x=18/41/64, y=18, in 16px boxes holding a
@@ -617,8 +619,8 @@
     Sets the paddings and replaces px-4 rather than overriding it — this rule
     lives in the components layer, which loses to a utility of equal weight.
 
-    user-select is none only on this class, which the sidebar applies under
-    config.desktop. A browser tab never gets the class.
+    user-select is none only on this class, which the sidebar applies when
+    traffic lights sit in the content. A browser tab never gets the class.
   */
   .desktop-titlebar-row {
     padding-left: 90px;
