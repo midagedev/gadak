@@ -1,0 +1,10 @@
+{
+  "data": {
+    "viewer": {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "name": "Fixture User 0",
+      "displayName": "Fix User 0",
+      "email": "user-0@example.invalid"
+    }
+  }
+}

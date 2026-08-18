@@ -1,0 +1,88 @@
+{
+  "data": {
+    "issues": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "00000000-0000-4000-8000-000000000004"
+      },
+      "nodes": [
+        {
+          "id": "00000000-0000-4000-8000-000000000005",
+          "identifier": "FIX-2",
+          "number": 2,
+          "title": "Fixture issue 1",
+          "description": "## Overview\n\nA fixture description with the shape of real Linear markdown.\n\n- [ ] one open checklist item\n- [x] one done checklist item\n\nA [docs link](https://linear.app/docs) and `inline code`.\n\n```\na fenced code block\n```\n",
+          "url": "https://linear.app/example/issue/FIX-2/scrubbed",
+          "createdAt": "2026-08-18T13:18:31.131Z",
+          "updatedAt": "2026-08-18T13:18:31.131Z",
+          "archivedAt": null,
+          "priority": 0,
+          "priorityLabel": "No priority",
+          "dueDate": null,
+          "state": {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "name": "Todo",
+            "type": "unstarted",
+            "position": 1
+          },
+          "team": {
+            "id": "00000000-0000-4000-8000-000000000003",
+            "key": "FIX",
+            "name": "Fixture Team"
+          },
+          "assignee": null,
+          "creator": null,
+          "labels": {
+            "nodes": []
+          },
+          "parent": null,
+          "comments": {
+            "pageInfo": {
+              "hasNextPage": false,
+              "endCursor": null
+            },
+            "nodes": []
+          }
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000004",
+          "identifier": "FIX-3",
+          "number": 3,
+          "title": "Fixture issue 2",
+          "description": "## Overview\n\nA fixture description with the shape of real Linear markdown.\n\n- [ ] one open checklist item\n- [x] one done checklist item\n\nA [docs link](https://linear.app/docs) and `inline code`.\n\n```\na fenced code block\n```\n",
+          "url": "https://linear.app/example/issue/FIX-3/scrubbed",
+          "createdAt": "2026-08-18T13:18:31.131Z",
+          "updatedAt": "2026-08-18T13:18:31.131Z",
+          "archivedAt": null,
+          "priority": 0,
+          "priorityLabel": "No priority",
+          "dueDate": null,
+          "state": {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "name": "Todo",
+            "type": "unstarted",
+            "position": 1
+          },
+          "team": {
+            "id": "00000000-0000-4000-8000-000000000003",
+            "key": "FIX",
+            "name": "Fixture Team"
+          },
+          "assignee": null,
+          "creator": null,
+          "labels": {
+            "nodes": []
+          },
+          "parent": null,
+          "comments": {
+            "pageInfo": {
+              "hasNextPage": false,
+              "endCursor": null
+            },
+            "nodes": []
+          }
+        }
+      ]
+    }
+  }
+}

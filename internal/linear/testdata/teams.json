@@ -1,0 +1,18 @@
+{
+  "data": {
+    "teams": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "00000000-0000-4000-8000-000000000003"
+      },
+      "nodes": [
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "key": "FIX",
+          "name": "Fixture Team",
+          "private": false
+        }
+      ]
+    }
+  }
+}
