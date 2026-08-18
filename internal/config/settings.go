@@ -513,6 +513,24 @@ func buildSettings() []Setting {
 			},
 		},
 		{
+			Path:        "groupQuery",
+			Root:        "groupQuery",
+			Description: "optional SELECT/WITH (key, group) that classifies issues; empty string = fall through",
+			Get:         func(c *Config) any { return c.GroupQuery },
+			Set: func(c *Config, raw json.RawMessage) error {
+				var v string
+				if err := json.Unmarshal(raw, &v); err != nil {
+					return fmt.Errorf("groupQuery must be a string")
+				}
+				v = strings.TrimSpace(v)
+				if err := ValidateGroupQuery(v); err != nil {
+					return err
+				}
+				c.GroupQuery = v
+				return nil
+			},
+		},
+		{
 			Path:        "groupLabels",
 			Root:        "groupLabels",
 			Description: "group key → display label",

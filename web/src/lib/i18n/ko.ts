@@ -871,6 +871,9 @@ export const ko = {
   'settings.rulesFirstWins': '첫 매치가 이깁니다',
   'settings.rulesDetail':
     '. 한 행의 조건들은 AND, 각 목록 안은 OR, 빈 조건은 항상 참입니다.',
+  'settings.groupQuery': '분류 SQL',
+  'settings.groupQueryHint':
+    '선택. (이슈 키, 그룹)을 돌려주는 SELECT/WITH 하나. 빈 그룹은 미분류, NULL이거나 빠진 키는 위 규칙 → 담당자 멤버 그룹으로 넘어갑니다. 목록을 다시 만들 때만 실행되며 키 입력마다 돌지 않습니다. 사이트 고유 로직은 바이너리가 아니라 여기에 둡니다.',
   'settings.projectsCol': '프로젝트',
   'settings.componentsCol': '컴포넌트',
   'settings.cloudPart': 'Cloud 파트',

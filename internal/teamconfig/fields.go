@@ -14,6 +14,7 @@ var exportableConfigFields = []string{
 	"EditableFields",
 	"Members",
 	"GroupRules",
+	"GroupQuery",
 	"GroupLabels",
 	"GroupColors",
 	"ProductByGroup",

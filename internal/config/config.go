@@ -33,7 +33,8 @@ type Member struct {
 
 // GroupRule classifies an issue into a group. Rules are read top-down and the
 // first match wins. Conditions AND together; the list inside one condition ORs.
-// An empty condition is always true.
+// An empty condition is always true. For classification that does not fit
+// these three lists, set GroupQuery instead of growing this struct.
 type GroupRule struct {
 	Group      string   `json:"group"`
 	Projects   []string `json:"projects,omitempty"`
@@ -107,8 +108,15 @@ type Config struct {
 	EditableFields map[string]string `json:"editableFields,omitempty"`
 
 	// Optional surfaces carried over from the tool this was extracted from.
-	Members        []Member           `json:"members,omitempty"`
-	GroupRules     []GroupRule        `json:"groupRules,omitempty"`
+	Members    []Member    `json:"members,omitempty"`
+	GroupRules []GroupRule `json:"groupRules,omitempty"`
+	// GroupQuery is an optional read-only SELECT/WITH run when the derived
+	// view is rebuilt (config or sync version change), never on a keystroke.
+	// It must return two columns: issue key, group. An empty group string
+	// leaves the issue unclassified; NULL (or a missing key) falls through
+	// to groupRules and then the assignee's member group. Installation
+	// logic belongs in this string, not in gadak source.
+	GroupQuery     string             `json:"groupQuery,omitempty"`
 	GroupLabels    map[string]string  `json:"groupLabels,omitempty"`
 	GroupColors    map[string]string  `json:"groupColors,omitempty"`
 	ProductByGroup map[string]Product `json:"productByGroup,omitempty"`

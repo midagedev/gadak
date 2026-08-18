@@ -1151,3 +1151,22 @@ func TestSyncHealthTokenExpiry(t *testing.T) {
 		t.Fatalf("days_left %v", got.TokenExpiry.DaysLeft)
 	}
 }
+
+// A groupQuery is a SELECT when it is saved, and that is all anyone checked.
+// The tables and columns it names can stop existing later — a renamed field,
+// a hand-edited config — and the failure surfaces on the read path. Taking
+// bootstrap down there strands the person outside the settings dialog that
+// would let them fix it, so classification is what gets lost, not the app.
+func TestBootstrapSurvivesABrokenGroupQuery(t *testing.T) {
+	db, cfg := fixture(t)
+	cfg.GroupQuery = "SELECT key, 'x' FROM no_such_table"
+	h := New(db, cfg)
+
+	rec := get(t, h, apiBase+"bootstrap/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("a broken groupQuery must not take bootstrap down: status %d", rec.Code)
+	}
+	if body := decode[bootstrapResponse](t, rec); len(body.Issues) == 0 {
+		t.Fatal("issues went missing with the broken query")
+	}
+}

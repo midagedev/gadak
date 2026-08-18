@@ -123,4 +123,19 @@
         ])}>{t('settings.addRow')}</button
     >
   </div>
+
+  <div class="flex flex-col gap-1.5">
+    <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
+      {t('settings.groupQuery')}
+    </div>
+    <p class="text-micro leading-relaxed text-text-muted">
+      {t('settings.groupQueryHint')}
+    </p>
+    <textarea
+      class="{INPUT} min-h-28 font-mono text-micro"
+      bind:value={draft.groupQuery}
+      spellcheck="false"
+      placeholder={'SELECT key, NULL FROM issues_full'}
+    ></textarea>
+  </div>
 </div>

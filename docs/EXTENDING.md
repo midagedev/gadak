@@ -29,6 +29,7 @@ Full reference (defaults, floors, apply timing, hand-edit-only list):
 | `bodyFields` | Extra ADF custom field ids folded into FTS body text. |
 | `editableFields` | Alias → field id allowlist for inline edit UI. Empty → edit surfaces hidden. |
 | `groupRules` | Ordered rules (`projects` / `labels` / `components`) → group id for team views. |
+| `groupQuery` | Optional `SELECT`/`WITH` returning `(issue key, group)` for classification that does not fit those three lists. Runs when the derived view is rebuilt, not on a keystroke. Empty group = unclassified; NULL / missing key falls through to `groupRules`, then the assignee's member group. Site-specific `CASE` belongs here. |
 | `groupLabels` / `groupColors` / `productByGroup` | Display names and colors for those groups. |
 | `members` | Static member directory (avatar, group, account id) merged into bootstrap. |
 | `features` | Feature flags: `feed`, `push`, `deploy`, `qa`, `teamGroups` (`feed` defaults on when omitted; others off). |
@@ -73,6 +74,7 @@ like watches/favorites via the API).
 | --- | --- | --- |
 | A custom field on the list / filters | **Config** | Map it in `fieldMap` (Settings → field map). |
 | “My team’s board” without Jira boards | **Config** | `groupRules` + `features.teamGroups`. |
+| Classification that needs regex, exclusions, custom fields | **Config** | `groupQuery` — one SQL statement over `issues_full` / `json_each`. Do not grow `groupRules`. |
 | Inline edit of a few fields | **Config** | `editableFields` allowlist + stored credential. |
 | Deploy badge / “is it in prod?” | **Enrichment** | `kind=deploy` — start from [deploy-status](../examples/plugins/deploy-status/). |
 | PR links on the issue | **Enrichment** | `kind=prs` — [github-prs](../examples/plugins/github-prs/). |

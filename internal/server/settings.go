@@ -136,6 +136,8 @@ type settingsDoc struct {
 	EditableFields       map[string]string         `json:"editableFields"`
 	Members              []config.Member           `json:"members"`
 	GroupRules           []config.GroupRule        `json:"groupRules"`
+	// Pointer so an older PUT that omits the key cannot wipe a stored query.
+	GroupQuery *string `json:"groupQuery,omitempty"`
 	GroupLabels          map[string]string         `json:"groupLabels"`
 	GroupColors          map[string]string         `json:"groupColors"`
 	ProductByGroup       map[string]config.Product `json:"productByGroup"`
@@ -292,6 +294,16 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	next.EditableFields = in.EditableFields
 	next.Members = in.Members
 	next.GroupRules = in.GroupRules
+	// Omitted groupQuery leaves the stored query alone so an older settings
+	// client cannot wipe it. Send "" to clear.
+	if in.GroupQuery != nil {
+		q := strings.TrimSpace(*in.GroupQuery)
+		if err := config.ValidateGroupQuery(q); err != nil {
+			fail(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		next.GroupQuery = q
+	}
 	next.GroupLabels = in.GroupLabels
 	next.GroupColors = in.GroupColors
 	next.ProductByGroup = in.ProductByGroup
@@ -370,6 +382,7 @@ func settings(cfg *config.Config) settingsDoc {
 		EditableFields:       strMap(cfg.EditableFields),
 		Members:              members(cfg.Members),
 		GroupRules:           rules(cfg.GroupRules),
+		GroupQuery:           strPtr(cfg.GroupQuery),
 		GroupLabels:          strMap(cfg.GroupLabels),
 		GroupColors:          strMap(cfg.GroupColors),
 		ProductByGroup:       products(cfg.ProductByGroup),
@@ -493,6 +506,8 @@ func humanBytes(n int64) string {
 func features(set map[string]bool) map[string]bool {
 	return config.NormalizeFeatures(set)
 }
+
+func strPtr(s string) *string { return &s }
 
 func strs(v []string) []string {
 	if v == nil {
