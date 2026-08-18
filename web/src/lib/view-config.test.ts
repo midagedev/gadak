@@ -116,6 +116,10 @@ describe('view-config URL contract', () => {
           c.filters.created_to = '2026-08-15'
           c.filters.updated_from = '2026-07-01'
           c.filters.updated_to = '2026-07-31'
+          c.filters.due_from = '2026-08-20'
+          c.filters.due_to = '2026-08-31'
+          c.filters.resolved_from = '2026-08-17'
+          c.filters.resolved_to = '2026-08-18'
         }),
       },
       {
@@ -168,6 +172,10 @@ describe('view-config URL contract', () => {
     expect(p.ct).toBeNull()
     expect(p.uf).toBeNull()
     expect(p.ut).toBeNull()
+    expect(p.df).toBeNull()
+    expect(p.dt).toBeNull()
+    expect(p.rf).toBeNull()
+    expect(p.rt).toBeNull()
     expect(p.ks).toBeNull()
     expect(p.sc).toBeNull()
     expect(p.st).toBeNull()

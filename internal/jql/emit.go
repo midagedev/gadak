@@ -76,6 +76,8 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 	}
 	parts = append(parts, dateClause("created", f.CreatedFrom, f.CreatedTo)...)
 	parts = append(parts, dateClause("updated", f.UpdatedFrom, f.UpdatedTo)...)
+	parts = append(parts, dateClause("duedate", f.DueFrom, f.DueTo)...)
+	parts = append(parts, dateClause("resolved", f.ResolvedFrom, f.ResolvedTo)...)
 	if q := strings.TrimSpace(f.Q); q != "" {
 		parts = append(parts, "text ~ "+quote(q))
 	}
@@ -109,7 +111,10 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 	if d.Sort != "" {
 		field := d.Sort
 		switch d.Sort {
-		case "updated", "created", "priority":
+		case "updated", "created", "priority", "due":
+			if d.Sort == "due" {
+				field = "duedate"
+			}
 		default:
 			field = "updated"
 		}

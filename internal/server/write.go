@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -439,6 +440,30 @@ func (s *server) handlePriority(w http.ResponseWriter, r *http.Request) {
 // Jira Cloud's own cap on the summary field.
 const maxSummary = 255
 
+func (s *server) handleDuedate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Duedate *string `json:"duedate"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	raw := strings.TrimSpace(deref(body.Duedate))
+	if raw != "" && !dueDateLiteral(raw) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("duedate %q is not a date (want YYYY-MM-DD)", raw),
+		})
+		return
+	}
+	key := r.PathValue("key")
+	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+		if raw == "" {
+			return nil, c.UpdateFields(ctx, key, map[string]any{"duedate": nil})
+		}
+		return nil, c.UpdateFields(ctx, key, map[string]any{"duedate": raw})
+	})
+}
+
 func (s *server) handleSummary(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Summary *string `json:"summary"`
@@ -477,6 +502,25 @@ func (s *server) handleLabels(w http.ResponseWriter, r *http.Request) {
 	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
 		return nil, c.UpdateFields(ctx, key, map[string]any{"labels": labels})
 	})
+}
+
+// dueDateLiteral is YYYY-MM-DD with month 01–12 and day 01–31. It does not
+// parse into a timestamp — date-only values stay date-only.
+func dueDateLiteral(s string) bool {
+	if len(s) != 10 || s[4] != '-' || s[7] != '-' {
+		return false
+	}
+	for i := 0; i < 10; i++ {
+		if i == 4 || i == 7 {
+			continue
+		}
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	month := int(s[5]-'0')*10 + int(s[6]-'0')
+	day := int(s[8]-'0')*10 + int(s[9]-'0')
+	return month >= 1 && month <= 12 && day >= 1 && day <= 31
 }
 
 func normalizeLabels(in []string) []string {
@@ -610,6 +654,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		AssigneeAccountID *string  `json:"assignee_account_id"`
 		Priority          string   `json:"priority"`
 		Labels            []string `json:"labels"`
+		Duedate           string   `json:"duedate"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
@@ -672,6 +717,15 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if labels := normalizeLabels(p.Labels); len(labels) > 0 {
 		fields["labels"] = labels
+	}
+	if due := strings.TrimSpace(p.Duedate); due != "" {
+		if !dueDateLiteral(due) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("duedate %q is not a date (want YYYY-MM-DD)", p.Duedate),
+			})
+			return
+		}
+		fields["duedate"] = due
 	}
 
 	key, err := c.CreateIssue(r.Context(), fields)

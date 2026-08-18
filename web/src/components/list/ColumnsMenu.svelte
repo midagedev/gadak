@@ -41,6 +41,7 @@
 >
   <button
     type="button"
+    data-testid="columns-menu"
     class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
     onclick={() => (open = !open)}
     title={t('columns.title')}
@@ -71,6 +72,7 @@
         {#each catalog as col (col.key)}
           <button
             type="button"
+            data-testid={`column-toggle-${col.key}`}
             class="flex min-h-control-sm w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] transition-colors hover:bg-bg-hover"
             onclick={() => filters.toggleColumn(col.key)}
             aria-pressed={active.has(col.key)}

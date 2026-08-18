@@ -38,11 +38,13 @@ import {
   type ColumnKey,
   type GroupBy,
   type MultiField,
+  type RangeField,
   type SortKey,
   type StatusCategory,
   type ViewConfig,
   type ViewFilters,
 } from '../lib/view-config'
+import { inRange as calendarInRange, localZone, type CalendarZone } from '../lib/calendar'
 import * as api from '../lib/api'
 import {
   categoryLabel,
@@ -389,7 +391,7 @@ class FiltersStore {
     this.#apply(c)
   }
 
-  setRange(field: 'created' | 'updated', from: string | null, to: string | null): void {
+  setRange(field: RangeField, from: string | null, to: string | null): void {
     const c = this.snapshot()
     c.filters[`${field}_from`] = from
     c.filters[`${field}_to`] = to
@@ -462,7 +464,13 @@ class FiltersStore {
     next.display.group_by = cur.display.group_by
     next.display.columns = cur.display.columns
     const sort = parsed.display?.sort
-    if (sort === 'updated' || sort === 'created' || sort === 'priority' || sort === 'reopen_count') {
+    if (
+      sort === 'updated' ||
+      sort === 'created' ||
+      sort === 'due' ||
+      sort === 'priority' ||
+      sort === 'reopen_count'
+    ) {
       next.display.sort = sort
     } else {
       next.display.sort = cur.display.sort
@@ -648,15 +656,11 @@ function textMatch(issue: IssueLite, needle: string): boolean {
   return false
 }
 
-function inRange(iso: string | null, from: string | null, to: string | null): boolean {
-  if (!iso) return !from // no value: pass only when there is no lower bound
-  const d = iso.slice(0, 10)
-  if (from && d < from) return false
-  if (to && d > to) return false
-  return true
-}
-
-export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
+export function filterIssues(
+  all: IssueLite[],
+  f: ViewFilters,
+  zone: CalendarZone = localZone(),
+): IssueLite[] {
   const raw = f.q.trim()
   const needle = raw.toLowerCase()
   const out: IssueLite[] = []
@@ -704,9 +708,25 @@ export function filterIssues(all: IssueLite[], f: ViewFilters): IssueLite[] {
     if (f.unassigned && hasIssuePerson(it, 'assignee')) continue
     if (f.stale && !isStale(it)) continue
 
-    if ((f.created_from || f.created_to) && !inRange(it.created_at, f.created_from, f.created_to))
+    if (
+      (f.created_from || f.created_to) &&
+      !calendarInRange(it.created_at, 'instant', f.created_from, f.created_to, zone)
+    )
       continue
-    if ((f.updated_from || f.updated_to) && !inRange(it.updated_at, f.updated_from, f.updated_to))
+    if (
+      (f.updated_from || f.updated_to) &&
+      !calendarInRange(it.updated_at, 'instant', f.updated_from, f.updated_to, zone)
+    )
+      continue
+    if (
+      (f.due_from || f.due_to) &&
+      !calendarInRange(it.duedate, 'date', f.due_from, f.due_to, zone)
+    )
+      continue
+    if (
+      (f.resolved_from || f.resolved_to) &&
+      !calendarInRange(it.resolved_at, 'instant', f.resolved_from, f.resolved_to, zone)
+    )
       continue
 
     if (needle && !textMatch(it, needle)) continue
@@ -849,6 +869,8 @@ export function sortIssues(
     switch (sort) {
       case 'created':
         return cmpStr(a.created_at, b.created_at, d)
+      case 'due':
+        return cmpStr(a.duedate ?? '', b.duedate ?? '', d)
       case 'reopen_count': {
         const diff = (a.reopen_count - b.reopen_count) * d
         return diff !== 0 ? diff : cmpStr(a.updated_at, b.updated_at, -1)
@@ -1088,6 +1110,14 @@ function buildChips(
     chips.push({ kind: 'range', field: 'created', label: t('filter.chipCreatedRange', { from: f.created_from ?? '', to: f.created_to ?? '' }) })
   if (f.updated_from || f.updated_to)
     chips.push({ kind: 'range', field: 'updated', label: t('filter.chipUpdatedRange', { from: f.updated_from ?? '', to: f.updated_to ?? '' }) })
+  if (f.due_from || f.due_to)
+    chips.push({ kind: 'range', field: 'due', label: t('filter.chipDueRange', { from: f.due_from ?? '', to: f.due_to ?? '' }) })
+  if (f.resolved_from || f.resolved_to)
+    chips.push({
+      kind: 'range',
+      field: 'resolved',
+      label: t('filter.chipResolvedRange', { from: f.resolved_from ?? '', to: f.resolved_to ?? '' }),
+    })
   return chips
 }
 

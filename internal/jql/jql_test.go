@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/midagedev/gadak/internal/calendar"
 )
 
 func fixedOpts() Opts {
@@ -434,6 +436,64 @@ func TestI1EmailHiddenNameResolvesToAccountID(t *testing.T) {
 	it := Issue{AssigneeID: "acc-me", AssigneeEmail: ""}
 	if !Match(it, res.Filters) {
 		t.Fatal("email-hidden assignee should match via account id")
+	}
+}
+
+// GDK-250: a 01:00 KST create is stored as 2026-08-17T16:00:00.000Z.
+// FAIL-first on the UTC-prefix inRange (red captured 2026-08-18). Timezone
+// is pinned to Asia/Seoul so a UTC CI runner cannot hide the miss.
+func TestInRangeKSTCreatedFrom(t *testing.T) {
+	seoul, err := time.LoadLocation("Asia/Seoul")
+	if err != nil {
+		t.Fatal(err)
+	}
+	z := calendar.In(seoul)
+	from := "2026-08-18"
+	it := Issue{CreatedAt: "2026-08-17T16:00:00.000Z"}
+	f := EmptyFilter()
+	f.CreatedFrom = &from
+	if !MatchIn(it, f, z) {
+		t.Fatal("2026-08-18 01:00 KST stored as 2026-08-17T16:00:00.000Z must match created_from=2026-08-18")
+	}
+	if MatchIn(it, f, calendar.UTC()) {
+		t.Fatal("UTC calendar day is the 17th; must not match from=18")
+	}
+}
+
+func TestParseDueAndResolved(t *testing.T) {
+	res := Parse(`duedate >= "2026-08-20" AND resolved >= "2026-08-01"`, fixedOpts())
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	if res.Filters.DueFrom == nil || *res.Filters.DueFrom != "2026-08-20" {
+		t.Fatalf("due_from %+v", res.Filters.DueFrom)
+	}
+	if res.Filters.ResolvedFrom == nil || *res.Filters.ResolvedFrom != "2026-08-01" {
+		t.Fatalf("resolved_from %+v", res.Filters.ResolvedFrom)
+	}
+	dueOnly := EmptyFilter()
+	dueOnly.DueFrom = res.Filters.DueFrom
+	if !Match(Issue{Duedate: "2026-08-20"}, dueOnly) {
+		t.Fatal("duedate 2026-08-20 must match due_from=2026-08-20")
+	}
+	if Match(Issue{Duedate: "2026-08-19"}, dueOnly) {
+		t.Fatal("duedate 2026-08-19 must miss due_from=2026-08-20")
+	}
+}
+
+func TestHashDueResolvedParams(t *testing.T) {
+	f := EmptyFilter()
+	from := "2026-08-20"
+	f.DueFrom = &from
+	resFrom := "2026-08-17"
+	f.ResolvedFrom = &resFrom
+	h := Hash(f, Display{})
+	q, err := url.ParseQuery(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.Get("df") != "2026-08-20" || q.Get("rf") != "2026-08-17" {
+		t.Fatalf("hash %q", h)
 	}
 }
 

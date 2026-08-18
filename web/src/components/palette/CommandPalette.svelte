@@ -345,6 +345,8 @@
     if (f.stale) n++
     if (f.created_from || f.created_to) n++
     if (f.updated_from || f.updated_to) n++
+    if (f.due_from || f.due_to) n++
+    if (f.resolved_from || f.resolved_to) n++
     if ((f.q ?? '').trim()) n++
     return n
   }

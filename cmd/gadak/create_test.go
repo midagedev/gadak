@@ -1493,6 +1493,95 @@ func TestCreateHelpListsParentFlag(t *testing.T) {
 	}
 }
 
+func TestCreateDueLandsInPayload(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"due next week", "--project", "NMB", "--type", "Task",
+			"--due", "2026-09-01",
+		})
+	})
+	if err != nil {
+		t.Fatalf("create --due: %v", err)
+	}
+	sent := f.bodies["POST /issue"]
+	if !strings.Contains(sent, `"duedate":"2026-09-01"`) {
+		t.Fatalf("duedate not sent: %s", sent)
+	}
+}
+
+func TestCreateOmitsDueWhenNoneGiven(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"no due", "--project", "NMB", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	sent := f.bodies["POST /issue"]
+	if strings.Contains(sent, `"duedate"`) {
+		t.Fatalf("duedate sent when flag omitted: %s", sent)
+	}
+}
+
+func TestCreateDueInvalidWritesNothing(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"bad due", "--project", "NMB", "--type", "Task", "--due", "01/09/2026"})
+	})
+	if err == nil {
+		t.Fatal("expected invalid --due error")
+	}
+	if !strings.Contains(err.Error(), "want YYYY-MM-DD") {
+		t.Fatalf("wording: %v", err)
+	}
+	if !strings.Contains(err.Error(), "01/09/2026") {
+		t.Fatalf("error should name the value: %v", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("invalid --due reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateDueNoneIsNotADate(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"none is not create due", "--project", "NMB", "--type", "Task", "--due", "none"})
+	})
+	if err == nil || !strings.Contains(err.Error(), "want YYYY-MM-DD") {
+		t.Fatalf("create --due none must be a format error, got %v", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("--due none reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateHelpListsDueFlag(t *testing.T) {
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"--help"})
+	})
+	if err != nil {
+		t.Fatalf("create --help: %v", err)
+	}
+	if !strings.Contains(out, "--due") {
+		t.Fatalf("help Options missing --due:\n%s", out)
+	}
+	if !strings.Contains(helps["create"].usage, "--due") {
+		t.Errorf("usage line missing --due: %s", helps["create"].usage)
+	}
+	if !strings.Contains(createUsage, "--due") {
+		t.Errorf("createUsage missing --due: %s", createUsage)
+	}
+}
+
 // echoParentOnReread rewrites the fake's /search/jql payload so a created or
 // edited issue's fields.parent matches the last write. The harness itself
 // lives in agent_test.go (outside this round's file whitelist).

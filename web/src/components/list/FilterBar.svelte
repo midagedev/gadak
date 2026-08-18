@@ -11,7 +11,7 @@
   import { emitJql } from '../../lib/api'
   import { isHostedDemo } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
-  import { filterFields, type MultiField } from '../../lib/view-config'
+  import { filterFields, type MultiField, type RangeField } from '../../lib/view-config'
   import { t, fieldLabel } from '../../lib/i18n'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
@@ -29,8 +29,15 @@
     ...filters.dynamicAxes.map((a) => ({ key: a.key, label: a.label, dynamic: true })),
   ])
 
+  const DATE_AXES: { key: RangeField; label: string }[] = [
+    { key: 'created', label: t('field.created') },
+    { key: 'updated', label: t('field.updated') },
+    { key: 'due', label: t('field.due') },
+  ]
+
   let open = $state(false)
   let field = $state<Axis | null>(null)
+  let dateField = $state<RangeField | null>(null)
   let valueQuery = $state('')
   let saveOpen = $state(false)
   let saveName = $state('')
@@ -54,11 +61,26 @@
   function openMenu() {
     open = true
     field = null
+    dateField = null
     valueQuery = ''
   }
   function pickField(f: Axis) {
     field = f
+    dateField = null
     valueQuery = ''
+  }
+  function pickDate(k: RangeField) {
+    field = null
+    dateField = k
+    valueQuery = ''
+  }
+  function rangeBound(axis: RangeField, bound: 'from' | 'to'): string {
+    return filters.filters[`${axis}_${bound}`] ?? ''
+  }
+  function setRangeBound(axis: RangeField, bound: 'from' | 'to', value: string) {
+    const from = bound === 'from' ? value || null : rangeBound(axis, 'from') || null
+    const to = bound === 'to' ? value || null : rangeBound(axis, 'to') || null
+    filters.setRange(axis, from, to)
   }
   function toggle(axis: Axis, value: string) {
     if (axis.dynamic) filters.toggleFieldValue(axis.key, value)
@@ -67,6 +89,7 @@
   function closeAll() {
     open = false
     field = null
+    dateField = null
     saveOpen = false
   }
 
@@ -139,9 +162,10 @@
         else if (chip.kind === 'field') filters.removeFieldValue(chip.field, chip.value!)
         else if (chip.kind === 'flag') filters.toggleFlag(chip.field as 'reopened' | 'unassigned' | 'stale')
         else if (chip.kind === 'keys') filters.clearKeys()
-        else filters.setRange(chip.field as 'created' | 'updated', null, null)
+        else filters.setRange(chip.field as RangeField, null, null)
       }}
       title={t('filter.remove')}
+      class:order-last={chip.kind === 'range'}
     >
       <span class="truncate max-w-[180px]">{chip.label}</span>
       <Icon name="x" size={12} class="text-text-muted transition-colors group-hover:text-status-reopen" />
@@ -152,6 +176,7 @@
   <div class="relative">
     <button
       type="button"
+      data-testid="filter-add"
       class="inline-flex h-control-sm items-center gap-1 rounded-md border border-dashed border-border-strong px-2.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={() => (open ? closeAll() : openMenu())}
     >
@@ -162,8 +187,8 @@
       <div
         class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-[70vh] w-64 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
       >
-        {#if !field}
-          <!-- Step 1: field pick + flags -->
+        {#if !field && !dateField}
+          <!-- Step 1: field pick + date axes + flags -->
           <div class="px-2 py-1 text-micro font-medium text-text-muted">{t('filter.properties')}</div>
           {#each axes as f (f.key)}
             <button
@@ -172,6 +197,17 @@
               onclick={() => pickField(f)}
             >
               <span>{f.label}</span>
+              <Icon name="chevron-right" size={13} class="text-text-muted" />
+            </button>
+          {/each}
+          {#each DATE_AXES as d (d.key)}
+            <button
+              type="button"
+              data-testid={`filter-date-axis-${d.key}`}
+              class="flex min-h-control-sm w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+              onclick={() => pickDate(d.key)}
+            >
+              <span>{d.label}</span>
               <Icon name="chevron-right" size={13} class="text-text-muted" />
             </button>
           {/each}
@@ -189,6 +225,38 @@
               {/if}
             </button>
           {/each}
+        {:else if dateField}
+          <div class="flex items-center gap-1 px-1 pb-1">
+            <button
+              type="button"
+              class="flex h-control-sm w-control-sm items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
+              onclick={() => (dateField = null)}
+              aria-label={t('onboarding.back')}
+            >
+              <Icon name="chevron-left" size={14} />
+            </button>
+            <span class="text-[12px] text-text-secondary">{DATE_AXES.find((d) => d.key === dateField)?.label}</span>
+          </div>
+          <label class="flex flex-col gap-1 px-2 py-1">
+            <span class="text-micro text-text-secondary">{t('filter.dateFrom')}</span>
+            <input
+              type="date"
+              data-testid="filter-date-from"
+              value={rangeBound(dateField, 'from')}
+              oninput={(e) => setRangeBound(dateField!, 'from', (e.currentTarget as HTMLInputElement).value)}
+              class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none focus:border-accent"
+            />
+          </label>
+          <label class="flex flex-col gap-1 px-2 py-1">
+            <span class="text-micro text-text-secondary">{t('filter.dateTo')}</span>
+            <input
+              type="date"
+              data-testid="filter-date-to"
+              value={rangeBound(dateField, 'to')}
+              oninput={(e) => setRangeBound(dateField!, 'to', (e.currentTarget as HTMLInputElement).value)}
+              class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none focus:border-accent"
+            />
+          </label>
         {:else}
           <!-- Step 2: value pick -->
           <div class="flex items-center gap-1 px-1 pb-1">
@@ -203,7 +271,7 @@
             <input
               type="text"
               bind:value={valueQuery}
-              placeholder={t('filter.searchField', { field: field.label })}
+              placeholder={t('filter.searchField', { field: field!.label })}
               class="h-control-sm min-w-0 flex-1 rounded bg-bg-base px-2 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none"
             />
           </div>

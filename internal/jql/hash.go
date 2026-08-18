@@ -64,6 +64,18 @@ func Hash(f Filter, d Display) string {
 	if f.UpdatedTo != nil && *f.UpdatedTo != "" {
 		p.Set("ut", *f.UpdatedTo)
 	}
+	if f.DueFrom != nil && *f.DueFrom != "" {
+		p.Set("df", *f.DueFrom)
+	}
+	if f.DueTo != nil && *f.DueTo != "" {
+		p.Set("dt", *f.DueTo)
+	}
+	if f.ResolvedFrom != nil && *f.ResolvedFrom != "" {
+		p.Set("rf", *f.ResolvedFrom)
+	}
+	if f.ResolvedTo != nil && *f.ResolvedTo != "" {
+		p.Set("rt", *f.ResolvedTo)
+	}
 	if q := strings.TrimSpace(f.Q); q != "" {
 		p.Set("q", q)
 	}

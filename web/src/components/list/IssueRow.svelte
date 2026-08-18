@@ -25,6 +25,7 @@
   import { watches } from '../../stores/watches.svelte'
   import { favorites } from '../../stores/favorites.svelte'
   import { categoryOf, CATEGORY_META, relativeTime, absTime, highlightSegments } from '../../lib/format'
+  import { calendarDay } from '../../lib/calendar'
   import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
   import { config } from '../../lib/config'
@@ -516,6 +517,20 @@
       {#if issue.created_at}
         <span class="w-10 text-right text-micro text-text-muted" title={t('list.createdAt', { time: absTime(issue.created_at) })}>
           {relativeTime(issue.created_at)}
+        </span>
+      {/if}
+    </div>
+  {/if}
+  {#if cols.has('due')}
+    <div class="hidden w-20 flex-none items-center overflow-hidden sm:flex" data-col="due">
+      {#if issue.duedate}
+        <span
+          class="w-20 text-right text-micro text-text-muted"
+          title={t('list.dueAt', { date: absTime(issue.duedate) })}
+          data-calendar-kind="date"
+          data-calendar-day={calendarDay(issue.duedate, 'date')}
+        >
+          {calendarDay(issue.duedate, 'date')}
         </span>
       {/if}
     </div>

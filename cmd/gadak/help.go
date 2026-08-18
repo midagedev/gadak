@@ -286,11 +286,11 @@ var helps = map[string]cmdHelp{
 	},
 	"create": {
 		summary: "create an issue on Jira (needs a credential; write-through to the mirror)",
-		usage:   "gadak [--profile <name>] create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
+		usage:   "gadak [--profile <name>] create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
 		examples: []string{
 			"gadak create Fix the flaky gate --project NMB --type Task -m \"repro on staging\" --label batch",
 			"gadak create 로그인 실패 --project NMB --type 작업",
-			"gadak create Night triage item --project NMB --type Task --priority High",
+			"gadak create Night triage item --project NMB --type Task --priority High --due 2026-09-01",
 			"gadak create --project NMB --type Task -- --rollback-on-failure",
 			`printf '%s\n' '{"summary":"one"}' '{"summary":"two"}' | gadak create --batch - --project NMB --type Task`,
 		},
@@ -306,11 +306,13 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak edit", "gadak issue"},
 	},
 	"edit": {
-		summary: "edit summary, description, labels, priority, or parent on Jira (needs a credential; write-through to the mirror)",
-		usage:   "gadak [--profile <name>] edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--parent KEY|none] [--json]",
+		summary: "edit summary, description, labels, priority, parent, or due date on Jira (needs a credential; write-through to the mirror)",
+		usage:   "gadak [--profile <name>] edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]",
 		examples: []string{
 			"gadak edit NMB-140 --summary \"Rename without opening Jira\"",
 			"gadak edit NMB-140 --label +batch --label -legacy --priority High",
+			"gadak edit NMB-140 --due 2026-09-01",
+			"gadak edit NMB-140 --due none",
 		},
 		seeAlso: []string{"gadak create", "gadak attach", "gadak comment", "gadak issue"},
 	},

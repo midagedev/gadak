@@ -88,6 +88,8 @@ export interface IssueLite {
   updated_at: string | null
   resolved_at: string | null
   status_changed_at: string | null
+  /** Calendar date (YYYY-MM-DD). Null when unset. Older cached rows may omit it. */
+  duedate?: string | null
 
   reopen_count: number
   reopened_at: string | null
@@ -765,6 +767,8 @@ export interface CreateIssuePayload {
   assignee_account_id?: string | null
   priority?: string
   labels?: string[]
+  /** Calendar date (YYYY-MM-DD). Omit when unset — do not send "". */
+  duedate?: string
 }
 
 /** Cache meta stored in the IndexedDB meta store. */

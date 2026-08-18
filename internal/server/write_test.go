@@ -724,6 +724,7 @@ func TestWritesRequireACredential(t *testing.T) {
 		{http.MethodPut, apiBase + "NMB-1/labels/", `{"labels":["x"]}`},
 		{http.MethodPut, apiBase + "NMB-1/priority/", `{"priority_id":"2"}`},
 		{http.MethodPut, apiBase + "NMB-1/summary/", `{"summary":"x"}`},
+		{http.MethodPut, apiBase + "NMB-1/duedate/", `{"duedate":"2026-09-01"}`},
 		{http.MethodGet, apiBase + "priorities/", ""},
 		{http.MethodPatch, apiBase + "NMB-1/fields/", `{"field":"solution","value":"1"}`},
 		{http.MethodGet, apiBase + "NMB-1/editmeta/", ""},
@@ -1112,5 +1113,93 @@ func TestPageResyncNotFound(t *testing.T) {
 	}
 	if got := decode[map[string]string](t, rec)["error"]; got != "not_found" {
 		t.Fatalf("error %q", got)
+	}
+}
+
+func TestCreateIssueSendsDuedate(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"has due","duedate":"2026-09-01"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if !strings.Contains(sent, `"duedate":"2026-09-01"`) {
+		t.Fatalf("create body missing duedate: %s", sent)
+	}
+}
+
+func TestCreateIssueOmitsEmptyDuedate(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"no due","duedate":""}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if strings.Contains(sent, `"duedate"`) {
+		t.Fatalf("empty duedate sent: %s", sent)
+	}
+}
+
+func TestCreateIssueRejectsInvalidDuedateBeforeJira(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"bad due","duedate":"01/09/2026"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid duedate → %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "YYYY-MM-DD") {
+		t.Fatalf("must say what is expected: %s", body)
+	}
+	if !strings.Contains(body, "01/09/2026") {
+		t.Fatalf("must name the value: %s", body)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("invalid duedate reached Jira: %v", f.calls)
+	}
+}
+
+func TestEditDuedateSetAndClear(t *testing.T) {
+	f, h, _ := writable(t)
+
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/duedate/", `{"duedate":"2026-09-01"}`); rec.Code != http.StatusOK {
+		t.Fatalf("set → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); !strings.Contains(body, `"duedate":"2026-09-01"`) {
+		t.Fatalf("set body %s", body)
+	}
+
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/duedate/", `{"duedate":null}`); rec.Code != http.StatusOK {
+		t.Fatalf("clear → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); !strings.Contains(body, `"duedate":null`) {
+		t.Fatalf("clear body %s", body)
+	}
+
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/duedate/", `{"duedate":""}`); rec.Code != http.StatusOK {
+		t.Fatalf("empty clear → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); !strings.Contains(body, `"duedate":null`) {
+		t.Fatalf("empty body %s", body)
+	}
+}
+
+func TestEditDuedateRejectsInvalidBeforeJira(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPut, apiBase+"NMB-1/duedate/", `{"duedate":"September 1"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid → %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "YYYY-MM-DD") {
+		t.Fatalf("must say what is expected: %s", rec.Body.String())
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("invalid duedate reached Jira: %v", f.calls)
 	}
 }

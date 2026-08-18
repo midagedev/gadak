@@ -5,7 +5,7 @@
  * ViewConfig (filters + display) and is applied wholesale via filters.applyConfig.
  *
  * Discipline: presets use **tenant-neutral axes only**.
- *  - status_category (new/inprogress/done), unassigned, reopened, stale, updated_from
+ *  - status_category (new/inprogress/done), unassigned, reopened, stale, resolved_from
  *    mean the same thing on every Jira.
  *  - status names, priority names, issue_type names, project keys vary by site
  *    (and even by account language), so baking them into a preset yields empty
@@ -16,6 +16,7 @@
  */
 
 import { t } from './i18n'
+import { startOfWeekMonday } from './calendar'
 import { emptyConfig, type ViewConfig } from './view-config'
 import type { IconName } from '../components/ui/Icon.svelte'
 
@@ -27,12 +28,9 @@ export interface BuiltinView {
   config: ViewConfig
 }
 
-/** ISO date (YYYY-MM-DD) of this week's Monday 00:00 local. */
+/** ISO date (YYYY-MM-DD) of this week's Monday 00:00 in the viewer zone. */
 function startOfWeekISO(): string {
-  const now = new Date()
-  const day = (now.getDay() + 6) % 7 // Mon = 0
-  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day)
-  return `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, '0')}-${String(mon.getDate()).padStart(2, '0')}`
+  return startOfWeekMonday()
 }
 
 /** Config assembly helper — start from empty config, overwrite partials. */
@@ -112,7 +110,7 @@ export function builtinViews(): BuiltinView[] {
       name: t('view.resolvedWeek.name'),
       hint: t('view.resolvedWeek.hint'),
       config: make({
-        filters: { status_category: ['done'], updated_from: startOfWeekISO() },
+        filters: { status_category: ['done'], resolved_from: startOfWeekISO() },
         display: { sort: 'updated', dir: 'desc' },
       }),
     },

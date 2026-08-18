@@ -47,6 +47,7 @@
   let summary = $state('')
   let description = $state('')
   let priority = $state('')
+  let duedate = $state('')
 
   // Assignee (optional)
   let assignee = $state<JiraUser | null>(null)
@@ -163,7 +164,7 @@
     const freq = new Map<string, number>()
     for (const it of issues.allIssues) {
       if (write.projectOf(it) !== projectKey) continue
-      for (const l of it.labels) freq.set(l, (freq.get(l) ?? 0) + 1)
+      for (const l of it.labels ?? []) freq.set(l, (freq.get(l) ?? 0) + 1)
     }
     return freq
   })
@@ -224,6 +225,7 @@
       assignee_account_id: assignee?.account_id ?? undefined,
       priority: priority || undefined,
       labels: labels.length ? labels : undefined,
+      duedate: duedate || undefined,
     })
     submitting = false
     if (res.ok && res.key) {
@@ -377,6 +379,16 @@
           </label>
         </div>
 
+        <label class="flex flex-col gap-1">
+          <span class="text-micro text-text-secondary">duedate</span>
+          <input
+            bind:value={duedate}
+            type="date"
+            data-testid="new-issue-duedate"
+            class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none focus:border-accent"
+          />
+        </label>
+
         <!-- Labels -->
         <div class="relative flex flex-col gap-1">
           <span class="text-micro text-text-secondary">{t('common.labels')}</span>
@@ -414,7 +426,7 @@
         </div>
 
         {#if submitError}
-          <p class="text-[12px] text-status-reopen">{submitError}</p>
+          <p class="whitespace-pre-wrap text-[12px] text-status-reopen" data-testid="new-issue-error">{submitError}</p>
         {/if}
 
         <div class="mt-1 flex items-center justify-end gap-2">

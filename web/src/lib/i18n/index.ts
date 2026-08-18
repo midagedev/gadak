@@ -4,6 +4,7 @@
  * Changing locale reloads the page (see setLocale).
  */
 
+import { formatAbs } from '../calendar'
 import { en, type MessageKey } from './en'
 import { ko } from './ko'
 
@@ -226,18 +227,11 @@ export function relativeSeenLabel(iso: string | null | undefined): string {
   return t('time.seenAgo', { relative })
 }
 
-/** Absolute datetime for tooltips. */
+/** Absolute datetime for tooltips. Date-only strings stay on their calendar day. */
 export function absTime(iso: string | null | undefined): string {
   if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return String(iso)
-  return d.toLocaleString(localeTag(), {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const kind = /^\d{4}-\d{2}-\d{2}$/.test(iso.trim()) ? 'date' : 'instant'
+  return formatAbs(iso, kind, undefined, localeTag())
 }
 
 /** Locale-aware number formatting. */

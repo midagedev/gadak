@@ -17,11 +17,11 @@ import (
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-const createUsage = "usage: gadak create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--json]"
+const createUsage = "usage: gadak create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--json]"
 
 // createBatchShape is the one-line reminder printed when a --batch line is
 // not an object we can file. Field names match createBatchLine.
-const createBatchShape = `{"summary": "...", "type"?: "...", "project"?: "...", "labels"?: [...], "description"?: "plain text", "attach"?: ["path", ...], "priority"?: "...", "parent"?: "ABC-1"}`
+const createBatchShape = `{"summary": "...", "type"?: "...", "project"?: "...", "labels"?: [...], "description"?: "plain text", "attach"?: ["path", ...], "priority"?: "...", "parent"?: "ABC-1", "due"?: "YYYY-MM-DD"}`
 
 // labelFlags collects repeated --label values.
 type labelFlags []string
@@ -38,6 +38,7 @@ func cmdCreate(args []string) error {
 	projectFlag := fs.String("project", "", "project key; omitted uses the configured default, else the sole configured project")
 	typeFlag := fs.String("type", "", "issue type name or id from createmeta; omitted uses the configured default id, else the project's only type")
 	priorityFlag := fs.String("priority", "", "priority name or id")
+	dueFlag := fs.String("due", "", "due date (YYYY-MM-DD)")
 	parentFlag := fs.String("parent", "", "parent issue key")
 	var labels labelFlags
 	fs.Var(&labels, "label", "label (repeatable)")
@@ -45,7 +46,7 @@ func cmdCreate(args []string) error {
 	fs.Var(&attachFiles, "attach", "file to upload after create (repeatable)")
 	text := fs.String("m", "", "description as plain text; `-` reads it from stdin")
 	asJSON := fs.Bool("json", false, "emit JSON")
-	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs summary, and may set type, project, labels, description, attach, priority, parent")
+	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs summary, and may set type, project, labels, description, attach, priority, parent, due")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("create", fs))
 		return nil
@@ -69,7 +70,7 @@ func cmdCreate(args []string) error {
 		if strings.TrimSpace(strings.Join(pos, " ")) != "" {
 			return usageError("create", "usage: gadak create: --batch and a summary are mutually exclusive")
 		}
-		return cmdCreateBatch(*projectFlag, *typeFlag, *text, *priorityFlag, *parentFlag, []string(labels), []string(attachFiles), *asJSON)
+		return cmdCreateBatch(*projectFlag, *typeFlag, *text, *priorityFlag, *parentFlag, *dueFlag, []string(labels), []string(attachFiles), *asJSON)
 	}
 
 	summary := strings.TrimSpace(strings.Join(pos, " "))
@@ -77,6 +78,9 @@ func cmdCreate(args []string) error {
 		return usageError("create", createUsage)
 	}
 	if _, err := parseParentKey(*parentFlag, "create"); err != nil {
+		return err
+	}
+	if _, err := parseDueDate(*dueFlag, "create"); err != nil {
 		return err
 	}
 
@@ -95,7 +99,7 @@ func cmdCreate(args []string) error {
 	}
 
 	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
-		key, extra, err := createOne(ctx, cfg, c, *projectFlag, *typeFlag, summary, body, *priorityFlag, *parentFlag, []string(labels), attachFiles)
+		key, extra, err := createOne(ctx, cfg, c, *projectFlag, *typeFlag, summary, body, *priorityFlag, *parentFlag, *dueFlag, []string(labels), attachFiles)
 		if err != nil {
 			return err
 		}
@@ -135,9 +139,10 @@ type createBatchLine struct {
 	Attach      *[]string `json:"attach"`
 	Priority    string    `json:"priority"`
 	Parent      string    `json:"parent"`
+	Due         string    `json:"due"`
 }
 
-func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, defaultParent string, defaultLabels, defaultAttach []string, asJSON bool) error {
+func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, defaultParent, defaultDue string, defaultLabels, defaultAttach []string, asJSON bool) error {
 	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
 		sc := bufio.NewScanner(os.Stdin)
 		lineNo := 0
@@ -183,7 +188,11 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 			if strings.TrimSpace(parentWant) == "" {
 				parentWant = defaultParent
 			}
-			key, extra, err := createOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, labels, attach)
+			dueWant := rec.Due
+			if strings.TrimSpace(dueWant) == "" {
+				dueWant = defaultDue
+			}
+			key, extra, err := createOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach)
 			if err != nil {
 				return fmt.Errorf("line %d: %w", lineNo, err)
 			}
@@ -201,13 +210,17 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 // createOne resolves project/type/priority/parent, POSTs the issue, and uploads
 // attachments. Attach paths and the parent key shape are validated before any
 // Jira call. The caller prints / refreshes.
-func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectWant, typeWant, summary, body, priorityWant, parentWant string, labels, attach []string) (string, map[string]any, error) {
+func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string) (string, map[string]any, error) {
 	if len(attach) > 0 {
 		if err := validateAttachPaths(attach); err != nil {
 			return "", nil, err
 		}
 	}
 	parentKey, err := parseParentKey(parentWant, "create")
+	if err != nil {
+		return "", nil, err
+	}
+	due, err := parseDueDate(dueWant, "create")
 	if err != nil {
 		return "", nil, err
 	}
@@ -252,6 +265,9 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	}
 	if parentKey != "" {
 		fields["parent"] = map[string]string{"key": parentKey}
+	}
+	if due != "" {
+		fields["duedate"] = due
 	}
 
 	key, err := c.CreateIssue(ctx, fields)
@@ -316,6 +332,38 @@ func emitBatchLine(ctx context.Context, cfg *config.Config, db *store.DB, c *jir
 
 // parseParentKey accepts a Jira issue key (ABC-123). Empty means omitted.
 // The wording matches gadak_show issue (internal/mcp/tools.go).
+// parseDueDate accepts a calendar date YYYY-MM-DD. Empty means omitted.
+// Callers that accept the clear sentinel (`none`) must branch before this.
+func parseDueDate(raw, cmd string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", nil
+	}
+	if !dueDateLiteral(s) {
+		return "", fmt.Errorf("gadak %s --due %q is not a date (want YYYY-MM-DD)", cmd, raw)
+	}
+	return s, nil
+}
+
+// dueDateLiteral is YYYY-MM-DD with month 01–12 and day 01–31. It does not
+// parse into a timestamp — date-only values stay date-only.
+func dueDateLiteral(s string) bool {
+	if len(s) != 10 || s[4] != '-' || s[7] != '-' {
+		return false
+	}
+	for i := 0; i < 10; i++ {
+		if i == 4 || i == 7 {
+			continue
+		}
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	month := int(s[5]-'0')*10 + int(s[6]-'0')
+	day := int(s[8]-'0')*10 + int(s[9]-'0')
+	return month >= 1 && month <= 12 && day >= 1 && day <= 31
+}
+
 func parseParentKey(raw, cmd string) (string, error) {
 	if strings.TrimSpace(raw) == "" {
 		return "", nil
