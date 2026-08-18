@@ -147,8 +147,25 @@ jobs:
 
       - run: npm ci
 
+      # --with-deps runs apt-get, and an Ubuntu mirror that stalls rather than
+      # fails takes the whole job with it: on 2026-08-18 this step sat on
+      # archive.ubuntu.com for 29 minutes, hit the job's 30-minute timeout, and
+      # reported "Playwright E2E fail" on a pull request that changed one
+      # markdown file. No browser had started. A stalled mirror must not be
+      # able to look like a verdict on the change, so each attempt is killed at
+      # four minutes and retried instead of being waited on.
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 14
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 240 npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::playwright install attempt ${attempt} failed or stalled; retrying"
+            sleep 10
+          done
+          echo "::error::playwright install failed three times — this is the installer, not the tests"
+          exit 1
 
       - name: Run browser E2E
         run: npx playwright test --config e2e/playwright.config.ts
