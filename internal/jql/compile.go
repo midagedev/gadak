@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/midagedev/gadak/internal/calendar"
 )
 
 // Parse turns a JQL string or a Jira navigator URL into a Filter. Unsupported
@@ -225,6 +227,10 @@ func canonicalField(name string) string {
 		return "created"
 	case "updated", "updateddate":
 		return "updated"
+	case "due", "duedate":
+		return "duedate"
+	case "resolved", "resolutiondate", "resolveddate":
+		return "resolved"
 	case "text", "summary", "description", "comment":
 		return "text"
 	case "key", "issuekey", "issue":
@@ -278,6 +284,10 @@ func (c *compiler) compileClause(cl *clause) {
 		c.compileDate("created", cl, &c.f.CreatedFrom, &c.f.CreatedTo)
 	case "updated":
 		c.compileDate("updated", cl, &c.f.UpdatedFrom, &c.f.UpdatedTo)
+	case "duedate":
+		c.compileDate("duedate", cl, &c.f.DueFrom, &c.f.DueTo)
+	case "resolved":
+		c.compileDate("resolved", cl, &c.f.ResolvedFrom, &c.f.ResolvedTo)
 	case "text":
 		c.compileText(cl)
 	case "key":
@@ -486,7 +496,7 @@ func (c *compiler) compileDate(name string, cl *clause, from, to **string) {
 		c.skip(cl.render() + " (date not in the subset)")
 		return
 	}
-	day := t.Format("2006-01-02")
+	day := calendar.FormatDay(t, calendar.In(t.Location()))
 	switch cl.op {
 	case opGte:
 		*from = strptr(laterDate(*from, day))
@@ -515,6 +525,8 @@ func (c *compiler) applyOrder(orders []order) {
 			sort = "updated"
 		case "created", "createddate":
 			sort = "created"
+		case "due", "duedate":
+			sort = "due"
 		case "priority":
 			sort = "priority"
 		default:

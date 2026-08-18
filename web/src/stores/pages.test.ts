@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { IssueLite } from '../lib/types'
 import { emptyFilters } from '../lib/view-config'
+import { zoneNamed } from '../lib/calendar'
 import { filterIssues, sortIssues, type RelevanceContext } from './filters.svelte'
 import { pageAuthorGroupKey } from './pages.svelte'
 
@@ -117,5 +118,34 @@ describe('retired jamo-only issue match (GDK-168)', () => {
     expect(() => filterIssues([hit, miss], f)).not.toThrow()
     const got = filterIssues([hit, miss], f)
     expect(got).toEqual([])
+  })
+})
+
+describe('GDK-250 date calendar (FAIL-first)', () => {
+  test('created_from=2026-08-18 includes a 01:00 KST instant stored as 17T16:00Z', () => {
+    // Asia/Seoul 2026-08-18 01:00 == 2026-08-17T16:00:00.000Z.
+    // UTC-prefix compare (iso.slice(0,10)) dropped this row (red 2026-08-18).
+    // Zone is pinned so a UTC CI runner cannot hide the miss.
+    const seoul = zoneNamed('Asia/Seoul')
+    const f = emptyFilters()
+    f.created_from = '2026-08-18'
+    const it = issue({
+      issue_key: 'NMB-KST',
+      summary: 'created 01:00 KST',
+      created_at: '2026-08-17T16:00:00.000Z',
+    })
+    const got = filterIssues([it], f, seoul)
+    expect(got.map((row) => row.issue_key)).toEqual(['NMB-KST'])
+    expect(filterIssues([it], f, zoneNamed('UTC')).map((row) => row.issue_key)).toEqual([])
+  })
+
+  test('due_from compares the stored calendar date, not a UTC instant', () => {
+    const f = emptyFilters()
+    f.due_from = '2026-08-20'
+    const hit = issue({ issue_key: 'NMB-DUE', summary: 'due', duedate: '2026-08-20' })
+    const miss = issue({ issue_key: 'NMB-EARLY', summary: 'early', duedate: '2026-08-19' })
+    expect(filterIssues([hit, miss], f, zoneNamed('America/Los_Angeles')).map((r) => r.issue_key)).toEqual([
+      'NMB-DUE',
+    ])
   })
 })

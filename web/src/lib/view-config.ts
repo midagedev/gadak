@@ -61,9 +61,16 @@ export interface ViewFilters {
   created_to: string | null
   updated_from: string | null
   updated_to: string | null
+  due_from: string | null
+  due_to: string | null
+  resolved_from: string | null
+  resolved_to: string | null
   // Local text query (instant match on key/title/assignee/labels)
   q: string
 }
+
+/** Date-range axes (URL cf/ct, uf/ut, df/dt, rf/rt). */
+export type RangeField = 'created' | 'updated' | 'due' | 'resolved'
 
 export type GroupBy =
   | 'none'
@@ -82,7 +89,7 @@ export type GroupBy =
 // 'relevance' = rank by search relevance when a query is present. Auto-promoted from
 // the default sort (updated); only serialized into the URL when explicitly chosen
 // (older URLs do not know relevance — keep backward compatible).
-export type SortKey = 'updated' | 'created' | 'priority' | 'reopen_count' | 'relevance' | 'keys'
+export type SortKey = 'updated' | 'created' | 'due' | 'priority' | 'reopen_count' | 'relevance' | 'keys'
 export type SortDir = 'asc' | 'desc'
 
 /* ── List columns (trailing fields shown on a row) ──
@@ -105,6 +112,7 @@ export const COLUMN_KEYS_ALL = [
   'fix_versions',
   'components',
   'created',
+  'due',
   'environment',
   'team_group',
   'dev_test_result',
@@ -307,6 +315,10 @@ export function emptyFilters(): ViewFilters {
     created_to: null,
     updated_from: null,
     updated_to: null,
+    due_from: null,
+    due_to: null,
+    resolved_from: null,
+    resolved_to: null,
     q: '',
   }
 }
@@ -377,6 +389,10 @@ const RANGE_KEY = {
   created_to: 'ct',
   updated_from: 'uf',
   updated_to: 'ut',
+  due_from: 'df',
+  due_to: 'dt',
+  resolved_from: 'rf',
+  resolved_to: 'rt',
 } as const
 
 const FLAG_KEY = 'fl' // Comma-joined flag list
@@ -445,6 +461,10 @@ export function parseView(params: URLSearchParams): { config: ViewConfig; keys: 
   f.created_to = params.get(RANGE_KEY.created_to)
   f.updated_from = params.get(RANGE_KEY.updated_from)
   f.updated_to = params.get(RANGE_KEY.updated_to)
+  f.due_from = params.get(RANGE_KEY.due_from)
+  f.due_to = params.get(RANGE_KEY.due_to)
+  f.resolved_from = params.get(RANGE_KEY.resolved_from)
+  f.resolved_to = params.get(RANGE_KEY.resolved_to)
   f.q = params.get(Q_KEY) ?? ''
 
   const d = defaultDisplay()
@@ -487,7 +507,7 @@ function isGroupBy(v: string): v is GroupBy {
   )
 }
 function isSortKey(v: string): v is SortKey {
-  return ['updated', 'created', 'priority', 'reopen_count', 'relevance', 'keys'].includes(v)
+  return ['updated', 'created', 'due', 'priority', 'reopen_count', 'relevance', 'keys'].includes(v)
 }
 
 /* ── Serialize: ViewConfig → URL param delta ──
@@ -516,6 +536,10 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   out[RANGE_KEY.created_to] = f.created_to || null
   out[RANGE_KEY.updated_from] = f.updated_from || null
   out[RANGE_KEY.updated_to] = f.updated_to || null
+  out[RANGE_KEY.due_from] = f.due_from || null
+  out[RANGE_KEY.due_to] = f.due_to || null
+  out[RANGE_KEY.resolved_from] = f.resolved_from || null
+  out[RANGE_KEY.resolved_to] = f.resolved_to || null
   out[Q_KEY] = f.q ? f.q : null
 
   // Omit g when it matches the contextual default (status_category normally;
@@ -622,7 +646,17 @@ export function hasAnyFilter(f: ViewFilters): boolean {
   for (const field of MULTI_FIELDS) if (f[field].length) return true
   for (const alias in f.fields) if (f.fields[alias].length) return true
   if (f.reopened || f.unassigned || f.stale) return true
-  if (f.created_from || f.created_to || f.updated_from || f.updated_to) return true
+  if (
+    f.created_from ||
+    f.created_to ||
+    f.updated_from ||
+    f.updated_to ||
+    f.due_from ||
+    f.due_to ||
+    f.resolved_from ||
+    f.resolved_to
+  )
+    return true
   if (f.q.trim()) return true
   return false
 }

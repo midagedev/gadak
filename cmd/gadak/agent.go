@@ -1031,6 +1031,8 @@ func jqlIssue(l store.IssueLite) jql.Issue {
 		FixVersions:    l.FixVersions,
 		CreatedAt:      deref(l.CreatedAt, ""),
 		UpdatedAt:      deref(l.UpdatedAt, ""),
+		Duedate:        deref(l.Duedate, ""),
+		ResolvedAt:     deref(l.ResolvedAt, ""),
 	}
 }
 

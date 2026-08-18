@@ -6,7 +6,7 @@
  */
 
 const fieldOpRe =
-  /\b(project|projectkey|status|statuscategory|statuscategoryid|assignee|reporter|labels?|priority|issuetype|type|components?|fixversions?|created|createddate|updated|updateddate|resolution|text|summary|description|comment|key|issuekey|issue)\b\s*(=|!=|~|!~|>=|<=|>|<|\bin\b|\bis\b)/i
+  /\b(project|projectkey|status|statuscategory|statuscategoryid|assignee|reporter|labels?|priority|issuetype|type|components?|fixversions?|created|createddate|updated|updateddate|due|duedate|resolved|resolutiondate|resolveddate|resolution|text|summary|description|comment|key|issuekey|issue)\b\s*(=|!=|~|!~|>=|<=|>|<|\bin\b|\bis\b)/i
 const orderByRe = /\border\s+by\b/i
 const jqlEqRe = /(?:\?|&|#|^)jql=/i
 

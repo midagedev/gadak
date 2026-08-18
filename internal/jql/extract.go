@@ -15,7 +15,7 @@ type Extracted struct {
 }
 
 var (
-	fieldOpRe = regexp.MustCompile(`(?i)\b(project|projectkey|status|statuscategory|statuscategoryid|assignee|reporter|labels?|priority|issuetype|type|components?|fixversions?|created|createddate|updated|updateddate|resolution|text|summary|description|comment|key|issuekey|issue)\b\s*(=|!=|~|!~|>=|<=|>|<|\bin\b|\bis\b)`)
+	fieldOpRe = regexp.MustCompile(`(?i)\b(project|projectkey|status|statuscategory|statuscategoryid|assignee|reporter|labels?|priority|issuetype|type|components?|fixversions?|created|createddate|updated|updateddate|due|duedate|resolved|resolutiondate|resolveddate|resolution|text|summary|description|comment|key|issuekey|issue)\b\s*(=|!=|~|!~|>=|<=|>|<|\bin\b|\bis\b)`)
 	orderByRe = regexp.MustCompile(`(?i)\border\s+by\b`)
 	jqlEqRe   = regexp.MustCompile(`(?:\?|&|#|^)jql=`)
 )

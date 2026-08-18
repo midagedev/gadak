@@ -1,10 +1,20 @@
 package jql
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/midagedev/gadak/internal/calendar"
+)
 
 // Match reports whether an issue satisfies the Filter. Semantics match the
-// web UI: AND across fields, OR within a field.
+// web UI: AND across fields, OR within a field. Instants use the process
+// local calendar (same default as the web owner).
 func Match(it Issue, f Filter) bool {
+	return MatchIn(it, f, calendar.Local())
+}
+
+// MatchIn is Match with an explicit calendar zone. Tests pin Asia/Seoul.
+func MatchIn(it Issue, f Filter, z calendar.Zone) bool {
 	if len(f.JiraProject) > 0 && !containsFold(f.JiraProject, it.Project) {
 		return false
 	}
@@ -41,10 +51,16 @@ func Match(it Issue, f Filter) bool {
 	if len(f.FixVersions) > 0 && !anyContains(f.FixVersions, it.FixVersions) {
 		return false
 	}
-	if (f.CreatedFrom != nil || f.CreatedTo != nil) && !inRange(it.CreatedAt, f.CreatedFrom, f.CreatedTo) {
+	if (f.CreatedFrom != nil || f.CreatedTo != nil) && !inRange(it.CreatedAt, calendar.Instant, f.CreatedFrom, f.CreatedTo, z) {
 		return false
 	}
-	if (f.UpdatedFrom != nil || f.UpdatedTo != nil) && !inRange(it.UpdatedAt, f.UpdatedFrom, f.UpdatedTo) {
+	if (f.UpdatedFrom != nil || f.UpdatedTo != nil) && !inRange(it.UpdatedAt, calendar.Instant, f.UpdatedFrom, f.UpdatedTo, z) {
+		return false
+	}
+	if (f.DueFrom != nil || f.DueTo != nil) && !inRange(it.Duedate, calendar.Date, f.DueFrom, f.DueTo, z) {
+		return false
+	}
+	if (f.ResolvedFrom != nil || f.ResolvedTo != nil) && !inRange(it.ResolvedAt, calendar.Instant, f.ResolvedFrom, f.ResolvedTo, z) {
 		return false
 	}
 	if q := strings.TrimSpace(f.Q); q != "" {
@@ -109,21 +125,15 @@ func textMatch(it Issue, q string) bool {
 	return nk != "" && strings.Contains(compact(it.Key), nk)
 }
 
-func inRange(iso string, from, to *string) bool {
-	if iso == "" {
-		return from == nil || *from == ""
+func inRange(iso string, kind calendar.Kind, from, to *string, z calendar.Zone) bool {
+	return calendar.InRange(iso, kind, derefRange(from), derefRange(to), z)
+}
+
+func derefRange(s *string) string {
+	if s == nil {
+		return ""
 	}
-	d := iso
-	if len(d) >= 10 {
-		d = d[:10]
-	}
-	if from != nil && *from != "" && d < *from {
-		return false
-	}
-	if to != nil && *to != "" && d > *to {
-		return false
-	}
-	return true
+	return *s
 }
 
 func containsFold(have []string, want string) bool {

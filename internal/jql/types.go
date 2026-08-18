@@ -31,6 +31,10 @@ type Filter struct {
 	CreatedTo      *string             `json:"created_to"`
 	UpdatedFrom    *string             `json:"updated_from"`
 	UpdatedTo      *string             `json:"updated_to"`
+	DueFrom        *string             `json:"due_from"`
+	DueTo          *string             `json:"due_to"`
+	ResolvedFrom   *string             `json:"resolved_from"`
+	ResolvedTo     *string             `json:"resolved_to"`
 	Q              string              `json:"q"`
 }
 
@@ -103,6 +107,8 @@ type Issue struct {
 	FixVersions    []string
 	CreatedAt      string
 	UpdatedAt      string
+	Duedate        string
+	ResolvedAt     string
 }
 
 // Person is one identity ResolvePeople can match a JQL assignee/reporter
@@ -146,7 +152,9 @@ func (f Filter) empty() bool {
 		len(f.Components) > 0 || len(f.FixVersions) > 0 ||
 		len(f.JiraProject) > 0 || len(f.Keys) > 0 || f.Unassigned || f.Reopened || f.Stale ||
 		f.CreatedFrom != nil || f.CreatedTo != nil ||
-		f.UpdatedFrom != nil || f.UpdatedTo != nil || f.Q != "" {
+		f.UpdatedFrom != nil || f.UpdatedTo != nil ||
+		f.DueFrom != nil || f.DueTo != nil ||
+		f.ResolvedFrom != nil || f.ResolvedTo != nil || f.Q != "" {
 		return false
 	}
 	return true
