@@ -31,6 +31,45 @@ func testRequest(method, target string, body io.Reader) *http.Request {
 	return req
 }
 
+// quiesceFixtureDir empties the mirror directory, then names anything that
+// comes back.
+//
+// The directory is a t.TempDir(), and Go removes it in a cleanup registered
+// before ours — so it runs *after* ours (LIFO). Its RemoveAll lists the
+// directory and then rmdirs it, and a file created in between makes the whole
+// package fail with `TempDir RemoveAll cleanup: unlinkat …/002: directory not
+// empty`, attributed to whichever test happened to own that directory. That is
+// the least useful error shape available: it names no file and no writer, and on
+// 2026-08-18 it landed on a pull request whose entire diff was one markdown file
+// (GDK-270).
+//
+// mirror.db and its local.db sibling (ATTACHed on every connection by
+// internal/store) are supposed to be there — closing a database does not delete
+// it. Removing them here is not cleanup for its own sake: it leaves RemoveAll
+// nothing to race on, and it turns "some file was in the way" into "this named
+// file appeared after teardown began", reported by the fixture that owns the
+// path instead of anonymously by the framework.
+func quiesceFixtureDir(t *testing.T, dir string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		// Already gone, or unreadable: not this helper's business.
+		return
+	}
+	for _, e := range entries {
+		_ = os.RemoveAll(filepath.Join(dir, e.Name()))
+	}
+	back, err := os.ReadDir(dir)
+	if err != nil || len(back) == 0 {
+		return
+	}
+	names := make([]string, 0, len(back))
+	for _, e := range back {
+		names = append(names, e.Name())
+	}
+	t.Errorf("mirror dir got %v back after teardown removed everything — something in this package is still writing to a torn-down TempDir (GDK-270)", names)
+}
+
 // fixture builds a three-issue mirror and the configuration that turns the
 // company-specific surfaces (member directory, group rules) back on.
 func fixture(t *testing.T) (*store.DB, *config.Config) {
@@ -43,12 +82,16 @@ func fixture(t *testing.T) (*store.DB, *config.Config) {
 // mirror: with SQL, from outside this process.
 func fixtureAt(t *testing.T) (*store.DB, *config.Config, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "mirror.db")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mirror.db")
 	db, err := store.Open(path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		db.Close()
+		quiesceFixtureDir(t, dir)
+	})
 	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://x.atlassian.net"}); err != nil {
 		t.Fatalf("source: %v", err)
 	}
