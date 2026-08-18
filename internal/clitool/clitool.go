@@ -1,20 +1,32 @@
-// Package clitool installs the gadak binary onto PATH via a symlink.
-// Shared by `gadak install-cli` and the desktop "Install Command Line Tool…"
-// menu so both surfaces use the same resolve / install / PATH-advice logic.
+// Package clitool installs the gadak binary onto PATH.
+// Unix uses a symlink; Windows copies (symlink creation needs Developer
+// Mode or elevation, so the default path fails). Shared by
+// `gadak install-cli` and the desktop "Install Command Line Tool…" menu
+// so both surfaces use the same resolve / install / PATH-advice logic.
 package clitool
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
 // Destination status after Resolve.
 const (
 	StatusMissing  = "missing"  // nothing at Dest
-	StatusLinked   = "linked"   // Dest is already a symlink to Source
-	StatusConflict = "conflict" // Dest exists but is not the desired link
+	StatusLinked   = "linked"   // Dest is already the desired install (symlink or copy)
+	StatusConflict = "conflict" // Dest exists but is not the desired install
+)
+
+// How Install places Dest. Windows copies: creating a symlink needs Developer
+// Mode or elevation, so the default path fails. Unix keeps a symlink.
+const (
+	MethodSymlink = "symlink"
+	MethodCopy    = "copy"
 )
 
 // Plan is the result of Resolve: where to install, what is there, and whether
@@ -31,26 +43,55 @@ type Plan struct {
 	// Kind is "symlink", "file", "directory", or "other".
 	ExistingKind   string
 	ExistingTarget string // absolute path for symlinks; empty otherwise
+
+	// Method is MethodSymlink or MethodCopy. Set by ResolveFor from goos.
+	Method string
 }
 
-// Resolve picks the install directory and inspects Dest.
+// installMethodFor chooses how Install places Dest. goos is a GOOS value so
+// tests can exercise the Windows branch on any host (same shape as
+// desktop windowChromeFor).
+func installMethodFor(goos string) string {
+	if goos == "windows" {
+		return MethodCopy
+	}
+	return MethodSymlink
+}
+
+// destBaseFor is the filename under the install directory. Windows PATH
+// lookup requires the .exe suffix.
+func destBaseFor(goos string) string {
+	if goos == "windows" {
+		return "gadak.exe"
+	}
+	return "gadak"
+}
+
+// Resolve picks the install directory and inspects Dest for this binary's GOOS.
+func Resolve(source, dirFlag, pathEnv string) (Plan, error) {
+	return ResolveFor(source, dirFlag, pathEnv, runtime.GOOS)
+}
+
+// ResolveFor is Resolve with an explicit GOOS so the Windows dest name and
+// copy/symlink choice can be tested on any host.
 //
 // dirFlag empty → DefaultDir(pathEnv) heuristic. Non-empty → expand/absolutize
 // that path and skip the heuristic. pathEnv is the PATH string (usually
 // os.Getenv("PATH")); inject a fake value in tests.
-func Resolve(source, dirFlag, pathEnv string) (Plan, error) {
+func ResolveFor(source, dirFlag, pathEnv, goos string) (Plan, error) {
 	source = filepath.Clean(source)
 	dir, err := ResolveDir(dirFlag, pathEnv)
 	if err != nil {
 		return Plan{}, err
 	}
-	dest := filepath.Join(dir, "gadak")
+	dest := filepath.Join(dir, destBaseFor(goos))
 
 	p := Plan{
 		Source: source,
 		Dir:    dir,
 		Dest:   dest,
 		OnPath: PathContains(pathEnv, dir),
+		Method: installMethodFor(goos),
 	}
 
 	kind, target, existErr := inspectDest(dest)
@@ -66,6 +107,16 @@ func Resolve(source, dirFlag, pathEnv string) (Plan, error) {
 	if kind == "symlink" && target == source {
 		p.Status = StatusLinked
 		return p, nil
+	}
+	if p.Method == MethodCopy && kind == "file" {
+		same, sameErr := sameRegularFile(dest, source)
+		if sameErr != nil {
+			return Plan{}, fmt.Errorf("compare %s: %w", TildeHome(dest), sameErr)
+		}
+		if same {
+			p.Status = StatusLinked
+			return p, nil
+		}
 	}
 	p.Status = StatusConflict
 	return p, nil
@@ -129,7 +180,9 @@ func DefaultDir(pathEnv string) (string, error) {
 	return localBin, nil
 }
 
-// Install creates Dir if needed and symlinks Dest → Source.
+// Install creates Dir if needed and places Dest according to p.Method
+// (symlink on Unix, copy on Windows). Empty Method is treated as symlink
+// so a Plan built by older callers keeps the previous behaviour.
 // When Status is linked, Install is a no-op.
 // When Status is conflict and force is false, Install returns an error without
 // touching the filesystem. force replaces an existing Dest.
@@ -161,10 +214,57 @@ func Install(p Plan, force bool) error {
 		return permissionHint(fmt.Errorf("inspect %s: %w", TildeHome(p.Dest), err), p.Dest)
 	}
 
+	if p.Method == MethodCopy {
+		if err := installCopy(p.Source, p.Dest); err != nil {
+			return permissionHint(fmt.Errorf("copy %s from %s: %w", TildeHome(p.Dest), TildeHome(p.Source), err), p.Dest)
+		}
+		return nil
+	}
+
 	if err := os.Symlink(p.Source, p.Dest); err != nil {
 		return permissionHint(fmt.Errorf("symlink %s → %s: %w", TildeHome(p.Dest), TildeHome(p.Source), err), p.Dest)
 	}
 	return nil
+}
+
+// PrintStatusLine is the `gadak install-cli --print` status line. Ownership
+// lives here so the CLI cannot drift into saying "symlink" for a copy.
+func (p Plan) PrintStatusLine() string {
+	switch p.Status {
+	case StatusMissing:
+		if p.Method == MethodCopy {
+			return "status:  missing (would copy)"
+		}
+		return "status:  missing (would create symlink)"
+	case StatusLinked:
+		if p.Method == MethodCopy {
+			return "status:  already installed (same copy)"
+		}
+		return "status:  already installed (same target)"
+	case StatusConflict:
+		if p.ExistingKind == "symlink" {
+			return fmt.Sprintf("status:  symlink → %s (use --force to replace)", TildeHome(p.ExistingTarget))
+		}
+		return fmt.Sprintf("status:  %s exists (use --force to replace)", p.ExistingKind)
+	default:
+		return fmt.Sprintf("status:  %s", p.Status)
+	}
+}
+
+// InstalledLine is printed after a successful Install.
+func (p Plan) InstalledLine() string {
+	if p.Method == MethodCopy {
+		return fmt.Sprintf("installed: %s (copy of %s)", TildeHome(p.Dest), TildeHome(p.Source))
+	}
+	return fmt.Sprintf("installed: %s → %s", TildeHome(p.Dest), TildeHome(p.Source))
+}
+
+// AlreadyInstalledLine is printed when Status is already linked/copied.
+func (p Plan) AlreadyInstalledLine() string {
+	if p.Method == MethodCopy {
+		return fmt.Sprintf("already installed: %s (copy of %s)", TildeHome(p.Dest), TildeHome(p.Source))
+	}
+	return fmt.Sprintf("already installed: %s → %s", TildeHome(p.Dest), TildeHome(p.Source))
 }
 
 // PathExportLine returns a one-liner the user can paste to add dir to PATH
@@ -174,8 +274,19 @@ func PathExportLine(dir, shell string) string {
 	return line
 }
 
+// PathExportAdviseFor is PathExportAdvise with an explicit GOOS. Windows has
+// no verified one-liner in this package (setx truncates PATH; this runner
+// has not executed a Windows PATH edit), so the line only names the directory.
+func PathExportAdviseFor(dir, shell, goos string) (line, rc string) {
+	if goos == "windows" {
+		return fmt.Sprintf("add %s to your user PATH", TildeHome(dir)), ""
+	}
+	return PathExportAdvise(dir, shell)
+}
+
 // PathExportAdvise returns a pasteable one-liner and a suggested shell rc path
-// for persistence (rc may be empty).
+// for persistence (rc may be empty). Unix shells only; Windows uses
+// PathExportAdviseFor.
 func PathExportAdvise(dir, shell string) (line, rc string) {
 	// Prefer $HOME-relative form when dir is under home so the snippet is portable.
 	display := dir
@@ -313,6 +424,80 @@ func isPermissionError(err error) bool {
 func dirExists(dir string) bool {
 	fi, err := os.Stat(dir)
 	return err == nil && fi.IsDir()
+}
+
+// sameRegularFile reports whether a and b are regular files with identical
+// contents. Used so a Windows re-install of the same bytes is StatusLinked
+// instead of a conflict.
+func sameRegularFile(a, b string) (bool, error) {
+	ia, err := os.Stat(a)
+	if err != nil {
+		return false, err
+	}
+	ib, err := os.Stat(b)
+	if err != nil {
+		return false, err
+	}
+	if !ia.Mode().IsRegular() || !ib.Mode().IsRegular() {
+		return false, nil
+	}
+	if ia.Size() != ib.Size() {
+		return false, nil
+	}
+	da, err := os.ReadFile(a)
+	if err != nil {
+		return false, err
+	}
+	db, err := os.ReadFile(b)
+	if err != nil {
+		return false, err
+	}
+	return bytes.Equal(da, db), nil
+}
+
+// installCopy writes dest as a copy of src via temp+rename so a partial
+// write never leaves a corrupt dest. Snapshot's copyFile is a 0600
+// fixture helper in another package — wrong mode and wrong dependency
+// direction — so this stays here.
+func installCopy(src, dest string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(dest), "gadak-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpName)
+		}
+	}()
+
+	if _, err := io.Copy(tmp, in); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(info.Mode()); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, dest); err != nil {
+		return err
+	}
+	cleanup = false
+	return nil
 }
 
 // isWritableDir reports whether dir exists and this process can create a file

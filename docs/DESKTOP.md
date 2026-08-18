@@ -31,9 +31,10 @@ pick projects, watch the first sync land. No terminal involved.
 The app is for reading and triaging; the CLI is how agents and scripts read
 the same mirror. You don't choose one — the app **ships the CLI inside it**.
 
-**1. From the app (preferred).** macOS menu **Tools → Install Command Line
-Tool…** creates the symlink itself (user-writable location; no sudo, no
-terminal). If the install directory is not already on your PATH, the app
+**1. From the app (preferred).** **Settings → Integrations** runs the install
+itself (user-writable location; no sudo, no terminal) — a symlink on macOS and
+Linux, a copy on Windows, where symlinks need elevation. If the install
+directory is not already on your PATH, the app
 copies a one-line shell snippet to the clipboard so you can paste it into
 your shell rc. When it succeeds, the next step is `gadak skill install`
 (Claude Code). For shell-less hosts like Claude Desktop: `gadak mcp install claude`.

@@ -146,7 +146,7 @@ Commands:
                    (syncs by default when a credential is configured; --no-sync opts out)
   install-service  keep serve running across reboots (launchd / systemd user)
                    [--uninstall]
-  install-cli      put this binary on PATH via a symlink  [--dir] [--force] [--print]
+  install-cli      put this binary on PATH  [--dir] [--force] [--print]
   status           sync state and row counts [--json]
   doctor           redacted diagnostics safe to paste into a bug report [--json]
   demo             serve the bundled snapshot, no Jira account needed
