@@ -39,6 +39,11 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
+      # Store/source firewall (docs/ARCHITECTURE.md:79). Not path-scoped: any
+      # import-graph edit can break it.
+      - name: Store dependency firewall
+        run: bash tools/check-store-deps.sh
+
       # The web build has to precede the Go build: go:embed compiles dist/app
       # into the binary, so the serve smoke below exercises the real embedded UI
       # rather than the tracked placeholder.

@@ -1,6 +1,10 @@
-// Package fields classifies and discovers Jira custom fields for the mirror.
+// Package jirafields classifies and discovers Jira custom fields for the mirror.
 // Pure functions only — no network, no database.
-package fields
+//
+// Split from internal/fields so store can import the source-neutral helpers
+// without pulling Jira REST types or atlhttp onto its dependency graph
+// (docs/ARCHITECTURE.md:79).
+package jirafields
 
 import (
 	"strings"

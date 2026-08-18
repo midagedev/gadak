@@ -20,6 +20,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/origin"
 )
 
@@ -439,7 +440,7 @@ func cmdFieldsApply(asJSON bool) error {
 		return err
 	}
 
-	specs := fields.Discover(catalog, fill, cfg.Fields)
+	specs := jirafields.Discover(catalog, fill, cfg.Fields)
 	cfg.Fields = specs
 	if err := cfg.Save(); err != nil {
 		return err

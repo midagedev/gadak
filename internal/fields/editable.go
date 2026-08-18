@@ -4,24 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/midagedev/gadak/internal/config"
-	"github.com/midagedev/gadak/internal/jira"
 )
-
-// EditKind maps a Jira field schema onto the editors the UI has. A field
-// whose schema is none of them has no editor and is left out of editmeta.
-func EditKind(m jira.FieldMeta) string {
-	switch {
-	case m.Schema.Type == "option":
-		return "option"
-	case m.Schema.Type == "user":
-		return "user"
-	case m.Schema.Type == "array" && m.Schema.Items == "version":
-		return "version_array"
-	case m.Schema.Type == "array" && m.Schema.Items == "option":
-		return "multi_option"
-	}
-	return ""
-}
 
 // EditableAlias maps an alias onto candidate field ids and a preferred kind.
 // Specs with an empty Kind are display-only and do not enter the write path.
@@ -54,22 +37,6 @@ func EditableAliases(cfg *config.Config) map[string]EditableAlias {
 		out[alias] = EditableAlias{IDs: []string{id}}
 	}
 	return out
-}
-
-// ResolveEditableID picks the first candidate id present in editmeta.
-func ResolveEditableID(candidates []string, meta map[string]jira.FieldMeta) (id, kind string, ok bool) {
-	for _, cand := range candidates {
-		m, present := meta[cand]
-		if !present {
-			continue
-		}
-		k := EditKind(m)
-		if k == "" {
-			continue
-		}
-		return cand, k, true
-	}
-	return "", "", false
 }
 
 // FieldValue shapes the client's `string | string[] | null` into what Jira wants

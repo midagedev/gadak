@@ -1,4 +1,4 @@
-package fields
+package jirafields
 
 import (
 	"reflect"
@@ -96,11 +96,5 @@ func TestDiscoverNonASCIIFallsBackToCF(t *testing.T) {
 	}
 	if got[0].Alias != "cf_10019" {
 		t.Errorf("alias = %q, want cf_10019", got[0].Alias)
-	}
-}
-
-func TestNormalizeName(t *testing.T) {
-	if got := NormalizeName("  Severity   Level  "); got != "severity level" {
-		t.Errorf("got %q", got)
 	}
 }
