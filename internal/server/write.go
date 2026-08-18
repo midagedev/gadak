@@ -14,6 +14,7 @@ import (
 	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
@@ -576,7 +577,7 @@ func (s *server) handleEditMeta(w http.ResponseWriter, r *http.Request) {
 	}
 	out := map[string]any{}
 	for alias, ea := range allow {
-		id, kind, present := fields.ResolveEditableID(ea.IDs, meta)
+		id, kind, present := jirafields.ResolveEditableID(ea.IDs, meta)
 		if !present {
 			continue
 		}
@@ -628,7 +629,7 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, err)
 		return
 	}
-	id, kind, present := fields.ResolveEditableID(ea.IDs, meta)
+	id, kind, present := jirafields.ResolveEditableID(ea.IDs, meta)
 	if !present || kind == "" {
 		fail(w, http.StatusForbidden, "field_not_editable")
 		return

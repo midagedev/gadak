@@ -1,9 +1,10 @@
-package fields
+package jirafields
 
 import (
 	"sort"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
 )
 
@@ -42,7 +43,7 @@ func Discover(catalog []jira.FieldInfo, fill map[string]int, prior []config.Fiel
 			continue
 		}
 		if p.Label != "" {
-			priorAliasByNormLabel[NormalizeName(p.Label)] = p.Alias
+			priorAliasByNormLabel[fields.NormalizeName(p.Label)] = p.Alias
 		}
 		for _, id := range p.IDs {
 			if id != "" {
@@ -64,7 +65,7 @@ func Discover(catalog []jira.FieldInfo, fill map[string]int, prior []config.Fiel
 		if reservedID[f.ID] {
 			continue
 		}
-		norm := NormalizeName(f.Name)
+		norm := fields.NormalizeName(f.Name)
 		if norm == "" {
 			norm = f.ID
 		}
@@ -126,7 +127,7 @@ func Discover(catalog []jira.FieldInfo, fill map[string]int, prior []config.Fiel
 			}
 		}
 		if alias == "" {
-			alias = SuggestAlias(label, primary.ID, usedAliases)
+			alias = fields.SuggestAlias(label, primary.ID, usedAliases)
 		}
 		usedAliases[alias] = true
 		cands = append(cands, candidate{

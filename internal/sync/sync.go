@@ -15,6 +15,7 @@ import (
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -314,7 +315,7 @@ func runDiscovery(ctx context.Context, c *jira.Client, cfg *config.Config, db *s
 		opts.logf("fields: discovery skipped: %v", err)
 		return nil
 	}
-	specs := fields.Discover(catalog, fill, cfg.Fields)
+	specs := jirafields.Discover(catalog, fill, cfg.Fields)
 	cfg.Fields = specs
 	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("fields: save discovered specs: %w", err)

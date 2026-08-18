@@ -79,7 +79,8 @@ section as a directory listing.
 The rule that matters: **`internal/store` does not import `internal/jira`, and
 `internal/jira` never writes SQL.** The jira package produces neutral records;
 the store persists them. That boundary is what makes a second source a new
-package rather than a rewrite (Constitution Article 6).
+package rather than a rewrite (Constitution Article 6). Inspect the live graph
+with `tools/check-store-deps.sh --graph ./internal/store`.
 
 ## Three layers of caching, on purpose
 

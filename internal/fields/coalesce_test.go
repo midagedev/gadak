@@ -89,3 +89,9 @@ func TestSuggestAlias(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestNormalizeName(t *testing.T) {
+	if got := NormalizeName("  Severity   Level  "); got != "severity level" {
+		t.Errorf("got %q", got)
+	}
+}

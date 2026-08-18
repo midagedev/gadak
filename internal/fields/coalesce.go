@@ -1,3 +1,8 @@
+// Package fields holds source-neutral field helpers — coalesce, fill checks,
+// slugs, and write-payload shaping — so internal/store can use them without
+// importing Jira types. SpecIDs exists for that reason: store coalesces on
+// alias+ids+role only. The Jira-shaped half (catalog classify/discover,
+// editmeta resolve) lives in internal/jirafields.
 package fields
 
 import (
@@ -7,7 +12,9 @@ import (
 )
 
 // SpecIDs is the flat shape store and sync use to coalesce without depending on
-// the full FieldSpec when only alias+ids+role are needed.
+// the full FieldSpec when only alias+ids+role are needed. The package boundary
+// exists so store can import this type without pulling Jira REST types onto
+// its graph (docs/ARCHITECTURE.md:79).
 type SpecIDs struct {
 	Alias string
 	IDs   []string

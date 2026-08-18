@@ -1,4 +1,4 @@
-package fields
+package jirafields
 
 import (
 	"testing"
