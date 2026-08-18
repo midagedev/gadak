@@ -198,3 +198,79 @@ jobs:
           [ "$scheme" = "gadak" ] || { echo "bundle claims '$scheme', want 'gadak'" >&2; exit 1; }
           test -x desktop/build/Gadak.app/Contents/MacOS/gadak-desktop || { echo "bundle has no executable" >&2; exit 1; }
           echo "artifact claims gadak:// — ok"
+
+  # GDK-208 authored desktop/build-linux.sh on a macOS machine, which cannot
+  # compile the wails v3 Linux host (no GTK4/WebKitGTK headers) — the round
+  # reported that honestly and the script went in unexercised. This job is
+  # where the claim gets tested: a real Linux runner with the real dev
+  # packages, running the real script. Without it the first person to learn
+  # the script is broken is whoever tags a release.
+  #
+  # No AppImage here (`--appimage` needs appimagetool, and packaging format is
+  # not what this job doubts) — the doubt is whether the Linux host compiles
+  # and the tree the script assembles is well-formed.
+  desktop-linux:
+    name: Desktop Linux build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # wails v3's Linux host is GTK4 + WebKitGTK 6.0 and needs CGO. The 4.1
+      # (gtk3) stack is the legacy tag and is deliberately not installed.
+      - name: GTK4 / WebKitGTK 6.0 development packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev libwebkitgtk-6.0-dev pkg-config imagemagick
+
+      - name: Build the web UI
+        run: npm ci && npm run build
+
+      - name: Pack the Linux app
+        run: desktop/build-linux.sh
+
+      - name: The packed tree carries the binary and the launcher
+        run: |
+          set -eu
+          appdir="$(find desktop/build -maxdepth 1 -type d -name '*.AppDir' -print -quit)"
+          test -n "$appdir" || { echo "build-linux.sh produced no AppDir" >&2; ls -la desktop/build || true; exit 1; }
+          test -x "$appdir/usr/bin/gadak-desktop" || { echo "no executable at $appdir/usr/bin/gadak-desktop" >&2; find "$appdir" -type f | head -50; exit 1; }
+          desktop_file="$(find "$appdir" -maxdepth 1 -name '*.desktop' -print -quit)"
+          test -n "$desktop_file" || { echo "no .desktop file in $appdir" >&2; exit 1; }
+          grep -q 'x-scheme-handler/gadak' "$desktop_file" || { echo "the .desktop file does not declare gadak://" >&2; cat "$desktop_file"; exit 1; }
+          echo "linux pack tree — ok"
+
+      # Bad args must be 64 and a missing tool 69, the same contract
+      # desktop/build-app.sh keeps. The missing tool is appimagetool, which
+      # this runner deliberately does not install — emptying PATH would not
+      # test the same thing, because the version stamp is read with grep and
+      # its absence exits 1 long before any need() runs.
+      - name: Argument and missing-tool exit codes
+        run: |
+          set +e
+          desktop/build-linux.sh --nope >/dev/null 2>&1
+          rc=$?
+          set -e
+          [ "$rc" = 64 ] || { echo "bad argument exited $rc, want 64" >&2; exit 1; }
+          command -v appimagetool >/dev/null 2>&1 && { echo "appimagetool is installed; this check needs it absent" >&2; exit 1; }
+          set +e
+          desktop/build-linux.sh --appimage >/dev/null 2>&1
+          rc=$?
+          set -e
+          [ "$rc" = 69 ] || { echo "missing appimagetool exited $rc, want 69" >&2; exit 1; }
+          echo "exit-code contract — ok"
