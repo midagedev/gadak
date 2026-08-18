@@ -32,6 +32,7 @@ func TestMatch(t *testing.T) {
 		{"github classic pat", "ghp_" + strings.Repeat("a", 20), "github_token"},
 		{"github oauth token", "gho_" + strings.Repeat("b", 20), "github_token"},
 		{"github fine-grained pat", "github_pat_" + strings.Repeat("c", 20), "github_token"},
+		{"linear personal api key", "lin_api_" + strings.Repeat("d", 32), "linear_api_key"},
 		{"pem private key", "-----BEGIN PRIVATE KEY-----", "private_key_pem"},
 		{"pem rsa private key", "-----BEGIN RSA PRIVATE KEY-----", "private_key_pem"},
 		{"pem ec private key", "-----BEGIN EC PRIVATE KEY-----", "private_key_pem"},
@@ -43,6 +44,7 @@ func TestMatch(t *testing.T) {
 		{"basic too short", "Authorization: Basic ABCDEFG", ""},
 		{"bearer too short", "Authorization: Bearer " + strings.Repeat("t", 19), ""},
 		{"github too short", "ghp_" + strings.Repeat("a", 19), ""},
+		{"linear too short", "lin_api_" + strings.Repeat("d", 19), ""},
 		{"slack too short", "xoxb-" + strings.Repeat("1", 9), ""},
 
 		// Negatives that must not block a legitimate export.
@@ -83,6 +85,7 @@ func TestMatchNamesAreOnlyDeclaredPatterns(t *testing.T) {
 		"http_bearer_token":   true,
 		"slack_token":         true,
 		"github_token":        true,
+		"linear_api_key":      true,
 		"private_key_pem":     true,
 	}
 	for _, p := range patterns {
@@ -97,26 +100,37 @@ func TestMatchNamesAreOnlyDeclaredPatterns(t *testing.T) {
 }
 
 func TestAtlassianPatternAgreesWithRepoScanner(t *testing.T) {
-	// Package comment: must not disagree with scripts/scan-internal.sh.
+	assertScriptVarMatchesPattern(t, "PAT_TOKEN", "atlassian_api_token")
+}
+
+func TestLinearPatternAgreesWithRepoScanner(t *testing.T) {
+	assertScriptVarMatchesPattern(t, "PAT_LINEAR", "linear_api_key")
+}
+
+// assertScriptVarMatchesPattern is the shared body of the two agreement tests:
+// the package comment promises these regexes do not disagree with
+// scripts/scan-internal.sh, and a promise with no assertion is a comment.
+func assertScriptVarMatchesPattern(t *testing.T, scriptVar, patternName string) {
+	t.Helper()
 	body, err := os.ReadFile(filepath.Join("..", "..", "scripts", "scan-internal.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := regexp.MustCompile(`(?m)^PAT_TOKEN='([^']+)'`).FindSubmatch(body)
+	m := regexp.MustCompile(`(?m)^` + scriptVar + `='([^']+)'`).FindSubmatch(body)
 	if m == nil {
-		t.Fatal("PAT_TOKEN assignment not found in scripts/scan-internal.sh")
+		t.Fatalf("%s assignment not found in scripts/scan-internal.sh", scriptVar)
 	}
 	script := string(m[1])
 	var goPat string
 	for _, p := range patterns {
-		if p.name == "atlassian_api_token" {
+		if p.name == patternName {
 			goPat = p.re.String()
 		}
 	}
 	if goPat == "" {
-		t.Fatal("atlassian_api_token missing")
+		t.Fatalf("%s missing from the package table", patternName)
 	}
 	if script != goPat {
-		t.Errorf("scan-internal.sh PAT_TOKEN=%q\nsecretscan regex=%q", script, goPat)
+		t.Errorf("scan-internal.sh %s=%q\nsecretscan regex=%q", scriptVar, script, goPat)
 	}
 }
