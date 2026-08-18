@@ -14,7 +14,7 @@
 
 import { config, feature, type GadakFeatures } from './config'
 import { columnLabel } from './i18n'
-import type { DeployState, IssueLite } from './types'
+import type { DeployState, HistoryEntry, IssueLite } from './types'
 
 /* ── Filter state ── */
 
@@ -561,20 +561,17 @@ export function configToParams(config: ViewConfig): Record<string, string | null
 
 /* ── Filter application helpers ── */
 
-/**
- * Fallback when status_category is missing. Status names vary by site/account language
- * and cannot be trusted, so keep only generic names that mean the same on every Jira.
- */
-export const RESOLVED_STATUS_NAMES = new Set([
-  'resolved',
-  'closed',
-  'done',
-  '해결됨',
-  '종료',
-  '완료',
-])
-
 export type StatusCategory = 'new' | 'inprogress' | 'done'
+
+/**
+ * Times a category decision ran with an empty status_category.
+ * Integer increment only — no per-row log. Read from the console or a test.
+ */
+let missingStatusCategoryCount = 0
+
+export function missingStatusCategorySeen(): number {
+  return missingStatusCategoryCount
+}
 
 /**
  * Filter token match: id first, display name only as a fallback for legacy
@@ -608,12 +605,25 @@ export function prioritySortRank(rank: number | null | undefined): number {
   return rank
 }
 
-/** Trust server status_category first; fall back to status name only when absent. */
+/** Trust a real new|inprogress|done status_category; otherwise 'inprogress'. Never a status name. */
 export function effectiveCategory(issue: IssueLite): StatusCategory {
   const sc = (issue.status_category ?? '').toLowerCase()
   if (sc === 'new' || sc === 'inprogress' || sc === 'done') return sc
-  if (RESOLVED_STATUS_NAMES.has((issue.status ?? '').trim().toLowerCase())) return 'done'
+  if (!sc) missingStatusCategoryCount++
   return 'inprogress'
+}
+
+/**
+ * Reopen is a done-category → non-done status transition. Never a name match.
+ * When both from_category and to_category are empty, return false: an unpainted
+ * badge is a missing hint; a wrongly painted one is a false claim about the
+ * issue's history.
+ */
+export function isReopen(e: Pick<HistoryEntry, 'field' | 'from_category' | 'to_category'>): boolean {
+  if (e.field !== 'status') return false
+  if (e.from_category || e.to_category) return e.from_category === 'done' && e.to_category !== 'done'
+  missingStatusCategoryCount++
+  return false
 }
 
 /**

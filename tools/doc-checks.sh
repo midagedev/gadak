@@ -129,9 +129,10 @@ fi
 # pipe-table grep cannot see `['Highest', 'High', ...]` because there is
 # no `\|`. High/Medium/Low are omitted — too many other meanings.
 #
-# Deliberately not matched (would fail the current tree; sibling issue):
-#   - view-config.ts RESOLVED_STATUS_NAMES (legacy fallback when
-#     status_category is absent)
+# Done-status display names (GDK-272): Jira-default KO names that used to
+# be a fallback set when status_category was absent. Lowercase 'done' /
+# 'resolved' / 'closed' are not listed — they are also category keys or
+# other-field values (RangeField 'resolved', GitHub PR 'closed').
 name_hits="$(
   grep -RInE \
     --include='*.ts' --include='*.svelte' \
@@ -150,6 +151,9 @@ name_hits="$(
     -e "['\"]Lowest['\"]" \
     -e "['\"]In Progress['\"]" \
     -e "['\"]Sub-task['\"]" \
+    -e "['\"]해결됨['\"]" \
+    -e "['\"]종료['\"]" \
+    -e "['\"]완료['\"]" \
     web/src/lib web/src/components web/src/stores \
     | grep -v '/i18n/' \
     || true
