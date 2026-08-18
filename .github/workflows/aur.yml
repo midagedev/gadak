@@ -35,6 +35,16 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          # check-pkgver.sh reads `git describe --tags`. A shallow clone has
+          # no tags, so it would skip instead of check — a registered gate
+          # that always passes is worse than no gate.
+          fetch-depth: 0
+
+      # Path-scoped to contrib/aur/**, so this fires when the recipe is
+      # edited — which is when pkgver drift matters — and not on every tag.
+      - name: PKGBUILD pkgver matches the latest tag
+        run: ./contrib/aur/gadak-bin/check-pkgver.sh
 
       - name: Build and check gadak-bin in an Arch container
         run: ./contrib/aur/gadak-bin/verify.sh

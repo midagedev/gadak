@@ -55,3 +55,37 @@ jobs:
           MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+
+  # Refresh the in-repo AUR recipe from the tag we just published.
+  # Does not push to aur.archlinux.org (account + SSH key; lead-only).
+  # contrib/aur/gadak-bin/update.sh rewrites pkgver and the two linux
+  # sha256sums from this tag's checksums.txt — it does not invent hashes.
+  # .SRCINFO is not regenerated here: makepkg is an Arch tool. After
+  # downloading the artifact, run contrib/aur/gadak-bin/verify.sh and
+  # commit PKGBUILD + .SRCINFO together.
+  #
+  # Existing job name, asset names, and goreleaser args are untouched:
+  # v0.14.0 apps read the updater zip namespace.
+  aur-pkgbuild:
+    name: Refresh gadak-bin PKGBUILD
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # pkgver cannot contain a hyphen. A prerelease tag (v0.16.0-rc.1)
+    # is skipped rather than failing the release.
+    if: ${{ !contains(github.ref_name, '-') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rewrite PKGBUILD pkgver and sha256sums from this tag
+        run: ./contrib/aur/gadak-bin/update.sh "${{ github.ref_name }}"
+
+      - name: Show the commit-ready diff
+        run: git --no-pager diff -- contrib/aur/gadak-bin/PKGBUILD
+
+      - name: Upload updated PKGBUILD
+        uses: actions/upload-artifact@v4
+        with:
+          name: gadak-bin-pkgbuild
+          path: contrib/aur/gadak-bin/PKGBUILD
+          if-no-files-found: error
