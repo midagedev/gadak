@@ -4,9 +4,33 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"regexp"
+	"sync"
 
 	"modernc.org/sqlite"
 )
+
+// Compiled patterns, keyed by the pattern text. SQLite calls this function
+// once per row, and a groupQuery runs over the whole mirror — compiling the
+// same handful of patterns tens of thousands of times is the cost this
+// avoids. Go's regexp is RE2, so a pattern cannot backtrack catastrophically;
+// the only thing worth holding onto is the compilation.
+var reCache sync.Map // string → *regexp.Regexp or error
+
+func compileRegexp(pat string) (*regexp.Regexp, error) {
+	if v, ok := reCache.Load(pat); ok {
+		if re, ok := v.(*regexp.Regexp); ok {
+			return re, nil
+		}
+		return nil, v.(error)
+	}
+	re, err := regexp.Compile(pat)
+	if err != nil {
+		reCache.Store(pat, err)
+		return nil, err
+	}
+	reCache.Store(pat, re)
+	return re, nil
+}
 
 func init() {
 	// SQLite's X REGEXP Y is implemented as regexp(Y, X).
@@ -22,7 +46,7 @@ func sqliteRegexp(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value,
 	if !ok {
 		return nil, nil
 	}
-	re, err := regexp.Compile(pat)
+	re, err := compileRegexp(pat)
 	if err != nil {
 		return nil, fmt.Errorf("REGEXP: %w", err)
 	}

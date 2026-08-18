@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -686,12 +687,20 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		}
 	}
 	if q := strings.TrimSpace(cfg.GroupQuery); q != "" {
+		// Degrade rather than block the boot: this query validates as a SELECT
+		// at save time, but nothing checks that the tables and columns it names
+		// still exist, so a typo or a renamed field surfaces here — and
+		// returning the error takes bootstrap down with it, which leaves no way
+		// to reach the settings dialog that would fix the query. Falling
+		// through costs the classification and nothing else; groupRules and the
+		// assignee's member group are the same fallbacks a missing key gets.
 		hits, err := s.db.GroupQueryHits(ctx, q)
 		if err != nil {
-			return nil, err
+			log.Printf("server: groupQuery: %v", err)
+		} else {
+			v.queryGroup = hits
+			v.groupsEnabled = true
 		}
-		v.queryGroup = hits
-		v.groupsEnabled = true
 	}
 	v.groupsEnabled = v.groupsEnabled || len(cfg.GroupRules) > 0
 
