@@ -547,6 +547,80 @@ func TestSaveRemovesTmpOnRenameFailure(t *testing.T) {
 	}
 }
 
+func TestWorkspaceKindDefaultConnected(t *testing.T) {
+	if (&Config{}).WorkspaceKind() != KindConnected {
+		t.Fatal("empty Kind must be connected")
+	}
+	if (&Config{Kind: "anything-else"}).WorkspaceKind() != KindConnected {
+		t.Fatal("unknown Kind must be connected (no local, no migration)")
+	}
+	if (&Config{Kind: KindStandalone}).WorkspaceKind() != KindStandalone {
+		t.Fatal("standalone Kind")
+	}
+	if (&Config{}).IsStandalone() {
+		t.Fatal("empty must not be standalone")
+	}
+}
+
+func TestHasCredentialStandaloneVsConnected(t *testing.T) {
+	if (*Config)(nil).HasCredential() {
+		t.Fatal("nil config")
+	}
+	// Connected without creds: still blocked.
+	if (&Config{}).HasCredential() {
+		t.Fatal("empty connected must not have credential")
+	}
+	if (&Config{Site: "https://x.atlassian.net", Email: "a@b.c"}).HasCredential() {
+		t.Fatal("connected missing token must not have credential")
+	}
+	if !(&Config{Site: "https://x.atlassian.net", Email: "a@b.c", Token: "t"}).HasCredential() {
+		t.Fatal("connected with site/email/token")
+	}
+	// Standalone has no site/email/token and must still allow writes.
+	if !(&Config{Kind: KindStandalone}).HasCredential() {
+		t.Fatal("standalone must report writes possible")
+	}
+}
+
+func TestKindRoundTripNoMigrationOfExisting(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() { SetProfile("") })
+	SetProfile("")
+
+	// Existing connected config.json has no kind field.
+	legacy := []byte(`{"site":"https://old.example","email":"a@b.c","token":"tok"}`)
+	if err := os.WriteFile(filepath.Join(home, "config.json"), legacy, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Kind != "" || cfg.IsStandalone() || cfg.WorkspaceKind() != KindConnected {
+		t.Fatalf("legacy config mutated: kind=%q", cfg.Kind)
+	}
+	if cfg.Site != "https://old.example" {
+		t.Fatalf("site %q", cfg.Site)
+	}
+
+	cfg.Kind = KindStandalone
+	cfg.Site, cfg.Email, cfg.Token = "", "", ""
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !again.IsStandalone() {
+		t.Fatal("standalone did not persist")
+	}
+	if again.Directory() != home {
+		t.Fatalf("Directory %q", again.Directory())
+	}
+}
+
 func captureStderr(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()

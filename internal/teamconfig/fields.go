@@ -50,6 +50,9 @@ var neverExportConfigFields = []string{
 	"DefaultProject",
 	"DefaultIssueTypeID",
 	"DefaultIssueType",
+	// Workspace kind is per-machine: standalone origin is this profile's
+	// issuetap snapshot, not a team setting.
+	"Kind",
 }
 
 // credentialJSONKeys are JSON object keys that mean "this file carries

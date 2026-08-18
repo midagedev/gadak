@@ -8,6 +8,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -25,7 +26,16 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 	}
 	c := opts.Client
 	if c == nil {
-		c = jira.New(cfg.Site, cfg.Email, cfg.Token)
+		var err error
+		c, err = origin.Client(cfg)
+		if err != nil {
+			return err
+		}
+	}
+	// Write-through can run before the first full sync (standalone create is
+	// the case that made this visible). items.source_id references sources.id.
+	if err := db.UpsertSource(ctx, store.Source{ID: SourceID, Kind: "jira", BaseURL: c.BaseURL()}); err != nil {
+		return err
 	}
 	// ponytail: two metadata calls per write. They are what keeps reopen_count and
 	// priority_rank identical to a scheduled sync's; give them a TTL cache if

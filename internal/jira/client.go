@@ -48,6 +48,11 @@ type Client struct {
 
 // New builds a Client for site using Basic auth (email:token). The HTTP
 // client times out at 60s; Retries is 5; the first Backoff is 1s.
+//
+// Production code must not call New: use origin.Client (this workspace)
+// or origin.Connected (a candidate credential). Tests may call New to
+// stand up httptest servers. internal/origin/direct_new_gate_test.go
+// fails if a new production call site appears.
 func New(site, email, token string) *Client {
 	return &Client{
 		base:    strings.TrimRight(site, "/"),

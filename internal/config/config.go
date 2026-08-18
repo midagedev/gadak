@@ -52,7 +52,14 @@ type Product struct {
 // site settings but never reach the database, a log, or a snapshot; the file
 // is written 0600.
 type Config struct {
+	// Kind is the workspace kind. Empty (or any value other than
+	// KindStandalone) is a connected workspace — Jira-site bound, the
+	// default. Absent from existing configs; no migration.
+	// Do not store the word "local" here: gadak is already local-first.
+	Kind string `json:"kind,omitempty"`
+
 	// The credential and what it connects to. Token is never copied out of this file.
+	// A standalone workspace leaves these empty.
 	Site     string   `json:"site,omitempty"` // https://your-site.atlassian.net
 	Email    string   `json:"email,omitempty"`
 	Token    string   `json:"token,omitempty"`
@@ -147,6 +154,13 @@ type Config struct {
 	// Unexported so it never appears in JSON; set by LoadFor.
 	dir string
 }
+
+// Workspace kinds. Empty Kind on disk is connected — existing configs keep
+// working with no rewrite.
+const (
+	KindConnected  = "connected"
+	KindStandalone = "standalone"
+)
 
 // Appearance is the look block in config.json. Empty Theme means "system".
 type Appearance struct {
@@ -561,8 +575,41 @@ func (c *Config) ApplyVerifiedIdentity(accountID, displayName, verifiedAt string
 	c.TokenVerifiedAt = verifiedAt
 }
 
+// Directory is the profile directory this Config was loaded from (LoadFor).
+// Empty on a Config that was never loaded.
+func (c *Config) Directory() string {
+	if c == nil {
+		return ""
+	}
+	return c.dir
+}
+
+// IsStandalone reports a workspace whose origin is the in-process issuetap
+// snapshot, not a Jira site.
+func (c *Config) IsStandalone() bool {
+	return c != nil && c.Kind == KindStandalone
+}
+
+// WorkspaceKind is KindStandalone or KindConnected. Empty/unknown Kind is
+// connected so an existing config.json is unchanged.
+func (c *Config) WorkspaceKind() string {
+	if c.IsStandalone() {
+		return KindStandalone
+	}
+	return KindConnected
+}
+
 // HasCredential reports whether writes and the attachment proxy are possible.
+// A standalone workspace has no site token; writes still go through the
+// in-process origin, so it reports true. A connected workspace still
+// requires site+email+token — that gate is not weakened.
 func (c *Config) HasCredential() bool {
+	if c == nil {
+		return false
+	}
+	if c.IsStandalone() {
+		return true
+	}
 	return c.Site != "" && c.Email != "" && c.Token != ""
 }
 

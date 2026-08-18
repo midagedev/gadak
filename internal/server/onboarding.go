@@ -21,6 +21,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
 )
@@ -59,7 +60,7 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	// Snapshot before save: first credential may need to kick the serve Watch loop.
 	hadCredential := s.config().HasCredential()
-	me, err := jira.New(site, email, token).Myself(r.Context())
+	me, err := origin.Connected(site, email, token).Myself(r.Context())
 	if err != nil {
 		if errors.Is(err, jira.ErrAuth) {
 			fail(w, http.StatusUnauthorized, rejectedCredentialCode(token))

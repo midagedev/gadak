@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -186,6 +187,9 @@ Profiles keep separate credentials and mirrors (e.g. work and demo):
 
 func main() {
 	log.SetFlags(0)
+	// origin.Close flushes a standalone issuetap PersistPath. os.Exit
+	// below skips defers, so Close is also called on the error path.
+	defer func() { _ = origin.Close() }()
 	server.Version = version
 	if base := filepath.Base(os.Args[0]); base == config.LegacyName || base == config.LegacyName+".exe" {
 		fmt.Fprintf(os.Stderr, "gadak: the `%s` command was renamed to `gadak`.\n", config.LegacyName)
@@ -222,6 +226,7 @@ func main() {
 	}
 	if err := run(args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "gadak: %v\n", err)
+		_ = origin.Close()
 		os.Exit(exitStatus(err))
 	}
 }

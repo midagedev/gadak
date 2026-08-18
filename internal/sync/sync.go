@@ -15,6 +15,7 @@ import (
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -129,7 +130,11 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 		func() (string, usageTaker, error) {
 			c = opts.Client
 			if c == nil {
-				c = jira.New(cfg.Site, cfg.Email, cfg.Token)
+				var err error
+				c, err = origin.Client(cfg)
+				if err != nil {
+					return "", nil, err
+				}
 			}
 			return c.BaseURL(), c, nil
 		},

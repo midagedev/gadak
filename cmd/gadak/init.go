@@ -12,9 +12,11 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -93,6 +95,8 @@ func cmdInit(args []string) error {
 	// "flag provided but not defined"; the value must never be accepted (ps/history).
 	tokenFlag := fs.String("token", "", "not accepted; use GADAK_TOKEN, --token-file, or --token-stdin")
 	jsonOut := fs.Bool("json", false, "emit one JSON object on success")
+	// Quiet beta: independent workspace, no Jira site or credential.
+	standalone := fs.Bool("standalone", false, "create an independent workspace (no Jira site or credential)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -112,6 +116,17 @@ func cmdInit(args []string) error {
 	envEmail := config.Env("EMAIL")
 	envToken := config.Env("TOKEN")
 	envProjects := config.Env("PROJECTS")
+
+	if *standalone {
+		if *siteFlag != "" || *emailFlag != "" || *tokenFile != "" || *tokenStdin || *tokenExpires != "" ||
+			envSite != "" || envEmail != "" || envToken != "" {
+			return fmt.Errorf("--standalone cannot be combined with a site, email, or token")
+		}
+		if *spacesFlag != "" {
+			return fmt.Errorf("--standalone cannot be combined with --spaces")
+		}
+		return initStandalone(cfg, *jsonOut, *projectsFlag)
+	}
 
 	// Any supply flag or env forces non-interactive; half-prompted states are unpredictable for agents.
 	suppliedFlag := *siteFlag != "" || *emailFlag != "" || *projectsFlag != "" || *spacesFlag != "" || *tokenFile != "" || *tokenStdin || *tokenExpires != ""
@@ -244,6 +259,8 @@ func cmdInit(args []string) error {
 	cfg.Email = email
 	cfg.Token = token
 	cfg.Projects = projects
+	// A connected init replaces a previous standalone workspace.
+	cfg.Kind = ""
 
 	// Confluence: flag absent leaves the section untouched.
 	if *spacesFlag != "" {
@@ -265,7 +282,7 @@ func cmdInit(args []string) error {
 	// Auth rejection is fatal. A transport / site error is a warning: save the
 	// credential without identity fields so offline init still works (I6).
 	name := ""
-	me, err := jira.New(cfg.Site, cfg.Email, cfg.Token).Myself(context.Background())
+	me, err := origin.Connected(cfg.Site, cfg.Email, cfg.Token).Myself(context.Background())
 	if err != nil {
 		if errors.Is(err, jira.ErrAuth) {
 			// Restore the pre-jira.Myself hint: org API keys are a common mistake.
@@ -298,6 +315,7 @@ func cmdInit(args []string) error {
 			Projects   []string `json:"projects"`
 			Path       string   `json:"path"`
 			Confluence any      `json:"confluence"`
+			Kind       string   `json:"kind"`
 		}{
 			Profile:    config.Profile(),
 			Account:    name,
@@ -305,6 +323,7 @@ func cmdInit(args []string) error {
 			Projects:   cfg.Projects,
 			Path:       p,
 			Confluence: initConfluenceJSON(cfg),
+			Kind:       cfg.WorkspaceKind(),
 		})
 	}
 	if name != "" {
@@ -317,6 +336,106 @@ func cmdInit(args []string) error {
 	}
 	printInitNextSteps()
 	return nil
+}
+
+// initStandalone writes a workspace that is not bound to a Jira site.
+// No /myself call: there is no credential. The origin snapshot is created
+// on first origin.Client (PersistPath under the profile directory).
+func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error {
+	cfg.Kind = config.KindStandalone
+	cfg.Site = ""
+	cfg.Email = ""
+	cfg.Token = ""
+	cfg.TokenVerifiedAt = ""
+	cfg.TokenOwner = ""
+	cfg.TokenExpiresAt = ""
+	cfg.TokenExpirySource = ""
+	cfg.AccountID = ""
+	cfg.Confluence = nil
+	if projectsFlag != "" {
+		cfg.Projects = parseProjectKeys(projectsFlag)
+	}
+	if strings.TrimSpace(cfg.DefaultProject) == "" {
+		cfg.DefaultProject = origin.DefaultProjectKey
+	}
+	if err := cfg.Save(); err != nil {
+		return err
+	}
+	// The seeded project offers five issue types, so "the project's only
+	// type" cannot resolve and `gadak create <summary>` would demand --type
+	// on every call — the one thing this workspace exists to make cheap. Ask
+	// the origin we just created (in-process, no network) and record the
+	// answer, so the pick lives in config.json where it can be read and
+	// changed rather than being guessed per create.
+	if typeID, typeName := standaloneDefaultType(cfg); typeID != "" {
+		cfg.DefaultIssueTypeID = typeID
+		cfg.DefaultIssueType = typeName
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+	}
+	p, _ := config.Path()
+	if jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetEscapeHTML(false)
+		return enc.Encode(struct {
+			Profile    string   `json:"profile"`
+			Account    string   `json:"account"`
+			Site       string   `json:"site"`
+			Projects   []string `json:"projects"`
+			Path       string   `json:"path"`
+			Confluence any      `json:"confluence"`
+			Kind       string   `json:"kind"`
+		}{
+			Profile:    config.Profile(),
+			Account:    "",
+			Site:       "",
+			Projects:   cfg.Projects,
+			Path:       p,
+			Confluence: initConfluenceJSON(cfg),
+			Kind:       cfg.WorkspaceKind(),
+		})
+	}
+	fmt.Printf("standalone workspace — saved %s\n", p)
+	if cfg.DefaultProject != "" && cfg.DefaultIssueType != "" {
+		// Say what create will fill in when given only a summary, so the
+		// defaults are something the person saw rather than found out.
+		fmt.Printf("new issues default to %s / %s — change them in %s\n",
+			cfg.DefaultProject, cfg.DefaultIssueType, p)
+	}
+	printInitNextSteps()
+	return nil
+}
+
+// standaloneDefaultType picks the issue type new issues get when create is
+// given only a summary. "Task" is preferred by name; otherwise the first type
+// the origin offers. Returning "" leaves the config untouched — create then
+// asks for --type, which is the pre-existing behaviour, not a new failure.
+//
+// Unlike a headless per-create fallback (deliberately absent, see
+// internal/create), this pick is written to config.json and printed, so the
+// person can see what they got and change it.
+func standaloneDefaultType(cfg *config.Config) (id, name string) {
+	c, err := origin.Client(cfg)
+	if err != nil {
+		return "", ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	projects, err := c.CreateMeta(ctx, []string{cfg.DefaultProject})
+	if err != nil || len(projects) == 0 {
+		return "", ""
+	}
+	types := projects[0].IssueTypes
+	if len(types) == 0 {
+		return "", ""
+	}
+	for _, t := range types {
+		if strings.EqualFold(t.Name, "Task") {
+			return t.ID, t.Name
+		}
+	}
+	return types[0].ID, types[0].Name
 }
 
 // initConfluenceJSON is the --json shape for Confluence after init:

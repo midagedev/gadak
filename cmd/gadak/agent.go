@@ -29,6 +29,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/jql"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -1102,7 +1103,11 @@ func withWriteSession(fn func(context.Context, *config.Config, *store.DB, *jira.
 	}
 	defer db.Close()
 	warnIfStale()
-	return fn(context.Background(), cfg, db, jira.New(cfg.Site, cfg.Email, cfg.Token))
+	c, err := origin.Client(cfg)
+	if err != nil {
+		return err
+	}
+	return fn(context.Background(), cfg, db, c)
 }
 
 // emitAfterWrite is the write-through tail: re-read the issue into the mirror

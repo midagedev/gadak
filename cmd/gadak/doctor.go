@@ -15,6 +15,7 @@ import (
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -31,6 +32,8 @@ type doctorReport struct {
 	OS            string                `json:"os"`
 	Arch          string                `json:"arch"`
 	Profile       string                `json:"profile"`
+	WorkspaceKind string                `json:"workspace_kind"`
+	Origin        string                `json:"origin"`
 	MirrorPath    string                `json:"mirror_path"`
 	Mirror        doctorMirror          `json:"mirror"`
 	SchemaVersion *int                  `json:"schema_version"`
@@ -119,17 +122,19 @@ func collectDoctor() doctorReport {
 	}
 
 	rep := doctorReport{
-		GadakVersion: version,
-		GoVersion:    runtime.Version(),
-		OS:           runtime.GOOS,
-		Arch:         runtime.GOARCH,
-		Profile:      profile,
-		Confluence:   "inactive",
-		Credential:   "absent",
-		Site:         "none",
-		Email:        "none",
-		CustomFields: 0,
-		Sync:         map[string]doctorSync{},
+		GadakVersion:  version,
+		GoVersion:     runtime.Version(),
+		OS:            runtime.GOOS,
+		Arch:          runtime.GOARCH,
+		Profile:       profile,
+		WorkspaceKind: config.KindConnected,
+		Origin:        "jira",
+		Confluence:    "inactive",
+		Credential:    "absent",
+		Site:          "none",
+		Email:         "none",
+		CustomFields:  0,
+		Sync:          map[string]doctorSync{},
 		APIUsage: doctorAPIUsage{
 			Day: time.Now().UTC().Format("2006-01-02"),
 		},
@@ -153,6 +158,15 @@ func collectDoctor() doctorReport {
 		rep.CustomFields = len(cfg.FieldSpecs())
 		if cfg.Confluence != nil {
 			rep.Confluence = "active"
+		}
+		kind, src := origin.Describe(cfg)
+		rep.WorkspaceKind = kind
+		if kind == config.KindStandalone {
+			// Persist path is the origin; tilde so the account username
+			// does not appear (same rule as mirror_path).
+			rep.Origin = tildeHome(src)
+		} else {
+			rep.Origin = src
 		}
 	}
 
@@ -392,6 +406,8 @@ func formatDoctorText(r doctorReport) string {
 	line("go_version", r.GoVersion)
 	line("os", r.OS+"/"+r.Arch)
 	line("profile", r.Profile)
+	line("workspace_kind", r.WorkspaceKind)
+	line("origin", r.Origin)
 	line("mirror_path", r.MirrorPath)
 
 	switch r.Mirror.Status {

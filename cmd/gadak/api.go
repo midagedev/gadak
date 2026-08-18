@@ -20,7 +20,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
-	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
@@ -116,7 +116,10 @@ func cmdAPI(args []string) error {
 			_ = db.Close()
 		}
 	} else {
-		client := jira.New(cfg.Site, cfg.Email, cfg.Token)
+		client, oerr := origin.Client(cfg)
+		if oerr != nil {
+			return oerr
+		}
 		status, out, err = client.Raw(ctx, method, path, body, mutating)
 		if db, oerr := openStore(); oerr != nil {
 			log.Printf("api usage flush: %v", oerr)

@@ -13,6 +13,7 @@ import (
 	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
 )
@@ -31,11 +32,19 @@ const maxUpload = 64 << 20
 // its credential dialog.
 func (s *server) client(w http.ResponseWriter) (*jira.Client, *config.Config, bool) {
 	cfg := s.config()
+	// HasCredential is true for standalone (no site token) and for a
+	// connected workspace that has site+email+token. Connected without
+	// a token still 409s here — that gate is not weakened.
 	if !cfg.HasCredential() {
 		fail(w, http.StatusConflict, "credential_required")
 		return nil, nil, false
 	}
-	return jira.New(cfg.Site, cfg.Email, cfg.Token), cfg, true
+	c, err := origin.Client(cfg)
+	if err != nil {
+		fail(w, http.StatusConflict, "credential_required")
+		return nil, nil, false
+	}
+	return c, cfg, true
 }
 
 // failJira turns a Jira failure into the body the client parses: `error` for the
@@ -169,7 +178,7 @@ func (s *server) handlePutCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Verify before storing, so a typo never becomes the stored credential.
-	me, err := jira.New(next.Site, body.JiraEmail, body.APIToken).Myself(r.Context())
+	me, err := origin.Connected(next.Site, body.JiraEmail, body.APIToken).Myself(r.Context())
 	if err != nil {
 		if errors.Is(err, jira.ErrAuth) {
 			fail(w, http.StatusUnauthorized, "credential_rejected")
@@ -729,7 +738,13 @@ func (s *server) handleWriteMeta(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, body)
 		return
 	}
-	projects, err := jira.New(cfg.Site, cfg.Email, cfg.Token).CreateMeta(r.Context(), cfg.Projects)
+	c, err := origin.Client(cfg)
+	if err != nil {
+		log.Printf("server: meta/write: %v", err)
+		writeJSON(w, http.StatusOK, body)
+		return
+	}
+	projects, err := c.CreateMeta(r.Context(), cfg.Projects)
 	if err != nil {
 		// Degrade rather than block the boot: every surface this feeds has a fallback.
 		log.Printf("server: meta/write: %v", err)

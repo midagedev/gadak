@@ -20,6 +20,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 )
 
 // mapSuggestMinRate is the filled-fraction threshold above which an unmapped
@@ -132,7 +133,10 @@ func cmdFields(args []string) error {
 	}
 
 	ctx := context.Background()
-	c := jira.New(cfg.Site, cfg.Email, cfg.Token)
+	c, err := origin.Client(cfg)
+	if err != nil {
+		return err
+	}
 
 	catalog, err := c.Fields(ctx)
 	if err != nil {
@@ -415,7 +419,10 @@ func cmdFieldsApply(asJSON bool) error {
 		return nil
 	}
 
-	c := jira.New(cfg.Site, cfg.Email, cfg.Token)
+	c, err := origin.Client(cfg)
+	if err != nil {
+		return err
+	}
 	catalog, err := c.Fields(ctx)
 	if err != nil {
 		return fmt.Errorf("list fields: %w", err)
