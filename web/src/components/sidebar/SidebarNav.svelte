@@ -26,6 +26,7 @@
     jiraFilterUrl,
     workspaceName,
   } from '../../lib/config'
+  import { isStandalone, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
   import { busyLabel, fetchingDocuments, mirrorLabel } from '../../lib/mirror-status'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
@@ -203,6 +204,8 @@
       return w.site
     }
   }
+  const standalone = isStandalone(config())
+  let standaloneHowOpen = $state(false)
 
   /* ── Docs (mirrored wiki pages) ── */
   //  The nav carries two entries only — the document view, and a collapsed
@@ -754,6 +757,17 @@
               aria-hidden="true"
             ></span>
             <span class="min-w-0 flex-1 truncate">{w.name}</span>
+            {#if currentWorkspace === w.name && standalone}
+              <span
+                class="inline-flex flex-none items-center rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
+                data-testid="workspace-kind"
+                data-kind="standalone"
+                title={t('settings.workspaceStandaloneHint')}
+                aria-label={t('settings.workspaceStandaloneHint')}
+              >
+                {t('settings.workspaceStandalone')}
+              </span>
+            {/if}
             {#if workspaceHost(w)}
               <span class="max-w-[45%] flex-none truncate text-micro text-text-muted">
                 {workspaceHost(w)}
@@ -771,6 +785,22 @@
        error screen, so the errand it offers does not exist. -->
   <div class="flex-none border-t border-border-subtle px-3 py-2">
     {#if hasServerVerb('settings')}
+      <button
+        type="button"
+        class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        data-testid="standalone-create"
+        aria-expanded={standaloneHowOpen}
+        onclick={() => (standaloneHowOpen = !standaloneHowOpen)}
+      >
+        {t('settings.standaloneHow')}
+      </button>
+      {#if standaloneHowOpen}
+        <div class="mb-1 px-1">
+          <code class="break-all font-mono text-micro text-text-primary">{STANDALONE_INIT_COMMAND}</code>
+          <div class="mt-0.5 text-micro text-text-muted">{t('settings.workspaceStandaloneHint')}</div>
+          <div class="mt-0.5 text-micro text-text-muted">{t('settings.standaloneCommandHint')}</div>
+        </div>
+      {/if}
       <button
         type="button"
         class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
