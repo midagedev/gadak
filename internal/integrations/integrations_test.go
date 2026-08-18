@@ -206,7 +206,22 @@ func TestResolveNPMOrder(t *testing.T) {
 	}
 }
 
+// answerProbeBudget gives the probe far more time than a `#!/bin/sh; exit N`
+// stub can possibly need. Tests that assert *which answer* the CLI gives must
+// not also be asserting that a busy machine can start a process inside 3s:
+// under `go test ./...` parallelism plus outside load, that spawn has exceeded
+// the production budget and turned "the CLI said not-registered" into a
+// timeout, i.e. a red build about the wrong thing (GDK-303). The test that
+// owns the timeout contract sets a short value instead.
+func answerProbeBudget(t *testing.T) {
+	t.Helper()
+	prev := mcpProbeTimeout
+	mcpProbeTimeout = 30 * time.Second
+	t.Cleanup(func() { mcpProbeTimeout = prev })
+}
+
 func TestMCPProbeUnknownWhenMissingOrFail(t *testing.T) {
+	answerProbeBudget(t)
 	old := lookPath
 	t.Cleanup(func() { lookPath = old })
 
@@ -240,6 +255,7 @@ func TestMCPProbeUnknownWhenMissingOrFail(t *testing.T) {
 }
 
 func TestMCPProbeDefinitiveNotRegistered(t *testing.T) {
+	answerProbeBudget(t)
 	// claude's real wording for "not registered" (measured 2026-08-17):
 	// exit 1 + "No MCP server named ...". That is a definitive false, not
 	// an unknown — the UI should offer Install, not shrug.
@@ -268,6 +284,7 @@ func TestMCPProbeDefinitiveNotRegistered(t *testing.T) {
 }
 
 func TestMCPProbeTrueOnExitZero(t *testing.T) {
+	answerProbeBudget(t)
 	dir := t.TempDir()
 	okBin := filepath.Join(dir, "claude")
 	if err := os.WriteFile(okBin, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
@@ -306,6 +323,39 @@ func TestMCPProbeTimeoutIsUnknown(t *testing.T) {
 	}
 	if got != nil {
 		t.Fatalf("timeout should be unknown, got %v", *got)
+	}
+}
+
+// The two causes of "unknown" must be distinguishable. Without this, a starved
+// machine and a broken CLI produce the same nil, and the answer-asserting tests
+// above fail with a message about the wrong thing (GDK-303).
+func TestProbeOutcomeSeparatesTimeoutFromAnswer(t *testing.T) {
+	dir := t.TempDir()
+
+	slow := filepath.Join(dir, "slow")
+	if err := os.WriteFile(slow, []byte("#!/bin/sh\nsleep 10\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	prev := mcpProbeTimeout
+	mcpProbeTimeout = 50 * time.Millisecond
+	got, outcome := probeClaudeMCPOutcome(slow)
+	mcpProbeTimeout = prev
+	if got != nil || outcome != probeTimedOut {
+		t.Fatalf("slow stub: got=%v outcome=%s want nil/timed-out", got, outcome)
+	}
+
+	answerProbeBudget(t)
+	okBin := filepath.Join(dir, "ok")
+	if err := os.WriteFile(okBin, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got, outcome = probeClaudeMCPOutcome(okBin)
+	if got == nil || !*got || outcome != probeAnswered {
+		t.Fatalf("exit-0 stub: got=%v outcome=%s want true/answered", got, outcome)
+	}
+
+	if _, outcome = probeClaudeMCPOutcome(filepath.Join(dir, "does-not-exist")); outcome != probeNotStarted {
+		t.Fatalf("absent binary: outcome=%s want not-started", outcome)
 	}
 }
 
