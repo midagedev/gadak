@@ -62,6 +62,7 @@ erDiagram
   items ||--o{ comments : "has"
   items ||--o{ attachments : "has"
   items ||--o{ changelog : "has"
+  items ||--o{ page_versions : "has"
   items ||--o{ links : "from"
   items ||--|| items_fts : "indexed by"
   sources ||--o{ items : "produces"
@@ -192,6 +193,37 @@ change. Comments reuse the `comments` table.
 | `body_adf` | TEXT | Raw ADF document (v10) — what the detail view renders; `body_text` stays the FTS-only flattening |
 | `labels` | TEXT (JSON array) | Page label names, alphabetical (v13). `'[]'` when none; only the first `metadata.labels` page (≤25) is collected |
 | `excerpt` | TEXT | One-line body preview for document lists (v15). Derived from `body_adf` plain text: whitespace collapsed, at most 200 runes, cut at a word boundary when one exists (CJK at the rune limit). `''` when the body is empty. FTS is contentless, so this column is the only store-side plain preview; recomputed on every page upsert and backfilled on the v15 migration |
+
+## `page_versions` (v21)
+
+Version-history **stamps** for a mirrored wiki page. Joined to `items` on
+`item_id`. **Bodies of past versions are not stored.** The current body is
+`pages.body_adf`; opening an older revision is a link out to Confluence, not
+bytes in the mirror. This is deliberate and matches `changelog` (field
+transitions, not whole issues) and `attachments` (metadata, not file bytes):
+the mirror is a disposable cache, and a body per edit would multiply it by
+edits-per-page.
+
+This table is **not** one of the three 0.x contracts listed at the top of
+this file. `message` is a plain column so `gadak sql` can `WHERE message LIKE
+…` today. It is not added to `items_fts` — that index is contentless FTS5
+keyed per item, not per version.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `item_id` | TEXT | FK to `items.id`, `ON DELETE CASCADE`. Composite PK with `number` |
+| `number` | INTEGER | Source version number. Re-collect upserts on `(item_id, number)` and never duplicates |
+| `created_at` | TEXT | Source `when` stamp, stored verbatim. NULL when the listing omitted it |
+| `author_id` | TEXT | Account id of the editor (`''` when the site omitted it). **Use this for logic**; `author_name` is a display name |
+| `author_name` | TEXT | Display name of the editor as returned by the source |
+| `message` | TEXT | Editor's "what changed" note. The reason this table exists. `''` when none |
+| `minor_edit` | INTEGER | `1` when the source marked the edit minor, else `0`. Lets a UI hide minor edits |
+
+Primary key: `(item_id, number)`. Index: `(item_id, created_at)`.
+
+Sync refetches the listing only when no row exists for the page's current
+`pages.version`. An unchanged version number cannot have grown new history.
+A failed history fetch is logged and the rest of the pass continues.
 
 ## `comments`
 

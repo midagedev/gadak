@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -122,11 +123,15 @@ type User struct {
 	DisplayName string `json:"displayName"`
 }
 
-// Version is the content version stamp.
+// Version is the content version stamp. Message and MinorEdit are filled on
+// GET /content/{id}/version rows; the expand=version object on a Page fetch
+// typically omits them.
 type Version struct {
-	Number int    `json:"number"`
-	When   string `json:"when"`
-	By     User   `json:"by"`
+	Number    int    `json:"number"`
+	When      string `json:"when"`
+	Message   string `json:"message"`
+	MinorEdit bool   `json:"minorEdit"`
+	By        User   `json:"by"`
 }
 
 // SpaceRef is the embedded space on a content row.
@@ -286,6 +291,30 @@ func (c *Client) Page(ctx context.Context, id string) (Page, error) {
 		case <-time.After(c.PauseBetween):
 		}
 	}
+	return out, nil
+}
+
+// PageVersions lists every history stamp for a content id
+// (GET /content/{id}/version). Bodies are not requested. Pagination follows
+// _links.next the same way SearchPages does. The server's order is not
+// trusted: results are sorted by Number ascending before return.
+func (c *Client) PageVersions(ctx context.Context, id string) ([]Version, error) {
+	var out []Version
+	path := fmt.Sprintf("%s/content/%s/version?limit=100", apiPath, url.PathEscape(id))
+	for path != "" {
+		var page struct {
+			Results []Version `json:"results"`
+			Links   struct {
+				Next string `json:"next"`
+			} `json:"_links"`
+		}
+		if err := c.do(ctx, http.MethodGet, path, nil, &page); err != nil {
+			return nil, err
+		}
+		out = append(out, page.Results...)
+		path = c.nextPath(page.Links.Next)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
 	return out, nil
 }
 

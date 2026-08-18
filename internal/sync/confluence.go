@@ -25,8 +25,11 @@ const confluenceOverlap = 5 * time.Minute
 const pageBatchSize = 50
 
 // RunConfluence does one Confluence mirror pass: full or incremental.
-// Attachments and changelog are out of scope for R1. Every successful pass
-// prunes pages whose space is outside the current config/listing scope.
+// Attachments stay out of scope. Version-history stamps (page_versions; never
+// bodies) are collected when a mirrored page's current version number is not
+// already stored. A failed history fetch is logged and does not fail the pass.
+// Every successful pass prunes pages whose space is outside the current
+// config/listing scope.
 // Incremental floors are per-space (spaces.watermark); a failed space does
 // not move its own watermark or any other space's. A floor selects candidates,
 // it does not decide fetches: pageFetchGate does, and an incremental tick over
@@ -155,6 +158,11 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		changed, err := db.UpsertPages(ctx, batch)
 		if err != nil {
 			return err
+		}
+		for _, rec := range batch {
+			if err := collectPageVersions(ctx, c, db, opts, rec.Item.ID, rec.Item.ExternalID, rec.Page.Version); err != nil {
+				return err
+			}
 		}
 		res.Fetched += len(batch)
 		res.Changed += changed
@@ -497,6 +505,65 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 		})
 	}
 	return rec, spaceName, when, nil
+}
+
+// collectPageVersions fetches history stamps for one page and writes them.
+//
+// Incremental rule: refetch only when page_versions has no row for the
+// incoming version number. An unchanged version cannot have grown new
+// history, so comments-only rewrites and incremental ticks over a quiet
+// page spend no extra GET. A missing stamp (first mirror, or a version
+// bump) spends one GET.
+//
+// Nothing here fails the pass. Missing history degrades the mirror, it does
+// not break it — and that has to hold for the store as much as the network,
+// because a page whose stamps could not be written is in exactly the same
+// state as one whose stamps could not be fetched. Only a cancelled context
+// propagates: that is the caller stopping, not a mirror hiccup.
+func collectPageVersions(ctx context.Context, c *confluence.Client, db *store.DB, opts Options, itemID, pageID string, incomingVer int) error {
+	if itemID == "" || pageID == "" {
+		return nil
+	}
+	has, err := db.HasPageVersion(ctx, itemID, incomingVer)
+	if err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		opts.logf("confluence: page versions %s: read stored stamps: %v", pageID, err)
+		return nil
+	}
+	if has {
+		return nil
+	}
+	vers, err := c.PageVersions(ctx, pageID)
+	if err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		opts.logf("confluence: page versions %s: %v", pageID, err)
+		return nil
+	}
+	if len(vers) == 0 {
+		return nil
+	}
+	rows := make([]store.PageVersion, 0, len(vers))
+	for _, v := range vers {
+		if v.Number <= 0 {
+			continue
+		}
+		rows = append(rows, store.PageVersion{
+			Number:     v.Number,
+			CreatedAt:  v.When,
+			AuthorID:   v.By.AccountID,
+			AuthorName: v.By.DisplayName,
+			Message:    v.Message,
+			MinorEdit:  v.MinorEdit,
+		})
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return db.ReplacePageVersions(ctx, itemID, rows)
 }
 
 // commentsOnlyPass finds pages whose comments changed without a body edit.

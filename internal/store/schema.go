@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21}
 
 // itemsFTSCreate is the canonical items_fts DDL, quoted verbatim from schemaV1
 // below. Migrations are append-only, so schemaV1 cannot reference this
@@ -407,4 +407,21 @@ ALTER TABLE spaces ADD COLUMN watermark TEXT;
 const schemaV20 = `
 ALTER TABLE changelog ADD COLUMN author_id TEXT;
 ALTER TABLE attachments ADD COLUMN author_id TEXT;
+`
+
+// schemaV21 stores Confluence page version-history stamps (never bodies).
+// (item_id, number) is the PK so a re-collect upserts. message is a plain
+// column for gadak sql; it is not added to items_fts (contentless, per-item).
+const schemaV21 = `
+CREATE TABLE page_versions (
+  item_id     TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  number      INTEGER NOT NULL,
+  created_at  TEXT,
+  author_id   TEXT NOT NULL DEFAULT '',
+  author_name TEXT NOT NULL DEFAULT '',
+  message     TEXT NOT NULL DEFAULT '',
+  minor_edit  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (item_id, number)
+);
+CREATE INDEX idx_page_versions_at ON page_versions(item_id, created_at);
 `
