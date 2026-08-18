@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.midagedev.gadak",
+  "name": "gadak",
+  "version": "0.1.0",
+  "author": "midagedev",
+  "description": "Open and stuck issue counts from the local gadak mirror, offline",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "gadak",
+    "description": "Open and stuck counts from `gadak sql --json` (no network)",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
