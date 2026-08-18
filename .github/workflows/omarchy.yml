@@ -1,0 +1,43 @@
+# The Omarchy plugin cannot be loaded on this runner (no omarchy-shell).
+# What can be checked offline is the contract verify.sh owns: manifest
+# shape, no SQLite, no display-name filters, and the real query against
+# examples/demo.db. Registered the same way .github/workflows/scoop.yml
+# and .github/workflows/aur.yml register their verify scripts: path-scoped,
+# because nothing outside contrib/omarchy/ can change the answer.
+#
+# verify.sh builds gadak, so this job needs Go. It does not compare git
+# tags, so checkout stays shallow (the AUR workflow sets fetch-depth: 0
+# only because check-pkgver.sh reads `git describe --tags`).
+name: Omarchy
+
+on:
+  pull_request:
+    paths: ['contrib/omarchy/**', '.github/workflows/omarchy.yml']
+  push:
+    branches: [main]
+    paths: ['contrib/omarchy/**', '.github/workflows/omarchy.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omarchy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plugin:
+    name: Omarchy plugin offline checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Offline plugin checks
+        run: ./contrib/omarchy/verify.sh
