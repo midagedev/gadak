@@ -204,7 +204,11 @@ func (s *server) handleSettingsSpaces(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusConflict, "credential_required")
 		return
 	}
-	c := confluence.New(cfg.Site, cfg.Email, cfg.Token)
+	c, err := origin.Wiki(cfg)
+	if err != nil {
+		fail(w, http.StatusConflict, "credential_required")
+		return
+	}
 	listed, err := c.Spaces(r.Context())
 	if err != nil {
 		if errors.Is(err, confluence.ErrAuth) {

@@ -99,7 +99,12 @@ func SyncPage(ctx context.Context, cfg *config.Config, db *store.DB, id string) 
 	if !cfg.HasCredential() {
 		return errors.New("sync: site, email and token are required")
 	}
-	c := confluence.New(cfg.Site, cfg.Email, cfg.Token)
+	c, err := origin.Wiki(cfg)
+	if err != nil {
+		// SyncPage is wiki-only (desktop page resync). Returning the error
+		// does not stop issue sync; Run never calls this.
+		return err
+	}
 	rec, _, _, err := fetchPageRecord(ctx, c, confluence.Page{ID: id})
 	if err != nil {
 		if errors.Is(err, confluence.ErrNotFound) {

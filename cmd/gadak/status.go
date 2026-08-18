@@ -50,6 +50,9 @@ func cmdStatus(args []string) error {
 	if n, err := db.TableCount(context.Background(), "comments"); err == nil {
 		st["comments"] = n
 	}
+	if n, err := db.TableCount(context.Background(), "pages"); err == nil {
+		st["pages"] = n
+	}
 	usage, err := db.APIUsageSummary(context.Background())
 	if err != nil {
 		usage = store.APIUsageSummary{Today: store.APIUsageDay{Day: time.Now().UTC().Format("2006-01-02")}}
@@ -69,6 +72,13 @@ func cmdStatus(args []string) error {
 		tokenExpiry = cfg.TokenExpiryAt(time.Now().UTC())
 		st["token_expiry"] = tokenExpiry
 	}
+	wiki := wikiPathStatus(cfg)
+	if css, err := db.SyncState(context.Background(), "confluence"); err == nil {
+		if css.LastError != nil && *css.LastError != "" {
+			wiki["last_error"] = *css.LastError
+		}
+	}
+	st["wiki"] = wiki
 	var updateInfo selfupdate.Info
 	var updateOK bool
 	if cfg != nil && cfg.UpdateCheckEnabled() {
@@ -86,10 +96,13 @@ func cmdStatus(args []string) error {
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(st)
 	}
-	for _, k := range []string{"profile", "issues", "comments", "watermark", "version", "last_full_sync_at", "last_error"} {
+	for _, k := range []string{"profile", "issues", "comments", "pages", "watermark", "version", "last_full_sync_at", "last_error"} {
 		if v, ok := st[k]; ok && v != "" {
 			fmt.Printf("%-18s %v\n", k, v)
 		}
+	}
+	if line := formatWikiStatusLine(wiki); line != "" {
+		fmt.Printf("%-18s %s\n", "wiki", line)
 	}
 	if line := formatAPIUsageLine(usage); line != "" {
 		fmt.Printf("%-18s %s\n", "api (today)", line)
@@ -105,6 +118,46 @@ func cmdStatus(args []string) error {
 		}
 	}
 	return nil
+}
+
+// wikiPathStatus reports whether the wiki sync pass will run for this
+// workspace. Reasons reuse the refusal strings the pass itself returns:
+// "sync: confluence is not configured" (internal/sync/confluence.go) and
+// "origin: site, email and token are required" (internal/origin.errNeedCredential).
+// No site, email, or token is copied into the map.
+func wikiPathStatus(cfg *config.Config) map[string]any {
+	out := map[string]any{}
+	if cfg == nil || cfg.Confluence == nil {
+		out["path"] = "skipped"
+		out["reason"] = "sync: confluence is not configured"
+		return out
+	}
+	if !cfg.IsStandalone() && (cfg.Site == "" || cfg.Email == "" || cfg.Token == "") {
+		out["path"] = "skipped"
+		out["reason"] = "origin: site, email and token are required"
+		return out
+	}
+	out["path"] = "on"
+	return out
+}
+
+// formatWikiStatusLine is the text-mode wiki row. Empty only if wiki is missing.
+func formatWikiStatusLine(wiki map[string]any) string {
+	if wiki == nil {
+		return ""
+	}
+	path, _ := wiki["path"].(string)
+	if path == "" {
+		return ""
+	}
+	line := path
+	if r, ok := wiki["reason"].(string); ok && r != "" {
+		line += " (" + r + ")"
+	}
+	if le, ok := wiki["last_error"].(string); ok && le != "" {
+		line += "; last_error " + le
+	}
+	return line
 }
 
 // formatAPIUsageLine returns "" when nothing has been counted in the last week,
