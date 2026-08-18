@@ -41,6 +41,13 @@ PAT_TOKEN='ATATT[A-Za-z0-9+/=_-]{20,}|ATCTT[A-Za-z0-9+/=_-]{20,}'
 # atlassian_api_token regex exactly.
 PAT_LINEAR='lin_api_[A-Za-z0-9]{20,}'
 PAT_HOST='atlassian\.net'
+# Operator machines, not product content. A tailnet MagicDNS name or a
+# 100.64/10 CGNAT address identifies a device on someone's private
+# network; it is useless to an outsider and it is not ours to publish.
+# Added when a runbook for the Omarchy verification VM (docs/runbooks/
+# omarchy-vm.md) arrived carrying a tailnet hostname, its IP, and two
+# account names. That runbook now reads them from the environment.
+PAT_TAILNET='[A-Za-z0-9-]+\.[A-Za-z0-9-]+\.ts\.net|\b100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3}\b'
 
 # Deployment-specific words, resolved from outside this file (see header).
 PAT_COMPANY=""
@@ -118,7 +125,7 @@ fi
 
 if [[ -s "$text_list" ]]; then
   # shellcheck disable=SC2046
-  grep -nHE "$PAT_TOKEN|$PAT_LINEAR" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
+  grep -nHE "$PAT_TOKEN|$PAT_LINEAR|$PAT_TAILNET" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
   if [[ -n "$PAT_COMPANY" ]]; then
     # shellcheck disable=SC2046
     grep -niHE "$PAT_COMPANY" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
