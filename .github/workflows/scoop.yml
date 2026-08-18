@@ -1,0 +1,41 @@
+# The Scoop bucket is not published, so nothing on this machine or in CI can
+# run `scoop install`. What can be checked without Windows is whether the
+# manifest is internally honest: valid against Scoop's own schema, pointing at
+# a version that exists, and carrying the hashes that tag's checksums.txt
+# actually publishes. A manifest whose hash disagrees with the release is the
+# defect that only shows up on the user's machine, at install time.
+#
+# contrib/scoop/verify.sh asserts that list. Registered the same way
+# .github/workflows/aur.yml registers the AUR verify: path-scoped, because
+# nothing outside contrib/scoop/ can change its answer.
+name: Scoop
+
+on:
+  pull_request:
+    paths: ['contrib/scoop/**', '.github/workflows/scoop.yml']
+  push:
+    branches: [main]
+    paths: ['contrib/scoop/**', '.github/workflows/scoop.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scoop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  manifest:
+    name: Scoop manifest agrees with the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # verify.sh compares `version` to `git describe --tags`. A shallow
+          # clone has no tags, and the check would pass by skipping.
+          fetch-depth: 0
+
+      - name: Offline manifest checks
+        run: ./contrib/scoop/verify.sh
