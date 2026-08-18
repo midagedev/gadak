@@ -10,6 +10,21 @@
  * (with optional surfaces switched off) when served as plain static files.
  */
 
+import {
+  isStandalone,
+  parseWorkspaceKind,
+  type WorkspaceKind,
+} from './workspace'
+
+export {
+  isStandalone,
+  parseWorkspaceKind,
+  STANDALONE_INIT_COMMAND,
+  WORKSPACE_KIND_CONNECTED,
+  WORKSPACE_KIND_STANDALONE,
+  type WorkspaceKind,
+} from './workspace'
+
 export const WINDOW_CHROME_NATIVE = 'native'
 export const WINDOW_CHROME_TRAFFIC_LIGHTS_INSET = 'traffic-lights-inset'
 export type WindowChrome =
@@ -100,26 +115,9 @@ export interface GadakConfig {
   features: GadakFeatures
 }
 
-export const WORKSPACE_KIND_CONNECTED = 'connected'
-export const WORKSPACE_KIND_STANDALONE = 'standalone'
-export type WorkspaceKind =
-  | typeof WORKSPACE_KIND_CONNECTED
-  | typeof WORKSPACE_KIND_STANDALONE
-  | ''
-
-/** CLI that creates a standalone workspace. Flag lives in cmd/gadak/init.go. */
-export const STANDALONE_INIT_COMMAND = 'gadak init --standalone'
-
-export function parseWorkspaceKind(raw: unknown): WorkspaceKind {
-  if (raw === WORKSPACE_KIND_STANDALONE || raw === WORKSPACE_KIND_CONNECTED) {
-    return raw
-  }
-  return ''
-}
-
 /** True only when the server said standalone. Unknown and connected are false. */
 export function isStandaloneWorkspace(): boolean {
-  return current.workspaceKind === WORKSPACE_KIND_STANDALONE
+  return isStandalone(current)
 }
 
 const DEFAULTS: GadakConfig = {

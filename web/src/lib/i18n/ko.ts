@@ -792,7 +792,7 @@ export const ko = {
   'settings.thisMirror': '이 미러',
   'settings.workspaceStandalone': '독립',
   'settings.workspaceStandaloneHint':
-    'Jira 사이트와 자격증명이 없습니다. 이슈는 이 워크스페이스에만 있습니다.',
+    'Jira 계정 없이 쓰는 워크스페이스입니다. 원본은 이 컴퓨터의 issuetap persist 파일이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
   'settings.standaloneHow': '독립 워크스페이스 만들기',
   'settings.runtimeProfile': '프로필',
   'settings.runtimeDb': '미러 DB',
@@ -922,6 +922,7 @@ export const ko = {
   'settings.locale': '언어',
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
+  'settings.standaloneCommandHint': '<name>은 직접 정하는 프로필 이름입니다.',
 
   /* ── Theme (per-browser; settings + palette) ── */
   'theme.label': '테마',

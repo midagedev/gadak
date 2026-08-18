@@ -797,7 +797,7 @@ export const en = {
   'settings.thisMirror': 'This mirror',
   'settings.workspaceStandalone': 'Standalone',
   'settings.workspaceStandaloneHint':
-    'No Jira site or credential. Issues exist only in this workspace.',
+    "A workspace without a Jira account. The origin is this computer's issuetap persist file, not gadak.db — back that file up.",
   'settings.standaloneHow': 'Create a standalone workspace',
   'settings.runtimeProfile': 'Profile',
   'settings.runtimeDb': 'Mirror database',
@@ -929,6 +929,7 @@ export const en = {
   'settings.locale': 'Language',
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
+  'settings.standaloneCommandHint': '<name> is the profile name you choose.',
 
   /* ── Theme (per-browser; settings + palette) ── */
   'theme.label': 'Theme',
