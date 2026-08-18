@@ -190,14 +190,15 @@ func TestBootstrapUpdateFields(t *testing.T) {
 
 	// No cached release → fields omitted.
 	body := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
-	if body.LatestVersion != "" || body.ReleaseURL != "" {
-		t.Fatalf("expected empty update fields, got latest=%q url=%q", body.LatestVersion, body.ReleaseURL)
+	if body.LatestVersion != "" || body.ReleaseURL != "" || body.ReleaseNotes != "" {
+		t.Fatalf("expected empty update fields, got latest=%q url=%q notes=%q", body.LatestVersion, body.ReleaseURL, body.ReleaseNotes)
 	}
 
-	// Newer release → both fields present.
+	// Newer release → version, url, and notes present.
 	h.s.setUpdateInfo(selfupdate.Info{
 		Latest: "0.3.1",
 		URL:    "https://github.com/midagedev/gadak/releases/tag/v0.3.1",
+		Notes:  "Fixed the flaky upload.",
 	}, true)
 	body = decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
 	if body.LatestVersion != "0.3.1" {
@@ -205,6 +206,19 @@ func TestBootstrapUpdateFields(t *testing.T) {
 	}
 	if body.ReleaseURL == "" {
 		t.Fatal("release_url empty")
+	}
+	if body.ReleaseNotes != "Fixed the flaky upload." {
+		t.Fatalf("release_notes %q", body.ReleaseNotes)
+	}
+
+	// Newer release, empty body → version+url stay, notes omit.
+	h.s.setUpdateInfo(selfupdate.Info{
+		Latest: "0.3.1",
+		URL:    "https://github.com/midagedev/gadak/releases/tag/v0.3.1",
+	}, true)
+	body = decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
+	if body.LatestVersion != "0.3.1" || body.ReleaseNotes != "" {
+		t.Fatalf("empty notes should omit, got latest=%q notes=%q", body.LatestVersion, body.ReleaseNotes)
 	}
 
 	// Same version → omit.
@@ -260,10 +274,14 @@ func TestDeltaUpdateFields(t *testing.T) {
 	if _, ok := body["release_url"]; ok {
 		t.Fatalf("expected omitted release_url, got %v", body["release_url"])
 	}
+	if _, ok := body["release_notes"]; ok {
+		t.Fatalf("expected omitted release_notes, got %v", body["release_notes"])
+	}
 
 	h.s.setUpdateInfo(selfupdate.Info{
 		Latest: "0.3.1",
 		URL:    "https://github.com/midagedev/gadak/releases/tag/v0.3.1",
+		Notes:  "Fixed the flaky upload.",
 	}, true)
 	body = raw()
 	if body["latest_version"] != "0.3.1" {
@@ -271,6 +289,9 @@ func TestDeltaUpdateFields(t *testing.T) {
 	}
 	if body["release_url"] == nil || body["release_url"] == "" {
 		t.Fatal("release_url empty")
+	}
+	if body["release_notes"] != "Fixed the flaky upload." {
+		t.Fatalf("release_notes %v", body["release_notes"])
 	}
 
 	h.s.setUpdateInfo(selfupdate.Info{
@@ -403,6 +424,7 @@ func TestUpdateSnapshotEndpoint(t *testing.T) {
 	h.s.setUpdateInfo(selfupdate.Info{
 		Latest:    "0.3.1",
 		URL:       "https://github.com/midagedev/gadak/releases/tag/v0.3.1",
+		Notes:     "Fixed the flaky upload.",
 		CheckedAt: "2026-08-18T00:00:00Z",
 	}, true)
 	got = decode[UpdateStatus](t, get(t, h, apiBase+"update/", nil))
@@ -411,6 +433,12 @@ func TestUpdateSnapshotEndpoint(t *testing.T) {
 	}
 	if got.CheckedAt != "2026-08-18T00:00:00Z" {
 		t.Fatalf("checked_at %q", got.CheckedAt)
+	}
+	if got.Notes != "Fixed the flaky upload." {
+		t.Fatalf("release_notes %q", got.Notes)
+	}
+	if got.NotesLen != len("Fixed the flaky upload.") {
+		t.Fatalf("release_notes_len %d", got.NotesLen)
 	}
 }
 

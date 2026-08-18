@@ -104,10 +104,12 @@ type bootstrapResponse struct {
 	// detail panel shows, which filter axes exist, per current project scope.
 	FieldSpecs []fieldSpecOut            `json:"field_specs"`
 	FieldUsage map[string]map[string]int `json:"field_usage"`
-	// LatestVersion / ReleaseURL are set only when a cached GitHub release is
-	// newer than the running build (server.Version). Absent otherwise.
+	// LatestVersion / ReleaseURL / ReleaseNotes are set only when a cached
+	// GitHub release is newer than the running build (server.Version).
+	// Absent otherwise. Notes are the GitHub body (plain text on the client).
 	LatestVersion string `json:"latest_version,omitempty"`
 	ReleaseURL    string `json:"release_url,omitempty"`
+	ReleaseNotes  string `json:"release_notes,omitempty"`
 }
 
 type deltaResponse struct {
@@ -121,10 +123,12 @@ type deltaResponse struct {
 	// must still learn about a discovery that ran after its bootstrap.
 	FieldSpecs []fieldSpecOut            `json:"field_specs"`
 	FieldUsage map[string]map[string]int `json:"field_usage"`
-	// LatestVersion / ReleaseURL come from updateFields — the same source
-	// bootstrap uses. Absent when the server does not know of a newer release.
+	// LatestVersion / ReleaseURL / ReleaseNotes come from updateFields — the
+	// same source bootstrap uses. Absent when the server does not know of a
+	// newer release.
 	LatestVersion string `json:"latest_version,omitempty"`
 	ReleaseURL    string `json:"release_url,omitempty"`
+	ReleaseNotes  string `json:"release_notes,omitempty"`
 }
 
 /* ── bootstrap / delta ── */
@@ -150,7 +154,7 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	latest, releaseURL := s.updateFields()
+	latest, releaseURL, releaseNotes := s.updateFields()
 	writeJSON(w, http.StatusOK, bootstrapResponse{
 		ServerTime:     store.Now(),
 		SyncVersion:    st.Version,
@@ -162,6 +166,7 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		FieldUsage:     s.fieldUsageOut(r.Context()),
 		LatestVersion:  latest,
 		ReleaseURL:     releaseURL,
+		ReleaseNotes:   releaseNotes,
 	})
 }
 
@@ -228,7 +233,7 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	latest, releaseURL := s.updateFields()
+	latest, releaseURL, releaseNotes := s.updateFields()
 	res := deltaResponse{
 		ServerTime:     store.Now(),
 		Upserted:       view.issues(upserted),
@@ -239,6 +244,7 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		FieldUsage:     s.fieldUsageOut(r.Context()),
 		LatestVersion:  latest,
 		ReleaseURL:     releaseURL,
+		ReleaseNotes:   releaseNotes,
 	}
 	// members ride along only when the client's hash is stale.
 	if r.URL.Query().Get("mv") != view.membersVersion {

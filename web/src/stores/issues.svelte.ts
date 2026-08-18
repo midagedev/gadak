@@ -67,6 +67,8 @@ class IssuesStore {
   /** Newer published release, when the server's daily check found one. */
   latestVersion = $state('')
   releaseUrl = $state('')
+  /** GitHub release body (plain text). Empty → banner is a link, no dialog. */
+  releaseNotes = $state('')
   /** Boot failure (usually auth). Blocks UI only when there is no cache (render-before-auth). */
   error = $state<string | null>(null)
   /**
@@ -244,6 +246,7 @@ class IssuesStore {
     this.fieldUsage = data.field_usage ?? {}
     this.latestVersion = data.latest_version ?? ''
     this.releaseUrl = data.release_url ?? ''
+    this.releaseNotes = (data.release_notes ?? '').trim()
     this.ready = true
 
     // Persist (memory pool is already current even if this fails — works without IndexedDB)
@@ -264,6 +267,7 @@ class IssuesStore {
     // Same omitempty contract as bootstrap: absent means no newer release.
     this.latestVersion = delta.latest_version ?? ''
     this.releaseUrl = delta.release_url ?? ''
+    this.releaseNotes = (delta.release_notes ?? '').trim()
     await this.applyDelta(
       delta.upserted,
       delta.deleted_keys,
@@ -436,9 +440,10 @@ class IssuesStore {
   }
 
   /** Apply a newer-release snapshot (GET update/ after a user-initiated check). */
-  applyUpdateInfo(latest: string, url: string): void {
+  applyUpdateInfo(latest: string, url: string, notes = ''): void {
     this.latestVersion = latest
     this.releaseUrl = url
+    this.releaseNotes = notes.trim()
   }
 
   /** Convenience lookup. */

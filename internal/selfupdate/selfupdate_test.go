@@ -54,6 +54,7 @@ func TestCheck_networkThenCache(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"tag_name": "v0.3.1",
 			"html_url": "https://github.com/midagedev/gadak/releases/tag/v0.3.1",
+			"body":     "## Fixed\n\n- flaky upload\n",
 		})
 	}))
 	t.Cleanup(srv.Close)
@@ -74,6 +75,9 @@ func TestCheck_networkThenCache(t *testing.T) {
 	}
 	if info.URL == "" {
 		t.Fatal("url empty")
+	}
+	if info.Notes != "## Fixed\n\n- flaky upload" {
+		t.Fatalf("notes %q", info.Notes)
 	}
 	if hits.Load() != 1 {
 		t.Fatalf("hits after first = %d", hits.Load())
@@ -193,5 +197,30 @@ func TestCheck_staleCacheRefetches(t *testing.T) {
 	}
 	if hits.Load() != 1 {
 		t.Fatalf("hits=%d", hits.Load())
+	}
+}
+
+func TestCheck_emptyBodyOK(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"tag_name": "v0.3.1",
+			"html_url": "https://github.com/midagedev/gadak/releases/tag/v0.3.1",
+			"body":     "  \n",
+		})
+	}))
+	t.Cleanup(srv.Close)
+	prev := APIBase
+	APIBase = srv.URL
+	t.Cleanup(func() { APIBase = prev })
+
+	info, ok := Check(context.Background(), t.TempDir(), "0.3.0", true)
+	if !ok {
+		t.Fatal("empty body must still be ok")
+	}
+	if info.Latest != "0.3.1" {
+		t.Fatalf("latest %q", info.Latest)
+	}
+	if info.Notes != "" {
+		t.Fatalf("whitespace body should trim to empty, got %q", info.Notes)
 	}
 }

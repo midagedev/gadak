@@ -4,6 +4,7 @@
   import { t } from '../../lib/i18n'
   import { config, surface } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
+  import { upgradeCta } from '../../lib/upgrade-cta'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import Icon from '../ui/Icon.svelte'
@@ -17,12 +18,14 @@
   type UpdateDoc = {
     latest?: string
     release_url?: string
+    release_notes?: string
     newer?: boolean
     last_user_check_at?: string
     last_user_status?: string
   }
 
-  let copiedBrew = $state(false)
+  const cta = $derived(upgradeCta(config().os))
+  let copiedCmd = $state(false)
   let lastUserAt = ''
 
   async function pullUpdate(): Promise<void> {
@@ -32,7 +35,7 @@
       const data = (await res.json()) as UpdateDoc
       // Apply only when newer — never clear a delta-injected banner.
       if (data.newer && data.latest) {
-        issues.applyUpdateInfo(data.latest, data.release_url ?? '')
+        issues.applyUpdateInfo(data.latest, data.release_url ?? '', data.release_notes ?? '')
       }
       if (!data.last_user_check_at || data.last_user_check_at === lastUserAt) return
       const age = Date.now() - Date.parse(data.last_user_check_at)
@@ -52,11 +55,12 @@
     return () => clearInterval(id)
   })
 
-  async function copyBrew(): Promise<void> {
-    if (await copyText(t('settings.updateBrew'))) {
-      copiedBrew = true
+  async function copyCmd(): Promise<void> {
+    if (!cta.command) return
+    if (await copyText(cta.command)) {
+      copiedCmd = true
       setTimeout(() => {
-        copiedBrew = false
+        copiedCmd = false
       }, 1500)
     }
   }
@@ -203,16 +207,15 @@
         </a>
       {/if}
     {/if}
-    <!-- brew is the macOS install path. Naming it on Linux or Windows would
-         hand the reader a command that does not exist; there the release link
-         above is the whole answer. Unknown OS (static export) stays silent. -->
-    {#if config().os === 'darwin'}
+    <!-- Command comes from upgradeCta — the single owner. A new package
+         path is a row there, not another os === branch here. -->
+    {#if cta.command}
       <div class="mt-2 flex flex-wrap items-center gap-1.5">
         <span class="font-mono text-micro text-text-primary" data-testid="settings-update-brew"
-          >{t('settings.updateBrew')}</span
+          >{cta.command}</span
         >
-        <button type="button" class={COPY_BTN} onclick={() => void copyBrew()}>
-          {copiedBrew ? t('settings.copied') : t('settings.copy')}
+        <button type="button" class={COPY_BTN} onclick={() => void copyCmd()}>
+          {copiedCmd ? t('settings.copied') : t('settings.copy')}
         </button>
       </div>
     {/if}

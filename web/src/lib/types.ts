@@ -350,6 +350,8 @@ export interface BootstrapResponse {
   /** Set only when a newer release than the running build is published. */
   latest_version?: string
   release_url?: string
+  /** GitHub release body. Absent or empty → banner stays a link, no dialog. */
+  release_notes?: string
 }
 
 /** GET `delta/?since=&mv=` response. */
@@ -367,6 +369,8 @@ export interface DeltaResponse {
   /** Set only when a newer release than the running build is published. */
   latest_version?: string
   release_url?: string
+  /** GitHub release body. Absent or empty → banner stays a link, no dialog. */
+  release_notes?: string
 }
 
 /** Which column of the full-text index a hit came from, and the text around it.

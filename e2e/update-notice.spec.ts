@@ -3,14 +3,18 @@ import { attachConsoleErrors, gotoApp, openServerSettings } from './helpers'
 
 const LATEST = '0.99.0'
 const RELEASE = `https://github.com/midagedev/gadak/releases/tag/v${LATEST}`
+const NOTES = 'Fixed the flaky upload.\nSecond line.'
 
-async function injectDeltaUpdate(page: import('@playwright/test').Page): Promise<void> {
+async function injectDeltaUpdate(
+  page: import('@playwright/test').Page,
+  extra: Record<string, unknown> = {},
+): Promise<void> {
   await page.route((url) => url.pathname.includes('/delta/'), async (route) => {
     const response = await route.fetch()
     const body = (await response.json()) as Record<string, unknown>
     await route.fulfill({
       response,
-      json: { ...body, latest_version: LATEST, release_url: RELEASE },
+      json: { ...body, latest_version: LATEST, release_url: RELEASE, ...extra },
     })
   })
 }
@@ -69,5 +73,34 @@ test.describe('update notice from delta', () => {
     } else {
       await expect(brew).toHaveCount(0)
     }
+  })
+
+  test('release_notes on delta opens a plain-text dialog from the banner', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await injectDeltaUpdate(page, { release_notes: NOTES })
+    await gotoApp(page)
+    await flushDelta(page)
+    const notice = page.getByTestId('update-notice')
+    await expect(notice).toBeVisible()
+    await expect(page.getByTestId('update-notes')).toHaveCount(0)
+    await notice.click()
+    const notes = page.getByTestId('update-notes')
+    await expect(notes).toBeVisible()
+    await expect(notes).toContainText('Fixed the flaky upload.')
+    await expect(notes).toContainText('Second line.')
+    await expect(notes.locator('pre')).toHaveText(NOTES)
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('delta without release_notes keeps the banner as a link and opens no dialog', async ({
+    page,
+  }) => {
+    await injectDeltaUpdate(page)
+    await gotoApp(page)
+    await flushDelta(page)
+    const notice = page.getByTestId('update-notice')
+    await expect(notice).toBeVisible()
+    await expect(notice).toHaveAttribute('href', RELEASE)
+    await expect(page.getByTestId('update-notes')).toHaveCount(0)
   })
 })

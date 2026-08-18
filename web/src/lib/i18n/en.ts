@@ -780,7 +780,6 @@ export const en = {
   'settings.intervalPreset24h': '24h',
   'settings.updateTitle': 'Update',
   'settings.updateReleaseNotes': 'Release notes',
-  'settings.updateBrew': 'brew upgrade --cask gadak',
   'settings.updateCurrent': 'This build is the latest published release.',
   'settings.updateFailed': 'Could not check for updates.',
   'settings.updateDev': 'Dev build — update check skipped.',

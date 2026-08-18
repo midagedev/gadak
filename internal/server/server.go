@@ -278,6 +278,8 @@ type UpdateStatus struct {
 	Current         string `json:"current"`
 	Latest          string `json:"latest,omitempty"`
 	URL             string `json:"release_url,omitempty"`
+	Notes           string `json:"release_notes,omitempty"`
+	NotesLen        int    `json:"release_notes_len"`
 	CheckedAt       string `json:"checked_at,omitempty"`
 	Newer           bool   `json:"newer,omitempty"`
 	Status          string `json:"status,omitempty"` // newer|current|error|dev — this CheckNow
@@ -340,16 +342,17 @@ func (s *server) recordUserCheck(at time.Time, status, errCode string) {
 	s.updateLastUserErr = errCode
 }
 
-// updateFields is the single owner of latest_version / release_url for both
-// bootstrap and delta. Empty strings omit via json omitempty.
-func (s *server) updateFields() (latest, url string) {
+// updateFields is the single owner of latest_version / release_url /
+// release_notes for both bootstrap and delta. Empty strings omit via json
+// omitempty. Filling only one document was the GDK-214 defect.
+func (s *server) updateFields() (latest, url, notes string) {
 	s.updateMu.Lock()
 	info, ok := s.updateInfo, s.updateOK
 	s.updateMu.Unlock()
 	if !ok || !selfupdate.Newer(Version, info.Latest) {
-		return "", ""
+		return "", "", ""
 	}
-	return info.Latest, info.URL
+	return info.Latest, info.URL, info.Notes
 }
 
 func (s *server) snapshotUpdate() UpdateStatus {
@@ -365,6 +368,8 @@ func (s *server) snapshotUpdate() UpdateStatus {
 	if ok {
 		out.Latest = info.Latest
 		out.URL = info.URL
+		out.Notes = info.Notes
+		out.NotesLen = len(info.Notes)
 		out.CheckedAt = info.CheckedAt
 		out.Newer = selfupdate.Newer(Version, info.Latest)
 	}
@@ -415,6 +420,8 @@ func (s *server) checkNow(ctx context.Context, cacheDir string) UpdateStatus {
 	s.setUpdateInfo(info, true)
 	out.Latest = info.Latest
 	out.URL = info.URL
+	out.Notes = info.Notes
+	out.NotesLen = len(info.Notes)
 	out.CheckedAt = info.CheckedAt
 	if selfupdate.Newer(Version, info.Latest) {
 		out.Status = "newer"

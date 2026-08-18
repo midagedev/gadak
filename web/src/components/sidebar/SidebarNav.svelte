@@ -14,6 +14,9 @@
   import { showIssueList } from '../../lib/show-issue-list'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
+  import { copyText } from '../../lib/copy-text'
+  import { trapFocus } from '../../lib/focus-trap'
+  import { upgradeCta } from '../../lib/upgrade-cta'
   import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
   import {
     config,
@@ -32,6 +35,36 @@
 
   /** Open server settings dialog — App.svelte mounts the dialog itself. */
   let { onOpenSettings }: { onOpenSettings: () => void } = $props()
+
+  let notesOpen = $state(false)
+  let copiedCmd = $state(false)
+  const cta = $derived(upgradeCta(config().os))
+  const notesText = $derived(issues.releaseNotes.trim())
+
+  $effect(() => {
+    if (!notesText) notesOpen = false
+  })
+
+  function closeNotes() {
+    notesOpen = false
+    copiedCmd = false
+  }
+
+  function onNotesKeydown(e: KeyboardEvent) {
+    if (!notesOpen || e.key !== 'Escape') return
+    e.preventDefault()
+    closeNotes()
+  }
+
+  async function copyUpgradeCmd(): Promise<void> {
+    if (!cta.command) return
+    if (await copyText(cta.command)) {
+      copiedCmd = true
+      setTimeout(() => {
+        copiedCmd = false
+      }, 1500)
+    }
+  }
 
   const builtins = builtinViews()
 
@@ -333,6 +366,8 @@
   </div>
 {/snippet}
 
+<svelte:window onkeydown={onNotesKeydown} />
+
 <div class="flex h-full flex-col">
   <!-- New issue (shortcut c). Disabled on the hosted demo, where the snapshot
        service worker answers every write with 501 — offering the button only to
@@ -350,18 +385,31 @@
     </button>
   </div>
 
-  <!-- Update notice: server found a newer published release (daily check). -->
+  <!-- Update notice: server found a newer published release (daily check).
+       Notes present → dialog (plain text). Empty body → same external link
+       as before; do not open an empty dialog. -->
   {#if issues.latestVersion}
     <div class="flex-none px-3 pb-1">
-      <a
-        href={issues.releaseUrl || 'https://github.com/midagedev/gadak/releases'}
-        target="_blank"
-        rel="noreferrer"
-        class="block rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-micro text-accent-text transition-colors hover:bg-accent-subtle/50"
-        data-testid="update-notice"
-      >
-        {t('sidebar.updateAvailable', { version: issues.latestVersion })}
-      </a>
+      {#if notesText}
+        <button
+          type="button"
+          class="block w-full rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-left text-micro text-accent-text transition-colors hover:bg-accent-subtle/50"
+          data-testid="update-notice"
+          onclick={() => (notesOpen = true)}
+        >
+          {t('sidebar.updateAvailable', { version: issues.latestVersion })}
+        </button>
+      {:else}
+        <a
+          href={issues.releaseUrl || 'https://github.com/midagedev/gadak/releases'}
+          target="_blank"
+          rel="noreferrer"
+          class="block rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-micro text-accent-text transition-colors hover:bg-accent-subtle/50"
+          data-testid="update-notice"
+        >
+          {t('sidebar.updateAvailable', { version: issues.latestVersion })}
+        </a>
+      {/if}
     </div>
   {/if}
 
@@ -761,3 +809,62 @@
     {/if}
   </div>
 </div>
+
+{#if notesOpen && notesText}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1812]/28 p-4 backdrop-blur-[2px]"
+    role="presentation"
+    onclick={(e) => {
+      if (e.target === e.currentTarget) closeNotes()
+    }}
+  >
+    <div
+      use:trapFocus
+      class="anim-pop flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('sidebar.updateAvailable', { version: issues.latestVersion })}
+      data-testid="update-notes"
+    >
+      <div class="flex flex-none items-center justify-between border-b border-border-subtle px-4 py-3">
+        <h2 class="type-subject text-[18px] leading-snug text-text-primary">
+          {t('sidebar.updateAvailable', { version: issues.latestVersion })}
+        </h2>
+        <button
+          type="button"
+          class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+          onclick={closeNotes}
+          aria-label={t('common.closeEsc')}
+          title={t('common.closeEsc')}
+        >
+          <Icon name="x" size={14} />
+        </button>
+      </div>
+      <pre
+        class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-micro text-text-primary"
+      >{notesText}</pre>
+      <div class="flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-4 py-3">
+        {#if cta.command}
+          <span class="font-mono text-micro text-text-primary">{cta.command}</span>
+          <button
+            type="button"
+            class="inline-flex h-control-sm items-center rounded border border-border-strong px-1.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            onclick={() => void copyUpgradeCmd()}
+          >
+            {copiedCmd ? t('settings.copied') : t('settings.copy')}
+          </button>
+        {/if}
+        {#if issues.releaseUrl}
+          <a
+            href={issues.releaseUrl}
+            target="_blank"
+            rel="noreferrer"
+            class="text-micro text-accent-text hover:underline"
+          >
+            {t('settings.updateReleaseNotes')}
+          </a>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}

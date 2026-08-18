@@ -16,9 +16,10 @@ import (
 
 // Info is the cached answer.
 type Info struct {
-	Latest    string `json:"latest"`     // tag without leading v, e.g. "0.3.1"
-	URL       string `json:"url"`        // release html_url
-	CheckedAt string `json:"checked_at"` // RFC3339 UTC
+	Latest    string `json:"latest"`          // tag without leading v, e.g. "0.3.1"
+	URL       string `json:"url"`             // release html_url
+	Notes     string `json:"notes,omitempty"` // GitHub release body (markdown; render as plain text)
+	CheckedAt string `json:"checked_at"`      // RFC3339 UTC
 }
 
 // APIBase is the GitHub API origin + repo path for release lookups.
@@ -167,6 +168,7 @@ func writeCache(dir string, info Info) error {
 type ghRelease struct {
 	TagName string `json:"tag_name"`
 	HTMLURL string `json:"html_url"`
+	Body    string `json:"body"`
 }
 
 func fetchLatest(ctx context.Context) (Info, error) {
@@ -197,7 +199,7 @@ func fetchLatest(ctx context.Context) (Info, error) {
 	if tag == "" || body.HTMLURL == "" {
 		return Info{}, errEmpty
 	}
-	return Info{Latest: tag, URL: body.HTMLURL}, nil
+	return Info{Latest: tag, URL: body.HTMLURL, Notes: strings.TrimSpace(body.Body)}, nil
 }
 
 type silentError string

@@ -775,7 +775,6 @@ export const ko = {
   'settings.intervalPreset24h': '24시간',
   'settings.updateTitle': '업데이트',
   'settings.updateReleaseNotes': '릴리스 노트',
-  'settings.updateBrew': 'brew upgrade --cask gadak',
   'settings.updateCurrent': '이 빌드가 게시된 최신 릴리스입니다.',
   'settings.updateFailed': '업데이트를 확인하지 못했습니다.',
   'settings.updateDev': '개발 빌드 — 업데이트 확인을 건너뜁니다.',
