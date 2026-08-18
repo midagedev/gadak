@@ -779,6 +779,10 @@ export const ko = {
   'settings.updateFailed': '업데이트를 확인하지 못했습니다.',
   'settings.updateDev': '개발 빌드 — 업데이트 확인을 건너뜁니다.',
   'settings.thisMirror': '이 미러',
+  'settings.workspaceStandalone': '독립',
+  'settings.workspaceStandaloneHint':
+    'Jira 사이트와 자격증명이 없습니다. 이슈는 이 워크스페이스에만 있습니다.',
+  'settings.standaloneHow': '독립 워크스페이스 만들기',
   'settings.runtimeProfile': '프로필',
   'settings.runtimeDb': '미러 DB',
   'settings.runtimeConfig': '설정 파일',

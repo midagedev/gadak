@@ -65,3 +65,33 @@ describe('hasServerVerb / serverVerbReport (GDK-52)', () => {
     expect(report).toEqual({ bodySearch: false, docs: false, settings: false })
   })
 })
+
+describe('workspaceKind (server-owned, never inferred)', () => {
+  test('defaults and missing/garbage documents are unknown, not standalone', async () => {
+    const missing = await loadConfigWith(null, false)
+    expect(missing.config().workspaceKind).toBe('')
+    expect(missing.isStandaloneWorkspace()).toBe(false)
+
+    const emptySite = await loadConfigWith({ jiraBaseUrl: '' })
+    expect(emptySite.config().workspaceKind).toBe('')
+    expect(emptySite.isStandaloneWorkspace()).toBe(false)
+
+    const garbage = await loadConfigWith({ workspaceKind: 'local', jiraBaseUrl: '' })
+    expect(garbage.parseWorkspaceKind('local')).toBe('')
+    expect(garbage.config().workspaceKind).toBe('')
+    expect(garbage.isStandaloneWorkspace()).toBe(false)
+  })
+
+  test('connected and standalone come from the document only', async () => {
+    const connected = await loadConfigWith({
+      workspaceKind: 'connected',
+      jiraBaseUrl: '',
+    })
+    expect(connected.config().workspaceKind).toBe('connected')
+    expect(connected.isStandaloneWorkspace()).toBe(false)
+
+    const standalone = await loadConfigWith({ workspaceKind: 'standalone' })
+    expect(standalone.config().workspaceKind).toBe('standalone')
+    expect(standalone.isStandaloneWorkspace()).toBe(true)
+  })
+})

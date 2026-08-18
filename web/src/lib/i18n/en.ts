@@ -784,6 +784,10 @@ export const en = {
   'settings.updateFailed': 'Could not check for updates.',
   'settings.updateDev': 'Dev build — update check skipped.',
   'settings.thisMirror': 'This mirror',
+  'settings.workspaceStandalone': 'Standalone',
+  'settings.workspaceStandaloneHint':
+    'No Jira site or credential. Issues exist only in this workspace.',
+  'settings.standaloneHow': 'Create a standalone workspace',
   'settings.runtimeProfile': 'Profile',
   'settings.runtimeDb': 'Mirror database',
   'settings.runtimeConfig': 'Config file',

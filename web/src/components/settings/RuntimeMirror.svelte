@@ -10,11 +10,16 @@
    */
   import { t } from '../../lib/i18n'
   import { copyText } from '../../lib/copy-text'
-  import { surface } from '../../lib/config'
+  import {
+    isStandaloneWorkspace,
+    STANDALONE_INIT_COMMAND,
+    surface,
+  } from '../../lib/config'
   import type { SettingsRuntime } from '../../lib/api'
   import { COPY_BTN } from './controls'
 
   const onDesktop = surface() === 'desktop'
+  const standalone = isStandaloneWorkspace()
 
   let { runtime }: { runtime: SettingsRuntime } = $props()
 
@@ -49,7 +54,19 @@
   </div>
   <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-micro">
     <dt class="text-text-muted">{t('settings.runtimeProfile')}</dt>
-    <dd class="font-mono text-text-primary">{runtime.profile}</dd>
+    <dd class="flex min-w-0 flex-wrap items-center gap-1.5">
+      <span class="font-mono text-text-primary">{runtime.profile}</span>
+      {#if standalone}
+        <!-- Same status-pill classes as IntegrationsTab's install-state chip. -->
+        <span
+          class="inline-flex items-center gap-1.5 rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
+          data-testid="workspace-kind"
+          data-kind="standalone"
+        >
+          {t('settings.workspaceStandalone')}
+        </span>
+      {/if}
+    </dd>
 
     <dt class="text-text-muted">{t('settings.runtimeDb')}</dt>
     <dd class="min-w-0">
@@ -134,5 +151,25 @@
 
     <dt class="text-text-muted">{t('settings.runtimeVersion')}</dt>
     <dd class="font-mono text-text-primary">{runtime.gadakVersion}</dd>
+
+    <dt class="text-text-muted">{t('settings.standaloneHow')}</dt>
+    <dd class="min-w-0">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span
+          class="break-all font-mono text-text-primary"
+          data-testid="standalone-init-command"
+        >{STANDALONE_INIT_COMMAND}</span>
+        <button
+          type="button"
+          class={COPY_BTN}
+          onclick={() => copyValue('standalone-init', STANDALONE_INIT_COMMAND)}
+        >
+          {copiedKey === 'standalone-init' ? t('settings.copied') : t('settings.copy')}
+        </button>
+      </div>
+      {#if standalone}
+        <div class="mt-0.5 text-text-muted">{t('settings.workspaceStandaloneHint')}</div>
+      {/if}
+    </dd>
   </dl>
 </section>

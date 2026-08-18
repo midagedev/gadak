@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -562,6 +563,33 @@ func TestWebConfigProfileName(t *testing.T) {
 	}
 	if got.APIBase != "/w/demo"+apiBase {
 		t.Errorf("apiBase = %q", got.APIBase)
+	}
+}
+
+func TestWebConfigWorkspaceKindFromDescribe(t *testing.T) {
+	// The document must carry origin.Describe's kind, not a guess from Site.
+	// An empty-site connected config is still connected — that is the
+	// hosted-demo / older-document case the UI must not call standalone.
+	cases := []*config.Config{
+		nil,
+		{},
+		{Site: "https://x.example"},
+		{Kind: config.KindStandalone},
+		{Kind: config.KindStandalone, Site: "https://should-be-ignored.example"},
+	}
+	for i, cfg := range cases {
+		doc, err := WebConfig(cfg)
+		if err != nil {
+			t.Fatalf("case %d: %v", i, err)
+		}
+		var got webConfigDoc
+		if err := json.Unmarshal(doc, &got); err != nil {
+			t.Fatalf("case %d decode: %v", i, err)
+		}
+		want, _ := origin.Describe(cfg)
+		if got.WorkspaceKind != want {
+			t.Errorf("case %d workspaceKind = %q, want Describe %q", i, got.WorkspaceKind, want)
+		}
 	}
 }
 

@@ -28,7 +28,7 @@
   import EmptyState from './EmptyState.svelte'
   import Onboarding, { onboardingHold } from '../shell/Onboarding.svelte'
   import FreshnessChip from '../shell/FreshnessChip.svelte'
-  import { config, isDesktop } from '../../lib/config'
+  import { config, isDesktop, isStandaloneWorkspace } from '../../lib/config'
   import { me } from '../../stores/me.svelte'
   import { runSyncNow } from '../../lib/sync-now'
 
@@ -61,6 +61,9 @@
    * First run vs. "mirror is empty, sync will fill it". Setup is incomplete when
    * there is no stored credential or no project list; once anything has synced
    * (pool > 0) this is false forever, so onboarding cannot come back.
+   * A standalone workspace has no Jira site to connect — the wizard would ask
+   * for a token the origin cannot use. Kind comes from config.json, never
+   * from an empty site URL.
    */
   //  me.authChecked is required: before identity settles we don't know credentials,
   //  and without waiting onboarding flashes one frame at boot.
@@ -71,6 +74,7 @@
     onboardingHold.active ||
       (issues.pool.size === 0 &&
         me.authChecked &&
+        !isStandaloneWorkspace() &&
         (!me.identified || config().projects.length === 0)),
   )
 

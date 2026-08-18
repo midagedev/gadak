@@ -91,7 +91,35 @@ export interface GadakConfig {
    * than guess: `brew upgrade --cask gadak` is wrong on Linux and Windows.
    */
   os: string
+  /**
+   * Workspace origin kind from the server (`origin.Describe`). Empty means
+   * unknown (static export, hosted demo, an older server). Do not infer this
+   * from an empty `jiraBaseUrl` — that is also true of the hosted demo.
+   */
+  workspaceKind: WorkspaceKind
   features: GadakFeatures
+}
+
+export const WORKSPACE_KIND_CONNECTED = 'connected'
+export const WORKSPACE_KIND_STANDALONE = 'standalone'
+export type WorkspaceKind =
+  | typeof WORKSPACE_KIND_CONNECTED
+  | typeof WORKSPACE_KIND_STANDALONE
+  | ''
+
+/** CLI that creates a standalone workspace. Flag lives in cmd/gadak/init.go. */
+export const STANDALONE_INIT_COMMAND = 'gadak init --standalone'
+
+export function parseWorkspaceKind(raw: unknown): WorkspaceKind {
+  if (raw === WORKSPACE_KIND_STANDALONE || raw === WORKSPACE_KIND_CONNECTED) {
+    return raw
+  }
+  return ''
+}
+
+/** True only when the server said standalone. Unknown and connected are false. */
+export function isStandaloneWorkspace(): boolean {
+  return current.workspaceKind === WORKSPACE_KIND_STANDALONE
 }
 
 const DEFAULTS: GadakConfig = {
@@ -110,6 +138,7 @@ const DEFAULTS: GadakConfig = {
   windowChrome: WINDOW_CHROME_NATIVE,
   profile: 'default',
   os: '',
+  workspaceKind: '',
   features: {
     feed: false,
     push: false,
@@ -340,6 +369,7 @@ export async function loadConfig(): Promise<GadakConfig> {
         ...raw,
         features: { ...DEFAULTS.features, ...(raw.features ?? {}) },
         windowChrome: resolveWindowChrome(raw),
+        workspaceKind: parseWorkspaceKind(raw.workspaceKind),
       }
     }
   } catch {

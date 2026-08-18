@@ -16,6 +16,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -61,6 +62,10 @@ type webConfigDoc struct {
 	// printing it to a Linux reader is simply wrong. Absent (static export,
 	// hosted demo) means "unknown", and the UI then names no command.
 	OS string `json:"os,omitempty"`
+	// WorkspaceKind is origin.Describe's kind: "connected" or "standalone".
+	// Always sent. The UI must not infer this from an empty site URL — a
+	// hosted demo and an older document also have no site.
+	WorkspaceKind string `json:"workspaceKind"`
 }
 
 // webConfig is the credential-free projection of the configuration. Site is the
@@ -73,6 +78,7 @@ func webConfig(cfg *config.Config) webConfigDoc {
 	if stale <= 0 {
 		stale = defaultStaleHours
 	}
+	kind, _ := origin.Describe(cfg)
 	return webConfigDoc{
 		APIBase:             apiBase,
 		AuthBase:            authBase,
@@ -87,6 +93,7 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		ConfluenceEnabled:   cfg.Confluence != nil,
 		Profile:             profileDisplay(config.Profile()),
 		OS:                  runtime.GOOS,
+		WorkspaceKind:       kind,
 	}
 }
 
@@ -130,14 +137,14 @@ type settingsConfluenceDoc struct {
 // settingsDoc is everything the settings UI may read and write. The credential
 // block (email, token) is absent by construction, not by filtering.
 type settingsDoc struct {
-	Projects             []string                  `json:"projects"`
-	FieldMap             map[string]string         `json:"fieldMap"`
-	BodyFields           []string                  `json:"bodyFields"`
-	EditableFields       map[string]string         `json:"editableFields"`
-	Members              []config.Member           `json:"members"`
-	GroupRules           []config.GroupRule        `json:"groupRules"`
+	Projects       []string           `json:"projects"`
+	FieldMap       map[string]string  `json:"fieldMap"`
+	BodyFields     []string           `json:"bodyFields"`
+	EditableFields map[string]string  `json:"editableFields"`
+	Members        []config.Member    `json:"members"`
+	GroupRules     []config.GroupRule `json:"groupRules"`
 	// Pointer so an older PUT that omits the key cannot wipe a stored query.
-	GroupQuery *string `json:"groupQuery,omitempty"`
+	GroupQuery           *string                   `json:"groupQuery,omitempty"`
 	GroupLabels          map[string]string         `json:"groupLabels"`
 	GroupColors          map[string]string         `json:"groupColors"`
 	ProductByGroup       map[string]config.Product `json:"productByGroup"`
