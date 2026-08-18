@@ -323,13 +323,21 @@ jobs:
           & (Join-Path $bundle.FullName 'gadak.exe') version
           if ($LASTEXITCODE -ne 0) { throw "gadak.exe version exited $LASTEXITCODE" }
           Write-Host "windows pack tree — ok"
+          exit 0
 
+      # In a child process, not in this step's own runspace: a non-zero
+      # $LASTEXITCODE left behind at the end of a pwsh step is what the runner
+      # reads as the step's result, so checking it in place fails the job even
+      # when the assertion passed. A child process also runs the script the way
+      # a person would.
       - name: Bad arguments exit 64
         shell: pwsh
         run: |
-          ./desktop/build-windows.ps1 --nope 2>$null
-          if ($LASTEXITCODE -ne 64) { throw "bad argument exited $LASTEXITCODE, want 64" }
+          $p = Start-Process -FilePath pwsh -NoNewWindow -Wait -PassThru `
+            -ArgumentList '-NoProfile', '-File', './desktop/build-windows.ps1', '--nope'
+          if ($p.ExitCode -ne 64) { throw "bad argument exited $($p.ExitCode), want 64" }
           Write-Host "exit-code contract — ok"
+          exit 0
 
       # install-cli copies on Windows because a symlink needs elevation. Only
       # a Windows runner can show that the copy actually lands and runs.
@@ -349,3 +357,4 @@ jobs:
           & (Join-Path $bundle.FullName 'gadak.exe') install-cli --dir $dest
           if ($LASTEXITCODE -ne 0) { throw "second install-cli exited $LASTEXITCODE" }
           Write-Host "install-cli copy path — ok"
+          exit 0
