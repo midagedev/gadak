@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 )
 
 // clearCredentialEnv treats every GADAK_* / SCRY_* init source as unset.
@@ -942,5 +943,65 @@ func TestSQLUnknownProfileDoesNotCreate(t *testing.T) {
 	}
 	if _, statErr := os.Stat(filepath.Join(home, "profiles", "nosuch")); !os.IsNotExist(statErr) {
 		t.Fatalf("must not create profile dir; stat=%v", statErr)
+	}
+}
+
+// TestInitConvertingEmptyStandaloneDropsSeededSpace guards the half of "a
+// workspace is bound to one origin" that the --replace-standalone flag does not
+// cover. An *empty* standalone workspace is deliberately allowed to convert
+// without that flag (refuseStandaloneReplace returns nil at n==0), so a guard
+// keyed on the flag leaves the seeded issuetap space (LOC) in the config of a
+// now-connected workspace — and the wiki pass then asks a real Atlassian site
+// for a space that only ever existed in the in-process origin.
+func TestInitConvertingEmptyStandaloneDropsSeededSpace(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	// origin keeps live in-process sessions in a process-global map, and a
+	// standalone init opens one. Left behind, its debounced snapshot flush
+	// targets a TempDir that has already been removed, and the *next* test in
+	// this package to call origin.Close() is the one that fails.
+	t.Cleanup(func() { _ = origin.Close() })
+
+	withClosedStdin(t, func() {
+		if _, err := capture(t, func() error {
+			return cmdInit([]string{"--standalone", "--json"})
+		}); err != nil {
+			t.Fatalf("standalone init: %v", err)
+		}
+	})
+	seeded, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seeded.Confluence == nil || len(seeded.Confluence.Spaces) == 0 {
+		t.Fatalf("standalone init should seed a wiki space, got %+v", seeded.Confluence)
+	}
+
+	// No --replace-standalone: the workspace holds no locally originated
+	// issues, so this conversion is allowed through.
+	srv := myselfServer(t)
+	withClosedStdin(t, func() {
+		if _, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "convert@example.com",
+				"--token-file", writeTokenFile(t, home, "test-token"),
+				"--json",
+			})
+		}); err != nil {
+			t.Fatalf("convert: %v", err)
+		}
+	})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IsStandalone() {
+		t.Fatalf("converted workspace still reports standalone: kind=%q", cfg.Kind)
+	}
+	if cfg.Confluence != nil {
+		t.Fatalf("seeded standalone space survived the conversion: %+v", cfg.Confluence)
 	}
 }

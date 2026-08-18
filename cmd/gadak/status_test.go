@@ -104,3 +104,113 @@ func TestStatusSurfacesConfigLoadError(t *testing.T) {
 		t.Fatalf("config_error must name the path, got %q", ce)
 	}
 }
+
+func TestStatusJSONWikiPathStandaloneOn(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cfg := &config.Config{
+		Kind:       config.KindStandalone,
+		Confluence: &config.ConfluenceConfig{Spaces: []string{"LOC"}},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v", err)
+	}
+	var doc struct {
+		Pages int `json:"pages"`
+		Wiki  struct {
+			Path   string `json:"path"`
+			Reason string `json:"reason"`
+		} `json:"wiki"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if doc.Wiki.Path != "on" {
+		t.Fatalf("wiki.path = %q, want on; body %s", doc.Wiki.Path, out)
+	}
+	if doc.Wiki.Reason != "" {
+		t.Fatalf("wiki.reason = %q, want empty when on", doc.Wiki.Reason)
+	}
+	if strings.Contains(out, "token") && strings.Contains(strings.ToLower(out), "secret") {
+		t.Fatalf("status leaked a credential-shaped field: %s", out)
+	}
+}
+
+func TestStatusJSONWikiPathSkippedWhenNotConfigured(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cfg := &config.Config{
+		Kind: config.KindStandalone,
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v", err)
+	}
+	var doc struct {
+		Wiki struct {
+			Path   string `json:"path"`
+			Reason string `json:"reason"`
+		} `json:"wiki"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if doc.Wiki.Path != "skipped" {
+		t.Fatalf("wiki.path = %q, want skipped; body %s", doc.Wiki.Path, out)
+	}
+	if doc.Wiki.Reason != "sync: confluence is not configured" {
+		t.Fatalf("wiki.reason = %q", doc.Wiki.Reason)
+	}
+}
+
+func TestStatusJSONWikiPathConnectedOn(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cfg := &config.Config{
+		Site:       "https://example.invalid",
+		Email:      "user@example.invalid",
+		Token:      "status-test-token",
+		Confluence: &config.ConfluenceConfig{Spaces: []string{"ENG"}},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v", err)
+	}
+	if strings.Contains(out, "status-test-token") {
+		t.Fatalf("token leaked in status --json: %s", out)
+	}
+	var doc struct {
+		Wiki struct {
+			Path   string `json:"path"`
+			Reason string `json:"reason"`
+		} `json:"wiki"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if doc.Wiki.Path != "on" {
+		t.Fatalf("wiki.path = %q, want on; body %s", doc.Wiki.Path, out)
+	}
+}

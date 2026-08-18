@@ -206,6 +206,9 @@ Empty `spaces` means every *global* space; personal spaces only if named.
 pages (current version, comments, labels) alongside issues —
 `--source jira|confluence|all` narrows a run. Pages land in the same FTS index,
 the sidebar grows a DOCS tree, and search answers across both.
+`gadak init --standalone` writes `confluence.spaces` as `["LOC"]` (the space
+the in-process origin seeds) so the wiki pass is on for a new standalone
+workspace.
 
 ## Two sites at once
 

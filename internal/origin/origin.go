@@ -29,7 +29,7 @@ const DefaultProjectKey = "STD"
 // display name, and not a site-specific key.
 const DefaultSpaceKey = "LOC"
 
-// DefaultConfluenceConfig is what initStandalone should write so the wiki
+// DefaultConfluenceConfig is what initStandalone writes so the wiki
 // sync pass is on and scoped to the seeded space. Presence of the block is
 // the on switch (internal/sync/confluence.go).
 func DefaultConfluenceConfig() *config.ConfluenceConfig {

@@ -12,6 +12,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -38,6 +39,18 @@ const pageBatchSize = 50
 // A failure leaves already-committed batches in place.
 func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
 	var c *confluence.Client
+	// Acquire the wiki client before runSource so a failure can skip this
+	// pass without becoming the caller's error. Issue sync is a different
+	// function (Run); returning err here used to look like "the sync failed"
+	// even when only the wiki side could not start.
+	if opts.ConfluenceClient == nil && cfg != nil && cfg.Confluence != nil {
+		w, err := origin.Wiki(cfg)
+		if err != nil {
+			opts.logf("confluence: skip wiki pass: %v", err)
+			return Result{}, nil
+		}
+		opts.ConfluenceClient = w
+	}
 	return runSource(ctx, cfg, db, opts,
 		sourceIdent{ID: ConfluenceSourceID, Kind: "confluence"},
 		// Space-scope prune is the Confluence reconcile. The flag only suffixes
@@ -50,7 +63,14 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 			}
 			c = opts.ConfluenceClient
 			if c == nil {
-				c = confluence.New(cfg.Site, cfg.Email, cfg.Token)
+				var err error
+				c, err = origin.Wiki(cfg)
+				if err != nil {
+					// Pre-acquire above already skipped this case. Keep the
+					// same skip if a caller reaches here without it.
+					opts.logf("confluence: skip wiki pass: %v", err)
+					return "", nil, err
+				}
 			}
 			return c.BaseURL(), c, nil
 		},

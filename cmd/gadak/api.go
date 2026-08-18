@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
-	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/origin"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -107,7 +106,10 @@ func cmdAPI(args []string) error {
 			return errors.New("Confluence is not enabled for this profile — set confluence in config (or enable it in the web UI) before calling /wiki/ paths; gadak will not use the wiki API against a source you left off")
 		}
 		// Client base is already …/wiki; strip the routing prefix.
-		cc := confluence.New(cfg.Site, cfg.Email, cfg.Token)
+		cc, werr := origin.Wiki(cfg)
+		if werr != nil {
+			return werr
+		}
 		status, out, err = cc.Raw(ctx, method, stripWikiPrefix(path), body, mutating)
 		if db, oerr := openStore(); oerr != nil {
 			log.Printf("api usage flush: %v", oerr)

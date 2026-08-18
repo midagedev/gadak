@@ -165,6 +165,12 @@ func cmdInit(args []string) error {
 		return initStandalone(cfg, *jsonOut, *projectsFlag)
 	}
 
+	// Whether this run is converting a standalone workspace, captured before
+	// cfg.Kind is cleared below. The seeded wiki space must be dropped on
+	// every such conversion, not only the --replace-standalone one: an empty
+	// standalone workspace is allowed through without that flag.
+	wasStandalone := cfg.IsStandalone()
+
 	// Close the class "a command silently changes which origin owns this
 	// workspace". An empty standalone workspace is not a hazard; one that
 	// holds locally originated issues is (GDK-238).
@@ -308,6 +314,15 @@ func cmdInit(args []string) error {
 	cfg.Projects = projects
 	// Reached only after RefuseReplace (or --replace-standalone).
 	originbind.ClearStandalone(cfg)
+	// A workspace is bound to one origin. initStandalone writes the seeded
+	// space (LOC) so the wiki pass is on; that key is not a Cloud space, so
+	// converting to a connected origin drops it. Keyed on wasStandalone, not
+	// on --replace-standalone: the empty-workspace path reaches here without
+	// that flag and would otherwise ask a real site for a space named LOC.
+	// --spaces still owns the connected wiki scope below (untouched).
+	if wasStandalone && *spacesFlag == "" {
+		cfg.Confluence = nil
+	}
 
 	// Confluence: flag absent leaves the section untouched.
 	if *spacesFlag != "" {
@@ -388,6 +403,8 @@ func cmdInit(args []string) error {
 // initStandalone writes a workspace that is not bound to a Jira site.
 // No /myself call: there is no credential. The origin snapshot is created
 // on first origin.Client (PersistPath under the profile directory).
+// DefaultConfluenceConfig turns the wiki sync pass on and scopes it to the
+// space the standalone origin seeds.
 func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error {
 	cfg.Kind = config.KindStandalone
 	cfg.Site = ""
@@ -398,7 +415,7 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 	cfg.TokenExpiresAt = ""
 	cfg.TokenExpirySource = ""
 	cfg.AccountID = ""
-	cfg.Confluence = nil
+	cfg.Confluence = origin.DefaultConfluenceConfig()
 	if projectsFlag != "" {
 		cfg.Projects = parseProjectKeys(projectsFlag)
 	}
