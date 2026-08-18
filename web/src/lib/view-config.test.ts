@@ -4,12 +4,16 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import { en } from './i18n/en'
 import { ko } from './i18n/ko'
+import type { IssueLite } from './types'
 import {
   KEYS_CAP,
   configToParams,
   defaultGroupBy,
+  effectiveCategory,
   emptyConfig,
+  isReopen,
   matchesIdFirst,
+  missingStatusCategorySeen,
   normalizeKeys,
   orderColumns,
   parseConfig,
@@ -392,5 +396,89 @@ describe('GDK-35 keys cap', () => {
     expect(ko['filter.keysCapped']).toContain('{shown}')
     expect(ko['filter.keysCapped']).toContain('키')
     expect(ko['filter.keysCapped']).not.toContain('이슈')
+  })
+})
+
+function issueRow(status: string, status_category: string): IssueLite {
+  return { status, status_category } as IssueLite
+}
+
+describe('effectiveCategory (GDK-272)', () => {
+  test('trusted category is returned as-is', () => {
+    expect(effectiveCategory(issueRow('Anything', 'new'))).toBe('new')
+    expect(effectiveCategory(issueRow('Anything', 'inprogress'))).toBe('inprogress')
+    expect(effectiveCategory(issueRow('Anything', 'done'))).toBe('done')
+  })
+
+  test("empty category + status 완료 is not 'done'", () => {
+    expect(effectiveCategory(issueRow('완료', ''))).not.toBe('done')
+  })
+
+  test("empty category + status Done is not 'done'", () => {
+    expect(effectiveCategory(issueRow('Done', ''))).not.toBe('done')
+  })
+
+  test("empty category + status Shipped is not 'done'", () => {
+    expect(effectiveCategory(issueRow('Shipped', ''))).not.toBe('done')
+  })
+
+  test('empty category increments missingStatusCategorySeen', () => {
+    const before = missingStatusCategorySeen()
+    effectiveCategory(issueRow('완료', ''))
+    expect(missingStatusCategorySeen()).toBe(before + 1)
+  })
+
+  test('trusted category does not increment missingStatusCategorySeen', () => {
+    const before = missingStatusCategorySeen()
+    effectiveCategory(issueRow('완료', 'done'))
+    expect(missingStatusCategorySeen()).toBe(before)
+  })
+})
+
+describe('isReopen (GDK-272)', () => {
+  test('done-category → non-done is a reopen', () => {
+    expect(isReopen({ field: 'status', from_category: 'done', to_category: 'inprogress' })).toBe(true)
+    expect(isReopen({ field: 'status', from_category: 'done', to_category: 'new' })).toBe(true)
+  })
+
+  test('non-done → done is not a reopen', () => {
+    expect(isReopen({ field: 'status', from_category: 'inprogress', to_category: 'done' })).toBe(false)
+  })
+
+  test('non-status field is never a reopen', () => {
+    expect(isReopen({ field: 'assignee', from_category: 'done', to_category: 'inprogress' })).toBe(false)
+  })
+
+  test('both categories empty is not a reopen, even when names look resolved', () => {
+    const korean = {
+      field: 'status',
+      from: '완료',
+      to: '진행 중',
+      from_category: null as string | null,
+      to_category: null as string | null,
+    }
+    const english = {
+      field: 'status',
+      from: 'Done',
+      to: 'To Do',
+      from_category: '',
+      to_category: '',
+    }
+    const custom = {
+      field: 'status',
+      from: 'Shipped',
+      to: 'To Do',
+      from_category: null as string | null,
+      to_category: null as string | null,
+    }
+    expect(isReopen(korean)).toBe(false)
+    expect(isReopen(english)).toBe(false)
+    expect(isReopen(custom)).toBe(false)
+  })
+
+  test('empty categories increment missingStatusCategorySeen', () => {
+    const before = missingStatusCategorySeen()
+    isReopen({ field: 'status', from_category: null, to_category: null })
+    expect(missingStatusCategorySeen()).toBe(before + 1)
   })
 })

@@ -2,28 +2,14 @@
   /*
    * Change history timeline ([detail]).
    * Compact status/assignee/priority changes (from→to, by, relative time).
-   * Reopen (resolved → unresolved status transition) gets a red point.
+   * Reopen (done-category → non-done) gets a red point.
    */
   import { t } from '../../lib/i18n'
   import type { HistoryEntry } from '../../lib/types'
-  import { RESOLVED_STATUS_NAMES } from '../../lib/view-config'
+  import { isReopen } from '../../lib/view-config'
   import { relativeTime, absoluteTime } from './format'
 
   let { history }: { history: HistoryEntry[] } = $props()
-
-  function isResolved(s: string | null): boolean {
-    return !!s && RESOLVED_STATUS_NAMES.has(s.trim().toLowerCase())
-  }
-
-  /**
-   * Is this status transition a reopen (resolved→unresolved)? Prefer server
-   * before/after categories; only fall back to status names (locale-dependent).
-   */
-  function isReopen(e: HistoryEntry): boolean {
-    if (e.field !== 'status') return false
-    if (e.from_category || e.to_category) return e.from_category === 'done' && e.to_category !== 'done'
-    return isResolved(e.from) && !isResolved(e.to)
-  }
 
   /** Field label (via i18n). */
   function fieldLabel(f: string): string {
