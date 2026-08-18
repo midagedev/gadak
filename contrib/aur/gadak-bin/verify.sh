@@ -77,7 +77,13 @@ fi
 # deps, then drops to `build` because makepkg refuses to run as root.
 inner='
 set -euo pipefail
-pacman -Sy --noconfirm --needed --disable-sandbox base-devel namcap sudo >/dev/null
+# -Syu, never -Sy: Arch does not support partial upgrades. The image ships a
+# package database snapshot, and installing against a synced db without
+# upgrading resolves versions the mirrors have already rotated out —
+# "failed retrieving file elfutils-0.195-8-x86_64.pkg.tar.zst : 404", which
+# is what this script did on its first CI run while passing locally forty
+# minutes earlier. The window between the two is the whole bug.
+pacman -Syu --noconfirm --needed --disable-sandbox base-devel namcap sudo >/dev/null
 useradd -m build
 echo "build ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/build
 install -d -o build /work
