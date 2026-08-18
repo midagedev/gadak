@@ -36,6 +36,10 @@ trap 'rm -f "$hits_file" "$text_list"' EXIT
 
 # User API tokens / org API keys from Atlassian.
 PAT_TOKEN='ATATT[A-Za-z0-9+/=_-]{20,}|ATCTT[A-Za-z0-9+/=_-]{20,}'
+# Linear personal API key. Kept as its own variable, not folded into
+# PAT_TOKEN, because internal/secretscan asserts PAT_TOKEN equals its
+# atlassian_api_token regex exactly.
+PAT_LINEAR='lin_api_[A-Za-z0-9]{20,}'
 PAT_HOST='atlassian\.net'
 
 # Deployment-specific words, resolved from outside this file (see header).
@@ -114,7 +118,7 @@ fi
 
 if [[ -s "$text_list" ]]; then
   # shellcheck disable=SC2046
-  grep -nHE "$PAT_TOKEN" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
+  grep -nHE "$PAT_TOKEN|$PAT_LINEAR" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
   if [[ -n "$PAT_COMPANY" ]]; then
     # shellcheck disable=SC2046
     grep -niHE "$PAT_COMPANY" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
@@ -128,7 +132,7 @@ if [[ -f examples/demo.db ]]; then
   echo "==> scanning strings in examples/demo.db"
   tmp_strings="$(mktemp)"
   strings examples/demo.db >"$tmp_strings"
-  grep -nE "$PAT_TOKEN" "$tmp_strings" 2>/dev/null \
+  grep -nE "$PAT_TOKEN|$PAT_LINEAR" "$tmp_strings" 2>/dev/null \
       | sed 's|^|examples/demo.db:strings:|' >>"$hits_file" || true
   if [[ -n "$PAT_COMPANY" ]]; then
     grep -niE "$PAT_COMPANY" "$tmp_strings" 2>/dev/null \

@@ -6,8 +6,8 @@
 // those surfaces have nothing else in common. Whichever one had owned the
 // patterns would have become an accidental dependency of the others.
 //
-// The Atlassian token patterns must not disagree with scripts/scan-internal.sh,
-// which guards the repository itself.
+// The Atlassian and Linear token patterns must not disagree with
+// scripts/scan-internal.sh, which guards the repository itself.
 package secretscan
 
 import "regexp"
@@ -21,6 +21,11 @@ var patterns = []struct {
 	{"http_bearer_token", regexp.MustCompile(`(?i)Authorization:\s*Bearer\s+[A-Za-z0-9._-]{20,}`)},
 	{"slack_token", regexp.MustCompile(`xox[baprs]-[A-Za-z0-9-]{10,}`)},
 	{"github_token", regexp.MustCompile(`\b(?:ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}`)},
+	// Linear personal API key (Settings > Security & access). Added when a real
+	// one first entered this machine for the GDK-263 connector work: a tracker
+	// gadak may one day mirror is exactly the kind of credential that ends up
+	// pasted into a fixture, and the scanners had no shape for it.
+	{"linear_api_key", regexp.MustCompile(`lin_api_[A-Za-z0-9]{20,}`)},
 	{"private_key_pem", regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)},
 }
 
