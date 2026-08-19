@@ -3,11 +3,121 @@ import {
   DETAIL_TESTID,
   NARROW_FIELD_TESTID,
   isBootHoldKey,
+  isEditableTarget,
+  isEnterActivatingTarget,
   keyContext,
   narrowFieldTestId,
   replayHeldListKeys,
   resolveGlobalKey,
 } from './keymap.svelte'
+
+type EnterWant = 'ignore' | 'open-cursor'
+
+/** Duck-typed event target so the table runs in the node vitest project. */
+function fakeTarget(
+  tag: string,
+  attrs: Record<string, string> = {},
+  extra: { isContentEditable?: boolean; parent?: EventTarget | null } = {},
+): EventTarget {
+  return {
+    tagName: tag.toUpperCase(),
+    isContentEditable: Boolean(extra.isContentEditable),
+    parentElement: extra.parent ?? null,
+    getAttribute: (name: string) => (name in attrs ? attrs[name] : null),
+    hasAttribute: (name: string) => name in attrs,
+  } as unknown as EventTarget
+}
+
+function resolveEnterOn(row: { target: EventTarget }) {
+  return resolveGlobalKey(
+    keyContext({
+      key: 'Enter',
+      listActive: true,
+      cursorKey: 'NMB-1',
+      inEditable: isEditableTarget(row.target),
+      enterActivating: isEnterActivatingTarget(row.target),
+    }),
+  )
+}
+
+const ENTER_TARGET_CASES: {
+  shape: string
+  target: EventTarget
+  inEditable: boolean
+  activates: boolean
+  want: EnterWant
+}[] = [
+  {
+    shape: 'button',
+    target: fakeTarget('button'),
+    inEditable: false,
+    activates: true,
+    want: 'ignore',
+  },
+  {
+    shape: 'span inside button',
+    target: fakeTarget('span', {}, { parent: fakeTarget('button') }),
+    inEditable: false,
+    activates: true,
+    want: 'ignore',
+  },
+  {
+    shape: 'a[href]',
+    target: fakeTarget('a', { href: '#' }),
+    inEditable: false,
+    activates: true,
+    want: 'ignore',
+  },
+  {
+    shape: 'input[type=text]',
+    target: fakeTarget('input', { type: 'text' }),
+    inEditable: true,
+    activates: false,
+    want: 'ignore',
+  },
+  {
+    shape: 'input[type=checkbox]',
+    target: fakeTarget('input', { type: 'checkbox' }),
+    inEditable: true,
+    activates: false,
+    want: 'ignore',
+  },
+  {
+    shape: 'div',
+    target: fakeTarget('div'),
+    inEditable: false,
+    activates: false,
+    want: 'open-cursor',
+  },
+  {
+    shape: 'body',
+    target: fakeTarget('body'),
+    inEditable: false,
+    activates: false,
+    want: 'open-cursor',
+  },
+  {
+    shape: 'list row',
+    target: fakeTarget('div', { 'data-issue-key': 'NMB-1', role: 'button' }),
+    inEditable: false,
+    activates: false,
+    want: 'open-cursor',
+  },
+  {
+    shape: 'role="button"',
+    target: fakeTarget('div', { role: 'button' }),
+    inEditable: false,
+    activates: false,
+    want: 'open-cursor',
+  },
+  {
+    shape: 'contenteditable',
+    target: fakeTarget('div', { contenteditable: 'true' }, { isContentEditable: true }),
+    inEditable: true,
+    activates: true,
+    want: 'ignore',
+  },
+]
 
 describe('narrow field / detail testid map', () => {
   test('testids match the nodes the shell already mounts', () => {
@@ -126,6 +236,44 @@ describe('resolveGlobalKey', () => {
     expect(resolveGlobalKey(keyContext({ key: 'Enter', cursorKey: 'NMB-1' }))).toEqual({
       type: 'ignore',
     })
+  })
+
+  /*
+   * GDK-276: Enter on a control the browser already activates must not become
+   * open-cursor. The table is the decision (target shape → ignore | open-cursor).
+   */
+  test.each(ENTER_TARGET_CASES)('Enter on $shape is $want', (row) => {
+    expect(isEditableTarget(row.target), `${row.shape} isEditableTarget`).toBe(row.inEditable)
+    expect(isEnterActivatingTarget(row.target), `${row.shape} isEnterActivatingTarget`).toBe(
+      row.activates,
+    )
+    expect(resolveEnterOn(row).type).toBe(row.want)
+  })
+
+  test('j still moves the list when a button would own Enter', () => {
+    expect(
+      resolveGlobalKey(
+        keyContext({
+          key: 'j',
+          listActive: true,
+          cursorKey: 'NMB-1',
+          enterActivating: true,
+        }),
+      ),
+    ).toEqual({ type: 'move-list', dir: 1 })
+  })
+
+  test('paletteOpen and inEditable still swallow Enter (search / palette)', () => {
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: 'Enter', listActive: true, cursorKey: 'NMB-1', paletteOpen: true }),
+      ),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: 'Enter', listActive: true, cursorKey: 'NMB-1', inEditable: true }),
+      ),
+    ).toEqual({ type: 'ignore' })
   })
 
   test('Escape: browse, then menu (pass), then bulk, then detail', () => {
