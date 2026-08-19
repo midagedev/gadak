@@ -12,10 +12,20 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
 )
+
+// derivedInFlight is how many derived() rebuilds are running outside s.mu.
+// Package-level so we do not add a field on server (server.go is owned by
+// another round). Same shape as store.WriteBusyRetries.
+var derivedInFlight atomic.Int64
+
+// DerivedInFlight is how many derived() rebuilds are running outside s.mu.
+// Same shape as store.WriteBusyRetries: a cheap accessor, no logs.
+func DerivedInFlight() int64 { return derivedInFlight.Load() }
 
 /* ── response shapes ──
  * Field names follow web/src/lib/types.ts, which is what the client actually
@@ -564,16 +574,37 @@ type derivedView struct {
 	bodyAliases map[string]bool
 }
 
+// testBeforeDerived, if set, runs after the cache-miss check and before
+// IssueLites / buildView. Tests use it as a barrier to prove s.mu is not
+// held across the rebuild. Production is nil (one pointer compare on miss).
+var testBeforeDerived func()
+
 // derived returns the cached view for this sync version, rebuilding it when
 // stale. lites may be nil, in which case it scans; bootstrap passes the rows it
 // already read so the mirror is scanned once per request, not twice.
+//
+// s.mu contract: no IO under this lock. The critical section is the
+// cached-view pointer; IssueLites, EnrichmentsByKind, GroupQueryHits, and
+// buildView run with the lock released. This is the HTTP list path — one
+// cache miss must not serialise every other derived caller. (The field
+// itself lives on server in server.go; this is the only writer.)
 func (s *server) derived(ctx context.Context, version int64, lites []store.IssueLite) (*derivedView, error) {
 	key := fmt.Sprintf("%d:%d", version, s.gen.Load())
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.cached != nil && s.cached.key == key {
-		return s.cached, nil
+		v := s.cached
+		s.mu.Unlock()
+		return v, nil
 	}
+	s.mu.Unlock()
+
+	if testBeforeDerived != nil {
+		testBeforeDerived()
+	}
+
+	derivedInFlight.Add(1)
+	defer derivedInFlight.Add(-1)
+
 	if lites == nil {
 		var err error
 		if lites, err = s.db.IssueLites(ctx); err != nil {
@@ -584,7 +615,17 @@ func (s *server) derived(ctx context.Context, version int64, lites []store.Issue
 	if err != nil {
 		return nil, err
 	}
-	s.cached = v
+
+	s.mu.Lock()
+	if s.cached != nil && s.cached.key == key {
+		v = s.cached
+	} else {
+		live := fmt.Sprintf("%d:%d", version, s.gen.Load())
+		if s.cached == nil || key == live {
+			s.cached = v
+		}
+	}
+	s.mu.Unlock()
 	return v, nil
 }
 
