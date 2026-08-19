@@ -151,6 +151,20 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	// *all so raw carries every custom value for auto-configuration.
 	discoveryMode := len(cfg.Fields) == 0 && len(cfg.FieldMap) == 0
 
+	// Upgrade path for GDK-241: standalone mirrors written before the id
+	// namespace existed hold `jira:N` rows whose keys the pass is about to
+	// re-insert as `standalone-jira:N` — same (source_id, key), different id,
+	// which the UNIQUE(source_id, key) index rejects. The mirror is a
+	// disposable cache: drop the legacy rows and let this pass re-mirror them
+	// under the new namespace. No tombstones — the keys come right back.
+	if cfg.IsStandalone() {
+		if n, err := db.PurgeIssueIDsOutsideNamespace(ctx, SourceID, itemNS(cfg)); err != nil {
+			return record(ctx, db, SourceID, err)
+		} else if n > 0 {
+			opts.logf("purged %d pre-namespace standalone rows (GDK-241)", n)
+		}
+	}
+
 	cats, err := c.Statuses(ctx)
 	if err != nil {
 		return record(ctx, db, SourceID, err)
@@ -568,6 +582,23 @@ func reconcile(ctx context.Context, c *jira.Client, db *store.DB, projects []str
 	return db.DeleteItems(ctx, SourceID, gone)
 }
 
+// itemNS is the id namespace for mirrored issue rows. A standalone origin
+// (issuetap) issues its own numeric ids starting at 10001 — numbers a real
+// Atlassian site also uses — so its rows get a distinct prefix; without it,
+// converting the workspace (--replace-standalone) lets the connected sync's
+// ON CONFLICT(id) upsert silently overwrite a locally originated row whose
+// key differs (STD-1 vs NMB-1) but whose id collides (GDK-241). source_id
+// stays "jira" either way: ids are opaque, never parsed back. Wiki pages are
+// deliberately not namespaced — a page's key IS its external id, so the
+// colliding upsert converges to the site row and the space prune removes the
+// rest; a prefixed id there would trip UNIQUE(source_id, key) instead.
+func itemNS(cfg *config.Config) string {
+	if cfg != nil && cfg.IsStandalone() {
+		return "standalone-" + SourceID
+	}
+	return SourceID
+}
+
 // build maps one Jira issue onto the store's record, fetching the children the
 // search response truncated.
 func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Issue) (store.IssueRecord, error) {
@@ -606,7 +637,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		author = f.Reporter
 	}
 	item := store.Item{
-		ID:         SourceID + ":" + iss.ID,
+		ID:         itemNS(cfg) + ":" + iss.ID,
 		SourceID:   SourceID,
 		Kind:       "issue",
 		ExternalID: iss.ID,
@@ -672,7 +703,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	rec := store.IssueRecord{Item: item, Issue: issue}
 	for _, cm := range comments {
 		rec.Comments = append(rec.Comments, store.Comment{
-			ID:         SourceID + ":" + cm.ID,
+			ID:         itemNS(cfg) + ":" + cm.ID,
 			ExternalID: cm.ID,
 			Author:     cm.Author.DisplayName,
 			AuthorID:   cm.Author.AccountID,
@@ -684,7 +715,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	}
 	for _, at := range f.Attachment {
 		rec.Attachments = append(rec.Attachments, store.Attachment{
-			ID:         SourceID + ":" + at.ID,
+			ID:         itemNS(cfg) + ":" + at.ID,
 			ExternalID: at.ID,
 			Filename:   at.Filename,
 			MimeType:   at.MimeType,
@@ -698,7 +729,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		for i, it := range h.Items {
 			field := changelogField(it)
 			rec.Changelog = append(rec.Changelog, store.ChangeEntry{
-				ID:        fmt.Sprintf("%s:%s:%d", SourceID, h.ID, i),
+				ID:        fmt.Sprintf("%s:%s:%d", itemNS(cfg), h.ID, i),
 				At:        jira.ISOTime(h.Created),
 				Author:    h.Author.DisplayName,
 				AuthorID:  h.Author.AccountID,

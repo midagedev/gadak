@@ -34,6 +34,14 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 	}
 	// Write-through can run before the first full sync (standalone create is
 	// the case that made this visible). items.source_id references sources.id.
+	// Same GDK-241 upgrade purge as runJiraPass: a write-back to an existing
+	// issue re-mirrors it under the namespaced id, which UNIQUE(source_id,
+	// key) rejects while the pre-namespace row is still in the mirror.
+	if cfg.IsStandalone() {
+		if _, err := db.PurgeIssueIDsOutsideNamespace(ctx, SourceID, itemNS(cfg)); err != nil {
+			return err
+		}
+	}
 	if err := db.UpsertSource(ctx, store.Source{ID: SourceID, Kind: "jira", BaseURL: c.BaseURL()}); err != nil {
 		return err
 	}

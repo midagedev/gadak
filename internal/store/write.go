@@ -730,6 +730,95 @@ func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (
 	return deleted, nil
 }
 
+// PurgeIssueIDsOutsideNamespace deletes one source's issue rows whose item id
+// does not start with ns+":". Upgrade path for GDK-241: a standalone mirror
+// written before ids were namespaced holds `jira:N` rows whose keys the next
+// sync re-inserts as `standalone-jira:N` — same (source_id, key), new id —
+// which UNIQUE(source_id, key) rejects. The rows re-mirror immediately under
+// the new namespace, so no tombstones are written. Children go via
+// ON DELETE CASCADE; items_fts is contentless and needs the explicit delete.
+func (db *DB) PurgeIssueIDsOutsideNamespace(ctx context.Context, sourceID, ns string) (int, error) {
+	purged := 0
+	err := db.write(ctx, func(tx *sql.Tx) error {
+		purged = 0
+		rows, err := tx.Query(`SELECT id, rowid FROM items WHERE source_id = ? AND kind = 'issue' AND id NOT LIKE ? ESCAPE '\'`,
+			sourceID, likeEscape(ns+":")+"%")
+		if err != nil {
+			return err
+		}
+		type row struct {
+			id    string
+			rowid int64
+		}
+		var stale []row
+		for rows.Next() {
+			var r row
+			if err := rows.Scan(&r.id, &r.rowid); err != nil {
+				rows.Close()
+				return err
+			}
+			stale = append(stale, r)
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		for _, r := range stale {
+			if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, r.rowid); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(`DELETE FROM items WHERE id = ?`, r.id); err != nil {
+				return err
+			}
+			purged++
+		}
+		if purged == 0 {
+			return nil
+		}
+		return bumpVersion(tx, sourceID, db.schemaVersion)
+	})
+	return purged, err
+}
+
+// DropSourceMirror deletes everything one source mirrored: its items (and
+// their cascaded children), FTS rows, spaces, tombstones, and sync state —
+// so the next sync starts full against the new origin. Used when a
+// standalone workspace converts to connected (GDK-241): the old origin's
+// rows share the connected id space (pre-namespace mirrors literally, pages
+// by design), so the disposable cache is dropped whole rather than
+// reconciled row by row. saved_views, watches, favorites, and local.db are
+// untouched.
+func (db *DB) DropSourceMirror(ctx context.Context, sourceID string) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
+		// items_fts is contentless (no triggers): clear its rows before the
+		// cascade removes the items they mirror.
+		if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid IN (SELECT rowid FROM items WHERE source_id = ?)`, sourceID); err != nil {
+			return err
+		}
+		// Cascades items → issues/comments/attachments/changelog/pages, and
+		// source_queries.
+		if _, err := tx.Exec(`DELETE FROM sources WHERE id = ?`, sourceID); err != nil {
+			return err
+		}
+		for _, q := range []string{
+			`DELETE FROM deleted_items WHERE source_id = ?`,
+			`DELETE FROM spaces WHERE source_id = ?`,
+			`DELETE FROM sync_state WHERE source_id = ?`,
+		} {
+			if _, err := tx.Exec(q, sourceID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// likeEscape escapes LIKE metacharacters so a namespace prefix matches
+// literally (ESCAPE '\').
+func likeEscape(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
+}
+
 // bumpVersion advances the counter the read API turns into an ETag. It moves on
 // every write that changed mirrored rows and on nothing else, so an unchanged
 // sync leaves it alone.

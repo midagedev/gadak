@@ -19,6 +19,7 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/originbind"
 	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
 // tokenTrapHint is what the interactive prompt says before asking for a token.
@@ -67,9 +68,9 @@ func parseCSVKeys(s string, upper bool) []string {
 }
 
 // replaceStandaloneUsage is the --replace-standalone help text. It names
-// what is lost: locally originated issues have no Jira copy, and a later
-// sync treats them as upstream deletions.
-const replaceStandaloneUsage = "replace this standalone workspace with a Jira site; locally originated issues exist only here and a later sync will delete them from the mirror"
+// what is lost: locally originated issues have no Jira copy, and the
+// conversion drops them from the mirror (GDK-241).
+const replaceStandaloneUsage = "replace this standalone workspace with a Jira site; locally originated issues exist only here and converting deletes them from the mirror"
 
 // renderReplaceRefusedJSON writes the --json document for a refused
 // standalone replace. Shape and field values match the previous
@@ -322,6 +323,28 @@ func cmdInit(args []string) error {
 	// --spaces still owns the connected wiki scope below (untouched).
 	if wasStandalone && *spacesFlag == "" {
 		cfg.Confluence = nil
+	}
+	// Converting drops the old origin's mirror whole (GDK-241): a mirror
+	// written by a pre-namespace build holds `jira:N` rows the new site's
+	// upsert would silently overwrite on an id collision, and namespaced
+	// rows would only leave via reconcile. The mirror is a disposable
+	// cache — the first connected sync refills it, and the cleared
+	// sync_state watermark makes that sync full. Runs before Save so a
+	// failed init leaves the workspace standalone with a refillable mirror.
+	if wasStandalone {
+		db, err := openStore()
+		if err != nil {
+			return err
+		}
+		for _, src := range []string{syncer.SourceID, syncer.ConfluenceSourceID} {
+			if err := db.DropSourceMirror(context.Background(), src); err != nil {
+				_ = db.Close()
+				return fmt.Errorf("drop standalone mirror: %w", err)
+			}
+		}
+		if err := db.Close(); err != nil {
+			return err
+		}
 	}
 
 	// Confluence: flag absent leaves the section untouched.
