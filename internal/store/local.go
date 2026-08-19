@@ -227,7 +227,7 @@ func OpenReadOnly(path string) (*sql.DB, error) {
 	if err := EnsureLocal(path); err != nil {
 		log.Printf("store: local.db: %v", err)
 	}
-	return sql.Open("sqlite", "file:"+path+"?mode=ro")
+	return sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=busy_timeout(5000)")
 }
 
 // VisitKind is visits.kind / searches.opened_kind: "issue" or "page".

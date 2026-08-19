@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -35,7 +36,8 @@ type DB struct {
 	path          string
 	schemaVersion int
 
-	mu sync.Mutex // single-writer discipline, see write()
+	mu               sync.Mutex // process-local writer serialisation, see write()
+	writeBusyRetries atomic.Uint64
 }
 
 // Now returns UTC now in config.ISOMilli. The server hands this value to
@@ -55,12 +57,7 @@ func Open(path string) (*DB, error) {
 			return nil, err
 		}
 	}
-	dsn := "file:" + path + "?" + strings.Join([]string{
-		"_pragma=busy_timeout(5000)",
-		"_pragma=journal_mode(WAL)",
-		"_pragma=foreign_keys(1)",
-		"_pragma=synchronous(NORMAL)",
-	}, "&")
+	dsn := mirrorDSN(path)
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
@@ -163,11 +160,95 @@ func (db *DB) migrate() error {
 	})
 }
 
-// write runs fn in a transaction. One mutex is the whole single-writer story:
-// concurrent writers under WAL would just trade this lock for SQLITE_BUSY.
+// mirrorDSN is the Open DSN. _txlock=immediate makes BeginTx take the write
+// lock up front so a read-then-write callback cannot upgrade a deferred
+// transaction (that upgrade returns SQLITE_BUSY without consulting
+// busy_timeout). modernc.org/sqlite v1.56.0: driver.go documents _txlock,
+// sqlite.go stores it as conn.beginMode, tx.go issues "begin "+beginMode.
+func mirrorDSN(path string) string {
+	return "file:" + path + "?" + strings.Join([]string{
+		"_pragma=busy_timeout(5000)",
+		"_pragma=journal_mode(WAL)",
+		"_pragma=foreign_keys(1)",
+		"_pragma=synchronous(NORMAL)",
+		"_txlock=immediate",
+	}, "&")
+}
+
+// writeBusyAttempts is 2 because each attempt can already block for the 5s
+// busy_timeout. One retry covers SQLITE_BUSY_SNAPSHOT (which does not wait)
+// and a writer that dropped the lock on the timeout edge. A third attempt
+// would stack another 5s onto a request that already waited 10s.
+const writeBusyAttempts = 2
+
+// writeBusyBackoff is 1% of busy_timeout(5000). Code 5 has already waited 5s;
+// code 517 returns immediately and needs a beat for the other transaction
+// to commit.
+const writeBusyBackoff = 50 * time.Millisecond
+
+// sqliteCodeError is the modernc.org/sqlite v1.56.0 *Error surface: Code()
+// returns the SQLite result code. That driver's Error() string appends
+// " (SQLITE_BUSY)" only for primary 5, so 517 is "database is locked (517)"
+// with no suffix — do not match the prose.
+type sqliteCodeError interface {
+	error
+	Code() int
+}
+
+func sqliteBusy(err error) bool {
+	var se sqliteCodeError
+	if !errors.As(err, &se) {
+		return false
+	}
+	switch se.Code() {
+	case 5: // SQLITE_BUSY
+		return true
+	case 517: // SQLITE_BUSY_SNAPSHOT
+		return true
+	default:
+		return false
+	}
+}
+
+func retryBusy(ctx context.Context, retries *atomic.Uint64, fn func() error) error {
+	var last error
+	for attempt := 1; attempt <= writeBusyAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		last = fn()
+		if last == nil || !sqliteBusy(last) || attempt == writeBusyAttempts {
+			return last
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		retries.Add(1)
+		timer := time.NewTimer(writeBusyBackoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return last
+}
+
+// write runs fn in a transaction. db.mu serialises writers in this process.
+// Other processes (serve, desktop, CLI, plugins) are separate connections:
+// SQLite's lock, busy_timeout, BEGIN IMMEDIATE, and a bounded SQLITE_BUSY
+// retry cover those. Short overlapping writes are fine; the failure mode this
+// retry exists for is another process holding the write lock.
 func (db *DB) write(ctx context.Context, fn func(*sql.Tx) error) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
+	return retryBusy(ctx, &db.writeBusyRetries, func() error {
+		return db.writeOnce(ctx, fn)
+	})
+}
+
+func (db *DB) writeOnce(ctx context.Context, fn func(*sql.Tx) error) error {
 	tx, err := db.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -177,6 +258,12 @@ func (db *DB) write(ctx context.Context, fn func(*sql.Tx) error) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// WriteBusyRetries is how many times write() has retried SQLITE_BUSY (5 or
+// 517) on this handle. Same shape as PoolStats: a cheap accessor, no logs.
+func (db *DB) WriteBusyRetries() uint64 {
+	return db.writeBusyRetries.Load()
 }
 
 // nz maps an absent string to SQL NULL. data-model.md defines NULL as "unknown

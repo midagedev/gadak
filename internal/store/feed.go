@@ -168,6 +168,10 @@ func (db *DB) MarkFeedRead(ctx context.Context, opts MarkFeedReadOpts) (MarkFeed
 	}
 	updated := 0
 	err = db.write(ctx, func(tx *sql.Tx) error {
+		// Reset per attempt: write() retries SQLITE_BUSY, which re-runs this
+		// callback from the start, and a counter captured out here would count
+		// the abandoned attempt's rows too (GDK-305).
+		updated = 0
 		for id := range want {
 			res, err := tx.Exec(`
 				INSERT INTO feed_reads (event_id, read_at) VALUES (?, ?)

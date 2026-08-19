@@ -36,6 +36,10 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 	}
 	changed := 0
 	err := db.write(ctx, func(tx *sql.Tx) error {
+		// Reset per attempt: write() retries SQLITE_BUSY, which re-runs this
+		// callback from the start, and a counter captured out here would count
+		// the abandoned attempt's rows too (GDK-305).
+		changed = 0
 		sources := map[string]bool{}
 		for _, r := range b.Records {
 			ok, err := upsertRecord(tx, b, r)
@@ -412,6 +416,10 @@ func (db *DB) UpsertPages(ctx context.Context, records []PageRecord) (int, error
 	}
 	changed := 0
 	err := db.write(ctx, func(tx *sql.Tx) error {
+		// Reset per attempt: write() retries SQLITE_BUSY, which re-runs this
+		// callback from the start, and a counter captured out here would count
+		// the abandoned attempt's rows too (GDK-305).
+		changed = 0
 		// known project keys once per batch for bare-text issue-key filtering
 		known, err := loadKnownProjectKeys(tx)
 		if err != nil {
@@ -668,6 +676,10 @@ func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (
 	deleted := 0
 	at := Now()
 	err := db.write(ctx, func(tx *sql.Tx) error {
+		// Reset per attempt: write() retries SQLITE_BUSY, which re-runs this
+		// callback from the start, and a counter captured out here would count
+		// the abandoned attempt's rows too (GDK-305).
+		deleted = 0
 		for _, key := range keys {
 			var id string
 			var rowid int64
