@@ -576,7 +576,9 @@ func composeServeURL(base, prefix, hash string) string {
 // has to be told which port to name. This is a pure function of the profile
 // and the hash, so an agent that built a view always has something to hand
 // over. What it does not promise is that anything will answer — that needs
-// the desktop app installed, which is macOS-only today.
+// the desktop app installed. The platforms that ship, and which of them
+// receive the deep-link event, live in the table in desktop/README.md;
+// focusDesktopApp raises on darwin and windows.
 //
 // Built from the same prefix the serve URL uses, so the two links describe
 // the same view; desktop/deeplink.go reverses exactly this.

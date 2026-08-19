@@ -6,13 +6,21 @@ listener at all**. The Wails asset server calls straight into the
 conflicts stop existing as UX. A second launch focuses the running window
 (single-instance lock) instead of hunting for a free port.
 
-Status: **macOS app bundle + signed/notarized dmg on tag releases** (arm64), on
-`wails/v3` (beta). Linux is a from-source AppImage pack (`desktop/build-linux.sh`);
-Windows is a from-source portable directory (`desktop/build-windows.ps1`).
-This tree's tag workflow does not upload the Linux or Windows packs. The module
-stays a nested Go module so the wails dependency tree and its CGO requirement
+The pack scripts on disk are the ship-shape owner; `coldStartDecisionFor` in
+`main.go` is the deep-link delivery owner (GDK-293). This table summarises
+both so the rest of the tree can point here instead of restating either.
+
+| GOOS | Pack | Shipped on tag | `ApplicationLaunchedWithUrl` |
+| --- | --- | --- | --- |
+| darwin | `desktop/build-app.sh` → `Gadak-<ver>-arm64.dmg` (signed/notarized) | yes | yes (Apple Event; argv is not applied) |
+| windows | `desktop/build-windows.ps1` → `Gadak-<ver>-windows-<x64\|arm64>.zip` (unsigned; GDK-211) | yes (from 0.16) | yes when argv is exactly one `://` argument (wails `pkg/application/application_windows.go`); otherwise argv |
+| linux | `desktop/build-linux.sh` → AppDir / AppImage | no — from-source only | no (GTK4 never emits it; argv is applied) |
+
+The in-app Jira/Confluence browse pane is still darwin-only (`embed_darwin.go`; other GOOS use the stub in `embed_other.go`).
+
+The module stays a nested Go module so the wails dependency tree and its CGO requirement
 never touch the CLI build or the non-macOS CI matrix. No `wails3` CLI: plain
-`go build`, no bindings, HTTP only.
+`go build`, no bindings, HTTP only. On `wails/v3` (beta).
 
 ## Build
 
@@ -29,7 +37,7 @@ desktop/build-linux.sh              # → desktop/build/Gadak.AppDir
 desktop/build-linux.sh --appimage   # → desktop/build/Gadak-<version>-x86_64.AppImage as well
 ```
 
-Windows (must run on Windows; see WebView2 below):
+Windows (cross-compile with `CGO_ENABLED=0`; Authenticode and a missing-WebView2 check still need a Windows host — see WebView2 below):
 
 ```powershell
 desktop/build-windows.ps1   # → desktop/build/Gadak-<version>-x64/
@@ -126,8 +134,11 @@ machine without WebView2** (that has not been done):
   (`internal/webview2/webviewloader/find_dll.go`).
 - `Chromium.errorCallback` logs the error and calls `os.Exit(1)`
   (`internal/webview2/pkg/edge/chromium.go`).
-- `gadak-desktop` does not set an `ErrorHandler`, so there is no in-app
-  download dialog — the process exits.
+- `gadak-desktop` sets `ErrorHandler: handleDesktopFatal` (`main.go`),
+  which shows a `MessageBoxW` on Windows (`fatal_windows.go`) and writes
+  stderr. wails still `os.Exit(1)` after the handler returns, so there is
+  still no download dialog — the process exits. The silent half is
+  handled; the exit is not.
 
 Install the Evergreen runtime from
 <https://developer.microsoft.com/en-us/microsoft-edge/webview2/>.
@@ -227,14 +238,14 @@ would try to self-swap.
 
 ## Known limits
 
-- No workspace switcher (`/w/<profile>/` mounts) — single profile per window.
+- Workspace switcher: `/w/<profile>/` is served from `fallbackHandler` in
+  `main.go`, and `/config.json` on that mount is stamped `desktop=true`.
+  The sidebar lists profiles when more than one exists (see `docs/DESKTOP.md`).
 - Onboarding for a machine with no credential is a separate track; until that
   lands, `gadak init` (or the bundled CLI) remains the setup path.
-- macOS is the shipped desktop artifact (signed/notarized dmg). Linux is a
-  from-source AppImage pack; Windows is a from-source unsigned portable
-  directory. This repository's tag workflow does not upload the Linux or
-  Windows packs. The in-app Jira/Confluence pane (`embed_darwin.go`) is still
-  macOS-only — other platforms get the stub in `embed_other.go`.
+- Ship shape and deep-link delivery are the platform table above. The
+  in-app Jira/Confluence pane (`embed_darwin.go`) is still macOS-only —
+  other platforms get the stub in `embed_other.go`.
 - macOS builds still need the Xcode command line tools. (The
   `UniformTypeIdentifiers` link flag `build-app.sh` used to pass by hand is
   gone — wails v3 declares that framework itself.)

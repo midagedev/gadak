@@ -33,7 +33,12 @@ exe, use the CLI zip and `gadak serve`. Do not turn Smart App Control off.
 The wording and the CLI fallback live in
 [INSTALL.md](INSTALL.md#desktop-app-windows).
 
-Intel Macs and Linux use the [CLI](../README.md#install).
+Intel Macs have no shipped dmg (tag releases are arm64 only;
+`desktop/build-app.sh` packs the host arch). Linux is a from-source
+AppDir/AppImage (`desktop/build-linux.sh`); the tag workflow does not
+upload it. Either build that pack or use the [CLI](../README.md#install).
+The platforms that ship, and which of them receive the `gadak://` event,
+are the table in [`desktop/README.md`](../desktop/README.md).
 
 First launch walks you through setup in the window — Jira site, email, API
 token (from <https://id.atlassian.com/manage-profile/security/api-tokens>),

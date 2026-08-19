@@ -30,8 +30,12 @@ import (
 //     to SecondInstanceData.Args before exiting, so it arrives in the
 //     OnSecondInstanceLaunch callback of the instance that was already up.
 //
-// Nothing here is macOS-specific in Go terms; on other platforms the events
-// simply never fire, because only the .app bundle registers a scheme.
+// Nothing here is macOS-specific in Go terms. Which GOOS emits
+// ApplicationLaunchedWithUrl is owned by coldStartDecisionFor in main.go
+// (GDK-293): Windows does, when wails sees a single "://" argument
+// (pkg/application/application_windows.go in the pinned wails module);
+// GTK4 Linux never does, so argv is applied instead. The same split is
+// in the platform table in README.md.
 
 // errUnsupportedAction reports a well-formed link naming something this build
 // does not implement. It is deliberately distinct from a malformed link: the
