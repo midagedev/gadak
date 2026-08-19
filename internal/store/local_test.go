@@ -3,6 +3,9 @@ package store
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -516,4 +519,228 @@ func TestRecordRecentRejectsEmpty(t *testing.T) {
 	if _, err := db.RecordRecent(context.Background(), "assignee", ""); err == nil {
 		t.Fatal("empty value accepted")
 	}
+}
+
+// GDK-285: re-ATTACH of schema `local` must be silent without sniffing the
+// driver's English sentence. The fake error is SQLITE_ERROR (1) with no
+// "already in use" prose — that is the sentence the old classifier keyed on.
+func TestAttachReuseIsSilent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	conn := hookConn{
+		exec: func(_ context.Context, q string, _ []driver.NamedValue) (driver.Result, error) {
+			if strings.HasPrefix(q, "ATTACH ") {
+				return nil, codeErr{code: 1, msg: "SQL logic error (1)"}
+			}
+			return driver.RowsAffected(0), nil
+		},
+		query: func(_ context.Context, q string, _ []driver.NamedValue) (driver.Rows, error) {
+			if strings.Contains(q, "database_list") {
+				return &valueRows{
+					cols: []string{"seq", "name", "file"},
+					data: [][]driver.Value{
+						{int64(0), "main", path},
+						{int64(2), "local", LocalPath(path)},
+					},
+				}, nil
+			}
+			return nil, fmt.Errorf("unexpected query %q", q)
+		},
+	}
+	before := LocalAttachReuses()
+	got := captureLog(t, func() {
+		if err := attachLocalHook(conn, "file:"+path); err != nil {
+			t.Errorf("hook: %v", err)
+		}
+	})
+	if strings.Contains(got, "ATTACH local.db") {
+		t.Fatalf("reuse path logged %q", got)
+	}
+	if LocalAttachReuses() != before+1 {
+		t.Fatalf("LocalAttachReuses %d → %d, want +1", before, LocalAttachReuses())
+	}
+
+	// Same connection, real driver: hook already attached on Open; calling it
+	// again is the re-ATTACH the production comment calls "pool reuse".
+	live, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { live.Close() })
+	live.sql.SetMaxOpenConns(1)
+	before = LocalAttachReuses()
+	got = captureLog(t, func() {
+		if err := attachLocalHook(sqlExecQuerier{live.sql}, "file:"+path); err != nil {
+			t.Errorf("live hook: %v", err)
+		}
+	})
+	if strings.Contains(got, "ATTACH local.db") {
+		t.Fatalf("live reuse path logged %q", got)
+	}
+	if LocalAttachReuses() != before+1 {
+		t.Fatalf("live LocalAttachReuses %d → %d, want +1", before, LocalAttachReuses())
+	}
+}
+
+// GDK-285: a real ATTACH failure must still be logged. Two shapes: a path
+// that cannot be attached, and an error whose prose looks like reuse while
+// PRAGMA database_list says `local` is absent (the old string sniff swallows
+// that second one).
+func TestAttachFailureIsReported(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gadak.db")
+	if err := os.Mkdir(LocalPath(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	var opened *DB
+	got := captureLog(t, func() {
+		db, err := Open(path)
+		if err != nil {
+			t.Errorf("Open must succeed without history: %v", err)
+			return
+		}
+		opened = db
+	})
+	if opened != nil {
+		opened.Close()
+	}
+	if !strings.Contains(got, "ATTACH local.db") && !strings.Contains(got, "store: local.db") {
+		t.Fatalf("unattachable path swallowed; log=%q", got)
+	}
+
+	// Error text matches the old sniff, but the schema is not attached.
+	okPath := filepath.Join(t.TempDir(), "gadak.db")
+	ready, err := Open(okPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ready.Close()
+	conn := hookConn{
+		exec: func(_ context.Context, q string, _ []driver.NamedValue) (driver.Result, error) {
+			if strings.HasPrefix(q, "ATTACH ") {
+				return nil, codeErr{code: 1, msg: "database local is already in use"}
+			}
+			return driver.RowsAffected(0), nil
+		},
+		query: func(_ context.Context, q string, _ []driver.NamedValue) (driver.Rows, error) {
+			if strings.Contains(q, "database_list") {
+				return &valueRows{
+					cols: []string{"seq", "name", "file"},
+					data: [][]driver.Value{
+						{int64(0), "main", okPath},
+					},
+				}, nil
+			}
+			return nil, fmt.Errorf("unexpected query %q", q)
+		},
+	}
+	before := LocalAttachReuses()
+	got = captureLog(t, func() {
+		if err := attachLocalHook(conn, "file:"+okPath); err != nil {
+			t.Errorf("hook: %v", err)
+		}
+	})
+	if !strings.Contains(got, "ATTACH local.db") {
+		t.Fatalf("genuine failure with reuse-shaped prose was swallowed; log=%q", got)
+	}
+	if LocalAttachReuses() != before {
+		t.Fatalf("LocalAttachReuses moved on a real failure: %d → %d", before, LocalAttachReuses())
+	}
+}
+
+func TestLocalAttachDoesNotSniffDriverProse(t *testing.T) {
+	src, err := os.ReadFile("local.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(src), `strings.Contains(err.Error()`) {
+		t.Fatal("local.go still decides from err.Error() prose")
+	}
+	if strings.Contains(string(src), "already in use") {
+		t.Fatal("local.go still names the driver's English sentence")
+	}
+}
+
+type hookConn struct {
+	exec  func(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error)
+	query func(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error)
+}
+
+func (c hookConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	return c.exec(ctx, query, args)
+}
+
+func (c hookConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	return c.query(ctx, query, args)
+}
+
+type valueRows struct {
+	cols []string
+	data [][]driver.Value
+	i    int
+}
+
+func (r *valueRows) Columns() []string { return r.cols }
+func (r *valueRows) Close() error      { return nil }
+func (r *valueRows) Next(dest []driver.Value) error {
+	if r.i >= len(r.data) {
+		return io.EOF
+	}
+	copy(dest, r.data[r.i])
+	r.i++
+	return nil
+}
+
+// sqlExecQuerier adapts *sql.DB to sqlite.ExecQuerierContext so a test can
+// re-enter attachLocalHook on a live pool. Callers must SetMaxOpenConns(1)
+// so Exec and Query share one connection.
+type sqlExecQuerier struct{ db *sql.DB }
+
+func (s sqlExecQuerier) ExecContext(ctx context.Context, q string, nv []driver.NamedValue) (driver.Result, error) {
+	return s.db.ExecContext(ctx, q, namedDriverArgs(nv)...)
+}
+
+func (s sqlExecQuerier) QueryContext(ctx context.Context, q string, nv []driver.NamedValue) (driver.Rows, error) {
+	rows, err := s.db.QueryContext(ctx, q, namedDriverArgs(nv)...)
+	if err != nil {
+		return nil, err
+	}
+	return &sqlDriverRows{rows: rows}, nil
+}
+
+func namedDriverArgs(nv []driver.NamedValue) []any {
+	out := make([]any, len(nv))
+	for i, v := range nv {
+		out[i] = v.Value
+	}
+	return out
+}
+
+type sqlDriverRows struct{ rows *sql.Rows }
+
+func (r *sqlDriverRows) Columns() []string {
+	c, err := r.rows.Columns()
+	if err != nil {
+		return nil
+	}
+	return c
+}
+func (r *sqlDriverRows) Close() error { return r.rows.Close() }
+func (r *sqlDriverRows) Next(dest []driver.Value) error {
+	if !r.rows.Next() {
+		if err := r.rows.Err(); err != nil {
+			return err
+		}
+		return io.EOF
+	}
+	ptrs := make([]any, len(dest))
+	for i := range dest {
+		ptrs[i] = &dest[i]
+	}
+	return r.rows.Scan(ptrs...)
 }

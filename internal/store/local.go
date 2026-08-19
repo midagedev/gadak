@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -106,12 +107,63 @@ func attachLocalHook(conn sqlite.ExecQuerierContext, dsn string) error {
 	}
 	stmt := "ATTACH DATABASE " + sqliteAttachLiteral(local, mode) + " AS local"
 	if _, err := conn.ExecContext(context.Background(), stmt, []driver.NamedValue{}); err != nil {
-		// Already attached (pool reuse) or permission/path — history off, mirror on.
-		if !strings.Contains(err.Error(), "already in use") {
-			log.Printf("store: ATTACH local.db: %v", err)
+		// Re-ATTACH of a name this connection already has is reuse (the hook
+		// can run twice on one *conn). Classify by PRAGMA database_list, not
+		// the driver's Error() sentence (GDK-285). modernc *Error.Code() for
+		// that case is SQLITE_ERROR (1), the same code as "too many attached
+		// databases" and incomplete SQL, so a result code would swallow real
+		// failures. Unclassifiable errors (PRAGMA fails, or `local` is absent)
+		// are logged — same bias as before.
+		if schemaAttached(conn, "local") {
+			localAttachReuses.Add(1)
+			return nil
 		}
+		log.Printf("store: ATTACH local.db: %v", err)
 	}
 	return nil
+}
+
+// localAttachReuses counts silent re-ATTACHes of schema `local`. Process-wide
+// because the hook is registered on the driver, not on a *DB. Same shape as
+// WriteBusyRetries: atomic, free when unread, no logs.
+var localAttachReuses atomic.Uint64
+
+// LocalAttachReuses is how many times attachLocalHook found schema `local`
+// already present and skipped the failure log.
+func LocalAttachReuses() uint64 { return localAttachReuses.Load() }
+
+func schemaAttached(conn sqlite.ExecQuerierContext, name string) bool {
+	rows, err := conn.QueryContext(context.Background(), "PRAGMA database_list", nil)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	n := len(rows.Columns())
+	if n < 2 {
+		n = 3
+	}
+	dest := make([]driver.Value, n)
+	for {
+		if err := rows.Next(dest); err != nil {
+			return false
+		}
+		if schemaNameEqual(dest[1], name) {
+			return true
+		}
+	}
+}
+
+func schemaNameEqual(v driver.Value, name string) bool {
+	var s string
+	switch t := v.(type) {
+	case string:
+		s = t
+	case []byte:
+		s = string(t)
+	default:
+		return false
+	}
+	return strings.EqualFold(s, name)
 }
 
 // parseSQLiteFileDSN extracts the filesystem path and mode=ro from a modernc
