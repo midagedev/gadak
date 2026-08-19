@@ -36,13 +36,6 @@ var lookPath = exec.LookPath
 // fileIsExec reports a path exists and has an execute bit. Tests inject a stub.
 var fileIsExec = isExecutable
 
-// npmFallbackPaths mirrors cmd/gadak/raycast.go npmFallbackPaths:
-// LookPath("npm") then these, first existing+executable wins.
-var npmFallbackPaths = []string{
-	"/opt/homebrew/bin/npm",
-	"/usr/local/bin/npm",
-}
-
 // gadakFallbackPaths: LookPath("gadak") then these, first existing+executable wins.
 var gadakFallbackPaths = []string{
 	"/opt/homebrew/bin/gadak",
@@ -141,10 +134,10 @@ func commandLineToolItem() Item {
 func raycastItem() Item {
 	dir := raycastExtDir()
 	prereq := &Prerequisite{}
-	if _, ok := resolveNPM(lookPath, fileIsExec); ok {
+	if _, ok := clitool.ResolveNPM(lookPath, fileIsExec); ok {
 		prereq.OK = true
 	} else {
-		prereq.Message = "npm is required (not found on PATH)"
+		prereq.Message = "npm is required (not found on " + clitool.NPMNotFoundDetail() + ")"
 	}
 	installed := fileExists(filepath.Join(dir, "package.json"))
 	detail := clitool.TildeHome(dir)
@@ -210,18 +203,19 @@ func mcpClaudeItem() Item {
 	}
 }
 
-// raycastExtDir mirrors cmd/gadak/raycast.go raycastExtDir:
-// $GADAK_HOME/raycast-extension, default ~/.gadak/raycast-extension.
+// raycastExtDir is clitool.RaycastExtDir (same path the CLI install writes).
+// List cannot return an error, so a DirFor failure falls back to a display
+// path — the install verb still fails closed if the home cannot be resolved.
 func raycastExtDir() string {
-	base, err := config.DirFor("")
+	dir, err := clitool.RaycastExtDir()
 	if err != nil {
 		home, homeErr := os.UserHomeDir()
 		if homeErr != nil {
-			return filepath.Join(".gadak", "raycast-extension")
+			return filepath.Join(config.DirName, clitool.RaycastExtDirName)
 		}
-		return filepath.Join(home, config.DirName, "raycast-extension")
+		return filepath.Join(home, config.DirName, clitool.RaycastExtDirName)
 	}
-	return filepath.Join(base, "raycast-extension")
+	return dir
 }
 
 // skillPath mirrors cmd/gadak/skill.go resolveSkillDest default:
@@ -238,31 +232,9 @@ func skillPath() string {
 	return filepath.Join(home, ".claude", "skills", "gadak", "SKILL.md")
 }
 
-// resolveNPM mirrors cmd/gadak/raycast.go resolveNPM: PATH, then npmFallbackPaths.
-func resolveNPM(look func(string) (string, error), present func(string) bool) (string, bool) {
-	return resolveNamed("npm", npmFallbackPaths, look, present)
-}
-
 // resolveGadak is LookPath("gadak"), then gadakFallbackPaths.
 func resolveGadak(look func(string) (string, error), present func(string) bool) (string, bool) {
-	return resolveNamed("gadak", gadakFallbackPaths, look, present)
-}
-
-func resolveNamed(name string, fallbacks []string, look func(string) (string, error), present func(string) bool) (string, bool) {
-	if look != nil {
-		if p, err := look(name); err == nil && p != "" {
-			return p, true
-		}
-	}
-	if present == nil {
-		present = isExecutable
-	}
-	for _, c := range fallbacks {
-		if present(c) {
-			return c, true
-		}
-	}
-	return "", false
+	return clitool.LookPathThen("gadak", gadakFallbackPaths, look, present)
 }
 
 // mcpNotRegisteredMarker is claude CLI's wording for a definitive negative

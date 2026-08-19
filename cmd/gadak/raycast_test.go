@@ -12,6 +12,7 @@ import (
 	"time"
 
 	raycastext "github.com/midagedev/gadak/contrib/raycast"
+	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 )
 
@@ -88,10 +89,10 @@ func TestResolveNPMLookupOrder(t *testing.T) {
 		order = append(order, p)
 		return false
 	}
-	if got, ok := resolveNPM(look, present); ok {
+	if got, ok := clitool.ResolveNPM(look, present); ok {
 		t.Fatalf("expected miss, got %q", got)
 	}
-	want := append([]string{"path:npm"}, npmFallbackPaths...)
+	want := append([]string{"path:npm"}, clitool.NPMFallbackPaths...)
 	if strings.Join(order, ",") != strings.Join(want, ",") {
 		t.Errorf("order %v, want %v", order, want)
 	}
@@ -108,7 +109,7 @@ func TestResolveNPMPathWins(t *testing.T) {
 		t.Errorf("fallback should not run after PATH hit; present(%s)", p)
 		return false
 	}
-	got, ok := resolveNPM(look, present)
+	got, ok := clitool.ResolveNPM(look, present)
 	if !ok || got != "/custom/bin/npm" {
 		t.Fatalf("got %q ok=%v", got, ok)
 	}
@@ -117,7 +118,7 @@ func TestResolveNPMPathWins(t *testing.T) {
 func TestResolveNPMSecondFallback(t *testing.T) {
 	look := func(string) (string, error) { return "", errors.New("no") }
 	present := func(p string) bool { return p == "/usr/local/bin/npm" }
-	got, ok := resolveNPM(look, present)
+	got, ok := clitool.ResolveNPM(look, present)
 	if !ok || got != "/usr/local/bin/npm" {
 		t.Fatalf("got %q ok=%v, want /usr/local/bin/npm", got, ok)
 	}
@@ -158,13 +159,13 @@ func TestRaycastExtDirHonorsGADAKHome(t *testing.T) {
 	t.Cleanup(func() { config.SetProfile("") })
 	config.SetProfile("work")
 
-	got, err := raycastExtDir()
+	got, err := clitool.RaycastExtDir()
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(home, raycastExtDirName)
+	want := filepath.Join(home, clitool.RaycastExtDirName)
 	if got != want {
-		t.Errorf("raycastExtDir() = %q, want %q (profile must not nest it)", got, want)
+		t.Errorf("RaycastExtDir() = %q, want %q (profile must not nest it)", got, want)
 	}
 }
 
@@ -183,5 +184,18 @@ func TestCmdRaycastUsage(t *testing.T) {
 	}
 	if err := cmdRaycastInstall([]string{"extra"}); err == nil || !strings.Contains(err.Error(), "usage: gadak raycast install") {
 		t.Fatalf("extra args: %v", err)
+	}
+}
+
+func TestNPMMissingMessageListsTried(t *testing.T) {
+	msg := npmMissingMessage()
+	detail := clitool.NPMNotFoundDetail()
+	if !strings.Contains(msg, detail) {
+		t.Errorf("npm-missing text must include %q; got:\n%s", detail, msg)
+	}
+	for _, p := range clitool.NPMFallbackPaths {
+		if !strings.Contains(msg, p) {
+			t.Errorf("npm-missing text must name tried path %s; got:\n%s", p, msg)
+		}
 	}
 }

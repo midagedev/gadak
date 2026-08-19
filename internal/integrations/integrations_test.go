@@ -189,20 +189,44 @@ func TestItemJSONKeepsNulls(t *testing.T) {
 
 func TestResolveNPMOrder(t *testing.T) {
 	look := func(string) (string, error) { return "", os.ErrNotExist }
-	if _, ok := resolveNPM(look, func(string) bool { return false }); ok {
+	if _, ok := clitool.ResolveNPM(look, func(string) bool { return false }); ok {
 		t.Fatal("no candidate should miss")
 	}
-	got, ok := resolveNPM(func(string) (string, error) { return "/tmp/path-npm", nil }, func(string) bool { return false })
+	got, ok := clitool.ResolveNPM(func(string) (string, error) { return "/tmp/path-npm", nil }, func(string) bool { return false })
 	if !ok || got != "/tmp/path-npm" {
 		t.Fatalf("PATH win: %q ok=%v", got, ok)
 	}
-	got, ok = resolveNPM(look, func(p string) bool { return p == "/opt/homebrew/bin/npm" })
+	got, ok = clitool.ResolveNPM(look, func(p string) bool { return p == "/opt/homebrew/bin/npm" })
 	if !ok || got != "/opt/homebrew/bin/npm" {
 		t.Fatalf("brew fallback: %q ok=%v", got, ok)
 	}
-	got, ok = resolveNPM(look, func(p string) bool { return p == "/usr/local/bin/npm" })
+	got, ok = clitool.ResolveNPM(look, func(p string) bool { return p == "/usr/local/bin/npm" })
 	if !ok || got != "/usr/local/bin/npm" {
 		t.Fatalf("usr/local fallback: %q ok=%v", got, ok)
+	}
+}
+
+func TestRaycastPrerequisiteListsTriedNPM(t *testing.T) {
+	prevLook, prevExec := lookPath, fileIsExec
+	lookPath = func(string) (string, error) { return "", os.ErrNotExist }
+	fileIsExec = func(string) bool { return false }
+	t.Cleanup(func() {
+		lookPath = prevLook
+		fileIsExec = prevExec
+	})
+	item := raycastItem()
+	if item.Prerequisite == nil || item.Prerequisite.OK {
+		t.Fatalf("missing npm: prerequisite=%+v", item.Prerequisite)
+	}
+	msg := item.Prerequisite.Message
+	detail := clitool.NPMNotFoundDetail()
+	if !strings.Contains(msg, detail) {
+		t.Errorf("raycast prerequisite must include %q; got %q", detail, msg)
+	}
+	for _, p := range clitool.NPMFallbackPaths {
+		if !strings.Contains(msg, p) {
+			t.Errorf("raycast prerequisite must name tried path %s; got %q", p, msg)
+		}
 	}
 }
 
