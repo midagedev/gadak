@@ -644,6 +644,27 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// failCreate maps shared create-resolution errors onto stable wire codes.
+// Need* errors are surface-neutral; CLI flag names stay in cmd/gadak.
+func failCreate(w http.ResponseWriter, err error) {
+	var np *create.NeedProjectError
+	if errors.As(err, &np) {
+		fail(w, http.StatusBadRequest, "project_required")
+		return
+	}
+	var nt *create.NeedTypeError
+	if errors.As(err, &nt) {
+		fail(w, http.StatusBadRequest, "issue_type_required")
+		return
+	}
+	var npri *create.NeedPriorityError
+	if errors.As(err, &npri) {
+		fail(w, http.StatusBadRequest, "priority_required")
+		return
+	}
+	writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+}
+
 /* ── create ── */
 
 func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -675,7 +696,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	proj, err := create.Project(p.ProjectKey, cfg)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		failCreate(w, err)
 		return
 	}
 	// An issue filed outside the mirrored projects would never come back from the
@@ -691,12 +712,12 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	metaProj, types, err := create.MetaFor(meta, proj.Value)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		failCreate(w, err)
 		return
 	}
 	typ, err := create.Type(p.IssueType, types, cfg, proj.Value)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		failCreate(w, err)
 		return
 	}
 

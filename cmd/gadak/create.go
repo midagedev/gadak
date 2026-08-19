@@ -226,7 +226,7 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	}
 	projRes, err := create.Project(projectWant, cfg)
 	if err != nil {
-		return "", nil, err
+		return "", nil, formatCreateError(err)
 	}
 	meta, err := c.CreateMeta(ctx, []string{projRes.Value})
 	if err != nil {
@@ -238,7 +238,7 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	}
 	typeRes, err := create.Type(typeWant, types, cfg, projRes.Value)
 	if err != nil {
-		return "", nil, err
+		return "", nil, formatCreateError(err)
 	}
 
 	fields := map[string]any{
@@ -259,7 +259,7 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 		}
 		id, err := create.Priority(p, list)
 		if err != nil {
-			return "", nil, err
+			return "", nil, formatCreateError(err)
 		}
 		fields["priority"] = create.PriorityField(id)
 	}
@@ -293,6 +293,27 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 		extra["attached"] = attached
 	}
 	return key, extra, nil
+}
+
+// formatCreateError turns shared Need* catalogue data into the CLI flag +
+// catalog sentences. The shared package must not compose those flags itself.
+func formatCreateError(err error) error {
+	var np *create.NeedProjectError
+	if errors.As(err, &np) {
+		if len(np.Configured) == 0 {
+			return fmt.Errorf("pass --project")
+		}
+		return fmt.Errorf("pass --project, configured: %s", strings.Join(np.Configured, ", "))
+	}
+	var nt *create.NeedTypeError
+	if errors.As(err, &nt) {
+		return fmt.Errorf("pass --type, available: %s", create.FormatTypes(nt.Available))
+	}
+	var npri *create.NeedPriorityError
+	if errors.As(err, &npri) {
+		return fmt.Errorf("pass --priority, available: %s", create.FormatTypes(npri.Available))
+	}
+	return err
 }
 
 // emitBatchLine refreshes the new key the same way emitAfterWrite does.

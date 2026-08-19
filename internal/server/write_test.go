@@ -9,10 +9,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/create"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/sync"
 )
 
@@ -516,11 +519,92 @@ func TestCreateIssueOmitsTypeFailsWhenMany(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "pass --type") {
-		t.Errorf("error %s", rec.Body.String())
+	// 2026-08-19: retargeted from the CLI prose "pass --type" to the stable
+	// wire code. That assertion froze the F6 leak (internal/create composed
+	// CLI flag names; REST copied err.Error() into the JSON body). Same 400
+	// and no-Jira-call contract; the body now keys on the house-style code
+	// the way project_not_mirrored does (fail() in server.go), not on a
+	// surface sentence.
+	if got := decode[map[string]string](t, rec)["error"]; got != "issue_type_required" {
+		t.Errorf("error %q", got)
 	}
 	if f.called("POST /issue") {
 		t.Fatalf("omitted type reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateIssueOmitsProjectFailsWhenAmbiguous(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"summary":"needs a project","issue_type":"10004"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := decode[map[string]string](t, rec)["error"]; got != "project_required" {
+		t.Errorf("error %q", got)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("omitted project reached Jira: %v", f.calls)
+	}
+}
+
+// cliFlagToken matches a GNU-style long option in a REST body. The class is
+// "any token starting with --", not today's three create cases: a future
+// shared-package error that names a flag must fail here too.
+var cliFlagToken = regexp.MustCompile(`--[A-Za-z][A-Za-z0-9_-]*`)
+
+func TestCreateRESTErrorBodiesHaveNoCLIFlagTokens(t *testing.T) {
+	f, h, cfg := writable(t)
+	f.createMetaJSON = manyCreateTypes
+	cfg.DefaultProject = ""
+	cfg.DefaultIssueTypeID = ""
+
+	cases := []struct {
+		name, body string
+	}{
+		{"omitted project", `{"summary":"x","issue_type":"10004"}`},
+		{"omitted type", `{"project_key":"NMB","summary":"needs a type"}`},
+		{"unmatched type", `{"project_key":"NMB","issue_type":"Nope","summary":"x"}`},
+		{"unmirrored project", `{"project_key":"ZZZ","issue_type":"10004","summary":"x"}`},
+		{"empty summary", `{"project_key":"NMB","issue_type":"10004"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := send(t, h, http.MethodPost, apiBase+"create/", tc.body)
+			if rec.Code < 400 {
+				t.Fatalf("want 4xx, got %d %s", rec.Code, rec.Body.String())
+			}
+			if hits := cliFlagToken.FindAllString(rec.Body.String(), -1); len(hits) > 0 {
+				t.Errorf("REST body contains CLI flag token(s) %v: %s", hits, rec.Body.String())
+			}
+		})
+	}
+
+	// Stale configured default is another create 400; include it so a future
+	// rewrite of that path cannot sneak a -- token in.
+	cfg.DefaultIssueTypeID = "99999"
+	rec := send(t, h, http.MethodPost, apiBase+"create/", `{"project_key":"NMB","summary":"stale"}`)
+	if rec.Code < 400 {
+		t.Fatalf("stale default → %d %s", rec.Code, rec.Body.String())
+	}
+	if hits := cliFlagToken.FindAllString(rec.Body.String(), -1); len(hits) > 0 {
+		t.Errorf("stale-default REST body contains CLI flag token(s) %v: %s", hits, rec.Body.String())
+	}
+
+	// REST create does not call create.Priority today (priority_id is an id).
+	// failCreate still owns that Need* type so a future caller cannot dump
+	// "--priority" onto the wire.
+	recP := httptest.NewRecorder()
+	failCreate(recP, &create.NeedPriorityError{Available: []jira.NamedID{{ID: "1", Name: "Highest"}}})
+	if recP.Code < 400 {
+		t.Fatalf("need priority → %d %s", recP.Code, recP.Body.String())
+	}
+	if hits := cliFlagToken.FindAllString(recP.Body.String(), -1); len(hits) > 0 {
+		t.Errorf("need-priority body contains CLI flag token(s) %v: %s", hits, recP.Body.String())
+	}
+	if got := decode[map[string]string](t, recP)["error"]; got != "priority_required" {
+		t.Errorf("need-priority code %q", got)
 	}
 }
 

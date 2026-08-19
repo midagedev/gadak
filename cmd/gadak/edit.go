@@ -135,7 +135,7 @@ func cmdEdit(args []string) error {
 			}
 			id, err := create.Priority(*priority, list)
 			if err != nil {
-				return nil, err
+				return nil, formatCreateError(err)
 			}
 			fields["priority"] = map[string]string{"id": id}
 		}

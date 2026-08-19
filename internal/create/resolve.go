@@ -1,6 +1,9 @@
 // Package create is the single owner of project, issue-type, and priority
 // resolution for gadak create (CLI and REST). Both surfaces must call these
 // functions so a default cannot exist on one path and not the other.
+//
+// Need* errors carry catalogue data only. The CLI formats flag names;
+// REST maps them to stable wire codes. This package does not name CLI flags.
 package create
 
 import (
@@ -47,9 +50,9 @@ func Project(want string, cfg *config.Config) (Resolved, error) {
 		return Resolved{Value: configured[0], Source: SourceSole}, nil
 	}
 	if len(configured) == 0 {
-		return Resolved{}, fmt.Errorf("pass --project")
+		return Resolved{}, &NeedProjectError{}
 	}
-	return Resolved{}, fmt.Errorf("pass --project, configured: %s", strings.Join(configured, ", "))
+	return Resolved{}, &NeedProjectError{Configured: copyStrings(configured)}
 }
 
 // Type resolves the create issue type:
@@ -87,7 +90,7 @@ func Type(want string, types []jira.NamedID, cfg *config.Config, project string)
 	if len(types) == 1 && strings.TrimSpace(types[0].ID) != "" {
 		return Resolved{Value: types[0].ID, Source: SourceSole}, nil
 	}
-	return Resolved{}, fmt.Errorf("pass --type, available: %s", FormatTypes(types))
+	return Resolved{}, &NeedTypeError{Available: copyNamed(types)}
 }
 
 func matchType(want string, types []jira.NamedID) (string, error) {
@@ -123,7 +126,7 @@ func FormatTypes(types []jira.NamedID) string {
 func Priority(want string, list []jira.NamedID) (id string, err error) {
 	want = strings.TrimSpace(want)
 	if want == "" {
-		return "", fmt.Errorf("pass --priority, available: %s", FormatTypes(list))
+		return "", &NeedPriorityError{Available: copyNamed(list)}
 	}
 	for _, p := range list {
 		if p.ID == want || strings.EqualFold(p.Name, want) {
@@ -137,4 +140,61 @@ func Priority(want string, list []jira.NamedID) (id string, err error) {
 // localized name. Create and edit both send this shape.
 func PriorityField(id string) map[string]string {
 	return map[string]string{"id": id}
+}
+
+// NeedProjectError is returned when create cannot resolve a project.
+// Configured is the profile project list (may be empty). Surfaces format this.
+type NeedProjectError struct {
+	Configured []string
+}
+
+func (e *NeedProjectError) Error() string {
+	if e == nil || len(e.Configured) == 0 {
+		return "project required"
+	}
+	return "project required, configured: " + strings.Join(e.Configured, ", ")
+}
+
+// NeedTypeError is returned when create cannot resolve an issue type.
+// Available is the createmeta catalog. Surfaces format this.
+type NeedTypeError struct {
+	Available []jira.NamedID
+}
+
+func (e *NeedTypeError) Error() string {
+	if e == nil {
+		return "issue type required"
+	}
+	return "issue type required, available: " + FormatTypes(e.Available)
+}
+
+// NeedPriorityError is returned when a priority name or id was required but empty.
+// Available is the site catalog. Surfaces format this.
+type NeedPriorityError struct {
+	Available []jira.NamedID
+}
+
+func (e *NeedPriorityError) Error() string {
+	if e == nil {
+		return "priority required"
+	}
+	return "priority required, available: " + FormatTypes(e.Available)
+}
+
+func copyStrings(in []string) []string {
+	if in == nil {
+		return nil
+	}
+	out := make([]string, len(in))
+	copy(out, in)
+	return out
+}
+
+func copyNamed(in []jira.NamedID) []jira.NamedID {
+	if in == nil {
+		return nil
+	}
+	out := make([]jira.NamedID, len(in))
+	copy(out, in)
+	return out
 }

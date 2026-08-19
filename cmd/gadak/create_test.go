@@ -293,6 +293,23 @@ func TestCreateTypeOmittedListsAvailable(t *testing.T) {
 	}
 }
 
+func TestFormatCreateErrorKeepsFlagAndCatalog(t *testing.T) {
+	if got := formatCreateError(&create.NeedProjectError{}).Error(); got != "pass --project" {
+		t.Fatalf("empty projects: %q", got)
+	}
+	if got := formatCreateError(&create.NeedProjectError{Configured: []string{"NMA", "NMB", "NMS"}}).Error(); got != "pass --project, configured: NMA, NMB, NMS" {
+		t.Fatalf("configured: %q", got)
+	}
+	types := []jira.NamedID{{ID: "10001", Name: "Task"}, {ID: "10002", Name: "작업"}, {ID: "10004", Name: "Bug"}}
+	if got := formatCreateError(&create.NeedTypeError{Available: types}).Error(); got != "pass --type, available: Task (id 10001); 작업 (id 10002); Bug (id 10004)" {
+		t.Fatalf("type: %q", got)
+	}
+	pris := []jira.NamedID{{ID: "1", Name: "Highest"}, {ID: "2", Name: "High"}, {ID: "3", Name: "Medium"}}
+	if got := formatCreateError(&create.NeedPriorityError{Available: pris}).Error(); got != "pass --priority, available: Highest (id 1); High (id 2); Medium (id 3)" {
+		t.Fatalf("priority: %q", got)
+	}
+}
+
 func TestCreateTypeMatchesCaseAndID(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL)
@@ -1784,7 +1801,7 @@ func TestCreateResolveTypeTable(t *testing.T) {
 		{"flag korean", "작업", "NMB", many, nil, "10002", create.SourceFlag, ""},
 		{"config", "", "NMB", many, cfg("10001"), "10001", create.SourceConfig, ""},
 		{"sole", "", "GDK", one, nil, "10001", create.SourceSole, ""},
-		{"omitted no evidence", "", "NMB", many, nil, "", "", "pass --type"},
+		{"omitted no evidence", "", "NMB", many, nil, "", "", "issue type required"},
 		{"stale default", "", "NMB", many, cfg("99999"), "", "", "99999"},
 		{"stale does not fall to sole", "", "GDK", one, cfg("99999"), "", "", "99999"},
 		{"flag beats config", "Bug", "NMB", many, cfg("10001"), "10004", create.SourceFlag, ""},
@@ -1819,8 +1836,8 @@ func TestCreateResolveProjectTable(t *testing.T) {
 		{"flag", "NMB", &config.Config{Projects: []string{"NMA", "NMB"}, DefaultProject: "NMA"}, "NMB", create.SourceFlag, ""},
 		{"config", "", &config.Config{Projects: []string{"NMA", "NMB"}, DefaultProject: "NMB"}, "NMB", create.SourceConfig, ""},
 		{"sole", "", &config.Config{Projects: []string{"NMB"}}, "NMB", create.SourceSole, ""},
-		{"ambiguous", "", &config.Config{Projects: []string{"NMA", "NMB"}}, "", "", "pass --project"},
-		{"none", "", &config.Config{}, "", "", "pass --project"},
+		{"ambiguous", "", &config.Config{Projects: []string{"NMA", "NMB"}}, "", "", "project required"},
+		{"none", "", &config.Config{}, "", "", "project required"},
 		{"flag beats config", "GDK", &config.Config{DefaultProject: "NMB", Projects: []string{"NMB", "GDK"}}, "GDK", create.SourceFlag, ""},
 	}
 	for _, tc := range cases {

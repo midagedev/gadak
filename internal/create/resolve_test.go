@@ -1,9 +1,11 @@
 package create
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 )
 
@@ -49,8 +51,41 @@ func TestPriorityMatchesLocalizedName(t *testing.T) {
 
 func TestPriorityEmptyListsCatalog(t *testing.T) {
 	_, err := Priority("", priList())
-	if err == nil || !strings.Contains(err.Error(), "pass --priority") || !strings.Contains(err.Error(), "Highest (id 1)") {
-		t.Fatalf("empty: %v", err)
+	var need *NeedPriorityError
+	if !errors.As(err, &need) {
+		t.Fatalf("empty: %v (want NeedPriorityError)", err)
+	}
+	if !strings.Contains(FormatTypes(need.Available), "Highest (id 1)") {
+		t.Fatalf("catalog: %+v", need.Available)
+	}
+	if strings.Contains(err.Error(), "--") {
+		t.Fatalf("shared error named a flag: %v", err)
+	}
+}
+
+func TestNeedErrorsDoNotNameCLIFlags(t *testing.T) {
+	errs := []error{
+		func() error { _, e := Project("", &config.Config{}); return e }(),
+		func() error { _, e := Project("", &config.Config{Projects: []string{"NMA", "NMB"}}); return e }(),
+		func() error { _, e := Type("", priList(), nil, "NMB"); return e }(),
+		func() error { _, e := Priority("", priList()); return e }(),
+	}
+	for i, err := range errs {
+		if err == nil {
+			t.Errorf("%d: nil error", i)
+			continue
+		}
+		if strings.Contains(err.Error(), "--") {
+			t.Errorf("%d: shared error named a flag: %v", i, err)
+		}
+	}
+	var np *NeedProjectError
+	if _, err := Project("", &config.Config{Projects: []string{"NMA", "NMB"}}); !errors.As(err, &np) || strings.Join(np.Configured, ",") != "NMA,NMB" {
+		t.Fatalf("NeedProjectError: %v", err)
+	}
+	var nt *NeedTypeError
+	if _, err := Type("", priList(), nil, "NMB"); !errors.As(err, &nt) || len(nt.Available) != 3 {
+		t.Fatalf("NeedTypeError: %v", err)
 	}
 }
 
