@@ -442,7 +442,7 @@ CREATE VIEW issues_full AS
 
 // schemaV23 rebuilds issues_full to expose description_text (items.body_text).
 // The view expanded i.* at CREATE VIEW time (v22) and cannot grow an extra
-// expression without a recreate. NULL body_text becomes ''.
+// expression without a recreate. NULL body_text becomes the empty string.
 const schemaV23 = `
 DROP VIEW issues_full;
 CREATE VIEW issues_full AS

@@ -97,11 +97,56 @@ func failJira(w http.ResponseWriter, r *http.Request, err error) {
 	}
 }
 
-// mutate is the whole write-through shape: call Jira, re-read the issue, answer
-// with the refreshed row plus whatever else the endpoint adds.
+// keySource reads which origin owns a key. A key the mirror does not know
+// (or a read error) answers "" — the default origin — because refusing the
+// write would break the one case that matters there: a row that has not
+// synced yet still belongs to the workspace's own tracker.
+func (s *server) keySource(ctx context.Context, key string) string {
+	src, err := s.db.KeySource(ctx, key)
+	if err != nil {
+		return ""
+	}
+	return src
+}
+
+// keyWriter is client() routed per key: the Jira client for jira/standalone
+// rows, the Linear adapter for linear rows (GDK-361).
+func (s *server) keyWriter(w http.ResponseWriter, r *http.Request, key string) (origin.Writer, *config.Config, string, bool) {
+	cfg := s.config()
+	src := s.keySource(r.Context(), key)
+	// The credential gate is the owning origin's: a Linear row needs the
+	// Linear key, not a Jira token.
+	if src != "linear" && !cfg.HasCredential() {
+		fail(w, http.StatusConflict, "credential_required")
+		return nil, nil, "", false
+	}
+	c, err := origin.WriterFor(cfg, src)
+	if err != nil {
+		failOriginClient(w, err)
+		return nil, nil, "", false
+	}
+	return c, cfg, src, true
+}
+
+// refreshIssue is the write-through tail routed per source: re-read the
+// issue from the origin that owns it and commit the row.
+func (s *server) refreshIssue(ctx context.Context, cfg *config.Config, key, src string) error {
+	if src == "linear" {
+		lc, err := origin.Linear(cfg)
+		if err != nil {
+			return err
+		}
+		return sync.SyncLinearIssue(ctx, s.db, lc, key)
+	}
+	return sync.SyncIssue(ctx, cfg, s.db, key, sync.Options{})
+}
+
+// mutate is the whole write-through shape: call the origin that owns the
+// key, re-read the issue, answer with the refreshed row plus whatever else
+// the endpoint adds.
 func (s *server) mutate(w http.ResponseWriter, r *http.Request, key string,
 	fn func(context.Context, origin.Writer) (map[string]any, error)) {
-	c, cfg, ok := s.client(w)
+	c, cfg, src, ok := s.keyWriter(w, r, key)
 	if !ok {
 		return
 	}
@@ -110,7 +155,7 @@ func (s *server) mutate(w http.ResponseWriter, r *http.Request, key string,
 		failJira(w, r, err)
 		return
 	}
-	if err := sync.SyncIssue(r.Context(), cfg, s.db, key, sync.Options{Client: c}); err != nil {
+	if err := s.refreshIssue(r.Context(), cfg, key, src); err != nil {
 		// The write landed; only the re-read failed. Say so rather than reporting a
 		// failure the user would retry.
 		log.Printf("server: mirror refresh after write to %s: %v", key, err)
@@ -244,12 +289,12 @@ func (s *server) handleDeleteCredential(w http.ResponseWriter, r *http.Request) 
 // handleResync re-fetches one issue from Jira into the mirror and answers with
 // the refreshed IssueLite. Same shape as mutate after the write step is skipped.
 func (s *server) handleResync(w http.ResponseWriter, r *http.Request) {
-	c, cfg, ok := s.client(w)
+	key := r.PathValue("key")
+	_, cfg, src, ok := s.keyWriter(w, r, key)
 	if !ok {
 		return
 	}
-	key := r.PathValue("key")
-	if err := sync.SyncIssue(r.Context(), cfg, s.db, key, sync.Options{Client: c}); err != nil {
+	if err := s.refreshIssue(r.Context(), cfg, key, src); err != nil {
 		failJira(w, r, err)
 		return
 	}
@@ -282,7 +327,7 @@ type transitionDoc struct {
 }
 
 func (s *server) handleTransitions(w http.ResponseWriter, r *http.Request) {
-	c, _, ok := s.client(w)
+	c, _, _, ok := s.keyWriter(w, r, r.PathValue("key"))
 	if !ok {
 		return
 	}
@@ -378,11 +423,11 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 /* ── attachment upload ── */
 
 func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
-	c, cfg, ok := s.client(w)
+	key := r.PathValue("key")
+	c, cfg, src, ok := s.keyWriter(w, r, key)
 	if !ok {
 		return
 	}
-	key := r.PathValue("key")
 	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)
 	file, header, err := r.FormFile("file")
 	if err != nil {
@@ -399,7 +444,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// The issue's attachment list changed, so the mirror has to catch up before the
 	// detail panel re-renders. Jira already accepted the upload: a re-read
 	// failure is 502 write_applied_mirror_stale (contracts/api.md), not 200.
-	if err := sync.SyncIssue(r.Context(), cfg, s.db, key, sync.Options{Client: c}); err != nil {
+	if err := s.refreshIssue(r.Context(), cfg, key, src); err != nil {
 		log.Printf("server: mirror refresh after upload to %s: %v", key, err)
 		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
 		return
@@ -608,7 +653,7 @@ func (s *server) handleAssignee(w http.ResponseWriter, r *http.Request) {
 /* ── field edit ── */
 
 func (s *server) handleEditMeta(w http.ResponseWriter, r *http.Request) {
-	c, cfg, ok := s.client(w)
+	c, cfg, _, ok := s.keyWriter(w, r, r.PathValue("key"))
 	if !ok {
 		return
 	}

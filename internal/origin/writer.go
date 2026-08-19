@@ -24,6 +24,7 @@ type Writer interface {
 	CreateIssue(ctx context.Context, fields map[string]any) (string, error)
 	EditMeta(ctx context.Context, key string) (map[string]jira.FieldMeta, error)
 	UpdateFields(ctx context.Context, key string, fields map[string]any) error
+	EditIssue(ctx context.Context, key string, fields, update map[string]any) error
 	Transitions(ctx context.Context, key string) ([]jira.Transition, error)
 	Transition(ctx context.Context, key, transitionID string) error
 	AddComment(ctx context.Context, key string, adf json.RawMessage) (jira.Comment, error)
@@ -37,11 +38,15 @@ type Writer interface {
 // *jira.Client is the Writer for connected and standalone workspaces.
 var _ Writer = (*jira.Client)(nil)
 
-// WriterFor picks the write path for one issue key. Today every key routes
-// to the Jira client (standalone included); the Linear adapter slots in
-// here, keyed by the mirror's source for that key (GDK-361). An empty key
-// means "no issue yet" (create paths) and routes to the default origin.
-func WriterFor(cfg *config.Config, key string) (Writer, error) {
-	_ = key
+// WriterFor picks the write path for one issue's source — the caller reads
+// it from the mirror (store.KeySource), because a key's shape cannot tell a
+// Linear "MID-5" from a Jira "MID-5". Jira and standalone rows share the
+// Jira client; "linear" routes to the GraphQL adapter (GDK-361). An empty
+// source (a key the mirror does not know yet, or a create) routes to the
+// default origin.
+func WriterFor(cfg *config.Config, source string) (Writer, error) {
+	if source == "linear" {
+		return newLinearWriter(cfg)
+	}
 	return Client(cfg)
 }

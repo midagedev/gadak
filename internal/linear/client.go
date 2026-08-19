@@ -363,3 +363,36 @@ func (c *Client) Usage() Usage { return c.usage.Snapshot() }
 //
 // LastThrottledAt is a timestamp, not a counter, and is not cleared.
 func (c *Client) TakeUsage() Usage { return c.usage.Take() }
+
+// Issue fetches one issue by UUID or human identifier ("MID-5") — issue(id:)
+// accepts both. The write adapter resolves user-typed keys through this.
+func (c *Client) Issue(ctx context.Context, idOrIdentifier string) (Issue, error) {
+	var res struct {
+		Issue *Issue `json:"issue"`
+	}
+	if err := c.gql(ctx, queryIssue, map[string]any{"id": idOrIdentifier}, &res); err != nil {
+		return Issue{}, err
+	}
+	if res.Issue == nil {
+		return Issue{}, fmt.Errorf("linear: issue %q not found", idOrIdentifier)
+	}
+	return *res.Issue, nil
+}
+
+// Users searches workspace members by name for assignee pickers. An empty
+// query lists the first page unfiltered.
+func (c *Client) Users(ctx context.Context, query string) ([]User, error) {
+	vars := map[string]any{}
+	if query != "" {
+		vars["filter"] = map[string]any{"displayName": map[string]any{"containsIgnoreCase": query}}
+	}
+	var res struct {
+		Users struct {
+			Nodes []User `json:"nodes"`
+		} `json:"users"`
+	}
+	if err := c.gql(ctx, queryUsers, vars, &res); err != nil {
+		return nil, err
+	}
+	return res.Users.Nodes, nil
+}

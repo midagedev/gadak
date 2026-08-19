@@ -10,6 +10,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 )
 
 const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]"
@@ -112,7 +113,7 @@ func cmdEdit(args []string) error {
 		}
 	}
 
-	return mutate(key, *asJSON, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		fields := map[string]any{}
 		update := map[string]any{}
 		if hasSummary {

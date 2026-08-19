@@ -241,3 +241,20 @@ var mutAttachmentCreate = `mutation AttachmentCreate($input: AttachmentCreateInp
     attachment { id title url }
   }
 }`
+
+// queryIssue fetches one issue by id — Linear's issue(id:) accepts both the
+// UUID and the human identifier ("MID-5"), which is what lets the write
+// adapter resolve keys the way users type them. Same selection as the paged
+// read so the mirror row shape is identical.
+var queryIssue = `query Issue($id: String!) {
+  issue(id: $id) {` + issueSelection + `}
+}`
+
+// queryUsers answers assignee search: workspace members whose name or
+// display name contains the query, case-insensitively.
+const queryUsers = `query Users($filter: UserFilter, $after: String) {
+  users(filter: $filter, first: 50, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes { id name displayName email }
+  }
+}`

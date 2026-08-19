@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
-	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -59,12 +59,12 @@ func cmdAttach(args []string) error {
 	if err := validateAttachPaths(paths); err != nil {
 		return err
 	}
-	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
+	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		attached, err := uploadAttachPaths(ctx, c, key, paths)
 		if err != nil {
 			return err
 		}
-		if err := emitAfterWrite(ctx, cfg, db, c, key, *asJSON, map[string]any{"attached": attached}); err != nil {
+		if err := emitAfterWrite(ctx, cfg, db, src, key, *asJSON, map[string]any{"attached": attached}); err != nil {
 			return err
 		}
 		if !*asJSON {
@@ -98,7 +98,7 @@ func validateAttachPaths(paths []string) error {
 // uploadAttachPaths sends each file through Client.Upload in order. Upload
 // itself buffers the bytes (see the ponytail on jira.Client.Upload); this
 // helper opens the path and does not ReadAll first.
-func uploadAttachPaths(ctx context.Context, c *jira.Client, key string, paths []string) ([]attachedFile, error) {
+func uploadAttachPaths(ctx context.Context, c origin.Writer, key string, paths []string) ([]attachedFile, error) {
 	attached := make([]attachedFile, 0, len(paths))
 	landed := make([]string, 0, len(paths))
 	for i, path := range paths {

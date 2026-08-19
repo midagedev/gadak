@@ -238,3 +238,26 @@ func sortedKeys(m map[string]int) []string {
 	sort.Strings(out)
 	return out
 }
+
+// SyncLinearIssue is the write-through tail for one Linear issue: re-read it
+// from the origin and commit the row, the Linear counterpart of SyncIssue.
+// Force is on for the same reason as the Jira path — the caller just wrote,
+// so an unchanged updatedAt must not skip the refresh.
+func SyncLinearIssue(ctx context.Context, db *store.DB, c *linear.Client, key string) error {
+	iss, err := c.Issue(ctx, key)
+	if err != nil {
+		return err
+	}
+	cat, _ := linearCategory(iss.State.Type)
+	batch := store.Batch{
+		Categories: map[string]string{},
+		Priorities: linearPriorities,
+		Records:    []store.IssueRecord{buildLinearRecord(iss, cat)},
+		Force:      true,
+	}
+	if iss.State.ID != "" {
+		batch.Categories[iss.State.ID] = cat
+	}
+	_, err = db.UpsertIssues(ctx, batch)
+	return err
+}

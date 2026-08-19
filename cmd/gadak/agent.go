@@ -1112,12 +1112,41 @@ func withWriteSession(fn func(context.Context, *config.Config, *store.DB, *jira.
 	return fn(context.Background(), cfg, db, c)
 }
 
+// withKeyWriteSession is withWriteSession routed per key: the mirror says
+// which origin owns the row (store.KeySource — a "MID-5" can be Linear or
+// Jira, the shape cannot tell), and the credential gate is that origin's.
+func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *store.DB, origin.Writer, string) error) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	warnIfStale()
+	ctx := context.Background()
+	src, err := db.KeySource(ctx, key)
+	if err != nil {
+		src = ""
+	}
+	if src != "linear" && !cfg.HasCredential() {
+		return errNoCredential
+	}
+	c, err := origin.WriterFor(cfg, src)
+	if err != nil {
+		return err
+	}
+	return fn(ctx, cfg, db, c, src)
+}
+
 // emitAfterWrite is the write-through tail: re-read the issue into the mirror
 // and print the refreshed row. A failure between the write and the re-read is
 // reported as such, because retrying it would repeat the write Jira already
 // accepted.
-func emitAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client, key string, asJSON bool, extra map[string]any) error {
-	if err := syncer.SyncIssue(ctx, cfg, db, key, syncer.Options{Client: c}); err != nil {
+func emitAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, src, key string, asJSON bool, extra map[string]any) error {
+	if err := refreshAfterWrite(ctx, cfg, db, src, key); err != nil {
 		return fmt.Errorf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %w", key, err)
 	}
 	lites, err := lookup(db, []string{key})
@@ -1138,15 +1167,27 @@ func emitAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, c *ji
 	return nil
 }
 
-// mutate is the whole write-through shape: call Jira, re-read the issue into the
-// mirror, then print the refreshed row.
-func mutate(key string, asJSON bool, fn func(context.Context, *jira.Client) (map[string]any, error)) error {
-	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
+// refreshAfterWrite re-reads one issue from the origin that owns it.
+func refreshAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, src, key string) error {
+	if src == "linear" {
+		lc, err := origin.Linear(cfg)
+		if err != nil {
+			return err
+		}
+		return syncer.SyncLinearIssue(ctx, db, lc, key)
+	}
+	return syncer.SyncIssue(ctx, cfg, db, key, syncer.Options{})
+}
+
+// mutate is the whole write-through shape: call the origin that owns the
+// key, re-read the issue into the mirror, then print the refreshed row.
+func mutate(key string, asJSON bool, fn func(context.Context, origin.Writer) (map[string]any, error)) error {
+	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		extra, err := fn(ctx, c)
 		if err != nil {
 			return err
 		}
-		return emitAfterWrite(ctx, cfg, db, c, key, asJSON, extra)
+		return emitAfterWrite(ctx, cfg, db, src, key, asJSON, extra)
 	})
 }
 
@@ -1177,7 +1218,7 @@ func cmdComment(args []string) error {
 	if strings.TrimSpace(body) == "" {
 		return errors.New("empty comment — pass -m <text>, or -m - to read stdin")
 	}
-	return mutate(key, *asJSON, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		// No mention resolution: `@Name` in a CLI body stays plain text and notifies
 		// nobody. ponytail: add it when someone asks, via the users endpoint the UI uses.
 		created, err := c.AddComment(ctx, key, jira.Doc(body, nil))
@@ -1210,7 +1251,7 @@ func cmdTransition(args []string) error {
 	// Trailing words join the target so an unquoted `In Review` still works.
 	want := strings.TrimSpace(strings.Join(pos[1:], " "))
 
-	return mutate(key, *asJSON, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		list, err := c.Transitions(ctx, key)
 		if err != nil {
 			return nil, err
@@ -1367,7 +1408,7 @@ func cmdAssign(args []string) error {
 	}
 	key, who := normalizeKey(pos[0]), strings.TrimSpace(pos[1])
 
-	return mutate(key, *asJSON, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		id, err := resolveAccount(ctx, c, who)
 		if err != nil {
 			return nil, err
@@ -1380,7 +1421,7 @@ func cmdAssign(args []string) error {
 // configured member directory answers without a network call, and anything else
 // goes to Jira's own user search — the same source the UI's picker uses, because
 // there is no local user table to search.
-func resolveAccount(ctx context.Context, c *jira.Client, who string) (string, error) {
+func resolveAccount(ctx context.Context, c origin.Writer, who string) (string, error) {
 	if who == "-" {
 		return "", nil
 	}

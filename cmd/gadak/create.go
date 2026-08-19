@@ -103,7 +103,7 @@ func cmdCreate(args []string) error {
 		if err != nil {
 			return err
 		}
-		err = emitAfterWrite(ctx, cfg, db, c, key, *asJSON, extra)
+		err = emitAfterWrite(ctx, cfg, db, "", key, *asJSON, extra)
 		var missed writeNotMirroredError
 		if errors.As(err, &missed) {
 			// The write landed; the new key is outside what this mirror lists.
@@ -320,7 +320,7 @@ func formatCreateError(err error) error {
 // Text is KEY<tab>summary (batch contract); --json reuses emitAfterWrite.
 func emitBatchLine(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client, key, summary string, asJSON bool, extra map[string]any) error {
 	if asJSON {
-		err := emitAfterWrite(ctx, cfg, db, c, key, true, extra)
+		err := emitAfterWrite(ctx, cfg, db, "", key, true, extra)
 		var missed writeNotMirroredError
 		if errors.As(err, &missed) {
 			fmt.Fprintf(os.Stderr, "warning: %s\n", missed.Error())
