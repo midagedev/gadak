@@ -11,7 +11,7 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.15.2 기준 번역입니다.</sub></p>
+<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.16.0 기준 번역입니다.</sub></p>
 
 내 Jira를 로컬 SQLite 파일 하나로 — "어느 에픽이 막혀 있지?"가 물을 수
 없는 질문이 아니라 쿼리 한 줄이 됩니다.
@@ -154,6 +154,39 @@ macOS 앱에서는 같은 설치가 버튼입니다 — **설정 → 연동**이
 [`contrib/raycast/`](contrib/raycast/). 확장 없이 가려면, 키로 여는 쪽
 절반은 `gadak://view?issue={argument}`를 넣은 Raycast Quicklink로 됩니다.
 
+## 무엇을 커버하나
+
+Connected는 Atlassian Cloud와 대화합니다. Standalone(0.16부터)은 Atlassian
+계정이 없는 워크스페이스입니다 — 앱과 함께 다니는 미니멀한 Jira origin.
+어느 쪽이든 미러는 캐시이고, 모든 쓰기는 origin을 통과합니다.
+
+| | Connected (Atlassian Cloud) | Standalone (0.16부터) |
+| --- | :---: | :---: |
+| 이슈 읽기·검색 (FTS, JQL, SQL) | ✅¹ | ✅¹ |
+| 생성, 코멘트, 상태 전이, 담당자, 라벨, 우선순위 | ✅ | ✅ |
+| 마감일·설명·커스텀 필드 편집 (0.16부터) | ✅² | ✅² |
+| 계층 구조 | ✅³ | ✅³ |
+| 위키 문서 | ✅⁴ | ✅⁵ |
+| 첨부 | ✅ | ✅ |
+| 히스토리 / 상태 체류 시간 | ✅⁶ | ✅⁶ |
+| 에이전트 표면 (스킬, MCP, SQL) | ✅ | ✅ |
+| 보드와 스프린트 | — | — |
+| 대시보드 | — | — |
+| Jira 알림 | —⁷ | —⁷ |
+
+1. SQL과 FTS는 로컬입니다. `--jql` / Jira URL은 문서화된 부분집합을 인메모리 필터로 매핑하고, gadak이 표현하지 못하는 절은 조용히 버려지지 않고 나열됩니다. Sprint, `WAS`, 필드를 가로지르는 `OR`, 커스텀 필드가 거절 목록에 있습니다 ([decision 0007](docs/decisions/0007-jql-subset.md)).
+2. 마감일과 설명은 전용 엔드포인트입니다. 커스텀 필드는 `text`, `number`, `date`, `option`, `user`, `multi_option` / `version_array` kind — 이슈의 editmeta와 설정된 필드 allowlist로 게이트됩니다. 캐스케이딩 셀렉트와 textarea 커스텀 필드는 편집기가 없습니다.
+3. 에픽 그룹핑(`epic_key`, 가장 가까운 hierarchy-level-1 조상)은 일급입니다. 부모 지정은 CLI `create --parent` / `edit --parent`뿐입니다 — REST `PUT {key}/parent`는 없습니다. 서브태스크 create-meta 플래그는 표면화되지 않아, create는 어떤 유형이 부모를 요구하는지 알지 못합니다.
+4. Confluence Cloud를 미러링합니다. gadak은 페이지를 쓰지 않습니다.
+5. 페이지는 인프로세스 origin에서 동기화되고, origin은 페이지 생성·수정을 받습니다. gadak 자신의 CLI·REST·UI에는 아직 페이지 쓰기 동사가 없습니다.
+6. Changelog는 미러링됩니다. 상태 체류 시간은 저장 컬럼이 아니라 `status_changed_at`에서 계산합니다.
+7. Jira의 알림함, 알림 규칙, 이메일은 미러링하지 않습니다. gadak은 macOS·Linux에서 자체 watch-피드 OS 알림을 갖고 있습니다.
+
+**Linear — 커밍순.** 읽기 전용 GraphQL 클라이언트가 이미 트리에 있습니다
+(viewer, 팀, 워크플로 상태, 커서 페이징 이슈) — 라이브 API에 대해
+실측되었습니다. Linear 워크스페이스는 0.16 이후 릴리스로 계획되어 있고,
+그것이 생기면 이 표에 Linear 열이 추가됩니다.
+
 ## 에이전트를 위해
 
 gadak이 존재하는 이유의 절반입니다. 레퍼런스: **[AGENTS.md](AGENTS.md)**.
@@ -218,8 +251,10 @@ JQL로 여전히 물을 수 없는 것은 `gadak sql`과
 
 ## 설치
 
-Atlassian Cloud 전용입니다. [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
-하나로 같은 사이트의 Jira와 Confluence를 모두 커버합니다.
+Atlassian Cloud, 또는 (0.16부터) Atlassian 계정이 없는 standalone
+워크스페이스입니다. Connected 사이트에는
+[API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
+하나가 필요합니다 — 같은 사이트의 Jira와 Confluence를 모두 커버합니다.
 
 **1. [데스크톱 앱](docs/DESKTOP.md).**
 
@@ -276,6 +311,23 @@ Arch 리눅스: 검증된 `PKGBUILD`가
 [`contrib/aur/gadak-bin`](contrib/aur/gadak-bin)에 있습니다 — 거기서
 `makepkg -si`. 아직 AUR에는 없습니다. 업스트림 등록이 닫혀 있습니다
 ([`docs/INSTALL.md`](docs/INSTALL.md#arch-linux)).
+
+[Omarchy](https://omarchy.org)에서는, 어떤 클라우드 플러그인도 답할 수
+없는 질문 하나를 바가 답합니다 — *내* 미러에서 무엇이 바뀌었나.
+[`contrib/omarchy`](contrib/omarchy)의 셸 플러그인 위젯이 로컬 미러에서
+바로 `open·stuck`을 보여 주고(토큰 없음, 네트워크 없음), 클릭하면 앱이
+열립니다. 실제 게스트에서 한 번 실행해 검증했습니다.
+
+<details>
+<summary>▶ 실제 Omarchy 게스트 위의 위젯 (PNG) — 바 배지는 <code>gadak sql</code> 자신의 숫자입니다</summary>
+
+<p align="center">
+  <img src="docs/media/omarchy-widget.png" alt="Omarchy 데스크톱: Waybar 배지가 368·201을 표시하고, 아래 터미널에서 gadak sql --json이 같은 미러의 open 368, stuck 201을 반환하며, 배지를 클릭해 gadak 웹 앱이 열려 있다" width="900">
+  <br>
+  <sub>Arch + Hyprland 검증 게스트에서 캡처 (<a href="contrib/omarchy/README.md">contrib/omarchy/README.md</a>).</sub>
+</p>
+
+</details>
 
 설치 스크립트, 릴리스 아카이브, 소스 빌드, Docker, 위키 미러링, 프로필,
 업그레이드: **[`docs/INSTALL.md`](docs/INSTALL.md)**.

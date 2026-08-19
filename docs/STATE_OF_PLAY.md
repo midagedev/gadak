@@ -4,7 +4,24 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-17 — v0.15.0, the release that opens gadak outward:
+Last updated: 2026-08-20 — v0.16.0, the release where gadak stops needing an
+Atlassian account and stops needing a Mac: standalone workspaces whose origin
+is an in-process minimal Jira (`issuetap`) — mirror still a disposable cache,
+every write through the origin, and while a standalone `gadak serve` runs it
+advertises itself so other gadak processes route writes through it instead of
+dual-writing the persist file (GDK-333; the desktop app followed in
+GDK-340, and a post-tag hardening wave closed GDK-241 and GDK-342–348).
+Windows gets a desktop zip and honest SmartScreen docs, Linux gets
+tarball + `install-service`, Omarchy gets a bar widget verified on a real
+guest. Issue editing now follows the issue's own editmeta: due date,
+plain-text description with a format-loss guard, custom-field editors by
+kind, `p` for priority. The hosted demo opens on the product, feedback
+channels live in a Settings About tab and the macOS Help menu, the README
+carries a coverage matrix instead of adjectives, and a read-only Linear
+client shipped in the tag measured against the live API but unwired — since
+the tag, main wires it as the third read-only sync source (GDK-263), not yet
+in a released build.
+Under it, v0.15.0, the release that opens gadak outward:
 `gadak://` deep links with producers on every surface (a copy-link action on
 the detail, `gadak issue KEY --link`, and a documented contract for extension
 authors), search fast enough to sit under someone else's keystroke (key
