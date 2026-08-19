@@ -76,7 +76,16 @@ queries, the `gadak sql` stdout format, and `views open --keys -`.
 
 ## Install
 
-On an Omarchy machine, from a clone of this repository:
+The published route (the distribution mirror
+[`midagedev/omarchy-gadak`](https://github.com/midagedev/omarchy-gadak) —
+its root is the manifest, which is what `omarchy plugin add` clones):
+
+```bash
+omarchy plugin add https://github.com/midagedev/omarchy-gadak.git --enable
+```
+
+Not yet exercised on a real guest — the copy route below is the verified
+one until it is. Or, from a clone of this repository:
 
 ```bash
 bash contrib/omarchy/install.sh
@@ -101,8 +110,19 @@ The script:
 `omarchy-plugin-clone` clones a **built-in** plugin into
 `~/.config/omarchy/plugins/<user>.<id>/`. It is the wrong verb here.
 `omarchy-plugin-add` clones a git URL whose root is a `manifest.json`;
-this plugin is a subdirectory of the gadak repo, so add cannot see it
-until it is published as its own repository.
+this plugin is a subdirectory of the gadak repo, so add cannot see it —
+that is what the mirror repo is for.
+
+## Distribution mirror
+
+`gadak/` here is the **source of truth**; the mirror repo is publish-only.
+After a payload change lands on main, a maintainer runs
+`bash contrib/omarchy/sync-mirror.sh` — it clones the mirror, copies
+`manifest.json` / `BarWidget.qml` / `query.sql` / `LICENSE`, and pushes only
+when the diff is non-empty. Never edit the mirror directly, and never point
+issues there (the mirror README routes people back here). Listing on
+[omarchyplugins.com](https://omarchyplugins.com) is a separate step and
+waits until `omarchy plugin add` has been exercised on a real guest.
 
 If `gadak` is missing, the script prints the install options that exist
 today and still copies the plugin (the badge will say `no gadak`):
