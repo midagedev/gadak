@@ -666,6 +666,93 @@ func TestLocalAttachDoesNotSniffDriverProse(t *testing.T) {
 	}
 }
 
+// GDK-310: a newer local.db must warn once per path, not once per Open.
+// gadak sql already opens twice (cmdSQL + warnIfStale → OpenReadOnly each).
+// Modelled on TestAttachReuseIsSilent / TestAttachFailureIsReported (captureLog).
+func TestNewerLocalDBWarnsOncePerPath(t *testing.T) {
+	path := newerLocalFixture(t, len(localMigrations)+1)
+	local := LocalPath(path)
+	before := LocalNewerSchemaWarnsSuppressed()
+	got := captureLog(t, func() {
+		openReadOnlyQuery(t, path)
+		openReadOnlyQuery(t, path)
+	})
+	const prefix = "store: local.db:"
+	if n := strings.Count(got, prefix); n != 1 {
+		t.Errorf("newer-local warning count = %d, want 1; log=%q", n, got)
+	}
+	if !strings.Contains(got, local) {
+		t.Errorf("warning must name the path %q; log=%q", local, got)
+	}
+	if strings.Contains(got, "--db") {
+		t.Errorf("local.db advice must not mention --db (demo/export-static only); log=%q", got)
+	}
+	if !strings.Contains(got, "upgrade gadak") {
+		t.Errorf("message must say what to do (upgrade gadak), not only restate versions; log=%q", got)
+	}
+	if !strings.Contains(got, "--profile") || !strings.Contains(got, "GADAK_HOME") {
+		t.Errorf("message must name --profile / GADAK_HOME; log=%q", got)
+	}
+	if gotn := LocalNewerSchemaWarnsSuppressed(); gotn != before+1 {
+		t.Errorf("LocalNewerSchemaWarnsSuppressed %d → %d, want +1", before, gotn)
+	}
+}
+
+// Two profiles in one process are two files; a global Once would swallow the second.
+func TestNewerLocalDBWarnsSeparatelyPerPath(t *testing.T) {
+	pathA := newerLocalFixture(t, len(localMigrations)+1)
+	pathB := newerLocalFixture(t, len(localMigrations)+1)
+	before := LocalNewerSchemaWarnsSuppressed()
+	got := captureLog(t, func() {
+		openReadOnlyQuery(t, pathA)
+		openReadOnlyQuery(t, pathB)
+	})
+	if n := strings.Count(got, "store: local.db:"); n != 2 {
+		t.Errorf("two paths should warn twice, got %d; log=%q", n, got)
+	}
+	if !strings.Contains(got, LocalPath(pathA)) || !strings.Contains(got, LocalPath(pathB)) {
+		t.Errorf("each path must appear; log=%q", got)
+	}
+	if gotn := LocalNewerSchemaWarnsSuppressed(); gotn != before {
+		t.Errorf("two distinct first-seen paths must not suppress; %d → %d", before, gotn)
+	}
+}
+
+func newerLocalFixture(t *testing.T, version int) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	raw, err := sql.Open("sqlite", "file:"+LocalPath(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(fmt.Sprintf("PRAGMA user_version = %d", version)); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func openReadOnlyQuery(t *testing.T, path string) {
+	t.Helper()
+	ro, err := OpenReadOnly(path)
+	if err != nil {
+		t.Fatalf("OpenReadOnly: %v", err)
+	}
+	defer ro.Close()
+	var n int
+	if err := ro.QueryRow(`SELECT COUNT(*) FROM local.visits`).Scan(&n); err != nil {
+		t.Fatalf("history must remain readable: %v", err)
+	}
+}
+
 type hookConn struct {
 	exec  func(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error)
 	query func(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error)

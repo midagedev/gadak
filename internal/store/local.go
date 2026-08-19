@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -132,6 +133,37 @@ var localAttachReuses atomic.Uint64
 // already present and skipped the failure log.
 func LocalAttachReuses() uint64 { return localAttachReuses.Load() }
 
+// localNewerSchemaWarned is path → struct{} of local.db files that have
+// already logged the "schema newer than this build" notice this process.
+// Keyed by filepath.Clean(path) so two Opens of one file share one line;
+// a bare sync.Once would hide a second profile. Bounded by the number of
+// distinct local.db paths a process opens (one per profile/workspace) —
+// gadak serve does not grow this without a new home.
+var localNewerSchemaWarned sync.Map
+
+// localNewerSchemaWarnsSuppressed counts duplicate notices that were not
+// printed. Process-wide because EnsureLocal runs on every Open/OpenReadOnly.
+// Same shape as LocalAttachReuses: atomic, free when unread, no logs.
+var localNewerSchemaWarnsSuppressed atomic.Uint64
+
+// LocalNewerSchemaWarnsSuppressed is how many times migrateLocal skipped a
+// repeat of the newer-schema notice for a path already warned.
+func LocalNewerSchemaWarnsSuppressed() uint64 {
+	return localNewerSchemaWarnsSuppressed.Load()
+}
+
+// warnLocalNewerSchema logs the downgrade notice once per local.db path.
+// The file is left as-is (reads of tables this build knows still work);
+// returning nil from migrateLocal is what keeps callers from re-logging.
+func warnLocalNewerSchema(path string, have, want int) {
+	key := filepath.Clean(path)
+	if _, dup := localNewerSchemaWarned.LoadOrStore(key, struct{}{}); dup {
+		localNewerSchemaWarnsSuppressed.Add(1)
+		return
+	}
+	log.Printf("store: local.db: %s: schema version %d is newer than this build of gadak supports (%d); leaving personal history as-is; upgrade gadak, or use a different --profile / GADAK_HOME", path, have, want)
+}
+
 func schemaAttached(conn sqlite.ExecQuerierContext, name string) bool {
 	rows, err := conn.QueryContext(context.Background(), "PRAGMA database_list", nil)
 	if err != nil {
@@ -249,7 +281,14 @@ func migrateLocal(sqlDB *sql.DB, path string) error {
 	}
 	want := len(localMigrations)
 	if have > want {
-		return fmt.Errorf("%s: schema version %d is newer than this build of gadak supports (%d)", path, have, want)
+		// Owner of the once-per-path notice. EnsureLocal is called from
+		// Open, OpenReadOnly, and (only when local.db is missing) the
+		// attach hook; gadak sql opens twice (cmdSQL + warnIfStale).
+		// Logging at callers tracks command shape, not this decision.
+		// Nil: the file is usable as-is, so callers' `if err != nil { log }`
+		// must not reprint this.
+		warnLocalNewerSchema(path, have, want)
+		return nil
 	}
 	if have == want {
 		return nil
