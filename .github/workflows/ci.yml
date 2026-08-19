@@ -176,24 +176,88 @@ jobs:
 
       - run: npm ci
 
-      # --with-deps runs apt-get, and an Ubuntu mirror that stalls rather than
-      # fails takes the whole job with it: on 2026-08-18 this step sat on
-      # archive.ubuntu.com for 29 minutes, hit the job's 30-minute timeout, and
-      # reported "Playwright E2E fail" on a pull request that changed one
-      # markdown file. No browser had started. A stalled mirror must not be
-      # able to look like a verdict on the change, so each attempt is killed at
-      # four minutes and retried instead of being waited on.
+      # --with-deps is two unlike jobs: apt (root, dpkg lock, not safely
+      # killable) and a browser download (no lock, retryable). Wrapping the
+      # combined command in `timeout 240` was measured on main run
+      # 32206671649 (2026-08-19): the step started 02:07:07, Playwright
+      # printed "Switching to root user to install dependencies...", and
+      # timeout fired at 02:11:07 while azure.archive.ubuntu.com was still
+      # fetching the 21.1 MB set (fonts-wqy-zenhei 7472 kB had been in
+      # flight 101 s). timeout runs as the runner user and cannot signal
+      # that root apt-get (kill(2) uid check). The desktop-linux step in
+      # this file puts `timeout` *under* sudo for that reason. Process 2860
+      # (apt-get) kept /var/lib/dpkg/lock-frontend; attempts 2 and 3 failed
+      # in ~1 s on the lock; the orphan then continued Get:8–10 and unpacked
+      # after the step had given up.
+      #
+      # Do not wrap install-deps or --with-deps in `timeout`. A retry of apt
+      # after that kill is a guaranteed lock fail. The download half keeps
+      # the bounded retry the stalling-installer wrapper was added for
+      # (2026-08-18: a 29-minute silent mirror looked like a test verdict).
       - name: Install Playwright Chromium
-        timeout-minutes: 14
+        # 22, not 14: the worst case this step is allowed to reach is a
+        # 120s lock wait plus a slow-mirror apt (~6 min measured) plus
+        # three 250s download attempts — about 20 minutes. At 14 the
+        # runner's own timeout would cut the third attempt and replace
+        # the message that names which half failed with a generic one.
+        # The job's own bound is 30, so a real stall still dies here.
+        timeout-minutes: 22
         run: |
+          set -eu
+          lock=/var/lib/dpkg/lock-frontend
+          # Bounded wait: 60 × 2s = 120s. unattended-upgrades at runner
+          # start, or a leftover apt-get, must not make install-deps fail
+          # in 3 seconds — and must not spin forever. After the split, the
+          # download retry does not call apt, so it cannot race this lock.
+          #
+          # This wait is defence, not the fix, and it fails open: if `fuser`
+          # is absent from the image, the probe errors, the lock reads free,
+          # and we go straight to install-deps — which is exactly today's
+          # behaviour, with apt's own message if the lock really was held.
+          # Whether it fires is visible in the log ("dpkg lock held, waiting").
+          wait_dpkg_lock() {
+            i=0
+            while [ "$i" -lt 60 ]; do
+              if ! sudo fuser "$lock" >/dev/null 2>&1; then
+                return 0
+              fi
+              i=$((i + 1))
+              echo "playwright OS deps (apt): dpkg lock held, waiting ${i}/60" >&2
+              sleep 2
+            done
+            echo "::error::playwright OS deps (apt) failed — dpkg lock still held after 120s, not the tests"
+            return 1
+          }
+
+          wait_dpkg_lock
+          echo "playwright OS deps (apt): install-deps once, no timeout wrapper"
+          if ! npx playwright install-deps chromium; then
+            if sudo fuser "$lock" >/dev/null 2>&1; then
+              echo "::error::playwright OS deps (apt) failed — dpkg lock still held"
+            else
+              echo "::error::playwright OS deps (apt) failed — installer or mirror, not the tests"
+            fi
+            exit 1
+          fi
+          echo "playwright OS deps (apt): ok"
+
+          # Browser download only: no apt, no dpkg lock. timeout signals
+          # npx (same uid). -k 10 reaps a stuck node after SIGTERM.
           for attempt in 1 2 3; do
-            if timeout 240 npx playwright install --with-deps chromium; then
+            rc=0
+            timeout -k 10 240 npx playwright install chromium || rc=$?
+            if [ "$rc" = 0 ]; then
+              echo "playwright chromium download: ok (attempt ${attempt})"
               exit 0
             fi
-            echo "::warning::playwright install attempt ${attempt} failed or stalled; retrying"
+            if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+              echo "::warning::playwright chromium download attempt ${attempt} stalled (timeout, exit ${rc}); retrying"
+            else
+              echo "::warning::playwright chromium download attempt ${attempt} failed (exit ${rc}); retrying"
+            fi
             sleep 10
           done
-          echo "::error::playwright install failed three times — this is the installer, not the tests"
+          echo "::error::playwright chromium download failed three times — browser cache, not apt, not the tests"
           exit 1
 
       - name: Run browser E2E
