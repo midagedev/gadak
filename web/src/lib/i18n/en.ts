@@ -509,6 +509,7 @@ export const en = {
   'doc.comments': 'Comments',
   'doc.noComments': 'No comments',
   'doc.noContent': 'This page is empty.',
+  'doc.commentPlaceholder': 'Comment on this page…',
   'doc.version': 'v{n}',
   'doc.breadcrumb': 'Document path',
   'doc.openSource': 'Open the original page',

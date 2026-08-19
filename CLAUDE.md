@@ -18,10 +18,10 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   바꾸는 것은 설정 편집이 아니라 새 워크스페이스다. 이 조항을 어기는 것이
   "다른 트래커를 조용히 가리키게 하는" 부류의 결함이다.
 - **쓰기는 전부 origin(Jira)을 통과**한 뒤 미러 갱신. 미러에 직접 쓰는 API를
-  열지 않는다. 위키도 같은 규칙이다 — 페이지 쓰기(편집부터, GDK-380)는
-  origin.Wiki를 통과한다: connected는 Confluence REST, standalone은 issuetap의
-  Confluence API(미러 직접 쓰기가 아니다). 아직 없는 동사(생성·페이지 코멘트)는
-  GDK-381/382가 소유한다.
+  열지 않는다. 위키도 같은 규칙이다 — 페이지 쓰기(편집 GDK-380, 코멘트
+  GDK-381)는 origin.Wiki를 통과한다: connected는 Confluence REST, standalone은
+  issuetap의 Confluence API(미러 직접 쓰기가 아니다). 아직 없는 동사(페이지
+  생성)는 GDK-382가 소유한다.
 - **아웃바운드 없음.** 텔레메트리 금지. 나가는 요청은 사용자의 Atlassian
   사이트, GitHub 릴리스 버전 체크(설정으로 끔), loopback뿐 (`SECURITY.md`).
 - **계정·서버·포트 강제 없음.** loopback 단일 사용자 모델 (`docs/decisions/0003`).

@@ -267,6 +267,18 @@ export async function resyncPage(pageId: string): Promise<void> {
   }
 }
 
+/**
+ * Post a top-level comment on a wiki page through the owning origin
+ * (GDK-381). Returns the refreshed PageDetail.
+ */
+export function commentOnPage(pageId: string, text: string): Promise<{ page: PageDetail }> {
+  return jsonW<{ page: PageDetail }>(`pages/${encodeURIComponent(pageId)}/comment/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+}
+
 /* ── People axis ── */
 
 /**

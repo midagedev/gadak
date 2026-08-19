@@ -24,9 +24,83 @@ func cmdPage(args []string) error {
 	switch args[0] {
 	case "edit":
 		return cmdPageEdit(args[1:])
+	case "comment":
+		return cmdPageComment(args[1:])
 	default:
-		return fmt.Errorf("page: unknown subcommand %q (try `gadak page edit`)", args[0])
+		return fmt.Errorf("page: unknown subcommand %q (try `gadak page edit` or `gadak page comment`)", args[0])
 	}
+}
+
+func cmdPageComment(args []string) error {
+	fs := newFlagSet("page comment")
+	text := fs.String("m", "", "comment body as plain text; `-` reads stdin")
+	adfFile := fs.String("adf-file", "", "comment body as an ADF JSON document file; wins over -m")
+	asJSON := fs.Bool("json", false, "emit JSON")
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("page", fs))
+		return nil
+	}
+	rest, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return fmt.Errorf("page comment: exactly one page id (usage: gadak page comment <ID> -m <text|-> | --adf-file F)")
+	}
+	id := rest[0]
+	body := *text
+	if body == "-" {
+		buf, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		body = string(buf)
+	}
+	adf := ""
+	if *adfFile != "" {
+		b, err := os.ReadFile(*adfFile)
+		if err != nil {
+			return err
+		}
+		if !json.Valid(b) {
+			return fmt.Errorf("page comment: %s is not valid JSON (an ADF document)", *adfFile)
+		}
+		adf = string(b)
+	}
+	if adf == "" {
+		if body == "" {
+			return fmt.Errorf("page comment: nothing to post — pass -m or --adf-file")
+		}
+		adf = string(jira.Doc(body, nil))
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	wc, err := origin.Wiki(cfg)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	cm, err := wc.AddPageComment(ctx, id, adf)
+	if err != nil {
+		return err
+	}
+
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err := syncer.SyncPage(ctx, cfg, db, id); err != nil {
+		return fmt.Errorf("comment landed on page %s, but the mirror did not refresh (run `gadak sync`): %w", id, err)
+	}
+	if *asJSON {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"comment": cm})
+	}
+	fmt.Printf("%s\tcomment %s added\n", id, cm.ID)
+	return nil
 }
 
 func cmdPageEdit(args []string) error {

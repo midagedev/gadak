@@ -11,6 +11,7 @@
    * index row while the body is still in flight.
    */
   import { t, relativeTime, absTime } from '../../lib/i18n'
+  import { commentOnPage } from '../../lib/api'
   import { pages } from '../../stores/pages.svelte'
   import { createResource } from '../../lib/resource.svelte'
   import { onEscape } from '../../lib/dom-actions'
@@ -67,6 +68,26 @@
 
   // Both directions of the text-derived issue references, counted once — the
   // section renders them as one list (see RelatedIssues).
+  // Page comment composer (GDK-381) — plain text through the origin.
+  let draft = $state('')
+  let posting = $state(false)
+  let postError = $state('')
+  async function postPageComment(): Promise<void> {
+    const text = draft.trim()
+    if (!key || !text || posting) return
+    posting = true
+    postError = ''
+    try {
+      await commentOnPage(key, text)
+      draft = ''
+      resource.reload()
+    } catch (e) {
+      postError = e instanceof Error ? e.message : String(e)
+    } finally {
+      posting = false
+    }
+  }
+
   const relatedIssueCount = $derived.by(() => {
     const keys = new Set<string>()
     for (const k of detailForKey?.ref_issue_keys ?? []) keys.add(k)
@@ -242,6 +263,41 @@
                 {/each}
               </ol>
             {/if}
+
+            <form
+              class="mt-3 flex flex-col gap-2"
+              onsubmit={(e) => {
+                e.preventDefault()
+                void postPageComment()
+              }}
+            >
+              <textarea
+                bind:value={draft}
+                rows="2"
+                placeholder={t('doc.commentPlaceholder')}
+                data-testid="doc-comment-composer"
+                class="w-full resize-y rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-1.5 text-body text-text-primary placeholder:text-text-muted focus:border-border-strong focus:outline-none"
+                onkeydown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    void postPageComment()
+                  }
+                }}
+              ></textarea>
+              {#if postError}
+                <p class="text-[12px] text-danger-text" data-testid="doc-comment-error">{postError}</p>
+              {/if}
+              <div class="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={posting || !draft.trim()}
+                  data-testid="doc-comment-submit"
+                  class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+                >
+                  {posting ? t('write.commentPosting') : t('write.commentButton')}
+                </button>
+              </div>
+            </form>
           </Section>
         </div>
       {/if}

@@ -497,6 +497,27 @@ func (c *Client) UpdatePage(ctx context.Context, id, title, adf string, nextVers
 	return got, nil
 }
 
+// AddPageComment POSTs a top-level comment on a page (v1 content with
+// type=comment and the page as container). ADF is the atlas_doc_format
+// value as a JSON string, same as CreatePage.
+func (c *Client) AddPageComment(ctx context.Context, pageID, adf string) (Comment, error) {
+	body := map[string]any{
+		"type":      "comment",
+		"container": map[string]any{"id": pageID, "type": "page"},
+		"body": map[string]any{
+			"atlas_doc_format": map[string]any{
+				"value":          adf,
+				"representation": "atlas_doc_format",
+			},
+		},
+	}
+	var created Comment
+	if err := c.write(ctx, http.MethodPost, apiPath+"/content", body, &created); err != nil {
+		return Comment{}, err
+	}
+	return created, nil
+}
+
 // Raw sends a request and returns the HTTP status and response body without
 // JSON decoding. Path is relative to the wiki origin (e.g. /rest/api/… or
 // /api/v2/… — not the /wiki prefix). Absolute URLs are rejected. mutating

@@ -509,6 +509,7 @@ export const ko = {
   'doc.content': '본문',
   'doc.comments': '코멘트',
   'doc.noComments': '코멘트 없음',
+  'doc.commentPlaceholder': '이 페이지에 코멘트 남기기…',
   'doc.noContent': '내용이 비어 있습니다.',
   'doc.version': 'v{n}',
   'doc.breadcrumb': '문서 경로',
