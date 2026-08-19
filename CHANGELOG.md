@@ -76,6 +76,16 @@ fields your site actually uses.
   issue title contains the word, and `,` opens it from anywhere (GDK-300).
   Posting a comment finally says it landed (GDK-301).
 
+### The demo, and the door
+
+- **The hosted demo opens on the product** (GDK-335). The full-screen gate
+  page is gone — the issue list is the first paint. Its contents (the
+  claim, the brew command, the 60-second video, the repo link) moved into
+  an About popover on the demo banner, joined by the feedback channels.
+- **The product says how to reach us** (GDK-336): a Settings About tab and
+  a macOS Help menu carry the same four channels — the GitHub repo, the
+  issue tracker, email, and X.
+
 ### Updates, without an updater
 
 - Update detection reaches the UI and says the right thing per platform —
