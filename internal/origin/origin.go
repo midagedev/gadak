@@ -279,6 +279,11 @@ func constructStandalone(persist string) (*session, error) {
 	emb, err := issuetap.NewEmbedded(issuetap.EmbeddedConfig{
 		PersistPath:  persist,
 		FixtureBytes: defaultStandaloneFixture,
+		// The persist file is the origin — a write we acknowledged must be
+		// on disk before the response, not a debounce window later. A
+		// negative debounce is issuetap's durable-before-return mode
+		// (GDK-342); the mirror keeps its own transactionality either way.
+		PersistDebounce: -1,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("origin: issuetap: %w", err)

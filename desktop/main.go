@@ -211,6 +211,15 @@ func run() error {
 		defer origin.SetInProcess(false)
 		stopAdvertise := startStandaloneOriginListener(cfg, api)
 		defer stopAdvertise()
+		// The CLI flushes the standalone persist on the way out
+		// (cmd/gadak/main.go); the app must too, or quitting inside the
+		// debounce window silently drops the last write (GDK-342). LIFO:
+		// runs after the listener stops, so nothing new arrives mid-flush.
+		defer func() {
+			if err := origin.Close(); err != nil {
+				log.Printf("warning: standalone persist flush on exit: %v", err)
+			}
+		}()
 	}
 
 	ui, ok := gadak.WebUI()
