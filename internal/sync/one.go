@@ -113,7 +113,16 @@ func SyncPage(ctx context.Context, cfg *config.Config, db *store.DB, id string) 
 		// does not stop issue sync; Run never calls this.
 		return err
 	}
-	rec, _, _, err := fetchPageRecord(ctx, c, confluence.Page{ID: id})
+	// Same GDK-344 upgrade purge as runConfluencePass: a write-back to an
+	// existing page re-mirrors it under the namespaced id, which
+	// UNIQUE(source_id, key) rejects while the pre-namespace row is still
+	// in the mirror.
+	if cfg.IsStandalone() {
+		if _, err := db.PurgePageIDsOutsideNamespace(ctx, ConfluenceSourceID, pageNS(cfg)); err != nil {
+			return err
+		}
+	}
+	rec, _, _, err := fetchPageRecord(ctx, c, cfg, confluence.Page{ID: id})
 	if err != nil {
 		if errors.Is(err, confluence.ErrNotFound) {
 			// SyncPage has no Options logger; DeleteItems is the count surface.

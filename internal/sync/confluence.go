@@ -83,6 +83,18 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 // runConfluencePass is the Confluence-specific body inside the shared runSource
 // skeleton. Usage flush is registered by runSource on the client from setup.
 func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Config, db *store.DB, opts Options, state store.SyncState, res *Result) error {
+	// Upgrade path for GDK-344: standalone wiki mirrors written before the
+	// page id namespace existed hold `confluence:N` rows whose keys the pass
+	// is about to re-insert as `standalone-confluence:N` — same (source_id,
+	// key), different id, which UNIQUE(source_id, key) rejects.
+	if cfg.IsStandalone() {
+		if n, err := db.PurgePageIDsOutsideNamespace(ctx, ConfluenceSourceID, pageNS(cfg)); err != nil {
+			return record(ctx, db, ConfluenceSourceID, err)
+		} else if n > 0 {
+			opts.logf("purged %d pre-namespace standalone pages (GDK-344)", n)
+		}
+	}
+
 	spaces := cfg.Confluence.Spaces
 	if len(spaces) == 0 {
 		listed, err := c.Spaces(ctx)
@@ -212,7 +224,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 				}
 				gate.markFetched(hit.ID)
 				res.PageBodies++
-				rec, spaceName, when, err := fetchPageRecord(ctx, c, hit)
+				rec, spaceName, when, err := fetchPageRecord(ctx, c, cfg, hit)
 				if errors.Is(err, confluence.ErrNotFound) {
 					// Deleted or view-restricted between the listing and the fetch —
 					// routine on a busy site; the next successful prune removes any
@@ -422,7 +434,7 @@ func noteStamp(when string, maxUTC, maxRaw *string) {
 // fetch gate skipped this is not reached at all; commentsOnlyPass is what keeps
 // that page's comments current.
 // spaceName is the human space title from the full page (fallback: search hit).
-func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.Page) (store.PageRecord, string, string, error) {
+func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Config, hit confluence.Page) (store.PageRecord, string, string, error) {
 	full, err := c.Page(ctx, hit.ID)
 	if err != nil {
 		return store.PageRecord{}, "", "", err
@@ -485,7 +497,7 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 	sort.Strings(labels)
 
 	item := store.Item{
-		ID:         ConfluenceSourceID + ":" + full.ID,
+		ID:         pageNS(cfg) + ":" + full.ID,
 		SourceID:   ConfluenceSourceID,
 		Kind:       "page",
 		ExternalID: full.ID,
@@ -514,7 +526,7 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, hit confluence.P
 		cmADF := cm.Body.ADFRaw()
 		cmWhen := jira.ISOTime(cm.Version.When)
 		rec.Comments = append(rec.Comments, store.Comment{
-			ID:         ConfluenceSourceID + ":" + cm.ID,
+			ID:         pageNS(cfg) + ":" + cm.ID,
 			ExternalID: cm.ID,
 			Author:     cm.Version.By.DisplayName,
 			AuthorID:   cm.Version.By.AccountID,

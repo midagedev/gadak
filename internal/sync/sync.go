@@ -582,21 +582,29 @@ func reconcile(ctx context.Context, c *jira.Client, db *store.DB, projects []str
 	return db.DeleteItems(ctx, SourceID, gone)
 }
 
-// itemNS is the id namespace for mirrored issue rows. A standalone origin
-// (issuetap) issues its own numeric ids starting at 10001 — numbers a real
-// Atlassian site also uses — so its rows get a distinct prefix; without it,
-// converting the workspace (--replace-standalone) lets the connected sync's
-// ON CONFLICT(id) upsert silently overwrite a locally originated row whose
-// key differs (STD-1 vs NMB-1) but whose id collides (GDK-241). source_id
-// stays "jira" either way: ids are opaque, never parsed back. Wiki pages are
-// deliberately not namespaced — a page's key IS its external id, so the
-// colliding upsert converges to the site row and the space prune removes the
-// rest; a prefixed id there would trip UNIQUE(source_id, key) instead.
-func itemNS(cfg *config.Config) string {
+// sourceNS is the id-namespace prefix for one connector. Standalone
+// (issuetap) numeric ids overlap the numbers a real Atlassian site uses, so
+// mirrored rows get a distinct prefix; source_id stays the connector slug
+// (ids are opaque, never parsed back).
+func sourceNS(cfg *config.Config, sourceID string) string {
 	if cfg != nil && cfg.IsStandalone() {
-		return "standalone-" + SourceID
+		return "standalone-" + sourceID
 	}
-	return SourceID
+	return sourceID
+}
+
+// itemNS is the id namespace for mirrored issue rows (GDK-241).
+func itemNS(cfg *config.Config) string {
+	return sourceNS(cfg, SourceID)
+}
+
+// pageNS is the id namespace for mirrored wiki rows — pages and their
+// comments (GDK-344). issuetap issues page ids from 20000 and page-comment
+// ids from 30000. A page's key stays the numeric external id, so a
+// pre-namespace row must be purged before the namespaced id is inserted
+// (UNIQUE(source_id, key)).
+func pageNS(cfg *config.Config) string {
+	return sourceNS(cfg, ConfluenceSourceID)
 }
 
 // build maps one Jira issue onto the store's record, fetching the children the

@@ -738,11 +738,23 @@ func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (
 // the new namespace, so no tombstones are written. Children go via
 // ON DELETE CASCADE; items_fts is contentless and needs the explicit delete.
 func (db *DB) PurgeIssueIDsOutsideNamespace(ctx context.Context, sourceID, ns string) (int, error) {
+	return db.purgeIDsOutsideNamespace(ctx, sourceID, ns, "issue")
+}
+
+// PurgePageIDsOutsideNamespace is the wiki sibling of
+// PurgeIssueIDsOutsideNamespace (GDK-344). A standalone page's key is its
+// numeric external id, so a pre-namespace `confluence:N` row and the
+// namespaced `standalone-confluence:N` insert share UNIQUE(source_id, key).
+func (db *DB) PurgePageIDsOutsideNamespace(ctx context.Context, sourceID, ns string) (int, error) {
+	return db.purgeIDsOutsideNamespace(ctx, sourceID, ns, "page")
+}
+
+func (db *DB) purgeIDsOutsideNamespace(ctx context.Context, sourceID, ns, kind string) (int, error) {
 	purged := 0
 	err := db.write(ctx, func(tx *sql.Tx) error {
 		purged = 0
-		rows, err := tx.Query(`SELECT id, rowid FROM items WHERE source_id = ? AND kind = 'issue' AND id NOT LIKE ? ESCAPE '\'`,
-			sourceID, likeEscape(ns+":")+"%")
+		rows, err := tx.Query(`SELECT id, rowid FROM items WHERE source_id = ? AND kind = ? AND id NOT LIKE ? ESCAPE '\'`,
+			sourceID, kind, likeEscape(ns+":")+"%")
 		if err != nil {
 			return err
 		}
@@ -782,13 +794,24 @@ func (db *DB) PurgeIssueIDsOutsideNamespace(ctx context.Context, sourceID, ns st
 // DropSourceMirror deletes everything one source mirrored: its items (and
 // their cascaded children), FTS rows, spaces, tombstones, and sync state —
 // so the next sync starts full against the new origin. Used when a
-// standalone workspace converts to connected (GDK-241): the old origin's
-// rows share the connected id space (pre-namespace mirrors literally, pages
-// by design), so the disposable cache is dropped whole rather than
-// reconciled row by row. saved_views, watches, favorites, and local.db are
-// untouched.
+// standalone workspace converts to connected (GDK-241 / GDK-344): a
+// pre-namespace mirror holds `jira:N` / `confluence:N` rows the new site's
+// upsert would silently overwrite on an id collision. The disposable cache
+// is dropped whole rather than reconciled row by row. Watches and favorites
+// whose keys lived in the dropped mirror go with it — kept, they would
+// silently rebind to a new origin's issue that happens to share the key
+// (standalone defaults to project STD; a real site can too). saved_views and
+// local.db are untouched.
 func (db *DB) DropSourceMirror(ctx context.Context, sourceID string) error {
 	return db.write(ctx, func(tx *sql.Tx) error {
+		for _, q := range []string{
+			`DELETE FROM watches WHERE key IN (SELECT key FROM items WHERE source_id = ?)`,
+			`DELETE FROM favorites WHERE key IN (SELECT key FROM items WHERE source_id = ?)`,
+		} {
+			if _, err := tx.Exec(q, sourceID); err != nil {
+				return err
+			}
+		}
 		// items_fts is contentless (no triggers): clear its rows before the
 		// cascade removes the items they mirror.
 		if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid IN (SELECT rowid FROM items WHERE source_id = ?)`, sourceID); err != nil {

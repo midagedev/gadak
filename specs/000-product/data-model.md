@@ -85,7 +85,7 @@ The neutral spine. One row per mirrored object regardless of source.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | TEXT PK | `<source_id>:<external_id>` |
+| `id` | TEXT PK | `<source_id>:<external_id>`. A standalone origin (issuetap) issues the same numeric ids a real site uses, so those rows are stored as `standalone-<source_id>:<external_id>` (`standalone-jira:10001`, `standalone-confluence:20001`). `source_id` stays `jira` / `confluence`; ids are opaque (GDK-241, GDK-344). |
 | `source_id` | TEXT | FK to `sources.id` |
 | `kind` | TEXT | `issue` in v0.1; `page` reserved for Confluence |
 | `external_id` | TEXT | Source's own id |
@@ -183,7 +183,9 @@ generated strings, so the UI joins here for a human name.
 The document projection (Confluence pages; decision 0006). Joined to `items` on
 `item_id`; the item row carries `kind = 'page'`, the numeric page id as `key`,
 and the flattened ADF body as `body_text`, so FTS and the spine queries need no
-change. Comments reuse the `comments` table.
+change. Comments reuse the `comments` table. Standalone page item ids use the
+`standalone-confluence:` prefix (see `items.id`); the key stays the numeric
+external id (GDK-344).
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -231,7 +233,7 @@ A failed history fetch is logged and the rest of the pass continues.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | TEXT PK | `<source_id>:<comment_id>` |
+| `id` | TEXT PK | `<source_id>:<comment_id>`. Standalone mirrors use the same `standalone-<source_id>:` prefix as the parent item (GDK-241 issues, GDK-344 wiki comments). |
 | `item_id` | TEXT | FK |
 | `external_id` | TEXT | |
 | `author` | TEXT | |

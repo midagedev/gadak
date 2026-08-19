@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -262,5 +263,221 @@ func TestGDK241LegacyMirrorDroppedOnConversion(t *testing.T) {
 	}
 	if strings.Contains(items, "STD-1") || strings.Contains(items, "local only issue") {
 		t.Fatalf("legacy standalone row leaked into connected mirror: %q", items)
+	}
+}
+
+// collisionWikiSite is collisionSite plus the Confluence endpoints a
+// connected wiki pass needs: one space and one page whose numeric id is
+// 20001 — the id issuetap assigns to the first standalone-created page
+// (GDK-344 / F10).
+type collisionWikiSite struct {
+	collisionSite
+	pageJSON []byte
+}
+
+func (s *collisionWikiSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.hits = append(s.hits, r.Method+" "+r.URL.Path)
+	w.Header().Set("Content-Type", "application/json")
+	path := r.URL.Path
+	switch {
+	case path == "/wiki/rest/api/space/ENG":
+		_, _ = w.Write([]byte(`{"key":"ENG","name":"Engineering","type":"global"}`))
+	case path == "/wiki/rest/api/content/search":
+		_, _ = w.Write([]byte(`{"results":[` + string(s.pageJSON) + `],"_links":{}}`))
+	case path == "/wiki/rest/api/content/20001":
+		_, _ = w.Write(s.pageJSON)
+	case strings.HasSuffix(path, "/child/comment"):
+		_, _ = w.Write([]byte(`{"results":[],"size":0,"limit":100,"start":0}`))
+	case path == "/wiki/rest/api/content/20001/version":
+		_, _ = w.Write([]byte(`{"results":[{"number":1,"when":"2026-08-18T12:00:00.000Z"}],"_links":{}}`))
+	default:
+		s.collisionSite.ServeHTTP(w, r)
+	}
+}
+
+func collisionPageJSON(t *testing.T) []byte {
+	t.Helper()
+	page := map[string]any{
+		"id":     "20001",
+		"type":   "page",
+		"status": "current",
+		"title":  "SITE PAGE COLLISION",
+		"space":  map[string]any{"key": "ENG", "name": "Engineering"},
+		"version": map[string]any{
+			"number": 1,
+			"when":   "2026-08-18T12:00:00.000Z",
+			"by":     map[string]any{"accountId": "acc-stub", "displayName": "Stub User"},
+		},
+		"body": map[string]any{
+			"atlas_doc_format": map[string]any{
+				"value":          `{"type":"doc","version":1,"content":[]}`,
+				"representation": "atlas_doc_format",
+			},
+		},
+		"ancestors": []any{},
+		"metadata":  map[string]any{"labels": map[string]any{"results": []any{}, "size": 0, "limit": 25, "start": 0}},
+	}
+	raw, err := json.Marshal(page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func pageADF(text string) string {
+	b, err := json.Marshal(map[string]any{
+		"type": "doc", "version": 1,
+		"content": []any{
+			map[string]any{
+				"type": "paragraph",
+				"content": []any{
+					map[string]any{"type": "text", "text": text},
+				},
+			},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
+// seedStandaloneWithPage is a standalone workspace that already holds a
+// locally originated wiki page (issuetap 20001) mirrored into gadak.db.
+func seedStandaloneWithPage(t *testing.T) (home, pageID string) {
+	t.Helper()
+	home = seedStandaloneWithIssue(t)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := origin.Wiki(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := w.CreatePage(context.Background(), origin.DefaultSpaceKey, "local only page", pageADF("hello from standalone wiki"), "")
+	if err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("CreatePage returned empty id")
+	}
+	if err := origin.Close(); err != nil {
+		t.Fatalf("origin.Close: %v", err)
+	}
+	out, err := capture(t, func() error { return cmdSync([]string{"--full", "--source", "confluence"}) })
+	if err != nil {
+		t.Fatalf("standalone wiki sync: %v\n%s", err, out)
+	}
+	return home, created.ID
+}
+
+// TestGDK344PageIDCollision is the wiki sibling of TestGDK241ItemIDCollision:
+// a standalone-created page with numeric id 20001 (issuetap's first page id —
+// the same number a real Confluence site can hold) is not silently overwritten
+// when the workspace is converted with --replace-standalone and a connected
+// wiki sync upserts a site page with the same numeric id.
+func TestGDK344PageIDCollision(t *testing.T) {
+	home, pageID := seedStandaloneWithPage(t)
+	if pageID != "20001" {
+		t.Fatalf("GDK-344 premise: first standalone page id is 20001, got %q", pageID)
+	}
+
+	before := sqlTSV(t, "select id, key, title, external_id from items where kind = 'page' order by id")
+	t.Logf("BEFORE pages: %s", before)
+	if !strings.Contains(before, "standalone-confluence:20001") {
+		t.Fatalf("GDK-344 premise: first standalone page id is standalone-confluence:20001, got %q", before)
+	}
+	if !strings.Contains(before, "local only page") {
+		t.Fatalf("local page title missing from before-row: %q", before)
+	}
+
+	stub := &collisionWikiSite{
+		collisionSite: collisionSite{issueJSON: []byte(`{"id":"10001","key":"NMB-1","fields":{"summary":"SITE ISSUE COLLISION","project":{"key":"NMB"},"issuetype":{"id":"10004","name":"Bug"},"status":{"id":"3","name":"In Progress","statusCategory":{"key":"indeterminate"}},"created":"2026-08-01T00:00:00.000Z","updated":"2026-08-18T12:00:00.000Z","comment":{"total":0,"comments":[]}},"changelog":{"total":0,"histories":[]}}`)},
+		pageJSON:      collisionPageJSON(t),
+	}
+	srv := httptest.NewServer(stub)
+	t.Cleanup(srv.Close)
+
+	withClosedStdin(t, func() {
+		if _, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "agent@example.com",
+				"--token-file", writeTokenFile(t, home, "id-token"),
+				"--replace-standalone",
+				"--spaces", "ENG",
+			})
+		}); err != nil {
+			t.Fatalf("replace-standalone init: %v", err)
+		}
+	})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IsStandalone() {
+		t.Fatal("expected connected after --replace-standalone")
+	}
+	if cfg.Confluence == nil {
+		t.Fatal("expected wiki to stay on after --spaces ENG")
+	}
+
+	if got := sqlTSV(t, "select id, key from items where kind = 'page'"); got != "" {
+		t.Fatalf("conversion must drop the standalone wiki mirror, still holds: %q", got)
+	}
+
+	syncOut, syncErr := capture(t, func() error { return cmdSync([]string{"--full", "--source", "confluence"}) })
+	t.Logf("wiki sync --full out=%q err=%v hits=%v", syncOut, syncErr, stub.hits)
+	if syncErr != nil {
+		t.Fatalf("wiki sync --full: %v\n%s", syncErr, syncOut)
+	}
+
+	after := sqlTSV(t, "select id, key, title, external_id from items where kind = 'page' order by id")
+	t.Logf("AFTER pages: %s", after)
+	if !strings.Contains(after, "confluence:20001") ||
+		!strings.Contains(after, "SITE PAGE COLLISION") {
+		t.Fatalf("site page 20001 (confluence:20001) missing after sync: %q", after)
+	}
+	if strings.Contains(after, "standalone-confluence:") || strings.Contains(after, "local only page") {
+		t.Fatalf("standalone page leaked into connected mirror (GDK-344): %q persist=%s",
+			after, origin.PersistPath(home))
+	}
+}
+
+// TestGDK344LegacyStandalonePageMirrorUpgrades is the wiki sibling of
+// TestGDK241LegacyStandaloneMirrorUpgrades: a standalone page written before
+// ids were namespaced holds `confluence:20001`. The next standalone wiki
+// sync inserts `standalone-confluence:20001` — same UNIQUE(source_id, key),
+// new id — which must not fail the sync.
+func TestGDK344LegacyStandalonePageMirrorUpgrades(t *testing.T) {
+	_, pageID := seedStandaloneWithPage(t)
+	if pageID != "20001" {
+		t.Fatalf("GDK-344 premise: first standalone page id is 20001, got %q", pageID)
+	}
+
+	dbPath := filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db")
+	raw, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`UPDATE items SET id = 'confluence:20001' WHERE id = 'standalone-confluence:20001'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdSync([]string{"--full", "--source", "confluence"}) })
+	if err != nil {
+		t.Fatalf("standalone wiki sync over a pre-namespace page must not fail: %v\n%s", err, out)
+	}
+	items := sqlTSV(t, "select id, key, title from items where kind = 'page' order by id")
+	if !strings.Contains(items, "standalone-confluence:20001") || strings.Contains(items, "\tconfluence:20001") ||
+		strings.HasPrefix(items, "confluence:20001") {
+		t.Fatalf("legacy page must be re-mirrored under the standalone namespace, got %q", items)
+	}
+	if !strings.Contains(items, "local only page") {
+		t.Fatalf("local page lost during namespace upgrade: %q", items)
 	}
 }
