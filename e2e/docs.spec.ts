@@ -138,8 +138,10 @@ test.describe('mirrored wiki documents', () => {
     ])
     // Body ADF rendered (first heading of the mirrored page).
     await expect(panel.getByRole('heading', { name: '요약' })).toBeVisible()
-    // Read-only surface: no comment composer, unlike the issue panel.
-    await expect(panel.locator('textarea')).toHaveCount(0)
+    // The only write surface is the page comment composer (GDK-381) — the
+    // body itself stays read-only in the panel.
+    await expect(panel.getByTestId('doc-comment-composer')).toHaveCount(1)
+    await expect(panel.locator('textarea')).toHaveCount(1)
 
     // Clearing the query drops the docs group.
     await input.fill('')
