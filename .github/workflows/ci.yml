@@ -316,9 +316,11 @@ jobs:
   # packages, running the real script. Without it the first person to learn
   # the script is broken is whoever tags a release.
   #
-  # No AppImage here (`--appimage` needs appimagetool, and packaging format is
-  # not what this job doubts) — the doubt is whether the Linux host compiles
-  # and the tree the script assembles is well-formed.
+  # GDK-292: the missing-tool check still needs appimagetool absent (exit 69).
+  # After that this job installs a pinned appimagetool, builds --appimage, and
+  # opens the image (`--appimage-extract`) to assert MimeType survived. The
+  # AppDir grep is adjacent to the script; the image is what a user runs
+  # (GDK-167: what the OS reads is not visible to a source test).
   desktop-linux:
     name: Desktop Linux build
     runs-on: ubuntu-latest
@@ -357,48 +359,109 @@ jobs:
           # clock has to come from outside apt — `timeout` per attempt, which
           # is also what makes the retry loop reachable at all (with only the
           # apt options, attempt 1 never returned and 2 and 3 never ran).
+          #
+          # timeout wraps only the network phase. Wrapping install's configure
+          # phase was measured on run 32209035256 (2026-08-19): attempt 1 was
+          # in "Setting up" / "Processing triggers" when the 150s clock fired;
+          # dpkg was left interrupted; attempts 2 and 3 died in ten seconds
+          # each on "E: dpkg was interrupted"; the closing line said "mirror
+          # trouble". Same class as the playwright-install split in this file
+          # (cf544ac): a wall-clock kill applied to a phase the clock is not
+          # guarding. Do not put timeout back around unpack/configure.
           opts=(-o Acquire::Retries=3
                 -o Acquire::http::Timeout=20
                 -o Acquire::https::Timeout=20)
-          apt_try() {
+          # Numbered files in /var/lib/dpkg/updates mean dpkg was killed
+          # mid-transaction. apt-get then refuses every command with
+          # "E: dpkg was interrupted".
+          dpkg_interrupted() {
+            leftover="$(sudo find /var/lib/dpkg/updates -maxdepth 1 -type f ! -name tmp -printf '%f\n' -quit 2>/dev/null || true)"
+            [ -n "$leftover" ]
+          }
+          repair_dpkg() {
+            echo "dpkg database is interrupted; running dpkg --configure -a (not a mirror retry)" >&2
+            sudo dpkg --configure -a
+          }
+          # Wall clock on the network half only. update is all network.
+          # install is split below: download-only (timeout + retry) then
+          # configure from the local cache (no timeout).
+          apt_try_network() {
+            local attempt rc
             for attempt in 1 2 3; do
+              if dpkg_interrupted; then
+                if ! repair_dpkg; then
+                  echo "apt-get $1 failed — dpkg --configure -a could not recover an interrupted database (not mirror trouble)" >&2
+                  return 1
+                fi
+              fi
+              rc=0
               # timeout under sudo, so it signals apt-get directly rather
               # than relying on sudo to forward.
-              sudo timeout -k 10 150 apt-get "${opts[@]}" "$@" && return 0
+              sudo timeout -k 10 150 apt-get "${opts[@]}" "$@" || rc=$?
+              if [ "$rc" = 0 ]; then
+                return 0
+              fi
+              if dpkg_interrupted; then
+                echo "apt-get $1 attempt ${attempt}: dpkg is interrupted after the timed command (not mirror trouble)" >&2
+                if [ "$attempt" = 3 ]; then
+                  echo "apt-get $1 failed — timeout killed apt mid-configure; dpkg is interrupted (not mirror trouble)" >&2
+                  return 1
+                fi
+                echo "apt-get $1: repairing dpkg before retry (attempt ${attempt})" >&2
+                sleep 10
+                continue
+              fi
               if [ "$attempt" = 3 ]; then
-                echo "apt-get $1 failed or stalled three times — mirror trouble, not a build failure" >&2
+                if [ "$rc" = 124 ] || [ "$rc" = 137 ] || [ "$rc" = 143 ]; then
+                  echo "apt-get $1 failed or stalled three times — mirror trouble, not a build failure" >&2
+                else
+                  echo "apt-get $1 failed three times (exit ${rc}), not a stalled mirror" >&2
+                fi
                 return 1
               fi
-              echo "apt-get $1 failed or stalled (attempt $attempt), retrying" >&2
+              if [ "$rc" = 124 ] || [ "$rc" = 137 ] || [ "$rc" = 143 ]; then
+                echo "apt-get $1 stalled (attempt ${attempt}, timeout exit ${rc}), retrying" >&2
+              else
+                echo "apt-get $1 failed (attempt ${attempt}, exit ${rc}), retrying" >&2
+              fi
               sleep 10
             done
+          }
+          apt_try() {
+            local cmd="$1"
+            shift
+            if [ "$cmd" = "install" ]; then
+              # -d: fetch .debs, no dpkg transaction. A kill here does not
+              # leave "dpkg was interrupted".
+              apt_try_network install -d "$@" || return 1
+              if dpkg_interrupted; then
+                repair_dpkg || return 1
+              fi
+              # Unpack + configure from the cache. No timeout: a kill here
+              # is the class of bug this helper exists to close. The step's
+              # timeout-minutes still bounds a real hang.
+              if sudo apt-get "${opts[@]}" install --no-download "$@"; then
+                return 0
+              fi
+              if dpkg_interrupted; then
+                echo "apt-get install failed — dpkg was interrupted mid-configure (not mirror trouble)" >&2
+              else
+                echo "apt-get install failed during configure (not mirror trouble)" >&2
+              fi
+              return 1
+            fi
+            apt_try_network "$cmd" "$@"
           }
           apt_try update
           apt_try install -y --no-install-recommends \
             libgtk-4-dev libwebkitgtk-6.0-dev pkg-config imagemagick
 
-      - name: Build the web UI
-        run: npm ci && npm run build
-
-      - name: Pack the Linux app
-        run: desktop/build-linux.sh
-
-      - name: The packed tree carries the binary and the launcher
-        run: |
-          set -eu
-          appdir="$(find desktop/build -maxdepth 1 -type d -name '*.AppDir' -print -quit)"
-          test -n "$appdir" || { echo "build-linux.sh produced no AppDir" >&2; ls -la desktop/build || true; exit 1; }
-          test -x "$appdir/usr/bin/gadak-desktop" || { echo "no executable at $appdir/usr/bin/gadak-desktop" >&2; find "$appdir" -type f | head -50; exit 1; }
-          desktop_file="$(find "$appdir" -maxdepth 1 -name '*.desktop' -print -quit)"
-          test -n "$desktop_file" || { echo "no .desktop file in $appdir" >&2; exit 1; }
-          grep -q 'x-scheme-handler/gadak' "$desktop_file" || { echo "the .desktop file does not declare gadak://" >&2; cat "$desktop_file"; exit 1; }
-          echo "linux pack tree — ok"
-
       # Bad args must be 64 and a missing tool 69, the same contract
       # desktop/build-app.sh keeps. The missing tool is appimagetool, which
-      # this runner deliberately does not install — emptying PATH would not
-      # test the same thing, because the version stamp is read with grep and
-      # its absence exits 1 long before any need() runs.
+      # is not on this image — emptying PATH would not test the same thing,
+      # because the version stamp is read with grep and its absence exits 1
+      # long before any need() runs. This step must stay before the install
+      # of appimagetool below.
       - name: Argument and missing-tool exit codes
         run: |
           set +e
@@ -413,6 +476,82 @@ jobs:
           set -e
           [ "$rc" = 69 ] || { echo "missing appimagetool exited $rc, want 69" >&2; exit 1; }
           echo "exit-code contract — ok"
+
+      # ubuntu-latest does not ship appimagetool (the step above asserts
+      # that). Cost of installing it, pinned 1.9.1 from GitHub Releases:
+      # ~15 MB download, sha256 checked, no apt package, no FUSE — the
+      # binary is itself an AppImage so APPIMAGE_EXTRACT_AND_RUN=1 avoids
+      # the fuse device that GitHub-hosted Ubuntu 24.04 does not give us.
+      - name: Install appimagetool
+        run: |
+          set -eu
+          arch="$(uname -m)"
+          case "$arch" in
+            x86_64)
+              file=appimagetool-x86_64.AppImage
+              sum=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+              ;;
+            aarch64)
+              file=appimagetool-aarch64.AppImage
+              sum=f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158
+              ;;
+            *)
+              echo "no pinned appimagetool for ${arch}" >&2
+              exit 1
+              ;;
+          esac
+          url="https://github.com/AppImage/appimagetool/releases/download/1.9.1/${file}"
+          curl -fsSL -o /tmp/appimagetool.AppImage "$url"
+          echo "${sum}  /tmp/appimagetool.AppImage" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 /tmp/appimagetool.AppImage "$HOME/.local/bin/appimagetool"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
+          echo "installed appimagetool 1.9.1 (${file})"
+
+      - name: Build the web UI
+        run: npm ci && npm run build
+
+      - name: Pack the Linux app
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: desktop/build-linux.sh --appimage
+
+      - name: The packed tree carries the binary and the launcher
+        run: |
+          set -eu
+          appdir="$(find desktop/build -maxdepth 1 -type d -name '*.AppDir' -print -quit)"
+          test -n "$appdir" || { echo "build-linux.sh produced no AppDir" >&2; ls -la desktop/build || true; exit 1; }
+          test -x "$appdir/usr/bin/gadak-desktop" || { echo "no executable at $appdir/usr/bin/gadak-desktop" >&2; find "$appdir" -type f | head -50; exit 1; }
+          desktop_file="$(find "$appdir" -maxdepth 1 -name '*.desktop' -print -quit)"
+          test -n "$desktop_file" || { echo "no .desktop file in $appdir" >&2; exit 1; }
+          grep -q 'x-scheme-handler/gadak' "$desktop_file" || { echo "the .desktop file does not declare gadak://" >&2; cat "$desktop_file"; exit 1; }
+          echo "linux pack tree — ok"
+
+      # GDK-167 / GDK-292: what the OS reads is the image, not the AppDir
+      # tree. --appimage-extract is the runtime a user runs, dumping the
+      # payload without FUSE (APPIMAGE_EXTRACT_AND_RUN).
+      - name: The AppImage claims gadak://
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          set -eu
+          shopt -s nullglob
+          imgs=(desktop/build/Gadak-*.AppImage)
+          [ "${#imgs[@]}" = 1 ] || { echo "want one AppImage, got ${#imgs[@]}" >&2; ls -la desktop/build || true; exit 1; }
+          img="$(cd "$(dirname "${imgs[0]}")" && pwd)/$(basename "${imgs[0]}")"
+          test -x "$img" || { echo "AppImage is not executable: $img" >&2; exit 1; }
+          extract="${RUNNER_TEMP:-/tmp}/appimage-extract"
+          rm -rf "$extract"
+          mkdir -p "$extract"
+          (
+            cd "$extract"
+            "$img" --appimage-extract
+          )
+          desktop_file="$extract/squashfs-root/gadak.desktop"
+          test -f "$desktop_file" || { echo "AppImage extract produced no gadak.desktop" >&2; find "$extract" -name '*.desktop' -print || true; exit 1; }
+          grep -q 'MimeType=x-scheme-handler/gadak' "$desktop_file" || { echo "AppImage .desktop dropped the gadak:// MimeType" >&2; cat "$desktop_file"; exit 1; }
+          echo "AppImage claims gadak:// — ok"
 
   # The Windows pack was authored on macOS, which cannot run it at all — the
   # round said so and shipped the script unexercised, same as the Linux one.
@@ -461,6 +600,13 @@ jobs:
           # stub: ask it for its version.
           & (Join-Path $bundle.FullName 'gadak.exe') version
           if ($LASTEXITCODE -ne 0) { throw "gadak.exe version exited $LASTEXITCODE" }
+          # Honest absence (docs/DESKTOP.md): the portable pack does not
+          # write HKCU\SOFTWARE\Classes\gadak. Fails if a later pack edit
+          # starts writing that key. First-launch registration is GDK-207
+          # and is not exercised here — this job does not start the GUI.
+          if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\gadak') {
+            throw "pack wrote HKCU:\SOFTWARE\Classes\gadak; the portable zip must not register the scheme"
+          }
           Write-Host "windows pack tree — ok"
           exit 0
 
