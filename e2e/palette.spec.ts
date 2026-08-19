@@ -7,17 +7,28 @@ test.describe('command palette', () => {
     await gotoApp(page)
 
     // Let the post-boot API chatter (bootstrap/write-meta) settle first.
-    // Wait for the boot payload to land, plus a short settle for the trailing
-    // boot requests. Deliberately not networkidle: the app polls for a delta
+    // Wait for the boot payload to land, plus trailing boot / focus-time
+    // pull to finish. Deliberately not networkidle: the app polls for a delta
     // every 15s, so "no network for 500ms" only becomes true after that poll
     // fires, which added 15s to this test for nothing.
     await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
-    await page.waitForTimeout(300)
+    // Same observable ux-p1.spec.ts uses: chip data-state=syncing is
+    // mirrorBusy (focus-time pull or background pass), not a duration.
+    await expect(page.getByTestId('freshness-chip')).not.toHaveAttribute('data-state', 'syncing', {
+      timeout: 30_000,
+    })
 
     const apiDuringType: string[] = []
     page.on('request', (req) => {
       const url = req.url()
-      if (url.includes('/api/') && !url.includes('/ui-focus/')) apiDuringType.push(url)
+      if (!url.includes('/api/') || url.includes('/ui-focus/')) return
+      let path = url
+      try {
+        path = new URL(url).pathname
+      } catch {
+        /* keep raw */
+      }
+      apiDuringType.push(`${req.method()} ${path}`)
     })
 
     await page.keyboard.press('ControlOrMeta+k')
@@ -31,7 +42,7 @@ test.describe('command palette', () => {
 
     expect(
       apiDuringType,
-      `expected no /api/ requests while typing, got:\n${apiDuringType.join('\n')}`,
+      `in-flight /api/ while typing (must be none): ${apiDuringType.join(', ') || '(none)'}`,
     ).toEqual([])
 
     await page.keyboard.press('Enter')

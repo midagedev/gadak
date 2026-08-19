@@ -59,7 +59,12 @@ test.describe('people axis', () => {
   }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
-    await page.waitForTimeout(300)
+    // Same observable ux-p1.spec.ts uses: chip data-state=syncing is
+    // mirrorBusy (focus-time pull or background pass), not a duration.
+    // Deliberately not networkidle: the 15s delta poll would make that wait 15s.
+    await expect(page.getByTestId('freshness-chip')).not.toHaveAttribute('data-state', 'syncing', {
+      timeout: 30_000,
+    })
 
     // Members ride the bootstrap payload, so matching a person must not cost a
     // request — the same contract the issue section keeps. The ui-focus poll
@@ -69,7 +74,14 @@ test.describe('people axis', () => {
     const apiDuringType: string[] = []
     page.on('request', (req) => {
       const url = req.url()
-      if (url.includes('/api/') && !url.includes('/ui-focus/')) apiDuringType.push(url)
+      if (!url.includes('/api/') || url.includes('/ui-focus/')) return
+      let path = url
+      try {
+        path = new URL(url).pathname
+      } catch {
+        /* keep raw */
+      }
+      apiDuringType.push(`${req.method()} ${path}`)
     })
 
     await page.keyboard.press('ControlOrMeta+k')
@@ -91,7 +103,7 @@ test.describe('people axis', () => {
 
     expect(
       apiDuringType,
-      `expected no /api/ requests while typing, got:\n${apiDuringType.join('\n')}`,
+      `in-flight /api/ while typing (must be none): ${apiDuringType.join(', ') || '(none)'}`,
     ).toEqual([])
 
     await page.keyboard.press('Enter')

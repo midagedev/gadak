@@ -167,6 +167,11 @@ export async function walkRows(
     await scroller.evaluate((el) => {
       el.scrollTop += el.clientHeight * 0.8
     })
+    // A render settle, not a boot wait: the virtualised list rebuilds its
+    // window on the frame after scrollTop moves. There is no state to observe
+    // here — the next batch is precisely what this loop is about to read, and
+    // the steps overlap by 20%, so "the rows changed" is not a safe signal
+    // either. One frame plus slack, and `atEnd` above is what ends the loop.
     await scroller.page().waitForTimeout(30)
   }
   await scroller.evaluate((el) => {

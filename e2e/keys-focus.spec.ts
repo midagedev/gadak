@@ -65,6 +65,8 @@ test.describe('keys view and ui-focus', () => {
     // unchanged: no NEW requests while hidden.
     await page.waitForTimeout(600)
     const before = hits.length
+    // 500ms poll × 3 plus slack: the contract is that the count stays put
+    // across an elapsed interval; there is no other "poll did not fire" state.
     await page.waitForTimeout(1600)
     expect(
       hits.length,
