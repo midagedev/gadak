@@ -80,6 +80,11 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   MCP(`gadak mcp install claude`)는 셸 없는 호스트(Claude Desktop)용.
 - `make media`는 `media-mcp`를 포함하지 않는다 — mcp 클립은 Claude 로그인과
   실모델 호출이 필요해서 기여자에게 강제하지 않는다 (`docs/MEDIA.md`).
+- **업스트림 PR은 `docs/runbooks/upstream-pr.md`의 파이프라인을 통과한 뒤에만 제출한다**
+  — 사전조사(중복·분류·머지 선례) → 실측 FAIL-first(코드 리딩만으로 확정한
+  결함은 가설이다) → 형제 구현 패리티 패치 → 제출 전 적대적 리뷰(예상 지적을
+  고치거나 본문 한 문장으로 선제) → 정직한 검증 경계. 근거 사례: wails#6000
+  (봇 지적 1건, 답변 1회로 철회) / dock-reopen (실측이 비버그를 제출 전에 잡음).
 - **마이너 버전 태그 전에 전체 코드 감사를 1회 돈다** (사용자 지시
   2026-08-16). 절차·축·이슈 등록 방식은 `docs/runbooks/release-audit.md`.
   결과는 GDK에 부모 이슈(`quality` 라벨) + 하위 이슈로 등록한다.
