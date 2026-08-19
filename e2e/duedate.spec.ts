@@ -277,3 +277,52 @@ test.describe('duedate write + jira_errors', () => {
     ).toEqual([])
   })
 })
+
+/*
+ * GDK-302: the create dialog must not spin on Loading when write-meta has
+ * already settled empty. The e2e fixture stores a fake token (so
+ * ensureWritable lets the dialog open) and write-meta degrades to empty
+ * projects; GET create-meta/ talks to nimbus.example.com and never returns.
+ *
+ * Evidence is the e2e fixture, not a real Jira site.
+ */
+test.describe('create dialog unwritable (GDK-302)', () => {
+  test('empty write-meta reaches a terminal message and does not GET create-meta', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    const createMetaGets: string[] = []
+    // Settled empty — the audit's condition. Do not let the fixture's fake
+    // origin hang write-meta; that would keep the dialog in a real load.
+    await page.route('**/api/v1/issues/meta/write/', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      await fulfillJSON(route, {
+        transitions: {},
+        create_meta: { projects: [] },
+        updated_at: null,
+      })
+    })
+    await page.route('**/api/v1/issues/create-meta/', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      createMetaGets.push(route.request().url())
+      // Park: a late body would hide a spinner. Wait on dialog state, not time.
+      await new Promise<never>(() => {})
+    })
+    await gotoApp(page)
+    await page.getByRole('button', { name: en['sidebar.newIssue'], exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: en['write.newIssue'] })
+    await expect(dialog).toBeVisible()
+    // Fixture credential is present; write-meta settled empty → meta-failed.
+    await expect(dialog.getByText(en['write.metaFailed'])).toBeVisible()
+    await expect(dialog.getByText(en['common.loading'])).toHaveCount(0)
+    await expect(dialog).toHaveAttribute('data-write-state', 'meta-failed')
+    expect(
+      createMetaGets,
+      'create-meta GET must not run when write-meta already settled empty',
+    ).toEqual([])
+    expect(
+      errors.filter((e) => !e.includes('400')),
+      `console errors:\n${errors.join('\n')}`,
+    ).toEqual([])
+  })
+})

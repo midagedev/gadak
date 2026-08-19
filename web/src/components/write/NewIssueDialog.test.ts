@@ -35,3 +35,37 @@ describe('NewIssueDialog create payload (GDK-248)', () => {
     expect(SRC).not.toMatch(/^\s*priority:\s*priority/m)
   })
 })
+
+/*
+ * GDK-302: a write that cannot run must not spin on Loading.
+ *
+ * vitest cannot mount the dialog (no svelte plugin). The request-not-made
+ * assertion is Playwright's (e2e/duedate.spec.ts). This file holds the
+ * wiring: one owner, two distinct terminal keys, no create-meta GET when
+ * that owner already knows the answer.
+ */
+describe('NewIssueDialog create-meta gate (GDK-302)', () => {
+  test('keeps no-credential and meta-failed as distinct catalog keys', () => {
+    expect(SRC).toContain("t('write.needToken')")
+    expect(SRC).toContain("t('write.metaFailed')")
+    expect(SRC).toContain("t('common.setCredentials')")
+    expect(SRC).toContain("t('common.retry')")
+    expect(SRC).toContain("t('common.loading')")
+  })
+
+  test('asks write.configured and write.writeMetaLoaded before any create-meta GET', () => {
+    expect(SRC).toContain('write.configured')
+    expect(SRC).toContain('write.writeMetaLoaded')
+    expect(SRC).toContain('write.credentialLoaded')
+    expect(SRC).toMatch(/api\.getCreateMeta\s*\(/)
+    // The empty-local-meta path must not be an unconditional fallback GET.
+    expect(SRC).not.toMatch(
+      /if \(write\.writeMetaProjects\.length\) \{[\s\S]*?\} else \{\s*void loadFallback\(\)/,
+    )
+  })
+
+  test('exposes a free-when-unread dialog state marker', () => {
+    expect(SRC).toMatch(/data-write-state=\{writeState\}/)
+    expect(SRC).toMatch(/data-testid="new-issue-dialog"/)
+  })
+})

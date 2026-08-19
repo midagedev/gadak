@@ -1,8 +1,9 @@
 <script lang="ts">
   /*
    * New-issue dialog (write, local-first + personalized defaults).
-   *  - Project/type = write.writeMetaProjects (local create-meta, 0ms). GET create-meta/
-   *    only when empty.
+   *  - Project/type = write.writeMetaProjects (local create-meta, 0ms).
+   *    write-meta already asked origin for create-meta. Settled-empty or no
+   *    credential is terminal — do not GET. Retry is the only create-meta GET.
    *  - Defaults (quiet suggestions):
    *      Project ① recent create ② current filter source_project ③ selected issue ④ first
    *      Type = per-project recent (else first type from create-meta)
@@ -22,8 +23,11 @@
   import { issues } from '../../stores/issues.svelte'
   import { filters } from '../../stores/filters.svelte'
   import { recentOf, whenReady } from '../../lib/recency'
+  import { isHostedDemo } from '../../lib/config'
   import type { CreateMetaProject, JiraUser, PriorityOption } from '../../lib/types'
   import Icon from '../ui/Icon.svelte'
+
+  type WriteDialogState = 'loading' | 'need-token' | 'meta-failed' | 'form'
 
   // A native <select> keeps its keyboard model and its OS popup; only the closed
   // state is ours. appearance-none drops the platform arrow, so the chevron has
@@ -33,12 +37,30 @@
   const SELECT_CHEVRON =
     'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-text-muted'
 
-  let loading = $state(true)
-  let loadError = $state<string | null>(null)
   let fallbackProjects = $state<CreateMetaProject[]>([])
+  let fetchingMeta = $state(false)
+  let fetchError = $state<string | null>(null)
+  let credRequired = $state(false)
+  let recencyReady = $state(false)
 
   // Local meta first, else fallback.
   const projects = $derived(write.writeMetaProjects.length ? write.writeMetaProjects : fallbackProjects)
+
+  /**
+   * Single owner for "can this dialog show the create form".
+   * write.ensureWritable already gates opening; this asks the same facts
+   * (credential + settled write-meta) instead of a weaker "projects empty?".
+   */
+  const writeState = $derived.by((): WriteDialogState => {
+    if (projects.length > 0) return recencyReady ? 'form' : 'loading'
+    if (fetchingMeta) return 'loading'
+    if (credRequired) return 'need-token'
+    if (!write.credentialLoaded) return 'loading'
+    if (!write.configured && !isHostedDemo()) return 'need-token'
+    if (fetchError) return 'meta-failed'
+    if (write.writeMetaLoaded) return 'meta-failed'
+    return 'loading'
+  })
 
   let projectKey = $state('')
   let issueTypeId = $state('')
@@ -78,7 +100,9 @@
   const issueTypes = $derived(selectedProject?.issue_types ?? [])
 
   onMount(() => {
-    void initDefaults()
+    void whenReady().then(() => {
+      recencyReady = true
+    })
     void loadPriorities()
   })
 
@@ -96,35 +120,34 @@
     }
   }
 
-  async function initDefaults() {
-    // Wait for local.db recency (and the one-shot localStorage absorb) so
-    // inferType sees the same values CLI/SQL would. Timeout is inside whenReady.
-    await whenReady()
-    if (write.writeMetaProjects.length) {
-      loading = false
-      applyDefaults()
-    } else {
-      void loadFallback()
-    }
-  }
+  // write-meta is the owner. Do not GET create-meta just because projects
+  // are still empty — that is the in-flight / fake-origin hang. Retry only.
+  $effect(() => {
+    if (writeState === 'form') applyDefaults()
+  })
 
   async function loadFallback() {
-    loading = true
-    loadError = null
+    fetchingMeta = true
+    fetchError = null
     try {
       const res = await api.getCreateMeta()
       fallbackProjects = res.projects
-      applyDefaults()
+      if (res.projects.length === 0) fetchError = t('write.metaFailed')
     } catch (e) {
       if (e instanceof ApiError && e.code === 'credential_required') {
-        write.closeNewIssue()
-        write.openSettings()
+        credRequired = true
         return
       }
-      loadError = t('write.metaFailed')
+      fetchError = t('write.metaFailed')
     } finally {
-      loading = false
+      fetchingMeta = false
     }
+  }
+
+  function retryMeta() {
+    fetchError = null
+    credRequired = false
+    void loadFallback()
   }
 
   /** Infer project/type defaults (once). */
@@ -275,17 +298,29 @@
     role="dialog"
     aria-modal="true"
     aria-label={t('write.newIssue')}
+    data-testid="new-issue-dialog"
+    data-write-state={writeState}
   >
     <h2 class="type-subject mb-4 text-[18px] leading-snug text-text-primary">{t('write.newIssue')}</h2>
 
-    {#if loading}
+    {#if writeState === 'loading'}
       <div class="py-8 text-center text-body text-text-muted">{t('common.loading')}</div>
-    {:else if loadError}
+    {:else if writeState === 'need-token'}
       <div class="flex flex-col items-center gap-3 py-8 text-center">
-        <p class="text-body text-status-reopen">{loadError}</p>
+        <p class="text-body text-status-reopen">{t('write.needToken')}</p>
         <button
           type="button"
-          onclick={loadFallback}
+          onclick={() => write.openSettings()}
+          class="inline-flex h-control items-center rounded-md border border-border-strong px-3 text-[12px] text-text-secondary hover:bg-bg-hover"
+          >{t('common.setCredentials')}</button
+        >
+      </div>
+    {:else if writeState === 'meta-failed'}
+      <div class="flex flex-col items-center gap-3 py-8 text-center">
+        <p class="text-body text-status-reopen">{t('write.metaFailed')}</p>
+        <button
+          type="button"
+          onclick={retryMeta}
           class="inline-flex h-control items-center rounded-md border border-border-strong px-3 text-[12px] text-text-secondary hover:bg-bg-hover"
           >{t('common.retry')}</button
         >
