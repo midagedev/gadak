@@ -57,7 +57,7 @@ WHERE status_category = 'inprogress'  -- RIGHT: stable on every site
 The schema in one paragraph: `items` is the source-neutral spine (title,
 `body_text`, timestamps); `issues` is the Jira projection, joined on
 `issues.item_id = items.id`; **`issues_full` is the agent convenience view**
-(`summary` + every `issues` column — prefer it when you need a title);
+(`summary` + every `issues` column + `description_text` from `items.body_text` — prefer it when you need a title or the description as plain text);
 `comments`, `attachments`, `changelog`, and `links` hang off `items.id`;
 `items_fts` is the FTS5 index over titles, bodies, and comment text;
 `sync_state` holds freshness. `labels`, `components`, and `fix_versions` are
@@ -144,6 +144,9 @@ FROM local.searches
 WHERE query LIKE '%upload%'
 ORDER BY searched_at DESC
 LIMIT 20;
+
+-- 11. Read an issue description as plain text (no ADF parser)
+SELECT key, substr(description_text,1,200) FROM issues_full WHERE key='...';
 ```
 
 Pipe keys from (9) into the running UI: `gadak sql --no-header "select key from local.visits where kind='issue' group by key order by max(viewed_at) desc" | gadak views open --keys -` (or keep the header and `tail -n +2`).

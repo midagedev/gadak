@@ -13,8 +13,9 @@ import (
 )
 
 // documentedColumns is the column list of every table in
-// specs/000-product/data-model.md, in document order. The schema is a public
-// contract, so a diff here is a contract break, not a test to relax.
+// specs/000-product/data-model.md, in document order, plus the issues_full
+// view (agent contract). The schema is a public contract, so a diff here is
+// a contract break, not a test to relax.
 var documentedColumns = map[string][]string{
 	"sources": {"id", "kind", "base_url", "synced_at"},
 	"items": {"id", "source_id", "kind", "external_id", "key", "title", "body_text",
@@ -27,6 +28,17 @@ var documentedColumns = map[string][]string{
 		"status_changed_at", "resolved_at", "reopen_count", "reopened_at",
 		"assignee_changed_at", "comment_count", "description_adf", "custom", "raw",
 		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key", "priority_id"},
+	// issues_full is the agent view (summary + issues.* + description_text).
+	// description_text is not an issues storage column (items.body_text).
+	"issues_full": {"summary", "item_id", "key", "project_key", "issue_type", "issue_type_id",
+		"status", "status_id", "status_category", "priority", "priority_rank",
+		"assignee", "assignee_id", "assignee_email", "reporter", "reporter_id", "reporter_email", "parent_key",
+		"labels", "components", "fix_versions", "affects_versions", "environment_text",
+		"duedate", "resolution", "created_at", "updated_at",
+		"status_changed_at", "resolved_at", "reopen_count", "reopened_at",
+		"assignee_changed_at", "comment_count", "description_adf", "custom", "raw",
+		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key", "priority_id",
+		"description_text"},
 	"comments": {"id", "item_id", "external_id", "author", "author_id",
 		"body_adf", "body_text", "created_at", "updated_at"},
 	"attachments":    {"id", "item_id", "external_id", "filename", "mime_type", "size", "author", "created_at", "author_id"},

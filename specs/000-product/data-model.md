@@ -149,6 +149,7 @@ The Jira projection. Joined to `items` on `item_id`.
 | `assignee_changed_at` | TEXT | Derived |
 | `comment_count` | INTEGER | Derived |
 | `description_adf` | TEXT (JSON) | Raw ADF, rendered by the UI |
+| `description_text` | TEXT | Flattened plain text, same flattening as `environment_text`. View column on `issues_full` (`items.body_text`; NULL → `''`). Not stored on `issues` |
 | `custom` | TEXT (JSON object) | Mapped custom fields, keyed by config alias |
 | `raw` | TEXT (JSON) | Full source payload. Escape hatch; not a contract |
 | `reopen_reason` | TEXT | Derived (v3): first comment at/after the last reopen. Heuristic; `''` when none |
@@ -466,11 +467,13 @@ silently used.
 Agent convenience view: `issues` columns plus `summary` from `items.title`, so
 queries that need a title do not have to join the spine. Rebuilt in v12: the
 view expands `i.*` at CREATE VIEW time, so it had to be recreated to expose
-the v11 columns (`hierarchy_level`, `epic_key`).
+the v11 columns (`hierarchy_level`, `epic_key`). Rebuilt again in v23 to add
+`description_text` (`items.body_text`, NULL → `''`) — the flattened description
+agents can read without parsing ADF.
 
 ```sql
 CREATE VIEW issues_full AS
-  SELECT it.title AS summary, i.*
+  SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
   FROM issues i JOIN items it ON it.id = i.item_id;
 ```
 
