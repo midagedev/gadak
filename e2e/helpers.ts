@@ -6,28 +6,92 @@ import { expect, type ConsoleMessage, type Locator, type Page } from '@playwrigh
 
 const E2E_DIR = dirname(fileURLToPath(import.meta.url))
 
-/** Fail when reuseExistingServer attached to a binary built at another HEAD. */
-export function assertServedGitSha(): void {
-  const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+export type AssertServedArtifactOpts = {
+  /** Tests: isolate from the process-global ${TMPDIR}/gadak-e2e-served-<port>.json. */
+  stampPath?: string
+  /** Tests: override git rev-parse --show-toplevel. */
+  root?: string
+}
+
+/** PORT is owned by e2e/serve.sh; helpers reads that assignment so the stamp moves with the port. */
+export function e2eServePort(): string {
+  const text = readFileSync(join(E2E_DIR, 'serve.sh'), 'utf8')
+  const m = text.match(/^PORT=(\d+)\s*$/m)
+  if (!m) {
+    throw new Error('e2e/serve.sh: missing PORT=<digits> assignment (stamp path is keyed on it)')
+  }
+  return m[1]
+}
+
+/** Port-keyed stamp outside any worktree. Matches e2e/serve.sh. */
+export function servedStampPath(): string {
+  const tmp = process.env.TMPDIR || '/tmp'
+  return join(tmp, `gadak-e2e-served-${e2eServePort()}.json`)
+}
+
+function worktreeRoot(): string {
+  return execFileSync('git', ['rev-parse', '--show-toplevel'], {
     cwd: join(E2E_DIR, '..'),
     encoding: 'utf8',
   }).trim()
-  const stamp = join(E2E_DIR, '.tmp', 'served-sha')
-  if (!existsSync(stamp)) {
+}
+
+function servedSourceDigest(root: string): string {
+  return execFileSync('bash', [join(E2E_DIR, 'served-digest.sh')], {
+    cwd: root,
+    encoding: 'utf8',
+  }).trim()
+}
+
+function parseServedStamp(raw: string, stampPath: string): { worktree: string; digest: string } {
+  let value: unknown
+  try {
+    value = JSON.parse(raw) as unknown
+  } catch {
     throw new Error(
-      `stale dev server: missing ${stamp}. reuseExistingServer picked up a process that was not started by e2e/serve.sh. Stop it (pkill -f 'e2e/.tmp/gadak') and re-run.`,
+      `stale e2e server: stamp ${stampPath} is not JSON. reuseExistingServer picked up a process that was not started by this e2e/serve.sh. Stop it (pkill -f 'e2e/.tmp/gadak') and re-run.`,
     )
   }
-  const served = readFileSync(stamp, 'utf8').trim()
-  if (served !== head) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    typeof (value as { worktree?: unknown }).worktree !== 'string' ||
+    typeof (value as { digest?: unknown }).digest !== 'string' ||
+    (value as { worktree: string }).worktree === '' ||
+    (value as { digest: string }).digest === ''
+  ) {
     throw new Error(
-      `stale dev server: serve.sh built ${served} but HEAD is ${head}. reuseExistingServer picked up an old one. Stop it (pkill -f 'e2e/.tmp/gadak') and re-run.`,
+      `stale e2e server: stamp ${stampPath} is not a {worktree, digest} object. reuseExistingServer picked up a process that was not started by this e2e/serve.sh. Stop it (pkill -f 'e2e/.tmp/gadak') and re-run.`,
+    )
+  }
+  return { worktree: (value as { worktree: string }).worktree, digest: (value as { digest: string }).digest }
+}
+
+/**
+ * Fail when reuseExistingServer attached to a binary that is not this
+ * worktree's current served artifact (absolute worktree + source digest).
+ */
+export function assertServedArtifact(opts: AssertServedArtifactOpts = {}): void {
+  const root = opts.root ?? worktreeRoot()
+  const stampPath = opts.stampPath ?? servedStampPath()
+  const digest = servedSourceDigest(root)
+
+  if (!existsSync(stampPath)) {
+    throw new Error(
+      `stale e2e server: missing ${stampPath}. reuseExistingServer picked up a process that was not started by e2e/serve.sh. This worktree is ${root} digest ${digest}. Stop it (pkill -f 'e2e/.tmp/gadak') and re-run.`,
+    )
+  }
+
+  const stamp = parseServedStamp(readFileSync(stampPath, 'utf8'), stampPath)
+  if (stamp.worktree !== root || stamp.digest !== digest) {
+    throw new Error(
+      `stale e2e server: stamp worktree ${stamp.worktree} digest ${stamp.digest}; this worktree ${root} digest ${digest}. reuseExistingServer reused that process. Stop it (pkill -f '${stamp.worktree}/e2e/.tmp/gadak') and re-run.`,
     )
   }
 }
 
 export default function globalSetup(): void {
-  assertServedGitSha()
+  assertServedArtifact()
 }
 
 /**

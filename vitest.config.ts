@@ -51,6 +51,17 @@ export default defineConfig({
           env: { VITE_HOSTED_DEMO: '' },
         },
       },
+      // Node-only e2e identity guard (no svelte, no browser). Named
+      // *.unit.ts so Playwright's *.{test,spec}.ts matcher does not
+      // pick these up as browser specs.
+      {
+        extends: true,
+        test: {
+          name: 'e2e-guard',
+          include: ['e2e/**/*.unit.ts'],
+          env: { VITE_HOSTED_DEMO: '' },
+        },
+      },
     ],
   },
 })

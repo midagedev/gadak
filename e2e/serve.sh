@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Idempotent fixture + server for Playwright E2E.
 # Builds the binary and UI, seeds e2e/.tmp/home from examples/demo.db, injects
-# one deploy enrichment, then serves on 127.0.0.1:7877.
+# one deploy enrichment, then serves on 127.0.0.1:${PORT}.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+# Repository-global listener. The served-artifact stamp is keyed on this
+# value so a port change moves the stamp with the process.
+PORT=7877
 
 TMP="$ROOT/e2e/.tmp"
 HOME_DIR="$TMP/home"
@@ -124,14 +128,22 @@ ON CONFLICT(day) DO UPDATE SET
 SQL
 
 export GADAK_HOME="$HOME_DIR"
-SERVED_SHA="$(git rev-parse HEAD)"
-echo "[e2e] served git SHA ${SERVED_SHA}"
-printf '%s\n' "$SERVED_SHA" > "$TMP/served-sha"
-echo "[e2e] serving on 127.0.0.1:7877 (GADAK_HOME=$GADAK_HOME)…"
+WORKTREE="$(git rev-parse --show-toplevel)"
+DIGEST="$(bash "$ROOT/e2e/served-digest.sh")"
+STAMP="${TMPDIR:-/tmp}/gadak-e2e-served-${PORT}.json"
+echo "[e2e] served worktree ${WORKTREE} digest ${DIGEST}"
+STAMP_PATH="$STAMP" STAMP_WORKTREE="$WORKTREE" STAMP_DIGEST="$DIGEST" node --input-type=module -e '
+  import { writeFileSync } from "node:fs"
+  writeFileSync(process.env.STAMP_PATH, JSON.stringify({
+    worktree: process.env.STAMP_WORKTREE,
+    digest: process.env.STAMP_DIGEST,
+  }) + "\n")
+'
+echo "[e2e] serving on 127.0.0.1:${PORT} (GADAK_HOME=$GADAK_HOME)…"
 # The snapshot references attachments whose bytes cannot be proxied (the fixture
 # credential is fake), so seed the cache from the committed images. Without this
 # the browser logs 502s and the console-hygiene spec fails.
 # --no-sync: the fixture credential is fake; starting the watch loop would
 # hammer a non-existent Jira and fail every tick.
-exec "$BIN" serve --addr 127.0.0.1:7877 --static dist/app --no-open --no-sync \
+exec "$BIN" serve --addr 127.0.0.1:${PORT} --static dist/app --no-open --no-sync \
   --import-attachments "$ROOT/examples/attachments"
