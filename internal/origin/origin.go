@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
@@ -100,10 +101,34 @@ type session struct {
 	wiki   *confluence.Client
 }
 
+type sessionFlight struct {
+	done chan struct{}
+	s    *session
+	err  error
+}
+
 var (
-	mu   sync.Mutex
-	live = map[string]*session{}
+	// mu guards live and flights. Contract: no IO under this lock. The
+	// critical section is a map lookup or insert; MkdirAll,
+	// issuetap.NewEmbedded (persist read/write), and Embedded.Close run
+	// with the lock released. This mutex is process-global and keyed by
+	// persist path — holding it across persist IO queues every standalone
+	// workspace behind one disk.
+	mu      sync.Mutex
+	live    = map[string]*session{}
+	flights = map[string]*sessionFlight{}
+
+	sessionInFlight   atomic.Int64
+	sessionsDiscarded atomic.Uint64
 )
+
+// SessionInFlight is how many standaloneSession constructions are running
+// outside mu. Same shape as store.WriteBusyRetries: a cheap accessor, no logs.
+func SessionInFlight() int64 { return sessionInFlight.Load() }
+
+// SessionsDiscarded is how many constructed sessions lost the publish race
+// and were closed. Same shape as store.WriteBusyRetries.
+func SessionsDiscarded() uint64 { return sessionsDiscarded.Load() }
 
 func standaloneClient(cfg *config.Config) (*jira.Client, error) {
 	s, err := standaloneSession(cfg)
@@ -137,6 +162,11 @@ func standaloneWiki(cfg *config.Config) (*confluence.Client, error) {
 	return s.wiki, nil
 }
 
+// testBeforeStandalone, if set, runs after the live-session lookup and before
+// MkdirAll / issuetap.NewEmbedded. Tests use it as a barrier to prove the
+// process-global mutex is not held across persist IO. Production is nil.
+var testBeforeStandalone func(persist string)
+
 func standaloneSession(cfg *config.Config) (*session, error) {
 	dir, err := profileDir(cfg)
 	if err != nil {
@@ -148,11 +178,54 @@ func standaloneSession(cfg *config.Config) (*session, error) {
 	persist := PersistPath(dir)
 
 	mu.Lock()
-	defer mu.Unlock()
 	if s, ok := live[persist]; ok {
+		mu.Unlock()
 		return s, nil
 	}
+	if f, ok := flights[persist]; ok {
+		mu.Unlock()
+		<-f.done
+		return f.s, f.err
+	}
+	f := &sessionFlight{done: make(chan struct{})}
+	if flights == nil {
+		flights = map[string]*sessionFlight{}
+	}
+	flights[persist] = f
+	mu.Unlock()
 
+	if testBeforeStandalone != nil {
+		testBeforeStandalone(persist)
+	}
+
+	sessionInFlight.Add(1)
+	s, err := constructStandalone(persist)
+	sessionInFlight.Add(-1)
+
+	mu.Lock()
+	delete(flights, persist)
+	if err != nil {
+		f.err = err
+		close(f.done)
+		mu.Unlock()
+		return nil, err
+	}
+	if existing, ok := live[persist]; ok {
+		sessionsDiscarded.Add(1)
+		mu.Unlock()
+		closeSession(s)
+		f.s = existing
+		close(f.done)
+		return existing, nil
+	}
+	live[persist] = s
+	f.s = s
+	close(f.done)
+	mu.Unlock()
+	return s, nil
+}
+
+func constructStandalone(persist string) (*session, error) {
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
 		return nil, fmt.Errorf("origin: persist dir: %w", err)
 	}
@@ -179,9 +252,13 @@ func standaloneSession(cfg *config.Config) (*session, error) {
 	}
 	w.HTTP.Transport = tr
 
-	s := &session{emb: emb, client: c, wiki: w}
-	live[persist] = s
-	return s, nil
+	return &session{emb: emb, client: c, wiki: w}, nil
+}
+
+func closeSession(s *session) {
+	if s != nil && s.emb != nil {
+		_ = s.emb.Close()
+	}
 }
 
 func profileDir(cfg *config.Config) (string, error) {
@@ -196,17 +273,32 @@ func profileDir(cfg *config.Config) (string, error) {
 // Close flushes every live standalone origin and drops the sessions.
 // Safe to call more than once. The process owner (cmd/gadak main) calls
 // this on the way out so the last PersistDebounce window is not lost.
+//
+// In-flight constructors are waited on (they publish, then this snapshots)
+// so Close never closes a half-built Embedded. There is no permanent
+// closed flag: Client after Close must open a new session (persist is
+// the origin; the process is allowed to come back).
 func Close() error {
 	mu.Lock()
-	defer mu.Unlock()
+	wait := make([]chan struct{}, 0, len(flights))
+	for _, f := range flights {
+		wait = append(wait, f.done)
+	}
+	mu.Unlock()
+	for _, done := range wait {
+		<-done
+	}
+	mu.Lock()
+	snapshot := live
+	live = map[string]*session{}
+	mu.Unlock()
 	var first error
-	for path, s := range live {
+	for _, s := range snapshot {
 		if s != nil && s.emb != nil {
 			if err := s.emb.Close(); err != nil && first == nil {
 				first = err
 			}
 		}
-		delete(live, path)
 	}
 	return first
 }
