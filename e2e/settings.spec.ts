@@ -66,7 +66,7 @@ test.describe('settings dialog', () => {
     })
     expect(order).toBe('after-sync-controls')
 
-    for (const tab of ['Sources', 'Features', 'Teams / groups', 'Members', 'Field mapping']) {
+    for (const tab of ['Sources', 'Features', 'Teams / groups', 'Members', 'Field mapping', 'About']) {
       await dialog.getByRole('button', { name: tab, exact: true }).click()
       await expect(mirror, `mirror must not render on the ${tab} tab`).toHaveCount(0)
     }
@@ -139,5 +139,28 @@ test.describe('settings copy contracts', () => {
     const projects = dialog.getByTestId('scope-projects')
     await expect(projects).toBeVisible()
     await expect(projects.getByTestId('scope-empty')).toContainText('every project')
+  })
+})
+
+test.describe('settings about tab', () => {
+  test('lists the four feedback channel hrefs', async ({ page }) => {
+    await gotoApp(page)
+    await openServerSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await dialog.getByRole('button', { name: 'About', exact: true }).click()
+    await expect(page.getByTestId('settings-about')).toBeVisible()
+    await expect(page.getByTestId('about-link-github')).toHaveAttribute(
+      'href',
+      'https://github.com/midagedev/gadak',
+    )
+    await expect(page.getByTestId('about-link-issues')).toHaveAttribute(
+      'href',
+      'https://github.com/midagedev/gadak/issues',
+    )
+    await expect(page.getByTestId('about-link-email')).toHaveAttribute(
+      'href',
+      'mailto:midagedev@gmail.com',
+    )
+    await expect(page.getByTestId('about-link-x')).toHaveAttribute('href', 'https://x.com/midagedev')
   })
 })

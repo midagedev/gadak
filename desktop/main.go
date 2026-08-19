@@ -334,6 +334,27 @@ func run() error {
 			SetAccelerator("CmdOrCtrl+w").
 			OnClick(func(*application.Context) { browse.CloseActive() })
 	}
+	// Help is darwin-only this round: Windows/Linux still use the stock
+	// AppMenu/Edit/Window roles. openURL is app.Browser.OpenURL, which on
+	// darwin is `open <url>` with no scheme filter, so mailto uses the same
+	// path as https.
+	if runtime.GOOS == "darwin" {
+		openHelp := func(u string) func(*application.Context) {
+			return func(*application.Context) {
+				if openURL == nil {
+					return
+				}
+				if err := openURL(u); err != nil {
+					log.Printf("help menu: open %s: %v", u, err)
+				}
+			}
+		}
+		helpMenu := appMenu.AddSubmenu("Help")
+		helpMenu.Add("GitHub Repository").OnClick(openHelp("https://github.com/midagedev/gadak"))
+		helpMenu.Add("Report an Issue").OnClick(openHelp("https://github.com/midagedev/gadak/issues"))
+		helpMenu.Add("Contact by Email").OnClick(openHelp("mailto:midagedev@gmail.com"))
+		helpMenu.Add("@midagedev on X").OnClick(openHelp("https://x.com/midagedev"))
+	}
 	app.Menu.Set(appMenu)
 
 	decision := coldStartDecisionFor(runtime.GOOS, os.Args)

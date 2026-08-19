@@ -13,6 +13,7 @@
     | 'members'
     | 'fields'
     | 'integrations'
+    | 'about'
   export const SETTINGS_TABS: readonly Tab[] = [
     'sync',
     'sources',
@@ -21,6 +22,7 @@
     'members',
     'fields',
     'integrations',
+    'about',
   ]
 
   /** Type guard for URL values: an unknown tab name (a link from before this
@@ -67,6 +69,7 @@
   import MembersTab from './MembersTab.svelte'
   import FieldsTab from './FieldsTab.svelte'
   import IntegrationsTab from './IntegrationsTab.svelte'
+  import AboutTab from './AboutTab.svelte'
   import { trapFocus } from '../../lib/focus-trap'
   import Icon from '../ui/Icon.svelte'
 
@@ -84,6 +87,7 @@
     members: t('settings.tabMembers'),
     fields: t('settings.tabFields'),
     integrations: t('settings.tabIntegrations'),
+    about: t('settings.tabAbout'),
   }
   /* Header order is SETTINGS_TABS order, minus the tabs this surface has no
      server for (Integrations is desktop-only). One list, so the header and the
@@ -381,6 +385,8 @@
           <MembersTab bind:draft bind:openMember />
         {:else if tab === 'integrations' && showIntegrations}
           <IntegrationsTab />
+        {:else if tab === 'about'}
+          <AboutTab {runtime} />
         {:else}
           <FieldsTab bind:draft />
         {/if}

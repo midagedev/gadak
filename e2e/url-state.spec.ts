@@ -133,6 +133,20 @@ test.describe('place params', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  test('settings=about boots onto the about tab', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoParams(page, 'settings=about')
+
+    const dialog = page.getByTestId('settings-dialog')
+    await expect(dialog).toBeVisible()
+    const tab = (label: string) => dialog.getByRole('button', { name: label, exact: true })
+    await expect(tab(en['settings.tabAbout'])).toHaveClass(/border-accent/)
+    await expect(page.getByTestId('settings-about')).toBeVisible()
+    await expect(page).toHaveURL(/settings=about/)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('opening settings writes the tab, and switching tabs moves the URL', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
