@@ -188,8 +188,14 @@ Profiles keep separate credentials and mirrors (e.g. work and demo):
 func main() {
 	log.SetFlags(0)
 	// origin.Close flushes a standalone issuetap PersistPath. os.Exit
-	// below skips defers, so Close is also called on the error path.
-	defer func() { _ = origin.Close() }()
+	// below skips defers, so Close is also called on the error path. A
+	// flush failure must not exit 0 alongside a success line (GDK-342).
+	defer func() {
+		if err := origin.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "gadak: standalone persist flush on exit: %v\n", err)
+			os.Exit(1)
+		}
+	}()
 	server.Version = version
 	if base := filepath.Base(os.Args[0]); base == config.LegacyName || base == config.LegacyName+".exe" {
 		fmt.Fprintf(os.Stderr, "gadak: the `%s` command was renamed to `gadak`.\n", config.LegacyName)
@@ -226,7 +232,9 @@ func main() {
 	}
 	if err := run(args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "gadak: %v\n", err)
-		_ = origin.Close()
+		if cerr := origin.Close(); cerr != nil {
+			fmt.Fprintf(os.Stderr, "gadak: standalone persist flush on exit: %v\n", cerr)
+		}
 		os.Exit(exitStatus(err))
 	}
 }
