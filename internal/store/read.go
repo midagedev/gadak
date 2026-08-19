@@ -25,10 +25,10 @@ type IssueLite struct {
 	StatusID       string  `json:"status_id"`
 	StatusCategory string  `json:"status_category"`
 	Priority       *string `json:"priority"`
-	// PriorityID is the stable Jira priority id. Empty until a later schema
-	// column is filled — the field is on the wire so clients can match id-first
-	// the same way they do for status_id / issue_type_id. There is no
-	// issues.priority_id column today (only name + rank).
+	// PriorityID is the stable Jira priority id (issues.priority_id). Empty
+	// on rows a sync has not rewritten since the column was added — clients
+	// fall back to the display name for those, the same way they do for a
+	// missing status_id / issue_type_id.
 	PriorityID    string  `json:"priority_id"`
 	PriorityRank  int     `json:"priority_rank"`
 	Assignee      *string `json:"assignee"`
@@ -69,7 +69,7 @@ const issueLiteSelect = `
 	SELECT i.key, COALESCE(it.title, ''), COALESCE(i.project_key, ''),
 	       COALESCE(i.issue_type, ''), COALESCE(i.issue_type_id, ''),
 	       COALESCE(i.status, ''), COALESCE(i.status_id, ''), COALESCE(i.status_category, ''),
-	       i.priority, i.priority_rank,
+	       i.priority, COALESCE(i.priority_id, ''), i.priority_rank,
 	       i.assignee, i.assignee_id, i.assignee_email, i.reporter, i.reporter_id, i.reporter_email,
 	       i.epic_key, i.parent_key,
 	       COALESCE(i.labels, '[]'), COALESCE(i.components, '[]'), COALESCE(i.fix_versions, '[]'),
@@ -150,7 +150,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 		var labels, components, fixVersions, custom string
 		var reopenReason, clonedFrom string
 		if err := rows.Scan(&v.IssueKey, &v.Summary, &v.ProjectKey, &v.IssueType, &v.IssueTypeID,
-			&v.Status, &v.StatusID, &v.StatusCategory, &v.Priority, &v.PriorityRank,
+			&v.Status, &v.StatusID, &v.StatusCategory, &v.Priority, &v.PriorityID, &v.PriorityRank,
 			&v.Assignee, &v.AssigneeID, &v.AssigneeEmail, &v.Reporter, &v.ReporterID, &v.ReporterEmail,
 			&v.EpicKey, &v.ParentKey,
 			&labels, &components, &fixVersions,

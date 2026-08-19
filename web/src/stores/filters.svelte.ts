@@ -672,7 +672,7 @@ export function filterIssues(
     if (f.reporter_email.length && !f.reporter_email.some((v) => issueMatchesPerson(it, 'reporter', v)))
       continue
     if (f.team_group.length && !(it.team_group && f.team_group.includes(it.team_group))) continue
-    if (f.priority.length && !matchesIdFirst(f.priority, it.priority_id, it.priority)) continue
+    if (f.priority.length && !matchesIdFirst(f.priority, it.priority_id, it.priority, true)) continue
     if (f.severity.length && !(it.severity && f.severity.includes(it.severity))) continue
     if (f.issue_type.length && !matchesIdFirst(f.issue_type, it.issue_type_id, it.issue_type)) continue
     if (!matchesSelected(f.components, it.components)) continue
@@ -1136,6 +1136,7 @@ function buildFacets(
   const reporterLabels = new Map<string, string>()
   const statusLabels = new Map<string, string>()
   const typeLabels = new Map<string, string>()
+  const priorityLabels = new Map<string, string>()
 
   for (const it of all) {
     bump(counters.status_category, effectiveCategory(it))
@@ -1153,7 +1154,13 @@ function buildFacets(
     if (reporter && !reporterLabels.has(reporter))
       reporterLabels.set(reporter, it.reporter || it.reporter_email || reporter)
     if (it.team_group) bump(counters.team_group, it.team_group)
-    if (it.priority) bump(counters.priority, it.priority)
+    {
+      const priorityToken = it.priority_id || it.priority
+      if (priorityToken) {
+        bump(counters.priority, priorityToken)
+        if (!priorityLabels.has(priorityToken)) priorityLabels.set(priorityToken, it.priority || priorityToken)
+      }
+    }
     if (it.severity) bump(counters.severity, it.severity)
     {
       const typeToken = it.issue_type_id || it.issue_type
@@ -1189,7 +1196,13 @@ function buildFacets(
             ? reporterLabels.get(value)
             : undefined
       const named =
-        field === 'status' ? statusLabels.get(value) : field === 'issue_type' ? typeLabels.get(value) : undefined
+        field === 'status'
+          ? statusLabels.get(value)
+          : field === 'issue_type'
+            ? typeLabels.get(value)
+            : field === 'priority'
+              ? priorityLabels.get(value)
+              : undefined
       return { value, count, label: personLabel ?? named ?? facetLabel(field, value, all, members) }
     })
     values.sort((a, b) => b.count - a.count || (a.label < b.label ? -1 : 1))

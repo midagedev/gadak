@@ -122,6 +122,7 @@ The Jira projection. Joined to `items` on `item_id`.
 | `status_id` | TEXT | **Use this for logic** |
 | `status_category` | TEXT | `new` \| `inprogress` \| `done`. Stable across sites |
 | `priority` | TEXT | Display name |
+| `priority_id` | TEXT | Stable source id (v22). Empty (`''`) until a sync rewrites the row. **Use this (or `priority_rank`) for logic**; names are localized |
 | `priority_rank` | INTEGER | Derived: 1 = most urgent, 0 = unset |
 | `assignee` | TEXT | Display name |
 | `assignee_id` | TEXT | Account id |

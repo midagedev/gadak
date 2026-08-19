@@ -137,16 +137,16 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	}
 	if _, err := tx.Exec(`
 		INSERT INTO issues (item_id, key, project_key, issue_type, issue_type_id,
-			status, status_id, status_category, priority, priority_rank,
+			status, status_id, status_category, priority, priority_id, priority_rank,
 			assignee, assignee_id, assignee_email, reporter, reporter_id, reporter_email, parent_key,
 			labels, components, fix_versions, affects_versions, environment_text,
 			duedate, resolution, created_at, updated_at,
 			status_changed_at, resolved_at, reopen_count, reopened_at, reopen_reason,
 			assignee_changed_at, comment_count, description_adf, custom, raw, cloned_from,
 			hierarchy_level)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		it.ID, it.Key, nz(is.ProjectKey), nz(is.IssueType), nz(is.IssueTypeID),
-		nz(is.Status), nz(is.StatusID), nz(is.StatusCategory), nz(is.Priority), d.PriorityRank,
+		nz(is.Status), nz(is.StatusID), nz(is.StatusCategory), nz(is.Priority), is.PriorityID, d.PriorityRank,
 		nz(is.Assignee), nz(is.AssigneeID), nz(is.AssigneeEmail), nz(is.Reporter),
 		nz(is.ReporterID), nz(is.ReporterEmail), nz(is.ParentKey),
 		jsonArray(is.Labels), jsonArray(is.Components), jsonArray(is.FixVersions),

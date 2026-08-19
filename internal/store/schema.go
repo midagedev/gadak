@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22}
 
 // itemsFTSCreate is the canonical items_fts DDL, quoted verbatim from schemaV1
 // below. Migrations are append-only, so schemaV1 cannot reference this
@@ -424,4 +424,18 @@ CREATE TABLE page_versions (
   PRIMARY KEY (item_id, number)
 );
 CREATE INDEX idx_page_versions_at ON page_versions(item_id, created_at);
+`
+
+// schemaV22 adds issues.priority_id so list filters can key on the stable
+// Jira priority id (names localize per account). Existing rows keep the
+// empty string until the next sync rewrites them; the web filter still falls back to
+// the display name for those rows and for legacy saved views. issues_full
+// is rebuilt because it expanded i.* at CREATE VIEW time (v12) and would
+// otherwise hide the new column from agents.
+const schemaV22 = `
+ALTER TABLE issues ADD COLUMN priority_id TEXT NOT NULL DEFAULT '';
+DROP VIEW issues_full;
+CREATE VIEW issues_full AS
+  SELECT it.title AS summary, i.*
+  FROM issues i JOIN items it ON it.id = i.item_id;
 `

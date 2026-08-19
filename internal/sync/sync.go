@@ -644,6 +644,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	}
 	if f.Priority != nil {
 		issue.Priority = f.Priority.Name
+		issue.PriorityID = f.Priority.ID
 	}
 	if f.Assignee != nil {
 		issue.Assignee, issue.AssigneeID, issue.AssigneeEmail = f.Assignee.DisplayName, f.Assignee.AccountID, f.Assignee.Email

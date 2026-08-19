@@ -14,6 +14,7 @@ import {
   isReopen,
   matchesIdFirst,
   missingStatusCategorySeen,
+  priorityNameFallbackSeen,
   normalizeKeys,
   orderColumns,
   parseConfig,
@@ -283,6 +284,23 @@ describe('matchesIdFirst / prioritySortRank (moved from e2e/identity-web.spec.ts
     expect(prioritySortRank(undefined)).toBe(Number.POSITIVE_INFINITY)
     expect(prioritySortRank(1)).toBe(1)
     expect(prioritySortRank(1)).toBeLessThan(prioritySortRank(0))
+  })
+})
+
+describe('priority id-first filter (GDK-275)', () => {
+  test('id token matches; name token still matches via legacy fallback', () => {
+    expect(matchesIdFirst(['2'], '2', '높음')).toBe(true)
+    expect(matchesIdFirst(['높음'], '2', '높음')).toBe(true)
+    expect(matchesIdFirst(['High'], '2', '높음')).toBe(false)
+    expect(matchesIdFirst(['High'], '', 'High')).toBe(true)
+  })
+
+  test('name fallback increments priorityNameFallbackSeen', () => {
+    const before = priorityNameFallbackSeen()
+    expect(matchesIdFirst(['High'], '', 'High', true)).toBe(true)
+    expect(priorityNameFallbackSeen()).toBe(before + 1)
+    expect(matchesIdFirst(['2'], '2', 'High', true)).toBe(true)
+    expect(priorityNameFallbackSeen()).toBe(before + 1)
   })
 })
 
