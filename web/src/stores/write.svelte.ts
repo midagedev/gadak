@@ -485,16 +485,24 @@ class WriteStore {
   /**
    * Edit-start gate: ensure writable + load this issue's editmeta (allowed values).
    * Call just before opening the edit UI. false = blocked (dialog/toast handled inside).
+   * `{ quiet: true }` skips the write-gate dialog and failure toast — used to
+   * prefetch so empty editable rows can appear without forging editability.
    */
-  async ensureEditMeta(key: string): Promise<boolean> {
-    if (!(await this.ensureWritable())) return false
+  async ensureEditMeta(key: string, opts?: { quiet?: boolean }): Promise<boolean> {
+    if (isHostedDemo()) return false
+    if (opts?.quiet) {
+      if (!this.credentialLoaded) await this.loadCredential()
+      if (!this.configured) return false
+    } else if (!(await this.ensureWritable())) {
+      return false
+    }
     if (!this.editMeta.has(key) && !this.#editMetaLoading.has(key)) {
       this.#editMetaLoading.add(key)
       try {
         const res = await api.getEditMeta(key)
         this.editMeta.set(key, res.fields)
       } catch (e) {
-        this.#handleError(e, t('write.editMetaFailed'))
+        if (!opts?.quiet) this.#handleError(e, t('write.editMetaFailed'))
         return false
       } finally {
         this.#editMetaLoading.delete(key)
@@ -523,6 +531,20 @@ class WriteStore {
       key,
       patch,
       () => api.setIssueField(key, field, value),
+      t('write.fieldFailed'),
+    )
+  }
+
+  /**
+   * Set or clear the system due date. `iso` is YYYY-MM-DD; null clears.
+   * In-place row update — no success toast (GDK-301).
+   */
+  async setDuedate(key: string, iso: string | null): Promise<boolean> {
+    if (iso && !dueDateLiteral(iso)) return false
+    return this.#writeIssue(
+      key,
+      { duedate: iso },
+      () => api.setDuedate(key, iso),
       t('write.fieldFailed'),
     )
   }

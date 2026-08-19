@@ -261,6 +261,8 @@ No local queue, ever.
 | `<key>/labels/` | PUT | `PUT /issue/{key}` (`fields.labels`) | R |
 | `<key>/priority/` | PUT | `PUT /issue/{key}` (`fields.priority`) | R |
 | `<key>/summary/` | PUT | `PUT /issue/{key}` (`fields.summary`) | R |
+| `<key>/description/` | PUT | `PUT /issue/{key}` (`fields.description`, ADF-wrapped) | R |
+| `<key>/duedate/` | PUT | `PUT /issue/{key}` (`fields.duedate`) | R |
 | `priorities/` | GET | `GET /priority` | R |
 | `<key>/fields/` | PATCH | `PUT /issue/{key}` | R |
 | `<key>/editmeta/` | GET | `GET /issue/{key}/editmeta` | R |
@@ -296,6 +298,13 @@ Implementation notes that are part of the contract:
   accepted: Jira localizes them per account.
 - `<key>/summary/` takes `{"summary":"…"}`. Trim; empty is `400 summary_required`.
   Longer than 255 runes is `400 summary_too_long`.
+- `<key>/description/` takes `{"description": "plain text" | null}`. The server
+  wraps plain text into a one-paragraph ADF doc (the same shape `create/` sends);
+  `null` or an empty/whitespace string clears the field. Rich ADF is not accepted
+  here — this endpoint is the plain-text slice.
+- `<key>/duedate/` takes `{"duedate":"YYYY-MM-DD" | null}`. Anything that is not
+  a bare date literal is `400`; `null` or `""` clears. Timestamps are rejected on
+  purpose: due date is a calendar day, not an instant.
 
 ### Credential storage
 

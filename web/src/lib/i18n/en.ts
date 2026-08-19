@@ -607,6 +607,10 @@ export const en = {
   'qaEditor.clearAssignee': 'Clear assignee',
   'qaEditor.reporter': 'Reporter',
 
+  /* ── General field editor (non-version option lists) ── */
+  'fieldEditor.noOptions': 'No options available',
+  'fieldEditor.searchOptions': 'Search',
+
   /* ── Write / new issue ── */
   'write.newIssue': 'New issue',
   'write.issueTitle': 'Issue title',

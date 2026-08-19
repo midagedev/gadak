@@ -25,6 +25,8 @@ func TestValueFromIDs(t *testing.T) {
 		{"multi clear empty slice", "multi_option", []string{}, []any{}},
 		{"version_array set", "version_array", []string{"v1"}, []any{map[string]string{"id": "v1"}}},
 		{"version_array clear", "version_array", nil, []any{}},
+		{"option-array set", "option-array", []string{"1", "2"}, []any{map[string]string{"id": "1"}, map[string]string{"id": "2"}}},
+		{"option-array clear", "option-array", nil, []any{}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -54,6 +56,19 @@ func TestFieldValueMatchesValueFromIDs(t *testing.T) {
 		{"multi ids", "multi_option", `["a","b"]`, []any{map[string]string{"id": "a"}, map[string]string{"id": "b"}}},
 		{"multi empty arr", "multi_option", `[]`, []any{}},
 		{"null version_array", "version_array", "null", []any{}},
+		{"option-array alias", "option-array", `["a","b"]`, []any{map[string]string{"id": "a"}, map[string]string{"id": "b"}}},
+		{"null option-array", "option-array", "null", []any{}},
+		{"text set", "text", `"hello"`, "hello"},
+		{"text trim empty", "text", `"  "`, nil},
+		{"null text", "text", "null", nil},
+		{"number int json", "number", `42`, int64(42)},
+		{"number float json", "number", `1.5`, 1.5},
+		{"number string", "number", `"7"`, int64(7)},
+		{"number empty string", "number", `""`, nil},
+		{"null number", "number", "null", nil},
+		{"date set", "date", `"2026-09-01"`, "2026-09-01"},
+		{"date empty", "date", `""`, nil},
+		{"null date", "date", "null", nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -74,6 +89,15 @@ func TestFieldValueBadJSON(t *testing.T) {
 	}
 	if _, err := FieldValue("multi_option", json.RawMessage(`"not-array"`)); err == nil {
 		t.Fatal("expected error for non-array multi value")
+	}
+	if _, err := FieldValue("number", json.RawMessage(`"1,5"`)); err == nil {
+		t.Fatal("expected error for locale-formatted number")
+	}
+	if _, err := FieldValue("date", json.RawMessage(`"September 1"`)); err == nil {
+		t.Fatal("expected error for non-ISO date")
+	}
+	if _, err := FieldValue("text", json.RawMessage(`42`)); err == nil {
+		t.Fatal("expected error for non-string text value")
 	}
 }
 

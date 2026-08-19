@@ -63,7 +63,13 @@ func Classify(f jira.FieldInfo) (role, kind string, ok bool) {
 		return "user", "", true
 	}
 	switch t {
-	case "string", "number", "date", "datetime", "url":
+	case "string":
+		return "plain", "text", true
+	case "number":
+		return "plain", "number", true
+	case "date":
+		return "plain", "date", true
+	case "datetime", "url":
 		return "plain", "", true
 	}
 	// Everything else surfaces as plain.

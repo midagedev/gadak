@@ -488,6 +488,33 @@ func (s *server) handleSummary(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *server) handleDescription(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Description json.RawMessage `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.Description) == 0 {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	var text string
+	clear := string(body.Description) == "null"
+	if !clear {
+		if err := json.Unmarshal(body.Description, &text); err != nil {
+			fail(w, http.StatusBadRequest, "invalid_body")
+			return
+		}
+		text = strings.TrimSpace(text)
+		clear = text == ""
+	}
+	key := r.PathValue("key")
+	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+		if clear {
+			return nil, c.UpdateFields(ctx, key, map[string]any{"description": nil})
+		}
+		return nil, c.UpdateFields(ctx, key, map[string]any{"description": jira.Doc(text, nil)})
+	})
+}
+
 /* ── labels ── */
 
 func (s *server) handleLabels(w http.ResponseWriter, r *http.Request) {

@@ -14,8 +14,11 @@ func TestEditKind(t *testing.T) {
 		{"user", "", "user"},
 		{"array", "version", "version_array"},
 		{"array", "option", "multi_option"},
-		{"string", "", ""},
+		{"string", "", "text"},
+		{"number", "", "number"},
+		{"date", "", "date"},
 		{"array", "component", ""},
+		{"datetime", "", ""},
 	}
 	for _, tc := range cases {
 		var m jira.FieldMeta
@@ -36,7 +39,7 @@ func TestResolveEditableID(t *testing.T) {
 		}(),
 		"customfield_skip": func() jira.FieldMeta {
 			var m jira.FieldMeta
-			m.Schema.Type = "string" // no editor
+			m.Schema.Type = "datetime" // no editor in this slice
 			return m
 		}(),
 	}
@@ -48,6 +51,14 @@ func TestResolveEditableID(t *testing.T) {
 	// Present but no editor kind → skip.
 	if _, _, ok := ResolveEditableID([]string{"customfield_skip"}, meta); ok {
 		t.Fatal("unsupported schema should skip")
+	}
+
+	// textarea (ADF) is string but has no editor in this slice.
+	var textarea jira.FieldMeta
+	textarea.Schema.Type = "string"
+	textarea.Schema.Custom = "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+	if got := EditKind(textarea); got != "" {
+		t.Fatalf("textarea EditKind=%q, want empty (excluded this slice)", got)
 	}
 	// None present.
 	if _, _, ok := ResolveEditableID([]string{"customfield_x"}, meta); ok {

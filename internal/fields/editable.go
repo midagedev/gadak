@@ -2,6 +2,9 @@ package fields
 
 import (
 	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
 )
@@ -39,13 +42,18 @@ func EditableAliases(cfg *config.Config) map[string]EditableAlias {
 	return out
 }
 
-// FieldValue shapes the client's `string | string[] | null` into what Jira wants
-// for that kind. A null clears the field, which is what the editor's clear does.
+// FieldValue shapes the client's `string | string[] | number | null` into what
+// Jira wants for that kind. A null clears the field, which is what the
+// editor's clear does. textarea (ADF) is not a kind here — Cloud v3 needs a
+// separate document write.
 func FieldValue(kind string, raw json.RawMessage) (any, error) {
+	if isScalarKind(kind) {
+		return scalarValue(kind, raw)
+	}
 	if len(raw) == 0 || string(raw) == "null" {
 		return ValueFromIDs(kind, nil), nil
 	}
-	if kind == "version_array" || kind == "multi_option" {
+	if isMultiKind(kind) {
 		var ids []string
 		if err := json.Unmarshal(raw, &ids); err != nil {
 			return nil, err
@@ -65,7 +73,7 @@ func FieldValue(kind string, raw json.RawMessage) (any, error) {
 // ValueFromIDs shapes selected id(s) into the Jira field payload for kind.
 // An empty selection clears: multi kinds become []any{}, others become nil.
 func ValueFromIDs(kind string, ids []string) any {
-	if kind == "version_array" || kind == "multi_option" {
+	if isMultiKind(kind) {
 		out := make([]any, 0, len(ids))
 		for _, id := range ids {
 			out = append(out, map[string]string{"id": id})
@@ -79,4 +87,99 @@ func ValueFromIDs(kind string, ids []string) any {
 		return map[string]string{"accountId": ids[0]}
 	}
 	return map[string]string{"id": ids[0]}
+}
+
+func isMultiKind(kind string) bool {
+	return kind == "version_array" || kind == "multi_option" || kind == "option-array"
+}
+
+func isScalarKind(kind string) bool {
+	return kind == "text" || kind == "number" || kind == "date"
+}
+
+func scalarValue(kind string, raw json.RawMessage) (any, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	switch kind {
+	case "text":
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(s) == "" {
+			return nil, nil
+		}
+		return s, nil
+	case "number":
+		return numberValue(raw)
+	case "date":
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return nil, err
+		}
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return nil, nil
+		}
+		if !dateOnlyLiteral(s) {
+			return nil, fmt.Errorf("date %q is not a date (want YYYY-MM-DD)", s)
+		}
+		return s, nil
+	default:
+		return nil, fmt.Errorf("unsupported scalar kind %q", kind)
+	}
+}
+
+func numberValue(raw json.RawMessage) (any, error) {
+	var n json.Number
+	if err := json.Unmarshal(raw, &n); err == nil {
+		if i, err := n.Int64(); err == nil {
+			return i, nil
+		}
+		f, err := n.Float64()
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return nil, err
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, nil
+	}
+	// Locale marks (comma, space, NBSP) are rejected so "1,5" never becomes 15.
+	if strings.ContainsAny(s, ", \u00a0") {
+		return nil, fmt.Errorf("number %q is not locale-independent", s)
+	}
+	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return i, nil
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+// dateOnlyLiteral is YYYY-MM-DD with month 01–12 and day 01–31. It does not
+// parse into a timestamp — date-only values stay date-only.
+func dateOnlyLiteral(s string) bool {
+	if len(s) != 10 || s[4] != '-' || s[7] != '-' {
+		return false
+	}
+	for i := 0; i < 10; i++ {
+		if i == 4 || i == 7 {
+			continue
+		}
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	month := int(s[5]-'0')*10 + int(s[6]-'0')
+	day := int(s[8]-'0')*10 + int(s[9]-'0')
+	return month >= 1 && month <= 12 && day >= 1 && day <= 31
 }

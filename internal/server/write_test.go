@@ -317,6 +317,34 @@ func TestSummarySet(t *testing.T) {
 	}
 }
 
+func TestDescriptionSetAndClear(t *testing.T) {
+	f, h, _ := writable(t)
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/description/", `{"description":"plain body"}`); rec.Code != http.StatusOK {
+		t.Fatalf("set → %d: %s", rec.Code, rec.Body.String())
+	}
+	body := string(f.bodies["PUT /issue/NMB-1"])
+	for _, want := range []string{`"description"`, `"type":"doc"`, `"text":"plain body"`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("ADF wrap missing %s: %s", want, body)
+		}
+	}
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/description/", `{"description":null}`); rec.Code != http.StatusOK {
+		t.Fatalf("null clear → %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := string(f.bodies["PUT /issue/NMB-1"]); !strings.Contains(got, `"description":null`) {
+		t.Fatalf("null body %s", got)
+	}
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/description/", `{"description":""}`); rec.Code != http.StatusOK {
+		t.Fatalf("empty clear → %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := string(f.bodies["PUT /issue/NMB-1"]); !strings.Contains(got, `"description":null`) {
+		t.Fatalf("empty body %s", got)
+	}
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/description/", `{}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("missing → %d", rec.Code)
+	}
+}
+
 func TestLabelsSetAndClear(t *testing.T) {
 	f, h, _ := writable(t)
 	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/labels/", `{"labels":[" batch ","tech-debt","batch"]}`); rec.Code != http.StatusOK {
@@ -398,6 +426,46 @@ func TestFieldEditAllowlistAndShapes(t *testing.T) {
 	f.editMeta = `{}`
 	if rec := send(t, h, http.MethodPatch, apiBase+"NMB-1/fields/", `{"field":"solution","value":"10160"}`); rec.Code != http.StatusForbidden {
 		t.Fatalf("uneditable field → %d", rec.Code)
+	}
+}
+
+func TestFieldEditScalarKinds(t *testing.T) {
+	f, h, cfg := writable(t)
+	cfg.EditableFields = nil
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "note", Label: "Note", IDs: []string{"customfield_text"}, Role: "plain", Kind: "text"},
+		{Alias: "score", Label: "Score", IDs: []string{"customfield_num"}, Role: "plain", Kind: "number"},
+		{Alias: "due_custom", Label: "Custom due", IDs: []string{"customfield_date"}, Role: "plain", Kind: "date"},
+	}
+	f.editMeta = `{
+		"customfield_text": {"schema":{"type":"string","custom":"com.atlassian.jira.plugin.system.customfieldtypes:textfield"}},
+		"customfield_num": {"schema":{"type":"number"}},
+		"customfield_date": {"schema":{"type":"date"}}
+	}`
+
+	if rec := send(t, h, http.MethodPatch, apiBase+"NMB-1/fields/", `{"field":"note","value":"hello"}`); rec.Code != http.StatusOK {
+		t.Fatalf("text → %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := string(f.bodies["PUT /issue/NMB-1"]); got != `{"fields":{"customfield_text":"hello"}}` {
+		t.Fatalf("text body %s", got)
+	}
+	if rec := send(t, h, http.MethodPatch, apiBase+"NMB-1/fields/", `{"field":"score","value":42}`); rec.Code != http.StatusOK {
+		t.Fatalf("number → %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := string(f.bodies["PUT /issue/NMB-1"]); got != `{"fields":{"customfield_num":42}}` {
+		t.Fatalf("number body %s", got)
+	}
+	if rec := send(t, h, http.MethodPatch, apiBase+"NMB-1/fields/", `{"field":"due_custom","value":"2026-09-01"}`); rec.Code != http.StatusOK {
+		t.Fatalf("date → %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := string(f.bodies["PUT /issue/NMB-1"]); got != `{"fields":{"customfield_date":"2026-09-01"}}` {
+		t.Fatalf("date body %s", got)
+	}
+	if rec := send(t, h, http.MethodPatch, apiBase+"NMB-1/fields/", `{"field":"note","value":null}`); rec.Code != http.StatusOK {
+		t.Fatalf("text clear → %d", rec.Code)
+	}
+	if got := string(f.bodies["PUT /issue/NMB-1"]); got != `{"fields":{"customfield_text":null}}` {
+		t.Fatalf("text clear body %s", got)
 	}
 }
 
@@ -837,6 +905,7 @@ func TestWritesRequireACredential(t *testing.T) {
 		{http.MethodPut, apiBase + "NMB-1/labels/", `{"labels":["x"]}`},
 		{http.MethodPut, apiBase + "NMB-1/priority/", `{"priority_id":"2"}`},
 		{http.MethodPut, apiBase + "NMB-1/summary/", `{"summary":"x"}`},
+		{http.MethodPut, apiBase + "NMB-1/description/", `{"description":"x"}`},
 		{http.MethodPut, apiBase + "NMB-1/duedate/", `{"duedate":"2026-09-01"}`},
 		{http.MethodGet, apiBase + "priorities/", ""},
 		{http.MethodPatch, apiBase + "NMB-1/fields/", `{"field":"solution","value":"1"}`},

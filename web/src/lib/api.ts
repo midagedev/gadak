@@ -672,6 +672,15 @@ export function setSummary(issueKey: string, summary: string): Promise<IssueWrit
   })
 }
 
+/** PUT <key>/duedate/ — `null` or `""` clears. Send YYYY-MM-DD, not a timestamp. */
+export function setDuedate(issueKey: string, duedate: string | null): Promise<IssueWriteResponse> {
+  return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/duedate/`, {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ duedate }),
+  })
+}
+
 /* ── QA field inline edit ── */
 
 /** PATCH <key>/fields/ — change an allowed QA field (option id / accountId / version id array). */

@@ -4,6 +4,7 @@ import "github.com/midagedev/gadak/internal/jira"
 
 // EditKind maps a Jira field schema onto the editors the UI has. A field
 // whose schema is none of them has no editor and is left out of editmeta.
+// textarea is deliberately empty: Cloud v3 stores it as ADF, not a string.
 func EditKind(m jira.FieldMeta) string {
 	switch {
 	case m.Schema.Type == "option":
@@ -14,6 +15,12 @@ func EditKind(m jira.FieldMeta) string {
 		return "version_array"
 	case m.Schema.Type == "array" && m.Schema.Items == "option":
 		return "multi_option"
+	case m.Schema.Type == "string" && customTail(m.Schema.Custom) != "textarea":
+		return "text"
+	case m.Schema.Type == "number":
+		return "number"
+	case m.Schema.Type == "date":
+		return "date"
 	}
 	return ""
 }

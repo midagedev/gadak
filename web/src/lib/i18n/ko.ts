@@ -605,6 +605,10 @@ export const ko = {
   'qaEditor.clearAssignee': '담당자 해제',
   'qaEditor.reporter': '보고자',
 
+  /* ── General field editor (non-version option lists) ── */
+  'fieldEditor.noOptions': '선택 가능한 값이 없습니다',
+  'fieldEditor.searchOptions': '검색',
+
   /* ── Write / new issue ── */
   'write.newIssue': '새 이슈',
   'write.issueTitle': '이슈 제목',
