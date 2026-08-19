@@ -30,8 +30,10 @@ import (
 // this process is willing to hold either way.
 const maxUpload = 64 << 20
 
-// client returns the Jira client for this request, or answers 409 so the UI opens
-// its credential dialog.
+// client returns the Jira client for this request. A connected workspace
+// without a token answers 409 credential_required so the UI opens its
+// credential dialog. Standalone origin failures are mapped by
+// failOriginClient — they are not a missing token.
 func (s *server) client(w http.ResponseWriter) (*jira.Client, *config.Config, bool) {
 	cfg := s.config()
 	// HasCredential is true for standalone (no site token) and for a
@@ -43,10 +45,29 @@ func (s *server) client(w http.ResponseWriter) (*jira.Client, *config.Config, bo
 	}
 	c, err := origin.Client(cfg)
 	if err != nil {
-		fail(w, http.StatusConflict, "credential_required")
+		failOriginClient(w, err)
 		return nil, nil, false
 	}
 	return c, cfg, true
+}
+
+// failOriginClient maps origin.Client construction failures. HasCredential
+// already answers 409 credential_required when a connected workspace has
+// no token. This path is standalone persist/lock/path errors that used to
+// be disguised as that same 409 (GDK-345), which opened the token dialog
+// on a workspace that has no token.
+func failOriginClient(w http.ResponseWriter, err error) {
+	if errors.Is(err, origin.ErrWorkspaceBusy) {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error":   "workspace_busy",
+			"message": err.Error(),
+		})
+		return
+	}
+	log.Printf("server: origin client: %v", err)
+	writeJSON(w, http.StatusInternalServerError, map[string]string{
+		"error": err.Error(),
+	})
 }
 
 // failJira turns a Jira failure into the body the client parses: `error` for the

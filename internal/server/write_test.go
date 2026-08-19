@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/sync"
 )
 
@@ -1383,5 +1385,72 @@ func TestEditDuedateRejectsInvalidBeforeJira(t *testing.T) {
 	}
 	if f.called("PUT /issue/NMB-1") {
 		t.Fatalf("invalid duedate reached Jira: %v", f.calls)
+	}
+}
+
+// TestStandaloneOriginBusyIsNotCredentialRequired: a second process that
+// cannot embed (GDK-343) used to get 409 credential_required and the UI
+// opened the token dialog. Standalone has no token.
+//
+// FAIL-first (2026-08-20, pre-fix): body error was credential_required.
+func TestStandaloneOriginBusyIsNotCredentialRequired(t *testing.T) {
+	h, cfg := standaloneServer(t)
+	if _, err := origin.Client(cfg); err != nil {
+		t.Fatal(err)
+	}
+	origin.ForgetLive()
+
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", `{"text":"hi"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Error == "credential_required" {
+		t.Fatal("origin.ErrWorkspaceBusy disguised as credential_required")
+	}
+	if body.Error != "workspace_busy" {
+		t.Fatalf("error %q, want workspace_busy", body.Error)
+	}
+	if !strings.Contains(body.Message, "persist is locked") {
+		t.Fatalf("message %q, want the ErrWorkspaceBusy text", body.Message)
+	}
+}
+
+// TestStandaloneOriginPersistFailureIsNotCredentialRequired: a broken
+// persist path used to 409 credential_required. It is a 5xx with the
+// original error, not a missing token.
+//
+// FAIL-first (2026-08-20, pre-fix): body error was credential_required.
+func TestStandaloneOriginPersistFailureIsNotCredentialRequired(t *testing.T) {
+	h, cfg := standaloneServer(t)
+	persist := origin.PersistPath(cfg.Directory())
+	if persist == "" {
+		t.Fatal("standalone fixture has no persist path")
+	}
+	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// lockPersist opens persist+".lock"; a directory there is a path error,
+	// not ErrWorkspaceBusy.
+	if err := os.Mkdir(persist+".lock", 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", `{"text":"hi"}`)
+	if rec.Code < 500 || rec.Code > 599 {
+		t.Fatalf("status %d, want 5xx: %s", rec.Code, rec.Body.String())
+	}
+	got := decode[map[string]string](t, rec)["error"]
+	if got == "credential_required" {
+		t.Fatal("standalone persist failure disguised as credential_required")
+	}
+	if !strings.Contains(got, "persist lock") {
+		t.Fatalf("error %q, want the origin persist-lock text", got)
 	}
 }

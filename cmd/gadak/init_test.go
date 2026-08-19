@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1004,4 +1005,39 @@ func TestInitConvertingEmptyStandaloneDropsSeededSpace(t *testing.T) {
 	if cfg.Confluence != nil {
 		t.Fatalf("seeded standalone space survived the conversion: %+v", cfg.Confluence)
 	}
+}
+
+// TestInitStandaloneFailsWhenOriginClientFails: origin.Client errors used
+// to be swallowed by standaloneDefaultType, so `init --standalone` printed
+// success against an unusable origin (GDK-345).
+//
+// FAIL-first (2026-08-20, pre-fix): cmdInit returned nil.
+func TestInitStandaloneFailsWhenOriginClientFails(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+
+	holder := &config.Config{Kind: config.KindStandalone}
+	if _, err := origin.Client(holder); err != nil {
+		t.Fatalf("first Client (lock holder): %v", err)
+	}
+	origin.ForgetLive()
+
+	withClosedStdin(t, func() {
+		_, err := capture(t, func() error {
+			return cmdInit([]string{"--standalone", "--json"})
+		})
+		if err == nil {
+			t.Fatal("init --standalone succeeded while origin.Client failed")
+		}
+		if !errors.Is(err, origin.ErrWorkspaceBusy) {
+			t.Fatalf("init error = %v, want ErrWorkspaceBusy", err)
+		}
+	})
 }

@@ -454,7 +454,11 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 	// the origin we just created (in-process, no network) and record the
 	// answer, so the pick lives in config.json where it can be read and
 	// changed rather than being guessed per create.
-	if typeID, typeName := standaloneDefaultType(cfg); typeID != "" {
+	typeID, typeName, err := standaloneDefaultType(cfg)
+	if err != nil {
+		return err
+	}
+	if typeID != "" {
 		cfg.DefaultIssueTypeID = typeID
 		cfg.DefaultIssueType = typeName
 		if err := cfg.Save(); err != nil {
@@ -496,33 +500,35 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 
 // standaloneDefaultType picks the issue type new issues get when create is
 // given only a summary. "Task" is preferred by name; otherwise the first type
-// the origin offers. Returning "" leaves the config untouched — create then
-// asks for --type, which is the pre-existing behaviour, not a new failure.
+// the origin offers. An origin.Client failure is an init failure — the
+// origin we just declared is unusable (GDK-345). Returning "", "", nil
+// leaves the config untouched: create then asks for --type, which is the
+// pre-existing behaviour when the origin is up but offers no types.
 //
 // Unlike a headless per-create fallback (deliberately absent, see
 // internal/create), this pick is written to config.json and printed, so the
 // person can see what they got and change it.
-func standaloneDefaultType(cfg *config.Config) (id, name string) {
+func standaloneDefaultType(cfg *config.Config) (id, name string, err error) {
 	c, err := origin.Client(cfg)
 	if err != nil {
-		return "", ""
+		return "", "", err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	projects, err := c.CreateMeta(ctx, []string{cfg.DefaultProject})
 	if err != nil || len(projects) == 0 {
-		return "", ""
+		return "", "", nil
 	}
 	types := projects[0].IssueTypes
 	if len(types) == 0 {
-		return "", ""
+		return "", "", nil
 	}
 	for _, t := range types {
 		if strings.EqualFold(t.Name, "Task") {
-			return t.ID, t.Name
+			return t.ID, t.Name, nil
 		}
 	}
-	return types[0].ID, types[0].Name
+	return types[0].ID, types[0].Name, nil
 }
 
 // initConfluenceJSON is the --json shape for Confluence after init:
