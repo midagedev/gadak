@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
@@ -7,6 +7,66 @@ import { ko } from './ko'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WRITE_GO = join(HERE, '../../../../internal/server/write.go')
+const WEB_SRC = join(HERE, '../..')
+const E2E_ROOT = join(HERE, '../../../../e2e')
+
+/**
+ * Keys built at runtime, not written as literals:
+ *   fieldLabel        → `field.${field}`     (index.ts)
+ *   columnLabel       → `column.${key}`      (index.ts)
+ *   categoryLabel     → `category.${cat}`    (index.ts)
+ *   deployStateLabel  → `deploy.${state}`    (index.ts)
+ *
+ * A prefix allowlist, not a key allowlist: `category.done` stays legal without
+ * a quoted mention, and a brand-new unused key under the same prefix will not
+ * fail. That is the honest limit — do not grow this into a list of keys.
+ */
+const DYNAMIC_KEY_PREFIXES = ['category.', 'field.', 'column.', 'deploy.'] as const
+
+function hasDynamicPrefix(key: string): boolean {
+  return DYNAMIC_KEY_PREFIXES.some((p) => key.startsWith(p))
+}
+
+function walkSourceFiles(dir: string, acc: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules' || name === 'dist') continue
+    const p = join(dir, name)
+    if (statSync(p).isDirectory()) {
+      walkSourceFiles(p, acc)
+      continue
+    }
+    if (name.endsWith('.ts') || name.endsWith('.svelte') || name.endsWith('.js')) acc.push(p)
+  }
+  return acc
+}
+
+/**
+ * Catalog keys with no quoted mention in the scanned tree.
+ *
+ * Reads: every `.ts` / `.svelte` / `.js` under `web/src` and `e2e`.
+ * Skips: `en.ts` / `ko.ts` (those are the definitions).
+ * Extra references: `WRITE_ERROR_KEYS` values (looked up at runtime, defined
+ *   in `en.ts` after the catalog object).
+ * Misses: Go, docs, tools, desktop, contrib, `web/index.html`, `web/public/`,
+ *   concatenated keys (`'common' + '.yes'`), unquoted mentions.
+ */
+function unusedCatalogKeys(): string[] {
+  const skip = new Set([join(HERE, 'en.ts'), join(HERE, 'ko.ts')])
+  const files = [...walkSourceFiles(WEB_SRC), ...walkSourceFiles(E2E_ROOT)].filter(
+    (f) => !skip.has(f),
+  )
+  const blobs = files.map((f) => readFileSync(f, 'utf8'))
+  const extra = new Set<string>(Object.values(WRITE_ERROR_KEYS))
+  const unused: string[] = []
+  for (const key of Object.keys(en)) {
+    if (hasDynamicPrefix(key)) continue
+    if (extra.has(key)) continue
+    const needles = [`'${key}'`, `"${key}"`, '`' + key + '`']
+    if (blobs.some((s) => needles.some((n) => s.includes(n)))) continue
+    unused.push(key)
+  }
+  return unused
+}
 
 /** Stable fail() codes inside failCreate. The prose fallback (err.Error()) is not a code. */
 function failCreateCodes(src: string): string[] {
@@ -42,6 +102,11 @@ describe('catalog contracts', () => {
 
   test('en and ko catalogs have the same key set', () => {
     expect(Object.keys(ko).sort()).toEqual(Object.keys(en).sort())
+  })
+
+  test('every catalog key is referenced or sits under a dynamic prefix', () => {
+    const unused = unusedCatalogKeys()
+    expect(unused, unused.join('\n')).toEqual([])
   })
 
   test('each status category has exactly one catalog key', () => {

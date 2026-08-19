@@ -17,17 +17,11 @@ export const en = {
   'common.loading': 'Loading…',
   'common.searching': 'Searching…',
   'common.none': 'None',
-  'common.noneParen': '(none)',
   'common.defaultParen': '(default)',
   'common.unknown': 'Unknown',
   'common.me': 'Me',
   'common.all': 'All',
-  'common.yes': 'Yes',
-  'common.no': 'No',
-  'common.settings': 'Settings',
   'common.setCredentials': 'Set credentials',
-  'common.name': 'Name',
-  'common.select': 'Select',
   'common.deselect': 'Deselect',
   'common.create': 'Create',
   'common.creating': 'Creating…',
@@ -40,11 +34,8 @@ export const en = {
   'common.unclassified': 'Unclassified',
   'common.version': 'Version',
   'common.labels': 'Labels',
-  'common.attachments': 'Attachments',
   'common.attachment': 'Attachment',
   'common.attachmentFile': 'Attachment',
-  'common.comment': 'Comment',
-  'common.comments': 'Comments',
   'common.status': 'Status',
   'common.assignee': 'Assignee',
   'common.reporter': 'Reporter',
@@ -65,10 +56,6 @@ export const en = {
   'common.unfavorite': 'Remove favorite',
   'common.reply': 'Reply',
   'common.openInNewTab': 'Open in new tab',
-  'common.connected': 'Connected',
-  'common.ok': 'OK',
-  'common.fail': 'Failed',
-  'common.skipped': 'Skipped',
 
   /* ── Relative time ── */
   'time.justNow': 'just now',
@@ -275,7 +262,6 @@ export const en = {
   'list.reopenCountReason': 'Reopened {n}× · {reason}',
   'list.staleDays': '{n} days in this status',
   'list.staleDaysShort': '{n}d',
-  'list.staleHours': '{n}h in this status (business hours)',
   'list.createdAt': 'Created {time}',
   'list.dueAt': 'Due {date}',
   'list.categoryTitle': 'Category: {label} ({status})',
@@ -326,7 +312,6 @@ export const en = {
   /* ── Sidebar ── */
   'sidebar.newIssue': 'New issue',
   'sidebar.newIssueTitle': 'New issue (c)',
-  'sidebar.issues': 'Issues',
   'sidebar.builtinViews': 'Built-in views',
   'sidebar.myViews': 'My views',
   'sidebar.teamViews': 'Shared team views',
@@ -368,11 +353,8 @@ export const en = {
   'sidebar.syncNoRecord': 'No record',
   'sidebar.syncFailTitle': 'Sync failed',
   'sidebar.syncDelayedTitle': 'Sync delayed',
-  'sidebar.syncLabel': 'Synced {when}',
-  'sidebar.syncChecking': 'Checking sync',
   'sidebar.updateAvailable': 'gadak {version} is out — release notes',
   'sidebar.syncNow': 'Sync now',
-  'sidebar.syncNowTitle': 'Run an incremental sync now',
   'sidebar.syncHistory': 'Sync history',
   'sidebar.syncHistoryTitle': 'Click for recent sync runs',
   'sidebar.syncNoHistory': 'No recorded runs yet — history keeps syncs that changed something.',
@@ -383,10 +365,6 @@ export const en = {
   'sidebar.issueCount': '{n} issues',
 
   /* ── Freshness chip (mirror ↔ Jira leg) ── */
-  'freshness.synced': 'Synced {when}',
-  'freshness.never': 'Never synced',
-  'freshness.failed': 'Sync failed',
-  'freshness.syncing': 'Syncing…',
   'freshness.label': 'Mirror freshness',
   'freshness.titleFresh': 'Mirror pulled from Jira {when}. Click to sync now.',
   'freshness.titleStale': 'Mirror is behind — last successful sync {when}. Click to sync now.',
@@ -629,9 +607,6 @@ export const en = {
   'qaEditor.clearAssignee': 'Clear assignee',
   'qaEditor.reporter': 'Reporter',
 
-  /* ── Issue fields ── */
-  'issueFields.none': 'None',
-
   /* ── Write / new issue ── */
   'write.newIssue': 'New issue',
   'write.issueTitle': 'Issue title',
@@ -748,7 +723,6 @@ export const en = {
   'settings.confluenceOffHint':
     'Off for this profile — no wiki page is mirrored. Choose spaces below to start, or turn it on for every team space.',
   'settings.confluenceOnHint': 'Wiki pages are mirrored alongside issues.',
-  'settings.confluenceTurnOn': 'Turn on',
   'settings.confluenceTurnOnCount': 'Turn on for {n} spaces',
   'settings.confluenceTurnOnAll': 'Turn on for every team space',
   'settings.confluenceTurnOff': 'Turn off',
@@ -837,9 +811,6 @@ export const en = {
   'settings.browserNotifyGranted': 'Allowed',
   'settings.browserNotifyDenied': 'Blocked in browser settings',
   'settings.browserNotifyUnsupported': 'Not supported in this browser',
-  'settings.featurePush': 'Web push',
-  'settings.featurePushDesc':
-    'Browser notifications for feed events — needs server VAPID keys',
   'settings.featureDeploy': 'Deploy status',
   'settings.featureDeployDesc':
     'Per-issue deploy stage — needs an external CI/CD index',

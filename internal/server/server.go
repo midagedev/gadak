@@ -386,18 +386,10 @@ func (h *Handler) CheckNow(ctx context.Context, cacheDir string) UpdateStatus {
 	return h.s.checkNow(ctx, cacheDir)
 }
 
-// SnapshotUpdate is the debug document: current build, last known release, last check time.
-func (h *Handler) SnapshotUpdate() UpdateStatus {
-	if h == nil || h.s == nil {
-		return UpdateStatus{Current: Version}
-	}
-	return h.s.snapshotUpdate()
-}
-
 // SnapshotSync is the debug document for "what background work is running
 // right now": the same one-shot job + activity picture that
 // GET /api/v1/issues/sync/progress/ already returns. No new endpoint — that
-// GET already carries it; this is the in-process form, matching SnapshotUpdate.
+// GET already carries it; this is the in-process form.
 func (h *Handler) SnapshotSync() progressResponse {
 	if h == nil || h.s == nil {
 		return progressResponse{}

@@ -69,8 +69,3 @@ export function setParams(next: Record<string, string | null>, replace = false):
     location.hash = hash
   }
 }
-
-/** Set one query param (sugar). */
-export function setParam(key: string, value: string | null, replace = false): void {
-  setParams({ [key]: value }, replace)
-}

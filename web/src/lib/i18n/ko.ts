@@ -18,17 +18,11 @@ export const ko = {
   'common.loading': '불러오는 중…',
   'common.searching': '검색 중…',
   'common.none': '없음',
-  'common.noneParen': '(없음)',
   'common.defaultParen': '(기본)',
   'common.unknown': '알 수 없음',
   'common.me': '나',
   'common.all': '전체',
-  'common.yes': '예',
-  'common.no': '아니오',
-  'common.settings': '설정',
   'common.setCredentials': '자격증명 설정',
-  'common.name': '이름',
-  'common.select': '선택',
   'common.deselect': '선택 해제',
   'common.create': '생성',
   'common.creating': '생성 중…',
@@ -41,11 +35,8 @@ export const ko = {
   'common.unclassified': '미분류',
   'common.version': '버전',
   'common.labels': '라벨',
-  'common.attachments': '첨부',
   'common.attachment': '첨부',
   'common.attachmentFile': '첨부 파일',
-  'common.comment': '코멘트',
-  'common.comments': '코멘트',
   'common.status': '상태',
   'common.assignee': '담당자',
   'common.reporter': '보고자',
@@ -66,10 +57,6 @@ export const ko = {
   'common.unfavorite': '즐겨찾기 해제',
   'common.reply': '답글',
   'common.openInNewTab': '새 탭에서 열기',
-  'common.connected': '연결됨',
-  'common.ok': '성공',
-  'common.fail': '실패',
-  'common.skipped': '건너뜀',
 
   /* ── Relative time ── */
   'time.justNow': '방금',
@@ -276,7 +263,6 @@ export const ko = {
   'list.reopenCountReason': '재오픈 {n}회 · {reason}',
   'list.staleDays': '이 상태로 {n}일째',
   'list.staleDaysShort': '{n}일',
-  'list.staleHours': '이 상태에서 {n}시간(업무시간)',
   'list.createdAt': '생성 {time}',
   'list.dueAt': '기한 {date}',
   'list.categoryTitle': '분류: {label} ({status})',
@@ -327,7 +313,6 @@ export const ko = {
   /* ── Sidebar ── */
   'sidebar.newIssue': '새 이슈',
   'sidebar.newIssueTitle': '새 이슈 (c)',
-  'sidebar.issues': '이슈',
   'sidebar.builtinViews': '기본 뷰',
   'sidebar.myViews': '내 뷰',
   'sidebar.teamViews': '팀 공유 뷰',
@@ -369,11 +354,8 @@ export const ko = {
   'sidebar.syncNoRecord': '기록 없음',
   'sidebar.syncFailTitle': '동기화 실패',
   'sidebar.syncDelayedTitle': '동기화 지연',
-  'sidebar.syncLabel': '동기화 {when}',
-  'sidebar.syncChecking': '동기화 확인 중',
   'sidebar.updateAvailable': 'gadak {version} 업데이트가 나왔습니다 — 릴리스 노트 보기',
   'sidebar.syncNow': '지금 동기화',
-  'sidebar.syncNowTitle': '증분 동기화를 지금 실행',
   'sidebar.syncHistory': '동기화 내역',
   'sidebar.syncHistoryTitle': '클릭하면 최근 동기화 내역을 보여줍니다',
   'sidebar.syncNoHistory': '기록된 내역이 없습니다 — 변경이 있었던 동기화만 남습니다.',
@@ -384,10 +366,6 @@ export const ko = {
   'sidebar.issueCount': '{n}건',
 
   /* ── Freshness chip (mirror ↔ Jira leg) ── */
-  'freshness.synced': '{when} 동기화',
-  'freshness.never': '동기화 없음',
-  'freshness.failed': '동기화 실패',
-  'freshness.syncing': '동기화 중…',
   'freshness.label': '미러 신선도',
   'freshness.titleFresh': 'Jira에서 미러를 {when} 가져왔습니다. 클릭하면 지금 동기화합니다.',
   'freshness.titleStale': '미러가 지연됐습니다 — 마지막 성공 동기화 {when}. 클릭하면 지금 동기화합니다.',
@@ -627,9 +605,6 @@ export const ko = {
   'qaEditor.clearAssignee': '담당자 해제',
   'qaEditor.reporter': '보고자',
 
-  /* ── Issue fields ── */
-  'issueFields.none': '없음',
-
   /* ── Write / new issue ── */
   'write.newIssue': '새 이슈',
   'write.issueTitle': '이슈 제목',
@@ -743,7 +718,6 @@ export const ko = {
   'settings.confluenceOffHint':
     '이 프로필에서는 꺼져 있어 위키 문서가 미러링되지 않습니다. 아래에서 스페이스를 고르면 시작되고, 팀 스페이스 전체로 켤 수도 있습니다.',
   'settings.confluenceOnHint': '위키 문서가 이슈와 함께 미러링됩니다.',
-  'settings.confluenceTurnOn': '켜기',
   'settings.confluenceTurnOnCount': '{n}개 스페이스로 켜기',
   'settings.confluenceTurnOnAll': '전체 팀 스페이스로 켜기',
   'settings.confluenceTurnOff': '끄기',
@@ -832,9 +806,6 @@ export const ko = {
   'settings.browserNotifyGranted': '허용됨',
   'settings.browserNotifyDenied': '브라우저 설정에서 차단됨',
   'settings.browserNotifyUnsupported': '이 브라우저에서 지원하지 않음',
-  'settings.featurePush': '웹 푸시',
-  'settings.featurePushDesc':
-    '피드 이벤트를 브라우저 알림으로 — 서버 VAPID 키 필요',
   'settings.featureDeploy': '배포 상태',
   'settings.featureDeployDesc': '이슈별 배포 단계 — 외부 CI/CD 인덱스 필요',
   'settings.featureQa': 'QA 컨텍스트',

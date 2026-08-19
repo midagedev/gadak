@@ -57,7 +57,7 @@ import {
  */
 
 /**
- * Drop nulls the way setParams does (web/src/lib/router.svelte.ts:79–80).
+ * Drop nulls the way setParams does (web/src/lib/router.svelte.ts:60–61).
  * `new URLSearchParams(configToParams(c))` would stringify null as "null"
  * and is not what the app does.
  */
