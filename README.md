@@ -272,6 +272,23 @@ Arch Linux: a checked `PKGBUILD` lives in
 the AUR yet; upstream registration is closed
 ([`docs/INSTALL.md`](docs/INSTALL.md#arch-linux)).
 
+On [Omarchy](https://omarchy.org), the bar can answer the one question no
+cloud plugin can — what changed in *your* mirror. A shell-plugin widget in
+[`contrib/omarchy`](contrib/omarchy) shows `open·stuck` straight from the
+local mirror (no token, no network) and click-opens the app. Run once on a
+real guest.
+
+<details>
+<summary>▶ The widget on a real Omarchy guest (PNG) — the bar badge is <code>gadak sql</code>'s own numbers</summary>
+
+<p align="center">
+  <img src="docs/media/omarchy-widget.png" alt="An Omarchy desktop: the Waybar badge reads 368·201, the terminal below shows gadak sql --json returning open 368 and stuck 201 for the same mirror, and the gadak web app is open after clicking the badge" width="900">
+  <br>
+  <sub>Captured on the Arch + Hyprland verification guest (<a href="contrib/omarchy/README.md">contrib/omarchy/README.md</a>).</sub>
+</p>
+
+</details>
+
 Install script, release archive, source, Docker, wiki mirroring, profiles,
 upgrades: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 
