@@ -640,6 +640,9 @@ export const en = {
   'write.searchPersonOptional': 'Search name/email (optional)',
   'write.addLabelOptional': 'Add labels (optional)',
   'write.requiredFields': 'Project, type, and title are required.',
+  'write.projectRequired': 'Pick a project.',
+  'write.issueTypeRequired': 'Pick an issue type.',
+  'write.priorityRequired': 'Pick a priority.',
   'write.createFailed': 'Could not create issue.',
   'write.metaFailed': 'Could not load create metadata.',
   'write.issueCreated': 'Created {key}.',
@@ -1193,10 +1196,11 @@ export const en = {
 export type MessageKey = keyof typeof en
 
 /**
- * `fail()` / `failJira` codes from internal/server/write.go → catalog keys.
- * Only codes whose sentence differs from the operation generic (or is reused
- * from an existing write.* key). Unknown snake_case codes must not appear
- * here — writeErrorMessage falls those back to the caller’s generic sentence.
+ * `fail()` / `failJira` / `failCreate` codes from internal/server/write.go →
+ * catalog keys. Only codes whose sentence differs from the operation generic
+ * (or is reused from an existing write.* key). Unknown snake_case codes must
+ * not appear here — writeErrorMessage falls those back to the caller’s generic
+ * sentence. failCreate’s codes are derived from write.go by catalog.test.ts.
  */
 export const WRITE_ERROR_KEYS = {
   credential_required: 'write.needToken',
@@ -1207,6 +1211,9 @@ export const WRITE_ERROR_KEYS = {
   summary_required: 'write.titleRequired',
   summary_too_long: 'write.summaryTooLong',
   project_issue_type_and_summary_required: 'write.requiredFields',
+  project_required: 'write.projectRequired',
+  issue_type_required: 'write.issueTypeRequired',
+  priority_required: 'write.priorityRequired',
   project_not_mirrored: 'write.projectNotMirrored',
   field_not_editable: 'write.fieldNotEditable',
   site_required: 'write.siteRequired',

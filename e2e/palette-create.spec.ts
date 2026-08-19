@@ -16,8 +16,9 @@ const SUMMARY = 'zzgdk217create'
 const CREATED_KEY = 'GDK-224'
 const CREATED_TYPE = 'Task'
 const CREATED_PROJECT = 'GDK'
-const SERVER_400 =
-  'pass --type, available: Task (id 10000); Bug (id 10001)'
+/** Real create 400 body is a wire code (failCreate), not CLI catalog prose. */
+const SERVER_400 = { error: 'issue_type_required' } as const
+const SERVER_400_TOAST = 'Pick an issue type.'
 
 type IssueRow = Record<string, unknown> & { issue_key: string }
 type CreateBody = Record<string, unknown>
@@ -99,7 +100,7 @@ test.describe('palette instant create', () => {
     await page.route('**/api/v1/issues/create/', async (route) => {
       if (route.request().method() !== 'POST') return route.continue()
       posted = route.request().postDataJSON() as CreateBody
-      await fulfillJSON(route, { error: SERVER_400 }, 400)
+      await fulfillJSON(route, SERVER_400, 400)
     })
 
     const { palette, createNow } = await openPaletteWithSummary(page)
@@ -111,7 +112,9 @@ test.describe('palette instant create', () => {
 
     const toast = page.getByTestId('toast').and(page.getByRole('alert'))
     await expect(toast).toBeVisible()
-    await expect(toast).toContainText(SERVER_400)
+    await expect(toast).toContainText(SERVER_400_TOAST)
+    await expect(toast).not.toContainText('issue_type_required')
+    await expect(toast).not.toContainText('pass --type')
 
     await expect(palette).toBeVisible()
     await expect(palette.getByRole('combobox')).toHaveValue(SUMMARY)
