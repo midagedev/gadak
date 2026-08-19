@@ -1,0 +1,68 @@
+{
+  "data": {
+    "issueCreate": {
+      "success": true,
+      "issue": {
+        "id": "00000000-0000-4000-8000-000000000012",
+        "identifier": "FIX-11",
+        "number": 11,
+        "title": "Fixture issue 11",
+        "description": "## Overview\n\nA fixture description with the shape of real Linear markdown.\n\n- [ ] one open checklist item\n- [x] one done checklist item\n\nA [docs link](https://linear.app/docs) and `inline code`.\n\n```\na fenced code block\n```\n",
+        "url": "https://linear.app/example/issue/FIX-11/scrubbed",
+        "createdAt": "2026-08-20T09:15:00.000Z",
+        "updatedAt": "2026-08-20T09:15:00.000Z",
+        "archivedAt": null,
+        "priority": 2,
+        "priorityLabel": "High",
+        "dueDate": "2026-09-30",
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000008",
+          "name": "In Progress",
+          "type": "started",
+          "position": 2
+        },
+        "team": {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "key": "FIX",
+          "name": "Fixture Team"
+        },
+        "assignee": {
+          "id": "00000000-0000-4000-8000-000000000015",
+          "name": "Fixture User 1",
+          "displayName": "Fix User 1",
+          "email": "user-1@example.invalid"
+        },
+        "creator": {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "name": "Fixture User 0",
+          "displayName": "Fix User 0",
+          "email": "user-0@example.invalid"
+        },
+        "labels": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "id": "00000000-0000-4000-8000-000000000013",
+              "name": "Bug"
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000014",
+              "name": "Feature"
+            }
+          ]
+        },
+        "parent": null,
+        "comments": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        }
+      }
+    }
+  }
+}

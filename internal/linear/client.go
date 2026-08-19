@@ -1,8 +1,9 @@
-// Package linear is the read-only GraphQL client for a Linear workspace:
-// viewer, teams, workflow states, and cursor-paged issues with an updatedAt
-// watermark filter. It issues no mutations — this connector mirrors, and a
-// mirror never writes to the origin (gadak constitution, "writes pass through
-// the origin"; Linear writes, if ever, are a separate decision).
+// Package linear is the GraphQL client for a Linear workspace: viewer, teams,
+// workflow states, cursor-paged issues with an updatedAt watermark filter, and
+// — since GDK-360 — the three write verbs (create issue, update issue,
+// comment) the origin.Writer adapter routes through. The constitution article
+// is unchanged: writes pass through the origin, and these methods are that
+// origin path for Linear; the mirror itself is still never written directly.
 //
 // The API key lives only in the Authorization header. It is never put in an
 // error, a log line, or a URL — the same article-8 discipline internal/jira
@@ -66,7 +67,7 @@ func (authError) RejectedCredential() {}
 // client would couple this package to a host family it never talks to.
 var ErrAuth error = authError{}
 
-// Client talks to one Linear workspace over GraphQL, read-only.
+// Client talks to one Linear workspace over GraphQL.
 type Client struct {
 	// APIKey is sent bare in the Authorization header — no "Bearer" prefix.
 	// Linear rejects the prefixed form with a 400 that says so outright
@@ -255,6 +256,23 @@ type graphResponse struct {
 // bodies (the only foreign text in an error) cannot echo a header they never
 // saw.
 func (c *Client) gql(ctx context.Context, query string, vars map[string]any, out any) error {
+	return c.gqlCall(ctx, query, vars, out, false)
+}
+
+// gqlWrite is gql with the retry policy a state-changing request needs — the
+// same discipline jira's write() applies: a 500 or a dropped connection may
+// mean Linear already acted and the answer was lost, so a retry could create
+// the issue twice. Only 429 and 503, where the server states it did not act,
+// are retried (httppolicy.IsRetryableWrite), and transport failures are
+// final. Everything else — auth header, usage counters, rate-limit notes —
+// is shared with reads, because both are the same gqlCall.
+func (c *Client) gqlWrite(ctx context.Context, query string, vars map[string]any, out any) error {
+	return c.gqlCall(ctx, query, vars, out, true)
+}
+
+// gqlCall is the one HTTP path every GraphQL document takes, read or
+// mutation; mutating only selects the retry policy.
+func (c *Client) gqlCall(ctx context.Context, query string, vars map[string]any, out any, mutating bool) error {
 	payload, err := json.Marshal(graphRequest{Query: query, Variables: vars})
 	if err != nil {
 		return err
@@ -274,7 +292,10 @@ func (c *Client) gql(ctx context.Context, query string, vars map[string]any, out
 		res, err := c.HTTP.Do(req)
 		c.usage.NoteRequest()
 		if err != nil {
-			if attempt < c.Retries-1 {
+			// A mutating request is not retried on a transport failure
+			// either: the request may have reached Linear and only the reply
+			// was lost, so a retry could apply the write twice.
+			if !mutating && attempt < c.Retries-1 {
 				if werr := httppolicy.Wait(ctx, c.Backoff, attempt, "", &c.usage); werr != nil {
 					return werr
 				}
@@ -293,7 +314,11 @@ func (c *Client) gql(ctx context.Context, query string, vars map[string]any, out
 			// budget for an answer that cannot change.
 			return fmt.Errorf("POST /graphql: %w (%d %s)", ErrAuth, res.StatusCode, http.StatusText(res.StatusCode))
 		}
-		if httppolicy.IsRetryable(res.StatusCode) && attempt < c.Retries-1 {
+		retryable := httppolicy.IsRetryable
+		if mutating {
+			retryable = httppolicy.IsRetryableWrite
+		}
+		if retryable(res.StatusCode) && attempt < c.Retries-1 {
 			if werr := httppolicy.Wait(ctx, c.Backoff, attempt, res.Header.Get("Retry-After"), &c.usage); werr != nil {
 				return werr
 			}

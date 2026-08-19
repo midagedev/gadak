@@ -218,3 +218,34 @@ exposed via `HasNextPage`, never silent).
    above), or an explicit decision to ship Linear without time-in-status.
 6. **A display story for markdown** bodies (comments, descriptions) —
    `body_adf` must not become a markdown container.
+
+---
+
+## 쓰기 매핑 (GDK-360)
+
+`write.go`의 세 mutation 동사. 읽기 매핑의 규칙이 그대로 적용된다 —
+**상태는 `stateId`(WorkflowState UUID), 우선순위는 0-4 정수, 절대 display
+name으로 키하지 않는다.**
+
+| 동사 | Linear mutation | 입력 필드 | 비고 |
+| --- | --- | --- | --- |
+| `CreateIssue` | `issueCreate(input:)` | `teamId`*, `title`*, `description`, `stateId`, `priority`, `assigneeId`, `labelIds`, `dueDate` | \* = 필수(클라이언트가 먼저 검사). 0값 문자열·빈 슬라이스는 입력에서 **생략** — Linear 기본값 적용. 반환 Issue는 읽기 쿼리와 같은 필드 셋이라 미러가 refetch 없이 커밋 가능 |
+| `UpdateIssue` | `issueUpdate(id:, input:)` | `title`, `description`, `stateId`, `priority`, `assigneeId`, `labelIds`, `dueDate` | nil = **키 생략** = 미변경. `assigneeId`에 빈 문자열 포인터 = **명시적 null** = 해제. `labelIds`는 슬라이스가 **전체 집합을 교체**(빈 슬라이스 = 라벨 전체 제거) |
+| `CreateComment` | `commentCreate(input:)` | `issueId`, `body` | body는 markdown(읽기의 `Comment.body`와 동일; ADF 아님 — 위 "comments" 절) |
+
+- **null 근거**: 문서화된 스키마(Apollo Studio `IssueUpdateInput` 참조,
+  2026-08-20 확인) — *"All fields are optional; only provided fields will be
+  updated. Setting a field to null (where supported) will clear the field's
+  value."* 생략=미변경 / null=해제 / 값=설정의 3분법이 그대로 입력 인코딩이다.
+  실측은 불가(캡처 워크스페이스에 mutation 금지) — 테스트는 hand-built
+  fixture로 재생한다.
+- **priority**는 읽기 매핑의 identity 규칙(0=없음, 1=Urgent … 4=Low)을 그대로
+  쓰고, 클라이언트가 0-4 밖 값을 전송 전에 거절한다.
+- **dueDate**는 `"YYYY-MM-DD"`만 허용(클라이언트 검증). 이 형태로는 due date
+  **해제**(명시적 null)를 표현할 수 없다 — 어댑터(GDK-361)가 필요하면
+  `AssigneeID`의 빈-문자열 관례를 확장한다.
+- **재시도**: mutation은 쓰기 재시도 정책(`httppolicy.IsRetryableWrite`,
+  429·503만; 전송 실패도 재시도 않음)을 탄다 — 500은 "이미 적용됐고 응답만
+  유실했다"일 수 있어 재시도하면 이중 생성. jira `write()`와 같은 규율.
+- **success=false**는 애플리케이션 수준 거부이며 에러로 변환한다( GraphQL
+  errors 배열과 별개 경로).
