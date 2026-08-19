@@ -35,6 +35,7 @@ type doctorReport struct {
 	Profile       string                `json:"profile"`
 	WorkspaceKind string                `json:"workspace_kind"`
 	Origin        string                `json:"origin"`
+	OriginOwner   string                `json:"origin_owner,omitempty"`
 	MirrorPath    string                `json:"mirror_path"`
 	Mirror        doctorMirror          `json:"mirror"`
 	SchemaVersion *int                  `json:"schema_version"`
@@ -182,6 +183,7 @@ func collectDoctor() doctorReport {
 			// Persist path is the origin; tilde so the account username
 			// does not appear (same rule as mirror_path).
 			rep.Origin = tildeHome(src)
+			rep.OriginOwner = origin.OwnerStatus(cfg)
 		} else {
 			rep.Origin = src
 		}
@@ -434,6 +436,9 @@ func formatDoctorText(r doctorReport) string {
 	line("profile", r.Profile)
 	line("workspace_kind", r.WorkspaceKind)
 	line("origin", r.Origin)
+	if r.OriginOwner != "" {
+		line("origin owner", r.OriginOwner)
+	}
 	line("workspace", formatDoctorWorkspace(r.Workspace))
 	line("mirror_path", r.MirrorPath)
 

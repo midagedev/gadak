@@ -21,6 +21,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/selfupdate"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -98,6 +99,13 @@ type server struct {
 	jobsCtx    context.Context
 	jobsCancel context.CancelFunc
 	jobsWG     sync.WaitGroup
+
+	// originH is the standalone issuetap handler this process already
+	// holds. Lazy: first /api/v1/origin/ request constructs it via
+	// origin.StandaloneHandler. Tests pin it to keep a session alive
+	// after origin.live is evicted (cross-process simulation).
+	originOnce sync.Once
+	originH    http.Handler
 }
 
 // Handler is the HTTP API plus optional update-check control. It implements
@@ -257,6 +265,9 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// Three-segment pages/{id}/resync/ is a literal; {key}/resync/ is two-segment.
 	mux.HandleFunc("POST "+apiBase+"{key}/resync/{$}", s.handleResync)
 	mux.HandleFunc("POST "+apiBase+"pages/{id}/resync/{$}", s.handlePageResync)
+	// Origin passthrough: CLI writes on a standalone workspace go through
+	// the live serve's issuetap so persist has one owner (GDK-333).
+	mux.Handle(origin.RESTPrefix+"/", http.HandlerFunc(s.handleOriginREST))
 	// Deferred and cut endpoints (notifications, presence, mentions,
 	// data-quality, login/logout) fall through to here. The UI hides a surface on
 	// a clean 404 and only breaks on a 500.

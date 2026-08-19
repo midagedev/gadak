@@ -16,6 +16,7 @@ import (
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
@@ -206,6 +207,10 @@ func runServeHTTP(ctx context.Context, mux http.Handler, preferred string, addrP
 		log.Printf("port %s busy (%s) — serving on %s", prefPort, occupant, boundPort)
 	}
 	defer ln.Close()
+	// Advertise the final listen address (after port fallback) so other
+	// processes route origin writes here. Connected workspaces skip.
+	unpublish := publishStandaloneOrigin(cfg, bound)
+	defer unpublish()
 
 	srv := &http.Server{
 		Addr:              bound,
@@ -249,6 +254,12 @@ func cmdServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Persist owner is this process: origin.Client must embed, never
+	// proxy to the advertise file we are about to write (self-loop).
+	if cfg.IsStandalone() {
+		origin.SetInProcess(true)
+		defer origin.SetInProcess(false)
+	}
 	db, err := openStore()
 	if err != nil {
 		return err
@@ -283,6 +294,29 @@ func cmdServe(args []string) error {
 
 	startServeLoops(ctx, api, db, cfg, reg, opts.noSync, opts.withSync)
 	return runServeHTTP(ctx, mux, opts.addr, opts.addrPinned, opts.noOpen, cfg)
+}
+
+// publishStandaloneOrigin writes serve-origin.json for a standalone
+// workspace and returns a cleanup that removes it. Connected workspaces
+// and a missing profile dir are no-ops.
+func publishStandaloneOrigin(cfg *config.Config, bound string) func() {
+	nop := func() {}
+	if cfg == nil || !cfg.IsStandalone() || bound == "" {
+		return nop
+	}
+	dir := cfg.Directory()
+	if dir == "" {
+		var err error
+		dir, err = config.Dir()
+		if err != nil || dir == "" {
+			return nop
+		}
+	}
+	if err := origin.WriteAdvertise(dir, bound); err != nil {
+		log.Printf("warning: could not advertise origin owner: %v", err)
+		return nop
+	}
+	return func() { _ = origin.RemoveAdvertise(dir) }
 }
 
 // openOnceUp opens the browser as soon as the server answers /healthz, so the

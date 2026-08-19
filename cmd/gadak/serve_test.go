@@ -1,8 +1,14 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 )
 
 func TestParseServeOpts_AddrPinned(t *testing.T) {
@@ -91,5 +97,54 @@ func TestIsLoopback(t *testing.T) {
 	}
 	if isLoopback("0.0.0.0") || isLoopback("192.168.0.1") || isLoopback("example.com") {
 		t.Fatal("non-loopback hosts should be false")
+	}
+}
+
+func TestPublishStandaloneOriginWritesAndRemoves(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Kind = config.KindStandalone
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unpublish := publishStandaloneOrigin(cfg, "127.0.0.1:7998")
+	p := origin.AdvertisePath(cfg.Directory())
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatalf("advertise missing: %v", err)
+	}
+	var adv origin.Advertise
+	if err := json.Unmarshal(raw, &adv); err != nil {
+		t.Fatal(err)
+	}
+	if adv.Addr != "127.0.0.1:7998" || adv.PID != os.Getpid() {
+		t.Fatalf("advertise = %+v", adv)
+	}
+	unpublish()
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Fatalf("advertise still present: %v", err)
+	}
+}
+
+func TestPublishStandaloneOriginSkipsConnected(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	cfg := &config.Config{Kind: config.KindConnected}
+	unpublish := publishStandaloneOrigin(cfg, "127.0.0.1:7998")
+	unpublish()
+	if _, err := os.Stat(filepath.Join(home, origin.AdvertiseRel)); !os.IsNotExist(err) {
+		t.Fatal("connected workspace must not write serve-origin.json")
 	}
 }

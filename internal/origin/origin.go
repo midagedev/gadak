@@ -66,7 +66,9 @@ func Connected(site, email, token string) *jira.Client {
 // Client is the single owner of "this workspace's Jira client".
 // A connected workspace gets the same jira.New(site, email, token) as before.
 // A standalone workspace gets a client whose Transport is the in-process
-// issuetap handler; BaseURL is empty so stored browse links are /browse/KEY
+// issuetap handler, unless a live `gadak serve` for this profile advertised
+// itself — then Transport is that serve's origin passthrough so persist has
+// one owner. BaseURL stays empty so stored browse links are /browse/KEY
 // rather than a fake https origin a person might click.
 func Client(cfg *config.Config) (*jira.Client, error) {
 	if cfg == nil {
@@ -118,8 +120,10 @@ var (
 	live    = map[string]*session{}
 	flights = map[string]*sessionFlight{}
 
-	sessionInFlight   atomic.Int64
-	sessionsDiscarded atomic.Uint64
+	sessionInFlight     atomic.Int64
+	sessionsDiscarded   atomic.Uint64
+	sessionsConstructed atomic.Uint64
+	inProcess           atomic.Bool
 )
 
 // SessionInFlight is how many standaloneSession constructions are running
@@ -130,12 +134,50 @@ func SessionInFlight() int64 { return sessionInFlight.Load() }
 // and were closed. Same shape as store.WriteBusyRetries.
 func SessionsDiscarded() uint64 { return sessionsDiscarded.Load() }
 
+// SessionsConstructed is how many times constructStandalone ran. Tests
+// use a delta to prove a routed Client did not open a second persist graph.
+func SessionsConstructed() uint64 { return sessionsConstructed.Load() }
+
+// SetInProcess marks this process as the persist owner (`gadak serve` on
+// a standalone workspace). Client and Wiki then always use the embedded
+// session and never proxy to the advertise file — that would loop back
+// onto this same listener.
+func SetInProcess(v bool) { inProcess.Store(v) }
+
+// ForgetLive drops cached embedded sessions without closing them. Tests
+// use this to simulate a second process: the serve handler still holds
+// the graph, but Client no longer finds it in this process.
+func ForgetLive() {
+	mu.Lock()
+	live = map[string]*session{}
+	flights = map[string]*sessionFlight{}
+	mu.Unlock()
+}
+
 func standaloneClient(cfg *config.Config) (*jira.Client, error) {
+	if c, ok := routedJira(cfg); ok {
+		return c, nil
+	}
 	s, err := standaloneSession(cfg)
 	if err != nil {
 		return nil, err
 	}
 	return s.client, nil
+}
+
+// StandaloneHandler is the in-process issuetap HTTP surface for this
+// workspace. Serve's origin passthrough uses it so CLI writes land on
+// the same graph the UI already holds. Always embeds — never routes —
+// so the serve process cannot proxy to itself through this entry.
+func StandaloneHandler(cfg *config.Config) (http.Handler, error) {
+	s, err := standaloneSession(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil || s.emb == nil {
+		return nil, errors.New("origin: standalone handler is missing")
+	}
+	return s.emb, nil
 }
 
 // Wiki is the single owner of "this workspace's Confluence client".
@@ -155,6 +197,9 @@ func Wiki(cfg *config.Config) (*confluence.Client, error) {
 }
 
 func standaloneWiki(cfg *config.Config) (*confluence.Client, error) {
+	if w, ok := routedWiki(cfg); ok {
+		return w, nil
+	}
 	s, err := standaloneSession(cfg)
 	if err != nil {
 		return nil, err
@@ -226,6 +271,7 @@ func standaloneSession(cfg *config.Config) (*session, error) {
 }
 
 func constructStandalone(persist string) (*session, error) {
+	sessionsConstructed.Add(1)
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
 		return nil, fmt.Errorf("origin: persist dir: %w", err)
 	}

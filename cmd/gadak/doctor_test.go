@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +13,7 @@ import (
 
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -426,6 +429,69 @@ func TestDoctorReportsStandaloneWithCredential(t *testing.T) {
 	}
 	if !rep.Workspace.Inconsistent || !rep.Workspace.HasCredential || rep.Workspace.Kind != config.KindStandalone {
 		t.Fatalf("json workspace = %+v", rep.Workspace)
+	}
+}
+
+func TestDoctorOriginOwnerEmbedded(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cfg := &config.Config{Kind: config.KindStandalone}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	got := doctorValue(t, out, "origin owner")
+	if got != "embedded (no live serve)" {
+		t.Fatalf("origin owner = %q", got)
+	}
+}
+
+func TestDoctorOriginOwnerLiveServe(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cfg := &config.Config{Kind: config.KindStandalone}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/issues/sync/progress/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Gadak", "1")
+		w.Header().Set("X-Gadak-Profile", "")
+		w.WriteHeader(http.StatusOK)
+	})
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	if err := origin.WriteAdvertise(cfg.Directory(), ts.Listener.Addr().String()); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	got := doctorValue(t, out, "origin owner")
+	if !strings.HasPrefix(got, "serve pid=") || !strings.Contains(got, "addr=") {
+		t.Fatalf("origin owner = %q, want serve pid=… addr=…", got)
+	}
+	if !strings.Contains(got, ts.Listener.Addr().String()) {
+		t.Fatalf("origin owner %q missing addr %s", got, ts.Listener.Addr().String())
 	}
 }
 
