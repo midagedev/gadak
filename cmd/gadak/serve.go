@@ -265,6 +265,10 @@ func cmdServe(args []string) error {
 	}
 
 	api := newServeAPI(db, cfg)
+	// Registered after db.Close and before reg.Close, so the LIFO order is
+	// workspaces, then this handler, then the mirror: a background sync must
+	// stop before the database it writes to closes (GDK-270).
+	defer api.Close()
 	spa := serveSPAHandler(opts.static)
 
 	// Workspace mounts share this process's listener; each profile opens lazily.

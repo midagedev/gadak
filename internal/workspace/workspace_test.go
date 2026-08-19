@@ -442,3 +442,44 @@ func TestWorkspaceConnectStartsWatch(t *testing.T) {
 		t.Fatalf("workspace connect did not start Watch: watching %v", reg.Watching())
 	}
 }
+
+// TestCloseStopsWorkspaceSyncBeforeTheMirror is the production half of
+// GDK-270. The server learned to own its background sync, but a Registry that
+// closed only e.DB would still leave a workspace's job writing into a mirror
+// that had just been closed — the same leak, one layer up. Driving a real
+// scope-changing settings PUT is what starts that job; the profile's Site is a
+// dead loopback port, so the sync fails fast without leaving this machine.
+func TestCloseStopsWorkspaceSyncBeforeTheMirror(t *testing.T) {
+	setupHome(t)
+	seedProfile(t, "", &config.Config{
+		Site: "http://127.0.0.1:1", Email: "a@example.invalid", Token: "test-token", Projects: []string{"AAA"},
+	})
+	seedProfile(t, "work", &config.Config{
+		Site: "http://127.0.0.1:1", Email: "b@example.invalid", Token: "test-token", Projects: []string{"BBB"},
+	})
+
+	reg := New()
+	e, err := reg.Get("work")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	db := e.DB
+
+	spa := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	h := reg.Handler(spa, "test-ver")
+	rec := httptest.NewRecorder()
+	body := strings.NewReader(`{"projects":["BBB","CCC"],"staleThresholdHours":72}`)
+	req := httptest.NewRequest(http.MethodPut, "/w/work/api/v1/issues/settings/", body)
+	req.Host = "127.0.0.1:7777"
+	req.Header.Set("Content-Type", "application/json")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT settings → %d %s", rec.Code, rec.Body.String())
+	}
+
+	reg.Close()
+
+	if n := db.PoolStats().InUse; n != 0 {
+		t.Fatalf("%d connection(s) still checked out after Registry.Close — the workspace's sync outlived its mirror (GDK-270)", n)
+	}
+}

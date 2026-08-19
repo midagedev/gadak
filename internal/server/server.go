@@ -89,6 +89,15 @@ type server struct {
 	syncMu   sync.Mutex
 	syncJob  progressDoc
 	activity mirrorActivity
+
+	// jobsCtx is cancelled by Shutdown so a startSyncJob goroutine cannot
+	// outlive the server. jobsWG counts those goroutines; Close waits on it.
+	// Nothing else owned this lifetime, so a settings PUT in a test (or a
+	// serve process exiting) left the writer holding a WAL connection
+	// (GDK-270).
+	jobsCtx    context.Context
+	jobsCancel context.CancelFunc
+	jobsWG     sync.WaitGroup
 }
 
 // Handler is the HTTP API plus optional update-check control. It implements
@@ -133,6 +142,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	}
 	s := &server{db: db, cache: cache, profile: profile}
 	s.cfg.Store(cfg)
+	s.jobsCtx, s.jobsCancel = context.WithCancel(context.Background())
 
 	// Every pattern is anchored with {$}: a trailing slash alone would make each
 	// literal endpoint a subtree that overlaps `{key}/detail/`, which ServeMux
@@ -252,7 +262,84 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("/", handleNotFound)
 	h := &Handler{mux: mux, s: s}
 	h.guarded = GuardBrowser(mux)
+	if testRegisterHandler != nil {
+		testRegisterHandler(h)
+	}
 	return h
+}
+
+// testRegisterHandler is set from tests so fixture cleanup can Shutdown every
+// Handler that opened a given DB before closing it. Production is nil.
+var testRegisterHandler func(*Handler)
+
+// closeWait is how long Close waits for in-flight startSyncJob goroutines.
+// Same bound as the HTTP server's shutdown window in cmd/gadak/serve.go
+// (the 3-second context.WithTimeout around srv.Shutdown). Past this, Close
+// returns and the caller may close the database anyway; a still-running job
+// then fails the pool assertion (tests) or races WAL files (production).
+const closeWait = 3 * time.Second
+
+// Shutdown cancels background startSyncJob work and waits for those
+// goroutines to return, or until ctx is done. A timed-out wait returns
+// ctx.Err(); the job may still be running and still hold a database
+// connection. Idempotent.
+//
+// Returning from the job goroutine is not enough: database/sql rolls a
+// cancelled Tx back from a helper goroutine (Tx.awaitDone), and that
+// helper can still hold the pool connection after runSyncJob has
+// returned. Waiting for InUse==0 is waiting for that writer, which is
+// the WAL leak GDK-270 actually is.
+func (h *Handler) Shutdown(ctx context.Context) error {
+	if h == nil || h.s == nil {
+		return nil
+	}
+	if h.s.jobsCancel != nil {
+		h.s.jobsCancel()
+	}
+	done := make(chan struct{})
+	go func() {
+		h.s.jobsWG.Wait()
+		close(done)
+	}()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-done:
+	case <-ctx.Done():
+		return fmt.Errorf("background sync still running after shutdown bound: %w", ctx.Err())
+	}
+	return waitPoolIdle(ctx, h.s.db)
+}
+
+// waitPoolIdle waits until no connection is checked out, or ctx is done.
+func waitPoolIdle(ctx context.Context, db *store.DB) error {
+	if db == nil {
+		return nil
+	}
+	if db.PoolStats().InUse == 0 {
+		return nil
+	}
+	t := time.NewTicker(5 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("background sync returned but %d connection(s) still checked out: %w", db.PoolStats().InUse, ctx.Err())
+		case <-t.C:
+			if db.PoolStats().InUse == 0 {
+				return nil
+			}
+		}
+	}
+}
+
+// Close is Shutdown with a 3s bound — the same window cmd/gadak/serve.go
+// uses for http.Server.Shutdown.
+func (h *Handler) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), closeWait)
+	defer cancel()
+	return h.Shutdown(ctx)
 }
 
 // StartUpdateCheck runs a GitHub release lookup immediately and every 24h.
@@ -305,6 +392,17 @@ func (h *Handler) SnapshotUpdate() UpdateStatus {
 		return UpdateStatus{Current: Version}
 	}
 	return h.s.snapshotUpdate()
+}
+
+// SnapshotSync is the debug document for "what background work is running
+// right now": the same one-shot job + activity picture that
+// GET /api/v1/issues/sync/progress/ already returns. No new endpoint — that
+// GET already carries it; this is the in-process form, matching SnapshotUpdate.
+func (h *Handler) SnapshotSync() progressResponse {
+	if h == nil || h.s == nil {
+		return progressResponse{}
+	}
+	return h.s.syncProgressResponse()
 }
 
 // setUpdateInfo stores a release snapshot (tests and the background loop).

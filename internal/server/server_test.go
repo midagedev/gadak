@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -21,6 +22,42 @@ import (
 	"github.com/midagedev/gadak/internal/selfupdate"
 	"github.com/midagedev/gadak/internal/store"
 )
+
+// liveHandlers lets fixtureAt stop every Handler created against a DB before
+// that DB is closed. Production never sets testRegisterHandler.
+var (
+	liveMu       sync.Mutex
+	liveHandlers = map[*store.DB][]*Handler{}
+)
+
+func init() {
+	testRegisterHandler = registerLive
+}
+
+func registerLive(h *Handler) {
+	if h == nil || h.s == nil || h.s.db == nil {
+		return
+	}
+	liveMu.Lock()
+	liveHandlers[h.s.db] = append(liveHandlers[h.s.db], h)
+	liveMu.Unlock()
+}
+
+func shutdownLive(t *testing.T, db *store.DB) {
+	t.Helper()
+	if db == nil {
+		return
+	}
+	liveMu.Lock()
+	hs := liveHandlers[db]
+	delete(liveHandlers, db)
+	liveMu.Unlock()
+	for _, h := range hs {
+		if err := h.Close(); err != nil {
+			t.Errorf("Handler.Close: %v — a startSyncJob goroutine did not return within the shutdown bound (GDK-270)", err)
+		}
+	}
+}
 
 // testRequest is httptest.NewRequest with Host set for the loopback API guard.
 // httptest defaults Host to "example.com", which browserGuard correctly
@@ -49,8 +86,17 @@ func testRequest(method, target string, body io.Reader) *http.Request {
 // nothing to race on, and it turns "some file was in the way" into "this named
 // file appeared after teardown began", reported by the fixture that owns the
 // path instead of anonymously by the framework.
-func quiesceFixtureDir(t *testing.T, dir string) {
+func quiesceFixtureDir(t *testing.T, dir string, db *store.DB) {
 	t.Helper()
+	if db != nil {
+		stats := db.PoolStats()
+		if stats.InUse > 0 {
+			// A connection still checked out means something the test started
+			// is still running. Close cannot reclaim it, and under WAL that
+			// writer recreates journal files in this TempDir (GDK-270).
+			t.Errorf("%d connection(s) still checked out after Close — something the test started is still running (GDK-270); stats=%+v", stats.InUse, stats)
+		}
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		// Already gone, or unreadable: not this helper's business.
@@ -89,8 +135,11 @@ func fixtureAt(t *testing.T) (*store.DB, *config.Config, string) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() {
+		// Stop writers first: a startSyncJob goroutine that outlives Close
+		// holds a pool connection and recreates WAL files in dir (GDK-270).
+		shutdownLive(t, db)
 		db.Close()
-		quiesceFixtureDir(t, dir)
+		quiesceFixtureDir(t, dir, db)
 	})
 	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://x.atlassian.net"}); err != nil {
 		t.Fatalf("source: %v", err)
@@ -1239,5 +1288,32 @@ func TestBootstrapSurvivesABrokenGroupQuery(t *testing.T) {
 	}
 	if body := decode[bootstrapResponse](t, rec); len(body.Issues) == 0 {
 		t.Fatal("issues went missing with the broken query")
+	}
+}
+
+func TestHandlerShutdownCancelsSyncJob(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+	if !h.s.startSyncJob(cfg, true) {
+		t.Fatal("startSyncJob refused")
+	}
+	if err := h.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if n := db.PoolStats().InUse; n != 0 {
+		t.Fatalf("%d connection(s) still checked out after Handler.Close — background sync did not return (GDK-270)", n)
+	}
+	if err := h.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+}
+
+func TestSnapshotSyncMatchesProgressEndpoint(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+	httpDoc := decode[progressResponse](t, get(t, h, apiBase+"sync/progress/", nil))
+	snap := h.SnapshotSync()
+	if snap != httpDoc {
+		t.Fatalf("SnapshotSync %+v != GET sync/progress/ %+v", snap, httpDoc)
 	}
 }

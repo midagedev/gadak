@@ -268,15 +268,28 @@ func (s *server) startSyncJob(cfg *config.Config, full bool) bool {
 		return s.syncKick(cfg, full)
 	}
 	s.syncMu.Lock()
+	if s.jobsCtx != nil && s.jobsCtx.Err() != nil {
+		s.syncMu.Unlock()
+		return false
+	}
 	if s.syncJob.Running {
 		s.syncMu.Unlock()
 		return false
 	}
 	s.syncJob = progressDoc{Running: true, Phase: "syncing", StartedAt: store.Now()}
+	s.jobsWG.Add(1)
 	s.syncMu.Unlock()
 
 	// The request is answered immediately, so the run cannot hang off r.Context().
-	go s.runSyncJob(context.Background(), cfg, full)
+	// Lifetime is the server's jobsCtx: Shutdown cancels it and waits (GDK-270).
+	ctx := s.jobsCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go func() {
+		defer s.jobsWG.Done()
+		s.runSyncJob(ctx, cfg, full)
+	}()
 	return true
 }
 
