@@ -11,10 +11,15 @@ community plugins (`tmn73.jira`, Linear, Todoist, ClickUp, `37signals.basecamp`)
 all need a cloud token and a live network. This one runs `gadak sql --json`
 against the on-disk mirror and nothing else.
 
-**No Omarchy machine has run this plugin yet.** The gate below is offline
-(manifest, grep contracts, the real query against `examples/demo.db`). Load,
-placement, click-to-open, and `omarchy-plugin-validate` on a guest are
-unproven.
+**Run once on a real Omarchy guest, 2026-08-19** (Arch + Hyprland VM;
+`docs/runbooks/omarchy-vm.md`). `install.sh`, `omarchy-plugin-validate`,
+`omarchy-webapp-install`, bar placement, the `no-gadak` / `not-synced` / `ok`
+badges, and click-to-open were all exercised there, and the badge's numbers
+matched `gadak sql --json` on the guest and the same query against
+`examples/demo.db` on the developer machine. Not staged: the `sql-err` state,
+the first-poll placeholder, and tooltip text. **It is not a CI path** — the
+gate below is still the offline one (manifest, grep contracts, the real query
+against `examples/demo.db`), and a guest run stays manual.
 
 ## What the widget shows
 
