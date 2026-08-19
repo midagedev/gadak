@@ -209,20 +209,21 @@ func run() error {
 	if cfg.IsStandalone() {
 		origin.SetInProcess(true)
 		defer origin.SetInProcess(false)
-		stopAdvertise, err := startStandaloneOriginListener(cfg, api)
-		if err != nil {
-			return err
-		}
-		defer stopAdvertise()
 		// The CLI flushes the standalone persist on the way out
 		// (cmd/gadak/main.go); the app must too, or quitting inside the
-		// debounce window silently drops the last write (GDK-342). LIFO:
-		// runs after the listener stops, so nothing new arrives mid-flush.
+		// debounce window silently drops the last write (GDK-342).
+		// Registered before the listener's defer so LIFO stops the
+		// listener first — nothing new arrives mid-flush (GDK-348).
 		defer func() {
 			if err := origin.Close(); err != nil {
 				log.Printf("warning: standalone persist flush on exit: %v", err)
 			}
 		}()
+		stopAdvertise, err := startStandaloneOriginListener(cfg, api)
+		if err != nil {
+			return err
+		}
+		defer stopAdvertise()
 	}
 
 	ui, ok := gadak.WebUI()
@@ -586,6 +587,13 @@ func webview2UserMessage(err error) string {
 }
 
 func handleDesktopFatal(err error) {
+	// wails os.Exit(1)s after this returns, skipping every defer — including
+	// the standalone persist flush in run(). Flush here or a fatal inside
+	// the debounce window silently drops the last write (GDK-348). Close is
+	// idempotent and a no-op when no embedded origin is live.
+	if cerr := origin.Close(); cerr != nil {
+		fmt.Fprintf(os.Stderr, "warning: standalone persist flush on fatal: %v\n", cerr)
+	}
 	msg := webview2UserMessage(err)
 	fmt.Fprintln(os.Stderr, msg)
 	showNativeError("Gadak", msg)
