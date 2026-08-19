@@ -28,8 +28,8 @@ github.com/mattn/go-colorable v0.1.14 h1:9A9LHSqF/7dyVVX6g0U9cwm9pG3kP9gSzcuIPHP
 github.com/mattn/go-colorable v0.1.14/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
-github.com/midagedev/issuetap v0.0.0-20260819093722-08acc9b8c397 h1:PpARQEFed/20wVc3s+y7Sx3fxgM/jNOg7OAEdQ2PWdo=
-github.com/midagedev/issuetap v0.0.0-20260819093722-08acc9b8c397/go.mod h1:4d/iws7L/mIVY5uxd3Ui8eysZMDnou334uFfxZxWSUs=
+github.com/midagedev/issuetap v0.0.0-20260819163823-2f94333b1d37 h1:d01b41L8tmiTWclUNEoS/nAYPNHpyngdtl+QJasnQoc=
+github.com/midagedev/issuetap v0.0.0-20260819163823-2f94333b1d37/go.mod h1:4d/iws7L/mIVY5uxd3Ui8eysZMDnou334uFfxZxWSUs=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
