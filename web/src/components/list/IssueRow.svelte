@@ -24,7 +24,7 @@
   import { bulk } from '../../stores/bulk.svelte'
   import { watches } from '../../stores/watches.svelte'
   import { favorites } from '../../stores/favorites.svelte'
-  import { categoryOf, CATEGORY_META, relativeTime, absTime, highlightSegments } from '../../lib/format'
+  import { categoryOf, categoryMetaOf, relativeTime, absTime, highlightSegments } from '../../lib/format'
   import { calendarDay } from '../../lib/calendar'
   import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
@@ -51,7 +51,7 @@
   } = $props()
 
   const cat = $derived(categoryOf(issue))
-  const catMeta = $derived(CATEGORY_META[cat])
+  const catMeta = $derived(categoryMetaOf(cat))
   const isFavorite = $derived(favorites.keys.has(issue.issue_key))
   const isWatching = $derived(watches.keys.has(issue.issue_key))
   // Stale (time in current status). Badge is day-based — floor at 1 so sub-day reads "day 1".

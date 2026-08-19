@@ -9,6 +9,7 @@ import {
   KEYS_CAP,
   configToParams,
   defaultGroupBy,
+  categoryFallbackSeen,
   effectiveCategory,
   emptyConfig,
   isReopen,
@@ -450,6 +451,53 @@ describe('effectiveCategory (GDK-272)', () => {
     const before = missingStatusCategorySeen()
     effectiveCategory(issueRow('완료', 'done'))
     expect(missingStatusCategorySeen()).toBe(before)
+  })
+
+  test('Jira REST key indeterminate folds to inprogress', () => {
+    expect(effectiveCategory(issueRow('Anything', 'indeterminate'))).toBe('inprogress')
+    expect(effectiveCategory('indeterminate')).toBe('inprogress')
+    expect(effectiveCategory('INDETERMINATE')).toBe('inprogress')
+  })
+
+  test('migrated aliases: todo → new, complete/completed → done', () => {
+    expect(effectiveCategory(issueRow('Anything', 'todo'))).toBe('new')
+    expect(effectiveCategory('todo')).toBe('new')
+    expect(effectiveCategory('TODO')).toBe('new')
+    expect(effectiveCategory(issueRow('Anything', 'complete'))).toBe('done')
+    expect(effectiveCategory('complete')).toBe('done')
+    expect(effectiveCategory('completed')).toBe('done')
+    expect(effectiveCategory('COMPLETED')).toBe('done')
+  })
+
+  test("display name 'to do' is not a category key (GDK-272)", () => {
+    expect(effectiveCategory('to do')).toBe('inprogress')
+    expect(effectiveCategory(issueRow('To Do', 'to do'))).toBe('inprogress')
+  })
+
+  test('unknown non-empty key increments categoryFallbackSeen', () => {
+    const before = categoryFallbackSeen()
+    expect(effectiveCategory(issueRow('Anything', 'undefined'))).toBe('inprogress')
+    expect(categoryFallbackSeen()).toBe(before + 1)
+  })
+
+  test('trusted keys and folded aliases do not increment categoryFallbackSeen', () => {
+    const before = categoryFallbackSeen()
+    effectiveCategory(issueRow('Anything', 'new'))
+    effectiveCategory(issueRow('Anything', 'inprogress'))
+    effectiveCategory(issueRow('Anything', 'done'))
+    effectiveCategory('indeterminate')
+    effectiveCategory('todo')
+    effectiveCategory('complete')
+    effectiveCategory('completed')
+    expect(categoryFallbackSeen()).toBe(before)
+  })
+
+  test('empty category increments missingStatusCategorySeen, not categoryFallbackSeen', () => {
+    const missingBefore = missingStatusCategorySeen()
+    const fallbackBefore = categoryFallbackSeen()
+    effectiveCategory(issueRow('완료', ''))
+    expect(missingStatusCategorySeen()).toBe(missingBefore + 1)
+    expect(categoryFallbackSeen()).toBe(fallbackBefore)
   })
 })
 

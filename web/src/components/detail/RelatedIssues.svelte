@@ -18,7 +18,7 @@
   import type { IssueLite } from '../../lib/types'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
-  import { CATEGORY_META, categoryOf } from '../../lib/format'
+  import { categoryMetaOf, categoryOf } from '../../lib/format'
 
   let {
     refKeys = [],
@@ -71,7 +71,7 @@
           {#if row.issue}
             <span
               class="block h-full w-full rounded-full"
-              style:background={CATEGORY_META[categoryOf(row.issue)].color}
+              style:background={categoryMetaOf(categoryOf(row.issue)).color}
               title={row.issue.status}
             ></span>
           {/if}

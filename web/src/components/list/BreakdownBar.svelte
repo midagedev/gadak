@@ -2,8 +2,8 @@
   /* Section the list by a chosen field and summarize top distribution in one line. */
   import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
-  import { CATEGORY_META } from '../../lib/format'
-  import { groupByEnabled, type GroupBy, type StatusCategory } from '../../lib/view-config'
+  import { categoryMetaOf } from '../../lib/format'
+  import { groupByEnabled, type GroupBy } from '../../lib/view-config'
   import Icon, { type IconName } from '../ui/Icon.svelte'
 
   const ALL_OPTIONS: { key: GroupBy; label: string }[] = [
@@ -52,8 +52,8 @@
   }
 
   function groupColor(key: string, index: number): string {
-    if (filters.display.group_by === 'status_category' && key in CATEGORY_META) {
-      return CATEGORY_META[key as StatusCategory].color
+    if (filters.display.group_by === 'status_category' && (key === 'new' || key === 'inprogress' || key === 'done')) {
+      return categoryMetaOf(key).color
     }
     if (filters.display.group_by === 'development_test_result') {
       if (key.toLowerCase() === 'fail') return 'var(--color-status-reopen)'

@@ -390,4 +390,111 @@ if [[ -n "$id_first_missing" ]]; then
 fi
 ok "matchesIdFirst id arguments are issues columns"
 
+# ── 15. One owner for "what category is this status?" (GDK-279) ─────────
+# The display-name grep (check 7) cannot see this class: two functions that
+# both lowercase a raw status_category and return the 3-bucket set can
+# disagree on the same key (list used effectiveCategory, the transition
+# control used normalizeCategory; complete/todo painted differently).
+# The owner is effectiveCategory. A second mapper of that shape is the
+# recurrence. Color/rank adapters that consume the owner's buckets are not
+# mappers. FAIL-first 2026-08-19: unmodified tree listed effectiveCategory
+# and normalizeCategory.
+second_category_mappers=$(
+  python3 - <<'GDK279PY'
+import re
+from pathlib import Path
+
+FUNC_START = re.compile(r"(?:export\s+)?function\s+([A-Za-z0-9_]+)\s*\(")
+# Bare bucket return — not return "bg-status-done" or return categoryMetaOf(...).
+BUCKET_RETURN = re.compile(r"return\s+['\"](?:new|inprogress|done)['\"]")
+HAS_NEW = re.compile(r"['\"]new['\"]")
+HAS_DONE = re.compile(r"['\"]done['\"]")
+# `const c = (key || '').toLowerCase()` — the local a mapper then branches on.
+LOWERED_ASSIGN = re.compile(r"\b(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=[^;\n]*\.toLowerCase\(\)")
+# `key.toLowerCase() === 'done'` — the same decision without the local.
+LOWERED_INLINE_CMP = re.compile(
+    r"\.toLowerCase\(\)\s*[=!]==?\s*['\"](?:new|inprogress|done)['\"]"
+    r"|['\"](?:new|inprogress|done)['\"]\s*[=!]==?\s*[^;\n]*\.toLowerCase\(\)"
+)
+
+def function_bodies(text):
+    for m in FUNC_START.finditer(text):
+        name = m.group(1)
+        depth_paren = 0
+        depth_brace = 0
+        body_start = None
+        for j in range(m.end() - 1, len(text)):
+            ch = text[j]
+            if ch == "(":
+                depth_paren += 1
+            elif ch == ")":
+                depth_paren -= 1
+            elif ch == "{" and depth_paren == 0:
+                if body_start is None:
+                    body_start = j
+                    depth_brace = 1
+                else:
+                    depth_brace += 1
+            elif ch == "}" and depth_paren == 0 and body_start is not None:
+                depth_brace -= 1
+                if depth_brace == 0:
+                    yield name, m.start(), text[body_start : j + 1]
+                    break
+
+def is_category_mapper(body):
+    # Class: lowercase a raw key yourself, then compare *that* against the
+    # bucket names. What the function returns is not the tell — BulkBar's
+    # catDot returned 'bg-status-done' and its jiraRank returned a number, and
+    # both were still second opinions on "what category is this?" (found by the
+    # lead reviewing GDK-279, after a return-shaped version of this check
+    # missed them).
+    #
+    # Two shapes are deliberately not this class:
+    #   - an adapter that calls effectiveCategory and switches on its result —
+    #     it lowercases nothing of its own;
+    #   - BreakdownBar's groupColor, which lowercases for 'fail'/'pass' and
+    #     delegates the category branch to categoryMetaOf. Merely mentioning
+    #     'new' and 'done' somewhere in the body is not enough.
+    if ".toLowerCase(" not in body:
+        return False
+    if not (HAS_NEW.search(body) and HAS_DONE.search(body)):
+        return False
+    if LOWERED_INLINE_CMP.search(body):
+        return True
+    for var in {m.group(1) for m in LOWERED_ASSIGN.finditer(body)}:
+        if re.search(r"\b%s\b\s*[=!]==?\s*['\"](?:new|inprogress|done)['\"]" % re.escape(var), body):
+            return True
+        if re.search(r"['\"](?:new|inprogress|done)['\"]\s*[=!]==?\s*\b%s\b" % re.escape(var), body):
+            return True
+    return False
+
+hits = []
+roots = [Path("web/src/lib"), Path("web/src/components"), Path("web/src/stores")]
+for root in roots:
+    for path in root.rglob("*"):
+        if path.suffix not in {".ts", ".svelte"}:
+            continue
+        if path.name.endswith(".test.ts") or path.name.endswith(".spec.ts"):
+            continue
+        if "/i18n/" in path.as_posix():
+            continue
+        text = path.read_text()
+        for name, start, body in function_bodies(text):
+            if not is_category_mapper(body):
+                continue
+            line = text.count("\n", 0, start) + 1
+            hits.append((path.as_posix(), line, name))
+
+owners = [h for h in hits if h[2] == "effectiveCategory"]
+others = [h for h in hits if h[2] != "effectiveCategory"]
+if len(owners) != 1 or others:
+    for p, n, name in hits:
+        print("%s:%s: %s" % (p, n, name))
+GDK279PY
+)
+if [[ -n "$second_category_mappers" ]]; then
+  fail "web has a second status-category mapper — fold aliases in effectiveCategory only (GDK-279):"$'\n'"$second_category_mappers"
+fi
+ok "effectiveCategory is the only status-category mapper in web/"
+
 echo "doc-checks: all passed"

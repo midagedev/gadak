@@ -26,6 +26,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { recentOf } from '../../lib/recency'
+  import { effectiveCategory } from '../../lib/view-config'
   import { onOutsideClick } from '../../lib/dom-actions'
   import Avatar from './Avatar.svelte'
 
@@ -37,18 +38,15 @@
   let running = $state(false)
   let progress = $state<{ done: number; total: number }>({ done: 0, total: 0 })
 
-  /** Category rank (forward-direction sort priority). */
+  /** Category rank (forward-direction sort priority), via the category owner. */
   function jiraRank(key: string): number {
-    const c = (key || '').toLowerCase()
-    if (c === 'new') return 0
-    if (c === 'done') return 2
-    return 1
+    const c = effectiveCategory(key)
+    return c === 'new' ? 0 : c === 'done' ? 2 : 1
   }
+  /** Jira statusCategory key → dot color class (via the single category owner). */
   function catDot(key: string): string {
-    const c = (key || '').toLowerCase()
-    if (c === 'done') return 'bg-status-done'
-    if (c === 'new') return 'bg-status-new'
-    return 'bg-status-inprogress'
+    const c = effectiveCategory(key)
+    return c === 'done' ? 'bg-status-done' : c === 'new' ? 'bg-status-new' : 'bg-status-inprogress'
   }
 
   interface StatusOption {

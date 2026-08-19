@@ -6,7 +6,7 @@
   import { t } from '../../lib/i18n'
   import type { IssueGroup } from '../../stores/filters.svelte'
   import { selection } from '../../stores/selection.svelte'
-  import { CATEGORY_META } from '../../lib/format'
+  import { categoryMetaOf } from '../../lib/format'
   import type { StatusCategory } from '../../lib/view-config'
 
   let {
@@ -55,8 +55,8 @@
     <span class="flex flex-none items-center gap-2">
       {#each order as c (c)}
         {#if group.counts.category[c] > 0}
-          <span class="flex items-center gap-1 text-micro text-text-muted" title={CATEGORY_META[c].label}>
-            <span class="h-1.5 w-1.5 rounded-full" style:background={CATEGORY_META[c].color}></span>
+          <span class="flex items-center gap-1 text-micro text-text-muted" title={categoryMetaOf(c).label}>
+            <span class="h-1.5 w-1.5 rounded-full" style:background={categoryMetaOf(c).color}></span>
             {group.counts.category[c]}
           </span>
         {/if}
