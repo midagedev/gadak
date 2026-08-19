@@ -18,12 +18,37 @@ async function openDocuments(page: Page): Promise<void> {
   await expect(page.getByTestId('docs-view')).toBeVisible()
 }
 
-/** Let the boot chatter (bootstrap / write-meta / pages) finish before a spec
- *  starts counting requests. Deliberately not networkidle: the app polls for a
- *  delta every 15s, so "quiet for 500ms" only becomes true after that fires. */
+/** Let the boot chatter (bootstrap / write-meta / pages / focus-time pull)
+ *  finish before a spec starts counting requests. Deliberately not networkidle:
+ *  the app polls for a delta every 15s, so "quiet for 500ms" only becomes true
+ *  after that fires. */
 async function settled(page: Page): Promise<void> {
   await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
-  await page.waitForTimeout(300)
+  // Same observable ux-p1.spec.ts uses. The chip lives on ListView; documents
+  // unmount that column, so the sidebar row (same mirrorBusy sentence) is the
+  // stand-in — it stays mounted on every main-column screen.
+  const chip = page.getByTestId('freshness-chip')
+  if ((await chip.count()) > 0) {
+    await expect(chip).not.toHaveAttribute('data-state', 'syncing', { timeout: 30_000 })
+    return
+  }
+  await expect(page.getByTestId('sidebar-sync-now')).not.toContainText(/Syncing|Fetching/, {
+    timeout: 30_000,
+  })
+}
+
+function recordApiDuringType(page: Page, sink: string[]): void {
+  page.on('request', (req) => {
+    const url = req.url()
+    if (!url.includes('/api/') || url.includes('/ui-focus/')) return
+    let path = url
+    try {
+      path = new URL(url).pathname
+    } catch {
+      /* keep raw */
+    }
+    sink.push(`${req.method()} ${path}`)
+  })
 }
 
 test.describe('search entry points', () => {
@@ -35,10 +60,7 @@ test.describe('search entry points', () => {
     await settled(page)
 
     const apiDuringType: string[] = []
-    page.on('request', (req) => {
-      const url = req.url()
-      if (url.includes('/api/') && !url.includes('/ui-focus/')) apiDuringType.push(url)
-    })
+    recordApiDuringType(page, apiDuringType)
 
     await page.keyboard.press('ControlOrMeta+k')
     const palette = page.getByRole('dialog', { name: 'Command palette' })
@@ -76,7 +98,7 @@ test.describe('search entry points', () => {
 
     expect(
       apiDuringType,
-      `expected no /api/ requests while typing, got:\n${apiDuringType.join('\n')}`,
+      `in-flight /api/ while typing (must be none): ${apiDuringType.join(', ') || '(none)'}`,
     ).toEqual([])
 
     // Choosing one opens the page, the same as it always did from the recent list.
@@ -135,10 +157,7 @@ test.describe('search entry points', () => {
     expect(before).toBeGreaterThan(0)
 
     const apiDuringType: string[] = []
-    page.on('request', (req) => {
-      const url = req.url()
-      if (url.includes('/api/') && !url.includes('/ui-focus/')) apiDuringType.push(url)
-    })
+    recordApiDuringType(page, apiDuringType)
 
     const filter = page.getByTestId('docs-filter-input')
     await filter.click()
@@ -151,7 +170,7 @@ test.describe('search entry points', () => {
 
     expect(
       apiDuringType,
-      `expected no /api/ requests while filtering, got:\n${apiDuringType.join('\n')}`,
+      `in-flight /api/ while filtering (must be none): ${apiDuringType.join(', ') || '(none)'}`,
     ).toEqual([])
 
     // Nothing matched is a state with a way out of it, not a dead end.
