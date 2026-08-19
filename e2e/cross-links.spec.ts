@@ -316,6 +316,11 @@ test.describe('the body marks the line under the cursor', () => {
     const scroll = page.getByTestId('doc-scroll')
     await expect(scroll).toBeVisible()
 
+    // The body renders after doc-scroll appears, and count() does not wait —
+    // deciding the branch before the ADF exists picks the wrong one on a slow
+    // runner.
+    await expect(scroll.locator('.adf').first()).toBeVisible()
+
     // Hover a paragraph that lives inside a list item: the paragraph fills, the
     // item around it stays transparent, so the alphas never stack.
     const inner = scroll.locator('.adf li p').first()
@@ -347,24 +352,30 @@ test.describe('the body marks the line under the cursor', () => {
     // exercises the branch. It is the only one of the three the demo mirror
     // contains — asserting on a code block no fixture page has would be a test
     // that passes by finding nothing.
+    // Pick the page by its body, not by rendering every page and counting —
+    // count() does not wait, so on a slow runner the old loop declared each
+    // page table-less before its ADF had painted and failed on exhaustion.
     const list = (await (await request.get(PAGES_URL)).json()) as { pages: PageRow[] }
-
-    let found = false
+    let target: PageRow | undefined
     for (const p of list.pages) {
-      await gotoParams(page, `doc=${encodeURIComponent(p.key)}`)
-      await expect(page.getByTestId('doc-scroll')).toBeVisible()
-      const cellPara = page.locator('.adf td p').first()
-      if ((await cellPara.count()) === 0) continue
-      found = true
-      await cellPara.scrollIntoViewIfNeeded()
-      const before = await cellPara.evaluate((el) => getComputedStyle(el).backgroundColor)
-      await cellPara.hover()
-      const after = await cellPara.evaluate((el) => getComputedStyle(el).backgroundColor)
-      // Unchanged: a translucent fill over a surface that already has one is mud.
-      expect(before).toBe('rgba(0, 0, 0, 0)')
-      expect(after).toBe(before)
-      break
+      const detail = await (await request.get(`${PAGES_URL}${p.key}/`)).json()
+      if (JSON.stringify(detail.body_adf ?? {}).includes('"type":"table"')) {
+        target = p
+        break
+      }
     }
-    expect(found).toBe(true)
+    expect(target, 'no fixture page carries a table — the branch would go untested').toBeDefined()
+
+    await gotoParams(page, `doc=${encodeURIComponent(target!.key)}`)
+    await expect(page.getByTestId('doc-scroll')).toBeVisible()
+    const cellPara = page.locator('.adf td p').first()
+    await expect(cellPara).toBeVisible()
+    await cellPara.scrollIntoViewIfNeeded()
+    const before = await cellPara.evaluate((el) => getComputedStyle(el).backgroundColor)
+    await cellPara.hover()
+    const after = await cellPara.evaluate((el) => getComputedStyle(el).backgroundColor)
+    // Unchanged: a translucent fill over a surface that already has one is mud.
+    expect(before).toBe('rgba(0, 0, 0, 0)')
+    expect(after).toBe(before)
   })
 })
