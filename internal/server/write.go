@@ -100,7 +100,7 @@ func failJira(w http.ResponseWriter, r *http.Request, err error) {
 // mutate is the whole write-through shape: call Jira, re-read the issue, answer
 // with the refreshed row plus whatever else the endpoint adds.
 func (s *server) mutate(w http.ResponseWriter, r *http.Request, key string,
-	fn func(context.Context, *jira.Client) (map[string]any, error)) {
+	fn func(context.Context, origin.Writer) (map[string]any, error)) {
 	c, cfg, ok := s.client(w)
 	if !ok {
 		return
@@ -311,7 +311,7 @@ func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := r.PathValue("key")
-	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		return nil, c.Transition(ctx, key, body.TransitionID)
 	})
 }
@@ -344,7 +344,7 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	key := r.PathValue("key")
-	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		// attachment_ids arrive from the upload endpoint, which already attached the
 		// files to the issue. Rendering them *inside* the comment needs Jira's media
 		// UUID, which is only exposed through the attachment redirect. An id that
@@ -448,7 +448,7 @@ func (s *server) handlePriority(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := r.PathValue("key")
-	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		id := strings.TrimSpace(deref(body.PriorityID))
 		if id == "" {
 			return nil, c.UpdateFields(ctx, key, map[string]any{"priority": nil})
@@ -478,7 +478,7 @@ func (s *server) handleDuedate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := r.PathValue("key")
-	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		if raw == "" {
 			return nil, c.UpdateFields(ctx, key, map[string]any{"duedate": nil})
 		}
@@ -504,7 +504,7 @@ func (s *server) handleSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := r.PathValue("key")
-	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		return nil, c.UpdateFields(ctx, key, map[string]any{"summary": summary})
 	})
 }
@@ -528,7 +528,7 @@ func (s *server) handleDescription(w http.ResponseWriter, r *http.Request) {
 		clear = text == ""
 	}
 	key := r.PathValue("key")
-	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		if clear {
 			return nil, c.UpdateFields(ctx, key, map[string]any{"description": nil})
 		}
@@ -548,7 +548,7 @@ func (s *server) handleLabels(w http.ResponseWriter, r *http.Request) {
 	}
 	labels := normalizeLabels(*body.Labels)
 	key := r.PathValue("key")
-	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		return nil, c.UpdateFields(ctx, key, map[string]any{"labels": labels})
 	})
 }
@@ -600,7 +600,7 @@ func (s *server) handleAssignee(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := r.PathValue("key")
-	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		return nil, c.SetAssignee(ctx, key, deref(body.AccountID))
 	})
 }
@@ -687,7 +687,7 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_value")
 		return
 	}
-	s.mutate(w, r, key, func(ctx context.Context, c *jira.Client) (map[string]any, error) {
+	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		return nil, c.UpdateFields(ctx, key, map[string]any{id: value})
 	})
 }
