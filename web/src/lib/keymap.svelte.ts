@@ -33,6 +33,12 @@ export interface KeyContext {
   ctrlKey: boolean
   altKey: boolean
   inEditable: boolean
+  /**
+   * True when Enter already belongs to the event target (native activation).
+   * Distinct from inEditable: a focused button is not a text field, but the
+   * browser will click it on Enter and the keymap must not steal that key.
+   */
+  enterActivating: boolean
   settingsOpen: boolean
   newIssueOpen: boolean
   serverSettingsOpen: boolean
@@ -86,6 +92,7 @@ export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
     ctrlKey: false,
     altKey: false,
     inEditable: false,
+    enterActivating: false,
     settingsOpen: false,
     newIssueOpen: false,
     serverSettingsOpen: false,
@@ -141,10 +148,56 @@ export function narrowFieldTestId(ctx: {
   return NARROW_FIELD_TESTID.issues
 }
 
+function isHtmlish(el: EventTarget | null): el is HTMLElement {
+  if (el == null || typeof el !== 'object') return false
+  if (typeof HTMLElement !== 'undefined') return el instanceof HTMLElement
+  return typeof (el as HTMLElement).tagName === 'string'
+}
+
 export function isEditableTarget(el: EventTarget | null): boolean {
-  if (!el || !(el instanceof HTMLElement)) return false
+  if (!isHtmlish(el)) return false
   const tag = el.tagName
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+}
+
+/**
+ * True when Enter is already this element's activation key. One owner for
+ * "does the browser (or contenteditable) consume Enter?" so chrome buttons
+ * are not a growing tag-name list next to open-cursor.
+ *
+ * In: button, a[href], summary, contenteditable, input types the browser
+ * activates on Enter (button/submit/reset/image/file).
+ * Out: ARIA role=button (the browser does not activate it; IssueRow and
+ * DocRow use it, and those rows must keep open-cursor), role=link/menuitem/
+ * tab/switch, generic tabindex, checkbox/radio (Space, and already
+ * isEditableTarget), select/textarea (already isEditableTarget).
+ */
+function activatesOnEnter(el: HTMLElement): boolean {
+  if (el.isContentEditable) return true
+  const tag = el.tagName
+  if (tag === 'BUTTON' || tag === 'SUMMARY') return true
+  if (tag === 'A') return el.hasAttribute('href')
+  if (tag === 'INPUT') {
+    const type = (el.getAttribute('type') ?? 'text').toLowerCase()
+    return (
+      type === 'button' ||
+      type === 'submit' ||
+      type === 'reset' ||
+      type === 'image' ||
+      type === 'file'
+    )
+  }
+  return false
+}
+
+export function isEnterActivatingTarget(el: EventTarget | null): boolean {
+  if (!isHtmlish(el)) return false
+  let node: HTMLElement | null = el
+  while (node) {
+    if (activatesOnEnter(node)) return true
+    node = node.parentElement
+  }
+  return false
 }
 
 /**
@@ -191,6 +244,7 @@ export function resolveGlobalKey(ctx: KeyContext): KeyCommand {
   if (ctx.listActive && (key === 'j' || key === 'k')) {
     return { type: 'move-list', dir: key === 'j' ? 1 : -1 }
   }
+  if (key === 'Enter' && ctx.enterActivating) return { type: 'ignore' }
   if (key === 'Enter' && cursorKey) return { type: 'open-cursor' }
 
   if (key === 'Escape') {
@@ -267,6 +321,7 @@ function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
     ctrlKey: e.ctrlKey,
     altKey: e.altKey,
     inEditable: isEditableTarget(e.target),
+    enterActivating: isEnterActivatingTarget(e.target),
     settingsOpen: host.write.settingsOpen,
     newIssueOpen: host.write.newIssueOpen,
     serverSettingsOpen: host.serverSettingsOpen,

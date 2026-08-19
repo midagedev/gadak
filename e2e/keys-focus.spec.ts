@@ -167,3 +167,110 @@ test.describe('keys view and ui-focus', () => {
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })
+
+/*
+ * GDK-276: Enter on focused chrome must run that control's action, not
+ * open-cursor. keys-focus owns this (focus + key) rather than keys-order
+ * (ks= grouping). lastKeyCmd is the permanent keymap debug surface.
+ *
+ * Covered with existing hooks only: filter-add, columns-menu, docs-documents
+ * (testids) and Sort (title — DisplayMenu.svelte has no testid; we do not
+ * add one). Breakdown is the same class but not in the audit's four.
+ */
+function lastKeyCmd(page: Page): Promise<string | null> {
+  return page.locator('html').getAttribute('data-last-key-cmd')
+}
+
+test.describe('Enter on focused chrome (GDK-276)', () => {
+  test('filter, columns, sort, and documents activate on Enter', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    // Below 1440 the detail overlay covers the list toolbar (list-menus-esc).
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await gotoApp(page)
+    // The steal only happens once a list cursor exists (the boot-normal state).
+    await page.keyboard.press('j')
+    await expect(page.locator('[data-cursor="true"]')).toHaveCount(1)
+
+    const add = page.getByTestId('filter-add')
+    await add.focus()
+    await expect(add).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page.getByText('Properties', { exact: true })).toBeVisible()
+    expect(await lastKeyCmd(page)).toBe('ignore')
+    await expect(page.getByTestId('issue-detail-panel')).not.toHaveClass(/is-open/)
+    await page.keyboard.press('Escape')
+    await expect(page.getByText('Properties', { exact: true })).toBeHidden()
+
+    const columns = page.getByTestId('columns-menu')
+    await columns.focus()
+    await expect(columns).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page.getByText('Visible columns', { exact: true })).toBeVisible()
+    expect(await lastKeyCmd(page)).toBe('ignore')
+    await expect(page.getByTestId('issue-detail-panel')).not.toHaveClass(/is-open/)
+    await page.keyboard.press('Escape')
+    await expect(page.getByText('Visible columns', { exact: true })).toBeHidden()
+
+    const sort = page.getByTitle('Sort options')
+    await sort.focus()
+    await expect(sort).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('button', { name: '↓ Desc', exact: true })).toBeVisible()
+    expect(await lastKeyCmd(page)).toBe('ignore')
+    await expect(page.getByTestId('issue-detail-panel')).not.toHaveClass(/is-open/)
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: '↓ Desc', exact: true })).toBeHidden()
+
+    const docs = page.getByTestId('docs-documents')
+    await docs.focus()
+    await expect(docs).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('docs-view')).toBeVisible()
+    expect(await lastKeyCmd(page)).toBe('ignore')
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('Enter on body still opens the list cursor', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await page.keyboard.press('j')
+    await expect(page.locator('[data-cursor="true"]')).toHaveCount(1)
+
+    await page.evaluate(() => {
+      const active = document.activeElement
+      if (active instanceof HTMLElement) active.blur()
+    })
+
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('issue-detail-panel')).toHaveClass(/is-open/)
+    expect(await lastKeyCmd(page)).toBe('open-cursor')
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('search box and palette keep Enter local', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await page.keyboard.press('j')
+    await expect(page.locator('[data-cursor="true"]')).toHaveCount(1)
+
+    const search = page.getByTestId('search-input')
+    await search.focus()
+    await expect(search).toBeFocused()
+    await page.keyboard.press('Enter')
+    expect(await lastKeyCmd(page)).toBe('ignore')
+    await expect(page.getByTestId('issue-detail-panel')).not.toHaveClass(/is-open/)
+
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+    await page.keyboard.type('zzz-no-such-action')
+    expect(await lastKeyCmd(page)).toBe('ignore')
+    await expect(palette).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(palette).toBeHidden()
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})
