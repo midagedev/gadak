@@ -26,10 +26,10 @@
   import MatchLine from './MatchLine.svelte'
   import SearchSection from './SearchSection.svelte'
   import EmptyState from './EmptyState.svelte'
-  import Onboarding, { onboardingHold } from '../shell/Onboarding.svelte'
+  import Onboarding from '../shell/Onboarding.svelte'
   import FreshnessChip from '../shell/FreshnessChip.svelte'
-  import { config, isDesktop, isStandaloneWorkspace } from '../../lib/config'
-  import { me } from '../../stores/me.svelte'
+  import { isDesktop } from '../../lib/config'
+  import { onboarding } from '../../stores/onboarding.svelte'
   import { runSyncNow } from '../../lib/sync-now'
 
   let { onOpenSettings }: { onOpenSettings?: () => void } = $props()
@@ -57,26 +57,7 @@
     highlightSegments(title, filters.serverMatchQuery),
   )
 
-  /**
-   * First run vs. "mirror is empty, sync will fill it". Setup is incomplete when
-   * there is no stored credential or no project list; once anything has synced
-   * (pool > 0) this is false forever, so onboarding cannot come back.
-   * A standalone workspace has no Jira site to connect — the wizard would ask
-   * for a token the origin cannot use. Kind comes from config.json, never
-   * from an empty site URL.
-   */
-  //  me.authChecked is required: before identity settles we don't know credentials,
-  //  and without waiting onboarding flashes one frame at boot.
-  //  identity === stored Jira credential, so use me.identified for that check.
-  //  onboardingHold: the wizard's optional last step runs after the mirror is
-  //  full, so "pool is empty" would hand the pane to the list underneath it.
-  const needsOnboarding = $derived(
-    onboardingHold.active ||
-      (issues.pool.size === 0 &&
-        me.authChecked &&
-        !isStandaloneWorkspace() &&
-        (!me.identified || config().projects.length === 0)),
-  )
+  const needsOnboarding = $derived(onboarding.needsOnboarding)
 
   // Drop selections that left the visible list when the view (filter/sort/group)
   // changes. React only to viewKey (untrack visibleIssues so data deltas don't rerun).
@@ -90,7 +71,10 @@
 
 <div class="flex h-full flex-col">
   <!-- Toolbar. In the desktop app this band is the main-column drag handle;
-       each interactive cluster opts out so a click still reaches the control. -->
+       each interactive cluster opts out so a click still reaches the control.
+       Hidden while onboarding: search / chips / sort are query chrome that
+       undercut the wizard (GDK-299 F6). -->
+  {#if !needsOnboarding}
   <div
     class="flex-none border-b border-border-strong/70 bg-bg-panel/35 px-4 py-3"
     class:desktop-drag-region={desktop}
@@ -123,11 +107,14 @@
       </span>
     </div>
   </div>
+  {/if}
 
   <!-- Bulk bar (only when something is selected) -->
   <BulkBar />
 
-  <BreakdownBar />
+  {#if !needsOnboarding}
+    <BreakdownBar />
+  {/if}
 
   <!-- Document hits from the same server search. Above the issue sections: a
        page is the answer people came for when the issue list comes back thin. -->

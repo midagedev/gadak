@@ -10,6 +10,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { views } from '../../stores/views.svelte'
   import { me } from '../../stores/me.svelte'
+  import { onboarding } from '../../stores/onboarding.svelte'
   import { pages } from '../../stores/pages.svelte'
   import { showIssueList } from '../../lib/show-issue-list'
   import { write } from '../../stores/write.svelte'
@@ -374,7 +375,9 @@
 <div class="flex h-full flex-col">
   <!-- New issue (shortcut c). Disabled on the hosted demo, where the snapshot
        service worker answers every write with 501 — offering the button only to
-       fail on submit wastes the visitor's time. -->
+       fail on submit wastes the visitor's time. Hidden during onboarding: the
+       wizard is the write path (GDK-299 F6). -->
+  {#if !onboarding.needsOnboarding}
   <div class="flex-none px-3 pt-1 pb-2">
     <button
       type="button"
@@ -387,6 +390,7 @@
       {t('sidebar.newIssue')}
     </button>
   </div>
+  {/if}
 
   <!-- Update notice: server found a newer published release (daily check).
        Notes present → dialog (plain text). Empty body → same external link
@@ -416,7 +420,11 @@
     </div>
   {/if}
 
-  <!-- Totals / sync — badge click = history popover (with Sync now inside) -->
+  <!-- Totals / sync — badge click = history popover (with Sync now inside).
+       Hidden during onboarding: pool size 0 / Syncing… contradicts the
+       wizard's own fetched count (GDK-299 F7). Hide, do not show a second
+       number — a second pipeline can drift. -->
+  {#if !onboarding.needsOnboarding}
   <div class="flex-none px-3 pb-2 pt-1 text-micro text-text-muted">
     {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}
     <span class="ml-1">·</span>
@@ -493,11 +501,16 @@
       {/if}
     </div>
   </div>
+  {/if}
 
   <div class="scroll-region min-h-0 flex-1" data-testid="sidebar-scroll">
-    <!-- Personalization (Wave 3): My Issues / recent — above built-ins -->
-    <MyIssuesNav />
-    <FavoritesNav />
+    <!-- Personalization (Wave 3): My Issues / recent — above built-ins.
+         Hidden during onboarding: the unauthenticated row is a second
+         Set credentials (GDK-299 F6). -->
+    {#if !onboarding.needsOnboarding}
+      <MyIssuesNav />
+      <FavoritesNav />
+    {/if}
 
     <!-- Built-in views -->
     <div class="mb-3">
@@ -528,7 +541,7 @@
     </div>
 
     <!-- Jira saved filters (owned + starred). No delete — Jira is the record. -->
-    {#if views.source.length}
+    {#if views.source.length && !onboarding.needsOnboarding}
       <div class="mb-3" data-testid="sidebar-jira-filters">
         {@render sectionHeader(t('sidebar.jiraFilters'))}
         {#each views.source as v (v.id)}
@@ -785,6 +798,7 @@
        error screen, so the errand it offers does not exist. -->
   <div class="flex-none border-t border-border-subtle px-3 py-2">
     {#if hasServerVerb('settings')}
+      {#if !onboarding.needsOnboarding}
       <button
         type="button"
         class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
@@ -801,6 +815,7 @@
           <div class="mt-0.5 text-micro text-text-muted">{t('settings.standaloneCommandHint')}</div>
         </div>
       {/if}
+      {/if}
       <button
         type="button"
         class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
@@ -811,7 +826,7 @@
         {t('sidebar.settings')}
       </button>
     {/if}
-    {#if me.identified}
+    {#if !onboarding.needsOnboarding && me.identified}
       <button
         type="button"
         class="flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
@@ -822,13 +837,13 @@
         <Icon name="user" size={14} class={write.configured ? '' : 'text-status-stale'} />
         <span class="min-w-0 flex-1 truncate text-left">{me.name ?? me.email}</span>
       </button>
-    {:else if isHostedDemo()}
+    {:else if !onboarding.needsOnboarding && isHostedDemo()}
       <!-- No credential button on the hosted demo: the dialog behind it asks for
            a real Atlassian token, and nothing on a static snapshot could use one. -->
       <p class="px-3 py-1.5 text-center text-micro text-text-muted">
         {t('app.demoNoCredentials')}
       </p>
-    {:else if me.authChecked}
+    {:else if !onboarding.needsOnboarding && me.authChecked}
       <button
         type="button"
         class="flex h-control w-full items-center justify-center gap-1.5 rounded-md border border-border-strong px-3 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"

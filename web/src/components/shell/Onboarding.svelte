@@ -1,15 +1,3 @@
-<script lang="ts" module>
-  /*
-   * "The wizard is holding the pane" — true only while the optional last step is
-   * on screen. The list decides to show onboarding from an empty pool, which
-   * stops being a usable signal the moment the first sync lands: the 15s delta
-   * poll drops rows in seconds later and would swap step 4 for the issue list
-   * mid-sentence. Leaving the step (finish or skip) clears it, and so does
-   * unmounting, so nothing can strand the wizard on a filled mirror.
-   */
-  export const onboardingHold = $state({ active: false })
-</script>
-
 <script lang="ts">
   /*
    * First-run setup, in the browser: connect → pick projects → first sync, then
@@ -17,8 +5,8 @@
    * `gadak serve` plus this dialog is the whole path; the CLI is optional.
    *
    * Shown in place of the list only while the mirror is empty AND setup is
-   * incomplete (ListView gating) — once a single issue has synced this never
-   * renders again, so a normal empty filter result keeps using EmptyState.
+   * incomplete (onboarding store gating) — once a single issue has synced this
+   * never renders again, so a normal empty filter result keeps using EmptyState.
    *
    * The three server calls are onboarding-only: PUT onboarding/connect/ (which
    * also stores the site, unlike PUT credential/), GET projects/available/, and
@@ -31,6 +19,7 @@
   import { ApiError } from '../../lib/api'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
+  import { onboarding, onboardingHold } from '../../stores/onboarding.svelte'
   import Icon from '../ui/Icon.svelte'
   import BrandMark from '../ui/BrandMark.svelte'
 
@@ -290,7 +279,11 @@
   ]
 </script>
 
-<div class="flex h-full items-start justify-center overflow-y-auto px-6 py-12" data-testid="onboarding">
+<div
+  class="flex h-full items-start justify-center overflow-y-auto px-6 py-12"
+  data-testid="onboarding"
+  data-onboarding-reason={onboarding.reason ?? ''}
+>
   <div class="anim-enter w-full max-w-md">
     <div class="mb-5 flex items-center gap-2">
       <BrandMark size={18} class="text-accent" />

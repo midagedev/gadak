@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { en } from '../web/src/lib/i18n/en'
 import { attachConsoleErrors, forceLocale } from './helpers'
 
 /*
@@ -169,6 +170,30 @@ async function mockWizard(page: Page): Promise<Flow> {
   return flow
 }
 
+/**
+ * F6: while the wizard owns the pane, write/query chrome that duplicates it
+ * must be gone. The settings gear stays on every step. The wizard's own
+ * Open settings is step 1 only (and the no-projects branch of step 2) —
+ * pass `wizardEscape: true` there.
+ */
+async function assertOnboardingChromeQuiet(
+  page: Page,
+  opts: { wizardEscape?: boolean } = {},
+): Promise<void> {
+  const wizard = page.getByTestId('onboarding')
+  await expect(wizard).toBeVisible()
+  await expect(page.getByRole('button', { name: en['sidebar.newIssue'] })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: en['common.setCredentials'], exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: en['settings.standaloneHow'] })).toHaveCount(0)
+  await expect(page.getByTestId('search-input')).toHaveCount(0)
+  await expect(page.getByTestId('filter-chip')).toHaveCount(0)
+  await expect(page.getByTestId('sidebar-jira-filters')).toHaveCount(0)
+  if (opts.wizardEscape) {
+    await expect(wizard.getByRole('button', { name: en['onboarding.openSettings'] })).toBeVisible()
+  }
+  await expect(page.getByRole('button', { name: en['sidebar.settings'], exact: true })).toBeVisible()
+}
+
 /** Drive the three required steps; leaves the wizard on the optional step 4. */
 async function runRequiredSteps(page: Page): Promise<void> {
   const wizard = page.getByTestId('onboarding')
@@ -179,6 +204,8 @@ async function runRequiredSteps(page: Page): Promise<void> {
   // asserted here instead — on the step-1 render every onboarding test already
   // performs, which costs no extra page load.
   await expect(wizard.getByRole('button', { name: 'Open settings' })).toBeVisible()
+  await assertOnboardingChromeQuiet(page, { wizardEscape: true })
+  await expect(wizard).toHaveAttribute('data-onboarding-reason', 'no-credential')
   await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
   await wizard.locator('input[name="email"]').fill('dana@example.com')
   await wizard.locator('input[name="token"]').fill('super-secret-token')
@@ -218,6 +245,12 @@ test.describe('first-run onboarding', () => {
     // Step 4 — the sync result carries over, and the step says it is optional.
     await expect(wizard.getByText('Optional · Connect an agent')).toBeVisible()
     await expect(page.getByTestId('onboarding-sync-done')).toContainText('Mirrored 519 issues')
+    await expect(wizard).toHaveAttribute('data-onboarding-reason', 'hold')
+    // F7: sidebar must not paint a zero-count / Syncing… line next to 519.
+    await expect(page.getByTestId('sidebar-sync-now')).toHaveCount(0)
+    await expect(page.getByText(/^0 issues/)).toHaveCount(0)
+    await expect(page.getByText(en['sync.busy'])).toHaveCount(0)
+    await assertOnboardingChromeQuiet(page, { wizardEscape: false })
     await expect(page.getByTestId('onboarding-cmd-claude')).toContainText('gadak mcp install claude')
     await expect(wizard.getByText('gadak mcp install cursor')).toBeVisible()
     await expect(wizard.getByText('gadak mcp install codex')).toBeVisible()
@@ -231,9 +264,14 @@ test.describe('first-run onboarding', () => {
 
     // The mirror filling underneath must not yank the step away: a background
     // resync (the store's own visibilitychange path) lands rows in the pool
-    // while the wizard keeps the pane.
+    // while the wizard keeps the pane. The sidebar count is hidden during
+    // hold (GDK-299 F7) so we wait on the resync itself, not on a
+    // contradictory "1 issues" next to "Mirrored 519".
+    const resync = page.waitForResponse(
+      (res) => /\/api\/v1\/issues\/(bootstrap|delta)\//.test(res.url()) && res.ok(),
+    )
     await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
-    await expect(page.getByText('1 issues').first()).toBeVisible()
+    await resync
     await expect(page.getByTestId('onboarding-agent')).toBeVisible()
 
     // Completing the step enters the app.
