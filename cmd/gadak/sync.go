@@ -32,7 +32,9 @@ func cmdSync(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !cfg.HasCredential() {
+	// The credential gate is per-source: `sync --source linear` needs the
+	// Linear key, not a Jira token (a Linear-only profile is legitimate).
+	if !cfg.HasCredential() && !(cfg.Linear != nil) {
 		return fmt.Errorf("not configured — run `gadak init` first")
 	}
 	db, err := openStore()
@@ -53,6 +55,11 @@ func cmdSync(args []string) error {
 	runJira := *source == "all" || *source == "jira"
 	runLinear := (*source == "all" || *source == "linear") && cfg.Linear != nil
 	runConf := (*source == "all" || *source == "confluence") && cfg.Confluence != nil
+	if !cfg.HasCredential() {
+		// Linear-only profile: the gate above admitted it for its own
+		// source; the Jira/Confluence passes still need the Jira token.
+		runJira, runConf = false, false
+	}
 	if *source == "linear" && cfg.Linear == nil {
 		return fmt.Errorf("linear is off for this profile — add a \"linear\" block (apiKey, optional teamIds) to config.json")
 	}

@@ -192,7 +192,9 @@ func runSource(
 		_ = db.AppendSyncRun(ctx, src.ID, run)
 	}()
 
-	if cfg == nil || !cfg.HasCredential() {
+	if cfg == nil || (!cfg.HasCredential() && src.Kind != "linear") {
+		// Per-source gate: the Linear pass authenticates with its own key
+		// (checked in its setup); only Jira-family sources need the token.
 		return res, errors.New("sync: site, email and token are required")
 	}
 	baseURL, usage, err := setup()
