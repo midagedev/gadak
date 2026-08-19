@@ -7,9 +7,10 @@ import (
 	"unsafe"
 )
 
-// The desktop app ships for macOS only today; this stub keeps the module
-// compiling elsewhere (same arrangement as install_cli). Every call reports
-// the pane as unavailable.
+// The in-app browse pane is darwin-only (embed_darwin.go). This stub keeps
+// the module compiling on the other pack targets (Linux AppImage, Windows
+// portable zip — platform table in README.md). Every call reports the pane
+// as unavailable.
 type stubEmbedder struct{}
 
 func newPlatformEmbedder(func() unsafe.Pointer) embedder {

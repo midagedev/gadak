@@ -7,9 +7,12 @@ import (
 	"unsafe"
 )
 
-// windowsMessageBox is user32 MessageBoxW. wails has no dialog helper for
-// a missing-runtime path (the webview is what failed).
-// MB_OK | MB_ICONERROR | MB_SETFOREGROUND.
+// windowsMessageBox is user32 MessageBoxW. wails' Dialog.Error() is also
+// a MessageBox on Windows (pkg/application/dialogs_windows.go), but it is
+// reached through application.Get(); nobody has demonstrated that Get() is
+// safe to call from inside Chromium's errorCallback, which is exactly when
+// handleDesktopFatal runs. This syscall is that isolation, not a missing
+// helper. MB_OK | MB_ICONERROR | MB_SETFOREGROUND.
 func windowsMessageBox(title, text string) {
 	user32 := syscall.NewLazyDLL("user32.dll")
 	proc := user32.NewProc("MessageBoxW")

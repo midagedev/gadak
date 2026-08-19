@@ -30,9 +30,11 @@
 #   machines already have it via Edge.
 #   Missing runtime (from wails v3.0.0-beta.6 source, not launched here):
 #   webviewloader returns "no webview2 found"; Chromium.errorCallback logs
-#   and os.Exit(1). gadak-desktop sets no ErrorHandler, so there is no
-#   download dialog — the process exits. Unverified on a real Windows
-#   machine. Runtime: https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+#   and os.Exit(1). gadak-desktop sets ErrorHandler to handleDesktopFatal
+#   (desktop/main.go), which shows a MessageBoxW (fatal_windows.go) and
+#   writes stderr; wails still os.Exit(1) after the handler returns, so
+#   there is no download dialog — the process exits. Unverified on a real
+#   Windows machine. Runtime: https://developer.microsoft.com/en-us/microsoft-edge/webview2/
 #
 # Signing is out of scope (GDK-211). The unsigned exe is expected to hit
 # SmartScreen on first download; that is documented in desktop/README.md,
