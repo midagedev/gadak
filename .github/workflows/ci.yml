@@ -44,6 +44,18 @@ jobs:
       - name: Store dependency firewall
         run: bash tools/check-store-deps.sh
 
+      # Example plugin self-tests (make plugins-test). Not path-scoped: a
+      # plugin contract can be broken by a change to the API those plugins
+      # call, not only by edits under examples/plugins/.
+      - name: Example plugin self-tests
+        run: make plugins-test
+
+      # Documentation-factuality contract (tools/doc-checks.sh). Not
+      # path-scoped: a documentation claim can be falsified by a code change
+      # anywhere.
+      - name: Documentation factuality
+        run: bash tools/doc-checks.sh
+
       # The web build has to precede the Go build: go:embed compiles dist/app
       # into the binary, so the serve smoke below exercises the real embedded UI
       # rather than the tracked placeholder.
