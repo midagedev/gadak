@@ -312,6 +312,10 @@
     get serverSettingsOpen() {
       return serverSettingsOpen
     },
+    set serverSettingsOpen(v) {
+      if (v) serverSettingsOpen = true
+      else closeServerSettings()
+    },
     write,
     triage,
     selection,

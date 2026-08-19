@@ -112,6 +112,13 @@ test.describe('write-through', () => {
     await expect(panel.getByText(SERVER_COMMENT)).toBeVisible()
     await expect(panel.getByText(TYPED_COMMENT)).toHaveCount(0)
 
+    // GDK-301: comment success is the same class as create — the result can
+    // leave the viewport (QuickComment closes; the thread may be below the
+    // fold), so a success toast is the honest feedback.
+    const toast = page.getByTestId('toast').and(page.getByRole('status'))
+    await expect(toast).toBeVisible()
+    await expect(toast).toContainText('Posted comment on NMB-110.')
+
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 

@@ -128,6 +128,26 @@
     return text.toLowerCase().includes(needle)
   }
 
+  /**
+   * GDK-300: the user named this action. Full label equality, or a
+   * distinctive token of the label ("settings" in "Open settings", "설정"
+   * in "설정 열기"). Short Latin tokens ("issue", "new", "sync") stay in
+   * section order so they do not steal Enter from a key/title query.
+   * People already rank exact/prefix inside their section; actions had no
+   * equivalent, so a doc/issue title that merely contains the word won.
+   */
+  function isDistinctiveActionToken(token: string): boolean {
+    if (/[^\u0000-\u007f]/.test(token)) return true
+    return token.length >= 6
+  }
+
+  function isExactActionMatch(label: string): boolean {
+    if (!needle) return false
+    const lower = label.toLowerCase()
+    if (lower === needle) return true
+    return lower.split(/[\s·]+/).some((tok) => tok === needle && isDistinctiveActionToken(tok))
+  }
+
   function issueItem(issue: IssueLite, section: Section = 'issue'): Item {
     return {
       id: `i:${issue.issue_key}`,
@@ -554,7 +574,7 @@
     const defs: Omit<Item, 'section'>[] = [
       ...triageItems,
       newIssue,
-      { id: 'a:settings', label: t('palette.actionSettings'), run: onOpenSettings },
+      { id: 'a:settings', label: t('palette.actionSettings'), kbd: ',', run: onOpenSettings },
       {
         id: 'a:history',
         label: t('palette.actionHistory'),
@@ -725,15 +745,37 @@
   // Documents sit above the issues for the same reason they do in the list's
   // search section: when someone types words rather than a key, the page is
   // often the thing they came for, and eight issue rows would bury it.
-  const items = $derived([
-    ...peopleItems,
-    ...docItems,
-    ...issueItems,
-    ...updatedItems,
-    ...viewItems,
-    ...actionItems,
-    ...unifiedItems,
-  ])
+  //
+  // GDK-300: naming an action (exact label or a distinctive token of it) is
+  // the same kind of statement — hoist the whole action block so Enter is
+  // locale-stable. Instant-create is never an exact match (its label wraps
+  // the query) and stays last inside that block.
+  const hoistActions = $derived(
+    Boolean(needle) &&
+      actionItems.some((item) => item.id !== 'a:create-now' && isExactActionMatch(item.label)),
+  )
+
+  const items = $derived(
+    hoistActions
+      ? [
+          ...actionItems,
+          ...peopleItems,
+          ...docItems,
+          ...issueItems,
+          ...updatedItems,
+          ...viewItems,
+          ...unifiedItems,
+        ]
+      : [
+          ...peopleItems,
+          ...docItems,
+          ...issueItems,
+          ...updatedItems,
+          ...viewItems,
+          ...actionItems,
+          ...unifiedItems,
+        ],
+  )
 
   const SECTION_LABEL: Record<Section, string> = {
     person: t('palette.sectionPeople'),

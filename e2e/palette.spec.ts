@@ -234,4 +234,40 @@ test.describe('command palette', () => {
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  /*
+   * GDK-300: typing the Settings action's distinctive word must open Settings
+   * in en. The label is "Open settings"; an issue title that merely contains
+   * "settings" used to win the ranking, so the same keystroke was reachable
+   * in ko (설정) and not in en.
+   */
+  test('typing settings + Enter opens the Settings dialog', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+
+    await page.keyboard.type('settings', { delay: 20 })
+    const first = palette.getByRole('option').first()
+    await expect(first).toContainText('Open settings')
+    await expect(first).toHaveAttribute('aria-selected', 'true')
+
+    await page.keyboard.press('Enter')
+    await expect(palette).toBeHidden()
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test(', opens the Settings dialog', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    await page.keyboard.press(',')
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })

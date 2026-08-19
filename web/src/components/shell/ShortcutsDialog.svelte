@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
    * Keyboard cheat sheet (`?`). Every row below maps to a handler that actually
-   * exists — App.svelte owns the whole list/detail set (⌘K / ? / j / k / ↵ / x /
+   * exists — App.svelte owns the whole list/detail set (⌘K / , / ? / j / k / ↵ / x /
    * s / a / l / c / Esc), SearchBox (/), CommandPalette (↑↓/Enter/Esc),
    * CommentComposer (⌘↩). Do not document a key that no handler listens for.
    */
@@ -20,6 +20,7 @@
       title: t('shortcuts.sectionGlobal'),
       rows: [
         [`${mod} K`, t('shortcuts.palette')],
+        [',', t('shortcuts.settings')],
         // `c` resolves three ways in keymap.svelte.ts (detail open → focus
         // comment, list cursor → comment, otherwise new issue) — the caption
         // keeps this row honest about being the fallback case.

@@ -581,6 +581,9 @@ class WriteStore {
       appendComment(key, real) // into cache → re-read shows the real comment
       this.#applyIssue(res.issue) // comment_count etc.
       this.bumpDetail() // DetailPanel reloads from cache
+      // Same class as create: the new row is not guaranteed to stay on
+      // screen (QuickComment closes; the thread may sit below the fold).
+      this.toast(t('write.commentPosted', { key }), 'success')
       return true
     } catch (e) {
       this.#removePending(key, tmpId)

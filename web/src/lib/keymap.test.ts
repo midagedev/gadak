@@ -198,6 +198,25 @@ describe('resolveGlobalKey', () => {
     expect(resolveGlobalKey(keyContext({ key: '?' }))).toEqual({ type: 'open-shortcuts' })
   })
 
+  test(', opens settings; ignored in a field or under a modal', () => {
+    expect(resolveGlobalKey(keyContext({ key: ',' }))).toEqual({ type: 'open-settings' })
+    expect(resolveGlobalKey(keyContext({ key: ',', inEditable: true }))).toEqual({
+      type: 'ignore',
+    })
+    expect(resolveGlobalKey(keyContext({ key: ',', settingsOpen: true }))).toEqual({
+      type: 'ignore',
+    })
+    expect(resolveGlobalKey(keyContext({ key: ',', serverSettingsOpen: true }))).toEqual({
+      type: 'ignore',
+    })
+    expect(resolveGlobalKey(keyContext({ key: ',', paletteOpen: true }))).toEqual({
+      type: 'ignore',
+    })
+    expect(resolveGlobalKey(keyContext({ key: ',', shortcutsOpen: true }))).toEqual({
+      type: 'ignore',
+    })
+  })
+
   test('/ focuses the column narrow field; feed has none', () => {
     expect(resolveGlobalKey(keyContext({ key: '/' }))).toEqual({
       type: 'focus-narrow',
@@ -369,9 +388,12 @@ describe('resolveGlobalKey', () => {
     })
   })
 
-  test('?/ and ⌘K still work before keysReady', () => {
+  test('?/, comma and ⌘K still work before keysReady', () => {
     expect(resolveGlobalKey(keyContext({ key: '?', keysReady: false, listActive: true }))).toEqual({
       type: 'open-shortcuts',
+    })
+    expect(resolveGlobalKey(keyContext({ key: ',', keysReady: false, listActive: true }))).toEqual({
+      type: 'open-settings',
     })
     expect(resolveGlobalKey(keyContext({ key: '/', keysReady: false, listActive: true }))).toEqual({
       type: 'focus-narrow',

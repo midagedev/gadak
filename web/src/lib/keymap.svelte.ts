@@ -83,6 +83,7 @@ export type KeyCommand =
   | { type: 'focus-comment' }
   | { type: 'open-comment-cursor' }
   | { type: 'new-issue' }
+  | { type: 'open-settings' }
   | { type: 'hold-boot-key'; key: string }
 
 export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
@@ -229,6 +230,9 @@ export function resolveGlobalKey(ctx: KeyContext): KeyCommand {
   const cursorKey = ctx.listActive ? ctx.cursorKey : null
 
   if (key === '?') return { type: 'open-shortcuts' }
+  // Unused punctuation, same class as `?` and `/`. `s` is status; `g s`
+  // would need a prefix latch this resolver does not have.
+  if (key === ',') return { type: 'open-settings' }
 
   if (key === '/') {
     return {
@@ -293,6 +297,7 @@ export interface GlobalKeyHost {
   get shortcutsOpen(): boolean
   set shortcutsOpen(v: boolean)
   get serverSettingsOpen(): boolean
+  set serverSettingsOpen(v: boolean)
   write: { settingsOpen: boolean; newIssueOpen: boolean; openNewIssue: () => void }
   triage: {
     commentKey: string | null
@@ -360,6 +365,10 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     case 'open-shortcuts':
       e.preventDefault()
       host.shortcutsOpen = true
+      return
+    case 'open-settings':
+      e.preventDefault()
+      host.serverSettingsOpen = true
       return
     case 'focus-narrow': {
       if (!cmd.testid) return
