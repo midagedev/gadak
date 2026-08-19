@@ -1,5 +1,7 @@
 # Changelog
 
+<sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
+
 ## Unreleased
 
 The release where gadak stops needing an Atlassian account to be useful,
