@@ -149,6 +149,40 @@ runs the exact command it prints. Building on the extension itself:
 Raycast Quicklink pointed at `gadak://view?issue={argument}` covers the
 open-by-key half.
 
+## What's covered
+
+Connected talks to Atlassian Cloud. Standalone (from 0.16) is a workspace
+with no Atlassian account — a minimal Jira origin that travels with the
+app. The mirror is a cache either way; every write goes through the origin.
+
+| | Connected (Atlassian Cloud) | Standalone (from 0.16) |
+| --- | :---: | :---: |
+| Issue read and search (FTS, JQL, SQL) | ✅¹ | ✅¹ |
+| Create, comment, transition, assignee, labels, priority | ✅ | ✅ |
+| Due date, description, custom-field edits (from 0.16) | ✅² | ✅² |
+| Hierarchy | ✅³ | ✅³ |
+| Wiki documents | ✅⁴ | ✅⁵ |
+| Attachments | ✅ | ✅ |
+| History / time in status | ✅⁶ | ✅⁶ |
+| Agent surfaces (skill, MCP, SQL) | ✅ | ✅ |
+| Boards and sprints | — | — |
+| Dashboards | — | — |
+| Jira notifications | —⁷ | —⁷ |
+
+1. SQL and FTS are local. `--jql` / a Jira URL maps a documented subset onto the in-memory filter; clauses gadak cannot express are listed, never dropped. Sprint, `WAS`, cross-field `OR`, and custom fields are among the refusals ([decision 0007](docs/decisions/0007-jql-subset.md)).
+2. Dedicated endpoints for due date and description. Custom fields: kinds `text`, `number`, `date`, `option`, `user`, `multi_option` / `version_array`, gated by the issue's editmeta and the configured field allowlist. Cascading selects and textarea custom fields have no editor.
+3. Epic grouping (`epic_key`, nearest hierarchy-level-1 ancestor) is first-class. Setting a parent is CLI `create --parent` / `edit --parent` only — there is no REST `PUT {key}/parent`. Sub-task create-meta flags are not surfaced, so create cannot tell that a type requires a parent.
+4. Confluence Cloud is mirrored; gadak does not write pages.
+5. Pages sync from the in-process origin, which accepts page create/update. gadak's own CLI, REST, and UI still have no page-write verb.
+6. Changelog is mirrored. Time in status is computed from `status_changed_at`, not stored as a column.
+7. Jira's notification inbox, rules, and email are not mirrored. gadak has its own watch-feed OS alerts on macOS and Linux.
+
+**Linear.** A read-only GraphQL client is in the tree (viewer, teams,
+workflow states, cursor-paged issues). It is not wired into a workspace
+yet — what a Linear origin would mean is still an open decision, and two
+origin kinds side by side is after 0.16. This table has no Linear column
+because nothing Linear is a workspace yet.
+
 ## For agents
 
 This is half the reason gadak exists. Reference: **[AGENTS.md](AGENTS.md)**.
@@ -212,8 +246,9 @@ the mirror to what the agent should see.
 
 ## Install
 
-Atlassian Cloud only. One [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
-covers Jira and Confluence on the same site.
+Atlassian Cloud, or (from 0.16) a standalone workspace with no Atlassian account.
+A connected site needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+— it covers Jira and Confluence on the same site.
 
 **1. The [desktop app](docs/DESKTOP.md).**
 
