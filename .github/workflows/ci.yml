@@ -195,13 +195,14 @@ jobs:
       # the bounded retry the stalling-installer wrapper was added for
       # (2026-08-18: a 29-minute silent mirror looked like a test verdict).
       - name: Install Playwright Chromium
-        # 22, not 14: the worst case this step is allowed to reach is a
-        # 120s lock wait plus a slow-mirror apt (~6 min measured) plus
-        # three 250s download attempts — about 20 minutes. At 14 the
-        # runner's own timeout would cut the third attempt and replace
-        # the message that names which half failed with a generic one.
-        # The job's own bound is 30, so a real stall still dies here.
-        timeout-minutes: 22
+        # 27, re-derived 2026-08-19: 120s lock wait + two bounded 420s
+        # apt attempts (with a second lock wait between) + three 250s
+        # download attempts ≈ 25.5 minutes worst case. The step budget
+        # stays above the sum so the half that failed is always named by
+        # our own error line, never by the runner's generic timeout —
+        # that inversion is exactly what run 32228508406 measured when
+        # the apt half was unbounded. The job's own bound is 30.
+        timeout-minutes: 27
         run: |
           set -eu
           lock=/var/lib/dpkg/lock-frontend
@@ -230,16 +231,39 @@ jobs:
           }
 
           wait_dpkg_lock
-          echo "playwright OS deps (apt): install-deps once, no timeout wrapper"
-          if ! npx playwright install-deps chromium; then
-            if sudo fuser "$lock" >/dev/null 2>&1; then
-              echo "::error::playwright OS deps (apt) failed — dpkg lock still held"
+          # Bounded, twice — re-authored 2026-08-19. The old shape ran
+          # install-deps once with no timeout wrapper, reasoning that a
+          # wrapper would cut a slow-but-working apt and replace a named
+          # error with a generic one. Run 32228508406 (and two PR runs the
+          # same day) measured the opposite: install-deps hung with zero
+          # output from 07:35:54 until the step's own 22-minute kill, so
+          # the unbounded call is what produced the generic timeout. 420s
+          # is ~1.6x the slowest measured healthy apt (~6 min); two
+          # attempts because a hung mirror connection is retryable.
+          deps_ok=""
+          for deps_attempt in 1 2; do
+            rc=0
+            timeout -k 10 420 npx playwright install-deps chromium || rc=$?
+            if [ "$rc" = 0 ]; then
+              echo "playwright OS deps (apt): ok (attempt ${deps_attempt})"
+              deps_ok=1
+              break
+            fi
+            if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+              echo "::warning::playwright OS deps (apt) attempt ${deps_attempt} hung (timeout, exit ${rc}); retrying"
             else
-              echo "::error::playwright OS deps (apt) failed — installer or mirror, not the tests"
+              echo "::warning::playwright OS deps (apt) attempt ${deps_attempt} failed (exit ${rc}); retrying"
+            fi
+            wait_dpkg_lock || true
+          done
+          if [ -z "$deps_ok" ]; then
+            if sudo fuser "$lock" >/dev/null 2>&1; then
+              echo "::error::playwright OS deps (apt) failed twice — dpkg lock still held, not the tests"
+            else
+              echo "::error::playwright OS deps (apt) failed twice — installer or mirror hang, not the tests"
             fi
             exit 1
           fi
-          echo "playwright OS deps (apt): ok"
 
           # Browser download only: no apt, no dpkg lock. timeout signals
           # npx (same uid). -k 10 reaps a stuck node after SIGTERM.
