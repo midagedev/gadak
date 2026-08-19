@@ -316,6 +316,16 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak create", "gadak attach", "gadak comment", "gadak issue"},
 	},
+	"page": {
+		summary: "wiki page writes through the origin (page edit; connected Confluence or standalone issuetap)",
+		usage:   "gadak [--profile <name>] page edit <ID> [--title T] [-m <text|->] [--adf-file F] [--json]",
+		examples: []string{
+			"gadak page edit 12345 --title \"Renamed page\"",
+			"gadak page edit 12345 -m \"whole new body (plain text; replaces formatting)\"",
+			"gadak page edit 12345 --adf-file body.adf.json",
+		},
+		seeAlso: []string{"gadak search", "gadak open"},
+	},
 	"transition": {
 		summary: "change issue status on Jira (needs a credential; accepts transition id, target status id, name, target status name, or status category new|inprogress|done)",
 		usage:   "gadak [--profile <name>] transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]",

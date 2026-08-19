@@ -294,6 +294,7 @@ var commands = map[string]func([]string) error{
 	"issue":           cmdIssue,
 	"mcp":             cmdMCP,
 	"open":            cmdOpen,
+	"page":            cmdPage,
 	"profiles":        cmdProfiles,
 	"raycast":         cmdRaycast,
 	"search":          cmdSearch,

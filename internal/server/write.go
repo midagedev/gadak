@@ -944,3 +944,69 @@ func (s *server) handleUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"users": out})
 }
+
+/* ── page edit (GDK-380) ── */
+
+// handlePageEdit PUTs one wiki page through the owning origin: connected
+// Confluence or the in-process issuetap (origin.Wiki owns that choice).
+// Body: {"title": ...} and/or {"adf": "<ADF JSON string>"} and/or
+// {"text": ...} — text is built into a fresh ADF doc and REPLACES the whole
+// body, so callers editing rich pages should send adf. Omitted parts keep
+// the origin's current value. The version comes from the origin at write
+// time; a concurrent edit is Confluence's own 409, surfaced as-is.
+func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Title string  `json:"title"`
+		ADF   string  `json:"adf"`
+		Text  *string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	if body.Title == "" && body.ADF == "" && body.Text == nil {
+		fail(w, http.StatusBadRequest, "nothing_to_edit")
+		return
+	}
+	cfg := s.config()
+	wc, err := origin.Wiki(cfg)
+	if err != nil {
+		failOriginClient(w, err)
+		return
+	}
+	id := r.PathValue("id")
+	cur, err := wc.Page(r.Context(), id)
+	if err != nil {
+		failJira(w, r, err)
+		return
+	}
+	title := cur.Title
+	if body.Title != "" {
+		title = body.Title
+	}
+	adf := ""
+	if cur.Body.AtlasDocFormat != nil {
+		adf = cur.Body.AtlasDocFormat.Value
+	}
+	switch {
+	case body.ADF != "":
+		adf = body.ADF
+	case body.Text != nil:
+		adf = string(jira.Doc(*body.Text, nil))
+	}
+	if _, err := wc.UpdatePage(r.Context(), id, title, adf, cur.Version.Number+1); err != nil {
+		failJira(w, r, err)
+		return
+	}
+	if err := sync.SyncPage(r.Context(), cfg, s.db, id); err != nil {
+		log.Printf("server: mirror refresh after page edit %s: %v", id, err)
+		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		return
+	}
+	detail, err := s.db.PageDetail(r.Context(), id)
+	if err != nil || detail == nil {
+		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"page": detail})
+}

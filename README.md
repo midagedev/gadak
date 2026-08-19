@@ -115,8 +115,9 @@ on the list do not apply. That is why a comment-only word still finds the row.
 
 Writes go through to Jira, then the mirror refreshes. App and web: comment,
 transition, assign, labels, priority, title. CLI: `create` (single or
-`--batch`), `attach`, `edit`, `comment`, `transition`, `assign`. Wiki mirror
-is read-only. Hierarchy, `item_refs`, attachments: [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
+`--batch`), `attach`, `edit`, `comment`, `transition`, `assign`, and
+`page edit` for the wiki (title/body through the origin; create and page
+comments not yet). Hierarchy, `item_refs`, attachments: [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
 The window keeps one paper metaphor across four palettes — `light`, a
 neutral-cool `dark`, blue-black `ink`, and warm `ember`. The theme follows
 the system unless you pick one, and it belongs to the workspace, not the
@@ -172,8 +173,8 @@ app. The mirror is a cache either way; every write goes through the origin.
 1. SQL and FTS are local. `--jql` / a Jira URL maps a documented subset onto the in-memory filter; clauses gadak cannot express are listed, never dropped. Sprint, `WAS`, cross-field `OR`, and custom fields are among the refusals ([decision 0007](docs/decisions/0007-jql-subset.md)).
 2. Dedicated endpoints for due date and description. Custom fields: kinds `text`, `number`, `date`, `option`, `user`, `multi_option` / `version_array`, gated by the issue's editmeta and the configured field allowlist. Cascading selects and textarea custom fields have no editor.
 3. Epic grouping (`epic_key`, nearest hierarchy-level-1 ancestor) is first-class. Setting a parent is CLI `create --parent` / `edit --parent` only — there is no REST `PUT {key}/parent`. Sub-task create-meta flags are not surfaced, so create cannot tell that a type requires a parent.
-4. Confluence Cloud is mirrored; gadak does not write pages.
-5. Pages sync from the in-process origin, which accepts page create/update. gadak's own CLI, REST, and UI still have no page-write verb.
+4. Confluence Cloud is mirrored; page edit (title/body) writes through it — `gadak page edit`, `PUT pages/{id}/edit`. Create and page comments are not there yet.
+5. Pages sync from the in-process origin. `gadak page edit` and the REST edit verb work here too; the UI has no page editor yet.
 6. Changelog is mirrored. Time in status is computed from `status_changed_at`, not stored as a column.
 7. Jira's notification inbox, rules, and email are not mirrored. gadak has its own watch-feed OS alerts on macOS and Linux.
 
