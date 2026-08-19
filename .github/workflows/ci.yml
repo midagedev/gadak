@@ -190,10 +190,14 @@ jobs:
       # in ~1 s on the lock; the orphan then continued Get:8–10 and unpacked
       # after the step had given up.
       #
-      # Do not wrap install-deps or --with-deps in `timeout`. A retry of apt
-      # after that kill is a guaranteed lock fail. The download half keeps
-      # the bounded retry the stalling-installer wrapper was added for
-      # (2026-08-18: a 29-minute silent mirror looked like a test verdict).
+      # A retry of apt after that kill used to be a guaranteed lock fail —
+      # run 32233517861 (2026-08-19, twice) measured it after GDK-317
+      # wrapped the apt half anyway to bound a zero-output hang. The retry
+      # loop now reaps the orphan first (reap_apt_orphan below), which is
+      # the only reason the wrap and the retry can coexist. The download
+      # half keeps the bounded retry the stalling-installer wrapper was
+      # added for (2026-08-18: a 29-minute silent mirror looked like a
+      # test verdict).
       - name: Install Playwright Chromium
         # 27, re-derived 2026-08-19: 120s lock wait + two bounded 420s
         # apt attempts (with an orphan-reap + lock wait between, ≤130s —
