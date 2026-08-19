@@ -32,7 +32,7 @@ func TestNoDirectKindClearOutsideOriginbind(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case ".git", "vendor", "node_modules", "dist", "testdata", "scratch":
+			case ".git", "vendor", "node_modules", "dist", "testdata", "scratch", ".claude":
 				return fs.SkipDir
 			}
 			return nil

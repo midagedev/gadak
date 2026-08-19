@@ -31,7 +31,7 @@ func TestNoDirectJiraNewOutsideOrigin(t *testing.T) {
 		if d.IsDir() {
 			name := d.Name()
 			switch name {
-			case ".git", "vendor", "node_modules", "dist", "testdata", "scratch":
+			case ".git", "vendor", "node_modules", "dist", "testdata", "scratch", ".claude":
 				return fs.SkipDir
 			}
 			return nil
