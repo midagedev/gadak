@@ -80,7 +80,9 @@ type coldStartDecision struct {
 //     pkg/application/application_windows.go:159-162). Every other argv
 //     shape is ignored by wails, so argv is the fallback.
 //   - linux (and anything else): argv. GTK4 run() in the same wails pin
-//     (application_linux.go:89-99) does not emit the event.
+//     (application_linux.go:89-99) does not emit the event. Fix sent
+//     upstream as wailsapp/wails#6000 (GDK-295); when a pin containing it
+//     lands, Linux can move to DeferToEvent like Windows.
 func coldStartDecisionFor(goos string, args []string) coldStartDecision {
 	switch goos {
 	case "darwin":
@@ -97,7 +99,7 @@ func coldStartDecisionFor(goos string, args []string) coldStartDecision {
 
 // wailsEmitsLaunchURL is the argv shape wails v3.0.0-beta.9 special-cases
 // on Windows (application_windows.go:159-162). GTK3 has the same check;
-// GTK4, which this pin compiles, does not.
+// GTK4, which this pin compiles, does not (upstream fix: wailsapp/wails#6000).
 func wailsEmitsLaunchURL(args []string) bool {
 	return len(args) == 2 && strings.Contains(args[1], "://")
 }
@@ -355,7 +357,8 @@ func run() error {
 	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		log.Print("wails runtime ready — --wails-draggable listeners are attached")
 		// Cold-start URL source is coldStartDecisionFor, not "!= darwin".
-		// Linux always reads argv (GTK4 does not emit ApplicationLaunchedWithUrl).
+		// Linux always reads argv (GTK4 does not emit ApplicationLaunchedWithUrl;
+		// fix sent upstream as wailsapp/wails#6000).
 		// Windows reads argv only when wails will not emit the event
 		// (len(os.Args) != 2 or the single arg has no "://"). macOS never
 		// reads argv. Nothing is handed to the webview until this event:
