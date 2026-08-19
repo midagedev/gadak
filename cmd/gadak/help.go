@@ -317,8 +317,8 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak attach", "gadak comment", "gadak issue"},
 	},
 	"transition": {
-		summary: "change issue status on Jira (needs a credential; accepts transition id, name, target status name, or status category new|inprogress|done)",
-		usage:   "gadak [--profile <name>] transition <KEY> <status-or-id|new|inprogress|done> [--json]",
+		summary: "change issue status on Jira (needs a credential; accepts transition id, target status id, name, target status name, or status category new|inprogress|done)",
+		usage:   "gadak [--profile <name>] transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]",
 		examples: []string{
 			"gadak transition NMB-140 \"In Review\"",
 			"gadak transition NMB-140 31",

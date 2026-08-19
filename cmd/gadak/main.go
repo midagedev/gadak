@@ -175,7 +175,7 @@ Writing through to Jira (needs a credential):
   attach     attach files     <KEY> <file>... [--json]
   edit       edit an issue    <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--json]
   comment    add a comment    <KEY> -m <text|-> [--json]
-  transition change status    <KEY> <status-or-id> [--json]
+  transition change status    <KEY> <transition-id|status-id|name> [--json]
   assign     set assignee     <KEY> <email|-> [--json]
   fields     custom-field usage report  [--sample N] [--json] [--all] [--project KEY]
   team       share team settings/views  export [--out] [--with-members]

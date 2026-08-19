@@ -15,10 +15,14 @@ import (
 //  2. Two or more transitions into the same category → refuse, list them.
 //     TestTransitionCategorySingleMatchExecutes
 //     TestTransitionCategoryAmbiguousRefuses
-//  3. Match order is id, then name, then target status name, then category.
+//  3. Match order is transition id, then target status id, then name,
+//     then target status name, then category.
 //     TestTransitionIDBeatsCategory
 //     TestTransitionNameBeatsCategory
 //     TestTransitionEnglishDoneNameSkipsAmbiguity
+//     TestTransitionMatchesByStatusID
+//     TestTransitionIDBeatsStatusIDShapedNumber
+//     TestTransitionIDAndStatusIDCollisionRefuses
 //  4. Paths ①②③ are unchanged (no regression).
 //     TestTransitionMatchesByNameAndReportsAlternatives (agent_test.go: "완료")
 //     TestTransitionMatchesByID
@@ -189,6 +193,64 @@ func TestTransitionMatchesByID(t *testing.T) {
 	}
 	if postedTransitionID(t, f, "NMB-1") != "21" {
 		t.Fatal("id match must keep posting that id")
+	}
+}
+
+func TestTransitionMatchesByStatusID(t *testing.T) {
+	// GDK-313: sql hands out status_id; that id is to.id, not the transition id.
+	f := withTransitions(t, `{"transitions":[
+		{"id":"21","name":"Start work","to":{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}}},
+		{"id":"41","name":"Close","to":{"id":"10003","name":"완료","statusCategory":{"key":"done"}}}]}`)
+	if _, err := capture(t, func() error { return cmdTransition([]string{"NMB-1", "10003"}) }); err != nil {
+		t.Fatalf("status_id 10003: %v", err)
+	}
+	if postedTransitionID(t, f, "NMB-1") != "41" {
+		t.Fatal("target status id must post that landing's transition id")
+	}
+}
+
+func TestTransitionIDBeatsStatusIDShapedNumber(t *testing.T) {
+	// 10003 is a transition id here, not any other transition's to.id.
+	f := withTransitions(t, `{"transitions":[
+		{"id":"10003","name":"Start work","to":{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}}},
+		{"id":"41","name":"Close","to":{"id":"10001","name":"완료","statusCategory":{"key":"done"}}}]}`)
+	if _, err := capture(t, func() error { return cmdTransition([]string{"NMB-1", "10003"}) }); err != nil {
+		t.Fatalf("transition id 10003: %v", err)
+	}
+	if postedTransitionID(t, f, "NMB-1") != "10003" {
+		t.Fatal("exact transition id must still win")
+	}
+}
+
+func TestTransitionSameIDAndStatusIDIsNotCollision(t *testing.T) {
+	f := withTransitions(t, `{"transitions":[
+		{"id":"10003","name":"Close","to":{"id":"10003","name":"완료","statusCategory":{"key":"done"}}}]}`)
+	if _, err := capture(t, func() error { return cmdTransition([]string{"NMB-1", "10003"}) }); err != nil {
+		t.Fatalf("same-space 10003: %v", err)
+	}
+	if postedTransitionID(t, f, "NMB-1") != "10003" {
+		t.Fatal("id equal to own to.id is not a collision")
+	}
+}
+
+func TestTransitionIDAndStatusIDCollisionRefuses(t *testing.T) {
+	f := withTransitions(t, `{"transitions":[
+		{"id":"10003","name":"Start work","to":{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}}},
+		{"id":"41","name":"Close","to":{"id":"10003","name":"완료","statusCategory":{"key":"done"}}}]}`)
+	_, err := capture(t, func() error { return cmdTransition([]string{"NMB-1", "10003"}) })
+	if err == nil {
+		t.Fatal("id/status_id overlap must refuse")
+	}
+	mustNotTransition(t, f, "NMB-1")
+	msg := err.Error()
+	for _, want := range []string{
+		`"10003" matches a transition id and a different target status id on NMB-1`,
+		"transition id: Start work (id 10003, → 진행 중)",
+		"target status id: Close (id 41, → 완료)",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q missing %q", msg, want)
+		}
 	}
 }
 
@@ -368,8 +430,9 @@ func TestTransitionHelpNamesCategory(t *testing.T) {
 	}
 	for _, want := range []string{
 		"status category new|inprogress|done",
+		"target status id",
 		"gadak transition NMB-140 done",
-		"<status-or-id|new|inprogress|done>",
+		"<transition-id|status-id|name|new|inprogress|done>",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help missing %q\n%s", want, out)
@@ -382,7 +445,7 @@ func TestTransitionUsageMentionsCategory(t *testing.T) {
 	if err == nil {
 		t.Fatal("missing target must be a usage error")
 	}
-	if !strings.Contains(err.Error(), "usage: gadak transition <KEY> <status-or-id|new|inprogress|done> [--json]") {
+	if !strings.Contains(err.Error(), "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]") {
 		t.Errorf("usage %q", err)
 	}
 }

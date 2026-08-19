@@ -1204,7 +1204,7 @@ func cmdTransition(args []string) error {
 		return err
 	}
 	if len(pos) < 2 {
-		return usageError("transition", "usage: gadak transition <KEY> <status-or-id|new|inprogress|done> [--json]")
+		return usageError("transition", "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]")
 	}
 	key := normalizeKey(pos[0])
 	// Trailing words join the target so an unquoted `In Review` still works.
@@ -1224,13 +1224,46 @@ func cmdTransition(args []string) error {
 }
 
 // pickTransition resolves want against the issue's available transitions.
-// Paths ①②③ stay first-match on id / transition name / target status name so
-// existing callers do not move. Category tokens (new|inprogress|done) are a
-// last-resort fallback; two landings in that category refuse rather than
-// picking the first.
+// Order: transition id, target status id, transition name / target status
+// name, then category tokens (new|inprogress|done). Two landings in the same
+// category refuse rather than picking the first. A token that is one
+// transition's id and a different transition's to.id is also refused.
 func pickTransition(key, want string, list []jira.Transition) (string, error) {
+	var idHit *jira.Transition
+	var toHits []jira.Transition
+	for i := range list {
+		t := &list[i]
+		if t.ID == want && idHit == nil {
+			idHit = t
+		}
+		if t.To.ID != "" && t.To.ID == want {
+			toHits = append(toHits, *t)
+		}
+	}
+	if idHit != nil {
+		var others []jira.Transition
+		for _, t := range toHits {
+			if t.ID != idHit.ID {
+				others = append(others, t)
+			}
+		}
+		if len(others) > 0 {
+			return "", fmt.Errorf("%q matches a transition id and a different target status id on %s — transition id: %s; target status id: %s",
+				want, key, formatTransition(*idHit), joinTransitions(others))
+		}
+		return idHit.ID, nil
+	}
+	switch len(toHits) {
+	case 1:
+		return toHits[0].ID, nil
+	case 0:
+		// names, then category
+	default:
+		return "", fmt.Errorf("transition %q is ambiguous on %s — %d transitions land there: %s",
+			want, key, len(toHits), joinTransitions(toHits))
+	}
 	for _, t := range list {
-		if t.ID == want || strings.EqualFold(t.Name, want) || strings.EqualFold(t.To.Name, want) {
+		if strings.EqualFold(t.Name, want) || strings.EqualFold(t.To.Name, want) {
 			return t.ID, nil
 		}
 	}
@@ -1247,12 +1280,8 @@ func pickTransition(key, want string, list []jira.Transition) (string, error) {
 		case 0:
 			// fall through to the shared miss error, which names reachable tokens
 		default:
-			parts := make([]string, 0, len(hits))
-			for _, t := range hits {
-				parts = append(parts, fmt.Sprintf("%s (id %s, → %s)", t.Name, t.ID, t.To.Name))
-			}
 			return "", fmt.Errorf("transition %q is ambiguous on %s — %d transitions land there: %s",
-				want, key, len(hits), strings.Join(parts, "; "))
+				want, key, len(hits), joinTransitions(hits))
 		}
 	}
 	return "", noTransitionMatch(key, want, list)
@@ -1283,16 +1312,24 @@ func transitionCategory(t jira.Transition) (string, bool) {
 	}
 }
 
-func noTransitionMatch(key, want string, list []jira.Transition) error {
-	available := make([]string, 0, len(list))
+func formatTransition(t jira.Transition) string {
+	return fmt.Sprintf("%s (id %s, → %s)", t.Name, t.ID, t.To.Name)
+}
+
+func joinTransitions(list []jira.Transition) string {
+	parts := make([]string, 0, len(list))
 	for _, t := range list {
-		available = append(available, fmt.Sprintf("%s (id %s, → %s)", t.Name, t.ID, t.To.Name))
+		parts = append(parts, formatTransition(t))
 	}
-	if len(available) == 0 {
+	return strings.Join(parts, "; ")
+}
+
+func noTransitionMatch(key, want string, list []jira.Transition) error {
+	if len(list) == 0 {
 		return fmt.Errorf("%s has no available transitions for this credential", key)
 	}
 	msg := fmt.Sprintf("no transition matching %q on %s — available: %s",
-		want, key, strings.Join(available, "; "))
+		want, key, joinTransitions(list))
 	if cats := reachableCategories(list); len(cats) > 0 {
 		msg += "\nalso accepts a status category: " + strings.Join(cats, ", ")
 	}
