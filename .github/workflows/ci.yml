@@ -190,14 +190,19 @@ jobs:
       # in ~1 s on the lock; the orphan then continued Get:8–10 and unpacked
       # after the step had given up.
       #
-      # Do not wrap install-deps or --with-deps in `timeout`. A retry of apt
-      # after that kill is a guaranteed lock fail. The download half keeps
-      # the bounded retry the stalling-installer wrapper was added for
-      # (2026-08-18: a 29-minute silent mirror looked like a test verdict).
+      # A retry of apt after that kill used to be a guaranteed lock fail —
+      # run 32233517861 (2026-08-19, twice) measured it after GDK-317
+      # wrapped the apt half anyway to bound a zero-output hang. The retry
+      # loop now reaps the orphan first (reap_apt_orphan below), which is
+      # the only reason the wrap and the retry can coexist. The download
+      # half keeps the bounded retry the stalling-installer wrapper was
+      # added for (2026-08-18: a 29-minute silent mirror looked like a
+      # test verdict).
       - name: Install Playwright Chromium
         # 27, re-derived 2026-08-19: 120s lock wait + two bounded 420s
-        # apt attempts (with a second lock wait between) + three 250s
-        # download attempts ≈ 25.5 minutes worst case. The step budget
+        # apt attempts (with an orphan-reap + lock wait between, ≤130s —
+        # 10s over the plain wait it replaced) + three 250s
+        # download attempts ≈ 25.7 minutes worst case. The step budget
         # stays above the sum so the half that failed is always named by
         # our own error line, never by the runner's generic timeout —
         # that inversion is exactly what run 32228508406 measured when
@@ -206,28 +211,59 @@ jobs:
         run: |
           set -eu
           lock=/var/lib/dpkg/lock-frontend
+          lists=/var/lib/apt/lists/lock
           # Bounded wait: 60 × 2s = 120s. unattended-upgrades at runner
           # start, or a leftover apt-get, must not make install-deps fail
           # in 3 seconds — and must not spin forever. After the split, the
           # download retry does not call apt, so it cannot race this lock.
           #
+          # Both locks, not just dpkg's: runs 32233517861 (both attempts,
+          # 2026-08-19) died on /var/lib/apt/lists/lock — an apt-get hung in
+          # its download phase holds that one, and this wait never saw it.
+          #
           # This wait is defence, not the fix, and it fails open: if `fuser`
           # is absent from the image, the probe errors, the lock reads free,
           # and we go straight to install-deps — which is exactly today's
           # behaviour, with apt's own message if the lock really was held.
-          # Whether it fires is visible in the log ("dpkg lock held, waiting").
+          # Whether it fires is visible in the log ("apt lock held, waiting").
           wait_dpkg_lock() {
             i=0
             while [ "$i" -lt 60 ]; do
-              if ! sudo fuser "$lock" >/dev/null 2>&1; then
+              if ! sudo fuser "$lock" "$lists" >/dev/null 2>&1; then
                 return 0
               fi
               i=$((i + 1))
-              echo "playwright OS deps (apt): dpkg lock held, waiting ${i}/60" >&2
+              echo "playwright OS deps (apt): apt lock held, waiting ${i}/60" >&2
               sleep 2
             done
-            echo "::error::playwright OS deps (apt) failed — dpkg lock still held after 120s, not the tests"
+            echo "::error::playwright OS deps (apt) failed — apt lock still held after 120s, not the tests"
             return 1
+          }
+
+          # After a timed-out attempt only. `timeout` signals npx, but the
+          # apt-get that playwright started via sudo is root's — the signal
+          # never crosses that boundary, so the kill orphans apt-get and it
+          # keeps the lists lock (run 32233517861: attempt 1 timed out,
+          # attempt 2 died in 3s on that lock — both reruns, same shape;
+          # the header comment above predicted exactly this). The GDK-308
+          # boundary still holds: never kill a running dpkg — a mid-
+          # configure kill corrupts the dpkg db and makes every later apt
+          # fail. An apt-get with no dpkg child is in its network phase;
+          # that orphan is ours and safe to reap.
+          reap_apt_orphan() {
+            if ! sudo fuser "$lock" "$lists" >/dev/null 2>&1; then
+              return 0
+            fi
+            if pgrep -x dpkg >/dev/null 2>&1; then
+              echo "playwright OS deps (apt): dpkg mid-configure — waiting, not killing" >&2
+              wait_dpkg_lock
+              return $?
+            fi
+            echo "playwright OS deps (apt): reaping orphaned apt-get (download phase, no dpkg child)" >&2
+            sudo pkill -TERM -x apt-get 2>/dev/null || true
+            sleep 5
+            sudo pkill -KILL -x apt-get 2>/dev/null || true
+            wait_dpkg_lock
           }
 
           wait_dpkg_lock
@@ -254,7 +290,7 @@ jobs:
             else
               echo "::warning::playwright OS deps (apt) attempt ${deps_attempt} failed (exit ${rc}); retrying"
             fi
-            wait_dpkg_lock || true
+            reap_apt_orphan || true
           done
           if [ -z "$deps_ok" ]; then
             if sudo fuser "$lock" >/dev/null 2>&1; then
