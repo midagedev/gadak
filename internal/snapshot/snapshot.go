@@ -202,6 +202,10 @@ func openSQLite(path string, readOnly bool) (*sql.DB, error) {
 	if readOnly {
 		mode = "ro"
 	}
+	// Single-writer one-shot. busy_timeout is already set. Do not add WAL:
+	// the snapshot is a shareable artifact and build.go forces journal_mode
+	// DELETE on the dest so the output is a single file. synchronous is left
+	// at SQLite's default for the same reason — it is part of what ships.
 	dsn := "file:" + path + "?mode=" + mode +
 		"&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"
 	db, err := sql.Open("sqlite", dsn)
