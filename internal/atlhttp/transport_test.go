@@ -306,10 +306,12 @@ func TestDoRawTransportErrorRetry(t *testing.T) {
 	// Transport errors retry only when !mutating. The write path must not
 	// replay a POST that may already have been applied.
 	t.Run("read retries then succeeds", func(t *testing.T) {
-		var calls int
+		// atomic: ErrAbortHandler finishes on the server goroutine; the
+		// test reads the counter after DoRaw returns (same shape as
+		// TestDoRawContextCancelStopsRetryWait).
+		var calls atomic.Int32
 		cfg, meter := testCfg(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			calls++
-			if calls == 1 {
+			if calls.Add(1) == 1 {
 				panic(http.ErrAbortHandler)
 			}
 			_, _ = w.Write([]byte(`recovered`))
@@ -321,17 +323,17 @@ func TestDoRawTransportErrorRetry(t *testing.T) {
 		if status != 200 || string(body) != "recovered" {
 			t.Fatalf("status=%d body=%s", status, body)
 		}
-		if calls != 2 {
-			t.Errorf("calls = %d, want 2", calls)
+		if n := calls.Load(); n != 2 {
+			t.Errorf("calls = %d, want 2", n)
 		}
 		if got := meter.Snapshot().Retries; got != 1 {
 			t.Errorf("Retries = %d, want 1", got)
 		}
 	})
 	t.Run("write does not retry", func(t *testing.T) {
-		var calls int
+		var calls atomic.Int32
 		cfg, _ := testCfg(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			calls++
+			calls.Add(1)
 			panic(http.ErrAbortHandler)
 		}))
 		_, _, err := do(t, cfg, http.MethodPost, "/rest/api/3/issue", []byte(`{}`), true, true)
@@ -344,14 +346,14 @@ func TestDoRawTransportErrorRetry(t *testing.T) {
 		if strings.Contains(err.Error(), testAuth) {
 			t.Error("error leaked Authorization")
 		}
-		if calls != 1 {
-			t.Errorf("calls = %d, want 1", calls)
+		if n := calls.Load(); n != 1 {
+			t.Errorf("calls = %d, want 1", n)
 		}
 	})
 	t.Run("read exhausts attempts", func(t *testing.T) {
-		var calls int
+		var calls atomic.Int32
 		cfg, _ := testCfg(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			calls++
+			calls.Add(1)
 			panic(http.ErrAbortHandler)
 		}))
 		cfg.Retries = 3
@@ -362,8 +364,8 @@ func TestDoRawTransportErrorRetry(t *testing.T) {
 		if !strings.Contains(err.Error(), "GET") || !strings.Contains(err.Error(), "/rest/api/3/myself") {
 			t.Errorf("err = %v, want method and path", err)
 		}
-		if calls != 3 {
-			t.Errorf("calls = %d, want 3", calls)
+		if n := calls.Load(); n != 3 {
+			t.Errorf("calls = %d, want 3", n)
 		}
 	})
 }

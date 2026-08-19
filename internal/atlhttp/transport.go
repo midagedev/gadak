@@ -1,5 +1,9 @@
 // Package atlhttp is the shared HTTP transport for Atlassian Cloud clients
-// (Jira, Confluence): retries, backoff, path safety, and optional usage meters.
+// (Jira, Confluence): path safety, Authorization host pinning, and the
+// Do/DoRaw loop. Retryable statuses, backoff plus Retry-After, the error
+// snippet, the 64 MiB body cap, and Usage/Meter live in httppolicy so a
+// non-Atlassian connector can share that policy without importing this
+// package.
 //
 // The token lives only in the Authorization header. It is never put in an
 // error, a log line or a URL (constitution article 8), which is why DoRaw
@@ -13,9 +17,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/midagedev/gadak/internal/httppolicy"
 )
 
 // Config is the per-request transport configuration. Callers pass live client
@@ -51,9 +56,9 @@ func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte,
 	if err != nil {
 		return 0, nil, err
 	}
-	retries := isRetryable
+	retries := httppolicy.IsRetryable
 	if mutating {
-		retries = func(code int) bool { return code == 429 || code == 503 }
+		retries = httppolicy.IsRetryableWrite
 	}
 	for attempt := 0; ; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, method, fullURL, bytes.NewReader(payload))
@@ -67,25 +72,25 @@ func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte,
 		}
 		res, err := cfg.HTTP.Do(req)
 		// Count every attempt that left the process; retries each draw rate budget.
-		cfg.Usage.noteRequest()
+		cfg.Usage.NoteRequest()
 		if err != nil {
 			if attempt < cfg.Retries-1 && !mutating {
-				if werr := wait(ctx, cfg, attempt, ""); werr != nil {
+				if werr := httppolicy.Wait(ctx, cfg.Backoff, attempt, "", cfg.Usage); werr != nil {
 					return 0, nil, werr
 				}
-				cfg.Usage.noteRetry()
+				cfg.Usage.NoteRetry()
 				continue
 			}
 			return 0, nil, fmt.Errorf("%s %s: %w", method, path, err)
 		}
-		data, readErr := io.ReadAll(io.LimitReader(res.Body, 64<<20))
+		data, readErr := io.ReadAll(io.LimitReader(res.Body, httppolicy.MaxBody))
 		res.Body.Close()
-		cfg.Usage.noteStatus(res.StatusCode)
+		cfg.Usage.NoteStatus(res.StatusCode)
 		if retries(res.StatusCode) && attempt < cfg.Retries-1 {
-			if werr := wait(ctx, cfg, attempt, res.Header.Get("Retry-After")); werr != nil {
+			if werr := httppolicy.Wait(ctx, cfg.Backoff, attempt, res.Header.Get("Retry-After"), cfg.Usage); werr != nil {
 				return 0, nil, werr
 			}
-			cfg.Usage.noteRetry()
+			cfg.Usage.NoteRetry()
 			continue
 		}
 		if res.StatusCode >= 200 && res.StatusCode < 300 && readErr != nil {
@@ -142,41 +147,5 @@ func rejectAbsolutePath(path string) error {
 	return nil
 }
 
-func isRetryable(code int) bool {
-	switch code {
-	case 429, 500, 502, 503, 504:
-		return true
-	}
-	return false
-}
-
-func wait(ctx context.Context, cfg Config, attempt int, retryAfter string) error {
-	d := cfg.Backoff << attempt
-	if d > 30*time.Second {
-		d = 30 * time.Second
-	}
-	if s, err := strconv.Atoi(strings.TrimSpace(retryAfter)); err == nil && s > 0 {
-		d = time.Duration(s) * time.Second
-	}
-	if d <= 0 {
-		return ctx.Err()
-	}
-	start := time.Now()
-	select {
-	case <-ctx.Done():
-		cfg.Usage.noteWait(time.Since(start))
-		return ctx.Err()
-	case <-time.After(d):
-		cfg.Usage.noteWait(time.Since(start))
-		return nil
-	}
-}
-
 // Snippet trims and truncates a response body for error messages.
-func Snippet(b []byte) string {
-	s := strings.TrimSpace(string(b))
-	if len(s) > 400 {
-		return s[:400] + "…"
-	}
-	return s
-}
+func Snippet(b []byte) string { return httppolicy.Snippet(b) }

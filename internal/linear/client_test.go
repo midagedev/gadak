@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // testKey stands where the real API key would. It is deliberately not
@@ -318,6 +319,43 @@ func TestRetriesThenSucceeds(t *testing.T) {
 	rl := c.LastRateLimit()
 	if rl.RequestsRemaining != 2497 || rl.RequestsLimit != 2500 {
 		t.Errorf("rate limit = %+v, want the parsed headers", rl)
+	}
+}
+
+func TestUsageRecordsWaitMSAndLastThrottledAt(t *testing.T) {
+	calls := 0
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		writeFixture(w, t, "teams.json")
+	}))
+	// Retry-After "0" is ignored (s > 0 required), so Wait uses Backoff.
+	c.Backoff = time.Millisecond
+
+	if _, err := c.Teams(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	u := c.Usage()
+	if u.Requests != 2 || u.Throttled != 1 || u.Retries != 1 {
+		t.Errorf("usage = %+v, want 2 requests / 1 throttle / 1 retry", u)
+	}
+	if u.WaitMS <= 0 {
+		t.Errorf("WaitMS = %d, want > 0 — linear must record the same wait as atlhttp", u.WaitMS)
+	}
+	if u.LastThrottledAt.IsZero() || u.LastThrottledAt.Location() != time.UTC {
+		t.Errorf("LastThrottledAt = %v, want non-zero UTC", u.LastThrottledAt)
+	}
+	taken := c.TakeUsage()
+	after := c.Usage()
+	if after.Requests != 0 || after.Throttled != 0 || after.Retries != 0 || after.WaitMS != 0 {
+		t.Errorf("counters not zeroed after TakeUsage: %+v", after)
+	}
+	if after.LastThrottledAt.IsZero() || !after.LastThrottledAt.Equal(taken.LastThrottledAt) {
+		t.Errorf("LastThrottledAt must survive TakeUsage: taken=%v after=%v", taken.LastThrottledAt, after.LastThrottledAt)
 	}
 }
 

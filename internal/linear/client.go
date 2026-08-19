@@ -12,11 +12,11 @@
 // *Atlassian Cloud* clients, and its headline guarantee is path safety —
 // joining a caller-supplied path onto a configured site so the Authorization
 // header cannot wander off-host. Linear has one fixed endpoint and no path
-// parameter, so that machinery has nothing to do; what is worth keeping
-// (retry/backoff policy, Retry-After handling, the 64 MiB response cap, the
-// usage counters) is mirrored here with the same semantics, and the
-// rate-limit visibility is Linear-specific: Linear states its budget in
-// response headers (x-ratelimit-*), which Atlassian never did.
+// parameter, so that machinery has nothing to do. Retry/backoff, Retry-After,
+// the 64 MiB response cap, and the usage counters come from httppolicy — the
+// host-neutral owner — not a copy. Rate-limit visibility stays here: Linear
+// states its budget in response headers (x-ratelimit-*), which Atlassian
+// never did. The API key is sent bare (no Bearer prefix).
 package linear
 
 import (
@@ -25,10 +25,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/midagedev/gadak/internal/httppolicy"
 )
 
 // Endpoint is the single Linear GraphQL URL. Personal API keys are the only
@@ -85,7 +86,7 @@ type Client struct {
 
 	// usage and rate are process-local observability; see Usage and
 	// LastRateLimit. They never block a request.
-	usage meter
+	usage httppolicy.Meter
 	rate  atomic.Pointer[RateLimit]
 }
 
@@ -271,20 +272,20 @@ func (c *Client) gql(ctx context.Context, query string, vars map[string]any, out
 		req.Header.Set("Accept", "application/json")
 
 		res, err := c.HTTP.Do(req)
-		c.usage.noteRequest()
+		c.usage.NoteRequest()
 		if err != nil {
 			if attempt < c.Retries-1 {
-				if werr := c.wait(ctx, attempt, ""); werr != nil {
+				if werr := httppolicy.Wait(ctx, c.Backoff, attempt, "", &c.usage); werr != nil {
 					return werr
 				}
-				c.usage.noteRetry()
+				c.usage.NoteRetry()
 				continue
 			}
 			return fmt.Errorf("POST /graphql: %w", err)
 		}
-		data, readErr := io.ReadAll(io.LimitReader(res.Body, 64<<20))
+		data, readErr := io.ReadAll(io.LimitReader(res.Body, httppolicy.MaxBody))
 		res.Body.Close()
-		c.usage.noteStatus(res.StatusCode)
+		c.usage.NoteStatus(res.StatusCode)
 		c.noteRateLimit(res.Header)
 
 		if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
@@ -292,18 +293,18 @@ func (c *Client) gql(ctx context.Context, query string, vars map[string]any, out
 			// budget for an answer that cannot change.
 			return fmt.Errorf("POST /graphql: %w (%d %s)", ErrAuth, res.StatusCode, http.StatusText(res.StatusCode))
 		}
-		if isRetryable(res.StatusCode) && attempt < c.Retries-1 {
-			if werr := c.wait(ctx, attempt, res.Header.Get("Retry-After")); werr != nil {
+		if httppolicy.IsRetryable(res.StatusCode) && attempt < c.Retries-1 {
+			if werr := httppolicy.Wait(ctx, c.Backoff, attempt, res.Header.Get("Retry-After"), &c.usage); werr != nil {
 				return werr
 			}
-			c.usage.noteRetry()
+			c.usage.NoteRetry()
 			continue
 		}
 		if readErr != nil && res.StatusCode >= 200 && res.StatusCode < 300 {
 			return fmt.Errorf("POST /graphql: %w", readErr)
 		}
 		if res.StatusCode >= 300 {
-			return fmt.Errorf("POST /graphql: linear: %d %s: %s", res.StatusCode, http.StatusText(res.StatusCode), snippet(data))
+			return fmt.Errorf("POST /graphql: linear: %d %s: %s", res.StatusCode, http.StatusText(res.StatusCode), httppolicy.Snippet(data))
 		}
 
 		var env graphResponse
@@ -315,7 +316,7 @@ func (c *Client) gql(ctx context.Context, query string, vars map[string]any, out
 			for _, e := range env.Errors {
 				msgs = append(msgs, e.Message)
 			}
-			return fmt.Errorf("POST /graphql: linear: graphql error: %s", snippet([]byte(strings.Join(msgs, "; "))))
+			return fmt.Errorf("POST /graphql: linear: graphql error: %s", httppolicy.Snippet([]byte(strings.Join(msgs, "; "))))
 		}
 		if out == nil || len(env.Data) == 0 {
 			return nil
@@ -324,114 +325,16 @@ func (c *Client) gql(ctx context.Context, query string, vars map[string]any, out
 	}
 }
 
-// isRetryable mirrors the read policy of internal/atlhttp (writes do not
-// exist here): throttle and transient server errors are worth another
-// attempt, everything else is an answer.
-func isRetryable(code int) bool {
-	switch code {
-	case 429, 500, 502, 503, 504:
-		return true
-	}
-	return false
-}
-
-func (c *Client) wait(ctx context.Context, attempt int, retryAfter string) error {
-	d := c.Backoff << attempt
-	if d > 30*time.Second {
-		d = 30 * time.Second
-	}
-	if s, err := strconv.Atoi(strings.TrimSpace(retryAfter)); err == nil && s > 0 {
-		d = time.Duration(s) * time.Second
-	}
-	if d <= 0 {
-		return ctx.Err()
-	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(d):
-		return nil
-	}
-}
-
-// snippet trims and truncates a response body for error messages — the same
-// shape as atlhttp.Snippet, kept local because this package does not import
-// atlhttp.
-func snippet(b []byte) string {
-	s := strings.TrimSpace(string(b))
-	if len(s) > 400 {
-		return s[:400] + "…"
-	}
-	return s
-}
-
-// Usage is a point-in-time snapshot of this process's outbound Linear HTTP
-// traffic. Counters are process-local until a caller persists them; Requests
-// counts every attempt including retries, which is the unit that draws from
-// the rate budget.
-type Usage struct {
-	Requests      int64
-	Retries       int64
-	Throttled     int64     // 429 responses
-	ServerErrors  int64     // 5xx responses, excluding 429
-	LastThrottled time.Time // UTC; zero if never throttled
-}
+// Usage is the host-neutral HTTP usage snapshot (httppolicy.Usage). The
+// same type as atlhttp.Usage / jira.Usage / confluence.Usage, so
+// TakeUsage satisfies sync.usageTaker without a conversion.
+type Usage = httppolicy.Usage
 
 // Usage returns the current counters without resetting them.
-func (c *Client) Usage() Usage { return c.usage.snapshot() }
+func (c *Client) Usage() Usage { return c.usage.Snapshot() }
 
-// TakeUsage returns the counters and zeroes them so a flusher can accumulate
-// without double-counting. LastThrottledAt is a timestamp, not a counter, and
-// is not cleared.
-func (c *Client) TakeUsage() Usage { return c.usage.take() }
-
-// meter holds the atomic counters behind Usage.
-type meter struct {
-	requests     atomic.Int64
-	retries      atomic.Int64
-	throttled    atomic.Int64
-	serverErrors atomic.Int64
-	lastUnixNs   atomic.Int64
-}
-
-func (m *meter) snapshot() Usage {
-	return Usage{
-		Requests:      m.requests.Load(),
-		Retries:       m.retries.Load(),
-		Throttled:     m.throttled.Load(),
-		ServerErrors:  m.serverErrors.Load(),
-		LastThrottled: unixToTime(m.lastUnixNs.Load()),
-	}
-}
-
-func (m *meter) take() Usage {
-	u := Usage{
-		Requests:      m.requests.Swap(0),
-		Retries:       m.retries.Swap(0),
-		Throttled:     m.throttled.Swap(0),
-		ServerErrors:  m.serverErrors.Swap(0),
-		LastThrottled: unixToTime(m.lastUnixNs.Load()), // not reset
-	}
-	return u
-}
-
-func (m *meter) noteRequest() { m.requests.Add(1) }
-
-func (m *meter) noteRetry() { m.retries.Add(1) }
-
-func (m *meter) noteStatus(code int) {
-	switch {
-	case code == 429:
-		m.throttled.Add(1)
-		m.lastUnixNs.Store(time.Now().UTC().UnixNano())
-	case code >= 500 && code <= 599:
-		m.serverErrors.Add(1)
-	}
-}
-
-func unixToTime(ns int64) time.Time {
-	if ns <= 0 {
-		return time.Time{}
-	}
-	return time.Unix(0, ns).UTC()
-}
+// TakeUsage returns the counters and zeroes the numeric fields so a
+// flusher can accumulate without double-counting.
+//
+// LastThrottledAt is a timestamp, not a counter, and is not cleared.
+func (c *Client) TakeUsage() Usage { return c.usage.Take() }

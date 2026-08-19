@@ -1,9 +1,6 @@
-package atlhttp
+package httppolicy
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -17,7 +14,6 @@ func TestMeterNilSnapshotAndTake(t *testing.T) {
 	if got := m.Take(); got != (Usage{}) {
 		t.Errorf("nil Take = %+v", got)
 	}
-	// Note* must not panic
 	m.NoteRequest()
 	m.NoteRetry()
 	m.NoteWait(time.Millisecond)
@@ -25,30 +21,15 @@ func TestMeterNilSnapshotAndTake(t *testing.T) {
 }
 
 func TestMeterTakeZerosCountersKeepsLastThrottledAt(t *testing.T) {
-	var calls int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		if calls == 1 {
-			w.Header().Set("Retry-After", "0")
-			w.WriteHeader(http.StatusTooManyRequests)
-			return
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`boom`))
-	}))
-	t.Cleanup(srv.Close)
-	m := &Meter{}
-	cfg := Config{
-		Base: srv.URL, Auth: testAuth, HTTP: srv.Client(),
-		Retries: 2, Backoff: time.Millisecond, Usage: m,
-	}
-	_, _, err := DoRaw(context.Background(), cfg, http.MethodGet, "/x", nil, false, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	var m Meter
+	m.NoteRequest()
+	m.NoteStatus(429)
+	m.NoteStatus(500)
+	m.NoteRetry()
+	m.NoteWait(3 * time.Millisecond)
 
 	snap := m.Snapshot()
-	if snap.Requests != 2 || snap.Throttled != 1 || snap.ServerErrors != 1 || snap.Retries != 1 {
+	if snap.Requests != 1 || snap.Throttled != 1 || snap.ServerErrors != 1 || snap.Retries != 1 {
 		t.Fatalf("snapshot = %+v", snap)
 	}
 	if snap.WaitMS <= 0 {
