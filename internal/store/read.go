@@ -81,10 +81,15 @@ const issueLiteSelect = `
 
 // KeySource returns the source_id owning key in the mirror, "" when the key
 // is not mirrored. Write-through gates use it to refuse keys mirrored from a
-// read-only source (Linear) before spending a Jira lookup on them.
+// read-only source (Linear) before spending a Jira lookup on them. A key can
+// exist under more than one source (Jira project ENG and a Linear team key
+// ENG both mint ENG-1); write-through is a Jira surface, so a jira row wins —
+// a bare LIMIT 1 would refuse a legitimate Jira write nondeterministically.
 func (db *DB) KeySource(ctx context.Context, key string) (string, error) {
 	var src string
-	err := db.sql.QueryRowContext(ctx, `SELECT source_id FROM items WHERE key = ? LIMIT 1`, key).Scan(&src)
+	err := db.sql.QueryRowContext(ctx,
+		`SELECT source_id FROM items WHERE key = ? ORDER BY source_id = 'jira' DESC LIMIT 1`,
+		key).Scan(&src)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}

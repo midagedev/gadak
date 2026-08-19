@@ -57,3 +57,35 @@ func TestDropSourceMirrorTakesItsWatchesAndFavorites(t *testing.T) {
 		}
 	}
 }
+
+// A key can be minted by two sources at once (Jira project ENG and a Linear
+// team key ENG both produce ENG-1). Write-through is a Jira surface: the jira
+// row must win the lookup, or a legitimate Jira write gets refused on
+// whichever row an unordered LIMIT 1 happened to return (GDK-263 review).
+func TestKeySourcePrefersJiraOnCollision(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	for _, src := range []string{"linear", "jira"} { // linear first: order must not matter
+		if err := db.UpsertSource(ctx, Source{ID: src, Kind: src}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.UpsertIssues(ctx, Batch{
+			Categories: map[string]string{"1": "new"},
+			Records: []IssueRecord{{
+				Item: Item{ID: src + ":eng1", SourceID: src, Kind: "issue", ExternalID: "eng1",
+					Key: "ENG-1", Title: "same key twice", CreatedAt: ago(1), UpdatedAt: ago(1)},
+				Issue: Issue{ProjectKey: "ENG", IssueType: "Task", IssueTypeID: "1",
+					Status: "To Do", StatusID: "1", StatusCategory: "new"},
+			}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	src, err := db.KeySource(ctx, "ENG-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src != "jira" {
+		t.Fatalf("KeySource(ENG-1) = %q, want jira (write-through must not be refused)", src)
+	}
+}
