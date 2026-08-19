@@ -31,7 +31,10 @@ var workspaceNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 // Entry is one opened workspace mirror (handler + DB + config).
 type Entry struct {
-	Handler http.Handler
+	// Handler is the concrete server handler, not http.Handler: this entry
+	// owns its lifetime, and Close has to be able to stop the background sync
+	// before the mirror it writes to is closed (GDK-270).
+	Handler *server.Handler
 	DB      *store.DB
 	Cfg     *config.Config
 }
@@ -65,8 +68,16 @@ func (r *Registry) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for name, e := range r.entries {
-		if e != nil && e.DB != nil {
-			_ = e.DB.Close()
+		if e != nil {
+			// Stop this workspace's background sync before closing the mirror
+			// it writes to; a job that outlives the DB holds a WAL connection
+			// (GDK-270).
+			if e.Handler != nil {
+				_ = e.Handler.Close()
+			}
+			if e.DB != nil {
+				_ = e.DB.Close()
+			}
 		}
 		delete(r.entries, name)
 	}

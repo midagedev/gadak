@@ -56,6 +56,18 @@ jobs:
       - name: Go tests
         run: go test ./...
 
+      # GDK-270: a startSyncJob goroutine that outlives the test only shows
+      # up when this package is repeated under the race detector. Not
+      # path-scoped — the writer can be introduced from any import of
+      # internal/server. internal/workspace is here too: it owns the same
+      # lifetime one layer up (Registry.Close stops each workspace's sync
+      # before its mirror). count=2 (not 4): the job already ran count=1
+      # above; locally count=4 -race is ~180s, and doubling the package
+      # under race is enough to catch "passes once" while staying modest
+      # in a 20-minute job.
+      - name: Server tests under race (GDK-270)
+        run: go test ./internal/server/ ./internal/workspace/ -count=2 -race
+
       - name: Frontend typecheck
         run: npm run typecheck
 

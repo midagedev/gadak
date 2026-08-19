@@ -86,6 +86,8 @@ func run() error {
 	} else {
 		api = server.NewWithCache(db, cfg, cache)
 	}
+	// After db.Close above, so LIFO stops the background sync first (GDK-270).
+	defer api.Close()
 
 	ui, ok := gadak.WebUI()
 	if !ok {
