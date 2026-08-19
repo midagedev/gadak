@@ -181,6 +181,10 @@ hyphenated (`omarchy-plugin-list`, …).
 | gadak binary | AUR packaging remains a different track (`docs/INSTALL.md`). A 2026-08-19 round put a `linux/amd64` binary built from this tree at `~/.local/bin/gadak` (already on the graphical-session PATH). The 2026-08-18 line "this guest was not given a gadak binary" is therefore stale — keep AUR off this guest; do not `pacman -S gadak`. |
 | gadak plugin | `contrib/omarchy/install.sh` copied `io.github.midagedev.gadak` into `~/.config/omarchy/plugins/`, `omarchy-plugin-validate` printed `ok`, `omarchy-plugin-enable` enabled it, and `omarchy-webapp-install` wrote the `gadak` desktop file pointing at `http://127.0.0.1:7777`. |
 | default mirror | Seeded from `examples/demo.db` (534 issues) at `~/.gadak/gadak.db`. Do not use `gadak demo` for the widget: that command sets `GADAK_HOME` to a temp dir (`cmd/gadak/demo.go`) the widget never sees. |
+| GTK stack | GTK4 installed (`gtk4 1:4.22.4-1`, `libgtk-4.so.1`, `pkg-config --exists gtk4` → 0). **WebKitGTK 6.0 is absent** — only `webkit2gtk-4.1` is installed, a different SONAME; a wails v3 GTK4 binary fails at load time here. The providing package is `extra/webkitgtk-6.0` and installing it needs sudo. Chromium being the default browser implies nothing about WebKitGTK. (checked 2026-08-19) |
+| glibc / Go | glibc `2.44` (newer than Ubuntu 24.04 containers — container-built binaries link fine downward). `go` is **not** on PATH. |
+| Session env | Wayland (Hyprland), `WAYLAND_DISPLAY=wayland-1`, Xwayland on `:0`. `GDK_BACKEND=wayland,x11,*` is already exported — a GTK4 app needs no extra env. |
+| Terminal `ls` | The interactive `ls` is a decorated listing (Permissions/Size/User headers), not coreutils plain `ls` — parse-by-eye accordingly when reading captures. |
 
 ## Payload into the guest (checked 2026-08-19)
 
