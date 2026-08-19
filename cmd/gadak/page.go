@@ -22,13 +22,93 @@ func cmdPage(args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "create":
+		return cmdPageCreate(args[1:])
 	case "edit":
 		return cmdPageEdit(args[1:])
 	case "comment":
 		return cmdPageComment(args[1:])
 	default:
-		return fmt.Errorf("page: unknown subcommand %q (try `gadak page edit` or `gadak page comment`)", args[0])
+		return fmt.Errorf("page: unknown subcommand %q (try `gadak page create|edit|comment`)", args[0])
 	}
+}
+
+func cmdPageCreate(args []string) error {
+	fs := newFlagSet("page create")
+	space := fs.String("space", "", "space key (required)")
+	title := fs.String("title", "", "page title (required)")
+	parent := fs.String("parent", "", "parent page id (omitted = space root)")
+	text := fs.String("m", "", "body as plain text; `-` reads stdin")
+	adfFile := fs.String("adf-file", "", "body as an ADF JSON document file; wins over -m")
+	asJSON := fs.Bool("json", false, "emit JSON")
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("page", fs))
+		return nil
+	}
+	rest, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 0 {
+		return fmt.Errorf("page create: unexpected argument %q (usage: gadak page create --space KEY --title T [-m <text|->|--adf-file F] [--parent ID])", rest[0])
+	}
+	if *space == "" || *title == "" {
+		return fmt.Errorf("page create: --space and --title are required")
+	}
+	body := *text
+	if body == "-" {
+		buf, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		body = string(buf)
+	}
+	adf := ""
+	if *adfFile != "" {
+		b, err := os.ReadFile(*adfFile)
+		if err != nil {
+			return err
+		}
+		if !json.Valid(b) {
+			return fmt.Errorf("page create: %s is not valid JSON (an ADF document)", *adfFile)
+		}
+		adf = string(b)
+	}
+	if adf == "" {
+		adf = string(jira.Doc(body, nil))
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	wc, err := origin.Wiki(cfg)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	created, err := wc.CreatePage(ctx, *space, *title, adf, *parent)
+	if err != nil {
+		return err
+	}
+
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err := syncer.SyncPage(ctx, cfg, db, created.ID); err != nil {
+		return fmt.Errorf("page %s created, but the mirror did not refresh (run `gadak sync`): %w", created.ID, err)
+	}
+	if *asJSON {
+		detail, err := db.PageDetail(ctx, created.ID)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"page": detail})
+	}
+	fmt.Printf("%s\t%s\n", created.ID, created.Title)
+	return nil
 }
 
 func cmdPageComment(args []string) error {

@@ -267,6 +267,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("POST "+apiBase+"pages/{id}/resync/{$}", s.handlePageResync)
 	mux.HandleFunc("PUT "+apiBase+"pages/{id}/edit/{$}", s.handlePageEdit)
 	mux.HandleFunc("POST "+apiBase+"pages/{id}/comment/{$}", s.handlePageComment)
+	mux.HandleFunc("POST "+apiBase+"pages/{$}", s.handlePageCreate)
 	// Origin passthrough: CLI writes on a standalone workspace go through
 	// the live serve's issuetap so persist has one owner (GDK-333).
 	mux.Handle(origin.RESTPrefix+"/", http.HandlerFunc(s.handleOriginREST))

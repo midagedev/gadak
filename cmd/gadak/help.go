@@ -317,9 +317,10 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak attach", "gadak comment", "gadak issue"},
 	},
 	"page": {
-		summary: "wiki page writes through the origin (page edit, page comment; connected Confluence or standalone issuetap)",
-		usage:   "gadak [--profile <name>] page edit|comment <ID> [--title T] [-m <text|->] [--adf-file F] [--json]",
+		summary: "wiki page writes through the origin (page create, edit, comment; connected Confluence or standalone issuetap)",
+		usage:   "gadak [--profile <name>] page create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--parent ID] [--json]",
 		examples: []string{
+			"gadak page create --space ENG --title \"Retention notes\" -m \"first draft\"",
 			"gadak page edit 12345 --title \"Renamed page\"",
 			"gadak page edit 12345 -m \"whole new body (plain text; replaces formatting)\"",
 			"gadak page edit 12345 --adf-file body.adf.json",

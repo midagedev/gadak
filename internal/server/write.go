@@ -1011,6 +1011,53 @@ func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"page": detail})
 }
 
+// handlePageCreate POSTs a new wiki page through the owning origin (GDK-382).
+// Body: {"space": KEY, "title": ..., "adf"?: "<ADF JSON string>", "text"?: ...,
+// "parent"?: page id}. Responds with the mirrored PageDetail.
+func (s *server) handlePageCreate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Space  string `json:"space"`
+		Title  string `json:"title"`
+		ADF    string `json:"adf"`
+		Text   string `json:"text"`
+		Parent string `json:"parent"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	if body.Space == "" || strings.TrimSpace(body.Title) == "" {
+		fail(w, http.StatusBadRequest, "space_and_title_required")
+		return
+	}
+	adf := body.ADF
+	if adf == "" {
+		adf = string(jira.Doc(body.Text, nil))
+	}
+	cfg := s.config()
+	wc, err := origin.Wiki(cfg)
+	if err != nil {
+		failOriginClient(w, err)
+		return
+	}
+	created, err := wc.CreatePage(r.Context(), body.Space, body.Title, adf, body.Parent)
+	if err != nil {
+		failJira(w, r, err)
+		return
+	}
+	if err := sync.SyncPage(r.Context(), cfg, s.db, created.ID); err != nil {
+		log.Printf("server: mirror refresh after page create %s: %v", created.ID, err)
+		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		return
+	}
+	detail, err := s.db.PageDetail(r.Context(), created.ID)
+	if err != nil || detail == nil {
+		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"page": detail})
+}
+
 // handlePageComment POSTs a top-level comment on one wiki page through the
 // owning origin (GDK-381). Body: {"adf": "<ADF JSON string>"} or {"text": ...}.
 func (s *server) handlePageComment(w http.ResponseWriter, r *http.Request) {
