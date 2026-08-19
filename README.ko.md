@@ -90,7 +90,7 @@ gadak init && gadak sync    # Jira (그리고 Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
 ```
 
-> **상태: 0.15, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
+> **상태: 0.16, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
 > 데스크톱, 웹, CLI, MCP가 실제 사이트에 대해 검증되어 있습니다. 숨김 없는
 > 현황은 [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md)에.
 
