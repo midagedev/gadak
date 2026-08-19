@@ -148,7 +148,6 @@ export const en = {
   'category.new': 'New',
   'category.inprogress': 'In progress',
   'category.done': 'Done',
-  'category.inProgressSpaced': 'In progress',
 
   /* ── Deploy states ── */
   'deploy.none': 'Not in a release',

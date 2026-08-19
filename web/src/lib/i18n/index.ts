@@ -130,8 +130,11 @@ export function columnLabel(key: string): string {
   return key
 }
 
-export function categoryLabel(cat: 'new' | 'inprogress' | 'done', spaced = false): string {
-  if (cat === 'inprogress' && spaced) return t('category.inProgressSpaced')
+// One key per category, and no second parameter that could grow one back.
+// Group headers used to ask for a `spaced` variant; the number beside the
+// label lives in its own span (GroupHeader.svelte), so the spacing was never
+// a layout requirement — it was a Korean-only duplicate string (GDK-298).
+export function categoryLabel(cat: 'new' | 'inprogress' | 'done'): string {
   return t(`category.${cat}` as MessageKey)
 }
 

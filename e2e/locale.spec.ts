@@ -19,8 +19,8 @@ test.describe('locale', () => {
       dialog.getByLabel('Language').selectOption('ko'),
     ])
 
-    // ko.ts: sidebar.issueCount = '{n} 이슈' (pool size; list count may be filtered)
-    await expect(page.getByText('534 이슈')).toBeVisible({ timeout: 30_000 })
+    // ko.ts: sidebar.issueCount = '{n}건' (pool size; list count may be filtered)
+    await expect(page.getByText('534건')).toBeVisible({ timeout: 30_000 })
     // <html lang> follows the locale so screen readers switch pronunciation.
     await expect(page.locator('html')).toHaveAttribute('lang', 'ko-KR')
     // ko.ts: sidebar.settings
@@ -28,7 +28,9 @@ test.describe('locale', () => {
     // ko.ts: filter.add
     await expect(page.getByRole('button', { name: '+ 필터' })).toBeVisible()
     // Default "All open" view still shows a filtered list count in Korean.
-    await expect(page.getByText(/\d+건/)).toBeVisible()
+    // list-count testid: sidebar now uses the same 건 unit, so a bare /\d+건/
+    // locator would match both and trip Playwright strict mode.
+    await expect(page.getByTestId('list-count')).toHaveText(/\d+건/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

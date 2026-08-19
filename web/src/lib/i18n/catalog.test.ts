@@ -43,4 +43,59 @@ describe('catalog contracts', () => {
   test('en and ko catalogs have the same key set', () => {
     expect(Object.keys(ko).sort()).toEqual(Object.keys(en).sort())
   })
+
+  test('each status category has exactly one catalog key', () => {
+    // category.inProgressSpaced was a second in-progress string. The owner is
+    // categoryLabel(); one key per category is the containment.
+    for (const cat of ['new', 'inprogress', 'done'] as const) {
+      const keys = Object.keys(en).filter((k) => {
+        if (!k.startsWith('category.')) return false
+        const suffix = k.slice('category.'.length).toLowerCase()
+        return suffix === cat || suffix.startsWith(cat)
+      })
+      expect(keys, `aliases of category.${cat}`).toEqual([`category.${cat}`])
+    }
+  })
+
+  test('Korean catalog has no competing spelling of settled terms', () => {
+    // Found by eye (v0.16 audit F5): 진행중 next to 진행 중, and {n} 이슈 next
+    // to {n}건, on one Korean screen. Canonicals:
+    //   진행 중  — Jira KO, AGENTS.md transition example, English "In progress"
+    //   {n}건    — already the list / body-match / epic / sync counter
+    // Exclusions (not competing spellings of those terms):
+    //   qa.inProgress "진행"        — QA run-state glyph, not the category
+    //   group.byStatusCategory      — "진행 단계", no 진행중 substring
+    //   settings.runtimeIssues      — "이슈 {n}개": noun + generic 개, not {n} 이슈
+    //   bare 이슈                    — section/noun copy (새 이슈, 이슈가 없습니다)
+    const failures: string[] = []
+    for (const [key, value] of Object.entries(ko)) {
+      if (value.includes('진행중')) {
+        failures.push(`${key}=${JSON.stringify(value)} contains "진행중" (use "진행 중")`)
+      }
+      if (/\{n\}\s*이슈/.test(value)) {
+        failures.push(`${key}=${JSON.stringify(value)} uses "{n} 이슈" (use "{n}건")`)
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+  })
+
+  test('list and sidebar issue counts use the same Korean unit', () => {
+    const unitOf = (s: string): 'geon' | 'issue' | 'other' => {
+      if (/\{n\}\s*건/.test(s)) return 'geon'
+      if (/\{n\}\s*이슈/.test(s)) return 'issue'
+      return 'other'
+    }
+    const list = ko['list.countIssues']
+    const side = ko['sidebar.issueCount']
+    const listUnit = unitOf(list)
+    const sideUnit = unitOf(side)
+    expect(
+      listUnit,
+      `list.countIssues=${JSON.stringify(list)} must use 건 or 이슈`,
+    ).not.toBe('other')
+    expect(
+      sideUnit,
+      `sidebar.issueCount=${JSON.stringify(side)} must match list.countIssues=${JSON.stringify(list)} (${listUnit})`,
+    ).toBe(listUnit)
+  })
 })

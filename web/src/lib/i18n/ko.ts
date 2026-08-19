@@ -147,9 +147,8 @@ export const ko = {
 
   /* ── Status categories ── */
   'category.new': '신규',
-  'category.inprogress': '진행중',
+  'category.inprogress': '진행 중',
   'category.done': '완료',
-  'category.inProgressSpaced': '진행 중',
 
   /* ── Deploy states ── */
   'deploy.none': '릴리즈 미포함',
@@ -196,7 +195,7 @@ export const ko = {
   'group.bySourceProject': '복제 원본',
   'group.byEpic': '에픽',
   'group.byStatus': 'Jira 상태',
-  'group.breakdown': '브레이크다운',
+  'group.breakdown': '구분',
   'group.openEpic': '에픽 이슈 열기',
 
   /* ── Filter bar ── */
@@ -382,7 +381,7 @@ export const ko = {
   'sidebar.runIncremental': '증분',
   'sidebar.runReconcile': '+ 삭제 반영',
   'sidebar.runCounts': '{changed}건 변경 · {deleted}건 삭제',
-  'sidebar.issueCount': '{n} 이슈',
+  'sidebar.issueCount': '{n}건',
 
   /* ── Freshness chip (mirror ↔ Jira leg) ── */
   'freshness.synced': '{when} 동기화',
@@ -401,7 +400,7 @@ export const ko = {
 
   /* ── Builtin views ── */
   'view.allOpen.name': '전체 미해결',
-  'view.allOpen.hint': '신규 + 진행중',
+  'view.allOpen.hint': '신규 + 진행 중',
   'view.unassignedNew.name': '미할당 신규',
   'view.unassignedNew.hint': '담당자 없는 신규',
   'view.reopened.name': '재오픈 이슈',

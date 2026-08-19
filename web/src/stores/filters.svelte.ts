@@ -905,7 +905,7 @@ function groupKeyOf(
   switch (by) {
     case 'status_category': {
       const category = effectiveCategory(issue)
-      const label = categoryLabel(category, true)
+      const label = categoryLabel(category)
       return { key: category, label }
     }
     case 'status':
