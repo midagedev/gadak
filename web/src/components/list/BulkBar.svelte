@@ -1,12 +1,15 @@
 <script lang="ts">
   /*
    * Bulk action bar. Appears above the list (under the filter bar) when ≥1 selected.
-   *  "N selected · [change status] [change assignee] [change labels] [deselect]"
+   *  "N selected · [change status] [change priority] [change assignee] [change labels] [deselect]"
    *
    *  - Status: union selected issues' transitionsFor (local map) by to_status name →
    *      dropdown. On pick, resolve each issue's transition to that to_status; skip
    *      missing (if local map empty, one remote GET fallback).
-   *  - Assignee: assignable members (recent first) dropdown; per-issue write.assign.
+   *  - Priority: site catalog (write.priorities / loadPriorities), keyed by catalog
+   *      id — not the filter facet, which would hide unused priorities.
+   *  - Assignee: same candidate groups + ≥2-char GET users/ as AssigneePicker;
+   *      per-issue write.assign.
    *  - Labels: add a label to each issue that does not have it; remove one that
    *      already sits on the selection. Same PUT as the detail editor.
    *  - Run: write store's per-issue optimistic methods, concurrency 3, progress counter.
@@ -14,18 +17,28 @@
    *
    * Credential/login gate is a single write.ensureWritable() (same guidance as elsewhere).
    *
-   * Which popover is open lives in the triage store, not here: `s`/`a`/`l` open the
+   * Which popover is open lives in the triage store, not here: `s`/`a`/`l`/`p` open the
    * same menus from the keyboard, and a component-local flag would leave them
    * with nothing to set.
    */
   import { t, collator } from '../../lib/i18n'
-  import type { IssueLite, JiraUser, Member, Transition } from '../../lib/types'
+  import type { IssueLite, JiraUser, PriorityOption, Transition } from '../../lib/types'
   import * as api from '../../lib/api'
+  import { ApiError } from '../../lib/api'
+  import {
+    groupedAssigneeCands,
+    resolveAssigneeCand,
+    typedAssigneeCands,
+    type AssigneeCand,
+  } from '../../lib/assignee-cands'
+  import { createUserSearch } from '../../lib/user-search.svelte'
   import { bulk } from '../../stores/bulk.svelte'
   import { triage, type TriageMenu } from '../../stores/triage.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
+  import { me } from '../../stores/me.svelte'
   import { recentOf } from '../../lib/recency'
+  import { priorityMeta } from '../../lib/format'
   import { effectiveCategory } from '../../lib/view-config'
   import { onOutsideClick } from '../../lib/dom-actions'
   import Avatar from './Avatar.svelte'
@@ -33,6 +46,22 @@
   const menu = $derived(triage.menu)
   let assigneeQuery = $state('')
   let labelQuery = $state('')
+
+  const userSearch = createUserSearch(
+    () => (menu === 'assignee' ? assigneeQuery : ''),
+    {
+      debounceMs: 250,
+      minLength: 2,
+      onError: (e) => {
+        if (e instanceof ApiError && e.code === 'credential_required') {
+          closeMenu()
+          write.openSettings()
+        }
+      },
+    },
+  )
+  const searching = $derived(userSearch.searching)
+  const serverUsers = $derived(userSearch.results)
 
   // ── Batch progress ──
   let running = $state(false)
@@ -80,30 +109,44 @@
     })
   })
 
-  // ── Assignee candidates (recent first) ──
-  const assignable = $derived.by<Member[]>(() =>
-    [...issues.members.values()].filter((m) => m.status !== 'RESIGN' && m.jira_account_id),
-  )
-
-  const assigneeCands = $derived.by<Member[]>(() => {
-    const q = assigneeQuery.trim().toLowerCase()
-    const recent = recentOf('assignee')
-    const rank = (m: Member) => {
-      const i = recent.indexOf(m.jira_account_id ?? '')
-      return i === -1 ? Infinity : i
+  const selectedIssues = $derived.by<IssueLite[]>(() => {
+    const out: IssueLite[] = []
+    for (const key of bulk.selected) {
+      const issue = issues.pool.get(key)
+      if (issue) out.push(issue)
     }
-    let list = assignable
-    if (q)
-      list = list.filter((m) =>
-        `${m.name} ${m.display_name ?? ''} ${m.email}`.toLowerCase().includes(q),
-      )
-    return [...list].sort((a, b) => {
-      const ra = rank(a)
-      const rb = rank(b)
-      if (ra !== rb) return ra - rb
-      return collator().compare(a.display_name || a.name, b.display_name || b.name)
+    return out
+  })
+
+  const meMember = $derived(me.identified && me.email ? issues.members.get(me.email) : undefined)
+  const assigneeSearching = $derived(assigneeQuery.trim().length > 0)
+
+  /** Same groups as AssigneePicker. Reporter/team only when the selection is one issue. */
+  const assigneeGroups = $derived.by(() => {
+    const one = selectedIssues.length === 1 ? selectedIssues[0] : undefined
+    return groupedAssigneeCands({
+      members: issues.members.values(),
+      me: meMember,
+      context: one
+        ? {
+            reporter:
+              issues.memberOfAccountId(one.reporter_id) ?? issues.memberOf(one.reporter_email),
+            teamGroup: one.team_group,
+          }
+        : null,
+      recentAccountIds: recentOf('assignee'),
+      assignToMeLabel: t('write.assignToMe'),
+      compare: (a, b) => collator().compare(a, b),
     })
   })
+
+  const assigneeTyped = $derived.by(() =>
+    typedAssigneeCands({
+      query: assigneeQuery,
+      members: issues.members.values(),
+      serverUsers,
+    }),
+  )
 
   function closeMenu() {
     triage.closeMenu()
@@ -114,15 +157,6 @@
   function normalizeLabel(raw: string): string {
     return raw.trim().replace(/\s+/g, '-')
   }
-
-  const selectedIssues = $derived.by<IssueLite[]>(() => {
-    const out: IssueLite[] = []
-    for (const key of bulk.selected) {
-      const issue = issues.pool.get(key)
-      if (issue) out.push(issue)
-    }
-    return out
-  })
 
   /** Labels on the selection, most-shared first. Click removes from those that have it. */
   const onSelection = $derived.by<{ label: string; count: number }[]>(() => {
@@ -177,6 +211,23 @@
   // The bar is the menu's anchor, so an emptied selection takes the menu with it.
   $effect(() => {
     if (!bulk.active && triage.menu) triage.closeMenu()
+  })
+
+  // Catalog load matches PriorityPicker: GET priorities/ (or demo synthesis),
+  // never the filter facet. Keyboard `p` opens the menu before this runs.
+  // Loading UI keys on write.prioritiesLoaded, not a local flag: finishing the
+  // GET writes that state and would re-run this effect, cancelling a local
+  // `loading = false` and leaving the menu stuck on "Loading…".
+  $effect(() => {
+    if (menu !== 'priority') return
+    if (write.prioritiesLoaded) return
+    let cancelled = false
+    void write.loadPriorities().then((ok) => {
+      if (!cancelled && !ok) closeMenu()
+    })
+    return () => {
+      cancelled = true
+    }
   })
 
   /** Concurrency-3 batch. fn tallies each key's outcome itself. */
@@ -240,18 +291,38 @@
     finish(ok, fail, skip)
   }
 
-  async function runAssign(m: Member | null) {
+  async function runPriority(p: PriorityOption | null) {
     closeMenu()
     if (!(await write.ensureWritable())) return
-    const user: JiraUser | null = m
-      ? {
-          account_id: m.jira_account_id!,
-          display_name: m.display_name || m.name,
-          email: m.email,
-          avatar_url: '',
-          active: true,
+    const keys = bulk.keys()
+    let ok = 0
+    let fail = 0
+    let skip = 0
+    await runBatch(keys, async (key) => {
+      const issue = issues.pool.get(key)
+      if (!issue) {
+        skip++
+        return
+      }
+      if (p) {
+        if (issue.priority_id && issue.priority_id === p.id) {
+          skip++
+          return
         }
-      : null
+      } else if (!issue.priority && !issue.priority_id) {
+        skip++
+        return
+      }
+      const done = await write.setPriority(key, p)
+      if (done) ok++
+      else fail++
+    })
+    finish(ok, fail, skip)
+  }
+
+  async function runAssign(user: JiraUser | null) {
+    closeMenu()
+    if (!(await write.ensureWritable())) return
     const keys = bulk.keys()
     let ok = 0
     let fail = 0
@@ -261,6 +332,19 @@
       else fail++
     })
     finish(ok, fail, 0)
+  }
+
+  async function pickAssignee(c: AssigneeCand | null) {
+    if (!c) return runAssign(null)
+    const resolved = await resolveAssigneeCand(c)
+    if (!resolved.ok) {
+      write.toast(
+        resolved.reason === 'not-found' ? t('write.userNotFound') : t('write.assignSpecifyFailed'),
+        'error',
+      )
+      return
+    }
+    return runAssign(resolved.user)
   }
 
   async function runAddLabel(raw: string) {
@@ -352,6 +436,25 @@
   })
 </script>
 
+{#snippet assigneeRow(c: AssigneeCand)}
+  <button
+    type="button"
+    onclick={() => pickAssignee(c)}
+    data-cand-origin={c.origin}
+    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+  >
+    {#if c.member}
+      <Avatar name={c.display_name} email={c.email} size={20} />
+    {:else if c.avatar_url}
+      <img src={c.avatar_url} alt={c.display_name} class="h-5 w-5 flex-none rounded-full object-cover" loading="lazy" />
+    {:else}
+      <span class="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-bg-active text-micro text-text-secondary">{c.display_name.slice(0, 1)}</span>
+    {/if}
+    <span class="min-w-0 flex-1 truncate {c.label ? 'text-text-primary' : ''}">{c.label ?? c.display_name}</span>
+    {#if c.email}<span class="flex-none text-micro text-text-muted">{c.email.split('@')[0]}</span>{/if}
+  </button>
+{/snippet}
+
 {#if bulk.active}
   <!-- Outside click closes an open menu, bound one task late (see the action's
        `defer`): the palette runs its commands on mousedown, so a listener
@@ -402,6 +505,57 @@
       {/if}
     </div>
 
+    <!-- {t('bulk.changePriority')} -->
+    <div class="relative flex-none">
+      <button
+        type="button"
+        onclick={() => toggleMenu('priority')}
+        disabled={running}
+        class="inline-flex h-control-sm items-center rounded-md border border-border-subtle px-2.5 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+      >
+        {t('bulk.changePriority')}
+      </button>
+      {#if menu === 'priority'}
+        <div
+          class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-48 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
+          role="listbox"
+          aria-label={t('common.priority')}
+          data-testid="bulk-priority-menu"
+        >
+          {#if !write.prioritiesLoaded}
+            <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.loadingPriorities')}</div>
+          {:else}
+            <button
+              type="button"
+              role="option"
+              aria-selected="false"
+              onclick={() => runPriority(null)}
+              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+            >
+              <span class="h-1.5 w-1.5 flex-none rounded-full border border-dashed border-border-strong"></span>
+              {t('common.none')}
+            </button>
+            {#each write.priorities as p, i (p.id)}
+              {@const opt = priorityMeta(i + 1, p.name)}
+              <button
+                type="button"
+                role="option"
+                aria-selected="false"
+                onclick={() => runPriority(p)}
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                <span class="h-1.5 w-1.5 flex-none rounded-full" style="background:{opt.color}"></span>
+                <span class="min-w-0 flex-1 truncate">{p.name}</span>
+              </button>
+            {/each}
+            {#if write.priorities.length === 0}
+              <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.noPriorities')}</div>
+            {/if}
+          {/if}
+        </div>
+      {/if}
+    </div>
+
     <!-- {t('bulk.changeAssignee')} -->
     <div class="relative flex-none">
       <button
@@ -418,6 +572,7 @@
           role="dialog"
           aria-label={t('bulk.pickAssignee')}
           data-testid="bulk-assignee-menu"
+          data-cand-source={assigneeSearching ? 'search' : 'local'}
         >
           <div class="border-b border-border-subtle p-2">
             <!-- svelte-ignore a11y_autofocus -->
@@ -433,7 +588,7 @@
             <!-- {t('common.unassigned')} -->
             <button
               type="button"
-              onclick={() => runAssign(null)}
+              onclick={() => pickAssignee(null)}
               class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
               <span
@@ -442,19 +597,26 @@
               >
               {t('common.unassigned')}
             </button>
-            {#each assigneeCands as m (m.email)}
-              <button
-                type="button"
-                onclick={() => runAssign(m)}
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-              >
-                <Avatar name={m.display_name || m.name} email={m.email} size={20} />
-                <span class="min-w-0 flex-1 truncate">{m.display_name || m.name}</span>
-                <span class="flex-none text-micro text-text-muted">{m.email.split('@')[0]}</span>
-              </button>
-            {/each}
-            {#if assigneeCands.length === 0}
-              <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.noResults')}</div>
+            {#if assigneeSearching}
+              {#each assigneeTyped as c (c.key)}
+                {@render assigneeRow(c)}
+              {/each}
+              {#if searching}
+                <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.searching')}</div>
+              {:else if assigneeTyped.length === 0}
+                <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.noResults')}</div>
+              {/if}
+            {:else}
+              {#each assigneeGroups as g, gi (gi)}
+                <div class={gi > 0 ? 'mt-1 border-t border-border-subtle pt-1' : ''}>
+                  {#each g as c (c.key)}
+                    {@render assigneeRow(c)}
+                  {/each}
+                </div>
+              {/each}
+              {#if assigneeGroups.length === 0}
+                <div class="px-3 py-1.5 text-micro text-text-muted">{t('write.typeToSearch')}</div>
+              {/if}
             {/if}
           </div>
         </div>

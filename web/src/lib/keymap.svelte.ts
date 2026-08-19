@@ -20,12 +20,13 @@ export const NARROW_FIELD_TESTID = {
 export const DETAIL_TESTID = {
   status: 'status-transition',
   assignee: 'assignee-picker',
+  priority: 'priority-picker',
   labelInput: 'label-editor-input',
   labelAdd: 'label-editor-add',
   comment: 'comment-composer',
 } as const
 
-export type TriageMenuKey = 'status' | 'assignee' | 'labels'
+export type TriageMenuKey = 'status' | 'assignee' | 'labels' | 'priority'
 
 export interface KeyContext {
   key: string
@@ -267,8 +268,9 @@ export function resolveGlobalKey(ctx: KeyContext): KeyCommand {
     return { type: 'ignore' }
   }
 
-  if (key === 's' || key === 'a' || key === 'l') {
-    const menu: TriageMenuKey = key === 's' ? 'status' : key === 'a' ? 'assignee' : 'labels'
+  if (key === 's' || key === 'a' || key === 'l' || key === 'p') {
+    const menu: TriageMenuKey =
+      key === 's' ? 'status' : key === 'a' ? 'assignee' : key === 'l' ? 'labels' : 'priority'
     if (ctx.bulkActive || (!ctx.detailOpen && cursorKey)) {
       return { type: 'request-menu', menu }
     }
@@ -276,7 +278,12 @@ export function resolveGlobalKey(ctx: KeyContext): KeyCommand {
       if (key === 'l') return { type: 'activate-labels' }
       return {
         type: 'click-detail',
-        testid: key === 's' ? DETAIL_TESTID.status : DETAIL_TESTID.assignee,
+        testid:
+          key === 's'
+            ? DETAIL_TESTID.status
+            : key === 'a'
+              ? DETAIL_TESTID.assignee
+              : DETAIL_TESTID.priority,
       }
     }
     return { type: 'ignore' }

@@ -294,6 +294,7 @@ export const ko = {
 
   /* ── Bulk bar ── */
   'bulk.changeStatus': '상태 변경',
+  'bulk.changePriority': '우선순위 변경',
   'bulk.changeAssignee': '담당자 변경',
   'bulk.changeLabels': '라벨 변경',
   'bulk.noCommonTransitions': '공통 전환이 없습니다.',
@@ -1088,11 +1089,13 @@ export const ko = {
   'shortcuts.openIssue': '커서의 이슈 열기',
   'shortcuts.selectRow': '커서의 행 선택',
   'shortcuts.listStatus': '상태 변경 (선택 항목 또는 커서 행)',
+  'shortcuts.listPriority': '우선순위 변경 (선택 항목 또는 커서 행)',
   'shortcuts.listAssignee': '담당자 변경 (선택 항목 또는 커서 행)',
   'shortcuts.listLabels': '라벨 변경 (선택 항목 또는 커서 행)',
   'shortcuts.listComment': '커서의 이슈에 코멘트',
   'shortcuts.clearSelection': '선택 해제 후 상세 패널 닫기',
   'shortcuts.focusStatus': '상태 변경 (상세 열림 시)',
+  'shortcuts.focusPriority': '우선순위 변경 (상세 열림 시)',
   'shortcuts.focusAssignee': '담당자 변경 (상세 열림 시)',
   'shortcuts.focusLabels': '라벨 추가 (상세 열림 시)',
   'shortcuts.focusComment': '코멘트 입력 포커스 (상세 열림 시)',

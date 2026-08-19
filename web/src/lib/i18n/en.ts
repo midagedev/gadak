@@ -293,6 +293,7 @@ export const en = {
 
   /* ── Bulk bar ── */
   'bulk.changeStatus': 'Change status',
+  'bulk.changePriority': 'Change priority',
   'bulk.changeAssignee': 'Change assignee',
   'bulk.changeLabels': 'Change labels',
   'bulk.noCommonTransitions': 'No shared transitions.',
@@ -1119,11 +1120,13 @@ export const en = {
   'shortcuts.openIssue': 'Open the issue under the cursor',
   'shortcuts.selectRow': 'Select the row under the cursor',
   'shortcuts.listStatus': 'Change status (selection, or the cursor row)',
+  'shortcuts.listPriority': 'Change priority (selection, or the cursor row)',
   'shortcuts.listAssignee': 'Change assignee (selection, or the cursor row)',
   'shortcuts.listLabels': 'Change labels (selection, or the cursor row)',
   'shortcuts.listComment': 'Comment on the row under the cursor',
   'shortcuts.clearSelection': 'Clear the selection, then close the detail panel',
   'shortcuts.focusStatus': 'Change status (when detail is open)',
+  'shortcuts.focusPriority': 'Change priority (when detail is open)',
   'shortcuts.focusAssignee': 'Change assignee (when detail is open)',
   'shortcuts.focusLabels': 'Add a label (when detail is open)',
   'shortcuts.focusComment': 'Focus the comment box (when detail is open)',

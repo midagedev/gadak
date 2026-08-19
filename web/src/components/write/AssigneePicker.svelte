@@ -9,9 +9,14 @@
    *    without account_id (backend lag etc.) re-resolve via users/ by email/name.
    */
   import { t, collator } from '../../lib/i18n'
-  import type { IssueLite, JiraUser, Member } from '../../lib/types'
-  import * as api from '../../lib/api'
+  import type { IssueLite, JiraUser } from '../../lib/types'
   import { ApiError } from '../../lib/api'
+  import {
+    groupedAssigneeCands,
+    resolveAssigneeCand,
+    typedAssigneeCands,
+    type AssigneeCand,
+  } from '../../lib/assignee-cands'
   import { createUserSearch } from '../../lib/user-search.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
@@ -23,16 +28,6 @@
   import Avatar from '../list/Avatar.svelte'
 
   let { issue }: { issue: IssueLite } = $props()
-
-  interface Cand {
-    key: string
-    account_id: string | null
-    display_name: string
-    email: string | null
-    member?: Member
-    avatar_url?: string | null
-    label?: string // special label e.g. "Assign to me"
-  }
 
   let open = $state(false)
   let query = $state('')
@@ -55,84 +50,32 @@
 
   const hasAssignee = $derived(Boolean(issue.assignee_id || issue.assignee || issue.assignee_email))
 
-  function candOf(m: Member, label?: string): Cand {
-    return {
-      key: m.jira_account_id ?? m.email,
-      account_id: m.jira_account_id ?? null,
-      display_name: m.display_name || m.name,
-      email: m.email,
-      member: m,
-      label,
-    }
-  }
-
-  const byName = (a: Member, b: Member) =>
-    collator().compare(a.display_name || a.name, b.display_name || b.name)
-
   const meMember = $derived(me.identified && me.email ? issues.members.get(me.email) : undefined)
 
-  /** jira_account_id → Member (restore recent assignees). */
-  const memberByAccount = $derived.by(() => {
-    const map = new Map<string, Member>()
-    for (const m of issues.members.values()) if (m.jira_account_id) map.set(m.jira_account_id, m)
-    return map
-  })
-
-  /** Assignable members (exclude resigned + require account_id). */
-  const assignableMembers = $derived.by<Member[]>(() =>
-    [...issues.members.values()].filter((m) => m.status !== 'RESIGN' && m.jira_account_id),
+  /** Personalized groups (no query). Subtle gaps = "quiet suggestions". */
+  const groups = $derived.by(() =>
+    groupedAssigneeCands({
+      members: issues.members.values(),
+      me: meMember,
+      context: {
+        reporter:
+          issues.memberOfAccountId(issue.reporter_id) ?? issues.memberOf(issue.reporter_email),
+        teamGroup: issue.team_group,
+      },
+      recentAccountIds: recentOf('assignee'),
+      assignToMeLabel: t('write.assignToMe'),
+      compare: (a, b) => collator().compare(a, b),
+    }),
   )
 
-  /** Personalized groups (no query). Subtle gaps = "quiet suggestions". */
-  const groups = $derived.by<Cand[][]>(() => {
-    const seen = new Set<string>()
-    const take = (list: (Member | undefined)[], label?: string): Cand[] => {
-      const r: Cand[] = []
-      for (const m of list) {
-        const acc = m?.jira_account_id
-        if (!m || !acc || seen.has(acc)) continue
-        seen.add(acc)
-        r.push(candOf(m, label))
-      }
-      return r
-    }
-    const g1 = take([meMember], t('write.assignToMe'))
-    const g2 = take([
-      issues.memberOfAccountId(issue.reporter_id) ?? issues.memberOf(issue.reporter_email),
-    ])
-    const g3 = take(recentOf('assignee').map((acc) => memberByAccount.get(acc)))
-    const g4 = take(
-      assignableMembers.filter((m) => issue.team_group && m.group === issue.team_group).sort(byName),
-    )
-    const g5 = take([...assignableMembers].sort(byName))
-    return [g1, g2, g3, g4, g5].filter((g) => g.length)
-  })
-
   /** Search mode (typing): flat candidates = local filter + server fallback. */
-  const typed = $derived.by<Cand[]>(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return []
-    const seenEmail = new Set<string>()
-    const local: Cand[] = []
-    for (const m of issues.members.values()) {
-      if (m.status === 'RESIGN') continue
-      const hay = `${m.name} ${m.display_name ?? ''} ${m.email}`.toLowerCase()
-      if (!hay.includes(q)) continue
-      seenEmail.add(m.email.toLowerCase())
-      local.push(candOf(m))
-      if (local.length >= 8) break
-    }
-    const server: Cand[] = serverUsers
-      .filter((u) => !u.email || !seenEmail.has(u.email.toLowerCase()))
-      .map((u) => ({
-        key: u.account_id,
-        account_id: u.account_id,
-        display_name: u.display_name,
-        email: u.email || null,
-        avatar_url: u.avatar_url,
-      }))
-    return [...local, ...server]
-  })
+  const typed = $derived.by(() =>
+    typedAssigneeCands({
+      query,
+      members: issues.members.values(),
+      serverUsers,
+    }),
+  )
 
   async function openPicker() {
     if (!(await write.ensureWritable())) return
@@ -148,40 +91,31 @@
     if (ok) open = false
   }
 
-  async function pickCand(c: Cand) {
+  async function pickCand(c: AssigneeCand) {
     if (c.account_id) {
-      return doAssign({
-        account_id: c.account_id,
-        display_name: c.display_name,
-        email: c.email ?? '',
-        avatar_url: c.avatar_url ?? '',
-        active: true,
-      })
+      const resolved = await resolveAssigneeCand(c)
+      if (!resolved.ok) return
+      return doAssign(resolved.user)
     }
     // Local member without account_id → resolve via email/name then assign (fallback)
     busy = true
-    try {
-      const res = await api.searchUsers(c.email || c.display_name)
-      const match =
-        res.users.find((u) => u.email && c.email && u.email.toLowerCase() === c.email.toLowerCase()) ??
-        res.users[0]
-      if (!match) {
-        write.toast(t('write.userNotFound'), 'error')
-        busy = false
-        return
-      }
+    const resolved = await resolveAssigneeCand(c)
+    if (!resolved.ok) {
+      write.toast(
+        resolved.reason === 'not-found' ? t('write.userNotFound') : t('write.assignSpecifyFailed'),
+        'error',
+      )
       busy = false
-      return doAssign(match)
-    } catch {
-      write.toast(t('write.assignSpecifyFailed'), 'error')
-      busy = false
+      return
     }
+    busy = false
+    return doAssign(resolved.user)
   }
 
   const isSearching = $derived(query.trim().length > 0)
 </script>
 
-{#snippet candRow(c: Cand)}
+{#snippet candRow(c: AssigneeCand)}
   <button
     type="button"
     onclick={() => pickCand(c)}

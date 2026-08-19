@@ -2,7 +2,7 @@
   /*
    * Keyboard cheat sheet (`?`). Every row below maps to a handler that actually
    * exists — App.svelte owns the whole list/detail set (⌘K / , / ? / j / k / ↵ / x /
-   * s / a / l / c / Esc), SearchBox (/), CommandPalette (↑↓/Enter/Esc),
+   * s / a / l / p / c / Esc), SearchBox (/), CommandPalette (↑↓/Enter/Esc),
    * CommentComposer (⌘↩). Do not document a key that no handler listens for.
    */
   import { t } from '../../lib/i18n'
@@ -36,6 +36,7 @@
         ['↵', t('shortcuts.openIssue')],
         ['x', t('shortcuts.selectRow')],
         ['s', t('shortcuts.listStatus')],
+        ['p', t('shortcuts.listPriority')],
         ['a', t('shortcuts.listAssignee')],
         ['l', t('shortcuts.listLabels')],
         ['c', t('shortcuts.listComment')],
@@ -46,6 +47,7 @@
       title: t('shortcuts.sectionDetail'),
       rows: [
         ['s', t('shortcuts.focusStatus')],
+        ['p', t('shortcuts.focusPriority')],
         ['a', t('shortcuts.focusAssignee')],
         ['l', t('shortcuts.focusLabels')],
         ['c', t('shortcuts.focusComment')],

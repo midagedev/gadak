@@ -20,6 +20,8 @@ test.describe('keyboard cheat sheet', () => {
       'Open settings',
       'New issue (when no detail or cursor)',
       'Move cursor down',
+      'Change priority (selection, or the cursor row)',
+      'Change priority (when detail is open)',
       'Focus the search or filter box',
       'Submit the comment',
     ]) {

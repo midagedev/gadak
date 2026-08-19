@@ -2,7 +2,7 @@
  * Issue Navigator — keyboard triage state (list context)
  *
  * The list cursor lives here rather than inside IssueList because the triage
- * keys act on it from the shell's global handler (x/s/a/l/c): a component-local
+ * keys act on it from the shell's global handler (x/s/a/l/p/c): a component-local
  * cursorKey would be invisible to them, and two handlers racing on window is
  * how j/k and Esc used to fight each other.
  *
@@ -13,7 +13,7 @@
  *      (GDK-46). j/k/x arriving earlier are held and replayed against the
  *      committed list; they never land on the unfiltered pool.
  *  - menu: which BulkBar popover is open. BulkBar renders it; mouse and keyboard
- *      both go through this so `s` / `a` / `l` can open it without a click.
+ *      both go through this so `s` / `a` / `l` / `p` can open it without a click.
  *  - commentKey: issue the quick-comment dialog is composing on (null = closed).
  *
  * ⚠️ No writes here — status/assignee batches stay in BulkBar, comments in the
@@ -24,7 +24,7 @@ import { replayHeldListKeys } from '../lib/keymap.svelte'
 import { visibleKeys } from '../lib/visible-order'
 import { bulk } from './bulk.svelte'
 
-export type TriageMenu = 'status' | 'assignee' | 'labels'
+export type TriageMenu = 'status' | 'assignee' | 'labels' | 'priority'
 
 class TriageStore {
   /** Row under the keyboard cursor. */

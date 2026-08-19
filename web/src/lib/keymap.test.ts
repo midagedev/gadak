@@ -126,6 +126,7 @@ describe('narrow field / detail testid map', () => {
     expect(NARROW_FIELD_TESTID.issues).toBe('search-input')
     expect(DETAIL_TESTID.status).toBe('status-transition')
     expect(DETAIL_TESTID.assignee).toBe('assignee-picker')
+    expect(DETAIL_TESTID.priority).toBe('priority-picker')
     expect(DETAIL_TESTID.labelInput).toBe('label-editor-input')
     expect(DETAIL_TESTID.labelAdd).toBe('label-editor-add')
     expect(DETAIL_TESTID.comment).toBe('comment-composer')
@@ -353,6 +354,31 @@ describe('resolveGlobalKey', () => {
       testid: 'assignee-picker',
     })
     expect(resolveGlobalKey(keyContext({ key: 's' }))).toEqual({ type: 'ignore' })
+  })
+
+  test('p: bulk or cursor-without-detail opens the priority menu; detail clicks the picker', () => {
+    expect(
+      resolveGlobalKey(keyContext({ key: 'p', bulkActive: true, detailOpen: true })),
+    ).toEqual({ type: 'request-menu', menu: 'priority' })
+    expect(
+      resolveGlobalKey(keyContext({ key: 'p', listActive: true, cursorKey: 'NMB-1' })),
+    ).toEqual({ type: 'request-menu', menu: 'priority' })
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: 'p', listActive: true, cursorKey: 'NMB-1', detailOpen: true }),
+      ),
+    ).toEqual({ type: 'click-detail', testid: 'priority-picker' })
+    expect(resolveGlobalKey(keyContext({ key: 'p', detailOpen: true }))).toEqual({
+      type: 'click-detail',
+      testid: 'priority-picker',
+    })
+    expect(resolveGlobalKey(keyContext({ key: 'p' }))).toEqual({ type: 'ignore' })
+    expect(
+      resolveGlobalKey(keyContext({ key: 'p', inEditable: true, bulkActive: true })),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveGlobalKey(keyContext({ key: 'p', paletteOpen: true, bulkActive: true })),
+    ).toEqual({ type: 'ignore' })
   })
 
   test('c: detail composer, else cursor comment, else new issue', () => {

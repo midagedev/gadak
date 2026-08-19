@@ -1,8 +1,9 @@
 /*
  * Shared user-search rune factory.
  *
- * Four call sites (assignee picker, new-issue dialog, QA field editor, comment
- * mentions) all hit GET users/ with the same debounce + race-guard needs.
+ * Five call sites (assignee picker, bulk assignee menu, new-issue dialog, QA
+ * field editor, comment mentions) all hit GET users/ with the same debounce +
+ * race-guard needs.
  * Debounce, sequence guard (only the latest request wins), and $effect cleanup
  * live here once; each site keeps its own debounceMs / minLength / error handling.
  */
