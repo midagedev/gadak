@@ -22,7 +22,6 @@ package linear
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -45,12 +44,26 @@ const maxPageSize = 250
 // while making a page worth committing.
 const defaultPageSize = 50
 
-// ErrAuth is a rejected credential (HTTP 401 or 403). It deliberately does
-// not unwrap to atlhttp.ErrAuth: that sentinel's identity is "Atlassian
-// credential rejected", and importing the Atlassian transport package for a
-// Linear client would couple this package to a host family it never talks to.
-// A future sync wiring keys on errors.Is(err, linear.ErrAuth).
-var ErrAuth = errors.New("linear: credential rejected")
+// authError is a rejected Linear credential (HTTP 401 or 403). Error() keeps
+// the "linear:" prefix so last_error names the source. RejectedCredential
+// satisfies the duck-typed marker IsRejectedCredential already publishes, so
+// a future Watch wiring is detected without a per-source branch and without
+// importing atlhttp (this package is not an Atlassian client; see the
+// package comment).
+//
+// A comparable value type plus the package-level ErrAuth var keeps
+// errors.Is(err, linear.ErrAuth) working for existing and future callers.
+type authError struct{}
+
+func (authError) Error() string       { return "linear: credential rejected" }
+func (authError) RejectedCredential() {}
+
+// ErrAuth is the Linear-named rejected credential. Callers keep using
+// errors.Is(err, linear.ErrAuth). It deliberately does not unwrap to
+// atlhttp.ErrAuth: that sentinel's identity is "Atlassian credential
+// rejected", and importing the Atlassian transport package for a Linear
+// client would couple this package to a host family it never talks to.
+var ErrAuth error = authError{}
 
 // Client talks to one Linear workspace over GraphQL, read-only.
 type Client struct {
