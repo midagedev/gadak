@@ -237,4 +237,99 @@ test.describe('write-through', () => {
       before,
     )
   })
+
+  // GDK-82: description is the same write-through class as summary/duedate
+  // (PUT then re-read). docs-ux.spec.ts is Confluence pages — the wrong file.
+  // demo.db descriptions are all simple paragraph docs (measured 534/534);
+  // the complex-ADF warning is stubbed here the way omnibox.spec.ts injects
+  // a link mark, and the predicate itself is in web/src/lib/adf.test.ts.
+  test('description: save PUTs {"description":"…"}; Esc sends nothing', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    const { issue } = await captureIssue(page)
+    const panel = await openIssue(page)
+
+    const editor = panel.getByTestId('description-editor')
+    await expect(editor).toBeVisible()
+    await expect(editor).toHaveAttribute('data-description-simple', 'true')
+    await expect(editor).toHaveAttribute('data-description-editing', 'false')
+
+    let put: { description?: string | null } | null = null
+    await page.route(`**/api/v1/issues/${KEY}/description/`, async (route) => {
+      if (route.request().method() !== 'PUT') return route.continue()
+      put = route.request().postDataJSON() as { description?: string | null }
+      await fulfillJSON(route, { issue })
+    })
+
+    await editor.getByTestId('description-edit').click()
+    await expect(editor).toHaveAttribute('data-description-editing', 'true')
+    const input = editor.getByTestId('description-editor-input')
+    await expect(input).toBeVisible()
+    await input.fill('wt-e2e description body')
+    await editor.getByTestId('description-save').click()
+
+    await expect.poll(() => put?.description).toBe('wt-e2e description body')
+    await expect(editor).toHaveAttribute('data-description-editing', 'false')
+    // GDK-301: the section stays on screen — no success toast.
+    await expect(page.getByTestId('toast').and(page.getByRole('status'))).toHaveCount(0)
+
+    put = null
+    await editor.getByTestId('description-edit').click()
+    await expect(input).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(editor).toHaveAttribute('data-description-editing', 'false')
+    expect(put, 'Esc must not send a description PUT').toBeNull()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('description: a table ADF shows the format-loss banner and explicit save label', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await captureIssue(page)
+    await page.route(`**/api/v1/issues/${KEY}/detail/`, async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      const response = await route.fetch()
+      const body = (await response.json()) as { description_adf?: unknown }
+      body.description_adf = {
+        type: 'doc',
+        version: 1,
+        content: [
+          {
+            type: 'table',
+            content: [
+              {
+                type: 'tableRow',
+                content: [
+                  {
+                    type: 'tableCell',
+                    content: [
+                      {
+                        type: 'paragraph',
+                        content: [{ type: 'text', text: 'formatted cell' }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }
+      await route.fulfill({ response, json: body })
+    })
+    const panel = await openIssue(page)
+    const editor = panel.getByTestId('description-editor')
+    await expect(editor).toBeVisible()
+    await expect(editor).toHaveAttribute('data-description-simple', 'false')
+
+    await editor.getByTestId('description-edit').click()
+    await expect(editor).toHaveAttribute('data-description-editing', 'true')
+    const banner = editor.getByTestId('description-format-warn')
+    await expect(banner).toBeVisible()
+    await expect(banner).toContainText('Saving will remove formatting and embeds.')
+    await expect(editor.getByTestId('description-save')).toHaveText('Save as plain text')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })

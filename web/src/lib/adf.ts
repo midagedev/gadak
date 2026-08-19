@@ -354,3 +354,78 @@ export function renderAdf(doc: AdfNode | null | undefined, opts: AdfRenderOption
     return ''
   }
 }
+
+/* ── Plain-text slice (description editor) ──
+ * Node-type sets are copied from internal/adf.PlainText (blockNode) plus the
+ * "simple doc" gate this editor needs. A PUT /description/ wraps the body as
+ * paragraphs of unmarked text, so anything else (marks, tables, media, …)
+ * would be silently destroyed without isSimpleAdf. */
+
+/** Node types a plain-text PUT preserves (paragraphs, text, hard breaks). */
+const SIMPLE_ADF_TYPES = new Set(['doc', 'paragraph', 'text', 'hardBreak'])
+
+/** Block nodes that end a line in PlainText. Copied from internal/adf.blockNode. */
+const BLOCK_ADF_TYPES = new Set([
+  'paragraph',
+  'heading',
+  'listItem',
+  'blockquote',
+  'codeBlock',
+  'tableRow',
+  'rule',
+  'panel',
+  'mediaSingle',
+  'mediaGroup',
+  'taskItem',
+  'decisionItem',
+])
+
+/**
+ * True when `node` is only doc / paragraph / text / hardBreak, with no marks.
+ * Null or missing is simple (an empty description is plain text).
+ */
+export function isSimpleAdf(node: AdfNode | null | undefined): boolean {
+  if (!node) return true
+  return walkSimple(node)
+}
+
+function walkSimple(node: AdfNode): boolean {
+  if (!SIMPLE_ADF_TYPES.has(node.type)) return false
+  if ((node.marks?.length ?? 0) > 0) return false
+  for (const child of node.content ?? []) {
+    if (!walkSimple(child)) return false
+  }
+  return true
+}
+
+/**
+ * Flatten ADF to plain text. Same rules as internal/adf.PlainText: text nodes
+ * concatenate, hardBreak is a newline, mention/emoji keep attrs.text, listed
+ * block types end a line. Callers use this as the textarea seed; a PUT then
+ * re-wraps the string as paragraphs.
+ */
+export function adfToPlainText(node: AdfNode | null | undefined): string {
+  if (!node) return ''
+  const parts: string[] = []
+  flattenAdf(node, parts)
+  return parts.join('').trim()
+}
+
+function flattenAdf(node: AdfNode, out: string[]): void {
+  switch (node.type) {
+    case 'text':
+      if (typeof node.text === 'string') out.push(node.text)
+      break
+    case 'hardBreak':
+      out.push('\n')
+      break
+    case 'mention':
+    case 'emoji': {
+      const label = attrStr(node, 'text')
+      if (label) out.push(label)
+      break
+    }
+  }
+  for (const child of node.content ?? []) flattenAdf(child, out)
+  if (BLOCK_ADF_TYPES.has(node.type)) out.push('\n')
+}

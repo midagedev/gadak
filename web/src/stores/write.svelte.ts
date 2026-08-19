@@ -480,6 +480,22 @@ class WriteStore {
     )
   }
 
+  /**
+   * Replace the description as plain text. `null`/blank clears. No IssueLite
+   * patch — description_adf is not on the row, and the client must not forge
+   * ADF; #writeIssue's invalidate() re-reads detail the same way setSummary
+   * does. In-place section — no success toast (GDK-301).
+   */
+  async setDescription(key: string, text: string | null): Promise<boolean> {
+    const next = text == null ? null : text.trim() || null
+    return this.#writeIssue(
+      key,
+      null,
+      () => api.setDescription(key, next),
+      t('write.descriptionFailed'),
+    )
+  }
+
   /* ── QA field inline edit ── */
 
   /**

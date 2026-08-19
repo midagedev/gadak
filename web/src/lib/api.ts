@@ -672,6 +672,18 @@ export function setSummary(issueKey: string, summary: string): Promise<IssueWrit
   })
 }
 
+/** PUT <key>/description/ — plain text; `null` or whitespace clears. Server wraps ADF. */
+export function setDescription(
+  issueKey: string,
+  description: string | null,
+): Promise<IssueWriteResponse> {
+  return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/description/`, {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ description }),
+  })
+}
+
 /** PUT <key>/duedate/ — `null` or `""` clears. Send YYYY-MM-DD, not a timestamp. */
 export function setDuedate(issueKey: string, duedate: string | null): Promise<IssueWriteResponse> {
   return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/duedate/`, {

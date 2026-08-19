@@ -30,6 +30,7 @@
   import IssueFields from './IssueFields.svelte'
   import QaImpact from './QaImpact.svelte'
   import AdfContent from './AdfContent.svelte'
+  import DescriptionEditor from './DescriptionEditor.svelte'
   import AttachmentGallery from './AttachmentGallery.svelte'
   import Section from './Section.svelte'
   import EpicProgress from './EpicProgress.svelte'
@@ -192,14 +193,11 @@
 
           <!-- Description -->
           <Section title={t('detail.description')}>
-            <div class="text-body text-text-secondary">
-              <AdfContent
-                node={detailForKey.description_adf}
-                issueKey={key}
-                attachments={detailForKey.attachments}
-                emptyLabel={t('detail.noDescription')}
-              />
-            </div>
+            <DescriptionEditor
+              issueKey={key}
+              node={detailForKey.description_adf}
+              attachments={detailForKey.attachments}
+            />
           </Section>
 
           <!-- Body-role custom fields (재현 단계, QA comment, …) — documents, not chips.
