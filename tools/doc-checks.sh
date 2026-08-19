@@ -640,4 +640,214 @@ if [[ -n "$open_mode_drift" ]]; then
 fi
 ok "doc claims about how MCP / gadak sql open the mirror match store.Open*"
 
+# ── 17. Documented GADAK_* names are actually read (GDK-281) ────────────
+# Class: a live document names GADAK_FOO, but no source constructs or
+# Getenvs that name. Agents then export a ghost and operate on the default
+# mirror. FAIL-first 2026-08-19: specs/000-product/data-model.md named
+# GADAK_DB; identity.go builds names as EnvPrefix+suffix, and no call
+# site passes "DB".
+#
+# Documented set — live prose an agent or human follows:
+#   docs/ except docs/decisions/ (append-only records of past states)
+#   specs/
+#   AGENTS.md (the agent cookbook; same inclusion as checks 5 and 12)
+# Deliberately not scanned:
+#   CHANGELOG.md          — history; a removed var stays in old entries
+#   docs/decisions/       — addendum-only; naming a since-removed var is a record
+#   README.md / *.ko.md   — install front door; env names there are restated
+#                           in docs/CONFIGURATION.md which is scanned
+#   fenced "don't do this" blocks are still scanned: an agent copies examples,
+#   and detecting prohibition-only fences is not mechanical.
+#
+# Read set — derived from source, not a hand-maintained suffix list:
+#   config.Env("SUFFIX") / Env("SUFFIX")  → GADAK_SUFFIX
+#     (identity.go concatenates EnvPrefix+suffix; a literal grep for
+#     GADAK_HOME would miss the constructor)
+#   os.Getenv/LookupEnv/Setenv("GADAK_X") in non-test .go (comments stripped,
+#     same as check 16 — mcp.go's "GADAK_DB is not used" comment is not a read)
+#   process.env.GADAK_X, os.environ["GADAK_X"] / .get("GADAK_X"),
+#   $GADAK_X / ${GADAK_X} in sh/Makefile
+# Go *_test.go is excluded (t.Setenv GADAK_HOME is a fixture, not a read).
+# TypeScript spec files stay: GADAK_MEDIA / GADAK_PERF are consumed there
+# as opt-in gates, which is what the docs claim they do.
+#
+# Flag half is not in this check: the only global flags are the three
+# pre-subcommand tokens in cmd/gadak/main.go (--profile/-p, --help/-h,
+# --version/-v). --db exists on demo and export-static, so a token-presence
+# scan would stay green while a document still claimed it moved the mirror.
+# That is the decorative shape GDK-288 declined. Env names are the axis
+# that can be derived honestly.
+env_ghosts=""
+env_ghosts=$(python3 - <<'GDK281PY'
+import re
+from pathlib import Path
+
+dq = chr(34)
+sq = chr(39)
+NAME = re.compile(r"\bGADAK_[A-Z][A-Z0-9_]*")
+ENV_CALL = re.compile(r"(?:config\.)?Env\(\s*" + dq + r"([A-Z][A-Z0-9_]*)" + dq + r"\s*\)")
+GO_GET = re.compile(
+    r"(?:Getenv|LookupEnv|Setenv)\(\s*" + dq + r"GADAK_([A-Z][A-Z0-9_]*)" + dq
+)
+JS_ENV = re.compile(r"process\.env\.GADAK_([A-Z][A-Z0-9_]*)")
+PY_ENV = re.compile(
+    r"os\.environ(?:\.get)?\(\s*[" + sq + dq + r"]GADAK_([A-Z][A-Z0-9_]*)[" + sq + dq + r"]"
+    r"|os\.environ\[\s*[" + sq + dq + r"]GADAK_([A-Z][A-Z0-9_]*)[" + sq + dq + r"]\s*\]"
+)
+SH_ENV = re.compile(r"[$][{]?GADAK_([A-Z][A-Z0-9_]*)")
+
+SKIP_DOC_DIR = {"decisions", "node_modules", "dist", "media"}
+SKIP_READ_DIR = {"node_modules", "dist", ".git"}
+DOC_ROOTS = [Path("docs"), Path("specs"), Path("AGENTS.md")]
+
+
+def strip_go_comments(text):
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    out = []
+    for line in text.splitlines():
+        if "//" in line:
+            line = line[: line.index("//")]
+        out.append(line)
+    return "\n".join(out)
+
+
+def documented():
+    names = {}
+    files = []
+    for root in DOC_ROOTS:
+        if root.is_file():
+            files.append(root)
+            continue
+        for path in root.rglob("*.md"):
+            if any(p in SKIP_DOC_DIR for p in path.parts):
+                continue
+            files.append(path)
+    for path in files:
+        for n, line in enumerate(path.read_text().splitlines(), 1):
+            for m in NAME.finditer(line):
+                names.setdefault(m.group(0), []).append("%s:%s" % (path.as_posix(), n))
+    return names
+
+
+def read_names():
+    found = set()
+    for path in Path(".").rglob("*"):
+        if not path.is_file():
+            continue
+        if any(p in SKIP_READ_DIR for p in path.parts):
+            continue
+        name = path.name
+        suffix = path.suffix
+        try:
+            text = path.read_text()
+        except (UnicodeDecodeError, OSError):
+            continue
+        if suffix == ".go":
+            if name.endswith("_test.go"):
+                continue
+            body = strip_go_comments(text)
+            for m in ENV_CALL.finditer(body):
+                found.add("GADAK_" + m.group(1))
+            for m in GO_GET.finditer(body):
+                found.add("GADAK_" + m.group(1))
+            continue
+        if suffix in {".ts", ".js", ".mjs"}:
+            for m in JS_ENV.finditer(text):
+                found.add("GADAK_" + m.group(1))
+            continue
+        if suffix == ".py":
+            for m in PY_ENV.finditer(text):
+                found.add("GADAK_" + (m.group(1) or m.group(2)))
+            continue
+        if suffix == ".sh" or name == "Makefile":
+            for m in SH_ENV.finditer(text):
+                found.add("GADAK_" + m.group(1))
+    return found
+
+
+docs = documented()
+read = read_names()
+ghosts = sorted(n for n in docs if n not in read)
+for n in ghosts:
+    where = ", ".join(docs[n][:4])
+    print("%s documented at %s but nothing reads it" % (n, where))
+GDK281PY
+)
+if [[ -n "$env_ghosts" ]]; then
+  fail "a document names a GADAK_* variable nothing reads (GDK-281):"$'\n'"$env_ghosts"
+fi
+ok "documented GADAK_* names are read by the source"
+
+# ── 18. The runtime GADAK_* allowlist matches what the Go source reads ──
+# Class: internal/config/identity.go carries a hand-written census of the
+# names this product reads, and warnUnknownGADAK tells the user everything
+# outside it is ignored. When a new Env("X") call site lands and the census
+# does not, the binary starts calling one of its own variables a ghost.
+# Check 17 answers "is a documented name read"; this answers "does the
+# process know what it reads". Derived the same way — Env("SUFFIX") and
+# Getenv/LookupEnv/Setenv("GADAK_X") in non-test .go, comments stripped —
+# so the check cannot be satisfied by editing a list.
+#
+# envHarness is deliberately not policed: those names (GADAK_MEDIA and
+# friends) are read by scripts, not by the binary, and a stale entry there
+# costs one spurious stderr line, never a ghost that stays silent.
+env_census=""
+env_census=$(python3 - <<'GDK281CENSUSPY'
+import re
+from pathlib import Path
+
+dq = chr(34)
+ENV_CALL = re.compile(r"(?:config\.)?Env\(\s*" + dq + r"([A-Z][A-Z0-9_]*)" + dq + r"\s*\)")
+GO_GET = re.compile(
+    r"(?:Getenv|LookupEnv|Setenv)\(\s*" + dq + r"GADAK_([A-Z][A-Z0-9_]*)" + dq
+)
+SKIP = {"node_modules", "dist", ".git"}
+
+
+def strip_go_comments(text):
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    out = []
+    for line in text.splitlines():
+        if "//" in line:
+            line = line[: line.index("//")]
+        out.append(line)
+    return "\n".join(out)
+
+
+read = {}
+for path in Path(".").rglob("*.go"):
+    if any(p in SKIP for p in path.parts) or path.name.endswith("_test.go"):
+        continue
+    try:
+        body = strip_go_comments(path.read_text())
+    except (UnicodeDecodeError, OSError):
+        continue
+    for n, line in enumerate(body.splitlines(), 1):
+        for m in ENV_CALL.finditer(line):
+            read.setdefault("GADAK_" + m.group(1), []).append("%s:%s" % (path.as_posix(), n))
+        for m in GO_GET.finditer(line):
+            read.setdefault("GADAK_" + m.group(1), []).append("%s:%s" % (path.as_posix(), n))
+
+identity = Path("internal/config/identity.go").read_text()
+
+
+def block(name):
+    m = re.search(r"var " + name + r" = map\[string\]struct\{\}\{(.*?)\n\}", identity, re.S)
+    return m.group(1) if m else ""
+
+
+known = {"GADAK_" + s for s in re.findall(dq + r"([A-Z][A-Z0-9_]*)" + dq, block("envSuffixes"))}
+known |= set(re.findall(dq + r"(GADAK_[A-Z][A-Z0-9_]*)" + dq, block("envLiterals")))
+if not known:
+    print("could not parse envSuffixes/envLiterals out of internal/config/identity.go")
+for name in sorted(n for n in read if n not in known):
+    print("%s is read at %s but is not in identity.go's allowlist — "
+          "warnUnknownGADAK would call it unrecognised" % (name, read[name][0]))
+GDK281CENSUSPY
+)
+if [[ -n "$env_census" ]]; then
+  fail "the runtime GADAK_* allowlist is behind the source (GDK-281):"$'\n'"$env_census"
+fi
+ok "internal/config/identity.go's GADAK_* allowlist covers every name the Go source reads"
+
 echo "doc-checks: all passed"

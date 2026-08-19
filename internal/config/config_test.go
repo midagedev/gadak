@@ -635,3 +635,77 @@ func captureStderr(t *testing.T, fn func()) string {
 	b, _ := io.ReadAll(r)
 	return string(b)
 }
+
+func TestWarnUnknownGADAKNamesDBOnStderrNotStdout(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	t.Setenv("GADAK_DB", "/tmp/wrong.db")
+	unknownEnvWarnOnce = sync.Once{}
+
+	rOut, wOut, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldOut := os.Stdout
+	os.Stdout = wOut
+	stderr := captureStderr(t, func() {
+		if _, err := DBPath(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	os.Stdout = oldOut
+	_ = wOut.Close()
+	stdout, _ := io.ReadAll(rOut)
+
+	if !strings.Contains(stderr, "GADAK_DB") {
+		t.Fatalf("stderr must name GADAK_DB, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "unrecognised") {
+		t.Fatalf("stderr must say unrecognised, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "GADAK_HOME") || !strings.Contains(stderr, "GADAK_PROFILE") {
+		t.Fatalf("stderr must name the real overrides, got %q", stderr)
+	}
+	if len(stdout) != 0 {
+		t.Fatalf("stdout must stay empty (gadak sql contract), got %q", stdout)
+	}
+	if strings.Count(stderr, "\n") != 1 || !strings.HasSuffix(stderr, "\n") {
+		t.Fatalf("warning must be one line, got %q", stderr)
+	}
+}
+
+func TestWarnUnknownGADAKSilentWhenOnlyKnown(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	t.Setenv("GADAK_PROFILE", "")
+	t.Setenv("GADAK_TOKEN", "x")
+	t.Setenv("GADAK_NO_OPEN", "1")
+	t.Setenv("GADAK_DESKTOP_CLI", "/bin/true")
+	for _, extra := range []string{"GADAK_DB", "GADAK_MEDIA", "GADAK_FRESHEN", "GADAK_PERF"} {
+		t.Setenv(extra, "")
+	}
+	unknownEnvWarnOnce = sync.Once{}
+	stderr := captureStderr(t, func() {
+		if _, err := DBPath(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if strings.Contains(stderr, "unrecognised") {
+		t.Fatalf("known env must not warn, got %q", stderr)
+	}
+}
+
+func TestWarnUnknownGADAKEmptyIsUnset(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	t.Setenv("GADAK_DB", "")
+	for _, extra := range []string{"GADAK_MEDIA", "GADAK_FRESHEN", "GADAK_PERF"} {
+		t.Setenv(extra, "")
+	}
+	unknownEnvWarnOnce = sync.Once{}
+	stderr := captureStderr(t, func() {
+		if _, err := DBPath(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if strings.Contains(stderr, "GADAK_DB") {
+		t.Fatalf("empty GADAK_DB is unset, must not warn, got %q", stderr)
+	}
+}

@@ -1,9 +1,10 @@
 // Package store owns the SQLite mirror: schema, migrations, transactions,
 // full-text index and the derived fields the source does not provide.
 //
-// The schema is a public contract documented in
-// specs/000-product/data-model.md — agents query this database directly, so a
-// column change belongs in that document before it belongs here.
+// 0.x promises three things, documented in specs/000-product/data-model.md:
+// the issues_full view plus the RECIPES queries, gadak sql stdout, and
+// views open --keys - semantics. Everything else in the schema is
+// documented so you can read it, not promised so you can build on it.
 package store
 
 import (

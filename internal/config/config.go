@@ -369,6 +369,7 @@ func DBPathFor(profile string) (string, error) {
 
 // DBPath is the default SQLite path for the active profile.
 func DBPath() (string, error) {
+	warnUnknownGADAK()
 	return DBPathFor(Profile())
 }
 

@@ -33,7 +33,7 @@ one line — `rm -rf ~/.gadak && gadak sync`. Nothing here is a source of truth;
 your Atlassian site is. Losing the mirror costs you the time to re-sync and
 nothing else.
 
-Default location: `~/.gadak/gadak.db`. Override with `--db` or `GADAK_DB`.
+Default location: `~/.gadak/gadak.db`. `GADAK_HOME` replaces `~/.gadak`; `--profile` / `GADAK_PROFILE` selects `<home>/profiles/<name>/gadak.db`.
 
 ## Conventions
 
