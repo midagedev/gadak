@@ -49,6 +49,12 @@ const (
 // existing sync/init gates so a missing token still reads the same.
 var errNeedCredential = errors.New("origin: site, email and token are required")
 
+// ErrWorkspaceBusy means another process holds the persist lock for this
+// workspace and did not advertise a routable origin. Embedding anyway would
+// open a second graph over the same file (GDK-343: last Close wins, silent
+// loss), so the caller gets this instead.
+var ErrWorkspaceBusy = errors.New("origin: another process is using this workspace (persist is locked); write through its serve, or close it and retry")
+
 // PersistPath is the absolute issuetap snapshot path inside a profile directory.
 func PersistPath(dir string) string {
 	if dir == "" {
@@ -101,6 +107,7 @@ type session struct {
 	emb    *issuetap.Embedded
 	client *jira.Client
 	wiki   *confluence.Client
+	unlock func() // releases the persist lock; runs after emb.Close
 }
 
 type sessionFlight struct {
@@ -159,6 +166,14 @@ func standaloneClient(cfg *config.Config) (*jira.Client, error) {
 		return c, nil
 	}
 	s, err := standaloneSession(cfg)
+	if errors.Is(err, ErrWorkspaceBusy) {
+		// The lock holder may have advertised between our probe and now, or
+		// the first probe was a 700ms false negative (F5). One more chance
+		// to route before surfacing the busy error.
+		if c, ok := routedJira(cfg); ok {
+			return c, nil
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +216,12 @@ func standaloneWiki(cfg *config.Config) (*confluence.Client, error) {
 		return w, nil
 	}
 	s, err := standaloneSession(cfg)
+	if errors.Is(err, ErrWorkspaceBusy) {
+		// Same second-chance route as standaloneClient (F5 false negative).
+		if w, ok := routedWiki(cfg); ok {
+			return w, nil
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +297,15 @@ func constructStandalone(persist string) (*session, error) {
 		return nil, fmt.Errorf("origin: persist dir: %w", err)
 	}
 
+	// The persist lock is the single truth for "who may embed" (GDK-343).
+	// Held for the session's lifetime; the kernel releases it if the
+	// process dies. A second process gets ErrWorkspaceBusy here instead of
+	// a second graph whose last Close would silently win.
+	unlock, err := lockPersist(persist)
+	if err != nil {
+		return nil, err
+	}
+
 	emb, err := issuetap.NewEmbedded(issuetap.EmbeddedConfig{
 		PersistPath:  persist,
 		FixtureBytes: defaultStandaloneFixture,
@@ -286,6 +316,7 @@ func constructStandalone(persist string) (*session, error) {
 		PersistDebounce: -1,
 	})
 	if err != nil {
+		unlock()
 		return nil, fmt.Errorf("origin: issuetap: %w", err)
 	}
 
@@ -303,12 +334,18 @@ func constructStandalone(persist string) (*session, error) {
 	}
 	w.HTTP.Transport = tr
 
-	return &session{emb: emb, client: c, wiki: w}, nil
+	return &session{emb: emb, client: c, wiki: w, unlock: unlock}, nil
 }
 
 func closeSession(s *session) {
-	if s != nil && s.emb != nil {
+	if s == nil {
+		return
+	}
+	if s.emb != nil {
 		_ = s.emb.Close()
+	}
+	if s.unlock != nil {
+		s.unlock()
 	}
 }
 
@@ -345,10 +382,16 @@ func Close() error {
 	mu.Unlock()
 	var first error
 	for _, s := range snapshot {
-		if s != nil && s.emb != nil {
+		if s == nil {
+			continue
+		}
+		if s.emb != nil {
 			if err := s.emb.Close(); err != nil && first == nil {
 				first = err
 			}
+		}
+		if s.unlock != nil {
+			s.unlock()
 		}
 	}
 	return first

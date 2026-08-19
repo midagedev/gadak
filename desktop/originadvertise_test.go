@@ -55,7 +55,10 @@ func TestGDK340StandaloneAppAdvertisesOrigin(t *testing.T) {
 	cfg, api := standaloneApp(t)
 	origin.SetInProcess(true)
 
-	stop := startStandaloneOriginListener(cfg, api)
+	stop, err := startStandaloneOriginListener(cfg, api)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer stop()
 
 	advPath := origin.AdvertisePath(cfg.Directory())
@@ -114,7 +117,10 @@ func TestGDK340ListenerServesOnlyOriginPaths(t *testing.T) {
 	cfg, api := standaloneApp(t)
 	origin.SetInProcess(true)
 
-	stop := startStandaloneOriginListener(cfg, api)
+	stop, err := startStandaloneOriginListener(cfg, api)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer stop()
 
 	data, err := os.ReadFile(origin.AdvertisePath(cfg.Directory()))
@@ -155,7 +161,10 @@ func TestGDK340ConnectedAppNoListener(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stop := startStandaloneOriginListener(cfg, http.NotFoundHandler())
+	stop, err := startStandaloneOriginListener(cfg, http.NotFoundHandler())
+	if err != nil {
+		t.Fatal(err)
+	}
 	stop()
 	if _, err := os.Stat(origin.AdvertisePath(home)); !os.IsNotExist(err) {
 		t.Fatalf("connected workspace wrote advertise: %v", err)

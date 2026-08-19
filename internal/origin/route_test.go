@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -187,39 +188,32 @@ func TestClientFallsBackWhenProbeFails(t *testing.T) {
 	}
 }
 
-func TestClientFallsBackOnProfileMismatch(t *testing.T) {
+// Pre-GDK-343 this fell back to a second embedded graph over the live
+// owner's persist (the F5 double-write hazard). The persist lock now makes
+// that fallback fail loud instead: the owner is alive, so busy.
+func TestClientFailsBusyOnProfileMismatch(t *testing.T) {
 	cfg, _, _, _ := liveStandaloneServe(t)
 	config.SetProfile("other")
 	t.Cleanup(func() { config.SetProfile("") })
 
-	before := origin.SessionsConstructed()
-	c, err := origin.Client(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !origin.TransportIsEmbedded(c.HTTP.Transport) {
-		t.Fatalf("Transport type %T after profile mismatch, want embedded", c.HTTP.Transport)
-	}
-	if got := origin.SessionsConstructed(); got != before+1 {
-		t.Fatalf("profile mismatch should embed; constructed %d → %d", before, got)
+	_, err := origin.Client(cfg)
+	if !errors.Is(err, origin.ErrWorkspaceBusy) {
+		t.Fatalf("profile mismatch with a live owner: err = %v, want ErrWorkspaceBusy (embedding would double-write the persist)", err)
 	}
 }
 
+// In-process (this process is the serve owner) must never route to its own
+// advertise file. With the live owner's lock held by the still-open forgotten
+// session, the proof is the busy error: routing would have returned a serve
+// transport, and embedding would have opened a second graph (GDK-343).
 func TestSetInProcessSkipsRouting(t *testing.T) {
 	cfg, _, _, _ := liveStandaloneServe(t)
 	origin.SetInProcess(true)
 	t.Cleanup(func() { origin.SetInProcess(false) })
 
-	before := origin.SessionsConstructed()
-	c, err := origin.Client(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !origin.TransportIsEmbedded(c.HTTP.Transport) {
-		t.Fatalf("in-process Client Transport %T, want embedded", c.HTTP.Transport)
-	}
-	if got := origin.SessionsConstructed(); got != before+1 {
-		t.Fatalf("in-process should embed; constructed %d → %d", before, got)
+	_, err := origin.Client(cfg)
+	if !errors.Is(err, origin.ErrWorkspaceBusy) {
+		t.Fatalf("in-process Client err = %v, want ErrWorkspaceBusy (routing to self is the bug this guards)", err)
 	}
 }
 

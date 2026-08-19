@@ -119,7 +119,10 @@ func TestPublishStandaloneOriginWritesAndRemoves(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	unpublish := publishStandaloneOrigin(cfg, "127.0.0.1:7998")
+	unpublish, err := publishStandaloneOrigin(cfg, "127.0.0.1:7998")
+	if err != nil {
+		t.Fatal(err)
+	}
 	p := origin.AdvertisePath(cfg.Directory())
 	raw, err := os.ReadFile(p)
 	if err != nil {
@@ -142,7 +145,10 @@ func TestPublishStandaloneOriginSkipsConnected(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	cfg := &config.Config{Kind: config.KindConnected}
-	unpublish := publishStandaloneOrigin(cfg, "127.0.0.1:7998")
+	unpublish, err := publishStandaloneOrigin(cfg, "127.0.0.1:7998")
+	if err != nil {
+		t.Fatal(err)
+	}
 	unpublish()
 	if _, err := os.Stat(filepath.Join(home, origin.AdvertiseRel)); !os.IsNotExist(err) {
 		t.Fatal("connected workspace must not write serve-origin.json")
