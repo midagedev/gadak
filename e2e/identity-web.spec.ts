@@ -1,90 +1,15 @@
 import { expect, test } from '@playwright/test'
-import { forceLocale, gotoApp, searchInput } from './helpers'
+import { gotoApp, searchInput } from './helpers'
 
 /**
- * B-identity-web: I9 / L1 / I5 / C5 / C6 / C7.
+ * B-identity-web: C6 / C7 / I5 wiring (the app actually calls the functions).
  * I8 is asserted in web/src/stores/pages.test.ts — PageLite carries author_id since 1988d2b.
- * C5/C6 unit cases live in web/src/lib/config-scope.test.ts and storage.test.ts.
+ * I9 / L1 live in web/src/lib/view-config.test.ts (moved from this file).
+ * C5 unit: web/src/lib/config-scope.test.ts; html attribute: e2e/tail-audit.spec.ts.
+ * C6 unit cases live in web/src/lib/storage.test.ts.
  */
 
 test.describe('identity-web e2e', () => {
-  test('I9: status_id filter matches when the display name is localized', async ({ page }) => {
-    let statusId = ''
-    let matchCount = 0
-    await page.route('**/api/v1/issues/bootstrap/', async (route) => {
-      const response = await route.fetch()
-      const body = (await response.json()) as {
-        issues: Array<{ status: string; status_id?: string }>
-      }
-      const sample = body.issues.find((it) => it.status_id && it.status)
-      expect(sample?.status_id, 'fixture must carry status_id on the wire').toBeTruthy()
-      statusId = sample!.status_id!
-      for (const it of body.issues) {
-        if (it.status_id === statusId) {
-          it.status = '로캘-상태명'
-          matchCount++
-        }
-      }
-      await route.fulfill({ response, json: body })
-    })
-    await gotoApp(page)
-    await page.goto(`/#/?st=${encodeURIComponent(statusId)}&g=none`)
-    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText(new RegExp(`${matchCount} issues?`)).first()).toBeVisible()
-  })
-
-  test('I9: name fallback still matches a row with no status_id', async ({ page }) => {
-    await page.route('**/api/v1/issues/bootstrap/', async (route) => {
-      const response = await route.fetch()
-      const body = (await response.json()) as {
-        issues: Array<{ issue_key: string; status: string; status_id?: string }>
-      }
-      const row = body.issues[0]
-      delete row.status_id
-      row.status = 'LegacyNameOnly'
-      await route.fulfill({ response, json: body })
-    })
-    await gotoApp(page)
-    await page.goto('/#/?st=LegacyNameOnly&g=none')
-    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText(/1 issue/).first()).toBeVisible()
-  })
-
-  test('L1: unset rank 0 sorts after Highest when sorting by priority asc', async ({ page }) => {
-    let unsetKey = ''
-    let highKey = ''
-    await page.route('**/api/v1/issues/bootstrap/', async (route) => {
-      const response = await route.fetch()
-      const body = (await response.json()) as {
-        issues: Array<{ issue_key: string; priority_rank: number | null; priority: string | null }>
-      }
-      const unset = { ...body.issues[0], priority_rank: 0, priority: null }
-      const high = { ...body.issues[1], priority_rank: 1, priority: 'Highest' }
-      unsetKey = unset.issue_key
-      highKey = high.issue_key
-      body.issues = [unset, high]
-      await route.fulfill({ response, json: body })
-    })
-    await forceLocale(page, 'en')
-    await page.goto('/')
-    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-    await page.goto('/#/?s=priority&d=asc&g=none')
-    await expect(page.getByText(/2 issues/).first()).toBeVisible({ timeout: 30_000 })
-    const order = await page.evaluate((keys: [string, string]) => {
-      const rows = [...document.querySelectorAll<HTMLElement>('[data-issue-key]')]
-      const pos = (k: string) => rows.findIndex((r) => r.dataset.issueKey === k)
-      return { unset: pos(keys[0]), high: pos(keys[1]) }
-    }, [unsetKey, highKey] as [string, string])
-    expect(order.high, 'Highest row must be in the windowed list').toBeGreaterThanOrEqual(0)
-    expect(order.unset, 'unset row must be in the windowed list').toBeGreaterThanOrEqual(0)
-    expect(order.high).toBeLessThan(order.unset)
-  })
-
-  test('C5: documentElement exposes a site-partitioned cache scope', async ({ page }) => {
-    await gotoApp(page)
-    await expect(page.locator('html')).toHaveAttribute('data-cache-scope', 'site:nimbus.example.com')
-  })
-
   test('C6: comment draft key includes the site partition', async ({ page }) => {
     await gotoApp(page)
     const input = searchInput(page)

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helpers'
+import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
 
 test.describe('keyboard cheat sheet', () => {
   test('? opens it, Esc closes it, and it only documents keys that exist', async ({ page }) => {
@@ -58,47 +58,5 @@ test.describe('empty states', () => {
     await expect(page.getByTestId('issue-list-scroller').locator('[role="button"]').first()).toBeVisible()
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-})
-
-test.describe('first run', () => {
-  test('an unconfigured, empty mirror shows the onboarding checklist', async ({ page }) => {
-    await forceLocale(page, 'en')
-
-    // Simulate a fresh install without touching the shared fixture server:
-    // no projects in config, no identity, empty bootstrap, and no IndexedDB cache.
-    await page.addInitScript(() => {
-      indexedDB.deleteDatabase('issue-navigator')
-    })
-    await page.route('**/config.json', (route) =>
-      route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({ apiBase: '/api/v1/issues/', authBase: '/api/v1/auth/', projects: [] }),
-      }),
-    )
-    await page.route('**/api/v1/issues/bootstrap/**', (route) =>
-      route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({
-          issues: [],
-          members: [],
-          server_time: new Date().toISOString(),
-          sync_version: 1,
-          sync_health: null,
-        }),
-      }),
-    )
-    await page.route('**/api/v1/auth/me/**', (route) =>
-      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ email: null }) }),
-    )
-
-    await page.goto('/')
-
-    const onboarding = page.getByTestId('onboarding')
-    await expect(onboarding).toBeVisible({ timeout: 30_000 })
-    // The wizard opens on step 1; the three-step flow itself is onboarding.spec.ts.
-    await expect(onboarding.getByText('Step 1 of 4 · Connect')).toBeVisible()
-    await expect(onboarding.getByTestId('onboarding-connect')).toBeVisible()
-    await expect(onboarding.getByRole('button', { name: 'Open settings' })).toBeVisible()
   })
 })

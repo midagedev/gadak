@@ -149,3 +149,93 @@ describe('GDK-250 date calendar (FAIL-first)', () => {
     ])
   })
 })
+
+// The id-first *call sites*. web/src/lib/view-config.test.ts pins
+// matchesIdFirst itself; what lives only here is that filters.svelte.ts still
+// hands it the id at all. Stop passing status_id/priority_id/issue_type_id and
+// the filter silently falls back to display names — the Korean-account 0-rows
+// trap, arriving through the call site instead of through the matcher.
+//
+// What this does NOT catch: swapping the id and name arguments. matchesIdFirst
+// accepts a match on either one by design (view-config.ts), so the swap is
+// behaviour-neutral and no assertion here can see it. Measured, not assumed.
+//
+// e2e used to cover this by driving `?st=` / `?pr=` in a browser (identity-web,
+// tail-audit); GDK-289 deleted those, so this is where that half went — the
+// wire keys themselves are pinned in view-config.test.ts. issue_type has no
+// deleted e2e behind it and is included anyway: it is the third field the
+// display-name rule names, and its call site can rot the same way.
+describe('id-first filter call sites (GDK-289, moved down from e2e)', () => {
+  test('status: an id filter matches a row whose display name is localized', () => {
+    const f = emptyFilters()
+    f.status = ['sid-1']
+    const hit = issue({
+      issue_key: 'NMB-ST1',
+      summary: 'localized status, wanted id',
+      status_id: 'sid-1',
+      status: '로캘-상태명',
+    })
+    const miss = issue({
+      issue_key: 'NMB-ST2',
+      summary: 'localized status, other id',
+      status_id: 'sid-2',
+      status: '로캘-상태명',
+    })
+    expect(filterIssues([hit, miss], f).map((r) => r.issue_key)).toEqual(['NMB-ST1'])
+  })
+
+  test('status: an English name does not match a localized row that carries an id', () => {
+    const f = emptyFilters()
+    f.status = ['In Progress']
+    const it = issue({
+      issue_key: 'NMB-ST3',
+      summary: 'the Korean-account 0-rows trap',
+      status_id: 'sid-1',
+      status: '로캘-상태명',
+    })
+    expect(filterIssues([it], f)).toEqual([])
+  })
+
+  test('status: a row with no status_id still matches by name', () => {
+    const f = emptyFilters()
+    f.status = ['LegacyNameOnly']
+    const it = issue({ issue_key: 'NMB-ST4', summary: 'name only', status: 'LegacyNameOnly' })
+    expect(filterIssues([it], f).map((r) => r.issue_key)).toEqual(['NMB-ST4'])
+  })
+
+  test('priority: an id filter matches a localized priority display', () => {
+    const f = emptyFilters()
+    f.priority = ['pri-1']
+    const hit = issue({
+      issue_key: 'NMB-PR1',
+      summary: 'localized priority, wanted id',
+      priority_id: 'pri-1',
+      priority: '로캘-우선순위',
+    })
+    const miss = issue({
+      issue_key: 'NMB-PR2',
+      summary: 'localized priority, other id',
+      priority_id: 'pri-2',
+      priority: '로캘-우선순위',
+    })
+    expect(filterIssues([hit, miss], f).map((r) => r.issue_key)).toEqual(['NMB-PR1'])
+  })
+
+  test('issue type: an id filter matches a localized type display', () => {
+    const f = emptyFilters()
+    f.issue_type = ['it-1']
+    const hit = issue({
+      issue_key: 'NMB-IT1',
+      summary: 'localized type, wanted id',
+      issue_type_id: 'it-1',
+      issue_type: '버그',
+    })
+    const miss = issue({
+      issue_key: 'NMB-IT2',
+      summary: 'localized type, other id',
+      issue_type_id: 'it-2',
+      issue_type: '버그',
+    })
+    expect(filterIssues([hit, miss], f).map((r) => r.issue_key)).toEqual(['NMB-IT1'])
+  })
+})

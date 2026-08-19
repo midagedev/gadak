@@ -174,6 +174,11 @@ async function runRequiredSteps(page: Page): Promise<void> {
   const wizard = page.getByTestId('onboarding')
   await expect(wizard).toBeVisible({ timeout: 30_000 })
   await expect(wizard.getByText('Step 1 of 4 · Connect')).toBeVisible()
+  // The escape hatch out of a wizard that blocks the app. polish.spec.ts held
+  // its only assertion until GDK-289 deleted that first-run duplicate, so it is
+  // asserted here instead — on the step-1 render every onboarding test already
+  // performs, which costs no extra page load.
+  await expect(wizard.getByRole('button', { name: 'Open settings' })).toBeVisible()
   await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
   await wizard.locator('input[name="email"]').fill('dana@example.com')
   await wizard.locator('input[name="token"]').fill('super-secret-token')

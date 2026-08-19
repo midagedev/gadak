@@ -270,6 +270,13 @@ describe('matchesIdFirst / prioritySortRank (moved from e2e/identity-web.spec.ts
     expect(matchesIdFirst(['In Progress'], '', 'In Progress')).toBe(true)
     expect(matchesIdFirst(['In Progress'], undefined, 'In Progress')).toBe(true)
     expect(matchesIdFirst([], '3', '진행 중')).toBe(true)
+    // Inputs the deleted e2e/identity-web I9 cases used: localized display
+    // with an id token, and a name-only row with no status_id.
+    expect(matchesIdFirst(['sid-1'], 'sid-1', '로캘-상태명')).toBe(true)
+    expect(matchesIdFirst(['In Progress'], 'sid-1', '로캘-상태명')).toBe(false)
+    expect(matchesIdFirst(['로캘-상태명'], 'sid-1', '로캘-상태명')).toBe(true)
+    expect(matchesIdFirst(['LegacyNameOnly'], undefined, 'LegacyNameOnly')).toBe(true)
+    expect(matchesIdFirst(['LegacyNameOnly'], '', 'LegacyNameOnly')).toBe(true)
     // Priority twin (moved from e2e/tail-audit): English selected name must
     // not match a localized display when an id is present on the row.
     expect(matchesIdFirst(['1'], '1', 'Highest')).toBe(true)
@@ -277,6 +284,8 @@ describe('matchesIdFirst / prioritySortRank (moved from e2e/identity-web.spec.ts
     expect(matchesIdFirst(['Highest'], '1', '최고')).toBe(false)
     expect(matchesIdFirst(['Highest'], '', 'Highest')).toBe(true)
     expect(matchesIdFirst(['Highest'], undefined, 'Highest')).toBe(true)
+    expect(matchesIdFirst(['pri-1'], 'pri-1', '로캘-우선순위')).toBe(true)
+    expect(matchesIdFirst(['Highest'], 'pri-1', '로캘-우선순위')).toBe(false)
   })
 
   test('L1: rank 0 (unset) sorts below Highest (1)', () => {
