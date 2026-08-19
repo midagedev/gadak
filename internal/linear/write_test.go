@@ -415,3 +415,48 @@ func TestMutationDoesNotRetry500(t *testing.T) {
 		t.Errorf("attempts = %d, want 1 — a 500 on a mutation must not be retried", calls)
 	}
 }
+
+func TestUploadFileReturnsTargetWithHeaders(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Variables map[string]any `json:"variables"`
+		}
+		decode(t, r, &body)
+		if body.Variables["filename"] != "log.txt" || body.Variables["size"] != float64(42) {
+			t.Fatalf("variables: %v", body.Variables)
+		}
+		w.Write([]byte(`{"data":{"fileUpload":{"success":true,"uploadFile":{
+			"uploadUrl":"https://storage.example/put","assetUrl":"https://uploads.example/a/log.txt",
+			"headers":[{"key":"x-amz-meta-a","value":"b"}]}}}}`))
+	}))
+	up, err := c.UploadFile(context.Background(), "log.txt", "text/plain", 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if up.AssetURL != "https://uploads.example/a/log.txt" || up.Headers["x-amz-meta-a"] != "b" {
+		t.Fatalf("target: %+v", up)
+	}
+	if _, err := c.UploadFile(context.Background(), "", "text/plain", 42); err == nil ||
+		!strings.Contains(err.Error(), "required") {
+		t.Fatalf("want validation error, got %v", err)
+	}
+}
+
+func TestCreateAttachmentSendsInput(t *testing.T) {
+	var input map[string]json.RawMessage
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		decodeInput(t, r, &input)
+		w.Write([]byte(`{"data":{"attachmentCreate":{"success":true,"attachment":{
+			"id":"00000000-0000-4000-8000-0000000000aa","title":"log.txt","url":"https://uploads.example/a/log.txt"}}}}`))
+	}))
+	att, err := c.CreateAttachment(context.Background(), "iss-1", "https://uploads.example/a/log.txt", "log.txt")
+	if err != nil || att.ID == "" {
+		t.Fatalf("attachment: %+v err=%v", att, err)
+	}
+	if string(input["issueId"]) != `"iss-1"` || string(input["title"]) != `"log.txt"` {
+		t.Fatalf("input: %v", input)
+	}
+	if _, err := c.CreateAttachment(context.Background(), "", "u", ""); err == nil {
+		t.Fatal("want validation error")
+	}
+}

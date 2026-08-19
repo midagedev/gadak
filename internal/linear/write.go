@@ -230,3 +230,87 @@ func validateDueDate(d string) error {
 	}
 	return nil
 }
+
+// Attachment is the record attachmentCreate returns. Linear attachments are
+// URL-first: a file becomes an attachment only after it is uploaded to the
+// workspace's storage and its assetUrl is attached.
+type Attachment struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
+}
+
+// UploadTarget is what fileUpload hands back: a signed PUT destination and
+// the stable assetUrl the uploaded bytes will live at. Headers must be sent
+// verbatim on the PUT (measured 2026-08-20: the signed URL rejects the write
+// without them).
+type UploadTarget struct {
+	UploadURL string
+	AssetURL  string
+	Headers   map[string]string
+}
+
+// UploadFile reserves storage for one file and returns where to PUT it.
+// The PUT itself is the caller's (it goes to storage, not the GraphQL
+// endpoint, and must not carry the API key).
+func (c *Client) UploadFile(ctx context.Context, filename, contentType string, size int) (UploadTarget, error) {
+	if filename == "" || contentType == "" || size <= 0 {
+		return UploadTarget{}, errors.New("linear: UploadFile: filename, contentType and a positive size are required")
+	}
+	var res struct {
+		FileUpload struct {
+			Success    bool `json:"success"`
+			UploadFile struct {
+				UploadURL string `json:"uploadUrl"`
+				AssetURL  string `json:"assetUrl"`
+				Headers   []struct {
+					Key   string `json:"key"`
+					Value string `json:"value"`
+				} `json:"headers"`
+			} `json:"uploadFile"`
+		} `json:"fileUpload"`
+	}
+	if err := c.gqlWrite(ctx, mutFileUpload, map[string]any{
+		"contentType": contentType, "filename": filename, "size": size,
+	}, &res); err != nil {
+		return UploadTarget{}, err
+	}
+	if !res.FileUpload.Success {
+		return UploadTarget{}, fmt.Errorf("POST /graphql: linear: fileUpload returned success=false")
+	}
+	t := UploadTarget{
+		UploadURL: res.FileUpload.UploadFile.UploadURL,
+		AssetURL:  res.FileUpload.UploadFile.AssetURL,
+		Headers:   map[string]string{},
+	}
+	for _, h := range res.FileUpload.UploadFile.Headers {
+		t.Headers[h.Key] = h.Value
+	}
+	return t, nil
+}
+
+// CreateAttachment attaches an already-uploaded (or external) URL to an
+// issue. For files, the url is the assetUrl UploadFile returned after the
+// caller's PUT succeeded.
+func (c *Client) CreateAttachment(ctx context.Context, issueID, url, title string) (Attachment, error) {
+	if issueID == "" || url == "" {
+		return Attachment{}, errors.New("linear: CreateAttachment: issueId and url are required")
+	}
+	input := map[string]any{"issueId": issueID, "url": url}
+	if title != "" {
+		input["title"] = title
+	}
+	var res struct {
+		AttachmentCreate struct {
+			Success    bool       `json:"success"`
+			Attachment Attachment `json:"attachment"`
+		} `json:"attachmentCreate"`
+	}
+	if err := c.gqlWrite(ctx, mutAttachmentCreate, map[string]any{"input": input}, &res); err != nil {
+		return Attachment{}, err
+	}
+	if !res.AttachmentCreate.Success {
+		return Attachment{}, fmt.Errorf("POST /graphql: linear: attachmentCreate returned success=false")
+	}
+	return res.AttachmentCreate.Attachment, nil
+}

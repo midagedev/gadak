@@ -222,3 +222,22 @@ var mutCommentCreate = `mutation CommentCreate($input: CommentCreateInput!) {
     }
   }
 }`
+
+// mutFileUpload reserves workspace storage for one file: a signed PUT URL
+// plus the headers that PUT must carry verbatim, and the stable assetUrl
+// the bytes will live at (measured live 2026-08-20).
+var mutFileUpload = `mutation FileUpload($contentType: String!, $filename: String!, $size: Int!) {
+  fileUpload(contentType: $contentType, filename: $filename, size: $size) {
+    success
+    uploadFile { uploadUrl assetUrl headers { key value } }
+  }
+}`
+
+// mutAttachmentCreate attaches a URL — for files, the assetUrl after the
+// PUT — to an issue. Linear attachments are URL-first.
+var mutAttachmentCreate = `mutation AttachmentCreate($input: AttachmentCreateInput!) {
+  attachmentCreate(input: $input) {
+    success
+    attachment { id title url }
+  }
+}`
