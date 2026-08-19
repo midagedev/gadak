@@ -55,6 +55,54 @@ func TestDesktopPlatformsMatchColdStartOwner(t *testing.T) {
 	}
 }
 
+// pinnedWailsVersion is the require line in this module's go.mod. A bump
+// that forgets to re-check the comments that name the pin fails
+// TestPinnedWailsVersionIsNamed, which is the point: those comments are
+// beliefs about upstream, and they rot the way GDK-296 already closed.
+func pinnedWailsVersion(t *testing.T) string {
+	t.Helper()
+	body, err := os.ReadFile("go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const prefix = "github.com/wailsapp/wails/v3 "
+	for _, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			return fields[1]
+		}
+	}
+	t.Fatal("go.mod has no github.com/wailsapp/wails/v3 require")
+	return ""
+}
+
+func TestPinnedWailsVersionIsNamed(t *testing.T) {
+	ver := pinnedWailsVersion(t)
+	// Every tracked file in desktop/ that states a belief about upstream
+	// behaviour. build-windows.ps1 was left naming beta.6 by the beta.9
+	// bump — the same rot GDK-296 closed, so it is in the list.
+	for _, path := range []string{"main.go", "README.md", "build-windows.ps1"} {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(body), ver) {
+			t.Errorf("%s does not name the pinned wails version %q — re-read the pin's launch-event and lock behaviour before landing a bump", path, ver)
+		}
+	}
+}
+
+func TestWailsModuleVersionMatchesGoMod(t *testing.T) {
+	want := pinnedWailsVersion(t)
+	if got := wailsModuleVersion(); got != want {
+		t.Fatalf("wailsModuleVersion() = %q, go.mod has %q", got, want)
+	}
+}
+
 func TestDesktopREADMENamesPlatformOwners(t *testing.T) {
 	body, err := os.ReadFile("README.md")
 	if err != nil {

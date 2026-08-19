@@ -82,11 +82,13 @@ registration (`HKCU\SOFTWARE\Classes\gadak`) is not part of this pack.
 
 ### Linux build prerequisites
 
-wails v3 (`v3.0.0-beta.6`, `desktop/go.mod`) compiles the Linux host with
+wails v3 (`v3.0.0-beta.9`, `desktop/go.mod`) compiles the Linux host with
 `#cgo pkg-config: gtk4 webkitgtk-6.0`. `CGO_ENABLED=0` does not compile (see
 the comment on the desktop job in `.github/workflows/ci.yml`). Do not pass
 `-tags gtk3`: that is the webkit2gtk 4.1 legacy stack, and wails plans to
-remove it in v3.1.
+remove it in v3.1. GTK4 `gtk_application_new` uses `G_APPLICATION_NON_UNIQUE`
+(`pkg/application/linux_cgo.h`); second-launch focusing is wails
+`SingleInstanceOptions` (session-bus name on Linux), not GTK uniqueness.
 
 Development packages as listed by that wails release's doctor (not installed
 or compiled against in this repository's CI):
@@ -109,7 +111,7 @@ only the directory tree for the same reason.
 
 ### Windows build prerequisites
 
-wails v3 (`v3.0.0-beta.6`, `desktop/go.mod`) talks to WebView2 over COM. The
+wails v3 (`v3.0.0-beta.9`, `desktop/go.mod`) talks to WebView2 over COM. The
 pack script sets `CGO_ENABLED=0`. This script has not been executed on a
 Windows machine in this repository (the authoring runner is darwin).
 
@@ -126,13 +128,17 @@ includes the Evergreen runtime and that many Windows 10 machines already
 have it via Edge; **this repository has not checked either claim on a
 Windows machine.**
 
-What happens if the runtime is missing is taken from the wails v3.0.0-beta.6
+What happens if the runtime is missing is taken from the wails v3.0.0-beta.9
 source this module links, **not from launching `gadak-desktop.exe` on a
 machine without WebView2** (that has not been done):
 
 - `webviewloader` reports `no webview2 found`
   (`internal/webview2/webviewloader/find_dll.go`).
-- `Chromium.errorCallback` logs the error and calls `os.Exit(1)`
+- `Chromium.Embed` waits at most 30s for the controller (`embedTimeout` /
+  `pumpUntilInited` in `internal/webview2/pkg/edge/chromium.go`). A
+  controller that never becomes ready calls `errorCallback` with a timeout
+  instead of blocking forever on `GetMessageW`.
+- `Chromium.errorCallback` still calls `os.Exit(1)` after the handler
   (`internal/webview2/pkg/edge/chromium.go`).
 - `gadak-desktop` sets `ErrorHandler: handleDesktopFatal` (`main.go`),
   which shows a `MessageBoxW` on Windows (`fatal_windows.go`) and writes
