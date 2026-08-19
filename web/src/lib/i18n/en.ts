@@ -631,6 +631,8 @@ export const en = {
     'Your Jira API token was rejected — replace it with a new personal token.',
   // write.go fail() / failJira codes — sentences verified against those call sites.
   'write.jiraUnavailable': 'Could not reach Jira.',
+  'write.workspaceBusy':
+    'Another process is using this workspace. Write through its serve, or close it and retry.',
   'write.mirrorStale':
     'The change was saved in Jira, but the local copy could not be refreshed. Do not retry.',
   'write.notFound': 'That issue was not found.',
@@ -1101,12 +1103,12 @@ export const en = {
   // GDK-247: PUT onboarding/connect/ 409 standalone_data_present. Facts match
   // cmd/gadak/init.go's ReplaceRefusedError sentence (via workspace.RefuseReplace).
   'onboarding.standaloneBlocked':
-    'This workspace is standalone and holds {n} locally originated issues. They exist only here — no Jira site has a copy. Connecting a site here will let a later sync delete them from the mirror.',
+    'This workspace is standalone and holds {n} locally originated issues. They exist only here — no Jira site has a copy. Converting this workspace deletes them from the mirror.',
   'onboarding.standalonePersist': 'Origin persist file: {path}',
   'onboarding.standaloneOtherWorkspace':
     'Connect the site in a separate workspace: gadak --profile <name> init (list workspaces with gadak profiles).',
   'onboarding.standaloneReplaceConfirm':
-    'Replace this workspace anyway. A later sync will delete these issues from the mirror.',
+    'Replace this workspace anyway. Converting deletes these issues from the mirror.',
   'onboarding.standaloneReplace': 'Replace and connect',
 
   /* ── Keyboard shortcuts cheat sheet (?) ── */
@@ -1194,6 +1196,7 @@ export type MessageKey = keyof typeof en
 export const WRITE_ERROR_KEYS = {
   credential_required: 'write.needToken',
   credential_rejected: 'write.tokenRejected',
+  workspace_busy: 'write.workspaceBusy',
   jira_unavailable: 'write.jiraUnavailable',
   write_applied_mirror_stale: 'write.mirrorStale',
   not_found: 'write.notFound',
