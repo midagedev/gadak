@@ -2,6 +2,86 @@
 
 ## Unreleased
 
+The release where gadak stops needing an Atlassian account to be useful,
+stops needing a Mac to run, and stops being read-only about the fields
+people actually triage by. A workspace can now be standalone — its origin
+is a minimal self-hosted Jira that travels with the app — and the issues
+in any workspace, connected or standalone, can finally be edited where
+they are read: due date, description, priority, assignee, and the custom
+fields your site actually uses.
+
+### A workspace without an Atlassian account
+
+- **Standalone workspaces** (GDK-183). `gadak` can create a workspace whose
+  origin runs in-process — a deliberately minimal self-hosted Jira
+  (`issuetap`) instead of an Atlassian site. The mirror rules are unchanged:
+  the origin owns the data, the mirror stays a disposable cache, and every
+  write goes through the origin. The persist file is the thing you back up.
+- **A workspace is bound to one origin** — connecting a credential cannot
+  quietly retarget an existing workspace, on the CLI path and the HTTP path
+  alike (GDK-238, GDK-247). A different origin is a new workspace, not a
+  settings edit.
+- **Standalone wikis** hold documents, written through the origin's
+  Confluence API like everything else (GDK-267); page version history is
+  mirrored as stamps, never bodies. The UI says which workspace it is
+  looking at and stops asking a standalone one for a token (GDK-237).
+
+### Windows and Linux
+
+- **Windows**: a portable pack and an installer path (GDK-209), `install-cli`
+  that works there, surfaces that tell the truth on that platform, and a
+  first-launch fix — the `gadak://` deep link used to be applied twice, the
+  first time too early to work (GDK-293). A Scoop manifest is checkable
+  without Windows (GDK-246).
+- **Linux**: a pack script symmetric with the dmg one (GDK-208), a tarball
+  install documented next to brew (GDK-229), and an AUR packaging kit with
+  a gate against version drift (GDK-115).
+- **Omarchy**: a bar widget that answers the one question no cloud plugin
+  can — what changed in *your* mirror (GDK-116) — plus an install recipe
+  verified on a real guest (GDK-225).
+
+### Issues you can edit where you read them
+
+- **Field editors leave the QA cage** (GDK-322, GDK-323). Inline editing
+  existed but only rendered behind a QA feature flag. Editability is now
+  decided by the issue's own editmeta: option and multi-select fields get
+  the same dropdown grammar as the assignee picker, and the kind matrix
+  grows text, number, and date. What a workspace can edit and which values
+  are allowed comes from one place — Jira's editmeta on connected
+  workspaces, the origin's field registry on standalone ones — so the
+  selects and multi-selects show your site's real allowed values.
+- **A due date is a row, not just a column** — set it, clear it, from the
+  detail panel (the endpoint had existed since GDK-223 with no UI on top).
+- **Descriptions are editable as plain text** (GDK-82) — with a guard for
+  the case that matters: a description holding tables, media, or marks gets
+  a format-loss banner and an explicit "Save as plain text" label before
+  anything is destroyed. Simple paragraphs just edit.
+- **Priority joins the triage keys** (GDK-331): `p` opens a catalog
+  priority menu wherever `s`/`a`/`l` already work — bulk bar, cursor row,
+  detail. And the list's assignee menu now finds the same people the detail
+  picker does — one shared candidate ranking with server-search fallback,
+  so a user you can assign in the detail you can assign from the list
+  (GDK-332).
+- **Dates got a read surface first**: a due column, due sorting, date
+  filter axes, and one owner for the "which calendar day is this?" question
+  so UTC and local stop disagreeing at the KST boundary (GDK-249, GDK-250);
+  Jira's refusal of a bad due date is a sentence you can read (GDK-251).
+- The palette can **create an issue from the typed text** without shadowing
+  actions (GDK-217), required create fields with obvious answers stop being
+  questions (GDK-218), and the create dialog says it cannot write instead
+  of spinning on Loading (GDK-302). Naming an action in the palette now
+  wins in every locale — typing `settings` opens Settings even when an
+  issue title contains the word, and `,` opens it from anywhere (GDK-300).
+  Posting a comment finally says it landed (GDK-301).
+
+### Updates, without an updater
+
+- Update detection reaches the UI and says the right thing per platform —
+  notify-only, no self-update (GDK-213, GDK-214). Release notes render in
+  the app, and upgrade instructions have one owner (GDK-215, GDK-216).
+
+### Groups
+
 - **`groupQuery`** classifies `team_group` with one read-only `SELECT`/`WITH`
   over the mirror (`issues_full`, `json_each`, `REGEXP`). Runs when the derived
   view is rebuilt, not on a keystroke. Empty group = unclassified; NULL or a
@@ -9,6 +89,52 @@
   group. The query is team-exportable. `groupRules` stays the three-list
   form — do not grow it into a DSL. Settings PUT omits-to-preserve so older
   clients cannot wipe a stored query.
+
+### Linear, measured before it is wired
+
+- A read-only Linear GraphQL client landed as groundwork for a second origin
+  kind: viewer, teams, workflow states, cursor-paged issues, with rate-budget
+  accounting and dead-credential detection (GDK-263, GDK-274). Its fixtures
+  are scrubbed captures from the live API using the exact queries it ships.
+  It is deliberately **not wired into workspaces yet** — what a Linear origin
+  means for the workspace model is its own decision (GDK-258), and running
+  two origin kinds side by side is post-0.16 (GDK-261).
+
+### The audit wave
+
+The pre-minor full-codebase audit ran again and its findings landed before
+the tag, the worst ones first:
+
+- **Localized names stop being keys.** A priority filter keyed on a display
+  name was zero rows on a Korean account; status names guessed at
+  categories; the create dialog sent a priority by name while the gate that
+  should have caught it stayed green (GDK-275, GDK-272, GDK-248, GDK-161).
+  Status, priority, and type now key on ids and categories everywhere.
+- **One cold open stopped serialising everybody** — three mutexes were held
+  across disk IO (GDK-282); a contended write died instantly because
+  `busy_timeout` never saw it (GDK-305); a background sync no longer
+  outlives the server that started it (GDK-270).
+- **Six dialogs, one shell contract** (GDK-297) — same header, same close
+  affordance, a footer that cannot paint over the last row. Onboarding owns
+  its pane instead of sitting inside armed app chrome, and its step-4
+  counter stops contradicting the sidebar (GDK-299). The Korean catalogue
+  no longer disagrees with itself inside one header row (GDK-298).
+- **The mirror's downgrade notice** got a ceiling and advice (GDK-310), the
+  wiki write surface that was built but never wired got wired (GDK-267),
+  and the Linear client — read-only by contract — detects a dead credential
+  it previously could not see (GDK-263, GDK-274).
+- CI stopped lying about infrastructure: a stalled apt mirror, a retry that
+  killed apt mid-configure, and an orphaned root apt-get holding the lock
+  were each made to fail fast and say which half failed — the installer,
+  never the tests (GDK-308, GDK-317, GDK-319).
+
+### For agents
+
+- Dogfooding friction is a backlog item, not something to route around —
+  the write gaps an agent hits are filed as they happen (GDK-312, GDK-313,
+  GDK-314, GDK-315). The FAQ's claim that agents cannot write the mirror
+  matched the code again (GDK-306). Decision 0009: CJK mid-compound search
+  is app-layer bigrams (GDK-259).
 
 ## v0.15.2 — 2026-08-17
 
