@@ -14,7 +14,7 @@ both so the rest of the tree can point here instead of restating either.
 | --- | --- | --- | --- |
 | darwin | `desktop/build-app.sh` → `Gadak-<ver>-arm64.dmg` (signed/notarized) | yes | yes (Apple Event; argv is not applied) |
 | windows | `desktop/build-windows.ps1` → `Gadak-<ver>-windows-<x64\|arm64>.zip` (unsigned; GDK-211) | yes (from 0.16) | yes when argv is exactly one `://` argument (wails `pkg/application/application_windows.go`); otherwise argv |
-| linux | `desktop/build-linux.sh` → AppDir / AppImage | no — from-source only | no (GTK4 never emits it; argv is applied) |
+| linux | `desktop/build-linux.sh` → AppDir / AppImage | no — from-source only | no (GTK4 never emits it — fix sent upstream, wailsapp/wails#6000; argv is applied) |
 
 The in-app Jira/Confluence browse pane is still darwin-only (`embed_darwin.go`; other GOOS use the stub in `embed_other.go`).
 
