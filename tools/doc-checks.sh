@@ -900,4 +900,15 @@ if [[ -n "$vnc_actions" ]]; then
 fi
 ok "every tools/vnc-snap.py --do action is named in its own help and in the runbook"
 
+# ── shared dependency pins agree across modules ───────────────────────────
+# The desktop module resolves issuetap through the root module; bumping the
+# root pin without `cd desktop && go mod tidy` builds green locally (separate
+# module, not in ./...) and dies only on the CI pack step (run 32249534581).
+root_pin="$(grep -o 'github.com/midagedev/issuetap v[^ ]*' go.mod | head -1)"
+desktop_pin="$(grep -o 'github.com/midagedev/issuetap v[^ ]*' desktop/go.mod | head -1)"
+if [[ -n "$root_pin" && -n "$desktop_pin" && "$root_pin" != "$desktop_pin" ]]; then
+  fail "issuetap pin differs: go.mod has ${root_pin#*issuetap } but desktop/go.mod has ${desktop_pin#*issuetap } — run: cd desktop && go mod tidy"
+fi
+ok "issuetap pin agrees between go.mod and desktop/go.mod"
+
 echo "doc-checks: all passed"
