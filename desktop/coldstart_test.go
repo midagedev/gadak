@@ -3,7 +3,7 @@ package main
 import "testing"
 
 // The launcher that broke (cmd/gadak/views.go startWindowsDesktopImpl) starts
-// the exe with exactly one argument — the gadak:// URL. wails v3.0.0-beta.6
+// the exe with exactly one argument — the gadak:// URL. wails v3.0.0-beta.9
 // treats that shape as ApplicationLaunchedWithUrl on Windows.
 const launcherURL = "gadak://view?issue=NMB-1"
 

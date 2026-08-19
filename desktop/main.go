@@ -20,6 +20,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"unsafe"
@@ -75,7 +76,7 @@ type coldStartDecision struct {
 //   - darwin: event only. LaunchServices delivers the URL as an Apple Event;
 //     applying argv as well would navigate twice.
 //   - windows: event when wails will emit ApplicationLaunchedWithUrl — that
-//     is len(args)==2 and args[1] contains "://" (wails v3.0.0-beta.6
+//     is len(args)==2 and args[1] contains "://" (wails v3.0.0-beta.9
 //     pkg/application/application_windows.go:159-162). Every other argv
 //     shape is ignored by wails, so argv is the fallback.
 //   - linux (and anything else): argv. GTK4 run() in the same wails pin
@@ -94,11 +95,33 @@ func coldStartDecisionFor(goos string, args []string) coldStartDecision {
 	}
 }
 
-// wailsEmitsLaunchURL is the argv shape wails v3.0.0-beta.6 special-cases
+// wailsEmitsLaunchURL is the argv shape wails v3.0.0-beta.9 special-cases
 // on Windows (application_windows.go:159-162). GTK3 has the same check;
 // GTK4, which this pin compiles, does not.
 func wailsEmitsLaunchURL(args []string) bool {
 	return len(args) == 2 && strings.Contains(args[1], "://")
+}
+
+// wailsModuleVersion is the version of github.com/wailsapp/wails/v3 linked
+// into this binary (debug.ReadBuildInfo). "unknown" if build info is missing
+// or the module is not a dependency — neither happens for a normal build.
+func wailsModuleVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+	for _, m := range info.Deps {
+		if m.Path != "github.com/wailsapp/wails/v3" {
+			continue
+		}
+		if m.Replace != nil && m.Replace.Version != "" {
+			return m.Replace.Version
+		}
+		if m.Version != "" {
+			return m.Version
+		}
+	}
+	return "unknown"
 }
 
 // coldStartGate applies a cold-start URL only after WindowRuntimeReady.
@@ -312,6 +335,13 @@ func run() error {
 	app.Menu.Set(appMenu)
 
 	decision := coldStartDecisionFor(runtime.GOOS, os.Args)
+	// One line answers "which wails, and does this process defer to the
+	// launch event" without opening go.mod or upstream source.
+	coldStart := "argv"
+	if decision.DeferToEvent {
+		coldStart = "event"
+	}
+	log.Printf("gadak-desktop version=%s wails=%s cold_start=%s", appVersion, wailsModuleVersion(), coldStart)
 	var gate coldStartGate
 	gate.apply = func(raw, source string) {
 		if applyDeepLink == nil {

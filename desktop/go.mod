@@ -6,7 +6,7 @@ replace github.com/midagedev/gadak => ../
 
 require (
 	github.com/midagedev/gadak v0.0.0
-	github.com/wailsapp/wails/v3 v3.0.0-beta.6
+	github.com/wailsapp/wails/v3 v3.0.0-beta.9
 )
 
 require (
