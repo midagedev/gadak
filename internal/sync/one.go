@@ -24,6 +24,14 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 	if !cfg.HasCredential() {
 		return errors.New("sync: site, email and token are required")
 	}
+	// Write-through is a Jira surface. A key mirrored from Linear (read-only
+	// origin — GDK-263) gets an explicit refusal here: falling through would
+	// ask Jira for a key it never issued and tombstone the Linear row.
+	if src, err := db.KeySource(ctx, key); err != nil {
+		return err
+	} else if src == LinearSourceID {
+		return fmt.Errorf("sync: %s is mirrored from Linear, which gadak treats as read-only — writes are not supported", key)
+	}
 	c := opts.Client
 	if c == nil {
 		var err error

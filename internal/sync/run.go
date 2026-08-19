@@ -57,6 +57,17 @@ func defaultWatchSources() []watchSource {
 			notify:  true,
 		},
 		{
+			id:      LinearSourceID,
+			phase:   PhaseIssues,
+			failLog: "linear sync failed: %v",
+			enabled: func(c *config.Config) bool { return c != nil && c.Linear != nil },
+			run:     RunLinear,
+			// Like Confluence: Jira mirroring must keep ticking when only the
+			// Linear key is rejected.
+			fatal:  false,
+			notify: false,
+		},
+		{
 			id:      ConfluenceSourceID,
 			phase:   PhaseDocuments,
 			failLog: "confluence sync failed: %v",

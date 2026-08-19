@@ -16,6 +16,7 @@ import (
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/jirafields"
+	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -67,6 +68,8 @@ type Options struct {
 	Client *jira.Client
 	// ConfluenceClient is for tests; nil builds one from cfg when Confluence is configured.
 	ConfluenceClient *confluence.Client
+	// LinearClient is for tests; nil builds one from cfg when Linear is configured.
+	LinearClient *linear.Client
 	// Notifier delivers OS desktop alerts for new personal-feed events after
 	// each successful Watch cycle. Nil uses OSNotifier. Never aborts the loop.
 	Notifier Notifier
@@ -508,7 +511,13 @@ func watchCredential(cfg *config.Config) string {
 	if cfg == nil {
 		return ""
 	}
-	return cfg.Site + "\x00" + cfg.Email + "\x00" + cfg.Token
+	id := cfg.Site + "\x00" + cfg.Email + "\x00" + cfg.Token
+	if cfg.Linear != nil {
+		// The Linear key is its own credential: rotating it must clear a
+		// previously-dead linear source, same as an Atlassian token swap.
+		id += "\x00" + cfg.Linear.APIKey
+	}
+	return id
 }
 
 // syncScope is the part of the config that decides what gets mirrored. Watch
@@ -523,6 +532,14 @@ func syncScope(cfg *config.Config) string {
 		proj = "all projects"
 	} else {
 		proj = fmt.Sprintf("%d projects", len(cfg.Projects))
+	}
+	if cfg.Linear != nil {
+		// Empty TeamIDs is every team the key can see (see runLinearPass).
+		if n := len(cfg.Linear.TeamIDs); n == 0 {
+			proj += ", linear on (all teams)"
+		} else {
+			proj += fmt.Sprintf(", linear on (%d teams)", n)
+		}
 	}
 	if cfg.Confluence == nil {
 		return proj + ", confluence off"

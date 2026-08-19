@@ -679,19 +679,31 @@ func TestNewAtlhttpClientRejectedWithoutSyncRegistration(t *testing.T) {
 
 func TestEveryWatchSourceHasAuthCoverage(t *testing.T) {
 	// Adding a source to Watch without an auth-sentinel test must fail here.
-	// The sentinel must share atlhttp.ErrAuth so a new client using Do is
-	// detected without a branch in IsRejectedCredential.
-	want := map[string]error{
-		SourceID:           jira.ErrAuth,
-		ConfluenceSourceID: confluence.ErrAuth,
+	//
+	// Relaxation (GDK-263 wiring): the atlhttp.ErrAuth unwrap assertion is
+	// now per-family instead of unconditional. Atlassian sources (Do-based)
+	// must unwrap to atlhttp.ErrAuth; Linear must NOT — its sentinel is a
+	// deliberate non-unwrap (internal/linear client.go package comment: not
+	// an Atlassian host family; it registers via the RejectedCredential
+	// duck-type instead). Same split originClientAuthSentinels already
+	// carries. FAIL-first: adding the linear watch source turned this test
+	// red ("no auth sentinel in this table") before this table grew a row.
+	want := map[string]struct {
+		err       error
+		atlassian bool
+	}{
+		SourceID:           {jira.ErrAuth, true},
+		ConfluenceSourceID: {confluence.ErrAuth, true},
+		LinearSourceID:     {linear.ErrAuth, false},
 	}
 	seen := map[string]bool{}
 	for _, src := range defaultWatchSources() {
-		sent, ok := want[src.id]
+		row, ok := want[src.id]
 		if !ok {
 			t.Errorf("watch source %q has no auth sentinel in this table — add one so a forgotten ErrAuth cannot ship", src.id)
 			continue
 		}
+		sent := row.err
 		seen[src.id] = true
 		if !IsRejectedCredential(sent) {
 			t.Errorf("watch source %q sentinel %v is not IsRejectedCredential — the source will retry a dead credential forever", src.id, sent)
@@ -699,8 +711,10 @@ func TestEveryWatchSourceHasAuthCoverage(t *testing.T) {
 		if !IsRejectedCredential(fmtWrap(sent)) {
 			t.Errorf("watch source %q wrapped sentinel not detected", src.id)
 		}
-		if !errors.Is(sent, atlhttp.ErrAuth) {
+		if unwraps := errors.Is(sent, atlhttp.ErrAuth); row.atlassian && !unwraps {
 			t.Errorf("watch source %q sentinel does not unwrap to atlhttp.ErrAuth — register via atlhttp.Auth so a new client is detected without a sync branch", src.id)
+		} else if !row.atlassian && unwraps {
+			t.Errorf("watch source %q sentinel unwraps to atlhttp.ErrAuth — that sentinel's identity is Atlassian and this source is not", src.id)
 		}
 		if !strings.Contains(sent.Error(), src.id+":") {
 			t.Errorf("watch source %q sentinel = %q, want %s: so last_error names the credential", src.id, sent, src.id)

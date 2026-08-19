@@ -158,6 +158,13 @@ type Config struct {
 	// only when named here. The rule itself lives in internal/sync/confluence.go.
 	Confluence *ConfluenceConfig `json:"confluence,omitempty"`
 
+	// Linear, when non-nil, enables the Linear issue mirror (third source,
+	// read-only — GDK-263). Unlike Confluence it carries its own credential:
+	// APIKey is a Linear personal API key and gets the same article-8
+	// treatment as Token — never a log line, a snapshot, or a team export
+	// (teamconfig classifies the whole block never-export).
+	Linear *LinearConfig `json:"linear,omitempty"`
+
 	// dir is the profile directory this Config was loaded from (or will save to).
 	// Unexported so it never appears in JSON; set by LoadFor.
 	dir string
@@ -179,6 +186,15 @@ type Appearance struct {
 // on switch; same site/email/token as Jira, REST base under /wiki.
 type ConfluenceConfig struct {
 	Spaces []string `json:"spaces,omitempty"`
+}
+
+// LinearConfig is the optional Linear issue source. Presence (non-nil) is the
+// on switch, matching ConfluenceConfig. TeamIDs are Linear team uuids (never
+// display keys — the same localization/rename hazard as Jira names); empty
+// means every team the key can see.
+type LinearConfig struct {
+	APIKey  string   `json:"apiKey,omitempty"`
+	TeamIDs []string `json:"teamIds,omitempty"`
 }
 
 // FieldSpec is one logical custom field. Jira creates a separate field id per

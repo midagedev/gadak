@@ -54,6 +54,10 @@ var neverExportConfigFields = []string{
 	// Workspace kind is per-machine: standalone origin is this profile's
 	// issuetap snapshot, not a team setting.
 	"Kind",
+	// Linear carries a personal API key. Team scope would be shareable, but
+	// splitting the block to export half of it is not worth a credential
+	// classification mistake — the whole block stays private.
+	"Linear",
 }
 
 // credentialJSONKeys are JSON object keys that mean "this file carries
@@ -69,4 +73,5 @@ var credentialJSONKeys = map[string]bool{
 	"tokenExpiresAt":    true,
 	"tokenExpirySource": true,
 	"account_id":        true,
+	"linear":            true, // carries apiKey — a Linear personal API key
 }

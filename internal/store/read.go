@@ -79,6 +79,18 @@ const issueLiteSelect = `
 	       COALESCE(i.custom, '{}')
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
+// KeySource returns the source_id owning key in the mirror, "" when the key
+// is not mirrored. Write-through gates use it to refuse keys mirrored from a
+// read-only source (Linear) before spending a Jira lookup on them.
+func (db *DB) KeySource(ctx context.Context, key string) (string, error) {
+	var src string
+	err := db.sql.QueryRowContext(ctx, `SELECT source_id FROM items WHERE key = ? LIMIT 1`, key).Scan(&src)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return src, err
+}
+
 // IssueLites returns the whole mirror, which is what `bootstrap` sends.
 func (db *DB) IssueLites(ctx context.Context) ([]IssueLite, error) {
 	return db.issueLites(ctx, issueLiteSelect+` ORDER BY it.updated_at DESC`)

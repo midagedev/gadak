@@ -68,6 +68,12 @@ const queryWorkflowStates = `query WorkflowStates($filter: WorkflowStateFilter, 
 // contract that makes the truncation visible (see Issue.Comments).
 const CommentsPageSize = 50
 
+// LabelsPageSize is the inline label page on every issue row. Without an
+// explicit first + pageInfo the connection was silently truncated at the
+// server default; HasNextPage makes the cut observable, same contract as
+// comments (GDK-263 audit, "labels 침묵 절단").
+const LabelsPageSize = 50
+
 // queryIssues pages issues oldest-updated-first. A var, not a const: the
 // inline comment page size is spliced from CommentsPageSize so "50" has one
 // owner. Filter carries the
@@ -124,7 +130,11 @@ var queryIssues = `query Issues($first: Int, $after: String, $filter: IssueFilte
         displayName
         email
       }
-      labels {
+      labels(first: ` + strconv.Itoa(LabelsPageSize) + `) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
         nodes {
           id
           name

@@ -19,14 +19,14 @@ func cmdSync(args []string) error {
 	fs := newFlagSet("sync")
 	full := fs.Bool("full", false, "force a full sync")
 	watch := fs.Bool("watch", false, "keep syncing on an interval")
-	source := fs.String("source", "all", "which source to sync: jira, confluence, or all")
+	source := fs.String("source", "all", "which source to sync: jira, linear, confluence, or all")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	switch *source {
-	case "jira", "confluence", "all":
+	case "jira", "linear", "confluence", "all":
 	default:
-		return fmt.Errorf("unknown --source %q (want jira, confluence, or all)", *source)
+		return fmt.Errorf("unknown --source %q (want jira, linear, confluence, or all)", *source)
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -51,7 +51,11 @@ func cmdSync(args []string) error {
 		return syncer.Watch(ctx, cfg, db, opts)
 	}
 	runJira := *source == "all" || *source == "jira"
+	runLinear := (*source == "all" || *source == "linear") && cfg.Linear != nil
 	runConf := (*source == "all" || *source == "confluence") && cfg.Confluence != nil
+	if *source == "linear" && cfg.Linear == nil {
+		return fmt.Errorf("linear is off for this profile — add a \"linear\" block (apiKey, optional teamIds) to config.json")
+	}
 	if *source == "confluence" && cfg.Confluence == nil {
 		return fmt.Errorf("confluence is off for this profile — turn it on with `gadak init --spaces ENG,PROD`\n(or `--spaces all`), or in Settings → Sources")
 	}
@@ -66,6 +70,21 @@ func cmdSync(args []string) error {
 		}
 		fmt.Printf("%s sync: fetched %d, changed %d, deleted %d, watermark %s\n",
 			kind, res.Fetched, res.Changed, res.Deleted, res.Watermark)
+	}
+	if runLinear {
+		lres, err := syncer.RunLinear(context.Background(), cfg, db, opts)
+		if err != nil {
+			if runJira {
+				log.Printf("linear sync failed: %v", err)
+			}
+			return err
+		}
+		kind := "incremental"
+		if lres.Full {
+			kind = "full"
+		}
+		fmt.Printf("linear %s sync: fetched %d, changed %d, watermark %s\n",
+			kind, lres.Fetched, lres.Changed, lres.Watermark)
 	}
 	if runConf {
 		cres, err := syncer.RunConfluence(context.Background(), cfg, db, opts)

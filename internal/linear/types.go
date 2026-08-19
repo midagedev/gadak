@@ -46,9 +46,12 @@ type Label struct {
 	Name string `json:"name"`
 }
 
-// LabelConn is the nested labels connection on an issue.
+// LabelConn is the nested labels connection on an issue. PageInfo.HasNextPage
+// set means the issue has more labels than LabelsPageSize — truncation is
+// observable, never silent (same contract as CommentConn).
 type LabelConn struct {
-	Nodes []Label `json:"nodes"`
+	PageInfo PageInfo `json:"pageInfo"`
+	Nodes    []Label  `json:"nodes"`
 }
 
 // PageInfo is the cursor pagination envelope on every connection.

@@ -12,6 +12,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/linear"
 	issuetap "github.com/midagedev/issuetap"
 )
 
@@ -90,10 +91,14 @@ func Client(cfg *config.Config) (*jira.Client, error) {
 }
 
 // Describe answers doctor: which kind of workspace, and where the origin is.
-// Connected reports "jira" (no hostname — doctor is safe to paste).
+// Connected reports "jira" — "jira+linear" when the Linear source is on
+// (no hostname or key either way; doctor is safe to paste).
 // Standalone reports the persist path.
 func Describe(cfg *config.Config) (kind, origin string) {
 	if cfg == nil || !cfg.IsStandalone() {
+		if cfg != nil && cfg.Linear != nil {
+			return config.KindConnected, "jira+linear"
+		}
 		return config.KindConnected, "jira"
 	}
 	dir, err := profileDir(cfg)
@@ -193,6 +198,21 @@ func StandaloneHandler(cfg *config.Config) (http.Handler, error) {
 		return nil, errors.New("origin: standalone handler is missing")
 	}
 	return s.emb, nil
+}
+
+// Linear is the single owner of "this workspace's Linear client" — the same
+// role Wiki plays for Confluence (GDK-258: a third source beside the Jira
+// client, never a facade behind its Transport). There is no standalone
+// variant: issuetap has no Linear surface, and the block carries its own
+// credential rather than the Atlassian one.
+func Linear(cfg *config.Config) (*linear.Client, error) {
+	if cfg == nil || cfg.Linear == nil {
+		return nil, errors.New("origin: linear is not configured")
+	}
+	if cfg.Linear.APIKey == "" {
+		return nil, errors.New("origin: linear api key is required")
+	}
+	return linear.New(cfg.Linear.APIKey), nil
 }
 
 // Wiki is the single owner of "this workspace's Confluence client".
