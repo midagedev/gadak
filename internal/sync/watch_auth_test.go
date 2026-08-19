@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +19,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/linear"
 )
 
 // Watch tests inject Tick so they do not sit on EffectiveSyncIntervalSec's
@@ -49,6 +54,8 @@ const (
 //	  happy:    TestIsRejectedCredential (third-source implementer is detected)
 //	  boundary: TestIsRejectedCredential (transport error is not); TestEveryWatchSourceHasAuthCoverage
 //	            TestApplyWatchErrThirdSource (fatal vs skip, by construction)
+//	            TestEveryOriginClientAuthSentinelIsRejectedCredential (every var ErrAuth, including linear)
+//	            TestApplyWatchErrLinearSentinel (a dead Linear token must mark the source dead)
 //	skip is per-credential
 //	  happy:    TestWatchConfluenceResumesAfterCredentialReload (new token retries)
 //	  boundary: same test, hits stay frozen while Reload keeps the old token
@@ -594,6 +601,18 @@ func TestIsRejectedCredential(t *testing.T) {
 	if !IsRejectedCredential(fmtWrap(atlhttp.ErrAuth)) {
 		t.Fatal("wrapped atlhttp.ErrAuth not detected")
 	}
+	if !IsRejectedCredential(linear.ErrAuth) {
+		t.Fatal("linear.ErrAuth not detected — a future Watch wiring will retry a dead Linear token forever")
+	}
+	if !IsRejectedCredential(fmtWrap(linear.ErrAuth)) {
+		t.Fatal("wrapped linear.ErrAuth not detected")
+	}
+	if errors.Is(linear.ErrAuth, atlhttp.ErrAuth) {
+		t.Fatal("linear.ErrAuth must not unwrap to atlhttp.ErrAuth — that sentinel's identity is Atlassian")
+	}
+	if !errors.Is(fmtWrap(linear.ErrAuth), linear.ErrAuth) {
+		t.Fatal("wrapped linear.ErrAuth must still match errors.Is(..., linear.ErrAuth)")
+	}
 	if !IsRejectedCredential(thirdAuth{}) {
 		t.Fatal("third-source RejectedCredential implementer not detected — the class is still open")
 	}
@@ -691,6 +710,146 @@ func TestEveryWatchSourceHasAuthCoverage(t *testing.T) {
 		if !seen[id] {
 			t.Errorf("auth table lists %q but defaultWatchSources does not", id)
 		}
+	}
+}
+
+// originClientAuthSentinels is every origin-client var ErrAuth in this
+// repository, keyed by the internal/ directory that declares it.
+//
+// TestEveryWatchSourceHasAuthCoverage cannot hold this list: it also
+// requires unwrap to atlhttp.ErrAuth, which is correct for Do-based
+// Atlassian clients and forbidden for Linear (package comment on
+// internal/linear: not an Atlassian host family). A hand list of values
+// is unavoidable — you cannot construct linear.ErrAuth without importing
+// linear — so originClientErrAuthDirs walks internal/ and fails if a new
+// var ErrAuth appears without a row here.
+var originClientAuthSentinels = []struct {
+	dir       string
+	err       error
+	atlassian bool
+}{
+	{dir: "atlhttp", err: atlhttp.ErrAuth, atlassian: true},
+	{dir: "jira", err: jira.ErrAuth, atlassian: true},
+	{dir: "confluence", err: confluence.ErrAuth, atlassian: true},
+	{dir: "linear", err: linear.ErrAuth, atlassian: false},
+}
+
+func TestEveryOriginClientAuthSentinelIsRejectedCredential(t *testing.T) {
+	known := map[string]bool{}
+	for _, row := range originClientAuthSentinels {
+		known[row.dir] = true
+		if row.err == nil {
+			t.Errorf("internal/%s ErrAuth is nil", row.dir)
+			continue
+		}
+		if !IsRejectedCredential(row.err) {
+			t.Errorf("internal/%s ErrAuth %v is not IsRejectedCredential — a dead credential will be retried forever", row.dir, row.err)
+		}
+		if !IsRejectedCredential(fmtWrap(row.err)) {
+			t.Errorf("wrapped internal/%s ErrAuth not detected", row.dir)
+		}
+		unwraps := errors.Is(row.err, atlhttp.ErrAuth)
+		if row.atlassian && !unwraps {
+			t.Errorf("internal/%s ErrAuth must unwrap to atlhttp.ErrAuth", row.dir)
+		}
+		if !row.atlassian && unwraps {
+			t.Errorf("internal/%s ErrAuth must not unwrap to atlhttp.ErrAuth — that sentinel's identity is Atlassian", row.dir)
+		}
+	}
+	found := originClientErrAuthDirs(t)
+	for dir := range found {
+		if !known[dir] {
+			t.Errorf("internal/%s declares var ErrAuth but is not in originClientAuthSentinels — add it so a wrongly-built sentinel goes red before anyone wires it", dir)
+		}
+	}
+	for dir := range known {
+		if !found[dir] {
+			t.Errorf("originClientAuthSentinels lists %s but no var ErrAuth was found under internal/%s", dir, dir)
+		}
+	}
+}
+
+func originClientErrAuthDirs(t *testing.T) map[string]bool {
+	t.Helper()
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
+	internal := filepath.Join(root, "internal")
+	found := map[string]bool{}
+	err := filepath.WalkDir(internal, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", "vendor", "node_modules", "dist", "testdata", "scratch":
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if !srcDeclaresVarErrAuth(string(data)) {
+			return nil
+		}
+		rel, err := filepath.Rel(internal, filepath.Dir(path))
+		if err != nil {
+			return err
+		}
+		found[filepath.ToSlash(rel)] = true
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return found
+}
+
+func srcDeclaresVarErrAuth(src string) bool {
+	for _, line := range strings.Split(src, "\n") {
+		s := strings.TrimSpace(line)
+		if s == "" || strings.HasPrefix(s, "//") {
+			continue
+		}
+		if strings.HasPrefix(s, "var ErrAuth ") || strings.HasPrefix(s, "var ErrAuth=") {
+			return true
+		}
+		// var ( ErrAuth = ... ) block form
+		if strings.HasPrefix(s, "ErrAuth =") || strings.HasPrefix(s, "ErrAuth=") {
+			return true
+		}
+	}
+	return false
+}
+
+// TestApplyWatchErrLinearSentinel: Linear is not a Watch source yet, but the
+// moment it is appended to defaultWatchSources the same applyWatchErr path
+// must already treat its sentinel as a dead credential. Otherwise Watch
+// retries the token forever and last_error stays empty.
+func TestApplyWatchErrLinearSentinel(t *testing.T) {
+	db := newMirror(t)
+	ctx := context.Background()
+	dead := map[string]bool{}
+	src := watchSource{id: "linear", failLog: "linear sync failed: %v", fatal: false}
+	if err := applyWatchErr(ctx, db.DB, src, linear.ErrAuth, func(string, ...any) {}, dead); err != nil {
+		t.Fatalf("non-fatal linear source returned %v, want continue", err)
+	}
+	if !dead["linear"] {
+		t.Fatal("linear.ErrAuth not marked dead — Watch would retry a dead Linear token forever")
+	}
+	st, err := db.SyncState(ctx, "linear")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.LastError == nil || !strings.Contains(*st.LastError, "linear:") {
+		t.Fatalf("last_error = %v, want linear: so doctor/sql can name the source", st.LastError)
 	}
 }
 

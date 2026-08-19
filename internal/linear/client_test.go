@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -214,6 +215,27 @@ func TestAuthFailureBecomesErrAuthWithoutRetry(t *testing.T) {
 		if calls != 1 {
 			t.Errorf("status %d: attempts = %d, want 1 — a bad credential must not burn the rate budget", status, calls)
 		}
+	}
+}
+
+// TestErrAuthSatisfiesRejectedCredential pins the duck-typed marker
+// IsRejectedCredential already publishes. This package must not import
+// atlhttp (Linear is not an Atlassian host), so the assertion uses a local
+// copy of the method set. errors.Is(err, ErrAuth) must keep working.
+func TestErrAuthSatisfiesRejectedCredential(t *testing.T) {
+	if ErrAuth.Error() != "linear: credential rejected" {
+		t.Fatalf("ErrAuth = %q, want the existing linear: prefix so last_error names the source", ErrAuth)
+	}
+	wrapped := fmt.Errorf("POST /graphql: %w (401 Unauthorized)", ErrAuth)
+	if !errors.Is(wrapped, ErrAuth) {
+		t.Fatalf("errors.Is(%v, ErrAuth) = false", wrapped)
+	}
+	var rc interface{ RejectedCredential() }
+	if !errors.As(ErrAuth, &rc) {
+		t.Fatal("ErrAuth must implement RejectedCredential so IsRejectedCredential sees it without a sync branch")
+	}
+	if !errors.As(wrapped, &rc) {
+		t.Fatal("wrapped ErrAuth must still implement RejectedCredential")
 	}
 }
 
