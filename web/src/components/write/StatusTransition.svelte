@@ -15,7 +15,7 @@
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import { recentOf } from '../../lib/recency'
-  import { normalizeCategory } from '../detail/format'
+  import { effectiveCategory } from '../../lib/view-config'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
 
   let { issue }: { issue: IssueLite } = $props()
@@ -28,26 +28,22 @@
   let busyId = $state<string | null>(null)
   let listEl = $state<HTMLDivElement | null>(null)
 
-  const cat = $derived(normalizeCategory(issue.status_category))
+  const cat = $derived(effectiveCategory(issue))
   const dotClass = $derived(
     cat === 'done' ? 'bg-status-done' : cat === 'new' ? 'bg-status-new' : 'bg-status-inprogress',
   )
 
-  /** Jira statusCategory key → dot color class. */
+  /** Jira statusCategory key → dot color class (via the single category owner). */
   function catDot(key: string): string {
-    const c = (key || '').toLowerCase()
-    if (c === 'done') return 'bg-status-done'
-    if (c === 'new') return 'bg-status-new'
-    return 'bg-status-inprogress'
+    const c = effectiveCategory(key)
+    return c === 'done' ? 'bg-status-done' : c === 'new' ? 'bg-status-new' : 'bg-status-inprogress'
   }
 
   /** Current category rank (new=0, inprogress=1, done=2) — for forward-direction. */
   const curRank = $derived(cat === 'new' ? 0 : cat === 'done' ? 2 : 1)
   function jiraRank(key: string): number {
-    const c = (key || '').toLowerCase()
-    if (c === 'new') return 0
-    if (c === 'done') return 2
-    return 1 // indeterminate etc.
+    const c = effectiveCategory(key)
+    return c === 'new' ? 0 : c === 'done' ? 2 : 1
   }
 
   /** Sorted transitions (local first → fallback). */

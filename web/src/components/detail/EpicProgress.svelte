@@ -11,7 +11,7 @@
   import type { IssueLite } from '../../lib/types'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
-  import { CATEGORY_META, categoryOf } from '../../lib/format'
+  import { categoryMetaOf, categoryOf } from '../../lib/format'
   import Section from './Section.svelte'
 
   let { issueKey }: { issueKey: string } = $props()
@@ -50,7 +50,7 @@
         <div
           class="h-full rounded-full transition-[width]"
           style:width="{percent}%"
-          style:background={CATEGORY_META.done.color}
+          style:background={categoryMetaOf('done').color}
         ></div>
       </div>
     </div>
@@ -66,7 +66,7 @@
           >
             <span
               class="h-1.5 w-1.5 flex-none rounded-full"
-              style:background={CATEGORY_META[categoryOf(child)].color}
+              style:background={categoryMetaOf(categoryOf(child)).color}
               title={child.status}
             ></span>
             <span class="w-[76px] flex-none truncate font-mono text-micro font-medium text-accent-text">

@@ -176,28 +176,6 @@ export function categoryMetaOf(cat: StatusCategory): { label: string; color: str
   return { label: categoryLabel(cat), color }
 }
 
-/** @deprecated prefer categoryMetaOf — kept as getter-style for call sites. */
-export const CATEGORY_META: Record<StatusCategory, { get label(): string; color: string }> = {
-  new: {
-    get label() {
-      return categoryLabel('new')
-    },
-    color: 'var(--color-status-new)',
-  },
-  inprogress: {
-    get label() {
-      return categoryLabel('inprogress')
-    },
-    color: 'var(--color-status-inprogress)',
-  },
-  done: {
-    get label() {
-      return categoryLabel('done')
-    },
-    color: 'var(--color-status-done)',
-  },
-}
-
 export function categoryOf(issue: IssueLite): StatusCategory {
   return effectiveCategory(issue)
 }

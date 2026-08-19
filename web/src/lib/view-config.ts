@@ -584,6 +584,16 @@ export function priorityNameFallbackSeen(): number {
 }
 
 /**
+ * Times effectiveCategory took the unknown-key fallback (non-empty, not a
+ * trusted key or folded alias). Integer increment only — no per-row log.
+ */
+let categoryFallbackCount = 0
+
+export function categoryFallbackSeen(): number {
+  return categoryFallbackCount
+}
+
+/**
  * Filter token match: id first, display name only as a fallback for legacy
  * saved views that still store a localized name. Empty `selected` is no
  * constraint (same as the other multi-value axes).
@@ -621,11 +631,26 @@ export function prioritySortRank(rank: number | null | undefined): number {
   return rank
 }
 
-/** Trust a real new|inprogress|done status_category; otherwise 'inprogress'. Never a status name. */
-export function effectiveCategory(issue: IssueLite): StatusCategory {
-  const sc = (issue.status_category ?? '').toLowerCase()
-  if (sc === 'new' || sc === 'inprogress' || sc === 'done') return sc
+/**
+ * Trust a real new|inprogress|done status_category. Fold Jira's
+ * indeterminate (REST key for in progress) and the aliases the deleted
+ * web mappers already accepted (todo → new, complete/completed → done).
+ * Never a status display name.
+ *
+ * Accepts an issue or a raw key so the list, the transition control, and
+ * transition to_category strings share one decision.
+ */
+export function effectiveCategory(issueOrCat: IssueLite | string | null | undefined): StatusCategory {
+  const raw =
+    typeof issueOrCat === 'string' || issueOrCat == null
+      ? (issueOrCat ?? '')
+      : (issueOrCat.status_category ?? '')
+  const sc = raw.toLowerCase()
+  if (sc === 'new' || sc === 'todo') return 'new'
+  if (sc === 'inprogress' || sc === 'indeterminate') return 'inprogress'
+  if (sc === 'done' || sc === 'complete' || sc === 'completed') return 'done'
   if (!sc) missingStatusCategoryCount++
+  else categoryFallbackCount++
   return 'inprogress'
 }
 

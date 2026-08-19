@@ -1,20 +1,11 @@
 /*
  * Shared format helpers for the detail panel ([detail]).
- * Pure functions only: relative time, status-category normalize, etc.
+ * Pure functions only: relative time, browse URL, etc.
  */
 
 import { jiraBrowseUrl } from '../../lib/config'
 import type { StatusCategory } from '../../lib/types'
 import { absTime as i18nAbsTime, relativeTime as i18nRelativeTime } from '../../lib/i18n'
-
-/** Normalize Jira status_category strings into the UI's 3 buckets. */
-export function normalizeCategory(raw: string | null | undefined): StatusCategory {
-  const c = (raw ?? '').toLowerCase()
-  if (c === 'done' || c === 'complete' || c === 'completed') return 'done'
-  if (c === 'new' || c === 'todo' || c === 'to do') return 'new'
-  // "indeterminate" (in progress) and anything else → inprogress
-  return 'inprogress'
-}
 
 /** Status category → semantic color token name (app.css @theme --color-status-*). */
 export function categoryColor(cat: StatusCategory): string {
