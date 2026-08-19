@@ -21,6 +21,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -58,6 +59,91 @@ func main() {
 	}
 	if err := run(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// coldStartDecision is the single owner of how a first-launch gadak://
+// reaches this process: from argv, or from ApplicationLaunchedWithUrl.
+type coldStartDecision struct {
+	ApplyArgv    bool
+	DeferToEvent bool
+}
+
+// coldStartDecisionFor reports the cold-start URL source for this GOOS and
+// the process argv (full os.Args, including argv[0]).
+//
+//   - darwin: event only. LaunchServices delivers the URL as an Apple Event;
+//     applying argv as well would navigate twice.
+//   - windows: event when wails will emit ApplicationLaunchedWithUrl — that
+//     is len(args)==2 and args[1] contains "://" (wails v3.0.0-beta.6
+//     pkg/application/application_windows.go:159-162). Every other argv
+//     shape is ignored by wails, so argv is the fallback.
+//   - linux (and anything else): argv. GTK4 run() in the same wails pin
+//     (application_linux.go:89-99) does not emit the event.
+func coldStartDecisionFor(goos string, args []string) coldStartDecision {
+	switch goos {
+	case "darwin":
+		return coldStartDecision{ApplyArgv: false, DeferToEvent: true}
+	case "windows":
+		if wailsEmitsLaunchURL(args) {
+			return coldStartDecision{ApplyArgv: false, DeferToEvent: true}
+		}
+		return coldStartDecision{ApplyArgv: true, DeferToEvent: false}
+	default:
+		return coldStartDecision{ApplyArgv: true, DeferToEvent: false}
+	}
+}
+
+// wailsEmitsLaunchURL is the argv shape wails v3.0.0-beta.6 special-cases
+// on Windows (application_windows.go:159-162). GTK3 has the same check;
+// GTK4, which this pin compiles, does not.
+func wailsEmitsLaunchURL(args []string) bool {
+	return len(args) == 2 && strings.Contains(args[1], "://")
+}
+
+// coldStartGate applies a cold-start URL only after WindowRuntimeReady.
+// Bound: one slot. An offer that arrives before ready is queued; a second
+// offer before ready is dropped (first wins). After ready, offer applies
+// immediately. A URL that is still queued when markReady runs is flushed
+// then. There is no drop-on-timeout — the window either becomes ready or
+// the process exits.
+type coldStartGate struct {
+	mu         sync.Mutex
+	ready      bool
+	pendingRaw string
+	pendingSrc string
+	apply      func(raw, source string)
+}
+
+func (g *coldStartGate) offer(raw, source string) {
+	if raw == "" {
+		return
+	}
+	g.mu.Lock()
+	if !g.ready {
+		if g.pendingRaw == "" {
+			g.pendingRaw = raw
+			g.pendingSrc = source
+		}
+		g.mu.Unlock()
+		return
+	}
+	apply := g.apply
+	g.mu.Unlock()
+	if apply != nil {
+		apply(raw, source)
+	}
+}
+
+func (g *coldStartGate) markReady() {
+	g.mu.Lock()
+	g.ready = true
+	raw, src := g.pendingRaw, g.pendingSrc
+	g.pendingRaw, g.pendingSrc = "", ""
+	apply := g.apply
+	g.mu.Unlock()
+	if raw != "" && apply != nil {
+		apply(raw, src)
 	}
 }
 
@@ -225,15 +311,32 @@ func run() error {
 	}
 	app.Menu.Set(appMenu)
 
+	decision := coldStartDecisionFor(runtime.GOOS, os.Args)
+	var gate coldStartGate
+	gate.apply = func(raw, source string) {
+		if applyDeepLink == nil {
+			return
+		}
+		log.Printf("deep link source=%s", source)
+		applyDeepLink(raw)
+	}
+
 	window = app.Window.NewWithOptions(mainWindowOptions())
 	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		log.Print("wails runtime ready — --wails-draggable listeners are attached")
-		// Windows (and Linux) deliver a first-launch gadak:// as argv. macOS
-		// uses ApplicationLaunchedWithUrl for that; applying argv there too
-		// would navigate twice.
-		if runtime.GOOS != "darwin" && applyDeepLink != nil {
+		// Cold-start URL source is coldStartDecisionFor, not "!= darwin".
+		// Linux always reads argv (GTK4 does not emit ApplicationLaunchedWithUrl).
+		// Windows reads argv only when wails will not emit the event
+		// (len(os.Args) != 2 or the single arg has no "://"). macOS never
+		// reads argv. Nothing is handed to the webview until this event:
+		// an ApplicationLaunchedWithUrl that arrived earlier sits in gate
+		// (one slot, first offer wins) and is flushed here. Argv, when this
+		// process owns it, is offered after the flush so it cannot race a
+		// pending event.
+		gate.markReady()
+		if decision.ApplyArgv {
 			if raw := firstDeepLinkArg(os.Args[1:]); raw != "" {
-				applyDeepLink(raw)
+				gate.offer(raw, "argv")
 			}
 		}
 	})
@@ -242,17 +345,23 @@ func run() error {
 		window.SetURL(path)
 		raiseWindow(window)
 	})
-	// The other delivery route: the app was already running, so the Apple
-	// Event reaches this process and wails emits it as an application event.
+	// ApplicationLaunchedWithUrl: macOS Apple Event (first launch and
+	// same-process reopen) and Windows when wails sees a single argument
+	// containing "://". Linux GTK4 never emits it. Offers go through the
+	// ready gate so a URL that arrives before the webview exists is queued,
+	// not applied.
 	app.Event.OnApplicationEvent(events.Common.ApplicationLaunchedWithUrl,
 		func(e *application.ApplicationEvent) {
-			applyDeepLink(e.Context().URL())
+			if !decision.DeferToEvent {
+				return
+			}
+			gate.offer(e.Context().URL(), "event")
 		})
 	// Dock click (minimised or no visible window). wails' own handler only
 	// Show()s when HasVisibleWindows is false; a miniaturised window is still
 	// "visible", so Restore+Focus is the same raise the second-instance path
-	// already uses. The event is defined on every GOOS and never fires off
-	// darwin — same as ApplicationLaunchedWithUrl.
+	// already uses. ApplicationShouldHandleReopen is macOS-only; do not
+	// analogise it to ApplicationLaunchedWithUrl, which Windows does emit.
 	app.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen,
 		func(*application.ApplicationEvent) {
 			raiseWindow(window)
