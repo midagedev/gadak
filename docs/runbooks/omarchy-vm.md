@@ -2,7 +2,8 @@
 
 How to reach the Arch + Hyprland guest used to verify Omarchy install
 and menu-extension work. Facts below were checked from this Mac on
-2026-08-18. Do not treat an unverified step as done.
+2026-08-18; the payload route and bar-widget states were checked on
+2026-08-19. Do not treat an unverified step as done.
 
 This is not a CI path. The guest lives on another machine and is reached
 over the tailnet.
@@ -152,6 +153,13 @@ systemctl is-enabled sshd   # disabled
 Rebooting with `BOOT_DISK=1` does not by itself start `sshd`. Enable it
 on the guest if a later round needs a shell without VNC.
 
+A 2026-08-19 round tried exactly that over VNC. `systemctl is-active sshd`
+was still `inactive` and `is-enabled` still `disabled`. `sudo -n true`
+printed `sudo: a password is required` (exit 1). The round did not type or
+guess a password, so sshd stayed down. The payload used the user-net
+fallback below instead. The QEMU forward (`127.0.0.1:2223` on the WSL
+side) is still listening; it is still the guest daemon that is off.
+
 ## What the guest already has (checked over VNC)
 
 Commands were typed in the Hyprland terminal and read back from the
@@ -170,7 +178,96 @@ hyphenated (`omarchy-plugin-list`, …).
 | `colors.toml` | Per-theme files under `/usr/share/omarchy/themes/<name>/colors.toml` (catppuccin starts `mode = "dark"`). |
 | systemd --user | Works (`running`, 0 failed). `gadak install-service` on Linux writes a systemd user unit; this guest can host that path. |
 | IME | `fcitx5` is on PATH and running (`/usr/bin/fcitx5 --disable notificationitem`). Locale `en_US.UTF-8`, X11 layout `us`. No hangul indicator was visible on the bar. `fcitx5-hangul` package query was not completed (typed command was eaten). |
-| Do not install gadak | AUR packaging is a different track. This guest was not given a gadak binary. |
+| gadak binary | AUR packaging remains a different track (`docs/INSTALL.md`). A 2026-08-19 round put a `linux/amd64` binary built from this tree at `~/.local/bin/gadak` (already on the graphical-session PATH). The 2026-08-18 line "this guest was not given a gadak binary" is therefore stale — keep AUR off this guest; do not `pacman -S gadak`. |
+| gadak plugin | `contrib/omarchy/install.sh` copied `io.github.midagedev.gadak` into `~/.config/omarchy/plugins/`, `omarchy-plugin-validate` printed `ok`, `omarchy-plugin-enable` enabled it, and `omarchy-webapp-install` wrote the `gadak` desktop file pointing at `http://127.0.0.1:7777`. |
+| default mirror | Seeded from `examples/demo.db` (534 issues) at `~/.gadak/gadak.db`. Do not use `gadak demo` for the widget: that command sets `GADAK_HOME` to a temp dir (`cmd/gadak/demo.go`) the widget never sees. |
+
+## Payload into the guest (checked 2026-08-19)
+
+Guest `sshd` is still down (see above), so there is no `scp` into the guest.
+The route that worked, without installing anything on Windows or WSL:
+
+1. On the Mac, in the worktree: `nvm use` (`.nvmrc` owns the Node version),
+   `npm ci` if `node_modules` is absent, `npm run build` (go:embed needs
+   `dist/app`). Then match the goreleaser `builds:` block
+   (`.goreleaser.yaml`):
+   `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath`
+   `-ldflags "-s -w -X main.version=$(git describe --tags --always)"`
+   `-o <scratch>/payload/gadak ./cmd/gadak`.
+2. Pack that binary, `examples/demo.db`, and `contrib/omarchy/` as one
+   tarball. Confirm the fixture yourself (`SELECT COUNT(*) FROM issues`
+   was 534). Build the tarball with `COPYFILE_DISABLE=1` so macOS
+   AppleDouble `._*` headers do not travel with it.
+3. Mac → Windows host: `scp` to that host fails; `sftp put` into the
+   Windows-user home directory works. From WSL that file is
+   `/mnt/c/Users/<windows-user>/<name>`.
+4. `ssh "$OMARCHY_VM_HOST" "wsl.exe -e bash -lc '…'"` copies it onto the
+   Linux filesystem (`/tmp/gadak-payload/`) and extracts it.
+5. One-shot `python3 -m http.server 8765 --bind 0.0.0.0` in that
+   directory on WSL (Python is already there; this is not installing
+   software). Tear it down after the guest has the tarball.
+6. Inside the guest, curl the QEMU user-net gateway:
+   `u=http://10.0.2.2:8765` then `curl -o p.tgz $u/p.tgz`. A HEAD of
+   `$u/` returned `HTTP/1.0 200 OK` from `SimpleHTTP/0.6 Python/3.12.3`.
+   The 7 MB tarball transferred at 100%.
+
+A later round that can type a sudo password (or that finds passwordless
+sudo) should still prefer enabling guest `sshd` — the QEMU forward is
+already there — and then `scp -P 2223` from WSL. Until then, reuse this
+user-net path.
+
+### VNC typing (costs a round if ignored)
+
+`tools/vnc-snap.py` `type:` holds `Shift_L` for shifted keys. Long
+strings are still flaky; **read the PNG before pressing enter** on
+anything that writes. Measured on 2026-08-19:
+
+- Uppercase `I` (`Shift_L` + `i`) was dropped twice. `curl -sI http://…`
+  landed as `curl -stp://…`; `curl -sI $u/` landed as `curl -s$u`.
+  Use `curl --head` instead of `-sI`.
+- `combo:Control+c` is rejected (`unknown key name 'Control'`). The
+  keysym table names it `Control_L`. `combo:Control_L+u` kills a
+  half-typed line; `combo:Control_L+c` did not always cancel.
+- `export PATH=…` in the Hyprland terminal does **not** reach the
+  widget. `BarWidget.qml` runs `bash -c` inside Quickshell, which has
+  the graphical-session PATH. Copy the binary into `~/.local/bin/`
+  (already populated on this guest).
+- There is no hover action and no right-click in `vnc-snap.py`. Tooltip
+  text cannot be photographed with the current wrapper. Widget refresh
+  is the 60 s `Timer` (`BarWidget.qml`), not a key we can send.
+
+## Bar widget states (checked 2026-08-19)
+
+`contrib/omarchy/gadak/BarWidget.qml` names five `viewState` values:
+`loading | ok | no-gadak | not-synced | sql-err`. The four a stranger
+meets, in order, with the commands that produced them:
+
+1. **`no-gadak`** — `command -v gadak` printed nothing (exit 1).
+   `bash omarchy/install.sh` copied the plugin, printed
+   `omarchy-plugin-validate: ok`, `Enabled io.github.midagedev.gadak`,
+   and `web app: gadak -> http://127.0.0.1:7777`. The bar badge read
+   `no gadak` (`BarWidget.qml` `displayText` for that state).
+2. **`not-synced`** — `cp gadak ~/.local/bin/` then wait for the 60 s
+   poll. Badge read `not synced`. In the same terminal,
+   `gadak sql "select 1"` printed
+   `no mirror at ~/.gadak/gadak.db — run \`gadak sync\` first`
+   (`cmd/gadak/sql.go`), which is the stderr the widget keys on
+   (`/no mirror/i` in `applyResult`).
+3. **`ok`** — `mkdir -p ~/.gadak && cp demo.db ~/.gadak/gadak.db`.
+   Next poll: badge `368·201`. Cross-check in the guest:
+   `q=$(cat omarchy/gadak/query.sql)` then `gadak sql --json "$q"`
+   printed `{"open":368,"stuck":201}` (plus a stale-mirror warning on
+   stderr, which the widget ignores). Same query against
+   `examples/demo.db` on the Mac also returned `368|201`.
+4. **the click** — `gadak serve --no-sync --no-open > /tmp/gs.log 2>&1 &`
+   then `curl --head http://127.0.0.1:7777/` → `HTTP/1.1 200 OK`.
+   Left-click the badge (`click:1150,18` on this 1280×800 framebuffer).
+   `Quickshell.execDetached(["omarchy-launch-webapp", serveUrl])` opened
+   an app window of the embedded UI: sidebar title `gadak`,
+   `534 issues`, `368 issues` in the filtered list.
+
+`sql-err` and the first-poll `…` were not staged. `gadak demo` was not
+used.
 
 ## Do not
 
