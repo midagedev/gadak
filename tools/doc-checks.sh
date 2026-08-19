@@ -497,4 +497,147 @@ if [[ -n "$second_category_mappers" ]]; then
 fi
 ok "effectiveCategory is the only status-category mapper in web/"
 
+# ── 16. Doc open-mode claims match the surface's store.Open* (GDK-306) ──
+# Class: a sentence that says how a surface opens the mirror must name the
+# function that surface actually calls. This is not "FAQ contains store.Open"
+# — if ensureDB switches to OpenReadOnly, a sentence that still says
+# store.Open must fail, and the reverse too.
+#
+# Owners are discovered from package layout, not a roster of today's files:
+#   the MCP server → store.Open* in internal/mcp/*.go (non-test)
+#   gadak sql      → store.Open* in cmd/gadak/sql.go
+# gadak_query / "query path" / "query tool" is the SQL connection
+# (sqlguard.runQuery, mode=ro), not the server open — those sentences are
+# not an MCP-server claim.
+#
+# FAIL-first 2026-08-19: docs/FAQ.md said the MCP server opens the file
+# read-only / mode=ro while internal/mcp/server.go called store.Open.
+open_mode_drift=$(
+  python3 - <<'GDK306PY'
+import re
+from pathlib import Path
+
+OPEN_CALL = re.compile(r"\bstore\.(OpenReadOnly|Open)\s*\(")
+QUERY_PATH = re.compile(r"gadak_query|query path|query tool", re.I)
+MCP_SURFACE = re.compile(r"\bthe MCP server\b|\bgadak mcp\b", re.I)
+SQL_SURFACE = re.compile(r"\bgadak sql\b", re.I)
+NAMED_RO = re.compile(r"\bstore\.OpenReadOnly\b")
+NAMED_RW = re.compile(r"\bstore\.Open\b")
+MODE_RO = re.compile(r"mode=ro|\bread-only\b|읽기 전용", re.I)
+SKIP_DIR = {"decisions", "node_modules", "dist", "e2e", "web"}
+SKIP_FILE = {"CHANGELOG.md"}
+
+
+def strip_go_comments(text):
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    out = []
+    for line in text.splitlines():
+        if "//" in line:
+            line = line[: line.index("//")]
+        out.append(line)
+    return "\n".join(out)
+
+
+def open_calls(paths):
+    found = []
+    for path in paths:
+        if path.name.endswith("_test.go"):
+            continue
+        text = strip_go_comments(path.read_text())
+        for i, line in enumerate(text.splitlines(), 1):
+            for m in OPEN_CALL.finditer(line):
+                found.append((path.as_posix(), i, m.group(1)))
+    return found
+
+
+def one_open(label, found):
+    if not found:
+        print("%s: no store.Open* call in production sources" % label)
+        return None
+    names = {n for _, _, n in found}
+    if len(names) != 1:
+        print("%s: mixed store.Open* calls — %s" % (
+            label, "; ".join("%s:%s %s" % t for t in found)))
+        return None
+    return names.pop()
+
+
+def sentences(text):
+    tick = chr(96)
+    fence = tick * 3
+    text = re.sub(re.escape(fence) + ".*?" + re.escape(fence), " ", text, flags=re.S)
+    out = []
+    buf = []
+    in_tick = False
+    for ch in text:
+        if ch == tick:
+            in_tick = not in_tick
+            buf.append(ch)
+            continue
+        if not in_tick and ch == ".":
+            buf.append(ch)
+            s = "".join(buf).strip()
+            if s:
+                out.append(re.sub(r"\s+", " ", s))
+            buf = []
+            continue
+        buf.append(ch)
+    tail = re.sub(r"\s+", " ", "".join(buf)).strip()
+    if tail:
+        out.append(tail)
+    return out
+
+
+def named_open(sentence):
+    if NAMED_RO.search(sentence):
+        return "OpenReadOnly"
+    if NAMED_RW.search(sentence):
+        return "Open"
+    return None
+
+
+def mode_open(sentence):
+    if MODE_RO.search(sentence):
+        return "OpenReadOnly"
+    return None
+
+
+mcp_open = one_open("MCP server", open_calls(Path("internal/mcp").glob("*.go")))
+sql_open = one_open("gadak sql", open_calls([Path("cmd/gadak/sql.go")]))
+if mcp_open is None or sql_open is None:
+    raise SystemExit
+
+docs = []
+for path in Path(".").rglob("*.md"):
+    if any(p in SKIP_DIR for p in path.parts):
+        continue
+    if path.name in SKIP_FILE:
+        continue
+    docs.append(path)
+
+hits = []
+for path in sorted(docs):
+    for sent in sentences(path.read_text()):
+        if MCP_SURFACE.search(sent):
+            claimed = named_open(sent)
+            if claimed is None and not QUERY_PATH.search(sent):
+                claimed = mode_open(sent)
+            if claimed and claimed != mcp_open:
+                hits.append("%s: MCP server claim %s but internal/mcp calls store.%s — %s" % (
+                    path.as_posix(), claimed, mcp_open, sent[:160]))
+        if SQL_SURFACE.search(sent):
+            claimed = named_open(sent) or mode_open(sent)
+            if claimed and claimed != sql_open:
+                hits.append("%s: gadak sql claim %s but cmd/gadak/sql.go calls store.%s — %s" % (
+                    path.as_posix(), claimed, sql_open, sent[:160]))
+
+if hits:
+    print("\n".join(hits))
+GDK306PY
+)
+if [[ -n "$open_mode_drift" ]]; then
+  fail "a doc claim about how a surface opens the mirror disagrees with that surface's store.Open* call (GDK-306):"$'\n'"$open_mode_drift"
+fi
+ok "doc claims about how MCP / gadak sql open the mirror match store.Open*"
+
 echo "doc-checks: all passed"

@@ -51,9 +51,12 @@ in it.
 ## Several things open the same SQLite file — is that safe?
 
 Yes, by construction: the mirror runs in WAL mode, so one writer (the sync
-loop) and any number of readers coexist; `gadak sql` and the MCP server open
-the file **read-only** (`mode=ro`). The web UI reads through the same
-store layer. You can run all of them at once — that is the intended shape.
+loop) and any number of readers coexist. The MCP server opens the file with
+`store.Open` (read-write; it runs migrations). `gadak sql` opens it with
+`store.OpenReadOnly` (SQLite `mode=ro`). Agent SQL is a second connection:
+`gadak_query` uses `mode=ro` and rejects anything that is not SELECT or WITH.
+The web UI reads through the same store layer. You can run all of them at once
+— that is the intended shape.
 
 ## Why not the official Atlassian MCP / a Forge app / a browser extension?
 
