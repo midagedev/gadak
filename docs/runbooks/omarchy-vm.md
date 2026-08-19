@@ -236,6 +236,27 @@ anything that writes. Measured on 2026-08-19:
   text cannot be photographed with the current wrapper. Widget refresh
   is the 60 s `Timer` (`BarWidget.qml`), not a key we can send.
 
+### Answering a prompt that wants a secret
+
+`type:TEXT` puts the text in `ps` and in whatever transcript recorded the
+command, so it is the wrong action for a password — including the guest's
+`sudo` prompt, which is the only way to reach `sudo` here (`sshd` is down and
+`sudo -n` fails). Use `typeenv:VAR`, which names an environment variable and
+never places the value on the command line:
+
+```bash
+GUEST_SUDO_PASSWORD="$(head -1 <a 0600 file outside this repo>)" \
+  python3 tools/vnc-snap.py --host … --port … \
+    --do 'type:sudo systemctl enable --now sshd' --do enter --do sleep:1 \
+    --do 'typeenv:GUEST_SUDO_PASSWORD' --do enter --do sleep:2 \
+    --out /tmp/omarchy-sshd.png
+```
+
+A wrong or unset variable name is reported by **name**; the value is never
+echoed, logged, or included in an error. Keep the secret in a `0600` file
+outside the repository and read it into the environment on the command that
+needs it — never into a tracked file, and never as a flag.
+
 ## Bar widget states (checked 2026-08-19)
 
 `contrib/omarchy/gadak/BarWidget.qml` names five `viewState` values:

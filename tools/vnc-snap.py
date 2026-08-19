@@ -337,13 +337,22 @@ def run_actions(
 ) -> None:
     """Run --do actions in order.
 
-    Forms (no password, no host secrets — just key names and typed text):
+    Forms:
       key:Escape
       combo:Super+Return
       type:uname -a
+      typeenv:VAR_NAME
       enter
       sleep:0.4
       click:100,200
+
+    `type:` text is an argument, so it is visible in `ps` and in any transcript
+    that records the command. Anything secret must therefore go through
+    `typeenv:`, which names an environment variable and never places the value
+    on the command line. The value is not echoed, not logged, and not included
+    in an error message — a wrong variable name reports the name only. This
+    exists because a sudo prompt on the guest cannot be answered any other way
+    over RFB, and because a password that reaches `ps` has already leaked.
     """
     for raw in actions:
         if raw == "enter":
@@ -372,6 +381,17 @@ def run_actions(
             continue
         if raw.startswith("type:"):
             type_text(sock, raw.split(":", 1)[1], deadline)
+            continue
+        if raw.startswith("typeenv:"):
+            name = raw.split(":", 1)[1]
+            if not name:
+                raise VNCError("typeenv: needs a variable name")
+            secret = os.environ.get(name)
+            # Report the name, never the value, and never whether some other
+            # variable would have worked.
+            if not secret:
+                raise VNCError(f"typeenv: ${name} is unset or empty")
+            type_text(sock, secret, deadline)
             continue
         if raw.startswith("click:"):
             coords = raw.split(":", 1)[1]
@@ -529,7 +549,9 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         metavar="ACTION",
         help="optional input before the capture: key:Escape, combo:Super+Return, "
-        "type:TEXT, enter, sleep:SEC, click:X,Y (repeatable, in order)",
+        "type:TEXT, typeenv:VAR (types $VAR — the only form safe for a secret, "
+        "since type:TEXT lands in ps), enter, sleep:SEC, click:X,Y "
+        "(repeatable, in order)",
     )
     args = p.parse_args(argv)
     if args.port <= 0 or args.port > 65535:

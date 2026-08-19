@@ -850,4 +850,54 @@ if [[ -n "$env_census" ]]; then
 fi
 ok "internal/config/identity.go's GADAK_* allowlist covers every name the Go source reads"
 
+# ── 19. vnc-snap.py's --do actions are documented where they are used ───
+# Class: tools/vnc-snap.py is driven from docs/runbooks/omarchy-vm.md, and the
+# operator's only channel to that guest is those keystrokes. An action that
+# exists in the code but nowhere in the runbook is an action nobody will reach;
+# one named in the runbook but absent from the code fails mid-round on a machine
+# that costs a round to retry. typeenv is the case that made this worth a gate:
+# it is the only action safe for a secret, and a reader who does not know it
+# exists will use type: and put a password in ps.
+# Derived from the dispatch itself (raw == "x" / raw.startswith("x:")), so it
+# cannot be satisfied by editing a list.
+vnc_actions=""
+vnc_actions=$(python3 - <<'GDKVNCPY'
+import re
+from pathlib import Path
+
+src = Path("tools/vnc-snap.py")
+runbook = Path("docs/runbooks/omarchy-vm.md")
+if not src.is_file():
+    raise SystemExit(0)  # tool removed: nothing to police
+body = src.read_text()
+
+m = re.search(r"\ndef run_actions\(.*?\n(?=\ndef |\Z)", body, re.S)
+if not m:
+    print("could not find run_actions in tools/vnc-snap.py")
+    raise SystemExit(0)
+loop = m.group(0)
+
+dq = chr(34)
+actions = set(re.findall(r"raw == " + dq + r"([a-z]+)" + dq, loop))
+actions |= set(re.findall(r"raw\.startswith\(" + dq + r"([a-z]+):" + dq, loop))
+if not actions:
+    print("parsed no --do actions out of run_actions")
+    raise SystemExit(0)
+
+help_m = re.search(r"metavar=" + dq + r"ACTION" + dq + r"(.*?)\n\s*\)", body, re.S)
+help_text = help_m.group(1) if help_m else ""
+doc_text = runbook.read_text() if runbook.is_file() else ""
+
+for name in sorted(actions):
+    if name not in help_text:
+        print("%s is implemented but --do help does not name it" % name)
+    if doc_text and name not in doc_text:
+        print("%s is implemented but docs/runbooks/omarchy-vm.md does not name it" % name)
+GDKVNCPY
+)
+if [[ -n "$vnc_actions" ]]; then
+  fail "tools/vnc-snap.py has an undocumented --do action:"$'\n'"$vnc_actions"
+fi
+ok "every tools/vnc-snap.py --do action is named in its own help and in the runbook"
+
 echo "doc-checks: all passed"
