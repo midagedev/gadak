@@ -2,6 +2,7 @@ package origin
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,12 +10,13 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 )
 
-// TestGDK333FailFirstTwoSessionsInvisible is the pre-fix shape of the
-// defect: two constructStandalone graphs on the same persist path do not
-// share memory. A create on A is invisible on B. After the routing fix
-// this remains true of two embeddings — the fix is that the CLI no longer
-// constructs B when a live serve owns A. The assertion is the inverse of
-// what we want from a routed Client (visibility); it documents the hazard.
+// TestGDK333FailFirstTwoSessionsInvisible documented the pre-fix defect:
+// two constructStandalone graphs on the same persist path did not share
+// memory — a create on A was invisible on B, and the last Close silently
+// won. GDK-333 closed the happy path by routing; GDK-343 closes the rest:
+// the persist lock now makes the second construction impossible at all, so
+// the assertion is that B fails with ErrWorkspaceBusy instead of opening
+// an invisible sibling graph.
 func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), "origin", "issuetap.yaml")
 	a, err := constructStandalone(persist)
@@ -22,11 +24,6 @@ func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { closeSession(a) })
-	b, err := constructStandalone(persist)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeSession(b) })
 
 	ctx := context.Background()
 	key, err := a.client.CreateIssue(ctx, map[string]any{
@@ -41,13 +38,21 @@ func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 		t.Fatalf("key %q", key)
 	}
 
-	found := searchKey(t, b.client, key)
-	if found {
-		t.Fatalf("session B unexpectedly sees %s — two embeddings now share memory; the routing fix needs revisit", key)
+	// FAIL-first (2026-08-19, unmodified constructStandalone): this second
+	// construction succeeded and B could not see A's issue — two embedded
+	// graphs over one file. Since GDK-343 it must fail on the persist lock.
+	b, err := constructStandalone(persist)
+	if err == nil {
+		closeSession(b)
+		t.Fatal("second constructStandalone succeeded — the GDK-333/343 double-graph hazard is back")
 	}
-	// FAIL-first (2026-08-19, unmodified constructStandalone):
-	// "FAIL-first GDK-333: issue STD-1 created on session A is invisible on session B (two embedded graphs)"
-	t.Logf("GDK-333 hazard still holds: %s created on A is invisible on B", key)
+	if !errors.Is(err, ErrWorkspaceBusy) {
+		t.Fatalf("second constructStandalone error = %v, want ErrWorkspaceBusy", err)
+	}
+
+	if !searchKey(t, a.client, key) {
+		t.Fatalf("issue %s missing on its own session", key)
+	}
 }
 
 func searchKey(t *testing.T, c *jira.Client, key string) bool {

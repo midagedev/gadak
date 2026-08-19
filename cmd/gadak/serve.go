@@ -209,7 +209,10 @@ func runServeHTTP(ctx context.Context, mux http.Handler, preferred string, addrP
 	defer ln.Close()
 	// Advertise the final listen address (after port fallback) so other
 	// processes route origin writes here. Connected workspaces skip.
-	unpublish := publishStandaloneOrigin(cfg, bound)
+	unpublish, err := publishStandaloneOrigin(cfg, bound)
+	if err != nil {
+		return err
+	}
 	defer unpublish()
 
 	srv := &http.Server{
@@ -259,6 +262,12 @@ func cmdServe(args []string) error {
 	if cfg.IsStandalone() {
 		origin.SetInProcess(true)
 		defer origin.SetInProcess(false)
+		// Take the persist lock now (GDK-343): a second owner must fail at
+		// startup — before its advertise write could steal routing from the
+		// live owner — not at the first write.
+		if _, err := origin.StandaloneHandler(cfg); err != nil {
+			return err
+		}
 	}
 	db, err := openStore()
 	if err != nil {
@@ -299,24 +308,28 @@ func cmdServe(args []string) error {
 // publishStandaloneOrigin writes serve-origin.json for a standalone
 // workspace and returns a cleanup that removes it. Connected workspaces
 // and a missing profile dir are no-ops.
-func publishStandaloneOrigin(cfg *config.Config, bound string) func() {
+//
+// A write failure is fatal (GDK-343 / F6): this process holds the persist
+// lock, so without the advertise file every concurrent CLI write becomes a
+// hard "workspace busy" error instead of routing here. Failing loud at
+// startup beats a warning nobody reads.
+func publishStandaloneOrigin(cfg *config.Config, bound string) (func(), error) {
 	nop := func() {}
 	if cfg == nil || !cfg.IsStandalone() || bound == "" {
-		return nop
+		return nop, nil
 	}
 	dir := cfg.Directory()
 	if dir == "" {
 		var err error
 		dir, err = config.Dir()
 		if err != nil || dir == "" {
-			return nop
+			return nop, nil
 		}
 	}
 	if err := origin.WriteAdvertise(dir, bound); err != nil {
-		log.Printf("warning: could not advertise origin owner: %v", err)
-		return nop
+		return nop, fmt.Errorf("could not advertise origin owner: %w", err)
 	}
-	return func() { _ = origin.RemoveAdvertise(dir) }
+	return func() { _ = origin.RemoveAdvertise(dir) }, nil
 }
 
 // openOnceUp opens the browser as soon as the server answers /healthz, so the

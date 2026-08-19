@@ -209,7 +209,10 @@ func run() error {
 	if cfg.IsStandalone() {
 		origin.SetInProcess(true)
 		defer origin.SetInProcess(false)
-		stopAdvertise := startStandaloneOriginListener(cfg, api)
+		stopAdvertise, err := startStandaloneOriginListener(cfg, api)
+		if err != nil {
+			return err
+		}
 		defer stopAdvertise()
 		// The CLI flushes the standalone persist on the way out
 		// (cmd/gadak/main.go); the app must too, or quitting inside the
