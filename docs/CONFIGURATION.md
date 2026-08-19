@@ -138,6 +138,8 @@ and `hasCredential` on the body are ignored.
 | `updateCheck` | bool | **true** when absent | `gadak config set updateCheck` / `config.json` (not on Settings UI or Settings PUT) | Next `sync` / `status` / `serve` / desktop start; once-per-day GitHub release lookup (cached under the profile directory on disk). Set `false` to opt out — no outbound traffic beyond Jira |
 | `attachmentCacheMB` | int | `0` → package **512** | `gadak config set attachmentCacheMB` / `config.json` (not on Settings UI or Settings PUT) | Cap (MB) for the on-disk cache opened when a workspace mounts; `0` becomes the package default |
 | `confluence` | object or absent | absent = wiki mirror off. `gadak init --standalone` writes the block scoped to `LOC` | Settings → Sources / `gadak config set confluence` | Next Confluence pass |
+| `linear` | object or absent | absent = Linear source off. `apiKey` (personal API key, sent bare in the Authorization header) turns the source on; writes to Linear-owned keys route through it | edit `config.json` (no Settings surface yet) | Next `sync --source linear` |
+| `linear.teamIds` | string[] | `[]` = every team the key can see; team UUIDs restrict the mirror scope | edit `config.json` | Next Linear pass |
 | `confluence.spaces` | string[] | `[]` = every *global* space; personal spaces only if named (`internal/config/config.go`) | Settings → Sources / `gadak config set confluence.spaces` | Next Confluence pass |
 
 The space list *is* the scope: drop a space and the next Confluence pass

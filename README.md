@@ -177,10 +177,16 @@ app. The mirror is a cache either way; every write goes through the origin.
 6. Changelog is mirrored. Time in status is computed from `status_changed_at`, not stored as a column.
 7. Jira's notification inbox, rules, and email are not mirrored. gadak has its own watch-feed OS alerts on macOS and Linux.
 
-**Linear — coming soon.** A read-only GraphQL client is already in the
-tree (viewer, teams, workflow states, cursor-paged issues), measured
-against the live API. A Linear workspace is planned for a release after
-0.16; this table gets a Linear column when one exists.
+**Linear.** A Linear workspace mirrors and writes through the same
+verbs: add a `"linear"` block (`apiKey`, optional `teamIds`) to the
+profile's `config.json` and run `gadak sync --source linear`. Writes
+route by the mirror's source for the key — comment, transition (the
+team's workflow states, id-keyed), summary/priority/due-date edits,
+assign/unassign, and file attachments all pass through Linear's API and
+refresh the mirror row. Not yet: label edits, inline comment media,
+clearing a due date, state history (`status_changed_at` stays NULL) —
+each refuses honestly rather than half-applying. Field mapping:
+[`internal/linear/MAPPING.md`](internal/linear/MAPPING.md).
 
 ## For agents
 
