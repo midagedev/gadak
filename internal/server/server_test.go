@@ -210,7 +210,10 @@ func fixtureAt(t *testing.T) (*store.DB, *config.Config, string) {
 	}
 
 	cfg := &config.Config{
-		Site: "https://x.atlassian.net", Email: "hc@example.com", Token: "secret-token",
+		// Dead loopback: HasCredential stays true so settings PUT still
+		// covers the startSyncJob branch, but the job cannot leave the
+		// box (GDK-304). 127.0.0.1:1 is connection-refused immediately.
+		Site: "http://127.0.0.1:1", Email: "hc@example.com", Token: "secret-token",
 		Projects: []string{"NMB", "NMA"},
 		Members: []config.Member{{
 			Email: "hc@example.com", Name: "김현철", DisplayName: "현철",
@@ -987,7 +990,7 @@ func TestSettingsRoundtripPreservesCredential(t *testing.T) {
 	h := New(db, cfg)
 
 	before := decode[settingsDoc](t, get(t, h, apiBase+"settings/", nil))
-	if !before.HasCredential || before.Site != "https://x.atlassian.net" {
+	if !before.HasCredential || before.Site != "http://127.0.0.1:1" {
 		t.Fatalf("settings %+v", before)
 	}
 	if before.Features["qa"] || len(before.Features) != len(featureNames) {
@@ -1057,7 +1060,7 @@ func TestWebConfigHidesCredential(t *testing.T) {
 	if got.APIBase != apiBase || got.AuthBase != authBase {
 		t.Fatalf("bases %+v", got)
 	}
-	if got.JiraBaseURL != "https://x.atlassian.net" || got.GroupLabels["batch"] != "배치" {
+	if got.JiraBaseURL != "http://127.0.0.1:1" || got.GroupLabels["batch"] != "배치" {
 		t.Fatalf("doc %+v", got)
 	}
 	// An unset threshold must not serialize as 0 — that would mark every issue stale.
