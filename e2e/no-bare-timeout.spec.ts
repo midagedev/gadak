@@ -10,13 +10,12 @@ import { expect, test } from '@playwright/test'
  * interval, elapsed-threshold). Sleep-to-hope-boot-finished is not that.
  *
  * demo/ hosted/ perf/ are their own suites (playwright.config testIgnore).
- * helpers.ts is outside this round's e2e/*.spec.ts whitelist — walkRows' 30ms
- * scroll settle is a real duration wait; the lead can add the comment.
+ * Nothing else is exempt: a helper's sleep flakes every spec that calls it,
+ * so the one place a file-level exemption would hurt most is the helpers.
  */
 
 const E2E = dirname(fileURLToPath(import.meta.url))
 const SKIP_DIRS = new Set(['demo', 'hosted', 'perf', '.tmp', 'node_modules'])
-const SKIP_FILES = new Set(['helpers.ts'])
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -37,7 +36,6 @@ function isComment(line: string | undefined): boolean {
 export function bareTimeouts(root = E2E): string[] {
   const hits: string[] = []
   for (const file of walk(root)) {
-    if (SKIP_FILES.has(relative(root, file))) continue
     const lines = readFileSync(file, 'utf8').split('\n')
     for (let i = 0; i < lines.length; i++) {
       if (!/\.waitForTimeout\s*\(/.test(lines[i])) continue
