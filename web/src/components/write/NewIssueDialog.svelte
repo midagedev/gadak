@@ -294,19 +294,30 @@
 >
   <div
     use:trapFocus
-    class="anim-enter w-full max-w-lg rounded-lg border border-border-strong bg-bg-panel p-5 shadow-overlay"
+    class="anim-enter flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
     role="dialog"
     aria-modal="true"
     aria-label={t('write.newIssue')}
     data-testid="new-issue-dialog"
     data-write-state={writeState}
   >
-    <h2 class="type-subject mb-4 text-[18px] leading-snug text-text-primary">{t('write.newIssue')}</h2>
+    <div class="flex flex-none items-center justify-between border-b border-border-subtle px-5 py-3">
+      <h2 class="type-subject text-[18px] leading-snug text-text-primary">{t('write.newIssue')}</h2>
+      <button
+        type="button"
+        class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        onclick={close}
+        aria-label={t('common.closeEsc')}
+        title={t('common.closeEsc')}
+      >
+        <Icon name="x" size={14} />
+      </button>
+    </div>
 
     {#if writeState === 'loading'}
-      <div class="py-8 text-center text-body text-text-muted">{t('common.loading')}</div>
+      <div class="px-5 py-8 text-center text-body text-text-muted">{t('common.loading')}</div>
     {:else if writeState === 'need-token'}
-      <div class="flex flex-col items-center gap-3 py-8 text-center">
+      <div class="flex flex-col items-center gap-3 px-5 py-8 text-center">
         <p class="text-body text-status-reopen">{t('write.needToken')}</p>
         <button
           type="button"
@@ -316,7 +327,7 @@
         >
       </div>
     {:else if writeState === 'meta-failed'}
-      <div class="flex flex-col items-center gap-3 py-8 text-center">
+      <div class="flex flex-col items-center gap-3 px-5 py-8 text-center">
         <p class="text-body text-status-reopen">{t('write.metaFailed')}</p>
         <button
           type="button"
@@ -326,7 +337,8 @@
         >
       </div>
     {:else}
-      <form onsubmit={submit} class="flex flex-col gap-3">
+      <form onsubmit={submit} class="flex min-h-0 flex-1 flex-col">
+        <div class="scroll-region flex min-h-0 flex-1 flex-col gap-3 px-5 pt-4">
         <!-- Project + type -->
         <div class="flex gap-3">
           <label class="flex min-w-0 flex-1 flex-col gap-1">
@@ -487,8 +499,12 @@
         {#if submitError}
           <p class="whitespace-pre-wrap text-[12px] text-status-reopen" data-testid="new-issue-error">{submitError}</p>
         {/if}
+        </div>
 
-        <div class="mt-1 flex items-center justify-end gap-2">
+        <div
+          class="mt-1 flex flex-none items-center justify-end gap-2 border-t border-border-subtle px-5 py-3"
+          data-dialog-footer
+        >
           <button
             type="button"
             onclick={close}

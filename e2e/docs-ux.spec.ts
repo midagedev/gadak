@@ -410,7 +410,7 @@ test.describe('documents in the daily loop', () => {
     // Scope change + credential kicks a full sync on save (settings.go).
     await expect(sources).toContainText('full sync immediately')
 
-    await dialog.getByRole('button', { name: 'Close' }).click()
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
     await expect(dialog).toHaveCount(0)
   })
 

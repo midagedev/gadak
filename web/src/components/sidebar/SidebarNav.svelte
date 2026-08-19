@@ -871,9 +871,12 @@
         </button>
       </div>
       <pre
-        class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-micro text-text-primary"
+        class="scroll-region min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-micro text-text-primary"
       >{notesText}</pre>
-      <div class="flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-4 py-3">
+      <div
+        class="flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-4 py-3"
+        data-dialog-footer
+      >
         {#if cta.command}
           <span class="font-mono text-micro text-text-primary">{cta.command}</span>
           <button

@@ -11,6 +11,7 @@
   import { write } from '../../stores/write.svelte'
   import { absoluteTime } from '../detail/format'
   import { trapFocus } from '../../lib/focus-trap'
+  import Icon from '../ui/Icon.svelte'
 
   const API_TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens'
 
@@ -68,13 +69,27 @@
 >
   <div
     use:trapFocus
-    class="anim-enter w-full max-w-sm rounded-lg border border-border-strong bg-bg-panel p-5 shadow-overlay"
+    class="anim-enter flex max-h-[80vh] w-full max-w-sm flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
     role="dialog"
     aria-modal="true"
     aria-label={t('jiraSettings.title')}
   >
-    <h2 class="type-subject mb-1 text-[18px] leading-snug text-text-primary">{t('jiraSettings.heading')}</h2>
-    <p class="mb-4 text-[12px] leading-relaxed text-text-muted">
+    <div class="flex flex-none items-center justify-between border-b border-border-subtle px-5 py-3">
+      <h2 class="type-subject text-[18px] leading-snug text-text-primary">{t('jiraSettings.heading')}</h2>
+      <button
+        type="button"
+        class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        onclick={close}
+        aria-label={t('common.closeEsc')}
+        title={t('common.closeEsc')}
+      >
+        <Icon name="x" size={14} />
+      </button>
+    </div>
+
+    <form onsubmit={submit} class="flex min-h-0 flex-1 flex-col">
+      <div class="scroll-region flex min-h-0 flex-1 flex-col gap-3 px-5 pt-4">
+    <p class="text-[12px] leading-relaxed text-text-muted">
       <!-- intro3 already ends in "Atlassian"; the line break below is the space
            before the link, so no literal belongs here. -->
       {t('jiraSettings.intro1')} <span class="text-text-secondary">{t('jiraSettings.intro2')}</span>{t('jiraSettings.intro3')}
@@ -88,7 +103,7 @@
 
     {#if write.configured}
       <!-- Configured summary -->
-      <div class="mb-4 rounded-md border border-border-subtle bg-bg-elevated px-3 py-2.5 text-[12px]">
+      <div class="rounded-md border border-border-subtle bg-bg-elevated px-3 py-2.5 text-[12px]">
         <div class="flex items-center justify-between gap-2">
           <span class="text-text-secondary">{write.displayName || write.jiraEmail}</span>
           <span class="rounded bg-status-done/15 px-1.5 py-0.5 text-micro font-medium text-status-done"
@@ -102,8 +117,6 @@
         </div>
       </div>
     {/if}
-
-    <form onsubmit={submit} class="flex flex-col gap-3">
       <label class="flex flex-col gap-1">
         <span class="text-micro text-text-secondary">{t('jiraSettings.email')}</span>
         <input
@@ -142,8 +155,12 @@
       {#if error}
         <p class="text-[12px] text-status-reopen">{error}</p>
       {/if}
+      </div>
 
-      <div class="mt-1 flex items-center justify-between gap-2">
+      <div
+        class="mt-1 flex flex-none items-center justify-between gap-2 border-t border-border-subtle px-5 py-3"
+        data-dialog-footer
+      >
         {#if write.configured}
           <button
             type="button"
@@ -162,7 +179,7 @@
             onclick={close}
             class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
           >
-            {t('common.close')}
+            {t('common.cancel')}
           </button>
           <button
             type="submit"

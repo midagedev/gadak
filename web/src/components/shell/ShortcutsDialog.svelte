@@ -111,7 +111,7 @@
       </button>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+    <div class="scroll-region min-h-0 flex-1 px-4 py-3">
       {#each sections as section (section.title)}
         <div class="mb-3 last:mb-0">
           <div class="mb-1 text-micro font-medium uppercase tracking-wide text-text-muted">

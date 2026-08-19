@@ -301,7 +301,7 @@
        1000px viewport. (2026-08-06) -->
   <div
     use:trapFocus
-    class="anim-pop flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
+    class="anim-pop flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
     role="dialog"
     aria-modal="true"
     aria-label={t('settings.title')}
@@ -309,7 +309,18 @@
   >
     <!-- Header + tabs -->
     <div class="flex-none border-b border-border-subtle px-5 pt-4">
-      <h2 class="type-subject mb-0.5 text-[18px] leading-snug text-text-primary">{t('settings.title')}</h2>
+      <div class="mb-0.5 flex items-center justify-between">
+        <h2 class="type-subject text-[18px] leading-snug text-text-primary">{t('settings.title')}</h2>
+        <button
+          type="button"
+          class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+          onclick={onclose}
+          aria-label={t('common.closeEsc')}
+          title={t('common.closeEsc')}
+        >
+          <Icon name="x" size={14} />
+        </button>
+      </div>
       <p class="mb-3 text-micro text-text-muted">
         {t('settings.introBefore')} <span class="font-mono">~/.gadak/config.json</span> {t('settings.introAfter')}
       </p>
@@ -402,8 +413,12 @@
     </div>
 
 
-    <!-- theme write-throughs immediately; locale stays per-browser. -->
-    <div class="flex flex-none items-center gap-2 border-t border-border-subtle px-5 py-2">
+    <!-- One pinned footer: theme/locale write-throughs (theme immediately; locale
+         stays per-browser) sit with Close/Save so they cannot stack over the body. -->
+    <div
+      class="flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-5 py-3"
+      data-dialog-footer
+    >
       <label class="flex items-center gap-2 text-[12px] text-text-secondary">
         <span>{t('theme.label')}</span>
         <span class="relative flex">
@@ -434,10 +449,6 @@
           <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
         </span>
       </label>
-    </div>
-
-    <!-- Footer -->
-    <div class="flex flex-none items-center justify-between gap-2 border-t border-border-subtle px-5 py-3">
       <span class="min-w-0 flex-1 truncate text-[12px] text-status-reopen">{error ?? ''}</span>
       <button
         type="button"
