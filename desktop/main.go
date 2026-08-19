@@ -32,6 +32,7 @@ import (
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/integrations"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
@@ -199,6 +200,18 @@ func run() error {
 	}
 	// After db.Close above, so LIFO stops the background sync first (GDK-270).
 	defer api.Close()
+
+	// Standalone: this process owns persist. Embed (never probe our own
+	// advertise file — self-loop), and advertise a loopback origin-only
+	// listener so a concurrent CLI routes writes here instead of opening a
+	// second embedded graph over the same persist file (GDK-340). LIFO:
+	// the listener stops before api.Close.
+	if cfg.IsStandalone() {
+		origin.SetInProcess(true)
+		defer origin.SetInProcess(false)
+		stopAdvertise := startStandaloneOriginListener(cfg, api)
+		defer stopAdvertise()
+	}
 
 	ui, ok := gadak.WebUI()
 	if !ok {

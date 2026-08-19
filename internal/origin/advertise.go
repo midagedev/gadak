@@ -24,14 +24,15 @@ const AdvertiseRel = "serve-origin.json"
 // /rest/api/3/issue is sent to <serve> + RESTPrefix + /rest/api/3/issue.
 const RESTPrefix = "/api/v1/origin"
 
-const (
-	// probePath and probeTimeout match cmd/gadak/port_fallback.go. Origin
-	// cannot import cmd, so the values and the header contract (X-Gadak,
-	// X-Gadak-Profile) are copied here including the 700ms bound — a
-	// longer timeout would stall every CLI write when no serve is up.
-	probePath    = "/api/v1/issues/sync/progress/"
-	probeTimeout = 700 * time.Millisecond
-)
+// ProbePath and probeTimeout match cmd/gadak/port_fallback.go. Origin
+// cannot import cmd, so the values and the header contract (X-Gadak,
+// X-Gadak-Profile) are copied here including the 700ms bound — a
+// longer timeout would stall every CLI write when no serve is up.
+// Exported so the desktop app's origin-only listener (GDK-340) can serve
+// exactly the path the probe hits.
+const ProbePath = "/api/v1/issues/sync/progress/"
+
+const probeTimeout = 700 * time.Millisecond
 
 // Advertise is the JSON document in AdvertiseRel.
 type Advertise struct {
@@ -214,7 +215,7 @@ func probeGadakOnPort(port string, timeout time.Duration) gadakProbe {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	url := "http://" + net.JoinHostPort("127.0.0.1", port) + probePath
+	url := "http://" + net.JoinHostPort("127.0.0.1", port) + ProbePath
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return gadakProbe{}
