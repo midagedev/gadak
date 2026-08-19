@@ -177,11 +177,10 @@ app. The mirror is a cache either way; every write goes through the origin.
 6. Changelog is mirrored. Time in status is computed from `status_changed_at`, not stored as a column.
 7. Jira's notification inbox, rules, and email are not mirrored. gadak has its own watch-feed OS alerts on macOS and Linux.
 
-**Linear.** A read-only GraphQL client is in the tree (viewer, teams,
-workflow states, cursor-paged issues). It is not wired into a workspace
-yet — what a Linear origin would mean is still an open decision, and two
-origin kinds side by side is after 0.16. This table has no Linear column
-because nothing Linear is a workspace yet.
+**Linear — coming soon.** A read-only GraphQL client is already in the
+tree (viewer, teams, workflow states, cursor-paged issues), measured
+against the live API. A Linear workspace is planned for a release after
+0.16; this table gets a Linear column when one exists.
 
 ## For agents
 

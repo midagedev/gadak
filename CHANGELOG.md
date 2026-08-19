@@ -2,7 +2,7 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.16.0 — 2026-08-19
 
 The release where gadak stops needing an Atlassian account to be useful,
 stops needing a Mac to run, and stops being read-only about the fields
