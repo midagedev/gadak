@@ -19,7 +19,6 @@ import (
 
 	raycastext "github.com/midagedev/gadak/contrib/raycast"
 	"github.com/midagedev/gadak/internal/clitool"
-	"github.com/midagedev/gadak/internal/config"
 )
 
 func init() {
@@ -36,20 +35,11 @@ func init() {
 }
 
 const (
-	raycastExtDirName      = "raycast-extension"
 	developSuccessMarker   = "built extension successfully"
 	developTimeoutDefault  = 90 * time.Second
 	developSettleDefault   = 3 * time.Second
 	developStopWaitDefault = 10 * time.Second
 )
-
-// npmFallbackPaths is LookPath("npm") then these, first existing+executable
-// wins. Same brew locations as contrib/raycast/src/gadak.ts GADAK_CANDIDATES,
-// opposite direction (we are finding npm, not gadak).
-var npmFallbackPaths = []string{
-	"/opt/homebrew/bin/npm",
-	"/usr/local/bin/npm",
-}
 
 // lookPath is exec.LookPath; tests inject a stub.
 var lookPath = exec.LookPath
@@ -77,7 +67,7 @@ func cmdRaycastInstall(args []string) error {
 		return usageError("raycast", "usage: gadak raycast install")
 	}
 
-	dest, err := raycastExtDir()
+	dest, err := clitool.RaycastExtDir()
 	if err != nil {
 		return err
 	}
@@ -85,7 +75,7 @@ func cmdRaycastInstall(args []string) error {
 		return err
 	}
 
-	npm, ok := resolveNPM(lookPath, fileIsExec)
+	npm, ok := clitool.ResolveNPM(lookPath, fileIsExec)
 	if !ok {
 		return fmt.Errorf("%s", strings.TrimRight(npmMissingMessage(), "\n"))
 	}
@@ -107,16 +97,6 @@ func cmdRaycastInstall(args []string) error {
 	fmt.Println("Raycast에서 'Search Jira & Confluence'를 실행하세요")
 	fmt.Println("스토어 심사가 끝나면 Raycast Store 설치로 교체할 수 있습니다.")
 	return nil
-}
-
-// raycastExtDir is ~/.gadak/raycast-extension, or $GADAK_HOME/raycast-extension.
-// Profile is ignored: the extension is one copy per gadak home.
-func raycastExtDir() (string, error) {
-	base, err := config.DirFor("")
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(base, raycastExtDirName), nil
 }
 
 func deployRaycastExt(dst string, src fs.FS) error {
@@ -174,25 +154,6 @@ func extractEmbedFS(dst string, src fs.FS) error {
 	})
 }
 
-// resolveNPM tries PATH, then npmFallbackPaths. look and present are injected
-// so tests can assert the candidate order without touching the host.
-func resolveNPM(look func(string) (string, error), present func(string) bool) (string, bool) {
-	if look != nil {
-		if p, err := look("npm"); err == nil && p != "" {
-			return p, true
-		}
-	}
-	if present == nil {
-		present = isExecutable
-	}
-	for _, c := range npmFallbackPaths {
-		if present(c) {
-			return c, true
-		}
-	}
-	return "", false
-}
-
 func isExecutable(path string) bool {
 	fi, err := os.Stat(path)
 	if err != nil || fi.IsDir() {
@@ -202,12 +163,12 @@ func isExecutable(path string) bool {
 }
 
 func npmMissingMessage() string {
-	return `Node.js (npm) is required to install the Raycast extension.
-The extension is under review at https://github.com/raycast/extensions/pull/30297
-Until it is in the store, you can install from source:
-  git clone https://github.com/midagedev/gadak && cd gadak/contrib/raycast
-  npm ci && npm run dev
-`
+	return "Node.js (npm) is required to install the Raycast extension.\n" +
+		"Looked for npm on " + clitool.NPMNotFoundDetail() + ".\n" +
+		"The extension is under review at https://github.com/raycast/extensions/pull/30297\n" +
+		"Until it is in the store, you can install from source:\n" +
+		"  git clone https://github.com/midagedev/gadak && cd gadak/contrib/raycast\n" +
+		"  npm ci && npm run dev\n"
 }
 
 func runNPMCi(npm, dir string) error {

@@ -3,6 +3,9 @@
 // Mode or elevation, so the default path fails). Shared by
 // `gadak install-cli` and the desktop "Install Command Line Tool…" menu
 // so both surfaces use the same resolve / install / PATH-advice logic.
+//
+// LookPathThen / ResolveNPM / RaycastExtDir live here too: the CLI install
+// verb and the desktop catalog must try the same candidates.
 package clitool
 
 import (
