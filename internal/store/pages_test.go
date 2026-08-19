@@ -367,9 +367,9 @@ func TestPageLiteAuthorID(t *testing.T) {
 	}
 }
 
-// TestIssueLitePriorityIDOnWire documents the wire field. There is no
-// issues.priority_id column (schema + sync are out of this track), so the
-// value is the empty string — clients fall back to the display name.
+// TestIssueLitePriorityIDOnWire: an issue upserted with PriorityID carries
+// that id through IssueLites JSON. The field is on the wire so clients
+// can match id-first the same way they do for status_id / issue_type_id.
 func TestIssueLitePriorityIDOnWire(t *testing.T) {
 	db := openTemp(t)
 	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
@@ -386,7 +386,7 @@ func TestIssueLitePriorityIDOnWire(t *testing.T) {
 			Issue: Issue{
 				ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
 				Status: "To Do", StatusID: "1", StatusCategory: "new",
-				Priority: "High",
+				Priority: "High", PriorityID: "2",
 			},
 		}},
 	}); err != nil {
@@ -396,8 +396,8 @@ func TestIssueLitePriorityIDOnWire(t *testing.T) {
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("IssueLites: %v %+v", err, rows)
 	}
-	if rows[0].PriorityID != "" {
-		t.Errorf("PriorityID = %q, want empty until a schema column exists", rows[0].PriorityID)
+	if rows[0].PriorityID != "2" {
+		t.Errorf("PriorityID = %q, want 2", rows[0].PriorityID)
 	}
 	raw, err := json.Marshal(rows[0])
 	if err != nil {

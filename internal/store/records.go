@@ -42,6 +42,7 @@ type Issue struct {
 	StatusID       string
 	StatusCategory string // new | inprogress | done
 	Priority       string
+	PriorityID     string
 	Assignee       string
 	AssigneeID     string
 	AssigneeEmail  string

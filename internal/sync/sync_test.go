@@ -413,6 +413,12 @@ func TestFullSyncMapsEverything(t *testing.T) {
 	if one.PriorityRank != 2 {
 		t.Errorf("priority_rank = %d, want 2 (High is second in the site list)", one.PriorityRank)
 	}
+	if one.PriorityID != "2" {
+		t.Errorf("priority_id = %q, want 2 (fixture High id)", one.PriorityID)
+	}
+	if got := db.column(t, "issues", "priority_id", "NMB-1"); got != "2" {
+		t.Errorf("issues.priority_id = %q, want 2", got)
+	}
 	if one.ReopenCount != 1 || one.ReopenedAt == nil || *one.ReopenedAt != "2026-07-20T01:00:00.000Z" {
 		t.Errorf("reopen = %d at %v", one.ReopenCount, one.ReopenedAt)
 	}

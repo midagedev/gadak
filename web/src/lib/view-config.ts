@@ -574,20 +574,36 @@ export function missingStatusCategorySeen(): number {
 }
 
 /**
+ * Times a priority filter matched by display name rather than by id.
+ * Integer increment only — no per-row log. Read from the console or a test.
+ */
+let priorityNameFallbackCount = 0
+
+export function priorityNameFallbackSeen(): number {
+  return priorityNameFallbackCount
+}
+
+/**
  * Filter token match: id first, display name only as a fallback for legacy
  * saved views that still store a localized name. Empty `selected` is no
  * constraint (same as the other multi-value axes).
+ *
+ * `notePriorityFallback` is the cheap signal for the priority axis: a
+ * silently-empty filter used to be the only symptom when priority_id was
+ * missing. Status/type leave it off.
  */
 export function matchesIdFirst(
   selected: string[],
   id: string | null | undefined,
   name: string | null | undefined,
+  notePriorityFallback = false,
 ): boolean {
   if (selected.length === 0) return true
   const idv = (id ?? '').trim()
   if (idv && selected.includes(idv)) return true
   const namev = name ?? ''
   if (namev && selected.includes(namev)) {
+    if (notePriorityFallback) priorityNameFallbackCount++
     if (import.meta.env?.DEV && idv) {
       console.debug('[filter] name fallback', { id: idv, name: namev })
     }

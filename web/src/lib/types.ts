@@ -58,8 +58,8 @@ export interface IssueLite {
   /** Stable Jira issue-type id. Older cached rows may omit it. */
   issue_type_id?: string
   priority: string | null
-  /** Stable Jira priority id. Older cached rows and current mirrors omit it
-   *  (no issues.priority_id column yet) — match falls back to `priority`. */
+  /** Stable Jira priority id. Older cached rows and mirrors not yet
+   *  resynced may omit it or send '' — match falls back to `priority`. */
   priority_id?: string | null
   priority_rank: number | null
   severity: string | null

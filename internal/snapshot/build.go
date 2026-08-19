@@ -663,7 +663,7 @@ var (
 	}
 	issueColumns = []string{
 		"item_id", "key", "project_key", "issue_type", "issue_type_id",
-		"status", "status_id", "status_category", "priority", "priority_rank",
+		"status", "status_id", "status_category", "priority", "priority_id", "priority_rank",
 		"assignee", "assignee_id", "assignee_email", "reporter", "reporter_id", "reporter_email",
 		"parent_key", "labels", "components", "fix_versions", "affects_versions",
 		"environment_text", "duedate", "resolution", "created_at", "updated_at",
@@ -735,6 +735,9 @@ func insertRow(tx *sql.Tx, table string, cols []string, data map[string]any) err
 		}
 		if vals[indexOf(cols, "cloned_from")] == nil {
 			vals[indexOf(cols, "cloned_from")] = ""
+		}
+		if vals[indexOf(cols, "priority_id")] == nil {
+			vals[indexOf(cols, "priority_id")] = ""
 		}
 	}
 	if table == "pages" {

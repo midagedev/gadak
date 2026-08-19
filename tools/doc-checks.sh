@@ -337,4 +337,57 @@ if [[ -n "$sac_off" ]]; then
 fi
 ok "Windows desktop zip is documented; SAC-off is not offered"
 
+# ── 14. matchesIdFirst id args are real issues columns (GDK-275) ────────
+# The display-name grep (check 7) cannot see this class: an id-first call
+# whose id argument names a column that does not exist is silently
+# name-only. FAIL-first 2026-08-19: web filter passed it.priority_id while
+# schema.go had no issues.priority_id (only name + rank).
+id_first_missing="$(
+  python3 - <<'PY'
+import re
+from pathlib import Path
+
+# Columns created on issues, plus every later ADD COLUMN.
+schema = Path("internal/store/schema.go").read_text()
+cols = set()
+m = re.search(r"CREATE TABLE issues\s*\((.*?)\)\s*;", schema, flags=re.S)
+if not m:
+    print("schema.go: no CREATE TABLE issues")
+    raise SystemExit
+for part in m.group(1).split(","):
+    name = part.strip().split()
+    if name:
+        cols.add(name[0])
+for add in re.finditer(r"ALTER TABLE issues ADD COLUMN (\w+)", schema):
+    cols.add(add.group(1))
+
+# Id argument of matchesIdFirst (and a call that wraps it): it.<field>
+# in web logic. Tests/i18n are excluded the same way as check 7.
+field_re = re.compile(
+    r"matchesIdFirst\s*\([^,]+,\s*it\.([A-Za-z0-9_]+)",
+)
+missing = []
+roots = [Path("web/src/lib"), Path("web/src/components"), Path("web/src/stores")]
+for root in roots:
+    for path in root.rglob("*"):
+        if path.suffix not in {".ts", ".svelte"}:
+            continue
+        if path.name.endswith(".test.ts") or path.name.endswith(".spec.ts"):
+            continue
+        if "/i18n/" in path.as_posix():
+            continue
+        text = path.read_text()
+        for n, line in enumerate(text.splitlines(), 1):
+            for field in field_re.findall(line):
+                if field not in cols:
+                    missing.append(f"{path}:{n}: it.{field} is not an issues column")
+if missing:
+    print("\n".join(missing))
+PY
+)"
+if [[ -n "$id_first_missing" ]]; then
+  fail "matchesIdFirst id argument is not an issues column (GDK-275):"$'\n'"$id_first_missing"
+fi
+ok "matchesIdFirst id arguments are issues columns"
+
 echo "doc-checks: all passed"
