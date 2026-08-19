@@ -3,7 +3,7 @@
  * Build the zero-install hosted demo into dist/hosted.
  *
  * 1. Vite build with VITE_HOSTED_DEMO=1 and base /gadak/ (GitHub Pages project site)
- * 2. Inject the static first frame into dist/hosted/index.html (GDK-51)
+ * 2. Copy demo video/poster/og assets (About popover links to web-demo.mp4)
  * 3. gadak export-static freezes examples/demo.db → bootstrap/detail/attachments
  *
  * Usage (from repo root):
@@ -109,21 +109,7 @@ if (withMeta === titled) {
   console.error('hosted-demo: could not inject social meta — the </title> tag is missing')
   process.exit(1)
 }
-
-// Static first frame (GDK-51): inline HTML+CSS so a 390px in-app browser
-// can read the claim before the SPA bundle / bootstrap.json arrive.
-// Do not put this in web/index.html — gadak serve and the desktop app
-// must keep painting the existing boot shell with no frame.
-const framePath = join(root, 'tools', 'hosted-demo', 'first-frame.html')
-if (!existsSync(framePath)) {
-  console.error('hosted-demo: tools/hosted-demo/first-frame.html missing')
-  process.exit(1)
-}
-let frameHtml = readFileSync(framePath, 'utf8').trim()
-if (!frameHtml.includes('data-testid="hosted-first-frame"')) {
-  console.error('hosted-demo: first-frame.html is missing the hosted-first-frame test id')
-  process.exit(1)
-}
+writeFileSync(indexPath, withMeta)
 
 const mp4Src = join(root, 'docs', 'media', 'web-demo.mp4')
 if (!existsSync(mp4Src)) {
@@ -132,8 +118,15 @@ if (!existsSync(mp4Src)) {
 }
 copyFileSync(mp4Src, join(outDir, 'web-demo.mp4'))
 
+const ogSrc = join(root, 'docs', 'media', 'og.png')
+if (!existsSync(ogSrc)) {
+  console.error('hosted-demo: docs/media/og.png missing')
+  process.exit(1)
+}
+copyFileSync(ogSrc, join(outDir, 'og.png'))
+
 // Poster is a still, not the 1.1MB mp4. ffmpeg is optional: Pages CI may
-// not have it. Fall back to the OG card already copied below.
+// not have it. Fall back to the OG card copied above.
 const posterOut = join(outDir, 'web-demo-poster.jpg')
 const ff = spawnSync(
   'ffmpeg',
@@ -141,28 +134,9 @@ const ff = spawnSync(
   { cwd: root, stdio: 'pipe' },
 )
 if (ff.status !== 0 || !existsSync(posterOut)) {
-  frameHtml = frameHtml.replace('src="web-demo-poster.jpg"', 'src="og.png"')
+  copyFileSync(join(outDir, 'og.png'), posterOut)
   console.log('hosted-demo: ffmpeg poster skipped — using og.png')
 }
-
-if (!withMeta.includes('<body>')) {
-  console.error('hosted-demo: could not inject first frame — the <body> tag is missing')
-  process.exit(1)
-}
-const withFrame = withMeta.replace('<body>', `<body>\n${frameHtml}\n`)
-if (withFrame === withMeta || !withFrame.includes('data-testid="hosted-first-frame"')) {
-  console.error('hosted-demo: could not inject first frame — the <body> tag changed shape')
-  process.exit(1)
-}
-writeFileSync(indexPath, withFrame)
-console.log(`hosted-demo: first frame injected (${Buffer.byteLength(frameHtml, 'utf8')} bytes)`)
-
-const ogSrc = join(root, 'docs', 'media', 'og.png')
-if (!existsSync(ogSrc)) {
-  console.error('hosted-demo: docs/media/og.png missing')
-  process.exit(1)
-}
-copyFileSync(ogSrc, join(outDir, 'og.png'))
 
 // ── 3. Freeze demo.db into static JSON ──────────────────────────────────────
 // Flags before positional outdir (Go flag.Parse stops at the first non-flag).

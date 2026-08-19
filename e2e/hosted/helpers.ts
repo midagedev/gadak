@@ -1,16 +1,13 @@
 import { expect, type Page } from '@playwright/test'
 
 /**
- * The hosted first frame (tools/hosted-demo/first-frame.html) sits above
- * the SPA until the visitor dismisses it. Existing hosted specs exercise
- * the app, so they have to click through first.
+ * GDK-335: the hosted demo paints the SPA immediately. Callers that used
+ * to click through the first-frame overlay still go through here so one
+ * helper owns the entry assertion: no extra click, issue-layout visible.
  */
 export async function dismissHostedFirstFrame(page: Page): Promise<void> {
-  const open = page.getByTestId('hosted-first-frame-open')
   await expect(
-    open,
-    'hosted first frame is missing — rebuild with node tools/hosted-demo/build.mjs',
-  ).toBeVisible({ timeout: 10_000 })
-  await open.click()
-  await expect(page.getByTestId('hosted-first-frame')).toHaveCount(0)
+    page.getByTestId('issue-layout'),
+    'hosted demo must paint the SPA with no overlay click — rebuild with node tools/hosted-demo/build.mjs',
+  ).toBeVisible({ timeout: 60_000 })
 }

@@ -53,6 +53,7 @@
   import SettingsDialog, { isSettingsTab, type Tab } from './components/settings/SettingsDialog.svelte'
   import CommandPalette from './components/palette/CommandPalette.svelte'
   import ShortcutsDialog from './components/shell/ShortcutsDialog.svelte'
+  import HostedLinks from './components/shell/HostedLinks.svelte'
   import ToastHost from './components/write/ToastHost.svelte'
   import MediaViewer from './components/detail/MediaViewer.svelte'
   import BrowseHost from './components/browse/BrowseHost.svelte'
@@ -575,27 +576,34 @@
     {#if isHostedDemo()}
       <!-- First thing on the page on purpose. Without it this reads as a real
            Jira client someone left signed in, which is how a visitor ends up
-           looking for the credential box. -->
-      <div
-        class="flex flex-none flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-b border-accent-strong/40 bg-accent-strong/10 px-3 py-1.5 text-[12px] text-text-secondary"
-        role="status"
-        data-testid="demo-banner"
-      >
-        <span class="font-semibold text-accent-text">{t('app.demoBadge')}</span>
-        <span>{t('app.demoBanner')}</span>
-        {#if write.demoEdits.size}
-          <!-- Writes are kept locally so they can be tried; the running count is
-               what keeps "kept" from reading as "saved". -->
-          <span class="rounded-full bg-bg-elevated px-2 py-0.5 text-text-primary">
-            {t('app.demoEditCount', { n: write.demoEdits.size })}
-          </span>
-        {/if}
-        <a
-          href={REPO_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-accent-text hover:underline">{t('app.demoBannerLink')}</a
+           looking for the credential box. HostedLinks is absolute in this
+           wrapper so it occupies the banner's empty right edge without
+           shifting the centered copy (GDK-335). -->
+      <div class="relative flex-none">
+        <div
+          class="flex flex-none flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-b border-accent-strong/40 bg-accent-strong/10 px-3 py-1.5 text-[12px] text-text-secondary"
+          role="status"
+          data-testid="demo-banner"
         >
+          <span class="font-semibold text-accent-text">{t('app.demoBadge')}</span>
+          <span>{t('app.demoBanner')}</span>
+          {#if write.demoEdits.size}
+            <!-- Writes are kept locally so they can be tried; the running count is
+                 what keeps "kept" from reading as "saved". -->
+            <span class="rounded-full bg-bg-elevated px-2 py-0.5 text-text-primary">
+              {t('app.demoEditCount', { n: write.demoEdits.size })}
+            </span>
+          {/if}
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-accent-text hover:underline">{t('app.demoBannerLink')}</a
+          >
+        </div>
+        {#if import.meta.env.VITE_HOSTED_DEMO === '1'}
+          <HostedLinks />
+        {/if}
       </div>
     {/if}
     {#if issues.offline}
