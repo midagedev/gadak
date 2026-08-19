@@ -58,6 +58,13 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 - **푸시는 끝이 아니다 — CI 초록이 끝이다.** 푸시 직후
   `tools/ci-status.sh`(HEAD의 런을 기다려 결론을 내고, 빨간 상태 위에
   쌓았으면 그것도 알려준다). 라운드 완료 보고에 그 결과를 쓴다.
+- **PR은 로컬에서 못 도는 잡에 걸리는 변경만** (사용자 결정 2026-08-19).
+  리뷰어가 없으므로 PR이 사는 것은 리뷰가 아니라 "CI 평결이 main이 아니라
+  브랜치에 떨어진다" 하나뿐이다. 그 값이 실제로 나오는 것은 로컬 게이트가
+  대신할 수 없는 잡뿐이다 — `desktop/`, `.github/workflows/`, 팩 스크립트
+  (Desktop Windows build는 `windows-latest`, Desktop Linux build는 GTK4·
+  WebKitGTK·AppImage). **그 외에는 로컬 게이트가 전부 초록이면 main에 직접
+  푸시**하고 `tools/ci-status.sh`로 확인한다. 기본값은 직접이다.
 - 로컬 Node는 CI와 같아야 한다 — 버전의 단일 소유자는 `.nvmrc`(`nvm use`).
   로컬 24/CI 20 격차가 결함 하나를 여러 푸시 동안 숨긴 적이 있다(GDK-57).
 - 데모 fixture는 `examples/demo.db`(이슈 534). 수치를 문서에 박을 때는
