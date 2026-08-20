@@ -341,7 +341,7 @@ var helps = map[string]cmdHelp{
 	},
 	"page": {
 		summary: "wiki page writes through the origin (page create, edit, comment; connected Confluence or standalone issuetap)",
-		usage:   "gadak [--profile <name>] page create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--parent ID] [--json]",
+		usage:   "gadak [--profile <name>] page create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--parent ID] [--version N] [--json]",
 		examples: []string{
 			"gadak page create --space ENG --title \"Retention notes\" -m \"first draft\"",
 			"gadak page edit 12345 --title \"Renamed page\"",

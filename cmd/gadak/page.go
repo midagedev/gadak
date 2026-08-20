@@ -188,6 +188,7 @@ func cmdPageEdit(args []string) error {
 	title := fs.String("title", "", "new page title (omitted = keep)")
 	text := fs.String("m", "", "new body as plain text; `-` reads stdin. REPLACES the whole body — rich pages lose formatting, use --adf-file for those")
 	adfFile := fs.String("adf-file", "", "new body as an ADF JSON document file; wins over -m")
+	version := fs.Int("version", 0, "base version for optimistic lock (the mirror's pages.version); omit to last-write-wins from origin HEAD")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("page", fs))
@@ -198,7 +199,7 @@ func cmdPageEdit(args []string) error {
 		return err
 	}
 	if len(rest) != 1 {
-		return fmt.Errorf("page edit: exactly one page id (usage: gadak page edit <ID> [--title T] [-m <text|->|--adf-file F])")
+		return fmt.Errorf("page edit: exactly one page id (usage: gadak page edit <ID> [--title T] [-m <text|->|--adf-file F] [--version N])")
 	}
 	id := rest[0]
 	body := *text
@@ -251,7 +252,11 @@ func cmdPageEdit(args []string) error {
 	case body != "":
 		newADF = string(jira.Doc(body, nil))
 	}
-	if _, err := wc.UpdatePage(ctx, id, newTitle, newADF, cur.Version.Number+1); err != nil {
+	next := cur.Version.Number + 1
+	if *version > 0 {
+		next = *version + 1
+	}
+	if _, err := wc.UpdatePage(ctx, id, newTitle, newADF, next); err != nil {
 		return err
 	}
 

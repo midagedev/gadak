@@ -510,6 +510,7 @@ export const ko = {
   'doc.comments': '코멘트',
   'doc.noComments': '코멘트 없음',
   'doc.commentPlaceholder': '이 페이지에 코멘트 남기기…',
+  'doc.commentNeedCredentials': '코멘트를 남기려면 자격증명을 설정하세요',
   'doc.noContent': '내용이 비어 있습니다.',
   'doc.version': 'v{n}',
   'doc.breadcrumb': '문서 경로',

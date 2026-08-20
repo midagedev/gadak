@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Route } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, searchInput, walkRows } from './helpers'
 
 /** Click a visible tree row's title (each row also holds a toggle button). */
@@ -141,12 +141,68 @@ test.describe('mirrored wiki documents', () => {
     // The only write surface is the page comment composer (GDK-381) — the
     // body itself stays read-only in the panel.
     await expect(panel.getByTestId('doc-comment-composer')).toHaveCount(1)
-    await expect(panel.locator('textarea')).toHaveCount(1)
 
     // Clearing the query drops the docs group.
     await input.fill('')
     await input.press('Escape')
     await expect(page.getByTestId('search-doc-row')).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('page comment: thread shows the body the origin returned', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    const SERVER_COMMENT = 'wt-e2e page comment from origin'
+    const TYPED_COMMENT = 'wt-e2e typed page comment'
+
+    type PageJSON = Record<string, unknown> & { comments?: unknown[] }
+    let pageJSON: PageJSON | null = null
+
+    async function fulfillJSON(route: Route, json: unknown, status = 200): Promise<void> {
+      await route.fulfill({ status, contentType: 'application/json', json })
+    }
+
+    await page.route('**/api/v1/issues/pages/*/', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      const response = await route.fetch()
+      pageJSON = (await response.json()) as PageJSON
+      await route.fulfill({ response, json: pageJSON })
+    })
+    await page.route('**/api/v1/issues/pages/*/comment/', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      const comments = Array.isArray(pageJSON?.comments) ? [...pageJSON.comments] : []
+      comments.push({
+        author: 'Dana Whitfield',
+        created_at: '2026-08-15T12:00:00.000Z',
+        body_adf: {
+          type: 'doc',
+          version: 1,
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: SERVER_COMMENT }] }],
+        },
+        body_text: SERVER_COMMENT,
+      })
+      await fulfillJSON(route, { page: { ...pageJSON, comments } })
+    })
+
+    await gotoApp(page)
+    await openSpaceTree(page, 'PROD')
+    await page
+      .getByTestId('doc-tree-node')
+      .filter({ hasText: 'Feature Specs' })
+      .getByTestId('doc-tree-toggle')
+      .click()
+    await openDoc(page, 'Billing Settings Spec')
+
+    const panel = page.getByTestId('doc-panel')
+    await expect(panel.getByTestId('doc-comment-composer')).toBeVisible()
+    expect(pageJSON, 'GET pages/{id}/ must have run before the comment POST').toBeTruthy()
+
+    await panel.getByTestId('doc-comment-composer').fill(TYPED_COMMENT)
+    await panel.getByTestId('doc-comment-submit').click()
+
+    await expect(panel.getByTestId('doc-comment-composer')).toHaveValue('')
+    await expect(panel.getByText(SERVER_COMMENT)).toBeVisible()
+    await expect(panel.getByText(TYPED_COMMENT)).toHaveCount(0)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

@@ -11,10 +11,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/jirafields"
+	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
@@ -70,16 +72,19 @@ func failOriginClient(w http.ResponseWriter, err error) {
 	})
 }
 
-// failJira turns a Jira failure into the body the client parses: `error` for the
-// message it shows, `jira_errors` for the per-field rejections it renders inline.
+// failJira turns an origin failure into the body the client parses: `error` for
+// the message it shows, `jira_errors` for Jira's per-field rejections, and
+// `message` for a Confluence/origin snippet. Confluence and Linear sentinels
+// share this mapper with Jira so a wiki write does not become 502 jira_unavailable.
 func failJira(w http.ResponseWriter, r *http.Request, err error) {
 	var apiErr *jira.APIError
+	var confErr *confluence.APIError
 	switch {
-	case errors.Is(err, jira.ErrAuth):
+	case errors.Is(err, jira.ErrAuth), errors.Is(err, confluence.ErrAuth), errors.Is(err, linear.ErrAuth):
 		// Stored token is wrong or expired — distinct from never having one
 		// (credential_required), so the UI can say "replace your token".
 		fail(w, http.StatusConflict, "credential_rejected")
-	case errors.Is(err, sync.ErrNotFound):
+	case errors.Is(err, sync.ErrNotFound), errors.Is(err, confluence.ErrNotFound):
 		fail(w, http.StatusNotFound, "not_found")
 	case errors.As(err, &apiErr):
 		status := apiErr.Status
@@ -91,10 +96,94 @@ func failJira(w http.ResponseWriter, r *http.Request, err error) {
 			body["jira_errors"] = apiErr.Errors
 		}
 		writeJSON(w, status, body)
+	case errors.As(err, &confErr):
+		status := confErr.Status
+		if status < 400 || status > 499 {
+			status = http.StatusBadGateway
+		}
+		msg := confErr.Body
+		if msg == "" {
+			msg = confErr.Error()
+		}
+		writeJSON(w, status, map[string]string{
+			"error":   "origin_rejected",
+			"message": msg,
+		})
 	default:
 		log.Printf("server: %s %s: %v", r.Method, r.URL.Path, err)
 		fail(w, http.StatusBadGateway, "jira_unavailable")
 	}
+}
+
+// wikiWriter is the wiki write gate: connected without a token is 409
+// credential_required (same code as issue writes). Standalone HasCredential
+// is true, so it passes through to origin.Wiki.
+func (s *server) wikiWriter(w http.ResponseWriter) (*confluence.Client, *config.Config, bool) {
+	cfg := s.config()
+	if !cfg.HasCredential() {
+		fail(w, http.StatusConflict, "credential_required")
+		return nil, nil, false
+	}
+	wc, err := origin.Wiki(cfg)
+	if err != nil {
+		failOriginClient(w, err)
+		return nil, nil, false
+	}
+	return wc, cfg, true
+}
+
+// validADF is the REST adf-string gate: well-formed JSON whose top-level
+// type is "doc". Empty is the caller's problem (text path / empty_comment).
+func validADF(adf string) bool {
+	b := []byte(adf)
+	if !json.Valid(b) {
+		return false
+	}
+	var top struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(b, &top); err != nil {
+		return false
+	}
+	return top.Type == "doc"
+}
+
+// adfNode is the walk shape for isSimpleADF. Mirrors web/src/lib/adf.ts
+// SIMPLE_ADF_TYPES + walkSimple (doc / paragraph / text / hardBreak, no marks).
+type adfNode struct {
+	Type    string            `json:"type"`
+	Marks   []json.RawMessage `json:"marks"`
+	Content []adfNode         `json:"content"`
+}
+
+// isSimpleADF is the Go port of web/src/lib/adf.ts isSimpleAdf: empty/null is
+// simple; otherwise only doc/paragraph/text/hardBreak with no marks.
+func isSimpleADF(raw string) bool {
+	if strings.TrimSpace(raw) == "" {
+		return true
+	}
+	var n adfNode
+	if err := json.Unmarshal([]byte(raw), &n); err != nil {
+		return false
+	}
+	return walkSimpleADF(n)
+}
+
+func walkSimpleADF(n adfNode) bool {
+	switch n.Type {
+	case "doc", "paragraph", "text", "hardBreak":
+	default:
+		return false
+	}
+	if len(n.Marks) > 0 {
+		return false
+	}
+	for _, c := range n.Content {
+		if !walkSimpleADF(c) {
+			return false
+		}
+	}
+	return true
 }
 
 // keySource reads which origin owns a key. A key the mirror does not know
@@ -952,13 +1041,17 @@ func (s *server) handleUsers(w http.ResponseWriter, r *http.Request) {
 // Body: {"title": ...} and/or {"adf": "<ADF JSON string>"} and/or
 // {"text": ...} — text is built into a fresh ADF doc and REPLACES the whole
 // body, so callers editing rich pages should send adf. Omitted parts keep
-// the origin's current value. The version comes from the origin at write
-// time; a concurrent edit is Confluence's own 409, surfaced as-is.
+// the origin's current value. Optional "version" is the caller's base
+// (optimistic lock: that value+1, origin 409 if stale). Omitted version is
+// last-write-wins from origin HEAD+1. "force": true skips the format_loss
+// gate on a text replace of a non-simple origin ADF.
 func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Title string  `json:"title"`
-		ADF   string  `json:"adf"`
-		Text  *string `json:"text"`
+		Title   string  `json:"title"`
+		ADF     string  `json:"adf"`
+		Text    *string `json:"text"`
+		Version *int    `json:"version"`
+		Force   bool    `json:"force"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
@@ -968,10 +1061,12 @@ func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "nothing_to_edit")
 		return
 	}
-	cfg := s.config()
-	wc, err := origin.Wiki(cfg)
-	if err != nil {
-		failOriginClient(w, err)
+	wc, cfg, ok := s.wikiWriter(w)
+	if !ok {
+		return
+	}
+	if body.ADF != "" && !validADF(body.ADF) {
+		fail(w, http.StatusBadRequest, "invalid_adf")
 		return
 	}
 	id := r.PathValue("id")
@@ -992,9 +1087,17 @@ func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
 	case body.ADF != "":
 		adf = body.ADF
 	case body.Text != nil:
+		if !body.Force && !isSimpleADF(adf) {
+			fail(w, http.StatusConflict, "format_loss")
+			return
+		}
 		adf = string(jira.Doc(*body.Text, nil))
 	}
-	if _, err := wc.UpdatePage(r.Context(), id, title, adf, cur.Version.Number+1); err != nil {
+	next := cur.Version.Number + 1
+	if body.Version != nil {
+		next = *body.Version + 1
+	}
+	if _, err := wc.UpdatePage(r.Context(), id, title, adf, next); err != nil {
 		failJira(w, r, err)
 		return
 	}
@@ -1030,14 +1133,15 @@ func (s *server) handlePageCreate(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "space_and_title_required")
 		return
 	}
+	wc, cfg, ok := s.wikiWriter(w)
+	if !ok {
+		return
+	}
 	adf := body.ADF
 	if adf == "" {
 		adf = string(jira.Doc(body.Text, nil))
-	}
-	cfg := s.config()
-	wc, err := origin.Wiki(cfg)
-	if err != nil {
-		failOriginClient(w, err)
+	} else if !validADF(adf) {
+		fail(w, http.StatusBadRequest, "invalid_adf")
 		return
 	}
 	created, err := wc.CreatePage(r.Context(), body.Space, body.Title, adf, body.Parent)
@@ -1069,6 +1173,10 @@ func (s *server) handlePageComment(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
+	wc, cfg, ok := s.wikiWriter(w)
+	if !ok {
+		return
+	}
 	adf := body.ADF
 	if adf == "" {
 		if strings.TrimSpace(body.Text) == "" {
@@ -1076,11 +1184,8 @@ func (s *server) handlePageComment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		adf = string(jira.Doc(body.Text, nil))
-	}
-	cfg := s.config()
-	wc, err := origin.Wiki(cfg)
-	if err != nil {
-		failOriginClient(w, err)
+	} else if !validADF(adf) {
+		fail(w, http.StatusBadRequest, "invalid_adf")
 		return
 	}
 	id := r.PathValue("id")

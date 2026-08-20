@@ -13,8 +13,12 @@
   import { t, relativeTime, absTime } from '../../lib/i18n'
   import { commentOnPage } from '../../lib/api'
   import { pages } from '../../stores/pages.svelte'
+  import { write } from '../../stores/write.svelte'
+  import { me } from '../../stores/me.svelte'
+  import { isHostedDemo } from '../../lib/config'
   import { createResource } from '../../lib/resource.svelte'
   import { onEscape } from '../../lib/dom-actions'
+  import type { PageDetail } from '../../lib/types'
   import AdfContent from './AdfContent.svelte'
   import RelatedIssues from './RelatedIssues.svelte'
   import Section from './Section.svelte'
@@ -41,8 +45,20 @@
     resource.reload()
   }
 
+  // Write-through overlay: the POST comment/ body is the origin's page, so
+  // the thread can render it without waiting on a GET (and in e2e, without
+  // a second stub). Cleared when the open page changes.
+  let postedDetail = $state<PageDetail | null>(null)
+  $effect(() => {
+    void key
+    postedDetail = null
+  })
+
   // Never show the previous page's body mid-switch.
-  const detailForKey = $derived(detail && key === detail.key ? detail : null)
+  const detailForKey = $derived.by(() => {
+    if (postedDetail && key === postedDetail.key) return postedDetail
+    return detail && key === detail.key ? detail : null
+  })
   const head = $derived(detailForKey ?? lite)
 
   // Breadcrumb trail, from the client-side index — no extra request, and it
@@ -75,12 +91,24 @@
   async function postPageComment(): Promise<void> {
     const text = draft.trim()
     if (!key || !text || posting) return
+    if (!(await write.ensureWritable())) return
     posting = true
     postError = ''
     try {
-      await commentOnPage(key, text)
+      // Same hosted-demo guard as issue comments: no POST, keep the edit local.
+      if (isHostedDemo()) {
+        const first = write.demoEdits.size === 0
+        write.demoEdits.add(key)
+        if (first) write.toast(t('app.demoWriteNotice'), 'info')
+        draft = ''
+        return
+      }
+      const res = await commentOnPage(key, text)
       draft = ''
-      resource.reload()
+      if (res.page) {
+        postedDetail = res.page
+        pages.invalidateDetail(key)
+      }
     } catch (e) {
       postError = e instanceof Error ? e.message : String(e)
     } finally {
@@ -193,7 +221,7 @@
 
     <!-- Body — the panel's own scroller. -->
     <div class="min-h-0 flex-1 overflow-y-auto" data-testid="doc-scroll">
-      {#if errorKind}
+      {#if errorKind && !detailForKey}
         <div class="flex flex-col items-center gap-3 px-5 py-16 text-center">
           <p class="text-body text-text-secondary">
             {errorKind === 'notfound' ? t('doc.notFound') : t('doc.loadFailed')}
@@ -274,7 +302,9 @@
               <textarea
                 bind:value={draft}
                 rows="2"
-                placeholder={t('doc.commentPlaceholder')}
+                placeholder={me.identified || isHostedDemo()
+                  ? t('doc.commentPlaceholder')
+                  : t('doc.commentNeedCredentials')}
                 data-testid="doc-comment-composer"
                 class="w-full resize-y rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-1.5 text-body text-text-primary placeholder:text-text-muted focus:border-border-strong focus:outline-none"
                 onkeydown={(e) => {

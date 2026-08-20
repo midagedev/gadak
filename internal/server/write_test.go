@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"mime/multipart"
@@ -15,8 +16,10 @@ import (
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/sync"
 )
@@ -1452,5 +1455,375 @@ func TestStandaloneOriginPersistFailureIsNotCredentialRequired(t *testing.T) {
 	}
 	if !strings.Contains(got, "persist lock") {
 		t.Fatalf("error %q, want the origin persist-lock text", got)
+	}
+}
+
+const (
+	wikiSimpleADF  = `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"plain"}]}]}`
+	wikiComplexADF = `{"type":"doc","version":1,"content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Steps"}]}]}`
+)
+
+type wikiPageState struct {
+	Title   string
+	Space   string
+	ADF     string
+	Version int
+	When    string
+}
+
+type wikiCommentState struct {
+	ID   string
+	ADF  string
+	When string
+}
+
+// wikiOrigin is a Confluence stand-in for wiki write-through tests: GET/PUT
+// content/{id}, POST content (page or comment), and child comments.
+type wikiOrigin struct {
+	*httptest.Server
+	pages         map[string]*wikiPageState
+	comments      map[string][]wikiCommentState
+	nextID        int
+	puts          []int // version.number values received on PUT
+	creates       int
+	commentPosts  int
+	lastPutADF    string
+	lastCreateADF string
+}
+
+func newWikiOrigin(t *testing.T) *wikiOrigin {
+	t.Helper()
+	w := &wikiOrigin{
+		pages: map[string]*wikiPageState{
+			"100": {
+				Title: "빌링 품질 회의록", Space: "PROD", ADF: wikiComplexADF,
+				Version: 5, When: "2026-08-05T15:00:00.000Z",
+			},
+			"200": {
+				Title: "Architecture", Space: "ENG", ADF: wikiSimpleADF,
+				Version: 1, When: "2026-07-15T00:00:00.000Z",
+			},
+		},
+		comments: map[string][]wikiCommentState{},
+		nextID:   900,
+	}
+	w.Server = httptest.NewServer(http.HandlerFunc(w.route))
+	t.Cleanup(w.Close)
+	return w
+}
+
+func (w *wikiOrigin) route(rw http.ResponseWriter, r *http.Request) {
+	rw.Header().Set("Content-Type", "application/json")
+	path := r.URL.Path
+	switch {
+	case r.Method == http.MethodPost && path == "/wiki/rest/api/content":
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		var payload map[string]any
+		_ = json.Unmarshal(body, &payload)
+		typ, _ := payload["type"].(string)
+		if typ == "comment" {
+			w.commentPosts++
+			container, _ := payload["container"].(map[string]any)
+			pageID, _ := container["id"].(string)
+			if _, ok := w.pages[pageID]; !ok {
+				rw.WriteHeader(http.StatusNotFound)
+				_, _ = rw.Write([]byte(`{"statusCode":404,"message":"content not found"}`))
+				return
+			}
+			adf := wikiADFFromBody(payload)
+			id := fmt.Sprintf("c-%d", w.nextID)
+			w.nextID++
+			w.comments[pageID] = append(w.comments[pageID], wikiCommentState{
+				ID: id, ADF: adf, When: "2026-08-20T12:00:00.000Z",
+			})
+			_ = json.NewEncoder(rw).Encode(wikiCommentJSON(id, adf, "2026-08-20T12:00:00.000Z"))
+			return
+		}
+		w.creates++
+		w.lastCreateADF = wikiADFFromBody(payload)
+		title, _ := payload["title"].(string)
+		space, _ := payload["space"].(map[string]any)
+		spaceKey, _ := space["key"].(string)
+		id := fmt.Sprintf("%d", w.nextID)
+		w.nextID++
+		p := &wikiPageState{
+			Title: title, Space: spaceKey, ADF: w.lastCreateADF,
+			Version: 1, When: "2026-08-20T12:00:00.000Z",
+		}
+		w.pages[id] = p
+		_ = json.NewEncoder(rw).Encode(wikiPageJSON(id, p))
+		return
+	case strings.HasSuffix(path, "/child/comment"):
+		id := strings.TrimSuffix(strings.TrimPrefix(path, "/wiki/rest/api/content/"), "/child/comment")
+		results := []any{}
+		for _, c := range w.comments[id] {
+			results = append(results, wikiCommentJSON(c.ID, c.ADF, c.When))
+		}
+		_ = json.NewEncoder(rw).Encode(map[string]any{"results": results, "size": len(results), "limit": 100})
+		return
+	}
+	if !strings.HasPrefix(path, "/wiki/rest/api/content/") {
+		http.NotFound(rw, r)
+		return
+	}
+	id := strings.TrimPrefix(path, "/wiki/rest/api/content/")
+	if strings.Contains(id, "/") {
+		http.NotFound(rw, r)
+		return
+	}
+	p, ok := w.pages[id]
+	if !ok {
+		rw.WriteHeader(http.StatusNotFound)
+		_, _ = rw.Write([]byte(`{"statusCode":404,"message":"content not found"}`))
+		return
+	}
+	if r.Method == http.MethodPut {
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		var payload map[string]any
+		_ = json.Unmarshal(body, &payload)
+		verObj, _ := payload["version"].(map[string]any)
+		num, _ := verObj["number"].(float64)
+		gotVer := int(num)
+		w.puts = append(w.puts, gotVer)
+		if gotVer != p.Version+1 {
+			rw.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(rw).Encode(map[string]any{
+				"statusCode": 409,
+				"message":    fmt.Sprintf("Version must be incremented on update. Current version is: %d", p.Version),
+			})
+			return
+		}
+		if title, _ := payload["title"].(string); title != "" {
+			p.Title = title
+		}
+		p.ADF = wikiADFFromBody(payload)
+		w.lastPutADF = p.ADF
+		p.Version = gotVer
+		p.When = "2026-08-20T12:01:00.000Z"
+	}
+	_ = json.NewEncoder(rw).Encode(wikiPageJSON(id, p))
+}
+
+func wikiADFFromBody(payload map[string]any) string {
+	body, _ := payload["body"].(map[string]any)
+	adf, _ := body["atlas_doc_format"].(map[string]any)
+	v, _ := adf["value"].(string)
+	return v
+}
+
+func wikiPageJSON(id string, p *wikiPageState) map[string]any {
+	return map[string]any{
+		"id": id, "type": "page", "status": "current", "title": p.Title,
+		"space": map[string]any{"key": p.Space, "name": p.Space},
+		"version": map[string]any{
+			"number": p.Version, "when": p.When,
+			"by": map[string]any{"accountId": "acc-1", "displayName": "김현철"},
+		},
+		"body": map[string]any{
+			"atlas_doc_format": map[string]any{"value": p.ADF, "representation": "atlas_doc_format"},
+		},
+		"ancestors": []any{},
+		"metadata": map[string]any{
+			"labels": map[string]any{"results": []any{}, "size": 0, "limit": 25, "start": 0},
+		},
+	}
+}
+
+func wikiCommentJSON(id, adf, when string) map[string]any {
+	return map[string]any{
+		"id": id, "type": "comment", "title": "Re:",
+		"body": map[string]any{
+			"atlas_doc_format": map[string]any{"value": adf, "representation": "atlas_doc_format"},
+		},
+		"version": map[string]any{
+			"number": 1, "when": when,
+			"by": map[string]any{"accountId": "acc-2", "displayName": "Dana"},
+		},
+	}
+}
+
+func wikiWritable(t *testing.T) (*wikiOrigin, http.Handler, *config.Config) {
+	t.Helper()
+	origin := newWikiOrigin(t)
+	db, cfg := fixturePages(t)
+	cfg.Site = origin.URL
+	return origin, New(db, cfg), cfg
+}
+
+func wikiErrorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	return decode[map[string]string](t, rec)["error"]
+}
+
+// TestFailJiraMapsOriginHTTP is FAIL-first for GDK-410 + GDK-404: confluence
+// and Linear sentinels used to fall through to 502 jira_unavailable.
+func TestFailJiraMapsOriginHTTP(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPut, apiBase+"pages/1/edit/", nil)
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantError  string
+	}{
+		{"jira.ErrAuth", jira.ErrAuth, http.StatusConflict, "credential_rejected"},
+		{"confluence.ErrAuth", confluence.ErrAuth, http.StatusConflict, "credential_rejected"},
+		{"wrapped confluence.ErrAuth", fmt.Errorf("GET /content/1: %w", confluence.ErrAuth), http.StatusConflict, "credential_rejected"},
+		{"linear.ErrAuth", linear.ErrAuth, http.StatusConflict, "credential_rejected"},
+		{"sync.ErrNotFound", sync.ErrNotFound, http.StatusNotFound, "not_found"},
+		{"confluence.ErrNotFound", confluence.ErrNotFound, http.StatusNotFound, "not_found"},
+		{"confluence 409", &confluence.APIError{Status: http.StatusConflict, Body: "stale version"}, http.StatusConflict, "origin_rejected"},
+		{"wrapped confluence 409", fmt.Errorf("PUT /content/1: %w", &confluence.APIError{Status: http.StatusConflict, Body: "stale version"}), http.StatusConflict, "origin_rejected"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			failJira(rec, req, tc.err)
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status %d, want %d; body %s", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+			got := wikiErrorCode(t, rec)
+			if got != tc.wantError {
+				t.Fatalf("error %q, want %q; body %s", got, tc.wantError, rec.Body.String())
+			}
+			if tc.wantError == "origin_rejected" {
+				msg := decode[map[string]string](t, rec)["message"]
+				if !strings.Contains(msg, "stale version") {
+					t.Fatalf("message %q, want the origin snippet", msg)
+				}
+			}
+		})
+	}
+}
+
+func TestPageCreateUpdatesMirrorAfterOrigin(t *testing.T) {
+	wo, h, _ := wikiWritable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"pages/",
+		`{"space":"PROD","title":"Wiki create probe","text":"hello from create"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if wo.creates == 0 {
+		t.Fatal("origin CreatePage was not called")
+	}
+	var body struct {
+		Page struct {
+			Key   string `json:"key"`
+			Title string `json:"title"`
+		} `json:"page"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Page.Title != "Wiki create probe" {
+		t.Fatalf("title %q", body.Page.Title)
+	}
+	if body.Page.Key == "" {
+		t.Fatal("created page key is empty — mirror was not refreshed")
+	}
+	got := decode[struct {
+		Title string `json:"title"`
+	}](t, get(t, h, apiBase+"pages/"+body.Page.Key+"/", nil))
+	if got.Title != "Wiki create probe" {
+		t.Fatalf("mirror GET title %q", got.Title)
+	}
+}
+
+func TestPageEditExplicitVersionConflict(t *testing.T) {
+	wo, h, _ := wikiWritable(t)
+	rec := send(t, h, http.MethodPut, apiBase+"pages/100/edit/",
+		`{"title":"Renamed under lock","version":3}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status %d, want 409; body %s", rec.Code, rec.Body.String())
+	}
+	if got := wikiErrorCode(t, rec); got != "origin_rejected" {
+		t.Fatalf("error %q, want origin_rejected", got)
+	}
+	if len(wo.puts) == 0 {
+		t.Fatal("origin UpdatePage was not called")
+	}
+	if wo.puts[len(wo.puts)-1] != 4 {
+		t.Fatalf("PUT version.number = %v, want 4 (explicit 3+1, not HEAD 5+1)", wo.puts)
+	}
+}
+
+func TestPageCommentMissingIsNotFound(t *testing.T) {
+	_, h, _ := wikiWritable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"pages/99999/comment/", `{"text":"hello"}`)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status %d, want 404; body %s", rec.Code, rec.Body.String())
+	}
+	if got := wikiErrorCode(t, rec); got != "not_found" {
+		t.Fatalf("error %q, want not_found", got)
+	}
+}
+
+func TestPageEditInvalidADF(t *testing.T) {
+	wo, h, _ := wikiWritable(t)
+	rec := send(t, h, http.MethodPut, apiBase+"pages/200/edit/", `{"adf":"not-json"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400; body %s", rec.Code, rec.Body.String())
+	}
+	if got := wikiErrorCode(t, rec); got != "invalid_adf" {
+		t.Fatalf("error %q, want invalid_adf", got)
+	}
+	if len(wo.puts) != 0 {
+		t.Fatalf("invalid ADF reached origin PUT: %v", wo.puts)
+	}
+}
+
+func TestPageCreateInvalidADF(t *testing.T) {
+	wo, h, _ := wikiWritable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"pages/",
+		`{"space":"PROD","title":"x","adf":"{\"type\":\"paragraph\"}"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400; body %s", rec.Code, rec.Body.String())
+	}
+	if got := wikiErrorCode(t, rec); got != "invalid_adf" {
+		t.Fatalf("error %q, want invalid_adf", got)
+	}
+	if wo.creates != 0 {
+		t.Fatal("invalid ADF reached origin create")
+	}
+}
+
+func TestPageEditTextFormatLoss(t *testing.T) {
+	wo, h, _ := wikiWritable(t)
+	rec := send(t, h, http.MethodPut, apiBase+"pages/100/edit/", `{"text":"plain replacement"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status %d, want 409; body %s", rec.Code, rec.Body.String())
+	}
+	if got := wikiErrorCode(t, rec); got != "format_loss" {
+		t.Fatalf("error %q, want format_loss", got)
+	}
+	if len(wo.puts) != 0 {
+		t.Fatalf("format_loss reached origin PUT: %v", wo.puts)
+	}
+
+	rec = send(t, h, http.MethodPut, apiBase+"pages/100/edit/",
+		`{"text":"plain replacement","force":true}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("force:true → %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(wo.puts) == 0 {
+		t.Fatal("force:true did not PUT")
+	}
+}
+
+func TestWikiWritesRequireCredential(t *testing.T) {
+	db, _ := fixturePages(t)
+	h := New(db, &config.Config{Projects: []string{"NMB"}})
+	for _, tc := range []struct{ method, path, body string }{
+		{http.MethodPost, apiBase + "pages/", `{"space":"PROD","title":"x","text":"hi"}`},
+		{http.MethodPut, apiBase + "pages/100/edit/", `{"title":"x"}`},
+		{http.MethodPost, apiBase + "pages/100/comment/", `{"text":"hi"}`},
+	} {
+		rec := send(t, h, tc.method, tc.path, tc.body)
+		if rec.Code != http.StatusConflict {
+			t.Errorf("%s %s → %d, want 409; body %s", tc.method, tc.path, rec.Code, rec.Body.String())
+			continue
+		}
+		if got := wikiErrorCode(t, rec); got != "credential_required" {
+			t.Errorf("%s %s error %q, want credential_required", tc.method, tc.path, got)
+		}
 	}
 }
