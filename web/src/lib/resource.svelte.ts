@@ -8,6 +8,7 @@
  */
 
 import { ApiError } from './api'
+import { reachability } from './reachability.svelte'
 
 export type ResourceErrorKind = 'notfound' | 'network'
 
@@ -68,6 +69,15 @@ export function createResource<T>(
       return
     }
     void load(k)
+  })
+
+  // GDK-477: when the offline banner clears, retry a network-failed panel once.
+  // 404 stays put — the issue is gone, the server is not.
+  let wasOffline = false
+  $effect(() => {
+    const down = reachability.offline
+    if (wasOffline && !down && errorKind === 'network') reload()
+    wasOffline = down
   })
 
   return {

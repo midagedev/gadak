@@ -112,7 +112,7 @@ test.describe('hosted demo', () => {
 
     // The composer is offered on the demo (writes apply locally, see the write
     // test below), so its placeholder is the normal one, not the credential nag.
-    await expect(panel.locator('textarea[placeholder*="Write a comment"]')).toHaveCount(1)
+    await expect(panel.locator('textarea[placeholder*="Add a comment"]')).toHaveCount(1)
 
     // Filter out noisy SW / favicon misses; fail on real app errors.
     const serious = errors.filter(

@@ -79,12 +79,39 @@ export class StandaloneDataPresentError extends ApiError {
   }
 }
 
+/**
+ * GDK-477: a network throw (server gone) is the down signal. A caller abort
+ * is a client timeout — Jira being slow is not "gadak serve is unreachable".
+ */
+let onNetworkDown: (() => void) | null = null
+
+export function setNetworkDownHandler(fn: () => void): void {
+  onNetworkDown = fn
+}
+
+function isAbortError(err: unknown): boolean {
+  // AbortSignal.timeout() rejects as TimeoutError; caller abort() as AbortError.
+  // Neither is "gadak serve is gone".
+  const name = err instanceof Error ? err.name : ''
+  return name === 'AbortError' || name === 'TimeoutError'
+}
+
+function noteNetworkFailure(err: unknown): void {
+  if (isAbortError(err)) return
+  onNetworkDown?.()
+}
+
 /** Shared fetch — path is relative to the API base. */
 async function raw(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(config().apiBase + path, {
-    credentials: 'same-origin',
-    ...init,
-  })
+  try {
+    return await fetch(config().apiBase + path, {
+      credentials: 'same-origin',
+      ...init,
+    })
+  } catch (err) {
+    noteNetworkFailure(err)
+    throw err
+  }
 }
 
 /** Parse a JSON response; throw ApiError on 4xx/5xx. */
@@ -578,11 +605,11 @@ export async function connectJira(
 }
 
 /** Real project list for the site. `truncated` means the list was capped at 500. */
-export function getAvailableProjects(): Promise<{
+export function getAvailableProjects(init?: RequestInit): Promise<{
   projects: AvailableProject[]
   truncated: boolean
 }> {
-  return jsonW<{ projects: AvailableProject[]; truncated: boolean }>('projects/available/')
+  return jsonW<{ projects: AvailableProject[]; truncated: boolean }>('projects/available/', init)
 }
 
 /**
@@ -975,7 +1002,7 @@ export interface SettingsSpace {
  * so an empty selection here is a meaning, not a missing answer.
  * 400 confluence_not_configured when the source is off.
  */
-export function getSettingsSpaces(): Promise<{
+export function getSettingsSpaces(init?: RequestInit): Promise<{
   spaces: SettingsSpace[]
   all_global_when_empty: boolean
 }> {
@@ -986,7 +1013,7 @@ export function getSettingsSpaces(): Promise<{
     spaces: SettingsSpace[]
     all_global_when_empty: boolean
     enabled: boolean
-  }>('settings/spaces/')
+  }>('settings/spaces/', init)
 }
 
 /** Full replace (PUT). Values are stored as sent — partial payloads wipe the rest. */

@@ -177,6 +177,21 @@
     loading = false
   })
 
+  /*
+   * Jira-unreachable holds these until the site TCP gives up, which left the
+   * Sources tab on "Loading the list…" for the whole wait (GDK-476). Aborting
+   * here is a client timeout, not a new poll — the manual-key fallback is
+   * already on screen for projects.
+   */
+  const SCOPE_LIST_MS = 8_000
+
+  function scopeListSignal(): AbortSignal {
+    if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(SCOPE_LIST_MS)
+    const c = new AbortController()
+    setTimeout(() => c.abort(), SCOPE_LIST_MS)
+    return c.signal
+  }
+
   /** Fetch the two scope lists once, the first time the Sources tab is shown. */
   async function loadSources() {
     if (sourcesRequested) return
@@ -194,7 +209,7 @@
     projectsLoading = true
     const projects = (async () => {
       try {
-        const res = await api.getAvailableProjects()
+        const res = await api.getAvailableProjects({ signal: scopeListSignal() })
         projectOptions = res.projects.map((p) => ({
           value: p.key,
           label: p.name,
@@ -218,7 +233,7 @@
     spacesLoading = true
     const spaces = (async () => {
       try {
-        const res = await api.getSettingsSpaces()
+        const res = await api.getSettingsSpaces({ signal: scopeListSignal() })
         spaceOptions = res.spaces.map((s) => ({ value: s.key, label: s.name, hint: s.type }))
         // res.all_global_when_empty is the saved state's version of the same
         // rule; the picker reads the pending switch instead, or the label would
@@ -325,8 +340,8 @@
           <Icon name="x" size={14} />
         </button>
       </div>
-      <p class="mb-3 text-micro text-text-muted">
-        {t('settings.introBefore')} <span class="font-mono">~/.gadak/config.json</span> {t('settings.introAfter')}
+      <p class="mb-3 text-micro text-text-muted" data-testid="settings-intro">
+        {t('settings.intro')}
       </p>
       <div class="flex gap-1">
         {#each TABS as [id, label] (id)}

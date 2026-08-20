@@ -204,7 +204,7 @@
       {#if errorKind}
         <!-- Error: 404 (deleted) / network -->
         <div class="flex flex-col items-center gap-3 px-5 py-16 text-center">
-          <p class="text-body text-text-secondary">
+          <p class="text-body text-text-secondary" data-testid="detail-load-error">
             {#if errorKind === 'notfound'}
               {t('detail.notFound')}
             {:else}

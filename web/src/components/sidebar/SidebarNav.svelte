@@ -8,6 +8,7 @@
   import { t, formatNumber, relativeTime } from '../../lib/i18n'
   import { filterIssues, filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
+  import { reachability } from '../../lib/reachability.svelte'
   import { views } from '../../stores/views.svelte'
   import { me } from '../../stores/me.svelte'
   import { onboarding } from '../../stores/onboarding.svelte'
@@ -449,6 +450,22 @@
           <div class="px-2 py-1 text-micro font-medium text-text-muted">
             {t('sidebar.syncHistory')}
           </div>
+          {#if reachability.offline}
+            <div
+              class="flex items-center justify-between gap-2 px-2 py-1.5"
+              data-testid="sync-history-offline"
+            >
+              <p class="text-[12px] text-status-stale">{t('sidebar.serverUnreachable')}</p>
+              <button
+                type="button"
+                class="flex-none rounded-md border border-border-strong px-2 py-0.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+                data-testid="sync-history-retry"
+                onclick={() => void issues.refresh()}
+              >
+                {t('common.retry')}
+              </button>
+            </div>
+          {/if}
           {#if historyLoading}
             <div class="px-2 py-2 text-[12px] text-text-muted">{t('common.searching')}</div>
           {:else if historyRuns.length === 0}

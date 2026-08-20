@@ -6,6 +6,7 @@
    */
   import { onMount, untrack } from 'svelte'
   import { issues } from './stores/issues.svelte'
+  import { reachability } from './lib/reachability.svelte'
   import { views } from './stores/views.svelte'
   import { selection } from './stores/selection.svelte'
   import { pages } from './stores/pages.svelte'
@@ -614,7 +615,7 @@
         {/if}
       </div>
     {/if}
-    {#if issues.offline}
+    {#if reachability.offline}
       <div
         class="flex flex-none items-center justify-center gap-2 border-b border-status-stale/40 bg-status-stale/10 px-3 py-1.5 text-[12px] text-status-stale"
         role="status"

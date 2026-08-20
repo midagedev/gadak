@@ -411,13 +411,16 @@
       type="button"
       onclick={() => fileInput?.click()}
       disabled={!me.identified || busy}
-      class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong px-2 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-40"
+      class="mr-auto inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong px-2 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-40"
       title={t('write.attachFile')}
     >
       <Icon name="paperclip" size={13} />
       {t('write.attachLabel')}
     </button>
-    <span class="mr-auto text-micro text-text-muted">⌘Enter</span>
+    <kbd
+      data-testid="comment-shortcut"
+      class="rounded border border-border-subtle px-1 text-micro text-text-muted"
+    >{t('write.commentShortcut')}</kbd>
     <button
       type="button"
       onclick={submit}

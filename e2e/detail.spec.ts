@@ -29,7 +29,7 @@ test.describe('detail', () => {
 
     // Write gate: the configured credential alone must unlock the write UI
     // (me/ → email → identified). Regression guard for the boot-time identity probe.
-    await expect(panel.locator('textarea[placeholder*="Write a comment"]')).toBeVisible()
+    await expect(panel.locator('textarea[placeholder*="Add a comment"]')).toBeVisible()
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

@@ -19,6 +19,7 @@ import * as api from '../lib/api'
 import * as db from '../lib/db'
 import { applyCacheScopeDebug, isHostedDemo } from '../lib/config'
 import { invalidate, invalidateAll } from '../lib/detail-cache.svelte'
+import { reachability } from '../lib/reachability.svelte'
 import type { CacheMeta } from '../lib/types'
 
 const POLL_MS = 15_000
@@ -72,10 +73,14 @@ class IssuesStore {
   /** Boot failure (usually auth). Blocks UI only when there is no cache (render-before-auth). */
   error = $state<string | null>(null)
   /**
-   * True when a poll/bootstrap failed after the pool was already ready —
+   * True when gadak serve is unreachable after the pool was already ready —
    * UI shows an "Offline — showing cached data" strip without blocking the list.
+   * Owner is lib/reachability.svelte (GDK-477); this getter is the banner's
+   * existing read path.
    */
-  offline = $state(false)
+  get offline(): boolean {
+    return reachability.offline
+  }
   /**
    * True while a mirror pull (sync-now) runs — the server↔Jira leg, not the
    * 15s delta poll. Drives the freshness chip's spinner wherever the pull was
@@ -207,17 +212,17 @@ class IssuesStore {
         await this.#bootstrap()
       }
       this.error = null
-      this.offline = false
+      reachability.markUp()
     } catch (e) {
       const status = e instanceof api.ApiError ? e.status : 0
       if (status === 401) {
         // With cache: stay quiet (render-before-auth). Without: block the UI.
         if (!this.ready) this.error = 'auth'
-        else this.offline = true
+        else reachability.markDown()
       } else {
         console.warn('[issues] sync 실패', e)
         if (!this.ready) this.error = 'network'
-        else this.offline = true
+        else reachability.markDown()
       }
     } finally {
       this.#syncing = false

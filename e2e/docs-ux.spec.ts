@@ -385,7 +385,11 @@ test.describe('documents in the daily loop', () => {
     // only — personal ones are opt-in by name (internal/sync/confluence.go).
     await expect(turnOn).toHaveText('Turn on for every team space')
 
-    // Turning it on flips the control and raises the unscoped warning.
+    // Turning it on for every team space is the unscoped case: first click
+    // arms (JiraKeySettings deleteArmed), second click commits (GDK-476).
+    await turnOn.click()
+    await expect(turnOn).toHaveText('Click again to mirror every team space')
+    await expect(confluence.getByTestId('confluence-all-warning')).toHaveCount(0)
     await turnOn.click()
     await expect(confluence.getByTestId('confluence-all-warning')).toBeVisible()
     await expect(confluence.getByTestId('confluence-turn-off')).toBeVisible()

@@ -83,9 +83,7 @@
   })
 </script>
 
-{#if all.length === 0}
-  <p class="text-[12px] text-text-muted italic">{t('detail.noComments')}</p>
-{:else}
+{#if all.length > 0}
   <ol>
     {#each rows as { c, head } (c.comment_id)}
       <!-- 20px and an avatar row open a new speaker; 12px, a hairline and a

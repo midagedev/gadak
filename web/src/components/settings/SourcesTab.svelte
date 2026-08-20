@@ -42,6 +42,26 @@
       ? spaceOptions
       : spaceOptions.filter((o) => o.hint !== 'personal' || draft.spaces.includes(o.value)),
   )
+
+  // GDK-476: empty scope = every team space. Same two-click arm as the
+  // credential delete button (JiraKeySettings.deleteArmed) — no new dialog.
+  let turnOnArmed = $state(false)
+  $effect(() => {
+    if (draft.spaces.length > 0 || draft.confluenceOn) turnOnArmed = false
+  })
+
+  function turnConfluenceOn(): void {
+    if (draft.spaces.length > 0) {
+      draft.confluenceOn = true
+      return
+    }
+    if (!turnOnArmed) {
+      turnOnArmed = true
+      return
+    }
+    draft.confluenceOn = true
+    turnOnArmed = false
+  }
 </script>
 
 <div class="flex flex-col gap-5" data-testid="settings-sources">
@@ -143,12 +163,14 @@
         <button
           type="button"
           class="{ADD_BTN} flex-none self-start"
-          onclick={() => (draft.confluenceOn = true)}
+          onclick={turnConfluenceOn}
           data-testid="confluence-turn-on"
         >
           {draft.spaces.length
             ? t('settings.confluenceTurnOnCount', { n: String(draft.spaces.length) })
-            : t('settings.confluenceTurnOnAll')}
+            : turnOnArmed
+              ? t('settings.confluenceTurnOnAllConfirm')
+              : t('settings.confluenceTurnOnAll')}
         </button>
       {/if}
     </div>
