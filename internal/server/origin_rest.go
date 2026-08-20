@@ -11,6 +11,30 @@ import (
 	"github.com/midagedev/gadak/internal/pairing"
 )
 
+// PairedOriginHostExempt lets GuardBrowser pass a DNS-named Host — which the
+// rebinding check otherwise rejects — for origin-passthrough requests while
+// active pairing tokens exist. Measured on a real tailnet (GDK-443): tailscale
+// serve forwards the original `<machine>.<tailnet>.ts.net` Host upstream, so
+// without this every paired request died as forbidden_host before the Bearer
+// gate could speak. Authorize with an empty bearer answers "do tokens exist"
+// without accepting anything: VerdictOff (or an error, which fails closed)
+// keeps today's rejection, VerdictReject means pairingGate will demand the
+// Bearer right after this. dir is resolved per request — pairing.json can
+// appear while a serve is running.
+func PairedOriginHostExempt(dir func() string) func(*http.Request) bool {
+	return func(r *http.Request) bool {
+		if !strings.HasPrefix(r.URL.Path, origin.RESTPrefix) {
+			return false
+		}
+		d := dir()
+		if d == "" {
+			return false
+		}
+		v, err := pairing.Authorize(d, "", time.Now())
+		return err == nil && v == pairing.VerdictReject
+	}
+}
+
 // handleOriginREST forwards method, path, query, headers, and body to this
 // process's embedded issuetap handler. It is not a mirror-write API: the
 // SQLite mirror is never the target. Writes go through the workspace origin

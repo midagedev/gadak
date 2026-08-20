@@ -280,7 +280,12 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// a clean 404 and only breaks on a 500.
 	mux.HandleFunc("/", handleNotFound)
 	h := &Handler{mux: mux, s: s}
-	h.guarded = GuardBrowser(mux)
+	h.guarded = GuardBrowser(mux, PairedOriginHostExempt(func() string {
+		if cfg := s.config(); cfg != nil {
+			return cfg.Directory()
+		}
+		return ""
+	}))
 	if testRegisterHandler != nil {
 		testRegisterHandler(h)
 	}

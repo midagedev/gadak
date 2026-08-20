@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -132,4 +133,60 @@ func TestPairingGateExpiredAndRevokedRejected(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("gate must lift when no active token remains: %d %s", rec.Code, rec.Body.String())
 	}
+}
+
+// A real tailnet delivers the passthrough with the MagicDNS name in Host —
+// tailscale serve forwards the original Host upstream (measured, GDK-443).
+// The rebinding guard must step aside for exactly that case and nothing else:
+// only under RESTPrefix, and only while active tokens make the Bearer gate
+// stand right behind it.
+func TestPairedHostExemptLetsTailnetNameThrough(t *testing.T) {
+	h, cfg := standaloneServer(t)
+	dir := cfg.Directory()
+	// Any DNS name exercises the same rejection as a MagicDNS *.ts.net one;
+	// an example.com shape keeps the secret scanner's tailnet regex quiet.
+	tsHost := map[string]string{"Host": "home.tailnet.example.com:8443"}
+
+	// No tokens: a DNS-named Host stays forbidden — today's rebinding answer.
+	rec := getWithHost(t, h, origin.RESTPrefix+"/rest/api/3/myself", nil, tsHost["Host"])
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "forbidden_host") {
+		t.Fatalf("no tokens: %d %s; want 403 forbidden_host", rec.Code, rec.Body.String())
+	}
+
+	token, _, err := pairing.Mint(dir, "laptop", time.Hour, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Tokens exist, no Bearer: the guard defers, the gate rejects.
+	rec = getWithHost(t, h, origin.RESTPrefix+"/rest/api/3/myself", nil, tsHost["Host"])
+	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "pairing_token_required") {
+		t.Fatalf("tokens, no bearer: %d %s; want 401 pairing_token_required", rec.Code, rec.Body.String())
+	}
+
+	// Tokens exist, valid Bearer: the paired request goes through.
+	rec = getWithHost(t, h, origin.RESTPrefix+"/rest/api/3/myself",
+		map[string]string{"Authorization": "Bearer " + token}, tsHost["Host"])
+	if rec.Code != http.StatusOK {
+		t.Fatalf("tokens, valid bearer: %d %s; want 200", rec.Code, rec.Body.String())
+	}
+
+	// The exemption is passthrough-only: any other path keeps the guard even
+	// with tokens minted — the tailnet name never opens the UI or the API.
+	rec = getWithHost(t, h, "/api/v1/issues/views/", nil, tsHost["Host"])
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "forbidden_host") {
+		t.Fatalf("non-passthrough path: %d %s; want 403 forbidden_host", rec.Code, rec.Body.String())
+	}
+}
+
+func getWithHost(t *testing.T, h http.Handler, path string, headers map[string]string, host string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := testRequest(http.MethodGet, path, nil)
+	req.Host = host
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
 }
