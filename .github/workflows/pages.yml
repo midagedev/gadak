@@ -66,14 +66,12 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/scan-internal.sh
-          # Artifact must not contain a concrete Jira site URL. Placeholder
-          # hosts (your-site, example, bare x — GDK issue summaries quote the
-          # test fixture host) are fine.
-          if grep -rEn "atlassian\.net" dist/hosted \
-              | grep -vE "(your-site|example|your-team|\bx)\.atlassian\.net|example\.com"; then
-            echo "found a concrete Jira site URL in hosted artifact" >&2
-            exit 1
-          fi
+          # The built artifact too: it is gitignored, so the pass above cannot
+          # see it. Same scanner, not a second implementation — the inline grep
+          # that used to be here was line-oriented and read a published issue
+          # body that merely discusses "atlassian.net" as a concrete site URL
+          # (2026-08-20). filter_disallowed_hosts matches hostnames.
+          bash scripts/scan-internal.sh --dir dist/hosted
 
       # GDK-389: the public backlog is a whitelist-rebuilt snapshot. Assert the
       # structural invariants on the artifact that will actually be published.

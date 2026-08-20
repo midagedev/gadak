@@ -98,13 +98,34 @@ filter_disallowed_hosts() {
   done
 }
 
+# With --dir, scan a built artifact instead of the working tree. Build output is
+# gitignored, so the default file list cannot see it — and pages.yml used to
+# cover that gap with its own inline `grep -rEn atlassian.net | grep -v
+# placeholder`, which is a weaker copy of the check two lines above it in the
+# same step. That copy failed on 2026-08-20: it is line-oriented, and one
+# published issue body discusses the string "atlassian.net" as a word, so a file
+# with no tenant hostname in it at all was reported as a leak. Same class as the
+# vacuous filter fixed in tools/backlog-scrub-check.sh the same day. The logic
+# belongs in one place, and this is the place that already had it right —
+# filter_disallowed_hosts treats a bare domain as product discussion and matches
+# hostnames rather than lines.
+SCAN_DIR=""
+if [[ "${1:-}" == "--dir" ]]; then
+  SCAN_DIR="${2:?usage: scan-internal.sh --dir <artifact-dir>}"
+  [[ -d "$SCAN_DIR" ]] || { echo "scan-internal: not a directory: $SCAN_DIR" >&2; exit 1; }
+fi
+
 # Tracked files plus untracked-but-not-ignored ones. Scanning only `ls-files`
 # used to hide brand new files from the gate: a fixture would pass the scan
 # before `git add` and fail CI right after it. Media and the binary snapshot are
 # handled separately below.
 {
-  git ls-files
-  git ls-files --others --exclude-standard
+  if [[ -n "$SCAN_DIR" ]]; then
+    find "$SCAN_DIR" -type f
+  else
+    git ls-files
+    git ls-files --others --exclude-standard
+  fi
 } | sort -u | while IFS= read -r f; do
   case "$f" in
     examples/demo.db|*.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico|*.woff|*.woff2|*.ttf|*.eot)
@@ -116,7 +137,11 @@ filter_disallowed_hosts() {
 done >"$text_list"
 
 file_count="$(wc -l <"$text_list" | tr -d ' ')"
-echo "==> scanning ${file_count} tracked and untracked files"
+if [[ -n "$SCAN_DIR" ]]; then
+  echo "==> scanning ${file_count} files under ${SCAN_DIR}"
+else
+  echo "==> scanning ${file_count} tracked and untracked files"
+fi
 if [[ -n "$PAT_COMPANY" ]]; then
   echo "==> word list from ${words_source}"
 else
@@ -135,7 +160,7 @@ if [[ -s "$text_list" ]]; then
       | filter_disallowed_hosts >>"$hits_file" || true
 fi
 
-if [[ -f examples/demo.db ]]; then
+if [[ -z "$SCAN_DIR" && -f examples/demo.db ]]; then
   echo "==> scanning strings in examples/demo.db"
   tmp_strings="$(mktemp)"
   strings examples/demo.db >"$tmp_strings"
