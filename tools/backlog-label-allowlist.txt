@@ -61,6 +61,7 @@ hosted
 hosted-demo
 i18n
 in-app
+inbound
 invariant
 issuetap
 launch
