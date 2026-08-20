@@ -140,7 +140,7 @@ Windows 10 machines already have it via Edge). If the window never appears,
 install the runtime from
 <https://developer.microsoft.com/en-us/microsoft-edge/webview2/>.
 
-The build is **unsigned**. Signing is planned (GDK-211); this page does not
+The build is **unsigned**. Signing is planned ([GDK-211]); this page does not
 name a date.
 
 Windows may show one of two dialogs. Neither is a virus finding:
@@ -335,3 +335,5 @@ needs the binary demo — the static snapshot carries issues only.
 pages in two spaces, some in Korean because search should survive CJK. It is
 also what the test suite and the README's clips run against, so what you see is
 what CI checks.
+
+[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211

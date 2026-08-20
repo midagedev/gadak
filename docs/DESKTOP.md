@@ -28,7 +28,7 @@ Gadak.app to Applications. The dmg is Developer ID-signed and notarized
 
 **Windows (from 0.16).** Download `Gadak-<version>-windows-x64.zip` or
 `Gadak-<version>-windows-arm64.zip` from the same release, unzip, run
-`gadak-desktop.exe`. Unsigned — signing is GDK-211. If Windows blocks the
+`gadak-desktop.exe`. Unsigned — signing is [GDK-211]. If Windows blocks the
 exe, use the CLI zip and `gadak serve`. Do not turn Smart App Control off.
 The wording and the CLI fallback live in
 [INSTALL.md](INSTALL.md#desktop-app-windows).
@@ -139,7 +139,7 @@ acts on; `<params>` is a view hash.
 the hash carries every filter and display setting, plus which panel and which
 screen you are on — `issue=KEY`, `doc=KEY`, `space=`, and so on. Anything the
 web app can put in its URL, a `gadak://view` link can carry, with no change
-here. Which is why the work of adding surfaces is on the UI side (GDK-124),
+here. Which is why the work of adding surfaces is on the UI side ([GDK-124]),
 not on the scheme.
 
 A second action is for something the hash cannot express — a place with no
@@ -209,3 +209,6 @@ goes to until you switch.
 
 See [`desktop/README.md`](../desktop/README.md) — `desktop/build-app.sh`
 produces the same bundle locally, unsigned by default.
+
+[GDK-124]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-124
+[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211

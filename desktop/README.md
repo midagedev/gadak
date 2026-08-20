@@ -7,13 +7,13 @@ conflicts stop existing as UX. A second launch focuses the running window
 (single-instance lock) instead of hunting for a free port.
 
 The pack scripts on disk are the ship-shape owner; `coldStartDecisionFor` in
-`main.go` is the deep-link delivery owner (GDK-293). This table summarises
+`main.go` is the deep-link delivery owner ([GDK-293]). This table summarises
 both so the rest of the tree can point here instead of restating either.
 
 | GOOS | Pack | Shipped on tag | `ApplicationLaunchedWithUrl` |
 | --- | --- | --- | --- |
 | darwin | `desktop/build-app.sh` → `Gadak-<ver>-arm64.dmg` (signed/notarized) | yes | yes (Apple Event; argv is not applied) |
-| windows | `desktop/build-windows.ps1` → `Gadak-<ver>-windows-<x64\|arm64>.zip` (unsigned; GDK-211) | yes (from 0.16) | yes when argv is exactly one `://` argument (wails `pkg/application/application_windows.go`); otherwise argv |
+| windows | `desktop/build-windows.ps1` → `Gadak-<ver>-windows-<x64\|arm64>.zip` (unsigned; [GDK-211]) | yes (from 0.16) | yes when argv is exactly one `://` argument (wails `pkg/application/application_windows.go`); otherwise argv |
 | linux | `desktop/build-linux.sh` → AppDir / AppImage | no — from-source only | no (GTK4 never emits it — fix sent upstream, wailsapp/wails#6000; argv is applied) |
 
 The in-app Jira/Confluence browse pane is still darwin-only (`embed_darwin.go`; other GOOS use the stub in `embed_other.go`).
@@ -151,7 +151,7 @@ Install the Evergreen runtime from
 
 ### SmartScreen
 
-The portable exe is **unsigned**. Signing is a separate decision (GDK-211).
+The portable exe is **unsigned**. Signing is a separate decision ([GDK-211]).
 Windows SmartScreen is expected to warn on a first download of an unsigned
 exe (`Windows protected your PC` / More info / Run anyway). Reputation is
 built after distribution, not before. This dialog has **not** been captured
@@ -255,3 +255,6 @@ would try to self-swap.
 - macOS builds still need the Xcode command line tools. (The
   `UniformTypeIdentifiers` link flag `build-app.sh` used to pass by hand is
   gone — wails v3 declares that framework itself.)
+
+[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
+[GDK-293]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-293

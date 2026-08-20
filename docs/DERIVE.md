@@ -6,7 +6,7 @@ keys, cross-references). This file is the single place that explains them: what
 each column means, why the rule looks like that, and the queries an agent
 actually runs. The schema — which table carries which column — stays in
 [`specs/000-product/data-model.md`](../specs/000-product/data-model.md); the
-rule table and the example queries moved out of it live here (GDK-88/GDK-89).
+rule table and the example queries moved out of it live here ([GDK-88]/[GDK-89]).
 
 The rules are documentation, not a 0.x promise. While the version is 0.x the
 promises are still only the three `data-model.md` lists at its top:
@@ -256,3 +256,6 @@ the spine's primary key is `items.id`, and `key` exists on both tables.
 | `epic_key` | `recomputeEpicKeys` in `internal/store/write.go` |
 | `item_refs` extraction and rewrite | `internal/store/refs.go` |
 | view wiring (`issues_full`, migrations) | `internal/store/schema.go` |
+
+[GDK-88]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-88
+[GDK-89]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-89

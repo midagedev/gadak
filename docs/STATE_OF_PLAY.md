@@ -9,8 +9,8 @@ Atlassian account and stops needing a Mac: standalone workspaces whose origin
 is an in-process minimal Jira (`issuetap`) — mirror still a disposable cache,
 every write through the origin, and while a standalone `gadak serve` runs it
 advertises itself so other gadak processes route writes through it instead of
-dual-writing the persist file (GDK-333; the desktop app followed in
-GDK-340, and a post-tag hardening wave closed GDK-241 and GDK-342–348).
+dual-writing the persist file ([GDK-333]; the desktop app followed in
+[GDK-340], and a post-tag hardening wave closed [GDK-241] and [GDK-342]–348).
 Windows gets a desktop zip and honest SmartScreen docs, Linux gets
 tarball + `install-service`, Omarchy gets a bar widget verified on a real
 guest. Issue editing now follows the issue's own editmeta: due date,
@@ -19,7 +19,7 @@ kind, `p` for priority. The hosted demo opens on the product, feedback
 channels live in a Settings About tab and the macOS Help menu, the README
 carries a coverage matrix instead of adjectives, and a read-only Linear
 client shipped in the tag measured against the live API but unwired — since
-the tag, main wires it as the third read-only sync source (GDK-263), not yet
+the tag, main wires it as the third read-only sync source ([GDK-263]), not yet
 in a released build.
 Under it, v0.15.0, the release that opens gadak outward:
 `gadak://` deep links with producers on every surface (a copy-link action on
@@ -170,7 +170,7 @@ secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
   see [SECURITY.md](../SECURITY.md).
 - From this tree, `.github/workflows/desktop-release.yml` attaches an unsigned
   Windows portable zip (`Gadak-<ver>-windows-<x64|arm64>.zip`) on `v*` tags,
-  next to the macOS dmg. Signing is GDK-211. The first release that carries
+  next to the macOS dmg. Signing is [GDK-211]. The first release that carries
   the zip is 0.16. `tools/winsmoke.ps1` is the real-machine startup gate;
   it is not a CI job (`windows-latest` has no interactive desktop).
 
@@ -232,3 +232,10 @@ secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
 | Running locally | `runbooks/local-dev.md` |
 | Refilling demo data | `../tools/README.md` |
 | Browser E2E | `../e2e/README.md` |
+
+[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
+[GDK-241]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-241
+[GDK-263]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-263
+[GDK-333]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-333
+[GDK-340]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-340
+[GDK-342]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-342

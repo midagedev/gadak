@@ -12,7 +12,7 @@
 
 ### 세 번째 트래커, 그리고 쓰기까지
 
-- **Linear는 계획이 아니라 소스입니다** (GDK-263, GDK-360, GDK-361).
+- **Linear는 계획이 아니라 소스입니다** ([GDK-263], [GDK-360], [GDK-361]).
   프로필 `config.json`에 `"linear"` 블록(`apiKey`, 선택 `teamIds`)을 넣고
   `gadak sync --source linear`를 돌리면 이슈·코멘트·라벨·첨부가 Jira와
   Confluence 옆에 미러링됩니다. 쓰기는 그 키의 미러 소스로 라우팅됩니다:
@@ -22,38 +22,38 @@
   코멘트 인라인 미디어, 기한 비우기, 상태 이력 — 은 반쪽 적용 대신 정직하게
   거절하고, 코멘트 본문은 맞지 않는 ADF 컬럼에 밀어넣는 대신 마크다운으로
   남습니다 ([`internal/linear/MAPPING.md`](internal/linear/MAPPING.md)).
-- **쓰기 이음새가 인터페이스가 됐습니다** (GDK-359). Jira, standalone origin,
+- **쓰기 이음새가 인터페이스가 됐습니다** ([GDK-359]). Jira, standalone origin,
   Linear가 하나의 어휘를 말하므로, 한 표면에 동사를 더하는 일이 같은 가드의
   세 구현이 되지 않습니다.
-- **Linear만 있는 프로필도 sync됩니다** (GDK-361). 자격증명 게이트가 소스별로
+- **Linear만 있는 프로필도 sync됩니다** ([GDK-361]). 자격증명 게이트가 소스별로
   갈립니다 — Atlassian 토큰이 없는 프로필에게 할 일이 없다고 말하지 않습니다.
   소스를 가로지르는 키 충돌이 Jira 쓰기를 거절하던 것도 고쳤습니다.
 
 ### 위키가 읽기 전용을 벗습니다
 
-- **페이지 편집·코멘트·생성이 origin을 통과합니다** (GDK-380, GDK-381,
-  GDK-382) — `gadak page edit|comment|create`와 대응 REST 동사, connected는
+- **페이지 편집·코멘트·생성이 origin을 통과합니다** ([GDK-380], [GDK-381],
+  [GDK-382]) — `gadak page edit|comment|create`와 대응 REST 동사, connected는
   Confluence Cloud, standalone은 인프로세스 origin입니다. 페이지 id도 미러
   id와 같은 네임스페이스를 받아 실제 사이트의 id와 충돌할 수 없습니다
-  (GDK-344).
+  ([GDK-344]).
 
 ### standalone origin의 소유자는 하나
 
-- **데스크톱 앱도 origin을 공표합니다** (GDK-340). GDK-333에서 열린 채
+- **데스크톱 앱도 origin을 공표합니다** ([GDK-340]). [GDK-333]에서 열린 채
   출하됐던 나머지 절반 — 앱과 CLI가 persist 파일을 동시에 들 수 있던 구멍 —
   이 닫혔습니다.
-- **persist lock이 "누가 임베드할 수 있나"의 단일 진실이 됐고** (GDK-343),
-  응답 전에 쓰기가 디스크에 도달하며(GDK-342), 영속 실패는 삼켜지지 않고
-  쓰기를 실패시키고(GDK-346), 치명 경로에서도 flush합니다(GDK-348).
-- **standalone 실패가 `credential_required`로 위장하지 않습니다** (GDK-345).
+- **persist lock이 "누가 임베드할 수 있나"의 단일 진실이 됐고** ([GDK-343]),
+  응답 전에 쓰기가 디스크에 도달하며([GDK-342]), 영속 실패는 삼켜지지 않고
+  쓰기를 실패시키고([GDK-346]), 치명 경로에서도 flush합니다([GDK-348]).
+- **standalone 실패가 `credential_required`로 위장하지 않습니다** ([GDK-345]).
   바쁜 origin은 자기 토스트로 그렇다고 말하고, 전환 문구는 전환이 실제로
-  무엇을 하는지 말합니다(GDK-347).
+  무엇을 하는지 말합니다([GDK-347]).
 - **미러 id가 자기 네임스페이스를 갖고, 전환은 옛 미러를 통째로 버립니다**
-  (GDK-241). watch와 즐겨찾기를 함께 가져갑니다(GDK-344).
+  ([GDK-241]). watch와 즐겨찾기를 함께 가져갑니다([GDK-344]).
 
 ### 에이전트 표면이 standalone을 배웁니다
 
-- **임베디드 스킬이 그 모드의 존재를 압니다** (GDK-239, GDK-363). 이전에는
+- **임베디드 스킬이 그 모드의 존재를 압니다** ([GDK-239], [GDK-363]). 이전에는
   불가능했습니다: 스킬과 `AGENTS.md`에 그 단어가 한 번도 없었고, 프로필
   규칙은 빈 `site_host`를 보고하고 멈추라고 가르쳤는데 그것이 정상인
   standalone 프로필의 모습이었으며, `AGENTS.md`는 자격증명 없이 쓰기가
@@ -61,77 +61,77 @@
   `workspace.kind`에서 오고, 쓰기 전 확인은 connected로 한정되며(standalone
   쓰기는 이 머신의 파일입니다), 생성 경로가 에이전트가 읽는 자리에
   적혀 있습니다.
-- **CLI가 어느 origin을 말하는지 밝힙니다** (GDK-364, GDK-366, GDK-371).
+- **CLI가 어느 origin을 말하는지 밝힙니다** ([GDK-364], [GDK-366], [GDK-371]).
   쓰기 동사가 모든 쓰기를 "on Jira (needs a credential)"이라 주장하기를
   멈췄고, `init`은 usage 줄에서 `--standalone`을 숨기기를 멈췄고, `serve`
   도움말은 실제로 언제 sync하는지와 일치합니다.
-- **`transition`이 규칙이 요구하는 식별자를 알려줍니다** (GDK-365). 거절
+- **`transition`이 규칙이 요구하는 식별자를 알려줍니다** ([GDK-365]). 거절
   메시지가 target 상태를 display name으로만 나열했습니다 — 이 제품이
   아무도 쓰지 말라고 하는 그 키 — 이제 각 target의 `status_id`를 함께
-  줍니다. `transition`은 읽기 경로가 주는 `status_id`도 받습니다(GDK-313).
-- **kind와 persist가 에이전트의 프리플라이트에 올라왔습니다** (GDK-368,
-  GDK-376). `status --json`과 `profiles --json`의 각 행이 `kind`를
+  줍니다. `transition`은 읽기 경로가 주는 `status_id`도 받습니다([GDK-313]).
+- **kind와 persist가 에이전트의 프리플라이트에 올라왔습니다** ([GDK-368],
+  [GDK-376]). `status --json`과 `profiles --json`의 각 행이 `kind`를
   담고(doctor가 쓰는 `origin.Describe`와 같은 소스), standalone `init`은
   백업 대상인 persist 경로를 만들어지는 자리에서 찍습니다.
-- **낡은 미러 경고를 원인에서 닫았습니다** (GDK-367). standalone `init`이
+- **낡은 미러 경고를 원인에서 닫았습니다** ([GDK-367]). standalone `init`이
   미러를 채웁니다 — 그 sync는 인프로세스이므로. 채우기가 실패하면 이미
   만들어진 워크스페이스를 실패시키는 대신 경고합니다.
-- **`issues_full`이 `description_text`를 꺼냅니다** (GDK-312). 평문은 이미
+- **`issues_full`이 `description_text`를 꺼냅니다** ([GDK-312]). 평문은 이미
   미러에 있었고, 뷰가 이제 그것을 내줍니다.
 
 ### 제품과 모순되기를 멈춘 문서
 
-- 설치 앞문이 standalone을 인정합니다(GDK-271): `INSTALL.md`가 더 이상
+- 설치 앞문이 standalone을 인정합니다([GDK-271]): `INSTALL.md`가 더 이상
   "Atlassian Cloud only"로 시작하지 않고, README와 함께 계정 없는 4줄
   퀵스타트를 싣습니다.
-- `CONCEPT.md`는 "쓰기는 로컬일 수 없다" 대신 origin을 가르치고(GDK-372),
+- `CONCEPT.md`는 "쓰기는 로컬일 수 없다" 대신 origin을 가르치고([GDK-372]),
   FAQ는 원본이 거기 사는 사용자에게 `rm -rf ~/.gadak`을 권하기를
-  멈추고(GDK-373), `PROMISES.md`는 아홉 번째 약속을 얻었으며(standalone
+  멈추고([GDK-373]), `PROMISES.md`는 아홉 번째 약속을 얻었으며(standalone
   origin은 평문 YAML 한 파일이고, 그것을 증명하는 명령이 함께 있습니다),
-  `MAINTENANCE.md`는 이미 출하한 Windows 셸을 거절하기를 멈추고(GDK-374),
+  `MAINTENANCE.md`는 이미 출하한 Windows 셸을 거절하기를 멈추고([GDK-374]),
   `export`/`import`는 0.14부터 있던 동사에 드디어 문단을 얻었습니다
-  (GDK-375).
+  ([GDK-375]).
 - `doc-checks.sh`가 게이트 셋을 얻어 앞문이 되돌아가지 못하게 합니다.
 - Go 테스트 스위트가 픽스처 자격증명을 실제 Atlassian 호스트로 향하게
-  하던 것을 멈췄습니다(GDK-304).
+  하던 것을 멈췄습니다([GDK-304]).
 
 ### 태그 전에 닫은 릴리스 감사
 
-이 릴리스 자신의 델타를 대상으로 읽기 전용 감사 3라운드(GDK-393)가
+이 릴리스 자신의 델타를 대상으로 읽기 전용 감사 3라운드([GDK-393])가
 발견 30건을 등록했고, 검증에서 살아남은 것들은 미루지 않고 이 릴리스에서
 고쳤습니다.
 
-- **Linear 미러가 origin이 가진 것을 담습니다** (GDK-394, 395, 397, 398,
+- **Linear 미러가 origin이 가진 것을 담습니다** ([GDK-394], 395, 397, 398,
   399, 405): 첨부가 이슈 쿼리에 실려 들어오고(쓰기 절반이 먼저 있었습니다 —
   위 선언을 이것이 닫습니다), 마크다운 본문이 CLI·UI에 보이고,
   `priority_rank`는 영어 라벨이 아니라 Linear 정수 id에서 파생되고, 코멘트
   페이지네이션이 커서를 완주한 뒤에 child list를 교체하고, full sync가
   Jira와 같은 비우기-거부 가드로 삭제를 반영하고, `open`과 첨부 바이트가
   저장된 origin URL을 따릅니다.
-- **Linear 쓰기가 Linear의 어휘로 말합니다** (GDK-396, 401, 403, 406, 407):
+- **Linear 쓰기가 Linear의 어휘로 말합니다** ([GDK-396], 401, 403, 406, 407):
   per-key 우선순위·유저 카탈로그가 행의 origin으로 라우팅되고, Linear 전용
   프로필의 UI 쓰기가 Jira 토큰 없이 열리고, `CreateIssue`는 반쪽 생성 대신
   미지원 필드를 거절하고, assign이 Linear 유저 검색으로 해석되고,
   어댑터에 테스트 사다리가 생겼습니다. 두 소스가 같이 만드는 키는 조용한
-  선호 대신 명시적 `key_ambiguous` 거절입니다(GDK-400).
-- **위키 쓰기가 실패 앞에서 정직합니다** (GDK-408, 410, 404, 411, 412,
+  선호 대신 명시적 `key_ambiguous` 거절입니다([GDK-400]).
+- **위키 쓰기가 실패 앞에서 정직합니다** ([GDK-408], 410, 404, 411, 412,
   413): Confluence·Linear 거절이 `502 jira_unavailable`로 위장하지 않고
   제 상태 코드로 나가고, 페이지 편집이 낙관적 잠금용 베이스 버전을
   옵션으로 받고(생략은 last-write-wins이며 문서가 그렇게 말합니다), REST
   `adf`/`text` 경로에 검증과 `format_loss` 가드가 생기고, 문서 코멘트
   작성기가 이슈 코멘트처럼 자격을 게이트합니다.
-- **standalone 변환의 소유자는 하나입니다** (GDK-415, 416, 417, 419, 390):
+- **standalone 변환의 소유자는 하나입니다** ([GDK-415], 416, 417, 419, 390):
   다른 프로세스가 연 워크스페이스의 CLI 변환은 거절되고(busy 락이 소유자
-  pid를 지목합니다 — GDK-421), CLI와 HTTP 변환이 정리 하나를 공유하고,
+  pid를 지목합니다 — [GDK-421]), CLI와 HTTP 변환이 정리 하나를 공유하고,
   로컬 데이터 판정이 이슈만이 아니라 페이지도 세고, `init --standalone
   --projects`가 요청한 키 전부를 실제로 시딩합니다. `gadak project
   create`가 런타임에 origin을 통과해 standalone 워크스페이스에 프로젝트를
-  추가합니다(GDK-391).
+  추가합니다([GDK-391]).
 - 같은 라운드의 작은 정직성 수정들: `gadak_status`가 셸 없는 호스트에
-  워크스페이스 kind를 알려주고(GDK-420), 최상위 usage가 모든 커맨드를
-  소유하고(GDK-426), 거절된 `create --parent`가 미러에서 계층 규칙을
-  설명하고(GDK-424), ko README·아키텍처 문서가 위키 쓰기의 존재를
-  인정합니다(GDK-409).
+  워크스페이스 kind를 알려주고([GDK-420]), 최상위 usage가 모든 커맨드를
+  소유하고([GDK-426]), 거절된 `create --parent`가 미러에서 계층 규칙을
+  설명하고([GDK-424]), ko README·아키텍처 문서가 위키 쓰기의 존재를
+  인정합니다([GDK-409]).
 
 ## v0.16.0 — 2026-08-19
 
@@ -145,38 +145,38 @@ connected든 standalone든, 어떤 워크스페이스의 이슈든 읽은 자리
 
 ### Atlassian 계정 없는 워크스페이스
 
-- **Standalone 워크스페이스** (GDK-183). `gadak`은 origin이 프로세스
+- **Standalone 워크스페이스** ([GDK-183]). `gadak`은 origin이 프로세스
   안에서 도는 워크스페이스를 만들 수 있습니다 — Atlassian 사이트 대신,
   의도적으로 최소인 셀프호스트 Jira(`issuetap`). 미러 규칙은 그대로입니다:
   데이터는 origin이 소유하고, 미러는 버려도 되는 캐시이며, 쓰기는 전부
   origin을 통과합니다. 백업 대상은 persist 파일입니다.
 - **워크스페이스는 origin 하나에 묶입니다** — 자격증명을 연결한다고
   기존 워크스페이스의 대상이 조용히 바뀌지 않습니다. CLI 경로와 HTTP
-  경로 모두 (GDK-238, GDK-247). 다른 origin은 새 워크스페이스이지, 설정
+  경로 모두 ([GDK-238], [GDK-247]). 다른 origin은 새 워크스페이스이지, 설정
   편집이 아닙니다.
 - **Standalone 위키**는 문서를 담습니다. 쓰기는 다른 것과 같이 origin의
-  Confluence API를 통과합니다 (GDK-267). 페이지 버전 히스토리는
+  Confluence API를 통과합니다 ([GDK-267]). 페이지 버전 히스토리는
   스탬프로만 미러되고, 본문은 미러하지 않습니다. UI는 지금 보고 있는
   워크스페이스가 어디인지 말하고, standalone에는 토큰을 묻지 않습니다
-  (GDK-237).
+  ([GDK-237]).
 
 ### Windows와 Linux
 
-- **Windows**: 포터블 팩과 설치 프로그램 경로 (GDK-209), 거기서 동작하는
+- **Windows**: 포터블 팩과 설치 프로그램 경로 ([GDK-209]), 거기서 동작하는
   `install-cli`, 그 플랫폼에서 진실을 말하는 표면들, 그리고 첫 실행
   수정 — `gadak://` 딥링크가 두 번 적용되던 것, 첫 번째는 너무 일러서
-  먹지 않았습니다 (GDK-293). Scoop 매니페스트는 Windows 없이도 검증할
-  수 있습니다 (GDK-246).
-- **Linux**: dmg 쪽과 대칭인 팩 스크립트 (GDK-208), brew 옆에 문서화된
-  tarball 설치 (GDK-229), 버전 드리프트를 막는 게이트가 있는 AUR
-  패키징 키트 (GDK-115).
+  먹지 않았습니다 ([GDK-293]). Scoop 매니페스트는 Windows 없이도 검증할
+  수 있습니다 ([GDK-246]).
+- **Linux**: dmg 쪽과 대칭인 팩 스크립트 ([GDK-208]), brew 옆에 문서화된
+  tarball 설치 ([GDK-229]), 버전 드리프트를 막는 게이트가 있는 AUR
+  패키징 키트 ([GDK-115]).
 - **Omarchy**: 클라우드 플러그인이 답할 수 없는 그 질문 — *내* 미러에서
-  무엇이 바뀌었나 (GDK-116) — 에 답하는 바 위젯, 그리고 실제 게스트에서
-  검증한 설치 레시피 (GDK-225).
+  무엇이 바뀌었나 ([GDK-116]) — 에 답하는 바 위젯, 그리고 실제 게스트에서
+  검증한 설치 레시피 ([GDK-225]).
 
 ### 읽은 자리에서 바로 고치는 이슈
 
-- **필드 에디터가 QA 우리를 벗어납니다** (GDK-322, GDK-323). 인라인
+- **필드 에디터가 QA 우리를 벗어납니다** ([GDK-322], [GDK-323]). 인라인
   편집은 있었지만 QA 기능 플래그 뒤에서만 그려졌습니다. 이제 편집 가능
   여부는 이슈 자신의 editmeta가 결정합니다: option과 multi-select 필드는
   담당자 피커와 같은 드롭다운 문법을 쓰고, kind 매트릭스에 text, number,
@@ -185,43 +185,43 @@ connected든 standalone든, 어떤 워크스페이스의 이슈든 읽은 자리
   editmeta, standalone는 origin의 필드 레지스트리 — 그래서 select와
   multi-select가 사이트에서 실제로 허용된 값을 보여줍니다.
 - **기한은 컬럼만이 아니라 행입니다** — 상세 패널에서 설정하고, 지웁니다
-  (엔드포인트는 GDK-223부터 있었고 그 위의 UI만 없었습니다).
-- **설명은 평문으로 편집됩니다** (GDK-82) — 중요한 경우를 막는 가드가
+  (엔드포인트는 [GDK-223]부터 있었고 그 위의 UI만 없었습니다).
+- **설명은 평문으로 편집됩니다** ([GDK-82]) — 중요한 경우를 막는 가드가
   있습니다: 테이블, 미디어, 마크가 들어 있는 설명은 서식 손실 배너와
   명시적인 "평문으로 저장" 라벨을 보여 준 뒤에야 무엇이든 파괴됩니다.
   단순한 단락은 그냥 편집됩니다.
-- **우선순위가 트리아지 키에 합류합니다** (GDK-331): `s`/`a`/`l`이 이미
+- **우선순위가 트리아지 키에 합류합니다** ([GDK-331]): `s`/`a`/`l`이 이미
   동작하는 곳 — 벌크 바, 커서 행, 상세 — 에서 `p`가 카탈로그 우선순위
   메뉴를 엽니다. 그리고 리스트의 담당자 메뉴가 상세 피커와 같은 사람을
   찾습니다 — 공유 후보 순위 하나, 서버 검색 폴백 — 상세에서 할당할 수
-  있는 사용자는 리스트에서도 할당할 수 있습니다 (GDK-332).
+  있는 사용자는 리스트에서도 할당할 수 있습니다 ([GDK-332]).
 - **날짜는 먼저 읽기 표면을 얻었습니다**: 기한 컬럼, 기한 정렬, 날짜
   필터 축, 그리고 "이건 달력의 어느 날인가?"의 소유자 하나 — UTC와
-  로컬이 KST 경계에서 서로 다른 답을 내지 않게 (GDK-249, GDK-250).
-  Jira가 잘못된 기한을 거절하면, 읽을 수 있는 문장이 됩니다 (GDK-251).
+  로컬이 KST 경계에서 서로 다른 답을 내지 않게 ([GDK-249], [GDK-250]).
+  Jira가 잘못된 기한을 거절하면, 읽을 수 있는 문장이 됩니다 ([GDK-251]).
 - 팔레트는 액션을 가리지 않고 **입력한 텍스트로 이슈를 만들** 수 있고
-  (GDK-217), 답이 뻔한 필수 생성 필드는 더 이상 질문이 아니며
-  (GDK-218), 생성 다이얼로그는 불러오는 중에서 돌지 않고 쓸 수 없다고
-  말합니다 (GDK-302). 팔레트에서 액션 이름은 이제 모든 로케일에서
+  ([GDK-217]), 답이 뻔한 필수 생성 필드는 더 이상 질문이 아니며
+  ([GDK-218]), 생성 다이얼로그는 불러오는 중에서 돌지 않고 쓸 수 없다고
+  말합니다 ([GDK-302]). 팔레트에서 액션 이름은 이제 모든 로케일에서
   이깁니다 — 이슈 제목에 그 단어가 있어도 `settings`를 치면 설정이
-  열리고, `,`는 어디서든 엽니다 (GDK-300). 코멘트를 올리면 드디어
-  도착했다고 말합니다 (GDK-301).
+  열리고, `,`는 어디서든 엽니다 ([GDK-300]). 코멘트를 올리면 드디어
+  도착했다고 말합니다 ([GDK-301]).
 
 ### 데모, 그리고 문
 
-- **호스티드 데모가 제품으로 바로 열립니다** (GDK-335). 전화면 게이트
+- **호스티드 데모가 제품으로 바로 열립니다** ([GDK-335]). 전화면 게이트
   페이지는 사라졌습니다 — 이슈 목록이 첫 페인트입니다. 그 내용(클레임
   문장, brew 명령, 60초 영상, 저장소 링크)은 데모 배너의 About 팝오버로
   옮겨졌고, 피드백 채널이 함께 들어갔습니다.
-- **제품이 연락처를 말합니다** (GDK-336): 설정 About 탭과 macOS Help
+- **제품이 연락처를 말합니다** ([GDK-336]): 설정 About 탭과 macOS Help
   메뉴가 같은 채널 4종을 담습니다 — GitHub 저장소, 이슈 트래커, 이메일,
   X.
 
 ### 업데이터 없이, 업데이트
 
 - 업데이트 감지가 UI에 도달하고 플랫폼마다 맞는 말을 합니다 — 알림만,
-  자기 업데이트는 없습니다 (GDK-213, GDK-214). 릴리스 노트가 앱 안에서
-  렌더되고, 업그레이드 안내의 소유자는 하나입니다 (GDK-215, GDK-216).
+  자기 업데이트는 없습니다 ([GDK-213], [GDK-214]). 릴리스 노트가 앱 안에서
+  렌더되고, 업그레이드 안내의 소유자는 하나입니다 ([GDK-215], [GDK-216]).
 
 ### 그룹
 
@@ -237,12 +237,12 @@ connected든 standalone든, 어떤 워크스페이스의 이슈든 읽은 자리
 
 - 읽기 전용 Linear GraphQL 클라이언트가 두 번째 origin 종류의 기반
   작업으로 들어왔습니다: viewer, teams, workflow states, 커서 페이지
-  이슈, 레이트 예산 회계와 죽은 자격증명 감지 (GDK-263, GDK-274).
+  이슈, 레이트 예산 회계와 죽은 자격증명 감지 ([GDK-263], [GDK-274]).
   픽스처는 실제로 실리는 쿼리 그대로 라이브 API에서 떠서 스크럽한
   캡처입니다. **아직 워크스페이스에 연결하지 않습니다** — Linear
   origin이 워크스페이스 모델에서 무엇을 의미하는지는 그 자체의 결정이고
-  (GDK-258), origin 종류 둘을 나란히 돌리는 것은 0.16 이후입니다
-  (GDK-261).
+  ([GDK-258]), origin 종류 둘을 나란히 돌리는 것은 0.16 이후입니다
+  ([GDK-261]).
 
 ### 감사의 파도
 
@@ -252,34 +252,34 @@ connected든 standalone든, 어떤 워크스페이스의 이슈든 읽은 자리
 - **로컬라이즈된 이름은 키가 되지 않습니다.** display name으로 키한
   우선순위 필터는 한국어 계정에서 0행이었고, 상태 이름으로 카테고리를
   추측했고, 생성 다이얼로그는 우선순위를 이름으로 보냈는데 그걸
-  잡았어야 할 게이트는 초록이었습니다 (GDK-275, GDK-272, GDK-248,
-  GDK-161). 상태, 우선순위, 유형은 이제 어디서든 id와 카테고리로
+  잡았어야 할 게이트는 초록이었습니다 ([GDK-275], [GDK-272], [GDK-248],
+  [GDK-161]). 상태, 우선순위, 유형은 이제 어디서든 id와 카테고리로
   키합니다.
 - **콜드 오픈 하나가 모두를 직렬화하던 일을 멈췄습니다** — 뮤텍스 세
-  개가 디스크 IO를 가로질러 잡혀 있었고 (GDK-282), 경합하는 쓰기는
-  `busy_timeout`이 보지도 못해 즉시 죽었으며 (GDK-305), 백그라운드
-  sync는 더 이상 그것을 시작한 서버보다 오래 살지 않습니다 (GDK-270).
-- **다이얼로그 여섯, 셸 계약 하나** (GDK-297) — 같은 헤더, 같은 닫기
+  개가 디스크 IO를 가로질러 잡혀 있었고 ([GDK-282]), 경합하는 쓰기는
+  `busy_timeout`이 보지도 못해 즉시 죽었으며 ([GDK-305]), 백그라운드
+  sync는 더 이상 그것을 시작한 서버보다 오래 살지 않습니다 ([GDK-270]).
+- **다이얼로그 여섯, 셸 계약 하나** ([GDK-297]) — 같은 헤더, 같은 닫기
   수단, 마지막 행을 덮어 그릴 수 없는 푸터. 온보딩은 무장한 앱 크롬
   안에 앉지 않고 자기 패인을 소유하고, 4단계 카운터가 사이드바와 모순을
-  멈춥니다 (GDK-299). 한국어 카탈로그가 헤더 행 하나 안에서 자기와 더
-  이상 싸우지 않습니다 (GDK-298).
-- **미러의 다운그레이드 안내**에 상한과 조언이 붙고 (GDK-310), 만들어
-  놓고 연결하지 않았던 위키 쓰기 표면이 연결되고 (GDK-267), Linear
+  멈춥니다 ([GDK-299]). 한국어 카탈로그가 헤더 행 하나 안에서 자기와 더
+  이상 싸우지 않습니다 ([GDK-298]).
+- **미러의 다운그레이드 안내**에 상한과 조언이 붙고 ([GDK-310]), 만들어
+  놓고 연결하지 않았던 위키 쓰기 표면이 연결되고 ([GDK-267]), Linear
   클라이언트는 — 계약상 읽기 전용인데 — 예전에는 보지 못하던 죽은
-  자격증명을 감지합니다 (GDK-263, GDK-274).
+  자격증명을 감지합니다 ([GDK-263], [GDK-274]).
 - CI가 인프라에 대해 거짓말하는 일을 멈췄습니다: 멈춘 apt 미러,
   configure 중간에 apt를 죽이던 재시도, 락을 붙잡고 있던 고아 root
   apt-get — 각각 빨리 실패하고 어느 쪽이 실패했는지 말합니다. 설치
-  쪽이지, 테스트가 아닙니다 (GDK-308, GDK-317, GDK-319).
+  쪽이지, 테스트가 아닙니다 ([GDK-308], [GDK-317], [GDK-319]).
 
 ### 에이전트를 위해
 
 - 도그푸딩 마찰은 우회할 것이 아니라 백로그 항목입니다 — 에이전트가
-  부딪히는 쓰기 공백은 일어나는 자리에서 등록합니다 (GDK-312, GDK-313,
-  GDK-314, GDK-315). 에이전트는 미러에 쓸 수 없다는 FAQ의 주장이 코드와
-  다시 맞았습니다 (GDK-306). 결정 0009: CJK 복합어 중간 검색은 앱 레이어
-  바이그램입니다 (GDK-259).
+  부딪히는 쓰기 공백은 일어나는 자리에서 등록합니다 ([GDK-312], [GDK-313],
+  [GDK-314], [GDK-315]). 에이전트는 미러에 쓸 수 없다는 FAQ의 주장이 코드와
+  다시 맞았습니다 ([GDK-306]). 결정 0009: CJK 복합어 중간 검색은 앱 레이어
+  바이그램입니다 ([GDK-259]).
 
 ## v0.15.2 — 2026-08-17
 
@@ -289,13 +289,13 @@ connected든 standalone든, 어떤 워크스페이스의 이슈든 읽은 자리
 
 ### 설정이 에이전트 표면이 되다
 
-- **`gadak config list | get | set`** (GDK-193). CLI와
+- **`gadak config list | get | set`** ([GDK-193]). CLI와
   `PUT /api/settings` 뒤에 경로→검증 테이블이 하나라서, 설정이 무엇을
   받는지 둘이 절대 어긋날 수 없습니다. `gadak config list`는 편집
   가능한 경로와 현재 값을 전부 찍고, 모르는 경로는 exit 64에 목록을
   찍습니다. 자격증명은 그대로 `gadak init`입니다. 스킬이 이 동사를
   문서화합니다.
-- **테마는 `config.json`에 삽니다** (GDK-190). 워크스페이스별 파일입니다:
+- **테마는 `config.json`에 삽니다** ([GDK-190]). 워크스페이스별 파일입니다:
   `gadak --profile oss config set appearance.theme ink`는 그
   워크스페이스만 입히고 나머지는 건드리지 않습니다. 창도 같은 API로
   쓰므로, UI에서 테마를 고르는 것과 터미널에서 설정하는 것은 같은
@@ -303,7 +303,7 @@ connected든 standalone든, 어떤 워크스페이스의 이슈든 읽은 자리
 
 ### 다크 셋, 그중 하나는 원래 쓰던 것
 
-- **`dark`는 이제 뉴트럴-쿨 차콜입니다** (GDK-190). 예전 바닥은
+- **`dark`는 이제 뉴트럴-쿨 차콜입니다** ([GDK-190]). 예전 바닥은
   앰버-브라운이라 아무도 요청하지 않은 틴트로 읽혔습니다. 잉크는 겨우
   따뜻하게 남겨, 창이 회색 패널이 아니라 종이와 먹으로 남게 합니다.
 - **`ink`**는 시안-블루 액센트의 새 블루-블랙 팔레트입니다.
@@ -313,37 +313,37 @@ connected든 standalone든, 어떤 워크스페이스의 이슈든 읽은 자리
 
 ### 길을 막고 있던 작은 것들
 
-- **숫자만 쳐도 이슈를 찾습니다** (GDK-186). `4152`를 치면 어느
+- **숫자만 쳐도 이슈를 찾습니다** ([GDK-186]). `4152`를 치면 어느
   프로젝트의 `CRWN-4152`든 맞습니다: 정확한 숫자는 키 정확 일치와 같은
   순위이고, 더 짧은 숫자 연속은 숫자 prefix입니다. 코드 경로가 하나라서
   CLI, Raycast 확장, ⌘K의 서버 검색, MCP가 전부 얻습니다.
-- **설정 → 연동** (GDK-185, 데스크톱만)은 gadak이 설치하는 표면을
+- **설정 → 연동** ([GDK-185], 데스크톱만)은 gadak이 설치하는 표면을
   나열합니다 — 명령줄 도구, Raycast 확장, Claude Code 스킬,
   Claude Desktop MCP — 네 방향의 진실(설치됨, 설치되지 않음, 상태 불명,
   설치 실패), 실행하는 정확한 명령, 라이브 로그. 평결은 스트림의 마지막
   `exit=` 줄이지, 침묵이 아닙니다.
-- **메뉴가 설치를 멈춥니다** (GDK-189). Tools → Install Command Line
+- **메뉴가 설치를 멈춥니다** ([GDK-189]). Tools → Install Command Line
   Tool이 사라졌습니다 (이제 연동의 한 행입니다). 앱 메뉴에 설정…
   ⌘,가 생깁니다.
-- **⌘K 팔레트는 절대 비지 않습니다** (GDK-184). 빈 질의는 최근 본 항목
+- **⌘K 팔레트는 절대 비지 않습니다** ([GDK-184]). 빈 질의는 최근 본 항목
   아래에 최근 갱신 이슈를 보여주고, 저장된 뷰도 보여서, 새 프로필이
   목록 위로 열립니다. 뷰 행은 kind 글리프를 달고 무엇을 여는지 말합니다
-  (GDK-191).
+  ([GDK-191]).
 - 설정 다이얼로그가 모든 탭 위에 **이 미러** 블록을 반복하지 않습니다.
-  그 사실이 가리키는 탭인 동기화의 발치에 삽니다 (GDK-188).
+  그 사실이 가리키는 탭인 동기화의 발치에 삽니다 ([GDK-188]).
 - 데스크톱 설치 로그가 ANSI 색 코드를 벗겨 냅니다 — `ray develop`은
   파이프로 나가도 출력에 색을 입힙니다.
 
 ## v0.15.1 — 2026-08-17
 
-- **`gadak raycast install`** (GDK-182). Raycast 확장을 내장하고 원샷
+- **`gadak raycast install`** ([GDK-182]). Raycast 확장을 내장하고 원샷
   `npx ray develop`으로 등록해서, 스토어 리뷰가 대기 중일 때 brew나
   앱 번들 설치가 체크아웃을 필요로 하지 않습니다.
-- **⌘K 팔레트 홈은 절대 비지 않습니다** (GDK-184). 빈 질의는 이제 최근
+- **⌘K 팔레트 홈은 절대 비지 않습니다** ([GDK-184]). 빈 질의는 이제 최근
   본 항목 아래에 최근 갱신 이슈(이미 로드된 풀에서 — 키스트로크당
   요청은 여전히 0)와 저장된 뷰를 보여서, 새 프로필이 빈 상자가 아니라
   목록 위로 열립니다.
-- **설정 → 연동** (GDK-185, 데스크톱 앱만). 탭 하나가 gadak이 설치하는
+- **설정 → 연동** ([GDK-185], 데스크톱 앱만). 탭 하나가 gadak이 설치하는
   에이전트 표면을 나열합니다 — Raycast 확장, Claude Code 스킬, Claude
   Desktop MCP — 정직한 감지(설치됨, 설치되지 않음, 또는 *상태 불명*,
   각각 다른 상태), 곧 실행할 정확한 명령, 설치의 라이브 로그. 평결은
@@ -362,7 +362,7 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
 
 ### gadak이 주소가 되다
 
-- **`gadak://` 딥링크** (GDK-119). macOS 앱이 URL 스킴을 등록해서,
+- **`gadak://` 딥링크** ([GDK-119]). macOS 앱이 URL 스킴을 등록해서,
   gadak의 한 조각이 셸 명령이 아니라 링크로 다닙니다:
   `gadak://view?issue=NMB-140`, `gadak://view/w/oss?pj=GDK&sc=inprogress`.
   `gadak views open`은 http 옆에 이 링크를 찍습니다. 문법에는 동사도
@@ -371,19 +371,19 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
   변경이 아니라 핸들러 테이블 한 줄입니다. 실리는 아티팩트가 실제로
   스킴을 주장하는 첫 릴리스입니다. 릴리스 검사는 이제 그것을 작성하는
   스크립트가 아니라 설치된 번들을 테스트합니다.
-- **모든 자리에 URL 안의 이름이 있습니다** (GDK-124). 사람 패널, 개인
+- **모든 자리에 URL 안의 이름이 있습니다** ([GDK-124]). 사람 패널, 개인
   피드, 설정 탭이 이슈·문서·스페이스 파라미터에 합류합니다 — 검토된
   레지스트리 하나 안의 자리 파라미터 아홉 개 (`web/src/lib/url-state.ts`).
   거기에 등록된 파라미터는 그 순간부터 딥링크가 되고, Go 변경은 없습니다.
   compose와 자격증명 폼은 의도적으로 빠지고, 그 거절이 강제되는 곳이
   레지스트리입니다.
-- **Raycast, 문 둘** (GDK-117). `gadak mcp install raycast`는 Raycast의
+- **Raycast, 문 둘** ([GDK-117]). `gadak mcp install raycast`는 Raycast의
   *Install New Server* 폼에 넣을 값을 찍습니다 (Raycast ≥1.98은 stdio로
   MCP를 말하지만, 기입할 config 파일이 없습니다). 키스트로크만큼 빠른
   경로에서는, Raycast 확장이 앉을 로컬 검색이 데모 미러에서 HTTP로
   p50 ~2–4 ms, CLI spawn당 ~24 ms로 잽니다 — 어느 쪽이든 "즉시처럼
   느껴지는" 예산 안입니다.
-- **제품이 자기가 소비하는 링크를 만듭니다** (GDK-163, GDK-164). 소비
+- **제품이 자기가 소비하는 링크를 만듭니다** ([GDK-163], [GDK-164]). 소비
   쪽은 원래 동작했습니다. 이슈 링크를 내보내는 쪽이 없었습니다. 이제
   이슈 상세에 링크 복사 액션이 있고 (gadak://와 http 형식),
   `gadak issue KEY --link`는 `views open`이 쓰는 같은 composer로 둘을
@@ -392,11 +392,11 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
   쿼리스트링 모양 — `/?issue=NMB-140`, `#/` 없음 — 은 기본 뷰를 부팅하고
   파라미터를 조용히 버렸습니다. 부팅 때 그 파라미터는 이제 해시로
   승격되고, 링크는 가리킨 자리에 착륙합니다.
-- **이슈가 부모를 이름 댈 수 있습니다** (GDK-19의 일부, GDK-86을 향해).
+- **이슈가 부모를 이름 댈 수 있습니다** ([GDK-19]의 일부, [GDK-86]을 향해).
   `gadak create --parent KEY`와 `gadak edit --parent KEY`가 하위 이슈
   관계를 Jira로 쓰고, 미러는 다음 틱에 배웁니다. 링크 타입(`blocks`, …)과
   컴포넌트 편집은 아직 열려 있습니다.
-- **이슈 키를 치면 그 이슈가 나옵니다** (GDK-170). 서버 검색은
+- **이슈 키를 치면 그 이슈가 나옵니다** ([GDK-170]). 서버 검색은
   제목/본문/코멘트만 인덱싱해서 — `NMB-140`이 이슈 자체가 아니라 그
   이슈를 언급하는 위키 페이지 네 장을 돌려줬고 — 맨 bm25로 순위를
   매겼습니다. 키 질의는 이제 FTS 위로 승격된 룩업입니다 (대소문자
@@ -405,7 +405,7 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
   않고 따릅니다 — 그래서 CLI, REST 라우트, MCP, 리스트가 같은 답을
   줍니다. `gadak search --explain`은 "왜 이 행이 저 행 위인가"에
   답합니다.
-- **검색이 남의 키스트로크 아래에 앉을 만큼 빠릅니다** (GDK-166).
+- **검색이 남의 키스트로크 아래에 앉을 만큼 빠릅니다** ([GDK-166]).
   아이템 2만 개 미러에서 글자 하나가 최대 1.6 s였습니다 — FTS 스캔이
   아니라, 반환된 행마다 인덱스를 다시 읽는 행당 컬럼 프로브 세 개.
   가설이 아니라 프로파일이 자르는 지점을 골랐습니다: 순위가 먼저
@@ -417,7 +417,7 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
 
 ### 다크 테마, 그리고 다음 테마가 들어갈 자리
 
-- **Dark** (GDK-154, GDK-156, GDK-162). 따뜻한 바닥, 먹 전경, 라이트와
+- **Dark** ([GDK-154], [GDK-156], [GDK-162]). 따뜻한 바닥, 먹 전경, 라이트와
   같은 종이 은유 — 안티슬롭 규칙이 CI 계약으로 박혀 있습니다
   (`tools/theme-check.mjs`): 색상은 따뜻해야 하고, 채도는 참조 대역
   안이어야 해서, 흔한 쿨그레이 다크가 사고로 들어올 수 없습니다. 차단
@@ -425,11 +425,11 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
   세 번째 테마를 더하는 일은 이제 정의 블록 하나와 레지스트리 한
   줄입니다. 피커는 앱의 다른 브라우저별 설정이 이미 있던 자리 — 설정
   다이얼로그와 ⌘K 팔레트 — 에 있고, 새 크롬이 아닙니다.
-- **성공과 실패가 색만으로 말해지지 않습니다** (GDK-158). 토스트에
+- **성공과 실패가 색만으로 말해지지 않습니다** ([GDK-158]). 토스트에
   kind별 아이콘이 있고 브레이크다운 바에 글리프가 있어서, 제2색각
   독자도 다른 사람과 같은 답을 얻습니다.
-- **두 팔레트가 같은 측정 하한을 통과합니다** (GDK-157, GDK-159,
-  GDK-171). 두 테마의 상태 잉크가 이제 정상 *그리고* 제2색각에서
+- **두 팔레트가 같은 측정 하한을 통과합니다** ([GDK-157], [GDK-159],
+  [GDK-171]). 두 테마의 상태 잉크가 이제 정상 *그리고* 제2색각에서
   쌍별 ΔE 분리를 통과합니다 — 다크의 in-progress와 stale은 ΔE 0.008
   차이였고, 색 하나가 두 번이었습니다. 검색 하이라이트는 상태 색을
   빌려 쓰지 않고 자기 토큰을 갖습니다 (선택 행에서 사라지던 것). 각
@@ -439,24 +439,24 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
 
 ### 리스트가 AAA 리스트처럼 동작한다
 
-- **행의 오른쪽은 훑을 수 있는 컬럼입니다** (GDK-128). 라벨, 정체,
+- **행의 오른쪽은 훑을 수 있는 컬럼입니다** ([GDK-128]). 라벨, 정체,
   트레일링 스트립이 행마다 최대 274 px까지 떠다니지 않고 고정 폭
   슬롯에 앉습니다. 컨테이너 쿼리가 정보를 숨기지 않고 레짐마다 폭을
   다시 조율합니다.
-- **마지막 행이 반으로 잘리지 않습니다** (GDK-131). flex 스크롤러는
+- **마지막 행이 반으로 잘리지 않습니다** ([GDK-131]). flex 스크롤러는
   스크롤 가능한 overflow에서 자기 padding-bottom을 버립니다 — 패널마다
   있던, 한 번도 먹지 않던 `pb-3` 대신, 공유 컨테이너 규칙 하나
   (`.scroll-region`)가 어디서든 하단 inset을 소유합니다.
-- **Esc는 보고 있는 것을 닫습니다** (GDK-132, GDK-133). 리스트 헤더
+- **Esc는 보고 있는 것을 닫습니다** ([GDK-132], [GDK-133]). 리스트 헤더
   메뉴 셋이 Escape와 바깥 클릭으로 닫히고, 다른 메뉴가 쓰는 같은
   `dom-actions` 소유자를 통과합니다. 피드나 문서 화면이 메인 컬럼을
   소유하는 동안 사이드바는 뷰 행을 하이라이트하지 않습니다.
-- **덮는 패널이 스스로를 선언합니다** (GDK-127). 1440 px 아래에서
+- **덮는 패널이 스스로를 선언합니다** ([GDK-127]). 1440 px 아래에서
   상세 패널은 살아있는 행 위에 조용히 앉지 않고, 스크림 뒤로 리스트를
   덮습니다.
-- **한 개념, 한국어 한 단어** (GDK-135). ko 카탈로그가 다이얼로그,
+- **한 개념, 한국어 한 단어** ([GDK-135]). ko 카탈로그가 다이얼로그,
   토스트, 빈 상태에 걸쳐 같은 개념에 용어를 섞지 않습니다.
-- **반만 조합된 음절은 질의가 아닙니다** (GDK-169). 딥링크를 치면
+- **반만 조합된 음절은 질의가 아닙니다** ([GDK-169]). 딥링크를 치면
   키스트로크마다 리스트가 비었다고 번쩍였습니다. IME 중간 상태(딥ㄹ,
   딥리)가 진짜 검색으로 커밋됐기 때문입니다. 공유 헬퍼 하나가 검색
   상자와 팔레트의 규칙을 소유합니다: 조합이 활성인 동안은 아무것도
@@ -466,19 +466,19 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
 ### 가장자리에서의 정직
 
 - **호스티드 스냅샷이 답할 수 없는 동사를 광고하지 않습니다**
-  (GDK-52). 서버에 의존하는 어포던스(FTS, 설정, 문서 신선도)가
+  ([GDK-52]). 서버에 의존하는 어포던스(FTS, 설정, 문서 신선도)가
   낙관이 아니라 capability 문서를 키로 해서, 데모와 정적 미러가 죽은
   버튼을 그리지 않습니다 — e2e webServer는 셸을 가정하지 않고 이름
   댑니다.
-- **레거시 필드 매핑이 스스로 은퇴합니다** (GDK-149). `fieldMap`/
+- **레거시 필드 매핑이 스스로 은퇴합니다** ([GDK-149]). `fieldMap`/
   `editableFields`를 아직 든 config는 로드 때 한 번 `fields`로 다시
   쓰이고, stderr 한 줄로 그렇게 말합니다. export는 레거시 키를 내지
-  않습니다. 그리고 그 재쓰기는 전제가 아니라 편의입니다 (GDK-173):
+  않습니다. 그리고 그 재쓰기는 전제가 아니라 편의입니다 ([GDK-173]):
   읽기 전용 홈에서는 경고가 되고, 시작을 거절하는 대신 메모리 안
   매핑으로 앱이 돕니다 — 잠긴 디렉터리는 조용히 chmod로 풀리지 않고
   잠긴 채로 남으며, `gadak status`는 오류를 삼키지 않고 읽을 수 없는
   config를 이름 댑니다.
-- **복사면 복사된 것입니다** (GDK-178). 모든 복사 어포던스가 확인 전에
+- **복사면 복사된 것입니다** ([GDK-178]). 모든 복사 어포던스가 확인 전에
   성공을 말했습니다: 데스크톱 웹뷰 안에서 `navigator.clipboard`는
   거절하는데, 버튼은 바뀌지 않은 페이스트보드 위에 "복사됨"을
   토스트했고 — 워크스페이스 페이지(`/w/<profile>`)는 자기가 데스크톱
@@ -487,36 +487,36 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
   자신을 통해), 토스트는 실제로 일어난 일을 보고하며, 워크스페이스
   페이지가 데스크톱 플래그를 듭니다. 설치된 빌드를 클릭하고
   페이스트보드를 읽어 검증했습니다.
-- **첨부는 약속대로 최대 한 번만 가져옵니다** (GDK-177). 첨부 캐시의
+- **첨부는 약속대로 최대 한 번만 가져옵니다** ([GDK-177]). 첨부 캐시의
   single-flight에 창이 있어서, 다운로드가 막 끝난 뒤에 도착한 호출자가
   같은 파일을 다시 가져갔습니다. CI가 플레이키 테스트로 잡았고,
   단언은 옳았으며 창은 진짜였습니다. 캐시는 이제 락 안에서 디스크로
   답합니다.
-- **데스크톱 앱이 런타임을 두 번 로드하지 않습니다** (GDK-150). wails
+- **데스크톱 앱이 런타임을 두 번 로드하지 않습니다** ([GDK-150]). wails
   런타임은 서버 쪽에서만 주입되고, 독 아이콘 클릭은 닫힌 창을 다시
   열며, 데스크톱 모듈이 드디어 macOS CI에서 빌드되고 테스트됩니다.
 
 ### 감사, 그리고 그것이 지운 것
 
-마이너마다 도는 전체 코드베이스 감사의 첫 실행 (GDK-125/126. 절차는
+마이너마다 도는 전체 코드베이스 감사의 첫 실행 ([GDK-125]/126. 절차는
 이제 `docs/runbooks/release-audit.md`). 이번 릴리스에서 발견 열여덟을
 고쳤고, 나머지는 `carryover-v0.15` 라벨을 달고 갑니다. 하이라이트는
 지운 줄 수로 재는 것이 제일 정확합니다:
 
 - 타임스탬프의 소유자가 하나입니다 — `config.ISOMilli`가 파일 19개에
-  걸친 인용 포맷 리터럴 34개를 대체합니다 (GDK-148). `VIEW_PARAM_KEYS`가
+  걸친 인용 포맷 리터럴 34개를 대체합니다 ([GDK-148]). `VIEW_PARAM_KEYS`가
   미러 리스트를 먹이는 대신 타입이 되고, 드리프트 테스트 둘 다 죽습니다
-  (GDK-147). Svelte 위생이 positional 리스트 키, toast-host reach-in,
-  죽은 export 여덟을 떨어냅니다 (GDK-152).
+  ([GDK-147]). Svelte 위생이 positional 리스트 키, toast-host reach-in,
+  죽은 export 여덟을 떨어냅니다 ([GDK-152]).
 - 테스트 피라미드를 아래로 강제합니다: 브라우저 테스트 열여섯이
   vitest 유닛이 됩니다 — 그중 하나는 더 이상 존재하지 않는 계약을
-  단언하고 있었습니다 (GDK-145). Go 스위트가 벽시계에서 잠들지 않아
-  ~12 s 빨라집니다 (GDK-144). 테스트 없던 순수 모듈 셋과 Jira URL
-  합성이 진짜 케이스를 얻습니다 (GDK-146).
+  단언하고 있었습니다 ([GDK-145]). Go 스위트가 벽시계에서 잠들지 않아
+  ~12 s 빨라집니다 ([GDK-144]). 테스트 없던 순수 모듈 셋과 Jira URL
+  합성이 진짜 케이스를 얻습니다 ([GDK-146]).
 - `docs/DERIVE.md`가 파생 필드 의미의 단일한 집이 되고, 그 SQL 예제는
   테스트가 실행해서, 문서가 문서화하는 코드에서 어긋날 수 없습니다
-  (GDK-88, GDK-89).
-- 초성 검색이 제품 전역에서 은퇴합니다 (GDK-168). 웹에만 있었고 CLI,
+  ([GDK-88], [GDK-89]).
+- 초성 검색이 제품 전역에서 은퇴합니다 ([GDK-168]). 웹에만 있었고 CLI,
   REST, MCP, Raycast에는 없었고, 비용은 가장 뜨거운 키스트로크 경로에
   앉아 있었으며, 초성 히트는 *왜* 맞았는지 하이라이트할 수 없었습니다.
   ~144줄을 지우고 그 자리에 아무것도 넣지 않았습니다. 자모만 있는
@@ -529,7 +529,7 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
 능력이라기보다, 드디어 자기가 무엇을 하는지 말하는 기존 능력입니다.
 
 - **모든 토큰 덫을 붙여넣기 전에 이름 댑니다. 401 다음이 아닙니다**
-  (GDK-69, GDK-98). Atlassian 토큰 페이지는 하나로 보이는 세 가지를
+  ([GDK-69], [GDK-98]). Atlassian 토큰 페이지는 하나로 보이는 세 가지를
   내놓고, 그중 둘은 사이트 URL에 로그인할 수 없습니다: 그 페이지가
   이제 먼저 추천하는 *scoped* 토큰, 그리고 admin.atlassian.com의 org
   키. gadak은 거절당한 뒤에야 그렇게 말했습니다. 웹 폼과 `gadak init`
@@ -537,54 +537,54 @@ gadak을 바깥으로 여는 릴리스입니다. 뷰나 이슈는 이제 어떤 
   덫 하나(ATCTT prefix)를 바로 이름 대고, 나머지는 실행할 수 있는
   점검을 건네는 메시지를 나눕니다. Jira가 그것들에 똑같이 답하기
   때문이고, 없는 구분을 지어내는 것이 없다고 인정하는 것보다 나쁩니다.
-- **거절된 토큰은 쓰기 없이 복구할 수 있습니다** (GDK-68). 토큰 교체
+- **거절된 토큰은 쓰기 없이 복구할 수 있습니다** ([GDK-68]). 토큰 교체
   다이얼로그를 내놓던 것은 쓰기 경로뿐이라, 미러를 읽는 사람은 죽은
   신선도 칩과 기술 오류 문자열을 봤습니다. sync 진행 문서가 이제
   `error_code`를 들고, 그 규칙을 이미 소유하던 함수 하나가 분류하며,
   칩·팔레트·빈 미러 CTA가 같은 다이얼로그에 닿습니다. 위키만의 401은
   의도적으로 *세지 않습니다*: 같은 토큰으로 조금 전 Jira 패스가
   인증됐으므로, 그것은 죽은 자격증명이 아니라 권한 공백입니다.
-- **프로젝트를 고르지 않는 것도 선택입니다** (GDK-99). CLI와 설정은
+- **프로젝트를 고르지 않는 것도 선택입니다** ([GDK-99]). CLI와 설정은
   빈 프로젝트 목록을 "이 계정이 볼 수 있는 전부"로 읽어 왔습니다.
   그걸 불법이라고 부르던 표면은 첫 실행 위저드뿐이었고 — 시작이 자기
   옆의 "선택 해제" 버튼 옆에서 비활성화되어 있었습니다 — 제품이
   요구하지 않는 결정을 강제했고, 큰 사이트에서는 틀린 결정이었습니다.
   피커가 잘리고 "전체 선택"은 한 번도 "전부"가 아니었기 때문입니다.
 - **`gadak skill install`은 업그레이드를 업그레이드로 다룹니다**
-  (GDK-92). `brew upgrade` 뒤 설치된 스킬은 이전 릴리스 자신의
+  ([GDK-92]). `brew upgrade` 뒤 설치된 스킬은 이전 릴리스 자신의
   복사본이라 달라졌고, 그래서 우리 문서의 원라이너가 빨개졌습니다.
   출처는 이제 콘텐츠 해시로 결정됩니다 — 설치 영수증, 그리고
   영수증이 생기기 전에 실린 다이제스트의 고정 테이블. *당신이* 쓴
   파일은 여전히 거절됩니다. 그 거절이 기능입니다. `doctor`에 스킬과
   MCP 줄이 생겨서, "내 스킬이 최신인가?"가 명령 하나입니다.
-- **내장 스킬이 CLI가 가진 동사를 압니다** (GDK-91). 읽기와
+- **내장 스킬이 CLI가 가진 동사를 압니다** ([GDK-91]). 읽기와
   comment/transition/assign만 적고 거기서 멈춰서, 스킬을 로드한
   에이전트가 "gadak은 이슈를 만들 수 없다"고 답하거나 REST API로
   향했습니다. v0.14.1이 `create`, `attach`, `edit`을 실었는데, 에이전트가
   읽는 파일은 배우지 못했습니다.
-- **조용한 Confluence 틱은 페이지 본문을 0건 읽습니다** (GDK-113).
+- **조용한 Confluence 틱은 페이지 본문을 0건 읽습니다** ([GDK-113]).
   sync 틱이 21.4s였고, 그중 19.4s가 바뀌지 않은 위키 페이지 71장을
   다시 읽었습니다: 분 단위 CQL이 같은 클러스터를 영원히 돌려주고,
   검색 히트와 본문 fetch 사이를 결정하는 것이 없었습니다. 이제
   소유자 하나가 결정하고, `gadak sync`가 집계를 찍어서 다음 사람은
   println을 넣지 않고 확인할 수 있습니다.
-- **`gadak issue <KEY> --derive`** (GDK-111)는 파생 컬럼이 어떻게
+- **`gadak issue <KEY> --derive`** ([GDK-111])는 파생 컬럼이 어떻게
   계산됐는지 찍습니다 — 상태 *카테고리*별 changelog, 그리고
   `reopen_count`, `resolved_at`, `reopen_reason`, `epic_key` 뒤의 행.
   sync 경로가 부르는 같은 derivation을 부릅니다. 두 번째 복사본은
   둘 중 하나가 바뀔 때까지만 동의합니다.
-- **히스토리가 순서를 지킵니다** (GDK-26): "이슈 목록으로 보기"가 더
+- **히스토리가 순서를 지킵니다** ([GDK-26]): "이슈 목록으로 보기"가 더
   이상 상태로 다시 묶지 않습니다. 그 패인이 존재해서 보여 주는 것이
   바로 그 순서입니다.
-- 또한: 토큰 만료가 기록되고 sync가 죽기 전에 경고합니다 (GDK-67/70).
+- 또한: 토큰 만료가 기록되고 sync가 죽기 전에 경고합니다 ([GDK-67]/70).
   browse 패인이 Escape를 양보하고 자기 문서보다 오래 살지 않습니다
-  (GDK-78/79/80). `gadak sql`은 오래된 미러에 경고하고 `gadak_query`는
-  display-name 0행에 깃발을 답니다 (GDK-90). `Open`은 이 빌드가 쓸 수
-  없는 `items_fts`를 고칩니다 (GDK-112). 검색 도움 `?`가 터치에서
-  동작합니다 (GDK-53). `examples/compose`가 순수 셸로 들어옵니다
-  (GDK-109). Datasette Lite 딥링크가 핀됩니다 (GDK-101). `PROMISES.md`가
-  `SECURITY.md`에 대해 게이트됩니다 (GDK-104).
-- **프로세스, 하루에 두 번 실패했기 때문입니다** (GDK-57): Node 버전에
+  ([GDK-78]/79/80). `gadak sql`은 오래된 미러에 경고하고 `gadak_query`는
+  display-name 0행에 깃발을 답니다 ([GDK-90]). `Open`은 이 빌드가 쓸 수
+  없는 `items_fts`를 고칩니다 ([GDK-112]). 검색 도움 `?`가 터치에서
+  동작합니다 ([GDK-53]). `examples/compose`가 순수 셸로 들어옵니다
+  ([GDK-109]). Datasette Lite 딥링크가 핀됩니다 ([GDK-101]). `PROMISES.md`가
+  `SECURITY.md`에 대해 게이트됩니다 ([GDK-104]).
+- **프로세스, 하루에 두 번 실패했기 때문입니다** ([GDK-57]): Node 버전에
   소유자가 다섯이었고 셸이 읽을 수 있는 것은 없었습니다 — 이제
   `.nvmrc`가 단 하나입니다 — 그리고 `tools/ci-status.sh`가 "방금 푸시한
   것이 통과했나?"에 답합니다. main이 한 시간 동안 빨간 동안 묻지 않았던
@@ -598,12 +598,12 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 
 - **macOS 앱이 다시 알림만 합니다.** 한 번도 돌려 보지 않은 인앱
   자기 업데이터를 제거했습니다 (Wails `pkg/updater`): 다이제스트
-  검증이 fail-open이었고 스왑이 비원자적이었습니다 (GDK-58/59/60).
+  검증이 fail-open이었고 스왑이 비원자적이었습니다 ([GDK-58]/59/60).
   사이드바 배너는 여전히 더 새 릴리스를 이름 대고, 설치는
   `brew upgrade --cask gadak`이거나 새 dmg입니다. v0.14.1은
   `gadak-desktop-darwin-<arch>.zip`을 싣지 않아서, 야생의 v0.14.0
   앱이 스스로 스왑할 수 없습니다. 문서가 다시 맞춰졌습니다
-  (GDK-61/64). 가는 길에 발견한 것: `server.Version`이 거기서 한 번도
+  ([GDK-61]/64). 가는 길에 발견한 것: `server.Version`이 거기서 한 번도
   할당되지 않아 데스크톱 배너가 모든 릴리스 빌드에서 침묵했습니다 —
   이제 연결됩니다.
 - **첫 쓰기 동사: `gadak create`, `gadak attach`, `gadak edit`.**
@@ -611,25 +611,25 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
   첨부할 파일, JSON 라인용 `--batch -`를 받습니다 — 이 백로그가
   Jira로 이주하는 데 필요했던 전부. 모르는 플래그는 요약으로 접혀
   들어가지 않고 거절됩니다.
-- **호스티드 데모가 인앱 브라우저 안에서 동작합니다** (GDK-23,
-  GDK-51). 스냅샷 서비스 워커가 사라졌습니다 — 페이지 안 fetch
+- **호스티드 데모가 인앱 브라우저 안에서 동작합니다** ([GDK-23],
+  [GDK-51]). 스냅샷 서비스 워커가 사라졌습니다 — 페이지 안 fetch
   어댑터가 얼린 미러를 서빙해서, 워커를 막던 X/Slack 웹뷰가 이제
   부팅합니다. 그리고 첫 페인트가 더 이상 4px 텍스트가 아닙니다:
   정적 첫 프레임(클레임, 탭해서 로드하는 데모 비디오, 선택 가능한
   `brew install`, 레포 링크)이 빌드 때 주입되고, JS가 도착하기 전에
   폰 폭에서 읽힙니다.
-- **browse 패인이 양보합니다** (GDK-76/77). 실린 창 크기에서 인앱
+- **browse 패인이 양보합니다** ([GDK-76]/77). 실린 창 크기에서 인앱
   브라우저 패인이 커맨드 팔레트와 모든 다이얼로그 위에 앉았고,
   토스트는 네이티브 페이지 아래에 그려졌습니다. 스택킹의 소유자가
   하나가 되고, 브라우징 중에도 팔레트가 맨 앞이며 클릭됩니다.
-- **부트 키스트로크는 버려지지 않고 붙잡힙니다** (GDK-46). 시작 뷰가
+- **부트 키스트로크는 버려지지 않고 붙잡힙니다** ([GDK-46]). 시작 뷰가
   아직 커밋하는 동안 누른 `j`/`k`/`x`가, 키가 준비되면 순서대로
   리플레이되고, 잘못된 리스트에 조용히 작용하지 않습니다.
 - **실패가 무슨 일이 있었는지 말합니다.** 실패한 쓰기는 Go 오류
   체인이 아니라 읽는 사람의 언어로 보고합니다. 잘린 키 목록은 몇
-  개가 주어졌고 몇 개가 보였는지 말합니다 (GDK-35). 거절된 자격증명은
+  개가 주어졌고 몇 개가 보였는지 말합니다 ([GDK-35]). 거절된 자격증명은
   Confluence를 포함한 모든 소스의 watch 루프를 멈추고 보이는 흔적을
-  남깁니다 (GDK-24, GDK-48).
+  남깁니다 ([GDK-24], [GDK-48]).
 - **우선순위 색이 계정의 언어가 아니라 rank를 읽습니다** — 한국어
   Jira가 모든 우선순위를 폴백 색으로 그리지 않습니다.
 - **더 빠른 에이전트 표면**: MCP 도구가 호출마다 미러 전체를 스캔하지
@@ -1208,3 +1208,179 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
   `items(synced_at)`과 `issues(key)` 인덱스, 모든 자식 테이블에서
   `items`로의 `ON DELETE CASCADE`. 척추가 없는 컬럼으로 조인하던 첫
   예제 쿼리를 고쳤습니다.
+
+[GDK-19]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-19
+[GDK-23]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-23
+[GDK-24]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-24
+[GDK-26]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-26
+[GDK-35]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-35
+[GDK-46]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-46
+[GDK-48]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-48
+[GDK-51]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-51
+[GDK-52]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-52
+[GDK-53]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-53
+[GDK-57]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-57
+[GDK-58]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-58
+[GDK-61]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-61
+[GDK-67]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-67
+[GDK-68]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-68
+[GDK-69]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-69
+[GDK-76]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-76
+[GDK-78]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-78
+[GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
+[GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
+[GDK-88]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-88
+[GDK-89]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-89
+[GDK-90]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-90
+[GDK-91]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-91
+[GDK-92]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-92
+[GDK-98]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-98
+[GDK-99]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-99
+[GDK-101]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-101
+[GDK-104]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-104
+[GDK-109]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-109
+[GDK-111]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-111
+[GDK-112]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-112
+[GDK-113]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-113
+[GDK-115]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-115
+[GDK-116]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-116
+[GDK-117]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-117
+[GDK-119]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-119
+[GDK-124]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-124
+[GDK-125]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-125
+[GDK-127]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-127
+[GDK-128]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-128
+[GDK-131]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-131
+[GDK-132]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-132
+[GDK-133]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-133
+[GDK-135]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-135
+[GDK-144]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-144
+[GDK-145]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-145
+[GDK-146]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-146
+[GDK-147]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-147
+[GDK-148]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-148
+[GDK-149]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-149
+[GDK-150]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-150
+[GDK-152]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-152
+[GDK-154]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-154
+[GDK-156]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-156
+[GDK-157]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-157
+[GDK-158]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-158
+[GDK-159]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-159
+[GDK-161]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-161
+[GDK-162]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-162
+[GDK-163]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-163
+[GDK-164]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-164
+[GDK-166]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-166
+[GDK-168]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-168
+[GDK-169]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-169
+[GDK-170]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-170
+[GDK-171]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-171
+[GDK-173]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-173
+[GDK-177]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-177
+[GDK-178]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-178
+[GDK-182]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-182
+[GDK-183]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-183
+[GDK-184]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-184
+[GDK-185]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-185
+[GDK-186]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-186
+[GDK-188]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-188
+[GDK-189]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-189
+[GDK-190]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-190
+[GDK-191]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-191
+[GDK-193]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-193
+[GDK-208]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-208
+[GDK-209]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-209
+[GDK-213]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-213
+[GDK-214]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-214
+[GDK-215]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-215
+[GDK-216]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-216
+[GDK-217]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-217
+[GDK-218]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-218
+[GDK-223]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-223
+[GDK-225]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-225
+[GDK-229]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-229
+[GDK-237]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-237
+[GDK-238]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-238
+[GDK-239]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-239
+[GDK-241]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-241
+[GDK-246]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-246
+[GDK-247]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-247
+[GDK-248]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-248
+[GDK-249]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-249
+[GDK-250]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-250
+[GDK-251]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-251
+[GDK-258]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-258
+[GDK-259]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-259
+[GDK-261]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-261
+[GDK-263]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-263
+[GDK-267]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-267
+[GDK-270]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-270
+[GDK-271]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-271
+[GDK-272]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-272
+[GDK-274]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-274
+[GDK-275]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-275
+[GDK-282]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-282
+[GDK-293]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-293
+[GDK-297]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-297
+[GDK-298]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-298
+[GDK-299]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-299
+[GDK-300]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-300
+[GDK-301]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-301
+[GDK-302]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-302
+[GDK-304]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-304
+[GDK-305]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-305
+[GDK-306]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-306
+[GDK-308]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-308
+[GDK-310]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-310
+[GDK-312]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-312
+[GDK-313]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-313
+[GDK-314]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-314
+[GDK-315]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-315
+[GDK-317]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-317
+[GDK-319]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-319
+[GDK-322]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-322
+[GDK-323]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-323
+[GDK-331]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-331
+[GDK-332]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-332
+[GDK-333]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-333
+[GDK-335]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-335
+[GDK-336]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-336
+[GDK-340]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-340
+[GDK-342]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-342
+[GDK-343]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-343
+[GDK-344]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-344
+[GDK-345]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-345
+[GDK-346]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-346
+[GDK-347]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-347
+[GDK-348]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-348
+[GDK-359]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-359
+[GDK-360]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-360
+[GDK-361]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-361
+[GDK-363]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-363
+[GDK-364]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-364
+[GDK-365]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-365
+[GDK-366]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-366
+[GDK-367]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-367
+[GDK-368]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-368
+[GDK-371]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-371
+[GDK-372]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-372
+[GDK-373]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-373
+[GDK-374]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-374
+[GDK-375]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-375
+[GDK-376]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-376
+[GDK-380]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-380
+[GDK-381]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-381
+[GDK-382]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-382
+[GDK-391]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-391
+[GDK-393]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-393
+[GDK-394]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-394
+[GDK-396]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-396
+[GDK-400]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-400
+[GDK-408]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-408
+[GDK-409]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-409
+[GDK-415]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-415
+[GDK-420]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-420
+[GDK-421]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-421
+[GDK-424]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-424
+[GDK-426]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-426

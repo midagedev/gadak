@@ -280,7 +280,7 @@ on your `PATH`:
 
 Windows (from 0.16): download `Gadak-<version>-windows-x64.zip` (or
 `windows-arm64`) from the same release, unzip, run `gadak-desktop.exe`.
-Unsigned (signing is GDK-211). If Windows shows **Windows protected your PC**
+Unsigned (signing is [GDK-211]). If Windows shows **Windows protected your PC**
 or **Smart App Control blocked an app that may be unsafe**, that is not a
 virus finding — use the CLI path below. Do not turn Smart App Control off.
 [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
@@ -410,3 +410,5 @@ with the question you asked and what the agent did.
 ## License
 
 Apache-2.0. See `LICENSE` and `NOTICE`.
+
+[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211

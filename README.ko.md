@@ -280,7 +280,7 @@ macOS: [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에
 
 Windows (0.16부터): 같은 릴리스에서 `Gadak-<version>-windows-x64.zip`(또는
 `windows-arm64`)을 받아 압축을 풀고 `gadak-desktop.exe`를 실행하세요. 서명은
-없습니다(GDK-211). Windows가 **Windows protected your
+없습니다([GDK-211]). Windows가 **Windows protected your
 PC** 또는 **Smart App Control blocked an app that may be unsafe**를 보여
 주면 바이러스 탐지가 아닙니다 — 아래 CLI 경로를 쓰세요. Smart App Control을
 끄지 마세요.
@@ -401,3 +401,5 @@ Jira 배포 유형(Cloud), gadak 커밋, 실행한 명령이 필요합니다. �
 ## 라이선스
 
 Apache-2.0. `LICENSE`와 `NOTICE`를 보세요.
+
+[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211

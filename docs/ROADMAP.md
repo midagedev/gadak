@@ -311,7 +311,7 @@ type-scale sweep that used to sit here was the clearest example of the trap
   zip** (`Gadak-<ver>-windows-x64.zip` / `windows-arm64`) attached by
   `.github/workflows/desktop-release.yml`. No installer (unsigned MSI/setup
   is more friction than a zip) and no Authenticode cert (signing is
-  GDK-211). Linux remains held: webkit2gtk and AppImage/.deb, and splitting
+  [GDK-211]). Linux remains held: webkit2gtk and AppImage/.deb, and splitting
   the macOS-only menu code, for a maintainer whose macOS build has not yet
   carried a real user. Linux first when the earlier "10 people have asked"
   bar is met; it overlaps the agent audience most.
@@ -353,3 +353,5 @@ deliberately not now (see the arrival stance in **Next**).
   reimplement it.
 - **Writing to the mirror.** Jira is the record. Any local write model would need
   conflict resolution, which is a different product.
+
+[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211

@@ -35,7 +35,7 @@ flowchart TB
 ```
 
 Confluence is a peer source (`internal/confluence`, `decisions/0006-confluence-connector.md`):
-page writes (create, edit, page comments — GDK-380/381/382) go through
+page writes (create, edit, page comments — [GDK-380]/381/382) go through
 `origin.Wiki`, never the SQLite mirror. On a connected workspace that client
 is Confluence REST; on a standalone workspace it is the in-process issuetap
 handler (same session as `origin.Client`), whose Confluence API receives the
@@ -167,3 +167,5 @@ field schema it reads is Jira-shaped.
   (`store.Batch` and friends in `internal/store/records.go`), not a Go
   interface — with two concrete connectors that contract is cheaper to hold
   than an interface designed from one example (decision 0006).
+
+[GDK-380]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-380
