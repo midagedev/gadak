@@ -177,15 +177,20 @@ Connected는 Atlassian Cloud와 대화합니다. Standalone(0.16부터)은 Atlas
 1. SQL과 FTS는 로컬입니다. `--jql` / Jira URL은 문서화된 부분집합을 인메모리 필터로 매핑하고, gadak이 표현하지 못하는 절은 조용히 버려지지 않고 나열됩니다. Sprint, `WAS`, 필드를 가로지르는 `OR`, 커스텀 필드가 거절 목록에 있습니다 ([decision 0007](docs/decisions/0007-jql-subset.md)).
 2. 마감일과 설명은 전용 엔드포인트입니다. 커스텀 필드는 `text`, `number`, `date`, `option`, `user`, `multi_option` / `version_array` kind — 이슈의 editmeta와 설정된 필드 allowlist로 게이트됩니다. 캐스케이딩 셀렉트와 textarea 커스텀 필드는 편집기가 없습니다.
 3. 에픽 그룹핑(`epic_key`, 가장 가까운 hierarchy-level-1 조상)은 일급입니다. 부모 지정은 CLI `create --parent` / `edit --parent`뿐입니다 — REST `PUT {key}/parent`는 없습니다. 서브태스크 create-meta 플래그는 표면화되지 않아, create는 어떤 유형이 부모를 요구하는지 알지 못합니다.
-4. Confluence Cloud를 미러링합니다. gadak은 페이지를 쓰지 않습니다.
-5. 페이지는 인프로세스 origin에서 동기화되고, origin은 페이지 생성·수정을 받습니다. gadak 자신의 CLI·REST·UI에는 아직 페이지 쓰기 동사가 없습니다.
+4. Confluence Cloud를 미러링하고, 페이지 생성·수정(제목/본문)·페이지 코멘트가 origin을 통과해 쓰입니다 — `gadak page create|edit|comment`, `POST pages/`, `PUT pages/{id}/edit`, `POST pages/{id}/comment`.
+5. 페이지는 인프로세스 origin에서 동기화됩니다. `gadak page create|edit|comment`와 REST 동사가 여기서도 동작합니다. UI에는 페이지 코멘트 작성기가 있고 페이지 에디터는 아직 없습니다.
 6. Changelog는 미러링됩니다. 상태 체류 시간은 저장 컬럼이 아니라 `status_changed_at`에서 계산합니다.
 7. Jira의 알림함, 알림 규칙, 이메일은 미러링하지 않습니다. gadak은 macOS·Linux에서 자체 watch-피드 OS 알림을 갖고 있습니다.
 
-**Linear — 커밍순.** 읽기 전용 GraphQL 클라이언트가 이미 트리에 있습니다
-(viewer, 팀, 워크플로 상태, 커서 페이징 이슈) — 라이브 API에 대해
-실측되었습니다. Linear 워크스페이스는 0.16 이후 릴리스로 계획되어 있고,
-그것이 생기면 이 표에 Linear 열이 추가됩니다.
+**Linear.** Linear 워크스페이스도 같은 동사로 미러링하고 write-through
+합니다: 프로필 `config.json`에 `"linear"` 블록(`apiKey`, 선택 `teamIds`)을
+넣고 `gadak sync --source linear`. 쓰기는 키의 미러 source로 라우팅됩니다 —
+코멘트, 상태 전환(팀 워크플로 상태, id 기준), 요약/우선순위/마감일 편집,
+담당자 지정/해제, 파일 첨부가 전부 Linear API를 통과한 뒤 미러 행을
+갱신합니다. 아직 안 되는 것: 라벨 편집, 인라인 코멘트 미디어, 마감일 해제,
+상태 이력(`status_changed_at`은 NULL 유지) — 각각 반쯤 적용되는 대신
+정직하게 거절합니다. 필드 매핑:
+[`internal/linear/MAPPING.md`](internal/linear/MAPPING.md).
 
 ## 에이전트를 위해
 

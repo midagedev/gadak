@@ -270,6 +270,9 @@ No local queue, ever.
 | `create-meta/` | GET | `GET /issue/createmeta` | R |
 | `users/?q=` | GET | `GET /user/search` | R |
 | `meta/write/` | GET | create meta; the transition map is empty (see below) | R |
+| `pages/` | POST | wiki page create via `origin.Wiki` (Confluence v1 `POST content`); body `{space, title, adf?\|text?, parent?}` | R |
+| `pages/{id}/edit/` | PUT | wiki page update via `origin.Wiki` (`PUT content/{id}`, version = origin HEAD + 1); body `{title?, adf?\|text?}` — `text` replaces the whole body as plain-paragraph ADF | R |
+| `pages/{id}/comment/` | POST | wiki page comment via `origin.Wiki` (`POST content`, type=comment); body `{adf?\|text?}` | R |
 
 Implementation notes that are part of the contract:
 

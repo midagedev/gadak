@@ -35,11 +35,11 @@ flowchart TB
 ```
 
 Confluence is a peer source (`internal/confluence`, `decisions/0006-confluence-connector.md`):
-on a connected workspace the wiki mirror is read-only, so writes in this
-picture still go only to Jira. A standalone workspace builds the wiki client
-through `origin.Wiki` (the in-process issuetap handler, same session as
-`origin.Client`); page writes go to issuetap's Confluence API, not the
-SQLite mirror.
+page writes (create, edit, page comments — GDK-380/381/382) go through
+`origin.Wiki`, never the SQLite mirror. On a connected workspace that client
+is Confluence REST; on a standalone workspace it is the in-process issuetap
+handler (same session as `origin.Client`), whose Confluence API receives the
+same verbs.
 
 The single-origin property is not incidental. Because the UI and the API are
 served from the same localhost origin, the server never emits a CORS header —
