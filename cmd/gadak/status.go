@@ -29,7 +29,11 @@ func cmdStatus(args []string) error {
 	}
 	defer db.Close()
 
-	st := map[string]any{"profile": config.Profile()}
+	st := map[string]any{
+		"profile":          config.Profile(),
+		"workspace":        workspaceJSONName(),
+		"workspace_source": workspaceJSONSource(),
+	}
 	if ss, err := db.SyncState(context.Background(), "jira"); err == nil {
 		st["watermark"] = ss.Watermark
 		st["version"] = ss.Version

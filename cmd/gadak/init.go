@@ -588,23 +588,27 @@ func writeInitJSON(cfg *config.Config, account, path string) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetEscapeHTML(false)
 	return enc.Encode(struct {
-		Profile    string   `json:"profile"`
-		Account    string   `json:"account"`
-		Site       string   `json:"site"`
-		Projects   []string `json:"projects"`
-		Path       string   `json:"path"`
-		Confluence any      `json:"confluence"`
-		Kind       string   `json:"kind"`
-		Persist    string   `json:"persist,omitempty"`
+		Profile         string   `json:"profile"`
+		Workspace       string   `json:"workspace"`
+		WorkspaceSource string   `json:"workspace_source"`
+		Account         string   `json:"account"`
+		Site            string   `json:"site"`
+		Projects        []string `json:"projects"`
+		Path            string   `json:"path"`
+		Confluence      any      `json:"confluence"`
+		Kind            string   `json:"kind"`
+		Persist         string   `json:"persist,omitempty"`
 	}{
-		Profile:    displayProfileName(config.Profile()),
-		Account:    account,
-		Site:       cfg.Site,
-		Projects:   jsonList(cfg.Projects),
-		Path:       path,
-		Confluence: initConfluenceJSON(cfg),
-		Kind:       kind,
-		Persist:    persist,
+		Profile:         displayProfileName(config.Profile()),
+		Workspace:       workspaceJSONName(),
+		WorkspaceSource: workspaceJSONSource(),
+		Account:         account,
+		Site:            cfg.Site,
+		Projects:        jsonList(cfg.Projects),
+		Path:            path,
+		Confluence:      initConfluenceJSON(cfg),
+		Kind:            kind,
+		Persist:         persist,
 	})
 }
 

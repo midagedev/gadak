@@ -28,29 +28,30 @@ const doctorBanner = "# gadak doctor — safe to paste: counts and versions only
 // --json consumers; values never carry tokens, hostnames, emails, project
 // keys, custom-field names, or raw error strings.
 type doctorReport struct {
-	GadakVersion  string                `json:"gadak_version"`
-	GoVersion     string                `json:"go_version"`
-	OS            string                `json:"os"`
-	Arch          string                `json:"arch"`
-	Profile       string                `json:"profile"`
-	WorkspaceKind string                `json:"workspace_kind"`
-	Origin        string                `json:"origin"`
-	OriginOwner   string                `json:"origin_owner,omitempty"`
-	MirrorPath    string                `json:"mirror_path"`
-	Mirror        doctorMirror          `json:"mirror"`
-	SchemaVersion *int                  `json:"schema_version"`
-	Migrations    string                `json:"migrations"`
-	Counts        *doctorCounts         `json:"counts"`
-	Confluence    string                `json:"confluence"`
-	CustomFields  int                   `json:"custom_fields"`
-	Credential    string                `json:"credential"`
-	Site          string                `json:"site"`
-	Email         string                `json:"email"`
-	Skill         doctorSkill           `json:"skill"`
-	MCP           doctorMCP             `json:"mcp"`
-	Sync          map[string]doctorSync `json:"sync"`
-	APIUsage      doctorAPIUsage        `json:"api_usage"`
-	Workspace     doctorWorkspace       `json:"workspace"`
+	GadakVersion    string                `json:"gadak_version"`
+	GoVersion       string                `json:"go_version"`
+	OS              string                `json:"os"`
+	Arch            string                `json:"arch"`
+	Profile         string                `json:"profile"`
+	WorkspaceSource string                `json:"workspace_source"`
+	WorkspaceKind   string                `json:"workspace_kind"`
+	Origin          string                `json:"origin"`
+	OriginOwner     string                `json:"origin_owner,omitempty"`
+	MirrorPath      string                `json:"mirror_path"`
+	Mirror          doctorMirror          `json:"mirror"`
+	SchemaVersion   *int                  `json:"schema_version"`
+	Migrations      string                `json:"migrations"`
+	Counts          *doctorCounts         `json:"counts"`
+	Confluence      string                `json:"confluence"`
+	CustomFields    int                   `json:"custom_fields"`
+	Credential      string                `json:"credential"`
+	Site            string                `json:"site"`
+	Email           string                `json:"email"`
+	Skill           doctorSkill           `json:"skill"`
+	MCP             doctorMCP             `json:"mcp"`
+	Sync            map[string]doctorSync `json:"sync"`
+	APIUsage        doctorAPIUsage        `json:"api_usage"`
+	Workspace       doctorWorkspace       `json:"workspace"`
 }
 
 // doctorWorkspace is the one-line consistency view: kind, whether a site
@@ -61,6 +62,7 @@ type doctorReport struct {
 // HasSiteToken is site-token presence, not config.HasCredential (GDK-470).
 // Standalone writes work with no site token; this field stays false there.
 type doctorWorkspace struct {
+	Name         string `json:"name"`
 	Kind         string `json:"kind"`
 	HasSiteToken bool   `json:"has_site_token"`
 	Persist      string `json:"persist"`
@@ -140,24 +142,26 @@ func collectDoctor() doctorReport {
 	}
 
 	rep := doctorReport{
-		GadakVersion:  version,
-		GoVersion:     runtime.Version(),
-		OS:            runtime.GOOS,
-		Arch:          runtime.GOARCH,
-		Profile:       profile,
-		WorkspaceKind: config.KindConnected,
-		Origin:        "jira",
-		Confluence:    "inactive",
-		Credential:    "absent",
-		Site:          "none",
-		Email:         "none",
-		CustomFields:  0,
-		Sync:          map[string]doctorSync{},
+		GadakVersion:    version,
+		GoVersion:       runtime.Version(),
+		OS:              runtime.GOOS,
+		Arch:            runtime.GOARCH,
+		Profile:         profile,
+		WorkspaceSource: workspaceJSONSource(),
+		WorkspaceKind:   config.KindConnected,
+		Origin:          "jira",
+		Confluence:      "inactive",
+		Credential:      "absent",
+		Site:            "none",
+		Email:           "none",
+		CustomFields:    0,
+		Sync:            map[string]doctorSync{},
 		APIUsage: doctorAPIUsage{
 			Day: time.Now().UTC().Format("2006-01-02"),
 		},
 		Migrations: "unknown",
 		Workspace: doctorWorkspace{
+			Name: workspaceJSONName(),
 			Kind: config.KindConnected,
 		},
 	}
@@ -206,6 +210,7 @@ func collectDoctor() doctorReport {
 			}
 		}
 		rep.Workspace = doctorWorkspace{
+			Name:         workspaceJSONName(),
 			Kind:         cfg.WorkspaceKind(),
 			HasSiteToken: hasTok,
 			Persist:      tildeHome(persist),

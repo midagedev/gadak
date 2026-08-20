@@ -735,3 +735,80 @@ func TestWarnUnknownGADAKEmptyIsUnset(t *testing.T) {
 		t.Fatalf("empty GADAK_DB is unset, must not warn, got %q", stderr)
 	}
 }
+
+func TestWorkspaceSourceFlagEnvDefault(t *testing.T) {
+	t.Cleanup(func() { SetProfile("") })
+
+	t.Setenv("GADAK_WORKSPACE", "")
+	t.Setenv("GADAK_PROFILE", "")
+	t.Setenv("SCRY_PROFILE", "")
+	ReloadWorkspaceFromEnv()
+	if Profile() != "" {
+		t.Fatalf("default Profile() = %q", Profile())
+	}
+	kind, envName := WorkspaceSource()
+	if kind != SourceDefault || envName != "" {
+		t.Fatalf("default source = %q %q", kind, envName)
+	}
+
+	t.Setenv("GADAK_PROFILE", "pf")
+	ReloadWorkspaceFromEnv()
+	if Profile() != "pf" {
+		t.Fatalf("GADAK_PROFILE Profile() = %q", Profile())
+	}
+	kind, envName = WorkspaceSource()
+	if kind != SourceEnv || envName != "GADAK_PROFILE" {
+		t.Fatalf("GADAK_PROFILE source = %q %q", kind, envName)
+	}
+
+	t.Setenv("GADAK_WORKSPACE", "ws")
+	ReloadWorkspaceFromEnv()
+	if Profile() != "ws" {
+		t.Fatalf("GADAK_WORKSPACE should win, Profile() = %q", Profile())
+	}
+	kind, envName = WorkspaceSource()
+	if kind != SourceEnv || envName != "GADAK_WORKSPACE" {
+		t.Fatalf("GADAK_WORKSPACE source = %q %q", kind, envName)
+	}
+
+	SetProfile("flagged")
+	if Profile() != "flagged" {
+		t.Fatalf("SetProfile Profile() = %q", Profile())
+	}
+	kind, envName = WorkspaceSource()
+	if kind != SourceFlag || envName != "" {
+		t.Fatalf("SetProfile source = %q %q", kind, envName)
+	}
+
+	SetProfile("")
+	if Profile() != "" {
+		t.Fatalf("SetProfile empty Profile() = %q", Profile())
+	}
+	kind, envName = WorkspaceSource()
+	if kind != SourceFlag {
+		t.Fatalf("SetProfile empty is still flag, got %q", kind)
+	}
+}
+
+func TestGADAKWorkspaceIsRecognised(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	t.Setenv("GADAK_WORKSPACE", "oss")
+	t.Setenv("GADAK_PROFILE", "")
+	t.Setenv("GADAK_TOKEN", "")
+	t.Setenv("GADAK_DB", "")
+	for _, extra := range []string{"GADAK_MEDIA", "GADAK_FRESHEN", "GADAK_PERF"} {
+		t.Setenv(extra, "")
+	}
+	unknownEnvWarnOnce = sync.Once{}
+	stderr := captureStderr(t, func() {
+		if _, err := DBPath(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if strings.Contains(stderr, "GADAK_WORKSPACE") {
+		t.Fatalf("GADAK_WORKSPACE must not be unrecognised, got %q", stderr)
+	}
+	if strings.Contains(stderr, "unrecognised") {
+		t.Fatalf("known env must not warn, got %q", stderr)
+	}
+}

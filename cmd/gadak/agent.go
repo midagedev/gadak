@@ -1120,6 +1120,7 @@ func (e writeNotMirroredError) Error() string {
 // withWriteSession loads the credential, opens the store, and hands the caller
 // a Jira client. Shared by mutate and create so the refusal string cannot drift.
 func withWriteSession(fn func(context.Context, *config.Config, *store.DB, *jira.Client) error) error {
+	warnWorkspaceIfEnv()
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -1144,6 +1145,7 @@ func withWriteSession(fn func(context.Context, *config.Config, *store.DB, *jira.
 // which origin owns the row (store.KeySource — a "MID-5" can be Linear or
 // Jira, the shape cannot tell), and the credential gate is that origin's.
 func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *store.DB, origin.Writer, string) error) error {
+	warnWorkspaceIfEnv()
 	cfg, err := config.Load()
 	if err != nil {
 		return err

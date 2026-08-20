@@ -90,6 +90,10 @@ func cmdAPI(args []string) error {
 		return err
 	}
 
+	if *writeFlag {
+		warnWorkspaceIfEnv()
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err

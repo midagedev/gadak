@@ -152,6 +152,8 @@ Commands:
   demo             serve the bundled snapshot, no Jira account needed
   export-static    freeze demo.db into static JSON for hosted demo  <outdir>
   profiles         list mirrors and which one this command used  [--json]
+  workspace        show the active workspace and what selected it  [--json]
+  workspaces       list workspaces (alias of profiles)  [--json]
   version          print version
 
 Reading the mirror (no network; see AGENTS.md):
@@ -206,11 +208,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "gadak: the `%s` command was renamed to `gadak`.\n", config.LegacyName)
 	}
 	args := os.Args[1:]
-	// The global --profile is only accepted before the subcommand.
-	if len(args) >= 2 && (args[0] == "--profile" || args[0] == "-p") {
-		config.SetProfile(args[1])
-		args = args[2:]
+	// Global --workspace/--profile are only accepted before the subcommand.
+	rest, err := parseGlobalWorkspace(args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gadak: %v\n", err)
+		os.Exit(exitStatus(err))
 	}
+	args = rest
 	if len(args) < 1 {
 		fmt.Print(usage)
 		os.Exit(2)
@@ -262,6 +266,39 @@ func checkProfileForCommand(cmd string, rest []string) error {
 		return nil
 	}
 	return config.RequireExistingProfile()
+}
+
+// parseGlobalWorkspace consumes leading --workspace/-w/--profile/-p pairs.
+// The two names are aliases for the same selection; passing more than one
+// is an error (exit 64) rather than a silent winner. The leftover args
+// start at the subcommand.
+func parseGlobalWorkspace(args []string) ([]string, error) {
+	i := 0
+	var selectedFlag, selectedName string
+	selected := false
+	for i < len(args) {
+		a := args[i]
+		if a != "--workspace" && a != "-w" && a != "--profile" && a != "-p" {
+			break
+		}
+		if i+1 >= len(args) {
+			return nil, &exitCodeError{code: 64, msg: a + " requires a workspace name"}
+		}
+		if selected {
+			return nil, &exitCodeError{
+				code: 64,
+				msg:  fmt.Sprintf("command names two workspaces (%s and %s); pass only one", selectedFlag, a),
+			}
+		}
+		selected = true
+		selectedFlag = a
+		selectedName = args[i+1]
+		i += 2
+	}
+	if selected {
+		config.SetProfile(selectedName)
+	}
+	return args[i:], nil
 }
 
 // helpTail reports a static help invocation: the last arg is --help or -h
@@ -317,6 +354,8 @@ var commands = map[string]func([]string) error{
 	"version":         cmdVersion,
 	"view":            cmdViews,
 	"views":           cmdViews,
+	"workspace":       cmdWorkspace,
+	"workspaces":      cmdProfiles,
 }
 
 // commandNames returns sorted keys of commands. helps has one entry per name;

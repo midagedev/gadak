@@ -17,8 +17,10 @@ import (
 
 // profileInventory is the JSON document for `gadak profiles --json`.
 type profileInventory struct {
-	Active   string         `json:"active"`
-	Profiles []profileEntry `json:"profiles"`
+	Active          string         `json:"active"`
+	Workspace       string         `json:"workspace"`
+	WorkspaceSource string         `json:"workspace_source"`
+	Profiles        []profileEntry `json:"profiles"`
 }
 
 // profileEntry is one row of the inventory. Secrets never appear here: site is
@@ -60,7 +62,11 @@ func cmdProfiles(args []string) error {
 
 func collectProfiles() (profileInventory, error) {
 	activeName := displayProfileName(config.Profile())
-	inv := profileInventory{Active: activeName}
+	inv := profileInventory{
+		Active:          activeName,
+		Workspace:       workspaceJSONName(),
+		WorkspaceSource: workspaceJSONSource(),
+	}
 
 	// Always include the default profile first.
 	inv.Profiles = append(inv.Profiles, inspectProfile("", activeName))

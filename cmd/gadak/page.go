@@ -57,6 +57,7 @@ func cmdPageCreate(args []string) error {
 	if *space == "" || *title == "" {
 		return fmt.Errorf("page create: --space and --title are required")
 	}
+	warnWorkspaceIfEnv()
 	body := *text
 	if body == "-" {
 		buf, err := io.ReadAll(os.Stdin)
@@ -185,6 +186,7 @@ func cmdPageComment(args []string) error {
 		}
 		adf = string(jira.Doc(body, nil))
 	}
+	warnWorkspaceIfEnv()
 
 	cfg, err := config.Load()
 	if err != nil {

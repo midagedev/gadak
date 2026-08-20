@@ -15,7 +15,7 @@ const (
 	DirName = ".gadak"
 	// DBFile is the SQLite filename inside a profile directory.
 	DBFile = "gadak.db"
-	// EnvPrefix is prepended to HOME, PROFILE, TOKEN, SITE, EMAIL, PROJECTS.
+	// EnvPrefix is prepended to HOME, PROFILE, WORKSPACE, TOKEN, SITE, EMAIL, PROJECTS.
 	EnvPrefix = "GADAK_"
 
 	// Legacy names from the 2026-08 rename (scry → gadak). Still accepted so
@@ -34,7 +34,7 @@ const (
 // not left to rot: tools/doc-checks.sh check 18 derives the same set from
 // the Go source and fails when this map falls behind.
 var envSuffixes = map[string]struct{}{
-	"HOME": {}, "PROFILE": {}, "TOKEN": {}, "SITE": {}, "EMAIL": {}, "PROJECTS": {},
+	"HOME": {}, "PROFILE": {}, "WORKSPACE": {}, "TOKEN": {}, "SITE": {}, "EMAIL": {}, "PROJECTS": {},
 }
 
 // envLiterals are GADAK_* names production reads via os.Getenv, not Env.

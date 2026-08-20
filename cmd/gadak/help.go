@@ -241,7 +241,27 @@ var helps = map[string]cmdHelp{
 			"gadak profiles",
 			"gadak profiles --json",
 		},
-		seeAlso: []string{"gadak init"},
+		seeAlso: []string{"gadak init", "gadak workspace", "gadak workspaces"},
+	},
+	"workspace": {
+		summary: "show the active workspace, what selected it, origin kind, persist path, and other workspaces",
+		usage:   "gadak workspace [--json]",
+		examples: []string{
+			"gadak workspace",
+			"gadak --workspace oss workspace",
+			"GADAK_WORKSPACE=oss gadak workspace",
+			"gadak workspace --json",
+		},
+		seeAlso: []string{"gadak workspaces", "gadak profiles", "gadak status"},
+	},
+	"workspaces": {
+		summary: "list workspaces: which mirrors exist, which one this command used (alias of profiles)",
+		usage:   "gadak workspaces [--json]",
+		examples: []string{
+			"gadak workspaces",
+			"gadak workspaces --json",
+		},
+		seeAlso: []string{"gadak workspace", "gadak profiles", "gadak init"},
 	},
 	"sql": {
 		summary: "run a read-only SQL query against the local mirror",

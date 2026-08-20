@@ -238,15 +238,37 @@ func (c *Config) EffectiveReconcileIntervalSec() int {
 	return c.ReconcileIntervalSec
 }
 
-// profile comes from SetProfile (the --profile flag) or GADAK_PROFILE
-// (SCRY_PROFILE still works). Empty or "default" means the root profile
-// (~/.gadak); anything else lives under ~/.gadak/profiles/<name>. Each profile
-// gets its own config.json and gadak.db, so two sites can be used side by side
-// without their credentials or mirrors colliding.
-var profile = Env("PROFILE")
+// Workspace selection source. WorkspaceSource reports one of these; when the
+// kind is SourceEnv, the env variable name is returned alongside.
+const (
+	SourceFlag    = "flag"
+	SourceEnv     = "env"
+	SourceDefault = "default"
+)
 
-// SetProfile is called by the CLI's --profile flag, which wins over the env var.
-func SetProfile(name string) { profile = name }
+// profile comes from SetProfile (the --workspace/--profile flag) or, if no
+// flag was given, GADAK_WORKSPACE, else GADAK_PROFILE (SCRY_PROFILE still
+// works). Empty or "default" means the root profile (~/.gadak); anything else
+// lives under ~/.gadak/profiles/<name>. Each profile gets its own config.json
+// and gadak.db, so two sites can be used side by side without their
+// credentials or mirrors colliding.
+var (
+	profile          string
+	workspaceSource  string
+	workspaceEnvName string
+)
+
+func init() {
+	ReloadWorkspaceFromEnv()
+}
+
+// SetProfile is called by the CLI's --workspace/--profile flag, which wins
+// over the env var. The source becomes SourceFlag even when name is empty.
+func SetProfile(name string) {
+	profile = name
+	workspaceSource = SourceFlag
+	workspaceEnvName = ""
+}
 
 // Profile returns the active profile name ("" for the default one).
 func Profile() string {
@@ -254,6 +276,41 @@ func Profile() string {
 		return ""
 	}
 	return profile
+}
+
+// WorkspaceSource is the single owner of "what selected this workspace".
+// kind is SourceFlag, SourceEnv, or SourceDefault. envName is the variable
+// that supplied the value when kind is SourceEnv, otherwise "".
+func WorkspaceSource() (kind, envName string) {
+	return workspaceSource, workspaceEnvName
+}
+
+// ReloadWorkspaceFromEnv forgets a SetProfile override and reads
+// GADAK_WORKSPACE, then GADAK_PROFILE, then SCRY_PROFILE. Empty values are
+// unset. The CLI calls this at process start (init); tests call it after
+// t.Setenv.
+func ReloadWorkspaceFromEnv() {
+	if v := os.Getenv("GADAK_WORKSPACE"); v != "" {
+		profile = v
+		workspaceSource = SourceEnv
+		workspaceEnvName = "GADAK_WORKSPACE"
+		return
+	}
+	if v := os.Getenv("GADAK_PROFILE"); v != "" {
+		profile = v
+		workspaceSource = SourceEnv
+		workspaceEnvName = "GADAK_PROFILE"
+		return
+	}
+	if v := os.Getenv("SCRY_PROFILE"); v != "" {
+		profile = v
+		workspaceSource = SourceEnv
+		workspaceEnvName = "SCRY_PROFILE"
+		return
+	}
+	profile = ""
+	workspaceSource = SourceDefault
+	workspaceEnvName = ""
 }
 
 // homeRoot is GADAK_HOME, else SCRY_HOME, else ~/.gadak. An existing ~/.scry
