@@ -87,7 +87,15 @@ func viewsList(args []string) error {
 		if v.Favourite {
 			fav = "*"
 		}
-		fmt.Printf("%s\t%s\t%s%s\t%s\n", v.Kind, v.ID, fav, v.Name, compactJQL(v.JQL))
+		// The JQL column is what was asked for, not what the view applies, so
+		// a partly-compiled view reads as a promise it does not keep
+		// (GDK-504). Mark it in the same column — the column count is a TSV
+		// contract — and let `views show <name>` name the skipped clauses.
+		jqlCol := compactJQL(v.JQL)
+		if len(v.Unsupported) > 0 {
+			jqlCol += " [partial]"
+		}
+		fmt.Printf("%s\t%s\t%s%s\t%s\n", v.Kind, v.ID, fav, v.Name, jqlCol)
 	}
 	return nil
 }
@@ -146,6 +154,11 @@ func viewsOpen(args []string) error {
 
 	var hash, label string
 	var keys []string
+	// Clauses the saved view could not compile. Carried out of the switch so
+	// the opened view repeats what `views save` said once (GDK-504): the
+	// listing shows the requested JQL, so nothing else tells the caller the
+	// view applies less than its name promises.
+	var unsupported []string
 	switch {
 	case keysRaw != "":
 		keys, err = readKeysFlag(keysRaw)
@@ -185,8 +198,13 @@ func viewsOpen(args []string) error {
 			return fmt.Errorf("view %q has no gadak hash — nothing to focus", v.Name)
 		}
 		hash, label = v.Hash, v.Name
+		unsupported = v.Unsupported
 	}
 
+	if len(unsupported) > 0 {
+		fmt.Fprintf(os.Stderr, "warning: view %q applies less than its JQL — skipped %s\n",
+			label, strings.Join(unsupported, "; "))
+	}
 	if err := uifocus.Write(hash); err != nil {
 		return err
 	}
@@ -226,6 +244,9 @@ func viewsOpen(args []string) error {
 		"desktop":  desk,
 		"serve":    serveDbg,
 		"deeplink": link,
+	}
+	if len(unsupported) > 0 {
+		out["unsupported"] = unsupported
 	}
 	if len(keys) > 0 {
 		out["keys"] = keys

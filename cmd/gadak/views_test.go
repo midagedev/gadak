@@ -48,6 +48,61 @@ func TestViewsListAndShow(t *testing.T) {
 	}
 }
 
+// A view whose JQL only partly compiled must say so every time it is listed
+// or opened, not once at save (GDK-504): the listing prints the requested JQL,
+// so without a marker the view reads as a promise it does not keep.
+func TestViewsPartialViewSaysSoOnListAndOpen(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	db, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PutSavedView(context.Background(), store.SavedView{
+		ID:   "cli-partial",
+		Name: "partial queue",
+		Config: json.RawMessage(`{"filters":{},"display":{"sort":"priority"},` +
+			`"jql":"statusCategory != Done ORDER BY priority",` +
+			`"applied":["ORDER BY"],"unsupported":["statusCategory != Done (only = and IN)"]}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	out, err := capture(t, func() error { return cmdViews(nil) })
+	if err != nil {
+		t.Fatalf("list: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "[partial]") {
+		t.Fatalf("listing must mark a partly-compiled view:\n%s", out)
+	}
+
+	stdout, stderr, err := captureBoth(t, func() error {
+		return cmdViews([]string{"open", "partial queue", "--no-open"})
+	})
+	if err != nil {
+		t.Fatalf("open: %v\n%s\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "statusCategory != Done") {
+		t.Fatalf("open must repeat the skipped clause on stderr:\n%s", stderr)
+	}
+
+	jout, _, err := captureBoth(t, func() error {
+		return cmdViews([]string{"open", "partial queue", "--no-open", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("open --json: %v\n%s", err, jout)
+	}
+	var body struct {
+		Unsupported []string `json:"unsupported"`
+	}
+	if err := json.Unmarshal([]byte(jout), &body); err != nil {
+		t.Fatalf("decode %s: %v", jout, err)
+	}
+	if len(body.Unsupported) == 0 {
+		t.Fatalf("open --json must carry unsupported:\n%s", jout)
+	}
+}
+
 func TestViewsOpenWritesFocus(t *testing.T) {
 	mirror(t, "https://unused.example.com")
 	out, err := capture(t, func() error {
