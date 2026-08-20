@@ -965,4 +965,34 @@ if [[ -n "$standalone_cmd_missing" ]]; then
 fi
 ok "docs/INSTALL.md and README.md name init --standalone"
 
+# check 21 — every GDK key a reader-facing doc names must resolve on the public
+# backlog (GDK-269, GDK-389; user decision 2026-08-20 to link past entries too).
+#
+# The keys are advertising: a reader who cannot open GDK-408 is reading a
+# reference to a tracker they have no access to. The snapshot is the whitelist,
+# so this check is the other half of tools/backlog-scrub-check.sh — that one
+# asserts nothing unmarked got published, this one asserts nothing published-to
+# is missing. Attribution: the failure mode it closes was measured, not
+# imagined — before the whitelist existed, three keys the docs cited
+# (GDK-101, GDK-23, GDK-94) sat in the private set.
+#
+# Skipped deliberately: CLAUDE.md, AGENTS.md, skills/**, docs/decisions/**,
+# specs/**, internal/**. Agent-instruction files pay context for every link and
+# have no reader to advertise to; decisions are append-only by their own rule.
+BACKLOG_SNAPSHOT="examples/backlog-snapshot/bootstrap.json"
+READER_DOCS=(CHANGELOG.md CHANGELOG.ko.md README.md README.ko.md
+  docs/ARCHITECTURE.md docs/DERIVE.md docs/DESKTOP.md docs/INSTALL.md
+  docs/ROADMAP.md docs/STATE_OF_PLAY.md desktop/README.md)
+if [[ -f "$BACKLOG_SNAPSHOT" ]] && command -v jq >/dev/null; then
+  published=$(jq -r '.issues[].issue_key' "$BACKLOG_SNAPSHOT" | sort -u)
+  cited=$(grep -ohE 'GDK-[0-9]+' "${READER_DOCS[@]}" 2>/dev/null | sort -u)
+  dangling=$(comm -23 <(printf '%s\n' "$cited") <(printf '%s\n' "$published") | tr '\n' ' ')
+  if [[ -n "${dangling// /}" ]]; then
+    fail "reader-facing docs cite GDK keys that are not on the public backlog: $dangling"$'\n'"  label them public and re-run tools/backlog-snapshot.sh, or drop the citation"
+  fi
+  ok "every GDK key in reader-facing docs resolves on the public backlog"
+else
+  ok "public backlog snapshot absent or jq missing — GDK key resolution not checked"
+fi
+
 echo "doc-checks: all passed"
