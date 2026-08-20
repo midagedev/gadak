@@ -39,7 +39,11 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 - `time-in-status`는 저장 컬럼이 아니다 — `status_changed_at`에서 계산.
   (`data-model.md`가 "deliberately absent"로 명시.)
 - decisions/ 문서는 **개정하지 않는다. Addendum만 추가.**
-- CHANGELOG는 히스토리 — 소급 수정 금지.
+- CHANGELOG는 히스토리 — 소급 수정 금지. **예외: 주장을 바꾸지 않는
+  링크화**(사용자 결정 2026-08-20). `GDK-nnn`을 공개 백로그
+  (`…/gadak/backlog/#/?ks=<KEY>`)로 참조 스타일 링크로 잇는 것은 히스토리
+  수정이 아니라 해석 가능성 부여다 — 링크는 광고판이기도 하다. 문장·날짜·
+  주장을 고치는 것은 여전히 금지.
 
 ## 빌드·게이트
 
