@@ -12,7 +12,7 @@
  *   ./tools/hosted-demo/preview.sh   # serve dist/hosted at :4173/gadak/
  */
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -152,6 +152,43 @@ run(bin, [
   authBase,
   outDir,
 ])
+// ── 3b. Public backlog (GDK-389) — committed scrubbed snapshot, own bundle ──
+// A second Vite build because basePath() is compile-time BASE_URL: the same
+// bundle under /gadak/backlog/ would fetch /gadak/config.json (the demo's).
+const backlogSnapshot = join(root, 'examples', 'backlog-snapshot')
+if (existsSync(join(backlogSnapshot, 'bootstrap.json'))) {
+  const backlogBase = basePath.endsWith('/') ? `${basePath}backlog/` : `${basePath}/backlog/`
+  const backlogOut = join(outDir, 'backlog')
+  run(viteBin, ['build'], {
+    VITE_HOSTED_DEMO: '1',
+    GADAK_BASE_PATH: backlogBase,
+    HOSTED_OUT: backlogOut,
+  })
+  const backlogIndex = join(backlogOut, 'index.html')
+  const backlogHtml = readFileSync(backlogIndex, 'utf8')
+  const backlogTitled = backlogHtml.replace('<title>gadak</title>', '<title>gadak — public backlog</title>')
+  if (backlogTitled === backlogHtml) {
+    console.error('hosted-demo: could not retitle backlog index.html')
+    process.exit(1)
+  }
+  writeFileSync(backlogIndex, backlogTitled)
+  // About popover links these relative to the base path.
+  copyFileSync(mp4Src, join(backlogOut, 'web-demo.mp4'))
+  copyFileSync(ogSrc, join(backlogOut, 'og.png'))
+  copyFileSync(posterOut, join(backlogOut, 'web-demo-poster.jpg'))
+  for (const f of ['bootstrap.json', 'config.json']) {
+    copyFileSync(join(backlogSnapshot, f), join(backlogOut, f))
+  }
+  mkdirSync(join(backlogOut, 'detail'), { recursive: true })
+  const detailSrc = join(backlogSnapshot, 'detail')
+  for (const f of readdirSync(detailSrc)) {
+    copyFileSync(join(detailSrc, f), join(backlogOut, 'detail', f))
+  }
+  console.log(`hosted-demo: public backlog at ${backlogOut} (base ${backlogBase})`)
+} else {
+  console.log('hosted-demo: examples/backlog-snapshot missing — skipping backlog page')
+}
+
 // ── 4. Sanity ───────────────────────────────────────────────────────────────
 const boot = join(outDir, 'bootstrap.json')
 const detail = join(outDir, 'detail')

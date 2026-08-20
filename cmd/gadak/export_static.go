@@ -33,6 +33,12 @@ func cmdExportStatic(args []string) error {
 		"apiBase written into config.json and rewritten into attachment content_url fields")
 	authBase := fs.String("auth-base", "/gadak/api/v1/auth/",
 		"authBase written into config.json")
+	projects := fs.String("projects", "NMB,NMA,NMS",
+		"comma-separated project keys baked into the snapshot config")
+	scrub := fs.Bool("scrub", false,
+		"whitelist-rebuild the snapshot for public backlog publishing: "+
+			"issues keep only list fields; descriptions, comments, attachments, "+
+			"history, people and custom fields are dropped")
 	// Flags must come before the positional outdir (Go flag stops at the first
 	// non-flag). build.mjs and the usage line keep that order.
 	if err := fs.Parse(args); err != nil {
@@ -92,9 +98,14 @@ func cmdExportStatic(args []string) error {
 	}
 	defer db.Close()
 
-	// Demo projects only — no credential, every optional surface off.
+	projectList := strings.Split(*projects, ",")
+	for i := range projectList {
+		projectList[i] = strings.TrimSpace(projectList[i])
+	}
+
+	// Snapshot projects only — no credential, every optional surface off.
 	cfg := &config.Config{
-		Projects: []string{"NMB", "NMA", "NMS"},
+		Projects: projectList,
 		Features: map[string]bool{
 			"presence":   false,
 			"feed":       false,
@@ -123,6 +134,12 @@ func cmdExportStatic(args []string) error {
 	if err != nil {
 		return fmt.Errorf("bootstrap: %w", err)
 	}
+	if *scrub {
+		bootBody, err = scrubBootstrap(bootBody)
+		if err != nil {
+			return fmt.Errorf("scrub bootstrap: %w", err)
+		}
+	}
 	if err := os.WriteFile(filepath.Join(outDir, "bootstrap.json"), bootBody, 0o644); err != nil {
 		return err
 	}
@@ -149,6 +166,12 @@ func cmdExportStatic(args []string) error {
 		body, err := getJSON(handler, "GET", serverAPIBase+key+"/detail/")
 		if err != nil {
 			return fmt.Errorf("detail %s: %w", key, err)
+		}
+		if *scrub {
+			body, err = scrubDetail(body)
+			if err != nil {
+				return fmt.Errorf("scrub detail %s: %w", key, err)
+			}
 		}
 		// Rewrite absolute content_url paths so the hosted client (apiBase under
 		// the Pages subpath) and the service worker agree.
@@ -201,7 +224,7 @@ func cmdExportStatic(args []string) error {
 		"authBase":            *authBase,
 		"jiraBaseUrl":         "",
 		"qaDashboardUrl":      "",
-		"projects":            []string{"NMB", "NMA", "NMS"},
+		"projects":            projectList,
 		"groupLabels":         map[string]string{},
 		"groupColors":         map[string]string{},
 		"productByGroup":      map[string]any{},
@@ -217,6 +240,12 @@ func cmdExportStatic(args []string) error {
 		// Hosted-demo marker for operators; the client ignores unknown keys.
 		"hostedDemo": true,
 	}
+	if *scrub {
+		// A named profile gives the backlog page its own IndexedDB cache scope
+		// (composeCacheScope) so it never mixes rows with the demo on the same
+		// origin.
+		cfgDoc["profile"] = "backlog"
+	}
 	cfgBytes, err := json.MarshalIndent(cfgDoc, "", "  ")
 	if err != nil {
 		return err
@@ -229,6 +258,91 @@ func cmdExportStatic(args []string) error {
 	fmt.Printf("export-static: %d issues, %d attachments → %s\n",
 		len(boot.Issues), len(seenAttach), outDir)
 	return nil
+}
+
+/* ── backlog scrub (GDK-389) ──
+ * Whitelist-REBUILD, never blacklist-strip: a field added to the live
+ * handlers later must stay private by default. Only the keys listed here
+ * survive into a published snapshot.
+ */
+
+// issueWhitelist is every issue-list key a public backlog snapshot may carry.
+// People (assignee/reporter/emails), custom fields and clone provenance are
+// deliberately absent.
+var issueWhitelist = []string{
+	"issue_key", "summary", "project_key",
+	"issue_type", "issue_type_id",
+	"status", "status_id", "status_category",
+	"priority", "priority_id", "priority_rank",
+	"epic_key", "parent_key",
+	"labels", "components", "fix_versions",
+	"duedate", "resolution",
+	"created_at", "updated_at", "status_changed_at", "resolved_at",
+	"comment_count", "source",
+}
+
+func scrubBootstrap(body []byte) ([]byte, error) {
+	var boot map[string]json.RawMessage
+	if err := json.Unmarshal(body, &boot); err != nil {
+		return nil, err
+	}
+	var issues []map[string]json.RawMessage
+	if err := json.Unmarshal(boot["issues"], &issues); err != nil {
+		return nil, err
+	}
+	outIssues := make([]map[string]json.RawMessage, 0, len(issues))
+	for _, is := range issues {
+		kept := map[string]json.RawMessage{}
+		for _, k := range issueWhitelist {
+			if v, ok := is[k]; ok {
+				kept[k] = v
+			}
+		}
+		outIssues = append(outIssues, kept)
+	}
+	issuesRaw, err := json.Marshal(outIssues)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]json.RawMessage{
+		"server_time":     boot["server_time"],
+		"sync_version":    boot["sync_version"],
+		"members":         json.RawMessage("[]"),
+		"members_version": boot["members_version"],
+		"issues":          issuesRaw,
+		"sync_health":     boot["sync_health"],
+		"field_specs":     json.RawMessage("[]"),
+		"field_usage":     json.RawMessage("{}"),
+	}
+	return json.Marshal(out)
+}
+
+// scrubDetail keeps the key and the linked-issue graph (public structure) and
+// forces every content surface — description, comments, attachments, history,
+// bodies, enrichments — to its empty shape.
+func scrubDetail(body []byte) ([]byte, error) {
+	var det map[string]json.RawMessage
+	if err := json.Unmarshal(body, &det); err != nil {
+		return nil, err
+	}
+	linked := det["linked_issues"]
+	if len(linked) == 0 {
+		linked = json.RawMessage("[]")
+	}
+	out := map[string]json.RawMessage{
+		"issue_key":           det["issue_key"],
+		"description_adf":     json.RawMessage("null"),
+		"attachments":         json.RawMessage("[]"),
+		"comments":            json.RawMessage("[]"),
+		"history":             json.RawMessage("[]"),
+		"linked_issues":       linked,
+		"development_opinion": json.RawMessage("null"),
+		"qa_context":          json.RawMessage("null"),
+		"deploy":              json.RawMessage("null"),
+		"linked_prs":          json.RawMessage("[]"),
+		"bodies":              json.RawMessage("{}"),
+	}
+	return json.Marshal(out)
 }
 
 // copyAttachmentsFromManifest writes attachments/<id> from the fixture dir for
