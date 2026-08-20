@@ -183,7 +183,7 @@ func probeMatches(adv Advertise, profile string) bool {
 	if err != nil {
 		return false
 	}
-	p := probeGadakOnPort(port, probeTimeout)
+	p := ProbeGadakOnPort(port, probeTimeout)
 	return p.IsGadak && p.Profile == profile
 }
 
@@ -201,15 +201,16 @@ func loopbackHost(addr string) (string, bool) {
 	return net.JoinHostPort(host, port), true
 }
 
-// gadakProbe is the port_fallback.go classification, copied because origin
-// cannot import cmd/gadak. Guards kept: 700ms context, no Origin header,
-// X-Gadak required, profile from X-Gadak-Profile.
-type gadakProbe struct {
+// GadakProbe classifies a loopback GET to the progress endpoint. Exported
+// so cmd/gadak's port fallback uses this single copy (GDK-423). Guards:
+// 700ms context, no Origin header, X-Gadak required, profile from
+// X-Gadak-Profile.
+type GadakProbe struct {
 	IsGadak bool
 	Profile string
 }
 
-func probeGadakOnPort(port string, timeout time.Duration) gadakProbe {
+func ProbeGadakOnPort(port string, timeout time.Duration) GadakProbe {
 	if timeout <= 0 {
 		timeout = probeTimeout
 	}
@@ -218,18 +219,18 @@ func probeGadakOnPort(port string, timeout time.Duration) gadakProbe {
 	url := "http://" + net.JoinHostPort("127.0.0.1", port) + ProbePath
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return gadakProbe{}
+		return GadakProbe{}
 	}
 	// Deliberately no Origin (and no custom User-Agent).
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return gadakProbe{}
+		return GadakProbe{}
 	}
 	defer res.Body.Close()
 	if res.Header.Get("X-Gadak") == "" {
-		return gadakProbe{}
+		return GadakProbe{}
 	}
-	return gadakProbe{
+	return GadakProbe{
 		IsGadak: true,
 		Profile: res.Header.Get("X-Gadak-Profile"),
 	}

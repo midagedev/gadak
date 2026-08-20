@@ -1,11 +1,10 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"github.com/midagedev/gadak/internal/origin"
 	"net"
-	"net/http"
 	"strconv"
 	"syscall"
 	"time"
@@ -23,12 +22,11 @@ const (
 	portActionFail
 )
 
-// gadakProbe is what a loopback GET to the progress endpoint learned about the
+// gadakProbe is origin.GadakProbe — the single probe implementation lives in
+// internal/origin (GDK-423); this alias keeps the fallback table readable.
+// It reports what a loopback GET to the progress endpoint learned about the
 // process holding a port.
-type gadakProbe struct {
-	IsGadak bool
-	Profile string
-}
+type gadakProbe = origin.GadakProbe
 
 // portBusyDecision is the pure classification of a busy preferred address.
 type portBusyDecision struct {
@@ -47,8 +45,6 @@ type listenFunc func(network, address string) (net.Listener, error)
 const (
 	portFallbackMax = 20
 	probeTimeout    = 700 * time.Millisecond
-	// probePath is always under the issues API base (see internal/server).
-	probePath = "/api/v1/issues/sync/progress/"
 )
 
 // decidePortBusy classifies a busy preferred address without touching sockets.
@@ -91,32 +87,10 @@ func occupantLabel(p gadakProbe) string {
 	return "another process"
 }
 
-// probeGadakOnPort GETs the progress endpoint on 127.0.0.1 only (never remote).
-// No Origin header — CLI probe, not a browser.
+// probeGadakOnPort delegates to the single implementation in internal/origin
+// (GDK-423): loopback only, no Origin header, X-Gadak required.
 func probeGadakOnPort(port string, timeout time.Duration) gadakProbe {
-	if timeout <= 0 {
-		timeout = probeTimeout
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	url := "http://" + net.JoinHostPort("127.0.0.1", port) + probePath
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return gadakProbe{}
-	}
-	// Deliberately no Origin (and no custom User-Agent).
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return gadakProbe{}
-	}
-	defer res.Body.Close()
-	if res.Header.Get("X-Gadak") == "" {
-		return gadakProbe{}
-	}
-	return gadakProbe{
-		IsGadak: true,
-		Profile: res.Header.Get("X-Gadak-Profile"),
-	}
+	return origin.ProbeGadakOnPort(port, timeout)
 }
 
 // isAddrInUse reports whether err is EADDRINUSE (darwin/linux via errors.Is).
