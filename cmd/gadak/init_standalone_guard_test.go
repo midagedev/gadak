@@ -68,11 +68,11 @@ func TestInitConnectedRefusesStandaloneWithData(t *testing.T) {
 		if !strings.Contains(err.Error(), persist) {
 			t.Fatalf("refusal must name persist path %q, got: %v", persist, err)
 		}
-		if !strings.Contains(err.Error(), "gadak --profile") {
-			t.Fatalf("refusal must name gadak --profile, got: %v", err)
+		if !strings.Contains(err.Error(), "gadak --workspace") {
+			t.Fatalf("refusal must name gadak --workspace, got: %v", err)
 		}
-		if !strings.Contains(err.Error(), "gadak profiles") {
-			t.Fatalf("refusal must name gadak profiles, got: %v", err)
+		if !strings.Contains(err.Error(), "gadak workspaces") {
+			t.Fatalf("refusal must name gadak workspaces, got: %v", err)
 		}
 	})
 	cfg, err := config.Load()

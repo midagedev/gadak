@@ -18,7 +18,7 @@ export type WorkspaceKind =
   | ''
 
 /** CLI that creates a standalone workspace. Flag lives in cmd/gadak/init.go. */
-export const STANDALONE_INIT_COMMAND = 'gadak --profile <name> init --standalone'
+export const STANDALONE_INIT_COMMAND = 'gadak --workspace <name> init --standalone'
 
 export function parseWorkspaceKind(raw: unknown): WorkspaceKind {
   if (raw === WORKSPACE_KIND_STANDALONE || raw === WORKSPACE_KIND_CONNECTED) {

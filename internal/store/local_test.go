@@ -690,8 +690,8 @@ func TestNewerLocalDBWarnsOncePerPath(t *testing.T) {
 	if !strings.Contains(got, "upgrade gadak") {
 		t.Errorf("message must say what to do (upgrade gadak), not only restate versions; log=%q", got)
 	}
-	if !strings.Contains(got, "--profile") || !strings.Contains(got, "GADAK_HOME") {
-		t.Errorf("message must name --profile / GADAK_HOME; log=%q", got)
+	if !strings.Contains(got, "--workspace") || !strings.Contains(got, "GADAK_HOME") {
+		t.Errorf("message must name --workspace / GADAK_HOME; log=%q", got)
 	}
 	if gotn := LocalNewerSchemaWarnsSuppressed(); gotn != before+1 {
 		t.Errorf("LocalNewerSchemaWarnsSuppressed %d → %d, want +1", before, gotn)

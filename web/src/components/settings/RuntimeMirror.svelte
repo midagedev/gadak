@@ -51,20 +51,27 @@
   </div>
   <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-micro">
     <dt class="text-text-muted">{t('settings.runtimeProfile')}</dt>
-    <dd class="flex min-w-0 flex-wrap items-center gap-1.5">
-      <span class="font-mono text-text-primary">{runtime.profile}</span>
-      {#if standalone}
-        <!-- Same status-pill classes as IntegrationsTab's install-state chip.
-             data-kind=standalone is a new case, not a borrowed enum. -->
-        <span
-          class="inline-flex items-center gap-1.5 rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
-          data-testid="workspace-kind"
-          data-kind="standalone"
-          title={t('settings.workspaceStandaloneHint')}
-          aria-label={t('settings.workspaceStandaloneHint')}
-        >
-          {t('settings.workspaceStandalone')}
-        </span>
+    <dd class="min-w-0">
+      <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+        <span class="font-mono text-text-primary">{runtime.profile}</span>
+        {#if standalone}
+          <!-- Same status-pill classes as IntegrationsTab's install-state chip.
+               data-kind=standalone is a new case, not a borrowed enum. -->
+          <span
+            class="inline-flex items-center gap-1.5 rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
+            data-testid="workspace-kind"
+            data-kind="standalone"
+            title={t('settings.workspaceStandaloneHint')}
+            aria-label={t('settings.workspaceStandaloneHint')}
+          >
+            {t('settings.workspaceStandalone')}
+          </span>
+        {/if}
+      </div>
+      {#if runtime.profile && runtime.profile !== 'default'}
+        <div class="mt-0.5 font-mono text-text-muted" data-testid="runtime-cli-flag">
+          {t('settings.runtimeCli', { name: runtime.profile })}
+        </div>
       {/if}
     </dd>
 

@@ -31,8 +31,8 @@ want schema/query knowledge without a server process, prefer
 
 ```bash
 gadak mcp
-# or a named profile:
-gadak --profile demo mcp
+# or a named workspace:
+gadak --workspace demo mcp
 ```
 
 - **stdin / stdout**: JSON-RPC frames only (one JSON object per line).
@@ -41,17 +41,18 @@ gadak --profile demo mcp
 
 The process exits when stdin closes.
 
-## Install (pin the profile)
+## Install (pin the workspace)
 
 MCP hosts do **not** inherit your shell environment. A bare `gadak mcp` in a
-client config therefore resolves the **default** profile even if you always
-`export GADAK_PROFILE=work` in the terminal. `gadak mcp install` bakes the
-current profile (global `--profile` / `GADAK_PROFILE`) and this binary's absolute
-path into the registration.
+client config therefore resolves the **default** workspace even if you always
+`export GADAK_WORKSPACE=work` in the terminal. `gadak mcp install` bakes the
+current workspace (`--workspace` / `GADAK_WORKSPACE`; `--profile` /
+`GADAK_PROFILE` still work as aliases) and this binary's absolute
+path into the registration. The argv it writes still uses `--profile`.
 
 ```bash
 gadak mcp install claude              # exec: claude mcp add gadak -- <abs> mcp
-gadak --profile demo mcp install claude
+gadak --workspace demo mcp install claude
 gadak mcp install claude --dry-run    # print the command only
 gadak mcp install cursor              # paste block for .cursor/mcp.json
 gadak mcp install codex               # paste block for ~/.codex/config.toml
@@ -82,14 +83,14 @@ it is typically `~/Library/Application Support/Claude/claude_desktop_config.json
 }
 ```
 
-### Profile
+### Named workspace
 
 ```json
 {
   "mcpServers": {
     "gadak-demo": {
       "command": "gadak",
-      "args": ["--profile", "demo", "mcp"]
+      "args": ["--workspace", "demo", "mcp"]
     }
   }
 }
@@ -139,8 +140,8 @@ gadak mcp install raycast
 
 This prints the values for Raycast → **Manage MCP Servers** → **Install New
 Server**: Name `gadak`, Transport *Standard Input/Output*, Command = this
-binary's absolute path, Arguments `mcp` (or `--profile <name> mcp` when a
-profile is set — the flag comes first, as it does on the command line).
+binary's absolute path, Arguments `mcp` (or `--workspace <name> mcp` when a
+workspace is set — the flag comes first, as it does on the command line).
 Raycast's AI/MCP features may require a paid plan.
 
 ## Tools
@@ -155,7 +156,7 @@ plus the schema in `specs/000-product/data-model.md` subsumes pre-baked queries.
 | `gadak_search` | `{query: string, limit?: number}` (aliases: `text`, `q`) | `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field, snippet}` (plain text) |
 | `gadak_issue` | `{key: string}` | Full detail (comments, history, links) plus list fields |
 | `gadak_status` | `{}` | Watermark, version, last_error, row counts |
-| `gadak_show` | `{jql}` \| `{keys: string[]}` \| `{issue}` \| `{name}` (exactly one) | `{hash, applied, unsupported, file}` — writes the process profile's ui-focus file; the running window picks it up (500 ms visible / 2 min TTL); does not open a window or return issue rows |
+| `gadak_show` | `{jql}` \| `{keys: string[]}` \| `{issue}` \| `{name}` (exactly one) | `{hash, applied, unsupported, file}` — writes the process workspace's ui-focus file; the running window picks it up (500 ms visible / 2 min TTL); does not open a window or return issue rows |
 
 ### Filtering rule (same as the CLI)
 
@@ -176,7 +177,7 @@ WHERE status_category = 'inprogress'  -- RIGHT: new | inprogress | done
 | Symptom | Check |
 | --- | --- |
 | Client fails to start the server | `which gadak`; use an absolute path in config. Run `gadak mcp` in a terminal and send a line of JSON. |
-| Tools error with “no mirror” | `gadak status --json` or `gadak init && gadak sync`. Confirm `GADAK_HOME` / `--profile` match the config. |
+| Tools error with “no mirror” | `gadak status --json` or `gadak init && gadak sync`. Confirm `GADAK_HOME` / `--workspace` match the config. |
 | Empty query results for status names | Filter on `status_category` / ids, not localized display names. |
 | Client parses garbage | Something logged to stdout. Only `gadak mcp` should own stdout; do not wrap it in a script that echoes. |
 | Truncated rows | Raise `limit` (max 1000) or select fewer columns; the result body says when it was cut. |

@@ -126,7 +126,7 @@ const toolShowDescription = `Focus the running gadak app or serve tab on a view.
 
 Pass exactly one of: jql (documented JQL subset or navigator URL), keys (issue keys, given order, cap 500), issue (one key's detail), or name (stored or synced view; same lookup as gadak views open <name>). SQL answers; show presents.
 
-Writes a local ui-focus file for this process profile and returns {hash, applied, unsupported, file}. Does not write to the mirror or to Jira.`
+Writes a local ui-focus file for this process workspace and returns {hash, applied, unsupported, file}. Does not write to the mirror or to Jira.`
 
 // Tool is one entry in tools/list.
 type Tool struct {

@@ -39,8 +39,8 @@ machine already uses. Steps:
 If there is no Atlassian account and the user wants a backlog (this repo,
 this machine, an agent-owned plan), that is a **standalone** workspace — not
 a missing Jira token. Do not invent `TODO.md` or a GitHub Issue when `gadak`
-is on PATH. If this machine already has a connected gadak profile, use a
-dedicated `--profile` so personal issues never land on the company site.
+is on PATH. If this machine already has a connected gadak workspace, use a
+dedicated `--workspace` so personal issues never land on the company site.
 
 Paste this prompt:
 
@@ -52,15 +52,15 @@ a gadak standalone workspace, file the first tickets, and show them to me.
    (or the install script in the repo README).
 2. Non-interactive, no token, no --site:
    gadak init --standalone --json
-   If a connected (Jira-site) profile already exists on this machine:
-   gadak --profile plan init --standalone --json
-   and pass `--profile plan` on every later command.
+   If a connected (Jira-site) workspace already exists on this machine:
+   gadak --workspace plan init --standalone --json
+   and pass `--workspace plan` on every later command.
 3. gadak sync
    then gadak create "first ticket title" -m "why this exists"
    Init seeds project STD and wiki space LOC and records the default
    type, so a summary is enough.
 4. gadak views open <KEY>
-5. The durable record is origin/issuetap.yaml under the profile
+5. The durable record is origin/issuetap.yaml under the workspace
    directory (`gadak doctor --json` → workspace.persist). gadak.db is
    still a disposable cache.
 6. Add the gadak usage block from docs/AGENT_SETUP.md to my agent config
@@ -161,16 +161,16 @@ so brew installs work without a checkout. Only Claude Code is supported by
 
 ## MCP (for hosts without a shell)
 
-Shortest path — pins the **current** profile into the registration so the host
+Shortest path — pins the **current** workspace into the registration so the host
 cannot silently attach to the default mirror:
 
 ```bash
 gadak mcp install claude
-# or: gadak --profile demo mcp install claude
+# or: gadak --workspace demo mcp install claude
 ```
 
 That runs the same registration the manual line below does (absolute binary
-path + optional `--profile`). Other hosts: `gadak mcp install cursor|codex|json`
+path + optional `--workspace`; `--profile` is an alias). Other hosts: `gadak mcp install cursor|codex|json`
 prints a paste block; `gadak mcp install raycast` prints the values for
 Raycast's *Install New Server* form (Raycast has no MCP config file to paste
 into, and its AI/MCP features may require a paid plan).
@@ -191,13 +191,13 @@ Or the JSON form for hosts that take a config file:
 }
 ```
 
-**Pin the profile in the registration.** `gadak mcp` serves whatever mirror the
-process environment resolves (`GADAK_HOME` / `--profile`), and MCP hosts do not
+**Pin the workspace in the registration.** `gadak mcp` serves whatever mirror the
+process environment resolves (`GADAK_HOME` / `--workspace`), and MCP hosts do not
 inherit your shell exports. If the agent should see a non-default mirror, put
 it in the command itself:
 
 ```bash
-claude mcp add gadak -- gadak --profile demo mcp
+claude mcp add gadak -- gadak --workspace demo mcp
 ```
 
 Same store, tool-shaped: see [`docs/MCP.md`](MCP.md). If the agent can run

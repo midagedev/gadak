@@ -112,6 +112,6 @@ func warnUnknownGADAK() {
 			return
 		}
 		sort.Strings(unknown)
-		fmt.Fprintf(os.Stderr, "gadak: ignoring unrecognised %s (not read; home is GADAK_HOME, profile is GADAK_PROFILE)\n", strings.Join(unknown, ", "))
+		fmt.Fprintf(os.Stderr, "gadak: ignoring unrecognised %s (not read; home is GADAK_HOME, workspace is GADAK_WORKSPACE; GADAK_PROFILE still works)\n", strings.Join(unknown, ", "))
 	})
 }

@@ -135,12 +135,12 @@ func cmdVersion(args []string) error {
 const usage = `gadak — a local-first mirror of your issue tracker
 
 Usage:
-  gadak [--profile <name>] <command>
+  gadak [--workspace <name>] <command>
 
 Commands:
   init             ` + initSummary + `
                    [--standalone] [--site] [--email] [--projects] [--spaces] [--token-file|--token-stdin] [--json]
-  config           get or set profile settings     [list|get <path>|set <path> <value>] [--json]
+  config           get or set workspace settings   [list|get <path>|set <path> <value>] [--json]
   sync             mirror the workspace origin into SQLite   [--full] [--watch] [--source jira|linear|confluence|all]
   serve            web UI + API on loopback  [--addr] [--static] [--no-sync] [--no-open] [--allow-remote]
                    (` + serveSyncDefault + `; --no-sync opts out)
@@ -151,9 +151,9 @@ Commands:
   doctor           redacted diagnostics safe to paste into a bug report [--json]
   demo             serve the bundled snapshot, no Jira account needed
   export-static    freeze demo.db into static JSON for hosted demo  <outdir>
-  profiles         list mirrors and which one this command used  [--json]
+  profiles         list workspaces (same as workspaces)  [--json]
   workspace        show the active workspace and what selected it  [--json]
-  workspaces       list workspaces (alias of profiles)  [--json]
+  workspaces       list workspaces  [--json]
   version          print version
 
 Reading the mirror (no network; see AGENTS.md):
@@ -165,7 +165,7 @@ Reading the mirror (no network; see AGENTS.md):
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
   export     dump saved views, watches, favorites as JSON  [--out FILE]
   import     restore them from a gadak export file         <FILE>
-  mcp        MCP server on stdio; mcp install <client> pins profile (docs/MCP.md)
+  mcp        MCP server on stdio; mcp install <client> pins the workspace (docs/MCP.md)
   skill      install Claude Code skill (schema + queries; no MCP process)
   raycast    install the Raycast search extension
 
@@ -188,8 +188,9 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
 Pairing other machines onto this serve (standalone):
   pairing    device tokens gating the origin passthrough  mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | list | revoke <label|hash-prefix>
 
-Profiles keep separate credentials and mirrors (e.g. work and demo):
-  gadak --profile demo init && gadak --profile demo serve --addr 127.0.0.1:7778
+Workspaces keep separate credentials and mirrors (e.g. work and demo):
+  gadak --workspace demo init && gadak --workspace demo serve --addr 127.0.0.1:7778
+  (--profile / -p still work as aliases of --workspace / -w)
 `
 
 func main() {
@@ -355,7 +356,7 @@ var commands = map[string]func([]string) error{
 	"view":            cmdViews,
 	"views":           cmdViews,
 	"workspace":       cmdWorkspace,
-	"workspaces":      cmdProfiles,
+	"workspaces":      cmdWorkspaces,
 }
 
 // commandNames returns sorted keys of commands. helps has one entry per name;

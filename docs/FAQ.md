@@ -38,7 +38,7 @@ accurately.
 
 On a connected workspace (one pointed at an Atlassian site), offboarding is
 `rm -rf ~/.gadak` — that directory is a cache of the site. On a standalone
-workspace, `origin/issuetap.yaml` in the profile directory is the original:
+workspace, `origin/issuetap.yaml` in the workspace directory is the original:
 moving or deleting that file is deleting the data. The SQLite mirror
 (`gadak.db`) is still a cache either way.
 
@@ -48,7 +48,7 @@ One person, at the moment. You should weigh that — and here is why it is
 less risky than it sounds: the mirror is a **disposable artifact of the
 origin**, not a database you migrate into. On a connected workspace, delete
 gadak and you have lost nothing but a cache of your Jira. On standalone, the
-record is `origin/issuetap.yaml` in the profile directory — plain YAML,
+record is `origin/issuetap.yaml` in the workspace directory — plain YAML,
 readable in any editor, without gadak. The storage schema is documented, and
 the part of it you can build on is promised across versions
 (`specs/000-product/data-model.md`); the code is Apache-2.0, and the mirror
@@ -81,7 +81,7 @@ To whatever model that agent talks to. gadak sends nothing anywhere, but an
 agent reading the mirror will — that is the honest trade of the whole
 category, stated plainly in [`SECURITY.md`](../SECURITY.md). Scope the mirror
 to what the agent should see (project/space allowlists, or a separate
-profile) rather than assuming the pipe is private.
+workspace) rather than assuming the pipe is private.
 
 ## How do I know "no telemetry" is true?
 

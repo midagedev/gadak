@@ -35,7 +35,7 @@ const spacesFlagUsage = `Confluence spaces: KEY,KEY… | all (every global space
 // `gadak init --help`. It has to name every workspace path: connected
 // init writes site/email/token (cmdInit); --standalone writes
 // KindStandalone with no site or credential (initStandalone, flag usage
-// in cmdInit); --pairing-code binds a fresh profile to a remote gadak
+// in cmdInit); --pairing-code binds a fresh workspace to a remote gadak
 // serve (initPaired, GDK-433).
 const initSummary = "configure a Jira site and credential (projects optional), a standalone workspace (--standalone), or pair to a remote gadak serve (--pairing-code)"
 
@@ -56,7 +56,7 @@ const writeThroughOriginPhrase = "Jira on a connected workspace (needs a credent
 var helps = map[string]cmdHelp{
 	"init": {
 		summary: initSummary,
-		usage:   "gadak [--profile <name>] init [--standalone] [--site URL] [--email ADDR] [--projects A,B] [--spaces KEYS|all|none] [--token-file PATH | --token-stdin] [--token-expires DATE] [--pairing-code OFFER | --pairing-code-stdin] [--json]",
+		usage:   "gadak [--workspace <name>] init [--standalone] [--site URL] [--email ADDR] [--projects A,B] [--spaces KEYS|all|none] [--token-file PATH | --token-stdin] [--token-expires DATE] [--pairing-code OFFER | --pairing-code-stdin] [--json]",
 		// FlagSet VisitAll supplies Options when `gadak init --help` runs; this
 		// list covers formatHelp(nil) and documents the env-only token path.
 		options: []helpOption{
@@ -70,26 +70,26 @@ var helps = map[string]cmdHelp{
 			{name: "token-stdin", desc: "read API token from stdin"},
 			{name: "token-expires", desc: "token expiry date from Atlassian's create dialog (YYYY-MM-DD or RFC3339); omit to assume 365 days from verification"},
 			{name: "token", desc: "not accepted; use GADAK_TOKEN, --token-file, or --token-stdin"},
-			{name: "pairing-code", desc: "pairing offer from the home machine's `gadak pairing mint`; binds this fresh profile to that serve as its origin (verified against the serve before anything is saved)"},
+			{name: "pairing-code", desc: "pairing offer from the home machine's `gadak pairing mint`; binds this fresh workspace to that serve as its origin (verified against the serve before anything is saved)"},
 			{name: "pairing-code-stdin", desc: "read the pairing offer from stdin (keeps the secret out of ps and shell history)"},
 			{name: "json", desc: "emit one JSON object on success"},
 		},
 		examples: []string{
 			"gadak init",
 			"gadak init --standalone",
-			"gadak --profile demo init",
+			"gadak --workspace demo init",
 			"GADAK_TOKEN=$(cat token) gadak init --site https://x.atlassian.net --email you@example.com --json",
 			"gadak init --site https://x.atlassian.net --email you@example.com --projects ABC --token-file ./token",
 			"gadak init --spaces ENG,PROD",
 			"gadak init --spaces all",
 			"gadak init --spaces none",
-			"gadak --profile home init --pairing-code-stdin <<< \"$OFFER\"",
+			"gadak --workspace home init --pairing-code-stdin <<< \"$OFFER\"",
 		},
 		seeAlso: []string{"gadak sync", "gadak profiles", "gadak pairing", "gadak config"},
 	},
 	"pairing": {
 		summary: "manage the device tokens that gate a standalone serve's origin passthrough; a paired remote machine binds with `gadak init --pairing-code`",
-		usage:   "gadak [--profile <name>] pairing mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | pairing list | pairing revoke <label|hash-prefix>",
+		usage:   "gadak [--workspace <name>] pairing mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | pairing list | pairing revoke <label|hash-prefix>",
 		options: []helpOption{
 			{name: "label", desc: "device name shown in `gadak pairing list` (required, unique among active tokens)"},
 			{name: "ttl", desc: "token lifetime: <N><d|h|m|s>, e.g. 90d (default) or 12h"},
@@ -104,13 +104,13 @@ var helps = map[string]cmdHelp{
 			"gadak pairing revoke laptop",
 			"gadak pairing revoke a1b2c3d4  # hash prefix, 8 or more hex chars from pairing list",
 			"# on the remote machine:",
-			"gadak --profile home init --pairing-code-stdin <<< \"$OFFER\"",
+			"gadak --workspace home init --pairing-code-stdin <<< \"$OFFER\"",
 		},
 		seeAlso: []string{"gadak serve", "gadak init"},
 	},
 	"config": {
-		summary: "get or set profile settings (everything the Settings dialog can edit)",
-		usage:   "gadak [--profile <name>] config [list|get <path>|set <path> <value>] [--json]",
+		summary: "get or set workspace settings (everything the Settings dialog can edit)",
+		usage:   "gadak [--workspace <name>] config [list|get <path>|set <path> <value>] [--json]",
 		options: []helpOption{
 			{name: "json", desc: "emit JSON (list and get; set prints the stored value)"},
 		},
@@ -129,31 +129,31 @@ var helps = map[string]cmdHelp{
 	},
 	"sync": {
 		summary: "mirror the workspace origin into the local SQLite database",
-		usage:   "gadak [--profile <name>] sync [--full] [--watch] [--source jira|linear|confluence|all]",
+		usage:   "gadak [--workspace <name>] sync [--full] [--watch] [--source jira|linear|confluence|all]",
 		examples: []string{
 			"gadak sync                 # incremental, what a serve loop does",
 			"gadak sync --full          # after changing projects or a mapping",
-			"gadak --profile demo sync  # against another site",
+			"gadak --workspace demo sync  # against another site",
 		},
 		seeAlso: []string{"gadak serve", "gadak status"},
 	},
 	"serve": {
 		summary: "web UI and API on loopback (" + serveSyncDefault + ")",
-		usage:   "gadak [--profile <name>] serve [options]",
+		usage:   "gadak [--workspace <name>] serve [options]",
 		examples: []string{
 			"gadak serve",
 			"gadak serve --addr 127.0.0.1:7778 --no-open",
-			"gadak --profile demo serve --no-sync",
+			"gadak --workspace demo serve --no-sync",
 		},
 		seeAlso: []string{"gadak sync", "gadak demo", "gadak install-service"},
 	},
 	"install-service": {
 		summary: "keep serve running across reboots (launchd / systemd user)",
-		usage:   "gadak [--profile <name>] install-service [--uninstall]",
+		usage:   "gadak [--workspace <name>] install-service [--uninstall]",
 		examples: []string{
 			"gadak install-service",
 			"gadak install-service --uninstall",
-			"gadak --profile work install-service",
+			"gadak --workspace work install-service",
 		},
 		seeAlso: []string{"gadak serve"},
 	},
@@ -171,21 +171,21 @@ var helps = map[string]cmdHelp{
 	},
 	"status": {
 		summary: "print sync state and row counts",
-		usage:   "gadak [--profile <name>] status [--json]",
+		usage:   "gadak [--workspace <name>] status [--json]",
 		examples: []string{
 			"gadak status",
 			"gadak status --json",
-			"gadak --profile demo status",
+			"gadak --workspace demo status",
 		},
 		seeAlso: []string{"gadak sync", "gadak sql", "gadak doctor"},
 	},
 	"doctor": {
 		summary: "print redacted diagnostics safe to paste into a bug report",
-		usage:   "gadak [--profile <name>] doctor [--json]",
+		usage:   "gadak [--workspace <name>] doctor [--json]",
 		examples: []string{
 			"gadak doctor",
 			"gadak doctor --json",
-			"gadak --profile demo doctor",
+			"gadak --workspace demo doctor",
 		},
 		seeAlso: []string{"gadak status", "gadak version"},
 	},
@@ -201,7 +201,7 @@ var helps = map[string]cmdHelp{
 	},
 	"export": {
 		summary: "dump saved views, watches, favorites, and recents as JSON (no credentials)",
-		usage:   "gadak [--profile <name>] export [--out FILE]",
+		usage:   "gadak [--workspace <name>] export [--out FILE]",
 		options: []helpOption{
 			{name: "out", desc: "write to this file instead of stdout"},
 		},
@@ -213,7 +213,7 @@ var helps = map[string]cmdHelp{
 	},
 	"import": {
 		summary: "restore saved views, watches, favorites, and recents from a gadak export file (file wins on name/key conflict)",
-		usage:   "gadak [--profile <name>] import <FILE>",
+		usage:   "gadak [--workspace <name>] import <FILE>",
 		examples: []string{
 			"gadak import gadak-personal.json",
 		},
@@ -235,7 +235,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak demo", "gadak snapshot"},
 	},
 	"profiles": {
-		summary: "list profiles: which mirrors exist, which one this command used",
+		summary: "list workspaces: which mirrors exist, which one this command used (same as workspaces)",
 		usage:   "gadak profiles [--json]",
 		examples: []string{
 			"gadak profiles",
@@ -255,7 +255,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak workspaces", "gadak profiles", "gadak status"},
 	},
 	"workspaces": {
-		summary: "list workspaces: which mirrors exist, which one this command used (alias of profiles)",
+		summary: "list workspaces: which mirrors exist, which one this command used (same as profiles)",
 		usage:   "gadak workspaces [--json]",
 		examples: []string{
 			"gadak workspaces",
@@ -265,7 +265,7 @@ var helps = map[string]cmdHelp{
 	},
 	"sql": {
 		summary: "run a read-only SQL query against the local mirror",
-		usage:   "gadak [--profile <name>] sql [--json|--csv] [--no-header] \"select ...\"",
+		usage:   "gadak [--workspace <name>] sql [--json|--csv] [--no-header] \"select ...\"",
 		options: []helpOption{
 			{name: "json", desc: "emit one JSON object per row"},
 			{name: "csv", desc: "emit CSV with a header row"},
@@ -281,7 +281,7 @@ var helps = map[string]cmdHelp{
 	},
 	"api": {
 		summary: "call Atlassian REST with the stored credential (escape hatch for endpoints the mirror does not cover)",
-		usage:   "gadak [--profile <name>] api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status]",
+		usage:   "gadak [--workspace <name>] api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status]",
 		examples: []string{
 			"gadak api /rest/api/3/myself",
 			"gadak api GET /rest/api/3/issue/ABC-1/watchers",
@@ -292,7 +292,7 @@ var helps = map[string]cmdHelp{
 	},
 	"issue": {
 		summary: "print full detail for one issue from the local mirror",
-		usage:   "gadak [--profile <name>] issue <KEY> [--json] [--derive] [--link]",
+		usage:   "gadak [--workspace <name>] issue <KEY> [--json] [--derive] [--link]",
 		examples: []string{
 			"gadak issue NMB-140",
 			"gadak issue NMB-140 --json",
@@ -302,7 +302,7 @@ var helps = map[string]cmdHelp{
 	},
 	"open": {
 		summary: "open the issue on your Jira site in the browser",
-		usage:   "gadak [--profile <name>] open <KEY>",
+		usage:   "gadak [--workspace <name>] open <KEY>",
 		examples: []string{
 			"gadak open NMB-140",
 		},
@@ -310,7 +310,7 @@ var helps = map[string]cmdHelp{
 	},
 	"view": {
 		summary: "list, show, or focus a Jira filter / saved view (alias of views)",
-		usage:   "gadak [--profile <name>] view [list|show|open|save] [--no-open] …",
+		usage:   "gadak [--workspace <name>] view [list|show|open|save] [--no-open] …",
 		examples: []string{
 			"gadak view",
 			"gadak view open \"NMA in progress\"",
@@ -319,7 +319,7 @@ var helps = map[string]cmdHelp{
 	},
 	"views": {
 		summary: "list Jira filters and saved views; open one in the running UI",
-		usage:   "gadak [--profile <name>] views [list|show <name>|open <name|KEY>|save <name> --jql '…'] [--keys …] [--json] [--no-open]",
+		usage:   "gadak [--workspace <name>] views [list|show <name>|open <name|KEY>|save <name> --jql '…'] [--keys …] [--json] [--no-open]",
 		examples: []string{
 			"gadak views",
 			"gadak views show \"NMA in progress\"",
@@ -335,7 +335,7 @@ var helps = map[string]cmdHelp{
 	},
 	"search": {
 		summary: "full-text search, or a JQL / Jira-URL filter against the mirror",
-		usage:   "gadak [--profile <name>] search [--jql] [--emit] [--limit N] [--json] [--explain] \"text|JQL|URL\"",
+		usage:   "gadak [--workspace <name>] search [--jql] [--emit] [--limit N] [--json] [--explain] \"text|JQL|URL\"",
 		examples: []string{
 			"gadak search \"flaky upload\" --limit 5",
 			"gadak search \"idempotency\" --json",
@@ -348,7 +348,7 @@ var helps = map[string]cmdHelp{
 	},
 	"comment": {
 		summary: "add a comment",
-		usage:   "gadak [--profile <name>] comment <KEY> -m <text|-> [--json]",
+		usage:   "gadak [--workspace <name>] comment <KEY> -m <text|-> [--json]",
 		examples: []string{
 			"gadak comment NMB-140 -m \"Reproduced on staging.\"",
 			"gadak comment NMB-140 -m -          # body from stdin",
@@ -358,7 +358,7 @@ var helps = map[string]cmdHelp{
 	},
 	"create": {
 		summary: "create an issue",
-		usage:   "gadak [--profile <name>] create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
+		usage:   "gadak [--workspace <name>] create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
 		examples: []string{
 			"gadak create Fix the flaky gate --project NMB --type Task -m \"repro on staging\" --label batch",
 			"gadak create 로그인 실패 --project NMB --type 작업",
@@ -370,7 +370,7 @@ var helps = map[string]cmdHelp{
 	},
 	"attach": {
 		summary: "attach files",
-		usage:   "gadak [--profile <name>] attach <KEY> <file>... [--json]",
+		usage:   "gadak [--workspace <name>] attach <KEY> <file>... [--json]",
 		examples: []string{
 			"gadak attach NMB-140 ./screenshot.png",
 			"gadak attach NMB-140 ./trace.log ./out.mp4 --json",
@@ -379,7 +379,7 @@ var helps = map[string]cmdHelp{
 	},
 	"edit": {
 		summary: "edit summary, description, labels, priority, parent, or due date",
-		usage:   "gadak [--profile <name>] edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]",
+		usage:   "gadak [--workspace <name>] edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]",
 		examples: []string{
 			"gadak edit NMB-140 --summary \"Rename without opening Jira\"",
 			"gadak edit NMB-140 --label +batch --label -legacy --priority High",
@@ -390,7 +390,7 @@ var helps = map[string]cmdHelp{
 	},
 	"page": {
 		summary: "wiki page writes through the origin (page create, edit, comment; connected Confluence or standalone issuetap)",
-		usage:   "gadak [--profile <name>] page create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--parent ID] [--version N] [--json]",
+		usage:   "gadak [--workspace <name>] page create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--parent ID] [--version N] [--json]",
 		examples: []string{
 			"gadak page create --space ENG --title \"Retention notes\" -m \"first draft\"",
 			"gadak page edit 12345 --title \"Renamed page\"",
@@ -402,7 +402,7 @@ var helps = map[string]cmdHelp{
 	},
 	"project": {
 		summary: "grow a standalone workspace by one project key (connected workspaces create projects in Jira)",
-		usage:   "gadak [--profile <name>] project create <KEY> [--name N] [--json]",
+		usage:   "gadak [--workspace <name>] project create <KEY> [--name N] [--json]",
 		examples: []string{
 			"gadak project create IDEA --name Ideas",
 			"gadak create --project IDEA \"first idea\"",
@@ -411,7 +411,7 @@ var helps = map[string]cmdHelp{
 	},
 	"transition": {
 		summary: "change issue status; accepts transition id, target status id, name, target status name, or status category new|inprogress|done",
-		usage:   "gadak [--profile <name>] transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]",
+		usage:   "gadak [--workspace <name>] transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]",
 		examples: []string{
 			"gadak transition NMB-140 \"In Review\"",
 			"gadak transition NMB-140 31",
@@ -422,7 +422,7 @@ var helps = map[string]cmdHelp{
 	},
 	"assign": {
 		summary: "set the assignee; pass - to unassign",
-		usage:   "gadak [--profile <name>] assign <KEY> <email|-> [--json]",
+		usage:   "gadak [--workspace <name>] assign <KEY> <email|-> [--json]",
 		examples: []string{
 			"gadak assign NMB-140 dana@example.com",
 			"gadak assign NMB-140 -                 # unassign",
@@ -432,7 +432,7 @@ var helps = map[string]cmdHelp{
 	},
 	"fields": {
 		summary: "report which custom fields are populated (samples the mirror; queries Jira)",
-		usage:   "gadak [--profile <name>] fields [--sample N] [--json] [--all] [--project KEY] [--apply]",
+		usage:   "gadak [--workspace <name>] fields [--sample N] [--json] [--all] [--project KEY] [--apply]",
 		options: []helpOption{
 			{name: "sample", desc: "number of mirrored issues to sample (default 200)"},
 			{name: "json", desc: "emit JSON"},
@@ -449,13 +449,13 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak status", "gadak sync", "gadak sql"},
 	},
 	"mcp": {
-		summary: "MCP server on stdio for clients without a shell; install pins the profile",
-		usage:   "gadak [--profile <name>] mcp [install <client>]",
+		summary: "MCP server on stdio for clients without a shell; install pins the workspace",
+		usage:   "gadak [--workspace <name>] mcp [install <client>]",
 		examples: []string{
 			"gadak mcp",
-			"gadak --profile demo mcp",
+			"gadak --workspace demo mcp",
 			"gadak mcp install claude",
-			"gadak --profile demo mcp install claude --dry-run",
+			"gadak --workspace demo mcp install claude --dry-run",
 			"gadak mcp install json",
 		},
 		seeAlso: []string{"gadak skill install", "gadak sql", "gadak issue", "gadak status", "gadak profiles"},
@@ -481,9 +481,9 @@ var helps = map[string]cmdHelp{
 	},
 	"snapshot": {
 		summary: "write a shareable copy of the mirror (no personal tables, no credentials)",
-		usage:   "gadak [--profile <name>] snapshot <out.db> [options]",
+		usage:   "gadak [--workspace <name>] snapshot <out.db> [options]",
 		options: []helpOption{
-			{name: "from", desc: "source database path (default: this profile's mirror)"},
+			{name: "from", desc: "source database path (default: this workspace's mirror)"},
 			{name: "spread", desc: "restate timestamps across this window, keeping every issue's own order (e.g. 90d)"},
 			{name: "scale", desc: "clone issues onto new keys until the snapshot holds this many"},
 			{name: "seed", desc: "reserved for --scale determinism (default 1)"},
@@ -499,7 +499,7 @@ var helps = map[string]cmdHelp{
 	},
 	"team": {
 		summary: "export or import shareable team settings and saved views (no credentials)",
-		usage:   "gadak [--profile <name>] team export|import …",
+		usage:   "gadak [--workspace <name>] team export|import …",
 		options: []helpOption{
 			{name: "out", desc: "export: write to this file instead of stdout"},
 			{name: "with-members", desc: "export: include members (emails)"},

@@ -13,11 +13,10 @@ gadak serve
 covers both Jira and Confluence on the same site. Then `gadak init && gadak sync`,
 or the walkthrough in [First run](#first-run).
 
-**Glossary.** A *profile* is the directory on disk (`--profile`,
-`~/.gadak/profiles/<name>/`, `gadak profiles`). A *workspace* is that same
-profile mounted on the serve origin (`GET /api/v1/workspaces`, `/w/<name>/`,
-the sidebar switcher). There is no `gadak workspaces` command — that invocation
-prints top-level usage and exits 2.
+**Glossary.** A *workspace* is one credential and mirror (`--workspace <name>`,
+`~/.gadak/profiles/<name>/`, `GET /api/v1/workspaces`, `/w/<name>/`, the
+sidebar switcher). `--profile` is an alias of `--workspace`; `gadak profiles`
+is the same command as `gadak workspaces`.
 
 ## How many things am I installing?
 
@@ -214,7 +213,7 @@ gadak create "the thing I just noticed"
 gadak serve                    # http://gadak.localhost:7777
 ```
 
-`gadak init --standalone` writes `config.json` in the profile directory
+`gadak init --standalone` writes `config.json` in the workspace directory
 (`~/.gadak/` by default, or `$GADAK_HOME`) and creates `origin/issuetap.yaml`
 there — plain YAML, the origin, the file to back up
 (`internal/origin/origin.go` `PersistRel`). It seeds project `STD` and wiki
@@ -230,8 +229,8 @@ Home `gadak serve` is the origin. Mint an offer, paste it on the remote:
 
 ```bash
 gadak pairing mint --label laptop                 # home: stdout is one offer line
-gadak --profile laptop init --pairing-code-stdin  # remote: paste the offer
-gadak --profile laptop status                     # confirm: paired with "laptop"
+gadak --workspace laptop init --pairing-code-stdin  # remote: paste the offer
+gadak --workspace laptop status                     # confirm: paired with "laptop"
 gadak pairing list                                # home: token table; remote: one status line
 gadak pairing revoke laptop                       # home only
 ```
@@ -280,16 +279,16 @@ workspace.
 
 ## Two sites at once
 
-`gadak --profile demo init` keeps a separate credential and mirror under
-`~/.gadak/profiles/demo/`. One `gadak serve` then mounts every profile as a
-workspace under `/w/<name>/` (full API, reads and writes, opened on first
+`gadak --workspace demo init` keeps a separate credential and mirror under
+`~/.gadak/profiles/demo/`. One `gadak serve` then mounts every workspace
+under `/w/<name>/` (full API, reads and writes, opened on first
 request), and when there is more than one, the web sidebar grows a WORKSPACES
 switcher. Same loopback listener, same single user — `GET /api/v1/workspaces`
 never exposes credentials. HTTP mounts are lazy (opened on first request);
-**every credentialed profile gets its own watch loop**, not just the one
+**every credentialed workspace gets its own watch loop**, not just the one
 `serve` started on — same rule as the desktop app
 ([DESKTOP.md](DESKTOP.md)). Notifications stay on the primary. The disk
-inventory is `gadak profiles`; there is no `gadak workspaces` command.
+inventory is `gadak workspaces` (same as `gadak profiles`).
 
 ## Staying current
 

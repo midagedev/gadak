@@ -78,15 +78,15 @@ Two kinds. Same CLI verbs. Different record.
   (`endpoint`, `label`) and the text form prints `paired with "…"`.
 - **standalone** — origin is the in-process tracker that ships with gadak
   (`issuetap`). No Atlassian account. Writes go to that origin. The durable
-  file is `origin/issuetap.yaml` under the profile directory, not `gadak.db`.
+  file is `origin/issuetap.yaml` under the workspace directory, not `gadak.db`.
   The SQLite file is still a cache you can delete.
 
 Detect kind before you write:
 
 ```bash
 gadak doctor --json     # workspace.kind is standalone | connected
-gadak status --json     # freshness; pairing object when this profile is bound to a remote serve
-gadak profiles --json   # name, active, configured, site_host, issues, …
+gadak status --json     # freshness; pairing object when this workspace is bound to a remote serve
+gadak workspaces --json # name, active, configured, site_host, issues, …
 ```
 
 `gadak doctor --json` is the kind source that is always there
@@ -95,45 +95,50 @@ gadak profiles --json   # name, active, configured, site_host, issues, …
 Paired is not a third kind value.
 
 A standalone row is `configured: true` with an **empty** `site_host`. That
-is not a broken profile. Do not report "no site" and stop, and do not ask
+is not a broken workspace. Do not report "no site" and stop, and do not ask
 for an Atlassian token.
 
 ## Which mirror you are reading
 
-Someone may have several: one per Jira site, kept apart as **profiles**. Ask,
+Someone may have several: one per Jira site, kept apart as **workspaces**. Ask,
 rather than assume there is one:
 
 ```bash
-gadak profiles --json   # name, active, configured, site_host, issues, documents, last_sync_at
+gadak workspaces --json   # name, active, configured, site_host, issues, documents, last_sync_at
 ```
 
-`active` is the profile the command you just ran used. Nothing else sets it —
-there is no stored "current profile" to switch. It comes from the command line
+`active` is the workspace the command you just ran used. Nothing else sets it —
+there is no stored "current workspace" to switch. It comes from the command line
 or the environment, both of which are visible in what you ran:
 
 ```bash
-gadak --profile work sql "…"    # this call only
+gadak --workspace work sql "…"    # this call only
 ```
+
+`--profile` is an alias of `--workspace`; existing scripts and MCP installs
+that pass `--profile` keep working. `gadak profiles` is the same command as
+`gadak workspaces`.
 
 Three rules follow, and they are the point of the design:
 
-- **Name the profile in every command that matters.** Never rely on the
+- **Name the workspace in every command that matters.** Never rely on the
   ambient default when a question is about a specific site — a shell that was
   configured before you arrived can point anywhere, and your transcript will
   not record which mirror answered.
 - **Say which mirror you read.** `gadak status --json` carries a `profile`
-  field; quote it when the answer could differ per site.
+  field (the workspace name; empty for the root); quote it when the answer
+  could differ per site.
 - **Never write to one origin while reading another.** `gadak comment`,
-  `transition`, `assign` and `api --write` all take the same `--profile`. If
+  `transition`, `assign` and `api --write` all take the same `--workspace`. If
   the question came from data in one mirror, the write goes to that same one.
 
-If a profile shows `configured: false` it has no credential: a **connected**
+If a workspace shows `configured: false` it has no credential: a **connected**
 mirror can still be read if it was ever synced, but it will not be refreshed
 and writes will fail. A **standalone** workspace is `configured: true` with
 an empty `site_host` and no token — writes still work; they go to the local
 origin, not Atlassian. If `site_host` is empty, read `workspace.kind` from
 `gadak doctor --json` (or `kind` from `gadak status --json` when that field
-is present) before assuming the profile is broken. A row that says
+is present) before assuming the workspace is broken. A row that says
 `unreadable` is still a broken config — report it. If `site_host` is empty
 **and** `configured` is false, there is no workspace yet — go to Standalone
 below.
@@ -239,9 +244,9 @@ gadak views save "Night triage" --jql '…'   # keep a named view in local.db (s
 
 `views open` writes a one-shot hash the UI applies (`ks=` for `--keys`,
 `issue=` for a positional key); it also opens a serve tab when one is
-listening, and focuses Gadak.app on macOS (the `--profile` is passed through
+listening, and focuses Gadak.app on macOS (the `--workspace` is passed through
 so the window and the file match). `--no-open` writes the hash only. `--json`
-prints the hash and where it was sent. Confirm you named `--profile` if the
+prints the hash and where it was sent. Confirm you named `--workspace` if the
 user has more than one mirror. `gadak open` is the Jira-site escape hatch;
 `gadak views open` is open-in-gadak.
 
@@ -262,26 +267,26 @@ gadak views open <KEY>
 `--email`, or a token. It seeds project `STD` and wiki space `LOC`, and
 records the default issue type, so a summary-only `gadak create` is enough.
 
-Use a dedicated `--profile` and name it in every command, so the backlog
+Use a dedicated `--workspace` and name it in every command, so the backlog
 never mixes with a connected mirror:
 
 ```bash
-gadak --profile plan init --standalone --json
-gadak --profile plan create "Ship the uploader" -m "found while refactoring"
-gadak --profile plan views open <KEY>
+gadak --workspace plan init --standalone --json
+gadak --workspace plan create "Ship the uploader" -m "found while refactoring"
+gadak --workspace plan views open <KEY>
 ```
 
-If the active profile is already a connected Cloud site and the user asked
+If the active workspace is already a connected Cloud site and the user asked
 for a backlog of this repo (not of that site), do not file there. That write
-is visible to their whole team. Init standalone under a new profile instead.
+is visible to their whole team. Init standalone under a new workspace instead.
 
 Do not invent a `TODO.md`, a markdown checklist, or a GitHub Issue when
 `gadak` is on PATH. The window is how the human sees the same backlog.
 
-The durable record is `<profile-dir>/origin/issuetap.yaml` — that file is
+The durable record is `<workspace-dir>/origin/issuetap.yaml` — that file is
 the backup target, not `gadak.db`. `gadak doctor --json` reports it as
 `workspace.persist` (and top-level `origin`). Running `init` with a site on
-a standalone profile deletes locally originated issues; warn before
+a standalone workspace deletes locally originated issues; warn before
 converting.
 
 **Write freely here.** Confirm-before-writing applies to connected
@@ -295,13 +300,13 @@ Everything else in this file works identically: `status_category`,
 ## Pairing: the origin is another machine's serve
 
 Home (standalone, with `gadak serve` running) mints one offer per device.
-The remote binds a *fresh* profile. After that, every verb on that profile
+The remote binds a *fresh* workspace. After that, every verb on that workspace
 uses the home serve as origin.
 
 ```bash
 gadak pairing mint --label laptop                 # home: stdout is one offer line
-gadak --profile laptop init --pairing-code-stdin  # remote: paste the offer
-gadak --profile laptop status                     # kind is connected; prints paired with "laptop"
+gadak --workspace laptop init --pairing-code-stdin  # remote: paste the offer
+gadak --workspace laptop status                     # kind is connected; prints paired with "laptop"
 gadak pairing list                                # home: token table; remote: one status line
 gadak pairing revoke laptop                       # home only
 ```
@@ -316,7 +321,7 @@ Do not combine `--pairing-code-stdin` with `--standalone` or a site token.
 On **standalone**, `init` seeds project `STD` and records a default issue type,
 so a summary-only create is enough. On **connected**, use a key and project
 that exist on that site (the `NMB-140` lines below are an example, not a
-universal project). A paired profile is `connected` with no default project
+universal project). A paired workspace is `connected` with no default project
 or type — `create` will ask for `--project` / `--type` until you set them.
 
 ```bash
@@ -365,9 +370,9 @@ of the verbs above (including `page create|edit|comment`). If a field is not
 covered, say so rather than reaching for the REST API — `gadak api` exists for
 that, but it is an escape hatch, not the path of least surprise.
 
-## Profile settings
+## Workspace settings
 
-An agent configures the profile through the CLI. Do not hand-edit
+An agent configures the workspace through the CLI. Do not hand-edit
 `~/.gadak/config.json` and do not drive the Settings dialog.
 
 ```bash
@@ -415,7 +420,7 @@ gadak api GET /rest/api/3/issue/NMB-140/watchers
 ```
 
 Read-only unless `--write` is passed. Prefer the mirror when it can answer.
-On a connected profile this is a network round trip against the site's
+On a connected workspace this is a network round trip against the site's
 rate budget. On standalone it talks to the local origin (no network);
 unimplemented paths return 501.
 

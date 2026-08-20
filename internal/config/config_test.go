@@ -85,8 +85,8 @@ func TestDirForRejectsPathEscape(t *testing.T) {
 			t.Errorf("DirFor(%q) = %q, want error (path escapes %q)", name, got, home)
 			continue
 		}
-		if !strings.Contains(err.Error(), "invalid profile name") {
-			t.Errorf("DirFor(%q) error %v, want invalid profile name", name, err)
+		if !strings.Contains(err.Error(), "invalid workspace name") {
+			t.Errorf("DirFor(%q) error %v, want invalid workspace name", name, err)
 		}
 		if got != "" {
 			t.Errorf("DirFor(%q) returned path %q with error, want empty", name, got)
@@ -506,12 +506,12 @@ func TestRequireExistingProfileMissingListsAvailable(t *testing.T) {
 		t.Fatal("missing named profile must error")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, `profile "nosuch" not found`) {
-		t.Errorf("error %q, want profile not found", msg)
+	if !strings.Contains(msg, `workspace "nosuch" not found`) {
+		t.Errorf("error %q, want workspace not found", msg)
 	}
-	// The hint must be pasteable: --profile is a global flag, so it goes
+	// The hint must be pasteable: --workspace is a global flag, so it goes
 	// before init (GDK-451 — the old `init --profile` form exits 2).
-	if !strings.Contains(msg, `gadak --profile "nosuch" init`) {
+	if !strings.Contains(msg, `gadak --workspace "nosuch" init`) {
 		t.Errorf("error %q, want pasteable init hint", msg)
 	}
 	if !strings.Contains(msg, "available: demo, work") {

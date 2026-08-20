@@ -404,15 +404,15 @@ func validProfileName(name string) error {
 	}
 	switch {
 	case name == "." || name == "..":
-		return fmt.Errorf("invalid profile name %q: cannot be %q", name, name)
+		return fmt.Errorf("invalid workspace name %q: cannot be %q", name, name)
 	case strings.ContainsRune(name, 0):
-		return fmt.Errorf("invalid profile name %q: contains a null byte", name)
+		return fmt.Errorf("invalid workspace name %q: contains a null byte", name)
 	case strings.ContainsAny(name, `/\`):
-		return fmt.Errorf("invalid profile name %q: contains a path separator", name)
+		return fmt.Errorf("invalid workspace name %q: contains a path separator", name)
 	case len(name) > maxProfileNameLen:
-		return fmt.Errorf("invalid profile name %q: longer than %d characters", name, maxProfileNameLen)
+		return fmt.Errorf("invalid workspace name %q: longer than %d characters", name, maxProfileNameLen)
 	case !profileNameRe.MatchString(name):
-		return fmt.Errorf("invalid profile name %q: must start with a letter or digit and contain only letters, digits, '.', '_' or '-'", name)
+		return fmt.Errorf("invalid workspace name %q: must start with a letter or digit and contain only letters, digits, '.', '_' or '-'", name)
 	}
 	return nil
 }
@@ -489,7 +489,7 @@ func RequireExistingProfile() error {
 	fi, err := os.Stat(d)
 	if err == nil {
 		if !fi.IsDir() {
-			return fmt.Errorf("profile %q is not a directory (%s)", name, d)
+			return fmt.Errorf("workspace %q is not a directory (%s)", name, d)
 		}
 		return nil
 	}
@@ -501,10 +501,10 @@ func RequireExistingProfile() error {
 		names = nil
 	}
 	sort.Strings(names)
-	// --profile is a global flag and sits before the subcommand; `init
-	// --profile X` is rejected by init's own flag parse (GDK-451), so the
+	// --workspace is a global flag and sits before the subcommand; `init
+	// --workspace X` is rejected by init's own flag parse (GDK-451), so the
 	// recovery hint must be pasteable exactly as printed.
-	msg := fmt.Sprintf("profile %q not found; run gadak --profile %q init", name, name)
+	msg := fmt.Sprintf("workspace %q not found; run gadak --workspace %q init", name, name)
 	if len(names) > 0 {
 		msg += fmt.Sprintf(" (available: %s)", strings.Join(names, ", "))
 	}

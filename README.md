@@ -163,7 +163,7 @@ Connected talks to Atlassian Cloud. Standalone (from 0.16) is a workspace
 with no Atlassian account — a minimal Jira origin that travels with the
 app. The mirror is a cache either way; every write goes through the origin.
 On standalone the durable file is the origin's persist file — issuetap.yaml
-in the profile's origin folder; back up that one file.
+in the workspace's origin folder; back up that one file.
 
 | | Connected (Atlassian Cloud) | Standalone (from 0.16) |
 | --- | :---: | :---: |
@@ -189,7 +189,7 @@ in the profile's origin folder; back up that one file.
 
 **Linear.** A Linear workspace mirrors and writes through the same
 verbs: add a `"linear"` block (`apiKey`, optional `teamIds`) to the
-profile's `config.json` and run `gadak sync --source linear`. Writes
+workspace's `config.json` and run `gadak sync --source linear`. Writes
 route by the mirror's source for the key — comment, transition (the
 team's workflow states, id-keyed), summary/priority/due-date edits,
 assign/unassign, and file attachments all pass through Linear's API and
@@ -207,7 +207,7 @@ One paste per host: [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md).
 ```bash
 gadak skill install         # schema + query patterns, no extra process
 # or, for hosts without a shell (Claude Desktop):
-gadak mcp install claude    # pins this binary and profile into the registration
+gadak mcp install claude    # pins this binary and workspace into the registration
 ```
 
 Both installs (and the Raycast one) are also buttons in the macOS app,
@@ -300,13 +300,13 @@ gadak serve      # http://gadak.localhost:7777
 
 ```bash
 gadak pairing mint --label laptop                 # home: stdout is one offer line
-gadak --profile laptop init --pairing-code-stdin  # remote: paste the offer
-gadak --profile laptop status                     # confirm: paired with "laptop"
+gadak --workspace laptop init --pairing-code-stdin  # remote: paste the offer
+gadak --workspace laptop status                     # confirm: paired with "laptop"
 gadak pairing list                                # home: token table; remote: one status line
 gadak pairing revoke laptop                       # home only
 ```
 
-`_home` is this machine's routing token, not a device (`revoke` refuses it; `mint --label _home` rotates). Same verbs on the remote; a `pairing:` error is the whole message. The gate is in [`SECURITY.md`](SECURITY.md).
+`_home` is this machine's routing token, not a device (`revoke` refuses it; `mint --label _home` rotates). Same verbs on the remote; a `pairing:` error is the whole message. `--profile` is an alias of `--workspace`. The gate is in [`SECURITY.md`](SECURITY.md).
 
 Already have Jira:
 
@@ -363,7 +363,7 @@ real guest.
 
 </details>
 
-Install script, release archive, source, Docker, wiki mirroring, profiles,
+Install script, release archive, source, Docker, wiki mirroring, workspaces,
 upgrades: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 
 ## The rest

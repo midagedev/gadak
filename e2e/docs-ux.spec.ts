@@ -375,7 +375,7 @@ test.describe('documents in the daily loop', () => {
     // missing feature looked the same. It now says which, and offers the switch.
     const confluence = sources.getByTestId('sources-confluence')
     await expect(confluence).toBeVisible()
-    await expect(confluence).toContainText('Off for this profile')
+    await expect(confluence).toContainText('Off for this workspace')
     await expect(confluence.getByTestId('confluence-turn-off')).toHaveCount(0)
     const turnOn = confluence.getByTestId('confluence-turn-on')
     await expect(turnOn).toBeVisible()

@@ -40,8 +40,15 @@ type profileEntry struct {
 	hasMirror bool
 }
 
-func cmdProfiles(args []string) error {
-	fs := newFlagSet("profiles")
+// Both `gadak workspaces` and its alias `gadak profiles` run this. The
+// invoked name is threaded through so `--help` describes the command the
+// user actually typed: `gadak workspaces --help` used to render the
+// `profiles` entry, which is the confusion the two names exist to avoid.
+func cmdProfiles(args []string) error   { return listWorkspaces("profiles", args) }
+func cmdWorkspaces(args []string) error { return listWorkspaces("workspaces", args) }
+
+func listWorkspaces(name string, args []string) error {
+	fs := newFlagSet(name)
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -260,8 +267,8 @@ func printProfilesText(inv profileInventory) {
 			}
 		}
 	}
-	fmt.Println("* = the profile this command ran against. Target another one per command with")
-	fmt.Printf("  `gadak --profile %s <cmd>`, or for this shell with `export GADAK_PROFILE=%s`.\n",
+	fmt.Println("* = the workspace this command ran against. Target another one per command with")
+	fmt.Printf("  `gadak --workspace %s <cmd>`, or for this shell with `export GADAK_WORKSPACE=%s`.\n",
 		example, example)
 }
 

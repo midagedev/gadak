@@ -189,7 +189,7 @@ Connected는 Atlassian Cloud와 대화합니다. Standalone(0.16부터)은 Atlas
 7. Jira의 알림함, 알림 규칙, 이메일은 미러링하지 않습니다. gadak은 macOS·Linux에서 자체 watch-피드 OS 알림을 갖고 있습니다.
 
 **Linear.** Linear 워크스페이스도 같은 동사로 미러링하고 write-through
-합니다: 프로필 `config.json`에 `"linear"` 블록(`apiKey`, 선택 `teamIds`)을
+합니다: 워크스페이스 `config.json`에 `"linear"` 블록(`apiKey`, 선택 `teamIds`)을
 넣고 `gadak sync --source linear`. 쓰기는 키의 미러 source로 라우팅됩니다 —
 코멘트, 상태 전환(팀 워크플로 상태, id 기준), 요약/우선순위/마감일 편집,
 담당자 지정/해제, 파일 첨부가 전부 Linear API를 통과한 뒤 미러 행을
@@ -206,7 +206,7 @@ gadak이 존재하는 이유의 절반입니다. 레퍼런스: **[AGENTS.md](AGE
 ```bash
 gadak skill install         # 스키마 + 쿼리 패턴, 별도 프로세스 없음
 # 또는, 셸이 없는 호스트(Claude Desktop)라면:
-gadak mcp install claude    # 이 바이너리와 프로필을 등록에 고정
+gadak mcp install claude    # 이 바이너리와 워크스페이스를 등록에 고정
 ```
 
 두 설치(그리고 Raycast까지)는 macOS 앱에서는 버튼이기도 합니다 — 설치
@@ -301,13 +301,13 @@ gadak serve      # http://gadak.localhost:7777
 
 ```bash
 gadak pairing mint --label laptop                 # 홈: stdout이 오퍼 한 줄
-gadak --profile laptop init --pairing-code-stdin  # 원격: 오퍼를 붙여넣기
-gadak --profile laptop status                     # 확인: paired with "laptop"
+gadak --workspace laptop init --pairing-code-stdin  # 원격: 오퍼를 붙여넣기
+gadak --workspace laptop status                     # 확인: paired with "laptop"
 gadak pairing list                                # 홈: 토큰 표; 원격: 상태 한 줄
 gadak pairing revoke laptop                       # 홈에서만
 ```
 
-`_home`은 이 머신의 라우팅 토큰이지 디바이스가 아닙니다(`revoke`는 거절하고, `mint --label _home`이 회전합니다). 원격에서도 동사는 같고, `pairing:`으로 시작하는 오류는 그 문장 전체가 메시지입니다. 게이트는 [`SECURITY.md`](SECURITY.md).
+`_home`은 이 머신의 라우팅 토큰이지 디바이스가 아닙니다(`revoke`는 거절하고, `mint --label _home`이 회전합니다). 원격에서도 동사는 같고, `pairing:`으로 시작하는 오류는 그 문장 전체가 메시지입니다. `--profile`은 `--workspace`의 별칭입니다. 게이트는 [`SECURITY.md`](SECURITY.md).
 
 이미 Jira가 있으면:
 
@@ -363,7 +363,7 @@ Arch 리눅스: 검증된 `PKGBUILD`가
 
 </details>
 
-설치 스크립트, 릴리스 아카이브, 소스 빌드, Docker, 위키 미러링, 프로필,
+설치 스크립트, 릴리스 아카이브, 소스 빌드, Docker, 위키 미러링, 워크스페이스,
 업그레이드: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 
 ## 나머지

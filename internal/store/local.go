@@ -216,7 +216,7 @@ func warnLocalNewerSchema(path string, have, want int) {
 		localNewerSchemaWarnsSuppressed.Add(1)
 		return
 	}
-	log.Printf("store: local.db: %s: schema version %d is newer than this build of gadak supports (%d); leaving personal history as-is; upgrade gadak, or use a different --profile / GADAK_HOME", path, have, want)
+	log.Printf("store: local.db: %s: schema version %d is newer than this build of gadak supports (%d); leaving personal history as-is; upgrade gadak, or use a different --workspace / GADAK_HOME", path, have, want)
 }
 
 func schemaAttached(conn sqlite.ExecQuerierContext, name string) bool {

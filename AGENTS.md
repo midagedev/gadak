@@ -8,12 +8,13 @@ Two audiences. Pick your half:
 
 ## Using the mirror
 
-gadak keeps a local SQLite mirror of Jira at `~/.gadak/gadak.db` (`--profile x` puts
-it under `~/.gadak/profiles/x/`). The origin is a Jira site, or — with no
+gadak keeps a local SQLite mirror of Jira at `~/.gadak/gadak.db` (`--workspace x` puts
+it under `~/.gadak/profiles/x/`). `--profile` is an alias of `--workspace`.
+The origin is a Jira site, or — with no
 Atlassian account — an in-process tracker (`gadak init --standalone`), or
 another machine's `gadak serve` bound with `gadak init --pairing-code-stdin`.
 Reads never touch the network. Writes go to the origin (Jira on a connected
-profile, the local origin on a standalone one, the home serve on a paired one)
+workspace, the local origin on a standalone one, the home serve on a paired one)
 and re-read the issue into the mirror afterwards. Kind lives on
 `gadak doctor --json` (`workspace.kind` is `standalone` or `connected`; a paired
 workspace is `connected` plus a `pairing` object on `gadak status --json`). If
@@ -166,7 +167,7 @@ Pipe keys from (9) into the running UI: `gadak sql --no-header "select key from 
 Rules that come with the file:
 
 - **Never write to the database.** Writes go through the origin (Jira on a
-  connected profile, the local origin on a standalone one); a row written
+  connected workspace, the local origin on a standalone one); a row written
   directly is destroyed by the next sync. There is no exception for "just a
   label".
 - **Do not depend on `issues.raw`.** It is an escape hatch shaped by Jira's API,
@@ -184,7 +185,7 @@ serve tab). The names collide; the verbs do not.
 forward now. When you would rather offer than act, or you are on a host with
 no shell, use the link instead: every `views open` prints a `deeplink` line
 (and a `"deeplink"` field under `--json`) of the form
-`gadak://view/w/<profile>?<hash>`. Put that in your message and the person
+`gadak://view/w/<name>?<hash>`. Put that in your message and the person
 decides when to click. Unlike the `web` field beside it, it is always there —
 `web` needs a `serve` already listening to know which port to name, and is
 empty otherwise. Opening one needs the macOS desktop app installed.
@@ -223,12 +224,12 @@ gadak fields                          # custom-field usage on a sample (needs cr
 gadak fields --sample 100 --project NMB --json
 
 gadak team export --out gadak-team.json   # share views, fieldMap, group rules (no credentials)
-gadak team import gadak-team.json         # merge into this profile; try --dry-run first
+gadak team import gadak-team.json         # merge into this workspace; try --dry-run first
 
 gadak sync                            # incremental; --full re-fetches everything
 gadak status --json
 gadak sql --json "select count(*) from issues where reopen_count > 0"
-gadak --profile demo status           # separate credential and mirror per profile
+gadak --workspace demo status         # separate credential and mirror per workspace
 ```
 
 Keystroke-driven clients (a typeahead UI, Raycast) should not send every IME
@@ -242,8 +243,8 @@ Text output for a search result or a write is one tab-separated line —
 `key`, `status`, `assignee`, `summary` — so `cut -f1` gives you keys. `--json` on
 a write answers `{"issue": {…IssueLite}}`, plus `"comment"` for `comment`.
 
-Writes go through the origin: a **connected** profile needs a credential and
-fails before calling Jira without one; a **standalone** profile has no site
+Writes go through the origin: a **connected** workspace needs a credential and
+fails before calling Jira without one; a **standalone** workspace has no site
 token and writes still succeed (`gadak init --standalone --json`). `gadak init`
 takes the whole setup non-interactively, so an agent never has to drive a
 prompt — it only falls back to asking when stdin is a terminal *and* nothing was
@@ -257,14 +258,14 @@ gadak init --standalone --json
 ```
 
 **Pairing.** A standalone home running `gadak serve` mints a device offer;
-a remote machine binds a *fresh* profile. Same CLI verbs after that; the
+a remote machine binds a *fresh* workspace. Same CLI verbs after that; the
 origin is the home serve. `workspace.kind` stays `connected`. If a command
 fails with a `pairing:` prefix, show that error — do not invent a retry.
 
 ```bash
 gadak pairing mint --label laptop                 # home: stdout is one offer line
-gadak --profile laptop init --pairing-code-stdin  # remote: paste the offer
-gadak --profile laptop status                     # confirm: paired with "laptop"
+gadak --workspace laptop init --pairing-code-stdin  # remote: paste the offer
+gadak --workspace laptop status                     # confirm: paired with "laptop"
 gadak pairing list                                # home: token table; remote: one status line
 gadak pairing revoke laptop                       # home only
 ```
@@ -340,13 +341,13 @@ only for hosts that cannot spawn `gadak sql` / `gadak issue` as one-shot process
 
 ```bash
 gadak mcp                          # stdio JSON-RPC; logs go to stderr only
-gadak --profile demo mcp
+gadak --workspace demo mcp
 ```
 
 Five tools: `gadak_query` (read-only SQL), `gadak_search`, `gadak_issue`,
 `gadak_status`, `gadak_show`. MCP does not write to the mirror or to Jira;
 `gadak_show` writes a local ui-focus file so the running app presents the set
-(SQL answers; show presents). Setup examples (Claude Desktop config, profiles,
+(SQL answers; show presents). Setup examples (Claude Desktop config, workspaces,
 troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
 
 ## Developing gadak

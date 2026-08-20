@@ -361,7 +361,7 @@ export const ko = {
   'sidebar.docsSpacesTitle': '스페이스 하나씩 살펴보기',
   'sidebar.docsToggleNode': '{title} 하위 문서',
   'sidebar.workspaces': '워크스페이스',
-  'sidebar.workspaceUnreadable': '프로필 설정을 읽을 수 없음',
+  'sidebar.workspaceUnreadable': '워크스페이스 설정을 읽을 수 없음',
   'sidebar.settings': '설정',
   'sidebar.serverSettings': '서버 설정 (프로젝트·기능·팀·필드 매핑)',
   'sidebar.jiraCreds': 'Jira 자격증명 설정',
@@ -748,7 +748,7 @@ export const ko = {
   'settings.aboutEmail': '이메일',
   'settings.aboutX': '@midagedev on X',
   'settings.intro':
-    '이 프로필이 미러링할 대상, 동기화 주기, 켤 기능을 정합니다. 저장하면 이 창을 다시 읽습니다.',
+    '이 워크스페이스가 미러링할 대상, 동기화 주기, 켤 기능을 정합니다. 저장하면 이 창을 다시 읽습니다.',
   'settings.loading': '불러오는 중…',
   'settings.loadFailed': '설정을 불러오지 못했습니다.',
   'settings.saveFailed': '설정 저장에 실패했습니다.',
@@ -763,7 +763,7 @@ export const ko = {
     '선택 없음 — 이 계정이 볼 수 있는 모든 프로젝트가 미러링됩니다.',
   'settings.confluenceTitle': 'Confluence',
   'settings.confluenceOffHint':
-    '이 프로필에서는 꺼져 있어 위키 문서가 미러링되지 않습니다. 아래에서 스페이스를 고르면 시작되고, 팀 스페이스 전체로 켤 수도 있습니다.',
+    '이 워크스페이스에서는 꺼져 있어 위키 문서가 미러링되지 않습니다. 아래에서 스페이스를 고르면 시작되고, 팀 스페이스 전체로 켤 수도 있습니다.',
   'settings.confluenceOnHint': '위키 문서가 이슈와 함께 미러링됩니다.',
   'settings.confluenceTurnOnCount': '{n}개 스페이스로 켜기',
   'settings.confluenceTurnOnAll': '전체 팀 스페이스로 켜기',
@@ -819,7 +819,8 @@ export const ko = {
   'settings.workspaceStandaloneHint':
     'Jira 계정 없이 쓰는 워크스페이스입니다. 원본은 이 컴퓨터의 issuetap persist 파일이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
   'settings.standaloneHow': '독립 워크스페이스 만들기',
-  'settings.runtimeProfile': '프로필',
+  'settings.runtimeProfile': '워크스페이스',
+  'settings.runtimeCli': 'gadak --workspace {name}',
   'settings.runtimeDb': '미러 DB',
   'settings.runtimeConfig': '설정 파일',
   'settings.runtimeCounts': '행 수',
@@ -944,7 +945,7 @@ export const ko = {
   'settings.locale': '언어',
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
-  'settings.standaloneCommandHint': '<name>은 직접 정하는 프로필 이름입니다.',
+  'settings.standaloneCommandHint': '<name>은 직접 정하는 워크스페이스 이름입니다.',
 
   /* ── Theme (per-browser; settings + palette) ── */
   'theme.label': '테마',
@@ -1105,7 +1106,7 @@ export const ko = {
     '이 워크스페이스는 독립 워크스페이스이며 여기서만 존재하는 로컬 원본 이슈 또는 페이지가 {n}개 있습니다. 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 미러에서 그 이슈 또는 페이지들이 즉시 삭제됩니다.',
   'onboarding.standalonePersist': '원본 persist 파일: {path}',
   'onboarding.standaloneOtherWorkspace':
-    '사이트는 별도 워크스페이스에 연결하세요: gadak --profile <name> init (워크스페이스 목록은 gadak profiles).',
+    '사이트는 별도 워크스페이스에 연결하세요: gadak --workspace <name> init (워크스페이스 목록은 gadak workspaces).',
   'onboarding.standaloneReplaceConfirm':
     '그래도 이 워크스페이스를 교체합니다. 전환하면 미러에서 이 이슈 또는 페이지들이 즉시 삭제됩니다.',
   'onboarding.standaloneReplace': '교체하고 연결',

@@ -11,7 +11,7 @@ import { gotoApp, openServerSettings } from './helpers'
  * (GDK-178: a toast that lies is worse than a button that fails aloud).
  */
 
-const STANDALONE_INIT_COMMAND = 'gadak --profile <name> init --standalone'
+const STANDALONE_INIT_COMMAND = 'gadak --workspace <name> init --standalone'
 
 async function serveWorkspaceKind(
   page: Page,

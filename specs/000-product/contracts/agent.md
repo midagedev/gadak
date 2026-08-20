@@ -95,7 +95,7 @@ the fallback path, not the preferred one. Docs and client config: `docs/MCP.md`.
 
 ```bash
 gadak mcp                     # stdio JSON-RPC 2.0; stdout is frames only
-gadak --profile demo mcp
+gadak --workspace demo mcp
 ```
 
 Implemented as a thin stdlib server (`internal/mcp`) over the same schema. No
@@ -110,7 +110,7 @@ file as `gadak views open`); SQL answers; show presents.
 | `gadak_search` | `{query, limit?}` (aliases: `text`, `q`) → `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field: title\|body\|comment, snippet}` plain text |
 | `gadak_issue` | `{key}` → full detail including comments and history (plus list fields) |
 | `gadak_status` | `{}` → sync state (watermark, version, last_error, counts) |
-| `gadak_show` | `{jql}` \| `{keys}` \| `{issue}` \| `{name}` (exactly one) → `{hash, applied, unsupported, file}`. Writes the process profile's ui-focus file; does not open a window; does not return issue rows |
+| `gadak_show` | `{jql}` \| `{keys}` \| `{issue}` \| `{name}` (exactly one) → `{hash, applied, unsupported, file}`. Writes the process workspace's ui-focus file; does not open a window; does not return issue rows |
 
 Tool execution failures (bad SQL, missing key, no mirror) return
 `isError: true` with a readable message so the agent can fix and retry.

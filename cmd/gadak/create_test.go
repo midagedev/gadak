@@ -548,7 +548,7 @@ func TestCreateIsRegisteredAndHelpMentionsNonEnglishType(t *testing.T) {
 	if !ok {
 		t.Fatal("create missing from helps")
 	}
-	if !strings.Contains(h.usage, "gadak [--profile <name>] create") {
+	if !strings.Contains(h.usage, "gadak [--workspace <name>] create") {
 		t.Errorf("usage: %s", h.usage)
 	}
 	joined := strings.Join(h.examples, "\n")

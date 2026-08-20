@@ -266,21 +266,21 @@ func TestProfilesTextStarAndFooter(t *testing.T) {
 		if strings.HasPrefix(line, "*") && strings.Contains(line, "demo") {
 			foundStar = true
 		}
-		if strings.HasPrefix(line, "*") && strings.Contains(line, "default") && !strings.Contains(line, "the profile") {
+		if strings.HasPrefix(line, "*") && strings.Contains(line, "default") && !strings.Contains(line, "the workspace") {
 			t.Errorf("default should not be starred when demo is active:\n%s", line)
 		}
 	}
 	if !foundStar {
 		t.Fatalf("expected * on demo row:\n%s", out)
 	}
-	if !strings.Contains(out, "* = the profile this command ran against") {
+	if !strings.Contains(out, "* = the workspace this command ran against") {
 		t.Fatalf("missing footer guidance:\n%s", out)
 	}
-	if !strings.Contains(out, "export GADAK_PROFILE=work") {
-		t.Fatalf("missing GADAK_PROFILE hint:\n%s", out)
+	if !strings.Contains(out, "export GADAK_WORKSPACE=work") {
+		t.Fatalf("missing GADAK_WORKSPACE hint:\n%s", out)
 	}
 	// blank line before footer
-	if !strings.Contains(out, "\n\n* = the profile") {
+	if !strings.Contains(out, "\n\n* = the workspace") {
 		t.Fatalf("expected blank line before footer:\n%s", out)
 	}
 	// secrets stay out of text too

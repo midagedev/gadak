@@ -1,23 +1,24 @@
 # Configuration reference
 
-**Glossary.** A *profile* is the directory on disk (`gadak --profile x` or
-`GADAK_PROFILE=x` moves both `config.json` and the mirror under
-`~/.gadak/profiles/<name>/`). A *workspace* is that same profile mounted on
-the serve origin (`/w/<name>/`, `GET /api/v1/workspaces`, the sidebar
-switcher). There is no `gadak workspaces` command — that invocation prints
-top-level usage and exits 2.
+**Glossary.** A *workspace* is one origin and one mirror, kept apart from
+every other. `gadak --workspace x` (or `GADAK_WORKSPACE=x`) moves both
+`config.json` and the mirror under `~/.gadak/profiles/<name>/`, and the same
+workspace is what `gadak serve` mounts at `/w/<name>/` and what the sidebar
+switcher lists. `gadak workspaces` lists them; `--profile`, `GADAK_PROFILE`
+and `gadak profiles` still work as aliases, and the on-disk directory keeps
+its `profiles/` name.
 
 gadak stores its configuration in `~/.gadak/config.json` (mode `0600`). A
-named profile moves both the file and the mirror under
+named workspace moves both the file and the mirror under
 `~/.gadak/profiles/<name>/`.
 
-A running `gadak serve` also mounts every sibling profile as a workspace
-under `/w/<name>/` — full API, opened lazily on first request. The sidebar
-shows a switcher when more than one exists. `GET /api/v1/workspaces` lists
-them (name, site, projects — never credentials). HTTP mounts are lazy;
-**every credentialed profile gets a watch loop at boot** (same as the
-desktop app). OS notifications and the update check stay on the profile
-`serve` was started with (the primary workspace).
+A running `gadak serve` also mounts every sibling workspace under
+`/w/<name>/` — full API, opened lazily on first request. The sidebar shows a
+switcher when more than one exists. `GET /api/v1/workspaces` lists them
+(name, site, projects — never credentials). HTTP mounts are lazy; **every
+credentialed workspace gets a watch loop at boot** (same as the desktop
+app). OS notifications and the update check stay on the workspace `serve`
+was started with (the primary one).
 
 Most day-to-day keys are editable from the web **Settings** dialog
 (`GET` / `PUT /api/v1/issues/settings/`) and from `gadak config`. Credentials

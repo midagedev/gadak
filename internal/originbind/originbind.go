@@ -51,7 +51,7 @@ func replaceMessage(n int, persist string) string {
 	if n == 1 {
 		noun, exist = "issue or page", "it exists only here"
 	}
-	return fmt.Sprintf("this workspace is standalone and holds %d locally originated %s; %s — no Jira site has a copy\norigin persist file: %s\nconnect the site in a separate workspace: gadak --profile <name> init\n(list workspaces with gadak profiles)\nto replace this workspace anyway (converting deletes these issues or pages from the mirror): --replace-standalone",
+	return fmt.Sprintf("this workspace is standalone and holds %d locally originated %s; %s — no Jira site has a copy\norigin persist file: %s\nconnect the site in a separate workspace: gadak --workspace <name> init\n(list workspaces with gadak workspaces)\nto replace this workspace anyway (converting deletes these issues or pages from the mirror): --replace-standalone",
 		n, noun, exist, persist)
 }
 

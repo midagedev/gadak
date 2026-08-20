@@ -422,7 +422,7 @@ func TestEditIsRegisteredAndHelpShowsLabelSyntax(t *testing.T) {
 	if !ok {
 		t.Fatal("edit missing from helps")
 	}
-	if !strings.Contains(h.usage, "gadak [--profile <name>] edit") {
+	if !strings.Contains(h.usage, "gadak [--workspace <name>] edit") {
 		t.Errorf("usage: %s", h.usage)
 	}
 	joined := strings.Join(h.examples, "\n")

@@ -800,12 +800,12 @@ func TestStatusUnknownProfileDoesNotCreate(t *testing.T) {
 		t.Fatal("status on a missing named profile must error")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, `profile "nosuch" not found`) {
-		t.Errorf("error %q, want profile not found", msg)
+	if !strings.Contains(msg, `workspace "nosuch" not found`) {
+		t.Errorf("error %q, want workspace not found", msg)
 	}
-	// Pasteable form only — `init --profile` is rejected by init's flag
-	// parse (GDK-451), so the hint keeps --profile in its global slot.
-	if !strings.Contains(msg, `gadak --profile "nosuch" init`) {
+	// Pasteable form only — `init --workspace` is rejected by init's flag
+	// parse (GDK-451), so the hint keeps --workspace in its global slot.
+	if !strings.Contains(msg, `gadak --workspace "nosuch" init`) {
 		t.Errorf("error %q, want pasteable init hint", msg)
 	}
 	if !strings.Contains(msg, "available: demo, work") {
@@ -949,8 +949,8 @@ func TestSQLUnknownProfileDoesNotCreate(t *testing.T) {
 	if err == nil {
 		t.Fatal("sql on a missing named profile must error")
 	}
-	if !strings.Contains(err.Error(), `profile "nosuch" not found`) {
-		t.Errorf("error %q, want profile not found", err)
+	if !strings.Contains(err.Error(), `workspace "nosuch" not found`) {
+		t.Errorf("error %q, want workspace not found", err)
 	}
 	if _, statErr := os.Stat(filepath.Join(home, "profiles", "nosuch")); !os.IsNotExist(statErr) {
 		t.Fatalf("must not create profile dir; stat=%v", statErr)

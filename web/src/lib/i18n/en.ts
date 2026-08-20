@@ -360,7 +360,7 @@ export const en = {
   'sidebar.docsSpacesTitle': 'Browse one space at a time',
   'sidebar.docsToggleNode': 'Pages under {title}',
   'sidebar.workspaces': 'Workspaces',
-  'sidebar.workspaceUnreadable': 'Profile config could not be read',
+  'sidebar.workspaceUnreadable': 'Workspace config could not be read',
   'sidebar.settings': 'Settings',
   'sidebar.serverSettings': 'Server settings (projects, features, teams, field map)',
   'sidebar.jiraCreds': 'Jira credentials',
@@ -753,7 +753,7 @@ export const en = {
   'settings.aboutEmail': 'Contact by email',
   'settings.aboutX': '@midagedev on X',
   'settings.intro':
-    'Choose what this profile mirrors, how often it syncs, and which features are on. Saving re-reads this window.',
+    'Choose what this workspace mirrors, how often it syncs, and which features are on. Saving re-reads this window.',
   'settings.loading': 'Loading…',
   'settings.loadFailed': 'Could not load settings.',
   'settings.saveFailed': 'Could not save settings.',
@@ -768,7 +768,7 @@ export const en = {
     'Nothing selected — every project this account can see is mirrored.',
   'settings.confluenceTitle': 'Confluence',
   'settings.confluenceOffHint':
-    'Off for this profile — no wiki page is mirrored. Choose spaces below to start, or turn it on for every team space.',
+    'Off for this workspace — no wiki page is mirrored. Choose spaces below to start, or turn it on for every team space.',
   'settings.confluenceOnHint': 'Wiki pages are mirrored alongside issues.',
   'settings.confluenceTurnOnCount': 'Turn on for {n} spaces',
   'settings.confluenceTurnOnAll': 'Turn on for every team space',
@@ -824,7 +824,8 @@ export const en = {
   'settings.workspaceStandaloneHint':
     "A workspace without a Jira account. The origin is this computer's issuetap persist file, not gadak.db — back that file up.",
   'settings.standaloneHow': 'Create a standalone workspace',
-  'settings.runtimeProfile': 'Profile',
+  'settings.runtimeProfile': 'Workspace',
+  'settings.runtimeCli': 'gadak --workspace {name}',
   'settings.runtimeDb': 'Mirror database',
   'settings.runtimeConfig': 'Config file',
   'settings.runtimeCounts': 'Rows',
@@ -951,7 +952,7 @@ export const en = {
   'settings.locale': 'Language',
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
-  'settings.standaloneCommandHint': '<name> is the profile name you choose.',
+  'settings.standaloneCommandHint': '<name> is the workspace name you choose.',
 
   /* ── Theme (per-browser; settings + palette) ── */
   'theme.label': 'Theme',
@@ -1136,7 +1137,7 @@ export const en = {
     'This workspace is standalone and holds {n} locally originated issues or pages. They exist only here — no Jira site has a copy. Converting this workspace deletes them from the mirror.',
   'onboarding.standalonePersist': 'Origin persist file: {path}',
   'onboarding.standaloneOtherWorkspace':
-    'Connect the site in a separate workspace: gadak --profile <name> init (list workspaces with gadak profiles).',
+    'Connect the site in a separate workspace: gadak --workspace <name> init (list workspaces with gadak workspaces).',
   'onboarding.standaloneReplaceConfirm':
     'Replace this workspace anyway. Converting deletes these issues or pages from the mirror.',
   'onboarding.standaloneReplace': 'Replace and connect',
