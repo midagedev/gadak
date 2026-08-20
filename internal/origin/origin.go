@@ -262,10 +262,22 @@ func SetInProcess(v bool) { inProcess.Store(v) }
 // the graph, but Client no longer finds it in this process.
 func ForgetLive() {
 	mu.Lock()
+	for _, s := range live {
+		forgotten = append(forgotten, s)
+	}
 	live = map[string]*session{}
 	flights = map[string]*sessionFlight{}
 	mu.Unlock()
 }
+
+// forgotten keeps ForgetLive's dropped sessions reachable. The persist
+// lock is a flock on an os.File; when the last reference to a session
+// dies, the file's GC finalizer closes the fd and the kernel releases the
+// lock — so a GC between ForgetLive and the next Client silently freed
+// the "live owner's" lock and busy assertions flaked on CI (GDK-484).
+// Production never calls ForgetLive; sessions stay in live for the
+// process lifetime.
+var forgotten []*session
 
 func standaloneClient(cfg *config.Config) (*jira.Client, error) {
 	if c, ok := routedJira(cfg); ok {

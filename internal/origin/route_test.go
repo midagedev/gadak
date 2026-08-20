@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -199,6 +200,27 @@ func TestClientFailsBusyOnProfileMismatch(t *testing.T) {
 	_, err := origin.Client(cfg)
 	if !errors.Is(err, origin.ErrWorkspaceBusy) {
 		t.Fatalf("profile mismatch with a live owner: err = %v, want ErrWorkspaceBusy (embedding would double-write the persist)", err)
+	}
+}
+
+// GDK-484: the busy assertion above flaked on CI because ForgetLive used
+// to drop the only reference to the live owner's session — the persist
+// lock is a flock on an os.File, and a GC in the window between ForgetLive
+// and Client ran the file's finalizer, closed the fd, and released the
+// lock. Forcing GC here reproduced err = <nil> five out of five times
+// before ForgetLive learned to keep forgotten sessions reachable.
+func TestForgetLiveKeepsPersistLockAcrossGC(t *testing.T) {
+	cfg, _, _, _ := liveStandaloneServe(t)
+	config.SetProfile("other")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	for i := 0; i < 3; i++ {
+		runtime.GC()
+	}
+
+	_, err := origin.Client(cfg)
+	if !errors.Is(err, origin.ErrWorkspaceBusy) {
+		t.Fatalf("after GC: err = %v, want ErrWorkspaceBusy — the forgotten owner's lock was released", err)
 	}
 }
 
