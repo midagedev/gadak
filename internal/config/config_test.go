@@ -508,8 +508,10 @@ func TestRequireExistingProfileMissingListsAvailable(t *testing.T) {
 	if !strings.Contains(msg, `profile "nosuch" not found`) {
 		t.Errorf("error %q, want profile not found", msg)
 	}
-	if !strings.Contains(msg, `gadak init --profile "nosuch"`) {
-		t.Errorf("error %q, want init hint", msg)
+	// The hint must be pasteable: --profile is a global flag, so it goes
+	// before init (GDK-451 — the old `init --profile` form exits 2).
+	if !strings.Contains(msg, `gadak --profile "nosuch" init`) {
+		t.Errorf("error %q, want pasteable init hint", msg)
 	}
 	if !strings.Contains(msg, "available: demo, work") {
 		t.Errorf("error %q, want available: demo, work", msg)

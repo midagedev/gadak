@@ -795,8 +795,10 @@ func TestStatusUnknownProfileDoesNotCreate(t *testing.T) {
 	if !strings.Contains(msg, `profile "nosuch" not found`) {
 		t.Errorf("error %q, want profile not found", msg)
 	}
-	if !strings.Contains(msg, `gadak init --profile "nosuch"`) {
-		t.Errorf("error %q, want init hint", msg)
+	// Pasteable form only — `init --profile` is rejected by init's flag
+	// parse (GDK-451), so the hint keeps --profile in its global slot.
+	if !strings.Contains(msg, `gadak --profile "nosuch" init`) {
+		t.Errorf("error %q, want pasteable init hint", msg)
 	}
 	if !strings.Contains(msg, "available: demo, work") {
 		t.Errorf("error %q, want available list", msg)

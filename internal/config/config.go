@@ -436,7 +436,10 @@ func RequireExistingProfile() error {
 		names = nil
 	}
 	sort.Strings(names)
-	msg := fmt.Sprintf("profile %q not found; run gadak init --profile %q", name, name)
+	// --profile is a global flag and sits before the subcommand; `init
+	// --profile X` is rejected by init's own flag parse (GDK-451), so the
+	// recovery hint must be pasteable exactly as printed.
+	msg := fmt.Sprintf("profile %q not found; run gadak --profile %q init", name, name)
 	if len(names) > 0 {
 		msg += fmt.Sprintf(" (available: %s)", strings.Join(names, ", "))
 	}
