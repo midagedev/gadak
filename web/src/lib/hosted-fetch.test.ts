@@ -220,21 +220,10 @@ describe('installHostedFetch rewrite table', () => {
     expect(nativeCalls).toEqual([])
   })
 
-  test('delta with a query string returns the empty shape', async () => {
+  test('delta is 404 — hosted never fabricates a live delta (GDK-440)', async () => {
     const res = await win().fetch('/api/v1/issues/delta/?since=2026-08-04T09:15:00.000Z')
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as {
-      server_time: string
-      upserted: unknown[]
-      deleted_keys: unknown[]
-      members_version: string
-      sync_health: { overall: string; sources: unknown[] }
-    }
-    expect(body.upserted).toEqual([])
-    expect(body.deleted_keys).toEqual([])
-    expect(body.members_version).toBe('')
-    expect(body.sync_health).toEqual({ overall: 'ok', sources: [] })
-    expect(Number.isNaN(Date.parse(body.server_time))).toBe(false)
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'not_found' })
     expect(nativeCalls).toEqual([])
   })
 
