@@ -130,6 +130,12 @@ func cmdInit(args []string) error {
 	jsonOut := fs.Bool("json", false, "emit one JSON object on success")
 	// Quiet beta: independent workspace, no Jira site or credential.
 	standalone := fs.Bool("standalone", false, "create an independent workspace (no Jira site or credential)")
+	// Pairing (GDK-433): bind this workspace to a remote gadak serve with
+	// an offer from the home machine's `gadak pairing mint`. The stdin form
+	// exists for the same reason --token-stdin does: the offer carries a
+	// secret and argv is ps/shell history.
+	pairingCode := fs.String("pairing-code", "", "pairing offer from the home machine's `gadak pairing mint`; binds this workspace to that serve")
+	pairingStdin := fs.Bool("pairing-code-stdin", false, "read the pairing offer from stdin (keeps it out of ps and shell history)")
 	// Long name on purpose: a typo or a stray -f must not flip the origin.
 	replaceStandalone := fs.Bool("replace-standalone", false, replaceStandaloneUsage)
 	if err := fs.Parse(args); err != nil {
@@ -145,6 +151,19 @@ func cmdInit(args []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+
+	// The pairing path is its own workspace creation: verify-before-save
+	// over the remote serve, then a remote-origin credential. Nothing else
+	// in init applies, so refuse the combinations instead of ignoring them.
+	if *pairingCode != "" || *pairingStdin {
+		if *standalone || *replaceStandalone {
+			return fmt.Errorf("--pairing-code cannot be combined with --standalone or --replace-standalone")
+		}
+		if *siteFlag != "" || *emailFlag != "" || *tokenFile != "" || *tokenStdin || *tokenExpires != "" || *spacesFlag != "" {
+			return fmt.Errorf("--pairing-code cannot be combined with site, email, token, or spaces flags")
+		}
+		return initPaired(cfg, *pairingCode, *pairingStdin, *jsonOut)
 	}
 
 	envSite := config.Env("SITE")

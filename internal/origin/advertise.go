@@ -171,7 +171,32 @@ func routedTransport(cfg *config.Config) (*serveOriginTransport, bool) {
 	if !ok {
 		return nil, false
 	}
-	return newServeOriginTransport(host), true
+	tr := newServeOriginTransport(host)
+	// Once this profile's serve has a pairing token minted, its own routed
+	// writes need one too — the gate has no loopback bypass (GDK-433). The
+	// token comes from the same stored pairing credential the remote side
+	// uses; no file means no gate (or none minted yet) and routing stays
+	// byte-identical to before.
+	if dir, err := profileDir(cfg); err == nil {
+		tr.bearer = localRoutingToken(dir)
+	}
+	return tr, true
+}
+
+// AdvertisedAddr reports the address a live serve for this profile
+// advertised, or "" when no live serve owns the workspace. Exported for
+// `gadak pairing mint`, whose default --endpoint is that address: the
+// thing a same-machine serve is actually listening on, verified by the
+// same probe the router trusts.
+func AdvertisedAddr(cfg *config.Config) string {
+	adv, ok := readAdvertise(cfg)
+	if !ok {
+		return ""
+	}
+	if !probeMatches(adv, config.Profile()) {
+		return ""
+	}
+	return adv.Addr
 }
 
 func probeMatches(adv Advertise, profile string) bool {

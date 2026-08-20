@@ -1,6 +1,8 @@
 package origin
 
 import (
+	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/linear"
+	"github.com/midagedev/gadak/internal/pairing"
 	issuetap "github.com/midagedev/issuetap"
 )
 
@@ -50,6 +53,16 @@ const (
 // existing sync/init gates so a missing token still reads the same.
 var errNeedCredential = errors.New("origin: site, email and token are required")
 
+// InProcessAuthB64 is the base64 payload of the in-process Basic
+// credential the local CLI presents to the origin passthrough. Exported so
+// the server's pairing gate can rewrite a *validated* Bearer into the exact
+// Authorization shape the embedded issuetap graph has always seen: the gate
+// authenticates the caller, then speaks to the origin as the in-process
+// user it always did (GDK-433).
+func InProcessAuthB64() string {
+	return base64.StdEncoding.EncodeToString([]byte(inProcessUser + ":" + inProcessSecret))
+}
+
 // ErrWorkspaceBusy means another process holds the persist lock for this
 // workspace and did not advertise a routable origin. Embedding anyway would
 // open a second graph over the same file (GDK-343: last Close wins, silent
@@ -81,6 +94,11 @@ func Client(cfg *config.Config) (*jira.Client, error) {
 	if cfg == nil {
 		return nil, errors.New("origin: nil config")
 	}
+	if rem, err := pairedRemote(cfg); err != nil {
+		return nil, err
+	} else if rem != nil {
+		return pairedJira(rem)
+	}
 	if cfg.IsStandalone() {
 		return standaloneClient(cfg)
 	}
@@ -88,6 +106,80 @@ func Client(cfg *config.Config) (*jira.Client, error) {
 		return nil, errNeedCredential
 	}
 	return Connected(cfg.Site, cfg.Email, cfg.Token), nil
+}
+
+// pairedRemote resolves the stored pairing credential that makes this
+// workspace's origin a remote gadak serve (GDK-433). Standalone is
+// excluded on purpose: a standalone workspace owns a local persist, and
+// on the home machine the same file only ever carries the routing token
+// (transport.go localRoutingToken) — there it must not flip Client into a
+// remote client. A malformed file is an error, not a fallthrough to the
+// connected path: silently treating a paired workspace as credential-less
+// would answer errNeedCredential, which points the user at the wrong fix.
+func pairedRemote(cfg *config.Config) (*pairing.Remote, error) {
+	if cfg == nil || cfg.IsStandalone() {
+		return nil, nil
+	}
+	dir, err := profileDir(cfg)
+	if err != nil {
+		return nil, err
+	}
+	rem, err := pairing.LoadRemote(dir)
+	if err != nil {
+		return nil, fmt.Errorf("origin: paired workspace: %w", err)
+	}
+	return rem, nil
+}
+
+// pairedJira builds the Jira client for a paired workspace: the remote
+// serve's REST passthrough with the device token as Bearer. BaseURL stays
+// empty for the same reason as standalone — the endpoint is an API target,
+// not a site a person browses.
+func pairedJira(rem *pairing.Remote) (*jira.Client, error) {
+	tr, err := newRemoteOriginTransport(rem.Endpoint, rem.Token)
+	if err != nil {
+		return nil, err
+	}
+	c := Connected("", inProcessUser, inProcessSecret)
+	if c.HTTP == nil {
+		c.HTTP = &http.Client{}
+	}
+	c.HTTP.Transport = tr
+	return c, nil
+}
+
+// pairedWiki is Wiki's paired twin: the serve's Confluence passthrough
+// with the same Bearer.
+func pairedWiki(rem *pairing.Remote) (*confluence.Client, error) {
+	tr, err := newRemoteOriginTransport(rem.Endpoint, rem.Token)
+	if err != nil {
+		return nil, err
+	}
+	w := confluence.New("", inProcessUser, inProcessSecret)
+	if w.HTTP == nil {
+		w.HTTP = &http.Client{}
+	}
+	w.HTTP.Transport = tr
+	return w, nil
+}
+
+// VerifyPaired proves a pairing offer before anything is saved (GDK-433
+// verify-before-save): one GET /rest/api/3/myself over the exact transport
+// the paired workspace would use. A serve that answers 401 surfaces as
+// jira.ErrAuth; an unreachable or broken endpoint surfaces as a transport
+// error — the caller tells those apart without retrying. The offer string
+// itself never enters an error.
+func VerifyPaired(ctx context.Context, endpoint, token string) (jira.User, error) {
+	tr, err := newRemoteOriginTransport(endpoint, token)
+	if err != nil {
+		return jira.User{}, err
+	}
+	c := Connected("", inProcessUser, inProcessSecret)
+	if c.HTTP == nil {
+		c.HTTP = &http.Client{}
+	}
+	c.HTTP.Transport = tr
+	return c.Myself(ctx)
 }
 
 // Describe answers doctor: which kind of workspace, and where the origin is.
@@ -221,6 +313,11 @@ func Linear(cfg *config.Config) (*linear.Client, error) {
 func Wiki(cfg *config.Config) (*confluence.Client, error) {
 	if cfg == nil {
 		return nil, errors.New("origin: nil config")
+	}
+	if rem, err := pairedRemote(cfg); err != nil {
+		return nil, err
+	} else if rem != nil {
+		return pairedWiki(rem)
 	}
 	if cfg.IsStandalone() {
 		return standaloneWiki(cfg)

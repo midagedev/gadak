@@ -3,19 +3,27 @@ package server
 import (
 	"log"
 	"net/http"
+	"strings"
+	"time"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/pairing"
 )
 
 // handleOriginREST forwards method, path, query, headers, and body to this
 // process's embedded issuetap handler. It is not a mirror-write API: the
 // SQLite mirror is never the target. Writes go through the workspace origin
 // (issuetap here, Jira on a connected workspace — which 404s below). Loopback
-// single-user model: no extra auth (decision 0003).
+// single-user model: no extra auth (decision 0003) — except the pairing gate
+// (GDK-433), which applies while at least one active pairing token exists.
 func (s *server) handleOriginREST(w http.ResponseWriter, r *http.Request) {
 	cfg := s.config()
 	if cfg == nil || !cfg.IsStandalone() {
 		handleNotFound(w, r)
+		return
+	}
+	if !s.pairingGate(w, r, cfg) {
 		return
 	}
 	h := s.standaloneOrigin()
@@ -25,6 +33,51 @@ func (s *server) handleOriginREST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.StripPrefix(origin.RESTPrefix, h).ServeHTTP(w, r)
+}
+
+// pairingGate is the GDK-433 authorization point for everything under
+// origin.RESTPrefix — this handler is the single choke point both `gadak
+// serve` and the desktop app's origin-only listener forward to.
+//
+// The serve binds loopback and the exposure is done by a proxy (tailscale
+// serve), so remote requests arrive as loopback too: network origin cannot
+// distinguish trust, and the token is the only identity. While any active
+// pairing token exists, a request must carry a valid Bearer; there is no
+// loopback bypass, so the home machine's own routed CLI writes need a
+// paired token as well. With no active token the gate is off and the
+// passthrough behaves exactly as before (implicit loopback trust).
+//
+// On accept, the Bearer is rewritten into the in-process Basic credential
+// so the embedded issuetap graph sees the Authorization shape it has always
+// seen — the gate authenticates the caller, then speaks to the origin as
+// the in-process user. The token itself never reaches the origin process.
+func (s *server) pairingGate(w http.ResponseWriter, r *http.Request, cfg *config.Config) bool {
+	verdict, err := pairing.Authorize(cfg.Directory(), bearerToken(r), time.Now())
+	if err != nil {
+		// Unreadable/corrupt store fails closed: tokens may exist.
+		log.Printf("server: pairing gate: %s %s: %v", r.Method, r.URL.Path, err)
+		fail(w, http.StatusInternalServerError, "internal_error")
+		return false
+	}
+	switch verdict {
+	case pairing.VerdictReject:
+		fail(w, http.StatusUnauthorized, "pairing_token_required")
+		return false
+	case pairing.VerdictAccept:
+		r.Header.Set("Authorization", "Basic "+origin.InProcessAuthB64())
+	}
+	return true
+}
+
+// bearerToken extracts the Bearer credential from an Authorization header.
+// Any other scheme (including the in-process Basic a local CLI sends) is
+// "no token": indistinguishable from a missing header at the gate.
+func bearerToken(r *http.Request) string {
+	scheme, rest, _ := strings.Cut(r.Header.Get("Authorization"), " ")
+	if !strings.EqualFold(strings.TrimSpace(scheme), "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(rest)
 }
 
 func (s *server) standaloneOrigin() http.Handler {

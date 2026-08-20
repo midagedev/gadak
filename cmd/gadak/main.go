@@ -183,6 +183,9 @@ Writing through to the workspace origin:
   team       share team settings/views  export [--out] [--with-members]
                                         import <FILE|-> [--dry-run] [--overwrite]
 
+Pairing other machines onto this serve (standalone, GDK-433):
+  pairing    device tokens gating the origin passthrough  mint --label NAME [--ttl 90d] [--endpoint URL] | list | revoke <label|hash-prefix>
+
 Profiles keep separate credentials and mirrors (e.g. work and demo):
   gadak --profile demo init && gadak --profile demo serve --addr 127.0.0.1:7778
 `
@@ -297,6 +300,7 @@ var commands = map[string]func([]string) error{
 	"mcp":             cmdMCP,
 	"open":            cmdOpen,
 	"page":            cmdPage,
+	"pairing":         cmdPairing,
 	"profiles":        cmdProfiles,
 	"project":         cmdProject,
 	"raycast":         cmdRaycast,

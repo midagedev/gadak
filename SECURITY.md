@@ -143,6 +143,26 @@ refuses any other address unless you pass `--allow-remote`
 a multi-user mode: exposing the port publishes every issue the mirror holds
 to anyone who can reach it.
 
+`gadak pairing` (standalone workspaces, GDK-433) is the answer when you want
+that reach anyway — put the serve behind `tailscale serve` and mint one token
+per device. Once **any active pairing token exists**, every request under
+`/api/v1/origin` — the passthrough that write commands and paired devices
+use — must carry it as `Authorization: Bearer <token>` (`internal/server/
+origin_rest.go`). There is no loopback exemption, because a tunnel arrives
+as loopback; while no active token exists the passthrough behaves exactly as
+before. Be clear about the boundary: the gate covers the passthrough, not
+the mirror — exposing the port still publishes every issue the mirror holds,
+exactly as the previous paragraph says. The serve stores SHA-256 hashes only
+(`<profile>/pairing.json`, mode `0600`, same temp-file-and-rename discipline
+as `config.json`, `internal/pairing/store.go`); the plaintext token appears
+once, in the `gadak pairing mint` output, and the consuming device keeps it
+in `<profile>/remote-origin.json` under the same rules. `gadak init
+--pairing-code` verifies the token against the serve before writing anything
+locally, so a mistyped or stale offer leaves no file behind. A machine
+without a stored token — including this machine's own CLI once it routes
+through the serve — gets `401 pairing_token_required` until it pairs or the
+token is revoked.
+
 The desktop app removes this surface entirely: it runs **no listener at
 all** — the window reaches the mirror through an in-process handler
 (`desktop/main.go`), so there is no port for another local process or a

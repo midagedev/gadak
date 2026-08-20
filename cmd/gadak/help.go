@@ -32,10 +32,12 @@ type helpOption struct {
 const spacesFlagUsage = `Confluence spaces: KEY,KEY… | all (every global space; name a personal space to include it) | none (off); "all"/"none" are reserved`
 
 // initSummary is the one-line init description for top-level usage and
-// `gadak init --help`. It has to name both workspace kinds: connected
-// init writes site/email/token (cmdInit); --standalone writes KindStandalone
-// with no site or credential (initStandalone, flag usage in cmdInit).
-const initSummary = "configure a Jira site and credential (projects optional), or a standalone workspace (--standalone)"
+// `gadak init --help`. It has to name every workspace path: connected
+// init writes site/email/token (cmdInit); --standalone writes
+// KindStandalone with no site or credential (initStandalone, flag usage
+// in cmdInit); --pairing-code binds a fresh profile to a remote gadak
+// serve (initPaired, GDK-433).
+const initSummary = "configure a Jira site and credential (projects optional), a standalone workspace (--standalone), or pair to a remote gadak serve (--pairing-code)"
 
 // serveSyncDefault is the serve sync-on-start condition, matching
 // startServeLoops: cfg.HasCredential() is true for a standalone workspace
@@ -57,7 +59,7 @@ func writeThroughHelp(action string) string {
 var helps = map[string]cmdHelp{
 	"init": {
 		summary: initSummary,
-		usage:   "gadak [--profile <name>] init [--standalone] [--site URL] [--email ADDR] [--projects A,B] [--spaces KEYS|all|none] [--token-file PATH | --token-stdin] [--token-expires DATE] [--json]",
+		usage:   "gadak [--profile <name>] init [--standalone] [--site URL] [--email ADDR] [--projects A,B] [--spaces KEYS|all|none] [--token-file PATH | --token-stdin] [--token-expires DATE] [--pairing-code OFFER | --pairing-code-stdin] [--json]",
 		// FlagSet VisitAll supplies Options when `gadak init --help` runs; this
 		// list covers formatHelp(nil) and documents the env-only token path.
 		options: []helpOption{
@@ -71,6 +73,8 @@ var helps = map[string]cmdHelp{
 			{name: "token-stdin", desc: "read API token from stdin"},
 			{name: "token-expires", desc: "token expiry date from Atlassian's create dialog (YYYY-MM-DD or RFC3339); omit to assume 365 days from verification"},
 			{name: "token", desc: "not accepted; use GADAK_TOKEN, --token-file, or --token-stdin"},
+			{name: "pairing-code", desc: "pairing offer from the home machine's `gadak pairing mint`; binds this fresh profile to that serve as its origin (verified against the serve before anything is saved)"},
+			{name: "pairing-code-stdin", desc: "read the pairing offer from stdin (keeps the secret out of ps and shell history)"},
 			{name: "json", desc: "emit one JSON object on success"},
 		},
 		examples: []string{
@@ -82,8 +86,27 @@ var helps = map[string]cmdHelp{
 			"gadak init --spaces ENG,PROD",
 			"gadak init --spaces all",
 			"gadak init --spaces none",
+			"gadak --profile home init --pairing-code-stdin <<< \"$OFFER\"",
 		},
-		seeAlso: []string{"gadak sync", "gadak profiles", "gadak config"},
+		seeAlso: []string{"gadak sync", "gadak profiles", "gadak pairing", "gadak config"},
+	},
+	"pairing": {
+		summary: "manage the device tokens that gate a standalone serve's origin passthrough (GDK-433); a paired remote machine binds with `gadak init --pairing-code`",
+		usage:   "gadak [--profile <name>] pairing mint --label NAME [--ttl 90d] [--endpoint URL] | pairing list | pairing revoke <label|hash-prefix>",
+		options: []helpOption{
+			{name: "label", desc: "device name shown in `gadak pairing list` (required, unique among active tokens)"},
+			{name: "ttl", desc: "token lifetime: <N><d|h|m|s>, e.g. 90d (default) or 12h"},
+			{name: "endpoint", desc: "URL remote devices reach this serve at; default is this machine's live serve address (loopback draws a warning — pass your tailnet URL)"},
+		},
+		examples: []string{
+			"gadak pairing mint --label laptop",
+			"gadak pairing mint --label agent --ttl 12h --endpoint https://home.tailnet.ts.net",
+			"gadak pairing list",
+			"gadak pairing revoke laptop",
+			"# on the remote machine:",
+			"gadak --profile home init --pairing-code-stdin <<< \"$OFFER\"",
+		},
+		seeAlso: []string{"gadak serve", "gadak init"},
 	},
 	"config": {
 		summary: "get or set profile settings (everything the Settings dialog can edit)",
