@@ -31,6 +31,27 @@ import (
 // sql.ErrNoRows internally and wraps at the package boundary.
 var ErrNotFound = errors.New("not found")
 
+// SchemaTooNewError means the file was migrated by a gadak that reads a later
+// schema than this build does — the app and the CLI ship as separately
+// versioned formulae, so one build opening the mirror once is enough to lock
+// the other out of that workspace (GDK-498).
+//
+// It is a type, not a string, because more than one surface has to say the
+// same true thing about it: nothing is lost, since the mirror is a cache the
+// origin can rebuild. Recognise it with errors.As rather than matching text.
+type SchemaTooNewError struct {
+	Path      string // the mirror file
+	Have      int    // schema version found in the file
+	Supported int    // highest schema version this build migrates to
+}
+
+func (e *SchemaTooNewError) Error() string {
+	return fmt.Sprintf("%s: mirror schema %d was written by a newer gadak (this build reads up to %d); "+
+		"the mirror is a cache the origin can rebuild — run the newer gadak, or set this file aside and re-sync: "+
+		"mv %s %s.bak && gadak sync",
+		e.Path, e.Have, e.Supported, e.Path, e.Path)
+}
+
 // DB is a handle on the mirror. Safe for concurrent use; writes are serialized.
 type DB struct {
 	sql           *sql.DB
@@ -127,7 +148,7 @@ func (db *DB) migrate() error {
 	}
 	want := len(migrations)
 	if have > want {
-		return fmt.Errorf("%s: schema version %d is newer than this build of gadak supports (%d); upgrade gadak or point --db elsewhere", db.path, have, want)
+		return &SchemaTooNewError{Path: db.path, Have: have, Supported: want}
 	}
 	// The v26 copy writes into local.* in the same transaction that advances
 	// user_version. When local.db cannot be attached or migrated, Open's

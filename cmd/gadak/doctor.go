@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -89,7 +90,7 @@ type doctorMCP struct {
 }
 
 type doctorMirror struct {
-	Status string `json:"status"`           // present | not_found | open_error
+	Status string `json:"status"`           // present | not_found | open_error | schema_too_new
 	Bytes  *int64 `json:"bytes,omitempty"`  // set when the file exists
 	Detail string `json:"detail,omitempty"` // redacted path / short reason
 }
@@ -251,6 +252,17 @@ func collectDoctor() doctorReport {
 
 	db, err := store.Open(path)
 	if err != nil {
+		// doctor is what someone runs when the mirror has stopped opening, so
+		// "open failed" is the one answer it must not give for a cause it can
+		// name (GDK-498). The version pair is the whole diagnosis here.
+		var tooNew *store.SchemaTooNewError
+		if errors.As(err, &tooNew) {
+			rep.Mirror.Status = "schema_too_new"
+			rep.Mirror.Detail = fmt.Sprintf("written by a newer gadak; this build reads up to %d — run the newer gadak, or set the file aside and re-sync", tooNew.Supported)
+			rep.SchemaVersion = &tooNew.Have
+			rep.Migrations = "none applied"
+			return rep
+		}
 		rep.Mirror.Status = "open_error"
 		rep.Mirror.Detail = "open failed"
 		return rep

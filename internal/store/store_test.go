@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -493,5 +494,53 @@ func TestOpenTightensExistingDataDir(t *testing.T) {
 
 	if got := fileMode(t, dir); got != 0o700 {
 		t.Errorf("after Open: dir mode = %04o, want 0700", got)
+	}
+}
+
+// A mirror written by a newer gadak must come back as a recognisable
+// condition, not a string: the app and the CLI are versioned separately, so
+// one build's read locks the other out of that workspace, and every surface
+// has to be able to say that nothing was lost (GDK-498).
+func TestOpenRefusesNewerMirrorWithRecoverableError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applied := db.SchemaVersion()
+	db.Close()
+
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	future := applied + 2
+	if _, err := raw.Exec(fmt.Sprintf("PRAGMA user_version = %d", future)); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(path)
+	if err == nil {
+		reopened.Close()
+		t.Fatal("Open accepted a mirror from a newer gadak")
+	}
+	var tooNew *SchemaTooNewError
+	if !errors.As(err, &tooNew) {
+		t.Fatalf("refusal must be typed so callers can recognise it, got %T: %v", err, err)
+	}
+	if tooNew.Have != future || tooNew.Supported != applied {
+		t.Fatalf("versions: have=%d supported=%d, want have=%d supported=%d",
+			tooNew.Have, tooNew.Supported, future, applied)
+	}
+	msg := err.Error()
+	// The recovery is cheap and non-destructive; the old message named neither.
+	for _, want := range []string{"cache", "gadak sync", path} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("refusal must name the recovery (%q missing): %s", want, msg)
+		}
 	}
 }

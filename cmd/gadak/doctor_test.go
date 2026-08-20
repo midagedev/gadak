@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -553,3 +554,48 @@ func TestTildeHome(t *testing.T) {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+// doctor is what someone runs when the mirror stopped opening, so the one
+// cause it can name from the file itself must not read as "open failed"
+// (GDK-498).
+func TestDoctorNamesNewerMirrorInsteadOfOpenFailed(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	path := filepath.Join(home, "gadak.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatalf("seed mirror: %v", err)
+	}
+	applied := db.SchemaVersion()
+	db.Close()
+	future := applied + 2
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec("PRAGMA user_version = " + strconv.Itoa(future)); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor must still report on a mirror it cannot open: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "schema_too_new") {
+		t.Fatalf("doctor must name the cause:\n%s", out)
+	}
+	if strings.Contains(out, "open failed") {
+		t.Fatalf("doctor must not report a nameable cause as a generic open failure:\n%s", out)
+	}
+	// The version pair is the diagnosis: what the file has, what this build reads.
+	if !strings.Contains(out, strconv.Itoa(future)) || !strings.Contains(out, strconv.Itoa(applied)) {
+		t.Fatalf("expected both schema versions (%d found, %d supported):\n%s", future, applied, out)
+	}
+}
