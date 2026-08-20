@@ -24,10 +24,11 @@ func lockPersist(persist string) (func(), error) {
 	if err != nil {
 		_ = f.Close()
 		if err == windows.ERROR_LOCK_VIOLATION {
-			return nil, ErrWorkspaceBusy
+			return nil, busyError(persist)
 		}
 		return nil, fmt.Errorf("origin: persist lock: %w", err)
 	}
+	writeLockPID(f)
 	return func() {
 		_ = windows.UnlockFileEx(windows.Handle(f.Fd()), 0, 1, 0, ol)
 		_ = f.Close()

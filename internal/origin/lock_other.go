@@ -24,10 +24,11 @@ func lockPersist(persist string) (func(), error) {
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		_ = f.Close()
 		if err == syscall.EWOULDBLOCK || err == syscall.EAGAIN {
-			return nil, ErrWorkspaceBusy
+			return nil, busyError(persist)
 		}
 		return nil, fmt.Errorf("origin: persist lock: %w", err)
 	}
+	writeLockPID(f)
 	return func() {
 		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 		_ = f.Close()

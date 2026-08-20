@@ -3,7 +3,10 @@ package origin
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -70,4 +73,25 @@ func TestGDK343LockReleasedOnClose(t *testing.T) {
 		t.Fatalf("construct after close: %v", err)
 	}
 	closeSession(b)
+}
+
+// TestBusyErrorNamesHolderPID: the sidecar records the owner's PID, so the
+// busy verdict names who to close (GDK-421). FAIL-first: pre-fix the error
+// was the bare sentinel with no pid.
+func TestBusyErrorNamesHolderPID(t *testing.T) {
+	persist := filepath.Join(t.TempDir(), "origin", "issuetap.yaml")
+	a, err := constructStandalone(persist, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeSession(a) })
+
+	_, err = constructStandalone(persist, nil)
+	if !errors.Is(err, ErrWorkspaceBusy) {
+		t.Fatalf("second construct error = %v, want ErrWorkspaceBusy", err)
+	}
+	want := strconv.Itoa(os.Getpid())
+	if !strings.Contains(err.Error(), "pid "+want) {
+		t.Fatalf("busy error %q does not name the holder pid %s", err, want)
+	}
 }

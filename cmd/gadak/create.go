@@ -272,6 +272,15 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 
 	key, err := c.CreateIssue(ctx, fields)
 	if err != nil {
+		// Jira's parent rejection ("select a valid parent", localized) never
+		// says WHY the parent is invalid. The mirror knows the parent's type
+		// and hierarchy level, and that context is what turns a dead end
+		// into the next command (GDK-424).
+		if parentKey != "" && strings.Contains(err.Error(), "parent") {
+			if hint := parentHierarchyHint(ctx, parentKey); hint != "" {
+				return "", nil, fmt.Errorf("%w\n%s", err, hint)
+			}
+		}
 		return "", nil, err
 	}
 	extra := map[string]any{
@@ -393,4 +402,28 @@ func parseParentKey(raw, cmd string) (string, error) {
 		return "", fmt.Errorf("gadak %s --parent %q is not a Jira key (want ABC-123)", cmd, raw)
 	}
 	return normalizeKey(raw), nil
+}
+
+// parentHierarchyHint reads the rejected parent from the mirror and states
+// the hierarchy rule Jira's 400 leaves out. Best-effort: no mirror, no row,
+// or any error returns "" and the origin error stands alone.
+func parentHierarchyHint(_ context.Context, parentKey string) string {
+	db, err := openReadOnly()
+	if err != nil {
+		return ""
+	}
+	defer db.Close()
+	var issueType string
+	var level int
+	err = db.QueryRow(
+		`SELECT COALESCE(issue_type, ''), COALESCE(hierarchy_level, 0) FROM issues WHERE key = ?`,
+		parentKey).Scan(&issueType, &level)
+	if err != nil {
+		return ""
+	}
+	if level >= 1 {
+		return ""
+	}
+	return fmt.Sprintf("hint: %s is %q (hierarchy level %d) — a standard issue can only sit under a level-1 parent (an epic); only sub-task types can sit under %s. Pick an epic as --parent, or use a sub-task issue type.",
+		parentKey, issueType, level, parentKey)
 }
