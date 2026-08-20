@@ -18,7 +18,7 @@ func seedPairedProfile(t *testing.T) string {
 	t.Helper()
 	dir := emptyHome(t)
 	if err := pairing.SaveRemote(dir, pairing.Remote{
-		Endpoint: "https://home.example.ts.net:8443",
+		Endpoint: "https://home.ts.net:8443",
 		Token:    "pair-token-keep",
 		Label:    "laptop",
 	}); err != nil {
@@ -45,7 +45,7 @@ func assertPairedOriginRefusal(t *testing.T, err error) {
 	if !strings.Contains(msg, `this profile is paired with "laptop"`) {
 		t.Fatalf("want paired-with-label refusal, got: %v", err)
 	}
-	if !strings.Contains(msg, "https://home.example.ts.net:8443") {
+	if !strings.Contains(msg, "https://home.ts.net:8443") {
 		t.Fatalf("want endpoint in refusal, got: %v", err)
 	}
 	if !strings.Contains(msg, "gadak --profile") || !strings.Contains(msg, "init") {
@@ -62,7 +62,7 @@ func assertPairedOriginUntouched(t *testing.T, dir string) {
 	if err != nil || rem == nil {
 		t.Fatalf("remote credential must survive a refused init: %+v (%v)", rem, err)
 	}
-	if rem.Token != "pair-token-keep" || rem.Label != "laptop" || rem.Endpoint != "https://home.example.ts.net:8443" {
+	if rem.Token != "pair-token-keep" || rem.Label != "laptop" || rem.Endpoint != "https://home.ts.net:8443" {
 		t.Fatalf("refused init rebound the pairing credential: %+v", rem)
 	}
 	cfg, err := config.Load()
