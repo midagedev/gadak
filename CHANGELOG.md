@@ -97,6 +97,46 @@ plug in; and the documents an agent actually reads never learned the word
 - The Go test suite stopped pointing its fixture credential at a live
   Atlassian host (GDK-304).
 
+### The pre-tag audit, closed before the tag
+
+Three read-only audit rounds over this release's own delta (GDK-393) filed
+30 findings; the ones that survived verification are fixed in this release,
+not deferred past it.
+
+- **Linear's mirror carries what the origin has** (GDK-394, 395, 397, 398,
+  399, 405): attachments ride the issue query in (the write half existed
+  first — this closes the claim above), the markdown body reaches the CLI
+  and UI, `priority_rank` derives from Linear's integer id rather than an
+  English label, comment pagination follows the cursor before the child
+  list is replaced, a full sync reconciles deletions with the same
+  refuse-to-empty guard as Jira, and `open`/attachment bytes follow the
+  stored origin URL.
+- **Linear's writes speak Linear's vocabulary** (GDK-396, 401, 403, 406,
+  407): per-key priority and user catalogs route by the row's origin, a
+  Linear-only profile's UI writes open without a Jira token, `CreateIssue`
+  refuses unsupported fields instead of half-creating, assign resolves
+  through Linear user search, and the adapter finally has a test ladder.
+  A key two sources both mint is now an explicit `key_ambiguous` refusal
+  instead of a silent preference (GDK-400).
+- **Wiki writes are honest under failure** (GDK-408, 410, 404, 411, 412,
+  413): Confluence and Linear rejections map to their own statuses instead
+  of `502 jira_unavailable`, page edit takes an optional base version for
+  optimistic locking (omitted stays last-write-wins, and the docs say so),
+  the REST `adf`/`text` paths gain validation and a `format_loss` guard,
+  and the document composer gates on credentials like issue comments do.
+- **Standalone conversion has one owner** (GDK-415, 416, 417, 419, 390):
+  the CLI refuses to convert a workspace another process has open (and a
+  busy lock names the holder's pid — GDK-421), CLI and HTTP conversion
+  share one cleanup, the local-data guard counts pages as well as issues,
+  and `init --standalone --projects` actually seeds every requested key.
+  `gadak project create` grows a standalone workspace by a project at
+  runtime, through the origin (GDK-391).
+- Smaller honesty fixes from the same rounds: `gadak_status` reports the
+  workspace kind for shell-less hosts (GDK-420), the top-level usage owns
+  every command (GDK-426), a rejected `create --parent` explains the
+  hierarchy rule from the mirror (GDK-424), and the ko README/architecture
+  docs admit the wiki writes exist (GDK-409).
+
 ## v0.16.0 — 2026-08-19
 
 The release where gadak stops needing an Atlassian account to be useful,
