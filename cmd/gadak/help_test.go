@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -158,4 +159,20 @@ func firstLine(s string) string {
 		return s[:i]
 	}
 	return s
+}
+
+// TestUsageListsEveryCommand pins the top-level usage const to the command
+// table: a new verb that ships without a line there is invisible to
+// `gadak help` (GDK-426 — page and project were both missing).
+func TestUsageListsEveryCommand(t *testing.T) {
+	for _, name := range commandNames() {
+		if name == "view" {
+			// alias of views; usage names it as "(alias: view)"
+			continue
+		}
+		re := regexp.MustCompile(`(?m)^  ` + regexp.QuoteMeta(name) + `\b`)
+		if !re.MatchString(usage) {
+			t.Errorf("usage is missing a line for %q", name)
+		}
+	}
 }

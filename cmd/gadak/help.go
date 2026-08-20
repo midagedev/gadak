@@ -46,7 +46,7 @@ const serveSyncDefault = "syncs by default on a standalone workspace, or on a co
 // Verified: mutate in agent.go calls origin.Writer; origin.Client refuses a
 // connected workspace without site/email/token (errNeedCredential) and
 // admits a standalone workspace with no token.
-const writeThroughOriginPhrase = "on the workspace origin — Jira on a connected workspace (needs a credential), the embedded origin on a standalone one (write-through to the mirror)"
+const writeThroughOriginPhrase = "on the workspace origin — Jira on a connected workspace (needs a credential), the embedded origin on a standalone one; the mirror refreshes after the origin accepts"
 
 func writeThroughHelp(action string) string {
 	return action + " " + writeThroughOriginPhrase
@@ -62,6 +62,7 @@ var helps = map[string]cmdHelp{
 		// list covers formatHelp(nil) and documents the env-only token path.
 		options: []helpOption{
 			{name: "standalone", desc: "create an independent workspace (no Jira site or credential)"},
+			{name: "replace-standalone", desc: replaceStandaloneUsage},
 			{name: "site", desc: "Jira site URL (https://your-site.atlassian.net); env GADAK_SITE"},
 			{name: "email", desc: "account email; env GADAK_EMAIL"},
 			{name: "projects", desc: "project keys, comma-separated (optional — blank syncs every project you can see); env GADAK_PROJECTS"},
@@ -104,8 +105,8 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak init", "gadak status"},
 	},
 	"sync": {
-		summary: "mirror Jira into the local SQLite database",
-		usage:   "gadak [--profile <name>] sync [--full] [--watch]",
+		summary: "mirror the workspace origin (Jira, standalone, Linear, Confluence) into the local SQLite database",
+		usage:   "gadak [--profile <name>] sync [--full] [--watch] [--source jira|linear|confluence|all]",
 		examples: []string{
 			"gadak sync                 # incremental, what a serve loop does",
 			"gadak sync --full          # after changing projects or a mapping",

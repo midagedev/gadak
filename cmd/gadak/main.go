@@ -141,7 +141,7 @@ Commands:
   init             ` + initSummary + `
                    [--standalone] [--site] [--email] [--projects] [--spaces] [--token-file|--token-stdin] [--json]
   config           get or set profile settings     [list|get <path>|set <path> <value>] [--json]
-  sync             mirror Jira into SQLite   [--full] [--watch]
+  sync             mirror the workspace origin into SQLite   [--full] [--watch] [--source jira|linear|confluence|all]
   serve            web UI + API on loopback  [--addr] [--static] [--no-sync] [--no-open] [--allow-remote]
                    (` + serveSyncDefault + `; --no-sync opts out)
   install-service  keep serve running across reboots (launchd / systemd user)
@@ -177,6 +177,8 @@ Writing through to the workspace origin:
   comment    add a comment    <KEY> -m <text|-> [--json]
   transition change status    <KEY> <transition-id|status-id|name> [--json]
   assign     set assignee     <KEY> <email|-> [--json]
+  page       wiki page create/edit/comment  create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
+  project    grow a standalone workspace by a project  create <KEY> [--name N] [--json]
   fields     custom-field usage report  [--sample N] [--json] [--all] [--project KEY]
   team       share team settings/views  export [--out] [--with-members]
                                         import <FILE|-> [--dry-run] [--overwrite]
