@@ -89,6 +89,9 @@ func cmdStatus(args []string) error {
 	if cfg != nil && !cfg.HasCredential() {
 		fmt.Fprintf(os.Stderr, "gadak: %v\n", config.ErrNotConfigured)
 	}
+	if cfg != nil {
+		st["frozen"] = cfg.SyncFrozen()
+	}
 	var tokenExpiry config.TokenExpiry
 	if cfg != nil {
 		tokenExpiry = cfg.TokenExpiryAt(time.Now().UTC())
@@ -122,6 +125,9 @@ func cmdStatus(args []string) error {
 		if v, ok := st[k]; ok && v != "" {
 			fmt.Printf("%-18s %v\n", k, v)
 		}
+	}
+	if frozen, ok := st["frozen"].(bool); ok && frozen {
+		fmt.Printf("%-18s %v\n", "frozen", true)
 	}
 	if p, ok := st["pairing"].(map[string]string); ok {
 		fmt.Printf("paired with %q (%s)\n", p["label"], p["endpoint"])

@@ -588,6 +588,68 @@ func TestErrNotConfiguredNamesThreeInitPaths(t *testing.T) {
 	}
 }
 
+func TestSyncFrozenDoesNotChangeHasCredential(t *testing.T) {
+	if (*Config)(nil).SyncFrozen() {
+		t.Fatal("nil config")
+	}
+	if (&Config{}).SyncFrozen() {
+		t.Fatal("zero config must not be frozen")
+	}
+	if !(&Config{Frozen: true}).SyncFrozen() {
+		t.Fatal("Frozen: true")
+	}
+	c := &Config{Frozen: true, Site: "https://x.atlassian.net", Email: "a@b.c", Token: "t"}
+	if !c.HasCredential() {
+		t.Fatal("Frozen must not change HasCredential")
+	}
+	if !c.SyncFrozen() {
+		t.Fatal("connected+frozen")
+	}
+	if !(&Config{Kind: KindStandalone, Frozen: true}).HasCredential() {
+		t.Fatal("standalone Frozen must still report writes possible")
+	}
+}
+
+func TestFrozenJSONRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() { SetProfile("") })
+	SetProfile("")
+
+	if err := (&Config{Frozen: true}).Save(); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !loaded.SyncFrozen() {
+		t.Fatal("Load lost frozen")
+	}
+	raw, err := os.ReadFile(filepath.Join(home, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc["frozen"] != true {
+		t.Fatalf("disk frozen=%v, want true; %s", doc["frozen"], raw)
+	}
+
+	if err := (&Config{Site: "https://x.example"}).Save(); err != nil {
+		t.Fatal(err)
+	}
+	off, err := os.ReadFile(filepath.Join(home, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(off), "frozen") {
+		t.Fatalf("omitempty dropped: %s", off)
+	}
+}
+
 func TestHasCredentialStandaloneVsConnected(t *testing.T) {
 	if (*Config)(nil).HasCredential() {
 		t.Fatal("nil config")

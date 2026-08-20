@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -33,6 +34,9 @@ func cmdSync(args []string) error {
 	if err != nil {
 		return err
 	}
+	if cfg.SyncFrozen() {
+		return frozenSyncError()
+	}
 	// The credential gate is per-source: `sync --source linear` needs the
 	// Linear key, not a Jira token (a Linear-only profile is legitimate).
 	if !cfg.HasCredential() && !(cfg.Linear != nil) {
@@ -51,7 +55,7 @@ func cmdSync(args []string) error {
 		// Same reload seam as serve: a `sync --watch` left running all day must
 		// notice a settings edit, not mirror yesterday's scope until restarted.
 		opts.Reload = config.Load
-		return syncer.Watch(ctx, cfg, db, opts)
+		return translateFrozen(syncer.Watch(ctx, cfg, db, opts))
 	}
 	runJira := *source == "all" || *source == "jira"
 	runLinear := (*source == "all" || *source == "linear") && cfg.Linear != nil
@@ -72,7 +76,7 @@ func cmdSync(args []string) error {
 		if err != nil {
 			// GDK-485: the stored last_error is already folded (sync.record);
 			// the printed line gets the same first sentence.
-			return origin.FoldPairedError(cfg, err)
+			return translateFrozen(origin.FoldPairedError(cfg, err))
 		}
 		kind := "incremental"
 		if res.Full {
@@ -87,7 +91,7 @@ func cmdSync(args []string) error {
 			if runJira {
 				log.Printf("linear sync failed: %v", err)
 			}
-			return err
+			return translateFrozen(err)
 		}
 		kind := "incremental"
 		if lres.Full {
@@ -103,7 +107,7 @@ func cmdSync(args []string) error {
 				// Jira already succeeded; log confluence failure but still exit non-zero.
 				log.Printf("confluence sync failed: %v", err)
 			}
-			return err
+			return translateFrozen(err)
 		}
 		kind := "incremental"
 		if cres.Full {
@@ -117,6 +121,23 @@ func cmdSync(args []string) error {
 	}
 	printUpdateNotice(cfg, false)
 	return nil
+}
+
+// frozenSyncError is the CLI translation of sync.ErrFrozen: cause plus how
+// to unfreeze. config.Path is the on-disk file (internal/config/config.go).
+func frozenSyncError() error {
+	path := "config.json"
+	if p, err := config.Path(); err == nil && p != "" {
+		path = p
+	}
+	return fmt.Errorf("this workspace is frozen — no sync (config \"frozen\": true in %s); remove that field to sync again", path)
+}
+
+func translateFrozen(err error) error {
+	if errors.Is(err, syncer.ErrFrozen) {
+		return frozenSyncError()
+	}
+	return err
 }
 
 // printUpdateNotice prints a one-line brew upgrade hint when a newer release

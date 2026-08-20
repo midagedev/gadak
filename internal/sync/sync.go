@@ -7,6 +7,7 @@ package sync
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -116,6 +117,18 @@ func (o Options) phasef(source string) {
 	}
 }
 
+// ErrFrozen means this workspace refuses pulls from origin (config "frozen").
+var ErrFrozen = errors.New("workspace is frozen: no sync into this mirror (config \"frozen\": true)")
+
+// refuseIfFrozen is the gate every exported entry point calls first, so a new
+// caller cannot reintroduce GDK-181 by forgetting a check of its own.
+func refuseIfFrozen(cfg *config.Config) error {
+	if cfg.SyncFrozen() {
+		return ErrFrozen
+	}
+	return nil
+}
+
 // Run does one sync pass: full or incremental, plus a reconcile pass when asked
 // for or after a full sync.
 //
@@ -126,6 +139,9 @@ func (o Options) phasef(source string) {
 // An empty cfg.Projects means no project filter: the account's full visible
 // issue set is the scope (one Search, not one per project).
 func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
+	if err := refuseIfFrozen(cfg); err != nil {
+		return Result{}, err
+	}
 	var c *jira.Client
 	return runSource(ctx, cfg, db, opts,
 		sourceIdent{ID: SourceID, Kind: "jira"},
@@ -426,6 +442,9 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
+	if err := refuseIfFrozen(cfg); err != nil {
+		return err
+	}
 	every := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
 	if opts.Tick > 0 {
 		every = opts.Tick
@@ -450,6 +469,9 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 				opts.logf("sync loop: reload config: %v", err)
 			} else if next != nil {
 				cfg = next
+				if err := refuseIfFrozen(cfg); err != nil {
+					return err
+				}
 				if nextCred := watchCredential(cfg); nextCred != cred {
 					// Skip is per-credential: a settings token rotation must
 					// retry a previously-rejected source. Same credential

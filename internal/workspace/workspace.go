@@ -500,6 +500,11 @@ func (r *Registry) EnsureWatch(name string) bool {
 	if err != nil || !cfg.HasCredential() {
 		return false
 	}
+	// Frozen workspaces refuse pulls (GDK-181). Stay quiet: EnsureWatches is
+	// on a rescan loop and a log line here would fire every scan.
+	if cfg.SyncFrozen() {
+		return false
+	}
 
 	e, err := r.open(name)
 	if err != nil {

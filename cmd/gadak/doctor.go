@@ -69,6 +69,7 @@ type doctorWorkspace struct {
 	Persist      string `json:"persist"`
 	LocalIssues  int    `json:"local_issues"`
 	Inconsistent bool   `json:"inconsistent"`
+	Frozen       bool   `json:"frozen"`
 }
 
 // doctorSkill answers "is my Claude Code skill current?" without the user
@@ -217,6 +218,7 @@ func collectDoctor() doctorReport {
 			Persist:      tildeHome(persist),
 			LocalIssues:  n,
 			Inconsistent: cfg.IsStandalone() && hasTok,
+			Frozen:       cfg.SyncFrozen(),
 		}
 	}
 
@@ -563,8 +565,12 @@ func formatDoctorWorkspace(w doctorWorkspace) string {
 	if persist == "" {
 		persist = "none"
 	}
-	s := fmt.Sprintf("kind=%s site_token=%s persist=%s issues=%d",
-		w.Kind, tok, persist, w.LocalIssues)
+	frozen := "no"
+	if w.Frozen {
+		frozen = "yes"
+	}
+	s := fmt.Sprintf("kind=%s site_token=%s persist=%s issues=%d frozen=%s",
+		w.Kind, tok, persist, w.LocalIssues, frozen)
 	if w.Inconsistent {
 		s += " inconsistent"
 	}

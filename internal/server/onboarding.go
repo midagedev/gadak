@@ -269,6 +269,10 @@ func (s *server) handleStartSync(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if cfg.SyncFrozen() {
+		fail(w, http.StatusConflict, "workspace_frozen")
+		return
+	}
 	if !s.startSyncJob(cfg, full) {
 		fail(w, http.StatusConflict, "sync_in_progress")
 		return
@@ -276,9 +280,13 @@ func (s *server) handleStartSync(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, s.syncProgressResponse())
 }
 
-// startSyncJob begins a background sync unless one is already running.
-// Returns false when a run was already in progress.
+// startSyncJob begins a background sync unless one is already running or
+// the workspace is frozen (GDK-181). Returns false when a run was already
+// in progress or the workspace refuses pulls.
 func (s *server) startSyncJob(cfg *config.Config, full bool) bool {
+	if cfg != nil && cfg.SyncFrozen() {
+		return false
+	}
 	if s.syncKick != nil {
 		return s.syncKick(cfg, full)
 	}

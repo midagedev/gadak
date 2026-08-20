@@ -62,6 +62,13 @@ type Config struct {
 	// Do not store the word "local" here: gadak is already local-first.
 	Kind string `json:"kind,omitempty"`
 
+	// Frozen stops every sync into this workspace's mirror, credential or not.
+	// A scrubbed fixture with a live credential decontaminates itself the moment
+	// something opens it (GDK-181): the sync upserts real rows over the scrubbed
+	// ones under the same external_id. Demo, recording and screenshot workspaces
+	// set this. It does not affect reads or writes — only pulls from origin.
+	Frozen bool `json:"frozen,omitempty"`
+
 	// The credential and what it connects to. Token is never copied out of this file.
 	// A standalone workspace leaves these empty.
 	Site     string   `json:"site,omitempty"` // https://your-site.atlassian.net
@@ -692,6 +699,11 @@ func (c *Config) HasCredential() bool {
 	rem, err := pairing.LoadRemote(c.Directory())
 	return err == nil && rem != nil
 }
+
+// SyncFrozen is the only question the sync gate asks. Deliberately separate
+// from HasCredential: a standalone workspace has a credential by definition
+// (see HasCredential), and writes must keep working here.
+func (c *Config) SyncFrozen() bool { return c != nil && c.Frozen }
 
 // ErrNotConfigured is the single owner of "this workspace has no origin yet"
 // (GDK-454). CLI verbs that refuse because HasCredential is false print this

@@ -40,6 +40,27 @@ sleep 2
 cp "$repo/examples/demo.db" "$demo/gadak.db"
 rm -f "$demo/gadak.db-wal" "$demo/gadak.db-shm"
 
+# Freeze the profile before anything opens it. Reseeding the mirror is not
+# enough: this profile's config.json is the one place a real site + token can
+# survive between takes, and the app syncs on open — that is how 71 real rows
+# once landed on top of the scrubbed ones under the same external_id, with the
+# fictional author names replaced by real ones (GDK-181). A frozen workspace
+# refuses every pull, so the snapshot stays the snapshot.
+python3 - "$demo/config.json" <<'PY'
+import json, os, sys
+path = sys.argv[1]
+cfg = {}
+if os.path.exists(path):
+    with open(path) as f:
+        cfg = json.load(f)
+cfg["frozen"] = True
+with open(path, "w") as f:
+    json.dump(cfg, f, indent=2)
+# A config file is where a token lives, so a file we may have just created
+# does not get its mode from the umask.
+os.chmod(path, 0o600)
+PY
+
 # 2. Cold-launch on a neutral issue, pin the window to the capture region.
 open "gadak://view/w/demo?issue=NMB-2"
 sleep 6

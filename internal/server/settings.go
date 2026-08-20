@@ -335,7 +335,7 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	// newly added project's past issues never arrive on a watermark-based
 	// incremental — changing scope is exactly the backfill case. If a job is
 	// already running we skip (not an error); the response stays 200 + settings.
-	if scopeChanged(prev, &next) && next.HasCredential() {
+	if scopeChanged(prev, &next) && next.HasCredential() && !next.SyncFrozen() {
 		_ = s.startSyncJob(&next, true)
 	}
 	writeJSON(w, http.StatusOK, s.settingsResponse(&next))

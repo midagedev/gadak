@@ -58,6 +58,9 @@ func linearCategory(stateType string) (cat string, ok bool) {
 // constitution — the client has no mutations. stateHistory / history are
 // still not mirrored (status_changed_at / reopen_count stay NULL).
 func RunLinear(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
+	if err := refuseIfFrozen(cfg); err != nil {
+		return Result{}, err
+	}
 	var c *linear.Client
 	return runSource(ctx, cfg, db, opts,
 		sourceIdent{ID: LinearSourceID, Kind: "linear"},

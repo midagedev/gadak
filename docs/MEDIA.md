@@ -13,6 +13,18 @@ window's rectangle, and scrubs the signed-in account line in the encode),
 but the script runs on a live screen, so review the frames before
 committing a regen.
 
+**A capture workspace is frozen.** Reseeding the mirror is not enough on
+its own — the profile's `config.json` is where a real site and token survive
+between takes, and the app syncs on open. That is how 71 real rows once
+landed on top of the scrubbed ones under the same `external_id`, with the
+fictional author names replaced by real ones (GDK-181, caught in review
+before the shot). `"frozen": true` in that config makes the workspace refuse
+every pull from origin; `tools/record-raycast.sh` sets it before it launches
+anything. Do the same for any capture profile you build by hand — `gadak
+status` and `gadak doctor` both say whether it is on. (The VHS fixture under
+`tools/tapes/` needs no latch: `prepare.sh` rewrites its config from scratch
+each run with a fake credential.)
+
 ## Assets
 
 | File | Source | Use |

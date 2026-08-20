@@ -54,6 +54,10 @@ var neverExportConfigFields = []string{
 	// Workspace kind is per-machine: standalone origin is this profile's
 	// issuetap snapshot, not a team setting.
 	"Kind",
+	// Frozen is a per-workspace safety latch (GDK-181): a scrubbed fixture
+	// with a live credential. Exporting it would freeze someone else's
+	// real mirror, or un-freeze a demo the importer did not mean to open.
+	"Frozen",
 	// Linear carries a personal API key. Team scope would be shareable, but
 	// splitting the block to export half of it is not worth a credential
 	// classification mistake — the whole block stays private.

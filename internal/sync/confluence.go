@@ -38,6 +38,9 @@ const pageBatchSize = 50
 //
 // A failure leaves already-committed batches in place.
 func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (Result, error) {
+	if err := refuseIfFrozen(cfg); err != nil {
+		return Result{}, err
+	}
 	var c *confluence.Client
 	// Acquire the wiki client before runSource so a failure can skip this
 	// pass without becoming the caller's error. Issue sync is a different
