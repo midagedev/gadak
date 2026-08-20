@@ -203,6 +203,11 @@ var helps = map[string]cmdHelp{
 			"gadak export-static dist/static-demo",
 			"gadak export-static --db examples/demo.db out/",
 			"gadak export-static --api-base /gadak/api/v1/issues/ dist/demo",
+			"gadak export-static --projects GDK --scrub --db mirror.db out/backlog",
+		},
+		options: []helpOption{
+			{name: "projects", desc: "comma-separated project keys baked into the snapshot config"},
+			{name: "scrub", desc: "whitelist-rebuild for public backlog publishing — drops descriptions, comments, attachments, history, people and custom fields"},
 		},
 		seeAlso: []string{"gadak demo", "gadak snapshot"},
 	},

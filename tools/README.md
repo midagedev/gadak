@@ -84,6 +84,21 @@ node tools/hosted-demo/build.mjs
 # or: make hosted-demo && make hosted-demo-test
 ```
 
+## `backlog-snapshot.sh` / `backlog-scrub-check.sh`
+
+Freeze the maintainer's GDK mirror into `examples/backlog-snapshot/` — the
+committed, whitelist-scrubbed data behind the public backlog page
+(`/gadak/backlog/`, GDK-389). The snapshot script runs locally (CI never
+holds Jira credentials); the check script asserts the scrub invariants (no
+members, no people fields, empty descriptions/comments/attachments/history,
+no emails, no concrete site URLs) and runs again in `pages.yml` on the
+built artifact. Refresh is manual, release-time by default.
+
+```bash
+tools/backlog-snapshot.sh            # default mirror: ~/.gadak/profiles/oss/gadak.db
+tools/backlog-scrub-check.sh examples/backlog-snapshot
+```
+
 ## `bench-fixture`
 
 Builds a deterministic synthetic `gadak.db` for latency work (T6.7 / G5). No

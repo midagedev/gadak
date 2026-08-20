@@ -66,11 +66,21 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/scan-internal.sh
-          # Artifact must not contain a concrete Jira site URL.
+          # Artifact must not contain a concrete Jira site URL. Placeholder
+          # hosts (your-site, example, bare x — GDK issue summaries quote the
+          # test fixture host) are fine.
           if grep -rEn "atlassian\.net" dist/hosted \
-              | grep -vE "your-site|example\.com|your-team"; then
+              | grep -vE "(your-site|example|your-team|\bx)\.atlassian\.net|example\.com"; then
             echo "found a concrete Jira site URL in hosted artifact" >&2
             exit 1
+          fi
+
+      # GDK-389: the public backlog is a whitelist-rebuilt snapshot. Assert the
+      # structural invariants on the artifact that will actually be published.
+      - name: Backlog scrub gate (GDK-389)
+        run: |
+          if [ -d dist/hosted/backlog ]; then
+            bash tools/backlog-scrub-check.sh dist/hosted/backlog
           fi
 
       - name: Upload Pages artifact

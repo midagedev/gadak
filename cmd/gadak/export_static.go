@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,6 +21,31 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
+// copyMirror makes a consistent single-file copy of a live mirror.
+//
+// `os.ReadFile` cannot do this and used to: the mirror runs in WAL mode, so a
+// byte copy of `gadak.db` alone omits everything still in `gadak.db-wal`.
+// Measured 2026-08-20 while publishing the backlog: a 4.7 MB WAL held the
+// four newest issues and three label writes, so the export dropped them and
+// reported success. On a publishing path that is not staleness — a `public`
+// label *removed* minutes ago would also be invisible, and the issue would
+// keep being published.
+//
+// VACUUM INTO takes a read transaction, so it sees the WAL and writes one
+// consistent file with no side effects on the source (unlike a checkpoint).
+func copyMirror(src, dst string) error {
+	db, err := sql.Open("sqlite", "file:"+src+"?mode=ro")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	// VACUUM INTO takes a path literal, not a bound parameter.
+	if _, err := db.Exec("VACUUM INTO '" + strings.ReplaceAll(dst, "'", "''") + "'"); err != nil {
+		return err
+	}
+	return nil
+}
+
 // serverAPIBase is the path prefix the live server hardcodes into attachment
 // content_url fields. Hosted demos rewrite it to the configured --api-base.
 const serverAPIBase = "/api/v1/issues/"
@@ -33,6 +59,16 @@ func cmdExportStatic(args []string) error {
 		"apiBase written into config.json and rewritten into attachment content_url fields")
 	authBase := fs.String("auth-base", "/gadak/api/v1/auth/",
 		"authBase written into config.json")
+	projects := fs.String("projects", "NMB,NMA,NMS",
+		"comma-separated project keys baked into the snapshot config")
+	scrub := fs.Bool("scrub", false,
+		"whitelist-rebuild the snapshot for public backlog publishing: "+
+			"issues keep only list fields; descriptions, comments, attachments, "+
+			"history, people and custom fields are dropped")
+	requireLabel := fs.String("require-label", "",
+		"publish only issues carrying this label; everything else is dropped "+
+			"from bootstrap and gets no detail file. A whitelist, so an issue "+
+			"filed after this snapshot is private until it is labelled")
 	// Flags must come before the positional outdir (Go flag stops at the first
 	// non-flag). build.mjs and the usage line keep that order.
 	if err := fs.Parse(args); err != nil {
@@ -62,12 +98,8 @@ func cmdExportStatic(args []string) error {
 	defer os.RemoveAll(tmp)
 
 	workDB := filepath.Join(tmp, "gadak.db")
-	src, err := os.ReadFile(*dbPath)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(workDB, src, 0o600); err != nil {
-		return err
+	if err := copyMirror(*dbPath, workDB); err != nil {
+		return fmt.Errorf("copy mirror: %w", err)
 	}
 	if err := freshenDemoClock(workDB); err != nil {
 		return fmt.Errorf("freshen sync clock: %w", err)
@@ -92,9 +124,14 @@ func cmdExportStatic(args []string) error {
 	}
 	defer db.Close()
 
-	// Demo projects only — no credential, every optional surface off.
+	projectList := strings.Split(*projects, ",")
+	for i := range projectList {
+		projectList[i] = strings.TrimSpace(projectList[i])
+	}
+
+	// Snapshot projects only — no credential, every optional surface off.
 	cfg := &config.Config{
-		Projects: []string{"NMB", "NMA", "NMS"},
+		Projects: projectList,
 		Features: map[string]bool{
 			"presence":   false,
 			"feed":       false,
@@ -123,6 +160,21 @@ func cmdExportStatic(args []string) error {
 	if err != nil {
 		return fmt.Errorf("bootstrap: %w", err)
 	}
+	// Label filter before scrub: the detail loop re-reads this same body, so an
+	// issue dropped here never gets a detail file either — one decision, two
+	// surfaces. Independent of --scrub so the filter can be verified alone.
+	if *requireLabel != "" {
+		bootBody, err = keepLabelled(bootBody, *requireLabel)
+		if err != nil {
+			return fmt.Errorf("require-label %s: %w", *requireLabel, err)
+		}
+	}
+	if *scrub {
+		bootBody, err = scrubBootstrap(bootBody)
+		if err != nil {
+			return fmt.Errorf("scrub bootstrap: %w", err)
+		}
+	}
 	if err := os.WriteFile(filepath.Join(outDir, "bootstrap.json"), bootBody, 0o644); err != nil {
 		return err
 	}
@@ -149,6 +201,12 @@ func cmdExportStatic(args []string) error {
 		body, err := getJSON(handler, "GET", serverAPIBase+key+"/detail/")
 		if err != nil {
 			return fmt.Errorf("detail %s: %w", key, err)
+		}
+		if *scrub {
+			body, err = scrubDetail(body)
+			if err != nil {
+				return fmt.Errorf("scrub detail %s: %w", key, err)
+			}
 		}
 		// Rewrite absolute content_url paths so the hosted client (apiBase under
 		// the Pages subpath) and the service worker agree.
@@ -201,7 +259,7 @@ func cmdExportStatic(args []string) error {
 		"authBase":            *authBase,
 		"jiraBaseUrl":         "",
 		"qaDashboardUrl":      "",
-		"projects":            []string{"NMB", "NMA", "NMS"},
+		"projects":            projectList,
 		"groupLabels":         map[string]string{},
 		"groupColors":         map[string]string{},
 		"productByGroup":      map[string]any{},
@@ -217,6 +275,12 @@ func cmdExportStatic(args []string) error {
 		// Hosted-demo marker for operators; the client ignores unknown keys.
 		"hostedDemo": true,
 	}
+	if *scrub {
+		// A named profile gives the backlog page its own IndexedDB cache scope
+		// (composeCacheScope) so it never mixes rows with the demo on the same
+		// origin.
+		cfgDoc["profile"] = "backlog"
+	}
 	cfgBytes, err := json.MarshalIndent(cfgDoc, "", "  ")
 	if err != nil {
 		return err
@@ -229,6 +293,131 @@ func cmdExportStatic(args []string) error {
 	fmt.Printf("export-static: %d issues, %d attachments → %s\n",
 		len(boot.Issues), len(seenAttach), outDir)
 	return nil
+}
+
+/* ── backlog scrub (GDK-389) ──
+ * Whitelist-REBUILD, never blacklist-strip: a field added to the live
+ * handlers later must stay private by default. Only the keys listed here
+ * survive into a published snapshot.
+ */
+
+// issueWhitelist is every issue-list key a public backlog snapshot may carry.
+// People (assignee/reporter/emails), custom fields and clone provenance are
+// deliberately absent.
+var issueWhitelist = []string{
+	"issue_key", "summary", "project_key",
+	"issue_type", "issue_type_id",
+	"status", "status_id", "status_category",
+	"priority", "priority_id", "priority_rank",
+	"epic_key", "parent_key",
+	"labels", "components", "fix_versions",
+	"duedate", "resolution",
+	"created_at", "updated_at", "status_changed_at", "resolved_at",
+	"comment_count", "source",
+}
+
+// keepLabelled drops every bootstrap issue that does not carry label. The
+// direction matters: this is a whitelist, so the failure mode of forgetting to
+// classify an issue is "missing from the public snapshot", never "published by
+// accident" (GDK-389 review — a denylist publishes whatever nobody remembered
+// to mark).
+func keepLabelled(body []byte, label string) ([]byte, error) {
+	var boot map[string]json.RawMessage
+	if err := json.Unmarshal(body, &boot); err != nil {
+		return nil, err
+	}
+	var issues []map[string]json.RawMessage
+	if err := json.Unmarshal(boot["issues"], &issues); err != nil {
+		return nil, err
+	}
+	kept := make([]map[string]json.RawMessage, 0, len(issues))
+	for _, is := range issues {
+		var labels []string
+		if raw, ok := is["labels"]; ok {
+			if err := json.Unmarshal(raw, &labels); err != nil {
+				return nil, fmt.Errorf("labels: %w", err)
+			}
+		}
+		for _, l := range labels {
+			if l == label {
+				kept = append(kept, is)
+				break
+			}
+		}
+	}
+	if len(kept) == 0 {
+		return nil, fmt.Errorf("no issue carries %q — refusing to publish an empty backlog", label)
+	}
+	keptRaw, err := json.Marshal(kept)
+	if err != nil {
+		return nil, err
+	}
+	boot["issues"] = keptRaw
+	return json.Marshal(boot)
+}
+
+func scrubBootstrap(body []byte) ([]byte, error) {
+	var boot map[string]json.RawMessage
+	if err := json.Unmarshal(body, &boot); err != nil {
+		return nil, err
+	}
+	var issues []map[string]json.RawMessage
+	if err := json.Unmarshal(boot["issues"], &issues); err != nil {
+		return nil, err
+	}
+	outIssues := make([]map[string]json.RawMessage, 0, len(issues))
+	for _, is := range issues {
+		kept := map[string]json.RawMessage{}
+		for _, k := range issueWhitelist {
+			if v, ok := is[k]; ok {
+				kept[k] = v
+			}
+		}
+		outIssues = append(outIssues, kept)
+	}
+	issuesRaw, err := json.Marshal(outIssues)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]json.RawMessage{
+		"server_time":     boot["server_time"],
+		"sync_version":    boot["sync_version"],
+		"members":         json.RawMessage("[]"),
+		"members_version": boot["members_version"],
+		"issues":          issuesRaw,
+		"sync_health":     boot["sync_health"],
+		"field_specs":     json.RawMessage("[]"),
+		"field_usage":     json.RawMessage("{}"),
+	}
+	return json.Marshal(out)
+}
+
+// scrubDetail keeps the key and the linked-issue graph (public structure) and
+// forces every content surface — description, comments, attachments, history,
+// bodies, enrichments — to its empty shape.
+func scrubDetail(body []byte) ([]byte, error) {
+	var det map[string]json.RawMessage
+	if err := json.Unmarshal(body, &det); err != nil {
+		return nil, err
+	}
+	linked := det["linked_issues"]
+	if len(linked) == 0 {
+		linked = json.RawMessage("[]")
+	}
+	out := map[string]json.RawMessage{
+		"issue_key":           det["issue_key"],
+		"description_adf":     json.RawMessage("null"),
+		"attachments":         json.RawMessage("[]"),
+		"comments":            json.RawMessage("[]"),
+		"history":             json.RawMessage("[]"),
+		"linked_issues":       linked,
+		"development_opinion": json.RawMessage("null"),
+		"qa_context":          json.RawMessage("null"),
+		"deploy":              json.RawMessage("null"),
+		"linked_prs":          json.RawMessage("[]"),
+		"bodies":              json.RawMessage("{}"),
+	}
+	return json.Marshal(out)
 }
 
 // copyAttachmentsFromManifest writes attachments/<id> from the fixture dir for
