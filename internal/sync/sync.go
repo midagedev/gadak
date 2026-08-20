@@ -162,7 +162,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	// under the new namespace. No tombstones — the keys come right back.
 	if cfg.IsStandalone() {
 		if n, err := db.PurgeIssueIDsOutsideNamespace(ctx, SourceID, itemNS(cfg)); err != nil {
-			return record(ctx, db, SourceID, err)
+			return record(ctx, cfg, db, SourceID, err)
 		} else if n > 0 {
 			opts.logf("purged %d pre-namespace standalone rows (GDK-241)", n)
 		}
@@ -170,11 +170,11 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 
 	cats, err := c.Statuses(ctx)
 	if err != nil {
-		return record(ctx, db, SourceID, err)
+		return record(ctx, cfg, db, SourceID, err)
 	}
 	prios, err := c.Priorities(ctx)
 	if err != nil {
-		return record(ctx, db, SourceID, err)
+		return record(ctx, cfg, db, SourceID, err)
 	}
 
 	fieldIDs := fieldList(cfg, res.Full)
@@ -263,7 +263,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			// is max(updated) over fetched pages, so ordering does not affect it.
 			beginSearch("full sync: every project this account can see", jql, true)
 			if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
-				return record(ctx, db, SourceID, err)
+				return record(ctx, cfg, db, SourceID, err)
 			}
 		} else {
 			for _, p := range cfg.Projects {
@@ -273,7 +273,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 				// is max(updated) over fetched pages, so ordering does not affect it.
 				beginSearch("full sync: "+p, jql, true)
 				if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
-					return record(ctx, db, SourceID, err)
+					return record(ctx, cfg, db, SourceID, err)
 				}
 			}
 		}
@@ -284,7 +284,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			opts.logf("tip: run `gadak sync --full` once to auto-configure custom fields")
 		}
 		if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
-			return record(ctx, db, SourceID, err)
+			return record(ctx, cfg, db, SourceID, err)
 		}
 	}
 
@@ -297,7 +297,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		deleted, err := reconcile(ctx, c, db, cfg.Projects, opts)
 		res.Deleted = deleted
 		if err != nil {
-			return record(ctx, db, SourceID, err)
+			return record(ctx, cfg, db, SourceID, err)
 		}
 	}
 
@@ -488,7 +488,7 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 					opts.logf("notify: %v", nerr)
 				}
 			}
-			if err := applyWatchErr(ctx, db, src, runErr, opts.logf, dead); err != nil {
+			if err := applyWatchErr(ctx, cfg, db, src, runErr, opts.logf, dead); err != nil {
 				return err
 			}
 		}

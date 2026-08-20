@@ -17,6 +17,8 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/store"
 
 	_ "modernc.org/sqlite" // the tests read the mirror over SQL to check columns the read API does not expose
@@ -1171,6 +1173,54 @@ func TestKoreanChangelogWithoutFieldIDRecordsStatus(t *testing.T) {
 	one := lite(t, db, "NMB-KO")
 	if one.ReopenCount != 1 {
 		t.Errorf("C10: reopen_count = %d, want 1 (Derive missed 상태)", one.ReopenCount)
+	}
+}
+
+// GDK-485: last_error for a paired unreachable origin must start with the
+// folded pairing sentence, not the atlhttp "GET /rest/api/3/status: …" prefix.
+func TestPairedUnreachableLastErrorIsFolded(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+	if err := pairing.SaveRemote(home, pairing.Remote{Endpoint: url, Token: "pair-token", Label: "laptop"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := origin.Client(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Retries, c.Backoff = 1, 0
+
+	db := newMirror(t)
+	_, runErr := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: c})
+	if runErr == nil {
+		t.Fatal("sync against a closed home serve must fail")
+	}
+	st, err := db.SyncState(context.Background(), SourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.LastError == nil || *st.LastError == "" {
+		t.Fatalf("last_error empty after paired unreachable (run err %v)", runErr)
+	}
+	got := *st.LastError
+	if strings.HasPrefix(got, "GET ") || strings.HasPrefix(got, "POST ") {
+		t.Fatalf("last_error kept the REST prefix: %q", got)
+	}
+	if !strings.HasPrefix(got, "pairing:") {
+		t.Fatalf("last_error = %q, want a pairing: sentence first", got)
+	}
+	if !strings.Contains(got, "cannot reach the home serve") {
+		t.Fatalf("last_error = %q, want the unreachable sentence", got)
 	}
 }
 

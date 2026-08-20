@@ -89,7 +89,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	// key), different id, which UNIQUE(source_id, key) rejects.
 	if cfg.IsStandalone() {
 		if n, err := db.PurgePageIDsOutsideNamespace(ctx, ConfluenceSourceID, pageNS(cfg)); err != nil {
-			return record(ctx, db, ConfluenceSourceID, err)
+			return record(ctx, cfg, db, ConfluenceSourceID, err)
 		} else if n > 0 {
 			opts.logf("purged %d pre-namespace standalone pages (GDK-344)", n)
 		}
@@ -99,7 +99,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	if len(spaces) == 0 {
 		listed, err := c.Spaces(ctx)
 		if err != nil {
-			return record(ctx, db, ConfluenceSourceID, err)
+			return record(ctx, cfg, db, ConfluenceSourceID, err)
 		}
 		// Path ①: empty config → Spaces() listing carries key/name/type/homepage.
 		var spaceRows []store.SpaceRow
@@ -140,7 +140,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 				// A bad/restricted key is skippable; a rejected credential is
 				// not — continuing would 401 again on SearchPages.
 				if IsRejectedCredential(err) {
-					return record(ctx, db, ConfluenceSourceID, err)
+					return record(ctx, cfg, db, ConfluenceSourceID, err)
 				}
 				opts.logf("confluence: space %s: %v", key, err)
 				continue
@@ -273,7 +273,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			return err
 		}
 		if err := c.SearchPages(ctx, cql, processHits(&spaceMaxUTC, &spaceMaxRaw, gate)); err != nil {
-			return record(ctx, db, ConfluenceSourceID, err)
+			return record(ctx, cfg, db, ConfluenceSourceID, err)
 		}
 		opts.logf("confluence: space %s floor=%s fetched=%d unchanged=%d", key, floorLabel,
 			res.PageBodies-bodiesBefore, res.PageSkips-skipsBefore)
@@ -285,7 +285,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			if err := commentsOnlyPass(ctx, c, opts, key, wms[key], gate,
 				&spaceMaxUTC, &spaceMaxRaw, &maxUTC, &maxRaw,
 				processHits(&spaceMaxUTC, &spaceMaxRaw, gate)); err != nil {
-				return record(ctx, db, ConfluenceSourceID, err)
+				return record(ctx, cfg, db, ConfluenceSourceID, err)
 			}
 		}
 

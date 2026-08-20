@@ -113,7 +113,8 @@ Use when you need the whole conversation around a single key (e.g. NMB-140).`
 
 const toolStatusDescription = `Return mirror freshness: watermark, version, last_error, last_full_sync_at,
 schema_version, row counts (issues, comments), and the workspace kind
-(connected|standalone) with its origin. Check this before acting on
+(connected|standalone) with its origin. A paired workspace is kind connected
+plus a pairing object (endpoint, label). Check this before acting on
 answers that matter — a stalled watermark can mean a quiet project or a broken sync.`
 
 // toolShowDescription is the presentation tool: it writes ui-focus and returns
@@ -383,6 +384,15 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 		kind, originDesc := origin.Describe(cfg)
 		st["kind"] = kind
 		st["origin"] = originDesc
+		// Same pairing object as `gadak status --json` (origin.PairedStatus).
+		if rem, err := origin.PairedStatus(cfg); err != nil {
+			st["pairing_error"] = err.Error()
+		} else if rem != nil {
+			st["pairing"] = map[string]string{
+				"endpoint": rem.Endpoint,
+				"label":    rem.Label,
+			}
+		}
 	}
 	ss, err := s.db.SyncState(context.Background(), "jira")
 	if err != nil {

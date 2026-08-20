@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/selfupdate"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -69,7 +70,9 @@ func cmdSync(args []string) error {
 	if runJira {
 		res, err := syncer.Run(context.Background(), cfg, db, opts)
 		if err != nil {
-			return err
+			// GDK-485: the stored last_error is already folded (sync.record);
+			// the printed line gets the same first sentence.
+			return origin.FoldPairedError(cfg, err)
 		}
 		kind := "incremental"
 		if res.Full {

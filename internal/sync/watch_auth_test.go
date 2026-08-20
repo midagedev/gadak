@@ -852,7 +852,7 @@ func TestApplyWatchErrLinearSentinel(t *testing.T) {
 	ctx := context.Background()
 	dead := map[string]bool{}
 	src := watchSource{id: "linear", failLog: "linear sync failed: %v", fatal: false}
-	if err := applyWatchErr(ctx, db.DB, src, linear.ErrAuth, func(string, ...any) {}, dead); err != nil {
+	if err := applyWatchErr(ctx, nil, db.DB, src, linear.ErrAuth, func(string, ...any) {}, dead); err != nil {
 		t.Fatalf("non-fatal linear source returned %v, want continue", err)
 	}
 	if !dead["linear"] {
@@ -874,7 +874,7 @@ func TestApplyWatchErrThirdSource(t *testing.T) {
 	// happy: non-fatal third source is skipped, last_error recorded, Watch continues
 	dead := map[string]bool{}
 	src := watchSource{id: "third", failLog: "third sync failed: %v", fatal: false}
-	if err := applyWatchErr(ctx, db.DB, src, thirdAuth{}, func(string, ...any) {}, dead); err != nil {
+	if err := applyWatchErr(ctx, nil, db.DB, src, thirdAuth{}, func(string, ...any) {}, dead); err != nil {
 		t.Fatalf("non-fatal third source returned %v, want continue (Jira must keep running)", err)
 	}
 	if !dead["third"] {
@@ -890,7 +890,7 @@ func TestApplyWatchErrThirdSource(t *testing.T) {
 
 	// boundary: fatal third source ends Watch
 	fatal := watchSource{id: "third-fatal", failLog: "third sync failed: %v", fatal: true}
-	err = applyWatchErr(ctx, db.DB, fatal, thirdAuth{}, func(string, ...any) {}, map[string]bool{})
+	err = applyWatchErr(ctx, nil, db.DB, fatal, thirdAuth{}, func(string, ...any) {}, map[string]bool{})
 	if err == nil {
 		t.Fatal("fatal third source returned nil, want the auth error so Watch stops")
 	}
@@ -904,7 +904,7 @@ func TestApplyWatchErrThirdSource(t *testing.T) {
 	// boundary: transport on a third source must not mark it dead
 	dead2 := map[string]bool{}
 	trans := watchSource{id: "third", failLog: "third sync failed: %v", fatal: false}
-	if err := applyWatchErr(ctx, db.DB, trans, errors.New("500 boom"), func(string, ...any) {}, dead2); err != nil {
+	if err := applyWatchErr(ctx, nil, db.DB, trans, errors.New("500 boom"), func(string, ...any) {}, dead2); err != nil {
 		t.Fatalf("transport on third source returned %v, want continue", err)
 	}
 	if dead2["third"] {

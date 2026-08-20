@@ -176,7 +176,7 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 		o := issueOpts
 		o.TeamID = teamID
 		if err := c.Issues(ctx, o, page); err != nil {
-			return record(ctx, db, LinearSourceID, err)
+			return record(ctx, cfg, db, LinearSourceID, err)
 		}
 	}
 
@@ -204,14 +204,14 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 		if !res.Full {
 			listed, err := listLinearIdentifiers(ctx, c, cfg)
 			if err != nil {
-				return record(ctx, db, LinearSourceID, err)
+				return record(ctx, cfg, db, LinearSourceID, err)
 			}
 			upstream = listed
 		}
 		deleted, err := reconcileLinear(ctx, c, db, cfg, upstream, opts)
 		res.Deleted = deleted
 		if err != nil {
-			return record(ctx, db, LinearSourceID, err)
+			return record(ctx, cfg, db, LinearSourceID, err)
 		}
 	}
 	return nil

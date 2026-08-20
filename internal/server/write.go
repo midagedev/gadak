@@ -79,7 +79,11 @@ func failOriginClient(w http.ResponseWriter, err error) {
 func failJira(w http.ResponseWriter, r *http.Request, err error) {
 	var apiErr *jira.APIError
 	var confErr *confluence.APIError
+	var pairErr *origin.PairingError
 	switch {
+	case errors.As(err, &pairErr):
+		// Folded pairing sentence — do not collapse it to jira_unavailable.
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": pairErr.Error()})
 	case errors.Is(err, jira.ErrAuth), errors.Is(err, confluence.ErrAuth), errors.Is(err, linear.ErrAuth):
 		// Stored token is wrong or expired — distinct from never having one
 		// (credential_required), so the UI can say "replace your token".
@@ -870,6 +874,7 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 
 // failCreate maps shared create-resolution errors onto stable wire codes.
 // Need* errors are surface-neutral; CLI flag names stay in cmd/gadak.
+// Pairing/dial failures are not Need* — handleCreate probes before calling this.
 func failCreate(w http.ResponseWriter, err error) {
 	var np *create.NeedProjectError
 	if errors.As(err, &np) {
@@ -887,6 +892,22 @@ func failCreate(w http.ResponseWriter, err error) {
 		return
 	}
 	writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+}
+
+// failCreateOrPairing is handleCreate's Need* path. NeedProject/NeedType are
+// local config ambiguity; probe the origin so a pairing/dial failure is not
+// relabeled as project_required / issue_type_required (CLI createOne, GDK-453).
+// failCreate stays a pure mapping function.
+func failCreateOrPairing(w http.ResponseWriter, r *http.Request, c *jira.Client, cfg *config.Config, err error) {
+	var np *create.NeedProjectError
+	var nt *create.NeedTypeError
+	if (errors.As(err, &np) || errors.As(err, &nt)) && c != nil {
+		if _, _, perr := c.Projects(r.Context(), 1); perr != nil && origin.IsPairingFailure(perr) {
+			failJira(w, r, origin.FoldPairedError(cfg, perr))
+			return
+		}
+	}
+	failCreate(w, err)
 }
 
 /* ── create ── */
@@ -920,7 +941,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	proj, err := create.Project(p.ProjectKey, cfg)
 	if err != nil {
-		failCreate(w, err)
+		failCreateOrPairing(w, r, c, cfg, err)
 		return
 	}
 	// An issue filed outside the mirrored projects would never come back from the
@@ -936,12 +957,12 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	metaProj, types, err := create.MetaFor(meta, proj.Value, cfg)
 	if err != nil {
-		failCreate(w, err)
+		failCreateOrPairing(w, r, c, cfg, err)
 		return
 	}
 	typ, err := create.Type(p.IssueType, types, cfg, proj.Value)
 	if err != nil {
-		failCreate(w, err)
+		failCreateOrPairing(w, r, c, cfg, err)
 		return
 	}
 

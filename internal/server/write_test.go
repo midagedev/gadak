@@ -23,6 +23,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
 )
@@ -622,6 +623,46 @@ func TestCreateIssueOmitsProjectFailsWhenAmbiguous(t *testing.T) {
 	}
 	if f.called("POST /issue") {
 		t.Fatalf("omitted project reached Jira: %v", f.calls)
+	}
+}
+
+// GDK-485: REST sibling of cmd/gadak TestCreatePairedUnreachableIsNotPassProject.
+// A dead home serve must not become project_required 400.
+func TestCreatePairedUnreachableIsNotProjectRequired(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+	if err := pairing.SaveRemote(home, pairing.Remote{Endpoint: url, Token: "pair-token", Label: "laptop"}); err != nil {
+		t.Fatal(err)
+	}
+
+	db, cfg := fixture(t)
+	// Site/email/token keep HasCredential true; origin.Client still prefers
+	// remote-origin.json (pairedRemote is first). DefaultProject empty so
+	// omitted project_key is NeedProjectError — the GDK-453 disguise.
+	cfg.DefaultProject = ""
+	h := New(db, cfg)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"summary":"hello from a paired workspace"}`)
+	body := rec.Body.String()
+	if rec.Code == http.StatusOK {
+		t.Fatalf("create against a closed home serve must fail: %s", body)
+	}
+	got := decode[map[string]string](t, rec)["error"]
+	if got == "project_required" {
+		t.Fatalf("connection failure was folded into project_required: %s", body)
+	}
+	if !strings.Contains(got, "cannot reach the home serve") {
+		t.Fatalf("want pairing unreachable sentence, got %q", got)
+	}
+	if strings.HasPrefix(got, "GET ") || strings.HasPrefix(got, "POST ") {
+		t.Fatalf("REST method leaked onto the error: %q", got)
 	}
 }
 

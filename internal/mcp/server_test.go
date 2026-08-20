@@ -13,7 +13,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jql"
+	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/uifocus"
 )
@@ -136,6 +138,17 @@ func TestProtocolRoundTrip(t *testing.T) {
 	for _, needle := range []string{"status_category", "In Progress", "SELECT", "inprogress"} {
 		if !strings.Contains(qdesc, needle) {
 			t.Errorf("gadak_query description missing %q", needle)
+		}
+	}
+	var sdesc string
+	for _, tool := range list.Tools {
+		if tool.Name == toolStatus {
+			sdesc = tool.Description
+		}
+	}
+	for _, needle := range []string{"paired", "connected", "pairing"} {
+		if !strings.Contains(sdesc, needle) {
+			t.Errorf("gadak_status description missing %q", needle)
 		}
 	}
 
@@ -341,6 +354,46 @@ func TestRejectNonSelectUnit(t *testing.T) {
 	}
 	if err := rejectNonSelect("SELECT 1; SELECT 2"); err == nil {
 		t.Fatal("expected reject multi-statement")
+	}
+}
+
+// GDK-485: gadak_status must carry the same pairing object as `gadak status --json`.
+func TestStatusSurfacesPairing(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+	dir, err := config.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pairing.SaveRemote(dir, pairing.Remote{
+		Endpoint: "https://home.ts.net:8443", Token: "pair-token", Label: "laptop",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	db := demoDB(t)
+	resps := session(t, db,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"gadak_status","arguments":{}}}`,
+	)
+	statusText := callText(t, resps[0])
+	var status map[string]any
+	if err := json.Unmarshal([]byte(statusText), &status); err != nil {
+		t.Fatalf("status JSON: %v\n%s", err, statusText)
+	}
+	if kind, _ := status["kind"].(string); kind != config.KindConnected {
+		t.Fatalf("kind = %v, want connected (paired is not a new kind)", status["kind"])
+	}
+	p, _ := status["pairing"].(map[string]any)
+	if p == nil {
+		t.Fatalf("gadak_status missing pairing object: %s", statusText)
+	}
+	if p["endpoint"] != "https://home.ts.net:8443" || p["label"] != "laptop" {
+		t.Fatalf("pairing = %+v", p)
+	}
+	if _, ok := p["token"]; ok {
+		t.Fatal("pairing object leaked the device token")
 	}
 }
 

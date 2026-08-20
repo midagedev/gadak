@@ -7,6 +7,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/atlhttp"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -87,7 +88,7 @@ func defaultWatchSources() []watchSource {
 // is re-recorded on last_error (status / doctor / sync_health read that
 // column) and either ends Watch (src.fatal) or marks the source dead so
 // later ticks skip it (non-fatal).
-func applyWatchErr(ctx context.Context, db *store.DB, src watchSource, err error, logf func(string, ...any), dead map[string]bool) error {
+func applyWatchErr(ctx context.Context, cfg *config.Config, db *store.DB, src watchSource, err error, logf func(string, ...any), dead map[string]bool) error {
 	if err == nil {
 		return nil
 	}
@@ -101,7 +102,7 @@ func applyWatchErr(ctx context.Context, db *store.DB, src watchSource, err error
 		return nil
 	}
 	if db != nil {
-		_ = db.RecordSync(ctx, src.id, store.SyncResult{Err: err})
+		_ = record(ctx, cfg, db, src.id, err)
 	}
 	if src.fatal {
 		return err
@@ -244,9 +245,11 @@ func syncRunKind(full, reconcile bool) string {
 }
 
 // record stores last_error for sourceID and returns the error unchanged. It
-// passes no watermark: a failed run must not advance it.
-func record(ctx context.Context, db *store.DB, sourceID string, err error) error {
-	_ = db.RecordSync(ctx, sourceID, store.SyncResult{Err: err})
+// passes no watermark: a failed run must not advance it. FoldPairedError runs
+// before the store so a paired failure's first line is the pairing sentence
+// (GDK-485); connected/standalone errors pass through.
+func record(ctx context.Context, cfg *config.Config, db *store.DB, sourceID string, err error) error {
+	_ = db.RecordSync(ctx, sourceID, store.SyncResult{Err: origin.FoldPairedError(cfg, err)})
 	return err
 }
 
