@@ -349,7 +349,13 @@ test.describe('keyboard triage during boot (GDK-46)', () => {
     await pressUntilCursor(page, 'j')
     await expect(page.locator('[data-cursor="true"]')).toHaveCount(1)
 
-    await page.getByTestId('filter-chip').filter({ hasText: 'New' }).click()
+    // GDK-479: All-open category chips are the view highlight, not chips.
+    // A user-added project chip is the removable surface this test names.
+    await page.getByTestId('filter-add').click()
+    await page.getByTestId('filter-axis-jira_project').click()
+    await page.getByRole('button', { name: /^NMB\b/ }).click()
+    await page.keyboard.press('Escape')
+    await page.getByTestId('filter-chip').filter({ hasText: 'NMB' }).click()
     await expect(page.locator('[data-cursor="true"]')).toHaveCount(0)
   })
 
@@ -357,7 +363,12 @@ test.describe('keyboard triage during boot (GDK-46)', () => {
     await gotoApp(page)
     await expect(page.locator('[data-cursor="true"]')).toHaveCount(0)
 
-    await page.getByTestId('filter-chip').filter({ hasText: 'New' }).click()
+    // GDK-479: same as above — user-added chip, not a view-default category.
+    await page.getByTestId('filter-add').click()
+    await page.getByTestId('filter-axis-jira_project').click()
+    await page.getByRole('button', { name: /^NMB\b/ }).click()
+    await page.keyboard.press('Escape')
+    await page.getByTestId('filter-chip').filter({ hasText: 'NMB' }).click()
     await expect(page.locator('[data-cursor="true"]')).toHaveCount(0)
   })
 })

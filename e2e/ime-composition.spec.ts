@@ -64,7 +64,7 @@ test.describe('IME composition (GDK-169)', () => {
     await input.click()
     await input.fill(SEED)
     await expect(page.getByTestId('list-count')).toHaveText('1 issues')
-    await expect(page.getByText('No issues match')).toHaveCount(0)
+    await expect(page.getByText('No issues match', { exact: true })).toHaveCount(0)
     const seedCount = await page.getByTestId('list-count').textContent()
 
     await compositionStart(input)
@@ -74,7 +74,7 @@ test.describe('IME composition (GDK-169)', () => {
       mid.push({
         q,
         count: await page.getByTestId('list-count').textContent(),
-        empty: await page.getByText('No issues match').isVisible(),
+        empty: await page.getByText('No issues match', { exact: true }).isVisible(),
       })
     }
 
@@ -84,7 +84,7 @@ test.describe('IME composition (GDK-169)', () => {
     await expect(input).toHaveValue(FINAL)
 
     await compositionEnd(input, FINAL)
-    await expect(page.getByText('No issues match')).toBeVisible()
+    await expect(page.getByText('No issues match', { exact: true })).toBeVisible()
     await expect(page.getByTestId('list-count')).toHaveText('0 issues')
     await expect(input).toHaveValue(FINAL)
 

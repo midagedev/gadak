@@ -52,12 +52,14 @@ test.describe('empty states', () => {
     await input.click()
     await input.pressSequentially('zzzz-no-such-issue', { delay: 10 })
 
-    await expect(page.getByText('No issues match')).toBeVisible()
-    const reset = page.getByRole('button', { name: 'Clear filters' })
+    await expect(page.getByText('No issues match', { exact: true })).toBeVisible()
+    // GDK-478: a query-caused 0 is "Clear search", not "Clear filters"
+    // (that control walked the All-open view defaults).
+    const reset = page.getByRole('button', { name: 'Clear search' })
     await expect(reset).toBeVisible()
 
     await reset.click()
-    await expect(page.getByText('No issues match')).toBeHidden()
+    await expect(page.getByText('No issues match', { exact: true })).toBeHidden()
     await expect(page.getByTestId('issue-list-scroller').locator('[role="button"]').first()).toBeVisible()
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

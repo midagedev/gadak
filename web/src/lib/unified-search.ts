@@ -164,6 +164,19 @@ export function requestOpenPalette(): void {
   paletteOpener?.()
 }
 
+let shortcutsOpener: (() => void) | null = null
+
+export function bindShortcutsOpener(fn: () => void): () => void {
+  shortcutsOpener = fn
+  return () => {
+    if (shortcutsOpener === fn) shortcutsOpener = null
+  }
+}
+
+export function requestOpenShortcuts(): void {
+  shortcutsOpener?.()
+}
+
 /** Same platform test ShortcutsDialog uses for ⌘ vs Ctrl. */
 export function modifierSymbol(): '⌘' | 'Ctrl' {
   if (typeof navigator === 'undefined') return 'Ctrl'

@@ -59,7 +59,7 @@
   import BrowseHost from './components/browse/BrowseHost.svelte'
   import { mediaViewer } from './stores/media-viewer.svelte'
   import { t } from './lib/i18n'
-  import { bindPaletteOpener } from './lib/unified-search'
+  import { bindPaletteOpener, bindShortcutsOpener } from './lib/unified-search'
   import {
     applyOverlayChrome,
     isOverlayModal,
@@ -187,6 +187,9 @@
     const unbindPalette = bindPaletteOpener(() => {
       paletteOpen = true
     })
+    const unbindShortcuts = bindShortcutsOpener(() => {
+      shortcutsOpen = true
+    })
     void hydrateThemeFromServer()
     void issues.init()
     void me.init()
@@ -257,6 +260,7 @@
     document.addEventListener('visibilitychange', onVis)
     return () => {
       unbindPalette()
+      unbindShortcuts()
       clearTimeout(skeletonTimer)
       stopFocusPoll()
       document.removeEventListener('visibilitychange', onVis)
@@ -354,7 +358,11 @@
       teamGroupEnabled: feature('teamGroups'),
       group: me.group,
     }
-    applyStartupView(startupInput, (c) => filters.applyConfig(c))
+    applyStartupView(startupInput, (c) => {
+      filters.applyConfig(c)
+      filters.setViewOrigin(c.filters)
+    })
+    filters.latchOriginFromBuiltins()
     // End of boot view writes. Future boot sources must run *before* this
     // line — after it, the list becomes a keyboard target and a later hash
     // write is a user view change (resets the cursor).

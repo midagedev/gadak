@@ -216,12 +216,25 @@
              "no issues match", which reads as "nothing found". -->
         <EmptyState icon="file" title={t('list.docOnlyTitle')} hint={t('list.docOnlyHint')} />
       {:else}
+        {@const q = filters.filters.q.trim()}
+        {@const bodyEmpty = Boolean(filters.serverMatchQuery) && !filters.searching}
         <EmptyState
           icon="search-x"
           title={t('list.noMatchTitle')}
-          hint={t('list.noMatchHint')}
-          actionLabel={filters.hasFilters ? t('list.clearFilters') : ''}
-          onAction={() => filters.clearAll()}
+          hint={q
+            ? bodyEmpty
+              ? t('list.noMatchBodyHint')
+              : t('list.noMatchQueryHint')
+            : t('list.noMatchHint')}
+          actionLabel={q ? t('list.clearSearch') : filters.hasUserChips ? t('list.clearFilters') : ''}
+          onAction={() => {
+            if (q) {
+              filters.setQuery('')
+              filters.clearServerSearch()
+            } else {
+              filters.clearUserFilters()
+            }
+          }}
         />
       {/if}
     {:else}

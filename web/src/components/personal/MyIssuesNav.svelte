@@ -51,7 +51,7 @@
   }
 
   function applyAssignee() {
-    showIssueList(assigneeConfig())
+    showIssueList(assigneeConfig(), true)
   }
 </script>
 

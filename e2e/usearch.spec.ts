@@ -89,8 +89,13 @@ test.describe('unified search — palette + entry', () => {
     await page.getByTestId('palette-open').click()
     const palette = page.getByRole('dialog', { name: 'Command palette' })
     await expect(palette).toBeVisible()
-    await expect(palette.getByTestId('palette-empty-hint')).toBeVisible()
-    await expect(palette.getByTestId('palette-empty-hint')).toContainText(/every issue and document/i)
+    // GDK-472: placeholder already names the scope; a second emptyHint
+    // repeated it. One phrase is the empty-palette contract.
+    await expect(palette.getByRole('combobox')).toHaveAttribute(
+      'placeholder',
+      /jump to an issue, or search everything/i,
+    )
+    await expect(palette.getByTestId('palette-empty-hint')).toHaveCount(0)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

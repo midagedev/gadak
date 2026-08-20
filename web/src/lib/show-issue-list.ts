@@ -14,9 +14,14 @@ import { me } from '../stores/me.svelte'
 import { pages } from '../stores/pages.svelte'
 import type { ViewConfig } from './view-config'
 
-/** Close the latches that hide ListView, then apply the view. */
-export function showIssueList(config: ViewConfig): void {
+/**
+ * Close the latches that hide ListView, then apply the view.
+ * `asView` (GDK-479): the config is a named view — chip rendering subtracts
+ * these filters so the sidebar highlight is the only expression of them.
+ */
+export function showIssueList(config: ViewConfig, asView = false): void {
   me.closeFeed()
   pages.closeDocs()
   filters.applyConfig(config)
+  filters.setViewOrigin(asView ? config.filters : null)
 }

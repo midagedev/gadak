@@ -391,6 +391,87 @@ export function emptyConfig(): ViewConfig {
   return { filters: emptyFilters(), display: defaultDisplay() }
 }
 
+const RANGE_AXES = ['created', 'updated', 'due', 'resolved'] as const
+
+/** Independent copy of a filter bag (arrays cloned). */
+export function cloneFilters(f: ViewFilters): ViewFilters {
+  const out = emptyFilters()
+  Object.assign(out, f)
+  for (const field of MULTI_FIELDS) out[field] = [...(f[field] ?? [])]
+  for (const field of NEGATION_FIELDS) out[field] = [...(f[field] ?? [])]
+  out.fields = {}
+  for (const [alias, arr] of Object.entries(f.fields ?? {})) {
+    if (arr?.length) out.fields[alias] = [...arr]
+  }
+  return out
+}
+
+function sameMembers(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
+  const x = a ?? []
+  const y = b ?? []
+  if (x.length !== y.length) return false
+  const ys = new Set(y)
+  return x.every((v) => ys.has(v))
+}
+
+/**
+ * GDK-479: view-default vs user-added. `q` is not a chip (the search box owns it).
+ */
+export function filtersMatchIgnoringQuery(a: ViewFilters, b: ViewFilters): boolean {
+  for (const field of MULTI_FIELDS) {
+    if (!sameMembers(a[field], b[field])) return false
+  }
+  for (const field of NEGATION_FIELDS) {
+    if (!sameMembers(a[field], b[field])) return false
+  }
+  if (a.reopened !== b.reopened || a.unassigned !== b.unassigned || a.stale !== b.stale) return false
+  for (const axis of RANGE_AXES) {
+    if (a[`${axis}_from`] !== b[`${axis}_from`] || a[`${axis}_to`] !== b[`${axis}_to`]) return false
+  }
+  const aliases = new Set([...Object.keys(a.fields ?? {}), ...Object.keys(b.fields ?? {})])
+  for (const alias of aliases) {
+    if (!sameMembers(a.fields?.[alias], b.fields?.[alias])) return false
+  }
+  return true
+}
+
+/**
+ * Values in `current` that are not in `origin`. Used to render user-added chips
+ * without duplicating the applied view's defaults. `q` is copied through so a
+ * caller that also inspects the query does not have to merge it back.
+ */
+export function subtractFilters(current: ViewFilters, origin: ViewFilters): ViewFilters {
+  const out = emptyFilters()
+  out.q = current.q
+  for (const field of MULTI_FIELDS) {
+    if (field === 'keys') continue
+    const skip = new Set(origin[field] ?? [])
+    out[field] = current[field].filter((v) => !skip.has(v))
+  }
+  // Keys is one chip for the whole list, not a per-value chip.
+  out.keys = sameMembers(current.keys, origin.keys) ? [] : [...current.keys]
+  for (const field of NEGATION_FIELDS) {
+    const skip = new Set(origin[field] ?? [])
+    out[field] = (current[field] ?? []).filter((v) => !skip.has(v))
+  }
+  out.reopened = current.reopened && !origin.reopened
+  out.unassigned = current.unassigned && !origin.unassigned
+  out.stale = current.stale && !origin.stale
+  for (const axis of RANGE_AXES) {
+    if (current[`${axis}_from`] === origin[`${axis}_from`] && current[`${axis}_to`] === origin[`${axis}_to`]) {
+      continue
+    }
+    out[`${axis}_from`] = current[`${axis}_from`]
+    out[`${axis}_to`] = current[`${axis}_to`]
+  }
+  for (const [alias, values] of Object.entries(current.fields ?? {})) {
+    const skip = new Set(origin.fields?.[alias] ?? [])
+    const extra = values.filter((v) => !skip.has(v))
+    if (extra.length) out.fields[alias] = extra
+  }
+  return out
+}
+
 /* ── URL param key map (short keys keep URLs compact) ──
  *  Selected issue (?issue) and active view (?view) are not part of view serialization
  *  (owned by selection / sidebar respectively).

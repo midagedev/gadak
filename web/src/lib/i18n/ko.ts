@@ -221,6 +221,10 @@ export const ko = {
   // GDK-438 값 선택 메뉴의 제외 토글 (프로젝트 축).
   'filter.excludeMode': '제외',
   'filter.excludeModeHelp': '고른 값을 포함 대신 제외로 지정',
+  // GDK-474: 포함-only 축 (상태 등)은 negation twin이 없다 —
+  // view-config.ts NEGATABLE_MULTI 는 jira_project / source_project 뿐.
+  'filter.includeOnly': '제외 없음',
+  'filter.includeOnlyHelp': '제외는 프로젝트와 복제 원본 프로젝트만 됩니다',
   'filter.chipCreatedRange': '생성 {from}~{to}',
   'filter.chipUpdatedRange': '갱신 {from}~{to}',
   'filter.chipDueRange': '기한 {from}~{to}',
@@ -265,7 +269,11 @@ export const ko = {
   'list.bodyOnlyHint': "위 '본문 매칭' 섹션을 확인하세요.",
   'list.noMatchTitle': '조건에 맞는 이슈가 없습니다',
   'list.noMatchHint': '필터를 완화하거나 검색어를 바꿔보세요.',
+  'list.noMatchQueryHint': '이 검색어에 맞는 이슈가 없습니다.',
+  // GDK-478: Enter 본문 검색이 돌았고 extra/docs 그룹도 비었다.
+  'list.noMatchBodyHint': '본문·코멘트에서도 0건입니다.',
   'list.clearFilters': '필터 초기화',
+  'list.clearSearch': '검색 지우기',
   'list.select': '선택',
   'list.deselect': '선택 해제',
   'list.selectedCount': '{n}개 선택',
@@ -290,7 +298,8 @@ export const ko = {
   'list.searchPlaceholder': '이 목록에서 좁히기, 또는 JQL 붙여넣기…',
   'list.searchPlaceholderShort': '필터 또는 JQL…',
   'list.searchHelp':
-    '이 목록을 좁힙니다 (키·제목·담당자·라벨). Jira JQL이나 필터 URL을 붙여넣으면 적용됩니다. 토큰: @담당자 #파트 !우선순위 is:reopened|unassigned|stale. Enter로 이 목록에서 본문 검색. {shortcut}은 이슈·문서 전체를 검색하며 목록 필터를 무시합니다.',
+    '이 목록을 좁힙니다 (키·제목·담당자·라벨). 예: @dana 또는 is:unassigned. JQL을 붙여넣으면 적용됩니다. Enter로 본문·코멘트를 검색합니다.',
+  'list.searchHelpShortcuts': '전체 문법은 키보드 치트시트(?)에 있습니다',
   'list.searchClear': '지우기 (Esc)',
   'list.searchOpen': 'Enter로 열기',
   'omnibox.issueMissing': '미러에 {key}가 없습니다',
@@ -944,13 +953,12 @@ export const ko = {
   /* ── Command palette ── */
   'palette.title': '커맨드 팔레트',
   'palette.placeholder': '이슈로 이동, 또는 전체 검색…',
-  'palette.emptyHint': '이슈·문서 전체를 검색합니다.',
   'palette.sectionUnified': '전체 검색',
   'palette.matchBody': '본문 매치',
   'palette.matchComment': '코멘트 매치',
   'palette.matchTitle': '제목 매치',
   'palette.seeMore': '목록에서 전체 결과 보기',
-  'palette.entryLabel': '검색',
+  'palette.entryLabel': '전체 검색',
   'palette.entryTitle': '전체 검색 ({shortcut})',
   'palette.sectionIssues': '이슈',
   'palette.docCount': '{total}개 중 {shown}개',

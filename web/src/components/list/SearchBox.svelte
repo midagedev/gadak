@@ -20,7 +20,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { write } from '../../stores/write.svelte'
   import { fieldEnabled, type MultiField } from '../../lib/view-config'
-  import { paletteShortcutLabel, requestOpenPalette } from '../../lib/unified-search'
+  import { paletteShortcutLabel, requestOpenPalette, requestOpenShortcuts } from '../../lib/unified-search'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { createCompositionCommit } from '../../lib/composition-commit'
   import Icon from '../ui/Icon.svelte'
@@ -328,10 +328,21 @@
         e.preventDefault()
         helpOpen = false
       }}
-      class="anim-enter absolute left-0 top-full z-30 mt-1 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-2 text-[12px] leading-relaxed text-text-secondary shadow-overlay"
+      class="anim-enter absolute left-0 top-full z-30 mt-10 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-2 text-[12px] leading-relaxed text-text-secondary shadow-overlay"
       data-testid="search-help-panel"
     >
-      {t('list.searchHelp', { shortcut: paletteShortcutLabel() })}
+      <p>{t('list.searchHelp', { shortcut: paletteShortcutLabel() })}</p>
+      <button
+        type="button"
+        class="mt-1.5 text-left text-micro text-accent-text transition-colors hover:underline"
+        data-testid="search-help-shortcuts"
+        onclick={() => {
+          helpOpen = false
+          requestOpenShortcuts()
+        }}
+      >
+        {t('list.searchHelpShortcuts')}
+      </button>
     </div>
   {:else if suggestions.length > 0}
     <div
@@ -383,7 +394,9 @@
     onclick={() => requestOpenPalette()}
   >
     <Icon name="search" size={14} class="text-text-muted" />
-    <span>{t('palette.entryLabel')}</span>
+    {#if !narrowPlaceholder}
+      <span>{t('palette.entryLabel')}</span>
+    {/if}
     <kbd class="rounded border border-border-subtle px-1 text-micro text-text-muted">{paletteShortcutLabel()}</kbd>
   </button>
 </div>

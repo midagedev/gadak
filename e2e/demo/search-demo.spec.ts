@@ -42,7 +42,8 @@ test.describe('unified search demo', () => {
     await page.keyboard.press('ControlOrMeta+k')
     const palette = page.getByRole('dialog', { name: 'Command palette' })
     await expect(palette).toBeVisible()
-    await expect(palette.getByTestId('palette-empty-hint')).toBeVisible()
+    // GDK-472: empty palette is the placeholder, not a second hint line.
+    await expect(palette.getByTestId('palette-empty-hint')).toHaveCount(0)
     await beat(page, 700)
 
     // Prefix first: local title matching still has "work" (103 titles in the

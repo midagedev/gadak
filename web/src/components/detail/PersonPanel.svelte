@@ -62,7 +62,7 @@
   /** Land on a list built from nothing but this filter, so the chip's count and
    *  the resulting list are the same number. */
   function applyView(config: ViewConfig): void {
-    showIssueList(config)
+    showIssueList(config, true)
   }
 
   function openAssigned(): void {

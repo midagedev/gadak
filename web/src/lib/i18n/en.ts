@@ -220,6 +220,10 @@ export const en = {
   // GDK-438 exclude toggle in the value picker (project axes).
   'filter.excludeMode': 'Exclude',
   'filter.excludeModeHelp': 'Pick values to exclude instead of include',
+  // GDK-474: include-only axes (status, etc.) have no negation twin —
+  // view-config.ts NEGATABLE_MULTI is only jira_project / source_project.
+  'filter.includeOnly': 'No exclude',
+  'filter.includeOnlyHelp': 'Exclude is only on Project and Source project',
   'filter.chipCreatedRange': 'Created {from}–{to}',
   'filter.chipUpdatedRange': 'Updated {from}–{to}',
   'filter.chipDueRange': 'Due {from}–{to}',
@@ -264,7 +268,11 @@ export const en = {
   'list.bodyOnlyHint': "See the 'Body matches' section above.",
   'list.noMatchTitle': 'No issues match',
   'list.noMatchHint': 'Relax filters or change the search query.',
+  'list.noMatchQueryHint': 'No issues match this search.',
+  // GDK-478: Enter ran body search and the extra/docs groups are also empty.
+  'list.noMatchBodyHint': 'No matches in body or comments either.',
   'list.clearFilters': 'Clear filters',
+  'list.clearSearch': 'Clear search',
   'list.select': 'Select',
   'list.deselect': 'Deselect',
   'list.selectedCount': '{n} selected',
@@ -289,7 +297,8 @@ export const en = {
   'list.searchPlaceholder': 'Narrow this list, or paste JQL…',
   'list.searchPlaceholderShort': 'Filter or JQL…',
   'list.searchHelp':
-    'Narrows this list (key, title, assignee, labels). Paste Jira JQL or a filter URL to apply it. Tokens: @assignee #team !priority is:reopened|unassigned|stale. Enter runs body search on this list. {shortcut} searches every issue and document, ignoring list filters.',
+    'Narrows this list (key, title, assignee, labels). Example: @dana or is:unassigned. Paste JQL to apply it. Enter searches body and comments here.',
+  'list.searchHelpShortcuts': 'Full syntax is in the keyboard cheat sheet (?)',
   'list.searchClear': 'Clear (Esc)',
   'list.searchOpen': 'Open with Enter',
   'omnibox.issueMissing': '{key} is not in the mirror',
@@ -951,13 +960,12 @@ export const en = {
   /* ── Command palette ── */
   'palette.title': 'Command palette',
   'palette.placeholder': 'Jump to an issue, or search everything…',
-  'palette.emptyHint': 'Searches every issue and document.',
   'palette.sectionUnified': 'All search',
   'palette.matchBody': 'Body match',
   'palette.matchComment': 'Comment match',
   'palette.matchTitle': 'Title match',
   'palette.seeMore': 'See all results in the list',
-  'palette.entryLabel': 'Search',
+  'palette.entryLabel': 'Search everything',
   'palette.entryTitle': 'Search everything ({shortcut})',
   'palette.sectionIssues': 'Issues',
   // Truncation, spelled out. "4 / 7" is reserved for the document screens'

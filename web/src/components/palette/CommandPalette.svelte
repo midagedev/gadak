@@ -307,7 +307,7 @@
   })
 
   function applyView(config: ViewConfig) {
-    showIssueList(config)
+    showIssueList(config, true)
   }
 
   function searchResultKeys(): string[] {
@@ -587,7 +587,7 @@
           pages.openHistory()
         },
       },
-      { id: 'a:reset', label: t('palette.actionResetFilters'), run: () => filters.clearAll() },
+      { id: 'a:reset', label: t('palette.actionResetFilters'), run: () => filters.clearUserFilters() },
       { id: 'a:reopened', label: t('palette.actionToggleReopened'), run: () => filters.toggleFlag('reopened') },
       { id: 'a:unassigned', label: t('palette.actionToggleUnassigned'), run: () => filters.toggleFlag('unassigned') },
       { id: 'a:stale', label: t('palette.actionToggleStale'), run: () => filters.toggleFlag('stale') },
@@ -717,7 +717,9 @@
           flushPaletteSearch()
           const c = filters.currentConfig()
           c.filters.q = raw
-          showIssueList(c)
+          me.closeFeed()
+          pages.closeDocs()
+          filters.applyConfig(c)
           void filters.runServerSearch().then(applyServerSearchOutcome)
         },
       })
@@ -885,11 +887,6 @@
       aria-label={t('palette.title')}
       class="scroll-region min-h-0 flex-1 px-1 pt-1"
     >
-      {#if !needle}
-        <p class="px-2 pb-1 pt-2 text-micro text-text-muted" data-testid="palette-empty-hint">
-          {t('palette.emptyHint')}
-        </p>
-      {/if}
       {#if items.length === 0 && !showUnifiedStatus}
         <p class="px-2 py-6 text-center text-[12px] text-text-muted">{t('palette.empty')}</p>
       {/if}

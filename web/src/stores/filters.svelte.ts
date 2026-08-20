@@ -17,6 +17,7 @@ import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 import type { IssueLite, Member, PageLite, SearchMatch } from '../lib/types'
 import {
+  cloneFilters,
   configToParams,
   defaultColumns,
   deployStateOf,
@@ -24,9 +25,11 @@ import {
   effectiveCategory,
   emptyConfig,
   emptyFilters,
+  filtersMatchIgnoringQuery,
   hasAnyFilter,
   isStale,
   isViewParam,
+  subtractFilters,
   KEYS_CAP,
   matchesIdFirst,
   matchesMulti,
@@ -57,6 +60,7 @@ import {
   t,
 } from '../lib/i18n'
 import { write } from './write.svelte'
+import { builtinViews } from '../lib/builtin-views'
 
 /** Outcome of `runServerSearch`. The engine does not toast or write `pages`. */
 export type ServerSearchOutcome =
@@ -110,6 +114,15 @@ export interface FacetValue {
 }
 
 class FiltersStore {
+  /**
+   * GDK-479: filters the last named view applied (or the matching builtin on
+   * a keep-url boot). Chip rendering subtracts these so the view highlight is
+   * the only expression of the defaults. `setViewOrigin(null)` latches empty
+   * (ad-hoc JQL / CLI hash): every current value is user-added.
+   */
+  #origin = $state<ViewFilters>(emptyFilters())
+  #originLatched = $state(false)
+
   /* URL → stable string of view-only params. Unchanged by issue selection → blocks refilter.
    * Sorted so param order never changes the key; includes dynamic `f.<alias>` axes. */
   #viewKey = $derived(
@@ -287,7 +300,7 @@ class FiltersStore {
   /* ── FilterBar active chips ── */
   activeChips = $derived.by(() =>
     buildChips(
-      this.#config.filters,
+      subtractFilters(this.#config.filters, this.#origin),
       issues.members,
       issues.allIssues,
       new Map(issues.fieldSpecs.map((s) => [s.alias, axisLabel(s.alias, s.label)])),
@@ -295,6 +308,9 @@ class FiltersStore {
   )
 
   hasFilters = $derived(hasAnyFilter(this.#config.filters))
+
+  /** User-added chips only (GDK-479). Query is not a chip. */
+  hasUserChips = $derived(this.activeChips.length > 0)
 
   /**
    * Whether the current view is already scoped to "my issues" (my account ID or email in
@@ -488,6 +504,7 @@ class FiltersStore {
     const dir = parsed.display?.dir
     next.display.dir = dir === 'asc' || dir === 'desc' ? dir : cur.display.dir
     this.applyConfig(next)
+    this.setViewOrigin(null)
   }
 
   /** Current view config (for save). */
@@ -499,6 +516,42 @@ class FiltersStore {
   clearAll(): void {
     this.clearServerSearch()
     this.#apply(emptyConfig())
+  }
+
+  /**
+   * Named-view apply: hide these filters as chips. `null` latches empty
+   * (JQL / CLI hash): every current value is a user chip.
+   */
+  setViewOrigin(f: ViewFilters | null): void {
+    this.#origin = f ? cloneFilters(f) : emptyFilters()
+    this.#originLatched = true
+  }
+
+  /**
+   * keep-url boot: if the hash already is a builtin, latch it as origin so
+   * category chips do not duplicate the highlight. No-op when a named view
+   * already latched. Call from App after applyStartupView — `$effect` in this
+   * module's constructor is an orphan (import-time, not component init).
+   */
+  latchOriginFromBuiltins(): void {
+    if (this.#originLatched) return
+    const current = this.#config.filters
+    for (const v of builtinViews()) {
+      if (filtersMatchIgnoringQuery(current, v.config.filters)) {
+        this.setViewOrigin(v.config.filters)
+        return
+      }
+    }
+    this.setViewOrigin(null)
+  }
+
+  /** Drop user-added chips; restore the applied view. Leaves `q` and display. */
+  clearUserFilters(): void {
+    const c = this.snapshot()
+    const q = c.filters.q
+    c.filters = cloneFilters(this.#origin)
+    c.filters.q = q
+    this.#apply(c)
   }
 
   /* ── Server full-text search ── */

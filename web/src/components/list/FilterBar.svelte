@@ -233,13 +233,21 @@
           <!-- Step 1: field pick + date axes + flags -->
           <div class="px-2 py-1 text-micro font-medium text-text-muted">{t('filter.properties')}</div>
           {#each axes as f (f.key)}
+            {@const canExclude = !f.dynamic && !!negationOf(f.key as MultiField)}
             <button
               type="button"
+              data-testid={`filter-axis-${f.key}`}
               class="flex min-h-control-sm w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
               onclick={() => pickField(f)}
+              title={canExclude ? t('filter.excludeModeHelp') : t('filter.includeOnlyHelp')}
             >
               <span>{f.label}</span>
-              <Icon name="chevron-right" size={13} class="text-text-muted" />
+              <span class="flex items-center gap-1">
+                <span class="text-micro text-text-muted"
+                  >{canExclude ? t('filter.excludeMode') : t('filter.includeOnly')}</span
+                >
+                <Icon name="chevron-right" size={13} class="text-text-muted" />
+              </span>
             </button>
           {/each}
           {#each DATE_AXES as d (d.key)}
@@ -326,9 +334,17 @@
                 onclick={() => (excludeMode = !excludeMode)}
                 title={t('filter.excludeModeHelp')}
               >
-                <Icon name={excludeMode ? 'x' : 'plus'} size={12} />
+                {#if excludeMode}
+                  <Icon name="check" size={12} />
+                {/if}
                 {t('filter.excludeMode')}
               </button>
+            {:else}
+              <span
+                class="flex-none px-1.5 text-micro text-text-muted"
+                data-testid="filter-include-only"
+                title={t('filter.includeOnlyHelp')}>{t('filter.includeOnly')}</span
+              >
             {/if}
           </div>
           <div class="max-h-64 overflow-y-auto">
@@ -430,12 +446,15 @@
         </div>
       {/if}
     </div>
-    <button
-      type="button"
-      class="inline-flex h-control-sm items-center rounded-md px-2 text-[12px] text-text-muted transition-colors hover:text-status-reopen"
-      onclick={() => filters.clearAll()}
-    >
-      {t('filter.clear')}
-    </button>
+    {#if filters.hasUserChips}
+      <button
+        type="button"
+        data-testid="filter-clear"
+        class="inline-flex h-control-sm items-center rounded-md px-2 text-[12px] text-text-muted transition-colors hover:text-status-reopen"
+        onclick={() => filters.clearUserFilters()}
+      >
+        {t('filter.clear')}
+      </button>
+    {/if}
   {/if}
 </div>

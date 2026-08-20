@@ -76,7 +76,7 @@
 
   /** Apply view = give ListView the column, then the filters. */
   function applyView(config: ViewConfig) {
-    showIssueList(config)
+    showIssueList(config, true)
   }
 
   function applySource(v: (typeof views.source)[number]) {
