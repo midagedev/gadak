@@ -34,14 +34,30 @@ REST or MCP surface instead would mean guessing which questions matter, and ever
 such guess is wrong at the edges. SQL is how the agent answers; `gadak views
 open` is how it presents the same work in the window.
 
-**Writes cannot be local.** Jira is the record. Writes call Jira and refresh the
-affected rows. No queue, no offline write model, no reconciliation — those exist
-to serve a different product than this one.
+**Writes go through the origin.** The mirror is a cache. The origin is the
+record. Writes call that origin and refresh the affected rows. No queue, no
+offline write model, no reconciliation — those exist to serve a different
+product than this one.
 
-**The mirror is disposable.** If the schema is a cache of someone else's truth,
-deleting it is always safe. That property is worth protecting, because the moment
-gadak holds something irreplaceable it becomes infrastructure someone has to back
-up.
+**The mirror is disposable.** If the schema is a cache of the origin's truth,
+deleting it is always safe. That property is worth protecting: the moment the
+mirror holds something irreplaceable it becomes infrastructure someone has to
+back up. On standalone, the irreplaceable file is not `gadak.db` — it is the
+origin persist file (below).
+
+## Two origins
+
+A workspace is bound to one origin.
+
+- **Connected** — Atlassian Cloud (or Linear, when configured) is the record.
+  The token talks to that site. Delete the profile directory and you have lost
+  a cache.
+- **Standalone** (from 0.16) — the origin is an in-process minimal Jira
+  (`issuetap`). There is no Atlassian account. The durable file is
+  `origin/issuetap.yaml` in the profile directory (`internal/origin/origin.go`
+  `PersistRel`): plain YAML, readable without gadak. That is the file to back
+  up. `gadak.db` is still a cache; the next sync rebuilds it from the persist
+  file.
 
 ## The browser it replaces
 
@@ -73,7 +89,7 @@ What the product *is*, in order:
 1. Open the app; it paints from cache before any request finishes.
 2. Type; the list narrows as you type, over everything you have access to.
 3. Open an issue; description, comments, history, and links are already local.
-4. Act — transition, comment, assign — and the write goes to Jira immediately.
+4. Act — transition, comment, assign — and the write goes to the origin immediately.
 5. Later, ask your agent a question that spans the whole backlog, and it answers
    with one query instead of forty API calls.
 6. When the answer is something you should look at, the agent points the window
@@ -107,13 +123,13 @@ not model — a board, a workflow screen, a Confluence draft — opens in the
 app's in-app tab (a system tab under `serve`); close it and the mirror
 re-reads.
 
-Writes go through to Jira and then refresh the mirror. Comment, transition,
+Writes go through the origin and then refresh the mirror. Comment, transition,
 assign, labels, priority, and the title work from the app and the web UI; the
 CLI covers those plus `create`, `attach`, and `edit` (values always come from
-what Jira allows, never free text — an issue type or priority the CLI cannot
-match is refused with the names your site actually uses).
-The wiki mirror itself is read-only on purpose — Confluence stays the place
-where documents are written.
+what the origin allows, never free text — an issue type or priority the CLI
+cannot match is refused with the names that origin actually uses).
+Wiki page create, edit, and comment go through the origin too — Confluence
+Cloud on a connected workspace, the in-process origin on standalone.
 
 Hierarchy is first-class: `epic_key` is derived honestly (the nearest epic
 *ancestor*, so a sub-task groups under its epic, not its story), group-by-epic
@@ -154,8 +170,10 @@ pain hardest. Local means nothing to approve.
 
 Not a Jira replacement — we do not reimplement boards, dashboards, or the rest
 of Jira's UI; we contain those pages so the window can hold what the mirror
-refuses to model. Not a sync engine. Not an archive. Not multi-user. Not a
-place to put anything you cannot afford to lose.
+refuses to model. Not a sync engine. Not an archive. Not multi-user. On a
+connected workspace, not a place to put anything you cannot afford to lose
+(the Atlassian site holds the record). On standalone, `origin/issuetap.yaml`
+*is* the record — losing that file loses the work.
 
 ## Good fit / bad fit
 
@@ -171,6 +189,6 @@ links, epic hierarchy, status transitions, assignee, labels, priority, title,
 wiki pages (bodies, comments, labels), full-text search across all of it,
 saved views, watches; field edits and issue creation in the app and the web UI.
 **Out of scope:** boards and sprint mechanics, project administration, workflow
-configuration, permission schemes, writing to the wiki, grouping the list by
-label (filter the chips instead). Those stay in Jira and Confluence; the
-macOS app contains them in the same window.
+configuration, permission schemes, a page editor in the UI (CLI and REST write
+pages), grouping the list by label (filter the chips instead). Those stay in
+Jira and Confluence; the macOS app contains them in the same window.

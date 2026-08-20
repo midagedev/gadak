@@ -1,14 +1,23 @@
 # Install
 
+No Atlassian account:
+
+```bash
+brew install midagedev/tap/gadak-cli
+gadak init --standalone
+gadak create "the thing I just noticed"
+gadak serve
+```
+
+**Already have Jira?** One [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+covers both Jira and Confluence on the same site. Then `gadak init && gadak sync`,
+or the walkthrough in [First run](#first-run).
+
 **Glossary.** A *profile* is the directory on disk (`--profile`,
 `~/.gadak/profiles/<name>/`, `gadak profiles`). A *workspace* is that same
 profile mounted on the serve origin (`GET /api/v1/workspaces`, `/w/<name>/`,
 the sidebar switcher). There is no `gadak workspaces` command — that invocation
 prints top-level usage and exits 2.
-
-Atlassian Cloud only. You need an API token from
-<https://id.atlassian.com/manage-profile/security/api-tokens> — one token
-covers both Jira and Confluence on the same site.
 
 ## How many things am I installing?
 
@@ -196,6 +205,26 @@ A cold build (clone, npm ci, module downloads) takes a few minutes; the hosted
 demo needs none of it.
 
 ## First run
+
+### Standalone (no Atlassian account)
+
+```bash
+gadak init --standalone
+gadak create "the thing I just noticed"
+gadak serve                    # http://gadak.localhost:7777
+```
+
+`gadak init --standalone` writes `config.json` in the profile directory
+(`~/.gadak/` by default, or `$GADAK_HOME`) and creates `origin/issuetap.yaml`
+there — plain YAML, the origin, the file to back up
+(`internal/origin/origin.go` `PersistRel`). It seeds project `STD` and wiki
+space `LOC`, and records a default issue type so `gadak create` takes only a
+summary (`cmd/gadak/init.go` `initStandalone`). The SQLite file `gadak.db` is
+still a cache. The first `gadak sync` against that origin finishes in 0s
+(measured; the origin is already local). While `gadak serve` is running, other
+gadak processes route writes through it so the persist file has one owner.
+
+### Already have Jira
 
 ```bash
 gadak serve                    # http://gadak.localhost:7777

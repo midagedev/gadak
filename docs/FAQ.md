@@ -34,19 +34,27 @@ gadak does nothing to disguise itself.
 Whether bulk-mirroring data you already have read access to complies with
 *your company's* policy is your company's question — gadak cannot answer it,
 and `SECURITY.md` says what leaves your machine (nothing) so you can ask it
-accurately. Offboarding is `rm -rf ~/.gadak`.
+accurately.
+
+On a connected workspace (one pointed at an Atlassian site), offboarding is
+`rm -rf ~/.gadak` — that directory is a cache of the site. On a standalone
+workspace, `origin/issuetap.yaml` in the profile directory is the original:
+moving or deleting that file is deleting the data. The SQLite mirror
+(`gadak.db`) is still a cache either way.
 
 ## Who makes this, and what happens if they stop?
 
 One person, at the moment. You should weigh that — and here is why it is
-less risky than it sounds: the mirror is a **disposable artifact of your own
-Jira**, not a database you migrate into. Delete gadak and you have lost
-nothing but a cache. The storage schema is documented, and the part of it you
-can build on is promised across versions
-(`specs/000-product/data-model.md`); the code is Apache-2.0, and the file is
-plain SQLite readable by anything. There is no account, no server, and no
-format to be stranded in. If the project stops tomorrow, your data was never
-in it.
+less risky than it sounds: the mirror is a **disposable artifact of the
+origin**, not a database you migrate into. On a connected workspace, delete
+gadak and you have lost nothing but a cache of your Jira. On standalone, the
+record is `origin/issuetap.yaml` in the profile directory — plain YAML,
+readable in any editor, without gadak. The storage schema is documented, and
+the part of it you can build on is promised across versions
+(`specs/000-product/data-model.md`); the code is Apache-2.0, and the mirror
+is plain SQLite readable by anything. There is no gadak account and no gadak
+server. If the project stops tomorrow, a connected workspace's data was
+never in it; a standalone workspace's data is that YAML file.
 
 ## Several things open the same SQLite file — is that safe?
 
@@ -93,7 +101,9 @@ gadak talking to itself on loopback.
 - **Linear** is a different tracker. If your team can move, move. gadak is for
   the (much larger) group whose org keeps Jira: it gives you Linear-ish speed
   and keyboard flow without asking anyone for permission — it is a mirror, not a
-  migration.
+  migration. A standalone workspace (from 0.16) is the other door: no Atlassian
+  account, same mirror and same writes, with `origin/issuetap.yaml` as the
+  record.
 - **Atlassian's Rovo MCP server** gives agents official, hosted access to the
   same data — worth using if it fits, and for "find me the page about X" it
   often does: it searches Jira and Confluence together. The architectural

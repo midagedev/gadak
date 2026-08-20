@@ -1,7 +1,7 @@
 # Promises
 
-Eight things gadak asks you not to take on trust: one sentence each, and one
-command you can run in a clone of this repository — a Go toolchain for five of
+Nine things gadak asks you not to take on trust: one sentence each, and one
+command you can run in a clone of this repository — a Go toolchain for six of
 them, `sqlite3` for one, `grep` for the rest. Every command was run on this tree
 and produced the output shown; if one stops doing so, the promise is broken and
 that is a bug worth reporting. Only what is true and checkable today, no roadmap.
@@ -37,7 +37,8 @@ go test ./internal/selfupdate/ -run 'TestCheck_disabled|TestCheck_devVersion' -c
 
 **4. The mirror is an ordinary SQLite file, readable without gadak.**
 No custom container and no lock-in: the bundled demo mirror opens in any SQLite
-client, and deleting a mirror loses nothing your Atlassian site does not hold.
+client. On a connected workspace, deleting a mirror loses nothing your
+Atlassian site does not hold.
 
 ```bash
 sqlite3 examples/demo.db 'select count(*) from issues'
@@ -77,4 +78,33 @@ and refuses on a hit; `--force` overwrites the destination, it does not skip the
 ```bash
 go test ./internal/snapshot/ -run 'TestCredentialRejected|TestCredentialInPageRejected' -count=1
 # → ok  github.com/midagedev/gadak/internal/snapshot
+```
+
+**9. On standalone, the origin is one plaintext YAML file, readable without gadak.**
+`gadak init --standalone` writes `origin/issuetap.yaml` under the profile
+directory (`internal/origin/origin.go` `PersistRel`). That file is the record;
+`gadak.db` remains a disposable cache. The command uses a throwaway
+`GADAK_HOME` so it never touches `~/.gadak`.
+
+```bash
+tmp=$(mktemp -d)
+go build -o "$tmp/gadak" ./cmd/gadak
+GADAK_HOME=$tmp "$tmp/gadak" init --standalone --json >/dev/null
+head -n 16 "$tmp/origin/issuetap.yaml"
+# → seed: 1
+#   locale: en
+#   users:
+#     - accountId: 5b10a2844c20165700ede21g
+#       name: ada
+#       key: ada
+#       displayName: Ada Lovelace
+#       email: you@example.com
+#       active: true
+#       timeZone: Asia/Seoul
+#   projects:
+#     - id: "10000"
+#       key: STD
+#       name: Standalone
+#       type: software
+#       style: classic
 ```

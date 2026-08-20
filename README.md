@@ -22,8 +22,9 @@ it in the [desktop app](docs/DESKTOP.md) or a browser tab, or let a coding
 agent ask in plain SQL and point the same window at the answer. One binary,
 one app, no gadak account.
 
-**The mirror is a cache you can throw away.** If this project stops tomorrow,
-you delete a directory and have lost nothing: Jira stays the source of truth.
+**The mirror is a cache you can throw away.** On a connected workspace, if this
+project stops tomorrow, you delete a directory and have lost nothing: Jira
+stays the source of truth.
 
 <p align="center">
   <a href="https://midagedev.github.io/gadak/"><b>▶&nbsp; Open the live demo</b></a>
@@ -155,6 +156,8 @@ open-by-key half.
 Connected talks to Atlassian Cloud. Standalone (from 0.16) is a workspace
 with no Atlassian account — a minimal Jira origin that travels with the
 app. The mirror is a cache either way; every write goes through the origin.
+On standalone the durable file is the origin's persist file — issuetap.yaml
+in the profile's origin folder; back up that one file.
 
 | | Connected (Atlassian Cloud) | Standalone (from 0.16) |
 | --- | :---: | :---: |
@@ -275,7 +278,18 @@ or **Smart App Control blocked an app that may be unsafe**, that is not a
 virus finding — use the CLI path below. Do not turn Smart App Control off.
 [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
 
-**2. The CLI**, on Linux, Windows, or for the same UI in a browser tab:
+**2. The CLI**, on Linux, Windows, or for the same UI in a browser tab.
+
+No Atlassian account:
+
+```bash
+brew install midagedev/tap/gadak-cli     # macOS + Linux
+gadak init --standalone
+gadak create "the thing I just noticed"
+gadak serve      # http://gadak.localhost:7777
+```
+
+Already have Jira:
 
 ```bash
 brew install midagedev/tap/gadak-cli     # macOS + Linux

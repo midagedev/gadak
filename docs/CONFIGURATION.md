@@ -290,6 +290,20 @@ name is new). `--overwrite` replaces conflicts. Prefer
 
 ---
 
+## Personal state (`gadak export` / `import`)
+
+`gadak export [--out FILE]` dumps this profile's personal tables: saved views,
+watches, favorites, and recents (`cmd/gadak/export.go`; help in
+`cmd/gadak/help.go`). Credentials never appear in the file — a credential-shaped
+string is refused (`secretscan`). It is not a `gadak team export` file (team
+settings live in that other command) and it does not include the standalone
+persist file (`origin/issuetap.yaml`) or the issue rows in `gadak.db`.
+
+`gadak import <FILE>` restores those four lists. On a name/key conflict the
+file wins; local-only rows stay (`cmd/gadak/import.go` `applyPersonalExport`).
+
+---
+
 ## What you must still edit by hand (or outside Settings)
 
 | Concern | How |
@@ -346,8 +360,9 @@ against `/myself` before anything is written.
 | Path | Role |
 | --- | --- |
 | `$GADAK_HOME/config.json` or `~/.gadak/config.json` | Settings + credential (0600) |
-| `$GADAK_HOME/gadak.db` | SQLite mirror |
-| `~/.gadak/profiles/<name>/` | Isolated config + mirror per profile |
+| `$GADAK_HOME/gadak.db` | SQLite mirror (a cache; the next sync rebuilds it from the origin) |
+| `$GADAK_HOME/origin/issuetap.yaml` | Standalone origin persist (`internal/origin/origin.go` `PersistRel`). Plain YAML; this is the record on a standalone workspace. Absent on a connected workspace. |
+| `~/.gadak/profiles/<name>/` | Isolated config + mirror (and, on standalone, persist) per profile |
 
 Never write issue rows into the DB by hand — the next sync overwrites them. The
 supported external write table is `enrichments` (see [PLUGINS.md](PLUGINS.md)).

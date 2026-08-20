@@ -67,14 +67,21 @@ correctness: **a maintenance commitment — that you will answer issues about
 your connector for at least six months.** Without it the answer is no, and the
 refusal is about arithmetic rather than the quality of the code.
 
+## Shipped in 0.16
+
+- **Windows desktop zip** — unsigned portable pack
+  (`Gadak-<version>-windows-x64.zip` / `windows-arm64`) on the GitHub Release.
+  Details: [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+
 ## Not planned
 
 Beyond the list in [`docs/ROADMAP.md`](docs/ROADMAP.md):
 
-- **Windows and Linux desktop shells** — not until at least 10 people have
-  asked. Wails builds all three, so this is not a technical wall; it is three
-  platforms' worth of packaging, signing decisions and bug surface for a
-  maintainer who has not yet seen the macOS one carry real users.
+- **Linux desktop shell** — 0.16 ships the Windows zip above; Linux stays
+  `gadak serve` in a browser tab (or `install-service`). A native Linux window
+  is a pack-script-and-WebKitGTK problem for a maintainer whose macOS build
+  has not yet carried real users. The pack script exists
+  (`desktop/build-linux.sh`); it is not a release asset.
 - **Per-site custom field handling.** Fields are mapped by configuration, not
   by special cases in the code for one company's setup.
 - **New UI locales.** Two is what one maintainer can keep honest.

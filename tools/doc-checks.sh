@@ -524,7 +524,10 @@ SQL_SURFACE = re.compile(r"\bgadak sql\b", re.I)
 NAMED_RO = re.compile(r"\bstore\.OpenReadOnly\b")
 NAMED_RW = re.compile(r"\bstore\.Open\b")
 MODE_RO = re.compile(r"mode=ro|\bread-only\b|읽기 전용", re.I)
-SKIP_DIR = {"decisions", "node_modules", "dist", "e2e", "web"}
+# scratch/ is gitignored session notes (not live docs). Leaving it in
+# the walk failed this check on scratch/yc/r3f-boris.md (2026-08-20)
+# while CI, which never sees that tree, stayed green.
+SKIP_DIR = {"decisions", "node_modules", "dist", "e2e", "web", "scratch"}
 SKIP_FILE = {"CHANGELOG.md"}
 
 
@@ -910,5 +913,56 @@ if [[ -n "$root_pin" && -n "$desktop_pin" && "$root_pin" != "$desktop_pin" ]]; t
   fail "issuetap pin differs: go.mod has ${root_pin#*issuetap } but desktop/go.mod has ${desktop_pin#*issuetap } — run: cd desktop && go mod tidy"
 fi
 ok "issuetap pin agrees between go.mod and desktop/go.mod"
+
+# ── 20. User docs do not betray standalone (GDK-271 / 373) ──────────────
+# Class: v0.16's headline is a workspace with no Atlassian account, but the
+# install/FAQ front door still spoke as if every workspace needed a Cloud
+# token and could be deleted with `rm -rf ~/.gadak` (that one-liner wipes
+# the standalone origin persist file).
+# FAIL-first 2026-08-20 against the unmodified tree:
+#   docs/INSTALL.md:9  "Atlassian Cloud only"
+#   docs/FAQ.md:37     "Offboarding is `rm -rf ~/.gadak`." with no
+#                      connected/standalone branch in the paragraph
+#   README.md          0× `init --standalone` (INSTALL.md already had 1)
+if grep -n "Atlassian Cloud only" docs/INSTALL.md; then
+  fail "docs/INSTALL.md still says \"Atlassian Cloud only\" (GDK-271)"
+fi
+ok "docs/INSTALL.md does not say \"Atlassian Cloud only\""
+
+faq_rm_unscoped=""
+faq_rm_unscoped=$(python3 - <<'GDK373PY'
+import re
+from pathlib import Path
+
+text = Path("docs/FAQ.md").read_text()
+paras = re.split(r"\n\s*\n", text)
+hits = []
+for p in paras:
+    if not re.search(r"rm\s+-rf\s+~/\.gadak", p):
+        continue
+    # Connected-scoped mention is allowed. Unqualified "just delete
+    # ~/.gadak" is the class that wipes a standalone origin.
+    if re.search(r"\bconnected\b", p, re.I):
+        continue
+    hits.append(re.sub(r"\s+", " ", p.strip())[:220])
+if hits:
+    print("\n".join(hits))
+GDK373PY
+)
+if [[ -n "$faq_rm_unscoped" ]]; then
+  fail "docs/FAQ.md has an unscoped \`rm -rf ~/.gadak\` (GDK-373) — scope it to a connected workspace:"$'\n'"$faq_rm_unscoped"
+fi
+ok "docs/FAQ.md does not tell a standalone user to rm -rf ~/.gadak"
+
+standalone_cmd_missing=""
+for f in docs/INSTALL.md README.md; do
+  if ! grep -q 'init --standalone' "$f"; then
+    standalone_cmd_missing+="  $f: no init --standalone"$'\n'
+  fi
+done
+if [[ -n "$standalone_cmd_missing" ]]; then
+  fail "install front door does not name init --standalone (GDK-271):"$'\n'"$standalone_cmd_missing"
+fi
+ok "docs/INSTALL.md and README.md name init --standalone"
 
 echo "doc-checks: all passed"
