@@ -26,13 +26,39 @@ for f in "$DIR"/detail/*.json; do
     || fail "content survived the scrub in $f"
 done
 
-# No concrete Jira site URL and no email addresses anywhere in the snapshot.
+# No concrete Jira site URL and no email addresses in the snapshot DATA.
 # Placeholder hosts (your-site, example, bare x) are fine — same allowlist
 # idea as the pages.yml tenant-neutrality gate.
-if grep -rEn "atlassian\.net" "$DIR" | grep -vE "(your-site|your-team|example|\bx)\.atlassian\.net"; then
-  fail "concrete Jira site URL"
-fi
-if grep -rEn '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' "$DIR"; then fail "email address"; fi
+#
+# Scoped to the data files rather than "$DIR" (2026-08-20). The published
+# directory also holds the Vite bundle, and this gate ran against it: the
+# 2026-08-20 Pages build failed on `you@example.com` (the fixture placeholder)
+# and on the maintainer's own contact address, which the product deliberately
+# puts in the UI — a shipped feedback channel, not a leak. Widening the
+# allowlist would have been the wrong repair; the assertion was never about
+# the app, and the app is what the tenant-neutrality step and
+# scripts/scan-internal.sh already cover. The assertion itself is unchanged
+# and stays absolute on the surface it exists for: whatever the export wrote.
+#
+# FAIL-first for the narrowed form: put an address into bootstrap.json and this
+# still fails. What no longer fails is a string that was never in the data.
+DATA_FILES=("$BOOT")
+[ -f "$DIR/config.json" ] && DATA_FILES+=("$DIR/config.json")
+[ -d "$DIR/detail" ] && while IFS= read -r f; do DATA_FILES+=("$f"); done \
+  < <(find "$DIR/detail" -name '*.json')
+# Allowlist per match, not per line. The old form piped `grep -n` into
+# `grep -v`, which drops a whole LINE when the placeholder appears anywhere on
+# it — and bootstrap.json is a single line. One issue summary mentioning
+# `x.atlassian.net` (GDK-304 does) therefore excused every other host in the
+# file, so the assertion was vacuous. Measured 2026-08-20 by injecting
+# `realcorp.atlassian.net` into a summary: the gate said OK. Extracting the
+# hosts with -o and filtering those is the same intent, actually enforced.
+hosts="$(grep -ohE '[A-Za-z0-9._-]+\.atlassian\.net' "${DATA_FILES[@]}" | sort -u \
+  | grep -vxE '(your-site|your-team|example|x)\.atlassian\.net' || true)"
+[ -z "$hosts" ] || fail "concrete Jira site URL in snapshot data: $(echo "$hosts" | tr '\n' ' ')"
+
+mails="$(grep -ohE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' "${DATA_FILES[@]}" | sort -u || true)"
+[ -z "$mails" ] || fail "email address in snapshot data: $(echo "$mails" | tr '\n' ' ')"
 
 # Two set assertions, both whitelist-shaped (GDK-389 review, 2026-08-20).
 #
