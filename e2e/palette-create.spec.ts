@@ -76,7 +76,10 @@ test.describe('palette instant create', () => {
     })
 
     const { palette, createNow } = await openPaletteWithSummary(page)
-    await expect(palette.getByRole('option', { name: /New issue/ })).toBeVisible()
+    // GDK-461: a typed query's only create entry is create-now. New issue
+    // used to be force-appended beside it, so a zero-match Enter could
+    // still look like two write paths.
+    await expect(palette.getByTestId('palette-new-issue')).toHaveCount(0)
     await createNow.click()
 
     await expect.poll(() => posted).not.toBeNull()

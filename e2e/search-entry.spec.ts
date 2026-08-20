@@ -32,7 +32,10 @@ async function settled(page: Page): Promise<void> {
     await expect(chip).not.toHaveAttribute('data-state', 'syncing', { timeout: 30_000 })
     return
   }
-  await expect(page.getByTestId('sidebar-sync-now')).not.toContainText(/Syncing|Fetching/, {
+  // GDK-460: the sidebar row no longer repeats the chip's busy sentence, so
+  // "does not contain Syncing" would pass while a pull is still running.
+  // data-state is the same flag the chip uses.
+  await expect(page.getByTestId('sidebar-sync-now')).not.toHaveAttribute('data-state', 'syncing', {
     timeout: 30_000,
   })
 }

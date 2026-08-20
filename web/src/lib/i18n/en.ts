@@ -287,6 +287,7 @@ export const en = {
   'list.qaRun': 'QA run',
   'list.qaPending': 'QA pending',
   'list.searchPlaceholder': 'Narrow this list, or paste JQL…',
+  'list.searchPlaceholderShort': 'Filter or JQL…',
   'list.searchHelp':
     'Narrows this list (key, title, assignee, labels). Paste Jira JQL or a filter URL to apply it. Tokens: @assignee #team !priority is:reopened|unassigned|stale. Enter runs body search on this list. {shortcut} searches every issue and document, ignoring list filters.',
   'list.searchClear': 'Clear (Esc)',

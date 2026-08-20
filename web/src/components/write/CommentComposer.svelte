@@ -9,7 +9,7 @@
    *  - Submit via write.submitComment() optimistic; clear on success, restore text on fail.
    */
   import { t } from '../../lib/i18n'
-  import { tick } from 'svelte'
+  import { onMount, tick } from 'svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import { createUserSearch } from '../../lib/user-search.svelte'
@@ -32,6 +32,8 @@
   let ta: HTMLTextAreaElement | null = $state(null)
   let fileInput: HTMLInputElement | null = $state(null)
   let dragOver = $state(false)
+  // GDK-462: one Esc already spent on this draft (blur, or unfocused consume).
+  let escConsumed = $state(false)
 
   function draftKey(key: string): string {
     return commentDraftKey(key)
@@ -69,6 +71,7 @@
     text = loadDraft(key)
     mentions = []
     attachments = []
+    escConsumed = false
     closeMention()
     queueMicrotask(() => {
       hydrating = false
@@ -250,6 +253,15 @@
         return
       }
     }
+    if (e.key === 'Escape') {
+      // GDK-462: a destructive default is forbidden. Esc blurs; it does not
+      // close the panel or clear the draft. DetailPanel / keymap honour
+      // defaultPrevented.
+      e.preventDefault()
+      escConsumed = true
+      ta?.blur()
+      return
+    }
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
       void submit()
@@ -279,6 +291,20 @@
   })
 
   const canSubmit = $derived((text.trim().length > 0 || attachments.length > 0) && uploading === 0)
+
+  // Capture phase so an unfocused non-empty draft spends Esc before the
+  // shell keymap (registered on bubble at App mount) closes the panel.
+  onMount(() => {
+    function onWin(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (ta && document.activeElement === ta) return
+      if (!text.trim() || escConsumed) return
+      e.preventDefault()
+      escConsumed = true
+    }
+    window.addEventListener('keydown', onWin, true)
+    return () => window.removeEventListener('keydown', onWin, true)
+  })
 </script>
 
 <div
@@ -296,6 +322,7 @@
       bind:this={ta}
       bind:value={text}
       oninput={onInput}
+      onfocus={() => (escConsumed = false)}
       onkeydown={onKeydown}
       onpaste={onPaste}
       rows="2"

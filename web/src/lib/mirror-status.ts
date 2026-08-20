@@ -7,8 +7,9 @@
  * mirror. Reading them together, issue sync and document sync looked like two
  * systems rather than two phases of one.
  *
- * So the wording lives here and every surface renders the same string. They can
- * be placed differently; they cannot say different things.
+ * So the wording lives here. The toolbar chip (and any surface that is
+ * naming the same pass, e.g. the docs empty CTA) renders this string.
+ * GDK-460: the sidebar row is the sync-history entry and does not.
  */
 import { formatNumber, relativeTime, t } from './i18n'
 import { issues } from '../stores/issues.svelte'

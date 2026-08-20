@@ -894,20 +894,25 @@ test.describe('sync status is one sentence', () => {
     await gotoApp(page)
 
     const expected = 'Fetching documents · 350'
-    // The sidebar's sync row: this is the one that used to say "Synced 3m ago"
-    // while the section below it claimed to be fetching.
-    await expect(page.getByTestId('sidebar-sync-now')).toContainText(expected, { timeout: 20_000 })
-    await expect(page.getByTestId('freshness-chip')).toContainText(expected)
+    // GDK-460: the freshness sentence belongs to the toolbar chip (and the
+    // docs empty CTA, which is naming the same pass). The sidebar row is
+    // the sync-history entry and must not repeat the chip.
+    await expect(page.getByTestId('freshness-chip')).toContainText(expected, { timeout: 20_000 })
     await expect(page.getByTestId('docs-empty-cta')).toContainText(expected)
+    await expect(page.getByTestId('sidebar-sync-now')).toContainText('Sync history')
+    await expect(page.getByTestId('sidebar-sync-now')).not.toContainText(expected)
   })
 
   test('an issue pass says issues, not documents', async ({ page }) => {
     await activity(page, { running: true, source: 'issues', fetched: 6932 })
     await gotoApp(page)
 
-    await expect(page.getByTestId('sidebar-sync-now')).toContainText('Syncing issues · 6,932', {
+    // GDK-460: busy wording is the chip's. The sidebar keeps its own name.
+    await expect(page.getByTestId('freshness-chip')).toContainText('Syncing issues · 6,932', {
       timeout: 20_000,
     })
+    await expect(page.getByTestId('sidebar-sync-now')).toContainText('Sync history')
+    await expect(page.getByTestId('sidebar-sync-now')).not.toContainText('Syncing issues')
   })
 
   test('a pass is announced only once it has run long enough to wonder about', async ({ page }) => {
@@ -930,24 +935,24 @@ test.describe('sync status is one sentence', () => {
 
 test.describe('sync status at rest', () => {
   test('the row and the chip report the mirror identically, and it fits', async ({ page }) => {
-    // At rest the two used to describe different things with the same verb: the
-    // row read the browser↔server delta cursor ("Synced 18:12"), the chip read
-    // the mirror's age ("Synced yesterday"). Only the second is what anyone
-    // means by synced — a delta poll keeps the screen current with a mirror
-    // that stopped yesterday.
+    // GDK-460: the two used to share one sentence and two click meanings.
+    // Freshness (verdict · age) is the chip. The sidebar row is the
+    // sync-history entry point and is labeled as itself.
     await gotoApp(page)
 
     const row = page.getByTestId('sidebar-sync-now')
     const chip = page.getByTestId('freshness-chip')
     const rowText = ((await row.textContent()) ?? '').trim()
     const chipText = ((await chip.textContent()) ?? '').trim()
-    expect(rowText).toBe(chipText)
-    // The verdict travels with the age: "delayed" alone never says how far
-    // behind, and an age alone never says that being behind is a problem.
-    expect(rowText).toMatch(/·/)
+    expect(rowText).toBe('Sync history')
+    expect(chipText).not.toBe(rowText)
+    // The verdict travels with the age on the chip: "delayed" alone never
+    // says how far behind, and an age alone never says that being behind
+    // is a problem.
+    expect(chipText).toMatch(/·/)
 
-    // The sidebar row shares its line with the issue count, and the settled
-    // string is now the longest it has ever been. Measure rather than trust it.
+    // The sidebar row shares its line with the issue count. Measure rather
+    // than trust it.
     const fits = await row.evaluate((el) => {
       const line = el.closest('div')?.parentElement
       if (!line) return true

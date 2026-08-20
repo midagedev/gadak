@@ -288,6 +288,7 @@ export const ko = {
   'list.qaRun': 'QA 차수',
   'list.qaPending': 'QA 대기',
   'list.searchPlaceholder': '이 목록에서 좁히기, 또는 JQL 붙여넣기…',
+  'list.searchPlaceholderShort': '필터 또는 JQL…',
   'list.searchHelp':
     '이 목록을 좁힙니다 (키·제목·담당자·라벨). Jira JQL이나 필터 URL을 붙여넣으면 적용됩니다. 토큰: @담당자 #파트 !우선순위 is:reopened|unassigned|stale. Enter로 이 목록에서 본문 검색. {shortcut}은 이슈·문서 전체를 검색하며 목록 필터를 무시합니다.',
   'list.searchClear': '지우기 (Esc)',

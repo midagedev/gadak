@@ -98,10 +98,14 @@
   let draft = $state('')
   let query = $state('')
   let idx = $state(0)
+  // GDK-461: a write must never be the default Enter target. Arrow/hover
+  // can still land on create-now; query changes reset this so a shrinking
+  // match set cannot leave create selected by accident.
+  let idxUserMoved = $state(false)
 
   const ime = createCompositionCommit((q) => {
     query = q
-    idx = 0
+    idxUserMoved = false
   })
   let inputEl = $state<HTMLInputElement | null>(null)
   let listEl = $state<HTMLElement | null>(null)
@@ -614,7 +618,10 @@
     // It goes AFTER every matched action: create writes to Jira, so it must
     // never be the pre-selected Enter target when the user typed an action's
     // name ("Sync now" + Enter must sync, not file an issue titled "Sync now").
-    // With no other match it is first anyway, which is the capture flow.
+    // GDK-461: a destructive action is never the default. With no other match
+    // the row still appears, unselected, and Enter does nothing until the
+    // user arrows or points at it. New issue is not force-appended beside it
+    // — that was a second write entry on a zero-match list.
     const createNow: Item = {
       id: 'a:create-now',
       section: 'action',
@@ -626,9 +633,6 @@
       },
     }
     out.push(createNow)
-    if (!out.some((d) => d.id === 'a:new')) {
-      out.push({ ...newIssue, section: 'action' })
-    }
     return out
   })
 
@@ -788,10 +792,24 @@
     unified: t('palette.sectionUnified'),
   }
 
-  // Keep the highlight inside the viewport.
+  /** First row that is safe to pre-select. create-now writes; it is never idx 0 by default. */
+  function firstSafeIndex(list: Item[]): number {
+    return list.findIndex((item) => item.id !== 'a:create-now')
+  }
+
+  // Keep the highlight inside the viewport. Unmoved idx follows the first
+  // non-destructive row, or −1 when the list is only create-now / empty.
   $effect(() => {
-    if (idx >= items.length) idx = Math.max(0, items.length - 1)
-    listEl?.querySelector(`[data-idx="${idx}"]`)?.scrollIntoView({ block: 'nearest' })
+    const list = items
+    if (!idxUserMoved) {
+      const next = firstSafeIndex(list)
+      if (idx !== next) idx = next
+    } else if (idx >= list.length) {
+      idx = list.length ? list.length - 1 : -1
+    }
+    if (idx >= 0) {
+      listEl?.querySelector(`[data-idx="${idx}"]`)?.scrollIntoView({ block: 'nearest' })
+    }
   })
 
   function run(item: Item) {
@@ -808,13 +826,17 @@
       closePalette()
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      if (items.length) idx = (idx + 1) % items.length
+      if (!items.length) return
+      idxUserMoved = true
+      idx = idx < 0 ? 0 : (idx + 1) % items.length
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      if (items.length) idx = (idx - 1 + items.length) % items.length
+      if (!items.length) return
+      idxUserMoved = true
+      idx = idx < 0 ? items.length - 1 : (idx - 1 + items.length) % items.length
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      const item = items[idx]
+      const item = idx >= 0 ? items[idx] : undefined
       if (item) run(item)
     }
   }
@@ -848,7 +870,7 @@
         aria-expanded="true"
         aria-controls="palette-list"
         aria-autocomplete="list"
-        aria-activedescendant={items.length ? `palette-opt-${idx}` : undefined}
+        aria-activedescendant={idx >= 0 && items.length ? `palette-opt-${idx}` : undefined}
         placeholder={t('palette.placeholder')}
         class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
         spellcheck="false"
@@ -897,7 +919,10 @@
           class="flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left text-[12px] {i === idx
             ? 'bg-bg-active text-text-primary'
             : 'text-text-secondary hover:bg-bg-hover'}"
-          onmousemove={() => (idx = i)}
+          onmousemove={() => {
+            idxUserMoved = true
+            idx = i
+          }}
           onmousedown={(e) => {
             e.preventDefault()
             run(item)

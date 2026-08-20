@@ -5,8 +5,9 @@
    *  looks live can still be a live view of a mirror that stopped an hour ago.
    *  Source: sync_health's jira source, whose synced_at is the last sync run
    *  that finished without an error, and whose status carries the server's own
-   *  staleness rule (10 missed watch ticks) — the chip and the sidebar badge
-   *  read the same field so they cannot disagree.
+   *  staleness rule (10 missed watch ticks). GDK-460: this chip is the only
+   *  surface that speaks that sentence; the sidebar row is the history entry
+   *  and does not repeat it.
    *  Click runs the same sync-now the palette does.
    */
   import { onMount } from 'svelte'
@@ -49,9 +50,9 @@
       if (n === 1) return t('freshness.tokenExpiringOne')
       if (n != null) return t('freshness.tokenExpiring', { n })
     }
-    // One wording for the mirror, shared with the sidebar's sync row — running
-    // or at rest, the two cannot describe the same mirror differently, and a
-    // pass the background loop started shows here too.
+    // One wording for the mirror on this chip. A pass the background loop
+    // started shows here too. The sidebar history row no longer repeats it
+    // (GDK-460) — two click targets cannot share a sentence.
     return mirrorLabel()
   })
 

@@ -9,6 +9,7 @@
    *  ⑤ Enter on ordinary text → server full-text (body/comments).
    *  `/` focuses from anywhere; Esc clears.
    */
+  import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
   import { parseJql } from '../../lib/api'
   import { applyOmniboxAction, classifyOmnibox } from '../../lib/omnibox'
@@ -27,6 +28,18 @@
   let text = $state(filters.filters.q)
   let inputEl = $state<HTMLInputElement | null>(null)
   let sugIdxRaw = $state(0)
+
+  // GDK-463: ≤960px the long placeholder clips inside the toolbar field.
+  // Match the catalog switch to the viewport, not to overlay-regime (1100).
+  const NARROW_PLACEHOLDER_MQ = '(max-width: 960px)'
+  let narrowPlaceholder = $state(false)
+  onMount(() => {
+    const mq = window.matchMedia(NARROW_PLACEHOLDER_MQ)
+    const apply = () => (narrowPlaceholder = mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  })
 
   /*
    * The `?` spells out what this box accepts. On a mouse the title does it on
@@ -270,7 +283,7 @@
       onkeydown={onKeydown}
       type="text"
       data-testid="search-input"
-      placeholder={t('list.searchPlaceholder')}
+      placeholder={t(narrowPlaceholder ? 'list.searchPlaceholderShort' : 'list.searchPlaceholder')}
       title={t('list.searchHelp', { shortcut: paletteShortcutLabel() })}
       class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
       spellcheck="false"

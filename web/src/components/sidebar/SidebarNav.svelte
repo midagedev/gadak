@@ -145,18 +145,11 @@
       })
       .join('\n'),
   )
-  // The mirror's one line, running or at rest. This row used to report "Synced
-  // 18:12" from the browser↔server delta cursor while the chip reported the
-  // mirror's own age — two different facts sharing a verb, and only the second
-  // is what anyone means by synced.
+  // GDK-460: this row is the sync-history entry, not a second freshness
+  // sentence. The toolbar chip owns "Sync delayed · Nw ago" / the busy line.
+  // Title still carries per-source detail; the visible label is the entry's
+  // own name.
   const syncLabel = $derived(mirrorLabel())
-  const syncColor = $derived(
-    issues.syncHealth?.overall === 'failed'
-      ? 'text-status-reopen'
-      : issues.syncHealth?.overall === 'warning'
-        ? 'text-status-stale'
-        : 'text-text-muted',
-  )
   const syncDot = $derived(
     issues.syncHealth?.overall === 'failed'
       ? 'bg-status-reopen'
@@ -165,7 +158,7 @@
         : 'bg-status-done',
   )
 
-  /* ── Sync history popover (click on the sync timestamp) ── */
+  /* ── Sync history popover (click on the Sync history entry) ── */
   let historyOpen = $state(false)
   let historyRuns = $state<SyncRun[]>([])
   let historyLoading = $state(false)
@@ -426,10 +419,10 @@
     </div>
   {/if}
 
-  <!-- Totals / sync — badge click = history popover (with Sync now inside).
-       Hidden during onboarding: pool size 0 / Syncing… contradicts the
-       wizard's own fetched count (GDK-299 F7). Hide, do not show a second
-       number — a second pipeline can drift. -->
+  <!-- Totals / sync-history entry (GDK-460). Click opens the run popover
+       (Sync now lives inside). Freshness wording is the toolbar chip's.
+       Hidden during onboarding: pool size 0 / a sync sentence contradicts
+       the wizard's own fetched count (GDK-299 F7). -->
   {#if !onboarding.needsOnboarding}
   <div class="flex-none px-3 pb-2 pt-1 text-micro text-text-muted">
     {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}
@@ -437,15 +430,16 @@
     <div class="relative inline-block" bind:this={historyEl}>
       <button
         type="button"
-        class="ml-1 inline-flex items-center gap-1 rounded px-0.5 {syncColor} transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="ml-1 inline-flex items-center gap-1 rounded px-0.5 text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         title={[syncTitle || syncLabel, t('sidebar.syncHistoryTitle')].filter(Boolean).join('\n')}
         aria-label={t('sidebar.syncHistory')}
         aria-expanded={historyOpen}
         data-testid="sidebar-sync-now"
+        data-state={issues.mirrorBusy ? 'syncing' : 'idle'}
         onclick={() => void toggleHistory()}
       >
         <span class="h-1.5 w-1.5 flex-none rounded-full {syncDot}" aria-hidden="true"></span>
-        {syncLabel}
+        {t('sidebar.syncHistory')}
       </button>
       {#if historyOpen}
         <div

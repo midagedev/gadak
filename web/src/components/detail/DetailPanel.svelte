@@ -16,11 +16,17 @@
    * Latency hide: on selectedKey change, render header immediately from local
    * pool IssueLite (issues.get); body shows skeleton until getDetailCached arrives.
    */
+  import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { feature, isHostedDemo } from '../../lib/config'
+  import {
+    readViewportRegime,
+    subscribeViewportRegime,
+    type ViewportRegime,
+  } from '../../lib/viewport-regime'
   import type { AdfNode } from '../../lib/types'
   import { cacheEpoch, getDetailCached, invalidate } from '../../lib/detail-cache.svelte'
   import { createResource } from '../../lib/resource.svelte'
@@ -36,6 +42,7 @@
   import EpicProgress from './EpicProgress.svelte'
   import CommentList from './CommentList.svelte'
   import CommentComposer from '../write/CommentComposer.svelte'
+  import Icon from '../ui/Icon.svelte'
   import HistoryTimeline from './HistoryTimeline.svelte'
   import LinkedIssues from './LinkedIssues.svelte'
   import RelatedDocs from './RelatedDocs.svelte'
@@ -45,6 +52,13 @@
   const key = $derived(selection.selectedKey)
   // Local-pool row for instant header (may be missing: linked issues not in pool)
   const lite = $derived(key ? issues.get(key) : undefined)
+
+  // GDK-463: overlay-regime detail covers the list. A named back control
+  // returns to it; X and the scrim stay. Docked keeps the list beside the
+  // panel, so the control is absent there.
+  let viewportRegime = $state<ViewportRegime>(readViewportRegime())
+  onMount(() => subscribeViewportRegime((r) => (viewportRegime = r)))
+  const overlay = $derived(viewportRegime === 'overlay')
 
   // Load on selectedKey change; clear when selection clears.
   // watch detailNonce so cache updates (e.g. comment confirm) re-read
@@ -70,8 +84,31 @@
   // are still assembling. defaultPrevented is the signal rather than reading the
   // stores: listener order is registration order, and this one registers last
   // (on selection), so by the time it runs the stores are already cleared.
+  //
+  // GDK-462: a focused composer preventDefault+blurs; this listener then arms
+  // so the *next* Esc can close. A non-empty draft with no focus spends one
+  // Esc the same way. Clearing the draft is forbidden — the localStorage
+  // composer already keeps it, and reopening the issue restores it.
+  let commentEscArmed = $state(false)
+  $effect(() => {
+    void key
+    commentEscArmed = false
+  })
+
   function onEscapeKey(e: KeyboardEvent): void {
-    if (e.defaultPrevented) return
+    if (e.defaultPrevented) {
+      commentEscArmed = true
+      return
+    }
+    const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="comment-composer"]')
+    const hasDraft = !!composer && composer.value.trim().length > 0
+    const focused = !!composer && document.activeElement === composer
+    if ((focused || hasDraft) && !commentEscArmed) {
+      e.preventDefault()
+      if (focused) composer.blur()
+      commentEscArmed = true
+      return
+    }
     selection.clear()
   }
 
@@ -112,7 +149,7 @@
     <!-- Header — outside the scroll, so it is pinned by structure. -->
     <div class="relative z-10 flex-none bg-bg-panel">
       {#if lite}
-        <DetailHeader issue={lite} />
+        <DetailHeader issue={lite} {overlay} />
         {#if isHostedDemo() && write.demoEdits.has(key)}
           <!-- The banner counts demo edits; this says which issue is one, so a
                changed status here is never mistaken for the snapshot's own. -->
@@ -126,14 +163,28 @@
       {:else}
         <!-- Issue not in pool: minimal header -->
         <header class="flex items-center justify-between border-b border-border-strong/70 px-5 pt-4 pb-4">
-          <a
-            href={jiraUrl(key)}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="font-mono text-[12px] font-medium text-accent-text hover:underline"
-          >
-            {key}
-          </a>
+          <div class="flex min-w-0 items-center gap-2">
+            {#if overlay}
+              <button
+                type="button"
+                onclick={() => selection.clear()}
+                data-testid="issue-detail-back"
+                class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+                aria-label={t('feed.backToList')}
+                title={t('feed.backToList')}
+              >
+                <Icon name="arrow-left" size={14} />
+              </button>
+            {/if}
+            <a
+              href={jiraUrl(key)}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="font-mono text-[12px] font-medium text-accent-text hover:underline"
+            >
+              {key}
+            </a>
+          </div>
           <button
             type="button"
             onclick={() => selection.clear()}

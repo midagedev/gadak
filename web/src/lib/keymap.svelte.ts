@@ -469,6 +469,12 @@ function exposeLastKeyCmd(type: KeyCommand['type']): void {
 
 export function createGlobalKeyHandler(host: GlobalKeyHost): (e: KeyboardEvent) => void {
   return function onGlobalKey(e: KeyboardEvent) {
+    // A focused composer (GDK-462) or another surface already spent this key.
+    // Still record `ignore` so lastKeyCmd is this keystroke, not the previous one.
+    if (e.defaultPrevented) {
+      exposeLastKeyCmd('ignore')
+      return
+    }
     const cmd = resolveGlobalKey(contextFromEvent(e, host))
     // One-step: "what did that keystroke do?" — hold-boot-key means it
     // arrived before keysReady. Same dataset surface as cacheScope / uiFocusPoll.

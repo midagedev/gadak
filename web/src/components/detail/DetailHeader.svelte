@@ -22,7 +22,7 @@
   import TitleEditor from '../write/TitleEditor.svelte'
   import Icon from '../ui/Icon.svelte'
 
-  let { issue }: { issue: IssueLite } = $props()
+  let { issue, overlay = false }: { issue: IssueLite; overlay?: boolean } = $props()
 
   const isFavorite = $derived(favorites.keys.has(issue.issue_key))
 
@@ -59,6 +59,20 @@
   <!-- Top row: issue key (Jira link) + close -->
   <div class="mb-2 flex items-center justify-between gap-2">
     <div class="flex min-w-0 items-center gap-2">
+      {#if overlay}
+        <!-- GDK-463: overlay covers the list. Same arrow-left control as the
+             feed header (PersonalFeed); X and the scrim still close. -->
+        <button
+          type="button"
+          onclick={() => selection.clear()}
+          data-testid="issue-detail-back"
+          class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+          aria-label={t('feed.backToList')}
+          title={t('feed.backToList')}
+        >
+          <Icon name="arrow-left" size={14} />
+        </button>
+      {/if}
       <a
         href={jiraUrl(issue.issue_key)}
         target="_blank"
