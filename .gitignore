@@ -62,3 +62,6 @@ scratch/
 desktop/build/
 desktop/desktop
 e2e/demo/test-results-search/
+# a bare symlink named node_modules (worktree lanes) must never be tracked
+node_modules
+web/node_modules
