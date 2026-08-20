@@ -138,12 +138,12 @@ Usage:
   gadak [--profile <name>] <command>
 
 Commands:
-  init             configure site, credentials, and projects
-                   [--site] [--email] [--projects] [--spaces] [--token-file|--token-stdin] [--json]
+  init             ` + initSummary + `
+                   [--standalone] [--site] [--email] [--projects] [--spaces] [--token-file|--token-stdin] [--json]
   config           get or set profile settings     [list|get <path>|set <path> <value>] [--json]
   sync             mirror Jira into SQLite   [--full] [--watch]
   serve            web UI + API on loopback  [--addr] [--static] [--no-sync] [--no-open] [--allow-remote]
-                   (syncs by default when a credential is configured; --no-sync opts out)
+                   (` + serveSyncDefault + `; --no-sync opts out)
   install-service  keep serve running across reboots (launchd / systemd user)
                    [--uninstall]
   install-cli      put this binary on PATH  [--dir] [--force] [--print]
@@ -170,7 +170,7 @@ Reading the mirror (no network; see AGENTS.md):
 Atlassian REST escape hatch (needs a credential; not on MCP):
   api        raw REST call    [METHOD] <PATH> [--query k=v] [--data …] [--write] [--status]
 
-Writing through to Jira (needs a credential):
+Writing through to the workspace origin:
   create     create an issue  [--] <SUMMARY> [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]
   attach     attach files     <KEY> <file>... [--json]
   edit       edit an issue    <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--json]

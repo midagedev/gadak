@@ -176,8 +176,8 @@ func TestTransitionCategoryAmbiguousRefuses(t *testing.T) {
 	for _, want := range []string{
 		`transition "done" is ambiguous on NMB-1`,
 		"2 transitions land there",
-		"Close (id 31, → 완료)",
-		"폐기 (id 41, → 폐기됨)",
+		"Close (id 31, → 완료 [status_id 10001])",
+		"폐기 (id 41, → 폐기됨 [status_id 10002])",
 	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("error %q missing %q", msg, want)
@@ -245,8 +245,8 @@ func TestTransitionIDAndStatusIDCollisionRefuses(t *testing.T) {
 	msg := err.Error()
 	for _, want := range []string{
 		`"10003" matches a transition id and a different target status id on NMB-1`,
-		"transition id: Start work (id 10003, → 진행 중)",
-		"target status id: Close (id 41, → 완료)",
+		"transition id: Start work (id 10003, → 진행 중 [status_id 3])",
+		"target status id: Close (id 41, → 완료 [status_id 10003])",
 	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("error %q missing %q", msg, want)
@@ -315,8 +315,8 @@ func TestTransitionNoMatchHintsReachableCategories(t *testing.T) {
 	msg := err.Error()
 	for _, want := range []string{
 		`no transition matching "Ship it" on NMB-1`,
-		"Start work (id 21, → 진행 중)",
-		"Close (id 31, → 완료)",
+		"Start work (id 21, → 진행 중 [status_id 3])",
+		"Close (id 31, → 완료 [status_id 10001])",
 		"also accepts a status category: inprogress, done",
 	} {
 		if !strings.Contains(msg, want) {

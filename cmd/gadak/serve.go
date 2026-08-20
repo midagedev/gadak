@@ -43,9 +43,10 @@ func parseServeOpts(args []string) (serveOpts, error) {
 	static := fs.String("static", "", "serve the web UI from this directory instead of the embedded copy")
 	allowRemote := fs.Bool("allow-remote", false,
 		"permit binding a non-loopback address (the mirror has no auth; do not expose it)")
-	// Sync starts by default when a credential is configured. --sync is kept as
-	// a deprecated no-op alias; --no-sync opts out (demo / e2e fixtures).
-	withSync := fs.Bool("sync", false, "deprecated alias (sync already starts when a credential is configured)")
+	// Sync starts by default when HasCredential is true (standalone, or a
+	// connected workspace with site+email+token). --sync is a deprecated
+	// no-op alias; --no-sync opts out (demo / e2e fixtures).
+	withSync := fs.Bool("sync", false, "deprecated alias ("+serveSyncDefault+")")
 	noSync := fs.Bool("no-sync", false, "do not run the incremental sync loop")
 	importAttachments := fs.String("import-attachments", "",
 		"seed the attachment cache from a directory holding manifest.json (see examples/attachments)")
@@ -134,7 +135,8 @@ func startServeLoops(ctx context.Context, api *server.Handler, db *store.DB, cfg
 		api.StartUpdateCheck(ctx, dir)
 	}
 
-	// Default: keep the mirror fresh whenever a credential exists. Empty
+	// Default: keep the mirror fresh whenever HasCredential is true
+	// (standalone origin, or connected with site+email+token). Empty
 	// projects means "everything this account can see". --no-sync opts out
 	// (fixtures with a fake token must pass it). --sync remains a silent alias
 	// when the loop would start anyway; with no credential it still prints the

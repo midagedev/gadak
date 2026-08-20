@@ -1354,7 +1354,10 @@ func transitionCategory(t jira.Transition) (string, bool) {
 }
 
 func formatTransition(t jira.Transition) string {
-	return fmt.Sprintf("%s (id %s, → %s)", t.Name, t.ID, t.To.Name)
+	if t.To.ID == "" {
+		return fmt.Sprintf("%s (id %s, → %s)", t.Name, t.ID, t.To.Name)
+	}
+	return fmt.Sprintf("%s (id %s, → %s [status_id %s])", t.Name, t.ID, t.To.Name, t.To.ID)
 }
 
 func joinTransitions(list []jira.Transition) string {

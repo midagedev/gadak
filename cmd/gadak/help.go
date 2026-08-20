@@ -31,15 +31,37 @@ type helpOption struct {
 // when named. Do not say "every space" / "everything".
 const spacesFlagUsage = `Confluence spaces: KEY,KEY… | all (every global space; name a personal space to include it) | none (off); "all"/"none" are reserved`
 
+// initSummary is the one-line init description for top-level usage and
+// `gadak init --help`. It has to name both workspace kinds: connected
+// init writes site/email/token (cmdInit); --standalone writes KindStandalone
+// with no site or credential (initStandalone, flag usage in cmdInit).
+const initSummary = "configure a Jira site and credential (projects optional), or a standalone workspace (--standalone)"
+
+// serveSyncDefault is the serve sync-on-start condition, matching
+// startServeLoops: cfg.HasCredential() is true for a standalone workspace
+// or a connected workspace with site+email+token (internal/config.HasCredential).
+const serveSyncDefault = "syncs by default on a standalone workspace, or on a connected workspace with a credential"
+
+// writeThroughOriginPhrase is the single owner of "where CLI writes go".
+// Verified: mutate in agent.go calls origin.Writer; origin.Client refuses a
+// connected workspace without site/email/token (errNeedCredential) and
+// admits a standalone workspace with no token.
+const writeThroughOriginPhrase = "on the workspace origin — Jira on a connected workspace (needs a credential), the embedded origin on a standalone one (write-through to the mirror)"
+
+func writeThroughHelp(action string) string {
+	return action + " " + writeThroughOriginPhrase
+}
+
 // helps is the per-command help table. Summaries recycle the top-level usage
 // constant; positionals and examples match the real cmdXxx implementations.
 var helps = map[string]cmdHelp{
 	"init": {
-		summary: "configure site and credentials (projects optional)",
-		usage:   "gadak [--profile <name>] init [--site URL] [--email ADDR] [--projects A,B] [--spaces KEYS|all|none] [--token-file PATH | --token-stdin] [--token-expires DATE] [--json]",
+		summary: initSummary,
+		usage:   "gadak [--profile <name>] init [--standalone] [--site URL] [--email ADDR] [--projects A,B] [--spaces KEYS|all|none] [--token-file PATH | --token-stdin] [--token-expires DATE] [--json]",
 		// FlagSet VisitAll supplies Options when `gadak init --help` runs; this
 		// list covers formatHelp(nil) and documents the env-only token path.
 		options: []helpOption{
+			{name: "standalone", desc: "create an independent workspace (no Jira site or credential)"},
 			{name: "site", desc: "Jira site URL (https://your-site.atlassian.net); env GADAK_SITE"},
 			{name: "email", desc: "account email; env GADAK_EMAIL"},
 			{name: "projects", desc: "project keys, comma-separated (optional — blank syncs every project you can see); env GADAK_PROJECTS"},
@@ -52,6 +74,7 @@ var helps = map[string]cmdHelp{
 		},
 		examples: []string{
 			"gadak init",
+			"gadak init --standalone",
 			"gadak --profile demo init",
 			"GADAK_TOKEN=$(cat token) gadak init --site https://x.atlassian.net --email you@example.com --json",
 			"gadak init --site https://x.atlassian.net --email you@example.com --projects ABC --token-file ./token",
@@ -91,7 +114,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak serve", "gadak status"},
 	},
 	"serve": {
-		summary: "web UI and API on loopback (syncs by default when a credential is configured)",
+		summary: "web UI and API on loopback (" + serveSyncDefault + ")",
 		usage:   "gadak [--profile <name>] serve [options]",
 		examples: []string{
 			"gadak serve",
@@ -275,7 +298,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak issue", "gadak sql"},
 	},
 	"comment": {
-		summary: "add a comment on Jira (needs a credential; write-through to the mirror)",
+		summary: writeThroughHelp("add a comment"),
 		usage:   "gadak [--profile <name>] comment <KEY> -m <text|-> [--json]",
 		examples: []string{
 			"gadak comment NMB-140 -m \"Reproduced on staging.\"",
@@ -285,7 +308,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak transition", "gadak assign", "gadak issue"},
 	},
 	"create": {
-		summary: "create an issue on Jira (needs a credential; write-through to the mirror)",
+		summary: writeThroughHelp("create an issue"),
 		usage:   "gadak [--profile <name>] create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
 		examples: []string{
 			"gadak create Fix the flaky gate --project NMB --type Task -m \"repro on staging\" --label batch",
@@ -297,7 +320,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak attach", "gadak edit", "gadak comment", "gadak transition", "gadak assign", "gadak issue"},
 	},
 	"attach": {
-		summary: "attach files on Jira (needs a credential; write-through to the mirror)",
+		summary: writeThroughHelp("attach files"),
 		usage:   "gadak [--profile <name>] attach <KEY> <file>... [--json]",
 		examples: []string{
 			"gadak attach NMB-140 ./screenshot.png",
@@ -306,7 +329,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak edit", "gadak issue"},
 	},
 	"edit": {
-		summary: "edit summary, description, labels, priority, parent, or due date on Jira (needs a credential; write-through to the mirror)",
+		summary: writeThroughHelp("edit summary, description, labels, priority, parent, or due date"),
 		usage:   "gadak [--profile <name>] edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]",
 		examples: []string{
 			"gadak edit NMB-140 --summary \"Rename without opening Jira\"",
@@ -329,7 +352,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak search", "gadak open"},
 	},
 	"transition": {
-		summary: "change issue status on Jira (needs a credential; accepts transition id, target status id, name, target status name, or status category new|inprogress|done)",
+		summary: writeThroughHelp("change issue status") + "; accepts transition id, target status id, name, target status name, or status category new|inprogress|done",
 		usage:   "gadak [--profile <name>] transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]",
 		examples: []string{
 			"gadak transition NMB-140 \"In Review\"",
@@ -340,7 +363,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak comment", "gadak assign", "gadak issue"},
 	},
 	"assign": {
-		summary: "set the assignee on Jira (needs a credential; pass - to unassign)",
+		summary: writeThroughHelp("set the assignee") + "; pass - to unassign",
 		usage:   "gadak [--profile <name>] assign <KEY> <email|-> [--json]",
 		examples: []string{
 			"gadak assign NMB-140 dana@example.com",

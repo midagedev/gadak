@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/selfupdate"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -67,6 +68,8 @@ func cmdStatus(args []string) error {
 		fmt.Fprintf(os.Stderr, "gadak: config: %v\n", err)
 		st["config_error"] = err.Error()
 	}
+	kind, _ := origin.Describe(cfg)
+	st["kind"] = kind
 	var tokenExpiry config.TokenExpiry
 	if cfg != nil {
 		tokenExpiry = cfg.TokenExpiryAt(time.Now().UTC())
@@ -96,7 +99,7 @@ func cmdStatus(args []string) error {
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(st)
 	}
-	for _, k := range []string{"profile", "issues", "comments", "pages", "watermark", "version", "last_full_sync_at", "last_error"} {
+	for _, k := range []string{"profile", "kind", "issues", "comments", "pages", "watermark", "version", "last_full_sync_at", "last_error"} {
 		if v, ok := st[k]; ok && v != "" {
 			fmt.Printf("%-18s %v\n", k, v)
 		}

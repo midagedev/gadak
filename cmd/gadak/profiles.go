@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -32,6 +33,7 @@ type profileEntry struct {
 	LastSyncAt *string `json:"last_sync_at"`
 	DBPath     string  `json:"db_path"`
 	Error      string  `json:"error,omitempty"`
+	Kind       string  `json:"kind,omitempty"`
 	// hasMirror is text-output only: false means ISSUES/DOCS print as —.
 	hasMirror bool
 }
@@ -93,6 +95,8 @@ func inspectProfile(name, activeDisplay string) profileEntry {
 		e.Error = "unreadable"
 		return e
 	}
+	kind, _ := origin.Describe(cfg)
+	e.Kind = kind
 	if cfg.HasCredential() {
 		e.Configured = true
 		e.SiteHost = siteHostOnly(cfg.Site)

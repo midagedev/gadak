@@ -390,26 +390,7 @@ func cmdInit(args []string) error {
 	}
 	p, _ := config.Path()
 	if *jsonOut {
-		enc := json.NewEncoder(os.Stdout)
-		// One line, no HTML escaping — machine consumers parse this.
-		enc.SetEscapeHTML(false)
-		return enc.Encode(struct {
-			Profile    string   `json:"profile"`
-			Account    string   `json:"account"`
-			Site       string   `json:"site"`
-			Projects   []string `json:"projects"`
-			Path       string   `json:"path"`
-			Confluence any      `json:"confluence"`
-			Kind       string   `json:"kind"`
-		}{
-			Profile:    config.Profile(),
-			Account:    name,
-			Site:       cfg.Site,
-			Projects:   cfg.Projects,
-			Path:       p,
-			Confluence: initConfluenceJSON(cfg),
-			Kind:       cfg.WorkspaceKind(),
-		})
+		return writeInitJSON(cfg, name, p)
 	}
 	if name != "" {
 		fmt.Printf("verified as %s — saved %s\n", name, p)
@@ -419,7 +400,7 @@ func cmdInit(args []string) error {
 	if len(cfg.Projects) == 0 {
 		fmt.Println("no project filter — syncing everything this account can see; narrow it later in Settings → Sources")
 	}
-	printInitNextSteps()
+	printInitNextSteps(cfg.WorkspaceKind())
 	return nil
 }
 
@@ -465,36 +446,37 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 			return err
 		}
 	}
+	// Fill the mirror now so warnIfStale's empty synced_at is false.
+	// Standalone origin is local; this is the same one-shot Run `gadak sync`
+	// would do, without printing (stdout may be --json).
+	//
+	// A fill that fails does not fail init: the workspace exists, its persist
+	// file is written, and writes already work. Returning an error here would
+	// break `init --standalone --json && gadak create …` over something the
+	// next `gadak sync` fixes — and the stale warning, which is what this call
+	// exists to silence, comes back to say so.
+	if err := fillStandaloneMirror(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not fill the mirror yet (%v) — run `gadak sync`\n", err)
+	}
+	if err := origin.Close(); err != nil {
+		return fmt.Errorf("flush origin persist: %w", err)
+	}
 	p, _ := config.Path()
 	if jsonOut {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetEscapeHTML(false)
-		return enc.Encode(struct {
-			Profile    string   `json:"profile"`
-			Account    string   `json:"account"`
-			Site       string   `json:"site"`
-			Projects   []string `json:"projects"`
-			Path       string   `json:"path"`
-			Confluence any      `json:"confluence"`
-			Kind       string   `json:"kind"`
-		}{
-			Profile:    config.Profile(),
-			Account:    "",
-			Site:       "",
-			Projects:   cfg.Projects,
-			Path:       p,
-			Confluence: initConfluenceJSON(cfg),
-			Kind:       cfg.WorkspaceKind(),
-		})
+		return writeInitJSON(cfg, "", p)
 	}
 	fmt.Printf("standalone workspace — saved %s\n", p)
+	_, persist := origin.Describe(cfg)
+	if persist != "" {
+		fmt.Printf("origin persist (this file is the original): %s\n", persist)
+	}
 	if cfg.DefaultProject != "" && cfg.DefaultIssueType != "" {
 		// Say what create will fill in when given only a summary, so the
 		// defaults are something the person saw rather than found out.
 		fmt.Printf("new issues default to %s / %s — change them in %s\n",
 			cfg.DefaultProject, cfg.DefaultIssueType, p)
 	}
-	printInitNextSteps()
+	printInitNextSteps(cfg.WorkspaceKind())
 	return nil
 }
 
@@ -543,19 +525,74 @@ func initConfluenceJSON(cfg *config.Config) any {
 	return cfg.Confluence.Spaces
 }
 
+// writeInitJSON is the --json document for both init kinds. Persist is
+// standalone-only (origin.Describe's path); connected origin is not a file.
+func writeInitJSON(cfg *config.Config, account, path string) error {
+	kind, src := origin.Describe(cfg)
+	persist := ""
+	if kind == config.KindStandalone {
+		persist = src
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(struct {
+		Profile    string   `json:"profile"`
+		Account    string   `json:"account"`
+		Site       string   `json:"site"`
+		Projects   []string `json:"projects"`
+		Path       string   `json:"path"`
+		Confluence any      `json:"confluence"`
+		Kind       string   `json:"kind"`
+		Persist    string   `json:"persist,omitempty"`
+	}{
+		Profile:    config.Profile(),
+		Account:    account,
+		Site:       cfg.Site,
+		Projects:   cfg.Projects,
+		Path:       path,
+		Confluence: initConfluenceJSON(cfg),
+		Kind:       kind,
+		Persist:    persist,
+	})
+}
+
+// fillStandaloneMirror runs the same one-shot Jira+Confluence sync `gadak
+// sync` would, without printing. That stamps sync_state.synced_at so
+// warnIfStale does not fire on the next command.
+func fillStandaloneMirror(cfg *config.Config) error {
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	ctx := context.Background()
+	var opts syncer.Options
+	if _, err := syncer.Run(ctx, cfg, db, opts); err != nil {
+		return fmt.Errorf("fill mirror: %w", err)
+	}
+	if cfg.Confluence != nil {
+		if _, err := syncer.RunConfluence(ctx, cfg, db, opts); err != nil {
+			return fmt.Errorf("fill wiki mirror: %w", err)
+		}
+	}
+	return nil
+}
+
 // printInitNextSteps ends `init` with the whole path to value, not just the
-// next command. Filling the mirror is step one of three, and the other two —
-// something to read it in, an agent wired to it — used to live only in the
-// docs, so the product's own headline use case began with a search of the
-// README.
-func printInitNextSteps() {
-	fmt.Print(`
+// next command. Kind owns the duration hedge: a standalone first sync is
+// local (the fill already ran); a connected first run can take minutes.
+func printInitNextSteps(kind string) {
+	syncLine := "  gadak sync                    fill the mirror (a few minutes on a first run)"
+	if kind == config.KindStandalone {
+		syncLine = "  gadak sync                    fill the mirror"
+	}
+	fmt.Printf(`
 next:
-  gadak sync                    fill the mirror (a few minutes on a first run)
+%s
   gadak serve                   read it in the browser
   gadak mcp install claude      let your coding agent query it (also: cursor, codex)
 
 docs/AGENT_SETUP.md has one paste per agent; docs/RECIPES.md has the questions
 JQL cannot ask.
-`)
+`, syncLine)
 }
