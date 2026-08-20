@@ -41,6 +41,7 @@
     Film,
     FlaskConical,
     Globe,
+    GripVertical,
     Hourglass,
     Inbox,
     Info,
@@ -79,6 +80,9 @@
     film: Film,
     flask: FlaskConical,
     globe: Globe,
+    // Reorder handle (sidebar section headers). Not invented: Lucide's
+    // GripVertical, same set as every other glyph in this map.
+    grip: GripVertical,
     hourglass: Hourglass,
     inbox: Inbox,
     info: Info,

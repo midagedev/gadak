@@ -935,6 +935,14 @@ export interface SyncRun {
   error?: string
 }
 
+/** GET sync/runs/ document. last_checked_at is sources.synced_at for `source`. */
+export interface SyncRunsDoc {
+  runs: SyncRun[]
+  source?: string
+  /** Same origin as sync_health.sources[].synced_at. Absent on older servers. */
+  last_checked_at?: string | null
+}
+
 /**
  * GET sync/runs/ — newest first. Older servers 404 → treat as empty.
  *
@@ -943,15 +951,22 @@ export interface SyncRun {
  * ignores it and answers with Jira's runs, so callers asking for Confluence
  * must not read a non-empty answer as proof Confluence ever ran — check
  * `source` on the response.
+ *
+ * last_checked_at is omitted on a 404 or a server that does not send it —
+ * callers hide the "Last checked" line rather than inventing a timestamp.
  */
-export async function getSyncRuns(source?: 'jira' | 'confluence'): Promise<SyncRun[]> {
+export async function getSyncRuns(source?: 'jira' | 'confluence'): Promise<SyncRunsDoc> {
   try {
     const path = source ? `sync/runs/?source=${source}` : 'sync/runs/'
-    const res = await jsonW<{ runs: SyncRun[]; source?: string }>(path)
-    if (source && res.source !== source) return []
-    return res.runs ?? []
+    const res = await jsonW<SyncRunsDoc>(path)
+    if (source && res.source !== source) return { runs: [] }
+    return {
+      runs: res.runs ?? [],
+      source: res.source,
+      last_checked_at: res.last_checked_at,
+    }
   } catch {
-    return []
+    return { runs: [] }
   }
 }
 

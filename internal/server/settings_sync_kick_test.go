@@ -175,3 +175,94 @@ func TestSyncRunsSourceFilter(t *testing.T) {
 		t.Fatalf("body %s", bad.Body.String())
 	}
 }
+
+// TestSyncRunsLastCheckedAt: GET sync/runs/ carries sources.synced_at (the
+// same origin sync_health reads) as last_checked_at, without inventing a
+// no-op row. GDK-486 — a quiet tick refreshes the chip and this field together.
+func TestSyncRunsLastCheckedAt(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	type runsDoc struct {
+		Runs          []store.SyncRun `json:"runs"`
+		Source        string          `json:"source"`
+		LastCheckedAt *string         `json:"last_checked_at"`
+	}
+
+	empty := decode[runsDoc](t, get(t, h, apiBase+"sync/runs/", nil))
+	if empty.LastCheckedAt != nil {
+		t.Fatalf("never-synced last_checked_at = %q, want omitted", *empty.LastCheckedAt)
+	}
+	if len(empty.Runs) != 0 {
+		t.Fatalf("runs = %+v, want empty", empty.Runs)
+	}
+
+	// No-op tick: RecordSync stamps sources.synced_at and does not append a run.
+	if err := db.RecordSync(context.Background(), sourceID, store.SyncResult{Watermark: "2026-08-04T00:00:00.000Z"}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	boot := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
+	if len(boot.SyncHealth.Sources) == 0 || boot.SyncHealth.Sources[0].SyncedAt == nil {
+		t.Fatalf("bootstrap synced_at missing after RecordSync: %+v", boot.SyncHealth)
+	}
+	want := *boot.SyncHealth.Sources[0].SyncedAt
+
+	got := decode[runsDoc](t, get(t, h, apiBase+"sync/runs/", nil))
+	if got.LastCheckedAt == nil {
+		t.Fatal("last_checked_at omitted after RecordSync")
+	}
+	if *got.LastCheckedAt != want {
+		t.Fatalf("last_checked_at %q != health synced_at %q", *got.LastCheckedAt, want)
+	}
+	if len(got.Runs) != 0 {
+		t.Fatalf("no-op tick must not invent a run: %+v", got.Runs)
+	}
+
+	// A recorded run's finished_at is a different fact. last_checked_at stays
+	// the health origin, not the newest run timestamp.
+	runAt := "2020-01-01T00:00:00Z"
+	if err := db.AppendSyncRun(context.Background(), sourceID, store.SyncRun{
+		Kind: "incremental", StartedAt: runAt, FinishedAt: runAt,
+		Fetched: 1, Changed: 1,
+	}); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+	withRun := decode[runsDoc](t, get(t, h, apiBase+"sync/runs/", nil))
+	if withRun.LastCheckedAt == nil || *withRun.LastCheckedAt != want {
+		t.Fatalf("last_checked_at after a run %+v, want %q", withRun.LastCheckedAt, want)
+	}
+	if *withRun.LastCheckedAt == runAt {
+		t.Fatal("last_checked_at must not be the run timestamp")
+	}
+	if len(withRun.Runs) != 1 {
+		t.Fatalf("runs %+v, want the one we appended", withRun.Runs)
+	}
+
+	// Confluence is the same field, scoped to ?source=.
+	if err := db.UpsertSource(context.Background(), store.Source{
+		ID: gadakSync.ConfluenceSourceID, Kind: "confluence", BaseURL: "https://x.atlassian.net/wiki",
+	}); err != nil {
+		t.Fatalf("confluence source: %v", err)
+	}
+	if err := db.RecordSync(context.Background(), gadakSync.ConfluenceSourceID, store.SyncResult{Watermark: "2026-08-05T00:00:00.000Z"}); err != nil {
+		t.Fatalf("confluence record: %v", err)
+	}
+	boot2 := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
+	var confAt *string
+	for i := range boot2.SyncHealth.Sources {
+		if boot2.SyncHealth.Sources[i].Key == "confluence" {
+			confAt = boot2.SyncHealth.Sources[i].SyncedAt
+		}
+	}
+	if confAt == nil {
+		t.Fatal("confluence health synced_at missing")
+	}
+	conf := decode[runsDoc](t, get(t, h, apiBase+"sync/runs/?source=confluence", nil))
+	if conf.LastCheckedAt == nil || *conf.LastCheckedAt != *confAt {
+		t.Fatalf("confluence last_checked_at %+v vs health %q", conf.LastCheckedAt, *confAt)
+	}
+	jira := decode[runsDoc](t, get(t, h, apiBase+"sync/runs/?source=jira", nil))
+	if jira.LastCheckedAt == nil || *jira.LastCheckedAt != want {
+		t.Fatalf("jira last_checked_at %+v, want %q", jira.LastCheckedAt, want)
+	}
+}

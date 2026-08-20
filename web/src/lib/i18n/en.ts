@@ -381,13 +381,14 @@ export const en = {
   'sidebar.syncHistory': 'Sync history',
   'sidebar.syncHistoryTitle': 'Click for recent sync runs',
   'sidebar.syncNoHistory': 'No recorded runs yet — history keeps syncs that changed something.',
+  'sidebar.syncLastChecked': 'Last checked {when}',
   'sidebar.serverUnreachable': 'Could not reach the server.',
   'sidebar.runFull': 'Full sync',
   'sidebar.runIncremental': 'Incremental',
   'sidebar.runReconcile': '+ deletions',
   'sidebar.runCounts': '{changed} changed · {deleted} deleted',
   'sidebar.issueCount': '{n} issues',
-  'sidebar.sectionReorderHint': 'Drag to reorder. Alt+Up or Alt+Down to move.',
+  'sidebar.sectionReorderHint': 'Drag or Alt+↑↓ to reorder',
 
   /* ── Freshness chip (mirror ↔ Jira leg) ── */
   'freshness.label': 'Mirror freshness',

@@ -162,6 +162,7 @@
   /* ── Sync history popover (click on the Sync history entry) ── */
   let historyOpen = $state(false)
   let historyRuns = $state<SyncRun[]>([])
+  let historyLastCheckedAt = $state<string | null>(null)
   let historyLoading = $state(false)
   let historyEl = $state<HTMLDivElement | null>(null)
 
@@ -172,9 +173,20 @@
     }
     historyOpen = true
     historyLoading = true
-    historyRuns = await getSyncRuns()
+    historyLastCheckedAt = null
+    const doc = await getSyncRuns()
+    historyRuns = doc.runs
+    historyLastCheckedAt =
+      typeof doc.last_checked_at === 'string' && doc.last_checked_at ? doc.last_checked_at : null
     historyLoading = false
   }
+
+  const historyLastCheckedLine = $derived.by(() => {
+    if (!historyLastCheckedAt) return ''
+    const when = relativeTime(historyLastCheckedAt, 'long')
+    if (!when) return ''
+    return t('sidebar.syncLastChecked', { when })
+  })
 
   function onDocClick(e: MouseEvent) {
     if (historyOpen && historyEl && !e.composedPath().includes(historyEl)) historyOpen = false
@@ -261,7 +273,7 @@
   // is read here, which is what refreshes a failure into a success.
   $effect(() => {
     if (!docsConfigured || pages.bySpace.length > 0 || fetchingDocuments()) return
-    void getSyncRuns('confluence').then((runs) => (confluenceRuns = runs))
+    void getSyncRuns('confluence').then((doc) => (confluenceRuns = doc.runs))
   })
 
   const docsEmptyState = $derived.by((): DocsEmptyState => {
@@ -450,6 +462,14 @@
           <div class="px-2 py-1 text-micro font-medium text-text-muted">
             {t('sidebar.syncHistory')}
           </div>
+          {#if historyLastCheckedLine}
+            <div
+              class="px-2 py-1 text-[12px] text-text-muted"
+              data-testid="sync-history-last-checked"
+            >
+              {historyLastCheckedLine}
+            </div>
+          {/if}
           {#if reachability.offline}
             <div
               class="flex items-center justify-between gap-2 px-2 py-1.5"

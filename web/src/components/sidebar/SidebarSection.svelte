@@ -96,7 +96,7 @@
 >
   <button
     type="button"
-    class="flex w-full cursor-grab items-center gap-1 px-3 py-1 text-left text-micro font-medium uppercase tracking-wide text-text-muted hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent active:cursor-grabbing"
+    class="group flex w-full cursor-grab items-center gap-1 px-3 py-1 text-left text-micro font-medium uppercase tracking-wide text-text-muted hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent active:cursor-grabbing"
     aria-expanded={expanded}
     aria-controls={bodyId}
     aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
@@ -119,6 +119,13 @@
       <Icon name="chevron-right" size={12} />
     </span>
     <span class="min-w-0 flex-1 truncate">{label}</span>
+    <span
+      class="flex-none text-text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+      data-testid="sidebar-section-grip"
+      aria-hidden="true"
+    >
+      <Icon name="grip" size={12} />
+    </span>
   </button>
   <div id={bodyId} data-testid={`sidebar-section-body-${id}`} hidden={!expanded}>
     {#if expanded}

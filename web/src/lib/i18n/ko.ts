@@ -382,13 +382,14 @@ export const ko = {
   'sidebar.syncHistory': '동기화 내역',
   'sidebar.syncHistoryTitle': '클릭하면 최근 동기화 내역을 보여줍니다',
   'sidebar.syncNoHistory': '기록된 내역이 없습니다 — 변경이 있었던 동기화만 남습니다.',
+  'sidebar.syncLastChecked': '마지막 확인 {when}',
   'sidebar.serverUnreachable': '서버에 연결하지 못했습니다.',
   'sidebar.runFull': '전체 동기화',
   'sidebar.runIncremental': '증분',
   'sidebar.runReconcile': '+ 삭제 반영',
   'sidebar.runCounts': '{changed}건 변경 · {deleted}건 삭제',
   'sidebar.issueCount': '{n}건',
-  'sidebar.sectionReorderHint': '드래그해서 순서를 바꿉니다. Alt+위쪽/아래쪽 화살표로 이동합니다.',
+  'sidebar.sectionReorderHint': '드래그 또는 Alt+↑↓로 순서 변경',
 
   /* ── Freshness chip (mirror ↔ Jira leg) ── */
   'freshness.label': '미러 신선도',

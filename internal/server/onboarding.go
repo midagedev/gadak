@@ -426,7 +426,10 @@ func (s *server) reportActivityProgress(fetched, changed int) {
 }
 
 // handleSyncRuns lists recent meaningful sync runs, newest first. Backs the
-// history popover behind the sidebar's sync timestamp.
+// history popover. last_checked_at is sources.synced_at for this source — the
+// same origin sync_health reads — so a no-op tick that never writes a run
+// still has a timestamp the popover can show (GDK-486). It is omitted when
+// the source has never been checked.
 //
 // ?source= selects which connector's history to return. Absent or "jira" is the
 // historical default (compat); "confluence" is the wiki source; anything else
@@ -435,12 +438,14 @@ func (s *server) reportActivityProgress(fetched, changed int) {
 func (s *server) handleSyncRuns(w http.ResponseWriter, r *http.Request) {
 	src := strings.TrimSpace(r.URL.Query().Get("source"))
 	var id string
+	label := "Jira"
 	switch src {
 	case "", "jira":
 		src = "jira"
 		id = sourceID
 	case "confluence":
 		id = sync.ConfluenceSourceID
+		label = "Confluence"
 	default:
 		fail(w, http.StatusBadRequest, "invalid_source")
 		return
@@ -453,7 +458,16 @@ func (s *server) handleSyncRuns(w http.ResponseWriter, r *http.Request) {
 	if runs == nil {
 		runs = []store.SyncRun{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": runs, "source": src})
+	out := map[string]any{"runs": runs, "source": src}
+	st, err := s.db.SyncState(r.Context(), id)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if at := s.sourceHealth(src, label, st).SyncedAt; at != nil {
+		out["last_checked_at"] = *at
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *server) syncProgress() progressDoc {
