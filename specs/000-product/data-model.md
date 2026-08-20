@@ -407,6 +407,27 @@ were deleted, so `gadak export` dumps them and `gadak import` restores them
 | `watches` | `key` PK, `created_at` |
 | `favorites` | `key` PK, `created_at` |
 
+## Replacing the origin
+
+A workspace is bound to one origin, and converting a standalone workspace to a
+site replaces it. An issue key is not globally unique — `init --standalone`
+seeds project `STD`, and a real site's project can be `STD` too — so a row
+naming the old origin's `STD-1` does not become stale when the origin changes.
+It rebinds to whatever the new site has at that key, which is worse than losing
+it.
+
+Every table therefore carries a classification in
+`internal/store/origin_scope.go`, and a test enumerates `sqlite_master` and
+fails on one that does not (the earlier hand-maintained list silently missed
+four tables added by later migrations):
+
+| Class | Conversion | Tables |
+| --- | --- | --- |
+| mirror | dropped | the mirror spine and everything the `sources` cascade reaches |
+| derived | dropped | `watches`, `favorites`, `enrichments`, `sync_runs`, `feed_reads`, `field_usage`, `local.recents` — ours, but every row names a key, project, source or account id the origin minted |
+| authored | kept | `saved_views`. Views whose stored query names a retired project are reported, never deleted |
+| local | kept | `api_usage`, and `local.visits` / `local.searches`, which carry an `origin_epoch`: the timeline shows the current generation only, and retired rows stay readable with `gadak sql` |
+
 ## `source_queries` (v18)
 
 Named queries mirrored from a connector. Jira fills this with the account's

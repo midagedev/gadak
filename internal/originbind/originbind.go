@@ -132,23 +132,31 @@ func readAdvertiseFile(cfg *config.Config) (origin.Advertise, bool) {
 	return adv, true
 }
 
-// DropStandaloneProjection is the conversion cleanup both CLI init and
-// HTTP onboarding must run: drop the seeded LOC wiki scope, then drop
-// each source's mirror (items plus watches/favorites keyed into them).
-func DropStandaloneProjection(cfg *config.Config, db *store.DB) error {
+// DropStandaloneProjection is the conversion cleanup both CLI init and HTTP
+// onboarding must run: drop the seeded LOC wiki scope, then hand both sources
+// to the store's origin-replacement owner.
+//
+// What that owner removes is decided by the table classification in
+// internal/store/origin_scope.go, not here. It used to be a literal list of
+// DELETEs, and four tables added by later migrations were never added to it —
+// so a converted workspace kept plugin enrichments, feed read marks, field
+// usage and sync runs that named the retired origin's keys, which do not go
+// stale but rebind to whatever the new site put at the same key (GDK-418).
+//
+// The returned OriginReset is what to tell the user; an empty String() means
+// nothing personal was bound to the old origin.
+func DropStandaloneProjection(cfg *config.Config, db *store.DB) (store.OriginReset, error) {
 	if cfg != nil {
 		cfg.Confluence = nil
 	}
 	if db == nil {
-		return fmt.Errorf("drop standalone mirror: nil store")
+		return store.OriginReset{}, fmt.Errorf("drop standalone mirror: nil store")
 	}
-	ctx := context.Background()
-	for _, src := range []string{"jira", "confluence"} {
-		if err := db.DropSourceMirror(ctx, src); err != nil {
-			return fmt.Errorf("drop standalone mirror: %w", err)
-		}
+	reset, err := db.ResetForNewOrigin(context.Background(), []string{"jira", "confluence"})
+	if err != nil {
+		return store.OriginReset{}, fmt.Errorf("drop standalone mirror: %w", err)
 	}
-	return nil
+	return reset, nil
 }
 
 // RefuseReplace stops a connected init / onboarding connect from silently

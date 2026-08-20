@@ -791,49 +791,10 @@ func (db *DB) purgeIDsOutsideNamespace(ctx context.Context, sourceID, ns, kind s
 	return purged, err
 }
 
-// DropSourceMirror deletes everything one source mirrored: its items (and
-// their cascaded children), FTS rows, spaces, tombstones, and sync state —
-// so the next sync starts full against the new origin. Used when a
-// standalone workspace converts to connected (GDK-241 / GDK-344): a
-// pre-namespace mirror holds `jira:N` / `confluence:N` rows the new site's
-// upsert would silently overwrite on an id collision. The disposable cache
-// is dropped whole rather than reconciled row by row. Watches and favorites
-// whose keys lived in the dropped mirror go with it — kept, they would
-// silently rebind to a new origin's issue that happens to share the key
-// (standalone defaults to project STD; a real site can too). saved_views and
-// local.db are untouched.
-func (db *DB) DropSourceMirror(ctx context.Context, sourceID string) error {
-	return db.write(ctx, func(tx *sql.Tx) error {
-		for _, q := range []string{
-			`DELETE FROM watches WHERE key IN (SELECT key FROM items WHERE source_id = ?)`,
-			`DELETE FROM favorites WHERE key IN (SELECT key FROM items WHERE source_id = ?)`,
-		} {
-			if _, err := tx.Exec(q, sourceID); err != nil {
-				return err
-			}
-		}
-		// items_fts is contentless (no triggers): clear its rows before the
-		// cascade removes the items they mirror.
-		if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid IN (SELECT rowid FROM items WHERE source_id = ?)`, sourceID); err != nil {
-			return err
-		}
-		// Cascades items → issues/comments/attachments/changelog/pages, and
-		// source_queries.
-		if _, err := tx.Exec(`DELETE FROM sources WHERE id = ?`, sourceID); err != nil {
-			return err
-		}
-		for _, q := range []string{
-			`DELETE FROM deleted_items WHERE source_id = ?`,
-			`DELETE FROM spaces WHERE source_id = ?`,
-			`DELETE FROM sync_state WHERE source_id = ?`,
-		} {
-			if _, err := tx.Exec(q, sourceID); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
+// What conversion drops now lives in origin_scope.go: the statements are
+// derived from a classification every table must appear in, because the literal
+// list that used to be here is what let four later tables opt out of it
+// silently (GDK-418).
 
 // likeEscape escapes LIKE metacharacters so a namespace prefix matches
 // literally (ESCAPE '\').

@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -97,9 +98,16 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	originbind.ClearStandalone(&next)
 	if wasStandalone {
-		if err := originbind.DropStandaloneProjection(&next, s.db); err != nil {
+		reset, err := originbind.DropStandaloneProjection(&next, s.db)
+		if err != nil {
 			serverError(w, r, err)
 			return
+		}
+		// The response is the credential document, so this is the only place
+		// the count can be said. Worth saying: "my feed emptied after
+		// connecting" is otherwise unanswerable after the fact.
+		if line := reset.String(); line != "" {
+			log.Printf("onboarding: %s", line)
 		}
 	}
 	if err := next.Save(); err != nil {

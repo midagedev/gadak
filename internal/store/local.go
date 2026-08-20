@@ -31,7 +31,7 @@ const LocalRetention = 180 * 24 * time.Hour
 
 // localMigrations is independent of the mirror's migrations slice. Index+1 is
 // PRAGMA user_version on local.db.
-var localMigrations = []string{localSchemaV1, localSchemaV2}
+var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3}
 
 const localSchemaV1 = `
 CREATE TABLE visits (
@@ -66,6 +66,29 @@ CREATE TABLE recents (
   UNIQUE(kind, value)
 );
 CREATE INDEX recents_kind_used_at ON recents(kind, used_at);
+`
+
+// localSchemaV3 gives history a generation. Replacing a workspace's origin
+// (standalone → a real site) leaves visit and search rows naming keys the new
+// origin can mint too, and the timeline resolves a bare key against whatever
+// mirror is current — so `STD-1 viewed yesterday` starts pointing at a
+// stranger's issue (GDK-418). Deleting them is not available: data-model.md
+// names visit and search history as data gadak may hold and must be able to
+// export. So rows carry the epoch they were recorded under, the timeline shows
+// only the current one, and the retired rows stay readable through
+// `gadak sql` (local.visits / local.searches).
+//
+// The counter lives in local_meta rather than PRAGMA user_version, which the
+// migration index already owns.
+const localSchemaV3 = `
+ALTER TABLE visits ADD COLUMN origin_epoch INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE searches ADD COLUMN origin_epoch INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX visits_epoch ON visits(origin_epoch);
+CREATE INDEX searches_epoch ON searches(origin_epoch);
+CREATE TABLE local_meta (
+  k TEXT PRIMARY KEY,
+  v TEXT NOT NULL
+);
 `
 
 func init() {
@@ -363,7 +386,8 @@ func (db *DB) RecordVisit(ctx context.Context, kind, key string) (Visit, error) 
 	at := Now()
 	var id int64
 	err := db.write(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `INSERT INTO local.visits (kind, key, viewed_at) VALUES (?,?,?)`, kind, key, at)
+		res, err := tx.ExecContext(ctx, `INSERT INTO local.visits (kind, key, viewed_at, origin_epoch)
+			VALUES (?,?,?,`+currentEpochSQL+`)`, kind, key, at)
 		if err != nil {
 			return err
 		}
@@ -395,8 +419,8 @@ func (db *DB) RecordSearch(ctx context.Context, query string, resultCount int, o
 	var id int64
 	err := db.write(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `
-			INSERT INTO local.searches (query, searched_at, result_count, opened_kind, opened_key)
-			VALUES (?,?,?,?,?)`,
+			INSERT INTO local.searches (query, searched_at, result_count, opened_kind, opened_key, origin_epoch)
+			VALUES (?,?,?,?,?,`+currentEpochSQL+`)`,
 			query, at, resultCount, nz(openedKind), nz(openedKey))
 		if err != nil {
 			return err
@@ -593,8 +617,14 @@ func parseHistoryCursor(s string) (historyCursor, error) {
 
 func historySQL(kind string, cur historyCursor, limit int) (string, []any) {
 	// Mixed timeline: visits + searches, newest first. Cursor is (at DESC, type DESC, id DESC).
-	visitWhere := []string{"1=1"}
-	searchWhere := []string{"1=1"}
+	//
+	// The epoch clause is the timeline's whole defence against a replaced
+	// origin: rows carry the generation they were recorded under, and a bare
+	// key resolves against whatever mirror is current, so showing a retired row
+	// would put the new site's STD-1 behind yesterday's visit to a different
+	// STD-1 (GDK-418). The rows stay in the file — `gadak sql` reads them.
+	visitWhere := []string{"origin_epoch = " + currentEpochSQL}
+	searchWhere := []string{"origin_epoch = " + currentEpochSQL}
 	args := []any{}
 	if kind == VisitKindIssue || kind == VisitKindPage {
 		visitWhere = append(visitWhere, "kind = ?")

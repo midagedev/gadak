@@ -2,6 +2,27 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+### Fixed
+
+- **Converting a workspace stops handing your personal rows to the new site**
+  ([GDK-418]). An issue key is not globally unique — `init --standalone` seeds
+  project `STD` and a real site's project can be `STD` too — so a row naming the
+  old origin's `STD-1` did not go stale when the origin was replaced, it rebound
+  to whatever the new site had at that key. Plugin enrichments, feed read marks
+  (so a brand-new issue arrived already read), per-project field usage, sync
+  runs and the picker's cache of account and issue-type ids all survived a
+  conversion that had already dropped the mirror they described. What conversion
+  removes is now derived from a classification every table carries, and a test
+  enumerates `sqlite_master` and fails on a table missing from it — the previous
+  hand-maintained list is exactly how four tables added by later migrations
+  slipped past it. Saved views survive, because you wrote them, and a view whose
+  query names a retired project is reported by name instead of silently reading
+  the new site's. Visit and search history survives too, stamped with the
+  generation it was recorded in: the timeline shows the current one, and the
+  retired rows stay readable with `gadak sql`
+
 ## v0.16.1 — 2026-08-20
 
 The release that finishes what 0.16 started. Standalone shipped as a working
@@ -1371,3 +1392,4 @@ measured numbers instead of adjectives.
 [GDK-421]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-421
 [GDK-424]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-424
 [GDK-426]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-426
+[GDK-418]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-418

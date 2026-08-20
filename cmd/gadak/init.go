@@ -325,20 +325,28 @@ func cmdInit(args []string) error {
 	// Reached only after RefuseReplace (or --replace-standalone).
 	originbind.ClearStandalone(cfg)
 	// A workspace is bound to one origin. Conversion drops the seeded LOC
-	// space and the old origin's mirror (watches/favorites keyed into it
-	// go with it). Shared with HTTP onboarding so the two paths cannot
-	// diverge. --spaces still owns the connected wiki scope below.
+	// space and the old origin's mirror, plus every personal row that named
+	// it — a kept row does not go stale, it rebinds to whatever the new site
+	// has at the same key (internal/store/origin_scope.go). Shared with HTTP
+	// onboarding so the two paths cannot diverge. --spaces still owns the
+	// connected wiki scope below.
 	if wasStandalone {
 		db, err := openStore()
 		if err != nil {
 			return err
 		}
-		if err := originbind.DropStandaloneProjection(cfg, db); err != nil {
+		reset, err := originbind.DropStandaloneProjection(cfg, db)
+		if err != nil {
 			_ = db.Close()
 			return err
 		}
 		if err := db.Close(); err != nil {
 			return err
+		}
+		// Say what went. A silently emptied feed or picker is the kind of
+		// thing a user attributes to the new site being broken.
+		if line := reset.String(); line != "" {
+			fmt.Fprintf(os.Stderr, "%s\n", line)
 		}
 	}
 
