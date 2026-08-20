@@ -32,7 +32,7 @@ func resolveList(vals []string, people []Person, me Identity, field string, unsu
 		if strings.EqualFold(v, "currentUser()") {
 			ident := currentUserIdent(me, people)
 			if ident == "" {
-				addUnsup(unsupported, field+" = currentUser() (이메일 없음)")
+				addUnsup(unsupported, field+" = currentUser() (no account email — set one on a connected workspace, or drop currentUser())")
 				continue
 			}
 			out = appendUniqueFold(out, ident)
@@ -47,7 +47,7 @@ func resolveList(vals []string, people []Person, me Identity, field string, unsu
 				out = appendUniqueFold(out, v)
 				continue
 			}
-			addUnsup(unsupported, field+" = "+v+" (미러에 없음)")
+			addUnsup(unsupported, field+" = "+v+" (not in the mirror)")
 		default:
 			addUnsup(unsupported, field+" = "+v+" (ambiguous in the mirror)")
 		}

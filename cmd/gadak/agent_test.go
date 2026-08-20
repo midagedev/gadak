@@ -450,6 +450,133 @@ func TestOpenPrefersStoredItemURL(t *testing.T) {
 	}
 }
 
+// stubIssueOpen captures `gadak open`'s browser seam and isolates serve
+// discovery so a live listener on this machine cannot flip the standalone
+// cases (the no-site path now asks serveFocusURL).
+func stubIssueOpen(t *testing.T) *string {
+	t.Helper()
+	var got string
+	savedOpen, savedDiscover := startIssueOpen, discoverServes
+	startIssueOpen = func(u string) error { got = u; return nil }
+	discoverServes = func() []serveHit { return nil }
+	t.Cleanup(func() {
+		startIssueOpen = savedOpen
+		discoverServes = savedDiscover
+	})
+	return &got
+}
+
+func seedIssueURL(t *testing.T, key, itemURL string) {
+	t.Helper()
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:" + key, SourceID: "jira", Kind: "issue", ExternalID: key,
+				Key: key, Title: key, URL: itemURL,
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: strings.Split(key, "-")[0], StatusCategory: "new"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenStandaloneRelativeURLDoesNotSucceed(t *testing.T) {
+	mirror(t, "")
+	seedIssueURL(t, "STD-1", "/browse/STD-1")
+	got := stubIssueOpen(t)
+
+	_, err := capture(t, func() error { return cmdOpen([]string{"STD-1"}) })
+	if err == nil {
+		t.Fatalf("open of relative items.url succeeded (opened %q)", *got)
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "gadak init") {
+		t.Fatalf("prescribed re-init on an already-inited workspace: %s", msg)
+	}
+	if !strings.Contains(msg, "no Jira site to browse") || !strings.Contains(msg, "gadak views open") {
+		t.Fatalf("want no-site browse advice, got %q", msg)
+	}
+	if *got != "" {
+		t.Fatalf("opened %q; relative /browse/KEY must not go to the OS opener", *got)
+	}
+}
+
+func TestOpenStandaloneMissingKeyIsNotInitAdvice(t *testing.T) {
+	mirror(t, "")
+	got := stubIssueOpen(t)
+
+	_, err := capture(t, func() error { return cmdOpen([]string{"NOPE-1"}) })
+	if err == nil {
+		t.Fatalf("missing key succeeded (opened %q)", *got)
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "NOPE-1 is not in the mirror — check the key, or run `gadak sync`") {
+		t.Fatalf("want the issue-verb missing-key wording, got %q", msg)
+	}
+	if strings.Contains(msg, "gadak init") {
+		t.Fatalf("prescribed re-init for a typo: %s", msg)
+	}
+}
+
+func TestOpenStandaloneKnownKeyWithoutSite(t *testing.T) {
+	mirror(t, "")
+	got := stubIssueOpen(t)
+
+	_, err := capture(t, func() error { return cmdOpen([]string{"NMB-1"}) })
+	if err == nil {
+		t.Fatalf("no-site open succeeded (opened %q)", *got)
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "gadak init") {
+		t.Fatalf("prescribed re-init: %s", msg)
+	}
+	if !strings.Contains(msg, "no Jira site to browse") {
+		t.Fatalf("want no-site browse advice, got %q", msg)
+	}
+}
+
+func TestOpenMissingKeyWithSiteStillBrowses(t *testing.T) {
+	// `open` is the escape hatch to Jira: the mirror may lag a key that
+	// exists on the site, so a configured site still gets the browse URL.
+	// Only the no-site workspaces (standalone/paired) refuse a missing key.
+	mirror(t, "https://jira.example.com")
+	got := stubIssueOpen(t)
+
+	if _, err := capture(t, func() error { return cmdOpen([]string{"NOPE-1"}) }); err != nil {
+		t.Fatalf("missing key with a site must fall back to browse: %v", err)
+	}
+	if *got != "https://jira.example.com/browse/NOPE-1" {
+		t.Fatalf("opened %q, want the site browse URL", *got)
+	}
+}
+
+func TestOpenStandaloneUsesLiveServe(t *testing.T) {
+	mirror(t, "")
+	got := stubIssueOpen(t)
+	discoverServes = func() []serveHit {
+		return []serveHit{{base: "http://127.0.0.1:7777", profile: "", port: "7777"}}
+	}
+
+	out, err := capture(t, func() error { return cmdOpen([]string{"NMB-1"}) })
+	if err != nil {
+		t.Fatalf("open with live serve: %v", err)
+	}
+	want := "http://127.0.0.1:7777/#/?issue=NMB-1"
+	if *got != want {
+		t.Fatalf("opened %q, want serve issue URL %q", *got, want)
+	}
+	if !strings.Contains(out, want) {
+		t.Fatalf("stdout %q, want the URL", out)
+	}
+}
+
 func TestIssueAndSearchReadTheMirror(t *testing.T) {
 	mirror(t, "https://unused.example.com")
 

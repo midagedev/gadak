@@ -585,15 +585,21 @@ func TestResolveUnsupportedReasons(t *testing.T) {
 	res := Parse(`assignee = currentUser()`, Opts{})
 	ResolveIdentity(&res, nil, Identity{})
 	blob := strings.Join(res.Unsupported, " ")
-	if !strings.Contains(blob, "이메일 없음") {
+	if !strings.Contains(blob, "(no account email — set one on a connected workspace, or drop currentUser())") {
 		t.Fatalf("empty identity: %q", blob)
+	}
+	if strings.Contains(blob, "이메일") {
+		t.Fatalf("Korean leaked into English CLI: %q", blob)
 	}
 
 	res = Parse(`assignee = Nobody`, Opts{})
 	ResolvePeople(&res, nil, "")
 	blob = strings.Join(res.Unsupported, " ")
-	if !strings.Contains(blob, "미러에 없음") {
+	if !strings.Contains(blob, "(not in the mirror)") {
 		t.Fatalf("missing person: %q", blob)
+	}
+	if strings.Contains(blob, "미러") {
+		t.Fatalf("Korean leaked into English CLI: %q", blob)
 	}
 }
 

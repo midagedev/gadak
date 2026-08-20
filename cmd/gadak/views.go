@@ -118,18 +118,12 @@ func viewsShow(args []string) error {
 	fmt.Printf("kind\t%s\n", v.Kind)
 	fmt.Printf("id\t%s\n", v.ID)
 	fmt.Printf("name\t%s\n", v.Name)
-	if v.JQL != "" {
-		fmt.Printf("jql\t%s\n", v.JQL)
-	}
+	fmt.Printf("jql\t%s\n", v.JQL)
 	if v.Hash != "" {
 		fmt.Printf("hash\t%s\n", v.Hash)
 	}
-	if len(v.Applied) > 0 {
-		fmt.Printf("applied\t%s\n", strings.Join(v.Applied, ", "))
-	}
-	if len(v.Unsupported) > 0 {
-		fmt.Printf("unsupported\t%s\n", strings.Join(v.Unsupported, "; "))
-	}
+	fmt.Printf("applied\t%s\n", strings.Join(v.Applied, ", "))
+	fmt.Printf("unsupported\t%s\n", strings.Join(v.Unsupported, "; "))
 	return nil
 }
 
@@ -343,10 +337,23 @@ func viewsSave(args []string) error {
 	}
 	defer db.Close()
 	jql.ResolveIdentity(&parsed, peopleFromStore(db), me)
+	hash := jql.Hash(parsed.Filters, parsed.Display)
+	// Empty hash is what `views open` reports as "nothing to focus". Applied
+	// can still list a clause whose values ResolveIdentity then stripped
+	// (currentUser() with no identity), so hash — not Applied — is the gate.
+	if hash == "" {
+		if len(parsed.Unsupported) > 0 {
+			return fmt.Errorf("nothing in this JQL can be applied — unsupported: %s", strings.Join(parsed.Unsupported, "; "))
+		}
+		return fmt.Errorf("nothing in this JQL can be applied")
+	}
 	body, err := json.Marshal(struct {
-		Filters jql.Filter  `json:"filters"`
-		Display jql.Display `json:"display"`
-	}{Filters: parsed.Filters, Display: parsed.Display})
+		Filters     jql.Filter  `json:"filters"`
+		Display     jql.Display `json:"display"`
+		JQL         string      `json:"jql,omitempty"`
+		Applied     []string    `json:"applied,omitempty"`
+		Unsupported []string    `json:"unsupported,omitempty"`
+	}{Filters: parsed.Filters, Display: parsed.Display, JQL: strings.TrimSpace(*jqlFlag), Applied: parsed.Applied, Unsupported: parsed.Unsupported})
 	if err != nil {
 		return err
 	}
@@ -360,11 +367,16 @@ func viewsSave(args []string) error {
 	}
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{
-			"id": id, "name": name, "hash": jql.Hash(parsed.Filters, parsed.Display),
+			"id": id, "name": name, "hash": hash,
 			"applied": parsed.Applied, "unsupported": parsed.Unsupported,
 		})
 	}
 	fmt.Printf("saved\t%s\t%s\n", id, name)
+	if len(parsed.Unsupported) > 0 {
+		fmt.Printf("hash\t%s\n", hash)
+		fmt.Printf("applied\t%s\n", strings.Join(parsed.Applied, ", "))
+		fmt.Printf("unsupported\t%s\n", strings.Join(parsed.Unsupported, "; "))
+	}
 	return nil
 }
 
@@ -386,9 +398,11 @@ func loadViews(db *store.DB) ([]listedView, error) {
 		return nil, err
 	}
 	for _, s := range saved {
+		h, jqlText, applied, unsupported := savedViewFields(s.Config)
 		out = append(out, listedView{
 			Kind: "saved", ID: s.ID, Name: s.Name,
-			Hash: hashFromConfig(s.Config), Config: s.Config,
+			JQL: jqlText, Hash: h, Applied: applied, Unsupported: unsupported,
+			Config: s.Config,
 		})
 	}
 	return out, nil
@@ -435,17 +449,25 @@ func findView(db *store.DB, name string) (listedView, error) {
 }
 
 func hashFromConfig(raw json.RawMessage) string {
+	h, _, _, _ := savedViewFields(raw)
+	return h
+}
+
+func savedViewFields(raw json.RawMessage) (hash, jqlText string, applied, unsupported []string) {
 	if len(raw) == 0 {
-		return ""
+		return "", "", nil, nil
 	}
 	var c struct {
-		Filters jql.Filter  `json:"filters"`
-		Display jql.Display `json:"display"`
+		Filters     jql.Filter  `json:"filters"`
+		Display     jql.Display `json:"display"`
+		JQL         string      `json:"jql"`
+		Applied     []string    `json:"applied"`
+		Unsupported []string    `json:"unsupported"`
 	}
 	if err := json.Unmarshal(raw, &c); err != nil {
-		return ""
+		return "", "", nil, nil
 	}
-	return jql.Hash(c.Filters, c.Display)
+	return jql.Hash(c.Filters, c.Display), c.JQL, c.Applied, c.Unsupported
 }
 
 func hashFromJQL(text string) (string, error) {

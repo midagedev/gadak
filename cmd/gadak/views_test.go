@@ -804,3 +804,101 @@ func TestSearchJQLKeysReturnsThoseIssues(t *testing.T) {
 		t.Fatalf("NMA-999 should not return NMB-1: %s", out)
 	}
 }
+
+func TestViewsSaveAllUnsupportedFails(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"save", "Night triage", "--jql", `statusCategory != Done`})
+	})
+	if err == nil {
+		t.Fatalf("all-unsupported JQL saved as success; stdout %q", out)
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "nothing in this JQL can be applied") || !strings.Contains(msg, "unsupported:") {
+		t.Fatalf("want applied-nothing error naming unsupported clauses, got %q", msg)
+	}
+
+	db, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	saved, err := db.SavedViews(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved) != 0 {
+		t.Fatalf("saved %d views; all-unsupported must write nothing", len(saved))
+	}
+}
+
+func TestViewsSavePartialPrintsAppliedAndFillsHash(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"save", "Not STD", "--jql", `project NOT IN (STD) AND statusCategory != Done`})
+	})
+	if err != nil {
+		t.Fatalf("partial save: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "pjn=STD") {
+		t.Fatalf("stdout missing filled hash, got %q", out)
+	}
+	if !strings.Contains(out, "applied\t") || !strings.Contains(out, "unsupported\t") {
+		t.Fatalf("stdout missing applied/unsupported, got %q", out)
+	}
+
+	db, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	saved, err := db.SavedViews(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved) != 1 {
+		t.Fatalf("saved views %d", len(saved))
+	}
+	if h := hashFromConfig(saved[0].Config); !strings.Contains(h, "pjn=STD") {
+		t.Fatalf("stored hash %q, want pjn=STD", h)
+	}
+}
+
+func TestViewsShowAlwaysPrintsJQLAppliedUnsupported(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	if _, err := capture(t, func() error {
+		return cmdViews([]string{"save", "Open work", "--jql", `resolution is EMPTY`})
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	out, err := capture(t, func() error { return cmdViews([]string{"show", "Open work"}) })
+	if err != nil {
+		t.Fatalf("show: %v\n%s", err, out)
+	}
+	for _, col := range []string{"jql\t", "applied\t", "unsupported\t"} {
+		if !strings.Contains(out, col) {
+			t.Fatalf("show missing %q:\n%s", col, out)
+		}
+	}
+	if !strings.Contains(out, "resolution is EMPTY") {
+		t.Fatalf("show missing saved JQL:\n%s", out)
+	}
+}
+
+func TestViewsSaveCurrentUserWithoutIdentityFails(t *testing.T) {
+	cfg := mirror(t, "https://unused.example.com")
+	cfg.Email = ""
+	cfg.AccountID = ""
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"save", "Mine", "--jql", `assignee = currentUser()`})
+	})
+	if err == nil {
+		t.Fatalf("currentUser() with no identity saved; stdout %q", out)
+	}
+	if !strings.Contains(err.Error(), "nothing in this JQL can be applied") {
+		t.Fatalf("want applied-nothing error, got %v", err)
+	}
+}

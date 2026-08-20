@@ -1492,17 +1492,27 @@ func cmdOpen(args []string) error {
 		return err
 	}
 	key := normalizeKey(pos[0])
-	if u := lookupItemURL(key); u != "" {
-		if err := startIssueOpen(u); err != nil {
-			return fmt.Errorf("could not open a browser (%v) — the URL is %s", err, u)
-		}
-		fmt.Println(u)
-		return nil
+	// Key first: a missing row used to fall through to the no-site error and
+	// tell an already-inited standalone workspace to re-run init. With a
+	// site, a missing key still opens the browse URL — `open` is the escape
+	// hatch to Jira, and the mirror may simply lag a key that exists there.
+	found, stored, lookErr := lookupItem(key)
+	if lookErr == nil && !found && cfg.Site == "" {
+		return fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", key)
 	}
-	if cfg.Site == "" {
-		return errors.New("no Jira site configured — run `gadak init` first")
+	if u := absoluteHTTPURL(stored); u != "" {
+		return openIssueURL(u)
 	}
-	u := strings.TrimRight(cfg.Site, "/") + "/browse/" + url.PathEscape(key)
+	if cfg.Site != "" {
+		return openIssueURL(strings.TrimRight(cfg.Site, "/") + "/browse/" + url.PathEscape(key))
+	}
+	if web := serveFocusURL("issue=" + key); web != "" {
+		return openIssueURL(web)
+	}
+	return fmt.Errorf("this workspace has no Jira site to browse — use `gadak views open %s` (or `gadak serve`)", key)
+}
+
+func openIssueURL(u string) error {
 	if err := startIssueOpen(u); err != nil {
 		return fmt.Errorf("could not open a browser (%v) — the URL is %s", err, u)
 	}
@@ -1513,19 +1523,41 @@ func cmdOpen(args []string) error {
 // startIssueOpen is the browser opener for `gadak open`. Tests replace it.
 var startIssueOpen = openBrowser
 
-// lookupItemURL returns items.url for key when the mirror has one. Empty on
-// any lookup failure so callers fall back to the Jira browse URL.
-func lookupItemURL(key string) string {
+// lookupItem reports whether key is in items and any stored browse URL.
+// A lookup failure (no mirror yet) returns err so callers can still fall
+// through to the site browse path — the old lookupItemURL swallowed that.
+func lookupItem(key string) (found bool, itemURL string, err error) {
 	db, err := openReadOnly()
 	if err != nil {
-		return ""
+		return false, "", err
 	}
 	defer db.Close()
 	var u sql.NullString
-	if err := db.QueryRow(`SELECT url FROM items WHERE key = ? AND url IS NOT NULL AND url != '' LIMIT 1`, key).Scan(&u); err != nil {
+	err = db.QueryRow(`SELECT url FROM items WHERE key = ? LIMIT 1`, key).Scan(&u)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, "", nil
+	}
+	if err != nil {
+		return false, "", err
+	}
+	return true, strings.TrimSpace(u.String), nil
+}
+
+// absoluteHTTPURL accepts only http(s) URLs with a host. Standalone origin
+// stores /browse/KEY (empty BaseURL); handing that to macOS `open` is a
+// false success.
+func absoluteHTTPURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
 		return ""
 	}
-	return strings.TrimSpace(u.String)
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+		return raw
+	default:
+		return ""
+	}
 }
 
 // openBrowser starts the platform's URL opener and does not wait for it.
