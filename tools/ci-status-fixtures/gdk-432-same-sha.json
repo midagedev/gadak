@@ -1,0 +1,26 @@
+[
+  {
+    "conclusion": "success",
+    "status": "completed",
+    "name": "Hosted demo",
+    "databaseId": 32341093607,
+    "headBranch": "main",
+    "event": "push"
+  },
+  {
+    "conclusion": "success",
+    "status": "completed",
+    "name": "CI",
+    "databaseId": 32341093553,
+    "headBranch": "main",
+    "event": "push"
+  },
+  {
+    "conclusion": "failure",
+    "status": "completed",
+    "name": "Hosted demo",
+    "databaseId": 32340919894,
+    "headBranch": "gdk-432-pages",
+    "event": "workflow_dispatch"
+  }
+]
