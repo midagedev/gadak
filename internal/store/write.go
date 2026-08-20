@@ -657,13 +657,15 @@ func pageRecordUnchanged(tx *sql.Tx, r PageRecord) (bool, error) {
 }
 
 // writeFTS rebuilds one row of the contentless index. Contentless FTS5 has no
-// update path, so delete-then-insert is the whole story.
+// update path, so delete-then-insert is the whole story. The fourth column is
+// the CJK bigram text (GDK-259): it is what mid-compound Korean matches.
 func writeFTS(tx *sql.Tx, rowid int64, title, body, comments string) error {
 	if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
 		return err
 	}
-	_, err := tx.Exec(`INSERT INTO items_fts (rowid, title, body_text, comments_text) VALUES (?,?,?,?)`,
-		rowid, title, body, comments)
+	_, err := tx.Exec(
+		`INSERT INTO items_fts (rowid, title, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?)`,
+		rowid, title, body, comments, FTSCJKBigramColumn(title, body, comments))
 	return err
 }
 

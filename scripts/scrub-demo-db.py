@@ -51,19 +51,68 @@ def scrub_text(value: str) -> str:
     return value
 
 
+# CJK rune ranges for the cjk_bigram column — must stay in lockstep with
+# internal/store/cjk.go (cjkRanges): if the two disagree, the portable
+# snapshot's cjk_bigram silently diverges from what a local mirror writes.
+CJK_RANGES = [
+    (0x1100, 0x11FF),   # Hangul Jamo
+    (0x3041, 0x30FF),   # Hiragana + Katakana
+    (0x3130, 0x318F),   # Hangul Compatibility Jamo
+    (0x31F0, 0x31FF),   # Katakana Phonetic Extensions
+    (0x3400, 0x4DBF),   # CJK Extension A
+    (0x4E00, 0x9FFF),   # CJK Unified Ideographs
+    (0xA960, 0xA97F),   # Hangul Jamo Extended-A
+    (0xAC00, 0xD7A3),   # Hangul Syllables
+    (0xD7B0, 0xD7FF),   # Hangul Jamo Extended-B
+    (0xF900, 0xFAFF),   # CJK Compatibility Ideographs
+    (0x20000, 0x2FFFD),  # CJK Extensions (Plane 2)
+    (0x30000, 0x3FFFD),  # CJK Extension G+ (Plane 3)
+]
+
+
+def cjk_bigrams(text: str) -> list[str]:
+    """Overlapping 2-grams of CJK runs; 1-rune runs emit nothing (0009)."""
+    grams: list[str] = []
+    run = ""
+    for ch in text:
+        if any(lo <= ord(ch) <= hi for lo, hi in CJK_RANGES):
+            run += ch
+            continue
+        grams.extend(run[i : i + 2] for i in range(len(run) - 1))
+        run = ""
+    grams.extend(run[i : i + 2] for i in range(len(run) - 1))
+    return grams
+
+
+def cjk_bigram_column(title: str, body: str, comments: str) -> str:
+    """Mirror of store.FTSCJKBigramColumn — the items_fts.cjk_bigram value."""
+    parts = []
+    for text in (title, body, comments):
+        grams = cjk_bigrams(text)
+        if grams:
+            parts.append(" ".join(grams))
+    return " ".join(parts)
+
+
 def rebuild_portable_fts(con: sqlite3.Connection) -> None:
     """Rebuild items_fts without options Datasette Lite's SQLite cannot parse.
 
     Contentless tables return no stored text, so parity is checked with MATCH
     counts over a fixed probe set (plus total row count) before and after.
     Comment text is re-concatenated in insertion order, matching writeFTS in
-    internal/store/write.go.
+    internal/store/write.go. The cjk_bigram fourth column is computed here in
+    Python (SQL cannot emit overlapping 2-grams) and must match
+    store.FTSCJKBigramColumn, or the hosted snapshot silently loses CJK
+    mid-compound search (GDK-259 / docs/decisions/0009).
     """
     fts_sql = con.execute(
         "SELECT sql FROM sqlite_master WHERE name = 'items_fts'"
     ).fetchone()
-    if not fts_sql or "contentless_delete" not in (fts_sql[0] or ""):
-        return  # already portable
+    if not fts_sql:
+        return
+    ddl = fts_sql[0] or ""
+    if "contentless_delete" not in ddl and "cjk_bigram" in ddl:
+        return  # already the portable shape this build produces
 
     probes = ["upload", "retri*", "webhook AND retry", "로그인"]
     before = {"rows": con.execute("SELECT count(*) FROM items_fts").fetchone()[0]}
@@ -76,12 +125,11 @@ def rebuild_portable_fts(con: sqlite3.Connection) -> None:
     con.execute("DROP TABLE items_fts")
     con.execute(
         "CREATE VIRTUAL TABLE items_fts USING fts5("
-        "title, body_text, comments_text, content='', "
+        "title, body_text, comments_text, cjk_bigram, content='', "
         "tokenize='unicode61 remove_diacritics 2')"
     )
-    con.execute(
+    rows = con.execute(
         """
-        INSERT INTO items_fts (rowid, title, body_text, comments_text)
         SELECT i.rowid, i.title, COALESCE(i.body_text, ''),
                COALESCE((SELECT group_concat(body_text, char(10))
                          FROM (SELECT body_text FROM comments
@@ -89,6 +137,14 @@ def rebuild_portable_fts(con: sqlite3.Connection) -> None:
                                ORDER BY rowid)), '')
         FROM items i
         """
+    ).fetchall()
+    con.executemany(
+        "INSERT INTO items_fts (rowid, title, body_text, comments_text, cjk_bigram) "
+        "VALUES (?, ?, ?, ?, ?)",
+        [
+            (rowid, title, body, comments, cjk_bigram_column(title, body, comments))
+            for rowid, title, body, comments in rows
+        ],
     )
 
     after = {"rows": con.execute("SELECT count(*) FROM items_fts").fetchone()[0]}
@@ -171,6 +227,9 @@ def main() -> int:
     ).fetchone()
     if fts_sql and "contentless_delete" in (fts_sql[0] or ""):
         print("items_fts still carries contentless_delete after rebuild", file=sys.stderr)
+        return 1
+    if fts_sql and "cjk_bigram" not in (fts_sql[0] or ""):
+        print("items_fts lost the cjk_bigram column in the portable rebuild", file=sys.stderr)
         return 1
 
     leftovers = 0

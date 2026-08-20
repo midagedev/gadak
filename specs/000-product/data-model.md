@@ -377,7 +377,7 @@ FTS5 external-content table over `items(title, body_text)` plus comment bodies.
 
 ```sql
 CREATE VIRTUAL TABLE items_fts USING fts5(
-  title, body_text, comments_text,
+  title, body_text, comments_text, cjk_bigram,
   content='',            -- contentless: rows are rebuilt on sync
   contentless_delete=1,  -- lets one row be replaced without the old values
   tokenize='unicode61 remove_diacritics 2'
@@ -392,8 +392,14 @@ without re-supplying the previous column values.
 `unicode61` is used rather than a CJK-aware tokenizer because the fallback path
 matters more than perfect segmentation: Korean substring narrowing already
 happens client-side over the warm issue pool, and FTS is for body and comment
-text where prefix matching is enough.
-Revisit with `trigram` if body search in CJK proves weak.
+text where prefix matching is enough. CJK mid-compound matching is app-layer
+(v25 / `docs/decisions/0009`): the `cjk_bigram` column carries the overlapping
+2-grams of CJK runs from the title, body and comments, and the app rewrites a
+CJK term of two or more runes as the AND of those bigrams — `MATCH '결제'` hits
+`간편결제` with or without the rewrite. A `trigram` tokenizer was measured and
+rejected: a 2-character query emits no trigram tokens, so `MATCH` silently
+returns 0 rows, and it wrecks English precision (`ency` → 0.342). English is
+deliberately not n-grammed — `ency` does not match `idempotency`.
 
 ## `saved_views`, `watches`, `favorites`
 

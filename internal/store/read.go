@@ -799,10 +799,19 @@ const (
 	ftsBM25Title    = 20.0
 	ftsBM25Body     = 2.0
 	ftsBM25Comments = 1.0
+	// ftsBM25CJKBigram weights the cjk_bigram column (GDK-259): body-hit
+	// strength — a mid-compound hit is real evidence, weaker than a title
+	// token hit. 2.0 is the starting point 0009 §3a prescribes; renumber only
+	// with a relevance fixture run, like the 2026-08-17 one above.
+	ftsBM25CJKBigram = 2.0
 )
 
+// ftsRankSQL passes one bm25 weight per items_fts column (title, body_text,
+// comments_text, cjk_bigram). Fewer weights than columns leaves the tail at
+// SQLite's discretion — always pass all four.
 func ftsRankSQL() string {
-	return fmt.Sprintf("bm25(items_fts, %g, %g, %g)", ftsBM25Title, ftsBM25Body, ftsBM25Comments)
+	return fmt.Sprintf("bm25(items_fts, %g, %g, %g, %g)",
+		ftsBM25Title, ftsBM25Body, ftsBM25Comments, ftsBM25CJKBigram)
 }
 
 // Search runs a key lookup (when the query looks like a key) then an FTS5
@@ -923,11 +932,16 @@ func mergeSearch(keyHits []keyHit, fts SearchResult, limit int, explain bool) Se
 	return out
 }
 
-// ftsPrefixQuery rewrites bare terms into quoted prefix queries ("텀"*).
-// Korean is agglutinative — 로그인이/로그인을/로그인은 are all one FTS token, so
+// ftsPrefixQuery rewrites bare terms into quoted FTS5 queries. Korean is
+// agglutinative — 로그인이/로그인을/로그인은 are all one FTS token, so
 // whole-token matching misses nearly every inflected form; prefix matching
-// recovers it (and helps English: retri* → retries). Queries that already use
-// FTS5 syntax (quotes, operators, parens, *) pass through untouched.
+// recovers it (and helps English: retri* → retries). A term that is all CJK
+// and two runes or longer becomes the AND of its overlapping bigrams
+// ("간편결제" → "간편" "편결" "결제"), which is what the cjk_bigram column
+// indexes — that is mid-compound matching (GDK-259); a single CJK rune keeps
+// the prefix form, because an exact "결" was measured to return 0 against a
+// bigram-only index (0009 §2d). Queries that already use FTS5 syntax
+// (quotes, operators, parens, *) pass through untouched.
 func ftsPrefixQuery(q string) string {
 	if strings.ContainsAny(q, `"*()`) {
 		return q
@@ -941,9 +955,24 @@ func ftsPrefixQuery(q string) string {
 	}
 	out := make([]string, 0, len(toks))
 	for _, t := range toks {
-		out = append(out, `"`+strings.ReplaceAll(t, `"`, `""`)+`"*`)
+		out = append(out, ftsTermQueries(t)...)
 	}
 	return strings.Join(out, " ")
+}
+
+// ftsTermQueries is one bare search term as FTS5 phrases: a wholly-CJK term
+// of two or more runes → quoted bigram phrases (AND of exact 2-grams);
+// anything else → the quoted prefix form. Mixed-script terms (결제API) take
+// the prefix form — only wholly CJK terms are indexed as bigrams.
+func ftsTermQueries(t string) []string {
+	if isCJKTerm(t) && utf8.RuneCountInString(t) >= 2 {
+		out := make([]string, 0, 2) // most real terms are 2–3 runes
+		for _, bg := range cjkBigrams(t) {
+			out = append(out, `"`+strings.ReplaceAll(bg, `"`, `""`)+`"`)
+		}
+		return out
+	}
+	return []string{`"` + strings.ReplaceAll(t, `"`, `""`) + `"*`}
 }
 
 func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (SearchResult, error) {
@@ -1125,16 +1154,41 @@ func makeSearchSnippet(text, rawQuery string) string {
 }
 
 // ftsColumnPrefixHit reports whether text would satisfy a column-filtered
-// prefix MATCH for rawQuery (AND of snippet tokens, each as a token prefix).
-// Used instead of EXISTS(... MATCH 'title : …') so field attribution does
-// not re-scan the FTS prefix posting list per returned row.
+// MATCH for rawQuery (AND of snippet tokens, each as a token prefix). A CJK
+// token of two or more runes additionally counts bigram containment as a hit:
+// that is exactly what the cjk_bigram column indexes, and without this a
+// mid-compound row takes the omit branch in resolveSearchMatch and loses its
+// field/snippet (0009 §3a.9). English mid-token matches stay non-hits on
+// purpose — the precision lock. Used instead of EXISTS(... MATCH 'title : …')
+// so field attribution does not re-scan the FTS prefix posting list per
+// returned row.
 func ftsColumnPrefixHit(text, rawQuery string) bool {
 	toks := snippetTokens(rawQuery)
 	if len(toks) == 0 || text == "" {
 		return false
 	}
 	for _, tok := range toks {
-		if !ftsHasTokenPrefix(text, tok) {
+		if ftsHasTokenPrefix(text, tok) {
+			continue
+		}
+		if ftsHasCJKBigrams(text, tok) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// ftsHasCJKBigrams reports whether text contains every overlapping bigram of
+// tok as a substring, mirroring what a cjk_bigram MATCH can hit. tok must be
+// a wholly-CJK term of two or more runes; everything else returns false.
+func ftsHasCJKBigrams(text, tok string) bool {
+	if !isCJKTerm(tok) || utf8.RuneCountInString(tok) < 2 {
+		return false
+	}
+	lower := strings.ToLower(text)
+	for _, bg := range cjkBigrams(tok) {
+		if !strings.Contains(lower, bg) {
 			return false
 		}
 	}

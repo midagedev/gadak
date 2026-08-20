@@ -47,7 +47,7 @@ var documentedColumns = map[string][]string{
 	"item_refs":      {"item_id", "target_kind", "target_key", "via"},
 	"pages":          {"item_id", "space_key", "parent_id", "version", "status", "body_adf", "labels", "excerpt"},
 	"spaces":         {"source_id", "key", "name", "kind", "homepage_id", "watermark"},
-	"items_fts":      {"title", "body_text", "comments_text"},
+	"items_fts":      {"title", "body_text", "comments_text", "cjk_bigram"},
 	"deleted_items":  {"key", "source_id", "deleted_at"},
 	"saved_views":    {"id", "name", "config", "created_at", "updated_at"},
 	"source_queries": {"id", "source_id", "external_id", "name", "query_text", "config", "favourite", "owner", "applied", "unsupported", "updated_at"},

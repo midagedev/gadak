@@ -177,12 +177,30 @@ func TestOpenLeavesCanonicalFTSAlone(t *testing.T) {
 	}
 }
 
-// itemsFTSCreate is a verbatim quote of the statement schemaV1 executes (the
-// migration is append-only, so it cannot reference the constant). If the two
-// drift, every healthy mirror looks diverged and gets rebuilt on every Open.
+// itemsFTSCreate is schemaV1's statement plus the one sanctioned addition:
+// the cjk_bigram column (v25 / GDK-259). schemaV1 itself cannot grow —
+// migrations are append-only — so the weld pins everything except that
+// column. Any drift beyond it means every healthy mirror looks diverged and
+// gets rebuilt on every Open.
 func TestItemsFTSCreateMatchesSchemaV1(t *testing.T) {
-	if !strings.Contains(schemaV1, itemsFTSCreate) {
-		t.Fatal("itemsFTSCreate is no longer verbatim inside schemaV1 — make the constant and the migration agree")
+	const marker = "CREATE VIRTUAL TABLE items_fts"
+	start := strings.Index(schemaV1, marker)
+	if start < 0 {
+		t.Fatal("schemaV1 no longer creates items_fts")
+	}
+	end := strings.Index(schemaV1[start:], ");")
+	if end < 0 {
+		t.Fatal("schemaV1 items_fts statement is not terminated")
+	}
+	v1FTS := schemaV1[start : start+end+2]
+
+	sanctioned := strings.Replace(normalizeFTSDDL(itemsFTSCreate),
+		"comments_text, cjk_bigram,", "comments_text,", 1)
+	if strings.Contains(sanctioned, "cjk_bigram") {
+		t.Fatal("cjk_bigram appears in itemsFTSCreate beyond the single fourth column — update this weld deliberately")
+	}
+	if got := normalizeFTSDDL(v1FTS); got != sanctioned {
+		t.Fatalf("itemsFTSCreate drifted from schemaV1 beyond the cjk_bigram column\n got: %q\nwant: %q", got, sanctioned)
 	}
 }
 

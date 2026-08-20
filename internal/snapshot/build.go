@@ -403,7 +403,8 @@ func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
 		}
 	}
 
-	// FTS — same contentless delete+insert path as issues / store.writeFTS.
+	// FTS — same contentless delete+insert path (and cjk_bigram fourth
+	// column) as issues / store.writeFTS.
 	var rowid int64
 	if err := tx.QueryRow(`SELECT rowid FROM items WHERE id = ?`, itemID).Scan(&rowid); err != nil {
 		return err
@@ -416,12 +417,13 @@ func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
 	}
 	title := asString(item["title"])
 	body := asString(item["body_text"])
+	comments := strings.Join(bodies, "\n")
 	if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO items_fts (rowid, title, body_text, comments_text) VALUES (?,?,?,?)`,
-		rowid, title, body, strings.Join(bodies, "\n"),
+		`INSERT INTO items_fts (rowid, title, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?)`,
+		rowid, title, body, comments, store.FTSCJKBigramColumn(title, body, comments),
 	); err != nil {
 		return err
 	}
@@ -597,7 +599,8 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 		}
 	}
 
-	// FTS — same contentless delete+insert path as store.writeFTS.
+	// FTS — same contentless delete+insert path (and cjk_bigram fourth
+	// column) as store.writeFTS.
 	var rowid int64
 	if err := tx.QueryRow(`SELECT rowid FROM items WHERE id = ?`, itemID).Scan(&rowid); err != nil {
 		return err
@@ -610,12 +613,13 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 	}
 	title := asString(item["title"])
 	body := asString(item["body_text"])
+	comments := strings.Join(bodies, "\n")
 	if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO items_fts (rowid, title, body_text, comments_text) VALUES (?,?,?,?)`,
-		rowid, title, body, strings.Join(bodies, "\n"),
+		`INSERT INTO items_fts (rowid, title, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?)`,
+		rowid, title, body, comments, store.FTSCJKBigramColumn(title, body, comments),
 	); err != nil {
 		return err
 	}

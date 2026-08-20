@@ -63,7 +63,11 @@ order by created_at asc limit 20
 `gadak search` (and the REST/MCP search path) rewrites bare terms as FTS5 prefix
 matches, so Korean particles and verb endings are found (`로그인` → `로그인이`,
 `실패` → `실패합니다`) and English stems work too (`retri` → `retries`).
-Word *middles* still miss — searching `결제` will not hit `간편결제`.
+CJK *middles* hit — `결제` finds `간편결제`, because a `cjk_bigram` column
+indexes overlapping 2-grams of CJK runs and the rewrite turns a CJK term into
+the AND of its bigrams (`docs/decisions/0009`). English middles still miss on
+purpose — `ency` will not hit `idempotency` (mid-token English matches were
+measured at 0.30–0.34 precision and rejected).
 
 **Search descriptions AND comments together** (FTS5, with AND/OR/NEAR):
 
