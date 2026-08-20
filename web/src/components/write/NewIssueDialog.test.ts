@@ -69,3 +69,33 @@ describe('NewIssueDialog create-meta gate (GDK-302)', () => {
     expect(SRC).toMatch(/data-testid="new-issue-dialog"/)
   })
 })
+
+/*
+ * GDK-254: required create-fields are advisory. The dialog still submits
+ * when the extra-required warning is showing, and still submits when the
+ * endpoint is missing — Playwright holds the live path (e2e/create-fields.spec.ts).
+ */
+describe('NewIssueDialog create fields (GDK-254)', () => {
+  test('loads create fields by project key and issue type id', () => {
+    expect(SRC).toMatch(/api\.getCreateFields\s*\(/)
+    expect(SRC).toContain('issueTypeId')
+    expect(SRC).not.toMatch(/getCreateFields\([^)]*\.name/)
+  })
+
+  test('classifies extra required fields through the shared helper', () => {
+    expect(SRC).toContain('extraRequiredCreateFields')
+    expect(SRC).toContain('isCreateFieldRequired')
+    expect(SRC).toContain('CREATE_DIALOG_ALWAYS_SENT')
+  })
+
+  test('does not disable submit when extra required fields exist', () => {
+    expect(SRC).not.toMatch(/disabled=\{submitting\s*\|\|/)
+    expect(SRC).toMatch(/disabled=\{submitting\}/)
+  })
+
+  test('reuses the existing required-star token on known fields', () => {
+    expect(SRC).toContain('text-status-reopen')
+    expect(SRC).toContain('new-issue-required-warn')
+    expect(SRC).toContain("t('write.createRequiresMore'")
+  })
+})

@@ -37,14 +37,16 @@ type fakeJira struct {
 	*httptest.Server
 	t *testing.T
 
-	calls          []string                   // "METHOD /path"
-	bodies         map[string]json.RawMessage // last body per "METHOD /path"
-	status         int                        // when non-zero, the next mutating call fails with it
-	errBody        string
-	newKey         string // key POST /issue answers with
-	editMeta       string // editmeta fields object
-	rereadStatus   int    // when non-zero, GET /search/jql (mirror re-read) fails with it
-	createMetaJSON string // when set, GET /issue/createmeta answers this
+	calls              []string                   // "METHOD /path"
+	bodies             map[string]json.RawMessage // last body per "METHOD /path"
+	status             int                        // when non-zero, the next mutating call fails with it
+	errBody            string
+	newKey             string // key POST /issue answers with
+	editMeta           string // editmeta fields object
+	rereadStatus       int    // when non-zero, GET /search/jql (mirror re-read) fails with it
+	createMetaJSON     string // when set, GET /issue/createmeta answers this
+	createFieldsJSON   string // when set, GET /issue/createmeta/{p}/issuetypes/{t} answers this
+	createFieldsStatus int    // when non-zero, that GET fails with it
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
@@ -146,6 +148,22 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`[{"id":"9001","filename":"shot.png","mimeType":"image/png","size":11}]`))
 	case path == "/issue" && r.Method == http.MethodPost:
 		_, _ = w.Write([]byte(`{"id":"1001","key":"` + f.newKey + `"}`))
+	case strings.HasPrefix(path, "/issue/createmeta/") && strings.Contains(path, "/issuetypes/"):
+		if f.createFieldsStatus != 0 {
+			w.WriteHeader(f.createFieldsStatus)
+			_, _ = w.Write([]byte(f.errBody))
+			return
+		}
+		if f.createFieldsJSON != "" {
+			_, _ = w.Write([]byte(f.createFieldsJSON))
+			return
+		}
+		_, _ = w.Write([]byte(`{"maxResults":50,"startAt":0,"total":4,"fields":[
+			{"fieldId":"issuetype","name":"Issue Type","required":true,"hasDefaultValue":false,"schema":{"type":"issuetype"}},
+			{"fieldId":"project","name":"Project","required":true,"hasDefaultValue":false,"schema":{"type":"project"}},
+			{"fieldId":"reporter","name":"Reporter","required":true,"hasDefaultValue":true,"schema":{"type":"user"}},
+			{"fieldId":"summary","name":"Summary","required":true,"hasDefaultValue":false,"schema":{"type":"string"}}
+		]}`))
 	case path == "/issue/createmeta":
 		if f.createMetaJSON != "" {
 			_, _ = w.Write([]byte(f.createMetaJSON))
@@ -963,6 +981,7 @@ func TestWritesRequireACredential(t *testing.T) {
 		{http.MethodGet, apiBase + "NMB-1/editmeta/", ""},
 		{http.MethodPost, apiBase + "create/", `{"project_key":"NMB","issue_type":"1","summary":"x"}`},
 		{http.MethodGet, apiBase + "create-meta/", ""},
+		{http.MethodGet, apiBase + "create-meta/fields/?project=NMB&issue_type=10004", ""},
 		{http.MethodGet, apiBase + "users/?q=a", ""},
 		{http.MethodPost, apiBase + "NMB-1/resync/", ""},
 		{http.MethodPost, apiBase + "pages/100/resync/", ""},

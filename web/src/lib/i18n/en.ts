@@ -645,6 +645,8 @@ export const en = {
   'write.searchPersonOptional': 'Search name/email (optional)',
   'write.addLabelOptional': 'Add labels (optional)',
   'write.requiredFields': 'Project, type, and title are required.',
+  'write.createRequiresMore':
+    'Also required here: {names}. This dialog cannot set them, so Jira may reject the issue.',
   'write.projectRequired': 'Pick a project.',
   'write.issueTypeRequired': 'Pick an issue type.',
   'write.priorityRequired': 'Pick a priority.',

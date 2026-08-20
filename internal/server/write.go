@@ -1038,6 +1038,40 @@ func (s *server) handleCreateMeta(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"projects": createMeta(projects)})
 }
 
+// handleCreateFields is the create-time field list for one project+type
+// (GDK-254). The server does not decide which fields to warn about: it
+// returns every field the origin listed. Not a boot path — missing
+// credential is 409, same as create-meta/. Origin errors go through
+// failJira so they stay 4xx/502, never 500.
+func (s *server) handleCreateFields(w http.ResponseWriter, r *http.Request) {
+	project := strings.TrimSpace(r.URL.Query().Get("project"))
+	issueType := strings.TrimSpace(r.URL.Query().Get("issue_type"))
+	if project == "" || issueType == "" {
+		fail(w, http.StatusBadRequest, "project_and_issue_type_required")
+		return
+	}
+	c, _, ok := s.client(w)
+	if !ok {
+		return
+	}
+	list, err := c.CreateFields(r.Context(), project, issueType)
+	if err != nil {
+		failJira(w, r, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(list))
+	for _, f := range list {
+		out = append(out, map[string]any{
+			"field_id":    f.FieldID,
+			"name":        f.Name,
+			"required":    f.Required,
+			"has_default": f.HasDefaultValue,
+			"type":        f.Schema.Type,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"fields": out})
+}
+
 func createMeta(projects []jira.CreateMetaProject) []map[string]any {
 	out := make([]map[string]any, 0, len(projects))
 	for _, p := range projects {

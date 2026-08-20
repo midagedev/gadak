@@ -21,6 +21,10 @@ import (
 // answer. An unsupported verb returns an honest error, never a silent no-op.
 type Writer interface {
 	CreateMeta(ctx context.Context, projects []string) ([]jira.CreateMetaProject, error)
+	// CreateFields is what this project+type requires and accepts at create
+	// time — the create-side sibling of EditMeta (GDK-254). An origin that
+	// cannot answer returns an error; callers degrade, they do not block.
+	CreateFields(ctx context.Context, projectIDOrKey, issueTypeID string) ([]jira.CreateFieldMeta, error)
 	CreateIssue(ctx context.Context, fields map[string]any) (string, error)
 	EditMeta(ctx context.Context, key string) (map[string]jira.FieldMeta, error)
 	UpdateFields(ctx context.Context, key string, fields map[string]any) error

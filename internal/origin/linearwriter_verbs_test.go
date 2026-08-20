@@ -271,6 +271,23 @@ func TestSearchUsersForwardsQuery(t *testing.T) {
 	}
 }
 
+func TestCreateFieldsUnsupported(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	got, err := w.CreateFields(context.Background(), "FIX", "issue")
+	if err == nil {
+		t.Fatal("CreateFields succeeded; Linear has no create-time field metadata")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "not supported") {
+		t.Errorf("error %q, want it to say not supported", err)
+	}
+	if got != nil {
+		t.Errorf("fields %v, want nil on refuse", got)
+	}
+	if len(rec.queries) != 0 {
+		t.Errorf("CreateFields hit GraphQL %d times; refuse must stay local", len(rec.queries))
+	}
+}
+
 func TestCreateIssueKeepsSupportedFields(t *testing.T) {
 	w, rec := testLinearWriter(t)
 	key, err := w.CreateIssue(context.Background(), map[string]any{

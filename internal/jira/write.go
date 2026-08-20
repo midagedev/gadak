@@ -196,6 +196,47 @@ func (c *Client) CreateMeta(ctx context.Context, projects []string) ([]CreateMet
 	return out.Projects, c.do(ctx, http.MethodGet, p, nil, &out)
 }
 
+// CreateFieldMeta is one field Jira lists at create time. Distinct from
+// FieldMeta: createmeta fields are a list with fieldId on each object and
+// carry hasDefaultValue; editmeta is a map keyed by field id with no fieldId
+// on the value (GDK-254). Schema matches FieldMeta's anonymous shape.
+type CreateFieldMeta struct {
+	FieldID         string `json:"fieldId"`
+	Name            string `json:"name"`
+	Required        bool   `json:"required"`
+	HasDefaultValue bool   `json:"hasDefaultValue"`
+	Schema          struct {
+		Type   string `json:"type"`
+		Items  string `json:"items"`
+		Custom string `json:"custom"`
+	} `json:"schema"`
+}
+
+// CreateFields pages GET /issue/createmeta/{project}/issuetypes/{type}.
+// The expand=projects.issuetypes.fields form is the discarded path; this is
+// the current Cloud list (fields[], startAt/maxResults/total).
+func (c *Client) CreateFields(ctx context.Context, projectIDOrKey, issueTypeID string) ([]CreateFieldMeta, error) {
+	out := []CreateFieldMeta{}
+	for startAt := 0; ; {
+		var page struct {
+			Fields     []CreateFieldMeta `json:"fields"`
+			Total      int               `json:"total"`
+			MaxResults int               `json:"maxResults"`
+			StartAt    int               `json:"startAt"`
+		}
+		p := fmt.Sprintf("%s/issue/createmeta/%s/issuetypes/%s?startAt=%d&maxResults=50",
+			apiPath, url.PathEscape(projectIDOrKey), url.PathEscape(issueTypeID), startAt)
+		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
+			return nil, err
+		}
+		out = append(out, page.Fields...)
+		startAt += len(page.Fields)
+		if len(page.Fields) == 0 || startAt >= page.Total {
+			return out, nil
+		}
+	}
+}
+
 // SearchUsers backs the assignee picker. Jira's own endpoint decides what
 // matches; there is no local user table to search.
 func (c *Client) SearchUsers(ctx context.Context, query string) ([]User, error) {

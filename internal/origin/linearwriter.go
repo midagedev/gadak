@@ -230,6 +230,13 @@ func (w *linearWriter) EditIssue(ctx context.Context, key string, fields, update
 	return w.UpdateFields(ctx, key, fields)
 }
 
+// CreateFields has no Linear counterpart: issue types are a Jira concept
+// and Linear does not expose per-team required create fields. Callers
+// degrade; this is not a silent empty list.
+func (w *linearWriter) CreateFields(context.Context, string, string) ([]jira.CreateFieldMeta, error) {
+	return nil, fmt.Errorf("linear: create-time field metadata is not supported on this origin")
+}
+
 func (w *linearWriter) CreateMeta(ctx context.Context, projects []string) ([]jira.CreateMetaProject, error) {
 	teams, err := w.c.Teams(ctx)
 	if err != nil {

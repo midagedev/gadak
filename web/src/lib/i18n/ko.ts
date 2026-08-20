@@ -643,6 +643,8 @@ export const ko = {
   'write.searchPersonOptional': '이름/이메일 검색 (선택)',
   'write.addLabelOptional': '라벨 추가 (선택)',
   'write.requiredFields': '프로젝트·유형·제목은 필수입니다.',
+  'write.createRequiresMore':
+    '이 프로젝트·유형은 {names}도 요구합니다. 이 다이얼로그로는 설정할 수 없어 Jira가 거절할 수 있습니다.',
   'write.projectRequired': '프로젝트를 고르세요.',
   'write.issueTypeRequired': '유형을 고르세요.',
   'write.priorityRequired': '우선순위를 고르세요.',

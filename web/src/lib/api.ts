@@ -15,6 +15,7 @@ import type {
   CommentsByAuthorResponse,
   CommentWriteResponse,
   CreateIssuePayload,
+  CreateFieldsResponse,
   CreateMetaResponse,
   DeltaResponse,
   DetailResponse,
@@ -784,6 +785,17 @@ export function createIssue(payload: CreateIssuePayload): Promise<IssueWriteResp
 
 export function getCreateMeta(): Promise<CreateMetaResponse> {
   return jsonW<CreateMetaResponse>('create-meta/')
+}
+
+/** GET create-meta/fields/?project=&issue_type= — issue_type is the id, never a localized name. */
+export function getCreateFields(
+  project: string,
+  issueTypeId: string,
+  init?: RequestInit,
+): Promise<CreateFieldsResponse> {
+  const q =
+    `project=${encodeURIComponent(project)}` + `&issue_type=${encodeURIComponent(issueTypeId)}`
+  return jsonW<CreateFieldsResponse>(`create-meta/fields/?${q}`, init)
 }
 
 /* ── User search (for assignee picker) ── */

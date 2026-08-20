@@ -64,8 +64,12 @@ async function stubCreateMeta(page: Page): Promise<void> {
       updated_at: '2026-08-18T00:00:00.000Z',
     })
   })
-  await page.route('**/api/v1/issues/create-meta/', async (route) => {
+  await page.route('**/api/v1/issues/create-meta/**', async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
+    if (route.request().url().includes('/create-meta/fields')) {
+      await fulfillJSON(route, { fields: [] })
+      return
+    }
     await fulfillJSON(route, { projects: CREATE_PROJECTS })
   })
   await page.route('**/priorities/', async (route) => {

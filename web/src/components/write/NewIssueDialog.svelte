@@ -24,6 +24,12 @@
   import { filters } from '../../stores/filters.svelte'
   import { recentOf, whenReady } from '../../lib/recency'
   import { isHostedDemo } from '../../lib/config'
+  import {
+    CREATE_DIALOG_ALWAYS_SENT,
+    extraRequiredCreateFields,
+    isCreateFieldRequired,
+    type CreateFieldMeta,
+  } from '../../lib/create-fields'
   import type { CreateMetaProject, JiraUser, PriorityOption } from '../../lib/types'
   import Icon from '../ui/Icon.svelte'
 
@@ -99,6 +105,37 @@
   const selectedProject = $derived(projects.find((p) => p.key === projectKey))
   const issueTypes = $derived(selectedProject?.issue_types ?? [])
 
+  // Create-fields cache lives for this dialog instance only (GDK-254).
+  // Failed fetches are remembered so a 404/409 does not retry in a loop.
+  let createFieldsByKey = $state<Record<string, CreateFieldMeta[]>>({})
+  let createFieldsFailed = $state<Record<string, true>>({})
+  const createFieldsInflight = new Set<string>()
+
+  function createFieldsKey(pk: string, typeId: string): string {
+    return pk + '\0' + typeId
+  }
+
+  const currentCreateFields = $derived.by((): CreateFieldMeta[] => {
+    if (!projectKey || !issueTypeId) return []
+    return createFieldsByKey[createFieldsKey(projectKey, issueTypeId)] ?? []
+  })
+
+  const sentCreateFieldIds = $derived.by(() => {
+    const sent = new Set<string>(CREATE_DIALOG_ALWAYS_SENT)
+    if (description.trim()) sent.add('description')
+    if (assignee) sent.add('assignee')
+    if (priority) sent.add('priority')
+    if (labels.length) sent.add('labels')
+    if (duedate) sent.add('duedate')
+    return sent
+  })
+
+  const extraRequired = $derived(extraRequiredCreateFields(currentCreateFields, sentCreateFieldIds))
+
+  function fieldRequired(id: string): boolean {
+    return isCreateFieldRequired(currentCreateFields, id)
+  }
+
   onMount(() => {
     void whenReady().then(() => {
       recencyReady = true
@@ -124,6 +161,35 @@
   // are still empty — that is the in-flight / fake-origin hang. Retry only.
   $effect(() => {
     if (writeState === 'form') applyDefaults()
+  })
+
+  // Required-field list is advisory. A miss (404, no credential, origin
+  // error) must leave the form as it is today — create is never blocked.
+  $effect(() => {
+    const pk = projectKey
+    const typeId = issueTypeId
+    if (writeState !== 'form' || !pk || !typeId) return
+    const key = createFieldsKey(pk, typeId)
+    if (key in createFieldsByKey || key in createFieldsFailed || createFieldsInflight.has(key)) {
+      return
+    }
+    createFieldsInflight.add(key)
+    const ac = new AbortController()
+    void (async () => {
+      try {
+        const res = await api.getCreateFields(pk, typeId, { signal: ac.signal })
+        if (ac.signal.aborted) return
+        createFieldsByKey = { ...createFieldsByKey, [key]: res.fields ?? [] }
+      } catch (e) {
+        if (ac.signal.aborted) return
+        const name = e instanceof Error ? e.name : ''
+        if (name === 'AbortError' || name === 'TimeoutError') return
+        createFieldsFailed = { ...createFieldsFailed, [key]: true }
+      } finally {
+        createFieldsInflight.delete(key)
+      }
+    })()
+    return () => ac.abort()
   })
 
   async function loadFallback() {
@@ -342,7 +408,10 @@
         <!-- Project + type -->
         <div class="flex gap-3">
           <label class="flex min-w-0 flex-1 flex-col gap-1">
-            <span class="text-micro text-text-secondary">{t('common.project')}</span>
+            <span class="text-micro text-text-secondary"
+              >{t('common.project')}{#if fieldRequired('project')}
+                {' '}<span class="text-status-reopen">*</span>{/if}</span
+            >
             <span class="relative flex">
               <select bind:value={projectKey} class={SELECT}>
                 {#each projects as p (p.key)}
@@ -353,7 +422,10 @@
             </span>
           </label>
           <label class="flex min-w-0 flex-1 flex-col gap-1">
-            <span class="text-micro text-text-secondary">{t('common.type')}</span>
+            <span class="text-micro text-text-secondary"
+              >{t('common.type')}{#if fieldRequired('issuetype')}
+                {' '}<span class="text-status-reopen">*</span>{/if}</span
+            >
             <span class="relative flex">
               <select bind:value={issueTypeId} class={SELECT}>
                 {#each issueTypes as t (t.id)}
@@ -381,7 +453,10 @@
 
         <!-- Description -->
         <label class="flex flex-col gap-1">
-          <span class="text-micro text-text-secondary">{t('common.description')}</span>
+          <span class="text-micro text-text-secondary"
+            >{t('common.description')}{#if fieldRequired('description')}
+              {' '}<span class="text-status-reopen">*</span>{/if}</span
+          >
           <textarea
             bind:value={description}
             rows="4"
@@ -393,7 +468,10 @@
         <!-- Assignee + priority -->
         <div class="flex gap-3">
           <div class="relative flex min-w-0 flex-1 flex-col gap-1">
-            <span class="text-micro text-text-secondary">{t('common.assignee')}</span>
+            <span class="text-micro text-text-secondary"
+              >{t('common.assignee')}{#if fieldRequired('assignee')}
+                {' '}<span class="text-status-reopen">*</span>{/if}</span
+            >
             {#if assignee}
               <div class="flex h-control items-center gap-2 rounded-md border border-border-strong bg-bg-base px-2 text-body">
                 <span class="min-w-0 flex-1 truncate text-text-primary">{assignee.display_name}</span>
@@ -429,7 +507,10 @@
             {/if}
           </div>
           <label class="flex w-32 flex-none flex-col gap-1">
-            <span class="text-micro text-text-secondary">{t('common.priority')}</span>
+            <span class="text-micro text-text-secondary"
+              >{t('common.priority')}{#if fieldRequired('priority')}
+                {' '}<span class="text-status-reopen">*</span>{/if}</span
+            >
             <span class="relative flex">
               <select
                 bind:value={priority}
@@ -451,7 +532,10 @@
         </div>
 
         <label class="flex flex-col gap-1">
-          <span class="text-micro text-text-secondary">{t('common.due')}</span>
+          <span class="text-micro text-text-secondary"
+            >{t('common.due')}{#if fieldRequired('duedate')}
+              {' '}<span class="text-status-reopen">*</span>{/if}</span
+          >
           <input
             bind:value={duedate}
             type="date"
@@ -462,7 +546,10 @@
 
         <!-- Labels -->
         <div class="relative flex flex-col gap-1">
-          <span class="text-micro text-text-secondary">{t('common.labels')}</span>
+          <span class="text-micro text-text-secondary"
+            >{t('common.labels')}{#if fieldRequired('labels')}
+              {' '}<span class="text-status-reopen">*</span>{/if}</span
+          >
           <div class="flex min-h-control flex-wrap items-center gap-1 rounded-md border border-border-strong bg-bg-base px-2 py-1">
             {#each labels as l (l)}
               <span class="inline-flex items-center gap-1 rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-secondary">
@@ -502,22 +589,33 @@
         </div>
 
         <div
-          class="mt-1 flex flex-none items-center justify-end gap-2 border-t border-border-subtle px-5 py-3"
+          class="mt-1 flex flex-none flex-col gap-2 border-t border-border-subtle px-5 py-3"
           data-dialog-footer
         >
-          <button
-            type="button"
-            onclick={close}
-            class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
-            >{t('common.cancel')}</button
-          >
-          <button
-            type="submit"
-            disabled={submitting}
-            class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
-          >
-            {submitting ? t('common.creating') : t('common.create')}
-          </button>
+          {#if extraRequired.length}
+            <!-- Same shape as this dialog's other advisory lines (needToken /
+                 metaFailed above): text-body, not a new size. -->
+            <p class="text-body text-status-reopen" data-testid="new-issue-required-warn">
+              {t('write.createRequiresMore', {
+                names: extraRequired.map((f) => f.name).join(', '),
+              })}
+            </p>
+          {/if}
+          <div class="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onclick={close}
+              class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+              >{t('common.cancel')}</button
+            >
+            <button
+              type="submit"
+              disabled={submitting}
+              class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+            >
+              {submitting ? t('common.creating') : t('common.create')}
+            </button>
+          </div>
         </div>
       </form>
     {/if}

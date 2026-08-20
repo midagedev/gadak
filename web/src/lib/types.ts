@@ -702,6 +702,19 @@ export interface CreateMetaResponse {
   projects: CreateMetaProject[]
 }
 
+/** One field from GET create-meta/fields/ (GDK-254). Server passes origin facts through. */
+export interface CreateFieldMeta {
+  field_id: string
+  name: string
+  required: boolean
+  has_default: boolean
+  type: string
+}
+
+export interface CreateFieldsResponse {
+  fields: CreateFieldMeta[]
+}
+
 /** New comment returned by POST <key>/comment/ (no raw_body — plain text body). */
 export interface CreatedComment {
   comment_id: string

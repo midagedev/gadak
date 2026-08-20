@@ -822,6 +822,9 @@ func (s *searchUsersStub) SearchUsers(_ context.Context, q string) ([]jira.User,
 func (s *searchUsersStub) CreateMeta(context.Context, []string) ([]jira.CreateMetaProject, error) {
 	return nil, errStub
 }
+func (s *searchUsersStub) CreateFields(context.Context, string, string) ([]jira.CreateFieldMeta, error) {
+	return nil, errStub
+}
 func (s *searchUsersStub) CreateIssue(context.Context, map[string]any) (string, error) {
 	return "", errStub
 }
