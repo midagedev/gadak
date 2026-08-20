@@ -2,6 +2,101 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+The release that finishes what 0.16 started. Standalone shipped as a working
+origin and then spent a day proving how many ways two processes can disagree
+about who owns a file; Linear arrived as a read-only client with nowhere to
+plug in; and the documents an agent actually reads never learned the word
+"standalone". All three are closed here.
+
+### A third tracker, and it writes
+
+- **Linear is a source, not a plan** (GDK-263, GDK-360, GDK-361). A `"linear"`
+  block in the profile's `config.json` (`apiKey`, optional `teamIds`) and
+  `gadak sync --source linear` mirrors issues, comments, labels and
+  attachments beside Jira and Confluence. Writes route by the mirror's source
+  for the key: comment, transition against the team's workflow states
+  (id-keyed, never by display name), summary/priority/due-date edits,
+  assign/unassign, and file uploads all pass through Linear's API and refresh
+  the mirror row. What Linear cannot do yet — label edits, inline comment
+  media, clearing a due date, state history — refuses honestly instead of
+  half-applying, and comment bodies stay markdown rather than being stuffed
+  into an ADF column they do not fit
+  ([`internal/linear/MAPPING.md`](internal/linear/MAPPING.md)).
+- **The write seam is an interface** (GDK-359). Jira, the standalone origin,
+  and Linear now speak one vocabulary, so a verb added to one surface is not
+  three implementations of the same guard.
+- **A Linear-only profile syncs** (GDK-361). The credential gate is per source;
+  a profile with no Atlassian token is no longer told it has nothing to do. A
+  cross-source key collision no longer refuses a Jira write (GDK-263 review).
+
+### The wiki stops being read-only
+
+- **Page edit, comment, and create write through the origin** (GDK-380,
+  GDK-381, GDK-382) — `gadak page edit|comment|create` and the matching REST
+  verbs, Confluence Cloud on a connected workspace and the in-process origin
+  on a standalone one. Page ids get the same namespace mirror ids got, so a
+  standalone page cannot collide with a real site's (GDK-344).
+
+### One owner for the standalone origin
+
+- **The desktop app advertises its origin too** (GDK-340), closing the half of
+  GDK-333 that shipped open: an app and a CLI could both hold the persist file.
+- **The persist lock is the single truth for who may embed** (GDK-343), an
+  acknowledged write is on disk before the response (GDK-342), a durable
+  persist failure fails the write rather than being swallowed (GDK-346), and
+  the fatal path flushes too (GDK-348).
+- **Standalone failures stop masquerading as `credential_required`** (GDK-345)
+  — an origin that is busy says so, with its own toast, and the conversion
+  copy says what conversion actually does (GDK-347).
+- **Mirror ids get their own namespace and conversion drops the old mirror
+  whole** (GDK-241), taking watches and favorites with it (GDK-344).
+
+### The agent surfaces learn standalone
+
+- **The embedded skill knows the mode exists** (GDK-239, GDK-363). It could
+  not before: the word appeared nowhere in the skill or `AGENTS.md`, the
+  profile rule taught an agent to report an empty `site_host` and stop — which
+  is what a healthy standalone profile looks like — and `AGENTS.md` claimed
+  writes fail without a credential, which is false there. Kind now comes from
+  `doctor`'s `workspace.kind`, confirm-before-writing is scoped to connected
+  (a standalone write is a file on this machine), and the create path is
+  spelled out where an agent reads it.
+- **The CLI says which origin it means** (GDK-364, GDK-366, GDK-371). Write
+  verbs stopped claiming every write lands "on Jira (needs a credential)",
+  `init` stopped hiding `--standalone` from the usage line, and `serve`'s help
+  matches when it actually syncs.
+- **`transition` names the identifier the rules require** (GDK-365). The
+  refusal listed target statuses by display name only — the one key this
+  product tells everyone not to use — and now carries each target's
+  `status_id`. `transition` also accepts the `status_id` the read path hands
+  out (GDK-313).
+- **kind and persist are on the agent's preflight** (GDK-368, GDK-376).
+  `status --json` and each `profiles --json` row carry `kind`, from the same
+  `origin.Describe` doctor uses, and standalone `init` prints the persist path
+  — the file to back up — where it is created.
+- **The stale-mirror warning is closed at the source** (GDK-367). Standalone
+  `init` fills the mirror, since that sync is in-process; a fill that fails
+  warns instead of failing a workspace that already exists.
+- **`issues_full` exposes `description_text`** (GDK-312) — the plain text was
+  already in the mirror, and the view now hands it over.
+
+### Documents that stop contradicting the product
+
+- The install front door admits standalone (GDK-271): `INSTALL.md` no longer
+  opens with "Atlassian Cloud only", and both it and the README carry the
+  four-line no-account quickstart.
+- `CONCEPT.md` teaches origins rather than "writes cannot be local" (GDK-372),
+  the FAQ stops offering `rm -rf ~/.gadak` to users whose original lives there
+  (GDK-373), `PROMISES.md` gains a ninth promise — the standalone origin is
+  one plaintext YAML file, with a command that proves it — `MAINTENANCE.md`
+  stops refusing a Windows shell it shipped (GDK-374), and `export`/`import`
+  finally has the paragraph its verb has had since 0.14 (GDK-375).
+- `doc-checks.sh` gains three gates so the front door cannot drift back.
+- The Go test suite stopped pointing its fixture credential at a live
+  Atlassian host (GDK-304).
+
 ## v0.16.0 — 2026-08-19
 
 The release where gadak stops needing an Atlassian account to be useful,

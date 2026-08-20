@@ -1,6 +1,99 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-19).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-20).</sub>
+
+## 미출간 (Unreleased)
+
+0.16이 시작한 것을 끝내는 릴리스입니다. standalone은 동작하는 origin으로
+출하됐고, 그 뒤 하루 동안 "누가 이 파일의 주인인가"를 두 프로세스가 다르게
+답할 수 있는 경로를 차례로 드러냈습니다. Linear는 꽂을 자리가 없는 읽기 전용
+클라이언트로 도착했고, 에이전트가 실제로 읽는 문서는 "standalone"이라는
+단어를 한 번도 배우지 못했습니다. 세 가지 모두 여기서 닫힙니다.
+
+### 세 번째 트래커, 그리고 쓰기까지
+
+- **Linear는 계획이 아니라 소스입니다** (GDK-263, GDK-360, GDK-361).
+  프로필 `config.json`에 `"linear"` 블록(`apiKey`, 선택 `teamIds`)을 넣고
+  `gadak sync --source linear`를 돌리면 이슈·코멘트·라벨·첨부가 Jira와
+  Confluence 옆에 미러링됩니다. 쓰기는 그 키의 미러 소스로 라우팅됩니다:
+  코멘트, 팀 워크플로 상태에 대한 전이(display name이 아니라 id로 키합니다),
+  제목·우선순위·기한 편집, 담당자 지정·해제, 파일 업로드가 모두 Linear API를
+  통과한 뒤 미러 행을 갱신합니다. Linear에서 아직 못 하는 것 — 라벨 편집,
+  코멘트 인라인 미디어, 기한 비우기, 상태 이력 — 은 반쪽 적용 대신 정직하게
+  거절하고, 코멘트 본문은 맞지 않는 ADF 컬럼에 밀어넣는 대신 마크다운으로
+  남습니다 ([`internal/linear/MAPPING.md`](internal/linear/MAPPING.md)).
+- **쓰기 이음새가 인터페이스가 됐습니다** (GDK-359). Jira, standalone origin,
+  Linear가 하나의 어휘를 말하므로, 한 표면에 동사를 더하는 일이 같은 가드의
+  세 구현이 되지 않습니다.
+- **Linear만 있는 프로필도 sync됩니다** (GDK-361). 자격증명 게이트가 소스별로
+  갈립니다 — Atlassian 토큰이 없는 프로필에게 할 일이 없다고 말하지 않습니다.
+  소스를 가로지르는 키 충돌이 Jira 쓰기를 거절하던 것도 고쳤습니다.
+
+### 위키가 읽기 전용을 벗습니다
+
+- **페이지 편집·코멘트·생성이 origin을 통과합니다** (GDK-380, GDK-381,
+  GDK-382) — `gadak page edit|comment|create`와 대응 REST 동사, connected는
+  Confluence Cloud, standalone은 인프로세스 origin입니다. 페이지 id도 미러
+  id와 같은 네임스페이스를 받아 실제 사이트의 id와 충돌할 수 없습니다
+  (GDK-344).
+
+### standalone origin의 소유자는 하나
+
+- **데스크톱 앱도 origin을 공표합니다** (GDK-340). GDK-333에서 열린 채
+  출하됐던 나머지 절반 — 앱과 CLI가 persist 파일을 동시에 들 수 있던 구멍 —
+  이 닫혔습니다.
+- **persist lock이 "누가 임베드할 수 있나"의 단일 진실이 됐고** (GDK-343),
+  응답 전에 쓰기가 디스크에 도달하며(GDK-342), 영속 실패는 삼켜지지 않고
+  쓰기를 실패시키고(GDK-346), 치명 경로에서도 flush합니다(GDK-348).
+- **standalone 실패가 `credential_required`로 위장하지 않습니다** (GDK-345).
+  바쁜 origin은 자기 토스트로 그렇다고 말하고, 전환 문구는 전환이 실제로
+  무엇을 하는지 말합니다(GDK-347).
+- **미러 id가 자기 네임스페이스를 갖고, 전환은 옛 미러를 통째로 버립니다**
+  (GDK-241). watch와 즐겨찾기를 함께 가져갑니다(GDK-344).
+
+### 에이전트 표면이 standalone을 배웁니다
+
+- **임베디드 스킬이 그 모드의 존재를 압니다** (GDK-239, GDK-363). 이전에는
+  불가능했습니다: 스킬과 `AGENTS.md`에 그 단어가 한 번도 없었고, 프로필
+  규칙은 빈 `site_host`를 보고하고 멈추라고 가르쳤는데 그것이 정상인
+  standalone 프로필의 모습이었으며, `AGENTS.md`는 자격증명 없이 쓰기가
+  실패한다고 단언했지만 거기서는 거짓입니다. kind는 이제 `doctor`의
+  `workspace.kind`에서 오고, 쓰기 전 확인은 connected로 한정되며(standalone
+  쓰기는 이 머신의 파일입니다), 생성 경로가 에이전트가 읽는 자리에
+  적혀 있습니다.
+- **CLI가 어느 origin을 말하는지 밝힙니다** (GDK-364, GDK-366, GDK-371).
+  쓰기 동사가 모든 쓰기를 "on Jira (needs a credential)"이라 주장하기를
+  멈췄고, `init`은 usage 줄에서 `--standalone`을 숨기기를 멈췄고, `serve`
+  도움말은 실제로 언제 sync하는지와 일치합니다.
+- **`transition`이 규칙이 요구하는 식별자를 알려줍니다** (GDK-365). 거절
+  메시지가 target 상태를 display name으로만 나열했습니다 — 이 제품이
+  아무도 쓰지 말라고 하는 그 키 — 이제 각 target의 `status_id`를 함께
+  줍니다. `transition`은 읽기 경로가 주는 `status_id`도 받습니다(GDK-313).
+- **kind와 persist가 에이전트의 프리플라이트에 올라왔습니다** (GDK-368,
+  GDK-376). `status --json`과 `profiles --json`의 각 행이 `kind`를
+  담고(doctor가 쓰는 `origin.Describe`와 같은 소스), standalone `init`은
+  백업 대상인 persist 경로를 만들어지는 자리에서 찍습니다.
+- **낡은 미러 경고를 원인에서 닫았습니다** (GDK-367). standalone `init`이
+  미러를 채웁니다 — 그 sync는 인프로세스이므로. 채우기가 실패하면 이미
+  만들어진 워크스페이스를 실패시키는 대신 경고합니다.
+- **`issues_full`이 `description_text`를 꺼냅니다** (GDK-312). 평문은 이미
+  미러에 있었고, 뷰가 이제 그것을 내줍니다.
+
+### 제품과 모순되기를 멈춘 문서
+
+- 설치 앞문이 standalone을 인정합니다(GDK-271): `INSTALL.md`가 더 이상
+  "Atlassian Cloud only"로 시작하지 않고, README와 함께 계정 없는 4줄
+  퀵스타트를 싣습니다.
+- `CONCEPT.md`는 "쓰기는 로컬일 수 없다" 대신 origin을 가르치고(GDK-372),
+  FAQ는 원본이 거기 사는 사용자에게 `rm -rf ~/.gadak`을 권하기를
+  멈추고(GDK-373), `PROMISES.md`는 아홉 번째 약속을 얻었으며(standalone
+  origin은 평문 YAML 한 파일이고, 그것을 증명하는 명령이 함께 있습니다),
+  `MAINTENANCE.md`는 이미 출하한 Windows 셸을 거절하기를 멈추고(GDK-374),
+  `export`/`import`는 0.14부터 있던 동사에 드디어 문단을 얻었습니다
+  (GDK-375).
+- `doc-checks.sh`가 게이트 셋을 얻어 앞문이 되돌아가지 못하게 합니다.
+- Go 테스트 스위트가 픽스처 자격증명을 실제 Atlassian 호스트로 향하게
+  하던 것을 멈췄습니다(GDK-304).
 
 ## v0.16.0 — 2026-08-19
 

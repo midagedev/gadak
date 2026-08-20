@@ -105,24 +105,49 @@ func TestDecidePortBusy_PinnedSameProfileStillFails(t *testing.T) {
 
 func TestBindListen_FallbackOnEADDRINUSE(t *testing.T) {
 	// Real sockets: hold a port, then bind with fallback must land on the next free one.
-	hold, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+	//
+	// The three ports have to be ours, not merely the first the OS offered.
+	// Asking for :0 and assuming port+1 is bindable and port+2 is free made
+	// this test fail on whoever else happened to hold one of them — it went
+	// red in CI on 2026-08-20 for a docs-only commit (run 32318614772). So
+	// claim the triple first and only then release the one fallback must
+	// find. The assertion below is unchanged: exactly port+2.
+	var hold, hold2 net.Listener
+	var port int
+	for attempt := 0; ; attempt++ {
+		if attempt == 20 {
+			t.Skip("no run of three free loopback ports on this machine")
+		}
+		probe, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, portStr, err := net.SplitHostPort(probe.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		base, err := strconv.Atoi(portStr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		next, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", base+1))
+		if err != nil {
+			probe.Close()
+			continue
+		}
+		// port+2 must be free for the fallback to land there; hold it to
+		// prove that, then release it right before the call under test.
+		target, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", base+2))
+		if err != nil {
+			probe.Close()
+			next.Close()
+			continue
+		}
+		target.Close()
+		hold, hold2, port = probe, next, base
+		break
 	}
 	defer hold.Close()
-	_, portStr, err := net.SplitHostPort(hold.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Also hold port+1 so fallback must skip at least one.
-	hold2, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port+1))
-	if err != nil {
-		t.Fatalf("hold second port: %v", err)
-	}
 	defer hold2.Close()
 
 	want := fmt.Sprintf("127.0.0.1:%d", port)
