@@ -121,7 +121,7 @@ test.describe('hosted demo in an in-app browser', () => {
       .toBeGreaterThan(0)
   })
 
-  test('adapter handles Request input, delta?since=, and 501 writes', async ({ page }) => {
+  test('adapter handles Request input, unknown delta as 404, and 501 writes', async ({ page }) => {
     await forceLocale(page, 'en')
     await shadowServiceWorker(page)
     await page.goto(DEMO)
@@ -133,10 +133,9 @@ test.describe('hosted demo in an in-app browser', () => {
       const res = await fetch(req)
       return { status: res.status, body: (await res.json()) as Record<string, unknown> }
     })
-    expect(delta.status).toBe(200)
-    expect(delta.body.upserted).toEqual([])
-    expect(delta.body.deleted_keys).toEqual([])
-    expect(delta.body.sync_health).toEqual({ overall: 'ok', sources: [] })
+    // GDK-440: hosted no longer fabricates an empty live delta.
+    expect(delta.status).toBe(404)
+    expect(delta.body).toEqual({ error: 'not_found' })
 
     const write = await page.evaluate(async () => {
       const res = await fetch('/gadak/api/v1/issues/NMB-110/comment/', {

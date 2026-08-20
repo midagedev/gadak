@@ -157,8 +157,8 @@ class IssuesStore {
   /**
    * Boot sequence:
    *  ① IndexedDB → memory hydration (ready immediately when cache hits)
-   *  ② Background bootstrap (ETag 304) or delta (since=stored server_time)
-   *  ③ Start 15s delta polling (one immediate sync on tab focus)
+   *  ② Background bootstrap (ETag 304) or, off hosted, delta (since=stored server_time)
+   *  ③ Start 15s delta polling (hosted skips: snapshot is session-static)
    */
   async init(): Promise<void> {
     if (this.#initialized) return
@@ -199,7 +199,9 @@ class IssuesStore {
     if (this.#syncing) return
     this.#syncing = true
     try {
-      if (this.pool.size > 0 && this.lastSync) {
+      // Hosted snapshots have no live delta. The former empty stub with
+      // server_time=now froze returning visitors on the IndexedDB copy (GDK-440).
+      if (!isHostedDemo() && this.pool.size > 0 && this.lastSync) {
         await this.#deltaSync()
       } else {
         await this.#bootstrap()
@@ -336,6 +338,8 @@ class IssuesStore {
 
   #startPolling(): void {
     if (this.#pollTimer || typeof window === 'undefined') return
+    // Hosted snapshot is immutable for the session; a poll would only re-bootstrap.
+    if (isHostedDemo()) return
     this.#pollTimer = setInterval(() => {
       void this.#sync()
     }, POLL_MS)

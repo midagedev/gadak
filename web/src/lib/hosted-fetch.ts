@@ -105,12 +105,14 @@ async function handleAPI(
     return jsonResponse({ error: 'not_found' }, 404)
   }
   const tail = apiTail.slice('issues/'.length)
-  // The former worker matched `delta?` against pathname (query never appears
-  // there). Honour the same strings plus URL.search so `delta/?since=` works.
+  // Query string is not in pathname. Honour URL.search so `feed/?` / `search/?`
+  // match the same way the former worker matched `delta?`.
   const tailWithSearch = `${tail}${url.search}`
 
   if (tail === 'bootstrap/' || tail === 'bootstrap') {
-    return staticFile(nativeFetch, 'bootstrap.json', 'application/json', true)
+    // no-cache: force-cache kept returning visitors on a stale bootstrap.json
+    // even after #sync always bootstrapped (GDK-440).
+    return staticFile(nativeFetch, 'bootstrap.json', 'application/json', true, 'no-cache')
   }
 
   let m = /^([A-Za-z0-9_-]+)\/detail\/?$/.exec(tail)
@@ -123,20 +125,8 @@ async function handleAPI(
     return staticFile(nativeFetch, `attachments/${m[2]}`, 'image/png', false)
   }
 
-  if (
-    tail === 'delta/' ||
-    tail === 'delta' ||
-    tailWithSearch.startsWith('delta?') ||
-    tailWithSearch.startsWith('delta/?')
-  ) {
-    return jsonResponse({
-      server_time: new Date().toISOString(),
-      upserted: [],
-      deleted_keys: [],
-      members_version: '',
-      sync_health: { overall: 'ok', sources: [] },
-    })
-  }
+  // No delta stub. Hosted clients bootstrap only (GDK-440). A fabricated empty
+  // delta with server_time=now froze returning visitors on the old snapshot.
   if (tail === 'views/' || tail === 'views') {
     return jsonResponse({ views: [] })
   }
@@ -183,10 +173,11 @@ async function staticFile(
   rel: string,
   contentType: string,
   rewriteUrls: boolean,
+  cache: RequestCache = 'force-cache',
 ): Promise<Response> {
   const fileURL = new URL(rel, `${window.location.origin}${basePath()}`).href
   try {
-    const res = await nativeFetch(fileURL, { cache: 'force-cache' })
+    const res = await nativeFetch(fileURL, { cache })
     if (!res.ok) {
       return jsonResponse({ error: 'not_found' }, 404)
     }
