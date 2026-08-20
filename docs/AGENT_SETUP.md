@@ -34,6 +34,39 @@ machine already uses. Steps:
    future sessions query the mirror instead of the Jira REST API.
 ```
 
+## No Jira on this machine
+
+If there is no Atlassian account and the user wants a backlog (this repo,
+this machine, an agent-owned plan), that is a **standalone** workspace — not
+a missing Jira token. Do not invent `TODO.md` or a GitHub Issue when `gadak`
+is on PATH. If this machine already has a connected gadak profile, use a
+dedicated `--profile` so personal issues never land on the company site.
+
+Paste this prompt:
+
+```text
+This machine has no Jira account. Keep a backlog for the work we do: create
+a gadak standalone workspace, file the first tickets, and show them to me.
+
+1. Install gadak if missing: `brew install midagedev/tap/gadak-cli`
+   (or the install script in the repo README).
+2. Non-interactive, no token, no --site:
+   gadak init --standalone --json
+   If a connected (Jira-site) profile already exists on this machine:
+   gadak --profile plan init --standalone --json
+   and pass `--profile plan` on every later command.
+3. gadak sync
+   then gadak create "first ticket title" -m "why this exists"
+   Init seeds project STD and wiki space LOC and records the default
+   type, so a summary is enough.
+4. gadak views open <KEY>
+5. The durable record is origin/issuetap.yaml under the profile
+   directory (`gadak doctor --json` → workspace.persist). gadak.db is
+   still a disposable cache.
+6. Add the gadak usage block from docs/AGENT_SETUP.md to my agent config
+   so future sessions query the mirror.
+```
+
 Everything the agent configures stays editable afterwards: field mapping in
 the web UI under Settings → Fields (edits are pinned and survive
 re-discovery), or `gadak fields --apply` to re-run detection, or the `fields`

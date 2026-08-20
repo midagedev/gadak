@@ -9,8 +9,12 @@ Two audiences. Pick your half:
 ## Using the mirror
 
 gadak keeps a local SQLite mirror of Jira at `~/.gadak/gadak.db` (`--profile x` puts
-it under `~/.gadak/profiles/x/`). Reads never touch the network. Writes go to Jira
-and re-read the issue into the mirror afterwards.
+it under `~/.gadak/profiles/x/`). The origin is a Jira site, or — with no
+Atlassian account — an in-process tracker (`gadak init --standalone`). Reads
+never touch the network. Writes go to the origin (Jira on a connected profile,
+the local origin on a standalone one) and re-read the issue into the mirror
+afterwards. Kind lives on `gadak doctor --json` (`workspace.kind`). If
+`gadak status --json` includes `kind`, you may use that.
 
 Four layers. Use the lowest one that answers the question:
 
@@ -100,6 +104,8 @@ FROM issues_full
 WHERE reopen_count > 0 ORDER BY reopen_count DESC, reopened_at DESC LIMIT 20;
 
 -- 3. What is stuck, and for how long
+-- Standalone origin clocks can sit far behind wall time (GDK-369);
+-- julianday('now') then mis-ages rows. Do not rewrite this query.
 SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS days
 FROM issues WHERE status_category = 'inprogress' ORDER BY days DESC LIMIT 20;
 
@@ -120,6 +126,8 @@ FROM issues_full i, json_each(i.fix_versions) v
 WHERE v.value = '2026.8.0' ORDER BY i.resolved_at;
 
 -- 7. What moved this week, and who moved it
+-- Same GDK-369 clock caveat on standalone; datetime('now', '-7 days')
+-- then returns no rows. Do not rewrite this query.
 SELECT c.at, c.author, c.field, c.from_value, c.to_value, i.key
 FROM changelog c JOIN issues i ON i.item_id = c.item_id
 WHERE c.at > datetime('now', '-7 days') ORDER BY c.at DESC LIMIT 50;
@@ -153,8 +161,10 @@ Pipe keys from (9) into the running UI: `gadak sql --no-header "select key from 
 
 Rules that come with the file:
 
-- **Never write to the database.** Writes are Jira's job; a row written directly
-  is destroyed by the next sync. There is no exception for "just a label".
+- **Never write to the database.** Writes go through the origin (Jira on a
+  connected profile, the local origin on a standalone one); a row written
+  directly is destroyed by the next sync. There is no exception for "just a
+  label".
 - **Do not depend on `issues.raw`.** It is an escape hatch shaped by Jira's API,
   not by gadak's contract.
 - **Do not poll in a loop.** `sync_state.version` only moves when something
@@ -228,14 +238,18 @@ Text output for a search result or a write is one tab-separated line —
 `key`, `status`, `assignee`, `summary` — so `cut -f1` gives you keys. `--json` on
 a write answers `{"issue": {…IssueLite}}`, plus `"comment"` for `comment`.
 
-Writes need a credential and fail before calling Jira without one. `gadak init`
+Writes go through the origin: a **connected** profile needs a credential and
+fails before calling Jira without one; a **standalone** profile has no site
+token and writes still succeed (`gadak init --standalone --json`). `gadak init`
 takes the whole setup non-interactively, so an agent never has to drive a
 prompt — it only falls back to asking when stdin is a terminal *and* nothing was
-supplied:
+supplied (`--standalone` included):
 
 ```
 GADAK_TOKEN=$(cat token) gadak init \
   --site https://your-site.atlassian.net --email you@example.com --projects ABC --json
+
+gadak init --standalone --json
 ```
 
 There is deliberately no `--token` flag: argv is visible in `ps` and lands in
