@@ -206,9 +206,16 @@ export const ko = {
   'filter.viewName': '뷰 이름',
   'filter.searchField': '{field} 검색',
   'filter.chipFieldValue': '{field}: {value}',
+  // GDK-438 부정 칩. {neg}는 chipNegWord — 어순이 로케일마다 달라 단어만 분리해
+  // 칩이 그 단어에 스캔 무게를 줄 수 있게 한다(비전 평결).
+  'filter.chipFieldValueNot': '{field}: {value} {neg}',
+  'filter.chipNegWord': '제외',
   'filter.chipKeys': '키 {n}개',
   // CLI KeyLimitMessage (internal/jql/keys.go:21) + shown count (GDK-35).
   'filter.keysCapped': '키 목록에 값이 {given}개입니다. 한도는 {limit}개입니다. {shown}개 키를 표시합니다.',
+  // GDK-438 값 선택 메뉴의 제외 토글 (프로젝트 축).
+  'filter.excludeMode': '제외',
+  'filter.excludeModeHelp': '고른 값을 포함 대신 제외로 지정',
   'filter.chipCreatedRange': '생성 {from}~{to}',
   'filter.chipUpdatedRange': '갱신 {from}~{to}',
   'filter.chipDueRange': '기한 {from}~{to}',

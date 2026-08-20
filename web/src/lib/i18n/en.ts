@@ -205,9 +205,16 @@ export const en = {
   'filter.viewName': 'View name',
   'filter.searchField': 'Search {field}',
   'filter.chipFieldValue': '{field}: {value}',
+  // GDK-438 negation chip. {neg} is chipNegWord, split out so the chip can
+  // render just that word heavier (vision verdict: polarity must survive a scan).
+  'filter.chipFieldValueNot': '{field}: {neg} {value}',
+  'filter.chipNegWord': 'not',
   'filter.chipKeys': '{n} keys',
   // CLI KeyLimitMessage (internal/jql/keys.go:21) + shown count (GDK-35).
   'filter.keysCapped': 'key list has {given} values; the limit is {limit}. Showing {shown} keys.',
+  // GDK-438 exclude toggle in the value picker (project axes).
+  'filter.excludeMode': 'Exclude',
+  'filter.excludeModeHelp': 'Pick values to exclude instead of include',
   'filter.chipCreatedRange': 'Created {from}–{to}',
   'filter.chipUpdatedRange': 'Updated {from}–{to}',
   'filter.chipDueRange': 'Due {from}–{to}',

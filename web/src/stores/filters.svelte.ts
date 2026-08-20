@@ -29,7 +29,10 @@ import {
   isViewParam,
   KEYS_CAP,
   matchesIdFirst,
+  matchesMulti,
   MULTI_FIELDS,
+  NEGATION_BASE,
+  NEGATION_FIELDS,
   normalizeKeys,
   orderColumns,
   parseView,
@@ -38,6 +41,7 @@ import {
   type ColumnKey,
   type GroupBy,
   type MultiField,
+  type NegationField,
   type RangeField,
   type SortKey,
   type StatusCategory,
@@ -89,6 +93,12 @@ export interface ActiveChip {
   field: string
   value?: string // multi value
   label: string // display string
+  /**
+   * Negation chips only (GDK-438): [before, negWord, after] — the label split
+   * around the negation word so FilterBar can weight just that word (the
+   * polarity has to survive a scan; word order differs per locale).
+   */
+  negParts?: [string, string, string]
 }
 
 /* ── facet (value distribution for add dropdowns) ── */
@@ -327,8 +337,8 @@ class FiltersStore {
     return mergeConfig(this.#config)
   }
 
-  /** Toggle a multi value (remove if present, else add). */
-  toggleValue(field: MultiField, value: string): void {
+  /** Toggle a multi value (remove if present, else add). Negation twins share this. */
+  toggleValue(field: MultiField | NegationField, value: string): void {
     const c = this.snapshot()
     const arr = c.filters[field]
     c.filters[field] = arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value]
@@ -363,7 +373,7 @@ class FiltersStore {
   }
 
   /** Add a multi value (chip click = add filter; ignore duplicates). */
-  addValue(field: MultiField, value: string): void {
+  addValue(field: MultiField | NegationField, value: string): void {
     if (!value) return
     if (this.#config.filters[field].includes(value)) return
     const c = this.snapshot()
@@ -371,7 +381,7 @@ class FiltersStore {
     this.#apply(c)
   }
 
-  removeValue(field: MultiField, value: string): void {
+  removeValue(field: MultiField | NegationField, value: string): void {
     const c = this.snapshot()
     c.filters[field] = c.filters[field].filter((v) => v !== value)
     this.#apply(c)
@@ -564,6 +574,8 @@ function mergeConfig(c: ViewConfig): ViewConfig {
   Object.assign(base.display, c.display)
   // Clone array refs. Columns may include ones for disabled features in a saved view — normalize.
   for (const field of MULTI_FIELDS) base.filters[field] = [...(c.filters[field] ?? [])]
+  // Negation twins clone the same way (`?? []` covers saved views that predate them).
+  for (const field of NEGATION_FIELDS) base.filters[field] = [...(c.filters[field] ?? [])]
   base.filters.keys = normalizeKeys(base.filters.keys).keys
   // Saved views from before dynamic axes have no fields record at all.
   base.filters.fields = {}
@@ -694,9 +706,8 @@ export function filterIssues(
     )
       continue
     if (f.deploy_state.length && !f.deploy_state.includes(deployStateOf(it))) continue
-    if (f.jira_project.length && !f.jira_project.includes(jiraProjectOf(it))) continue
-    if (f.source_project.length && !(it.source_project && f.source_project.includes(it.source_project)))
-      continue
+    if (!matchesMulti(f.jira_project, f.jira_project_not, jiraProjectOf(it))) continue
+    if (!matchesMulti(f.source_project, f.source_project_not, it.source_project ?? '')) continue
     if (f.labels.length && !it.labels.some((l) => f.labels.includes(l))) continue
 
     if (f.keys.length) {
@@ -1095,6 +1106,28 @@ function buildChips(
       )
         label = facetLabel(field, value, all, members)
       chips.push({ kind: 'multi', field, value, label: t('filter.chipFieldValue', { field: FIELD_LABEL(field), value: label }) })
+    }
+  }
+  // Negation chips (GDK-438): labeled with the base axis's name — a negation
+  // field has no fieldLabel entry of its own and should not grow one.
+  for (const field of NEGATION_FIELDS) {
+    for (const value of f[field] ?? []) {
+      // Split the label around the negation word via a sentinel: the word's
+      // position is the locale's business, the emphasis is the chip's.
+      const negWord = t('filter.chipNegWord')
+      const raw = t('filter.chipFieldValueNot', {
+        field: FIELD_LABEL(NEGATION_BASE[field]),
+        value,
+        neg: '\u0000',
+      })
+      const [before, after] = raw.split('\u0000')
+      chips.push({
+        kind: 'multi',
+        field,
+        value,
+        label: raw.replace('\u0000', negWord),
+        negParts: [before ?? '', negWord, after ?? ''],
+      })
     }
   }
   for (const [alias, values] of Object.entries(f.fields)) {

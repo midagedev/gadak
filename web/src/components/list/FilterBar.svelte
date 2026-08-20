@@ -11,7 +11,7 @@
   import { emitJql } from '../../lib/api'
   import { isHostedDemo } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
-  import { filterFields, type MultiField, type RangeField } from '../../lib/view-config'
+  import { filterFields, negationOf, type MultiField, type NegationField, type RangeField } from '../../lib/view-config'
   import { t, fieldLabel } from '../../lib/i18n'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
@@ -39,14 +39,23 @@
   let field = $state<Axis | null>(null)
   let dateField = $state<RangeField | null>(null)
   let valueQuery = $state('')
+  // Exclude mode (GDK-438): picks land in the axis's negation list instead of
+  // its include list. Only offered on negatable axes (jira_project / source_project).
+  let excludeMode = $state(false)
   let saveOpen = $state(false)
   let saveName = $state('')
 
+  /** Whether the open axis has a negation twin (drives the exclude toggle). */
+  const negatable = $derived(!!field && !field.dynamic && !!negationOf(field.key as MultiField))
+
   const activeSet = $derived.by(() => {
-    // Selected values for the open field (for checkmarks)
+    // Selected values for the open field (for checkmarks) — in exclude mode,
+    // checkmarks reflect the negation list, so a value already excluded shows
+    // as checked and clicking it un-excludes.
     if (!field) return new Set<string>()
     if (field.dynamic) return new Set(filters.filters.fields[field.key] ?? [])
-    return new Set(filters.filters[field.key as MultiField])
+    const neg = excludeMode ? negationOf(field.key as MultiField) : null
+    return new Set(filters.filters[neg ?? (field.key as MultiField)] as string[])
   })
 
   const values = $derived.by<FacetValue[]>(() => {
@@ -63,11 +72,13 @@
     field = null
     dateField = null
     valueQuery = ''
+    excludeMode = false
   }
   function pickField(f: Axis) {
     field = f
     dateField = null
     valueQuery = ''
+    excludeMode = false
   }
   function pickDate(k: RangeField) {
     field = null
@@ -83,8 +94,13 @@
     filters.setRange(axis, from, to)
   }
   function toggle(axis: Axis, value: string) {
-    if (axis.dynamic) filters.toggleFieldValue(axis.key, value)
-    else filters.toggleValue(axis.key as MultiField, value)
+    if (axis.dynamic) {
+      filters.toggleFieldValue(axis.key, value)
+      return
+    }
+    // Exclude mode moves the pick into the axis's negation list (GDK-438).
+    const neg = excludeMode ? negationOf(axis.key as MultiField) : null
+    filters.toggleValue(neg ?? (axis.key as MultiField), value)
   }
   function closeAll() {
     open = false
@@ -158,7 +174,8 @@
       data-filter-value={chip.value ?? chip.field}
       class="group inline-flex h-control-sm items-center gap-1 rounded-md border border-accent/60 bg-accent-subtle/40 px-2.5 text-[12px] text-accent-text transition-colors hover:border-accent/75 hover:text-text-primary"
       onclick={() => {
-        if (chip.kind === 'multi') filters.removeValue(chip.field as MultiField, chip.value!)
+        if (chip.kind === 'multi')
+          filters.removeValue(chip.field as MultiField | NegationField, chip.value!)
         else if (chip.kind === 'field') filters.removeFieldValue(chip.field, chip.value!)
         else if (chip.kind === 'flag') filters.toggleFlag(chip.field as 'reopened' | 'unassigned' | 'stale')
         else if (chip.kind === 'keys') filters.clearKeys()
@@ -167,7 +184,10 @@
       title={t('filter.remove')}
       class:order-last={chip.kind === 'range'}
     >
-      <span class="truncate {chip.kind === 'range' ? 'max-w-[220px]' : 'max-w-[180px]'}">{chip.label}</span>
+      <span class="truncate {chip.kind === 'range' ? 'max-w-[220px]' : 'max-w-[180px]'}"
+        >{#if chip.negParts}{chip.negParts[0]}<span class="font-semibold">{chip.negParts[1]}</span
+          >{chip.negParts[2]}{:else}{chip.label}{/if}</span
+      >
       <Icon name="x" size={12} class="text-text-muted transition-colors group-hover:text-status-reopen" />
     </button>
   {/each}
@@ -274,6 +294,20 @@
               placeholder={t('filter.searchField', { field: field!.label })}
               class="h-control-sm min-w-0 flex-1 rounded bg-bg-base px-2 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none"
             />
+            {#if negatable}
+              <button
+                type="button"
+                data-testid="filter-exclude-mode"
+                class="flex h-control-sm flex-none items-center gap-1 rounded px-1.5 text-[11px] transition-colors {excludeMode
+                  ? 'bg-accent-subtle/40 text-accent-text'
+                  : 'text-text-muted hover:bg-bg-hover hover:text-text-primary'}"
+                onclick={() => (excludeMode = !excludeMode)}
+                title={t('filter.excludeModeHelp')}
+              >
+                <Icon name={excludeMode ? 'x' : 'plus'} size={12} />
+                {t('filter.excludeMode')}
+              </button>
+            {/if}
           </div>
           <div class="max-h-64 overflow-y-auto">
             {#if values.length === 0}

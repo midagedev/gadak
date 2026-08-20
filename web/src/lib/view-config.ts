@@ -40,6 +40,13 @@ export interface ViewFilters {
   jira_project: string[] // issue_key prefix (ABC / XYZ ...)
   source_project: string[]
   /**
+   * Negation twins of the two project axes (GDK-438): the include list
+   * narrows first, then these subtract (a value in both lists is excluded —
+   * exclude wins). Empty = no constraint. URL `pjn` / `spjn`.
+   */
+  jira_project_not: string[]
+  source_project_not: string[]
+  /**
    * Exact issue keys, given order. URL `ks` (comma-joined, uppercased).
    * Empty = no constraint. Agent ranking when no explicit sort is set.
    * Unset grouping defaults to none so that order is not shredded into buckets.
@@ -213,6 +220,41 @@ export type MultiField = (typeof MULTI_FIELDS)[number]
 /** Serialized as a multi-value param but not offered as a facet picker. */
 const HIDDEN_MULTI: ReadonlySet<MultiField> = new Set(['keys'])
 
+/* ── Multi-value negation axes (GDK-438) ──
+ *  `<field>_not` excludes values after the include list has narrowed
+ *  (intersection minus difference; exclude wins on overlap). These are NOT
+ *  part of MULTI_FIELDS — that list drives the filter menu / facets / chips
+ *  as include axes. The negation twins ride along in the same components
+ *  via negationOf(). Extending negation to another axis = entries in the
+ *  three maps below + one matchesMulti call in filterIssues.
+ */
+export const NEGATABLE_MULTI = ['jira_project', 'source_project'] as const
+export type NegatableField = (typeof NEGATABLE_MULTI)[number]
+export type NegationField = `${NegatableField}_not`
+
+export const NEGATION_FIELDS: readonly NegationField[] = NEGATABLE_MULTI.map(
+  (f): NegationField => `${f}_not`,
+)
+
+/** Which include field a negation field subtracts from. */
+export const NEGATION_BASE = {
+  jira_project_not: 'jira_project',
+  source_project_not: 'source_project',
+} as const satisfies Record<NegationField, NegatableField>
+
+/** Inverse of NEGATION_BASE — whether an axis offers exclusion. */
+export const FIELD_NEGATION = {
+  jira_project: 'jira_project_not',
+  source_project: 'source_project_not',
+} as const satisfies Record<NegatableField, NegationField>
+
+/** The negation twin of a multi field, or null when the axis is include-only. */
+export function negationOf(field: MultiField): NegationField | null {
+  return (NEGATABLE_MULTI as readonly string[]).includes(field)
+    ? FIELD_NEGATION[field as NegatableField]
+    : null
+}
+
 /**
  * Max keys accepted from a URL or saved view.
  * Same ceiling as `MaxKeys` in internal/jql/types.go (CLI CheckKeyLimit /
@@ -306,6 +348,8 @@ export function emptyFilters(): ViewFilters {
     deploy_state: [],
     jira_project: [],
     source_project: [],
+    jira_project_not: [],
+    source_project_not: [],
     keys: [],
     fields: {},
     reopened: false,
@@ -373,6 +417,12 @@ const MULTI_KEY = {
   keys: 'ks',
 } as const satisfies Record<MultiField, string>
 
+/** Negation twins serialize with an n-suffixed short key (pjn / spjn). */
+export const NEGATION_KEY = {
+  jira_project_not: 'pjn',
+  source_project_not: 'spjn',
+} as const satisfies Record<NegationField, string>
+
 /**
  * Discovered-field axes serialize as `f.<alias>` params. The alias is the
  * stable key discovery keeps across re-runs, so links survive re-discovery.
@@ -406,6 +456,7 @@ const COLS_NONE = 'none'
 type StaticViewAlias =
   | typeof Q_KEY
   | (typeof MULTI_KEY)[keyof typeof MULTI_KEY]
+  | (typeof NEGATION_KEY)[keyof typeof NEGATION_KEY]
   | (typeof RANGE_KEY)[keyof typeof RANGE_KEY]
   | typeof FLAG_KEY
   | typeof GROUP_KEY
@@ -417,6 +468,7 @@ type StaticViewAlias =
 export const VIEW_PARAM_KEYS = [
   Q_KEY,
   ...Object.values(MULTI_KEY),
+  ...Object.values(NEGATION_KEY),
   ...Object.values(RANGE_KEY),
   FLAG_KEY,
   GROUP_KEY,
@@ -442,6 +494,12 @@ export function parseView(params: URLSearchParams): { config: ViewConfig; keys: 
   for (const field of MULTI_FIELDS) {
     // Disabled-feature fields stay off even from the URL (shared links must not revive dead filters).
     f[field] = fieldEnabled(field) ? splitList(params.get(MULTI_KEY[field])) : []
+  }
+  for (const field of NEGATION_FIELDS) {
+    // Same disabled-feature rule as the include list — a negation param must
+    // not revive a dead axis either. Unknown to legacy parsers: they simply
+    // never read this key (measured; see view-config-negation.test.ts).
+    f[field] = fieldEnabled(NEGATION_BASE[field]) ? splitList(params.get(NEGATION_KEY[field])) : []
   }
   const keys = normalizeKeys(f.keys)
   f.keys = keys.keys
@@ -522,6 +580,10 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   for (const field of MULTI_FIELDS) {
     const arr = f[field] ?? []
     out[MULTI_KEY[field]] = arr.length ? arr.join(',') : null
+  }
+  for (const field of NEGATION_FIELDS) {
+    const arr = f[field] ?? []
+    out[NEGATION_KEY[field]] = arr.length ? arr.join(',') : null
   }
   for (const [alias, arr] of Object.entries(f.fields ?? {})) {
     out[DYN_FIELD_PREFIX + alias] = arr.length ? arr.join(',') : null
@@ -623,6 +685,21 @@ export function matchesIdFirst(
 }
 
 /**
+ * Multi-value match with a negation twin (GDK-438): the include list narrows
+ * first, the exclude list subtracts after — intersection minus difference, so
+ * a value in both lists is excluded (exclude wins). Empty lists are no
+ * constraint, same as the include-only axes. `value` is the row's single
+ * token for the axis ('' when the row has none: excluded by nothing, and
+ * still kept out by a non-empty include list, matching the pre-negation
+ * include behavior).
+ */
+export function matchesMulti(include: string[], exclude: string[], value: string): boolean {
+  if (include.length && !include.includes(value)) return false
+  if (exclude.length && exclude.includes(value)) return false
+  return true
+}
+
+/**
  * Sort key for priority_rank. The wire sends 0 for unset (not null); 0 must
  * sort as the lowest priority, never as more urgent than Highest (usually 1).
  */
@@ -695,6 +772,9 @@ export function isStale(issue: IssueLite): boolean {
 /** Whether any filter is active (for save-view button). Callers decide whether to exclude q. */
 export function hasAnyFilter(f: ViewFilters): boolean {
   for (const field of MULTI_FIELDS) if (f[field].length) return true
+  // `?? []` — callers can pass partial filters from saved views that predate
+  // the negation keys.
+  for (const field of NEGATION_FIELDS) if ((f[field] ?? []).length) return true
   for (const alias in f.fields) if (f.fields[alias].length) return true
   if (f.reopened || f.unassigned || f.stale) return true
   if (
