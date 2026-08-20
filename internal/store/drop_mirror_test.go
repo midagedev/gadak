@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -62,7 +63,7 @@ func TestDropSourceMirrorTakesItsWatchesAndFavorites(t *testing.T) {
 // team key ENG both produce ENG-1). Write-through is a Jira surface: the jira
 // row must win the lookup, or a legitimate Jira write gets refused on
 // whichever row an unordered LIMIT 1 happened to return (GDK-263 review).
-func TestKeySourcePrefersJiraOnCollision(t *testing.T) {
+func TestKeySourceRefusesCollision(t *testing.T) {
 	db := openTemp(t)
 	ctx := context.Background()
 	for _, src := range []string{"linear", "jira"} { // linear first: order must not matter
@@ -81,11 +82,13 @@ func TestKeySourcePrefersJiraOnCollision(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	src, err := db.KeySource(ctx, "ENG-1")
-	if err != nil {
-		t.Fatal(err)
+	// GDK-400 overturned the prefer-jira contract this test used to pin:
+	// preferring one source routed a write to a tracker the screen was not
+	// showing. A two-source key is now an explicit refusal.
+	if _, err := db.KeySource(ctx, "ENG-1"); !errors.Is(err, ErrKeyAmbiguous) {
+		t.Fatalf("KeySource(ENG-1) = %v, want ErrKeyAmbiguous", err)
 	}
-	if src != "jira" {
-		t.Fatalf("KeySource(ENG-1) = %q, want jira (write-through must not be refused)", src)
+	if src, err := db.KeySource(ctx, "MISSING-1"); err != nil || src != "" {
+		t.Fatalf("missing key = (%q, %v), want empty", src, err)
 	}
 }

@@ -190,19 +190,31 @@ func walkSimpleADF(n adfNode) bool {
 // (or a read error) answers "" — the default origin — because refusing the
 // write would break the one case that matters there: a row that has not
 // synced yet still belongs to the workspace's own tracker.
-func (s *server) keySource(ctx context.Context, key string) string {
+func (s *server) keySource(ctx context.Context, key string) (string, error) {
 	src, err := s.db.KeySource(ctx, key)
 	if err != nil {
-		return ""
+		if errors.Is(err, store.ErrKeyAmbiguous) {
+			// Two sources mint this key; routing by preference wrote to a
+			// tracker the screen was not showing (GDK-400). Refuse.
+			return "", err
+		}
+		return "", nil
 	}
-	return src
+	return src, nil
 }
 
 // keyWriter is client() routed per key: the Jira client for jira/standalone
 // rows, the Linear adapter for linear rows (GDK-361).
 func (s *server) keyWriter(w http.ResponseWriter, r *http.Request, key string) (origin.Writer, *config.Config, string, bool) {
 	cfg := s.config()
-	src := s.keySource(r.Context(), key)
+	src, err := s.keySource(r.Context(), key)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error":   "key_ambiguous",
+			"message": err.Error(),
+		})
+		return nil, nil, "", false
+	}
 	// The credential gate is the owning origin's: a Linear row needs the
 	// Linear key, not a Jira token.
 	if src != "linear" && !cfg.HasCredential() {

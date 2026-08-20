@@ -1131,6 +1131,9 @@ func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *s
 	ctx := context.Background()
 	src, err := db.KeySource(ctx, key)
 	if err != nil {
+		if errors.Is(err, store.ErrKeyAmbiguous) {
+			return err
+		}
 		src = ""
 	}
 	if src != "linear" && !cfg.HasCredential() {

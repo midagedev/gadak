@@ -82,21 +82,42 @@ const issueLiteSelect = `
 	       COALESCE(i.custom, '{}'), COALESCE(it.source_id, '')
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
+// ErrKeyAmbiguous means one key exists under more than one source (a Jira
+// project ENG and a Linear team key ENG both mint ENG-1). A write routed by
+// that key could land on the wrong tracker while the UI shows the other row
+// (GDK-400), so callers refuse instead of picking one.
+var ErrKeyAmbiguous = errors.New("this key is mirrored from more than one source — scope one side out (projects / linear.teamIds) before writing to it")
+
 // KeySource returns the source_id owning key in the mirror, "" when the key
-// is not mirrored. Write-through gates use it to refuse keys mirrored from a
-// read-only source (Linear) before spending a Jira lookup on them. A key can
-// exist under more than one source (Jira project ENG and a Linear team key
-// ENG both mint ENG-1); write-through is a Jira surface, so a jira row wins —
-// a bare LIMIT 1 would refuse a legitimate Jira write nondeterministically.
+// is not mirrored, and ErrKeyAmbiguous when two sources both mint it —
+// silently preferring one source sent writes to a tracker the screen was
+// not showing (GDK-400).
 func (db *DB) KeySource(ctx context.Context, key string) (string, error) {
-	var src string
-	err := db.sql.QueryRowContext(ctx,
-		`SELECT source_id FROM items WHERE key = ? ORDER BY source_id = 'jira' DESC LIMIT 1`,
-		key).Scan(&src)
-	if err == sql.ErrNoRows {
-		return "", nil
+	rows, err := db.sql.QueryContext(ctx,
+		`SELECT DISTINCT source_id FROM items WHERE key = ?`, key)
+	if err != nil {
+		return "", err
 	}
-	return src, err
+	defer rows.Close()
+	srcs := []string{}
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return "", err
+		}
+		srcs = append(srcs, s)
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	switch len(srcs) {
+	case 0:
+		return "", nil
+	case 1:
+		return srcs[0], nil
+	default:
+		return "", fmt.Errorf("%s: %w", key, ErrKeyAmbiguous)
+	}
 }
 
 // IssueLites returns the whole mirror, which is what `bootstrap` sends.
