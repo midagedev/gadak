@@ -5,6 +5,9 @@
 # Patterns (T7.4):
 #   - Atlassian user/org API token shapes (prefix + long payload)
 #   - Concrete *.atlassian.net hosts outside the documentation / test allowlist
+#   - Tailnet names and CGNAT addresses (operator machines, not product)
+#   - Real home directories: /Users/<name>/ or /home/<name>/ outside the
+#     placeholder allowlist — an account name, and a path nobody else has
 #   - An optional deployment-specific word list (see below)
 #
 # Real-name patterns are intentionally skipped (too many false positives).
@@ -48,6 +51,11 @@ PAT_HOST='atlassian\.net'
 # omarchy-vm.md) arrived carrying a tailnet hostname, its IP, and two
 # account names. That runbook now reads them from the environment.
 PAT_TAILNET='[A-Za-z0-9-]+\.[A-Za-z0-9-]+\.ts\.net|\b100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3}\b'
+# One author's home directory. It carries the account name, and it is also a
+# file path nobody else has: a `/Users/<name>/...` output path inside an e2e
+# spec passed every local gate and failed CI with ENOENT (GDK-254). Documented
+# placeholders are the exception — see is_placeholder_home.
+PAT_HOMEPATH='(/Users/|/home/)[A-Za-z0-9._-]+/'
 
 # Deployment-specific words, resolved from outside this file (see header).
 PAT_COMPANY=""
@@ -75,6 +83,36 @@ is_allowed_host() {
       return 1
       ;;
   esac
+}
+
+# Names a doc or test may stand a home directory up under. Anything else is
+# somebody's actual account.
+is_placeholder_home() {
+  case "$1" in
+    you|youruser|user|username|me|x|alice|bob|runner|home) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Print lines that carry a real home directory, skipping placeholder names.
+# Line-oriented matching is why this is a filter and not a bare grep: one line
+# can hold both a placeholder and nothing else, and reporting the line for the
+# placeholder is the false positive that teaches people to ignore the gate.
+filter_real_home_paths() {
+  while IFS= read -r line; do
+    # The delimiter is # because the pattern contains an alternation: with
+    # s|…|…| the | inside (Users|home) closes the expression, sed errors, and
+    # the filter silently passes a real hit (measured while writing this).
+    users="$(printf '%s\n' "$line" | grep -oE "$PAT_HOMEPATH" | sed -E 's#^/(Users|home)/##; s#/$##' || true)"
+    [[ -z "$users" ]] && continue
+    while IFS= read -r u; do
+      [[ -z "$u" ]] && continue
+      if ! is_placeholder_home "$u"; then
+        printf '%s\n' "$line"
+        break
+      fi
+    done <<<"$users"
+  done
 }
 
 # Print lines that mention a concrete disallowed <sub>.atlassian.net host.
@@ -158,6 +196,9 @@ if [[ -s "$text_list" ]]; then
   # shellcheck disable=SC2046
   grep -niHE "$PAT_HOST" -- $(cat "$text_list") 2>/dev/null \
       | filter_disallowed_hosts >>"$hits_file" || true
+  # shellcheck disable=SC2046
+  grep -nHE "$PAT_HOMEPATH" -- $(cat "$text_list") 2>/dev/null \
+      | filter_real_home_paths >>"$hits_file" || true
 fi
 
 if [[ -z "$SCAN_DIR" && -f examples/demo.db ]]; then
@@ -181,14 +222,16 @@ if [[ -s "$hits_file" ]]; then
   echo "FAILED: secret / internal-string scan found hits:"
   sort -u "$hits_file"
   echo ""
-  echo "Remove the strings, or extend the hostname allowlist in scripts/scan-internal.sh"
-  echo "if they are intentional documentation."
+  echo "Remove the strings. If a hit is intentional documentation, extend the"
+  echo "matching allowlist in scripts/scan-internal.sh: is_allowed_host for a"
+  echo "tenant hostname, is_placeholder_home for a stand-in home directory"
+  echo "(a real /Users/<name>/ path is also a file path no one else has)."
   exit 1
 fi
 
 if [[ -n "$PAT_COMPANY" ]]; then
-  echo "OK: no token-shaped secrets, listed words, or non-allowlisted tenant hosts."
+  echo "OK: no token-shaped secrets, listed words, non-allowlisted tenant hosts, or real home paths."
 else
-  echo "OK: no token-shaped secrets or non-allowlisted tenant hosts (word check skipped)."
+  echo "OK: no token-shaped secrets, non-allowlisted tenant hosts, or real home paths (word check skipped)."
 fi
 exit 0

@@ -104,7 +104,6 @@ test.describe('create fields (GDK-254)', () => {
     const dialog = await openNewIssue(page)
     await expect(dialog.getByTestId('new-issue-required-warn')).toHaveCount(0)
     await expect(dialog.getByTestId('new-issue-duedate')).toBeVisible()
-    await dialog.screenshot({ path: '/Users/hckim/repo/gadak/scratch/gdk-254-plain.png' })
     await dialog.getByPlaceholder(en['write.issueTitle']).fill('gdk-254 no fields meta')
     await dialog.getByRole('button', { name: en['common.create'] }).click()
 
@@ -159,7 +158,6 @@ test.describe('create fields (GDK-254)', () => {
     await expect(warn).toContainText('Sprint')
     await expect(warn).not.toContainText('Reporter')
     await expect(dialog.getByRole('button', { name: en['common.create'] })).toBeEnabled()
-    await dialog.screenshot({ path: '/Users/hckim/repo/gadak/scratch/gdk-254-warn.png' })
 
     await dialog.getByPlaceholder(en['write.issueTitle']).fill('gdk-254 warn still creates')
     await dialog.getByRole('button', { name: en['common.create'] }).click()
