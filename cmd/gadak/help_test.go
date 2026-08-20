@@ -161,6 +161,23 @@ func firstLine(s string) string {
 	return s
 }
 
+// TestHelpDropsIssueNumbersAndLinearLead is GDK-469: pairing --help must not
+// ship an issue key, and sync's first line must not advertise Linear to a
+// user who has not configured it.
+func TestHelpDropsIssueNumbersAndLinearLead(t *testing.T) {
+	pairing := formatHelp("pairing", nil)
+	if strings.Contains(pairing, "GDK-") {
+		t.Errorf("pairing --help still names an issue:\n%s", pairing)
+	}
+	if strings.Contains(usage, "GDK-") {
+		t.Errorf("top-level usage still names an issue:\n%s", usage)
+	}
+	syncFirst := firstLine(formatHelp("sync", nil))
+	if strings.Contains(strings.ToLower(syncFirst), "linear") {
+		t.Errorf("sync --help first line still names Linear: %q", syncFirst)
+	}
+}
+
 // TestUsageListsEveryCommand pins the top-level usage const to the command
 // table: a new verb that ships without a line there is invisible to
 // `gadak help` (GDK-426 — page and project were both missing).

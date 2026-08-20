@@ -44,15 +44,12 @@ const initSummary = "configure a Jira site and credential (projects optional), a
 // or a connected workspace with site+email+token (internal/config.HasCredential).
 const serveSyncDefault = "syncs by default on a standalone workspace, or on a connected workspace with a credential"
 
-// writeThroughOriginPhrase is the single owner of "where CLI writes go".
-// Verified: mutate in agent.go calls origin.Writer; origin.Client refuses a
-// connected workspace without site/email/token (errNeedCredential) and
-// admits a standalone workspace with no token.
-const writeThroughOriginPhrase = "on the workspace origin — Jira on a connected workspace (needs a credential), the embedded origin on a standalone one; the mirror refreshes after the origin accepts"
-
-func writeThroughHelp(action string) string {
-	return action + " " + writeThroughOriginPhrase
-}
+// writeThroughOriginPhrase is the single owner of "where CLI writes go"
+// (GDK-469). Verified: mutate in agent.go calls origin.Writer; origin.Client
+// refuses a connected workspace without site/email/token (errNeedCredential)
+// and admits a standalone workspace with no token. Verb --help first lines
+// name the verb; this sentence lives once in top-level usage.
+const writeThroughOriginPhrase = "Jira on a connected workspace (needs a credential), the embedded origin on a standalone one; the mirror refreshes after the origin accepts"
 
 // helps is the per-command help table. Summaries recycle the top-level usage
 // constant; positionals and examples match the real cmdXxx implementations.
@@ -91,7 +88,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak sync", "gadak profiles", "gadak pairing", "gadak config"},
 	},
 	"pairing": {
-		summary: "manage the device tokens that gate a standalone serve's origin passthrough (GDK-433); a paired remote machine binds with `gadak init --pairing-code`",
+		summary: "manage the device tokens that gate a standalone serve's origin passthrough; a paired remote machine binds with `gadak init --pairing-code`",
 		usage:   "gadak [--profile <name>] pairing mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | pairing list | pairing revoke <label|hash-prefix>",
 		options: []helpOption{
 			{name: "label", desc: "device name shown in `gadak pairing list` (required, unique among active tokens)"},
@@ -131,7 +128,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak init", "gadak status"},
 	},
 	"sync": {
-		summary: "mirror the workspace origin (Jira, standalone, Linear, Confluence) into the local SQLite database",
+		summary: "mirror the workspace origin into the local SQLite database",
 		usage:   "gadak [--profile <name>] sync [--full] [--watch] [--source jira|linear|confluence|all]",
 		examples: []string{
 			"gadak sync                 # incremental, what a serve loop does",
@@ -330,7 +327,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak issue", "gadak sql"},
 	},
 	"comment": {
-		summary: writeThroughHelp("add a comment"),
+		summary: "add a comment",
 		usage:   "gadak [--profile <name>] comment <KEY> -m <text|-> [--json]",
 		examples: []string{
 			"gadak comment NMB-140 -m \"Reproduced on staging.\"",
@@ -340,7 +337,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak transition", "gadak assign", "gadak issue"},
 	},
 	"create": {
-		summary: writeThroughHelp("create an issue"),
+		summary: "create an issue",
 		usage:   "gadak [--profile <name>] create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--json]",
 		examples: []string{
 			"gadak create Fix the flaky gate --project NMB --type Task -m \"repro on staging\" --label batch",
@@ -352,7 +349,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak attach", "gadak edit", "gadak comment", "gadak transition", "gadak assign", "gadak issue"},
 	},
 	"attach": {
-		summary: writeThroughHelp("attach files"),
+		summary: "attach files",
 		usage:   "gadak [--profile <name>] attach <KEY> <file>... [--json]",
 		examples: []string{
 			"gadak attach NMB-140 ./screenshot.png",
@@ -361,7 +358,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak edit", "gadak issue"},
 	},
 	"edit": {
-		summary: writeThroughHelp("edit summary, description, labels, priority, parent, or due date"),
+		summary: "edit summary, description, labels, priority, parent, or due date",
 		usage:   "gadak [--profile <name>] edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]",
 		examples: []string{
 			"gadak edit NMB-140 --summary \"Rename without opening Jira\"",
@@ -393,7 +390,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak init"},
 	},
 	"transition": {
-		summary: writeThroughHelp("change issue status") + "; accepts transition id, target status id, name, target status name, or status category new|inprogress|done",
+		summary: "change issue status; accepts transition id, target status id, name, target status name, or status category new|inprogress|done",
 		usage:   "gadak [--profile <name>] transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]",
 		examples: []string{
 			"gadak transition NMB-140 \"In Review\"",
@@ -404,7 +401,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak comment", "gadak assign", "gadak issue"},
 	},
 	"assign": {
-		summary: writeThroughHelp("set the assignee") + "; pass - to unassign",
+		summary: "set the assignee; pass - to unassign",
 		usage:   "gadak [--profile <name>] assign <KEY> <email|-> [--json]",
 		examples: []string{
 			"gadak assign NMB-140 dana@example.com",

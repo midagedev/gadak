@@ -11,6 +11,30 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
+func TestServeScopeLogStandaloneOmitsAccount(t *testing.T) {
+	// GDK-464
+	st := serveScopeLog(&config.Config{Kind: config.KindStandalone, DefaultProject: origin.DefaultProjectKey})
+	if strings.Contains(st, "this account") {
+		t.Fatalf("standalone serve line still mentions an account: %q", st)
+	}
+	if st != "syncing "+origin.DefaultProjectKey {
+		t.Fatalf("standalone serve line = %q", st)
+	}
+	connected := serveScopeLog(&config.Config{
+		Site: "https://example.atlassian.net", Email: "a@b.c", Token: "t",
+	})
+	if connected != "no project filter — syncing everything this account can see" {
+		t.Fatalf("connected empty-projects line = %q", connected)
+	}
+	filtered := serveScopeLog(&config.Config{
+		Site: "https://example.atlassian.net", Email: "a@b.c", Token: "t",
+		Projects: []string{"NMB"},
+	})
+	if filtered != "" {
+		t.Fatalf("connected with projects must omit the filter line, got %q", filtered)
+	}
+}
+
 func TestParseServeOpts_AddrPinned(t *testing.T) {
 	// Default addr is not a pin — fallback may run on conflict.
 	opts, err := parseServeOpts(nil)

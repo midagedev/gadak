@@ -170,7 +170,7 @@ Reading the mirror (no network; see AGENTS.md):
 Atlassian REST escape hatch (needs a credential; not on MCP):
   api        raw REST call    [METHOD] <PATH> [--query k=v] [--data …] [--write] [--status]
 
-Writing through to the workspace origin:
+Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   create     create an issue  [--] <SUMMARY> [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]
   attach     attach files     <KEY> <file>... [--json]
   edit       edit an issue    <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--json]
@@ -183,7 +183,7 @@ Writing through to the workspace origin:
   team       share team settings/views  export [--out] [--with-members]
                                         import <FILE|-> [--dry-run] [--overwrite]
 
-Pairing other machines onto this serve (standalone, GDK-433):
+Pairing other machines onto this serve (standalone):
   pairing    device tokens gating the origin passthrough  mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | list | revoke <label|hash-prefix>
 
 Profiles keep separate credentials and mirrors (e.g. work and demo):

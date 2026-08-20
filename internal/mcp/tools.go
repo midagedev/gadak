@@ -72,7 +72,7 @@ names. Jira localizes status.name and issuetype.name per account, so
 
 Only SELECT or WITH is allowed. Results are capped (default 200 rows, hard max
 1000; response also byte-capped). When truncated, the result says so — tighten
-LIMIT or columns and retry. Never write to this database; writes go through Jira.
+LIMIT or columns and retry. Never write to this database; writes go through the origin (Jira, another machine's serve, or the built-in standalone tracker).
 
 Examples:
 1) Open work for someone, most urgent first:
@@ -100,6 +100,9 @@ const toolSearchDescription = `Find issues and wiki pages by a recalled phrase (
 Use ONLY when the user does not have keys yet and is remembering wording
 ("the ticket about webhook retry"). Argument: {query: string, limit?: number}.
 Aliases: text, q.
+
+CJK mid-compound matches: '결제' hits '간편결제' (cjk_bigram column). English
+middles still miss ('ency' ≠ 'idempotency').
 
 Do NOT use this for counts, grouping, "who is loaded", "what is stuck",
 "what was reopened", time windows, or epic rollups. Those are gadak_query.

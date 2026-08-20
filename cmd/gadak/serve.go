@@ -137,7 +137,8 @@ func startServeLoops(ctx context.Context, api *server.Handler, db *store.DB, cfg
 
 	// Default: keep the mirror fresh whenever HasCredential is true
 	// (standalone origin, or connected with site+email+token). Empty
-	// projects means "everything this account can see". --no-sync opts out
+	// projects on a connected workspace means "everything this account can
+	// see"; standalone copy is serveScopeLog (GDK-464). --no-sync opts out
 	// (fixtures with a fake token must pass it). --sync remains a silent alias
 	// when the loop would start anyway; with no credential it still prints the
 	// old guidance line. When serve starts without a credential, register the
@@ -233,8 +234,8 @@ func runServeHTTP(ctx context.Context, mux http.Handler, preferred string, addrP
 	if p := config.Profile(); p != "" {
 		log.Printf("profile: %s", p)
 	}
-	if len(cfg.Projects) == 0 && cfg.HasCredential() {
-		log.Printf("no project filter — syncing everything this account can see")
+	if line := serveScopeLog(cfg); line != "" {
+		log.Printf("%s", line)
 	}
 	if !noOpen {
 		go openOnceUp(openURL)
@@ -244,6 +245,29 @@ func runServeHTTP(ctx context.Context, mux http.Handler, preferred string, addrP
 		return nil
 	}
 	return err
+}
+
+// serveScopeLog is the listen-time project-scope line. Empty means print
+// nothing. GDK-464: standalone has no account — name the seeded project
+// instead of "this account can see". cfg.IsStandalone() is the only branch.
+func serveScopeLog(cfg *config.Config) string {
+	if cfg == nil || !cfg.HasCredential() {
+		return ""
+	}
+	if cfg.IsStandalone() {
+		if len(cfg.Projects) != 0 {
+			return ""
+		}
+		p := strings.TrimSpace(cfg.DefaultProject)
+		if p == "" {
+			p = origin.DefaultProjectKey
+		}
+		return "syncing " + p
+	}
+	if len(cfg.Projects) == 0 {
+		return "no project filter — syncing everything this account can see"
+	}
+	return ""
 }
 
 func cmdServe(args []string) error {

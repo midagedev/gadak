@@ -700,6 +700,36 @@ func TestSearchMissingQueryIsErrorNotEmptyResult(t *testing.T) {
 	}
 }
 
+// TestToolDescriptionsOriginAndCJK is GDK-471: gadak_query must not summarise
+// writes as Jira-only (standalone and paired origins exist), and gadak_search
+// must carry the CJK mid-compound sentence. Primary search argument stays query.
+func TestToolDescriptionsOriginAndCJK(t *testing.T) {
+	var query, search Tool
+	for _, def := range toolDefinitions() {
+		switch def.Name {
+		case toolQuery:
+			query = def
+		case toolSearch:
+			search = def
+		}
+	}
+	if query.Name == "" || search.Name == "" {
+		t.Fatal("missing gadak_query or gadak_search")
+	}
+	if !strings.Contains(query.Description, "writes go through the origin") {
+		t.Errorf("gadak_query missing origin write sentence:\n%s", query.Description)
+	}
+	if strings.Contains(query.Description, "writes go through Jira.") {
+		t.Errorf("gadak_query still says writes go through Jira only")
+	}
+	if !strings.Contains(search.Description, "결제") {
+		t.Errorf("gadak_search missing CJK mid-compound sentence:\n%s", search.Description)
+	}
+	if !strings.Contains(search.Description, "{query:") {
+		t.Errorf("gadak_search must keep query as the primary argument:\n%s", search.Description)
+	}
+}
+
 func TestToolsListQueryBeforeSearch(t *testing.T) {
 	db := demoDB(t)
 	resps := session(t, db, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)

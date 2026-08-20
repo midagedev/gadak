@@ -38,7 +38,9 @@ func importFilters(ctx context.Context, c *jira.Client, cfg *config.Config, db *
 		opts.logf("filters: store failed (%v)", err)
 		return
 	}
-	opts.logf("filters: %d from Jira", len(out))
+	if cfg == nil || !cfg.IsStandalone() {
+		opts.logf("filters: %d from Jira", len(out))
+	}
 }
 
 func identityFromConfig(cfg *config.Config) jql.Identity {

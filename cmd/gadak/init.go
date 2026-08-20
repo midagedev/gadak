@@ -436,11 +436,13 @@ func cmdInit(args []string) error {
 }
 
 // initStandalone writes a workspace that is not bound to a Jira site.
-// No /myself call: there is no credential. The origin snapshot is created
+// There is no site credential. GET /myself is the in-process origin, used
+// only to print the default author (GDK-482). The origin snapshot is created
 // on first origin.Client (PersistPath under the profile directory).
 // DefaultConfluenceConfig turns the wiki sync pass on and scopes it to the
 // space the standalone origin seeds.
 func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error {
+	already := cfg.IsStandalone()
 	cfg.Kind = config.KindStandalone
 	cfg.Site = ""
 	cfg.Email = ""
@@ -493,6 +495,7 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 	if err := fillStandaloneMirror(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not fill the mirror yet (%v) — run `gadak sync`\n", err)
 	}
+	author := standaloneAuthorName(cfg)
 	if err := origin.Close(); err != nil {
 		return fmt.Errorf("flush origin persist: %w", err)
 	}
@@ -500,8 +503,17 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 	if jsonOut {
 		return writeInitJSON(cfg, "", p)
 	}
-	fmt.Printf("standalone workspace — saved %s\n", p)
 	_, persist := origin.Describe(cfg)
+	if already {
+		// GDK-465: re-init of an already-standalone home is one line, not
+		// the first-run next list.
+		if persist == "" {
+			persist = p
+		}
+		fmt.Printf("already standalone at %s\n", persist)
+		return nil
+	}
+	fmt.Printf("standalone workspace — saved %s\n", p)
 	if persist != "" {
 		fmt.Printf("origin persist (this file is the original): %s\n", persist)
 	}
@@ -510,6 +522,11 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 		// defaults are something the person saw rather than found out.
 		fmt.Printf("new issues default to %s / %s — change them in %s\n",
 			cfg.DefaultProject, cfg.DefaultIssueType, p)
+	}
+	if author != "" {
+		// GDK-482: there is no CLI verb that changes this display name
+		// (config list has no path; issuetap seeds the fixture user).
+		fmt.Printf("issues are authored as %s (the workspace default)\n", author)
 	}
 	printInitNextSteps(cfg.WorkspaceKind())
 	return nil
@@ -616,18 +633,43 @@ func fillStandaloneMirror(cfg *config.Config) error {
 // printInitNextSteps ends `init` with the whole path to value, not just the
 // next command. Kind owns the duration hedge: a standalone first sync is
 // local (the fill already ran); a connected first run can take minutes.
+// printPairedInitNextSteps is the paired twin (pairing.go) — do not fold it in.
 func printInitNextSteps(kind string) {
-	syncLine := "  gadak sync                    fill the mirror (a few minutes on a first run)"
 	if kind == config.KindStandalone {
-		syncLine = "  gadak sync                    fill the mirror"
+		// GDK-465: the mirror is already filled; skill-first, MCP secondary.
+		fmt.Printf(`
+next:
+  gadak create "first ticket"   file an issue in this workspace
+  gadak serve                   read it in the browser
+  gadak skill install           let a coding agent use it (shell-less hosts: gadak mcp install claude)
+`)
+		return
 	}
 	fmt.Printf(`
 next:
-%s
+  gadak sync                    fill the mirror (a few minutes on a first run)
   gadak serve                   read it in the browser
   gadak mcp install claude      let your coding agent query it (also: cursor, codex)
 
 docs/AGENT_SETUP.md has one paste per agent; docs/RECIPES.md has the questions
 JQL cannot ask.
-`, syncLine)
+`)
+}
+
+// standaloneAuthorName is the display name GET /myself returns on the
+// in-process origin. Empty if the origin cannot answer — the init success
+// line is then omitted rather than inventing a name. GDK-482: no gadak
+// verb changes this (measured against config list paths and issuetap seed).
+func standaloneAuthorName(cfg *config.Config) string {
+	c, err := origin.Client(cfg)
+	if err != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	me, err := c.Myself(ctx)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(me.DisplayName)
 }

@@ -261,7 +261,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			// Newest activity first: the mirror is usable the moment the first
 			// page lands, instead of after every historical issue. The watermark
 			// is max(updated) over fetched pages, so ordering does not affect it.
-			beginSearch("full sync: every project this account can see", jql, true)
+			beginSearch("full sync: "+scopeLabel(cfg), jql, true)
 			if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
 				return record(ctx, cfg, db, SourceID, err)
 			}
@@ -279,8 +279,8 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		}
 	} else {
 		jql := incrementalJQL(cfg.Projects, state.Watermark)
-		beginSearch("incremental: "+scopeLabel(cfg.Projects)+" — changes since "+sinceLabel(state.Watermark), jql, false)
-		if discoveryMode {
+		beginSearch("incremental: "+scopeLabel(cfg)+" — changes since "+sinceLabel(state.Watermark), jql, false)
+		if discoveryMode && !cfg.IsStandalone() {
 			opts.logf("tip: run `gadak sync --full` once to auto-configure custom fields")
 		}
 		if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
@@ -920,12 +920,24 @@ func reconcileJQL(projects []string) string {
 	return fmt.Sprintf("project in (%s) ORDER BY created ASC", quoteList(projects))
 }
 
-// scopeLabel is the human scope fragment on incremental start lines.
-func scopeLabel(projects []string) string {
-	if len(projects) == 0 {
+// scopeLabel is the human scope fragment on sync start lines.
+// GDK-464: kind=standalone has no account — name the seeded project, never
+// "this account". cfg.IsStandalone() is the only discriminator.
+func scopeLabel(cfg *config.Config) string {
+	if cfg != nil && cfg.IsStandalone() {
+		if len(cfg.Projects) > 0 {
+			return strings.Join(cfg.Projects, ", ")
+		}
+		p := strings.TrimSpace(cfg.DefaultProject)
+		if p == "" {
+			p = origin.DefaultProjectKey
+		}
+		return p
+	}
+	if cfg == nil || len(cfg.Projects) == 0 {
 		return "every project this account can see"
 	}
-	return strings.Join(projects, ", ")
+	return strings.Join(cfg.Projects, ", ")
 }
 
 // sinceLabel is the human "changes since …" clock for incremental start lines
