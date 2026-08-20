@@ -172,6 +172,15 @@ func cmdInit(args []string) error {
 	// standalone workspace is allowed through without that flag.
 	wasStandalone := cfg.IsStandalone()
 
+	// CLI conversion while serve/desktop has this workspace open would
+	// race the persist owner (GDK-415). HTTP onboarding is the owner
+	// process and does not take this gate.
+	if wasStandalone {
+		if err := originbind.RefuseIfOpen(cfg); err != nil {
+			return err
+		}
+	}
+
 	// Close the class "a command silently changes which origin owns this
 	// workspace". An empty standalone workspace is not a hazard; one that
 	// holds locally originated issues is (GDK-238).
@@ -315,32 +324,18 @@ func cmdInit(args []string) error {
 	cfg.Projects = projects
 	// Reached only after RefuseReplace (or --replace-standalone).
 	originbind.ClearStandalone(cfg)
-	// A workspace is bound to one origin. initStandalone writes the seeded
-	// space (LOC) so the wiki pass is on; that key is not a Cloud space, so
-	// converting to a connected origin drops it. Keyed on wasStandalone, not
-	// on --replace-standalone: the empty-workspace path reaches here without
-	// that flag and would otherwise ask a real site for a space named LOC.
-	// --spaces still owns the connected wiki scope below (untouched).
-	if wasStandalone && *spacesFlag == "" {
-		cfg.Confluence = nil
-	}
-	// Converting drops the old origin's mirror whole (GDK-241): a mirror
-	// written by a pre-namespace build holds `jira:N` rows the new site's
-	// upsert would silently overwrite on an id collision, and namespaced
-	// rows would only leave via reconcile. The mirror is a disposable
-	// cache — the first connected sync refills it, and the cleared
-	// sync_state watermark makes that sync full. Runs before Save so a
-	// failed init leaves the workspace standalone with a refillable mirror.
+	// A workspace is bound to one origin. Conversion drops the seeded LOC
+	// space and the old origin's mirror (watches/favorites keyed into it
+	// go with it). Shared with HTTP onboarding so the two paths cannot
+	// diverge. --spaces still owns the connected wiki scope below.
 	if wasStandalone {
 		db, err := openStore()
 		if err != nil {
 			return err
 		}
-		for _, src := range []string{syncer.SourceID, syncer.ConfluenceSourceID} {
-			if err := db.DropSourceMirror(context.Background(), src); err != nil {
-				_ = db.Close()
-				return fmt.Errorf("drop standalone mirror: %w", err)
-			}
+		if err := originbind.DropStandaloneProjection(cfg, db); err != nil {
+			_ = db.Close()
+			return err
 		}
 		if err := db.Close(); err != nil {
 			return err
@@ -424,7 +419,11 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 		cfg.Projects = parseProjectKeys(projectsFlag)
 	}
 	if strings.TrimSpace(cfg.DefaultProject) == "" {
-		cfg.DefaultProject = origin.DefaultProjectKey
+		if len(cfg.Projects) > 0 {
+			cfg.DefaultProject = cfg.Projects[0]
+		} else {
+			cfg.DefaultProject = origin.DefaultProjectKey
+		}
 	}
 	if err := cfg.Save(); err != nil {
 		return err

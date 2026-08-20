@@ -892,7 +892,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, err)
 		return
 	}
-	metaProj, types, err := create.MetaFor(meta, proj.Value)
+	metaProj, types, err := create.MetaFor(meta, proj.Value, cfg)
 	if err != nil {
 		failCreate(w, err)
 		return

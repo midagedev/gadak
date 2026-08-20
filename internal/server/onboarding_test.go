@@ -628,6 +628,64 @@ func TestConnectEmptyStandaloneClearsKind(t *testing.T) {
 	}
 }
 
+// TestConnectReplaceStandaloneDropsWatchesFavoritesAndLOC is GDK-416/418:
+// HTTP conversion must run the same cleanup as CLI init (mirror drop,
+// which takes watches/favorites, and the seeded LOC space).
+//
+// FAIL-first: handleConnect only ClearStandalone + Save.
+func TestConnectReplaceStandaloneDropsWatchesFavoritesAndLOC(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	f := newOnboardJira(t)
+	db, cfg := fixture(t)
+	cfg.Site, cfg.Email, cfg.Token = "", "", ""
+	cfg.Projects = nil
+	cfg.Kind = config.KindStandalone
+	cfg.Confluence = origin.DefaultConfluenceConfig()
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := db.SetWatch(ctx, "NMB-1", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetFavorite(ctx, "NMB-1", true); err != nil {
+		t.Fatal(err)
+	}
+	h := New(db, cfg)
+
+	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
+		`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"tok","replace_standalone":true}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+
+	watches, err := db.Watches(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(watches) != 0 {
+		t.Fatalf("watches survived HTTP convert: %v", watches)
+	}
+	favorites, err := db.Favorites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(favorites) != 0 {
+		t.Fatalf("favorites survived HTTP convert: %v", favorites)
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Confluence != nil {
+		t.Fatalf("seeded LOC survived HTTP convert: %+v", saved.Confluence)
+	}
+	if saved.IsStandalone() {
+		t.Fatal("replace_standalone must leave IsStandalone false")
+	}
+}
+
 func connect(t *testing.T, h http.Handler, f *onboardJira) {
 	t.Helper()
 	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",

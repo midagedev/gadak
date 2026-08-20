@@ -86,6 +86,7 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, err)
 		return
 	}
+	wasStandalone := s.config().IsStandalone()
 	next := *s.config()
 	next.Site, next.Email, next.Token = site, email, token
 	next.TokenOwner, next.TokenVerifiedAt = me.DisplayName, store.Now()
@@ -95,6 +96,12 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	originbind.ClearStandalone(&next)
+	if wasStandalone {
+		if err := originbind.DropStandaloneProjection(&next, s.db); err != nil {
+			serverError(w, r, err)
+			return
+		}
+	}
 	if err := next.Save(); err != nil {
 		serverError(w, r, err)
 		return

@@ -60,12 +60,12 @@ func TestGDK343SecondProcessCannotEmbed(t *testing.T) {
 // process is allowed to come back (origin.Close contract).
 func TestGDK343LockReleasedOnClose(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), "origin", "issuetap.yaml")
-	a, err := constructStandalone(persist)
+	a, err := constructStandalone(persist, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	closeSession(a)
-	b, err := constructStandalone(persist)
+	b, err := constructStandalone(persist, nil)
 	if err != nil {
 		t.Fatalf("construct after close: %v", err)
 	}

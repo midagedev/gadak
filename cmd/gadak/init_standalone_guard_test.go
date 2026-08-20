@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -235,5 +237,176 @@ func TestInitReplaceStandaloneRejectedWithStandalone(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "--replace-standalone") {
 		t.Fatalf("error %v", err)
+	}
+}
+
+// advertiseLiveServe writes serve-origin.json pointing at a probe that
+// answers as this profile, so origin.OwnerStatus reports a live serve.
+func advertiseLiveServe(t *testing.T, home string) *httptest.Server {
+	t.Helper()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != origin.ProbePath {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("X-Gadak", "1")
+		w.Header().Set("X-Gadak-Profile", config.Profile())
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"running":false}`))
+	}))
+	t.Cleanup(ts.Close)
+	if err := origin.WriteAdvertise(home, ts.Listener.Addr().String()); err != nil {
+		t.Fatal(err)
+	}
+	return ts
+}
+
+// TestInitReplaceStandaloneRefusesWhenAdvertiseLive is GDK-415: converting
+// while a serve (or desktop) has the workspace open must not proceed.
+//
+// FAIL-first: --replace-standalone skips LocalData and currently succeeds.
+func TestInitReplaceStandaloneRefusesWhenAdvertiseLive(t *testing.T) {
+	home := seedStandaloneWithIssue(t)
+	advertiseLiveServe(t, home)
+	srv := myselfServer(t)
+	withClosedStdin(t, func() {
+		_, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "agent@example.com",
+				"--token-file", writeTokenFile(t, home, "id-token"),
+				"--replace-standalone",
+			})
+		})
+		if err == nil {
+			t.Fatal("replace-standalone must refuse when another process has the workspace open")
+		}
+		if !strings.Contains(err.Error(), "has this workspace open") {
+			t.Fatalf("want workspace-open refusal, got: %v", err)
+		}
+		if strings.Contains(err.Error(), "Jira") {
+			t.Fatalf("must not assume Jira: %v", err)
+		}
+	})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.IsStandalone() {
+		t.Fatal("refused conversion must leave the workspace standalone")
+	}
+}
+
+// TestInitReplaceStandaloneRefusesWhenPersistLocked is GDK-415's lock path:
+// a held persist lock without a live advertise still refuses conversion.
+//
+// FAIL-first: --replace-standalone skips LocalData and currently succeeds.
+func TestInitReplaceStandaloneRefusesWhenPersistLocked(t *testing.T) {
+	home := seedStandaloneWithIssue(t)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := origin.Client(cfg); err != nil {
+		t.Fatalf("lock holder: %v", err)
+	}
+	origin.ForgetLive()
+
+	srv := myselfServer(t)
+	withClosedStdin(t, func() {
+		_, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "agent@example.com",
+				"--token-file", writeTokenFile(t, home, "id-token"),
+				"--replace-standalone",
+			})
+		})
+		if err == nil {
+			t.Fatal("replace-standalone must refuse when persist is locked")
+		}
+		if !strings.Contains(err.Error(), "has this workspace open") {
+			t.Fatalf("want workspace-open refusal, got: %v", err)
+		}
+	})
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.IsStandalone() {
+		t.Fatal("refused conversion must leave the workspace standalone")
+	}
+}
+
+// TestInitStandaloneProjectsSeedsOrigin is GDK-390: --projects keys must
+// land in the origin persist fixture, so create --project IDEA works.
+//
+// FAIL-first: defaultStandaloneFixture only names STD.
+func TestInitStandaloneProjectsSeedsOrigin(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+	if _, err := capture(t, func() error {
+		return cmdInit([]string{"--standalone", "--json", "--projects", "IDEA,FOO"})
+	}); err != nil {
+		t.Fatalf("init --standalone --projects: %v", err)
+	}
+	raw, err := os.ReadFile(origin.PersistPath(home))
+	if err != nil {
+		t.Fatalf("read persist: %v", err)
+	}
+	body := string(raw)
+	for _, key := range []string{"IDEA", "FOO"} {
+		if !strings.Contains(body, "key: "+key) && !strings.Contains(body, `key: "`+key+`"`) {
+			t.Fatalf("persist missing project %s:\n%s", key, body)
+		}
+	}
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"--project", "IDEA", "--type", "Task", "from seeded project"})
+	})
+	if err != nil {
+		t.Fatalf("create --project IDEA: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "IDEA-") {
+		t.Fatalf("created key should be IDEA-N, got %q", out)
+	}
+}
+
+// TestCreateStandaloneUnknownProjectDoesNotAssumeCredential is GDK-390's
+// create-error wording: standalone has no site credential.
+//
+// FAIL-first: MetaFor always says "this credential cannot create issues".
+func TestCreateStandaloneUnknownProjectDoesNotAssumeCredential(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+	if _, err := capture(t, func() error {
+		return cmdInit([]string{"--standalone", "--json"})
+	}); err != nil {
+		t.Fatalf("init --standalone: %v", err)
+	}
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"--project", "NOSUCH", "--type", "Task", "nowhere"})
+	})
+	if err == nil {
+		t.Fatal("create in a missing standalone project must fail")
+	}
+	if strings.Contains(err.Error(), "credential") {
+		t.Fatalf("standalone must not assume a credential: %v", err)
+	}
+	if !strings.Contains(err.Error(), "does not exist in this workspace") {
+		t.Fatalf("want project-does-not-exist wording, got: %v", err)
 	}
 }

@@ -369,6 +369,12 @@ func seedStandaloneWithPage(t *testing.T) (home, pageID string) {
 	if err != nil {
 		t.Fatalf("standalone wiki sync: %v\n%s", err, out)
 	}
+	// Production `gadak sync` exits and the kernel drops the persist lock.
+	// This test stays in-process; leave the lock and CLI conversion
+	// correctly refuses (GDK-415).
+	if err := origin.Close(); err != nil {
+		t.Fatalf("origin.Close after wiki sync: %v", err)
+	}
 	return home, created.ID
 }
 

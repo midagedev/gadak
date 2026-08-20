@@ -1074,12 +1074,12 @@ export const ko = {
   'onboarding.openSettings': '설정 열기',
   'onboarding.cliHint': '같은 설정을 터미널에서 gadak init 으로도 할 수 있습니다.',
   'onboarding.standaloneBlocked':
-    '이 워크스페이스는 standalone 이고 여기서만 존재하는 로컬 원본 이슈가 {n}개 있습니다. 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 미러에서 그 이슈들이 즉시 삭제됩니다.',
+    '이 워크스페이스는 standalone 이고 여기서만 존재하는 로컬 원본 이슈 또는 페이지가 {n}개 있습니다. 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 미러에서 그 이슈 또는 페이지들이 즉시 삭제됩니다.',
   'onboarding.standalonePersist': 'origin persist 파일: {path}',
   'onboarding.standaloneOtherWorkspace':
     '사이트는 별도 워크스페이스에 연결하세요: gadak --profile <name> init (워크스페이스 목록은 gadak profiles).',
   'onboarding.standaloneReplaceConfirm':
-    '그래도 이 워크스페이스를 교체합니다. 전환하면 미러에서 이 이슈들이 즉시 삭제됩니다.',
+    '그래도 이 워크스페이스를 교체합니다. 전환하면 미러에서 이 이슈 또는 페이지들이 즉시 삭제됩니다.',
   'onboarding.standaloneReplace': '교체하고 연결',
 
   /* ── 단축키 치트시트(?) ── */

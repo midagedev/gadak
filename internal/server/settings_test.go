@@ -16,6 +16,37 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
+// TestSettingsSpacesStandaloneBusyIsNotCredentialRequired is GDK-419:
+// origin.Wiki failure on a standalone workspace used to 409
+// credential_required and open the token dialog. Standalone has no token.
+//
+// FAIL-first: handleSettingsSpaces maps every Wiki() error to credential_required.
+func TestSettingsSpacesStandaloneBusyIsNotCredentialRequired(t *testing.T) {
+	h, cfg := standaloneServer(t)
+	if _, err := origin.Client(cfg); err != nil {
+		t.Fatal(err)
+	}
+	origin.ForgetLive()
+
+	rec := get(t, h, apiBase+"settings/spaces/", nil)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status %d, want 409; body %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Error == "credential_required" {
+		t.Fatal("origin.Wiki failure disguised as credential_required")
+	}
+	if body.Error != "workspace_busy" {
+		t.Fatalf("error %q, want workspace_busy", body.Error)
+	}
+}
+
 func TestSettingsSyncIntervalsRoundtrip(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)

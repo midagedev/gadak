@@ -206,7 +206,7 @@ func (s *server) handleSettingsSpaces(w http.ResponseWriter, r *http.Request) {
 	}
 	c, err := origin.Wiki(cfg)
 	if err != nil {
-		fail(w, http.StatusConflict, "credential_required")
+		failOriginClient(w, err)
 		return
 	}
 	listed, err := c.Spaces(r.Context())

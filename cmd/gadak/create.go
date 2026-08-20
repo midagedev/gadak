@@ -232,7 +232,7 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	if err != nil {
 		return "", nil, err
 	}
-	proj, types, err := create.MetaFor(meta, projRes.Value)
+	proj, types, err := create.MetaFor(meta, projRes.Value, cfg)
 	if err != nil {
 		return "", nil, err
 	}

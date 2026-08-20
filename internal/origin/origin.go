@@ -285,7 +285,11 @@ func standaloneSession(cfg *config.Config) (*session, error) {
 	}
 
 	sessionInFlight.Add(1)
-	s, err := constructStandalone(persist)
+	var projects []string
+	if cfg != nil {
+		projects = cfg.Projects
+	}
+	s, err := constructStandalone(persist, projects)
 	sessionInFlight.Add(-1)
 
 	mu.Lock()
@@ -311,7 +315,7 @@ func standaloneSession(cfg *config.Config) (*session, error) {
 	return s, nil
 }
 
-func constructStandalone(persist string) (*session, error) {
+func constructStandalone(persist string, projects []string) (*session, error) {
 	sessionsConstructed.Add(1)
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
 		return nil, fmt.Errorf("origin: persist dir: %w", err)
@@ -328,7 +332,7 @@ func constructStandalone(persist string) (*session, error) {
 
 	emb, err := issuetap.NewEmbedded(issuetap.EmbeddedConfig{
 		PersistPath:  persist,
-		FixtureBytes: defaultStandaloneFixture,
+		FixtureBytes: standaloneFixture(projects),
 		// The persist file is the origin — a write we acknowledged must be
 		// on disk before the response, not a debounce window later. A
 		// negative debounce is issuetap's durable-before-return mode
@@ -417,21 +421,37 @@ func Close() error {
 	return first
 }
 
-// defaultStandaloneFixture is applied only when PersistPath does not yet
-// exist. It names one project so createmeta/create have a target, and one
-// space so page create has a target; it does not seed issues or pages.
-// When the persist file is present, issuetap skips this.
+// standaloneFixture is applied only when PersistPath does not yet exist.
+// It names the requested projects (or DefaultProjectKey when the list is
+// empty) so createmeta/create have a target, and one space so page create
+// has a target; it does not seed issues or pages. When the persist file is
+// present, issuetap skips this.
 //
 // Keys come from DefaultProjectKey / DefaultSpaceKey so the literals are
 // not scattered.
-var defaultStandaloneFixture = []byte("projects:\n" +
-	"  - id: \"10000\"\n" +
-	"    key: " + DefaultProjectKey + "\n" +
-	"    name: Standalone\n" +
-	"    type: software\n" +
-	"    style: classic\n" +
-	"spaces:\n" +
-	"  - id: \"40000\"\n" +
-	"    key: " + DefaultSpaceKey + "\n" +
-	"    name: Local\n" +
-	"    type: global\n")
+func standaloneFixture(projects []string) []byte {
+	keys := make([]string, 0, len(projects))
+	seen := map[string]bool{}
+	for _, k := range projects {
+		if k == "" || seen[k] {
+			continue
+		}
+		seen[k] = true
+		keys = append(keys, k)
+	}
+	if len(keys) == 0 {
+		keys = []string{DefaultProjectKey}
+	}
+	var b []byte
+	b = append(b, "projects:\n"...)
+	for i, key := range keys {
+		name := "Standalone"
+		if key != DefaultProjectKey {
+			name = key
+		}
+		b = append(b, fmt.Sprintf("  - id: %q\n    key: %q\n    name: %q\n    type: software\n    style: classic\n",
+			fmt.Sprintf("%d", 10000+i), key, name)...)
+	}
+	b = append(b, "spaces:\n  - id: \"40000\"\n    key: "+DefaultSpaceKey+"\n    name: Local\n    type: global\n"...)
+	return b
+}

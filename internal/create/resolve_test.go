@@ -110,3 +110,31 @@ func TestPriorityFieldIsID(t *testing.T) {
 		t.Fatalf("name leaked: %v", got)
 	}
 }
+
+// TestMetaForStandaloneDoesNotAssumeCredential is GDK-390: a missing
+// createmeta project on standalone is "not in this workspace", not a
+// credential failure. Connected keeps the existing sentence.
+//
+// FAIL-first: MetaFor always names a credential.
+func TestMetaForStandaloneDoesNotAssumeCredential(t *testing.T) {
+	_, _, err := MetaFor(nil, "IDEA", &config.Config{Kind: config.KindStandalone})
+	if err == nil {
+		t.Fatal("missing project must error")
+	}
+	if strings.Contains(err.Error(), "credential") {
+		t.Fatalf("standalone must not assume a credential: %v", err)
+	}
+	if !strings.Contains(err.Error(), "does not exist in this workspace") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestMetaForConnectedKeepsCredentialMessage(t *testing.T) {
+	_, _, err := MetaFor(nil, "IDEA", &config.Config{})
+	if err == nil {
+		t.Fatal("missing project must error")
+	}
+	if !strings.Contains(err.Error(), "this credential cannot create issues in IDEA") {
+		t.Fatalf("connected wording changed: %v", err)
+	}
+}

@@ -103,11 +103,14 @@ func matchType(want string, types []jira.NamedID) (string, error) {
 }
 
 // MetaFor picks the createmeta project (case-insensitive key) and its types.
-func MetaFor(meta []jira.CreateMetaProject, project string) (jira.CreateMetaProject, []jira.NamedID, error) {
+func MetaFor(meta []jira.CreateMetaProject, project string, cfg *config.Config) (jira.CreateMetaProject, []jira.NamedID, error) {
 	for _, p := range meta {
 		if strings.EqualFold(p.Key, project) {
 			return p, p.IssueTypes, nil
 		}
+	}
+	if cfg != nil && cfg.IsStandalone() {
+		return jira.CreateMetaProject{}, nil, fmt.Errorf("project %s does not exist in this workspace", project)
 	}
 	return jira.CreateMetaProject{}, nil, fmt.Errorf("this credential cannot create issues in %s", project)
 }

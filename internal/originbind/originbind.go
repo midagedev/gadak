@@ -11,11 +11,15 @@ package originbind
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
@@ -43,17 +47,113 @@ func (e *ReplaceRefusedError) Error() string {
 // replaceMessage is the former standaloneReplaceMessage. Wording is a
 // user-facing contract; do not invent a new sentence.
 func replaceMessage(n int, persist string) string {
-	noun, exist := "issues", "they exist only here"
+	noun, exist := "issues or pages", "they exist only here"
 	if n == 1 {
-		noun, exist = "issue", "it exists only here"
+		noun, exist = "issue or page", "it exists only here"
 	}
-	return fmt.Sprintf("this workspace is standalone and holds %d locally originated %s; %s — no Jira site has a copy\norigin persist file: %s\nconnect the site in a separate workspace: gadak --profile <name> init\n(list workspaces with gadak profiles)\nto replace this workspace anyway (converting deletes these issues from the mirror): --replace-standalone",
+	return fmt.Sprintf("this workspace is standalone and holds %d locally originated %s; %s — no Jira site has a copy\norigin persist file: %s\nconnect the site in a separate workspace: gadak --profile <name> init\n(list workspaces with gadak profiles)\nto replace this workspace anyway (converting deletes these issues or pages from the mirror): --replace-standalone",
 		n, noun, exist, persist)
+}
+
+// WorkspaceOpenError is returned when CLI conversion would run while another
+// process (serve or the desktop app) has this workspace open.
+type WorkspaceOpenError struct {
+	PID  int
+	Addr string
+}
+
+func (e *WorkspaceOpenError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.PID != 0 {
+		port := e.Addr
+		if _, p, err := net.SplitHostPort(e.Addr); err == nil && p != "" {
+			port = p
+		}
+		return fmt.Sprintf("another process (pid %d / port %s) has this workspace open — close the app or serve, then retry", e.PID, port)
+	}
+	return "another process has this workspace open — close the app or serve, then retry"
+}
+
+// RefuseIfOpen stops a CLI standalone→connected conversion while a serve
+// advertise probe succeeds or the persist lock is held. HTTP conversion
+// runs inside the owner process and must not call this.
+func RefuseIfOpen(cfg *config.Config) error {
+	if cfg == nil || !cfg.IsStandalone() {
+		return nil
+	}
+	if st := origin.OwnerStatus(cfg); strings.HasPrefix(st, "serve pid=") {
+		var pid int
+		var addr string
+		if _, err := fmt.Sscanf(st, "serve pid=%d addr=%s", &pid, &addr); err == nil {
+			return &WorkspaceOpenError{PID: pid, Addr: addr}
+		}
+		return &WorkspaceOpenError{}
+	}
+	persist := origin.PersistPath(profileDir(cfg))
+	held, err := persistHeld(persist)
+	if err != nil {
+		return fmt.Errorf("cannot convert standalone workspace: %w", err)
+	}
+	if !held {
+		return nil
+	}
+	open := &WorkspaceOpenError{}
+	if adv, ok := readAdvertiseFile(cfg); ok {
+		open.PID, open.Addr = adv.PID, adv.Addr
+	}
+	return open
+}
+
+func profileDir(cfg *config.Config) string {
+	if cfg != nil {
+		if d := cfg.Directory(); d != "" {
+			return d
+		}
+	}
+	d, _ := config.Dir()
+	return d
+}
+
+func readAdvertiseFile(cfg *config.Config) (origin.Advertise, bool) {
+	p := origin.AdvertisePath(profileDir(cfg))
+	if p == "" {
+		return origin.Advertise{}, false
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return origin.Advertise{}, false
+	}
+	var adv origin.Advertise
+	if json.Unmarshal(data, &adv) != nil || adv.Addr == "" {
+		return origin.Advertise{}, false
+	}
+	return adv, true
+}
+
+// DropStandaloneProjection is the conversion cleanup both CLI init and
+// HTTP onboarding must run: drop the seeded LOC wiki scope, then drop
+// each source's mirror (items plus watches/favorites keyed into them).
+func DropStandaloneProjection(cfg *config.Config, db *store.DB) error {
+	if cfg != nil {
+		cfg.Confluence = nil
+	}
+	if db == nil {
+		return fmt.Errorf("drop standalone mirror: nil store")
+	}
+	ctx := context.Background()
+	for _, src := range []string{"jira", "confluence"} {
+		if err := db.DropSourceMirror(ctx, src); err != nil {
+			return fmt.Errorf("drop standalone mirror: %w", err)
+		}
+	}
+	return nil
 }
 
 // RefuseReplace stops a connected init / onboarding connect from silently
 // changing which origin owns a standalone workspace that holds locally
-// originated issues. An empty standalone workspace (tried it, nothing
+// originated data. An empty standalone workspace (tried it, nothing
 // filed) is not a hazard and is allowed through.
 //
 // JSON rendering stays at the CLI call site — this returns an error only.
@@ -82,24 +182,23 @@ func ClearStandalone(next *config.Config) {
 	next.Kind = ""
 }
 
-// LocalData reports how many locally originated issues this standalone
+// LocalData reports how much locally originated data this standalone
 // workspace holds, and the origin persist path (via origin.PersistPath —
-// never rebuilt from string pieces).
+// never rebuilt from string pieces). The returned n is max(issues, pages).
 //
-// "Holds data" is max(mirror issues, origin issues):
-//   - mirror: SELECT COUNT(*) FROM issues, only if gadak.db already exists
+// Each of issues and pages is itself max(mirror, origin):
+//   - mirror: SELECT COUNT(*) FROM issues / pages, only if gadak.db exists
 //     (store.Open would create it)
-//   - origin: Search on the in-process origin, only if the persist file
-//     already exists (origin.Client would create it)
+//   - origin issues: Search on the in-process origin, only if the persist
+//     file already exists (origin.Client would create it)
+//   - origin pages: wiki SearchPages, best-effort (a SearchPages miss is
+//     0, not a LocalData failure — issuetap may not implement CQL)
 //
 // init --standalone creates a persist file with a project fixture and no
-// issues, so that empty-origin case is n==0 and the common "I tried it,
-// now I want to connect" path is not blocked.
+// issues or pages, so that empty-origin case is n==0 and the common "I
+// tried it, now I want to connect" path is not blocked.
 func LocalData(cfg *config.Config) (n int, persist string, err error) {
-	dir := ""
-	if cfg != nil {
-		dir = cfg.Directory()
-	}
+	dir := profileDir(cfg)
 	if dir == "" {
 		dir, err = config.Dir()
 		if err != nil {
@@ -108,22 +207,28 @@ func LocalData(cfg *config.Config) (n int, persist string, err error) {
 	}
 	persist = origin.PersistPath(dir)
 
-	mirrorN, err := mirrorIssueCount()
+	mirrorIssues, err := mirrorTableCount("issues")
 	if err != nil {
 		return 0, persist, err
 	}
-	originN, err := originIssueCount(cfg, persist)
+	mirrorPages, err := mirrorTableCount("pages")
 	if err != nil {
 		return 0, persist, err
 	}
-	n = mirrorN
-	if originN > n {
-		n = originN
+	originIssues, err := originIssueCount(cfg, persist)
+	if err != nil {
+		return 0, persist, err
 	}
-	return n, persist, nil
+	originPages, err := originPageCount(cfg, persist)
+	if err != nil {
+		return 0, persist, err
+	}
+	issues := max(mirrorIssues, originIssues)
+	pages := max(mirrorPages, originPages)
+	return max(issues, pages), persist, nil
 }
 
-func mirrorIssueCount() (int, error) {
+func mirrorTableCount(table string) (int, error) {
 	path, err := config.DBPath()
 	if err != nil {
 		return 0, err
@@ -143,7 +248,7 @@ func mirrorIssueCount() (int, error) {
 		return 0, err
 	}
 	defer db.Close()
-	return db.TableCount(context.Background(), "issues")
+	return db.TableCount(context.Background(), table)
 }
 
 func originIssueCount(cfg *config.Config, persist string) (int, error) {
@@ -168,4 +273,32 @@ func originIssueCount(cfg *config.Config, persist string) (int, error) {
 		return nil
 	})
 	return n, err
+}
+
+func originPageCount(cfg *config.Config, persist string) (int, error) {
+	if persist == "" {
+		return 0, nil
+	}
+	if _, err := os.Stat(persist); err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	w, err := origin.Wiki(cfg)
+	if err != nil {
+		// Best-effort: a busy/unreadable origin still has the mirror count.
+		return 0, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	n := 0
+	err = w.SearchPages(ctx, "type=page", func(pages []confluence.Page) error {
+		n += len(pages)
+		return nil
+	})
+	if err != nil {
+		return 0, nil
+	}
+	return n, nil
 }

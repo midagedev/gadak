@@ -1105,12 +1105,12 @@ export const en = {
   // GDK-247: PUT onboarding/connect/ 409 standalone_data_present. Facts match
   // cmd/gadak/init.go's ReplaceRefusedError sentence (via workspace.RefuseReplace).
   'onboarding.standaloneBlocked':
-    'This workspace is standalone and holds {n} locally originated issues. They exist only here — no Jira site has a copy. Converting this workspace deletes them from the mirror.',
+    'This workspace is standalone and holds {n} locally originated issues or pages. They exist only here — no Jira site has a copy. Converting this workspace deletes them from the mirror.',
   'onboarding.standalonePersist': 'Origin persist file: {path}',
   'onboarding.standaloneOtherWorkspace':
     'Connect the site in a separate workspace: gadak --profile <name> init (list workspaces with gadak profiles).',
   'onboarding.standaloneReplaceConfirm':
-    'Replace this workspace anyway. Converting deletes these issues from the mirror.',
+    'Replace this workspace anyway. Converting deletes these issues or pages from the mirror.',
   'onboarding.standaloneReplace': 'Replace and connect',
 
   /* ── Keyboard shortcuts cheat sheet (?) ── */
