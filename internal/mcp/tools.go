@@ -13,6 +13,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jql"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/uifocus"
 )
@@ -109,7 +110,8 @@ comments, attachments, changelog history, and linked issues.
 Use when you need the whole conversation around a single key (e.g. NMB-140).`
 
 const toolStatusDescription = `Return mirror freshness: watermark, version, last_error, last_full_sync_at,
-schema_version, and row counts (issues, comments). Check this before acting on
+schema_version, row counts (issues, comments), and the workspace kind
+(connected|standalone) with its origin. Check this before acting on
 answers that matter — a stalled watermark can mean a quiet project or a broken sync.`
 
 // toolShowDescription is the presentation tool: it writes ui-focus and returns
@@ -373,6 +375,13 @@ func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	_ = args
 	st := map[string]any{"profile": s.Profile}
+	// A shell-less host must be able to tell standalone from connected
+	// (GDK-420); origin.Describe is the single owner of that verdict.
+	if cfg, err := config.LoadFor(s.Profile); err == nil {
+		kind, originDesc := origin.Describe(cfg)
+		st["kind"] = kind
+		st["origin"] = originDesc
+	}
 	ss, err := s.db.SyncState(context.Background(), "jira")
 	if err != nil {
 		return nil, err

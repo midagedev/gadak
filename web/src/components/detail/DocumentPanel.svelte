@@ -4,8 +4,9 @@
    *
    * Same shell as DetailPanel: no props, subscribes to the pages store, pinned
    * header over a scrolling body, Esc closes. Only the parts a page actually has
-   * are here — no fields/history/links/QA/PR/deploy, and no composer: the mirror
-   * is read-only for pages.
+   * are here — no fields/history/links/QA/PR/deploy. The one write surface is
+   * the page comment composer (GDK-381), gated like issue comments; the body
+   * itself stays read-only in this panel (no page editor yet).
    *
    * Latency hide follows DetailPanel too: the header renders from the in-memory
    * index row while the body is still in flight.
