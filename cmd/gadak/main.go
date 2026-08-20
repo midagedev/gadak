@@ -296,6 +296,7 @@ var commands = map[string]func([]string) error{
 	"open":            cmdOpen,
 	"page":            cmdPage,
 	"profiles":        cmdProfiles,
+	"project":         cmdProject,
 	"raycast":         cmdRaycast,
 	"search":          cmdSearch,
 	"serve":           cmdServe,

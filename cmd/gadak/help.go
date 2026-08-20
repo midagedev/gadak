@@ -351,6 +351,15 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak search", "gadak open"},
 	},
+	"project": {
+		summary: "grow a standalone workspace by one project key (connected workspaces create projects in Jira)",
+		usage:   "gadak [--profile <name>] project create <KEY> [--name N] [--json]",
+		examples: []string{
+			"gadak project create IDEA --name Ideas",
+			"gadak create --project IDEA \"first idea\"",
+		},
+		seeAlso: []string{"gadak create", "gadak init"},
+	},
 	"transition": {
 		summary: writeThroughHelp("change issue status") + "; accepts transition id, target status id, name, target status name, or status category new|inprogress|done",
 		usage:   "gadak [--profile <name>] transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]",
