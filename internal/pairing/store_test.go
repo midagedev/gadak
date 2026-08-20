@@ -233,7 +233,7 @@ func TestRemoteRoundTrip(t *testing.T) {
 	if err != nil || r != nil {
 		t.Fatalf("absent remote: %+v, %v; want nil, nil", r, err)
 	}
-	in := Remote{Endpoint: "https://home.tail1234.ts.net", Token: "tok", Label: "laptop"}
+	in := Remote{Endpoint: "https://home.example.com", Token: "tok", Label: "laptop"}
 	if err := SaveRemote(dir, in); err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,7 @@ import (
 func TestOfferRoundTrip(t *testing.T) {
 	in := Offer{
 		V:         OfferV1,
-		Endpoint:  "https://home.tail1234.ts.net",
+		Endpoint:  "https://home.example.com",
 		Token:     "abc-def_ghi",
 		ExpiresAt: "2026-11-18T12:00:00Z",
 		Label:     "laptop",

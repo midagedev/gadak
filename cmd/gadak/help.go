@@ -100,7 +100,7 @@ var helps = map[string]cmdHelp{
 		},
 		examples: []string{
 			"gadak pairing mint --label laptop",
-			"gadak pairing mint --label agent --ttl 12h --endpoint https://home.tailnet.ts.net",
+			"gadak pairing mint --label agent --ttl 12h --endpoint https://<machine>.<tailnet>.ts.net",
 			"gadak pairing list",
 			"gadak pairing revoke laptop",
 			"# on the remote machine:",
