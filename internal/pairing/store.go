@@ -37,10 +37,19 @@ import (
 	"time"
 )
 
-// ScopeOrigin is the only scope in this slice: full origin passthrough.
-// It exists in the stored metadata so a future narrower scope (read-only,
-// wiki-only) can be told apart from tokens minted before scopes mattered.
+// ScopeOrigin is full origin passthrough — the device-token scope.
+// It exists in the stored metadata so a narrower scope (read-only,
+// wiki-only, local-routing) can be told apart from tokens minted before
+// scopes mattered.
 const ScopeOrigin = "origin"
+
+// ScopeLocalRouting is the home machine's own routing token. pairing list
+// uses this so the `_home` row is not mistaken for a paired device.
+const ScopeLocalRouting = "local-routing"
+
+// HomeLabel is the reserved label of the home routing token. It is not a
+// device: revoking it locks local writes while a serve is running.
+const HomeLabel = "_home"
 
 // StoreRel is the profile-relative path of the token store. A separate
 // file, not a config.json key: config.json is settings the UI edits and
@@ -101,6 +110,51 @@ const (
 // an offer) and never store it. A duplicate *active* label is refused so
 // `pairing revoke <label>` stays unambiguous; a revoked label may be reused.
 func Mint(dir, label string, ttl time.Duration, now time.Time) (string, Meta, error) {
+	token, meta, err := prepareMint(label, ttl, now)
+	if err != nil {
+		return "", Meta{}, err
+	}
+	err = mutateStore(dir, func(doc *storeDoc) error {
+		for _, m := range doc.Tokens {
+			if m.Label == meta.Label && m.Active(now) {
+				return fmt.Errorf("pairing: an active token labeled %q already exists; revoke it first or pick another label", meta.Label)
+			}
+		}
+		doc.Tokens = append(doc.Tokens, meta)
+		return nil
+	})
+	if err != nil {
+		return "", Meta{}, err
+	}
+	return token, meta, nil
+}
+
+// Rotate replaces every live token with label by a newly minted one in a
+// single store write, so pairing list never shows two live rows with the
+// same name. Used for the home routing token: mint + revoke of the previous
+// `_home` must not be two verbs a crash can split.
+func Rotate(dir, label string, ttl time.Duration, now time.Time) (string, Meta, error) {
+	token, meta, err := prepareMint(label, ttl, now)
+	if err != nil {
+		return "", Meta{}, err
+	}
+	err = mutateStore(dir, func(doc *storeDoc) error {
+		t := now.UTC()
+		for i := range doc.Tokens {
+			if doc.Tokens[i].Label == meta.Label && doc.Tokens[i].RevokedAt == nil {
+				doc.Tokens[i].RevokedAt = &t
+			}
+		}
+		doc.Tokens = append(doc.Tokens, meta)
+		return nil
+	})
+	if err != nil {
+		return "", Meta{}, err
+	}
+	return token, meta, nil
+}
+
+func prepareMint(label string, ttl time.Duration, now time.Time) (string, Meta, error) {
 	label = strings.TrimSpace(label)
 	if label == "" {
 		return "", Meta{}, errors.New("pairing: label is required")
@@ -118,24 +172,19 @@ func Mint(dir, label string, ttl time.Duration, now time.Time) (string, Meta, er
 	token := encodeToken(raw)
 	meta := Meta{
 		Label:     label,
-		Scope:     ScopeOrigin,
+		Scope:     scopeForLabel(label),
 		Hash:      hashToken(token),
 		CreatedAt: now.UTC(),
 		ExpiresAt: now.UTC().Add(ttl),
 	}
-	err := mutateStore(dir, func(doc *storeDoc) error {
-		for _, m := range doc.Tokens {
-			if m.Label == label && m.Active(now) {
-				return fmt.Errorf("pairing: an active token labeled %q already exists; revoke it first or pick another label", label)
-			}
-		}
-		doc.Tokens = append(doc.Tokens, meta)
-		return nil
-	})
-	if err != nil {
-		return "", Meta{}, err
-	}
 	return token, meta, nil
+}
+
+func scopeForLabel(label string) string {
+	if label == HomeLabel {
+		return ScopeLocalRouting
+	}
+	return ScopeOrigin
 }
 
 // List returns every stored token, earliest created first, including
@@ -162,6 +211,9 @@ func Revoke(dir, selector string, now time.Time) (Meta, error) {
 	selector = strings.TrimSpace(selector)
 	if selector == "" {
 		return Meta{}, errors.New("pairing: revoke needs a label or hash prefix")
+	}
+	if selector == HomeLabel {
+		return Meta{}, revokeHomeError()
 	}
 	var out Meta
 	err := mutateStore(dir, func(doc *storeDoc) error {
@@ -196,12 +248,19 @@ func Revoke(dir, selector string, now time.Time) (Meta, error) {
 			return fmt.Errorf("pairing: %q matches %d tokens; revoke by a longer hash prefix", selector, len(cands))
 		}
 		i := cands[0]
+		if doc.Tokens[i].Label == HomeLabel {
+			return revokeHomeError()
+		}
 		t := now.UTC()
 		doc.Tokens[i].RevokedAt = &t
 		out = doc.Tokens[i]
 		return nil
 	})
 	return out, err
+}
+
+func revokeHomeError() error {
+	return fmt.Errorf("%s is this machine's own routing key — revoking it locks local writes while a serve is running. to rotate it: gadak pairing mint --label %s", HomeLabel, HomeLabel)
 }
 
 // minPrefix is the shortest hash prefix revoke accepts. `pairing list`

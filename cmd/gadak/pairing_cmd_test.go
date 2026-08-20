@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -376,5 +379,222 @@ func TestParseTTL(t *testing.T) {
 		if _, err := parseTTL(bad); err == nil {
 			t.Fatalf("parseTTL(%q) accepted", bad)
 		}
+	}
+}
+
+func tokenSHA(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+func mintLaptop(t *testing.T) {
+	t.Helper()
+	_, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "laptop", "--ttl", "1h", "--endpoint", "http://127.0.0.1:9"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func activeHomeHash(t *testing.T, dir string) string {
+	t.Helper()
+	toks, err := pairing.List(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range toks {
+		if m.Label == "_home" && m.RevokedAt == nil {
+			return m.Hash
+		}
+	}
+	t.Fatal("no active _home token")
+	return ""
+}
+
+func assertRevokeHomeRefused(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("revoke _home must be refused")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "_home is this machine's own routing key") {
+		t.Fatalf("want routing-key reason, got: %v", err)
+	}
+	if !strings.Contains(msg, "gadak pairing mint --label _home") {
+		t.Fatalf("want rotate action, got: %v", err)
+	}
+}
+
+// markHomeRevoked rewrites pairing.json so _home is revoked without going
+// through pairing.Revoke — the locked-user shape GDK-450 has to recover
+// from, and the only way to seed it once Revoke itself refuses _home.
+func markHomeRevoked(t *testing.T, dir string) {
+	t.Helper()
+	p := pairing.StorePath(dir)
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Tokens []map[string]any `json:"tokens"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	for _, tok := range doc.Tokens {
+		if tok["label"] == "_home" {
+			tok["revoked_at"] = now
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("no _home row to mark revoked")
+	}
+	out, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, out, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestPairingRevokeHomeRefused is GDK-450: `pairing revoke _home` must not
+// succeed — it locks local writes while a serve is running.
+func TestPairingRevokeHomeRefused(t *testing.T) {
+	dir := pairingHome(t)
+	mintLaptop(t)
+	before, err := pairing.LoadRemote(dir)
+	if err != nil || before == nil {
+		t.Fatalf("expected _home routing credential: %+v (%v)", before, err)
+	}
+
+	_, _, err = captureErr(t, func() error {
+		return cmdPairing([]string{"revoke", "_home"})
+	})
+	assertRevokeHomeRefused(t, err)
+
+	after, err := pairing.LoadRemote(dir)
+	if err != nil || after == nil || after.Token != before.Token {
+		t.Fatalf("refused revoke must not touch remote-origin.json: %+v (%v)", after, err)
+	}
+	if got := activeHomeHash(t, dir); got != tokenSHA(before.Token) {
+		t.Fatalf("refused revoke mutated the store hash: %s vs %s", got, tokenSHA(before.Token))
+	}
+}
+
+func TestPairingRevokeHomeByHashRefused(t *testing.T) {
+	dir := pairingHome(t)
+	mintLaptop(t)
+	hash := activeHomeHash(t, dir)
+
+	_, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"revoke", hash[:8]})
+	})
+	assertRevokeHomeRefused(t, err)
+	if v, _ := pairing.Authorize(dir, mustRemoteToken(t, dir), time.Now()); v != pairing.VerdictAccept {
+		t.Fatalf("hash revoke of _home must leave the routing token active, verdict=%v", v)
+	}
+}
+
+func mustRemoteToken(t *testing.T, dir string) string {
+	t.Helper()
+	rem, err := pairing.LoadRemote(dir)
+	if err != nil || rem == nil {
+		t.Fatalf("remote: %+v (%v)", rem, err)
+	}
+	return rem.Token
+}
+
+// TestPairingMintHomeRotatesRemote is GDK-450: `pairing mint --label _home`
+// rotates the routing token and points remote-origin.json at the new hash.
+func TestPairingMintHomeRotatesRemote(t *testing.T) {
+	dir := pairingHome(t)
+	mintLaptop(t)
+	old := mustRemoteToken(t, dir)
+
+	out, stderr, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "_home", "--endpoint", "http://127.0.0.1:9"})
+	})
+	if err != nil {
+		t.Fatalf("mint --label _home must rotate, got %v", err)
+	}
+	if strings.TrimSpace(out) != "" {
+		t.Fatalf("rotate must not print a pairing offer, stdout=%q", out)
+	}
+	if !strings.Contains(stderr, "rotated") || !strings.Contains(stderr, "_home") {
+		t.Fatalf("stderr must say what rotated, got %q", stderr)
+	}
+
+	rem, err := pairing.LoadRemote(dir)
+	if err != nil || rem == nil {
+		t.Fatalf("remote after rotate: %+v (%v)", rem, err)
+	}
+	if rem.Token == old {
+		t.Fatal("remote-origin.json still holds the pre-rotate token")
+	}
+	if rem.Label != "_home" {
+		t.Fatalf("label = %q, want _home", rem.Label)
+	}
+	want := tokenSHA(rem.Token)
+	if got := activeHomeHash(t, dir); got != want {
+		t.Fatalf("remote-origin.json token hash %s != active store hash %s", want, got)
+	}
+	if v, _ := pairing.Authorize(dir, old, time.Now()); v == pairing.VerdictAccept {
+		t.Fatal("old routing token still accepted after rotate")
+	}
+	if v, _ := pairing.Authorize(dir, rem.Token, time.Now()); v != pairing.VerdictAccept {
+		t.Fatalf("new routing token verdict %v, want Accept", v)
+	}
+}
+
+func TestPairingListHomeScopeLocalRouting(t *testing.T) {
+	pairingHome(t)
+	mintLaptop(t)
+	out, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"list"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "local-routing") {
+		t.Fatalf("list must distinguish _home scope from device tokens, got %q", out)
+	}
+	// Device tokens keep the origin scope.
+	if !strings.Contains(out, "laptop") {
+		t.Fatalf("list lost the device row: %q", out)
+	}
+}
+
+func TestEnsureHomeRoutingTokenRecoversStaleRemote(t *testing.T) {
+	dir := pairingHome(t)
+	mintLaptop(t)
+	stale := mustRemoteToken(t, dir)
+	markHomeRevoked(t, dir)
+	if v, _ := pairing.Authorize(dir, stale, time.Now()); v == pairing.VerdictAccept {
+		t.Fatal("setup: stale token should not authorize")
+	}
+
+	_, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "phone", "--ttl", "1h", "--endpoint", "http://127.0.0.1:9"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rem, err := pairing.LoadRemote(dir)
+	if err != nil || rem == nil {
+		t.Fatalf("remote after recovery mint: %+v (%v)", rem, err)
+	}
+	if rem.Token == stale {
+		t.Fatal("stale remote-origin.json token was not reissued")
+	}
+	if got := activeHomeHash(t, dir); got != tokenSHA(rem.Token) {
+		t.Fatalf("reissued token hash %s != active store hash %s", tokenSHA(rem.Token), got)
+	}
+	if v, _ := pairing.Authorize(dir, rem.Token, time.Now()); v != pairing.VerdictAccept {
+		t.Fatalf("reissued token verdict %v, want Accept", v)
 	}
 }

@@ -163,6 +163,15 @@ func cmdInit(args []string) error {
 		if *siteFlag != "" || *emailFlag != "" || *tokenFile != "" || *tokenStdin || *tokenExpires != "" || *spacesFlag != "" {
 			return fmt.Errorf("--pairing-code cannot be combined with site, email, token, or spaces flags")
 		}
+	}
+
+	// Single owner: a workspace bound to a remote serve cannot be rebound
+	// by any init path (bare, --standalone, site flags, or another offer).
+	if err := refuseIfPairedOrigin(cfg); err != nil {
+		return err
+	}
+
+	if *pairingCode != "" || *pairingStdin {
 		return initPaired(cfg, *pairingCode, *pairingStdin, *jsonOut)
 	}
 

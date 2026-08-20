@@ -33,6 +33,11 @@ const pairingUsage = "usage: gadak pairing mint --label NAME [--ttl 90d] [--endp
 // quarter by default either.
 const defaultPairingTTL = 90 * 24 * time.Hour
 
+// homeRoutingTTL is long on purpose: an expiring routing token would
+// re-open the 401 cliff ensureHomeRoutingToken exists to close. Rotation
+// is explicit (`pairing mint --label _home`), not expiry.
+const homeRoutingTTL = 10 * 365 * 24 * time.Hour
+
 func cmdPairing(args []string) error {
 	if wantsHelp(args) {
 		printHelp("pairing")
@@ -121,6 +126,9 @@ func pairingMint(args []string) error {
 	if err != nil {
 		return err
 	}
+	if strings.TrimSpace(*label) == pairing.HomeLabel {
+		return pairingMintHome(dir, cfg, strings.TrimRight(strings.TrimSpace(*endpoint), "/"))
+	}
 	// Resolve the endpoint before minting: a mint without a reachable
 	// endpoint is an orphan token nobody can use, and it would already
 	// have flipped the gate on.
@@ -163,33 +171,113 @@ func pairingMint(args []string) error {
 	return nil
 }
 
-// ensureHomeRoutingToken keeps the home machine's own CLI working after the
-// first mint. Once one token exists the gate takes Bearer only — no loopback
-// bypass — and the home machine's writes route through the same passthrough
-// (GDK-333 single persist owner), so without a token of its own the first
-// mint would 401 this very machine. Standalone excludes the file from the
-// paired-remote branch (origin.pairedRemote), so here it only ever carries
-// the routing token localRoutingToken reads.
+// ensureHomeRoutingToken is the single owner of "_home is valid". Once one
+// token exists the gate takes Bearer only — no loopback bypass — and the
+// home machine's writes route through the same passthrough (GDK-333 single
+// persist owner). Standalone excludes the file from the paired-remote
+// branch (origin.pairedRemote), so here it only ever carries the routing
+// token localRoutingToken reads.
+//
+// Called after every device mint. If remote-origin.json's token is missing
+// or no longer active in the store while the gate is on, it reissues
+// `_home` and rewrites the file — the recovery path for a routing token
+// revoked by an older build (GDK-450).
 func ensureHomeRoutingToken(dir string, cfg *config.Config, mintEndpoint string) error {
 	rem, err := pairing.LoadRemote(dir)
-	if err != nil || rem != nil {
-		return err
-	}
-	// Ten years: an expiring routing token would re-open the cliff this
-	// exists to close. `gadak pairing revoke _home` stays available.
-	token, _, err := pairing.Mint(dir, "_home", 10*365*24*time.Hour, time.Now())
 	if err != nil {
 		return err
 	}
-	ep := advertisedEndpoint(cfg)
-	if ep == "" {
-		ep = mintEndpoint
+	now := time.Now()
+	if rem != nil {
+		v, aerr := pairing.Authorize(dir, rem.Token, now)
+		if aerr != nil {
+			return aerr
+		}
+		if v == pairing.VerdictAccept {
+			return nil
+		}
+		if v == pairing.VerdictOff {
+			// Gate off: no active tokens, local writes need no bearer.
+			return nil
+		}
+	} else {
+		v, aerr := pairing.Authorize(dir, "", now)
+		if aerr != nil {
+			return aerr
+		}
+		if v == pairing.VerdictOff {
+			return nil
+		}
 	}
-	if err := pairing.SaveRemote(dir, pairing.Remote{Endpoint: ep, Token: token, Label: "_home"}); err != nil {
+	first := rem == nil
+	if _, err := issueHomeRoutingToken(dir, cfg, mintEndpoint); err != nil {
 		return err
 	}
-	fmt.Fprintln(os.Stderr, "minted a _home routing token so this machine's own writes keep passing the gate")
+	if first {
+		fmt.Fprintln(os.Stderr, "minted a _home routing token so this machine's own writes keep passing the gate")
+	} else {
+		fmt.Fprintln(os.Stderr, "reissued _home routing token so this machine's own writes keep passing the gate")
+	}
 	return nil
+}
+
+// pairingMintHome is `pairing mint --label _home`: routing-token rotation,
+// not a device offer. stdout stays empty so the line cannot be piped into
+// `init --pairing-code`.
+func pairingMintHome(dir string, cfg *config.Config, endpoint string) error {
+	ep, err := resolveHomeEndpoint(cfg, dir, endpoint)
+	if err != nil {
+		return err
+	}
+	meta, err := issueHomeRoutingToken(dir, cfg, ep)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "rotated _home routing token (%s) — local writes keep passing the gate\n", meta.Hash[:8])
+	return nil
+}
+
+func resolveHomeEndpoint(cfg *config.Config, dir, endpoint string) (string, error) {
+	ep := strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	if ep == "" {
+		ep = advertisedEndpoint(cfg)
+	}
+	if ep == "" {
+		if rem, err := pairing.LoadRemote(dir); err == nil && rem != nil {
+			ep = strings.TrimRight(strings.TrimSpace(rem.Endpoint), "/")
+		}
+	}
+	if ep == "" {
+		return "", errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
+	}
+	u, err := url.Parse(ep)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return "", fmt.Errorf("bad endpoint %q: want an http(s) URL", ep)
+	}
+	return ep, nil
+}
+
+func issueHomeRoutingToken(dir string, cfg *config.Config, mintEndpoint string) (pairing.Meta, error) {
+	token, meta, err := pairing.Rotate(dir, pairing.HomeLabel, homeRoutingTTL, time.Now())
+	if err != nil {
+		return pairing.Meta{}, err
+	}
+	ep := strings.TrimRight(strings.TrimSpace(mintEndpoint), "/")
+	if ep == "" {
+		ep = advertisedEndpoint(cfg)
+	}
+	if ep == "" {
+		if rem, rerr := pairing.LoadRemote(dir); rerr == nil && rem != nil {
+			ep = rem.Endpoint
+		}
+	}
+	if ep == "" {
+		return pairing.Meta{}, errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
+	}
+	if err := pairing.SaveRemote(dir, pairing.Remote{Endpoint: ep, Token: token, Label: pairing.HomeLabel}); err != nil {
+		return pairing.Meta{}, err
+	}
+	return meta, nil
 }
 
 // isLoopbackHost names the hosts only this machine can dial. Used for the
@@ -238,7 +326,7 @@ func pairingList(args []string) error {
 		fmt.Println("no pairing tokens — the origin passthrough is open to loopback (implicit trust)")
 		return nil
 	}
-	fmt.Printf("%-8s  %-20s  %-9s  %-20s  %-20s  %-20s  %s\n",
+	fmt.Printf("%-8s  %-20s  %-14s  %-20s  %-20s  %-20s  %s\n",
 		"HASH", "LABEL", "SCOPE", "CREATED", "EXPIRES", "LAST-USED", "STATE")
 	for _, m := range toks {
 		last := "-"
@@ -251,8 +339,12 @@ func pairingList(args []string) error {
 		} else if time.Now().After(m.ExpiresAt) {
 			state = "expired"
 		}
-		fmt.Printf("%-8s  %-20s  %-9s  %-20s  %-20s  %-20s  %s\n",
-			m.Hash[:8], truncate([]byte(m.Label), 20), m.Scope,
+		scope := m.Scope
+		if m.Label == pairing.HomeLabel {
+			scope = pairing.ScopeLocalRouting
+		}
+		fmt.Printf("%-8s  %-20s  %-14s  %-20s  %-20s  %-20s  %s\n",
+			m.Hash[:8], truncate([]byte(m.Label), 20), scope,
 			m.CreatedAt.UTC().Format("2006-01-02T15:04Z"),
 			m.ExpiresAt.UTC().Format("2006-01-02T15:04Z"),
 			last, state)
@@ -307,15 +399,10 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 		return errors.New("pairing: profile directory not found")
 	}
 	// A workspace is bound to one origin: pairing creates a NEW remote
-	// workspace. Re-pairing an existing one (fresh token + revoke of the
-	// old, from the home machine) is deliberately not this slice.
+	// workspace. A profile that is already paired is refused by
+	// refuseIfPairedOrigin in cmdInit, before this function runs.
 	if cfg.IsStandalone() || cfg.Site != "" || cfg.Email != "" || cfg.Token != "" {
 		return errors.New("this profile already owns an origin; pair into a fresh profile: gadak --profile <name> init --pairing-code …")
-	}
-	if rem, err := pairing.LoadRemote(dir); err != nil {
-		return fmt.Errorf("pairing: %w", err)
-	} else if rem != nil {
-		return fmt.Errorf("this profile is already paired with %q; re-pairing lands with a fresh offer in a later slice — use a new profile", rem.Label)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -352,4 +439,34 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 	fmt.Printf("paired with %s as %s — saved %s\n", offer.Endpoint, me.DisplayName, p)
 	printInitNextSteps(cfg.WorkspaceKind())
 	return nil
+}
+
+// refuseIfPairedOrigin is the single owner of "this profile's origin is a
+// remote gadak serve — init cannot rebind it". Every init path (bare,
+// --standalone, site flags, --pairing-code) comes through here.
+//
+// Standalone is excluded: the home machine stores its routing token in the
+// same remote-origin.json file (origin.pairedRemote documents the same
+// split). LoadRemote returning a credential is therefore not sufficient on
+// its own to mean "paired origin".
+func refuseIfPairedOrigin(cfg *config.Config) error {
+	if cfg == nil || cfg.IsStandalone() {
+		return nil
+	}
+	dir := cfg.Directory()
+	if dir == "" {
+		return nil
+	}
+	rem, err := pairing.LoadRemote(dir)
+	if err != nil {
+		return fmt.Errorf("pairing: %w", err)
+	}
+	if rem == nil {
+		return nil
+	}
+	label := rem.Label
+	if label == "" {
+		label = rem.Endpoint
+	}
+	return fmt.Errorf("this profile is paired with %q (%s) — to start over, use a new profile: gadak --profile <name> init", label, rem.Endpoint)
 }

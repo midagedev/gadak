@@ -227,6 +227,106 @@ func TestAuthorizeFailsClosedOnCorruptStore(t *testing.T) {
 	}
 }
 
+func TestRevokeHomeLabelRefused(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+	_, _, err := Mint(dir, HomeLabel, time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Revoke(dir, HomeLabel, now.Add(time.Minute)); err == nil || !strings.Contains(err.Error(), "routing key") {
+		t.Fatalf("revoking _home must name the routing key, got %v", err)
+	}
+	got, err := List(dir)
+	if err != nil || len(got) != 1 || got[0].RevokedAt != nil {
+		t.Fatalf("refused revoke must not mutate the store: %+v (%v)", got, err)
+	}
+}
+
+func TestRevokeHomeByHashRefused(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+	_, meta, err := Mint(dir, HomeLabel, time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Revoke(dir, meta.Hash[:8], now.Add(time.Minute)); err == nil || !strings.Contains(err.Error(), "routing key") {
+		t.Fatalf("revoking _home by hash must name the routing key, got %v", err)
+	}
+	got, err := List(dir)
+	if err != nil || len(got) != 1 || got[0].RevokedAt != nil {
+		t.Fatalf("refused hash revoke must not mutate the store: %+v (%v)", got, err)
+	}
+}
+
+func TestMintHomeUsesLocalRoutingScope(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+	_, meta, err := Mint(dir, HomeLabel, time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Scope != ScopeLocalRouting {
+		t.Fatalf("scope %q, want %q", meta.Scope, ScopeLocalRouting)
+	}
+}
+
+func TestRotateHomeReplacesActive(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+	laptop, _, err := Mint(dir, "laptop", 24*time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldTok, old, err := Mint(dir, HomeLabel, time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newTok, neu, err := Rotate(dir, HomeLabel, 2*time.Hour, now.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if newTok == oldTok || neu.Hash == old.Hash {
+		t.Fatal("rotate must mint a new token")
+	}
+	if neu.Scope != ScopeLocalRouting {
+		t.Fatalf("scope %q, want %q", neu.Scope, ScopeLocalRouting)
+	}
+	got, err := List(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var liveHome, revokedHome, liveLaptop int
+	for _, m := range got {
+		switch {
+		case m.Label == "laptop" && m.RevokedAt == nil:
+			liveLaptop++
+		case m.Label == HomeLabel && m.RevokedAt == nil:
+			liveHome++
+			if m.Hash != neu.Hash {
+				t.Fatalf("live _home hash %s, want %s", m.Hash, neu.Hash)
+			}
+		case m.Label == HomeLabel && m.RevokedAt != nil:
+			revokedHome++
+			if m.Hash != old.Hash {
+				t.Fatalf("revoked _home hash %s, want old %s", m.Hash, old.Hash)
+			}
+		}
+	}
+	if liveHome != 1 || revokedHome != 1 || liveLaptop != 1 {
+		t.Fatalf("after rotate: liveHome=%d revokedHome=%d liveLaptop=%d (tokens=%+v)", liveHome, revokedHome, liveLaptop, got)
+	}
+	if v, _ := Authorize(dir, oldTok, now.Add(2*time.Minute)); v == VerdictAccept {
+		t.Fatal("old _home still accepted")
+	}
+	if v, _ := Authorize(dir, newTok, now.Add(2*time.Minute)); v != VerdictAccept {
+		t.Fatalf("new _home: %v, want Accept", v)
+	}
+	if v, _ := Authorize(dir, laptop, now.Add(2*time.Minute)); v != VerdictAccept {
+		t.Fatalf("laptop: %v, want Accept", v)
+	}
+}
+
 func TestRemoteRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	r, err := LoadRemote(dir)
