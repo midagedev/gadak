@@ -1459,7 +1459,7 @@ func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (s
 		return users[0].AccountID, nil
 	}
 	if len(users) == 0 {
-		return "", fmt.Errorf("no Jira user matches %q", who)
+		return "", fmt.Errorf("no user on this issue's origin matches %q", who)
 	}
 	names := make([]string, 0, len(users))
 	for _, u := range users {
