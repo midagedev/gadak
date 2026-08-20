@@ -34,6 +34,10 @@
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
   import FavoritesNav from '../personal/FavoritesNav.svelte'
   import Icon from '../ui/Icon.svelte'
+  import SidebarSection from './SidebarSection.svelte'
+  import { sidebarSections, type SectionId } from '../../stores/sidebar-sections.svelte'
+
+  sidebarSections.hydrate()
 
   /** Open server settings dialog — App.svelte mounts the dialog itself. */
   let { onOpenSettings }: { onOpenSettings: () => void } = $props()
@@ -110,6 +114,8 @@
   const activeSource = $derived(mainColumnIsList ? activeId(views.source) : null)
   const builtinCounts = $derived.by(() => {
     const counts = new Map<string, number>()
+    // GDK-153: skip the six-view refilter while this section is collapsed.
+    if (sidebarSections.collapsedIds.includes('builtin')) return counts
     for (const view of builtins) {
       counts.set(view.id, filterIssues(issues.allIssues, view.config.filters).length)
     }
@@ -194,6 +200,14 @@
   const currentWorkspace = $derived(
     workspaceName() || workspaceList.find((w) => w.active)?.name || 'default',
   )
+  const visibleIds = $derived.by((): SectionId[] => {
+    const present = new Set<SectionId>(['builtin', 'docs'])
+    if (views.source.length && !onboarding.needsOnboarding) present.add('jira')
+    if (views.personal.length) present.add('personal')
+    if (views.team.length) present.add('team')
+    if (workspaceList.length > 1) present.add('workspaces')
+    return sidebarSections.order.filter((id) => present.has(id))
+  })
   function workspaceHref(w: WorkspaceInfo): string {
     return w.active ? '/' : `/w/${w.name}/`
   }
@@ -315,14 +329,6 @@
 </script>
 
 <svelte:document onclick={onDocClick} />
-
-<!-- The label above a group of rows. Every group in the rail uses it, so the
-     one thing that separates a section from a row stays one thing. -->
-{#snippet sectionHeader(label: string)}
-  <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
-    {label}
-  </div>
-{/snippet}
 
 <!-- A saved view's row. A personal view and a team view are the same row: the
      team one only adds who shared it (in the label and the tooltip) and asks
@@ -512,284 +518,278 @@
       <FavoritesNav />
     {/if}
 
-    <!-- Built-in views -->
-    <div class="mb-3">
-      {@render sectionHeader(t('sidebar.builtinViews'))}
-      {#each builtins as v (v.id)}
-        <button
-          type="button"
-          class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {activeBuiltin ===
-          v.id
-            ? 'bg-bg-active text-text-primary'
-            : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-          title={v.hint}
-          onclick={() => applyView(v.config)}
-        >
-          <!-- The icon is orientation, not content: it stays a tier below the
-               label it sits next to, and only rises with the row it marks. -->
-          <Icon
-            name={v.icon}
-            size={15}
-            class={activeBuiltin === v.id ? 'text-text-secondary' : 'text-text-muted'}
-          />
-          <span class="min-w-0 flex-1 truncate">{v.name}</span>
-          <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
-            {formatNumber(builtinCounts.get(v.id) ?? 0)}
-          </span>
-        </button>
+    <div role="list" data-testid="sidebar-sections">
+      {#each visibleIds as id (id)}
+        {#if id === 'builtin'}
+          <SidebarSection id="builtin" label={t('sidebar.builtinViews')} {visibleIds}>
+            {#each builtins as v (v.id)}
+              <button
+                type="button"
+                class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {activeBuiltin ===
+                v.id
+                  ? 'bg-bg-active text-text-primary'
+                  : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+                title={v.hint}
+                onclick={() => applyView(v.config)}
+              >
+                <!-- The icon is orientation, not content: it stays a tier below the
+                     label it sits next to, and only rises with the row it marks. -->
+                <Icon
+                  name={v.icon}
+                  size={15}
+                  class={activeBuiltin === v.id ? 'text-text-secondary' : 'text-text-muted'}
+                />
+                <span class="min-w-0 flex-1 truncate">{v.name}</span>
+                <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
+                  {formatNumber(builtinCounts.get(v.id) ?? 0)}
+                </span>
+              </button>
+            {/each}
+          </SidebarSection>
+        {:else if id === 'jira'}
+          <!-- Jira saved filters (owned + starred). No delete — Jira is the record. -->
+          <SidebarSection
+            id="jira"
+            label={t('sidebar.jiraFilters')}
+            testid="sidebar-jira-filters"
+            {visibleIds}
+          >
+            {#each views.source as v (v.id)}
+              {@const href = jiraFilterUrl(v.external_id ?? '', v.jql)}
+              <div
+                class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {activeSource ===
+                v.id
+                  ? 'bg-bg-active'
+                  : 'hover:bg-bg-hover'}"
+              >
+                <button
+                  type="button"
+                  class="min-w-0 flex-1 truncate text-left {activeSource === v.id
+                    ? 'text-text-primary'
+                    : 'text-text-secondary group-hover:text-text-primary'}"
+                  onclick={() => applySource(v)}
+                  title={v.jql || undefined}
+                  data-testid="sidebar-jira-filter"
+                  data-filter-id={v.id}
+                >
+                  {#if v.favourite}<span class="mr-1 text-micro text-text-muted" aria-hidden="true">★</span>{/if}{v.name}
+                </button>
+                {#if href}
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-accent-text group-hover:opacity-100"
+                    title={t('sidebar.openFilterInJira')}
+                    aria-label={t('sidebar.openFilterInJira')}
+                    data-testid="sidebar-jira-filter-open"
+                    onclick={(e) => e.stopPropagation()}
+                  >
+                    <Icon name="arrow-up-right" size={13} />
+                  </a>
+                {/if}
+              </div>
+            {/each}
+          </SidebarSection>
+        {:else if id === 'personal'}
+          <SidebarSection id="personal" label={t('sidebar.myViews')} {visibleIds}>
+            {#each views.personal as v (v.id)}
+              {@render viewRow({
+                name: v.name,
+                active: activePersonal === v.id,
+                apply: () => applyView(v.config),
+                remove: () => views.removePersonal(v.id),
+              })}
+            {/each}
+          </SidebarSection>
+        {:else if id === 'team'}
+          <SidebarSection id="team" label={t('sidebar.teamViews')} {visibleIds}>
+            {#each views.team as v (v.id)}
+              {@render viewRow({
+                name: v.name,
+                active: activeTeam === v.id,
+                apply: () => applyView(v.config),
+                owner: v.owner_name,
+                remove:
+                  me.email && v.owner_email === me.email
+                    ? () => views.removeTeam(v.id).catch(() => alert(t('sidebar.viewDeleteFail')))
+                    : null,
+              })}
+            {/each}
+          </SidebarSection>
+        {:else if id === 'docs'}
+          <!--
+            Docs: mirrored wiki pages. When the mirror has none this used to render
+            nothing at all, so "you have not set this up" and "this app cannot do
+            that" looked the same — and someone who had configured it on another
+            profile read the switch as the feature disappearing. The row below says
+            which of the two it is and leads to the screen that fixes it.
+          -->
+          <SidebarSection id="docs" label={t('sidebar.docs')} {visibleIds}>
+            {#if !pages.bySpace.length}
+              <div data-testid="docs-section-empty">
+                <!-- Same gutter and leading glyph as the live rows below this header
+                     would have: without them the two lines aligned with DOCS itself and
+                     read as a caption about the section rather than as the one thing in
+                     it you can click. The glyph is the destination, not a document —
+                     a file icon would advertise a view that does not exist yet. Once
+                     the source is configured the glyph stops being a gear, because the
+                     errand is no longer "go to Settings". -->
+                <button
+                  type="button"
+                  class="flex w-full items-start gap-2 rounded-md px-3 py-1.5 text-left transition-colors {docsEmptyState ===
+                  'syncing'
+                    ? 'cursor-progress'
+                    : docsEmptyState === 'unavailable'
+                      ? 'cursor-default'
+                      : 'hover:bg-bg-hover'}"
+                  data-testid="docs-empty-cta"
+                  data-state={docsEmptyState}
+                  title={docsEmptyState === 'failed' ? (confluenceRuns?.[0]?.error ?? '') : ''}
+                  onclick={onDocsEmptyClick}
+                >
+                  <!-- Five causes, five silhouettes. The gear is reserved for the one
+                       state that is genuinely unconfigured: once the source is on, a
+                       gear would say "set this up" about something already set up. The
+                       unavailable snapshot shares search-x with 'empty' — nothing to
+                       find either way — but never the gear: there is nowhere to go. -->
+                  <Icon
+                    name={docsEmptyState === 'failed'
+                      ? 'warning'
+                      : docsEmptyState === 'syncing' || docsEmptyState === 'never'
+                        ? 'refresh'
+                        : docsEmptyState === 'empty' || docsEmptyState === 'unavailable'
+                          ? 'search-x'
+                          : 'settings'}
+                    size={15}
+                    class="mt-0.5 flex-none {docsEmptyState === 'failed'
+                      ? 'text-status-reopen'
+                      : 'text-text-muted'} {docsEmptyState === 'syncing'
+                      ? 'motion-safe:animate-spin'
+                      : ''}"
+                  />
+                  <span class="flex min-w-0 flex-col gap-0.5">
+                    <span class="text-body text-text-secondary">{docsEmptyText.title}</span>
+                    {#if docsEmptyText.hint}
+                      <span class="text-micro leading-relaxed text-text-muted">
+                        {docsEmptyText.hint}
+                      </span>
+                    {/if}
+                  </span>
+                </button>
+              </div>
+            {:else}
+              <div data-testid="docs-section">
+                <!-- The way in: recency first, across every space. What changed lately,
+                     and what you had open, are questions no single space answers. -->
+                <button
+                  type="button"
+                  class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {pages.docsView
+                    ? 'bg-bg-active text-text-primary'
+                    : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+                  aria-pressed={pages.docsView}
+                  title={t('sidebar.docsAllTitle')}
+                  data-testid="docs-documents"
+                  onclick={openDocuments}
+                >
+                  <Icon
+                    name="file"
+                    size={15}
+                    class={pages.docsView ? 'text-text-secondary' : 'text-text-muted'}
+                  />
+                  <span class="min-w-0 flex-1 truncate">{t('sidebar.docsAll')}</span>
+                </button>
+                <!-- Spaces: collapsed, and one level deep. Seeing every container at all
+                     times was the thing that read as too much. -->
+                <button
+                  type="button"
+                  class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  aria-expanded={spacesOpen}
+                  title={t('sidebar.docsSpacesTitle')}
+                  data-testid="docs-spaces"
+                  onclick={() => (spacesOpen = !spacesOpen)}
+                >
+                  <span
+                    class="flex-none text-text-muted transition-transform duration-150"
+                    style={spacesOpen ? 'transform: rotate(90deg)' : ''}
+                  >
+                    <Icon name="chevron-right" size={15} />
+                  </span>
+                  <span class="min-w-0 flex-1 truncate">{t('sidebar.docsSpaces')}</span>
+                  <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
+                    {formatNumber(pages.bySpace.length)}
+                  </span>
+                </button>
+                {#if spacesOpen}
+                  {#each pages.bySpace as group (group.space)}
+                    <button
+                      type="button"
+                      class="flex h-control w-full items-center gap-2 rounded-md pl-[35px] pr-3 text-left text-[12px] transition-colors {pages.spaceView ===
+                      group.space
+                        ? 'bg-bg-active text-text-primary'
+                        : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+                      aria-pressed={pages.spaceView === group.space}
+                      title={t('sidebar.docsSpaceTitle', { space: group.space, n: group.pages.length })}
+                      data-testid="docs-space"
+                      onclick={() => openSpace(group.space)}
+                    >
+                      <!-- The name is what people call the space; the key stays reachable
+                           in the tooltip, and is the label itself until a name is mirrored. -->
+                      <span class="min-w-0 flex-1 truncate {group.name ? '' : 'font-mono'}">
+                        {group.name || group.space}
+                      </span>
+                      <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
+                        {formatNumber(group.pages.length)}
+                      </span>
+                    </button>
+                  {/each}
+                {/if}
+              </div>
+            {/if}
+          </SidebarSection>
+        {:else if id === 'workspaces'}
+          <!-- Workspaces: other profile mirrors this serve can mount. Hidden unless
+               the server actually has more than one (older servers / demo → 404 → []). -->
+          <SidebarSection id="workspaces" label={t('sidebar.workspaces')} {visibleIds}>
+            {#each workspaceList as w (w.name)}
+              <a
+                href={workspaceHref(w)}
+                data-testid="workspace-link"
+                class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {currentWorkspace ===
+                w.name
+                  ? 'bg-bg-active text-text-primary'
+                  : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+                title={w.error ? t('sidebar.workspaceUnreadable') : w.site}
+              >
+                <span
+                  class="h-1.5 w-1.5 flex-none rounded-full {currentWorkspace === w.name
+                    ? 'bg-status-done'
+                    : 'bg-border-strong'}"
+                  aria-hidden="true"
+                ></span>
+                <span class="min-w-0 flex-1 truncate">{w.name}</span>
+                {#if currentWorkspace === w.name && standalone}
+                  <span
+                    class="inline-flex flex-none items-center rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
+                    data-testid="workspace-kind"
+                    data-kind="standalone"
+                    title={t('settings.workspaceStandaloneHint')}
+                    aria-label={t('settings.workspaceStandaloneHint')}
+                  >
+                    {t('settings.workspaceStandalone')}
+                  </span>
+                {/if}
+                {#if workspaceHost(w)}
+                  <span class="max-w-[45%] flex-none truncate text-micro text-text-muted">
+                    {workspaceHost(w)}
+                  </span>
+                {/if}
+              </a>
+            {/each}
+          </SidebarSection>
+        {/if}
       {/each}
     </div>
-
-    <!-- Jira saved filters (owned + starred). No delete — Jira is the record. -->
-    {#if views.source.length && !onboarding.needsOnboarding}
-      <div class="mb-3" data-testid="sidebar-jira-filters">
-        {@render sectionHeader(t('sidebar.jiraFilters'))}
-        {#each views.source as v (v.id)}
-          {@const href = jiraFilterUrl(v.external_id ?? '', v.jql)}
-          <div
-            class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {activeSource ===
-            v.id
-              ? 'bg-bg-active'
-              : 'hover:bg-bg-hover'}"
-          >
-            <button
-              type="button"
-              class="min-w-0 flex-1 truncate text-left {activeSource === v.id
-                ? 'text-text-primary'
-                : 'text-text-secondary group-hover:text-text-primary'}"
-              onclick={() => applySource(v)}
-              title={v.jql || undefined}
-              data-testid="sidebar-jira-filter"
-              data-filter-id={v.id}
-            >
-              {#if v.favourite}<span class="mr-1 text-micro text-text-muted" aria-hidden="true">★</span>{/if}{v.name}
-            </button>
-            {#if href}
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-accent-text group-hover:opacity-100"
-                title={t('sidebar.openFilterInJira')}
-                aria-label={t('sidebar.openFilterInJira')}
-                data-testid="sidebar-jira-filter-open"
-                onclick={(e) => e.stopPropagation()}
-              >
-                <Icon name="arrow-up-right" size={13} />
-              </a>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    {/if}
-
-    <!-- Personal views -->
-    {#if views.personal.length}
-      <div class="mb-3">
-        {@render sectionHeader(t('sidebar.myViews'))}
-        {#each views.personal as v (v.id)}
-          {@render viewRow({
-            name: v.name,
-            active: activePersonal === v.id,
-            apply: () => applyView(v.config),
-            remove: () => views.removePersonal(v.id),
-          })}
-        {/each}
-      </div>
-    {/if}
-
-    <!-- Team shared views -->
-    {#if views.team.length}
-      <div class="mb-3">
-        {@render sectionHeader(t('sidebar.teamViews'))}
-        {#each views.team as v (v.id)}
-          {@render viewRow({
-            name: v.name,
-            active: activeTeam === v.id,
-            apply: () => applyView(v.config),
-            owner: v.owner_name,
-            remove:
-              me.email && v.owner_email === me.email
-                ? () => views.removeTeam(v.id).catch(() => alert(t('sidebar.viewDeleteFail')))
-                : null,
-          })}
-        {/each}
-      </div>
-    {/if}
-
-    <!--
-      Docs: mirrored wiki pages. When the mirror has none this used to render
-      nothing at all, so "you have not set this up" and "this app cannot do
-      that" looked the same — and someone who had configured it on another
-      profile read the switch as the feature disappearing. The row below says
-      which of the two it is and leads to the screen that fixes it.
-    -->
-    {#if !pages.bySpace.length}
-      <div class="mb-3" data-testid="docs-section-empty">
-        {@render sectionHeader(t('sidebar.docs'))}
-        <!-- Same gutter and leading glyph as the live rows below this header
-             would have: without them the two lines aligned with DOCS itself and
-             read as a caption about the section rather than as the one thing in
-             it you can click. The glyph is the destination, not a document —
-             a file icon would advertise a view that does not exist yet. Once
-             the source is configured the glyph stops being a gear, because the
-             errand is no longer "go to Settings". -->
-        <button
-          type="button"
-          class="flex w-full items-start gap-2 rounded-md px-3 py-1.5 text-left transition-colors {docsEmptyState ===
-          'syncing'
-            ? 'cursor-progress'
-            : docsEmptyState === 'unavailable'
-              ? 'cursor-default'
-              : 'hover:bg-bg-hover'}"
-          data-testid="docs-empty-cta"
-          data-state={docsEmptyState}
-          title={docsEmptyState === 'failed' ? (confluenceRuns?.[0]?.error ?? '') : ''}
-          onclick={onDocsEmptyClick}
-        >
-          <!-- Five causes, five silhouettes. The gear is reserved for the one
-               state that is genuinely unconfigured: once the source is on, a
-               gear would say "set this up" about something already set up. The
-               unavailable snapshot shares search-x with 'empty' — nothing to
-               find either way — but never the gear: there is nowhere to go. -->
-          <Icon
-            name={docsEmptyState === 'failed'
-              ? 'warning'
-              : docsEmptyState === 'syncing' || docsEmptyState === 'never'
-                ? 'refresh'
-                : docsEmptyState === 'empty' || docsEmptyState === 'unavailable'
-                  ? 'search-x'
-                  : 'settings'}
-            size={15}
-            class="mt-0.5 flex-none {docsEmptyState === 'failed'
-              ? 'text-status-reopen'
-              : 'text-text-muted'} {docsEmptyState === 'syncing'
-              ? 'motion-safe:animate-spin'
-              : ''}"
-          />
-          <span class="flex min-w-0 flex-col gap-0.5">
-            <span class="text-body text-text-secondary">{docsEmptyText.title}</span>
-            {#if docsEmptyText.hint}
-              <span class="text-micro leading-relaxed text-text-muted">
-                {docsEmptyText.hint}
-              </span>
-            {/if}
-          </span>
-        </button>
-      </div>
-    {/if}
-    {#if pages.bySpace.length}
-      <div class="mb-3" data-testid="docs-section">
-        {@render sectionHeader(t('sidebar.docs'))}
-        <!-- The way in: recency first, across every space. What changed lately,
-             and what you had open, are questions no single space answers. -->
-        <button
-          type="button"
-          class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {pages.docsView
-            ? 'bg-bg-active text-text-primary'
-            : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-          aria-pressed={pages.docsView}
-          title={t('sidebar.docsAllTitle')}
-          data-testid="docs-documents"
-          onclick={openDocuments}
-        >
-          <Icon
-            name="file"
-            size={15}
-            class={pages.docsView ? 'text-text-secondary' : 'text-text-muted'}
-          />
-          <span class="min-w-0 flex-1 truncate">{t('sidebar.docsAll')}</span>
-        </button>
-        <!-- Spaces: collapsed, and one level deep. Seeing every container at all
-             times was the thing that read as too much. -->
-        <button
-          type="button"
-          class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-          aria-expanded={spacesOpen}
-          title={t('sidebar.docsSpacesTitle')}
-          data-testid="docs-spaces"
-          onclick={() => (spacesOpen = !spacesOpen)}
-        >
-          <span
-            class="flex-none text-text-muted transition-transform duration-150"
-            style={spacesOpen ? 'transform: rotate(90deg)' : ''}
-          >
-            <Icon name="chevron-right" size={15} />
-          </span>
-          <span class="min-w-0 flex-1 truncate">{t('sidebar.docsSpaces')}</span>
-          <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
-            {formatNumber(pages.bySpace.length)}
-          </span>
-        </button>
-        {#if spacesOpen}
-          {#each pages.bySpace as group (group.space)}
-            <button
-              type="button"
-              class="flex h-control w-full items-center gap-2 rounded-md pl-[35px] pr-3 text-left text-[12px] transition-colors {pages.spaceView ===
-              group.space
-                ? 'bg-bg-active text-text-primary'
-                : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-              aria-pressed={pages.spaceView === group.space}
-              title={t('sidebar.docsSpaceTitle', { space: group.space, n: group.pages.length })}
-              data-testid="docs-space"
-              onclick={() => openSpace(group.space)}
-            >
-              <!-- The name is what people call the space; the key stays reachable
-                   in the tooltip, and is the label itself until a name is mirrored. -->
-              <span class="min-w-0 flex-1 truncate {group.name ? '' : 'font-mono'}">
-                {group.name || group.space}
-              </span>
-              <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
-                {formatNumber(group.pages.length)}
-              </span>
-            </button>
-          {/each}
-        {/if}
-      </div>
-    {/if}
-
-    <!-- Workspaces: other profile mirrors this serve can mount. Hidden unless
-         the server actually has more than one (older servers / demo → 404 → []). -->
-    {#if workspaceList.length > 1}
-      <div class="mb-3">
-        {@render sectionHeader(t('sidebar.workspaces'))}
-        {#each workspaceList as w (w.name)}
-          <a
-            href={workspaceHref(w)}
-            data-testid="workspace-link"
-            class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {currentWorkspace ===
-            w.name
-              ? 'bg-bg-active text-text-primary'
-              : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-            title={w.error ? t('sidebar.workspaceUnreadable') : w.site}
-          >
-            <span
-              class="h-1.5 w-1.5 flex-none rounded-full {currentWorkspace === w.name
-                ? 'bg-status-done'
-                : 'bg-border-strong'}"
-              aria-hidden="true"
-            ></span>
-            <span class="min-w-0 flex-1 truncate">{w.name}</span>
-            {#if currentWorkspace === w.name && standalone}
-              <span
-                class="inline-flex flex-none items-center rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
-                data-testid="workspace-kind"
-                data-kind="standalone"
-                title={t('settings.workspaceStandaloneHint')}
-                aria-label={t('settings.workspaceStandaloneHint')}
-              >
-                {t('settings.workspaceStandalone')}
-              </span>
-            {/if}
-            {#if workspaceHost(w)}
-              <span class="max-w-[45%] flex-none truncate text-micro text-text-muted">
-                {workspaceHost(w)}
-              </span>
-            {/if}
-          </a>
-        {/each}
-      </div>
-    {/if}
   </div>
 
   <!-- Settings / identity area (sidebar footer). The server settings entry

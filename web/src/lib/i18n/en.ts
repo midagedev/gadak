@@ -371,6 +371,7 @@ export const en = {
   'sidebar.runReconcile': '+ deletions',
   'sidebar.runCounts': '{changed} changed · {deleted} deleted',
   'sidebar.issueCount': '{n} issues',
+  'sidebar.sectionReorderHint': 'Drag to reorder. Alt+Up or Alt+Down to move.',
 
   /* ── Freshness chip (mirror ↔ Jira leg) ── */
   'freshness.label': 'Mirror freshness',

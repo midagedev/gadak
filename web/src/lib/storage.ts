@@ -42,6 +42,14 @@ export const STORAGE_KEYS = {
   get docsTab() {
     return `gadak:${keyPrefix()}docs-tab`
   },
+  /** Collapsed sidebar sections — JSON string[] of section ids. Browser-local. */
+  get sidebarSectionsCollapsed() {
+    return `gadak:${keyPrefix()}sidebar-sections-collapsed`
+  },
+  /** Sidebar section display order — JSON string[] of section ids. Browser-local. */
+  get sidebarSectionsOrder() {
+    return `gadak:${keyPrefix()}sidebar-sections-order`
+  },
 }
 
 /**

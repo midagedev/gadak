@@ -372,6 +372,7 @@ export const ko = {
   'sidebar.runReconcile': '+ 삭제 반영',
   'sidebar.runCounts': '{changed}건 변경 · {deleted}건 삭제',
   'sidebar.issueCount': '{n}건',
+  'sidebar.sectionReorderHint': '드래그해서 순서를 바꿉니다. Alt+위쪽/아래쪽 화살표로 이동합니다.',
 
   /* ── Freshness chip (mirror ↔ Jira leg) ── */
   'freshness.label': '미러 신선도',
