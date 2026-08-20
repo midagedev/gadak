@@ -2,7 +2,7 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.16.1 — 2026-08-20
 
 The release that finishes what 0.16 started. Standalone shipped as a working
 origin and then spent a day proving how many ways two processes can disagree
