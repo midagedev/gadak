@@ -6,6 +6,20 @@
 
 ### Fixed
 
+- **The public backlog publishes what each issue actually says** ([GDK-430]).
+  The scrub treated every content surface as one axis and forced descriptions to
+  null with the comments and the attachments, so the published page was a list
+  of headlines: the `file:line`, the failure scenario and the fix all live in the
+  description. They are not one axis — comments and history carry other people's
+  words and actions, a description carries only the reporter's — so `--scrub`
+  gained a `--keep-description` door that opens nothing else, and the whitelist
+  stays closed for a caller that says nothing. The leak gate grew with the new
+  surface: a home directory path fails it, an address that is neither a
+  documentation placeholder nor the maintainer's own published feedback channel
+  fails it, and a description carrying anything but paragraphs and text — an ADF
+  `mention` is an account id and a display name, an `inlineCard` is a URL —
+  fails it too
+
 - **Converting a workspace stops handing your personal rows to the new site**
   ([GDK-418]). An issue key is not globally unique — `init --standalone` seeds
   project `STD` and a real site's project can be `STD` too — so a row naming the
@@ -1393,3 +1407,4 @@ measured numbers instead of adjectives.
 [GDK-424]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-424
 [GDK-426]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-426
 [GDK-418]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-418
+[GDK-430]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-430

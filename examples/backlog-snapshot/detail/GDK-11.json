@@ -1,1 +1,1 @@
-{"attachments":[],"bodies":{},"comments":[],"deploy":null,"description_adf":null,"development_opinion":null,"history":[],"issue_key":"GDK-11","linked_issues":[],"linked_prs":[],"qa_context":null}
+{"attachments":[],"bodies":{},"comments":[],"deploy":null,"description_adf":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"인앱 웹뷰에서 t.co 리다이렉트가 차단돼 자물쇠 아이콘으로 보인다. 외부 브라우저로 넘기는 규칙 등 대안 검토."}]}]},"development_opinion":null,"history":[],"issue_key":"GDK-11","linked_issues":[],"linked_prs":[],"qa_context":null}

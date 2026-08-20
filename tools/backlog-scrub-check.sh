@@ -19,11 +19,21 @@ fail() { echo "backlog-scrub-check: $1" >&2; exit 1; }
   || fail "bootstrap carries people or custom fields"
 [ "$(jq '.issues | length' "$BOOT")" -gt 0 ] || fail "bootstrap has 0 issues"
 
+# The description is a published surface now (GDK-430) and the rest is not.
+# Comments and history carry other people's words and actions, attachments carry
+# arbitrary files, `bodies` carries linked issues' text — none of those is the
+# reporter's own, so all four stay pinned to empty. The description is checked
+# for shape instead: nothing but paragraphs and text, because an ADF document
+# can also hold `mention` nodes (an account id and a display name), `media`
+# (attachment ids) and `inlineCard` (a URL, which is how a site host would get
+# out). Measured on the 2026-08-20 snapshot: doc/paragraph/text only.
 for f in "$DIR"/detail/*.json; do
-  jq -e '(.description_adf == null)
-     and (.attachments == []) and (.comments == [])
+  jq -e '(.attachments == []) and (.comments == [])
      and (.history == []) and (.bodies == {})' "$f" >/dev/null \
-    || fail "content survived the scrub in $f"
+    || fail "other people's content survived the scrub in $f"
+  bad="$(jq -r '[.. | objects | select(has("type")) | .type]
+     - ["doc","paragraph","text","hardBreak"] | unique | join(" ")' "$f")"
+  [ -z "$bad" ] || fail "description in $f carries node types beyond plain prose: $bad"
 done
 
 # No concrete Jira site URL and no email addresses in the snapshot DATA.
@@ -59,8 +69,43 @@ hosts="$(grep -ohE '[A-Za-z0-9._-]+\.atlassian\.net' "${DATA_FILES[@]}" | sort -
   | grep -vxE '(your-site|your-team|example|x)\.atlassian\.net' || true)"
 [ -z "$hosts" ] || fail "concrete Jira site URL in snapshot data: $(echo "$hosts" | tr '\n' ' ')"
 
-mails="$(grep -ohE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' "${DATA_FILES[@]}" | sort -u || true)"
+# Two addresses are allowed through, for the same reason `your-site` is above.
+# Anything at example.com is a documentation placeholder, and the maintainer's
+# own address is a shipped feedback channel — it is in the app's About tab, the
+# desktop menu and the hosted links (git grep it), so a backlog issue that
+# quotes the channel is not disclosing it. Every other address still fails.
+# Widened 2026-08-20 when descriptions started publishing (GDK-430); before
+# that the snapshot carried no prose for an address to appear in.
+mails="$(grep -ohE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' "${DATA_FILES[@]}" | sort -u \
+  | grep -vxE '([A-Za-z0-9._%+-]+@example\.(com|org|net)|midagedev@gmail\.com)' || true)"
 [ -z "$mails" ] || fail "email address in snapshot data: $(echo "$mails" | tr '\n' ' ')"
+
+# A home directory names its owner and says what machine wrote the issue. Three
+# GDK bodies carried one (`/Users/<name>/repo/issuetap`) and would have shipped
+# it the moment descriptions were published.
+homes="$(grep -ohE '(/Users|/home)/[A-Za-z0-9._-]+' "${DATA_FILES[@]}" | sort -u || true)"
+[ -z "$homes" ] || fail "home directory path in snapshot data: $(echo "$homes" | tr '\n' ' ')"
+
+# Real names must not come back. The list of them is deliberately NOT in this
+# repository: which people were consulted is the private fact, so committing a
+# denylist of their handles would publish exactly what the lens-* pseudonyms
+# exist to keep out. Point BACKLOG_NAME_DENYLIST at a local file (one name or
+# handle per line, `#` comments) and this enforces it; unset, it says so rather
+# than passing silently. tools/backlog-snapshot.sh is the place to set it.
+if [ -n "${BACKLOG_NAME_DENYLIST:-}" ] && [ -f "$BACKLOG_NAME_DENYLIST" ]; then
+  names="$(grep -vE '^\s*(#|$)' "$BACKLOG_NAME_DENYLIST" || true)"
+  found=""
+  while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    if grep -oiqE "(^|[^A-Za-z0-9])$n([^A-Za-z0-9]|$)" "${DATA_FILES[@]}" 2>/dev/null; then
+      found="$found $n"
+    fi
+  done <<< "$names"
+  [ -z "${found// /}" ] || fail "name from the local denylist in snapshot data:$found"
+  echo "backlog-scrub-check: name denylist enforced ($(printf '%s\n' "$names" | wc -l | tr -d ' ') entries)"
+else
+  echo "backlog-scrub-check: BACKLOG_NAME_DENYLIST unset — real-name check skipped"
+fi
 
 # Two set assertions, both whitelist-shaped (GDK-389 review, 2026-08-20).
 #

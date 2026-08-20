@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"os"
@@ -93,6 +94,60 @@ func TestExportStaticScrubProducesWhitelistOnly(t *testing.T) {
 	}
 	if cfg["profile"] != "backlog" {
 		t.Fatalf("scrubbed config profile = %v, want backlog (cache-scope partition)", cfg["profile"])
+	}
+}
+
+// GDK-430. The scrub bundled every content surface into one axis, and they are
+// not one axis: comments and history carry other people's words, a description
+// carries the reporter's. Publishing titles with no bodies made the backlog an
+// index of headlines. The flag opens exactly one door and no other.
+func TestKeepDescriptionOpensOnlyTheDescription(t *testing.T) {
+	detail := []byte(`{
+		"issue_key": "GDK-1",
+		"description_adf": {"type":"doc","version":1,"content":[{"type":"paragraph"}]},
+		"attachments": [{"id":"1"}],
+		"comments": [{"id":"2","author":"someone else"}],
+		"history": [{"id":"3","author":"someone else"}],
+		"linked_issues": [{"key":"GDK-2"}],
+		"bodies": {"GDK-2":"text"}
+	}`)
+
+	closed, err := scrubDetail(detail, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		DescriptionADF json.RawMessage `json:"description_adf"`
+		Attachments    []any           `json:"attachments"`
+		Comments       []any           `json:"comments"`
+		History        []any           `json:"history"`
+		Linked         []any           `json:"linked_issues"`
+		Bodies         map[string]any  `json:"bodies"`
+	}
+	if err := json.Unmarshal(closed, &got); err != nil {
+		t.Fatal(err)
+	}
+	if string(got.DescriptionADF) != "null" {
+		t.Errorf("default scrub kept a description (%s) — the whitelist must stay closed unless asked", got.DescriptionADF)
+	}
+
+	open, err := scrubDetail(detail, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(open, &got); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got.DescriptionADF, []byte(`"paragraph"`)) {
+		t.Errorf("--keep-description dropped the description anyway: %s", got.DescriptionADF)
+	}
+	// The point of the test: nothing else moved.
+	if len(got.Attachments) != 0 || len(got.Comments) != 0 || len(got.History) != 0 || len(got.Bodies) != 0 {
+		t.Errorf("--keep-description also re-admitted other people's content: attachments=%d comments=%d history=%d bodies=%d",
+			len(got.Attachments), len(got.Comments), len(got.History), len(got.Bodies))
+	}
+	if len(got.Linked) != 1 {
+		t.Errorf("linked_issues = %d, want the public structure kept", len(got.Linked))
 	}
 }
 

@@ -65,6 +65,12 @@ func cmdExportStatic(args []string) error {
 		"whitelist-rebuild the snapshot for public backlog publishing: "+
 			"issues keep only list fields; descriptions, comments, attachments, "+
 			"history, people and custom fields are dropped")
+	keepDescription := fs.Bool("keep-description", false,
+		"with --scrub, let each published issue keep its own description. "+
+			"Comments, attachments and history stay dropped: those carry other "+
+			"people's words and actions, a description carries only the "+
+			"reporter's. Off by default — the whitelist must stay closed unless "+
+			"the caller says otherwise")
 	requireLabel := fs.String("require-label", "",
 		"publish only issues carrying this label; everything else is dropped "+
 			"from bootstrap and gets no detail file. A whitelist, so an issue "+
@@ -203,7 +209,7 @@ func cmdExportStatic(args []string) error {
 			return fmt.Errorf("detail %s: %w", key, err)
 		}
 		if *scrub {
-			body, err = scrubDetail(body)
+			body, err = scrubDetail(body, *keepDescription)
 			if err != nil {
 				return fmt.Errorf("scrub detail %s: %w", key, err)
 			}
@@ -395,7 +401,16 @@ func scrubBootstrap(body []byte) ([]byte, error) {
 // scrubDetail keeps the key and the linked-issue graph (public structure) and
 // forces every content surface — description, comments, attachments, history,
 // bodies, enrichments — to its empty shape.
-func scrubDetail(body []byte) ([]byte, error) {
+//
+// keepDescription re-admits one of them. The axes are not equivalent: comments
+// and history carry other people's words and actions, attachments carry
+// arbitrary files, but a description is written by the issue's own reporter. A
+// public backlog whose issues are titles with no body is a list of headlines —
+// the file:line, the failure scenario and the fix all live in the description,
+// so dropping it published the index and withheld the content (reported
+// 2026-08-20, GDK-430). The flag is opt-in so the rebuild stays a whitelist:
+// a caller that says nothing still gets the closed shape.
+func scrubDetail(body []byte, keepDescription bool) ([]byte, error) {
 	var det map[string]json.RawMessage
 	if err := json.Unmarshal(body, &det); err != nil {
 		return nil, err
@@ -404,9 +419,15 @@ func scrubDetail(body []byte) ([]byte, error) {
 	if len(linked) == 0 {
 		linked = json.RawMessage("[]")
 	}
+	description := json.RawMessage("null")
+	if keepDescription {
+		if adf := det["description_adf"]; len(adf) > 0 {
+			description = adf
+		}
+	}
 	out := map[string]json.RawMessage{
 		"issue_key":           det["issue_key"],
-		"description_adf":     json.RawMessage("null"),
+		"description_adf":     description,
 		"attachments":         json.RawMessage("[]"),
 		"comments":            json.RawMessage("[]"),
 		"history":             json.RawMessage("[]"),

@@ -22,11 +22,16 @@ bin/gadak export-static \
   --projects GDK \
   --require-label public \
   --scrub \
+  --keep-description \
   --api-base /gadak/backlog/api/v1/issues/ \
   --auth-base /gadak/backlog/api/v1/auth/ \
   "$OUT"
 # The scrub leaves no attachments; drop the empty dir so git has nothing to track.
 rmdir "$OUT/attachments" 2>/dev/null || true
 
+# Descriptions ship (GDK-430), so the real-name check matters here. The list
+# lives outside the repository on purpose — see backlog-scrub-check.sh. Default
+# path is the maintainer's; override with BACKLOG_NAME_DENYLIST.
+export BACKLOG_NAME_DENYLIST="${BACKLOG_NAME_DENYLIST:-$HOME/.gadak/backlog-name-denylist.txt}"
 tools/backlog-scrub-check.sh "$OUT"
 echo "backlog-snapshot: $OUT ready — review the diff, then commit"

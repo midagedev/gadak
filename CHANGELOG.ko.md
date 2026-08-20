@@ -6,6 +6,18 @@
 
 ### 고침
 
+- **공개 백로그가 각 이슈가 실제로 말하는 것을 발행합니다** ([GDK-430]). 스크럽이
+  본문 계열 전부를 한 축으로 다뤄 description 을 코멘트·첨부와 함께 null 로
+  못박았고, 그래서 발행된 페이지는 제목 목록이었습니다 — `file:line`, 실패
+  시나리오, 최소 수정이 전부 description 에 있습니다. 이 축들은 같지 않습니다:
+  코멘트·히스토리는 남의 말과 행위를 담고, description 은 그 이슈 리포터가 쓴
+  것만 담습니다. 그래서 `--scrub` 에 다른 문은 열지 않는 `--keep-description`
+  하나가 붙었고, 아무 말 없는 호출자에게는 여전히 닫힌 모양이 나옵니다. 누출
+  게이트도 새 표면만큼 자랐습니다: 홈 디렉터리 경로가 있으면 실패, 문서
+  플레이스홀더도 관리자 자신의 공개 피드백 채널도 아닌 주소가 있으면 실패,
+  description 이 문단과 텍스트 외의 것을 담으면 — ADF `mention` 은 계정 id 와
+  표시 이름이고 `inlineCard` 는 URL 입니다 — 그것도 실패입니다
+
 - **워크스페이스 변환이 개인 행을 새 사이트에 넘겨주지 않습니다**
   ([GDK-418]). 이슈 키는 전역 유일하지 않습니다 — `init --standalone`은 프로젝트
   `STD`를 심고, 실제 사이트의 프로젝트도 `STD`일 수 있습니다. 그래서 옛 origin의
@@ -1404,3 +1416,4 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-424]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-424
 [GDK-426]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-426
 [GDK-418]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-418
+[GDK-430]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-430
