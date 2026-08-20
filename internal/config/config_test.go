@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -561,6 +562,29 @@ func TestWorkspaceKindDefaultConnected(t *testing.T) {
 	}
 	if (&Config{}).IsStandalone() {
 		t.Fatal("empty must not be standalone")
+	}
+}
+
+func TestErrNotConfiguredNamesThreeInitPaths(t *testing.T) {
+	// GDK-454: the unconfigured sentence is one value; if a verb needs an
+	// extra clause it wraps this, it does not invent a sibling.
+	msg := ErrNotConfigured.Error()
+	for _, want := range []string{
+		"not configured",
+		"gadak init (Jira)",
+		"gadak init --standalone (local)",
+		"gadak init --pairing-code (another machine's serve)",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("ErrNotConfigured missing %q: %s", want, msg)
+		}
+	}
+	wrapped := NotConfiguredf("use `gadak views open KEY`")
+	if !errors.Is(wrapped, ErrNotConfigured) {
+		t.Fatalf("NotConfiguredf must wrap ErrNotConfigured, got %v", wrapped)
+	}
+	if !strings.Contains(wrapped.Error(), "gadak views open KEY") {
+		t.Fatalf("addendum dropped: %v", wrapped)
 	}
 }
 

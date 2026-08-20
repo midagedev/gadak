@@ -79,6 +79,12 @@ func cmdStatus(args []string) error {
 			"label":    rem.Label,
 		}
 	}
+	// Diagnostic only: status stays exit 0. The sentence is the same one
+	// sync/writes/open/api print (GDK-454). Paired workspaces have a
+	// credential, so they do not take this branch (GDK-449).
+	if cfg != nil && !cfg.HasCredential() {
+		fmt.Fprintf(os.Stderr, "gadak: %v\n", config.ErrNotConfigured)
+	}
 	var tokenExpiry config.TokenExpiry
 	if cfg != nil {
 		tokenExpiry = cfg.TokenExpiryAt(time.Now().UTC())

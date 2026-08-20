@@ -79,7 +79,7 @@ func cmdFields(args []string) error {
 		return err
 	}
 	if !cfg.HasCredential() {
-		return errors.New("no Jira credential — run `gadak init` first (this command queries Jira, not only the mirror)")
+		return config.NotConfiguredf("this command queries Jira, not only the mirror")
 	}
 
 	db, err := openReadOnly()
@@ -398,7 +398,7 @@ func cmdFieldsApply(asJSON bool) error {
 		return err
 	}
 	if !cfg.HasCredential() {
-		return errors.New("no Jira credential — run `gadak init` first")
+		return config.ErrNotConfigured
 	}
 	db, err := openStore()
 	if err != nil {

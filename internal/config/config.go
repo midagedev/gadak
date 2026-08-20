@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -633,6 +634,27 @@ func (c *Config) HasCredential() bool {
 	// carry the better error; Client() surfaces it on actual use.
 	rem, err := pairing.LoadRemote(c.Directory())
 	return err == nil && rem != nil
+}
+
+// ErrNotConfigured is the single owner of "this workspace has no origin yet"
+// (GDK-454). CLI verbs that refuse because HasCredential is false print this
+// — sync, writes, open, api, pairing list, status stderr, init's missing-
+// values path. Paired workspaces are configured: HasCredential already
+// counts remote-origin.json (GDK-442) and these verbs must not use this
+// sentence for them.
+//
+// origin.errNeedCredential is a different error (Client/Wiki construction
+// when a connected workspace lacks site/email/token) and is quoted by
+// wikiPathStatus; it is not this sentence.
+var ErrNotConfigured = errors.New("not configured — run gadak init (Jira), gadak init --standalone (local), or gadak init --pairing-code (another machine's serve)")
+
+// NotConfiguredf appends a verb-specific addendum to ErrNotConfigured.
+func NotConfiguredf(addendum string) error {
+	addendum = strings.TrimSpace(addendum)
+	if addendum == "" {
+		return ErrNotConfigured
+	}
+	return fmt.Errorf("%w — %s", ErrNotConfigured, addendum)
 }
 
 // NotifyEnabled is true unless the user set notify: false. Absent means on.

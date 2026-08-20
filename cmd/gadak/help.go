@@ -92,17 +92,20 @@ var helps = map[string]cmdHelp{
 	},
 	"pairing": {
 		summary: "manage the device tokens that gate a standalone serve's origin passthrough (GDK-433); a paired remote machine binds with `gadak init --pairing-code`",
-		usage:   "gadak [--profile <name>] pairing mint --label NAME [--ttl 90d] [--endpoint URL] | pairing list | pairing revoke <label|hash-prefix>",
+		usage:   "gadak [--profile <name>] pairing mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | pairing list | pairing revoke <label|hash-prefix>",
 		options: []helpOption{
 			{name: "label", desc: "device name shown in `gadak pairing list` (required, unique among active tokens)"},
 			{name: "ttl", desc: "token lifetime: <N><d|h|m|s>, e.g. 90d (default) or 12h"},
 			{name: "endpoint", desc: "URL remote devices reach this serve at; default is this machine's live serve address (loopback draws a warning — pass your tailnet URL)"},
+			{name: "json", desc: "emit JSON"},
 		},
 		examples: []string{
 			"gadak pairing mint --label laptop",
 			"gadak pairing mint --label agent --ttl 12h --endpoint https://<machine>.<tailnet>.ts.net",
+			"gadak pairing mint --label laptop --json",
 			"gadak pairing list",
 			"gadak pairing revoke laptop",
+			"gadak pairing revoke a1b2c3d4  # hash prefix, 8 or more hex chars from pairing list",
 			"# on the remote machine:",
 			"gadak --profile home init --pairing-code-stdin <<< \"$OFFER\"",
 		},

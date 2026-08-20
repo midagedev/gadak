@@ -337,6 +337,20 @@ func mirror(t *testing.T, site string) *config.Config {
 	return cfg
 }
 
+// standaloneMirror is mirror("") plus KindStandalone. The no-site open
+// tests are about an already-inited local workspace, not an empty
+// connected config (GDK-454: HasCredential is true here, so open does
+// not print ErrNotConfigured).
+func standaloneMirror(t *testing.T) *config.Config {
+	t.Helper()
+	cfg := mirror(t, "")
+	cfg.Kind = config.KindStandalone
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
 // capture runs a command with stdout redirected, which is the only way to assert
 // on what a CLI actually printed.
 func capture(t *testing.T, fn func() error) (string, error) {
@@ -488,7 +502,7 @@ func seedIssueURL(t *testing.T, key, itemURL string) {
 }
 
 func TestOpenStandaloneRelativeURLDoesNotSucceed(t *testing.T) {
-	mirror(t, "")
+	standaloneMirror(t)
 	seedIssueURL(t, "STD-1", "/browse/STD-1")
 	got := stubIssueOpen(t)
 
@@ -509,7 +523,7 @@ func TestOpenStandaloneRelativeURLDoesNotSucceed(t *testing.T) {
 }
 
 func TestOpenStandaloneMissingKeyIsNotInitAdvice(t *testing.T) {
-	mirror(t, "")
+	standaloneMirror(t)
 	got := stubIssueOpen(t)
 
 	_, err := capture(t, func() error { return cmdOpen([]string{"NOPE-1"}) })
@@ -526,7 +540,7 @@ func TestOpenStandaloneMissingKeyIsNotInitAdvice(t *testing.T) {
 }
 
 func TestOpenStandaloneKnownKeyWithoutSite(t *testing.T) {
-	mirror(t, "")
+	standaloneMirror(t)
 	got := stubIssueOpen(t)
 
 	_, err := capture(t, func() error { return cmdOpen([]string{"NMB-1"}) })
@@ -558,7 +572,7 @@ func TestOpenMissingKeyWithSiteStillBrowses(t *testing.T) {
 }
 
 func TestOpenStandaloneUsesLiveServe(t *testing.T) {
-	mirror(t, "")
+	standaloneMirror(t)
 	got := stubIssueOpen(t)
 	discoverServes = func() []serveHit {
 		return []serveHit{{base: "http://127.0.0.1:7777", profile: "", port: "7777"}}
@@ -975,7 +989,10 @@ func TestWritesRefuseToRunWithoutACredential(t *testing.T) {
 		"edit":       func() error { return cmdEdit([]string{"NMB-1", "--summary", "renamed"}) },
 	} {
 		_, err := capture(t, run)
-		if err == nil || !strings.Contains(err.Error(), "gadak init") {
+		// GDK-454: writes share config.ErrNotConfigured (plus the
+		// writes-go-to-Jira addendum). The old "no Jira credential" copy
+		// was one of five sentences for the same empty workspace.
+		if err == nil || !strings.Contains(err.Error(), config.ErrNotConfigured.Error()) {
 			t.Errorf("%s without a credential: %v", name, err)
 		}
 	}

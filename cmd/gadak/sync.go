@@ -35,7 +35,7 @@ func cmdSync(args []string) error {
 	// The credential gate is per-source: `sync --source linear` needs the
 	// Linear key, not a Jira token (a Linear-only profile is legitimate).
 	if !cfg.HasCredential() && !(cfg.Linear != nil) {
-		return fmt.Errorf("not configured — run `gadak init` first")
+		return config.ErrNotConfigured
 	}
 	db, err := openStore()
 	if err != nil {

@@ -102,8 +102,8 @@ func renderReplaceRefusedJSON(err error) error {
 // prompt. reason is why prompting was skipped (not a TTY, --json, --token-stdin).
 // projects is optional (empty = every project the account can see).
 func initMissingError(missing []string, reason string) error {
-	return fmt.Errorf("missing: %s (%s)\nsupply them with flags (--site, --email) or environment\n(GADAK_SITE, GADAK_EMAIL, GADAK_TOKEN); for the token also\n--token-file <path> or --token-stdin; optional --projects / GADAK_PROJECTS",
-		strings.Join(missing, ", "), reason)
+	return fmt.Errorf("missing: %s (%s)\nsupply them with flags (--site, --email) or environment\n(GADAK_SITE, GADAK_EMAIL, GADAK_TOKEN); for the token also\n--token-file <path> or --token-stdin; optional --projects / GADAK_PROJECTS\n%s",
+		strings.Join(missing, ", "), reason, config.ErrNotConfigured.Error())
 }
 
 // cmdInit writes site/email/token/projects to config after verifying against
@@ -392,7 +392,7 @@ func cmdInit(args []string) error {
 	}
 
 	if !cfg.HasCredential() {
-		return fmt.Errorf("site, email, and token are all required")
+		return fmt.Errorf("site, email, and token are all required\n%s", config.ErrNotConfigured.Error())
 	}
 	// Same verification as the server credential / onboarding endpoints (jira /myself).
 	// Auth rejection is fatal. A transport / site error is a warning: save the

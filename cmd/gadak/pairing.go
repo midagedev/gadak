@@ -26,7 +26,12 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const pairingUsage = "usage: gadak pairing mint --label NAME [--ttl 90d] [--endpoint URL] | pairing list | pairing revoke <label|hash-prefix>"
+const pairingUsage = "usage: gadak pairing mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | pairing list | pairing revoke <label|hash-prefix>"
+
+// pairingRevokeUsage is the revoke selector: exact label, or a hash prefix
+// of at least minPrefix (8) hex characters — pairing list prints 8, longer
+// prefixes still match (internal/pairing.Revoke).
+const pairingRevokeUsage = "usage: gadak pairing revoke <label|hash-prefix>"
 
 // defaultPairingTTL is 90 days: a device token is revocable, so it does
 // not need a short life, but an unattended one should not outlive a
@@ -101,6 +106,9 @@ func pairingDir() (string, error) {
 	} else if rem != nil {
 		return "", fmt.Errorf("%s — mint and revoke run on the home machine", pairedStatusLine(cfg, rem))
 	}
+	if !cfg.HasCredential() {
+		return "", config.ErrNotConfigured
+	}
 	if !cfg.IsStandalone() {
 		return "", errors.New("pairing is for standalone workspaces — the gate sits on the serve's origin passthrough, which a connected workspace does not serve")
 	}
@@ -127,8 +135,12 @@ func pairingMint(args []string) error {
 	label := fs.String("label", "", "device name shown in `gadak pairing list` (required)")
 	ttlFlag := fs.String("ttl", "90d", "token lifetime: <N><d|h|m|s>, e.g. 90d or 12h")
 	endpoint := fs.String("endpoint", "", "URL remote devices reach this serve at (default: this machine's live serve address)")
+	asJSON := fs.Bool("json", false, "emit JSON")
 	if _, err := parseAround(fs, args); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*label) == "" {
+		return errors.New("pairing mint requires --label NAME")
 	}
 	ttl, err := parseTTL(*ttlFlag)
 	if err != nil {
@@ -143,6 +155,8 @@ func pairingMint(args []string) error {
 		return err
 	}
 	if strings.TrimSpace(*label) == pairing.HomeLabel {
+		// GDK-450: rotation, not a device offer. --json is ignored so
+		// stdout stays empty (cannot be piped into init --pairing-code).
 		return pairingMintHome(dir, cfg, strings.TrimRight(strings.TrimSpace(*endpoint), "/"))
 	}
 	// Resolve the endpoint before minting: a mint without a reachable
@@ -176,15 +190,49 @@ func pairingMint(args []string) error {
 	if err != nil {
 		return err
 	}
-	// stdout is exactly the offer: the remote side pipes it whole
-	// (`gadak init --pairing-code "$(gadak pairing mint …)"`).
-	fmt.Println(offer)
-	fmt.Fprintf(os.Stderr, "paired device %q — token shown once, expires %s; revoke with: gadak pairing revoke %s\n",
-		*label, pairing.FormatExpiry(meta.ExpiresAt), meta.Hash[:8])
+	if err := writePairingMintOutput(*asJSON, offer, *label, ep, meta); err != nil {
+		return err
+	}
 	if err := ensureHomeRoutingToken(dir, cfg, ep); err != nil {
 		return err
 	}
 	return nil
+}
+
+// writePairingMintOutput is the device-mint output contract (GDK-456).
+// Default: stdout is exactly the offer line (pipe target). --json: one
+// JSON object on stdout with the same offer plus label/endpoint/expires_at.
+// Human stderr says what to do on the other machine; the offer is reusable
+// until expiry (not "shown once").
+func writePairingMintOutput(asJSON bool, offer, label, endpoint string, meta pairing.Meta) error {
+	expiry := pairing.FormatExpiry(meta.ExpiresAt)
+	if asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetEscapeHTML(false)
+		return enc.Encode(struct {
+			Offer     string `json:"offer"`
+			Label     string `json:"label"`
+			Endpoint  string `json:"endpoint"`
+			ExpiresAt string `json:"expires_at"`
+		}{offer, label, endpoint, expiry})
+	}
+	fmt.Println(offer)
+	fmt.Fprintln(os.Stderr, pairingMintRemoteHint(label))
+	fmt.Fprintf(os.Stderr, "paired device %q — offer reusable until %s; revoke with: gadak pairing revoke %s\n",
+		label, expiry, meta.Hash[:8])
+	return nil
+}
+
+// pairingMintRemoteHint is the one thing device mint must say: how to
+// consume the offer on the other machine. The suggested profile name is
+// the device label — the remote picks its own profile, and the home's
+// profile name means nothing over there; the label is the one name both
+// sides already share.
+func pairingMintRemoteHint(label string) string {
+	if label == "" {
+		label = "<name>"
+	}
+	return fmt.Sprintf("on the other machine: gadak --profile %s init --pairing-code-stdin  (paste the line above)", label)
 }
 
 // ensureHomeRoutingToken is the single owner of "_home is valid". Once one
@@ -385,7 +433,7 @@ func pairingRevoke(args []string) error {
 		return err
 	}
 	if len(rest) != 1 {
-		return usageError("pairing revoke", "usage: gadak pairing revoke <label|hash-prefix>")
+		return usageError("pairing revoke", pairingRevokeUsage)
 	}
 	dir, err := pairingDir()
 	if err != nil {

@@ -307,6 +307,14 @@ func TestInitMissingNonTTY(t *testing.T) {
 		if strings.Contains(first, "email") {
 			t.Errorf("email was supplied but listed missing: %s", first)
 		}
+		// GDK-454: the missing-values path must name the other two init
+		// shapes, not only site/email/token.
+		if !strings.Contains(msg, "--standalone") {
+			t.Errorf("missing-values error must name --standalone: %s", msg)
+		}
+		if !strings.Contains(msg, "--pairing-code") {
+			t.Errorf("missing-values error must name --pairing-code: %s", msg)
+		}
 	})
 }
 

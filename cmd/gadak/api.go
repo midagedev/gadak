@@ -95,7 +95,7 @@ func cmdAPI(args []string) error {
 		return err
 	}
 	if !cfg.HasCredential() {
-		return errors.New("no Jira credential — run `gadak init` first (gadak api uses the stored token)")
+		return config.NotConfiguredf("gadak api uses the stored token")
 	}
 
 	ctx := context.Background()

@@ -896,3 +896,119 @@ func TestEnsureHomeRoutingTokenRecoversStaleRemote(t *testing.T) {
 		t.Fatalf("reissued token verdict %v, want Accept", v)
 	}
 }
+
+// TestPairingMintRequiresLabelBeforeEndpoint is GDK-456: --label is the
+// user's first job. A mint with neither --label nor a live serve used to
+// fail on endpoint resolution and never mention --label.
+func TestPairingMintRequiresLabelBeforeEndpoint(t *testing.T) {
+	pairingHome(t)
+	_, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint"})
+	})
+	if err == nil {
+		t.Fatal("mint without --label must be refused")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "--label") {
+		t.Fatalf("want --label named first, got %v", err)
+	}
+	if strings.Contains(msg, "no live serve") {
+		t.Fatalf("label check ran after endpoint resolution: %v", err)
+	}
+}
+
+// TestPairingMintTellsTheOtherMachineWhatToRun is GDK-456: device mint
+// stderr must say how to consume the offer. The offer itself stays one
+// stdout line (pipe contract). "token shown once" is gone — the offer is
+// reusable until expiry.
+func TestPairingMintTellsTheOtherMachineWhatToRun(t *testing.T) {
+	pairingHome(t)
+	out, stderr, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "laptop", "--ttl", "1h", "--endpoint", "http://127.0.0.1:9"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 1 || strings.TrimSpace(lines[0]) == "" {
+		t.Fatalf("mint stdout must be exactly the offer line, got %q", out)
+	}
+	if _, err := pairing.DecodeOffer(lines[0]); err != nil {
+		t.Fatalf("stdout is not an offer: %v", err)
+	}
+	// The suggested profile is the device label, not the home's profile —
+	// the remote picks its own name and the label is the shared one.
+	if !strings.Contains(stderr, "on the other machine: gadak --profile laptop init --pairing-code-stdin") {
+		t.Fatalf("stderr missing other-machine command:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "paste the line above") {
+		t.Fatalf("stderr missing paste hint:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "shown once") {
+		t.Fatalf("stderr still implies a one-shot token:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "reusable") {
+		t.Fatalf("stderr must say the offer is reusable until expiry:\n%s", stderr)
+	}
+}
+
+// TestPairingMintJSON is GDK-456: mint --json matches the other write
+// verbs' JSON shape. stdout is one object {offer,label,endpoint,expires_at};
+// the offer field is still a decodeable offer line.
+func TestPairingMintJSON(t *testing.T) {
+	pairingHome(t)
+	out, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "laptop", "--ttl", "1h", "--endpoint", "http://127.0.0.1:9", "--json"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Offer     string `json:"offer"`
+		Label     string `json:"label"`
+		Endpoint  string `json:"endpoint"`
+		ExpiresAt string `json:"expires_at"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("stdout must be JSON, got %q: %v", out, err)
+	}
+	if doc.Label != "laptop" || doc.Endpoint != "http://127.0.0.1:9" || doc.Offer == "" || doc.ExpiresAt == "" {
+		t.Fatalf("json = %+v", doc)
+	}
+	offer, err := pairing.DecodeOffer(doc.Offer)
+	if err != nil {
+		t.Fatalf("offer field: %v", err)
+	}
+	if offer.Label != "laptop" || offer.Endpoint != doc.Endpoint || offer.Token == "" {
+		t.Fatalf("decoded offer = %+v", offer)
+	}
+}
+
+// TestPairingMintHomeJSONStdoutEmpty is GDK-450 × GDK-456: rotating
+// _home must not print an offer or a JSON document even when --json is set.
+func TestPairingMintHomeJSONStdoutEmpty(t *testing.T) {
+	pairingHome(t)
+	mintLaptop(t)
+	out, stderr, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "_home", "--endpoint", "http://127.0.0.1:9", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("mint --label _home --json: %v", err)
+	}
+	if strings.TrimSpace(out) != "" {
+		t.Fatalf("rotate must not print JSON or an offer, stdout=%q", out)
+	}
+	if !strings.Contains(stderr, "rotated") || !strings.Contains(stderr, "_home") {
+		t.Fatalf("stderr must still say what rotated, got %q", stderr)
+	}
+}
+
+func TestPairingHelpNamesJSONAndHashPrefixFloor(t *testing.T) {
+	out := formatHelp("pairing", nil)
+	if !strings.Contains(out, "--json") {
+		t.Fatalf("pairing help missing --json:\n%s", out)
+	}
+	if !strings.Contains(out, "8") || !strings.Contains(strings.ToLower(out), "hash") {
+		t.Fatalf("pairing help must say revoke matches a hash prefix of 8+ chars:\n%s", out)
+	}
+}

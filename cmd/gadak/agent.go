@@ -1080,7 +1080,9 @@ func sortJQL(list []store.IssueLite, d jql.Display) {
 /* ── writes ── */
 
 // errNoCredential is the refusal mutate and create share: writes go to Jira.
-var errNoCredential = errors.New("no Jira credential — run `gadak init` first (writes go to Jira, not to the mirror)")
+// Sentence owner is config.ErrNotConfigured (GDK-454); the addendum is this
+// verb's, because a write that cannot reach an origin is not a local edit.
+var errNoCredential = config.NotConfiguredf("writes go to Jira, not to the mirror")
 
 // writeNotMirroredError is the lookup miss after a write Jira already accepted.
 // mutate returns it (non-zero). create prints the new key with this wording
@@ -1492,6 +1494,12 @@ func cmdOpen(args []string) error {
 		return err
 	}
 	key := normalizeKey(pos[0])
+	// Unconfigured (no origin at all) is not the standalone no-site case.
+	// Standalone HasCredential is true, so it still hits the lookup / live-
+	// serve / views-open path below and is not told to re-run init (GDK-454).
+	if !cfg.HasCredential() {
+		return config.NotConfiguredf(fmt.Sprintf("use `gadak views open %s` (or `gadak serve`)", key))
+	}
 	// Key first: a missing row used to fall through to the no-site error and
 	// tell an already-inited standalone workspace to re-run init. With a
 	// site, a missing key still opens the browse URL — `open` is the escape
