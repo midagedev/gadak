@@ -121,6 +121,15 @@ test.describe('command palette', () => {
     // A personal view lives in localStorage; the fixture ships the Jira filter
     // ("Open in NMA", NMA + statusCategory). The team layer has none, so this
     // adds one to the real response rather than replacing it.
+    // The GDK-437 one-shot would absorb this fixture's localStorage view into
+    // the server on boot — the personal row would come back as a server row
+    // and pollute the shared local.db. A failed absorb keeps it personal (the
+    // store retries next boot), which is the shape this spec is about. The
+    // failure is an unparseable 200, not an error status: the browser logs
+    // every non-ok response to the console, and this spec asserts none.
+    await page.route(`${API}views/absorb/`, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: 'absorb-disabled-for-this-spec' }),
+    )
     await page.addInitScript(() => {
       localStorage.setItem(
         'gadak:personal-views',

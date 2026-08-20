@@ -177,6 +177,8 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("GET "+apiBase+"settings/spaces/{$}", s.handleSettingsSpaces)
 	mux.HandleFunc("GET "+apiBase+"views/{$}", s.handleGetViews)
 	mux.HandleFunc("POST "+apiBase+"views/{$}", s.handlePostView)
+	// One-shot localStorage→server absorb (GDK-437). Literal beats views/{id}/.
+	mux.HandleFunc("POST "+apiBase+"views/absorb/{$}", s.handleAbsorbViews)
 	mux.HandleFunc("DELETE "+apiBase+"views/{id}/{$}", s.handleDeleteView)
 	mux.HandleFunc("GET "+apiBase+"watches/{$}", s.handleGetWatches)
 	mux.HandleFunc("DELETE "+apiBase+"watches/{key}/{$}", s.handleDeleteWatch)

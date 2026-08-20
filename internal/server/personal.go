@@ -132,6 +132,34 @@ func (s *server) handleDeleteView(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleAbsorbViews is the one-shot that moves a browser's localStorage views
+// onto the server (GDK-437) — recency's absorb, for views. The response is the
+// merged {views} document so the client can adopt the new team list in one
+// round trip instead of re-issuing the GET it just made.
+func (s *server) handleAbsorbViews(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Views []store.SavedView `json:"views"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	if err := s.db.AbsorbViews(r.Context(), body.Views); err != nil {
+		serverError(w, r, err)
+		return
+	}
+	stored, err := s.db.SavedViews(r.Context())
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	views := make([]savedView, 0, len(stored))
+	for _, v := range stored {
+		views = append(views, s.view(v))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"views": views})
+}
+
 func (s *server) handleGetWatches(w http.ResponseWriter, r *http.Request) {
 	keys, err := s.db.Watches(r.Context())
 	if err != nil {

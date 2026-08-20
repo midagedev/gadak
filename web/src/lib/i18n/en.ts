@@ -191,6 +191,11 @@ export const en = {
   'filter.saveAsView': 'Save as view',
   'filter.savePersonal': 'Save personal',
   'filter.saveTeam': 'Share with team',
+  // GDK-437 scope hints — one line per save button, saying where it lands.
+  'filter.saveServerHint': 'Visible on all your devices',
+  'filter.saveLocalHint': 'This browser only',
+  'filter.saveServerFailed': 'Server save failed — saved in this browser instead',
+  'filter.saveDemoLocal': 'The demo keeps views in this browser',
   'filter.clear': 'Reset',
   'filter.copyJql': 'Copy JQL',
   'filter.copyJqlHelp': 'Copy this view as Jira JQL',

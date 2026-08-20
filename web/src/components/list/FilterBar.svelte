@@ -9,7 +9,7 @@
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import { emitJql } from '../../lib/api'
-  import { isHostedDemo } from '../../lib/config'
+  import { isHostedDemo, hasServerVerb } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
   import { filterFields, negationOf, type MultiField, type NegationField, type RangeField } from '../../lib/view-config'
   import { t, fieldLabel } from '../../lib/i18n'
@@ -147,12 +147,34 @@
     }
   }
 
+  // GDK-437: with a server behind this bundle the default save is the server
+  // (Enter included) — that is what makes a view follow the user across
+  // devices. The hosted demo has no server to write to, so it keeps the
+  // browser-local default and hides the server choice entirely.
+  const saveToServer = hasServerVerb('settings')
+  const defaultScope: 'personal' | 'team' = saveToServer ? 'team' : 'personal'
+
   async function doSave(scope: 'personal' | 'team') {
     const name = saveName.trim()
     if (!name) return
     const config = filters.currentConfig()
-    if (scope === 'personal') views.addPersonal(name, config)
-    else await views.addTeam(name, config).catch((e) => console.warn('[filterbar] 팀 뷰 저장 실패', e))
+    if (scope === 'team' && saveToServer) {
+      try {
+        await views.addTeam(name, config)
+      } catch (e) {
+        // Never lose the view quietly: keep it in this browser and say so.
+        // The save did land (locally), so the dialog closes like a success —
+        // staying open would invite a second, duplicate personal save.
+        views.addPersonal(name, config)
+        write.toast(t('filter.saveServerFailed'), 'error')
+        console.warn('[filterbar] 서버 뷰 저장 실패, 브라우저 저장으로 폴백', e)
+        saveName = ''
+        saveOpen = false
+        return
+      }
+    } else {
+      views.addPersonal(name, config)
+    }
     saveName = ''
     saveOpen = false
   }
@@ -358,33 +380,53 @@
       </button>
       {#if saveOpen}
         <div
-          class="anim-enter absolute left-0 top-full z-30 mt-1 w-60 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-overlay"
+          class="anim-enter absolute left-0 top-full z-30 mt-1 w-80 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-overlay"
         >
           <input
             type="text"
             bind:value={saveName}
             placeholder={t('filter.viewName')}
             class="mb-2 h-control-sm w-full rounded bg-bg-base px-2 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none"
-            onkeydown={(e) => e.key === 'Enter' && doSave('personal')}
+            onkeydown={(e) => e.key === 'Enter' && doSave(defaultScope)}
           />
-          <div class="flex gap-1.5">
+          {#if saveToServer}
+            <!-- Server first (GDK-437): one hint line per button says where
+                 each save lands. Full renaming of the scopes is round C. -->
+            <div class="mb-1 flex gap-1.5 text-micro text-text-muted">
+              <span class="flex-1">{t('filter.saveServerHint')}</span>
+              <span class="flex-1">{t('filter.saveLocalHint')}</span>
+            </div>
+            <div class="flex gap-1.5">
+              <button
+                type="button"
+                class="h-control-sm flex-1 rounded bg-accent px-2 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                disabled={!saveName.trim()}
+                onclick={() => doSave('team')}
+              >
+                {t('filter.saveTeam')}
+              </button>
+              <button
+                type="button"
+                class="h-control-sm flex-1 rounded border border-border-strong px-2 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-40"
+                disabled={!saveName.trim()}
+                onclick={() => doSave('personal')}
+              >
+                {t('filter.savePersonal')}
+              </button>
+            </div>
+          {:else}
+            <!-- Hosted demo: every non-GET is a 501 here, so the server save is
+                 not offered at all and the save stays browser-local. -->
             <button
               type="button"
-              class="h-control-sm flex-1 rounded bg-accent px-2 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+              class="h-control-sm w-full rounded bg-accent px-2 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
               disabled={!saveName.trim()}
               onclick={() => doSave('personal')}
             >
               {t('filter.savePersonal')}
             </button>
-            <button
-              type="button"
-              class="h-control-sm flex-1 rounded border border-border-strong px-2 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-40"
-              disabled={!saveName.trim()}
-              onclick={() => doSave('team')}
-            >
-              {t('filter.saveTeam')}
-            </button>
-          </div>
+            <div class="mt-1.5 text-micro text-text-muted">{t('filter.saveDemoLocal')}</div>
+          {/if}
         </div>
       {/if}
     </div>

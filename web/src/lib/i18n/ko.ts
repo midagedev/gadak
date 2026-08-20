@@ -192,6 +192,11 @@ export const ko = {
   'filter.saveAsView': '뷰로 저장',
   'filter.savePersonal': '개인 저장',
   'filter.saveTeam': '팀 공유',
+  // GDK-437 저장 위치 힌트 — 버튼당 한 줄, 어디에 저장되는지 말한다.
+  'filter.saveServerHint': '모든 기기에서 보임',
+  'filter.saveLocalHint': '이 브라우저에만 저장',
+  'filter.saveServerFailed': '서버 저장에 실패해 이 브라우저에 저장했습니다',
+  'filter.saveDemoLocal': '데모에서는 뷰가 이 브라우저에만 저장됩니다',
   'filter.clear': '초기화',
   'filter.copyJql': 'JQL 복사',
   'filter.copyJqlHelp': '지금 뷰를 Jira JQL로 복사',

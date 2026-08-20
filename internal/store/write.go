@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -991,6 +993,69 @@ func (db *DB) DeleteSavedView(ctx context.Context, id string) error {
 	return db.write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.Exec(`DELETE FROM local.saved_views WHERE id = ?`, id)
 		return err
+	})
+}
+
+// freshViewID backs AbsorbViews' id-collision guard. Same shape as the server
+// package's newID (16 hex chars) — personal ids carry a "p-" prefix, so a
+// collision only happens when the same browser row is re-absorbed under a new
+// name; the row then keeps its identity elsewhere, this one starts fresh.
+func freshViewID() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return Now() // unique enough for a local single-user store
+	}
+	return hex.EncodeToString(b)
+}
+
+// AbsorbViews merges browser-local (localStorage) views into local.saved_views
+// — the GDK-437 promotion day must not look like data loss. Same rules as
+// AbsorbRecents: the server is already the owner, so an incoming view whose
+// name exists there is dropped (server row wins), the rest are inserted.
+// Reads order by name, so "server rows in front" reduces to that conflict
+// rule. Kept ids stay stable — the client hides its absorbed rows by id — and
+// an id that already exists gets a fresh one so an insert can never overwrite
+// a server row (PutSavedView's upsert is deliberately not used here).
+func (db *DB) AbsorbViews(ctx context.Context, incoming []SavedView) error {
+	if len(incoming) == 0 {
+		return nil
+	}
+	return db.write(ctx, func(tx *sql.Tx) error {
+		for _, v := range incoming {
+			v.Name = strings.TrimSpace(v.Name)
+			if v.ID == "" || v.Name == "" {
+				continue
+			}
+			var one int
+			err := tx.QueryRowContext(ctx, `SELECT 1 FROM local.saved_views WHERE name = ? LIMIT 1`, v.Name).Scan(&one)
+			if err == nil {
+				continue // a server row already owns this name
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			id := v.ID
+			err = tx.QueryRowContext(ctx, `SELECT 1 FROM local.saved_views WHERE id = ? LIMIT 1`, id).Scan(&one)
+			if err == nil {
+				id = freshViewID()
+			} else if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			cfg := v.Config
+			if len(cfg) == 0 {
+				cfg = json.RawMessage("{}")
+			}
+			created := v.CreatedAt
+			if created == "" {
+				created = Now()
+			}
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO local.saved_views (id, name, config, created_at, updated_at) VALUES (?,?,?,?,?)`,
+				id, v.Name, string(cfg), created, Now()); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

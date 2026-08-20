@@ -373,6 +373,21 @@ export function createView(
   })
 }
 
+/**
+ * One-shot (GDK-437): move this browser's localStorage views onto the server.
+ * Structural type on purpose — importing the store's PersonalView here would
+ * invert the api←store dependency. Returns the merged views document.
+ */
+export function absorbViews(
+  views: { id: string; name: string; config: unknown; created_at?: string }[],
+): Promise<ViewsResponse> {
+  return json<ViewsResponse>('views/absorb/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ views }),
+  })
+}
+
 export async function deleteView(id: string): Promise<void> {
   const res = await raw(`views/${encodeURIComponent(id)}/`, { method: 'DELETE' })
   if (!res.ok && res.status !== 404) {
