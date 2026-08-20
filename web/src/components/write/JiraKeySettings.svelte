@@ -20,6 +20,7 @@
   let tokenExpires = $state('')
   let error = $state<string | null>(null)
   let busy = $state(false)
+  let deleteArmed = $state(false)
   let emailEl: HTMLInputElement | null = $state(null)
 
   $effect(() => {
@@ -43,13 +44,19 @@
 
   async function remove() {
     if (busy) return
+    if (!deleteArmed) {
+      deleteArmed = true
+      return
+    }
     busy = true
     await write.deleteCredential()
     busy = false
     apiToken = ''
+    deleteArmed = false
   }
 
   function close() {
+    deleteArmed = false
     write.closeSettings()
   }
 
@@ -111,7 +118,6 @@
           >
         </div>
         <div class="mt-1 flex flex-col gap-0.5 text-micro text-text-muted">
-          <span>{write.jiraEmail}</span>
           {#if write.tokenHint}<span class="font-mono">{t('jiraSettings.tokenDots', { hint: write.tokenHint })}</span>{/if}
           {#if write.verifiedAt}<span>{t('jiraSettings.verified', { when: absoluteTime(write.verifiedAt) })}</span>{/if}
         </div>
@@ -137,7 +143,7 @@
           bind:value={apiToken}
           type="password"
           autocomplete="off"
-          required
+          required={!write.configured}
           class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 font-mono text-body text-text-primary outline-none focus:border-accent"
           placeholder="ATATT3x…"
         />
@@ -168,7 +174,7 @@
             disabled={busy}
             class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-status-reopen transition-colors hover:bg-status-reopen/10 disabled:opacity-50"
           >
-            {t('common.delete')}
+            {deleteArmed ? t('jiraSettings.deleteConfirm') : t('common.delete')}
           </button>
         {:else}
           <span></span>

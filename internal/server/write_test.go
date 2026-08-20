@@ -1059,6 +1059,69 @@ func TestPutCredentialStoresUserExpiry(t *testing.T) {
 	}
 }
 
+// GDK-455: an empty token on a configured workspace means "keep the stored
+// one" — parity with `gadak init`, which keeps credentials on empty answers.
+// The web settings form can then submit an expiry-only change without asking
+// the user to re-paste a token they already stored.
+func TestPutCredentialKeepsStoredTokenOnEmpty(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	f := newFakeJira(t)
+	db, cfg := fixture(t)
+	cfg.Site, cfg.Email, cfg.Token = f.URL, "hc@example.com", "tok-SECRET-1234"
+	h := New(db, cfg)
+
+	// Expiry-only save: email and token both empty, stored credential kept.
+	rec := send(t, h, http.MethodPut, apiBase+"credential/",
+		`{"jira_email":"","api_token":"","token_expires_at":"2027-06-15"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expiry-only put → %d: %s", rec.Code, rec.Body.String())
+	}
+	if !f.called("GET /myself") {
+		t.Fatal("kept credential stored without re-verifying it")
+	}
+	got := decode[credentialDoc](t, rec)
+	if got.TokenHint != "…1234" || got.JiraEmail != "hc@example.com" {
+		t.Fatalf("kept credential answered %+v", got)
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Token != "tok-SECRET-1234" || saved.Email != "hc@example.com" {
+		t.Fatalf("stored credential changed: email=%q token=%q", saved.Email, saved.Token)
+	}
+	if saved.TokenExpirySource != config.TokenExpirySourceUser || saved.TokenExpiresAt != "2027-06-15T00:00:00.000Z" {
+		t.Fatalf("user expiry: source=%q at=%q", saved.TokenExpirySource, saved.TokenExpiresAt)
+	}
+
+	// Keeping the token without a new expiry must not reset the stored date
+	// (same contract as init's ApplyTokenExpiryIfNeeded).
+	rec = send(t, h, http.MethodPut, apiBase+"credential/", `{"jira_email":"","api_token":""}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("keep-only put → %d: %s", rec.Code, rec.Body.String())
+	}
+	saved, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.TokenExpirySource != config.TokenExpirySourceUser || saved.TokenExpiresAt != "2027-06-15T00:00:00.000Z" {
+		t.Fatalf("keep-on-empty reset the expiry: source=%q at=%q", saved.TokenExpirySource, saved.TokenExpiresAt)
+	}
+
+	// Unconfigured stays guarded: with nothing stored, empty still means empty.
+	t.Setenv("GADAK_HOME", t.TempDir())
+	db2, cfg2 := fixture(t)
+	cfg2.Site, cfg2.Email, cfg2.Token = f.URL, "", ""
+	h2 := New(db2, cfg2)
+	rec = send(t, h2, http.MethodPut, apiBase+"credential/", `{"jira_email":"","api_token":"","token_expires_at":"2027-06-15"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unconfigured empty put → %d, want 400", rec.Code)
+	}
+	if got := decode[map[string]string](t, rec)["error"]; got != "email_and_token_required" {
+		t.Fatalf("error %q", got)
+	}
+}
+
 func TestRejectedCredentialIsNotStored(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
 	f := newFakeJira(t)

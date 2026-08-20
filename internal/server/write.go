@@ -338,11 +338,22 @@ func (s *server) handlePutCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body.JiraEmail, body.APIToken = strings.TrimSpace(body.JiraEmail), strings.TrimSpace(body.APIToken)
+	// GDK-455: on a configured workspace an empty field means "keep the stored
+	// value" — parity with `gadak init`. The empty check below still guards the
+	// unconfigured case, where empty can only mean missing.
+	cur := s.config()
+	tokenReplaced := body.APIToken != ""
+	if body.APIToken == "" && cur.Token != "" {
+		body.APIToken = cur.Token
+	}
+	if body.JiraEmail == "" && cur.Email != "" {
+		body.JiraEmail = cur.Email
+	}
 	if body.JiraEmail == "" || body.APIToken == "" {
 		fail(w, http.StatusBadRequest, "email_and_token_required")
 		return
 	}
-	next := *s.config()
+	next := *cur
 	if next.Site == "" {
 		// Nothing to verify against: the site comes from settings, not from here.
 		fail(w, http.StatusBadRequest, "site_required")
@@ -361,7 +372,7 @@ func (s *server) handlePutCredential(w http.ResponseWriter, r *http.Request) {
 	next.Email, next.Token = body.JiraEmail, body.APIToken
 	next.TokenOwner, next.TokenVerifiedAt = me.DisplayName, store.Now()
 	next.AccountID = me.AccountID
-	if err := next.ApplyTokenExpiry(body.TokenExpiresAt, next.TokenVerifiedAt); err != nil {
+	if err := next.ApplyTokenExpiryIfNeeded(body.TokenExpiresAt, next.TokenVerifiedAt, tokenReplaced); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_token_expires")
 		return
 	}
