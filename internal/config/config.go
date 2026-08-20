@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/midagedev/gadak/internal/pairing"
 )
 
 // Member is one entry of the static member directory injected through settings.
@@ -617,7 +619,17 @@ func (c *Config) HasCredential() bool {
 	if c.IsStandalone() {
 		return true
 	}
-	return c.Site != "" && c.Email != "" && c.Token != ""
+	if c.Site != "" && c.Email != "" && c.Token != "" {
+		return true
+	}
+	// A paired workspace (GDK-433) keeps its credential in remote-origin.json,
+	// not here. Counting it in this one place is what heals sync/api/fields/
+	// agent writes together (GDK-442: three verbs classified the same paired
+	// workspace three different ways). A malformed file reads as "no
+	// credential" — the verbs' init hint is wrong then, but a bool cannot
+	// carry the better error; Client() surfaces it on actual use.
+	rem, err := pairing.LoadRemote(c.Directory())
+	return err == nil && rem != nil
 }
 
 // NotifyEnabled is true unless the user set notify: false. Absent means on.
