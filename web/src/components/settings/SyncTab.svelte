@@ -100,7 +100,7 @@
         >
           {#each SYNC_PRESETS as p (p.value)}
             <option value={p.value} selected={p.value === draft.syncPreset}>
-              {t(p.labelKey)}{p.value === 0 ? ` (${defaultSyncSec}s)` : ''}
+              {t(p.labelKey)}{p.value === 0 ? ` (${t('settings.intervalDefaultSeconds', { n: String(defaultSyncSec) })})` : ''}
             </option>
           {/each}
         </select>
@@ -137,7 +137,7 @@
         >
           {#each RECONCILE_PRESETS as p (p.value)}
             <option value={p.value} selected={p.value === draft.reconcilePreset}>
-              {t(p.labelKey)}{p.value === 0 ? ` (${defaultReconcileSec}s)` : ''}
+              {t(p.labelKey)}{p.value === 0 ? ` (${t('settings.intervalDefaultSeconds', { n: String(defaultReconcileSec) })})` : ''}
             </option>
           {/each}
         </select>

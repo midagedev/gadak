@@ -481,7 +481,7 @@
           <button
             type="button"
             class="max-w-[110px] truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
-            title={`Fix Version: ${issue.fix_versions.join(', ')}`}
+            title={`${t('column.fix_versions')}: ${issue.fix_versions.join(', ')}`}
             onclick={stop(() => filters.addValue('fix_versions', issue.fix_versions[0]))}
           >
             {issue.fix_versions[0]}

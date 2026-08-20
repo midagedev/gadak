@@ -65,7 +65,7 @@ export const ko = {
   'time.hour': '{n}시간',
   'time.day': '{n}일',
   'time.week': '{n}주',
-  'time.month': '{n}달',
+  'time.month': '{n}개월',
   'time.year': '{n}년',
   'time.minuteAgo': '{n}분 전',
   'time.hourAgo': '{n}시간 전',
@@ -124,7 +124,7 @@ export const ko = {
   'column.status': '상태',
   'column.reporter': '보고자',
   'column.comment_count': '코멘트 수',
-  'column.fix_versions': 'Fix Version',
+  'column.fix_versions': '수정 버전',
   'column.components': '컴포넌트',
   'column.created': '생성 시간',
   'column.due': '기한',
@@ -264,7 +264,7 @@ export const ko = {
   'list.emptyTitle': '이슈가 없습니다',
   'list.emptyHint': '동기화가 완료되면 여기 표시됩니다.',
   'list.emptyRunSync': '동기화 실행',
-  'list.emptySyncHint': '자동 갱신이 필요하면 gadak serve 로 서버를 실행하세요.',
+  'list.emptySyncHint': '자동 갱신이 필요하면 gadak serve로 서버를 실행하세요.',
   'list.bodyOnlyTitle': '로컬 매칭은 없지만 본문에서 찾았습니다',
   'list.bodyOnlyHint': "위 '본문 매칭' 섹션을 확인하세요.",
   'list.noMatchTitle': '조건에 맞는 이슈가 없습니다',
@@ -303,7 +303,7 @@ export const ko = {
   'list.searchClear': '지우기 (Esc)',
   'list.searchOpen': 'Enter로 열기',
   'omnibox.issueMissing': '미러에 {key}가 없습니다',
-  'list.searching': '검색중…',
+  'list.searching': '검색 중…',
   'list.searchFailed': '본문 검색에 실패했습니다. 연결을 확인한 뒤 다시 시도하세요.',
   // 서버 FTS가 없는 배포(정적 스냅샷). 실패가 아니다: 네트워크는 멀쩡하고
   // 제목·키 검색은 여전히 돌았다.
@@ -432,7 +432,7 @@ export const ko = {
   'personal.favoriteAria': '{key} 즐겨찾기',
   'personal.unfavoriteAria': '{key} 즐겨찾기 해제',
   'personal.watchOn': '워치 해제 — 상태 변경/코멘트/재오픈 알림을 받고 있습니다',
-  'personal.watchOff': '워치 — 변경 시 Teams 알림',
+  'personal.watchOff': '워치 — 상태 변경/코멘트/재오픈 알림',
   'personal.watchNeedCredentials': '자격증명을 설정하면 워치할 수 있습니다',
 
   /* ── Feed ── */
@@ -787,16 +787,17 @@ export const ko = {
     '현재 상태에 이 시간 이상 머문 미해결 이슈를 지연으로 표시합니다.',
   'settings.syncInterval': '증분 동기화 주기',
   'settings.syncIntervalHint':
-    'gadak serve 가 Jira 변경을 폴링하는 간격. 0 이면 기본값.',
+    'gadak serve가 Jira 변경을 폴링하는 간격. 0이면 기본값.',
   'settings.syncIntervalHintDesktop':
     '이 창의 백그라운드 동기화가 Jira를 보는 간격. 0이면 기본값.',
   'settings.reconcileInterval': '삭제 정리(reconcile) 주기',
   'settings.reconcileIntervalHint':
-    'upstream 에서 삭제된 이슈를 정리하기 위해 키를 재목록화하는 간격. 0 이면 기본값.',
+    '원본에서 삭제된 이슈를 정리하기 위해 키를 재목록화하는 간격. 0이면 기본값.',
   'settings.reconcileIntervalHintDesktop':
-    '이 창의 백그라운드 동기화가 upstream에서 삭제된 이슈를 정리하려고 키를 재목록화하는 간격. 0이면 기본값.',
+    '이 창의 백그라운드 동기화가 원본에서 삭제된 이슈를 정리하려고 키를 재목록화하는 간격. 0이면 기본값.',
   'settings.intervalApplies': '다음 동기화 틱에 적용됩니다. 재시작 불필요.',
   'settings.intervalDefault': '기본값',
+  'settings.intervalDefaultSeconds': '{n}초',
   'settings.intervalCustom': '직접 입력…',
   'settings.intervalSeconds': '초',
   'settings.intervalPreset30s': '30초',
@@ -812,7 +813,7 @@ export const ko = {
   'settings.updateFailed': '업데이트를 확인하지 못했습니다.',
   'settings.updateDev': '개발 빌드 — 업데이트 확인을 건너뜁니다.',
   'settings.thisMirror': '이 미러',
-  'settings.workspaceStandalone': '독립',
+  'settings.workspaceStandalone': '독립 워크스페이스',
   'settings.workspaceStandaloneHint':
     'Jira 계정 없이 쓰는 워크스페이스입니다. 원본은 이 컴퓨터의 issuetap persist 파일이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
   'settings.standaloneHow': '독립 워크스페이스 만들기',
@@ -824,7 +825,7 @@ export const ko = {
   'settings.runtimeComments': '코멘트 {n}개',
   'settings.runtimeSchema': '스키마 버전',
   'settings.runtimeWatermark': '워터마크',
-  'settings.runtimeFullSync': '마지막 full sync',
+  'settings.runtimeFullSync': '마지막 전체 동기화',
   'settings.runtimeLastError': '마지막 동기화 오류',
   'settings.runtimeVersion': 'gadak 버전',
   'settings.runtimeApiCalls': 'Jira 호출',
@@ -858,7 +859,7 @@ export const ko = {
   'settings.featureQaDesc': '이슈별 테스트 런·스위트 — 외부 QA 도구 필요',
   'settings.featureTeams': '파트 분류',
   'settings.featureTeamsDesc':
-    '멤버를 파트로 묶어 필터·그룹핑 — Teams / groups 탭에서 규칙 설정',
+    '멤버를 파트로 묶어 필터·그룹핑 — 팀/그룹 탭에서 규칙 설정',
   'settings.qaDashboardUrl': 'QA 대시보드 URL (선택)',
   /* 연동 탭 (데스크톱 앱 전용) */
   'settings.integrationsIntro':
@@ -920,8 +921,8 @@ export const ko = {
   'settings.addMember': '+ 멤버 추가',
   'settings.discoveredFields': '발견된 필드',
   'settings.discoveredFieldsHint':
-    '첫 full sync에서 Jira로부터 자동 탐지됩니다. 여기서 수정하면 고정되어 재탐지에도 유지되고, `gadak fields --apply`로 재탐지할 수 있습니다.',
-  'settings.noDiscoveredFields': '아직 발견된 필드가 없습니다 — full sync를 먼저 실행하세요.',
+    '첫 전체 동기화에서 Jira로부터 자동 탐지됩니다. 여기서 수정하면 고정되어 재탐지에도 유지되고, `gadak fields --apply`로 재탐지할 수 있습니다.',
+  'settings.noDiscoveredFields': '아직 발견된 필드가 없습니다 — 전체 동기화를 먼저 실행하세요.',
   'settings.pinned': '고정됨',
   'settings.roleFacet': '칩',
   'settings.roleBody': '문서',
@@ -937,7 +938,7 @@ export const ko = {
     '본문 검색에 합칠 ADF 커스텀필드 id (콤마 구분)',
   'settings.advancedJson': '고급 — JSON 직접 편집',
   'settings.jsonHint':
-    '폼과 JSON 은 마지막 수정이 이깁니다. 펼칠 때마다 현재 폼 값으로 다시 채워집니다.',
+    '폼과 JSON은 마지막 수정이 이깁니다. 펼칠 때마다 현재 폼 값으로 다시 채워집니다.',
   'settings.locale': '언어',
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
@@ -966,7 +967,7 @@ export const ko = {
   'palette.docCount': '{total}개 중 {shown}개',
   'palette.sectionDocs': '문서',
   'palette.sectionPeople': '사람',
-  'palette.sectionViews': '뷰',
+  'palette.sectionViews': '저장된 뷰',
   'palette.sectionActions': '액션',
   'palette.recent': '최근 본 항목',
   'palette.updated': '최근 갱신',
@@ -990,8 +991,8 @@ export const ko = {
   'palette.actionToggleReopened': '재오픈 필터 토글',
   'palette.actionToggleUnassigned': '미할당 필터 토글',
   'palette.actionToggleStale': '정체 필터 토글',
-  'palette.actionLocale': '언어를 {lang} 로 전환',
-  'palette.actionTheme': '테마를 {mode} 로 전환',
+  'palette.actionLocale': '언어를 {lang}로 전환',
+  'palette.actionTheme': '테마를 {mode}로 전환',
   'palette.actionSyncStatus': '동기화 상태 보기',
   'palette.actionSyncNow': '지금 동기화',
   'palette.syncToast': '{overall} · 동기화 {when}',
@@ -1039,22 +1040,22 @@ export const ko = {
   'onboarding.email': 'Jira 계정 이메일',
   'onboarding.token': 'API 토큰',
   'onboarding.tokenHint':
-    '~/.gadak/config.json 에만 저장되고, 당신의 사이트로만 전송됩니다. "Create API token" 으로 스코프 없이 만든 사용자 토큰(ATATT…)이 필요합니다. 스코프 토큰이나 admin.atlassian.com 의 조직 키(ATCTT…)는 사이트 URL 로 로그인할 수 없습니다.',
+    '~/.gadak/config.json에만 저장되고, 당신의 사이트로만 전송됩니다. "Create API token"으로 스코프 없이 만든 사용자 토큰(ATATT…)이 필요합니다. 스코프 토큰이나 admin.atlassian.com의 조직 키(ATCTT…)는 사이트 URL로 로그인할 수 없습니다.',
   'onboarding.tokenExpires': '만료일 (Atlassian 발급 화면의 날짜)',
   'onboarding.tokenExpiresHint': '선택. 비우면 기본 수명(1년)으로 가정합니다.',
   'onboarding.errExpires': '만료일이 날짜가 아닙니다 (YYYY-MM-DD).',
   'onboarding.tokenLink': 'API 토큰 만들기',
   'onboarding.connect': '연결',
   'onboarding.connecting': '검증 중…',
-  'onboarding.connectedAs': '{name} 으로 연결됨',
-  'onboarding.errRejected': 'Jira 가 이메일/토큰을 거부했습니다. 둘 다 확인해 주세요.',
+  'onboarding.connectedAs': '{name}으로 연결됨',
+  'onboarding.errRejected': 'Jira가 이메일/토큰을 거부했습니다. 둘 다 확인해 주세요.',
   'onboarding.errRejectedOrgKey':
-    '조직 API 키(admin.atlassian.com 의 ATCTT)는 동작하지 않습니다 — 사용자 API 토큰(ATATT)을 만드세요.',
+    '조직 API 키(admin.atlassian.com의 ATCTT)는 동작하지 않습니다 — 사용자 API 토큰(ATATT)을 만드세요.',
   'onboarding.errRejectedScoped':
-    '스코프 토큰("Create API token with scopes")은 Atlassian 클라우드 API 용이라 사이트 URL 에는 쓸 수 없습니다 — id.atlassian.com 에서 확인하고, 붙여넣은 토큰이 스코프 토큰이면 스코프 없는 토큰을 새로 만드세요.',
-  'onboarding.errSite': 'Jira 사이트 URL 을 입력하세요. 예: https://your-team.atlassian.net',
+    '스코프 토큰("Create API token with scopes")은 Atlassian 클라우드 API 용이라 사이트 URL에는 쓸 수 없습니다 — id.atlassian.com에서 확인하고, 붙여넣은 토큰이 스코프 토큰이면 스코프 없는 토큰을 새로 만드세요.',
+  'onboarding.errSite': 'Jira 사이트 URL을 입력하세요. 예: https://your-team.atlassian.net',
   'onboarding.errFields': '이메일과 API 토큰이 모두 필요합니다.',
-  'onboarding.errConnect': 'Jira 에 연결할 수 없습니다: {message}',
+  'onboarding.errConnect': 'Jira에 연결할 수 없습니다: {message}',
   'onboarding.projectsIntro':
     '미러할 프로젝트를 고르세요. 하나도 고르지 않으면 볼 수 있는 모든 프로젝트를 미러합니다 — 나중에 만들어지는 것까지. 설정에서 바꿀 수 있습니다.',
   'onboarding.loadingProjects': '프로젝트 불러오는 중…',
@@ -1062,7 +1063,7 @@ export const ko = {
   'onboarding.projectsTruncated': '앞쪽 {n}개만 표시했습니다. 나머지는 설정에서 추가하세요.',
   'onboarding.noProjects': '이 계정이 조회할 수 있는 프로젝트가 없습니다.',
   'onboarding.noProjectsChecklist':
-    '확인: 사이트 URL 이 맞고, Browse Projects 권한이 있으며, 조직 관리자 키가 아닌지.',
+    '확인: 사이트 URL이 맞고, Browse Projects 권한이 있으며, 조직 관리자 키가 아닌지.',
   'onboarding.noProjectsManual': '설정에서 프로젝트 키를 직접 입력할 수 있습니다.',
   'onboarding.selectAll': '전체 선택',
   'onboarding.selectNone': '선택 해제',
@@ -1074,20 +1075,20 @@ export const ko = {
   'onboarding.syncStarting': '시작 중…',
   'onboarding.syncDone': '{n}건 미러 완료.',
   'onboarding.syncServeHint':
-    '이후 자동 갱신은 gadak serve 로 서버를 실행하거나 사이드바의 지금 동기화를 쓰세요.',
+    '이후 자동 갱신은 gadak serve로 서버를 실행하거나 사이드바의 지금 동기화를 쓰세요.',
   /* 4단계 — 선택. 미러는 찼고, 여기서 두 번째 리더가 붙는다. */
   'onboarding.stepAgent': '에이전트 연결',
   'onboarding.stepOptional': '선택',
   'onboarding.agentIntro': '미러가 채워졌습니다. 이제 이걸 무엇으로 읽을지만 고르면 됩니다.',
   'onboarding.agentWhy':
-    '지금 보고 있는 앱이 리더 하나이고, 다른 하나는 당신의 코딩 에이전트입니다. 명령 한 줄이면 에이전트가 Jira 를 다시 거치지 않고 이 미러에 직접 질의합니다.',
+    '지금 보고 있는 앱이 리더 하나이고, 다른 하나는 당신의 코딩 에이전트입니다. 명령 한 줄이면 에이전트가 Jira를 다시 거치지 않고 이 미러에 직접 질의합니다.',
   'onboarding.agentCommandsLabel': '에이전트에 gadak 등록하기',
   'onboarding.agentCommandsHint': '터미널에서 실행하세요 — 에이전트 자체가 CLI라 이미 하나 열려 있습니다.',
   'onboarding.agentSkillCaption':
     'Claude Code — 스키마와 쿼리 패턴을 알려 주는 스킬을 설치합니다. 서버가 필요 없고, 질문이 생길 때만 로드됩니다.',
   'onboarding.agentMcpCaption':
-    '또는 MCP 서버로 등록 — 셸이 없는 호스트(Claude Desktop)를 위한 경로입니다. claude 는 등록까지 대신 하고, cursor·codex 는 붙여넣을 설정을 출력합니다:',
-  'onboarding.agentNoCli': '터미널에 gadak 가 없나요? 데스크톱 앱의 설정 → 연동에서 설치하세요.',
+    '또는 MCP 서버로 등록 — 셸이 없는 호스트(Claude Desktop)를 위한 경로입니다. claude는 등록까지 대신 하고, cursor·codex는 붙여넣을 설정을 출력합니다:',
+  'onboarding.agentNoCli': '터미널에 gadak가 없나요? 데스크톱 앱의 설정 → 연동에서 설치하세요.',
   'onboarding.agentDocsSetup': '에이전트 설정',
   'onboarding.agentDocsRecipes': '질의 레시피',
   'onboarding.agentDone': '앱 열기',
@@ -1097,10 +1098,10 @@ export const ko = {
   'onboarding.back': '뒤로',
   'onboarding.switchAccount': '다른 계정으로 연결',
   'onboarding.openSettings': '설정 열기',
-  'onboarding.cliHint': '같은 설정을 터미널에서 gadak init 으로도 할 수 있습니다.',
+  'onboarding.cliHint': '같은 설정을 터미널에서 gadak init으로도 할 수 있습니다.',
   'onboarding.standaloneBlocked':
-    '이 워크스페이스는 standalone 이고 여기서만 존재하는 로컬 원본 이슈 또는 페이지가 {n}개 있습니다. 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 미러에서 그 이슈 또는 페이지들이 즉시 삭제됩니다.',
-  'onboarding.standalonePersist': 'origin persist 파일: {path}',
+    '이 워크스페이스는 독립 워크스페이스이며 여기서만 존재하는 로컬 원본 이슈 또는 페이지가 {n}개 있습니다. 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 미러에서 그 이슈 또는 페이지들이 즉시 삭제됩니다.',
+  'onboarding.standalonePersist': '원본 persist 파일: {path}',
   'onboarding.standaloneOtherWorkspace':
     '사이트는 별도 워크스페이스에 연결하세요: gadak --profile <name> init (워크스페이스 목록은 gadak profiles).',
   'onboarding.standaloneReplaceConfirm':
@@ -1146,7 +1147,7 @@ export const ko = {
   /* ── In-app browser pane (desktop app only) ── */
   'browse.paneLabel': '인앱 브라우저',
   'browse.tabs': '열린 페이지',
-  'browse.back': 'Gadak로 돌아가기',
+  'browse.back': 'gadak로 돌아가기',
   'browse.openExternal': '시스템 브라우저에서 열기',
   'browse.closeTab': '이 페이지 닫기',
   'browse.loading': '{host} 여는 중…',
@@ -1160,8 +1161,8 @@ export const ko = {
   'app.authRetry': '다시 시도',
   'app.offlineBanner': '오프라인 — 캐시된 데이터를 표시 중',
   'app.demoBadge': '데모',
-  'app.demoBanner': '가상의 이슈이며 읽기 전용입니다. Jira 에 연결되지 않고 계정도 필요 없습니다.',
-  'app.demoBannerLink': '내 Jira 에서 실행하기 →',
+  'app.demoBanner': '가상의 이슈이며 읽기 전용입니다. Jira에 연결되지 않고 계정도 필요 없습니다.',
+  'app.demoBannerLink': '내 Jira에서 실행하기 →',
   'app.demoNoCredentials': '데모에서는 자격증명을 설정할 수 없습니다',
   'app.demoWriteDisabled': '이슈 생성은 서버가 필요합니다 — 상태 변경이나 코멘트를 시도해 보세요',
   'app.demoWriteNotice': '데모 수정은 이 브라우저에만 적용됩니다 — 어디로도 전송되지 않고 새로고침하면 사라집니다.',

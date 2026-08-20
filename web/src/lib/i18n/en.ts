@@ -123,7 +123,7 @@ export const en = {
   'column.status': 'Status',
   'column.reporter': 'Reporter',
   'column.comment_count': 'Comments',
-  'column.fix_versions': 'Fix Version',
+  'column.fix_versions': 'Fix versions',
   'column.components': 'Components',
   'column.created': 'Created',
   'column.due': 'Due date',
@@ -431,7 +431,7 @@ export const en = {
   'personal.favoriteAria': 'Favorite {key}',
   'personal.unfavoriteAria': 'Unfavorite {key}',
   'personal.watchOn': 'Watching — status/comment/reopen alerts on',
-  'personal.watchOff': 'Watch — Teams alert on changes',
+  'personal.watchOff': 'Watch — status/comment/reopen alerts',
   'personal.watchNeedCredentials': 'Set credentials to watch',
 
   /* ── Feed ── */
@@ -746,9 +746,9 @@ export const en = {
   'settings.tabIntegrations': 'Integrations',
   'settings.tabAbout': 'About',
   'settings.aboutFeedback': 'Feedback',
-  'settings.aboutGithub': 'GitHub Repository',
-  'settings.aboutIssues': 'Report an Issue',
-  'settings.aboutEmail': 'Contact by Email',
+  'settings.aboutGithub': 'GitHub repository',
+  'settings.aboutIssues': 'Report an issue',
+  'settings.aboutEmail': 'Contact by email',
   'settings.aboutX': '@midagedev on X',
   'settings.intro':
     'Choose what this profile mirrors, how often it syncs, and which features are on. Saving re-reads this window.',
@@ -802,6 +802,7 @@ export const en = {
     "How often this window's background sync re-lists keys to drop issues deleted upstream. 0 uses the default.",
   'settings.intervalApplies': 'Applies on the next sync tick; no restart needed.',
   'settings.intervalDefault': 'Default',
+  'settings.intervalDefaultSeconds': '{n}s',
   'settings.intervalCustom': 'Custom…',
   'settings.intervalSeconds': 'seconds',
   'settings.intervalPreset30s': '30s',
@@ -1177,7 +1178,7 @@ export const en = {
   /* ── In-app browser pane (desktop app only) ── */
   'browse.paneLabel': 'In-app browser',
   'browse.tabs': 'Open pages',
-  'browse.back': 'Back to Gadak',
+  'browse.back': 'Back to gadak',
   'browse.openExternal': 'Open in the system browser',
   'browse.closeTab': 'Close this page',
   'browse.loading': 'Opening {host}…',
