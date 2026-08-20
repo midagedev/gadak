@@ -20,6 +20,7 @@ rm -rf "$OUT"
 bin/gadak export-static \
   --db "$MIRROR" \
   --projects GDK \
+  --require-label public \
   --scrub \
   --api-base /gadak/backlog/api/v1/issues/ \
   --auth-base /gadak/backlog/api/v1/auth/ \

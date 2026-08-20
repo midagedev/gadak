@@ -1,0 +1,128 @@
+# Labels allowed to appear in the public backlog snapshot (GDK-389).
+#
+# A whitelist, and the direction is the point. A label is uncontrolled
+# vocabulary: whatever anyone types in Jira ships to the public site with the
+# issue. This file is the review step. Adding a label here is a decision that
+# the word itself is publishable — the summary already got that decision via
+# the `public` label, the label vocabulary gets it here.
+#
+# Why it exists (2026-08-20): seven labels in this project were real people's
+# handles, attached to roadmap items derived from a simulated advisory panel.
+# Publishing them would have asserted that identifiable people advised this
+# roadmap. They are now `lens-*` — the axis, not the person — and the mapping
+# stays private. A denylist would not have caught the next name; this does.
+#
+# One label per line, `#` comments and blank lines ignored.
+a11y
+agent
+agent-first
+agent-surface
+agent-ux
+architecture
+auth
+autoupdate
+backlog-migration
+bench
+beta
+blocked
+brew
+browse-pane
+bug
+carryover-v0.15
+census
+census-p0
+census-p1
+ci
+cli
+community
+contract
+contributor
+datacenter
+dates
+debuggability
+decision
+deferred
+demo
+desktop
+distribution
+docs
+dogfood
+dogfooding
+e2e
+ecosystem
+extensibility
+fixture
+flake
+follow-up
+gate
+go
+hierarchy
+hosted
+hosted-demo
+i18n
+in-app
+invariant
+issuetap
+launch
+lens-agent
+lens-bench
+lens-compose
+lens-derive
+lens-firstrun
+lens-publish
+lens-trust
+linear
+linux
+local-first
+locale
+look
+marketing
+mcp
+mentor-roadmap
+multi-origin
+non-goal
+omarchy
+onboarding
+ops
+packaging
+perf
+performance
+phase0-launch
+phase1-sep
+phase2-quarter
+pipe
+post-launch
+privacy
+public
+quality
+race
+raycast
+refactor
+release
+release-audit
+roadmap
+search
+security
+snapshot
+standalone
+storage
+sync
+target-0.16
+test
+tests
+theme
+tooling
+tracker-origin
+trust
+ui
+upstream
+ux
+v0.15
+viral
+web
+web-ui
+wiki
+windows
+workspace
+write-gap
+xplat

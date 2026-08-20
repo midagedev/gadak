@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,31 @@ import (
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/store"
 )
+
+// copyMirror makes a consistent single-file copy of a live mirror.
+//
+// `os.ReadFile` cannot do this and used to: the mirror runs in WAL mode, so a
+// byte copy of `gadak.db` alone omits everything still in `gadak.db-wal`.
+// Measured 2026-08-20 while publishing the backlog: a 4.7 MB WAL held the
+// four newest issues and three label writes, so the export dropped them and
+// reported success. On a publishing path that is not staleness — a `public`
+// label *removed* minutes ago would also be invisible, and the issue would
+// keep being published.
+//
+// VACUUM INTO takes a read transaction, so it sees the WAL and writes one
+// consistent file with no side effects on the source (unlike a checkpoint).
+func copyMirror(src, dst string) error {
+	db, err := sql.Open("sqlite", "file:"+src+"?mode=ro")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	// VACUUM INTO takes a path literal, not a bound parameter.
+	if _, err := db.Exec("VACUUM INTO '" + strings.ReplaceAll(dst, "'", "''") + "'"); err != nil {
+		return err
+	}
+	return nil
+}
 
 // serverAPIBase is the path prefix the live server hardcodes into attachment
 // content_url fields. Hosted demos rewrite it to the configured --api-base.
@@ -39,6 +65,10 @@ func cmdExportStatic(args []string) error {
 		"whitelist-rebuild the snapshot for public backlog publishing: "+
 			"issues keep only list fields; descriptions, comments, attachments, "+
 			"history, people and custom fields are dropped")
+	requireLabel := fs.String("require-label", "",
+		"publish only issues carrying this label; everything else is dropped "+
+			"from bootstrap and gets no detail file. A whitelist, so an issue "+
+			"filed after this snapshot is private until it is labelled")
 	// Flags must come before the positional outdir (Go flag stops at the first
 	// non-flag). build.mjs and the usage line keep that order.
 	if err := fs.Parse(args); err != nil {
@@ -68,12 +98,8 @@ func cmdExportStatic(args []string) error {
 	defer os.RemoveAll(tmp)
 
 	workDB := filepath.Join(tmp, "gadak.db")
-	src, err := os.ReadFile(*dbPath)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(workDB, src, 0o600); err != nil {
-		return err
+	if err := copyMirror(*dbPath, workDB); err != nil {
+		return fmt.Errorf("copy mirror: %w", err)
 	}
 	if err := freshenDemoClock(workDB); err != nil {
 		return fmt.Errorf("freshen sync clock: %w", err)
@@ -133,6 +159,15 @@ func cmdExportStatic(args []string) error {
 	bootBody, err := getJSON(handler, "GET", serverAPIBase+"bootstrap/")
 	if err != nil {
 		return fmt.Errorf("bootstrap: %w", err)
+	}
+	// Label filter before scrub: the detail loop re-reads this same body, so an
+	// issue dropped here never gets a detail file either — one decision, two
+	// surfaces. Independent of --scrub so the filter can be verified alone.
+	if *requireLabel != "" {
+		bootBody, err = keepLabelled(bootBody, *requireLabel)
+		if err != nil {
+			return fmt.Errorf("require-label %s: %w", *requireLabel, err)
+		}
 	}
 	if *scrub {
 		bootBody, err = scrubBootstrap(bootBody)
@@ -279,6 +314,46 @@ var issueWhitelist = []string{
 	"duedate", "resolution",
 	"created_at", "updated_at", "status_changed_at", "resolved_at",
 	"comment_count", "source",
+}
+
+// keepLabelled drops every bootstrap issue that does not carry label. The
+// direction matters: this is a whitelist, so the failure mode of forgetting to
+// classify an issue is "missing from the public snapshot", never "published by
+// accident" (GDK-389 review — a denylist publishes whatever nobody remembered
+// to mark).
+func keepLabelled(body []byte, label string) ([]byte, error) {
+	var boot map[string]json.RawMessage
+	if err := json.Unmarshal(body, &boot); err != nil {
+		return nil, err
+	}
+	var issues []map[string]json.RawMessage
+	if err := json.Unmarshal(boot["issues"], &issues); err != nil {
+		return nil, err
+	}
+	kept := make([]map[string]json.RawMessage, 0, len(issues))
+	for _, is := range issues {
+		var labels []string
+		if raw, ok := is["labels"]; ok {
+			if err := json.Unmarshal(raw, &labels); err != nil {
+				return nil, fmt.Errorf("labels: %w", err)
+			}
+		}
+		for _, l := range labels {
+			if l == label {
+				kept = append(kept, is)
+				break
+			}
+		}
+	}
+	if len(kept) == 0 {
+		return nil, fmt.Errorf("no issue carries %q — refusing to publish an empty backlog", label)
+	}
+	keptRaw, err := json.Marshal(kept)
+	if err != nil {
+		return nil, err
+	}
+	boot["issues"] = keptRaw
+	return json.Marshal(boot)
 }
 
 func scrubBootstrap(body []byte) ([]byte, error) {
