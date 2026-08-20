@@ -31,7 +31,7 @@ const LocalRetention = 180 * 24 * time.Hour
 
 // localMigrations is independent of the mirror's migrations slice. Index+1 is
 // PRAGMA user_version on local.db.
-var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3}
+var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4}
 
 const localSchemaV1 = `
 CREATE TABLE visits (
@@ -88,6 +88,38 @@ CREATE INDEX searches_epoch ON searches(origin_epoch);
 CREATE TABLE local_meta (
   k TEXT PRIMARY KEY,
   v TEXT NOT NULL
+);
+`
+
+// localSchemaV4 is the personal-state move (GDK-105): saved_views, watches,
+// favorites and feed_reads leave the mirror schema and live here, so
+// `rm gadak.db` — the documented one-line recovery — can no longer delete the
+// only copy of a view the user authored. Same DDL shape as the mirror tables
+// they replace (schemaV1 / schemaV4 there). Rows cross the file boundary in
+// the mirror-side schemaV26 copy migration, not here: this file has no
+// attachment of the mirror to read from.
+const localSchemaV4 = `
+CREATE TABLE saved_views (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  config     TEXT NOT NULL,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE watches (
+  key        TEXT PRIMARY KEY,
+  created_at TEXT
+);
+
+CREATE TABLE favorites (
+  key        TEXT PRIMARY KEY,
+  created_at TEXT
+);
+
+CREATE TABLE feed_reads (
+  event_id TEXT PRIMARY KEY,
+  read_at  TEXT NOT NULL
 );
 `
 
@@ -268,6 +300,17 @@ func sqliteAttachLiteral(path, mode string) string {
 // Failures are returned; callers of Open log them and still open the mirror.
 func EnsureLocal(mirrorPath string) error {
 	return ensureLocalDB(LocalPath(mirrorPath))
+}
+
+// localPersonalTablesReady reports whether the personal-state tables the
+// schemaV26 copy writes to exist and are reachable — i.e. schema `local` is
+// attached AND migrated to localSchemaV4. Any error (no attachment, older
+// local.db, closed handle) reads as not-ready: the caller stays a mirror
+// version behind rather than failing the copy. One probe per Open.
+func (db *DB) localPersonalTablesReady(ctx context.Context) bool {
+	var one int
+	return db.sql.QueryRowContext(ctx,
+		`SELECT 1 FROM local.sqlite_master WHERE type = 'table' AND name = 'saved_views'`).Scan(&one) == nil
 }
 
 func ensureLocalDB(path string) error {

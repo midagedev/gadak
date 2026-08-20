@@ -29,9 +29,11 @@ outside the three above, open an issue and say what you are building — that is
 how it earns its way in.
 
 **When a migration goes wrong**, the mirror is disposable and the recovery is
-one line — `rm -rf ~/.gadak && gadak sync`. Nothing here is a source of truth;
-your Atlassian site is. Losing the mirror costs you the time to re-sync and
-nothing else.
+one line — `rm ~/.gadak/gadak.db && gadak sync`. Nothing here is a source of
+truth; your Atlassian site is. Losing the mirror costs you the time to re-sync
+and nothing else: personal state (saved views, watches, favorites, feed read
+receipts) and local history live in `local.db`, the sibling file, which the
+delete leaves alone.
 
 Default location: `~/.gadak/gadak.db`. `GADAK_HOME` replaces `~/.gadak`; `--profile` / `GADAK_PROFILE` selects `<home>/profiles/<name>/gadak.db`.
 
@@ -401,17 +403,31 @@ rejected: a 2-character query emits no trigram tokens, so `MATCH` silently
 returns 0 rows, and it wrecks English precision (`ency` → 0.342). English is
 deliberately not n-grammed — `ency` does not match `idempotency`.
 
-## `saved_views`, `watches`, `favorites`
+## Personal state in `local.db`: `saved_views`, `watches`, `favorites`, `feed_reads`
 
-Local personal state. These are the only rows a user would miss if the database
-were deleted, so `gadak export` dumps them and `gadak import` restores them
-(name or key conflict: the file wins).
+Local personal state. These are the only rows a user would miss if the
+database were deleted, so `gadak export` dumps the first three and `gadak
+import` restores them (name or key conflict: the file wins). Since v26 they
+live in `local.db` — the sibling file ATTACHed as schema `local` — not in the
+mirror, so `rm gadak.db` can no longer delete them (GDK-105). Reach them
+through the `local.` prefix (`SELECT * FROM local.saved_views`). On databases
+upgraded from v25 the mirror-side tables of the same names still exist as
+frozen leftovers of the v26 copy — nothing reads or writes them, and dropping
+them is deferred to a later release.
 
 | Table | Columns |
 | --- | --- |
-| `saved_views` | `id` PK, `name`, `config` (JSON), `created_at`, `updated_at` |
-| `watches` | `key` PK, `created_at` |
-| `favorites` | `key` PK, `created_at` |
+| `local.saved_views` | `id` PK, `name`, `config` (JSON), `created_at`, `updated_at` |
+| `local.watches` | `key` PK, `created_at` |
+| `local.favorites` | `key` PK, `created_at` |
+| `local.feed_reads` | `event_id` PK, `read_at` |
+
+Feed read receipts record which computed feed event ids the user has marked
+read; feed events themselves are never stored — the feed is computed from the
+mirror at query time (status/assignee changelog, comments, attachments, issue
+creates). `event_id` is a deterministic id: `cl:<changelog.id>`,
+`cm:<comment.id>`, `at:<attachment.id>`, `cr:<issue.key>`, or
+`fl:<item_id>:<at>` for grouped field changes.
 
 ## Replacing the origin
 
@@ -430,8 +446,8 @@ four tables added by later migrations):
 | Class | Conversion | Tables |
 | --- | --- | --- |
 | mirror | dropped | the mirror spine and everything the `sources` cascade reaches |
-| derived | dropped | `watches`, `favorites`, `enrichments`, `sync_runs`, `feed_reads`, `field_usage`, `local.recents` — ours, but every row names a key, project, source or account id the origin minted |
-| authored | kept | `saved_views`. Views whose stored query names a retired project are reported, never deleted |
+| derived | dropped | `local.watches`, `local.favorites`, `enrichments`, `sync_runs`, `local.feed_reads`, `field_usage`, `local.recents` — ours, but every row names a key, project, source or account id the origin minted |
+| authored | kept | `local.saved_views`. Views whose stored query names a retired project are reported, never deleted |
 | local | kept | `api_usage`, and `local.visits` / `local.searches`, which carry an `origin_epoch`: the timeline shows the current generation only, and retired rows stay readable with `gadak sql` |
 
 ## `source_queries` (v18)
@@ -454,18 +470,6 @@ from `saved_views`, which are authored in gadak.
 | `applied` | TEXT | JSON string array of JQL clauses that compiled |
 | `unsupported` | TEXT | JSON string array of clauses that did not |
 | `updated_at` | TEXT | |
-
-## `feed_reads`
-
-Local personal-feed read receipts. Feed events are not stored as rows: the
-server computes them from the mirror at query time (status/assignee changelog,
-comments, attachments, issue creates). This table only records which event ids
-the user has marked read.
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `event_id` | TEXT PK | Deterministic id: `cl:<changelog.id>`, `cm:<comment.id>`, `at:<attachment.id>`, `cr:<issue.key>`, or `fl:<item_id>:<at>` for grouped field changes |
-| `read_at` | TEXT | When the local user marked it read |
 
 ## `sync_state`
 

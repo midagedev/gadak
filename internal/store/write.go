@@ -929,7 +929,8 @@ func (db *DB) SetLastNotifiedAt(ctx context.Context, sourceID, at string) error 
 
 // SavedView is a user's stored filter set. Personal state is the only thing in
 // this database a user would miss, so it is also the only thing `gadak export`
-// has to dump (Constitution Article 1).
+// has to dump (Constitution Article 1). Since GDK-105 it lives in local.db,
+// which survives `rm gadak.db`.
 type SavedView struct {
 	ID        string          `json:"id"`
 	Name      string          `json:"name"`
@@ -939,7 +940,7 @@ type SavedView struct {
 }
 
 func (db *DB) SavedViews(ctx context.Context) ([]SavedView, error) {
-	rows, err := db.sql.QueryContext(ctx, `SELECT id, name, config, created_at, updated_at FROM saved_views ORDER BY name`)
+	rows, err := db.sql.QueryContext(ctx, `SELECT id, name, config, created_at, updated_at FROM local.saved_views ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -978,7 +979,7 @@ func (db *DB) PutSavedView(ctx context.Context, v SavedView) error {
 	}
 	return db.write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.Exec(`
-			INSERT INTO saved_views (id, name, config, created_at, updated_at) VALUES (?,?,?,?,?)
+			INSERT INTO local.saved_views (id, name, config, created_at, updated_at) VALUES (?,?,?,?,?)
 			ON CONFLICT(id) DO UPDATE SET
 				name = excluded.name, config = excluded.config, updated_at = excluded.updated_at`,
 			v.ID, v.Name, string(v.Config), v.CreatedAt, now)
@@ -988,7 +989,7 @@ func (db *DB) PutSavedView(ctx context.Context, v SavedView) error {
 
 func (db *DB) DeleteSavedView(ctx context.Context, id string) error {
 	return db.write(ctx, func(tx *sql.Tx) error {
-		_, err := tx.Exec(`DELETE FROM saved_views WHERE id = ?`, id)
+		_, err := tx.Exec(`DELETE FROM local.saved_views WHERE id = ?`, id)
 		return err
 	})
 }
@@ -1006,8 +1007,11 @@ func (db *DB) SetFavorite(ctx context.Context, key string, on bool) error {
 	return db.setKey(ctx, "favorites", key, on)
 }
 
+// keys/setKey address local.<table>: watches and favorites are personal state
+// and live in local.db (GDK-105). The mirror-side tables of the same name are
+// frozen leftovers of the schemaV26 copy — keep new readers on local.*.
 func (db *DB) keys(ctx context.Context, table string) ([]string, error) {
-	rows, err := db.sql.QueryContext(ctx, `SELECT key FROM `+table+` ORDER BY created_at, key`)
+	rows, err := db.sql.QueryContext(ctx, `SELECT key FROM local.`+table+` ORDER BY created_at, key`)
 	if err != nil {
 		return nil, err
 	}
@@ -1026,10 +1030,10 @@ func (db *DB) keys(ctx context.Context, table string) ([]string, error) {
 func (db *DB) setKey(ctx context.Context, table, key string, on bool) error {
 	return db.write(ctx, func(tx *sql.Tx) error {
 		if !on {
-			_, err := tx.Exec(`DELETE FROM `+table+` WHERE key = ?`, key)
+			_, err := tx.Exec(`DELETE FROM local.`+table+` WHERE key = ?`, key)
 			return err
 		}
-		_, err := tx.Exec(`INSERT OR IGNORE INTO `+table+` (key, created_at) VALUES (?, ?)`, key, Now())
+		_, err := tx.Exec(`INSERT OR IGNORE INTO local.`+table+` (key, created_at) VALUES (?, ?)`, key, Now())
 		return err
 	})
 }

@@ -174,7 +174,7 @@ func (db *DB) MarkFeedRead(ctx context.Context, opts MarkFeedReadOpts) (MarkFeed
 		updated = 0
 		for id := range want {
 			res, err := tx.Exec(`
-				INSERT INTO feed_reads (event_id, read_at) VALUES (?, ?)
+				INSERT INTO local.feed_reads (event_id, read_at) VALUES (?, ?)
 				ON CONFLICT(event_id) DO UPDATE SET read_at = excluded.read_at`,
 				id, now)
 			if err != nil {
@@ -563,7 +563,7 @@ func (db *DB) loadAttachmentsSince(ctx context.Context, since string) ([]rawAtta
 }
 
 func (db *DB) loadFeedReads(ctx context.Context) (map[string]string, error) {
-	rows, err := db.sql.QueryContext(ctx, `SELECT event_id, read_at FROM feed_reads`)
+	rows, err := db.sql.QueryContext(ctx, `SELECT event_id, read_at FROM local.feed_reads`)
 	if err != nil {
 		return nil, err
 	}

@@ -288,7 +288,7 @@ func TestLastNotifiedAtIndependentOfFeedReads(t *testing.T) {
 		t.Errorf("last_notified_at %v", st.LastNotifiedAt)
 	}
 	var n int
-	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM feed_reads`).Scan(&n); err != nil {
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM local.feed_reads`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 0 {

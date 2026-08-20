@@ -113,8 +113,9 @@ func TestConversionLeavesNoRowBoundToTheOldOrigin(t *testing.T) {
 		`INSERT INTO enrichments (key, kind, payload, source, updated_at)
 		   VALUES ('STD-1', 'risk', '{"score":9}', 'plugin', '2026-07-01T00:00:00.000Z')`,
 		// feed event ids are "cr:" + issue key (internal/store/feed.go), so the
-		// new site's STD-1 arrives already marked read.
-		`INSERT INTO feed_reads (event_id, read_at) VALUES ('cr:STD-1', '2026-07-01T00:00:00.000Z')`,
+		// new site's STD-1 arrives already marked read. Receipts live in
+		// local.db since GDK-105; the mirror-side table is a frozen leftover.
+		`INSERT INTO local.feed_reads (event_id, read_at) VALUES ('cr:STD-1', '2026-07-01T00:00:00.000Z')`,
 		`INSERT INTO field_usage (project_key, alias, filled, total) VALUES ('STD', 'sprint', 3, 4)`,
 		`INSERT INTO sync_runs (source_id, kind, started_at, finished_at, fetched, changed, deleted)
 		   VALUES ('jira', 'full', '2026-07-01T00:00:00.000Z', '2026-07-01T00:00:01.000Z', 1, 1, 0)`,
@@ -134,7 +135,7 @@ func TestConversionLeavesNoRowBoundToTheOldOrigin(t *testing.T) {
 		query string
 	}{
 		{"enrichments still describe the dropped STD-1", `SELECT count(*) FROM enrichments`},
-		{"feed_reads still mark cr:STD-1 read", `SELECT count(*) FROM feed_reads`},
+		{"feed_reads still mark cr:STD-1 read", `SELECT count(*) FROM local.feed_reads`},
 		{"field_usage still reports the dropped STD project", `SELECT count(*) FROM field_usage`},
 		{"sync_runs still credit the old origin's sync", `SELECT count(*) FROM sync_runs`},
 		{"recents still rank the old origin's account ids", `SELECT count(*) FROM local.recents`},

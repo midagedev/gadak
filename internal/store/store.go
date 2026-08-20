@@ -129,6 +129,16 @@ func (db *DB) migrate() error {
 	if have > want {
 		return fmt.Errorf("%s: schema version %d is newer than this build of gadak supports (%d); upgrade gadak or point --db elsewhere", db.path, have, want)
 	}
+	// The v26 copy writes into local.* in the same transaction that advances
+	// user_version. When local.db cannot be attached or migrated, Open's
+	// contract still holds — a local.db failure "must not refuse the mirror"
+	// (see Open) — so the copy waits instead of failing: stay a version
+	// behind, and user_version still gates the copy onto the next Open once
+	// local answers. Nothing is lost in the gap; the mirror-side tables keep
+	// the rows because schemaV26 deliberately does not drop them.
+	if want >= personalStateCopyVersion && have < personalStateCopyVersion && !db.localPersonalTablesReady(ctx) {
+		want = personalStateCopyVersion - 1
+	}
 	db.schemaVersion = want
 	if have == want {
 		return nil

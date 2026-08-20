@@ -23,7 +23,10 @@ func recopyDemoDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read demo.db: %v", err)
 	}
-	for _, name := range []string{"gadak.db", "gadak.db-wal", "gadak.db-shm"} {
+	// local.db too: personal state (saved views, favorites) lives there since
+	// GDK-105, so a mirror-only wipe would leave the view this test wants to
+	// prove import restores.
+	for _, name := range []string{"gadak.db", "gadak.db-wal", "gadak.db-shm", "local.db", "local.db-wal", "local.db-shm"} {
 		_ = os.Remove(filepath.Join(home, name))
 	}
 	if err := os.WriteFile(filepath.Join(home, "gadak.db"), raw, 0o600); err != nil {

@@ -341,7 +341,7 @@ func TestDemoPrecisionGateCJKColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 	if uv != len(migrations) {
-		t.Errorf("user_version = %d, want %d (schemaV25 must move the documented level)", uv, len(migrations))
+		t.Errorf("user_version = %d, want %d (the latest migration must move the documented level)", uv, len(migrations))
 	}
 	var schemaVer int
 	if err := db.sql.QueryRow(`SELECT schema_version FROM sync_state LIMIT 1`).Scan(&schemaVer); err != nil {

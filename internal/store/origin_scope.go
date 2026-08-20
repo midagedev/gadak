@@ -67,10 +67,14 @@ type tableRule struct {
 // they name, and the contentless FTS index before its content rows.
 var originScopedTables = []tableRule{
 	// ── Rows keyed into the mirror by issue key. These must precede `sources`.
+	// watches/favorites live in local.db (GDK-105) but the subquery reads the
+	// mirror's items: both files sit on one ATTACHed connection, so the
+	// cross-file DELETE works — and still has to run before the cascade
+	// removes the rows it reads.
 	{table: "watches", scope: scopeDerived,
-		dropForSource: `DELETE FROM watches WHERE key IN (SELECT key FROM items WHERE source_id = ?)`},
+		dropForSource: `DELETE FROM local.watches WHERE key IN (SELECT key FROM items WHERE source_id = ?)`},
 	{table: "favorites", scope: scopeDerived,
-		dropForSource: `DELETE FROM favorites WHERE key IN (SELECT key FROM items WHERE source_id = ?)`},
+		dropForSource: `DELETE FROM local.favorites WHERE key IN (SELECT key FROM items WHERE source_id = ?)`},
 	// enrichments are written by plugins, not by us (data-model.md), but the
 	// payload describes one mirror row and is addressed by its key.
 	{table: "enrichments", scope: scopeDerived,
@@ -112,8 +116,9 @@ var originScopedTables = []tableRule{
 	// feed.go), so a read mark on cr:STD-1 makes the new site's STD-1 arrive
 	// already read. There is no source column to scope by, and the events
 	// themselves are recomputed from the mirror, so the marks go whole.
+	// Rows live in local.db since GDK-105; deleting them whole is unchanged.
 	{table: "feed_reads", scope: scopeDerived,
-		dropForOrigin: `DELETE FROM feed_reads`},
+		dropForOrigin: `DELETE FROM local.feed_reads`},
 	// field_usage is per (project_key, alias) of the retired origin's schema.
 	{table: "field_usage", scope: scopeDerived,
 		dropForOrigin: `DELETE FROM field_usage`},
@@ -125,7 +130,7 @@ var originScopedTables = []tableRule{
 
 	// ── Survivors.
 	{table: "saved_views", scope: scopeAuthored,
-		why: "authored here; data-model.md's named exception to keeping no originals. " +
+		why: "authored here (local.db since GDK-105, surviving `rm gadak.db`); data-model.md's named exception to keeping no originals. " +
 			"A view whose query names a retired project is reported by OriginReset, not deleted"},
 	{table: "api_usage", scope: scopeLocal,
 		why: "our own outbound HTTP counters per day, not origin content (schemaV6)"},
@@ -301,7 +306,7 @@ func viewsNamingTx(tx *sql.Tx, projects []string) ([]string, error) {
 	if len(projects) == 0 {
 		return nil, nil
 	}
-	rows, err := tx.Query(`SELECT name, config FROM saved_views ORDER BY name`)
+	rows, err := tx.Query(`SELECT name, config FROM local.saved_views ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("read saved views: %w", err)
 	}

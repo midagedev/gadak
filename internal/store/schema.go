@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26}
 
 // itemsFTSCreate is the canonical items_fts DDL. Migrations are append-only,
 // so schemaV1 cannot grow this constant's cjk_bigram column (v25); instead
@@ -467,3 +467,34 @@ ALTER TABLE attachments ADD COLUMN url TEXT;
 // sync_state.schema_version) moves to the documented level; the body is a
 // no-op on purpose.
 const schemaV25 = `SELECT 1`
+
+// schemaV26 moves personal state out of the mirror (GDK-105): saved_views,
+// watches, favorites and feed_reads now live in local.db (localSchemaV4), and
+// every read and write goes there (write.go, feed.go). This migration copies
+// whatever the mirror still holds across the file boundary. It runs on an
+// Open() connection, where the driver hook has already ATTACHed local.db as
+// `local` — and EnsureLocal has run before migrate() (see Open), so the
+// localSchemaV4 tables exist by the time these INSERTs execute. When they do
+// not (unattachable local.db), migrate() holds the mirror at
+// personalStateCopyVersion - 1 rather than fail: see store.migrate.
+//
+// The mirror-side tables are deliberately NOT dropped here. The mirror is WAL
+// and local.db is not, so a cross-file transaction has no inter-file atomicity
+// to lean on: a crash between the two file commits can land user_version
+// without the copy. INSERT OR IGNORE makes re-running the copy safe (and the
+// upgrade test rewinds user_version to prove it), and the source rows staying
+// behind means that crash window loses nothing. From this version on the
+// mirror-side tables are frozen leftovers that no code path reads or writes;
+// dropping them belongs to a later release, once every install has migrated.
+const schemaV26 = `
+INSERT OR IGNORE INTO local.saved_views (id, name, config, created_at, updated_at)
+  SELECT id, name, config, created_at, updated_at FROM saved_views;
+INSERT OR IGNORE INTO local.watches (key, created_at) SELECT key, created_at FROM watches;
+INSERT OR IGNORE INTO local.favorites (key, created_at) SELECT key, created_at FROM favorites;
+INSERT OR IGNORE INTO local.feed_reads (event_id, read_at) SELECT event_id, read_at FROM feed_reads;
+`
+
+// personalStateCopyVersion is the migration level schemaV26 lands on. migrate
+// holds a mirror whose local.db is unreachable one version below it so the
+// copy re-runs later instead of refusing the open.
+const personalStateCopyVersion = 26
