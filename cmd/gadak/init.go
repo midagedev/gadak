@@ -597,10 +597,10 @@ func writeInitJSON(cfg *config.Config, account, path string) error {
 		Kind       string   `json:"kind"`
 		Persist    string   `json:"persist,omitempty"`
 	}{
-		Profile:    config.Profile(),
+		Profile:    displayProfileName(config.Profile()),
 		Account:    account,
 		Site:       cfg.Site,
-		Projects:   cfg.Projects,
+		Projects:   jsonList(cfg.Projects),
 		Path:       path,
 		Confluence: initConfluenceJSON(cfg),
 		Kind:       kind,

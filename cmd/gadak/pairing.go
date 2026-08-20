@@ -398,6 +398,9 @@ func pairingList(args []string) error {
 	}
 	if len(toks) == 0 {
 		fmt.Println("no pairing tokens — the origin passthrough is open to loopback (implicit trust)")
+		if line := pairingGateOpenLine(dir); line != "" {
+			fmt.Fprintln(os.Stderr, line)
+		}
 		return nil
 	}
 	fmt.Printf("%-8s  %-20s  %-14s  %-20s  %-20s  %-20s  %s\n",
@@ -423,7 +426,23 @@ func pairingList(args []string) error {
 			m.ExpiresAt.UTC().Format("2006-01-02T15:04Z"),
 			last, state)
 	}
+	if line := pairingGateOpenLine(dir); line != "" {
+		fmt.Fprintln(os.Stderr, line)
+	}
 	return nil
+}
+
+// pairingGateOpenLine is the GDK-481 copy when Authorize would return
+// VerdictOff (no active token, including _home). Empty when the gate is
+// still closed. _home is counted: Authorize includes ScopeLocalRouting, so
+// revoking the last device token while _home remains must not claim the
+// gate is open.
+func pairingGateOpenLine(dir string) string {
+	v, err := pairing.Authorize(dir, "", time.Now())
+	if err != nil || v != pairing.VerdictOff {
+		return ""
+	}
+	return "no active tokens remain — the gate is open again; stop the serve to cut access"
 }
 
 func pairingRevoke(args []string) error {
@@ -444,6 +463,9 @@ func pairingRevoke(args []string) error {
 		return err
 	}
 	fmt.Printf("revoked %q (%s)\n", meta.Label, meta.Hash[:8])
+	if line := pairingGateOpenLine(dir); line != "" {
+		fmt.Fprintln(os.Stderr, line)
+	}
 	return nil
 }
 
@@ -508,7 +530,7 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 			Label    string `json:"label"`
 			Account  string `json:"account"`
 			Path     string `json:"path"`
-		}{config.Profile(), offer.Endpoint, offer.Label, me.DisplayName, p})
+		}{displayProfileName(config.Profile()), offer.Endpoint, offer.Label, me.DisplayName, p})
 	}
 	fmt.Printf("paired with %s as %s — saved %s\n", offer.Endpoint, me.DisplayName, p)
 	printPairedInitNextSteps()

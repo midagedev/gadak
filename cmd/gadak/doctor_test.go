@@ -409,8 +409,8 @@ func TestDoctorReportsStandaloneWithCredential(t *testing.T) {
 	if !strings.Contains(got, "kind=standalone") {
 		t.Errorf("workspace line missing kind=standalone: %q", got)
 	}
-	if !strings.Contains(got, "credential=yes") {
-		t.Errorf("workspace line missing credential=yes: %q", got)
+	if !strings.Contains(got, "site_token=yes") {
+		t.Errorf("workspace line missing site_token=yes: %q", got)
 	}
 	if !strings.Contains(got, "inconsistent") {
 		t.Errorf("standalone-with-token must say inconsistent: %q", got)
@@ -427,7 +427,7 @@ func TestDoctorReportsStandaloneWithCredential(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, raw)
 	}
-	if !rep.Workspace.Inconsistent || !rep.Workspace.HasCredential || rep.Workspace.Kind != config.KindStandalone {
+	if !rep.Workspace.Inconsistent || !rep.Workspace.HasSiteToken || rep.Workspace.Kind != config.KindStandalone {
 		t.Fatalf("json workspace = %+v", rep.Workspace)
 	}
 }

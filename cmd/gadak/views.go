@@ -80,7 +80,7 @@ func viewsList(args []string) error {
 		return err
 	}
 	if *asJSON {
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"views": list})
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"views": jsonList(list)})
 	}
 	for _, v := range list {
 		fav := ""
@@ -381,7 +381,7 @@ func viewsSave(args []string) error {
 }
 
 func loadViews(db *store.DB) ([]listedView, error) {
-	var out []listedView
+	out := make([]listedView, 0)
 	src, err := db.SourceQueries(context.Background(), "jira")
 	if err != nil {
 		return nil, err

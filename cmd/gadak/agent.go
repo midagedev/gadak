@@ -859,7 +859,7 @@ func cmdSearch(args []string) error {
 			pages = []store.PageLite{}
 		}
 		body := map[string]any{
-			"total": res.Total, "issues": lites, "pages": pages, "matches": matches,
+			"total": res.Total, "issues": jsonList(lites), "pages": pages, "matches": matches,
 		}
 		if *explain {
 			ex := res.Explain
@@ -871,32 +871,58 @@ func cmdSearch(args []string) error {
 		}
 		return json.NewEncoder(os.Stdout).Encode(body)
 	}
-	byExplain := indexSearchExplain(res.Explain)
+	printSearchText(lites, res.Pages, matches, res.Explain, *explain, res.ElapsedMS)
+	return nil
+}
+
+// stdoutIsTerminal reports whether stdout is a character device. Search uses
+// this so a pipe stays empty on 0 matches (AGENTS.md TSV contract) while a
+// TTY gets "0 matches" on stderr (GDK-466).
+func stdoutIsTerminal() bool {
+	fi, err := os.Stdout.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
+// searchIsTTY is the injection point so tests can exercise the TTY branch
+// through a pipe (the same pattern as initIsTerminal).
+var searchIsTTY = stdoutIsTerminal
+
+const searchTSVHeader = "key\tstatus\tassignee\tsummary"
+
+func printSearchText(lites []store.IssueLite, pages []store.PageLite, matches map[string]store.SearchMatch, explain []store.SearchExplain, withExplain bool, elapsedMS float64) {
+	if len(lites) == 0 && len(pages) == 0 {
+		if searchIsTTY() {
+			fmt.Fprintln(os.Stderr, "0 matches")
+		}
+		return
+	}
+	if searchIsTTY() && len(lites) > 0 {
+		fmt.Println(searchTSVHeader)
+	}
+	byExplain := indexSearchExplain(explain)
 	for _, l := range lites {
 		line := summaryLine(l)
 		if m, ok := matches[l.IssueKey]; ok && (m.Field == "comment" || m.Field == "body") {
 			line += fmt.Sprintf(" (%s: %s)", m.Field, m.Snippet)
 		}
-		if *explain {
+		if withExplain {
 			line += formatSearchExplain(byExplain[l.IssueKey])
 		}
 		fmt.Println(line)
 	}
-	for _, p := range res.Pages {
-		// page  <space>/<title>  <url>
+	for _, p := range pages {
 		line := fmt.Sprintf("page  %s/%s  %s", p.SpaceKey, p.Title, p.URL)
 		if m, ok := matches[p.Key]; ok && (m.Field == "comment" || m.Field == "body") {
 			line += fmt.Sprintf(" (%s: %s)", m.Field, m.Snippet)
 		}
-		if *explain {
+		if withExplain {
 			line += formatSearchExplain(byExplain[p.Key])
 		}
 		fmt.Println(line)
 	}
-	if *explain {
-		fmt.Printf("query %.1fms\n", res.ElapsedMS)
+	if withExplain {
+		fmt.Printf("query %.1fms\n", elapsedMS)
 	}
-	return nil
 }
 
 func indexSearchExplain(rows []store.SearchExplain) map[string]store.SearchExplain {
@@ -987,16 +1013,14 @@ func searchJQL(query string, limit int, asJSON, emitOnly, force bool) error {
 	if asJSON {
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"total":       len(matched),
-			"issues":      matched,
+			"issues":      jsonList(matched),
 			"pages":       []store.PageLite{},
 			"jql":         parsed.JQL,
-			"applied":     parsed.Applied,
-			"unsupported": parsed.Unsupported,
+			"applied":     jsonList(parsed.Applied),
+			"unsupported": jsonList(parsed.Unsupported),
 		})
 	}
-	for _, l := range matched {
-		fmt.Println(summaryLine(l))
-	}
+	printSearchText(matched, nil, nil, nil, false, 0)
 	return nil
 }
 
@@ -1251,10 +1275,13 @@ func cmdTransition(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(pos) < 2 {
+	if len(pos) < 1 {
 		return usageError("transition", "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]")
 	}
 	key := normalizeKey(pos[0])
+	if len(pos) < 2 {
+		return listTransitions(key, *asJSON)
+	}
 	// Trailing words join the target so an unquoted `In Review` still works.
 	want := strings.TrimSpace(strings.Join(pos[1:], " "))
 
@@ -1268,6 +1295,33 @@ func cmdTransition(args []string) error {
 			return nil, err
 		}
 		return nil, c.Transition(ctx, key, id)
+	})
+}
+
+// listTransitions is `gadak transition KEY` with no target: print what
+// pickTransition would accept, instead of a usage dump (GDK-466).
+func listTransitions(key string, asJSON bool) error {
+	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+		list, err := c.Transitions(ctx, key)
+		if err != nil {
+			return err
+		}
+		if asJSON {
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{
+				"key":         key,
+				"transitions": jsonList(list),
+				"categories":  jsonList(reachableCategories(list)),
+			})
+		}
+		if len(list) == 0 {
+			fmt.Fprintf(os.Stdout, "%s has no available transitions for this credential\n", key)
+			return nil
+		}
+		fmt.Printf("available: %s\n", joinTransitions(list))
+		if cats := reachableCategories(list); len(cats) > 0 {
+			fmt.Printf("also accepts a status category: %s\n", strings.Join(cats, ", "))
+		}
+		return nil
 	})
 }
 

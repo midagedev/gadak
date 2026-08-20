@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -193,13 +194,7 @@ func runServeHTTP(ctx context.Context, mux http.Handler, preferred string, addrP
 		return err
 	}
 	if existingURL != "" {
-		log.Printf("already serving at %s (same profile)", existingURL)
-		if !noOpen {
-			if openErr := openBrowser(existingURL); openErr != nil {
-				log.Printf("could not open a browser: %v — visit %s", openErr, existingURL)
-			}
-		}
-		return nil
+		return handoffExistingServe(existingURL, noOpen)
 	}
 	if bound != preferred {
 		_, prefPort, _ := net.SplitHostPort(preferred)
@@ -231,10 +226,7 @@ func runServeHTTP(ctx context.Context, mux http.Handler, preferred string, addrP
 	}()
 	openURL := browseAddr(bound)
 	log.Printf("gadak %s listening on %s", version, openURL)
-	if p := config.Profile(); p != "" {
-		log.Printf("profile: %s", p)
-	}
-	if line := serveScopeLog(cfg); line != "" {
+	for _, line := range serveStartHints(cfg) {
 		log.Printf("%s", line)
 	}
 	if !noOpen {
@@ -245,6 +237,50 @@ func runServeHTTP(ctx context.Context, mux http.Handler, preferred string, addrP
 		return nil
 	}
 	return err
+}
+
+// liveServeURL is the single owner of "this profile already has a live
+// serve" (GDK-468). It uses origin.AdvertisedAddr (advertise file + the
+// same probe bindListen trusts), so a serve that fell back to another
+// port is still found. Empty means no live same-profile serve.
+func liveServeURL(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	addr := origin.AdvertisedAddr(cfg)
+	if addr == "" {
+		return ""
+	}
+	return browseAddr(addr)
+}
+
+// handoffExistingServe prints the existing open-existing line and
+// optionally opens a browser, then returns nil (exit 0).
+func handoffExistingServe(existingURL string, noOpen bool) error {
+	log.Printf("already serving at %s (same profile)", existingURL)
+	if !noOpen {
+		if openErr := openBrowser(existingURL); openErr != nil {
+			log.Printf("could not open a browser: %v — visit %s", openErr, existingURL)
+		}
+	}
+	return nil
+}
+
+// serveStartHints is the extra listen-time lines after "listening on".
+// Unconfigured workspaces reuse config.ErrNotConfigured (GDK-468); do
+// not invent a second init sentence.
+func serveStartHints(cfg *config.Config) []string {
+	var lines []string
+	if p := config.Profile(); p != "" {
+		lines = append(lines, "profile: "+p)
+	}
+	if line := serveScopeLog(cfg); line != "" {
+		lines = append(lines, line)
+	}
+	if cfg == nil || !cfg.HasCredential() {
+		lines = append(lines, config.ErrNotConfigured.Error())
+	}
+	return lines
 }
 
 // serveScopeLog is the listen-time project-scope line. Empty means print
@@ -283,6 +319,13 @@ func cmdServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Living-serve detection is the single owner of "this profile is
+	// already up" (GDK-468). It must run before the persist lock: a
+	// same-profile serve holds that lock, so lock-first turned a
+	// re-serve into "persist is locked" instead of open-existing.
+	if url := liveServeURL(cfg); url != "" {
+		return handoffExistingServe(url, opts.noOpen)
+	}
 	// Persist owner is this process: origin.Client must embed, never
 	// proxy to the advertise file we are about to write (self-loop).
 	if cfg.IsStandalone() {
@@ -292,6 +335,11 @@ func cmdServe(args []string) error {
 		// startup — before its advertise write could steal routing from the
 		// live owner — not at the first write.
 		if _, err := origin.StandaloneHandler(cfg); err != nil {
+			if errors.Is(err, origin.ErrWorkspaceBusy) {
+				if url := liveServeURL(cfg); url != "" {
+					return handoffExistingServe(url, opts.noOpen)
+				}
+			}
 			return err
 		}
 	}

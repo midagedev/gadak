@@ -375,6 +375,11 @@ func TestCreateProjectNotInCreateMeta(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "cannot create issues in ZZZ") {
 		t.Fatalf("missing createmeta project: %v", err)
 	}
+	for _, want := range []string{"available:", "NMB", "GDK"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("unmatched project must list catalog %q, got %v", want, err)
+		}
+	}
 	if f.called("POST /issue") {
 		t.Fatalf("unreachable project reached Jira: %v", f.calls)
 	}

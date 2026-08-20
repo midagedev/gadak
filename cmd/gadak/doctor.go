@@ -57,12 +57,15 @@ type doctorReport struct {
 // token is stored (never the token itself), the origin persist path, and
 // how many locally originated issues LocalData counts. Inconsistent is
 // standalone-with-a-token — the state GDK-247 closes on the write path.
+//
+// HasSiteToken is site-token presence, not config.HasCredential (GDK-470).
+// Standalone writes work with no site token; this field stays false there.
 type doctorWorkspace struct {
-	Kind          string `json:"kind"`
-	HasCredential bool   `json:"has_credential"`
-	Persist       string `json:"persist"`
-	LocalIssues   int    `json:"local_issues"`
-	Inconsistent  bool   `json:"inconsistent"`
+	Kind         string `json:"kind"`
+	HasSiteToken bool   `json:"has_site_token"`
+	Persist      string `json:"persist"`
+	LocalIssues  int    `json:"local_issues"`
+	Inconsistent bool   `json:"inconsistent"`
 }
 
 // doctorSkill answers "is my Claude Code skill current?" without the user
@@ -203,11 +206,11 @@ func collectDoctor() doctorReport {
 			}
 		}
 		rep.Workspace = doctorWorkspace{
-			Kind:          cfg.WorkspaceKind(),
-			HasCredential: hasTok,
-			Persist:       tildeHome(persist),
-			LocalIssues:   n,
-			Inconsistent:  cfg.IsStandalone() && hasTok,
+			Kind:         cfg.WorkspaceKind(),
+			HasSiteToken: hasTok,
+			Persist:      tildeHome(persist),
+			LocalIssues:  n,
+			Inconsistent: cfg.IsStandalone() && hasTok,
 		}
 	}
 
@@ -535,16 +538,16 @@ func formatDoctorText(r doctorReport) string {
 }
 
 func formatDoctorWorkspace(w doctorWorkspace) string {
-	cred := "no"
-	if w.HasCredential {
-		cred = "yes"
+	tok := "no"
+	if w.HasSiteToken {
+		tok = "yes"
 	}
 	persist := w.Persist
 	if persist == "" {
 		persist = "none"
 	}
-	s := fmt.Sprintf("kind=%s credential=%s persist=%s issues=%d",
-		w.Kind, cred, persist, w.LocalIssues)
+	s := fmt.Sprintf("kind=%s site_token=%s persist=%s issues=%d",
+		w.Kind, tok, persist, w.LocalIssues)
 	if w.Inconsistent {
 		s += " inconsistent"
 	}

@@ -906,6 +906,11 @@ func failCreateOrPairing(w http.ResponseWriter, r *http.Request, c *jira.Client,
 			failJira(w, r, origin.FoldPairedError(cfg, perr))
 			return
 		}
+		if errors.As(err, &np) && len(np.Configured) == 0 {
+			if catalog, cerr := c.CreateMeta(r.Context(), cfg.Projects); cerr == nil {
+				err = create.FillNeedProject(err, catalog)
+			}
+		}
 	}
 	failCreate(w, err)
 }
@@ -956,6 +961,11 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	metaProj, types, err := create.MetaFor(meta, proj.Value, cfg)
+	if err != nil && create.FormatProjectKeys(meta) == "" {
+		if catalog, cerr := c.CreateMeta(r.Context(), cfg.Projects); cerr == nil {
+			metaProj, types, err = create.MetaFor(catalog, proj.Value, cfg)
+		}
+	}
 	if err != nil {
 		failCreateOrPairing(w, r, c, cfg, err)
 		return

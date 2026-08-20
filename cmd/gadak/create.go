@@ -230,9 +230,15 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 		// NeedProjectError is local config ambiguity. Probe the origin so a
 		// pairing/dial failure is not relabeled as a missing --project
 		// (GDK-453). A reachable origin that still cannot resolve a project
-		// keeps the flag sentence.
+		// keeps the flag sentence, and an empty configured list is filled
+		// from createmeta so a paired workspace can print origin keys
+		// (GDK-467) without copying home defaults into this profile.
 		if _, _, perr := c.Projects(ctx, 1); perr != nil && origin.IsPairingFailure(perr) {
 			return "", nil, perr
+		}
+		catalog, cerr := c.CreateMeta(ctx, createMetaScope(cfg))
+		if cerr == nil {
+			err = create.FillNeedProject(err, catalog)
 		}
 		return "", nil, formatCreateError(err)
 	}
@@ -242,7 +248,15 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	}
 	proj, types, err := create.MetaFor(meta, projRes.Value, cfg)
 	if err != nil {
-		return "", nil, err
+		if create.FormatProjectKeys(meta) == "" {
+			catalog, cerr := c.CreateMeta(ctx, createMetaScope(cfg))
+			if cerr == nil {
+				proj, types, err = create.MetaFor(catalog, projRes.Value, cfg)
+			}
+		}
+		if err != nil {
+			return "", nil, err
+		}
 	}
 	typeRes, err := create.Type(typeWant, types, cfg, projRes.Value)
 	if err != nil {
@@ -331,6 +345,16 @@ func formatCreateError(err error) error {
 		return fmt.Errorf("pass --priority, available: %s", create.FormatTypes(npri.Available))
 	}
 	return err
+}
+
+// createMetaScope is the createmeta projectKeys filter: the profile list
+// when set, otherwise empty so the origin returns every createable project
+// (paired workspaces have no local Projects copy — GDK-467).
+func createMetaScope(cfg *config.Config) []string {
+	if cfg == nil || len(cfg.Projects) == 0 {
+		return nil
+	}
+	return cfg.Projects
 }
 
 // emitBatchLine refreshes the new key the same way emitAfterWrite does.

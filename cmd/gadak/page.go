@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	syncer "github.com/midagedev/gadak/internal/sync"
@@ -89,7 +91,7 @@ func cmdPageCreate(args []string) error {
 	ctx := context.Background()
 	created, err := wc.CreatePage(ctx, *space, *title, adf, *parent)
 	if err != nil {
-		return err
+		return formatPageSpaceError(ctx, wc, *space, err)
 	}
 
 	db, err := openStore()
@@ -109,6 +111,36 @@ func cmdPageCreate(args []string) error {
 	}
 	fmt.Printf("%s\t%s\n", created.ID, created.Title)
 	return nil
+}
+
+// formatPageSpaceError replaces a missing-space 400 JSON dump with the
+// same catalog sentence --type uses (GDK-467). A space that is in the
+// catalog keeps the origin error (the 400 is then about something else).
+func formatPageSpaceError(ctx context.Context, wc *confluence.Client, space string, err error) error {
+	if wc == nil || err == nil {
+		return err
+	}
+	spaces, serr := wc.Spaces(ctx)
+	if serr != nil {
+		return err
+	}
+	want := strings.TrimSpace(space)
+	keys := make([]string, 0, len(spaces))
+	found := false
+	for _, s := range spaces {
+		k := strings.TrimSpace(s.Key)
+		if k == "" {
+			continue
+		}
+		keys = append(keys, k)
+		if strings.EqualFold(k, want) {
+			found = true
+		}
+	}
+	if found || len(keys) == 0 {
+		return err
+	}
+	return fmt.Errorf("no space matching %q — available: %s", space, strings.Join(keys, ", "))
 }
 
 func cmdPageComment(args []string) error {

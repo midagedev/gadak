@@ -638,6 +638,23 @@ func usageError(cmd, line string) error {
 	return fmt.Errorf("%s\nrun \"gadak %s --help\" for examples", line, cmd)
 }
 
+// unknownCommandError is the one-line unknown-subcommand refusal (GDK-466).
+// 64 is EX_USAGE, the same class unknownConfigPath uses.
+func unknownCommandError(name string) error {
+	return &exitCodeError{
+		code: 64,
+		msg:  fmt.Sprintf("unknown command %q — see gadak --help", name),
+	}
+}
+
+// jsonList returns s, or a non-nil empty slice so encoding/json writes [].
+func jsonList[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}
+
 // formatHelp renders the help text for name. When fs is non-nil, Options come
 // from VisitAll (double-dash names). When fs is nil, Options come from the
 // manual options slice on the help entry.

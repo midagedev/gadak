@@ -229,8 +229,9 @@ func main() {
 	}
 	run, ok := commands[args[0]]
 	if !ok {
-		fmt.Print(usage)
-		os.Exit(2)
+		err := unknownCommandError(args[0])
+		fmt.Fprintf(os.Stderr, "gadak: %v\n", err)
+		os.Exit(exitStatus(err))
 	}
 	if err := checkProfileForCommand(args[0], args[1:]); err != nil {
 		log.Fatalf("gadak: %v", err)

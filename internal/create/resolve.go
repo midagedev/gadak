@@ -7,6 +7,7 @@
 package create
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -103,16 +104,73 @@ func matchType(want string, types []jira.NamedID) (string, error) {
 }
 
 // MetaFor picks the createmeta project (case-insensitive key) and its types.
+// A miss lists the keys in meta the same way Type lists the issue-type catalog.
 func MetaFor(meta []jira.CreateMetaProject, project string, cfg *config.Config) (jira.CreateMetaProject, []jira.NamedID, error) {
 	for _, p := range meta {
 		if strings.EqualFold(p.Key, project) {
 			return p, p.IssueTypes, nil
 		}
 	}
+	suffix := availableProjectsSuffix(meta)
 	if cfg != nil && cfg.IsStandalone() {
-		return jira.CreateMetaProject{}, nil, fmt.Errorf("project %s does not exist in this workspace", project)
+		return jira.CreateMetaProject{}, nil, fmt.Errorf("project %s does not exist in this workspace%s", project, suffix)
 	}
-	return jira.CreateMetaProject{}, nil, fmt.Errorf("this credential cannot create issues in %s", project)
+	return jira.CreateMetaProject{}, nil, fmt.Errorf("this credential cannot create issues in %s%s", project, suffix)
+}
+
+// MetaForWithCatalog is MetaFor, then a second catalog when the first
+// answer had no keys to list (Jira's createmeta filtered to a missing key
+// is empty). Callers that already hold the site catalog pass it here so
+// CLI and REST print the same available list.
+func MetaForWithCatalog(meta, catalog []jira.CreateMetaProject, project string, cfg *config.Config) (jira.CreateMetaProject, []jira.NamedID, error) {
+	p, types, err := MetaFor(meta, project, cfg)
+	if err == nil || FormatProjectKeys(meta) != "" || len(catalog) == 0 {
+		return p, types, err
+	}
+	return MetaFor(catalog, project, cfg)
+}
+
+// ProjectKeys is the createable project-key list from a createmeta payload.
+func ProjectKeys(meta []jira.CreateMetaProject) []string {
+	out := make([]string, 0, len(meta))
+	seen := map[string]bool{}
+	for _, p := range meta {
+		k := strings.TrimSpace(p.Key)
+		if k == "" || seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, k)
+	}
+	return out
+}
+
+// FormatProjectKeys is the "KEY, KEY" list used in project-resolution errors.
+func FormatProjectKeys(meta []jira.CreateMetaProject) string {
+	return strings.Join(ProjectKeys(meta), ", ")
+}
+
+func availableProjectsSuffix(meta []jira.CreateMetaProject) string {
+	keys := FormatProjectKeys(meta)
+	if keys == "" {
+		return ""
+	}
+	return " — available: " + keys
+}
+
+// FillNeedProject copies origin-known keys onto an empty NeedProjectError
+// so a paired workspace (no local DefaultProject / Projects) can still
+// print `configured: STD, IDEA`. Catalog empty leaves the error unchanged.
+func FillNeedProject(err error, catalog []jira.CreateMetaProject) error {
+	var np *NeedProjectError
+	if !errors.As(err, &np) || np == nil || len(np.Configured) > 0 {
+		return err
+	}
+	keys := ProjectKeys(catalog)
+	if len(keys) == 0 {
+		return err
+	}
+	return &NeedProjectError{Configured: copyStrings(keys)}
 }
 
 // FormatTypes is the "Name (id N); …" list used in type-resolution errors.

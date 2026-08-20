@@ -138,3 +138,30 @@ func TestMetaForConnectedKeepsCredentialMessage(t *testing.T) {
 		t.Fatalf("connected wording changed: %v", err)
 	}
 }
+
+func TestMetaForListsAvailableKeys(t *testing.T) {
+	catalog := []jira.CreateMetaProject{
+		{Key: "STD"}, {Key: "IDEA"},
+	}
+	_, _, err := MetaFor(catalog, "NOPE", &config.Config{Kind: config.KindStandalone})
+	if err == nil {
+		t.Fatal("missing project must error")
+	}
+	for _, want := range []string{"does not exist in this workspace", "available:", "STD", "IDEA"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("missing %q in %v", want, err)
+		}
+	}
+}
+
+func TestFillNeedProjectFromCatalog(t *testing.T) {
+	err := FillNeedProject(&NeedProjectError{}, []jira.CreateMetaProject{{Key: "STD"}, {Key: "IDEA"}})
+	var np *NeedProjectError
+	if !errors.As(err, &np) || strings.Join(np.Configured, ", ") != "STD, IDEA" {
+		t.Fatalf("got %v", err)
+	}
+	kept := FillNeedProject(&NeedProjectError{Configured: []string{"NMA"}}, []jira.CreateMetaProject{{Key: "STD"}})
+	if !errors.As(kept, &np) || np.Configured[0] != "NMA" {
+		t.Fatalf("must not overwrite configured: %v", kept)
+	}
+}

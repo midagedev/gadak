@@ -440,12 +440,25 @@ func TestTransitionHelpNamesCategory(t *testing.T) {
 	}
 }
 
-func TestTransitionUsageMentionsCategory(t *testing.T) {
-	_, err := capture(t, func() error { return cmdTransition([]string{"NMB-1"}) })
-	if err == nil {
-		t.Fatal("missing target must be a usage error")
+func TestTransitionKeyOnlyListsAvailable(t *testing.T) {
+	withTransitions(t, "")
+	out, err := capture(t, func() error { return cmdTransition([]string{"NMB-1"}) })
+	if err != nil {
+		t.Fatalf("key-only transition must list available, not usage: %v\n%s", err, out)
 	}
-	if !strings.Contains(err.Error(), "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]") {
+	for _, want := range []string{"available:", "Start work", "Close", "id 21", "id 31", "inprogress", "done"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("list missing %q\n%s", want, out)
+		}
+	}
+}
+
+func TestTransitionNoKeyIsUsage(t *testing.T) {
+	_, err := capture(t, func() error { return cmdTransition(nil) })
+	if err == nil {
+		t.Fatal("missing key must be a usage error")
+	}
+	if !strings.Contains(err.Error(), "usage: gadak transition <KEY>") {
 		t.Errorf("usage %q", err)
 	}
 }
