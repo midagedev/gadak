@@ -379,6 +379,51 @@ func (c *Client) Issue(ctx context.Context, idOrIdentifier string) (Issue, error
 	return *res.Issue, nil
 }
 
+// maxCommentFollowUps caps CompleteComments so a stuck HasNextPage cannot
+// loop forever. 40 extra pages is 2000 comments on top of the inline 50.
+const maxCommentFollowUps = 40
+
+// CompleteComments follows Issue.Comments.PageInfo until HasNextPage is false
+// (or the follow-up cap). The inline page is kept; later nodes are appended.
+// A no-op when there is no next page. Callers replace the child list from
+// the completed Nodes slice.
+func (c *Client) CompleteComments(ctx context.Context, iss *Issue) error {
+	if iss == nil {
+		return nil
+	}
+	for n := 0; iss.Comments.PageInfo.HasNextPage; n++ {
+		if n >= maxCommentFollowUps || iss.Comments.PageInfo.EndCursor == "" {
+			break
+		}
+		page, err := c.commentsAfter(ctx, iss.ID, iss.Comments.PageInfo.EndCursor)
+		if err != nil {
+			return err
+		}
+		if len(page.Nodes) == 0 {
+			iss.Comments.PageInfo.HasNextPage = false
+			break
+		}
+		iss.Comments.Nodes = append(iss.Comments.Nodes, page.Nodes...)
+		iss.Comments.PageInfo = page.PageInfo
+	}
+	return nil
+}
+
+func (c *Client) commentsAfter(ctx context.Context, issueID, after string) (CommentConn, error) {
+	var res struct {
+		Issue *struct {
+			Comments CommentConn `json:"comments"`
+		} `json:"issue"`
+	}
+	if err := c.gql(ctx, queryIssueComments, map[string]any{"id": issueID, "after": after}, &res); err != nil {
+		return CommentConn{}, err
+	}
+	if res.Issue == nil {
+		return CommentConn{}, fmt.Errorf("linear: issue %q not found", issueID)
+	}
+	return res.Issue.Comments, nil
+}
+
 // Users searches workspace members by name for assignee pickers. An empty
 // query lists the first page unfiltered.
 func (c *Client) Users(ctx context.Context, query string) ([]User, error) {

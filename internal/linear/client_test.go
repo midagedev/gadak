@@ -485,3 +485,64 @@ func TestCommentsTruncationIsObservable(t *testing.T) {
 		t.Errorf("comments pageInfo = %+v, want truncation visible", cm.PageInfo)
 	}
 }
+
+func TestCompleteCommentsFollowsCursor(t *testing.T) {
+	calls := 0
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var body struct {
+			Query     string `json:"query"`
+			Variables struct {
+				ID    string `json:"id"`
+				After string `json:"after"`
+			} `json:"variables"`
+		}
+		decode(t, r, &body)
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(body.Query, "IssueComments") {
+			if body.Variables.ID != "iss-1" || body.Variables.After != "cmt-cursor" {
+				t.Errorf("IssueComments id/after = %q %q", body.Variables.ID, body.Variables.After)
+			}
+			_, _ = w.Write([]byte(`{"data":{"issue":{"comments":{"pageInfo":{"hasNextPage":false},"nodes":[{"id":"c1","body":"second"}]}}}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":{"issue":{"id":"iss-1","identifier":"FIX-9","comments":{"pageInfo":{"hasNextPage":true,"endCursor":"cmt-cursor"},"nodes":[{"id":"c0","body":"first"}]}}}}`))
+	}))
+	iss, err := c.Issue(context.Background(), "FIX-9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.CompleteComments(context.Background(), &iss); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want 2", calls)
+	}
+	if len(iss.Comments.Nodes) != 2 || iss.Comments.Nodes[1].Body != "second" {
+		t.Fatalf("comments = %+v", iss.Comments.Nodes)
+	}
+	if iss.Comments.PageInfo.HasNextPage {
+		t.Error("HasNextPage still set after following the cursor")
+	}
+}
+
+func TestIssuesQueryRequestsAttachments(t *testing.T) {
+	var query string
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Query string `json:"query"`
+		}
+		decode(t, r, &body)
+		query = body.Query
+		writeFixture(w, t, "issues_page2.json")
+	}))
+	if err := c.Issues(context.Background(), IssueOpts{}, func([]Issue) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(query, "attachments") {
+		t.Fatal("issues query must request attachments")
+	}
+	if !strings.Contains(query, "metadata") {
+		t.Fatal("attachments selection must ask for metadata (size/mime)")
+	}
+}

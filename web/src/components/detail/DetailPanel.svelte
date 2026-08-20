@@ -196,6 +196,7 @@
             <DescriptionEditor
               issueKey={key}
               node={detailForKey.description_adf}
+              fallback={detailForKey.description_text}
               attachments={detailForKey.attachments}
             />
           </Section>

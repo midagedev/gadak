@@ -229,7 +229,8 @@ type DetailComment struct {
 }
 
 // DetailAttachment is metadata only; the handler turns ExternalID into the
-// content proxy path.
+// content proxy path. URL is the origin content URL when stored (Linear);
+// empty for Jira.
 type DetailAttachment struct {
 	ID         string `json:"id"`
 	ExternalID string `json:"external_id"`
@@ -239,6 +240,7 @@ type DetailAttachment struct {
 	Author     string `json:"author,omitempty"`
 	AuthorID   string `json:"author_id,omitempty"`
 	CreatedAt  string `json:"created_at"`
+	URL        string `json:"url,omitempty"`
 }
 
 // DetailChange is one history row. The ids come along because display values are
@@ -268,12 +270,16 @@ type DetailLink struct {
 // Detail is everything the on-demand detail view needs, assembled from the
 // mirror with no call to the source.
 type Detail struct {
-	IssueKey       string             `json:"issue_key"`
-	DescriptionADF json.RawMessage    `json:"description_adf"`
-	Comments       []DetailComment    `json:"comments"`
-	Attachments    []DetailAttachment `json:"attachments"`
-	History        []DetailChange     `json:"history"`
-	LinkedIssues   []DetailLink       `json:"linked_issues"`
+	IssueKey       string          `json:"issue_key"`
+	DescriptionADF json.RawMessage `json:"description_adf"`
+	// DescriptionText is items.body_text. Linear (and any source that does not
+	// store ADF) lands markdown/plain here; surfaces fall back to it when
+	// DescriptionADF is empty. Never stuff markdown into DescriptionADF.
+	DescriptionText string             `json:"description_text,omitempty"`
+	Comments        []DetailComment    `json:"comments"`
+	Attachments     []DetailAttachment `json:"attachments"`
+	History         []DetailChange     `json:"history"`
+	LinkedIssues    []DetailLink       `json:"linked_issues"`
 	// RefPages are wiki pages this issue's body/comments mention (item_refs,
 	// target_kind=page). Only pages present in the mirror; empty omitted.
 	RefPages []PageLite `json:"ref_pages,omitempty"`
@@ -290,20 +296,25 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 	var itemID string
 	var adf *string
 	var customJSON string
-	if err := db.sql.QueryRowContext(ctx, `SELECT item_id, description_adf, COALESCE(custom, '{}') FROM issues WHERE key = ?`, key).
-		Scan(&itemID, &adf, &customJSON); err != nil {
+	var bodyText string
+	if err := db.sql.QueryRowContext(ctx, `
+		SELECT i.item_id, i.description_adf, COALESCE(i.custom, '{}'), COALESCE(it.body_text, '')
+		FROM issues i JOIN items it ON it.id = i.item_id
+		WHERE i.key = ?`, key).
+		Scan(&itemID, &adf, &customJSON, &bodyText); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
 	d := &Detail{
-		IssueKey:       key,
-		DescriptionADF: rawOrNull(adf),
-		Comments:       []DetailComment{},
-		Attachments:    []DetailAttachment{},
-		History:        []DetailChange{},
-		LinkedIssues:   []DetailLink{},
+		IssueKey:        key,
+		DescriptionADF:  rawOrNull(adf),
+		DescriptionText: bodyText,
+		Comments:        []DetailComment{},
+		Attachments:     []DetailAttachment{},
+		History:         []DetailChange{},
+		LinkedIssues:    []DetailLink{},
 	}
 	_ = json.Unmarshal([]byte(customJSON), &d.Custom)
 
@@ -326,11 +337,12 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 
 	if err := each(ctx, db.sql, `
 		SELECT id, COALESCE(external_id,''), COALESCE(filename,''), COALESCE(mime_type,''),
-		       COALESCE(size,0), COALESCE(author,''), COALESCE(author_id,''), COALESCE(created_at,'')
+		       COALESCE(size,0), COALESCE(author,''), COALESCE(author_id,''), COALESCE(created_at,''),
+		       COALESCE(url,'')
 		FROM attachments WHERE item_id = ? ORDER BY created_at, id`,
 		func(rows *sql.Rows) error {
 			var a DetailAttachment
-			if err := rows.Scan(&a.ID, &a.ExternalID, &a.Filename, &a.MimeType, &a.Size, &a.Author, &a.AuthorID, &a.CreatedAt); err != nil {
+			if err := rows.Scan(&a.ID, &a.ExternalID, &a.Filename, &a.MimeType, &a.Size, &a.Author, &a.AuthorID, &a.CreatedAt, &a.URL); err != nil {
 				return err
 			}
 			d.Attachments = append(d.Attachments, a)
@@ -435,6 +447,43 @@ func (db *DB) AttachmentBelongs(ctx context.Context, issueKey, attachmentID stri
 		return false, err
 	}
 	return true, nil
+}
+
+// KeysBySource returns issue keys mirrored from one source, in key order.
+func (db *DB) KeysBySource(ctx context.Context, sourceID string) ([]string, error) {
+	var keys []string
+	err := each(ctx, db.sql, `
+		SELECT key FROM items WHERE source_id = ? AND kind = 'issue' AND key != '' ORDER BY key`,
+		func(rows *sql.Rows) error {
+			var k string
+			if err := rows.Scan(&k); err != nil {
+				return err
+			}
+			keys = append(keys, k)
+			return nil
+		}, sourceID)
+	return keys, err
+}
+
+// AttachmentOrigin is the proxy's lookup: which source owns this attachment
+// and, when stored, the origin content URL. Matches AttachmentBelongs' id rule
+// (external_id when set, else store id).
+func (db *DB) AttachmentOrigin(ctx context.Context, issueKey, attachmentID string) (sourceID, contentURL string, err error) {
+	if issueKey == "" || attachmentID == "" {
+		return "", "", ErrNotFound
+	}
+	err = db.sql.QueryRowContext(ctx, `
+		SELECT it.source_id, COALESCE(a.url, '')
+		FROM attachments a
+		JOIN issues i ON i.item_id = a.item_id
+		JOIN items it ON it.id = a.item_id
+		WHERE i.key = ?
+		  AND COALESCE(NULLIF(a.external_id, ''), a.id) = ?
+		LIMIT 1`, issueKey, attachmentID).Scan(&sourceID, &contentURL)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", ErrNotFound
+	}
+	return sourceID, contentURL, err
 }
 
 // pageLitesFromRefs runs a PageLite-shaped SELECT and returns the rows (nil when empty).

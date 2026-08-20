@@ -328,12 +328,13 @@ type linkedIssue struct {
 }
 
 type detailResponse struct {
-	IssueKey       string             `json:"issue_key"`
-	DescriptionADF json.RawMessage    `json:"description_adf"`
-	Attachments    []detailAttachment `json:"attachments"`
-	Comments       []detailComment    `json:"comments"`
-	History        []historyEntry     `json:"history"`
-	LinkedIssues   []linkedIssue      `json:"linked_issues"`
+	IssueKey        string             `json:"issue_key"`
+	DescriptionADF  json.RawMessage    `json:"description_adf"`
+	DescriptionText string             `json:"description_text,omitempty"`
+	Attachments     []detailAttachment `json:"attachments"`
+	Comments        []detailComment    `json:"comments"`
+	History         []historyEntry     `json:"history"`
+	LinkedIssues    []linkedIssue      `json:"linked_issues"`
 	// RefPages / BacklinkPages are text-derived wiki cross-refs (item_refs).
 	// Empty lists omit (omitempty), matching optional detail enrichments style.
 	RefPages      []store.PageLite `json:"ref_pages,omitempty"`
@@ -373,16 +374,17 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := detailResponse{
-		IssueKey:       d.IssueKey,
-		DescriptionADF: d.DescriptionADF,
-		Attachments:    make([]detailAttachment, 0, len(d.Attachments)),
-		Comments:       make([]detailComment, 0, len(d.Comments)),
-		History:        make([]historyEntry, 0, len(d.History)),
-		LinkedIssues:   make([]linkedIssue, 0, len(d.LinkedIssues)),
-		RefPages:       d.RefPages,
-		BacklinkPages:  d.BacklinkPages,
-		LinkedPRs:      json.RawMessage("[]"),
-		Bodies:         map[string]json.RawMessage{},
+		IssueKey:        d.IssueKey,
+		DescriptionADF:  d.DescriptionADF,
+		DescriptionText: d.DescriptionText,
+		Attachments:     make([]detailAttachment, 0, len(d.Attachments)),
+		Comments:        make([]detailComment, 0, len(d.Comments)),
+		History:         make([]historyEntry, 0, len(d.History)),
+		LinkedIssues:    make([]linkedIssue, 0, len(d.LinkedIssues)),
+		RefPages:        d.RefPages,
+		BacklinkPages:   d.BacklinkPages,
+		LinkedPRs:       json.RawMessage("[]"),
+		Bodies:          map[string]json.RawMessage{},
 	}
 	for alias := range view.bodyAliases {
 		val, ok := d.Custom[alias]

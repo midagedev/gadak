@@ -78,6 +78,9 @@ const CommentsPageSize = 50
 // comments (GDK-263 audit, "labels 침묵 절단").
 const LabelsPageSize = 50
 
+// AttachmentsPageSize is the inline attachment page on every issue row.
+const AttachmentsPageSize = 50
+
 // commentSelection is the comment node's field set, shared by the inline
 // comments connection on issue queries and the commentCreate payload so the
 // write path cannot drift from the read path on what a Comment is. The
@@ -157,6 +160,19 @@ var issueSelection = `
         }
         nodes {` + commentSelection + `
         }
+      }
+      attachments(first: ` + strconv.Itoa(AttachmentsPageSize) + `) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          id
+          title
+          url
+          createdAt
+          metadata
+        }
       }`
 
 // queryIssues pages issues oldest-updated-first. Filter carries the
@@ -170,7 +186,7 @@ var issueSelection = `
 //
 // Not requested here, deliberately: stateHistory / history (unbounded nested
 // connections — the status_changed_at derivation is specified in MAPPING.md
-// and belongs to the sync-wiring round) and attachments.
+// and belongs to the sync-wiring round).
 var queryIssues = `query Issues($first: Int, $after: String, $filter: IssueFilter, $includeArchived: Boolean) {
   issues(first: $first, after: $after, filter: $filter, includeArchived: $includeArchived, orderBy: updatedAt) {
     pageInfo {
@@ -248,6 +264,22 @@ var mutAttachmentCreate = `mutation AttachmentCreate($input: AttachmentCreateInp
 // read so the mirror row shape is identical.
 var queryIssue = `query Issue($id: String!) {
   issue(id: $id) {` + issueSelection + `}
+}`
+
+// queryIssueComments follows the comments cursor on one issue when the inline
+// page (CommentsPageSize) set HasNextPage. Same node selection as the inline
+// connection so the mirrored child list is one shape.
+var queryIssueComments = `query IssueComments($id: String!, $after: String) {
+  issue(id: $id) {
+    comments(first: ` + strconv.Itoa(CommentsPageSize) + `, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {` + commentSelection + `
+      }
+    }
+  }
 }`
 
 // queryUsers answers assignee search: workspace members whose name or

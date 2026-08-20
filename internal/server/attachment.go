@@ -13,6 +13,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 /* ── attachment bytes: local cache first, Jira only on a miss ── */
@@ -43,7 +44,9 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := s.config()
-	if !cfg.HasCredential() {
+	sourceID, _, originErr := s.db.AttachmentOrigin(r.Context(), issueKey, id)
+	linear := originErr == nil && sourceID == "linear"
+	if !linear && !cfg.HasCredential() {
 		fail(w, http.StatusConflict, "credential_required")
 		return
 	}
@@ -56,7 +59,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 		// is the snapshot-import key bug, not a cold cache.
 		log.Printf("server: attachment cache miss id=%s issue=%s: %s", id, issueKey, s.cache.MissReason(ck, id))
 		err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
-			res, err := s.fetchAttachment(r.Context(), cfg, id)
+			res, err := s.fetchAttachment(r.Context(), cfg, issueKey, id)
 			if err != nil {
 				return nil, attachcache.Meta{}, err
 			}
@@ -79,11 +82,16 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 		case attachcache.TooLarge(err):
 			// Too big to keep; stream it through below.
 		default:
+			var denied *originDeniedError
+			if errors.As(err, &denied) {
+				writeOriginDenied(w, denied)
+				return
+			}
 			log.Printf("server: attachment cache fill: %v", err)
 		}
 	}
 
-	res, err := s.fetchAttachment(r.Context(), cfg, id)
+	res, err := s.fetchAttachment(r.Context(), cfg, issueKey, id)
 	switch {
 	case errors.Is(err, errAttachmentAuth):
 		fail(w, http.StatusConflict, "credential_rejected")
@@ -92,6 +100,11 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusNotFound, "not_found")
 		return
 	case err != nil:
+		var denied *originDeniedError
+		if errors.As(err, &denied) {
+			writeOriginDenied(w, denied)
+			return
+		}
 		log.Printf("server: attachment proxy: %v", err)
 		fail(w, http.StatusBadGateway, "attachment_unavailable")
 		return
@@ -183,7 +196,7 @@ func (s *server) warmAttachments(cfg *config.Config, issueKey string, atts []det
 				ck := s.attachmentCacheKey(issueKey, id)
 				log.Printf("server: attachment warm miss id=%s issue=%s: %s", id, issueKey, s.cache.MissReason(ck, id))
 				if err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
-					res, err := s.fetchAttachment(context.Background(), cfg, id)
+					res, err := s.fetchAttachment(context.Background(), cfg, issueKey, id)
 					if err != nil {
 						return nil, attachcache.Meta{}, err
 					}
@@ -211,8 +224,43 @@ var (
 	errAttachmentMissing = errors.New("attachment: not found")
 )
 
+// originDeniedError is a Linear (or other non-Jira) 401/403: pass the status
+// through instead of mapping it onto gadak's credential_rejected 409.
+type originDeniedError struct {
+	code int
+	ct   string
+	body io.ReadCloser
+}
+
+func (e *originDeniedError) Error() string {
+	return fmt.Sprintf("attachment: origin status %d", e.code)
+}
+
+func writeOriginDenied(w http.ResponseWriter, e *originDeniedError) {
+	if e.body != nil {
+		defer e.body.Close()
+	}
+	if e.ct != "" {
+		w.Header().Set("Content-Type", e.ct)
+	}
+	w.WriteHeader(e.code)
+	if e.body != nil {
+		_, _ = io.Copy(w, e.body)
+	}
+}
+
 // fetchAttachment performs the one call that leaves this process.
-func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, id string) (*http.Response, error) {
+func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueKey, id string) (*http.Response, error) {
+	sourceID, contentURL, err := s.db.AttachmentOrigin(ctx, issueKey, id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, errAttachmentMissing
+		}
+		return nil, err
+	}
+	if sourceID == "linear" {
+		return fetchStoredURL(ctx, contentURL)
+	}
 	target := strings.TrimRight(cfg.Site, "/") + "/rest/api/3/attachment/content/" + url.PathEscape(id)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
@@ -226,8 +274,32 @@ func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, id str
 	if err != nil {
 		return nil, err
 	}
+	return mapAttachmentStatus(res, false)
+}
+
+// fetchStoredURL GETs an origin content URL with no Authorization header.
+// The Linear API key must never ride this request.
+func fetchStoredURL(ctx context.Context, target string) (*http.Response, error) {
+	if target == "" {
+		return nil, errAttachmentMissing
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := proxyClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	return mapAttachmentStatus(res, true)
+}
+
+func mapAttachmentStatus(res *http.Response, passDenied bool) (*http.Response, error) {
 	switch {
 	case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
+		if passDenied {
+			return nil, &originDeniedError{code: res.StatusCode, ct: res.Header.Get("Content-Type"), body: res.Body}
+		}
 		res.Body.Close()
 		return nil, errAttachmentAuth
 	case res.StatusCode == http.StatusNotFound:

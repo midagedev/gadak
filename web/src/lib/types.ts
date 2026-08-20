@@ -308,6 +308,8 @@ export interface DetailResponse {
   /** Body-role custom field values (ADF documents) keyed by alias. Older servers omit. */
   bodies?: Record<string, AdfNode | string | null>
   description_adf: AdfNode | null
+  /** Plain/markdown body when description_adf is empty (Linear). Older servers omit. */
+  description_text?: string
   attachments: DetailAttachment[]
   comments: DetailComment[]
   history: HistoryEntry[]

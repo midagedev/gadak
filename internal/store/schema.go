@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24}
 
 // itemsFTSCreate is the canonical items_fts DDL, quoted verbatim from schemaV1
 // below. Migrations are append-only, so schemaV1 cannot reference this
@@ -448,4 +448,11 @@ DROP VIEW issues_full;
 CREATE VIEW issues_full AS
   SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
   FROM issues i JOIN items it ON it.id = i.item_id;
+`
+
+// schemaV24 stores the origin content URL on attachment rows. Jira leaves it
+// empty (the proxy reconstructs site+/rest/api/3/attachment/content/+id).
+// Linear stores the URL the GraphQL node returned, verbatim.
+const schemaV24 = `
+ALTER TABLE attachments ADD COLUMN url TEXT;
 `

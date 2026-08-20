@@ -352,6 +352,102 @@ func capture(t *testing.T, fn func() error) (string, error) {
 	return string(out), cmdErr
 }
 
+func TestIssuePrintsBodyTextWhenADFEmpty(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "linear:lin-desc", SourceID: "linear", Kind: "issue", ExternalID: "lin-desc",
+				Key: "FIX-DESC", Title: "linear body", BodyText: "## Overview\n\nmarkdown body",
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new", Status: "Todo"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := capture(t, func() error { return cmdIssue([]string{"FIX-DESC"}) })
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if !strings.Contains(out, "markdown body") {
+		t.Fatalf("issue output missing linear markdown:\n%s", out)
+	}
+	if strings.Contains(out, `"type":"doc"`) {
+		t.Fatal("must not stuff markdown into ADF")
+	}
+}
+
+func TestOpenFallsBackToJiraBrowseWhenItemURLEmpty(t *testing.T) {
+	mirror(t, "https://jira.example.com")
+	var got string
+	saved := startIssueOpen
+	startIssueOpen = func(u string) error { got = u; return nil }
+	t.Cleanup(func() { startIssueOpen = saved })
+	out, err := capture(t, func() error { return cmdOpen([]string{"NMB-1"}) })
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	want := "https://jira.example.com/browse/NMB-1"
+	if got != want {
+		t.Fatalf("opened %q, want Jira browse fallback %q", got, want)
+	}
+	if !strings.Contains(out, want) {
+		t.Fatalf("stdout %q, want the URL", out)
+	}
+}
+
+func TestOpenPrefersStoredItemURL(t *testing.T) {
+	mirror(t, "https://jira.example.com")
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
+		t.Fatal(err)
+	}
+	linURL := "https://linear.app/example/issue/FIX-OPEN/x"
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "linear:lin-open", SourceID: "linear", Kind: "issue", ExternalID: "lin-open",
+				Key: "FIX-OPEN", Title: "open me", URL: linURL,
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	saved := startIssueOpen
+	startIssueOpen = func(u string) error { got = u; return nil }
+	t.Cleanup(func() { startIssueOpen = saved })
+	out, err := capture(t, func() error { return cmdOpen([]string{"FIX-OPEN"}) })
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if got != linURL {
+		t.Fatalf("opened %q, want stored items.url %q", got, linURL)
+	}
+	if !strings.Contains(out, linURL) {
+		t.Fatalf("stdout %q", out)
+	}
+}
+
 func TestIssueAndSearchReadTheMirror(t *testing.T) {
 	mirror(t, "https://unused.example.com")
 

@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -316,4 +317,340 @@ func findLite(t *testing.T, db *mirror, key string) (store.IssueLite, bool) {
 		}
 	}
 	return store.IssueLite{}, true
+}
+
+func linearCommentNodes(n, start int) []map[string]any {
+	out := make([]map[string]any, n)
+	for i := 0; i < n; i++ {
+		k := start + i
+		out[i] = map[string]any{
+			"id":        fmt.Sprintf("c-%d", k),
+			"body":      fmt.Sprintf("comment %d", k),
+			"createdAt": "2026-08-02T00:00:00.000Z",
+			"updatedAt": "2026-08-02T00:00:00.000Z",
+		}
+	}
+	return out
+}
+
+func seedLinearIssue(t *testing.T, db *mirror, key, extID string) {
+	t.Helper()
+	if err := db.UpsertSource(context.Background(), store.Source{ID: LinearSourceID, Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: LinearSourceID + ":" + extID, SourceID: LinearSourceID, Kind: "issue",
+				ExternalID: extID, Key: key, Title: "stale " + key, BodyText: "gone upstream",
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new", Status: "Todo"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedJiraIssue(t *testing.T, db *mirror, key string) {
+	t.Helper()
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://x.atlassian.net"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:" + key, SourceID: "jira", Kind: "issue",
+				ExternalID: key, Key: key, Title: "jira " + key,
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "NMB", StatusCategory: "new"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestRunLinearPriorityRankFromIDNotLabel: Linear priority 3 is labeled
+// "Normal" (MAPPING.md). The English list linearPriorities uses "Medium" at
+// that slot, so name lookup ranks 0. Rank must follow the integer id.
+func TestRunLinearPriorityRankFromIDNotLabel(t *testing.T) {
+	node := linearNode("FIX-20", "6", "unstarted", "Todo", 3, "Normal", nil)
+	srv := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, []map[string]any{node})})
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv)}); err != nil {
+		t.Fatal(err)
+	}
+	l := lite(t, db, "FIX-20")
+	if l.PriorityRank != 3 {
+		t.Fatalf("FIX-20 priority_rank = %d, want 3 (Linear id, not the label %q)", l.PriorityRank, "Normal")
+	}
+	if l.Priority == nil || *l.Priority != "Normal" {
+		t.Errorf("priority display = %v, want the source label kept", l.Priority)
+	}
+	if l.PriorityID != "3" {
+		t.Errorf("priority_id = %q, want the Linear integer", l.PriorityID)
+	}
+}
+
+// TestRunLinearMirrorsAttachments: attachments on the issue node must land
+// as store rows (same schema as the Jira path).
+func TestRunLinearMirrorsAttachments(t *testing.T) {
+	node := linearNode("FIX-21", "7", "unstarted", "Todo", 0, "No priority", map[string]any{
+		"attachments": map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+			"nodes": []map[string]any{{
+				"id": "att-1", "title": "shot.png",
+				"url":       "https://uploads.linear.app/example/shot.png",
+				"createdAt": "2026-08-02T00:00:00.000Z",
+				"metadata":  map[string]any{"size": 1234, "mimeType": "image/png"},
+			}},
+		},
+	})
+	srv := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, []map[string]any{node})})
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv)}); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := db.Detail(context.Background(), "FIX-21")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(detail.Attachments) != 1 {
+		t.Fatalf("attachments = %d, want 1", len(detail.Attachments))
+	}
+	a := detail.Attachments[0]
+	if a.Filename != "shot.png" {
+		t.Errorf("filename = %q", a.Filename)
+	}
+	if a.MimeType != "image/png" || a.Size != 1234 {
+		t.Errorf("mime/size = %q %d, want image/png 1234", a.MimeType, a.Size)
+	}
+	if a.ExternalID != "att-1" {
+		t.Errorf("external_id = %q", a.ExternalID)
+	}
+	if a.URL != "https://uploads.linear.app/example/shot.png" {
+		t.Errorf("url = %q, want the Linear content URL stored verbatim", a.URL)
+	}
+}
+
+// TestRunLinearDetailCarriesDescriptionText: Linear bodies are markdown in
+// items.body_text with empty description_adf. Detail must expose that text
+// so CLI/UI can render it without stuffing markdown into the ADF column.
+func TestRunLinearDetailCarriesDescriptionText(t *testing.T) {
+	srv := linearGraphQL(t, map[string]string{
+		"":                                     readFixture(t, "issues_page1.json"),
+		"00000000-0000-4000-8000-000000000000": readFixture(t, "issues_page2.json"),
+	})
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv)}); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := db.Detail(context.Background(), "FIX-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(detail.DescriptionADF); got != "" && got != "null" {
+		t.Errorf("description_adf = %q, want empty — markdown must not pose as ADF", got)
+	}
+	if !strings.Contains(detail.DescriptionText, "## Overview") {
+		t.Fatalf("description_text = %q, want the markdown body", detail.DescriptionText)
+	}
+}
+
+// TestRunLinearPaginatesCommentsPastInlinePage: an issue with 60 comments
+// currently keeps only the inline 50. HasNextPage must be followed.
+func TestRunLinearPaginatesCommentsPastInlinePage(t *testing.T) {
+	const extra = 10
+	first := linearCommentNodes(linear.CommentsPageSize, 1)
+	rest := linearCommentNodes(extra, linear.CommentsPageSize+1)
+	issueID := "00000000-0000-4000-8000-99900000008"
+	node := linearNode("FIX-22", "8", "unstarted", "Todo", 0, "No priority", map[string]any{
+		"id": issueID,
+		"comments": map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": true, "endCursor": "cmt-more"},
+			"nodes":    first,
+		},
+	})
+	issuesBody := linearIssuesResponse(t, []map[string]any{node})
+	moreBody, err := json.Marshal(map[string]any{
+		"data": map[string]any{
+			"issue": map[string]any{
+				"comments": map[string]any{
+					"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+					"nodes":    rest,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("bad body: %v", err)
+			http.Error(w, "bad body", 400)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(req.Query, "IssueComments") {
+			after, _ := req.Variables["after"].(string)
+			if after != "cmt-more" {
+				t.Errorf("IssueComments after = %q, want cmt-more", after)
+			}
+			_, _ = w.Write(moreBody)
+			return
+		}
+		_, _ = w.Write([]byte(issuesBody))
+	}))
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv)}); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := db.Detail(context.Background(), "FIX-22")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := linear.CommentsPageSize + extra
+	if len(detail.Comments) != want {
+		t.Fatalf("comments = %d, want %d (inline page followed to the end)", len(detail.Comments), want)
+	}
+}
+
+func TestSyncLinearIssuePaginatesComments(t *testing.T) {
+	const extra = 10
+	first := linearCommentNodes(linear.CommentsPageSize, 1)
+	rest := linearCommentNodes(extra, linear.CommentsPageSize+1)
+	issueID := "00000000-0000-4000-8000-99900000009"
+	iss := linearNode("FIX-23", "9", "unstarted", "Todo", 0, "No priority", map[string]any{
+		"id": issueID,
+		"comments": map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": true, "endCursor": "cmt-more"},
+			"nodes":    first,
+		},
+	})
+	oneBody, err := json.Marshal(map[string]any{"data": map[string]any{"issue": iss}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	moreBody, err := json.Marshal(map[string]any{
+		"data": map[string]any{
+			"issue": map[string]any{
+				"comments": map[string]any{
+					"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+					"nodes":    rest,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Query string `json:"query"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(req.Query, "IssueComments") {
+			_, _ = w.Write(moreBody)
+			return
+		}
+		_, _ = w.Write(oneBody)
+	}))
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if err := db.UpsertSource(context.Background(), store.Source{ID: LinearSourceID, Kind: "linear"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := SyncLinearIssue(context.Background(), db.DB, testLinearClient(t, srv), "FIX-23"); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := db.Detail(context.Background(), "FIX-23")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := linear.CommentsPageSize + extra
+	if len(detail.Comments) != want {
+		t.Fatalf("comments = %d, want %d after SyncLinearIssue", len(detail.Comments), want)
+	}
+}
+
+// TestRunLinearFullSyncDeletesAbsentKeys: full sync is proof-by-absence,
+// matching the Jira reconcile pass. Linear's default listing omits archived
+// issues, so archived is treated as deleted too.
+func TestRunLinearFullSyncDeletesAbsentKeys(t *testing.T) {
+	db := newMirror(t)
+	seedLinearIssue(t, db, "FIX-GONE", "gone")
+	seedJiraIssue(t, db, "NMB-KEEP")
+	node := linearNode("FIX-24", "a", "unstarted", "Todo", 0, "No priority", nil)
+	srv := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, []map[string]any{node})})
+	t.Cleanup(srv.Close)
+	res, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{Full: true, LinearClient: testLinearClient(t, srv)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted < 1 {
+		t.Fatalf("deleted = %d, want at least the absent linear key", res.Deleted)
+	}
+	if _, missing := findLite(t, db, "FIX-GONE"); !missing {
+		t.Fatal("FIX-GONE still mirrored after full sync — absence must delete (archived included)")
+	}
+	if _, missing := findLite(t, db, "NMB-KEEP"); missing {
+		t.Fatal("Jira row was deleted by the Linear reconcile")
+	}
+	if _, missing := findLite(t, db, "FIX-24"); missing {
+		t.Fatal("listed Linear issue was not upserted")
+	}
+}
+
+func TestRunLinearIncrementalDoesNotDeleteAbsentKeys(t *testing.T) {
+	keep := linearNode("FIX-25", "b", "unstarted", "Todo", 0, "No priority", nil)
+	drop := linearNode("FIX-26", "c", "unstarted", "Todo", 0, "No priority", nil)
+	srv1 := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, []map[string]any{keep, drop})})
+	t.Cleanup(srv1.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv1)}); err != nil {
+		t.Fatal(err)
+	}
+	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"issues":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}`))
+	}))
+	t.Cleanup(srv2.Close)
+	res, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv2)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Full {
+		t.Fatal("second pass must be incremental")
+	}
+	if res.Deleted != 0 {
+		t.Fatalf("incremental deleted = %d, want 0 (Jira does not reconcile on incremental)", res.Deleted)
+	}
+	if _, missing := findLite(t, db, "FIX-26"); missing {
+		t.Fatal("incremental pass must not treat absence from the updatedAt window as deletion")
+	}
+}
+
+func TestRunLinearFullSyncRefusesToEmptyMirror(t *testing.T) {
+	db := newMirror(t)
+	seedLinearIssue(t, db, "FIX-GONE", "gone")
+	srv := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, nil)})
+	t.Cleanup(srv.Close)
+	_, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{Full: true, LinearClient: testLinearClient(t, srv)})
+	if err == nil || !strings.Contains(err.Error(), "refusing") {
+		t.Fatalf("err = %v, want refuse-to-empty", err)
+	}
+	if _, missing := findLite(t, db, "FIX-GONE"); missing {
+		t.Fatal("empty upstream must not wipe the linear mirror")
+	}
 }

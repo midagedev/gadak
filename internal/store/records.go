@@ -87,6 +87,9 @@ type Attachment struct {
 	Author     string
 	AuthorID   string
 	CreatedAt  string
+	// URL is the origin content URL when the source does not share Jira's
+	// /attachment/content/{id} shape. Empty for Jira (the proxy builds it).
+	URL string
 }
 
 // ChangeEntry is one field change. Status entries carry ids because display

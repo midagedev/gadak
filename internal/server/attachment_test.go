@@ -214,6 +214,92 @@ func TestAttachmentCacheRejectsForeignIssueKey(t *testing.T) {
 	}
 }
 
+func TestLinearAttachmentFetchesStoredURLWithoutAuth(t *testing.T) {
+	db, _ := fixture(t)
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
+		t.Fatal(err)
+	}
+	var auth string
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = r.Header.Get("Authorization")
+		if r.URL.Path != "/file.png" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("LINBYTES"))
+	}))
+	t.Cleanup(origin.Close)
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "linear:lin-1", SourceID: "linear", ExternalID: "lin-1", Key: "FIX-L1",
+				Title: "linear att", CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new"},
+			Attachments: []store.Attachment{{
+				ID: "linear:att-lin", ExternalID: "att-lin", Filename: "file.png",
+				MimeType: "image/png", Size: 8, URL: origin.URL + "/file.png",
+			}},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// No Jira credential: Linear bytes still proxy, and the request must not
+	// carry an Authorization header (never the Linear API key).
+	h := New(db, &config.Config{})
+	rec := get(t, h, apiBase+"FIX-L1/attachments/att-lin/content/", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "LINBYTES" {
+		t.Fatalf("linear proxy → %d %q", rec.Code, rec.Body.String())
+	}
+	if auth != "" {
+		t.Fatalf("Authorization = %q, want empty", auth)
+	}
+}
+
+func TestLinearAttachmentPassesThrough401(t *testing.T) {
+	db, _ := fixture(t)
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
+		t.Fatal(err)
+	}
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("no"))
+	}))
+	t.Cleanup(origin.Close)
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "linear:lin-2", SourceID: "linear", ExternalID: "lin-2", Key: "FIX-L2",
+				Title: "linear att", CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new"},
+			Attachments: []store.Attachment{{
+				ID: "linear:att-401", ExternalID: "att-401", Filename: "x.png",
+				URL: origin.URL + "/x.png",
+			}},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h := New(db, &config.Config{})
+	rec := get(t, h, apiBase+"FIX-L2/attachments/att-401/content/", nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("linear 401 → %d, want 401 passed through (not 409)", rec.Code)
+	}
+}
+
+func TestJiraAttachmentStillUsesSiteBasicAuth(t *testing.T) {
+	h, _, hits, _, _ := attachmentFixture(t)
+	rec := get(t, h, apiBase+"NMB-1/attachments/10021/content/", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "PNGBYTES" {
+		t.Fatalf("jira proxy → %d %q", rec.Code, rec.Body.String())
+	}
+	if n := hits.Load(); n != 1 {
+		t.Fatalf("jira upstream hits = %d, want 1", n)
+	}
+}
+
 func TestCachedSvgIsForcedToDownload(t *testing.T) {
 	db, cfg := fixture(t)
 	jira := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

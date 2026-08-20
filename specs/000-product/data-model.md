@@ -264,6 +264,7 @@ database stays small and no file content is ever committed in a snapshot.
 | `size` | INTEGER | Bytes |
 | `author` | TEXT | |
 | `created_at` | TEXT | |
+| `url` | TEXT | Origin content URL when the source does not share Jira's `/attachment/content/{id}` path. Empty for Jira (the proxy reconstructs it). |
 
 ## `changelog`
 

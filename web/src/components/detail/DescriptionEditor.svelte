@@ -21,10 +21,12 @@
     issueKey,
     node = null,
     attachments = [],
+    fallback = null,
   }: {
     issueKey: string
     node?: AdfNode | null
     attachments?: DetailAttachment[]
+    fallback?: string | null
   } = $props()
 
   let editing = $state(false)
@@ -45,6 +47,7 @@
   async function start() {
     if (!(await write.ensureWritable())) return
     draft = adfToPlainText(node)
+    if (!draft && fallback) draft = fallback
     editing = true
     queueMicrotask(() => {
       if (!ta) return
@@ -155,6 +158,7 @@
           {node}
           issueKey={issueKey}
           {attachments}
+          {fallback}
           emptyLabel={t('detail.noDescription')}
         />
       </div>

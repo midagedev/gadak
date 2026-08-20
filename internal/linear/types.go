@@ -78,6 +78,24 @@ type CommentConn struct {
 	Nodes    []Comment `json:"nodes"`
 }
 
+// IssueAttachment is one node of Issue.attachments. Title is the filename;
+// URL is the origin content URL (store it verbatim — the proxy must not
+// reconstruct a Jira path). Metadata may carry size/mimeType; those fields
+// are not first-class on the Linear attachment type (MAPPING.md).
+type IssueAttachment struct {
+	ID        string         `json:"id"`
+	Title     string         `json:"title"`
+	URL       string         `json:"url"`
+	CreatedAt string         `json:"createdAt"`
+	Metadata  map[string]any `json:"metadata"`
+}
+
+// AttachmentConn is the nested attachments connection on an issue.
+type AttachmentConn struct {
+	PageInfo PageInfo          `json:"pageInfo"`
+	Nodes    []IssueAttachment `json:"nodes"`
+}
+
 // ParentRef is the embedded parent issue. Linear parents are generic sub-issue
 // nesting, not epics; see MAPPING.md, "epic / parent".
 type ParentRef struct {
@@ -116,8 +134,10 @@ type Issue struct {
 	// Comments is the first inline page (CommentsPageSize). A page with
 	// PageInfo.HasNextPage means the issue has more comments than that and
 	// the rest need a follow-up fetch — the flag exists so truncation is
-	// observable, never silent.
+	// observable, never silent. CompleteComments follows the cursor.
 	Comments CommentConn `json:"comments"`
+
+	Attachments AttachmentConn `json:"attachments"`
 }
 
 // IssueConnection and its siblings are the standard Linear connection shape.

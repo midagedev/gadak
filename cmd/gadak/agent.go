@@ -264,6 +264,8 @@ func printIssue(l store.IssueLite, d *store.Detail) {
 
 	if body := strings.TrimSpace(jira.PlainText(d.DescriptionADF)); body != "" {
 		fmt.Printf("\ndescription\n%s\n", indent(body))
+	} else if text := strings.TrimSpace(d.DescriptionText); text != "" {
+		fmt.Printf("\ndescription\n%s\n", indent(text))
 	}
 	if len(d.Comments) > 0 {
 		fmt.Printf("\ncomments (%d)\n", len(d.Comments))
@@ -1481,15 +1483,41 @@ func cmdOpen(args []string) error {
 	if err != nil {
 		return err
 	}
+	key := normalizeKey(pos[0])
+	if u := lookupItemURL(key); u != "" {
+		if err := startIssueOpen(u); err != nil {
+			return fmt.Errorf("could not open a browser (%v) — the URL is %s", err, u)
+		}
+		fmt.Println(u)
+		return nil
+	}
 	if cfg.Site == "" {
 		return errors.New("no Jira site configured — run `gadak init` first")
 	}
-	u := strings.TrimRight(cfg.Site, "/") + "/browse/" + url.PathEscape(normalizeKey(pos[0]))
-	if err := openBrowser(u); err != nil {
+	u := strings.TrimRight(cfg.Site, "/") + "/browse/" + url.PathEscape(key)
+	if err := startIssueOpen(u); err != nil {
 		return fmt.Errorf("could not open a browser (%v) — the URL is %s", err, u)
 	}
 	fmt.Println(u)
 	return nil
+}
+
+// startIssueOpen is the browser opener for `gadak open`. Tests replace it.
+var startIssueOpen = openBrowser
+
+// lookupItemURL returns items.url for key when the mirror has one. Empty on
+// any lookup failure so callers fall back to the Jira browse URL.
+func lookupItemURL(key string) string {
+	db, err := openReadOnly()
+	if err != nil {
+		return ""
+	}
+	defer db.Close()
+	var u sql.NullString
+	if err := db.QueryRow(`SELECT url FROM items WHERE key = ? AND url IS NOT NULL AND url != '' LIMIT 1`, key).Scan(&u); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(u.String)
 }
 
 // openBrowser starts the platform's URL opener and does not wait for it.

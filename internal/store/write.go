@@ -188,10 +188,10 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	}
 	for _, a := range r.Attachments {
 		if _, err := tx.Exec(`
-			INSERT INTO attachments (id, item_id, external_id, filename, mime_type, size, author, author_id, created_at)
-			VALUES (?,?,?,?,?,?,?,?,?)`,
+			INSERT INTO attachments (id, item_id, external_id, filename, mime_type, size, author, author_id, created_at, url)
+			VALUES (?,?,?,?,?,?,?,?,?,?)`,
 			a.ID, it.ID, nz(a.ExternalID), nz(a.Filename), nz(a.MimeType), a.Size,
-			nz(a.Author), nz(a.AuthorID), nz(a.CreatedAt),
+			nz(a.Author), nz(a.AuthorID), nz(a.CreatedAt), nz(a.URL),
 		); err != nil {
 			return false, err
 		}
