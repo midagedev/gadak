@@ -187,9 +187,10 @@ profile's `config.json` and run `gadak sync --source linear`. Writes
 route by the mirror's source for the key — comment, transition (the
 team's workflow states, id-keyed), summary/priority/due-date edits,
 assign/unassign, and file attachments all pass through Linear's API and
-refresh the mirror row. Not yet: label edits, inline comment media,
-clearing a due date, state history (`status_changed_at` stays NULL) —
-each refuses honestly rather than half-applying. Field mapping:
+refresh the mirror row. Not yet: label edits, clearing a due date, and
+state history (`status_changed_at` stays NULL) each refuse honestly
+rather than half-applying; inline comment media attaches the file and
+drops only the body embed. Field mapping:
 [`internal/linear/MAPPING.md`](internal/linear/MAPPING.md).
 
 ## For agents

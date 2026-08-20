@@ -20,18 +20,18 @@
 
   const meta = $derived(priorityMeta(issue.priority_rank, issue.priority))
   const canEdit = $derived(me.identified)
-  const options = $derived(write.priorities)
+  const options = $derived(write.prioritiesFor(issue.issue_key))
 
   async function toggle() {
     if (open) {
       open = false
       return
     }
-    if (!(await write.ensureWritable())) return
+    if (!(await write.ensureWritableFor(issue.issue_key))) return
     open = true
-    if (!write.prioritiesLoaded) {
+    if (!write.hasPrioritiesFor(issue.issue_key)) {
       loading = true
-      const ok = await write.loadPriorities()
+      const ok = await write.loadPrioritiesFor(issue.issue_key)
       loading = false
       if (!ok) {
         open = false

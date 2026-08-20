@@ -16,6 +16,8 @@ import (
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -662,6 +664,91 @@ func TestTransitionMatchesByNameAndReportsAlternatives(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q missing %q", err, want)
 		}
+	}
+}
+
+// searchUsersStub is a Writer that only implements SearchUsers. GDK-406
+// pins that Linear assign must go through this instead of cfg.Members.
+type searchUsersStub struct {
+	query string
+	users []jira.User
+}
+
+func (s *searchUsersStub) SearchUsers(_ context.Context, q string) ([]jira.User, error) {
+	s.query = q
+	return s.users, nil
+}
+func (s *searchUsersStub) CreateMeta(context.Context, []string) ([]jira.CreateMetaProject, error) {
+	return nil, errStub
+}
+func (s *searchUsersStub) CreateIssue(context.Context, map[string]any) (string, error) {
+	return "", errStub
+}
+func (s *searchUsersStub) EditMeta(context.Context, string) (map[string]jira.FieldMeta, error) {
+	return nil, errStub
+}
+func (s *searchUsersStub) UpdateFields(context.Context, string, map[string]any) error { return errStub }
+func (s *searchUsersStub) EditIssue(context.Context, string, map[string]any, map[string]any) error {
+	return errStub
+}
+func (s *searchUsersStub) Transitions(context.Context, string) ([]jira.Transition, error) {
+	return nil, errStub
+}
+func (s *searchUsersStub) Transition(context.Context, string, string) error { return errStub }
+func (s *searchUsersStub) AddComment(context.Context, string, json.RawMessage) (jira.Comment, error) {
+	return jira.Comment{}, errStub
+}
+func (s *searchUsersStub) SetAssignee(context.Context, string, string) error { return errStub }
+func (s *searchUsersStub) PriorityCatalog(context.Context) ([]jira.NamedID, error) {
+	return nil, errStub
+}
+func (s *searchUsersStub) Upload(context.Context, string, string, io.Reader) ([]jira.Attachment, error) {
+	return nil, errStub
+}
+func (s *searchUsersStub) MediaRef(context.Context, string) (string, string, error) {
+	return "", "", errStub
+}
+
+var errStub = errStubSentinel("searchUsersStub: unused method")
+
+type errStubSentinel string
+
+func (e errStubSentinel) Error() string { return string(e) }
+
+var _ origin.Writer = (*searchUsersStub)(nil)
+
+func TestResolveAccountLinearSkipsJiraMemberDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	cfg := &config.Config{
+		Site: "https://example.invalid", Email: "a@b.c", Token: "tok",
+		Members: []config.Member{{Email: "dana@example.com", JiraAccountID: "jira-acc-1"}},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	stub := &searchUsersStub{users: []jira.User{{AccountID: "lin-u1", DisplayName: "Dana", Email: "dana@example.com"}}}
+	id, err := resolveAccount(context.Background(), stub, "dana@example.com", "linear")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == "jira-acc-1" {
+		t.Fatal("linear assign used the Jira member-directory shortcut")
+	}
+	if id != "lin-u1" {
+		t.Fatalf("id = %q, want lin-u1 from SearchUsers", id)
+	}
+	if stub.query != "dana@example.com" {
+		t.Fatalf("SearchUsers query = %q", stub.query)
+	}
+
+	id, err = resolveAccount(context.Background(), stub, "dana@example.com", "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "jira-acc-1" {
+		t.Fatalf("jira assign id = %q, want the member-directory shortcut", id)
 	}
 }
 

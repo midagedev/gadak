@@ -187,9 +187,9 @@ Connected는 Atlassian Cloud와 대화합니다. Standalone(0.16부터)은 Atlas
 넣고 `gadak sync --source linear`. 쓰기는 키의 미러 source로 라우팅됩니다 —
 코멘트, 상태 전환(팀 워크플로 상태, id 기준), 요약/우선순위/마감일 편집,
 담당자 지정/해제, 파일 첨부가 전부 Linear API를 통과한 뒤 미러 행을
-갱신합니다. 아직 안 되는 것: 라벨 편집, 인라인 코멘트 미디어, 마감일 해제,
-상태 이력(`status_changed_at`은 NULL 유지) — 각각 반쯤 적용되는 대신
-정직하게 거절합니다. 필드 매핑:
+갱신합니다. 아직 안 되는 것: 라벨 편집, 마감일 해제, 상태 이력
+(`status_changed_at`은 NULL 유지)은 반쯤 적용하는 대신 정직하게 거절하고,
+인라인 코멘트 미디어는 파일은 붙고 본문 embed만 빠집니다. 필드 매핑:
 [`internal/linear/MAPPING.md`](internal/linear/MAPPING.md).
 
 ## 에이전트를 위해

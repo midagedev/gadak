@@ -429,7 +429,12 @@ func (c *Client) commentsAfter(ctx context.Context, issueID, after string) (Comm
 func (c *Client) Users(ctx context.Context, query string) ([]User, error) {
 	vars := map[string]any{}
 	if query != "" {
-		vars["filter"] = map[string]any{"displayName": map[string]any{"containsIgnoreCase": query}}
+		vars["filter"] = map[string]any{
+			"or": []any{
+				map[string]any{"displayName": map[string]any{"containsIgnoreCase": query}},
+				map[string]any{"email": map[string]any{"containsIgnoreCase": query}},
+			},
+		}
 	}
 	var res struct {
 		Users struct {

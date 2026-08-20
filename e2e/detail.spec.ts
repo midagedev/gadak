@@ -177,7 +177,7 @@ test.describe('detail', () => {
      * is mocked so the menu can render. The write itself is TestPrioritySetAndClear.
      */
     const errors = attachConsoleErrors(page)
-    await page.route('**/api/v1/issues/priorities/', (route) => {
+    await page.route('**/priorities/', (route) => {
       if (route.request().method() !== 'GET') return route.continue()
       return route.fulfill({
         json: {

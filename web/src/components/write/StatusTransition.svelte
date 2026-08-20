@@ -86,7 +86,7 @@
 
   async function loadRemote() {
     // Remote GET needs auth → gate first.
-    if (!(await write.ensureWritable())) {
+    if (!(await write.ensureWritableFor(issue.issue_key))) {
       open = false
       return
     }

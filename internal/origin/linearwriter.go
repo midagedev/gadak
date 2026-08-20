@@ -199,7 +199,7 @@ func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[
 					id, _ = pv["id"].(string)
 				}
 				n, err := strconv.Atoi(id)
-				if err != nil {
+				if err != nil || n < 0 || n > 4 {
 					return fmt.Errorf("linear: priority id %q is not on the 0-4 scale", id)
 				}
 				p = n
@@ -261,6 +261,11 @@ func contains(list []string, s string) bool {
 }
 
 func (w *linearWriter) CreateIssue(ctx context.Context, fields map[string]any) (string, error) {
+	for _, name := range []string{"assignee", "labels", "parent", "issuetype"} {
+		if _, ok := fields[name]; ok {
+			return "", fmt.Errorf("linear: field %q is not supported on create", name)
+		}
+	}
 	teamKey := ""
 	if p, ok := fields["project"].(map[string]any); ok {
 		teamKey, _ = p["key"].(string)
@@ -299,9 +304,11 @@ func (w *linearWriter) CreateIssue(ctx context.Context, fields map[string]any) (
 		case map[string]any:
 			id, _ = pv["id"].(string)
 		}
-		if n, err := strconv.Atoi(id); err == nil {
-			in.Priority = &n
+		n, err := strconv.Atoi(id)
+		if err != nil || n < 0 || n > 4 {
+			return "", fmt.Errorf("linear: priority id %q is not on the 0-4 scale", id)
 		}
+		in.Priority = &n
 	}
 	if d, ok := fields["duedate"].(string); ok && d != "" {
 		in.DueDate = d

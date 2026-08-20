@@ -63,6 +63,9 @@ type IssueLite struct {
 	// spreads them into the response as top-level keys, which is where the client
 	// reads severity and friends.
 	Custom map[string]any `json:"custom,omitempty"`
+	// Source is items.source_id (jira / linear / …). Write pickers key on it
+	// so a Linear row does not consume a Jira catalog or credential.
+	Source string `json:"source,omitempty"`
 }
 
 const issueLiteSelect = `
@@ -76,7 +79,7 @@ const issueLiteSelect = `
 	       i.duedate, i.resolution, i.created_at, i.updated_at,
 	       i.status_changed_at, i.resolved_at, i.reopen_count, i.reopened_at,
 	       COALESCE(i.reopen_reason, ''), COALESCE(i.cloned_from, ''), i.comment_count,
-	       COALESCE(i.custom, '{}')
+	       COALESCE(i.custom, '{}'), COALESCE(it.source_id, '')
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
 // KeySource returns the source_id owning key in the mirror, "" when the key
@@ -174,7 +177,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 			&v.Duedate, &v.Resolution, &v.CreatedAt, &v.UpdatedAt,
 			&v.StatusChangedAt, &v.ResolvedAt, &v.ReopenCount, &v.ReopenedAt,
 			&reopenReason, &clonedFrom, &v.CommentCount,
-			&custom,
+			&custom, &v.Source,
 		); err != nil {
 			return nil, err
 		}

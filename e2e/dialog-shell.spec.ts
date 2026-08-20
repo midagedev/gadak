@@ -68,7 +68,7 @@ async function stubCreateMeta(page: Page): Promise<void> {
     if (route.request().method() !== 'GET') return route.continue()
     await fulfillJSON(route, { projects: CREATE_PROJECTS })
   })
-  await page.route('**/api/v1/issues/priorities/', async (route) => {
+  await page.route('**/priorities/', async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
     await fulfillJSON(route, { priorities: [{ id: '3', name: '보통' }] })
   })

@@ -59,6 +59,8 @@ class WriteStore {
   displayName = $state('')
   tokenHint = $state('')
   verifiedAt = $state<string | null>(null)
+  /** Profile has a Linear block (GET credential/.linear). */
+  linear = $state(false)
   /** True after loadCredential has finished once (dedupe probes). */
   credentialLoaded = $state(false)
 
@@ -68,9 +70,11 @@ class WriteStore {
   writeMetaUpdatedAt = $state<string | null>(null)
   writeMetaLoaded = $state(false)
 
-  /** Site priority catalog (GET priorities/), most urgent first. */
+  /** Site priority catalog (GET priorities/), most urgent first. Create dialog. */
   priorities = $state<PriorityOption[]>([])
   prioritiesLoaded = $state(false)
+  /** Per-key catalogs (GET {key}/priorities/). Open-issue picker. */
+  #priorityByKey = new SvelteMap<string, PriorityOption[]>()
 
   /* ── Dialogs ── */
   settingsOpen = $state(false)
@@ -247,6 +251,7 @@ class WriteStore {
     this.displayName = ''
     this.verifiedAt = null
     this.tokenHint = ''
+    this.linear = false
     this.credentialLoaded = false
   }
 
@@ -267,12 +272,14 @@ class WriteStore {
     display_name: string
     verified_at: string | null
     token_hint: string
+    linear?: boolean
   }): void {
     this.configured = c.configured
     this.jiraEmail = c.jira_email
     this.displayName = c.display_name
     this.verifiedAt = c.verified_at
     this.tokenHint = c.token_hint
+    this.linear = Boolean(c.linear)
     this.credentialLoaded = true
   }
 
@@ -316,6 +323,22 @@ class WriteStore {
   }
 
   /**
+   * Per-key write gate. Linear rows use credential.linear (no Jira token
+   * dialog). Create / global pickers keep ensureWritable() — Jira only.
+   */
+  async ensureWritableFor(key: string): Promise<boolean> {
+    if (isHostedDemo()) return true
+    if (!this.credentialLoaded) await this.loadCredential()
+    if (issues.pool.get(key)?.source === 'linear') {
+      if (this.linear) return true
+      this.toast(t('write.needToken'), 'info')
+      this.openSettings()
+      return false
+    }
+    return this.ensureWritable()
+  }
+
+  /**
    * Record a demo-local edit and explain it once. One toast per session: the
    * banner carries the running count, so repeating the message on every edit
    * would be noise, and saying nothing at all would be misleading.
@@ -355,7 +378,7 @@ class WriteStore {
     call: () => Promise<{ issue: IssueLite }>,
     failMsg: string,
   ): Promise<boolean> {
-    if (!(await this.ensureWritable())) return false
+    if (!(await this.ensureWritableFor(key))) return false
     const snapshot = issues.pool.get(key)
     if (snapshot && patch) {
       issues.pool.set(key, { ...snapshot, ...patch })
@@ -459,8 +482,34 @@ class WriteStore {
     }
   }
 
+  async loadPrioritiesFor(key: string): Promise<boolean> {
+    if (this.#priorityByKey.has(key)) return true
+    if (!(await this.ensureWritableFor(key))) return false
+    if (isHostedDemo()) {
+      this.#priorityByKey.set(key, demoPriorities(issues.allIssues))
+      return true
+    }
+    try {
+      const res = await api.getPrioritiesFor(key)
+      this.#priorityByKey.set(key, res.priorities)
+      return true
+    } catch (e) {
+      this.#handleError(e, t('write.prioritiesFailed'))
+      return false
+    }
+  }
+
+  prioritiesFor(key: string): PriorityOption[] {
+    return this.#priorityByKey.get(key) ?? []
+  }
+
+  hasPrioritiesFor(key: string): boolean {
+    return this.#priorityByKey.has(key)
+  }
+
   async setPriority(key: string, p: PriorityOption | null): Promise<boolean> {
-    const rank = p ? this.priorities.findIndex((x) => x.id === p.id) + 1 : 0
+    const catalog = this.#priorityByKey.get(key) ?? this.priorities
+    const rank = !p ? 0 : p.id === '0' ? 0 : catalog.findIndex((x) => x.id === p.id) + 1
     return this.#writeIssue(
       key,
       { priority: p ? p.name : null, priority_rank: p ? rank : 0 },
@@ -508,8 +557,12 @@ class WriteStore {
     if (isHostedDemo()) return false
     if (opts?.quiet) {
       if (!this.credentialLoaded) await this.loadCredential()
-      if (!this.configured) return false
-    } else if (!(await this.ensureWritable())) {
+      if (issues.pool.get(key)?.source === 'linear') {
+        if (!this.linear) return false
+      } else if (!this.configured) {
+        return false
+      }
+    } else if (!(await this.ensureWritableFor(key))) {
       return false
     }
     if (!this.editMeta.has(key) && !this.#editMetaLoading.has(key)) {
@@ -578,7 +631,7 @@ class WriteStore {
     mentions: CommentMention[] = [],
     attachments: UploadedAttachment[] = [],
   ): Promise<boolean> {
-    if (!(await this.ensureWritable())) return false
+    if (!(await this.ensureWritableFor(key))) return false
     const tmpId = `temp-${++this.#tmpId}`
     // Optimistic paint: mentions as plain text; attachments as a filename list
     // (real render after confirm).
@@ -635,7 +688,7 @@ class WriteStore {
    * null on failure (toast). Must pass the write gate; callers may upload files in parallel.
    */
   async uploadAttachment(key: string, file: File): Promise<UploadedAttachment[] | null> {
-    if (!(await this.ensureWritable())) return null
+    if (!(await this.ensureWritableFor(key))) return null
     // Unlike a status change, an upload has no local stand-in: the bytes would
     // have to come back from a server to be rendered anywhere.
     if (isHostedDemo()) {

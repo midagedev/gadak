@@ -292,6 +292,7 @@ type credentialDoc struct {
 	DisplayName string `json:"display_name"`
 	VerifiedAt  string `json:"verified_at"`
 	TokenHint   string `json:"token_hint"`
+	Linear      bool   `json:"linear"`
 }
 
 // credential never carries the token. The hint is the last four characters, which
@@ -302,6 +303,7 @@ func credential(cfg *config.Config) credentialDoc {
 		JiraEmail:   cfg.Email,
 		DisplayName: cfg.TokenOwner,
 		VerifiedAt:  cfg.TokenVerifiedAt,
+		Linear:      cfg.Linear != nil,
 	}
 	if n := len(cfg.Token); n > 4 {
 		d.TokenHint = "…" + cfg.Token[n-4:]
@@ -553,6 +555,17 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 /* ── priority ── */
 
+func writePriorityCatalog(w http.ResponseWriter, list []jira.NamedID) {
+	out := make([]map[string]string, 0, len(list))
+	for _, p := range list {
+		if p.ID == "" {
+			continue
+		}
+		out = append(out, map[string]string{"id": p.ID, "name": p.Name})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"priorities": out})
+}
+
 func (s *server) handlePriorities(w http.ResponseWriter, r *http.Request) {
 	c, _, ok := s.client(w)
 	if !ok {
@@ -563,14 +576,20 @@ func (s *server) handlePriorities(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, err)
 		return
 	}
-	out := make([]map[string]string, 0, len(list))
-	for _, p := range list {
-		if p.ID == "" {
-			continue
-		}
-		out = append(out, map[string]string{"id": p.ID, "name": p.Name})
+	writePriorityCatalog(w, list)
+}
+
+func (s *server) handleKeyPriorities(w http.ResponseWriter, r *http.Request) {
+	c, _, _, ok := s.keyWriter(w, r, r.PathValue("key"))
+	if !ok {
+		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"priorities": out})
+	list, err := c.PriorityCatalog(r.Context())
+	if err != nil {
+		failJira(w, r, err)
+		return
+	}
+	writePriorityCatalog(w, list)
 }
 
 func (s *server) handlePriority(w http.ResponseWriter, r *http.Request) {
@@ -1014,6 +1033,17 @@ func (s *server) handleWriteMeta(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, body)
 }
 
+func writeUserCatalog(w http.ResponseWriter, users []jira.User) {
+	out := make([]map[string]any, 0, len(users))
+	for _, u := range users {
+		out = append(out, map[string]any{
+			"account_id": u.AccountID, "display_name": u.DisplayName, "email": u.Email,
+			"avatar_url": u.Avatar(), "active": u.Active,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"users": out})
+}
+
 func (s *server) handleUsers(w http.ResponseWriter, r *http.Request) {
 	c, _, ok := s.client(w)
 	if !ok {
@@ -1024,14 +1054,20 @@ func (s *server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, err)
 		return
 	}
-	out := make([]map[string]any, 0, len(users))
-	for _, u := range users {
-		out = append(out, map[string]any{
-			"account_id": u.AccountID, "display_name": u.DisplayName, "email": u.Email,
-			"avatar_url": u.Avatar(), "active": u.Active,
-		})
+	writeUserCatalog(w, users)
+}
+
+func (s *server) handleKeyUsers(w http.ResponseWriter, r *http.Request) {
+	c, _, _, ok := s.keyWriter(w, r, r.PathValue("key"))
+	if !ok {
+		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"users": out})
+	users, err := c.SearchUsers(r.Context(), r.URL.Query().Get("q"))
+	if err != nil {
+		failJira(w, r, err)
+		return
+	}
+	writeUserCatalog(w, users)
 }
 
 /* ── page edit (GDK-380) ── */

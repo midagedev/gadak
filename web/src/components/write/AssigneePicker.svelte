@@ -10,7 +10,7 @@
    */
   import { t, collator } from '../../lib/i18n'
   import type { IssueLite, JiraUser } from '../../lib/types'
-  import { ApiError } from '../../lib/api'
+  import { ApiError, searchUsersFor } from '../../lib/api'
   import {
     groupedAssigneeCands,
     resolveAssigneeCand,
@@ -36,6 +36,7 @@
   const userSearch = createUserSearch(() => query, {
     debounceMs: 250,
     minLength: 2,
+    search: (q) => searchUsersFor(issue.issue_key, q),
     onError: (e) => {
       if (e instanceof ApiError && e.code === 'credential_required') {
         open = false
@@ -78,7 +79,7 @@
   )
 
   async function openPicker() {
-    if (!(await write.ensureWritable())) return
+    if (!(await write.ensureWritableFor(issue.issue_key))) return
     open = true
     query = ''
     queueMicrotask(() => inputEl?.focus())
@@ -92,6 +93,28 @@
   }
 
   async function pickCand(c: AssigneeCand) {
+    if (issue.source === 'linear') {
+      const q = (c.email || c.display_name).trim()
+      busy = true
+      let match: JiraUser | undefined
+      try {
+        const res = await searchUsersFor(issue.issue_key, q)
+        match =
+          res.users.find(
+            (u) => u.email && c.email && u.email.toLowerCase() === c.email.toLowerCase(),
+          ) ?? res.users[0]
+      } catch {
+        write.toast(t('write.assignSpecifyFailed'), 'error')
+        busy = false
+        return
+      }
+      busy = false
+      if (!match) {
+        write.toast(t('write.userNotFound'), 'error')
+        return
+      }
+      return doAssign(match)
+    }
     if (c.account_id) {
       const resolved = await resolveAssigneeCand(c)
       if (!resolved.ok) return

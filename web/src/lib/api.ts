@@ -666,6 +666,11 @@ export function getPriorities(): Promise<PrioritiesResponse> {
   return jsonW<PrioritiesResponse>('priorities/')
 }
 
+/** Per-key catalog: Linear rows answer 0-4, Jira rows match GET priorities/. */
+export function getPrioritiesFor(issueKey: string): Promise<PrioritiesResponse> {
+  return jsonW<PrioritiesResponse>(`${encodeURIComponent(issueKey)}/priorities/`)
+}
+
 /** PUT <key>/priority/ — `null` clears. Send the site id, not the display name. */
 export function setPriority(issueKey: string, priorityId: string | null): Promise<IssueWriteResponse> {
   return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/priority/`, {
@@ -743,6 +748,11 @@ export function getCreateMeta(): Promise<CreateMetaResponse> {
 
 export function searchUsers(q: string): Promise<UsersResponse> {
   return jsonW<UsersResponse>(`users/?q=${encodeURIComponent(q)}`)
+}
+
+/** Per-key user search: Linear rows query Linear members, Jira rows match GET users/. */
+export function searchUsersFor(issueKey: string, q: string): Promise<UsersResponse> {
+  return jsonW<UsersResponse>(`${encodeURIComponent(issueKey)}/users/?q=${encodeURIComponent(q)}`)
 }
 
 /* ── Server settings (loopback only) ──

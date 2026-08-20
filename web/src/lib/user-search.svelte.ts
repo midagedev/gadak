@@ -9,7 +9,7 @@
  */
 
 import { searchUsers } from './api'
-import type { JiraUser } from './types'
+import type { JiraUser, UsersResponse } from './types'
 
 export interface UserSearchOptions {
   /** Default 250. */
@@ -19,6 +19,8 @@ export interface UserSearchOptions {
   onError?: (e: unknown) => void
   /** Fired only for the latest successful response (after race guard). */
   onResults?: (users: JiraUser[]) => void
+  /** Override GET users/. Assignee picker on an open issue uses the per-key route. */
+  search?: (q: string) => Promise<UsersResponse>
 }
 
 export interface UserSearch {
@@ -59,7 +61,7 @@ export function createUserSearch(
     timer = setTimeout(() => {
       const my = ++seq
       searching = true
-      void searchUsers(q)
+      void (opts.search ?? searchUsers)(q)
         .then((res) => {
           if (my !== seq) return
           results = res.users

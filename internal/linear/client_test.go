@@ -546,3 +546,45 @@ func TestIssuesQueryRequestsAttachments(t *testing.T) {
 		t.Fatal("attachments selection must ask for metadata (size/mime)")
 	}
 }
+
+// GDK-406: assignee search must match email as well as display name.
+// The previous filter was displayName-only, so `gadak assign KEY user@host`
+// missed Linear accounts whose visible name is not their mailbox.
+func TestUsersFilterMatchesDisplayNameOrEmail(t *testing.T) {
+	var filter map[string]any
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Variables struct {
+				Filter map[string]any `json:"filter"`
+			} `json:"variables"`
+		}
+		decode(t, r, &body)
+		filter = body.Variables.Filter
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"users":{"nodes":[]}}}`))
+	}))
+	if _, err := c.Users(context.Background(), "dana@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	or, _ := filter["or"].([]any)
+	if len(or) != 2 {
+		t.Fatalf("filter = %#v, want or:[displayName, email]", filter)
+	}
+	gotName, gotEmail := false, false
+	for _, raw := range or {
+		clause, _ := raw.(map[string]any)
+		if dn, ok := clause["displayName"].(map[string]any); ok {
+			if dn["containsIgnoreCase"] == "dana@example.com" {
+				gotName = true
+			}
+		}
+		if em, ok := clause["email"].(map[string]any); ok {
+			if em["containsIgnoreCase"] == "dana@example.com" {
+				gotEmail = true
+			}
+		}
+	}
+	if !gotName || !gotEmail {
+		t.Fatalf("filter or clauses = %#v, want displayName OR email containsIgnoreCase", or)
+	}
+}

@@ -1413,20 +1413,23 @@ func cmdAssign(args []string) error {
 	}
 	key, who := normalizeKey(pos[0]), strings.TrimSpace(pos[1])
 
-	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
-		id, err := resolveAccount(ctx, c, who)
+	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+		id, err := resolveAccount(ctx, c, who, src)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return nil, c.SetAssignee(ctx, key, id)
+		if err := c.SetAssignee(ctx, key, id); err != nil {
+			return err
+		}
+		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, nil)
 	})
 }
 
-// resolveAccount turns an email into a Jira account id: `-` unassigns, the
-// configured member directory answers without a network call, and anything else
-// goes to Jira's own user search — the same source the UI's picker uses, because
-// there is no local user table to search.
-func resolveAccount(ctx context.Context, c origin.Writer, who string) (string, error) {
+// resolveAccount turns an email into an origin account id: `-` unassigns.
+// Jira rows may use the configured member directory (JiraAccountID) without
+// a network call. Linear rows must not — that id is a Jira account, and
+// Linear assign wants a Linear user UUID from Writer.SearchUsers.
+func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (string, error) {
 	if who == "-" {
 		return "", nil
 	}
@@ -1434,9 +1437,11 @@ func resolveAccount(ctx context.Context, c origin.Writer, who string) (string, e
 	if err != nil {
 		return "", err
 	}
-	for _, m := range cfg.Members {
-		if strings.EqualFold(m.Email, who) && m.JiraAccountID != "" {
-			return m.JiraAccountID, nil
+	if source != "linear" {
+		for _, m := range cfg.Members {
+			if strings.EqualFold(m.Email, who) && m.JiraAccountID != "" {
+				return m.JiraAccountID, nil
+			}
 		}
 	}
 	users, err := c.SearchUsers(ctx, who)

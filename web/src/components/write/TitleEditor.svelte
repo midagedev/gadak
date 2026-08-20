@@ -21,7 +21,7 @@
   const canEdit = $derived(me.identified)
 
   async function start() {
-    if (!(await write.ensureWritable())) return
+    if (!(await write.ensureWritableFor(issue.issue_key))) return
     ignoreBlur = false
     draft = issue.summary
     editing = true

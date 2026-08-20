@@ -73,7 +73,7 @@ test.describe('list bulk edits', () => {
     page,
   }) => {
     const errors = attachConsoleErrors(page)
-    await page.route('**/api/v1/issues/priorities/', (route) => {
+    await page.route('**/priorities/', (route) => {
       if (route.request().method() !== 'GET') return route.continue()
       return fulfillJSON(route, { priorities: [...PRIORITIES] })
     })

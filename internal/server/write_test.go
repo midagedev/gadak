@@ -15,12 +15,15 @@ import (
 	"strings"
 	"testing"
 
+	"context"
+
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
 )
 
@@ -913,6 +916,8 @@ func TestWritesRequireACredential(t *testing.T) {
 		{http.MethodPut, apiBase + "NMB-1/description/", `{"description":"x"}`},
 		{http.MethodPut, apiBase + "NMB-1/duedate/", `{"duedate":"2026-09-01"}`},
 		{http.MethodGet, apiBase + "priorities/", ""},
+		{http.MethodGet, apiBase + "NMB-1/priorities/", ""},
+		{http.MethodGet, apiBase + "NMB-1/users/?q=a", ""},
 		{http.MethodPatch, apiBase + "NMB-1/fields/", `{"field":"solution","value":"1"}`},
 		{http.MethodGet, apiBase + "NMB-1/editmeta/", ""},
 		{http.MethodPost, apiBase + "create/", `{"project_key":"NMB","issue_type":"1","summary":"x"}`},
@@ -1806,6 +1811,146 @@ func TestPageEditTextFormatLoss(t *testing.T) {
 	}
 	if len(wo.puts) == 0 {
 		t.Fatal("force:true did not PUT")
+	}
+}
+
+func seedLinearIssue(t *testing.T, db *store.DB, key string) {
+	t.Helper()
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "linear:" + key, SourceID: "linear", ExternalID: key, Key: key,
+				Title: "linear row", CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func decodePriorities(t *testing.T, rec *httptest.ResponseRecorder) []struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+} {
+	t.Helper()
+	return decode[struct {
+		Priorities []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"priorities"`
+	}](t, rec).Priorities
+}
+
+// GDK-396 FAIL-first: the open-issue picker must not use the global Jira
+// catalog. GET {key}/priorities/ is the per-origin catalog; a Linear row
+// answers Linear's 0-4 scale, a Jira row matches GET priorities/.
+func TestKeyPrioritiesRoutesBySource(t *testing.T) {
+	f := newFakeJira(t)
+	db, cfg := fixture(t)
+	cfg.Site = f.URL
+	cfg.Linear = &config.LinearConfig{APIKey: "linear-test-key-not-a-real-secret"}
+	seedLinearIssue(t, db, "FIX-1")
+	h := New(db, cfg)
+
+	global := get(t, h, apiBase+"priorities/", nil)
+	if global.Code != http.StatusOK {
+		t.Fatalf("GET priorities/ → %d: %s", global.Code, global.Body.String())
+	}
+	jiraCat := decodePriorities(t, global)
+	if len(jiraCat) != 3 || jiraCat[0].ID != "1" || jiraCat[0].Name != "Highest" {
+		t.Fatalf("global catalog %v, want Jira Highest/High/Medium", jiraCat)
+	}
+
+	jiraKey := get(t, h, apiBase+"NMB-1/priorities/", nil)
+	if jiraKey.Code != http.StatusOK {
+		t.Fatalf("GET NMB-1/priorities/ → %d: %s (GDK-396: per-key catalog missing)", jiraKey.Code, jiraKey.Body.String())
+	}
+	gotJira := decodePriorities(t, jiraKey)
+	if len(gotJira) != len(jiraCat) || gotJira[0].ID != jiraCat[0].ID || gotJira[0].Name != jiraCat[0].Name {
+		t.Fatalf("Jira per-key catalog %v, want same as global %v", gotJira, jiraCat)
+	}
+
+	lin := get(t, h, apiBase+"FIX-1/priorities/", nil)
+	if lin.Code != http.StatusOK {
+		t.Fatalf("GET FIX-1/priorities/ → %d: %s (GDK-396: Linear catalog missing)", lin.Code, lin.Body.String())
+	}
+	gotLin := decodePriorities(t, lin)
+	wantIDs := []string{"1", "2", "3", "4", "0"}
+	if len(gotLin) != len(wantIDs) {
+		t.Fatalf("Linear catalog %v, want ids %v", gotLin, wantIDs)
+	}
+	for i, id := range wantIDs {
+		if gotLin[i].ID != id {
+			t.Fatalf("Linear catalog[%d].id = %q, want %q (full %v)", i, gotLin[i].ID, id, gotLin)
+		}
+	}
+	// Jira's "Highest" must not appear — that is the mixed-catalog defect.
+	for _, p := range gotLin {
+		if p.Name == "Highest" {
+			t.Fatalf("Linear catalog carried a Jira name: %v", gotLin)
+		}
+	}
+}
+
+func TestKeyUsersMatchesGlobalOnJiraRow(t *testing.T) {
+	f := newFakeJira(t)
+	db, cfg := fixture(t)
+	cfg.Site = f.URL
+	h := New(db, cfg)
+
+	global := get(t, h, apiBase+"users/?q=cl", nil)
+	if global.Code != http.StatusOK {
+		t.Fatalf("GET users/ → %d: %s", global.Code, global.Body.String())
+	}
+	perKey := get(t, h, apiBase+"NMB-1/users/?q=cl", nil)
+	if perKey.Code != http.StatusOK {
+		t.Fatalf("GET NMB-1/users/ → %d: %s", perKey.Code, perKey.Body.String())
+	}
+	if global.Body.String() != perKey.Body.String() {
+		t.Fatalf("per-key users %s != global %s", perKey.Body.String(), global.Body.String())
+	}
+}
+
+// GDK-401 FAIL-first: credential/ must advertise whether Linear is configured
+// so a Linear-only profile can open the write UI without a Jira token.
+func TestLinearKeyPrioritiesWithoutJiraCredential(t *testing.T) {
+	db, cfg := fixture(t)
+	cfg.Site, cfg.Email, cfg.Token = "", "", ""
+	cfg.Linear = &config.LinearConfig{APIKey: "linear-test-key-not-a-real-secret"}
+	seedLinearIssue(t, db, "FIX-1")
+	h := New(db, cfg)
+
+	lin := get(t, h, apiBase+"FIX-1/priorities/", nil)
+	if lin.Code != http.StatusOK {
+		t.Fatalf("Linear-only GET FIX-1/priorities/ → %d: %s", lin.Code, lin.Body.String())
+	}
+	jiraKey := get(t, h, apiBase+"NMB-1/priorities/", nil)
+	if jiraKey.Code != http.StatusConflict {
+		t.Fatalf("Jira row without token → %d, want 409", jiraKey.Code)
+	}
+}
+
+func TestCredentialAdvertisesLinear(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+	none := decode[map[string]any](t, get(t, h, apiBase+"credential/", nil))
+	if v, ok := none["linear"]; !ok || v != false {
+		t.Fatalf("without Linear block, linear=%v present=%v (body keys %v)", v, ok, none)
+	}
+
+	cfg.Linear = &config.LinearConfig{APIKey: "linear-test-key-not-a-real-secret"}
+	h = New(db, cfg)
+	rec := get(t, h, apiBase+"credential/", nil)
+	got := decode[map[string]any](t, rec)
+	if got["linear"] != true {
+		t.Fatalf("with Linear block, linear=%v body=%s", got["linear"], rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), cfg.Linear.APIKey) {
+		t.Fatal("Linear API key leaked in credential/")
 	}
 }
 

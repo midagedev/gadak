@@ -55,7 +55,7 @@
   const canCreate = $derived(Boolean(typed && !issue.labels.includes(typed)))
 
   async function openAdd() {
-    if (!(await write.ensureWritable())) return
+    if (!(await write.ensureWritableFor(issue.issue_key))) return
     adding = true
     labelInput = ''
     queueMicrotask(() => inputEl?.focus())

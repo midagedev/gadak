@@ -282,8 +282,9 @@ var queryIssueComments = `query IssueComments($id: String!, $after: String) {
   }
 }`
 
-// queryUsers answers assignee search: workspace members whose name or
-// display name contains the query, case-insensitively.
+// queryUsers answers assignee search: workspace members whose display
+// name or email contains the query, case-insensitively. The client
+// builds filter.or so an email-shaped query still hits.
 const queryUsers = `query Users($filter: UserFilter, $after: String) {
   users(filter: $filter, first: 50, after: $after) {
     pageInfo { hasNextPage endCursor }

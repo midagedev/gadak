@@ -228,6 +228,10 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 			s.handleTransitions(w, r)
 		case action == "editmeta":
 			s.handleEditMeta(w, r)
+		case action == "priorities":
+			s.handleKeyPriorities(w, r)
+		case action == "users":
+			s.handleKeyUsers(w, r)
 		default:
 			handleNotFound(w, r)
 		}

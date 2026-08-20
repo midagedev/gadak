@@ -45,7 +45,7 @@
   })
 
   async function start() {
-    if (!(await write.ensureWritable())) return
+    if (!(await write.ensureWritableFor(issueKey))) return
     draft = adfToPlainText(node)
     if (!draft && fallback) draft = fallback
     editing = true

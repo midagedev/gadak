@@ -221,7 +221,7 @@ test.describe('place params', () => {
      * link could prefill a form someone is about to submit.
      */
     const errors = attachConsoleErrors(page)
-    await page.route('**/api/v1/issues/priorities/', (route) => {
+    await page.route('**/priorities/', (route) => {
       if (route.request().method() !== 'GET') return route.continue()
       return route.fulfill({ json: { priorities: [] } })
     })

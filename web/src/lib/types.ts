@@ -83,6 +83,8 @@ export interface IssueLite {
   /** Direct parent issue, which is the epic only when the parent happens to be one. */
   parent_key: string | null
   source_project: string | null
+  /** Origin that owns the row (`jira` / `linear`). Older caches omit it. */
+  source?: string
 
   created_at: string | null // ISO8601
   updated_at: string | null
@@ -622,6 +624,8 @@ export interface JiraCredential {
   display_name: string
   verified_at: string | null
   token_hint: string
+  /** True when the profile has a Linear block (cfg.Linear != nil). */
+  linear?: boolean
 }
 
 /** One transition option (GET <key>/transitions/). */
