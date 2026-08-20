@@ -11,7 +11,7 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.16.0 기준 번역입니다.</sub></p>
+<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.16.1 기준 번역입니다.</sub></p>
 
 내 Jira를 로컬 SQLite 파일 하나로 — "어느 에픽이 막혀 있지?"가 물을 수
 없는 질문이 아니라 쿼리 한 줄이 됩니다.
@@ -287,6 +287,29 @@ PC** 또는 **Smart App Control blocked an app that may be unsafe**를 보여
 [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
 
 **2. CLI** — 리눅스, Windows, 또는 같은 UI를 브라우저 탭으로:
+
+Atlassian 계정 없음:
+
+```bash
+brew install midagedev/tap/gadak-cli     # macOS + Linux
+gadak init --standalone
+gadak create "the thing I just noticed"
+gadak serve      # http://gadak.localhost:7777
+```
+
+**다른 머신과 페어링.** 홈의 `gadak serve`가 origin입니다. 오퍼를 만들어 원격에 붙여넣습니다:
+
+```bash
+gadak pairing mint --label laptop                 # 홈: stdout이 오퍼 한 줄
+gadak --profile laptop init --pairing-code-stdin  # 원격: 오퍼를 붙여넣기
+gadak --profile laptop status                     # 확인: paired with "laptop"
+gadak pairing list                                # 홈: 토큰 표; 원격: 상태 한 줄
+gadak pairing revoke laptop                       # 홈에서만
+```
+
+`_home`은 이 머신의 라우팅 토큰이지 디바이스가 아닙니다(`revoke`는 거절하고, `mint --label _home`이 회전합니다). 원격에서도 동사는 같고, `pairing:`으로 시작하는 오류는 그 문장 전체가 메시지입니다. 게이트는 [`SECURITY.md`](SECURITY.md).
+
+이미 Jira가 있으면:
 
 ```bash
 brew install midagedev/tap/gadak-cli     # macOS + Linux

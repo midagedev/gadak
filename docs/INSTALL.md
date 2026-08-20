@@ -224,6 +224,25 @@ still a cache. The first `gadak sync` against that origin finishes in 0s
 (measured; the origin is already local). While `gadak serve` is running, other
 gadak processes route writes through it so the persist file has one owner.
 
+### Pair another machine
+
+Home `gadak serve` is the origin. Mint an offer, paste it on the remote:
+
+```bash
+gadak pairing mint --label laptop                 # home: stdout is one offer line
+gadak --profile laptop init --pairing-code-stdin  # remote: paste the offer
+gadak --profile laptop status                     # confirm: paired with "laptop"
+gadak pairing list                                # home: token table; remote: one status line
+gadak pairing revoke laptop                       # home only
+```
+
+`gadak pairing mint` needs a live serve (or `--endpoint URL`). Loopback draws a
+warning — a machine that is not this one needs a URL it can reach. `_home` is
+this machine's routing token, not a device (`revoke` refuses it; `mint --label
+_home` rotates). Same CLI verbs on the remote; a `pairing:` error is the whole
+message. Do not combine `--pairing-code-stdin` with `--standalone` or a site
+token. The gate is in [SECURITY.md](../SECURITY.md).
+
 ### Already have Jira
 
 ```bash

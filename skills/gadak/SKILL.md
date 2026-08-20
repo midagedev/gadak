@@ -11,21 +11,27 @@ description: >
   Jira or Atlassian account and want a tracker that lives on this machine
   (standalone). Also use before any write — creating an issue, attaching a
   file, editing a summary, label or priority, commenting, transitioning,
-  assigning — since all of those go through the same tool rather than the
-  Atlassian API. When the user wants to *see* issues — show them, put them on
-  screen, open this list — do not render a markdown table; open them in the
-  gadak app with `gadak views open`. Also use when changing gadak itself
-  (theme, sync interval, feature flags, projects): that is `gadak config`,
-  not an edit of config.json and not the settings dialog.
+  assigning, creating or editing a wiki page — since all of those go through
+  the same tool rather than the Atlassian API. When the user wants to *see*
+  issues — show them, put them on screen, open this list — do not render a
+  markdown table; open them in the gadak app with `gadak views open`. Also use
+  when changing gadak itself (theme, sync interval, feature flags, projects):
+  that is `gadak config`, not an edit of config.json and not the settings
+  dialog.
 ---
 
 # Asking the mirror
 
 gadak keeps a local SQLite mirror of Jira (and optionally Confluence) at
 `~/.gadak/gadak.db`. The origin is a Jira site, or — with no Atlassian account —
-an in-process tracker (`gadak init --standalone`). Reads never touch the
-network, so queries are free and fast: prefer a query over asking the user
+an in-process tracker (`gadak init --standalone`), or another machine's
+`gadak serve` bound with `gadak init --pairing-code-stdin`. Reads never touch
+the network, so queries are free and fast: prefer a query over asking the user
 to look something up.
+
+If `gadak doctor` reports `skill: stale`, run `gadak skill install` so this
+file matches the binary you are running. An upgrade of a previous gadak
+install is in-place; a file gadak did not write needs `--force`.
 
 **Show, don't paste.** SQL answers; `gadak views open` presents. Render a
 markdown table or other document artifact only when there is no UI to focus,
@@ -65,8 +71,11 @@ standalone workspace — do not invent a `TODO.md` or a GitHub Issue.
 
 Two kinds. Same CLI verbs. Different record.
 
-- **connected** — origin is an Atlassian Cloud site. Writes go to Jira,
-  then the mirror re-reads. Needs a stored site credential.
+- **connected** — origin is an Atlassian Cloud site, *or* another machine's
+  `gadak serve` (paired). Writes go to that origin, then the mirror re-reads.
+  A Cloud site needs a stored credential. A paired workspace still reports
+  `workspace.kind: connected`; `gadak status --json` adds a `pairing` object
+  (`endpoint`, `label`) and the text form prints `paired with "…"`.
 - **standalone** — origin is the in-process tracker that ships with gadak
   (`issuetap`). No Atlassian account. Writes go to that origin. The durable
   file is `origin/issuetap.yaml` under the profile directory, not `gadak.db`.
@@ -76,13 +85,14 @@ Detect kind before you write:
 
 ```bash
 gadak doctor --json     # workspace.kind is standalone | connected
-gadak status --json     # freshness; if a kind field is present, use it
+gadak status --json     # freshness; pairing object when this profile is bound to a remote serve
 gadak profiles --json   # name, active, configured, site_host, issues, …
 ```
 
 `gadak doctor --json` is the kind source that is always there
 (`workspace.kind`; the same value is also top-level `workspace_kind`). If
 `gadak status --json` includes `kind`, you may use that and skip doctor.
+Paired is not a third kind value.
 
 A standalone row is `configured: true` with an **empty** `site_host`. That
 is not a broken profile. Do not report "no site" and stop, and do not ask
@@ -152,6 +162,10 @@ hang off `items.id`. `items_fts` is one FTS5 index over titles, bodies, and
 comment text — issues and wiki pages together. `labels`, `components`, and
 `fix_versions` are JSON arrays; reach them with `json_each`.
 
+Personal state lives in `local.db` beside the mirror (ATTACHed as `local`;
+you do not type ATTACH): `local.saved_views` (`gadak views save`),
+`local.visits`, `local.searches`. It survives deleting `gadak.db`.
+
 Some columns exist only here, derived from the changelog while syncing:
 `reopen_count`, `reopened_at`, `reopen_reason`, and `epic_key` (the nearest
 level-1 ancestor). Jira cannot answer questions about these at all.
@@ -209,16 +223,18 @@ JQL or a navigator URL, use `gadak search --jql '…'` (or pass the URL as the
 query). Clauses the subset cannot express are printed on stderr and must be
 repeated to the user — do not pretend the list is what Jira would have shown.
 
+CJK queries of two or more runes match inside a compound (`결제` hits
+`간편결제`). English middles still miss (`ency` does not hit a title that is
+only `idempotency`). JQL `project NOT IN (KEY, …)` applies; `status NOT IN`
+does not (`cannot apply JQL — status not in … (only = and IN)`). Prefer
+`status_category` / `status_id` in SQL — never `status = 'In Progress'`.
+
 To put the human on a view, do not describe the filters — set them:
 
 ```bash
-gadak views                         # names after `gadak sync` (owned + starred Jira filters)
+gadak views                         # Jira filters (after sync) + saved views
 gadak views open "the name"         # focuses the running desktop app or serve tab
-gadak views open --jql 'project = NMA AND statusCategory = "In Progress"'
-gadak views open --keys 'NMA-1,NMA-2'
-gadak sql --no-header "select key from issues_full where status_category != 'done'" | gadak views open --keys -
-gadak views open NMB-140            # focus that issue's detail (a stored view with that name wins)
-gadak views save "Night triage" --jql '…'   # keep a named view in the mirror
+gadak views save "Night triage" --jql '…'   # keep a named view in local.db (survives deleting the mirror)
 ```
 
 `views open` writes a one-shot hash the UI applies (`ks=` for `--keys`,
@@ -276,36 +292,78 @@ report what you filed (keys and one-line summaries).
 Everything else in this file works identically: `status_category`,
 `issues_full`, `reopen_count`, `views open`.
 
-## One issue, and writes
+## Pairing: the origin is another machine's serve
+
+Home (standalone, with `gadak serve` running) mints one offer per device.
+The remote binds a *fresh* profile. After that, every verb on that profile
+uses the home serve as origin.
 
 ```bash
+gadak pairing mint --label laptop                 # home: stdout is one offer line
+gadak --profile laptop init --pairing-code-stdin  # remote: paste the offer
+gadak --profile laptop status                     # kind is connected; prints paired with "laptop"
+gadak pairing list                                # home: token table; remote: one status line
+gadak pairing revoke laptop                       # home only
+```
+
+Do not combine `--pairing-code-stdin` with `--standalone` or a site token.
+`_home` is this machine's routing token, not a device — `revoke` refuses it;
+`gadak pairing mint --label _home` rotates it. If a command fails with a
+`pairing:` prefix, show that error to the user. Do not invent a retry.
+
+## One issue, and writes
+
+On **standalone**, `init` seeds project `STD` and records a default issue type,
+so a summary-only create is enough. On **connected**, use a key and project
+that exist on that site (the `NMB-140` lines below are an example, not a
+universal project). A paired profile is `connected` with no default project
+or type — `create` will ask for `--project` / `--type` until you set them.
+
+```bash
+# standalone (seed project STD)
+gadak create "first ticket title" -m "why this exists"
+gadak issue STD-1 --json
+gadak comment STD-1 -m "Reproduced on staging."
+
+# connected: a key that exists on that site
 gadak issue NMB-140 --json                    # fields, description, comments, history
 gadak issue NMB-140 --derive                  # why reopen_count / resolved_at / epic_key are what they are
-
 gadak comment NMB-140 -m "Reproduced on staging."
 gadak comment NMB-140 -m -                    # body from stdin, for anything multi-line
 gadak transition NMB-140 "In Review"
 gadak assign NMB-140 dana@example.com         # `-` unassigns
-
 gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging" --parent NMB-1
-gadak create --batch -                        # one JSON object per line on stdin
 gadak attach NMB-140 screenshot.png trace.log
 gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none
+
+gadak create --batch -                        # one JSON object per line on stdin
 ```
 
-Writes go to the origin, then the issue is re-read into the mirror.
-On a **connected** workspace the origin is Jira Cloud — a create, comment,
+Wiki page writes (through the origin — connected Confluence, or standalone
+issuetap). Standalone seed space is `LOC`; connected: a space key that exists
+on that site:
+
+```bash
+gadak page create --space LOC --title "Retention notes" -m "first draft"
+gadak page edit <ID> --title "Renamed"
+gadak page comment <ID> -m "a question"
+```
+
+Writes go to the origin, then the issue (or page) is re-read into the mirror.
+On a **connected** Cloud workspace the origin is Jira — a create, comment,
 or transition is visible to their whole team; confirm first.
 On a **standalone** workspace the origin is this machine. File without
 asking, then report the keys and one-line summaries.
+On a **paired** workspace (`status --json` has `pairing`), writes go to the
+home serve, not Atlassian.
 
 Never write to the SQLite file. A row written directly is destroyed by the
 next sync, on either kind.
 
 There is no separate write API to discover: everything gadak can change is one
-of the verbs above. If a field is not covered, say so rather than reaching for
-the REST API — `gadak api` exists for that, but it is an escape hatch, not the
-path of least surprise.
+of the verbs above (including `page create|edit|comment`). If a field is not
+covered, say so rather than reaching for the REST API — `gadak api` exists for
+that, but it is an escape hatch, not the path of least surprise.
 
 ## Profile settings
 
@@ -336,8 +394,9 @@ belong to the web; the CLI only checks the shape.
 ## Rules that come with the file
 
 - **Never write to the database.** Writes go through the origin (Jira on
-  connected, the local origin on standalone); a row written directly is
-  destroyed by the next sync. No exception for "just a label".
+  connected, the local origin on standalone, the home serve on paired);
+  a row written directly is destroyed by the next sync. No exception for
+  "just a label". Saved views and visits live in `local.db`, not the mirror.
 - **Do not depend on `issues.raw`.** It is shaped by Jira's API, not by gadak's
   contract. Use the projected columns.
 - **Do not poll in a loop.** `sync_state.version` moves only when something
@@ -365,4 +424,5 @@ unimplemented paths return 501.
 `gadak sql "select ..."` against `specs/000-product/data-model.md` covers every
 column; `docs/RECIPES.md` in the gadak repository has more worked questions.
 `gadak doctor` prints a redacted summary of the install when something looks
-wrong.
+wrong. `skill: stale` means this file does not match the binary — reinstall
+with `gadak skill install`.

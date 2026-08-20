@@ -296,6 +296,18 @@ gadak create "the thing I just noticed"
 gadak serve      # http://gadak.localhost:7777
 ```
 
+**Pair another machine.** Home `gadak serve` is the origin. Mint an offer, paste it on the remote:
+
+```bash
+gadak pairing mint --label laptop                 # home: stdout is one offer line
+gadak --profile laptop init --pairing-code-stdin  # remote: paste the offer
+gadak --profile laptop status                     # confirm: paired with "laptop"
+gadak pairing list                                # home: token table; remote: one status line
+gadak pairing revoke laptop                       # home only
+```
+
+`_home` is this machine's routing token, not a device (`revoke` refuses it; `mint --label _home` rotates). Same verbs on the remote; a `pairing:` error is the whole message. The gate is in [`SECURITY.md`](SECURITY.md).
+
 Already have Jira:
 
 ```bash

@@ -995,4 +995,32 @@ else
   ok "public backlog snapshot absent or jq missing — GDK key resolution not checked"
 fi
 
+# ── 22. Pairing named on the install/agent front door (GDK-457 / GDK-458) ─
+# Class: a third way to bind a workspace (home serve + mint + remote
+# `init --pairing-code-stdin`) shipped in the binary, but README / INSTALL /
+# AGENTS / SKILL said nothing, so a reader following the front door could
+# not pair. Analogous to check 20 (`init --standalone`). The flag name is
+# the pin: `cmd/gadak/init.go` registers `--pairing-code-stdin`.
+# FAIL-first 2026-08-21 against the unmodified f6-docs tree: all five files
+# below had 0 hits for pairing-code-stdin; SKILL.md line 221 said
+# `views save` kept a named view "in the mirror" and named local.db 0 times.
+pairing_missing=""
+for f in README.md README.ko.md docs/INSTALL.md AGENTS.md skills/gadak/SKILL.md; do
+  if ! grep -q 'pairing-code-stdin' "$f"; then
+    pairing_missing+="  $f: no --pairing-code-stdin"$'\n'
+  fi
+done
+if [[ -n "$pairing_missing" ]]; then
+  fail "install/agent front door does not name --pairing-code-stdin (GDK-457):"$'\n'"$pairing_missing"
+fi
+ok "README, INSTALL, AGENTS, SKILL name --pairing-code-stdin"
+
+if grep -n 'views save' skills/gadak/SKILL.md | grep -q 'in the mirror'; then
+  fail "skills/gadak/SKILL.md still says views save lives in the mirror (GDK-458) — they live in local.db"
+fi
+if ! grep -q 'local.db' skills/gadak/SKILL.md; then
+  fail "skills/gadak/SKILL.md does not name local.db (GDK-458; saved views and visits live there)"
+fi
+ok "SKILL.md does not put saved views in the mirror; names local.db"
+
 echo "doc-checks: all passed"

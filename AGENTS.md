@@ -10,10 +10,13 @@ Two audiences. Pick your half:
 
 gadak keeps a local SQLite mirror of Jira at `~/.gadak/gadak.db` (`--profile x` puts
 it under `~/.gadak/profiles/x/`). The origin is a Jira site, or — with no
-Atlassian account — an in-process tracker (`gadak init --standalone`). Reads
-never touch the network. Writes go to the origin (Jira on a connected profile,
-the local origin on a standalone one) and re-read the issue into the mirror
-afterwards. Kind lives on `gadak doctor --json` (`workspace.kind`). If
+Atlassian account — an in-process tracker (`gadak init --standalone`), or
+another machine's `gadak serve` bound with `gadak init --pairing-code-stdin`.
+Reads never touch the network. Writes go to the origin (Jira on a connected
+profile, the local origin on a standalone one, the home serve on a paired one)
+and re-read the issue into the mirror afterwards. Kind lives on
+`gadak doctor --json` (`workspace.kind` is `standalone` or `connected`; a paired
+workspace is `connected` plus a `pairing` object on `gadak status --json`). If
 `gadak status --json` includes `kind`, you may use that.
 
 Four layers. Use the lowest one that answers the question:
@@ -73,7 +76,8 @@ ATTACHed as `local` when gadak opens the mirror — you do not type ATTACH.
 `local.visits` is one row per view (`kind` is `issue` or `page`; `key` is the
 issue key or page id; `viewed_at`). `local.searches` is one row per executed
 search (`query`, `searched_at`, `result_count`, and `opened_kind`/`opened_key`
-when something was opened from it). There is no stored counter: `count(*)`
+when something was opened from it). `gadak views save` writes `local.saved_views`
+(not the mirror). There is no stored counter: `count(*)`
 per key is the visit count. Rows older than 180 days are pruned. This file
 survives `rm gadak.db` and is never sent to Jira. Do not write search-query
 text into logs or tickets.
@@ -251,6 +255,23 @@ GADAK_TOKEN=$(cat token) gadak init \
 
 gadak init --standalone --json
 ```
+
+**Pairing.** A standalone home running `gadak serve` mints a device offer;
+a remote machine binds a *fresh* profile. Same CLI verbs after that; the
+origin is the home serve. `workspace.kind` stays `connected`. If a command
+fails with a `pairing:` prefix, show that error — do not invent a retry.
+
+```bash
+gadak pairing mint --label laptop                 # home: stdout is one offer line
+gadak --profile laptop init --pairing-code-stdin  # remote: paste the offer
+gadak --profile laptop status                     # confirm: paired with "laptop"
+gadak pairing list                                # home: token table; remote: one status line
+gadak pairing revoke laptop                       # home only
+```
+
+Do not combine `--pairing-code-stdin` with `--standalone` or a site token.
+`_home` is the home machine's routing token, not a device (`revoke` refuses
+it; `mint --label _home` rotates). Details: [SECURITY.md](SECURITY.md).
 
 There is deliberately no `--token` flag: argv is visible in `ps` and lands in
 shell history. Pass the token as `GADAK_TOKEN`, `--token-file <path>`, or
