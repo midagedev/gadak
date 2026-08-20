@@ -596,3 +596,228 @@ func TestResolveUnsupportedReasons(t *testing.T) {
 		t.Fatalf("missing person: %q", blob)
 	}
 }
+
+// GDK-441 FAIL-first: web ViewFilters.jira_project_not is a JSON key the Go
+// Filter struct did not declare, so encoding/json dropped it and Emit wrote
+// a wider JQL with no NOT clause and nothing in omitted.
+func TestEmitJiraProjectNot(t *testing.T) {
+	var f Filter
+	if err := json.Unmarshal([]byte(`{"jira_project_not":["XYZ"]}`), &f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.JiraProjectNot) != 1 || f.JiraProjectNot[0] != "XYZ" {
+		t.Fatalf("unmarshal JiraProjectNot %+v", f.JiraProjectNot)
+	}
+	got, omitted := Emit(f, Display{}, EmitOpts{})
+	if len(omitted) != 0 {
+		t.Fatalf("omitted %v", omitted)
+	}
+	if got != "project not in (XYZ)" {
+		t.Fatalf("silent drop of jira_project_not: jql=%q omitted=%v", got, omitted)
+	}
+}
+
+func TestEmitJiraProjectIncludeAndNot(t *testing.T) {
+	var f Filter
+	if err := json.Unmarshal([]byte(`{"jira_project":["NMA"],"jira_project_not":["XYZ"]}`), &f); err != nil {
+		t.Fatal(err)
+	}
+	got, omitted := Emit(f, Display{}, EmitOpts{})
+	if len(omitted) != 0 {
+		t.Fatalf("omitted %v", omitted)
+	}
+	if got != "project = NMA AND project not in (XYZ)" {
+		t.Fatalf("jql %q", got)
+	}
+}
+
+func TestEmitSourceProjectNotOmitted(t *testing.T) {
+	var f Filter
+	if err := json.Unmarshal([]byte(`{"source_project_not":["scratch"]}`), &f); err != nil {
+		t.Fatal(err)
+	}
+	got, omitted := Emit(f, Display{}, EmitOpts{})
+	if strings.Contains(strings.ToLower(got), "source") {
+		t.Fatalf("source_project_not is not JQL: %q", got)
+	}
+	found := false
+	for _, o := range omitted {
+		if o == "source_project_not" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("source_project_not must be listed in omitted, got jql=%q omitted=%v", got, omitted)
+	}
+}
+
+func TestUnknownJSONKeysStayHarmless(t *testing.T) {
+	var f Filter
+	if err := json.Unmarshal([]byte(`{"jira_project":["NMA"],"not_a_real_axis":["x"]}`), &f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.JiraProject) != 1 || f.JiraProject[0] != "NMA" {
+		t.Fatalf("project %+v", f.JiraProject)
+	}
+	got, omitted := Emit(f, Display{}, EmitOpts{})
+	if len(omitted) != 0 {
+		t.Fatalf("omitted %v", omitted)
+	}
+	if got != "project = NMA" {
+		t.Fatalf("jql %q", got)
+	}
+}
+
+func TestEmptyFilterProjectNotMarshal(t *testing.T) {
+	b, err := json.Marshal(EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	if !strings.Contains(s, `"jira_project_not":[]`) || !strings.Contains(s, `"source_project_not":[]`) {
+		t.Fatalf("empty not slices must marshal as []: %s", b)
+	}
+}
+
+func TestEmitJiraProjectNotQuotesAndMany(t *testing.T) {
+	var f Filter
+	if err := json.Unmarshal([]byte(`{"jira_project_not":["XYZ","NMB","XY Z"]}`), &f); err != nil {
+		t.Fatal(err)
+	}
+	got, omitted := Emit(f, Display{}, EmitOpts{})
+	if len(omitted) != 0 {
+		t.Fatalf("omitted %v", omitted)
+	}
+	if got != `project not in (XYZ, NMB, "XY Z")` {
+		t.Fatalf("jql %q", got)
+	}
+}
+
+func TestParseProjectNotIn(t *testing.T) {
+	res := Parse(`project not in (XYZ, NMB)`, fixedOpts())
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	if len(res.Unsupported) != 0 {
+		t.Fatalf("unsupported %v", res.Unsupported)
+	}
+	if got := res.Filters.JiraProjectNot; len(got) != 2 || got[0] != "XYZ" || got[1] != "NMB" {
+		t.Fatalf("JiraProjectNot %+v", got)
+	}
+	if len(res.Filters.JiraProject) != 0 {
+		t.Fatalf("must not apply as include: %+v", res.Filters.JiraProject)
+	}
+}
+
+func TestParseProjectIncludeAndNot(t *testing.T) {
+	res := Parse(`project = NMA AND project not in (XYZ)`, fixedOpts())
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	if len(res.Unsupported) != 0 {
+		t.Fatalf("unsupported %v", res.Unsupported)
+	}
+	if got := res.Filters.JiraProject; len(got) != 1 || got[0] != "NMA" {
+		t.Fatalf("JiraProject %+v", got)
+	}
+	if got := res.Filters.JiraProjectNot; len(got) != 1 || got[0] != "XYZ" {
+		t.Fatalf("JiraProjectNot %+v", got)
+	}
+}
+
+func TestRoundTripProjectNotIn(t *testing.T) {
+	var f Filter
+	if err := json.Unmarshal([]byte(`{"jira_project":["NMA"],"jira_project_not":["XYZ"]}`), &f); err != nil {
+		t.Fatal(err)
+	}
+	jql, omitted := Emit(f, Display{}, EmitOpts{})
+	if len(omitted) != 0 {
+		t.Fatalf("omitted %v", omitted)
+	}
+	res := Parse(jql, fixedOpts())
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	if len(res.Unsupported) != 0 {
+		t.Fatalf("unsupported %v", res.Unsupported)
+	}
+	if got := res.Filters.JiraProject; len(got) != 1 || got[0] != "NMA" {
+		t.Fatalf("JiraProject %+v", got)
+	}
+	if got := res.Filters.JiraProjectNot; len(got) != 1 || got[0] != "XYZ" {
+		t.Fatalf("JiraProjectNot %+v", got)
+	}
+}
+
+func TestParseProjectNeqStaysUnsupported(t *testing.T) {
+	res := Parse(`project != XYZ`, fixedOpts())
+	blob := res.Error + " " + res.Message + " " + strings.Join(res.Unsupported, " | ")
+	if !strings.Contains(blob, "only =") {
+		t.Fatalf("want != listed as unsupported, got %q", blob)
+	}
+	if len(res.Filters.JiraProject) != 0 || len(res.Filters.JiraProjectNot) != 0 {
+		t.Fatalf("!= must not apply: include=%+v not=%+v", res.Filters.JiraProject, res.Filters.JiraProjectNot)
+	}
+}
+
+func TestParseStatusNotInStaysUnsupported(t *testing.T) {
+	res := Parse(`status not in (X)`, fixedOpts())
+	blob := res.Error + " " + res.Message + " " + strings.Join(res.Unsupported, " | ")
+	if !strings.Contains(strings.ToLower(blob), "only =") && !strings.Contains(strings.ToLower(blob), "not in") {
+		t.Fatalf("want status not in listed as unsupported, got %q", blob)
+	}
+	if len(res.Filters.Status) != 0 {
+		t.Fatalf("status not in must not apply as include: %+v", res.Filters.Status)
+	}
+}
+
+func TestHashEncodesProjectNot(t *testing.T) {
+	f := EmptyFilter()
+	f.JiraProjectNot = []string{"XYZ"}
+	f.SourceProjectNot = []string{"scratch"}
+	h := Hash(f, Display{})
+	q, err := url.ParseQuery(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.Get("pjn") != "XYZ" || q.Get("spjn") != "scratch" {
+		t.Fatalf("hash %q", h)
+	}
+}
+
+func TestMatchJiraProjectNot(t *testing.T) {
+	keep := Issue{Key: "NMA-1", Project: "NMA"}
+	drop := Issue{Key: "XYZ-1", Project: "XYZ"}
+	f := EmptyFilter()
+	f.JiraProjectNot = []string{"XYZ"}
+	if !Match(keep, f) {
+		t.Fatal("NMA should survive jira_project_not=XYZ")
+	}
+	if Match(drop, f) {
+		t.Fatal("XYZ should be excluded by jira_project_not=XYZ")
+	}
+	both := EmptyFilter()
+	both.JiraProject = []string{"NMA", "XYZ"}
+	both.JiraProjectNot = []string{"XYZ"}
+	if !Match(keep, both) {
+		t.Fatal("include then exclude: NMA stays")
+	}
+	if Match(drop, both) {
+		t.Fatal("include then exclude: XYZ in both lists, exclude wins")
+	}
+}
+
+func TestEmitSourceProjectAndNotBothOmitted(t *testing.T) {
+	var f Filter
+	if err := json.Unmarshal([]byte(`{"source_project":["src"],"source_project_not":["scratch"]}`), &f); err != nil {
+		t.Fatal(err)
+	}
+	got, omitted := Emit(f, Display{}, EmitOpts{})
+	if got != "" {
+		t.Fatalf("source axes are not JQL: %q", got)
+	}
+	if strings.Join(omitted, ",") != "source_project,source_project_not" {
+		t.Fatalf("omitted %v", omitted)
+	}
+}

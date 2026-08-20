@@ -23,6 +23,9 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 	if len(f.JiraProject) > 0 {
 		parts = append(parts, inClause("project", f.JiraProject))
 	}
+	if len(f.JiraProjectNot) > 0 {
+		parts = append(parts, notInClause("project", f.JiraProjectNot))
+	}
 	if len(f.Keys) > 0 {
 		parts = append(parts, inClause("key", f.Keys))
 	}
@@ -103,6 +106,9 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 	if len(f.SourceProject) > 0 {
 		omitted = append(omitted, "source_project")
 	}
+	if len(f.SourceProjectNot) > 0 {
+		omitted = append(omitted, "source_project_not")
+	}
 	if len(f.Fields) > 0 {
 		omitted = append(omitted, "custom fields")
 	}
@@ -162,6 +168,14 @@ func inClause(field string, values []string) string {
 		quoted[i] = quote(v)
 	}
 	return field + " in (" + strings.Join(quoted, ", ") + ")"
+}
+
+func notInClause(field string, values []string) string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = quote(v)
+	}
+	return field + " not in (" + strings.Join(quoted, ", ") + ")"
 }
 
 func dateClause(field string, from, to *string) []string {

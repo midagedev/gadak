@@ -33,6 +33,8 @@ func Hash(f Filter, d Display) string {
 	addList("ds", f.DeployState)
 	addList("pj", f.JiraProject)
 	addList("spj", f.SourceProject)
+	addList("pjn", f.JiraProjectNot)
+	addList("spjn", f.SourceProjectNot)
 	addList("ks", f.Keys)
 	for alias, vals := range f.Fields {
 		if len(vals) > 0 {

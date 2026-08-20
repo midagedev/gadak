@@ -249,6 +249,15 @@ func (c *compiler) compileClause(cl *clause) {
 	field := canonicalField(cl.field)
 	switch field {
 	case "project":
+		if cl.op == opNotIn {
+			vs := c.plainValues(cl)
+			if vs == nil {
+				return
+			}
+			c.f.JiraProjectNot = mergeUnique(c.f.JiraProjectNot, vs)
+			c.mark("project")
+			return
+		}
 		c.eqOrIn("project", cl, func(vs []string) {
 			c.f.JiraProject = mergeUnique(c.f.JiraProject, vs)
 			c.mark("project")

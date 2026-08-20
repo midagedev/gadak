@@ -18,6 +18,9 @@ func MatchIn(it Issue, f Filter, z calendar.Zone) bool {
 	if len(f.JiraProject) > 0 && !containsFold(f.JiraProject, it.Project) {
 		return false
 	}
+	if len(f.JiraProjectNot) > 0 && containsFold(f.JiraProjectNot, it.Project) {
+		return false
+	}
 	if len(f.Keys) > 0 && !containsFold(f.Keys, it.Key) {
 		return false
 	}
