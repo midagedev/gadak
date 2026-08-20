@@ -61,8 +61,10 @@ func TestPairingGateRejectsWithoutValidBearer(t *testing.T) {
 		if rec.Code != http.StatusUnauthorized {
 			t.Fatalf("%s: %d %s; want 401", name, rec.Code, rec.Body.String())
 		}
-		if !strings.Contains(rec.Body.String(), "pairing_token_required") {
-			t.Fatalf("%s: body %s, want pairing_token_required", name, rec.Body.String())
+		// GDK-453 (2026-08-21): 401 is pairing_rejected + reason, not
+		// pairing_token_required. FAIL-first: TestPairingGate401CarriesRejectReason.
+		if !strings.Contains(rec.Body.String(), "pairing_rejected") {
+			t.Fatalf("%s: body %s, want pairing_rejected", name, rec.Body.String())
 		}
 	}
 }
@@ -88,6 +90,46 @@ func TestPairingGateAcceptsValidBearer(t *testing.T) {
 		if m.Hash == meta.Hash && m.LastUsedAt == nil {
 			t.Fatal("accepted request did not record last_used_at")
 		}
+	}
+}
+
+func TestPairingGate401CarriesRejectReason(t *testing.T) {
+	// GDK-453: the home serve knows why a token died; 401 must name
+	// revoked/expired for tokens that existed, and unknown otherwise.
+	h, cfg := standaloneServer(t)
+	dir := cfg.Directory()
+	revoked, _, err := pairing.Mint(dir, "revoked-device", time.Hour, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := pairing.Mint(dir, "witness", time.Hour, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pairing.Revoke(dir, "revoked-device", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := get(t, h, origin.RESTPrefix+"/rest/api/3/myself", map[string]string{
+		"Authorization": "Bearer " + revoked,
+	})
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked: %d %s; want 401", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("X-Gadak-Pairing") != "revoked" {
+		t.Fatalf("X-Gadak-Pairing = %q, want revoked; body %s", rec.Header().Get("X-Gadak-Pairing"), rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"error":"pairing_rejected"`) || !strings.Contains(rec.Body.String(), `"reason":"revoked"`) {
+		t.Fatalf("body %s, want pairing_rejected reason=revoked", rec.Body.String())
+	}
+
+	rec = get(t, h, origin.RESTPrefix+"/rest/api/3/myself", map[string]string{
+		"Authorization": "Bearer not-a-real-token",
+	})
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unknown: %d %s; want 401", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("X-Gadak-Pairing") != "unknown" {
+		t.Fatalf("unknown token must not reveal existence: header %q body %s", rec.Header().Get("X-Gadak-Pairing"), rec.Body.String())
 	}
 }
 
@@ -160,8 +202,9 @@ func TestPairedHostExemptLetsTailnetNameThrough(t *testing.T) {
 
 	// Tokens exist, no Bearer: the guard defers, the gate rejects.
 	rec = getWithHost(t, h, origin.RESTPrefix+"/rest/api/3/myself", nil, tsHost["Host"])
-	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "pairing_token_required") {
-		t.Fatalf("tokens, no bearer: %d %s; want 401 pairing_token_required", rec.Code, rec.Body.String())
+	// GDK-453 (2026-08-21): same 401 shape as TestPairingGateRejectsWithoutValidBearer.
+	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "pairing_rejected") {
+		t.Fatalf("tokens, no bearer: %d %s; want 401 pairing_rejected", rec.Code, rec.Body.String())
 	}
 
 	// Tokens exist, valid Bearer: the paired request goes through.

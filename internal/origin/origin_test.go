@@ -9,6 +9,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/pairing"
 )
 
 func TestConnectedMatchesJiraNew(t *testing.T) {
@@ -28,6 +29,49 @@ func TestClientNilAndConnectedMissingCreds(t *testing.T) {
 	}
 	if _, err := Client(&config.Config{Site: "https://x.atlassian.net", Email: "a@b.c"}); err == nil {
 		t.Fatal("Client(no token) succeeded")
+	}
+}
+
+func TestPairedStatusReadsRemoteOrigin(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rem, err := PairedStatus(cfg)
+	if err != nil || rem != nil {
+		t.Fatalf("empty workspace: %+v (%v)", rem, err)
+	}
+
+	if err := pairing.SaveRemote(cfg.Directory(), pairing.Remote{
+		Endpoint: "https://home.ts.net:8443", Token: "pair-token", Label: "laptop",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rem, err = PairedStatus(cfg)
+	if err != nil || rem == nil || rem.Label != "laptop" || rem.Endpoint != "https://home.ts.net:8443" {
+		t.Fatalf("paired: %+v (%v)", rem, err)
+	}
+
+	cfg.Kind = config.KindStandalone
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rem, err = PairedStatus(cfg)
+	if err != nil || rem != nil {
+		t.Fatalf("standalone home routing is not a paired origin: %+v (%v)", rem, err)
 	}
 }
 

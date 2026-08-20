@@ -70,6 +70,15 @@ func cmdStatus(args []string) error {
 	}
 	kind, _ := origin.Describe(cfg)
 	st["kind"] = kind
+	if rem, err := origin.PairedStatus(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "gadak: pairing: %v\n", err)
+		st["pairing_error"] = err.Error()
+	} else if rem != nil {
+		st["pairing"] = map[string]string{
+			"endpoint": rem.Endpoint,
+			"label":    rem.Label,
+		}
+	}
 	var tokenExpiry config.TokenExpiry
 	if cfg != nil {
 		tokenExpiry = cfg.TokenExpiryAt(time.Now().UTC())
@@ -103,6 +112,9 @@ func cmdStatus(args []string) error {
 		if v, ok := st[k]; ok && v != "" {
 			fmt.Printf("%-18s %v\n", k, v)
 		}
+	}
+	if p, ok := st["pairing"].(map[string]string); ok {
+		fmt.Printf("paired with %q (%s)\n", p["label"], p["endpoint"])
 	}
 	if line := formatWikiStatusLine(wiki); line != "" {
 		fmt.Printf("%-18s %s\n", "wiki", line)

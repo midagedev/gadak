@@ -85,12 +85,27 @@ func (s *server) pairingGate(w http.ResponseWriter, r *http.Request, cfg *config
 	}
 	switch verdict {
 	case pairing.VerdictReject:
-		fail(w, http.StatusUnauthorized, "pairing_token_required")
+		_, reason := pairing.Explain(cfg.Directory(), bearerToken(r), time.Now())
+		failPairing(w, reason)
 		return false
 	case pairing.VerdictAccept:
 		r.Header.Set("Authorization", "Basic "+origin.InProcessAuthB64())
 	}
 	return true
+}
+
+// failPairing is the 401 body the remote FoldPairedError reads: a stable
+// error code plus a reason that is detailed only for tokens the store has
+// seen (GDK-453).
+func failPairing(w http.ResponseWriter, reason pairing.Reason) {
+	if reason == "" {
+		reason = pairing.ReasonUnknown
+	}
+	w.Header().Set("X-Gadak-Pairing", string(reason))
+	writeJSON(w, http.StatusUnauthorized, struct {
+		Error  string `json:"error"`
+		Reason string `json:"reason"`
+	}{Error: "pairing_rejected", Reason: string(reason)})
 }
 
 // bearerToken extracts the Bearer credential from an Authorization header.

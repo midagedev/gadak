@@ -1109,9 +1109,9 @@ func withWriteSession(fn func(context.Context, *config.Config, *store.DB, *jira.
 	warnIfStale()
 	c, err := origin.Client(cfg)
 	if err != nil {
-		return err
+		return origin.FoldPairedError(cfg, err)
 	}
-	return fn(context.Background(), cfg, db, c)
+	return origin.FoldPairedError(cfg, fn(context.Background(), cfg, db, c))
 }
 
 // withKeyWriteSession is withWriteSession routed per key: the mirror says
@@ -1141,9 +1141,9 @@ func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *s
 	}
 	c, err := origin.WriterFor(cfg, src)
 	if err != nil {
-		return err
+		return origin.FoldPairedError(cfg, err)
 	}
-	return fn(ctx, cfg, db, c, src)
+	return origin.FoldPairedError(cfg, fn(ctx, cfg, db, c, src))
 }
 
 // emitAfterWrite is the write-through tail: re-read the issue into the mirror

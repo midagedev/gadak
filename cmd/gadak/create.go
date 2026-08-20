@@ -13,6 +13,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -226,6 +227,13 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	}
 	projRes, err := create.Project(projectWant, cfg)
 	if err != nil {
+		// NeedProjectError is local config ambiguity. Probe the origin so a
+		// pairing/dial failure is not relabeled as a missing --project
+		// (GDK-453). A reachable origin that still cannot resolve a project
+		// keeps the flag sentence.
+		if _, _, perr := c.Projects(ctx, 1); perr != nil && origin.IsPairingFailure(perr) {
+			return "", nil, perr
+		}
 		return "", nil, formatCreateError(err)
 	}
 	meta, err := c.CreateMeta(ctx, []string{projRes.Value})

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/pairing"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // GDK-433 CLI tests: the mint→list→revoke round trip (⑤), the
@@ -343,6 +345,302 @@ func TestInitPairingCodeStdin(t *testing.T) {
 	// The offer (token) must not be echoed anywhere.
 	if strings.Contains(out, offer) {
 		t.Fatal("stdout echoed the offer")
+	}
+}
+
+// GDK-449: paired workspaces must surface the remote-origin credential on
+// status/doctor/profiles/pairing list instead of looking like a bare
+// connected site with no pairing fields.
+func TestPairedStatusSurfacesRemoteOrigin(t *testing.T) {
+	seedPairedProfile(t)
+
+	out, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v\n%s", err, out)
+	}
+	var st struct {
+		Kind    string `json:"kind"`
+		Pairing *struct {
+			Endpoint string `json:"endpoint"`
+			Label    string `json:"label"`
+		} `json:"pairing"`
+	}
+	if err := json.Unmarshal([]byte(out), &st); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if st.Kind != config.KindConnected {
+		t.Fatalf("kind = %q, want connected (paired is not a new kind)", st.Kind)
+	}
+	if st.Pairing == nil {
+		t.Fatalf("status --json missing pairing object: %s", out)
+	}
+	if st.Pairing.Endpoint != "https://home.ts.net:8443" || st.Pairing.Label != "laptop" {
+		t.Fatalf("pairing = %+v", st.Pairing)
+	}
+
+	text, err := capture(t, func() error { return cmdStatus(nil) })
+	if err != nil {
+		t.Fatalf("status: %v\n%s", err, text)
+	}
+	if !strings.Contains(text, `paired with "laptop" (https://home.ts.net:8443)`) {
+		t.Fatalf("status text missing paired-with line:\n%s", text)
+	}
+}
+
+func TestDoctorPairedDescribesServeWithoutHost(t *testing.T) {
+	seedPairedProfile(t)
+	t.Setenv("HOME", os.Getenv("GADAK_HOME"))
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, `paired gadak serve (label "laptop")`) {
+		t.Fatalf("doctor origin missing paired serve+label:\n%s", out)
+	}
+	if strings.Contains(out, "home.ts.net") || strings.Contains(out, "8443") {
+		t.Fatalf("doctor leaked pairing endpoint host (safe-to-paste):\n%s", out)
+	}
+
+	js, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, js)
+	}
+	var doc struct {
+		Origin        string `json:"origin"`
+		WorkspaceKind string `json:"workspace_kind"`
+		Site          string `json:"site"`
+	}
+	if err := json.Unmarshal([]byte(js), &doc); err != nil {
+		t.Fatalf("decode %q: %v", js, err)
+	}
+	if doc.WorkspaceKind != config.KindConnected {
+		t.Fatalf("workspace_kind = %q, want connected", doc.WorkspaceKind)
+	}
+	if doc.Origin != `paired gadak serve (label "laptop")` {
+		t.Fatalf("origin = %q", doc.Origin)
+	}
+	if strings.Contains(js, "home.ts.net") {
+		t.Fatalf("doctor --json leaked endpoint host: %s", js)
+	}
+}
+
+func TestProfilesPairedSiteColumnShowsHost(t *testing.T) {
+	seedPairedProfile(t)
+
+	out, err := capture(t, func() error { return cmdProfiles(nil) })
+	if err != nil {
+		t.Fatalf("profiles: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "home.ts.net") {
+		t.Fatalf("profiles SITE missing pairing host:\n%s", out)
+	}
+
+	js, err := capture(t, func() error { return cmdProfiles([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("profiles --json: %v\n%s", err, js)
+	}
+	var inv struct {
+		Profiles []struct {
+			Name     string `json:"name"`
+			SiteHost string `json:"site_host"`
+			Kind     string `json:"kind"`
+		} `json:"profiles"`
+	}
+	if err := json.Unmarshal([]byte(js), &inv); err != nil {
+		t.Fatalf("decode %q: %v", js, err)
+	}
+	if len(inv.Profiles) == 0 || inv.Profiles[0].SiteHost != "home.ts.net" {
+		t.Fatalf("profiles json site_host = %+v", inv.Profiles)
+	}
+	if inv.Profiles[0].Kind != config.KindConnected {
+		t.Fatalf("kind = %q, want connected", inv.Profiles[0].Kind)
+	}
+}
+
+func TestPairingListOnPairedAnswersSelfStatus(t *testing.T) {
+	seedPairedProfile(t)
+
+	out, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"list"})
+	})
+	if err != nil {
+		t.Fatalf("pairing list on paired workspace: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, `this workspace is paired with "laptop" (https://home.ts.net:8443)`) {
+		t.Fatalf("list missing self-status: %q", out)
+	}
+	if !strings.Contains(out, "as Home User") {
+		t.Fatalf("list missing TokenOwner: %q", out)
+	}
+	if strings.Contains(out, "pairing is for standalone") {
+		t.Fatalf("paired list still used the connected-workspace refusal: %q", out)
+	}
+}
+
+func TestPairingMintRevokeOnPairedRefusedWithSelfStatus(t *testing.T) {
+	seedPairedProfile(t)
+
+	_, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "phone", "--endpoint", "http://127.0.0.1:9"})
+	})
+	if err == nil {
+		t.Fatal("mint on a paired workspace must be refused")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `this workspace is paired with "laptop"`) {
+		t.Fatalf("mint refusal missing self-status: %v", err)
+	}
+	if strings.Contains(msg, "pairing is for standalone workspaces") {
+		t.Fatalf("paired mint used the connected-workspace refusal: %v", err)
+	}
+
+	_, _, err = captureErr(t, func() error {
+		return cmdPairing([]string{"revoke", "laptop"})
+	})
+	if err == nil {
+		t.Fatal("revoke on a paired workspace must be refused")
+	}
+	if !strings.Contains(err.Error(), `this workspace is paired with "laptop"`) {
+		t.Fatalf("revoke refusal missing self-status: %v", err)
+	}
+}
+
+func TestInitPairedNextStepsOmitLocalServe(t *testing.T) {
+	srv, _ := pairingOriginServe(t, http.StatusOK)
+	offer := mustOffer(t, pairing.Offer{
+		V: pairing.OfferV1, Endpoint: srv.URL, Token: "pair-token-1", Label: "laptop",
+	})
+	emptyHome(t)
+
+	out, _, err := captureErr(t, func() error {
+		return cmdInit([]string{"--pairing-code", offer})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "gadak sync") || !strings.Contains(out, "gadak status") {
+		t.Fatalf("paired next-steps must name sync and status:\n%s", out)
+	}
+	if strings.Contains(out, "read it in the browser") {
+		t.Fatalf("paired next-steps still recommend local gadak serve:\n%s", out)
+	}
+}
+
+// GDK-453: a down home serve must not be mislabeled as a missing --project.
+func TestCreatePairedUnreachableIsNotPassProject(t *testing.T) {
+	dir := emptyHome(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+	if err := pairing.SaveRemote(dir, pairing.Remote{Endpoint: url, Token: "pair-token", Label: "laptop"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.TokenOwner = "Home User"
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = capture(t, func() error {
+		return cmdCreate([]string{"hello from a paired workspace"})
+	})
+	if err == nil {
+		t.Fatal("create against a closed home serve must fail")
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "pass --project") {
+		t.Fatalf("connection failure was folded into pass --project: %v", err)
+	}
+	if !strings.Contains(msg, "cannot reach the home serve") {
+		t.Fatalf("want pairing unreachable sentence, got %v", err)
+	}
+	if strings.HasPrefix(msg, "GET ") || strings.HasPrefix(msg, "POST ") {
+		t.Fatalf("REST method leaked onto the first line: %v", err)
+	}
+}
+
+func TestCreatePairedRevokedTokenNamesRevoke(t *testing.T) {
+	dir := emptyHome(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Gadak-Pairing", "revoked")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"pairing_rejected","reason":"revoked"}`))
+	}))
+	t.Cleanup(srv.Close)
+	if err := pairing.SaveRemote(dir, pairing.Remote{Endpoint: srv.URL, Token: "revoked-token", Label: "laptop"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = capture(t, func() error {
+		return cmdCreate([]string{"hello", "--project", "STD"})
+	})
+	if err == nil {
+		t.Fatal("create with a revoked pairing token must fail")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "pairing:") || !strings.Contains(msg, "revoked") {
+		t.Fatalf("want pairing revoked sentence, got %v", err)
+	}
+	if strings.Contains(msg, "credential rejected") || strings.HasPrefix(msg, "GET ") || strings.HasPrefix(msg, "POST ") {
+		t.Fatalf("Jira/REST noise on the first line: %v", err)
+	}
+}
+
+func TestForceUpsertClearsLastError(t *testing.T) {
+	// GDK-453: write-through (SyncIssue → UpsertIssues Force) is a successful
+	// origin round-trip and must clear last_error the way RecordSync nil does.
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordSync(context.Background(), "jira", store.SyncResult{Err: context.DeadlineExceeded}); err != nil {
+		t.Fatal(err)
+	}
+	st, err := db.SyncState(context.Background(), "jira")
+	if err != nil || st.LastError == nil {
+		t.Fatalf("precondition last_error: %+v (%v)", st.LastError, err)
+	}
+
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Force:      true,
+		Categories: map[string]string{"1": "new"},
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:STD-1", SourceID: "jira", Kind: "issue", ExternalID: "1", Key: "STD-1",
+				Title: "after write", CreatedAt: "2026-08-20T00:00:00.000Z", UpdatedAt: "2026-08-20T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "STD", Status: "To Do", StatusID: "1", StatusCategory: "new"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	st, err = db.SyncState(context.Background(), "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.LastError != nil {
+		t.Fatalf("last_error still %q after Force upsert", *st.LastError)
 	}
 }
 

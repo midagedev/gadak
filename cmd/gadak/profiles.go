@@ -101,6 +101,12 @@ func inspectProfile(name, activeDisplay string) profileEntry {
 		e.Configured = true
 		e.SiteHost = siteHostOnly(cfg.Site)
 	}
+	if rem, err := origin.PairedStatus(cfg); err == nil && rem != nil {
+		e.Configured = true
+		if host := siteHostOnly(rem.Endpoint); host != "" {
+			e.SiteHost = host
+		}
+	}
 
 	if dbPath == "" {
 		return e

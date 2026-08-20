@@ -160,8 +160,10 @@ in `<profile>/remote-origin.json` under the same rules. `gadak init
 --pairing-code` verifies the token against the serve before writing anything
 locally, so a mistyped or stale offer leaves no file behind. A machine
 without a stored token — including this machine's own CLI once it routes
-through the serve — gets `401 pairing_token_required` until it pairs or the
-token is revoked.
+through the serve — gets `401 pairing_rejected` until it pairs or the
+token is revoked. The 401 carries a `reason` (`expired`, `revoked`, or
+`unknown`); only tokens the serve itself minted get a detailed reason, so
+the response is not an oracle for guessed strings.
 
 The desktop app removes this surface entirely: it runs **no listener at
 all** — the window reaches the mirror through an in-process handler

@@ -105,6 +105,17 @@ const (
 	VerdictReject
 )
 
+// Reason is why a rejected bearer was refused. Only tokens that were
+// minted (hash in the store) get a detailed reason; anything else is
+// unknown so a probe cannot tell unused strings from never-issued ones.
+type Reason string
+
+const (
+	ReasonExpired Reason = "expired"
+	ReasonRevoked Reason = "revoked"
+	ReasonUnknown Reason = "unknown"
+)
+
 // Mint creates a token for label, persists its hash, and returns the
 // plaintext. The plaintext appears exactly here; callers print it once (as
 // an offer) and never store it. A duplicate *active* label is refused so
@@ -295,6 +306,47 @@ func Authorize(dir, bearer string, now time.Time) (Verdict, error) {
 		return VerdictOff, nil
 	}
 	return VerdictReject, nil
+}
+
+// Explain classifies a rejected bearer. Authorize remains the gate
+// decision (and last_used_at); this is the reason the 401 body carries.
+//
+//	hash in store, RevokedAt set → revoked
+//	hash in store, ExpiresAt elapsed → expired
+//	empty bearer or hash not in the store → unknown
+func Explain(dir, bearer string, now time.Time) (Verdict, Reason) {
+	doc, err := loadCached(dir)
+	if err != nil {
+		return VerdictReject, ReasonUnknown
+	}
+	if doc == nil {
+		return VerdictOff, ReasonUnknown
+	}
+	digest, ok := digestOf(bearer)
+	anyActive := false
+	var matched *Meta
+	for i := range doc.Tokens {
+		m := &doc.Tokens[i]
+		if m.Active(now) {
+			anyActive = true
+		}
+		if ok && digestMatches(m.Hash, digest) {
+			matched = m
+		}
+	}
+	if !anyActive {
+		return VerdictOff, ReasonUnknown
+	}
+	if matched == nil {
+		return VerdictReject, ReasonUnknown
+	}
+	if matched.RevokedAt != nil {
+		return VerdictReject, ReasonRevoked
+	}
+	if now.After(matched.ExpiresAt) {
+		return VerdictReject, ReasonExpired
+	}
+	return VerdictAccept, ""
 }
 
 // lastUsedInterval throttles last_used_at persistence: one write per token

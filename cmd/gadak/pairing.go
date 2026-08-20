@@ -96,6 +96,11 @@ func pairingDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if rem, err := origin.PairedStatus(cfg); err != nil {
+		return "", err
+	} else if rem != nil {
+		return "", fmt.Errorf("%s — mint and revoke run on the home machine", pairedStatusLine(cfg, rem))
+	}
 	if !cfg.IsStandalone() {
 		return "", errors.New("pairing is for standalone workspaces — the gate sits on the serve's origin passthrough, which a connected workspace does not serve")
 	}
@@ -104,6 +109,17 @@ func pairingDir() (string, error) {
 		return "", errors.New("pairing: profile directory not found")
 	}
 	return dir, nil
+}
+
+func pairedStatusLine(cfg *config.Config, rem *pairing.Remote) string {
+	line := fmt.Sprintf("this workspace is paired with %q (%s)", rem.Label, rem.Endpoint)
+	if rem.Label == "" {
+		line = fmt.Sprintf("this workspace is paired with %s", rem.Endpoint)
+	}
+	if cfg != nil && strings.TrimSpace(cfg.TokenOwner) != "" {
+		line += " as " + cfg.TokenOwner
+	}
+	return line
 }
 
 func pairingMint(args []string) error {
@@ -314,6 +330,16 @@ func pairingList(args []string) error {
 	if _, err := parseAround(fs, args); err != nil {
 		return err
 	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if rem, err := origin.PairedStatus(cfg); err != nil {
+		return err
+	} else if rem != nil {
+		fmt.Println(pairedStatusLine(cfg, rem))
+		return nil
+	}
 	dir, err := pairingDir()
 	if err != nil {
 		return err
@@ -437,8 +463,20 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 		}{config.Profile(), offer.Endpoint, offer.Label, me.DisplayName, p})
 	}
 	fmt.Printf("paired with %s as %s — saved %s\n", offer.Endpoint, me.DisplayName, p)
-	printInitNextSteps(cfg.WorkspaceKind())
+	printPairedInitNextSteps()
 	return nil
+}
+
+func printPairedInitNextSteps() {
+	fmt.Printf(`
+next:
+  gadak sync                    fill the mirror from the home serve
+  gadak status                  confirm the pairing
+  If a command fails with "cannot reach the home serve", start gadak serve on the home machine.
+
+docs/AGENT_SETUP.md has one paste per agent; docs/RECIPES.md has the questions
+JQL cannot ask.
+`)
 }
 
 // refuseIfPairedOrigin is the single owner of "this profile's origin is a
@@ -450,16 +488,9 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 // split). LoadRemote returning a credential is therefore not sufficient on
 // its own to mean "paired origin".
 func refuseIfPairedOrigin(cfg *config.Config) error {
-	if cfg == nil || cfg.IsStandalone() {
-		return nil
-	}
-	dir := cfg.Directory()
-	if dir == "" {
-		return nil
-	}
-	rem, err := pairing.LoadRemote(dir)
+	rem, err := origin.PairedStatus(cfg)
 	if err != nil {
-		return fmt.Errorf("pairing: %w", err)
+		return err
 	}
 	if rem == nil {
 		return nil

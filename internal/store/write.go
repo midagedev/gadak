@@ -57,6 +57,16 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 			if err := bumpVersion(tx, id, db.schemaVersion); err != nil {
 				return err
 			}
+			if b.Force {
+				// Write-through (SyncIssue Force) is a successful origin
+				// round-trip that does not call RecordSync — a single issue
+				// must not become the watermark (internal/sync/one.go).
+				// Clearing last_error here is that path's counterpart of
+				// RecordSync's "nil clears it" (GDK-453).
+				if _, err := tx.Exec(`UPDATE sync_state SET last_error = NULL WHERE source_id = ?`, id); err != nil {
+					return err
+				}
+			}
 		}
 		// Parent chains can resolve only after later pages arrive, so recompute
 		// epic_key for the whole table after every batch (cheap two-hop join).

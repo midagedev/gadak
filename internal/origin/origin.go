@@ -108,6 +108,15 @@ func Client(cfg *config.Config) (*jira.Client, error) {
 	return Connected(cfg.Site, cfg.Email, cfg.Token), nil
 }
 
+// PairedStatus is the single owner of "is this workspace paired with a
+// remote gadak serve?". status, doctor, profiles, and pairing list read
+// this instead of opening remote-origin.json themselves. Standalone is
+// excluded: the same file on the home machine only carries the routing
+// token (transport.go localRoutingToken).
+func PairedStatus(cfg *config.Config) (*pairing.Remote, error) {
+	return pairedRemote(cfg)
+}
+
 // pairedRemote resolves the stored pairing credential that makes this
 // workspace's origin a remote gadak serve (GDK-433). Standalone is
 // excluded on purpose: a standalone workspace owns a local persist, and

@@ -216,6 +216,43 @@ func TestAuthorizeReloadsAfterExternalChange(t *testing.T) {
 	}
 }
 
+func TestExplainReasons(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+	live, _, err := Mint(dir, "live", 24*time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revoked, _, err := Mint(dir, "revoked", 24*time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Revoke(dir, "revoked", now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	expired, _, err := Mint(dir, "expired", time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	later := now.Add(2 * time.Hour)
+	if v, r := Explain(dir, revoked, later); v != VerdictReject || r != ReasonRevoked {
+		t.Fatalf("revoked: %v %q, want Reject/revoked", v, r)
+	}
+	if v, r := Explain(dir, expired, later); v != VerdictReject || r != ReasonExpired {
+		t.Fatalf("expired: %v %q, want Reject/expired", v, r)
+	}
+	if v, r := Explain(dir, "not-a-token", later); v != VerdictReject || r != ReasonUnknown {
+		t.Fatalf("unknown: %v %q, want Reject/unknown", v, r)
+	}
+	if v, r := Explain(dir, "", later); v != VerdictReject || r != ReasonUnknown {
+		t.Fatalf("empty: %v %q, want Reject/unknown", v, r)
+	}
+	if v, r := Explain(dir, live, later); v != VerdictAccept || r != "" {
+		t.Fatalf("live: %v %q, want Accept", v, r)
+	}
+}
+
 func TestAuthorizeFailsClosedOnCorruptStore(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(StorePath(dir), []byte("{not json"), 0o600); err != nil {

@@ -189,6 +189,19 @@ func collectDoctor() doctorReport {
 		}
 		n, persist, _ := originbind.LocalData(cfg)
 		hasTok := cfg.Token != ""
+		if rem, err := origin.PairedStatus(cfg); err == nil && rem != nil {
+			// Same redaction as site: no hostname. Label is the pairing
+			// identity doctor can name without leaking the endpoint.
+			if rem.Label != "" {
+				rep.Origin = fmt.Sprintf("paired gadak serve (label %q)", rem.Label)
+			} else {
+				rep.Origin = "paired gadak serve"
+			}
+			hasTok = true
+			if cfg.Token == "" {
+				rep.Credential = "present"
+			}
+		}
 		rep.Workspace = doctorWorkspace{
 			Kind:          cfg.WorkspaceKind(),
 			HasCredential: hasTok,
