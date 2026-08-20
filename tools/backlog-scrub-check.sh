@@ -50,9 +50,11 @@ DATA_FILES=("$BOOT")
 # `grep -v`, which drops a whole LINE when the placeholder appears anywhere on
 # it — and bootstrap.json is a single line. One issue summary mentioning
 # `x.atlassian.net` (GDK-304 does) therefore excused every other host in the
-# file, so the assertion was vacuous. Measured 2026-08-20 by injecting
-# `realcorp.atlassian.net` into a summary: the gate said OK. Extracting the
-# hosts with -o and filtering those is the same intent, actually enforced.
+# file, so the assertion was vacuous. Measured 2026-08-20 by injecting a
+# concrete (non-placeholder) site host into a summary: the gate said OK.
+# Extracting the hosts with -o and filtering those is the same intent,
+# actually enforced. The example host is deliberately not written out here —
+# scripts/scan-internal.sh rejects one in a tracked file, and it is right to.
 hosts="$(grep -ohE '[A-Za-z0-9._-]+\.atlassian\.net' "${DATA_FILES[@]}" | sort -u \
   | grep -vxE '(your-site|your-team|example|x)\.atlassian\.net' || true)"
 [ -z "$hosts" ] || fail "concrete Jira site URL in snapshot data: $(echo "$hosts" | tr '\n' ' ')"
