@@ -93,7 +93,16 @@ type DevLink struct {
 	// Status is the stored form of the origin's OPEN|MERGED|DECLINED
 	// vocabulary (lowercase). Produced by jira.DevPRStatus.Stored();
 	// unknown origin tokens stay the lowercased payload.
-	Status    string
+	Status string
+	// Author is the pull request's author (login). Actor/ActorName are who
+	// wrote the link (issuetap's X-Issuetap-Actor accountId and display
+	// name). Different axes — a bot links a human's PR — never merged
+	// (GDK-589). Branch is the PR head ref. All '' when the origin sent
+	// nothing (v33 columns are NOT NULL DEFAULT '').
+	Author    string
+	Actor     string
+	ActorName string
+	Branch    string
 	UpdatedAt string
 }
 

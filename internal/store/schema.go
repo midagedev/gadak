@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -611,6 +611,25 @@ DROP VIEW issues_full;
 CREATE VIEW issues_full AS
   SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
   FROM issues i JOIN items it ON it.id = i.item_id;
+`
+
+// schemaV33 adds dev_links author / actor / actor_name / branch (GDK-589):
+// the axes a pull-request link carries besides its state. author is the PR's
+// author — the GitHub login on a scan, Cloud's author.name on a mirrored
+// panel. actor/actor_name are who WROTE the link (issuetap's
+// X-Issuetap-Actor accountId + display name; empty on Cloud, which has no
+// such concept). author and actor are different axes — a bot links a
+// human's PR — and must never be folded into one column. branch is the PR
+// head ref (Cloud's source.branch). Existing rows keep the empty string
+// until the next sync rewrites them — no backfill; the mirror is a cache
+// (same contract as v22 priority_id, v27 resolution_id, v30 sprint_*,
+// v31 fix_version_ids, v32 security_level_*). dev_links is selected by no
+// view, so no view rebuild.
+const schemaV33 = `
+ALTER TABLE dev_links ADD COLUMN author TEXT NOT NULL DEFAULT '';
+ALTER TABLE dev_links ADD COLUMN actor TEXT NOT NULL DEFAULT '';
+ALTER TABLE dev_links ADD COLUMN actor_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE dev_links ADD COLUMN branch TEXT NOT NULL DEFAULT '';
 `
 
 // personalStateCopyVersion is the migration level schemaV26 lands on. migrate

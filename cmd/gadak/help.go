@@ -227,12 +227,14 @@ var helps = map[string]cmdHelp{
 	"dev": {
 		summary: "development-panel links: record PRs on issues (standalone origin)",
 		usage: "gadak dev link <KEY> --pr <url>\n" +
-			"[--status open|merged|declined] [--name N] [--json]\n" +
+			"[--status open|merged|declined] [--name N] [--author LOGIN] [--branch REF] [--json]\n" +
 			"gadak dev scan [--dry-run] [--install-hook]",
 		options: []helpOption{
 			{name: "pr", desc: "pull request URL (required for link)"},
 			{name: "status", desc: "open (default), merged, or declined"},
 			{name: "name", desc: "display title shown in the panel"},
+			{name: "author", desc: "link: PR author login (omitted = the origin keeps what it holds)"},
+			{name: "branch", desc: "link: head ref (omitted = the current git branch)"},
 			{name: "dry-run", desc: "scan: list matched PRs without writing"},
 			{name: "install-hook", desc: "scan: add a pre-push hook that runs `gadak dev scan`"},
 		},

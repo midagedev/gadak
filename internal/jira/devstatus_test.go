@@ -1,6 +1,13 @@
 package jira
 
-import "testing"
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
 
 func TestParseDevPRStatus(t *testing.T) {
 	for in, want := range map[string]DevPRStatus{
@@ -42,5 +49,115 @@ func TestDevPRStatusStored(t *testing.T) {
 	}
 	if got := DevPRDeclined.Stored(); got != "declined" {
 		t.Errorf("DECLINED.Stored() = %q, want declined", got)
+	}
+}
+
+// devDetailContract is the detail payload both origins serve once GDK-589
+// lands: Cloud's own vocabulary (author{name}, source{branch}) plus
+// issuetap's actor extension (accountId/displayName — Cloud has none, the
+// fields stay empty there). The test round-trips DevStatusPRs's answer
+// through JSON so the assertion is on the wire vocabulary, not on Go field
+// names that could exist and still never carry the payload.
+func TestDevStatusPRsParsesAuthorBranchActor(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{
+		  "errors": [],
+		  "detail": [{
+		    "_instance": {"name": "GitHub", "type": "GitHub", "id": "com.atlassian.github", "singleInstance": true},
+		    "pullRequests": [{
+		      "id": "pr-1",
+		      "url": "https://github.com/o/r/pull/1",
+		      "name": "GDK-589 carry author",
+		      "status": "OPEN",
+		      "author": {"name": "midagedev"},
+		      "source": {"branch": "gdk-589-dev-link-actor"},
+		      "actor": {"accountId": "claude:354bff2b", "displayName": "Claude (build 1)"}
+		    }]
+		  }]
+		}`))
+	}))
+	t.Cleanup(ts.Close)
+
+	prs, err := New(ts.URL, "e@xample.test", "t").DevStatusPRs(t.Context(), "10001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prs) != 1 {
+		t.Fatalf("got %d PRs, want 1", len(prs))
+	}
+	raw, err := json.Marshal(prs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if author, _ := got["author"].(map[string]any); author["name"] != "midagedev" {
+		t.Errorf("author = %v, want name midagedev (full PR: %s)", got["author"], raw)
+	}
+	if source, _ := got["source"].(map[string]any); source["branch"] != "gdk-589-dev-link-actor" {
+		t.Errorf("source = %v, want branch gdk-589-dev-link-actor (full PR: %s)", got["source"], raw)
+	}
+	actor, _ := got["actor"].(map[string]any)
+	if actor["accountId"] != "claude:354bff2b" || actor["displayName"] != "Claude (build 1)" {
+		t.Errorf("actor = %v, want accountId claude:354bff2b / displayName Claude (build 1)", got["actor"])
+	}
+}
+
+// TestLinkDevPRCarriesAuthorBranch pins the POST half of GDK-589: author and
+// branch ride the body only when non-empty (issuetap's keep-rule — a re-link
+// without them preserves what the origin holds; an older origin ignores both
+// keys), and the 201 answer's nested blocks parse back in.
+func TestLinkDevPRCarriesAuthorBranch(t *testing.T) {
+	var gotBody map[string]any
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/issue/link") {
+			t.Errorf("unexpected call %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		gotBody = map[string]any{} // per-request: Unmarshal into a used map merges
+		if err := json.Unmarshal(raw, &gotBody); err != nil {
+			t.Errorf("body is not JSON: %v (%s)", err, raw)
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{
+		  "id": "pr-7", "url": "https://github.com/o/r/pull/7", "name": "GDK-589",
+		  "status": "OPEN",
+		  "author": {"name": "midagedev"},
+		  "source": {"branch": "gdk-589-dev-link-actor"},
+		  "actor": {"accountId": "claude:354bff2b", "displayName": "Claude (build 1)"}
+		}`))
+	}))
+	t.Cleanup(ts.Close)
+	c := New(ts.URL, "e@xample.test", "t")
+
+	created, err := c.LinkDevPR(t.Context(), "10001", "https://github.com/o/r/pull/7", "GDK-589",
+		"midagedev", "gdk-589-dev-link-actor", DevPROpen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := gotBody["author"]; !ok || gotBody["author"] != "midagedev" {
+		t.Errorf("POST author = %v, want the flat string midagedev", gotBody["author"])
+	}
+	if _, ok := gotBody["branch"]; !ok || gotBody["branch"] != "gdk-589-dev-link-actor" {
+		t.Errorf("POST branch = %v, want gdk-589-dev-link-actor", gotBody["branch"])
+	}
+	if created.Author.Name != "midagedev" || created.Source.Branch != "gdk-589-dev-link-actor" ||
+		created.Actor.AccountID != "claude:354bff2b" || created.Actor.DisplayName != "Claude (build 1)" {
+		t.Errorf("201 decode = %+v, want author/source/actor blocks parsed", created)
+	}
+
+	if _, err := c.LinkDevPR(t.Context(), "10001", "https://github.com/o/r/pull/8", "plain",
+		"", "", DevPROpen); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := gotBody["author"]; ok {
+		t.Errorf("empty author still posted: %v", gotBody["author"])
+	}
+	if _, ok := gotBody["branch"]; ok {
+		t.Errorf("empty branch still posted: %v", gotBody["branch"])
 	}
 }

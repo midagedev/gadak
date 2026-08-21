@@ -1184,7 +1184,10 @@ func devLinksFor(ctx context.Context, c *jira.Client, issueID string) *store.Dev
 
 // DevLinksFromPRs maps dev-status pull requests onto a successful origin
 // answer. Shared with `gadak dev link`'s post-write refresh so both paths
-// store the same shape. A fetch error never produces this value.
+// store the same shape. A fetch error never produces this value. Author /
+// actor / branch ride along when the origin serves them (GDK-589): Cloud's
+// panel carries author{name} and source{branch}, issuetap adds the actor it
+// stamped at write time; a payload without them stores empty strings.
 func DevLinksFromPRs(prs []jira.DevPR) store.DevLinksUpdate {
 	out := make([]store.DevLink, 0, len(prs))
 	for _, pr := range prs {
@@ -1197,6 +1200,10 @@ func DevLinksFromPRs(prs []jira.DevPR) store.DevLinksUpdate {
 			URL:        pr.URL,
 			Title:      pr.Name,
 			Status:     pr.Status.Stored(),
+			Author:     pr.Author.Name,
+			Actor:      pr.Actor.AccountID,
+			ActorName:  pr.Actor.DisplayName,
+			Branch:     pr.Source.Branch,
 			UpdatedAt:  store.Now(),
 		})
 	}

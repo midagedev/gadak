@@ -48,6 +48,8 @@ func cmdDevLink(args []string) error {
 	prURL := fs.String("pr", "", "pull request URL (required)")
 	name := fs.String("name", "", "display title (omitted = the URL tail)")
 	status := fs.String("status", "open", "open | merged | declined")
+	author := fs.String("author", "", "pull request author login (omitted = the origin keeps what it holds)")
+	branch := fs.String("branch", "", "head ref (omitted = the current git branch)")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("dev", fs))
@@ -58,12 +60,18 @@ func cmdDevLink(args []string) error {
 		return err
 	}
 	if len(rest) != 1 || *prURL == "" {
-		return usageError("dev", "usage: gadak dev link <KEY> --pr <url> [--status open|merged|declined] [--name N]")
+		return usageError("dev", "usage: gadak dev link <KEY> --pr <url> [--status open|merged|declined] [--name N] [--author LOGIN] [--branch REF]")
 	}
 	key := normalizeKey(rest[0])
 	st, ok := jira.ParseDevPRStatus(*status)
 	if !ok {
 		return fmt.Errorf("dev link: --status must be open, merged or declined (got %q)", *status)
+	}
+	// --branch wins; only an omitted flag falls back to the current git
+	// branch, so a repo with an unrelated HEAD still records the right ref.
+	headRef := *branch
+	if headRef == "" {
+		headRef = currentGitBranch()
 	}
 
 	cfg, err := config.Load()
@@ -88,7 +96,7 @@ func cmdDevLink(args []string) error {
 	if err != nil {
 		return err
 	}
-	created, err := client.LinkDevPR(ctx, issueID, *prURL, *name, st)
+	created, err := client.LinkDevPR(ctx, issueID, *prURL, *name, *author, headRef, st)
 	if err != nil {
 		return err
 	}
@@ -96,11 +104,48 @@ func cmdDevLink(args []string) error {
 	refreshDevLinks(ctx, db, client, key, issueID)
 
 	if *asJSON {
-		fmt.Printf("{\"key\":%q,\"url\":%q,\"status\":%q}\n", key, created.URL, created.Status)
+		fmt.Printf("{\"key\":%q,\"url\":%q,\"status\":%q%s}\n", key, created.URL, created.Status,
+			devLinkExtrasJSON(created.Author.Name, created.Source.Branch))
 		return nil
 	}
-	fmt.Printf("%s\tPR linked: %s (%s)\n", key, created.URL, created.Status.Stored())
+	line := fmt.Sprintf("%s\tPR linked: %s (%s)", key, created.URL, created.Status.Stored())
+	if created.Author.Name != "" {
+		line += "\t" + created.Author.Name
+	}
+	if created.Source.Branch != "" {
+		line += "\t" + created.Source.Branch
+	}
+	fmt.Println(line)
 	return nil
+}
+
+// devLinkExtrasJSON renders the optional author/branch members of
+// `dev link --json`, empty when the origin served none (an older issuetap
+// ignores both POST fields and answers without them).
+func devLinkExtrasJSON(author, branch string) string {
+	out := ""
+	if author != "" {
+		out += fmt.Sprintf(",\"author\":%q", author)
+	}
+	if branch != "" {
+		out += fmt.Sprintf(",\"branch\":%q", branch)
+	}
+	return out
+}
+
+// currentGitBranch reports the working tree's branch — the empty string
+// outside a repository or on a detached HEAD (git prints the literal "HEAD"
+// there).
+func currentGitBranch() string {
+	out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err != nil {
+		return ""
+	}
+	b := strings.TrimSpace(string(out))
+	if b == "HEAD" {
+		return ""
+	}
+	return b
 }
 
 // refreshDevLinks re-reads the origin's dev-status answer for one issue and
@@ -141,6 +186,30 @@ func devScanStatus(ghState string) jira.DevPRStatus {
 	return jira.DevPRStatusFromGitHub(ghState)
 }
 
+// devScanPR is one row of `gh pr list --json url,title,state,headRefName,author`
+// (GDK-589 adds author; headRefName now doubles as the link's branch instead
+// of being dropped after key extraction). gh emits the author as an object —
+// and as JSON null when the account is gone, which reads as an empty login.
+type devScanPR struct {
+	URL         string `json:"url"`
+	Title       string `json:"title"`
+	State       string `json:"state"`
+	HeadRefName string `json:"headRefName"`
+	Author      struct {
+		Login string `json:"login"`
+	} `json:"author"`
+}
+
+// parseDevScanPRs decodes gh's JSON array; anything else is a gh behavior
+// change, not empty output.
+func parseDevScanPRs(data []byte) ([]devScanPR, error) {
+	var prs []devScanPR
+	if err := json.Unmarshal(data, &prs); err != nil {
+		return nil, fmt.Errorf("gh pr list: unexpected output: %w", err)
+	}
+	return prs, nil
+}
+
 // cmdDevScan reads the repo's pull requests via `gh pr list`, matches issue
 // keys in titles and branch names, and records each match through the same
 // write-through path as `dev link`. Idempotent: the origin upserts by URL,
@@ -173,35 +242,35 @@ func cmdDevScan(args []string) error {
 		return fmt.Errorf("dev scan reads pull requests via the `gh` CLI, which is not on PATH — install it, or record one PR with `gadak dev link`")
 	}
 	out, err := exec.Command("gh", "pr", "list", "--state", "all", "--limit", strconv.Itoa(*limit),
-		"--json", "url,title,state,headRefName").Output()
+		"--json", "url,title,state,headRefName,author").Output()
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
 			return fmt.Errorf("gh pr list: %s", strings.TrimSpace(string(ee.Stderr)))
 		}
 		return fmt.Errorf("gh pr list: %w", err)
 	}
-	var prs []struct {
-		URL         string `json:"url"`
-		Title       string `json:"title"`
-		State       string `json:"state"`
-		HeadRefName string `json:"headRefName"`
-	}
-	if err := json.Unmarshal(out, &prs); err != nil {
-		return fmt.Errorf("gh pr list: unexpected output: %w", err)
+	prs, err := parseDevScanPRs(out)
+	if err != nil {
+		return err
 	}
 	if notice := devScanHitLimitNotice(len(prs), *limit); notice != "" {
 		fmt.Fprintln(os.Stderr, notice)
 	}
 
 	// Group PRs by candidate key so the mirror refresh runs once per issue.
+	// The head ref rides along as the link's branch (GDK-589) — it was read
+	// for key extraction and dropped before.
 	type match struct {
-		url, title string
-		status     jira.DevPRStatus
+		url, title, author, branch string
+		status                     jira.DevPRStatus
 	}
 	byKey := map[string][]match{}
 	for _, pr := range prs {
 		for _, k := range issueKeys(pr.Title + " " + pr.HeadRefName) {
-			byKey[k] = append(byKey[k], match{pr.URL, pr.Title, devScanStatus(pr.State)})
+			byKey[k] = append(byKey[k], match{
+				url: pr.URL, title: pr.Title, author: pr.Author.Login,
+				branch: pr.HeadRefName, status: devScanStatus(pr.State),
+			})
 		}
 	}
 	if len(byKey) == 0 {
@@ -232,7 +301,8 @@ func cmdDevScan(args []string) error {
 		issues++
 		for _, m := range byKey[key] {
 			if *dryRun {
-				fmt.Printf("%s\t%s (%s)\n", key, m.url, m.status.Stored())
+				fmt.Printf("%s\t%s (%s)%s\n", key, m.url, m.status.Stored(),
+					devScanMatchExtras(m.author, m.branch))
 				linked++
 				continue
 			}
@@ -241,7 +311,7 @@ func cmdDevScan(args []string) error {
 					return err
 				}
 			}
-			if _, err := client.LinkDevPR(ctx, issueID, m.url, m.title, m.status); err != nil {
+			if _, err := client.LinkDevPR(ctx, issueID, m.url, m.title, m.author, m.branch, m.status); err != nil {
 				fmt.Fprintf(os.Stderr, "dev scan: %s: %v\n", key, err)
 				writeFailed = true
 				continue
@@ -265,6 +335,20 @@ func cmdDevScan(args []string) error {
 		return fmt.Errorf("dev scan: one or more links failed")
 	}
 	return nil
+}
+
+// devScanMatchExtras renders the trailing author/branch columns of a
+// `dev scan --dry-run` line — tab-separated like the rest, present only
+// when gh reported them.
+func devScanMatchExtras(author, branch string) string {
+	out := ""
+	if author != "" {
+		out += "\t" + author
+	}
+	if branch != "" {
+		out += "\t" + branch
+	}
+	return out
 }
 
 // installDevScanHook writes a pre-push hook that runs `gadak dev scan`.

@@ -1244,12 +1244,17 @@ func (db *DB) ReplaceDevLinks(ctx context.Context, key string, update DevLinksUp
 func insertDevLinks(tx *sql.Tx, itemID string, links []DevLink) error {
 	for _, dl := range links {
 		if _, err := tx.Exec(`
-			INSERT INTO dev_links (item_id, kind, external_id, url, title, status, updated_at)
-			VALUES (?,?,?,?,?,?,?)
+			INSERT INTO dev_links (item_id, kind, external_id, url, title, status,
+			                       author, actor, actor_name, branch, updated_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(item_id, url) DO UPDATE SET
 			  kind=excluded.kind, external_id=excluded.external_id,
-			  title=excluded.title, status=excluded.status, updated_at=excluded.updated_at`,
-			itemID, devKind(dl.Kind), dl.ExternalID, dl.URL, dl.Title, dl.Status, dl.UpdatedAt,
+			  title=excluded.title, status=excluded.status,
+			  author=excluded.author, actor=excluded.actor,
+			  actor_name=excluded.actor_name, branch=excluded.branch,
+			  updated_at=excluded.updated_at`,
+			itemID, devKind(dl.Kind), dl.ExternalID, dl.URL, dl.Title, dl.Status,
+			dl.Author, dl.Actor, dl.ActorName, dl.Branch, dl.UpdatedAt,
 		); err != nil {
 			return err
 		}

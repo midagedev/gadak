@@ -61,6 +61,16 @@ the fixes are all here.
 
 ### Standalone and issuetap
 
+- **A dev link knows its people** ([GDK-589]). `dev_links` carries the PR
+  author (the human), the writing actor (the bot), and the head branch
+  (schema v33); `gadak dev scan` sends them from `gh`, `dev link` takes
+  `--author`/`--branch` (branch defaults to the current one), and the
+  origin stamps the actor server-side — a client cannot forge it.
+- **A nameless agent gets a readable name** ([GDK-593]). An actor slug
+  with no display name is assigned a deterministic alias from an
+  adjective-animal dictionary — `claude:354bff2b` shows up as "Spirited
+  Lion (Claude Code)", the same name on every restart. An explicit name
+  always wins.
 - **A write carries its author** ([GDK-586], [GDK-588]). Set `GADAK_ACTOR`
   (`slug|display name`), or a workspace-default `actor` in config, and every
   write to an issuetap origin — embedded, served, or paired — attributes to
@@ -1792,5 +1802,7 @@ measured numbers instead of adjectives.
 [GDK-573]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-573
 [GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
 [GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
+[GDK-589]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-589
+[GDK-593]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-593
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588

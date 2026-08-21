@@ -434,11 +434,13 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 
 	if err := each(ctx, db.sql, `
 		SELECT COALESCE(kind,''), COALESCE(external_id,''), url, COALESCE(title,''),
-		       COALESCE(status,''), COALESCE(updated_at,'')
+		       COALESCE(status,''), COALESCE(author,''), COALESCE(actor,''),
+		       COALESCE(actor_name,''), COALESCE(branch,''), COALESCE(updated_at,'')
 		FROM dev_links WHERE item_id = ? ORDER BY updated_at DESC, url`,
 		func(rows *sql.Rows) error {
 			var l DevLink
-			if err := rows.Scan(&l.Kind, &l.ExternalID, &l.URL, &l.Title, &l.Status, &l.UpdatedAt); err != nil {
+			if err := rows.Scan(&l.Kind, &l.ExternalID, &l.URL, &l.Title, &l.Status,
+				&l.Author, &l.Actor, &l.ActorName, &l.Branch, &l.UpdatedAt); err != nil {
 				return err
 			}
 			d.DevLinks = append(d.DevLinks, l)

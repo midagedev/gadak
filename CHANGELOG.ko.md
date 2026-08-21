@@ -61,6 +61,15 @@
 
 ### standalone과 issuetap
 
+- **dev 링크가 사람들을 압니다** ([GDK-589]). `dev_links`가 PR 작성자
+  (사람)·링크를 쓴 actor(봇)·head 브랜치를 나릅니다(스키마 v33).
+  `gadak dev scan`이 `gh`에서 실어 보내고, `dev link`는
+  `--author`/`--branch`(브랜치 기본값은 현재 브랜치)를 받으며, actor는
+  origin이 서버 쪽에서 도장합니다 — 클라이언트가 위조할 수 없습니다.
+- **이름 없는 에이전트가 읽을 수 있는 이름을 얻습니다** ([GDK-593]).
+  표시 이름 없는 actor slug에는 형용사×동물 딕셔너리에서 결정적 별칭이
+  배정됩니다 — `claude:354bff2b`는 "Spirited Lion (Claude Code)"로
+  보이고, 재기동해도 같은 이름입니다. 명시적 이름이 항상 이깁니다.
 - **쓰기가 자기 작성자를 싣고 갑니다** ([GDK-586], [GDK-588]).
   `GADAK_ACTOR`(`slug|표시이름`)를 설정하거나 config에 워크스페이스 기본
   `actor`를 두면, issuetap origin으로 가는 모든 쓰기 — 임베디드·serve·
@@ -1792,5 +1801,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-573]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-573
 [GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
 [GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
+[GDK-589]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-589
+[GDK-593]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-593
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588

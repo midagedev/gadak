@@ -59,12 +59,39 @@ func (s DevPRStatus) Stored() string {
 	return strings.ToLower(string(s))
 }
 
+// DevPRAuthor is the PR author block (Cloud vocabulary: author.name is the
+// GitHub login).
+type DevPRAuthor struct {
+	Name string `json:"name"`
+}
+
+// DevPRSource is where the PR heads from (Cloud vocabulary: source.branch is
+// the head ref).
+type DevPRSource struct {
+	Branch string `json:"branch"`
+}
+
+// DevPRActor is issuetap's extension naming who wrote the link: accountId is
+// the X-Issuetap-Actor slug, displayName its human form. Cloud's dev-status
+// has no such block — both fields stay empty there.
+type DevPRActor struct {
+	AccountID   string `json:"accountId"`
+	DisplayName string `json:"displayName"`
+}
+
 // DevPR is one pull request from the dev-status detail payload.
 type DevPR struct {
 	ID     string      `json:"id"`
 	URL    string      `json:"url"`
 	Name   string      `json:"name"`
 	Status DevPRStatus `json:"status"`
+	// Author is the pull request's author. Actor is who WROTE the link —
+	// issuetap stamps it from the request identity and serves it back;
+	// Cloud has no such field and it stays empty. Different axes — a bot
+	// links a human's PR — never merged (GDK-589). Source is the head ref.
+	Author DevPRAuthor `json:"author"`
+	Source DevPRSource `json:"source"`
+	Actor  DevPRActor  `json:"actor"`
 }
 
 // DevStatusPRCount reads the summary's pullrequest count — one cheap call to
@@ -118,10 +145,20 @@ func (c *Client) DevStatusPRs(ctx context.Context, issueID string) ([]DevPR, err
 // LinkDevPR posts one pull-request link to the origin's dev-status store.
 // Only issuetap (standalone) implements the endpoint — Jira Cloud's panel is
 // written by its marketplace apps, so a connected origin answers 404 and the
-// caller says so instead of pretending.
-func (c *Client) LinkDevPR(ctx context.Context, issueID, prURL, name string, status DevPRStatus) (DevPR, error) {
+// caller says so instead of pretending. author (the PR author's login) and
+// branch (the head ref) are optional (GDK-589): empty ones are omitted so a
+// re-link without them keeps what the origin already holds, and an older
+// origin ignores both keys. The actor is never sent — issuetap stamps it
+// from the request identity.
+func (c *Client) LinkDevPR(ctx context.Context, issueID, prURL, name, author, branch string, status DevPRStatus) (DevPR, error) {
 	var out DevPR
 	body := map[string]any{"issueId": issueID, "url": prURL, "name": name, "status": string(status)}
+	if author != "" {
+		body["author"] = author
+	}
+	if branch != "" {
+		body["branch"] = branch
+	}
 	err := c.write(ctx, "POST", "/rest/dev-status/1.0/issue/link", body, &out)
 	return out, err
 }

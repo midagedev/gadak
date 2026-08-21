@@ -688,3 +688,74 @@ func TestMigrateV31ToV32SecurityLevel(t *testing.T) {
 		t.Errorf("issues_full.security_level_id valid=%v, want NULL", id.Valid)
 	}
 }
+
+// TestMigrateV32ToV33DevLinkAuthorActorBranch applies v1–v32 stepwise, seeds
+// one v29 dev_links row, and opens with this build: v33 must add
+// author/actor/actor_name/branch without touching the seeded row (no
+// backfill; the next sync rewrites). This is also the guard for a schemaV33
+// const that never made it into the migrations slice — an unused const
+// compiles, doctor's audit compares against this same build's migrations and
+// so cannot see it, and only a column read after Open fails.
+func TestMigrateV32ToV33DevLinkAuthorActorBranch(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v32.db")
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < personalStateCopyVersion-1; i++ {
+		if _, err := raw.Exec(migrations[i]); err != nil {
+			raw.Close()
+			t.Fatalf("apply v%d: %v", i+1, err)
+		}
+	}
+	for _, stmt := range []string{schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32} {
+		if _, err := raw.Exec(stmt); err != nil {
+			raw.Close()
+			t.Fatalf("apply later v27-v32: %v", err)
+		}
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO sources (id, kind) VALUES ('jira', 'jira');
+		INSERT INTO items (id, source_id, kind, key, title, body_text, created_at, updated_at, synced_at)
+		VALUES ('jira:1', 'jira', 'issue', 'NMB-1', 'one', 'the flattened body', '2026-01-01', '2026-01-02', '2026-01-02');
+		INSERT INTO issues (item_id, key, project_key, priority_rank, reopen_count, comment_count)
+		VALUES ('jira:1', 'NMB-1', 'NMB', 0, 0, 0);
+		INSERT INTO dev_links (item_id, url, title)
+		VALUES ('jira:1', 'https://github.com/o/r/pull/7', 'pre-v33 link');`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec("PRAGMA user_version = 32"); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after v32: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	if got := db.SchemaVersion(); got != len(migrations) {
+		t.Errorf("schema version %d, want %d (Open lands at the binary's level)", got, len(migrations))
+	}
+	var uv int
+	if err := db.sql.QueryRowContext(context.Background(), `PRAGMA user_version`).Scan(&uv); err != nil {
+		t.Fatalf("user_version: %v", err)
+	}
+	if uv != len(migrations) {
+		t.Errorf("PRAGMA user_version = %d, want %d (Open lands at the binary's level)", uv, len(migrations))
+	}
+
+	var author, actor, actorName, branch string
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT author, actor, actor_name, branch FROM dev_links WHERE url = 'https://github.com/o/r/pull/7'`).
+		Scan(&author, &actor, &actorName, &branch); err != nil {
+		t.Fatalf("dev_links v33 columns after Open: %v", err)
+	}
+	if author != "" || actor != "" || actorName != "" || branch != "" {
+		t.Errorf("seeded row = %q/%q/%q/%q, want all empty (no backfill; next sync rewrites)",
+			author, actor, actorName, branch)
+	}
+}

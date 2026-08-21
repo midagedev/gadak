@@ -124,3 +124,53 @@ func TestDevStatusSuccessfulEmptyDrains(t *testing.T) {
 		t.Fatalf("successful empty must drain, still have %+v", d.DevLinks)
 	}
 }
+
+// TestSyncStoresDevLinkAuthorActorBranch pins the gadak half of GDK-589:
+// a dev-status answer carrying author{name} / source{branch} /
+// actor{accountId, displayName} lands in the v33 dev_links columns via the
+// same DevLinksFromPRs path `gadak dev link`'s refresh uses. The axes stay
+// separate columns — author is the PR's human, actor the linking agent.
+func TestSyncStoresDevLinkAuthorActorBranch(t *testing.T) {
+	site := newSite(t, "en")
+	pr := jira.DevPR{
+		ID: "pr-9", URL: "https://github.com/o/r/pull/9", Name: "from-origin",
+		Status: jira.DevPROpen,
+		Author: jira.DevPRAuthor{Name: "midagedev"},
+		Source: jira.DevPRSource{Branch: "gdk-589-dev-link-actor"},
+		Actor:  jira.DevPRActor{AccountID: "claude:354bff2b", DisplayName: "Claude (build 1)"},
+	}
+	site.devPRs = map[string][]jira.DevPR{"10001": {pr}}
+	client := site.start()
+	db := newMirror(t)
+	cfg := testConfig()
+	cfg.Kind = config.KindStandalone
+
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	d, err := db.DB.Detail(context.Background(), "NMB-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.DevLinks) != 1 {
+		t.Fatalf("dev_links = %+v, want the origin PR", d.DevLinks)
+	}
+	l := d.DevLinks[0]
+	if l.Author != "midagedev" || l.Branch != "gdk-589-dev-link-actor" {
+		t.Errorf("author/branch = %q/%q, want midagedev / gdk-589-dev-link-actor", l.Author, l.Branch)
+	}
+	if l.Actor != "claude:354bff2b" || l.ActorName != "Claude (build 1)" {
+		t.Errorf("actor/name = %q/%q, want claude:354bff2b / Claude (build 1)", l.Actor, l.ActorName)
+	}
+
+	// The plain-SQL read an agent would run (the spec's bar: `select * from
+	// dev_links` must see the columns). QueryRow is the `gadak sql` surface.
+	var author, actor, actorName, branch string
+	if err := db.DB.QueryRow(`SELECT author, actor, actor_name, branch FROM dev_links WHERE url = ?`, pr.URL).
+		Scan(&author, &actor, &actorName, &branch); err != nil {
+		t.Fatalf("raw dev_links read: %v", err)
+	}
+	if author != "midagedev" || actor != "claude:354bff2b" || actorName != "Claude (build 1)" || branch != "gdk-589-dev-link-actor" {
+		t.Errorf("dev_links row = %q/%q/%q/%q", author, actor, actorName, branch)
+	}
+}

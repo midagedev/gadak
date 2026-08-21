@@ -309,6 +309,11 @@ own store on a standalone one (written through `gadak dev link`). Rows live
 and die with the issue rewrite, like comments. `(item_id, url)` is the
 primary key — url is the idempotent key both origins use.
 
+v33 (GDK-589) added the author/actor/branch columns. **`author` and `actor`
+are different axes**: author is the pull request's author (a human's login);
+actor is who wrote the link (issuetap's `X-Issuetap-Actor` — typically an
+agent). Never fold one into the other.
+
 | Column | Type | Notes |
 | --- | --- | --- |
 | `item_id` | TEXT | FK |
@@ -317,6 +322,10 @@ primary key — url is the idempotent key both origins use.
 | `url` | TEXT | |
 | `title` | TEXT | |
 | `status` | TEXT | `open` / `merged` / `declined`, lowercased |
+| `author` | TEXT | PR author's login (Cloud `author.name`). `''` when the origin sent none |
+| `actor` | TEXT | account id of who wrote the link (issuetap `X-Issuetap-Actor`). `''` on Cloud |
+| `actor_name` | TEXT | display name of the link writer. `''` on Cloud |
+| `branch` | TEXT | PR head ref (Cloud `source.branch`). `''` when the origin sent none |
 | `updated_at` | TEXT | |
 
 ## `attachments`

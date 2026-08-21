@@ -175,3 +175,82 @@ func TestInstallDevScanHookRefusesConnected(t *testing.T) {
 		t.Fatalf("refusal %q", err)
 	}
 }
+
+// GDK-589: author/branch render as trailing tab columns only when present,
+// so old origins and keyless PRs keep the exact pre-589 line.
+func TestDevScanMatchExtras(t *testing.T) {
+	for in, want := range map[[2]string]string{
+		{"", ""}:                   "",
+		{"midagedev", ""}:          "\tmidagedev",
+		{"", "gdk-589-x"}:          "\tgdk-589-x",
+		{"midagedev", "gdk-589-x"}: "\tmidagedev\tgdk-589-x",
+	} {
+		if got := devScanMatchExtras(in[0], in[1]); got != want {
+			t.Errorf("devScanMatchExtras(%q,%q) = %q, want %q", in[0], in[1], got, want)
+		}
+	}
+}
+
+func TestDevLinkExtrasJSON(t *testing.T) {
+	if got := devLinkExtrasJSON("", ""); got != "" {
+		t.Errorf("empty = %q, want no members", got)
+	}
+	if got := devLinkExtrasJSON("midagedev", "gdk-589-x"); got != `,"author":"midagedev","branch":"gdk-589-x"` {
+		t.Errorf("both = %q", got)
+	}
+	if got := devLinkExtrasJSON("", "gdk-589-x"); got != `,"branch":"gdk-589-x"` {
+		t.Errorf("branch only = %q", got)
+	}
+}
+
+func TestCurrentGitBranch(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	if out, err := exec.Command("git", "init").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	if out, err := exec.Command("git", "commit", "--allow-empty", "-m", "x").CombinedOutput(); err != nil {
+		t.Fatalf("git commit: %v\n%s", err, out)
+	}
+	if out, err := exec.Command("git", "checkout", "-b", "gdk-589-dev-link-actor").CombinedOutput(); err != nil {
+		t.Fatalf("git checkout -b: %v\n%s", err, out)
+	}
+	if got := currentGitBranch(); got != "gdk-589-dev-link-actor" {
+		t.Fatalf("currentGitBranch = %q, want gdk-589-dev-link-actor", got)
+	}
+	// Detached HEAD (git's literal "HEAD") must read as no branch, not as a
+	// ref named HEAD.
+	if out, err := exec.Command("git", "checkout", "--detach").CombinedOutput(); err != nil {
+		t.Fatalf("git checkout --detach: %v\n%s", err, out)
+	}
+	if got := currentGitBranch(); got != "" {
+		t.Fatalf("detached currentGitBranch = %q, want empty", got)
+	}
+}
+
+// TestParseDevScanPRs pins gh's --json author shape (GDK-589): the login
+// rides inside an author object, JSON null (deleted account) reads as an
+// empty login, and headRefName survives as the link's branch.
+func TestParseDevScanPRs(t *testing.T) {
+	prs, err := parseDevScanPRs([]byte(`[
+	  {"url":"https://github.com/o/r/pull/9","title":"GDK-589 dev links carry author",
+	   "state":"OPEN","headRefName":"gdk-589-dev-links",
+	   "author":{"login":"midagedev","name":"Mid Agedev","id":"MDQ6VXNlcjE="}},
+	  {"url":"https://github.com/o/r/pull/10","title":"GDK-354 pin darwin","state":"MERGED",
+	   "headRefName":"gdk-354-darwin","author":null}
+	]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prs) != 2 {
+		t.Fatalf("got %d PRs, want 2", len(prs))
+	}
+	if prs[0].Author.Login != "midagedev" || prs[0].HeadRefName != "gdk-589-dev-links" {
+		t.Errorf("prs[0] author/head = %q/%q, want midagedev / gdk-589-dev-links",
+			prs[0].Author.Login, prs[0].HeadRefName)
+	}
+	if prs[1].Author.Login != "" || prs[1].HeadRefName != "gdk-354-darwin" {
+		t.Errorf("prs[1] author/head = %q/%q, want empty / gdk-354-darwin",
+			prs[1].Author.Login, prs[1].HeadRefName)
+	}
+}
