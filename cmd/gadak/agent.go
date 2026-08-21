@@ -29,7 +29,9 @@ import (
 
 	"github.com/mattn/go-runewidth"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
@@ -127,9 +129,10 @@ func deref(s *string, fallback string) string {
 
 func cmdIssue(args []string) error {
 	fs := newFlagSet("issue")
-	asJSON := fs.Bool("json", false, "emit the detail document as JSON")
+	asJSON := fs.Bool("json", false, "emit JSON (the detail document; with --editmeta, the editable-fields document)")
 	derive := fs.Bool("derive", false, "instead of the detail, show how the derived fields were computed: the changelog by status category, and the rows behind reopen_count, resolved_at, reopen_reason and epic_key")
 	link := fs.Bool("link", false, "print the gadak:// issue link (and the http form when a serve is listening)")
+	editMeta := fs.Bool("editmeta", false, "ask the origin which configured fields this issue can edit (GET editmeta ∩ allowlist; not stored in the mirror)")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("issue", fs))
 		return nil
@@ -139,7 +142,7 @@ func cmdIssue(args []string) error {
 		return err
 	}
 	if len(pos) == 0 {
-		return usageError("issue", "usage: gadak issue <KEY> [--json] [--derive] [--link]")
+		return usageError("issue", "usage: gadak issue <KEY> [--json] [--derive] [--link] [--editmeta]")
 	}
 	// The --json document is what agents parse; --derive is prose for a person.
 	// Folding one into the other would reshape a contract that already has
@@ -150,7 +153,16 @@ func cmdIssue(args []string) error {
 	if *link && *derive {
 		return usageError("issue", "--derive and --link cannot be combined: --derive explains the stored columns, and --link prints the issue's address")
 	}
+	if *editMeta && *derive {
+		return usageError("issue", "--derive and --editmeta cannot be combined: --derive explains the stored columns, and --editmeta asks the origin which fields this issue can edit")
+	}
+	if *editMeta && *link {
+		return usageError("issue", "--link and --editmeta cannot be combined: --link prints the issue's address, and --editmeta asks the origin which fields this issue can edit")
+	}
 	key := normalizeKey(pos[0])
+	if *editMeta {
+		return printIssueEditMeta(key, *asJSON)
+	}
 
 	db, err := openStore()
 	if err != nil {
@@ -193,6 +205,114 @@ func cmdIssue(args []string) error {
 	}
 	printIssue(lites[0], d)
 	return nil
+}
+
+type issueEditMetaOption struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type issueEditMetaField struct {
+	Alias    string                `json:"alias"`
+	ID       string                `json:"id"`
+	Kind     string                `json:"kind"`
+	Required bool                  `json:"required"`
+	Options  []issueEditMetaOption `json:"options"`
+}
+
+// printIssueEditMeta is `gadak issue KEY --editmeta`: one origin GET
+// editmeta, then the same allowlist ∩ ResolveEditableID filter
+// handleEditMeta uses (internal/server/write.go). The answer is not
+// written to the mirror — origin is the source of truth for this verb.
+func printIssueEditMeta(key string, asJSON bool) error {
+	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, _ *store.DB, c origin.Writer, _ string) error {
+		meta, err := c.EditMeta(ctx, key)
+		if err != nil {
+			return err
+		}
+		rows := editableFieldsForIssue(cfg, meta)
+		if asJSON {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(struct {
+				Key    string               `json:"key"`
+				Fields []issueEditMetaField `json:"fields"`
+			}{Key: key, Fields: jsonList(rows)})
+		}
+		printIssueEditMetaHuman(rows)
+		return nil
+	})
+}
+
+// editableFieldsForIssue is the web editmeta intersection: allowlist from
+// fields.EditableAliases, presence+kind from jirafields.ResolveEditableID,
+// options from FieldMeta.AllowedValues (value, else name — same as
+// handleEditMeta). Kind fallback matches write.go when editmeta schema
+// is unreadable; empty kind is dropped.
+func editableFieldsForIssue(cfg *config.Config, meta map[string]jira.FieldMeta) []issueEditMetaField {
+	allow := fields.EditableAliases(cfg)
+	aliases := make([]string, 0, len(allow))
+	for alias := range allow {
+		aliases = append(aliases, alias)
+	}
+	sort.Strings(aliases)
+	out := make([]issueEditMetaField, 0)
+	for _, alias := range aliases {
+		ea := allow[alias]
+		id, kind, present := jirafields.ResolveEditableID(ea.IDs, meta)
+		if !present {
+			continue
+		}
+		if kind == "" {
+			kind = ea.Kind
+		}
+		if kind == "" {
+			continue
+		}
+		m := meta[id]
+		opts := make([]issueEditMetaOption, 0, len(m.AllowedValues))
+		for _, v := range m.AllowedValues {
+			name := v.Value
+			if name == "" {
+				name = v.Name
+			}
+			opts = append(opts, issueEditMetaOption{ID: v.ID, Name: name})
+		}
+		out = append(out, issueEditMetaField{
+			Alias:    alias,
+			ID:       id,
+			Kind:     kind,
+			Required: m.Required,
+			Options:  jsonList(opts),
+		})
+	}
+	return out
+}
+
+func printIssueEditMetaHuman(rows []issueEditMetaField) {
+	if len(rows) == 0 {
+		// An empty intersection means no configured custom aliases, not a
+		// read-only issue — silence here reads as "nothing editable".
+		fmt.Println("no configured custom fields are editable on this issue — `gadak edit` system flags (--summary, --label, --priority, --parent) apply regardless; custom aliases appear here after `gadak fields --apply`")
+		return
+	}
+	for _, f := range rows {
+		inner := f.Kind
+		if f.Required {
+			inner = f.Kind + ", required"
+		}
+		line := fmt.Sprintf("%s (%s)", f.Alias, inner)
+		names := make([]string, 0, len(f.Options))
+		for _, o := range f.Options {
+			if o.Name != "" {
+				names = append(names, o.Name)
+			}
+		}
+		if len(names) > 0 {
+			line += " — options: " + strings.Join(names, ", ")
+		}
+		fmt.Println(line)
+	}
 }
 
 // printIssueLink is `gadak issue KEY --link`: the same gadak:// composer

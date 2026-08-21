@@ -65,6 +65,11 @@ type fakeJira struct {
 	// uses. searchQueries records every query, including cache-miss origin calls.
 	searchUsers   func(query string) string
 	searchQueries []string
+
+	// editMeta is the fields object GET /issue/{key}/editmeta answers inside
+	// {"fields": …}. Empty is {}. Matches the server fake's shape so CLI
+	// --editmeta tests drive the same Jira document web handleEditMeta parses.
+	editMeta string
 }
 
 // recordedUpload is one multipart POST /issue/{key}/attachments the fake saw.
@@ -165,6 +170,12 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			{"key":"GDK","name":"Gadak","issuetypes":[
 				{"id":"10001","name":"Task"}]}
 		]}`))
+	case strings.HasSuffix(path, "/editmeta"):
+		raw := f.editMeta
+		if raw == "" {
+			raw = "{}"
+		}
+		_, _ = w.Write([]byte(`{"fields":` + raw + `}`))
 	default:
 		// transitions POST and assignee PUT answer 204, like Jira.
 		w.WriteHeader(http.StatusNoContent)
@@ -692,6 +703,173 @@ func TestIssueAndSearchReadTheMirror(t *testing.T) {
 	}
 	if !strings.Contains(out, "NMB-1") {
 		t.Fatalf("url search %q", out)
+	}
+}
+
+// seedIssueEditMeta writes Fields (Kind set) so EditableAliases matches the
+// web allowlist, and a fake editmeta that includes an option field with
+// allowedValues, a required flag, a version field whose label is `name`,
+// and an id that is NOT on the allowlist (must not appear in CLI output).
+func seedIssueEditMeta(t *testing.T, f *fakeJira) {
+	t.Helper()
+	f.editMeta = `{
+		"customfield_10092": {"required":true,"schema":{"type":"option"},"operations":["set"],
+			"allowedValues":[{"id":"10160","value":"Fixed"},{"id":"10161","value":"Won't Fix"}]},
+		"fixVersions": {"schema":{"type":"array","items":"version"},"operations":["set"],
+			"allowedValues":[{"id":"v1","name":"1.2.0"}]},
+		"customfield_secret": {"schema":{"type":"option"},"operations":["set"],
+			"allowedValues":[{"id":"9","value":"hidden"}]}
+	}`
+	cfg := mirror(t, f.URL)
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "solution", Label: "Solution", IDs: []string{"customfield_10092"}, Role: "facet", Kind: "option"},
+		{Alias: "fix_versions", Label: "Fix Version/s", IDs: []string{"fixVersions"}, Role: "facet", Kind: "version_array"},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func findEditMetaField(t *testing.T, fields []map[string]any, alias string) map[string]any {
+	t.Helper()
+	for _, f := range fields {
+		if f["alias"] == alias {
+			return f
+		}
+	}
+	t.Fatalf("missing alias %q in %#v", alias, fields)
+	return nil
+}
+
+// TestIssueEditMetaJSONIntersectsAllowlist is the GDK-514 producer: origin
+// GET editmeta ∩ EditableAliases, options from allowedValues, required
+// forwarded, allowlist-outside ids omitted.
+func TestIssueEditMetaJSONIntersectsAllowlist(t *testing.T) {
+	f := newFakeJira(t)
+	seedIssueEditMeta(t, f)
+
+	out, err := capture(t, func() error {
+		return cmdIssue([]string{"NMB-1", "--editmeta", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("issue --editmeta --json: %v\n%s", err, out)
+	}
+	if !f.called("GET /issue/NMB-1/editmeta") {
+		t.Fatalf("did not GET editmeta: %v", f.calls)
+	}
+	var doc struct {
+		Key    string           `json:"key"`
+		Fields []map[string]any `json:"fields"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if doc.Key != "NMB-1" {
+		t.Fatalf("key %q", doc.Key)
+	}
+	if len(doc.Fields) != 2 {
+		t.Fatalf("fields %#v, want 2 (secret is outside the allowlist)", doc.Fields)
+	}
+	sol := findEditMetaField(t, doc.Fields, "solution")
+	if sol["id"] != "customfield_10092" || sol["kind"] != "option" {
+		t.Fatalf("solution %#v", sol)
+	}
+	if sol["required"] != true {
+		t.Fatalf("solution.required %#v, want true", sol["required"])
+	}
+	opts, _ := sol["options"].([]any)
+	if len(opts) != 2 {
+		t.Fatalf("solution.options %#v", sol["options"])
+	}
+	first, _ := opts[0].(map[string]any)
+	if first["id"] != "10160" || first["name"] != "Fixed" {
+		t.Fatalf("first option %#v", first)
+	}
+	fv := findEditMetaField(t, doc.Fields, "fix_versions")
+	if fv["kind"] != "version_array" {
+		t.Fatalf("fix_versions %#v", fv)
+	}
+	vopts, _ := fv["options"].([]any)
+	if len(vopts) != 1 {
+		t.Fatalf("fix_versions.options %#v", fv["options"])
+	}
+	v0, _ := vopts[0].(map[string]any)
+	if v0["name"] != "1.2.0" {
+		t.Fatalf("version label %#v (name, not value — versions have no value)", v0)
+	}
+	for _, field := range doc.Fields {
+		if field["alias"] == "secret" || field["id"] == "customfield_secret" {
+			t.Fatalf("allowlist-outside id leaked: %#v", field)
+		}
+	}
+
+	human, err := capture(t, func() error { return cmdIssue([]string{"NMB-1", "--editmeta"}) })
+	if err != nil {
+		t.Fatalf("issue --editmeta: %v\n%s", err, human)
+	}
+	if !strings.Contains(human, "solution (option, required)") {
+		t.Fatalf("human missing required field:\n%s", human)
+	}
+	if !strings.Contains(human, "options: Fixed, Won't Fix") {
+		t.Fatalf("human missing option names:\n%s", human)
+	}
+	if strings.Contains(human, "hidden") || strings.Contains(human, "secret") {
+		t.Fatalf("human leaked allowlist-outside field:\n%s", human)
+	}
+}
+
+func TestIssueEditMetaRefusesWithoutCredential(t *testing.T) {
+	f := newFakeJira(t)
+	cfg := mirror(t, f.URL)
+	cfg.Token = ""
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	_, err := capture(t, func() error { return cmdIssue([]string{"NMB-1", "--editmeta"}) })
+	if err == nil || !strings.Contains(err.Error(), config.ErrNotConfigured.Error()) {
+		t.Fatalf("no credential: %v", err)
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("called origin anyway: %v", f.calls)
+	}
+}
+
+func TestIssueEditMetaRefusesUndefinedFlagCombos(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	for _, args := range [][]string{
+		{"NMB-1", "--derive", "--editmeta"},
+		{"NMB-1", "--editmeta", "--link"},
+	} {
+		_, err := capture(t, func() error { return cmdIssue(args) })
+		if err == nil {
+			t.Fatalf("%v: want usage error", args)
+		}
+		if !strings.Contains(err.Error(), "cannot be combined") || !strings.Contains(err.Error(), "--editmeta") {
+			t.Errorf("%v: error %q, want a cannot-be-combined usage refusal that names --editmeta", args, err)
+		}
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("combination reached origin: %v", f.calls)
+	}
+}
+
+func TestIssueWithoutFlagsDoesNotHitOrigin(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	out, err := capture(t, func() error { return cmdIssue([]string{"NMB-1"}) })
+	if err != nil {
+		t.Fatalf("issue: %v\n%s", err, out)
+	}
+	for _, want := range []string{"NMB-1", "batch worker drops the last page", "진행 중 (inprogress)",
+		"retry drops the key", "reproduced against the sandbox gateway", "trace.har",
+		"Blocks outward", "history (1)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("issue output missing %q:\n%s", want, out)
+		}
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("flagless issue hit origin: %v", f.calls)
 	}
 }
 
