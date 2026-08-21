@@ -532,6 +532,11 @@ func (r *Registry) EnsureWatch(name string) bool {
 	ctx, logf, db := r.watchCtx, r.watchLogf, e.DB
 	profileName := name
 	go func() {
+		defer func() {
+			r.mu.Lock()
+			delete(r.watching, profileName)
+			r.mu.Unlock()
+		}()
 		opts := syncer.Options{
 			Reload: func() (*config.Config, error) {
 				return config.LoadFor(profileName)
@@ -545,9 +550,23 @@ func (r *Registry) EnsureWatch(name string) bool {
 		if next, err := config.LoadFor(profileName); err == nil && next != nil {
 			cur = next
 		}
-		if err := syncer.Watch(ctx, cur, db, opts); err != nil && ctx.Err() == nil {
-			if logf != nil {
+		// Restart loop matches cmdServe: Watch returning on fatal auth
+		// must not leave watching[name] stuck, and must not hot-loop.
+		for ctx.Err() == nil {
+			err := syncer.Watch(ctx, cur, db, opts)
+			if ctx.Err() != nil {
+				return
+			}
+			if err != nil && logf != nil {
 				logf("workspace " + profileName + ": sync loop stopped: " + err.Error())
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(30 * time.Second):
+			}
+			if next, err := config.LoadFor(profileName); err == nil && next != nil {
+				cur = next
 			}
 		}
 	}()

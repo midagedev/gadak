@@ -348,6 +348,38 @@ func TestWatchAllStopsOnCancel(t *testing.T) {
 	t.Fatalf("goroutine leak after cancel: now %d baseline %d", runtime.NumGoroutine(), baseline)
 }
 
+func TestWatchingClearedWhenWatchReturns(t *testing.T) {
+	// GDK-541: watching[name] must clear when Watch returns, otherwise
+	// EnsureWatch skips forever.
+	setupHome(t)
+	seedProfile(t, "loop", &config.Config{
+		Site: "http://127.0.0.1:1", Email: "a@example.invalid", Token: "test-token",
+	})
+
+	reg := New()
+	t.Cleanup(func() { reg.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	started := reg.WatchAll(ctx, "", func(string) {})
+	if !watchingHas(started, "loop") {
+		cancel()
+		t.Fatalf("started %v", started)
+	}
+	if !watchingHas(reg.Watching(), "loop") {
+		cancel()
+		t.Fatal("watching missing immediately after start")
+	}
+	cancel()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !watchingHas(reg.Watching(), "loop") {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("watching still set after Watch returned: %v", reg.Watching())
+}
+
 func TestSameProfile(t *testing.T) {
 	if !sameProfile("", "default") || !sameProfile("default", "") {
 		t.Fatal("empty and default must match")

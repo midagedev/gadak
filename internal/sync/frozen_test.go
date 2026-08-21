@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -85,5 +86,62 @@ func TestUnfrozenCfgDoesNotReturnErrFrozen(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "site, email and token are required") {
 		t.Fatalf("unfrozen empty cfg error changed: %v", err)
+	}
+}
+
+func TestWatchReloadFrozenSkipsInsteadOfExiting(t *testing.T) {
+	// GDK-541: Reload seeing frozen must wait for the next tick, not return.
+	site := newSite(t, "en")
+	client := site.start()
+	db := newMirror(t)
+	cfg := testConfig()
+	cfg.SyncIntervalSec, cfg.ReconcileIntervalSec = 1, 3600
+
+	var mu sync.Mutex
+	reloads := 0
+	reload := func() (*config.Config, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		reloads++
+		c := *cfg
+		c.SyncIntervalSec, c.ReconcileIntervalSec = 1, 3600
+		if reloads >= 2 && reloads <= 5 {
+			c.Frozen = true
+		}
+		return &c, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- Watch(ctx, cfg, db.DB, Options{
+			Client: client,
+			Reload: reload,
+			Tick:   testTick,
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		mu.Lock()
+		n := reloads
+		mu.Unlock()
+		if n >= 4 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Reload called %d times, want >= 4 (frozen skip stays in the loop)", n)
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("Watch returned while frozen: %v (reloads %d)", err, n)
+		case <-time.After(testTick):
+		}
+	}
+	cancel()
+	err := <-done
+	if err != nil && !errors.Is(err, context.Canceled) {
+		t.Fatalf("Watch returned %v", err)
 	}
 }
