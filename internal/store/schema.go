@@ -482,7 +482,9 @@ const schemaV25 = `SELECT 1`
 // and local.db is not, so a cross-file transaction has no inter-file atomicity
 // to lean on: a crash between the two file commits can land user_version
 // without the copy. INSERT OR IGNORE makes re-running the copy safe (and the
-// upgrade test rewinds user_version to prove it), and the source rows staying
+// upgrade test re-executes this statement to prove it — rewinding
+// user_version stopped being a way to replay it once a later migration added
+// a column, since ALTER TABLE ADD COLUMN is not re-runnable), and the source rows staying
 // behind means that crash window loses nothing. From this version on the
 // mirror-side tables are frozen leftovers that no code path reads or writes;
 // dropping them belongs to a later release, once every install has migrated.
