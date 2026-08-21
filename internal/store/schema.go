@@ -5,16 +5,19 @@ package store
 // plus a documented row in specs/000-product/data-model.md.
 var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29}
 
-// itemsFTSCreate is the canonical items_fts DDL. Migrations are append-only,
-// so schemaV1 cannot grow this constant's cjk_bigram column (v25); instead
-// fts_repair_test.go welds the two together — everything but that column must
-// still agree — and fails if they drift. It is the single owner of the shape
-// every writable mirror must have: contentless_delete=1 is what lets writeFTS
-// replace rows with DELETE, and Open (fts_repair.go) checks live DDL against
-// this statement and rebuilds the index when a database carries a different
-// shape (GDK-112: the portable examples/demo.db snapshot deliberately drops
-// the option for Datasette Lite). cjk_bigram (GDK-259) is filled by
-// FTSCJKBigramColumn; leaving it out of any writer is the silent-miss trap.
+// itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
+// fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
+// three columns and every new mirror's first Open logged a rebuild). Editing
+// V1 is safe precisely because migrations never re-run: an existing database
+// keeps whatever V1 gave it and converges through repairItemsFTS, and a
+// pre-v25 binary cannot open a v29 file at all (user_version gate). It is the
+// single owner of the shape every writable mirror must have:
+// contentless_delete=1 is what lets writeFTS replace rows with DELETE, and
+// Open (fts_repair.go) checks live DDL against this statement and rebuilds
+// the index when a database carries a different shape (GDK-112: the portable
+// examples/demo.db snapshot deliberately drops the option for Datasette
+// Lite). cjk_bigram (GDK-259) is filled by FTSCJKBigramColumn; leaving it out
+// of any writer is the silent-miss trap.
 const itemsFTSCreate = `CREATE VIRTUAL TABLE items_fts USING fts5(
   title, body_text, comments_text, cjk_bigram,
   content='',
@@ -141,12 +144,7 @@ CREATE TABLE links (
   PRIMARY KEY (item_id, type, direction, target_key)
 );
 
-CREATE VIRTUAL TABLE items_fts USING fts5(
-  title, body_text, comments_text,
-  content='',
-  contentless_delete=1,
-  tokenize='unicode61 remove_diacritics 2'
-);
+` + itemsFTSCreate + `
 
 CREATE TABLE deleted_items (
   key        TEXT PRIMARY KEY,
@@ -462,8 +460,10 @@ ALTER TABLE attachments ADD COLUMN url TEXT;
 // schemaV25 grows items_fts by the cjk_bigram column (CJK mid-compound
 // search, GDK-259 / docs/decisions/0009). The DDL change itself is owned by
 // itemsFTSCreate: repairItemsFTS rebuilds the index at Open when the stored
-// CREATE differs, and that rebuild — not this statement — is the migration.
-// This entry exists so PRAGMA user_version (and with it
+// CREATE differs, and that rebuild — not this statement — is the migration
+// for databases created before the column existed. (Fresh databases get the
+// four-column table straight from schemaV1, which splices itemsFTSCreate —
+// GDK-444.) This entry exists so PRAGMA user_version (and with it
 // sync_state.schema_version) moves to the documented level; the body is a
 // no-op on purpose.
 const schemaV25 = `SELECT 1`

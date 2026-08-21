@@ -145,9 +145,19 @@ func TestOpenRepairsSnapshotFTSBeforeWrite(t *testing.T) {
 // costs one sqlite_master row read on the happy path and must stay quiet.
 func TestOpenLeavesCanonicalFTSAlone(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "gadak.db")
-	db, err := Open(path)
+	// The very first Open — the one that creates the database — must already
+	// be quiet: a fresh mirror born diverged means every install's first
+	// command opens with a scary rebuild line (GDK-444).
+	var db *DB
+	var err error
+	logged := captureLog(t, func() {
+		db, err = Open(path)
+	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if strings.Contains(logged, "items_fts") {
+		t.Errorf("creating Open rebuilt items_fts; log: %s", logged)
 	}
 	var before string
 	if err := db.sql.QueryRow(`SELECT sql FROM sqlite_master WHERE name='items_fts'`).Scan(&before); err != nil {
@@ -158,7 +168,7 @@ func TestOpenLeavesCanonicalFTSAlone(t *testing.T) {
 	}
 
 	var reopened *DB
-	logged := captureLog(t, func() {
+	logged = captureLog(t, func() {
 		reopened, err = Open(path)
 	})
 	if err != nil {
@@ -177,30 +187,12 @@ func TestOpenLeavesCanonicalFTSAlone(t *testing.T) {
 	}
 }
 
-// itemsFTSCreate is schemaV1's statement plus the one sanctioned addition:
-// the cjk_bigram column (v25 / GDK-259). schemaV1 itself cannot grow —
-// migrations are append-only — so the weld pins everything except that
-// column. Any drift beyond it means every healthy mirror looks diverged and
-// gets rebuilt on every Open.
+// schemaV1 splices itemsFTSCreate verbatim (GDK-444), so a fresh database is
+// born matching the canonical shape and the first Open stays quiet. Any drift
+// means every new mirror looks diverged and gets rebuilt at creation.
 func TestItemsFTSCreateMatchesSchemaV1(t *testing.T) {
-	const marker = "CREATE VIRTUAL TABLE items_fts"
-	start := strings.Index(schemaV1, marker)
-	if start < 0 {
-		t.Fatal("schemaV1 no longer creates items_fts")
-	}
-	end := strings.Index(schemaV1[start:], ");")
-	if end < 0 {
-		t.Fatal("schemaV1 items_fts statement is not terminated")
-	}
-	v1FTS := schemaV1[start : start+end+2]
-
-	sanctioned := strings.Replace(normalizeFTSDDL(itemsFTSCreate),
-		"comments_text, cjk_bigram,", "comments_text,", 1)
-	if strings.Contains(sanctioned, "cjk_bigram") {
-		t.Fatal("cjk_bigram appears in itemsFTSCreate beyond the single fourth column — update this weld deliberately")
-	}
-	if got := normalizeFTSDDL(v1FTS); got != sanctioned {
-		t.Fatalf("itemsFTSCreate drifted from schemaV1 beyond the cjk_bigram column\n got: %q\nwant: %q", got, sanctioned)
+	if !strings.Contains(normalizeFTSDDL(schemaV1), normalizeFTSDDL(itemsFTSCreate)) {
+		t.Fatal("schemaV1 no longer contains itemsFTSCreate — a fresh mirror would be born diverged (GDK-444)")
 	}
 }
 
