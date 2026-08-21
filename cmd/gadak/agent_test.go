@@ -100,6 +100,8 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			{"id":"10001","name":"완료","statusCategory":{"key":"done"}}]`))
 	case path == "/priority":
 		_, _ = w.Write(f.prioritiesJSON())
+	case path == "/resolution":
+		_, _ = w.Write([]byte(`[{"id":"10000","name":"Done"},{"id":"10002","name":"Won't Do"}]`))
 	case path == "/search/jql":
 		if f.rereadStatus != 0 {
 			w.WriteHeader(f.rereadStatus)
@@ -854,7 +856,9 @@ func (s *searchUsersStub) EditIssue(context.Context, string, map[string]any, map
 func (s *searchUsersStub) Transitions(context.Context, string) ([]jira.Transition, error) {
 	return nil, errStub
 }
-func (s *searchUsersStub) Transition(context.Context, string, string) error { return errStub }
+func (s *searchUsersStub) Transition(context.Context, string, string, map[string]any, json.RawMessage) error {
+	return errStub
+}
 func (s *searchUsersStub) AddComment(context.Context, string, json.RawMessage) (jira.Comment, error) {
 	return jira.Comment{}, errStub
 }

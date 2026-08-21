@@ -30,7 +30,7 @@ type Writer interface {
 	UpdateFields(ctx context.Context, key string, fields map[string]any) error
 	EditIssue(ctx context.Context, key string, fields, update map[string]any) error
 	Transitions(ctx context.Context, key string) ([]jira.Transition, error)
-	Transition(ctx context.Context, key, transitionID string) error
+	Transition(ctx context.Context, key, transitionID string, fields map[string]any, comment json.RawMessage) error
 	AddComment(ctx context.Context, key string, adf json.RawMessage) (jira.Comment, error)
 	SetAssignee(ctx context.Context, key, accountID string) error
 	SearchUsers(ctx context.Context, query string) ([]jira.User, error)

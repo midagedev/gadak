@@ -91,7 +91,10 @@ func jiraCategoryKey(stateType string) string {
 	}
 }
 
-func (w *linearWriter) Transition(ctx context.Context, key, transitionID string) error {
+func (w *linearWriter) Transition(ctx context.Context, key, transitionID string, fields map[string]any, comment json.RawMessage) error {
+	if len(fields) > 0 || len(comment) > 0 {
+		return fmt.Errorf("linear transitions do not carry screen fields")
+	}
 	iss, err := w.resolve(ctx, key)
 	if err != nil {
 		return err

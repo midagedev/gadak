@@ -76,12 +76,26 @@ func (c *Client) Myself(ctx context.Context) (User, error) {
 	return u, c.do(ctx, http.MethodGet, apiPath+"/myself", nil, &u)
 }
 
+// TransitionField is the subset of a transition screen field the write path
+// uses: required, a display name, the schema type, and closed-set values.
+// Names in AllowedValues are localized per account; writes send the id.
+type TransitionField struct {
+	Required bool   `json:"required"`
+	Name     string `json:"name"`
+	Schema   struct {
+		Type string `json:"type"`
+	} `json:"schema"`
+	AllowedValues []NamedID `json:"allowedValues"`
+}
+
 // Transition is one available status change, with the target's category so the
-// UI can colour it without knowing the site's status names.
+// UI can colour it without knowing the site's status names. Fields is the
+// screen Jira returned for expand=transitions.fields (often empty).
 type Transition struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	To   Status `json:"to"`
+	ID     string                     `json:"id"`
+	Name   string                     `json:"name"`
+	To     Status                     `json:"to"`
+	Fields map[string]TransitionField `json:"fields"`
 }
 
 // Transitions lists the status changes Jira will currently accept on key.
@@ -95,12 +109,30 @@ func (c *Client) Transitions(ctx context.Context, key string) ([]Transition, err
 	return out.Transitions, c.do(ctx, http.MethodGet, p, nil, &out)
 }
 
-// Transition performs the transition id on key. It uses the write retry
-// policy: only 429 and 503 are retried, because a 500 may mean Jira already
-// acted.
-func (c *Client) Transition(ctx context.Context, key, transitionID string) error {
+// Transition performs the transition id on key. fields and comment are omitted
+// from the body when empty — a screen that does not list a field rejects it
+// with 400, so an empty map is not sent. comment is ADF (callers use Doc).
+// Only 429 and 503 are retried, because a 500 may mean Jira already acted.
+func (c *Client) Transition(ctx context.Context, key, transitionID string, fields map[string]any, comment json.RawMessage) error {
 	body := map[string]any{"transition": map[string]string{"id": transitionID}}
+	if len(fields) > 0 {
+		body["fields"] = fields
+	}
+	if len(comment) > 0 {
+		body["update"] = map[string]any{
+			"comment": []any{
+				map[string]any{"add": map[string]any{"body": comment}},
+			},
+		}
+	}
 	return c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/transitions", apiPath, url.PathEscape(key)), body, nil)
+}
+
+// Resolutions is GET /rest/api/3/resolution — the site catalog. Names are in
+// the account language; writes should send the id.
+func (c *Client) Resolutions(ctx context.Context) ([]NamedID, error) {
+	var list []NamedID
+	return list, c.do(ctx, http.MethodGet, apiPath+"/resolution", nil, &list)
 }
 
 // AddComment posts an ADF body (not plain text). Mentions must already be

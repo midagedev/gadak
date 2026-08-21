@@ -81,3 +81,59 @@ func TestEditIssuePUTBody(t *testing.T) {
 		t.Errorf("both payload: %s", got[2])
 	}
 }
+
+// Contract: Transition is the single place that builds the POST body.
+// Empty fields/comment omit those keys so the bytes match an id-only request.
+func TestTransitionPOSTBody(t *testing.T) {
+	var got []string
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got = append(got, string(b))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	ctx := context.Background()
+
+	if err := c.Transition(ctx, "NMB-1", "31", nil, nil); err != nil {
+		t.Fatalf("id-only: %v", err)
+	}
+	if err := c.Transition(ctx, "NMB-1", "31", map[string]any{}, nil); err != nil {
+		t.Fatalf("empty fields: %v", err)
+	}
+	if err := c.Transition(ctx, "NMB-1", "41", map[string]any{"resolution": map[string]string{"id": "10002"}}, nil); err != nil {
+		t.Fatalf("fields: %v", err)
+	}
+	adf := Doc("closing out", nil)
+	if err := c.Transition(ctx, "NMB-1", "31", nil, adf); err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+
+	if len(got) != 4 {
+		t.Fatalf("calls=%d bodies=%v", len(got), got)
+	}
+	if got[0] != `{"transition":{"id":"31"}}` {
+		t.Errorf("id-only %s", got[0])
+	}
+	if got[1] != `{"transition":{"id":"31"}}` {
+		t.Errorf("empty fields must omit the key: %s", got[1])
+	}
+	var withFields map[string]any
+	if err := json.Unmarshal([]byte(got[2]), &withFields); err != nil {
+		t.Fatalf("fields body %s: %v", got[2], err)
+	}
+	if _, ok := withFields["update"]; ok {
+		t.Errorf("fields-only must omit update: %s", got[2])
+	}
+	if !strings.Contains(got[2], `"id":"10002"`) || !strings.Contains(got[2], `"id":"41"`) {
+		t.Errorf("fields payload: %s", got[2])
+	}
+	var withComment map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(got[3]), &withComment); err != nil {
+		t.Fatalf("comment body %s: %v", got[3], err)
+	}
+	if _, ok := withComment["fields"]; ok {
+		t.Errorf("comment-only must omit fields: %s", got[3])
+	}
+	if !strings.Contains(got[3], `"type":"doc"`) || !strings.Contains(got[3], "closing out") {
+		t.Errorf("comment ADF: %s", got[3])
+	}
+}

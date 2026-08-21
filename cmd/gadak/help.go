@@ -412,12 +412,13 @@ var helps = map[string]cmdHelp{
 	},
 	"transition": {
 		summary: "change issue status; accepts transition id, target status id, name, target status name, or status category new|inprogress|done",
-		usage:   "gadak [--workspace <name>] transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]",
+		usage:   "gadak [--workspace <name>] transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--resolution name|id] [--field key=JSON]... [-m text] [--json]",
 		examples: []string{
 			"gadak transition NMB-140 \"In Review\"",
 			"gadak transition NMB-140 31",
 			"gadak transition NMB-140 done",
-			"gadak transition NMB-140 Done --json",
+			"gadak transition NMB-140 done --resolution \"Won't Do\"",
+			"gadak transition NMB-140 done -m \"fixed in 1.2\"",
 		},
 		seeAlso: []string{"gadak comment", "gadak assign", "gadak issue"},
 	},

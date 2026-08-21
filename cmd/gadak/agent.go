@@ -1465,9 +1465,15 @@ func cmdComment(args []string) error {
 	})
 }
 
+const transitionUsage = "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--resolution name|id] [--field key=JSON]... [-m text] [--json]"
+
 func cmdTransition(args []string) error {
 	fs := newFlagSet("transition")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	resolution := fs.String("resolution", "", "resolution name or id; a name is resolved from the transition's allowedValues, else GET /resolution")
+	var fieldFlags labelFlags
+	fs.Var(&fieldFlags, "field", "screen field as key=JSON (repeatable); a value that is not JSON is sent as a string")
+	text := fs.String("m", "", "comment posted with the transition; `-` reads it from stdin")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("transition", fs))
 		return nil
@@ -1477,14 +1483,29 @@ func cmdTransition(args []string) error {
 		return err
 	}
 	if len(pos) < 1 {
-		return usageError("transition", "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--json]")
+		return usageError("transition", transitionUsage)
 	}
 	key := normalizeKey(pos[0])
 	if len(pos) < 2 {
+		if strings.TrimSpace(*resolution) != "" || len(fieldFlags) > 0 || *text != "" {
+			return usageError("transition", transitionUsage)
+		}
 		return listTransitions(key, *asJSON)
 	}
 	// Trailing words join the target so an unquoted `In Review` still works.
 	want := strings.TrimSpace(strings.Join(pos[1:], " "))
+
+	body := *text
+	if body == "-" {
+		buf, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		body = string(buf)
+		if strings.TrimSpace(body) == "" {
+			return errors.New("empty comment — pass -m <text>, or -m - to read stdin")
+		}
+	}
 
 	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		list, err := c.Transitions(ctx, key)
@@ -1495,7 +1516,25 @@ func cmdTransition(args []string) error {
 		if err != nil {
 			return nil, err
 		}
-		return nil, c.Transition(ctx, key, id)
+		selected := transitionByID(list, id)
+		fields, err := assembleTransitionFields(ctx, c, selected, *resolution, fieldFlags)
+		if err != nil {
+			return nil, err
+		}
+		if missing := missingRequiredFields(selected, fields); len(missing) > 0 {
+			return nil, requiredTransitionFieldsError(key, selected, missing)
+		}
+		var comment json.RawMessage
+		if strings.TrimSpace(body) != "" {
+			comment = jira.Doc(body, nil)
+		}
+		if err := c.Transition(ctx, key, id, fields, comment); err != nil {
+			if hint := describeTransitionFields(selected); hint != "" {
+				return nil, fmt.Errorf("%w\n%s", err, hint)
+			}
+			return nil, err
+		}
+		return nil, nil
 	})
 }
 
@@ -1640,6 +1679,186 @@ func noTransitionMatch(key, want string, list []jira.Transition) error {
 		msg += "\nalso accepts a status category: " + strings.Join(cats, ", ")
 	}
 	return errors.New(msg)
+}
+
+func transitionByID(list []jira.Transition, id string) jira.Transition {
+	for _, t := range list {
+		if t.ID == id {
+			return t
+		}
+	}
+	return jira.Transition{ID: id}
+}
+
+func assembleTransitionFields(ctx context.Context, c origin.Writer, selected jira.Transition, resolution string, raw labelFlags) (map[string]any, error) {
+	fields, err := parseTransitionFieldFlags(raw)
+	if err != nil {
+		return nil, err
+	}
+	if r := strings.TrimSpace(resolution); r != "" {
+		val, err := resolveTransitionResolution(ctx, c, selected, r)
+		if err != nil {
+			return nil, err
+		}
+		if fields == nil {
+			fields = map[string]any{}
+		}
+		fields["resolution"] = val
+	}
+	return fields, nil
+}
+
+func parseTransitionFieldFlags(raw []string) (map[string]any, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]any, len(raw))
+	for _, item := range raw {
+		key, val, ok := strings.Cut(item, "=")
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			return nil, fmt.Errorf("--field expects key=JSON, got %q", item)
+		}
+		var parsed any
+		if err := json.Unmarshal([]byte(val), &parsed); err != nil {
+			out[key] = val
+		} else {
+			out[key] = parsed
+		}
+	}
+	return out, nil
+}
+
+// resolutionCatalog is the origin method that lists GET /resolution. *jira.Client
+// implements it; Linear does not (screen fields are refused on Transition).
+type resolutionCatalog interface {
+	Resolutions(context.Context) ([]jira.NamedID, error)
+}
+
+func resolveTransitionResolution(ctx context.Context, c origin.Writer, selected jira.Transition, want string) (map[string]string, error) {
+	want = strings.TrimSpace(want)
+	if want == "" {
+		return nil, errors.New("empty --resolution")
+	}
+	if allASCIIDigits(want) {
+		return map[string]string{"id": want}, nil
+	}
+	var catalog []jira.NamedID
+	if f, ok := selected.Fields["resolution"]; ok {
+		catalog = f.AllowedValues
+	} else {
+		rc, ok := c.(resolutionCatalog)
+		if !ok {
+			return nil, fmt.Errorf("no resolution matching %q — this origin does not expose a resolution catalog", want)
+		}
+		var err error
+		catalog, err = rc.Resolutions(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	id, err := matchResolution(want, catalog)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{"id": id}, nil
+}
+
+func matchResolution(want string, list []jira.NamedID) (string, error) {
+	var hits []jira.NamedID
+	for _, p := range list {
+		if p.ID == want || strings.EqualFold(p.Name, want) {
+			hits = append(hits, p)
+		}
+	}
+	switch len(hits) {
+	case 1:
+		return hits[0].ID, nil
+	case 0:
+		return "", fmt.Errorf("no resolution matching %q — available: %s", want, formatNamedIDs(list))
+	default:
+		return "", fmt.Errorf("resolution %q is ambiguous — matches: %s", want, formatNamedIDs(hits))
+	}
+}
+
+func formatNamedIDs(list []jira.NamedID) string {
+	if len(list) == 0 {
+		return "(none)"
+	}
+	parts := make([]string, 0, len(list))
+	for _, n := range list {
+		if n.Name != "" {
+			parts = append(parts, n.Name)
+		} else {
+			parts = append(parts, n.ID)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+func allASCIIDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func missingRequiredFields(t jira.Transition, provided map[string]any) []string {
+	if len(t.Fields) == 0 {
+		return nil
+	}
+	var missing []string
+	for k, f := range t.Fields {
+		if !f.Required {
+			continue
+		}
+		if _, ok := provided[k]; ok {
+			continue
+		}
+		missing = append(missing, k)
+	}
+	sort.Strings(missing)
+	return missing
+}
+
+func requiredTransitionFieldsError(key string, t jira.Transition, missing []string) error {
+	parts := make([]string, 0, len(missing))
+	for _, k := range missing {
+		parts = append(parts, formatTransitionField(k, t.Fields[k]))
+	}
+	return fmt.Errorf("%s %s requires: %s", key, t.Name, strings.Join(parts, "; "))
+}
+
+func formatTransitionField(key string, f jira.TransitionField) string {
+	part := key
+	if f.Name != "" {
+		part += " (" + f.Name + ")"
+	}
+	if names := formatNamedIDs(f.AllowedValues); names != "" && names != "(none)" {
+		part += " — allowed: " + names
+	}
+	return part
+}
+
+func describeTransitionFields(t jira.Transition) string {
+	if len(t.Fields) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(t.Fields))
+	for k := range t.Fields {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, formatTransitionField(k, t.Fields[k]))
+	}
+	return "this transition exposes: " + strings.Join(parts, "; ")
 }
 
 func reachableCategories(list []jira.Transition) []string {

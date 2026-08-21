@@ -467,7 +467,9 @@ func (s *server) handleTransitions(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		TransitionID string `json:"transition_id"`
+		TransitionID string         `json:"transition_id"`
+		Fields       map[string]any `json:"fields"`
+		Comment      string         `json:"comment"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TransitionID == "" {
 		fail(w, http.StatusBadRequest, "transition_id_required")
@@ -475,7 +477,11 @@ func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 	}
 	key := r.PathValue("key")
 	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
-		return nil, c.Transition(ctx, key, body.TransitionID)
+		var comment json.RawMessage
+		if strings.TrimSpace(body.Comment) != "" {
+			comment = jira.Doc(body.Comment, nil)
+		}
+		return nil, c.Transition(ctx, key, body.TransitionID, body.Fields, comment)
 	})
 }
 

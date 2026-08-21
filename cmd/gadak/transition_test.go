@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 // Contract ↔ assertion (GDK-161; clause numbers match the task spec):
@@ -433,6 +435,9 @@ func TestTransitionHelpNamesCategory(t *testing.T) {
 		"target status id",
 		"gadak transition NMB-140 done",
 		"<transition-id|status-id|name|new|inprogress|done>",
+		"--resolution",
+		"--field",
+		"-m",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help missing %q\n%s", want, out)
@@ -460,5 +465,197 @@ func TestTransitionNoKeyIsUsage(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "usage: gadak transition <KEY>") {
 		t.Errorf("usage %q", err)
+	}
+}
+
+// requiredResolutionJSON is one done-category transition whose screen requires
+// resolution. allowedValues ids are deliberately different from the default
+// site catalog so a catalog lookup cannot accidentally satisfy the name test.
+const requiredResolutionJSON = `{"transitions":[
+	{"id":"41","name":"Resolve","to":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},
+	 "fields":{"resolution":{"required":true,"name":"Resolution","schema":{"type":"resolution"},
+	   "allowedValues":[{"id":"10099","name":"Won't Do"},{"id":"10000","name":"Done"}]}}}]}`
+
+func postedTransitionRaw(t *testing.T, f *fakeJira, key string) string {
+	t.Helper()
+	tag := "POST /issue/" + key + "/transitions"
+	body := f.bodies[tag]
+	if body == "" {
+		t.Fatalf("no POST body for %s; calls %v", tag, f.calls)
+	}
+	return body
+}
+
+func postedTransitionMap(t *testing.T, f *fakeJira, key string) map[string]json.RawMessage {
+	t.Helper()
+	raw := postedTransitionRaw(t, f, key)
+	var sent map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &sent); err != nil {
+		t.Fatalf("decode %s: %v", raw, err)
+	}
+	return sent
+}
+
+func TestTransitionRequiredResolutionRefusesWithoutFlag(t *testing.T) {
+	f := withTransitions(t, requiredResolutionJSON)
+	_, err := capture(t, func() error { return cmdTransition([]string{"NMB-1", "done"}) })
+	if err == nil {
+		t.Fatal("required resolution must refuse before POST")
+	}
+	mustNotTransition(t, f, "NMB-1")
+	msg := err.Error()
+	for _, want := range []string{"resolution", "Won't Do", "Done"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q missing %q", msg, want)
+		}
+	}
+}
+
+func TestTransitionResolutionNameUsesAllowedValues(t *testing.T) {
+	f := withTransitions(t, requiredResolutionJSON)
+	if _, err := capture(t, func() error {
+		return cmdTransition([]string{"NMB-1", "done", "--resolution", "Won't Do"})
+	}); err != nil {
+		t.Fatalf("resolution name: %v", err)
+	}
+	sent := postedTransitionMap(t, f, "NMB-1")
+	var fields struct {
+		Resolution struct {
+			ID string `json:"id"`
+		} `json:"resolution"`
+	}
+	if err := json.Unmarshal(sent["fields"], &fields); err != nil {
+		t.Fatalf("fields %s: %v", sent["fields"], err)
+	}
+	if fields.Resolution.ID != "10099" {
+		t.Fatalf("resolution id %q, want 10099 from allowedValues (not the catalog)", fields.Resolution.ID)
+	}
+}
+
+func TestTransitionResolutionDigitsAreID(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	if _, err := capture(t, func() error {
+		return cmdTransition([]string{"NMB-1", "done", "--resolution", "10002"})
+	}); err != nil {
+		t.Fatalf("resolution id: %v", err)
+	}
+	sent := postedTransitionMap(t, f, "NMB-1")
+	var fields struct {
+		Resolution struct {
+			ID string `json:"id"`
+		} `json:"resolution"`
+	}
+	if err := json.Unmarshal(sent["fields"], &fields); err != nil {
+		t.Fatalf("fields %s: %v", sent["fields"], err)
+	}
+	if fields.Resolution.ID != "10002" {
+		t.Fatalf("resolution id %q, want 10002 as typed", fields.Resolution.ID)
+	}
+}
+
+func TestTransitionResolutionNameUsesCatalogWhenNotOnScreen(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	if _, err := capture(t, func() error {
+		return cmdTransition([]string{"NMB-1", "done", "--resolution", "Won't Do"})
+	}); err != nil {
+		t.Fatalf("catalog name: %v", err)
+	}
+	sent := postedTransitionMap(t, f, "NMB-1")
+	var fields struct {
+		Resolution struct {
+			ID string `json:"id"`
+		} `json:"resolution"`
+	}
+	if err := json.Unmarshal(sent["fields"], &fields); err != nil {
+		t.Fatalf("fields %s: %v", sent["fields"], err)
+	}
+	if fields.Resolution.ID != "10002" {
+		t.Fatalf("resolution id %q, want 10002 from GET /resolution", fields.Resolution.ID)
+	}
+}
+
+func TestTransitionResolutionUnknownNameListsCatalog(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	_, err := capture(t, func() error {
+		return cmdTransition([]string{"NMB-1", "done", "--resolution", "Mystery"})
+	})
+	if err == nil {
+		t.Fatal("unknown resolution name must refuse")
+	}
+	mustNotTransition(t, f, "NMB-1")
+	msg := err.Error()
+	for _, want := range []string{"Mystery", "Done", "Won't Do"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q missing %q", msg, want)
+		}
+	}
+}
+
+func TestTransitionCommentSendsADFUpdate(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	if _, err := capture(t, func() error {
+		return cmdTransition([]string{"NMB-1", "done", "-m", "closing out"})
+	}); err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	sent := postedTransitionMap(t, f, "NMB-1")
+	var update struct {
+		Comment []struct {
+			Add struct {
+				Body json.RawMessage `json:"body"`
+			} `json:"add"`
+		} `json:"comment"`
+	}
+	if err := json.Unmarshal(sent["update"], &update); err != nil {
+		t.Fatalf("update %s: %v", sent["update"], err)
+	}
+	if len(update.Comment) != 1 {
+		t.Fatalf("comment ops %d, want 1; %s", len(update.Comment), sent["update"])
+	}
+	want := string(jira.Doc("closing out", nil))
+	if string(update.Comment[0].Add.Body) != want {
+		t.Fatalf("comment ADF %s, want %s", update.Comment[0].Add.Body, want)
+	}
+}
+
+func TestTransitionWithoutFlagsOmitsFieldsAndUpdate(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	if _, err := capture(t, func() error { return cmdTransition([]string{"NMB-1", "done"}) }); err != nil {
+		t.Fatalf("done: %v", err)
+	}
+	raw := postedTransitionRaw(t, f, "NMB-1")
+	if raw != `{"transition":{"id":"31"}}` {
+		t.Fatalf("POST body %q, want exactly {\"transition\":{\"id\":\"31\"}}", raw)
+	}
+}
+
+func TestTransitionFieldJSONAndString(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	if _, err := capture(t, func() error {
+		return cmdTransition([]string{
+			"NMB-1", "done",
+			"--field", `customfield_10010={"id":"3"}`,
+			"--field", "environment=staging",
+		})
+	}); err != nil {
+		t.Fatalf("--field: %v", err)
+	}
+	sent := postedTransitionMap(t, f, "NMB-1")
+	var fields map[string]any
+	if err := json.Unmarshal(sent["fields"], &fields); err != nil {
+		t.Fatalf("fields %s: %v", sent["fields"], err)
+	}
+	obj, _ := fields["customfield_10010"].(map[string]any)
+	if obj["id"] != "3" {
+		t.Fatalf("customfield_10010 %v, want {\"id\":\"3\"}", fields["customfield_10010"])
+	}
+	if fields["environment"] != "staging" {
+		t.Fatalf("environment %v, want string staging", fields["environment"])
 	}
 }

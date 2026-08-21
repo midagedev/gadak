@@ -223,6 +223,28 @@ func TestAddCommentPostsMarkdown(t *testing.T) {
 	}
 }
 
+func TestTransitionRefusesScreenFields(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	ctx := context.Background()
+	err := w.Transition(ctx, "FIX-1", "state-1", map[string]any{"resolution": map[string]string{"id": "1"}}, nil)
+	if err == nil {
+		t.Fatal("fields were accepted")
+	}
+	if !strings.Contains(err.Error(), "linear transitions do not carry screen fields") {
+		t.Errorf("error %q", err)
+	}
+	err = w.Transition(ctx, "FIX-1", "state-1", nil, json.RawMessage(`{"type":"doc","version":1}`))
+	if err == nil {
+		t.Fatal("comment was accepted")
+	}
+	if !strings.Contains(err.Error(), "linear transitions do not carry screen fields") {
+		t.Errorf("error %q", err)
+	}
+	if rec.updates != 0 || len(rec.queries) != 0 {
+		t.Errorf("refuse must stay local; updates=%d queries=%d", rec.updates, len(rec.queries))
+	}
+}
+
 func TestTransitionsMapLinearStates(t *testing.T) {
 	w, _ := testLinearWriter(t)
 	list, err := w.Transitions(context.Background(), "FIX-1")

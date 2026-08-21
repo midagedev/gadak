@@ -210,6 +210,60 @@ func send(t *testing.T, h http.Handler, method, path, body string) *httptest.Res
 	return rec
 }
 
+func TestTransitionRESTForwardsFieldsAndComment(t *testing.T) {
+	f, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/",
+		`{"transition_id":"31","fields":{"resolution":{"id":"10002"}},"comment":"closing out"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	raw := f.bodies["POST /issue/NMB-1/transitions"]
+	var sent map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sent); err != nil {
+		t.Fatalf("decode %s: %v", raw, err)
+	}
+	var fields struct {
+		Resolution struct {
+			ID string `json:"id"`
+		} `json:"resolution"`
+	}
+	if err := json.Unmarshal(sent["fields"], &fields); err != nil {
+		t.Fatalf("fields %s: %v", sent["fields"], err)
+	}
+	if fields.Resolution.ID != "10002" {
+		t.Fatalf("resolution id %q", fields.Resolution.ID)
+	}
+	var update struct {
+		Comment []struct {
+			Add struct {
+				Body json.RawMessage `json:"body"`
+			} `json:"add"`
+		} `json:"comment"`
+	}
+	if err := json.Unmarshal(sent["update"], &update); err != nil {
+		t.Fatalf("update %s: %v", sent["update"], err)
+	}
+	if len(update.Comment) != 1 {
+		t.Fatalf("comment ops %d; %s", len(update.Comment), sent["update"])
+	}
+	want := string(jira.Doc("closing out", nil))
+	if string(update.Comment[0].Add.Body) != want {
+		t.Fatalf("comment ADF %s, want %s", update.Comment[0].Add.Body, want)
+	}
+}
+
+func TestTransitionRESTWithoutExtrasOmitsFieldsAndUpdate(t *testing.T) {
+	f, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"31"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	raw := string(f.bodies["POST /issue/NMB-1/transitions"])
+	if raw != `{"transition":{"id":"31"}}` {
+		t.Fatalf("POST body %q, want exactly {\"transition\":{\"id\":\"31\"}}", raw)
+	}
+}
+
 func TestTransitionWritesThroughToTheMirror(t *testing.T) {
 	f, h, _ := writable(t)
 
