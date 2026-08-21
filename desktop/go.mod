@@ -20,7 +20,7 @@ require (
 	github.com/jchv/go-winloader v0.0.0-20250406163304-c1995be93bd1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
-	github.com/midagedev/issuetap v0.0.0-20260821221655-52df0e3fbcec // indirect
+	github.com/midagedev/issuetap v0.0.0-20260821223605-de578d728d16 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
