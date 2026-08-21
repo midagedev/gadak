@@ -23,7 +23,13 @@ theme-check:
 # schema bump or date staleness makes the fixture drift from the code.
 demo-fixture:
 	go run ./cmd/gadak snapshot examples/demo.db.new --from examples/demo.db --spread 90d --seed 1
-	mv examples/demo.db.new examples/demo.db
+	# The committed fixture is opened raw by Datasette Lite (GDK-101): the
+	# scrub re-checks fictional values and rebuilds items_fts without
+	# contentless_delete. Skipping it is exactly how a regen went red on CI
+	# (2026-08-21: Lite gate + empty FTS).
+	python3 scripts/scrub-demo-db.py examples/demo.db.new examples/demo.db
+	rm examples/demo.db.new
+	bash scripts/scan-internal.sh
 	bash tools/doc-checks.sh
 
 # Zero-install hosted demo (static UI + demo.db snapshot for GitHub Pages).

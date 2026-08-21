@@ -3,12 +3,47 @@ package snapshot
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/midagedev/gadak/internal/store"
 )
+
+// migratedCopy migrates a scratch copy of the source and hands back its path.
+// The source may sit at an older schema, and a raw read would silently drop
+// everything a later migration derives — the v15 demo fixture regenerated
+// without this lost every item_refs row, and with them the issue↔document
+// cross-links (GDK-114). The caller's file is never touched.
+func migratedCopy(path string) (string, func(), error) {
+	dir, err := os.MkdirTemp("", "gadak-snap-src-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { os.RemoveAll(dir) }
+	tmp := filepath.Join(dir, "src.db")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	sdb, err := store.Open(tmp)
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("migrate source copy: %w", err)
+	}
+	if err := sdb.Close(); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	return tmp, cleanup, nil
+}
 
 func buildInto(tmp string, opts Options) error {
 	// Fresh schema via the same migration path as a live mirror.
@@ -21,7 +56,12 @@ func buildInto(tmp string, opts Options) error {
 		return err
 	}
 
-	src, err := openSQLite(opts.From, true)
+	srcPath, srcCleanup, err := migratedCopy(opts.From)
+	if err != nil {
+		return err
+	}
+	defer srcCleanup()
+	src, err := openSQLite(srcPath, true)
 	if err != nil {
 		return fmt.Errorf("open source: %w", err)
 	}
