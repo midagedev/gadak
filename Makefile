@@ -17,6 +17,15 @@ typecheck:
 theme-check:
 	node tools/theme-check.mjs
 
+# Regenerate the demo fixture at the current schema with dates re-spread
+# over the trailing 90 days (GDK-114). Content comes from the existing
+# fixture, so the issue count (doc-checks #3) stays put; run this when a
+# schema bump or date staleness makes the fixture drift from the code.
+demo-fixture:
+	go run ./cmd/gadak snapshot examples/demo.db.new --from examples/demo.db --spread 90d --seed 1
+	mv examples/demo.db.new examples/demo.db
+	bash tools/doc-checks.sh
+
 # Zero-install hosted demo (static UI + demo.db snapshot for GitHub Pages).
 # Output: dist/hosted/. Does not touch dist/app (go:embed).
 hosted-demo: build
