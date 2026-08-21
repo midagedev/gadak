@@ -41,6 +41,7 @@ type doctorReport struct {
 	MirrorPath      string                `json:"mirror_path"`
 	Mirror          doctorMirror          `json:"mirror"`
 	SchemaVersion   *int                  `json:"schema_version"`
+	SchemaSinceSync string                `json:"schema_since_sync,omitempty"`
 	Migrations      string                `json:"migrations"`
 	Counts          *doctorCounts         `json:"counts"`
 	Confluence      string                `json:"confluence"`
@@ -278,6 +279,7 @@ func collectDoctor() doctorReport {
 	} else {
 		rep.Migrations = "none"
 	}
+	rep.SchemaSinceSync = doctorSchemaSinceSync(db, sv)
 
 	counts := &doctorCounts{}
 	if n, err := db.TableCount(context.Background(), "items"); err == nil {
@@ -427,6 +429,37 @@ func readClaudeMCPConfig(path string) (claudeMCPConfig, bool) {
 	return cfg, true
 }
 
+// doctorSchemaSinceSync names a lag between PRAGMA user_version and the
+// sync_state.schema_version column. The column is only rewritten when a
+// migration actually runs, so a later Open can leave it behind (GDK-526).
+func doctorSchemaSinceSync(db *store.DB, live int) string {
+	seen := map[int]struct{}{}
+	var stale []int
+	for _, src := range []string{"jira", "confluence"} {
+		ss, err := db.SyncState(context.Background(), src)
+		if err != nil {
+			continue
+		}
+		row := ss.SchemaVersionRow
+		if row <= 0 || row == live {
+			continue
+		}
+		if _, ok := seen[row]; ok {
+			continue
+		}
+		seen[row] = struct{}{}
+		stale = append(stale, row)
+	}
+	if len(stale) == 0 {
+		return ""
+	}
+	parts := make([]string, len(stale))
+	for i, n := range stale {
+		parts[i] = strconv.Itoa(n)
+	}
+	return "migrated since last sync (sync_state has " + strings.Join(parts, ", ") + ")"
+}
+
 func collectSync(db *store.DB, sourceID string) doctorSync {
 	out := doctorSync{
 		SyncedAt:   "never",
@@ -498,6 +531,9 @@ func formatDoctorText(r doctorReport) string {
 		line("schema_version", strconv.Itoa(*r.SchemaVersion))
 	} else {
 		line("schema_version", "unknown")
+	}
+	if r.SchemaSinceSync != "" {
+		line("schema_since_sync", r.SchemaSinceSync)
 	}
 	line("migrations", r.Migrations)
 

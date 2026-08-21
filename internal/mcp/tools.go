@@ -403,7 +403,7 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	}
 	st["watermark"] = ss.Watermark
 	st["version"] = ss.Version
-	st["schema_version"] = ss.SchemaVersion
+	st["schema_version"] = ss.SchemaVersion // live PRAGMA; SyncState is the owner (GDK-526)
 	st["sync_count"] = ss.SyncCount
 	if ss.FirstSyncAt != nil {
 		st["first_sync_at"] = *ss.FirstSyncAt

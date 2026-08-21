@@ -397,6 +397,74 @@ func TestStatusSurfacesPairing(t *testing.T) {
 	}
 }
 
+// GDK-526: gadak_status.schema_version is the live PRAGMA, not the lagging
+// sync_state column. Other freshness fields still come from the row.
+func TestStatusSchemaVersionMatchesLivePRAGMA(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	path := filepath.Join(home, "gadak.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, store.Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	const watermark = "2026-01-15T12:00:00.000Z"
+	if err := db.RecordSync(ctx, "jira", store.SyncResult{Watermark: watermark}); err != nil {
+		t.Fatal(err)
+	}
+	live := db.SchemaVersion()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	stale := live - 5
+	if stale < 1 {
+		t.Fatalf("live schema %d is too low to plant a stale value", live)
+	}
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`UPDATE sync_state SET schema_version = ?, last_error = ?, version = ?`, stale, "planted last_error", 77); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	resps := session(t, path,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"gadak_status","arguments":{}}}`,
+	)
+	statusText := callText(t, resps[0])
+	var status map[string]any
+	if err := json.Unmarshal([]byte(statusText), &status); err != nil {
+		t.Fatalf("status JSON: %v\n%s", err, statusText)
+	}
+	got, _ := status["schema_version"].(float64)
+	if int(got) != live {
+		t.Fatalf("gadak_status schema_version = %v, want live PRAGMA %d (row planted at %d)", status["schema_version"], live, stale)
+	}
+	if status["watermark"] != watermark {
+		t.Errorf("watermark = %v, want %q", status["watermark"], watermark)
+	}
+	if status["last_error"] != "planted last_error" {
+		t.Errorf("last_error = %v", status["last_error"])
+	}
+	if status["version"] != float64(77) {
+		t.Errorf("version = %v, want 77", status["version"])
+	}
+	synced, _ := status["synced_at"].(string)
+	if synced == "" {
+		t.Error("synced_at missing; must still come from the row")
+	}
+}
+
 func TestMissingDBToolError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nope.db")
 	resps := session(t, path,

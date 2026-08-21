@@ -37,7 +37,7 @@ func cmdStatus(args []string) error {
 	if ss, err := db.SyncState(context.Background(), "jira"); err == nil {
 		st["watermark"] = ss.Watermark
 		st["version"] = ss.Version
-		st["schema_version"] = ss.SchemaVersion
+		st["schema_version"] = ss.SchemaVersion // live PRAGMA; SyncState is the owner (GDK-526)
 		st["sync_count"] = ss.SyncCount
 		if ss.LastFullSyncAt != nil && *ss.LastFullSyncAt != "" {
 			st["last_full_sync_at"] = *ss.LastFullSyncAt

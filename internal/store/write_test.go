@@ -619,6 +619,68 @@ func TestDeltaWindow(t *testing.T) {
 	}
 }
 
+// GDK-526: sync_state.schema_version is only rewritten when a migration
+// actually runs (or a sync records bookkeeping). After later Open-time
+// migrations the column lags PRAGMA user_version. SyncState must still
+// report the live level so status/MCP/doctor cannot disagree.
+func TestSyncStateSchemaVersionFollowsPRAGMA(t *testing.T) {
+	db := openTemp(t)
+	seed(t, db)
+	ctx := context.Background()
+	const watermark = "2026-01-15T12:00:00.000Z"
+	if err := db.RecordSync(ctx, "jira", SyncResult{Watermark: watermark}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordSync(ctx, "jira", SyncResult{Err: fmt.Errorf("planted last_error")}); err != nil {
+		t.Fatal(err)
+	}
+	live := db.SchemaVersion()
+	stale := live - 5
+	if stale < 1 {
+		t.Fatalf("live schema %d is too low to plant a stale value", live)
+	}
+	const version int64 = 77
+	if _, err := db.sql.Exec(`UPDATE sync_state SET schema_version = ?, version = ? WHERE source_id = ?`, stale, version, "jira"); err != nil {
+		t.Fatal(err)
+	}
+	var col int
+	if err := db.sql.QueryRow(`SELECT schema_version FROM sync_state WHERE source_id = ?`, "jira").Scan(&col); err != nil {
+		t.Fatal(err)
+	}
+	if col != stale {
+		t.Fatalf("planted schema_version = %d, want %d", col, stale)
+	}
+
+	st, err := db.SyncState(ctx, "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.SchemaVersion != live {
+		t.Fatalf("SyncState.SchemaVersion = %d, want live PRAGMA %d (row still %d)", st.SchemaVersion, live, col)
+	}
+	if st.SchemaVersionRow != stale {
+		t.Errorf("SchemaVersionRow = %d, want planted %d", st.SchemaVersionRow, stale)
+	}
+	if st.Watermark != watermark {
+		t.Errorf("watermark = %q, want %q (must still come from the row)", st.Watermark, watermark)
+	}
+	if st.LastError == nil || *st.LastError != "planted last_error" {
+		t.Errorf("last_error = %v, want planted last_error", st.LastError)
+	}
+	if st.Version != version {
+		t.Errorf("version = %d, want %d (must still come from the row)", st.Version, version)
+	}
+	if st.SyncedAt == nil || *st.SyncedAt == "" {
+		t.Error("synced_at empty; successful RecordSync should have stamped it")
+	}
+	if err := db.sql.QueryRow(`SELECT schema_version FROM sync_state WHERE source_id = ?`, "jira").Scan(&col); err != nil {
+		t.Fatal(err)
+	}
+	if col != stale {
+		t.Fatalf("SyncState rewrote the row to %d, want it left at %d", col, stale)
+	}
+}
+
 func TestRecordSyncWatermarkOnlyMovesForward(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)

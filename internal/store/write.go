@@ -839,7 +839,16 @@ type SyncState struct {
 	Version        int64   `json:"version"`
 	LastFullSyncAt *string `json:"last_full_sync_at"`
 	LastError      *string `json:"last_error"`
-	SchemaVersion  int     `json:"schema_version"`
+	// SchemaVersion is the mirror's migration level (PRAGMA user_version).
+	// Diagnostic surfaces (status --json, MCP gadak_status, doctor) all
+	// publish this field. The sync_state.schema_version column can lag
+	// when Open migrates after the last sync wrote the row (GDK-526), so
+	// SyncState overwrites the scanned column with the live PRAGMA rather
+	// than introducing a second JSON name for the same fact.
+	SchemaVersion int `json:"schema_version"`
+	// SchemaVersionRow is the stored column. json omitted so it cannot
+	// collide with schema_version on the wire; doctor uses it to name a lag.
+	SchemaVersionRow int `json:"-"`
 	// FirstSyncAt is the first successful sync for this source (retention).
 	FirstSyncAt *string `json:"first_sync_at,omitempty"`
 	// SyncCount is the number of successful sync runs (retention).
@@ -860,7 +869,7 @@ func (db *DB) SyncState(ctx context.Context, sourceID string) (SyncState, error)
 		       st.first_sync_at, st.sync_count, st.last_notified_at
 		FROM sync_state st LEFT JOIN sources src ON src.id = st.source_id
 		WHERE st.source_id = ?`, sourceID).
-		Scan(&wm, &s.Version, &s.LastFullSyncAt, &s.LastError, &s.SchemaVersion, &s.SyncedAt,
+		Scan(&wm, &s.Version, &s.LastFullSyncAt, &s.LastError, &s.SchemaVersionRow, &s.SyncedAt,
 			&s.FirstSyncAt, &s.SyncCount, &s.LastNotifiedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, nil
@@ -871,6 +880,10 @@ func (db *DB) SyncState(ctx context.Context, sourceID string) (SyncState, error)
 	if wm != nil {
 		s.Watermark = *wm
 	}
+	// The column is the schema at last sync/migration write; PRAGMA
+	// user_version is the mirror. Publishing the column under
+	// schema_version made status and doctor disagree (GDK-526).
+	s.SchemaVersion = db.schemaVersion
 	return s, nil
 }
 
