@@ -152,6 +152,11 @@
   marshal 시점에 파생되므로 둘은 어긋날 수 없습니다. `gadak sql`의
   `no such column` 에러는 가장 가까운 실제 컬럼을 제안합니다
   (`issue_key` → `did you mean "key"?`).
+- **doctor가 거짓말하는 스키마 스탬프를 잡습니다** ([GDK-180]).
+  `user_version`은 한 스키마를, 실제 테이블은 다른 스키마를 말하는 미러
+  (라이브 카피 프랑켄슈타인)는 원시 SQL 에러로 죽었습니다 — 이제
+  `gadak doctor`가 이 빌드의 마이그레이션 결과와 파일을 대조해 "미러 손상
+  — 파일 삭제 후 gadak sync"를 안내합니다.
 - **`install-cli`가 Windows를 말합니다** ([GDK-353]). 기본 디렉터리가 유닉스
   관례 `~/.local/bin` 대신 `%LOCALAPPDATA%\Programs\gadak`가 되고, 권한
   힌트가 sudo를 권하지 않으며, 설치 시 `gadak-desktop.exe` 위치를 기록해
@@ -1655,6 +1660,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-350]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-350
 [GDK-351]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-351
+[GDK-180]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-180
 [GDK-255]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-255
 [GDK-316]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-316
 [GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353

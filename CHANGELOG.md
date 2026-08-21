@@ -157,6 +157,11 @@ the fixes are all here.
   `no such column` from `gadak sql` suggests the nearest real column
   (`issue_key` → `did you mean "key"?`) on the error instead of leaving
   the agent to guess.
+- **doctor catches a lying schema stamp** ([GDK-180]). A mirror whose
+  `user_version` says one schema while its tables say another (the
+  live-copy frankenstein) used to die in raw SQL errors; `gadak doctor`
+  now diffs the file against what this build's migrations produce and
+  says "mirror is damaged — delete the mirror file and run gadak sync".
 - **`install-cli` speaks Windows** ([GDK-353]). The default directory is
   `%LOCALAPPDATA%\Programs\gadak` instead of the unix `~/.local/bin`, the
   permission hint stops recommending sudo, and installing records where
@@ -1653,6 +1658,7 @@ measured numbers instead of adjectives.
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-350]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-350
 [GDK-351]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-351
+[GDK-180]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-180
 [GDK-255]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-255
 [GDK-316]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-316
 [GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353

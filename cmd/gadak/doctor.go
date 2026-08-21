@@ -42,6 +42,7 @@ type doctorReport struct {
 	Mirror          doctorMirror          `json:"mirror"`
 	SchemaVersion   *int                  `json:"schema_version"`
 	SchemaSinceSync string                `json:"schema_since_sync,omitempty"`
+	SchemaAudit     *doctorSchemaAudit    `json:"schema_audit,omitempty"`
 	Migrations      string                `json:"migrations"`
 	Counts          *doctorCounts         `json:"counts"`
 	Confluence      string                `json:"confluence"`
@@ -109,6 +110,20 @@ type doctorMirror struct {
 	Status string `json:"status"`           // present | not_found | open_error | schema_too_new
 	Bytes  *int64 `json:"bytes,omitempty"`  // set when the file exists
 	Detail string `json:"detail,omitempty"` // redacted path / short reason
+}
+
+// doctorSchemaAudit is the user_version-vs-DDL check (GDK-180). Status is
+// ok | mismatch | error. Sample is a handful of missing names, never the
+// full list; table/column identifiers are schema, not personal data, but
+// doctor still keeps the paste short.
+type doctorSchemaAudit struct {
+	Status    string   `json:"status"`
+	Stamp     int      `json:"stamp"`
+	Supported int      `json:"supported"`
+	Missing   int      `json:"missing"`
+	Extra     int      `json:"extra"`
+	Sample    []string `json:"sample,omitempty"`
+	Detail    string   `json:"detail,omitempty"`
 }
 
 type doctorCounts struct {
@@ -294,6 +309,7 @@ func collectDoctor() doctorReport {
 		rep.Migrations = "none"
 	}
 	rep.SchemaSinceSync = doctorSchemaSinceSync(db, sv)
+	rep.SchemaAudit = collectSchemaAudit(db)
 
 	counts := &doctorCounts{}
 	if n, err := db.TableCount(context.Background(), "items"); err == nil {
@@ -452,6 +468,57 @@ func readClaudeMCPConfig(path string) (claudeMCPConfig, bool) {
 	return cfg, true
 }
 
+const schemaAuditSampleCap = 3
+
+func collectSchemaAudit(db *store.DB) *doctorSchemaAudit {
+	got, err := db.SchemaAudit(context.Background())
+	if err != nil {
+		return &doctorSchemaAudit{Status: "error", Detail: "audit failed"}
+	}
+	out := &doctorSchemaAudit{
+		Status:    "ok",
+		Stamp:     got.Stamp,
+		Supported: got.Supported,
+		Missing:   len(got.Missing),
+		Extra:     len(got.Extra),
+	}
+	if len(got.Missing) > 0 {
+		out.Status = "mismatch"
+		out.Sample = schemaAuditSample(got.Missing, schemaAuditSampleCap)
+	}
+	return out
+}
+
+func schemaAuditSample(names []string, cap int) []string {
+	if len(names) <= cap {
+		return append([]string(nil), names...)
+	}
+	return append([]string(nil), names[:cap]...)
+}
+
+func formatDoctorSchemaAudit(a doctorSchemaAudit) string {
+	switch a.Status {
+	case "ok":
+		return "ok"
+	case "mismatch":
+		sample := strings.Join(a.Sample, ", ")
+		if a.Missing > len(a.Sample) && sample != "" {
+			sample += ", ..."
+		}
+		if sample == "" {
+			return fmt.Sprintf("mismatch (%d missing) stamp=%d this_build=%d — mirror is damaged; delete the mirror file and run gadak sync",
+				a.Missing, a.Stamp, a.Supported)
+		}
+		return fmt.Sprintf("mismatch (%d missing: %s) stamp=%d this_build=%d — mirror is damaged; delete the mirror file and run gadak sync",
+			a.Missing, sample, a.Stamp, a.Supported)
+	default:
+		if a.Detail != "" {
+			return a.Status + " (" + a.Detail + ")"
+		}
+		return a.Status
+	}
+}
+
 // doctorSchemaSinceSync names a lag between PRAGMA user_version and the
 // sync_state.schema_version column. The column is only rewritten when a
 // migration actually runs, so a later Open can leave it behind (GDK-526).
@@ -557,6 +624,9 @@ func formatDoctorText(r doctorReport) string {
 	}
 	if r.SchemaSinceSync != "" {
 		line("schema_since_sync", r.SchemaSinceSync)
+	}
+	if r.SchemaAudit != nil {
+		line("schema_audit", formatDoctorSchemaAudit(*r.SchemaAudit))
 	}
 	line("migrations", r.Migrations)
 

@@ -89,6 +89,9 @@ func TestDoctorDemoDBCounts(t *testing.T) {
 	if !strings.Contains(out, strconv.Itoa(n)) {
 		t.Fatalf("output missing issues count %d:\n%s", n, out)
 	}
+	if got := doctorValue(t, out, "schema_audit"); got != "ok" {
+		t.Fatalf("demo.db schema_audit = %q, want ok", got)
+	}
 }
 
 func TestDoctorRedaction(t *testing.T) {
@@ -742,5 +745,128 @@ func TestDoctorCustomFieldsMappedSummary(t *testing.T) {
 	}
 	if n, _ := cf["usage_rows"].(float64); int(n) != 2 {
 		t.Errorf("usage_rows = %v, want 2", cf["usage_rows"])
+	}
+}
+
+func TestDoctorSchemaAuditOKOnCleanMirror(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor must succeed on a clean mirror: %v\n%s", err, out)
+	}
+	if got := doctorValue(t, out, "schema_audit"); got != "ok" {
+		t.Fatalf("schema_audit = %q, want ok", got)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	var rep doctorReport
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.SchemaAudit == nil || rep.SchemaAudit.Status != "ok" {
+		t.Fatalf("json schema_audit = %+v", rep.SchemaAudit)
+	}
+	if rep.SchemaAudit.Missing != 0 {
+		t.Fatalf("json missing = %d, want 0", rep.SchemaAudit.Missing)
+	}
+}
+
+// GDK-180: stamp matches this build so Open's migrate no-ops, but a table is
+// gone. doctor names the damage and still exits 0 — same policy as
+// not_found / schema_too_new / open_error (diagnosis, never a failed run).
+func TestDoctorSchemaAuditDetectsFrankenstein(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	path := filepath.Join(home, "gadak.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stamp := db.SchemaVersion()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	rawSQL, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rawSQL.Exec(`DROP TABLE versions`); err != nil {
+		rawSQL.Close()
+		t.Fatal(err)
+	}
+	if _, err := rawSQL.Exec("PRAGMA user_version = " + strconv.Itoa(stamp)); err != nil {
+		rawSQL.Close()
+		t.Fatal(err)
+	}
+	if err := rawSQL.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor must still exit 0 on a damaged mirror: %v\n%s", err, out)
+	}
+	got := doctorValue(t, out, "schema_audit")
+	for _, want := range []string{
+		"mismatch",
+		"versions",
+		"stamp=" + strconv.Itoa(stamp),
+		"this_build=" + strconv.Itoa(stamp),
+		"mirror is damaged",
+		"delete the mirror file",
+		"gadak sync",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("schema_audit missing %q: %q", want, got)
+		}
+	}
+
+	js, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, js)
+	}
+	var rep doctorReport
+	if err := json.Unmarshal([]byte(js), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, js)
+	}
+	if rep.SchemaAudit == nil || rep.SchemaAudit.Status != "mismatch" {
+		t.Fatalf("json schema_audit = %+v", rep.SchemaAudit)
+	}
+	if rep.SchemaAudit.Missing < 1 {
+		t.Fatalf("json missing count = %d", rep.SchemaAudit.Missing)
+	}
+	found := false
+	for _, s := range rep.SchemaAudit.Sample {
+		if s == "versions" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("json sample = %v, want versions", rep.SchemaAudit.Sample)
+	}
+	for _, want := range []string{`"schema_audit"`, `"stamp"`, `"supported"`, `"missing"`, `"extra"`} {
+		if !strings.Contains(js, want) {
+			t.Errorf("JSON report missing %s:\n%s", want, js)
+		}
 	}
 }
