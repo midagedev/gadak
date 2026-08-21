@@ -363,7 +363,9 @@ var githubPRURL = regexp.MustCompile(`^https://github\.com/([^/]+/[^/]+)/pull/(\
 // URL attachments when no plugin enrichment supplies one. The enrichment
 // (kind='prs') stays the winner: it can carry state and author, which a bare
 // URL cannot.
-type linkedPr struct {
+// LinkedPR is one GitHub pull request derived from the mirror (dev_links
+// and/or a PR-shaped URL attachment).
+type LinkedPR struct {
 	Number int     `json:"number"`
 	Title  string  `json:"title"`
 	URL    string  `json:"url"`
@@ -372,12 +374,12 @@ type linkedPr struct {
 	Author *string `json:"author"`
 }
 
-// mergedPRLinks builds linked_prs from the two mirrored sources: dev_links
-// (the origin's development panel, GDK-497 — carries a state) and PR-shaped
-// URL attachments (GDK-495 — carry none). Deduped by URL, dev_links winning,
-// because a stated status beats an inferred blank.
-func mergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachment) json.RawMessage {
-	var prs []linkedPr
+// ListLinkedPRs merges the two mirrored PR sources: dev_links (the origin's
+// development panel, GDK-497 — carries a state) and PR-shaped URL attachments
+// (GDK-495 — carry none). Deduped by URL, dev_links winning, because a stated
+// status beats an inferred blank.
+func ListLinkedPRs(devLinks []store.DevLink, attachments []store.DetailAttachment) []LinkedPR {
+	var prs []LinkedPR
 	seen := map[string]bool{}
 	add := func(url, title, state string) {
 		var repo *string
@@ -389,7 +391,7 @@ func mergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachmen
 			r := m[1]
 			repo = &r
 		}
-		prs = append(prs, linkedPr{Number: number, Title: title, URL: url, State: state, Repo: repo})
+		prs = append(prs, LinkedPR{Number: number, Title: title, URL: url, State: state, Repo: repo})
 		seen[url] = true
 	}
 	for _, l := range devLinks {
@@ -404,6 +406,13 @@ func mergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachmen
 		}
 		add(a.URL, a.Filename, "")
 	}
+	return prs
+}
+
+// MergedPRLinks is ListLinkedPRs encoded as the linked_prs JSON array.
+// Empty input returns nil so omitempty callers can drop the field.
+func MergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachment) json.RawMessage {
+	prs := ListLinkedPRs(devLinks, attachments)
 	if prs == nil {
 		return nil
 	}
@@ -412,6 +421,10 @@ func mergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachmen
 		return nil
 	}
 	return raw
+}
+
+func mergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachment) json.RawMessage {
+	return MergedPRLinks(devLinks, attachments)
 }
 
 func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
