@@ -16,6 +16,7 @@
 a11y
 agent
 agent-first
+agent-identity
 agent-surface
 agent-tasklist
 agent-ux
