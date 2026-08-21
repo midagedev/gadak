@@ -5,10 +5,24 @@
 import * as api from './api'
 import { ApiError } from './api'
 import { t } from './i18n'
+import { writeErrorMessage } from './i18n/en'
 import { issues } from '../stores/issues.svelte'
 import { pages } from '../stores/pages.svelte'
 import { views } from '../stores/views.svelte'
 import { write, type ToastKind } from '../stores/write.svelte'
+
+/**
+ * Map a sync-endpoint failure to a catalog sentence. Wire codes must never
+ * reach the toast (GDK-566). Known write.go codes reuse writeErrorMessage;
+ * workspace_frozen is sync-only and carries the unfreeze line.
+ */
+export function syncFailureMessage(e: unknown): string {
+  if (!(e instanceof ApiError)) return t('sync.failed', { message: String(e) })
+  if (e.code === 'workspace_frozen') return t('sync.frozen')
+  const mapped = writeErrorMessage(e.code, '', t)
+  if (mapped) return t('sync.failed', { message: mapped })
+  return t('sync.settledFailed')
+}
 
 const POLL_MS = 1000
 let inflight: Promise<void> | null = null
@@ -104,8 +118,7 @@ async function doSync(mode: 'full' | 'incremental'): Promise<void> {
       openSettings()
       return
     } else {
-      const msg = e instanceof ApiError ? e.code ?? e.message : String(e)
-      say(t('sync.failed', { message: msg }), 'error')
+      say(syncFailureMessage(e), 'error')
       return
     }
   }
@@ -117,8 +130,7 @@ async function doSync(mode: 'full' | 'incremental'): Promise<void> {
     try {
       p = await api.getSyncProgress()
     } catch (e) {
-      const msg = e instanceof ApiError ? e.code ?? e.message : String(e)
-      say(t('sync.failed', { message: msg }), 'error')
+      say(syncFailureMessage(e), 'error')
       return
     }
     if (p.running) continue
@@ -131,7 +143,20 @@ async function doSync(mode: 'full' | 'incremental'): Promise<void> {
         openSettings()
         return
       }
-      say(t('sync.failed', { message: p.error || p.phase }), 'error')
+      if (p.error_code === 'workspace_frozen') {
+        say(t('sync.frozen'), 'error')
+        return
+      }
+      const mapped = writeErrorMessage(p.error_code, '', t)
+      if (mapped) {
+        say(t('sync.failed', { message: mapped }), 'error')
+        return
+      }
+      if (p.error && p.error !== p.error_code) {
+        say(t('sync.failed', { message: p.error }), 'error')
+        return
+      }
+      say(t('sync.settledFailed'), 'error')
       return
     }
     // Refresh the mirror pool so the list reflects new/updated issues, and the

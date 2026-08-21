@@ -197,11 +197,10 @@
           actionLabel={t('list.emptyRunSync')}
           onAction={() => void runSyncNow('full')}
         />
-      {:else if filters.searchError}
+      {:else if filters.searchQuery}
         <EmptyState
           icon="warning"
           title={t('list.searchFailed')}
-          hint={filters.searchError}
           actionLabel={t('list.searchRetry')}
           onAction={() => void filters.runServerSearch().then(applyServerSearchOutcome)}
         />

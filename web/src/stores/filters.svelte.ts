@@ -206,7 +206,7 @@ class FiltersStore {
   serverMatchQuery = $state('')
   searching = $state(false)
   /** Last query that failed body search (UI can offer Retry). */
-  searchError = $state<string | null>(null)
+  searchQuery = $state<string | null>(null)
   /** Why each hit matched, keyed by issue or page key. Empty against older servers. */
   serverMatches = $state<Record<string, SearchMatch>>({})
 
@@ -572,7 +572,7 @@ class FiltersStore {
       // Why each hit matched — issues and pages share one map, so it stays here
       // rather than being split across two stores.
       this.serverMatches = res.matches ?? {}
-      this.searchError = null
+      this.searchQuery = null
       const resultKeys = [...(res.keys ?? []), ...(res.pages ?? []).map((p) => p.key)]
       me.recordSearch(q, res.total ?? resultKeys.length, resultKeys)
       return { status: 'ok', pages: res.pages ?? [] }
@@ -580,7 +580,7 @@ class FiltersStore {
       console.warn('[filters] 서버 검색 실패', e)
       this.serverMatchKeys = []
       this.serverMatches = {}
-      this.searchError = q
+      this.searchQuery = q
       return { status: 'error' }
     } finally {
       this.searching = false
@@ -591,7 +591,7 @@ class FiltersStore {
     if (this.serverMatchKeys.length) this.serverMatchKeys = []
     this.serverMatches = {}
     this.serverMatchQuery = ''
-    this.searchError = null
+    this.searchQuery = null
     me.clearSearchLink()
   }
 
