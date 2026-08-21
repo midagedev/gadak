@@ -42,13 +42,12 @@ const staleAfter = time.Hour
 
 // warnIfStale prints one stderr line when the last sync failed or is old, so a
 // caller reading stdout knows how far behind the answer may be. stdout stays
-// clean, which is what makes the output pipeable.
-func warnIfStale() {
-	db, err := openReadOnly()
-	if err != nil {
-		return
-	}
-	defer db.Close()
+// clean, which is what makes the output pipeable. It reads the caller's
+// already-open connection — every caller has one, and a second open here
+// doubled any diagnostic the open path prints (GDK-314).
+func warnIfStale(db interface {
+	QueryRow(query string, args ...any) *sql.Row
+}) {
 	var syncedAt, lastErr *string
 	if err := db.QueryRow(`SELECT src.synced_at, st.last_error
 		FROM sync_state st LEFT JOIN sources src ON src.id = st.source_id
@@ -158,7 +157,7 @@ func cmdIssue(args []string) error {
 		return err
 	}
 	defer db.Close()
-	warnIfStale()
+	warnIfStale(db)
 
 	if *link {
 		return printIssueLink(db, key, *asJSON)
@@ -842,7 +841,7 @@ func cmdSearch(args []string) error {
 		return err
 	}
 	defer db.Close()
-	warnIfStale()
+	warnIfStale(db)
 
 	var res store.SearchResult
 	if *explain {
@@ -984,7 +983,7 @@ func searchJQL(query string, limit int, asJSON, emitOnly, force bool) error {
 		return err
 	}
 	defer db.Close()
-	warnIfStale()
+	warnIfStale(db)
 
 	lites, err := db.IssueLites(context.Background())
 	if err != nil {
@@ -1143,7 +1142,7 @@ func withWriteSession(fn func(context.Context, *config.Config, *store.DB, *jira.
 		return err
 	}
 	defer db.Close()
-	warnIfStale()
+	warnIfStale(db)
 	c, err := origin.Client(cfg)
 	if err != nil {
 		return origin.FoldPairedError(cfg, err)
@@ -1165,7 +1164,7 @@ func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *s
 		return err
 	}
 	defer db.Close()
-	warnIfStale()
+	warnIfStale(db)
 	ctx := context.Background()
 	src, err := db.KeySource(ctx, key)
 	if err != nil {

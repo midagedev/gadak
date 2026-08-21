@@ -71,7 +71,7 @@ func cmdSQL(args []string) error {
 		return err
 	}
 	defer db.Close()
-	warnIfStale()
+	warnIfStale(db)
 
 	rows, err := db.Query(query)
 	if err != nil {

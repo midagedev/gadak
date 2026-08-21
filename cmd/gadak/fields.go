@@ -88,7 +88,7 @@ func cmdFields(args []string) error {
 		return err
 	}
 	defer db.Close()
-	warnIfStale()
+	warnIfStale(db)
 
 	projectFilter := strings.ToUpper(strings.TrimSpace(*project))
 	allRows, totalMirrored, allProjectCount, err := loadIssueSampleRows(db, "")

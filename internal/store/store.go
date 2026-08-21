@@ -137,6 +137,13 @@ func secureDBFiles(path string) {
 
 func (db *DB) Close() error { return db.sql.Close() }
 
+// QueryRow runs a single-row read on the mirror. It exists so a caller that
+// already holds this connection (the CLI's staleness warning, GDK-314) does
+// not open a second one — writes still go through the store API only.
+func (db *DB) QueryRow(query string, args ...any) *sql.Row {
+	return db.sql.QueryRow(query, args...)
+}
+
 // SchemaVersion is the migration level this binary applied.
 func (db *DB) SchemaVersion() int { return db.schemaVersion }
 
