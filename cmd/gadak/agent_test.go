@@ -1034,6 +1034,89 @@ func TestIssueJSONIncludesLinkedPRs(t *testing.T) {
 	}
 }
 
+func TestIssueJSONSecurityLevel(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{
+			{
+				Item: store.Item{
+					ID: "jira:sec-1", SourceID: "jira", Kind: "issue", ExternalID: "sec-1",
+					Key: "NMB-10", Title: "restricted",
+					CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+				},
+				Issue: store.Issue{
+					ProjectKey: "NMB", Status: "Todo", StatusCategory: "new",
+					SecurityLevelID: "10000", SecurityLevel: "내부",
+				},
+			},
+			{
+				Item: store.Item{
+					ID: "jira:sec-2", SourceID: "jira", Kind: "issue", ExternalID: "sec-2",
+					Key: "NMB-11", Title: "unrestricted",
+					CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+				},
+				Issue: store.Issue{ProjectKey: "NMB", Status: "Todo", StatusCategory: "new"},
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"NMB-10", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue --json restricted: %v\n%s", err, out)
+	}
+	var doc struct {
+		Issue struct {
+			SecurityLevelID *string `json:"security_level_id"`
+			SecurityLevel   *string `json:"security_level"`
+		} `json:"issue"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("decode: %v\n%s", err, out)
+	}
+	if doc.Issue.SecurityLevelID == nil || *doc.Issue.SecurityLevelID != "10000" {
+		t.Fatalf("security_level_id = %v, want 10000\n%s", doc.Issue.SecurityLevelID, out)
+	}
+	if doc.Issue.SecurityLevel == nil || *doc.Issue.SecurityLevel != "내부" {
+		t.Fatalf("security_level = %v, want 내부\n%s", doc.Issue.SecurityLevel, out)
+	}
+
+	human, err := capture(t, func() error { return cmdIssue([]string{"NMB-10"}) })
+	if err != nil {
+		t.Fatalf("issue restricted: %v\n%s", err, human)
+	}
+	if !strings.Contains(human, "security") || !strings.Contains(human, "내부") {
+		t.Fatalf("human output missing security line:\n%s", human)
+	}
+
+	openJSON, err := capture(t, func() error { return cmdIssue([]string{"NMB-11", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue --json unrestricted: %v\n%s", err, openJSON)
+	}
+	if err := json.Unmarshal([]byte(openJSON), &doc); err != nil {
+		t.Fatalf("decode unrestricted: %v\n%s", err, openJSON)
+	}
+	if doc.Issue.SecurityLevelID != nil || doc.Issue.SecurityLevel != nil {
+		t.Fatalf("unrestricted security = %v/%v, want null\n%s", doc.Issue.SecurityLevelID, doc.Issue.SecurityLevel, openJSON)
+	}
+
+	openHuman, err := capture(t, func() error { return cmdIssue([]string{"NMB-11"}) })
+	if err != nil {
+		t.Fatalf("issue unrestricted: %v\n%s", err, openHuman)
+	}
+	if strings.Contains(openHuman, "security") {
+		t.Fatalf("unrestricted human output grew a security line:\n%s", openHuman)
+	}
+}
+
 func TestIssueSingleKeyJSONIsObject(t *testing.T) {
 	mirror(t, "https://unused.example.com")
 

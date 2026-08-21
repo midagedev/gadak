@@ -147,6 +147,8 @@ The Jira projection. Joined to `items` on `item_id`.
 | `sprint_id` | INTEGER | Projected sprint id (v30, GDK-518). NULL when the site has no sprint field, the issue is in none, or a value was not an object. **Use this (or `sprint_state`) for logic**; do not key on `sprint_name` |
 | `sprint_name` | TEXT | Display name of the projected sprint. NULL with `sprint_id` |
 | `sprint_state` | TEXT | `active` \| `future` \| `closed` of the projected sprint. NULL with `sprint_id` |
+| `security_level_id` | TEXT | Origin issue security level id (v32). NULL when unrestricted, the origin sent no security object, or the row predates the next sync (no backfill). **Use this for logic**; names localize |
+| `security_level` | TEXT | Display name of that level. NULL with `security_level_id` |
 | `created_at` | TEXT | Mirrored from `items` for single-table queries |
 | `updated_at` | TEXT | Mirrored from `items` |
 | `status_changed_at` | TEXT | Derived: last status transition |
@@ -572,7 +574,8 @@ the v11 columns (`hierarchy_level`, `epic_key`). Rebuilt again in v23 to add
 agents can read without parsing ADF. Rebuilt in v27 so `i.*` includes
 `resolution_id`; the v23 `description_text` expression is kept. Rebuilt in
 v30 so `i.*` includes `sprint_id` / `sprint_name` / `sprint_state`. Rebuilt in
-v31 so `i.*` includes `fix_version_ids`. SQLite expands `i.*` at CREATE VIEW
+v31 so `i.*` includes `fix_version_ids`. Rebuilt in v32 so `i.*` includes
+`security_level_id` / `security_level`. SQLite expands `i.*` at CREATE VIEW
 time, so an `ALTER TABLE` alone would hide the new columns from the view.
 
 ```sql

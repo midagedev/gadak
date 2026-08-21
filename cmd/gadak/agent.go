@@ -439,6 +439,14 @@ func printIssue(l store.IssueLite, d *store.Detail) {
 	kv("fix versions", strings.Join(l.FixVersions, ", "))
 	kv("duedate", deref(l.Duedate, ""))
 	kv("resolution", deref(l.Resolution, ""))
+	// Restricted issues only: kv skips empty, so unrestricted rows stay
+	// indistinguishable in the text form. Prefer the display name; fall
+	// back to the id when the origin sent id without name.
+	if name := deref(l.SecurityLevel, ""); name != "" {
+		kv("security", name)
+	} else {
+		kv("security", deref(l.SecurityLevelID, ""))
+	}
 	kv("created", deref(l.CreatedAt, ""))
 	kv("updated", deref(l.UpdatedAt, ""))
 	kv("status since", deref(l.StatusChangedAt, ""))

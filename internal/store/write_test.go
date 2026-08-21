@@ -222,6 +222,54 @@ func TestUpsertSprintColumns(t *testing.T) {
 	}
 }
 
+func TestUpsertSecurityLevel(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	b := fixture()
+	b.Records[0].Issue.SecurityLevelID = "10000"
+	b.Records[0].Issue.SecurityLevel = "내부"
+	if _, err := db.UpsertIssues(context.Background(), b); err != nil {
+		t.Fatal(err)
+	}
+	var id, name sql.NullString
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT security_level_id, security_level FROM issues WHERE key = 'NMB-1'`).
+		Scan(&id, &name); err != nil {
+		t.Fatal(err)
+	}
+	if !id.Valid || id.String != "10000" {
+		t.Errorf("NMB-1 security_level_id = %v, want 10000", id)
+	}
+	if !name.Valid || name.String != "내부" {
+		t.Errorf("NMB-1 security_level = %v, want 내부", name)
+	}
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT security_level_id FROM issues_full WHERE key = 'NMB-1'`).Scan(&id); err != nil {
+		t.Fatalf("issues_full.security_level_id: %v", err)
+	}
+	if !id.Valid || id.String != "10000" {
+		t.Errorf("issues_full.security_level_id = %v, want 10000", id)
+	}
+	lites, err := db.IssueLites(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	byKey := map[string]IssueLite{}
+	for _, l := range lites {
+		byKey[l.IssueKey] = l
+	}
+	one := byKey["NMB-1"]
+	if one.SecurityLevelID == nil || *one.SecurityLevelID != "10000" {
+		t.Errorf("NMB-1 IssueLite security_level_id = %v, want 10000", one.SecurityLevelID)
+	}
+	three := byKey["NMB-3"]
+	if three.SecurityLevelID != nil || three.SecurityLevel != nil {
+		t.Errorf("NMB-3 security = %v/%v, want NULL", three.SecurityLevelID, three.SecurityLevel)
+	}
+}
+
 func TestUpsertFixVersionIDs(t *testing.T) {
 	db := openTemp(t)
 	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {

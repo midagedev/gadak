@@ -232,6 +232,9 @@ func TestRunLinearMapping(t *testing.T) {
 	if got := db.column(t, "issues", "issue_type_id", "FIX-11"); got != "" {
 		t.Errorf("issue_type_id = %q, want empty (Linear has none — no synthetic constants)", got)
 	}
+	if got := db.column(t, "issues", "security_level_id", "FIX-11"); got != "" {
+		t.Errorf("security_level_id = %q, want empty (Linear has none — no synthetic constants)", got)
+	}
 	detail, err := db.Detail(context.Background(), "FIX-11")
 	if err != nil || len(detail.Comments) != 1 || !strings.Contains(detail.Comments[0].Body, "markdown") {
 		t.Fatalf("detail comments = %+v err=%v", detail, err)

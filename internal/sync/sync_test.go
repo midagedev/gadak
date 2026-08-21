@@ -457,7 +457,7 @@ func TestFullSyncMapsEverything(t *testing.T) {
 		t.Errorf("full sync JQL = %q", site.syncJQL)
 	}
 	fields := strings.Join(site.syncFields, ",")
-	for _, want := range []string{"summary", "customfield_10050", "customfield_10101"} {
+	for _, want := range []string{"summary", "customfield_10050", "customfield_10101", "security"} {
 		if !strings.Contains(fields, want) {
 			t.Errorf("field list is missing %q: %s", want, fields)
 		}
@@ -601,6 +601,83 @@ func TestFixVersionIDsIngest(t *testing.T) {
 	}
 	if got := db.column(t, "issues", "fix_version_ids", "NMB-1"); got != `["10012","10013"]` {
 		t.Errorf("fix_version_ids = %q, want ids in the same order as names", got)
+	}
+}
+
+// TestSecurityLevelIngest is FAIL-first for GDK-519: a payload with
+// security:{id,name} stores both columns; an issue with no security key
+// stores NULL (not empty string). Id is the key; the name is display-only.
+func TestSecurityLevelIngest(t *testing.T) {
+	site := newSite(t, "en")
+	site.issues = []json.RawMessage{
+		raw(t, map[string]any{
+			"id": "10001", "key": "NMB-1",
+			"fields": map[string]any{
+				"summary":   "restricted",
+				"project":   map[string]any{"key": "NMB"},
+				"issuetype": map[string]any{"id": "10004", "name": "Bug"},
+				"status":    statusObj("3", "en"),
+				"created":   "2026-07-01T10:00:00.000Z",
+				"updated":   "2026-08-02T10:00:00.000Z",
+				"security":  map[string]any{"id": "10000", "name": "내부"},
+			},
+		}),
+		raw(t, map[string]any{
+			"id": "10002", "key": "NMB-2",
+			"fields": map[string]any{
+				"summary":   "unrestricted",
+				"project":   map[string]any{"key": "NMB"},
+				"issuetype": map[string]any{"id": "10002", "name": "Task"},
+				"status":    statusObj("1", "en"),
+				"created":   "2026-07-05T10:00:00.000Z",
+				"updated":   "2026-08-03T10:00:00.000Z",
+			},
+		}),
+	}
+	db := newMirror(t)
+	if _, err := Run(context.Background(), testConfig(), db.DB, Options{Full: true, Client: site.start()}); err != nil {
+		t.Fatal(err)
+	}
+
+	fields := strings.Join(site.syncFields, ",")
+	if !strings.Contains(fields, "security") {
+		t.Errorf("search fields %q, want security in the request list", fields)
+	}
+
+	conn, err := sql.Open("sqlite", "file:"+db.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	var id, name sql.NullString
+	if err := conn.QueryRow(`SELECT security_level_id, security_level FROM issues WHERE key = 'NMB-1'`).
+		Scan(&id, &name); err != nil {
+		t.Fatalf("NMB-1 security columns: %v", err)
+	}
+	if !id.Valid || id.String != "10000" {
+		t.Errorf("NMB-1 security_level_id = %v, want 10000", id)
+	}
+	if !name.Valid || name.String != "내부" {
+		t.Errorf("NMB-1 security_level = %v, want 내부", name)
+	}
+	if err := conn.QueryRow(`SELECT security_level_id, security_level FROM issues WHERE key = 'NMB-2'`).
+		Scan(&id, &name); err != nil {
+		t.Fatalf("NMB-2 security columns: %v", err)
+	}
+	if id.Valid || name.Valid {
+		t.Errorf("NMB-2 security columns = %v/%v, want NULL (no security in payload)", id, name)
+	}
+
+	one := lite(t, db, "NMB-1")
+	if one.SecurityLevelID == nil || *one.SecurityLevelID != "10000" {
+		t.Errorf("NMB-1 IssueLite security_level_id = %v, want 10000", one.SecurityLevelID)
+	}
+	if one.SecurityLevel == nil || *one.SecurityLevel != "내부" {
+		t.Errorf("NMB-1 IssueLite security_level = %v, want 내부", one.SecurityLevel)
+	}
+	two := lite(t, db, "NMB-2")
+	if two.SecurityLevelID != nil || two.SecurityLevel != nil {
+		t.Errorf("NMB-2 IssueLite security = %v/%v, want nil", two.SecurityLevelID, two.SecurityLevel)
 	}
 }
 

@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -587,6 +587,26 @@ CREATE TABLE versions (
 );
 CREATE INDEX versions_project ON versions(project_key);
 ALTER TABLE issues ADD COLUMN fix_version_ids TEXT;
+DROP VIEW issues_full;
+CREATE VIEW issues_full AS
+  SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
+  FROM issues i JOIN items it ON it.id = i.item_id;
+`
+
+// schemaV32 adds issues.security_level_id / security_level so a restricted
+// issue is distinguishable from an unrestricted one in the mirror (GDK-519).
+// The credential already cannot see issues outside its levels — those never
+// enter the mirror — so this is not a read bypass. What it is: an issue that
+// IS restricted and IS visible looks public without these columns, and an
+// agent can quote it in a commit message with no warning. Id is the key
+// (names localize); the name is display-only. Existing rows stay NULL until
+// the next sync rewrites them — no backfill; the mirror is a cache (same
+// contract as v22 priority_id, v27 resolution_id, v30 sprint_*, v31
+// fix_version_ids). issues_full is rebuilt because SQLite expands i.* at
+// CREATE VIEW time (v12, v22, v23, v27, v30, v31).
+const schemaV32 = `
+ALTER TABLE issues ADD COLUMN security_level_id TEXT;
+ALTER TABLE issues ADD COLUMN security_level TEXT;
 DROP VIEW issues_full;
 CREATE VIEW issues_full AS
   SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text

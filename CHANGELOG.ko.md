@@ -91,6 +91,15 @@
 
 ### 미러의 스키마
 
+- **제한 이슈가 공개 이슈와 구분됩니다** ([GDK-519]).
+  `issues.security_level_id` / `security_level`이 Jira의 이슈 security
+  level을 투영합니다(키는 id, 이름은 표시용이며 로컬라이즈됩니다).
+  자격 증명이 못 보는 이슈는 여전히 미러에 안 들어옵니다; 틈은 자격
+  증명이 *볼 수 있는* 제한 이슈가 공개처럼 보여서, 에이전트가 인용
+  전에 경고받을 길이 없었다는 것입니다. `gadak issue KEY --json`이 두
+  필드를 싣고(없으면 null), 사람용 출력은 레벨이 있을 때만 한 줄을
+  찍습니다. 기존 행은 다음 sync까지 NULL — 백필 없음.
+
 - **`gadak init`과 `gadak install-cli`는 `~/.claude`가 이미 있으면 Claude
   Code 스킬을 설치합니다** ([GDK-93]). `~/.claude`가 없으면 건너뛰고
   (`install-cli`는 다음 단계로 `gadak skill install`을 그대로 출력),
@@ -1661,6 +1670,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-516]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-516
 [GDK-517]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-517
 [GDK-518]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-518
+[GDK-519]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-519
 [GDK-520]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-520
 [GDK-521]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-521
 [GDK-522]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-522

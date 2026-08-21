@@ -456,6 +456,91 @@ func TestIssueLiteResolutionIDOnWire(t *testing.T) {
 	}
 }
 
+// TestIssueLiteSecurityLevelOnWire: an issue upserted with a security
+// level carries id+name through IssueLites JSON, which is what
+// `gadak issue <KEY> --json` prints. Unrestricted rows marshal the keys
+// as null (same nullable contract as sprint_name).
+func TestIssueLiteSecurityLevelOnWire(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{
+		Categories: map[string]string{"1": "new"},
+		Records: []IssueRecord{
+			{
+				Item: Item{
+					ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+					Key: "NMB-1", Title: "restricted", CreatedAt: ago(1), UpdatedAt: ago(1),
+				},
+				Issue: Issue{
+					ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+					Status: "To Do", StatusID: "1", StatusCategory: "new",
+					SecurityLevelID: "10000", SecurityLevel: "내부",
+				},
+			},
+			{
+				Item: Item{
+					ID: "jira:2", SourceID: "jira", Kind: "issue", ExternalID: "2",
+					Key: "NMB-2", Title: "open", CreatedAt: ago(1), UpdatedAt: ago(2),
+				},
+				Issue: Issue{
+					ProjectKey: "NMB", IssueType: "Task", IssueTypeID: "2",
+					Status: "To Do", StatusID: "1", StatusCategory: "new",
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.IssueLites(context.Background())
+	if err != nil || len(rows) != 2 {
+		t.Fatalf("IssueLites: %v %+v", err, rows)
+	}
+	byKey := map[string]IssueLite{}
+	for _, r := range rows {
+		byKey[r.IssueKey] = r
+	}
+	one := byKey["NMB-1"]
+	if one.SecurityLevelID == nil || *one.SecurityLevelID != "10000" {
+		t.Errorf("NMB-1 SecurityLevelID = %v, want 10000", one.SecurityLevelID)
+	}
+	if one.SecurityLevel == nil || *one.SecurityLevel != "내부" {
+		t.Errorf("NMB-1 SecurityLevel = %v, want 내부", one.SecurityLevel)
+	}
+	raw, err := json.Marshal(one)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["security_level_id"] != "10000" {
+		t.Fatalf("security_level_id = %v, want 10000 in %s", m["security_level_id"], raw)
+	}
+	if m["security_level"] != "내부" {
+		t.Fatalf("security_level = %v, want 내부 in %s", m["security_level"], raw)
+	}
+	two := byKey["NMB-2"]
+	if two.SecurityLevelID != nil || two.SecurityLevel != nil {
+		t.Errorf("NMB-2 security = %v/%v, want nil", two.SecurityLevelID, two.SecurityLevel)
+	}
+	raw, err = json.Marshal(two)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["security_level_id"] != nil {
+		t.Fatalf("unrestricted security_level_id = %v, want null in %s", m["security_level_id"], raw)
+	}
+	if m["security_level"] != nil {
+		t.Fatalf("unrestricted security_level = %v, want null in %s", m["security_level"], raw)
+	}
+}
+
 func TestPageLitesOrder(t *testing.T) {
 	db := openTemp(t)
 	seedPagesWithIssues(t, db)

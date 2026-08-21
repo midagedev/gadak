@@ -468,6 +468,10 @@ belong to the web; the CLI only checks the shape.
 - **Do not quote a restricted or JSM-internal comment in a public channel.**
   Filter `visibility_type != '' OR jsd_public = 0` first (`jsd_public` NULL
   means the marker was absent, not internal).
+- **Before quoting an issue in a public place** (commit message, public
+  summary, chat), check `security_level_id`. NULL means unrestricted, or a
+  row the next sync has not rewritten. Key on the id, never on
+  `security_level` (names localize).
 
 ## Development-panel links (`dev_links`)
 

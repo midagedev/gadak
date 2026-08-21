@@ -46,7 +46,7 @@ var baseFields = []string{
 	"summary", "description", "environment", "issuetype", "status", "priority",
 	"assignee", "reporter", "creator", "project", "parent", "labels", "components",
 	"fixVersions", "versions", "duedate", "resolution", "created", "updated",
-	"comment", "attachment", "issuelinks",
+	"comment", "attachment", "issuelinks", "security",
 }
 
 // Options tunes one Run or Watch cycle. A nil Client or ConfluenceClient is
@@ -781,6 +781,10 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	if f.Resolution != nil {
 		issue.Resolution = f.Resolution.Name
 		issue.ResolutionID = f.Resolution.ID
+	}
+	if f.Security != nil {
+		issue.SecurityLevelID = f.Security.ID
+		issue.SecurityLevel = f.Security.Name
 	}
 	applySprint(&issue, iss.Extra, sprintFieldID)
 

@@ -91,6 +91,16 @@ the fixes are all here.
 
 ### The mirror's schema
 
+- **A restricted issue is distinguishable from a public one** ([GDK-519]).
+  `issues.security_level_id` / `security_level` project Jira's issue
+  security level (id is the key; the name is display-only and localizes).
+  An issue the credential cannot see still never enters the mirror; the
+  gap was that a restricted issue the credential *can* see looked public,
+  so an agent had no warning before quoting it. `gadak issue KEY --json`
+  carries both fields (null when unrestricted); the text form prints a
+  line only when a level is set. Existing rows stay NULL until the next
+  sync — no backfill.
+
 - **`gadak init` and `gadak install-cli` install the Claude Code skill when
   `~/.claude` already exists** ([GDK-93]). A missing `~/.claude` is a skip
   (`install-cli` still prints `gadak skill install` as the next step); a
@@ -1652,6 +1662,7 @@ measured numbers instead of adjectives.
 [GDK-516]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-516
 [GDK-517]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-517
 [GDK-518]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-518
+[GDK-519]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-519
 [GDK-520]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-520
 [GDK-521]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-521
 [GDK-522]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-522

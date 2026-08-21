@@ -76,6 +76,12 @@ type IssueLite struct {
 	SprintID    *int64  `json:"sprint_id"`
 	SprintName  *string `json:"sprint_name"`
 	SprintState *string `json:"sprint_state"`
+	// SecurityLevelID/SecurityLevel are the origin issue security level
+	// (v32). Nil when the issue is unrestricted, the origin sent no
+	// security object, or the row predates the next sync after v32.
+	// Id is the key (names localize); the name is display-only.
+	SecurityLevelID *string `json:"security_level_id"`
+	SecurityLevel   *string `json:"security_level"`
 }
 
 const issueLiteSelect = `
@@ -90,7 +96,8 @@ const issueLiteSelect = `
 	       i.status_changed_at, i.resolved_at, i.reopen_count, i.reopened_at,
 	       COALESCE(i.reopen_reason, ''), COALESCE(i.cloned_from, ''), i.comment_count,
 	       COALESCE(i.custom, '{}'), COALESCE(it.source_id, ''),
-	       i.sprint_id, i.sprint_name, i.sprint_state
+	       i.sprint_id, i.sprint_name, i.sprint_state,
+	       i.security_level_id, i.security_level
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
 // ErrKeyAmbiguous means one key exists under more than one source (a Jira
@@ -211,6 +218,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 			&reopenReason, &clonedFrom, &v.CommentCount,
 			&custom, &v.Source,
 			&v.SprintID, &v.SprintName, &v.SprintState,
+			&v.SecurityLevelID, &v.SecurityLevel,
 		); err != nil {
 			return nil, err
 		}

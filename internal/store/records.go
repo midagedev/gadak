@@ -69,12 +69,18 @@ type Issue struct {
 	// origin's sprint array (active > future > closed, then larger id). Nil /
 	// empty when the site has no sprint field, the array is empty, or an
 	// element was not an object. Linear leaves them unset.
-	SprintID       *int64
-	SprintName     string
-	SprintState    string
-	DescriptionADF json.RawMessage
-	Custom         map[string]any // mapped custom fields, keyed by config alias
-	Raw            json.RawMessage
+	SprintID    *int64
+	SprintName  string
+	SprintState string
+	// SecurityLevelID/SecurityLevel are the origin issue security level.
+	// Empty when the origin sent no security object (unrestricted, or a
+	// source that has none — Linear). Id is the key; the name is
+	// display-only and localizes. nz() stores empty as NULL.
+	SecurityLevelID string
+	SecurityLevel   string
+	DescriptionADF  json.RawMessage
+	Custom          map[string]any // mapped custom fields, keyed by config alias
+	Raw             json.RawMessage
 }
 
 // DevLink is one development-panel link (GDK-497): a pull request the origin

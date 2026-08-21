@@ -128,17 +128,21 @@ type Fields struct {
 	Parent *struct {
 		Key string `json:"key"`
 	} `json:"parent"`
-	Labels      []string     `json:"labels"`
-	Components  []NamedID    `json:"components"`
-	FixVersions []NamedID    `json:"fixVersions"`
-	Versions    []NamedID    `json:"versions"` // affects versions
-	Duedate     string       `json:"duedate"`
-	Resolution  *NamedID     `json:"resolution"`
-	Created     string       `json:"created"`
-	Updated     string       `json:"updated"`
-	Comment     CommentPage  `json:"comment"`
-	Attachment  []Attachment `json:"attachment"`
-	IssueLinks  []IssueLink  `json:"issuelinks"`
+	Labels      []string  `json:"labels"`
+	Components  []NamedID `json:"components"`
+	FixVersions []NamedID `json:"fixVersions"`
+	Versions    []NamedID `json:"versions"` // affects versions
+	Duedate     string    `json:"duedate"`
+	Resolution  *NamedID  `json:"resolution"`
+	// Security is the issue security level (id+name). Nil when the
+	// payload omits the key (unrestricted). NamedID is the existing
+	// {id,name} shape; do not invent a second struct.
+	Security   *NamedID     `json:"security"`
+	Created    string       `json:"created"`
+	Updated    string       `json:"updated"`
+	Comment    CommentPage  `json:"comment"`
+	Attachment []Attachment `json:"attachment"`
+	IssueLinks []IssueLink  `json:"issuelinks"`
 }
 
 // Issue keeps the fields object three ways: typed for the mapping, verbatim per

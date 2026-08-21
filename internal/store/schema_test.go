@@ -606,3 +606,85 @@ func TestMigrateV30ToV31VersionCatalog(t *testing.T) {
 		t.Errorf("versions_project ddl = %q", idx.String)
 	}
 }
+
+// TestMigrateV31ToV32SecurityLevel is FAIL-first for GDK-519: a v31 mirror
+// gains issues.security_level_id / security_level as NULL (no backfill) and
+// issues_full exposes them. Open lands at the binary's current PRAGMA
+// user_version (not a frozen "32") so a later migration does not force this
+// test to bump a constant.
+func TestMigrateV31ToV32SecurityLevel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v31.db")
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < personalStateCopyVersion-1; i++ {
+		if _, err := raw.Exec(migrations[i]); err != nil {
+			raw.Close()
+			t.Fatalf("apply v%d: %v", i+1, err)
+		}
+	}
+	for _, stmt := range []string{schemaV27, schemaV28, schemaV29, schemaV30, schemaV31} {
+		if _, err := raw.Exec(stmt); err != nil {
+			raw.Close()
+			t.Fatalf("apply later v27-v31: %v", err)
+		}
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO sources (id, kind) VALUES ('jira', 'jira');
+		INSERT INTO items (id, source_id, kind, key, title, body_text, created_at, updated_at, synced_at)
+		VALUES ('jira:1', 'jira', 'issue', 'NMB-1', 'one', 'the flattened body', '2026-01-01', '2026-01-02', '2026-01-02');
+		INSERT INTO issues (item_id, key, project_key, priority_rank, reopen_count, comment_count)
+		VALUES ('jira:1', 'NMB-1', 'NMB', 0, 0, 0)`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec("PRAGMA user_version = 31"); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after v31: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	if got := db.SchemaVersion(); got != len(migrations) {
+		t.Errorf("schema version %d, want %d (Open lands at the binary's level)", got, len(migrations))
+	}
+	var uv int
+	if err := db.sql.QueryRowContext(context.Background(), `PRAGMA user_version`).Scan(&uv); err != nil {
+		t.Fatalf("user_version: %v", err)
+	}
+	if uv != len(migrations) {
+		t.Errorf("PRAGMA user_version = %d, want %d (Open lands at the binary's level)", uv, len(migrations))
+	}
+
+	var id, name sql.NullString
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT security_level_id, security_level FROM issues WHERE key = 'NMB-1'`).
+		Scan(&id, &name); err != nil {
+		t.Fatalf("issues security columns after v32: %v", err)
+	}
+	if id.Valid || name.Valid {
+		t.Errorf("security columns = %v/%v, want NULL (no backfill; next sync rewrites)", id, name)
+	}
+
+	var summary, desc string
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT summary, description_text, security_level_id FROM issues_full WHERE key = 'NMB-1'`).
+		Scan(&summary, &desc, &id); err != nil {
+		t.Fatalf("issues_full after v32: %v", err)
+	}
+	if summary != "one" {
+		t.Errorf("summary = %q, want one", summary)
+	}
+	if desc != "the flattened body" {
+		t.Errorf("description_text = %q, want the flattened body (v23 expression must survive the rebuild)", desc)
+	}
+	if id.Valid {
+		t.Errorf("issues_full.security_level_id valid=%v, want NULL", id.Valid)
+	}
+}
