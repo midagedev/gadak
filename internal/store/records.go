@@ -76,6 +76,15 @@ type Comment struct {
 	BodyText   string
 	CreatedAt  string
 	UpdatedAt  string
+	// VisibilityType/VisibilityValue are the origin restriction (Jira
+	// visibility.type/value). Empty means unrestricted. Linear and wiki
+	// comments have no such field and stay empty.
+	VisibilityType  string
+	VisibilityValue string
+	// JsdPublic is JSM's jsdPublic marker. nil means the origin omitted
+	// the key (not a JSM project, or Jira did not send it); false is an
+	// internal comment. Absence and false are distinct.
+	JsdPublic *bool
 }
 
 // Attachment is metadata only. Bytes are proxied on demand, never mirrored.

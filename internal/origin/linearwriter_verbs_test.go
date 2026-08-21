@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/linear"
 )
 
@@ -211,7 +212,7 @@ func TestEditIssueRefusesUpdateOps(t *testing.T) {
 func TestAddCommentPostsMarkdown(t *testing.T) {
 	w, rec := testLinearWriter(t)
 	adf := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"hello from linear"}]}]}`)
-	got, err := w.AddComment(context.Background(), "FIX-1", adf)
+	got, err := w.AddComment(context.Background(), "FIX-1", adf, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,6 +221,29 @@ func TestAddCommentPostsMarkdown(t *testing.T) {
 	}
 	if got.ID == "" {
 		t.Errorf("comment id empty: %+v", got)
+	}
+}
+
+func TestAddCommentRefusesVisibilityAndInternal(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
+	vis := &jira.CommentVisibility{Type: "role", Value: "Administrators"}
+	_, err := w.AddComment(context.Background(), "FIX-1", adf, vis, false)
+	if err == nil {
+		t.Fatal("visibility was accepted")
+	}
+	if !strings.Contains(err.Error(), "visibility") {
+		t.Errorf("error %q, want it to name visibility", err)
+	}
+	_, err = w.AddComment(context.Background(), "FIX-1", adf, nil, true)
+	if err == nil {
+		t.Fatal("internal was accepted")
+	}
+	if !strings.Contains(err.Error(), "internal") {
+		t.Errorf("error %q, want it to name internal", err)
+	}
+	if rec.comments != 0 {
+		t.Errorf("refuse must stay local; comments=%d", rec.comments)
 	}
 }
 

@@ -1298,6 +1298,79 @@ func TestChangelogFieldIDPrefersStableID(t *testing.T) {
 	}
 }
 
+// TestCommentVisibilityAndJsdPublicMapped is FAIL-first for GDK-511: a Jira
+// comment carrying visibility.role and jsdPublic:false must land in the three
+// comments columns; a comment that omitted both keys stores ”/”/NULL.
+func TestCommentVisibilityAndJsdPublicMapped(t *testing.T) {
+	author := map[string]any{"accountId": "acc-dana", "displayName": "Dana", "emailAddress": "dana@example.com"}
+	issue := map[string]any{
+		"id": "51001", "key": "NMB-511",
+		"fields": map[string]any{
+			"summary":   "comment visibility",
+			"project":   map[string]any{"key": "NMB"},
+			"issuetype": map[string]any{"id": "10004", "name": "Bug"},
+			"status":    statusObj("1", "en"),
+			"created":   "2026-07-01T10:00:00.000+0900",
+			"updated":   "2026-08-04T10:00:00.000+0900",
+			"comment": map[string]any{"total": 2, "comments": []any{
+				map[string]any{
+					"id": "c-vis", "author": author,
+					"body":    adfDoc("restricted internal"),
+					"created": "2026-07-02T10:00:00.000+0900", "updated": "2026-07-02T10:00:00.000+0900",
+					"visibility": map[string]any{"type": "role", "value": "Administrators"},
+					"jsdPublic":  false,
+				},
+				map[string]any{
+					"id": "c-pub", "author": author,
+					"body":    adfDoc("open comment"),
+					"created": "2026-07-03T10:00:00.000+0900", "updated": "2026-07-03T10:00:00.000+0900",
+				},
+			}},
+		},
+		"changelog": map[string]any{"total": 0, "histories": []any{}},
+	}
+	b, err := json.Marshal(issue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site := &fakeSite{t: t, lang: "en", issues: []json.RawMessage{b}, pageSize: 10, failOffset: -1,
+		changelog: map[string]string{}, comments: map[string]string{}}
+	db := newMirror(t)
+	cfg := testConfig()
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: site.start()}); err != nil {
+		t.Fatal(err)
+	}
+
+	conn := db.raw(t)
+	var visType, visValue string
+	var jsd sql.NullInt64
+	if err := conn.QueryRow(`
+		SELECT visibility_type, visibility_value, jsd_public
+		FROM comments WHERE external_id = 'c-vis'`).Scan(&visType, &visValue, &jsd); err != nil {
+		t.Fatalf("restricted comment columns: %v", err)
+	}
+	if visType != "role" || visValue != "Administrators" {
+		t.Errorf("restricted visibility = %q/%q, want role/Administrators", visType, visValue)
+	}
+	if !jsd.Valid || jsd.Int64 != 0 {
+		t.Errorf("restricted jsd_public = valid=%v val=%d, want 0", jsd.Valid, jsd.Int64)
+	}
+
+	visType, visValue = "x", "x"
+	jsd = sql.NullInt64{Valid: true, Int64: 1}
+	if err := conn.QueryRow(`
+		SELECT visibility_type, visibility_value, jsd_public
+		FROM comments WHERE external_id = 'c-pub'`).Scan(&visType, &visValue, &jsd); err != nil {
+		t.Fatalf("open comment columns: %v", err)
+	}
+	if visType != "" || visValue != "" {
+		t.Errorf("open visibility = %q/%q, want empty", visType, visValue)
+	}
+	if jsd.Valid {
+		t.Errorf("open jsd_public valid=%v val=%d, want NULL", jsd.Valid, jsd.Int64)
+	}
+}
+
 func TestScopeLabelStandaloneOmitsAccount(t *testing.T) {
 	// GDK-464
 	connected := scopeLabel(&config.Config{})

@@ -750,7 +750,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 
 	rec := store.IssueRecord{Item: item, Issue: issue}
 	for _, cm := range comments {
-		rec.Comments = append(rec.Comments, store.Comment{
+		sc := store.Comment{
 			ID:         itemNS(cfg) + ":" + cm.ID,
 			ExternalID: cm.ID,
 			Author:     cm.Author.DisplayName,
@@ -759,7 +759,13 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 			BodyText:   jira.PlainText(cm.Body),
 			CreatedAt:  jira.ISOTime(cm.Created),
 			UpdatedAt:  jira.ISOTime(cm.Updated),
-		})
+			JsdPublic:  cm.JsdPublic,
+		}
+		if cm.Visibility != nil {
+			sc.VisibilityType = cm.Visibility.Type
+			sc.VisibilityValue = cm.Visibility.Value
+		}
+		rec.Comments = append(rec.Comments, sc)
 	}
 	for _, at := range f.Attachment {
 		rec.Attachments = append(rec.Attachments, store.Attachment{

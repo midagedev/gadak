@@ -137,9 +137,24 @@ func (c *Client) Resolutions(ctx context.Context) ([]NamedID, error) {
 
 // AddComment posts an ADF body (not plain text). Mentions must already be
 // mention nodes — a leftover "@Name" string notifies nobody.
-func (c *Client) AddComment(ctx context.Context, key string, adf json.RawMessage) (Comment, error) {
+// visibility is sent as Jira's visibility object when non-nil. internal
+// adds the JSM sd.public.comment property. Neither key is present when
+// the corresponding argument is unset, so a flagless CLI comment matches
+// the previous POST body.
+func (c *Client) AddComment(ctx context.Context, key string, adf json.RawMessage, visibility *CommentVisibility, internal bool) (Comment, error) {
 	var out Comment
 	body := map[string]any{"body": adf}
+	if visibility != nil {
+		body["visibility"] = visibility
+	}
+	if internal {
+		body["properties"] = []any{
+			map[string]any{
+				"key":   "sd.public.comment",
+				"value": map[string]any{"internal": true},
+			},
+		}
+	}
 	return out, c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/comment", apiPath, url.PathEscape(key)), body, &out)
 }
 

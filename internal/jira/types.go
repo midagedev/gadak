@@ -39,12 +39,23 @@ type Status struct {
 	} `json:"statusCategory"`
 }
 
+// CommentVisibility is Jira's comment restriction. Type is "role" or
+// "group"; Value is the role or group name. Unrestricted comments omit the
+// JSON key (nil here). gadak mirrors the fields; it does not compute who
+// may read the comment.
+type CommentVisibility struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
 type Comment struct {
-	ID      string          `json:"id"`
-	Author  User            `json:"author"`
-	Body    json.RawMessage `json:"body"`
-	Created string          `json:"created"`
-	Updated string          `json:"updated"`
+	ID         string             `json:"id"`
+	Author     User               `json:"author"`
+	Body       json.RawMessage    `json:"body"`
+	Created    string             `json:"created"`
+	Updated    string             `json:"updated"`
+	Visibility *CommentVisibility `json:"visibility"`
+	JsdPublic  *bool              `json:"jsdPublic"` // nil = key absent; false ≠ absent
 }
 
 type CommentPage struct {

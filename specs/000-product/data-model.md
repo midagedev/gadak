@@ -245,6 +245,9 @@ A failed history fetch is logged and the rest of the pass continues.
 | `body_text` | TEXT | Flattened, for FTS |
 | `created_at` | TEXT | |
 | `updated_at` | TEXT | |
+| `visibility_type` | TEXT NOT NULL DEFAULT `''` | Origin restriction type (`role` or `group`). Empty when unrestricted. Linear and wiki comments have no such field and stay empty. |
+| `visibility_value` | TEXT NOT NULL DEFAULT `''` | Origin restriction name (Jira `visibility.value`). Empty when unrestricted. |
+| `jsd_public` | INTEGER | JSM `jsdPublic`. NULL when the origin omitted the key; `0` is internal, `1` is customer-visible. Absence and `false` are distinct. |
 
 Index: `(item_id, created_at)`.
 

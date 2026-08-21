@@ -859,7 +859,7 @@ func (s *searchUsersStub) Transitions(context.Context, string) ([]jira.Transitio
 func (s *searchUsersStub) Transition(context.Context, string, string, map[string]any, json.RawMessage) error {
 	return errStub
 }
-func (s *searchUsersStub) AddComment(context.Context, string, json.RawMessage) (jira.Comment, error) {
+func (s *searchUsersStub) AddComment(context.Context, string, json.RawMessage, *jira.CommentVisibility, bool) (jira.Comment, error) {
 	return jira.Comment{}, errStub
 }
 func (s *searchUsersStub) SetAssignee(context.Context, string, string) error { return errStub }
@@ -1225,6 +1225,216 @@ func TestCommentRepeatedMentionUsesSearchCache(t *testing.T) {
 	}
 	if nDana != 1 {
 		t.Fatalf("SearchUsers(%q) = %d (%v), want 1 (cache)", "Dana", nDana, f.searchQueries)
+	}
+}
+
+func commentPOSTBody(t *testing.T, f *fakeJira) map[string]json.RawMessage {
+	t.Helper()
+	raw := f.bodies["POST /issue/NMB-1/comment"]
+	if raw == "" {
+		t.Fatalf("no comment POST (calls %v)", f.calls)
+	}
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &body); err != nil {
+		t.Fatalf("comment POST %s: %v", raw, err)
+	}
+	return body
+}
+
+// TestCommentWithoutFlagsOmitsVisibilityAndProperties is the GDK-511
+// regression: a flagless comment POST is still {"body":…} only.
+func TestCommentWithoutFlagsOmitsVisibilityAndProperties(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	if _, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "checked on staging"})
+	}); err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	body := commentPOSTBody(t, f)
+	if _, ok := body["visibility"]; ok {
+		t.Errorf("flagless POST must omit visibility: %s", f.bodies["POST /issue/NMB-1/comment"])
+	}
+	if _, ok := body["properties"]; ok {
+		t.Errorf("flagless POST must omit properties: %s", f.bodies["POST /issue/NMB-1/comment"])
+	}
+	if _, ok := body["body"]; !ok {
+		t.Errorf("flagless POST missing body: %s", f.bodies["POST /issue/NMB-1/comment"])
+	}
+	want, err := json.Marshal(map[string]any{"body": jira.Doc("checked on staging", nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.bodies["POST /issue/NMB-1/comment"] != string(want) {
+		t.Errorf("flagless POST body not byte-identical\n got: %s\nwant: %s", f.bodies["POST /issue/NMB-1/comment"], want)
+	}
+}
+
+func TestCommentInternalPostsJSMProperty(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	if _, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "x", "--internal"})
+	}); err != nil {
+		t.Fatalf("comment --internal: %v", err)
+	}
+	body := commentPOSTBody(t, f)
+	raw, ok := body["properties"]
+	if !ok {
+		t.Fatalf("missing properties: %s", f.bodies["POST /issue/NMB-1/comment"])
+	}
+	var props []struct {
+		Key   string `json:"key"`
+		Value struct {
+			Internal bool `json:"internal"`
+		} `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &props); err != nil {
+		t.Fatalf("properties %s: %v", raw, err)
+	}
+	if len(props) == 0 || props[0].Key != "sd.public.comment" || !props[0].Value.Internal {
+		t.Errorf("properties = %s, want [{key:sd.public.comment, value:{internal:true}}]", raw)
+	}
+}
+
+func TestCommentVisibilityPostsRole(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	if _, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "x", "--visibility", "role=Administrators"})
+	}); err != nil {
+		t.Fatalf("comment --visibility: %v", err)
+	}
+	body := commentPOSTBody(t, f)
+	raw, ok := body["visibility"]
+	if !ok {
+		t.Fatalf("missing visibility: %s", f.bodies["POST /issue/NMB-1/comment"])
+	}
+	var vis struct {
+		Type  string `json:"type"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &vis); err != nil {
+		t.Fatalf("visibility %s: %v", raw, err)
+	}
+	if vis.Type != "role" || vis.Value != "Administrators" {
+		t.Errorf("visibility = %+v, want role/Administrators", vis)
+	}
+}
+
+func TestIssueMarksRestrictedAndInternalComments(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsdFalse := false
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:vis-1", SourceID: "jira", Kind: "issue", ExternalID: "vis-1",
+				Key: "VIS-1", Title: "visibility fixture",
+				CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "NMB", StatusCategory: "new", Status: "To Do", StatusID: "1"},
+			Comments: []store.Comment{
+				{
+					ID: "jira:c-vis", ExternalID: "c-vis", Author: "Dana",
+					BodyText: "admins only", CreatedAt: "2026-07-02T00:00:00.000Z",
+					VisibilityType: "role", VisibilityValue: "Administrators",
+				},
+				{
+					ID: "jira:c-int", ExternalID: "c-int", Author: "Dana",
+					BodyText: "jsm note", CreatedAt: "2026-07-03T00:00:00.000Z",
+					JsdPublic: &jsdFalse,
+				},
+				{
+					ID: "jira:c-pub", ExternalID: "c-pub", Author: "Dana",
+					BodyText: "everyone", CreatedAt: "2026-07-04T00:00:00.000Z",
+				},
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"VIS-1"}) })
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if !strings.Contains(out, "[restricted: role Administrators]") {
+		t.Errorf("human output missing restricted mark:\n%s", out)
+	}
+	if !strings.Contains(out, "[internal]") {
+		t.Errorf("human output missing internal mark:\n%s", out)
+	}
+	if !strings.Contains(out, "everyone") {
+		t.Errorf("human output missing unrestricted body:\n%s", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "everyone") && (strings.Contains(line, "[restricted") || strings.Contains(line, "[internal]")) {
+			t.Errorf("unrestricted comment was marked: %s", line)
+		}
+	}
+
+	js, err := capture(t, func() error { return cmdIssue([]string{"VIS-1", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue --json: %v", err)
+	}
+	var doc struct {
+		Comments []store.DetailComment `json:"comments"`
+	}
+	if err := json.Unmarshal([]byte(js), &doc); err != nil {
+		t.Fatalf("decode %s: %v", js, err)
+	}
+	if len(doc.Comments) != 3 {
+		t.Fatalf("comments = %d, want 3", len(doc.Comments))
+	}
+	byID := map[string]store.DetailComment{}
+	for _, c := range doc.Comments {
+		byID[c.ExternalID] = c
+	}
+	vis := byID["c-vis"]
+	if vis.VisibilityType != "role" || vis.VisibilityValue != "Administrators" {
+		t.Errorf("c-vis visibility = %q/%q", vis.VisibilityType, vis.VisibilityValue)
+	}
+	if vis.JsdPublic != nil {
+		t.Errorf("c-vis jsd_public = %v, want null", vis.JsdPublic)
+	}
+	in := byID["c-int"]
+	if in.JsdPublic == nil || *in.JsdPublic {
+		t.Errorf("c-int jsd_public = %v, want false", in.JsdPublic)
+	}
+	if in.VisibilityType != "" || in.VisibilityValue != "" {
+		t.Errorf("c-int visibility = %q/%q, want empty", in.VisibilityType, in.VisibilityValue)
+	}
+	pub := byID["c-pub"]
+	if pub.VisibilityType != "" || pub.VisibilityValue != "" || pub.JsdPublic != nil {
+		t.Errorf("c-pub visibility=%q/%q jsd=%v, want empty/null", pub.VisibilityType, pub.VisibilityValue, pub.JsdPublic)
+	}
+	if !strings.Contains(js, `"jsd_public": null`) && !strings.Contains(js, `"jsd_public":null`) {
+		t.Errorf("JSON missing null jsd_public:\n%s", js)
+	}
+}
+
+func TestCommentVisibilityDuplicateIsUsageError(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	_, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "x",
+			"--visibility", "role=Administrators", "--visibility", "group=jira-software-users"})
+	})
+	if err == nil {
+		t.Fatal("duplicate --visibility must be refused")
+	}
+	if !strings.Contains(err.Error(), "visibility") {
+		t.Errorf("error %q, want it to name visibility", err)
+	}
+	if f.called("POST /issue/NMB-1/comment") {
+		t.Fatalf("duplicate flag reached Jira: %v", f.calls)
 	}
 }
 

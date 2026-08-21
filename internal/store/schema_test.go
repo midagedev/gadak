@@ -340,3 +340,78 @@ func TestMigrateV26ToV27ResolutionID(t *testing.T) {
 		t.Errorf("issues_full.resolution_id = %q, want ''", resid)
 	}
 }
+
+// TestMigrateV27ToV28CommentVisibility is FAIL-first for GDK-511: a v27
+// mirror that already has a comments row keeps that row, and the three new
+// columns take their defaults (” / ” / NULL). No changelog backfill.
+func TestMigrateV27ToV28CommentVisibility(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v27.db")
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// v1–v25, then v27 (resolution_id). schemaV26 copies personal state and
+	// is irrelevant here; user_version is set to 27 so Open applies only v28.
+	for i := 0; i < personalStateCopyVersion-1; i++ {
+		if _, err := raw.Exec(migrations[i]); err != nil {
+			raw.Close()
+			t.Fatalf("apply v%d: %v", i+1, err)
+		}
+	}
+	if _, err := raw.Exec(schemaV27); err != nil {
+		raw.Close()
+		t.Fatalf("apply v27: %v", err)
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO sources (id, kind) VALUES ('jira', 'jira');
+		INSERT INTO items (id, source_id, kind, key, title, body_text, created_at, updated_at, synced_at)
+		VALUES ('jira:1', 'jira', 'issue', 'NMB-1', 'one', 'the flattened body', '2026-01-01', '2026-01-02', '2026-01-02');
+		INSERT INTO issues (item_id, key, project_key, priority_rank, reopen_count, comment_count)
+		VALUES ('jira:1', 'NMB-1', 'NMB', 0, 0, 0);
+		INSERT INTO comments (id, item_id, external_id, author, author_id, body_text, created_at, updated_at)
+		VALUES ('jira:c1', 'jira:1', 'c1', 'Dana', 'acc-dana', 'hello', '2026-01-01', '2026-01-01')`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec("PRAGMA user_version = 27"); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after v27: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	if got := db.SchemaVersion(); got != len(migrations) {
+		t.Errorf("schema version %d, want %d", got, len(migrations))
+	}
+
+	var n int
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM comments WHERE id = 'jira:c1'`).Scan(&n); err != nil {
+		t.Fatalf("comments row: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("comments rows = %d, want 1 (v28 must not drop existing comments)", n)
+	}
+
+	var visType, visValue, body string
+	var jsd sql.NullInt64
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT visibility_type, visibility_value, jsd_public, body_text FROM comments WHERE id = 'jira:c1'`).
+		Scan(&visType, &visValue, &jsd, &body); err != nil {
+		t.Fatalf("v28 columns: %v", err)
+	}
+	if visType != "" || visValue != "" {
+		t.Errorf("visibility = %q/%q, want ''/'' (no backfill; next sync rewrites)", visType, visValue)
+	}
+	if jsd.Valid {
+		t.Errorf("jsd_public valid=%v val=%d, want NULL (marker absent)", jsd.Valid, jsd.Int64)
+	}
+	if body != "hello" {
+		t.Errorf("body_text = %q, want hello (row must survive)", body)
+	}
+}

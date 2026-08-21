@@ -254,6 +254,11 @@ type DetailComment struct {
 	Body       string          `json:"body"` // flattened; the client's fallback when ADF will not render
 	CreatedAt  string          `json:"created_at"`
 	UpdatedAt  string          `json:"updated_at"`
+	// VisibilityType/VisibilityValue are empty when the origin sent no
+	// restriction. JsdPublic is nil when the jsdPublic key was absent.
+	VisibilityType  string `json:"visibility_type"`
+	VisibilityValue string `json:"visibility_value"`
+	JsdPublic       *bool  `json:"jsd_public"`
 }
 
 // DetailAttachment is metadata only; the handler turns ExternalID into the
@@ -348,15 +353,19 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 
 	if err := each(ctx, db.sql, `
 		SELECT id, COALESCE(external_id,''), COALESCE(author,''), COALESCE(author_id,''),
-		       body_adf, COALESCE(body_text,''), COALESCE(created_at,''), COALESCE(updated_at,'')
+		       body_adf, COALESCE(body_text,''), COALESCE(created_at,''), COALESCE(updated_at,''),
+		       COALESCE(visibility_type,''), COALESCE(visibility_value,''), jsd_public
 		FROM comments WHERE item_id = ? ORDER BY created_at, id`,
 		func(rows *sql.Rows) error {
 			var c DetailComment
 			var body *string
-			if err := rows.Scan(&c.ID, &c.ExternalID, &c.Author, &c.AuthorID, &body, &c.Body, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			var jsd sql.NullInt64
+			if err := rows.Scan(&c.ID, &c.ExternalID, &c.Author, &c.AuthorID, &body, &c.Body, &c.CreatedAt, &c.UpdatedAt,
+				&c.VisibilityType, &c.VisibilityValue, &jsd); err != nil {
 				return err
 			}
 			c.BodyADF = rawOrNull(body)
+			c.JsdPublic = jsdPublicFromSQL(jsd)
 			d.Comments = append(d.Comments, c)
 			return nil
 		}, itemID); err != nil {

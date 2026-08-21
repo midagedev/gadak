@@ -103,7 +103,10 @@ func (w *linearWriter) Transition(ctx context.Context, key, transitionID string,
 	return err
 }
 
-func (w *linearWriter) AddComment(ctx context.Context, key string, body json.RawMessage) (jira.Comment, error) {
+func (w *linearWriter) AddComment(ctx context.Context, key string, body json.RawMessage, visibility *jira.CommentVisibility, internal bool) (jira.Comment, error) {
+	if visibility != nil || internal {
+		return jira.Comment{}, fmt.Errorf("linear comments do not support visibility or internal")
+	}
 	iss, err := w.resolve(ctx, key)
 	if err != nil {
 		return jira.Comment{}, err

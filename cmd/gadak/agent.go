@@ -276,6 +276,13 @@ func printIssue(l store.IssueLite, d *store.Detail) {
 			if body == "" {
 				body = strings.TrimSpace(jira.PlainText(c.BodyADF))
 			}
+			if mark := commentMark(c); mark != "" {
+				if body != "" {
+					body = mark + " " + body
+				} else {
+					body = mark
+				}
+			}
 			fmt.Printf("  %s  %s\n%s\n", c.CreatedAt, c.Author, indent(body))
 		}
 	}
@@ -1424,6 +1431,9 @@ func cmdComment(args []string) error {
 	fs := newFlagSet("comment")
 	text := fs.String("m", "", "comment body; `-` reads it from stdin")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	internal := fs.Bool("internal", false, "post as a JSM internal comment")
+	var visRaw labelFlags
+	fs.Var(&visRaw, "visibility", "restrict to role=NAME or group=NAME (once)")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("comment", fs))
 		return nil
@@ -1433,7 +1443,11 @@ func cmdComment(args []string) error {
 		return err
 	}
 	if len(pos) == 0 {
-		return usageError("comment", "usage: gadak comment <KEY> -m <text> [--json]")
+		return usageError("comment", "usage: gadak comment <KEY> -m <text> [--visibility role=NAME|group=NAME] [--internal] [--json]")
+	}
+	vis, err := parseCommentVisibility(visRaw)
+	if err != nil {
+		return err
 	}
 	key := normalizeKey(pos[0])
 	body := *text
@@ -1453,7 +1467,7 @@ func cmdComment(args []string) error {
 			return nil, err
 		}
 		warnUnresolvedMentions(unresolved)
-		created, err := c.AddComment(ctx, key, jira.Doc(body, mentions))
+		created, err := c.AddComment(ctx, key, jira.Doc(body, mentions), vis, *internal)
 		if err != nil {
 			return nil, err
 		}
@@ -1463,6 +1477,34 @@ func cmdComment(args []string) error {
 			"body":       jira.PlainText(created.Body),
 		}}, nil
 	})
+}
+
+// parseCommentVisibility accepts --visibility role=NAME or group=NAME once.
+// A second occurrence or a value that is not that shape is a usage error
+// (FlagSet ExitOnError would os.Exit on Set error, so validation is here).
+func parseCommentVisibility(vals []string) (*jira.CommentVisibility, error) {
+	if len(vals) == 0 {
+		return nil, nil
+	}
+	if len(vals) > 1 {
+		return nil, usageError("comment", "--visibility may be given only once")
+	}
+	typ, val, ok := strings.Cut(vals[0], "=")
+	if !ok || (typ != "role" && typ != "group") || strings.TrimSpace(val) == "" {
+		return nil, usageError("comment", "--visibility needs role=NAME or group=NAME")
+	}
+	return &jira.CommentVisibility{Type: typ, Value: val}, nil
+}
+
+func commentMark(c store.DetailComment) string {
+	var parts []string
+	if c.VisibilityType != "" {
+		parts = append(parts, fmt.Sprintf("[restricted: %s %s]", c.VisibilityType, c.VisibilityValue))
+	}
+	if c.JsdPublic != nil && !*c.JsdPublic {
+		parts = append(parts, "[internal]")
+	}
+	return strings.Join(parts, " ")
 }
 
 const transitionUsage = "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--resolution name|id] [--field key=JSON]... [-m text] [--json]"

@@ -185,13 +185,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	}
 	bodies := make([]string, 0, len(r.Comments))
 	for _, c := range r.Comments {
-		if _, err := tx.Exec(`
-			INSERT INTO comments (id, item_id, external_id, author, author_id,
-			                      body_adf, body_text, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?)`,
-			c.ID, it.ID, nz(c.ExternalID), nz(c.Author), nz(c.AuthorID),
-			jsonRaw(c.BodyADF), nz(c.BodyText), nz(c.CreatedAt), nz(c.UpdatedAt),
-		); err != nil {
+		if err := insertComment(tx, it.ID, c); err != nil {
 			return false, err
 		}
 		if c.BodyText != "" {
@@ -538,13 +532,7 @@ func upsertPageRecord(tx *sql.Tx, r PageRecord, knownProjects map[string]bool) (
 	}
 	bodies := make([]string, 0, len(r.Comments))
 	for _, c := range r.Comments {
-		if _, err := tx.Exec(`
-			INSERT INTO comments (id, item_id, external_id, author, author_id,
-			                      body_adf, body_text, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?)`,
-			c.ID, it.ID, nz(c.ExternalID), nz(c.Author), nz(c.AuthorID),
-			jsonRaw(c.BodyADF), nz(c.BodyText), nz(c.CreatedAt), nz(c.UpdatedAt),
-		); err != nil {
+		if err := insertComment(tx, it.ID, c); err != nil {
 			return false, err
 		}
 		if c.BodyText != "" {
@@ -809,6 +797,40 @@ func (db *DB) purgeIDsOutsideNamespace(ctx context.Context, sourceID, ns, kind s
 // derived from a classification every table must appear in, because the literal
 // list that used to be here is what let four later tables opt out of it
 // silently (GDK-418).
+
+// insertComment writes one comments row. visibility_type/value are NOT NULL
+// and store the empty string (unrestricted); jsd_public is NULL when the
+// origin omitted the marker.
+func insertComment(tx *sql.Tx, itemID string, c Comment) error {
+	_, err := tx.Exec(`
+		INSERT INTO comments (id, item_id, external_id, author, author_id,
+		                      body_adf, body_text, created_at, updated_at,
+		                      visibility_type, visibility_value, jsd_public)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		c.ID, itemID, nz(c.ExternalID), nz(c.Author), nz(c.AuthorID),
+		jsonRaw(c.BodyADF), nz(c.BodyText), nz(c.CreatedAt), nz(c.UpdatedAt),
+		c.VisibilityType, c.VisibilityValue, jsdPublicSQL(c.JsdPublic),
+	)
+	return err
+}
+
+func jsdPublicSQL(v *bool) any {
+	if v == nil {
+		return nil
+	}
+	if *v {
+		return 1
+	}
+	return 0
+}
+
+func jsdPublicFromSQL(n sql.NullInt64) *bool {
+	if !n.Valid {
+		return nil
+	}
+	b := n.Int64 != 0
+	return &b
+}
 
 // likeEscape escapes LIKE metacharacters so a namespace prefix matches
 // literally (ESCAPE '\').

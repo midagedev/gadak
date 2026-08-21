@@ -531,7 +531,7 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 			}
 			media = append(media, jira.Media{ID: mediaID, Filename: filename})
 		}
-		created, err := c.AddComment(ctx, key, jira.DocWithMedia(body.Text, mentions, media))
+		created, err := c.AddComment(ctx, key, jira.DocWithMedia(body.Text, mentions, media), nil, false)
 		if err != nil {
 			return nil, err
 		}

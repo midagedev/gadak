@@ -415,6 +415,9 @@ belong to the web; the CLI only checks the shape.
 - **Read the freshness warning.** `issue`, `search`, `comment`, `transition`,
   `assign`, and `fields` print one line to stderr when the last sync failed or
   is over an hour old. stdout stays clean and pipeable.
+- **Do not quote a restricted or JSM-internal comment in a public channel.**
+  Filter `visibility_type != '' OR jsd_public = 0` first (`jsd_public` NULL
+  means the marker was absent, not internal).
 
 ## When the mirror does not model it
 

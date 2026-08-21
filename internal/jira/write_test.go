@@ -137,3 +137,77 @@ func TestTransitionPOSTBody(t *testing.T) {
 		t.Errorf("comment ADF: %s", got[3])
 	}
 }
+
+// TestAddCommentPOSTBody is FAIL-first for GDK-511: unset visibility/internal
+// omit those keys (byte-identical to the previous {"body":…} POST); --internal
+// and visibility add the documented Jira shapes.
+func TestAddCommentPOSTBody(t *testing.T) {
+	var got []string
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got = append(got, string(b))
+		_, _ = w.Write([]byte(`{"id":"c-1"}`))
+	}))
+	ctx := context.Background()
+	adf := Doc("hello", nil)
+
+	if _, err := c.AddComment(ctx, "NMB-1", adf, nil, false); err != nil {
+		t.Fatalf("plain: %v", err)
+	}
+	wantPlain, err := json.Marshal(map[string]any{"body": adf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0] != string(wantPlain) {
+		t.Errorf("plain POST not byte-identical\n got: %s\nwant: %s", got[0], wantPlain)
+	}
+	var plain map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(got[0]), &plain); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := plain["visibility"]; ok {
+		t.Errorf("plain POST must omit visibility: %s", got[0])
+	}
+	if _, ok := plain["properties"]; ok {
+		t.Errorf("plain POST must omit properties: %s", got[0])
+	}
+
+	if _, err := c.AddComment(ctx, "NMB-1", adf, nil, true); err != nil {
+		t.Fatalf("internal: %v", err)
+	}
+	var internal map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(got[1]), &internal); err != nil {
+		t.Fatalf("internal body %s: %v", got[1], err)
+	}
+	var props []struct {
+		Key   string `json:"key"`
+		Value struct {
+			Internal bool `json:"internal"`
+		} `json:"value"`
+	}
+	if err := json.Unmarshal(internal["properties"], &props); err != nil {
+		t.Fatalf("properties %s: %v", internal["properties"], err)
+	}
+	if len(props) == 0 || props[0].Key != "sd.public.comment" || !props[0].Value.Internal {
+		t.Errorf("internal properties = %s", internal["properties"])
+	}
+
+	vis := &CommentVisibility{Type: "role", Value: "Administrators"}
+	if _, err := c.AddComment(ctx, "NMB-1", adf, vis, false); err != nil {
+		t.Fatalf("visibility: %v", err)
+	}
+	var restricted map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(got[2]), &restricted); err != nil {
+		t.Fatalf("visibility body %s: %v", got[2], err)
+	}
+	var gotVis CommentVisibility
+	if err := json.Unmarshal(restricted["visibility"], &gotVis); err != nil {
+		t.Fatalf("visibility %s: %v", restricted["visibility"], err)
+	}
+	if gotVis.Type != "role" || gotVis.Value != "Administrators" {
+		t.Errorf("visibility = %+v", gotVis)
+	}
+	if _, ok := restricted["properties"]; ok {
+		t.Errorf("visibility-only POST must omit properties: %s", got[2])
+	}
+}
