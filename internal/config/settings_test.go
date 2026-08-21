@@ -84,6 +84,7 @@ func TestSettingsCatalogHasRequiredPaths(t *testing.T) {
 		"projects",
 		"notify",
 		"updateCheck",
+		"devStatus",
 	} {
 		if !paths[want] {
 			t.Errorf("catalog missing %q", want)
@@ -117,6 +118,38 @@ func TestSettingGetSetAppearanceTheme(t *testing.T) {
 	}
 	if err := s.Set(c, json.RawMessage(`"Nope"`)); err == nil {
 		t.Fatal("invalid theme accepted")
+	}
+}
+
+func TestSettingGetSetDevStatus(t *testing.T) {
+	s, ok := SettingByPath("devStatus")
+	if !ok {
+		t.Fatal("devStatus not in catalog")
+	}
+	if !strings.Contains(s.Description, "dev-status") {
+		t.Errorf("description must name Jira's internal dev-status API, got %q", s.Description)
+	}
+	if !strings.Contains(s.Description, "per-issue") {
+		t.Errorf("description must name the per-issue sync cost, got %q", s.Description)
+	}
+	c := &Config{}
+	if got := s.Get(c); got != false {
+		t.Fatalf("default get = %#v, want false", got)
+	}
+	if err := s.Set(c, json.RawMessage(`true`)); err != nil {
+		t.Fatal(err)
+	}
+	if !c.DevStatus {
+		t.Fatal("Set(true) did not store DevStatus")
+	}
+	if got := s.Get(c); got != true {
+		t.Fatalf("get after set = %#v", got)
+	}
+	if err := s.Set(c, json.RawMessage(`false`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.DevStatus {
+		t.Fatal("Set(false) did not clear DevStatus")
 	}
 }
 

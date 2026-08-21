@@ -80,6 +80,40 @@ func TestConfigListJSON(t *testing.T) {
 	}
 }
 
+func TestConfigSetDevStatusRoundTrip(t *testing.T) {
+	configHome(t)
+	cfg := &config.Config{Site: "https://x.example", Email: "a@b.c", Token: "secret-token"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error {
+		return cmdConfig([]string{"set", "devStatus", "true"})
+	})
+	if err != nil {
+		t.Fatalf("config set devStatus true: %v\n%s", err, out)
+	}
+	if strings.TrimSpace(out) != "true" {
+		t.Fatalf("set stdout %q, want true", out)
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saved.DevStatus {
+		t.Fatal("disk DevStatus still false")
+	}
+	out, err = capture(t, func() error {
+		return cmdConfig([]string{"get", "devStatus"})
+	})
+	if err != nil {
+		t.Fatalf("config get devStatus: %v\n%s", err, out)
+	}
+	if strings.TrimSpace(out) != "true" {
+		t.Fatalf("get stdout %q, want true", out)
+	}
+}
+
 func TestConfigGetSetAppearanceTheme(t *testing.T) {
 	configHome(t)
 	cfg := &config.Config{Site: "https://x.example", Email: "a@b.c", Token: "secret-token"}

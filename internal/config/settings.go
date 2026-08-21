@@ -274,6 +274,23 @@ func buildSettings() []Setting {
 				c.UpdateCheck = &f
 			},
 		),
+		{
+			Path: "devStatus",
+			Root: "devStatus",
+			Description: "mirror Jira's internal development-status (dev-status) API into dev_links; " +
+				"adds a per-issue request to each sync (default false)",
+			Get: func(c *Config) any {
+				return c != nil && c.DevStatus
+			},
+			Set: func(c *Config, raw json.RawMessage) error {
+				b, err := decodeBool(raw, "devStatus")
+				if err != nil {
+					return err
+				}
+				c.DevStatus = b
+				return nil
+			},
+		},
 		intSetting("attachmentCacheMB", "attachmentCacheMB",
 			"on-disk attachment cache cap in megabytes (0 = package default 512)",
 			func(c *Config) int { return c.AttachmentCacheMB },
