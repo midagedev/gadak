@@ -1029,7 +1029,7 @@ export const en = {
   'sync.failed': 'Sync failed: {message}',
   // CLI frozenSyncError (cmd/gadak/sync.go): cause plus how to unfreeze.
   'sync.frozen':
-    'This workspace is frozen — no sync. Remove "frozen": true from the workspace config to sync again.',
+    'This workspace is frozen — nothing goes to the origin, syncs or writes. Unfreeze with `gadak config set frozen false`.',
   // Jira landed, a second source did not. Naming it keeps a wiki permission
   // error from reading as "none of this worked".
   'sync.partial': 'Issues synced. Documents failed: {message}',
@@ -1231,6 +1231,9 @@ export type MessageKey = keyof typeof en
  * sentence. failCreate’s codes are derived from write.go by catalog.test.ts.
  */
 export const WRITE_ERROR_KEYS = {
+  // Same latch for pulls and writes (GDK-507): the sentence carries the
+  // unfreeze path, so it serves both.
+  workspace_frozen: 'sync.frozen',
   credential_required: 'write.needToken',
   credential_rejected: 'write.tokenRejected',
   workspace_busy: 'write.workspaceBusy',

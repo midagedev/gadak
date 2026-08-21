@@ -14,7 +14,8 @@ import { write, type ToastKind } from '../stores/write.svelte'
 /**
  * Map a sync-endpoint failure to a catalog sentence. Wire codes must never
  * reach the toast (GDK-566). Known write.go codes reuse writeErrorMessage;
- * workspace_frozen is sync-only and carries the unfreeze line.
+ * workspace_frozen (pulls and writes alike since GDK-507) carries the
+ * unfreeze line.
  */
 export function syncFailureMessage(e: unknown): string {
   if (!(e instanceof ApiError)) return t('sync.failed', { message: String(e) })

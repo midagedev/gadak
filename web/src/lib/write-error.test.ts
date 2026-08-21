@@ -35,6 +35,7 @@ describe('writeErrorMessage', () => {
 
   test('mapped write.go codes resolve to catalog sentences', () => {
     const want: Record<keyof typeof WRITE_ERROR_KEYS, string> = {
+      workspace_frozen: en['sync.frozen'],
       credential_required: en['write.needToken'],
       workspace_busy: en['write.workspaceBusy'],
       credential_rejected: en['write.tokenRejected'],

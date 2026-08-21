@@ -62,11 +62,12 @@ type Config struct {
 	// Do not store the word "local" here: gadak is already local-first.
 	Kind string `json:"kind,omitempty"`
 
-	// Frozen stops every sync into this workspace's mirror, credential or not.
-	// A scrubbed fixture with a live credential decontaminates itself the moment
-	// something opens it (GDK-181): the sync upserts real rows over the scrubbed
-	// ones under the same external_id. Demo, recording and screenshot workspaces
-	// set this. It does not affect reads or writes — only pulls from origin.
+	// Frozen stops every request to this workspace's origin — pulls and
+	// writes alike (GDK-507). A scrubbed fixture with a live credential
+	// decontaminates itself the moment something opens it (GDK-181), and the
+	// same live credential could create real issues on the origin; both are
+	// refused at the client mint (origin.ErrWorkspaceFrozen). Demo, recording
+	// and screenshot workspaces set this. Mirror reads are unaffected.
 	Frozen bool `json:"frozen,omitempty"`
 
 	// The credential and what it connects to. Token is never copied out of this file.

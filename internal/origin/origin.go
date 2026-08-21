@@ -77,6 +77,14 @@ func PersistPath(dir string) string {
 	return filepath.Join(dir, filepath.FromSlash(PersistRel))
 }
 
+// ErrWorkspaceFrozen: frozen means no request leaves for the origin — pulls
+// and writes alike (GDK-507 decision). The gate lives here, on the client
+// mint, so every surface (CLI verbs, REST writes, per-issue resync, the api
+// escape hatch, page writes) refuses in one place instead of each carrying
+// its own check. A scrubbed demo fixture with a live credential must neither
+// re-pollute its mirror nor create real issues on the origin.
+var ErrWorkspaceFrozen = errors.New("this workspace is frozen — no requests leave for the origin; unfreeze with `gadak config set frozen false`")
+
 // Connected builds a client for an explicit site/email/token — verifying a
 // credential the user just typed, not "this workspace's origin".
 func Connected(site, email, token string) *jira.Client {
@@ -93,6 +101,9 @@ func Connected(site, email, token string) *jira.Client {
 func Client(cfg *config.Config) (*jira.Client, error) {
 	if cfg == nil {
 		return nil, errors.New("origin: nil config")
+	}
+	if cfg.SyncFrozen() {
+		return nil, ErrWorkspaceFrozen
 	}
 	if rem, err := pairedRemote(cfg); err != nil {
 		return nil, err
@@ -322,6 +333,9 @@ func Linear(cfg *config.Config) (*linear.Client, error) {
 	if cfg == nil || cfg.Linear == nil {
 		return nil, errors.New("origin: linear is not configured")
 	}
+	if cfg.SyncFrozen() {
+		return nil, ErrWorkspaceFrozen
+	}
 	if cfg.Linear.APIKey == "" {
 		return nil, errors.New("origin: linear api key is required")
 	}
@@ -334,6 +348,9 @@ func Linear(cfg *config.Config) (*linear.Client, error) {
 func Wiki(cfg *config.Config) (*confluence.Client, error) {
 	if cfg == nil {
 		return nil, errors.New("origin: nil config")
+	}
+	if cfg.SyncFrozen() {
+		return nil, ErrWorkspaceFrozen
 	}
 	if rem, err := pairedRemote(cfg); err != nil {
 		return nil, err

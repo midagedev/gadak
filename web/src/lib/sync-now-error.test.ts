@@ -64,7 +64,7 @@ describe('syncFailureMessage', () => {
     expect(syncFailureMessage(e)).toBe(en['sync.frozen'])
     expect(syncFailureMessage(e)).not.toBe('workspace_frozen')
     expect(en['sync.frozen']).toMatch(/frozen/)
-    expect(en['sync.frozen']).toMatch(/remove/i)
+    expect(en['sync.frozen']).toMatch(/unfreeze/i)
   })
 
   test('unknown snake_case falls back without leaking the code', async () => {

@@ -291,6 +291,23 @@ func buildSettings() []Setting {
 				return nil
 			},
 		},
+		{
+			Path: "frozen",
+			Root: "frozen",
+			Description: "freeze this workspace: no request leaves for the origin — pulls and " +
+				"writes alike (demo / scrubbed-fixture latch, GDK-181/GDK-507); mirror reads still work",
+			Get: func(c *Config) any {
+				return c.SyncFrozen()
+			},
+			Set: func(c *Config, raw json.RawMessage) error {
+				b, err := decodeBool(raw, "frozen")
+				if err != nil {
+					return err
+				}
+				c.Frozen = b
+				return nil
+			},
+		},
 		intSetting("attachmentCacheMB", "attachmentCacheMB",
 			"on-disk attachment cache cap in megabytes (0 = package default 512)",
 			func(c *Config) int { return c.AttachmentCacheMB },

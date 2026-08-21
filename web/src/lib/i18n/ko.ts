@@ -1012,7 +1012,7 @@ export const ko = {
   'sync.done': '동기화 완료 · 가져옴 {n} · 변경 {changed}',
   'sync.failed': '동기화 실패: {message}',
   'sync.frozen':
-    '이 워크스페이스는 동결되어 동기화하지 않습니다. 워크스페이스 설정에서 "frozen": true를 제거하면 다시 동기화됩니다.',
+    '이 워크스페이스는 동결되어 origin으로 아무것도 나가지 않습니다 — 동기화도 쓰기도요. `gadak config set frozen false`로 해제합니다.',
   // Jira는 됐고 다른 소스가 실패한 경우. 소스를 짚어 주지 않으면 위키 권한
   // 오류가 "전부 실패"로 읽힌다.
   'sync.partial': '이슈는 동기화됨. 문서 실패: {message}',

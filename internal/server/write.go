@@ -60,6 +60,10 @@ func (s *server) client(w http.ResponseWriter) (*jira.Client, *config.Config, bo
 // be disguised as that same 409 (GDK-345), which opened the token dialog
 // on a workspace that has no token.
 func failOriginClient(w http.ResponseWriter, err error) {
+	if errors.Is(err, origin.ErrWorkspaceFrozen) {
+		fail(w, http.StatusConflict, "workspace_frozen")
+		return
+	}
 	if errors.Is(err, origin.ErrWorkspaceBusy) {
 		writeJSON(w, http.StatusConflict, map[string]string{
 			"error":   "workspace_busy",
@@ -86,6 +90,11 @@ func failJira(w http.ResponseWriter, r *http.Request, cfg *config.Config, err er
 	case errors.As(err, &pairErr):
 		// Folded pairing sentence — do not collapse it to jira_unavailable.
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": pairErr.Error()})
+	case errors.Is(err, origin.ErrWorkspaceFrozen):
+		// GDK-507 (b): the client mint refused before anything left the
+		// process. Same code the sync gate uses, so the web copy that
+		// carries the unfreeze sentence applies to writes too.
+		fail(w, http.StatusConflict, "workspace_frozen")
 	case errors.Is(err, jira.ErrAuth), errors.Is(err, confluence.ErrAuth), errors.Is(err, linear.ErrAuth):
 		// Stored token is wrong or expired — distinct from never having one
 		// (credential_required), so the UI can say "replace your token".

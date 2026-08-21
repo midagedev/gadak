@@ -18,8 +18,9 @@ its own — the profile's `config.json` is where a real site and token survive
 between takes, and the app syncs on open. That is how 71 real rows once
 landed on top of the scrubbed ones under the same `external_id`, with the
 fictional author names replaced by real ones (GDK-181, caught in review
-before the shot). `"frozen": true` in that config makes the workspace refuse
-every pull from origin; `tools/record-raycast.sh` sets it before it launches
+before the shot). `"frozen": true` in that config (`gadak config set frozen
+true`) makes the workspace refuse every request to the origin — pulls and
+writes alike (GDK-507); `tools/record-raycast.sh` sets it before it launches
 anything. Do the same for any capture profile you build by hand — `gadak
 status` and `gadak doctor` both say whether it is on. (The VHS fixture under
 `tools/tapes/` needs no latch: `prepare.sh` rewrites its config from scratch

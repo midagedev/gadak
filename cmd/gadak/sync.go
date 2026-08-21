@@ -130,7 +130,7 @@ func frozenSyncError() error {
 	if p, err := config.Path(); err == nil && p != "" {
 		path = p
 	}
-	return fmt.Errorf("this workspace is frozen — no sync (config \"frozen\": true in %s); remove that field to sync again", path)
+	return fmt.Errorf("this workspace is frozen — nothing goes to the origin, syncs or writes (config \"frozen\": true in %s); unfreeze with `gadak config set frozen false`", path)
 }
 
 func translateFrozen(err error) error {
