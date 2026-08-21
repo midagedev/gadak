@@ -17,6 +17,8 @@
   import { copyText } from '../../lib/copy-text'
   import * as api from '../../lib/api'
   import { ApiError } from '../../lib/api'
+  import { surface } from '../../lib/config'
+  import { openInAppBrowser } from '../../lib/desktop-links'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
   import { onboarding, onboardingHold } from '../../stores/onboarding.svelte'
@@ -28,6 +30,21 @@
   const TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens'
   const DOCS_BASE = 'https://github.com/midagedev/gadak/blob/main/docs'
   const POLL_MS = 1000
+  const onDesktop = surface() === 'desktop'
+  let tokenEl: HTMLInputElement | null = $state(null)
+
+  /*
+   * Desktop first-run: open the token page in the browse pane and focus the
+   * paste field (GDK-71). Serve / hosted keep target="_blank". The sibling
+   * link on this hint is the IdP escape hatch — the document interceptor
+   * already sends off-site https to the system browser.
+   */
+  function onCreateTokenClick(event: MouseEvent): void {
+    if (!onDesktop) return
+    event.preventDefault()
+    void openInAppBrowser(TOKEN_URL, { inApp: true, kind: 'other', key: null })
+    tokenEl?.focus()
+  }
 
   // The CLI contract (cmd/gadak/mcp_install.go): claude execs `claude mcp add`,
   // the other two print config to paste. Shown, never run — the server has no
@@ -327,12 +344,31 @@
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-micro font-medium text-text-secondary">{t('onboarding.token')}</span>
-          <input class={INPUT} type="password" name="token" autocomplete="off" bind:value={token} />
+          <input
+            bind:this={tokenEl}
+            class={INPUT}
+            type="password"
+            name="token"
+            autocomplete="off"
+            bind:value={token}
+          />
           <span class="text-micro text-text-muted">
             {t('onboarding.tokenHint')}
-            <a class="text-accent hover:underline" href={TOKEN_URL} target="_blank" rel="noreferrer noopener">
+            <a
+              class="text-accent hover:underline"
+              href={TOKEN_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+              onclick={onDesktop ? onCreateTokenClick : undefined}
+            >
               {t('onboarding.tokenLink')}
             </a>
+            {#if onDesktop}
+              {' · '}
+              <a class="text-accent hover:underline" href={TOKEN_URL} target="_blank" rel="noreferrer noopener">
+                {t('browse.openExternal')}
+              </a>
+            {/if}
           </span>
         </label>
         <label class="flex flex-col gap-1">
@@ -370,6 +406,7 @@
               href={TOKEN_URL}
               target="_blank"
               rel="noreferrer noopener"
+              onclick={onDesktop ? onCreateTokenClick : undefined}
             >
               {t('onboarding.tokenLink')}
             </a>

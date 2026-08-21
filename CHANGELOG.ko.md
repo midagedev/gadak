@@ -136,6 +136,10 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **데스크톱 첫 실행이 토큰 페이지를 앱 안에서 엽니다** ([GDK-71]).
+  온보딩의 토큰 링크가 Atlassian 토큰 페이지를 브라우즈 페인에 열고
+  붙여넣기 필드를 포커스해 왕복이 한 창에서 끝납니다. 옆의 보조 링크가
+  IdP 탈출구(시스템 브라우저)로 남고, serve·hosted는 기존 새 탭 그대로입니다.
 - **첫 실행이 에픽 분해 뷰로 열립니다** ([GDK-100]). 저장된 뷰가 없는 새
   워크스페이스는 all-open 복제본 대신 빌트인 Epics 뷰로 열리고, 두 번째
   실행부터는 마지막 뷰가, 팀 그룹 프리셋이 있으면 그것이 우선합니다.
@@ -1623,6 +1627,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-181]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-181
 [GDK-254]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-254
 [GDK-339]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-339
+[GDK-71]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-71
 [GDK-100]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-100
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349

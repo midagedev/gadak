@@ -48,7 +48,7 @@ function openSystemBrowser(url: string): void {
 }
 
 /** In-app tab; on 400/503 (or any non-201) fall back to the system browser. */
-async function openInAppBrowser(
+export async function openInAppBrowser(
   url: string,
   classified: ClassifiedAtlassianLink,
 ): Promise<void> {

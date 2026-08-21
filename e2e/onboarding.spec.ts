@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { en } from '../web/src/lib/i18n/en'
 import { attachConsoleErrors, forceLocale } from './helpers'
+import { mockBrowseRoutes, type BrowseMock } from './browse-mock'
 
 /*
  * First-run onboarding against a mocked-empty instance. The demo server is fully
@@ -373,4 +374,93 @@ test.describe('first-run onboarding', () => {
       await expect(page.getByTestId('onboarding-connect')).toBeVisible()
     })
   }
+
+  /*
+   * GDK-71: on the desktop surface the token page opens in the in-app pane
+   * and the paste field takes focus. Serve keeps target="_blank". The
+   * existing tests above must not change — they are the non-desktop half.
+   */
+  const TOKEN_PAGE = 'https://id.atlassian.com/manage-profile/security/api-tokens'
+
+  async function bootDesktopOnboarding(page: Page): Promise<BrowseMock> {
+    await page.setViewportSize({ width: 1680, height: 1000 })
+    await mockFirstRun(page)
+    // Last-registered config.json route wins: empty first-run + desktop.
+    await page.route('**/config.json', (route) =>
+      route.fulfill({
+        json: {
+          apiBase: '/api/v1/issues/',
+          authBase: '/api/v1/auth/',
+          jiraBaseUrl: '',
+          projects: [],
+          features: {},
+          desktop: true,
+        },
+      }),
+    )
+    const mock = await mockBrowseRoutes(page)
+    await forceLocale(page, 'en')
+    await page.goto('/')
+    return mock
+  }
+
+  test('on the desktop surface the token link opens the in-app pane and focuses the paste field', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    const mock = await bootDesktopOnboarding(page)
+
+    const wizard = page.getByTestId('onboarding')
+    await expect(wizard).toBeVisible({ timeout: 30_000 })
+
+    const tokenLink = wizard.getByRole('link', { name: en['onboarding.tokenLink'] })
+    await expect(tokenLink).toHaveAttribute('href', TOKEN_PAGE)
+    await tokenLink.click()
+
+    const pane = page.getByTestId('browse-pane')
+    await expect(pane).toBeVisible()
+    await expect(page.getByTestId('browse-url')).toHaveText(TOKEN_PAGE)
+    expect(mock.tabs().map((t) => t.url)).toEqual([TOKEN_PAGE])
+    expect(mock.opened, 'must not fall through to the system browser').toEqual([])
+    await expect(wizard.locator('input[name="token"]')).toBeFocused()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('on the desktop surface the hint line keeps a system-browser escape hatch', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    const mock = await bootDesktopOnboarding(page)
+
+    const wizard = page.getByTestId('onboarding')
+    await expect(wizard).toBeVisible({ timeout: 30_000 })
+
+    const escape = wizard.getByRole('link', { name: en['browse.openExternal'] })
+    await expect(escape).toHaveAttribute('href', TOKEN_PAGE)
+    await escape.click()
+
+    await expect.poll(() => mock.opened).toEqual([TOKEN_PAGE])
+    expect(mock.tabs()).toEqual([])
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('under serve the token link stays a new-tab URL', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await mockFirstRun(page)
+    await forceLocale(page, 'en')
+    await page.goto('/')
+
+    const wizard = page.getByTestId('onboarding')
+    await expect(wizard).toBeVisible({ timeout: 30_000 })
+
+    const tokenLink = wizard.getByRole('link', { name: en['onboarding.tokenLink'] })
+    await expect(tokenLink).toHaveAttribute('href', TOKEN_PAGE)
+    await expect(tokenLink).toHaveAttribute('target', '_blank')
+    await expect(wizard.getByRole('link', { name: en['browse.openExternal'] })).toHaveCount(0)
+    await expect(page.getByTestId('browse-pane')).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })

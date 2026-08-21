@@ -137,6 +137,11 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **Desktop first-run opens the token page inside the app** ([GDK-71]).
+  The onboarding token link opens Atlassian's token page in the browse
+  pane and focuses the paste field, so the token round-trip stays in one
+  window; a sibling link keeps the system browser as the IdP escape hatch.
+  Serve and hosted keep the new-tab behavior.
 - **The first run lands on the epic breakdown** ([GDK-100]). A fresh
   workspace with no saved view opens on the built-in Epics view instead of
   a bare all-open replica; from the second run the last-used view wins, and
@@ -1617,6 +1622,7 @@ measured numbers instead of adjectives.
 [GDK-181]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-181
 [GDK-254]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-254
 [GDK-339]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-339
+[GDK-71]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-71
 [GDK-100]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-100
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
