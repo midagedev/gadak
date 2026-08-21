@@ -154,6 +154,31 @@ func TestInitHelpSpacesAreGlobalOnly(t *testing.T) {
 	}
 }
 
+// TestCreateHelpUsageIsMultiline is GDK-575: `gadak create --help` must wrap
+// option groups instead of one long Usage line.
+func TestCreateHelpUsageIsMultiline(t *testing.T) {
+	out := formatHelp("create", nil)
+	idx := strings.Index(out, "Usage:\n")
+	if idx < 0 {
+		t.Fatalf("create help missing Usage:\n%s", out)
+	}
+	rest := out[idx+len("Usage:\n"):]
+	end := strings.Index(rest, "\n\n")
+	if end < 0 {
+		t.Fatalf("create Usage block not closed:\n%s", out)
+	}
+	usage := rest[:end]
+	if !strings.Contains(usage, "\n") {
+		t.Fatalf("create Usage is still one line:\n%s", usage)
+	}
+	if !strings.Contains(usage, "--field") {
+		t.Errorf("create Usage lost --field:\n%s", usage)
+	}
+	if !strings.Contains(usage, "--project") {
+		t.Errorf("create Usage lost --project:\n%s", usage)
+	}
+}
+
 func firstLine(s string) string {
 	if i := strings.IndexByte(s, '\n'); i >= 0 {
 		return s[:i]

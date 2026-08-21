@@ -157,7 +157,8 @@ Commands:
   version          print version
 
 Reading the mirror (no network; see AGENTS.md):
-  issue      full detail for one issue    <KEY> [--json]
+  issue      full detail for one or more issues
+                   <KEY> [KEY...] [--keys -] [--json] [--derive] [--link] [--editmeta]
   open       open the issue on your Jira site in the browser  <KEY>
   search     full-text or JQL            [--jql] [--emit] [--limit N] [--json] "text|JQL|URL"
   views      list/open Jira filters      [list|show|open|save]  (alias: view)
@@ -173,17 +174,26 @@ Atlassian REST escape hatch (needs a credential; not on MCP):
   api        raw REST call    [METHOD] <PATH> [--query k=v] [--data …] [--write] [--status]
 
 Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
-  create     create an issue  [--] <SUMMARY> [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]
+  create     create an issue  [--] <SUMMARY> | --batch -
+                   [--project KEY] [--type NAME-or-id] [--priority NAME-or-id]
+                   [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]...
+                   [-m <text|->] [--field alias=value]... [--json]
   attach     attach files     <KEY> <file>... [--json]
-  edit       edit an issue    <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--json]
-  comment    add a comment    <KEY> [<text> | -m <text|->] [--json]
-  transition change status    <KEY> <transition-id|status-id|name> [--json]
-  assign     set assignee     <KEY> <email|-> [--json]
+  edit       edit an issue    <KEY> [--summary S] [-m <text|->]
+                   [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]...
+                   [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none]
+                   [--field alias=value]... [--json]
+  comment    add a comment    <KEY> [<text> | -m <text|->]
+                   [--visibility role=NAME|group=NAME] [--internal] [--json]
+  transition change status    <KEY> [transition-id|status-id|name|new|inprogress|done]
+                   [--resolution name|id] [--field key=JSON]... [-m text] [--json]
+  assign     set assignee     <KEY> <email|name|accountId|-> [--json]
   link       create an issue link <A> <B> --type <name|inward|outward|id> [--json]
-  page       wiki page create/edit/comment  create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
+  page       wiki page create/edit/comment  create|edit|comment [<ID>]
+                   [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
   project    grow a standalone workspace by a project  create <KEY> [--name N] [--json]
   dev        record PRs on issues (standalone)  link <KEY> --pr <url> [--status ...] | scan [--dry-run] [--install-hook]
-  fields     custom-field usage report  [--sample N] [--json] [--all] [--project KEY]
+  fields     custom-field usage report  [--sample N] [--json] [--all] [--project KEY] [--apply]
   team       share team settings/views  export [--out] [--with-members]
                                         import <FILE|-> [--dry-run] [--overwrite]
 
