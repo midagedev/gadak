@@ -179,6 +179,7 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   comment    add a comment    <KEY> [<text> | -m <text|->] [--json]
   transition change status    <KEY> <transition-id|status-id|name> [--json]
   assign     set assignee     <KEY> <email|-> [--json]
+  link       create an issue link <A> <B> --type <name|inward|outward|id> [--json]
   page       wiki page create/edit/comment  create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
   project    grow a standalone workspace by a project  create <KEY> [--name N] [--json]
   dev        record PRs on issues (standalone)  link <KEY> --pr <url> [--status ...] | scan [--dry-run] [--install-hook]
@@ -338,6 +339,7 @@ var commands = map[string]func([]string) error{
 	"install-cli":     cmdInstallCLI,
 	"install-service": cmdInstallService,
 	"issue":           cmdIssue,
+	"link":            cmdLink,
 	"mcp":             cmdMCP,
 	"open":            cmdOpen,
 	"page":            cmdPage,

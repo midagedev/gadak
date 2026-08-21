@@ -38,6 +38,14 @@ type Writer interface {
 	// ProjectVersions is GET /rest/api/3/project/{key}/versions. Linear
 	// has no counterpart and must return an honest error (GDK-516).
 	ProjectVersions(ctx context.Context, projectKey string) ([]jira.Version, error)
+	// IssueLinkTypes is GET /rest/api/3/issueLinkType. Names and
+	// inward/outward descriptions can be renamed; writes send the id.
+	// Linear has relations but no counterpart in this adapter yet and
+	// must return an honest error (GDK-19).
+	IssueLinkTypes(ctx context.Context) ([]jira.IssueLinkType, error)
+	// LinkIssues is POST /rest/api/3/issueLink. Linear must return an
+	// honest error (GDK-19).
+	LinkIssues(ctx context.Context, typeID, outwardKey, inwardKey string) error
 	Upload(ctx context.Context, key, filename string, file io.Reader) ([]jira.Attachment, error)
 	MediaRef(ctx context.Context, attachmentID string) (mediaID, filename string, err error)
 }

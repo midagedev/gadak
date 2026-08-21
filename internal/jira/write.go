@@ -153,6 +153,35 @@ func (c *Client) ProjectVersions(ctx context.Context, projectKey string) ([]Vers
 	return list, c.do(ctx, http.MethodGet, p, nil, &list)
 }
 
+// IssueLinkType is one row of GET /rest/api/3/issueLinkType. Names and
+// inward/outward descriptions can be renamed and localized; writes send the id.
+type IssueLinkType struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Inward  string `json:"inward"`
+	Outward string `json:"outward"`
+}
+
+// IssueLinkTypes is GET /rest/api/3/issueLinkType — the site catalog.
+func (c *Client) IssueLinkTypes(ctx context.Context) ([]IssueLinkType, error) {
+	var out struct {
+		IssueLinkTypes []IssueLinkType `json:"issueLinkTypes"`
+	}
+	return out.IssueLinkTypes, c.do(ctx, http.MethodGet, apiPath+"/issueLinkType", nil, &out)
+}
+
+// LinkIssues is POST /rest/api/3/issueLink. outwardIssue is the subject of
+// the type's outward description (MKY-1 duplicates HSP-1 when outward is
+// MKY-1). 201/200 with an empty body is success.
+func (c *Client) LinkIssues(ctx context.Context, typeID, outwardKey, inwardKey string) error {
+	body := map[string]any{
+		"type":         map[string]string{"id": typeID},
+		"outwardIssue": map[string]string{"key": outwardKey},
+		"inwardIssue":  map[string]string{"key": inwardKey},
+	}
+	return c.write(ctx, http.MethodPost, apiPath+"/issueLink", body, nil)
+}
+
 // AddComment posts an ADF body (not plain text). Mentions must already be
 // mention nodes — a leftover "@Name" string notifies nobody.
 // visibility is sent as Jira's visibility object when non-nil. internal

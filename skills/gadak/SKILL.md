@@ -356,6 +356,7 @@ gadak assign NMB-140 dana@example.com         # email, display name, or accountI
 gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging" --parent NMB-1
 gadak attach NMB-140 screenshot.png trace.log
 gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none
+gadak link NMB-140 NMB-141 --type blocks          # A blocks B; --type "is blocked by" reverses
 
 gadak create --batch -                        # one JSON object per line on stdin
 ```

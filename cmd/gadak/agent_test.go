@@ -74,6 +74,10 @@ type fakeJira struct {
 	// versionsJSON overrides GET /project/{key}/versions. Empty keeps the
 	// default catalog TestEditFixVersion* relies on (id 10012 = v2.5).
 	versionsJSON string
+
+	// linkTypesJSON overrides GET /issueLinkType. Empty keeps the Blocks
+	// catalog TestLink* relies on (id 10000, outward "blocks").
+	linkTypesJSON string
 }
 
 // recordedUpload is one multipart POST /issue/{key}/attachments the fake saw.
@@ -186,6 +190,14 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			raw = `[{"id":"10012","name":"v2.5","released":true,"archived":false},{"id":"10013","name":"v2.6","released":false,"archived":false}]`
 		}
 		_, _ = w.Write([]byte(raw))
+	case path == "/issueLinkType" && r.Method == http.MethodGet:
+		raw := f.linkTypesJSON
+		if raw == "" {
+			raw = `{"issueLinkTypes":[{"id":"10000","name":"Blocks","outward":"blocks","inward":"is blocked by"}]}`
+		}
+		_, _ = w.Write([]byte(raw))
+	case path == "/issueLink" && r.Method == http.MethodPost:
+		w.WriteHeader(http.StatusCreated)
 	default:
 		// transitions POST and assignee PUT answer 204, like Jira.
 		w.WriteHeader(http.StatusNoContent)
@@ -1256,6 +1268,12 @@ func (s *searchUsersStub) PriorityCatalog(context.Context) ([]jira.NamedID, erro
 func (s *searchUsersStub) ProjectVersions(context.Context, string) ([]jira.Version, error) {
 	return nil, errStub
 }
+func (s *searchUsersStub) IssueLinkTypes(context.Context) ([]jira.IssueLinkType, error) {
+	return nil, errStub
+}
+func (s *searchUsersStub) LinkIssues(context.Context, string, string, string) error {
+	return errStub
+}
 func (s *searchUsersStub) Upload(context.Context, string, string, io.Reader) ([]jira.Attachment, error) {
 	return nil, errStub
 }
@@ -1995,6 +2013,7 @@ func TestWritesRefuseToRunWithoutACredential(t *testing.T) {
 		"create":     func() error { return cmdCreate([]string{"a summary", "--project", "NMB", "--type", "Task"}) },
 		"attach":     func() error { return cmdAttach([]string{"NMB-1", tmp}) },
 		"edit":       func() error { return cmdEdit([]string{"NMB-1", "--summary", "renamed"}) },
+		"link":       func() error { return cmdLink([]string{"NMB-1", "NMB-2", "--type", "blocks"}) },
 	} {
 		_, err := capture(t, run)
 		// GDK-454: writes share config.ErrNotConfigured (plus the

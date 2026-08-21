@@ -60,6 +60,18 @@ func (w *linearWriter) ProjectVersions(context.Context, string) ([]jira.Version,
 	return nil, fmt.Errorf("linear: project versions are not supported on this origin")
 }
 
+// IssueLinkTypes has a Linear counterpart (relations) that this adapter
+// does not yet map. Refuse locally so a CLI --type token never looks
+// like an empty catalog.
+func (w *linearWriter) IssueLinkTypes(context.Context) ([]jira.IssueLinkType, error) {
+	return nil, fmt.Errorf("linear: issue links are not supported on this origin")
+}
+
+// LinkIssues is refused with the same local error as IssueLinkTypes.
+func (w *linearWriter) LinkIssues(context.Context, string, string, string) error {
+	return fmt.Errorf("linear: issue links are not supported on this origin")
+}
+
 func (w *linearWriter) Transitions(ctx context.Context, key string) ([]jira.Transition, error) {
 	iss, err := w.resolve(ctx, key)
 	if err != nil {

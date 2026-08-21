@@ -211,3 +211,66 @@ func TestAddCommentPOSTBody(t *testing.T) {
 		t.Errorf("visibility-only POST must omit properties: %s", got[2])
 	}
 }
+
+// Contract: IssueLinkTypes reads GET /issueLinkType and returns the catalog
+// rows. LinkIssues POSTs type.id + outward/inward keys, never a localized name.
+func TestIssueLinkTypesAndLinkIssues(t *testing.T) {
+	var paths []string
+	var bodies []string
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.Method+" "+r.URL.Path)
+		b, _ := io.ReadAll(r.Body)
+		if len(b) > 0 {
+			bodies = append(bodies, string(b))
+		}
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/issueLinkType"):
+			_, _ = w.Write([]byte(`{"issueLinkTypes":[{"id":"10000","name":"Blocks","outward":"blocks","inward":"is blocked by"}]}`))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/issueLink"):
+			w.WriteHeader(http.StatusCreated)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	ctx := context.Background()
+
+	list, err := c.IssueLinkTypes(ctx)
+	if err != nil {
+		t.Fatalf("IssueLinkTypes: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != "10000" || list[0].Outward != "blocks" || list[0].Inward != "is blocked by" {
+		t.Fatalf("catalog = %+v", list)
+	}
+
+	if err := c.LinkIssues(ctx, "10000", "NMB-1", "NMB-2"); err != nil {
+		t.Fatalf("LinkIssues: %v", err)
+	}
+	if len(paths) != 2 {
+		t.Fatalf("paths %v", paths)
+	}
+	if paths[0] != "GET /rest/api/3/issueLinkType" {
+		t.Errorf("catalog path %s", paths[0])
+	}
+	if paths[1] != "POST /rest/api/3/issueLink" {
+		t.Errorf("link path %s", paths[1])
+	}
+	if len(bodies) != 1 {
+		t.Fatalf("bodies %v", bodies)
+	}
+	var sent map[string]any
+	if err := json.Unmarshal([]byte(bodies[0]), &sent); err != nil {
+		t.Fatalf("body %s: %v", bodies[0], err)
+	}
+	typ, _ := sent["type"].(map[string]any)
+	if typ["id"] != "10000" {
+		t.Errorf("type.id = %v, want 10000", typ["id"])
+	}
+	if _, ok := typ["name"]; ok {
+		t.Errorf("POST must send type.id, not name: %s", bodies[0])
+	}
+	outw, _ := sent["outwardIssue"].(map[string]any)
+	inw, _ := sent["inwardIssue"].(map[string]any)
+	if outw["key"] != "NMB-1" || inw["key"] != "NMB-2" {
+		t.Errorf("outward=%v inward=%v", outw, inw)
+	}
+}

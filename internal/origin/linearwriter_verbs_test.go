@@ -334,6 +334,28 @@ func TestProjectVersionsUnsupported(t *testing.T) {
 	}
 }
 
+func TestIssueLinksUnsupported(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	got, err := w.IssueLinkTypes(context.Background())
+	if err == nil {
+		t.Fatal("IssueLinkTypes succeeded; Linear relations are out of scope")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "not supported on this origin") {
+		t.Errorf("error %q, want it to say not supported on this origin", err)
+	}
+	if got != nil {
+		t.Errorf("types %v, want nil on refuse", got)
+	}
+	if err := w.LinkIssues(context.Background(), "10000", "FIX-1", "FIX-2"); err == nil {
+		t.Fatal("LinkIssues succeeded; Linear relations are out of scope")
+	} else if !strings.Contains(strings.ToLower(err.Error()), "not supported on this origin") {
+		t.Errorf("LinkIssues error %q, want it to say not supported on this origin", err)
+	}
+	if len(rec.queries) != 0 {
+		t.Errorf("issue-link refuse hit GraphQL %d times; refuse must stay local", len(rec.queries))
+	}
+}
+
 func TestCreateFieldsUnsupported(t *testing.T) {
 	w, rec := testLinearWriter(t)
 	got, err := w.CreateFields(context.Background(), "FIX", "issue")

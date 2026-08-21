@@ -456,6 +456,15 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak comment", "gadak transition", "gadak issue"},
 	},
+	"link": {
+		summary: "create an issue link (A <type> B); not `gadak issue --link`, which prints a gadak:// URL",
+		usage:   "gadak [--workspace <name>] link <A> <B> --type <name|inward|outward|id> [--json]",
+		examples: []string{
+			"gadak link NMB-140 NMB-141 --type blocks",
+			"gadak link NMB-140 NMB-141 --type \"is blocked by\"",
+		},
+		seeAlso: []string{"gadak issue", "gadak edit", "gadak comment"},
+	},
 	"fields": {
 		summary: "report which custom fields are populated (samples the mirror; queries Jira)",
 		usage:   "gadak [--workspace <name>] fields [--sample N] [--json] [--all] [--project KEY] [--apply]",
