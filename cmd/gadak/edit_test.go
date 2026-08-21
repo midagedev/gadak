@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -1114,4 +1116,148 @@ func rejectIssuePUT(t *testing.T, f *fakeJira, jiraMsg string) {
 		w.WriteHeader(status)
 		_, _ = w.Write(rec.Body.Bytes())
 	})
+}
+
+// --field alias=value (GDK-513):
+// 27. option name resolves against editmeta allowedValues, then FieldValue wraps
+//     TestEditFieldOptionWrapsViaFieldValue
+// 28. unknown alias lists configured aliases; no PUT
+//     TestEditUnknownFieldAliasListsConfiguredRefusesPUT
+// 29. --field absent → no customfield_* key (byte-identical to pre-flag body)
+//     TestEditWithoutFieldOmitsCustomfieldKey
+// 30. configured alias missing from this issue's editmeta → refuse; no PUT
+//     TestEditFieldNotOnIssueRefusesPUT
+// 31. Help / usage enumerate --field
+//     TestEditHelpListsFieldFlag
+
+func seedSeverityAlias(t *testing.T, f *fakeJira) {
+	t.Helper()
+	f.editMeta = `{
+		"customfield_10001": {"required":true,"schema":{"type":"option"},"operations":["set"],
+			"allowedValues":[{"id":"1","value":"High"}]}
+	}`
+	cfg := mirror(t, f.URL)
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "severity", Label: "Severity", IDs: []string{"customfield_10001"}, Role: "facet", Kind: "option"},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEditFieldOptionWrapsViaFieldValue(t *testing.T) {
+	f := newFakeJira(t)
+	seedSeverityAlias(t, f)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--field", "severity=High"})
+	})
+	if err != nil {
+		t.Fatalf("edit --field severity=High: %v", err)
+	}
+	if !f.called("PUT /issue/NMB-1") {
+		t.Fatalf("PUT missing: %v", f.calls)
+	}
+	if !f.called("GET /issue/NMB-1/editmeta") {
+		t.Fatalf("editmeta missing: %v", f.calls)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	got := putPayload(t, body).Fields["customfield_10001"]
+	wantVal, err := fields.FieldValue("option", json.RawMessage(`"1"`))
+	if err != nil {
+		t.Fatalf("FieldValue: %v", err)
+	}
+	want, err := json.Marshal(wantVal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("customfield_10001 = %s, want FieldValue(option, \"1\") = %s (body %s)", got, want, body)
+	}
+}
+
+func TestEditUnknownFieldAliasListsConfiguredRefusesPUT(t *testing.T) {
+	f := newFakeJira(t)
+	seedSeverityAlias(t, f)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--field", "nosuchalias=x"})
+	})
+	if err == nil {
+		t.Fatal("unknown alias must be refused")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "nosuchalias") {
+		t.Errorf("error must name the alias: %q", msg)
+	}
+	if !strings.Contains(msg, "severity") {
+		t.Errorf("error must list configured aliases: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("unknown alias reached PUT: %v", f.calls)
+	}
+}
+
+func TestEditWithoutFieldOmitsCustomfieldKey(t *testing.T) {
+	f := newFakeJira(t)
+	seedSeverityAlias(t, f)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--summary", "no custom"})
+	})
+	if err != nil {
+		t.Fatalf("edit --summary: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if strings.Contains(body, "customfield_") {
+		t.Fatalf("--field absent must omit customfield keys: %s", body)
+	}
+	if f.called("GET /issue/NMB-1/editmeta") {
+		t.Fatalf("summary-only must not GET editmeta: %v", f.calls)
+	}
+}
+
+func TestEditFieldNotOnIssueRefusesPUT(t *testing.T) {
+	f := newFakeJira(t)
+	seedSeverityAlias(t, f)
+	f.editMeta = `{}`
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--field", "severity=High"})
+	})
+	if err == nil {
+		t.Fatal("alias missing from editmeta must be refused")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "severity") {
+		t.Errorf("error must name the alias: %q", msg)
+	}
+	if !strings.Contains(msg, "not editable") {
+		t.Errorf("error must say not editable: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("uneditable field reached PUT: %v", f.calls)
+	}
+}
+
+func TestEditHelpListsFieldFlag(t *testing.T) {
+	out, err := capture(t, func() error {
+		return cmdEdit([]string{"--help"})
+	})
+	if err != nil {
+		t.Fatalf("edit --help: %v", err)
+	}
+	if !strings.Contains(out, "--field") {
+		t.Fatalf("help Options missing --field:\n%s", out)
+	}
+	if !strings.Contains(helps["edit"].usage, "--field") {
+		t.Errorf("usage line missing --field: %s", helps["edit"].usage)
+	}
+	if !strings.Contains(editUsage, "--field") {
+		t.Errorf("editUsage missing --field: %s", editUsage)
+	}
+	joined := strings.Join(helps["edit"].examples, "\n")
+	if !strings.Contains(joined, "--field") {
+		t.Errorf("examples missing --field:\n%s", joined)
+	}
 }

@@ -275,6 +275,11 @@ type CreateFieldMeta struct {
 		Items  string `json:"items"`
 		Custom string `json:"custom"`
 	} `json:"schema"`
+	AllowedValues []struct {
+		ID    string `json:"id"`
+		Value string `json:"value"`
+		Name  string `json:"name"`
+	} `json:"allowedValues"`
 }
 
 // CreateFields pages GET /issue/createmeta/{project}/issuetypes/{type}.

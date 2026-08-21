@@ -2,18 +2,27 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/create"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]"
+const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--field alias=value]... [--json]"
+
+// fieldFlagUsage is the FlagSet description for create/edit --field.
+// Parse rule matches parseTransitionFieldFlags: JSON if valid, otherwise a string.
+const fieldFlagUsage = "configured field alias=value (repeatable); JSON is parsed, otherwise a string"
 
 func cmdEdit(args []string) error {
 	fs := newFlagSet("edit")
@@ -28,6 +37,8 @@ func cmdEdit(args []string) error {
 	priority := fs.String("priority", "", "priority name or id")
 	due := fs.String("due", "", "due date (YYYY-MM-DD); `none` clears")
 	parent := fs.String("parent", "", "parent issue key; `none` clears")
+	var fieldFlags labelFlags
+	fs.Var(&fieldFlags, "field", fieldFlagUsage)
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("edit", fs))
@@ -42,7 +53,7 @@ func cmdEdit(args []string) error {
 	}
 	key := normalizeKey(pos[0])
 
-	var hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasPriority, hasParent, hasDue bool
+	var hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasPriority, hasParent, hasDue, hasField bool
 	fs.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "summary":
@@ -61,9 +72,11 @@ func cmdEdit(args []string) error {
 			hasParent = true
 		case "due":
 			hasDue = true
+		case "field":
+			hasField = true
 		}
 	})
-	if !hasSummary && !hasM && !hasLabel && !hasComponent && !hasFixVersion && !hasPriority && !hasParent && !hasDue {
+	if !hasSummary && !hasM && !hasLabel && !hasComponent && !hasFixVersion && !hasPriority && !hasParent && !hasDue && !hasField {
 		return usageError("edit", editUsage)
 	}
 	if hasSummary && strings.TrimSpace(*summary) == "" {
@@ -137,6 +150,22 @@ func cmdEdit(args []string) error {
 		}
 	}
 
+	var fieldRaws map[string]json.RawMessage
+	var fieldCfg *config.Config
+	if hasField {
+		fieldRaws, err = parseAliasFieldRaws(fieldFlags)
+		if err != nil {
+			return err
+		}
+		fieldCfg, err = config.Load()
+		if err != nil {
+			return err
+		}
+		if err := checkConfiguredAliases(fieldCfg, fieldRaws); err != nil {
+			return err
+		}
+	}
+
 	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		fields := map[string]any{}
 		update := map[string]any{}
@@ -186,6 +215,19 @@ func cmdEdit(args []string) error {
 				fields["duedate"] = nil
 			} else {
 				fields["duedate"] = dueDate
+			}
+		}
+		if len(fieldRaws) > 0 {
+			meta, merr := c.EditMeta(ctx, key)
+			if merr != nil {
+				return nil, merr
+			}
+			custom, cerr := resolveEditAliasFields(fieldCfg, meta, fieldRaws, key)
+			if cerr != nil {
+				return nil, cerr
+			}
+			for id, v := range custom {
+				fields[id] = v
 			}
 		}
 		// A --parent the origin refuses gets the mirror's hierarchy answer,
@@ -358,4 +400,208 @@ func componentHintNames(ctx context.Context, c origin.Writer, key string) []stri
 		out = append(out, name)
 	}
 	return out
+}
+
+// parseAliasFieldRaws turns --field alias=value into JSON payloads.
+// The split/parse rule is parseTransitionFieldFlags: JSON if valid, otherwise
+// a string. Re-marshal so fields.FieldValue can consume json.RawMessage.
+func parseAliasFieldRaws(raw []string) (map[string]json.RawMessage, error) {
+	parsed, err := parseTransitionFieldFlags(raw)
+	if err != nil {
+		return nil, err
+	}
+	if len(parsed) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]json.RawMessage, len(parsed))
+	for k, v := range parsed {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		out[k] = b
+	}
+	return out, nil
+}
+
+func checkConfiguredAliases(cfg *config.Config, raws map[string]json.RawMessage) error {
+	allow := fields.EditableAliases(cfg)
+	for alias := range raws {
+		if _, ok := allow[alias]; !ok {
+			return unknownFieldAliasError(alias, allow)
+		}
+	}
+	return nil
+}
+
+func unknownFieldAliasError(alias string, allow map[string]fields.EditableAlias) error {
+	names := make([]string, 0, len(allow))
+	for a := range allow {
+		names = append(names, a)
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		return fmt.Errorf("unknown field alias %q — no configured aliases", alias)
+	}
+	return fmt.Errorf("unknown field alias %q — configured: %s", alias, strings.Join(names, ", "))
+}
+
+func resolveEditAliasFields(cfg *config.Config, meta map[string]jira.FieldMeta, raws map[string]json.RawMessage, key string) (map[string]any, error) {
+	allow := fields.EditableAliases(cfg)
+	out := make(map[string]any, len(raws))
+	for alias, raw := range raws {
+		ea := allow[alias]
+		id, kind, present := jirafields.ResolveEditableID(ea.IDs, meta)
+		if !present {
+			return nil, fmt.Errorf("field %q is not editable on %s", alias, key)
+		}
+		if kind == "" {
+			kind = ea.Kind
+		}
+		val, err := wrapAliasValue(kind, raw, meta[id])
+		if err != nil {
+			return nil, fmt.Errorf("field %s: %w", alias, err)
+		}
+		out[id] = val
+	}
+	return out, nil
+}
+
+func resolveCreateAliasFields(cfg *config.Config, list []jira.CreateFieldMeta, raws map[string]json.RawMessage) (map[string]any, error) {
+	byID := make(map[string]jira.CreateFieldMeta, len(list))
+	for _, f := range list {
+		byID[f.FieldID] = f
+	}
+	allow := fields.EditableAliases(cfg)
+	out := make(map[string]any, len(raws))
+	for alias, raw := range raws {
+		ea := allow[alias]
+		var found jira.CreateFieldMeta
+		var id string
+		ok := false
+		for _, cand := range ea.IDs {
+			if f, present := byID[cand]; present {
+				found, id, ok = f, cand, true
+				break
+			}
+		}
+		if !ok {
+			return nil, fmt.Errorf("field %q is not available for this project and type", alias)
+		}
+		meta := fieldMetaFromCreate(found)
+		kind := jirafields.EditKind(meta)
+		if kind == "" {
+			kind = ea.Kind
+		}
+		val, err := wrapAliasValue(kind, raw, meta)
+		if err != nil {
+			return nil, fmt.Errorf("field %s: %w", alias, err)
+		}
+		out[id] = val
+	}
+	return out, nil
+}
+
+func fieldMetaFromCreate(f jira.CreateFieldMeta) jira.FieldMeta {
+	var m jira.FieldMeta
+	m.Required = f.Required
+	m.Schema.Type = f.Schema.Type
+	m.Schema.Items = f.Schema.Items
+	m.Schema.Custom = f.Schema.Custom
+	m.AllowedValues = f.AllowedValues
+	return m
+}
+
+func wrapAliasValue(kind string, raw json.RawMessage, meta jira.FieldMeta) (any, error) {
+	if kind == "" {
+		var v any
+		if err := json.Unmarshal(raw, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
+	}
+	mapped, err := mapAllowedRaw(raw, meta)
+	if err != nil {
+		return nil, err
+	}
+	return fields.FieldValue(kind, mapped)
+}
+
+func mapAllowedRaw(raw json.RawMessage, meta jira.FieldMeta) (json.RawMessage, error) {
+	if len(raw) == 0 || string(raw) == "null" || len(meta.AllowedValues) == 0 {
+		return raw, nil
+	}
+	var tokens []string
+	if err := json.Unmarshal(raw, &tokens); err == nil {
+		ids := make([]string, len(tokens))
+		for i, tok := range tokens {
+			id, err := matchAllowedID(tok, meta)
+			if err != nil {
+				return nil, err
+			}
+			ids[i] = id
+		}
+		return json.Marshal(ids)
+	}
+	tok, ok := scalarToken(raw)
+	if !ok {
+		return raw, nil
+	}
+	id, err := matchAllowedID(tok, meta)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(id)
+}
+
+func scalarToken(raw json.RawMessage) (string, bool) {
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s, true
+	}
+	var n json.Number
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n.String(), true
+	}
+	return "", false
+}
+
+func matchAllowedID(token string, meta jira.FieldMeta) (string, error) {
+	token = strings.TrimSpace(token)
+	var nameHits []string
+	for _, v := range meta.AllowedValues {
+		if v.ID == token {
+			return v.ID, nil
+		}
+		label := v.Value
+		if label == "" {
+			label = v.Name
+		}
+		if strings.EqualFold(label, token) {
+			nameHits = append(nameHits, v.ID)
+		}
+	}
+	switch len(nameHits) {
+	case 1:
+		return nameHits[0], nil
+	case 0:
+		return "", fmt.Errorf("no value matching %q — available: %s", token, formatAllowedValues(meta))
+	default:
+		return "", fmt.Errorf("field value %q is ambiguous — matches: %s", token, strings.Join(nameHits, ", "))
+	}
+}
+
+func formatAllowedValues(meta jira.FieldMeta) string {
+	parts := make([]string, 0, len(meta.AllowedValues))
+	for _, v := range meta.AllowedValues {
+		label := v.Value
+		if label == "" {
+			label = v.Name
+		}
+		if label == "" {
+			label = v.ID
+		}
+		parts = append(parts, label)
+	}
+	return strings.Join(parts, ", ")
 }

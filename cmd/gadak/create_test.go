@@ -1980,3 +1980,153 @@ func TestValidateDefaultIssueTypeIDRejectsNames(t *testing.T) {
 		t.Fatal("whitespace project accepted")
 	}
 }
+
+// --field alias=value / batch "fields" (GDK-513):
+// 31. required custom field from createmeta lands in POST /issue
+//     TestCreateFieldLandsInPOST
+// 32. --field absent → no customfield_* key
+//     TestCreateWithoutFieldOmitsCustomfieldKey
+// 33. batch line "fields" produces the same POST shape
+//     TestCreateBatchFieldsKeySamePOSTShape
+// 34. Help / usage enumerate --field
+//     TestCreateHelpListsFieldFlag
+
+const severityCreateFieldsJSON = `{"maxResults":50,"startAt":0,"total":1,"fields":[` +
+	`{"fieldId":"customfield_10001","name":"Severity","required":true,"hasDefaultValue":false,` +
+	`"schema":{"type":"option"},` +
+	`"allowedValues":[{"id":"1","value":"High"},{"id":"2","value":"Low"}]}]}`
+
+func serveCreateFields(t *testing.T, f *fakeJira, fieldsJSON string) {
+	t.Helper()
+	inner := f.Config.Handler
+	f.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/rest/api/3")
+		if r.Method == http.MethodGet && strings.Contains(path, "/issue/createmeta/") && strings.Contains(path, "/issuetypes/") {
+			tag := r.Method + " " + path
+			f.calls = append(f.calls, tag)
+			w.Header().Set("Content-Type", "application/json")
+			body := fieldsJSON
+			if body == "" {
+				body = `{"maxResults":50,"startAt":0,"total":0,"fields":[]}`
+			}
+			_, _ = w.Write([]byte(body))
+			return
+		}
+		inner.ServeHTTP(w, r)
+	})
+}
+
+func seedCreateSeverityAlias(t *testing.T, f *fakeJira) {
+	t.Helper()
+	serveCreateFields(t, f, severityCreateFieldsJSON)
+	cfg := mirror(t, f.URL)
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "severity", Label: "Severity", IDs: []string{"customfield_10001"}, Role: "facet", Kind: "option"},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func postIssueCustom(t *testing.T, f *fakeJira, id string) json.RawMessage {
+	t.Helper()
+	sent := f.bodies["POST /issue"]
+	var req struct {
+		Fields map[string]json.RawMessage `json:"fields"`
+	}
+	if err := json.Unmarshal([]byte(sent), &req); err != nil {
+		t.Fatalf("POST JSON: %v (%s)", err, sent)
+	}
+	got, ok := req.Fields[id]
+	if !ok {
+		t.Fatalf("POST fields missing %s: %s", id, sent)
+	}
+	return got
+}
+
+func TestCreateFieldLandsInPOST(t *testing.T) {
+	f := newFakeJira(t)
+	seedCreateSeverityAlias(t, f)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"Needs severity", "--project", "NMB", "--type", "Task",
+			"--field", "severity=High",
+		})
+	})
+	if err != nil {
+		t.Fatalf("create --field: %v", err)
+	}
+	if !f.called("POST /issue") {
+		t.Fatalf("CreateIssue not called: %v", f.calls)
+	}
+	got := postIssueCustom(t, f, "customfield_10001")
+	// createmeta carries allowedValues, so the name "High" maps to its id
+	// before FieldValue wraps it — the same name→id rule the edit path uses.
+	if string(got) != `{"id":"1"}` {
+		t.Fatalf("customfield_10001 = %s, want {\"id\":\"1\"} (body %s)", got, f.bodies["POST /issue"])
+	}
+}
+
+func TestCreateWithoutFieldOmitsCustomfieldKey(t *testing.T) {
+	f := newFakeJira(t)
+	seedCreateSeverityAlias(t, f)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"plain create", "--project", "NMB", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	sent := f.bodies["POST /issue"]
+	if strings.Contains(sent, "customfield_") {
+		t.Fatalf("--field absent must omit customfield keys: %s", sent)
+	}
+	for _, c := range f.calls {
+		if strings.Contains(c, "/createmeta/") && strings.Contains(c, "/issuetypes/") {
+			t.Fatalf("no --field must not GET CreateFields: %v", f.calls)
+		}
+	}
+}
+
+func TestCreateBatchFieldsKeySamePOSTShape(t *testing.T) {
+	f := newFakeJira(t)
+	seedCreateSeverityAlias(t, f)
+	withStdin(t, `{"summary":"batch severity","fields":{"severity":"High"}}`+"\n")
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("batch fields: %v", err)
+	}
+	if !f.called("POST /issue") {
+		t.Fatalf("CreateIssue not called: %v", f.calls)
+	}
+	got := postIssueCustom(t, f, "customfield_10001")
+	if string(got) != `{"id":"1"}` {
+		t.Fatalf("batch customfield_10001 = %s, want {\"id\":\"1\"} (body %s)", got, f.bodies["POST /issue"])
+	}
+}
+
+func TestCreateHelpListsFieldFlag(t *testing.T) {
+	out, err := capture(t, func() error {
+		return cmdCreate([]string{"--help"})
+	})
+	if err != nil {
+		t.Fatalf("create --help: %v", err)
+	}
+	if !strings.Contains(out, "--field") {
+		t.Fatalf("help Options missing --field:\n%s", out)
+	}
+	if !strings.Contains(helps["create"].usage, "--field") {
+		t.Errorf("usage line missing --field: %s", helps["create"].usage)
+	}
+	if !strings.Contains(createUsage, "--field") {
+		t.Errorf("createUsage missing --field: %s", createUsage)
+	}
+	joined := strings.Join(helps["create"].examples, "\n")
+	if !strings.Contains(joined, "--field") {
+		t.Errorf("examples missing --field:\n%s", joined)
+	}
+}

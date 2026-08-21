@@ -18,11 +18,11 @@ import (
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-const createUsage = "usage: gadak create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--json]"
+const createUsage = "usage: gadak create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--field alias=value]... [--json]"
 
 // createBatchShape is the one-line reminder printed when a --batch line is
 // not an object we can file. Field names match createBatchLine.
-const createBatchShape = `{"summary": "...", "type"?: "...", "project"?: "...", "labels"?: [...], "description"?: "plain text", "attach"?: ["path", ...], "priority"?: "...", "parent"?: "ABC-1", "due"?: "YYYY-MM-DD"}`
+const createBatchShape = `{"summary": "...", "type"?: "...", "project"?: "...", "labels"?: [...], "description"?: "plain text", "attach"?: ["path", ...], "priority"?: "...", "parent"?: "ABC-1", "due"?: "YYYY-MM-DD", "fields"?: {"alias": value}}`
 
 // labelFlags collects repeated --label values.
 type labelFlags []string
@@ -46,8 +46,10 @@ func cmdCreate(args []string) error {
 	var attachFiles labelFlags
 	fs.Var(&attachFiles, "attach", "file to upload after create (repeatable)")
 	text := fs.String("m", "", "description as plain text; `-` reads it from stdin")
+	var fieldFlags labelFlags
+	fs.Var(&fieldFlags, "field", fieldFlagUsage)
 	asJSON := fs.Bool("json", false, "emit JSON")
-	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs summary, and may set type, project, labels, description, attach, priority, parent, due")
+	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs summary, and may set type, project, labels, description, attach, priority, parent, due, fields")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("create", fs))
 		return nil
@@ -71,7 +73,11 @@ func cmdCreate(args []string) error {
 		if strings.TrimSpace(strings.Join(pos, " ")) != "" {
 			return usageError("create", "usage: gadak create: --batch and a summary are mutually exclusive")
 		}
-		return cmdCreateBatch(*projectFlag, *typeFlag, *text, *priorityFlag, *parentFlag, *dueFlag, []string(labels), []string(attachFiles), *asJSON)
+		fieldRaws, ferr := parseAliasFieldRaws(fieldFlags)
+		if ferr != nil {
+			return ferr
+		}
+		return cmdCreateBatch(*projectFlag, *typeFlag, *text, *priorityFlag, *parentFlag, *dueFlag, []string(labels), []string(attachFiles), fieldRaws, *asJSON)
 	}
 
 	summary := strings.TrimSpace(strings.Join(pos, " "))
@@ -98,9 +104,13 @@ func cmdCreate(args []string) error {
 			return err
 		}
 	}
+	fieldRaws, err := parseAliasFieldRaws(fieldFlags)
+	if err != nil {
+		return err
+	}
 
 	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
-		key, extra, err := createOne(ctx, cfg, c, *projectFlag, *typeFlag, summary, body, *priorityFlag, *parentFlag, *dueFlag, []string(labels), attachFiles)
+		key, extra, err := createOne(ctx, cfg, c, *projectFlag, *typeFlag, summary, body, *priorityFlag, *parentFlag, *dueFlag, []string(labels), attachFiles, fieldRaws)
 		if err != nil {
 			return err
 		}
@@ -132,18 +142,19 @@ func cmdCreate(args []string) error {
 // override (no labels / no files), not a fall-through. Empty priority and
 // parent fall through the same way type and project do.
 type createBatchLine struct {
-	Summary     string    `json:"summary"`
-	Type        string    `json:"type"`
-	Project     string    `json:"project"`
-	Labels      *[]string `json:"labels"`
-	Description string    `json:"description"`
-	Attach      *[]string `json:"attach"`
-	Priority    string    `json:"priority"`
-	Parent      string    `json:"parent"`
-	Due         string    `json:"due"`
+	Summary     string                     `json:"summary"`
+	Type        string                     `json:"type"`
+	Project     string                     `json:"project"`
+	Labels      *[]string                  `json:"labels"`
+	Description string                     `json:"description"`
+	Attach      *[]string                  `json:"attach"`
+	Priority    string                     `json:"priority"`
+	Parent      string                     `json:"parent"`
+	Due         string                     `json:"due"`
+	Fields      map[string]json.RawMessage `json:"fields"`
 }
 
-func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, defaultParent, defaultDue string, defaultLabels, defaultAttach []string, asJSON bool) error {
+func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, defaultParent, defaultDue string, defaultLabels, defaultAttach []string, defaultFields map[string]json.RawMessage, asJSON bool) error {
 	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
 		sc := bufio.NewScanner(os.Stdin)
 		lineNo := 0
@@ -193,7 +204,8 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 			if strings.TrimSpace(dueWant) == "" {
 				dueWant = defaultDue
 			}
-			key, extra, err := createOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach)
+			fieldRaws := mergeFieldRaws(defaultFields, rec.Fields)
+			key, extra, err := createOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
 			if err != nil {
 				return fmt.Errorf("line %d: %w", lineNo, err)
 			}
@@ -211,7 +223,7 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 // createOne resolves project/type/priority/parent, POSTs the issue, and uploads
 // attachments. Attach paths and the parent key shape are validated before any
 // Jira call. The caller prints / refreshes.
-func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string) (string, map[string]any, error) {
+func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
 	if len(attach) > 0 {
 		if err := validateAttachPaths(attach); err != nil {
 			return "", nil, err
@@ -291,6 +303,22 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	if due != "" {
 		fields["duedate"] = due
 	}
+	if len(fieldRaws) > 0 {
+		if err := checkConfiguredAliases(cfg, fieldRaws); err != nil {
+			return "", nil, err
+		}
+		list, err := c.CreateFields(ctx, proj.Key, typeRes.Value)
+		if err != nil {
+			return "", nil, err
+		}
+		custom, err := resolveCreateAliasFields(cfg, list, fieldRaws)
+		if err != nil {
+			return "", nil, err
+		}
+		for id, v := range custom {
+			fields[id] = v
+		}
+	}
 
 	key, err := c.CreateIssue(ctx, fields)
 	if err != nil {
@@ -315,6 +343,20 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 		extra["attached"] = attached
 	}
 	return key, extra, nil
+}
+
+func mergeFieldRaws(base, overlay map[string]json.RawMessage) map[string]json.RawMessage {
+	if len(base) == 0 && len(overlay) == 0 {
+		return nil
+	}
+	out := make(map[string]json.RawMessage, len(base)+len(overlay))
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, v := range overlay {
+		out[k] = v
+	}
+	return out
 }
 
 // formatCreateError turns shared Need* catalogue data into the CLI flag +
