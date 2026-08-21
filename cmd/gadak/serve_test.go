@@ -74,10 +74,19 @@ func TestCheckServeAddr(t *testing.T) {
 		{name: "loopback default", addr: "127.0.0.1:7777"},
 		{name: "localhost", addr: "localhost:7777"},
 		{name: "ipv6 loopback", addr: "[::1]:7777"},
-		{name: "empty host ok", addr: ":7777"},
+		{
+			name:    "empty host refused",
+			addr:    ":7777",
+			wantErr: "without --allow-remote",
+		},
 		{
 			name:    "non-loopback refused",
 			addr:    "0.0.0.0:7777",
+			wantErr: "without --allow-remote",
+		},
+		{
+			name:    "unspecified ipv6 refused",
+			addr:    "[::]:7777",
 			wantErr: "without --allow-remote",
 		},
 		{
@@ -88,6 +97,16 @@ func TestCheckServeAddr(t *testing.T) {
 		{
 			name:        "non-loopback with allow-remote",
 			addr:        "0.0.0.0:7777",
+			allowRemote: true,
+		},
+		{
+			name:        "empty host with allow-remote",
+			addr:        ":7777",
+			allowRemote: true,
+		},
+		{
+			name:        "unspecified ipv6 with allow-remote",
+			addr:        "[::]:7777",
 			allowRemote: true,
 		},
 		{
