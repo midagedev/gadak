@@ -127,12 +127,21 @@ mirror lets us do one thing the originals cannot do cheaply: an unread
 highlight computed as `updated_at > last local visit`, with zero server
 involvement.
 
-## 7. Confirmation is a function of reversibility
+## 7. Confirmation is a function of rarity × irreversibility
 
-clig.dev: confirmation strength proportional to danger. Triage actions on the
-local mirror are cheap to undo — they execute immediately, no dialog, undo
-offered. Writes that leave the machine (comments, transitions to real Jira)
-are not reversible by us — they get confirmation. Whether a dialog exists is
+(Revised 2026-08-21, GDK-134. The original text promised confirmation for
+every write that leaves the machine; in practice high-frequency triage
+writes — transitions, assigns, comments — are correct without one, and
+that was the §1 reading all along.)
+
+clig.dev: confirmation strength proportional to danger. Two axes decide it:
+how often the action happens, and whether anyone can undo it. Frequent
+actions get no dialog even when they write to Jira — a confirm on every
+transition would train reflexive clicking, which protects nothing. What
+earns friction is the rare action nobody can take back: deleting a team
+view removes it for every teammate with no undo, so its × arms on the
+first click and deletes on the second. That two-step arm is the house
+confirm — proportional strength, no modal. Whether friction exists is
 never a style choice.
 
 ## 8. Don't invent vocabulary
