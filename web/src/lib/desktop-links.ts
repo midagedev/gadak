@@ -21,6 +21,8 @@ import {
   classifyAtlassianLink,
   extractBrowseKey,
   extractWikiPageId,
+  githubTabLabel,
+  isGitHubLink,
   type AtlassianLinkKind,
   type ClassifiedAtlassianLink,
 } from './browse-classify'
@@ -31,6 +33,8 @@ export {
   classifyAtlassianLink,
   extractBrowseKey,
   extractWikiPageId,
+  githubTabLabel,
+  isGitHubLink,
   type AtlassianLinkKind,
   type ClassifiedAtlassianLink,
 }
@@ -75,11 +79,16 @@ export function openContainedUrl(url: string): void {
   const classified = classifyAtlassianLink(url, config().jiraBaseUrl || null)
   if (isDesktop()) {
     if (classified.inApp) void openInAppBrowser(url, classified)
+    else if (isGitHubLink(url)) void openInAppBrowser(url, GITHUB_CLASSIFIED)
     else openSystemBrowser(url)
     return
   }
   window.open(url, '_blank', 'noopener,noreferrer')
 }
+
+// GitHub tabs ride the pane as kind 'other': nothing in the mirror to resync
+// when they close, and the poll's re-classification keeps them 'other' too.
+const GITHUB_CLASSIFIED: ClassifiedAtlassianLink = { inApp: true, kind: 'other', key: null }
 
 /** Install the interceptor; returns the uninstall function (noop off desktop). */
 export function installDesktopLinkOpener(): () => void {
@@ -95,6 +104,8 @@ export function installDesktopLinkOpener(): () => void {
     const classified = classifyAtlassianLink(href, base)
     if (classified.inApp) {
       void openInAppBrowser(href, classified)
+    } else if (isGitHubLink(href)) {
+      void openInAppBrowser(href, GITHUB_CLASSIFIED)
     } else {
       openSystemBrowser(href)
     }

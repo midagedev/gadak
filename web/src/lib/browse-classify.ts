@@ -33,6 +33,43 @@ export function extractWikiPageId(href: string): string | null {
   return m ? m[1] : null
 }
 
+const GITHUB_PR_RE = /^\/([^/]+\/[^/]+)\/pull\/(\d+)(?:[/?#]|$)/
+const GITHUB_COMMIT_RE = /^\/([^/]+\/[^/]+)\/commit\/([0-9a-f]{7,40})(?:[/?#]|$)/
+
+/**
+ * GitHub URLs open in the in-app pane too (GDK-527): PRs and commits linked
+ * from issues are part of reading the issue, and the pane's native webview
+ * has none of the iframe restrictions github.com sets. Only github.com
+ * proper — subdomains (gist, raw) stay in the system browser.
+ */
+export function isGitHubLink(href: string): boolean {
+  try {
+    const u = new URL(href)
+    return (
+      (u.protocol === 'http:' || u.protocol === 'https:') &&
+      (u.host === 'github.com' || u.host === 'www.github.com')
+    )
+  } catch {
+    return false
+  }
+}
+
+/** Compact label for a GitHub tab before its page answers with a title:
+ *  `org/repo#42` for a PR, `org/repo@sha7` for a commit, null otherwise. */
+export function githubTabLabel(href: string): string | null {
+  try {
+    const u = new URL(href)
+    if (u.host !== 'github.com' && u.host !== 'www.github.com') return null
+    const pr = u.pathname.match(GITHUB_PR_RE)
+    if (pr) return `${pr[1]}#${pr[2]}`
+    const commit = u.pathname.match(GITHUB_COMMIT_RE)
+    if (commit) return `${commit[1]}@${commit[2].slice(0, 7)}`
+    return null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Classify an absolute Atlassian URL for in-app browse + optional resync.
  * Pure: no I/O, no config reads — callers pass jiraBaseUrl.
