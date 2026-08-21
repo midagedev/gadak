@@ -353,6 +353,12 @@ type detailResponse struct {
 	Bodies map[string]json.RawMessage `json:"bodies"`
 }
 
+// MarshalJSON adds `key` as an alias of `issue_key` (GDK-255).
+func (d detailResponse) MarshalJSON() ([]byte, error) {
+	type wire detailResponse
+	return store.MarshalWithIssueKeyAlias(d.IssueKey, wire(d))
+}
+
 // githubPRURL matches a GitHub pull-request URL. Origin-agnostic on purpose:
 // a Linear issue carries these as URL attachments (its GitHub integration, its
 // attachmentLinkGitHubPR mutation, or a hand-pasted link all store the same

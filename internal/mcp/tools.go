@@ -437,6 +437,7 @@ func (s *Server) issuePayload(key string) (map[string]any, error) {
 	if lite != nil {
 		body["issue"] = *lite
 	}
+	store.AliasIssueKey(body)
 	return body, nil
 }
 

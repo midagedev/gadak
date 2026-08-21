@@ -218,3 +218,38 @@ func TestSQLDisplayNameZeroRowHint(t *testing.T) {
 		t.Fatalf("status_category filter must not warn, got %q", safeErr)
 	}
 }
+
+// GDK-255: agents copy issue_key from JSON into SQL; issues_full has key.
+// The suggestion is on the error (stderr via main), never on stdout.
+func TestSQLDidYouMeanIssueKey(t *testing.T) {
+	sqlDemoHome(t)
+	out, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select issue_key from issues_full limit 1"})
+	})
+	if err == nil {
+		t.Fatalf("want no such column, got stdout %q", out)
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "no such column") {
+		t.Fatalf("want original sqlite error, got %v", err)
+	}
+	if !strings.Contains(msg, `did you mean "key"`) {
+		t.Fatalf("want did you mean \"key\", got %v (stderr %q)", err, stderr)
+	}
+	if strings.TrimSpace(out) != "" {
+		t.Fatalf("stdout must stay empty (gadak sql stdout is a contract), got %q", out)
+	}
+}
+
+func TestSQLDidYouMeanOmitsDistant(t *testing.T) {
+	sqlDemoHome(t)
+	_, _, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select zzqx from issues_full limit 1"})
+	})
+	if err == nil {
+		t.Fatal("want no such column")
+	}
+	if strings.Contains(err.Error(), "did you mean") {
+		t.Fatalf("distant name must not suggest, got %v", err)
+	}
+}

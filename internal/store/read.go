@@ -84,6 +84,45 @@ type IssueLite struct {
 	SecurityLevel   *string `json:"security_level"`
 }
 
+// MarshalJSON adds `key` as an alias of `issue_key` so JSON surfaces and
+// SQL (`issues_full.key`) share a name (GDK-255). Derived at marshal time
+// so a constructor cannot emit one without the other.
+func (l IssueLite) MarshalJSON() ([]byte, error) {
+	type wire IssueLite
+	return MarshalWithIssueKeyAlias(l.IssueKey, wire(l))
+}
+
+// MarshalWithIssueKeyAlias encodes v then sets `"key"` equal to issueKey.
+// Callers pass a named type alias of themselves so this is not recursive.
+// Map-built JSON uses AliasIssueKey.
+func MarshalWithIssueKeyAlias(issueKey string, v any) ([]byte, error) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return nil, err
+	}
+	kb, err := json.Marshal(issueKey)
+	if err != nil {
+		return nil, err
+	}
+	obj["key"] = kb
+	return json.Marshal(obj)
+}
+
+// AliasIssueKey copies m["issue_key"] onto m["key"] so map-built JSON
+// cannot emit one name without the other (GDK-255).
+func AliasIssueKey(m map[string]any) {
+	if m == nil {
+		return
+	}
+	if v, ok := m["issue_key"]; ok {
+		m["key"] = v
+	}
+}
+
 const issueLiteSelect = `
 	SELECT i.key, COALESCE(it.title, ''), COALESCE(i.project_key, ''),
 	       COALESCE(i.issue_type, ''), COALESCE(i.issue_type_id, ''),
@@ -319,6 +358,9 @@ type DetailLink struct {
 // Detail is everything the on-demand detail view needs, assembled from the
 // mirror with no call to the source.
 type Detail struct {
+	// JSON alias "key" is added by issueDoc / detailResponse / AliasIssueKey,
+	// not by MarshalJSON on this type: an anonymous Marshaler embed would
+	// replace the whole `gadak issue --json` object (GDK-255).
 	IssueKey       string          `json:"issue_key"`
 	DescriptionADF json.RawMessage `json:"description_adf"`
 	// DescriptionText is items.body_text. Linear (and any source that does not

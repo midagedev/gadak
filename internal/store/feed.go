@@ -66,6 +66,12 @@ type FeedItem struct {
 	ReadAt        *string        `json:"read_at"`
 }
 
+// MarshalJSON adds `key` as an alias of `issue_key` (GDK-255).
+func (f FeedItem) MarshalJSON() ([]byte, error) {
+	type wire FeedItem
+	return MarshalWithIssueKeyAlias(f.IssueKey, wire(f))
+}
+
 // FeedUnreadCounts is the badge counts per focus tab.
 type FeedUnreadCounts struct {
 	All      int `json:"all"`

@@ -54,6 +54,12 @@ func TestExportStaticScrubProducesWhitelistOnly(t *testing.T) {
 		if _, ok := is["assignee"]; ok {
 			t.Fatal("assignee leaked")
 		}
+		var issueKey, keyAlias string
+		_ = json.Unmarshal(is["issue_key"], &issueKey)
+		_ = json.Unmarshal(is["key"], &keyAlias)
+		if issueKey == "" || keyAlias != issueKey {
+			t.Errorf("scrubbed bootstrap key alias diverged: issue_key=%q key=%q", issueKey, keyAlias)
+		}
 	}
 
 	// Every detail file must be content-empty.
@@ -148,6 +154,14 @@ func TestKeepDescriptionOpensOnlyTheDescription(t *testing.T) {
 	}
 	if len(got.Linked) != 1 {
 		t.Errorf("linked_issues = %d, want the public structure kept", len(got.Linked))
+	}
+
+	var closedMap map[string]json.RawMessage
+	if err := json.Unmarshal(closed, &closedMap); err != nil {
+		t.Fatal(err)
+	}
+	if string(closedMap["issue_key"]) != `"GDK-1"` || string(closedMap["key"]) != string(closedMap["issue_key"]) {
+		t.Errorf("scrubDetail key alias diverged: issue_key=%s key=%s", closedMap["issue_key"], closedMap["key"])
 	}
 }
 

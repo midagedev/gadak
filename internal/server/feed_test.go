@@ -94,6 +94,7 @@ func TestFeedGetAndMarkRead(t *testing.T) {
 		Items []struct {
 			EventID   string   `json:"event_id"`
 			IssueKey  string   `json:"issue_key"`
+			Key       string   `json:"key"`
 			EventType string   `json:"event_type"`
 			Reasons   []string `json:"reasons"`
 			ReadAt    *string  `json:"read_at"`
@@ -108,6 +109,9 @@ func TestFeedGetAndMarkRead(t *testing.T) {
 	}
 	if len(body.Items) == 0 {
 		t.Fatal("empty feed")
+	}
+	if body.Items[0].IssueKey == "" || body.Items[0].Key != body.Items[0].IssueKey {
+		t.Errorf("feed key alias diverged: issue_key=%q key=%q", body.Items[0].IssueKey, body.Items[0].Key)
 	}
 	if body.UnreadCounts.All == 0 {
 		t.Fatal("expected unread")

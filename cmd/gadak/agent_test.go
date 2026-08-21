@@ -705,6 +705,9 @@ func TestIssueAndSearchReadTheMirror(t *testing.T) {
 	if body.Total != 1 || body.Issues[0].IssueKey != "NMB-1" {
 		t.Fatalf("search --json %+v", body)
 	}
+	if !strings.Contains(out, `"issue_key":"NMB-1"`) || !strings.Contains(out, `"key":"NMB-1"`) {
+		t.Fatalf("search --json missing issue_key/key alias pair:\n%s", out)
+	}
 
 	out, err = capture(t, func() error {
 		return cmdSearch([]string{"--jql", `project = NMB AND statusCategory = "In Progress"`})
@@ -1138,6 +1141,17 @@ func TestIssueSingleKeyJSONIsObject(t *testing.T) {
 	}
 	if issueJSONKey(t, json.RawMessage([]byte(out))) != "NMB-1" {
 		t.Fatalf("single-key --json issue.issue_key:\n%s", out)
+	}
+	var docMap map[string]any
+	if err := json.Unmarshal([]byte(out), &docMap); err != nil {
+		t.Fatalf("issue --json: %v\n%s", err, out)
+	}
+	if docMap["issue_key"] != "NMB-1" || docMap["key"] != docMap["issue_key"] {
+		t.Fatalf("issue --json top-level key alias diverged: issue_key=%v key=%v", docMap["issue_key"], docMap["key"])
+	}
+	issue, _ := docMap["issue"].(map[string]any)
+	if issue["issue_key"] != "NMB-1" || issue["key"] != issue["issue_key"] {
+		t.Fatalf("issue --json nested IssueLite key alias diverged: %v", issue)
 	}
 }
 

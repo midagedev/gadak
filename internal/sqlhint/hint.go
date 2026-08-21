@@ -1,10 +1,14 @@
-// Package sqlhint is the shared zero-row display-name warning used by
-// gadak sql and gadak_query (MCP). Status, issue type, and priority names
-// are localized per account; filtering on the display column is the locale
-// trap that returns zero rows silently.
+// Package sqlhint is the shared SQL-error help used by gadak sql and
+// gadak_query (MCP). Status, issue type, and priority names are localized
+// per account; filtering on the display column is the locale trap that
+// returns zero rows silently. A "no such column" error also gets a
+// did-you-mean when the unknown name is close to a real column (GDK-255:
+// issue_key → key).
 package sqlhint
 
 import (
+	"database/sql"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -99,4 +103,187 @@ func stripSQLComments(s string) string {
 		i++
 	}
 	return b.String()
+}
+
+// hintTables are the agent-facing relations whose columns we offer as
+// did-you-mean candidates. The JSON/SQL name mismatch (issue_key vs key)
+// lives on issues_full; items/pages/comments catch the rest of a typo.
+var hintTables = []string{"issues_full", "items", "pages", "comments"}
+
+var noSuchColumnRe = regexp.MustCompile(`(?i)no such column:\s+([^\s(]+)`)
+
+// WithColumnSuggestion appends `did you mean "col"?` to a SQLite
+// "no such column" error when one column from hintTables is close enough.
+// Distant names stay unadorned — a bad guess is worse than none.
+func WithColumnSuggestion(db *sql.DB, err error) error {
+	if err == nil || db == nil {
+		return err
+	}
+	name, ok := parseNoSuchColumn(err.Error())
+	if !ok {
+		return err
+	}
+	cols, colErr := hintColumns(db)
+	if colErr != nil || len(cols) == 0 {
+		return err
+	}
+	sug := suggestColumn(name, cols)
+	if sug == "" {
+		return err
+	}
+	return fmt.Errorf("%w; did you mean %q?", err, sug)
+}
+
+func parseNoSuchColumn(msg string) (string, bool) {
+	m := noSuchColumnRe.FindStringSubmatch(msg)
+	if len(m) < 2 {
+		return "", false
+	}
+	name := strings.Trim(m[1], "`\"[]")
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		name = name[i+1:]
+	}
+	if name == "" {
+		return "", false
+	}
+	return name, true
+}
+
+func hintColumns(db *sql.DB) ([]string, error) {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, table := range hintTables {
+		rows, err := db.Query("PRAGMA table_info(" + table + ")")
+		if err != nil {
+			continue
+		}
+		for rows.Next() {
+			var cid int
+			var name, typ string
+			var notnull int
+			var dflt *string
+			var pk int
+			if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			if name == "" {
+				continue
+			}
+			k := strings.ToLower(name)
+			if _, ok := seen[k]; ok {
+				continue
+			}
+			seen[k] = struct{}{}
+			out = append(out, name)
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func suggestColumn(unknown string, columns []string) string {
+	if unknown == "" || len(columns) == 0 {
+		return ""
+	}
+	lower := strings.ToLower(unknown)
+	var unique []string
+	seen := map[string]struct{}{}
+	for _, c := range columns {
+		if c == "" {
+			continue
+		}
+		k := strings.ToLower(c)
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		unique = append(unique, c)
+	}
+	for _, c := range unique {
+		if strings.EqualFold(c, unknown) {
+			return ""
+		}
+	}
+	// Prefer "<prefix>_<column>" over raw edit distance so issue_key → key
+	// wins instead of issue_type (which is closer by Levenshtein).
+	best := ""
+	for _, c := range unique {
+		if strings.HasSuffix(lower, "_"+strings.ToLower(c)) && len(c) > len(best) {
+			best = c
+		}
+	}
+	if best != "" {
+		return best
+	}
+	bestDist := int(^uint(0) >> 1)
+	winner := ""
+	ties := 0
+	for _, c := range unique {
+		d := levenshtein(lower, strings.ToLower(c))
+		if d < bestDist {
+			bestDist = d
+			winner = c
+			ties = 1
+		} else if d == bestDist {
+			ties++
+		}
+	}
+	if ties != 1 || !distanceOK(bestDist, len(unknown)) {
+		return ""
+	}
+	return winner
+}
+
+func distanceOK(dist, nameLen int) bool {
+	if dist == 1 {
+		return true
+	}
+	if dist == 2 && nameLen >= 6 {
+		return true
+	}
+	return false
+}
+
+func levenshtein(a, b string) int {
+	if a == b {
+		return 0
+	}
+	if a == "" {
+		return len(b)
+	}
+	if b == "" {
+		return len(a)
+	}
+	prev := make([]int, len(b)+1)
+	cur := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		cur[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			del := prev[j] + 1
+			ins := cur[j-1] + 1
+			sub := prev[j-1] + cost
+			n := del
+			if ins < n {
+				n = ins
+			}
+			if sub < n {
+				n = sub
+			}
+			cur[j] = n
+		}
+		prev, cur = cur, prev
+	}
+	return prev[len(b)]
 }

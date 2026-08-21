@@ -19,3 +19,29 @@ func TestZeroRowDisplayNameWarning(t *testing.T) {
 		t.Fatalf("comment-only display name must not warn, got %q", got)
 	}
 }
+
+func TestSuggestColumnIssueKey(t *testing.T) {
+	cols := []string{"key", "issue_type", "issue_type_id", "status", "status_id", "summary", "id"}
+	if got := suggestColumn("issue_key", cols); got != "key" {
+		t.Fatalf("issue_key → %q, want key", got)
+	}
+	if got := suggestColumn("keey", cols); got != "key" {
+		t.Fatalf("keey → %q, want key", got)
+	}
+	if got := suggestColumn("zzqx", cols); got != "" {
+		t.Fatalf("zzqx → %q, want omit", got)
+	}
+	if got := suggestColumn("issue_type", cols); got != "" {
+		t.Fatalf("exact match must not suggest, got %q", got)
+	}
+}
+
+func TestParseNoSuchColumn(t *testing.T) {
+	name, ok := parseNoSuchColumn("SQL logic error: no such column: issue_key (1)")
+	if !ok || name != "issue_key" {
+		t.Fatalf("got %q ok=%v", name, ok)
+	}
+	if _, ok := parseNoSuchColumn("syntax error"); ok {
+		t.Fatal("non-column error must not parse")
+	}
+}

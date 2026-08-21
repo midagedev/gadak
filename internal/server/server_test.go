@@ -682,6 +682,12 @@ func TestDetailAssembly(t *testing.T) {
 	if string(raw["linked_prs"]) != "[]" {
 		t.Fatalf("linked_prs = %s", raw["linked_prs"])
 	}
+	var detailKey, detailIssueKey string
+	_ = json.Unmarshal(raw["issue_key"], &detailIssueKey)
+	_ = json.Unmarshal(raw["key"], &detailKey)
+	if detailIssueKey != "NMB-1" || detailKey != detailIssueKey {
+		t.Errorf("detail key alias diverged: issue_key=%q key=%q", detailIssueKey, detailKey)
+	}
 
 	d := decode[detailResponse](t, rec)
 	if len(d.Attachments) != 1 {
@@ -1086,7 +1092,7 @@ func TestIssueLiteFieldNames(t *testing.T) {
 	// The client stores these rows verbatim in IndexedDB, so the names are a
 	// contract (contracts/api.md, "IssueLite").
 	for _, field := range []string{
-		"issue_key", "summary", "project_key", "issue_type", "status", "status_id",
+		"issue_key", "key", "summary", "project_key", "issue_type", "status", "status_id",
 		"status_category", "priority", "priority_rank", "assignee", "assignee_id", "assignee_email",
 		"reporter", "reporter_id", "reporter_email", "labels", "components", "fix_versions", "epic_key",
 		"created_at", "updated_at", "status_changed_at", "resolved_at", "reopen_count",
@@ -1095,6 +1101,12 @@ func TestIssueLiteFieldNames(t *testing.T) {
 		if _, ok := rows["NMB-1"][field]; !ok {
 			t.Errorf("issue row is missing %q", field)
 		}
+	}
+	var issueKey, keyAlias string
+	_ = json.Unmarshal(rows["NMB-1"]["issue_key"], &issueKey)
+	_ = json.Unmarshal(rows["NMB-1"]["key"], &keyAlias)
+	if issueKey != "NMB-1" || keyAlias != issueKey {
+		t.Errorf("key alias diverged: issue_key=%q key=%q", issueKey, keyAlias)
 	}
 	// Configured aliases arrive as top-level fields, which is where the client's
 	// filters and columns read them — never as a nested `custom` object.

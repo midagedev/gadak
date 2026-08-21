@@ -74,7 +74,10 @@ JSON arrays — reach them with `json_each`. Sprint is three columns on `issues`
 (`sprint_id`, `sprint_name`, `sprint_state` — filter on id or state, never the
 name). `versions` is the project catalog; join it on `fix_version_ids` (same-order
 ids next to the name array `fix_versions`). Every column is listed in
-`specs/000-product/data-model.md`.
+`specs/000-product/data-model.md`. JSON surfaces (`gadak search --json`,
+`gadak issue --json`, HTTP IssueLite) name the tracker key `issue_key`; SQL
+(`issues_full`) names the same value `key`. From 0.17 those JSON objects also
+carry `key` as an alias of `issue_key`.
 
 Personal history lives in a second file next to the mirror (`local.db`),
 ATTACHed as `local` when gadak opens the mirror — you do not type ATTACH.

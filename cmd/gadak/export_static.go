@@ -311,7 +311,7 @@ func cmdExportStatic(args []string) error {
 // People (assignee/reporter/emails), custom fields and clone provenance are
 // deliberately absent.
 var issueWhitelist = []string{
-	"issue_key", "summary", "project_key",
+	"issue_key", "key", "summary", "project_key",
 	"issue_type", "issue_type_id",
 	"status", "status_id", "status_category",
 	"priority", "priority_id", "priority_rank",
@@ -379,6 +379,11 @@ func scrubBootstrap(body []byte) ([]byte, error) {
 				kept[k] = v
 			}
 		}
+		if _, ok := kept["key"]; !ok {
+			if v, ok := kept["issue_key"]; ok {
+				kept["key"] = v
+			}
+		}
 		outIssues = append(outIssues, kept)
 	}
 	issuesRaw, err := json.Marshal(outIssues)
@@ -425,8 +430,13 @@ func scrubDetail(body []byte, keepDescription bool) ([]byte, error) {
 			description = adf
 		}
 	}
+	keyRaw := det["key"]
+	if len(keyRaw) == 0 {
+		keyRaw = det["issue_key"]
+	}
 	out := map[string]json.RawMessage{
 		"issue_key":           det["issue_key"],
+		"key":                 keyRaw,
 		"description_adf":     description,
 		"attachments":         json.RawMessage("[]"),
 		"comments":            json.RawMessage("[]"),

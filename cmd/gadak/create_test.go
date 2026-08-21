@@ -178,6 +178,17 @@ func TestCreateJSONIncludesIssueAndCreatedKey(t *testing.T) {
 	if res.Created.Key != "NMB-42" || res.Issue.IssueKey != "NMB-42" {
 		t.Fatalf("json %+v", res)
 	}
+	var wrap map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(out), &wrap); err != nil {
+		t.Fatalf("wrap: %v", err)
+	}
+	var issueMap map[string]any
+	if err := json.Unmarshal(wrap["issue"], &issueMap); err != nil {
+		t.Fatalf("issue object: %v", err)
+	}
+	if issueMap["issue_key"] != "NMB-42" || issueMap["key"] != issueMap["issue_key"] {
+		t.Fatalf("create --json issue missing issue_key/key alias pair: %v", issueMap)
+	}
 	if res.Issue.Status != "완료" {
 		t.Errorf("json issue is not the re-read row: %+v", res.Issue)
 	}

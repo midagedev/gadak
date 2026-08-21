@@ -140,6 +140,18 @@ type issueDoc struct {
 	LinkedPRs json.RawMessage `json:"linked_prs"`
 }
 
+// MarshalJSON adds `key` as an alias of `issue_key` (GDK-255). Detail itself
+// cannot implement MarshalJSON: encoding/json then emits only that method's
+// object and drops Issue / LinkedPRs (anonymous Marshaler embed).
+func (d issueDoc) MarshalJSON() ([]byte, error) {
+	type wire issueDoc
+	key := d.Issue.IssueKey
+	if d.Detail != nil && d.Detail.IssueKey != "" {
+		key = d.Detail.IssueKey
+	}
+	return store.MarshalWithIssueKeyAlias(key, wire(d))
+}
+
 func cmdIssue(args []string) error {
 	fs := newFlagSet("issue")
 	asJSON := fs.Bool("json", false, "emit JSON (the detail document; with --editmeta, the editable-fields document)")

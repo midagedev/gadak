@@ -146,6 +146,12 @@ the fixes are all here.
   workspace with no saved view opens on the built-in Epics view instead of
   a bare all-open replica; from the second run the last-used view wins, and
   a configured team-group preset still beats the generic default.
+- **JSON and SQL agree on the key's name** ([GDK-255]). Every JSON surface
+  that said `issue_key` now also carries `key` — the name `issues_full`
+  answers to — derived at marshal time so the two can never drift, and a
+  `no such column` from `gadak sql` suggests the nearest real column
+  (`issue_key` → `did you mean "key"?`) on the error instead of leaving
+  the agent to guess.
 - **`install-cli` speaks Windows** ([GDK-353]). The default directory is
   `%LOCALAPPDATA%\Programs\gadak` instead of the unix `~/.local/bin`, the
   permission hint stops recommending sudo, and installing records where
@@ -1637,6 +1643,7 @@ measured numbers instead of adjectives.
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-350]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-350
+[GDK-255]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-255
 [GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353
 [GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352
 [GDK-369]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-369

@@ -213,6 +213,14 @@ func TestProtocolRoundTrip(t *testing.T) {
 	if issue["issue_key"] != "NMA-1" {
 		t.Errorf("issue_key = %v", issue["issue_key"])
 	}
+	if issue["key"] != issue["issue_key"] {
+		t.Errorf("key alias diverged: issue_key=%v key=%v", issue["issue_key"], issue["key"])
+	}
+	if nested, ok := issue["issue"].(map[string]any); ok {
+		if nested["key"] != nested["issue_key"] {
+			t.Errorf("nested IssueLite key alias diverged: %v", nested)
+		}
+	}
 	if _, ok := issue["comments"]; !ok {
 		t.Error("issue missing comments")
 	}

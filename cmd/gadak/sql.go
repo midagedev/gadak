@@ -76,7 +76,7 @@ func cmdSQL(args []string) error {
 
 	rows, err := db.Query(query)
 	if err != nil {
-		return err
+		return sqlhint.WithColumnSuggestion(db, err)
 	}
 	defer rows.Close()
 	cols, err := rows.Columns()
