@@ -66,6 +66,17 @@ type Issue struct {
 	Raw             json.RawMessage
 }
 
+// DevLink is one development-panel link (GDK-497): a pull request the origin
+// associates with the issue. URL is the idempotent key per issue.
+type DevLink struct {
+	Kind       string // pullrequest (branches/commits later, if ever)
+	ExternalID string
+	URL        string
+	Title      string
+	Status     string // lowercased origin status: open | merged | declined
+	UpdatedAt  string
+}
+
 // Comment is stored flat: the source API exposes no thread parent.
 type Comment struct {
 	ID         string // "<source_id>:<comment_id>"
@@ -132,6 +143,7 @@ type IssueRecord struct {
 	Attachments []Attachment
 	Changelog   []ChangeEntry
 	Links       []Link
+	DevLinks    []DevLink
 }
 
 // Page is the document projection (one row in the pages table). Field names

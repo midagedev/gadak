@@ -30,6 +30,8 @@ github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsRe
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
 github.com/midagedev/issuetap v0.0.0-20260821021737-e7dc52705428 h1:04lHdJc+1K0/sb+8jz0VXzk65SynoCFneWBjHuUJ2IE=
 github.com/midagedev/issuetap v0.0.0-20260821021737-e7dc52705428/go.mod h1:4d/iws7L/mIVY5uxd3Ui8eysZMDnou334uFfxZxWSUs=
+github.com/midagedev/issuetap v0.0.0-20260821023821-52a3bbb81f44 h1:+O+famwcvESgidiJuQesPvQUSEJraWx1WBErVKBlGEA=
+github.com/midagedev/issuetap v0.0.0-20260821023821-52a3bbb81f44/go.mod h1:4d/iws7L/mIVY5uxd3Ui8eysZMDnou334uFfxZxWSUs=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

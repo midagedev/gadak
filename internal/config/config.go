@@ -76,6 +76,13 @@ type Config struct {
 	Token    string   `json:"token,omitempty"`
 	Projects []string `json:"projects,omitempty"`
 
+	// DevStatus turns on development-panel mirroring (GDK-496/497): sync
+	// fetches each changed issue's dev-status (pull requests) from the origin
+	// into dev_links. Off by default — on a connected workspace this calls
+	// Jira's internal /rest/dev-status API (Atlassian marks it unstable), and
+	// either way it adds per-issue requests to a sync.
+	DevStatus bool `json:"devStatus,omitempty"`
+
 	// DefaultProject is the project key used when create omits --project /
 	// project_key. Site-bound: never team-exported. Empty means unset.
 	DefaultProject string `json:"defaultProject,omitempty"`

@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29}
 
 // itemsFTSCreate is the canonical items_fts DDL. Migrations are append-only,
 // so schemaV1 cannot grow this constant's cjk_bigram column (v25); instead
@@ -514,7 +514,7 @@ CREATE VIEW issues_full AS
 
 // schemaV28 adds comments.visibility_type, visibility_value, and jsd_public so
 // restricted Jira comments (visibility.role/group) and JSM internal comments
-// (jsdPublic) are distinguishable in the mirror. Existing rows keep '' / '' /
+// (jsdPublic) are distinguishable in the mirror. Existing rows keep ” / ” /
 // NULL until the next sync rewrites them; the migration does not backfill,
 // because the mirror is a cache and the origin is the record (same contract
 // as v22 priority_id and v27 resolution_id). comments is not selected by any
@@ -523,6 +523,26 @@ const schemaV28 = `
 ALTER TABLE comments ADD COLUMN visibility_type  TEXT NOT NULL DEFAULT '';
 ALTER TABLE comments ADD COLUMN visibility_value TEXT NOT NULL DEFAULT '';
 ALTER TABLE comments ADD COLUMN jsd_public INTEGER;
+`
+
+// schemaV29 adds dev_links (GDK-497): the development-panel pull-request
+// links the origin holds for an issue — Jira's dev-status on a connected
+// workspace, issuetap's on a standalone one. Rows live and die with the
+// issue rewrite (same DELETE+INSERT lifetime as comments/attachments), so a
+// disabled devStatus flag drains them on the next sync. url is the
+// idempotent key per issue, matching both origins' upsert rule.
+const schemaV29 = `
+CREATE TABLE dev_links (
+  item_id     TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  kind        TEXT NOT NULL DEFAULT 'pullrequest',
+  external_id TEXT NOT NULL DEFAULT '',
+  url         TEXT NOT NULL,
+  title       TEXT NOT NULL DEFAULT '',
+  status      TEXT NOT NULL DEFAULT '',
+  updated_at  TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (item_id, url)
+);
+CREATE INDEX dev_links_item ON dev_links(item_id);
 `
 
 // personalStateCopyVersion is the migration level schemaV26 lands on. migrate

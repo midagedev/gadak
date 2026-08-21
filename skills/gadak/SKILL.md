@@ -329,6 +329,7 @@ or type — `create` will ask for `--project` / `--type` until you set them.
 gadak create "first ticket title" -m "why this exists"
 gadak issue STD-1 --json
 gadak comment STD-1 -m "Reproduced on staging."
+gadak dev link STD-1 --pr https://github.com/org/app/pull/7   # opened a PR? record it right here
 
 # connected: a key that exists on that site
 gadak issue NMB-140 --json                    # fields, description, comments, history

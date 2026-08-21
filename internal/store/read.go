@@ -321,6 +321,8 @@ type Detail struct {
 	// Custom is the issue's full alias→value map. List rows strip body-role
 	// values (they can be document-sized); detail is where they surface.
 	Custom map[string]any `json:"-"`
+	// DevLinks are the development-panel links (GDK-497), newest first.
+	DevLinks []DevLink `json:"dev_links"`
 }
 
 // Detail assembles one issue. An unknown key returns ErrNotFound so the
@@ -367,6 +369,21 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 			c.BodyADF = rawOrNull(body)
 			c.JsdPublic = jsdPublicFromSQL(jsd)
 			d.Comments = append(d.Comments, c)
+			return nil
+		}, itemID); err != nil {
+		return nil, err
+	}
+
+	if err := each(ctx, db.sql, `
+		SELECT COALESCE(kind,''), COALESCE(external_id,''), url, COALESCE(title,''),
+		       COALESCE(status,''), COALESCE(updated_at,'')
+		FROM dev_links WHERE item_id = ? ORDER BY updated_at DESC, url`,
+		func(rows *sql.Rows) error {
+			var l DevLink
+			if err := rows.Scan(&l.Kind, &l.ExternalID, &l.URL, &l.Title, &l.Status, &l.UpdatedAt); err != nil {
+				return err
+			}
+			d.DevLinks = append(d.DevLinks, l)
 			return nil
 		}, itemID); err != nil {
 		return nil, err
@@ -500,6 +517,23 @@ func (db *DB) KeysBySource(ctx context.Context, sourceID string) ([]string, erro
 			return nil
 		}, sourceID)
 	return keys, err
+}
+
+// ExternalID is the origin's own id for a mirrored issue key — what Jira's
+// dev-status calls issueId (numeric on Cloud, issuetap's id standalone).
+func (db *DB) ExternalID(ctx context.Context, key string) (string, error) {
+	var id string
+	err := db.sql.QueryRowContext(ctx, `
+		SELECT COALESCE(it.external_id, '') FROM items it
+		JOIN issues i ON i.item_id = it.id
+		WHERE i.key = ? LIMIT 1`, key).Scan(&id)
+	if err != nil {
+		return "", err
+	}
+	if id == "" {
+		return "", ErrNotFound
+	}
+	return id, nil
 }
 
 // AttachmentOrigin is the proxy's lookup: which source owns this attachment

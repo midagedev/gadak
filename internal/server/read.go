@@ -363,27 +363,46 @@ var githubPRURL = regexp.MustCompile(`^https://github\.com/([^/]+/[^/]+)/pull/(\
 // URL attachments when no plugin enrichment supplies one. The enrichment
 // (kind='prs') stays the winner: it can carry state and author, which a bare
 // URL cannot.
-func prLinksFromAttachments(attachments []store.DetailAttachment) json.RawMessage {
-	type linkedPr struct {
-		Number int     `json:"number"`
-		Title  string  `json:"title"`
-		URL    string  `json:"url"`
-		State  string  `json:"state"`
-		Repo   *string `json:"repo"`
-		Author *string `json:"author"`
-	}
+type linkedPr struct {
+	Number int     `json:"number"`
+	Title  string  `json:"title"`
+	URL    string  `json:"url"`
+	State  string  `json:"state"`
+	Repo   *string `json:"repo"`
+	Author *string `json:"author"`
+}
+
+// mergedPRLinks builds linked_prs from the two mirrored sources: dev_links
+// (the origin's development panel, GDK-497 — carries a state) and PR-shaped
+// URL attachments (GDK-495 — carry none). Deduped by URL, dev_links winning,
+// because a stated status beats an inferred blank.
+func mergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachment) json.RawMessage {
 	var prs []linkedPr
+	seen := map[string]bool{}
+	add := func(url, title, state string) {
+		var repo *string
+		number := 0
+		if m := githubPRURL.FindStringSubmatch(url); m != nil {
+			if n, err := strconv.Atoi(m[2]); err == nil {
+				number = n
+			}
+			r := m[1]
+			repo = &r
+		}
+		prs = append(prs, linkedPr{Number: number, Title: title, URL: url, State: state, Repo: repo})
+		seen[url] = true
+	}
+	for _, l := range devLinks {
+		if l.Kind != "pullrequest" || seen[l.URL] {
+			continue
+		}
+		add(l.URL, l.Title, strings.ToLower(l.Status))
+	}
 	for _, a := range attachments {
-		m := githubPRURL.FindStringSubmatch(a.URL)
-		if m == nil {
+		if seen[a.URL] || githubPRURL.FindStringSubmatch(a.URL) == nil {
 			continue
 		}
-		n, err := strconv.Atoi(m[2])
-		if err != nil {
-			continue
-		}
-		repo := m[1]
-		prs = append(prs, linkedPr{Number: n, Title: a.Filename, URL: a.URL, Repo: &repo})
+		add(a.URL, a.Filename, "")
 	}
 	if prs == nil {
 		return nil
@@ -453,7 +472,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	if p := payload(en["prs"]); p != nil {
 		res.LinkedPRs = p
-	} else if prs := prLinksFromAttachments(d.Attachments); prs != nil {
+	} else if prs := mergedPRLinks(d.DevLinks, d.Attachments); prs != nil {
 		res.LinkedPRs = prs
 	}
 	if p := payload(en["opinion"]); p != nil {

@@ -219,6 +219,20 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak export", "gadak team import"},
 	},
+	"dev": {
+		summary: "development-panel links: record a PR on an issue (standalone origin)",
+		usage:   "gadak dev link <KEY> --pr <url> [--status open|merged|declined] [--name N] [--json]",
+		options: []helpOption{
+			{name: "pr", desc: "pull request URL (required)"},
+			{name: "status", desc: "open (default), merged, or declined"},
+			{name: "name", desc: "display title shown in the panel"},
+		},
+		examples: []string{
+			"gadak dev link STD-3 --pr https://github.com/org/app/pull/7",
+			"gadak dev link STD-3 --pr https://github.com/org/app/pull/7 --status merged",
+		},
+		seeAlso: []string{"gadak issue", "gadak sync"},
+	},
 	"export-static": {
 		summary: "freeze a snapshot database into static JSON for a hosted demo",
 		usage:   "gadak export-static [options] <outdir>",

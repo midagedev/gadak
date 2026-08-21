@@ -255,6 +255,25 @@ Jira's REST API exposes comments as a flat list with no thread parent, so gadak
 stores them flat. Reply affordances in the UI are a mention convention, not a
 tree.
 
+## `dev_links`
+
+v29 (GDK-497). The development-panel pull-request links the origin holds for
+an issue — Jira's dev-status on a connected workspace (mirrored only when
+`devStatus` is set in config.json; the API is Atlassian-internal), issuetap's
+own store on a standalone one (written through `gadak dev link`). Rows live
+and die with the issue rewrite, like comments. `(item_id, url)` is the
+primary key — url is the idempotent key both origins use.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `item_id` | TEXT | FK |
+| `kind` | TEXT | `pullrequest` (only kind stored) |
+| `external_id` | TEXT | origin's id for the link |
+| `url` | TEXT | |
+| `title` | TEXT | |
+| `status` | TEXT | `open` / `merged` / `declined`, lowercased |
+| `updated_at` | TEXT | |
+
 ## `attachments`
 
 Metadata only. Bytes are fetched on demand and proxied, never mirrored, so the

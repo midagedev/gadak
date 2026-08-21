@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -305,6 +306,9 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	}
 
 	res.Watermark = maxRaw
+	if skips := devStatusSkips.Swap(0); skips > 0 {
+		opts.logf("dev-status: skipped on %d issues (the panel read is best-effort — Cloud marks the API internal)", skips)
+	}
 	if err := db.RecordSync(ctx, SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
 		return err
 	}
@@ -646,6 +650,11 @@ func pageNS(cfg *config.Config) string {
 	return sourceNS(cfg, ConfluenceSourceID)
 }
 
+// devStatusSkips counts dev-status fetches that failed this pass (GDK-496):
+// the panel read is best-effort — a failure skips the issue's dev links, and
+// the pass reports one line instead of failing the sync. Reset per pass.
+var devStatusSkips atomic.Int64
+
 // build maps one Jira issue onto the store's record, fetching the children the
 // search response truncated.
 func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Issue) (store.IssueRecord, error) {
@@ -749,6 +758,9 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	}
 
 	rec := store.IssueRecord{Item: item, Issue: issue}
+	if cfg.DevStatus {
+		rec.DevLinks = devLinksFor(ctx, c, iss.ID)
+	}
 	for _, cm := range comments {
 		sc := store.Comment{
 			ID:         itemNS(cfg) + ":" + cm.ID,
@@ -1018,4 +1030,45 @@ func jqlTime(watermark string) string {
 		}
 	}
 	return t.Add(-overlap).Format("2006/01/02 15:04")
+}
+
+// devLinksFor reads the origin's development panel for one issue — summary
+// first (one cheap call), detail only when it counts something. Best-effort:
+// any failure returns nil and bumps the pass diagnostic (Cloud's dev-status
+// API is internal and may change shape without notice).
+func devLinksFor(ctx context.Context, c *jira.Client, issueID string) []store.DevLink {
+	n, err := c.DevStatusPRCount(ctx, issueID)
+	if err != nil {
+		devStatusSkips.Add(1)
+		return nil
+	}
+	if n == 0 {
+		return nil
+	}
+	prs, err := c.DevStatusPRs(ctx, issueID)
+	if err != nil {
+		devStatusSkips.Add(1)
+		return nil
+	}
+	return DevLinksFromPRs(prs)
+}
+
+// DevLinksFromPRs maps dev-status pull requests onto mirror rows. Shared with
+// `gadak dev link`'s post-write refresh so both paths store the same shape.
+func DevLinksFromPRs(prs []jira.DevPR) []store.DevLink {
+	out := make([]store.DevLink, 0, len(prs))
+	for _, pr := range prs {
+		if pr.URL == "" {
+			continue
+		}
+		out = append(out, store.DevLink{
+			Kind:       "pullrequest",
+			ExternalID: pr.ID,
+			URL:        pr.URL,
+			Title:      pr.Name,
+			Status:     strings.ToLower(pr.Status),
+			UpdatedAt:  store.Now(),
+		})
+	}
+	return out
 }

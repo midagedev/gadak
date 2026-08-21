@@ -178,7 +178,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 
 	// Child lists arrive complete, so replacing them is both correct and the
 	// only way a removed comment or link leaves the mirror.
-	for _, t := range []string{"comments", "attachments", "changelog", "links"} {
+	for _, t := range []string{"comments", "attachments", "changelog", "links", "dev_links"} {
 		if _, err := tx.Exec(`DELETE FROM `+t+` WHERE item_id = ?`, it.ID); err != nil {
 			return false, err
 		}
@@ -212,6 +212,18 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			VALUES (?,?,?,?,?,?,?,?,?,?)`,
 			id, it.ID, nz(e.At), nz(e.Author), nz(e.AuthorID), nz(e.Field),
 			nz(e.FromValue), nz(e.FromID), nz(e.ToValue), nz(e.ToID),
+		); err != nil {
+			return false, err
+		}
+	}
+	for _, dl := range r.DevLinks {
+		if _, err := tx.Exec(`
+			INSERT INTO dev_links (item_id, kind, external_id, url, title, status, updated_at)
+			VALUES (?,?,?,?,?,?,?)
+			ON CONFLICT(item_id, url) DO UPDATE SET
+			  kind=excluded.kind, external_id=excluded.external_id,
+			  title=excluded.title, status=excluded.status, updated_at=excluded.updated_at`,
+			it.ID, devKind(dl.Kind), dl.ExternalID, dl.URL, dl.Title, dl.Status, dl.UpdatedAt,
 		); err != nil {
 			return false, err
 		}
@@ -1159,4 +1171,40 @@ func (db *DB) FreshenSyncClock(ctx context.Context) error {
 		UPDATE sources    SET synced_at = ?;
 		UPDATE items      SET synced_at = ?;`, now, now, now, now)
 	return err
+}
+
+// devKind defaults an empty dev-link kind to pullrequest — the only kind v29 stores.
+func devKind(k string) string {
+	if k == "" {
+		return "pullrequest"
+	}
+	return k
+}
+
+// ReplaceDevLinks swaps one issue's dev_links rows for the origin's current
+// answer — the mirror-refresh half of a dev-link write-through (GDK-497).
+// Never a source of truth: the same rows are rebuilt by any later sync.
+func (db *DB) ReplaceDevLinks(ctx context.Context, key string, links []DevLink) error {
+	tx, err := db.sql.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var itemID string
+	if err := tx.QueryRow(`SELECT item_id FROM issues WHERE key = ?`, key).Scan(&itemID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM dev_links WHERE item_id = ?`, itemID); err != nil {
+		return err
+	}
+	for _, dl := range links {
+		if _, err := tx.Exec(`
+			INSERT INTO dev_links (item_id, kind, external_id, url, title, status, updated_at)
+			VALUES (?,?,?,?,?,?,?)`,
+			itemID, devKind(dl.Kind), dl.ExternalID, dl.URL, dl.Title, dl.Status, dl.UpdatedAt,
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

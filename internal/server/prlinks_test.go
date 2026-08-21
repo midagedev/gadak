@@ -72,6 +72,38 @@ func TestDetailDerivesLinkedPRsFromAttachments(t *testing.T) {
 		t.Fatalf("state = %q — a bare URL cannot know the state", pr.State)
 	}
 
+	// A dev_link for the same URL wins over the attachment (it knows the
+	// state), and a second dev-links-only PR joins the list (GDK-497).
+	if err := db.ReplaceDevLinks(context.Background(), "MID-7", []store.DevLink{
+		{URL: "https://github.com/midagedev/gadak/pull/50", Title: "from panel", Status: "merged", UpdatedAt: "2026-08-21T00:00:00Z"},
+		{URL: "https://github.com/midagedev/gadak/pull/51", Title: "panel only", Status: "open", UpdatedAt: "2026-08-21T00:00:01Z"},
+	}); err != nil {
+		t.Fatalf("replace dev links: %v", err)
+	}
+	var dm struct {
+		LinkedPRs []struct {
+			Number int    `json:"number"`
+			Title  string `json:"title"`
+			State  string `json:"state"`
+		} `json:"linked_prs"`
+	}
+	if err := json.Unmarshal(get(t, h, apiBase+"MID-7/detail/", nil).Body.Bytes(), &dm); err != nil {
+		t.Fatalf("decode merge: %v", err)
+	}
+	if len(dm.LinkedPRs) != 2 {
+		t.Fatalf("merged linked_prs = %+v, want dev_links + deduped attachment", dm.LinkedPRs)
+	}
+	byNum := map[int]struct{ title, state string }{}
+	for _, p := range dm.LinkedPRs {
+		byNum[p.Number] = struct{ title, state string }{p.Title, p.State}
+	}
+	if got := byNum[50]; got.title != "from panel" || got.state != "merged" {
+		t.Fatalf("dev_link did not win the URL dedupe: %+v", got)
+	}
+	if got := byNum[51]; got.state != "open" {
+		t.Fatalf("panel-only PR missing: %+v", dm.LinkedPRs)
+	}
+
 	// The plugin enrichment stays the winner over the derived list.
 	enrich(t, path, "MID-7", "prs",
 		`[{"number":50,"title":"from plugin","url":"https://github.com/midagedev/gadak/pull/50","state":"merged","repo":"midagedev/gadak","author":"alice"}]`)
