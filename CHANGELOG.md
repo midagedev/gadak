@@ -4,10 +4,95 @@
 
 ## Unreleased
 
-### Added
+The cycle where an agent's writes grow up and the development panel arrives.
+An issue now shows the PRs and commits that implement it — mirrored on
+connected workspaces, writable on standalone ones — and the write verbs
+learned the vocabulary a coding agent actually sends: custom fields by
+alias, resolutions on transitions, fix versions and components by name,
+assignees by whatever identity is at hand. The cycle closed with a
+pre-release audit across the network seams, the MCP surface and the web UI;
+the fixes are all here.
+
+### The development panel
+
+- **An issue knows its PRs** ([GDK-496], [GDK-497]). The development panel
+  reaches the mirror as `dev_links`: connected workspaces mirror Jira's
+  dev-status, and a standalone origin accepts links from its own CLI —
+  issuetap serves the same `/rest/dev-status` shapes Jira Cloud does, so a
+  client written against Cloud works unchanged. `devStatus` is a per-machine
+  choice and is never team-exported.
+- **`gadak dev scan`** sweeps the current repo's PRs into dev links in one
+  pass ([GDK-531]), and **`gadak dev link`** writes one; standalone or
+  paired workspaces may write, the git hook keeps its workspace, and scan
+  reports what it did cleanly ([GDK-538], [GDK-539], [GDK-554], [GDK-570]).
+- **A mirrored PR link is a linked PR** in the web UI ([GDK-495]), a GitHub
+  PR or commit link opens in the in-app browser pane ([GDK-527]), and the
+  panel's empty state names why it is empty — feature off, not mirrored, or
+  truly no PRs — with a chip for a declined PR ([GDK-555], [GDK-540]).
+- **Dev links survive sync** ([GDK-536], [GDK-541], [GDK-562], [GDK-537]).
+  A standalone link survives the next rewrite, a fetch error preserves what
+  the mirror has instead of deleting it, writing links bumps the mirror
+  version so a running UI sees them, and issuetap moves the issue's
+  `updated` stamp so a paired remote's incremental sync picks the link up.
+- **`gadak link A B --type blocks` writes an issue link** ([GDK-19]).
+
+### Write verbs an agent can trust
+
+- **`create` and `edit` take `--field alias=value`** for the custom fields a
+  project requires ([GDK-513]), the create dialog learns what this project
+  and type actually require ([GDK-254]), and **`issue --editmeta` asks the
+  origin what this issue can edit** ([GDK-514]).
+- **`transition` carries `--resolution`, `--field` and `-m`** ([GDK-509]),
+  and the REST transition resolves the same identifiers the CLI does — one
+  shared resolver, not a second implementation ([GDK-341]). GET transitions
+  emits the mapped category token the write side accepts ([GDK-564]).
+- **`edit --fix-version` writes release membership by id** ([GDK-516],
+  [GDK-123]) and **`--component +Name / -Name` rides the label grammar**
+  ([GDK-517]). A label starting with `+`/`-` is refused instead of silently
+  recorded ([GDK-545]).
+- **`assign` accepts name and accountId next to email** ([GDK-515]), a
+  comment's `@Name` reaches the person it names ([GDK-510]), and `comment`
+  takes a positional body like `create`'s SUMMARY ([GDK-315]).
+- **Bulk issue reads**: many keys and `--keys -`, with no silent drop
+  ([GDK-425]).
+- **The audit pass over the agent verbs** ([GDK-551], [GDK-565], [GDK-546],
+  [GDK-556]): write verbs resolve the identities the read side emits, name
+  their exits, and round-trip their fields.
+
+### Standalone and issuetap
+
+- **Standalone records carry wall time** and the skill names the seeded
+  user ([GDK-369]).
+- **Restricted and internal comments are distinguishable, and writable** —
+  in the store, and on the REST surface ([GDK-511], [GDK-528]).
+- **Parent hierarchy** rides the issuetap pin, and unsupported project
+  subpaths answer 501 instead of pretending ([GDK-505], [GDK-512]).
+- **A forgotten session no longer loses its persist lock to the GC**
+  ([GDK-484]), **a frozen workspace refuses every pull** so a scrubbed
+  fixture stays scrubbed ([GDK-181]), and **a mirror written by a newer
+  gadak is a cache to rebuild, not a dead end** ([GDK-498]).
+
+### Workspaces and pairing
+
+- **`--workspace` is the name, `--profile` is the alias**, and writes say
+  which one they used ([GDK-490]).
+- **Pairing tokens gate the origin passthrough** ([GDK-433]), a pairing
+  credential counts as a credential ([GDK-442]), and MCP, REST create and
+  sync reuse the pairing owners the CLI already has ([GDK-485]).
+- **A bound workspace cannot be quietly rebound**: init refuses a different
+  site ([GDK-452], [GDK-561]), the guard steps aside for a paired tailnet
+  host ([GDK-443]), `_home` is not a device ([GDK-450]), and example
+  endpoints stop looking like someone's real tailnet ([GDK-433], [GDK-452]).
+- **Pairing tells the truth**: the status verbs learn what paired means and
+  failures name their cause ([GDK-449], [GDK-453]), a paired write 401
+  answers with the pairing error instead of `credential_rejected`
+  ([GDK-543]), and the credentials dialog stops asking for what it already
+  has ([GDK-455]).
+
+### The mirror's schema
 
 - **Fix versions keep their id, and the project's release catalog lands in
-  the mirror**. `issues.fix_version_ids` stores the same-order
+  the mirror** ([GDK-532]). `issues.fix_version_ids` stores the same-order
   ids next to the existing name array `fix_versions` (that name array stays
   the 0.x recipe key). A `versions` table (`id`, `project_key`, `name`,
   `released`, `archived`, `release_date`) is filled on full sync and
@@ -15,16 +100,81 @@
   a catalog GET failure is a warning and the issue pass still commits. Join
   on id — names rename. The next sync fills existing rows; the migration
   does not backfill.
-
-- **Sprint is a column an agent can query**. `issues.sprint_id` /
-  `sprint_name` / `sprint_state` project one sprint per issue (active over
+- **Sprint is a column an agent can query** ([GDK-518]). `issues.sprint_id`
+  / `sprint_name` / `sprint_state` project one sprint per issue (active over
   future over closed, then the larger id) from the site's gh-sprint field,
   discovered via `GET /field` — no hardcoded customfield id, no Agile REST,
   no board catalog. `gadak search --jql 'sprint in openSprints()'` and
   `sprint = <id>` apply; a name comparison stays listed as unsupported.
+- **Personal state moves out of the mirror** — `rm gadak.db` keeps your
+  views, visit history and search history ([GDK-105]).
+- **Korean mid-compound search**: a `cjk_bigram` fourth FTS column finds the
+  word inside the compound ([GDK-259]), and a fresh mirror is born with the
+  canonical `items_fts` ([GDK-444]).
+- **JQL `parent =` / `parent IN` filters by the mirror's `parent_key`**
+  ([GDK-521]), the column that says why an issue closed gets a stable id
+  ([GDK-520]), `schema_version` has one owner — `PRAGMA user_version`
+  ([GDK-526]) — and custom-field mapping state is visible instead of silent
+  ([GDK-522]).
 
-### Fixed
+### The web UI, made consistent
 
+- **Saved views live on the server by default**, and localStorage views move
+  there once ([GDK-437]). Sidebar sections collapse and go where you drag
+  them ([GDK-434], [GDK-435]), and the project filter grows a NOT IN axis —
+  include narrows, exclude wins ([GDK-438]) — which survives Copy JQL
+  ([GDK-441]).
+- **The consistency sweeps**: every zero state names its cause, the catalogs
+  and panels say each thing once and in one voice, errors answer with the
+  way out, standalone stops speaking Jira, and one name for each thing
+  everywhere a person reads it ([GDK-460]–[GDK-483], [GDK-486], [GDK-489],
+  [GDK-504], [GDK-446], [GDK-447], [GDK-448], [GDK-451], [GDK-454],
+  [GDK-456]).
+- **The v0.17 audit sweep**: empty states, terms and affordances line up
+  ([GDK-548], [GDK-559], [GDK-572]), sync and search failures read as
+  sentences, not wire codes ([GDK-566], [GDK-549]), a saved view arms before
+  delete and a partly-applied view says so every time it is named
+  ([GDK-567], [GDK-573], [GDK-504]).
+- **Raycast**: saved views and people ride the deeplinks the app already
+  answers ([GDK-172]). **Desktop**: mailto links reach the mail client from
+  the webview ([GDK-339]).
+
+### MCP and the CLI surface
+
+- **MCP reaches read parity**: `status` shows frozen, `issue` carries
+  `description_text` and dev links ([GDK-568], [GDK-569], [GDK-552]).
+- **`gadak sql` warns on a display-name zero-row** like MCP already does
+  ([GDK-553]).
+- **Help usage and examples reflow to multiple lines**, and the top-level
+  usage catches up with the verbs that exist ([GDK-575], [GDK-544]). The
+  skill teaches this cycle's write flags and stops saying a field cannot
+  exist ([GDK-544], [GDK-571]); earlier, the front door learned to name the
+  third way in ([GDK-457], [GDK-458]).
+- **The docs catch up to the code**: the outbound list, the dev-link
+  section, and the teaching copy ([GDK-557], [GDK-547]). A GDK key is a link
+  now, in every doc a reader opens.
+
+### Network seams, audited
+
+- **The Linear proxy fetches only `uploads.linear.app`** — redirects
+  included, and the API key rides only there ([GDK-427], [GDK-558],
+  [GDK-560]).
+- **An empty host is a non-loopback bind**, so `serve` demands
+  `--allow-remote` for it like any other exposure ([GDK-542]).
+- **A kicked sync pulls Linear too, guards against overlapping runs, and
+  refuses a rebind** ([GDK-563], [GDK-574], [GDK-561]); the next-tick
+  deadline stops racing loaded runners ([GDK-534]), and a Watch that exits
+  clears its flag so it can be revived ([GDK-541]).
+- `warnIfStale` reads the caller's connection instead of opening a second
+  one ([GDK-314]), skill detection resolves home the way the installer does
+  ([GDK-352]), and `ci-status` counts only default-branch push runs as the
+  verdict ([GDK-432]).
+
+### The public backlog
+
+- **gadak's own backlog is published at `/gadak/backlog/`** ([GDK-389]),
+  with one owner for "is this a tenant hostname" ([GDK-431]) and a real
+  snapshot for returning visitors — the fake delta is gone ([GDK-440]).
 - **The public backlog publishes what each issue actually says** ([GDK-430]).
   The scrub treated every content surface as one axis and forced descriptions to
   null with the comments and the attachments, so the published page was a list
@@ -55,6 +205,7 @@
   the new site's. Visit and search history survives too, stamped with the
   generation it was recorded in: the timeline shows the current one, and the
   retired rows stay readable with `gadak sql`
+
 
 ## v0.16.1 — 2026-08-20
 
@@ -1427,3 +1578,111 @@ measured numbers instead of adjectives.
 [GDK-426]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-426
 [GDK-418]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-418
 [GDK-430]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-430
+[GDK-105]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-105
+[GDK-123]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-123
+[GDK-172]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-172
+[GDK-181]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-181
+[GDK-254]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-254
+[GDK-339]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-339
+[GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
+[GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352
+[GDK-369]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-369
+[GDK-389]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-389
+[GDK-425]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-425
+[GDK-427]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-427
+[GDK-431]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-431
+[GDK-432]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-432
+[GDK-433]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-433
+[GDK-434]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-434
+[GDK-435]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-435
+[GDK-437]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-437
+[GDK-438]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-438
+[GDK-440]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-440
+[GDK-441]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-441
+[GDK-442]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-442
+[GDK-443]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-443
+[GDK-444]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-444
+[GDK-446]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-446
+[GDK-447]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-447
+[GDK-448]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-448
+[GDK-449]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-449
+[GDK-450]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-450
+[GDK-451]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-451
+[GDK-452]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-452
+[GDK-453]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-453
+[GDK-454]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-454
+[GDK-455]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-455
+[GDK-456]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-456
+[GDK-457]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-457
+[GDK-458]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-458
+[GDK-460]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-460
+[GDK-483]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-483
+[GDK-484]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-484
+[GDK-485]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-485
+[GDK-486]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-486
+[GDK-489]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-489
+[GDK-490]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-490
+[GDK-495]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-495
+[GDK-496]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-496
+[GDK-497]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-497
+[GDK-498]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-498
+[GDK-504]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-504
+[GDK-505]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-505
+[GDK-509]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-509
+[GDK-510]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-510
+[GDK-511]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-511
+[GDK-512]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-512
+[GDK-513]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-513
+[GDK-514]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-514
+[GDK-515]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-515
+[GDK-516]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-516
+[GDK-517]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-517
+[GDK-518]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-518
+[GDK-520]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-520
+[GDK-521]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-521
+[GDK-522]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-522
+[GDK-526]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-526
+[GDK-527]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-527
+[GDK-528]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-528
+[GDK-531]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-531
+[GDK-532]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-532
+[GDK-534]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-534
+[GDK-536]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-536
+[GDK-537]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-537
+[GDK-538]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-538
+[GDK-539]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-539
+[GDK-540]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-540
+[GDK-541]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-541
+[GDK-542]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-542
+[GDK-543]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-543
+[GDK-544]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-544
+[GDK-545]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-545
+[GDK-546]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-546
+[GDK-547]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-547
+[GDK-548]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-548
+[GDK-549]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-549
+[GDK-551]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-551
+[GDK-552]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-552
+[GDK-553]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-553
+[GDK-554]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-554
+[GDK-555]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-555
+[GDK-556]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-556
+[GDK-557]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-557
+[GDK-558]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-558
+[GDK-559]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-559
+[GDK-560]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-560
+[GDK-561]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-561
+[GDK-562]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-562
+[GDK-563]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-563
+[GDK-564]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-564
+[GDK-565]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-565
+[GDK-566]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-566
+[GDK-567]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-567
+[GDK-568]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-568
+[GDK-569]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-569
+[GDK-570]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-570
+[GDK-571]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-571
+[GDK-572]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-572
+[GDK-573]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-573
+[GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
+[GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
