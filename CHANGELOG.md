@@ -146,6 +146,11 @@ the fixes are all here.
   workspace with no saved view opens on the built-in Epics view instead of
   a bare all-open replica; from the second run the last-used view wins, and
   a configured team-group preset still beats the generic default.
+- **`install-cli` speaks Windows** ([GDK-353]). The default directory is
+  `%LOCALAPPDATA%\Programs\gadak` instead of the unix `~/.local/bin`, the
+  permission hint stops recommending sudo, and installing records where
+  `gadak-desktop.exe` lives so `views open` from the copied CLI can still
+  find the app.
 - **A `gadak://` link works on Windows** ([GDK-350]). The desktop app now
   registers the scheme in `HKCU\SOFTWARE\Classes\gadak` on first launch and
   rewrites the entry whenever its own path changes, so clicking a link in a
@@ -1632,6 +1637,7 @@ measured numbers instead of adjectives.
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-350]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-350
+[GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353
 [GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352
 [GDK-369]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-369
 [GDK-389]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-389

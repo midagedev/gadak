@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/deeplink"
 	"github.com/midagedev/gadak/internal/jql"
@@ -919,6 +920,9 @@ func findWindowsDesktopExe() string {
 		return p
 	}
 	if p, err := exec.LookPath("gadak-desktop"); err == nil {
+		return p
+	}
+	if p := clitool.RecordedDesktopExe(); p != "" {
 		return p
 	}
 	return ""

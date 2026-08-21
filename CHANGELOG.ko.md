@@ -143,6 +143,10 @@
 - **첫 실행이 에픽 분해 뷰로 열립니다** ([GDK-100]). 저장된 뷰가 없는 새
   워크스페이스는 all-open 복제본 대신 빌트인 Epics 뷰로 열리고, 두 번째
   실행부터는 마지막 뷰가, 팀 그룹 프리셋이 있으면 그것이 우선합니다.
+- **`install-cli`가 Windows를 말합니다** ([GDK-353]). 기본 디렉터리가 유닉스
+  관례 `~/.local/bin` 대신 `%LOCALAPPDATA%\Programs\gadak`가 되고, 권한
+  힌트가 sudo를 권하지 않으며, 설치 시 `gadak-desktop.exe` 위치를 기록해
+  복사된 CLI에서도 `views open`이 앱을 찾습니다.
 - **Windows에서 `gadak://` 링크가 동작합니다** ([GDK-350]). 데스크톱 앱이
   첫 실행 시 `HKCU\SOFTWARE\Classes\gadak`에 스킴을 등록하고, 자기 경로가
   바뀌면 항목을 다시 씁니다 — 브라우저·슬랙에서 링크를 클릭하면 앱이
@@ -1637,6 +1641,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-350]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-350
+[GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353
 [GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352
 [GDK-369]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-369
 [GDK-389]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-389

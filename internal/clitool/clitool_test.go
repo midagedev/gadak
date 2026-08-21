@@ -97,6 +97,148 @@ func TestDefaultDirThreeCases(t *testing.T) {
 	})
 }
 
+func TestDefaultDirForWindows(t *testing.T) {
+	t.Run("localappdata_set", func(t *testing.T) {
+		base := t.TempDir()
+		t.Setenv("LOCALAPPDATA", base)
+		got, err := DefaultDirFor("/usr/bin:"+filepath.Join("C:", "Windows"), "windows")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := filepath.Join(base, "Programs", "gadak")
+		if got != want {
+			t.Fatalf("got %q want %q", got, want)
+		}
+		if strings.Contains(got, ".local") {
+			t.Fatalf("windows default leaked a unix path: %q", got)
+		}
+	})
+	t.Run("localappdata_empty", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("LOCALAPPDATA", "")
+		t.Setenv("HOME", home)
+		t.Setenv("USERPROFILE", home)
+		got, err := DefaultDirFor("", "windows")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := filepath.Join(home, "AppData", "Local", "Programs", "gadak")
+		if got != want {
+			t.Fatalf("got %q want %q", got, want)
+		}
+		if strings.Contains(got, ".local") {
+			t.Fatalf("windows default leaked a unix path: %q", got)
+		}
+	})
+}
+
+func TestPermissionHintForWindowsOmitsSudo(t *testing.T) {
+	err := permissionHintFor(os.ErrPermission, `C:\Windows\System32`, "windows")
+	if err == nil {
+		t.Fatal("expected wrapped error")
+	}
+	s := err.Error()
+	if strings.Contains(strings.ToLower(s), "sudo") {
+		t.Fatalf("windows hint leaked sudo: %q", s)
+	}
+	if !strings.Contains(s, "--dir") {
+		t.Fatalf("windows hint should mention --dir: %q", s)
+	}
+}
+
+func TestPermissionHintForUnixKeepsSudo(t *testing.T) {
+	err := permissionHintFor(os.ErrPermission, "/usr/local/bin", "darwin")
+	if err == nil {
+		t.Fatal("expected wrapped error")
+	}
+	if !strings.Contains(err.Error(), "sudo") {
+		t.Fatalf("unix hint lost sudo: %q", err)
+	}
+}
+
+func TestInstallRecordsDesktopExePath(t *testing.T) {
+	root := t.TempDir()
+	bundle := filepath.Join(root, "bundle")
+	if err := os.MkdirAll(bundle, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(bundle, "gadak.exe")
+	desktop := filepath.Join(bundle, "gadak-desktop.exe")
+	if err := os.WriteFile(source, []byte("cli"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(desktop, []byte("desk"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rec := filepath.Join(root, "desktop-exe-path")
+	prev := DesktopExePathFile
+	DesktopExePathFile = rec
+	t.Cleanup(func() { DesktopExePathFile = prev })
+
+	dir := filepath.Join(root, "bin")
+	p, err := ResolveFor(source, dir, dir, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Install(p, false); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(rec)
+	if err != nil {
+		t.Fatalf("record file missing: %v", err)
+	}
+	got := strings.TrimSpace(string(raw))
+	abs, err := filepath.Abs(desktop)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != abs {
+		t.Fatalf("recorded %q want %q", got, abs)
+	}
+	if RecordedDesktopExe() != abs {
+		t.Fatalf("RecordedDesktopExe = %q want %q", RecordedDesktopExe(), abs)
+	}
+
+	if err := os.Remove(desktop); err != nil {
+		t.Fatal(err)
+	}
+	if RecordedDesktopExe() != "" {
+		t.Fatalf("missing target must be empty, got %q", RecordedDesktopExe())
+	}
+}
+
+func TestInstallRecordFailureDoesNotFailInstall(t *testing.T) {
+	root := t.TempDir()
+	bundle := filepath.Join(root, "bundle")
+	if err := os.MkdirAll(bundle, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(bundle, "gadak.exe")
+	desktop := filepath.Join(bundle, "gadak-desktop.exe")
+	if err := os.WriteFile(source, []byte("cli"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(desktop, []byte("desk"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(root, "not-a-dir")
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	prev := DesktopExePathFile
+	DesktopExePathFile = filepath.Join(blocker, "desktop-exe-path")
+	t.Cleanup(func() { DesktopExePathFile = prev })
+
+	dir := filepath.Join(root, "bin")
+	p, err := ResolveFor(source, dir, dir, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Install(p, false); err != nil {
+		t.Fatalf("record write failure must not fail install: %v", err)
+	}
+}
+
 func TestDefaultDirSkipsUnwritableSystemBin(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("unix paths")

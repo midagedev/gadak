@@ -15,7 +15,7 @@ import (
 // can invoke `gadak` without typing the app-bundle path.
 func cmdInstallCLI(args []string) error {
 	fs := newFlagSet("install-cli")
-	dirFlag := fs.String("dir", "", "install directory (default: prefer a PATH entry, else ~/.local/bin)")
+	dirFlag := fs.String("dir", "", "install directory (default: prefer a PATH entry, else ~/.local/bin; %LOCALAPPDATA%\\Programs\\gadak on Windows)")
 	force := fs.Bool("force", false, "replace an existing file or symlink at the destination")
 	printOnly := fs.Bool("print", false, "print the plan without creating anything")
 	if err := fs.Parse(args); err != nil {

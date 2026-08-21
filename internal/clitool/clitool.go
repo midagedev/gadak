@@ -150,13 +150,32 @@ func ResolveDir(dirFlag, pathEnv string) (string, error) {
 // never touch the real system directory.
 var systemBinCandidate = "/usr/local/bin"
 
+// DesktopExePathFile is the pointer file written after a successful
+// install-cli when gadak-desktop.exe sat next to the source binary.
+// Empty means <UserConfigDir>/gadak/desktop-exe-path. Tests override
+// to a temp path so they never touch the real UserConfigDir.
+// Not GADAK_HOME: that directory is store-owned.
+var DesktopExePathFile string
+
 // DefaultDir chooses an install directory when --dir is omitted.
+func DefaultDir(pathEnv string) (string, error) {
+	return DefaultDirFor(pathEnv, runtime.GOOS)
+}
+
+// DefaultDirFor is DefaultDir with an explicit GOOS so the Windows
+// default can be tested on any host (same shape as installMethodFor).
 //
-// Order (see comment block in the body):
+// Unix order:
 //  1. ~/.local/bin if it exists and is already on PATH
 //  2. /usr/local/bin if it is on PATH and writable without sudo
 //  3. ~/.local/bin otherwise (create on Install; caller may warn about PATH)
-func DefaultDir(pathEnv string) (string, error) {
+//
+// Windows: %LOCALAPPDATA%\Programs\gadak (empty LOCALAPPDATA →
+// UserHomeDir + AppData\Local). Unix candidates are not considered.
+func DefaultDirFor(pathEnv, goos string) (string, error) {
+	if goos == "windows" {
+		return defaultDirWindows()
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("home directory: %w", err)
@@ -183,14 +202,28 @@ func DefaultDir(pathEnv string) (string, error) {
 	return localBin, nil
 }
 
+func defaultDirWindows() (string, error) {
+	local := os.Getenv("LOCALAPPDATA")
+	if local == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("home directory: %w", err)
+		}
+		local = filepath.Join(home, "AppData", "Local")
+	}
+	return filepath.Join(local, "Programs", "gadak"), nil
+}
+
 // Install creates Dir if needed and places Dest according to p.Method
 // (symlink on Unix, copy on Windows). Empty Method is treated as symlink
 // so a Plan built by older callers keeps the previous behaviour.
-// When Status is linked, Install is a no-op.
+// When Status is linked, Install does not touch Dest (it may still record
+// gadak-desktop.exe next to Source as a discovery fallback).
 // When Status is conflict and force is false, Install returns an error without
 // touching the filesystem. force replaces an existing Dest.
 func Install(p Plan, force bool) error {
 	if p.Status == StatusLinked {
+		recordDesktopExeIfPresent(p.Source)
 		return nil
 	}
 	if p.Status == StatusConflict && !force {
@@ -221,12 +254,14 @@ func Install(p Plan, force bool) error {
 		if err := installCopy(p.Source, p.Dest); err != nil {
 			return permissionHint(fmt.Errorf("copy %s from %s: %w", TildeHome(p.Dest), TildeHome(p.Source), err), p.Dest)
 		}
+		recordDesktopExeIfPresent(p.Source)
 		return nil
 	}
 
 	if err := os.Symlink(p.Source, p.Dest); err != nil {
 		return permissionHint(fmt.Errorf("symlink %s → %s: %w", TildeHome(p.Dest), TildeHome(p.Source), err), p.Dest)
 	}
+	recordDesktopExeIfPresent(p.Source)
 	return nil
 }
 
@@ -403,14 +438,82 @@ func inspectDest(dest string) (kind, linkTarget string, err error) {
 }
 
 func permissionHint(err error, path string) error {
+	return permissionHintFor(err, path, runtime.GOOS)
+}
+
+func permissionHintFor(err error, path, goos string) error {
 	if err == nil {
 		return nil
 	}
 	if !isPermissionError(err) {
 		return err
 	}
+	if goos == "windows" {
+		return fmt.Errorf("%w\npermission denied writing %s — check the directory is writable, or pass --dir with a path you can write",
+			err, TildeHome(path))
+	}
 	return fmt.Errorf("%w\npermission denied writing %s — re-run with sudo, or use --dir ~/.local/bin (no sudo)",
 		err, TildeHome(path))
+}
+
+func desktopExeRecordPath() string {
+	if DesktopExePathFile != "" {
+		return DesktopExePathFile
+	}
+	base, err := os.UserConfigDir()
+	if err != nil || base == "" {
+		return ""
+	}
+	return filepath.Join(base, "gadak", "desktop-exe-path")
+}
+
+// recordDesktopExeIfPresent writes the absolute path of gadak-desktop.exe
+// sitting next to source. Write failure is ignored — the file is a fallback
+// pointer, not the record of the install.
+func recordDesktopExeIfPresent(source string) {
+	if source == "" {
+		return
+	}
+	sibling := filepath.Join(filepath.Dir(source), "gadak-desktop.exe")
+	fi, err := os.Stat(sibling)
+	if err != nil || fi.IsDir() {
+		return
+	}
+	abs, err := filepath.Abs(sibling)
+	if err != nil {
+		return
+	}
+	dest := desktopExeRecordPath()
+	if dest == "" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return
+	}
+	_ = os.WriteFile(dest, []byte(abs+"\n"), 0o644)
+}
+
+// RecordedDesktopExe returns the path stored in DesktopExePathFile when that
+// path names an existing non-directory file. Missing or stale records are
+// ignored (empty string).
+func RecordedDesktopExe() string {
+	rec := desktopExeRecordPath()
+	if rec == "" {
+		return ""
+	}
+	raw, err := os.ReadFile(rec)
+	if err != nil {
+		return ""
+	}
+	p := strings.TrimSpace(string(raw))
+	if p == "" {
+		return ""
+	}
+	fi, err := os.Stat(p)
+	if err != nil || fi.IsDir() {
+		return ""
+	}
+	return p
 }
 
 func isPermissionError(err error) bool {

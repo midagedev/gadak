@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/store"
@@ -768,6 +770,35 @@ func TestFocusDesktopAppWindowsRespectsDecideNone(t *testing.T) {
 	ok, err := focusDesktopApp("gadak://view/w/work?ks=NMA-1")
 	if ok || err != nil {
 		t.Fatalf("wrong-profile windows focus = %v, %v; want false, nil", ok, err)
+	}
+}
+
+func TestFindWindowsDesktopExeRecordedFallback(t *testing.T) {
+	root := t.TempDir()
+	exe := filepath.Join(root, "gadak-desktop.exe")
+	if err := os.WriteFile(exe, []byte("desk"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rec := filepath.Join(root, "desktop-exe-path")
+	if err := os.WriteFile(rec, []byte(exe+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	prev := clitool.DesktopExePathFile
+	clitool.DesktopExePathFile = rec
+	t.Cleanup(func() { clitool.DesktopExePathFile = prev })
+	t.Setenv("PATH", filepath.Join(root, "empty-path"))
+
+	got := findWindowsDesktopExe()
+	if got != exe {
+		t.Fatalf("recorded fallback = %q, want %q", got, exe)
+	}
+
+	if err := os.Remove(exe); err != nil {
+		t.Fatal(err)
+	}
+	got = findWindowsDesktopExe()
+	if got != "" {
+		t.Fatalf("missing target must be empty, got %q", got)
 	}
 }
 
