@@ -956,6 +956,9 @@ type SyncState struct {
 	// LastNotifiedAt is the OS-notification watermark. Independent of
 	// feed_reads: delivering a desktop alert must not mark the feed read.
 	LastNotifiedAt *string `json:"last_notified_at,omitempty"`
+	// Locale is the origin locale the jira source's display names were
+	// fetched under (GDK-597). NULL (pre-v35 mirror) reads as "" = English.
+	Locale string `json:"locale,omitempty"`
 }
 
 // SyncState reads the state for one source. A source that has never synced
@@ -963,14 +966,15 @@ type SyncState struct {
 func (db *DB) SyncState(ctx context.Context, sourceID string) (SyncState, error) {
 	s := SyncState{SourceID: sourceID, SchemaVersion: db.schemaVersion}
 	var wm *string
+	var loc *string
 	err := db.sql.QueryRowContext(ctx, `
 		SELECT st.watermark, st.version, st.last_full_sync_at, st.last_error,
 		       st.schema_version, src.synced_at,
-		       st.first_sync_at, st.sync_count, st.last_notified_at
+		       st.first_sync_at, st.sync_count, st.last_notified_at, st.locale
 		FROM sync_state st LEFT JOIN sources src ON src.id = st.source_id
 		WHERE st.source_id = ?`, sourceID).
 		Scan(&wm, &s.Version, &s.LastFullSyncAt, &s.LastError, &s.SchemaVersionRow, &s.SyncedAt,
-			&s.FirstSyncAt, &s.SyncCount, &s.LastNotifiedAt)
+			&s.FirstSyncAt, &s.SyncCount, &s.LastNotifiedAt, &loc)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, nil
 	}
@@ -979,6 +983,9 @@ func (db *DB) SyncState(ctx context.Context, sourceID string) (SyncState, error)
 	}
 	if wm != nil {
 		s.Watermark = *wm
+	}
+	if loc != nil {
+		s.Locale = *loc
 	}
 	// The column is the schema at last sync/migration write; PRAGMA
 	// user_version is the mirror. Publishing the column under
@@ -992,6 +999,10 @@ type SyncResult struct {
 	Watermark string // ignored when empty or not greater than the stored one
 	FullSync  bool   // stamps last_full_sync_at
 	Err       error  // recorded as last_error; nil clears it
+	// Locale records the origin locale this pass fetched display names
+	// under (GDK-597). Empty leaves the stored marker alone — an error
+	// path or a source that does not localize must not clobber it.
+	Locale string
 }
 
 // RecordSync stores the run's bookkeeping. It does not bump `version`: a run
@@ -1012,8 +1023,8 @@ func (db *DB) RecordSync(ctx context.Context, sourceID string, r SyncResult) err
 	return db.write(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`
 			INSERT INTO sync_state (source_id, watermark, last_full_sync_at, last_error, schema_version,
-			                       first_sync_at, sync_count)
-			VALUES (?,?,?,?,?,?,?)
+			                       first_sync_at, sync_count, locale)
+			VALUES (?,?,?,?,?,?,?,?)
 			ON CONFLICT(source_id) DO UPDATE SET
 				watermark = CASE
 					WHEN excluded.watermark IS NOT NULL
@@ -1025,8 +1036,9 @@ func (db *DB) RecordSync(ctx context.Context, sourceID string, r SyncResult) err
 				first_sync_at = CASE
 					WHEN excluded.first_sync_at IS NOT NULL AND sync_state.first_sync_at IS NULL
 					THEN excluded.first_sync_at ELSE sync_state.first_sync_at END,
-				sync_count = sync_state.sync_count + excluded.sync_count`,
-			sourceID, nz(r.Watermark), fullAt, errText, db.schemaVersion, firstAt, inc); err != nil {
+				sync_count = sync_state.sync_count + excluded.sync_count,
+				locale = COALESCE(excluded.locale, sync_state.locale)`,
+			sourceID, nz(r.Watermark), fullAt, errText, db.schemaVersion, firstAt, inc, nz(r.Locale)); err != nil {
 			return err
 		}
 		if r.Err != nil {

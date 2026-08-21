@@ -65,6 +65,21 @@ func ValidateTheme(s string) (string, error) {
 	return s, nil
 }
 
+// localeValues are the locales the issuetap origin serves (its locale
+// package). Anything else is rejected loudly rather than silently falling
+// back to English.
+var localeValues = map[string]bool{"": true, "en": true, "ko": true, "ja": true, "de": true}
+
+// ValidateLocale accepts "", en, ko, ja, de (GDK-597). Empty stores as the
+// zero value so the default is not persisted.
+func ValidateLocale(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if !localeValues[s] {
+		return "", fmt.Errorf("locale must be one of en, ko, ja, de (or empty for English), not %q", s)
+	}
+	return s, nil
+}
+
 // ApplyAppearance writes a validated theme onto c. "system" and empty store
 // as the zero value so the default is not persisted.
 func ApplyAppearance(c *Config, a Appearance) error {
@@ -319,6 +334,28 @@ func buildSettings() []Setting {
 					return err
 				}
 				c.Actor = v
+				return nil
+			},
+		},
+		{
+			Path: "locale",
+			Root: "locale",
+			Description: "display-name language of a standalone workspace's origin: \"\", en, ko, ja, de " +
+				"(empty = English). Status / issue-type / field names and agent aliases follow it; " +
+				"priority names stay English, like a live Cloud site (GDK-597). Changing it rebuilds " +
+				"the mirror on the next sync — display names are cached. A connected workspace " +
+				"ignores it: its language is the Atlassian account's",
+			Get: func(c *Config) any { return c.Locale },
+			Set: func(c *Config, raw json.RawMessage) error {
+				s, err := decodeString(raw, "locale")
+				if err != nil {
+					return err
+				}
+				v, err := ValidateLocale(s)
+				if err != nil {
+					return err
+				}
+				c.Locale = v
 				return nil
 			},
 		},

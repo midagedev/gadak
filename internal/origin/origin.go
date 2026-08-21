@@ -236,6 +236,9 @@ type session struct {
 	client *jira.Client
 	wiki   *confluence.Client
 	unlock func() // releases the persist lock; runs after emb.Close
+	// locale is what the embedded store was last set to (GDK-597). Guarded
+	// by mu so a racing session lookup cannot half-see a switch.
+	locale string
 }
 
 type sessionFlight struct {
@@ -399,7 +402,38 @@ func standaloneWiki(cfg *config.Config) (*confluence.Client, error) {
 // process-global mutex is not held across persist IO. Production is nil.
 var testBeforeStandalone func(persist string)
 
+// standaloneSession returns this workspace's embedded origin session with
+// the store speaking the workspace locale (GDK-597). The locale is part of
+// the session contract, not just of construction: a config change must
+// reach the already-live store in place — dropping the session would drop
+// the persist lock a long-lived `gadak serve` is holding.
 func standaloneSession(cfg *config.Config) (*session, error) {
+	s, err := openStandaloneSession(cfg)
+	if err != nil {
+		return nil, err
+	}
+	loc := "en"
+	if cfg != nil {
+		loc = cfg.EffectiveLocale()
+	}
+	mu.Lock()
+	if s.locale == loc {
+		mu.Unlock()
+		return s, nil
+	}
+	prev, target := s.locale, loc
+	s.locale = loc // reserve under mu so a racing caller skips the store call
+	mu.Unlock()
+	if err := s.emb.SetLocale(target); err != nil {
+		mu.Lock()
+		s.locale = prev
+		mu.Unlock()
+		return nil, fmt.Errorf("origin: set locale %q: %w", target, err)
+	}
+	return s, nil
+}
+
+func openStandaloneSession(cfg *config.Config) (*session, error) {
 	dir, err := profileDir(cfg)
 	if err != nil {
 		return nil, err
@@ -432,11 +466,15 @@ func standaloneSession(cfg *config.Config) (*session, error) {
 
 	sessionInFlight.Add(1)
 	var projects []string
+	var locale string
 	if cfg != nil {
 		projects = cfg.Projects
+		locale = cfg.EffectiveLocale()
+	} else {
+		locale = "en"
 	}
 	actor, _ := config.ResolveActor(cfg)
-	s, err := constructStandalone(persist, projects, actor)
+	s, err := constructStandalone(persist, projects, actor, locale)
 	sessionInFlight.Add(-1)
 
 	mu.Lock()
@@ -467,7 +505,11 @@ func standaloneSession(cfg *config.Config) (*session, error) {
 // stamps X-Issuetap-Actor on every request so writes attribute to the
 // agent, not the in-process user. Resolution happens once per session —
 // env and config are stable for the process lifetime.
-func constructStandalone(persist string, projects []string, actor config.ResolvedActor) (*session, error) {
+// locale is the workspace's display-name language (GDK-597), always
+// non-empty: passing it explicitly keeps the persist file's own locale
+// field from winning — gadak owns the workspace language; the persist is
+// the origin's state.
+func constructStandalone(persist string, projects []string, actor config.ResolvedActor, locale string) (*session, error) {
 	sessionsConstructed.Add(1)
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
 		return nil, fmt.Errorf("origin: persist dir: %w", err)
@@ -494,6 +536,9 @@ func constructStandalone(persist string, projects []string, actor config.Resolve
 		// time, not issuetap's deterministic seed clock (GDK-369 — a
 		// January created_at read as a sync bug).
 		WallClock: true,
+		// …and it speaks the workspace's language for display names, with
+		// Cloud fidelity: priority names stay English (GDK-597).
+		Locale: locale,
 	})
 	if err != nil {
 		unlock()
@@ -514,7 +559,7 @@ func constructStandalone(persist string, projects []string, actor config.Resolve
 	}
 	w.HTTP.Transport = tr
 
-	return &session{emb: emb, client: c, wiki: w, unlock: unlock}, nil
+	return &session{emb: emb, client: c, wiki: w, unlock: unlock, locale: locale}, nil
 }
 
 func closeSession(s *session) {

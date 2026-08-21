@@ -73,6 +73,11 @@ var neverExportConfigFields = []string{
 	// (GDK-586). Whose shell is running is not team consensus, and a shared
 	// slug would merge every importer's agent into one origin account.
 	"Actor",
+	// Locale names the language of this profile's standalone origin snapshot
+	// (GDK-597) — the same per-machine character as Kind: the origin the
+	// setting describes is not part of a team file, and language is the
+	// importer's own preference. A connected workspace ignores it anyway.
+	"Locale",
 }
 
 // credentialJSONKeys are JSON object keys that mean "this file carries

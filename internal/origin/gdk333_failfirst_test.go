@@ -20,7 +20,7 @@ import (
 // an invisible sibling graph.
 func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), "origin", "issuetap.yaml")
-	a, err := constructStandalone(persist, nil, config.ResolvedActor{})
+	a, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 	// FAIL-first (2026-08-19, unmodified constructStandalone): this second
 	// construction succeeded and B could not see A's issue — two embedded
 	// graphs over one file. Since GDK-343 it must fail on the persist lock.
-	b, err := constructStandalone(persist, nil, config.ResolvedActor{})
+	b, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
 	if err == nil {
 		closeSession(b)
 		t.Fatal("second constructStandalone succeeded — the GDK-333/343 double-graph hazard is back")

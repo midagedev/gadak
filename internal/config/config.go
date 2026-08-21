@@ -85,6 +85,15 @@ type Config struct {
 	// fetches regardless of this flag (GDK-536): the panel is local.
 	DevStatus bool `json:"devStatus,omitempty"`
 
+	// Locale is the display-name language of a standalone workspace's
+	// origin ("" | en | ko | ja | de; "" and "en" are both English,
+	// GDK-597). It rides EmbeddedConfig into the embedded issuetap, so
+	// status / issue-type / field-catalog names — and the agent alias
+	// dictionary (GDK-593) — follow it; priority names stay English, like
+	// a live Cloud site. A connected workspace ignores it: there the
+	// language is the Atlassian account's, not ours.
+	Locale string `json:"locale,omitempty"`
+
 	// DefaultProject is the project key used when create omits --project /
 	// project_key. Site-bound: never team-exported. Empty means unset.
 	DefaultProject string `json:"defaultProject,omitempty"`
@@ -769,6 +778,16 @@ func (c *Config) EffectiveTheme() string {
 		return "system"
 	}
 	return c.Appearance.Theme
+}
+
+// EffectiveLocale is the origin's display-name language (GDK-597). Empty
+// on disk means English. Only a standalone workspace consumes it; see
+// Locale.
+func (c *Config) EffectiveLocale() string {
+	if c == nil || c.Locale == "" {
+		return "en"
+	}
+	return c.Locale
 }
 
 // FieldSpecs returns the effective field specs. After LoadFor, this is Fields.

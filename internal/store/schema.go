@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -647,6 +647,19 @@ CREATE TABLE status_catalog (
   category  TEXT NOT NULL,
   PRIMARY KEY (source_id, status_id)
 );
+`
+
+// schemaV35 records the origin locale the jira source's display names were
+// fetched under (GDK-597). The mirror caches localized names (issues.status,
+// issue_type, …); sync is watermark-incremental, so a locale change with no
+// origin mutation would otherwise leave the old language in place — a mixed
+// mirror. The sync pass compares this column with the configured locale and
+// rebuilds (full refetch) when they differ. NULL (pre-v35 mirror) reads as
+// "": English, which is what those mirrors were fetched under — no spurious
+// rebuild on upgrade. Standalone only: a connected workspace's language is
+// the Atlassian account's, not this setting.
+const schemaV35 = `
+ALTER TABLE sync_state ADD COLUMN locale TEXT;
 `
 
 // personalStateCopyVersion is the migration level schemaV26 lands on. migrate

@@ -74,6 +74,19 @@
 
 ### standalone과 issuetap
 
+- **standalone 워크스페이스가 사용자의 언어로 말합니다** ([GDK-597]).
+  `gadak config set locale ko`면 워크스페이스의 트래커가 상태·이슈 유형
+  이름을 한국어로 냅니다 — 우선순위 이름은 영어로 남습니다. 실제 한국어
+  Cloud 사이트가 그렇게 서빙하기 때문입니다. 로케일을 바꾸면 미러를 다시
+  만듭니다(캐시된 표시 이름이 옛 언어로 남기 때문). connected
+  워크스페이스는 무영향입니다 — 그 언어는 Atlassian 계정의 것입니다.
+- **이슈 클레임이 한 동작이 됩니다** ([GDK-591]). `gadak claim KEY`가
+  작업 중인 에이전트를 담당자로 지정하고 진행중으로 옮깁니다. issuetap
+  origin에서는 원자적이라, 같은 이슈를 두고 경합한 두 번째 에이전트는
+  거절되고 누가 잡고 있는지 듣습니다. `--take-over`는 의식적인
+  인수인계이고, connected Jira는 두 호출이 끼어들 수 있다는 사실을 소리
+  내어 알립니다. `gadak issue`는 이슈가 얼마나 기다렸고 얼마나 진행
+  중인지 보여줍니다 — 저장이 아니라 changelog에서 계산합니다.
 - **dev 링크가 사람들을 압니다** ([GDK-589]). `dev_links`가 PR 작성자
   (사람)·링크를 쓴 actor(봇)·head 브랜치를 나릅니다(스키마 v33).
   `gadak dev scan`이 `gh`에서 실어 보내고, `dev link`는
@@ -1821,6 +1834,8 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
 [GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
 [GDK-589]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-589
+[GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
+[GDK-597]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-597
 [GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
 [GDK-593]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-593
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586

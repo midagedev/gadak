@@ -75,6 +75,20 @@ the fixes are all here.
 
 ### Standalone and issuetap
 
+- **A standalone workspace speaks your language** ([GDK-597]). `gadak
+  config set locale ko` and the workspace's own tracker localizes status
+  and issue-type names — while priority names stay English, which is what
+  a live Korean Cloud site actually serves. Changing the locale rebuilds
+  the mirror, because cached display names would otherwise stay in the old
+  language. A connected workspace is unaffected: its language belongs to
+  the Atlassian account.
+- **Claiming an issue is one move** ([GDK-591]). `gadak claim KEY` assigns
+  the acting agent and moves the issue in progress; on an issuetap origin
+  that is atomic, so a second agent racing for the same issue is refused
+  and told who holds it. `--take-over` is the deliberate handover, and a
+  connected Jira says out loud that its two calls could interleave.
+  `gadak issue` shows how long an issue waited and how long it has been in
+  progress, computed from the changelog rather than stored.
 - **A dev link knows its people** ([GDK-589]). `dev_links` carries the PR
   author (the human), the writing actor (the bot), and the head branch
   (schema v33); `gadak dev scan` sends them from `gh`, `dev link` takes
@@ -1823,6 +1837,8 @@ measured numbers instead of adjectives.
 [GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
 [GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
 [GDK-589]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-589
+[GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
+[GDK-597]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-597
 [GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
 [GDK-593]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-593
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586

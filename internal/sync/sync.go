@@ -189,6 +189,30 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		}
 	}
 
+	// Locale rebuild (GDK-597): the mirror caches origin display names and
+	// this pass is watermark-incremental — a locale change with no origin
+	// mutation would leave untouched rows in the old language (a mixed
+	// mirror). The mirror is a disposable cache; the origin is the record,
+	// so the fix is a full refetch, never a name rewrite on this side.
+	// Standalone only: a connected workspace's language is the Atlassian
+	// account's, not this setting. A NULL marker (pre-v35 mirror) reads as
+	// "" — same effective value as "en", so upgrading does not rebuild.
+	syncedLocale := ""
+	localeRebuild := false
+	if cfg.IsStandalone() {
+		syncedLocale = cfg.EffectiveLocale()
+		stored := state.Locale
+		if stored == "" {
+			stored = "en"
+		}
+		if !res.Full && stored != syncedLocale {
+			res.Full = true
+			localeRebuild = true
+			opts.logf("locale changed %s → %s: rebuilding the mirror — display names follow the workspace language (GDK-597)",
+				stored, syncedLocale)
+		}
+	}
+
 	cats, err := c.Statuses(ctx)
 	if err != nil {
 		return record(ctx, cfg, db, SourceID, err)
@@ -213,6 +237,14 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	unitDenom := -1
 	page := func(issues []jira.Issue) error {
 		batch := store.Batch{Categories: cats, Priorities: prios, Records: make([]store.IssueRecord, 0, len(issues))}
+		// A locale rewrite must go through the upsert's change detector: the
+		// origin's `updated` did not move (nothing in the origin changed —
+		// only our language did), but every display-name column did. Force is
+		// the existing "the origin row is fresher than updated_at claims"
+		// signal (single-issue write-through uses it for the same reason).
+		if localeRebuild {
+			batch.Force = true
+		}
 		for _, iss := range issues {
 			// A status the site list did not cover is still known from the issue
 			// itself, and a missing category can only lose a reopen.
@@ -320,7 +352,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	if skips := devStatusSkips.Swap(0); skips > 0 {
 		opts.logf("dev-status: skipped on %d issues (the panel read is best-effort — Cloud marks the API internal)", skips)
 	}
-	if err := db.RecordSync(ctx, SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
+	if err := db.RecordSync(ctx, SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full, Locale: syncedLocale}); err != nil {
 		return err
 	}
 

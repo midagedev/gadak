@@ -99,6 +99,13 @@ func cmdStatus(args []string) error {
 	if actor, ok := config.ResolveActor(cfg); ok {
 		st["actor"] = actor
 	}
+	// The origin's language (GDK-597), next to the actor row — the two things
+	// an agent reads to know who it writes as and what the origin will call
+	// things back. Standalone only: a connected workspace's language is the
+	// Atlassian account's, not ours.
+	if cfg != nil && cfg.IsStandalone() {
+		st["locale"] = cfg.EffectiveLocale()
+	}
 	st["custom_fields"] = cfg.CustomFieldsStatus()
 	var tokenExpiry config.TokenExpiry
 	if cfg != nil {
@@ -143,6 +150,9 @@ func cmdStatus(args []string) error {
 			line += " — " + actor.Name
 		}
 		fmt.Printf("%-18s %s (%s)\n", "actor", line, actor.Source)
+	}
+	if loc, ok := st["locale"].(string); ok {
+		fmt.Printf("%-18s %s\n", "locale", loc)
 	}
 	if p, ok := st["pairing"].(map[string]string); ok {
 		fmt.Printf("paired with %q (%s)\n", p["label"], p["endpoint"])

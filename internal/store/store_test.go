@@ -61,7 +61,7 @@ var documentedColumns = map[string][]string{
 	"watches":        {"key", "created_at"},
 	"favorites":      {"key", "created_at"},
 	"sync_state": {"source_id", "watermark", "version", "last_full_sync_at", "last_error", "schema_version",
-		"first_sync_at", "sync_count", "last_notified_at"},
+		"first_sync_at", "sync_count", "last_notified_at", "locale"},
 	"enrichments": {"key", "kind", "payload", "source", "updated_at"},
 	"feed_reads":  {"event_id", "read_at"},
 	"api_usage":   {"day", "requests", "throttled", "server_errors", "retries", "wait_ms", "last_throttled_at"},

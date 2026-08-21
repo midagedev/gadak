@@ -578,6 +578,7 @@ from `saved_views`, which are authored in gadak.
 | `first_sync_at` | TEXT | First successful sync for this source (retention instrumentation). Set once |
 | `sync_count` | INTEGER | Successful sync runs. Failed runs leave it alone |
 | `last_notified_at` | TEXT | OS desktop-notification watermark. Independent of `feed_reads` — delivering an alert must not mark the feed read |
+| `locale` | TEXT | Origin locale the jira source's display names were fetched under (v35, GDK-597). The sync pass compares it with the configured locale and rebuilds when they differ — names are cached and incremental sync would otherwise keep the old language. NULL (pre-v35) reads as `""` = English |
 
 The `version` counter is what lets `bootstrap` answer `304 Not Modified` without
 hashing the whole mirror. It moves only when row content changed, which is what
