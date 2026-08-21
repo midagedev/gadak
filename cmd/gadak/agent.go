@@ -1681,7 +1681,7 @@ func cmdTransition(args []string) error {
 		if err != nil {
 			return nil, err
 		}
-		id, err := pickTransition(key, want, list)
+		id, err := jira.PickTransition(key, want, list)
 		if err != nil {
 			return nil, err
 		}
@@ -1719,135 +1719,19 @@ func listTransitions(key string, asJSON bool) error {
 			return json.NewEncoder(os.Stdout).Encode(map[string]any{
 				"key":         key,
 				"transitions": jsonList(list),
-				"categories":  jsonList(reachableCategories(list)),
+				"categories":  jsonList(jira.ReachableCategories(list)),
 			})
 		}
 		if len(list) == 0 {
 			fmt.Fprintf(os.Stdout, "%s has no available transitions for this credential\n", key)
 			return nil
 		}
-		fmt.Printf("available: %s\n", joinTransitions(list))
-		if cats := reachableCategories(list); len(cats) > 0 {
+		fmt.Printf("available: %s\n", jira.JoinTransitions(list))
+		if cats := jira.ReachableCategories(list); len(cats) > 0 {
 			fmt.Printf("also accepts a status category: %s\n", strings.Join(cats, ", "))
 		}
 		return nil
 	})
-}
-
-// pickTransition resolves want against the issue's available transitions.
-// Order: transition id, target status id, transition name / target status
-// name, then category tokens (new|inprogress|done). Two landings in the same
-// category refuse rather than picking the first. A token that is one
-// transition's id and a different transition's to.id is also refused.
-func pickTransition(key, want string, list []jira.Transition) (string, error) {
-	var idHit *jira.Transition
-	var toHits []jira.Transition
-	for i := range list {
-		t := &list[i]
-		if t.ID == want && idHit == nil {
-			idHit = t
-		}
-		if t.To.ID != "" && t.To.ID == want {
-			toHits = append(toHits, *t)
-		}
-	}
-	if idHit != nil {
-		var others []jira.Transition
-		for _, t := range toHits {
-			if t.ID != idHit.ID {
-				others = append(others, t)
-			}
-		}
-		if len(others) > 0 {
-			return "", fmt.Errorf("%q matches a transition id and a different target status id on %s — transition id: %s; target status id: %s",
-				want, key, formatTransition(*idHit), joinTransitions(others))
-		}
-		return idHit.ID, nil
-	}
-	switch len(toHits) {
-	case 1:
-		return toHits[0].ID, nil
-	case 0:
-		// names, then category
-	default:
-		return "", fmt.Errorf("transition %q is ambiguous on %s — %d transitions land there: %s",
-			want, key, len(toHits), joinTransitions(toHits))
-	}
-	for _, t := range list {
-		if strings.EqualFold(t.Name, want) || strings.EqualFold(t.To.Name, want) {
-			return t.ID, nil
-		}
-	}
-	if token, ok := statusCategoryToken(want); ok {
-		var hits []jira.Transition
-		for _, t := range list {
-			if cat, ok := transitionCategory(t); ok && cat == token {
-				hits = append(hits, t)
-			}
-		}
-		switch len(hits) {
-		case 1:
-			return hits[0].ID, nil
-		case 0:
-			// fall through to the shared miss error, which names reachable tokens
-		default:
-			return "", fmt.Errorf("transition %q is ambiguous on %s — %d transitions land there: %s",
-				want, key, len(hits), joinTransitions(hits))
-		}
-	}
-	return "", noTransitionMatch(key, want, list)
-}
-
-// statusCategoryToken accepts only the three values data-model.md documents.
-// jira.Category and jql.mapStatusCategory both fold aliases (todo, indeterminate)
-// onto those values; applying either to the user token would reopen the
-// localization trap this command is closing.
-func statusCategoryToken(s string) (string, bool) {
-	switch strings.ToLower(s) {
-	case "new", "inprogress", "done":
-		return strings.ToLower(s), true
-	default:
-		return "", false
-	}
-}
-
-// transitionCategory maps a transition's Jira statusCategory key onto the
-// three documented tokens. Empty and unknown keys are refused: jira.Category
-// folds those to "new", which would move the issue on a damaged payload.
-func transitionCategory(t jira.Transition) (string, bool) {
-	switch t.To.StatusCategory.Key {
-	case "new", "indeterminate", "inprogress", "done":
-		return jira.Category(t.To.StatusCategory.Key), true
-	default:
-		return "", false
-	}
-}
-
-func formatTransition(t jira.Transition) string {
-	if t.To.ID == "" {
-		return fmt.Sprintf("%s (id %s, → %s)", t.Name, t.ID, t.To.Name)
-	}
-	return fmt.Sprintf("%s (id %s, → %s [status_id %s])", t.Name, t.ID, t.To.Name, t.To.ID)
-}
-
-func joinTransitions(list []jira.Transition) string {
-	parts := make([]string, 0, len(list))
-	for _, t := range list {
-		parts = append(parts, formatTransition(t))
-	}
-	return strings.Join(parts, "; ")
-}
-
-func noTransitionMatch(key, want string, list []jira.Transition) error {
-	if len(list) == 0 {
-		return fmt.Errorf("%s has no available transitions for this credential", key)
-	}
-	msg := fmt.Sprintf("no transition matching %q on %s — available: %s",
-		want, key, joinTransitions(list))
-	if cats := reachableCategories(list); len(cats) > 0 {
-		msg += "\nalso accepts a status category: " + strings.Join(cats, ", ")
-	}
-	return errors.New(msg)
 }
 
 func transitionByID(list []jira.Transition, id string) jira.Transition {
@@ -2028,21 +1912,6 @@ func describeTransitionFields(t jira.Transition) string {
 		parts = append(parts, formatTransitionField(k, t.Fields[k]))
 	}
 	return "this transition exposes: " + strings.Join(parts, "; ")
-}
-
-func reachableCategories(list []jira.Transition) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, token := range []string{"new", "inprogress", "done"} {
-		for _, t := range list {
-			cat, ok := transitionCategory(t)
-			if ok && cat == token && !seen[token] {
-				seen[token] = true
-				out = append(out, token)
-			}
-		}
-	}
-	return out
 }
 
 func cmdAssign(args []string) error {

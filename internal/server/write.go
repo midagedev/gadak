@@ -438,9 +438,12 @@ func (s *server) handlePageResync(w http.ResponseWriter, r *http.Request) {
 /* ── transitions ── */
 
 type transitionDoc struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	ToStatus   string `json:"to_status"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	ToStatus string `json:"to_status"`
+	// ToID is the target status id — what issues_full exposes as status_id,
+	// so a reader can carry it straight back into POST transition (GDK-341).
+	ToID       string `json:"to_id"`
 	ToCategory string `json:"to_category"`
 }
 
@@ -457,7 +460,7 @@ func (s *server) handleTransitions(w http.ResponseWriter, r *http.Request) {
 	out := make([]transitionDoc, 0, len(list))
 	for _, t := range list {
 		out = append(out, transitionDoc{
-			ID: t.ID, Name: t.Name, ToStatus: t.To.Name,
+			ID: t.ID, Name: t.Name, ToStatus: t.To.Name, ToID: t.To.ID,
 			// Jira's own category key, which is what the client's type documents.
 			ToCategory: t.To.StatusCategory.Key,
 		})
@@ -477,11 +480,25 @@ func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 	}
 	key := r.PathValue("key")
 	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
+		// Same identifier resolution as the CLI (GDK-341): transition id,
+		// target status id, name, category token — ambiguity refused. The
+		// list read costs one origin call; a bare transition id short-cuts
+		// only through the same resolver, so refusal semantics hold.
+		list, err := c.Transitions(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		id, err := jira.PickTransition(key, body.TransitionID, list)
+		if err != nil {
+			// The resolver's message names every candidate; surface it as a
+			// 400 through the same shape failJira gives Jira's rejections.
+			return nil, &jira.APIError{Status: http.StatusBadRequest, Messages: []string{err.Error()}}
+		}
 		var comment json.RawMessage
 		if strings.TrimSpace(body.Comment) != "" {
 			comment = jira.Doc(body.Comment, nil)
 		}
-		return nil, c.Transition(ctx, key, body.TransitionID, body.Fields, comment)
+		return nil, c.Transition(ctx, key, id, body.Fields, comment)
 	})
 }
 

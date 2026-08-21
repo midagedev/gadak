@@ -89,7 +89,7 @@ func TestServeHelpSyncsStandaloneWithoutCredential(t *testing.T) {
 }
 
 func TestFormatTransitionIncludesStatusID(t *testing.T) {
-	got := formatTransition(jira.Transition{
+	got := jira.FormatTransition(jira.Transition{
 		ID:   "2",
 		Name: "In Progress",
 		To:   jira.Status{ID: "3", Name: "In Progress"},
@@ -98,7 +98,7 @@ func TestFormatTransitionIncludesStatusID(t *testing.T) {
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
-	empty := formatTransition(jira.Transition{ID: "11", Name: "Triage"})
+	empty := jira.FormatTransition(jira.Transition{ID: "11", Name: "Triage"})
 	if !strings.Contains(empty, "Triage (id 11") {
 		t.Fatalf("missing to still formats: %q", empty)
 	}

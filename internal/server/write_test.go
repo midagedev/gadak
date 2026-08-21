@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -261,6 +262,45 @@ func TestTransitionRESTWithoutExtrasOmitsFieldsAndUpdate(t *testing.T) {
 	raw := string(f.bodies["POST /issue/NMB-1/transitions"])
 	if raw != `{"transition":{"id":"31"}}` {
 		t.Fatalf("POST body %q, want exactly {\"transition\":{\"id\":\"31\"}}", raw)
+	}
+}
+
+// GDK-341: the REST surface resolves the same identifiers as the CLI —
+// target status id, name, category — and refuses garbage with the resolver's
+// candidate list. The fake serves one transition: id 31 → 완료 (10001, done).
+func TestTransitionRESTResolvesCLIIdentifiers(t *testing.T) {
+	for _, ident := range []string{"10001", "완료로", "완료", "done"} {
+		f, h, _ := writable(t)
+		rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/",
+			`{"transition_id":`+strconv.Quote(ident)+`}`)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%q: status %d: %s", ident, rec.Code, rec.Body.String())
+		}
+		if raw := string(f.bodies["POST /issue/NMB-1/transitions"]); raw != `{"transition":{"id":"31"}}` {
+			t.Fatalf("%q resolved to %q, want transition 31", ident, raw)
+		}
+	}
+
+	_, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"nonsense"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unresolvable identifier: status %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "완료로") {
+		t.Fatalf("refusal must name the candidates: %s", rec.Body.String())
+	}
+}
+
+// GDK-341: GET transitions carries to_id so a reader holding issues_full's
+// status_id can send it straight back.
+func TestTransitionsGETIncludesTargetStatusID(t *testing.T) {
+	_, h, _ := writable(t)
+	rec := get(t, h, apiBase+"NMB-1/transitions/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"to_id":"10001"`) {
+		t.Fatalf("no to_id in %s", rec.Body.String())
 	}
 }
 
