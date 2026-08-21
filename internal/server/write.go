@@ -462,8 +462,10 @@ func (s *server) handleTransitions(w http.ResponseWriter, r *http.Request) {
 	for _, t := range list {
 		out = append(out, transitionDoc{
 			ID: t.ID, Name: t.Name, ToStatus: t.To.Name, ToID: t.To.ID,
-			// Jira's own category key, which is what the client's type documents.
-			ToCategory: t.To.StatusCategory.Key,
+			// The mapped token (new|inprogress|done) the write resolver
+			// accepts — not Jira's raw key, which includes "indeterminate"
+			// and would be rejected on the round trip (GDK-564).
+			ToCategory: jira.Category(t.To.StatusCategory.Key),
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"transitions": out})
