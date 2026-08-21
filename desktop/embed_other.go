@@ -20,6 +20,11 @@ func newPlatformEmbedder(func() unsafe.Pointer) embedder {
 // No embedded webviews off darwin, so there is nothing to relay Escape past.
 func installEscapeRelay() {}
 
+// paneSupported mirrors embed_darwin.go: no pane on this build, so
+// pane-only UI (the Close Tab accelerator) must not be created — a
+// CmdOrCtrl+W that visibly does nothing was os-audit F-2 (GDK-351).
+const paneSupported = false
+
 func (stubEmbedder) Create(string, frameRect) (unsafe.Pointer, error) {
 	return nil, errors.New("in-app browser pane is macOS-only")
 }

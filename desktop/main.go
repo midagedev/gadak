@@ -355,8 +355,12 @@ func run() error {
 	// ⌘W closes the visible in-app browser tab and nothing else. It has to be
 	// a menu accelerator: with focus inside the embedded page the SPA never
 	// sees the keystroke. Deliberately not the stock CloseWindow role — that
-	// closes the focused window, and here that is the app.
-	if item := appMenu.FindByLabel("Window"); item != nil && item.IsSubmenu() {
+	// closes the focused window, and here that is the app. On a build without
+	// the pane the item is not created at all: browse.CloseActive() would be
+	// a no-op there, and a Ctrl+W that visibly does nothing was os-audit F-2
+	// (GDK-351). Falling back to closing the window was considered and
+	// rejected — it would discard an open comment draft on a reflex keystroke.
+	if item := appMenu.FindByLabel("Window"); paneSupported && item != nil && item.IsSubmenu() {
 		win := item.GetSubmenu()
 		win.AddSeparator()
 		win.Add("Close Tab").

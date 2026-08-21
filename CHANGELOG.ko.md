@@ -156,6 +156,10 @@
   관례 `~/.local/bin` 대신 `%LOCALAPPDATA%\Programs\gadak`가 되고, 권한
   힌트가 sudo를 권하지 않으며, 설치 시 `gadak-desktop.exe` 위치를 기록해
   복사된 CLI에서도 `views open`이 앱을 찾습니다.
+- **Ctrl+W가 못 하는 일을 약속하지 않습니다** ([GDK-351]). Close Tab
+  액셀러레이터는 macOS 전용인 인앱 브라우즈 페인에만 작동하므로, 페인이
+  없는 빌드에서는 메뉴 항목 자체를 만들지 않습니다 — 항목의 존재가 페인과
+  같은 사실에서 파생됩니다.
 - **Windows에서 `gadak://` 링크가 동작합니다** ([GDK-350]). 데스크톱 앱이
   첫 실행 시 `HKCU\SOFTWARE\Classes\gadak`에 스킴을 등록하고, 자기 경로가
   바뀌면 항목을 다시 씁니다 — 브라우저·슬랙에서 링크를 클릭하면 앱이
@@ -1650,6 +1654,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-350]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-350
+[GDK-351]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-351
 [GDK-255]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-255
 [GDK-316]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-316
 [GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353
