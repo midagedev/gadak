@@ -133,11 +133,12 @@ func TestSQLQuotedCommentQueryStillRuns(t *testing.T) {
 	}
 }
 
-// setJiraSyncedAt rewrites the jira source's synced_at in the test-home mirror
-// so warnIfStale's hour arithmetic (agent.go: staleAfter, synced_at parsed as
-// RFC3339, last_error empty in demo.db) is deterministic whatever demo.db's
-// fixture vintage is.
-func setJiraSyncedAt(t *testing.T, at time.Time) {
+// setSourcesSyncedAt rewrites every source's synced_at in the test-home
+// mirror so warnIfStale's hour arithmetic (agent.go: staleAfter, synced_at
+// parsed as RFC3339, last_error empty in demo.db) is deterministic whatever
+// demo.db's fixture vintage is. warnIfStale keys on the oldest row across
+// sync_state (GDK-598), so bumping only jira would leave confluence stale.
+func setSourcesSyncedAt(t *testing.T, at time.Time) {
 	t.Helper()
 	path, err := config.DBPath()
 	if err != nil {
@@ -148,14 +149,14 @@ func setJiraSyncedAt(t *testing.T, at time.Time) {
 		t.Fatalf("open mirror writable: %v", err)
 	}
 	defer db.Close()
-	if _, err := db.Exec(`UPDATE sources SET synced_at = ? WHERE id = 'jira'`, at.UTC().Format(time.RFC3339)); err != nil {
+	if _, err := db.Exec(`UPDATE sources SET synced_at = ?`, at.UTC().Format(time.RFC3339)); err != nil {
 		t.Fatalf("set synced_at: %v", err)
 	}
 }
 
 func TestSQLWarnsOnStaleMirror(t *testing.T) {
 	sqlDemoHome(t)
-	setJiraSyncedAt(t, time.Now().Add(-2*time.Hour))
+	setSourcesSyncedAt(t, time.Now().Add(-2*time.Hour))
 	staleOut, staleErr, err := captureBoth(t, func() error {
 		return cmdSQL([]string{"select key from issues limit 3"})
 	})
@@ -166,8 +167,13 @@ func TestSQLWarnsOnStaleMirror(t *testing.T) {
 	if len(lines) != 1 || !strings.HasPrefix(lines[0], "warning: mirror last synced") {
 		t.Fatalf("stale mirror must warn exactly once on stderr, got %q", staleErr)
 	}
+	// GDK-598: the age warning teaches `sync --if-stale 1h` instead of a bare
+	// `gadak sync` (original pin was the prefix only).
+	if !strings.Contains(lines[0], "gadak sync --if-stale 1h") {
+		t.Fatalf("stale warning must recommend `gadak sync --if-stale 1h`, got %q", staleErr)
+	}
 
-	setJiraSyncedAt(t, time.Now())
+	setSourcesSyncedAt(t, time.Now())
 	freshOut, freshErr, err := captureBoth(t, func() error {
 		return cmdSQL([]string{"select key from issues limit 3"})
 	})
@@ -186,6 +192,89 @@ func TestSQLWarnsOnStaleMirror(t *testing.T) {
 	}
 	if !looksLikeIssueKey(strings.Split(strings.TrimSuffix(freshOut, "\n"), "\n")[1]) {
 		t.Fatalf("stdout must still carry data rows, got %q", freshOut)
+	}
+}
+
+// TestSQLWarnsOnLinearLastError is GDK-598 FAIL-first: warnIfStale used to
+// query only source_id='jira', so a Linear-only last_error never warned.
+func TestSQLWarnsOnLinearLastError(t *testing.T) {
+	sqlDemoHome(t)
+	setSourcesSyncedAt(t, time.Now())
+	path, err := config.DBPath()
+	if err != nil {
+		t.Fatalf("db path: %v", err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open mirror: %v", err)
+	}
+	if _, err := db.Exec(`UPDATE sync_state SET last_error = NULL WHERE source_id = 'jira'`); err != nil {
+		db.Close()
+		t.Fatalf("clear jira last_error: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO sources (id, kind) VALUES ('linear', 'linear')
+		ON CONFLICT(id) DO UPDATE SET kind = excluded.kind`); err != nil {
+		db.Close()
+		t.Fatalf("plant linear source: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO sync_state (source_id, last_error, schema_version, version)
+		VALUES ('linear', 'planted linear fail', 0, 0)
+		ON CONFLICT(source_id) DO UPDATE SET last_error = excluded.last_error`); err != nil {
+		db.Close()
+		t.Fatalf("plant linear last_error: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues limit 3"})
+	})
+	if err != nil {
+		t.Fatalf("sql with linear last_error: %v\n%s", err, out)
+	}
+	if !strings.Contains(stderr, "last sync failed (linear): planted linear fail") {
+		t.Fatalf("linear last_error must warn on stderr, got %q", stderr)
+	}
+	if strings.Contains(out, "warning:") {
+		t.Fatalf("warning leaked to stdout: %q", out)
+	}
+	first, _, _ := strings.Cut(out, "\n")
+	if first != "key" {
+		t.Fatalf("stdout must stay the TSV header, got %q", first)
+	}
+}
+
+func TestSQLWarnsOnJiraLastErrorNamesSource(t *testing.T) {
+	sqlDemoHome(t)
+	setSourcesSyncedAt(t, time.Now())
+	path, err := config.DBPath()
+	if err != nil {
+		t.Fatalf("db path: %v", err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open mirror: %v", err)
+	}
+	if _, err := db.Exec(`UPDATE sync_state SET last_error = ? WHERE source_id = 'jira'`, "planted jira fail"); err != nil {
+		db.Close()
+		t.Fatalf("plant jira last_error: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues limit 3"})
+	})
+	if err != nil {
+		t.Fatalf("sql with jira last_error: %v\n%s", err, out)
+	}
+	if !strings.Contains(stderr, "last sync failed (jira): planted jira fail") {
+		t.Fatalf("jira last_error must still warn (with source), got %q", stderr)
+	}
+	if strings.Contains(out, "warning:") {
+		t.Fatalf("warning leaked to stdout: %q", out)
 	}
 }
 

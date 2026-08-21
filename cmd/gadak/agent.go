@@ -53,23 +53,58 @@ const staleAfter = time.Hour
 func warnIfStale(db interface {
 	QueryRow(query string, args ...any) *sql.Row
 }) {
-	var syncedAt, lastErr *string
-	if err := db.QueryRow(`SELECT src.synced_at, st.last_error
-		FROM sync_state st LEFT JOIN sources src ON src.id = st.source_id
-		WHERE st.source_id = 'jira'`).Scan(&syncedAt, &lastErr); err != nil {
-		return
+	type staleRow struct {
+		id        string
+		syncedAt  *string
+		lastError *string
+	}
+	var rows []staleRow
+	for off := 0; ; off++ {
+		var r staleRow
+		err := db.QueryRow(`SELECT st.source_id, src.synced_at, st.last_error
+			FROM sync_state st LEFT JOIN sources src ON src.id = st.source_id
+			ORDER BY st.source_id LIMIT 1 OFFSET ?`, off).Scan(&r.id, &r.syncedAt, &r.lastError)
+		if err != nil {
+			if off == 0 && !errors.Is(err, sql.ErrNoRows) {
+				return
+			}
+			break
+		}
+		rows = append(rows, r)
 	}
 	warn := func(format string, a ...any) { fmt.Fprintf(os.Stderr, "warning: "+format+"\n", a...) }
-	switch {
-	case lastErr != nil && *lastErr != "":
-		warn("last sync failed: %s", *lastErr)
-	case syncedAt == nil || *syncedAt == "":
+	if len(rows) == 0 {
 		warn("the mirror has never finished a sync — run `gadak sync`")
-	default:
-		t, err := time.Parse(time.RFC3339, *syncedAt)
-		if err == nil && time.Since(t) > staleAfter {
-			warn("mirror last synced %s ago — run `gadak sync`", time.Since(t).Round(time.Minute))
+		return
+	}
+	for _, r := range rows {
+		if r.lastError != nil && *r.lastError != "" {
+			warn("last sync failed (%s): %s", r.id, *r.lastError)
+			return
 		}
+	}
+	var oldest *time.Time
+	anyEmpty := false
+	for _, r := range rows {
+		if r.syncedAt == nil || *r.syncedAt == "" {
+			anyEmpty = true
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, *r.syncedAt)
+		if err != nil {
+			continue
+		}
+		if oldest == nil || t.Before(*oldest) {
+			tt := t
+			oldest = &tt
+		}
+	}
+	if anyEmpty {
+		warn("the mirror has never finished a sync — run `gadak sync`")
+		return
+	}
+	if oldest != nil && time.Since(*oldest) > staleAfter {
+		warn("mirror last synced %s ago — run `gadak sync --if-stale 1h`", time.Since(*oldest).Round(time.Minute))
 	}
 }
 

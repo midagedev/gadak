@@ -60,7 +60,9 @@ gadak status --json
 A `last_error` field means the last sync failed. A quiet project's `watermark`
 stalls on its own, so treat an old watermark as "possibly behind", not "broken".
 `first_sync_at` / `sync_count` are retention instrumentation (successful syncs
-only).
+only). A CLI-only session can start with `gadak sync --if-stale 15m`: no-op
+when every source is fresh, one incremental pass when a source is older than
+15m or its last sync failed. A running `gadak serve` keeps the mirror fresh.
 
 ### The one mistake that silently returns nothing
 

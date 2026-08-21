@@ -58,8 +58,14 @@ tab). The names collide; the verbs do not.
 First, check it is there and current:
 
 ```bash
+gadak sync --if-stale 15m   # no-op when fresh; one incremental pass if older than 15m or last sync failed
 gadak status --json     # counts, watermark, last_error, schema_version, custom_fields.mapped
 ```
+
+`gadak sync --if-stale 15m` is the session preamble on a CLI-only host: it
+returns immediately when every source is fresh, and runs one incremental
+pass when a source is older than 15m or its last sync failed. A running
+`gadak serve` keeps the mirror fresh on its own.
 
 `last_error` means the last sync failed. An old `watermark` on a quiet project
 is normal — treat it as "possibly behind", not broken. If `gadak` is missing,

@@ -9,7 +9,9 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
@@ -22,6 +24,7 @@ func cmdSync(args []string) error {
 	full := fs.Bool("full", false, "force a full sync")
 	watch := fs.Bool("watch", false, "keep syncing on an interval")
 	source := fs.String("source", "all", "which source to sync: jira, linear, confluence, or all")
+	ifStale := fs.String("if-stale", "", "sync a source only when its last successful run is older than DUR (e.g. 15m, 1h) or its last run failed")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -29,6 +32,18 @@ func cmdSync(args []string) error {
 	case "jira", "linear", "confluence", "all":
 	default:
 		return fmt.Errorf("unknown --source %q (want jira, linear, confluence, or all)", *source)
+	}
+	if *watch && *ifStale != "" {
+		return usageError("sync", "--watch and --if-stale cannot be combined")
+	}
+	var staleEvery time.Duration
+	ifStaleRaw := strings.TrimSpace(*ifStale)
+	if ifStaleRaw != "" {
+		d, err := time.ParseDuration(ifStaleRaw)
+		if err != nil || d <= 0 {
+			return usageError("sync", fmt.Sprintf("invalid --if-stale %q (want a duration like 15m or 1h)", *ifStale))
+		}
+		staleEvery = d
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -70,6 +85,39 @@ func cmdSync(args []string) error {
 	}
 	if *source == "confluence" && cfg.Confluence == nil {
 		return fmt.Errorf("confluence is off for this workspace — turn it on with `gadak init --spaces ENG,PROD`\n(or `--spaces all`), or in Settings → Sources")
+	}
+	if staleEvery > 0 {
+		now := time.Now()
+		ctx := context.Background()
+		var fresh []string
+		skipFresh := func(id string, run *bool) error {
+			if !*run {
+				return nil
+			}
+			st, err := db.SyncState(ctx, id)
+			if err != nil {
+				return err
+			}
+			if syncStale(deref(st.SyncedAt, ""), deref(st.LastError, ""), now, staleEvery) {
+				return nil
+			}
+			*run = false
+			fresh = append(fresh, id+" synced "+relativeAge(deref(st.SyncedAt, ""), now))
+			return nil
+		}
+		if err := skipFresh(syncer.SourceID, &runJira); err != nil {
+			return err
+		}
+		if err := skipFresh(syncer.LinearSourceID, &runLinear); err != nil {
+			return err
+		}
+		if err := skipFresh(syncer.ConfluenceSourceID, &runConf); err != nil {
+			return err
+		}
+		if !runJira && !runLinear && !runConf && len(fresh) > 0 {
+			fmt.Printf("sync: fresh — %s (threshold %s)\n", strings.Join(fresh, ", "), ifStaleRaw)
+			return nil
+		}
 	}
 	if runJira {
 		res, err := syncer.Run(context.Background(), cfg, db, opts)
@@ -121,6 +169,27 @@ func cmdSync(args []string) error {
 	}
 	printUpdateNotice(cfg, false)
 	return nil
+}
+
+// syncStale reports whether --if-stale should run this source. last_error
+// always retries, regardless of age; a missing or unparseable SyncedAt is
+// never-synced; a successful run older than threshold is stale. Equal to
+// threshold is fresh (the same > comparison warnIfStale uses).
+func syncStale(syncedAt, lastErr string, now time.Time, threshold time.Duration) bool {
+	if lastErr != "" {
+		return true
+	}
+	if syncedAt == "" {
+		return true
+	}
+	t, err := time.Parse(time.RFC3339, syncedAt)
+	if err != nil {
+		t, err = time.Parse(config.ISOMilli, syncedAt)
+	}
+	if err != nil {
+		return true
+	}
+	return now.Sub(t) > threshold
 }
 
 // frozenSyncError is the CLI translation of sync.ErrFrozen: cause plus how

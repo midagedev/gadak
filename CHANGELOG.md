@@ -225,6 +225,12 @@ the fixes are all here.
   rewrites the entry whenever its own path changes, so clicking a link in a
   browser or Slack opens the app — the portable pack itself still never
   touches the registry, and `--unregister-gadak-protocol` removes the key.
+- **`gadak sync --if-stale 15m` is the agent's session opener** ([GDK-598]).
+  Fresh mirror → instant no-op with no network; a source older than the
+  threshold — or whose last sync failed — gets one incremental pass, so a
+  died sync self-heals on the next session. The staleness warning now
+  watches every source (a Linear-only mirror used to never warn) and
+  recommends the exact command.
 - **`o` opens the origin from the keyboard** ([GDK-81]). The escape hatch
   stops being click-only: `o` on the list cursor or open detail opens the
   issue's Jira page, and on a selected wiki page its source — the exact
@@ -1556,6 +1562,7 @@ measured numbers instead of adjectives.
 [GDK-78]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-78
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
+[GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-81]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-81
 [GDK-88]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-88
 [GDK-89]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-89
