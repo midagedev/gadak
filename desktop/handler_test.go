@@ -121,7 +121,13 @@ func TestFallbackHandler(t *testing.T) {
 		if len(openedURLs) != 1 || openedURLs[0] != "https://example.atlassian.net/wiki/x" {
 			t.Fatalf("opened = %v", openedURLs)
 		}
+		// mailto rides the same system-open path (GDK-339, About tab contact).
+		if rec := post(`{"url":"mailto:midagedev@gmail.com"}`); rec.Code != 204 {
+			t.Fatalf("mailto: got %d body %s", rec.Code, rec.Body.String())
+		}
+		openedURLs = openedURLs[:1]
 		for _, bad := range []string{
+			`{"url":"mailto:"}`,
 			`{"url":"file:///etc/passwd"}`,
 			`{"url":"javascript:alert(1)"}`,
 			`{"url":"/api/v1/issues/"}`,

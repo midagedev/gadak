@@ -98,6 +98,13 @@ export function installDesktopLinkOpener(): () => void {
     const anchor = (e.target as Element | null)?.closest?.('a[href]')
     if (!anchor) return
     const href = anchor.getAttribute('href') ?? ''
+    // mailto dies silently in the webview too (GDK-339) — hand it to the
+    // system, which opens the mail client.
+    if (/^mailto:./i.test(href)) {
+      e.preventDefault()
+      openSystemBrowser(href)
+      return
+    }
     if (!/^https?:\/\//i.test(href)) return
     e.preventDefault()
     const base = config().jiraBaseUrl || null
