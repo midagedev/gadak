@@ -14,8 +14,8 @@ github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsRe
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
 github.com/mattn/go-runewidth v0.0.19 h1:v++JhqYnZuu5jSKrk9RbgF5v4CGUjqRfBm05byFGLdw=
 github.com/mattn/go-runewidth v0.0.19/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
-github.com/midagedev/issuetap v0.0.0-20260821223605-de578d728d16 h1:7VrMnRyJ1GXnHBm7hXtj/ENnGgdg6EFD3FjPa263r2Y=
-github.com/midagedev/issuetap v0.0.0-20260821223605-de578d728d16/go.mod h1:4d/iws7L/mIVY5uxd3Ui8eysZMDnou334uFfxZxWSUs=
+github.com/midagedev/issuetap v0.0.0-20260821224527-ec1e299f2ca6 h1:9C9DEwtxqT6JeaPmfWseJNRIQFN4dTY3dboMvsB3gHk=
+github.com/midagedev/issuetap v0.0.0-20260821224527-ec1e299f2ca6/go.mod h1:4d/iws7L/mIVY5uxd3Ui8eysZMDnou334uFfxZxWSUs=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
