@@ -108,7 +108,7 @@ func Client(cfg *config.Config) (*jira.Client, error) {
 	if rem, err := pairedRemote(cfg); err != nil {
 		return nil, err
 	} else if rem != nil {
-		return pairedJira(rem)
+		return pairedJira(cfg, rem)
 	}
 	if cfg.IsStandalone() {
 		return standaloneClient(cfg)
@@ -154,11 +154,17 @@ func pairedRemote(cfg *config.Config) (*pairing.Remote, error) {
 // pairedJira builds the Jira client for a paired workspace: the remote
 // serve's REST passthrough with the device token as Bearer. BaseURL stays
 // empty for the same reason as standalone — the endpoint is an API target,
-// not a site a person browses.
-func pairedJira(rem *pairing.Remote) (*jira.Client, error) {
+// not a site a person browses. The process's actor (GDK-586) rides along:
+// the home serve's pairing gate rewrites Authorization but forwards
+// X-Issuetap-Actor, so a remote agent's writes attribute to it, not to the
+// home machine's identity.
+func pairedJira(cfg *config.Config, rem *pairing.Remote) (*jira.Client, error) {
 	tr, err := newRemoteOriginTransport(rem.Endpoint, rem.Token)
 	if err != nil {
 		return nil, err
+	}
+	if a, ok := config.ResolveActor(cfg); ok {
+		tr.actor, tr.actorName = a.Slug, a.Name
 	}
 	c := Connected("", inProcessUser, inProcessSecret)
 	if c.HTTP == nil {
@@ -169,11 +175,14 @@ func pairedJira(rem *pairing.Remote) (*jira.Client, error) {
 }
 
 // pairedWiki is Wiki's paired twin: the serve's Confluence passthrough
-// with the same Bearer.
-func pairedWiki(rem *pairing.Remote) (*confluence.Client, error) {
+// with the same Bearer and the same actor stamp.
+func pairedWiki(cfg *config.Config, rem *pairing.Remote) (*confluence.Client, error) {
 	tr, err := newRemoteOriginTransport(rem.Endpoint, rem.Token)
 	if err != nil {
 		return nil, err
+	}
+	if a, ok := config.ResolveActor(cfg); ok {
+		tr.actor, tr.actorName = a.Slug, a.Name
 	}
 	w := confluence.New("", inProcessUser, inProcessSecret)
 	if w.HTTP == nil {
@@ -188,7 +197,9 @@ func pairedWiki(rem *pairing.Remote) (*confluence.Client, error) {
 // the paired workspace would use. A serve that answers 401 surfaces as
 // jira.ErrAuth; an unreachable or broken endpoint surfaces as a transport
 // error — the caller tells those apart without retrying. The offer string
-// itself never enters an error.
+// itself never enters an error. Deliberately no actor header (GDK-586):
+// verification must not provision an agent identity on an origin the
+// workspace does not exist on yet.
 func VerifyPaired(ctx context.Context, endpoint, token string) (jira.User, error) {
 	tr, err := newRemoteOriginTransport(endpoint, token)
 	if err != nil {
@@ -355,7 +366,7 @@ func Wiki(cfg *config.Config) (*confluence.Client, error) {
 	if rem, err := pairedRemote(cfg); err != nil {
 		return nil, err
 	} else if rem != nil {
-		return pairedWiki(rem)
+		return pairedWiki(cfg, rem)
 	}
 	if cfg.IsStandalone() {
 		return standaloneWiki(cfg)
@@ -424,7 +435,8 @@ func standaloneSession(cfg *config.Config) (*session, error) {
 	if cfg != nil {
 		projects = cfg.Projects
 	}
-	s, err := constructStandalone(persist, projects)
+	actor, _ := config.ResolveActor(cfg)
+	s, err := constructStandalone(persist, projects, actor)
 	sessionInFlight.Add(-1)
 
 	mu.Lock()
@@ -450,7 +462,12 @@ func standaloneSession(cfg *config.Config) (*session, error) {
 	return s, nil
 }
 
-func constructStandalone(persist string, projects []string) (*session, error) {
+// constructStandalone embeds issuetap over persist. actor is the process's
+// resolved acting identity (GDK-586): when set, the session's transport
+// stamps X-Issuetap-Actor on every request so writes attribute to the
+// agent, not the in-process user. Resolution happens once per session —
+// env and config are stable for the process lifetime.
+func constructStandalone(persist string, projects []string, actor config.ResolvedActor) (*session, error) {
 	sessionsConstructed.Add(1)
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
 		return nil, fmt.Errorf("origin: persist dir: %w", err)
@@ -483,7 +500,7 @@ func constructStandalone(persist string, projects []string) (*session, error) {
 		return nil, fmt.Errorf("origin: issuetap: %w", err)
 	}
 
-	tr := &handlerTransport{h: emb}
+	tr := &handlerTransport{h: emb, actor: actor.Slug, actorName: actor.Name}
 
 	c := Connected("", inProcessUser, inProcessSecret)
 	if c.HTTP == nil {

@@ -61,6 +61,12 @@ the fixes are all here.
 
 ### Standalone and issuetap
 
+- **A write carries its author** ([GDK-586], [GDK-588]). Set `GADAK_ACTOR`
+  (`slug|display name`), or a workspace-default `actor` in config, and every
+  write to an issuetap origin — embedded, served, or paired — attributes to
+  that agent (`accountType: "agent"`), auto-created on first sight. Claude
+  Code sessions are detected without any setup. Connected Jira/Linear never
+  sees the header; unset keeps the seeded user, exactly as before.
 - **Standalone records carry wall time** and the skill names the seeded
   user ([GDK-369]).
 - **Restricted and internal comments are distinguishable, and writable** —
@@ -1784,3 +1790,5 @@ measured numbers instead of adjectives.
 [GDK-573]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-573
 [GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
 [GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
+[GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
+[GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588

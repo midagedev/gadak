@@ -38,11 +38,13 @@ var envSuffixes = map[string]struct{}{
 }
 
 // envLiterals are GADAK_* names production reads via os.Getenv, not Env.
-// cmd/gadak/views.go (GADAK_NO_OPEN) and desktop/integrations.go
-// (GADAK_DESKTOP_CLI). Check 18 covers these too.
+// cmd/gadak/views.go (GADAK_NO_OPEN), desktop/integrations.go
+// (GADAK_DESKTOP_CLI), internal/config/actor.go (GADAK_ACTOR, GDK-586).
+// Check 18 covers these too.
 var envLiterals = map[string]struct{}{
 	"GADAK_NO_OPEN":     {},
 	"GADAK_DESKTOP_CLI": {},
+	"GADAK_ACTOR":       {},
 }
 
 // envHarness are names this repository's own harness exports into the

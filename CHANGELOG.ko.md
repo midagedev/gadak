@@ -61,6 +61,13 @@
 
 ### standalone과 issuetap
 
+- **쓰기가 자기 작성자를 싣고 갑니다** ([GDK-586], [GDK-588]).
+  `GADAK_ACTOR`(`slug|표시이름`)를 설정하거나 config에 워크스페이스 기본
+  `actor`를 두면, issuetap origin으로 가는 모든 쓰기 — 임베디드·serve·
+  페어링 — 가 그 에이전트(`accountType: "agent"`, 처음 보이면 자동 생성)로
+  귀속됩니다. Claude Code 세션은 설정 없이 자동 감지됩니다. connected
+  Jira/Linear에는 이 헤더가 절대 나가지 않고, 미설정이면 종전처럼 시드
+  사용자입니다.
 - **standalone 레코드가 벽시계 시간을 갖고**, 스킬이 시드된 사용자를
   이름으로 알려 줍니다 ([GDK-369]).
 - **제한 코멘트와 내부 코멘트를 구분하고, 쓸 수 있습니다** — 저장소에서도,
@@ -1784,3 +1791,5 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-573]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-573
 [GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
 [GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
+[GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
+[GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588

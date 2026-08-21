@@ -173,6 +173,14 @@ type Config struct {
 	// encoding/json omitempty can drop the block; a zero struct would write {}.
 	Appearance *Appearance `json:"appearance,omitempty"`
 
+	// Actor is the workspace-default acting identity for agent writes to an
+	// issuetap origin (GDK-586): the X-Issuetap-Actor slug (the origin
+	// accountId, verbatim) plus an optional display name. Nil or empty slug
+	// means unset; GADAK_ACTOR wins over it and Claude Code is auto-detected
+	// when neither is set (internal/config/actor.go ResolveActor). Nil blocks
+	// are not written.
+	Actor *ActorConfig `json:"actor,omitempty"`
+
 	// Confluence, when non-nil, enables the wiki-page mirror (second source).
 	// Spaces empty means every *global* space — not every space the account can
 	// see, which is what this comment used to claim and what a warning written

@@ -534,7 +534,14 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 	if author != "" {
 		// GDK-482: there is no CLI verb that changes this display name
 		// (config list has no path; issuetap seeds the fixture user).
-		fmt.Printf("issues are authored as %s (the workspace default)\n", author)
+		// GDK-586: with an actor resolved, /myself above answered the
+		// agent — this process writes as the agent, so the parenthetical
+		// must not claim it is the workspace default.
+		if _, ok := config.ResolveActor(cfg); ok {
+			fmt.Printf("issues are authored as %s (this session's actor; writes without one use the workspace default)\n", author)
+		} else {
+			fmt.Printf("issues are authored as %s (the workspace default)\n", author)
+		}
 	}
 	printSkillAutoResult(skill)
 	printInitNextSteps(cfg.WorkspaceKind())

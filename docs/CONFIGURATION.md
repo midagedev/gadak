@@ -142,6 +142,7 @@ and `hasCredential` on the body are ignored.
 | `linear` | object or absent | absent = Linear source off. `apiKey` (personal API key, sent bare in the Authorization header) turns the source on; writes to Linear-owned keys route through it | edit `config.json` (no Settings surface yet) | Next `sync --source linear` |
 | `linear.teamIds` | string[] | `[]` = every team the key can see; team UUIDs restrict the mirror scope | edit `config.json` | Next Linear pass |
 | `devStatus` | bool | **false** | `gadak config set devStatus true` / `config.json` (not on Settings UI or Settings PUT) | Next sync; connected Cloud: mirror Jira's development-status API into `dev_links` (one extra request per issue). Standalone always fetches; `gadak dev link` / `dev scan` write the same table |
+| `actor` | object or absent | absent = no acting identity; env `GADAK_ACTOR` (`slug\|display name`) overrides, and Claude Code sessions are auto-detected when both are unset | `gadak config set actor 'slug\|display name'` / `config.json` (not on Settings UI or Settings PUT; never team-exported) | Next origin session; writes to an issuetap origin (standalone/paired) carry `X-Issuetap-Actor` and attribute to that agent account. Never sent to connected Jira/Linear |
 | `confluence.spaces` | string[] | `[]` = every *global* space; personal spaces only if named (`internal/config/config.go`) | Settings → Sources / `gadak config set confluence.spaces` | Next Confluence pass |
 
 The space list *is* the scope: drop a space and the next Confluence pass

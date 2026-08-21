@@ -29,6 +29,16 @@ Four layers. Use the lowest one that answers the question:
 | **REST** | the same data from something that is not a shell | `gadak serve` running |
 | **MCP** | shell-less clients only (Claude Desktop, etc.) | `gadak mcp` — see [docs/MCP.md](docs/MCP.md) |
 
+### Writing as an agent: the actor
+
+Agents sharing a standalone or paired workspace each get their own byline:
+export `GADAK_ACTOR="slug|Display Name"` before the first write (Claude Code
+is auto-detected per session; `gadak config set actor '{"slug":"…","name":"…"}'`
+is the machine's fallback and env wins over it). Confirm recognition with the
+`actor` row on `gadak status`. The header goes only to the issuetap origin —
+never to a connected Cloud site — and without an actor, writes keep the
+workspace's default user.
+
 ### Check freshness before you answer
 
 `issue`, `search`, `comment`, `transition`, `assign`, and `fields` print one line

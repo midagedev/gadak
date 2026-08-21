@@ -63,12 +63,12 @@ func TestGDK343SecondProcessCannotEmbed(t *testing.T) {
 // process is allowed to come back (origin.Close contract).
 func TestGDK343LockReleasedOnClose(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), "origin", "issuetap.yaml")
-	a, err := constructStandalone(persist, nil)
+	a, err := constructStandalone(persist, nil, config.ResolvedActor{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	closeSession(a)
-	b, err := constructStandalone(persist, nil)
+	b, err := constructStandalone(persist, nil, config.ResolvedActor{})
 	if err != nil {
 		t.Fatalf("construct after close: %v", err)
 	}
@@ -80,13 +80,13 @@ func TestGDK343LockReleasedOnClose(t *testing.T) {
 // was the bare sentinel with no pid.
 func TestBusyErrorNamesHolderPID(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), "origin", "issuetap.yaml")
-	a, err := constructStandalone(persist, nil)
+	a, err := constructStandalone(persist, nil, config.ResolvedActor{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { closeSession(a) })
 
-	_, err = constructStandalone(persist, nil)
+	_, err = constructStandalone(persist, nil, config.ResolvedActor{})
 	if !errors.Is(err, ErrWorkspaceBusy) {
 		t.Fatalf("second construct error = %v, want ErrWorkspaceBusy", err)
 	}

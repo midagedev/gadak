@@ -339,6 +339,25 @@ Do not combine `--pairing-code-stdin` with `--standalone` or a site token.
 `gadak pairing mint --label _home` rotates it. If a command fails with a
 `pairing:` prefix, show that error to the user. Do not invent a retry.
 
+## Writing as yourself: the actor
+
+On a standalone or paired workspace, every write records who made it. Set
+your identity before the first write so comments and transitions attribute
+to you, not the workspace's default user:
+
+```bash
+export GADAK_ACTOR="claude:354bff2b|Claude (build 1)"   # slug | display name
+gadak status          # the actor row confirms recognition (--json: actor.slug, actor.source)
+```
+
+Claude Code is detected automatically — no export needed; each session
+writes as `claude:<session prefix>`. A slug is a stable identity: pick one
+per agent and keep it across sessions. The machine's fallback lives in
+`gadak config set actor '{"slug":"grok:aa11","name":"Grok"}'` (the env
+value wins over it). The actor reaches only the standalone/paired origin —
+never a connected Cloud site or any other outbound request. Without one,
+writes attribute to the workspace's default user, exactly as before.
+
 ## One issue, and writes
 
 On **standalone**, `init` seeds project `STD` and records a default issue type,

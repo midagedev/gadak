@@ -292,6 +292,37 @@ func buildSettings() []Setting {
 			},
 		},
 		{
+			Path: "actor",
+			Root: "actor",
+			Description: "workspace-default acting identity for writes to a standalone/paired origin " +
+				"(GDK-586): {\"slug\", \"name\"}; env GADAK_ACTOR wins over it and Claude Code is " +
+				"auto-detected when neither is set (never sent to a connected Cloud site)",
+			Get: func(c *Config) any {
+				if c == nil || c.Actor == nil {
+					return ActorConfig{}
+				}
+				return *c.Actor
+			},
+			Set: func(c *Config, raw json.RawMessage) error {
+				// Object form {"slug","name"}; the "slug|name" shorthand
+				// (the GADAK_ACTOR shape) parses through the same owner.
+				var in ActorConfig
+				if err := json.Unmarshal(raw, &in); err != nil {
+					s, serr := decodeString(raw, "actor")
+					if serr != nil {
+						return fmt.Errorf("actor must be an object {\"slug\": \"claude:354bff2b\", \"name\": \"Claude Code\"} or the shorthand string \"slug|name\"")
+					}
+					in.Slug, in.Name = ParseActorShorthand(s)
+				}
+				v, err := ValidateActor(in.Slug, in.Name)
+				if err != nil {
+					return err
+				}
+				c.Actor = v
+				return nil
+			},
+		},
+		{
 			Path: "frozen",
 			Root: "frozen",
 			Description: "freeze this workspace: no request leaves for the origin — pulls and " +

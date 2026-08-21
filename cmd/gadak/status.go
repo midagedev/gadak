@@ -92,6 +92,13 @@ func cmdStatus(args []string) error {
 	if cfg != nil {
 		st["frozen"] = cfg.SyncFrozen()
 	}
+	// The resolved actor (GDK-586): the one place an agent can check that
+	// its identity was recognized (env > config > Claude Code detection)
+	// before writing to a standalone or paired origin. Absent when the
+	// ladder resolves nothing — writes then use the origin's default user.
+	if actor, ok := config.ResolveActor(cfg); ok {
+		st["actor"] = actor
+	}
 	st["custom_fields"] = cfg.CustomFieldsStatus()
 	var tokenExpiry config.TokenExpiry
 	if cfg != nil {
@@ -129,6 +136,13 @@ func cmdStatus(args []string) error {
 	}
 	if frozen, ok := st["frozen"].(bool); ok && frozen {
 		fmt.Printf("%-18s %v\n", "frozen", true)
+	}
+	if actor, ok := st["actor"].(config.ResolvedActor); ok {
+		line := actor.Slug
+		if actor.Name != "" && actor.Name != actor.Slug {
+			line += " — " + actor.Name
+		}
+		fmt.Printf("%-18s %s (%s)\n", "actor", line, actor.Source)
 	}
 	if p, ok := st["pairing"].(map[string]string); ok {
 		fmt.Printf("paired with %q (%s)\n", p["label"], p["endpoint"])

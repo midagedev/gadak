@@ -69,6 +69,10 @@ var neverExportConfigFields = []string{
 	// FieldsAppliedAt is when this machine last ran `gadak fields --apply`.
 	// The specs themselves are team-shareable (Fields); the timestamp is not.
 	"FieldsAppliedAt",
+	// Actor is this machine's agent identity for issuetap-bound writes
+	// (GDK-586). Whose shell is running is not team consensus, and a shared
+	// slug would merge every importer's agent into one origin account.
+	"Actor",
 }
 
 // credentialJSONKeys are JSON object keys that mean "this file carries

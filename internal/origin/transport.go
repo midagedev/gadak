@@ -26,6 +26,11 @@ import (
 // no-follow client, so this injection reaches that path too.
 type handlerTransport struct {
 	h http.Handler
+	// actor/actorName stamp X-Issuetap-Actor/-Name on requests bound for
+	// the embedded issuetap origin (GDK-586). Empty keeps the identity the
+	// origin already infers from the in-process Basic credential.
+	actor     string
+	actorName string
 }
 
 func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -34,6 +39,14 @@ func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	if req == nil {
 		return nil, errors.New("origin: nil request")
+	}
+	if t.actor != "" {
+		// The request never leaves the process, and the jira client builds
+		// one request per call, so stamping in place cannot race a reuse.
+		req.Header.Set("X-Issuetap-Actor", t.actor)
+		if t.actorName != "" {
+			req.Header.Set("X-Issuetap-Actor-Name", t.actorName)
+		}
 	}
 	rec := httptest.NewRecorder()
 	t.h.ServeHTTP(rec, req)
@@ -52,7 +65,13 @@ type serveOriginTransport struct {
 	host   string
 	scheme string
 	bearer string
-	rt     http.RoundTripper
+	// actor/actorName stamp X-Issuetap-Actor/-Name on the rewritten request
+	// (GDK-586). The serve passthrough forwards them, so a CLI routing
+	// through its live serve attributes to its own agent, not the serve's
+	// identity. Empty sends nothing.
+	actor     string
+	actorName string
+	rt        http.RoundTripper
 }
 
 func newServeOriginTransport(host string) *serveOriginTransport {
@@ -134,6 +153,12 @@ func (t *serveOriginTransport) RoundTrip(req *http.Request) (*http.Response, err
 	}
 	if t.bearer != "" {
 		req2.Header.Set("Authorization", "Bearer "+t.bearer)
+	}
+	if t.actor != "" {
+		req2.Header.Set("X-Issuetap-Actor", t.actor)
+		if t.actorName != "" {
+			req2.Header.Set("X-Issuetap-Actor-Name", t.actorName)
+		}
 	}
 	resp, err := t.rt.RoundTrip(req2)
 	// Local serve routing (scheme empty) stays the pre-pairing shape —

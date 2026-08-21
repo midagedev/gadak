@@ -180,6 +180,12 @@ func routedTransport(cfg *config.Config) (*serveOriginTransport, bool) {
 	if dir, err := profileDir(cfg); err == nil {
 		tr.bearer = localRoutingToken(dir)
 	}
+	// The CLI's own actor rides the passthrough (GDK-586): the serve
+	// forwards the header, so a write routed to a live serve attributes to
+	// the writing process's agent, not the serve's identity.
+	if a, ok := config.ResolveActor(cfg); ok {
+		tr.actor, tr.actorName = a.Slug, a.Name
+	}
 	return tr, true
 }
 
