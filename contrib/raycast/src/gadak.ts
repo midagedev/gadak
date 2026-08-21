@@ -61,17 +61,52 @@ export function forgetResolvedGadak(): void {
   profilesInflight = null;
 }
 
+/** Empty profile omits `/w/` (docs/DESKTOP.md: gadak://view?issue=KEY). */
+function workspaceSegment(profile: string): string {
+  return profile ? `/w/${encodeURIComponent(profile)}` : "";
+}
+
 export function deepLink(key: string, profile: string): string {
   // resolveView in desktop/deeplink.go: action `view`; an empty profile pref
   // must omit the /w/ segment (docs/DESKTOP.md: gadak://view?issue=KEY).
-  const w = profile ? `/w/${encodeURIComponent(profile)}` : "";
-  return `gadak://view${w}?issue=${encodeURIComponent(key)}`;
+  return `gadak://view${workspaceSegment(profile)}?issue=${encodeURIComponent(key)}`;
 }
 
 export function docLink(key: string, profile: string): string {
   // Same grammar, document screen: docs/DESKTOP.md `doc=KEY`.
-  const w = profile ? `/w/${encodeURIComponent(profile)}` : "";
-  return `gadak://view${w}?doc=${encodeURIComponent(key)}`;
+  return `gadak://view${workspaceSegment(profile)}?doc=${encodeURIComponent(key)}`;
+}
+
+/**
+ * View deep link from a `gadak views --json` hash. The hash is already a
+ * query string (`as=…&sc=…`); concatenating it must not encodeURIComponent
+ * the whole thing (that would double-encode the axes). Empty hash is no
+ * link — same as internal/deeplink.Compose for ActionView.
+ */
+export function viewLink(hash: string, profile: string): string {
+  const q = hash.startsWith("?") ? hash.slice(1) : hash;
+  if (!q) return "";
+  return `gadak://view${workspaceSegment(profile)}?${q}`;
+}
+
+/**
+ * Person panel: `person=` is account id when known, else email
+ * (web/src/stores/person.svelte.ts select / #load; App.svelte bindParam).
+ */
+export function personLink(identity: string, profile: string): string {
+  if (!identity) return "";
+  return `gadak://view${workspaceSegment(profile)}?person=${encodeURIComponent(identity)}`;
+}
+
+/** Tooltip for a view whose unsupported list is non-empty (cmd/gadak/views.go). */
+export function viewPartialTooltip(unsupported: string[]): string {
+  const skipped = unsupported
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join("; ");
+  return skipped
+    ? `Applies less than its JQL — skipped ${skipped}`
+    : "Applies less than its JQL";
 }
 
 /**
@@ -242,8 +277,8 @@ function firstNonEmptyLine(text: string): string {
   return "";
 }
 
-/** Title for a failed `gadak search`. Uses stderr when it names the problem. */
-export function searchErrorTitle(fail: SearchFail): string {
+/** Title for a failed gadak CLI spawn. Uses stderr when it names the problem. */
+export function gadakErrorTitle(fail: SearchFail, fallback: string): string {
   const line = firstNonEmptyLine(fail.stderr);
   const lower = line.toLowerCase();
   // cmd/gadak/sql.go, mcp.go, warnIfStale: "no mirror" / never-synced.
@@ -252,7 +287,12 @@ export function searchErrorTitle(fail: SearchFail): string {
   }
   if (line) return line;
   if (fail.code === "ENOENT") return "gadak is not installed";
-  return firstNonEmptyLine(fail.message) || "gadak search failed";
+  return firstNonEmptyLine(fail.message) || fallback;
+}
+
+/** Title for a failed `gadak search`. Uses stderr when it names the problem. */
+export function searchErrorTitle(fail: SearchFail): string {
+  return gadakErrorTitle(fail, "gadak search failed");
 }
 
 export function searchErrorDetail(fail: SearchFail): string {
@@ -344,6 +384,128 @@ export async function runRecent(
     ),
   ]);
   return { viewed: viewed.filter((v) => v.title), updated };
+}
+
+export type ListedView = {
+  kind: string;
+  id: string;
+  name: string;
+  jql?: string;
+  hash?: string;
+  favourite?: boolean;
+  owner?: string;
+  applied?: string[];
+  unsupported?: string[];
+};
+
+export function runViews(bin: string, profile: string): Promise<ListedView[]> {
+  const args: string[] = [];
+  if (profile) {
+    args.push("--profile", profile);
+  }
+  args.push("views", "--json");
+  return new Promise((resolve, reject) => {
+    execFile(
+      bin,
+      args,
+      { maxBuffer: 8 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        if (err) {
+          reject({
+            stderr: String(stderr || ""),
+            message: err.message,
+            code: (err as NodeJS.ErrnoException).code,
+          } satisfies SearchFail);
+          return;
+        }
+        try {
+          const p = JSON.parse(stdout) as { views?: ListedView[] };
+          resolve(Array.isArray(p.views) ? p.views : []);
+        } catch {
+          reject({
+            stderr: String(stderr || stdout || ""),
+            message: "gadak views --json returned a body that is not JSON",
+          } satisfies SearchFail);
+        }
+      },
+    );
+  });
+}
+
+export type PersonRow = {
+  name?: string | null;
+  email?: string | null;
+  account_id?: string | null;
+};
+
+export type Person = {
+  name: string;
+  identity: string;
+  email: string;
+};
+
+/**
+ * Identity for `person=` is account id when the row has one, else email
+ * (web/src/stores/person.svelte.ts: held by account id, otherwise email;
+ * #load looks up memberOf then memberOfAccountId). Rows with neither are
+ * dropped — a display name is not a lookup key.
+ */
+export function collectPeople(rows: PersonRow[]): Person[] {
+  const byId = new Map<string, Person>();
+  const byEmail = new Map<string, Person>();
+  const seen: Person[] = [];
+
+  const remember = (p: Person, accountId: string, emailKey: string) => {
+    if (accountId) byId.set(accountId, p);
+    if (emailKey) byEmail.set(emailKey, p);
+  };
+
+  for (const row of rows) {
+    const accountId = (row.account_id ?? "").trim();
+    const email = (row.email ?? "").trim();
+    const identity = accountId || email;
+    if (!identity) continue;
+    const name = (row.name ?? "").trim();
+    const emailKey = email.toLowerCase();
+
+    let p =
+      (accountId ? byId.get(accountId) : undefined) ??
+      (emailKey ? byEmail.get(emailKey) : undefined);
+    if (!p) {
+      p = { name: name || identity, identity, email };
+      seen.push(p);
+      remember(p, accountId, emailKey);
+      continue;
+    }
+    if (accountId && p.identity !== accountId) {
+      p.identity = accountId;
+    }
+    if (name && (p.name === p.identity || !p.name)) {
+      p.name = name;
+    }
+    if (email && !p.email) {
+      p.email = email;
+    }
+    remember(p, accountId, emailKey);
+  }
+
+  return seen.sort(
+    (a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) ||
+      a.identity.localeCompare(b.identity),
+  );
+}
+
+const PEOPLE_SQL = `
+select name, email, account_id from (
+  select assignee as name, assignee_email as email, assignee_id as account_id from issues
+  union
+  select reporter as name, reporter_email as email, reporter_id as account_id from issues
+)
+where coalesce(account_id, '') != '' or coalesce(email, '') != ''`;
+
+export function runPeople(bin: string, profile: string): Promise<Person[]> {
+  return runSQL<PersonRow>(bin, profile, PEOPLE_SQL).then(collectPeople);
 }
 
 export function runSearch(

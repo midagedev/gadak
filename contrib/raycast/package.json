@@ -2,7 +2,7 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "gadak",
   "title": "Gadak",
-  "description": "Search Jira and Confluence from a local mirror — instant, offline, and one Enter from the Gadak app.",
+  "description": "Search Jira and Confluence, open views, and look up people from a local mirror — instant, offline, and one Enter from the Gadak app.",
   "icon": "icon.png",
   "author": "midagedev",
   "license": "MIT",
@@ -20,6 +20,30 @@
         "jira",
         "confluence",
         "issue"
+      ]
+    },
+    {
+      "name": "views",
+      "title": "Views",
+      "subtitle": "Gadak",
+      "description": "List Jira filters and saved views from the local gadak mirror; Enter opens the view in the Gadak app.",
+      "mode": "view",
+      "keywords": [
+        "jira",
+        "filter",
+        "view"
+      ]
+    },
+    {
+      "name": "people",
+      "title": "People",
+      "subtitle": "Gadak",
+      "description": "List assignees and reporters from the local gadak mirror; Enter opens the person in the Gadak app.",
+      "mode": "view",
+      "keywords": [
+        "assignee",
+        "reporter",
+        "person"
       ]
     }
   ],
@@ -92,6 +116,8 @@
     "issues",
     "search",
     "offline",
-    "sqlite"
+    "sqlite",
+    "views",
+    "people"
   ]
 }
