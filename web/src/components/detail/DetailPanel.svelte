@@ -21,7 +21,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
-  import { feature, isHostedDemo } from '../../lib/config'
+  import { feature, isHostedDemo, isStandaloneWorkspace } from '../../lib/config'
   import {
     readViewportRegime,
     subscribeViewportRegime,
@@ -189,7 +189,8 @@
             type="button"
             onclick={() => selection.clear()}
             class="flex h-6 w-6 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-            aria-label={t('common.close')}
+            aria-label={t('common.closeEsc')}
+            title={t('common.closeEsc')}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
@@ -325,12 +326,19 @@
 
           <!-- Linked PRs. Not gated on the deploy flag: since GDK-495 the list
                also derives from mirrored PR-URL attachments (Linear), which
-               exist on workspaces that never configured a deploy plugin. -->
-          {#if detailForKey.linked_prs.length > 0}
-            <Section title={t('detail.prs')} count={detailForKey.linked_prs.length}>
+               exist on workspaces that never configured a deploy plugin.
+               Empty is shown so "not mirrored" is distinct from a true empty
+               list (GDK-555). config.json does not expose `devStatus`, so a
+               connected empty list uses the not-mirrored sentence. -->
+          <Section title={t('detail.prs')} count={detailForKey.linked_prs.length}>
+            {#if detailForKey.linked_prs.length > 0}
               <PrList prs={detailForKey.linked_prs} />
-            </Section>
-          {/if}
+            {:else if isStandaloneWorkspace()}
+              <p class="text-[12px] text-text-muted">{t('detail.noPrs')}</p>
+            {:else}
+              <p class="text-[12px] text-text-muted">{t('detail.prsNotMirrored')}</p>
+            {/if}
+          </Section>
         </div>
       {/if}
     </div>
