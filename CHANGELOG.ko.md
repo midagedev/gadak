@@ -91,6 +91,14 @@
 
 ### 미러의 스키마
 
+- **`gadak init`과 `gadak install-cli`는 `~/.claude`가 이미 있으면 Claude
+  Code 스킬을 설치합니다** ([GDK-93]). `~/.claude`가 없으면 건너뛰고
+  (`install-cli`는 다음 단계로 `gadak skill install`을 그대로 출력),
+  gadak이 쓰지 않은 파일은 덮지 않으며 stderr에
+  `gadak skill install --force`를 안내합니다. 스킬 실패는 경고이고 init과
+  install-cli는 여전히 exit 0입니다. `init --json`에 `"skill":
+  "installed"|"skipped"|"failed"`가 붙습니다.
+
 - **픽스 버전이 id를 유지하고, 프로젝트의 릴리스 카탈로그가 미러에
   들어옵니다** ([GDK-532]). `issues.fix_version_ids`는 기존 이름 배열
   `fix_versions`(0.x 레시피 키, 의미 불변)와 같은 순서의 id를 담습니다.
@@ -1436,6 +1444,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-90]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-90
 [GDK-91]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-91
 [GDK-92]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-92
+[GDK-93]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-93
 [GDK-98]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-98
 [GDK-99]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-99
 [GDK-101]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-101

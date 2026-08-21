@@ -213,6 +213,9 @@ gadak skill install         # schema + query patterns, no extra process
 gadak mcp install claude    # pins this binary and workspace into the registration
 ```
 
+`gadak init` and `gadak install-cli` install that skill automatically when
+`~/.claude` already exists. A file gadak did not write is left in place.
+
 Both installs (and the Raycast one) are also buttons in the macOS app,
 with install state shown honestly: **Settings → Integrations**.
 

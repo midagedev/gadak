@@ -91,6 +91,14 @@ the fixes are all here.
 
 ### The mirror's schema
 
+- **`gadak init` and `gadak install-cli` install the Claude Code skill when
+  `~/.claude` already exists** ([GDK-93]). A missing `~/.claude` is a skip
+  (`install-cli` still prints `gadak skill install` as the next step); a
+  file gadak did not write is left in place and stderr names
+  `gadak skill install --force`. Skill failure is a warning — init and
+  install-cli still exit 0. `init --json` grows `"skill":
+  "installed"|"skipped"|"failed"`.
+
 - **Fix versions keep their id, and the project's release catalog lands in
   the mirror** ([GDK-532]). `issues.fix_version_ids` stores the same-order
   ids next to the existing name array `fix_versions` (that name array stays
@@ -1426,6 +1434,7 @@ measured numbers instead of adjectives.
 [GDK-90]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-90
 [GDK-91]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-91
 [GDK-92]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-92
+[GDK-93]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-93
 [GDK-98]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-98
 [GDK-99]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-99
 [GDK-101]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-101

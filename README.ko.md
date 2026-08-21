@@ -216,6 +216,9 @@ gadak skill install         # 스키마 + 쿼리 패턴, 별도 프로세스 없
 gadak mcp install claude    # 이 바이너리와 워크스페이스를 등록에 고정
 ```
 
+`gadak init`과 `gadak install-cli`는 `~/.claude`가 이미 있으면 그 스킬을
+자동으로 설치합니다. gadak이 쓰지 않은 파일은 그대로 둡니다.
+
 두 설치(그리고 Raycast까지)는 macOS 앱에서는 버튼이기도 합니다 — 설치
 상태를 정직하게 보여주는 **설정 → 연동**.
 

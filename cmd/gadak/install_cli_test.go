@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	gadak "github.com/midagedev/gadak"
 )
 
 func TestInstallCLINewSymlink(t *testing.T) {
@@ -379,5 +381,146 @@ func TestExpandHomePath(t *testing.T) {
 	want := filepath.Join(home, ".local", "bin")
 	if got != want {
 		t.Errorf("expand = %q, want %q", got, want)
+	}
+}
+
+func seedInstallCLI(t *testing.T) (source, dir string) {
+	t.Helper()
+	root := t.TempDir()
+	source = filepath.Join(root, "bin", "gadak")
+	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(source, []byte("#!/bin/sh\necho gadak\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dir = filepath.Join(root, "local-bin")
+	return source, dir
+}
+
+// TestInstallCLIAutoInstallsSkillWhenClaudeDirExists — GDK-93.
+// FAIL-first (2026-08-21, pre-fix): install-cli succeeded, ~/.claude existed,
+// SKILL.md was not created, stdout still said "next: gadak skill install".
+func TestInstallCLIAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("install-cli unsupported on windows")
+	}
+	home := isolateHomeWithClaude(t)
+	source, dir := seedInstallCLI(t)
+	var buf bytes.Buffer
+	if err := installCLI(&buf, source, dir, false, false, dir, "zsh", "linux"); err != nil {
+		t.Fatalf("installCLI: %v", err)
+	}
+	got, err := os.ReadFile(skillDestUnder(home))
+	if err != nil {
+		t.Fatalf("SKILL.md missing after install-cli: %v\nout:\n%s", err, buf.String())
+	}
+	if !bytes.Equal(got, gadak.SkillMarkdown()) {
+		t.Fatalf("installed bytes differ from embed (%d vs %d)", len(got), len(gadak.SkillMarkdown()))
+	}
+	out := buf.String()
+	if strings.Contains(out, "next: gadak skill install") {
+		t.Fatalf("installed skill still printed the next-step line:\n%s", out)
+	}
+	if !strings.Contains(out, "skill: installed") {
+		t.Fatalf("expected skill: installed, got:\n%s", out)
+	}
+}
+
+func TestInstallCLIAlreadyInstalledAutoInstallsSkill(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("install-cli unsupported on windows")
+	}
+	home := isolateHomeWithClaude(t)
+	source, dir := seedInstallCLI(t)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(source, filepath.Join(dir, "gadak")); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := installCLI(&buf, source, dir, false, false, dir, "zsh", "linux"); err != nil {
+		t.Fatalf("re-install: %v", err)
+	}
+	if _, err := os.Stat(skillDestUnder(home)); err != nil {
+		t.Fatalf("SKILL.md missing on already-installed path: %v\nout:\n%s", err, buf.String())
+	}
+	out := buf.String()
+	if !strings.Contains(out, "already installed") {
+		t.Fatalf("expected already installed, got:\n%s", out)
+	}
+	if strings.Contains(out, "next: gadak skill install") {
+		t.Fatalf("already-installed path still printed next-step:\n%s", out)
+	}
+}
+
+func TestInstallCLISkillSkippedWithoutClaudeDirKeepsNextStep(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("install-cli unsupported on windows")
+	}
+	home := isolateHome(t)
+	source, dir := seedInstallCLI(t)
+	var buf bytes.Buffer
+	if err := installCLI(&buf, source, dir, false, false, dir, "zsh", "linux"); err != nil {
+		t.Fatalf("installCLI: %v", err)
+	}
+	if _, err := os.Stat(skillDestUnder(home)); !os.IsNotExist(err) {
+		t.Fatalf("must not create SKILL.md when ~/.claude is absent: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)") {
+		t.Fatalf("skipped (no ~/.claude) must keep the next-step line, got:\n%s", out)
+	}
+}
+
+func TestInstallCLISkillConflictPreservesFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("install-cli unsupported on windows")
+	}
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := []byte("user-authored skill body\n")
+	if err := os.WriteFile(dest, old, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	source, dir := seedInstallCLI(t)
+	var buf bytes.Buffer
+	_, stderr, err := captureErr(t, func() error {
+		return installCLI(&buf, source, dir, false, false, dir, "zsh", "linux")
+	})
+	if err != nil {
+		t.Fatalf("conflict must not fail install-cli: %v\nstdout=%s\nstderr=%s", err, buf.String(), stderr)
+	}
+	got, readErr := os.ReadFile(dest)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !bytes.Equal(got, old) {
+		t.Fatalf("conflict overwrote the user file")
+	}
+	if !strings.Contains(stderr, "gadak skill install --force") {
+		t.Fatalf("stderr must name gadak skill install --force, got:\n%s", stderr)
+	}
+	if strings.Contains(buf.String(), "next: gadak skill install") {
+		t.Fatalf("conflict skip must not print the unforced next-step:\n%s", buf.String())
+	}
+}
+
+func TestInstallCLIPrintDoesNotAutoInstallSkill(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("install-cli unsupported on windows")
+	}
+	home := isolateHomeWithClaude(t)
+	source, dir := seedInstallCLI(t)
+	var buf bytes.Buffer
+	if err := installCLI(&buf, source, dir, false, true, dir, "zsh", "linux"); err != nil {
+		t.Fatalf("print: %v", err)
+	}
+	if _, err := os.Stat(skillDestUnder(home)); !os.IsNotExist(err) {
+		t.Fatalf("--print must not write SKILL.md: %v", err)
 	}
 }

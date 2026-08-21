@@ -424,8 +424,9 @@ func cmdInit(args []string) error {
 		return err
 	}
 	p, _ := config.Path()
+	skill := autoInstallSkill(os.Stderr)
 	if *jsonOut {
-		return writeInitJSON(cfg, name, p)
+		return writeInitJSON(cfg, name, p, skill)
 	}
 	if name != "" {
 		fmt.Printf("verified as %s — saved %s\n", name, p)
@@ -435,6 +436,7 @@ func cmdInit(args []string) error {
 	if len(cfg.Projects) == 0 {
 		fmt.Println("no project filter — syncing everything this account can see; narrow it later in Settings → Sources")
 	}
+	printSkillAutoResult(skill)
 	printInitNextSteps(cfg.WorkspaceKind())
 	return nil
 }
@@ -504,8 +506,9 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 		return fmt.Errorf("flush origin persist: %w", err)
 	}
 	p, _ := config.Path()
+	skill := autoInstallSkill(os.Stderr)
 	if jsonOut {
-		return writeInitJSON(cfg, "", p)
+		return writeInitJSON(cfg, "", p, skill)
 	}
 	_, persist := origin.Describe(cfg)
 	if already {
@@ -515,6 +518,7 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 			persist = p
 		}
 		fmt.Printf("already standalone at %s\n", persist)
+		printSkillAutoResult(skill)
 		return nil
 	}
 	fmt.Printf("standalone workspace — saved %s\n", p)
@@ -532,6 +536,7 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 		// (config list has no path; issuetap seeds the fixture user).
 		fmt.Printf("issues are authored as %s (the workspace default)\n", author)
 	}
+	printSkillAutoResult(skill)
 	printInitNextSteps(cfg.WorkspaceKind())
 	return nil
 }
@@ -583,7 +588,9 @@ func initConfluenceJSON(cfg *config.Config) any {
 
 // writeInitJSON is the --json document for both init kinds. Persist is
 // standalone-only (origin.Describe's path); connected origin is not a file.
-func writeInitJSON(cfg *config.Config, account, path string) error {
+// skill is the auto-install result (installed|skipped|failed); initPaired
+// has its own encoder and must name the same field.
+func writeInitJSON(cfg *config.Config, account, path, skill string) error {
 	kind, src := origin.Describe(cfg)
 	persist := ""
 	if kind == config.KindStandalone {
@@ -602,6 +609,7 @@ func writeInitJSON(cfg *config.Config, account, path string) error {
 		Confluence      any      `json:"confluence"`
 		Kind            string   `json:"kind"`
 		Persist         string   `json:"persist,omitempty"`
+		Skill           string   `json:"skill"`
 	}{
 		Profile:         displayProfileName(config.Profile()),
 		Workspace:       workspaceJSONName(),
@@ -613,6 +621,7 @@ func writeInitJSON(cfg *config.Config, account, path string) error {
 		Confluence:      initConfluenceJSON(cfg),
 		Kind:            kind,
 		Persist:         persist,
+		Skill:           skill,
 	})
 }
 

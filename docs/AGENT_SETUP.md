@@ -25,7 +25,10 @@ machine already uses. Steps:
    GADAK_TOKEN=<token> gadak init --site <url> --email <email> --json
    Leave --projects off: an empty project list syncs every project I can see,
    and the first line of sync output shows the total so we can narrow later
-   with `gadak init --projects KEY1,KEY2` if it is huge.
+   with `gadak init --projects KEY1,KEY2` if it is huge. If `~/.claude`
+   already exists, init installs the Claude Code skill into
+   `~/.claude/skills/gadak/SKILL.md` (a file gadak did not write is left
+   in place).
 4. Run `gadak sync`. The first full sync auto-discovers the site's custom
    fields (labels, filter axes, editors) and prints what it configured.
 5. Verify: `gadak sql "select count(*) from issues_full"` returns a number,
@@ -54,7 +57,8 @@ a gadak standalone workspace, file the first tickets, and show them to me.
    gadak init --standalone --json
    If a connected (Jira-site) workspace already exists on this machine:
    gadak --workspace plan init --standalone --json
-   and pass `--workspace plan` on every later command.
+   and pass `--workspace plan` on every later command. If `~/.claude`
+   already exists, init installs the Claude Code skill.
 3. gadak sync
    then gadak create "first ticket title" -m "why this exists"
    Init seeds project STD and wiki space LOC and records the default
@@ -148,10 +152,17 @@ MCP is a separate read-only tool surface for hosts that cannot spawn processes.
 
 ## Claude Code skill (preferred when the agent has a shell)
 
+When `~/.claude` already exists, `gadak init` and `gadak install-cli` write
+`~/.claude/skills/gadak/SKILL.md` themselves. A file gadak did not write is
+left in place; `gadak skill install --force` overwrites it. If `~/.claude`
+is absent, those commands skip the skill and (for `install-cli`) still print
+`gadak skill install` as the next step.
+
 ```bash
 gadak skill install                 # → ~/.claude/skills/gadak/SKILL.md
 gadak skill install --project       # → ./.claude/skills/gadak/SKILL.md
 gadak skill install --print         # plan only
+gadak skill install --force         # overwrite a file gadak did not write
 ```
 
 Restart the agent or open a new session so it picks up the skill. The skill

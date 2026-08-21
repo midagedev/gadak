@@ -381,6 +381,15 @@ func writeSkillReceipt(dir, digest string) error {
 	return os.WriteFile(filepath.Join(dir, skillReceiptName), append(raw, '\n'), 0o644)
 }
 
+// skillConflictError is the --force refusal. The message is unchanged from
+// the previous errors.New form so `gadak skill install` output stays the same;
+// the type lets auto-install detect a conflict without matching the copy.
+type skillConflictError struct {
+	msg string
+}
+
+func (e *skillConflictError) Error() string { return e.msg }
+
 // errSkillConflict refuses a file gadak did not write. When the file carries
 // `name: gadak` the message says so, because that is the confusing case: the
 // frontmatter says "gadak" but the bytes are not any skill gadak shipped, which
@@ -391,7 +400,7 @@ func errSkillConflict(dest string, existing []byte) error {
 	if skillFrontmatterName(existing) == "gadak" {
 		msg += "\nit declares `name: gadak` but its contents match no skill gadak shipped, so it is treated as your edit"
 	}
-	return errors.New(msg)
+	return &skillConflictError{msg: msg}
 }
 
 // skillFrontmatterName returns the `name:` value of a leading YAML frontmatter
@@ -416,4 +425,64 @@ func skillFrontmatterName(content []byte) string {
 		}
 	}
 	return ""
+}
+
+// claudeDirExists reports whether ~/.claude is a directory. That is the
+// signal that Claude Code is on this machine; auto-install does not create
+// it.
+func claudeDirExists() bool {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	st, err := os.Stat(filepath.Join(home, ".claude"))
+	return err == nil && st.IsDir()
+}
+
+// autoInstallSkill writes the embedded Claude Code skill into the user-level
+// dest when ~/.claude already exists. force is always false: a file gadak
+// did not write is left in place. The return is one of "installed",
+// "skipped", "failed"; it never becomes the caller's exit status.
+//
+// w receives warnings (conflict --force hint, I/O failures). Callers pass
+// os.Stderr so --json stdout stays a single object.
+func autoInstallSkill(w io.Writer) string {
+	if w == nil {
+		w = io.Discard
+	}
+	if !claudeDirExists() {
+		return "skipped"
+	}
+	dest, err := resolveSkillDest(false, "")
+	if err != nil {
+		fmt.Fprintf(w, "warning: skill auto-install: %v\n", err)
+		return "failed"
+	}
+	err = installSkill(io.Discard, gadak.SkillMarkdown(), dest, false, false)
+	if err == nil {
+		return "installed"
+	}
+	var conflict *skillConflictError
+	if errors.As(err, &conflict) {
+		fmt.Fprintf(w, "skill: %s exists and differs from the embedded skill — run gadak skill install --force to overwrite\n",
+			clitool.TildeHome(dest))
+		return "skipped"
+	}
+	fmt.Fprintf(w, "warning: skill auto-install failed: %v\n", err)
+	return "failed"
+}
+
+// printSkillAutoResult is the one human line init prints after a successful
+// save. JSON callers skip this and put the same token in the document.
+func printSkillAutoResult(status string) {
+	if status == "installed" {
+		dest, err := resolveSkillDest(false, "")
+		if err != nil {
+			fmt.Printf("skill: installed\n")
+			return
+		}
+		fmt.Printf("skill: installed %s\n", clitool.TildeHome(dest))
+		return
+	}
+	fmt.Printf("skill: %s\n", status)
 }

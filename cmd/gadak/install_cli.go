@@ -68,7 +68,7 @@ func installCLI(w io.Writer, source, dir string, force, printOnly bool, pathEnv,
 	if p.Status == clitool.StatusLinked {
 		fmt.Fprintln(w, p.AlreadyInstalledLine())
 		advisePATH(w, p.Dir, pathEnv, shell, goos)
-		fmt.Fprintf(w, "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)\n")
+		printInstallCLISkillFollowup(w, autoInstallSkill(os.Stderr))
 		return nil
 	}
 
@@ -78,8 +78,34 @@ func installCLI(w io.Writer, source, dir string, force, printOnly bool, pathEnv,
 
 	fmt.Fprintln(w, p.InstalledLine())
 	advisePATH(w, p.Dir, pathEnv, shell, goos)
-	fmt.Fprintf(w, "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)\n")
+	printInstallCLISkillFollowup(w, autoInstallSkill(os.Stderr))
 	return nil
+}
+
+// installCLISkillNext is the line printed when auto-install did not run
+// because ~/.claude is absent (or failed). Verified: installCLI success
+// paths used this exact string before GDK-93.
+const installCLISkillNext = "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)\n"
+
+func printInstallCLISkillFollowup(w io.Writer, skill string) {
+	switch skill {
+	case "installed":
+		dest, err := resolveSkillDest(false, "")
+		if err != nil {
+			fmt.Fprintf(w, "skill: installed\n")
+			return
+		}
+		fmt.Fprintf(w, "skill: installed %s\n", clitool.TildeHome(dest))
+	case "skipped":
+		if claudeDirExists() {
+			// Conflict: --force already went to stderr. Do not suggest the
+			// unforced one-liner, which would fail the same way.
+			return
+		}
+		fmt.Fprint(w, installCLISkillNext)
+	default:
+		fmt.Fprint(w, installCLISkillNext)
+	}
 }
 
 // pathContainsDir reports whether dir appears as a PATH entry.

@@ -521,6 +521,7 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 		return err
 	}
 	p, _ := config.Path()
+	skill := autoInstallSkill(os.Stderr)
 	if jsonOut {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetEscapeHTML(false)
@@ -530,9 +531,11 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 			Label    string `json:"label"`
 			Account  string `json:"account"`
 			Path     string `json:"path"`
-		}{displayProfileName(config.Profile()), offer.Endpoint, offer.Label, me.DisplayName, p})
+			Skill    string `json:"skill"`
+		}{displayProfileName(config.Profile()), offer.Endpoint, offer.Label, me.DisplayName, p, skill})
 	}
 	fmt.Printf("paired with %s as %s — saved %s\n", offer.Endpoint, me.DisplayName, p)
+	printSkillAutoResult(skill)
 	printPairedInitNextSteps()
 	return nil
 }

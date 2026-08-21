@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +13,49 @@ import (
 
 	gadak "github.com/midagedev/gadak"
 )
+
+// TestMain isolates HOME for the whole cmd/gadak package. cmdInit and
+// installCLI now write into ~/.claude when that directory exists; without
+// this, a developer machine that already has Claude Code would have its
+// real skill rewritten by unrelated tests. Individual tests that need a
+// specific home still t.Setenv HOME (and USERPROFILE) themselves.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "gadak-test-home-*")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "test home: %v\n", err)
+		os.Exit(1)
+	}
+	_ = os.Setenv("HOME", dir)
+	_ = os.Setenv("USERPROFILE", dir)
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
+}
+
+// isolateHome points os.UserHomeDir at a fresh temp directory with no
+// ~/.claude, so auto-install is a skip.
+func isolateHome(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	return home
+}
+
+// isolateHomeWithClaude is isolateHome plus the directory that means
+// "Claude Code is on this machine".
+func isolateHomeWithClaude(t *testing.T) string {
+	t.Helper()
+	home := isolateHome(t)
+	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return home
+}
+
+func skillDestUnder(home string) string {
+	return filepath.Join(home, ".claude", "skills", "gadak", "SKILL.md")
+}
 
 func TestSkillInstallNewMatchesEmbedded(t *testing.T) {
 	root := t.TempDir()
@@ -430,5 +475,114 @@ func TestCmdSkillInstallPrintViaCLI(t *testing.T) {
 	// Nothing under root/gadak
 	if _, err := os.Stat(filepath.Join(root, "gadak")); !os.IsNotExist(err) {
 		t.Error("--print must not create gadak/ under --dir")
+	}
+}
+
+func TestAutoInstallSkillSkippedWithoutClaudeDir(t *testing.T) {
+	home := isolateHome(t)
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "skipped" {
+		t.Fatalf("status = %q, want skipped", got)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("skipped must be silent, got %q", buf.String())
+	}
+	if _, err := os.Stat(skillDestUnder(home)); !os.IsNotExist(err) {
+		t.Fatalf("must not create SKILL.md: %v", err)
+	}
+}
+
+func TestAutoInstallSkillInstallsMissing(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "installed" {
+		t.Fatalf("status = %q, want installed; buf=%q", got, buf.String())
+	}
+	got, err := os.ReadFile(skillDestUnder(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, gadak.SkillMarkdown()) {
+		t.Fatalf("bytes differ from embed")
+	}
+}
+
+func TestAutoInstallSkillIdenticalIsInstalled(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, gadak.SkillMarkdown(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "installed" {
+		t.Fatalf("status = %q, want installed", got)
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, gadak.SkillMarkdown()) {
+		t.Fatal("identical path mutated the file")
+	}
+}
+
+func TestAutoInstallSkillUpdatesStaleCopy(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+	prev := []byte("---\nname: gadak\ndescription: previous\n---\n\n# older\n")
+	if err := installSkill(io.Discard, prev, dest, false, false); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "installed" {
+		t.Fatalf("status = %q, want installed; buf=%q", got, buf.String())
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, gadak.SkillMarkdown()) {
+		t.Fatal("stale copy was not updated")
+	}
+}
+
+func TestAutoInstallSkillConflictDoesNotOverwrite(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := []byte("user-authored skill body\n")
+	if err := os.WriteFile(dest, old, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "skipped" {
+		t.Fatalf("status = %q, want skipped; buf=%q", got, buf.String())
+	}
+	raw, _ := os.ReadFile(dest)
+	if !bytes.Equal(raw, old) {
+		t.Fatal("conflict overwrote the user file")
+	}
+	if !strings.Contains(buf.String(), "gadak skill install --force") {
+		t.Fatalf("conflict hint missing --force command:\n%s", buf.String())
+	}
+}
+
+func TestAutoInstallSkillFailedWhenDestIsDirectory(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "failed" {
+		t.Fatalf("status = %q, want failed; buf=%q", got, buf.String())
+	}
+	if !strings.Contains(buf.String(), "warning:") {
+		t.Fatalf("failed must warn on the writer:\n%s", buf.String())
 	}
 }

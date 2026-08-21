@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,8 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/pairing"
 )
 
 // clearCredentialEnv treats every GADAK_* / SCRY_* init source as unset.
@@ -1114,4 +1117,185 @@ func TestInitStandaloneFailsWhenOriginClientFails(t *testing.T) {
 			t.Fatalf("init error = %v, want ErrWorkspaceBusy", err)
 		}
 	})
+}
+
+func initJSONSkill(t *testing.T, out string) (skill string, doc map[string]any) {
+	t.Helper()
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	skill, _ = doc["skill"].(string)
+	return skill, doc
+}
+
+func runStandaloneInitJSON(t *testing.T) string {
+	t.Helper()
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+	out, err := capture(t, func() error {
+		return cmdInit([]string{"--standalone", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("init --standalone --json: %v\n%s", err, out)
+	}
+	return out
+}
+
+// TestInitStandaloneAutoInstallsSkillWhenClaudeDirExists — GDK-93.
+// FAIL-first (2026-08-21, pre-fix): init succeeded, ~/.claude existed,
+// SKILL.md was not created, --json had no "skill" field.
+func TestInitStandaloneAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	t.Setenv("GADAK_HOME", home)
+	out := runStandaloneInitJSON(t)
+	skill, _ := initJSONSkill(t, out)
+	if skill != "installed" {
+		t.Fatalf("skill = %q, want installed; out=%s", skill, out)
+	}
+	got, err := os.ReadFile(skillDestUnder(home))
+	if err != nil {
+		t.Fatalf("SKILL.md missing after init: %v", err)
+	}
+	if !bytes.Equal(got, gadak.SkillMarkdown()) {
+		t.Fatalf("installed bytes differ from embed (%d vs %d)", len(got), len(gadak.SkillMarkdown()))
+	}
+}
+
+func TestInitStandaloneSkillSkippedWithoutClaudeDir(t *testing.T) {
+	home := isolateHome(t)
+	t.Setenv("GADAK_HOME", home)
+	out := runStandaloneInitJSON(t)
+	skill, _ := initJSONSkill(t, out)
+	if skill != "skipped" {
+		t.Fatalf("skill = %q, want skipped; out=%s", skill, out)
+	}
+	if _, err := os.Stat(skillDestUnder(home)); !os.IsNotExist(err) {
+		t.Fatalf("must not create SKILL.md when ~/.claude is absent: %v", err)
+	}
+}
+
+func TestInitStandaloneSkillConflictPreservesFile(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+
+	dest := skillDestUnder(home)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := []byte("user-authored skill body\n")
+	if err := os.WriteFile(dest, old, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, stderr, err := captureErr(t, func() error {
+		return cmdInit([]string{"--standalone", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("conflict must not fail init: %v\nstdout=%s\nstderr=%s", err, out, stderr)
+	}
+	skill, _ := initJSONSkill(t, out)
+	if skill != "skipped" {
+		t.Fatalf("skill = %q, want skipped; out=%s", skill, out)
+	}
+	got, readErr := os.ReadFile(dest)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !bytes.Equal(got, old) {
+		t.Fatalf("conflict overwrote the user file")
+	}
+	if !strings.Contains(stderr, "gadak skill install --force") {
+		t.Fatalf("stderr must name gadak skill install --force, got:\n%s", stderr)
+	}
+}
+
+func TestInitStandaloneHumanSkillInstalledLine(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+	out, err := capture(t, func() error {
+		return cmdInit([]string{"--standalone"})
+	})
+	if err != nil {
+		t.Fatalf("init --standalone: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "skill: installed") {
+		t.Fatalf("human output missing skill: installed:\n%s", out)
+	}
+	if _, err := os.Stat(skillDestUnder(home)); err != nil {
+		t.Fatalf("SKILL.md missing: %v", err)
+	}
+}
+
+func TestInitConnectedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	srv := myselfServer(t)
+	var out string
+	withClosedStdin(t, func() {
+		var err error
+		out, err = capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "agent@example.com",
+				"--token-file", writeTokenFile(t, home, "id-token"),
+				"--json",
+			})
+		})
+		if err != nil {
+			t.Fatalf("init: %v\n%s", err, out)
+		}
+	})
+	skill, _ := initJSONSkill(t, out)
+	if skill != "installed" {
+		t.Fatalf("skill = %q, want installed; out=%s", skill, out)
+	}
+	if _, err := os.Stat(skillDestUnder(home)); err != nil {
+		t.Fatalf("SKILL.md missing after connected init: %v", err)
+	}
+}
+
+func TestInitPairedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	srv, _ := pairingOriginServe(t, http.StatusOK)
+	offer := mustOffer(t, pairing.Offer{
+		V: pairing.OfferV1, Endpoint: srv.URL, Token: "pair-token-skill", Label: "laptop",
+	})
+	out, err := capture(t, func() error {
+		return cmdInit([]string{"--pairing-code", offer, "--json"})
+	})
+	if err != nil {
+		t.Fatalf("init --pairing-code: %v\n%s", err, out)
+	}
+	skill, _ := initJSONSkill(t, out)
+	if skill != "installed" {
+		t.Fatalf("skill = %q, want installed; out=%s", skill, out)
+	}
+	if _, err := os.Stat(skillDestUnder(home)); err != nil {
+		t.Fatalf("SKILL.md missing after paired init: %v", err)
+	}
 }
