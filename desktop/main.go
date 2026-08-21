@@ -712,10 +712,13 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 			http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
 			return
 		}
-		// http(s) only: the mirror's URLs are web URLs, and nothing else
-		// (file:, javascript:, custom schemes) has any business here.
+		// http(s) plus mailto (GDK-339, the About tab's contact link) only:
+		// nothing else (file:, javascript:, custom schemes) has any business
+		// here. openURL is `open <url>` on darwin, which handles both.
 		u, err := url.Parse(body.URL)
-		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		webURL := err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
+		mailURL := err == nil && u.Scheme == "mailto" && u.Opaque != ""
+		if !webURL && !mailURL {
 			http.Error(w, `{"error":"bad_url"}`, http.StatusBadRequest)
 			return
 		}
