@@ -2,8 +2,11 @@
  * First-view decision at boot.
  *
  * Priority: URL view params > last-used view (localStorage) > own group preset
- * > all-open. Hosted demo lands on the built-in Epic breakdown when that
- * preset exists. The decision is pure; App supplies URL/storage/identity and
+ * > first-run Epic breakdown > all-open. Hosted demo lands on the built-in
+ * Epic breakdown before even the last-used view. A first run on one's own
+ * site (no saved view — onboarding just ended) gets the same Epic breakdown
+ * instead of a bare Jira replica (GDK-100); from the second run the last
+ * view wins. The decision is pure; App supplies URL/storage/identity and
  * applies the resulting config.
  */
 
@@ -46,6 +49,13 @@ export function decideStartupView(input: StartupViewInput): StartupDecision {
 
   if (input.teamGroupEnabled && input.group) {
     return { kind: 'apply', config: groupPresetConfig(input.group) }
+  }
+
+  // First run (nothing above matched): show the product's question, not a
+  // Jira replica. The group preset stays above this — personalization beats
+  // the generic default (GDK-100).
+  if (input.epicBreakdown) {
+    return { kind: 'apply', config: input.epicBreakdown }
   }
 
   return { kind: 'apply', config: allOpenConfig() }

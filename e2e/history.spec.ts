@@ -22,9 +22,11 @@ async function openIssue(page: Page, key: string): Promise<void> {
     page.locator('[data-testid="issue-list-scroller"]').getByText(key).first(),
   ).toBeVisible()
   const posted = waitVisit(page)
+  // Exact row via data-issue-key: hasText('NMA-1') also matches NMA-10/-100,
+  // and which one comes first depends on the boot view's ordering (GDK-100
+  // made that epic-grouped).
   await page
-    .locator('[data-testid="issue-list-scroller"] [role="button"]')
-    .filter({ hasText: key })
+    .locator(`[data-testid="issue-list-scroller"] [data-issue-key="${key}"]`)
     .first()
     .click()
   await posted

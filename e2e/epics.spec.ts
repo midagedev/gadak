@@ -95,6 +95,11 @@ test.describe('epic hierarchy', () => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
+    // The chip under test only renders on a list that is NOT grouped by
+    // epic; the boot default is the Epics breakdown since GDK-100, so pin
+    // the flat view first.
+    await page.getByRole('button', { name: /All open/ }).click()
+
     const input = searchInput(page)
     await input.fill('NMB-106')
 

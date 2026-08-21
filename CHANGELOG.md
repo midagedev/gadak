@@ -137,6 +137,10 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **The first run lands on the epic breakdown** ([GDK-100]). A fresh
+  workspace with no saved view opens on the built-in Epics view instead of
+  a bare all-open replica; from the second run the last-used view wins, and
+  a configured team-group preset still beats the generic default.
 - **Windows stops pretending it notified you** ([GDK-349]). OS desktop
   notifications have one capability owner; on a platform that cannot fire
   them the watch loop no longer consumes pending events, the settings copy
@@ -1613,6 +1617,7 @@ measured numbers instead of adjectives.
 [GDK-181]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-181
 [GDK-254]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-254
 [GDK-339]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-339
+[GDK-100]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-100
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352

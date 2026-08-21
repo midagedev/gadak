@@ -14,9 +14,11 @@ const API = 'http://127.0.0.1:7877/api/v1/issues/'
 async function openIssue(page: Page, key: string) {
   const input = searchInput(page)
   await input.fill(key)
+  // Exact row via data-issue-key: hasText('NMA-1') also matches NMA-10/-100,
+  // and which one comes first depends on the boot view's ordering (GDK-100
+  // made that epic-grouped).
   await page
-    .locator('[data-testid="issue-list-scroller"] [role="button"]')
-    .filter({ hasText: key })
+    .locator(`[data-testid="issue-list-scroller"] [data-issue-key="${key}"]`)
     .first()
     .click()
   const panel = page.getByTestId('issue-detail-panel')

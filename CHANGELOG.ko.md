@@ -136,6 +136,9 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **첫 실행이 에픽 분해 뷰로 열립니다** ([GDK-100]). 저장된 뷰가 없는 새
+  워크스페이스는 all-open 복제본 대신 빌트인 Epics 뷰로 열리고, 두 번째
+  실행부터는 마지막 뷰가, 팀 그룹 프리셋이 있으면 그것이 우선합니다.
 - **Windows가 알린 척을 멈춥니다** ([GDK-349]). OS 데스크톱 알림의 능력
   판정에 단일 소유자가 생겨, 알림을 못 쏘는 플랫폼에서는 watch 루프가
   대기 이벤트를 소비하지 않고, 설정 카피의 "항상 동작" 주장이 사라지며,
@@ -1620,6 +1623,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-181]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-181
 [GDK-254]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-254
 [GDK-339]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-339
+[GDK-100]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-100
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352

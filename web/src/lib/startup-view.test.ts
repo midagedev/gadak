@@ -116,6 +116,31 @@ describe('decideStartupView', () => {
       ),
     ).toEqual({ kind: 'apply', config: parseConfig(new URLSearchParams('q=foo')) })
   })
+
+  test('first run on a self site lands on the epic breakdown (GDK-100)', () => {
+    const epic = epicConfig()
+    expect(decideStartupView(input({ epicBreakdown: epic }))).toEqual({
+      kind: 'apply',
+      config: epic,
+    })
+  })
+
+  test('the last-used view beats the first-run epic breakdown', () => {
+    expect(decideStartupView(input({ epicBreakdown: epicConfig(), lastViewKey: 'q=foo' }))).toEqual(
+      { kind: 'apply', config: parseConfig(new URLSearchParams('q=foo')) },
+    )
+  })
+
+  test('the group preset beats the first-run epic breakdown — personalization over the generic default', () => {
+    const group = emptyConfig()
+    group.filters.team_group = ['platform']
+    group.filters.status_category = ['new', 'inprogress']
+    expect(
+      decideStartupView(
+        input({ epicBreakdown: epicConfig(), teamGroupEnabled: true, group: 'platform' }),
+      ),
+    ).toEqual({ kind: 'apply', config: group })
+  })
 })
 
 describe('applyStartupView', () => {
