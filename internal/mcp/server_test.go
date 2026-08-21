@@ -135,7 +135,7 @@ func TestProtocolRoundTrip(t *testing.T) {
 			qdesc = tool.Description
 		}
 	}
-	for _, needle := range []string{"status_category", "In Progress", "SELECT", "inprogress"} {
+	for _, needle := range []string{"status_category", "In Progress", "SELECT", "inprogress", "description_text"} {
 		if !strings.Contains(qdesc, needle) {
 			t.Errorf("gadak_query description missing %q", needle)
 		}
@@ -146,7 +146,7 @@ func TestProtocolRoundTrip(t *testing.T) {
 			sdesc = tool.Description
 		}
 	}
-	for _, needle := range []string{"paired", "connected", "pairing", "custom_fields"} {
+	for _, needle := range []string{"paired", "connected", "pairing", "custom_fields", "frozen"} {
 		if !strings.Contains(sdesc, needle) {
 			t.Errorf("gadak_status description missing %q", needle)
 		}
@@ -221,6 +221,24 @@ func TestProtocolRoundTrip(t *testing.T) {
 	}
 	if _, ok := issue["history"]; !ok {
 		t.Error("issue missing history")
+	}
+	if _, ok := issue["description_text"]; !ok {
+		t.Error("issue missing description_text")
+	}
+	if _, ok := issue["dev_links"]; !ok {
+		t.Error("issue missing dev_links")
+	}
+
+	var idesc string
+	for _, tool := range list.Tools {
+		if tool.Name == toolIssue {
+			idesc = tool.Description
+		}
+	}
+	for _, needle := range []string{"description_text", "keys"} {
+		if !strings.Contains(idesc, needle) {
+			t.Errorf("gadak_issue description missing %q", needle)
+		}
 	}
 
 	// gadak_show
@@ -509,6 +527,145 @@ func TestStatusCustomFieldsMapped(t *testing.T) {
 		if _, ok := status[k]; !ok {
 			t.Errorf("gadak_status lost %q", k)
 		}
+	}
+}
+
+// GDK-568: gadak_status carries the same frozen bool as `gadak status --json`.
+func TestStatusSurfacesFrozen(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cfg := &config.Config{Frozen: true}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	db := demoDB(t)
+	resps := session(t, db,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"gadak_status","arguments":{}}}`,
+	)
+	statusText := callText(t, resps[0])
+	var status map[string]any
+	if err := json.Unmarshal([]byte(statusText), &status); err != nil {
+		t.Fatalf("status JSON: %v\n%s", err, statusText)
+	}
+	frozen, ok := status["frozen"].(bool)
+	if !ok {
+		t.Fatalf("gadak_status missing frozen bool: %s", statusText)
+	}
+	if !frozen {
+		t.Fatalf("frozen = %v, want true", status["frozen"])
+	}
+}
+
+// GDK-569: gadak_issue JSON includes description_text from store.Detail.
+func TestIssueCarriesDescriptionText(t *testing.T) {
+	db := demoDB(t)
+	cr := callToolRaw(t, db, toolIssue, map[string]any{"key": "NMA-1"})
+	if cr.IsError {
+		t.Fatalf("gadak_issue: %v", cr.Content)
+	}
+	var body map[string]any
+	if err := json.Unmarshal([]byte(cr.Content[0].Text), &body); err != nil {
+		t.Fatalf("issue JSON: %v\n%s", err, cr.Content[0].Text)
+	}
+	text, _ := body["description_text"].(string)
+	if text == "" {
+		t.Fatalf("description_text empty or missing: %s", cr.Content[0].Text)
+	}
+	if !strings.Contains(text, "idempotency") {
+		t.Errorf("description_text = %q, want the mirrored body", text)
+	}
+	for _, k := range []string{"dev_links", "ref_pages", "backlink_pages"} {
+		if _, ok := body[k]; !ok {
+			t.Errorf("issue missing %q", k)
+		}
+	}
+}
+
+// GDK-552: gadak_issue accepts {keys: [...]} and wraps several documents.
+func TestIssueBulkKeys(t *testing.T) {
+	db := demoDB(t)
+	cr := callToolRaw(t, db, toolIssue, map[string]any{"keys": []string{"NMA-1", "NMA-2"}})
+	if cr.IsError {
+		t.Fatalf("gadak_issue keys: %v", cr.Content)
+	}
+	var wrap struct {
+		Issues  []map[string]any `json:"issues"`
+		Missing []string         `json:"missing"`
+	}
+	if err := json.Unmarshal([]byte(cr.Content[0].Text), &wrap); err != nil {
+		t.Fatalf("bulk JSON: %v\n%s", err, cr.Content[0].Text)
+	}
+	if len(wrap.Issues) != 2 {
+		t.Fatalf("issues len = %d, want 2", len(wrap.Issues))
+	}
+	if wrap.Issues[0]["issue_key"] != "NMA-1" || wrap.Issues[1]["issue_key"] != "NMA-2" {
+		t.Errorf("order = %v, %v", wrap.Issues[0]["issue_key"], wrap.Issues[1]["issue_key"])
+	}
+	if _, ok := wrap.Issues[0]["description_text"]; !ok {
+		t.Error("bulk document missing description_text")
+	}
+	if len(wrap.Missing) != 0 {
+		t.Errorf("missing = %v", wrap.Missing)
+	}
+
+	cr = callToolRaw(t, db, toolIssue, map[string]any{"keys": []string{"NMA-1", "NOPE-1"}})
+	if cr.IsError {
+		t.Fatalf("partial bulk should succeed: %v", cr.Content)
+	}
+	if err := json.Unmarshal([]byte(cr.Content[0].Text), &wrap); err != nil {
+		t.Fatal(err)
+	}
+	if len(wrap.Issues) != 1 || wrap.Issues[0]["issue_key"] != "NMA-1" {
+		t.Errorf("partial issues = %+v", wrap.Issues)
+	}
+	if len(wrap.Missing) != 1 || wrap.Missing[0] != "NOPE-1" {
+		t.Errorf("missing = %v, want [NOPE-1]", wrap.Missing)
+	}
+
+	cr = callToolRaw(t, db, toolIssue, map[string]any{"key": "NMA-1", "keys": []string{"NMA-2"}})
+	if !cr.IsError {
+		t.Fatalf("key+keys must be isError; content=%v", cr.Content)
+	}
+	if !strings.Contains(cr.Content[0].Text, "exactly one") {
+		t.Errorf("want exclusive-args error, got %s", cr.Content[0].Text)
+	}
+}
+
+// GDK-552: a name miss lists available views; it must not tell a shell-less
+// host to run `gadak views`.
+func TestShowNameMissListsAvailable(t *testing.T) {
+	dbPath := demoDB(t)
+	db, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := json.RawMessage(`{"filters":{"jira_project":["NMA"]},"display":{}}`)
+	if err := db.PutSavedView(context.Background(), store.SavedView{
+		ID: "cli-available-view-zz9", Name: "Available view zz9", Config: cfg,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	cr := callToolRaw(t, dbPath, toolShow, map[string]any{"name": "no-such-view-xyz"})
+	if !cr.IsError {
+		t.Fatalf("expected isError; content=%v", cr.Content)
+	}
+	text := cr.Content[0].Text
+	if strings.Contains(text, "gadak views") {
+		t.Errorf("shell-less miss still names gadak views: %s", text)
+	}
+	if !strings.Contains(text, "Available view zz9") {
+		t.Errorf("miss must list available views, got %s", text)
+	}
+	if !strings.Contains(text, "available:") {
+		t.Errorf("want available: prefix, got %s", text)
 	}
 }
 

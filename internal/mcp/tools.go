@@ -48,8 +48,9 @@ Schema essentials:
   ancestor — group/aggregate on this), hierarchy_level (1=epic, 0=standard,
   -1=sub-task), reopen_count (times an issue left done and came back; 0 is normal,
   >0 is the signal), reopened_at, status_changed_at, resolved_at, comment_count.
-- issues_full: VIEW of issues plus summary (the item title) — prefer it whenever
-  the answer needs a human-readable title, no join required.
+- issues_full: VIEW of issues plus summary (the item title) and description_text
+  (items.body_text, flattened plain text) — prefer it whenever the answer needs
+  a human-readable title or the description as text, no join required.
 - pages: Confluence projection joined on pages.item_id = items.id — space_key,
   parent_id (page tree), version, labels (JSON array), body_adf, excerpt
   (≤200-rune body preview). Page title and body_text live on items
@@ -110,16 +111,21 @@ Do NOT use this for counts, grouping, "who is loaded", "what is stuck",
 Returns {total, issues:[{key,summary,status}], pages, matches}.
 Then hydrate one key with gadak_issue, or present keys with gadak_show.`
 
-const toolIssueDescription = `Fetch one issue by key with full detail: list fields plus description,
-comments, attachments, changelog history, and linked issues.
-Use when you need the whole conversation around a single key (e.g. NMB-140).`
+const toolIssueDescription = `Fetch one or more issues by key with full detail: list fields plus
+description_text (plain text), description ADF, comments, attachments,
+changelog history, linked issues, and when present ref_pages, backlink_pages,
+and dev_links.
+Pass {key: "NMB-140"} for one issue, or {keys: ["NMB-140", "NMB-141"]} for
+several (same document shape, wrapped as {"issues":[…], "missing"?:[…]}).
+Use when you need the whole conversation around a key.`
 
 const toolStatusDescription = `Return mirror freshness: watermark, version, last_error, last_full_sync_at,
-schema_version, row counts (issues, comments), and the workspace kind
-(connected|standalone) with its origin. A paired workspace is kind connected
-plus a pairing object (endpoint, label). custom_fields.mapped is the number of
-configured field aliases; 0 means issues.custom is unmapped (empty
-json_extract results may mean gadak fields --apply has not run).
+schema_version, row counts (issues, comments), the workspace kind
+(connected|standalone) with its origin, and frozen (sync is paused when true).
+A paired workspace is kind connected plus a pairing object (endpoint, label).
+custom_fields.mapped is the number of configured field aliases; 0 means
+issues.custom is unmapped (empty json_extract results may mean gadak fields
+--apply has not run).
 Check this before acting on answers that matter — a stalled watermark can
 mean a quiet project or a broken sync.`
 
@@ -198,10 +204,15 @@ func toolDefinitions() []Tool {
 				"properties": map[string]any{
 					"key": map[string]any{
 						"type":        "string",
-						"description": "Issue key, e.g. NMB-140 (case-insensitive).",
+						"description": "Issue key, e.g. NMB-140 (case-insensitive). Exactly one of key or keys.",
+					},
+					"keys": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Issue keys in given order. Same document per key as {key}. Exactly one of key or keys.",
 					},
 				},
-				"required":             []string{"key"},
+				"required":             []string{},
 				"additionalProperties": false,
 			},
 		},
@@ -351,15 +362,51 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, error) {
 }
 
 func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
-	key, ok := stringArg(args, "key")
-	if !ok || strings.TrimSpace(key) == "" {
-		return nil, errors.New("gadak_issue requires {key: string}")
+	keys, err := issueKeysArg(args)
+	if err != nil {
+		return nil, err
 	}
-	key = strings.ToUpper(strings.TrimSpace(key))
+	var (
+		docs    []map[string]any
+		missing []string
+	)
+	for _, key := range keys {
+		body, err := s.issuePayload(key)
+		if errors.Is(err, store.ErrNotFound) {
+			missing = append(missing, key)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, body)
+	}
+	if len(docs) == 0 {
+		if len(missing) == 1 {
+			return nil, fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", missing[0])
+		}
+		return nil, fmt.Errorf("none of the keys are in the mirror: %s — check the keys, or run `gadak sync`", strings.Join(missing, ", "))
+	}
+	if len(keys) == 1 {
+		return s.marshalIssueResult(docs[0])
+	}
+	// Shrink each document's comments under the byte cap before wrapping.
+	for _, body := range docs {
+		if err := shrinkIssueComments(body, s.resultCap()); err != nil {
+			return nil, err
+		}
+	}
+	out := map[string]any{"issues": docs}
+	if len(missing) > 0 {
+		out["missing"] = missing
+	}
+	return s.marshalResult(out)
+}
+
+// issuePayload is one `gadak issue --json` document: list row plus Detail
+// fields, including description_text / dev_links / wiki cross-refs.
+func (s *Server) issuePayload(key string) (map[string]any, error) {
 	d, err := s.db.Detail(context.Background(), key)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", key)
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -371,14 +418,22 @@ func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 	if len(lites) > 0 {
 		lite = &lites[0]
 	}
-	// Same shape as `gadak issue --json`: list row plus flattened detail fields.
-	body := map[string]any{"issue_key": d.IssueKey, "description_adf": d.DescriptionADF,
-		"comments": d.Comments, "attachments": d.Attachments, "history": d.History,
-		"linked_issues": d.LinkedIssues}
+	body := map[string]any{
+		"issue_key":        d.IssueKey,
+		"description_adf":  d.DescriptionADF,
+		"description_text": d.DescriptionText,
+		"comments":         d.Comments,
+		"attachments":      d.Attachments,
+		"history":          d.History,
+		"linked_issues":    d.LinkedIssues,
+		"dev_links":        d.DevLinks,
+		"ref_pages":        d.RefPages,
+		"backlink_pages":   d.BacklinkPages,
+	}
 	if lite != nil {
 		body["issue"] = *lite
 	}
-	return s.marshalIssueResult(body)
+	return body, nil
 }
 
 func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
@@ -390,6 +445,7 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 		kind, originDesc := origin.Describe(cfg)
 		st["kind"] = kind
 		st["origin"] = originDesc
+		st["frozen"] = cfg.SyncFrozen()
 		st["custom_fields"] = cfg.CustomFieldsStatus()
 		// Same pairing object as `gadak status --json` (origin.PairedStatus).
 		if rem, err := origin.PairedStatus(cfg); err != nil {
@@ -629,7 +685,18 @@ func findView(db *store.DB, name string) (listedView, error) {
 	case 1:
 		return hits[0], nil
 	case 0:
-		return listedView{}, fmt.Errorf("no view matching %q — run `gadak views` (sync first if you expected Jira filters)", name)
+		if len(list) == 0 {
+			return listedView{}, fmt.Errorf("no view matching %q — no saved views or synced Jira filters in this workspace", name)
+		}
+		names := make([]string, 0, len(list))
+		for _, v := range list {
+			if v.Name != "" {
+				names = append(names, v.Name)
+			} else {
+				names = append(names, v.ID)
+			}
+		}
+		return listedView{}, fmt.Errorf("no view matching %q — available: %s", name, strings.Join(names, "; "))
 	default:
 		names := make([]string, len(hits))
 		for i, h := range hits {
@@ -678,14 +745,44 @@ func stringSliceArg(args map[string]any, key string) (vals []string, present boo
 		for i, item := range t {
 			s, ok := item.(string)
 			if !ok {
-				return nil, true, fmt.Errorf("gadak_show keys[%d] must be a string", i)
+				return nil, true, fmt.Errorf("%s[%d] must be a string", key, i)
 			}
 			out = append(out, s)
 		}
 		return out, true, nil
 	default:
-		return nil, true, errors.New("gadak_show keys must be an array of strings")
+		return nil, true, fmt.Errorf("%s must be an array of strings", key)
 	}
+}
+
+// issueKeysArg accepts {key} or {keys}, not both. Order is preserved.
+func issueKeysArg(args map[string]any) ([]string, error) {
+	key, hasKey := stringArg(args, "key")
+	key = strings.ToUpper(strings.TrimSpace(key))
+	raw, hasKeys, err := stringSliceArg(args, "keys")
+	if err != nil {
+		return nil, err
+	}
+	if hasKey && key != "" && hasKeys {
+		return nil, errors.New("gadak_issue requires exactly one of key or keys")
+	}
+	if hasKeys {
+		var keys []string
+		for _, k := range raw {
+			k = strings.ToUpper(strings.TrimSpace(k))
+			if k != "" {
+				keys = append(keys, k)
+			}
+		}
+		if len(keys) == 0 {
+			return nil, errors.New("gadak_issue keys is empty")
+		}
+		return keys, nil
+	}
+	if key == "" {
+		return nil, errors.New("gadak_issue requires {key: string} or {keys: string[]}")
+	}
+	return []string{key}, nil
 }
 
 func stringArg(args map[string]any, key string) (string, bool) {
@@ -792,18 +889,30 @@ func (s *Server) marshalResult(v any) ([]contentItem, error) {
 // the byte cap. Search stays on marshalResult (its payload is already limited).
 func (s *Server) marshalIssueResult(body map[string]any) ([]contentItem, error) {
 	capn := s.resultCap()
+	if err := shrinkIssueComments(body, capn); err != nil {
+		return nil, err
+	}
+	b, err := json.MarshalIndent(body, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return []contentItem{{Type: "text", Text: string(b)}}, nil
+}
+
+// shrinkIssueComments drops oldest comments until body fits capn. Mutates body.
+func shrinkIssueComments(body map[string]any, capn int) error {
 	comments := issueComments(body)
 	original := len(comments)
 	for {
 		b, err := json.MarshalIndent(body, "", "  ")
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if len(b) <= capn {
-			return []contentItem{{Type: "text", Text: string(b)}}, nil
+			return nil
 		}
 		if len(comments) == 0 {
-			return nil, fmt.Errorf("result exceeds %d bytes (%d); narrow the request (e.g. lower limit, or use gadak_query for specific columns)", capn, len(b))
+			return fmt.Errorf("result exceeds %d bytes (%d); narrow the request (e.g. lower limit, or use gadak_query for specific columns)", capn, len(b))
 		}
 		// Detail comments are oldest-first (created_at, id). Drop the oldest half.
 		cut := len(comments) / 2
