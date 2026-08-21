@@ -50,6 +50,21 @@ order by reopen_count desc, reopened_at desc
 limit 20
 ```
 
+**Why did these close?** Resolution names localize per account (`완료` vs
+`Done`); key on the stable id, never the display name. `issues.resolution_id`
+is that id as of schema v27 (empty until a sync rewrites the row — same
+contract as `priority_id`). The fence below uses `changelog.to_id`, which
+already carries the same id on the committed demo snapshot.
+
+```sql
+select i.key, i.summary, c.to_id as resolution_id, i.resolved_at
+from issues_full i
+join changelog c on c.item_id = i.item_id
+where c.field = 'resolution' and c.to_id != ''
+order by i.resolved_at desc
+limit 20
+```
+
 **Unassigned and new, oldest first** — the queue nobody owns:
 
 ```sql

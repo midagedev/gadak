@@ -275,3 +275,68 @@ func TestChangelogAttachmentAuthorIDWrittenAndFeedSelfExclude(t *testing.T) {
 		t.Error("I7 read: Detail.Attachments missing author_id")
 	}
 }
+
+// TestMigrateV26ToV27ResolutionID is FAIL-first for GDK-520: a v26-era
+// database gains issues.resolution_id as ” (no changelog backfill), and
+// issues_full still exposes summary, description_text, and the new column.
+func TestMigrateV26ToV27ResolutionID(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v26.db")
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Apply v1–v25. schemaV26 copies personal state into local.* and needs
+	// that attach; it is irrelevant to resolution_id. user_version is then
+	// set to 26 so Open applies only v27.
+	for i := 0; i < personalStateCopyVersion-1; i++ {
+		if _, err := raw.Exec(migrations[i]); err != nil {
+			raw.Close()
+			t.Fatalf("apply v%d: %v", i+1, err)
+		}
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO sources (id, kind) VALUES ('jira', 'jira');
+		INSERT INTO items (id, source_id, kind, key, title, body_text, created_at, updated_at, synced_at)
+		VALUES ('jira:1', 'jira', 'issue', 'NMB-1', 'one', 'the flattened body', '2026-01-01', '2026-01-02', '2026-01-02');
+		INSERT INTO issues (item_id, key, project_key, priority_rank, reopen_count, comment_count)
+		VALUES ('jira:1', 'NMB-1', 'NMB', 0, 0, 0)`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec("PRAGMA user_version = 26"); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after v26: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	var resid string
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT resolution_id FROM issues WHERE key = 'NMB-1'`).Scan(&resid); err != nil {
+		t.Fatalf("issues.resolution_id after v27: %v", err)
+	}
+	if resid != "" {
+		t.Errorf("resolution_id = %q, want '' (no changelog backfill; next sync rewrites)", resid)
+	}
+
+	var summary, desc string
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT summary, description_text, resolution_id FROM issues_full WHERE key = 'NMB-1'`).
+		Scan(&summary, &desc, &resid); err != nil {
+		t.Fatalf("issues_full after v27: %v", err)
+	}
+	if summary != "one" {
+		t.Errorf("summary = %q, want one", summary)
+	}
+	if desc != "the flattened body" {
+		t.Errorf("description_text = %q, want the flattened body (v23 expression must survive the rebuild)", desc)
+	}
+	if resid != "" {
+		t.Errorf("issues_full.resolution_id = %q, want ''", resid)
+	}
+}

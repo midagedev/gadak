@@ -60,6 +60,7 @@ type Issue struct {
 	EnvironmentText string
 	Duedate         string
 	Resolution      string
+	ResolutionID    string
 	DescriptionADF  json.RawMessage
 	Custom          map[string]any // mapped custom fields, keyed by config alias
 	Raw             json.RawMessage

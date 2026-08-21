@@ -149,7 +149,7 @@ func TestMirrorDeleteKeepsPersonalState(t *testing.T) {
 // that is also why this round does not drop the mirror-side tables).
 func TestUpgradeCopiesMirrorPersonalToLocal(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "gadak.db")
-	prev := len(migrations) - 1 // the last released level before the move
+	prev := personalStateCopyVersion - 1 // v25: last level before the copy
 	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
@@ -204,32 +204,21 @@ func TestUpgradeCopiesMirrorPersonalToLocal(t *testing.T) {
 	if len(views) != 1 || views[0].Name != "Mine" {
 		t.Errorf("SavedViews after upgrade = %+v, want [Mine]", views)
 	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
 
-	// Simulate the partial commit the WAL boundary allows — user_version
-	// landed, rows are still wherever they were — by rewinding the version
-	// and re-opening: the copy runs again and OR IGNORE must hold the line.
-	raw, err = sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
-	if err != nil {
+	// schemaV26 is INSERT OR IGNORE so a crash that landed user_version
+	// without the copy can re-run. Later migrations after v26 (ALTER ADD
+	// COLUMN) are not re-runnable; replaying them by rewinding
+	// user_version is not this test's contract.
+	if _, err := db.sql.Exec(schemaV26); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec(`PRAGMA user_version = ` + strconv.Itoa(prev)); err != nil {
-		raw.Close()
-		t.Fatal(err)
-	}
-	raw.Close()
-
-	db, err = Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
 	for table, want := range map[string]int{"saved_views": 1, "watches": 1, "favorites": 1, "feed_reads": 1} {
 		if n := countLocal(t, db, table); n != want {
 			t.Errorf("after a second copy pass local.%s = %d rows, want %d (INSERT OR IGNORE must keep the migration idempotent)", table, n, want)
 		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 

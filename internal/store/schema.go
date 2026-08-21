@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27}
 
 // itemsFTSCreate is the canonical items_fts DDL. Migrations are append-only,
 // so schemaV1 cannot grow this constant's cjk_bigram column (v25); instead
@@ -492,6 +492,22 @@ INSERT OR IGNORE INTO local.saved_views (id, name, config, created_at, updated_a
 INSERT OR IGNORE INTO local.watches (key, created_at) SELECT key, created_at FROM watches;
 INSERT OR IGNORE INTO local.favorites (key, created_at) SELECT key, created_at FROM favorites;
 INSERT OR IGNORE INTO local.feed_reads (event_id, read_at) SELECT event_id, read_at FROM feed_reads;
+`
+
+// schemaV27 adds issues.resolution_id so queries can key on the stable Jira
+// resolution id (names localize per account — 완료 vs Done). Existing rows
+// keep the empty string until the next sync rewrites them; the migration
+// does not backfill from changelog, because the mirror is a cache and the
+// origin is the record (same contract as v22 priority_id). issues_full is
+// rebuilt because it expanded i.* at CREATE VIEW time (v12, v22, v23) and
+// would otherwise hide the new column from agents. The SELECT keeps v23's
+// description_text expression.
+const schemaV27 = `
+ALTER TABLE issues ADD COLUMN resolution_id TEXT NOT NULL DEFAULT '';
+DROP VIEW issues_full;
+CREATE VIEW issues_full AS
+  SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
+  FROM issues i JOIN items it ON it.id = i.item_id;
 `
 
 // personalStateCopyVersion is the migration level schemaV26 lands on. migrate

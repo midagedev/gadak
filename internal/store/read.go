@@ -41,20 +41,24 @@ type IssueLite struct {
 	// none. Distinct from ParentKey, which is the direct parent only.
 	EpicKey *string `json:"epic_key"`
 	// ParentKey is the direct parent issue key (source field), not the epic.
-	ParentKey       *string  `json:"parent_key"`
-	Labels          []string `json:"labels"`
-	Components      []string `json:"components"`
-	FixVersions     []string `json:"fix_versions"`
-	Duedate         *string  `json:"duedate"`
-	Resolution      *string  `json:"resolution"`
-	CreatedAt       *string  `json:"created_at"`
-	UpdatedAt       *string  `json:"updated_at"`
-	StatusChangedAt *string  `json:"status_changed_at"`
-	ResolvedAt      *string  `json:"resolved_at"`
-	ReopenCount     int      `json:"reopen_count"`
-	ReopenedAt      *string  `json:"reopened_at"`
-	ReopenReason    *string  `json:"reopen_reason"`
-	ClonedFrom      *string  `json:"cloned_from"`
+	ParentKey   *string  `json:"parent_key"`
+	Labels      []string `json:"labels"`
+	Components  []string `json:"components"`
+	FixVersions []string `json:"fix_versions"`
+	Duedate     *string  `json:"duedate"`
+	Resolution  *string  `json:"resolution"`
+	// ResolutionID is the stable Jira resolution id (issues.resolution_id).
+	// Empty on rows a sync has not rewritten since the column was added —
+	// the same contract as priority_id. Unresolved issues also store ''.
+	ResolutionID    string  `json:"resolution_id"`
+	CreatedAt       *string `json:"created_at"`
+	UpdatedAt       *string `json:"updated_at"`
+	StatusChangedAt *string `json:"status_changed_at"`
+	ResolvedAt      *string `json:"resolved_at"`
+	ReopenCount     int     `json:"reopen_count"`
+	ReopenedAt      *string `json:"reopened_at"`
+	ReopenReason    *string `json:"reopen_reason"`
+	ClonedFrom      *string `json:"cloned_from"`
 	// SourceProject is ClonedFrom's project prefix, precomputed because the
 	// list filter groups by it.
 	SourceProject *string `json:"source_project"`
@@ -76,7 +80,7 @@ const issueLiteSelect = `
 	       i.assignee, i.assignee_id, i.assignee_email, i.reporter, i.reporter_id, i.reporter_email,
 	       i.epic_key, i.parent_key,
 	       COALESCE(i.labels, '[]'), COALESCE(i.components, '[]'), COALESCE(i.fix_versions, '[]'),
-	       i.duedate, i.resolution, i.created_at, i.updated_at,
+	       i.duedate, i.resolution, COALESCE(i.resolution_id, ''), i.created_at, i.updated_at,
 	       i.status_changed_at, i.resolved_at, i.reopen_count, i.reopened_at,
 	       COALESCE(i.reopen_reason, ''), COALESCE(i.cloned_from, ''), i.comment_count,
 	       COALESCE(i.custom, '{}'), COALESCE(it.source_id, '')
@@ -195,7 +199,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 			&v.Assignee, &v.AssigneeID, &v.AssigneeEmail, &v.Reporter, &v.ReporterID, &v.ReporterEmail,
 			&v.EpicKey, &v.ParentKey,
 			&labels, &components, &fixVersions,
-			&v.Duedate, &v.Resolution, &v.CreatedAt, &v.UpdatedAt,
+			&v.Duedate, &v.Resolution, &v.ResolutionID, &v.CreatedAt, &v.UpdatedAt,
 			&v.StatusChangedAt, &v.ResolvedAt, &v.ReopenCount, &v.ReopenedAt,
 			&reopenReason, &clonedFrom, &v.CommentCount,
 			&custom, &v.Source,

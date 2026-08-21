@@ -460,6 +460,12 @@ func TestFullSyncMapsEverything(t *testing.T) {
 	if three.StatusCategory != "done" || three.ResolvedAt == nil {
 		t.Errorf("NMB-3 = %+v", three)
 	}
+	if three.ResolutionID != "10000" {
+		t.Errorf("NMB-3 resolution_id = %q, want 10000 (fixture Done id)", three.ResolutionID)
+	}
+	if got := db.column(t, "issues", "resolution_id", "NMB-3"); got != "10000" {
+		t.Errorf("issues.resolution_id = %q, want 10000", got)
+	}
 
 	// Configured custom field lands in issues.custom under its alias.
 	if got := db.column(t, "issues", "custom", "NMB-1"); !strings.Contains(got, `"severity"`) || !strings.Contains(got, "Sev1") {
@@ -1173,6 +1179,55 @@ func TestKoreanChangelogWithoutFieldIDRecordsStatus(t *testing.T) {
 	one := lite(t, db, "NMB-KO")
 	if one.ReopenCount != 1 {
 		t.Errorf("C10: reopen_count = %d, want 1 (Derive missed 상태)", one.ReopenCount)
+	}
+}
+
+// TestLocalizedResolutionKeysOnID is FAIL-first for GDK-520: a Korean-account
+// resolution name (`완료`) must be findable by the stable id, and the English
+// display name `Done` must match nothing.
+func TestLocalizedResolutionKeysOnID(t *testing.T) {
+	issue := map[string]any{
+		"id": "20002", "key": "NMB-RES",
+		"fields": map[string]any{
+			"summary":    "localized resolution",
+			"project":    map[string]any{"key": "NMB"},
+			"issuetype":  map[string]any{"id": "10004", "name": "버그"},
+			"status":     statusObj("5", "ko"),
+			"resolution": map[string]any{"id": "10000", "name": "완료"},
+			"reporter":   map[string]any{"accountId": "acc-sam", "displayName": "Sam", "emailAddress": "sam@example.com"},
+			"created":    "2026-07-01T10:00:00.000+0900",
+			"updated":    "2026-08-04T10:00:00.000+0900",
+		},
+		"changelog": map[string]any{"total": 0, "histories": []any{}},
+	}
+	b, err := json.Marshal(issue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site := &fakeSite{t: t, lang: "ko", issues: []json.RawMessage{b}, pageSize: 10, failOffset: -1,
+		changelog: map[string]string{}, comments: map[string]string{}}
+	db := newMirror(t)
+	cfg := testConfig()
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: site.start()}); err != nil {
+		t.Fatal(err)
+	}
+
+	conn := db.raw(t)
+	var n int
+	if err := conn.QueryRow(`SELECT COUNT(*) FROM issues_full WHERE resolution_id = '10000'`).Scan(&n); err != nil {
+		t.Fatalf("WHERE resolution_id = '10000': %v", err)
+	}
+	if n != 1 {
+		t.Errorf("resolution_id = 10000 matched %d rows, want 1", n)
+	}
+	if err := conn.QueryRow(`SELECT COUNT(*) FROM issues_full WHERE resolution = 'Done'`).Scan(&n); err != nil {
+		t.Fatalf("WHERE resolution = 'Done': %v", err)
+	}
+	if n != 0 {
+		t.Errorf("resolution = 'Done' matched %d rows, want 0 (name is localized to 완료)", n)
+	}
+	if got := db.column(t, "issues", "resolution", "NMB-RES"); got != "완료" {
+		t.Errorf("resolution display name = %q, want 완료", got)
 	}
 }
 

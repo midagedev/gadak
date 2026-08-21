@@ -142,6 +142,7 @@ The Jira projection. Joined to `items` on `item_id`.
 | `environment_text` | TEXT | Flattened |
 | `duedate` | TEXT | Date only |
 | `resolution` | TEXT | Display name, NULL while unresolved |
+| `resolution_id` | TEXT | Stable source id (v27). Empty (`''`) until a sync rewrites the row. **Use this for logic**; names are localized |
 | `created_at` | TEXT | Mirrored from `items` for single-table queries |
 | `updated_at` | TEXT | Mirrored from `items` |
 | `status_changed_at` | TEXT | Derived: last status transition |
@@ -503,7 +504,8 @@ queries that need a title do not have to join the spine. Rebuilt in v12: the
 view expands `i.*` at CREATE VIEW time, so it had to be recreated to expose
 the v11 columns (`hierarchy_level`, `epic_key`). Rebuilt again in v23 to add
 `description_text` (`items.body_text`, NULL → `''`) — the flattened description
-agents can read without parsing ADF.
+agents can read without parsing ADF. Rebuilt in v27 so `i.*` includes
+`resolution_id`; the v23 `description_text` expression is kept.
 
 ```sql
 CREATE VIEW issues_full AS

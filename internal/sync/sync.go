@@ -745,6 +745,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	}
 	if f.Resolution != nil {
 		issue.Resolution = f.Resolution.Name
+		issue.ResolutionID = f.Resolution.ID
 	}
 
 	rec := store.IssueRecord{Item: item, Issue: issue}

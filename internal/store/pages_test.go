@@ -412,6 +412,50 @@ func TestIssueLitePriorityIDOnWire(t *testing.T) {
 	}
 }
 
+// TestIssueLiteResolutionIDOnWire: an issue upserted with ResolutionID
+// carries that id through IssueLites JSON, which is what `gadak issue
+// <KEY> --json` prints. Same wire contract as priority_id.
+func TestIssueLiteResolutionIDOnWire(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{
+		Categories: map[string]string{"5": "done"},
+		Records: []IssueRecord{{
+			Item: Item{
+				ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+				Key: "NMB-1", Title: "closed", CreatedAt: ago(1), UpdatedAt: ago(1),
+			},
+			Issue: Issue{
+				ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+				Status: "완료", StatusID: "5", StatusCategory: "done",
+				Resolution: "완료", ResolutionID: "10000",
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.IssueLites(context.Background())
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("IssueLites: %v %+v", err, rows)
+	}
+	if rows[0].ResolutionID != "10000" {
+		t.Errorf("ResolutionID = %q, want 10000", rows[0].ResolutionID)
+	}
+	raw, err := json.Marshal(rows[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m["resolution_id"]; !ok {
+		t.Fatalf("resolution_id missing from IssueLite JSON: %s", raw)
+	}
+}
+
 func TestPageLitesOrder(t *testing.T) {
 	db := openTemp(t)
 	seedPagesWithIssues(t, db)

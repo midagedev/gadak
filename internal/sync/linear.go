@@ -222,10 +222,11 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 
 // buildLinearRecord maps one Linear issue onto the store's source-neutral
 // record. Honest absences (MAPPING.md): issue_type / components / fixVersions
-// / resolution / epic stay empty — Linear has no such concepts and synthetic
-// constants are forbidden; description and comments are markdown and land in
-// body_text only, never in the ADF columns; no changelog is supplied, so
-// status_changed_at / resolved_at / reopen_count derive to NULL/0.
+// / resolution / resolution_id / epic stay empty — Linear has no such
+// concepts and synthetic constants are forbidden; description and comments
+// are markdown and land in body_text only, never in the ADF columns; no
+// changelog is supplied, so status_changed_at / resolved_at / reopen_count
+// derive to NULL/0.
 func buildLinearRecord(iss linear.Issue, cat string) store.IssueRecord {
 	item := store.Item{
 		ID:         LinearSourceID + ":" + iss.ID,
