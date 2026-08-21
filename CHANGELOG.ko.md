@@ -143,6 +143,11 @@
 - **첫 실행이 에픽 분해 뷰로 열립니다** ([GDK-100]). 저장된 뷰가 없는 새
   워크스페이스는 all-open 복제본 대신 빌트인 Epics 뷰로 열리고, 두 번째
   실행부터는 마지막 뷰가, 팀 그룹 프리셋이 있으면 그것이 우선합니다.
+- **stale 칩이 얼룩이 아니라 마커가 됩니다** ([GDK-200]). 모래시계 뒤의
+  앰버 워시가 dark·ink 지반에서 탁한 얼룩으로 읽혔습니다 — 이제 중립
+  elevated 채움 + 앰버 헤어라인 위에 앉아 글리프와 일수가 의미를 지고,
+  mid/loud 위계는 얼룩 농도 대신 링 무게로 옮겨졌습니다. 전후 비전 판정
+  통과.
 - **다이얼로그 셸의 소유자가 하나가 됩니다** ([GDK-316]). 같은 클래스의
   모달 다이얼로그 여섯 개가 백드롭·패널 크롬·헤더 X·푸터를 소유하는 단일
   DialogShell 컴포넌트로 렌더됩니다 — 픽셀 동일은 실측으로 확인. 셸
@@ -1661,6 +1666,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-350]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-350
 [GDK-351]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-351
 [GDK-180]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-180
+[GDK-200]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-200
 [GDK-255]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-255
 [GDK-316]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-316
 [GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353

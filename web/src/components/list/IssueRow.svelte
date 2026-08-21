@@ -68,14 +68,18 @@
     if (ratio <= 4) return 'mid'
     return 'loud'
   })
+  // Fill is ground-neutral (bg-elevated), not stale-amber — an amber wash
+  // mixed to olive on dark/ink and read as a stain. Amber stays on the
+  // glyph, the day count, and a hairline. Band weight is fill/border
+  // opacity, not a louder wash.
   const staleBandClass = $derived.by(() => {
     switch (staleBand) {
       case 'quiet':
         return 'text-text-muted'
       case 'mid':
-        return 'bg-status-stale/10 text-status-stale/80'
+        return 'border border-status-stale/20 bg-bg-elevated/50 text-status-stale/80'
       case 'loud':
-        return 'bg-status-stale/15 font-medium text-status-stale'
+        return 'border border-status-stale/40 bg-bg-elevated font-medium text-status-stale'
       default:
         return ''
     }

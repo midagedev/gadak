@@ -146,6 +146,11 @@ the fixes are all here.
   workspace with no saved view opens on the built-in Epics view instead of
   a bare all-open replica; from the second run the last-used view wins, and
   a configured team-group preset still beats the generic default.
+- **The stale chip is a marker, not a stain** ([GDK-200]). The amber wash
+  behind the hourglass read as a muddy smear on the dark and ink grounds;
+  the chip now sits on the neutral elevated fill with an amber hairline,
+  so the glyph and day count carry the meaning and the mid/loud ladder
+  moves to ring weight instead of stain depth. Vision-verified before/after.
 - **One owner for the dialog shell** ([GDK-316]). The six same-class modal
   dialogs now render through a single DialogShell component that owns the
   backdrop, panel chrome, header X, and footer — pixel-identical by
@@ -1659,6 +1664,7 @@ measured numbers instead of adjectives.
 [GDK-350]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-350
 [GDK-351]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-351
 [GDK-180]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-180
+[GDK-200]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-200
 [GDK-255]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-255
 [GDK-316]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-316
 [GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353
