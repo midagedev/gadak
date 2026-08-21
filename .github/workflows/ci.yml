@@ -670,6 +670,10 @@ jobs:
           Write-Host "windows pack tree — ok"
           exit 0
 
+      - name: Protocol handler tests
+        working-directory: desktop
+        run: go test ./... -run 'Protocol' -count=1
+
       # In a child process, not in this step's own runspace: a non-zero
       # $LASTEXITCODE left behind at the end of a pwsh step is what the runner
       # reads as the step's result, so checking it in place fails the job even

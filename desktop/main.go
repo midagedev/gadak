@@ -46,6 +46,9 @@ import (
 var appVersion = "dev"
 
 func main() {
+	if unregisterGadakProtocolIfRequested(os.Args[1:]) {
+		return
+	}
 	if printWindowChromeIfRequested(os.Args[1:]) {
 		return
 	}
@@ -391,6 +394,16 @@ func run() error {
 		coldStart = "event"
 	}
 	log.Printf("gadak-desktop version=%s wails=%s cold_start=%s", appVersion, wailsModuleVersion(), coldStart)
+	if protocolRegistersFor(runtime.GOOS) {
+		exe, err := os.Executable()
+		if err != nil {
+			log.Printf("gadak:// registration: %v", err)
+		} else if status, err := registerGadakProtocol(exe); err != nil {
+			log.Printf("gadak:// registration: %v", err)
+		} else {
+			log.Printf("gadak:// registration: %s", status)
+		}
+	}
 	var gate coldStartGate
 	gate.apply = func(raw, source string) {
 		if applyDeepLink == nil {

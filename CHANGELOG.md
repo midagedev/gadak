@@ -146,6 +146,11 @@ the fixes are all here.
   workspace with no saved view opens on the built-in Epics view instead of
   a bare all-open replica; from the second run the last-used view wins, and
   a configured team-group preset still beats the generic default.
+- **A `gadak://` link works on Windows** ([GDK-350]). The desktop app now
+  registers the scheme in `HKCU\SOFTWARE\Classes\gadak` on first launch and
+  rewrites the entry whenever its own path changes, so clicking a link in a
+  browser or Slack opens the app — the portable pack itself still never
+  touches the registry, and `--unregister-gadak-protocol` removes the key.
 - **Windows stops pretending it notified you** ([GDK-349]). OS desktop
   notifications have one capability owner; on a platform that cannot fire
   them the watch loop no longer consumes pending events, the settings copy
@@ -1626,6 +1631,7 @@ measured numbers instead of adjectives.
 [GDK-100]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-100
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
+[GDK-350]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-350
 [GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352
 [GDK-369]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-369
 [GDK-389]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-389

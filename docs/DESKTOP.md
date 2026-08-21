@@ -162,9 +162,11 @@ plain name, try to traverse a path, or exceed the size limits
 (`internal/deeplink`). Actions that submit or write will not be added.
 
 macOS registers the scheme from the bundle's `Info.plist`. The Windows
-portable zip does not write `HKCU\SOFTWARE\Classes\gadak` (that registration
-is not part of the pack). On Linux, and on Windows when you are using
-`gadak serve` instead of the exe, the `web` field from
+portable zip does not write `HKCU\SOFTWARE\Classes\gadak` — the pack never
+touches the registry. `gadak-desktop.exe` registers that key on first launch
+and rewrites it when its path changes. Unregister with
+`gadak-desktop.exe --unregister-gadak-protocol`. On Linux, and on Windows
+when you are using `gadak serve` instead of the exe, the `web` field from
 `gadak views open --json` is the link to hand over — it needs a running
 `serve`.
 
