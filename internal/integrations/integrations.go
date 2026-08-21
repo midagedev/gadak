@@ -219,15 +219,13 @@ func raycastExtDir() string {
 }
 
 // skillPath mirrors cmd/gadak/skill.go resolveSkillDest default:
-// ~/.claude/skills/gadak/SKILL.md
+// ~/.claude/skills/gadak/SKILL.md. Same home resolution (UserHomeDir) as the
+// installer — a $HOME override the installer ignores (Git Bash, GDK-352)
+// must not make Settings call an installed skill missing.
 func skillPath() string {
-	home := os.Getenv("HOME")
-	if home == "" {
-		var err error
-		home, err = os.UserHomeDir()
-		if err != nil {
-			return filepath.Join(".claude", "skills", "gadak", "SKILL.md")
-		}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(".claude", "skills", "gadak", "SKILL.md")
 	}
 	return filepath.Join(home, ".claude", "skills", "gadak", "SKILL.md")
 }
