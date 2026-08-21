@@ -78,7 +78,9 @@ with the host.
 The Windows portable directory includes the same two binaries at the root
 (`gadak-desktop.exe` and `gadak.exe`). `gadak.exe install-cli` copies
 `gadak.exe` onto PATH (Windows has no default symlink right). Protocol-handler
-registration (`HKCU\SOFTWARE\Classes\gadak`) is not part of this pack.
+registration (`HKCU\SOFTWARE\Classes\gadak`) is not part of this pack:
+`gadak-desktop.exe` writes that key on first launch and rewrites it when the
+exe path changes. To remove it: `gadak-desktop.exe --unregister-gadak-protocol`.
 
 ### Linux build prerequisites
 
