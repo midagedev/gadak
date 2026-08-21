@@ -57,10 +57,12 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 - 게이트 단언 완화는 ①귀속 주석 ②정당한 파생 ③FAIL-first 증거 셋 모두
   있을 때만.
 - 문서 사실성 가드: `tools/doc-checks.sh` (있으면 커밋 전 실행).
-- **`web/`·`e2e/`·i18n 카탈로그를 건드렸으면 Playwright는 선택이 아니다.**
-  "영향 게이트만" 판단이 e2e를 건너뛰는 것이 실제 사고 경로였다
-  (2026-08-16: 온보딩 카피 변경이 e2e 기대값을 낡게 만들었고, 로컬은
-  go·typecheck·vitest·doc-checks 전부 초록이었다).
+- **`web/`·`e2e/`·i18n 카탈로그·`examples/demo.db`를 건드렸으면 Playwright는
+  선택이 아니다.** "영향 게이트만" 판단이 e2e를 건너뛰는 것이 실제 사고
+  경로였다 (2026-08-16: 온보딩 카피 변경이 e2e 기대값을 낡게 만들었고,
+  로컬은 go·typecheck·vitest·doc-checks 전부 초록이었다. 2026-08-21:
+  fixture 재생성이 item_refs를 비웠는데 go 전체·doc-checks가 초록이라
+  cross-links e2e 빨강을 CI에서야 봤다 — e2e가 읽는 fixture도 e2e의 일부다).
 - **푸시는 끝이 아니다 — CI 초록이 끝이다.** 푸시 직후
   `tools/ci-status.sh`(HEAD의 런을 기다려 결론을 내고, 빨간 상태 위에
   쌓았으면 그것도 알려준다). 라운드 완료 보고에 그 결과를 쓴다.
