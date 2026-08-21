@@ -34,11 +34,13 @@
           rel="noopener noreferrer"
           class="group flex items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-bg-hover"
         >
-          <span
-            class="mt-px flex-none rounded px-1.5 py-0.5 text-micro font-semibold uppercase {stateClass(pr.state)}"
-          >
-            {pr.state}
-          </span>
+          {#if pr.state}
+            <span
+              class="mt-px flex-none rounded px-1.5 py-0.5 text-micro font-semibold uppercase {stateClass(pr.state)}"
+            >
+              {pr.state}
+            </span>
+          {/if}
           <span class="min-w-0 flex-1">
             <span class="font-mono text-micro text-text-muted">{repoLabel(pr)}</span>
             <span class="block truncate text-[12px] text-text-secondary group-hover:text-text-primary">

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -351,6 +352,49 @@ type detailResponse struct {
 	Bodies map[string]json.RawMessage `json:"bodies"`
 }
 
+// githubPRURL matches a GitHub pull-request URL. Origin-agnostic on purpose:
+// a Linear issue carries these as URL attachments (its GitHub integration, its
+// attachmentLinkGitHubPR mutation, or a hand-pasted link all store the same
+// URL shape — verified live 2026-08-21, GDK-495), and a hand-attached link on
+// any other origin earns the same treatment.
+var githubPRURL = regexp.MustCompile(`^https://github\.com/([^/]+/[^/]+)/pull/(\d+)(?:[/?#]|$)`)
+
+// prLinksFromAttachments derives the linked_prs payload from mirrored
+// URL attachments when no plugin enrichment supplies one. The enrichment
+// (kind='prs') stays the winner: it can carry state and author, which a bare
+// URL cannot.
+func prLinksFromAttachments(attachments []store.DetailAttachment) json.RawMessage {
+	type linkedPr struct {
+		Number int     `json:"number"`
+		Title  string  `json:"title"`
+		URL    string  `json:"url"`
+		State  string  `json:"state"`
+		Repo   *string `json:"repo"`
+		Author *string `json:"author"`
+	}
+	var prs []linkedPr
+	for _, a := range attachments {
+		m := githubPRURL.FindStringSubmatch(a.URL)
+		if m == nil {
+			continue
+		}
+		n, err := strconv.Atoi(m[2])
+		if err != nil {
+			continue
+		}
+		repo := m[1]
+		prs = append(prs, linkedPr{Number: n, Title: a.Filename, URL: a.URL, Repo: &repo})
+	}
+	if prs == nil {
+		return nil
+	}
+	raw, err := json.Marshal(prs)
+	if err != nil {
+		return nil
+	}
+	return raw
+}
+
 func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	d, err := s.db.Detail(r.Context(), key)
@@ -409,6 +453,8 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	if p := payload(en["prs"]); p != nil {
 		res.LinkedPRs = p
+	} else if prs := prLinksFromAttachments(d.Attachments); prs != nil {
+		res.LinkedPRs = prs
 	}
 	if p := payload(en["opinion"]); p != nil {
 		res.DevelopmentOpinion = p

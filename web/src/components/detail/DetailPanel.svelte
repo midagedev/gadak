@@ -323,8 +323,10 @@
             </Section>
           {/if}
 
-          <!-- Linked PRs (same CI/CD source as deploy — gated on deploy flag) -->
-          {#if feature('deploy') && detailForKey.linked_prs.length > 0}
+          <!-- Linked PRs. Not gated on the deploy flag: since GDK-495 the list
+               also derives from mirrored PR-URL attachments (Linear), which
+               exist on workspaces that never configured a deploy plugin. -->
+          {#if detailForKey.linked_prs.length > 0}
             <Section title={t('detail.prs')} count={detailForKey.linked_prs.length}>
               <PrList prs={detailForKey.linked_prs} />
             </Section>
