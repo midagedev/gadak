@@ -181,6 +181,13 @@ the fixes are all here.
   rewrites the entry whenever its own path changes, so clicking a link in a
   browser or Slack opens the app — the portable pack itself still never
   touches the registry, and `--unregister-gadak-protocol` removes the key.
+- **The comment shortcut stops being Mac-only copy** ([GDK-354]). The
+  composer's kbd hint renders the platform's own modifier — ⌘Enter on
+  macOS, CtrlEnter elsewhere — instead of a hard-coded ⌘, `gadak raycast
+  install` refuses non-macOS hosts before unpacking anything (and the
+  desktop integrations list stops offering Raycast anywhere but macOS),
+  and the offboarding and update docs speak PowerShell and the portable
+  zip alongside `rm -rf` and brew.
 - **Windows stops pretending it notified you** ([GDK-349]). OS desktop
   notifications have one capability owner; on a platform that cannot fire
   them the watch loop no longer consumes pending events, the settings copy
@@ -1668,6 +1675,7 @@ measured numbers instead of adjectives.
 [GDK-255]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-255
 [GDK-316]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-316
 [GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353
+[GDK-354]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-354
 [GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352
 [GDK-369]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-369
 [GDK-389]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-389

@@ -202,10 +202,12 @@ goes to until you switch.
   an in-process handler.
 - **Updates:** the app checks GitHub Releases once a day like the CLI
   (`updateCheck: false` disables it) and shows a sidebar banner when a newer
-  release exists. Installing it is `brew upgrade --cask gadak` or downloading
-  the new dmg — the app does not swap itself.
+  release exists. Installing it is `brew upgrade --cask gadak`, downloading
+  the new dmg, or replacing the Windows portable-zip directory with a newer
+  zip — the app does not swap itself.
 - **Uninstall:** trash Gadak.app; the mirror and credential live in `~/.gadak`,
-  so offboarding fully is still `rm -rf ~/.gadak`.
+  so offboarding fully is still `rm -rf ~/.gadak` (PowerShell:
+  `Remove-Item -Recurse -Force $HOME\.gadak`).
 
 ## Building from source
 

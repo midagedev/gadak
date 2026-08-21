@@ -187,6 +187,52 @@ func TestCmdRaycastUsage(t *testing.T) {
 	}
 }
 
+// GDK-354 / os-audit F-7: Raycast is a macOS app. The GOOS seam must refuse
+// every non-darwin host before unpacking the extension. Table pins linux /
+// windows / js on any CI host (same shape as clitool.ResolveFor).
+func TestRaycastInstallErrFor(t *testing.T) {
+	tests := []struct {
+		goos    string
+		wantErr bool
+	}{
+		{goos: "darwin", wantErr: false},
+		{goos: "linux", wantErr: true},
+		{goos: "windows", wantErr: true},
+		{goos: "js", wantErr: true},
+		{goos: "freebsd", wantErr: true},
+		{goos: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		name := tt.goos
+		if name == "" {
+			name = "empty"
+		}
+		t.Run(name, func(t *testing.T) {
+			err := raycastInstallErrFor(tt.goos)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("raycastInstallErrFor(%q) = nil, want macOS-only error", tt.goos)
+				}
+				if !strings.Contains(err.Error(), "macOS-only") {
+					t.Fatalf("raycastInstallErrFor(%q) = %v, want macOS-only", tt.goos, err)
+				}
+				if tt.goos != "" && !strings.Contains(err.Error(), tt.goos) {
+					t.Fatalf("raycastInstallErrFor(%q) = %v, want the GOOS named", tt.goos, err)
+				}
+				// Wiring: the install verb must refuse before it unpacks.
+				got := cmdRaycastInstallFor(tt.goos, nil)
+				if got == nil || !strings.Contains(got.Error(), "macOS-only") {
+					t.Fatalf("cmdRaycastInstallFor(%q) = %v, want macOS-only", tt.goos, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("raycastInstallErrFor(%q) = %v, want nil", tt.goos, err)
+			}
+		})
+	}
+}
+
 func TestNPMMissingMessageListsTried(t *testing.T) {
 	msg := npmMissingMessage()
 	detail := clitool.NPMNotFoundDetail()

@@ -37,7 +37,8 @@ and `SECURITY.md` says what leaves your machine (nothing) so you can ask it
 accurately.
 
 On a connected workspace (one pointed at an Atlassian site), offboarding is
-`rm -rf ~/.gadak` — that directory is a cache of the site. On a standalone
+`rm -rf ~/.gadak` (PowerShell: `Remove-Item -Recurse -Force $HOME\.gadak`) —
+that directory is a cache of the site. On a standalone
 workspace, `origin/issuetap.yaml` in the workspace directory is the original:
 moving or deleting that file is deleting the data. The SQLite mirror
 (`gadak.db`) is still a cache either way.

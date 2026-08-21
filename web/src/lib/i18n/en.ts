@@ -699,7 +699,7 @@ export const en = {
   'write.credDeleted': 'Jira credentials deleted.',
   'write.credDeleteFailed': 'Could not delete credentials.',
   'write.commentPlaceholder': 'Add a comment…',
-  'write.commentShortcut': '⌘Enter',
+  'write.commentShortcut': '{mod}Enter',
   'write.commentNeedCredentials': 'Set credentials to leave a comment',
   'write.commentPosting': 'Posting…',
   'write.commentButton': 'Comment',

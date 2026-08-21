@@ -693,7 +693,7 @@ export const ko = {
   'write.credDeleted': 'Jira 자격증명을 삭제했습니다.',
   'write.credDeleteFailed': '자격증명 삭제에 실패했습니다.',
   'write.commentPlaceholder': '코멘트 추가…',
-  'write.commentShortcut': '⌘Enter',
+  'write.commentShortcut': '{mod}Enter',
   'write.commentNeedCredentials': '코멘트를 남기려면 자격증명을 설정하세요',
   'write.commentPosting': '등록 중…',
   'write.commentButton': '코멘트',

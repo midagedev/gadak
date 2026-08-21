@@ -248,7 +248,8 @@ Set `"updateCheck": false` in `config.json`, or `gadak config set updateCheck
 false`, to disable the lookup entirely (no GitHub version check; outbound
 stays your configured origins — Atlassian, Linear if enabled, pairing home,
 user-invoked `gh`). The lookup only feeds the sidebar
-banner; installing an update is `brew upgrade --cask gadak` or a new dmg.
+banner; installing an update is `brew upgrade --cask gadak`, a new dmg, or
+replacing the Windows portable-zip directory with a newer zip.
 
 ---
 

@@ -18,7 +18,7 @@ import (
 )
 
 // IDs are part of the GET/POST contract. Order of List is fixed:
-// command-line-tool, raycast (omitted on Windows), skill, mcp-claude.
+// command-line-tool, raycast (darwin only), skill, mcp-claude.
 const (
 	IDCommandLineTool = "command-line-tool"
 	IDRaycast         = "raycast"
@@ -60,9 +60,9 @@ type Item struct {
 }
 
 // List returns the catalog rows for this host's GOOS, in contract order:
-// command-line-tool, raycast (darwin/linux only), skill, mcp-claude.
-// Windows omits raycast — Raycast does not exist there, and a row whose
-// Install button can run would lie (GDK-244).
+// command-line-tool, raycast (darwin only), skill, mcp-claude.
+// Non-macOS hosts omit raycast — Raycast does not exist there, and a row
+// whose Install button can run would lie (GDK-244, GDK-354).
 func List() []Item {
 	return ListFor(runtime.GOOS)
 }
@@ -79,9 +79,11 @@ func ListFor(goos string) []Item {
 }
 
 // raycastOffered is the single owner of "does this OS get a Raycast row".
-// The install endpoint uses the same predicate via InstallArgsFor.
+// The install endpoint uses the same predicate via InstallArgsFor. Raycast
+// is a macOS app, and `gadak raycast install` refuses every non-darwin GOOS
+// (GDK-354 / os-audit F-7) — a row it offers must be one it can install.
 func raycastOffered(goos string) bool {
-	return goos != "windows"
+	return goos == "darwin"
 }
 
 // InstallArgs is the argv tail for the bundled gadak CLI. ok is false for an

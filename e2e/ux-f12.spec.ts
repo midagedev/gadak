@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, openServerSettings, searchInput } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
+import { ko } from '../web/src/lib/i18n/ko'
 
 /*
  * F12 UX defects (GDK-475, GDK-476, GDK-477).
@@ -49,8 +50,17 @@ test.describe('F12 detail / settings / server-down', () => {
 
     const shortcut = panel.getByTestId('comment-shortcut')
     await expect(shortcut).toHaveCount(1)
-    await expect(shortcut).toHaveText(en['write.commentShortcut'])
-    await expect(panel.getByText(en['write.commentShortcut'])).toHaveCount(1)
+    // GDK-354 / F-1: kbd is the platform modifier + Enter, not the catalog
+    // string (which used to hard-code ⌘Enter on every OS). Same platform
+    // test as modifierSymbol() in web/src/lib/unified-search.ts.
+    expect(en['write.commentShortcut']).not.toMatch(/⌘/)
+    expect(ko['write.commentShortcut']).not.toMatch(/⌘/)
+    const mod = await page.evaluate(() =>
+      /Mac|iP(hone|ad)/.test(navigator.platform) ? '⌘' : 'Ctrl',
+    )
+    const label = `${mod}Enter`
+    await expect(shortcut).toHaveText(label)
+    await expect(panel.getByText(label)).toHaveCount(1)
 
     await page.screenshot({ path: '/tmp/f12-shots/475-detail-nma1.png' })
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

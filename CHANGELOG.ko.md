@@ -175,6 +175,12 @@
   바뀌면 항목을 다시 씁니다 — 브라우저·슬랙에서 링크를 클릭하면 앱이
   열립니다. 포터블 팩 자체는 여전히 레지스트리를 건드리지 않고,
   `--unregister-gadak-protocol`로 키를 제거할 수 있습니다.
+- **코멘트 단축키 표기가 맥 전용이기를 멈춥니다** ([GDK-354]). 코멘트
+  입력창의 kbd 힌트가 하드코딩된 ⌘ 대신 플랫폼의 수식키를 그립니다 —
+  macOS는 ⌘Enter, 그 외는 CtrlEnter. `gadak raycast install`은 macOS가
+  아닌 호스트를 풀기 전에 거절하고(데스크톱 통합 목록도 macOS 밖에서는
+  Raycast를 제안하지 않습니다), 오프보딩·업데이트 문서가 `rm -rf`와 brew
+  옆에서 PowerShell과 포터블 zip을 말합니다.
 - **Windows가 알린 척을 멈춥니다** ([GDK-349]). OS 데스크톱 알림의 능력
   판정에 단일 소유자가 생겨, 알림을 못 쏘는 플랫폼에서는 watch 루프가
   대기 이벤트를 소비하지 않고, 설정 카피의 "항상 동작" 주장이 사라지며,
@@ -1670,6 +1676,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-255]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-255
 [GDK-316]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-316
 [GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353
+[GDK-354]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-354
 [GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352
 [GDK-369]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-369
 [GDK-389]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-389

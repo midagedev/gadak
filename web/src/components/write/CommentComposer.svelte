@@ -16,6 +16,7 @@
   import type { CommentMention, JiraUser, UploadedAttachment } from '../../lib/types'
   import { isHostedDemo } from '../../lib/config'
   import { commentDraftKey } from '../../lib/storage'
+  import { modifierSymbol } from '../../lib/unified-search'
   import Icon from '../ui/Icon.svelte'
 
   /** onsubmitted fires after a comment commits — the quick-comment dialog closes on it. */
@@ -420,7 +421,7 @@
     <kbd
       data-testid="comment-shortcut"
       class="rounded border border-border-subtle px-1 text-micro text-text-muted"
-    >{t('write.commentShortcut')}</kbd>
+    >{t('write.commentShortcut', { mod: modifierSymbol() })}</kbd>
     <button
       type="button"
       onclick={submit}

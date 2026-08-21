@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +26,7 @@ func init() {
 	// helps is declared in help.go; register here so the command stays in
 	// lockstep with TestHelpCoversAllCommands.
 	helps["raycast"] = cmdHelp{
-		summary: "install the Raycast extension that searches the local mirror",
+		summary: "install the Raycast extension that searches the local mirror (macOS only)",
 		usage:   "gadak raycast install",
 		examples: []string{
 			"gadak raycast install",
@@ -59,12 +60,31 @@ func cmdRaycast(args []string) error {
 }
 
 func cmdRaycastInstall(args []string) error {
+	return cmdRaycastInstallFor(runtime.GOOS, args)
+}
+
+// raycastInstallErrFor is the GOOS seam for `gadak raycast install`.
+// Raycast is a macOS app; every other GOOS must refuse before unpacking
+// the extension so a Windows/Linux binary does not write a directory that
+// cannot register (GDK-354 / os-audit F-7). Tests pin linux/windows/js on
+// any host the same way clitool.ResolveFor does.
+func raycastInstallErrFor(goos string) error {
+	if goos == "darwin" {
+		return nil
+	}
+	return fmt.Errorf("gadak raycast install is not supported on %s — Raycast is macOS-only", goos)
+}
+
+func cmdRaycastInstallFor(goos string, args []string) error {
 	if wantsHelp(args) {
 		printHelp("raycast")
 		return nil
 	}
 	if len(args) > 0 {
 		return usageError("raycast", "usage: gadak raycast install")
+	}
+	if err := raycastInstallErrFor(goos); err != nil {
+		return err
 	}
 
 	dest, err := clitool.RaycastExtDir()

@@ -441,6 +441,23 @@ func TestInstallArgsForWindowsRejectsRaycast(t *testing.T) {
 	}
 }
 
+// GDK-354 / os-audit F-7: Raycast is a macOS app, and `gadak raycast install`
+// refuses every non-darwin GOOS — so the catalog must not offer a row whose
+// Install button is guaranteed to fail. Same reasoning as GDK-244 on Windows.
+func TestInstallArgsForLinuxRejectsRaycast(t *testing.T) {
+	if args, ok := InstallArgsFor(IDRaycast, "linux"); ok {
+		t.Fatalf("linux must not install raycast, args=%v", args)
+	}
+	for _, item := range ListFor("linux") {
+		if item.ID == IDRaycast {
+			t.Fatal("linux catalog must not list raycast")
+		}
+	}
+	if _, ok := InstallArgsFor(IDSkill, "linux"); !ok {
+		t.Fatal("skill must still be installable on linux")
+	}
+}
+
 func TestListMatchesListForThisGOOS(t *testing.T) {
 	stubNoClaude(t)
 	got := List()
