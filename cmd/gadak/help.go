@@ -397,11 +397,12 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak edit", "gadak issue"},
 	},
 	"edit": {
-		summary: "edit summary, description, labels, priority, parent, or due date",
-		usage:   "gadak [--workspace <name>] edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]",
+		summary: "edit summary, description, labels, components, priority, parent, or due date",
+		usage:   "gadak [--workspace <name>] edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--component +x|-x]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]",
 		examples: []string{
 			"gadak edit NMB-140 --summary \"Rename without opening Jira\"",
 			"gadak edit NMB-140 --label +batch --label -legacy --priority High",
+			"gadak edit NMB-140 --component +SDK --component -Docs",
 			"gadak edit NMB-140 --due 2026-09-01",
 			"gadak edit NMB-140 --due none",
 		},

@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -47,6 +49,18 @@ import (
 //     TestEditParentNoneClearsMirrorParentKey
 // 15. Jira hierarchy rejection is surfaced verbatim
 //     TestEditParentRejectedByJiraSurfacesMessage
+//
+// --component (GDK-517):
+// 16. --component +SDK --component -Docs → update.components add/remove {name}
+//     TestEditComponentAddRemoveVerbs
+// 17. Bare --component value rejected (add or remove); no PUT
+//     TestEditComponentBareValueRejected
+// 18. Edit without --component omits the components key
+//     TestEditWithoutComponentOmitsComponentsKey
+// 19. Origin 400 + editmeta allowedValues → "available components:" names
+//     TestEditComponentOrigin400HintsAllowedValues
+// 20. --label and --component together each get their own update array
+//     TestEditLabelAndComponentBothGoOut
 
 func TestEditSummaryAlone(t *testing.T) {
 	f := newFakeJira(t)
@@ -289,7 +303,7 @@ func TestEditNoFlagsIsUsageError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "usage: gadak edit") {
 		t.Fatalf("no flags: %v", err)
 	}
-	for _, want := range []string{"--summary", "-m", "--label", "--priority", "--parent"} {
+	for _, want := range []string{"--summary", "-m", "--label", "--component", "--priority", "--parent"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("usage %q missing %q", err, want)
 		}
@@ -672,4 +686,235 @@ func TestEditDueNoneProcessedBeforeFormat(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "want YYYY-MM-DD") {
 		t.Fatalf("NONE is not the literal none: %v", err)
 	}
+}
+
+func TestEditComponentAddRemoveVerbs(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--component", "+SDK", "--component", "-Docs"})
+	})
+	if err != nil {
+		t.Fatalf("edit --component: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	got := string(putUpdateField(t, body, "components"))
+	want := `[{"add":{"name":"SDK"}},{"remove":{"name":"Docs"}}]`
+	if got != want {
+		t.Fatalf("update.components = %s, want %s (body %s)", got, want, body)
+	}
+	if _, ok := putPayload(t, body).Fields["summary"]; ok {
+		t.Errorf("component-only must omit fields: %s", body)
+	}
+	if f.called("GET /issue/NMB-1/editmeta") {
+		t.Fatalf("success path must not GET editmeta: %v", f.calls)
+	}
+}
+
+func TestEditComponentBareValueRejected(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--component", "SDK"})
+	})
+	if err == nil {
+		t.Fatal("bare component must be refused")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "add or remove") {
+		t.Errorf("error must show add-vs-replace wording: %q", msg)
+	}
+	if !strings.Contains(msg, "--component") {
+		t.Errorf("error must name --component: %q", msg)
+	}
+	if !strings.Contains(msg, "SDK") {
+		t.Errorf("error should name the value: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("bare component reached Jira: %v", f.calls)
+	}
+	if f.called("GET /issue/NMB-1/editmeta") {
+		t.Fatalf("local reject must not GET editmeta: %v", f.calls)
+	}
+}
+
+func TestEditWithoutComponentOmitsComponentsKey(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--label", "+batch"})
+	})
+	if err != nil {
+		t.Fatalf("edit --label: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	payload := putPayload(t, body)
+	if _, ok := payload.Update["components"]; ok {
+		t.Fatalf("components key present without --component: %s", body)
+	}
+	if string(payload.Update["labels"]) != `[{"add":"batch"}]` {
+		t.Fatalf("labels-only update drifted: %s", body)
+	}
+}
+
+func TestEditComponentOrigin400HintsAllowedValues(t *testing.T) {
+	f := newFakeJira(t)
+	f.editMeta = `{"components":{"allowedValues":[{"id":"1","name":"SDK"},{"id":"2","name":"Docs"},{"id":"3","name":"API"}]}}`
+	rejectIssuePUT(t, f, `Component name "Nope" is not valid.`)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--component", "+Nope"})
+	})
+	if err == nil {
+		t.Fatal("expected origin 400")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `Component name "Nope" is not valid.`) {
+		t.Fatalf("must keep origin wording, got %q", msg)
+	}
+	if !strings.Contains(msg, "available components:") {
+		t.Fatalf("missing available-components hint: %q", msg)
+	}
+	for _, name := range []string{"SDK", "Docs", "API"} {
+		if !strings.Contains(msg, name) {
+			t.Errorf("hint missing %q: %q", name, msg)
+		}
+	}
+	if !f.called("PUT /issue/NMB-1") {
+		t.Fatalf("valid +/- must reach Jira: %v", f.calls)
+	}
+	if !f.called("GET /issue/NMB-1/editmeta") {
+		t.Fatalf("400 path must GET editmeta once: %v", f.calls)
+	}
+	n := 0
+	for _, c := range f.calls {
+		if c == "GET /issue/NMB-1/editmeta" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("editmeta GET count %d, want 1: %v", n, f.calls)
+	}
+}
+
+func TestEditComponentOrigin400WithoutComponentsFieldKeepsError(t *testing.T) {
+	f := newFakeJira(t)
+	f.editMeta = `{"summary":{"operations":["set"]}}`
+	rejectIssuePUT(t, f, `Component name "Nope" is not valid.`)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--component", "+Nope"})
+	})
+	if err == nil {
+		t.Fatal("expected origin 400")
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "available components:") {
+		t.Fatalf("hint attached without components field: %q", msg)
+	}
+	if !strings.Contains(msg, `Component name "Nope" is not valid.`) {
+		t.Fatalf("origin wording lost: %q", msg)
+	}
+}
+
+func TestEditLabelAndComponentBothGoOut(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{
+			"NMB-1",
+			"--label", "+batch",
+			"--label", "-legacy",
+			"--component", "+SDK",
+			"--component", "-Docs",
+		})
+	})
+	if err != nil {
+		t.Fatalf("edit --label --component: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if string(putUpdateField(t, body, "labels")) != `[{"add":"batch"},{"remove":"legacy"}]` {
+		t.Fatalf("labels: %s", body)
+	}
+	if string(putUpdateField(t, body, "components")) != `[{"add":{"name":"SDK"}},{"remove":{"name":"Docs"}}]` {
+		t.Fatalf("components: %s", body)
+	}
+}
+
+func TestEditHelpShowsComponentSyntax(t *testing.T) {
+	h, ok := helps["edit"]
+	if !ok {
+		t.Fatal("edit missing from helps")
+	}
+	if !strings.Contains(h.usage, "--component +x|-x") {
+		t.Errorf("usage missing --component: %s", h.usage)
+	}
+	joined := strings.Join(h.examples, "\n")
+	if !strings.Contains(joined, "--component +") || !strings.Contains(joined, "--component -") {
+		t.Errorf("examples missing --component +x --component -y:\n%s", joined)
+	}
+	if !strings.Contains(editUsage, "--component") {
+		t.Errorf("editUsage missing --component: %s", editUsage)
+	}
+}
+
+func putPayload(t *testing.T, body string) struct {
+	Fields map[string]json.RawMessage `json:"fields"`
+	Update map[string]json.RawMessage `json:"update"`
+} {
+	t.Helper()
+	var payload struct {
+		Fields map[string]json.RawMessage `json:"fields"`
+		Update map[string]json.RawMessage `json:"update"`
+	}
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		t.Fatalf("PUT JSON: %v (%s)", err, body)
+	}
+	return payload
+}
+
+func putUpdateField(t *testing.T, body, field string) json.RawMessage {
+	t.Helper()
+	payload := putPayload(t, body)
+	raw, ok := payload.Update[field]
+	if !ok {
+		t.Fatalf("update.%s missing: %s", field, body)
+	}
+	return raw
+}
+
+// rejectIssuePUT answers 400 with jiraMsg on PUT /issue/{key} (not editmeta).
+func rejectIssuePUT(t *testing.T, f *fakeJira, jiraMsg string) {
+	t.Helper()
+	inner := f.Config.Handler
+	f.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/rest/api/3")
+		isIssuePUT := r.Method == http.MethodPut && strings.HasPrefix(path, "/issue/") && strings.Count(path, "/") == 2
+		rec := httptest.NewRecorder()
+		inner.ServeHTTP(rec, r)
+		if isIssuePUT {
+			msg, _ := json.Marshal(jiraMsg)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"errorMessages":[` + string(msg) + `]}`))
+			return
+		}
+		for k, vs := range rec.Header() {
+			for _, v := range vs {
+				w.Header().Add(k, v)
+			}
+		}
+		status := rec.Code
+		if status == 0 {
+			status = http.StatusOK
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write(rec.Body.Bytes())
+	})
 }
