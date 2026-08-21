@@ -33,6 +33,9 @@ test.describe('F12 detail / settings / server-down', () => {
     const errors = attachConsoleErrors(page)
     await page.setViewportSize({ width: 1280, height: 800 })
     await gotoApp(page)
+    // Flat view: the epic-grouped boot default (GDK-100) can leave the
+    // searched row outside the virtual scroller, so the click never lands.
+    await page.getByRole('button', { name: /All open/ }).click()
     const panel = await openIssue(page, 'NMA-1')
 
     const comments = panel.getByRole('heading', { name: 'Comments' })

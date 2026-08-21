@@ -49,6 +49,9 @@ test.describe('history view', () => {
   test('two opens of one issue record two visits and show 2 times', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
+    // Flat view: the epic-grouped boot default (GDK-100) can leave the
+    // searched row outside the virtual scroller, so the click never lands.
+    await page.getByRole('button', { name: /All open/ }).click()
 
     const posted: string[] = []
     page.on('request', (req) => {
