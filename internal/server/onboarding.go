@@ -17,7 +17,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -76,6 +75,15 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	if err := originbind.RefuseSiteRebind(s.config(), site); err != nil {
+		var bound *originbind.SiteBoundError
+		if errors.As(err, &bound) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": bound.Error()})
+			return
+		}
+		serverError(w, r, err)
+		return
+	}
 	// Snapshot before save: first credential may need to kick the serve Watch loop.
 	hadCredential := s.config().HasCredential()
 	me, err := origin.Connected(site, email, token).Myself(r.Context())
@@ -84,7 +92,7 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusUnauthorized, rejectedCredentialCode(token))
 			return
 		}
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	wasStandalone := s.config().IsStandalone()
@@ -156,18 +164,7 @@ func rejectedCredentialCode(token string) string {
 // without a trailing slash. Anything that is not a plain host URL is rejected by
 // returning "", which the caller answers as site_required.
 func normalizeSite(raw string) string {
-	v := strings.TrimRight(strings.TrimSpace(raw), "/")
-	if v == "" {
-		return ""
-	}
-	if !strings.Contains(v, "://") {
-		v = "https://" + v
-	}
-	u, err := url.Parse(v)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return ""
-	}
-	return u.Scheme + "://" + u.Host
+	return originbind.CanonicalSite(raw)
 }
 
 /* ── step 2: project picker ── */
@@ -179,7 +176,7 @@ func (s *server) handleAvailableProjects(w http.ResponseWriter, r *http.Request)
 	}
 	list, truncated, err := c.Projects(r.Context(), maxProjects)
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	if list == nil {
@@ -295,7 +292,7 @@ func (s *server) startSyncJob(cfg *config.Config, full bool) bool {
 		s.syncMu.Unlock()
 		return false
 	}
-	if s.syncJob.Running {
+	if s.syncJob.Running || s.activity.Running {
 		s.syncMu.Unlock()
 		return false
 	}
@@ -334,11 +331,36 @@ func (s *server) runSyncJob(ctx context.Context, cfg *config.Config, full bool) 
 	})
 	fetched, changed, deleted := res.Fetched, res.Changed, res.Deleted
 	jobErr := err
+	jiraOK := err == nil
+	// Linear is best-effort like Watch (fatal: false). Only after Jira
+	// succeeds: a Jira auth failure ends Watch before Linear runs too.
+	if jiraOK && cfg != nil && cfg.Linear != nil {
+		jiraFetched, jiraChanged := fetched, changed
+		lres, lerr := sync.RunLinear(ctx, cfg, s.db, sync.Options{
+			Full:         full,
+			LinearClient: s.syncLinear,
+			Progress: func(f, c int) {
+				s.syncMu.Lock()
+				s.syncJob.Fetched = jiraFetched + f
+				s.syncJob.Changed = jiraChanged + c
+				if s.activity.Running {
+					s.activity.Fetched, s.activity.Changed = f, c
+				}
+				s.syncMu.Unlock()
+			},
+		})
+		fetched += lres.Fetched
+		changed += lres.Changed
+		deleted += lres.Deleted
+		if lerr != nil {
+			jobErr = lerr
+		}
+	}
 	// Confluence is best-effort: a failure must not block Jira (same policy as
 	// sync.Watch). Only run after Jira succeeds; leave its error on the job so
 	// the UI can surface a partial failure without treating the whole job as a
 	// hard fail when Jira completed.
-	if jobErr == nil && cfg != nil && cfg.Confluence != nil {
+	if jiraOK && cfg != nil && cfg.Confluence != nil {
 		// Job counters stay the sum of both sources; activity is per-source.
 		jiraFetched, jiraChanged := fetched, changed
 		s.reportActivityPhase(sync.PhaseDocuments)

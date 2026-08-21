@@ -21,6 +21,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/selfupdate"
 	"github.com/midagedev/gadak/internal/store"
@@ -84,6 +85,10 @@ type server struct {
 	// syncKick starts a background sync. Nil means the real one. Tests replace it
 	// to assert that a settings write asks for a resync without doing one.
 	syncKick func(cfg *config.Config, full bool) bool
+
+	// syncLinear is an optional Linear client for runSyncJob. Tests pin an
+	// httptest client here; production leaves it nil so RunLinear uses origin.Linear.
+	syncLinear *linear.Client
 
 	// Per-instance sync job and activity (not package-global): workspace mode
 	// runs one server per profile in the same process, so each must track its own.

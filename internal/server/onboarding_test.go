@@ -14,6 +14,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	gadakSync "github.com/midagedev/gadak/internal/sync"
@@ -683,6 +684,104 @@ func TestConnectReplaceStandaloneDropsWatchesFavoritesAndLOC(t *testing.T) {
 	}
 	if saved.IsStandalone() {
 		t.Fatal("replace_standalone must leave IsStandalone false")
+	}
+}
+
+func TestRunSyncJobPullsLinear(t *testing.T) {
+	// GDK-563: POST sync/ must call RunLinear the way Watch does.
+	f, h, _ := onboarding(t)
+	connect(t, h, f)
+
+	var hits int
+	lin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"issues":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}`))
+	}))
+	t.Cleanup(lin.Close)
+	lc := linear.New("test-key")
+	lc.Endpoint = lin.URL
+	lc.HTTP = lin.Client()
+	lc.Retries, lc.Backoff = 1, 0
+
+	hh := h.(*Handler)
+	cfg := *hh.s.config()
+	cfg.Linear = &config.LinearConfig{APIKey: "test-key"}
+	hh.s.cfg.Store(&cfg)
+	hh.s.syncLinear = lc
+
+	if rec := send(t, h, http.MethodPost, apiBase+"sync/", ""); rec.Code != http.StatusAccepted {
+		t.Fatalf("start: %d %s", rec.Code, rec.Body.String())
+	}
+	p := waitDone(t, h)
+	if p.Phase == "error" && hits == 0 {
+		t.Fatalf("job error without Linear: %+v", p)
+	}
+	if hits == 0 {
+		t.Fatal("RunLinear was not called — POST sync/ never pulled Linear")
+	}
+}
+
+func TestOverlappingSyncKicksRunOnce(t *testing.T) {
+	// GDK-574: two overlapping kicks → one run.
+	f, h, _ := onboarding(t)
+	f.hold, f.held = make(chan struct{}), make(chan struct{})
+	connect(t, h, f)
+
+	rec1 := send(t, h, http.MethodPost, apiBase+"sync/", "")
+	if rec1.Code != http.StatusAccepted {
+		t.Fatalf("first kick: %d %s", rec1.Code, rec1.Body.String())
+	}
+	<-f.held
+	rec2 := send(t, h, http.MethodPost, apiBase+"sync/", "")
+	if rec2.Code != http.StatusConflict || !strings.Contains(rec2.Body.String(), "sync_in_progress") {
+		t.Fatalf("second kick: %d %s", rec2.Code, rec2.Body.String())
+	}
+	close(f.hold)
+	_ = waitDone(t, h)
+}
+
+func TestStartSyncJobNoopsWhenWatchActivityRunning(t *testing.T) {
+	// GDK-574: a kicked job is a no-op while Watch is mid-cycle.
+	_, h, _ := onboarding(t)
+	hh := h.(*Handler)
+	hh.s.reportActivityPhase(gadakSync.PhaseIssues)
+	cfg := &config.Config{Site: "http://example.invalid", Email: "a@b.c", Token: "t"}
+	if hh.s.startSyncJob(cfg, true) {
+		t.Fatal("startSyncJob ran while Watch activity is in flight")
+	}
+}
+
+func TestConnectRefusesDifferentSite(t *testing.T) {
+	// GDK-561: a connected workspace is bound to one origin. Re-pointing
+	// PUT onboarding/connect/ at a second site must refuse; same-site
+	// token rotation must still work.
+	f, h, home := onboarding(t)
+	connect(t, h, f)
+
+	other := newOnboardJira(t)
+	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
+		`{"site":"`+other.URL+`","jira_email":"hc@example.com","api_token":"tok"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("rebind status %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, f.URL) {
+		t.Fatalf("refusal must name the bound site %s: %s", f.URL, body)
+	}
+	if !strings.Contains(body, "gadak --workspace") {
+		t.Fatalf("refusal must say to create a new workspace: %s", body)
+	}
+	saved := savedConfig(t, home)
+	if got, _ := saved["site"].(string); got != f.URL {
+		t.Fatalf("bound site mutated to %q, want %q", got, f.URL)
+	}
+
+	// Same-site re-entry (token rotation) still works.
+	rec = send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
+		`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"tok-rotated"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("same-site rotate: %d %s", rec.Code, rec.Body.String())
 	}
 }
 
