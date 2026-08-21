@@ -161,9 +161,11 @@ WHERE status_category = 'inprogress'  -- RIGHT: stable everywhere
 
 `items` is the source-neutral spine (title, `body_text`, timestamps). `issues`
 is the Jira projection, joined on `issues.item_id = items.id`. **`issues_full`
-is the view to reach for** — every `issues` column plus `summary`. `pages` is
-the Confluence projection. `comments`, `attachments`, `changelog`, and `links`
-hang off `items.id`. `items_fts` is one FTS5 index over titles, bodies, and
+is the view to reach for** — every `issues` column plus `summary` and
+`description_text` (`items.body_text`, flattened). `pages` is
+the Confluence projection. `comments`, `attachments`, `changelog`, `links`,
+and `dev_links` (development-panel PRs) hang off `items.id`. `items_fts` is
+one FTS5 index over titles, bodies, and
 comment text — issues and wiki pages together. `labels`, `components`, and
 `fix_versions` are JSON arrays; reach them with `json_each`. Mapped custom
 fields live in `issues.custom` (and `issues_full.custom`) keyed by alias —
@@ -230,6 +232,13 @@ ORDER BY created_at LIMIT 30;
 SELECT it.kind, it.title, substr(c.body_text, 1, 80), c.created_at
 FROM comments c JOIN items it ON it.id = c.item_id
 WHERE c.author = 'Dana Whitfield' ORDER BY c.created_at DESC LIMIT 20;
+
+-- Work in the active sprint (sprint_id / sprint_state are the stable keys;
+-- sprint_name is a localized display name — never filter on it)
+SELECT key, summary, sprint_id, sprint_name
+FROM issues_full
+WHERE sprint_state = 'active' AND status_category != 'done'
+ORDER BY priority_rank, updated_at DESC;
 ```
 
 `gadak search "…"` is the shortcut when a query is overkill; `--json` includes a
@@ -345,21 +354,37 @@ gadak dev scan                                                # or sweep the rep
 
 # connected: a key that exists on that site
 gadak issue NMB-140 --json                    # fields, description, comments, history
+gadak issue NMB-140 --editmeta                # which configured fields this issue can edit (origin GET; not stored)
 gadak issue NMB-140 NMB-141 --json            # JSON array of the same documents; omit --json for text with --- KEY --- between them
 gadak sql --no-header "select key from issues_full where parent_key='NMB-140'" | gadak issue --keys -
 gadak issue NMB-140 --derive                  # why reopen_count / resolved_at / epic_key are what they are
+gadak comment NMB-140 Reproduced on staging.  # positional body
 gadak comment NMB-140 -m "Reproduced on staging."
 gadak comment NMB-140 -m "thanks @Dana"       # @Name resolves to a site user; ambiguous names are refused
 gadak comment NMB-140 -m -                    # body from stdin, for anything multi-line
+gadak comment NMB-140 -m "done" --visibility role=Administrators
+gadak comment NMB-140 -m "done" --internal    # JSM internal
+gadak transition NMB-140                      # list tokens this credential can fire
 gadak transition NMB-140 "In Review"
+gadak transition NMB-140 done                 # status category: new | inprogress | done
+gadak transition NMB-140 done --resolution "Won't Do" -m "fixed in 1.2"
 gadak assign NMB-140 dana@example.com         # email, display name, or accountId; `-` unassigns. Ambiguous names are refused with the candidates.
 gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging" --parent NMB-1
+gadak create Severity required --project NMB --type Task --field severity=High
 gadak attach NMB-140 screenshot.png trace.log
 gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none
+gadak edit NMB-140 --component +SDK --component -Docs
+gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
+gadak edit NMB-140 --field severity=High
 gadak link NMB-140 NMB-141 --type blocks          # A blocks B; --type "is blocked by" reverses
 
 gadak create --batch -                        # one JSON object per line on stdin
+gadak fields --apply                          # map in-use custom fields, then edit --field alias=value
 ```
+
+Custom-field writes follow this order: `gadak fields --apply` (save aliases) →
+`gadak issue KEY --editmeta` (which of those aliases this issue can edit) →
+`gadak edit KEY --field alias=value` or `gadak create … --field alias=value`.
 
 `gadak comment` resolves `@Name` to a site user (account id) before sending.
 Ambiguous names are refused with the candidates and no comment is posted. A
@@ -387,10 +412,11 @@ home serve, not Atlassian.
 Never write to the SQLite file. A row written directly is destroyed by the
 next sync, on either kind.
 
-There is no separate write API to discover: everything gadak can change is one
-of the verbs above (including `page create|edit|comment`). If a field is not
-covered, say so rather than reaching for the REST API — `gadak api` exists for
-that, but it is an escape hatch, not the path of least surprise.
+Discover flags from the binary, not from memory: `gadak <verb> --help` lists
+what that verb accepts, and `gadak issue KEY --editmeta` lists which configured
+custom fields this issue can edit. If a field still is not there, say so rather
+than reaching for the REST API — `gadak api` exists for that, but it is an
+escape hatch, not the path of least surprise.
 
 ## Workspace settings
 
@@ -435,10 +461,26 @@ belong to the web; the CLI only checks the shape.
   Filter `visibility_type != '' OR jsd_public = 0` first (`jsd_public` NULL
   means the marker was absent, not internal).
 
+## Development-panel links (`dev_links`)
+
+`dev_links` is the projected development panel (pull-request URL, title,
+status). `gadak issue KEY --json` includes it; SQL joins `dev_links` on
+`item_id`.
+
+- **standalone:** `gadak dev link KEY --pr <url>` records a PR through the
+  local origin; `gadak dev scan` execs `gh pr list` and links matches
+  (`cmd/gadak/dev.go`). Both refuse on a connected workspace.
+- **connected Cloud:** do not run `dev link` / `dev scan`. Enable `devStatus`
+  in config.json to *mirror* Jira's development panel into `dev_links` (read).
+- **paired** is kind `connected`: same refusal as Cloud. Write on the
+  standalone home, then sync.
+
 ## When the mirror does not model it
 
-Watchers, worklogs, sprints, user search, and anything else sync does not
-project are reachable through the origin with `gadak api`:
+Watchers, worklogs, user search, and anything else sync does not
+project are reachable through the origin with `gadak api`. Sprints *are*
+projected (`issues.sprint_id`, `sprint_name`, `sprint_state`); filter on
+`sprint_id` or `sprint_state='active'`, never on `sprint_name`.
 
 ```bash
 gadak api GET /rest/api/3/issue/NMB-140/watchers

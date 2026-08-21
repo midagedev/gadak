@@ -193,6 +193,7 @@ empty otherwise. Opening one needs the macOS desktop app installed.
 ```bash
 gadak issue NMB-140                   # fields, description, comments, history, links
 gadak issue NMB-140 --json            # the `GET <key>/detail/` document plus the list row
+gadak issue NMB-140 --editmeta        # which configured fields this issue can edit (origin; not stored)
 gadak sql --no-header "select key from issues_full where parent_key='NMB-140'" | gadak issue --keys -
 # `gadak issue` is the context pack: one call returns everything an LLM needs
 # about an issue — no follow-up requests, no pagination.
@@ -211,18 +212,32 @@ gadak views save "Night triage" --jql 'assignee = currentUser() AND resolution i
 
 gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging" --parent NMB-1
 gadak create --batch -                # one JSON object per line on stdin
+gadak create Severity required --project NMB --type Task --field severity=High
 gadak attach NMB-140 screenshot.png trace.log
 gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none
+gadak edit NMB-140 --component +SDK --component -Docs
+gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
+gadak edit NMB-140 --field severity=High
 
+gadak comment NMB-140 Reproduced on staging; trace attached.   # positional body
 gadak comment NMB-140 -m "Reproduced on staging; trace attached."
 gadak comment NMB-140 -m -            # body from stdin, for anything multi-line
+gadak comment NMB-140 -m "done" --visibility role=Administrators
+gadak comment NMB-140 -m "done" --internal
+gadak transition NMB-140              # list tokens this credential can fire
 gadak transition NMB-140 "In Review"  # transition name, target status name, or id
 gadak transition NMB-140 31
-gadak assign NMB-140 dana@example.com
+gadak transition NMB-140 done         # status category: new | inprogress | done
+gadak transition NMB-140 done --resolution "Won't Do" -m "fixed in 1.2"
+gadak assign NMB-140 dana@example.com # email, display name, or accountId
 gadak assign NMB-140 -                # unassign
+gadak link NMB-140 NMB-141 --type blocks   # A blocks B; --type "is blocked by" reverses
 
 gadak fields                          # custom-field usage on a sample (needs credential)
 gadak fields --sample 100 --project NMB --json
+gadak fields --apply                  # map in-use custom fields, then edit --field alias=value
+
+# Custom-field writes: fields --apply → issue KEY --editmeta → edit --field alias=value
 
 gadak team export --out gadak-team.json   # share views, fieldMap, group rules (no credentials)
 gadak team import gadak-team.json         # merge into this workspace; try --dry-run first
@@ -283,6 +298,9 @@ blocking on a prompt no one is there to answer.
 A body written by `gadak comment` is plain text; `@Name` is resolved to a site
 user (ambiguous names are refused with the candidates, and the comment is not
 posted). A name that matches nobody is left as plain text and named on stderr.
+
+Discover flags from the binary: `gadak <verb> --help`, and `gadak issue KEY
+--editmeta` for which configured custom fields this issue can edit.
 
 `gadak transition` reports what is available when the name does not match, so a
 failed guess tells you what to guess next:
