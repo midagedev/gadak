@@ -481,7 +481,17 @@ var helps = map[string]cmdHelp{
 			"gadak assign NMB-140 -                 # unassign",
 			"gadak assign NMB-140 dana@example.com --json",
 		},
-		seeAlso: []string{"gadak comment", "gadak transition", "gadak issue"},
+		seeAlso: []string{"gadak claim", "gadak comment", "gadak transition", "gadak issue"},
+	},
+	"claim": {
+		summary: "take an issue as yours — assignee plus the in-progress transition in one step (an issue not in progress is moved there); refuses (exit 75) while another actor holds it",
+		usage:   "gadak [--workspace <name>] claim <KEY> [--take-over] [--json]",
+		examples: []string{
+			"gadak claim NMB-140",
+			"gadak claim NMB-140 --json             # adds the claim answer to the JSON",
+			"gadak claim NMB-140 --take-over        # replace the current holder",
+		},
+		seeAlso: []string{"gadak assign", "gadak transition", "gadak issue"},
 	},
 	"link": {
 		summary: "create an issue link (A <type> B); not `gadak issue --link`, which prints a gadak:// URL",

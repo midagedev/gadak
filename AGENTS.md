@@ -39,6 +39,11 @@ is the machine's fallback and env wins over it). Confirm recognition with the
 never to a connected Cloud site — and without an actor, writes keep the
 workspace's default user.
 
+Agents sharing one backlog claim with `gadak claim KEY` — assignee plus the
+in-progress transition in one step — instead of a "[claim]" comment: while
+another actor holds the issue in progress, the claim is refused with the
+holder's name and exit code 75 (`--take-over` replaces them).
+
 ### Check freshness before you answer
 
 `issue`, `search`, `comment`, `transition`, `assign`, and `fields` print one line
@@ -266,6 +271,7 @@ gadak transition NMB-140 done         # status category: new | inprogress | done
 gadak transition NMB-140 done --resolution "Won't Do" -m "fixed in 1.2"
 gadak assign NMB-140 dana@example.com # email, display name, or accountId
 gadak assign NMB-140 -                # unassign
+gadak claim NMB-140                   # take it as yours: assignee + in-progress transition; held issues refuse (exit 75)
 gadak link NMB-140 NMB-141 --type blocks   # A blocks B; --type "is blocked by" reverses
 
 gadak fields                          # custom-field usage on a sample (needs credential)

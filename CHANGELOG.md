@@ -55,6 +55,20 @@ the fixes are all here.
   takes a positional body like `create`'s SUMMARY ([GDK-315]).
 - **Bulk issue reads**: many keys and `--keys -`, with no silent drop
   ([GDK-425]).
+- **`gadak claim KEY` takes an issue as yours** — assignee plus the
+  in-progress transition in one step ([GDK-591]). On standalone and paired
+  workspaces that is one atomic call on the origin's claim endpoint, and a
+  claim another actor already holds is refused with the holder's name and
+  its own exit code (75), so parallel agents stop colliding through
+  "[claim]" comments. Connected Cloud has no such endpoint; there the claim
+  judges locally and writes the two calls as a fallback, with a one-line
+  warning that the pair is not atomic. `--take-over` replaces the holder.
+- **`gadak issue` shows how long work sat**: a `durations` line —
+  `wait 3d · progress 5h` — computed from the changelog at read time
+  ([GDK-591]). Wait is created → first entry into in-progress; progress is
+  the latest in-progress entry → done (or now). No stored column: the
+  origin's status catalog is cached (`status_catalog`, schema v34) so the
+  changelog's bare status ids resolve on every workspace.
 - **The audit pass over the agent verbs** ([GDK-551], [GDK-565], [GDK-546],
   [GDK-556]): write verbs resolve the identities the read side emits, name
   their exits, and round-trip their fields.
@@ -1809,6 +1823,7 @@ measured numbers instead of adjectives.
 [GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
 [GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
 [GDK-589]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-589
+[GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
 [GDK-593]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-593
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588

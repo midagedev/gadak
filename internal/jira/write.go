@@ -128,6 +128,37 @@ func (c *Client) Transition(ctx context.Context, key, transitionID string, field
 	return c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/transitions", apiPath, url.PathEscape(key)), body, nil)
 }
 
+// ClaimResult is the answer from POST /issue/{key}/claim: who holds the
+// issue now, in which status, since when.
+type ClaimResult struct {
+	Key       string `json:"key"`
+	Assignee  User   `json:"assignee"`
+	Status    Status `json:"status"`
+	ClaimedAt string `json:"claimedAt"`
+}
+
+// Claim is POST /issue/{key}/claim — issuetap's claim extension (GDK-591):
+// assignee plus the in-progress transition as one mutation, so of two agents
+// claiming concurrently exactly one wins. An empty transitionID lets the
+// origin pick the first destination whose category is in-progress; takeOver
+// replaces another assignee that already holds the issue in progress.
+// Atlassian Cloud has no claim route and answers 404 — internal/claim falls
+// back to the two calls this route fuses there. The acting account is the
+// credential (or X-Issuetap-Actor on an issuetap origin), never the body.
+func (c *Client) Claim(ctx context.Context, key, transitionID string, takeOver bool) (ClaimResult, error) {
+	var out ClaimResult
+	// A struct, not a map: the two options keep a stable key order on the
+	// wire (a map would flip per process) and an empty transitionId is the
+	// origin's "pick the first in-progress destination".
+	body := struct {
+		TransitionID string `json:"transitionId"`
+		TakeOver     bool   `json:"takeOver"`
+	}{transitionID, takeOver}
+	p := fmt.Sprintf("%s/issue/%s/claim", apiPath, url.PathEscape(key))
+	err := c.write(ctx, http.MethodPost, p, body, &out)
+	return out, err
+}
+
 // Resolutions is GET /rest/api/3/resolution — the site catalog. Names are in
 // the account language; writes should send the id.
 func (c *Client) Resolutions(ctx context.Context) ([]NamedID, error) {

@@ -70,6 +70,9 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 		if err := recomputeEpicKeys(tx); err != nil {
 			return nil, err
 		}
+		if err := cacheStatusCatalog(tx, b); err != nil {
+			return nil, err
+		}
 		return mapKeys(sources), nil
 	})
 	if err != nil {
@@ -94,6 +97,33 @@ func recomputeEpicKeys(tx *sql.Tx) error {
 			WHERE p.key = issues.parent_key
 		)`)
 	return err
+}
+
+// cacheStatusCatalog persists the batch's id -> category map (the origin's
+// status catalog, fetched by every sync pass) into status_catalog. Without
+// it the map evaporates when Derive returns, and the changelog's bare status
+// ids are resolvable only for statuses that are some issue's *current*
+// status — a claimed-then-finished issue's in-progress id goes dark and its
+// wait/progress spans compute as absent (GDK-591). Origin reference data,
+// not time-in-status values: a wipe costs one re-sync. All records in a
+// batch come from one source, so the first record's id scopes the rows.
+func cacheStatusCatalog(tx *sql.Tx, b Batch) error {
+	if len(b.Categories) == 0 || len(b.Records) == 0 {
+		return nil
+	}
+	src := b.Records[0].Item.SourceID
+	for id, cat := range b.Categories {
+		if id == "" || cat == "" {
+			continue
+		}
+		if _, err := tx.Exec(`
+			INSERT INTO status_catalog (source_id, status_id, category) VALUES (?,?,?)
+			ON CONFLICT(source_id, status_id) DO UPDATE SET category = excluded.category`,
+			src, id, cat); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {

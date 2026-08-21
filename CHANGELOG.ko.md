@@ -1,6 +1,6 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-21).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-22).</sub>
 
 ## Unreleased
 
@@ -55,6 +55,19 @@
   SUMMARY처럼 위치 인자 본문을 받습니다 ([GDK-315]).
 - **이슈 대량 읽기**: 여러 키와 `--keys -`, 소리 없는 누락 없음
   ([GDK-425]).
+- **`gadak claim KEY`가 이슈를 자기 것으로 만듭니다** — 담당자 지정과
+  진행 중 전환을 한 방에 ([GDK-591]). standalone·paired 워크스페이스에서는
+  origin의 claim 엔드포인트를 향한 원자적 호출 한 번이고, 다른 actor가 이미
+  잡은 이슈는 점유자 이름과 함께 전용 종료 코드(75)로 거절됩니다 — 병렬
+  에이전트의 "[claim]" 코멘트 충돌이 끝납니다. connected Cloud에는 그런
+  엔드포인트가 없어 로컬 판정 뒤 두 호출 폴백으로 쓰고, 원자성이 없음을
+  한 줄로 경고합니다. `--take-over`은 점유자를 교체합니다.
+- **`gadak issue`에 일이 얼마나 쉬었는지 보입니다**: `wait 3d · progress
+  5h` 모양의 `durations` 줄을 changelog에서 읽는 시점에 계산합니다
+  ([GDK-591]). 대기는 created → 처음 진행 중 진입, 진행은 최근 진행 중
+  진입 → done(또는 지금). 저장 컬럼은 없습니다 — 대신 origin의 상태
+  카탈로그를 캐시해서(`status_catalog`, 스키마 v34) changelog의 맨 상태
+  id가 어떤 워크스페이스에서도 풀립니다.
 - **에이전트 동사 감사 라운드** ([GDK-551], [GDK-565], [GDK-546],
   [GDK-556]): 쓰기 동사가 읽기 쪽이 내보내는 신원을 해석하고, 자신의
   종료를 이름 붙이고, 필드를 round-trip합니다.
@@ -1808,6 +1821,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
 [GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
 [GDK-589]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-589
+[GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
 [GDK-593]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-593
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588

@@ -365,6 +365,23 @@ Kept because it is the source of every derived field and the only way to answer
 "when did this actually change" questions. It is also what makes reopen and
 staleness analysis possible offline.
 
+## `status_catalog` (v34)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_id` | TEXT | `jira` (PK with `status_id`) |
+| `status_id` | TEXT | Origin-minted id |
+| `category` | TEXT | `new` \| `inprogress` \| `done` |
+
+The origin's status catalog, cached by every sync pass (the connector already
+fetches it to derive fields). The changelog stores bare status ids, so any
+history walk needs the id → category mapping again later; before this table the
+mapping lived only in the pass's memory and an id was resolvable only while some
+mirrored issue *currently* sat in that status. Origin reference data — a wipe
+costs one re-sync — and not time-in-status values, which stay deliberately
+absent: `gadak issue`'s wait/progress line computes them from the changelog at
+read time (GDK-591).
+
 ## `links`
 
 | Column | Type | Notes |

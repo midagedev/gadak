@@ -28,6 +28,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/mattn/go-runewidth"
+	"github.com/midagedev/gadak/internal/claim"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
@@ -138,6 +139,12 @@ type issueDoc struct {
 	Issue store.IssueLite `json:"issue"`
 	*store.Detail
 	LinkedPRs json.RawMessage `json:"linked_prs"`
+
+	// durations is the text output's wait/progress line (GDK-591).
+	// Unexported on purpose: --json is a parsed contract and keeps its
+	// shape; the spans are computed, not stored, and the server gets its
+	// own surface in GDK-590.
+	durations store.Spans
 }
 
 // MarshalJSON adds `key` as an alias of `issue_key` (GDK-255). Detail itself
@@ -261,6 +268,12 @@ func loadIssueDocs(db *store.DB, keys []string) ([]issueDoc, []string, error) {
 	for _, l := range lites {
 		byKey[l.IssueKey] = l
 	}
+	// The changelog carries status ids only; the id -> category map is one
+	// read for every key asked about, not one per doc.
+	cats, err := db.StatusCategories(context.Background())
+	if err != nil {
+		return nil, nil, err
+	}
 	docs := make([]issueDoc, 0, len(keys))
 	var notFound []string
 	for _, key := range keys {
@@ -276,7 +289,17 @@ func loadIssueDocs(db *store.DB, keys []string) ([]issueDoc, []string, error) {
 		if !ok {
 			return nil, nil, fmt.Errorf("%s has a detail row but no issue row — the mirror is inconsistent, re-sync", key)
 		}
-		docs = append(docs, issueDoc{Issue: l, Detail: d, LinkedPRs: linkedPRsJSON(d)})
+		docs = append(docs, issueDoc{
+			Issue:     l,
+			Detail:    d,
+			LinkedPRs: linkedPRsJSON(d),
+			durations: store.Durations(store.DurationsInput{
+				Created:    deref(l.CreatedAt, ""),
+				Changelog:  d.History,
+				Categories: cats,
+				Now:        time.Now(),
+			}),
+		})
 	}
 	return docs, notFound, nil
 }
@@ -295,7 +318,7 @@ func printIssueDocs(docs []issueDoc) {
 		if i > 0 {
 			fmt.Printf("--- %s ---\n", doc.Issue.IssueKey)
 		}
-		printIssue(doc.Issue, doc.Detail)
+		printIssue(doc.Issue, doc.Detail, doc.durations)
 	}
 }
 
@@ -431,7 +454,7 @@ func printIssueLink(db *store.DB, key string, asJSON bool) error {
 	return nil
 }
 
-func printIssue(l store.IssueLite, d *store.Detail) {
+func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 	fmt.Printf("%s\t%s\n", l.IssueKey, l.Summary)
 	kv := func(label, value string) {
 		if value != "" {
@@ -463,6 +486,10 @@ func printIssue(l store.IssueLite, d *store.Detail) {
 	kv("updated", deref(l.UpdatedAt, ""))
 	kv("status since", deref(l.StatusChangedAt, ""))
 	kv("resolved", deref(l.ResolvedAt, ""))
+	// Computed from the changelog, never stored (data-model.md keeps
+	// time-in-status absent); kv skips the whole line when neither span
+	// exists — an issue that never entered progress has nothing to say.
+	kv("durations", dur.Line())
 	if l.ReopenCount > 0 {
 		kv("reopens", fmt.Sprintf("%d (last %s)", l.ReopenCount, deref(l.ReopenedAt, "?")))
 	}
@@ -1933,6 +1960,56 @@ func cmdAssign(args []string) error {
 			return err
 		}
 		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, nil)
+	})
+}
+
+// exitClaimConflict is the refusal exit: another actor holds the issue in
+// progress. Its own code, not 1, so an agent branches without parsing
+// stderr — the holder's name is still on stderr for the human. 75 is
+// EX_TEMPFAIL: refused for now, retry after the holder finishes or pass
+// --take-over.
+const exitClaimConflict = 75
+
+// cmdClaim is `gadak claim KEY`: take an issue as yours — assignee plus the
+// in-progress transition in one step (internal/claim). On standalone and
+// paired origins that is one atomic call; on connected Cloud there is no
+// such route, the two writes run as a fallback, and the caller is told so.
+// A claim someone else holds is refused with exit 75 rather than silently
+// replacing them.
+func cmdClaim(args []string) error {
+	fs := newFlagSet("claim")
+	asJSON := fs.Bool("json", false, "emit JSON")
+	takeOver := fs.Bool("take-over", false, "claim even when another assignee holds the issue in progress (replaces them)")
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("claim", fs))
+		return nil
+	}
+	pos, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 {
+		return usageError("claim", "usage: gadak claim <KEY> [--take-over] [--json]")
+	}
+	key := normalizeKey(pos[0])
+
+	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+		o, ok := c.(claim.Origin)
+		if !ok {
+			return fmt.Errorf("claim has no counterpart on this issue's origin (%s) — it is a Jira-workflow verb: assignee plus the in-progress transition; `gadak transition` and `gadak assign` are the two halves", src)
+		}
+		res, err := claim.Apply(ctx, o, cfg, claim.Request{Key: key, TakeOver: *takeOver})
+		if err != nil {
+			var taken *claim.TakenError
+			if errors.As(err, &taken) {
+				return &exitCodeError{code: exitClaimConflict, msg: taken.Error()}
+			}
+			return err
+		}
+		if !res.Atomic {
+			fmt.Fprintf(os.Stderr, "warning: this origin has no atomic claim — assignee and in-progress transition were two calls, so a concurrent claim could interleave\n")
+		}
+		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, map[string]any{"claim": res})
 	})
 }
 

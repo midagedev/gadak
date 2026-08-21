@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -630,6 +630,23 @@ ALTER TABLE dev_links ADD COLUMN author TEXT NOT NULL DEFAULT '';
 ALTER TABLE dev_links ADD COLUMN actor TEXT NOT NULL DEFAULT '';
 ALTER TABLE dev_links ADD COLUMN actor_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE dev_links ADD COLUMN branch TEXT NOT NULL DEFAULT '';
+`
+
+// schemaV34 caches the origin's status catalog. The changelog stores bare
+// status ids, and the id -> category map lived only in each sync pass's
+// memory (Batch.Categories), so a history walk could only resolve the ids
+// that happen to be some issue's *current* status (GDK-591: an issue
+// claimed then finished left its in-progress id unresolvable, and the
+// wait/progress spans silently empty). This is origin reference data —
+// rebuilt by the next sync, never time-in-status values, which
+// data-model.md keeps deliberately absent.
+const schemaV34 = `
+CREATE TABLE status_catalog (
+  source_id TEXT NOT NULL,
+  status_id TEXT NOT NULL,
+  category  TEXT NOT NULL,
+  PRIMARY KEY (source_id, status_id)
+);
 `
 
 // personalStateCopyVersion is the migration level schemaV26 lands on. migrate

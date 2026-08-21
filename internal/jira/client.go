@@ -215,6 +215,24 @@ func (c *Client) Comments(ctx context.Context, key string) ([]Comment, error) {
 	}
 }
 
+// IssueStatus is GET /issue/{key}?fields=status,assignee — the two facts a
+// claim must judge locally on an origin with no atomic claim route (Cloud):
+// is the issue in progress, and who holds it. Nothing else is fetched. The
+// answer nests under "fields" like every GET /issue/{key} does.
+func (c *Client) IssueStatus(ctx context.Context, key string) (Status, *User, error) {
+	var out struct {
+		Fields struct {
+			Status   Status `json:"status"`
+			Assignee *User  `json:"assignee"`
+		} `json:"fields"`
+	}
+	p := fmt.Sprintf("%s/issue/%s?fields=status,assignee", apiPath, url.PathEscape(key))
+	if err := c.do(ctx, http.MethodGet, p, nil, &out); err != nil {
+		return Status{}, nil, err
+	}
+	return out.Fields.Status, out.Fields.Assignee, nil
+}
+
 // Statuses maps every status id on the site to its category. This is the input
 // the derived-field rules need, because a changelog entry carries ids only.
 func (c *Client) Statuses(ctx context.Context) (map[string]string, error) {

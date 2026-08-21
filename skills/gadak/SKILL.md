@@ -358,6 +358,15 @@ value wins over it). The actor reaches only the standalone/paired origin —
 never a connected Cloud site or any other outbound request. Without one,
 writes attribute to the workspace's default user, exactly as before.
 
+When several agents work one backlog, claiming is a write, not a comment
+convention: `gadak claim <KEY>` takes an issue as yours — assignee plus the
+in-progress transition in one step — and refuses (exit 75, the holder's
+name in the error) while another actor holds it. Use it instead of a
+"[claim]" comment; `--take-over` replaces the holder only when the human
+says to. `gadak issue KEY` answers "how long has this sat?" with its
+`durations` line (wait = created → first in-progress, progress = in-progress
+→ done or now), computed from the changelog — never stored.
+
 ## One issue, and writes
 
 On **standalone**, `init` seeds project `STD` and records a default issue type,
@@ -372,6 +381,7 @@ gadak create "first ticket title" -m "why this exists"
 gadak issue STD-1 --json
 gadak comment STD-1 -m "Reproduced on staging."
 gadak assign STD-1 you@example.com            # the one seeded user; example.com emails from connected docs do not exist here
+gadak claim STD-1                             # take it as yours: assignee + in-progress transition; refuses while another actor holds it (exit 75)
 gadak dev link STD-1 --pr https://github.com/org/app/pull/7   # opened a PR? record it right here
 gadak dev scan                                                # or sweep the repo: keys in PR titles/branches → links
 
@@ -392,6 +402,8 @@ gadak transition NMB-140 "In Review"
 gadak transition NMB-140 done                 # status category: new | inprogress | done
 gadak transition NMB-140 done --resolution "Won't Do" -m "fixed in 1.2"
 gadak assign NMB-140 dana@example.com         # email, display name, or accountId; `-` unassigns. Ambiguous names are refused with the candidates.
+gadak claim NMB-140                            # Cloud has no atomic claim: assignee + transition run as two calls (warned on stderr); held issues refuse with exit 75
+gadak claim NMB-140 --take-over                # replace the current holder
 gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging" --parent NMB-1
 gadak create Severity required --project NMB --type Task --field severity=High
 gadak attach NMB-140 screenshot.png trace.log

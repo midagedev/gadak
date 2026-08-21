@@ -106,6 +106,11 @@ var originScopedTables = []tableRule{
 		dropForSource: `DELETE FROM spaces WHERE source_id = ?`},
 	{table: "sync_state", scope: scopeMirror,
 		dropForSource: `DELETE FROM sync_state WHERE source_id = ?`},
+	// status_catalog is the cached origin status catalog (GDK-591). Ids are
+	// origin-minted; keeping them across a replacement rebinds history walks
+	// onto the new origin's categories.
+	{table: "status_catalog", scope: scopeMirror,
+		dropForSource: `DELETE FROM status_catalog WHERE source_id = ?`},
 	// sync_runs reuse the source ids `jira` and `confluence`, so the new
 	// origin's first sync would appear beneath the retired origin's runs as if
 	// one history. GDK-418: missed by the old list.

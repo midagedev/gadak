@@ -188,6 +188,8 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   transition change status    <KEY> [transition-id|status-id|name|new|inprogress|done]
                    [--resolution name|id] [--field key=JSON]... [-m text] [--json]
   assign     set assignee     <KEY> <email|name|accountId|-> [--json]
+  claim      take an issue as yours (assignee + in-progress transition) <KEY> [--take-over] [--json]
+                   (a claim another actor holds is refused — exit 75; their name is in the error)
   link       create an issue link <A> <B> --type <name|inward|outward|id> [--json]
   page       wiki page create/edit/comment  create|edit|comment [<ID>]
                    [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
@@ -334,6 +336,7 @@ var commands = map[string]func([]string) error{
 	"api":             cmdAPI,
 	"assign":          cmdAssign,
 	"attach":          cmdAttach,
+	"claim":           cmdClaim,
 	"comment":         cmdComment,
 	"config":          cmdConfig,
 	"create":          cmdCreate,

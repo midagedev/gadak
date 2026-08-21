@@ -78,6 +78,15 @@ type fakeJira struct {
 	// linkTypesJSON overrides GET /issueLinkType. Empty keeps the Blocks
 	// catalog TestLink* relies on (id 10000, outward "blocks").
 	linkTypesJSON string
+
+	// claim support (additive; GDK-591 — existing write tests never hit
+	// these paths). Atlassian Cloud has no claim route, so the default is
+	// the 404 that flips the CLI onto its two-call fallback.
+	claimStatus int // 0 = 404, "no route on this origin", like Cloud
+	// issueStatusJSON overrides GET /issue/{key}?fields=status,assignee —
+	// the fallback's read. Empty keeps NMB-1 in progress, held by Dana
+	// (acc-hc), matching the mirror fixture.
+	issueStatusJSON string
 }
 
 // recordedUpload is one multipart POST /issue/{key}/attachments the fake saw.
@@ -153,8 +162,16 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"id":"c-99","author":{"displayName":"Dana Whitfield"},
 			"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"checked"}]}]},
 			"created":"2026-08-04T12:00:00.000+0900"}`))
-	case path == "/user/search":
-		q := r.URL.Query().Get("query")
+	case path == "/myself" && r.Method == http.MethodGet:
+		_, _ = w.Write([]byte(`{"accountId":"acc-me","displayName":"Agent Me","emailAddress":"agent@example.com"}`))
+	case strings.HasSuffix(path, "/claim") && r.Method == http.MethodPost:
+		status := f.claimStatus
+		if status == 0 {
+			status = http.StatusNotFound // Cloud: the route does not exist
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(`{"errorMessages":["no claim route on this origin"]}`))
+	case path == "/user/search":		q := r.URL.Query().Get("query")
 		f.searchQueries = append(f.searchQueries, q)
 		if f.searchUsers != nil {
 			body := f.searchUsers(q)
@@ -198,6 +215,15 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(raw))
 	case path == "/issueLink" && r.Method == http.MethodPost:
 		w.WriteHeader(http.StatusCreated)
+	// Last on purpose: a bare GET /issue/{key} must not shadow createmeta,
+	// editmeta or any other /issue/…/… subroute above.
+	case strings.HasPrefix(path, "/issue/") && r.Method == http.MethodGet && !strings.Contains(strings.TrimPrefix(path, "/issue/"), "/"):
+		raw := f.issueStatusJSON
+		if raw == "" {
+			raw = `{"fields":{"status":{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}},
+				"assignee":{"accountId":"acc-hc","displayName":"Dana Whitfield"}}}`
+		}
+		_, _ = w.Write([]byte(raw))
 	default:
 		// transitions POST and assignee PUT answer 204, like Jira.
 		w.WriteHeader(http.StatusNoContent)
