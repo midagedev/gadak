@@ -87,6 +87,7 @@ func peopleFromLites(lites []store.IssueLite) []jql.Person {
 	issues := make([]jql.Issue, len(lites))
 	for i, l := range lites {
 		issues[i] = jql.Issue{
+			ParentKey:     deref(l.ParentKey),
 			Assignee:      deref(l.Assignee),
 			AssigneeEmail: deref(l.AssigneeEmail),
 			AssigneeID:    deref(l.AssigneeID),

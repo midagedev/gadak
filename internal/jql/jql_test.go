@@ -421,6 +421,123 @@ func TestMatchKeysEmptyIsUnconstrained(t *testing.T) {
 	}
 }
 
+// GDK-521 FAIL-first: parent = / IN must compile into the subset (not
+// skip as "not in the subset"). This assertion compiles against HEAD
+// because it only inspects Unsupported.
+func TestParentEqualsIsSupported(t *testing.T) {
+	for _, q := range []string{
+		`parent = NMB-196`,
+		`parent in (NMB-196, NMB-197)`,
+		`parent = nmb-196`,
+	} {
+		res := Parse(q, fixedOpts())
+		if res.Error != "" {
+			t.Fatalf("%s: %s: %s", q, res.Error, res.Message)
+		}
+		if len(res.Unsupported) != 0 {
+			t.Fatalf("%s Unsupported %v", q, res.Unsupported)
+		}
+	}
+}
+
+func TestParentEqualsAndIn(t *testing.T) {
+	res := Parse(`parent = NMB-196`, fixedOpts())
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	if len(res.Unsupported) != 0 {
+		t.Fatalf("Unsupported %v", res.Unsupported)
+	}
+	if got := res.Filters.Parent; len(got) != 1 || got[0] != "NMB-196" {
+		t.Fatalf("Parent %+v", got)
+	}
+
+	res = Parse(`parent in (NMB-196, NMB-197)`, fixedOpts())
+	if len(res.Unsupported) != 0 {
+		t.Fatalf("Unsupported %v", res.Unsupported)
+	}
+	if got := res.Filters.Parent; len(got) != 2 || got[0] != "NMB-196" || got[1] != "NMB-197" {
+		t.Fatalf("Parent IN %+v", got)
+	}
+
+	res = Parse(`parent = nmb-196`, fixedOpts())
+	if got := res.Filters.Parent; len(got) != 1 || got[0] != "NMB-196" {
+		t.Fatalf("lowercase Parent %+v", got)
+	}
+}
+
+func TestParentNeqStaysUnsupported(t *testing.T) {
+	for _, q := range []string{
+		`parent != NMB-196`,
+		`parent ~ NMB-196`,
+	} {
+		res := Parse(q, fixedOpts())
+		if len(res.Unsupported) == 0 {
+			t.Fatalf("%s must stay unsupported", q)
+		}
+		blob := strings.Join(res.Unsupported, " ")
+		if !strings.Contains(blob, "not in the subset") && !strings.Contains(blob, "only = and IN") {
+			t.Fatalf("%s unsupported %q", q, blob)
+		}
+		if len(res.Filters.Parent) != 0 {
+			t.Fatalf("%s must not populate Parent: %+v", q, res.Filters.Parent)
+		}
+	}
+}
+
+func TestParentMatchEmitHash(t *testing.T) {
+	res := Parse(`parent in (NMB-196, NMB-197)`, fixedOpts())
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	hit := Issue{Key: "NMB-1", ParentKey: "NMB-196"}
+	hitFold := Issue{Key: "NMB-2", ParentKey: "nmb-197"}
+	miss := Issue{Key: "NMB-3", ParentKey: "NMB-1"}
+	none := Issue{Key: "NMB-4", ParentKey: ""}
+	if !Match(hit, res.Filters) {
+		t.Error("NMB-196 parent should match")
+	}
+	if !Match(hitFold, res.Filters) {
+		t.Error("nmb-197 parent should match case-insensitively")
+	}
+	if Match(miss, res.Filters) {
+		t.Error("other parent should not match")
+	}
+	if Match(none, res.Filters) {
+		t.Error("empty parent should not match")
+	}
+	emitted, omitted := Emit(res.Filters, Display{}, EmitOpts{})
+	if len(omitted) != 0 {
+		t.Fatalf("omitted %v", omitted)
+	}
+	if !strings.Contains(emitted, "parent in (") ||
+		!strings.Contains(emitted, "NMB-196") ||
+		!strings.Contains(emitted, "NMB-197") {
+		t.Errorf("emit %q", emitted)
+	}
+	h := Hash(res.Filters, Display{})
+	if !strings.Contains(h, "pk=NMB-196,NMB-197") {
+		t.Errorf("hash %q", h)
+	}
+}
+
+func TestEmptyFilterParentMarshal(t *testing.T) {
+	b, err := json.Marshal(EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"parent":[]`) {
+		t.Fatalf("empty Parent must marshal as []: %s", b)
+	}
+}
+
+func TestMatchParentEmptyIsUnconstrained(t *testing.T) {
+	it := Issue{Key: "NMB-1", ParentKey: "NMB-196"}
+	if !Match(it, EmptyFilter()) {
+		t.Fatal("empty Parent must not constrain")
+	}
+}
+
 // I1 FAIL-first: an email-hidden roster row must resolve by name/account id
 // to AccountID, then Match the issue that only carries that id.
 func TestI1EmailHiddenNameResolvesToAccountID(t *testing.T) {

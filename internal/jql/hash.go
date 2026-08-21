@@ -36,6 +36,7 @@ func Hash(f Filter, d Display) string {
 	addList("pjn", f.JiraProjectNot)
 	addList("spjn", f.SourceProjectNot)
 	addList("ks", f.Keys)
+	addList("pk", f.Parent)
 	for alias, vals := range f.Fields {
 		if len(vals) > 0 {
 			p.Set("f."+alias, strings.Join(vals, ","))
@@ -97,6 +98,10 @@ func Hash(f Filter, d Display) string {
 	if len(f.Keys) > 0 {
 		joined := strings.Join(f.Keys, ",")
 		h = strings.Replace(h, "ks="+url.QueryEscape(joined), "ks="+joined, 1)
+	}
+	if len(f.Parent) > 0 {
+		joined := strings.Join(f.Parent, ",")
+		h = strings.Replace(h, "pk="+url.QueryEscape(joined), "pk="+joined, 1)
 	}
 	return h
 }

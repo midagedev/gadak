@@ -24,6 +24,9 @@ func MatchIn(it Issue, f Filter, z calendar.Zone) bool {
 	if len(f.Keys) > 0 && !containsFold(f.Keys, it.Key) {
 		return false
 	}
+	if len(f.Parent) > 0 && !containsFold(f.Parent, it.ParentKey) {
+		return false
+	}
 	if len(f.StatusCategory) > 0 && !containsFold(f.StatusCategory, effectiveCategory(it.StatusCategory)) {
 		return false
 	}

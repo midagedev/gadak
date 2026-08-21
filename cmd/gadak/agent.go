@@ -1044,6 +1044,7 @@ func configuredEmail() string {
 func jqlIssue(l store.IssueLite) jql.Issue {
 	return jql.Issue{
 		Key:            l.IssueKey,
+		ParentKey:      deref(l.ParentKey, ""),
 		Project:        l.ProjectKey,
 		Status:         l.Status,
 		StatusCategory: l.StatusCategory,

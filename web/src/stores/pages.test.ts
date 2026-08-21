@@ -239,3 +239,15 @@ describe('id-first filter call sites (GDK-289, moved down from e2e)', () => {
     expect(filterIssues([hit, miss], f).map((r) => r.issue_key)).toEqual(['NMB-IT1'])
   })
 })
+
+describe('parent filter (GDK-521)', () => {
+  test('parent matches parent_key case-insensitively', () => {
+    const f = emptyFilters()
+    f.parent = ['GDK-126']
+    const hit = issue({ issue_key: 'GDK-1', summary: 'child', parent_key: 'GDK-126' })
+    const fold = issue({ issue_key: 'GDK-2', summary: 'fold', parent_key: 'gdk-126' })
+    const miss = issue({ issue_key: 'GDK-3', summary: 'other', parent_key: 'GDK-1' })
+    const none = issue({ issue_key: 'GDK-4', summary: 'none', parent_key: null })
+    expect(filterIssues([hit, fold, miss, none], f).map((r) => r.issue_key)).toEqual(['GDK-1', 'GDK-2'])
+  })
+})

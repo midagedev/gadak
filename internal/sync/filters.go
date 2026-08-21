@@ -88,6 +88,7 @@ func peopleFromDB(ctx context.Context, db *store.DB) []jql.Person {
 	issues := make([]jql.Issue, len(lites))
 	for i, l := range lites {
 		issues[i] = jql.Issue{
+			ParentKey:     derefPtr(l.ParentKey),
 			Assignee:      derefPtr(l.Assignee),
 			AssigneeEmail: derefPtr(l.AssigneeEmail),
 			AssigneeID:    derefPtr(l.AssigneeID),

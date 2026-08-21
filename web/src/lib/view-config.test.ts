@@ -254,6 +254,16 @@ describe('view-config URL contract', () => {
     expect(parsed.filters.keys).toEqual(['NMB-1', 'NMB-2'])
   })
 
+  test('parent serializes as pk and round-trips', () => {
+    const c = emptyConfig()
+    c.filters.parent = ['GDK-126']
+    const p = configToParams(c)
+    expect(p.pk).toBe('GDK-126')
+    expect(p.ks).toBeNull()
+    expect(roundTrip(c).filters.parent).toEqual(['GDK-126'])
+    expect(parseConfig(new URLSearchParams('pk=GDK-126')).filters.parent).toEqual(['GDK-126'])
+  })
+
   test('orderColumns keeps catalog order and drops unknown / feature-gated keys', () => {
     expect(orderColumns(['labels', 'assignee', 'nope'])).toEqual(['assignee', 'labels'])
     expect(orderColumns([])).toEqual([])

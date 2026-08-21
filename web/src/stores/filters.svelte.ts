@@ -767,6 +767,10 @@ export function filterIssues(
       const want = new Set(f.keys.map((k) => k.toUpperCase()))
       if (!want.has(it.issue_key.toUpperCase())) continue
     }
+    if (f.parent.length) {
+      const want = new Set(f.parent.map((k) => k.toUpperCase()))
+      if (!want.has((it.parent_key ?? '').toUpperCase())) continue
+    }
 
     if (f.reopened && !(it.reopen_count > 0)) continue
     if (f.unassigned && hasIssuePerson(it, 'assignee')) continue
@@ -1215,7 +1219,7 @@ function buildFacets(
 ): Record<MultiField, FacetValue[]> {
   const counters: Record<string, Map<string, number>> = {}
   for (const field of MULTI_FIELDS) {
-    if (field === 'keys') continue
+    if (field === 'keys' || field === 'parent') continue
     counters[field] = new Map()
   }
   const assigneeLabels = new Map<string, string>()
@@ -1272,8 +1276,9 @@ function buildFacets(
 
   const out = {} as Record<MultiField, FacetValue[]>
   out.keys = []
+  out.parent = []
   for (const field of MULTI_FIELDS) {
-    if (field === 'keys') continue
+    if (field === 'keys' || field === 'parent') continue
     const values: FacetValue[] = [...counters[field].entries()].map(([value, count]) => {
       const personLabel =
         field === 'assignee_email'

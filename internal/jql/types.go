@@ -25,6 +25,7 @@ type Filter struct {
 	JiraProjectNot   []string            `json:"jira_project_not"`
 	SourceProjectNot []string            `json:"source_project_not"`
 	Keys             []string            `json:"keys"`
+	Parent           []string            `json:"parent"`
 	Fields           map[string][]string `json:"fields"`
 	Reopened         bool                `json:"reopened"`
 	Unassigned       bool                `json:"unassigned"`
@@ -93,6 +94,7 @@ type Identity struct {
 // their own lite type onto this; the package does not import store.
 type Issue struct {
 	Key            string
+	ParentKey      string
 	Project        string
 	Status         string
 	StatusCategory string
@@ -145,6 +147,7 @@ func EmptyFilter() Filter {
 		JiraProjectNot:   []string{},
 		SourceProjectNot: []string{},
 		Keys:             []string{},
+		Parent:           []string{},
 		Fields:           map[string][]string{},
 	}
 }
@@ -154,7 +157,7 @@ func (f Filter) empty() bool {
 		len(f.AssigneeEmail) > 0 || len(f.ReporterEmail) > 0 ||
 		len(f.Labels) > 0 || len(f.Priority) > 0 || len(f.IssueType) > 0 ||
 		len(f.Components) > 0 || len(f.FixVersions) > 0 ||
-		len(f.JiraProject) > 0 || len(f.JiraProjectNot) > 0 || len(f.Keys) > 0 || f.Unassigned || f.Reopened || f.Stale ||
+		len(f.JiraProject) > 0 || len(f.JiraProjectNot) > 0 || len(f.Keys) > 0 || len(f.Parent) > 0 || f.Unassigned || f.Reopened || f.Stale ||
 		f.CreatedFrom != nil || f.CreatedTo != nil ||
 		f.UpdatedFrom != nil || f.UpdatedTo != nil ||
 		f.DueFrom != nil || f.DueTo != nil ||

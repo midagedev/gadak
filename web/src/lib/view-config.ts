@@ -53,6 +53,11 @@ export interface ViewFilters {
    */
   keys: string[]
   /**
+   * Exact parent issue keys. URL `pk` (comma-joined). Case-insensitive.
+   * Empty = no constraint. Hidden from the facet picker (same as `keys`).
+   */
+  parent: string[]
+  /**
    * Discovered custom-field axes, keyed by spec alias. Which axes exist comes
    * from bootstrap field_specs, not from this schema — a board that uses 30
    * fields gets 30 possible axes, one that uses 2 gets 2. Serialized as
@@ -214,11 +219,12 @@ export const MULTI_FIELDS = [
   'jira_project',
   'source_project',
   'keys',
+  'parent',
 ] as const
 export type MultiField = (typeof MULTI_FIELDS)[number]
 
 /** Serialized as a multi-value param but not offered as a facet picker. */
-const HIDDEN_MULTI: ReadonlySet<MultiField> = new Set(['keys'])
+const HIDDEN_MULTI: ReadonlySet<MultiField> = new Set(['keys', 'parent'])
 
 /* ── Multi-value negation axes (GDK-438) ──
  *  `<field>_not` excludes values after the include list has narrowed
@@ -351,6 +357,7 @@ export function emptyFilters(): ViewFilters {
     jira_project_not: [],
     source_project_not: [],
     keys: [],
+    parent: [],
     fields: {},
     reopened: false,
     unassigned: false,
@@ -496,6 +503,7 @@ const MULTI_KEY = {
   jira_project: 'pj',
   source_project: 'spj',
   keys: 'ks',
+  parent: 'pk',
 } as const satisfies Record<MultiField, string>
 
 /** Negation twins serialize with an n-suffixed short key (pjn / spjn). */

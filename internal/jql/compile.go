@@ -235,6 +235,8 @@ func canonicalField(name string) string {
 		return "text"
 	case "key", "issuekey", "issue":
 		return "key"
+	case "parent":
+		return "parent"
 	case "resolution":
 		return "resolution"
 	default:
@@ -301,6 +303,8 @@ func (c *compiler) compileClause(cl *clause) {
 		c.compileText(cl)
 	case "key":
 		c.compileKey(cl)
+	case "parent":
+		c.compileParent(cl)
 	case "resolution":
 		c.compileResolution(cl)
 	default:
@@ -473,6 +477,19 @@ func (c *compiler) compileKey(cl *clause) {
 	c.f.Keys = mergeUniqueUpper(c.f.Keys, vs)
 	c.keyCount = len(c.f.Keys)
 	c.mark("key")
+}
+
+func (c *compiler) compileParent(cl *clause) {
+	if cl.op != opEq && cl.op != opIn {
+		c.skip(cl.render() + " (only = and IN)")
+		return
+	}
+	vs := c.plainValues(cl)
+	if vs == nil {
+		return
+	}
+	c.f.Parent = mergeUniqueUpper(c.f.Parent, vs)
+	c.mark("parent")
 }
 
 func (c *compiler) compileResolution(cl *clause) {

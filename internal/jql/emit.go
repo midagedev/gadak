@@ -29,6 +29,9 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 	if len(f.Keys) > 0 {
 		parts = append(parts, inClause("key", f.Keys))
 	}
+	if len(f.Parent) > 0 {
+		parts = append(parts, inClause("parent", f.Parent))
+	}
 	if len(f.StatusCategory) > 0 {
 		names := make([]string, len(f.StatusCategory))
 		for i, c := range f.StatusCategory {
