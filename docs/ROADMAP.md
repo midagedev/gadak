@@ -109,7 +109,7 @@ the two-site case today. Promote them to a first-class switcher:
   localStorage per workspace so two mirrors on one origin never share cache or
   favorites. Push notifications stay a primary-page feature.
 - ✅ TUI/CLI: `gadak --profile` stays; `gadak profiles` lists them (predates this
-  wave; `gadak workspaces` as a separate verb was judged a duplicate).
+  wave; `gadak workspaces` shipped as an alias of `profiles`).
 
 Sequenced after v0.3 deliberately: retention loops for existing mirrors come
 before conveniences for hypothetical second sites.
@@ -348,9 +348,10 @@ deliberately not now (see the arrival stance in **Next**).
   Guessing at DC behavior is worse than declining to support it.
 - **Multi-user or hosted deployment.** Contradicts the security model, which is
   "one user, loopback only, no auth".
-- **Boards, sprints, reports.** Jira's own UI does these. We contain that
-  page (in-app tab on desktop, system browser under `serve`); we do not
-  reimplement it.
+- **Boards, sprint planning UI, reports.** Jira's own UI does these. We contain
+  that page (in-app tab on desktop, system browser under `serve`); we do not
+  reimplement it. Sprint *fields* (`sprint_id` / `sprint_name` / `sprint_state`)
+  are in the mirror.
 - **Writing to the mirror.** Jira is the record. Any local write model would need
   conflict resolution, which is a different product.
 

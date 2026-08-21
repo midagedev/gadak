@@ -136,11 +136,12 @@ and `hasCredential` on the body are ignored.
 | `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) / `gadak config` | Next watch tick; no process restart |
 | `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) / `gadak config` | Next watch tick; no process restart |
 | `notify` | bool | **true** when absent | `gadak config set notify` / `config.json` (not on Settings UI or Settings PUT) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
-| `updateCheck` | bool | **true** when absent | `gadak config set updateCheck` / `config.json` (not on Settings UI or Settings PUT) | Next `sync` / `status` / `serve` / desktop start; once-per-day GitHub release lookup (cached under the profile directory on disk). Set `false` to opt out — no outbound traffic beyond Jira |
+| `updateCheck` | bool | **true** when absent | `gadak config set updateCheck` / `config.json` (not on Settings UI or Settings PUT) | Next `sync` / `status` / `serve` / desktop start; once-per-day GitHub release lookup (cached under the profile directory on disk). Set `false` to opt out — no GitHub version check; outbound stays your configured origins |
 | `attachmentCacheMB` | int | `0` → package **512** | `gadak config set attachmentCacheMB` / `config.json` (not on Settings UI or Settings PUT) | Cap (MB) for the on-disk cache opened when a workspace mounts; `0` becomes the package default |
 | `confluence` | object or absent | absent = wiki mirror off. `gadak init --standalone` writes the block scoped to `LOC` | Settings → Sources / `gadak config set confluence` | Next Confluence pass |
 | `linear` | object or absent | absent = Linear source off. `apiKey` (personal API key, sent bare in the Authorization header) turns the source on; writes to Linear-owned keys route through it | edit `config.json` (no Settings surface yet) | Next `sync --source linear` |
 | `linear.teamIds` | string[] | `[]` = every team the key can see; team UUIDs restrict the mirror scope | edit `config.json` | Next Linear pass |
+| `devStatus` | bool | **false** | `gadak config set devStatus true` / `config.json` (not on Settings UI or Settings PUT) | Next sync; connected Cloud: mirror Jira's development-status API into `dev_links` (one extra request per issue). Standalone always fetches; `gadak dev link` / `dev scan` write the same table |
 | `confluence.spaces` | string[] | `[]` = every *global* space; personal spaces only if named (`internal/config/config.go`) | Settings → Sources / `gadak config set confluence.spaces` | Next Confluence pass |
 
 The space list *is* the scope: drop a space and the next Confluence pass
@@ -241,8 +242,9 @@ project and cache the answer under that profile's directory on disk
 (`update-check.json`). The request carries no account identifiers. Dev
 builds (`0.0.0-dev`) never check. Network errors and rate limits are silent.
 Set `"updateCheck": false` in `config.json`, or `gadak config set updateCheck
-false`, to disable the lookup entirely (restores outbound traffic to Jira
-only). The lookup only feeds the sidebar
+false`, to disable the lookup entirely (no GitHub version check; outbound
+stays your configured origins — Atlassian, Linear if enabled, pairing home,
+user-invoked `gh`). The lookup only feeds the sidebar
 banner; installing an update is `brew upgrade --cask gadak` or a new dmg.
 
 ---

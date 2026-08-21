@@ -77,13 +77,13 @@ like watches/favorites via the API).
 | Classification that needs regex, exclusions, custom fields | **Config** | `groupQuery` — one SQL statement over `issues_full` / `json_each`. Do not grow `groupRules`. |
 | Inline edit of a few fields | **Config** | `editableFields` allowlist + stored credential. |
 | Deploy badge / “is it in prod?” | **Enrichment** | `kind=deploy` — start from [deploy-status](../examples/plugins/deploy-status/). |
-| PR links on the issue | **Enrichment** | `kind=prs` — [github-prs](../examples/plugins/github-prs/). |
+| PR links on the issue | **Core / Enrichment** | Core: `dev_links` / `gadak dev`. Plugin `kind=prs` is extra metadata — [github-prs](../examples/plugins/github-prs/). |
 | QA impact column | **Enrichment** | `kind=qa` + `features.qa` (shape in [`PLUGINS.md`](PLUGINS.md)). |
 | A free-text review note | **Enrichment** | `kind=opinion` (JSON string payload). |
 | Spreadsheet-managed extras | **Enrichment** | [csv-import](../examples/plugins/csv-import/). |
 | Weekly reopen / load report | **SQL** | `gadak sql` + cron; see AGENTS.md cookbook. |
 | “Has anyone hit this before?” | **SQL** | FTS via `items_fts` / `gadak search`. |
-| Agent that comments or transitions | **CLI / REST** | `gadak comment` / `gadak transition` (writes go to Jira, then re-mirror). |
+| Agent that comments or transitions | **CLI / REST** | `gadak comment` / `gadak transition` (writes go through the origin, then re-mirror). |
 
 ---
 

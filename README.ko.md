@@ -11,7 +11,7 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 v0.16.1 기준 번역입니다.</sub></p>
+<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 영문과 함께 갱신됩니다.</sub></p>
 
 내 Jira를 로컬 SQLite 파일 하나로 — "어느 에픽이 막혀 있지?"가 물을 수
 없는 질문이 아니라 쿼리 한 줄이 됩니다.
@@ -23,8 +23,9 @@ gadak은 Jira *그리고* Confluence를 로컬 SQLite 파일 하나로 미러링
 에이전트가 SQL로 묻고 같은 창에 답을 띄우게 하세요. 바이너리 하나,
 앱 하나, gadak 계정은 없습니다.
 
-**미러는 버려도 되는 캐시입니다.** 이 프로젝트가 내일 멈춰도 디렉터리
-하나를 지우면 끝 — 잃는 것이 없습니다. 원본은 언제나 Jira입니다.
+**미러는 버려도 되는 캐시입니다.** 연결된(connected) 워크스페이스에서는,
+이 프로젝트가 내일 멈춰도 디렉터리 하나를 지우면 끝 — 잃는 것이 없습니다.
+원본은 Jira입니다.
 
 <p align="center">
   <a href="https://midagedev.github.io/gadak/"><b>▶&nbsp; 라이브 데모 열기</b></a>
@@ -122,12 +123,15 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
 | | 용도 | 모습 |
 | --- | --- | --- |
 | **앱 + 웹 UI** | 종일 트리아지 | [데스크톱 앱](docs/DESKTOP.md)(포트 없음) 또는 `gadak serve`. `j`/`k`로 이동, `x`로 선택, `s`/`a`/`l`/`c`로 리스트에서 바로 상태·담당자·라벨·코멘트 변경 |
-| **CLI + SQL** | 에이전트, 스크립트 | `gadak issue`, `gadak search`(FTS, `--jql`, Jira URL), `gadak sql`, 그리고 파일 그 자체 |
+| **CLI + SQL** | 에이전트, 스크립트 | `gadak issue`, `gadak search`(FTS, `--jql`, Jira URL, `--explain`), `gadak sql`, 그리고 파일 그 자체 |
 
-쓰기는 Jira로 통과된 뒤 미러가 갱신됩니다. 앱·웹: 코멘트, 상태 전이,
+쓰기는 origin을 통과한 뒤 미러가 갱신됩니다. 앱·웹: 코멘트, 상태 전이,
 담당자, 라벨, 우선순위, 제목. CLI: `create`(단건 또는 `--batch`),
-`attach`, `edit`, `comment`, `transition`, `assign`.
-위키 미러는 읽기 전용입니다. 계층 구조, `item_refs`, 첨부:
+`attach`, `edit`, `comment`, `transition`(`--resolution`),
+`assign`, `link`, `dev link` / `dev scan`, `fields --apply`,
+`issue --editmeta`, `project create`, 그리고 위키의 `page create` /
+`page edit` / `page comment`(페이지, 제목, 본문, 코멘트 모두 origin을
+통과). 계층 구조, `item_refs`, 첨부:
 [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
 창은 네 팔레트에서 같은 종이 메타포를 유지합니다 — `light`, 중립-쿨
 `dark`, 블루-블랙 `ink`, 웜 `ember`. 테마는 고르지 않으면 시스템을 따르고,
@@ -165,6 +169,8 @@ macOS 앱에서는 같은 설치가 버튼입니다 — **설정 → 연동**이
 Connected는 Atlassian Cloud와 대화합니다. Standalone(0.16부터)은 Atlassian
 계정이 없는 워크스페이스입니다 — 앱과 함께 다니는 미니멀한 Jira origin.
 어느 쪽이든 미러는 캐시이고, 모든 쓰기는 origin을 통과합니다.
+Standalone에서 영속 파일은 origin의 persist 파일입니다 — 워크스페이스
+origin 폴더의 issuetap.yaml; 백업은 그 파일 하나입니다.
 
 | | Connected (Atlassian Cloud) | Standalone (0.16부터) |
 | --- | :---: | :---: |
@@ -176,7 +182,7 @@ Connected는 Atlassian Cloud와 대화합니다. Standalone(0.16부터)은 Atlas
 | 첨부 | ✅ | ✅ |
 | 히스토리 / 상태 체류 시간 | ✅⁶ | ✅⁶ |
 | 에이전트 표면 (스킬, MCP, SQL) | ✅ | ✅ |
-| 보드와 스프린트 | — | — |
+| 보드와 스프린트 | —⁸ | —⁸ |
 | 대시보드 | — | — |
 | Jira 알림 | —⁷ | —⁷ |
 
@@ -187,6 +193,7 @@ Connected는 Atlassian Cloud와 대화합니다. Standalone(0.16부터)은 Atlas
 5. 페이지는 인프로세스 origin에서 동기화됩니다. `gadak page create|edit|comment`와 REST 동사가 여기서도 동작합니다. UI에는 페이지 코멘트 작성기가 있고 페이지 에디터는 아직 없습니다.
 6. Changelog는 미러링됩니다. 상태 체류 시간은 저장 컬럼이 아니라 `status_changed_at`에서 계산합니다.
 7. Jira의 알림함, 알림 규칙, 이메일은 미러링하지 않습니다. gadak은 macOS·Linux에서 자체 watch-피드 OS 알림을 갖고 있습니다.
+8. 보드 UI도 리스트의 스프린트 컬럼도 없습니다. 스프린트 필드(`sprint_id` / `sprint_name` / `sprint_state`)는 미러에 있고, SQL과 JQL(`sprint =` / `sprint in openSprints()`)로 질의할 수 있습니다. `versions` 카탈로그와 `fix_version_ids`도 같은 방식으로 조인합니다.
 
 **Linear.** Linear 워크스페이스도 같은 동사로 미러링하고 write-through
 합니다: 워크스페이스 `config.json`에 `"linear"` 블록(`apiKey`, 선택 `teamIds`)을
@@ -377,12 +384,13 @@ Arch 리눅스: 검증된 `PKGBUILD`가
 Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/0003-local-process.md).
 
 **맞는 곳 / 안 맞는 곳.** 매일의 검색 지연, 트래커 *와* 위키를 함께 보는
-에이전트, 오프라인 읽기 — 맞습니다. 보드, 어드민, 위키 저작, 그리고 1분의
-지연도 안 되는 일 — Jira에 남기세요.
+에이전트, 오프라인 읽기 — 맞습니다. 보드, 어드민, UI의 페이지 에디터,
+그리고 1분의 지연도 안 되는 일 — Jira에 남기세요. CLI와 REST는 이미
+위키 페이지를 씁니다.
 [`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit).
 
 **비교.** jira-cli는 커맨드마다 라이브 API를 호출합니다. Linear는 다른
-트래커입니다. Rovo MCP도 두 소스를 함께 검색하지만 호스팅형입니다 — 집계
+트래커이기도 하고, gadak 소스이기도 합니다(위 Linear 문단). Rovo MCP도 두 소스를 함께 검색하지만 호스팅형입니다 — 집계
 불가, 오프라인 불가, 호출마다 토큰이 나갑니다.
 [`docs/FAQ.md`](docs/FAQ.md#how-it-compares).
 

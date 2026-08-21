@@ -50,7 +50,8 @@ synced — including cached attachments — renders with no network at all.
 
 ## What gadak deliberately does not address
 
-- Boards, sprints, and drag-and-drop accidents — board UI territory; use Jira.
+- Boards, sprint planning UI, and drag-and-drop accidents — board UI territory;
+  use Jira. Sprint fields (`sprint_id` / `sprint_state`) are in the mirror.
 - Notification *scheme* design, permission schemes, workflow admin — server-side
   administration.
 - Velocity dashboards — the complaint behind them ("optimizing for Jira") is

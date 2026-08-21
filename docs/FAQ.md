@@ -86,8 +86,10 @@ workspace) rather than assuming the pipe is private.
 ## How do I know "no telemetry" is true?
 
 Run the grep in [`SECURITY.md`](../SECURITY.md#data-flow) — every
-outbound request constructor in the tree resolves to your Atlassian site,
-the GitHub Releases version check (off by config, never in dev builds), or
+outbound request constructor in the tree resolves to one of five destinations:
+your own Atlassian site; GitHub Releases (`api.github.com` version check, off
+by config, never in dev builds); Linear (`api.linear.app` GraphQL and a signed
+PUT to `uploads.linear.app`); a pairing home serve; user-invoked `gh` — or
 gadak talking to itself on loopback.
 
 ## How it compares
@@ -98,12 +100,14 @@ gadak talking to itself on loopback.
   SQL joins over the changelog, offline reads — plus an app and a web UI over
   the same file. If all
   you want is "create an issue from the terminal", jira-cli is lighter.
-- **Linear** is a different tracker. If your team can move, move. gadak is for
-  the (much larger) group whose org keeps Jira: it gives you Linear-ish speed
-  and keyboard flow without asking anyone for permission — it is a mirror, not a
-  migration. A standalone workspace (from 0.16) is the other door: no Atlassian
-  account, same mirror and same writes, with `origin/issuetap.yaml` as the
-  record.
+- **Linear** is a different tracker, and also a gadak source: a `"linear"`
+  block (`apiKey`, optional `teamIds`) and `gadak sync --source linear` mirrors
+  and writes through it (see the README Linear paragraph). If your team can
+  move off Jira entirely, move. gadak is for the (much larger) group whose org
+  keeps Jira: it gives you Linear-ish speed and keyboard flow without asking
+  anyone for permission — it is a mirror, not a migration. A standalone
+  workspace (from 0.16) is the other door: no Atlassian account, same mirror
+  and same writes, with `origin/issuetap.yaml` as the record.
 - **Atlassian's Rovo MCP server** gives agents official, hosted access to the
   same data — worth using if it fits, and for "find me the page about X" it
   often does: it searches Jira and Confluence together. The architectural

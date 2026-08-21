@@ -4,7 +4,17 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-20 — v0.16.0, the release where gadak stops needing an
+Last updated: 2026-08-21 — main after 0.16.1. The tag that finished 0.16:
+Linear is a write-through source ([GDK-263], [GDK-360], [GDK-361]) — a
+`"linear"` block in the workspace `config.json` (`apiKey`, optional
+`teamIds`) and `gadak sync --source linear` mirrors issues, comments,
+labels and attachments; writes route by the mirror's source for the key
+(comment, transition against the team's workflow states keyed by id,
+summary/priority/due-date, assign, file attach). Label edits, clearing a
+due date, and state history (`status_changed_at` stays NULL) refuse
+honestly rather than half-applying. Wiki page create, edit, and comment
+write through the origin ([GDK-380], [GDK-381], [GDK-382]).
+Under it, v0.16.0, the release where gadak stops needing an
 Atlassian account and stops needing a Mac: standalone workspaces whose origin
 is an in-process minimal Jira (`issuetap`) — mirror still a disposable cache,
 every write through the origin, and while a standalone `gadak serve` runs it
@@ -17,10 +27,9 @@ guest. Issue editing now follows the issue's own editmeta: due date,
 plain-text description with a format-loss guard, custom-field editors by
 kind, `p` for priority. The hosted demo opens on the product, feedback
 channels live in a Settings About tab and the macOS Help menu, the README
-carries a coverage matrix instead of adjectives, and a read-only Linear
-client shipped in the tag measured against the live API but unwired — since
-the tag, main wires it as the third read-only sync source ([GDK-263]), not yet
-in a released build.
+carries a coverage matrix instead of adjectives. (Linear shipped in 0.16.0
+as a read-only client measured against the live API but unwired; 0.16.1
+wired it as a source that writes.)
 Under it, v0.15.0, the release that opens gadak outward:
 `gadak://` deep links with producers on every surface (a copy-link action on
 the detail, `gadak issue KEY --link`, and a documented contract for extension

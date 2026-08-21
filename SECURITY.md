@@ -96,9 +96,10 @@ Outbound traffic is exactly five destinations:
 1. **Your own Atlassian site**, authenticated with your API token, for sync
    and write-through. Attachment bytes are proxied on demand and may be
    cached under the profile directory; credentials never travel with them.
-2. **GitHub Releases**, at most one anonymous version-check GET per day,
-   cached on disk, carrying no identifier and no local data
-   (`internal/selfupdate/selfupdate.go`). That lookup feeds the sidebar
+2. **GitHub Releases**, at most one anonymous version-check GET per day
+   to `https://api.github.com/repos/midagedev/gadak/releases/latest`
+   (`internal/selfupdate/selfupdate.go` `APIBase`), cached on disk, carrying
+   no identifier and no local data. That lookup feeds the sidebar
    banner; it does not download a desktop zip or swap the app. `updateCheck:
    false` turns it off; dev builds never check.
 3. **Linear**, when a workspace has a Linear source: GraphQL to

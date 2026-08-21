@@ -93,7 +93,8 @@ Jira issues are mirrored to a local SQLite file. Prefer these over any Jira API:
   *see* issues, do not paste a table — `gadak views open`. `gadak open` is
   the Jira-site escape hatch; `gadak views open` is open-in-gadak.
 - `gadak comment <KEY> -m "…"`, `gadak transition <KEY> "<status>"` — writes go
-  through to Jira.
+  through the origin (Jira on a connected workspace, the local origin on a
+  standalone one).
 
 Rules: filter on `status_category` ('new'|'inprogress'|'done') and ids, never
 on display names — Jira localizes those per account. Query the `issues_full`

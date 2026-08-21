@@ -118,13 +118,15 @@ on the list do not apply. That is why a comment-only word still finds the row.
 | | For | Looks like |
 | --- | --- | --- |
 | **App + Web UI** | all-day triage | [desktop app](docs/DESKTOP.md) (no port) or `gadak serve`. `j`/`k` walk, `x` selects, `s`/`a`/`l`/`c` change status, assignee, labels, or comment from the list. |
-| **CLI + SQL** | agents, scripts | `gadak issue`, `gadak search` (FTS, `--jql`, or a Jira URL), `gadak sql`, plus the file |
+| **CLI + SQL** | agents, scripts | `gadak issue`, `gadak search` (FTS, `--jql`, a Jira URL, `--explain`), `gadak sql`, plus the file |
 
-Writes go through to Jira, then the mirror refreshes. App and web: comment,
+Writes go through the origin, then the mirror refreshes. App and web: comment,
 transition, assign, labels, priority, title. CLI: `create` (single or
-`--batch`), `attach`, `edit`, `comment`, `transition`, `assign`, and
-`page create` / `page edit` / `page comment` for the wiki (pages, titles,
-bodies and comments all through the origin). Hierarchy, `item_refs`, attachments: [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
+`--batch`), `attach`, `edit`, `comment`, `transition` (`--resolution`),
+`assign`, `link`, `dev link` / `dev scan`, `fields --apply`,
+`issue --editmeta`, `project create`, and `page create` / `page edit` /
+`page comment` for the wiki (pages, titles, bodies and comments all through
+the origin). Hierarchy, `item_refs`, attachments: [`docs/CONCEPT.md`](docs/CONCEPT.md#two-surfaces).
 The window keeps one paper metaphor across four palettes — `light`, a
 neutral-cool `dark`, blue-black `ink`, and warm `ember`. The theme follows
 the system unless you pick one, and it belongs to the workspace, not the
@@ -175,7 +177,7 @@ in the workspace's origin folder; back up that one file.
 | Attachments | ✅ | ✅ |
 | History / time in status | ✅⁶ | ✅⁶ |
 | Agent surfaces (skill, MCP, SQL) | ✅ | ✅ |
-| Boards and sprints | — | — |
+| Boards and sprints | —⁸ | —⁸ |
 | Dashboards | — | — |
 | Jira notifications | —⁷ | —⁷ |
 
@@ -186,6 +188,7 @@ in the workspace's origin folder; back up that one file.
 5. Pages sync from the in-process origin. `gadak page create|edit|comment` and the REST verbs work here too; the UI has a page comment composer but no page editor yet.
 6. Changelog is mirrored. Time in status is computed from `status_changed_at`, not stored as a column.
 7. Jira's notification inbox, rules, and email are not mirrored. gadak has its own watch-feed OS alerts on macOS and Linux.
+8. No board UI and no sprint column on the list. Sprint fields (`sprint_id` / `sprint_name` / `sprint_state`) are in the mirror; SQL and JQL (`sprint =` / `sprint in openSprints()`) can query them. The `versions` catalog and `fix_version_ids` join the same way.
 
 **Linear.** A Linear workspace mirrors and writes through the same
 verbs: add a `"linear"` block (`apiKey`, optional `teamIds`) to the
@@ -377,11 +380,12 @@ reconcile pass. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Why not an
 extension or Forge app: [`docs/decisions/0003-local-process.md`](docs/decisions/0003-local-process.md).
 
 **Good fit / bad fit.** Daily search latency, an agent over tracker *and* wiki,
-offline reads — yes. Boards, admin, wiki authoring, or a minute of staleness —
-stay in Jira. [`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit).
+offline reads — yes. Boards, admin, a page editor in the UI, or a minute of
+staleness — stay in Jira. CLI and REST already write wiki pages.
+[`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit).
 
 **How it compares.** jira-cli talks to the live API per command. Linear is a
-different tracker. Rovo MCP searches both sources too, but it is hosted: no
+different tracker, and also a gadak source (see above). Rovo MCP searches both sources too, but it is hosted: no
 aggregate, no offline, and every call spends tokens.
 [`docs/FAQ.md`](docs/FAQ.md#how-it-compares).
 

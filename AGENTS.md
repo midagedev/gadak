@@ -39,7 +39,7 @@ check explicitly:
 ```bash
 gadak status --json
 # {"profile":"…","issues":534,"comments":634,"watermark":"…",
-#  "version":6,"schema_version":20,"sync_count":1,"first_sync_at":"…"}
+#  "version":6,"schema_version":31,"sync_count":1,"first_sync_at":"…"}
 ```
 
 A `last_error` field means the last sync failed. A quiet project's `watermark`
@@ -66,10 +66,14 @@ The schema in one paragraph: `items` is the source-neutral spine (title,
 `body_text`, timestamps); `issues` is the Jira projection, joined on
 `issues.item_id = items.id`; **`issues_full` is the agent convenience view**
 (`summary` + every `issues` column + `description_text` from `items.body_text` — prefer it when you need a title or the description as plain text);
-`comments`, `attachments`, `changelog`, and `links` hang off `items.id`;
-`items_fts` is the FTS5 index over titles, bodies, and comment text;
+`pages` is the Confluence projection (`pages.item_id = items.id`);
+`comments`, `attachments`, `changelog`, `links`, and `dev_links` hang off `items.id`;
+`items_fts` is the FTS5 index over titles, bodies, and comment text (issues and pages);
 `sync_state` holds freshness. `labels`, `components`, and `fix_versions` are
-JSON arrays — reach them with `json_each`. Every column is listed in
+JSON arrays — reach them with `json_each`. Sprint is three columns on `issues`
+(`sprint_id`, `sprint_name`, `sprint_state` — filter on id or state, never the
+name). `versions` is the project catalog; join it on `fix_version_ids` (same-order
+ids next to the name array `fix_versions`). Every column is listed in
 `specs/000-product/data-model.md`.
 
 Personal history lives in a second file next to the mirror (`local.db`),
@@ -114,10 +118,11 @@ WHERE reopen_count > 0 ORDER BY reopen_count DESC, reopened_at DESC LIMIT 20;
 SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS days
 FROM issues WHERE status_category = 'inprogress' ORDER BY days DESC LIMIT 20;
 
--- 4. Has anyone hit this before? (descriptions and comments, one index)
-SELECT i.key, it.title FROM items_fts f
-JOIN items it ON it.rowid = f.rowid
-JOIN issues i ON i.item_id = it.id
+-- 4. Has anyone hit this before? (descriptions, comments AND wiki pages, one index)
+SELECT it.kind, COALESCE(i.key, p.item_id) AS ref, it.title
+FROM items_fts f JOIN items it ON it.rowid = f.rowid
+LEFT JOIN issues i ON i.item_id = it.id
+LEFT JOIN pages  p ON p.item_id = it.id
 WHERE items_fts MATCH 'webhook AND retry' LIMIT 20;
 
 -- 5. Who is loaded, per project
@@ -126,9 +131,18 @@ FROM issues WHERE status_category != 'done'
 GROUP BY project_key, who ORDER BY project_key, n DESC;
 
 -- 6. What is in a release (JSON array column)
+-- Name array is the 0.x recipe key; names rename — prefer the id join below.
 SELECT i.key, i.status, i.summary
 FROM issues_full i, json_each(i.fix_versions) v
 WHERE v.value = '2026.8.0' ORDER BY i.resolved_at;
+
+-- 6b. Same question, join on id (names rename; released/release_date live here)
+SELECT i.key, i.summary, v.name, v.release_date
+FROM issues_full i, json_each(i.fix_version_ids) j
+JOIN versions v ON v.id = j.value
+WHERE json_valid(i.fix_version_ids)
+  AND v.released = 1
+ORDER BY v.release_date, i.key;
 
 -- 7. What moved this week, and who moved it
 -- Same GDK-369 clock caveat on standalone; datetime('now', '-7 days')
@@ -160,6 +174,13 @@ LIMIT 20;
 
 -- 11. Read an issue description as plain text (no ADF parser)
 SELECT key, substr(description_text,1,200) FROM issues_full WHERE key='...';
+
+-- 12. Work in the active sprint (sprint_id / sprint_state are the stable keys;
+-- sprint_name is a localized display name — never filter on it)
+SELECT key, summary, sprint_id, sprint_name
+FROM issues_full
+WHERE sprint_state = 'active' AND status_category != 'done'
+ORDER BY priority_rank, updated_at DESC;
 ```
 
 Pipe keys from (9) into the running UI: `gadak sql --no-header "select key from local.visits where kind='issue' group by key order by max(viewed_at) desc" | gadak views open --keys -` (or keep the header and `tail -n +2`).
@@ -202,6 +223,7 @@ gadak open NMB-140                    # Jira escape hatch: system browser to /br
 
 gadak search "flaky upload" --limit 5
 gadak search "idempotency" --json     # matching IssueLite rows, best match first
+gadak search NMB-140 --explain        # why each hit ranked: key-exact, key-prefix, or fts
 gadak search --jql 'project = NMA AND statusCategory = "In Progress"'
 gadak search 'https://your-site.atlassian.net/issues/?jql=project%20%3D%20NMA'
 
@@ -241,6 +263,19 @@ gadak fields --apply                  # map in-use custom fields, then edit --fi
 
 gadak team export --out gadak-team.json   # share views, fieldMap, group rules (no credentials)
 gadak team import gadak-team.json         # merge into this workspace; try --dry-run first
+
+gadak page create --space LOC --title "Retention notes" -m "first draft"
+gadak page edit <ID> --title "Renamed"
+gadak page comment <ID> -m "a question"
+
+gadak project create IDEA --name Ideas    # grow a standalone workspace by a project
+
+gadak dev link STD-1 --pr https://github.com/org/app/pull/7   # standalone: record a PR
+gadak dev scan                            # standalone: gh pr list, link matches
+
+gadak config list                         # every editable path
+gadak config set appearance.theme ink
+gadak config set devStatus true           # connected: mirror Jira's development panel into dev_links
 
 gadak sync                            # incremental; --full re-fetches everything
 gadak status --json
@@ -348,9 +383,20 @@ curl -s -X PUT localhost:7777/api/v1/issues/NMB-140/priority/ \
 
 curl -s -X PUT localhost:7777/api/v1/issues/NMB-140/summary/ \
   -H 'Content-Type: application/json' -d '{"summary":"Rename without opening Jira"}'
+
+curl -s -X PUT localhost:7777/api/v1/issues/NMB-140/duedate/ \
+  -H 'Content-Type: application/json' -d '{"duedate":"2026-09-01"}'
+curl -s -X PUT localhost:7777/api/v1/issues/NMB-140/description/ \
+  -H 'Content-Type: application/json' -d '{"description":"plain text"}'
+curl -s -X PATCH localhost:7777/api/v1/issues/NMB-140/fields/ \
+  -H 'Content-Type: application/json' -d '{"field":"severity","value":"High"}'
+curl -s -X POST localhost:7777/api/v1/issues/pages/ \
+  -H 'Content-Type: application/json' -d '{"space":"ENG","title":"Retention notes","text":"first draft"}'
 ```
 
-A write with no stored credential answers `409 {"error":"credential_required"}`.
+A write on a **connected** workspace with no stored credential answers
+`409 {"error":"credential_required"}`. A standalone workspace has no site
+token and writes still succeed.
 The full endpoint list, response shapes, and error bodies are in
 `specs/000-product/contracts/api.md`.
 

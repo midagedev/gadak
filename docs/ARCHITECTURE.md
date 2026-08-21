@@ -9,10 +9,11 @@ flowchart TB
   subgraph Remote
     Jira["Jira Cloud REST API"]
     Confluence["Confluence Cloud REST API"]
+    Linear["Linear GraphQL"]
   end
   subgraph Machine["Your machine"]
     subgraph Binary["gadak (single Go binary)"]
-      Sync["jira + confluence + sync<br/>full + incremental"]
+      Sync["jira + confluence + linear + sync<br/>full + incremental"]
       Store["store<br/>SQLite + FTS5"]
       API["server<br/>read API + write proxy"]
       UI["embedded UI / --static<br/>SPA + config.json"]
@@ -24,6 +25,7 @@ flowchart TB
 
   Jira -->|"read"| Sync
   Confluence -->|"read"| Sync
+  Linear -->|"read"| Sync
   Sync --> Store
   Store <--> DB
   Store --> API
@@ -31,6 +33,7 @@ flowchart TB
   UI --> Browser
   Browser -->|"writes"| API
   API -->|"writes"| Jira
+  API -->|"writes"| Linear
   DB -->|"read-only"| Agent
 ```
 
@@ -54,8 +57,8 @@ rejected before the mux (`internal/server/browser_guard.go`, see
 `internal/` is a spine, not a package inventory. A listing here would rot
 the same way a command inventory in `cmd/gadak/main.go` did. The arrows:
 
-- **Sources** (`internal/jira`, `internal/confluence`) talk HTTP to Atlassian
-  and produce store records. They do not write SQL.
+- **Sources** (`internal/jira`, `internal/confluence`, `internal/linear`) talk
+  HTTP to Atlassian or Linear and produce store records. They do not write SQL.
 - **`internal/store`** owns the SQLite schema, migrations, queries, FTS, and
   derived fields. It does not import `internal/jira`. Shared ADF flattening
   lives in `internal/adf` (plain `json.RawMessage`, no Jira types).

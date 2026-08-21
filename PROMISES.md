@@ -16,15 +16,30 @@ grep -rniE 'telemetry|analytics|mixpanel|amplitude|posthog|sentry\.io|google-ana
 # → 0
 ```
 
-**2. The only remote host compiled into gadak is GitHub's release API.**
+**2. Outbound traffic is the five destinations in SECURITY.md.**
 <!-- outbound: Your own Atlassian site | GitHub Releases | Linear | Pairing home serve | User-invoked gh -->
-Every other request goes to the Atlassian site *you* configured; the three
-`atlassian.net` strings below are placeholders in help text and comments.
+Your own Atlassian site; GitHub's release API
+(`api.github.com/repos/midagedev/gadak/releases/latest`); Linear
+(`api.linear.app` GraphQL and a signed PUT to `uploads.linear.app`); a
+pairing home serve; user-invoked `gh`. The `atlassian.net` strings below
+are placeholders in help text and comments. `developer.microsoft.com`,
+`x.com`, and `github.com` are desktop Help-menu / help-text strings, not
+hosts the HTTP client calls; `https://github` is the regex literal
+`https://github\.com` truncated by this grep.
 
 ```bash
 grep -rhoE 'https://[a-z0-9.-]+' --include='*.go' --exclude='*_test.go' internal cmd desktop | sort -u
-# → https://api.github.com          https://example.atlassian.net
-#   https://x.atlassian.net         https://your-site.atlassian.net
+# → https://api.github.com
+#   https://api.linear.app
+#   https://developer.microsoft.com
+#   https://example.atlassian.net
+#   https://github
+#   https://github.com
+#   https://linear.app
+#   https://uploads.linear.app
+#   https://x.atlassian.net
+#   https://x.com
+#   https://your-site.atlassian.net
 ```
 
 **3. That release check is off with one config line, and never runs on a dev build.**

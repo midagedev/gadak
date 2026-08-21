@@ -21,8 +21,10 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   열지 않는다. 위키도 같은 규칙이다 — 페이지 쓰기(생성·편집·코멘트,
   GDK-380/381/382)는 origin.Wiki를 통과한다: connected는 Confluence REST,
   standalone은 issuetap의 Confluence API(미러 직접 쓰기가 아니다).
-- **아웃바운드 없음.** 텔레메트리 금지. 나가는 요청은 사용자의 Atlassian
-  사이트, GitHub 릴리스 버전 체크(설정으로 끔), loopback뿐 (`SECURITY.md`).
+- **아웃바운드 없음.** 텔레메트리 금지. 나가는 요청은 사용자가 설정한
+  origin(Atlassian 사이트·Linear: api.linear.app/uploads.linear.app), GitHub
+  릴리스 버전 체크(설정으로 끔), 페어링한 home serve, loopback뿐
+  (`SECURITY.md`가 정본).
 - **계정·서버·포트 강제 없음.** loopback 단일 사용자 모델 (`docs/decisions/0003`).
 
 ## 스키마·계약

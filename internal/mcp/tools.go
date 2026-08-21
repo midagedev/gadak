@@ -44,7 +44,9 @@ Schema essentials:
 - issues: Jira projection joined on issues.item_id = items.id — key, project_key,
   status, status_id, status_category (new|inprogress|done), priority, priority_rank,
   assignee, assignee_email, assignee_id, reporter, labels/components/fix_versions
-  (JSON arrays; use json_each), parent_key (direct parent), epic_key (nearest epic
+  (JSON arrays; use json_each), fix_version_ids (same-order ids; join versions.id),
+  sprint_id / sprint_name / sprint_state (filter on id or state, never the name),
+  parent_key (direct parent), epic_key (nearest epic
   ancestor — group/aggregate on this), hierarchy_level (1=epic, 0=standard,
   -1=sub-task), reopen_count (times an issue left done and came back; 0 is normal,
   >0 is the signal), reopened_at, status_changed_at, resolved_at, comment_count.
@@ -55,7 +57,9 @@ Schema essentials:
   parent_id (page tree), version, labels (JSON array), body_adf, excerpt
   (≤200-rune body preview). Page title and body_text live on items
   (items.kind = 'page'; issues are kind 'issue').
-- comments, attachments, changelog, links: hang off items.id
+- comments, attachments, changelog, links, dev_links: hang off items.id
+- versions: project catalog (id, project_key, name, released, archived, release_date);
+  join issues on fix_version_ids, never on the name array.
 - item_refs: text-derived cross-refs — item_id (source), target_kind
   ('issue'|'page'), target_key (issue key or page id string), via ('url'|'text').
   Page bodies → issue keys; issue bodies/comments → page ids. Target need not

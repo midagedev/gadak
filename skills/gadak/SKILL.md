@@ -162,7 +162,11 @@ WHERE status_category = 'inprogress'  -- RIGHT: stable everywhere
 `items` is the source-neutral spine (title, `body_text`, timestamps). `issues`
 is the Jira projection, joined on `issues.item_id = items.id`. **`issues_full`
 is the view to reach for** — every `issues` column plus `summary` and
-`description_text` (`items.body_text`, flattened). `pages` is
+`description_text` (`items.body_text`, flattened). Sprint is three columns on
+`issues` (`sprint_id`, `sprint_name`, `sprint_state` — filter on id or state,
+never the name). `versions` is the project catalog; join it on
+`fix_version_ids` (same-order ids next to the name array `fix_versions`).
+`pages` is
 the Confluence projection. `comments`, `attachments`, `changelog`, `links`,
 and `dev_links` (development-panel PRs) hang off `items.id`. `items_fts` is
 one FTS5 index over titles, bodies, and
@@ -380,6 +384,9 @@ gadak link NMB-140 NMB-141 --type blocks          # A blocks B; --type "is block
 
 gadak create --batch -                        # one JSON object per line on stdin
 gadak fields --apply                          # map in-use custom fields, then edit --field alias=value
+gadak project create IDEA --name Ideas        # grow a standalone workspace by a project
+gadak transition NMB-140 done --field environment=staging
+gadak search NMB-140 --explain                # why each hit ranked: key-exact, key-prefix, or fts
 ```
 
 Custom-field writes follow this order: `gadak fields --apply` (save aliases) →
@@ -431,6 +438,7 @@ gadak config set appearance.theme dark
 gadak config set syncIntervalSec 30
 gadak config set features.feed true
 gadak config set projects '["NMB","NMA"]'
+gadak config set devStatus true
 ```
 
 `--json` on `list` and `get` (and `set`, which prints the stored value).
@@ -470,8 +478,8 @@ status). `gadak issue KEY --json` includes it; SQL joins `dev_links` on
 - **standalone:** `gadak dev link KEY --pr <url>` records a PR through the
   local origin; `gadak dev scan` execs `gh pr list` and links matches
   (`cmd/gadak/dev.go`). Both refuse on a connected workspace.
-- **connected Cloud:** do not run `dev link` / `dev scan`. Enable `devStatus`
-  in config.json to *mirror* Jira's development panel into `dev_links` (read).
+- **connected Cloud:** do not run `dev link` / `dev scan`. `gadak config set
+  devStatus true` to *mirror* Jira's development panel into `dev_links` (read).
 - **paired** is kind `connected`: same refusal as Cloud. Write on the
   standalone home, then sync.
 

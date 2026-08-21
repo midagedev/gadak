@@ -15,6 +15,13 @@ plugin registry, lifecycle, or manifest.
 
 If your plugin can open a SQLite file, it is compatible.
 
+PR URLs on an issue are first-class `dev_links` (`gadak issue KEY --json`;
+SQL joins `dev_links` on `item_id`). On standalone, `gadak dev link` /
+`gadak dev scan` write that table through the origin; on connected Cloud,
+`gadak config set devStatus true` mirrors Jira's development panel into it
+(read). The `kind=prs` plugin is extra metadata on top of that, not the
+way to attach a PR.
+
 **Runnable examples** (Python 3 stdlib, copy-pasteable):
 [`examples/plugins/`](../examples/plugins/) — GitHub PRs, git-tag deploy status,
 and CSV import. How to choose config vs plugins vs SQL:
