@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 func TestIdsToAliasFirstAliasWins(t *testing.T) {
@@ -178,6 +184,98 @@ func TestAsciiSlugDropsNonASCII(t *testing.T) {
 	}
 	if got := fields.SuggestAlias("순위", "customfield_10019", map[string]bool{}); got != "cf_10019" {
 		t.Errorf("SuggestAlias for a non-ASCII name = %q, want cf_10019", got)
+	}
+}
+
+func TestFieldsApplyRecordsAppliedAt(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/api/3/field" {
+			http.Error(w, "unexpected "+r.URL.Path, http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]map[string]any{{
+			"id":     "customfield_10016",
+			"name":   "Story Points",
+			"custom": true,
+			"schema": map[string]any{
+				"type":   "number",
+				"custom": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+			},
+		}})
+	}))
+	t.Cleanup(srv.Close)
+
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: srv.URL}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"3": "inprogress"},
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+				Key: "NMB-1", Title: "points",
+				CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+				Status: "Open", StatusID: "3", StatusCategory: "inprogress",
+				Raw: []byte(`{"fields":{"customfield_10016":8}}`),
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{Site: srv.URL, Email: "a@example.invalid", Token: "token"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdFields([]string{"--apply"}) })
+	if err != nil {
+		t.Fatalf("fields --apply: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "usage rows") {
+		t.Fatalf("apply summary must name usage rows:\n%s", out)
+	}
+
+	loaded, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.FieldsAppliedAt == "" {
+		t.Fatal("FieldsAppliedAt empty after successful apply")
+	}
+	if len(loaded.Fields) == 0 {
+		t.Fatal("Fields empty after successful apply")
+	}
+
+	stOut, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v\n%s", err, stOut)
+	}
+	doc := decodeStatusJSON(t, stOut)
+	cf := statusCustomFields(t, doc)
+	if at, _ := cf["applied_at"].(string); at != loaded.FieldsAppliedAt {
+		t.Fatalf("status applied_at = %q, config %q", at, loaded.FieldsAppliedAt)
+	}
+	mapped, _ := cf["mapped"].(float64)
+	if int(mapped) != len(loaded.Fields) {
+		t.Fatalf("status mapped = %v, want %d", cf["mapped"], len(loaded.Fields))
 	}
 }
 

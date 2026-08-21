@@ -398,3 +398,114 @@ func TestDoctorReportsMigratedSinceLastSync(t *testing.T) {
 		t.Fatalf("doctor --json schema_since_sync = %q", note)
 	}
 }
+
+// statusJSONBaselineKeys are the --json fields that must survive GDK-522.
+// Optional keys (last_error, pairing, update, …) are omitted on purpose.
+var statusJSONBaselineKeys = []string{
+	"profile", "workspace", "workspace_source", "kind",
+	"issues", "comments", "pages", "schema_version",
+	"api_usage", "frozen", "token_expiry", "wiki",
+}
+
+func TestStatusJSONCustomFieldsMapped(t *testing.T) {
+	cfg := mirror(t, "https://example.invalid")
+	t.Setenv("HOME", t.TempDir())
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "story_points", Label: "Story Points", IDs: []string{"customfield_1"}, Role: "plain"},
+		{Alias: "severity", Label: "Severity", IDs: []string{"customfield_2"}, Role: "facet"},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v\n%s", err, out)
+	}
+	doc := decodeStatusJSON(t, out)
+	cf := statusCustomFields(t, doc)
+	mapped, _ := cf["mapped"].(float64)
+	if int(mapped) != 2 {
+		t.Fatalf("custom_fields.mapped = %v, want 2; body %s", cf["mapped"], out)
+	}
+	if _, ok := cf["applied_at"]; ok {
+		t.Fatalf("applied_at must be omitted when FieldsAppliedAt is empty: %s", out)
+	}
+	for _, k := range statusJSONBaselineKeys {
+		if _, ok := doc[k]; !ok {
+			t.Errorf("status --json lost %q", k)
+		}
+	}
+}
+
+func TestStatusJSONCustomFieldsAppliedAt(t *testing.T) {
+	cfg := mirror(t, "https://example.invalid")
+	t.Setenv("HOME", t.TempDir())
+	const applied = "2026-08-21T12:00:00.000Z"
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "story_points", Label: "Story Points", IDs: []string{"customfield_1"}, Role: "plain"},
+	}
+	cfg.FieldsAppliedAt = applied
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v\n%s", err, out)
+	}
+	cf := statusCustomFields(t, decodeStatusJSON(t, out))
+	if got, _ := cf["applied_at"].(string); got != applied {
+		t.Fatalf("custom_fields.applied_at = %q, want %q; body %s", got, applied, out)
+	}
+	mapped, _ := cf["mapped"].(float64)
+	if int(mapped) != 1 {
+		t.Fatalf("custom_fields.mapped = %v, want 1", cf["mapped"])
+	}
+}
+
+func TestStatusJSONCustomFieldsUnmappedNoStderrNudge(t *testing.T) {
+	// HasCustomFieldKeysInRaw parses every issues.raw document. status must
+	// stay cheap, so the unmapped-raw hint lives on doctor only (GDK-522).
+	cfg := mirror(t, "https://example.invalid")
+	t.Setenv("HOME", t.TempDir())
+	if len(cfg.Fields) != 0 {
+		t.Fatalf("fixture Fields = %v, want empty", cfg.Fields)
+	}
+
+	_, stderr, err := captureBoth(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v", err)
+	}
+	if strings.Contains(stderr, "fields --apply") {
+		t.Fatalf("status must not stderr-nudge fields --apply (raw scan is not cheap): %q", stderr)
+	}
+
+	standaloneMirror(t)
+	t.Setenv("HOME", t.TempDir())
+	_, stderr, err = captureBoth(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("standalone status --json: %v", err)
+	}
+	if strings.Contains(stderr, "fields --apply") {
+		t.Fatalf("standalone status must not nudge custom-field mapping: %q", stderr)
+	}
+}
+
+func decodeStatusJSON(t *testing.T, out string) map[string]any {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("decode status %q: %v", out, err)
+	}
+	return doc
+}
+
+func statusCustomFields(t *testing.T, doc map[string]any) map[string]any {
+	t.Helper()
+	cf, ok := doc["custom_fields"].(map[string]any)
+	if !ok {
+		t.Fatalf("custom_fields missing or not an object: %v", doc["custom_fields"])
+	}
+	return cf
+}

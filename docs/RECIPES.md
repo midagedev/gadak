@@ -181,6 +181,30 @@ select watermark, last_full_sync_at, sync_count, first_sync_at, last_error
 from sync_state where source_id = 'jira'
 ```
 
+## Custom fields
+
+`issues.custom` is filled only after field mapping (`gadak fields --apply`).
+Until then every row is `{}` — an empty `json_extract` is "not mapped", not
+"the field is blank". `gadak status --json` reports `custom_fields.mapped`;
+`gadak doctor` names the case where raw still carries unmapped
+`customfield_` keys. demo.db is all `{}` (measured), so these fences return
+zero rows there; they are valid SQL.
+
+**A scalar alias** (story points, a select):
+
+```sql
+select key, json_extract(custom, '$.story_points') as sp
+from issues_full
+where json_extract(custom, '$.story_points') is not null
+```
+
+**An array alias** (multi-select, a labels-like axis) needs `json_each`:
+
+```sql
+select i.key, je.value
+from issues_full i, json_each(i.custom, '$.labels_axis') je
+```
+
 ## Show on the app
 
 SQL answers; `gadak views open` presents. When the ask is to *see* a set, pipe

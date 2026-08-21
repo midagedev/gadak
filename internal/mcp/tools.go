@@ -117,8 +117,11 @@ Use when you need the whole conversation around a single key (e.g. NMB-140).`
 const toolStatusDescription = `Return mirror freshness: watermark, version, last_error, last_full_sync_at,
 schema_version, row counts (issues, comments), and the workspace kind
 (connected|standalone) with its origin. A paired workspace is kind connected
-plus a pairing object (endpoint, label). Check this before acting on
-answers that matter — a stalled watermark can mean a quiet project or a broken sync.`
+plus a pairing object (endpoint, label). custom_fields.mapped is the number of
+configured field aliases; 0 means issues.custom is unmapped (empty
+json_extract results may mean gadak fields --apply has not run).
+Check this before acting on answers that matter — a stalled watermark can
+mean a quiet project or a broken sync.`
 
 // toolShowDescription is the presentation tool: it writes ui-focus and returns
 // no issue rows. Numbers are from the running UI (500 ms poll) and uifocus.MaxAge.
@@ -387,6 +390,7 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 		kind, originDesc := origin.Describe(cfg)
 		st["kind"] = kind
 		st["origin"] = originDesc
+		st["custom_fields"] = cfg.CustomFieldsStatus()
 		// Same pairing object as `gadak status --json` (origin.PairedStatus).
 		if rem, err := origin.PairedStatus(cfg); err != nil {
 			st["pairing_error"] = err.Error()
@@ -396,6 +400,8 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 				"label":    rem.Label,
 			}
 		}
+	} else {
+		st["custom_fields"] = (*config.Config)(nil).CustomFieldsStatus()
 	}
 	ss, err := s.db.SyncState(context.Background(), "jira")
 	if err != nil {

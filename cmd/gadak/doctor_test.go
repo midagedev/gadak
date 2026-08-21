@@ -196,11 +196,13 @@ func TestDoctorRedaction(t *testing.T) {
 		"email:                 configured",
 		"<redacted>.atlassian.net",
 		"http 403 (auth)",
-		"custom_fields:         1",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("human output missing %q:\n%s", want, out)
 		}
+	}
+	if got := doctorValue(t, out, "custom_fields"); !strings.Contains(got, "1 alias mapped") {
+		t.Errorf("custom_fields = %q, want a mapped-alias summary", got)
 	}
 	// Username from the temp path must not appear if home-relative.
 	if realHomeErr == nil {
@@ -597,5 +599,148 @@ func TestDoctorNamesNewerMirrorInsteadOfOpenFailed(t *testing.T) {
 	// The version pair is the diagnosis: what the file has, what this build reads.
 	if !strings.Contains(out, strconv.Itoa(future)) || !strings.Contains(out, strconv.Itoa(applied)) {
 		t.Fatalf("expected both schema versions (%d found, %d supported):\n%s", future, applied, out)
+	}
+}
+
+// GDK-522: unmapped config + raw still carrying customfield_ keys must name
+// `gadak fields --apply`. The human line used to be just the mapped count.
+func TestDoctorCustomFieldsUnmappedRawHint(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"3": "inprogress"},
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+				Key: "NMB-1", Title: "has an unmapped custom field",
+				CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+				Status: "Open", StatusID: "3", StatusCategory: "inprogress",
+				Raw: []byte(`{"fields":{"customfield_10016":8}}`),
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Site:  "https://example.invalid",
+		Email: "a@example.invalid",
+		Token: "token",
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, human)
+	}
+	got := doctorValue(t, human, "custom_fields")
+	if !strings.Contains(got, "run gadak fields --apply") {
+		t.Fatalf("unmapped+raw doctor line must name fields --apply, got %q\n%s", got, human)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("decode %q: %v", raw, err)
+	}
+	cf, ok := doc["custom_fields"].(map[string]any)
+	if !ok {
+		t.Fatalf("custom_fields want object, got %T %v", doc["custom_fields"], doc["custom_fields"])
+	}
+	if mapped, _ := cf["mapped"].(float64); int(mapped) != 0 {
+		t.Errorf("mapped = %v, want 0", cf["mapped"])
+	}
+	if has, _ := cf["raw_has_custom"].(bool); !has {
+		t.Errorf("raw_has_custom = %v, want true", cf["raw_has_custom"])
+	}
+}
+
+func TestDoctorCustomFieldsMappedSummary(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReplaceFieldUsage(context.Background(), []store.FieldUsageRow{
+		{ProjectKey: "NMB", Alias: "story_points", Filled: 1, Total: 1},
+		{ProjectKey: "NMA", Alias: "story_points", Filled: 0, Total: 2},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	const applied = "2026-08-21T12:00:00.000Z"
+	cfg := &config.Config{
+		Site:  "https://example.invalid",
+		Email: "a@example.invalid",
+		Token: "token",
+		Fields: []config.FieldSpec{
+			{Alias: "story_points", Label: "Story Points", IDs: []string{"customfield_1"}, Role: "plain"},
+			{Alias: "severity", Label: "Severity", IDs: []string{"customfield_2"}, Role: "facet"},
+		},
+		FieldsAppliedAt: applied,
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, human)
+	}
+	got := doctorValue(t, human, "custom_fields")
+	for _, want := range []string{"2 aliases mapped", "applied " + applied, "usage rows 2"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("custom_fields %q missing %q", got, want)
+		}
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("decode %q: %v", raw, err)
+	}
+	cf, ok := doc["custom_fields"].(map[string]any)
+	if !ok {
+		t.Fatalf("custom_fields want object, got %T %v", doc["custom_fields"], doc["custom_fields"])
+	}
+	if mapped, _ := cf["mapped"].(float64); int(mapped) != 2 {
+		t.Errorf("mapped = %v, want 2", cf["mapped"])
+	}
+	if at, _ := cf["applied_at"].(string); at != applied {
+		t.Errorf("applied_at = %q, want %q", at, applied)
+	}
+	if n, _ := cf["usage_rows"].(float64); int(n) != 2 {
+		t.Errorf("usage_rows = %v, want 2", cf["usage_rows"])
 	}
 }

@@ -58,7 +58,7 @@ tab). The names collide; the verbs do not.
 First, check it is there and current:
 
 ```bash
-gadak status --json     # counts, watermark, last_error, schema_version
+gadak status --json     # counts, watermark, last_error, schema_version, custom_fields.mapped
 ```
 
 `last_error` means the last sync failed. An old `watermark` on a quiet project
@@ -165,7 +165,16 @@ is the view to reach for** — every `issues` column plus `summary`. `pages` is
 the Confluence projection. `comments`, `attachments`, `changelog`, and `links`
 hang off `items.id`. `items_fts` is one FTS5 index over titles, bodies, and
 comment text — issues and wiki pages together. `labels`, `components`, and
-`fix_versions` are JSON arrays; reach them with `json_each`.
+`fix_versions` are JSON arrays; reach them with `json_each`. Mapped custom
+fields live in `issues.custom` (and `issues_full.custom`) keyed by alias —
+only after `gadak fields --apply`. If `gadak status --json` shows
+`custom_fields.mapped` of 0, an empty `json_extract(custom, '$.alias')` may
+mean mapping has not run, not that the field is blank:
+
+```sql
+SELECT key, json_extract(custom, '$.story_points') AS sp
+FROM issues_full WHERE json_extract(custom, '$.story_points') IS NOT NULL;
+```
 
 Personal state lives in `local.db` beside the mirror (ATTACHed as `local`;
 you do not type ATTACH): `local.saved_views` (`gadak views save`),

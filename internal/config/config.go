@@ -116,6 +116,10 @@ type Config struct {
 	// Fields is the sole on-disk truth. FieldMap/EditableFields exist only as
 	// unmarshal targets so LoadFor can migrate a pre-Fields config once.
 	Fields []FieldSpec `json:"fields,omitempty"`
+	// FieldsAppliedAt is when `gadak fields --apply` last succeeded (RFC3339,
+	// millisecond UTC). Mapping lives in Fields; the timestamp lives here too
+	// so a regenerated mirror does not lose "when discovery last ran".
+	FieldsAppliedAt string `json:"fieldsAppliedAt,omitempty"`
 	// FieldMap is a migration-only unmarshal target (alias → customfield id).
 	// LoadFor converts it into Fields and clears it; new writes must not set it.
 	FieldMap   map[string]string `json:"fieldMap,omitempty"`
@@ -874,6 +878,24 @@ func cloneFieldSpecs(in []FieldSpec) []FieldSpec {
 		if s.IDs != nil {
 			out[i].IDs = append([]string(nil), s.IDs...)
 		}
+	}
+	return out
+}
+
+// CustomFieldsStatus is the object `gadak status --json` and MCP gadak_status
+// emit for field-mapping visibility (GDK-522). mapped is the effective spec
+// count (FieldSpecs, so a leftover fieldMap still counts). applied_at is
+// omitted when discovery has never been recorded. Does not scan the mirror.
+func (c *Config) CustomFieldsStatus() map[string]any {
+	n := 0
+	applied := ""
+	if c != nil {
+		n = len(c.FieldSpecs())
+		applied = c.FieldsAppliedAt
+	}
+	out := map[string]any{"mapped": n}
+	if applied != "" {
+		out["applied_at"] = applied
 	}
 	return out
 }

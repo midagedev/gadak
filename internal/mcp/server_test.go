@@ -146,7 +146,7 @@ func TestProtocolRoundTrip(t *testing.T) {
 			sdesc = tool.Description
 		}
 	}
-	for _, needle := range []string{"paired", "connected", "pairing"} {
+	for _, needle := range []string{"paired", "connected", "pairing", "custom_fields"} {
 		if !strings.Contains(sdesc, needle) {
 			t.Errorf("gadak_status description missing %q", needle)
 		}
@@ -163,6 +163,9 @@ func TestProtocolRoundTrip(t *testing.T) {
 	}
 	if _, ok := status["watermark"]; !ok {
 		t.Errorf("status missing watermark: %v", status)
+	}
+	if _, ok := status["custom_fields"]; !ok {
+		t.Errorf("status missing custom_fields: %v", status)
 	}
 
 	// gadak_search
@@ -462,6 +465,50 @@ func TestStatusSchemaVersionMatchesLivePRAGMA(t *testing.T) {
 	synced, _ := status["synced_at"].(string)
 	if synced == "" {
 		t.Error("synced_at missing; must still come from the row")
+	}
+}
+
+// GDK-522: gadak_status carries the same custom_fields object as status --json.
+func TestStatusCustomFieldsMapped(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cfg := &config.Config{
+		Fields: []config.FieldSpec{
+			{Alias: "story_points", Label: "Story Points", IDs: []string{"customfield_1"}, Role: "plain"},
+			{Alias: "severity", Label: "Severity", IDs: []string{"customfield_2"}, Role: "facet"},
+		},
+		FieldsAppliedAt: "2026-08-21T12:00:00.000Z",
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	db := demoDB(t)
+	resps := session(t, db,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"gadak_status","arguments":{}}}`,
+	)
+	statusText := callText(t, resps[0])
+	var status map[string]any
+	if err := json.Unmarshal([]byte(statusText), &status); err != nil {
+		t.Fatalf("status JSON: %v\n%s", err, statusText)
+	}
+	cf, ok := status["custom_fields"].(map[string]any)
+	if !ok {
+		t.Fatalf("gadak_status missing custom_fields object: %s", statusText)
+	}
+	if mapped, _ := cf["mapped"].(float64); int(mapped) != 2 {
+		t.Fatalf("custom_fields.mapped = %v, want 2", cf["mapped"])
+	}
+	if at, _ := cf["applied_at"].(string); at != "2026-08-21T12:00:00.000Z" {
+		t.Fatalf("custom_fields.applied_at = %q", at)
+	}
+	for _, k := range []string{"issues", "watermark", "schema_version"} {
+		if _, ok := status[k]; !ok {
+			t.Errorf("gadak_status lost %q", k)
+		}
 	}
 }
 

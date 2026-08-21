@@ -45,7 +45,7 @@ type doctorReport struct {
 	Migrations      string                `json:"migrations"`
 	Counts          *doctorCounts         `json:"counts"`
 	Confluence      string                `json:"confluence"`
-	CustomFields    int                   `json:"custom_fields"`
+	CustomFields    doctorCustomFields    `json:"custom_fields"`
 	Credential      string                `json:"credential"`
 	Site            string                `json:"site"`
 	Email           string                `json:"email"`
@@ -63,6 +63,20 @@ type doctorReport struct {
 //
 // HasSiteToken is site-token presence, not config.HasCredential (GDK-470).
 // Standalone writes work with no site token; this field stays false there.
+// doctorCustomFields is the mapping-visibility object (GDK-522). mapped is
+// the configured alias count; applied_at is when `gadak fields --apply` last
+// succeeded. usage_rows and raw_has_custom need the mirror (0 / false when
+// it is missing). The previous JSON value was that same mapped count as an
+// int; mapped preserves it.
+type doctorCustomFields struct {
+	Mapped       int    `json:"mapped"`
+	AppliedAt    string `json:"applied_at,omitempty"`
+	UsageRows    int    `json:"usage_rows"`
+	RawHasCustom bool   `json:"raw_has_custom"`
+	// rawScanned is true only when HasCustomFieldKeysInRaw actually ran.
+	rawScanned bool
+}
+
 type doctorWorkspace struct {
 	Name         string `json:"name"`
 	Kind         string `json:"kind"`
@@ -157,7 +171,6 @@ func collectDoctor() doctorReport {
 		Credential:      "absent",
 		Site:            "none",
 		Email:           "none",
-		CustomFields:    0,
 		Sync:            map[string]doctorSync{},
 		APIUsage: doctorAPIUsage{
 			Day: time.Now().UTC().Format("2006-01-02"),
@@ -183,7 +196,8 @@ func collectDoctor() doctorReport {
 		if cfg.Email != "" {
 			rep.Email = "configured"
 		}
-		rep.CustomFields = len(cfg.FieldSpecs())
+		rep.CustomFields.Mapped = len(cfg.FieldSpecs())
+		rep.CustomFields.AppliedAt = cfg.FieldsAppliedAt
 		if cfg.Confluence != nil {
 			rep.Confluence = "active"
 		}
@@ -320,6 +334,15 @@ func collectDoctor() doctorReport {
 			Throttled: usage.Today.Throttled,
 			Retries:   usage.Today.Retries,
 		}
+	}
+
+	ctx := context.Background()
+	if rows, err := db.FieldUsage(ctx); err == nil {
+		rep.CustomFields.UsageRows = len(rows)
+	}
+	if has, err := db.HasCustomFieldKeysInRaw(ctx); err == nil {
+		rep.CustomFields.RawHasCustom = has
+		rep.CustomFields.rawScanned = true
 	}
 
 	return rep
@@ -555,7 +578,7 @@ func formatDoctorText(r doctorReport) string {
 		line("spaces", "n/a")
 	}
 
-	line("custom_fields", strconv.Itoa(r.CustomFields))
+	line("custom_fields", formatDoctorCustomFields(r.CustomFields))
 	line("confluence", r.Confluence)
 	line("credential", r.Credential)
 	line("site", r.Site)
@@ -590,6 +613,27 @@ func formatDoctorText(r doctorReport) string {
 	line("api_usage.retries", strconv.FormatInt(r.APIUsage.Retries, 10))
 
 	return b.String()
+}
+
+func formatDoctorCustomFields(cf doctorCustomFields) string {
+	if cf.Mapped > 0 {
+		word := "aliases"
+		if cf.Mapped == 1 {
+			word = "alias"
+		}
+		applied := ""
+		if cf.AppliedAt != "" {
+			applied = " (applied " + cf.AppliedAt + ")"
+		}
+		return fmt.Sprintf("%d %s mapped%s, usage rows %d", cf.Mapped, word, applied, cf.UsageRows)
+	}
+	if cf.rawScanned && cf.RawHasCustom {
+		return "none mapped — raw carries customfield keys; run gadak fields --apply"
+	}
+	if cf.rawScanned {
+		return "none mapped (none seen in raw)"
+	}
+	return "none mapped"
 }
 
 func formatDoctorWorkspace(w doctorWorkspace) string {

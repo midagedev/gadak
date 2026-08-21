@@ -14,6 +14,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/mattn/go-runewidth"
 
@@ -442,6 +443,7 @@ func cmdFieldsApply(asJSON bool) error {
 
 	specs := jirafields.Discover(catalog, fill, cfg.Fields)
 	cfg.Fields = specs
+	cfg.FieldsAppliedAt = time.Now().UTC().Format(config.ISOMilli)
 	if err := cfg.Save(); err != nil {
 		return err
 	}
@@ -465,8 +467,10 @@ func cmdFieldsApply(asJSON bool) error {
 
 	if asJSON {
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{
-			"applied": len(specs),
-			"fields":  specs,
+			"applied":    len(specs),
+			"fields":     specs,
+			"usage_rows": len(usage),
+			"applied_at": cfg.FieldsAppliedAt,
 		})
 	}
 	for _, s := range specs {
@@ -476,7 +480,7 @@ func cmdFieldsApply(asJSON bool) error {
 		}
 		fmt.Printf("%s  %s  %s  ids=%d\n", s.Alias, s.Label, kind, len(s.IDs))
 	}
-	fmt.Printf("applied %d field specs — restart `gadak serve` to pick them up\n", len(specs))
+	fmt.Printf("applied %d field specs, %d usage rows — restart `gadak serve` to pick them up\n", len(specs), len(usage))
 	return nil
 }
 

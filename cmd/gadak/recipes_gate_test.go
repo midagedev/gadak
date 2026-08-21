@@ -8,12 +8,16 @@ package main
 // helper machinery and no subprocesses are introduced.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // minSQLFences guards against the extractor quietly going blind: if the doc
@@ -165,5 +169,66 @@ func TestRecipesSQLToViewsOpenPipePreservesKeyOrder(t *testing.T) {
 		if body.Keys[i] != keys[i] {
 			t.Fatalf("pipe order broken at %d: sql produced %v, views open parsed %v", i, keys, body.Keys)
 		}
+	}
+}
+
+// GDK-522: demo.db has custom='{}' on every row, so the custom-field recipes
+// cannot be proven there. Plant a temporary mirror and run the same shapes.
+func TestCustomFieldRecipesOnPlantedMirror(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"3": "inprogress"},
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+				Key: "NMB-1", Title: "mapped custom",
+				CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+				Status: "Open", StatusID: "3", StatusCategory: "inprogress",
+				Custom: map[string]any{
+					"story_points": float64(5),
+					"labels_axis":  []any{"alpha", "beta"},
+				},
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	scalar := `select key, json_extract(custom, '$.story_points') as sp
+from issues_full
+where json_extract(custom, '$.story_points') is not null`
+	arrayQ := `select i.key, je.value
+from issues_full i, json_each(i.custom, '$.labels_axis') je`
+
+	scalarOut, err := capture(t, func() error { return cmdSQL([]string{"--json", scalar}) })
+	if err != nil {
+		t.Fatalf("scalar recipe: %v\n%s", err, scalarOut)
+	}
+	if !strings.Contains(scalarOut, `"NMB-1"`) || !strings.Contains(scalarOut, `"sp":5`) {
+		t.Fatalf("scalar recipe missed the planted value:\n%s", scalarOut)
+	}
+
+	arrayOut, err := capture(t, func() error { return cmdSQL([]string{"--json", arrayQ}) })
+	if err != nil {
+		t.Fatalf("array recipe: %v\n%s", err, arrayOut)
+	}
+	if !strings.Contains(arrayOut, "alpha") || !strings.Contains(arrayOut, "beta") {
+		t.Fatalf("array recipe missed json_each values:\n%s", arrayOut)
 	}
 }

@@ -92,6 +92,7 @@ func cmdStatus(args []string) error {
 	if cfg != nil {
 		st["frozen"] = cfg.SyncFrozen()
 	}
+	st["custom_fields"] = cfg.CustomFieldsStatus()
 	var tokenExpiry config.TokenExpiry
 	if cfg != nil {
 		tokenExpiry = cfg.TokenExpiryAt(time.Now().UTC())

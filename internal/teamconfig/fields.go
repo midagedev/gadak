@@ -66,6 +66,9 @@ var neverExportConfigFields = []string{
 	// splitting the block to export half of it is not worth a credential
 	// classification mistake — the whole block stays private.
 	"Linear",
+	// FieldsAppliedAt is when this machine last ran `gadak fields --apply`.
+	// The specs themselves are team-shareable (Fields); the timestamp is not.
+	"FieldsAppliedAt",
 }
 
 // credentialJSONKeys are JSON object keys that mean "this file carries
