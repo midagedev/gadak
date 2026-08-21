@@ -234,6 +234,11 @@ func newPlatformEmbedder(window func() unsafe.Pointer) embedder {
 	return &macEmbedder{window: window}
 }
 
+// paneSupported is the one fact "does this build have an in-app browse
+// pane". UI that only acts on the pane (the Close Tab menu item) derives
+// from it, so a platform without the pane never grows dead chrome (GDK-351).
+const paneSupported = true
+
 // installEscapeRelay is darwin's answer to GDK-78; other platforms have no
 // embedded webviews to steal keystrokes in the first place.
 func installEscapeRelay() {

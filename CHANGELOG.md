@@ -162,6 +162,10 @@ the fixes are all here.
   permission hint stops recommending sudo, and installing records where
   `gadak-desktop.exe` lives so `views open` from the copied CLI can still
   find the app.
+- **Ctrl+W stops promising what it cannot do** ([GDK-351]). The Close Tab
+  accelerator only acts on the in-app browse pane, which is macOS-only, so
+  builds without the pane no longer create the menu item at all — its
+  presence now derives from the same fact as the pane itself.
 - **A `gadak://` link works on Windows** ([GDK-350]). The desktop app now
   registers the scheme in `HKCU\SOFTWARE\Classes\gadak` on first launch and
   rewrites the entry whenever its own path changes, so clicking a link in a
@@ -1648,6 +1652,7 @@ measured numbers instead of adjectives.
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
 [GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-350]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-350
+[GDK-351]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-351
 [GDK-255]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-255
 [GDK-316]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-316
 [GDK-353]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-353
