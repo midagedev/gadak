@@ -23,12 +23,15 @@ import (
 )
 
 // Watch tests inject Tick so they do not sit on EffectiveSyncIntervalSec's
-// 1-second integer floor. Sleeps and next-tick deadlines scale with it
-// (1.5× and 2× the tick); the contracts they protect are unchanged.
+// 1-second integer floor. testSleepAfterStop scales with it (1.5×); the
+// contracts they protect are unchanged. testNextTickWait is a success-polling
+// deadline — every user breaks early on success, so it is generous (20×)
+// rather than tight: at 2× a loaded CI runner missed the second tick and
+// failed a run whose diff never touched this package (GDK-534).
 const (
 	testTick           = 100 * time.Millisecond
 	testSleepAfterStop = 150 * time.Millisecond
-	testNextTickWait   = 200 * time.Millisecond
+	testNextTickWait   = 20 * testTick
 )
 
 // Clause coverage (each clause has a happy path and a violation/boundary):
