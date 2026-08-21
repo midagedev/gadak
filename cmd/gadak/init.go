@@ -346,6 +346,10 @@ func cmdInit(args []string) error {
 		}
 	}
 
+	if err := originbind.RefuseSiteRebind(cfg, site); err != nil {
+		return err
+	}
+
 	cfg.Site = site
 	cfg.Email = email
 	cfg.Token = token

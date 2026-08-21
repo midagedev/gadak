@@ -433,6 +433,70 @@ func TestInitJSONNoTokenLeak(t *testing.T) {
 	}
 }
 
+func TestInitRefusesDifferentSite(t *testing.T) {
+	// GDK-561 CLI path: a connected workspace cannot be re-pointed at a
+	// different site. Same-site re-entry (token rotation) must keep working.
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	first := myselfServer(t)
+	withClosedStdin(t, func() {
+		if _, err := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", first.URL,
+				"--email", "agent@example.com",
+				"--token-file", writeTokenFile(t, home, "first-token"),
+			})
+		}); err != nil {
+			t.Fatalf("first init: %v", err)
+		}
+	})
+
+	other := myselfServer(t)
+	var err error
+	withClosedStdin(t, func() {
+		_, err = capture(t, func() error {
+			return cmdInit([]string{
+				"--site", other.URL,
+				"--email", "agent@example.com",
+				"--token-file", writeTokenFile(t, home, "other-token"),
+			})
+		})
+	})
+	if err == nil {
+		t.Fatal("init onto a different site must be refused")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, first.URL) {
+		t.Fatalf("refusal must name the bound site %s: %v", first.URL, err)
+	}
+	if !strings.Contains(msg, "gadak --workspace") {
+		t.Fatalf("want create-a-new-workspace sentence, got: %v", err)
+	}
+	cfg, loadErr := config.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if cfg.Site != first.URL {
+		t.Fatalf("bound site mutated to %q, want %q", cfg.Site, first.URL)
+	}
+
+	withClosedStdin(t, func() {
+		if _, rotErr := capture(t, func() error {
+			return cmdInit([]string{
+				"--site", first.URL,
+				"--email", "agent@example.com",
+				"--token-file", writeTokenFile(t, home, "rotated-token"),
+			})
+		}); rotErr != nil {
+			t.Fatalf("same-site rotate: %v", rotErr)
+		}
+	})
+}
+
 func writeTokenFile(t *testing.T, dir, secret string) string {
 	t.Helper()
 	p := filepath.Join(dir, "token.txt")
