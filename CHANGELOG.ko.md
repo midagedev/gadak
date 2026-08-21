@@ -127,6 +127,9 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **스토리가 하위 이슈를 보여줍니다** ([GDK-121]). 상세 패널의 하위 섹션이
+  에픽 키 자손이 없으면 `parent_key` 직접 자식으로 폴백해, 서브태스크가
+  부모 스토리에서 보이지 않던 문제가 사라집니다. 에픽의 롤업은 그대로입니다.
 - **저장된 뷰의 기본 저장소가 서버가 되고**, localStorage 뷰는 한 번
   그리로 이사합니다 ([GDK-437]). 사이드바 섹션은 접히고 끌면 그 자리로
   가며 ([GDK-434], [GDK-435]), 프로젝트 필터에 NOT IN 축이 생깁니다 —
@@ -1598,6 +1601,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-418]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-418
 [GDK-430]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-430
 [GDK-105]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-105
+[GDK-121]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-121
 [GDK-123]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-123
 [GDK-172]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-172
 [GDK-181]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-181

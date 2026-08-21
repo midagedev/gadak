@@ -234,8 +234,9 @@
       {:else}
         <!-- Detail body -->
         <div class="anim-enter divide-y divide-border-subtle">
-          <!-- An epic's own fields say little; what it contains is the answer.
-               Renders nothing when this issue owns no children. -->
+          <!-- Direct children of the open issue: epic rollup when the pool has
+               epic_key matches, otherwise parent_key matches (stories with
+               sub-tasks). Renders nothing when this issue owns no children. -->
           <EpicProgress issueKey={key} />
 
           {#if lite}

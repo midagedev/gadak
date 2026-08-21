@@ -499,6 +499,7 @@ export const en = {
   'detail.docMentioned': 'mentioned in this issue',
   'detail.breadcrumb': 'Issue hierarchy',
   'detail.epicChildren': 'In this epic',
+  'detail.childIssues': 'Child issues',
   'detail.epicProgress': '{done} of {total} done',
   'detail.epicShowAll': 'Show {n} more',
   'detail.epicShowLess': 'Show fewer',

@@ -1,11 +1,17 @@
 <script lang="ts">
   /*
-   * Epic progress ([detail]) — shown when the open issue is an epic that owns
-   *  work, i.e. the pool holds issues whose epic_key is this key. Type names are
-   *  localized per site, so membership decides this, not issue_type.
+   * Child issues ([detail]) — shown when the open issue owns work in the pool.
+   *  An epic uses issues whose epic_key is this key (the existing rollup). When
+   *  that list is empty, a story uses issues whose parent_key is this key
+   *  (direct children). The two lists are never merged: a sub-task's epic_key
+   *  points at the ancestor epic, not the parent story (docs/DERIVE.md, two
+   *  hops), so an epic_key filter on the story is empty forever.
    *
-   *  Everything here comes from the pool: the epic's rollup is answered without
-   *  a request, which is the point of mirroring locally.
+   *  Type names are localized per site, so membership decides this, not
+   *  issue_type. Renders nothing when this issue owns no children.
+   *
+   *  Everything here comes from the pool: the rollup is answered without a
+   *  request, which is the point of mirroring locally.
    */
   import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
@@ -19,7 +25,12 @@
   /** Collapse threshold — past this the section leads with the rollup, not a wall of rows. */
   const PREVIEW = 20
 
-  const children = $derived(issues.allIssues.filter((i) => i.epic_key === issueKey))
+  const epicChildren = $derived(issues.allIssues.filter((i) => i.epic_key === issueKey))
+  const children = $derived(
+    epicChildren.length > 0
+      ? epicChildren
+      : issues.allIssues.filter((i) => i.parent_key === issueKey),
+  )
   const doneCount = $derived(children.filter((i) => categoryOf(i) === 'done').length)
   const percent = $derived(
     children.length === 0 ? 0 : Math.round((doneCount / children.length) * 100),
@@ -37,7 +48,10 @@
 </script>
 
 {#if children.length > 0}
-  <Section title={t('detail.epicChildren')} count={children.length}>
+  <Section
+    title={epicChildren.length > 0 ? t('detail.epicChildren') : t('detail.childIssues')}
+    count={children.length}
+  >
     <div data-testid="epic-progress" class="mb-3">
       <div class="mb-2 flex items-baseline gap-2 text-[12px]">
         <span class="text-text-secondary">

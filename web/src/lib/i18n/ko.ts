@@ -500,6 +500,7 @@ export const ko = {
   'detail.docMentioned': '이 이슈에서 언급됨',
   'detail.breadcrumb': '이슈 위계',
   'detail.epicChildren': '이 에픽의 이슈',
+  'detail.childIssues': '하위 이슈',
   'detail.epicProgress': '{total}건 중 {done}건 완료',
   'detail.epicShowAll': '{n}건 더 보기',
   'detail.epicShowLess': '접기',

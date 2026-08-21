@@ -127,6 +127,10 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **A story shows its child issues** ([GDK-121]). The detail panel's child
+  section now falls back to direct `parent_key` children when the issue has
+  no epic-keyed descendants, so sub-tasks stop being invisible from their
+  parent story. An epic keeps its rollup unchanged.
 - **Saved views live on the server by default**, and localStorage views move
   there once ([GDK-437]). Sidebar sections collapse and go where you drag
   them ([GDK-434], [GDK-435]), and the project filter grows a NOT IN axis —
@@ -1588,6 +1592,7 @@ measured numbers instead of adjectives.
 [GDK-418]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-418
 [GDK-430]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-430
 [GDK-105]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-105
+[GDK-121]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-121
 [GDK-123]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-123
 [GDK-172]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-172
 [GDK-181]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-181
