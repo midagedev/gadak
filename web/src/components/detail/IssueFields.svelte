@@ -29,6 +29,7 @@
     'option',
     'user',
     'version_array',
+    'component_array',
     'multi_option',
     'option-array',
     'text',
@@ -100,7 +101,12 @@
   const rows = $derived.by<FieldRow[]>(() => {
     const out: FieldRow[] = [
       // System fields every Jira issue can carry.
-      { key: 'components', label: fieldLabel('components'), values: issue.components ?? [] },
+      {
+        key: 'components',
+        label: fieldLabel('components'),
+        values: issue.components ?? [],
+        edit: 'component_array',
+      },
       {
         key: 'fix_versions',
         label: fieldLabel('fix_versions'),

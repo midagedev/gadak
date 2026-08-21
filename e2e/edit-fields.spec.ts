@@ -32,6 +32,14 @@ const EDITMETA = {
         { id: 'b', value: 'beta' },
       ],
     },
+    components: {
+      kind: 'component_array',
+      editable: true,
+      options: [
+        { id: '10000', value: 'Dashboard' },
+        { id: '10001', value: 'API' },
+      ],
+    },
   },
 }
 
@@ -149,6 +157,43 @@ test.describe('edit-fields', () => {
     await page.getByTestId('field-editor-date-clear').click()
     await expect.poll(() => put?.duedate).toBeNull()
     await expect(row.getByText('None')).toBeVisible()
+    await expect(page.getByTestId('toast').and(page.getByRole('status'))).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('components row is editable and Apply PATCHes selected ids', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    const issue = await bootWithEditors(page)
+    const panel = await openIssue(page)
+
+    const row = panel.getByTestId('field-row-components')
+    await expect(row).toBeVisible()
+    await expect(row).toHaveAttribute('data-kind', 'component_array')
+    await expect(row).toHaveAttribute('data-editable', 'true')
+
+    let patch: { field?: string; value?: string[] } | null = null
+    await page.route(`**/api/v1/issues/${KEY}/fields/`, async (route) => {
+      if (route.request().method() !== 'PATCH') return route.continue()
+      patch = route.request().postDataJSON() as { field?: string; value?: string[] }
+      await fulfillJSON(route, {
+        issue: { ...issue, components: ['Dashboard', 'API'] },
+      })
+    })
+
+    await row.getByTestId('field-editor-trigger').click()
+    const menu = page.getByTestId('field-editor-menu')
+    await expect(menu).toBeVisible()
+    await expect(menu.getByRole('button', { name: 'Dashboard' })).toBeVisible()
+    await expect(menu.getByRole('button', { name: 'API' })).toBeVisible()
+
+    await menu.getByRole('button', { name: 'API' }).click()
+    await menu.getByRole('button', { name: 'Apply' }).click()
+
+    await expect.poll(() => patch).not.toBeNull()
+    expect(patch!.field).toBe('components')
+    expect(patch!.value).toEqual(['10000', '10001'])
+    await expect(row).toContainText('API')
     await expect(page.getByTestId('toast').and(page.getByRole('status'))).toHaveCount(0)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

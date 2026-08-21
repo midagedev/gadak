@@ -25,6 +25,8 @@ func TestValueFromIDs(t *testing.T) {
 		{"multi clear empty slice", "multi_option", []string{}, []any{}},
 		{"version_array set", "version_array", []string{"v1"}, []any{map[string]string{"id": "v1"}}},
 		{"version_array clear", "version_array", nil, []any{}},
+		{"component_array set", "component_array", []string{"10000"}, []any{map[string]string{"id": "10000"}}},
+		{"component_array clear", "component_array", nil, []any{}},
 		{"option-array set", "option-array", []string{"1", "2"}, []any{map[string]string{"id": "1"}, map[string]string{"id": "2"}}},
 		{"option-array clear", "option-array", nil, []any{}},
 	}
@@ -56,6 +58,8 @@ func TestFieldValueMatchesValueFromIDs(t *testing.T) {
 		{"multi ids", "multi_option", `["a","b"]`, []any{map[string]string{"id": "a"}, map[string]string{"id": "b"}}},
 		{"multi empty arr", "multi_option", `[]`, []any{}},
 		{"null version_array", "version_array", "null", []any{}},
+		{"component_array ids", "component_array", `["10000","10001"]`, []any{map[string]string{"id": "10000"}, map[string]string{"id": "10001"}}},
+		{"null component_array", "component_array", "null", []any{}},
 		{"option-array alias", "option-array", `["a","b"]`, []any{map[string]string{"id": "a"}, map[string]string{"id": "b"}}},
 		{"null option-array", "option-array", "null", []any{}},
 		{"text set", "text", `"hello"`, "hello"},
@@ -113,7 +117,7 @@ func TestEditableAliasesLegacyWins(t *testing.T) {
 		},
 	}
 	got := EditableAliases(cfg)
-	if len(got) != 2 {
+	if len(got) != 3 {
 		t.Fatalf("aliases=%v", got)
 	}
 	// Leftover EditableFields replaces the Fields entry for the same alias.
@@ -126,8 +130,43 @@ func TestEditableAliasesLegacyWins(t *testing.T) {
 	if !reflect.DeepEqual(got["fix_versions"].IDs, []string{"customfield_20"}) || got["fix_versions"].Kind != "version_array" {
 		t.Fatalf("fix_versions: %+v", got["fix_versions"])
 	}
+	if !reflect.DeepEqual(got["components"].IDs, []string{"components"}) || got["components"].Kind != "component_array" {
+		t.Fatalf("builtin components: %+v", got["components"])
+	}
 	if _, ok := got["display_only"]; ok {
 		t.Fatal("display-only (empty Kind) must not enter write allowlist")
+	}
+}
+
+func TestEditableAliasesBuiltinMerge(t *testing.T) {
+	empty := EditableAliases(&config.Config{})
+	if !reflect.DeepEqual(empty["components"].IDs, []string{"components"}) || empty["components"].Kind != "component_array" {
+		t.Fatalf("empty cfg builtin: %+v", empty)
+	}
+	if len(empty) != 1 {
+		t.Fatalf("empty cfg aliases=%v", empty)
+	}
+
+	cfgWins := EditableAliases(&config.Config{
+		Fields: []config.FieldSpec{
+			{Alias: "components", Label: "Extra", IDs: []string{"customfield_999"}, Kind: "multi_option"},
+		},
+	})
+	if !reflect.DeepEqual(cfgWins["components"].IDs, []string{"customfield_999"}) || cfgWins["components"].Kind != "multi_option" {
+		t.Fatalf("Fields should overlay builtin: %+v", cfgWins["components"])
+	}
+
+	legacyWins := EditableAliases(&config.Config{
+		Fields: []config.FieldSpec{
+			{Alias: "components", Label: "Extra", IDs: []string{"customfield_999"}, Kind: "multi_option"},
+		},
+		EditableFields: map[string]string{"components": "customfield_legacy"},
+	})
+	if !reflect.DeepEqual(legacyWins["components"].IDs, []string{"customfield_legacy"}) {
+		t.Fatalf("legacy should win last: %+v", legacyWins["components"])
+	}
+	if legacyWins["components"].Kind != "" {
+		t.Fatalf("legacy Kind should be empty, got %q", legacyWins["components"].Kind)
 	}
 }
 

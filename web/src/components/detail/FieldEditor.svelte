@@ -2,7 +2,7 @@
   /*
    * Inline field editor (write, local-first). Kind branching lives here only.
    *  - option        : single select (+ clear "none").
-   *  - option-array / multi_option / version_array : multi checkbox + Apply.
+   *  - option-array / multi_option / version_array / component_array : multi checkbox + Apply.
    *  - user          : local members (personalized sort) + ≥2-char server search (+ clear).
    *  - text / number : inline input; Enter/blur commits; Esc cancels.
    *  - date          : date input (+ clear). field=duedate uses PUT /duedate/.
@@ -25,6 +25,7 @@
     | 'option'
     | 'user'
     | 'version_array'
+    | 'component_array'
     | 'multi_option'
     | 'option-array'
     | 'text'
@@ -94,7 +95,10 @@
   let vquery = $state('')
 
   const isMulti = $derived(
-    kind === 'version_array' || kind === 'multi_option' || kind === 'option-array',
+    kind === 'version_array' ||
+      kind === 'component_array' ||
+      kind === 'multi_option' ||
+      kind === 'option-array',
   )
   const isScalar = $derived(kind === 'text' || kind === 'number' || kind === 'date')
   const isSystemDue = $derived(field === 'duedate')

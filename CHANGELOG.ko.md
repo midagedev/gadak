@@ -175,6 +175,11 @@
   바뀌면 항목을 다시 씁니다 — 브라우저·슬랙에서 링크를 클릭하면 앱이
   열립니다. 포터블 팩 자체는 여전히 레지스트리를 건드리지 않고,
   `--unregister-gadak-protocol`로 키를 제거할 수 있습니다.
+- **components가 설정 없이 인라인 편집됩니다** ([GDK-86]). 상세 패널의
+  components 행이 이슈의 editmeta가 허용하면 인라인 멀티 선택이 됩니다 —
+  built-in 시스템 앨리어스라 커스텀 필드처럼 필드 매핑을 설정할 필요가
+  없습니다. editmeta에 components가 없는 origin이면 행은 지금처럼 읽기
+  전용이고, `gadak edit --field components=…`도 같은 built-in을 씁니다.
 - **코멘트 단축키 표기가 맥 전용이기를 멈춥니다** ([GDK-354]). 코멘트
   입력창의 kbd 힌트가 하드코딩된 ⌘ 대신 플랫폼의 수식키를 그립니다 —
   macOS는 ⌘Enter, 그 외는 CtrlEnter. `gadak raycast install`은 macOS가

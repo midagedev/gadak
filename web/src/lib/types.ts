@@ -337,7 +337,7 @@ export interface FieldSpec {
   label: string
   /** body = document (detail block) | facet = chips/filter | user | plain. */
   role: 'body' | 'facet' | 'user' | 'plain'
-  /** Editor kind when inline-editable: option | multi_option | user | version_array. */
+  /** Editor kind when inline-editable: option | multi_option | user | version_array | component_array. */
   kind?: string
 }
 
@@ -673,8 +673,8 @@ export interface EditMetaOption {
 
 /** Meta for one editable field — kind + editable flag + choices. */
 export interface EditMetaField {
-  /** option (single select) / user (userpicker) / version_array (version list). */
-  kind: 'option' | 'user' | 'version_array' | 'multi_option'
+  /** option (single select) / user (userpicker) / version_array (version list) / component_array (component list). */
+  kind: 'option' | 'user' | 'version_array' | 'component_array' | 'multi_option'
   editable: boolean
   /** Empty for user fields (user search replaces options). */
   options: EditMetaOption[]

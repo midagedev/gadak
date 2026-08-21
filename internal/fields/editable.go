@@ -18,12 +18,23 @@ type EditableAlias struct {
 	Kind string // preferred kind from the spec when set; empty → use editmeta
 }
 
-// EditableAliases builds the write allowlist from Fields (Kind set) plus
-// leftover EditableFields (legacy wins on alias collision).
+// builtinEditable is the always-on system write aliases. Lowest priority:
+// cfg.Fields overlays the same alias, leftover EditableFields still wins last.
+var builtinEditable = map[string]EditableAlias{
+	"components": {IDs: []string{"components"}, Kind: "component_array"},
+}
+
+// EditableAliases builds the write allowlist from built-in system aliases,
+// then Fields (Kind set), then leftover EditableFields (legacy wins on
+// alias collision). A nil config is "no config at all" and returns empty.
 func EditableAliases(cfg *config.Config) map[string]EditableAlias {
 	out := map[string]EditableAlias{}
 	if cfg == nil {
 		return out
+	}
+	for alias, ea := range builtinEditable {
+		ids := append([]string(nil), ea.IDs...)
+		out[alias] = EditableAlias{IDs: ids, Kind: ea.Kind}
 	}
 	for _, s := range cfg.Fields {
 		if s.Kind == "" || s.Alias == "" || len(s.IDs) == 0 {
@@ -90,7 +101,7 @@ func ValueFromIDs(kind string, ids []string) any {
 }
 
 func isMultiKind(kind string) bool {
-	return kind == "version_array" || kind == "multi_option" || kind == "option-array"
+	return kind == "version_array" || kind == "multi_option" || kind == "option-array" || kind == "component_array"
 }
 
 func isScalarKind(kind string) bool {

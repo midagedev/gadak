@@ -748,6 +748,51 @@ func TestEditMetaOnlyExposesAllowlistedFields(t *testing.T) {
 	}
 }
 
+func TestComponentsBuiltinEditMetaAndWrite(t *testing.T) {
+	f, h, cfg := writable(t)
+	cfg.EditableFields = nil
+	cfg.Fields = nil
+	f.editMeta = `{
+		"components": {"schema":{"type":"array","items":"component"},"operations":["set"],
+			"allowedValues":[{"id":"10000","name":"Dashboard"},{"id":"10001","name":"API"}]}
+	}`
+
+	got := decode[struct {
+		Fields map[string]struct {
+			Kind     string              `json:"kind"`
+			Editable bool                `json:"editable"`
+			Options  []map[string]string `json:"options"`
+		} `json:"fields"`
+	}](t, get(t, h, apiBase+"NMB-1/editmeta/", nil))
+	if len(got.Fields) != 1 {
+		t.Fatalf("fields %+v", got.Fields)
+	}
+	c := got.Fields["components"]
+	if c.Kind != "component_array" || !c.Editable {
+		t.Fatalf("components %+v", c)
+	}
+	if len(c.Options) != 2 || c.Options[0]["id"] != "10000" || c.Options[0]["value"] != "Dashboard" {
+		t.Fatalf("options %+v (name fallback)", c.Options)
+	}
+
+	rec := send(t, h, http.MethodPatch, apiBase+"NMB-1/fields/", `{"field":"components","value":["10000","10001"]}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("patch → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); body != `{"fields":{"components":[{"id":"10000"},{"id":"10001"}]}}` {
+		t.Fatalf("UpdateFields body %s", body)
+	}
+
+	f.editMeta = `{}`
+	rec = send(t, h, http.MethodPatch, apiBase+"NMB-1/fields/", `{"field":"components","value":["10000"]}`)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("missing editmeta → %d", rec.Code)
+	}
+	if err := decode[map[string]string](t, rec)["error"]; err != "field_not_editable" {
+		t.Fatalf("error %q", err)
+	}
+}
+
 func TestCreateIssue(t *testing.T) {
 	f, h, _ := writable(t)
 

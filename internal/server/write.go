@@ -841,7 +841,9 @@ func (s *server) handleEditMeta(w http.ResponseWriter, r *http.Request) {
 	}
 	allow := fields.EditableAliases(cfg)
 	if len(allow) == 0 {
-		// No editable fields means no inline editor at all, which is the default.
+		// Nil/absent config: no inline editor. A live config always includes
+		// built-in system aliases; fields missing from this issue's editmeta
+		// stay omitted below.
 		writeJSON(w, http.StatusOK, map[string]any{"fields": map[string]any{}})
 		return
 	}
@@ -883,8 +885,9 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// The allowlist is the whole authorization story for field edits: anything not
-	// configured is refused here, whether or not the UI offered it.
+	// The allowlist (+ built-in system fields) is the whole authorization story
+	// for field edits: anything not on it is refused here, whether or not the UI
+	// offered it.
 	ea, allowed := fields.EditableAliases(cfg)[body.Field]
 	if !allowed || len(ea.IDs) == 0 {
 		fail(w, http.StatusForbidden, "field_not_editable")
