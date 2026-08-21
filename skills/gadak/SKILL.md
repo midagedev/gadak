@@ -338,6 +338,7 @@ or type — `create` will ask for `--project` / `--type` until you set them.
 gadak create "first ticket title" -m "why this exists"
 gadak issue STD-1 --json
 gadak comment STD-1 -m "Reproduced on staging."
+gadak assign STD-1 you@example.com            # the one seeded user; example.com emails from connected docs do not exist here
 gadak dev link STD-1 --pr https://github.com/org/app/pull/7   # opened a PR? record it right here
 gadak dev scan                                                # or sweep the repo: keys in PR titles/branches → links
 

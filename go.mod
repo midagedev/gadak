@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/mattn/go-runewidth v0.0.19
-	github.com/midagedev/issuetap v0.0.0-20260821023821-52a3bbb81f44
+	github.com/midagedev/issuetap v0.0.0-20260821043633-22888c7109a7
 	golang.org/x/sys v0.47.0
 	modernc.org/sqlite v1.56.0
 )

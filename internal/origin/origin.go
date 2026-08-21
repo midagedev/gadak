@@ -456,6 +456,10 @@ func constructStandalone(persist string, projects []string) (*session, error) {
 		// negative debounce is issuetap's durable-before-return mode
 		// (GDK-342); the mirror keeps its own transactionality either way.
 		PersistDebounce: -1,
+		// A standalone workspace is a real tracker: records carry wall
+		// time, not issuetap's deterministic seed clock (GDK-369 — a
+		// January created_at read as a sync bug).
+		WallClock: true,
 	})
 	if err != nil {
 		unlock()
