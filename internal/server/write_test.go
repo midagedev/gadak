@@ -814,6 +814,37 @@ func TestCreatePairedUnreachableIsNotProjectRequired(t *testing.T) {
 	}
 }
 
+func TestPairedWrite401IsPairingErrorNotCredentialRejected(t *testing.T) {
+	// GDK-543: a paired-transport 401 on a mutate must surface as the pairing
+	// sentence, not credential_rejected (which opens the Jira-token dialog).
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Gadak-Pairing", "revoked")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"pairing_rejected","reason":"revoked"}`))
+	}))
+	t.Cleanup(srv.Close)
+	if err := pairing.SaveRemote(home, pairing.Remote{Endpoint: srv.URL, Token: "pair-token", Label: "laptop"}); err != nil {
+		t.Fatal(err)
+	}
+
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", `{"text":"hello from a paired workspace"}`)
+	body := rec.Body.String()
+	if strings.Contains(body, "credential_rejected") {
+		t.Fatalf("paired 401 mapped to credential_rejected: %s", body)
+	}
+	if !strings.Contains(body, "pairing:") {
+		t.Fatalf("want pairing sentence, got %q", body)
+	}
+}
+
 // cliFlagToken matches a GNU-style long option in a REST body. The class is
 // "any token starting with --", not today's three create cases: a future
 // shared-package error that names a flag must fail here too.
@@ -1935,7 +1966,7 @@ func TestFailJiraMapsOriginHTTP(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			failJira(rec, req, tc.err)
+			failJira(rec, req, nil, tc.err)
 			if rec.Code != tc.wantStatus {
 				t.Fatalf("status %d, want %d; body %s", rec.Code, tc.wantStatus, rec.Body.String())
 			}

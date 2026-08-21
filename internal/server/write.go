@@ -76,7 +76,8 @@ func failOriginClient(w http.ResponseWriter, err error) {
 // the message it shows, `jira_errors` for Jira's per-field rejections, and
 // `message` for a Confluence/origin snippet. Confluence and Linear sentinels
 // share this mapper with Jira so a wiki write does not become 502 jira_unavailable.
-func failJira(w http.ResponseWriter, r *http.Request, err error) {
+func failJira(w http.ResponseWriter, r *http.Request, cfg *config.Config, err error) {
+	err = origin.FoldPairedError(cfg, err)
 	var apiErr *jira.APIError
 	var confErr *confluence.APIError
 	var pairErr *origin.PairingError
@@ -257,7 +258,7 @@ func (s *server) mutate(w http.ResponseWriter, r *http.Request, key string,
 	}
 	extra, err := fn(r.Context(), c)
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	if err := s.refreshIssue(r.Context(), cfg, key, src); err != nil {
@@ -370,7 +371,7 @@ func (s *server) handlePutCredential(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusUnauthorized, "credential_rejected")
 			return
 		}
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	next.Email, next.Token = body.JiraEmail, body.APIToken
@@ -413,7 +414,7 @@ func (s *server) handleResync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.refreshIssue(r.Context(), cfg, key, src); err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	s.respondIssue(w, r, key, nil)
@@ -429,7 +430,7 @@ func (s *server) handlePageResync(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	if err := sync.SyncPage(r.Context(), cfg, s.db, id); err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -454,7 +455,7 @@ func (s *server) handleTransitions(w http.ResponseWriter, r *http.Request) {
 	}
 	list, err := c.Transitions(r.Context(), r.PathValue("key"))
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	out := make([]transitionDoc, 0, len(list))
@@ -595,7 +596,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	uploaded, err := c.Upload(r.Context(), key, header.Filename, file)
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	// The issue's attachment list changed, so the mirror has to catch up before the
@@ -639,7 +640,7 @@ func (s *server) handlePriorities(w http.ResponseWriter, r *http.Request) {
 	}
 	list, err := c.PriorityCatalog(r.Context())
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	writePriorityCatalog(w, list)
@@ -652,7 +653,7 @@ func (s *server) handleKeyPriorities(w http.ResponseWriter, r *http.Request) {
 	}
 	list, err := c.PriorityCatalog(r.Context())
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	writePriorityCatalog(w, list)
@@ -839,7 +840,7 @@ func (s *server) handleEditMeta(w http.ResponseWriter, r *http.Request) {
 	}
 	meta, err := c.EditMeta(r.Context(), r.PathValue("key"))
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	out := map[string]any{}
@@ -893,7 +894,7 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	meta, err := c.EditMeta(r.Context(), key)
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	id, kind, present := jirafields.ResolveEditableID(ea.IDs, meta)
@@ -942,7 +943,7 @@ func failCreateOrPairing(w http.ResponseWriter, r *http.Request, c *jira.Client,
 	var nt *create.NeedTypeError
 	if (errors.As(err, &np) || errors.As(err, &nt)) && c != nil {
 		if _, _, perr := c.Projects(r.Context(), 1); perr != nil && origin.IsPairingFailure(perr) {
-			failJira(w, r, origin.FoldPairedError(cfg, perr))
+			failJira(w, r, cfg, perr)
 			return
 		}
 		if errors.As(err, &np) && len(np.Configured) == 0 {
@@ -996,7 +997,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	meta, err := c.CreateMeta(r.Context(), []string{proj.Value})
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	metaProj, types, err := create.MetaFor(meta, proj.Value, cfg)
@@ -1046,7 +1047,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	key, err := c.CreateIssue(r.Context(), fields)
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	if err := sync.SyncIssue(r.Context(), cfg, s.db, key, sync.Options{Client: c}); err != nil {
@@ -1071,7 +1072,7 @@ func (s *server) handleCreateMeta(w http.ResponseWriter, r *http.Request) {
 	}
 	projects, err := c.CreateMeta(r.Context(), cfg.Projects)
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"projects": createMeta(projects)})
@@ -1095,7 +1096,7 @@ func (s *server) handleCreateFields(w http.ResponseWriter, r *http.Request) {
 	}
 	list, err := c.CreateFields(r.Context(), project, issueType)
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	out := make([]map[string]any, 0, len(list))
@@ -1178,7 +1179,7 @@ func (s *server) handleUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	users, err := c.SearchUsers(r.Context(), r.URL.Query().Get("q"))
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	writeUserCatalog(w, users)
@@ -1191,7 +1192,7 @@ func (s *server) handleKeyUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	users, err := c.SearchUsers(r.Context(), r.URL.Query().Get("q"))
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	writeUserCatalog(w, users)
@@ -1235,7 +1236,7 @@ func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	cur, err := wc.Page(r.Context(), id)
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	title := cur.Title
@@ -1261,7 +1262,7 @@ func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
 		next = *body.Version + 1
 	}
 	if _, err := wc.UpdatePage(r.Context(), id, title, adf, next); err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	if err := sync.SyncPage(r.Context(), cfg, s.db, id); err != nil {
@@ -1309,7 +1310,7 @@ func (s *server) handlePageCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := wc.CreatePage(r.Context(), body.Space, body.Title, adf, body.Parent)
 	if err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	if err := sync.SyncPage(r.Context(), cfg, s.db, created.ID); err != nil {
@@ -1353,7 +1354,7 @@ func (s *server) handlePageComment(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	if _, err := wc.AddPageComment(r.Context(), id, adf); err != nil {
-		failJira(w, r, err)
+		failJira(w, r, s.config(), err)
 		return
 	}
 	if err := sync.SyncPage(r.Context(), cfg, s.db, id); err != nil {
