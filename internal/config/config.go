@@ -78,9 +78,10 @@ type Config struct {
 
 	// DevStatus turns on development-panel mirroring (GDK-496/497): sync
 	// fetches each changed issue's dev-status (pull requests) from the origin
-	// into dev_links. Off by default — on a connected workspace this calls
-	// Jira's internal /rest/dev-status API (Atlassian marks it unstable), and
-	// either way it adds per-issue requests to a sync.
+	// into dev_links. Off by default on a connected Cloud workspace — that
+	// path calls Jira's internal /rest/dev-status API (Atlassian marks it
+	// unstable) and adds per-issue requests. Standalone / issuetap always
+	// fetches regardless of this flag (GDK-536): the panel is local.
 	DevStatus bool `json:"devStatus,omitempty"`
 
 	// DefaultProject is the project key used when create omits --project /

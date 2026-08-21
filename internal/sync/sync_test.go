@@ -67,6 +67,11 @@ type fakeSite struct {
 	// versionsStatus, when non-zero, is returned for every versions GET.
 	versionsStatus int
 	versionHits    int
+	// devPRs is GET /rest/dev-status issueId → pull requests (GDK-536).
+	devPRs map[string][]jira.DevPR
+	// devStatusFail, when true, makes every dev-status GET answer 500.
+	devStatusFail bool
+	devStatusHits int
 }
 
 func newSite(t *testing.T, lang string) *fakeSite {
@@ -116,6 +121,28 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Write([]byte(`[]`))
+	case strings.Contains(r.URL.Path, "/rest/dev-status/"):
+		f.devStatusHits++
+		if f.devStatusFail {
+			http.Error(w, `{"errorMessages":["dev-status boom"]}`, http.StatusInternalServerError)
+			return
+		}
+		issueID := r.URL.Query().Get("issueId")
+		prs := f.devPRs[issueID]
+		if strings.Contains(r.URL.Path, "/summary") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"summary": map[string]any{
+					"pullrequest": map[string]any{
+						"overall": map[string]any{"count": len(prs)},
+					},
+				},
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"detail": []any{map[string]any{"pullRequests": prs}},
+		})
+		return
 	case strings.HasPrefix(r.URL.Path, "/rest/api/3/project/") && strings.HasSuffix(r.URL.Path, "/versions"):
 		f.versionHits++
 		if f.versionsStatus != 0 {

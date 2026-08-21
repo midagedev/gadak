@@ -922,3 +922,78 @@ func TestPersonalState(t *testing.T) {
 		}
 	}
 }
+
+func TestUpsertPreservesDevLinksWhenNotValid(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	rec := IssueRecord{
+		Item: Item{
+			ID: "jira:dl1", SourceID: "jira", Kind: "issue", ExternalID: "dl1",
+			Key: "NMB-DL", Title: "has a pr", CreatedAt: ago(2), UpdatedAt: ago(2),
+		},
+		Issue: Issue{
+			ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+			Status: "To Do", StatusID: "1", StatusCategory: "new",
+		},
+		DevLinks: []DevLink{{
+			Kind: "pullrequest", URL: "https://github.com/o/r/pull/1", Title: "pr",
+		}},
+		DevLinksValid: true,
+	}
+	if _, err := db.UpsertIssues(ctx, Batch{Categories: fixtureCategories, Records: []IssueRecord{rec}}); err != nil {
+		t.Fatal(err)
+	}
+	rec.DevLinks = nil
+	rec.DevLinksValid = false
+	rec.Item.Title = "rewritten"
+	if _, err := db.UpsertIssues(ctx, Batch{Force: true, Categories: fixtureCategories, Records: []IssueRecord{rec}}); err != nil {
+		t.Fatal(err)
+	}
+	d, err := db.Detail(ctx, "NMB-DL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.DevLinks) != 1 || d.DevLinks[0].URL != "https://github.com/o/r/pull/1" {
+		t.Fatalf("dev_links after invalid rewrite = %+v, want the seeded row", d.DevLinks)
+	}
+}
+
+func TestUpsertDrainsDevLinksWhenValidEmpty(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	rec := IssueRecord{
+		Item: Item{
+			ID: "jira:dl2", SourceID: "jira", Kind: "issue", ExternalID: "dl2",
+			Key: "NMB-DE", Title: "has a pr", CreatedAt: ago(2), UpdatedAt: ago(2),
+		},
+		Issue: Issue{
+			ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+			Status: "To Do", StatusID: "1", StatusCategory: "new",
+		},
+		DevLinks: []DevLink{{
+			Kind: "pullrequest", URL: "https://github.com/o/r/pull/2", Title: "pr",
+		}},
+		DevLinksValid: true,
+	}
+	if _, err := db.UpsertIssues(ctx, Batch{Categories: fixtureCategories, Records: []IssueRecord{rec}}); err != nil {
+		t.Fatal(err)
+	}
+	rec.DevLinks = nil
+	rec.DevLinksValid = true
+	if _, err := db.UpsertIssues(ctx, Batch{Force: true, Categories: fixtureCategories, Records: []IssueRecord{rec}}); err != nil {
+		t.Fatal(err)
+	}
+	d, err := db.Detail(ctx, "NMB-DE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.DevLinks) != 0 {
+		t.Fatalf("successful empty must drain, still have %+v", d.DevLinks)
+	}
+}

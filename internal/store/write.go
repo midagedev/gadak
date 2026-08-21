@@ -177,8 +177,14 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	}
 
 	// Child lists arrive complete, so replacing them is both correct and the
-	// only way a removed comment or link leaves the mirror.
-	for _, t := range []string{"comments", "attachments", "changelog", "links", "dev_links"} {
+	// only way a removed comment or link leaves the mirror. dev_links is
+	// skipped when the origin answer was not observed (GDK-536): a fetch
+	// error must not drain existing rows.
+	childTables := []string{"comments", "attachments", "changelog", "links"}
+	if r.DevLinksValid {
+		childTables = append(childTables, "dev_links")
+	}
+	for _, t := range childTables {
 		if _, err := tx.Exec(`DELETE FROM `+t+` WHERE item_id = ?`, it.ID); err != nil {
 			return false, err
 		}
@@ -216,16 +222,18 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			return false, err
 		}
 	}
-	for _, dl := range r.DevLinks {
-		if _, err := tx.Exec(`
+	if r.DevLinksValid {
+		for _, dl := range r.DevLinks {
+			if _, err := tx.Exec(`
 			INSERT INTO dev_links (item_id, kind, external_id, url, title, status, updated_at)
 			VALUES (?,?,?,?,?,?,?)
 			ON CONFLICT(item_id, url) DO UPDATE SET
 			  kind=excluded.kind, external_id=excluded.external_id,
 			  title=excluded.title, status=excluded.status, updated_at=excluded.updated_at`,
-			it.ID, devKind(dl.Kind), dl.ExternalID, dl.URL, dl.Title, dl.Status, dl.UpdatedAt,
-		); err != nil {
-			return false, err
+				it.ID, devKind(dl.Kind), dl.ExternalID, dl.URL, dl.Title, dl.Status, dl.UpdatedAt,
+			); err != nil {
+				return false, err
+			}
 		}
 	}
 	for _, l := range r.Links {

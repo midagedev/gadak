@@ -484,6 +484,7 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 	sources := defaultWatchSources()
 	cred := watchCredential(cfg)
 	for {
+		skip := false
 		if opts.Reload != nil {
 			next, err := opts.Reload()
 			if err != nil {
@@ -491,54 +492,58 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 			} else if next != nil {
 				cfg = next
 				if err := refuseIfFrozen(cfg); err != nil {
+					// GDK-541: a freeze must skip this tick, not end Watch.
+					skip = true
+				} else {
+					if nextCred := watchCredential(cfg); nextCred != cred {
+						// Skip is per-credential: a settings token rotation must
+						// retry a previously-rejected source. Same credential
+						// keeps the skip so we do not 401 every tick. Sprint
+						// field ids are per-site, so a new credential must
+						// rediscover.
+						dead = map[string]bool{}
+						cred = nextCred
+						o.sprintField.reset()
+					}
+					newEvery := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
+					if opts.Tick > 0 {
+						newEvery = opts.Tick
+					}
+					newReconcile := time.Duration(cfg.EffectiveReconcileIntervalSec()) * time.Second
+					if newEvery != every {
+						every = newEvery
+						tick.Reset(every)
+					}
+					if newReconcile != reconcileEvery {
+						reconcileEvery = newReconcile
+						rtick.Reset(reconcileEvery)
+					}
+					if newScope := syncScope(cfg); newScope != scope {
+						opts.logf("sync scope changed: %s -> %s", scope, newScope)
+						scope = newScope
+					}
+				}
+			}
+		}
+		if !skip {
+			for _, src := range sources {
+				if !src.enabled(cfg) || dead[src.id] {
+					continue
+				}
+				o.phasef(src.phase)
+				_, runErr := src.run(ctx, cfg, db, o)
+				if runErr == nil && src.notify {
+					if nerr := notifyAfterSync(db, cfg, o.Notifier); nerr != nil {
+						// Desktop notify is best-effort: never abort the watch loop.
+						opts.logf("notify: %v", nerr)
+					}
+				}
+				if err := applyWatchErr(ctx, cfg, db, src, runErr, opts.logf, dead); err != nil {
 					return err
 				}
-				if nextCred := watchCredential(cfg); nextCred != cred {
-					// Skip is per-credential: a settings token rotation must
-					// retry a previously-rejected source. Same credential
-					// keeps the skip so we do not 401 every tick. Sprint
-					// field ids are per-site, so a new credential must
-					// rediscover.
-					dead = map[string]bool{}
-					cred = nextCred
-					o.sprintField.reset()
-				}
-				newEvery := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
-				if opts.Tick > 0 {
-					newEvery = opts.Tick
-				}
-				newReconcile := time.Duration(cfg.EffectiveReconcileIntervalSec()) * time.Second
-				if newEvery != every {
-					every = newEvery
-					tick.Reset(every)
-				}
-				if newReconcile != reconcileEvery {
-					reconcileEvery = newReconcile
-					rtick.Reset(reconcileEvery)
-				}
-				if newScope := syncScope(cfg); newScope != scope {
-					opts.logf("sync scope changed: %s -> %s", scope, newScope)
-					scope = newScope
-				}
 			}
+			o.Full, o.Reconcile = false, false
 		}
-		for _, src := range sources {
-			if !src.enabled(cfg) || dead[src.id] {
-				continue
-			}
-			o.phasef(src.phase)
-			_, runErr := src.run(ctx, cfg, db, o)
-			if runErr == nil && src.notify {
-				if nerr := notifyAfterSync(db, cfg, o.Notifier); nerr != nil {
-					// Desktop notify is best-effort: never abort the watch loop.
-					opts.logf("notify: %v", nerr)
-				}
-			}
-			if err := applyWatchErr(ctx, cfg, db, src, runErr, opts.logf, dead); err != nil {
-				return err
-			}
-		}
-		o.Full, o.Reconcile = false, false
 		o.phasef(PhaseIdle)
 		select {
 		case <-ctx.Done():
@@ -780,8 +785,11 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	applySprint(&issue, iss.Extra, sprintFieldID)
 
 	rec := store.IssueRecord{Item: item, Issue: issue}
-	if cfg.DevStatus {
-		rec.DevLinks = devLinksFor(ctx, c, iss.ID)
+	if shouldFetchDevLinks(cfg, c) {
+		rec.DevLinks, rec.DevLinksValid = devLinksFor(ctx, c, iss.ID)
+	} else {
+		// Cloud opt-out: a successful "we are not collecting these" drains.
+		rec.DevLinksValid = true
 	}
 	for _, cm := range comments {
 		sc := store.Comment{
@@ -1128,25 +1136,45 @@ func jqlTime(watermark string) string {
 	return t.Add(-overlap).Format("2006/01/02 15:04")
 }
 
+// shouldFetchDevLinks reports whether this pass should ask the origin for
+// development-panel links. Cloud is opt-in (cfg.DevStatus). Standalone and
+// paired-to-standalone (embedded / serve-passthrough issuetap) always fetch
+// — the panel is local and the flag must not drain it (GDK-536).
+func shouldFetchDevLinks(cfg *config.Config, c *jira.Client) bool {
+	if cfg != nil && cfg.DevStatus {
+		return true
+	}
+	if cfg != nil && cfg.IsStandalone() {
+		return true
+	}
+	if c != nil && c.HTTP != nil {
+		rt := c.HTTP.Transport
+		if origin.TransportIsEmbedded(rt) || origin.TransportIsServe(rt) {
+			return true
+		}
+	}
+	return false
+}
+
 // devLinksFor reads the origin's development panel for one issue — summary
-// first (one cheap call), detail only when it counts something. Best-effort:
-// any failure returns nil and bumps the pass diagnostic (Cloud's dev-status
-// API is internal and may change shape without notice).
-func devLinksFor(ctx context.Context, c *jira.Client, issueID string) []store.DevLink {
+// first (one cheap call), detail only when it counts something. ok is false
+// on fetch error so the rewrite preserves existing rows; a successful empty
+// answer (n==0 or no PRs) is ok=true and drains.
+func devLinksFor(ctx context.Context, c *jira.Client, issueID string) ([]store.DevLink, bool) {
 	n, err := c.DevStatusPRCount(ctx, issueID)
 	if err != nil {
 		devStatusSkips.Add(1)
-		return nil
+		return nil, false
 	}
 	if n == 0 {
-		return nil
+		return nil, true
 	}
 	prs, err := c.DevStatusPRs(ctx, issueID)
 	if err != nil {
 		devStatusSkips.Add(1)
-		return nil
+		return nil, false
 	}
-	return DevLinksFromPRs(prs)
+	return DevLinksFromPRs(prs), true
 }
 
 // DevLinksFromPRs maps dev-status pull requests onto mirror rows. Shared with

@@ -155,6 +155,10 @@ type IssueRecord struct {
 	Changelog   []ChangeEntry
 	Links       []Link
 	DevLinks    []DevLink
+	// DevLinksValid is true when DevLinks is a complete origin answer,
+	// including empty (drain). False skips the dev_links rewrite so a
+	// fetch failure cannot drain existing rows (GDK-536).
+	DevLinksValid bool
 }
 
 // Page is the document projection (one row in the pages table). Field names
