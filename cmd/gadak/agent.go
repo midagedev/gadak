@@ -1443,7 +1443,7 @@ func cmdComment(args []string) error {
 		return err
 	}
 	if len(pos) == 0 {
-		return usageError("comment", "usage: gadak comment <KEY> -m <text> [--visibility role=NAME|group=NAME] [--internal] [--json]")
+		return usageError("comment", "usage: gadak comment <KEY> [<text> | -m <text|->] [--visibility role=NAME|group=NAME] [--internal] [--json]")
 	}
 	vis, err := parseCommentVisibility(visRaw)
 	if err != nil {
@@ -1451,6 +1451,14 @@ func cmdComment(args []string) error {
 	}
 	key := normalizeKey(pos[0])
 	body := *text
+	// Trailing positional words are the body, like create's positional
+	// SUMMARY (GDK-315). With -m too it is ambiguous — refuse.
+	if len(pos) > 1 {
+		if body != "" {
+			return usageError("comment", "comment body given twice — positional text and -m; pick one")
+		}
+		body = strings.Join(pos[1:], " ")
+	}
 	if body == "-" {
 		buf, err := io.ReadAll(os.Stdin)
 		if err != nil {

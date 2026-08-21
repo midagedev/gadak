@@ -991,6 +991,28 @@ func TestCommentSendsADFAndRefusesAnEmptyBody(t *testing.T) {
 	}
 }
 
+// GDK-315: trailing positional words are the body, like create's positional
+// SUMMARY. Both positional text and -m is ambiguous and refused.
+func TestCommentTakesPositionalBody(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	if _, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "landed", "on", "main,", "CI", "green"})
+	}); err != nil {
+		t.Fatalf("positional comment: %v", err)
+	}
+	if body := f.bodies["POST /issue/NMB-1/comment"]; !strings.Contains(body, "landed on main, CI green") {
+		t.Fatalf("sent %s", body)
+	}
+
+	if _, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "positional", "-m", "flagged"})
+	}); err == nil || !strings.Contains(err.Error(), "twice") {
+		t.Fatalf("ambiguous body not refused: %v", err)
+	}
+}
+
 func commentADF(f *fakeJira) string {
 	return f.bodies["POST /issue/NMB-1/comment"]
 }

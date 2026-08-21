@@ -176,7 +176,7 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   create     create an issue  [--] <SUMMARY> [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--label L]... [--attach FILE]... [-m <text|->] [--json]
   attach     attach files     <KEY> <file>... [--json]
   edit       edit an issue    <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--priority NAME-or-id] [--json]
-  comment    add a comment    <KEY> -m <text|-> [--json]
+  comment    add a comment    <KEY> [<text> | -m <text|->] [--json]
   transition change status    <KEY> <transition-id|status-id|name> [--json]
   assign     set assignee     <KEY> <email|-> [--json]
   page       wiki page create/edit/comment  create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]

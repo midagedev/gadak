@@ -364,8 +364,9 @@ var helps = map[string]cmdHelp{
 	},
 	"comment": {
 		summary: "add a comment (@Name resolves to a site user; ambiguous names are refused)",
-		usage:   "gadak [--workspace <name>] comment <KEY> -m <text|-> [--visibility role=NAME|group=NAME] [--internal] [--json]",
+		usage:   "gadak [--workspace <name>] comment <KEY> [<text> | -m <text|->] [--visibility role=NAME|group=NAME] [--internal] [--json]",
 		examples: []string{
+			"gadak comment NMB-140 Reproduced on staging.",
 			"gadak comment NMB-140 -m \"Reproduced on staging.\"",
 			"gadak comment NMB-140 -m \"thanks @Dana\"",
 			"gadak comment NMB-140 -m -          # body from stdin",
