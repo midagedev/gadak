@@ -77,12 +77,18 @@ func cmdCreate(args []string) error {
 		if ferr != nil {
 			return ferr
 		}
+		if err := refuseSignedCreateLabels(labels); err != nil {
+			return err
+		}
 		return cmdCreateBatch(*projectFlag, *typeFlag, *text, *priorityFlag, *parentFlag, *dueFlag, []string(labels), []string(attachFiles), fieldRaws, *asJSON)
 	}
 
 	summary := strings.TrimSpace(strings.Join(pos, " "))
 	if summary == "" {
 		return usageError("create", createUsage)
+	}
+	if err := refuseSignedCreateLabels(labels); err != nil {
+		return err
 	}
 	if _, err := parseParentKey(*parentFlag, "create"); err != nil {
 		return err
@@ -223,7 +229,19 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 // createOne resolves project/type/priority/parent, POSTs the issue, and uploads
 // attachments. Attach paths and the parent key shape are validated before any
 // Jira call. The caller prints / refreshes.
+func refuseSignedCreateLabels(labels []string) error {
+	for _, l := range labels {
+		if l != "" && (l[0] == '+' || l[0] == '-') {
+			return fmt.Errorf("create takes plain label names; +/- add/remove syntax belongs to gadak edit")
+		}
+	}
+	return nil
+}
+
 func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
+	if err := refuseSignedCreateLabels(labels); err != nil {
+		return "", nil, err
+	}
 	if len(attach) > 0 {
 		if err := validateAttachPaths(attach); err != nil {
 			return "", nil, err
@@ -311,7 +329,7 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 		if err != nil {
 			return "", nil, err
 		}
-		custom, err := resolveCreateAliasFields(cfg, list, fieldRaws)
+		custom, err := resolveCreateAliasFields(ctx, c, "", cfg, list, fieldRaws)
 		if err != nil {
 			return "", nil, err
 		}

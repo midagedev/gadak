@@ -401,6 +401,28 @@ func TestCreateOmitsDescriptionWhenMinusMMissing(t *testing.T) {
 	}
 }
 
+func TestCreateRejectsSignedLabelSyntax(t *testing.T) {
+	// GDK-545: create --label must refuse edit's +x/-x verbs, not send them
+	// as literal label names.
+	t.Setenv("GADAK_HOME", t.TempDir())
+	config.SetProfile("")
+	for _, label := range []string{"+regression", "-needs-triage"} {
+		_, err := capture(t, func() error {
+			return cmdCreate([]string{"a summary", "--label", label, "--project", "NMB", "--type", "Task"})
+		})
+		if err == nil {
+			t.Fatalf("--label %q was accepted", label)
+		}
+		msg := err.Error()
+		if !strings.Contains(msg, "plain label names") {
+			t.Errorf("--label %q error missing 'plain label names': %q", label, msg)
+		}
+		if !strings.Contains(msg, "gadak edit") {
+			t.Errorf("--label %q error must point at gadak edit: %q", label, msg)
+		}
+	}
+}
+
 func TestCreateOmitsLabelsWhenNoneGiven(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL)
