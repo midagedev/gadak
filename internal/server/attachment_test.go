@@ -225,9 +225,6 @@ func TestAttachmentCacheRejectsForeignIssueKey(t *testing.T) {
 
 func TestLinearAttachmentFetchesStoredURLWithoutAuth(t *testing.T) {
 	db, _ := fixture(t)
-	if err := db.UpsertSource(context.Background(), store.Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
-		t.Fatal(err)
-	}
 	var auth string
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth = r.Header.Get("Authorization")
@@ -239,23 +236,16 @@ func TestLinearAttachmentFetchesStoredURLWithoutAuth(t *testing.T) {
 		_, _ = w.Write([]byte("LINBYTES"))
 	}))
 	t.Cleanup(origin.Close)
-	if _, err := db.UpsertIssues(context.Background(), store.Batch{
-		Records: []store.IssueRecord{{
-			Item: store.Item{
-				ID: "linear:lin-1", SourceID: "linear", ExternalID: "lin-1", Key: "FIX-L1",
-				Title: "linear att", CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
-			},
-			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new"},
-			Attachments: []store.Attachment{{
-				ID: "linear:att-lin", ExternalID: "att-lin", Filename: "file.png",
-				MimeType: "image/png", Size: 8, URL: origin.URL + "/file.png",
-			}},
-		}},
-	}); err != nil {
+	dest, err := url.Parse(origin.URL)
+	if err != nil {
 		t.Fatal(err)
 	}
-	// No Jira credential: Linear bytes still proxy, and the request must not
-	// carry an Authorization header (never the Linear API key).
+	saved := proxyClient
+	proxyClient = &http.Client{Timeout: 2 * time.Minute, CheckRedirect: saved.CheckRedirect, Transport: rewriteLinearUploads{dest: dest}}
+	t.Cleanup(func() { proxyClient = saved })
+	seedLinearAttachment(t, db, "FIX-L1", "att-lin", "https://uploads.linear.app/file.png")
+	// No Jira credential and no Linear key: uploads.linear.app still proxies,
+	// and the request must not carry Authorization.
 	h := New(db, &config.Config{})
 	rec := get(t, h, apiBase+"FIX-L1/attachments/att-lin/content/", nil)
 	if rec.Code != http.StatusOK || rec.Body.String() != "LINBYTES" {
@@ -268,29 +258,19 @@ func TestLinearAttachmentFetchesStoredURLWithoutAuth(t *testing.T) {
 
 func TestLinearAttachmentPassesThrough401(t *testing.T) {
 	db, _ := fixture(t)
-	if err := db.UpsertSource(context.Background(), store.Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
-		t.Fatal(err)
-	}
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte("no"))
 	}))
 	t.Cleanup(origin.Close)
-	if _, err := db.UpsertIssues(context.Background(), store.Batch{
-		Records: []store.IssueRecord{{
-			Item: store.Item{
-				ID: "linear:lin-2", SourceID: "linear", ExternalID: "lin-2", Key: "FIX-L2",
-				Title: "linear att", CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
-			},
-			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new"},
-			Attachments: []store.Attachment{{
-				ID: "linear:att-401", ExternalID: "att-401", Filename: "x.png",
-				URL: origin.URL + "/x.png",
-			}},
-		}},
-	}); err != nil {
+	dest, err := url.Parse(origin.URL)
+	if err != nil {
 		t.Fatal(err)
 	}
+	saved := proxyClient
+	proxyClient = &http.Client{Timeout: 2 * time.Minute, CheckRedirect: saved.CheckRedirect, Transport: rewriteLinearUploads{dest: dest}}
+	t.Cleanup(func() { proxyClient = saved })
+	seedLinearAttachment(t, db, "FIX-L2", "att-401", "https://uploads.linear.app/x.png")
 	h := New(db, &config.Config{})
 	rec := get(t, h, apiBase+"FIX-L2/attachments/att-401/content/", nil)
 	if rec.Code != http.StatusUnauthorized {
@@ -412,11 +392,13 @@ func TestLinearUploadsAttachmentSendsBareAPIKey(t *testing.T) {
 	}
 }
 
-func TestLinearAttachmentOtherHostDoesNotSendAPIKey(t *testing.T) {
+func TestLinearAttachmentOtherHostIsNotFetched(t *testing.T) {
+	// GDK-560: a Linear content URL that is not uploads.linear.app must not
+	// be fetched (SSRF). Zero requests on the httptest server is the proof.
 	db, _ := fixture(t)
-	var auth string
+	var hits int
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth = r.Header.Get("Authorization")
+		hits++
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write([]byte("LINBYTES"))
 	}))
@@ -424,11 +406,14 @@ func TestLinearAttachmentOtherHostDoesNotSendAPIKey(t *testing.T) {
 	seedLinearAttachment(t, db, "FIX-OTHER", "att-other", origin.URL+"/file.png")
 	h := New(db, &config.Config{Linear: &config.LinearConfig{APIKey: linearAttTestKey}})
 	rec := get(t, h, apiBase+"FIX-OTHER/attachments/att-other/content/", nil)
-	if rec.Code != http.StatusOK || rec.Body.String() != "LINBYTES" {
-		t.Fatalf("linear other-host proxy → %d %q", rec.Code, rec.Body.String())
+	if hits != 0 {
+		t.Fatalf("other-host URL was fetched %d times, want 0", hits)
 	}
-	if auth != "" {
-		t.Fatalf("Authorization length %d, want empty (host is not uploads.linear.app)", len(auth))
+	if rec.Code != http.StatusNotFound && rec.Code != http.StatusBadGateway {
+		t.Fatalf("other-host proxy → %d %q, want 404 or 502", rec.Code, rec.Body.String())
+	}
+	if rec.Body.String() == "LINBYTES" {
+		t.Fatal("other-host body was served — the URL was fetched")
 	}
 }
 
@@ -487,6 +472,77 @@ func TestFetchStoredURLStripsAuthorizationOnCrossHostRedirect(t *testing.T) {
 	if destAuth != "" {
 		t.Fatalf("redirect dest Authorization length %d, want empty (Go strips on non-subdomain redirect)", len(destAuth))
 	}
+}
+
+func TestFetchStoredURLRefusesUploadsSubdomainRedirect(t *testing.T) {
+	// GDK-558: Go keeps Authorization on a redirect to a subdomain of the
+	// original host. A hop from uploads.linear.app to *.uploads.linear.app
+	// must not be followed.
+	var destHits int
+	var destAuth string
+	dest := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		destHits++
+		destAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("DEST"))
+	}))
+	t.Cleanup(dest.Close)
+	src := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://cdn.uploads.linear.app/file.png", http.StatusFound)
+	}))
+	t.Cleanup(src.Close)
+	srcURL, err := url.Parse(src.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	destURL, err := url.Parse(dest.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := proxyClient
+	proxyClient = &http.Client{
+		Timeout:       2 * time.Minute,
+		CheckRedirect: saved.CheckRedirect,
+		Transport: linearSubdomainRedirect{
+			src: srcURL, dest: destURL,
+		},
+	}
+	t.Cleanup(func() { proxyClient = saved })
+
+	res, err := fetchStoredURL(context.Background(), "https://uploads.linear.app/file.png", linearAttTestKey)
+	if res != nil {
+		res.Body.Close()
+	}
+	if destHits != 0 {
+		t.Fatalf("subdomain redirect dest hits %d auth_len %d, want 0 (key must not leave uploads.linear.app)", destHits, len(destAuth))
+	}
+	if err == nil {
+		t.Fatal("subdomain redirect was followed")
+	}
+}
+
+// linearSubdomainRedirect rewrites https://uploads.linear.app onto src and
+// https://cdn.uploads.linear.app onto dest so the redirect policy can be
+// exercised without contacting Linear.
+type linearSubdomainRedirect struct {
+	src, dest *url.URL
+}
+
+func (t linearSubdomainRedirect) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	u := *req.URL
+	switch req.URL.Host {
+	case linearUploadsHost:
+		u.Scheme, u.Host = t.src.Scheme, t.src.Host
+		clone.Host = t.src.Host
+	case "cdn.uploads.linear.app":
+		u.Scheme, u.Host = t.dest.Scheme, t.dest.Host
+		clone.Host = t.dest.Host
+	default:
+		return nil, fmt.Errorf("unexpected attachment request %s://%s", req.URL.Scheme, req.URL.Host)
+	}
+	clone.URL = &u
+	return http.DefaultTransport.RoundTrip(clone)
 }
 
 func TestCachedSvgIsForcedToDownload(t *testing.T) {

@@ -19,10 +19,14 @@ import (
 /* ── attachment bytes: local cache first, Jira only on a miss ── */
 
 // ponytail: a 2-minute ceiling on one attachment download, no resumption.
-// CheckRedirect is nil, so Go's default Client applies: Authorization is
-// stripped when the redirect hostname is not an exact match or subdomain of
-// the original hostname (net/http.Client, Go 1.26).
-var proxyClient = &http.Client{Timeout: 2 * time.Minute}
+// CheckRedirect refuses hops off uploads.linear.app (GDK-558): Go's default
+// policy keeps Authorization on a subdomain redirect, which would send the
+// Linear API key to *.uploads.linear.app. Jira fetches start on the site
+// host, so their media redirects are unchanged.
+var proxyClient = &http.Client{
+	Timeout:       2 * time.Minute,
+	CheckRedirect: proxyCheckRedirect,
+}
 
 // handleAttachment serves attachment bytes from the on-disk cache, falling back
 // to Jira on a miss and caching what it fetches. Bytes for an attachment id are
@@ -262,8 +266,12 @@ func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueK
 		return nil, err
 	}
 	if sourceID == "linear" {
+		if !isLinearUploadsURL(contentURL) {
+			// GDK-560: do not fetch an arbitrary stored URL (SSRF).
+			return nil, errAttachmentMissing
+		}
 		var key string
-		if isLinearUploadsURL(contentURL) && cfg != nil && cfg.Linear != nil {
+		if cfg != nil && cfg.Linear != nil {
 			key = cfg.Linear.APIKey
 		}
 		return fetchStoredURL(ctx, contentURL, key)
@@ -302,6 +310,30 @@ func isLinearUploadsURL(target string) bool {
 	return u.Scheme == "https" && u.Host == linearUploadsHost
 }
 
+// proxyCheckRedirect is proxyClient's redirect policy. Linear downloads
+// start on uploads.linear.app (GDK-560); a hop off that host is refused so
+// Authorization cannot follow a subdomain redirect (GDK-558). Other origins
+// (Jira site → media host) follow with the default 10-hop cap.
+func proxyCheckRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	if len(via) == 0 || via[0].URL == nil {
+		return nil
+	}
+	if via[0].URL.Host != linearUploadsHost {
+		return nil
+	}
+	host := ""
+	if req != nil && req.URL != nil {
+		host = req.URL.Host
+	}
+	if host != linearUploadsHost {
+		return fmt.Errorf("attachment: refusing redirect from %s to %s", linearUploadsHost, host)
+	}
+	return nil
+}
+
 // fetchStoredURL GETs an origin content URL. apiKey, when non-empty, is sent
 // as a bare Authorization value (Linear rejects the "Bearer " prefix —
 // internal/linear/client.go).
@@ -310,12 +342,11 @@ func isLinearUploadsURL(target string) bool {
 // downloads (isLinearUploadsURL). Linear documents that file downloads from
 // that host accept the API key in Authorization. That is a different path
 // from the upload PUT to a signed URL, which must not carry the key
-// (internal/linear/write.go UploadFile). Other hosts, http, or a missing key
-// take the unauthenticated path this function used before GDK-427.
+// (internal/linear/write.go UploadFile). Other Linear content URLs are
+// refused before this function (GDK-560).
 //
-// proxyClient has no CheckRedirect. Go's default Client strips Authorization
-// when the redirect hostname is not an exact match or subdomain of the
-// original hostname, so a hop off uploads.linear.app does not take the key.
+// proxyClient.CheckRedirect refuses any hop whose host is not exactly
+// uploads.linear.app when the original host was that (GDK-558).
 func fetchStoredURL(ctx context.Context, target, apiKey string) (*http.Response, error) {
 	if target == "" {
 		return nil, errAttachmentMissing
