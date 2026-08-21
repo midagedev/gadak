@@ -70,6 +70,10 @@ type fakeJira struct {
 	// {"fields": …}. Empty is {}. Matches the server fake's shape so CLI
 	// --editmeta tests drive the same Jira document web handleEditMeta parses.
 	editMeta string
+
+	// versionsJSON overrides GET /project/{key}/versions. Empty keeps the
+	// default catalog TestEditFixVersion* relies on (id 10012 = v2.5).
+	versionsJSON string
 }
 
 // recordedUpload is one multipart POST /issue/{key}/attachments the fake saw.
@@ -176,6 +180,12 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			raw = "{}"
 		}
 		_, _ = w.Write([]byte(`{"fields":` + raw + `}`))
+	case strings.HasPrefix(path, "/project/") && strings.HasSuffix(path, "/versions") && r.Method == http.MethodGet:
+		raw := f.versionsJSON
+		if raw == "" {
+			raw = `[{"id":"10012","name":"v2.5","released":true,"archived":false},{"id":"10013","name":"v2.6","released":false,"archived":false}]`
+		}
+		_, _ = w.Write([]byte(raw))
 	default:
 		// transitions POST and assignee PUT answer 204, like Jira.
 		w.WriteHeader(http.StatusNoContent)
@@ -1042,6 +1052,9 @@ func (s *searchUsersStub) AddComment(context.Context, string, json.RawMessage, *
 }
 func (s *searchUsersStub) SetAssignee(context.Context, string, string) error { return errStub }
 func (s *searchUsersStub) PriorityCatalog(context.Context) ([]jira.NamedID, error) {
+	return nil, errStub
+}
+func (s *searchUsersStub) ProjectVersions(context.Context, string) ([]jira.Version, error) {
 	return nil, errStub
 }
 func (s *searchUsersStub) Upload(context.Context, string, string, io.Reader) ([]jira.Attachment, error) {

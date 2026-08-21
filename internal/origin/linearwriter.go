@@ -53,6 +53,13 @@ func (w *linearWriter) PriorityCatalog(ctx context.Context) ([]jira.NamedID, err
 	return append(out, jira.NamedID{ID: "0", Name: linearPriorityNames[0]}), nil
 }
 
+// ProjectVersions has no Linear counterpart (issues do not carry Jira
+// fix versions). Refuse locally so a CLI --fix-version name never looks
+// like an empty catalog.
+func (w *linearWriter) ProjectVersions(context.Context, string) ([]jira.Version, error) {
+	return nil, fmt.Errorf("linear: project versions are not supported on this origin")
+}
+
 func (w *linearWriter) Transitions(ctx context.Context, key string) ([]jira.Transition, error) {
 	iss, err := w.resolve(ctx, key)
 	if err != nil {

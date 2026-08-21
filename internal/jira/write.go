@@ -135,6 +135,24 @@ func (c *Client) Resolutions(ctx context.Context) ([]NamedID, error) {
 	return list, c.do(ctx, http.MethodGet, apiPath+"/resolution", nil, &list)
 }
 
+// Version is one row of GET /rest/api/3/project/{key}/versions. Writes send
+// the id: names can be renamed on the site.
+type Version struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Released    bool   `json:"released"`
+	Archived    bool   `json:"archived"`
+	ReleaseDate string `json:"releaseDate"`
+}
+
+// ProjectVersions is GET /rest/api/3/project/{key}/versions — the project's
+// version catalog. Names can be renamed; writes should send the id.
+func (c *Client) ProjectVersions(ctx context.Context, projectKey string) ([]Version, error) {
+	var list []Version
+	p := fmt.Sprintf("%s/project/%s/versions", apiPath, url.PathEscape(projectKey))
+	return list, c.do(ctx, http.MethodGet, p, nil, &list)
+}
+
 // AddComment posts an ADF body (not plain text). Mentions must already be
 // mention nodes — a leftover "@Name" string notifies nobody.
 // visibility is sent as Jira's visibility object when non-nil. internal

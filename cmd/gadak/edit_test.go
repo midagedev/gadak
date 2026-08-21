@@ -61,6 +61,20 @@ import (
 //     TestEditComponentOrigin400HintsAllowedValues
 // 20. --label and --component together each get their own update array
 //     TestEditLabelAndComponentBothGoOut
+//
+// --fix-version (GDK-516 / GDK-123):
+// 21. --fix-version +v2.5 --fix-version -10013 → update.fixVersions add/remove {id}
+//     TestEditFixVersionAddRemoveVerbs
+// 22. Bare --fix-version value rejected (add or remove); no PUT
+//     TestEditFixVersionBareValueRejected
+// 23. Unknown name lists the project catalog; no PUT
+//     TestEditFixVersionUnknownNameListsCatalog
+// 24. All-digit values skip the catalog GET
+//     TestEditFixVersionAllDigitsSkipCatalog
+// 25. Edit without --fix-version omits the fixVersions key
+//     TestEditWithoutFixVersionOmitsFixVersionsKey
+// 26. Duplicate catalog names refuse as ambiguous (ids listed); no PUT
+//     TestEditFixVersionAmbiguousListsIDs
 
 func TestEditSummaryAlone(t *testing.T) {
 	f := newFakeJira(t)
@@ -303,7 +317,7 @@ func TestEditNoFlagsIsUsageError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "usage: gadak edit") {
 		t.Fatalf("no flags: %v", err)
 	}
-	for _, want := range []string{"--summary", "-m", "--label", "--component", "--priority", "--parent"} {
+	for _, want := range []string{"--summary", "-m", "--label", "--component", "--fix-version", "--priority", "--parent"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("usage %q missing %q", err, want)
 		}
@@ -861,6 +875,189 @@ func TestEditHelpShowsComponentSyntax(t *testing.T) {
 	}
 	if !strings.Contains(editUsage, "--component") {
 		t.Errorf("editUsage missing --component: %s", editUsage)
+	}
+}
+
+func TestEditFixVersionAddRemoveVerbs(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--fix-version", "+v2.5", "--fix-version", "-10013"})
+	})
+	if err != nil {
+		t.Fatalf("edit --fix-version: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	got := string(putUpdateField(t, body, "fixVersions"))
+	want := `[{"add":{"id":"10012"}},{"remove":{"id":"10013"}}]`
+	if got != want {
+		t.Fatalf("update.fixVersions = %s, want %s (body %s)", got, want, body)
+	}
+	if _, ok := putPayload(t, body).Fields["summary"]; ok {
+		t.Errorf("fix-version-only must omit fields: %s", body)
+	}
+	n := 0
+	for _, c := range f.calls {
+		if c == "GET /project/NMB/versions" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("catalog GET count %d, want 1: %v", n, f.calls)
+	}
+}
+
+func TestEditFixVersionBareValueRejected(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--fix-version", "v2.5"})
+	})
+	if err == nil {
+		t.Fatal("bare fix-version must be refused")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "add or remove") {
+		t.Errorf("error must show add-vs-replace wording: %q", msg)
+	}
+	if !strings.Contains(msg, "--fix-version") {
+		t.Errorf("error must name --fix-version: %q", msg)
+	}
+	if !strings.Contains(msg, "v2.5") {
+		t.Errorf("error should name the value: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("bare fix-version reached Jira: %v", f.calls)
+	}
+	if f.called("GET /project/NMB/versions") {
+		t.Fatalf("local reject must not GET versions: %v", f.calls)
+	}
+}
+
+func TestEditFixVersionUnknownNameListsCatalog(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--fix-version", "+nope"})
+	})
+	if err == nil {
+		t.Fatal("expected unmatched fix-version error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `no fix version matching "nope"`) {
+		t.Errorf("wording: %q", msg)
+	}
+	if !strings.Contains(msg, "v2.5") {
+		t.Errorf("error must list catalog names: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("unmatched name reached Jira: %v", f.calls)
+	}
+}
+
+func TestEditFixVersionAllDigitsSkipCatalog(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--fix-version", "+10012", "--fix-version", "-10013"})
+	})
+	if err != nil {
+		t.Fatalf("edit --fix-version ids: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	got := string(putUpdateField(t, body, "fixVersions"))
+	want := `[{"add":{"id":"10012"}},{"remove":{"id":"10013"}}]`
+	if got != want {
+		t.Fatalf("update.fixVersions = %s, want %s (body %s)", got, want, body)
+	}
+	if f.called("GET /project/NMB/versions") {
+		t.Fatalf("all-digit values must not GET versions: %v", f.calls)
+	}
+}
+
+func TestEditWithoutFixVersionOmitsFixVersionsKey(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--label", "+batch"})
+	})
+	if err != nil {
+		t.Fatalf("edit --label: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	payload := putPayload(t, body)
+	if _, ok := payload.Update["fixVersions"]; ok {
+		t.Fatalf("fixVersions key present without --fix-version: %s", body)
+	}
+	if string(payload.Update["labels"]) != `[{"add":"batch"}]` {
+		t.Fatalf("labels-only update drifted: %s", body)
+	}
+	if f.called("GET /project/NMB/versions") {
+		t.Fatalf("label-only must not GET versions: %v", f.calls)
+	}
+}
+
+func TestEditFixVersionAmbiguousListsIDs(t *testing.T) {
+	f := newFakeJira(t)
+	f.versionsJSON = `[{"id":"10012","name":"v2.5"},{"id":"10099","name":"v2.5"}]`
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--fix-version", "+v2.5"})
+	})
+	if err == nil {
+		t.Fatal("expected ambiguous fix-version error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "ambiguous") {
+		t.Errorf("error must say ambiguous: %q", msg)
+	}
+	if !strings.Contains(msg, "10012") || !strings.Contains(msg, "10099") {
+		t.Errorf("error must list matching ids: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("ambiguous name reached Jira: %v", f.calls)
+	}
+}
+
+func TestEditFixVersionNameIsCaseInsensitive(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--fix-version", "+V2.5"})
+	})
+	if err != nil {
+		t.Fatalf("edit --fix-version +V2.5: %v", err)
+	}
+	got := string(putUpdateField(t, f.bodies["PUT /issue/NMB-1"], "fixVersions"))
+	if got != `[{"add":{"id":"10012"}}]` {
+		t.Fatalf("case-insensitive name: %s", got)
+	}
+}
+
+func TestEditHelpShowsFixVersionSyntax(t *testing.T) {
+	h, ok := helps["edit"]
+	if !ok {
+		t.Fatal("edit missing from helps")
+	}
+	if !strings.Contains(h.usage, "--fix-version +id-or-name|-id-or-name") {
+		t.Errorf("usage missing --fix-version: %s", h.usage)
+	}
+	if strings.Contains(h.usage, "--fixversion") {
+		t.Errorf("usage must not alias --fixversion: %s", h.usage)
+	}
+	joined := strings.Join(h.examples, "\n")
+	if !strings.Contains(joined, "--fix-version +") || !strings.Contains(joined, "--fix-version -") {
+		t.Errorf("examples missing --fix-version +x --fix-version -y:\n%s", joined)
+	}
+	if !strings.Contains(editUsage, "--fix-version") {
+		t.Errorf("editUsage missing --fix-version: %s", editUsage)
 	}
 }
 

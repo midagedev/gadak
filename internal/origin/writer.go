@@ -35,6 +35,9 @@ type Writer interface {
 	SetAssignee(ctx context.Context, key, accountID string) error
 	SearchUsers(ctx context.Context, query string) ([]jira.User, error)
 	PriorityCatalog(ctx context.Context) ([]jira.NamedID, error)
+	// ProjectVersions is GET /rest/api/3/project/{key}/versions. Linear
+	// has no counterpart and must return an honest error (GDK-516).
+	ProjectVersions(ctx context.Context, projectKey string) ([]jira.Version, error)
 	Upload(ctx context.Context, key, filename string, file io.Reader) ([]jira.Attachment, error)
 	MediaRef(ctx context.Context, attachmentID string) (mediaID, filename string, err error)
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--component +x|-x]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]"
+const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--json]"
 
 func cmdEdit(args []string) error {
 	fs := newFlagSet("edit")
@@ -23,6 +23,8 @@ func cmdEdit(args []string) error {
 	fs.Var(&labels, "label", "`+name` or `-name` (repeatable)")
 	var components labelFlags
 	fs.Var(&components, "component", "`+name` or `-name` (repeatable)")
+	var fixVersions labelFlags
+	fs.Var(&fixVersions, "fix-version", "`+id-or-name` or `-id-or-name` (repeatable)")
 	priority := fs.String("priority", "", "priority name or id")
 	due := fs.String("due", "", "due date (YYYY-MM-DD); `none` clears")
 	parent := fs.String("parent", "", "parent issue key; `none` clears")
@@ -40,7 +42,7 @@ func cmdEdit(args []string) error {
 	}
 	key := normalizeKey(pos[0])
 
-	var hasSummary, hasM, hasLabel, hasComponent, hasPriority, hasParent, hasDue bool
+	var hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasPriority, hasParent, hasDue bool
 	fs.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "summary":
@@ -51,6 +53,8 @@ func cmdEdit(args []string) error {
 			hasLabel = true
 		case "component":
 			hasComponent = true
+		case "fix-version":
+			hasFixVersion = true
 		case "priority":
 			hasPriority = true
 		case "parent":
@@ -59,7 +63,7 @@ func cmdEdit(args []string) error {
 			hasDue = true
 		}
 	})
-	if !hasSummary && !hasM && !hasLabel && !hasComponent && !hasPriority && !hasParent && !hasDue {
+	if !hasSummary && !hasM && !hasLabel && !hasComponent && !hasFixVersion && !hasPriority && !hasParent && !hasDue {
 		return usageError("edit", editUsage)
 	}
 	if hasSummary && strings.TrimSpace(*summary) == "" {
@@ -123,6 +127,15 @@ func cmdEdit(args []string) error {
 			return err
 		}
 	}
+	if hasFixVersion {
+		// +/- is local, same as --label/--component, so a bare value never
+		// opens a write session or fetches the catalog.
+		if _, err = signedUpdateOps("--fix-version", fixVersions, func(op, name string) any {
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
 
 	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		fields := map[string]any{}
@@ -142,6 +155,13 @@ func cmdEdit(args []string) error {
 		}
 		if hasComponent {
 			update["components"] = componentOps
+		}
+		if hasFixVersion {
+			ops, ferr := fixVersionUpdateOps(ctx, c, key, fixVersions)
+			if ferr != nil {
+				return nil, ferr
+			}
+			update["fixVersions"] = ops
 		}
 		if hasPriority {
 			list, err := c.PriorityCatalog(ctx)
@@ -193,6 +213,90 @@ func componentUpdateOps(values []string) ([]any, error) {
 	return signedUpdateOps("--component", values, func(op, name string) any {
 		return map[string]any{op: map[string]string{"name": name}}
 	})
+}
+
+type signedToken struct {
+	op, token string
+}
+
+// fixVersionUpdateOps turns --fix-version +v2.5 / --fix-version -10012 into
+// Jira update verbs keyed by version id. All-digit tokens are ids and skip
+// the catalog; names resolve against GET /project/{key}/versions once.
+func fixVersionUpdateOps(ctx context.Context, c origin.Writer, issueKey string, values []string) ([]any, error) {
+	parsed, err := signedUpdateOps("--fix-version", values, func(op, name string) any {
+		return signedToken{op: op, token: name}
+	})
+	if err != nil {
+		return nil, err
+	}
+	needCatalog := false
+	for _, p := range parsed {
+		if !allASCIIDigits(p.(signedToken).token) {
+			needCatalog = true
+			break
+		}
+	}
+	var catalog []jira.Version
+	if needCatalog {
+		pk := projectKeyFromIssueKey(issueKey)
+		if pk == "" {
+			return nil, fmt.Errorf("cannot derive project key from %q", issueKey)
+		}
+		catalog, err = c.ProjectVersions(ctx, pk)
+		if err != nil {
+			return nil, err
+		}
+	}
+	ops := make([]any, 0, len(parsed))
+	for _, p := range parsed {
+		tok := p.(signedToken)
+		id, err := resolveFixVersionID(tok.token, catalog)
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, map[string]any{tok.op: map[string]string{"id": id}})
+	}
+	return ops, nil
+}
+
+func projectKeyFromIssueKey(key string) string {
+	i := strings.LastIndex(key, "-")
+	if i <= 0 {
+		return ""
+	}
+	return key[:i]
+}
+
+func resolveFixVersionID(token string, catalog []jira.Version) (string, error) {
+	if allASCIIDigits(token) {
+		return token, nil
+	}
+	var hits []jira.Version
+	for _, v := range catalog {
+		if strings.EqualFold(v.Name, token) {
+			hits = append(hits, v)
+		}
+	}
+	switch len(hits) {
+	case 1:
+		return hits[0].ID, nil
+	case 0:
+		return "", fmt.Errorf("no fix version matching %q — available: %s", token, formatVersionCatalog(catalog))
+	default:
+		ids := make([]string, 0, len(hits))
+		for _, h := range hits {
+			ids = append(ids, h.ID)
+		}
+		return "", fmt.Errorf("fix version %q is ambiguous — matches: %s", token, strings.Join(ids, ", "))
+	}
+}
+
+func formatVersionCatalog(list []jira.Version) string {
+	named := make([]jira.NamedID, 0, len(list))
+	for _, v := range list {
+		named = append(named, jira.NamedID{ID: v.ID, Name: v.Name})
+	}
+	return formatNamedIDs(named)
 }
 
 // signedUpdateOps is the shared +name / -name parser for edit's set-valued

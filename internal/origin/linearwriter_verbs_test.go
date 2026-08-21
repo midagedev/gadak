@@ -317,6 +317,23 @@ func TestSearchUsersForwardsQuery(t *testing.T) {
 	}
 }
 
+func TestProjectVersionsUnsupported(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	got, err := w.ProjectVersions(context.Background(), "FIX")
+	if err == nil {
+		t.Fatal("ProjectVersions succeeded; Linear has no version catalog")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "not supported") {
+		t.Errorf("error %q, want it to say not supported", err)
+	}
+	if got != nil {
+		t.Errorf("versions %v, want nil on refuse", got)
+	}
+	if len(rec.queries) != 0 {
+		t.Errorf("ProjectVersions hit GraphQL %d times; refuse must stay local", len(rec.queries))
+	}
+}
+
 func TestCreateFieldsUnsupported(t *testing.T) {
 	w, rec := testLinearWriter(t)
 	got, err := w.CreateFields(context.Background(), "FIX", "issue")
