@@ -193,6 +193,7 @@ row, `--csv` is header plus CSV.
 ```sql
 -- Someone's open work, most urgent first
 -- assignee_email can be empty when the site hides emails; prefer assignee_id after looking it up by name.
+-- gadak assign accepts that accountId (or the display name) when email is hidden; ambiguous names are refused with the candidates.
 SELECT key, status, priority, summary FROM issues_full
 WHERE assignee_email = 'dana@example.com' AND status_category != 'done'
 ORDER BY priority_rank, updated_at DESC;
@@ -349,7 +350,7 @@ gadak comment NMB-140 -m "Reproduced on staging."
 gadak comment NMB-140 -m "thanks @Dana"       # @Name resolves to a site user; ambiguous names are refused
 gadak comment NMB-140 -m -                    # body from stdin, for anything multi-line
 gadak transition NMB-140 "In Review"
-gadak assign NMB-140 dana@example.com         # `-` unassigns
+gadak assign NMB-140 dana@example.com         # email, display name, or accountId; `-` unassigns. Ambiguous names are refused with the candidates.
 gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging" --parent NMB-1
 gadak attach NMB-140 screenshot.png trace.log
 gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none

@@ -1107,6 +1107,132 @@ func TestResolveAccountLinearSkipsJiraMemberDirectory(t *testing.T) {
 	}
 }
 
+func saveResolveAccountConfig(t *testing.T, members []config.Member) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	cfg := &config.Config{
+		Site: "https://example.invalid", Email: "a@b.c", Token: "tok",
+		Members: members,
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// GDK-515: a site that hides emails still resolves a unique display-name hit.
+func TestResolveAccountNameSingleHitNoEmail(t *testing.T) {
+	saveResolveAccountConfig(t, nil)
+	stub := &searchUsersStub{users: []jira.User{
+		{AccountID: "712020:abc", DisplayName: "Dana", Email: ""},
+	}}
+	id, err := resolveAccount(context.Background(), stub, "Dana", "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "712020:abc" {
+		t.Fatalf("id = %q, want 712020:abc", id)
+	}
+	if stub.query != "Dana" {
+		t.Fatalf("SearchUsers query = %q", stub.query)
+	}
+}
+
+// GDK-515: accountId exact match must win among multiple SearchUsers hits.
+// Two hits so the single-hit fallback cannot paper over a missing AccountID
+// comparison — current source refuses this as ambiguous (FAIL-first).
+func TestResolveAccountIDExactMatchAmongMultiple(t *testing.T) {
+	saveResolveAccountConfig(t, nil)
+	stub := &searchUsersStub{users: []jira.User{
+		{AccountID: "712020:abc", DisplayName: "Dana", Email: ""},
+		{AccountID: "712020:def", DisplayName: "Dana Kim", Email: ""},
+	}}
+	id, err := resolveAccount(context.Background(), stub, "712020:abc", "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "712020:abc" {
+		t.Fatalf("id = %q, want 712020:abc", id)
+	}
+	if stub.query != "712020:abc" {
+		t.Fatalf("SearchUsers query = %q", stub.query)
+	}
+
+	_, err = resolveAccount(context.Background(), stub, "712020:ABC", "jira")
+	if err == nil {
+		t.Fatal("accountId match is case-sensitive; 712020:ABC must not accept 712020:abc")
+	}
+	if !strings.Contains(err.Error(), "matches 2 users") {
+		t.Fatalf("wrong-cased accountId: %v", err)
+	}
+}
+
+func TestResolveAccountAmbiguousNameStillRefused(t *testing.T) {
+	saveResolveAccountConfig(t, nil)
+	stub := &searchUsersStub{users: []jira.User{
+		{AccountID: "712020:abc", DisplayName: "Dana", Email: ""},
+		{AccountID: "712020:def", DisplayName: "Dana Kim", Email: ""},
+	}}
+	_, err := resolveAccount(context.Background(), stub, "Dana", "jira")
+	if err == nil {
+		t.Fatal("ambiguous name must be refused")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "matches 2 users") {
+		t.Fatalf("want candidate-list refusal, got %v", err)
+	}
+	for _, want := range []string{"Dana", "Dana Kim"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("refusal %q missing %q", msg, want)
+		}
+	}
+}
+
+func TestResolveAccountEmailWinsOverAccountID(t *testing.T) {
+	saveResolveAccountConfig(t, nil)
+	who := "overlap@example.com"
+	stub := &searchUsersStub{users: []jira.User{
+		{AccountID: who, DisplayName: "ID Hit", Email: ""},
+		{AccountID: "acc-email-hit", DisplayName: "Email Hit", Email: who},
+	}}
+	id, err := resolveAccount(context.Background(), stub, who, "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "acc-email-hit" {
+		t.Fatalf("id = %q, want acc-email-hit (email match wins)", id)
+	}
+}
+
+func TestResolveAccountMemberDirectoryByAccountID(t *testing.T) {
+	saveResolveAccountConfig(t, []config.Member{
+		{Email: "dana@example.com", JiraAccountID: "jira-acc-1"},
+	})
+	stub := &searchUsersStub{}
+	id, err := resolveAccount(context.Background(), stub, "jira-acc-1", "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "jira-acc-1" {
+		t.Fatalf("id = %q, want jira-acc-1 from the member directory", id)
+	}
+	if stub.query != "" {
+		t.Fatalf("SearchUsers query = %q, want none (member-directory shortcut)", stub.query)
+	}
+
+	id, err = resolveAccount(context.Background(), stub, "jira-acc-1", "linear")
+	if err == nil {
+		t.Fatal("linear assign must not use the Jira member-directory accountId shortcut")
+	}
+	if id != "" {
+		t.Fatalf("linear id = %q, want empty on refuse", id)
+	}
+	if stub.query != "jira-acc-1" {
+		t.Fatalf("linear SearchUsers query = %q", stub.query)
+	}
+}
+
 func TestAssignResolvesEmailAndUnassigns(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL)

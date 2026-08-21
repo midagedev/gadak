@@ -1926,7 +1926,7 @@ func cmdAssign(args []string) error {
 		return err
 	}
 	if len(pos) < 2 {
-		return usageError("assign", "usage: gadak assign <KEY> <email|-> [--json]")
+		return usageError("assign", "usage: gadak assign <KEY> <email|name|accountId|-> [--json]")
 	}
 	key, who := normalizeKey(pos[0]), strings.TrimSpace(pos[1])
 
@@ -1942,10 +1942,12 @@ func cmdAssign(args []string) error {
 	})
 }
 
-// resolveAccount turns an email into an origin account id: `-` unassigns.
-// Jira rows may use the configured member directory (JiraAccountID) without
-// a network call. Linear rows must not — that id is a Jira account, and
-// Linear assign wants a Linear user UUID from Writer.SearchUsers.
+// resolveAccount turns an email, display name, or account id into an origin
+// account id: `-` unassigns. Jira rows may use the configured member
+// directory (JiraAccountID) without a network call — email first, then exact
+// account id. Linear rows must not — that id is a Jira account, and Linear
+// assign wants a Linear user UUID from Writer.SearchUsers. Account id
+// comparison is case-sensitive; email is not.
 func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (string, error) {
 	if who == "-" {
 		return "", nil
@@ -1960,6 +1962,11 @@ func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (s
 				return m.JiraAccountID, nil
 			}
 		}
+		for _, m := range cfg.Members {
+			if m.JiraAccountID != "" && m.JiraAccountID == who {
+				return m.JiraAccountID, nil
+			}
+		}
 	}
 	users, err := c.SearchUsers(ctx, who)
 	if err != nil {
@@ -1967,6 +1974,11 @@ func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (s
 	}
 	for _, u := range users {
 		if strings.EqualFold(u.Email, who) {
+			return u.AccountID, nil
+		}
+	}
+	for _, u := range users {
+		if u.AccountID == who {
 			return u.AccountID, nil
 		}
 	}
