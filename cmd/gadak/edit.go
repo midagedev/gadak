@@ -154,7 +154,11 @@ func cmdEdit(args []string) error {
 				fields["duedate"] = dueDate
 			}
 		}
-		return nil, c.EditIssue(ctx, key, fields, update)
+		// A --parent the origin refuses gets the mirror's hierarchy answer,
+		// the same one create gives. withParentHint owns the "is this a
+		// parent rejection" test because the field key differs by verb
+		// (create: parent/parentId, edit: pid — GDK-525).
+		return nil, withParentHint(ctx, c.EditIssue(ctx, key, fields, update), parentKey)
 	})
 }
 

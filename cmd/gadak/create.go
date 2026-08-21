@@ -294,16 +294,7 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 
 	key, err := c.CreateIssue(ctx, fields)
 	if err != nil {
-		// Jira's parent rejection ("select a valid parent", localized) never
-		// says WHY the parent is invalid. The mirror knows the parent's type
-		// and hierarchy level, and that context is what turns a dead end
-		// into the next command (GDK-424).
-		if parentKey != "" && strings.Contains(err.Error(), "parent") {
-			if hint := parentHierarchyHint(ctx, parentKey); hint != "" {
-				return "", nil, fmt.Errorf("%w\n%s", err, hint)
-			}
-		}
-		return "", nil, err
+		return "", nil, withParentHint(ctx, err, parentKey)
 	}
 	extra := map[string]any{
 		"created": map[string]string{"key": key},
@@ -436,6 +427,36 @@ func parseParentKey(raw, cmd string) (string, error) {
 	return normalizeKey(raw), nil
 }
 
+// parentRejection reports whether err is the origin refusing the parent we
+// sent. The field key differs by verb, and both shapes were measured against
+// a real Cloud site on 2026-08-21: POST /issue answers with `parent` AND
+// `parentId`, PUT /issue/{key} answers with `pid`. The messages themselves
+// are localized per account, so the keys are the only stable part — this is
+// the one place that knows them. GDK-424 tested `parent` inline in the
+// create path, which could never have matched the edit path (GDK-525).
+func parentRejection(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	// "pid:" keeps the colon so ordinary words containing "pid" (rapid,
+	// insipid) in an unrelated message cannot claim to be this rejection.
+	return strings.Contains(s, "parent") || strings.Contains(s, "pid:")
+}
+
+// withParentHint appends the mirror's hierarchy answer to a parent rejection
+// and returns every other error untouched. Both write verbs that can send a
+// parent go through here, so a new surface cannot inherit the bare 400.
+func withParentHint(ctx context.Context, err error, parentKey string) error {
+	if err == nil || parentKey == "" || !parentRejection(err) {
+		return err
+	}
+	if hint := parentHierarchyHint(ctx, parentKey); hint != "" {
+		return fmt.Errorf("%w\n%s", err, hint)
+	}
+	return err
+}
+
 // parentHierarchyHint reads the rejected parent from the mirror and states
 // the hierarchy rule Jira's 400 leaves out. Best-effort: no mirror, no row,
 // or any error returns "" and the origin error stands alone.
@@ -453,8 +474,16 @@ func parentHierarchyHint(_ context.Context, parentKey string) string {
 	if err != nil {
 		return ""
 	}
+	// A parent sits exactly one level above its child, so a level-1 parent
+	// (an epic) is refused for another epic — the case the old early return
+	// answered with silence (GDK-525).
 	if level >= 1 {
-		return ""
+		below := fmt.Sprintf("level-%d", level-1)
+		if level == 1 {
+			below = "level-0 (standard types such as Task, Bug or Story)"
+		}
+		return fmt.Sprintf("hint: %s is %q (hierarchy level %d) — a parent sits exactly one level above its child, so %s can only parent %s issues. Two issues at the same level cannot be parent and child.",
+			parentKey, issueType, level, parentKey, below)
 	}
 	return fmt.Sprintf("hint: %s is %q (hierarchy level %d) — a standard issue can only sit under a level-1 parent (an epic); only sub-task types can sit under %s. Pick an epic as --parent, or use a sub-task issue type.",
 		parentKey, issueType, level, parentKey)
