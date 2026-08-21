@@ -179,7 +179,7 @@ in the workspace's origin folder; back up that one file.
 | Dashboards | — | — |
 | Jira notifications | —⁷ | —⁷ |
 
-1. SQL and FTS are local. `--jql` / a Jira URL maps a documented subset onto the in-memory filter; clauses gadak cannot express are listed, never dropped. Sprint, `WAS`, cross-field `OR`, and custom fields are among the refusals ([decision 0007](docs/decisions/0007-jql-subset.md)).
+1. SQL and FTS are local. `--jql` / a Jira URL maps a documented subset onto the in-memory filter; clauses gadak cannot express are listed, never dropped. Sprint-by-name, `WAS`, cross-field `OR`, and custom fields are among the refusals; numeric `sprint =` / `sprint in` and `sprint in openSprints()` are in the subset ([decision 0007](docs/decisions/0007-jql-subset.md)).
 2. Dedicated endpoints for due date and description. Custom fields: kinds `text`, `number`, `date`, `option`, `user`, `multi_option` / `version_array`, gated by the issue's editmeta and the configured field allowlist. Cascading selects and textarea custom fields have no editor.
 3. Epic grouping (`epic_key`, nearest hierarchy-level-1 ancestor) is first-class. Setting a parent is CLI `create --parent` / `edit --parent` only — there is no REST `PUT {key}/parent`. Sub-task create-meta flags are not surfaced, so create cannot tell that a type requires a parent.
 4. Confluence Cloud is mirrored; page create, edit (title/body) and page comments write through it — `gadak page create|edit|comment`, `POST pages/`, `PUT pages/{id}/edit`, `POST pages/{id}/comment`.

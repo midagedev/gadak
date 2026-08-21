@@ -61,9 +61,16 @@ type Issue struct {
 	Duedate         string
 	Resolution      string
 	ResolutionID    string
-	DescriptionADF  json.RawMessage
-	Custom          map[string]any // mapped custom fields, keyed by config alias
-	Raw             json.RawMessage
+	// SprintID/SprintName/SprintState are the one sprint projected from the
+	// origin's sprint array (active > future > closed, then larger id). Nil /
+	// empty when the site has no sprint field, the array is empty, or an
+	// element was not an object. Linear leaves them unset.
+	SprintID       *int64
+	SprintName     string
+	SprintState    string
+	DescriptionADF json.RawMessage
+	Custom         map[string]any // mapped custom fields, keyed by config alias
+	Raw            json.RawMessage
 }
 
 // DevLink is one development-panel link (GDK-497): a pull request the origin

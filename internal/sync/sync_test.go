@@ -50,6 +50,8 @@ type fakeSite struct {
 	allJQLs []string
 	// fieldCatalog, when set, is returned from GET /rest/api/3/field (discovery).
 	fieldCatalog []map[string]any
+	// fieldHits is GET /rest/api/3/field count (sprint discovery cache tests).
+	fieldHits int
 	// filtersJSON, when set, is GET /filter/my. Default is an empty list so
 	// importFilters does not fail existing issue-sync tests.
 	filtersJSON []byte
@@ -87,6 +89,7 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/rest/api/3/priority":
 		w.Write([]byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"},{"id":"4","name":"Low"}]`))
 	case r.URL.Path == "/rest/api/3/field":
+		f.fieldHits++
 		cat := f.fieldCatalog
 		if cat == nil {
 			cat = []map[string]any{}
@@ -552,16 +555,18 @@ func TestImportFiltersCompilesJQLIntoSourceQueries(t *testing.T) {
 	if len(cfg.Filters.StatusCategory) != 1 || cfg.Filters.StatusCategory[0] != "inprogress" {
 		t.Fatalf("compiled category %+v", cfg.Filters.StatusCategory)
 	}
-	// Sprint is listed, not silently dropped; project still applied.
+	// GDK-518: sprint in openSprints() is in the subset; project still applied.
 	if got[1].Name != "Sprint board" {
 		t.Fatalf("second %q", got[1].Name)
 	}
-	if len(got[1].Unsupported) == 0 {
-		t.Fatal("expected sprint to be unsupported")
-	}
 	joined := strings.Join(got[1].Applied, " ")
-	if !strings.Contains(joined, "project") {
-		t.Fatalf("applied %v", got[1].Applied)
+	if !strings.Contains(joined, "project") || !strings.Contains(joined, "sprint") {
+		t.Fatalf("applied %v, want project and sprint", got[1].Applied)
+	}
+	for _, u := range got[1].Unsupported {
+		if strings.Contains(strings.ToLower(u), "sprint") {
+			t.Fatalf("sprint still unsupported: %v", got[1].Unsupported)
+		}
 	}
 }
 

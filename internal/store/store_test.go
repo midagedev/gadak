@@ -28,7 +28,8 @@ var documentedColumns = map[string][]string{
 		"duedate", "resolution", "created_at", "updated_at",
 		"status_changed_at", "resolved_at", "reopen_count", "reopened_at",
 		"assignee_changed_at", "comment_count", "description_adf", "custom", "raw",
-		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key", "priority_id", "resolution_id"},
+		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key", "priority_id", "resolution_id",
+		"sprint_id", "sprint_name", "sprint_state"},
 	// issues_full is the agent view (summary + issues.* + description_text).
 	// description_text is not an issues storage column (items.body_text).
 	"issues_full": {"summary", "item_id", "key", "project_key", "issue_type", "issue_type_id",
@@ -39,6 +40,7 @@ var documentedColumns = map[string][]string{
 		"status_changed_at", "resolved_at", "reopen_count", "reopened_at",
 		"assignee_changed_at", "comment_count", "description_adf", "custom", "raw",
 		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key", "priority_id", "resolution_id",
+		"sprint_id", "sprint_name", "sprint_state",
 		"description_text"},
 	"comments": {"id", "item_id", "external_id", "author", "author_id",
 		"body_adf", "body_text", "created_at", "updated_at",

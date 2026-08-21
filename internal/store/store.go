@@ -314,6 +314,13 @@ func nz(s string) any {
 	return s
 }
 
+func nzInt64(p *int64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
 // jsonArray keeps array columns json_each-able: absent is "[]", never NULL.
 func jsonArray(v []string) string {
 	if len(v) == 0 {

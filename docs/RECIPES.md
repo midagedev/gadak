@@ -142,6 +142,23 @@ where c.author = 'Dana Whitfield'
 order by c.created_at desc limit 20
 ```
 
+## This sprint
+
+**My open work in the active sprint.** Key on `sprint_state` (or `sprint_id`),
+never `sprint_name` — names rename and localize. `active` is what
+`sprint in openSprints()` maps to. The three columns are a projection of one
+sprint per issue (active > future > closed, then larger id); they stay NULL
+until a sync has rewritten the row on a site that has a sprint field.
+
+```sql
+select key, status, priority, summary
+from issues_full
+where sprint_state = 'active'
+  and assignee_id = '<id from the person lookup>'
+  and status_category != 'done'
+order by priority_rank, updated_at desc
+```
+
 ## Releases
 
 **Everything targeted at one fix version** (JQL cannot do ranges or joins over

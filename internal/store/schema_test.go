@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -413,5 +414,95 @@ func TestMigrateV27ToV28CommentVisibility(t *testing.T) {
 	}
 	if body != "hello" {
 		t.Errorf("body_text = %q, want hello (row must survive)", body)
+	}
+}
+
+// TestMigrateV29ToV30SprintColumns is FAIL-first for GDK-518: a v29 mirror
+// gains issues.sprint_id / sprint_name / sprint_state as NULL (no backfill),
+// issues_full exposes them, and PRAGMA user_version is 30.
+func TestMigrateV29ToV30SprintColumns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v29.db")
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < personalStateCopyVersion-1; i++ {
+		if _, err := raw.Exec(migrations[i]); err != nil {
+			raw.Close()
+			t.Fatalf("apply v%d: %v", i+1, err)
+		}
+	}
+	for _, stmt := range []string{schemaV27, schemaV28, schemaV29} {
+		if _, err := raw.Exec(stmt); err != nil {
+			raw.Close()
+			t.Fatalf("apply later v27-v29: %v", err)
+		}
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO sources (id, kind) VALUES ('jira', 'jira');
+		INSERT INTO items (id, source_id, kind, key, title, body_text, created_at, updated_at, synced_at)
+		VALUES ('jira:1', 'jira', 'issue', 'NMB-1', 'one', 'the flattened body', '2026-01-01', '2026-01-02', '2026-01-02');
+		INSERT INTO issues (item_id, key, project_key, priority_rank, reopen_count, comment_count)
+		VALUES ('jira:1', 'NMB-1', 'NMB', 0, 0, 0)`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec("PRAGMA user_version = 29"); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after v29: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	if got := db.SchemaVersion(); got != 30 {
+		t.Errorf("schema version %d, want 30", got)
+	}
+	var uv int
+	if err := db.sql.QueryRowContext(context.Background(), `PRAGMA user_version`).Scan(&uv); err != nil {
+		t.Fatalf("user_version: %v", err)
+	}
+	if uv != 30 {
+		t.Errorf("PRAGMA user_version = %d, want 30", uv)
+	}
+
+	var id sql.NullInt64
+	var name, state sql.NullString
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT sprint_id, sprint_name, sprint_state FROM issues WHERE key = 'NMB-1'`).
+		Scan(&id, &name, &state); err != nil {
+		t.Fatalf("issues sprint columns after v30: %v", err)
+	}
+	if id.Valid || name.Valid || state.Valid {
+		t.Errorf("sprint columns = %v/%v/%v, want NULL (no backfill; next sync rewrites)", id, name, state)
+	}
+
+	var summary, desc string
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT summary, description_text, sprint_id FROM issues_full WHERE key = 'NMB-1'`).
+		Scan(&summary, &desc, &id); err != nil {
+		t.Fatalf("issues_full after v30: %v", err)
+	}
+	if summary != "one" {
+		t.Errorf("summary = %q, want one", summary)
+	}
+	if desc != "the flattened body" {
+		t.Errorf("description_text = %q, want the flattened body (v23 expression must survive the rebuild)", desc)
+	}
+	if id.Valid {
+		t.Errorf("issues_full.sprint_id valid=%v, want NULL", id.Valid)
+	}
+
+	var idx sql.NullString
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT sql FROM sqlite_master WHERE name = 'issues_sprint'`).Scan(&idx); err != nil {
+		t.Fatalf("issues_sprint index: %v", err)
+	}
+	if idx.String == "" || !strings.Contains(idx.String, "sprint_id") {
+		t.Errorf("issues_sprint ddl = %q", idx.String)
 	}
 }

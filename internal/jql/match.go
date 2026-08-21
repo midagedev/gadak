@@ -57,6 +57,12 @@ func MatchIn(it Issue, f Filter, z calendar.Zone) bool {
 	if len(f.FixVersions) > 0 && !anyContains(f.FixVersions, it.FixVersions) {
 		return false
 	}
+	if len(f.SprintIDs) > 0 && !containsFold(f.SprintIDs, it.SprintID) {
+		return false
+	}
+	if len(f.SprintState) > 0 && !containsFold(f.SprintState, it.SprintState) {
+		return false
+	}
 	if (f.CreatedFrom != nil || f.CreatedTo != nil) && !inRange(it.CreatedAt, calendar.Instant, f.CreatedFrom, f.CreatedTo, z) {
 		return false
 	}

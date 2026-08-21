@@ -26,6 +26,8 @@ type Filter struct {
 	SourceProjectNot []string            `json:"source_project_not"`
 	Keys             []string            `json:"keys"`
 	Parent           []string            `json:"parent"`
+	SprintIDs        []string            `json:"sprint_ids"`
+	SprintState      []string            `json:"sprint_state"`
 	Fields           map[string][]string `json:"fields"`
 	Reopened         bool                `json:"reopened"`
 	Unassigned       bool                `json:"unassigned"`
@@ -113,6 +115,8 @@ type Issue struct {
 	UpdatedAt      string
 	Duedate        string
 	ResolvedAt     string
+	SprintID       string
+	SprintState    string
 }
 
 // Person is one identity ResolvePeople can match a JQL assignee/reporter
@@ -148,6 +152,8 @@ func EmptyFilter() Filter {
 		SourceProjectNot: []string{},
 		Keys:             []string{},
 		Parent:           []string{},
+		SprintIDs:        []string{},
+		SprintState:      []string{},
 		Fields:           map[string][]string{},
 	}
 }
@@ -157,7 +163,8 @@ func (f Filter) empty() bool {
 		len(f.AssigneeEmail) > 0 || len(f.ReporterEmail) > 0 ||
 		len(f.Labels) > 0 || len(f.Priority) > 0 || len(f.IssueType) > 0 ||
 		len(f.Components) > 0 || len(f.FixVersions) > 0 ||
-		len(f.JiraProject) > 0 || len(f.JiraProjectNot) > 0 || len(f.Keys) > 0 || len(f.Parent) > 0 || f.Unassigned || f.Reopened || f.Stale ||
+		len(f.JiraProject) > 0 || len(f.JiraProjectNot) > 0 || len(f.Keys) > 0 || len(f.Parent) > 0 ||
+		len(f.SprintIDs) > 0 || len(f.SprintState) > 0 || f.Unassigned || f.Reopened || f.Stale ||
 		f.CreatedFrom != nil || f.CreatedTo != nil ||
 		f.UpdatedFrom != nil || f.UpdatedTo != nil ||
 		f.DueFrom != nil || f.DueTo != nil ||

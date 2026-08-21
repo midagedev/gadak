@@ -4,6 +4,15 @@
 
 ## Unreleased
 
+### Added
+
+- **Sprint is a column an agent can query**. `issues.sprint_id` /
+  `sprint_name` / `sprint_state` project one sprint per issue (active over
+  future over closed, then the larger id) from the site's gh-sprint field,
+  discovered via `GET /field` — no hardcoded customfield id, no Agile REST,
+  no board catalog. `gadak search --jql 'sprint in openSprints()'` and
+  `sprint = <id>` apply; a name comparison stays listed as unsupported.
+
 ### Fixed
 
 - **The public backlog publishes what each issue actually says** ([GDK-430]).

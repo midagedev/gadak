@@ -143,6 +143,9 @@ The Jira projection. Joined to `items` on `item_id`.
 | `duedate` | TEXT | Date only |
 | `resolution` | TEXT | Display name, NULL while unresolved |
 | `resolution_id` | TEXT | Stable source id (v27). Empty (`''`) until a sync rewrites the row. **Use this for logic**; names are localized |
+| `sprint_id` | INTEGER | Projected sprint id (v30, GDK-518). NULL when the site has no sprint field, the issue is in none, or a value was not an object. **Use this (or `sprint_state`) for logic**; do not key on `sprint_name` |
+| `sprint_name` | TEXT | Display name of the projected sprint. NULL with `sprint_id` |
+| `sprint_state` | TEXT | `active` \| `future` \| `closed` of the projected sprint. NULL with `sprint_id` |
 | `created_at` | TEXT | Mirrored from `items` for single-table queries |
 | `updated_at` | TEXT | Mirrored from `items` |
 | `status_changed_at` | TEXT | Derived: last status transition |
@@ -160,7 +163,15 @@ The Jira projection. Joined to `items` on `item_id`.
 
 Indexes: `(project_key, status_category)`, `(assignee_id)`, `(updated_at)`,
 `(status_category, updated_at)`, `(reopen_count)`, `(key)` — the last one serves
-detail lookups, which arrive by key.
+detail lookups, which arrive by key — and `issues_sprint` on `sprint_id`
+`WHERE sprint_id IS NOT NULL` (v30).
+
+An issue can sit in several sprints (closed history plus the current one).
+The three columns hold **one** of them: `active` over `future` over `closed`,
+and the larger id when the state ties. Sync discovers the field from
+`GET /field` (`schema.custom` ending in `com.pyxis.greenhopper.jira:gh-sprint`);
+there is no hardcoded customfield id and no board catalog table. The next
+sync fills existing rows; the migration does not backfill.
 
 ### Derived field rules
 
@@ -527,7 +538,10 @@ view expands `i.*` at CREATE VIEW time, so it had to be recreated to expose
 the v11 columns (`hierarchy_level`, `epic_key`). Rebuilt again in v23 to add
 `description_text` (`items.body_text`, NULL → `''`) — the flattened description
 agents can read without parsing ADF. Rebuilt in v27 so `i.*` includes
-`resolution_id`; the v23 `description_text` expression is kept.
+`resolution_id`; the v23 `description_text` expression is kept. Rebuilt in
+v30 so `i.*` includes `sprint_id` / `sprint_name` / `sprint_state`. SQLite
+expands `i.*` at CREATE VIEW time, so an `ALTER TABLE` alone would hide the
+new columns from the view.
 
 ```sql
 CREATE VIEW issues_full AS

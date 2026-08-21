@@ -1265,7 +1265,16 @@ func jqlIssue(l store.IssueLite) jql.Issue {
 		UpdatedAt:      deref(l.UpdatedAt, ""),
 		Duedate:        deref(l.Duedate, ""),
 		ResolvedAt:     deref(l.ResolvedAt, ""),
+		SprintID:       sprintIDString(l.SprintID),
+		SprintState:    deref(l.SprintState, ""),
 	}
+}
+
+func sprintIDString(id *int64) string {
+	if id == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", *id)
 }
 
 func jqlIssues(lites []store.IssueLite) []jql.Issue {

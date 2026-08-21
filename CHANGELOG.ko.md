@@ -4,6 +4,16 @@
 
 ## Unreleased
 
+### 추가
+
+- **스프린트가 에이전트가 물을 수 있는 컬럼이 됩니다**.
+  `issues.sprint_id` / `sprint_name` / `sprint_state`는 이슈당 스프린트
+  하나(active > future > closed, 동률이면 id 큰 쪽)를 사이트의 gh-sprint
+  필드에서 투영합니다. 발견은 `GET /field`뿐 — customfield id 하드코딩 없음,
+  Agile REST 없음, 보드 카탈로그 없음. `gadak search --jql 'sprint in
+  openSprints()'`와 `sprint = <id>`는 적용되고, 이름 비교는 기존처럼
+  unsupported로 남습니다.
+
 ### 고침
 
 - **공개 백로그가 각 이슈가 실제로 말하는 것을 발행합니다** ([GDK-430]). 스크럽이

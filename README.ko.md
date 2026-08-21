@@ -180,7 +180,7 @@ Connected는 Atlassian Cloud와 대화합니다. Standalone(0.16부터)은 Atlas
 | 대시보드 | — | — |
 | Jira 알림 | —⁷ | —⁷ |
 
-1. SQL과 FTS는 로컬입니다. `--jql` / Jira URL은 문서화된 부분집합을 인메모리 필터로 매핑하고, gadak이 표현하지 못하는 절은 조용히 버려지지 않고 나열됩니다. Sprint, `WAS`, 필드를 가로지르는 `OR`, 커스텀 필드가 거절 목록에 있습니다 ([decision 0007](docs/decisions/0007-jql-subset.md)).
+1. SQL과 FTS는 로컬입니다. `--jql` / Jira URL은 문서화된 부분집합을 인메모리 필터로 매핑하고, gadak이 표현하지 못하는 절은 조용히 버려지지 않고 나열됩니다. 스프린트 이름 비교, `WAS`, 필드를 가로지르는 `OR`, 커스텀 필드가 거절 목록에 있습니다. 숫자 `sprint =` / `sprint in`과 `sprint in openSprints()`는 부분집합입니다 ([decision 0007](docs/decisions/0007-jql-subset.md)).
 2. 마감일과 설명은 전용 엔드포인트입니다. 커스텀 필드는 `text`, `number`, `date`, `option`, `user`, `multi_option` / `version_array` kind — 이슈의 editmeta와 설정된 필드 allowlist로 게이트됩니다. 캐스케이딩 셀렉트와 textarea 커스텀 필드는 편집기가 없습니다.
 3. 에픽 그룹핑(`epic_key`, 가장 가까운 hierarchy-level-1 조상)은 일급입니다. 부모 지정은 CLI `create --parent` / `edit --parent`뿐입니다 — REST `PUT {key}/parent`는 없습니다. 서브태스크 create-meta 플래그는 표면화되지 않아, create는 어떤 유형이 부모를 요구하는지 알지 못합니다.
 4. Confluence Cloud를 미러링하고, 페이지 생성·수정(제목/본문)·페이지 코멘트가 origin을 통과해 쓰입니다 — `gadak page create|edit|comment`, `POST pages/`, `PUT pages/{id}/edit`, `POST pages/{id}/comment`.

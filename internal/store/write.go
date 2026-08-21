@@ -159,8 +159,8 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			duedate, resolution, resolution_id, created_at, updated_at,
 			status_changed_at, resolved_at, reopen_count, reopened_at, reopen_reason,
 			assignee_changed_at, comment_count, description_adf, custom, raw, cloned_from,
-			hierarchy_level)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			hierarchy_level, sprint_id, sprint_name, sprint_state)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		it.ID, it.Key, nz(is.ProjectKey), nz(is.IssueType), nz(is.IssueTypeID),
 		nz(is.Status), nz(is.StatusID), nz(is.StatusCategory), nz(is.Priority), is.PriorityID, d.PriorityRank,
 		nz(is.Assignee), nz(is.AssigneeID), nz(is.AssigneeEmail), nz(is.Reporter),
@@ -171,7 +171,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		d.StatusChangedAt, d.ResolvedAt, d.ReopenCount, d.ReopenedAt, d.ReopenReason,
 		d.AssigneeChangedAt, d.CommentCount, jsonRaw(is.DescriptionADF),
 		jsonObject(is.Custom), jsonRaw(is.Raw), d.ClonedFrom,
-		is.HierarchyLevel,
+		is.HierarchyLevel, nzInt64(is.SprintID), nz(is.SprintName), nz(is.SprintState),
 	); err != nil {
 		return false, err
 	}

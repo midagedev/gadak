@@ -629,7 +629,7 @@ func TestShowJQLUnsupportedPartial(t *testing.T) {
 	db := demoDB(t)
 	args, _ := json.Marshal(map[string]any{
 		"name":      toolShow,
-		"arguments": map[string]any{"jql": `project = NMA AND sprint = 12`},
+		"arguments": map[string]any{"jql": `project = NMA AND sprint = "Sprint 41"`},
 	})
 	resps := session(t, db,
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":`+string(args)+`}`,

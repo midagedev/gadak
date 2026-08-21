@@ -69,6 +69,18 @@ func TestRecipesSQLFencesRunOnDemoDB(t *testing.T) {
 		t.Fatalf("docs/RECIPES.md carries %d ```sql fences, want >= %d — the fence extractor or the doc regressed", len(fences), minSQLFences)
 	}
 	sqlDemoHome(t)
+	// Open the throwaway copy so this binary's migrations apply (v30 sprint
+	// columns). examples/demo.db itself is not written; cmdSQL is read-only
+	// and would otherwise fail on a snapshot whose user_version lags.
+	path, err := config.DBPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mig, err := store.Open(path)
+	if err != nil {
+		t.Fatalf("migrate demo copy: %v", err)
+	}
+	mig.Close()
 	for i, query := range fences {
 		t.Run(fmt.Sprintf("fence%02d", i+1), func(t *testing.T) {
 			_, err := capture(t, func() error { return cmdSQL([]string{query}) })

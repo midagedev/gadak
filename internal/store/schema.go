@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -543,6 +543,25 @@ CREATE TABLE dev_links (
   PRIMARY KEY (item_id, url)
 );
 CREATE INDEX dev_links_item ON dev_links(item_id);
+`
+
+// schemaV30 adds issues.sprint_id / sprint_name / sprint_state (GDK-518):
+// one projected sprint per issue. Existing rows stay NULL until the next
+// sync rewrites them; the migration does not backfill, because the mirror
+// is a cache and the origin is the record (same contract as v22 priority_id
+// and v27 resolution_id). issues_full is rebuilt because SQLite expands i.*
+// at CREATE VIEW time (v12, v22, v23, v27) and would otherwise hide the
+// new columns from agents. The SELECT keeps v23's description_text
+// expression.
+const schemaV30 = `
+ALTER TABLE issues ADD COLUMN sprint_id INTEGER;
+ALTER TABLE issues ADD COLUMN sprint_name TEXT;
+ALTER TABLE issues ADD COLUMN sprint_state TEXT;
+CREATE INDEX issues_sprint ON issues(sprint_id) WHERE sprint_id IS NOT NULL;
+DROP VIEW issues_full;
+CREATE VIEW issues_full AS
+  SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
+  FROM issues i JOIN items it ON it.id = i.item_id;
 `
 
 // personalStateCopyVersion is the migration level schemaV26 lands on. migrate

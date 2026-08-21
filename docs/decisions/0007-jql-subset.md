@@ -46,3 +46,21 @@ separate decision, and still needs a real corpus.
 - The hosted static demo has no parse endpoint — the toast says so.
 - Display names in pasted JQL match whatever the syncing account stored.
   `statusCategory` is the stable axis (`To Do` / `In Progress` / `Done`).
+
+## Addendum (2026-08-21) — sprint numeric id and openSprints()
+
+**Status:** accepted (GDK-518).
+
+The decision body refused `sprint` out loud. The subset now maps two
+id-keyed forms onto the in-memory filter; everything else named sprint
+stays listed and unapplied.
+
+- `sprint = <numeric id>` and `sprint in (<id>, …)` → `issues.sprint_id`.
+- `sprint in openSprints()` → `issues.sprint_state = 'active'`.
+- Name comparison (`sprint = "Sprint 41"`), `closedSprints()`, `!=`, and
+  mixed id+function lists stay unsupported.
+
+The projection itself is one sprint per issue (active > future > closed,
+then larger id), filled at sync from the site's gh-sprint field
+(`GET /field`, never a hardcoded customfield id). Filtering is still in
+memory; this package still does not write SQL.

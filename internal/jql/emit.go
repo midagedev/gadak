@@ -80,6 +80,12 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 	if len(f.FixVersions) > 0 {
 		parts = append(parts, inClause("fixVersion", f.FixVersions))
 	}
+	if len(f.SprintIDs) > 0 {
+		parts = append(parts, inClause("sprint", f.SprintIDs))
+	}
+	if len(f.SprintState) > 0 {
+		parts = append(parts, "sprint in openSprints()")
+	}
 	parts = append(parts, dateClause("created", f.CreatedFrom, f.CreatedTo)...)
 	parts = append(parts, dateClause("updated", f.UpdatedFrom, f.UpdatedTo)...)
 	parts = append(parts, dateClause("duedate", f.DueFrom, f.DueTo)...)

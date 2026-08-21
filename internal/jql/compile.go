@@ -237,6 +237,8 @@ func canonicalField(name string) string {
 		return "key"
 	case "parent":
 		return "parent"
+	case "sprint":
+		return "sprint"
 	case "resolution":
 		return "resolution"
 	default:
@@ -305,6 +307,8 @@ func (c *compiler) compileClause(cl *clause) {
 		c.compileKey(cl)
 	case "parent":
 		c.compileParent(cl)
+	case "sprint":
+		c.compileSprint(cl)
 	case "resolution":
 		c.compileResolution(cl)
 	default:
@@ -490,6 +494,49 @@ func (c *compiler) compileParent(cl *clause) {
 	}
 	c.f.Parent = mergeUniqueUpper(c.f.Parent, vs)
 	c.mark("parent")
+}
+
+func (c *compiler) compileSprint(cl *clause) {
+	if cl.op != opEq && cl.op != opIn {
+		c.skip(cl.render() + " (not in the subset)")
+		return
+	}
+	var ids []string
+	open := false
+	for _, v := range cl.values {
+		if v.kind == valFunc {
+			if strings.EqualFold(v.funcName, "openSprints") && len(v.args) == 0 && cl.op == opIn {
+				open = true
+				continue
+			}
+			c.skip(cl.render() + " (not in the subset)")
+			return
+		}
+		s := strings.TrimSpace(v.raw)
+		if s == "" {
+			continue
+		}
+		if _, err := strconv.ParseInt(s, 10, 64); err != nil {
+			c.skip(cl.render() + " (not in the subset)")
+			return
+		}
+		ids = append(ids, s)
+	}
+	if open && len(ids) > 0 {
+		c.skip(cl.render() + " (not in the subset)")
+		return
+	}
+	if open {
+		c.f.SprintState = mergeUnique(c.f.SprintState, []string{"active"})
+		c.mark("sprint")
+		return
+	}
+	if len(ids) == 0 {
+		c.skip(cl.render() + " (not in the subset)")
+		return
+	}
+	c.f.SprintIDs = mergeUnique(c.f.SprintIDs, ids)
+	c.mark("sprint")
 }
 
 func (c *compiler) compileResolution(cl *clause) {

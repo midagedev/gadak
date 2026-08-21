@@ -169,6 +169,58 @@ func TestUpsertAndReadBack(t *testing.T) {
 	}
 }
 
+func TestUpsertSprintColumns(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	b := fixture()
+	id12 := int64(12)
+	b.Records[0].Issue.SprintID = &id12
+	b.Records[0].Issue.SprintName = "Sprint 41"
+	b.Records[0].Issue.SprintState = "active"
+	id13 := int64(13)
+	b.Records[1].Issue.SprintID = &id13
+	b.Records[1].Issue.SprintState = "closed"
+	if _, err := db.UpsertIssues(context.Background(), b); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM issues WHERE sprint_id = 12`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("sprint_id = 12 matched %d rows, want 1", n)
+	}
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM issues_full WHERE sprint_state = 'active'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("sprint_state = active matched %d rows, want 1", n)
+	}
+	lites, err := db.IssueLites(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	byKey := map[string]IssueLite{}
+	for _, l := range lites {
+		byKey[l.IssueKey] = l
+	}
+	one := byKey["NMB-1"]
+	if one.SprintID == nil || *one.SprintID != 12 {
+		t.Errorf("NMB-1 sprint_id = %v, want 12", one.SprintID)
+	}
+	if one.SprintState == nil || *one.SprintState != "active" {
+		t.Errorf("NMB-1 sprint_state = %v, want active", one.SprintState)
+	}
+	three := byKey["NMB-3"]
+	if three.SprintID != nil {
+		t.Errorf("NMB-3 sprint_id = %v, want NULL", three.SprintID)
+	}
+}
+
 func TestDetailAssembly(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)

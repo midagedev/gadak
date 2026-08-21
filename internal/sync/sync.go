@@ -84,6 +84,9 @@ type Options struct {
 	// the production path. Tests set a sub-second Tick so they do not sit on
 	// that 1s floor.
 	Tick time.Duration
+	// sprintField caches the gh-sprint custom field id for one Watch (or one
+	// Run). Nil means this call has no cache yet; runJiraPass allocates one.
+	sprintField *sprintFieldCache
 }
 
 // Result is the tally of one source pass (Run or RunConfluence).
@@ -194,7 +197,14 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		return record(ctx, cfg, db, SourceID, err)
 	}
 
-	fieldIDs := fieldList(cfg, res.Full)
+	if opts.sprintField == nil {
+		opts.sprintField = &sprintFieldCache{}
+	}
+	if opts.Reconcile {
+		opts.sprintField.reset()
+	}
+	sprintFieldID := opts.sprintField.resolve(ctx, c, opts)
+	fieldIDs := appendSprintField(fieldList(cfg, res.Full), sprintFieldID)
 	var maxUTC, maxRaw string
 	// pageBase / unitDenom drive per-Search progress lines. unitDenom < 0 means
 	// the approximate count failed and the line has no denominator.
@@ -210,7 +220,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 					cats[id] = jira.Category(iss.Fields.Status.StatusCategory.Key)
 				}
 			}
-			r, err := build(ctx, c, cfg, iss)
+			r, err := build(ctx, c, cfg, iss, sprintFieldID)
 			if err != nil {
 				return err
 			}
@@ -462,6 +472,9 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 	defer rtick.Stop()
 
 	o := opts
+	if o.sprintField == nil {
+		o.sprintField = &sprintFieldCache{}
+	}
 	defer o.phasef(PhaseIdle)
 	dead := map[string]bool{}
 	sources := defaultWatchSources()
@@ -479,9 +492,12 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 				if nextCred := watchCredential(cfg); nextCred != cred {
 					// Skip is per-credential: a settings token rotation must
 					// retry a previously-rejected source. Same credential
-					// keeps the skip so we do not 401 every tick.
+					// keeps the skip so we do not 401 every tick. Sprint
+					// field ids are per-site, so a new credential must
+					// rediscover.
 					dead = map[string]bool{}
 					cred = nextCred
+					o.sprintField.reset()
 				}
 				newEvery := time.Duration(cfg.EffectiveSyncIntervalSec()) * time.Second
 				if opts.Tick > 0 {
@@ -657,7 +673,7 @@ var devStatusSkips atomic.Int64
 
 // build maps one Jira issue onto the store's record, fetching the children the
 // search response truncated.
-func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Issue) (store.IssueRecord, error) {
+func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Issue, sprintFieldID string) (store.IssueRecord, error) {
 	f := iss.Fields
 
 	comments := f.Comment.Comments
@@ -756,6 +772,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		issue.Resolution = f.Resolution.Name
 		issue.ResolutionID = f.Resolution.ID
 	}
+	applySprint(&issue, iss.Extra, sprintFieldID)
 
 	rec := store.IssueRecord{Item: item, Issue: issue}
 	if cfg.DevStatus {

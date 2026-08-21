@@ -147,7 +147,7 @@ func TestUnsupportedAreListed(t *testing.T) {
 		jql  string
 		want string
 	}{
-		{`project = NMA AND sprint = 12`, "sprint"},
+		{`project = NMA AND sprint = "Sprint 41"`, "sprint"},
 		{`status = A OR assignee = B`, "OR across"},
 		{`labels = a AND labels = b`, "has-all"},
 		{`status != Done`, "only ="},
@@ -574,6 +574,139 @@ func TestInRangeKSTCreatedFrom(t *testing.T) {
 	}
 	if MatchIn(it, f, calendar.UTC()) {
 		t.Fatal("UTC calendar day is the 17th; must not match from=18")
+	}
+}
+
+// GDK-518 FAIL-first: sprint = / IN numeric ids and sprint in openSprints()
+// must compile into the subset (not skip as "not in the subset"). This
+// assertion compiles against HEAD because it only inspects Unsupported /
+// Applied.
+func TestSprintEqualsIsSupported(t *testing.T) {
+	for _, q := range []string{
+		`sprint = 12`,
+		`sprint in (12, 13)`,
+		`sprint in openSprints()`,
+	} {
+		res := Parse(q, fixedOpts())
+		if res.Error != "" {
+			t.Fatalf("%s: %s: %s", q, res.Error, res.Message)
+		}
+		if len(res.Unsupported) != 0 {
+			t.Fatalf("%s Unsupported %v", q, res.Unsupported)
+		}
+		applied := strings.Join(res.Applied, " ")
+		if !strings.Contains(applied, "sprint") {
+			t.Fatalf("%s Applied %v, want sprint", q, res.Applied)
+		}
+	}
+}
+
+func TestSprintEqualsAndInAndOpenSprints(t *testing.T) {
+	res := Parse(`sprint = 12`, fixedOpts())
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	if got := res.Filters.SprintIDs; len(got) != 1 || got[0] != "12" {
+		t.Fatalf("SprintIDs %+v", got)
+	}
+	if len(res.Filters.SprintState) != 0 {
+		t.Fatalf("SprintState %+v, want empty", res.Filters.SprintState)
+	}
+
+	res = Parse(`sprint in (12, 13)`, fixedOpts())
+	if len(res.Unsupported) != 0 {
+		t.Fatalf("Unsupported %v", res.Unsupported)
+	}
+	if got := res.Filters.SprintIDs; len(got) != 2 || got[0] != "12" || got[1] != "13" {
+		t.Fatalf("SprintIDs IN %+v", got)
+	}
+
+	res = Parse(`sprint in openSprints()`, fixedOpts())
+	if len(res.Unsupported) != 0 {
+		t.Fatalf("openSprints Unsupported %v", res.Unsupported)
+	}
+	if len(res.Filters.SprintIDs) != 0 {
+		t.Fatalf("openSprints must not set SprintIDs: %+v", res.Filters.SprintIDs)
+	}
+	if got := res.Filters.SprintState; len(got) != 1 || got[0] != "active" {
+		t.Fatalf("SprintState %+v, want [active]", got)
+	}
+}
+
+func TestSprintNameAndClosedStayUnsupported(t *testing.T) {
+	for _, q := range []string{
+		`sprint = "Sprint 41"`,
+		`sprint in closedSprints()`,
+		`sprint != 12`,
+	} {
+		res := Parse(q, fixedOpts())
+		if len(res.Unsupported) == 0 {
+			t.Fatalf("%s must stay unsupported", q)
+		}
+		if len(res.Filters.SprintIDs) != 0 || len(res.Filters.SprintState) != 0 {
+			t.Fatalf("%s must not populate sprint filters: ids=%+v state=%+v", q, res.Filters.SprintIDs, res.Filters.SprintState)
+		}
+	}
+}
+
+func TestSprintMatchEmitHash(t *testing.T) {
+	res := Parse(`sprint = 12`, fixedOpts())
+	if res.Error != "" {
+		t.Fatalf("%s: %s", res.Error, res.Message)
+	}
+	hit := Issue{Key: "NMB-1", SprintID: "12"}
+	miss := Issue{Key: "NMB-2", SprintID: "13"}
+	none := Issue{Key: "NMB-3"}
+	if !Match(hit, res.Filters) {
+		t.Error("sprint_id 12 should match sprint = 12")
+	}
+	if Match(miss, res.Filters) {
+		t.Error("sprint_id 13 should not match sprint = 12")
+	}
+	if Match(none, res.Filters) {
+		t.Error("empty sprint_id should not match sprint = 12")
+	}
+	emitted, omitted := Emit(res.Filters, Display{}, EmitOpts{})
+	if len(omitted) != 0 {
+		t.Fatalf("omitted %v", omitted)
+	}
+	if !strings.Contains(emitted, "sprint") || !strings.Contains(emitted, "12") {
+		t.Errorf("emit %q", emitted)
+	}
+	h := Hash(res.Filters, Display{})
+	if !strings.Contains(h, "sid=12") {
+		t.Errorf("hash %q", h)
+	}
+
+	open := Parse(`sprint in openSprints()`, fixedOpts())
+	active := Issue{Key: "NMB-4", SprintState: "active"}
+	closed := Issue{Key: "NMB-5", SprintState: "closed"}
+	if !Match(active, open.Filters) {
+		t.Error("sprint_state=active should match openSprints()")
+	}
+	if Match(closed, open.Filters) {
+		t.Error("sprint_state=closed should not match openSprints()")
+	}
+	emitted, _ = Emit(open.Filters, Display{}, EmitOpts{})
+	if emitted != "sprint in openSprints()" {
+		t.Errorf("openSprints emit %q", emitted)
+	}
+}
+
+func TestEmptyFilterSprintMarshal(t *testing.T) {
+	b, err := json.Marshal(EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"sprint_ids":[]`) {
+		t.Fatalf("empty SprintIDs must marshal as []: %s", b)
+	}
+}
+
+func TestMatchSprintEmptyIsUnconstrained(t *testing.T) {
+	it := Issue{Key: "NMB-1", SprintID: "12", SprintState: "active"}
+	if !Match(it, EmptyFilter()) {
+		t.Fatal("empty sprint filters must not constrain")
 	}
 }
 

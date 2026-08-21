@@ -37,6 +37,8 @@ func Hash(f Filter, d Display) string {
 	addList("spjn", f.SourceProjectNot)
 	addList("ks", f.Keys)
 	addList("pk", f.Parent)
+	addList("sid", f.SprintIDs)
+	addList("sst", f.SprintState)
 	for alias, vals := range f.Fields {
 		if len(vals) > 0 {
 			p.Set("f."+alias, strings.Join(vals, ","))

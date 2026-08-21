@@ -70,6 +70,12 @@ type IssueLite struct {
 	// Source is items.source_id (jira / linear / …). Write pickers key on it
 	// so a Linear row does not consume a Jira catalog or credential.
 	Source string `json:"source,omitempty"`
+	// SprintID/SprintName/SprintState are the projected sprint (GDK-518).
+	// Nil when the origin had none, the site has no sprint field, or the
+	// row predates the next sync after v30.
+	SprintID    *int64  `json:"sprint_id"`
+	SprintName  *string `json:"sprint_name"`
+	SprintState *string `json:"sprint_state"`
 }
 
 const issueLiteSelect = `
@@ -83,7 +89,8 @@ const issueLiteSelect = `
 	       i.duedate, i.resolution, COALESCE(i.resolution_id, ''), i.created_at, i.updated_at,
 	       i.status_changed_at, i.resolved_at, i.reopen_count, i.reopened_at,
 	       COALESCE(i.reopen_reason, ''), COALESCE(i.cloned_from, ''), i.comment_count,
-	       COALESCE(i.custom, '{}'), COALESCE(it.source_id, '')
+	       COALESCE(i.custom, '{}'), COALESCE(it.source_id, ''),
+	       i.sprint_id, i.sprint_name, i.sprint_state
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
 // ErrKeyAmbiguous means one key exists under more than one source (a Jira
@@ -203,6 +210,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 			&v.StatusChangedAt, &v.ResolvedAt, &v.ReopenCount, &v.ReopenedAt,
 			&reopenReason, &clonedFrom, &v.CommentCount,
 			&custom, &v.Source,
+			&v.SprintID, &v.SprintName, &v.SprintState,
 		); err != nil {
 			return nil, err
 		}
