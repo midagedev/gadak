@@ -66,10 +66,10 @@ func cmdSync(args []string) error {
 		runJira, runConf = false, false
 	}
 	if *source == "linear" && cfg.Linear == nil {
-		return fmt.Errorf("linear is off for this profile — add a \"linear\" block (apiKey, optional teamIds) to config.json")
+		return fmt.Errorf("linear is off for this workspace — add a \"linear\" block (apiKey, optional teamIds) to config.json")
 	}
 	if *source == "confluence" && cfg.Confluence == nil {
-		return fmt.Errorf("confluence is off for this profile — turn it on with `gadak init --spaces ENG,PROD`\n(or `--spaces all`), or in Settings → Sources")
+		return fmt.Errorf("confluence is off for this workspace — turn it on with `gadak init --spaces ENG,PROD`\n(or `--spaces all`), or in Settings → Sources")
 	}
 	if runJira {
 		res, err := syncer.Run(context.Background(), cfg, db, opts)

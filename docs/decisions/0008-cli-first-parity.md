@@ -131,3 +131,11 @@ the capability is locked in the app.
   validator table (`internal/config/settings.go`). Field-set differences
   are listed in `docs/CONFIGURATION.md`, not re-derived per surface.
 - The personal-views row is a backlog item, not a silent exception.
+
+## Addendum (2026-08-21)
+
+GDK-513 shipped `gadak edit --field alias=value` (and `gadak create --field`).
+The census row at `:83` ("`gadak edit` does not send `fields/` … No CLI verb")
+is superseded: the CLI now PATCHes `{key}/fields/` through the origin. REST
+still has no issue-link endpoint (`internal/server/server.go` has no
+`…/link/` route); `gadak link` is CLI-only.

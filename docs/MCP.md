@@ -154,8 +154,8 @@ plus the schema in `specs/000-product/data-model.md` subsumes pre-baked queries.
 | --- | --- | --- |
 | `gadak_query` | `{sql: string, limit?: number}` | `{columns, rows, count, truncated?, …}` — **SELECT/WITH only**, default limit 200, hard max 1000, byte-capped |
 | `gadak_search` | `{query: string, limit?: number}` (aliases: `text`, `q`) | `{total, issues: [{key, summary, status}], pages, matches}` via FTS; `matches` is key → `{field, snippet}` (plain text) |
-| `gadak_issue` | `{key: string}` | Full detail (comments, history, links) plus list fields |
-| `gadak_status` | `{}` | Watermark, version, last_error, row counts |
+| `gadak_issue` | `{key: string}` \| `{keys: string[]}` (exactly one) | Full detail (`description_text`, comments, history, links, `dev_links`, wiki cross-refs) plus list fields. One key is a single document; several keys wrap as `{issues, missing?}` |
+| `gadak_status` | `{}` | Watermark, version, last_error, row counts, kind, frozen |
 | `gadak_show` | `{jql}` \| `{keys: string[]}` \| `{issue}` \| `{name}` (exactly one) | `{hash, applied, unsupported, file}` — writes the process workspace's ui-focus file; the running window picks it up (500 ms visible / 2 min TTL); does not open a window or return issue rows |
 
 ### Filtering rule (same as the CLI)

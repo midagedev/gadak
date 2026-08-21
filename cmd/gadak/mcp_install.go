@@ -143,7 +143,7 @@ func printMCPInstallHelp() {
 	fmt.Print(`gadak mcp install — register gadak as an MCP server (current profile pinned)
 
 Usage:
-  gadak [--profile <name>] mcp install <client> [--dry-run]
+  gadak [--workspace <name>] mcp install <client> [--dry-run]
 
 Clients:
   claude   run ` + "`claude mcp add`" + ` with this binary and profile baked in
@@ -158,8 +158,8 @@ Options:
 Examples:
   gadak mcp install claude
   gadak mcp install claude --dry-run
-  gadak --profile demo mcp install claude
-  gadak --profile demo mcp install json
+  gadak --workspace demo mcp install claude
+  gadak --workspace demo mcp install json
   gadak mcp install cursor
   gadak mcp install codex
   gadak mcp install raycast

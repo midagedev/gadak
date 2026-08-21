@@ -91,7 +91,7 @@ flowchart LR
   Serve -.->|"1 anonymous GET/day"| GH
 ```
 
-Outbound traffic is exactly two destinations:
+Outbound traffic is exactly five destinations:
 
 1. **Your own Atlassian site**, authenticated with your API token, for sync
    and write-through. Attachment bytes are proxied on demand and may be
@@ -101,6 +101,22 @@ Outbound traffic is exactly two destinations:
    (`internal/selfupdate/selfupdate.go`). That lookup feeds the sidebar
    banner; it does not download a desktop zip or swap the app. `updateCheck:
    false` turns it off; dev builds never check.
+3. **Linear**, when a workspace has a Linear source: GraphQL to
+   `api.linear.app` (`internal/linear/client.go`; the API key is sent bare in
+   `Authorization`, not as Bearer) and, for file attach, a signed PUT to the
+   `uploadUrl` Linear returns (typically `uploads.linear.app`;
+   `internal/origin/linearwriter.go` — the PUT carries Linear's signed
+   headers and no API key).
+4. **Pairing home serve**, when this workspace is bound with
+   `gadak init --pairing-code`: HTTP(S) to the advertised serve endpoint with
+   `Authorization: Bearer <device token>`
+   (`internal/origin/transport.go` `newRemoteOriginTransport`). The
+   destination is the user's own machine (or tailnet), not a gadak-operated
+   server.
+5. **User-invoked gh**, only when you run `gadak dev scan`: the binary
+   execs `gh pr list --json …` (`cmd/gadak/dev.go`). gadak does not call
+   GitHub's HTTP API itself; `gh` uses whatever host and credential the user
+   already configured. `dev link` does not exec `gh`.
 
 There is no gadak account, no gadak server, no telemetry, and no multi-user
 model — no roles, no audit log.
@@ -109,8 +125,10 @@ Don't take our word for it — the claim is one grep:
 
 ```bash
 grep -rn 'http.NewRequest\|http.Get\|http.Post' --include='*.go' internal/ cmd/ desktop/
-# every hit is your Atlassian site, the GitHub Releases check, or gadak
-# talking to itself on loopback (port probe, health check, cache warming)
+# every hit is your Atlassian site, Linear (api.linear.app / signed upload PUT),
+# a pairing home serve, the GitHub Releases check, or gadak talking to itself
+# on loopback (port probe, health check, cache warming). `gh` is exec, not
+# net/http.
 ```
 
 ## The credential

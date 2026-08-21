@@ -91,7 +91,7 @@ func renderReplaceRefusedJSON(err error) error {
 		Error:   originbind.ErrCodeReplaceRefused,
 		Issues:  refused.Issues,
 		Persist: refused.Persist,
-		Hint:    "gadak --profile <name> init",
+		Hint:    "gadak --workspace <name> init",
 	}); encErr != nil {
 		return fmt.Errorf("%s\n(also failed to encode JSON: %v)", refused.Error(), encErr)
 	}

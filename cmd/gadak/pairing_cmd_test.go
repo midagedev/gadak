@@ -938,7 +938,7 @@ func TestPairingMintTellsTheOtherMachineWhatToRun(t *testing.T) {
 	}
 	// The suggested profile is the device label, not the home's profile —
 	// the remote picks its own name and the label is the shared one.
-	if !strings.Contains(stderr, "on the other machine: gadak --profile laptop init --pairing-code-stdin") {
+	if !strings.Contains(stderr, "on the other machine: gadak --workspace laptop init --pairing-code-stdin") {
 		t.Fatalf("stderr missing other-machine command:\n%s", stderr)
 	}
 	if !strings.Contains(stderr, "paste the line above") {

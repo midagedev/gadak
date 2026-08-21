@@ -17,7 +17,7 @@ grep -rniE 'telemetry|analytics|mixpanel|amplitude|posthog|sentry\.io|google-ana
 ```
 
 **2. The only remote host compiled into gadak is GitHub's release API.**
-<!-- outbound: Your own Atlassian site | GitHub Releases -->
+<!-- outbound: Your own Atlassian site | GitHub Releases | Linear | Pairing home serve | User-invoked gh -->
 Every other request goes to the Atlassian site *you* configured; the three
 `atlassian.net` strings below are placeholders in help text and comments.
 

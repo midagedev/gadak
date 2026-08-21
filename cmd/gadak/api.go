@@ -2,8 +2,10 @@ package main
 
 // gadak api — escape hatch: call Atlassian REST with the stored credential.
 //
-// The mirror only covers what sync models. Watchers, worklogs, sprints, user
-// search, and similar endpoints are reached here as raw pass-through requests.
+// The mirror only covers what sync models. Watchers, worklogs, user search,
+// and similar endpoints are reached here as raw pass-through requests. Sprints
+// are projected onto issues.sprint_id / sprint_name / sprint_state (schema
+// v30); prefer those columns, and never filter on sprint_name.
 // Authorization is always the configured site; absolute URLs are refused so a
 // prompt-injected path cannot exfiltrate the token (see SECURITY.md).
 

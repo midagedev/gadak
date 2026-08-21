@@ -232,7 +232,7 @@ func pairingMintRemoteHint(label string) string {
 	if label == "" {
 		label = "<name>"
 	}
-	return fmt.Sprintf("on the other machine: gadak --profile %s init --pairing-code-stdin  (paste the line above)", label)
+	return fmt.Sprintf("on the other machine: gadak --workspace %s init --pairing-code-stdin  (paste the line above)", label)
 }
 
 // ensureHomeRoutingToken is the single owner of "_home is valid". Once one
@@ -498,7 +498,7 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 	// workspace. A profile that is already paired is refused by
 	// refuseIfPairedOrigin in cmdInit, before this function runs.
 	if cfg.IsStandalone() || cfg.Site != "" || cfg.Email != "" || cfg.Token != "" {
-		return errors.New("this profile already owns an origin; pair into a fresh profile: gadak --profile <name> init --pairing-code …")
+		return errors.New("this workspace already owns an origin; pair into a fresh workspace: gadak --workspace <name> init --pairing-code …")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -569,5 +569,5 @@ func refuseIfPairedOrigin(cfg *config.Config) error {
 	if label == "" {
 		label = rem.Endpoint
 	}
-	return fmt.Errorf("this profile is paired with %q (%s) — to start over, use a new profile: gadak --profile <name> init", label, rem.Endpoint)
+	return fmt.Errorf("this workspace is paired with %q (%s) — to start over, use a new workspace: gadak --workspace <name> init", label, rem.Endpoint)
 }

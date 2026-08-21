@@ -31,9 +31,10 @@ baking a GitHub client into the gadak binary.
 ```
 
 `state` is `open`, `merged`, or `closed` (merged wins over GitHub's `closed`
-when `merged_at` is set). The detail API exposes this as `linked_prs`. Enable
-the surface with `"features": { "deploy": true }` in `config.json` (the PR list
-shares that flag today).
+when `merged_at` is set). The detail API exposes this as `linked_prs`. The
+web PR list renders whenever `linked_prs` is non-empty
+(`web/src/components/detail/DetailPanel.svelte`); it is not gated on
+`features.deploy`. That flag still gates the deploy-status timeline.
 
 ## Requirements
 

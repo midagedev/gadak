@@ -42,13 +42,13 @@ func assertPairedOriginRefusal(t *testing.T, err error) {
 		t.Fatal("init on a paired profile must be refused")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, `this profile is paired with "laptop"`) {
+	if !strings.Contains(msg, `this workspace is paired with "laptop"`) {
 		t.Fatalf("want paired-with-label refusal, got: %v", err)
 	}
 	if !strings.Contains(msg, "https://home.ts.net:8443") {
 		t.Fatalf("want endpoint in refusal, got: %v", err)
 	}
-	if !strings.Contains(msg, "gadak --profile") || !strings.Contains(msg, "init") {
+	if !strings.Contains(msg, "gadak --workspace") || !strings.Contains(msg, "init") {
 		t.Fatalf("want next-action new-profile init, got: %v", err)
 	}
 	if strings.Contains(msg, "later slice") {

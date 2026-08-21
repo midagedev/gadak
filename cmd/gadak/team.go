@@ -38,7 +38,7 @@ func cmdTeamExport(args []string) error {
 		fmt.Print(`gadak team export — write shareable team settings and saved views
 
 Usage:
-  gadak [--profile <name>] team export [--out FILE] [--with-members]
+  gadak [--workspace <name>] team export [--out FILE] [--with-members]
 
 Options:
   --out            write to this file instead of stdout
@@ -147,7 +147,7 @@ func cmdTeamImport(args []string) error {
 			fmt.Print(`gadak team import — merge a team config file into this profile
 
 Usage:
-  gadak [--profile <name>] team import <FILE|-> [--dry-run] [--overwrite]
+  gadak [--workspace <name>] team import <FILE|-> [--dry-run] [--overwrite]
 
 Options:
   --dry-run     print what would change without writing

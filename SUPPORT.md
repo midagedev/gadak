@@ -5,7 +5,7 @@ gadak is pre-release and support is best effort.
 ## Before Opening an Issue
 
 1. **Paste `gadak doctor` output.** Run `gadak doctor` (or
-   `gadak --profile <name> doctor`) and attach the full text. It is safe to put
+   `gadak --workspace <name> doctor`) and attach the full text. It is safe to put
    on a public tracker: counts and versions only — no API tokens, site
    hostnames, emails, project keys, custom-field names, or raw error strings.
 2. gadak commit or version (`gadak version`)

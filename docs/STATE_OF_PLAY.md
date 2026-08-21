@@ -138,13 +138,17 @@ snapshot, not assumed.
 
 ## The plugin boundary (how company-specific surfaces come back)
 
-The open-source core contains zero GitHub/CD/test-management code. An external
-process — any language, any schedule — upserts rows into the `enrichments`
-table and bumps `sync_state.version`; the server merges them into list rows
-(`deploy_status`, `qa_impact_*`) and detail responses (`deploy`, `qa_context`,
-`linked_prs`, `development_opinion`), and the UI surfaces appear once the
-matching feature flag is on. Payload shapes: `docs/PLUGINS.md`. Enrichments can
-never shadow mirrored fields.
+The open-source core does not embed a GitHub/CD/test-management client.
+Development-panel pull requests live in `dev_links`: standalone
+writes them through `gadak dev link` / `gadak dev scan` (the latter shells
+out to user-invoked `gh`); a connected Cloud workspace mirrors Jira's
+dev-status into the same table when `devStatus` is on. Separately, an
+external process — any language, any schedule — may still upsert rows into
+the `enrichments` table and bump `sync_state.version`; the server merges them
+into list rows (`deploy_status`, `qa_impact_*`) and detail responses
+(`deploy`, `qa_context`, `linked_prs`, `development_opinion`). The web PR
+list is not gated on `features.deploy`. Payload shapes:
+`docs/PLUGINS.md`. Enrichments can never shadow mirrored fields.
 
 ## What remains before a public launch
 
