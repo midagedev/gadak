@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -558,6 +558,33 @@ ALTER TABLE issues ADD COLUMN sprint_id INTEGER;
 ALTER TABLE issues ADD COLUMN sprint_name TEXT;
 ALTER TABLE issues ADD COLUMN sprint_state TEXT;
 CREATE INDEX issues_sprint ON issues(sprint_id) WHERE sprint_id IS NOT NULL;
+DROP VIEW issues_full;
+CREATE VIEW issues_full AS
+  SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
+  FROM issues i JOIN items it ON it.id = i.item_id;
+`
+
+// schemaV31 adds the project version catalog and issues.fix_version_ids
+// (GDK-532). The origin already sends fixVersions as id+name pairs; ingest
+// stored only names, so a rename broke joins and released/releaseDate never
+// reached the mirror. Join versions on id, never on name. Existing
+// fix_versions (name JSON array) keeps its 0.x recipe meaning; the new
+// column is the same-order id array. Existing rows stay NULL until the
+// next sync rewrites them — no backfill; the mirror is a cache (same
+// contract as v22 priority_id, v27 resolution_id, v30 sprint_*).
+// issues_full is rebuilt because SQLite expands i.* at CREATE VIEW time
+// (v12, v22, v23, v27, v30).
+const schemaV31 = `
+CREATE TABLE versions (
+  id           TEXT PRIMARY KEY,
+  project_key  TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  released     INTEGER NOT NULL DEFAULT 0,
+  archived     INTEGER NOT NULL DEFAULT 0,
+  release_date TEXT
+);
+CREATE INDEX versions_project ON versions(project_key);
+ALTER TABLE issues ADD COLUMN fix_version_ids TEXT;
 DROP VIEW issues_full;
 CREATE VIEW issues_full AS
   SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text

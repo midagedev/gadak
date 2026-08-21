@@ -155,17 +155,17 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		INSERT INTO issues (item_id, key, project_key, issue_type, issue_type_id,
 			status, status_id, status_category, priority, priority_id, priority_rank,
 			assignee, assignee_id, assignee_email, reporter, reporter_id, reporter_email, parent_key,
-			labels, components, fix_versions, affects_versions, environment_text,
+			labels, components, fix_versions, fix_version_ids, affects_versions, environment_text,
 			duedate, resolution, resolution_id, created_at, updated_at,
 			status_changed_at, resolved_at, reopen_count, reopened_at, reopen_reason,
 			assignee_changed_at, comment_count, description_adf, custom, raw, cloned_from,
 			hierarchy_level, sprint_id, sprint_name, sprint_state)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		it.ID, it.Key, nz(is.ProjectKey), nz(is.IssueType), nz(is.IssueTypeID),
 		nz(is.Status), nz(is.StatusID), nz(is.StatusCategory), nz(is.Priority), is.PriorityID, d.PriorityRank,
 		nz(is.Assignee), nz(is.AssigneeID), nz(is.AssigneeEmail), nz(is.Reporter),
 		nz(is.ReporterID), nz(is.ReporterEmail), nz(is.ParentKey),
-		jsonArray(is.Labels), jsonArray(is.Components), jsonArray(is.FixVersions),
+		jsonArray(is.Labels), jsonArray(is.Components), jsonArray(is.FixVersions), jsonArray(is.FixVersionIDs),
 		jsonArray(is.AffectsVersions), nz(is.EnvironmentText),
 		nz(is.Duedate), nz(is.Resolution), is.ResolutionID, nz(it.CreatedAt), nz(it.UpdatedAt),
 		d.StatusChangedAt, d.ResolvedAt, d.ReopenCount, d.ReopenedAt, d.ReopenReason,
@@ -259,6 +259,49 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	// An item that came back is no longer deleted.
 	_, err = tx.Exec(`DELETE FROM deleted_items WHERE source_id = ? AND key = ?`, it.SourceID, it.Key)
 	return true, err
+}
+
+// ReplaceProjectVersions upserts one project's version catalog and deletes
+// rows for that project whose id is no longer in the catalog. The catalog is
+// the origin; this table is a cache (GDK-532). An empty list clears the
+// project. Rows with an empty id are skipped (no join key).
+func (db *DB) ReplaceProjectVersions(ctx context.Context, projectKey string, rows []VersionRow) error {
+	if projectKey == "" {
+		return nil
+	}
+	return db.write(ctx, func(tx *sql.Tx) error {
+		keep := make([]string, 0, len(rows))
+		for _, r := range rows {
+			if r.ID == "" {
+				continue
+			}
+			keep = append(keep, r.ID)
+			if _, err := tx.Exec(`
+				INSERT INTO versions (id, project_key, name, released, archived, release_date)
+				VALUES (?,?,?,?,?,?)
+				ON CONFLICT(id) DO UPDATE SET
+					project_key = excluded.project_key,
+					name = excluded.name,
+					released = excluded.released,
+					archived = excluded.archived,
+					release_date = excluded.release_date`,
+				r.ID, projectKey, r.Name, boolInt(r.Released), boolInt(r.Archived), nz(r.ReleaseDate),
+			); err != nil {
+				return fmt.Errorf("version %s: %w", r.ID, err)
+			}
+		}
+		if len(keep) == 0 {
+			_, err := tx.Exec(`DELETE FROM versions WHERE project_key = ?`, projectKey)
+			return err
+		}
+		keepJSON, err := json.Marshal(keep)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(`DELETE FROM versions WHERE project_key = ? AND id NOT IN (SELECT value FROM json_each(?))`,
+			projectKey, string(keepJSON))
+		return err
+	})
 }
 
 // UpsertSpaces writes wiki space rows (key → name/kind/homepage_id) for a

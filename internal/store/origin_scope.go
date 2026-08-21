@@ -123,6 +123,13 @@ var originScopedTables = []tableRule{
 	// field_usage is per (project_key, alias) of the retired origin's schema.
 	{table: "field_usage", scope: scopeDerived,
 		dropForOrigin: `DELETE FROM field_usage`},
+	// versions is the project version catalog (GDK-532). No source_id — the
+	// origin's version id is site-wide. dropForSource binds the source id, so
+	// the predicate keeps Confluence-only drops from wiping Jira trains.
+	{table: "versions", scope: scopeMirror,
+		dropForSource: `DELETE FROM versions WHERE 'jira' = ?`,
+		dropForOrigin: `DELETE FROM versions`,
+		why:           "project version catalog; conversion must not rebind old trains onto a new origin's project keys"},
 	// local.recents ranks pickers by ids the origin minted (account ids,
 	// issue-type ids, transition ids). None of them exists on the new origin,
 	// so keeping them offers the user dead options.

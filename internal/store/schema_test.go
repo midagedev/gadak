@@ -418,8 +418,10 @@ func TestMigrateV27ToV28CommentVisibility(t *testing.T) {
 }
 
 // TestMigrateV29ToV30SprintColumns is FAIL-first for GDK-518: a v29 mirror
-// gains issues.sprint_id / sprint_name / sprint_state as NULL (no backfill),
-// issues_full exposes them, and PRAGMA user_version is 30.
+// gains issues.sprint_id / sprint_name / sprint_state as NULL (no backfill)
+// and issues_full exposes them. Open lands at the binary's current
+// PRAGMA user_version (not a frozen "30") so a later migration does not
+// force this test to bump a constant.
 func TestMigrateV29ToV30SprintColumns(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "v29.db")
 	raw, err := sql.Open("sqlite", "file:"+path)
@@ -459,15 +461,15 @@ func TestMigrateV29ToV30SprintColumns(t *testing.T) {
 	}
 	t.Cleanup(func() { db.Close() })
 
-	if got := db.SchemaVersion(); got != 30 {
-		t.Errorf("schema version %d, want 30", got)
+	if got := db.SchemaVersion(); got != len(migrations) {
+		t.Errorf("schema version %d, want %d (Open lands at the binary's level)", got, len(migrations))
 	}
 	var uv int
 	if err := db.sql.QueryRowContext(context.Background(), `PRAGMA user_version`).Scan(&uv); err != nil {
 		t.Fatalf("user_version: %v", err)
 	}
-	if uv != 30 {
-		t.Errorf("PRAGMA user_version = %d, want 30", uv)
+	if uv != len(migrations) {
+		t.Errorf("PRAGMA user_version = %d, want %d (Open lands at the binary's level)", uv, len(migrations))
 	}
 
 	var id sql.NullInt64
@@ -504,5 +506,103 @@ func TestMigrateV29ToV30SprintColumns(t *testing.T) {
 	}
 	if idx.String == "" || !strings.Contains(idx.String, "sprint_id") {
 		t.Errorf("issues_sprint ddl = %q", idx.String)
+	}
+}
+
+// TestMigrateV30ToV31VersionCatalog is FAIL-first for GDK-532: a v30 mirror
+// gains the versions table and issues.fix_version_ids as NULL (no backfill)
+// and issues_full exposes the new column. Open lands at the binary's current
+// PRAGMA user_version.
+func TestMigrateV30ToV31VersionCatalog(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v30.db")
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < personalStateCopyVersion-1; i++ {
+		if _, err := raw.Exec(migrations[i]); err != nil {
+			raw.Close()
+			t.Fatalf("apply v%d: %v", i+1, err)
+		}
+	}
+	for _, stmt := range []string{schemaV27, schemaV28, schemaV29, schemaV30} {
+		if _, err := raw.Exec(stmt); err != nil {
+			raw.Close()
+			t.Fatalf("apply later v27-v30: %v", err)
+		}
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO sources (id, kind) VALUES ('jira', 'jira');
+		INSERT INTO items (id, source_id, kind, key, title, body_text, created_at, updated_at, synced_at)
+		VALUES ('jira:1', 'jira', 'issue', 'NMB-1', 'one', 'the flattened body', '2026-01-01', '2026-01-02', '2026-01-02');
+		INSERT INTO issues (item_id, key, project_key, priority_rank, reopen_count, comment_count)
+		VALUES ('jira:1', 'NMB-1', 'NMB', 0, 0, 0)`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec("PRAGMA user_version = 30"); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after v30: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	if got := db.SchemaVersion(); got != len(migrations) {
+		t.Errorf("schema version %d, want %d (Open lands at the binary's level)", got, len(migrations))
+	}
+	var uv int
+	if err := db.sql.QueryRowContext(context.Background(), `PRAGMA user_version`).Scan(&uv); err != nil {
+		t.Fatalf("user_version: %v", err)
+	}
+	if uv != len(migrations) {
+		t.Errorf("PRAGMA user_version = %d, want %d (Open lands at the binary's level)", uv, len(migrations))
+	}
+
+	var n int
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='versions'`).Scan(&n); err != nil {
+		t.Fatalf("versions table: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("versions tables = %d, want 1", n)
+	}
+
+	var ids sql.NullString
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT fix_version_ids FROM issues WHERE key = 'NMB-1'`).Scan(&ids); err != nil {
+		t.Fatalf("issues.fix_version_ids after v31: %v", err)
+	}
+	if ids.Valid {
+		t.Errorf("fix_version_ids = %q, want NULL (no backfill; next sync rewrites)", ids.String)
+	}
+
+	var summary, desc string
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT summary, description_text, fix_version_ids FROM issues_full WHERE key = 'NMB-1'`).
+		Scan(&summary, &desc, &ids); err != nil {
+		t.Fatalf("issues_full after v31: %v", err)
+	}
+	if summary != "one" {
+		t.Errorf("summary = %q, want one", summary)
+	}
+	if desc != "the flattened body" {
+		t.Errorf("description_text = %q, want the flattened body (v23 expression must survive the rebuild)", desc)
+	}
+	if ids.Valid {
+		t.Errorf("issues_full.fix_version_ids valid=%v, want NULL", ids.Valid)
+	}
+
+	var idx sql.NullString
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT sql FROM sqlite_master WHERE name = 'versions_project'`).Scan(&idx); err != nil {
+		t.Fatalf("versions_project index: %v", err)
+	}
+	if idx.String == "" || !strings.Contains(idx.String, "project_key") {
+		t.Errorf("versions_project ddl = %q", idx.String)
 	}
 }

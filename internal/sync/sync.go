@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -324,6 +325,9 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	}
 
 	if opts.Reconcile || res.Full {
+		// Version catalog is a cache of GET /project/{key}/versions. Full and
+		// reconcile refresh it; an incremental tick must not (GDK-532).
+		syncVersionCatalog(ctx, c, db, cfg, opts)
 		deleted, err := reconcile(ctx, c, db, cfg.Projects, opts)
 		res.Deleted = deleted
 		if err != nil {
@@ -738,6 +742,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		Labels:          f.Labels,
 		Components:      names(f.Components),
 		FixVersions:     names(f.FixVersions),
+		FixVersionIDs:   ids(f.FixVersions),
 		AffectsVersions: names(f.Versions),
 		EnvironmentText: jira.PlainText(f.Environment),
 		Duedate:         f.Duedate,
@@ -939,6 +944,80 @@ func names(list []jira.NamedID) []string {
 		out = append(out, n.Name)
 	}
 	return out
+}
+
+func ids(list []jira.NamedID) []string {
+	out := make([]string, 0, len(list))
+	for _, n := range list {
+		out = append(out, n.ID)
+	}
+	return out
+}
+
+// syncVersionCatalog refreshes the project version catalog for the sync
+// scope. Failure is a warning: the issue pass already committed.
+func syncVersionCatalog(ctx context.Context, c *jira.Client, db *store.DB, cfg *config.Config, opts Options) {
+	keys, err := catalogProjects(ctx, db, cfg)
+	if err != nil {
+		opts.logf("versions: catalog skipped: %v", err)
+		return
+	}
+	for _, pk := range keys {
+		list, err := c.ProjectVersions(ctx, pk)
+		if err != nil {
+			opts.logf("versions: catalog for %s skipped: %v", pk, err)
+			continue
+		}
+		rows := make([]store.VersionRow, 0, len(list))
+		for _, v := range list {
+			rows = append(rows, store.VersionRow{
+				ID:          v.ID,
+				ProjectKey:  pk,
+				Name:        v.Name,
+				Released:    v.Released,
+				Archived:    v.Archived,
+				ReleaseDate: v.ReleaseDate,
+			})
+		}
+		if err := db.ReplaceProjectVersions(ctx, pk, rows); err != nil {
+			opts.logf("versions: catalog for %s write skipped: %v", pk, err)
+		}
+	}
+}
+
+// catalogProjects is the version-catalog scope: configured projects when
+// set, otherwise distinct project_key values already in the mirror (the
+// same grain as fullJQL / reconcileJQL).
+func catalogProjects(ctx context.Context, db *store.DB, cfg *config.Config) ([]string, error) {
+	if cfg != nil && len(cfg.Projects) > 0 {
+		out := make([]string, 0, len(cfg.Projects))
+		seen := map[string]bool{}
+		for _, pk := range cfg.Projects {
+			pk = strings.TrimSpace(pk)
+			if pk == "" || seen[pk] {
+				continue
+			}
+			seen[pk] = true
+			out = append(out, pk)
+		}
+		return out, nil
+	}
+	lites, err := db.IssueLites(ctx)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, l := range lites {
+		pk := strings.TrimSpace(l.ProjectKey)
+		if pk == "" || seen[pk] {
+			continue
+		}
+		seen[pk] = true
+		out = append(out, pk)
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 func quoteList(keys []string) string {

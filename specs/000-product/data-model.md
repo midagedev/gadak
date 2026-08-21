@@ -137,7 +137,8 @@ The Jira projection. Joined to `items` on `item_id`.
 | `epic_key` | TEXT | Derived (v11): key of the nearest `hierarchy_level = 1` ancestor via `parent_key`, recomputed after every upsert batch. NULL when no epic ancestor |
 | `labels` | TEXT (JSON array) | |
 | `components` | TEXT (JSON array) | |
-| `fix_versions` | TEXT (JSON array) | |
+| `fix_versions` | TEXT (JSON array) | Display names, same order as `fix_version_ids`. **Do not join on these** — names rename. The 0.x RECIPES `json_each(fix_versions)` query still keys on a name |
+| `fix_version_ids` | TEXT (JSON array) | Same-order source ids (v31, GDK-532). NULL until the next sync rewrites the row (no backfill). **Use this to join `versions.id`** |
 | `affects_versions` | TEXT (JSON array) | |
 | `environment_text` | TEXT | Flattened |
 | `duedate` | TEXT | Date only |
@@ -172,6 +173,37 @@ and the larger id when the state ties. Sync discovers the field from
 `GET /field` (`schema.custom` ending in `com.pyxis.greenhopper.jira:gh-sprint`);
 there is no hardcoded customfield id and no board catalog table. The next
 sync fills existing rows; the migration does not backfill.
+
+## `versions` (v31)
+
+The project version catalog (`GET /project/{key}/versions` on a Jira-shaped
+origin). Rows live and die with sync: full sync and the reconcile pass
+upsert the catalog for each project in scope (`cfg.Projects` when set,
+otherwise distinct `issues.project_key` already in the mirror) and delete
+ids that project no longer advertises. Incremental ticks do not fetch it.
+A catalog GET failure is a warning; the issue pass still commits.
+
+Join issues on **id**, never on name:
+
+```sql
+FROM issues_full i, json_each(i.fix_version_ids) j
+JOIN versions v ON v.id = j.value
+```
+
+`fix_versions` (the name array) keeps the meaning the 0.x recipes already
+use. The two arrays on one issue are the same order.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | TEXT PK | Origin version id. **The join key** |
+| `project_key` | TEXT | Owning project. Indexed (`versions_project`) |
+| `name` | TEXT | Display name; can be renamed on the origin |
+| `released` | INTEGER | `1` released, `0` not |
+| `archived` | INTEGER | `1` archived, `0` not |
+| `release_date` | TEXT | Origin `releaseDate` (date only), NULL when the origin omitted it |
+
+Existing rows stay empty until the next full or reconcile pass — no
+backfill; the mirror is a cache.
 
 ### Derived field rules
 
@@ -539,9 +571,9 @@ the v11 columns (`hierarchy_level`, `epic_key`). Rebuilt again in v23 to add
 `description_text` (`items.body_text`, NULL → `''`) — the flattened description
 agents can read without parsing ADF. Rebuilt in v27 so `i.*` includes
 `resolution_id`; the v23 `description_text` expression is kept. Rebuilt in
-v30 so `i.*` includes `sprint_id` / `sprint_name` / `sprint_state`. SQLite
-expands `i.*` at CREATE VIEW time, so an `ALTER TABLE` alone would hide the
-new columns from the view.
+v30 so `i.*` includes `sprint_id` / `sprint_name` / `sprint_state`. Rebuilt in
+v31 so `i.*` includes `fix_version_ids`. SQLite expands `i.*` at CREATE VIEW
+time, so an `ALTER TABLE` alone would hide the new columns from the view.
 
 ```sql
 CREATE VIEW issues_full AS

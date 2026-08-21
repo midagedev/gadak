@@ -1,10 +1,20 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-20).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-21).</sub>
 
 ## Unreleased
 
 ### 추가
+
+- **픽스 버전이 id를 유지하고, 프로젝트의 릴리스 카탈로그가 미러에
+  들어옵니다**. `issues.fix_version_ids`는 기존 이름 배열
+  `fix_versions`(0.x 레시피 키, 의미 불변)와 **같은 순서**의 id를 담습니다.
+  `versions` 테이블(`id`, `project_key`, `name`, `released`, `archived`,
+  `release_date`)은 풀 싱크와 reconcile에서
+  `GET /project/{key}/versions`로 채워지고, 증분 틱마다 조회하지 않습니다.
+  카탈로그 GET 실패는 경고이고 이슈 패스는 그대로 커밋됩니다. 조인 키는
+  id — 이름은 리네임됩니다. 다음 싱크가 기존 행을 채우며, 마이그레이션은
+  백필하지 않습니다.
 
 - **스프린트가 에이전트가 물을 수 있는 컬럼이 됩니다**.
   `issues.sprint_id` / `sprint_name` / `sprint_state`는 이슈당 스프린트

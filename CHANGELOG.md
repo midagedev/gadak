@@ -6,6 +6,16 @@
 
 ### Added
 
+- **Fix versions keep their id, and the project's release catalog lands in
+  the mirror**. `issues.fix_version_ids` stores the same-order
+  ids next to the existing name array `fix_versions` (that name array stays
+  the 0.x recipe key). A `versions` table (`id`, `project_key`, `name`,
+  `released`, `archived`, `release_date`) is filled on full sync and
+  reconcile from `GET /project/{key}/versions`, not every incremental tick;
+  a catalog GET failure is a warning and the issue pass still commits. Join
+  on id — names rename. The next sync fills existing rows; the migration
+  does not backfill.
+
 - **Sprint is a column an agent can query**. `issues.sprint_id` /
   `sprint_name` / `sprint_state` project one sprint per issue (active over
   future over closed, then the larger id) from the site's gh-sprint field,

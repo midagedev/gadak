@@ -221,6 +221,77 @@ func TestUpsertSprintColumns(t *testing.T) {
 	}
 }
 
+func TestUpsertFixVersionIDs(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	b := fixture()
+	b.Records[0].Issue.FixVersions = []string{"v2.5"}
+	b.Records[0].Issue.FixVersionIDs = []string{"10012"}
+	if _, err := db.UpsertIssues(context.Background(), b); err != nil {
+		t.Fatal(err)
+	}
+	var names, ids string
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT fix_versions, fix_version_ids FROM issues WHERE key = 'NMB-1'`).Scan(&names, &ids); err != nil {
+		t.Fatal(err)
+	}
+	if names != `["v2.5"]` || ids != `["10012"]` {
+		t.Errorf("fix_versions=%s fix_version_ids=%s, want names and ids in the same order", names, ids)
+	}
+	var fullIDs string
+	if err := db.sql.QueryRowContext(context.Background(),
+		`SELECT fix_version_ids FROM issues_full WHERE key = 'NMB-1'`).Scan(&fullIDs); err != nil {
+		t.Fatalf("issues_full.fix_version_ids: %v", err)
+	}
+	if fullIDs != `["10012"]` {
+		t.Errorf("issues_full.fix_version_ids = %s, want [\"10012\"]", fullIDs)
+	}
+}
+
+func TestReplaceProjectVersionsUpsertAndPrune(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	first := []VersionRow{
+		{ID: "10012", Name: "v2.5", Released: true, ReleaseDate: "2026-08-20"},
+		{ID: "10013", Name: "v2.6", Archived: true},
+	}
+	if err := db.ReplaceProjectVersions(ctx, "NMB", first); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReplaceProjectVersions(ctx, "NMB", first); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := db.sql.QueryRowContext(ctx, `SELECT COUNT(*) FROM versions`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("versions after re-upsert = %d, want 2 (no duplicates)", n)
+	}
+	second := []VersionRow{
+		{ID: "10012", Name: "v2.5", Released: true, ReleaseDate: "2026-08-20"},
+	}
+	if err := db.ReplaceProjectVersions(ctx, "NMB", second); err != nil {
+		t.Fatal(err)
+	}
+	var gone int
+	if err := db.sql.QueryRowContext(ctx, `SELECT COUNT(*) FROM versions WHERE id = '10013'`).Scan(&gone); err != nil {
+		t.Fatal(err)
+	}
+	if gone != 0 {
+		t.Errorf("id 10013 still present after it left the catalog")
+	}
+	var keptName string
+	if err := db.sql.QueryRowContext(ctx, `SELECT name FROM versions WHERE id = '10012'`).Scan(&keptName); err != nil {
+		t.Fatal(err)
+	}
+	if keptName != "v2.5" {
+		t.Errorf("kept name = %q", keptName)
+	}
+}
+
 func TestDetailAssembly(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)

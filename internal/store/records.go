@@ -52,10 +52,14 @@ type Issue struct {
 	ParentKey      string
 	// HierarchyLevel is the source-neutral tree rank of this issue's type
 	// (e.g. epic=1, standard=0, sub-task=-1). Used to derive EpicKey.
-	HierarchyLevel  int
-	Labels          []string
-	Components      []string
-	FixVersions     []string
+	HierarchyLevel int
+	Labels         []string
+	Components     []string
+	FixVersions    []string
+	// FixVersionIDs is the same-order source ids for FixVersions (column
+	// fix_version_ids). Join the versions catalog on these, not on names —
+	// names rename. Empty slice stores "[]", same rule as FixVersions.
+	FixVersionIDs   []string
 	AffectsVersions []string
 	EnvironmentText string
 	Duedate         string
@@ -187,6 +191,18 @@ type SpaceRow struct {
 	Name       string
 	Kind       string
 	HomepageID string
+}
+
+// VersionRow is one row of the project version catalog (GDK-532). Id is the
+// join key; names rename. Released/Archived are origin flags; ReleaseDate is
+// a date-only string or empty.
+type VersionRow struct {
+	ID          string
+	ProjectKey  string
+	Name        string
+	Released    bool
+	Archived    bool
+	ReleaseDate string
 }
 
 // Batch is one page of sync output. Categories and Priorities come from the

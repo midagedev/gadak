@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -60,6 +61,12 @@ type fakeSite struct {
 	authStatus int
 	// hits is every request this site has seen, including authStatus short-circuits.
 	hits int
+	// versions is GET /rest/api/3/project/{key}/versions. Missing key → `[]`
+	// so existing issue-sync tests do not fail on the catalog pass (GDK-532).
+	versions map[string]string
+	// versionsStatus, when non-zero, is returned for every versions GET.
+	versionsStatus int
+	versionHits    int
 }
 
 func newSite(t *testing.T, lang string) *fakeSite {
@@ -107,6 +114,24 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if f.filtersJSON != nil {
 			w.Write(f.filtersJSON)
 			return
+		}
+		w.Write([]byte(`[]`))
+	case strings.HasPrefix(r.URL.Path, "/rest/api/3/project/") && strings.HasSuffix(r.URL.Path, "/versions"):
+		f.versionHits++
+		if f.versionsStatus != 0 {
+			http.Error(w, `{"errorMessages":["versions boom"]}`, f.versionsStatus)
+			return
+		}
+		rest := strings.TrimPrefix(r.URL.Path, "/rest/api/3/project/")
+		key := strings.TrimSuffix(rest, "/versions")
+		if unesc, err := url.PathUnescape(key); err == nil {
+			key = unesc
+		}
+		if f.versions != nil {
+			if body, ok := f.versions[key]; ok {
+				w.Write([]byte(body))
+				return
+			}
 		}
 		w.Write([]byte(`[]`))
 	default:
@@ -237,7 +262,7 @@ func fixtures(lang string) []json.RawMessage {
 			"parent":      map[string]any{"key": "NMB-100"},
 			"labels":      []string{"regression", "editor"},
 			"components":  []any{map[string]any{"name": "Core"}},
-			"fixVersions": []any{map[string]any{"name": "2026.8"}},
+			"fixVersions": []any{map[string]any{"id": "10012", "name": "2026.8"}},
 			"versions":    []any{map[string]any{"name": "2026.7"}},
 			"duedate":     "2026-08-20",
 			"created":     "2026-07-01T10:00:00.000+0900",
@@ -447,6 +472,9 @@ func TestFullSyncMapsEverything(t *testing.T) {
 	if strings.Join(one.Labels, ",") != "regression,editor" || strings.Join(one.FixVersions, ",") != "2026.8" {
 		t.Errorf("labels = %v, fixVersions = %v", one.Labels, one.FixVersions)
 	}
+	if got := db.column(t, "issues", "fix_version_ids", "NMB-1"); got != `["10012"]` {
+		t.Errorf("fix_version_ids = %q, want [\"10012\"] (same order as names)", got)
+	}
 	if one.AssigneeEmail == nil || *one.AssigneeEmail != "Dana@example.com" {
 		t.Errorf("assignee_email = %v", one.AssigneeEmail)
 	}
@@ -515,6 +543,148 @@ func TestFullSyncMapsEverything(t *testing.T) {
 	if state.LastError != nil {
 		t.Errorf("last_error = %v", *state.LastError)
 	}
+}
+
+// TestFixVersionIDsIngest is FAIL-first for GDK-532: the issue payload already
+// carries NamedID{id,name} on fixVersions, and the mirror must store both the
+// name array (fix_versions, the 0.x recipe key) and the same-order id array.
+func TestFixVersionIDsIngest(t *testing.T) {
+	site := newSite(t, "en")
+	site.issues = []json.RawMessage{raw(t, map[string]any{
+		"id": "10001", "key": "NMB-1",
+		"fields": map[string]any{
+			"summary":   "version ids must survive ingest",
+			"project":   map[string]any{"key": "NMB"},
+			"issuetype": map[string]any{"id": "10004", "name": "Bug"},
+			"status":    statusObj("3", "en"),
+			"created":   "2026-07-01T10:00:00.000Z",
+			"updated":   "2026-08-02T10:00:00.000Z",
+			"fixVersions": []any{
+				map[string]any{"id": "10012", "name": "v2.5"},
+				map[string]any{"id": "10013", "name": "v2.6"},
+			},
+		},
+	})}
+	db := newMirror(t)
+	if _, err := Run(context.Background(), testConfig(), db.DB, Options{Full: true, Client: site.start()}); err != nil {
+		t.Fatal(err)
+	}
+	if got := db.column(t, "issues", "fix_versions", "NMB-1"); got != `["v2.5","v2.6"]` {
+		t.Errorf("fix_versions = %q, want names in payload order", got)
+	}
+	if got := db.column(t, "issues", "fix_version_ids", "NMB-1"); got != `["10012","10013"]` {
+		t.Errorf("fix_version_ids = %q, want ids in the same order as names", got)
+	}
+}
+
+func TestVersionCatalogUpsertAndPrune(t *testing.T) {
+	site := newSite(t, "en")
+	site.versions = map[string]string{
+		"NMB": `[{"id":"10012","name":"v2.5","released":true,"archived":false,"releaseDate":"2026-08-20"},{"id":"10013","name":"v2.6","released":false,"archived":true}]`,
+	}
+	db := newMirror(t)
+	client := site.start()
+	cfg := testConfig()
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	if n := versionCount(t, db); n != 2 {
+		t.Errorf("versions after re-full = %d, want 2 (no duplicates)", n)
+	}
+	site.versions["NMB"] = `[{"id":"10012","name":"v2.5","released":true,"archived":false,"releaseDate":"2026-08-20"}]`
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	if n := versionCount(t, db); n != 1 {
+		t.Errorf("versions after prune = %d, want 1", n)
+	}
+	if id := versionIDs(t, db); id != "10012" {
+		t.Errorf("kept ids = %q, want 10012 (10013 left the catalog)", id)
+	}
+}
+
+func TestVersionCatalogGetFailureContinues(t *testing.T) {
+	site := newSite(t, "en")
+	site.versionsStatus = http.StatusInternalServerError
+	db := newMirror(t)
+	var logs []string
+	res, err := Run(context.Background(), testConfig(), db.DB, Options{
+		Full: true, Client: site.start(),
+		Log: func(s string) { logs = append(logs, s) },
+	})
+	if err != nil {
+		t.Fatalf("catalog GET failure must not fail the issue pass: %v", err)
+	}
+	if res.Changed == 0 {
+		t.Error("issue pass wrote nothing; catalog failure aborted ingest")
+	}
+	joined := strings.Join(logs, "\n")
+	if !strings.Contains(joined, "versions:") || !strings.Contains(joined, "skipped") {
+		t.Errorf("want a versions skipped warning, logs = %v", logs)
+	}
+	if n := versionCount(t, db); n != 0 {
+		t.Errorf("versions rows = %d, want 0 after a failed catalog GET", n)
+	}
+}
+
+func TestVersionCatalogSkippedOnIncremental(t *testing.T) {
+	site := newSite(t, "en")
+	db := newMirror(t)
+	client := site.start()
+	cfg := testConfig()
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	hits := site.versionHits
+	if hits == 0 {
+		t.Fatal("full sync did not fetch the version catalog")
+	}
+	if _, err := Run(context.Background(), cfg, db.DB, Options{Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	if site.versionHits != hits {
+		t.Errorf("incremental tick fetched versions (%d → %d); catalog is full/reconcile only", hits, site.versionHits)
+	}
+}
+
+func versionCount(t *testing.T, db *mirror) int {
+	t.Helper()
+	conn, err := sql.Open("sqlite", "file:"+db.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	var n int
+	if err := conn.QueryRow(`SELECT COUNT(*) FROM versions`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func versionIDs(t *testing.T, db *mirror) string {
+	t.Helper()
+	conn, err := sql.Open("sqlite", "file:"+db.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	var ids []string
+	rows, err := conn.Query(`SELECT id FROM versions ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	return strings.Join(ids, ",")
 }
 
 func TestImportFiltersCompilesJQLIntoSourceQueries(t *testing.T) {

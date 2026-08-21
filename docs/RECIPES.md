@@ -170,6 +170,34 @@ from issues_full i, json_each(i.fix_versions) v
 where json_valid(i.fix_versions) and v.value = '2026.6.0'
 ```
 
+**What shipped this week.** Join on `versions.id` via `fix_version_ids`, never
+on the name array — names rename. `released` is 0/1; `release_date` is the
+origin's date-only string. Rows stay empty until a full or reconcile sync
+has filled the catalog.
+
+```sql
+select i.key, i.summary, v.name, v.release_date
+from issues_full i, json_each(i.fix_version_ids) j
+join versions v on v.id = j.value
+where json_valid(i.fix_version_ids)
+  and v.released = 1
+  and v.release_date >= date('now', '-7 day')
+order by v.release_date desc, i.key
+```
+
+**What is on an unreleased train** (not released, not archived). Left join so
+a train with no issues still appears:
+
+```sql
+select v.project_key, v.name, i.key, i.summary
+from versions v
+left join issues_full i on exists (
+  select 1 from json_each(i.fix_version_ids) j where j.value = v.id
+)
+where v.released = 0 and v.archived = 0
+order by v.project_key, v.name, i.key
+```
+
 **Issues carrying attachments over 1 MB** — worth a look before archiving:
 
 ```sql
