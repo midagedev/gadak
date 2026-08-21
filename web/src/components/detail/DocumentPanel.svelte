@@ -147,7 +147,7 @@
             type="button"
             onclick={() => pages.clear()}
             class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-            aria-label={t('common.close')}
+            aria-label={t('common.closeEsc')}
             title={t('common.closeEsc')}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -267,9 +267,7 @@
           {/if}
 
           <Section title={t('doc.comments')} count={detailForKey.comments.length}>
-            {#if detailForKey.comments.length === 0}
-              <p class="text-[12px] italic text-text-muted">{t('doc.noComments')}</p>
-            {:else}
+            {#if detailForKey.comments.length > 0}
               <ol class="flex flex-col gap-4">
                 {#each detailForKey.comments as c, i (`${c.created_at}-${i}`)}
                   <li data-testid="doc-comment">

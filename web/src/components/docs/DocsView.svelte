@@ -237,7 +237,11 @@
       {:else if tab === 'viewed'}
         <EmptyState icon="" title={t('docs.viewedEmpty')} hint={t('docs.viewedEmptyHint')} />
       {:else}
-        <EmptyState icon="" title={t('docs.recentEmpty')} />
+        <EmptyState
+          icon=""
+          title={t('docs.recentEmpty')}
+          hint={t('sidebar.docsNoneHint')}
+        />
       {/if}
     </div>
   {:else}

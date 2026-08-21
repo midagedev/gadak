@@ -16,6 +16,13 @@
     open = false
   }
 
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && open) {
+      e.preventDefault()
+      close()
+    }
+  }
+
   async function togglePush() {
     if (push.state === 'subscribed') await push.disable()
     else await push.enable()
@@ -38,7 +45,7 @@
   }
 </script>
 
-<svelte:window onclick={close} />
+<svelte:window onclick={close} onkeydown={onKeydown} />
 
 <div
   class="relative"
@@ -77,8 +84,8 @@
           type="button"
           class="flex h-control-sm w-control-sm items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
           onclick={close}
-          aria-label={t('common.close')}
-          title={t('common.close')}
+          aria-label={t('common.closeEsc')}
+          title={t('common.closeEsc')}
         >
           <Icon name="x" size={14} />
         </button>

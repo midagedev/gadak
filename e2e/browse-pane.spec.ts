@@ -117,7 +117,7 @@ test.describe('in-app browser pane', () => {
     await expect(page.getByTestId('browse-url')).toHaveText(`${JIRA}/browse/NMB-111`)
 
     // Switching tabs is one activate and one URL.
-    await tabs.nth(0).getByRole('tab').click()
+    await tabs.nth(0).getByRole('button').first().click()
     await expect(tabs.nth(0)).toHaveAttribute('data-active', 'true')
     await expect(page.getByTestId('browse-url')).toHaveText(`${JIRA}/browse/NMB-110`)
     await expect.poll(() => mock.active()).toBe('1')

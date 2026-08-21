@@ -284,7 +284,11 @@
             : t('docs.filterEmptyLabelHint', { label: labelFilter ?? '' })}
         />
       {:else}
-        <p class="px-4 py-12 text-center text-[12px] text-text-muted">{t('docs.recentEmpty')}</p>
+        <EmptyState
+          icon=""
+          title={t('docs.recentEmpty')}
+          hint={t('sidebar.docsNotFetchedHint')}
+        />
       {/if}
     </div>
   {:else if treeMode}

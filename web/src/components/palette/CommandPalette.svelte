@@ -994,9 +994,17 @@
             {t('list.searching')}
           </p>
         {:else if serverView.status === 'error'}
-          <p class="px-2 py-2 text-[12px] text-text-muted" data-testid="palette-unified-error">
-            {t('list.searchFailed')}
-          </p>
+          <div class="flex flex-col gap-1 px-2 py-2" data-testid="palette-unified-error">
+            <p class="text-[12px] text-text-muted">{t('list.searchFailed')}</p>
+            <button
+              type="button"
+              class="self-start rounded-md border border-border-strong px-2 py-0.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+              data-testid="palette-unified-retry"
+              onclick={() => unifiedSession.request(raw)}
+            >
+              {t('list.searchRetry')}
+            </button>
+          </div>
         {:else}
           <p class="px-2 py-2 text-[12px] text-text-muted" data-testid="palette-unified-empty">
             {t('palette.empty')}

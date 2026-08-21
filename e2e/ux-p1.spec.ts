@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helpers'
 
 /*
- * UX P1 coverage: Sync now (palette), empty-mirror Run sync, credential copy split.
+ * UX P1 coverage: Sync now (palette), empty-mirror Sync now, credential copy split.
  * Demo fixture is fully set up; empty/credential paths use route mocks.
  */
 
@@ -133,7 +133,7 @@ test.describe('UX P1', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('empty mirror shows Run sync and starts a full sync', async ({ page }) => {
+  test('empty mirror shows Sync now and starts a full sync', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await mockIdentifiedEmptyMirror(page)
 
@@ -184,7 +184,7 @@ test.describe('UX P1', () => {
 
     await expect(page.getByText('No issues')).toBeVisible({ timeout: 30_000 })
     const runSync = page.getByTestId('empty-state-action')
-    await expect(runSync).toHaveText('Run sync')
+    await expect(runSync).toHaveText('Sync now')
     await runSync.click()
 
     await expect.poll(() => syncMode).toBe('full')

@@ -196,7 +196,7 @@
         {/each}
       </div>
     {:else if me.feedItems.length === 0}
-      <EmptyState icon="" title={t('feed.empty')} />
+      <EmptyState icon="" title={t('feed.empty')} hint={t('personal.feedHint')} />
     {:else}
       {#snippet feedRow(item: FeedItem)}
         {@const unread = !item.read_at}

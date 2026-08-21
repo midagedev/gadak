@@ -26,6 +26,7 @@
         // keeps this row honest about being the fallback case.
         ['c', t('shortcuts.newIssueContext')],
         ['?', t('shortcuts.help')],
+        ['Esc', t('browse.back')],
       ],
     },
     {

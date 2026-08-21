@@ -17,10 +17,7 @@
   }
 </script>
 
-{#if history.length === 0}
-  <p class="text-[12px] text-text-muted italic">{t('detail.noHistory')}</p>
-{:else}
-  <ol class="relative flex flex-col gap-3 pl-4">
+<ol class="relative flex flex-col gap-3 pl-4">
     <!-- Vertical guide line -->
     <span
       class="absolute top-1 bottom-1 left-[3px] w-px bg-border-subtle"
@@ -55,4 +52,3 @@
       </li>
     {/each}
   </ol>
-{/if}

@@ -476,7 +476,7 @@
         onclick={onclose}
         class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
       >
-        {t('common.close')}
+        {t('common.cancel')}
       </button>
       <button
         type="button"

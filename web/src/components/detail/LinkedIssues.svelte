@@ -30,10 +30,7 @@
   })
 </script>
 
-{#if uniqueLinked.length === 0}
-  <p class="text-[12px] text-text-muted italic">{t('detail.noLinks')}</p>
-{:else}
-  <ul class="flex flex-col gap-1">
+<ul class="flex flex-col gap-1">
     {#each uniqueLinked as l (l.key + l.direction)}
       <li>
         <button
@@ -57,4 +54,3 @@
       </li>
     {/each}
   </ul>
-{/if}

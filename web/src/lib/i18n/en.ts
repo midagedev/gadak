@@ -196,7 +196,7 @@ export const en = {
   'filter.saveLocalHint': 'This browser only',
   'filter.saveServerFailed': 'Server save failed — saved in this browser instead',
   'filter.saveDemoLocal': 'The demo keeps views in this browser',
-  'filter.clear': 'Reset',
+  'filter.clear': 'Clear filters',
   'filter.copyJql': 'Copy JQL',
   'filter.copyJqlHelp': 'Copy this view as Jira JQL',
   'filter.jqlCopied': 'Copied JQL',
@@ -262,7 +262,7 @@ export const en = {
   'list.bodyMatchCount': '{n} body matches · "{q}"',
   'list.emptyTitle': 'No issues',
   'list.emptyHint': 'They will appear here when sync finishes.',
-  'list.emptyRunSync': 'Run sync',
+  'list.emptyRunSync': 'Sync now',
   'list.emptySyncHint': 'Or keep the server running with gadak serve for automatic updates.',
   'list.bodyOnlyTitle': 'No local matches — found in body',
   'list.bodyOnlyHint': "See the 'Body matches' section above.",
@@ -352,7 +352,7 @@ export const en = {
   'sidebar.docsFetchFailedHint': 'Check the spaces and your token in Sources.',
   'sidebar.docsEmptySpaces': 'No documents in these spaces',
   'sidebar.docsEmptySpacesHint': 'Change the selection in Settings → Sources.',
-  'sidebar.docs': 'Docs',
+  'sidebar.docs': 'Documents',
   'sidebar.docsSpaceTitle': '{space} · {n} documents',
   'sidebar.docsAll': 'Documents',
   'sidebar.docsAllTitle': 'Documents you viewed, what changed, and who wrote it',
@@ -366,7 +366,7 @@ export const en = {
   'sidebar.jiraCreds': 'Jira credentials',
   'sidebar.jiraCredsMissing': 'Jira API token not set — configure to write',
   'sidebar.viewOwner': 'Owner: {name}',
-  'sidebar.viewDeleteFail': 'Could not delete view.',
+  'sidebar.viewDeleteFail': 'Could not delete view. Try again.',
   'sidebar.syncOk': 'OK',
   'sidebar.syncing': 'Syncing',
   'sidebar.syncOffHours': 'Waiting (outside business hours)',
@@ -382,7 +382,7 @@ export const en = {
   'sidebar.syncHistoryTitle': 'Click for recent sync runs',
   'sidebar.syncNoHistory': 'No recorded runs yet — history keeps syncs that changed something.',
   'sidebar.syncLastChecked': 'Last checked {when}',
-  'sidebar.serverUnreachable': 'Could not reach the server.',
+  'sidebar.serverUnreachable': 'Could not reach the server. Retry.',
   'sidebar.runFull': 'Full sync',
   'sidebar.runIncremental': 'Incremental',
   'sidebar.runReconcile': '+ deletions',
@@ -493,9 +493,7 @@ export const en = {
   'detail.qaImpact': 'QA impact',
   'detail.comments': 'Comments',
   'detail.history': 'History',
-  'detail.noHistory': 'No history',
   'detail.links': 'Linked issues',
-  'detail.noLinks': 'No linked issues',
   'detail.docs': 'Documents',
   'detail.docMentions': 'mentions this issue',
   'detail.docMentioned': 'mentioned in this issue',
@@ -507,6 +505,11 @@ export const en = {
   'detail.deploy': 'Deploy status',
   'detail.prs': 'Linked PRs',
   'detail.noPrs': 'No linked PRs',
+  // GDK-555: connected workspace with an empty list — PRs exist on Jira's
+  // GitHub app and are mirrored only when config.json `devStatus` is on.
+  // cmd/gadak/dev.go names both halves of this sentence.
+  'detail.prsNotMirrored':
+    'PRs are mirrored via devStatus; writes go through Jira\'s GitHub app',
   'detail.notFound': 'Could not find this issue. It may have been deleted.',
   'detail.loadFailed': 'Could not load details.',
   'detail.openJira': 'Open in Jira',
@@ -531,7 +534,6 @@ export const en = {
   'doc.badge': 'Doc',
   'doc.content': 'Content',
   'doc.comments': 'Comments',
-  'doc.noComments': 'No comments',
   'doc.noContent': 'This page is empty.',
   'doc.commentPlaceholder': 'Comment on this page…',
   'doc.commentNeedCredentials': 'Set credentials to leave a comment',
@@ -611,7 +613,7 @@ export const en = {
   'person.assignedTo': 'Issues assigned to {name}',
   'person.reported': 'Reported',
   'person.reportedBy': 'Issues reported by {name}',
-  'person.docs': 'Docs',
+  'person.docs': 'Documents',
   'person.docsBy': 'Documents written by {name}',
 
   /* ── QA impact ── */
@@ -650,7 +652,7 @@ export const en = {
   'write.projectRequired': 'Pick a project.',
   'write.issueTypeRequired': 'Pick an issue type.',
   'write.priorityRequired': 'Pick a priority.',
-  'write.createFailed': 'Could not create issue.',
+  'write.createFailed': 'Could not create issue. Try again.',
   'write.metaFailed': 'Could not load create metadata.',
   'write.issueCreated': 'Created {key}.',
   'write.issueCreatedFilled': 'Created {key} · {type} · {project}',
@@ -658,7 +660,7 @@ export const en = {
   'write.tokenRejected':
     'Your Jira API token was rejected — replace it with a new personal token.',
   // write.go fail() / failJira codes — sentences verified against those call sites.
-  'write.jiraUnavailable': 'Could not reach Jira.',
+  'write.jiraUnavailable': 'Could not reach Jira. Check the connection and try again.',
   'write.workspaceBusy':
     'Another process is using this workspace. Write through its serve, or close it and retry.',
   'write.mirrorStale':
@@ -668,8 +670,8 @@ export const en = {
   'write.projectNotMirrored': 'That project is not in this mirror.',
   'write.fieldNotEditable': 'That field cannot be edited.',
   'write.siteRequired': 'Set the Jira site in settings first.',
-  'write.transitionFailed': 'Could not transition status.',
-  'write.assignFailed': 'Could not change assignee.',
+  'write.transitionFailed': 'Could not transition status. Try again.',
+  'write.assignFailed': 'Could not change assignee. Try again.',
   'write.priorityFailed': 'Could not change priority.',
   'write.prioritiesFailed': 'Could not load priorities.',
   'write.changePriority': 'Change priority',
@@ -688,7 +690,7 @@ export const en = {
   'write.removeLabel': 'Remove {label}',
   'write.editMetaFailed': 'Could not load editable fields.',
   'write.fieldFailed': 'Could not update field.',
-  'write.commentFailed': 'Could not post comment.',
+  'write.commentFailed': 'Could not post comment. Try again.',
   'write.commentPosted': 'Posted comment on {key}.',
   'write.attachFailed': 'Attachment upload failed: {name}',
   'write.credSaved': 'Jira credentials saved.',
@@ -755,8 +757,8 @@ export const en = {
   'settings.intro':
     'Choose what this workspace mirrors, how often it syncs, and which features are on. Saving re-reads this window.',
   'settings.loading': 'Loading…',
-  'settings.loadFailed': 'Could not load settings.',
-  'settings.saveFailed': 'Could not save settings.',
+  'settings.loadFailed': 'Could not load settings. Close and reopen.',
+  'settings.saveFailed': 'Could not save settings. Try Save again.',
   'settings.savedReload': 'Settings saved. Reloading…',
   'settings.jsonParseError': 'JSON parse error — fix it to re-enable save.',
   'settings.projects': 'Project keys to mirror (comma-separated)',
@@ -1003,7 +1005,7 @@ export const en = {
   'palette.actionCreateIssue': 'Create "{summary}"',
   'palette.actionSettings': 'Open settings',
   'palette.actionHistory': 'Open history',
-  'palette.actionResetFilters': 'Reset filters',
+  'palette.actionResetFilters': 'Clear filters',
   'palette.actionToggleReopened': 'Toggle reopened filter',
   'palette.actionToggleUnassigned': 'Toggle unassigned filter',
   'palette.actionToggleStale': 'Toggle stale filter',
@@ -1025,6 +1027,9 @@ export const en = {
   'sync.starting': 'Starting sync…',
   'sync.done': 'Sync finished · fetched {n} · changed {changed}',
   'sync.failed': 'Sync failed: {message}',
+  // CLI frozenSyncError (cmd/gadak/sync.go): cause plus how to unfreeze.
+  'sync.frozen':
+    'This workspace is frozen — no sync. Remove "frozen": true from the workspace config to sync again.',
   // Jira landed, a second source did not. Naming it keeps a wiki permission
   // error from reading as "none of this worked".
   'sync.partial': 'Issues synced. Documents failed: {message}',
@@ -1182,6 +1187,7 @@ export const en = {
   'browse.paneLabel': 'In-app browser',
   'browse.tabs': 'Open pages',
   'browse.back': 'Back to gadak',
+  'browse.backEsc': 'Back to gadak (Esc)',
   'browse.openExternal': 'Open in the system browser',
   'browse.closeTab': 'Close this page',
   'browse.loading': 'Opening {host}…',

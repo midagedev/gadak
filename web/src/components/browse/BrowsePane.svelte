@@ -87,7 +87,7 @@
        line the eye already has across the top of the screen. -->
   <div
     class="flex h-12 flex-none items-center gap-1 overflow-x-auto border-b border-border-subtle px-2"
-    role="tablist"
+    role="toolbar"
     aria-label={t('browse.tabs')}
     data-testid="browse-tabs"
   >
@@ -103,8 +103,7 @@
       >
         <button
           type="button"
-          role="tab"
-          aria-selected={isActive}
+          aria-pressed={isActive}
           onclick={() => browse.activate(tab.id)}
           class="flex min-w-0 items-center gap-1.5 text-body"
           title={tab.url}
@@ -139,6 +138,7 @@
       type="button"
       onclick={() => browse.hidePane()}
       data-testid="browse-back"
+      title={t('browse.backEsc')}
       class="flex h-control-sm flex-none items-center gap-1 rounded-md border border-border-strong px-2 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
     >
       <Icon name="arrow-left" size={13} />

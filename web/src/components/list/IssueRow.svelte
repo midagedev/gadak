@@ -117,13 +117,13 @@
     switch (deployState) {
       case 'qa':
         // Swap done = QA can verify — teal dot + label so it pops in the list
-        return { label: 'QA', cls: 'bg-[#2dd4bf]/15 text-[#5eead4]', dot: true }
+        return { label: t('deploy.qa'), cls: 'bg-[#2dd4bf]/15 text-[#5eead4]', dot: true }
       case 'qa_preview':
         return { label: t('list.qaPending'), cls: 'bg-[#2dd4bf]/8 text-[#2dd4bf]/70', dot: false }
       case 'dev':
-        return { label: 'dev', cls: 'bg-bg-active text-text-muted', dot: false }
+        return { label: t('deploy.dev'), cls: 'bg-bg-active text-text-muted', dot: false }
       case 'prod':
-        return { label: 'prod', cls: 'bg-accent-subtle/50 text-accent-text', dot: false }
+        return { label: t('deploy.prod'), cls: 'bg-accent-subtle/50 text-accent-text', dot: false }
       default:
         return null
     }

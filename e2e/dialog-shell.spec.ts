@@ -240,7 +240,7 @@ const DIALOGS: DialogRow[] = [
   {
     id: 'settings',
     hasCommit: true,
-    dismissLabel: en['common.close'],
+    dismissLabel: en['common.cancel'],
     primaryLabel: en['common.save'],
     open: async (page) => {
       await gotoApp(page)

@@ -701,8 +701,7 @@
       {/if}
     </div>
 
-    <!-- {t('common.deselect')} -->
-    <button
+    <button>
       type="button"
       onclick={() => bulk.clear()}
       disabled={running}
