@@ -34,4 +34,9 @@ rmdir "$OUT/attachments" 2>/dev/null || true
 # path is the maintainer's; override with BACKLOG_NAME_DENYLIST.
 export BACKLOG_NAME_DENYLIST="${BACKLOG_NAME_DENYLIST:-$HOME/.gadak/backlog-name-denylist.txt}"
 tools/backlog-scrub-check.sh "$OUT"
+# The same scanner CI runs (tokens, tenant hostnames, tailnet names, home
+# paths). It walks untracked files too, so the fresh snapshot is in scope —
+# a hit fails here instead of on main (a tailnet hostname in a description
+# once got past scrub-check and reached CI, 2026-08-21).
+bash scripts/scan-internal.sh
 echo "backlog-snapshot: $OUT ready — review the diff, then commit"
