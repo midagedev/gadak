@@ -334,6 +334,7 @@ gadak comment STD-1 -m "Reproduced on staging."
 gadak issue NMB-140 --json                    # fields, description, comments, history
 gadak issue NMB-140 --derive                  # why reopen_count / resolved_at / epic_key are what they are
 gadak comment NMB-140 -m "Reproduced on staging."
+gadak comment NMB-140 -m "thanks @Dana"       # @Name resolves to a site user; ambiguous names are refused
 gadak comment NMB-140 -m -                    # body from stdin, for anything multi-line
 gadak transition NMB-140 "In Review"
 gadak assign NMB-140 dana@example.com         # `-` unassigns
@@ -343,6 +344,11 @@ gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --p
 
 gadak create --batch -                        # one JSON object per line on stdin
 ```
+
+`gadak comment` resolves `@Name` to a site user (account id) before sending.
+Ambiguous names are refused with the candidates and no comment is posted. A
+name that matches nobody stays plain text and is named on stderr; stdout stays
+pipeable.
 
 Wiki page writes (through the origin — connected Confluence, or standalone
 issuetap). Standalone seed space is `LOC`; connected: a space key that exists

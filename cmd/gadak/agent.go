@@ -24,6 +24,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/mattn/go-runewidth"
 	"github.com/midagedev/gadak/internal/config"
@@ -1224,6 +1226,199 @@ func mutate(key string, asJSON bool, fn func(context.Context, origin.Writer) (ma
 	})
 }
 
+// maxMentionWords is the longest @-candidate we will ask the origin about.
+// Three words covers "Dana Whitfield" plus one trailing word we may have to
+// reject; unbounded combinatorics are not allowed.
+const maxMentionWords = 3
+
+// resolveCommentMentions turns typed `@Name` tokens into the map jira.Doc
+// expects: key = the exact substring the user typed (no `@`), value = account
+// id. The body is not rewritten — Jira renders the display name from the id.
+//
+// Hits: exactly one → mention node; two or more → refuse the write; zero →
+// leave the token as plain text and name it for the caller to warn about.
+func resolveCommentMentions(ctx context.Context, c origin.Writer, body string) (mentions map[string]string, unresolved []string, err error) {
+	sites := mentionSites(body)
+	if len(sites) == 0 {
+		return nil, nil, nil
+	}
+	cache := make(map[string][]jira.User)
+	mentions = make(map[string]string)
+	seenUnresolved := map[string]bool{}
+	for _, candidates := range sites {
+		token, id, users, err := resolveMentionSite(ctx, c, cache, candidates)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(users) >= 2 {
+			return nil, nil, ambiguousMention(token, users)
+		}
+		if id != "" {
+			mentions[token] = id
+			continue
+		}
+		if token != "" && !seenUnresolved[token] {
+			seenUnresolved[token] = true
+			unresolved = append(unresolved, token)
+		}
+	}
+	return mentions, unresolved, nil
+}
+
+// resolveMentionSite walks the candidates shortest-first and stops at the
+// first that names exactly one user.
+//
+// Shortest-first is the whole contract. Longest-first looks safer and is
+// wrong against a real origin: Jira's user search is fuzzy, so a query of
+// "김현철 GDK-510 멘션" still returns 김현철, the three-word candidate wins,
+// and the mention node swallows the two words the author actually wrote
+// (measured on a live site 2026-08-21, before this rule existed). Extending
+// past a shorter name is only justified when that name failed to identify
+// one person — which is what the web UI's autocomplete does too.
+func resolveMentionSite(ctx context.Context, c origin.Writer, cache map[string][]jira.User, candidates []string) (token, id string, users []jira.User, err error) {
+	var ambiguousToken string
+	var ambiguousUsers []jira.User
+	for _, cand := range candidates {
+		hits, err := lookupMentionUsers(ctx, c, cache, cand)
+		if err != nil {
+			return "", "", nil, err
+		}
+		if len(hits) == 1 && hits[0].AccountID != "" {
+			return cand, hits[0].AccountID, hits, nil
+		}
+		// Two hits mean this name is short of one person; a longer name may
+		// still resolve. Keep the shortest ambiguity to report if none does.
+		if len(hits) >= 2 && ambiguousToken == "" {
+			ambiguousToken, ambiguousUsers = cand, hits
+		}
+	}
+	if ambiguousToken != "" {
+		return ambiguousToken, "", ambiguousUsers, nil
+	}
+	// Nothing matched: name the shortest candidate, which is the token the
+	// author typed rather than the words that follow it.
+	if len(candidates) > 0 {
+		return candidates[0], "", nil, nil
+	}
+	return "", "", nil, nil
+}
+
+func lookupMentionUsers(ctx context.Context, c origin.Writer, cache map[string][]jira.User, q string) ([]jira.User, error) {
+	if u, ok := cache[q]; ok {
+		return u, nil
+	}
+	u, err := c.SearchUsers(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		u = []jira.User{}
+	}
+	cache[q] = u
+	return u, nil
+}
+
+func ambiguousMention(token string, users []jira.User) error {
+	names := make([]string, 0, len(users))
+	for _, u := range users {
+		name := u.DisplayName
+		if name == "" {
+			name = u.AccountID
+		}
+		names = append(names, name)
+	}
+	// Two or more hits is the opposite of "no user matching": the refusal has
+	// to say the name is over-specified, not absent, or the next attempt is a
+	// longer search for someone who was already found twice.
+	return fmt.Errorf("@%s matches %d users on this origin (%s) — nothing was posted. Type enough of the name that exactly one matches",
+		token, len(users), strings.Join(names, "; "))
+}
+
+func warnUnresolvedMentions(tokens []string) {
+	if len(tokens) == 0 {
+		return
+	}
+	parts := make([]string, len(tokens))
+	for i, t := range tokens {
+		parts[i] = "@" + t
+	}
+	fmt.Fprintf(os.Stderr, "gadak: %s did not resolve to a user on this origin — left as plain text\n", strings.Join(parts, ", "))
+}
+
+// mentionSites returns one candidate list per `@` that starts a mention
+// (string start or immediately after whitespace). Each list is shortest-first,
+// at most maxMentionWords exact substrings of the body after `@` — see
+// resolveMentionSite for why the order is not the other way round.
+func mentionSites(body string) [][]string {
+	var sites [][]string
+	for i := 0; i < len(body); {
+		r, size := utf8.DecodeRuneInString(body[i:])
+		if r == '@' && mentionStartsAt(body, i) {
+			if cands := mentionWordCandidates(body[i+size:]); len(cands) > 0 {
+				sites = append(sites, cands)
+			}
+		}
+		i += size
+	}
+	return sites
+}
+
+func mentionStartsAt(body string, i int) bool {
+	if i == 0 {
+		return true
+	}
+	prev, _ := utf8.DecodeLastRuneInString(body[:i])
+	return unicode.IsSpace(prev)
+}
+
+func mentionWordCandidates(rest string) []string {
+	ends := wordEndOffsets(rest, maxMentionWords)
+	if len(ends) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(ends))
+	for n := 1; n <= len(ends); n++ {
+		tok := strings.TrimRight(rest[:ends[n-1]], ",.;:!?")
+		if tok == "" {
+			continue
+		}
+		out = append(out, tok)
+	}
+	return out
+}
+
+func wordEndOffsets(s string, n int) []int {
+	var ends []int
+	inWord := false
+	last := 0
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == '@' && !inWord {
+			// A later `@Name` is its own site, not a word of this one.
+			// Consuming it would spend the 3-query budget on "Dana @Kim"
+			// and can make two clear mentions look ambiguous.
+			return ends
+		}
+		if unicode.IsSpace(r) {
+			if inWord {
+				ends = append(ends, i)
+				inWord = false
+				if len(ends) == n {
+					return ends
+				}
+			}
+		} else {
+			inWord = true
+			last = i + size
+		}
+		i += size
+	}
+	if inWord && len(ends) < n {
+		ends = append(ends, last)
+	}
+	return ends
+}
+
 func cmdComment(args []string) error {
 	fs := newFlagSet("comment")
 	text := fs.String("m", "", "comment body; `-` reads it from stdin")
@@ -1252,9 +1447,12 @@ func cmdComment(args []string) error {
 		return errors.New("empty comment — pass -m <text>, or -m - to read stdin")
 	}
 	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
-		// No mention resolution: `@Name` in a CLI body stays plain text and notifies
-		// nobody. ponytail: add it when someone asks, via the users endpoint the UI uses.
-		created, err := c.AddComment(ctx, key, jira.Doc(body, nil))
+		mentions, unresolved, err := resolveCommentMentions(ctx, c, body)
+		if err != nil {
+			return nil, err
+		}
+		warnUnresolvedMentions(unresolved)
+		created, err := c.AddComment(ctx, key, jira.Doc(body, mentions))
 		if err != nil {
 			return nil, err
 		}

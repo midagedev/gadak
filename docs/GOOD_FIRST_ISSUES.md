@@ -10,23 +10,7 @@ Shipped: `gadak export [--out FILE]` / `gadak import <FILE>` dump and restore
 `saved_views`, `watches`, and `favorites`. Round-trip coverage is
 `TestExportImportRoundTripDemoDB` in `cmd/gadak/export_test.go`.
 
-## 2. Resolve `@Name` mentions in `gadak comment`
-
-**Why:** The web UI turns mentions into ADF mention nodes so people get notified.
-The CLI leaves `@Name` as plain text, so nobody is notified.
-
-**Where:**
-
-- `cmd/gadak/agent.go` — comment path, explicit deferral:
-  `// No mention resolution: … ponytail: add it when someone asks, via the users endpoint the UI uses.`
-- Existing user search: `internal/jira` / server `handleUsers` (same lookup the UI uses)
-- ADF builder: `internal/jira` `Doc(…, mentions)` used by the server write path
-
-**Done when:** `gadak comment KEY -m "thanks @Display Name"` resolves unambiguous
-names the same way the UI does, refuses ambiguous matches with candidates, and a
-unit test covers longest-name-wins (already tested for the server path).
-
-## 3. English console diagnostics in the web client
+## 2. English console diagnostics in the web client
 
 **Why:** Several `console.warn` paths still emit Korean strings. The UI catalogs
 are English/Korean via i18n, but operator-facing browser console noise should be
@@ -46,7 +30,7 @@ stay: those fixtures are what keep the display-name trap from coming back.
 English (or routed through `t()`), and a quick grep shows no Hangul in those
 calls.
 
-## 4. Shell completion for the CLI
+## 3. Shell completion for the CLI
 
 **Why:** The CLI is hand-rolled (`flag` + a switch in `cmd/gadak/main.go`) with no
 completion scripts. Completing subcommands (`issue`, `search`, `sql`, `sync`, …)
@@ -64,7 +48,7 @@ and common flags is a small, self-contained UX win.
 **Done when:** installing the script completes subcommand names; tests or a
 smoke snippet assert the script contains every top-level command from `usage`.
 
-## 5. Non-Python example plugin
+## 4. Non-Python example plugin
 
 **Why:** The enrichment boundary is language-agnostic, but every example under
 `examples/plugins/` is Python 3 stdlib only. A second language proves the

@@ -279,8 +279,9 @@ shell history. Pass the token as `GADAK_TOKEN`, `--token-file <path>`, or
 `--token-stdin`. Any flag or `GADAK_*` value switches init fully non-interactive,
 so a missing value fails immediately — listing what is missing — instead of
 blocking on a prompt no one is there to answer.
-A body written by `gadak comment` is plain text: an `@Name` in it notifies nobody,
-unlike the web UI's mention autocomplete.
+A body written by `gadak comment` is plain text; `@Name` is resolved to a site
+user (ambiguous names are refused with the candidates, and the comment is not
+posted). A name that matches nobody is left as plain text and named on stderr.
 
 `gadak transition` reports what is available when the name does not match, so a
 failed guess tells you what to guess next:

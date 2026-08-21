@@ -59,6 +59,12 @@ type fakeJira struct {
 	// transitionsJSON overrides GET /transitions. Empty keeps the default
 	// Korean-named Start work / Close pair the existing write tests rely on.
 	transitionsJSON string
+
+	// searchUsers, when set, answers GET /user/search for the query string.
+	// Default (nil) is the Marco Reyes hit TestAssignResolvesEmailAndUnassigns
+	// uses. searchQueries records every query, including cache-miss origin calls.
+	searchUsers   func(query string) string
+	searchQueries []string
 }
 
 // recordedUpload is one multipart POST /issue/{key}/attachments the fake saw.
@@ -133,6 +139,16 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"checked"}]}]},
 			"created":"2026-08-04T12:00:00.000+0900"}`))
 	case path == "/user/search":
+		q := r.URL.Query().Get("query")
+		f.searchQueries = append(f.searchQueries, q)
+		if f.searchUsers != nil {
+			body := f.searchUsers(q)
+			if body == "" {
+				body = "[]"
+			}
+			_, _ = w.Write([]byte(body))
+			return
+		}
 		_, _ = w.Write([]byte(`[{"accountId":"acc-mr","displayName":"Marco Reyes","emailAddress":"marco@example.com","active":true}]`))
 	case path == "/issue" && r.Method == http.MethodPost:
 		f.handleCreateIssue(w)
@@ -968,6 +984,243 @@ func TestCommentSendsADFAndRefusesAnEmptyBody(t *testing.T) {
 	}
 	if body := f.bodies["POST /issue/NMB-1/comment"]; !strings.Contains(body, "line two") {
 		t.Fatalf("stdin body not sent: %s", body)
+	}
+}
+
+func commentADF(f *fakeJira) string {
+	return f.bodies["POST /issue/NMB-1/comment"]
+}
+
+func TestCommentMentionSingleHitBecomesNode(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(q string) string {
+		if q == "Dana" {
+			return `[{"accountId":"acc-dana","displayName":"Dana Whitfield","emailAddress":"dana@example.com","active":true}]`
+		}
+		return `[]`
+	}
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "hi @Dana"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	body := commentADF(f)
+	if !strings.Contains(body, `"type":"mention"`) {
+		t.Fatalf("ADF missing mention node: %s", body)
+	}
+	if !strings.Contains(body, `"id":"acc-dana"`) {
+		t.Fatalf("mention attrs.id: %s", body)
+	}
+}
+
+func TestCommentMentionAmbiguousRefusesWrite(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(q string) string {
+		if q == "Dana" {
+			return `[{"accountId":"acc-dw","displayName":"Dana Whitfield","active":true},{"accountId":"acc-dk","displayName":"Dana Kim","active":true}]`
+		}
+		return `[]`
+	}
+	mirror(t, f.URL)
+
+	stdout, stderr, err := captureBoth(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "hi @Dana"})
+	})
+	if err == nil {
+		t.Fatal("ambiguous mention must fail")
+	}
+	if f.called("POST /issue/NMB-1/comment") {
+		t.Fatalf("comment was sent: calls %v body %s", f.calls, commentADF(f))
+	}
+	msg := err.Error() + stderr
+	for _, want := range []string{"Dana Whitfield", "Dana Kim"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error/stderr %q missing %q", msg, want)
+		}
+	}
+	// Two hits is over-specification, not absence: a refusal that says "no
+	// user matching" sends the reader looking for a name that was found twice.
+	if strings.Contains(msg, "no user matching") {
+		t.Errorf("ambiguous refusal claims the name matched nobody: %q", msg)
+	}
+	if !strings.Contains(msg, "matches 2 users") {
+		t.Errorf("ambiguous refusal does not say how many matched: %q", msg)
+	}
+	if strings.Contains(stdout, "Dana Whitfield") && strings.Contains(stdout, "matches") {
+		t.Errorf("ambiguous warning leaked to stdout: %q", stdout)
+	}
+}
+
+func TestCommentMentionZeroHitsStaysPlainAndWarns(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(string) string { return `[]` }
+	mirror(t, f.URL)
+
+	stdout, stderr, err := captureBoth(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "hi @Dana"})
+	})
+	if err != nil {
+		t.Fatalf("zero-hit mention must still post: %v", err)
+	}
+	if !f.called("POST /issue/NMB-1/comment") {
+		t.Fatalf("comment not sent; calls %v", f.calls)
+	}
+	body := commentADF(f)
+	if strings.Contains(body, `"type":"mention"`) {
+		t.Fatalf("zero-hit must stay plain text: %s", body)
+	}
+	if !strings.Contains(stderr, "Dana") {
+		t.Fatalf("stderr must name the unresolved token: %q", stderr)
+	}
+	if strings.Contains(stdout, "plain text") || strings.Contains(stdout, "did not resolve") {
+		t.Fatalf("warning leaked to stdout: %q", stdout)
+	}
+}
+
+func TestCommentEmailDoesNotSearchUsers(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(string) string {
+		t.Fatal("SearchUsers must not run for a@b.com")
+		return `[]`
+	}
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "mail me at a@b.com"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	t.Logf("SearchUsers queries=%v count=%d", f.searchQueries, len(f.searchQueries))
+	if len(f.searchQueries) != 0 {
+		t.Fatalf("SearchUsers queries %v, want none", f.searchQueries)
+	}
+	if !f.called("POST /issue/NMB-1/comment") {
+		t.Fatalf("comment not sent; calls %v", f.calls)
+	}
+}
+
+// A real Jira user search is fuzzy: it returns the person for any query that
+// contains their name, extra words included. Live measurement 2026-08-21:
+// `-m "@김현철 GDK-510 멘션 해석이 …"` posted a comment whose body had lost
+// "GDK-510 멘션" — the three-word candidate matched and the mention node ate
+// it. Resolution must never consume words the shorter name already resolved.
+func TestCommentMentionDoesNotSwallowFollowingWords(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(q string) string {
+		if strings.Contains(q, "Dana") {
+			return `[{"accountId":"acc-dw","displayName":"Dana Whitfield","active":true}]`
+		}
+		return `[]`
+	}
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "@Dana please review GDK-510"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	body := commentADF(f)
+	if !strings.Contains(body, `"id":"acc-dw"`) {
+		t.Fatalf("mention not resolved: %s", body)
+	}
+	if !strings.Contains(body, `"text":"@Dana"`) {
+		t.Fatalf("mention consumed more than the name: %s", body)
+	}
+	for _, word := range []string{"please", "review", "GDK-510"} {
+		if !strings.Contains(body, word) {
+			t.Fatalf("body lost %q: %s", word, body)
+		}
+	}
+	// One hit on the first (shortest) query is the whole answer — the longer
+	// candidates must not even be asked.
+	t.Logf("SearchUsers queries=%v", f.searchQueries)
+	if len(f.searchQueries) != 1 || f.searchQueries[0] != "Dana" {
+		t.Fatalf("queries %v, want exactly [Dana]", f.searchQueries)
+	}
+}
+
+// A shorter name that names two people is the only reason to reach for a
+// longer one. The fake matches the two-word name exactly, as a site whose
+// search is stricter would.
+func TestCommentTwoWordMentionExtendsOnlyWhenNeeded(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(q string) string {
+		if q == "Dana Whitfield" {
+			return `[{"accountId":"acc-dw","displayName":"Dana Whitfield","active":true}]`
+		}
+		return `[]`
+	}
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "@Dana Whitfield please look"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	body := commentADF(f)
+	if !strings.Contains(body, `"type":"mention"`) || !strings.Contains(body, `"id":"acc-dw"`) {
+		t.Fatalf("two-word mention not adopted: %s", body)
+	}
+	t.Logf("SearchUsers queries=%v count=%d", f.searchQueries, len(f.searchQueries))
+	if len(f.searchQueries) > 3 {
+		t.Fatalf("SearchUsers calls %d (%v), want ≤ 3", len(f.searchQueries), f.searchQueries)
+	}
+	// Shortest first, and the search stops as soon as one name resolves — the
+	// original assertion here pinned longest-first, which is the order that
+	// swallowed body text against a live site (see
+	// TestCommentMentionDoesNotSwallowFollowingWords).
+	if len(f.searchQueries) == 0 || f.searchQueries[0] != "Dana" {
+		t.Fatalf("first query %v, want the 1-word candidate first", f.searchQueries)
+	}
+	if last := f.searchQueries[len(f.searchQueries)-1]; last != "Dana Whitfield" {
+		t.Fatalf("stopped at %q, want to stop at the resolving 2-word name", last)
+	}
+	foundTwo := false
+	for _, q := range f.searchQueries {
+		if q == "Dana Whitfield" {
+			foundTwo = true
+		}
+	}
+	if !foundTwo {
+		t.Fatalf("2-word candidate never queried: %v", f.searchQueries)
+	}
+}
+
+func TestCommentRepeatedMentionUsesSearchCache(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(q string) string {
+		if q == "Dana" {
+			return `[{"accountId":"acc-dana","displayName":"Dana Whitfield","active":true}]`
+		}
+		return `[]`
+	}
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "hi @Dana and again @Dana"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	body := commentADF(f)
+	if !strings.Contains(body, `"type":"mention"`) || !strings.Contains(body, `"id":"acc-dana"`) {
+		t.Fatalf("mention not sent: %s", body)
+	}
+	t.Logf("SearchUsers queries=%v count=%d", f.searchQueries, len(f.searchQueries))
+	nDana := 0
+	for _, q := range f.searchQueries {
+		if q == "Dana" {
+			nDana++
+		}
+	}
+	if nDana != 1 {
+		t.Fatalf("SearchUsers(%q) = %d (%v), want 1 (cache)", "Dana", nDana, f.searchQueries)
 	}
 }
 

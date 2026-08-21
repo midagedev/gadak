@@ -347,10 +347,11 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak issue", "gadak sql"},
 	},
 	"comment": {
-		summary: "add a comment",
+		summary: "add a comment (@Name resolves to a site user; ambiguous names are refused)",
 		usage:   "gadak [--workspace <name>] comment <KEY> -m <text|-> [--json]",
 		examples: []string{
 			"gadak comment NMB-140 -m \"Reproduced on staging.\"",
+			"gadak comment NMB-140 -m \"thanks @Dana\"",
 			"gadak comment NMB-140 -m -          # body from stdin",
 			"gadak comment NMB-140 -m \"done\" --json",
 		},
