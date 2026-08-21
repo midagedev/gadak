@@ -58,6 +58,10 @@ var neverExportConfigFields = []string{
 	// with a live credential. Exporting it would freeze someone else's
 	// real mirror, or un-freeze a demo the importer did not mean to open.
 	"Frozen",
+	// DevStatus opts one workspace into per-issue dev-status calls against
+	// Jira's internal API (GDK-496) — a per-machine cost/risk choice, not
+	// team consensus.
+	"DevStatus",
 	// Linear carries a personal API key. Team scope would be shareable, but
 	// splitting the block to export half of it is not worth a credential
 	// classification mistake — the whole block stays private.
