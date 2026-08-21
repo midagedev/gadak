@@ -188,3 +188,33 @@ func TestSQLWarnsOnStaleMirror(t *testing.T) {
 		t.Fatalf("stdout must still carry data rows, got %q", freshOut)
 	}
 }
+
+func TestSQLDisplayNameZeroRowHint(t *testing.T) {
+	sqlDemoHome(t)
+	// demo.db has English "In Progress" rows, so the 0-row case uses the
+	// same display-name column with a key that cannot match (GDK-553).
+	out, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues where status = 'In Progress' and key = 'NO-SUCH'"})
+	})
+	if err != nil {
+		t.Fatalf("sql: %v\n%s", err, out)
+	}
+	if !strings.Contains(stderr, "zero rows with a display-name filter") {
+		t.Fatalf("0-row status= filter must print the display-name hint on stderr, got %q", stderr)
+	}
+	for _, col := range []string{"status_category", "priority_rank", "issue_type_id"} {
+		if !strings.Contains(stderr, col) {
+			t.Fatalf("hint must point at %s, got %q", col, stderr)
+		}
+	}
+
+	_, safeErr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues where status_category = 'nonexistent'"})
+	})
+	if err != nil {
+		t.Fatalf("sql safe filter: %v", err)
+	}
+	if strings.Contains(safeErr, "display-name") {
+		t.Fatalf("status_category filter must not warn, got %q", safeErr)
+	}
+}

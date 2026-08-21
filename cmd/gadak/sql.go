@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/sqlhint"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -102,7 +103,9 @@ func cmdSQL(args []string) error {
 		ptrs[i] = &vals[i]
 	}
 	enc := json.NewEncoder(os.Stdout)
+	n := 0
 	for rows.Next() {
+		n++
 		if err := rows.Scan(ptrs...); err != nil {
 			return err
 		}
@@ -128,6 +131,9 @@ func cmdSQL(args []string) error {
 	}
 	if err := rows.Err(); err != nil {
 		return err
+	}
+	if hint := sqlhint.ZeroRowDisplayNameWarning(query, n); hint != "" {
+		fmt.Fprintln(os.Stderr, hint)
 	}
 	if csvOut != nil {
 		csvOut.Flush()
