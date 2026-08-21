@@ -37,6 +37,7 @@ import (
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
+	"github.com/midagedev/gadak/internal/transition"
 )
 
 // staleAfter is when a mirror stops being worth trusting silently. It is a
@@ -300,7 +301,7 @@ type issueEditMetaField struct {
 }
 
 // printIssueEditMeta is `gadak issue KEY --editmeta`: one origin GET
-// editmeta, then the same allowlist ∩ ResolveEditableID filter
+// editmeta, then the same allowlist ∩ ResolveEditable filter
 // handleEditMeta uses (internal/server/write.go). The answer is not
 // written to the mirror — origin is the source of truth for this verb.
 func printIssueEditMeta(key string, asJSON bool) error {
@@ -324,10 +325,9 @@ func printIssueEditMeta(key string, asJSON bool) error {
 }
 
 // editableFieldsForIssue is the web editmeta intersection: allowlist from
-// fields.EditableAliases, presence+kind from jirafields.ResolveEditableID,
+// fields.EditableAliases, presence+kind from jirafields.ResolveEditable,
 // options from FieldMeta.AllowedValues (value, else name — same as
-// handleEditMeta). Kind fallback matches write.go when editmeta schema
-// is unreadable; empty kind is dropped.
+// handleEditMeta).
 func editableFieldsForIssue(cfg *config.Config, meta map[string]jira.FieldMeta) []issueEditMetaField {
 	allow := fields.EditableAliases(cfg)
 	aliases := make([]string, 0, len(allow))
@@ -338,14 +338,8 @@ func editableFieldsForIssue(cfg *config.Config, meta map[string]jira.FieldMeta) 
 	out := make([]issueEditMetaField, 0)
 	for _, alias := range aliases {
 		ea := allow[alias]
-		id, kind, present := jirafields.ResolveEditableID(ea.IDs, meta)
+		id, kind, present := jirafields.ResolveEditable(ea.IDs, meta, ea.Kind)
 		if !present {
-			continue
-		}
-		if kind == "" {
-			kind = ea.Kind
-		}
-		if kind == "" {
 			continue
 		}
 		m := meta[id]
@@ -1788,35 +1782,35 @@ func cmdTransition(args []string) error {
 		}
 	}
 
-	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
-		list, err := c.Transitions(ctx, key)
-		if err != nil {
-			return nil, err
+	parsed, err := parseTransitionFieldFlags(fieldFlags)
+	if err != nil {
+		return err
+	}
+	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+		if err := formatTransitionError(transition.Apply(ctx, c, cfg, transition.Request{
+			Key:        key,
+			Target:     want,
+			Resolution: *resolution,
+			Fields:     parsed,
+			Comment:    body,
+		})); err != nil {
+			return err
 		}
-		id, err := jira.PickTransition(key, want, list)
-		if err != nil {
-			return nil, err
-		}
-		selected := transitionByID(list, id)
-		fields, err := assembleTransitionFields(ctx, c, selected, *resolution, fieldFlags)
-		if err != nil {
-			return nil, err
-		}
-		if missing := missingRequiredFields(selected, fields); len(missing) > 0 {
-			return nil, requiredTransitionFieldsError(key, selected, missing)
-		}
-		var comment json.RawMessage
-		if strings.TrimSpace(body) != "" {
-			comment = jira.Doc(body, nil)
-		}
-		if err := c.Transition(ctx, key, id, fields, comment); err != nil {
-			if hint := describeTransitionFields(selected); hint != "" {
-				return nil, fmt.Errorf("%w\n%s", err, hint)
-			}
-			return nil, err
-		}
-		return nil, nil
+		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, nil)
 	})
+}
+
+// formatTransitionError adds CLI flag names to core refusals that do not
+// name them (the core is shared with REST).
+func formatTransitionError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var req *transition.RequiredFieldsError
+	if errors.As(err, &req) {
+		return fmt.Errorf("%w — pass --resolution NAME or --field resolution={\"id\":...}", req)
+	}
+	return err
 }
 
 // listTransitions is `gadak transition KEY` with no target: print what
@@ -1846,65 +1840,6 @@ func listTransitions(key string, asJSON bool) error {
 	})
 }
 
-func transitionByID(list []jira.Transition, id string) jira.Transition {
-	for _, t := range list {
-		if t.ID == id {
-			return t
-		}
-	}
-	return jira.Transition{ID: id}
-}
-
-func assembleTransitionFields(ctx context.Context, c origin.Writer, selected jira.Transition, resolution string, raw labelFlags) (map[string]any, error) {
-	fields, err := parseTransitionFieldFlags(raw)
-	if err != nil {
-		return nil, err
-	}
-	if cfg, lerr := config.Load(); lerr == nil {
-		remapTransitionFieldAliases(cfg, fields)
-	}
-	if r := strings.TrimSpace(resolution); r != "" {
-		val, err := resolveTransitionResolution(ctx, c, selected, r)
-		if err != nil {
-			return nil, err
-		}
-		if fields == nil {
-			fields = map[string]any{}
-		}
-		fields["resolution"] = val
-	}
-	return fields, nil
-}
-
-func transitionKeepsScreenKey(key string) bool {
-	if key == "resolution" || strings.HasPrefix(strings.ToLower(key), "customfield_") {
-		return true
-	}
-	return false
-}
-
-func remapTransitionFieldAliases(cfg *config.Config, out map[string]any) {
-	if cfg == nil || len(out) == 0 {
-		return
-	}
-	allow := fields.EditableAliases(cfg)
-	for key, val := range out {
-		if transitionKeepsScreenKey(key) {
-			continue
-		}
-		ea, ok := allow[key]
-		if !ok || len(ea.IDs) == 0 {
-			continue
-		}
-		id := ea.IDs[0]
-		if id == "" || id == key {
-			continue
-		}
-		delete(out, key)
-		out[id] = val
-	}
-}
-
 func parseTransitionFieldFlags(raw []string) (map[string]any, error) {
 	if len(raw) == 0 {
 		return nil, nil
@@ -1924,58 +1859,6 @@ func parseTransitionFieldFlags(raw []string) (map[string]any, error) {
 		}
 	}
 	return out, nil
-}
-
-// resolutionCatalog is the origin method that lists GET /resolution. *jira.Client
-// implements it; Linear does not (screen fields are refused on Transition).
-type resolutionCatalog interface {
-	Resolutions(context.Context) ([]jira.NamedID, error)
-}
-
-func resolveTransitionResolution(ctx context.Context, c origin.Writer, selected jira.Transition, want string) (map[string]string, error) {
-	want = strings.TrimSpace(want)
-	if want == "" {
-		return nil, errors.New("empty --resolution")
-	}
-	if allASCIIDigits(want) {
-		return map[string]string{"id": want}, nil
-	}
-	var catalog []jira.NamedID
-	if f, ok := selected.Fields["resolution"]; ok {
-		catalog = f.AllowedValues
-	} else {
-		rc, ok := c.(resolutionCatalog)
-		if !ok {
-			return nil, fmt.Errorf("no resolution matching %q — this origin does not expose a resolution catalog", want)
-		}
-		var err error
-		catalog, err = rc.Resolutions(ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
-	id, err := matchResolution(want, catalog)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]string{"id": id}, nil
-}
-
-func matchResolution(want string, list []jira.NamedID) (string, error) {
-	var hits []jira.NamedID
-	for _, p := range list {
-		if p.ID == want || strings.EqualFold(p.Name, want) {
-			hits = append(hits, p)
-		}
-	}
-	switch len(hits) {
-	case 1:
-		return hits[0].ID, nil
-	case 0:
-		return "", fmt.Errorf("no resolution matching %q — available: %s", want, formatNamedIDs(list))
-	default:
-		return "", fmt.Errorf("resolution %q is ambiguous — matches: %s", want, formatNamedIDs(hits))
-	}
 }
 
 func formatNamedIDs(list []jira.NamedID) string {
@@ -2003,59 +1886,6 @@ func allASCIIDigits(s string) bool {
 		}
 	}
 	return true
-}
-
-func missingRequiredFields(t jira.Transition, provided map[string]any) []string {
-	if len(t.Fields) == 0 {
-		return nil
-	}
-	var missing []string
-	for k, f := range t.Fields {
-		if !f.Required {
-			continue
-		}
-		if _, ok := provided[k]; ok {
-			continue
-		}
-		missing = append(missing, k)
-	}
-	sort.Strings(missing)
-	return missing
-}
-
-func requiredTransitionFieldsError(key string, t jira.Transition, missing []string) error {
-	parts := make([]string, 0, len(missing))
-	for _, k := range missing {
-		parts = append(parts, formatTransitionField(k, t.Fields[k]))
-	}
-	return fmt.Errorf("%s %s requires: %s — pass --resolution NAME or --field resolution={\"id\":...}", key, t.Name, strings.Join(parts, "; "))
-}
-
-func formatTransitionField(key string, f jira.TransitionField) string {
-	part := key
-	if f.Name != "" {
-		part += " (" + f.Name + ")"
-	}
-	if names := formatNamedIDs(f.AllowedValues); names != "" && names != "(none)" {
-		part += " — allowed: " + names
-	}
-	return part
-}
-
-func describeTransitionFields(t jira.Transition) string {
-	if len(t.Fields) == 0 {
-		return ""
-	}
-	keys := make([]string, 0, len(t.Fields))
-	for k := range t.Fields {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	parts := make([]string, 0, len(keys))
-	for _, k := range keys {
-		parts = append(parts, formatTransitionField(k, t.Fields[k]))
-	}
-	return "this transition exposes: " + strings.Join(parts, "; ")
 }
 
 func cmdAssign(args []string) error {

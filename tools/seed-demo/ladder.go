@@ -1,15 +1,19 @@
 package main
 
+import "github.com/midagedev/gadak/internal/jira"
+
 // Category ladder used for multi-entry changelog history.
 // Default Jira workflows offer Backlog→Done; taking it leaves a single
 // changelog entry. Walking one rung at a time produces real history.
-var categoryLadder = []string{"new", "indeterminate", "done"}
+// Rungs are gadak tokens (new|inprogress|done); Jira's REST key
+// "indeterminate" is folded by jira.KnownCategory.
+var categoryLadder = []string{"new", "inprogress", "done"}
 
-// stateCategory maps dataset state names onto statusCategory keys.
+// stateCategory maps dataset state names onto gadak status_category tokens.
 var stateCategory = map[string]string{
 	"backlog":    "new",
 	"selected":   "new",
-	"inprogress": "indeterminate",
+	"inprogress": "inprogress",
 	"done":       "done",
 }
 
@@ -69,7 +73,7 @@ func PickLadderStep(currentID, currentCategory, targetID, targetCategory string,
 	nextCategory := categoryLadder[hereRung+step]
 	var candidates []TransitionOption
 	for _, t := range options {
-		if t.ToCategory == nextCategory {
+		if canonicalCategory(t.ToCategory) == nextCategory {
 			candidates = append(candidates, t)
 		}
 	}
@@ -89,9 +93,17 @@ func PickLadderStep(currentID, currentCategory, targetID, targetCategory string,
 	return LadderStep{TransitionID: candidates[0].ID, OK: true}
 }
 
+func canonicalCategory(c string) string {
+	if mapped, ok := jira.KnownCategory(c); ok {
+		return mapped
+	}
+	return c
+}
+
 func ladderIndex(category string) (int, bool) {
+	cat := canonicalCategory(category)
 	for i, c := range categoryLadder {
-		if c == category {
+		if c == cat {
 			return i, true
 		}
 	}
@@ -113,10 +125,10 @@ func findByToID(options []TransitionOption, toID string) *TransitionOption {
 func MapStatusesFromOrdered(ordered []statusCat) map[string]string {
 	var todo, progress, done []string
 	for _, s := range ordered {
-		switch s.Category {
+		switch canonicalCategory(s.Category) {
 		case "new":
 			todo = append(todo, s.ID)
-		case "indeterminate":
+		case "inprogress":
 			progress = append(progress, s.ID)
 		case "done":
 			done = append(done, s.ID)

@@ -3,6 +3,8 @@ package jql
 import (
 	"regexp"
 	"strings"
+
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 // EmitOpts controls how identity is written back (currentUser vs email/id).
@@ -156,7 +158,11 @@ func isConfiguredMe(v string, opts EmitOpts) bool {
 }
 
 func statusCategoryJira(cat string) string {
-	switch strings.ToLower(cat) {
+	mapped := strings.ToLower(cat)
+	if c, ok := jira.KnownCategory(mapped); ok {
+		mapped = c
+	}
+	switch mapped {
 	case "new":
 		return "To Do"
 	case "inprogress":

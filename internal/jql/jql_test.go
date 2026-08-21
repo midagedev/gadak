@@ -295,6 +295,31 @@ func TestStatusCategoryId(t *testing.T) {
 	}
 }
 
+func TestStatusCategoryJiraKeyAndGadakToken(t *testing.T) {
+	for _, q := range []string{
+		`statusCategory = "indeterminate"`,
+		`statusCategory = inprogress`,
+	} {
+		res := Parse(q, fixedOpts())
+		if len(res.Filters.StatusCategory) != 1 || res.Filters.StatusCategory[0] != "inprogress" {
+			t.Fatalf("%s → %+v (%s)", q, res.Filters.StatusCategory, res.Message)
+		}
+	}
+	it := Issue{Key: "NMA-1", StatusCategory: "indeterminate"}
+	f := EmptyFilter()
+	f.StatusCategory = []string{"inprogress"}
+	if !Match(it, f) {
+		t.Fatal("stored Jira key indeterminate must match filter inprogress")
+	}
+	jql, omitted := Emit(f, Display{}, EmitOpts{})
+	if len(omitted) != 0 {
+		t.Fatalf("omitted %v", omitted)
+	}
+	if !strings.Contains(jql, `statusCategory = "In Progress"`) {
+		t.Fatalf("emit %q", jql)
+	}
+}
+
 // G1 FAIL-first: key IN must be a Keys axis, not a stuffed text needle.
 // On HEAD this fails: Match is empty (needle is "NMA-1 NMA-2") and Emit
 // writes text ~ "NMA-1 NMA-2". The fix populates Filter.Keys.

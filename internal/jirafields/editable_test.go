@@ -65,3 +65,46 @@ func TestResolveEditableID(t *testing.T) {
 		t.Fatal("missing id should not resolve")
 	}
 }
+
+func TestResolveEditableFallsBackToConfiguredKind(t *testing.T) {
+	meta := map[string]jira.FieldMeta{
+		"customfield_dt": func() jira.FieldMeta {
+			var m jira.FieldMeta
+			m.Schema.Type = "datetime"
+			return m
+		}(),
+	}
+	// FAIL-first: ResolveEditableID skipped unrecognized schemas, so CLI
+	// edit's kind fallback never ran while create's own loop accepted the
+	// same id via the configured kind.
+	if _, _, ok := ResolveEditableID([]string{"customfield_dt"}, meta); ok {
+		t.Fatal("datetime has no editor; ResolveEditableID should skip")
+	}
+	id, kind, ok := ResolveEditable([]string{"customfield_dt"}, meta, "date")
+	if !ok || id != "customfield_dt" || kind != "date" {
+		t.Fatalf("got %q %q %v, want customfield_dt date true", id, kind, ok)
+	}
+}
+
+func TestFieldMetaFromCreatePreservesSchemaAndAllowed(t *testing.T) {
+	var f jira.CreateFieldMeta
+	f.FieldID = "customfield_1"
+	f.Required = true
+	f.Schema.Type = "option"
+	f.AllowedValues = []struct {
+		ID    string `json:"id"`
+		Value string `json:"value"`
+		Name  string `json:"name"`
+	}{{ID: "10", Value: "High"}}
+	m := FieldMetaFromCreate(f)
+	if !m.Required || m.Schema.Type != "option" {
+		t.Fatalf("schema %+v required %v", m.Schema, m.Required)
+	}
+	if len(m.AllowedValues) != 1 || m.AllowedValues[0].ID != "10" || m.AllowedValues[0].Value != "High" {
+		t.Fatalf("allowed %+v", m.AllowedValues)
+	}
+	id, kind, ok := ResolveEditable([]string{"customfield_1"}, map[string]jira.FieldMeta{"customfield_1": m}, "")
+	if !ok || id != "customfield_1" || kind != "option" {
+		t.Fatalf("create-shaped meta did not resolve: %q %q %v", id, kind, ok)
+	}
+}

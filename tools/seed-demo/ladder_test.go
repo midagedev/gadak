@@ -25,7 +25,7 @@ func TestPickLadderStepSameCategoryDifferentStatus(t *testing.T) {
 }
 
 func TestPickLadderStepWalksOneRung(t *testing.T) {
-	// From backlog (new) toward done: must step to indeterminate first,
+	// From backlog (new) toward done: must step to inprogress first,
 	// not take the direct Backlog→Done edge.
 	opts := []TransitionOption{
 		{ID: "direct", ToID: "300", ToCategory: "done"},
@@ -53,6 +53,25 @@ func TestPickLadderStepPrefersTargetOnNextRung(t *testing.T) {
 	step := PickLadderStep("100", "new", "201", "indeterminate", opts)
 	if !step.OK || step.TransitionID != "b" {
 		t.Fatalf("got %+v, want transition b (target on next rung)", step)
+	}
+}
+
+func TestPickLadderStepInprogressTokenEqualsIndeterminate(t *testing.T) {
+	// FAIL-first (GDK-577): Jira REST key "indeterminate" and gadak token
+	// "inprogress" are one rung. Treating them as unknown skips the ladder
+	// and takes Backlog→Done in one hop.
+	optsKey := []TransitionOption{
+		{ID: "direct", ToID: "300", ToCategory: "done"},
+		{ID: "start", ToID: "200", ToCategory: "indeterminate"},
+	}
+	optsToken := []TransitionOption{
+		{ID: "direct", ToID: "300", ToCategory: "done"},
+		{ID: "start", ToID: "200", ToCategory: "inprogress"},
+	}
+	viaKey := PickLadderStep("100", "new", "300", "done", optsKey)
+	viaToken := PickLadderStep("100", "new", "300", "done", optsToken)
+	if viaKey.TransitionID != "start" || viaToken.TransitionID != "start" {
+		t.Fatalf("rung walk: Jira key %+v, gadak token %+v (want start, not direct)", viaKey, viaToken)
 	}
 }
 

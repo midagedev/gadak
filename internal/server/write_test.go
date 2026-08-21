@@ -48,6 +48,7 @@ type fakeJira struct {
 	createMetaJSON     string // when set, GET /issue/createmeta answers this
 	createFieldsJSON   string // when set, GET /issue/createmeta/{p}/issuetypes/{t} answers this
 	createFieldsStatus int    // when non-zero, that GET fails with it
+	transitionsJSON    string // when set, GET /issue/{key}/transitions answers this
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
@@ -91,6 +92,8 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			{"id":"10001","name":"완료","statusCategory":{"key":"done"}}]`))
 	case path == "/priority":
 		_, _ = w.Write([]byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"}]`))
+	case path == "/resolution":
+		_, _ = w.Write([]byte(`[{"id":"10000","name":"Done"},{"id":"10002","name":"Won't Do"}]`))
 	case path == "/search/jql":
 		if f.rereadStatus != 0 {
 			w.WriteHeader(f.rereadStatus)
@@ -135,6 +138,10 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(`{"issues":[],"isLast":true}`))
 		}
 	case strings.HasSuffix(path, "/transitions") && r.Method == http.MethodGet:
+		if f.transitionsJSON != "" {
+			_, _ = w.Write([]byte(f.transitionsJSON))
+			return
+		}
 		_, _ = w.Write([]byte(`{"transitions":[{"id":"31","name":"완료로","to":{"id":"10001","name":"완료","statusCategory":{"key":"done"}}}]}`))
 	case strings.HasSuffix(path, "/editmeta"):
 		_, _ = w.Write([]byte(`{"fields":` + f.editMeta + `}`))
@@ -288,6 +295,80 @@ func TestTransitionRESTResolvesCLIIdentifiers(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "완료로") {
 		t.Fatalf("refusal must name the candidates: %s", rec.Body.String())
+	}
+}
+
+// requiredResolutionJSON is one done-category transition whose screen requires
+// resolution. allowedValues ids differ from GET /resolution so a catalog
+// lookup cannot accidentally satisfy the name test (same fixture as CLI).
+const requiredResolutionJSON = `{"transitions":[
+	{"id":"41","name":"Resolve","to":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},
+	 "fields":{"resolution":{"required":true,"name":"Resolution","schema":{"type":"resolution"},
+	   "allowedValues":[{"id":"10099","name":"Won't Do"},{"id":"10000","name":"Done"}]}}}]}`
+
+// GDK-578: REST now shares the CLI core — name/id resolution lookup, required
+// screen-field refusal, and field-alias remap.
+
+func TestTransitionRESTResolutionNameUsesAllowedValues(t *testing.T) {
+	f, h, _ := writable(t)
+	f.transitionsJSON = requiredResolutionJSON
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/",
+		`{"transition_id":"done","resolution":"Won't Do"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	raw := f.bodies["POST /issue/NMB-1/transitions"]
+	var sent map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sent); err != nil {
+		t.Fatalf("decode %s: %v", raw, err)
+	}
+	var fields struct {
+		Resolution struct {
+			ID string `json:"id"`
+		} `json:"resolution"`
+	}
+	if err := json.Unmarshal(sent["fields"], &fields); err != nil {
+		t.Fatalf("fields %s: %v", sent["fields"], err)
+	}
+	if fields.Resolution.ID != "10099" {
+		t.Fatalf("resolution id %q, want 10099 from allowedValues", fields.Resolution.ID)
+	}
+}
+
+func TestTransitionRESTRequiredResolutionRefusesWithoutValue(t *testing.T) {
+	f, h, _ := writable(t)
+	f.transitionsJSON = requiredResolutionJSON
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"done"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if f.called("POST /issue/NMB-1/transitions") {
+		t.Fatalf("must not POST; body %s", f.bodies["POST /issue/NMB-1/transitions"])
+	}
+	msg := rec.Body.String()
+	for _, want := range []string{"resolution", "Won't Do", "Done"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q missing %q", msg, want)
+		}
+	}
+}
+
+func TestTransitionRESTFieldAliasRemap(t *testing.T) {
+	f, h, cfg := writable(t)
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "severity", Label: "Severity", IDs: []string{"customfield_10001"}, Role: "facet", Kind: "option"},
+	}
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/",
+		`{"transition_id":"31","fields":{"severity":"High"}}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	body := string(f.bodies["POST /issue/NMB-1/transitions"])
+	if !strings.Contains(body, `"customfield_10001"`) {
+		t.Fatalf("alias was not resolved to customfield id: %s", body)
+	}
+	if strings.Contains(body, `"severity"`) {
+		t.Fatalf("alias name leaked into transition fields: %s", body)
 	}
 }
 

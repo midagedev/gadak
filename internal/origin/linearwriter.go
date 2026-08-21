@@ -102,11 +102,11 @@ func (w *linearWriter) Transitions(ctx context.Context, key string) ([]jira.Tran
 func jiraCategoryKey(stateType string) string {
 	switch stateType {
 	case "started":
-		return "indeterminate"
+		return jira.CategoryKey("inprogress")
 	case "completed", "canceled", "duplicate":
-		return "done"
+		return jira.CategoryKey("done")
 	default:
-		return "new"
+		return jira.CategoryKey("new")
 	}
 }
 

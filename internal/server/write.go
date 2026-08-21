@@ -20,6 +20,7 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
+	"github.com/midagedev/gadak/internal/transition"
 )
 
 // Write-through: every endpoint here calls Jira with the configured credential,
@@ -476,6 +477,7 @@ func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 		TransitionID string         `json:"transition_id"`
 		Fields       map[string]any `json:"fields"`
 		Comment      string         `json:"comment"`
+		Resolution   string         `json:"resolution"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TransitionID == "" {
 		fail(w, http.StatusBadRequest, "transition_id_required")
@@ -483,25 +485,19 @@ func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 	}
 	key := r.PathValue("key")
 	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
-		// Same identifier resolution as the CLI (GDK-341): transition id,
-		// target status id, name, category token — ambiguity refused. The
-		// list read costs one origin call; a bare transition id short-cuts
-		// only through the same resolver, so refusal semantics hold.
-		list, err := c.Transitions(ctx, key)
-		if err != nil {
-			return nil, err
-		}
-		id, err := jira.PickTransition(key, body.TransitionID, list)
-		if err != nil {
-			// The resolver's message names every candidate; surface it as a
-			// 400 through the same shape failJira gives Jira's rejections.
+		err := transition.Apply(ctx, c, s.config(), transition.Request{
+			Key:        key,
+			Target:     body.TransitionID,
+			Resolution: body.Resolution,
+			Fields:     body.Fields,
+			Comment:    body.Comment,
+		})
+		if err != nil && transition.IsRefused(err) {
+			// Same 400 shape failJira gives Jira's rejections: identifier
+			// miss, required screen field, unknown resolution name.
 			return nil, &jira.APIError{Status: http.StatusBadRequest, Messages: []string{err.Error()}}
 		}
-		var comment json.RawMessage
-		if strings.TrimSpace(body.Comment) != "" {
-			comment = jira.Doc(body.Comment, nil)
-		}
-		return nil, c.Transition(ctx, key, id, body.Fields, comment)
+		return nil, err
 	})
 }
 
@@ -847,16 +843,8 @@ func (s *server) handleEditMeta(w http.ResponseWriter, r *http.Request) {
 	}
 	out := map[string]any{}
 	for alias, ea := range allow {
-		id, kind, present := jirafields.ResolveEditableID(ea.IDs, meta)
+		id, kind, present := jirafields.ResolveEditable(ea.IDs, meta, ea.Kind)
 		if !present {
-			continue
-		}
-		// Prefer the kind from editmeta (ground truth for this issue); fall back
-		// to the configured kind when the schema is somehow unreadable.
-		if kind == "" {
-			kind = ea.Kind
-		}
-		if kind == "" {
 			continue
 		}
 		m := meta[id]
@@ -899,8 +887,8 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, s.config(), err)
 		return
 	}
-	id, kind, present := jirafields.ResolveEditableID(ea.IDs, meta)
-	if !present || kind == "" {
+	id, kind, present := jirafields.ResolveEditable(ea.IDs, meta, ea.Kind)
+	if !present {
 		fail(w, http.StatusForbidden, "field_not_editable")
 		return
 	}

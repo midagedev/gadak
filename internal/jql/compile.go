@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/calendar"
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 // Parse turns a JQL string or a Jira navigator URL into a Filter. Unsupported
@@ -407,15 +408,14 @@ func mapStatusCategory(raw string) (string, bool) {
 	s := strings.ToLower(strings.TrimSpace(raw))
 	s = strings.ReplaceAll(s, " ", "")
 	switch s {
-	case "todo", "new", "2":
+	case "todo", "2":
 		return "new", true
-	case "inprogress", "indeterminate", "4":
+	case "4":
 		return "inprogress", true
-	case "done", "3":
+	case "3":
 		return "done", true
-	default:
-		return "", false
 	}
+	return jira.KnownCategory(s)
 }
 
 func (c *compiler) compileAssignee(cl *clause) {

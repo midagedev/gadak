@@ -451,12 +451,9 @@ func resolveEditAliasFields(ctx context.Context, c origin.Writer, src string, cf
 	out := make(map[string]any, len(raws))
 	for alias, raw := range raws {
 		ea := allow[alias]
-		id, kind, present := jirafields.ResolveEditableID(ea.IDs, meta)
+		id, kind, present := jirafields.ResolveEditable(ea.IDs, meta, ea.Kind)
 		if !present {
 			return nil, fmt.Errorf("field %q is not editable on %s — `gadak issue %s --editmeta`", alias, key, key)
-		}
-		if kind == "" {
-			kind = ea.Kind
 		}
 		val, err := wrapAliasValue(ctx, c, src, kind, raw, meta[id])
 		if err != nil {
@@ -468,48 +465,25 @@ func resolveEditAliasFields(ctx context.Context, c origin.Writer, src string, cf
 }
 
 func resolveCreateAliasFields(ctx context.Context, c origin.Writer, src string, cfg *config.Config, list []jira.CreateFieldMeta, raws map[string]json.RawMessage) (map[string]any, error) {
-	byID := make(map[string]jira.CreateFieldMeta, len(list))
+	meta := make(map[string]jira.FieldMeta, len(list))
 	for _, f := range list {
-		byID[f.FieldID] = f
+		meta[f.FieldID] = jirafields.FieldMetaFromCreate(f)
 	}
 	allow := fields.EditableAliases(cfg)
 	out := make(map[string]any, len(raws))
 	for alias, raw := range raws {
 		ea := allow[alias]
-		var found jira.CreateFieldMeta
-		var id string
-		ok := false
-		for _, cand := range ea.IDs {
-			if f, present := byID[cand]; present {
-				found, id, ok = f, cand, true
-				break
-			}
-		}
-		if !ok {
+		id, kind, present := jirafields.ResolveEditable(ea.IDs, meta, ea.Kind)
+		if !present {
 			return nil, fmt.Errorf("field %q is not available for this project and type — `gadak issue KEY --editmeta`", alias)
 		}
-		meta := fieldMetaFromCreate(found)
-		kind := jirafields.EditKind(meta)
-		if kind == "" {
-			kind = ea.Kind
-		}
-		val, err := wrapAliasValue(ctx, c, src, kind, raw, meta)
+		val, err := wrapAliasValue(ctx, c, src, kind, raw, meta[id])
 		if err != nil {
 			return nil, fmt.Errorf("field %s: %w", alias, err)
 		}
 		out[id] = val
 	}
 	return out, nil
-}
-
-func fieldMetaFromCreate(f jira.CreateFieldMeta) jira.FieldMeta {
-	var m jira.FieldMeta
-	m.Required = f.Required
-	m.Schema.Type = f.Schema.Type
-	m.Schema.Items = f.Schema.Items
-	m.Schema.Custom = f.Schema.Custom
-	m.AllowedValues = f.AllowedValues
-	return m
 }
 
 func wrapAliasValue(ctx context.Context, c origin.Writer, src, kind string, raw json.RawMessage, meta jira.FieldMeta) (any, error) {

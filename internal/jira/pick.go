@@ -92,12 +92,7 @@ func statusCategoryToken(s string) (string, bool) {
 // three documented tokens. Empty and unknown keys are refused: Category
 // folds those to "new", which would move the issue on a damaged payload.
 func transitionCategory(t Transition) (string, bool) {
-	switch t.To.StatusCategory.Key {
-	case "new", "indeterminate", "inprogress", "done":
-		return Category(t.To.StatusCategory.Key), true
-	default:
-		return "", false
-	}
+	return KnownCategory(t.To.StatusCategory.Key)
 }
 
 func FormatTransition(t Transition) string {

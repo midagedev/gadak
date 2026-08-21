@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"os"
 	"sort"
+
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 // projectTypeStatus holds per-project workflow metadata used while seeding.
@@ -65,7 +67,7 @@ func (c *Client) projectStatusIDs(project string) map[string]string {
 			seen[status.ID] = true
 			ordered = append(ordered, statusCat{
 				ID:       status.ID,
-				Category: status.StatusCategory.Key,
+				Category: canonicalCategory(status.StatusCategory.Key),
 			})
 		}
 	}
@@ -111,7 +113,7 @@ func (c *Client) issueStatus(issueKey string) (id, category string, ok bool) {
 	if !c.call("GET", "/rest/api/3/issue/"+url.PathEscape(issueKey)+"?fields=status", nil, &res) {
 		return "", "", false
 	}
-	return res.Fields.Status.ID, res.Fields.Status.StatusCategory.Key, true
+	return res.Fields.Status.ID, canonicalCategory(res.Fields.Status.StatusCategory.Key), true
 }
 
 // transitionTo walks the workflow to targetID one category rung at a time.
@@ -136,7 +138,7 @@ func (c *Client) transitionTo(issueKey, targetID, targetCategory string, hops in
 			options[i] = TransitionOption{
 				ID:         t.ID,
 				ToID:       t.To.ID,
-				ToCategory: t.To.StatusCategory.Key,
+				ToCategory: canonicalCategory(t.To.StatusCategory.Key),
 			}
 		}
 		step := PickLadderStep(currentID, currentCat, targetID, targetCategory, options)
@@ -206,7 +208,7 @@ func (c *Client) walkWorkflow(issueKey string, rng *rand.Rand) int {
 		}
 		var forward []apiTransition
 		for _, t := range opts {
-			if t.To.StatusCategory.Key != "new" {
+			if cat, ok := jira.KnownCategory(t.To.StatusCategory.Key); !ok || cat != "new" {
 				forward = append(forward, t)
 			}
 		}
@@ -223,7 +225,7 @@ func (c *Client) walkWorkflow(issueKey string, rng *rand.Rand) int {
 		opts := c.listTransitions(issueKey)
 		var back []apiTransition
 		for _, t := range opts {
-			if t.To.StatusCategory.Key == "new" {
+			if cat, ok := jira.KnownCategory(t.To.StatusCategory.Key); ok && cat == "new" {
 				back = append(back, t)
 			}
 		}

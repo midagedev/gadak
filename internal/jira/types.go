@@ -173,15 +173,42 @@ func (i *Issue) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(shell.Fields, &i.Extra)
 }
 
+// KnownCategory maps a Jira statusCategory key or a gadak token onto the
+// three values data-model.md documents. Unlike Category, unknown keys are
+// not folded to "new": write resolvers refuse those so a damaged payload
+// cannot move an issue (see transitionCategory).
+func KnownCategory(key string) (string, bool) {
+	switch key {
+	case "done":
+		return "done", true
+	case "indeterminate", "inprogress":
+		return "inprogress", true
+	case "new":
+		return "new", true
+	default:
+		return "", false
+	}
+}
+
 // Category maps Jira's statusCategory key onto the three values data-model.md
 // documents. An unknown key becomes "new", which can only ever miss a reopen,
 // never invent one.
 func Category(key string) string {
-	switch key {
+	if cat, ok := KnownCategory(key); ok {
+		return cat
+	}
+	return "new"
+}
+
+// CategoryKey is the reverse of Category: a gadak token (or a Jira key
+// Category would accept) onto Jira's REST statusCategory key. inprogress
+// becomes indeterminate, the key Cloud actually stores.
+func CategoryKey(token string) string {
+	switch Category(token) {
+	case "inprogress":
+		return "indeterminate"
 	case "done":
 		return "done"
-	case "indeterminate", "inprogress":
-		return "inprogress"
 	default:
 		return "new"
 	}
