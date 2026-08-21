@@ -35,7 +35,7 @@ func TestListOrderAndDetectFlip(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("GADAK_HOME", gadakHome)
 
-	items := List()
+	items := ListFor("darwin")
 	if len(items) != 4 {
 		t.Fatalf("len=%d want 4", len(items))
 	}
@@ -75,7 +75,7 @@ func TestListOrderAndDetectFlip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	items = List()
+	items = ListFor("darwin")
 	if items[1].Installed == nil || !*items[1].Installed {
 		t.Fatalf("raycast after touch: %v", items[1].Installed)
 	}
@@ -91,7 +91,7 @@ func TestListOrderAndDetectFlip(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(gadakHome, "raycast-extension", "node_modules"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	items = List()
+	items = ListFor("darwin")
 	if strings.Contains(items[1].Detail, "incomplete") {
 		t.Fatalf("raycast detail should be clean with node_modules present, got %q", items[1].Detail)
 	}
