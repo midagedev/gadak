@@ -848,7 +848,7 @@ export const ko = {
   'settings.featureFeed': '개인 피드',
   'settings.featureFeedDesc': '멘션·워치·담당자 변경을 모은 활동 피드',
   'settings.featureFeedDescDesktop':
-    '목록의 피드 패널을 켭니다. 시스템 알림(메뉴바)은 별개로 항상 동작합니다.',
+    '목록의 피드 패널을 켭니다. 시스템 알림(메뉴바)은 별개입니다.',
   'settings.browserNotify': '브라우저 탭 알림',
   'settings.browserNotifyDesc':
     'gadak가 열려 있을 때 새 피드 항목이 오면 시스템 알림을 표시합니다. 웹 푸시는 사용하지 않습니다.',

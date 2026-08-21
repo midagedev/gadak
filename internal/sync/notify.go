@@ -13,17 +13,24 @@ import (
 
 // Notifier delivers one OS desktop notification. Implementations must never
 // panic; callers treat every error as non-fatal and continue the sync loop.
+//
+// Supported is the delivery capability: false means Notify will not actually
+// alert anyone (Windows and other no-op platforms). notifyAfterSync must not
+// advance last_notified_at in that case — skipped events stay pending for a
+// later implementation (Windows toast).
 type Notifier interface {
 	Notify(title, body string) error
+	Supported() bool
 }
 
 // OSNotifier uses the platform's desktop-notification command.
-// darwin: osascript display notification; linux: notify-send; windows: no-op.
+// darwin: osascript display notification; linux: notify-send; others: unsupported.
 type OSNotifier struct{}
 
-// Notify implements Notifier.
-func (OSNotifier) Notify(title, body string) error {
-	switch runtime.GOOS {
+// osNotifyCommand is the single GOOS switch for both Supported and Notify.
+// A nil command means this OS cannot deliver; the two methods cannot disagree.
+func osNotifyCommand(goos, title, body string) *exec.Cmd {
+	switch goos {
 	case "darwin":
 		// AppleScript string literals use double quotes; escape \ and " only.
 		esc := func(s string) string {
@@ -32,13 +39,27 @@ func (OSNotifier) Notify(title, body string) error {
 			return s
 		}
 		script := fmt.Sprintf(`display notification "%s" with title "%s"`, esc(body), esc(title))
-		return exec.Command("osascript", "-e", script).Run()
+		return exec.Command("osascript", "-e", script)
 	case "linux":
-		return exec.Command("notify-send", title, body).Run()
+		return exec.Command("notify-send", title, body)
 	default:
-		// Windows and others: quietly skip (no reliable stdlib path without extra deps).
 		return nil
 	}
+}
+
+// Supported reports whether this process can fire a real OS notification.
+func (OSNotifier) Supported() bool {
+	return osNotifyCommand(runtime.GOOS, "", "") != nil
+}
+
+// Notify implements Notifier.
+func (OSNotifier) Notify(title, body string) error {
+	cmd := osNotifyCommand(runtime.GOOS, title, body)
+	if cmd == nil {
+		// Windows and others: no reliable stdlib path without extra deps.
+		return nil
+	}
+	return cmd.Run()
 }
 
 // FeedIdentity builds the personal-feed identity the same way the HTTP server does.
@@ -76,7 +97,15 @@ func notifyAfterSync(db *store.DB, cfg *config.Config, n Notifier) error {
 	}
 	if watermark == "" {
 		// Bootstrap: advance the watermark without a flood of historical events.
+		// Runs even when the notifier is unsupported so a later toast
+		// implementation does not dump pre-install history; events after this
+		// seed stay pending until delivery works.
 		return db.SetLastNotifiedAt(context.Background(), SourceID, store.Now())
+	}
+	if !n.Supported() {
+		// Do not Notify and do not consume the watermark. A no-op that
+		// returned nil used to look like success and skip these events forever.
+		return nil
 	}
 
 	res, err := db.Feed(context.Background(), store.FeedOpts{

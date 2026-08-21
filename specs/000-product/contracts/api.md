@@ -536,6 +536,7 @@ read-only context for the UI:
     "gadakVersion": "0.0.0-dev",
     "defaultSyncIntervalSec": 60,
     "defaultReconcileIntervalSec": 3600,
+    "osNotifySupported": true,
     "apiUsage": {
       "today": {
         "day": "2026-08-05",
@@ -606,6 +607,12 @@ wired, the default is `0.0.0-dev`).
 `apiUsage` (optional) carries `{today, last_7_days}` counters for outbound Jira
 HTTP volume recorded by this installation. See the sample document above; field
 semantics match the `api_usage` table in `data-model.md`.
+
+`osNotifySupported` is whether this process can fire a real OS desktop
+notification (`sync.OSNotifier.Supported`: macOS and Linux true, Windows and
+others false). Always sent — `false` is the Windows no-op, not an omission.
+The settings Features tab hides the in-tab browser Notification toggle only
+when this is true *and* the surface is the desktop app.
 
 Each `features` flag gates a surface that needs a capability the server may not
 have: `feed` the personal feed and its polling, `push` Web Push and the service

@@ -229,10 +229,13 @@ credential is configured (`--no-sync` opts out).
 When the watch loop runs (`gadak serve` with a credential, or `gadak sync
 --watch`), each successful cycle may fire **one** bundled OS notification for
 new personal-feed events since `sync_state.last_notified_at` (macOS
-`osascript`, Linux `notify-send`; Windows is a quiet no-op). The body carries
+`osascript`, Linux `notify-send`). On Windows and other unsupported platforms
+the notifier is a no-op and **does not advance** `last_notified_at`, so a later
+toast implementation can still deliver those events. The body carries
 the issue title only — never comment text. Set `"notify": false` in
 `config.json`, or `gadak config set notify false`, to opt out. Notifications
-never write `feed_reads`.
+never write `feed_reads`. `GET settings/` reports the capability as
+`runtime.osNotifySupported` (always present; false is meaningful).
 
 ### Update check
 

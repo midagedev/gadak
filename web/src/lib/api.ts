@@ -853,6 +853,13 @@ export interface SettingsRuntime {
   defaultSyncIntervalSec: number
   /** Placeholder when reconcileIntervalSec is 0. */
   defaultReconcileIntervalSec: number
+  /**
+   * Whether this process can fire a real OS desktop notification.
+   * Always sent on current servers (false is Windows / other no-ops).
+   * Omitted on older servers — treat as true so macOS/Linux keep hiding
+   * the in-tab browser toggle.
+   */
+  osNotifySupported?: boolean
   /** Our own outbound Jira volume, not Jira's remaining budget. */
   apiUsage?: ApiUsageSummary
 }

@@ -6,25 +6,32 @@
   import { INPUT } from './controls'
   import type { SettingsDraft } from './draft'
 
-  let { draft = $bindable() }: { draft: SettingsDraft } = $props()
+  let {
+    draft = $bindable(),
+    osNotifySupported = true,
+  }: { draft: SettingsDraft; osNotifySupported?: boolean } = $props()
 
   // features.push stays on the draft and is written back unchanged. VAPID is
   // unimplemented (endpoints 404), so the toggle is not drawn — turning it on
   // only spawned the feed bell (audit #28).
   type VisibleFeature = Exclude<keyof GadakFeatures, 'push'>
   const onDesktop = surface() === 'desktop'
-  const FEATURES: [VisibleFeature, string, string][] = [
+  // Hide the in-tab browser Notification toggle only when this host already
+  // fires a real OS notification (macOS osascript / Linux notify-send).
+  // Windows desktop is onDesktop but not osNotifySupported — the toggle stays.
+  const hideBrowserNotify = $derived(onDesktop && osNotifySupported)
+  const FEATURES: [VisibleFeature, string, string][] = $derived([
     [
       'feed',
       t('settings.featureFeed'),
-      onDesktop
+      hideBrowserNotify
         ? `${t('settings.featureFeedDesc')} ${t('settings.featureFeedDescDesktop')}`
         : t('settings.featureFeedDesc'),
     ],
     ['deploy', t('settings.featureDeploy'), t('settings.featureDeployDesc')],
     ['qa', t('settings.featureQa'), t('settings.featureQaDesc')],
     ['teamGroups', t('settings.featureTeams'), t('settings.featureTeamsDesc')],
-  ]
+  ])
 </script>
 
 <div class="flex flex-col gap-2.5">
@@ -43,10 +50,11 @@
   {/each}
   <!--
     In-tab browser Notification permission (not web push / VAPID).
-    Hidden on desktop: the app already fires osascript system notifications
-    from the watch loop (config.notify), so this would double-fire.
+    Hidden only when the host already fires a real OS notification from the
+    watch loop (config.notify) — otherwise this would double-fire. Windows
+    desktop has no OS notifier, so the toggle stays (GDK-349).
   -->
-  {#if !onDesktop}
+  {#if !hideBrowserNotify}
     <div class="mt-1 flex items-start gap-2.5 border-t border-border-subtle pt-3">
       <span class="min-w-0 flex-1">
         <span class="text-text-primary">{t('settings.browserNotify')}</span>

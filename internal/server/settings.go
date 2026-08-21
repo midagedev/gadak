@@ -18,6 +18,7 @@ import (
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
+	gadaksync "github.com/midagedev/gadak/internal/sync"
 )
 
 // Version is the gadak release string exposed on GET settings/ under runtime.
@@ -118,6 +119,11 @@ type runtimeInfo struct {
 	// Defaults the UI shows as placeholders when the stored interval is 0.
 	DefaultSyncIntervalSec      int `json:"defaultSyncIntervalSec"`
 	DefaultReconcileIntervalSec int `json:"defaultReconcileIntervalSec"`
+	// OsNotifySupported is whether this process can fire a real OS desktop
+	// notification (macOS osascript, Linux notify-send). Always sent — false
+	// is meaningful (Windows no-op) so it must not use omitempty. Owner is
+	// sync.OSNotifier.Supported; the settings UI must not re-derive it from GOOS.
+	OsNotifySupported bool `json:"osNotifySupported"`
 	// ApiUsage is our process's outbound Jira call volume (today + 7-day
 	// rollup), not Jira's remaining rate-limit budget. Omitted only if the
 	// mirror cannot be read; zeros are still a valid document.
@@ -444,6 +450,7 @@ func (s *server) runtimeInfo() *runtimeInfo {
 		GadakVersion:                Version,
 		DefaultSyncIntervalSec:      config.DefaultSyncIntervalSec,
 		DefaultReconcileIntervalSec: config.DefaultReconcileIntervalSec,
+		OsNotifySupported:           gadaksync.OSNotifier{}.Supported(),
 	}
 	if d, err := config.DirFor(s.profile); err == nil {
 		info.ConfigPath = filepath.Join(d, "config.json")

@@ -856,7 +856,7 @@ export const en = {
   'settings.featureFeed': 'Personal feed',
   'settings.featureFeedDesc': 'Activity feed of mentions, watches, and assignee changes',
   'settings.featureFeedDescDesktop':
-    'Turns on the list\'s feed panel. System notifications (menu bar) are separate and always run.',
+    'Turns on the list\'s feed panel. System notifications (menu bar) are separate.',
   'settings.browserNotify': 'Browser tab notifications',
   'settings.browserNotifyDesc':
     'Show a system notification when new feed items arrive while gadak is open. Does not use web push.',

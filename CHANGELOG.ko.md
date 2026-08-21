@@ -136,6 +136,10 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **Windows가 알린 척을 멈춥니다** ([GDK-349]). OS 데스크톱 알림의 능력
+  판정에 단일 소유자가 생겨, 알림을 못 쏘는 플랫폼에서는 watch 루프가
+  대기 이벤트를 소비하지 않고, 설정 카피의 "항상 동작" 주장이 사라지며,
+  Windows 데스크톱에서는 브라우저 알림 토글이 숨지 않고 보입니다.
 - **스토리가 하위 이슈를 보여줍니다** ([GDK-121]). 상세 패널의 하위 섹션이
   에픽 키 자손이 없으면 `parent_key` 직접 자식으로 폴백해, 서브태스크가
   부모 스토리에서 보이지 않던 문제가 사라집니다. 에픽의 롤업은 그대로입니다.
@@ -1617,6 +1621,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-254]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-254
 [GDK-339]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-339
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
+[GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352
 [GDK-369]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-369
 [GDK-389]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-389

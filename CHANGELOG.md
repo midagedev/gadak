@@ -137,6 +137,11 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **Windows stops pretending it notified you** ([GDK-349]). OS desktop
+  notifications have one capability owner; on a platform that cannot fire
+  them the watch loop no longer consumes pending events, the settings copy
+  drops its "always run" claim, and the in-tab browser toggle appears on
+  Windows desktop instead of being hidden behind a false premise.
 - **A story shows its child issues** ([GDK-121]). The detail panel's child
   section now falls back to direct `parent_key` children when the issue has
   no epic-keyed descendants, so sub-tasks stop being invisible from their
@@ -1609,6 +1614,7 @@ measured numbers instead of adjectives.
 [GDK-254]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-254
 [GDK-339]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-339
 [GDK-341]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-341
+[GDK-349]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-349
 [GDK-352]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-352
 [GDK-369]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-369
 [GDK-389]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-389

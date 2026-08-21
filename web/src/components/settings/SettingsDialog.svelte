@@ -393,7 +393,7 @@
             bind:showPersonalSpaces
           />
         {:else if tab === 'features'}
-          <FeaturesTab bind:draft />
+          <FeaturesTab bind:draft osNotifySupported={runtime?.osNotifySupported ?? true} />
         {:else if tab === 'groups'}
           <GroupsTab bind:draft />
         {:else if tab === 'members'}

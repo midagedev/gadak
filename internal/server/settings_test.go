@@ -14,6 +14,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
+	gadaksync "github.com/midagedev/gadak/internal/sync"
 )
 
 // TestSettingsSpacesStandaloneBusyIsNotCredentialRequired is GDK-419:
@@ -254,6 +255,9 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 	if rt.GadakVersion == "" {
 		t.Fatal("gadakVersion empty")
 	}
+	if rt.OsNotifySupported != (gadaksync.OSNotifier{}.Supported()) {
+		t.Fatalf("osNotifySupported %v, want OSNotifier.Supported()", rt.OsNotifySupported)
+	}
 	if rt.DBSizeBytes <= 0 || rt.DBSizeHuman == "" || rt.DBSizeHuman == "—" {
 		t.Fatalf("db size bytes=%d human=%q", rt.DBSizeBytes, rt.DBSizeHuman)
 	}
@@ -318,6 +322,18 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 	}
 	if saved.Token != "secret-token-xyz" {
 		t.Fatalf("credential lost: %q", saved.Token)
+	}
+}
+
+// GDK-349: false is the Windows no-op. omitempty would drop it and the UI
+// would treat an old-server omission as "supported" (hide the browser toggle).
+func TestOsNotifySupportedJSONIncludesFalse(t *testing.T) {
+	b, err := json.Marshal(runtimeInfo{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"osNotifySupported":false`) {
+		t.Fatalf("false must be on the wire (no omitempty): %s", b)
 	}
 }
 
