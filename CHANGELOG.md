@@ -187,12 +187,14 @@ the fixes are all here.
   rewrites the entry whenever its own path changes, so clicking a link in a
   browser or Slack opens the app — the portable pack itself still never
   touches the registry, and `--unregister-gadak-protocol` removes the key.
-- **Components edit inline, no setup required** ([GDK-86]). The detail
-  panel's components row becomes an inline multi-select whenever the
-  issue's editmeta allows it — a built-in system alias, so it no longer
-  needs a configured field mapping the way custom fields do. An origin
-  whose editmeta omits components keeps the row read-only, and
-  `gadak edit --field components=…` resolves the same built-in.
+- **Components and parent edit inline, no setup required** ([GDK-86]).
+  The detail panel's components row becomes an inline multi-select and
+  the parent row an issue-key typeahead (local mirror suggestions,
+  self-parent refused) whenever the issue's editmeta allows them —
+  built-in system aliases, so neither needs a configured field mapping
+  the way custom fields do. An origin whose editmeta omits the field
+  keeps its row read-only; the parent write is byte-identical to
+  `gadak edit --parent`.
 - **The comment shortcut stops being Mac-only copy** ([GDK-354]). The
   composer's kbd hint renders the platform's own modifier — ⌘Enter on
   macOS, CtrlEnter elsewhere — instead of a hard-coded ⌘, `gadak raycast

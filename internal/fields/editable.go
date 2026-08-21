@@ -22,6 +22,7 @@ type EditableAlias struct {
 // cfg.Fields overlays the same alias, leftover EditableFields still wins last.
 var builtinEditable = map[string]EditableAlias{
 	"components": {IDs: []string{"components"}, Kind: "component_array"},
+	"parent":     {IDs: []string{"parent"}, Kind: "parent"},
 }
 
 // EditableAliases builds the write allowlist from built-in system aliases,
@@ -58,6 +59,9 @@ func EditableAliases(cfg *config.Config) map[string]EditableAlias {
 // editor's clear does. textarea (ADF) is not a kind here — Cloud v3 needs a
 // separate document write.
 func FieldValue(kind string, raw json.RawMessage) (any, error) {
+	if kind == "parent" {
+		return parentValue(raw)
+	}
 	if isScalarKind(kind) {
 		return scalarValue(kind, raw)
 	}
@@ -106,6 +110,22 @@ func isMultiKind(kind string) bool {
 
 func isScalarKind(kind string) bool {
 	return kind == "text" || kind == "number" || kind == "date"
+}
+
+// parentValue is the CLI edit.go:208-210 shape: {"key": <as sent>} or nil.
+// No trim+upper — that belongs to the CLI flag parser, not this encoder.
+func parentValue(raw json.RawMessage) (any, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var key string
+	if err := json.Unmarshal(raw, &key); err != nil {
+		return nil, err
+	}
+	if key == "" {
+		return nil, nil
+	}
+	return map[string]string{"key": key}, nil
 }
 
 func scalarValue(kind string, raw json.RawMessage) (any, error) {

@@ -6,6 +6,7 @@
    *  - user          : local members (personalized sort) + ≥2-char server search (+ clear).
    *  - text / number : inline input; Enter/blur commits; Esc cancels.
    *  - date          : date input (+ clear). field=duedate uses PUT /duedate/.
+   *  - parent        : local issue-key typeahead from issues.allIssues (+ clear).
    *  - On pick: write.setField / setDuedate optimistic; failure rolls back.
    * Falls back to read-only when editmeta is missing (not editable / no credential),
    * except the system duedate row which has its own endpoint.
@@ -31,6 +32,7 @@
     | 'text'
     | 'number'
     | 'date'
+    | 'parent'
 
   let {
     issue,
@@ -84,6 +86,7 @@
   })
 
   let query = $state('')
+  let parentQuery = $state('')
   const userSearch = createUserSearch(() => query, {
     debounceMs: 180,
     minLength: 2,
@@ -148,12 +151,13 @@
     if (!isSystemDue && !write.editFieldMeta(key, field)) return
     query = ''
     vquery = ''
+    parentQuery = ''
     draftText = values[0] ?? ''
     if (isMulti) draft = new Set(currentSelectedIds())
     open = true
     queueMicrotask(() => {
       placeMenu()
-      if (kind === 'user' || isMulti || isScalar) inputEl?.focus()
+      if (kind === 'user' || kind === 'parent' || isMulti || isScalar) inputEl?.focus()
     })
   }
 
@@ -329,6 +333,53 @@
       e.preventDefault()
       void commitScalar()
     }
+  }
+
+  const parentCands = $derived.by(() => {
+    if (kind !== 'parent') return []
+    const q = parentQuery.trim().toLowerCase()
+    const self = issue.issue_key
+    const out: IssueLite[] = []
+    for (const it of issues.allIssues) {
+      if (it.issue_key === self) continue
+      if (q) {
+        const keyHit = it.issue_key.toLowerCase().startsWith(q)
+        const summaryHit = (it.summary ?? '').toLowerCase().startsWith(q)
+        if (!keyHit && !summaryHit) continue
+      }
+      out.push(it)
+      if (out.length >= 8) break
+    }
+    return out
+  })
+
+  function isSelfParent(raw: string): boolean {
+    return raw.trim().toUpperCase() === issue.issue_key.toUpperCase()
+  }
+
+  async function pickParent(raw: string | null) {
+    const next = raw == null ? null : raw.trim() === '' ? null : raw.trim()
+    if (next && isSelfParent(next)) {
+      write.toast(t('fieldEditor.parentSelf'), 'error')
+      return
+    }
+    const current = values[0] ?? ''
+    if ((next ?? '') === current) {
+      open = false
+      return
+    }
+    busy = true
+    const ok = await write.setField(key, field, next, { parent_key: next })
+    busy = false
+    if (ok) open = false
+  }
+
+  function onParentKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const next = parentQuery.trim()
+    if (!next) return
+    void pickParent(next)
   }
 
   const canEdit = $derived(me.identified)
@@ -546,6 +597,46 @@
             />
           {/if}
         </div>
+      {:else if kind === 'parent'}
+        <div class="px-2 pb-1">
+          <input
+            bind:this={inputEl}
+            bind:value={parentQuery}
+            type="text"
+            placeholder={t('fieldEditor.searchOptions')}
+            disabled={busy}
+            data-testid="field-editor-parent"
+            class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none disabled:opacity-50"
+            onkeydown={onParentKeydown}
+          />
+        </div>
+        <button
+          type="button"
+          onclick={() => void pickParent(null)}
+          disabled={busy}
+          data-testid="field-editor-parent-clear"
+          class="flex w-full items-center px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50"
+        >
+          {t('qaEditor.none')}
+        </button>
+        {#each parentCands as it (it.issue_key)}
+          <button
+            type="button"
+            role="option"
+            aria-selected={values[0] === it.issue_key}
+            onclick={() => void pickParent(it.issue_key)}
+            disabled={busy}
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:outline-none disabled:opacity-50"
+          >
+            <span class="flex-none font-mono">{it.issue_key}</span>
+            {#if it.summary}
+              <span class="min-w-0 flex-1 truncate">{it.summary}</span>
+            {/if}
+          </button>
+        {/each}
+        {#if parentCands.length === 0}
+          <div class="px-3 py-1.5 text-micro text-text-muted">{t('common.noResults')}</div>
+        {/if}
       {/if}
     </div>
   {/if}

@@ -40,6 +40,11 @@ const EDITMETA = {
         { id: '10001', value: 'API' },
       ],
     },
+    parent: {
+      kind: 'parent',
+      editable: true,
+      options: [],
+    },
   },
 }
 
@@ -194,6 +199,46 @@ test.describe('edit-fields', () => {
     expect(patch!.field).toBe('components')
     expect(patch!.value).toEqual(['10000', '10001'])
     await expect(row).toContainText('API')
+    await expect(page.getByTestId('toast').and(page.getByRole('status'))).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('parent row is editable and picking a suggestion PATCHes the key', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    const issue = await bootWithEditors(page)
+    const panel = await openIssue(page)
+
+    const row = panel.getByTestId('field-row-parent')
+    await expect(row).toBeVisible()
+    await expect(row).toHaveAttribute('data-kind', 'parent')
+    await expect(row).toHaveAttribute('data-editable', 'true')
+
+    const PARENT = 'NMA-100'
+    let patch: { field?: string; value?: string | null } | null = null
+    await page.route(`**/api/v1/issues/${KEY}/fields/`, async (route) => {
+      if (route.request().method() !== 'PATCH') return route.continue()
+      patch = route.request().postDataJSON() as { field?: string; value?: string | null }
+      await fulfillJSON(route, {
+        issue: { ...issue, parent_key: PARENT },
+      })
+    })
+
+    await row.getByTestId('field-editor-trigger').click()
+    const menu = page.getByTestId('field-editor-menu')
+    await expect(menu).toBeVisible()
+    const input = page.getByTestId('field-editor-parent')
+    await expect(input).toBeVisible()
+    await input.fill(PARENT)
+    const suggestion = menu.getByRole('option', { name: new RegExp(`^${PARENT}\\b`) })
+    await expect(suggestion).toBeVisible()
+    await suggestion.click()
+
+    await expect.poll(() => patch).not.toBeNull()
+    expect(patch!.field).toBe('parent')
+    expect(patch!.value).toBe(PARENT)
+    await expect(row).toContainText(PARENT)
+    await expect(panel.getByTestId('issue-breadcrumb')).toContainText(PARENT)
     await expect(page.getByTestId('toast').and(page.getByRole('status'))).toHaveCount(0)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

@@ -107,6 +107,7 @@ export const en = {
   'field.created': 'Created',
   'field.updated': 'Updated',
   'field.due': 'Due date',
+  'field.parent': 'Parent',
   'field.development_opinion': 'Dev notes',
   'field.solution_method': 'Resolution',
 
@@ -640,6 +641,7 @@ export const en = {
   /* ── General field editor (non-version option lists) ── */
   'fieldEditor.noOptions': 'No options available',
   'fieldEditor.searchOptions': 'Search',
+  'fieldEditor.parentSelf': 'An issue cannot be its own parent.',
 
   /* ── Write / new issue ── */
   'write.newIssue': 'New issue',

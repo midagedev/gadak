@@ -793,6 +793,61 @@ func TestComponentsBuiltinEditMetaAndWrite(t *testing.T) {
 	}
 }
 
+func TestParentBuiltinEditMetaAndWrite(t *testing.T) {
+	f, h, cfg := writable(t)
+	cfg.EditableFields = nil
+	cfg.Fields = nil
+	f.editMeta = `{
+		"parent": {"schema":{"type":"issuelink","system":"parent"},"operations":["set"]}
+	}`
+
+	got := decode[struct {
+		Fields map[string]struct {
+			Kind     string              `json:"kind"`
+			Editable bool                `json:"editable"`
+			Options  []map[string]string `json:"options"`
+		} `json:"fields"`
+	}](t, get(t, h, apiBase+"NMB-1/editmeta/", nil))
+	if len(got.Fields) != 1 {
+		t.Fatalf("fields %+v", got.Fields)
+	}
+	p := got.Fields["parent"]
+	if p.Kind != "parent" || !p.Editable {
+		t.Fatalf("parent %+v", p)
+	}
+	if p.Options == nil {
+		t.Fatalf("options nil, want empty array")
+	}
+	if len(p.Options) != 0 {
+		t.Fatalf("options %+v want []", p.Options)
+	}
+
+	rec := send(t, h, http.MethodPatch, apiBase+"NMB-1/fields/", `{"field":"parent","value":"NMA-2"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("patch → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); body != `{"fields":{"parent":{"key":"NMA-2"}}}` {
+		t.Fatalf("UpdateFields body %s", body)
+	}
+
+	rec = send(t, h, http.MethodPatch, apiBase+"NMB-1/fields/", `{"field":"parent","value":null}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("clear → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); body != `{"fields":{"parent":null}}` {
+		t.Fatalf("clear body %s", body)
+	}
+
+	f.editMeta = `{}`
+	rec = send(t, h, http.MethodPatch, apiBase+"NMB-1/fields/", `{"field":"parent","value":"NMA-2"}`)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("missing editmeta → %d", rec.Code)
+	}
+	if err := decode[map[string]string](t, rec)["error"]; err != "field_not_editable" {
+		t.Fatalf("error %q", err)
+	}
+}
+
 func TestCreateIssue(t *testing.T) {
 	f, h, _ := writable(t)
 

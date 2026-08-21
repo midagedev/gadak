@@ -108,6 +108,7 @@ export const ko = {
   'field.created': '생성',
   'field.updated': '갱신',
   'field.due': '기한',
+  'field.parent': '상위 항목',
   'field.development_opinion': '개발 의견',
   'field.solution_method': '수정 방법',
 
@@ -635,6 +636,7 @@ export const ko = {
   /* ── General field editor (non-version option lists) ── */
   'fieldEditor.noOptions': '선택 가능한 값이 없습니다',
   'fieldEditor.searchOptions': '검색',
+  'fieldEditor.parentSelf': '이슈는 자기 자신을 상위 항목으로 둘 수 없습니다.',
 
   /* ── Write / new issue ── */
   'write.newIssue': '새 이슈',

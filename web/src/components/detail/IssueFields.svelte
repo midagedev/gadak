@@ -35,6 +35,7 @@
     'text',
     'number',
     'date',
+    'parent',
   ]
 
   interface FieldRow {
@@ -118,6 +119,12 @@
         label: fieldLabel('due'),
         values: issue.duedate ? [issue.duedate] : [],
         edit: 'date',
+      },
+      {
+        key: 'parent',
+        label: fieldLabel('parent'),
+        values: issue.parent_key ? [issue.parent_key] : [],
+        edit: 'parent',
       },
     ]
     const record = issue as unknown as Record<string, unknown>

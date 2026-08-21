@@ -673,8 +673,8 @@ export interface EditMetaOption {
 
 /** Meta for one editable field — kind + editable flag + choices. */
 export interface EditMetaField {
-  /** option (single select) / user (userpicker) / version_array (version list) / component_array (component list). */
-  kind: 'option' | 'user' | 'version_array' | 'component_array' | 'multi_option'
+  /** option (single select) / user (userpicker) / version_array (version list) / component_array (component list) / parent (issue key). */
+  kind: 'option' | 'user' | 'version_array' | 'component_array' | 'multi_option' | 'parent'
   editable: boolean
   /** Empty for user fields (user search replaces options). */
   options: EditMetaOption[]

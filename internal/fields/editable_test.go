@@ -103,6 +103,68 @@ func TestFieldValueBadJSON(t *testing.T) {
 	if _, err := FieldValue("text", json.RawMessage(`42`)); err == nil {
 		t.Fatal("expected error for non-string text value")
 	}
+	if _, err := FieldValue("parent", json.RawMessage(`{"not":"string"}`)); err == nil {
+		t.Fatal("expected error for non-string parent value")
+	}
+}
+
+func TestFieldValueParentMatchesCLI(t *testing.T) {
+	// cmd/gadak/edit.go:208-210 — fields["parent"] = map[string]string{"key": parentKey}
+	// or nil. Same bytes on the UpdateFields / PUT body.
+	set, err := FieldValue("parent", json.RawMessage(`"NMA-2"`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cliSet := map[string]string{"key": "NMA-2"}
+	got, err := json.Marshal(set)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := json.Marshal(cliSet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("set bytes %s want %s (CLI edit.go:210)", got, want)
+	}
+	putSet, err := json.Marshal(map[string]any{"fields": map[string]any{"parent": set}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(putSet) != `{"fields":{"parent":{"key":"NMA-2"}}}` {
+		t.Fatalf("PUT set %s", putSet)
+	}
+
+	// FieldValue must not trim+upper; CLI normalizeKey would turn this into NMA-2.
+	lower, err := FieldValue("parent", json.RawMessage(`"nma-2"`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(lower, map[string]string{"key": "nma-2"}) {
+		t.Fatalf("lowercase preserved: %#v", lower)
+	}
+
+	clear, err := FieldValue("parent", json.RawMessage(`null`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if clear != nil {
+		t.Fatalf("null clear: %#v", clear)
+	}
+	empty, err := FieldValue("parent", json.RawMessage(`""`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty != nil {
+		t.Fatalf("empty clear: %#v", empty)
+	}
+	putClear, err := json.Marshal(map[string]any{"fields": map[string]any{"parent": clear}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(putClear) != `{"fields":{"parent":null}}` {
+		t.Fatalf("PUT clear %s", putClear)
+	}
 }
 
 func TestEditableAliasesLegacyWins(t *testing.T) {
@@ -117,7 +179,7 @@ func TestEditableAliasesLegacyWins(t *testing.T) {
 		},
 	}
 	got := EditableAliases(cfg)
-	if len(got) != 3 {
+	if len(got) != 4 {
 		t.Fatalf("aliases=%v", got)
 	}
 	// Leftover EditableFields replaces the Fields entry for the same alias.
@@ -133,6 +195,9 @@ func TestEditableAliasesLegacyWins(t *testing.T) {
 	if !reflect.DeepEqual(got["components"].IDs, []string{"components"}) || got["components"].Kind != "component_array" {
 		t.Fatalf("builtin components: %+v", got["components"])
 	}
+	if !reflect.DeepEqual(got["parent"].IDs, []string{"parent"}) || got["parent"].Kind != "parent" {
+		t.Fatalf("builtin parent: %+v", got["parent"])
+	}
 	if _, ok := got["display_only"]; ok {
 		t.Fatal("display-only (empty Kind) must not enter write allowlist")
 	}
@@ -143,7 +208,10 @@ func TestEditableAliasesBuiltinMerge(t *testing.T) {
 	if !reflect.DeepEqual(empty["components"].IDs, []string{"components"}) || empty["components"].Kind != "component_array" {
 		t.Fatalf("empty cfg builtin: %+v", empty)
 	}
-	if len(empty) != 1 {
+	if !reflect.DeepEqual(empty["parent"].IDs, []string{"parent"}) || empty["parent"].Kind != "parent" {
+		t.Fatalf("empty cfg parent builtin: %+v", empty)
+	}
+	if len(empty) != 2 {
 		t.Fatalf("empty cfg aliases=%v", empty)
 	}
 
