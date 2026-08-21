@@ -42,7 +42,7 @@ func TestSyncFrozenFailsWithCauseAndUnfreeze(t *testing.T) {
 	if !strings.Contains(msg, home) {
 		t.Fatalf("missing config path %q: %v", home, err)
 	}
-	if !strings.Contains(msg, "remove that field") {
+	if !strings.Contains(msg, "gadak config set frozen false") {
 		t.Fatalf("missing unfreeze hint: %v", err)
 	}
 }

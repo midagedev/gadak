@@ -1341,7 +1341,7 @@ func sortJQL(list []store.IssueLite, d jql.Display) {
 // errNoCredential is the refusal mutate and create share: writes go to Jira.
 // Sentence owner is config.ErrNotConfigured (GDK-454); the addendum is this
 // verb's, because a write that cannot reach an origin is not a local edit.
-var errNoCredential = config.NotConfiguredf("writes go to Jira, not to the mirror")
+var errNoCredential = config.NotConfiguredf("writes go to the origin, not to the mirror")
 
 // writeNotMirroredError is the lookup miss after a write Jira already accepted.
 // mutate returns it (non-zero). create prints the new key with this wording
