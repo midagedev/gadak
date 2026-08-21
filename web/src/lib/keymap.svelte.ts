@@ -9,6 +9,7 @@
  * can be unit-tested in node.
  *
  * Keep ShortcutsDialog in sync — document only keys that have handlers.
+ * `o` is the header escape hatch (issue Jira URL / page source URL).
  */
 
 export const NARROW_FIELD_TESTID = {
@@ -72,6 +73,7 @@ export type KeyCommand =
   | { type: 'focus-narrow'; testid: string | null }
   | { type: 'move-list'; dir: 1 | -1 }
   | { type: 'open-cursor' }
+  | { type: 'open-origin'; target: 'issue' | 'page' }
   | { type: 'hide-browse' }
   | { type: 'clear-bulk' }
   | { type: 'clear-selection' }
@@ -252,6 +254,14 @@ export function resolveGlobalKey(ctx: KeyContext): KeyCommand {
   if (key === 'Enter' && ctx.enterActivating) return { type: 'ignore' }
   if (key === 'Enter' && cursorKey) return { type: 'open-cursor' }
 
+  // Header escape hatch (detail.openJira / doc.openSource). No URL yet —
+  // the dispatcher no-ops when the matching button would not open anything.
+  if (key === 'o') {
+    if (ctx.pageSelected) return { type: 'open-origin', target: 'page' }
+    if (cursorKey || ctx.detailOpen) return { type: 'open-origin', target: 'issue' }
+    return { type: 'ignore' }
+  }
+
   if (key === 'Escape') {
     if (ctx.browsePaneOpen) return { type: 'hide-browse' }
     if (ctx.triageMenuOpen) return { type: 'ignore' }
@@ -324,6 +334,7 @@ export interface GlobalKeyHost {
   browse: { paneOpen: boolean; hidePane: () => void }
   me: { feedOpen: boolean }
   feature: (name: 'feed') => boolean
+  openOrigin: (target: 'issue' | 'page') => void
 }
 
 function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
@@ -394,6 +405,10 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
       if (!cursorKey) return
       e.preventDefault()
       host.selection.select(cursorKey)
+      return
+    case 'open-origin':
+      e.preventDefault()
+      host.openOrigin(cmd.target)
       return
     case 'hide-browse':
       e.preventDefault()

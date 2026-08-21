@@ -25,7 +25,7 @@
   import { takeUIFocus } from './lib/api'
   import { showIssueList } from './lib/show-issue-list'
   import { adoptRunningSync } from './lib/sync-now'
-  import { installDesktopLinkOpener } from './lib/desktop-links'
+  import { installDesktopLinkOpener, openIssueOrigin, openOriginUrl } from './lib/desktop-links'
   import { browse, installBrowseSessions } from './lib/browse.svelte'
 
   /** Where the demo banner sends people who want the real thing. */
@@ -331,6 +331,17 @@
     browse,
     me,
     feature,
+    openOrigin(target) {
+      if (target === 'page') {
+        const key = pages.selectedKey
+        if (!key) return
+        const row = pages.lite(key) ?? pages.searchHits.find((p) => p.key === key)
+        openOriginUrl(row?.url)
+        return
+      }
+      const issueKey = (triage.listActive ? triage.cursorKey : null) ?? selection.selectedKey
+      if (issueKey) openIssueOrigin(issueKey)
+    },
   })
 
   // Inspectable next to cacheScope / uiFocusPoll: was the list ready for keys?

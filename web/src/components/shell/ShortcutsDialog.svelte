@@ -1,7 +1,7 @@
 <script lang="ts">
   /*
    * Keyboard cheat sheet (`?`). Every row below maps to a handler that actually
-   * exists — App.svelte owns the whole list/detail set (⌘K / , / ? / j / k / ↵ / x /
+   * exists — App.svelte owns the whole list/detail set (⌘K / , / ? / j / k / ↵ / o / x /
    * s / a / l / p / c / Esc), SearchBox (/), CommandPalette (↑↓/Enter/Esc),
    * CommentComposer (⌘↩). Do not document a key that no handler listens for.
    */
@@ -35,6 +35,7 @@
         ['j', t('shortcuts.moveDown')],
         ['k', t('shortcuts.moveUp')],
         ['↵', t('shortcuts.openIssue')],
+        ['o', t('detail.openJira')],
         ['x', t('shortcuts.selectRow')],
         ['s', t('shortcuts.listStatus')],
         ['p', t('shortcuts.listPriority')],
@@ -47,6 +48,7 @@
     {
       title: t('shortcuts.sectionDetail'),
       rows: [
+        ['o', t('doc.openSource')],
         ['s', t('shortcuts.focusStatus')],
         ['p', t('shortcuts.focusPriority')],
         ['a', t('shortcuts.focusAssignee')],

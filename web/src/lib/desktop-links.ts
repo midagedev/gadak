@@ -15,7 +15,7 @@
  * — the app has no TCP listener — so they are left to their own story.
  */
 
-import { config, isDesktop } from './config'
+import { config, isDesktop, jiraBrowseUrl } from './config'
 import { browse } from './browse.svelte'
 import {
   classifyAtlassianLink,
@@ -84,6 +84,22 @@ export function openContainedUrl(url: string): void {
     return
   }
   window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+/**
+ * Same destination as the header escape-hatch links. Empty/missing URL is a
+ * no-op — standalone and any other site-less workspace have nothing to open.
+ */
+export function openOriginUrl(url: string | null | undefined): boolean {
+  const href = (url ?? '').trim()
+  if (!href) return false
+  openContainedUrl(href)
+  return true
+}
+
+/** Issue-key header link (`detail.openJira`). No-op when `jiraBrowseUrl` is null. */
+export function openIssueOrigin(issueKey: string): boolean {
+  return openOriginUrl(jiraBrowseUrl(issueKey))
 }
 
 // GitHub tabs ride the pane as kind 'other': nothing in the mirror to resync

@@ -197,6 +197,11 @@ the fixes are all here.
   rewrites the entry whenever its own path changes, so clicking a link in a
   browser or Slack opens the app — the portable pack itself still never
   touches the registry, and `--unregister-gadak-protocol` removes the key.
+- **`o` opens the origin from the keyboard** ([GDK-81]). The escape hatch
+  stops being click-only: `o` on the list cursor or open detail opens the
+  issue's Jira page, and on a selected wiki page its source — the exact
+  same opener as the header links, so a workspace with no site URL makes
+  it a quiet no-op. Listed in the `?` sheet and as a ⌘K action.
 - **Components and parent edit inline, no setup required** ([GDK-86]).
   The detail panel's components row becomes an inline multi-select and
   the parent row an issue-key typeahead (local mirror suggestions,
@@ -1523,6 +1528,7 @@ measured numbers instead of adjectives.
 [GDK-78]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-78
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
+[GDK-81]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-81
 [GDK-88]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-88
 [GDK-89]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-89
 [GDK-90]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-90

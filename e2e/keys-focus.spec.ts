@@ -274,3 +274,41 @@ test.describe('Enter on focused chrome (GDK-276)', () => {
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })
+
+/*
+ * GDK-81: o is the header escape hatch (same openContainedUrl path as the
+ * issue-key link). lastKeyCmd names the verb; window.open is what serve-mode
+ * openContainedUrl calls (desktop POSTs /desktop/browse instead).
+ */
+test.describe('o opens the issue origin (GDK-81)', () => {
+  test('list cursor + o calls the header open path', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await page.keyboard.press('j')
+    await expect(page.locator('[data-cursor="true"]')).toHaveCount(1)
+
+    await page.evaluate(() => {
+      const active = document.activeElement
+      if (active instanceof HTMLElement) active.blur()
+      const opened: string[] = []
+      ;(window as unknown as { __gadakOpened: string[] }).__gadakOpened = opened
+      window.open = (url?: string | URL) => {
+        opened.push(String(url ?? ''))
+        return null
+      }
+    })
+
+    const key = await page.locator('[data-cursor="true"]').getAttribute('data-issue-key')
+    expect(key).toBeTruthy()
+
+    await page.keyboard.press('o')
+    expect(await lastKeyCmd(page)).toBe('open-origin')
+
+    const opened = await page.evaluate(
+      () => (window as unknown as { __gadakOpened: string[] }).__gadakOpened,
+    )
+    expect(opened).toEqual([`https://nimbus.example.com/browse/${key}`])
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})

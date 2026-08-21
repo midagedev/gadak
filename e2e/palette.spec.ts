@@ -270,6 +270,24 @@ test.describe('command palette', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  test('Open in Jira is an action when the list has a cursor', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await page.keyboard.press('j')
+    await expect(page.locator('[data-cursor="true"]')).toHaveCount(1)
+
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+    await page.keyboard.type('Open in Jira', { delay: 15 })
+    const first = palette.getByRole('option').first()
+    await expect(first).toContainText('Open in Jira')
+    await expect(first).toHaveAttribute('aria-selected', 'true')
+    await expect(first.locator('kbd')).toHaveText('o')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test(', opens the Settings dialog', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)

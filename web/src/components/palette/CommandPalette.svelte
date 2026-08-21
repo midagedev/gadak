@@ -49,6 +49,7 @@
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
+  import { openIssueOrigin, openOriginUrl } from '../../lib/desktop-links'
   import { THEME_MODES, persistThemePreference } from '../../lib/theme'
   import type { IssueLite, Member, PageLite, SearchMatch } from '../../lib/types'
   import Icon, { type IconName } from '../ui/Icon.svelte'
@@ -542,6 +543,36 @@
     return out
   })
 
+  /**
+   * GDK-81: same header escape hatch as the `o` key. Only listed when there
+   * is a page, a list cursor, or an open issue — the cases `o` itself acts.
+   */
+  const originItem = $derived.by<Omit<Item, 'section'> | null>(() => {
+    const pageKey = pages.selectedKey
+    if (pageKey) {
+      return {
+        id: 'a:open-origin',
+        label: t('doc.openSource'),
+        kbd: 'o',
+        run: () => {
+          const row = pages.lite(pageKey) ?? pages.searchHits.find((p) => p.key === pageKey)
+          openOriginUrl(row?.url)
+        },
+      }
+    }
+    const cursor = triage.listActive ? triage.cursorKey : null
+    const issueKey = cursor ?? selection.selectedKey
+    if (!issueKey) return null
+    return {
+      id: 'a:open-origin',
+      label: t('detail.openJira'),
+      kbd: 'o',
+      run: () => {
+        openIssueOrigin(issueKey)
+      },
+    }
+  })
+
   let createBusy = $state(false)
 
   async function createFromPalette(summary: string) {
@@ -577,6 +608,7 @@
     }
     const defs: Omit<Item, 'section'>[] = [
       ...triageItems,
+      ...(originItem ? [originItem] : []),
       newIssue,
       { id: 'a:settings', label: t('palette.actionSettings'), kbd: ',', run: onOpenSettings },
       {

@@ -191,6 +191,11 @@
   바뀌면 항목을 다시 씁니다 — 브라우저·슬랙에서 링크를 클릭하면 앱이
   열립니다. 포터블 팩 자체는 여전히 레지스트리를 건드리지 않고,
   `--unregister-gadak-protocol`로 키를 제거할 수 있습니다.
+- **`o`가 키보드로 원본을 엽니다** ([GDK-81]). 탈출구가 클릭 전용이기를
+  멈춥니다: 리스트 커서나 열린 상세에서 `o`는 그 이슈의 Jira 페이지를,
+  선택된 위키 페이지에서는 소스를 엽니다 — 헤더 링크와 정확히 같은
+  열기 경로라, 사이트 URL이 없는 워크스페이스에서는 조용한 no-op입니다.
+  `?` 시트와 ⌘K 액션에 등재.
 - **components와 parent가 설정 없이 인라인 편집됩니다** ([GDK-86]).
   상세 패널의 components 행은 인라인 멀티 선택이, parent 행은 이슈 키
   타이프어헤드(로컬 미러 제안, 자기 자신 거절)가 됩니다 — 이슈의
@@ -1522,6 +1527,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-78]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-78
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
+[GDK-81]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-81
 [GDK-88]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-88
 [GDK-89]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-89
 [GDK-90]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-90

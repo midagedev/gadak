@@ -17,6 +17,7 @@
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import { isHostedDemo } from '../../lib/config'
+  import { openOriginUrl } from '../../lib/desktop-links'
   import { createResource } from '../../lib/resource.svelte'
   import { onEscape } from '../../lib/dom-actions'
   import type { PageDetail } from '../../lib/types'
@@ -212,6 +213,11 @@
               class="ml-auto flex-none text-accent-text hover:underline"
               data-testid="doc-source-link"
               title={t('doc.openSource')}
+              onclick={(e) => {
+                if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+                e.preventDefault()
+                openOriginUrl(head.url)
+              }}
             >
               {t('doc.openSource')} ↗
             </a>

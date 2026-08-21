@@ -392,6 +392,53 @@ describe('resolveGlobalKey', () => {
   })
 
   /*
+   * GDK-81: o is the header escape-hatch alias (detail.openJira / doc.openSource).
+   *   happy:    list cursor, open detail, or selected page → open-origin
+   *   boundary: no target, and typing in a field, stay ignore
+   */
+  test('o opens origin with a list cursor, an open detail, or a selected page', () => {
+    expect(
+      resolveGlobalKey(keyContext({ key: 'o', listActive: true, cursorKey: 'NMB-1' })),
+    ).toEqual({ type: 'open-origin', target: 'issue' })
+    expect(resolveGlobalKey(keyContext({ key: 'o', detailOpen: true }))).toEqual({
+      type: 'open-origin',
+      target: 'issue',
+    })
+    expect(resolveGlobalKey(keyContext({ key: 'o', pageSelected: true }))).toEqual({
+      type: 'open-origin',
+      target: 'page',
+    })
+    expect(
+      resolveGlobalKey(
+        keyContext({
+          key: 'o',
+          pageSelected: true,
+          listActive: true,
+          cursorKey: 'NMB-1',
+          detailOpen: true,
+        }),
+      ),
+    ).toEqual({ type: 'open-origin', target: 'page' })
+  })
+
+  test('o is ignored without a cursor, detail, or page, and in a field', () => {
+    expect(resolveGlobalKey(keyContext({ key: 'o' }))).toEqual({ type: 'ignore' })
+    expect(
+      resolveGlobalKey(keyContext({ key: 'o', cursorKey: 'NMB-1' })),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: 'o', listActive: true, cursorKey: 'NMB-1', inEditable: true }),
+      ),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: 'o', listActive: true, cursorKey: 'NMB-1', paletteOpen: true }),
+      ),
+    ).toEqual({ type: 'ignore' })
+  })
+
+  /*
    * GDK-46 unit: keys before the startup commit do not vanish
    *   happy:    j/k/x before keysReady are held when the list is mounted
    *   boundary: j before keysReady is ignored when the list is not mounted

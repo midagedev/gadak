@@ -12,6 +12,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { favorites } from '../../stores/favorites.svelte'
   import { write } from '../../stores/write.svelte'
+  import { openIssueOrigin } from '../../lib/desktop-links'
   import { jiraUrl } from './format'
   import IssueBreadcrumb from './IssueBreadcrumb.svelte'
   import WatchButton from '../personal/WatchButton.svelte'
@@ -74,11 +75,16 @@
         </button>
       {/if}
       <a
-        href={jiraUrl(issue.issue_key)}
+        href={jiraUrl(issue.issue_key) ?? undefined}
         target="_blank"
         rel="noopener noreferrer"
         class="flex-none font-mono text-[12px] font-medium text-accent-text hover:underline"
         title={t('detail.openJira')}
+        onclick={(e) => {
+          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+          e.preventDefault()
+          openIssueOrigin(issue.issue_key)
+        }}
       >
         {issue.issue_key}
       </a>
