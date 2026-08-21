@@ -377,6 +377,42 @@ func TestCommentSendsMentionsAsADF(t *testing.T) {
 	}
 }
 
+func TestCommentPassesVisibilityAndInternal(t *testing.T) {
+	f, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/",
+		`{"text":"restricted","visibility":{"type":"role","value":"Administrators"},"internal":true}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue/NMB-1/comment"])
+	if !strings.Contains(sent, `"visibility"`) || !strings.Contains(sent, `"Administrators"`) {
+		t.Fatalf("visibility not sent: %s", sent)
+	}
+	if !strings.Contains(sent, "sd.public.comment") {
+		t.Fatalf("internal property not sent: %s", sent)
+	}
+
+	// A bad visibility shape never reaches Jira.
+	for _, bad := range []string{
+		`{"text":"x","visibility":{"type":"team","value":"a"}}`,
+		`{"text":"x","visibility":{"type":"role","value":"  "}}`,
+	} {
+		if rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", bad); rec.Code != http.StatusBadRequest {
+			t.Fatalf("bad visibility %s → %d", bad, rec.Code)
+		}
+	}
+
+	// Body-only comments stay byte-identical: no visibility key, no properties.
+	f.bodies = map[string]json.RawMessage{}
+	if rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", `{"text":"plain"}`); rec.Code != http.StatusOK {
+		t.Fatalf("plain comment → %d", rec.Code)
+	}
+	sent = string(f.bodies["POST /issue/NMB-1/comment"])
+	if strings.Contains(sent, `"visibility"`) || strings.Contains(sent, "sd.public.comment") {
+		t.Fatalf("plain comment must omit visibility/properties: %s", sent)
+	}
+}
+
 func TestAssigneeSetAndClear(t *testing.T) {
 	f, h, _ := writable(t)
 	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/assignee/", `{"account_id":"acc-cl"}`); rec.Code != http.StatusOK {

@@ -514,6 +514,13 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 		// AttachmentIDs are ids returned by the upload endpoint. They render inline
 		// in the comment body; the files are attached to the issue regardless.
 		AttachmentIDs []string `json:"attachment_ids"`
+		// Visibility restricts the comment to a role or group; Internal marks a
+		// JSM internal comment. Same passthrough the CLI has (GDK-511/528).
+		Visibility *struct {
+			Type  string `json:"type"`
+			Value string `json:"value"`
+		} `json:"visibility"`
+		Internal bool `json:"internal"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
@@ -522,6 +529,15 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(body.Text) == "" {
 		fail(w, http.StatusBadRequest, "text_required")
 		return
+	}
+	var visibility *jira.CommentVisibility
+	if body.Visibility != nil {
+		if (body.Visibility.Type != "role" && body.Visibility.Type != "group") ||
+			strings.TrimSpace(body.Visibility.Value) == "" {
+			fail(w, http.StatusBadRequest, "visibility_needs_role_or_group")
+			return
+		}
+		visibility = &jira.CommentVisibility{Type: body.Visibility.Type, Value: body.Visibility.Value}
 	}
 	mentions := map[string]string{}
 	for _, m := range body.Mentions {
@@ -548,7 +564,7 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 			}
 			media = append(media, jira.Media{ID: mediaID, Filename: filename})
 		}
-		created, err := c.AddComment(ctx, key, jira.DocWithMedia(body.Text, mentions, media), nil, false)
+		created, err := c.AddComment(ctx, key, jira.DocWithMedia(body.Text, mentions, media), visibility, body.Internal)
 		if err != nil {
 			return nil, err
 		}
