@@ -345,6 +345,8 @@ gadak dev scan                                                # or sweep the rep
 
 # connected: a key that exists on that site
 gadak issue NMB-140 --json                    # fields, description, comments, history
+gadak issue NMB-140 NMB-141 --json            # JSON array of the same documents; omit --json for text with --- KEY --- between them
+gadak sql --no-header "select key from issues_full where parent_key='NMB-140'" | gadak issue --keys -
 gadak issue NMB-140 --derive                  # why reopen_count / resolved_at / epic_key are what they are
 gadak comment NMB-140 -m "Reproduced on staging."
 gadak comment NMB-140 -m "thanks @Dana"       # @Name resolves to a site user; ambiguous names are refused

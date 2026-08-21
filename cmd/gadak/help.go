@@ -307,10 +307,12 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak issue", "gadak comment", "gadak fields"},
 	},
 	"issue": {
-		summary: "print full detail for one issue from the local mirror; --editmeta asks the origin which configured fields this issue can edit",
-		usage:   "gadak [--workspace <name>] issue <KEY> [--json] [--derive] [--link] [--editmeta]",
+		summary: "print full detail for one or more issues from the local mirror; --editmeta asks the origin which configured fields this issue can edit",
+		usage:   "gadak [--workspace <name>] issue <KEY> [KEY...] [--keys …] [--json] [--derive] [--link] [--editmeta]",
 		examples: []string{
 			"gadak issue NMB-140",
+			"gadak issue NMB-140 NMB-141",
+			"gadak issue --keys -",
 			"gadak issue NMB-140 --json",
 			"gadak issue NMB-140 --link",
 			"gadak issue NMB-140 --editmeta",

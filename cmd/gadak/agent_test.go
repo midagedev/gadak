@@ -540,6 +540,27 @@ func seedIssueURL(t *testing.T, key, itemURL string) {
 	}
 }
 
+func seedNamedIssue(t *testing.T, key, title string) {
+	t.Helper()
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:" + key, SourceID: "jira", Kind: "issue", ExternalID: key,
+				Key: key, Title: title,
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: strings.Split(key, "-")[0], StatusCategory: "new", Status: "Todo"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestOpenStandaloneRelativeURLDoesNotSucceed(t *testing.T) {
 	standaloneMirror(t)
 	seedIssueURL(t, "STD-1", "/browse/STD-1")
@@ -880,6 +901,184 @@ func TestIssueWithoutFlagsDoesNotHitOrigin(t *testing.T) {
 	}
 	if len(f.calls) != 0 {
 		t.Fatalf("flagless issue hit origin: %v", f.calls)
+	}
+}
+
+const bulkSecondTitle = "bulk second issue"
+
+func issueJSONKey(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	var doc struct {
+		Issue struct {
+			Key string `json:"issue_key"`
+		} `json:"issue"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("decode issue document: %v\n%s", err, raw)
+	}
+	if doc.Issue.Key == "" {
+		t.Fatalf("issue.issue_key empty in %s", raw)
+	}
+	return doc.Issue.Key
+}
+
+// TestIssueMultipleKeysPrintsInOrder is the GDK-425 producer: extra positionals
+// used to be dropped with no error, so a bulk read silently returned the first
+// key only.
+func TestIssueMultipleKeysPrintsInOrder(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	seedNamedIssue(t, "NMB-99", bulkSecondTitle)
+
+	one, err := capture(t, func() error { return cmdIssue([]string{"NMB-1"}) })
+	if err != nil {
+		t.Fatalf("single issue: %v", err)
+	}
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"NMB-1", "NMB-99"}) })
+	if err != nil {
+		t.Fatalf("issue two keys: %v\n%s", err, out)
+	}
+	sep := "--- NMB-99 ---\n"
+	i := strings.Index(out, sep)
+	if i < 0 {
+		t.Fatalf("missing separator %q (second key was likely ignored):\n%s", strings.TrimSpace(sep), out)
+	}
+	if got := out[:i]; got != one {
+		t.Fatalf("first document drifted from single-key output\n--- single ---\n%s--- multi prefix ---\n%s", one, got)
+	}
+	rest := out[i+len(sep):]
+	if !strings.Contains(rest, bulkSecondTitle) {
+		t.Fatalf("second document missing %q:\n%s", bulkSecondTitle, rest)
+	}
+	if strings.Contains(out[:i], bulkSecondTitle) {
+		t.Fatalf("second title leaked into the first document:\n%s", out[:i])
+	}
+}
+
+func TestIssueMultipleKeysJSONArray(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	seedNamedIssue(t, "NMB-99", bulkSecondTitle)
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"NMB-1", "NMB-99", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue two keys --json: %v\n%s", err, out)
+	}
+	var docs []json.RawMessage
+	if err := json.Unmarshal([]byte(out), &docs); err != nil {
+		t.Fatalf("want a JSON array, got: %v\n%s", err, out)
+	}
+	if len(docs) != 2 {
+		t.Fatalf("array length %d, want 2\n%s", len(docs), out)
+	}
+	if k := issueJSONKey(t, docs[0]); k != "NMB-1" {
+		t.Fatalf("docs[0] issue.issue_key = %q, want NMB-1", k)
+	}
+	if k := issueJSONKey(t, docs[1]); k != "NMB-99" {
+		t.Fatalf("docs[1] issue.issue_key = %q, want NMB-99", k)
+	}
+
+	viaKeys, err := capture(t, func() error { return cmdIssue([]string{"--keys", "NMB-1,NMB-99", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue --keys --json: %v\n%s", err, viaKeys)
+	}
+	if viaKeys != out {
+		t.Fatalf("--keys JSON differed from positional JSON\n--- positional ---\n%s--- --keys ---\n%s", out, viaKeys)
+	}
+}
+
+func TestIssueSingleKeyJSONIsObject(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+
+	text, err := capture(t, func() error { return cmdIssue([]string{"NMB-1"}) })
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if strings.Contains(text, "--- NMB-1 ---") {
+		t.Fatalf("single-key text grew a separator:\n%s", text)
+	}
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"NMB-1", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue --json: %v\n%s", err, out)
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal([]byte(out), &arr); err == nil {
+		t.Fatalf("single-key --json became an array (%d elems):\n%s", len(arr), out)
+	}
+	if issueJSONKey(t, json.RawMessage([]byte(out))) != "NMB-1" {
+		t.Fatalf("single-key --json issue.issue_key:\n%s", out)
+	}
+}
+
+func TestIssueMissingKeyContinues(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	seedNamedIssue(t, "NMB-99", bulkSecondTitle)
+
+	out, stderr, err := captureErr(t, func() error {
+		return cmdIssue([]string{"NMB-1", "NOPE-1", "NMB-99"})
+	})
+	if err == nil {
+		t.Fatal("mixed missing key: want non-nil error (exit non-0)")
+	}
+	if !strings.Contains(stderr, "NOPE-1") {
+		t.Fatalf("stderr missing the unknown key, got %q", stderr)
+	}
+	if !strings.Contains(out, "batch worker drops the last page") {
+		t.Fatalf("found key NMB-1 was not printed:\n%s", out)
+	}
+	if !strings.Contains(out, bulkSecondTitle) {
+		t.Fatalf("found key NMB-99 was not printed:\n%s", out)
+	}
+	if strings.Contains(out, "--- NOPE-1 ---") {
+		t.Fatalf("missing key was treated as a document:\n%s", out)
+	}
+}
+
+func TestIssueDeriveRefusesMultipleKeys(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	seedNamedIssue(t, "NMB-99", bulkSecondTitle)
+
+	_, err := capture(t, func() error { return cmdIssue([]string{"NMB-1", "NMB-99", "--derive"}) })
+	if err == nil {
+		t.Fatal("--derive with two keys: want usage refusal")
+	}
+	if !strings.Contains(err.Error(), "cannot be combined") || !strings.Contains(err.Error(), "--derive") {
+		t.Fatalf("error %q, want a cannot-be-combined usage refusal that names --derive", err)
+	}
+}
+
+func TestIssueKeysRejectsPositionals(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	err := cmdIssue([]string{"NMB-1", "--keys", "NMB-99"})
+	if err == nil {
+		t.Fatal("positional + --keys: want usage refusal")
+	}
+	if !strings.Contains(err.Error(), "--keys") || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("error %q, want --keys/positional usage refusal", err)
+	}
+}
+
+func TestIssueKeysStdin(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	seedNamedIssue(t, "NMB-99", bulkSecondTitle)
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		_, _ = w.WriteString("NMB-1\nNMB-99\n")
+		_ = w.Close()
+	}()
+	saved := os.Stdin
+	os.Stdin = r
+	out, err := capture(t, func() error { return cmdIssue([]string{"--keys", "-"}) })
+	os.Stdin = saved
+	if err != nil {
+		t.Fatalf("issue --keys -: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "--- NMB-99 ---") || !strings.Contains(out, bulkSecondTitle) {
+		t.Fatalf("--keys - missing second document:\n%s", out)
 	}
 }
 

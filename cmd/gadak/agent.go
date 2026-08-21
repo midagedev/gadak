@@ -127,12 +127,23 @@ func deref(s *string, fallback string) string {
 
 /* ── issue ── */
 
+const issueUsageLine = "usage: gadak issue <KEY> [KEY...] [--json] [--derive] [--link] [--editmeta]"
+
+// issueDoc is the --json document: GET <key>/detail/ with the list row included.
+// A single-key call encodes one of these as an object; two or more keys encode
+// a JSON array of the same shape.
+type issueDoc struct {
+	Issue store.IssueLite `json:"issue"`
+	*store.Detail
+}
+
 func cmdIssue(args []string) error {
 	fs := newFlagSet("issue")
 	asJSON := fs.Bool("json", false, "emit JSON (the detail document; with --editmeta, the editable-fields document)")
 	derive := fs.Bool("derive", false, "instead of the detail, show how the derived fields were computed: the changelog by status category, and the rows behind reopen_count, resolved_at, reopen_reason and epic_key")
 	link := fs.Bool("link", false, "print the gadak:// issue link (and the http form when a serve is listening)")
 	editMeta := fs.Bool("editmeta", false, "ask the origin which configured fields this issue can edit (GET editmeta ∩ allowlist; not stored in the mirror)")
+	keysFlag := fs.String("keys", "", "issue keys (comma or whitespace); - reads stdin")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("issue", fs))
 		return nil
@@ -141,8 +152,21 @@ func cmdIssue(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(pos) == 0 {
-		return usageError("issue", "usage: gadak issue <KEY> [--json] [--derive] [--link] [--editmeta]")
+	keysRaw := strings.TrimSpace(*keysFlag)
+	if keysRaw != "" && len(pos) > 0 {
+		return usageError("issue", "--keys cannot be combined with positional issue keys")
+	}
+	var keys []string
+	if keysRaw != "" {
+		keys, err = readKeysFlag(keysRaw)
+		if err != nil {
+			return err
+		}
+	} else {
+		keys = jql.SplitKeys(strings.Join(pos, " "))
+	}
+	if len(keys) == 0 {
+		return usageError("issue", issueUsageLine)
 	}
 	// The --json document is what agents parse; --derive is prose for a person.
 	// Folding one into the other would reshape a contract that already has
@@ -159,9 +183,19 @@ func cmdIssue(args []string) error {
 	if *editMeta && *link {
 		return usageError("issue", "--link and --editmeta cannot be combined: --link prints the issue's address, and --editmeta asks the origin which fields this issue can edit")
 	}
-	key := normalizeKey(pos[0])
+	if len(keys) > 1 {
+		if *derive {
+			return usageError("issue", "--derive cannot be combined with multiple keys: --derive explains the stored columns for one issue")
+		}
+		if *link {
+			return usageError("issue", "--link cannot be combined with multiple keys: --link prints one issue's address")
+		}
+		if *editMeta {
+			return usageError("issue", "--editmeta cannot be combined with multiple keys: --editmeta asks the origin which fields this issue can edit")
+		}
+	}
 	if *editMeta {
-		return printIssueEditMeta(key, *asJSON)
+		return printIssueEditMeta(keys[0], *asJSON)
 	}
 
 	db, err := openStore()
@@ -172,39 +206,82 @@ func cmdIssue(args []string) error {
 	warnIfStale(db)
 
 	if *link {
-		return printIssueLink(db, key, *asJSON)
+		return printIssueLink(db, keys[0], *asJSON)
 	}
 
-	d, err := db.Detail(context.Background(), key)
-	if errors.Is(err, store.ErrNotFound) {
-		return fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", key)
-	}
+	docs, notFound, err := loadIssueDocs(db, keys)
 	if err != nil {
 		return err
 	}
-	lites, err := lookup(db, []string{key})
-	if err != nil {
-		return err
+	if len(keys) == 1 && len(notFound) == 1 {
+		return fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", notFound[0])
 	}
-	if len(lites) == 0 {
-		return fmt.Errorf("%s has a detail row but no issue row — the mirror is inconsistent, re-sync", key)
+	for _, k := range notFound {
+		fmt.Fprintf(os.Stderr, "warning: %s is not in the mirror — check the key, or run `gadak sync`\n", k)
 	}
 
 	if *asJSON {
-		// The detail fields are flattened alongside `issue` so the document reads
-		// like `GET <key>/detail/` with the list row included.
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(struct {
-			Issue store.IssueLite `json:"issue"`
-			*store.Detail
-		}{lites[0], d})
+		if err := writeIssueJSON(docs, len(keys)); err != nil {
+			return err
+		}
+	} else if *derive {
+		if err := printDerivation(docs[0].Issue, docs[0].Detail); err != nil {
+			return err
+		}
+	} else {
+		printIssueDocs(docs)
 	}
-	if *derive {
-		return printDerivation(lites[0], d)
+	if len(notFound) > 0 {
+		return fmt.Errorf("%d of %d keys not in the mirror", len(notFound), len(keys))
 	}
-	printIssue(lites[0], d)
 	return nil
+}
+
+func loadIssueDocs(db *store.DB, keys []string) ([]issueDoc, []string, error) {
+	lites, err := lookup(db, keys)
+	if err != nil {
+		return nil, nil, err
+	}
+	byKey := make(map[string]store.IssueLite, len(lites))
+	for _, l := range lites {
+		byKey[l.IssueKey] = l
+	}
+	docs := make([]issueDoc, 0, len(keys))
+	var notFound []string
+	for _, key := range keys {
+		d, err := db.Detail(context.Background(), key)
+		if errors.Is(err, store.ErrNotFound) {
+			notFound = append(notFound, key)
+			continue
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		l, ok := byKey[key]
+		if !ok {
+			return nil, nil, fmt.Errorf("%s has a detail row but no issue row — the mirror is inconsistent, re-sync", key)
+		}
+		docs = append(docs, issueDoc{l, d})
+	}
+	return docs, notFound, nil
+}
+
+func writeIssueJSON(docs []issueDoc, requested int) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if requested == 1 {
+		return enc.Encode(docs[0])
+	}
+	return enc.Encode(jsonList(docs))
+}
+
+func printIssueDocs(docs []issueDoc) {
+	for i, doc := range docs {
+		if i > 0 {
+			fmt.Printf("--- %s ---\n", doc.Issue.IssueKey)
+		}
+		printIssue(doc.Issue, doc.Detail)
+	}
 }
 
 type issueEditMetaOption struct {

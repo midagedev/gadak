@@ -193,6 +193,7 @@ empty otherwise. Opening one needs the macOS desktop app installed.
 ```bash
 gadak issue NMB-140                   # fields, description, comments, history, links
 gadak issue NMB-140 --json            # the `GET <key>/detail/` document plus the list row
+gadak sql --no-header "select key from issues_full where parent_key='NMB-140'" | gadak issue --keys -
 # `gadak issue` is the context pack: one call returns everything an LLM needs
 # about an issue — no follow-up requests, no pagination.
 
