@@ -188,8 +188,14 @@
     return t('sidebar.syncLastChecked', { when })
   })
 
+  let deleteArmedId = $state<string | null>(null)
+
   function onDocClick(e: MouseEvent) {
     if (historyOpen && historyEl && !e.composedPath().includes(historyEl)) historyOpen = false
+    const onDelete = e
+      .composedPath()
+      .some((n) => n instanceof HTMLElement && n.dataset.testid === 'sidebar-view-delete')
+    if (!onDelete) deleteArmedId = null
   }
 
   function runKindLabel(kind: string): string {
@@ -345,6 +351,7 @@
      belong to the branch that draws the suffix, or a personal row would carry a
      trailing one it never had. -->
 {#snippet viewRow(row: {
+  id: string
   name: string
   active: boolean
   apply: () => void
@@ -353,10 +360,13 @@
   /** Null when this viewer may not delete it — a team view that is not theirs. */
   remove: (() => void) | null
 })}
+  {@const armed = deleteArmedId === row.id}
   <div
     class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {row.active
       ? 'bg-bg-active'
       : 'hover:bg-bg-hover'}"
+    data-testid="sidebar-view-row"
+    data-view-id={row.id}
   >
     <button
       type="button"
@@ -372,9 +382,22 @@
     {#if row.remove}
       <button
         type="button"
-        class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100"
-        title={t('common.delete')}
-        onclick={row.remove}
+        class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100 {armed
+          ? 'opacity-100 text-status-reopen'
+          : ''}"
+        title={armed ? t('jiraSettings.deleteConfirm') : t('common.delete')}
+        aria-label={armed ? t('jiraSettings.deleteConfirm') : t('common.delete')}
+        data-testid="sidebar-view-delete"
+        data-armed={armed ? 'true' : undefined}
+        onclick={(e) => {
+          e.stopPropagation()
+          if (deleteArmedId !== row.id) {
+            deleteArmedId = row.id
+            return
+          }
+          deleteArmedId = null
+          row.remove?.()
+        }}
       >
         <Icon name="x" size={13} />
       </button>
@@ -603,7 +626,12 @@
                   data-testid="sidebar-jira-filter"
                   data-filter-id={v.id}
                 >
-                  {#if v.favourite}<span class="mr-1 text-micro text-text-muted" aria-hidden="true">★</span>{/if}{v.name}
+                  {#if v.favourite}<span class="mr-1 text-micro text-text-muted" aria-hidden="true">★</span>{/if}{v.name}{#if v.unsupported?.length}{' '}<span
+                      class="ml-1 truncate text-micro text-text-muted"
+                      title={t('filter.jqlPartial', { clauses: v.unsupported.join('; ') })}
+                      data-testid="sidebar-view-partial"
+                      >{t('filter.jqlPartial', { clauses: v.unsupported.join('; ') })}</span
+                    >{/if}
                 </button>
                 {#if href}
                   <a
@@ -626,6 +654,7 @@
           <SidebarSection id="personal" label={t('sidebar.myViews')} {visibleIds}>
             {#each views.personal as v (v.id)}
               {@render viewRow({
+                id: v.id,
                 name: v.name,
                 active: activePersonal === v.id,
                 apply: () => applyView(v.config),
@@ -637,13 +666,17 @@
           <SidebarSection id="team" label={t('sidebar.teamViews')} {visibleIds}>
             {#each views.team as v (v.id)}
               {@render viewRow({
+                id: v.id,
                 name: v.name,
                 active: activeTeam === v.id,
                 apply: () => applyView(v.config),
                 owner: v.owner_name,
                 remove:
                   me.email && v.owner_email === me.email
-                    ? () => views.removeTeam(v.id).catch(() => alert(t('sidebar.viewDeleteFail')))
+                    ? () =>
+                        views
+                          .removeTeam(v.id)
+                          .catch(() => write.toast(t('sidebar.viewDeleteFail'), 'error'))
                     : null,
               })}
             {/each}
