@@ -585,6 +585,7 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 			fmt.Printf("  %s\n", line)
 		}
 	}
+	printDevLinkKinds(d.DevLinks)
 	if len(d.History) > 0 {
 		fmt.Printf("\nhistory (%d)\n", len(d.History))
 		for _, h := range d.History {
@@ -2210,4 +2211,47 @@ func openBrowser(u string) error {
 		cmd = exec.Command("xdg-open", u)
 	}
 	return cmd.Start()
+}
+
+// printDevLinkKinds renders the dev_links kinds that are not pull requests
+// — deployments and builds (GDK-592) — each under its own kind-labelled
+// section so they are distinguishable from the PR list above: a deployment
+// line is environment→state, a build line #number→state, with the run URL
+// last when the row has one.
+func printDevLinkKinds(links []store.DevLink) {
+	var deps, builds []store.DevLink
+	for _, l := range links {
+		switch l.Kind {
+		case "deployment":
+			deps = append(deps, l)
+		case "build":
+			builds = append(builds, l)
+		}
+	}
+	if len(deps) > 0 {
+		fmt.Printf("\ndeployments (%d)\n", len(deps))
+		for _, l := range deps {
+			line := l.Environment + "\t" + l.Status
+			if l.URL != "" {
+				line += "\t" + l.URL
+			}
+			fmt.Printf("  %s\n", line)
+		}
+	}
+	if len(builds) > 0 {
+		fmt.Printf("\nbuilds (%d)\n", len(builds))
+		for _, l := range builds {
+			id := l.ExternalID
+			if id != "" {
+				id = "#" + id
+			}
+			line := id + "\t" + l.Status
+			if l.URL != "" && id != "" {
+				line += "\t" + l.URL
+			} else if id == "" {
+				line = l.URL + "\t" + l.Status
+			}
+			fmt.Printf("  %s\n", line)
+		}
+	}
 }

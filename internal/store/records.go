@@ -86,7 +86,7 @@ type Issue struct {
 // DevLink is one development-panel link (GDK-497): a pull request the origin
 // associates with the issue. URL is the idempotent key per issue.
 type DevLink struct {
-	Kind       string // pullrequest (branches/commits later, if ever)
+	Kind       string // pullrequest | deployment | build (GDK-592)
 	ExternalID string
 	URL        string
 	Title      string
@@ -103,7 +103,11 @@ type DevLink struct {
 	Actor     string
 	ActorName string
 	Branch    string
-	UpdatedAt string
+	// Environment is a deployment row's target (production, staging, …)
+	// — kind data with its own v36 column, never a title slot. Empty on
+	// pull-request and build rows (GDK-592).
+	Environment string
+	UpdatedAt   string
 }
 
 // DevLinksUpdate is a successful origin answer for one issue's

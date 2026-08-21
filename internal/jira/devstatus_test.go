@@ -161,3 +161,91 @@ func TestLinkDevPRCarriesAuthorBranch(t *testing.T) {
 		t.Errorf("empty branch still posted: %v", gotBody["branch"])
 	}
 }
+
+// TestParseDevBuildState pins the build state vocabulary (GDK-592): the
+// three buckets the dev-status summary counts. Deployment states are
+// deliberately free-form — only "successful" is load-bearing there — so
+// they get no closed parser.
+func TestParseDevBuildState(t *testing.T) {
+	for in, want := range map[string]DevBuildState{
+		"successful": DevBuildSuccessful, "SUCCESSFUL": DevBuildSuccessful,
+		"failed": DevBuildFailed, "Failed": DevBuildFailed,
+		"unknown": DevBuildUnknown,
+	} {
+		got, ok := ParseDevBuildState(in)
+		if !ok || got != want {
+			t.Errorf("ParseDevBuildState(%q) = %q, %v; want %q, true", in, got, ok, want)
+		}
+	}
+	for _, in := range []string{"pending", "in progress", ""} {
+		if _, ok := ParseDevBuildState(in); ok {
+			t.Errorf("ParseDevBuildState(%q) accepted a non-bucket state", in)
+		}
+	}
+}
+
+// TestLinkDevDeploymentAndBuildBody pins the write side of GDK-592: the
+// link POST carries kind=deployment/build with the per-kind fields, and
+// omits the optional url/number keys when empty so the origin keeps what
+// it holds (same rule as LinkDevPR's author/branch).
+func TestLinkDevDeploymentAndBuildBody(t *testing.T) {
+	var gotBody map[string]any
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/issue/link") {
+			t.Errorf("unexpected call %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		gotBody = map[string]any{}
+		if err := json.Unmarshal(raw, &gotBody); err != nil {
+			t.Errorf("body is not JSON: %v (%s)", err, raw)
+		}
+		w.WriteHeader(http.StatusCreated)
+		kind := gotBody["kind"]
+		switch kind {
+		case "deployment":
+			_, _ = w.Write([]byte(`{"id":"environment:production","environment":"production","state":"successful","lastUpdate":"2026-08-22T00:00:00.000+0000"}`))
+		case "build":
+			_, _ = w.Write([]byte(`{"id":"https://ci.example/gadak/build/592","url":"https://ci.example/gadak/build/592","number":"592","state":"failed","lastUpdate":"2026-08-22T00:00:00.000+0000"}`))
+		default:
+			t.Errorf("unexpected kind %v", kind)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(ts.Close)
+	c := New(ts.URL, "e@xample.test", "t")
+
+	dep, err := c.LinkDevDeployment(t.Context(), "10001", "production", "successful", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotBody["kind"] != "deployment" || gotBody["environment"] != "production" || gotBody["state"] != "successful" {
+		t.Errorf("deployment body = %v", gotBody)
+	}
+	if _, ok := gotBody["url"]; ok {
+		t.Errorf("empty url still posted: %v", gotBody["url"])
+	}
+	if dep.ID != "environment:production" || dep.Environment != "production" || dep.State != "successful" {
+		t.Errorf("deployment 201 decode = %+v", dep)
+	}
+
+	b, err := c.LinkDevBuild(t.Context(), "10001", DevBuildFailed, "592", "https://ci.example/gadak/build/592")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotBody["kind"] != "build" || gotBody["state"] != "failed" || gotBody["number"] != "592" {
+		t.Errorf("build body = %v", gotBody)
+	}
+	if b.Number != "592" || b.State != "failed" || b.URL != "https://ci.example/gadak/build/592" {
+		t.Errorf("build 201 decode = %+v", b)
+	}
+
+	// A number-less build posts no number key; the url is the key then.
+	if _, err := c.LinkDevBuild(t.Context(), "10001", DevBuildSuccessful, "", "https://ci.example/x/7"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := gotBody["number"]; ok {
+		t.Errorf("empty number still posted: %v", gotBody["number"])
+	}
+}

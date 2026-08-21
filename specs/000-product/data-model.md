@@ -314,18 +314,29 @@ are different axes**: author is the pull request's author (a human's login);
 actor is who wrote the link (issuetap's `X-Issuetap-Actor` — typically an
 agent). Never fold one into the other.
 
+v37 (GDK-592) added `kind` = `deployment` / `build` rows and the
+`environment` column. A dev-status **answer enumerates pull requests only**
+(it is built from the summary's `pullrequest` count — Cloud's detail row
+vocabulary for builds/deployments was never captured), so a sync rewrite
+replaces the `pullrequest` rows and never drains the others; deployment and
+build rows enter the mirror only through `gadak dev deploy` / `gadak dev
+build`, from the origin's 201 echo. A url-less row stores the origin's id
+(`environment:<name>` / `build:<number>`) in `url` — the idempotent key both
+origins use, and the PK needs it to tell two url-less rows apart.
+
 | Column | Type | Notes |
 | --- | --- | --- |
 | `item_id` | TEXT | FK |
-| `kind` | TEXT | `pullrequest` (only kind stored) |
-| `external_id` | TEXT | origin's id for the link |
-| `url` | TEXT | |
+| `kind` | TEXT | `pullrequest` / `deployment` / `build` |
+| `external_id` | TEXT | origin's id for the link (the build number on a build row) |
+| `url` | TEXT | idempotent key; the origin's id when the row has no url |
 | `title` | TEXT | |
-| `status` | TEXT | `open` / `merged` / `declined`, lowercased |
+| `status` | TEXT | PR `open`/`merged`/`declined`; deployment free-form (`successful`, …); build `successful`/`failed`/`unknown` |
 | `author` | TEXT | PR author's login (Cloud `author.name`). `''` when the origin sent none |
 | `actor` | TEXT | account id of who wrote the link (issuetap `X-Issuetap-Actor`). `''` on Cloud |
 | `actor_name` | TEXT | display name of the link writer. `''` on Cloud |
 | `branch` | TEXT | PR head ref (Cloud `source.branch`). `''` when the origin sent none |
+| `environment` | TEXT | deployment target (`production`, `staging`, …). `''` on PR/build rows (v37) |
 | `updated_at` | TEXT | |
 
 ## `attachments`

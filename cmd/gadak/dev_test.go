@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/pairing"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // GDK-531: dev scan's pure parts — key extraction from PR titles/branches
@@ -255,5 +257,82 @@ func TestParseDevScanPRs(t *testing.T) {
 	if prs[1].Author.Login != "" || prs[1].HeadRefName != "gdk-354-darwin" {
 		t.Errorf("prs[1] author/head = %q/%q, want empty / gdk-354-darwin",
 			prs[1].Author.Login, prs[1].HeadRefName)
+	}
+}
+
+// GDK-592: the origin's deployment/build rows map onto dev_links without
+// stuffing kind data into display columns — environment gets its own
+// column, the build number rides external_id, and a url-less row falls
+// back to the origin's id as the mirror's idempotent key.
+func TestDevLinkRowsFromDeploymentAndBuild(t *testing.T) {
+	dep := devLinkFromDeployment(jira.DevDeployment{
+		ID: "environment:production", Environment: "production", State: "successful",
+	})
+	if dep.Kind != "deployment" || dep.Environment != "production" || dep.Status != "successful" {
+		t.Fatalf("deployment row = %+v", dep)
+	}
+	if dep.URL != "environment:production" || dep.ExternalID != "environment:production" {
+		t.Fatalf("url-less deployment key = %q/%q, want the origin id on both", dep.URL, dep.ExternalID)
+	}
+	withURL := devLinkFromDeployment(jira.DevDeployment{
+		ID: "https://ci/run/9", URL: "https://ci/run/9", Environment: "staging", State: "failed",
+	})
+	if withURL.URL != "https://ci/run/9" || withURL.Environment != "staging" {
+		t.Fatalf("url-keyed deployment row = %+v", withURL)
+	}
+
+	b := devLinkFromBuild(jira.DevBuild{
+		ID: "https://ci.example/gadak/build/592", URL: "https://ci.example/gadak/build/592",
+		Number: "592", State: "failed",
+	})
+	if b.Kind != "build" || b.ExternalID != "592" || b.Status != "failed" || b.Environment != "" {
+		t.Fatalf("build row = %+v", b)
+	}
+}
+
+// TestIssuePrintsDeploymentAndBuildLinks pins `gadak issue`'s display:
+// deployments and builds render in their own kind-labelled sections, not
+// inside Linked PRs (which stays pull requests only).
+func TestIssuePrintsDeploymentAndBuildLinks(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	ctx := context.Background()
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if err := db.ReplaceDevLinks(ctx, "NMB-1", store.DevLinksUpdate{Links: []store.DevLink{
+		{Kind: "pullrequest", URL: "https://github.com/o/r/pull/9", Title: "fix the drop", Status: "merged"},
+		{Kind: "deployment", ExternalID: "environment:production", URL: "environment:production",
+			Environment: "production", Status: "successful", UpdatedAt: "2026-08-22T00:00:00.000Z"},
+		{Kind: "build", ExternalID: "592", URL: "https://ci.example/gadak/build/592",
+			Status: "failed", UpdatedAt: "2026-08-22T00:00:00.000Z"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	lites, err := db.IssueLitesByKeys(ctx, []string{"NMB-1"})
+	if err != nil || len(lites) == 0 {
+		t.Fatalf("lites: %v (%d)", err, len(lites))
+	}
+	d, err := db.Detail(ctx, "NMB-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _ := capture(t, func() error { printIssue(lites[0], d, store.Spans{}); return nil })
+	for _, want := range []string{
+		"Linked PRs (1)",
+		"https://github.com/o/r/pull/9",
+		"deployments (1)",
+		"production\tsuccessful",
+		"builds (1)",
+		"#592\tfailed",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("issue output missing %q\n%s", want, out)
+		}
+	}
+	if strings.Count(out, "https://ci.example/gadak/build/592") < 1 {
+		t.Errorf("build url not shown:\n%s", out)
 	}
 }

@@ -7,7 +7,9 @@ package main
 // belongs to Jira's GitHub app, so gadak refuses instead of pretending;
 // mirroring that panel is `gadak config set devStatus true`. The skill
 // guidance is one line: an agent that opens a PR runs
-// `gadak dev link KEY --pr <url>` right there.
+// `gadak dev link KEY --pr <url>` right there. `dev deploy` and `dev build`
+// (GDK-592) record the panel's other two kinds through the same
+// write-through path — the origin upserts, the mirror refreshes.
 
 import (
 	"context"
@@ -38,8 +40,12 @@ func cmdDev(args []string) error {
 		return cmdDevLink(args[1:])
 	case "scan":
 		return cmdDevScan(args[1:])
+	case "deploy":
+		return cmdDevDeploy(args[1:])
+	case "build":
+		return cmdDevBuild(args[1:])
 	default:
-		return fmt.Errorf("dev: unknown subcommand %q (try `gadak dev link` or `gadak dev scan`)", args[0])
+		return fmt.Errorf("dev: unknown subcommand %q (try `gadak dev link`, `gadak dev scan`, `gadak dev deploy` or `gadak dev build`)", args[0])
 	}
 }
 
@@ -133,6 +139,182 @@ func devLinkExtrasJSON(author, branch string) string {
 	return out
 }
 
+// cmdDevDeploy records one deployment on an issue (GDK-592): the write
+// passes through the origin's dev-status store, then the mirror refreshes
+// from the origin's answer. --url is optional — a url-less deployment is
+// keyed by its environment on the origin, so the same environment
+// re-deploys in place instead of accumulating rows.
+func cmdDevDeploy(args []string) error {
+	fs := newFlagSet("dev deploy")
+	env := fs.String("env", "", "target environment, e.g. production (required)")
+	state := fs.String("state", "", "deployment state, e.g. successful (required)")
+	url := fs.String("url", "", "run URL (omitted = the origin keys the row by its environment)")
+	asJSON := fs.Bool("json", false, "emit JSON")
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("dev", fs))
+		return nil
+	}
+	rest, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 || *env == "" || *state == "" {
+		return usageError("dev", "usage: gadak dev deploy <KEY> --env <name> --state <state> [--url <run url>]")
+	}
+	key := normalizeKey(rest[0])
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if err := refuseConnectedDevWrite(cfg, "dev deploy"); err != nil {
+		return err
+	}
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	ctx := context.Background()
+
+	issueID, err := db.ExternalID(ctx, key)
+	if err != nil {
+		return fmt.Errorf("dev deploy: %s is not in the mirror — run `gadak sync` first (%w)", key, err)
+	}
+	client, err := origin.Client(cfg)
+	if err != nil {
+		return err
+	}
+	created, err := client.LinkDevDeployment(ctx, issueID, strings.TrimSpace(*env), strings.TrimSpace(*state), strings.TrimSpace(*url))
+	if err != nil {
+		return err
+	}
+
+	refreshDevLinks(ctx, db, client, key, issueID, devLinkFromDeployment(created))
+
+	if *asJSON {
+		fmt.Printf("{\"key\":%q,\"environment\":%q,\"state\":%q,\"url\":%q}\n",
+			key, created.Environment, created.State, devLinkKey(created.URL, created.ID))
+		return nil
+	}
+	fmt.Printf("%s\tdeployed: %s (%s)\n", key, created.Environment, created.State)
+	return nil
+}
+
+// cmdDevBuild records one build on an issue (GDK-592). --url and --number
+// are alternative keys — the origin requires one — and --state is the
+// three-bucket vocabulary the dev-status summary counts.
+func cmdDevBuild(args []string) error {
+	fs := newFlagSet("dev build")
+	state := fs.String("state", "", "successful | failed | unknown (required)")
+	number := fs.String("number", "", "build number (required when --url is omitted)")
+	url := fs.String("url", "", "build URL (required when --number is omitted)")
+	asJSON := fs.Bool("json", false, "emit JSON")
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("dev", fs))
+		return nil
+	}
+	rest, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 || *state == "" {
+		return usageError("dev", "usage: gadak dev build <KEY> --state successful|failed|unknown (--number N | --url <build url>)")
+	}
+	st, ok := jira.ParseDevBuildState(*state)
+	if !ok {
+		return fmt.Errorf("dev build: --state must be successful, failed or unknown (got %q)", *state)
+	}
+	if strings.TrimSpace(*number) == "" && strings.TrimSpace(*url) == "" {
+		return usageError("dev", "usage: gadak dev build <KEY> --state successful|failed|unknown (--number N | --url <build url>)")
+	}
+	key := normalizeKey(rest[0])
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if err := refuseConnectedDevWrite(cfg, "dev build"); err != nil {
+		return err
+	}
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	ctx := context.Background()
+
+	issueID, err := db.ExternalID(ctx, key)
+	if err != nil {
+		return fmt.Errorf("dev build: %s is not in the mirror — run `gadak sync` first (%w)", key, err)
+	}
+	client, err := origin.Client(cfg)
+	if err != nil {
+		return err
+	}
+	created, err := client.LinkDevBuild(ctx, issueID, st, strings.TrimSpace(*number), strings.TrimSpace(*url))
+	if err != nil {
+		return err
+	}
+
+	refreshDevLinks(ctx, db, client, key, issueID, devLinkFromBuild(created))
+
+	if *asJSON {
+		fmt.Printf("{\"key\":%q,\"state\":%q,\"number\":%q,\"url\":%q}\n",
+			key, created.State, created.Number, devLinkKey(created.URL, created.ID))
+		return nil
+	}
+	id := created.Number
+	if id == "" {
+		id = devLinkKey(created.URL, created.ID)
+	} else {
+		id = "#" + id
+	}
+	fmt.Printf("%s\tbuild %s: %s\n", key, id, created.State)
+	return nil
+}
+
+// devLinkKey is the mirror's idempotent key for a dev link: the URL the
+// origin holds, or its id when the row has none (a url-less deployment or
+// build) — the PK is (item_id, url), so two url-less rows must not collide.
+func devLinkKey(url, id string) string {
+	if url != "" {
+		return url
+	}
+	return id
+}
+
+// devLinkFromDeployment maps the origin's 201 echo onto a mirror row. The
+// environment lands in its own v36 column — never title, which stays a
+// human label; state rides status.
+func devLinkFromDeployment(d jira.DevDeployment) store.DevLink {
+	return store.DevLink{
+		Kind:        "deployment",
+		ExternalID:  d.ID,
+		URL:         devLinkKey(d.URL, d.ID),
+		Status:      d.State,
+		Environment: d.Environment,
+		Actor:       d.Actor.AccountID,
+		ActorName:   d.Actor.DisplayName,
+		UpdatedAt:   store.Now(),
+	}
+}
+
+// devLinkFromBuild maps the origin's 201 echo onto a mirror row: the build
+// number rides external_id (an id axis, like the PR's id), state rides
+// status.
+func devLinkFromBuild(b jira.DevBuild) store.DevLink {
+	return store.DevLink{
+		Kind:       "build",
+		ExternalID: b.Number,
+		URL:        devLinkKey(b.URL, b.ID),
+		Status:     b.State,
+		Actor:      b.Actor.AccountID,
+		ActorName:  b.Actor.DisplayName,
+		UpdatedAt:  store.Now(),
+	}
+}
+
 // currentGitBranch reports the working tree's branch — the empty string
 // outside a repository or on a detached HEAD (git prints the literal "HEAD"
 // there).
@@ -149,15 +331,23 @@ func currentGitBranch() string {
 }
 
 // refreshDevLinks re-reads the origin's dev-status answer for one issue and
-// replaces the mirror's dev_links with it (write-through, never a direct
-// mirror write of our own copy). A failed refresh is a warning, not an error
-// — the origin already holds the link and the next sync heals the mirror.
-func refreshDevLinks(ctx context.Context, db *store.DB, client *jira.Client, key, issueID string) {
-	prs, err := client.DevStatusPRs(ctx, issueID)
-	if err != nil {
+// replaces the mirror's pull-request rows with it (write-through, never a
+// direct mirror write of our own copy). extras are rows this write just
+// created whose kind the answer cannot enumerate (deployment/build — their
+// detail vocabulary is uncaptured, GDK-592); the origin's 201 echo is the
+// source for those, and with extras present a failed PR re-read degrades
+// to writing them alone instead of skipping the refresh. A failed refresh
+// is a warning, not an error — the origin already holds the link and the
+// next sync heals the mirror.
+func refreshDevLinks(ctx context.Context, db *store.DB, client *jira.Client, key, issueID string, extras ...store.DevLink) {
+	var links []store.DevLink
+	if prs, err := client.DevStatusPRs(ctx, issueID); err == nil {
+		links = sync.DevLinksFromPRs(prs).Links
+	} else if len(extras) == 0 {
 		return
 	}
-	if err := db.ReplaceDevLinks(ctx, key, sync.DevLinksFromPRs(prs)); err != nil {
+	links = append(links, extras...)
+	if err := db.ReplaceDevLinks(ctx, key, store.DevLinksUpdate{Links: links}); err != nil {
 		fmt.Fprintf(os.Stderr, "gadak: warning: origin holds the link but the mirror refresh failed: %v\n", err)
 	}
 }

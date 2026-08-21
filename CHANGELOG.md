@@ -89,6 +89,13 @@ the fixes are all here.
   connected Jira says out loud that its two calls could interleave.
   `gadak issue` shows how long an issue waited and how long it has been in
   progress, computed from the changelog rather than stored.
+- **The panel carries deployments and builds** ([GDK-592]). `gadak dev
+  deploy KEY --env production --state successful` and `gadak dev build KEY
+  --state failed --number 592` write the other two kinds of development
+  link; `gadak issue` lists them apart from pull requests, and a sync that
+  rewrites an issue's PR links leaves them alone. On a standalone origin
+  the Cloud-shaped summary blocks that used to serve zeroes now carry real
+  counts, so a client written against Cloud reads them unchanged.
 - **A dev link knows its people** ([GDK-589]). `dev_links` carries the PR
   author (the human), the writing actor (the bot), and the head branch
   (schema v33); `gadak dev scan` sends them from `gh`, `dev link` takes
@@ -1861,8 +1868,10 @@ measured numbers instead of adjectives.
 [GDK-589]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-589
 [GDK-590]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-590
 [GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
+[GDK-592]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-592
 [GDK-597]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-597
 [GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
+[GDK-592]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-592
 [GDK-593]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-593
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588

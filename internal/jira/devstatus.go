@@ -59,6 +59,51 @@ func (s DevPRStatus) Stored() string {
 	return strings.ToLower(string(s))
 }
 
+// DevBuildState is the build-record state vocabulary (GDK-592): the three
+// buckets the dev-status summary counts. Deployment states are free-form —
+// only "successful" is load-bearing there — so they stay plain strings.
+type DevBuildState string
+
+const (
+	DevBuildSuccessful DevBuildState = "successful"
+	DevBuildFailed     DevBuildState = "failed"
+	DevBuildUnknown    DevBuildState = "unknown"
+)
+
+// ParseDevBuildState accepts the CLI/origin tokens (any case); anything
+// outside the three buckets is rejected — an in-progress build is not a
+// state this vocabulary has.
+func ParseDevBuildState(s string) (DevBuildState, bool) {
+	switch st := DevBuildState(strings.ToLower(strings.TrimSpace(s))); st {
+	case DevBuildSuccessful, DevBuildFailed, DevBuildUnknown:
+		return st, true
+	default:
+		return "", false
+	}
+}
+
+// DevDeployment is one deployment record the link POST answers (GDK-592).
+// issuetap's own vocabulary — Cloud's detail rows for deployments were
+// never captured, so no read path produces this type; it exists for the
+// write's 201 echo. A url-less deployment's ID is environment:<name>.
+type DevDeployment struct {
+	ID          string     `json:"id"`
+	URL         string     `json:"url"`
+	Environment string     `json:"environment"`
+	State       string     `json:"state"`
+	Actor       DevPRActor `json:"actor"`
+}
+
+// DevBuild is one build record the link POST answers (GDK-592). Number is
+// the build number as a string; a url-less build's ID is build:<number>.
+type DevBuild struct {
+	ID     string     `json:"id"`
+	URL    string     `json:"url"`
+	Number string     `json:"number"`
+	State  string     `json:"state"`
+	Actor  DevPRActor `json:"actor"`
+}
+
 // DevPRAuthor is the PR author block (Cloud vocabulary: author.name is the
 // GitHub login).
 type DevPRAuthor struct {
@@ -158,6 +203,36 @@ func (c *Client) LinkDevPR(ctx context.Context, issueID, prURL, name, author, br
 	}
 	if branch != "" {
 		body["branch"] = branch
+	}
+	err := c.write(ctx, "POST", "/rest/dev-status/1.0/issue/link", body, &out)
+	return out, err
+}
+
+// LinkDevDeployment posts one deployment record (GDK-592). environment
+// and state are required by the origin; url is optional — omitted from
+// the body when empty so the origin keys the row by its environment. The
+// actor is never sent — issuetap stamps it from the request identity.
+func (c *Client) LinkDevDeployment(ctx context.Context, issueID, environment, state, url string) (DevDeployment, error) {
+	var out DevDeployment
+	body := map[string]any{"issueId": issueID, "kind": "deployment", "environment": environment, "state": state}
+	if url != "" {
+		body["url"] = url
+	}
+	err := c.write(ctx, "POST", "/rest/dev-status/1.0/issue/link", body, &out)
+	return out, err
+}
+
+// LinkDevBuild posts one build record (GDK-592). state is the closed
+// three-bucket vocabulary; url and number are optional keys (the origin
+// requires one) and are omitted from the body when empty.
+func (c *Client) LinkDevBuild(ctx context.Context, issueID string, state DevBuildState, number, url string) (DevBuild, error) {
+	var out DevBuild
+	body := map[string]any{"issueId": issueID, "kind": "build", "state": string(state)}
+	if number != "" {
+		body["number"] = number
+	}
+	if url != "" {
+		body["url"] = url
 	}
 	err := c.write(ctx, "POST", "/rest/dev-status/1.0/issue/link", body, &out)
 	return out, err

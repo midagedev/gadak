@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -696,6 +696,20 @@ UNION ALL
 SELECT i.key, i.source_id, d.actor, d.actor_name, 'dev_link'
   FROM dev_links d JOIN items i ON i.id = d.item_id
  WHERE d.actor != '';
+`
+
+// schemaV37 adds dev_links.environment (GDK-592): the target a deployment
+// row names (production, staging, …). A dedicated column, not a slot in
+// title — environment is kind data the origin keys on (a url-less
+// deployment's id is environment:<name>), while title stays the row's
+// human label; stuffing one into the other is the exact hack this schema
+// refuses. The deployment/build rows' other axes already have homes: state
+// rides status (the generic per-kind state column), the build number rides
+// external_id. Existing rows keep the empty string until a write fills
+// them — no backfill; the mirror is a cache (same contract as v33).
+// dev_links is selected by no view, so no view rebuild.
+const schemaV37 = `
+ALTER TABLE dev_links ADD COLUMN environment TEXT NOT NULL DEFAULT '';
 `
 
 // personalStateCopyVersion is the migration level schemaV26 lands on. migrate

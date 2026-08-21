@@ -240,9 +240,16 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	// only way a removed comment or link leaves the mirror. dev_links is
 	// skipped when the origin answer was not observed (GDK-536 / GDK-580):
 	// a fetch error cannot construct DevLinksUpdate, so existing rows stay.
+	// A dev_links answer enumerates pull requests only — it is built from
+	// the summary's pullrequest count — so its rewrite touches the
+	// pullrequest rows and leaves the deployment/build rows `gadak dev
+	// deploy`/`dev build` wrote (GDK-592; their detail vocabulary is
+	// uncaptured, so no origin answer can enumerate them yet).
 	childTables := []string{"comments", "attachments", "changelog", "links"}
 	if r.DevLinks != nil {
-		childTables = append(childTables, "dev_links")
+		if _, err := tx.Exec(`DELETE FROM dev_links WHERE item_id = ? AND kind = 'pullrequest'`, it.ID); err != nil {
+			return false, err
+		}
 	}
 	for _, t := range childTables {
 		if _, err := tx.Exec(`DELETE FROM `+t+` WHERE item_id = ?`, it.ID); err != nil {
@@ -1293,8 +1300,9 @@ func devKind(k string) string {
 // ReplaceDevLinks swaps one issue's dev_links rows for a successful origin
 // answer — the mirror-refresh half of a dev-link write-through (GDK-497).
 // Never a source of truth: the same rows are rebuilt by any later sync.
-// update is a complete answer (empty Links drains); a fetch error cannot
-// construct it, so it cannot reach this function (GDK-580).
+// update is a complete pull-request answer (empty Links drains the PR rows
+// — GDK-580); deployment/build rows are not part of a dev-status answer
+// and survive, written only by `gadak dev deploy`/`dev build` (GDK-592).
 func (db *DB) ReplaceDevLinks(ctx context.Context, key string, update DevLinksUpdate) error {
 	return db.mutate(ctx, func(tx *sql.Tx) ([]string, error) {
 		var itemID, sourceID string
@@ -1304,7 +1312,7 @@ func (db *DB) ReplaceDevLinks(ctx context.Context, key string, update DevLinksUp
 			WHERE i.key = ?`, key).Scan(&itemID, &sourceID); err != nil {
 			return nil, err
 		}
-		if _, err := tx.Exec(`DELETE FROM dev_links WHERE item_id = ?`, itemID); err != nil {
+		if _, err := tx.Exec(`DELETE FROM dev_links WHERE item_id = ? AND kind = 'pullrequest'`, itemID); err != nil {
 			return nil, err
 		}
 		if err := insertDevLinks(tx, itemID, update.Links); err != nil {
@@ -1318,16 +1326,16 @@ func insertDevLinks(tx *sql.Tx, itemID string, links []DevLink) error {
 	for _, dl := range links {
 		if _, err := tx.Exec(`
 			INSERT INTO dev_links (item_id, kind, external_id, url, title, status,
-			                       author, actor, actor_name, branch, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?)
+			                       author, actor, actor_name, branch, environment, updated_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(item_id, url) DO UPDATE SET
 			  kind=excluded.kind, external_id=excluded.external_id,
 			  title=excluded.title, status=excluded.status,
 			  author=excluded.author, actor=excluded.actor,
 			  actor_name=excluded.actor_name, branch=excluded.branch,
-			  updated_at=excluded.updated_at`,
+			  environment=excluded.environment, updated_at=excluded.updated_at`,
 			itemID, devKind(dl.Kind), dl.ExternalID, dl.URL, dl.Title, dl.Status,
-			dl.Author, dl.Actor, dl.ActorName, dl.Branch, dl.UpdatedAt,
+			dl.Author, dl.Actor, dl.ActorName, dl.Branch, dl.Environment, dl.UpdatedAt,
 		); err != nil {
 			return err
 		}

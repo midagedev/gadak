@@ -87,6 +87,13 @@
   인수인계이고, connected Jira는 두 호출이 끼어들 수 있다는 사실을 소리
   내어 알립니다. `gadak issue`는 이슈가 얼마나 기다렸고 얼마나 진행
   중인지 보여줍니다 — 저장이 아니라 changelog에서 계산합니다.
+- **패널이 배포와 빌드를 나릅니다** ([GDK-592]). `gadak dev deploy KEY
+  --env production --state successful`과 `gadak dev build KEY --state
+  failed --number 592`가 나머지 두 종류의 개발 링크를 씁니다. `gadak
+  issue`는 이들을 PR과 구분해 보여주고, 이슈의 PR 링크를 다시 쓰는 sync는
+  이 행들을 건드리지 않습니다. standalone origin에서는 0값만 서빙했던
+  Cloud 모양 summary 블록이 실제 카운트를 담으므로, Cloud에 맞춰 쓰인
+  클라이언트가 그대로 읽습니다.
 - **dev 링크가 사람들을 압니다** ([GDK-589]). `dev_links`가 PR 작성자
   (사람)·링크를 쓴 actor(봇)·head 브랜치를 나릅니다(스키마 v33).
   `gadak dev scan`이 `gh`에서 실어 보내고, `dev link`는
@@ -1856,8 +1863,10 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-589]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-589
 [GDK-590]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-590
 [GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
+[GDK-592]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-592
 [GDK-597]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-597
 [GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
+[GDK-592]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-592
 [GDK-593]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-593
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588
