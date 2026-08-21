@@ -209,7 +209,10 @@ func TestCurrentGitBranch(t *testing.T) {
 	if out, err := exec.Command("git", "init").CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
-	if out, err := exec.Command("git", "commit", "--allow-empty", "-m", "x").CombinedOutput(); err != nil {
+	// CI has no git identity, so the commit carries its own (GDK-589).
+	if out, err := exec.Command("git",
+		"-c", "user.name=gadak test", "-c", "user.email=test@example.invalid",
+		"commit", "--allow-empty", "-m", "x").CombinedOutput(); err != nil {
 		t.Fatalf("git commit: %v\n%s", err, out)
 	}
 	if out, err := exec.Command("git", "checkout", "-b", "gdk-589-dev-link-actor").CombinedOutput(); err != nil {
