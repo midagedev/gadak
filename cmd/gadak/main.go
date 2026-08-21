@@ -181,7 +181,7 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   assign     set assignee     <KEY> <email|-> [--json]
   page       wiki page create/edit/comment  create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
   project    grow a standalone workspace by a project  create <KEY> [--name N] [--json]
-  dev        record a PR on an issue (standalone)  link <KEY> --pr <url> [--status open|merged|declined] [--json]
+  dev        record PRs on issues (standalone)  link <KEY> --pr <url> [--status ...] | scan [--dry-run] [--install-hook]
   fields     custom-field usage report  [--sample N] [--json] [--all] [--project KEY]
   team       share team settings/views  export [--out] [--with-members]
                                         import <FILE|-> [--dry-run] [--overwrite]

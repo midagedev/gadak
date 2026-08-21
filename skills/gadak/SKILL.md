@@ -339,6 +339,7 @@ gadak create "first ticket title" -m "why this exists"
 gadak issue STD-1 --json
 gadak comment STD-1 -m "Reproduced on staging."
 gadak dev link STD-1 --pr https://github.com/org/app/pull/7   # opened a PR? record it right here
+gadak dev scan                                                # or sweep the repo: keys in PR titles/branches → links
 
 # connected: a key that exists on that site
 gadak issue NMB-140 --json                    # fields, description, comments, history

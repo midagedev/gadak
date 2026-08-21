@@ -220,16 +220,18 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak export", "gadak team import"},
 	},
 	"dev": {
-		summary: "development-panel links: record a PR on an issue (standalone origin)",
-		usage:   "gadak dev link <KEY> --pr <url> [--status open|merged|declined] [--name N] [--json]",
+		summary: "development-panel links: record PRs on issues (standalone origin)",
+		usage:   "gadak dev link <KEY> --pr <url> [--status open|merged|declined] [--name N] [--json]\n       gadak dev scan [--dry-run] [--install-hook]",
 		options: []helpOption{
-			{name: "pr", desc: "pull request URL (required)"},
+			{name: "pr", desc: "pull request URL (required for link)"},
 			{name: "status", desc: "open (default), merged, or declined"},
 			{name: "name", desc: "display title shown in the panel"},
+			{name: "dry-run", desc: "scan: list matched PRs without writing"},
+			{name: "install-hook", desc: "scan: add a pre-push hook that runs `gadak dev scan`"},
 		},
 		examples: []string{
-			"gadak dev link STD-3 --pr https://github.com/org/app/pull/7",
 			"gadak dev link STD-3 --pr https://github.com/org/app/pull/7 --status merged",
+			"gadak dev scan            # match issue keys in `gh pr list` titles/branches, link them all",
 		},
 		seeAlso: []string{"gadak issue", "gadak sync"},
 	},
