@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -398,7 +399,7 @@ func ListLinkedPRs(devLinks []store.DevLink, attachments []store.DetailAttachmen
 		if l.Kind != "pullrequest" || seen[l.URL] {
 			continue
 		}
-		add(l.URL, l.Title, strings.ToLower(l.Status))
+		add(l.URL, l.Title, jira.DevPRStatus(l.Status).Stored())
 	}
 	for _, a := range attachments {
 		if seen[a.URL] || githubPRURL.FindStringSubmatch(a.URL) == nil {

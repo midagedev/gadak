@@ -179,29 +179,24 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 			end = len(updates)
 		}
 		chunk := updates[i:end]
-		err := db.write(ctx, func(tx *sql.Tx) error {
+		err := db.mutate(ctx, func(tx *sql.Tx) ([]string, error) {
 			sources := map[string]bool{}
 			now := Now()
 			for _, u := range chunk {
 				if _, err := tx.Exec(`UPDATE issues SET custom = ? WHERE item_id = ?`, u.customJSON, u.itemID); err != nil {
-					return err
+					return nil, err
 				}
 				if _, err := tx.Exec(`UPDATE items SET body_text = ?, synced_at = ? WHERE id = ?`, u.bodyText, now, u.itemID); err != nil {
-					return err
+					return nil, err
 				}
 				if err := writeFTS(tx, u.rowid, u.title, u.bodyText, u.comments); err != nil {
-					return err
+					return nil, err
 				}
 				if u.sourceID != "" {
 					sources[u.sourceID] = true
 				}
 			}
-			for id := range sources {
-				if err := bumpVersion(tx, id, db.schemaVersion); err != nil {
-					return err
-				}
-			}
-			return nil
+			return mapKeys(sources), nil
 		})
 		if err != nil {
 			return 0, fmt.Errorf("reingest custom batch: %w", err)

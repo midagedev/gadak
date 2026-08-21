@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/pairing"
 )
 
@@ -32,9 +33,9 @@ func TestIssueKeys(t *testing.T) {
 }
 
 func TestDevScanStatus(t *testing.T) {
-	for in, want := range map[string]string{
-		"OPEN": "OPEN", "open": "OPEN", "MERGED": "MERGED",
-		"CLOSED": "DECLINED", "closed": "DECLINED", "weird": "OPEN",
+	for in, want := range map[string]jira.DevPRStatus{
+		"OPEN": jira.DevPROpen, "open": jira.DevPROpen, "MERGED": jira.DevPRMerged,
+		"CLOSED": jira.DevPRDeclined, "closed": jira.DevPRDeclined, "weird": jira.DevPROpen,
 	} {
 		if got := devScanStatus(in); got != want {
 			t.Fatalf("devScanStatus(%q) = %q, want %q", in, got, want)

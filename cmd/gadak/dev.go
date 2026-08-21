@@ -61,10 +61,8 @@ func cmdDevLink(args []string) error {
 		return usageError("dev", "usage: gadak dev link <KEY> --pr <url> [--status open|merged|declined] [--name N]")
 	}
 	key := normalizeKey(rest[0])
-	st := strings.ToUpper(strings.TrimSpace(*status))
-	switch st {
-	case "OPEN", "MERGED", "DECLINED":
-	default:
+	st, ok := jira.ParseDevPRStatus(*status)
+	if !ok {
 		return fmt.Errorf("dev link: --status must be open, merged or declined (got %q)", *status)
 	}
 
@@ -101,7 +99,7 @@ func cmdDevLink(args []string) error {
 		fmt.Printf("{\"key\":%q,\"url\":%q,\"status\":%q}\n", key, created.URL, created.Status)
 		return nil
 	}
-	fmt.Printf("%s\tPR linked: %s (%s)\n", key, created.URL, strings.ToLower(created.Status))
+	fmt.Printf("%s\tPR linked: %s (%s)\n", key, created.URL, created.Status.Stored())
 	return nil
 }
 
@@ -138,16 +136,9 @@ func issueKeys(s string) []string {
 	return keys
 }
 
-// devScanStatus maps gh's PR state onto the dev-status vocabulary.
-func devScanStatus(ghState string) string {
-	switch strings.ToUpper(ghState) {
-	case "MERGED":
-		return "MERGED"
-	case "CLOSED":
-		return "DECLINED"
-	default:
-		return "OPEN"
-	}
+// devScanStatus maps gh's PR state onto the origin's dev-status vocabulary.
+func devScanStatus(ghState string) jira.DevPRStatus {
+	return jira.DevPRStatusFromGitHub(ghState)
 }
 
 // cmdDevScan reads the repo's pull requests via `gh pr list`, matches issue
@@ -203,7 +194,10 @@ func cmdDevScan(args []string) error {
 	}
 
 	// Group PRs by candidate key so the mirror refresh runs once per issue.
-	type match struct{ url, title, status string }
+	type match struct {
+		url, title string
+		status     jira.DevPRStatus
+	}
 	byKey := map[string][]match{}
 	for _, pr := range prs {
 		for _, k := range issueKeys(pr.Title + " " + pr.HeadRefName) {
@@ -238,7 +232,7 @@ func cmdDevScan(args []string) error {
 		issues++
 		for _, m := range byKey[key] {
 			if *dryRun {
-				fmt.Printf("%s\t%s (%s)\n", key, m.url, strings.ToLower(m.status))
+				fmt.Printf("%s\t%s (%s)\n", key, m.url, m.status.Stored())
 				linked++
 				continue
 			}

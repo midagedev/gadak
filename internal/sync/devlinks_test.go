@@ -13,7 +13,7 @@ func TestStandaloneSyncFetchesDevLinksWithFlagOff(t *testing.T) {
 	// GDK-536: standalone (issuetap) always fetches, even when DevStatus is off.
 	site := newSite(t, "en")
 	site.devPRs = map[string][]jira.DevPR{
-		"10001": {{ID: "pr-9", URL: "https://github.com/o/r/pull/9", Name: "from-origin", Status: "OPEN"}},
+		"10001": {{ID: "pr-9", URL: "https://github.com/o/r/pull/9", Name: "from-origin", Status: jira.DevPROpen}},
 	}
 	client := site.start()
 	db := newMirror(t)
@@ -57,10 +57,9 @@ func TestDevStatusFetchErrorPreservesRows(t *testing.T) {
 			ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "10004",
 			Status: "To Do", StatusID: "1", StatusCategory: "new",
 		},
-		DevLinks: []store.DevLink{{
+		DevLinks: &store.DevLinksUpdate{Links: []store.DevLink{{
 			Kind: "pullrequest", URL: "https://github.com/o/r/pull/keep", Title: "keep",
-		}},
-		DevLinksValid: true,
+		}}},
 	}
 	if _, err := db.UpsertIssues(ctx, store.Batch{Categories: map[string]string{"1": "new", "3": "inprogress", "5": "done"}, Records: []store.IssueRecord{seed}}); err != nil {
 		t.Fatal(err)
@@ -106,10 +105,9 @@ func TestDevStatusSuccessfulEmptyDrains(t *testing.T) {
 			ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "10004",
 			Status: "To Do", StatusID: "1", StatusCategory: "new",
 		},
-		DevLinks: []store.DevLink{{
+		DevLinks: &store.DevLinksUpdate{Links: []store.DevLink{{
 			Kind: "pullrequest", URL: "https://github.com/o/r/pull/gone", Title: "gone",
-		}},
-		DevLinksValid: true,
+		}}},
 	}
 	if _, err := db.UpsertIssues(ctx, store.Batch{Categories: map[string]string{"1": "new", "3": "inprogress", "5": "done"}, Records: []store.IssueRecord{seed}}); err != nil {
 		t.Fatal(err)

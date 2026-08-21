@@ -84,8 +84,21 @@ type DevLink struct {
 	ExternalID string
 	URL        string
 	Title      string
-	Status     string // lowercased origin status: open | merged | declined
-	UpdatedAt  string
+	// Status is the stored form of the origin's OPEN|MERGED|DECLINED
+	// vocabulary (lowercase). Produced by jira.DevPRStatus.Stored();
+	// unknown origin tokens stay the lowercased payload.
+	Status    string
+	UpdatedAt string
+}
+
+// DevLinksUpdate is a successful origin answer for one issue's
+// development-panel links. The type exists only after a completed fetch
+// (or a deliberate drain such as Cloud opt-out). Nil *DevLinksUpdate
+// skips the rewrite; a non-nil value with empty Links drains. A fetch
+// error cannot construct this value, so it cannot reach ReplaceDevLinks
+// or the upsert rewrite (GDK-536 / GDK-580).
+type DevLinksUpdate struct {
+	Links []DevLink
 }
 
 // Comment is stored flat: the source API exposes no thread parent.
@@ -154,11 +167,10 @@ type IssueRecord struct {
 	Attachments []Attachment
 	Changelog   []ChangeEntry
 	Links       []Link
-	DevLinks    []DevLink
-	// DevLinksValid is true when DevLinks is a complete origin answer,
-	// including empty (drain). False skips the dev_links rewrite so a
-	// fetch failure cannot drain existing rows (GDK-536).
-	DevLinksValid bool
+	// DevLinks, when non-nil, is a complete origin answer (including
+	// empty). Nil means the origin was not observed and existing rows
+	// stay (GDK-536 / GDK-580).
+	DevLinks *DevLinksUpdate
 }
 
 // Page is the document projection (one row in the pages table). Field names

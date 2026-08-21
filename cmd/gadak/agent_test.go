@@ -1004,10 +1004,10 @@ func TestIssueJSONIncludesLinkedPRs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.ReplaceDevLinks(context.Background(), "NMB-1", []store.DevLink{{
+	if err := db.ReplaceDevLinks(context.Background(), "NMB-1", store.DevLinksUpdate{Links: []store.DevLink{{
 		Kind: "pullrequest", URL: "https://github.com/midagedev/gadak/pull/50",
 		Title: "from panel", Status: "merged", UpdatedAt: "2026-08-21T00:00:00Z",
-	}}); err != nil {
+	}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {

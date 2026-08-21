@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -814,10 +815,10 @@ func TestReplaceDevLinksBumpsVersion(t *testing.T) {
 	if before.Version == 0 {
 		t.Fatal("seed should have advanced sync_state.version")
 	}
-	if err := db.ReplaceDevLinks(context.Background(), "NMB-1", []DevLink{{
+	if err := db.ReplaceDevLinks(context.Background(), "NMB-1", DevLinksUpdate{Links: []DevLink{{
 		Kind: "pullrequest", URL: "https://github.com/example/app/pull/1",
 		Title: "fix", Status: "open", UpdatedAt: "2026-08-21T00:00:00Z",
-	}}); err != nil {
+	}}}); err != nil {
 		t.Fatal(err)
 	}
 	after, err := db.SyncState(context.Background(), "jira")
@@ -963,16 +964,14 @@ func TestUpsertPreservesDevLinksWhenNotValid(t *testing.T) {
 			ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
 			Status: "To Do", StatusID: "1", StatusCategory: "new",
 		},
-		DevLinks: []DevLink{{
+		DevLinks: &DevLinksUpdate{Links: []DevLink{{
 			Kind: "pullrequest", URL: "https://github.com/o/r/pull/1", Title: "pr",
-		}},
-		DevLinksValid: true,
+		}}},
 	}
 	if _, err := db.UpsertIssues(ctx, Batch{Categories: fixtureCategories, Records: []IssueRecord{rec}}); err != nil {
 		t.Fatal(err)
 	}
 	rec.DevLinks = nil
-	rec.DevLinksValid = false
 	rec.Item.Title = "rewritten"
 	if _, err := db.UpsertIssues(ctx, Batch{Force: true, Categories: fixtureCategories, Records: []IssueRecord{rec}}); err != nil {
 		t.Fatal(err)
@@ -1001,16 +1000,14 @@ func TestUpsertDrainsDevLinksWhenValidEmpty(t *testing.T) {
 			ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
 			Status: "To Do", StatusID: "1", StatusCategory: "new",
 		},
-		DevLinks: []DevLink{{
+		DevLinks: &DevLinksUpdate{Links: []DevLink{{
 			Kind: "pullrequest", URL: "https://github.com/o/r/pull/2", Title: "pr",
-		}},
-		DevLinksValid: true,
+		}}},
 	}
 	if _, err := db.UpsertIssues(ctx, Batch{Categories: fixtureCategories, Records: []IssueRecord{rec}}); err != nil {
 		t.Fatal(err)
 	}
-	rec.DevLinks = nil
-	rec.DevLinksValid = true
+	rec.DevLinks = &DevLinksUpdate{}
 	if _, err := db.UpsertIssues(ctx, Batch{Force: true, Categories: fixtureCategories, Records: []IssueRecord{rec}}); err != nil {
 		t.Fatal(err)
 	}
@@ -1020,5 +1017,39 @@ func TestUpsertDrainsDevLinksWhenValidEmpty(t *testing.T) {
 	}
 	if len(d.DevLinks) != 0 {
 		t.Fatalf("successful empty must drain, still have %+v", d.DevLinks)
+	}
+}
+
+func TestMutateBumpsOnSuccessAndNotOnError(t *testing.T) {
+	db := openTemp(t)
+	seed(t, db)
+	before, err := db.SyncState(context.Background(), "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sentinel := errors.New("no write")
+	if err := db.mutate(context.Background(), func(*sql.Tx) ([]string, error) {
+		return []string{"jira"}, sentinel
+	}); !errors.Is(err, sentinel) {
+		t.Fatalf("mutate error = %v, want sentinel", err)
+	}
+	mid, err := db.SyncState(context.Background(), "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mid.Version != before.Version {
+		t.Fatalf("failed mutate moved version %d -> %d", before.Version, mid.Version)
+	}
+	if err := db.mutate(context.Background(), func(*sql.Tx) ([]string, error) {
+		return []string{"jira"}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := db.SyncState(context.Background(), "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Version <= before.Version {
+		t.Fatalf("successful mutate left version at %d", after.Version)
 	}
 }

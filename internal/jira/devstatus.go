@@ -14,12 +14,57 @@ import (
 	"strings"
 )
 
+// DevPRStatus is the origin's development-panel pull-request state
+// (Jira Cloud / issuetap). These three tokens are the whole vocabulary.
+type DevPRStatus string
+
+const (
+	DevPROpen     DevPRStatus = "OPEN"
+	DevPRMerged   DevPRStatus = "MERGED"
+	DevPRDeclined DevPRStatus = "DECLINED"
+)
+
+// ParseDevPRStatus accepts the origin/CLI tokens (any case). Unknown
+// input is rejected — callers that need a default (gh scan) use
+// DevPRStatusFromGitHub.
+func ParseDevPRStatus(s string) (DevPRStatus, bool) {
+	switch strings.ToUpper(strings.TrimSpace(s)) {
+	case string(DevPROpen):
+		return DevPROpen, true
+	case string(DevPRMerged):
+		return DevPRMerged, true
+	case string(DevPRDeclined):
+		return DevPRDeclined, true
+	default:
+		return "", false
+	}
+}
+
+// DevPRStatusFromGitHub maps `gh pr list --json state` onto the origin
+// vocabulary. CLOSED is DECLINED; anything else (including OPEN) is OPEN.
+func DevPRStatusFromGitHub(ghState string) DevPRStatus {
+	switch strings.ToUpper(strings.TrimSpace(ghState)) {
+	case string(DevPRMerged):
+		return DevPRMerged
+	case "CLOSED":
+		return DevPRDeclined
+	default:
+		return DevPROpen
+	}
+}
+
+// Stored is the mirror-column form (lowercase). store.DevLink.Status
+// stores this so list/detail JSON stays "open"|"merged"|"declined".
+func (s DevPRStatus) Stored() string {
+	return strings.ToLower(string(s))
+}
+
 // DevPR is one pull request from the dev-status detail payload.
 type DevPR struct {
-	ID     string `json:"id"`
-	URL    string `json:"url"`
-	Name   string `json:"name"`
-	Status string `json:"status"` // OPEN | MERGED | DECLINED
+	ID     string      `json:"id"`
+	URL    string      `json:"url"`
+	Name   string      `json:"name"`
+	Status DevPRStatus `json:"status"`
 }
 
 // DevStatusPRCount reads the summary's pullrequest count — one cheap call to
@@ -59,7 +104,11 @@ func (c *Client) DevStatusPRs(ctx context.Context, issueID string) ([]DevPR, err
 	var prs []DevPR
 	for _, d := range out.Detail {
 		for _, pr := range d.PullRequests {
-			pr.Status = strings.ToUpper(pr.Status)
+			if st, ok := ParseDevPRStatus(string(pr.Status)); ok {
+				pr.Status = st
+			} else {
+				pr.Status = DevPRStatus(strings.ToUpper(string(pr.Status)))
+			}
 			prs = append(prs, pr)
 		}
 	}
@@ -70,9 +119,9 @@ func (c *Client) DevStatusPRs(ctx context.Context, issueID string) ([]DevPR, err
 // Only issuetap (standalone) implements the endpoint — Jira Cloud's panel is
 // written by its marketplace apps, so a connected origin answers 404 and the
 // caller says so instead of pretending.
-func (c *Client) LinkDevPR(ctx context.Context, issueID, prURL, name, status string) (DevPR, error) {
+func (c *Client) LinkDevPR(ctx context.Context, issueID, prURL, name string, status DevPRStatus) (DevPR, error) {
 	var out DevPR
-	body := map[string]any{"issueId": issueID, "url": prURL, "name": name, "status": status}
+	body := map[string]any{"issueId": issueID, "url": prURL, "name": name, "status": string(status)}
 	err := c.write(ctx, "POST", "/rest/dev-status/1.0/issue/link", body, &out)
 	return out, err
 }

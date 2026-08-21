@@ -528,8 +528,9 @@ ALTER TABLE comments ADD COLUMN jsd_public INTEGER;
 // schemaV29 adds dev_links (GDK-497): the development-panel pull-request
 // links the origin holds for an issue — Jira's dev-status on a connected
 // workspace, issuetap's on a standalone one. Rows live and die with the
-// issue rewrite when the origin answer is observed (DevLinksValid): a
-// successful empty list drains, a fetch error preserves (GDK-536).
+// issue rewrite when a DevLinksUpdate is present: a successful empty
+// list drains, a fetch error cannot construct the update so existing
+// rows stay (GDK-536 / GDK-580).
 // Standalone / issuetap always fetches; Cloud keeps the DevStatus opt-in.
 // url is the idempotent key per issue, matching both origins' upsert rule.
 const schemaV29 = `

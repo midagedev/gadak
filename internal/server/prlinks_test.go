@@ -74,10 +74,10 @@ func TestDetailDerivesLinkedPRsFromAttachments(t *testing.T) {
 
 	// A dev_link for the same URL wins over the attachment (it knows the
 	// state), and a second dev-links-only PR joins the list (GDK-497).
-	if err := db.ReplaceDevLinks(context.Background(), "MID-7", []store.DevLink{
+	if err := db.ReplaceDevLinks(context.Background(), "MID-7", store.DevLinksUpdate{Links: []store.DevLink{
 		{URL: "https://github.com/midagedev/gadak/pull/50", Title: "from panel", Status: "merged", UpdatedAt: "2026-08-21T00:00:00Z"},
 		{URL: "https://github.com/midagedev/gadak/pull/51", Title: "panel only", Status: "open", UpdatedAt: "2026-08-21T00:00:01Z"},
-	}); err != nil {
+	}}); err != nil {
 		t.Fatalf("replace dev links: %v", err)
 	}
 	var dm struct {

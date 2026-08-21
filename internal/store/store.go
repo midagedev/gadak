@@ -279,11 +279,45 @@ func retryBusy(ctx context.Context, retries *atomic.Uint64, fn func() error) err
 // SQLite's lock, busy_timeout, BEGIN IMMEDIATE, and a bounded SQLITE_BUSY
 // retry cover those. Short overlapping writes are fine; the failure mode this
 // retry exists for is another process holding the write lock.
+//
+// Mirror-content writes that must move the ETag go through mutate, not write:
+// write does not bump sync_state.version. Local.db (visits, saved views),
+// bookkeeping (RecordSync, watermarks, sync_runs) and schema migrations
+// stay here because a version bump would be wrong, not forgotten (GDK-579).
 func (db *DB) write(ctx context.Context, fn func(*sql.Tx) error) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	return retryBusy(ctx, &db.writeBusyRetries, func() error {
 		return db.writeOnce(ctx, fn)
+	})
+}
+
+// mutate is the only path that writes mirrored content and advances
+// sync_state.version. fn runs inside write(); if it succeeds, each returned
+// source id is bumped once. Returning no sources is how a no-op (unchanged
+// upsert, empty delete) leaves the ETag alone. bumpVersion is not called
+// from anywhere else, so a new mirror writer cannot forget the ETag
+// (GDK-562 / GDK-579).
+func (db *DB) mutate(ctx context.Context, fn func(tx *sql.Tx) ([]string, error)) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
+		sources, err := fn(tx)
+		if err != nil {
+			return err
+		}
+		seen := make(map[string]struct{}, len(sources))
+		for _, id := range sources {
+			if id == "" {
+				continue
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			if err := bumpVersion(tx, id, db.schemaVersion); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

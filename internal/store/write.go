@@ -37,7 +37,7 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 		return 0, nil
 	}
 	changed := 0
-	err := db.write(ctx, func(tx *sql.Tx) error {
+	err := db.mutate(ctx, func(tx *sql.Tx) ([]string, error) {
 		// Reset per attempt: write() retries SQLITE_BUSY, which re-runs this
 		// callback from the start, and a counter captured out here would count
 		// the abandoned attempt's rows too (GDK-305).
@@ -46,34 +46,31 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 		for _, r := range b.Records {
 			ok, err := upsertRecord(tx, b, r)
 			if err != nil {
-				return fmt.Errorf("%s: %w", r.Item.Key, err)
+				return nil, fmt.Errorf("%s: %w", r.Item.Key, err)
 			}
 			if ok {
 				changed++
 				sources[r.Item.SourceID] = true
 			}
 		}
-		for id := range sources {
-			if err := bumpVersion(tx, id, db.schemaVersion); err != nil {
-				return err
-			}
-			if b.Force {
+		if b.Force {
+			for id := range sources {
 				// Write-through (SyncIssue Force) is a successful origin
 				// round-trip that does not call RecordSync — a single issue
 				// must not become the watermark (internal/sync/one.go).
 				// Clearing last_error here is that path's counterpart of
 				// RecordSync's "nil clears it" (GDK-453).
 				if _, err := tx.Exec(`UPDATE sync_state SET last_error = NULL WHERE source_id = ?`, id); err != nil {
-					return err
+					return nil, err
 				}
 			}
 		}
 		// Parent chains can resolve only after later pages arrive, so recompute
 		// epic_key for the whole table after every batch (cheap two-hop join).
 		if err := recomputeEpicKeys(tx); err != nil {
-			return err
+			return nil, err
 		}
-		return nil
+		return mapKeys(sources), nil
 	})
 	if err != nil {
 		return 0, err
@@ -178,10 +175,10 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 
 	// Child lists arrive complete, so replacing them is both correct and the
 	// only way a removed comment or link leaves the mirror. dev_links is
-	// skipped when the origin answer was not observed (GDK-536): a fetch
-	// error must not drain existing rows.
+	// skipped when the origin answer was not observed (GDK-536 / GDK-580):
+	// a fetch error cannot construct DevLinksUpdate, so existing rows stay.
 	childTables := []string{"comments", "attachments", "changelog", "links"}
-	if r.DevLinksValid {
+	if r.DevLinks != nil {
 		childTables = append(childTables, "dev_links")
 	}
 	for _, t := range childTables {
@@ -222,18 +219,9 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			return false, err
 		}
 	}
-	if r.DevLinksValid {
-		for _, dl := range r.DevLinks {
-			if _, err := tx.Exec(`
-			INSERT INTO dev_links (item_id, kind, external_id, url, title, status, updated_at)
-			VALUES (?,?,?,?,?,?,?)
-			ON CONFLICT(item_id, url) DO UPDATE SET
-			  kind=excluded.kind, external_id=excluded.external_id,
-			  title=excluded.title, status=excluded.status, updated_at=excluded.updated_at`,
-				it.ID, devKind(dl.Kind), dl.ExternalID, dl.URL, dl.Title, dl.Status, dl.UpdatedAt,
-			); err != nil {
-				return false, err
-			}
+	if r.DevLinks != nil {
+		if err := insertDevLinks(tx, it.ID, r.DevLinks.Links); err != nil {
+			return false, err
 		}
 	}
 	for _, l := range r.Links {
@@ -436,17 +424,17 @@ func (db *DB) PruneConfluenceSpaces(ctx context.Context, sourceID string, keepKe
 	if err != nil {
 		return 0, err
 	}
-	err = db.write(ctx, func(tx *sql.Tx) error {
+	err = db.mutate(ctx, func(tx *sql.Tx) ([]string, error) {
 		srows, err := tx.QueryContext(ctx, `SELECT key FROM spaces WHERE source_id = ?`, sourceID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		var drop []string
 		for srows.Next() {
 			var key string
 			if err := srows.Scan(&key); err != nil {
 				srows.Close()
-				return err
+				return nil, err
 			}
 			if _, ok := keep[key]; !ok {
 				drop = append(drop, key)
@@ -454,19 +442,19 @@ func (db *DB) PruneConfluenceSpaces(ctx context.Context, sourceID string, keepKe
 		}
 		if err := srows.Err(); err != nil {
 			srows.Close()
-			return err
+			return nil, err
 		}
 		srows.Close()
 		for _, key := range drop {
 			if _, err := tx.Exec(`DELETE FROM spaces WHERE source_id = ? AND key = ?`, sourceID, key); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		if len(drop) == 0 || n > 0 {
 			// DeleteItems already bumped version when pages were removed.
-			return nil
+			return nil, nil
 		}
-		return bumpVersion(tx, sourceID, db.schemaVersion)
+		return []string{sourceID}, nil
 	})
 	if err != nil {
 		return n, err
@@ -484,7 +472,7 @@ func (db *DB) UpsertPages(ctx context.Context, records []PageRecord) (int, error
 		return 0, nil
 	}
 	changed := 0
-	err := db.write(ctx, func(tx *sql.Tx) error {
+	err := db.mutate(ctx, func(tx *sql.Tx) ([]string, error) {
 		// Reset per attempt: write() retries SQLITE_BUSY, which re-runs this
 		// callback from the start, and a counter captured out here would count
 		// the abandoned attempt's rows too (GDK-305).
@@ -492,25 +480,20 @@ func (db *DB) UpsertPages(ctx context.Context, records []PageRecord) (int, error
 		// known project keys once per batch for bare-text issue-key filtering
 		known, err := loadKnownProjectKeys(tx)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		sources := map[string]bool{}
 		for _, r := range records {
 			ok, err := upsertPageRecord(tx, r, known)
 			if err != nil {
-				return fmt.Errorf("%s: %w", r.Item.Key, err)
+				return nil, fmt.Errorf("%s: %w", r.Item.Key, err)
 			}
 			if ok {
 				changed++
 				sources[r.Item.SourceID] = true
 			}
 		}
-		for id := range sources {
-			if err := bumpVersion(tx, id, db.schemaVersion); err != nil {
-				return err
-			}
-		}
-		return nil
+		return mapKeys(sources), nil
 	})
 	if err != nil {
 		return 0, err
@@ -740,7 +723,7 @@ func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (
 	}
 	deleted := 0
 	at := Now()
-	err := db.write(ctx, func(tx *sql.Tx) error {
+	err := db.mutate(ctx, func(tx *sql.Tx) ([]string, error) {
 		// Reset per attempt: write() retries SQLITE_BUSY, which re-runs this
 		// callback from the start, and a counter captured out here would count
 		// the abandoned attempt's rows too (GDK-305).
@@ -753,34 +736,34 @@ func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (
 				continue
 			}
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
-				return err
+				return nil, err
 			}
 			// issues, comments, attachments, changelog and links go with it via
 			// ON DELETE CASCADE, which is why foreign_keys=ON is not optional.
 			if _, err := tx.Exec(`DELETE FROM items WHERE id = ?`, id); err != nil {
-				return err
+				return nil, err
 			}
 			if _, err := tx.Exec(`
 				INSERT INTO deleted_items (key, source_id, deleted_at) VALUES (?,?,?)
 				ON CONFLICT(key) DO UPDATE SET deleted_at = excluded.deleted_at`,
 				key, sourceID, at); err != nil {
-				return err
+				return nil, err
 			}
 			deleted++
 		}
 		if deleted == 0 {
-			return nil
+			return nil, nil
 		}
 		// ponytail: tombstones expire on a fixed 90-day window. A client offline
 		// longer than that needs a full bootstrap anyway, which it gets from the
 		// version mismatch.
 		if _, err := tx.Exec(`DELETE FROM deleted_items WHERE deleted_at < datetime('now', '-90 days')`); err != nil {
-			return err
+			return nil, err
 		}
-		return bumpVersion(tx, sourceID, db.schemaVersion)
+		return []string{sourceID}, nil
 	})
 	if err != nil {
 		return 0, err
@@ -816,12 +799,12 @@ func (db *DB) PurgePageIDsOutsideNamespace(ctx context.Context, sourceID, ns str
 
 func (db *DB) purgeIDsOutsideNamespace(ctx context.Context, sourceID, ns, kind string) (int, error) {
 	purged := 0
-	err := db.write(ctx, func(tx *sql.Tx) error {
+	err := db.mutate(ctx, func(tx *sql.Tx) ([]string, error) {
 		purged = 0
 		rows, err := tx.Query(`SELECT id, rowid FROM items WHERE source_id = ? AND kind = ? AND id NOT LIKE ? ESCAPE '\'`,
 			sourceID, kind, likeEscape(ns+":")+"%")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		type row struct {
 			id    string
@@ -832,26 +815,26 @@ func (db *DB) purgeIDsOutsideNamespace(ctx context.Context, sourceID, ns, kind s
 			var r row
 			if err := rows.Scan(&r.id, &r.rowid); err != nil {
 				rows.Close()
-				return err
+				return nil, err
 			}
 			stale = append(stale, r)
 		}
 		if err := rows.Close(); err != nil {
-			return err
+			return nil, err
 		}
 		for _, r := range stale {
 			if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, r.rowid); err != nil {
-				return err
+				return nil, err
 			}
 			if _, err := tx.Exec(`DELETE FROM items WHERE id = ?`, r.id); err != nil {
-				return err
+				return nil, err
 			}
 			purged++
 		}
 		if purged == 0 {
-			return nil
+			return nil, nil
 		}
-		return bumpVersion(tx, sourceID, db.schemaVersion)
+		return []string{sourceID}, nil
 	})
 	return purged, err
 }
@@ -904,7 +887,7 @@ func likeEscape(s string) string {
 
 // bumpVersion advances the counter the read API turns into an ETag. It moves on
 // every write that changed mirrored rows and on nothing else, so an unchanged
-// sync leaves it alone.
+// sync leaves it alone. Called only from mutate (GDK-579).
 func bumpVersion(tx *sql.Tx, sourceID string, schemaVersion int) error {
 	_, err := tx.Exec(`
 		INSERT INTO sync_state (source_id, version, schema_version) VALUES (?, 1, ?)
@@ -1232,36 +1215,52 @@ func devKind(k string) string {
 	return k
 }
 
-// ReplaceDevLinks swaps one issue's dev_links rows for the origin's current
+// ReplaceDevLinks swaps one issue's dev_links rows for a successful origin
 // answer — the mirror-refresh half of a dev-link write-through (GDK-497).
 // Never a source of truth: the same rows are rebuilt by any later sync.
-func (db *DB) ReplaceDevLinks(ctx context.Context, key string, links []DevLink) error {
-	tx, err := db.sql.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	var itemID, sourceID string
-	if err := tx.QueryRow(`
-		SELECT i.item_id, it.source_id
-		FROM issues i JOIN items it ON it.id = i.item_id
-		WHERE i.key = ?`, key).Scan(&itemID, &sourceID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`DELETE FROM dev_links WHERE item_id = ?`, itemID); err != nil {
-		return err
-	}
+// update is a complete answer (empty Links drains); a fetch error cannot
+// construct it, so it cannot reach this function (GDK-580).
+func (db *DB) ReplaceDevLinks(ctx context.Context, key string, update DevLinksUpdate) error {
+	return db.mutate(ctx, func(tx *sql.Tx) ([]string, error) {
+		var itemID, sourceID string
+		if err := tx.QueryRow(`
+			SELECT i.item_id, it.source_id
+			FROM issues i JOIN items it ON it.id = i.item_id
+			WHERE i.key = ?`, key).Scan(&itemID, &sourceID); err != nil {
+			return nil, err
+		}
+		if _, err := tx.Exec(`DELETE FROM dev_links WHERE item_id = ?`, itemID); err != nil {
+			return nil, err
+		}
+		if err := insertDevLinks(tx, itemID, update.Links); err != nil {
+			return nil, err
+		}
+		return []string{sourceID}, nil
+	})
+}
+
+func insertDevLinks(tx *sql.Tx, itemID string, links []DevLink) error {
 	for _, dl := range links {
 		if _, err := tx.Exec(`
 			INSERT INTO dev_links (item_id, kind, external_id, url, title, status, updated_at)
-			VALUES (?,?,?,?,?,?,?)`,
+			VALUES (?,?,?,?,?,?,?)
+			ON CONFLICT(item_id, url) DO UPDATE SET
+			  kind=excluded.kind, external_id=excluded.external_id,
+			  title=excluded.title, status=excluded.status, updated_at=excluded.updated_at`,
 			itemID, devKind(dl.Kind), dl.ExternalID, dl.URL, dl.Title, dl.Status, dl.UpdatedAt,
 		); err != nil {
 			return err
 		}
 	}
-	if err := bumpVersion(tx, sourceID, db.schemaVersion); err != nil {
-		return err
+	return nil
+}
+
+func mapKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		if k != "" {
+			out = append(out, k)
+		}
 	}
-	return tx.Commit()
+	return out
 }

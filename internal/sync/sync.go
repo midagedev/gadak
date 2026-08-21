@@ -786,10 +786,10 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 
 	rec := store.IssueRecord{Item: item, Issue: issue}
 	if shouldFetchDevLinks(cfg, c) {
-		rec.DevLinks, rec.DevLinksValid = devLinksFor(ctx, c, iss.ID)
+		rec.DevLinks = devLinksFor(ctx, c, iss.ID)
 	} else {
 		// Cloud opt-out: a successful "we are not collecting these" drains.
-		rec.DevLinksValid = true
+		rec.DevLinks = &store.DevLinksUpdate{}
 	}
 	for _, cm := range comments {
 		sc := store.Comment{
@@ -1157,29 +1157,31 @@ func shouldFetchDevLinks(cfg *config.Config, c *jira.Client) bool {
 }
 
 // devLinksFor reads the origin's development panel for one issue — summary
-// first (one cheap call), detail only when it counts something. ok is false
-// on fetch error so the rewrite preserves existing rows; a successful empty
-// answer (n==0 or no PRs) is ok=true and drains.
-func devLinksFor(ctx context.Context, c *jira.Client, issueID string) ([]store.DevLink, bool) {
+// first (one cheap call), detail only when it counts something. A fetch
+// error returns nil so the rewrite preserves existing rows; a successful
+// empty answer (n==0 or no PRs) returns a non-nil update that drains.
+func devLinksFor(ctx context.Context, c *jira.Client, issueID string) *store.DevLinksUpdate {
 	n, err := c.DevStatusPRCount(ctx, issueID)
 	if err != nil {
 		devStatusSkips.Add(1)
-		return nil, false
+		return nil
 	}
 	if n == 0 {
-		return nil, true
+		return &store.DevLinksUpdate{}
 	}
 	prs, err := c.DevStatusPRs(ctx, issueID)
 	if err != nil {
 		devStatusSkips.Add(1)
-		return nil, false
+		return nil
 	}
-	return DevLinksFromPRs(prs), true
+	u := DevLinksFromPRs(prs)
+	return &u
 }
 
-// DevLinksFromPRs maps dev-status pull requests onto mirror rows. Shared with
-// `gadak dev link`'s post-write refresh so both paths store the same shape.
-func DevLinksFromPRs(prs []jira.DevPR) []store.DevLink {
+// DevLinksFromPRs maps dev-status pull requests onto a successful origin
+// answer. Shared with `gadak dev link`'s post-write refresh so both paths
+// store the same shape. A fetch error never produces this value.
+func DevLinksFromPRs(prs []jira.DevPR) store.DevLinksUpdate {
 	out := make([]store.DevLink, 0, len(prs))
 	for _, pr := range prs {
 		if pr.URL == "" {
@@ -1190,9 +1192,9 @@ func DevLinksFromPRs(prs []jira.DevPR) []store.DevLink {
 			ExternalID: pr.ID,
 			URL:        pr.URL,
 			Title:      pr.Name,
-			Status:     strings.ToLower(pr.Status),
+			Status:     pr.Status.Stored(),
 			UpdatedAt:  store.Now(),
 		})
 	}
-	return out
+	return store.DevLinksUpdate{Links: out}
 }
