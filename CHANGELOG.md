@@ -179,6 +179,21 @@ the fixes are all here.
   ([GDK-526]) — and custom-field mapping state is visible instead of silent
   ([GDK-522]).
 
+- **A bot worker is identifiable in data, not by name** ([GDK-590]). The
+  origin's account catalog lands in the mirror as `users` (v36): every
+  account a sync pass already reads — assignee, reporter, creator, comment
+  and changelog authors — keeps its `account_type`, where standalone
+  issuetap says `agent` for the accounts behind `X-Issuetap-Actor` and
+  Cloud says `app` for Connect accounts. One judgement function reads that
+  axis; nothing guesses from display names. The `issue_actors` view unions
+  the three actor seats (`comments` ∪ `changelog` ∪ `dev_links`), so
+  "issues this bot touched" is one query (the RECIPES example joins on
+  account ids). REST: member rows carry `account_type` / `is_bot` and now
+  include actors who never held the assignee or reporter seat, history
+  entries carry `author_id`, and a comment names its author's
+  `author_account_type`. No backfill — the catalog refills on the next
+  sync.
+
 ### The web UI, made consistent
 
 - **Desktop first-run opens the token page inside the app** ([GDK-71]).
@@ -1844,6 +1859,7 @@ measured numbers instead of adjectives.
 [GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
 [GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
 [GDK-589]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-589
+[GDK-590]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-590
 [GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
 [GDK-597]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-597
 [GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591

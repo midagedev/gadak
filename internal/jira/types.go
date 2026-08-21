@@ -19,11 +19,22 @@ type User struct {
 	AccountID   string `json:"accountId"`
 	DisplayName string `json:"displayName"`
 	Email       string `json:"emailAddress"`
+	// AccountType is the bot axis (GDK-590): standalone issuetap mints
+	// "agent" for the accounts behind X-Issuetap-Actor, Cloud sends "app"
+	// for Connect accounts and "atlassian"/"customer" for humans. Judge it
+	// only through IsBotAccountType.
+	AccountType string `json:"accountType"`
 	// The two below are only ever filled by the user search the assignee picker
 	// calls; the mirror stores neither.
 	AvatarURLs map[string]string `json:"avatarUrls"`
 	Active     bool              `json:"active"`
 }
+
+// IsBotAccountType is the one bot judgement (GDK-590): "agent" (standalone
+// actor accounts) and "app" (Cloud Connect accounts) are bots, everything
+// else — "atlassian", "customer", "" — is a human or unknown. Web, CLI and
+// MCP all call this; nothing re-derives it from display names.
+func IsBotAccountType(t string) bool { return t == "agent" || t == "app" }
 
 // Avatar is the 48px avatar, or empty when Jira sent none.
 func (u User) Avatar() string { return u.AvatarURLs["48x48"] }

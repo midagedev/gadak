@@ -881,7 +881,62 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 			rec.Links = append(rec.Links, store.Link{Type: l.Type.Name, Direction: "inward", TargetKey: l.InwardIssue.Key})
 		}
 	}
+	rec.Users = usersForRecord(f, comments, histories)
 	return rec, nil
+}
+
+// usersForRecord collects every user payload the record's mapping already
+// reads — creator, reporter, assignee, comment, attachment and changelog
+// authors — into the account catalog feed (GDK-590). Dev-panel actors are
+// deliberately not here: that payload carries no accountType, and an account
+// that has only ever linked a PR is indistinguishable from a human until it
+// acts somewhere richer; the catalog learns it then. Duplicate account ids
+// keep the richest sighting (non-empty wins), mirroring cacheUserCatalog's
+// merge across batches.
+func usersForRecord(f jira.Fields, comments []jira.Comment, histories []jira.History) []store.UserAccount {
+	var out []store.UserAccount
+	seen := map[string]int{}
+	add := func(u *jira.User) {
+		if u == nil || u.AccountID == "" {
+			return
+		}
+		if i, ok := seen[u.AccountID]; ok {
+			cur := &out[i]
+			if cur.Name == "" {
+				cur.Name = u.DisplayName
+			}
+			if cur.Email == "" {
+				cur.Email = u.Email
+			}
+			if cur.AccountType == "" {
+				cur.AccountType = u.AccountType
+			}
+			return
+		}
+		seen[u.AccountID] = len(out)
+		out = append(out, store.UserAccount{
+			AccountID:   u.AccountID,
+			Name:        u.DisplayName,
+			Email:       u.Email,
+			AccountType: u.AccountType,
+		})
+	}
+	add(f.Creator)
+	add(f.Reporter)
+	add(f.Assignee)
+	for i := range comments {
+		u := comments[i].Author
+		add(&u)
+	}
+	for i := range f.Attachment {
+		u := f.Attachment[i].Author
+		add(&u)
+	}
+	for i := range histories {
+		u := histories[i].Author
+		add(&u)
+	}
+	return out
 }
 
 // custom lands the configured aliases in issues.custom. Specs coalesce the

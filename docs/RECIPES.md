@@ -142,6 +142,19 @@ where c.author = 'Dana Whitfield'
 order by c.created_at desc limit 20
 ```
 
+**Issues a bot worker touched.** `issue_actors` is one touch per row across
+comments, changelog and dev-panel links; `users` caches the origin's
+`account_type`, where `agent` (standalone worker accounts) and `app` (Cloud
+Connect) mean bot. Join on ids — display names localize and rename:
+
+```sql
+select distinct a.issue_key
+from issue_actors a join users u
+  on u.source_id = a.source_id and u.account_id = a.actor_id
+where u.account_type in ('agent', 'app')
+order by a.issue_key
+```
+
 ## This sprint
 
 **My open work in the active sprint.** Key on `sprint_state` (or `sprint_id`),

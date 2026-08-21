@@ -73,6 +73,9 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 		if err := cacheStatusCatalog(tx, b); err != nil {
 			return nil, err
 		}
+		if err := cacheUserCatalog(tx, b); err != nil {
+			return nil, err
+		}
 		return mapKeys(sources), nil
 	})
 	if err != nil {
@@ -121,6 +124,34 @@ func cacheStatusCatalog(tx *sql.Tx, b Batch) error {
 			ON CONFLICT(source_id, status_id) DO UPDATE SET category = excluded.category`,
 			src, id, cat); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// cacheUserCatalog merges the records' collected accounts into the users
+// table (GDK-590). It runs on every batch — including ones whose rows were
+// skipped as unchanged — because the catalog is fed by payloads the change
+// detector never sees (a comment's author rides on an unchanged issue's
+// child fetch, and every batch re-reads the users the records mention).
+// Merge, not replace: an account whose payload this time carries no name or
+// account_type (a dev-panel actor, a trimmed listing) keeps what the catalog
+// already knows. Empty account ids are skipped — there is nothing to key on.
+func cacheUserCatalog(tx *sql.Tx, b Batch) error {
+	for _, r := range b.Records {
+		for _, u := range r.Users {
+			if u.AccountID == "" {
+				continue
+			}
+			if _, err := tx.Exec(`
+				INSERT INTO users (source_id, account_id, name, email, account_type) VALUES (?,?,?,?,?)
+				ON CONFLICT(source_id, account_id) DO UPDATE SET
+				  name = CASE WHEN excluded.name != '' THEN excluded.name ELSE users.name END,
+				  email = CASE WHEN excluded.email != '' THEN excluded.email ELSE users.email END,
+				  account_type = CASE WHEN excluded.account_type != '' THEN excluded.account_type ELSE users.account_type END`,
+				r.Item.SourceID, u.AccountID, u.Name, u.Email, u.AccountType); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

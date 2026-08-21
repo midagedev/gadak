@@ -173,6 +173,19 @@ type Link struct {
 	TargetKey string
 }
 
+// UserAccount is one row of the origin's account catalog (GDK-590). The
+// connector collects every user payload the sync already reads — assignee,
+// reporter, creator, comment/changelog/attachment authors — and the store
+// caches the union in the users table. AccountType keeps the origin's
+// spelling ("agent", "app", "atlassian", …); source-neutral on purpose, the
+// bot judgement on those values lives in the jira package.
+type UserAccount struct {
+	AccountID   string
+	Name        string
+	Email       string
+	AccountType string
+}
+
 // IssueRecord is one item and everything hanging off it. Child lists are
 // replaced wholesale on upsert, so a partial list would delete rows.
 type IssueRecord struct {
@@ -182,6 +195,11 @@ type IssueRecord struct {
 	Attachments []Attachment
 	Changelog   []ChangeEntry
 	Links       []Link
+	// Users feeds the account catalog cache. Unlike the child lists above it
+	// merges rather than replaces: a row with an empty name or account_type
+	// keeps what the catalog already knows (some payloads carry less than the
+	// first one that mentioned the account).
+	Users []UserAccount
 	// DevLinks, when non-nil, is a complete origin answer (including
 	// empty). Nil means the origin was not observed and existing rows
 	// stay (GDK-536 / GDK-580).

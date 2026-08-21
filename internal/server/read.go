@@ -94,6 +94,14 @@ type member struct {
 	Group         *string `json:"group"`
 	Status        *string `json:"status"`
 	JiraAccountID *string `json:"jira_account_id"`
+	// AccountType is the origin's account axis (GDK-590): "agent" for
+	// standalone worker accounts, "app" for Cloud Connect ones, "atlassian" /
+	// "customer" for humans. IsBot is jira.IsBotAccountType of it — the one
+	// judgement, never a display-name guess. Both omitempty: absent for
+	// accounts the catalog has no type for, which is the pre-v36 mirror and
+	// every human.
+	AccountType string `json:"account_type,omitempty"`
+	IsBot       bool   `json:"is_bot,omitempty"`
 }
 
 // fieldSpecOut is the client's view of one configured custom field. IDs stay
@@ -289,6 +297,7 @@ type detailComment struct {
 	Author          *string         `json:"author"`
 	AuthorEmail     *string         `json:"author_email"`
 	AuthorAccountID *string         `json:"author_account_id"`
+	AuthorAccountType *string       `json:"author_account_type,omitempty"`
 	Body            string          `json:"body"`
 	RawBody         json.RawMessage `json:"raw_body"`
 	CreatedAt       *string         `json:"created_at"`
@@ -316,6 +325,9 @@ type historyEntry struct {
 	From  *string `json:"from"`
 	To    *string `json:"to"`
 	By    *string `json:"by"`
+	// AuthorID is the account id of `by` (GDK-590): attribution that does not
+	// depend on localized display names. Additive — `by` stays.
+	AuthorID *string `json:"author_id,omitempty"`
 	// Categories are resolved from status ids, never from localized names.
 	FromCategory *string `json:"from_category"`
 	ToCategory   *string `json:"to_category"`
@@ -521,22 +533,24 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 			id = c.ID
 		}
 		res.Comments = append(res.Comments, detailComment{
-			CommentID:       id,
-			Author:          nilIfEmpty(c.Author),
-			AuthorEmail:     nilIfEmpty(view.emailByAccount[c.AuthorID]),
-			AuthorAccountID: nilIfEmpty(c.AuthorID),
-			Body:            c.Body, // the client's fallback when the ADF will not render
-			RawBody:         c.BodyADF,
-			CreatedAt:       nilIfEmpty(c.CreatedAt),
+			CommentID:         id,
+			Author:            nilIfEmpty(c.Author),
+			AuthorEmail:       nilIfEmpty(view.emailByAccount[c.AuthorID]),
+			AuthorAccountID:   nilIfEmpty(c.AuthorID),
+			AuthorAccountType: nilIfEmpty(view.accountTypeByAccount[c.AuthorID]),
+			Body:              c.Body, // the client's fallback when the ADF will not render
+			RawBody:           c.BodyADF,
+			CreatedAt:         nilIfEmpty(c.CreatedAt),
 		})
 	}
 	for _, h := range d.History {
 		e := historyEntry{
-			At:    nilIfEmpty(h.At),
-			Field: h.Field,
-			From:  nilIfEmpty(h.FromValue),
-			To:    nilIfEmpty(h.ToValue),
-			By:    nilIfEmpty(h.Author),
+			At:       nilIfEmpty(h.At),
+			Field:    h.Field,
+			From:     nilIfEmpty(h.FromValue),
+			To:       nilIfEmpty(h.ToValue),
+			By:       nilIfEmpty(h.Author),
+			AuthorID: nilIfEmpty(h.AuthorID),
 		}
 		if h.Field == "status" {
 			e.FromCategory = nilIfEmpty(view.categories[h.FromID])
@@ -644,12 +658,16 @@ type derivedView struct {
 	members        []member
 	membersVersion string
 	emailByAccount map[string]string
-	categories     map[string]string
-	groupByEmail   map[string]string
-	groupByAccount map[string]string
-	rules          []config.GroupRule
-	queryGroup     map[string]string
-	groupsEnabled  bool
+	// accountTypeByAccount is the cached origin account catalog (GDK-590):
+	// what detail comments label their authors with, and what marks bots on
+	// the people axis. Empty for a pre-v36 mirror, which simply labels nobody.
+	accountTypeByAccount map[string]string
+	categories           map[string]string
+	groupByEmail         map[string]string
+	groupByAccount       map[string]string
+	rules                []config.GroupRule
+	queryGroup           map[string]string
+	groupsEnabled        bool
 	// Plugin enrichments the list rows carry, by issue key. They are cached with
 	// everything else here, which is exactly as fresh as the ETag: a plugin that
 	// forgets to bump sync_state.version gets no refetch either way (docs/PLUGINS.md).
@@ -719,13 +737,14 @@ func (s *server) derived(ctx context.Context, version int64, lites []store.Issue
 func (s *server) buildView(ctx context.Context, key string, lites []store.IssueLite) (*derivedView, error) {
 	cfg := s.config()
 	v := &derivedView{
-		key:            key,
-		emailByAccount: map[string]string{},
-		categories:     map[string]string{},
-		groupByEmail:   map[string]string{},
-		groupByAccount: map[string]string{},
-		rules:          cfg.GroupRules,
-		bodyAliases:    map[string]bool{},
+		key:                  key,
+		emailByAccount:       map[string]string{},
+		accountTypeByAccount: map[string]string{},
+		categories:           map[string]string{},
+		groupByEmail:         map[string]string{},
+		groupByAccount:       map[string]string{},
+		rules:                cfg.GroupRules,
+		bodyAliases:          map[string]bool{},
 	}
 	for _, sp := range cfg.FieldSpecs() {
 		if sp.Role == "body" && sp.Alias != "" {
@@ -784,6 +803,30 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		// collapses to one member.
 		addMember(deref(l.AssigneeEmail), l.Assignee, l.AssigneeID)
 		addMember(deref(l.ReporterEmail), l.Reporter, l.ReporterID)
+	}
+	// Actors of comments, changelog entries and dev-panel links join the
+	// people axis (GDK-590): a bot that only commented — never assignee,
+	// never reporter — was invisible before. The axis stays a derived
+	// extension rather than a new one: same member shape, same config
+	// override, keyed by account id exactly like an email-hidden human.
+	actors, err := s.db.QueryIssueActors(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range actors {
+		name := a.ActorName
+		acc := a.ActorID
+		addMember("", &name, &acc)
+	}
+	// The account catalog labels every member the two passes above produced.
+	catalog, err := s.db.UserCatalog(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, u := range catalog {
+		if u.AccountType != "" {
+			v.accountTypeByAccount[u.AccountID] = u.AccountType
+		}
 	}
 	// Configuration wins: group, department, job role and avatar exist nowhere
 	// else.
@@ -857,6 +900,12 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		seen[m] = struct{}{}
 		if m.JiraAccountID != nil && m.Email != "" {
 			v.emailByAccount[*m.JiraAccountID] = m.Email
+		}
+		if acc := deref(m.JiraAccountID); acc != "" {
+			// The one bot judgement (jira.IsBotAccountType) — never a
+			// display-name guess, never re-derived here.
+			m.AccountType = v.accountTypeByAccount[acc]
+			m.IsBot = jira.IsBotAccountType(m.AccountType)
 		}
 		v.members = append(v.members, *m)
 	}

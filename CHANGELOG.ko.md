@@ -176,6 +176,20 @@
   ([GDK-520]), `schema_version`의 소유자는 `PRAGMA user_version` 하나이고
   ([GDK-526]), 커스텀 필드 매핑 상태는 침묵 대신 보입니다 ([GDK-522]).
 
+- **봇 작업자가 이름이 아니라 데이터로 식별됩니다** ([GDK-590]). origin의
+  계정 카탈로그가 `users` 테이블(v36)로 미러에 들어옵니다: 동기화가 이미
+  읽는 모든 사용자 페이로드 — 담당자·보고자·생성자·코멘트와 체인지로그
+  작성자 — 가 `account_type`을 유지합니다. standalone issuetap은
+  `X-Issuetap-Actor` 뒤의 계정에 `agent`를, Cloud은 Connect 계정에 `app`을
+  씁니다. 이 축을 읽는 판정 함수는 하나뿐이며, 아무도 표시 이름으로
+  추측하지 않습니다. `issue_actors` 뷰가 세 액터 자리(comments ∪ changelog
+  ∪ dev_links)를 합치므로 "이 봇이 건드린 이슈"가 쿼리 하나입니다
+  (RECIPES 예시는 계정 id로 조인합니다). REST: 멤버 행이
+  `account_type` / `is_bot`을 실고, 담당자·보고자 자리에 앉은 적 없는
+  액터도 people 축에 들어오며, history 항목이 `author_id`를, 코멘트가
+  작성자의 `author_account_type`을 실습니다. 백필은 없습니다 — 카탈로그는
+  다음 동기화에 다시 채워집니다.
+
 ### 일관되게 정리된 웹 UI
 
 - **데스크톱 첫 실행이 토큰 페이지를 앱 안에서 엽니다** ([GDK-71]).
@@ -1840,6 +1854,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-574]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-574
 [GDK-575]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-575
 [GDK-589]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-589
+[GDK-590]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-590
 [GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591
 [GDK-597]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-597
 [GDK-591]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-591

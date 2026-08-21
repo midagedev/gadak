@@ -1166,10 +1166,17 @@ func (s *server) handleWriteMeta(w http.ResponseWriter, r *http.Request) {
 func writeUserCatalog(w http.ResponseWriter, users []jira.User) {
 	out := make([]map[string]any, 0, len(users))
 	for _, u := range users {
-		out = append(out, map[string]any{
+		row := map[string]any{
 			"account_id": u.AccountID, "display_name": u.DisplayName, "email": u.Email,
 			"avatar_url": u.Avatar(), "active": u.Active,
-		})
+		}
+		// The bot axis (GDK-590), so a picker can de-emphasize bots without
+		// guessing from names. Omitted when the origin sent no accountType.
+		if u.AccountType != "" {
+			row["account_type"] = u.AccountType
+			row["is_bot"] = jira.IsBotAccountType(u.AccountType)
+		}
+		out = append(out, row)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"users": out})
 }

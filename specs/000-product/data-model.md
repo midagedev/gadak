@@ -382,6 +382,34 @@ costs one re-sync — and not time-in-status values, which stay deliberately
 absent: `gadak issue`'s wait/progress line computes them from the changelog at
 read time (GDK-591).
 
+## `users` (v36)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_id` | TEXT | `jira` (PK with `account_id`) |
+| `account_id` | TEXT | Origin-minted account id |
+| `name` | TEXT | Display name |
+| `email` | TEXT | Empty when the origin hides it (standalone agents have none) |
+| `account_type` | TEXT | Origin's spelling: `agent` (standalone issuetap actors), `app` (Cloud Connect), `atlassian` / `customer` (humans) |
+
+The origin's account catalog, cached by every sync pass from user payloads the
+sync already reads — assignee, reporter, creator, comment/attachment/changelog
+authors (GDK-590). Upserts merge: a later payload that omits a field keeps what
+the catalog knows. Dev-panel link actors are not collected (that payload carries
+no `account_type`). The bot judgement on `account_type` values lives in one
+function (`jira.IsBotAccountType`: `agent` and `app` are bots) — never re-derive
+it from display names, here or in any tool. Origin reference data: no backfill,
+a wipe costs one re-sync.
+
+## `issue_actors` (view, v36)
+
+Every (issue, account) touch across `comments.author_id` ∪ `changelog.author_id`
+∪ `dev_links.actor` — one row per touch, `via` naming the source (`comment` /
+`changelog` / `dev_link`). What "issues this account touched" joins on when
+`issues_full` alone cannot answer it (assignee/reporter columns cover only the
+two named seats). The RECIPES bot query joins this view with `users` on
+`account_id` — ids, never display names.
+
 ## `links`
 
 | Column | Type | Notes |

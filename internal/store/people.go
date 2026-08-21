@@ -107,3 +107,59 @@ func commentSnippet(bodyText, bodyADF string) string {
 	}
 	return string([]rune(text)[:commentSnippetRunes])
 }
+
+// UserCatalog reads the cached origin account catalog (GDK-590): every
+// account sync has seen, with the origin's account_type spelling. Callers
+// judge bots through the connector's one judgement function, never here —
+// the store is source-neutral.
+func (db *DB) UserCatalog(ctx context.Context) ([]UserAccount, error) {
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT account_id, COALESCE(name, ''), COALESCE(email, ''), COALESCE(account_type, '')
+		FROM users ORDER BY source_id, account_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []UserAccount{}
+	for rows.Next() {
+		var u UserAccount
+		if err := rows.Scan(&u.AccountID, &u.Name, &u.Email, &u.AccountType); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// IssueActor is one touch of one issue by one account: a comment, a
+// changelog entry, or a development-panel link (GDK-590). The union is also
+// the issue_actors view, so `gadak sql` and documented recipes see the same
+// axis the server builds members from.
+type IssueActor struct {
+	IssueKey   string
+	SourceID   string
+	ActorID    string
+	ActorName  string
+	Via        string // "comment" | "changelog" | "dev_link"
+}
+
+// QueryIssueActors returns every (issue, actor) touch, unordered. The set is
+// small — bounded by comments + changelog + dev_links rows — and the caller
+// (buildView) only folds it into a map, so no LIMIT.
+func (db *DB) QueryIssueActors(ctx context.Context) ([]IssueActor, error) {
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT issue_key, source_id, actor_id, COALESCE(actor_name, ''), via FROM issue_actors`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []IssueActor{}
+	for rows.Next() {
+		var a IssueActor
+		if err := rows.Scan(&a.IssueKey, &a.SourceID, &a.ActorID, &a.ActorName, &a.Via); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}

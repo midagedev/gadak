@@ -37,7 +37,7 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
 {
   "server_time": "2026-08-04T09:15:00Z",
   "sync_version": 412,
-  "members": [ { "email": "...", "name": "...", "display_name": null, "profile_image": null, "avatar_url": null, "department": null, "job_role": null, "group": null, "status": null, "jira_account_id": null } ],
+  "members": [ { "email": "...", "name": "...", "display_name": null, "profile_image": null, "avatar_url": null, "department": null, "job_role": null, "group": null, "status": null, "jira_account_id": null, "account_type": "agent", "is_bot": true } ],
   "members_version": "sha256:...",
   "issues": [ /* IssueLite, see below */ ],
   "sync_health": {
@@ -60,6 +60,13 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
   winning on every conflict. A person whose email Jira hides can still appear
   when configured explicitly. `avatar_url`
   and `profile_image` carry the same value — the client reads the latter.
+  Actors of comments, changelog entries and dev-panel links are members too
+  (GDK-590): a bot that only commented appears, keyed by account id with an
+  empty email, exactly like an email-hidden human. `account_type` is the
+  origin's account axis (`agent` for standalone worker accounts, `app` for
+  Cloud Connect, `atlassian`/`customer` for humans) and `is_bot` is derived
+  from it — the one judgement, never a display-name guess. Both are omitted
+  for accounts the catalog has no type for.
 - `sync_health.status` is one of `healthy` / `stale` / `failed` / `missing`, and
   `message` is `"ok"` when nothing is wrong (the client suppresses that line).
   It is server text in one language; the client localizes only the status label.
@@ -93,8 +100,8 @@ On-demand detail. Everything comes from the mirror; no Jira call.
   "issue_key": "NMB-142",
   "description_adf": { "type": "doc", "version": 1, "content": [] },
   "attachments": [ { "id": "10021", "filename": "...", "mime_type": "...", "size": 0, "media_id": "", "media_collection": "", "is_image": true, "is_video": false, "cache_status": "ready", "created_at": "...", "content_url": "/api/v1/issues/NMB-142/attachments/10021/content/" } ],
-  "comments": [ { "comment_id": "...", "author": "...", "author_email": null, "author_account_id": "...", "body": "flattened text", "raw_body": {}, "created_at": "..." } ],
-  "history": [ { "at": "...", "by": "...", "field": "status", "from": "...", "to": "...", "from_category": "done", "to_category": "inprogress" } ],
+  "comments": [ { "comment_id": "...", "author": "...", "author_email": null, "author_account_id": "...", "author_account_type": "agent", "body": "flattened text", "raw_body": {}, "created_at": "..." } ],
+  "history": [ { "at": "...", "by": "...", "author_id": "...", "field": "status", "from": "...", "to": "...", "from_category": "done", "to_category": "inprogress" } ],
   "linked_issues": [ { "key": "NMA-8", "type": "Blocks", "direction": "inward", "summary": "...", "status_category": "done" } ],
   "development_opinion": null,
   "qa_context": null,
@@ -113,6 +120,10 @@ the ADF will not render — the two are never both dropped.
 is empty and the renderer falls back to matching a media node to an attachment by
 filename. `author_email` is resolved by matching the comment author's account id
 against `config.members`, and is `null` for anyone not in that directory.
+`author_account_type` comes from the cached account catalog (GDK-590) and is
+omitted when the catalog has no entry for the author. History's `author_id`
+(same addition) is the account id of `by`, so a bot's status move is
+attributable without matching localized display names.
 
 `development_opinion`, `qa_context`, `deploy`, and `linked_prs` are merged from
 the `enrichments` table, which external plugins write with SQL — the kinds are

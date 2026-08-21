@@ -111,6 +111,11 @@ var originScopedTables = []tableRule{
 	// onto the new origin's categories.
 	{table: "status_catalog", scope: scopeMirror,
 		dropForSource: `DELETE FROM status_catalog WHERE source_id = ?`},
+	// users is the cached origin account catalog (GDK-590). account ids are
+	// origin-minted; keeping them across a replacement would attribute the
+	// new origin's history to the retired origin's accounts.
+	{table: "users", scope: scopeMirror,
+		dropForSource: `DELETE FROM users WHERE source_id = ?`},
 	// sync_runs reuse the source ids `jira` and `confluence`, so the new
 	// origin's first sync would appear beneath the retired origin's runs as if
 	// one history. GDK-418: missed by the old list.

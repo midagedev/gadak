@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -660,6 +660,42 @@ CREATE TABLE status_catalog (
 // the Atlassian account's, not this setting.
 const schemaV35 = `
 ALTER TABLE sync_state ADD COLUMN locale TEXT;
+`
+
+// schemaV36 caches the origin's account catalog (GDK-590). accountType rides
+// on every user payload sync already reads — assignee, reporter, creator,
+// comment/changelog/attachment authors — but the mirror stored none of it, so
+// "which of these actors is a bot" was unanswerable offline. Rows arrive via
+// IssueRecord.Users during UpsertIssues (same pattern as v34 status_catalog);
+// the migration does not backfill, because the mirror is a cache and the
+// origin is the record — a wipe costs one re-sync. account_type keeps the
+// origin's spelling ("agent" for standalone issuetap actors, "app" for Cloud
+// Connect); the bot judgement on those values lives in one function
+// (jira.IsBotAccountType), never in SQL. issue_actors is the actor axis as a
+// view: comments ∪ changelog ∪ dev_links, so "issues this account touched"
+// needs no new table and stays live with the base rows.
+const schemaV36 = `
+CREATE TABLE users (
+  source_id    TEXT NOT NULL,
+  account_id   TEXT NOT NULL,
+  name         TEXT NOT NULL DEFAULT '',
+  email        TEXT NOT NULL DEFAULT '',
+  account_type TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (source_id, account_id)
+);
+CREATE VIEW issue_actors AS
+SELECT i.key AS issue_key, i.source_id AS source_id,
+       c.author_id AS actor_id, c.author AS actor_name, 'comment' AS via
+  FROM comments c JOIN items i ON i.id = c.item_id
+ WHERE c.author_id != ''
+UNION ALL
+SELECT i.key, i.source_id, cl.author_id, cl.author, 'changelog'
+  FROM changelog cl JOIN items i ON i.id = cl.item_id
+ WHERE cl.author_id != ''
+UNION ALL
+SELECT i.key, i.source_id, d.actor, d.actor_name, 'dev_link'
+  FROM dev_links d JOIN items i ON i.id = d.item_id
+ WHERE d.actor != '';
 `
 
 // personalStateCopyVersion is the migration level schemaV26 lands on. migrate

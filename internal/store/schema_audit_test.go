@@ -62,11 +62,13 @@ func TestSchemaAuditFrankensteinMissingTable(t *testing.T) {
 
 // TestSchemaAuditFrankensteinMissingColumn drops one ADD COLUMN from a table
 // no view depends on, so SQLite will actually remove it, and the audit has
-// to report table.column rather than only the table.
+// to report table.column rather than only the table. attachments.author_id,
+// not changelog.author_id: the issue_actors view (v36) reads the latter, and
+// SQLite refuses to drop a column a live view references.
 func TestSchemaAuditFrankensteinMissingColumn(t *testing.T) {
 	db := plantFrankenstein(t, func(raw *sql.DB) {
-		if _, err := raw.Exec(`ALTER TABLE changelog DROP COLUMN author_id`); err != nil {
-			t.Fatalf("DROP COLUMN changelog.author_id: %v", err)
+		if _, err := raw.Exec(`ALTER TABLE attachments DROP COLUMN author_id`); err != nil {
+			t.Fatalf("DROP COLUMN attachments.author_id: %v", err)
 		}
 	})
 	got, err := db.SchemaAudit(context.Background())
@@ -74,10 +76,10 @@ func TestSchemaAuditFrankensteinMissingColumn(t *testing.T) {
 		t.Fatalf("SchemaAudit: %v", err)
 	}
 	if got.OK() {
-		t.Fatal("frankenstein with changelog.author_id dropped: OK() = true")
+		t.Fatal("frankenstein with attachments.author_id dropped: OK() = true")
 	}
-	if !containsName(got.Missing, "changelog.author_id") {
-		t.Fatalf("Missing = %v, want changelog.author_id", got.Missing)
+	if !containsName(got.Missing, "attachments.author_id") {
+		t.Fatalf("Missing = %v, want attachments.author_id", got.Missing)
 	}
 }
 
