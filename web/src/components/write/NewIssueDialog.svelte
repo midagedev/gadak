@@ -32,6 +32,7 @@
   } from '../../lib/create-fields'
   import type { CreateMetaProject, JiraUser, PriorityOption } from '../../lib/types'
   import Icon from '../ui/Icon.svelte'
+  import DialogShell from '../ui/DialogShell.svelte'
 
   type WriteDialogState = 'loading' | 'need-token' | 'meta-failed' | 'form'
 
@@ -351,35 +352,47 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div
-  class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#1c1812]/28 p-4 pt-[8vh] backdrop-blur-[2px]"
-  role="presentation"
-  onclick={(e) => {
-    if (e.target === e.currentTarget) close()
-  }}
->
-  <div
-    use:trapFocus
-    class="anim-enter flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
-    role="dialog"
-    aria-modal="true"
-    aria-label={t('write.newIssue')}
-    data-testid="new-issue-dialog"
-    data-write-state={writeState}
-  >
-    <div class="flex flex-none items-center justify-between border-b border-border-subtle px-5 py-3">
-      <h2 class="type-subject text-[18px] leading-snug text-text-primary">{t('write.newIssue')}</h2>
-      <button
-        type="button"
-        class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-        onclick={close}
-        aria-label={t('common.closeEsc')}
-        title={t('common.closeEsc')}
-      >
-        <Icon name="x" size={14} />
-      </button>
-    </div>
+{#snippet formFooter()}
+  {#if extraRequired.length}
+    <!-- Same shape as this dialog's other advisory lines (needToken /
+         metaFailed above): text-body, not a new size. -->
+    <p class="text-body text-status-reopen" data-testid="new-issue-required-warn">
+      {t('write.createRequiresMore', {
+        names: extraRequired.map((f) => f.name).join(', '),
+      })}
+    </p>
+  {/if}
+  <div class="flex items-center justify-end gap-2">
+    <button
+      type="button"
+      onclick={close}
+      class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+      >{t('common.cancel')}</button
+    >
+    <button
+      type="submit"
+      disabled={submitting}
+      class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+    >
+      {submitting ? t('common.creating') : t('common.create')}
+    </button>
+  </div>
+{/snippet}
 
+<DialogShell
+  title={t('write.newIssue')}
+  ariaLabel={t('write.newIssue')}
+  data-testid="new-issue-dialog"
+  data-write-state={writeState}
+  onclose={close}
+  trap={trapFocus}
+  panelClass="anim-enter max-h-[80vh] max-w-lg"
+  backdropClass="items-start overflow-y-auto p-4 pt-[8vh]"
+  asForm={writeState === 'form'}
+  onSubmit={submit}
+  footer={writeState === 'form' ? formFooter : undefined}
+  footerClass="mt-1 flex flex-none flex-col gap-2 border-t border-border-subtle px-5 py-3"
+>
     {#if writeState === 'loading'}
       <div class="px-5 py-8 text-center text-body text-text-muted">{t('common.loading')}</div>
     {:else if writeState === 'need-token'}
@@ -403,7 +416,6 @@
         >
       </div>
     {:else}
-      <form onsubmit={submit} class="flex min-h-0 flex-1 flex-col">
         <div class="scroll-region flex min-h-0 flex-1 flex-col gap-3 px-5 pt-4">
         <!-- Project + type -->
         <div class="flex gap-3">
@@ -587,37 +599,5 @@
           <p class="whitespace-pre-wrap text-[12px] text-status-reopen" data-testid="new-issue-error">{submitError}</p>
         {/if}
         </div>
-
-        <div
-          class="mt-1 flex flex-none flex-col gap-2 border-t border-border-subtle px-5 py-3"
-          data-dialog-footer
-        >
-          {#if extraRequired.length}
-            <!-- Same shape as this dialog's other advisory lines (needToken /
-                 metaFailed above): text-body, not a new size. -->
-            <p class="text-body text-status-reopen" data-testid="new-issue-required-warn">
-              {t('write.createRequiresMore', {
-                names: extraRequired.map((f) => f.name).join(', '),
-              })}
-            </p>
-          {/if}
-          <div class="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onclick={close}
-              class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
-              >{t('common.cancel')}</button
-            >
-            <button
-              type="submit"
-              disabled={submitting}
-              class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
-            >
-              {submitting ? t('common.creating') : t('common.create')}
-            </button>
-          </div>
-        </div>
-      </form>
     {/if}
-  </div>
-</div>
+</DialogShell>

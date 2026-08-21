@@ -7,7 +7,7 @@
    */
   import { t } from '../../lib/i18n'
   import { trapFocus } from '../../lib/focus-trap'
-  import Icon from '../ui/Icon.svelte'
+  import DialogShell from '../ui/DialogShell.svelte'
 
   let { onclose }: { onclose: () => void } = $props()
 
@@ -87,58 +87,38 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1812]/28 p-4 backdrop-blur-[2px]"
-  role="presentation"
-  onclick={(e) => {
-    if (e.target === e.currentTarget) onclose()
-  }}
+<DialogShell
+  title={t('shortcuts.title')}
+  ariaLabel={t('shortcuts.title')}
+  data-testid="shortcuts-dialog"
+  {onclose}
+  trap={trapFocus}
+  panelClass="anim-pop max-h-[80vh] max-w-lg"
+  headerClass="flex flex-none flex-col border-b border-border-subtle px-4 py-3"
 >
-  <div
-    use:trapFocus
-    class="anim-pop flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
-    role="dialog"
-    aria-modal="true"
-    aria-label={t('shortcuts.title')}
-    data-testid="shortcuts-dialog"
-  >
-    <div class="flex flex-none items-center justify-between border-b border-border-subtle px-4 py-3">
-      <h2 class="type-subject text-[18px] leading-snug text-text-primary">{t('shortcuts.title')}</h2>
-      <button
-        type="button"
-        class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-        onclick={onclose}
-        aria-label={t('common.closeEsc')}
-        title={t('common.closeEsc')}
-      >
-        <Icon name="x" size={14} />
-      </button>
-    </div>
-
-    <div class="scroll-region min-h-0 flex-1 px-4 py-3">
-      {#each sections as section (section.title)}
-        <div class="mb-3 last:mb-0">
-          <div class="mb-1 text-micro font-medium uppercase tracking-wide text-text-muted">
-            {section.title}
-          </div>
-          <dl class="flex flex-col">
-            {#each section.rows as [keys, label] (label + keys)}
-              <div class="flex items-center gap-3 border-b border-border-subtle/60 py-1.5 last:border-0">
-                <dt class="w-24 flex-none">
-                  <kbd
-                    class="rounded border border-border-strong bg-bg-elevated px-1.5 py-0.5 font-mono text-micro text-text-secondary"
-                  >
-                    {keys}
-                  </kbd>
-                </dt>
-                <dd class="min-w-0 flex-1 truncate text-[12px] text-text-secondary" title={label}>
-                  {label}
-                </dd>
-              </div>
-            {/each}
-          </dl>
+  <div class="scroll-region min-h-0 flex-1 px-4 py-3">
+    {#each sections as section (section.title)}
+      <div class="mb-3 last:mb-0">
+        <div class="mb-1 text-micro font-medium uppercase tracking-wide text-text-muted">
+          {section.title}
         </div>
-      {/each}
-    </div>
+        <dl class="flex flex-col">
+          {#each section.rows as [keys, label] (label + keys)}
+            <div class="flex items-center gap-3 border-b border-border-subtle/60 py-1.5 last:border-0">
+              <dt class="w-24 flex-none">
+                <kbd
+                  class="rounded border border-border-strong bg-bg-elevated px-1.5 py-0.5 font-mono text-micro text-text-secondary"
+                >
+                  {keys}
+                </kbd>
+              </dt>
+              <dd class="min-w-0 flex-1 truncate text-[12px] text-text-secondary" title={label}>
+                {label}
+              </dd>
+            </div>
+          {/each}
+        </dl>
+      </div>
+    {/each}
   </div>
-</div>
+</DialogShell>

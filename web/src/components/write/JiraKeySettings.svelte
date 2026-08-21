@@ -11,7 +11,7 @@
   import { write } from '../../stores/write.svelte'
   import { absoluteTime } from '../detail/format'
   import { trapFocus } from '../../lib/focus-trap'
-  import Icon from '../ui/Icon.svelte'
+  import DialogShell from '../ui/DialogShell.svelte'
 
   const API_TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens'
 
@@ -67,35 +67,17 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1812]/28 p-4 backdrop-blur-[2px]"
-  role="presentation"
-  onclick={(e) => {
-    if (e.target === e.currentTarget) close()
-  }}
+<DialogShell
+  title={t('jiraSettings.heading')}
+  ariaLabel={t('jiraSettings.title')}
+  onclose={close}
+  trap={trapFocus}
+  panelClass="anim-enter max-h-[80vh] max-w-sm"
+  asForm={true}
+  onSubmit={submit}
+  footerClass="mt-1 flex flex-none items-center justify-between gap-2 border-t border-border-subtle px-5 py-3"
 >
-  <div
-    use:trapFocus
-    class="anim-enter flex max-h-[80vh] w-full max-w-sm flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
-    role="dialog"
-    aria-modal="true"
-    aria-label={t('jiraSettings.title')}
-  >
-    <div class="flex flex-none items-center justify-between border-b border-border-subtle px-5 py-3">
-      <h2 class="type-subject text-[18px] leading-snug text-text-primary">{t('jiraSettings.heading')}</h2>
-      <button
-        type="button"
-        class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-        onclick={close}
-        aria-label={t('common.closeEsc')}
-        title={t('common.closeEsc')}
-      >
-        <Icon name="x" size={14} />
-      </button>
-    </div>
-
-    <form onsubmit={submit} class="flex min-h-0 flex-1 flex-col">
-      <div class="scroll-region flex min-h-0 flex-1 flex-col gap-3 px-5 pt-4">
+  <div class="scroll-region flex min-h-0 flex-1 flex-col gap-3 px-5 pt-4">
     <p class="text-[12px] leading-relaxed text-text-muted">
       <!-- intro3 already ends in "Atlassian"; the line break below is the space
            before the link, so no literal belongs here. -->
@@ -161,41 +143,36 @@
       {#if error}
         <p class="text-[12px] text-status-reopen">{error}</p>
       {/if}
-      </div>
-
-      <div
-        class="mt-1 flex flex-none items-center justify-between gap-2 border-t border-border-subtle px-5 py-3"
-        data-dialog-footer
-      >
-        {#if write.configured}
-          <button
-            type="button"
-            onclick={remove}
-            disabled={busy}
-            class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-status-reopen transition-colors hover:bg-status-reopen/10 disabled:opacity-50"
-          >
-            {deleteArmed ? t('jiraSettings.deleteConfirm') : t('common.delete')}
-          </button>
-        {:else}
-          <span></span>
-        {/if}
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            onclick={close}
-            class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
-          >
-            {t('common.cancel')}
-          </button>
-          <button
-            type="submit"
-            disabled={busy}
-            class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
-          >
-            {busy ? t('common.verifying') : write.configured ? t('jiraSettings.replaceToken') : t('common.save')}
-          </button>
-        </div>
-      </div>
-    </form>
   </div>
-</div>
+
+  {#snippet footer()}
+    {#if write.configured}
+      <button
+        type="button"
+        onclick={remove}
+        disabled={busy}
+        class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-status-reopen transition-colors hover:bg-status-reopen/10 disabled:opacity-50"
+      >
+        {deleteArmed ? t('jiraSettings.deleteConfirm') : t('common.delete')}
+      </button>
+    {:else}
+      <span></span>
+    {/if}
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        onclick={close}
+        class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+      >
+        {t('common.cancel')}
+      </button>
+      <button
+        type="submit"
+        disabled={busy}
+        class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+      >
+        {busy ? t('common.verifying') : write.configured ? t('jiraSettings.replaceToken') : t('common.save')}
+      </button>
+    </div>
+  {/snippet}
+</DialogShell>

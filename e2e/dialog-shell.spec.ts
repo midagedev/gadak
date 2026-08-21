@@ -4,6 +4,8 @@ import { en } from '../web/src/lib/i18n/en'
 
 /**
  * GDK-297: six same-class modal dialogs must share one shell contract.
+ * Visual chrome lives in web/src/components/ui/DialogShell.svelte (GDK-316);
+ * this table is still the contract a seventh row has to join.
  *
  * Driven from DIALOGS below so a seventh is one row — a test that only
  * asserted `role=dialog` exists would pass every inconsistency this

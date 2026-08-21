@@ -35,6 +35,7 @@
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
   import FavoritesNav from '../personal/FavoritesNav.svelte'
   import Icon from '../ui/Icon.svelte'
+  import DialogShell from '../ui/DialogShell.svelte'
   import SidebarSection from './SidebarSection.svelte'
   import { sidebarSections, type SectionId } from '../../stores/sidebar-sections.svelte'
 
@@ -920,63 +921,40 @@
 </div>
 
 {#if notesOpen && notesText}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1812]/28 p-4 backdrop-blur-[2px]"
-    role="presentation"
-    onclick={(e) => {
-      if (e.target === e.currentTarget) closeNotes()
-    }}
+  <DialogShell
+    title={t('sidebar.updateAvailable', { version: issues.latestVersion })}
+    ariaLabel={t('sidebar.updateAvailable', { version: issues.latestVersion })}
+    data-testid="update-notes"
+    onclose={closeNotes}
+    trap={trapFocus}
+    panelClass="anim-pop max-h-[80vh] max-w-lg"
+    headerClass="flex flex-none flex-col border-b border-border-subtle px-4 py-3"
+    footerClass="flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-4 py-3"
   >
-    <div
-      use:trapFocus
-      class="anim-pop flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('sidebar.updateAvailable', { version: issues.latestVersion })}
-      data-testid="update-notes"
-    >
-      <div class="flex flex-none items-center justify-between border-b border-border-subtle px-4 py-3">
-        <h2 class="type-subject text-[18px] leading-snug text-text-primary">
-          {t('sidebar.updateAvailable', { version: issues.latestVersion })}
-        </h2>
+    <pre
+      class="scroll-region min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-micro text-text-primary"
+    >{notesText}</pre>
+    {#snippet footer()}
+      {#if cta.command}
+        <span class="font-mono text-micro text-text-primary">{cta.command}</span>
         <button
           type="button"
-          class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-          onclick={closeNotes}
-          aria-label={t('common.closeEsc')}
-          title={t('common.closeEsc')}
+          class="inline-flex h-control-sm items-center rounded border border-border-strong px-1.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          onclick={() => void copyUpgradeCmd()}
         >
-          <Icon name="x" size={14} />
+          {copiedCmd ? t('settings.copied') : t('settings.copy')}
         </button>
-      </div>
-      <pre
-        class="scroll-region min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-micro text-text-primary"
-      >{notesText}</pre>
-      <div
-        class="flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-4 py-3"
-        data-dialog-footer
-      >
-        {#if cta.command}
-          <span class="font-mono text-micro text-text-primary">{cta.command}</span>
-          <button
-            type="button"
-            class="inline-flex h-control-sm items-center rounded border border-border-strong px-1.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            onclick={() => void copyUpgradeCmd()}
-          >
-            {copiedCmd ? t('settings.copied') : t('settings.copy')}
-          </button>
-        {/if}
-        {#if issues.releaseUrl}
-          <a
-            href={issues.releaseUrl}
-            target="_blank"
-            rel="noreferrer"
-            class="text-micro text-accent-text hover:underline"
-          >
-            {t('settings.updateReleaseNotes')}
-          </a>
-        {/if}
-      </div>
-    </div>
-  </div>
+      {/if}
+      {#if issues.releaseUrl}
+        <a
+          href={issues.releaseUrl}
+          target="_blank"
+          rel="noreferrer"
+          class="text-micro text-accent-text hover:underline"
+        >
+          {t('settings.updateReleaseNotes')}
+        </a>
+      {/if}
+    {/snippet}
+  </DialogShell>
 {/if}

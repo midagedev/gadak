@@ -72,6 +72,7 @@
   import AboutTab from './AboutTab.svelte'
   import { trapFocus } from '../../lib/focus-trap'
   import Icon from '../ui/Icon.svelte'
+  import DialogShell from '../ui/DialogShell.svelte'
 
   // `tab` is bindable so the `settings=` URL binding in App can read which tab
   // is open and set one on arrival; the default matches every open before the
@@ -303,67 +304,49 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1812]/28 p-4 backdrop-blur-[2px]"
-  role="presentation"
-  onclick={(e) => {
-    if (e.target === e.currentTarget) onclose()
-  }}
+<!-- 92vh, not 88: the Sync tab runs THIS MIRROR plus four groups plus the
+     personal-token entry point, and at 88vh the entry point sat 35px below
+     the fold — an action nobody scrolls to find, because nothing above it
+     suggests there is more. The alternative was to compress the groups, but
+     they are already at 16px apart with 4px between label and control, at or
+     under the floor that fix was given, so the height had to come from the
+     dialog instead. 8vh still leaves 40px of backdrop above and below at a
+     1000px viewport. (2026-08-06) -->
+<DialogShell
+  title={t('settings.title')}
+  ariaLabel={t('settings.title')}
+  data-testid="settings-dialog"
+  {onclose}
+  trap={trapFocus}
+  panelClass="anim-pop max-h-[92vh] max-w-3xl"
+  headerClass="flex flex-none flex-col border-b border-border-subtle px-5 pt-4"
+  titleRowClass="mb-0.5 flex items-center justify-between"
+  footerClass="flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-5 py-3"
 >
-  <!-- 92vh, not 88: the Sync tab runs THIS MIRROR plus four groups plus the
-       personal-token entry point, and at 88vh the entry point sat 35px below
-       the fold — an action nobody scrolls to find, because nothing above it
-       suggests there is more. The alternative was to compress the groups, but
-       they are already at 16px apart with 4px between label and control, at or
-       under the floor that fix was given, so the height had to come from the
-       dialog instead. 8vh still leaves 40px of backdrop above and below at a
-       1000px viewport. (2026-08-06) -->
-  <div
-    use:trapFocus
-    class="anim-pop flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
-    role="dialog"
-    aria-modal="true"
-    aria-label={t('settings.title')}
-    data-testid="settings-dialog"
-  >
-    <!-- Header + tabs -->
-    <div class="flex-none border-b border-border-subtle px-5 pt-4">
-      <div class="mb-0.5 flex items-center justify-between">
-        <h2 class="type-subject text-[18px] leading-snug text-text-primary">{t('settings.title')}</h2>
+  {#snippet headerExtra()}
+    <p class="mb-3 text-micro text-text-muted" data-testid="settings-intro">
+      {t('settings.intro')}
+    </p>
+    <div class="flex gap-1">
+      {#each TABS as [id, label] (id)}
         <button
           type="button"
-          class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-          onclick={onclose}
-          aria-label={t('common.closeEsc')}
-          title={t('common.closeEsc')}
+          class="-mb-px flex h-control items-center border-b-2 px-2.5 text-[12px] transition-colors {tab === id
+            ? 'border-accent text-text-primary'
+            : 'border-transparent text-text-secondary hover:text-text-primary'}"
+          onclick={() => (tab = id)}
         >
-          <Icon name="x" size={14} />
+          {label}
         </button>
-      </div>
-      <p class="mb-3 text-micro text-text-muted" data-testid="settings-intro">
-        {t('settings.intro')}
-      </p>
-      <div class="flex gap-1">
-        {#each TABS as [id, label] (id)}
-          <button
-            type="button"
-            class="-mb-px flex h-control items-center border-b-2 px-2.5 text-[12px] transition-colors {tab === id
-              ? 'border-accent text-text-primary'
-              : 'border-transparent text-text-secondary hover:text-text-primary'}"
-            onclick={() => (tab = id)}
-          >
-            {label}
-          </button>
-        {/each}
-      </div>
+      {/each}
     </div>
+  {/snippet}
 
-    <!-- Body -->
-    <div
-      class="scroll-region min-h-0 flex-1 px-5 pt-4 text-[12px]"
-      style="--scroll-pad-bottom: 1rem"
-      data-testid="settings-scroll"
-    >
+  <div
+    class="scroll-region min-h-0 flex-1 px-5 pt-4 text-[12px]"
+    style="--scroll-pad-bottom: 1rem"
+    data-testid="settings-scroll"
+  >
       {#if loading}
         <p class="py-8 text-center text-text-muted">{t('settings.loading')}</p>
       {:else}
@@ -434,58 +417,54 @@
     </div>
 
 
+  {#snippet footer()}
     <!-- One pinned footer: theme/locale write-throughs (theme immediately; locale
          stays per-browser) sit with Close/Save so they cannot stack over the body. -->
-    <div
-      class="flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-5 py-3"
-      data-dialog-footer
+    <label class="flex items-center gap-2 text-[12px] text-text-secondary">
+      <span>{t('theme.label')}</span>
+      <span class="relative flex">
+        <select
+          class="{SELECT} w-auto"
+          data-testid="theme-picker"
+          value={themePref}
+          onchange={onThemeChange}
+        >
+          {#each THEME_MODES as mode (mode.name)}
+            <option value={mode.name}>{t(mode.labelKey)}</option>
+          {/each}
+        </select>
+        <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+      </span>
+    </label>
+    <label class="flex items-center gap-2 text-[12px] text-text-secondary">
+      <span>{t('settings.locale')}</span>
+      <span class="relative flex">
+        <select
+          class="{SELECT} w-auto"
+          value={locale()}
+          onchange={(e) => setLocale(e.currentTarget.value as Locale)}
+        >
+          <option value="en">{t('settings.localeEn')}</option>
+          <option value="ko">{t('settings.localeKo')}</option>
+        </select>
+        <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+      </span>
+    </label>
+    <span class="min-w-0 flex-1 truncate text-[12px] text-status-reopen">{error ?? ''}</span>
+    <button
+      type="button"
+      onclick={onclose}
+      class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
     >
-      <label class="flex items-center gap-2 text-[12px] text-text-secondary">
-        <span>{t('theme.label')}</span>
-        <span class="relative flex">
-          <select
-            class="{SELECT} w-auto"
-            data-testid="theme-picker"
-            value={themePref}
-            onchange={onThemeChange}
-          >
-            {#each THEME_MODES as mode (mode.name)}
-              <option value={mode.name}>{t(mode.labelKey)}</option>
-            {/each}
-          </select>
-          <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
-        </span>
-      </label>
-      <label class="flex items-center gap-2 text-[12px] text-text-secondary">
-        <span>{t('settings.locale')}</span>
-        <span class="relative flex">
-          <select
-            class="{SELECT} w-auto"
-            value={locale()}
-            onchange={(e) => setLocale(e.currentTarget.value as Locale)}
-          >
-            <option value="en">{t('settings.localeEn')}</option>
-            <option value="ko">{t('settings.localeKo')}</option>
-          </select>
-          <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
-        </span>
-      </label>
-      <span class="min-w-0 flex-1 truncate text-[12px] text-status-reopen">{error ?? ''}</span>
-      <button
-        type="button"
-        onclick={onclose}
-        class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
-      >
-        {t('common.cancel')}
-      </button>
-      <button
-        type="button"
-        onclick={save}
-        disabled={loading || saving || !!jsonError}
-        class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
-      >
-        {saving ? t('common.saving') : t('common.save')}
-      </button>
-    </div>
-  </div>
-</div>
+      {t('common.cancel')}
+    </button>
+    <button
+      type="button"
+      onclick={save}
+      disabled={loading || saving || !!jsonError}
+      class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+    >
+      {saving ? t('common.saving') : t('common.save')}
+    </button>
+  {/snippet}
+</DialogShell>

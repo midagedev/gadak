@@ -11,7 +11,7 @@
   import { trapFocus } from '../../lib/focus-trap'
   import { issues } from '../../stores/issues.svelte'
   import CommentComposer from './CommentComposer.svelte'
-  import Icon from '../ui/Icon.svelte'
+  import DialogShell from '../ui/DialogShell.svelte'
 
   let { issueKey, onclose }: { issueKey: string; onclose: () => void } = $props()
 
@@ -38,40 +38,23 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div
-  class="fixed inset-0 z-50 flex items-start justify-center bg-[#1c1812]/28 p-4 pt-[14vh] backdrop-blur-[2px]"
-  role="presentation"
-  onclick={(e) => {
-    if (e.target === e.currentTarget) onclose()
-  }}
+<DialogShell
+  ariaLabel={t('triage.commentOn', { key: issueKey })}
+  data-testid="quick-comment"
+  {onclose}
+  trap={trapFocus}
+  panelClass="anim-pop max-w-lg"
+  backdropClass="items-start p-4 pt-[14vh]"
+  headerClass="flex flex-none flex-col border-b border-border-subtle px-4 py-2.5"
+  titleRowClass="flex items-center gap-2"
 >
-  <div
-    bind:this={rootEl}
-    use:trapFocus
-    class="anim-pop flex w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-panel shadow-overlay"
-    role="dialog"
-    aria-modal="true"
-    aria-label={t('triage.commentOn', { key: issueKey })}
-    data-testid="quick-comment"
-  >
-    <div class="flex flex-none items-center gap-2 border-b border-border-subtle px-4 py-2.5">
-      <span class="flex-none font-mono text-[12px] text-accent-text">{issueKey}</span>
-      <span class="min-w-0 flex-1 truncate text-body text-text-primary" title={issue?.summary}>
-        {issue?.summary ?? ''}
-      </span>
-      <button
-        type="button"
-        class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-        onclick={onclose}
-        aria-label={t('common.closeEsc')}
-        title={t('common.closeEsc')}
-      >
-        <Icon name="x" size={14} />
-      </button>
-    </div>
-
-    <div class="px-4 pb-3 pt-1">
-      <CommentComposer {issueKey} onsubmitted={onclose} />
-    </div>
+  {#snippet titleLead()}
+    <span class="flex-none font-mono text-[12px] text-accent-text">{issueKey}</span>
+    <span class="min-w-0 flex-1 truncate text-body text-text-primary" title={issue?.summary}>
+      {issue?.summary ?? ''}
+    </span>
+  {/snippet}
+  <div bind:this={rootEl} class="px-4 pb-3 pt-1">
+    <CommentComposer {issueKey} onsubmitted={onclose} />
   </div>
-</div>
+</DialogShell>
