@@ -1241,8 +1241,11 @@ func (db *DB) ReplaceDevLinks(ctx context.Context, key string, links []DevLink) 
 		return err
 	}
 	defer tx.Rollback()
-	var itemID string
-	if err := tx.QueryRow(`SELECT item_id FROM issues WHERE key = ?`, key).Scan(&itemID); err != nil {
+	var itemID, sourceID string
+	if err := tx.QueryRow(`
+		SELECT i.item_id, it.source_id
+		FROM issues i JOIN items it ON it.id = i.item_id
+		WHERE i.key = ?`, key).Scan(&itemID, &sourceID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM dev_links WHERE item_id = ?`, itemID); err != nil {
@@ -1256,6 +1259,9 @@ func (db *DB) ReplaceDevLinks(ctx context.Context, key string, links []DevLink) 
 		); err != nil {
 			return err
 		}
+	}
+	if err := bumpVersion(tx, sourceID, db.schemaVersion); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

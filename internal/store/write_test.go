@@ -804,6 +804,31 @@ func TestSyncStateSchemaVersionFollowsPRAGMA(t *testing.T) {
 	}
 }
 
+func TestReplaceDevLinksBumpsVersion(t *testing.T) {
+	db := openTemp(t)
+	seed(t, db)
+	before, err := db.SyncState(context.Background(), "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Version == 0 {
+		t.Fatal("seed should have advanced sync_state.version")
+	}
+	if err := db.ReplaceDevLinks(context.Background(), "NMB-1", []DevLink{{
+		Kind: "pullrequest", URL: "https://github.com/example/app/pull/1",
+		Title: "fix", Status: "open", UpdatedAt: "2026-08-21T00:00:00Z",
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := db.SyncState(context.Background(), "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Version <= before.Version {
+		t.Fatalf("ReplaceDevLinks left version at %d, want it to advance", after.Version)
+	}
+}
+
 func TestRecordSyncWatermarkOnlyMovesForward(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)
