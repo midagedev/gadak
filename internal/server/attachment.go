@@ -19,6 +19,9 @@ import (
 /* ── attachment bytes: local cache first, Jira only on a miss ── */
 
 // ponytail: a 2-minute ceiling on one attachment download, no resumption.
+// CheckRedirect is nil, so Go's default Client applies: Authorization is
+// stripped when the redirect hostname is not an exact match or subdomain of
+// the original hostname (net/http.Client, Go 1.26).
 var proxyClient = &http.Client{Timeout: 2 * time.Minute}
 
 // handleAttachment serves attachment bytes from the on-disk cache, falling back
@@ -259,7 +262,11 @@ func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueK
 		return nil, err
 	}
 	if sourceID == "linear" {
-		return fetchStoredURL(ctx, contentURL)
+		var key string
+		if isLinearUploadsURL(contentURL) && cfg != nil && cfg.Linear != nil {
+			key = cfg.Linear.APIKey
+		}
+		return fetchStoredURL(ctx, contentURL, key)
 	}
 	target := strings.TrimRight(cfg.Site, "/") + "/rest/api/3/attachment/content/" + url.PathEscape(id)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
@@ -277,15 +284,48 @@ func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueK
 	return mapAttachmentStatus(res, false)
 }
 
-// fetchStoredURL GETs an origin content URL with no Authorization header.
-// The Linear API key must never ride this request.
-func fetchStoredURL(ctx context.Context, target string) (*http.Response, error) {
+// linearUploadsHost is the only Linear storage hostname allowed to receive
+// the API key on a download GET. Subdomains and port variants are not this
+// host; http is not this scheme.
+const linearUploadsHost = "uploads.linear.app"
+
+// isLinearUploadsURL reports whether target is an https URL whose host is
+// exactly uploads.linear.app (no subdomain, no port). Linear documents that
+// file downloads from this host accept the API key in Authorization. That is
+// a different path from the upload PUT to a signed URL, which must not carry
+// the key (internal/linear/write.go UploadFile).
+func isLinearUploadsURL(target string) bool {
+	u, err := url.Parse(target)
+	if err != nil {
+		return false
+	}
+	return u.Scheme == "https" && u.Host == linearUploadsHost
+}
+
+// fetchStoredURL GETs an origin content URL. apiKey, when non-empty, is sent
+// as a bare Authorization value (Linear rejects the "Bearer " prefix —
+// internal/linear/client.go).
+//
+// Callers attach the Linear API key only for https://uploads.linear.app
+// downloads (isLinearUploadsURL). Linear documents that file downloads from
+// that host accept the API key in Authorization. That is a different path
+// from the upload PUT to a signed URL, which must not carry the key
+// (internal/linear/write.go UploadFile). Other hosts, http, or a missing key
+// take the unauthenticated path this function used before GDK-427.
+//
+// proxyClient has no CheckRedirect. Go's default Client strips Authorization
+// when the redirect hostname is not an exact match or subdomain of the
+// original hostname, so a hop off uploads.linear.app does not take the key.
+func fetchStoredURL(ctx context.Context, target, apiKey string) (*http.Response, error) {
 	if target == "" {
 		return nil, errAttachmentMissing
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, err
+	}
+	if apiKey != "" {
+		req.Header.Set("Authorization", apiKey)
 	}
 	res, err := proxyClient.Do(req)
 	if err != nil {

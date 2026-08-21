@@ -2,16 +2,25 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
 )
+
+// linearAttTestKey stands where a Linear API key would. It is not key-shaped
+// (no lin_api_ prefix) so scanners have no opinion about it. Same string as
+// internal/linear/client_test.go.
+const linearAttTestKey = "linear-test-key-not-a-real-secret"
 
 // attachmentFixture wires a fake Jira that serves one attachment and counts hits,
 // so a test can prove the second view never leaves the process.
@@ -297,6 +306,186 @@ func TestJiraAttachmentStillUsesSiteBasicAuth(t *testing.T) {
 	}
 	if n := hits.Load(); n != 1 {
 		t.Fatalf("jira upstream hits = %d, want 1", n)
+	}
+}
+
+func TestIsLinearUploadsURL(t *testing.T) {
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{"https://uploads.linear.app/abc/file.png", true},
+		{"https://uploads.linear.app/", true},
+		{"https://uploads.linear.app", true},
+		{"https://uploads.linear.app/abc?x=1", true},
+		{"https://uploads.linear.app/abc#frag", true},
+		{"HTTPS://uploads.linear.app/abc", true}, // Parse lowercases the scheme
+		{"http://uploads.linear.app/abc", false},
+		{"https://cdn.uploads.linear.app/abc", false},
+		{"https://uploads.linear.app.evil.example/abc", false},
+		{"https://linear.app/abc", false},
+		{"https://uploads.linear.app:443/abc", false},
+		{"https://uploads.linear.app:443", false},
+		{"https://example.com/abc", false},
+		{"https://127.0.0.1/abc", false},
+		{"https://Uploads.Linear.App/abc", false},
+		{"https://uploads.linear.app.", false},
+		{"uploads.linear.app/abc", false},
+		{"", false},
+		{"not a url", false},
+	}
+	for _, tt := range tests {
+		if got := isLinearUploadsURL(tt.in); got != tt.want {
+			t.Errorf("isLinearUploadsURL(%q) = %v, want %v", tt.in, got, tt.want)
+		}
+	}
+}
+
+func seedLinearAttachment(t *testing.T, db *store.DB, issueKey, attExtID, contentURL string) {
+	t.Helper()
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "linear:" + issueKey, SourceID: "linear", ExternalID: issueKey, Key: issueKey,
+				Title: "linear att", CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new"},
+			Attachments: []store.Attachment{{
+				ID: "linear:" + attExtID, ExternalID: attExtID, Filename: "file.png",
+				MimeType: "image/png", URL: contentURL,
+			}},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// rewriteLinearUploads is a test RoundTripper: https://uploads.linear.app is
+// rewritten onto dest (an httptest server) as http, so isLinearUploadsURL can
+// be true without contacting Linear. It is not a production bypass.
+type rewriteLinearUploads struct {
+	dest *url.URL
+}
+
+func (t rewriteLinearUploads) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Scheme != "https" || req.URL.Host != linearUploadsHost {
+		return nil, fmt.Errorf("unexpected attachment request %s://%s", req.URL.Scheme, req.URL.Host)
+	}
+	clone := req.Clone(req.Context())
+	u := *req.URL
+	u.Scheme = t.dest.Scheme
+	u.Host = t.dest.Host
+	clone.URL = &u
+	clone.Host = t.dest.Host
+	return http.DefaultTransport.RoundTrip(clone)
+}
+
+func TestLinearUploadsAttachmentSendsBareAPIKey(t *testing.T) {
+	db, _ := fixture(t)
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got := r.Header.Get("Authorization")
+		if got == "" || strings.HasPrefix(got, "Bearer ") || got != linearAttTestKey {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("no"))
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("LINAUTH"))
+	}))
+	t.Cleanup(origin.Close)
+	dest, err := url.Parse(origin.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := proxyClient
+	proxyClient = &http.Client{Timeout: 2 * time.Minute, Transport: rewriteLinearUploads{dest: dest}}
+	t.Cleanup(func() { proxyClient = saved })
+
+	seedLinearAttachment(t, db, "FIX-AUTH", "att-auth", "https://uploads.linear.app/file.png")
+	h := New(db, &config.Config{Linear: &config.LinearConfig{APIKey: linearAttTestKey}})
+	rec := get(t, h, apiBase+"FIX-AUTH/attachments/att-auth/content/", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "LINAUTH" {
+		t.Fatalf("linear uploads proxy → %d %q, want 200 LINAUTH", rec.Code, rec.Body.String())
+	}
+}
+
+func TestLinearAttachmentOtherHostDoesNotSendAPIKey(t *testing.T) {
+	db, _ := fixture(t)
+	var auth string
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("LINBYTES"))
+	}))
+	t.Cleanup(origin.Close)
+	seedLinearAttachment(t, db, "FIX-OTHER", "att-other", origin.URL+"/file.png")
+	h := New(db, &config.Config{Linear: &config.LinearConfig{APIKey: linearAttTestKey}})
+	rec := get(t, h, apiBase+"FIX-OTHER/attachments/att-other/content/", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "LINBYTES" {
+		t.Fatalf("linear other-host proxy → %d %q", rec.Code, rec.Body.String())
+	}
+	if auth != "" {
+		t.Fatalf("Authorization length %d, want empty (host is not uploads.linear.app)", len(auth))
+	}
+}
+
+func TestFetchStoredURLStripsAuthorizationOnCrossHostRedirect(t *testing.T) {
+	var destAuth string
+	var destHits int
+	dest := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		destHits++
+		destAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("DEST"))
+	}))
+	t.Cleanup(dest.Close)
+	const destHost = "gadak-linear-redirect-dest.test"
+	var srcAuth string
+	src := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srcAuth = r.Header.Get("Authorization")
+		// Two httptest servers share 127.0.0.1, and Go treats that as the same
+		// hostname (port is ignored by shouldCopyHeaderOnRedirect). Redirect
+		// through a different hostname so the default Client actually strips
+		// Authorization; DialContext maps that name onto dest.
+		http.Redirect(w, r, "http://"+destHost+"/file.png", http.StatusFound)
+	}))
+	t.Cleanup(src.Close)
+	destURL, err := url.Parse(dest.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := proxyClient
+	proxyClient = &http.Client{
+		Timeout: 2 * time.Minute,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				host, _, splitErr := net.SplitHostPort(addr)
+				if splitErr == nil && host == destHost {
+					addr = destURL.Host
+				}
+				var d net.Dialer
+				return d.DialContext(ctx, network, addr)
+			},
+		},
+	}
+	t.Cleanup(func() { proxyClient = saved })
+
+	res, err := fetchStoredURL(context.Background(), src.URL+"/file.png", linearAttTestKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if srcAuth != linearAttTestKey {
+		t.Fatalf("first hop Authorization length %d, want bare key (otherwise dest empty is vacuous)", len(srcAuth))
+	}
+	if destHits != 1 {
+		t.Fatalf("redirect dest hits %d, want 1", destHits)
+	}
+	if destAuth != "" {
+		t.Fatalf("redirect dest Authorization length %d, want empty (Go strips on non-subdomain redirect)", len(destAuth))
 	}
 }
 
