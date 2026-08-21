@@ -18,7 +18,7 @@ func TestISOTimeNormalizesToUTC(t *testing.T) {
 
 func TestCategoryNormalizesJiraKeys(t *testing.T) {
 	for key, want := range map[string]string{
-		"new": "new", "indeterminate": "inprogress", "done": "done", "undefined": "new", "": "new",
+		"new": "new", "indeterminate": "inprogress", "inprogress": "inprogress", "done": "done", "undefined": "new", "": "new",
 	} {
 		if got := Category(key); got != want {
 			t.Errorf("Category(%q) = %q, want %q", key, got, want)

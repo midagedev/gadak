@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 )
 
@@ -91,6 +92,29 @@ func mustNotTransition(t *testing.T, f *fakeJira, key string) {
 	tag := "POST /issue/" + key + "/transitions"
 	if f.called(tag) {
 		t.Fatalf("must not POST %s; body %s", tag, f.bodies[tag])
+	}
+}
+
+func TestTransitionFieldResolvesAlias(t *testing.T) {
+	f := newFakeJira(t)
+	cfg := mirror(t, f.URL)
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "severity", Label: "Severity", IDs: []string{"customfield_10001"}, Role: "facet", Kind: "option"},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := capture(t, func() error {
+		return cmdTransition([]string{"NMB-1", "31", "--field", "severity=High"})
+	}); err != nil {
+		t.Fatalf("transition --field severity=High: %v", err)
+	}
+	body := f.bodies["POST /issue/NMB-1/transitions"]
+	if !strings.Contains(body, `"customfield_10001"`) {
+		t.Fatalf("alias was not resolved to customfield id: %s", body)
+	}
+	if strings.Contains(body, `"severity"`) {
+		t.Fatalf("alias name leaked into transition fields: %s", body)
 	}
 }
 

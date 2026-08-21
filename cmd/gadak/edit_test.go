@@ -1240,6 +1240,69 @@ func TestEditFieldNotOnIssueRefusesPUT(t *testing.T) {
 	}
 }
 
+func TestEditUserFieldResolvesDisplayName(t *testing.T) {
+	f := newFakeJira(t)
+	seedUserAlias(t, f)
+	f.searchUsers = func(query string) string {
+		if query == "Dana Whitfield" {
+			return `[{"accountId":"acc-hc","displayName":"Dana Whitfield","emailAddress":"dana@example.com","active":true}]`
+		}
+		return "[]"
+	}
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--field", "reviewer=Dana Whitfield"})
+	})
+	if err != nil {
+		t.Fatalf("edit --field reviewer=Dana Whitfield: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	got := putPayload(t, body).Fields["customfield_10020"]
+	if !strings.Contains(string(got), `"accountId":"acc-hc"`) {
+		t.Fatalf("user field PUT %s, want accountId acc-hc (body %s)", got, body)
+	}
+	if strings.Contains(string(got), "Dana Whitfield") {
+		t.Fatalf("display name leaked into PUT body: %s", body)
+	}
+}
+
+func TestEditUserFieldUnknownRefuses(t *testing.T) {
+	f := newFakeJira(t)
+	seedUserAlias(t, f)
+	f.searchUsers = func(string) string { return "[]" }
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--field", "reviewer=Nobody Known"})
+	})
+	if err == nil {
+		t.Fatal("unknown user token must be refused")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "Nobody Known") {
+		t.Errorf("error must name the token: %q", msg)
+	}
+	if !strings.Contains(msg, "issues.assignee_id") && !strings.Contains(msg, "editmeta") {
+		t.Errorf("error must name issues.assignee_id or editmeta as sources: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("unknown user reached PUT: %v", f.calls)
+	}
+}
+
+func seedUserAlias(t *testing.T, f *fakeJira) {
+	t.Helper()
+	f.editMeta = `{
+		"customfield_10020": {"required":false,"schema":{"type":"user","system":"","custom":"com.atlassian.jira.plugin.system.customfieldtypes:userpicker"},"operations":["set"]}
+	}`
+	cfg := mirror(t, f.URL)
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "reviewer", Label: "Reviewer", IDs: []string{"customfield_10020"}, Role: "facet", Kind: "user"},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestEditHelpListsFieldFlag(t *testing.T) {
 	out, err := capture(t, func() error {
 		return cmdEdit([]string{"--help"})

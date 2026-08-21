@@ -998,6 +998,42 @@ func TestIssueMultipleKeysJSONArray(t *testing.T) {
 	}
 }
 
+func TestIssueJSONIncludesLinkedPRs(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReplaceDevLinks(context.Background(), "NMB-1", []store.DevLink{{
+		Kind: "pullrequest", URL: "https://github.com/midagedev/gadak/pull/50",
+		Title: "from panel", Status: "merged", UpdatedAt: "2026-08-21T00:00:00Z",
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"NMB-1", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue --json: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, `"linked_prs"`) {
+		t.Fatalf("CLI JSON missing linked_prs:\n%s", out)
+	}
+	if !strings.Contains(out, "https://github.com/midagedev/gadak/pull/50") {
+		t.Fatalf("linked_prs missing the PR URL:\n%s", out)
+	}
+
+	human, err := capture(t, func() error { return cmdIssue([]string{"NMB-1"}) })
+	if err != nil {
+		t.Fatalf("issue: %v\n%s", err, human)
+	}
+	if !strings.Contains(human, "Linked PRs") {
+		t.Fatalf("human output missing Linked PRs block:\n%s", human)
+	}
+}
+
 func TestIssueSingleKeyJSONIsObject(t *testing.T) {
 	mirror(t, "https://unused.example.com")
 
@@ -1447,6 +1483,28 @@ func TestResolveAccountMemberDirectoryByAccountID(t *testing.T) {
 	}
 	if stub.query != "jira-acc-1" {
 		t.Fatalf("linear SearchUsers query = %q", stub.query)
+	}
+}
+
+func TestAssignJoinsTrailingWords(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	f.searchUsers = func(query string) string {
+		if query == "Dana Whitfield" {
+			return `[{"accountId":"acc-hc","displayName":"Dana Whitfield","emailAddress":"dana@example.com","active":true}]`
+		}
+		return "[]"
+	}
+	if _, err := capture(t, func() error {
+		return cmdAssign([]string{"NMB-1", "Dana", "Whitfield"})
+	}); err != nil {
+		t.Fatalf("assign Dana Whitfield: %v", err)
+	}
+	if body := f.bodies["PUT /issue/NMB-1/assignee"]; !strings.Contains(body, `"accountId":"acc-hc"`) {
+		t.Fatalf("joined name did not resolve: %s (queries %v)", body, f.searchQueries)
+	}
+	if len(f.searchQueries) == 0 || f.searchQueries[len(f.searchQueries)-1] != "Dana Whitfield" {
+		t.Fatalf("SearchUsers query = %v, want Dana Whitfield", f.searchQueries)
 	}
 }
 

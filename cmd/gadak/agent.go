@@ -34,6 +34,7 @@ import (
 	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -135,6 +136,7 @@ const issueUsageLine = "usage: gadak issue <KEY> [KEY...] [--json] [--derive] [-
 type issueDoc struct {
 	Issue store.IssueLite `json:"issue"`
 	*store.Detail
+	LinkedPRs json.RawMessage `json:"linked_prs"`
 }
 
 func cmdIssue(args []string) error {
@@ -261,7 +263,7 @@ func loadIssueDocs(db *store.DB, keys []string) ([]issueDoc, []string, error) {
 		if !ok {
 			return nil, nil, fmt.Errorf("%s has a detail row but no issue row — the mirror is inconsistent, re-sync", key)
 		}
-		docs = append(docs, issueDoc{l, d})
+		docs = append(docs, issueDoc{Issue: l, Detail: d, LinkedPRs: linkedPRsJSON(d)})
 	}
 	return docs, notFound, nil
 }
@@ -370,7 +372,7 @@ func printIssueEditMetaHuman(rows []issueEditMetaField) {
 	if len(rows) == 0 {
 		// An empty intersection means no configured custom aliases, not a
 		// read-only issue — silence here reads as "nothing editable".
-		fmt.Println("no configured custom fields are editable on this issue — `gadak edit` system flags (--summary, --label, --priority, --parent) apply regardless; custom aliases appear here after `gadak fields --apply`")
+		fmt.Println("no configured custom fields are editable on this issue — `gadak edit` system flags (--summary, --label, --component, --fix-version, --priority, --parent, --due, -m) apply regardless; custom aliases appear here after `gadak fields --apply`")
 		return
 	}
 	for _, f := range rows {
@@ -494,12 +496,36 @@ func printIssue(l store.IssueLite, d *store.Detail) {
 			fmt.Printf("  %s %s\t%s\t%s\n", k.Type, k.Direction, k.Key, k.Summary)
 		}
 	}
+	if prs := server.ListLinkedPRs(d.DevLinks, d.Attachments); len(prs) > 0 {
+		fmt.Printf("\nLinked PRs (%d)\n", len(prs))
+		for _, p := range prs {
+			line := p.URL
+			if p.Title != "" {
+				line = p.Title + "\t" + p.URL
+			}
+			if p.State != "" {
+				line += "\t" + p.State
+			}
+			fmt.Printf("  %s\n", line)
+		}
+	}
 	if len(d.History) > 0 {
 		fmt.Printf("\nhistory (%d)\n", len(d.History))
 		for _, h := range d.History {
 			fmt.Printf("  %s  %s\t%s: %s → %s\n", h.At, h.Author, h.Field, h.FromValue, h.ToValue)
 		}
 	}
+}
+
+func linkedPRsJSON(d *store.Detail) json.RawMessage {
+	if d == nil {
+		return json.RawMessage("[]")
+	}
+	raw := server.MergedPRLinks(d.DevLinks, d.Attachments)
+	if len(raw) == 0 {
+		return json.RawMessage("[]")
+	}
+	return raw
 }
 
 func indent(s string) string {
@@ -1429,9 +1455,9 @@ func refreshAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, sr
 
 // mutate is the whole write-through shape: call the origin that owns the
 // key, re-read the issue into the mirror, then print the refreshed row.
-func mutate(key string, asJSON bool, fn func(context.Context, origin.Writer) (map[string]any, error)) error {
+func mutate(key string, asJSON bool, fn func(context.Context, origin.Writer, string) (map[string]any, error)) error {
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-		extra, err := fn(ctx, c)
+		extra, err := fn(ctx, c, src)
 		if err != nil {
 			return err
 		}
@@ -1672,9 +1698,9 @@ func cmdComment(args []string) error {
 		body = string(buf)
 	}
 	if strings.TrimSpace(body) == "" {
-		return errors.New("empty comment — pass -m <text>, or -m - to read stdin")
+		return errors.New("empty comment — pass -m <text>, or -m - to read stdin, or gadak comment KEY <text>")
 	}
-	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
+	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
 		mentions, unresolved, err := resolveCommentMentions(ctx, c, body)
 		if err != nil {
 			return nil, err
@@ -1727,7 +1753,7 @@ func cmdTransition(args []string) error {
 	asJSON := fs.Bool("json", false, "emit JSON")
 	resolution := fs.String("resolution", "", "resolution name or id; a name is resolved from the transition's allowedValues, else GET /resolution")
 	var fieldFlags labelFlags
-	fs.Var(&fieldFlags, "field", "screen field as key=JSON (repeatable); a value that is not JSON is sent as a string")
+	fs.Var(&fieldFlags, "field", "screen field key from `gadak transition KEY` (not a configured alias); key=JSON (repeatable); a value that is not JSON is sent as a string")
 	text := fs.String("m", "", "comment posted with the transition; `-` reads it from stdin")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("transition", fs))
@@ -1762,7 +1788,7 @@ func cmdTransition(args []string) error {
 		}
 	}
 
-	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
+	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
 		list, err := c.Transitions(ctx, key)
 		if err != nil {
 			return nil, err
@@ -1834,6 +1860,9 @@ func assembleTransitionFields(ctx context.Context, c origin.Writer, selected jir
 	if err != nil {
 		return nil, err
 	}
+	if cfg, lerr := config.Load(); lerr == nil {
+		remapTransitionFieldAliases(cfg, fields)
+	}
 	if r := strings.TrimSpace(resolution); r != "" {
 		val, err := resolveTransitionResolution(ctx, c, selected, r)
 		if err != nil {
@@ -1845,6 +1874,35 @@ func assembleTransitionFields(ctx context.Context, c origin.Writer, selected jir
 		fields["resolution"] = val
 	}
 	return fields, nil
+}
+
+func transitionKeepsScreenKey(key string) bool {
+	if key == "resolution" || strings.HasPrefix(strings.ToLower(key), "customfield_") {
+		return true
+	}
+	return false
+}
+
+func remapTransitionFieldAliases(cfg *config.Config, out map[string]any) {
+	if cfg == nil || len(out) == 0 {
+		return
+	}
+	allow := fields.EditableAliases(cfg)
+	for key, val := range out {
+		if transitionKeepsScreenKey(key) {
+			continue
+		}
+		ea, ok := allow[key]
+		if !ok || len(ea.IDs) == 0 {
+			continue
+		}
+		id := ea.IDs[0]
+		if id == "" || id == key {
+			continue
+		}
+		delete(out, key)
+		out[id] = val
+	}
 }
 
 func parseTransitionFieldFlags(raw []string) (map[string]any, error) {
@@ -1970,7 +2028,7 @@ func requiredTransitionFieldsError(key string, t jira.Transition, missing []stri
 	for _, k := range missing {
 		parts = append(parts, formatTransitionField(k, t.Fields[k]))
 	}
-	return fmt.Errorf("%s %s requires: %s", key, t.Name, strings.Join(parts, "; "))
+	return fmt.Errorf("%s %s requires: %s — pass --resolution NAME or --field resolution={\"id\":...}", key, t.Name, strings.Join(parts, "; "))
 }
 
 func formatTransitionField(key string, f jira.TransitionField) string {
@@ -2014,7 +2072,7 @@ func cmdAssign(args []string) error {
 	if len(pos) < 2 {
 		return usageError("assign", "usage: gadak assign <KEY> <email|name|accountId|-> [--json]")
 	}
-	key, who := normalizeKey(pos[0]), strings.TrimSpace(pos[1])
+	key, who := normalizeKey(pos[0]), strings.TrimSpace(strings.Join(pos[1:], " "))
 
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		id, err := resolveAccount(ctx, c, who, src)
@@ -2074,7 +2132,7 @@ func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (s
 		return users[0].AccountID, nil
 	}
 	if len(users) == 0 {
-		return "", fmt.Errorf("no user on this issue's origin matches %q", who)
+		return "", fmt.Errorf("no user on this issue's origin matches %q — look up issues.assignee_id in the mirror or `gadak issue KEY --editmeta`", who)
 	}
 	names := make([]string, 0, len(users))
 	for _, u := range users {

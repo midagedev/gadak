@@ -166,7 +166,7 @@ func cmdEdit(args []string) error {
 		}
 	}
 
-	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
+	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, src string) (map[string]any, error) {
 		fields := map[string]any{}
 		update := map[string]any{}
 		if hasSummary {
@@ -222,7 +222,7 @@ func cmdEdit(args []string) error {
 			if merr != nil {
 				return nil, merr
 			}
-			custom, cerr := resolveEditAliasFields(fieldCfg, meta, fieldRaws, key)
+			custom, cerr := resolveEditAliasFields(ctx, c, src, fieldCfg, meta, fieldRaws, key)
 			if cerr != nil {
 				return nil, cerr
 			}
@@ -441,24 +441,24 @@ func unknownFieldAliasError(alias string, allow map[string]fields.EditableAlias)
 	}
 	sort.Strings(names)
 	if len(names) == 0 {
-		return fmt.Errorf("unknown field alias %q — no configured aliases", alias)
+		return fmt.Errorf("unknown field alias %q — no configured aliases; run `gadak fields --apply`, then `gadak issue KEY --editmeta`", alias)
 	}
-	return fmt.Errorf("unknown field alias %q — configured: %s", alias, strings.Join(names, ", "))
+	return fmt.Errorf("unknown field alias %q — configured: %s; run `gadak fields --apply`, then `gadak issue KEY --editmeta`", alias, strings.Join(names, ", "))
 }
 
-func resolveEditAliasFields(cfg *config.Config, meta map[string]jira.FieldMeta, raws map[string]json.RawMessage, key string) (map[string]any, error) {
+func resolveEditAliasFields(ctx context.Context, c origin.Writer, src string, cfg *config.Config, meta map[string]jira.FieldMeta, raws map[string]json.RawMessage, key string) (map[string]any, error) {
 	allow := fields.EditableAliases(cfg)
 	out := make(map[string]any, len(raws))
 	for alias, raw := range raws {
 		ea := allow[alias]
 		id, kind, present := jirafields.ResolveEditableID(ea.IDs, meta)
 		if !present {
-			return nil, fmt.Errorf("field %q is not editable on %s", alias, key)
+			return nil, fmt.Errorf("field %q is not editable on %s — `gadak issue %s --editmeta`", alias, key, key)
 		}
 		if kind == "" {
 			kind = ea.Kind
 		}
-		val, err := wrapAliasValue(kind, raw, meta[id])
+		val, err := wrapAliasValue(ctx, c, src, kind, raw, meta[id])
 		if err != nil {
 			return nil, fmt.Errorf("field %s: %w", alias, err)
 		}
@@ -467,7 +467,7 @@ func resolveEditAliasFields(cfg *config.Config, meta map[string]jira.FieldMeta, 
 	return out, nil
 }
 
-func resolveCreateAliasFields(cfg *config.Config, list []jira.CreateFieldMeta, raws map[string]json.RawMessage) (map[string]any, error) {
+func resolveCreateAliasFields(ctx context.Context, c origin.Writer, src string, cfg *config.Config, list []jira.CreateFieldMeta, raws map[string]json.RawMessage) (map[string]any, error) {
 	byID := make(map[string]jira.CreateFieldMeta, len(list))
 	for _, f := range list {
 		byID[f.FieldID] = f
@@ -486,14 +486,14 @@ func resolveCreateAliasFields(cfg *config.Config, list []jira.CreateFieldMeta, r
 			}
 		}
 		if !ok {
-			return nil, fmt.Errorf("field %q is not available for this project and type", alias)
+			return nil, fmt.Errorf("field %q is not available for this project and type — `gadak issue KEY --editmeta`", alias)
 		}
 		meta := fieldMetaFromCreate(found)
 		kind := jirafields.EditKind(meta)
 		if kind == "" {
 			kind = ea.Kind
 		}
-		val, err := wrapAliasValue(kind, raw, meta)
+		val, err := wrapAliasValue(ctx, c, src, kind, raw, meta)
 		if err != nil {
 			return nil, fmt.Errorf("field %s: %w", alias, err)
 		}
@@ -512,7 +512,21 @@ func fieldMetaFromCreate(f jira.CreateFieldMeta) jira.FieldMeta {
 	return m
 }
 
-func wrapAliasValue(kind string, raw json.RawMessage, meta jira.FieldMeta) (any, error) {
+func wrapAliasValue(ctx context.Context, c origin.Writer, src, kind string, raw json.RawMessage, meta jira.FieldMeta) (any, error) {
+	if kind == "user" {
+		if len(raw) == 0 || string(raw) == "null" {
+			return fields.FieldValue(kind, raw)
+		}
+		tok, ok := scalarToken(raw)
+		if !ok {
+			return fields.FieldValue(kind, raw)
+		}
+		id, err := resolveAccount(ctx, c, tok, src)
+		if err != nil {
+			return nil, err
+		}
+		return fields.ValueFromIDs("user", []string{id}), nil
+	}
 	if kind == "" {
 		var v any
 		if err := json.Unmarshal(raw, &v); err != nil {
