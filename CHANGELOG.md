@@ -172,6 +172,14 @@ the fixes are all here.
   `gadak skill install --force`. Skill failure is a warning — init and
   install-cli still exit 0. `init --json` grows `"skill":
   "installed"|"skipped"|"failed"`.
+- **The repository is a Claude Code plugin marketplace** ([GDK-93]).
+  `claude plugin marketplace add midagedev/gadak` then
+  `claude plugin install gadak@gadak` installs the same skill without the
+  gadak binary — the plugin's source is the repo's `skills/gadak/`, so
+  there is one skill body, not two. Verified end to end against Claude
+  Code 2.1.234: strict manifest validation, a local marketplace add, an
+  install whose cached SKILL.md is byte-identical to the repo's, and a
+  clean uninstall.
 
 - **Fix versions keep their id, and the project's release catalog lands in
   the mirror** ([GDK-532]). `issues.fix_version_ids` stores the same-order

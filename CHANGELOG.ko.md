@@ -167,6 +167,13 @@
   `gadak skill install --force`를 안내합니다. 스킬 실패는 경고이고 init과
   install-cli는 여전히 exit 0입니다. `init --json`에 `"skill":
   "installed"|"skipped"|"failed"`가 붙습니다.
+- **레포지토리가 Claude Code 플러그인 마켓플레이스입니다** ([GDK-93]).
+  `claude plugin marketplace add midagedev/gadak` 후
+  `claude plugin install gadak@gadak`이 gadak 바이너리 없이 같은 스킬을
+  설치합니다 — 플러그인의 소스가 레포의 `skills/gadak/`이라 스킬 본문은
+  둘이 아니라 하나입니다. Claude Code 2.1.234에서 끝까지 실측: strict
+  매니페스트 검증, 로컬 marketplace add, 캐시된 SKILL.md가 레포와 바이트
+  동일한 설치, 깨끗한 uninstall까지.
 
 - **픽스 버전이 id를 유지하고, 프로젝트의 릴리스 카탈로그가 미러에
   들어옵니다** ([GDK-532]). `issues.fix_version_ids`는 기존 이름 배열

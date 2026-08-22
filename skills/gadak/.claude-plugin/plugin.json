@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "gadak",
+  "description": "Query and write the gadak mirror: read-first SQL over issues and wiki pages, views, and the write verbs.",
+  "author": {
+    "name": "midagedev"
+  },
+  "version": "1.0.0"
+}

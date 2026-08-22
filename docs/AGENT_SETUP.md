@@ -171,6 +171,22 @@ so brew installs work without a checkout. Only Claude Code is supported by
 `skill install` today; other agents: `gadak mcp install <client>` or copy
 `SKILL.md` yourself.
 
+### Or install it as a Claude Code plugin
+
+The repository is also a plugin marketplace, so the same skill installs
+without the gadak binary at all:
+
+```bash
+claude plugin marketplace add midagedev/gadak
+claude plugin install gadak@gadak
+```
+
+The plugin carries the identical `SKILL.md` (its source is the repo's
+`skills/gadak/`). Pick one route — the plugin and `gadak skill install`
+would each put a copy of the skill in front of the agent. The plugin
+updates with `claude plugin marketplace update gadak`; the skill-install
+copy updates with the binary.
+
 ## MCP (for hosts without a shell)
 
 Shortest path — pins the **current** workspace into the registration so the host

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "gadak",
+  "description": "Local issue tracker, and a SQLite mirror of Jira/Confluence when a site exists.",
+  "owner": {
+    "name": "midagedev"
+  },
+  "plugins": [
+    {
+      "name": "gadak",
+      "source": "./skills/gadak",
+      "description": "Query and write the gadak mirror: read-first SQL over issues and wiki pages, views, and the write verbs.",
+      "version": "1.0.0"
+    }
+  ]
+}
