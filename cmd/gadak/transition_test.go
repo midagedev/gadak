@@ -133,6 +133,12 @@ func TestTransitionCategoryTokensAccepted(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.arg, func(t *testing.T) {
 			f := newFakeJira(t)
+			// GDK-632: a category target checks the current status before
+			// firing, and the fake's default is 진행 중 — which would make the
+			// inprogress cases legitimate no-ops. This test is about token
+			// acceptance, so pin the current status to new and let every
+			// case really write.
+			f.issueStatusJSON = `{"fields":{"status":{"id":"1","name":"할 일","statusCategory":{"key":"new"}},"assignee":null}}`
 			mirror(t, f.URL)
 			if _, err := capture(t, func() error { return cmdTransition([]string{"NMB-1", tc.arg}) }); err != nil {
 				t.Fatalf("transition %q: %v", tc.arg, err)

@@ -126,8 +126,11 @@ func TestApplyPicksCategoryAndOmitsEmpty(t *testing.T) {
 	if len(s.postComment) != 0 {
 		t.Fatalf("comment %s, want omitted", s.postComment)
 	}
-	if s.statusN != 0 {
-		t.Fatalf("status lookups %d, want 0 on a hit", s.statusN)
+	// GDK-632 rewrote this pin (was 0): a category target pays one status
+	// read even on a pick hit, because a self-loop workflow keeps a
+	// same-category transition available and a retry must still no-op.
+	if s.statusN != 1 {
+		t.Fatalf("status lookups %d, want 1 for a category target", s.statusN)
 	}
 }
 
@@ -374,5 +377,56 @@ func TestApplyIssueStatusErrorSurfaces(t *testing.T) {
 	}
 	if s.posted {
 		t.Fatal("must not POST")
+	}
+}
+
+// GDK-632, caught on a real site: a self-loop workflow keeps a done→done
+// transition available while the issue is already done, so the pick
+// succeeds and the old gate (which ran only after a pick miss) never
+// engaged — a retry fired the transition again and would re-post its
+// comment. The category gate must hold on both pick outcomes.
+func TestApplyCategorySelfLoopIsNoop(t *testing.T) {
+	s := &stubOrigin{list: []jira.Transition{doneClose()}, status: doneStatus()}
+	res, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Comment: "retry"})
+	if err != nil {
+		t.Fatalf("self-loop retry must succeed as a no-op, got %v", err)
+	}
+	if res.Changed {
+		t.Fatal("want changed=false: the issue is already done")
+	}
+	if s.posted {
+		t.Fatal("must not fire the self-loop transition again")
+	}
+}
+
+func TestPreviewCategorySelfLoopIsNoop(t *testing.T) {
+	s := &stubOrigin{list: []jira.Transition{doneClose()}, status: doneStatus()}
+	id, changed, err := Preview(context.Background(), s, "NMB-1", "done")
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	if changed || id != "" {
+		t.Fatalf("id=%q changed=%v, want the no-op", id, changed)
+	}
+}
+
+// The gate's cost contract: a category target that is NOT already there
+// still fires, paying exactly one status read; a named target never pays.
+func TestApplyCategoryGateCosts(t *testing.T) {
+	s := &stubOrigin{list: []jira.Transition{doneClose()}, status: inProgressStatus()}
+	res, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done"})
+	if err != nil || !res.Changed || !s.posted {
+		t.Fatalf("res=%+v err=%v posted=%v, want a real write", res, err, s.posted)
+	}
+	if s.statusN != 1 {
+		t.Fatalf("status lookups %d, want exactly 1 for a category write", s.statusN)
+	}
+
+	named := &stubOrigin{list: []jira.Transition{doneClose()}, status: doneStatus()}
+	if _, err := Apply(context.Background(), named, nil, Request{Key: "NMB-1", Target: "Close"}); err != nil {
+		t.Fatalf("named: %v", err)
+	}
+	if named.statusN != 0 {
+		t.Fatalf("named target paid %d status lookups, want 0", named.statusN)
 	}
 }

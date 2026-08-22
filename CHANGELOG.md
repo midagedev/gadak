@@ -417,6 +417,14 @@ the fixes are all here.
   alike, the two surfaces that share the core. A named transition that
   does not exist still errors, and
   reopening stays `transition KEY inprogress`; there is no `gadak reopen`.
+- **The no-op holds on self-loop workflows too** ([GDK-632]). Dogfooding
+  the batch on a real site found the gap the fakes could not: a workflow
+  that keeps a done→done transition available while the issue is already
+  done let a retry fire the transition again — and would have re-posted
+  its comment. A category target now checks the origin's current status
+  before firing, not only after a pick miss; that costs a category write
+  one status read, and named targets never pay it. The retry that exposed
+  it now answers `changed: false` on the same site.
 - **CLI reads leave a trail, and `gadak recents` walks it back**
   ([GDK-502]). `gadak issue` and `gadak search` now append the same
   visit/search rows the UI has always written to `local.db` — best-effort,
@@ -1814,6 +1822,7 @@ measured numbers instead of adjectives.
 [GDK-620]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-620
 [GDK-621]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-621
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
+[GDK-632]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-632
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

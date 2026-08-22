@@ -89,24 +89,22 @@ func IsRefused(err error) bool {
 
 // Apply lists the issue's transitions, picks one, assembles fields, and
 // calls the origin. A category-token target (new|inprogress|done) that the
-// origin already reports is a no-op success (Changed=false) after Pick
-// fails — the happy path stays one round-trip. It does not refresh the
-// mirror — that tail is mutate.
+// origin already reports is a no-op success (Changed=false). It does not
+// refresh the mirror — that tail is mutate.
 func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) (Result, error) {
 	list, err := o.Transitions(ctx, req.Key)
 	if err != nil {
 		return Result{}, err
 	}
-	id, err := jira.PickTransition(req.Key, req.Target, list)
+	id, noop, pickErr, err := resolveTransition(ctx, o, req.Key, req.Target, list)
 	if err != nil {
-		noop, nerr := alreadyInCategory(ctx, o, req.Key, req.Target)
-		if nerr != nil {
-			return Result{}, nerr
-		}
-		if noop {
-			return Result{Changed: false}, nil
-		}
-		return Result{}, &Refused{Msg: err.Error()}
+		return Result{}, err
+	}
+	if noop {
+		return Result{Changed: false}, nil
+	}
+	if pickErr != nil {
+		return Result{}, &Refused{Msg: pickErr.Error()}
 	}
 	selected := byID(list, id)
 	assembled, err := assembleFields(ctx, o, cfg, selected, req.Resolution, req.Fields)
@@ -136,25 +134,50 @@ func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) (Resu
 // Preview answers what Apply would do without writing: the resolved
 // transition id when one would fire (changed=true), or the category no-op
 // (changed=false, empty id). It exists so a dry-run cannot drift from the
-// real write — both run the same pick and the same alreadyInCategory. A
-// pick miss that is not a no-op returns the pick error.
+// real write — both run resolveTransition. A pick miss that is not a no-op
+// returns the pick error.
 func Preview(ctx context.Context, o Origin, key, target string) (id string, changed bool, err error) {
 	list, err := o.Transitions(ctx, key)
 	if err != nil {
 		return "", false, err
 	}
-	id, err = jira.PickTransition(key, target, list)
+	id, noop, pickErr, err := resolveTransition(ctx, o, key, target, list)
 	if err != nil {
-		noop, nerr := alreadyInCategory(ctx, o, key, target)
-		if nerr != nil {
-			return "", false, nerr
-		}
-		if noop {
-			return "", false, nil
-		}
 		return "", false, err
 	}
+	if noop {
+		return "", false, nil
+	}
+	if pickErr != nil {
+		return "", false, pickErr
+	}
 	return id, true, nil
+}
+
+// resolveTransition is the one owner of "what does this target mean right
+// now". It picks against list, and gates a category-token target on the
+// origin's current status in BOTH pick outcomes: a miss (the workflow offers
+// nothing toward that category — the GDK-500 no-op) and a hit (a self-loop
+// workflow keeps a done→done transition available while the issue is already
+// done, so a retry would fire again and double-post its comment — GDK-632,
+// caught on a real site). Category targets cost one IssueStatus read per
+// write; named/id targets never pay it. pickErr is non-nil only when the
+// pick missed and the miss is not a no-op; err is an origin failure.
+func resolveTransition(ctx context.Context, o Origin, key, target string, list []jira.Transition) (id string, noop bool, pickErr, err error) {
+	id, perr := jira.PickTransition(key, target, list)
+	if _, isCategory := jira.StatusCategoryToken(target); isCategory {
+		there, nerr := alreadyInCategory(ctx, o, key, target)
+		if nerr != nil {
+			return "", false, nil, nerr
+		}
+		if there {
+			return "", true, nil, nil
+		}
+	}
+	if perr != nil {
+		return "", false, perr, nil
+	}
+	return id, false, nil, nil
 }
 
 func alreadyInCategory(ctx context.Context, o Origin, key, target string) (bool, error) {

@@ -387,6 +387,14 @@
   않습니다(코멘트조차 — 재시도가 중복 게시할 수 없도록). 코어를 공유하는
   두 표면인 CLI와 REST가 똑같이 얻습니다. 존재하지 않는 전이 이름은 여전히 에러이고, 재개는
   `transition KEY inprogress` 그대로입니다 — `gadak reopen`은 없습니다.
+- **no-op이 자기 전이 워크플로에서도 성립합니다** ([GDK-632]). 배치를
+  실사이트에 도그푸딩하다 페이크가 못 잡던 격차를 찾았습니다: 이미 done인
+  이슈에 done→done 전이가 남아 있는 워크플로에서는 재시도가 전이를 또
+  쏘았고 — 코멘트도 중복 게시될 뻔했습니다. 카테고리 목표는 이제 픽 실패
+  후만이 아니라 쏘기 전에 origin의 현재 상태를 확인합니다. 비용은
+  카테고리 목표 쓰기당 status 읽기 1회이고, 이름/id 목표는 내지 않습니다.
+  격차를 드러낸 그 재시도가 같은 사이트에서 이제 `changed: false`로
+  답합니다.
 - **CLI 읽기가 흔적을 남기고, `gadak recents`가 그 길을 되짚습니다**
   ([GDK-502]). `gadak issue`와 `gadak search`가 UI가 줄곧 쓰던 것과 같은
   방문·검색 행을 `local.db`에 남깁니다 — best-effort라서 기록이 안 되는
@@ -1783,6 +1791,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-620]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-620
 [GDK-621]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-621
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
+[GDK-632]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-632
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599
