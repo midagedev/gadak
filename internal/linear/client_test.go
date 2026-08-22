@@ -259,6 +259,11 @@ func TestErrorsNeverContainCredential(t *testing.T) {
 		"graphql error envelope": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`{"errors":[{"message":"It looks like you're trying to use an API key as a Bearer token."}]}`))
 		}),
+		"graphql ratelimited 400 with key in extensions": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write(rateLimitedBody())
+		}),
 		"bad json": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`not json`))
 		}),
@@ -526,6 +531,138 @@ func TestCompleteCommentsFollowsCursor(t *testing.T) {
 	}
 }
 
+func TestLabelsTruncationIsObservable(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":{"issues":{"pageInfo":{"hasNextPage":false},"nodes":[{` +
+			`"id":"c1","identifier":"FIX-9","labels":{` +
+			`"pageInfo":{"hasNextPage":true,"endCursor":"lbl-cursor"},` +
+			`"nodes":[{"id":"l0","name":"bug"}]}}]}}}`))
+	}))
+	var got []Issue
+	if err := c.Issues(context.Background(), IssueOpts{}, func(pg []Issue) error {
+		got = pg
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("issues = %d, want 1", len(got))
+	}
+	lb := got[0].Labels
+	if len(lb.Nodes) != 1 || lb.Nodes[0].Name != "bug" {
+		t.Fatalf("labels = %+v, want the parsed node", lb.Nodes)
+	}
+	if !lb.PageInfo.HasNextPage || lb.PageInfo.EndCursor != "lbl-cursor" {
+		t.Errorf("labels pageInfo = %+v, want truncation visible", lb.PageInfo)
+	}
+}
+
+func TestCompleteLabelsFollowsCursor(t *testing.T) {
+	calls := 0
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var body struct {
+			Query     string `json:"query"`
+			Variables struct {
+				ID    string `json:"id"`
+				After string `json:"after"`
+			} `json:"variables"`
+		}
+		decode(t, r, &body)
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(body.Query, "IssueLabels") {
+			if body.Variables.ID != "iss-1" || body.Variables.After != "lbl-cursor" {
+				t.Errorf("IssueLabels id/after = %q %q", body.Variables.ID, body.Variables.After)
+			}
+			_, _ = w.Write([]byte(`{"data":{"issue":{"labels":{"pageInfo":{"hasNextPage":false},"nodes":[{"id":"l1","name":"second"}]}}}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":{"issue":{"id":"iss-1","identifier":"FIX-9","labels":{"pageInfo":{"hasNextPage":true,"endCursor":"lbl-cursor"},"nodes":[{"id":"l0","name":"first"}]}}}}`))
+	}))
+	iss, err := c.Issue(context.Background(), "FIX-9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.CompleteLabels(context.Background(), &iss); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want 2", calls)
+	}
+	if len(iss.Labels.Nodes) != 2 || iss.Labels.Nodes[1].Name != "second" {
+		t.Fatalf("labels = %+v", iss.Labels.Nodes)
+	}
+	if iss.Labels.PageInfo.HasNextPage {
+		t.Error("HasNextPage still set after following the cursor")
+	}
+}
+
+func TestAttachmentsTruncationIsObservable(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":{"issues":{"pageInfo":{"hasNextPage":false},"nodes":[{` +
+			`"id":"c1","identifier":"FIX-9","attachments":{` +
+			`"pageInfo":{"hasNextPage":true,"endCursor":"att-cursor"},` +
+			`"nodes":[{"id":"a0","title":"trace.log","url":"https://uploads.example/a0"}]}}]}}}`))
+	}))
+	var got []Issue
+	if err := c.Issues(context.Background(), IssueOpts{}, func(pg []Issue) error {
+		got = pg
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("issues = %d, want 1", len(got))
+	}
+	at := got[0].Attachments
+	if len(at.Nodes) != 1 || at.Nodes[0].Title != "trace.log" {
+		t.Fatalf("attachments = %+v, want the parsed node", at.Nodes)
+	}
+	if !at.PageInfo.HasNextPage || at.PageInfo.EndCursor != "att-cursor" {
+		t.Errorf("attachments pageInfo = %+v, want truncation visible", at.PageInfo)
+	}
+}
+
+func TestCompleteAttachmentsFollowsCursor(t *testing.T) {
+	calls := 0
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var body struct {
+			Query     string `json:"query"`
+			Variables struct {
+				ID    string `json:"id"`
+				After string `json:"after"`
+			} `json:"variables"`
+		}
+		decode(t, r, &body)
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(body.Query, "IssueAttachments") {
+			if body.Variables.ID != "iss-1" || body.Variables.After != "att-cursor" {
+				t.Errorf("IssueAttachments id/after = %q %q", body.Variables.ID, body.Variables.After)
+			}
+			_, _ = w.Write([]byte(`{"data":{"issue":{"attachments":{"pageInfo":{"hasNextPage":false},"nodes":[{"id":"a1","title":"second.log"}]}}}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":{"issue":{"id":"iss-1","identifier":"FIX-9","attachments":{"pageInfo":{"hasNextPage":true,"endCursor":"att-cursor"},"nodes":[{"id":"a0","title":"first.log"}]}}}}`))
+	}))
+	iss, err := c.Issue(context.Background(), "FIX-9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.CompleteAttachments(context.Background(), &iss); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want 2", calls)
+	}
+	if len(iss.Attachments.Nodes) != 2 || iss.Attachments.Nodes[1].Title != "second.log" {
+		t.Fatalf("attachments = %+v", iss.Attachments.Nodes)
+	}
+	if iss.Attachments.PageInfo.HasNextPage {
+		t.Error("HasNextPage still set after following the cursor")
+	}
+}
+
 func TestIssuesQueryRequestsAttachments(t *testing.T) {
 	var query string
 	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -619,5 +756,112 @@ func TestUsersFilterMatchesUUIDByID(t *testing.T) {
 	}
 	if !gotID {
 		t.Fatalf("filter or clauses = %#v, want id.eq %s", or, id)
+	}
+}
+
+// rateLimitedBody is Linear's documented GraphQL rate-limit envelope
+// (linear.app/developers/rate-limiting): HTTP 400 or 200 plus
+// errors[].extensions.code == "RATELIMITED". The test key sits only in
+// extensions so a leak of that object into the error string is visible.
+func rateLimitedBody() []byte {
+	return []byte(`{"errors":[{"message":"Rate limit exceeded","extensions":{"code":"RATELIMITED","exception":{"token":"` + testKey + `"}}}]}`)
+}
+
+func otherGraphQLErrorBody() []byte {
+	return []byte(`{"errors":[{"message":"Variable \"$filter\" got invalid value","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`)
+}
+
+// GDK-263: Linear rate limits arrive as GraphQL RATELIMITED, not only HTTP 429.
+// The four cases are the contract: 200 and 400 retry and succeed; any other
+// GraphQL code is final; the attempt budget is still the ceiling.
+func TestGraphQLRateLimitedRetriesThenSucceeds(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusBadRequest} {
+		t.Run(fmt.Sprintf("status %d", status), func(t *testing.T) {
+			calls := 0
+			c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				if calls == 1 {
+					w.Header().Set("Retry-After", "0")
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(status)
+					_, _ = w.Write(rateLimitedBody())
+					return
+				}
+				writeFixture(w, t, "teams.json")
+			}))
+			teams, err := c.Teams(context.Background())
+			if err != nil {
+				t.Fatalf("status %d: %v", status, err)
+			}
+			if calls != 2 {
+				t.Errorf("status %d: attempts = %d, want 2 (RATELIMITED then success)", status, calls)
+			}
+			if len(teams) != 1 || teams[0].Key != "FIX" {
+				t.Errorf("status %d: teams = %+v, want the fixture team after retry", status, teams)
+			}
+			u := c.Usage()
+			if u.Requests != 2 || u.Retries != 1 {
+				t.Errorf("status %d: usage = %+v, want 2 requests / 1 retry (NoteRetry)", status, u)
+			}
+			if strings.Contains(fmt.Sprint(teams), testKey) {
+				t.Error("fixture team somehow carried the test key")
+			}
+		})
+	}
+}
+
+func TestGraphQLOtherErrorIsFinal(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusBadRequest} {
+		t.Run(fmt.Sprintf("status %d", status), func(t *testing.T) {
+			calls := 0
+			c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				_, _ = w.Write(otherGraphQLErrorBody())
+			}))
+			_, err := c.Teams(context.Background())
+			if err == nil {
+				t.Fatal("expected a graphql error")
+			}
+			if !strings.Contains(err.Error(), "Variable \"$filter\" got invalid value") {
+				t.Errorf("err = %v, want the graphql message", err)
+			}
+			if calls != 1 {
+				t.Errorf("attempts = %d, want 1 — other GraphQL codes must not retry", calls)
+			}
+			if strings.Contains(err.Error(), testKey) {
+				t.Error("graphql error leaked the credential")
+			}
+		})
+	}
+}
+
+func TestGraphQLRateLimitedExhaustsRetryBudget(t *testing.T) {
+	calls := 0
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Retry-After", "0")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write(rateLimitedBody())
+	}))
+	c.Retries = 2
+	_, err := c.Teams(context.Background())
+	if err == nil {
+		t.Fatal("expected an error after the budget is spent")
+	}
+	if calls != 2 {
+		t.Errorf("attempts = %d, want 2 (Retries budget)", calls)
+	}
+	if !strings.Contains(err.Error(), "400") && !strings.Contains(err.Error(), "Rate limit exceeded") {
+		t.Errorf("err = %v, want the exhausted 400/RATELIMITED response", err)
+	}
+	u := c.Usage()
+	if u.Retries != 1 {
+		t.Errorf("usage.Retries = %d, want 1 (one wait then a final attempt)", u.Retries)
+	}
+	if strings.Contains(err.Error(), testKey) {
+		t.Error("exhausted RATELIMITED error leaked the credential")
 	}
 }

@@ -653,6 +653,16 @@ the fixes are all here.
   user lookup as an id. The Jira-family gates did not loosen: a Linear key
   is not a site token anywhere Jira, Confluence or the standalone origin is
   the one being asked.
+- **Linear's rate limit is a retry, not a death** ([GDK-263]). Linear
+  reports a drained bucket as HTTP 400 or 200 with a GraphQL `RATELIMITED`
+  code — not a 429 — and the client used to die on the first one. One
+  function now owns the retry decision (HTTP status plus GraphQL code):
+  `RATELIMITED` waits and retries within the existing budget, mutations
+  included, because Linear documents it as a pre-execution rejection. A
+  GraphQL error now surfaces its messages only, so an `extensions` blob can
+  never carry a credential into the error string. And labels and
+  attachments grew the `Complete*` follow-ups comments already had — an
+  issue with more than one inline page mirrors all of them.
 
 ### The public backlog
 

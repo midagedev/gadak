@@ -48,7 +48,8 @@ type Label struct {
 
 // LabelConn is the nested labels connection on an issue. PageInfo.HasNextPage
 // set means the issue has more labels than LabelsPageSize — truncation is
-// observable, never silent (same contract as CommentConn).
+// observable, never silent (same contract as CommentConn). CompleteLabels
+// follows the cursor.
 type LabelConn struct {
 	PageInfo PageInfo `json:"pageInfo"`
 	Nodes    []Label  `json:"nodes"`
@@ -91,6 +92,8 @@ type IssueAttachment struct {
 }
 
 // AttachmentConn is the nested attachments connection on an issue.
+// PageInfo.HasNextPage means more than AttachmentsPageSize — truncation is
+// observable. CompleteAttachments follows the cursor.
 type AttachmentConn struct {
 	PageInfo PageInfo          `json:"pageInfo"`
 	Nodes    []IssueAttachment `json:"nodes"`
@@ -137,6 +140,8 @@ type Issue struct {
 	// observable, never silent. CompleteComments follows the cursor.
 	Comments CommentConn `json:"comments"`
 
+	// Attachments is the first inline page (AttachmentsPageSize).
+	// CompleteAttachments follows HasNextPage the same way comments do.
 	Attachments AttachmentConn `json:"attachments"`
 }
 

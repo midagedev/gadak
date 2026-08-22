@@ -96,6 +96,23 @@ var commentSelection = `
             displayName
           }`
 
+// labelSelection is the label node's field set, shared by the inline labels
+// connection and the IssueLabels follow-up so CompleteLabels cannot drift
+// from the issue query.
+var labelSelection = `
+          id
+          name`
+
+// attachmentSelection is the attachment node's field set, shared by the
+// inline attachments connection and the IssueAttachments follow-up so
+// CompleteAttachments cannot drift from the issue query.
+var attachmentSelection = `
+          id
+          title
+          url
+          createdAt
+          metadata`
+
 // issueSelection is the field set every Issue-returning document requests —
 // the issue queries' nodes and the issueCreate/issueUpdate payloads share it,
 // so a field added for the mirror appears on the write path too (the
@@ -144,9 +161,7 @@ var issueSelection = `
           hasNextPage
           endCursor
         }
-        nodes {
-          id
-          name
+        nodes {` + labelSelection + `
         }
       }
       parent {
@@ -166,12 +181,7 @@ var issueSelection = `
           hasNextPage
           endCursor
         }
-        nodes {
-          id
-          title
-          url
-          createdAt
-          metadata
+        nodes {` + attachmentSelection + `
         }
       }`
 
@@ -277,6 +287,36 @@ var queryIssueComments = `query IssueComments($id: String!, $after: String) {
         endCursor
       }
       nodes {` + commentSelection + `
+      }
+    }
+  }
+}`
+
+// queryIssueLabels follows the labels cursor on one issue when the inline
+// page (LabelsPageSize) set HasNextPage.
+var queryIssueLabels = `query IssueLabels($id: String!, $after: String) {
+  issue(id: $id) {
+    labels(first: ` + strconv.Itoa(LabelsPageSize) + `, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {` + labelSelection + `
+      }
+    }
+  }
+}`
+
+// queryIssueAttachments follows the attachments cursor on one issue when the
+// inline page (AttachmentsPageSize) set HasNextPage.
+var queryIssueAttachments = `query IssueAttachments($id: String!, $after: String) {
+  issue(id: $id) {
+    attachments(first: ` + strconv.Itoa(AttachmentsPageSize) + `, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {` + attachmentSelection + `
       }
     }
   }

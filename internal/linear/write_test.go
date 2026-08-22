@@ -416,6 +416,33 @@ func TestMutationDoesNotRetry500(t *testing.T) {
 	}
 }
 
+// Linear documents RATELIMITED as a pre-execution rejection (the mutation
+// does not run). It is the same class as 429 and is retried.
+func TestMutationRetriesRATELIMITED(t *testing.T) {
+	calls := 0
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "0")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write(rateLimitedBody())
+			return
+		}
+		writeFixture(w, t, "comment_create.json")
+	}))
+	if _, err := c.CreateComment(context.Background(), "00000000-0000-4000-8000-000000000004", "after throttle"); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Errorf("attempts = %d, want 2 (RATELIMITED then success)", calls)
+	}
+	u := c.Usage()
+	if u.Requests != 2 || u.Retries != 1 {
+		t.Errorf("usage = %+v, want 2 requests / 1 retry", u)
+	}
+}
+
 func TestUploadFileReturnsTargetWithHeaders(t *testing.T) {
 	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {

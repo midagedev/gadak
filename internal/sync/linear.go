@@ -102,6 +102,12 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 			if err := c.CompleteComments(ctx, &issues[i]); err != nil {
 				return err
 			}
+			if err := c.CompleteLabels(ctx, &issues[i]); err != nil {
+				return err
+			}
+			if err := c.CompleteAttachments(ctx, &issues[i]); err != nil {
+				return err
+			}
 			seen[issues[i].Identifier] = true
 		}
 		cats := map[string]string{}
@@ -347,6 +353,12 @@ func SyncLinearIssue(ctx context.Context, db *store.DB, c *linear.Client, key st
 		return err
 	}
 	if err := c.CompleteComments(ctx, &iss); err != nil {
+		return err
+	}
+	if err := c.CompleteLabels(ctx, &iss); err != nil {
+		return err
+	}
+	if err := c.CompleteAttachments(ctx, &iss); err != nil {
 		return err
 	}
 	cat, _ := linearCategory(iss.State.Type)

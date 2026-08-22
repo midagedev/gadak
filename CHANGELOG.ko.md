@@ -1,6 +1,6 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-22).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-23).</sub>
 
 ## Unreleased
 
@@ -605,6 +605,16 @@
   `issues.assignee_id`의 UUID가 Linear 유저 조회에 id로 도달합니다.
   Jira 계열 게이트는 느슨해지지 않았습니다 — Jira·Confluence·standalone
   origin이 묻는 자리에서 Linear 키는 사이트 토큰이 아닙니다.
+- **Linear의 레이트리밋은 죽음이 아니라 재시도입니다** ([GDK-263]).
+  Linear는 버킷 소진을 429가 아니라 HTTP 400 또는 200에 GraphQL
+  `RATELIMITED` 코드로 알리는데, 클라이언트는 첫 응답에서 죽었습니다.
+  이제 재시도 판정의 소유자는 함수 하나(HTTP 상태 + GraphQL 코드)입니다:
+  `RATELIMITED`는 기존 예산 안에서 대기 후 재시도하며 — Linear가 실행 전
+  거절로 문서화하므로 뮤테이션도 포함 — GraphQL 에러는 message만
+  표면화해 `extensions` 덩어리가 에러 문자열에 자격증명을 실을 수
+  없습니다. 그리고 labels와 attachments가 comments에게만 있던
+  `Complete*` 팔로우업을 얻어, 인라인 한 페이지를 넘는 이슈도 전부
+  미러링됩니다.
 
 ### 공개 백로그
 

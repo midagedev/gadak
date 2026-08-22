@@ -242,12 +242,54 @@ type graphRequest struct {
 }
 
 // graphResponse is the reply envelope. GraphQL answers errors as HTTP 200
-// with an errors array; those are surfaced as errors here.
+// with an errors array; Linear also uses HTTP 400 plus the same envelope
+// for rate limits (errors[].extensions.code == "RATELIMITED").
 type graphResponse struct {
 	Data   json.RawMessage `json:"data"`
 	Errors []struct {
-		Message string `json:"message"`
+		Message    string `json:"message"`
+		Extensions struct {
+			Code string `json:"code"`
+		} `json:"extensions"`
 	} `json:"errors"`
+}
+
+// retryableGraphQL is the single retry decision for every GraphQL response.
+// Status alone is not enough: Linear rate-limits with HTTP 400 or 200 plus
+// errors[].extensions.code == "RATELIMITED" (documented at
+// https://linear.app/developers/rate-limiting, "Handling rate limit
+// errors"). Other GraphQL codes stay final — this is not a new
+// infinite-retry class.
+//
+// RATELIMITED is a pre-execution rejection: Linear does not run the
+// document once the bucket is empty, the same class as 429/503 (the server
+// states it did not act). Mutations therefore retry it too. A 500 on a
+// mutation still does not retry.
+func retryableGraphQL(status int, env graphResponse, mutating bool) bool {
+	if graphQLRateLimited(env) {
+		return true
+	}
+	if mutating {
+		return httppolicy.IsRetryableWrite(status)
+	}
+	return httppolicy.IsRetryable(status)
+}
+
+func graphQLRateLimited(env graphResponse) bool {
+	for _, e := range env.Errors {
+		if e.Extensions.Code == "RATELIMITED" {
+			return true
+		}
+	}
+	return false
+}
+
+func graphQLErrorMessages(env graphResponse) string {
+	msgs := make([]string, 0, len(env.Errors))
+	for _, e := range env.Errors {
+		msgs = append(msgs, e.Message)
+	}
+	return strings.Join(msgs, "; ")
 }
 
 // gql sends one query and unmarshals data into out. Errors never contain the
@@ -262,9 +304,11 @@ func (c *Client) gql(ctx context.Context, query string, vars map[string]any, out
 // same discipline jira's write() applies: a 500 or a dropped connection may
 // mean Linear already acted and the answer was lost, so a retry could create
 // the issue twice. Only 429 and 503, where the server states it did not act,
-// are retried (httppolicy.IsRetryableWrite), and transport failures are
-// final. Everything else — auth header, usage counters, rate-limit notes —
-// is shared with reads, because both are the same gqlCall.
+// are retried (httppolicy.IsRetryableWrite), plus GraphQL RATELIMITED — Linear
+// documents that as a pre-execution rejection (the mutation does not run).
+// Transport failures stay final. Everything else — auth header, usage
+// counters, rate-limit notes — is shared with reads, because both are the
+// same gqlCall.
 func (c *Client) gqlWrite(ctx context.Context, query string, vars map[string]any, out any) error {
 	return c.gqlCall(ctx, query, vars, out, true)
 }
@@ -313,11 +357,17 @@ func (c *Client) gqlCall(ctx context.Context, query string, vars map[string]any,
 			// budget for an answer that cannot change.
 			return fmt.Errorf("POST /graphql: %w (%d %s)", ErrAuth, res.StatusCode, http.StatusText(res.StatusCode))
 		}
-		retryable := httppolicy.IsRetryable
-		if mutating {
-			retryable = httppolicy.IsRetryableWrite
-		}
-		if retryable(res.StatusCode) && attempt < c.Retries-1 {
+		// Parse the envelope on every status so RATELIMITED inside a 400
+		// body is visible to retryableGraphQL. A failed parse leaves env
+		// empty and the decision falls back to the HTTP status.
+		var env graphResponse
+		envErr := json.Unmarshal(data, &env)
+		// Wait reuses httppolicy's Retry-After path. Linear documents
+		// x-ratelimit-*-reset as leaky-bucket window-end stamps (epoch-ms),
+		// not a retry delay — converting those to Retry-After would stall
+		// until the hour rolls over. Live presence of Retry-After on
+		// RATELIMITED is unverified here (httptest only).
+		if retryableGraphQL(res.StatusCode, env, mutating) && attempt < c.Retries-1 {
 			if werr := httppolicy.Wait(ctx, c.Backoff, attempt, res.Header.Get("Retry-After"), &c.usage); werr != nil {
 				return werr
 			}
@@ -327,20 +377,18 @@ func (c *Client) gqlCall(ctx context.Context, query string, vars map[string]any,
 		if readErr != nil && res.StatusCode >= 200 && res.StatusCode < 300 {
 			return fmt.Errorf("POST /graphql: %w", readErr)
 		}
+		// GraphQL errors — including HTTP 400 + RATELIMITED after the
+		// budget is spent — surface as messages only. The raw body is
+		// not copied into the error: extensions can carry arbitrary
+		// fields and must not land in last_error (article 8).
+		if envErr == nil && len(env.Errors) > 0 {
+			return fmt.Errorf("POST /graphql: linear: graphql error: %s", httppolicy.Snippet([]byte(graphQLErrorMessages(env))))
+		}
 		if res.StatusCode >= 300 {
 			return fmt.Errorf("POST /graphql: linear: %d %s: %s", res.StatusCode, http.StatusText(res.StatusCode), httppolicy.Snippet(data))
 		}
-
-		var env graphResponse
-		if err := json.Unmarshal(data, &env); err != nil {
-			return fmt.Errorf("POST /graphql: bad JSON: %w", err)
-		}
-		if len(env.Errors) > 0 {
-			msgs := make([]string, 0, len(env.Errors))
-			for _, e := range env.Errors {
-				msgs = append(msgs, e.Message)
-			}
-			return fmt.Errorf("POST /graphql: linear: graphql error: %s", httppolicy.Snippet([]byte(strings.Join(msgs, "; "))))
+		if envErr != nil {
+			return fmt.Errorf("POST /graphql: bad JSON: %w", envErr)
 		}
 		if out == nil || len(env.Data) == 0 {
 			return nil
@@ -382,6 +430,12 @@ func (c *Client) Issue(ctx context.Context, idOrIdentifier string) (Issue, error
 // loop forever. 40 extra pages is 2000 comments on top of the inline 50.
 const maxCommentFollowUps = 40
 
+// maxLabelFollowUps and maxAttachmentFollowUps are the same cap for the
+// sibling Complete* methods. A shared number keeps the three connections
+// from drifting; named constants keep each follow loop readable.
+const maxLabelFollowUps = 40
+const maxAttachmentFollowUps = 40
+
 // CompleteComments follows Issue.Comments.PageInfo until HasNextPage is false
 // (or the follow-up cap). The inline page is kept; later nodes are appended.
 // A no-op when there is no next page. Callers replace the child list from
@@ -421,6 +475,85 @@ func (c *Client) commentsAfter(ctx context.Context, issueID, after string) (Comm
 		return CommentConn{}, fmt.Errorf("linear: issue %q not found", issueID)
 	}
 	return res.Issue.Comments, nil
+}
+
+// CompleteLabels follows Issue.Labels.PageInfo the same way CompleteComments
+// follows comments. Truncation stays observable if the cap is hit.
+func (c *Client) CompleteLabels(ctx context.Context, iss *Issue) error {
+	if iss == nil {
+		return nil
+	}
+	for n := 0; iss.Labels.PageInfo.HasNextPage; n++ {
+		if n >= maxLabelFollowUps || iss.Labels.PageInfo.EndCursor == "" {
+			break
+		}
+		page, err := c.labelsAfter(ctx, iss.ID, iss.Labels.PageInfo.EndCursor)
+		if err != nil {
+			return err
+		}
+		if len(page.Nodes) == 0 {
+			iss.Labels.PageInfo.HasNextPage = false
+			break
+		}
+		iss.Labels.Nodes = append(iss.Labels.Nodes, page.Nodes...)
+		iss.Labels.PageInfo = page.PageInfo
+	}
+	return nil
+}
+
+func (c *Client) labelsAfter(ctx context.Context, issueID, after string) (LabelConn, error) {
+	var res struct {
+		Issue *struct {
+			Labels LabelConn `json:"labels"`
+		} `json:"issue"`
+	}
+	if err := c.gql(ctx, queryIssueLabels, map[string]any{"id": issueID, "after": after}, &res); err != nil {
+		return LabelConn{}, err
+	}
+	if res.Issue == nil {
+		return LabelConn{}, fmt.Errorf("linear: issue %q not found", issueID)
+	}
+	return res.Issue.Labels, nil
+}
+
+// CompleteAttachments follows Issue.Attachments.PageInfo the same way
+// CompleteComments follows comments. Truncation stays observable if the
+// cap is hit.
+func (c *Client) CompleteAttachments(ctx context.Context, iss *Issue) error {
+	if iss == nil {
+		return nil
+	}
+	for n := 0; iss.Attachments.PageInfo.HasNextPage; n++ {
+		if n >= maxAttachmentFollowUps || iss.Attachments.PageInfo.EndCursor == "" {
+			break
+		}
+		page, err := c.attachmentsAfter(ctx, iss.ID, iss.Attachments.PageInfo.EndCursor)
+		if err != nil {
+			return err
+		}
+		if len(page.Nodes) == 0 {
+			iss.Attachments.PageInfo.HasNextPage = false
+			break
+		}
+		iss.Attachments.Nodes = append(iss.Attachments.Nodes, page.Nodes...)
+		iss.Attachments.PageInfo = page.PageInfo
+	}
+	return nil
+}
+
+func (c *Client) attachmentsAfter(ctx context.Context, issueID, after string) (AttachmentConn, error) {
+	var res struct {
+		Issue *struct {
+			Attachments AttachmentConn `json:"attachments"`
+		} `json:"issue"`
+	}
+	if err := c.gql(ctx, queryIssueAttachments, map[string]any{"id": issueID, "after": after}, &res); err != nil {
+		return AttachmentConn{}, err
+	}
+	if res.Issue == nil {
+		return AttachmentConn{}, fmt.Errorf("linear: issue %q not found", issueID)
+	}
+	return res.Issue.Attachments, nil
 }
 
 // LooksLikeID reports whether s is a Linear UUID (the shape issues.assignee_id

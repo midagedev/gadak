@@ -588,6 +588,233 @@ func TestSyncLinearIssuePaginatesComments(t *testing.T) {
 	}
 }
 
+func linearLabelNodes(n, start int) []map[string]any {
+	out := make([]map[string]any, n)
+	for i := 0; i < n; i++ {
+		k := start + i
+		out[i] = map[string]any{
+			"id":   fmt.Sprintf("l-%d", k),
+			"name": fmt.Sprintf("label-%d", k),
+		}
+	}
+	return out
+}
+
+func linearAttachmentNodes(n, start int) []map[string]any {
+	out := make([]map[string]any, n)
+	for i := 0; i < n; i++ {
+		k := start + i
+		out[i] = map[string]any{
+			"id":        fmt.Sprintf("a-%d", k),
+			"title":     fmt.Sprintf("file-%d.txt", k),
+			"url":       fmt.Sprintf("https://uploads.example/%d", k),
+			"createdAt": "2026-08-02T00:00:00.000Z",
+			"metadata":  map[string]any{"size": float64(1), "mimeType": "text/plain"},
+		}
+	}
+	return out
+}
+
+func TestRunLinearPaginatesLabelsPastInlinePage(t *testing.T) {
+	const extra = 10
+	first := linearLabelNodes(linear.LabelsPageSize, 1)
+	rest := linearLabelNodes(extra, linear.LabelsPageSize+1)
+	issueID := "00000000-0000-4000-8000-99900000010"
+	node := linearNode("FIX-30", "g", "unstarted", "Todo", 0, "No priority", map[string]any{
+		"id": issueID,
+		"labels": map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": true, "endCursor": "lbl-more"},
+			"nodes":    first,
+		},
+	})
+	issuesBody := linearIssuesResponse(t, []map[string]any{node})
+	moreBody, err := json.Marshal(map[string]any{
+		"data": map[string]any{
+			"issue": map[string]any{
+				"labels": map[string]any{
+					"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+					"nodes":    rest,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("bad body: %v", err)
+			http.Error(w, "bad body", 400)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(req.Query, "IssueLabels") {
+			after, _ := req.Variables["after"].(string)
+			if after != "lbl-more" {
+				t.Errorf("IssueLabels after = %q, want lbl-more", after)
+			}
+			_, _ = w.Write(moreBody)
+			return
+		}
+		_, _ = w.Write([]byte(issuesBody))
+	}))
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv)}); err != nil {
+		t.Fatal(err)
+	}
+	got := db.column(t, "issues", "labels", "FIX-30")
+	if !strings.Contains(got, "label-1") || !strings.Contains(got, "label-60") {
+		t.Fatalf("labels = %q, want inline page followed to label-60", got)
+	}
+}
+
+func TestRunLinearPaginatesAttachmentsPastInlinePage(t *testing.T) {
+	const extra = 10
+	first := linearAttachmentNodes(linear.AttachmentsPageSize, 1)
+	rest := linearAttachmentNodes(extra, linear.AttachmentsPageSize+1)
+	issueID := "00000000-0000-4000-8000-99900000011"
+	node := linearNode("FIX-31", "h", "unstarted", "Todo", 0, "No priority", map[string]any{
+		"id": issueID,
+		"attachments": map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": true, "endCursor": "att-more"},
+			"nodes":    first,
+		},
+	})
+	issuesBody := linearIssuesResponse(t, []map[string]any{node})
+	moreBody, err := json.Marshal(map[string]any{
+		"data": map[string]any{
+			"issue": map[string]any{
+				"attachments": map[string]any{
+					"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+					"nodes":    rest,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("bad body: %v", err)
+			http.Error(w, "bad body", 400)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(req.Query, "IssueAttachments") {
+			after, _ := req.Variables["after"].(string)
+			if after != "att-more" {
+				t.Errorf("IssueAttachments after = %q, want att-more", after)
+			}
+			_, _ = w.Write(moreBody)
+			return
+		}
+		_, _ = w.Write([]byte(issuesBody))
+	}))
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv)}); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := db.Detail(context.Background(), "FIX-31")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := linear.AttachmentsPageSize + extra
+	if len(detail.Attachments) != want {
+		t.Fatalf("attachments = %d, want %d (inline page followed to the end)", len(detail.Attachments), want)
+	}
+}
+
+func TestSyncLinearIssuePaginatesLabelsAndAttachments(t *testing.T) {
+	const extra = 10
+	issueID := "00000000-0000-4000-8000-99900000012"
+	iss := linearNode("FIX-32", "i", "unstarted", "Todo", 0, "No priority", map[string]any{
+		"id": issueID,
+		"labels": map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": true, "endCursor": "lbl-more"},
+			"nodes":    linearLabelNodes(linear.LabelsPageSize, 1),
+		},
+		"attachments": map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": true, "endCursor": "att-more"},
+			"nodes":    linearAttachmentNodes(linear.AttachmentsPageSize, 1),
+		},
+	})
+	oneBody, err := json.Marshal(map[string]any{"data": map[string]any{"issue": iss}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	labelsMore, err := json.Marshal(map[string]any{
+		"data": map[string]any{
+			"issue": map[string]any{
+				"labels": map[string]any{
+					"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+					"nodes":    linearLabelNodes(extra, linear.LabelsPageSize+1),
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	attsMore, err := json.Marshal(map[string]any{
+		"data": map[string]any{
+			"issue": map[string]any{
+				"attachments": map[string]any{
+					"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+					"nodes":    linearAttachmentNodes(extra, linear.AttachmentsPageSize+1),
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Query string `json:"query"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(req.Query, "IssueLabels"):
+			_, _ = w.Write(labelsMore)
+		case strings.Contains(req.Query, "IssueAttachments"):
+			_, _ = w.Write(attsMore)
+		default:
+			_, _ = w.Write(oneBody)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if err := db.UpsertSource(context.Background(), store.Source{ID: LinearSourceID, Kind: "linear"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := SyncLinearIssue(context.Background(), db.DB, testLinearClient(t, srv), "FIX-32"); err != nil {
+		t.Fatal(err)
+	}
+	got := db.column(t, "issues", "labels", "FIX-32")
+	if !strings.Contains(got, "label-60") {
+		t.Errorf("labels = %q, want followed to label-60", got)
+	}
+	detail, err := db.Detail(context.Background(), "FIX-32")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(detail.Attachments) != linear.AttachmentsPageSize+extra {
+		t.Fatalf("attachments = %d, want %d after SyncLinearIssue", len(detail.Attachments), linear.AttachmentsPageSize+extra)
+	}
+}
+
 // TestRunLinearFullSyncDeletesAbsentKeys: full sync is proof-by-absence,
 // matching the Jira reconcile pass. Linear's default listing omits archived
 // issues, so archived is treated as deleted too.
