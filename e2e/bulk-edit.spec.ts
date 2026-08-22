@@ -69,6 +69,27 @@ async function selectListRow(page: Page, key: string): Promise<void> {
 }
 
 test.describe('list bulk edits', () => {
+  // GDK-602: a consistency sweep once broke the Deselect <button> tag so its
+  // attributes rendered as textContent — svelte-check stays silent on that,
+  // and only Esc/palette paths were covered. The exact accessible name plus a
+  // working click is what catches the class.
+  test('the bulk bar Deselect button is a button, and clicking it clears the selection', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await captureIssue(page)
+    await selectListRow(page, KEY)
+
+    const bar = page.getByTestId('bulk-bar')
+    const deselect = bar.getByRole('button', { name: 'Deselect', exact: true })
+    await expect(deselect).toBeVisible()
+    await expect(deselect).toBeEnabled()
+    await deselect.click()
+    await expect(bar).not.toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('p opens the catalog priority menu; picking PUTs the id and updates the row chip', async ({
     page,
   }) => {

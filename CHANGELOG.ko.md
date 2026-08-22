@@ -297,7 +297,10 @@
   [GDK-559], [GDK-572]), sync·검색 실패는 wire 코드가 아니라 문장으로
   읽히며 ([GDK-566], [GDK-549]), 저장된 뷰는 삭제 전에 무장하고 부분
   적용된 뷰는 불릴 때마다 그렇게 말합니다 ([GDK-567], [GDK-573],
-  [GDK-504]).
+  [GDK-504]). 그 스윕이 벌크 바의 Deselect 버튼을 깨뜨리기도 했습니다 —
+  태그가 일찍 닫혀 속성이 텍스트로 렌더됐고 svelte-check는 이를 보지
+  못합니다 — 다음 감사가 잡았고, 버튼의 정확한 접근성 이름과 클릭을
+  고정하는 e2e와 함께 고쳤습니다 ([GDK-602]).
 - **Raycast**: 저장된 뷰와 사람이 앱이 이미 답하는 딥링크를 탑니다
   ([GDK-172]). **데스크톱**: mailto 링크가 웹뷰에서 메일 클라이언트에
   닿습니다 ([GDK-339]).
@@ -1603,6 +1606,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
 [GDK-83]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-83
 [GDK-601]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-601
+[GDK-602]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-602
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

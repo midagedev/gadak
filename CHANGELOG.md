@@ -316,7 +316,11 @@ the fixes are all here.
   ([GDK-548], [GDK-559], [GDK-572]), sync and search failures read as
   sentences, not wire codes ([GDK-566], [GDK-549]), a saved view arms before
   delete and a partly-applied view says so every time it is named
-  ([GDK-567], [GDK-573], [GDK-504]).
+  ([GDK-567], [GDK-573], [GDK-504]). That sweep also broke the bulk bar's
+  Deselect button — the tag closed early and its attributes rendered as
+  text, which svelte-check cannot see — caught by the next audit and fixed
+  with an e2e that pins the button's exact accessible name and click
+  ([GDK-602]).
 - **Raycast**: saved views and people ride the deeplinks the app already
   answers ([GDK-172]). **Desktop**: mailto links reach the mail client from
   the webview ([GDK-339]).
@@ -1613,6 +1617,7 @@ measured numbers instead of adjectives.
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
 [GDK-83]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-83
 [GDK-601]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-601
+[GDK-602]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-602
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

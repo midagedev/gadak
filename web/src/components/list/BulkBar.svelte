@@ -701,7 +701,7 @@
       {/if}
     </div>
 
-    <button>
+    <button
       type="button"
       onclick={() => bulk.clear()}
       disabled={running}
