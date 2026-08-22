@@ -153,6 +153,65 @@ func TestWatchDevelopLinesTimeout(t *testing.T) {
 	}
 }
 
+// GDK-615: the production loop collected blank lines into its error
+// transcript (notify appended line+"\n" unconditionally); the watcher must
+// keep them or the unified judge and the install flow report different
+// output. FAIL-first: failed before unification dropped the blank line.
+func TestWatchDevelopLinesKeepsBlankLines(t *testing.T) {
+	r := strings.NewReader("preparing workspace\n\nstill building\n")
+	got := watchDevelopLines(r, time.Second)
+	if got.Found || got.TimedOut {
+		t.Fatalf("blank-line stream must end at EOF, got %+v", got)
+	}
+	if want := "preparing workspace\n\nstill building\n"; got.Output != want {
+		t.Errorf("Output = %q, want %q (blank lines preserved)", got.Output, want)
+	}
+}
+
+// EOF without the marker is the reader-side twin of the install flow's
+// "exited before reporting success": not Found, not TimedOut, transcript
+// intact.
+func TestWatchDevelopLinesEOFWithoutMarker(t *testing.T) {
+	r := strings.NewReader("bundling\nlint ok\n")
+	got := watchDevelopLines(r, time.Second)
+	if got.Found {
+		t.Fatal("no marker in stream; Found must be false")
+	}
+	if got.TimedOut {
+		t.Fatal("finite reader ended before the timeout; TimedOut must be false")
+	}
+	if got.Output != "bundling\nlint ok\n" {
+		t.Errorf("Output = %q, want full transcript", got.Output)
+	}
+}
+
+// A missing-Raycast line must raise the flag on any exit path; the install
+// flow turns it into the Korean guidance error instead of the generic one.
+func TestWatchDevelopLinesFlagsRaycastMissing(t *testing.T) {
+	r := strings.NewReader("error Raycast is not running\nbye\n")
+	got := watchDevelopLines(r, time.Second)
+	if !got.RaycastMissing {
+		t.Fatalf("want RaycastMissing, got %+v", got)
+	}
+}
+
+// The marker on the very last line before EOF still counts as success. The
+// old production select could race a fast exit against the found signal and
+// lose a successful install; the unified judge reads lines in order.
+func TestWatchDevelopLinesMarkerAtLastLineBeforeEOF(t *testing.T) {
+	r := strings.NewReader("ready  - built extension successfully\n")
+	got := watchDevelopLines(r, time.Second)
+	if !got.Found {
+		t.Fatalf("marker at end of stream must be Found, got %+v", got)
+	}
+	if got.TimedOut {
+		t.Fatal("finite reader ended before the timeout; TimedOut must be false")
+	}
+	if !strings.Contains(got.Output, developSuccessMarker) {
+		t.Errorf("output missing marker:\n%s", got.Output)
+	}
+}
+
 func TestRaycastExtDirHonorsGADAKHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)

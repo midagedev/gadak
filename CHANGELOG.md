@@ -561,6 +561,19 @@ followed:
   through. The rewrite surfaced why the naive fix is wrong — page comments
   share the comments table — and the equivalence test pins that divergence
   so the figure the panel shows never quietly changes meaning.
+- **One interpreter for view names** ([GDK-612]). The CLI and the MCP tool
+  each carried a copy of the name-to-view resolution — the copies had
+  already drifted: the same missing name drew different guidance from each
+  surface, and MCP could not report a saved view's applied clauses at all.
+  `internal/views` now owns the quartet; both surfaces import it, the
+  richer error survives, and the dropped field came back.
+- **One judge for `ray develop` output** ([GDK-615]). The production watch
+  loop and the function the tests exercised were parallel implementations —
+  the tests were verifying a replica while the real loop ran unverified,
+  and the two already disagreed: the replica dropped blank lines from
+  error transcripts, and the real loop could race a fast exit against its
+  own success signal and call a successful install a failure. Production
+  now feeds the one watched function the tests drive.
 - **One shape for a fatal error** ([GDK-611]). One error path in `main`
   still went through `log.Fatalf`, which hard-codes exit 1 instead of
   routing through the exit-code contract every sibling branch honors. It
@@ -1697,6 +1710,8 @@ measured numbers instead of adjectives.
 [GDK-609]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-609
 [GDK-610]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-610
 [GDK-611]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-611
+[GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
+[GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

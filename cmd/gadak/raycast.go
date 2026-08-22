@@ -208,40 +208,33 @@ func runRayDevelop(npx, dir string, timeout, settle time.Duration) error {
 	cmd.Dir = dir
 	cmd.Env = prependPATH(os.Environ(), filepath.Dir(npx))
 
-	found := make(chan struct{}, 1)
-	var mu sync.Mutex
-	var collected strings.Builder
-	var missing bool
-	notify := func(line string) {
-		mu.Lock()
-		collected.WriteString(line)
-		collected.WriteByte('\n')
-		if looksLikeRaycastMissing(line) {
-			missing = true
-		}
-		mu.Unlock()
-		if lineHasDevelopSuccess(line) {
-			select {
-			case found <- struct{}{}:
-			default:
-			}
-		}
-	}
+	// Both streams frame complete lines per stream and feed one pipe;
+	// watchDevelopLines — the same judge the tests drive with io.Reader
+	// fakes — reads it. Line judgement lives in exactly one place (GDK-615).
+	pr, pw := io.Pipe()
+	notify := func(line string) { _, _ = pw.Write([]byte(line + "\n")) }
 	cmd.Stdout = &notifyWriter{out: os.Stdout, notify: notify}
 	cmd.Stderr = &notifyWriter{out: os.Stderr, notify: notify}
 
 	if err := cmd.Start(); err != nil {
+		_ = pw.Close()
 		return fmt.Errorf("start npx ray develop: %w", err)
 	}
 
 	waitCh := make(chan error, 1)
-	go func() { waitCh <- cmd.Wait() }()
+	go func() {
+		err := cmd.Wait()
+		_ = pw.Close() // EOF is how the watcher learns the process is gone.
+		waitCh <- err
+	}()
 
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
+	w := watchDevelopLines(pr, timeout)
+	// The watcher stopped reading. Drain the pipe until pw.Close or the
+	// child's output copies block on notify and cmd.Wait can never return.
+	go func() { _, _ = io.Copy(io.Discard, pr) }()
 
-	select {
-	case <-found:
+	switch {
+	case w.Found:
 		time.Sleep(settle)
 		_ = interruptProcess(cmd.Process)
 		select {
@@ -252,29 +245,23 @@ func runRayDevelop(npx, dir string, timeout, settle time.Duration) error {
 			<-waitCh
 			return nil
 		}
-	case err := <-waitCh:
-		mu.Lock()
-		out := collected.String()
-		miss := missing
-		mu.Unlock()
-		if miss {
-			return fmt.Errorf("Raycast가 설치되어 있어야 합니다\n%s", out)
-		}
-		if err != nil {
-			return fmt.Errorf("npx ray develop failed: %w\n%s", err, out)
-		}
-		return fmt.Errorf("npx ray develop exited before reporting success\n%s", out)
-	case <-timer.C:
+	case w.TimedOut:
 		_ = killProcess(cmd.Process)
 		<-waitCh
-		mu.Lock()
-		out := collected.String()
-		miss := missing
-		mu.Unlock()
-		if miss {
-			return fmt.Errorf("Raycast가 설치되어 있어야 합니다\n%s", out)
+		if w.RaycastMissing {
+			return fmt.Errorf("Raycast가 설치되어 있어야 합니다\n%s", w.Output)
 		}
-		return fmt.Errorf("npx ray develop did not report success within %s\n%s", timeout, out)
+		return fmt.Errorf("npx ray develop did not report success within %s\n%s", timeout, w.Output)
+	default:
+		// EOF before the marker: the process exited first.
+		err := <-waitCh
+		if w.RaycastMissing {
+			return fmt.Errorf("Raycast가 설치되어 있어야 합니다\n%s", w.Output)
+		}
+		if err != nil {
+			return fmt.Errorf("npx ray develop failed: %w\n%s", err, w.Output)
+		}
+		return fmt.Errorf("npx ray develop exited before reporting success\n%s", w.Output)
 	}
 }
 
@@ -291,8 +278,11 @@ func looksLikeRaycastMissing(line string) bool {
 		strings.Contains(l, "could not find raycast")
 }
 
-// watchDevelopLines reads r until the success marker, a timeout, or EOF.
-// Tests use this so CI never needs Raycast or npm.
+// watchDevelopLines reads r line by line until the success marker appears,
+// the timeout elapses, or r ends. It is the single judge for `npx ray
+// develop` output: runRayDevelop feeds it the child's merged stdout/stderr,
+// and tests drive it with io.Reader fakes so CI never needs Raycast or npm
+// (GDK-615).
 func watchDevelopLines(r io.Reader, timeout time.Duration) developWatch {
 	type ev struct {
 		line string
@@ -324,19 +314,20 @@ func watchDevelopLines(r io.Reader, timeout time.Duration) developWatch {
 			w.Output = b.String()
 			return w
 		case e := <-ch:
-			if e.line != "" {
-				b.WriteString(e.line)
-				b.WriteByte('\n')
-				if looksLikeRaycastMissing(e.line) {
-					w.RaycastMissing = true
-				}
-				if lineHasDevelopSuccess(e.line) {
-					w.Found = true
-					w.Output = b.String()
-					return w
-				}
-			}
 			if e.done {
+				// EOF or a read error ends the stream.
+				w.Output = b.String()
+				return w
+			}
+			// Every scanned line is recorded, blank ones included, so the
+			// transcript matches what the child actually printed.
+			b.WriteString(e.line)
+			b.WriteByte('\n')
+			if looksLikeRaycastMissing(e.line) {
+				w.RaycastMissing = true
+			}
+			if lineHasDevelopSuccess(e.line) {
+				w.Found = true
 				w.Output = b.String()
 				return w
 			}

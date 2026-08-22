@@ -527,6 +527,18 @@
   수정이 왜 틀리는지를 드러냈습니다 — 페이지 코멘트가 comments 테이블을
   공유합니다 — 동등성 테스트가 그 발산을 고정해 패널의 숫자가 조용히
   의미를 바꾸지 못하게 합니다.
+- **뷰 이름의 해석자는 하나** ([GDK-612]). CLI와 MCP 툴이 이름→뷰 해석을
+  각자 복사해 들고 있었고, 사본은 이미 어긋나 있었습니다: 같은 없는
+  이름에 두 표면이 다른 안내를 냈고, MCP는 저장된 뷰의 applied 절을
+  아예 보고하지 못했습니다. 이제 `internal/views`가 4종을 소유하고 두
+  표면이 그것을 import합니다 — 더 풍부한 오류가 살아남고, 떨어뜨렸던
+  필드가 돌아왔습니다.
+- **`ray develop` 출력의 판정자는 하나** ([GDK-615]). 생산 감시 루프와
+  테스트가 부르던 함수가 병렬 구현이었습니다 — 테스트는 복제본을
+  검증하고 진짜 루프는 무검증인 채였고, 둘은 이미 어긋나 있었습니다:
+  복제본은 오류 트랜스크립트에서 빈 줄을 버렸고, 진짜 루프는 빠른 종료와
+  자기 성공 신호를 경쟁시켜 성공한 설치를 실패로 부를 수 있었습니다.
+  이제 생산이 테스트가 모는 그 함수 하나에 출력을 먹입니다.
 - **치명 오류의 형태는 하나** ([GDK-611]). `main`의 오류 경로 하나가
   아직 `log.Fatalf`를 지나고 있었습니다 — 형제 분기들이 전부 지키는
   exit 코드 계약을 타지 않고 무조건 1로 끝냅니다. 이제 나머지와 같은
@@ -1678,6 +1690,8 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-609]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-609
 [GDK-610]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-610
 [GDK-611]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-611
+[GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
+[GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
