@@ -38,6 +38,14 @@ the fixes are all here.
 
 ### Write verbs an agent can trust
 
+- **A REST parent rejection explains itself like the CLI's** ([GDK-635]).
+  The CLI has long appended the mirror's hierarchy answer to Jira's
+  localized parent 400 — which level the rejected parent sits at, what it
+  can actually hold, and up to three open epics to pick instead. REST's two
+  parent paths (create body, `PUT {key}/parent/`) passed the bare origin
+  error through. Detection and hint assembly moved to one owner
+  (`internal/parenthint`); both surfaces call it, the origin text stays
+  intact with the hint appended, and an unrelated 400 grows no hint.
 - **One owner for the write-through re-read** ([GDK-642]). After a write,
   the issue is re-read from the origin that owns it — and that routing
   (Linear row → Linear re-read, everything else → Jira) existed as two
@@ -1962,6 +1970,7 @@ measured numbers instead of adjectives.
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
+[GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-651]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-651
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654

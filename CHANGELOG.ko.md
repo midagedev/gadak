@@ -38,6 +38,14 @@
 
 ### 에이전트가 신뢰할 수 있는 쓰기 동사
 
+- **REST의 parent 거절도 CLI처럼 스스로를 설명합니다** ([GDK-635]).
+  CLI는 오래전부터 Jira의 로컬라이즈된 parent 400에 미러의 계층 답을
+  덧붙였습니다 — 거절된 부모가 몇 레벨인지, 실제로 무엇을 품을 수
+  있는지, 대신 고를 열린 에픽 최대 3개까지. REST의 두 parent 경로
+  (create 바디, `PUT {key}/parent/`)는 origin 오류를 맨몸으로
+  흘려보냈습니다. 판별과 힌트 조립이 소유자 하나(`internal/parenthint`)로
+  올라가 두 표면이 같은 것을 호출하고, origin 원문은 보존한 채 힌트만
+  덧붙으며, 무관한 400에는 힌트가 붙지 않습니다.
 - **쓰기 후 재읽기의 소유자는 하나** ([GDK-642]). 쓰기가 끝나면 그 이슈를
   소유 origin에서 재읽는데 — 그 라우팅(Linear 행 → Linear 재읽기, 나머지
   → Jira)이 CLI와 REST에 글자 그대로 두 벌 있었습니다. 이제
@@ -1918,6 +1926,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
+[GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-651]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-651
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654

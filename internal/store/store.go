@@ -144,6 +144,12 @@ func (db *DB) QueryRow(query string, args ...any) *sql.Row {
 	return db.sql.QueryRow(query, args...)
 }
 
+// Query runs a multi-row read on the same held connection (GDK-635 parent
+// hierarchy hint). Same rule as QueryRow: do not open a second handle.
+func (db *DB) Query(query string, args ...any) (*sql.Rows, error) {
+	return db.sql.Query(query, args...)
+}
+
 // SchemaVersion is the migration level this binary applied.
 func (db *DB) SchemaVersion() int { return db.schemaVersion }
 

@@ -2237,6 +2237,96 @@ func TestEditParentRejectsSelfBeforeJira(t *testing.T) {
 	}
 }
 
+// Cloud parent-rejection bodies measured 2026-08-21 (CLI parent_hint_test.go).
+// REST used to pass them through failJira with no mirror hierarchy hint (GDK-635).
+const (
+	restCreateParent400 = `{"errors":{"parent":"유효한 상위 업무를 선택하세요.","parentId":"유효한 상위 업무를 선택하세요."}}`
+	restEditParent400   = `{"errors":{"pid":"이 이슈 유형의 이슈는 상위 이슈와 같은 프로젝트에 만들어야 합니다."}}`
+)
+
+func decodeParentReject(t *testing.T, rec *httptest.ResponseRecorder) (errorText string, jiraErrors map[string]string) {
+	t.Helper()
+	var body struct {
+		Error      string            `json:"error"`
+		JiraErrors map[string]string `json:"jira_errors"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v; body %s", err, rec.Body.String())
+	}
+	return body.Error, body.JiraErrors
+}
+
+// TestRESTParentRejectionCreateCarriesHierarchyHint is FAIL-first for GDK-635:
+// POST create/ used to answer the origin 400 with no mirror hierarchy line.
+func TestRESTParentRejectionCreateCarriesHierarchyHint(t *testing.T) {
+	f, h, _ := writable(t)
+	f.status = http.StatusBadRequest
+	f.errBody = restCreateParent400
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"child","parent":"NMB-1"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	got, jiraErrors := decodeParentReject(t, rec)
+	if !strings.Contains(got, "유효한 상위 업무를 선택하세요.") {
+		t.Fatalf("origin 400 missing from error: %q", got)
+	}
+	if !strings.Contains(got, "hint:") {
+		t.Fatalf("missing hierarchy hint: %q", got)
+	}
+	if !strings.Contains(got, "NMB-1") {
+		t.Fatalf("hint must name the parent: %q", got)
+	}
+	if jiraErrors["parent"] == "" && jiraErrors["parentId"] == "" {
+		t.Fatalf("jira_errors dropped: %+v", jiraErrors)
+	}
+}
+
+// TestRESTParentRejectionEditCarriesHierarchyHint is FAIL-first for GDK-635:
+// PUT {key}/parent/ used to answer the origin 400 with no mirror hierarchy line.
+func TestRESTParentRejectionEditCarriesHierarchyHint(t *testing.T) {
+	f, h, _ := writable(t)
+	f.status = http.StatusBadRequest
+	f.errBody = restEditParent400
+
+	rec := send(t, h, http.MethodPut, apiBase+"NMB-1/parent/", `{"parent":"NMB-2"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	got, jiraErrors := decodeParentReject(t, rec)
+	if !strings.Contains(got, "pid:") && !strings.Contains(got, "같은 프로젝트") {
+		t.Fatalf("origin 400 missing from error: %q", got)
+	}
+	if !strings.Contains(got, "hint:") {
+		t.Fatalf("missing hierarchy hint: %q", got)
+	}
+	if !strings.Contains(got, "NMB-2") {
+		t.Fatalf("hint must name the parent: %q", got)
+	}
+	if jiraErrors["pid"] == "" {
+		t.Fatalf("jira_errors dropped: %+v", jiraErrors)
+	}
+}
+
+func TestRESTParentRejectionUnrelated400HasNoHint(t *testing.T) {
+	f, h, _ := writable(t)
+	f.status = http.StatusBadRequest
+	f.errBody = `{"errors":{"summary":"You must specify a summary."}}`
+
+	rec := send(t, h, http.MethodPut, apiBase+"NMB-1/parent/", `{"parent":"NMB-2"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	got, _ := decodeParentReject(t, rec)
+	if strings.Contains(got, "hint:") {
+		t.Fatalf("unrelated 400 grew a parent hint: %q", got)
+	}
+	if !strings.Contains(got, "You must specify a summary.") {
+		t.Fatalf("origin 400 missing: %q", got)
+	}
+}
+
 // TestStandaloneOriginBusyIsNotCredentialRequired: a second process that
 // cannot embed (GDK-343) used to get 409 credential_required and the UI
 // opened the token dialog. Standalone has no token.

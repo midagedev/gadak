@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/parenthint"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -585,99 +585,30 @@ func parseParentKey(raw, cmd string) (string, error) {
 	return normalizeKey(raw), nil
 }
 
-// parentRejection reports whether err is the origin refusing the parent we
-// sent. The field key differs by verb, and both shapes were measured against
-// a real Cloud site on 2026-08-21: POST /issue answers with `parent` AND
-// `parentId`, PUT /issue/{key} answers with `pid`. The messages themselves
-// are localized per account, so the keys are the only stable part — this is
-// the one place that knows them. GDK-424 tested `parent` inline in the
-// create path, which could never have matched the edit path (GDK-525).
-func parentRejection(err error) bool {
-	if err == nil {
-		return false
-	}
-	s := err.Error()
-	// "pid:" keeps the colon so ordinary words containing "pid" (rapid,
-	// insipid) in an unrelated message cannot claim to be this rejection.
-	return strings.Contains(s, "parent") || strings.Contains(s, "pid:")
-}
+// parentRejection / withParentHint / parentHierarchyHint are CLI adapters
+// over internal/parenthint, the single owner shared with REST. The CLI
+// still opens its own read-only handle (gadak sql's openReadOnly); REST
+// passes the server's existing *store.DB. Tests in parent_hint_test.go
+// keep calling these names so the wording contract stays in cmd/gadak.
+func parentRejection(err error) bool { return parenthint.Rejection(err) }
 
-// withParentHint appends the mirror's hierarchy answer to a parent rejection
-// and returns every other error untouched. Both write verbs that can send a
-// parent go through here, so a new surface cannot inherit the bare 400.
-func withParentHint(ctx context.Context, err error, parentKey string) error {
-	if err == nil || parentKey == "" || !parentRejection(err) {
+func withParentHint(_ context.Context, err error, parentKey string) error {
+	if err == nil || parentKey == "" || !parenthint.Rejection(err) {
 		return err
 	}
-	if hint := parentHierarchyHint(ctx, parentKey); hint != "" {
-		return fmt.Errorf("%w\n%s", err, hint)
+	db, openErr := openReadOnly()
+	if openErr != nil {
+		return err
 	}
-	return err
+	defer db.Close()
+	return parenthint.Wrap(err, parentKey, db)
 }
 
-// parentHierarchyHint reads the rejected parent from the mirror and states
-// the hierarchy rule Jira's 400 leaves out. Best-effort: no mirror, no row,
-// or any error returns "" and the origin error stands alone.
 func parentHierarchyHint(_ context.Context, parentKey string) string {
 	db, err := openReadOnly()
 	if err != nil {
 		return ""
 	}
 	defer db.Close()
-	var issueType, projectKey string
-	var level int
-	err = db.QueryRow(
-		`SELECT COALESCE(issue_type, ''), COALESCE(hierarchy_level, 0), COALESCE(project_key, '') FROM issues WHERE key = ?`,
-		parentKey).Scan(&issueType, &level, &projectKey)
-	if err != nil {
-		return ""
-	}
-	// A parent sits exactly one level above its child, so a level-1 parent
-	// (an epic) is refused for another epic — the case the old early return
-	// answered with silence (GDK-525).
-	if level >= 1 {
-		below := fmt.Sprintf("level-%d", level-1)
-		if level == 1 {
-			below = "level-0 (standard types such as Task, Bug or Story)"
-		}
-		return fmt.Sprintf("hint: %s is %q (hierarchy level %d) — a parent sits exactly one level above its child, so %s can only parent %s issues. Two issues at the same level cannot be parent and child.",
-			parentKey, issueType, level, parentKey, below)
-	}
-	hint := fmt.Sprintf("hint: %s is %q (hierarchy level %d) — a standard issue can only sit under a level-1 parent (an epic); only sub-task types can sit under %s. Pick an epic as --parent, or use a sub-task issue type.",
-		parentKey, issueType, level, parentKey)
-	if extra := openEpicHint(db, projectKey); extra != "" {
-		return hint + "\n" + extra
-	}
-	return hint
-}
-
-// openEpicHint names up to three open level-1 issues in the rejected parent's
-// project. Empty project, query failure, or zero rows return "" so the base
-// hint still stands. Filter is hierarchy_level + status_category, never a
-// localized type name (GDK-330).
-func openEpicHint(db *sql.DB, projectKey string) string {
-	if projectKey == "" {
-		return ""
-	}
-	rows, err := db.Query(
-		`SELECT key, COALESCE(summary, '') FROM issues_full
-		 WHERE hierarchy_level = 1 AND status_category != 'done' AND project_key = ?
-		 ORDER BY updated_at DESC LIMIT 3`,
-		projectKey)
-	if err != nil {
-		return ""
-	}
-	defer rows.Close()
-	var parts []string
-	for rows.Next() {
-		var key, summary string
-		if err := rows.Scan(&key, &summary); err != nil {
-			return ""
-		}
-		parts = append(parts, fmt.Sprintf("%s %q", key, clip(summary, 60)))
-	}
-	if err := rows.Err(); err != nil || len(parts) == 0 {
-		return ""
-	}
-	return "open epics in " + projectKey + ": " + strings.Join(parts, ", ")
+	return parenthint.Hint(db, parentKey)
 }

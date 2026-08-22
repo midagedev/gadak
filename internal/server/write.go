@@ -19,6 +19,7 @@ import (
 	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/parenthint"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/transition"
@@ -107,7 +108,16 @@ func failJira(w http.ResponseWriter, r *http.Request, cfg *config.Config, err er
 		if status < 400 || status > 499 {
 			status = http.StatusBadGateway
 		}
-		body := map[string]any{"error": apiErr.Message()}
+		msg := apiErr.Message()
+		// parenthint.Wrap appends the mirror hierarchy sentence without
+		// replacing the origin 400 (GDK-19). Surface it in `error` the
+		// same way the CLI wraps — a new field would miss the web toast,
+		// which only reads `error` / `jira_errors`.
+		var hinted *parenthint.Hinted
+		if errors.As(err, &hinted) && hinted.Hint != "" {
+			msg = msg + "\n" + hinted.Hint
+		}
+		body := map[string]any{"error": msg}
 		if len(apiErr.Errors) > 0 {
 			body["jira_errors"] = apiErr.Errors
 		}
@@ -778,10 +788,13 @@ func (s *server) handleParent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
+		var err error
 		if raw == "" {
-			return nil, c.UpdateFields(ctx, key, map[string]any{"parent": nil})
+			err = c.UpdateFields(ctx, key, map[string]any{"parent": nil})
+		} else {
+			err = c.UpdateFields(ctx, key, map[string]any{"parent": map[string]string{"key": parentKey}})
 		}
-		return nil, c.UpdateFields(ctx, key, map[string]any{"parent": map[string]string{"key": parentKey}})
+		return nil, parenthint.Wrap(err, parentKey, s.db)
 	})
 }
 
@@ -1113,7 +1126,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	key, err := c.CreateIssue(r.Context(), fields)
 	if err != nil {
-		failJira(w, r, s.config(), err)
+		failJira(w, r, s.config(), parenthint.Wrap(err, parentKey, s.db))
 		return
 	}
 	if err := sync.SyncIssue(r.Context(), cfg, s.db, key, sync.Options{Client: c}); err != nil {
