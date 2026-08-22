@@ -294,14 +294,14 @@ func etagMatches(header string, version int64) bool {
 /* ── detail ── */
 
 type detailComment struct {
-	CommentID       string          `json:"comment_id"`
-	Author          *string         `json:"author"`
-	AuthorEmail     *string         `json:"author_email"`
-	AuthorAccountID *string         `json:"author_account_id"`
-	AuthorAccountType *string       `json:"author_account_type,omitempty"`
-	Body            string          `json:"body"`
-	RawBody         json.RawMessage `json:"raw_body"`
-	CreatedAt       *string         `json:"created_at"`
+	CommentID         string          `json:"comment_id"`
+	Author            *string         `json:"author"`
+	AuthorEmail       *string         `json:"author_email"`
+	AuthorAccountID   *string         `json:"author_account_id"`
+	AuthorAccountType *string         `json:"author_account_type,omitempty"`
+	Body              string          `json:"body"`
+	RawBody           json.RawMessage `json:"raw_body"`
+	CreatedAt         *string         `json:"created_at"`
 }
 
 type detailAttachment struct {
@@ -703,13 +703,13 @@ type derivedView struct {
 	// which account ids touched each issue — comment, changelog entry, or
 	// dev-panel link. Rows serialize it as `actor_ids`; the client's actor
 	// filter narrows on it with no extra round trip.
-	actorsByIssue map[string][]string
-	categories    map[string]string
-	groupByEmail         map[string]string
-	groupByAccount       map[string]string
-	rules                []config.GroupRule
-	queryGroup           map[string]string
-	groupsEnabled        bool
+	actorsByIssue  map[string][]string
+	categories     map[string]string
+	groupByEmail   map[string]string
+	groupByAccount map[string]string
+	rules          []config.GroupRule
+	queryGroup     map[string]string
+	groupsEnabled  bool
 	// Plugin enrichments the list rows carry, by issue key. They are cached with
 	// everything else here, which is exactly as fresh as the ETag: a plugin that
 	// forgets to bump sync_state.version gets no refetch either way (docs/PLUGINS.md).

@@ -136,11 +136,11 @@ func (db *DB) UserCatalog(ctx context.Context) ([]UserAccount, error) {
 // the issue_actors view, so `gadak sql` and documented recipes see the same
 // axis the server builds members from.
 type IssueActor struct {
-	IssueKey   string
-	SourceID   string
-	ActorID    string
-	ActorName  string
-	Via        string // "comment" | "changelog" | "dev_link"
+	IssueKey  string
+	SourceID  string
+	ActorID   string
+	ActorName string
+	Via       string // "comment" | "changelog" | "dev_link"
 }
 
 // QueryIssueActors returns every (issue, actor) touch, unordered. The set is
