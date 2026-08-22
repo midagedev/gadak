@@ -50,7 +50,7 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 			return err
 		}
 	}
-	if err := db.UpsertSource(ctx, store.Source{ID: SourceID, Kind: "jira", BaseURL: c.BaseURL()}); err != nil {
+	if err := db.UpsertSource(ctx, store.Source{ID: SourceID, Kind: KindJira, BaseURL: c.BaseURL()}); err != nil {
 		return err
 	}
 	// ponytail: two metadata calls per write. They are what keeps reopen_count and

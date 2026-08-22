@@ -228,7 +228,7 @@ func TestMergeRules(t *testing.T) {
 	cfg := *existing
 	cfg.Fields = copyFieldSpecs(existing.Fields)
 	cfg.Projects = copyStrings(existing.Projects)
-	if err := ApplyPlan(&cfg, db, plan); err != nil {
+	if err := ApplyPlan(context.Background(), &cfg, db, plan); err != nil {
 		t.Fatal(err)
 	}
 	if len(cfg.Fields) != 1 || cfg.Fields[0].Alias != "old" || cfg.Fields[0].IDs[0] != "customfield_1" {
@@ -263,7 +263,7 @@ func TestMergeRules(t *testing.T) {
 	planO2 := BuildPlan(&cfg2, viewsNow, incoming, ImportOptions{Overwrite: true})
 	assertViewAction(t, planO2, "Mine", ViewReplace)
 	assertViewAction(t, planO2, "New view", ViewReplace) // exists now → replace under overwrite
-	if err := ApplyPlan(&cfg2, db, planO2); err != nil {
+	if err := ApplyPlan(context.Background(), &cfg2, db, planO2); err != nil {
 		t.Fatal(err)
 	}
 	if len(cfg2.Fields) != 1 || cfg2.Fields[0].Alias != "new" || cfg2.Fields[0].IDs[0] != "customfield_2" {
@@ -478,7 +478,7 @@ func TestRoundTripExportImport(t *testing.T) {
 	}
 	existing, _ := dbB.SavedViews(context.Background())
 	plan := BuildPlan(loaded, existing, parsed, ImportOptions{})
-	if err := ApplyPlan(loaded, dbB, plan); err != nil {
+	if err := ApplyPlan(context.Background(), loaded, dbB, plan); err != nil {
 		t.Fatal(err)
 	}
 	if err := loaded.Save(); err != nil {
@@ -636,7 +636,7 @@ func TestImportBothShapesLegacyWinsConflictingAlias(t *testing.T) {
 			t.Fatalf("plan must not carry retired keys, got %+v", plan.Settings)
 		}
 	}
-	if err := ApplyPlan(cfg, openTestDB(t), plan); err != nil {
+	if err := ApplyPlan(context.Background(), cfg, openTestDB(t), plan); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(cfg.Fields, doc.Settings.Fields) {

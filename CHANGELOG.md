@@ -581,6 +581,15 @@ followed:
   error transcripts, and the real loop could race a fast exit against its
   own success signal and call a successful install a failure. Production
   now feeds the one watched function the tests drive.
+- **Six small owners, one each** ([GDK-619]). A sweep of byte-identical
+  helper copies and near-misses: the date literal check turned out to
+  exist three times, not two, and now lives once in `internal/fields`;
+  name-or-id formatting, identity-from-config, and profile normalization
+  each collapsed to one exported owner; source kinds became constants
+  (five bare `"linear"`-family literals swept); a settings-import plan
+  threads its caller's context instead of burying `Background()`; and a
+  provably dead nil-client defense — the constructors always install one —
+  is deleted in all five places it had been pasted.
 - **One shape for a fatal error** ([GDK-611]). One error path in `main`
   still went through `log.Fatalf`, which hard-codes exit 1 instead of
   routing through the exit-code contract every sibling branch honors. It
@@ -1719,6 +1728,7 @@ measured numbers instead of adjectives.
 [GDK-611]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-611
 [GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
 [GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
+[GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

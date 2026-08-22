@@ -619,9 +619,9 @@ func TestErrNotConfiguredNamesThreeInitPaths(t *testing.T) {
 			t.Errorf("ErrNotConfigured missing %q: %s", want, msg)
 		}
 	}
-	wrapped := NotConfiguredf("use `gadak views open KEY`")
+	wrapped := NotConfiguredWith("use `gadak views open KEY`")
 	if !errors.Is(wrapped, ErrNotConfigured) {
-		t.Fatalf("NotConfiguredf must wrap ErrNotConfigured, got %v", wrapped)
+		t.Fatalf("NotConfiguredWith must wrap ErrNotConfigured, got %v", wrapped)
 	}
 	if !strings.Contains(wrapped.Error(), "gadak views open KEY") {
 		t.Fatalf("addendum dropped: %v", wrapped)

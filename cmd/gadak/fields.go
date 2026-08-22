@@ -80,7 +80,7 @@ func cmdFields(args []string) error {
 		return err
 	}
 	if !cfg.HasCredential() {
-		return config.NotConfiguredf("this command queries Jira, not only the mirror")
+		return config.NotConfiguredWith("this command queries Jira, not only the mirror")
 	}
 
 	db, err := openReadOnly()

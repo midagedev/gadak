@@ -12,6 +12,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/create"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
@@ -452,29 +453,10 @@ func parseDueDate(raw, cmd string) (string, error) {
 	if s == "" {
 		return "", nil
 	}
-	if !dueDateLiteral(s) {
+	if !fields.DateOnlyLiteral(s) {
 		return "", fmt.Errorf("gadak %s --due %q is not a date (want YYYY-MM-DD)", cmd, raw)
 	}
 	return s, nil
-}
-
-// dueDateLiteral is YYYY-MM-DD with month 01–12 and day 01–31. It does not
-// parse into a timestamp — date-only values stay date-only.
-func dueDateLiteral(s string) bool {
-	if len(s) != 10 || s[4] != '-' || s[7] != '-' {
-		return false
-	}
-	for i := 0; i < 10; i++ {
-		if i == 4 || i == 7 {
-			continue
-		}
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	month := int(s[5]-'0')*10 + int(s[6]-'0')
-	day := int(s[8]-'0')*10 + int(s[9]-'0')
-	return month >= 1 && month <= 12 && day >= 1 && day <= 31
 }
 
 func parseParentKey(raw, cmd string) (string, error) {

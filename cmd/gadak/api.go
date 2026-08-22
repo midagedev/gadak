@@ -101,7 +101,7 @@ func cmdAPI(args []string) error {
 		return err
 	}
 	if !cfg.HasCredential() {
-		return config.NotConfiguredf("gadak api uses the stored token")
+		return config.NotConfiguredWith("gadak api uses the stored token")
 	}
 
 	ctx := context.Background()

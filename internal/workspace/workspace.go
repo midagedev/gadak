@@ -365,10 +365,7 @@ type ListEntry struct {
 func ListHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		primary := config.Profile()
-		primaryName := primary
-		if primaryName == "" {
-			primaryName = "default"
-		}
+		primaryName := config.NormalizeProfile(primary)
 
 		var list []ListEntry
 
@@ -414,13 +411,7 @@ func ListHandler() http.HandlerFunc {
 // sameProfile reports whether a and b name the same profile. The empty string
 // and "default" are the same (config.Profile() returns "" for the default).
 func sameProfile(a, b string) bool {
-	if a == "" {
-		a = "default"
-	}
-	if b == "" {
-		b = "default"
-	}
-	return a == b
+	return config.NormalizeProfile(a) == config.NormalizeProfile(b)
 }
 
 // WatchAll arms the credential-appearance owner and starts a loop for every

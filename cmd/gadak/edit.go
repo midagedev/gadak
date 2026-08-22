@@ -16,6 +16,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/transition"
 )
 
 const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--field alias=value]... [--json]"
@@ -273,7 +274,7 @@ func fixVersionUpdateOps(ctx context.Context, c origin.Writer, issueKey string, 
 	}
 	needCatalog := false
 	for _, p := range parsed {
-		if !allASCIIDigits(p.(signedToken).token) {
+		if !transition.AllASCIIDigits(p.(signedToken).token) {
 			needCatalog = true
 			break
 		}
@@ -310,7 +311,7 @@ func projectKeyFromIssueKey(key string) string {
 }
 
 func resolveFixVersionID(token string, catalog []jira.Version) (string, error) {
-	if allASCIIDigits(token) {
+	if transition.AllASCIIDigits(token) {
 		return token, nil
 	}
 	var hits []jira.Version
@@ -338,7 +339,7 @@ func formatVersionCatalog(list []jira.Version) string {
 	for _, v := range list {
 		named = append(named, jira.NamedID{ID: v.ID, Name: v.Name})
 	}
-	return formatNamedIDs(named)
+	return transition.FormatNamedIDs(named)
 }
 
 // signedUpdateOps is the shared +name / -name parser for edit's set-valued

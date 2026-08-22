@@ -288,7 +288,9 @@ func planSettings(cur *config.Config, in TeamSettings, overwrite bool) []Setting
 // ApplyPlan mutates cfg in place for settings changes and writes views via db.
 // Credential fields on cfg are never assigned — only whitelist keys from the plan.
 // Caller must Save() the config after a successful settings apply when not dry-run.
-func ApplyPlan(cfg *config.Config, db *store.DB, plan Plan) error {
+// ctx is threaded into every db write (GDK-619) — the plan must not bury its
+// own context.Background(); the CLI passes one at its boundary.
+func ApplyPlan(ctx context.Context, cfg *config.Config, db *store.DB, plan Plan) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
@@ -309,7 +311,7 @@ func ApplyPlan(cfg *config.Config, db *store.DB, plan Plan) error {
 			if err != nil {
 				return err
 			}
-			if err := db.PutSavedView(context.Background(), store.SavedView{
+			if err := db.PutSavedView(ctx, store.SavedView{
 				ID:     id,
 				Name:   vc.Name,
 				Config: vc.Config,
@@ -322,7 +324,7 @@ func ApplyPlan(cfg *config.Config, db *store.DB, plan Plan) error {
 			}
 			// Preserve created_at by reading current row if present.
 			created := ""
-			if views, err := db.SavedViews(context.Background()); err == nil {
+			if views, err := db.SavedViews(ctx); err == nil {
 				for _, v := range views {
 					if v.ID == vc.ExistingID {
 						created = v.CreatedAt
@@ -330,7 +332,7 @@ func ApplyPlan(cfg *config.Config, db *store.DB, plan Plan) error {
 					}
 				}
 			}
-			if err := db.PutSavedView(context.Background(), store.SavedView{
+			if err := db.PutSavedView(ctx, store.SavedView{
 				ID:        vc.ExistingID,
 				Name:      vc.Name,
 				Config:    vc.Config,

@@ -1424,7 +1424,7 @@ func sortJQL(list []store.IssueLite, d jql.Display) {
 // errNoCredential is the refusal mutate and create share: writes go to Jira.
 // Sentence owner is config.ErrNotConfigured (GDK-454); the addendum is this
 // verb's, because a write that cannot reach an origin is not a local edit.
-var errNoCredential = config.NotConfiguredf("writes go to the origin, not to the mirror")
+var errNoCredential = config.NotConfiguredWith("writes go to the origin, not to the mirror")
 
 // writeNotMirroredError is the lookup miss after a write Jira already accepted.
 // mutate returns it (non-zero). create prints the new key with this wording
@@ -1944,33 +1944,6 @@ func parseTransitionFieldFlags(raw []string) (map[string]any, error) {
 	return out, nil
 }
 
-func formatNamedIDs(list []jira.NamedID) string {
-	if len(list) == 0 {
-		return "(none)"
-	}
-	parts := make([]string, 0, len(list))
-	for _, n := range list {
-		if n.Name != "" {
-			parts = append(parts, n.Name)
-		} else {
-			parts = append(parts, n.ID)
-		}
-	}
-	return strings.Join(parts, ", ")
-}
-
-func allASCIIDigits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
-}
-
 func cmdAssign(args []string) error {
 	fs := newFlagSet("assign")
 	asJSON := fs.Bool("json", false, "emit JSON")
@@ -2129,7 +2102,7 @@ func cmdOpen(args []string) error {
 	// Standalone HasCredential is true, so it still hits the lookup / live-
 	// serve / views-open path below and is not told to re-run init (GDK-454).
 	if !cfg.HasCredential() {
-		return config.NotConfiguredf(fmt.Sprintf("use `gadak views open %s` (or `gadak serve`)", key))
+		return config.NotConfiguredWith(fmt.Sprintf("use `gadak views open %s` (or `gadak serve`)", key))
 	}
 	// Key first: a missing row used to fall through to the no-site error and
 	// tell an already-inited standalone workspace to re-run init. With a

@@ -497,10 +497,7 @@ func (s *server) runtimeInfo(ctx context.Context) *runtimeInfo {
 
 // profileDisplay returns the UI name for a profile ("" / "default" → "default").
 func profileDisplay(profile string) string {
-	if profile == "" || profile == "default" {
-		return "default"
-	}
-	return profile
+	return config.NormalizeProfile(profile)
 }
 
 func humanBytes(n int64) string {

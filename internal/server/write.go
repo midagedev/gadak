@@ -748,7 +748,7 @@ func (s *server) handleDuedate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	raw := strings.TrimSpace(deref(body.Duedate))
-	if raw != "" && !dueDateLiteral(raw) {
+	if raw != "" && !fields.DateOnlyLiteral(raw) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
 			"error": fmt.Sprintf("duedate %q is not a date (want YYYY-MM-DD)", raw),
 		})
@@ -828,25 +828,6 @@ func (s *server) handleLabels(w http.ResponseWriter, r *http.Request) {
 	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		return nil, c.UpdateFields(ctx, key, map[string]any{"labels": labels})
 	})
-}
-
-// dueDateLiteral is YYYY-MM-DD with month 01–12 and day 01–31. It does not
-// parse into a timestamp — date-only values stay date-only.
-func dueDateLiteral(s string) bool {
-	if len(s) != 10 || s[4] != '-' || s[7] != '-' {
-		return false
-	}
-	for i := 0; i < 10; i++ {
-		if i == 4 || i == 7 {
-			continue
-		}
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	month := int(s[5]-'0')*10 + int(s[6]-'0')
-	day := int(s[8]-'0')*10 + int(s[9]-'0')
-	return month >= 1 && month <= 12 && day >= 1 && day <= 31
 }
 
 func normalizeLabels(in []string) []string {
@@ -1068,6 +1049,16 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The due date is validated before payload assembly: the map below is
+	// named fields and would shadow the package for the check.
+	duedate := strings.TrimSpace(p.Duedate)
+	if duedate != "" && !fields.DateOnlyLiteral(duedate) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("duedate %q is not a date (want YYYY-MM-DD)", p.Duedate),
+		})
+		return
+	}
+
 	fields := map[string]any{
 		"project":   map[string]string{"key": metaProj.Key},
 		"issuetype": map[string]string{"id": typ.Value},
@@ -1087,14 +1078,8 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	if labels := normalizeLabels(p.Labels); len(labels) > 0 {
 		fields["labels"] = labels
 	}
-	if due := strings.TrimSpace(p.Duedate); due != "" {
-		if !dueDateLiteral(due) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": fmt.Sprintf("duedate %q is not a date (want YYYY-MM-DD)", p.Duedate),
-			})
-			return
-		}
-		fields["duedate"] = due
+	if duedate != "" {
+		fields["duedate"] = duedate
 	}
 
 	key, err := c.CreateIssue(r.Context(), fields)

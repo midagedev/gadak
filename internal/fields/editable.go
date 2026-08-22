@@ -153,7 +153,7 @@ func scalarValue(kind string, raw json.RawMessage) (any, error) {
 		if s == "" {
 			return nil, nil
 		}
-		if !dateOnlyLiteral(s) {
+		if !DateOnlyLiteral(s) {
 			return nil, fmt.Errorf("date %q is not a date (want YYYY-MM-DD)", s)
 		}
 		return s, nil
@@ -196,9 +196,11 @@ func numberValue(raw json.RawMessage) (any, error) {
 	return f, nil
 }
 
-// dateOnlyLiteral is YYYY-MM-DD with month 01–12 and day 01–31. It does not
-// parse into a timestamp — date-only values stay date-only.
-func dateOnlyLiteral(s string) bool {
+// DateOnlyLiteral is YYYY-MM-DD with month 01–12 and day 01–31. It does not
+// parse into a timestamp — date-only values stay date-only. Single owner of
+// the duedate / date-field literal check (GDK-619): `gadak create --due` and
+// the server's create / update-fields endpoints import it.
+func DateOnlyLiteral(s string) bool {
 	if len(s) != 10 || s[4] != '-' || s[7] != '-' {
 		return false
 	}

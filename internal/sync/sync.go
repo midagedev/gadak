@@ -149,7 +149,7 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 	}
 	var c *jira.Client
 	return runSource(ctx, cfg, db, opts,
-		sourceIdent{ID: SourceID, Kind: "jira"},
+		sourceIdent{ID: SourceID, Kind: KindJira},
 		true, // SupportsReconcile: full and opts.Reconcile both run reconcile
 		"",
 		func() (string, usageTaker, error) {

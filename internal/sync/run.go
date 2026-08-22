@@ -135,10 +135,19 @@ func sourceLastErrors(ctx context.Context, db *store.DB) (map[string]string, err
 	return out, nil
 }
 
+// Source kinds — the Kind column of sources / sync_state rows, one value per
+// connector. Single owner (GDK-619): every writer of the column and every
+// comparison against it goes through these, never a bare literal.
+const (
+	KindJira       = "jira"
+	KindConfluence = "confluence"
+	KindLinear     = "linear"
+)
+
 // sourceIdent names a connector in sources / sync_state / sync_runs.
 type sourceIdent struct {
-	ID   string // "jira" | "confluence"
-	Kind string // store Source.Kind
+	ID   string // SourceID | ConfluenceSourceID | LinearSourceID
+	Kind string // store Source.Kind — a Kind* constant above
 }
 
 // usageTaker is the client surface FlushAPIUsage needs. *jira.Client and
@@ -193,7 +202,7 @@ func runSource(
 		_ = db.AppendSyncRun(ctx, src.ID, run)
 	}()
 
-	if cfg == nil || (!cfg.HasCredential() && src.Kind != "linear") {
+	if cfg == nil || (!cfg.HasCredential() && src.Kind != KindLinear) {
 		// Per-source gate: the Linear pass authenticates with its own key
 		// (checked in its setup); only Jira-family sources need the token.
 		return res, errors.New("sync: site, email and token are required")

@@ -316,6 +316,18 @@ func Profile() string {
 	return profile
 }
 
+// NormalizeProfile is the display name of a profile: the empty string and
+// "default" name the same root profile (Profile() returns "" for it) and
+// both serialize as "default". Single owner of that mapping (GDK-619) —
+// serve's workspace list, settings' profile display, and sameProfile all
+// call this instead of re-spelling the branch.
+func NormalizeProfile(name string) string {
+	if name == "" {
+		return "default"
+	}
+	return name
+}
+
 // WorkspaceSource is the single owner of "what selected this workspace".
 // kind is SourceFlag, SourceEnv, or SourceDefault. envName is the variable
 // that supplied the value when kind is SourceEnv, otherwise "".
@@ -731,8 +743,8 @@ func (c *Config) SyncFrozen() bool { return c != nil && c.Frozen }
 // wikiPathStatus; it is not this sentence.
 var ErrNotConfigured = errors.New("not configured — run gadak init (Jira), gadak init --standalone (local), or gadak init --pairing-code (another machine's serve)")
 
-// NotConfiguredf appends a verb-specific addendum to ErrNotConfigured.
-func NotConfiguredf(addendum string) error {
+// NotConfiguredWith appends a verb-specific addendum to ErrNotConfigured.
+func NotConfiguredWith(addendum string) error {
 	addendum = strings.TrimSpace(addendum)
 	if addendum == "" {
 		return ErrNotConfigured

@@ -10,6 +10,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/transition"
 )
 
 const linkUsage = "usage: gadak link <A> <B> --type <name|inward|outward|id> [--json]"
@@ -89,7 +90,7 @@ func resolveLinkType(token string, catalog []jira.IssueLinkType) (jira.IssueLink
 	if token == "" {
 		return jira.IssueLinkType{}, false, fmt.Errorf("empty link type")
 	}
-	if allASCIIDigits(token) {
+	if transition.AllASCIIDigits(token) {
 		for _, t := range catalog {
 			if t.ID == token {
 				return t, false, nil

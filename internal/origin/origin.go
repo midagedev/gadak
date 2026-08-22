@@ -158,6 +158,26 @@ func pairedRemote(cfg *config.Config) (*pairing.Remote, error) {
 // the home serve's pairing gate rewrites Authorization but forwards
 // X-Issuetap-Actor, so a remote agent's writes attribute to it, not to the
 // home machine's identity.
+
+// transportJira and transportWiki are the single owners of the injected
+// transport assembly (GDK-619): a client built like a connected one, then
+// rewired so every request rides tr — the paired serve's passthrough or the
+// in-process issuetap handler. The in-process credential pair is a
+// placeholder; tr carries the real authentication. jira.New and
+// confluence.New always install an HTTP client, so there is no nil-HTTP
+// case to defend.
+func transportJira(tr http.RoundTripper) *jira.Client {
+	c := Connected("", inProcessUser, inProcessSecret)
+	c.HTTP.Transport = tr
+	return c
+}
+
+func transportWiki(tr http.RoundTripper) *confluence.Client {
+	w := confluence.New("", inProcessUser, inProcessSecret)
+	w.HTTP.Transport = tr
+	return w
+}
+
 func pairedJira(cfg *config.Config, rem *pairing.Remote) (*jira.Client, error) {
 	tr, err := newRemoteOriginTransport(rem.Endpoint, rem.Token)
 	if err != nil {
@@ -166,11 +186,7 @@ func pairedJira(cfg *config.Config, rem *pairing.Remote) (*jira.Client, error) {
 	if a, ok := config.ResolveActor(cfg); ok {
 		tr.actor, tr.actorName = a.Slug, a.Name
 	}
-	c := Connected("", inProcessUser, inProcessSecret)
-	if c.HTTP == nil {
-		c.HTTP = &http.Client{}
-	}
-	c.HTTP.Transport = tr
+	c := transportJira(tr)
 	return c, nil
 }
 
@@ -184,11 +200,7 @@ func pairedWiki(cfg *config.Config, rem *pairing.Remote) (*confluence.Client, er
 	if a, ok := config.ResolveActor(cfg); ok {
 		tr.actor, tr.actorName = a.Slug, a.Name
 	}
-	w := confluence.New("", inProcessUser, inProcessSecret)
-	if w.HTTP == nil {
-		w.HTTP = &http.Client{}
-	}
-	w.HTTP.Transport = tr
+	w := transportWiki(tr)
 	return w, nil
 }
 
@@ -205,11 +217,7 @@ func VerifyPaired(ctx context.Context, endpoint, token string) (jira.User, error
 	if err != nil {
 		return jira.User{}, err
 	}
-	c := Connected("", inProcessUser, inProcessSecret)
-	if c.HTTP == nil {
-		c.HTTP = &http.Client{}
-	}
-	c.HTTP.Transport = tr
+	c := transportJira(tr)
 	return c.Myself(ctx)
 }
 
@@ -547,17 +555,8 @@ func constructStandalone(persist string, projects []string, actor config.Resolve
 
 	tr := &handlerTransport{h: emb, actor: actor.Slug, actorName: actor.Name}
 
-	c := Connected("", inProcessUser, inProcessSecret)
-	if c.HTTP == nil {
-		c.HTTP = &http.Client{}
-	}
-	c.HTTP.Transport = tr
-
-	w := confluence.New("", inProcessUser, inProcessSecret)
-	if w.HTTP == nil {
-		w.HTTP = &http.Client{}
-	}
-	w.HTTP.Transport = tr
+	c := transportJira(tr)
+	w := transportWiki(tr)
 
 	return &session{emb: emb, client: c, wiki: w, unlock: unlock, locale: locale}, nil
 }

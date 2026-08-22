@@ -63,7 +63,7 @@ func RunLinear(ctx context.Context, cfg *config.Config, db *store.DB, opts Optio
 	}
 	var c *linear.Client
 	return runSource(ctx, cfg, db, opts,
-		sourceIdent{ID: LinearSourceID, Kind: "linear"},
+		sourceIdent{ID: LinearSourceID, Kind: KindLinear},
 		true, // SupportsReconcile: full and opts.Reconcile, same as Jira
 		"linear ",
 		func() (string, usageTaker, error) {

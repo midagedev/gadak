@@ -184,7 +184,7 @@ func resolveResolution(ctx context.Context, o Origin, selected jira.Transition, 
 	if want == "" {
 		return nil, &Refused{Msg: "empty resolution"}
 	}
-	if allASCIIDigits(want) {
+	if AllASCIIDigits(want) {
 		return map[string]string{"id": want}, nil
 	}
 	var catalog []jira.NamedID
@@ -219,13 +219,16 @@ func matchResolution(want string, list []jira.NamedID) (string, error) {
 	case 1:
 		return hits[0].ID, nil
 	case 0:
-		return "", &Refused{Msg: fmt.Sprintf("no resolution matching %q — available: %s", want, formatNamedIDs(list))}
+		return "", &Refused{Msg: fmt.Sprintf("no resolution matching %q — available: %s", want, FormatNamedIDs(list))}
 	default:
-		return "", &Refused{Msg: fmt.Sprintf("resolution %q is ambiguous — matches: %s", want, formatNamedIDs(hits))}
+		return "", &Refused{Msg: fmt.Sprintf("resolution %q is ambiguous — matches: %s", want, FormatNamedIDs(hits))}
 	}
 }
 
-func formatNamedIDs(list []jira.NamedID) string {
+// FormatNamedIDs joins a catalog's names (ids where the name is empty) with
+// ", " — the "available: …" list in resolution errors. Single owner; the
+// `gadak agent` / `gadak edit` surfaces import it (GDK-619).
+func FormatNamedIDs(list []jira.NamedID) string {
 	if len(list) == 0 {
 		return "(none)"
 	}
@@ -240,7 +243,9 @@ func formatNamedIDs(list []jira.NamedID) string {
 	return strings.Join(parts, ", ")
 }
 
-func allASCIIDigits(s string) bool {
+// AllASCIIDigits reports whether s is one or more ASCII digits — the "the
+// user typed a bare id, not a name" discriminator in catalog resolution.
+func AllASCIIDigits(s string) bool {
 	if s == "" {
 		return false
 	}
@@ -275,7 +280,7 @@ func formatField(key string, f jira.TransitionField) string {
 	if f.Name != "" {
 		part += " (" + f.Name + ")"
 	}
-	if names := formatNamedIDs(f.AllowedValues); names != "" && names != "(none)" {
+	if names := FormatNamedIDs(f.AllowedValues); names != "" && names != "(none)" {
 		part += " — allowed: " + names
 	}
 	return part

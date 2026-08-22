@@ -545,6 +545,14 @@
   복제본은 오류 트랜스크립트에서 빈 줄을 버렸고, 진짜 루프는 빠른 종료와
   자기 성공 신호를 경쟁시켜 성공한 설치를 실패로 부를 수 있었습니다.
   이제 생산이 테스트가 모는 그 함수 하나에 출력을 먹입니다.
+- **작은 소유자 여섯, 각자 하나씩** ([GDK-619]). 바이트 동일 헬퍼 사본
+  스윕: 날짜 리터럴 검사는 두 벌이 아니라 세 벌로 실측돼 이제
+  `internal/fields`에 한 번만 삽니다; 이름-또는-id 포맷, 설정에서 신원
+  읽기, 프로필 정규화가 각각 내보낸 소유자 하나로 접혔습니다; 소스
+  kind는 상수가 됐고(맨 리터럴 5곳 스윕), 설정 임포트 플랜은
+  `Background()`를 묻는 대신 호출자의 컨텍스트를 꿰며, 생성자가 항상
+  클라이언트를 채우므로 증명 가능하게 죽어 있던 nil 방어 분기는 붙여넣어져
+  있던 다섯 곳 전부에서 삭제됐습니다.
 - **치명 오류의 형태는 하나** ([GDK-611]). `main`의 오류 경로 하나가
   아직 `log.Fatalf`를 지나고 있었습니다 — 형제 분기들이 전부 지키는
   exit 코드 계약을 타지 않고 무조건 1로 끝냅니다. 이제 나머지와 같은
@@ -1698,6 +1706,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-611]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-611
 [GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
 [GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
+[GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

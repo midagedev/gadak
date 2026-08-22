@@ -55,7 +55,7 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 		opts.ConfluenceClient = w
 	}
 	return runSource(ctx, cfg, db, opts,
-		sourceIdent{ID: ConfluenceSourceID, Kind: "confluence"},
+		sourceIdent{ID: ConfluenceSourceID, Kind: KindConfluence},
 		// Space-scope prune is the Confluence reconcile. The flag only suffixes
 		// SyncRun.Kind; prune itself is called from runConfluencePass.
 		true,

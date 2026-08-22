@@ -17,6 +17,7 @@ import (
 	"github.com/midagedev/gadak/internal/deeplink"
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/uifocus"
 	"github.com/midagedev/gadak/internal/views"
 	"github.com/midagedev/gadak/internal/workspace"
@@ -341,7 +342,7 @@ func viewsSave(args []string) error {
 	if err != nil {
 		return err
 	}
-	me := identityFromConfig(cfg)
+	me := sync.IdentityFromConfig(cfg)
 	parsed := jql.Parse(*jqlFlag, jql.Opts{Email: me.Email, AccountID: me.AccountID})
 	if parsed.Error != "" {
 		return fmt.Errorf("jql: %s", parsed.Message)
@@ -399,7 +400,7 @@ func hashFromJQL(text string) (string, error) {
 	cfg, err := config.Load()
 	me := jql.Identity{}
 	if err == nil {
-		me = identityFromConfig(cfg)
+		me = sync.IdentityFromConfig(cfg)
 	}
 	parsed := jql.Parse(text, jql.Opts{Email: me.Email, AccountID: me.AccountID})
 	if parsed.Error != "" {
@@ -410,13 +411,6 @@ func hashFromJQL(text string) (string, error) {
 		fmt.Fprintf(os.Stderr, "warning: JQL skipped %s\n", strings.Join(parsed.Unsupported, "; "))
 	}
 	return jql.Hash(parsed.Filters, parsed.Display), nil
-}
-
-func identityFromConfig(cfg *config.Config) jql.Identity {
-	if cfg == nil {
-		return jql.Identity{}
-	}
-	return jql.Identity{Email: cfg.Email, AccountID: cfg.AccountID}
 }
 
 func peopleFromStore(db *store.DB) []jql.Person {

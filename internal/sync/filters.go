@@ -31,7 +31,7 @@ func importFilters(ctx context.Context, c *jira.Client, cfg *config.Config, db *
 			Favourite:  f.Favourite,
 			Owner:      f.Owner,
 		}
-		q.Config, q.Applied, q.Unsupported = compileFilter(f.JQL, people, identityFromConfig(cfg))
+		q.Config, q.Applied, q.Unsupported = compileFilter(f.JQL, people, IdentityFromConfig(cfg))
 		out = append(out, q)
 	}
 	if err := db.ReplaceSourceQueries(ctx, SourceID, out); err != nil {
@@ -43,7 +43,10 @@ func importFilters(ctx context.Context, c *jira.Client, cfg *config.Config, db *
 	}
 }
 
-func identityFromConfig(cfg *config.Config) jql.Identity {
+// IdentityFromConfig is the JQL identity (email / account id) cfg carries —
+// the "me" of currentUser() when a JQL filter is compiled. Single owner
+// (GDK-619): filter import and `gadak views save` both read it.
+func IdentityFromConfig(cfg *config.Config) jql.Identity {
 	if cfg == nil {
 		return jql.Identity{}
 	}

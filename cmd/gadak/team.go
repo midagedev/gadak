@@ -228,7 +228,7 @@ See also: gadak team export
 	// skipping already-imported names.
 	settingsPlan := plan
 	settingsPlan.Views = nil
-	if err := teamconfig.ApplyPlan(cfg, db, settingsPlan); err != nil {
+	if err := teamconfig.ApplyPlan(context.Background(), cfg, db, settingsPlan); err != nil {
 		return err
 	}
 	cfg.Site = credSite
@@ -245,7 +245,7 @@ See also: gadak team export
 	}
 	viewsPlan := plan
 	viewsPlan.Settings = nil
-	if err := teamconfig.ApplyPlan(cfg, db, viewsPlan); err != nil {
+	if err := teamconfig.ApplyPlan(context.Background(), cfg, db, viewsPlan); err != nil {
 		return err
 	}
 	fmt.Println("import applied")
