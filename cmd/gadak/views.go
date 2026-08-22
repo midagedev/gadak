@@ -8,13 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/deeplink"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
@@ -22,9 +22,6 @@ import (
 	"github.com/midagedev/gadak/internal/views"
 	"github.com/midagedev/gadak/internal/workspace"
 )
-
-// issueKeyPat is the G3 positional: a Jira key, compared after ToUpper.
-var issueKeyPat = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d+$`)
 
 func cmdViews(args []string) error {
 	if wantsHelp(args) {
@@ -272,7 +269,7 @@ func readKeysFlag(raw string) ([]string, error) {
 }
 
 func looksLikeIssueKey(s string) bool {
-	return issueKeyPat.MatchString(strings.ToUpper(strings.TrimSpace(s)))
+	return fields.IssueKeyLiteral(strings.ToUpper(strings.TrimSpace(s)))
 }
 
 // issueOrExactView focuses detail (issue=KEY) unless a stored view has that

@@ -766,6 +766,37 @@ func (s *server) handleDuedate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *server) handleParent(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Parent *string `json:"parent"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	raw := strings.TrimSpace(deref(body.Parent))
+	parentKey := strings.ToUpper(raw)
+	if raw != "" && !fields.IssueKeyLiteral(parentKey) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("parent %q is not a Jira key (want ABC-123)", raw),
+		})
+		return
+	}
+	key := r.PathValue("key")
+	if raw != "" && parentKey == strings.ToUpper(strings.TrimSpace(key)) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("parent %q is this issue", parentKey),
+		})
+		return
+	}
+	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
+		if raw == "" {
+			return nil, c.UpdateFields(ctx, key, map[string]any{"parent": nil})
+		}
+		return nil, c.UpdateFields(ctx, key, map[string]any{"parent": map[string]string{"key": parentKey}})
+	})
+}
+
 func (s *server) handleSummary(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Summary *string `json:"summary"`
@@ -1003,6 +1034,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		PriorityID        string   `json:"priority_id"`
 		Labels            []string `json:"labels"`
 		Duedate           string   `json:"duedate"`
+		Parent            string   `json:"parent"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
@@ -1056,6 +1088,14 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	parent := strings.TrimSpace(p.Parent)
+	parentKey := strings.ToUpper(parent)
+	if parent != "" && !fields.IssueKeyLiteral(parentKey) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("parent %q is not a Jira key (want ABC-123)", p.Parent),
+		})
+		return
+	}
 
 	fields := map[string]any{
 		"project":   map[string]string{"key": metaProj.Key},
@@ -1078,6 +1118,9 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if duedate != "" {
 		fields["duedate"] = duedate
+	}
+	if parentKey != "" {
+		fields["parent"] = map[string]string{"key": parentKey}
 	}
 
 	key, err := c.CreateIssue(r.Context(), fields)

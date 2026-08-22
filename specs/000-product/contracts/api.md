@@ -294,6 +294,7 @@ No local queue, ever.
 | `<key>/summary/` | PUT | `PUT /issue/{key}` (`fields.summary`) | R |
 | `<key>/description/` | PUT | `PUT /issue/{key}` (`fields.description`, ADF-wrapped) | R |
 | `<key>/duedate/` | PUT | `PUT /issue/{key}` (`fields.duedate`) | R |
+| `<key>/parent/` | PUT | `PUT /issue/{key}` (`fields.parent`) | R |
 | `priorities/` | GET | `GET /priority` | R |
 | `<key>/fields/` | PATCH | `PUT /issue/{key}` | R |
 | `<key>/editmeta/` | GET | `GET /issue/{key}/editmeta` | R |
@@ -344,6 +345,9 @@ Implementation notes that are part of the contract:
 - `<key>/duedate/` takes `{"duedate":"YYYY-MM-DD" | null}`. Anything that is not
   a bare date literal is `400`; `null` or `""` clears. Timestamps are rejected on
   purpose: due date is a calendar day, not an instant.
+- `<key>/parent/` takes `{"parent":"ABC-123" | null}`. A value that is not a
+  Jira key is `400`; `null` or `""` clears. Setting the issue as its own parent
+  is `400`.
 
 ### Credential storage
 

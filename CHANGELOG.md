@@ -55,6 +55,14 @@ the fixes are all here.
   takes a positional body like `create`'s SUMMARY ([GDK-315]).
 - **Bulk issue reads**: many keys and `--keys -`, with no silent drop
   ([GDK-425]).
+- **REST gets the parent pair the CLI already had** ([GDK-328]). The
+  create body takes `parent` and `PUT {key}/parent/` sets or clears one —
+  the same `fields.parent` wire the CLI sends, so issuetap works unchanged.
+  A value that is not a Jira key, or the issue itself, is refused before it
+  reaches the origin. The key-shape check that was already copied twice
+  (CLI positional keys, MCP `gadak_show`) now has one owner in
+  `internal/fields`, and the new endpoints are its third and fourth
+  callers, not its third copy.
 - **`gadak claim KEY` takes an issue as yours** — assignee plus the
   in-progress transition in one step ([GDK-591]). On standalone and paired
   workspaces that is one atomic call on the origin's claim endpoint, and a
@@ -1966,6 +1974,7 @@ measured numbers instead of adjectives.
 [GDK-319]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-319
 [GDK-322]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-322
 [GDK-323]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-323
+[GDK-328]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-328
 [GDK-329]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-329
 [GDK-331]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-331
 [GDK-332]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-332

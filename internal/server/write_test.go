@@ -2081,6 +2081,162 @@ func TestEditDuedateRejectsInvalidBeforeJira(t *testing.T) {
 	}
 }
 
+func TestCreateIssueSendsParent(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"has parent","parent":"NMB-1"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if !strings.Contains(sent, `"parent":{"key":"NMB-1"}`) {
+		t.Fatalf("create body missing parent: %s", sent)
+	}
+}
+
+func TestCreateIssueOmitsEmptyParent(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"no parent","parent":""}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if strings.Contains(sent, `"parent"`) {
+		t.Fatalf("empty parent sent: %s", sent)
+	}
+
+	rec = send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"blank parent","parent":"  "}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create whitespace → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent = string(f.bodies["POST /issue"])
+	if strings.Contains(sent, `"parent"`) {
+		t.Fatalf("whitespace parent sent: %s", sent)
+	}
+}
+
+func TestCreateIssueRejectsInvalidParentBeforeJira(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"bad parent","parent":"not-a-key"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid parent → %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `not a Jira key (want ABC-123)`) {
+		t.Fatalf("must say what is expected: %s", body)
+	}
+	if !strings.Contains(body, "not-a-key") {
+		t.Fatalf("must name the value: %s", body)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("invalid parent reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateIssueNormalizesParentKey(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"lower parent","parent":"gdk-1"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	if !strings.Contains(sent, `"parent":{"key":"GDK-1"}`) {
+		t.Fatalf("create parent not normalized: %s", sent)
+	}
+}
+
+func TestEditParentSetAndClear(t *testing.T) {
+	f, h, _ := writable(t)
+
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/parent/", `{"parent":"NMB-2"}`); rec.Code != http.StatusOK {
+		t.Fatalf("set → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); body != `{"fields":{"parent":{"key":"NMB-2"}}}` {
+		t.Fatalf("set body %s", body)
+	}
+
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/parent/", `{"parent":null}`); rec.Code != http.StatusOK {
+		t.Fatalf("clear → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); body != `{"fields":{"parent":null}}` {
+		t.Fatalf("clear body %s", body)
+	}
+
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/parent/", `{"parent":""}`); rec.Code != http.StatusOK {
+		t.Fatalf("empty clear → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); body != `{"fields":{"parent":null}}` {
+		t.Fatalf("empty body %s", body)
+	}
+
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/parent/", `{"parent":"  "}`); rec.Code != http.StatusOK {
+		t.Fatalf("whitespace clear → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); body != `{"fields":{"parent":null}}` {
+		t.Fatalf("whitespace body %s", body)
+	}
+
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/parent/", `{"parent":"gdk-1"}`); rec.Code != http.StatusOK {
+		t.Fatalf("lower set → %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := string(f.bodies["PUT /issue/NMB-1"]); body != `{"fields":{"parent":{"key":"GDK-1"}}}` {
+		t.Fatalf("normalized body %s", body)
+	}
+}
+
+func TestEditParentRejectsInvalidBeforeJira(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPut, apiBase+"NMB-1/parent/", `{"parent":"not-a-key"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid → %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `not a Jira key (want ABC-123)`) {
+		t.Fatalf("must say what is expected: %s", body)
+	}
+	if !strings.Contains(body, "not-a-key") {
+		t.Fatalf("must name the value: %s", body)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("invalid parent reached Jira: %v", f.calls)
+	}
+}
+
+func TestEditParentRejectsSelfBeforeJira(t *testing.T) {
+	f, h, _ := writable(t)
+
+	rec := send(t, h, http.MethodPut, apiBase+"NMB-1/parent/", `{"parent":"NMB-1"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("self → %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "NMB-1") {
+		t.Fatalf("must name the value: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "is this issue") {
+		t.Fatalf("must say it is this issue: %s", rec.Body.String())
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("self parent reached Jira: %v", f.calls)
+	}
+
+	rec = send(t, h, http.MethodPut, apiBase+"NMB-1/parent/", `{"parent":"nmb-1"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("self lower → %d: %s", rec.Code, rec.Body.String())
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("self parent (lower) reached Jira: %v", f.calls)
+	}
+}
+
 // TestStandaloneOriginBusyIsNotCredentialRequired: a second process that
 // cannot embed (GDK-343) used to get 409 credential_required and the UI
 // opened the token dialog. Standalone has no token.

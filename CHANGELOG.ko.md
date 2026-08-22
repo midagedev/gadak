@@ -55,6 +55,13 @@
   SUMMARY처럼 위치 인자 본문을 받습니다 ([GDK-315]).
 - **이슈 대량 읽기**: 여러 키와 `--keys -`, 소리 없는 누락 없음
   ([GDK-425]).
+- **REST가 CLI에 이미 있던 parent 짝을 얻습니다** ([GDK-328]). create
+  바디가 `parent`를 받고 `PUT {key}/parent/`가 부모를 설정·해제합니다 —
+  CLI가 보내는 것과 같은 `fields.parent` 와이어라 issuetap은 그대로
+  동작합니다. Jira 키 모양이 아닌 값과 자기 자신은 origin에 닿기 전에
+  거절됩니다. 이미 두 벌 복사돼 있던 키 모양 검증(CLI 위치 인자 키, MCP
+  `gadak_show`)은 이제 `internal/fields`의 단일 소유자를 갖고, 새
+  엔드포인트들은 세 번째 복사가 아니라 세 번째·네 번째 호출자입니다.
 - **`gadak claim KEY`가 이슈를 자기 것으로 만듭니다** — 담당자 지정과
   진행 중 전환을 한 방에 ([GDK-591]). standalone·paired 워크스페이스에서는
   origin의 claim 엔드포인트를 향한 원자적 호출 한 번이고, 다른 actor가 이미
@@ -1934,6 +1941,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-319]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-319
 [GDK-322]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-322
 [GDK-323]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-323
+[GDK-328]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-328
 [GDK-329]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-329
 [GDK-331]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-331
 [GDK-332]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-332

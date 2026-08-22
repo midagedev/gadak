@@ -272,6 +272,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("PUT "+apiBase+"{key}/summary/{$}", s.handleSummary)
 	mux.HandleFunc("PUT "+apiBase+"{key}/description/{$}", s.handleDescription)
 	mux.HandleFunc("PUT "+apiBase+"{key}/duedate/{$}", s.handleDuedate)
+	mux.HandleFunc("PUT "+apiBase+"{key}/parent/{$}", s.handleParent)
 	mux.HandleFunc("PATCH "+apiBase+"{key}/fields/{$}", s.handleFields)
 	// Single-item re-read after in-app browser edit (no upstream write).
 	// Three-segment pages/{id}/resync/ is a literal; {key}/resync/ is two-segment.

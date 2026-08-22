@@ -7,23 +7,17 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/uifocus"
 	"github.com/midagedev/gadak/internal/views"
 )
-
-// issueKeyPat is the same positional key shape as cmd/gadak/views.go
-// (`^[A-Z][A-Z0-9]*-\d+$`, compared after ToUpper). Still a deliberate copy:
-// GDK-612 extracted the view-interpretation quartet into internal/views, not
-// this one-line pattern.
-var issueKeyPat = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d+$`)
 
 // Tool names match contracts/agent.md. Do not add tools without updating that
 // contract: every extra tool is context the agent must read before acting.
@@ -537,7 +531,7 @@ func (s *Server) toolShow(args map[string]any) ([]contentItem, error) {
 	case "issue":
 		raw, _ := stringArg(args, "issue")
 		k := strings.ToUpper(strings.TrimSpace(raw))
-		if !issueKeyPat.MatchString(k) {
+		if !fields.IssueKeyLiteral(k) {
 			return nil, fmt.Errorf("gadak_show issue %q is not a Jira key (want ABC-123)", raw)
 		}
 		hash = "issue=" + k

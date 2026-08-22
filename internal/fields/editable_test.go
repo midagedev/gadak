@@ -167,6 +167,32 @@ func TestFieldValueParentMatchesCLI(t *testing.T) {
 	}
 }
 
+func TestIssueKeyLiteral(t *testing.T) {
+	// Callers ToUpper+Trim; the literal itself is the raw ABC-123 shape.
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"GDK-1", true},
+		{"ABC-123", true},
+		{"A-1", true},
+		{"A0-9", true},
+		{"gdk-1", false},
+		{" GDK-1", false},
+		{"GDK-1 ", false},
+		{"not-a-key", false},
+		{"1-1", false},
+		{"GDK-", false},
+		{"GDK", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := IssueKeyLiteral(tc.in); got != tc.want {
+			t.Errorf("IssueKeyLiteral(%q)=%v want %v", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestEditableAliasesLegacyWins(t *testing.T) {
 	cfg := &config.Config{
 		Fields: []config.FieldSpec{

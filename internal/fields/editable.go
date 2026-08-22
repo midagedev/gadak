@@ -3,6 +3,7 @@ package fields
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -216,3 +217,17 @@ func DateOnlyLiteral(s string) bool {
 	day := int(s[8]-'0')*10 + int(s[9]-'0')
 	return month >= 1 && month <= 12 && day >= 1 && day <= 31
 }
+
+// IssueKeyLiteral is a Jira issue key ABC-123: a project key (A–Z then
+// A–Z0–9), a hyphen, and one or more digits. It does not trim or case-fold
+// — callers that accept mixed-case input ToUpper+Trim first (looksLikeIssueKey,
+// gadak_show issue). Single owner of the key-shape check (GDK-328): CLI
+// positional keys, MCP gadak_show, and the server's create / parent endpoints
+// import it.
+func IssueKeyLiteral(s string) bool {
+	return issueKeyRe.MatchString(s)
+}
+
+// Same pattern cmd/gadak/views.go and internal/mcp/tools.go used to each
+// compile. Callers still own ToUpper/Trim so those sites stay byte-identical.
+var issueKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d+$`)
