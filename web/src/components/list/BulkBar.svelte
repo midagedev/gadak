@@ -441,7 +441,7 @@
     type="button"
     onclick={() => pickAssignee(c)}
     data-cand-origin={c.origin}
-    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
   >
     {#if c.member}
       <Avatar name={c.display_name} email={c.email} size={20} />
@@ -462,7 +462,7 @@
        outside click and close the menu at once. -->
   <div
     data-testid="bulk-bar"
-    class="anim-enter flex flex-none items-center gap-2 border-b border-border-strong/70 bg-bg-elevated px-4 py-2 text-[12px]"
+    class="anim-enter flex flex-none items-center gap-2 border-b border-border-strong/70 bg-bg-elevated px-4 py-2 text-body"
     use:onOutsideClick={{ handler: closeMenu, enabled: !!menu, defer: true }}
   >
     <span class="flex-none font-medium text-text-primary">{t('list.selectedCount', { n: bulk.count })}</span>
@@ -485,7 +485,7 @@
           data-testid="bulk-status-menu"
         >
           {#if statusOptions.length === 0}
-            <div class="px-3 py-2 text-[12px] text-text-muted">{t('bulk.noCommonTransitions')}</div>
+            <div class="px-3 py-2 text-micro text-text-muted">{t('bulk.noCommonTransitions')}</div>
           {:else}
             {#each statusOptions as opt (opt.to_status)}
               <button
@@ -493,7 +493,7 @@
                 role="option"
                 aria-selected="false"
                 onclick={() => runStatus(opt)}
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <span class="h-1.5 w-1.5 flex-none rounded-full {catDot(opt.to_category)}"></span>
                 <span class="min-w-0 flex-1 truncate">{opt.to_status}</span>
@@ -523,14 +523,14 @@
           data-testid="bulk-priority-menu"
         >
           {#if !write.prioritiesLoaded}
-            <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.loadingPriorities')}</div>
+            <div class="px-3 py-2 text-micro text-text-muted">{t('write.loadingPriorities')}</div>
           {:else}
             <button
               type="button"
               role="option"
               aria-selected="false"
               onclick={() => runPriority(null)}
-              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
               <span class="h-1.5 w-1.5 flex-none rounded-full border border-dashed border-border-strong"></span>
               {t('common.none')}
@@ -542,14 +542,14 @@
                 role="option"
                 aria-selected="false"
                 onclick={() => runPriority(p)}
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <span class="h-1.5 w-1.5 flex-none rounded-full" style="background:{opt.color}"></span>
                 <span class="min-w-0 flex-1 truncate">{p.name}</span>
               </button>
             {/each}
             {#if write.priorities.length === 0}
-              <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.noPriorities')}</div>
+              <div class="px-3 py-2 text-micro text-text-muted">{t('write.noPriorities')}</div>
             {/if}
           {/if}
         </div>
@@ -581,7 +581,7 @@
               type="text"
               placeholder={t('bulk.searchPerson')}
               autofocus
-              class="h-control-sm w-full rounded border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent"
+              class="h-control-sm w-full rounded border border-border-strong bg-bg-base px-2 text-body text-text-primary outline-none focus:border-accent"
             />
           </div>
           <div class="max-h-72 overflow-y-auto py-1">
@@ -589,7 +589,7 @@
             <button
               type="button"
               onclick={() => pickAssignee(null)}
-              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
               <span
                 class="flex h-5 w-5 flex-none items-center justify-center rounded-full border border-dashed border-border-strong text-micro"
@@ -649,7 +649,7 @@
               type="text"
               placeholder={t('bulk.searchLabel')}
               autofocus
-              class="h-control-sm w-full rounded border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent"
+              class="h-control-sm w-full rounded border border-border-strong bg-bg-base px-2 text-body text-text-primary outline-none focus:border-accent"
             />
           </div>
           <div class="max-h-72 overflow-y-auto py-1">
@@ -659,7 +659,7 @@
                 <button
                   type="button"
                   onclick={() => runRemoveLabel(item.label)}
-                  class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                   title={t('write.removeLabel', { label: item.label })}
                 >
                   <span
@@ -676,7 +676,7 @@
               <button
                 type="button"
                 onclick={() => runAddLabel(l)}
-                class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <span class="min-w-0 flex-1 truncate">{l}</span>
                 {#if labelFreq.get(l)}
@@ -688,7 +688,7 @@
               <button
                 type="button"
                 onclick={() => runAddLabel(typedLabel)}
-                class="flex w-full items-center px-3 py-1.5 text-left text-[12px] text-text-primary transition-colors hover:bg-bg-hover"
+                class="flex w-full items-center px-3 py-1.5 text-left text-body text-text-primary transition-colors hover:bg-bg-hover"
               >
                 {t('write.addLabelNamed', { label: typedLabel })}
               </button>

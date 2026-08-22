@@ -928,7 +928,7 @@
       class="scroll-region min-h-0 flex-1 px-1 pt-1"
     >
       {#if items.length === 0 && !showUnifiedStatus}
-        <p class="px-2 py-6 text-center text-[12px] text-text-muted">{t('palette.empty')}</p>
+        <p class="px-2 py-6 text-center text-micro text-text-muted">{t('palette.empty')}</p>
       {/if}
       {#each items as item, i (item.id)}
         {#if i === 0 || items[i - 1].section !== item.section}
@@ -953,7 +953,7 @@
           data-idx={i}
           data-testid={item.testid}
           aria-selected={i === idx}
-          class="flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left text-[12px] {i === idx
+          class="flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left text-body {i === idx
             ? 'bg-bg-active text-text-primary'
             : 'text-text-secondary hover:bg-bg-hover'}"
           onmousemove={() => {
@@ -1030,15 +1030,15 @@
           <span>{t('palette.sectionUnified')}</span>
         </div>
         {#if unifiedBusy}
-          <p class="px-2 py-2 text-[12px] text-text-muted" data-testid="palette-unified-loading">
+          <p class="px-2 py-2 text-micro text-text-muted" data-testid="palette-unified-loading">
             {t('list.searching')}
           </p>
         {:else if serverView.status === 'error'}
           <div class="flex flex-col gap-1 px-2 py-2" data-testid="palette-unified-error">
-            <p class="text-[12px] text-text-muted">{t('list.searchFailed')}</p>
+            <p class="text-micro text-text-muted">{t('list.searchFailed')}</p>
             <button
               type="button"
-              class="self-start rounded-md border border-border-strong px-2 py-0.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+              class="self-start rounded-md border border-border-strong px-2 py-0.5 text-body text-text-secondary transition-colors hover:bg-bg-hover"
               data-testid="palette-unified-retry"
               onclick={() => unifiedSession.request(raw)}
             >
@@ -1046,7 +1046,7 @@
             </button>
           </div>
         {:else}
-          <p class="px-2 py-2 text-[12px] text-text-muted" data-testid="palette-unified-empty">
+          <p class="px-2 py-2 text-micro text-text-muted" data-testid="palette-unified-empty">
             {t('palette.empty')}
           </p>
         {/if}

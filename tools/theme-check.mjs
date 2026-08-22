@@ -27,9 +27,12 @@
  *   search-match text contrast (the ink Marks.svelte actually paints ≥4.5)
  *   per-role ink contrast (text ≥4.5 on base/panel/elevated, dot ≥3.0 on hover/active)
  *
+ * GDK-129: web/src .svelte/.ts must not carry arbitrary text-[Npx] utilities.
+ * Size lives on the four type-scale tokens (and the .wordmark owner).
+ *
  * Usage: node tools/theme-check.mjs
  */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -626,6 +629,42 @@ for (let i = 0; i < THEME_NAMES.length; i++) {
     }
   }
 }
+
+/*
+ * GDK-129. The four type-scale tokens (micro/body/title/heading) plus the
+ * .wordmark owner are the only sizes. An arbitrary text-[Npx] utility is the
+ * same class of leak as an unmeasured palette: it ships a fifth size inside
+ * the 11–13 band and the screen reads as noise. Walker shape matches
+ * DialogShell.test.ts (svelteFiles) — ts included because class strings live
+ * in settings/controls.ts and similar.
+ */
+function walkWebSrc(dir, acc = []) {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name)
+    if (statSync(p).isDirectory()) walkWebSrc(p, acc)
+    else if (name.endsWith('.svelte') || name.endsWith('.ts')) acc.push(p)
+  }
+  return acc
+}
+
+const ARB_TEXT_PX = /text-\[[0-9]+px\]/g
+console.log('\n=== no arbitrary text-[Npx] in web/src (.svelte / .ts) ===')
+const webSrc = join(ROOT, 'web/src')
+const srcFiles = walkWebSrc(webSrc).sort()
+let arbHits = 0
+for (const file of srcFiles) {
+  const rel = file.slice(ROOT.length + 1)
+  const lines = readFileSync(file, 'utf8').split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    ARB_TEXT_PX.lastIndex = 0
+    let m
+    while ((m = ARB_TEXT_PX.exec(lines[i]))) {
+      arbHits++
+      fail(`${rel}:${i + 1}: ${m[0]}`)
+    }
+  }
+}
+if (arbHits === 0) console.log('  no text-[Npx] utilities: ok')
 
 console.log(`\n=== ${fails === 0 ? 'ALL CHECKS PASS' : fails + ' FAILURES'} ===`)
 process.exit(fails === 0 ? 0 : 1)

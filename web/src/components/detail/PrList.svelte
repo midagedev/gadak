@@ -43,7 +43,7 @@
         {/if}
         <span class="min-w-0 flex-1">
           <span class="font-mono text-micro text-text-muted">{repoLabel(pr)}</span>
-          <span class="block truncate text-[12px] text-text-secondary group-hover:text-text-primary">
+          <span class="block truncate text-body text-text-secondary group-hover:text-text-primary">
             {pr.title}
           </span>
           {#if pr.linked_by}

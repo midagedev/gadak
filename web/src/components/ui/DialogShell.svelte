@@ -73,7 +73,7 @@
         {#if titleLead}
           {@render titleLead()}
         {:else}
-          <h2 class="type-subject text-[18px] leading-snug text-text-primary">{title}</h2>
+          <h2 class="type-subject text-heading leading-snug text-text-primary">{title}</h2>
         {/if}
         <button
           type="button"

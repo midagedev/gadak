@@ -419,7 +419,7 @@
       type="button"
       disabled={isHostedDemo()}
       onclick={() => write.openNewIssue()}
-      class="flex h-control w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-bg-elevated disabled:text-text-muted disabled:hover:bg-bg-elevated"
+      class="flex h-control w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-bg-elevated disabled:text-text-muted disabled:hover:bg-bg-elevated"
       title={isHostedDemo() ? t('app.demoWriteDisabled') : t('sidebar.newIssueTitle')}
     >
       <Icon name="plus" size={13} />
@@ -488,7 +488,7 @@
           </div>
           {#if historyLastCheckedLine}
             <div
-              class="px-2 py-1 text-[12px] text-text-muted"
+              class="px-2 py-1 text-micro text-text-muted"
               data-testid="sync-history-last-checked"
             >
               {historyLastCheckedLine}
@@ -499,10 +499,10 @@
               class="flex items-center justify-between gap-2 px-2 py-1.5"
               data-testid="sync-history-offline"
             >
-              <p class="text-[12px] text-status-stale">{t('sidebar.serverUnreachable')}</p>
+              <p class="text-body text-status-stale">{t('sidebar.serverUnreachable')}</p>
               <button
                 type="button"
-                class="flex-none rounded-md border border-border-strong px-2 py-0.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+                class="flex-none rounded-md border border-border-strong px-2 py-0.5 text-body text-text-secondary transition-colors hover:bg-bg-hover"
                 data-testid="sync-history-retry"
                 onclick={() => void issues.refresh()}
               >
@@ -511,13 +511,13 @@
             </div>
           {/if}
           {#if historyLoading}
-            <div class="px-2 py-2 text-[12px] text-text-muted">{t('common.searching')}</div>
+            <div class="px-2 py-2 text-micro text-text-muted">{t('common.searching')}</div>
           {:else if historyRuns.length === 0}
-            <div class="px-2 py-2 text-[12px] text-text-muted">{t('sidebar.syncNoHistory')}</div>
+            <div class="px-2 py-2 text-micro text-text-muted">{t('sidebar.syncNoHistory')}</div>
           {:else}
             <div class="max-h-64 overflow-y-auto">
               {#each historyRuns as run (run.started_at + run.kind)}
-                <div class="flex items-start gap-2 rounded px-2 py-1 text-[12px]">
+                <div class="flex items-start gap-2 rounded px-2 py-1 text-body">
                   <span
                     class="mt-1.5 h-1.5 w-1.5 flex-none rounded-full {run.error
                       ? 'bg-status-reopen'
@@ -549,7 +549,7 @@
           <div class="mt-1 border-t border-border-subtle px-1 pt-1">
             <button
               type="button"
-              class="flex h-control-sm w-full items-center rounded px-2 text-left text-[12px] text-accent-text transition-colors hover:bg-bg-hover"
+              class="flex h-control-sm w-full items-center rounded px-2 text-left text-body text-accent-text transition-colors hover:bg-bg-hover"
               onclick={() => {
                 historyOpen = false
                 void runSyncNow('incremental')
@@ -789,7 +789,7 @@
                   {#each pages.bySpace as group (group.space)}
                     <button
                       type="button"
-                      class="flex h-control w-full items-center gap-2 rounded-md pl-[35px] pr-3 text-left text-[12px] transition-colors {pages.spaceView ===
+                      class="flex h-control w-full items-center gap-2 rounded-md pl-[35px] pr-3 text-left text-body transition-colors {pages.spaceView ===
                       group.space
                         ? 'bg-bg-active text-text-primary'
                         : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -866,7 +866,7 @@
       {#if !onboarding.needsOnboarding}
       <button
         type="button"
-        class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         data-testid="standalone-create"
         aria-expanded={standaloneHowOpen}
         onclick={() => (standaloneHowOpen = !standaloneHowOpen)}
@@ -883,7 +883,7 @@
       {/if}
       <button
         type="button"
-        class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={onOpenSettings}
         title={t('sidebar.serverSettings')}
       >
@@ -894,7 +894,7 @@
     {#if !onboarding.needsOnboarding && me.identified}
       <button
         type="button"
-        class="flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={() => write.openSettings()}
         title={write.configured ? t('sidebar.jiraCreds') : t('sidebar.jiraCredsMissing')}
         aria-label={t('sidebar.jiraCreds')}
@@ -911,7 +911,7 @@
     {:else if !onboarding.needsOnboarding && me.authChecked}
       <button
         type="button"
-        class="flex h-control w-full items-center justify-center gap-1.5 rounded-md border border-border-strong px-3 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-control w-full items-center justify-center gap-1.5 rounded-md border border-border-strong px-3 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={() => write.openSettings()}
       >
         {t('common.setCredentials')}

@@ -245,7 +245,7 @@
             <button
               type="button"
               onclick={() => key && void load(key)}
-              class="rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+              class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
             >
               {t('common.retry')}
             </button>
@@ -286,7 +286,7 @@
                 {#each detailForKey.comments as c, i (`${c.created_at}-${i}`)}
                   <li data-testid="doc-comment">
                     <div class="mb-1 flex items-center gap-2">
-                      <span class="text-[12px] font-medium text-text-primary">
+                      <span class="text-body font-medium text-text-primary">
                         {c.author ?? t('detail.unknownAuthor')}
                       </span>
                       <span class="text-micro text-text-muted" title={absTime(c.created_at)}>
@@ -328,14 +328,14 @@
                 }}
               ></textarea>
               {#if postError}
-                <p class="text-[12px] text-danger-text" data-testid="doc-comment-error">{postError}</p>
+                <p class="text-body text-danger-text" data-testid="doc-comment-error">{postError}</p>
               {/if}
               <div class="flex justify-end">
                 <button
                   type="submit"
                   disabled={posting || !draft.trim()}
                   data-testid="doc-comment-submit"
-                  class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+                  class="inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
                 >
                   {posting ? t('write.commentPosting') : t('write.commentButton')}
                 </button>

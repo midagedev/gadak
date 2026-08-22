@@ -59,9 +59,9 @@
   const MCP_COMMANDS = [CLAUDE_COMMAND, 'gadak mcp install cursor', 'gadak mcp install codex']
 
   const INPUT =
-    'h-control w-full rounded-md border border-border-strong bg-bg-base px-2.5 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-accent'
+    'h-control w-full rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none placeholder:text-text-muted focus:border-accent'
   const PRIMARY =
-    'inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50'
+    'inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50'
   const GHOST =
     'inline-flex h-control items-center rounded-md border border-border-strong px-2.5 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
   const COPY_BTN =
@@ -304,13 +304,13 @@
   <div class="anim-enter w-full max-w-md">
     <div class="mb-5 flex items-center gap-2">
       <BrandMark size={18} class="text-accent" />
-      <span class="type-subject text-[18px] leading-none text-text-primary">gadak</span>
+      <span class="type-subject wordmark leading-none text-text-primary">gadak</span>
     </div>
     <p class="text-micro uppercase tracking-wide text-text-muted">
       {step === 4 ? t('onboarding.stepOptional') : t('onboarding.stepOf', { n: step })} · {STEP_LABELS[step - 1]}
     </p>
     <h2 class="type-subject mt-1 text-heading text-text-primary">{t('onboarding.title')}</h2>
-    <p class="mt-1.5 text-[12px] text-text-secondary">
+    <p class="mt-1.5 text-body text-text-secondary">
       {step === 4 ? t('onboarding.agentIntro') : t('onboarding.intro')}
     </p>
 
@@ -379,14 +379,14 @@
 
         {#if standaloneBlock}
           <div class="flex flex-col gap-2" role="alert" data-testid="onboarding-standalone-block">
-            <p class="text-[12px] text-status-reopen">
+            <p class="text-body text-status-reopen">
               {t('onboarding.standaloneBlocked', { n: standaloneBlock.issues })}
             </p>
             <p class="font-mono text-micro text-text-secondary" data-testid="onboarding-standalone-persist">
               {t('onboarding.standalonePersist', { path: standaloneBlock.persist })}
             </p>
             <p class="text-micro text-text-secondary">{t('onboarding.standaloneOtherWorkspace')}</p>
-            <label class="flex items-start gap-2 text-[12px] text-text-secondary">
+            <label class="flex items-start gap-2 text-body text-text-secondary">
               <input
                 type="checkbox"
                 class="mt-0.5 accent-accent"
@@ -400,7 +400,7 @@
 
         {#if connectError}
           <div class="flex flex-col gap-1" role="alert" data-testid="onboarding-error">
-            <p class="text-[12px] text-status-reopen">{connectError}</p>
+            <p class="text-body text-status-reopen">{connectError}</p>
             <a
               class="text-micro text-accent hover:underline"
               href={TOKEN_URL}
@@ -430,19 +430,19 @@
       </form>
     {:else if step === 2}
       <div class="mt-5 flex flex-col gap-3" data-testid="onboarding-projects">
-        <p class="text-[12px] text-text-secondary">
+        <p class="text-body text-text-secondary">
           {t('onboarding.connectedAs', { name: owner || me.name || me.email || '' })}
         </p>
-        <p class="text-[12px] text-text-muted">{t('onboarding.projectsIntro')}</p>
+        <p class="text-body text-text-muted">{t('onboarding.projectsIntro')}</p>
 
         {#if loadingProjects}
-          <p class="text-[12px] text-text-muted">{t('onboarding.loadingProjects')}</p>
+          <p class="text-micro text-text-muted">{t('onboarding.loadingProjects')}</p>
         {:else if projectsError}
-          <p class="text-[12px] text-status-reopen" role="alert" data-testid="onboarding-error">{projectsError}</p>
+          <p class="text-body text-status-reopen" role="alert" data-testid="onboarding-error">{projectsError}</p>
           <button class={GHOST} type="button" onclick={() => void loadProjects()}>{t('onboarding.retry')}</button>
         {:else if projects.length === 0}
           <div class="flex flex-col gap-1.5" data-testid="onboarding-no-projects">
-            <p class="text-[12px] text-text-secondary">{t('onboarding.noProjects')}</p>
+            <p class="text-micro text-text-secondary">{t('onboarding.noProjects')}</p>
             <p class="text-micro text-text-muted">{t('onboarding.noProjectsChecklist')}</p>
             <p class="text-micro text-text-muted">{t('onboarding.noProjectsManual')}</p>
             <div class="flex flex-wrap items-center gap-2">
@@ -470,7 +470,7 @@
                     onchange={() => toggle(p.key)}
                   />
                   <span class="font-mono text-micro text-text-primary">{p.key}</span>
-                  <span class="min-w-0 flex-1 truncate text-[12px] text-text-secondary">{p.name}</span>
+                  <span class="min-w-0 flex-1 truncate text-body text-text-secondary">{p.name}</span>
                 </label>
               </li>
             {/each}
@@ -496,7 +496,7 @@
     {:else if step === 3}
       <div class="mt-5 flex flex-col gap-3" data-testid="onboarding-sync">
         {#if syncError}
-          <p class="text-[12px] text-status-reopen" role="alert" data-testid="onboarding-error">{syncError}</p>
+          <p class="text-body text-status-reopen" role="alert" data-testid="onboarding-error">{syncError}</p>
           <button class={GHOST} type="button" onclick={() => void startSync()}>{t('onboarding.retry')}</button>
         {:else}
           <p class="text-body text-text-primary" data-testid="onboarding-sync-count">

@@ -245,7 +245,7 @@
   ></button>
 
   <!-- Key (accent tone marks own issues) -->
-  <span class="w-[88px] flex-none truncate font-mono text-[12px] {mine ? 'text-accent-text' : 'text-text-secondary'}">
+  <span class="w-[88px] flex-none truncate font-mono text-micro {mine ? 'text-accent-text' : 'text-text-secondary'}">
     <Marks segs={keySegs} />
   </span>
 

@@ -151,7 +151,7 @@
         data-testid="label-editor-input"
         placeholder={t('write.addLabel')}
         disabled={busy}
-        class="h-[22px] w-36 flex-none rounded border border-border-strong bg-bg-base px-1.5 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-accent disabled:opacity-50"
+        class="h-[22px] w-36 flex-none rounded border border-border-strong bg-bg-base px-1.5 text-body text-text-primary outline-none placeholder:text-text-muted focus:border-accent disabled:opacity-50"
       />
     {:else if issue.labels.length === 0}
       <button
@@ -190,7 +190,7 @@
           type="button"
           onclick={() => void add(l)}
           disabled={busy}
-          class="flex w-full items-center justify-between gap-2 px-3 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+          class="flex w-full items-center justify-between gap-2 px-3 py-1 text-left text-body text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
         >
           <span class="min-w-0 flex-1 truncate">{l}</span>
           {#if labelFreq.get(l)}
@@ -203,7 +203,7 @@
           type="button"
           onclick={() => void add(typed)}
           disabled={busy}
-          class="flex w-full items-center px-3 py-1 text-left text-[12px] text-text-primary hover:bg-bg-hover disabled:opacity-50"
+          class="flex w-full items-center px-3 py-1 text-left text-body text-text-primary hover:bg-bg-hover disabled:opacity-50"
         >
           {t('write.addLabelNamed', { label: typed })}
         </button>

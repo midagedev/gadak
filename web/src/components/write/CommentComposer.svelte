@@ -344,7 +344,7 @@
         {#each mResults as u, i (u.account_id)}
           <button
             type="button"
-            class="flex min-h-control-sm w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] transition-colors {i ===
+            class="flex min-h-control-sm w-full items-center gap-2 rounded px-2 py-1 text-left text-body transition-colors {i ===
             mIndex
               ? 'bg-bg-hover'
               : 'hover:bg-bg-hover'}"
@@ -412,7 +412,7 @@
       type="button"
       onclick={() => fileInput?.click()}
       disabled={!me.identified || busy}
-      class="mr-auto inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong px-2 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-40"
+      class="mr-auto inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong px-2 text-body text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-40"
       title={t('write.attachFile')}
     >
       <Icon name="paperclip" size={13} />
@@ -426,7 +426,7 @@
       type="button"
       onclick={submit}
       disabled={busy || !canSubmit}
-      class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+      class="inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
     >
       {busy ? t('write.commentPosting') : t('write.commentButton')}
     </button>

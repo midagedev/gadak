@@ -106,11 +106,11 @@
   {:else if isHostedDemo()}
     <!-- The personal views need a Jira identity, which the demo has no way to
          obtain. Say so rather than pointing at a credential dialog. -->
-    <p class="px-3 py-1.5 text-[12px] text-text-muted">{t('personal.demoNoIdentity')}</p>
+    <p class="px-3 py-1.5 text-micro text-text-muted">{t('personal.demoNoIdentity')}</p>
   {:else}
     <button
       type="button"
-      class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
+      class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
       onclick={() => write.openSettings()}
     >
       {t('personal.needCredentials')}

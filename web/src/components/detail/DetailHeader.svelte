@@ -101,7 +101,7 @@
         href={jiraUrl(issue.issue_key) ?? undefined}
         target="_blank"
         rel="noopener noreferrer"
-        class="flex-none font-mono text-[12px] font-medium text-accent-text hover:underline"
+        class="flex-none font-mono text-micro font-medium text-accent-text hover:underline"
         title={t('detail.openJira')}
         onclick={(e) => {
           if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
@@ -214,7 +214,7 @@
   </div>
 
   <!-- Assignee + labels/versions -->
-  <div class="mt-3 flex flex-col gap-2 text-[12px] text-text-muted">
+  <div class="mt-3 flex flex-col gap-2 text-micro text-text-muted">
     <!-- Assignee (click → assign popover; works when unassigned too) -->
     <AssigneePicker {issue} />
     {#if issue.fix_versions.length > 0}

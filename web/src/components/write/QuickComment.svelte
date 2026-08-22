@@ -49,7 +49,7 @@
   titleRowClass="flex items-center gap-2"
 >
   {#snippet titleLead()}
-    <span class="flex-none font-mono text-[12px] text-accent-text">{issueKey}</span>
+    <span class="flex-none font-mono text-micro text-accent-text">{issueKey}</span>
     <span class="min-w-0 flex-1 truncate text-body text-text-primary" title={issue?.summary}>
       {issue?.summary ?? ''}
     </span>

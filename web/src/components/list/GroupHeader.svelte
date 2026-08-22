@@ -26,7 +26,7 @@
 -->
 <div
   data-testid="group-header"
-  class="flex h-row items-end gap-2 px-4 pb-1.5 text-[12px]
+  class="flex h-row items-end gap-2 px-4 pb-1.5 text-micro
     {floating
       ? 'bg-bg-base/95 backdrop-blur border-b border-border-subtle'
       : ''}"

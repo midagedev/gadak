@@ -208,6 +208,14 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **Four type sizes, and nothing between them** ([GDK-129]). The screen
+  had drifted 198 arbitrary pixel sizes past the declared scale — 190 of
+  them `12px`, one pixel off both of its neighbours, which reads as noise
+  rather than hierarchy. Every one is absorbed into the four tokens by
+  role (metadata to micro, reading text to body), dialog titles join panel
+  headings at the top step, the wordmark gets one owner instead of two
+  sizes, and the theme gate now fails on any `text-[Npx]` utility so the
+  fifth size cannot come back.
 - **The web UI speaks Japanese** ([GDK-626]). A full `ja` catalog joins
   `en`/`ko` — Japanese Jira Cloud vocabulary (課題, 進行中, 担当者), every
   count in `{n}件` — selectable in Settings and the palette, detected from
@@ -1697,6 +1705,7 @@ measured numbers instead of adjectives.
 [GDK-125]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-125
 [GDK-127]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-127
 [GDK-128]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-128
+[GDK-129]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-129
 [GDK-131]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-131
 [GDK-132]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-132
 [GDK-133]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-133

@@ -114,7 +114,7 @@
     >
       {#if !simple}
         <p
-          class="flex items-start gap-2 rounded-md border border-status-stale/40 bg-status-stale/10 px-3 py-1.5 text-[12px] text-status-stale"
+          class="flex items-start gap-2 rounded-md border border-status-stale/40 bg-status-stale/10 px-3 py-1.5 text-body text-status-stale"
           role="alert"
           data-testid="description-format-warn"
         >
@@ -137,7 +137,7 @@
           onclick={cancel}
           disabled={busy}
           data-testid="description-cancel"
-          class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-50"
+          class="inline-flex h-control items-center rounded-md px-3 text-body text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-50"
         >
           {t('common.cancel')}
         </button>
@@ -145,7 +145,7 @@
           type="submit"
           disabled={busy}
           data-testid="description-save"
-          class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+          class="inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
         >
           {busy ? t('common.saving') : simple ? t('common.save') : t('write.saveAsPlain')}
         </button>

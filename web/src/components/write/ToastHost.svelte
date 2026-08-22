@@ -39,7 +39,7 @@
       role={toast.kind === 'error' ? 'alert' : 'status'}
       aria-live={toast.kind === 'error' ? 'assertive' : 'polite'}
       data-testid="toast"
-      class="anim-toast pointer-events-auto inline-flex max-w-sm items-center gap-1.5 rounded-lg border px-3 py-2 text-left text-[12px] shadow-overlay {toast.kind ===
+      class="anim-toast pointer-events-auto inline-flex max-w-sm items-center gap-1.5 rounded-lg border px-3 py-2 text-left text-body shadow-overlay {toast.kind ===
       'error'
         ? 'border-status-reopen/40 bg-status-reopen/15 text-status-reopen'
         : toast.kind === 'success'

@@ -176,14 +176,14 @@
     <div class="min-h-0 flex-1 overflow-y-auto" data-testid="person-scroll">
       <Section title={t('person.comments')} count={person.total || undefined}>
         {#if person.error === 'unlinked'}
-          <p class="text-[12px] text-text-muted">{t('person.unlinked')}</p>
+          <p class="text-micro text-text-muted">{t('person.unlinked')}</p>
         {:else if person.error === 'network'}
           <div class="flex flex-col items-start gap-2">
-            <p class="text-[12px] text-text-secondary">{t('person.commentsFailed')}</p>
+            <p class="text-body text-text-secondary">{t('person.commentsFailed')}</p>
             <button
               type="button"
               onclick={() => person.reload()}
-              class="rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+              class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
             >
               {t('common.retry')}
             </button>
@@ -197,7 +197,7 @@
             <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
           </div>
         {:else if person.comments.length === 0}
-          <p class="text-[12px] italic text-text-muted">{t('person.noComments')}</p>
+          <p class="text-micro italic text-text-muted">{t('person.noComments')}</p>
         {:else}
           <div class="-mx-5 anim-enter">
             {#each person.comments as c (`${c.key}-${c.created_at}`)}

@@ -19,7 +19,7 @@
 
 <div class="flex flex-col gap-5" data-testid="settings-about">
   <div class="flex flex-col gap-1">
-    <div class="text-[12px] text-text-primary">gadak</div>
+    <div class="text-body text-text-primary">gadak</div>
     {#if runtime?.gadakVersion}
       <div class="font-mono text-micro text-text-muted">{runtime.gadakVersion}</div>
     {/if}

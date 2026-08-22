@@ -366,13 +366,13 @@
     <button
       type="button"
       onclick={close}
-      class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+      class="inline-flex h-control items-center rounded-md px-3 text-body text-text-secondary transition-colors hover:bg-bg-hover"
       >{t('common.cancel')}</button
     >
     <button
       type="submit"
       disabled={submitting}
-      class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+      class="inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
     >
       {submitting ? t('common.creating') : t('common.create')}
     </button>
@@ -401,7 +401,7 @@
         <button
           type="button"
           onclick={() => write.openSettings()}
-          class="inline-flex h-control items-center rounded-md border border-border-strong px-3 text-[12px] text-text-secondary hover:bg-bg-hover"
+          class="inline-flex h-control items-center rounded-md border border-border-strong px-3 text-body text-text-secondary hover:bg-bg-hover"
           >{t('common.setCredentials')}</button
         >
       </div>
@@ -411,7 +411,7 @@
         <button
           type="button"
           onclick={retryMeta}
-          class="inline-flex h-control items-center rounded-md border border-border-strong px-3 text-[12px] text-text-secondary hover:bg-bg-hover"
+          class="inline-flex h-control items-center rounded-md border border-border-strong px-3 text-body text-text-secondary hover:bg-bg-hover"
           >{t('common.retry')}</button
         >
       </div>
@@ -506,7 +506,7 @@
                     <button
                       type="button"
                       onclick={() => pickUser(u)}
-                      class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                      class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary hover:bg-bg-hover hover:text-text-primary"
                     >
                       {#if u.avatar_url}
                         <img src={u.avatar_url} alt={u.display_name} class="h-4 w-4 flex-none rounded-full object-cover" loading="lazy" />
@@ -585,7 +585,7 @@
                 <button
                   type="button"
                   onclick={() => addLabel(l)}
-                  class="flex w-full items-center justify-between gap-2 px-3 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                  class="flex w-full items-center justify-between gap-2 px-3 py-1 text-left text-body text-text-secondary hover:bg-bg-hover hover:text-text-primary"
                 >
                   <span class="min-w-0 flex-1 truncate">{l}</span>
                   {#if labelFreq.get(l)}<span class="flex-none text-micro text-text-muted">{labelFreq.get(l)}</span>{/if}
@@ -596,7 +596,7 @@
         </div>
 
         {#if submitError}
-          <p class="whitespace-pre-wrap text-[12px] text-status-reopen" data-testid="new-issue-error">{submitError}</p>
+          <p class="whitespace-pre-wrap text-body text-status-reopen" data-testid="new-issue-error">{submitError}</p>
         {/if}
         </div>
     {/if}

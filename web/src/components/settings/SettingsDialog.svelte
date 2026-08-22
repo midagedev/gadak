@@ -331,7 +331,7 @@
       {#each TABS as [id, label] (id)}
         <button
           type="button"
-          class="-mb-px flex h-control items-center border-b-2 px-2.5 text-[12px] transition-colors {tab === id
+          class="-mb-px flex h-control items-center border-b-2 px-2.5 text-body transition-colors {tab === id
             ? 'border-accent text-text-primary'
             : 'border-transparent text-text-secondary hover:text-text-primary'}"
           onclick={() => (tab = id)}
@@ -343,7 +343,7 @@
   {/snippet}
 
   <div
-    class="scroll-region min-h-0 flex-1 px-5 pt-4 text-[12px]"
+    class="scroll-region min-h-0 flex-1 px-5 pt-4 text-body"
     style="--scroll-pad-bottom: 1rem"
     data-testid="settings-scroll"
   >
@@ -420,7 +420,7 @@
   {#snippet footer()}
     <!-- One pinned footer: theme/locale write-throughs (theme immediately; locale
          stays per-browser) sit with Close/Save so they cannot stack over the body. -->
-    <label class="flex items-center gap-2 text-[12px] text-text-secondary">
+    <label class="flex items-center gap-2 text-body text-text-secondary">
       <span>{t('theme.label')}</span>
       <span class="relative flex">
         <select
@@ -436,7 +436,7 @@
         <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
       </span>
     </label>
-    <label class="flex items-center gap-2 text-[12px] text-text-secondary">
+    <label class="flex items-center gap-2 text-body text-text-secondary">
       <span>{t('settings.locale')}</span>
       <span class="relative flex">
         <select
@@ -451,11 +451,11 @@
         <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
       </span>
     </label>
-    <span class="min-w-0 flex-1 truncate text-[12px] text-status-reopen">{error ?? ''}</span>
+    <span class="min-w-0 flex-1 truncate text-body text-status-reopen">{error ?? ''}</span>
     <button
       type="button"
       onclick={onclose}
-      class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+      class="inline-flex h-control items-center rounded-md px-3 text-body text-text-secondary transition-colors hover:bg-bg-hover"
     >
       {t('common.cancel')}
     </button>
@@ -463,7 +463,7 @@
       type="button"
       onclick={save}
       disabled={loading || saving || !!jsonError}
-      class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+      class="inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
     >
       {saving ? t('common.saving') : t('common.save')}
     </button>

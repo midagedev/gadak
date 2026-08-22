@@ -53,7 +53,7 @@
     count={children.length}
   >
     <div data-testid="epic-progress" class="mb-3">
-      <div class="mb-2 flex items-baseline gap-2 text-[12px]">
+      <div class="mb-2 flex items-baseline gap-2 text-micro">
         <span class="text-text-secondary">
           {t('detail.epicProgress', { done: doneCount, total: children.length })}
         </span>
@@ -86,7 +86,7 @@
             <span class="w-[76px] flex-none truncate font-mono text-micro font-medium text-accent-text">
               {child.issue_key}
             </span>
-            <span class="min-w-0 flex-1 truncate text-[12px] text-text-secondary group-hover:text-text-primary">
+            <span class="min-w-0 flex-1 truncate text-body text-text-secondary group-hover:text-text-primary">
               {child.summary}
             </span>
             <span class="max-w-[88px] flex-none truncate text-micro text-text-muted">

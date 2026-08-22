@@ -51,7 +51,7 @@
         href={attachment.content_url}
         target="_blank"
         rel="noopener noreferrer"
-        class="flex h-8 w-8 items-center justify-center text-[18px] text-white/60 transition-colors hover:text-white"
+        class="flex h-8 w-8 items-center justify-center text-title text-white/60 transition-colors hover:text-white"
         aria-label={t('common.openInNewTab')}
         title={t('common.openInNewTab')}
       >

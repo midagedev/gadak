@@ -41,7 +41,7 @@
         class="group col-span-2 flex aspect-video min-w-0 flex-col items-center justify-center gap-2 rounded-md border border-border-subtle bg-bg-base px-3 text-center hover:border-border-strong hover:bg-bg-hover"
         aria-label={t('detail.play', { name: attachment.filename })}
       >
-        <span class="flex h-9 w-9 items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-[16px] text-text-primary group-hover:border-accent">
+        <span class="flex h-9 w-9 items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-title text-text-primary group-hover:border-accent">
           ▶
         </span>
         <span class="w-full truncate text-micro text-text-secondary">{attachment.filename}</span>
@@ -54,8 +54,8 @@
         rel="noopener noreferrer"
         class="col-span-2 flex min-w-0 items-center gap-2 rounded-md border border-border-subtle bg-bg-base px-3 py-2 hover:bg-bg-hover"
       >
-        <span class="flex-none text-[14px]" aria-hidden="true">▤</span>
-        <span class="min-w-0 flex-1 truncate text-[12px] text-text-secondary">{attachment.filename}</span>
+        <span class="flex-none text-body" aria-hidden="true">▤</span>
+        <span class="min-w-0 flex-1 truncate text-body text-text-secondary">{attachment.filename}</span>
         <span class="flex-none text-micro text-text-muted">{formatBytes(attachment.size)}</span>
       </a>
     {/if}

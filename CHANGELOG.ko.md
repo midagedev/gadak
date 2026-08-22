@@ -203,6 +203,13 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **타입 크기는 넷, 그 사이엔 아무것도 없습니다** ([GDK-129]). 화면에
+  선언된 스케일 밖 임의 픽셀 크기가 198곳 떠 있었습니다 — 190곳이 `12px`,
+  양옆 단과 각각 1px 차이라 위계가 아니라 노이즈로 읽히는 크기. 전부
+  역할에 따라 4단 토큰으로 흡수했습니다(메타데이터는 micro, 읽는 텍스트는
+  body). 다이얼로그 제목은 패널 제목과 같은 최상단으로 올라가고, 워드마크는
+  두 크기 대신 소유자 하나를 얻고, 테마 게이트가 이제 `text-[Npx]`
+  유틸리티에 실패하므로 다섯 번째 크기는 돌아올 수 없습니다.
 - **웹 UI가 일본어를 말합니다** ([GDK-626]). `en`/`ko` 옆에 전체 `ja`
   카탈로그가 붙습니다 — 일본어 Jira Cloud 어휘(課題, 進行中, 担当者), 모든
   카운트는 `{n}件` — 설정과 팔레트에서 선택할 수 있고 브라우저 언어에서
@@ -1679,6 +1686,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-125]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-125
 [GDK-127]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-127
 [GDK-128]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-128
+[GDK-129]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-129
 [GDK-131]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-131
 [GDK-132]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-132
 [GDK-133]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-133

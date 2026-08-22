@@ -46,7 +46,7 @@
                 <span class="h-1 w-1 rounded-full bg-status-done" title={t('detail.inLocalPool')}></span>
               {/if}
             </span>
-            <span class="block truncate text-[12px] text-text-secondary group-hover:text-text-primary">
+            <span class="block truncate text-body text-text-secondary group-hover:text-text-primary">
               {l.summary ?? issues.get(l.key)?.summary ?? ''}
             </span>
           </span>

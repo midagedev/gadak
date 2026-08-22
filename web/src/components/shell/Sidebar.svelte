@@ -31,7 +31,7 @@
            already says Gadak. -->
       <BrandMark size={18} class="text-accent" data-testid="sidebar-mark" />
     {/if}
-    <span class="type-subject text-[18px] leading-none text-text-primary">gadak</span>
+    <span class="type-subject wordmark leading-none text-text-primary">gadak</span>
   </div>
 
   <!-- Navigation slot. This nav is the named scroll-region frame; the

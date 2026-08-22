@@ -176,9 +176,9 @@
     </div>
 
     {#if spacesLoading}
-      <p class="text-[12px] text-text-muted">{t('settings.scopeLoading')}</p>
+      <p class="text-micro text-text-muted">{t('settings.scopeLoading')}</p>
     {:else if spacesError}
-      <p class="text-[12px] text-status-stale" data-testid="scope-spaces-error">
+      <p class="text-body text-status-stale" data-testid="scope-spaces-error">
         {spacesError}
       </p>
     {:else}

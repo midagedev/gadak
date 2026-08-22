@@ -88,7 +88,7 @@
              2026-08-07). -->
         <Icon name="file" size={14} class="mt-0.5 flex-none text-text-muted" />
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span class="w-full truncate text-[12px] text-text-secondary group-hover:text-text-primary">
+          <span class="w-full truncate text-body text-text-secondary group-hover:text-text-primary">
             {row.page.title}
           </span>
           <span class="flex w-full min-w-0 items-center gap-1 text-micro text-text-muted">

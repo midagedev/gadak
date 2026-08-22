@@ -442,7 +442,7 @@
           aria-selected={values.length === 0}
           onclick={() => pickOption(null)}
           disabled={busy}
-          class="flex w-full items-center px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50"
+          class="flex w-full items-center px-3 py-1.5 text-left text-body text-text-muted transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50"
         >
           {t('qaEditor.none')}
         </button>
@@ -454,7 +454,7 @@
             aria-selected={selected}
             onclick={() => pickOption(opt)}
             disabled={busy}
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50 {selected
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50 {selected
               ? 'text-text-primary'
               : 'text-text-secondary'}"
           >
@@ -464,7 +464,7 @@
         {/each}
       {:else if isMulti}
         {#if options.length === 0}
-          <div class="px-3 py-2 text-[12px] text-text-muted">
+          <div class="px-3 py-2 text-micro text-text-muted">
             {kind === 'version_array' ? t('qaEditor.noVersions') : t('fieldEditor.noOptions')}
           </div>
         {:else}
@@ -476,7 +476,7 @@
               placeholder={kind === 'version_array'
                 ? t('qaEditor.searchVersion')
                 : t('fieldEditor.searchOptions')}
-              class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-body text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
           </div>
           <div class="max-h-52 overflow-y-auto">
@@ -486,7 +486,7 @@
                 type="button"
                 onclick={() => toggleVersion(opt.id)}
                 disabled={busy}
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50 {checked
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50 {checked
                   ? 'text-text-primary'
                   : 'text-text-secondary'}"
               >
@@ -530,14 +530,14 @@
             bind:value={query}
             type="text"
             placeholder={t('qaEditor.searchPerson')}
-            class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-body text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>
         <button
           type="button"
           onclick={() => pickUser(null)}
           disabled={busy}
-          class="flex w-full items-center px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50"
+          class="flex w-full items-center px-3 py-1.5 text-left text-body text-text-muted transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50"
         >
           {t('qaEditor.clearAssignee')}
         </button>
@@ -548,7 +548,7 @@
             aria-selected={userSelected(c)}
             onclick={() => pickUser(c)}
             disabled={busy}
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:outline-none disabled:opacity-50"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:outline-none disabled:opacity-50"
           >
             <Avatar email={c.email ?? null} name={c.display_name} size={18} />
             <span class="min-w-0 flex-1 truncate">{c.display_name}</span>
@@ -569,7 +569,7 @@
               type="date"
               disabled={busy}
               data-testid="field-editor-date"
-              class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none disabled:opacity-50"
+              class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-body text-text-primary focus:border-accent focus:outline-none disabled:opacity-50"
               onchange={() => void commitScalar()}
             />
             <button
@@ -577,7 +577,7 @@
               onclick={() => void clearDate()}
               disabled={busy}
               data-testid="field-editor-date-clear"
-              class="mt-1 flex w-full items-center px-1 py-1 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover disabled:opacity-50"
+              class="mt-1 flex w-full items-center px-1 py-1 text-left text-body text-text-muted transition-colors hover:bg-bg-hover disabled:opacity-50"
             >
               {t('qaEditor.none')}
             </button>
@@ -589,7 +589,7 @@
               inputmode={kind === 'number' ? 'decimal' : 'text'}
               disabled={busy}
               data-testid="field-editor-text"
-              class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none disabled:opacity-50"
+              class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-body text-text-primary focus:border-accent focus:outline-none disabled:opacity-50"
               onkeydown={onScalarKeydown}
               onblur={() => {
                 if (!busy) void commitScalar()
@@ -606,7 +606,7 @@
             placeholder={t('fieldEditor.searchOptions')}
             disabled={busy}
             data-testid="field-editor-parent"
-            class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none disabled:opacity-50"
+            class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-body text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none disabled:opacity-50"
             onkeydown={onParentKeydown}
           />
         </div>
@@ -615,7 +615,7 @@
           onclick={() => void pickParent(null)}
           disabled={busy}
           data-testid="field-editor-parent-clear"
-          class="flex w-full items-center px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50"
+          class="flex w-full items-center px-3 py-1.5 text-left text-body text-text-muted transition-colors hover:bg-bg-hover focus:bg-bg-hover focus:outline-none disabled:opacity-50"
         >
           {t('qaEditor.none')}
         </button>
@@ -626,7 +626,7 @@
             aria-selected={values[0] === it.issue_key}
             onclick={() => void pickParent(it.issue_key)}
             disabled={busy}
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:outline-none disabled:opacity-50"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:outline-none disabled:opacity-50"
           >
             <span class="flex-none font-mono">{it.issue_key}</span>
             {#if it.summary}

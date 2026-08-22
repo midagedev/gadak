@@ -482,6 +482,13 @@
 }
 
 @layer components {
+  /*
+    브랜드 마크 — 타입 스케일 밖, 여기가 단일 소유자
+  */
+  .wordmark {
+    font-size: 18px;
+  }
+
   .issue-shell {
     display: flex;
     flex-direction: column;

@@ -99,7 +99,7 @@
 {#if visible}
   <button
     type="button"
-    class="inline-flex h-control-sm flex-none items-center gap-1.5 rounded-md px-1.5 text-[12px] {tone} transition-colors {issues.mirrorBusy
+    class="inline-flex h-control-sm flex-none items-center gap-1.5 rounded-md px-1.5 text-micro {tone} transition-colors {issues.mirrorBusy
       ? 'cursor-progress'
       : 'hover:bg-bg-hover hover:text-text-primary'}"
     data-testid="freshness-chip"

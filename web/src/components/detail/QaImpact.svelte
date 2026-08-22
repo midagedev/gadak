@@ -62,7 +62,7 @@
         <Icon name="flask" size={14} class="mt-0.5 text-text-muted" />
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5">
-            <span class="truncate text-[12px] font-semibold text-text-primary" title={run.title}>
+            <span class="truncate text-body font-semibold text-text-primary" title={run.title}>
               {run.product_label} · {run.title}
             </span>
             <span class="flex-none rounded px-1.5 py-0.5 text-micro font-medium {STATE_CLASS[run.state]}">

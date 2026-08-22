@@ -34,7 +34,7 @@
           class:bg-border-strong={!reopen}
           aria-hidden="true"
         ></span>
-        <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[12px]">
+        <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-body">
           <span class="font-medium text-text-secondary">{fieldLabel(e.field)}</span>
           {#if reopen}
             <span class="rounded bg-status-reopen/15 px-1 text-micro font-semibold text-status-reopen">

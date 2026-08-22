@@ -238,7 +238,7 @@
   </header>
 
   {#if !history.loaded && history.loading}
-    <p class="px-4 py-6 text-[12px] text-text-muted">{t('common.loading')}</p>
+    <p class="px-4 py-6 text-micro text-text-muted">{t('common.loading')}</p>
   {:else if rows.length === 0}
     <div class="min-h-0 flex-1 overflow-y-auto">
       {#if filtering}

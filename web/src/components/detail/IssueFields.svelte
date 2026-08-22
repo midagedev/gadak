@@ -172,7 +172,7 @@
 
 {#if visibleRows.length > 0}
   <Section title={t('detail.details')}>
-    <dl class="grid grid-cols-[116px_minmax(0,1fr)] gap-x-3 gap-y-2 text-[12px]">
+    <dl class="grid grid-cols-[116px_minmax(0,1fr)] gap-x-3 gap-y-2 text-micro">
       {#each visibleRows as row (row.key)}
         {@const editable = rowEditable(row)}
         <div

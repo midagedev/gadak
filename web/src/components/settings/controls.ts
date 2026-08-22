@@ -7,12 +7,12 @@
  */
 
 export const INPUT =
-  'h-control w-full rounded-md border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent'
+  'h-control w-full rounded-md border border-border-strong bg-bg-base px-2 text-body text-text-primary outline-none focus:border-accent'
 // Spelled out rather than `${INPUT} pr-7`: px-2 and pr-7 resolve against each
 // other by cascade order, not by class order, so the chevron's clearance
 // would depend on how Tailwind happens to emit the two utilities.
 export const SELECT =
-  'h-control w-full appearance-none rounded-md border border-border-strong bg-bg-base pl-2 pr-7 text-[12px] text-text-primary outline-none focus:border-accent'
+  'h-control w-full appearance-none rounded-md border border-border-strong bg-bg-base pl-2 pr-7 text-body text-text-primary outline-none focus:border-accent'
 export const SELECT_CHEVRON =
   'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-text-muted'
 export const ADD_BTN =

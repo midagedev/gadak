@@ -96,7 +96,7 @@
   <div bind:this={rootEl} class="relative flex-none">
     <button
       type="button"
-      class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong bg-bg-elevated px-2.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+      class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong bg-bg-elevated px-2.5 text-body font-medium text-text-secondary transition-colors hover:text-text-primary"
       onclick={() => (open = !open)}
       aria-expanded={open}
     >
@@ -116,7 +116,7 @@
         {#each OPTIONS as option (option.key)}
           <button
             type="button"
-            class="flex min-h-control-sm items-center rounded px-2.5 py-1 text-left text-[12px] transition-colors {filters.display
+            class="flex min-h-control-sm items-center rounded px-2.5 py-1 text-left text-body transition-colors {filters.display
               .group_by === option.key
               ? 'bg-accent text-white'
               : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -132,7 +132,7 @@
   {#if shownGroups.length > 0}
     <div class="h-5 w-px flex-none bg-border-strong/70"></div>
     <div class="min-w-0 flex-1 overflow-x-auto">
-      <div class="flex w-max items-center gap-3 whitespace-nowrap text-[12px]">
+      <div class="flex w-max items-center gap-3 whitespace-nowrap text-micro">
         {#each shownGroups as group, i (group.key || `empty-${i}`)}
           {@const glyph = groupGlyph(group.key)}
           <!-- A chip names a section of the list below, so it is the way to

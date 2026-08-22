@@ -56,7 +56,7 @@
   <!-- Plain-text fallback when ADF missing/unparseable (preserve newlines) -->
   <div class="adf whitespace-pre-wrap">{fallback}</div>
 {:else}
-  <p class="text-[12px] text-text-muted italic">{emptyLabel}</p>
+  <p class="text-micro text-text-muted italic">{emptyLabel}</p>
 {/if}
 
 <style>

@@ -23,12 +23,12 @@
       </div>
       <p class="text-micro text-text-muted">{t('settings.discoveredFieldsHint')}</p>
       {#if draft.specs.length === 0}
-        <p class="text-[12px] text-text-secondary">{t('settings.noDiscoveredFields')}</p>
+        <p class="text-micro text-text-secondary">{t('settings.noDiscoveredFields')}</p>
       {:else}
         <div class="flex flex-col gap-1">
           {#each draft.specs as spec, i (spec.alias)}
             <div class="flex items-center gap-2">
-              <span class="w-40 truncate text-[12px] text-text-primary" title={spec.alias}>
+              <span class="w-40 truncate text-body text-text-primary" title={spec.alias}>
                 {spec.label}
                 {#if spec.auto === false}
                   <span class="ml-1 text-micro text-accent">{t('settings.pinned')}</span>

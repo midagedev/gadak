@@ -50,7 +50,7 @@
 >
   <button
     type="button"
-    class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+    class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-body text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
     onclick={() => (open = !open)}
     title={t('sort.options')}
   >
@@ -69,7 +69,7 @@
         {#each sorts as s (s.k)}
           <button
             type="button"
-            class="inline-flex h-control-sm items-center rounded px-2 text-[12px] transition-colors {filters.effectiveSort === s.k
+            class="inline-flex h-control-sm items-center rounded px-2 text-body transition-colors {filters.effectiveSort === s.k
               ? 'bg-accent text-white'
               : 'bg-bg-base text-text-secondary hover:bg-bg-hover'}"
             onclick={() => filters.setSort(s.k)}
@@ -79,7 +79,7 @@
         {/each}
         <button
           type="button"
-          class="ml-auto inline-flex h-control-sm items-center rounded px-2 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+          class="ml-auto inline-flex h-control-sm items-center rounded px-2 text-body text-text-secondary transition-colors hover:bg-bg-hover"
           onclick={() => filters.toggleDir()}
           title={t('sort.direction')}
         >

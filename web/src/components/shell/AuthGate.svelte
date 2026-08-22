@@ -11,7 +11,7 @@
 <div class="flex h-screen flex-col items-center justify-center gap-4 bg-bg-base px-6 text-center">
   <div class="flex items-center gap-2">
     <BrandMark size={20} class="text-accent" />
-    <span class="type-subject text-[20px] leading-none text-text-primary">gadak</span>
+    <span class="type-subject wordmark leading-none text-text-primary">gadak</span>
   </div>
   <p class="max-w-sm text-body text-text-secondary">
     {t('app.authGate')}
@@ -22,7 +22,7 @@
     {#if onRetry}
       <button
         onclick={onRetry}
-        class="rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+        class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
       >
         {t('app.authRetry')}
       </button>

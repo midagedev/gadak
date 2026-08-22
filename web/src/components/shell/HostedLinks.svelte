@@ -45,14 +45,14 @@
     href={REPO}
     target="_blank"
     rel="noopener noreferrer"
-    class="whitespace-nowrap text-[12px] text-accent-text hover:underline"
+    class="whitespace-nowrap text-body text-accent-text hover:underline"
     data-testid="hosted-links-github"
   >
     GitHub
   </a>
   <button
     type="button"
-    class="whitespace-nowrap text-[12px] text-accent-text hover:underline"
+    class="whitespace-nowrap text-body text-accent-text hover:underline"
     data-testid="hosted-links-about"
     aria-expanded={open}
     aria-haspopup="dialog"
@@ -68,15 +68,15 @@
       role="dialog"
       aria-label="About gadak"
     >
-      <p class="px-2 py-1 text-[12px] text-text-primary">{CLAIM}</p>
+      <p class="px-2 py-1 text-body text-text-primary">{CLAIM}</p>
       <pre
-        class="my-1 cursor-text overflow-x-auto whitespace-nowrap rounded border border-border-strong bg-bg-base px-2 py-1.5 font-mono text-[12px] text-text-primary select-all">{BREW}</pre>
+        class="my-1 cursor-text overflow-x-auto whitespace-nowrap rounded border border-border-strong bg-bg-base px-2 py-1.5 font-mono text-body text-text-primary select-all">{BREW}</pre>
       {#each POPOVER_LINKS as link (link.href)}
         <a
           href={link.href}
           target={link.external ? '_blank' : undefined}
           rel={link.external ? 'noopener noreferrer' : undefined}
-          class="flex min-h-control-sm w-full items-center rounded px-2 py-1 text-left text-[12px] text-accent-text hover:bg-bg-hover hover:underline"
+          class="flex min-h-control-sm w-full items-center rounded px-2 py-1 text-left text-body text-accent-text hover:bg-bg-hover hover:underline"
         >
           {link.label}
         </a>

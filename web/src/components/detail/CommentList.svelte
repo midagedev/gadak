@@ -108,7 +108,7 @@
         {#if head}
           <div class="mb-1 flex items-center gap-2">
             <Avatar email={c.author_email ?? null} accountId={c.author_account_id} name={c.author} size={20} />
-            <span class="text-[12px] font-medium text-text-primary">
+            <span class="text-body font-medium text-text-primary">
               {c.author ?? c.author_email ?? t('detail.unknownAuthor')}
             </span>
             <BotBadge accountId={c.author_account_id} accountType={c.author_account_type} />

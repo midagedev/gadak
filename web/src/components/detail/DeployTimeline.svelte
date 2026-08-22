@@ -109,7 +109,7 @@
       <div class="min-w-0 flex-1 pb-3">
         <div class="flex items-center gap-1.5">
           <span
-            class="text-[12px] font-medium {isQaSwap
+            class="text-body font-medium {isQaSwap
               ? 'text-[#5eead4]'
               : reached
                 ? 'text-text-primary'
@@ -144,7 +144,7 @@
     <div class="mb-2 text-micro font-medium text-text-muted">{t('deploy.byPr')}</div>
     <ul class="flex flex-col gap-1">
       {#each prList as pr (pr.number)}
-        <li class="flex items-center gap-2 text-[12px]">
+        <li class="flex items-center gap-2 text-body">
           <span
             class="h-1.5 w-1.5 flex-none rounded-full {pr.included_in
               ? 'bg-status-done'

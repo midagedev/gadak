@@ -226,18 +226,18 @@
       role="listbox"
     >
       {#if loading}
-        <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.loadingTransitions')}</div>
+        <div class="px-3 py-2 text-micro text-text-muted">{t('write.loadingTransitions')}</div>
       {:else if loadError}
-        <div class="px-3 py-2 text-[12px] text-status-reopen">{loadError}</div>
+        <div class="px-3 py-2 text-body text-status-reopen">{loadError}</div>
       {:else if collecting}
         <div class="px-2 py-1.5" data-testid="transition-required-fields">
-          <div class="px-1 pb-1.5 text-[12px] text-text-secondary">{collecting.name}</div>
+          <div class="px-1 pb-1.5 text-body text-text-secondary">{collecting.name}</div>
           {#each collecting.fields ?? [] as f (f.id)}
             <label class="mb-1.5 flex flex-col gap-0.5 px-1">
               <span class="text-micro text-text-muted">{f.name}</span>
               {#if (f.options ?? []).length > 0}
                 <select
-                  class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none"
+                  class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-body text-text-primary focus:border-accent focus:outline-none"
                   bind:value={fieldDraft[f.id]}
                   aria-label={f.name}
                   disabled={busyId !== null}
@@ -250,7 +250,7 @@
               {:else}
                 <input
                   type="text"
-                  class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none"
+                  class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-body text-text-primary focus:border-accent focus:outline-none"
                   bind:value={fieldDraft[f.id]}
                   aria-label={f.name}
                   disabled={busyId !== null}
@@ -270,7 +270,7 @@
           </div>
         </div>
       {:else if sorted.length === 0}
-        <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.noTransitions')}</div>
+        <div class="px-3 py-2 text-micro text-text-muted">{t('write.noTransitions')}</div>
       {:else}
         {#each sorted as t (t.id)}
           <button
@@ -279,7 +279,7 @@
             aria-selected="false"
             onclick={() => pick(t)}
             disabled={busyId !== null}
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:text-text-primary focus:outline-none disabled:opacity-50"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:text-text-primary focus:outline-none disabled:opacity-50"
           >
             <span class="h-1.5 w-1.5 flex-none rounded-full {catDot(t.to_category)}"></span>
             <span class="min-w-0 flex-1 truncate">{t.name}</span>

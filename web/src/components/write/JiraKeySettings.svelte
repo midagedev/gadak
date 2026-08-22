@@ -78,7 +78,7 @@
   footerClass="mt-1 flex flex-none items-center justify-between gap-2 border-t border-border-subtle px-5 py-3"
 >
   <div class="scroll-region flex min-h-0 flex-1 flex-col gap-3 px-5 pt-4">
-    <p class="text-[12px] leading-relaxed text-text-muted">
+    <p class="text-body leading-relaxed text-text-muted">
       <!-- intro3 already ends in "Atlassian"; the line break below is the space
            before the link, so no literal belongs here. -->
       {t('jiraSettings.intro1')} <span class="text-text-secondary">{t('jiraSettings.intro2')}</span>{t('jiraSettings.intro3')}
@@ -92,7 +92,7 @@
 
     {#if write.configured}
       <!-- Configured summary -->
-      <div class="rounded-md border border-border-subtle bg-bg-elevated px-3 py-2.5 text-[12px]">
+      <div class="rounded-md border border-border-subtle bg-bg-elevated px-3 py-2.5 text-body">
         <div class="flex items-center justify-between gap-2">
           <span class="text-text-secondary">{write.displayName || write.jiraEmail}</span>
           <span class="rounded bg-status-done/15 px-1.5 py-0.5 text-micro font-medium text-status-done"
@@ -141,7 +141,7 @@
       </label>
 
       {#if error}
-        <p class="text-[12px] text-status-reopen">{error}</p>
+        <p class="text-body text-status-reopen">{error}</p>
       {/if}
   </div>
 
@@ -151,7 +151,7 @@
         type="button"
         onclick={remove}
         disabled={busy}
-        class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-status-reopen transition-colors hover:bg-status-reopen/10 disabled:opacity-50"
+        class="inline-flex h-control items-center rounded-md px-3 text-body text-status-reopen transition-colors hover:bg-status-reopen/10 disabled:opacity-50"
       >
         {deleteArmed ? t('jiraSettings.deleteConfirm') : t('common.delete')}
       </button>
@@ -162,14 +162,14 @@
       <button
         type="button"
         onclick={close}
-        class="inline-flex h-control items-center rounded-md px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+        class="inline-flex h-control items-center rounded-md px-3 text-body text-text-secondary transition-colors hover:bg-bg-hover"
       >
         {t('common.cancel')}
       </button>
       <button
         type="submit"
         disabled={busy}
-        class="inline-flex h-control items-center rounded-md bg-accent px-3 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+        class="inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
       >
         {busy ? t('common.verifying') : write.configured ? t('jiraSettings.replaceToken') : t('common.save')}
       </button>

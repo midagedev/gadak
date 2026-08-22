@@ -586,7 +586,7 @@
       </p>
       <button
         onclick={retry}
-        class="rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+        class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
       >
         {t('common.retry')}
       </button>
@@ -604,7 +604,7 @@
            shifting the centered copy (GDK-335). -->
       <div class="relative flex-none">
         <div
-          class="flex flex-none flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-b border-accent-strong/40 bg-accent-strong/10 px-3 py-1.5 text-[12px] text-text-secondary"
+          class="flex flex-none flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-b border-accent-strong/40 bg-accent-strong/10 px-3 py-1.5 text-body text-text-secondary"
           role="status"
           data-testid="demo-banner"
         >
@@ -631,7 +631,7 @@
     {/if}
     {#if reachability.offline}
       <div
-        class="flex flex-none items-center justify-center gap-2 border-b border-status-stale/40 bg-status-stale/10 px-3 py-1.5 text-[12px] text-status-stale"
+        class="flex flex-none items-center justify-center gap-2 border-b border-status-stale/40 bg-status-stale/10 px-3 py-1.5 text-body text-status-stale"
         role="status"
         data-testid="offline-banner"
       >

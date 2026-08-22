@@ -143,7 +143,7 @@
     type="button"
     onclick={() => pickCand(c)}
     disabled={busy}
-    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
   >
     <!-- One 20px circle whichever branch renders: a 16px circle could not hold a
          legible initial, and the three branches have to line up in one column. -->
@@ -206,7 +206,7 @@
           bind:value={query}
           type="text"
           placeholder={t('write.searchNameEmail')}
-          class="h-control-sm w-full rounded border border-border-strong bg-bg-base px-2 text-[12px] text-text-primary outline-none focus:border-accent"
+          class="h-control-sm w-full rounded border border-border-strong bg-bg-base px-2 text-body text-text-primary outline-none focus:border-accent"
         />
       </div>
       <div class="max-h-72 overflow-y-auto py-1">
@@ -215,7 +215,7 @@
           type="button"
           onclick={() => doAssign(null)}
           disabled={busy}
-          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
         >
           <span class="flex h-5 w-5 flex-none items-center justify-center rounded-full border border-dashed border-border-strong text-micro">–</span>
           {t('common.unassigned')}

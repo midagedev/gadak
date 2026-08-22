@@ -78,7 +78,7 @@
     >
       <div class="mb-3 flex items-center gap-2">
         <Icon name="bell" size={15} class="text-text-secondary" />
-        <span class="text-[12px] font-semibold text-text-primary">{t('notif.webPush')}</span>
+        <span class="text-body font-semibold text-text-primary">{t('notif.webPush')}</span>
         <span class="flex-1"></span>
         <button
           type="button"
@@ -102,7 +102,7 @@
           type="button"
           disabled={push.state === 'loading'}
           onclick={togglePush}
-          class="mb-3 flex h-control w-full items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium transition-colors disabled:opacity-50 {push.state ===
+          class="mb-3 flex h-control w-full items-center justify-center gap-1.5 rounded-md border text-body font-medium transition-colors disabled:opacity-50 {push.state ===
           'subscribed'
             ? 'border-status-done/40 bg-status-done/10 text-status-done hover:bg-status-done/15'
             : 'border-border-strong text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"

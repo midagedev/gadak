@@ -114,7 +114,7 @@
                   {keys}
                 </kbd>
               </dt>
-              <dd class="min-w-0 flex-1 truncate text-[12px] text-text-secondary" title={label}>
+              <dd class="min-w-0 flex-1 truncate text-body text-text-secondary" title={label}>
                 {label}
               </dd>
             </div>

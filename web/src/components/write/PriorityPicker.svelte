@@ -105,7 +105,7 @@
       aria-label={t('common.priority')}
     >
       {#if loading}
-        <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.loadingPriorities')}</div>
+        <div class="px-3 py-2 text-micro text-text-muted">{t('write.loadingPriorities')}</div>
       {:else}
         <button
           type="button"
@@ -113,7 +113,7 @@
           aria-selected={!issue.priority}
           onclick={() => pick(null)}
           disabled={busy}
-          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:text-text-primary focus:outline-none disabled:opacity-50"
+          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:text-text-primary focus:outline-none disabled:opacity-50"
         >
           <span class="h-1.5 w-1.5 flex-none rounded-full border border-dashed border-border-strong"></span>
           {t('common.none')}
@@ -126,7 +126,7 @@
             aria-selected={p.name === issue.priority}
             onclick={() => pick(p)}
             disabled={busy}
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:text-text-primary focus:outline-none disabled:opacity-50 {p.name ===
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body transition-colors hover:bg-bg-hover hover:text-text-primary focus:bg-bg-hover focus:text-text-primary focus:outline-none disabled:opacity-50 {p.name ===
             issue.priority
               ? 'text-text-primary'
               : 'text-text-secondary'}"
@@ -136,7 +136,7 @@
           </button>
         {/each}
         {#if options.length === 0}
-          <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.noPriorities')}</div>
+          <div class="px-3 py-2 text-micro text-text-muted">{t('write.noPriorities')}</div>
         {/if}
       {/if}
     </div>

@@ -328,7 +328,7 @@
         e.preventDefault()
         helpOpen = false
       }}
-      class="anim-enter absolute left-0 top-full z-30 mt-10 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-2 text-[12px] leading-relaxed text-text-secondary shadow-overlay"
+      class="anim-enter absolute left-0 top-full z-30 mt-10 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-2 text-body leading-relaxed text-text-secondary shadow-overlay"
       data-testid="search-help-panel"
     >
       <p>{t('list.searchHelp', { shortcut: paletteShortcutLabel() })}</p>
@@ -351,7 +351,7 @@
       {#each suggestions as s, i (s.kind + s.value)}
         <button
           type="button"
-          class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] {i === sugIdx
+          class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-body {i === sugIdx
             ? 'bg-bg-active text-text-primary'
             : 'text-text-secondary hover:bg-bg-hover'}"
           onmousedown={(e) => {
@@ -370,7 +370,7 @@
     >
       <button
         type="button"
-        class="flex w-full items-center gap-2 rounded bg-bg-active px-2 py-1 text-left text-[12px] text-text-primary"
+        class="flex w-full items-center gap-2 rounded bg-bg-active px-2 py-1 text-left text-body text-text-primary"
         onmousedown={(e) => {
           e.preventDefault()
           if (jumpKey) selection.select(jumpKey)
@@ -388,7 +388,7 @@
   <button
     type="button"
     data-testid="palette-open"
-    class="flex h-control flex-none items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+    class="flex h-control flex-none items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-body text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
     title={t('palette.entryTitle', { shortcut: paletteShortcutLabel() })}
     aria-label={t('palette.entryTitle', { shortcut: paletteShortcutLabel() })}
     onclick={() => requestOpenPalette()}

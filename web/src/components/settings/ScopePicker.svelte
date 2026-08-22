@@ -194,7 +194,7 @@
                 type="button"
                 role="option"
                 aria-selected={i === idx}
-                class="flex min-h-control-sm w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] {i ===
+                class="flex min-h-control-sm w-full items-center gap-2 rounded px-2 py-1 text-left text-body {i ===
                 idx
                   ? 'bg-bg-active text-text-primary'
                   : 'text-text-secondary hover:bg-bg-hover'}"

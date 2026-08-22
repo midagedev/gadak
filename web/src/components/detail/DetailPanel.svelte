@@ -185,7 +185,7 @@
               href={jiraUrl(key)}
               target="_blank"
               rel="noopener noreferrer"
-              class="font-mono text-[12px] font-medium text-accent-text hover:underline"
+              class="font-mono text-micro font-medium text-accent-text hover:underline"
             >
               {key}
             </a>
@@ -221,7 +221,7 @@
             <button
               type="button"
               onclick={retry}
-              class="rounded-md border border-border-strong px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+              class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
             >
               {t('common.retry')}
             </button>
@@ -340,9 +340,9 @@
             {#if detailForKey.linked_prs.length > 0}
               <PrList prs={detailForKey.linked_prs} />
             {:else if isStandaloneWorkspace()}
-              <p class="text-[12px] text-text-muted">{t('detail.noPrs')}</p>
+              <p class="text-micro text-text-muted">{t('detail.noPrs')}</p>
             {:else}
-              <p class="text-[12px] text-text-muted">{t('detail.prsNotMirrored')}</p>
+              <p class="text-micro text-text-muted">{t('detail.prsNotMirrored')}</p>
             {/if}
           </Section>
         </div>

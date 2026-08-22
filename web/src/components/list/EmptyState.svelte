@@ -26,11 +26,11 @@
     <Icon name={icon} size={22} class="mb-1 text-text-muted opacity-70" />
   {/if}
   <span class="text-body font-medium text-text-secondary">{title}</span>
-  {#if hint}<span class="max-w-xs text-[12px] text-text-muted">{hint}</span>{/if}
+  {#if hint}<span class="max-w-xs text-micro text-text-muted">{hint}</span>{/if}
   {#if actionLabel && onAction}
     <button
       type="button"
-      class="mt-1 rounded-md border border-border-strong px-3 py-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+      class="mt-1 rounded-md border border-border-strong px-3 py-1 text-body text-text-secondary transition-colors hover:bg-bg-hover"
       data-testid="empty-state-action"
       onclick={onAction}
     >
