@@ -27,13 +27,29 @@ fail() { echo "backlog-scrub-check: $1" >&2; exit 1; }
 # can also hold `mention` nodes (an account id and a display name), `media`
 # (attachment ids) and `inlineCard` (a URL, which is how a site host would get
 # out). Measured on the 2026-08-20 snapshot: doc/paragraph/text only.
+# Links between published issues are public structure; a link to an
+# unpublished issue carries that issue's key and summary and is a leak.
+# Rescoped 2026-08-23 (GDK-675): the node-type sweep used to walk the whole
+# document (`..`) and caught this class only by accident — a link's
+# "type":"Relates" collided with the ADF allowlist. The sweep now names its
+# surface (.description_adf), and links get their own two assertions: every
+# target key is in the published bootstrap, and every entry carries only the
+# reviewed link fields. FAIL-first: the 2026-08-23 snapshot, where published
+# GDK-661 linked an unpublished issue, fails the membership check.
+PUBKEYS="$(jq -c '[.issues[].issue_key]' "$BOOT")"
 for f in "$DIR"/detail/*.json; do
   jq -e '(.attachments == []) and (.comments == [])
      and (.history == []) and (.bodies == {})' "$f" >/dev/null \
     || fail "other people's content survived the scrub in $f"
-  bad="$(jq -r '[.. | objects | select(has("type")) | .type]
+  bad="$(jq -r '[.description_adf // {} | .. | objects | select(has("type")) | .type]
      - ["doc","paragraph","text","hardBreak"] | unique | join(" ")' "$f")"
   [ -z "$bad" ] || fail "description in $f carries node types beyond plain prose: $bad"
+  unpublished="$(jq -r --argjson pub "$PUBKEYS" \
+     '[.linked_issues // [] | .[].key | select(. as $k | $pub | index($k) | not)] | unique | join(" ")' "$f")"
+  [ -z "$unpublished" ] || fail "link in $f targets an unpublished issue: $unpublished"
+  extralink="$(jq -r '[.linked_issues // [] | .[] | keys[]]
+     - ["key","type","direction","summary","status_category"] | unique | join(" ")' "$f")"
+  [ -z "$extralink" ] || fail "link in $f carries non-whitelisted fields: $extralink"
 done
 
 # No concrete Jira site URL and no email addresses in the snapshot DATA.

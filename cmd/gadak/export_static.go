@@ -196,6 +196,13 @@ func cmdExportStatic(args []string) error {
 	if len(boot.Issues) == 0 {
 		return fmt.Errorf("bootstrap returned 0 issues — is %q a valid mirror?", *dbPath)
 	}
+	// The published key set. A link's target must itself be published: a link
+	// entry carries the target's key and summary, so a link to an unpublished
+	// issue is that issue's summary on a public surface (GDK-675).
+	publishedKeys := make(map[string]struct{}, len(boot.Issues))
+	for _, issue := range boot.Issues {
+		publishedKeys[issue.Key] = struct{}{}
+	}
 
 	// detail/<KEY>.json + collect attachment ids
 	seenAttach := map[string]struct{}{}
@@ -209,7 +216,7 @@ func cmdExportStatic(args []string) error {
 			return fmt.Errorf("detail %s: %w", key, err)
 		}
 		if *scrub {
-			body, err = scrubDetail(body, *keepDescription)
+			body, err = scrubDetail(body, *keepDescription, publishedKeys)
 			if err != nil {
 				return fmt.Errorf("scrub detail %s: %w", key, err)
 			}
@@ -403,9 +410,9 @@ func scrubBootstrap(body []byte) ([]byte, error) {
 	return json.Marshal(out)
 }
 
-// scrubDetail keeps the key and the linked-issue graph (public structure) and
-// forces every content surface — description, comments, attachments, history,
-// bodies, enrichments — to its empty shape.
+// scrubDetail keeps the key and the linked-issue graph between published
+// issues, and forces every content surface — description, comments,
+// attachments, history, bodies, enrichments — to its empty shape.
 //
 // keepDescription re-admits one of them. The axes are not equivalent: comments
 // and history carry other people's words and actions, attachments carry
@@ -415,14 +422,14 @@ func scrubBootstrap(body []byte) ([]byte, error) {
 // so dropping it published the index and withheld the content (reported
 // 2026-08-20, GDK-430). The flag is opt-in so the rebuild stays a whitelist:
 // a caller that says nothing still gets the closed shape.
-func scrubDetail(body []byte, keepDescription bool) ([]byte, error) {
+func scrubDetail(body []byte, keepDescription bool, publishedKeys map[string]struct{}) ([]byte, error) {
 	var det map[string]json.RawMessage
 	if err := json.Unmarshal(body, &det); err != nil {
 		return nil, err
 	}
-	linked := det["linked_issues"]
-	if len(linked) == 0 {
-		linked = json.RawMessage("[]")
+	linked, err := scrubLinkedIssues(det["linked_issues"], publishedKeys)
+	if err != nil {
+		return nil, fmt.Errorf("linked_issues: %w", err)
 	}
 	description := json.RawMessage("null")
 	if keepDescription {
@@ -449,6 +456,49 @@ func scrubDetail(body []byte, keepDescription bool) ([]byte, error) {
 		"bodies":              json.RawMessage("{}"),
 	}
 	return json.Marshal(out)
+}
+
+// linkWhitelist is every key a published link entry may carry — same
+// whitelist-rebuild direction as issueWhitelist, so a field added to the live
+// handler's link shape stays private until it is listed here.
+var linkWhitelist = []string{"key", "type", "direction", "summary", "status_category"}
+
+// scrubLinkedIssues rebuilds the linked-issue list for publishing. Before
+// GDK-675 the list passed through verbatim, and a link entry carries its
+// target's key and summary — so one link from a published issue to an
+// unpublished one put that issue's summary on the public surface. A link
+// survives only when its target is itself published, and only with the
+// whitelisted fields.
+func scrubLinkedIssues(raw json.RawMessage, publishedKeys map[string]struct{}) (json.RawMessage, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return json.RawMessage("[]"), nil
+	}
+	var links []map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &links); err != nil {
+		return nil, err
+	}
+	kept := make([]map[string]json.RawMessage, 0, len(links))
+	for _, l := range links {
+		var key string
+		if err := json.Unmarshal(l["key"], &key); err != nil || key == "" {
+			continue
+		}
+		if _, ok := publishedKeys[key]; !ok {
+			continue
+		}
+		entry := map[string]json.RawMessage{}
+		for _, k := range linkWhitelist {
+			if v, ok := l[k]; ok {
+				entry[k] = v
+			}
+		}
+		kept = append(kept, entry)
+	}
+	out, err := json.Marshal(kept)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // copyAttachmentsFromManifest writes attachments/<id> from the fixture dir for

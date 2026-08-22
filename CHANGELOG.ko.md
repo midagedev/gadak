@@ -635,6 +635,15 @@
   처음 나갈 때 정확히 그랬습니다. 두 번째 doc-check가 인덱스의 키와
   *git 추적된* 상세 파일을 양방향으로 대조하고, 자신을 출하하는 커밋
   전에 첫 실전 사례(바로 이 릴리스 노트의 이슈들)를 잡았습니다.
+- **링크의 대상도 스스로 공개여야 합니다** ([GDK-675]). 스크럽은 모든
+  표면을 화이트리스트로 재구축했는데 딱 하나 — `linked_issues`는 통짜로
+  통과했고, 링크 항목은 대상의 키와 요약을 실으므로 공개 이슈에서 비공개
+  이슈로 가는 relates 링크 하나가 그 이슈의 요약을 공개 표면에
+  실었습니다. CI 게이트는 우연히만 잡았습니다(링크의 `"type"`이 ADF 노드
+  허용목록과 충돌). 이제 링크도 재구축되고 — 공개 대상만, 화이트리스트
+  필드만 — 게이트는 그 단언을 이름으로 갖고, doc-checks가 **커밋된**
+  스냅샷에 스크럽 게이트를 돌려 빨간 스냅샷이 초록 커밋에 실릴 수
+  없습니다.
 - **공개 백로그가 각 이슈가 실제로 말하는 것을 게시합니다** ([GDK-430]).
   스크럽이 모든 콘텐츠 표면을 한 축으로 취급해 설명을 코멘트·첨부와 함께
   null로 만들었고, 그래서 게시된 페이지는 헤드라인 목록이었습니다:
@@ -2011,6 +2020,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656
+[GDK-675]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-675
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

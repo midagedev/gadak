@@ -108,6 +108,7 @@ release-audit
 roadmap
 search
 security
+simplify
 snapshot
 standalone
 storage

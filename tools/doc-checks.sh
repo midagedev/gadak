@@ -1129,4 +1129,20 @@ tracked_detail=$(
 )
 backlog_snapshot_detail_consistency "$published" "$tracked_detail"
 
+# ── The committed snapshot passes its own scrub gate ──
+# tools/backlog-snapshot.sh runs the scrub gate at generation time and CI runs
+# it on the Pages artifact, but neither guards the commit itself: on 2026-08-23
+# a snapshot that failed the gate was committed and pushed anyway (the failure
+# was read through a pipe), and main went red on the Pages build (GDK-675).
+# Running the same gate here means "doc-checks green" implies "the tracked
+# snapshot is publishable".
+if [[ -f examples/backlog-snapshot/bootstrap.json ]] && command -v jq >/dev/null; then
+  if bash tools/backlog-scrub-check.sh examples/backlog-snapshot >/dev/null 2>&1; then
+    ok "committed backlog snapshot passes the scrub gate (GDK-675)"
+  else
+    scrub_out=$(bash tools/backlog-scrub-check.sh examples/backlog-snapshot 2>&1 || true)
+    fail "committed backlog snapshot fails its scrub gate: $scrub_out"
+  fi
+fi
+
 echo "doc-checks: all passed"

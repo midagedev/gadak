@@ -685,6 +685,16 @@ the fixes are all here.
   *git-tracked* detail files, both directions, and it caught its first
   real case (these very release notes' issues) before the commit that
   ships it.
+- **A link's target must itself be published** ([GDK-675]). The scrub
+  rebuilt every surface from a whitelist except one: `linked_issues` passed
+  through verbatim, and a link entry carries its target's key and summary —
+  so one relates-link from a published issue to a private one put that
+  issue's summary on the public surface. The CI gate caught it only by
+  accident (a link's `"type"` collided with the ADF node allowlist). Links
+  are now rebuilt too — published targets only, whitelisted fields only —
+  the gate names the assertion instead of tripping over it, and doc-checks
+  runs the scrub gate on the *committed* snapshot, so a red snapshot can no
+  longer ride a green commit.
 - **The public backlog publishes what each issue actually says** ([GDK-430]).
   The scrub treated every content surface as one axis and forced descriptions to
   null with the comments and the attachments, so the published page was a list
@@ -2062,6 +2072,7 @@ measured numbers instead of adjectives.
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656
+[GDK-675]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-675
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

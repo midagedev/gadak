@@ -118,7 +118,8 @@ func TestKeepDescriptionOpensOnlyTheDescription(t *testing.T) {
 		"bodies": {"GDK-2":"text"}
 	}`)
 
-	closed, err := scrubDetail(detail, false)
+	published := map[string]struct{}{"GDK-1": {}, "GDK-2": {}}
+	closed, err := scrubDetail(detail, false, published)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +138,7 @@ func TestKeepDescriptionOpensOnlyTheDescription(t *testing.T) {
 		t.Errorf("default scrub kept a description (%s) — the whitelist must stay closed unless asked", got.DescriptionADF)
 	}
 
-	open, err := scrubDetail(detail, true)
+	open, err := scrubDetail(detail, true, published)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,6 +163,51 @@ func TestKeepDescriptionOpensOnlyTheDescription(t *testing.T) {
 	}
 	if string(closedMap["issue_key"]) != `"GDK-1"` || string(closedMap["key"]) != string(closedMap["issue_key"]) {
 		t.Errorf("scrubDetail key alias diverged: issue_key=%s key=%s", closedMap["issue_key"], closedMap["key"])
+	}
+}
+
+// GDK-675: a link entry carries its target's key and summary, so a link from a
+// published issue to an unpublished one is that issue's summary on the public
+// surface. The list is rebuilt: only links to published targets survive, and
+// only with the whitelisted fields.
+func TestScrubDropsLinksToUnpublishedIssues(t *testing.T) {
+	detail := []byte(`{
+		"issue_key": "GDK-1",
+		"linked_issues": [
+			{"key":"GDK-2","type":"Relates","direction":"outward","summary":"published sibling","status_category":"new"},
+			{"key":"GDK-9","type":"Relates","direction":"outward","summary":"private research plan","status_category":"new"},
+			{"key":"GDK-2","type":"Blocks","direction":"inward","summary":"published sibling","status_category":"new","source_host":"leak.example"}
+		]
+	}`)
+	out, err := scrubDetail(detail, false, map[string]struct{}{"GDK-1": {}, "GDK-2": {}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Linked []map[string]json.RawMessage `json:"linked_issues"`
+	}
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Linked) != 2 {
+		t.Fatalf("linked_issues = %d entries, want 2 (both GDK-2 links, GDK-9 dropped)", len(got.Linked))
+	}
+	if bytes.Contains(out, []byte("GDK-9")) || bytes.Contains(out, []byte("private research plan")) {
+		t.Fatalf("unpublished link target survived the scrub: %s", out)
+	}
+	if bytes.Contains(out, []byte("source_host")) || bytes.Contains(out, []byte("leak.example")) {
+		t.Fatalf("non-whitelisted link field survived the scrub: %s", out)
+	}
+	allowed := map[string]bool{}
+	for _, k := range linkWhitelist {
+		allowed[k] = true
+	}
+	for _, l := range got.Linked {
+		for k := range l {
+			if !allowed[k] {
+				t.Errorf("link field %q is not in linkWhitelist", k)
+			}
+		}
 	}
 }
 
