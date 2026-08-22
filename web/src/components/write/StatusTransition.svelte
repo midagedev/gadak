@@ -6,7 +6,8 @@
    *    <key>/transitions/ fallback.
    *  - Sort (quiet suggestions): ① recent transitions (per project) ② workflow forward
    *    (new→inprogress→done) ③ rest. Focus first item → Enter runs immediately.
-   *  - On pick: write.transition() optimistic. Local fail (stale map) → remote refresh.
+   *  - On pick: required fields → inline form; else write.transition() optimistic.
+   *    Local fail (stale map) → remote refresh.
    */
   import { t } from '../../lib/i18n'
   import type { IssueLite, Transition } from '../../lib/types'
@@ -27,6 +28,8 @@
   let loadError = $state<string | null>(null)
   let busyId = $state<string | null>(null)
   let listEl = $state<HTMLDivElement | null>(null)
+  let collecting = $state<Transition | null>(null)
+  let fieldDraft = $state<Record<string, string>>({})
 
   const cat = $derived(effectiveCategory(issue))
   const dotClass = $derived(
@@ -67,14 +70,22 @@
     })
   })
 
+  function closeMenu() {
+    open = false
+    collecting = null
+    fieldDraft = {}
+  }
+
   async function toggle() {
     if (open) {
-      open = false
+      closeMenu()
       return
     }
     remote = null
     source = 'local'
     loadError = null
+    collecting = null
+    fieldDraft = {}
     // Local map hit → open immediately (0ms). Else remote fallback.
     if (write.transitionsFor(issue)) {
       open = true
@@ -87,7 +98,7 @@
   async function loadRemote() {
     // Remote GET needs auth → gate first.
     if (!(await write.ensureWritableFor(issue.issue_key))) {
-      open = false
+      closeMenu()
       return
     }
     open = true
@@ -103,7 +114,7 @@
         e instanceof ApiError &&
         (e.code === 'credential_required' || e.code === 'credential_rejected')
       ) {
-        open = false
+        closeMenu()
         // #handleError path is inside write; surface the right copy here too.
         if (e.code === 'credential_rejected') write.toast(t('write.tokenRejected'), 'error')
         else write.toast(t('write.needToken'), 'info')
@@ -122,18 +133,59 @@
     queueMicrotask(() => listEl?.querySelector('button')?.focus())
   }
 
-  async function pick(t: Transition) {
+  const canSubmit = $derived(
+    !!collecting &&
+      (collecting.fields ?? []).every((f) => (fieldDraft[f.id] ?? '').trim() !== ''),
+  )
+
+  function startCollect(t: Transition) {
+    collecting = t
+    const next: Record<string, string> = {}
+    for (const f of t.fields ?? []) next[f.id] = ''
+    fieldDraft = next
+    queueMicrotask(() => {
+      const el = listEl?.querySelector('select, input') as HTMLElement | null
+      el?.focus()
+    })
+  }
+
+  function buildFields(t: Transition): Record<string, unknown> {
+    const out: Record<string, unknown> = {}
+    for (const f of t.fields ?? []) {
+      const raw = (fieldDraft[f.id] ?? '').trim()
+      if ((f.options ?? []).length > 0) out[f.id] = { id: raw }
+      else out[f.id] = raw
+    }
+    return out
+  }
+
+  async function send(t: Transition, fields?: Record<string, unknown>) {
     busyId = t.id
     const wasLocal = source === 'local'
-    const ok = await write.transition(issue.issue_key, t)
+    const ok = await write.transition(issue.issue_key, t, fields)
     busyId = null
     if (ok) {
-      open = false
+      closeMenu()
       remote = null // status changed — refetch next time
     } else if (wasLocal) {
+      collecting = null
+      fieldDraft = {}
       // Local map may be stale → re-fetch remote list (keep dropdown open)
       await loadRemote()
     }
+  }
+
+  async function pick(t: Transition) {
+    if (t.fields && t.fields.length > 0) {
+      startCollect(t)
+      return
+    }
+    await send(t)
+  }
+
+  async function submitCollected() {
+    if (!collecting || !canSubmit) return
+    await send(collecting, buildFields(collecting))
   }
 
   const canEdit = $derived(me.identified)
@@ -142,7 +194,7 @@
 <!-- Outside click closes. The boundary is this root rather than the list below,
      so the trigger counts as inside — otherwise the mousedown that closes and
      the click that reopens would cancel each other out. -->
-<div class="relative inline-block" use:onOutsideClick={{ handler: () => (open = false), enabled: open }}>
+<div class="relative inline-block" use:onOutsideClick={{ handler: closeMenu, enabled: open }}>
   <button
     type="button"
     onclick={toggle}
@@ -169,7 +221,7 @@
   {#if open}
     <div
       bind:this={listEl}
-      use:onEscape={() => (open = false)}
+      use:onEscape={closeMenu}
       class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-52 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
       role="listbox"
     >
@@ -177,6 +229,46 @@
         <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.loadingTransitions')}</div>
       {:else if loadError}
         <div class="px-3 py-2 text-[12px] text-status-reopen">{loadError}</div>
+      {:else if collecting}
+        <div class="px-2 py-1.5" data-testid="transition-required-fields">
+          <div class="px-1 pb-1.5 text-[12px] text-text-secondary">{collecting.name}</div>
+          {#each collecting.fields ?? [] as f (f.id)}
+            <label class="mb-1.5 flex flex-col gap-0.5 px-1">
+              <span class="text-micro text-text-muted">{f.name}</span>
+              {#if (f.options ?? []).length > 0}
+                <select
+                  class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none"
+                  bind:value={fieldDraft[f.id]}
+                  aria-label={f.name}
+                  disabled={busyId !== null}
+                >
+                  <option value=""></option>
+                  {#each f.options as o (o.id)}
+                    <option value={o.id}>{o.value}</option>
+                  {/each}
+                </select>
+              {:else}
+                <input
+                  type="text"
+                  class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none"
+                  bind:value={fieldDraft[f.id]}
+                  aria-label={f.name}
+                  disabled={busyId !== null}
+                />
+              {/if}
+            </label>
+          {/each}
+          <div class="flex justify-end px-1 pt-0.5">
+            <button
+              type="button"
+              onclick={submitCollected}
+              disabled={!canSubmit || busyId !== null}
+              class="rounded bg-accent px-2 py-1 text-micro font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {t('common.apply')}
+            </button>
+          </div>
+        </div>
       {:else if sorted.length === 0}
         <div class="px-3 py-2 text-[12px] text-text-muted">{t('write.noTransitions')}</div>
       {:else}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -456,6 +457,54 @@ type transitionDoc struct {
 	// so a reader can carry it straight back into POST transition (GDK-341).
 	ToID       string `json:"to_id"`
 	ToCategory string `json:"to_category"`
+	// Fields is required screen fields only (GDK-83). Omitted when none.
+	Fields []transitionFieldDoc `json:"fields,omitempty"`
+}
+
+type transitionFieldDoc struct {
+	ID      string                  `json:"id"`
+	Name    string                  `json:"name"`
+	Type    string                  `json:"type"`
+	Options []transitionFieldOption `json:"options"`
+}
+
+type transitionFieldOption struct {
+	ID    string `json:"id"`
+	Value string `json:"value"`
+}
+
+// requiredTransitionFields copies Required=true entries. Option labels follow
+// handleEditMeta: AllowedValues.value, then name (resolution uses name).
+func requiredTransitionFields(fields map[string]jira.TransitionField) []transitionFieldDoc {
+	if len(fields) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(fields))
+	for k, f := range fields {
+		if f.Required {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	sort.Strings(keys)
+	out := make([]transitionFieldDoc, 0, len(keys))
+	for _, k := range keys {
+		f := fields[k]
+		opts := make([]transitionFieldOption, 0, len(f.AllowedValues))
+		for _, v := range f.AllowedValues {
+			label := v.Value
+			if label == "" {
+				label = v.Name
+			}
+			opts = append(opts, transitionFieldOption{ID: v.ID, Value: label})
+		}
+		out = append(out, transitionFieldDoc{
+			ID: k, Name: f.Name, Type: f.Schema.Type, Options: opts,
+		})
+	}
+	return out
 }
 
 func (s *server) handleTransitions(w http.ResponseWriter, r *http.Request) {
@@ -476,6 +525,7 @@ func (s *server) handleTransitions(w http.ResponseWriter, r *http.Request) {
 			// accepts — not Jira's raw key, which includes "indeterminate"
 			// and would be rejected on the round trip (GDK-564).
 			ToCategory: jira.Category(t.To.StatusCategory.Key),
+			Fields:     requiredTransitionFields(t.Fields),
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"transitions": out})

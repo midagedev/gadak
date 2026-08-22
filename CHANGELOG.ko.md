@@ -203,6 +203,13 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **스크린이 필요한 트랜지션은 그 자리에서 물어봅니다** ([GDK-83]). GET
+  transitions가 각 트랜지션의 필수 스크린 필드(required만, 옵션 포함)를
+  실어 주므로, "Resolve"를 고르면 사후 실패 대신 드롭다운 안에 작은 폼이
+  열립니다 — 닫힌 목록은 select, 나머지는 텍스트 입력. 폼으로 막지 못한
+  400 거절은 에러 토스트가 행동 가능해집니다: 거절 메시지에 "Jira 원본
+  열기" 버튼 — 열 origin URL이 있는 워크스페이스에서만 그립니다. 필수
+  필드가 없는 트랜지션은 이전과 완전히 동일하게 즉시 전송됩니다.
 - **데스크톱 첫 실행이 토큰 페이지를 앱 안에서 엽니다** ([GDK-71]).
   온보딩의 토큰 링크가 Atlassian 토큰 페이지를 브라우즈 페인에 열고
   붙여넣기 필드를 포커스해 왕복이 한 창에서 끝납니다. 옆의 보조 링크가
@@ -1587,6 +1594,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-76]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-76
 [GDK-78]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-78
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
+[GDK-83]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-83
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

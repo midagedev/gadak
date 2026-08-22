@@ -640,11 +640,17 @@ export function getTransitions(issueKey: string): Promise<TransitionsResponse> {
   return jsonW<TransitionsResponse>(`${encodeURIComponent(issueKey)}/transitions/`)
 }
 
-export function doTransition(issueKey: string, transitionId: string): Promise<IssueWriteResponse> {
+export function doTransition(
+  issueKey: string,
+  transitionId: string,
+  fields?: Record<string, unknown>,
+): Promise<IssueWriteResponse> {
+  const body: Record<string, unknown> = { transition_id: transitionId }
+  if (fields && Object.keys(fields).length > 0) body.fields = fields
   return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/transition/`, {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ transition_id: transitionId }),
+    body: JSON.stringify(body),
   })
 }
 

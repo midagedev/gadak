@@ -11,8 +11,9 @@ import (
 // in Issue.Raw, which the store keeps as an escape hatch.
 
 type NamedID struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Value string `json:"value,omitempty"`
 }
 
 type User struct {

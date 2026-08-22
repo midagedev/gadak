@@ -208,6 +208,15 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **A transition that needs a screen asks for it inline** ([GDK-83]). GET
+  transitions now carries each transition's required screen fields —
+  required only, options included — so picking "Resolve" opens a small
+  form in the dropdown (a select for closed lists, a text input otherwise)
+  instead of failing after the fact. A 400 the form could not prevent
+  turns the error toast actionable: the refusal message plus an "Open in
+  Jira" button, offered only when the workspace has an origin URL to open.
+  A transition with no required fields sends immediately, exactly as
+  before.
 - **Desktop first-run opens the token page inside the app** ([GDK-71]).
   The onboarding token link opens Atlassian's token page in the browse
   pane and focuses the paste field, so the token round-trip stays in one
@@ -1593,6 +1602,7 @@ measured numbers instead of adjectives.
 [GDK-76]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-76
 [GDK-78]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-78
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
+[GDK-83]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-83
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

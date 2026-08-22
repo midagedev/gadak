@@ -23,7 +23,7 @@ import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 import { appendComment, invalidate } from '../lib/detail-cache.svelte'
 import { recordRecent } from '../lib/recency'
-import { isHostedDemo } from '../lib/config'
+import { isHostedDemo, jiraBrowseUrl } from '../lib/config'
 import type {
   CommentMention,
   CreateIssuePayload,
@@ -44,10 +44,17 @@ const WRITE_META_MS = 15 * 60 * 1000 // write-meta reload interval
 
 export type ToastKind = 'error' | 'info' | 'success'
 
+export interface ToastAction {
+  label: string
+  /** ToastHost calls openIssueOrigin — write must not import desktop-links. */
+  openIssueKey: string
+}
+
 export interface Toast {
   id: number
   kind: ToastKind
   message: string
+  action?: ToastAction
 }
 
 const TOAST_MS = { error: 6000, info: 3000, success: 2500 }
@@ -198,9 +205,11 @@ class WriteStore {
 
   /* ── Toasts ── */
 
-  toast(message: string, kind: ToastKind = 'info'): void {
+  toast(message: string, kind: ToastKind = 'info', action?: ToastAction): void {
     const id = ++this.#toastId
-    this.toasts = [...this.toasts, { id, kind, message }]
+    const next: Toast = { id, kind, message }
+    if (action) next.action = action
+    this.toasts = [...this.toasts, next]
     setTimeout(() => this.dismissToast(id), TOAST_MS[kind])
   }
 
@@ -377,6 +386,7 @@ class WriteStore {
     patch: Partial<IssueLite> | null,
     call: () => Promise<{ issue: IssueLite }>,
     failMsg: string,
+    onError?: (e: unknown) => void,
   ): Promise<boolean> {
     if (!(await this.ensureWritableFor(key))) return false
     const snapshot = issues.pool.get(key)
@@ -397,20 +407,33 @@ class WriteStore {
       return true
     } catch (e) {
       if (snapshot) issues.pool.set(key, snapshot) // rollback
-      this.#handleError(e, failMsg)
+      if (onError) onError(e)
+      else this.#handleError(e, failMsg)
       return false
     }
   }
 
   /* ── Status transition ── */
 
-  async transition(key: string, tr: Transition): Promise<boolean> {
+  async transition(
+    key: string,
+    tr: Transition,
+    fields?: Record<string, unknown>,
+  ): Promise<boolean> {
     const proj = this.projectOf(issues.pool.get(key) ?? ({ issue_key: key } as IssueLite))
+    const failMsg = t('write.transitionFailed')
     const ok = await this.#writeIssue(
       key,
       { status: tr.to_status, status_category: tr.to_category },
-      () => api.doTransition(key, tr.id),
-      t('write.transitionFailed'),
+      () => api.doTransition(key, tr.id, fields),
+      failMsg,
+      (e) => {
+        if (e instanceof ApiError && e.status === 400) {
+          this.toast(formatWriteRejection(e, failMsg), 'error', originAction(key))
+          return
+        }
+        this.#handleError(e, failMsg)
+      },
     )
     if (ok) recordRecent(`transition:${proj}`, tr.id) // record successes only
     return ok
@@ -878,6 +901,12 @@ function compactCreatePayload(input: CreateIssuePayload): CreateIssuePayload {
   const due = input.duedate?.trim()
   if (due) body.duedate = due
   return body
+}
+
+/** GDK-83 / GDK-52: 400 screen refusals offer the origin hatch only when it can open. */
+function originAction(key: string): ToastAction | undefined {
+  if (!jiraBrowseUrl(key)) return undefined
+  return { label: t('detail.openJira'), openIssueKey: key }
 }
 
 /** Jira's Message() plus any jira_errors the message did not already carry. */

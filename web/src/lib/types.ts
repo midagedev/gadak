@@ -649,12 +649,22 @@ export interface JiraCredential {
   linear?: boolean
 }
 
+/** One required screen field on a transition (GET <key>/transitions/). */
+export interface TransitionField {
+  id: string
+  name: string
+  type: string
+  options: EditMetaOption[]
+}
+
 /** One transition option (GET <key>/transitions/). */
 export interface Transition {
   id: string
   name: string
   to_status: string
   to_category: string // Jira statusCategory key (new/indeterminate/done)
+  /** Required screen fields only; omitted when none. */
+  fields?: TransitionField[]
 }
 
 export interface TransitionsResponse {

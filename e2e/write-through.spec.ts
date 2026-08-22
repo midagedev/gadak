@@ -162,6 +162,106 @@ test.describe('write-through', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  test('transition with required resolution collects inline then POSTs fields', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    const { issue } = await captureIssue(page)
+    const panel = await openIssue(page)
+    const chip = panel.getByTestId('status-transition')
+    await expect(chip).toBeVisible()
+
+    const resolve = {
+      id: '41',
+      name: 'Resolve',
+      to_status: 'Done',
+      to_category: 'done',
+      fields: [
+        {
+          id: 'resolution',
+          name: 'Resolution',
+          type: 'resolution',
+          options: [
+            { id: '10099', value: "Won't Do" },
+            { id: '10000', value: 'Done' },
+          ],
+        },
+      ],
+    }
+
+    await page.route(`**/api/v1/issues/${KEY}/transitions/`, async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      await fulfillJSON(route, { transitions: [resolve] })
+    })
+
+    let posted: { transition_id?: string; fields?: unknown; resolution?: unknown } | null = null
+    await page.route(`**/api/v1/issues/${KEY}/transition/`, async (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      posted = route.request().postDataJSON() as typeof posted
+      await fulfillJSON(route, {
+        issue: {
+          ...issue,
+          status: SERVER_STATUS,
+          status_category: resolve.to_category,
+        },
+      })
+    })
+
+    await chip.click()
+    const option = page.getByRole('option', { name: resolve.name })
+    await expect(option).toBeVisible()
+    await option.click()
+
+    await expect.poll(() => posted).toBeNull()
+    const form = page.getByTestId('transition-required-fields')
+    await expect(form).toBeVisible()
+    const select = form.getByLabel('Resolution')
+    await expect(select).toBeVisible()
+    await expect(select).toHaveValue('')
+    const apply = form.getByRole('button', { name: 'Apply' })
+    await expect(apply).toBeDisabled()
+    await select.selectOption('10099')
+    await expect(apply).toBeEnabled()
+    await apply.click()
+
+    await expect.poll(() => posted?.transition_id).toBe(resolve.id)
+    const body = posted as { transition_id?: string; fields?: unknown; resolution?: unknown }
+    const asFields = body.fields as { resolution?: { id?: string } } | undefined
+    const viaFields = asFields?.resolution?.id === '10099'
+    const viaResolution = body.resolution === "Won't Do" || body.resolution === '10099'
+    expect(viaFields || viaResolution, `POST body ${JSON.stringify(posted)}`).toBe(true)
+    await expect(chip).toContainText(SERVER_STATUS)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('transition 400 refusal offers Open in Jira', async ({ page }) => {
+    const { issue } = await captureIssue(page)
+    const panel = await openIssue(page)
+    const chip = panel.getByTestId('status-transition')
+    await expect(chip).toBeVisible()
+
+    await page.route(`**/api/v1/issues/${KEY}/transitions/`, async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      await fulfillJSON(route, { transitions: [TRANSITION] })
+    })
+
+    await page.route(`**/api/v1/issues/${KEY}/transition/`, async (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      await fulfillJSON(route, { error: 'NMB-110 Resolve requires: resolution' }, 400)
+    })
+
+    await chip.click()
+    await page.getByRole('option', { name: TRANSITION.name }).click()
+
+    const toast = page.getByTestId('toast').and(page.getByRole('alert'))
+    await expect(toast).toBeVisible()
+    await expect(toast).toContainText('NMB-110 Resolve requires: resolution')
+    await expect(toast.getByTestId('toast-action')).toHaveText('Open in Jira')
+    await expect(chip).not.toContainText(TRANSITION.to_status)
+    expect(issue.status).toBeTruthy()
+  })
+
   test('assign: request names the chosen account; panel shows server assignee', async ({
     page,
   }) => {

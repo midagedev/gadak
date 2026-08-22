@@ -383,6 +383,103 @@ func TestTransitionsGETIncludesTargetStatusID(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"to_id":"10001"`) {
 		t.Fatalf("no to_id in %s", rec.Body.String())
 	}
+	if strings.Contains(rec.Body.String(), `"fields"`) {
+		t.Fatalf("no required screen fields: fields key must be omitted, got %s", rec.Body.String())
+	}
+}
+
+// GDK-83: GET transitions exposes required screen fields only. Optional fields
+// stay off the document; a transition with none omits the fields key.
+func TestTransitionsGETRequiredFieldsOnly(t *testing.T) {
+	f, h, _ := writable(t)
+	f.transitionsJSON = `{"transitions":[
+		{"id":"21","name":"Start","to":{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}},
+		 "fields":{"summary":{"required":false,"name":"Summary","schema":{"type":"string"}}}},
+		{"id":"41","name":"Resolve","to":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},
+		 "fields":{
+		   "resolution":{"required":true,"name":"Resolution","schema":{"type":"resolution"},
+		     "allowedValues":[{"id":"10099","name":"Won't Do"},{"id":"10000","name":"Done"}]},
+		   "customfield_1":{"required":false,"name":"Optional","schema":{"type":"string"}},
+		   "customfield_10092":{"required":true,"name":"Severity","schema":{"type":"option"},
+		     "allowedValues":[{"id":"10160","value":"High"},{"id":"10161","value":"Low"}]}}}
+	]}`
+	rec := get(t, h, apiBase+"NMB-1/transitions/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var raw struct {
+		Transitions []json.RawMessage `json:"transitions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(raw.Transitions) != 2 {
+		t.Fatalf("transitions %d, want 2: %s", len(raw.Transitions), rec.Body.String())
+	}
+	if strings.Contains(string(raw.Transitions[0]), `"fields"`) {
+		t.Fatalf("optional-only transition must omit fields: %s", raw.Transitions[0])
+	}
+	var resolve struct {
+		ID     string `json:"id"`
+		Fields []struct {
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Type    string `json:"type"`
+			Options []struct {
+				ID    string `json:"id"`
+				Value string `json:"value"`
+			} `json:"options"`
+		} `json:"fields"`
+	}
+	if err := json.Unmarshal(raw.Transitions[1], &resolve); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if resolve.ID != "41" || len(resolve.Fields) != 2 {
+		t.Fatalf("resolve fields %+v, want 2 required", resolve.Fields)
+	}
+	if resolve.Fields[0].ID != "customfield_10092" || resolve.Fields[0].Name != "Severity" ||
+		resolve.Fields[0].Type != "option" || len(resolve.Fields[0].Options) != 2 ||
+		resolve.Fields[0].Options[0].ID != "10160" || resolve.Fields[0].Options[0].Value != "High" {
+		t.Fatalf("option field %+v", resolve.Fields[0])
+	}
+	if resolve.Fields[1].ID != "resolution" || resolve.Fields[1].Name != "Resolution" ||
+		resolve.Fields[1].Type != "resolution" || len(resolve.Fields[1].Options) != 2 ||
+		resolve.Fields[1].Options[0].ID != "10099" || resolve.Fields[1].Options[0].Value != "Won't Do" ||
+		resolve.Fields[1].Options[1].ID != "10000" || resolve.Fields[1].Options[1].Value != "Done" {
+		t.Fatalf("resolution field %+v", resolve.Fields[1])
+	}
+	if strings.Contains(string(raw.Transitions[1]), `"customfield_1"`) {
+		t.Fatalf("optional field leaked: %s", raw.Transitions[1])
+	}
+}
+
+// GDK-83: Apply already forwards fields.resolution {id} (same shape the web
+// inline form sends). Pin that a required screen is satisfied this way, not
+// only via body.resolution.
+func TestTransitionRESTRequiredResolutionAcceptsFieldsID(t *testing.T) {
+	f, h, _ := writable(t)
+	f.transitionsJSON = requiredResolutionJSON
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/",
+		`{"transition_id":"41","fields":{"resolution":{"id":"10099"}}}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	raw := f.bodies["POST /issue/NMB-1/transitions"]
+	var sent map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sent); err != nil {
+		t.Fatalf("decode %s: %v", raw, err)
+	}
+	var fields struct {
+		Resolution struct {
+			ID string `json:"id"`
+		} `json:"resolution"`
+	}
+	if err := json.Unmarshal(sent["fields"], &fields); err != nil {
+		t.Fatalf("fields %s: %v", sent["fields"], err)
+	}
+	if fields.Resolution.ID != "10099" {
+		t.Fatalf("resolution id %q, want 10099 from fields", fields.Resolution.ID)
+	}
 }
 
 func TestTransitionWritesThroughToTheMirror(t *testing.T) {
