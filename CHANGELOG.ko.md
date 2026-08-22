@@ -555,6 +555,13 @@
   복제본은 오류 트랜스크립트에서 빈 줄을 버렸고, 진짜 루프는 빠른 종료와
   자기 성공 신호를 경쟁시켜 성공한 설치를 실패로 부를 수 있었습니다.
   이제 생산이 테스트가 모는 그 함수 하나에 출력을 먹입니다.
+- **죽은 코드는 호출자를 센 뒤에 지웁니다** ([GDK-616]).
+  staticcheck·deadcode 스윕 — 모든 삭제에 호출자 0 조사 로그가 선행:
+  테스트 전용 래퍼 심 여덟을 실체 함수로 재배선 후 제거, 죽은 단발
+  여섯 삭제(그중 하나 — pairing TTL 기본값 — 는 아무도 플래그에 잇지
+  않은 상수로 판명돼 삭제 대신 배선), 임포트 0의 Svelte 컴포넌트와
+  @deprecated API 별칭 정리, 인라인으로 두 번 존재하던 createmeta
+  폴백은 한 곳에 살며 필요할 때만 카탈로그를 가져옵니다. 순 −108줄.
 - **작은 소유자 여섯, 각자 하나씩** ([GDK-619]). 바이트 동일 헬퍼 사본
   스윕: 날짜 리터럴 검사는 두 벌이 아니라 세 벌로 실측돼 이제
   `internal/fields`에 한 번만 삽니다; 이름-또는-id 포맷, 설정에서 신원
@@ -1717,6 +1724,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-613]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-613
 [GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
 [GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
+[GDK-616]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-616
 [GDK-618]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-618
 [GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626

@@ -1033,12 +1033,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, s.config(), err)
 		return
 	}
-	metaProj, types, err := create.MetaFor(meta, proj.Value, cfg)
-	if err != nil && create.FormatProjectKeys(meta) == "" {
-		if catalog, cerr := c.CreateMeta(r.Context(), cfg.Projects); cerr == nil {
-			metaProj, types, err = create.MetaFor(catalog, proj.Value, cfg)
-		}
-	}
+	metaProj, types, err := create.MetaForWithCatalog(r.Context(), c, meta, proj.Value, cfg)
 	if err != nil {
 		failCreateOrPairing(w, r, c, cfg, err)
 		return

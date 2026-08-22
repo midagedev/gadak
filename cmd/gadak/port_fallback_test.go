@@ -151,12 +151,12 @@ func TestBindListen_FallbackOnEADDRINUSE(t *testing.T) {
 	defer hold2.Close()
 
 	want := fmt.Sprintf("127.0.0.1:%d", port)
-	ln, bound, existing, err := bindListen(want, false, "work",
+	ln, bound, existing, _, err := bindListenDetail(want, false, "work",
 		func(string) gadakProbe { return gadakProbe{} }, // not gadak
 		net.Listen,
 	)
 	if err != nil {
-		t.Fatalf("bindListen: %v", err)
+		t.Fatalf("bindListenDetail: %v", err)
 	}
 	if existing != "" {
 		t.Fatalf("unexpected existing URL %q", existing)
@@ -202,14 +202,14 @@ func TestBindListen_OpenExistingSameProfile(t *testing.T) {
 
 	// Occupy the same port with a plain listener so bind fails with EADDRINUSE.
 	// The httptest server already holds it.
-	ln, bound, existing, err := bindListen(addr, false, "work",
+	ln, bound, existing, _, err := bindListenDetail(addr, false, "work",
 		func(p string) gadakProbe {
 			return probeGadakOnPort(p, 700*time.Millisecond)
 		},
 		net.Listen,
 	)
 	if err != nil {
-		t.Fatalf("bindListen: %v", err)
+		t.Fatalf("bindListenDetail: %v", err)
 	}
 	if ln != nil {
 		ln.Close()

@@ -70,13 +70,9 @@ func destBaseFor(goos string) string {
 	return "gadak"
 }
 
-// Resolve picks the install directory and inspects Dest for this binary's GOOS.
-func Resolve(source, dirFlag, pathEnv string) (Plan, error) {
-	return ResolveFor(source, dirFlag, pathEnv, runtime.GOOS)
-}
-
-// ResolveFor is Resolve with an explicit GOOS so the Windows dest name and
-// copy/symlink choice can be tested on any host.
+// ResolveFor picks the install directory and inspects Dest. goos is an
+// explicit GOOS value so the Windows dest name and copy/symlink choice
+// can be tested on any host (callers pass runtime.GOOS in production).
 //
 // dirFlag empty → DefaultDir(pathEnv) heuristic. Non-empty → expand/absolutize
 // that path and skip the heuristic. pathEnv is the PATH string (usually
@@ -303,13 +299,6 @@ func (p Plan) AlreadyInstalledLine() string {
 		return fmt.Sprintf("already installed: %s (copy of %s)", TildeHome(p.Dest), TildeHome(p.Source))
 	}
 	return fmt.Sprintf("already installed: %s → %s", TildeHome(p.Dest), TildeHome(p.Source))
-}
-
-// PathExportLine returns a one-liner the user can paste to add dir to PATH
-// (clipboard / advisory). shell is typically os.Getenv("SHELL").
-func PathExportLine(dir, shell string) string {
-	line, _ := PathExportAdvise(dir, shell)
-	return line
 }
 
 // PathExportAdviseFor is PathExportAdvise with an explicit GOOS. Windows has

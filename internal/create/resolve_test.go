@@ -1,7 +1,10 @@
 package create
 
 import (
+	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -163,5 +166,58 @@ func TestFillNeedProjectFromCatalog(t *testing.T) {
 	kept := FillNeedProject(&NeedProjectError{Configured: []string{"NMA"}}, []jira.CreateMetaProject{{Key: "STD"}})
 	if !errors.As(kept, &np) || np.Configured[0] != "NMA" {
 		t.Fatalf("must not overwrite configured: %v", kept)
+	}
+}
+
+// TestMetaForWithCatalogFetchesOnlyOnFallback pins the consolidated
+// fallback (GDK-616): MetaFor alone, and only when the filtered answer had
+// no keys to list, one site-catalog fetch so the error names what exists.
+// CLI create and REST handleCreate both route through this function.
+func TestMetaForWithCatalogFetchesOnlyOnFallback(t *testing.T) {
+	fetches := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/rest/api/3/issue/createmeta") {
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.Error(w, "unexpected", http.StatusBadRequest)
+			return
+		}
+		fetches++
+		_, _ = w.Write([]byte(`{"projects":[{"key":"STD","name":"Std"},{"key":"IDEA","name":"Ideas"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := jira.New(srv.URL, "someone@example.com", "secret-token")
+	cfg := &config.Config{Kind: config.KindStandalone, Projects: []string{"STD", "IDEA"}}
+
+	// Hit: no catalog fetch.
+	p, _, err := MetaForWithCatalog(context.Background(), c, []jira.CreateMetaProject{{Key: "STD"}}, "STD", cfg)
+	if err != nil || p.Key != "STD" {
+		t.Fatalf("hit: key=%q err=%v", p.Key, err)
+	}
+	if fetches != 0 {
+		t.Fatalf("happy path fetched the catalog %d time(s)", fetches)
+	}
+
+	// Miss that already lists keys: no catalog fetch either.
+	_, _, err = MetaForWithCatalog(context.Background(), c, []jira.CreateMetaProject{{Key: "STD"}}, "NOPE", cfg)
+	if err == nil || !strings.Contains(err.Error(), "available: STD") {
+		t.Fatalf("miss wording: %v", err)
+	}
+	if fetches != 0 {
+		t.Fatalf("listed miss fetched the catalog %d time(s)", fetches)
+	}
+
+	// Filtered-to-empty miss (createmeta on a missing key): one catalog
+	// fetch, and the error lists the site keys.
+	_, _, err = MetaForWithCatalog(context.Background(), c, nil, "NOPE", cfg)
+	if err == nil {
+		t.Fatal("empty miss must error")
+	}
+	for _, want := range []string{"does not exist in this workspace", "available: STD, IDEA"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("missing %q in %v", want, err)
+		}
+	}
+	if fetches != 1 {
+		t.Fatalf("catalog fetches = %d, want 1", fetches)
 	}
 }

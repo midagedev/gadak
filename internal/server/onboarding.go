@@ -500,16 +500,6 @@ func (s *server) handleSyncRuns(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-func (s *server) syncProgress() progressDoc {
-	s.syncMu.Lock()
-	defer s.syncMu.Unlock()
-	doc := s.syncJob
-	if doc.Phase == "" {
-		doc.Phase = "idle"
-	}
-	return doc
-}
-
 // syncProgressResponse is the polled document: one-shot job fields plus activity.
 func (s *server) syncProgressResponse() progressResponse {
 	s.syncMu.Lock()

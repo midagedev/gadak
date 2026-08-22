@@ -625,11 +625,6 @@ export function startSync(mode: 'full' | 'incremental' = 'full'): Promise<SyncPr
   })
 }
 
-/** @deprecated Prefer startSync('full') — kept for call-site clarity in onboarding. */
-export function startFullSync(): Promise<SyncProgress> {
-  return startSync('full')
-}
-
 export function getSyncProgress(): Promise<SyncProgress> {
   return jsonW<SyncProgress>('sync/progress/')
 }

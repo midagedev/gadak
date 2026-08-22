@@ -157,19 +157,3 @@ func EmptyFilter() Filter {
 		Fields:           map[string][]string{},
 	}
 }
-
-func (f Filter) empty() bool {
-	if len(f.StatusCategory) > 0 || len(f.Status) > 0 ||
-		len(f.AssigneeEmail) > 0 || len(f.ReporterEmail) > 0 ||
-		len(f.Labels) > 0 || len(f.Priority) > 0 || len(f.IssueType) > 0 ||
-		len(f.Components) > 0 || len(f.FixVersions) > 0 ||
-		len(f.JiraProject) > 0 || len(f.JiraProjectNot) > 0 || len(f.Keys) > 0 || len(f.Parent) > 0 ||
-		len(f.SprintIDs) > 0 || len(f.SprintState) > 0 || f.Unassigned || f.Reopened || f.Stale ||
-		f.CreatedFrom != nil || f.CreatedTo != nil ||
-		f.UpdatedFrom != nil || f.UpdatedTo != nil ||
-		f.DueFrom != nil || f.DueTo != nil ||
-		f.ResolvedFrom != nil || f.ResolvedTo != nil || f.Q != "" {
-		return false
-	}
-	return true
-}

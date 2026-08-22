@@ -428,7 +428,7 @@ func TestResolveAndInstall(t *testing.T) {
 	dir := filepath.Join(root, "bin")
 	pathEnv := dir
 
-	p, err := Resolve(source, dir, pathEnv)
+	p, err := ResolveFor(source, dir, pathEnv, runtime.GOOS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -449,7 +449,7 @@ func TestResolveAndInstall(t *testing.T) {
 		t.Errorf("link = %q, want %q", got, source)
 	}
 
-	p2, err := Resolve(source, dir, pathEnv)
+	p2, err := ResolveFor(source, dir, pathEnv, runtime.GOOS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +478,7 @@ func TestInstallConflictRequiresForce(t *testing.T) {
 	if err := os.WriteFile(dest, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	p, err := Resolve(source, dir, dir)
+	p, err := ResolveFor(source, dir, dir, runtime.GOOS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -510,7 +510,7 @@ func TestPathContainsAndExport(t *testing.T) {
 	if PathContains("/usr/bin:/bin", dir) {
 		t.Error("should not find dir")
 	}
-	line := PathExportLine("/opt/gadak/bin", "/bin/zsh")
+	line, _ := PathExportAdvise("/opt/gadak/bin", "/bin/zsh")
 	if !strings.Contains(line, ".zshrc") || !strings.Contains(line, `export PATH="/opt/gadak/bin:$PATH"`) {
 		t.Errorf("line = %q", line)
 	}

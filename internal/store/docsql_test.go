@@ -128,33 +128,12 @@ func docTitle(body []string) string {
 	return "(untitled)"
 }
 
-// openDemoCopy opens a throwaway copy of examples/demo.db (534 issues — the
-// seed fixture is too small for the aggregate queries). The repo fixture is
-// immutable and Open migrates (and writes WAL sidecars), so tests never open
-// it in place. A missing or unreadable fixture is Fatal, never Skip: a gate
-// that quietly skips is not a gate. Writing tests keep this path; read-only
-// tests share openDemoRO.
-func openDemoCopy(t *testing.T) *DB {
-	t.Helper()
-	in, err := os.ReadFile(filepath.Join("..", "..", "examples", "demo.db"))
-	if err != nil {
-		t.Fatalf("read examples/demo.db: %v", err)
-	}
-	path := filepath.Join(t.TempDir(), "gadak.db")
-	if err := os.WriteFile(path, in, 0o600); err != nil {
-		t.Fatalf("copy examples/demo.db into %s: %v", path, err)
-	}
-	db, err := Open(path)
-	if err != nil {
-		t.Fatalf("open demo copy: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-	return db
-}
-
 // openDemoRO returns a process-wide read-only handle on a single copy of
 // examples/demo.db. Used only by tests that never write; a writing test
-// keeps its own throwaway copy via openDemoCopy / a local ReadFile.
+// keeps its own throwaway copy via a local ReadFile. The repo fixture is
+// immutable and Open migrates (and writes WAL sidecars), so tests never
+// open it in place. A missing or unreadable fixture is Fatal, never Skip:
+// a gate that quietly skips is not a gate.
 var (
 	demoROOnce sync.Once
 	demoRO     *DB

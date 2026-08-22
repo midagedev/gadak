@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
 func TestWriteTake(t *testing.T) {
@@ -12,11 +14,11 @@ func TestWriteTake(t *testing.T) {
 	if err := Write("pj=NMA&sc=inprogress"); err != nil {
 		t.Fatal(err)
 	}
-	hash, ok, err := Take()
+	hash, ok, err := TakeFor(config.Profile())
 	if err != nil || !ok || hash != "pj=NMA&sc=inprogress" {
 		t.Fatalf("take %q ok=%v err=%v", hash, ok, err)
 	}
-	if _, ok, err := Take(); err != nil || ok {
+	if _, ok, err := TakeFor(config.Profile()); err != nil || ok {
 		t.Fatal("second take should be empty")
 	}
 }
@@ -29,7 +31,7 @@ func TestTakeForUsesProfileDir(t *testing.T) {
 	if err := WriteFor("", "ks=AAA-1"); err != nil {
 		t.Fatal(err)
 	}
-	if hash, ok, err := Take(); err != nil || !ok || hash != "ks=AAA-1" {
+	if hash, ok, err := TakeFor(config.Profile()); err != nil || !ok || hash != "ks=AAA-1" {
 		t.Fatalf("default take %q ok=%v err=%v", hash, ok, err)
 	}
 	if hash, ok, err := TakeFor("work"); err != nil || !ok || hash != "ks=BBB-1" {
@@ -42,7 +44,7 @@ func TestTakeForUsesProfileDir(t *testing.T) {
 
 func TestTakeIgnoresStale(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
-	p, err := Path()
+	p, err := PathFor(config.Profile())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +55,7 @@ func TestTakeIgnoresStale(t *testing.T) {
 	if err := os.WriteFile(p, []byte(old), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := Take(); err != nil || ok {
+	if _, ok, err := TakeFor(config.Profile()); err != nil || ok {
 		t.Fatalf("stale should be ignored ok=%v err=%v", ok, err)
 	}
 }

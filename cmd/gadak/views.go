@@ -563,21 +563,6 @@ func serveProbePorts() []string {
 	return ports
 }
 
-// openServeOnHash resolves the URL and opens a browser. Kept for callers that
-// still want the combined action; views open uses serveFocusURL + openBrowser
-// so --no-open can still print the link.
-func openServeOnHash(hash string) string {
-	u := serveFocusURL(hash)
-	if u == "" {
-		return ""
-	}
-	if err := openBrowser(u); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not open %s (%v)\n", u, err)
-		return u
-	}
-	return u
-}
-
 func envNoOpen() bool {
 	v := strings.TrimSpace(os.Getenv("GADAK_NO_OPEN"))
 	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")

@@ -111,21 +111,18 @@ func shiftPort(addr string, delta int) (string, error) {
 	return net.JoinHostPort(host, strconv.Itoa(port+delta)), nil
 }
 
-// bindListen tries to bind addr. On EADDRINUSE it applies the port-busy rules:
-// same-profile gadak (unpinned) → existing URL, no listener; unpinned other →
-// try port+1..+20; pinned → error (with gadak detail when known).
+// bindListenDetail tries to bind addr. On EADDRINUSE it applies the
+// port-busy rules: same-profile gadak (unpinned) → existing URL, no
+// listener; unpinned other → try port+1..+20; pinned → error (with gadak
+// detail when known).
 //
 // listen defaults to net.Listen. Returns:
-//   - (ln, boundAddr, "", nil) on success (bound may differ after fallback)
-//   - (nil, "", existingURL, nil) when another same-profile gadak is already up
-//   - (_, _, _, err) on hard failure
-func bindListen(addr string, addrPinned bool, currentProfile string, probe probeFunc, listen listenFunc) (net.Listener, string, string, error) {
-	ln, bound, existing, _, err := bindListenDetail(addr, addrPinned, currentProfile, probe, listen)
-	return ln, bound, existing, err
-}
-
-// bindListenDetail is bindListen plus the occupant label when a fallback was used
-// (for the one-line CLI log).
+//   - (ln, boundAddr, "", occupant, nil) on success (bound may differ after fallback)
+//   - (nil, "", existingURL, "", nil) when another same-profile gadak is already up
+//   - (_, _, _, _, err) on hard failure
+//
+// The occupant label names what held the preferred port when a fallback was
+// used (for the one-line CLI log).
 func bindListenDetail(addr string, addrPinned bool, currentProfile string, probe probeFunc, listen listenFunc) (net.Listener, string, string, string, error) {
 	if listen == nil {
 		listen = net.Listen

@@ -277,17 +277,9 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	if err != nil {
 		return "", nil, err
 	}
-	proj, types, err := create.MetaFor(meta, projRes.Value, cfg)
+	proj, types, err := create.MetaForWithCatalog(ctx, c, meta, projRes.Value, cfg)
 	if err != nil {
-		if create.FormatProjectKeys(meta) == "" {
-			catalog, cerr := c.CreateMeta(ctx, createMetaScope(cfg))
-			if cerr == nil {
-				proj, types, err = create.MetaFor(catalog, projRes.Value, cfg)
-			}
-		}
-		if err != nil {
-			return "", nil, err
-		}
+		return "", nil, err
 	}
 	typeRes, err := create.Type(typeWant, types, cfg, projRes.Value)
 	if err != nil {

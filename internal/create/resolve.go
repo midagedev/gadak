@@ -7,6 +7,7 @@
 package create
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -118,13 +119,22 @@ func MetaFor(meta []jira.CreateMetaProject, project string, cfg *config.Config) 
 	return jira.CreateMetaProject{}, nil, fmt.Errorf("this credential cannot create issues in %s%s", project, suffix)
 }
 
-// MetaForWithCatalog is MetaFor, then a second catalog when the first
+// MetaForWithCatalog is MetaFor, then the site catalog when the first
 // answer had no keys to list (Jira's createmeta filtered to a missing key
-// is empty). Callers that already hold the site catalog pass it here so
-// CLI and REST print the same available list.
-func MetaForWithCatalog(meta, catalog []jira.CreateMetaProject, project string, cfg *config.Config) (jira.CreateMetaProject, []jira.NamedID, error) {
+// is empty). The catalog is fetched only on that fallback path, scoped to
+// the profile's projects. CLI and REST both route here so they print the
+// same available list.
+func MetaForWithCatalog(ctx context.Context, c *jira.Client, meta []jira.CreateMetaProject, project string, cfg *config.Config) (jira.CreateMetaProject, []jira.NamedID, error) {
 	p, types, err := MetaFor(meta, project, cfg)
-	if err == nil || FormatProjectKeys(meta) != "" || len(catalog) == 0 {
+	if err == nil || FormatProjectKeys(meta) != "" {
+		return p, types, err
+	}
+	var scope []string
+	if cfg != nil {
+		scope = cfg.Projects
+	}
+	catalog, cerr := c.CreateMeta(ctx, scope)
+	if cerr != nil || len(catalog) == 0 {
 		return p, types, err
 	}
 	return MetaFor(catalog, project, cfg)

@@ -111,22 +111,6 @@ func warnIfStale(db interface {
 // normalizeKey accepts a key in any case; Jira's are uppercase.
 func normalizeKey(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
-// leading peels up to n non-flag arguments off the front so flags may follow
-// them: Go's flag package stops parsing at the first non-flag, which would make
-// `gadak comment NMB-1 -m ok` silently drop the -m. A bare `-` is a value, not a
-// flag — it is how `assign` unassigns.
-//
-// Callers that take positionals should use parseAround instead (GDK-41): it
-// applies the same peel and rejects an unknown dash-token. leading stays for
-// the peel-only shape; it does not know the FlagSet, so it cannot reject.
-func leading(args []string, n int) (positional, rest []string) {
-	for len(args) > 0 && len(positional) < n && (args[0] == "-" || !strings.HasPrefix(args[0], "-")) {
-		positional = append(positional, args[0])
-		args = args[1:]
-	}
-	return positional, args
-}
-
 // lookup returns the IssueLite rows for the given keys, in the order asked, and
 // skips keys the mirror does not have. The store exposes no single-key read, so
 // this filters the full list — which is what the server's write path does too,

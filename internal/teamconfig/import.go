@@ -249,9 +249,7 @@ func planSettings(cur *config.Config, in TeamSettings, overwrite bool) []Setting
 		key   string
 		empty bool // current is empty (can fill without overwrite)
 		hasIn bool // incoming has a non-empty value
-		apply func()
 	}
-	// apply is unused in plan; ApplyPlan uses setSettingByKey.
 	items := []item{
 		{key: "projects", empty: len(cur.Projects) == 0, hasIn: len(in.Projects) > 0},
 		{key: "fields", empty: len(cur.Fields) == 0, hasIn: len(in.Fields) > 0},

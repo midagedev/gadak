@@ -30,7 +30,7 @@ func TestEditKind(t *testing.T) {
 	}
 }
 
-func TestResolveEditableID(t *testing.T) {
+func TestResolveEditablePicksEditableCandidate(t *testing.T) {
 	meta := map[string]jira.FieldMeta{
 		"customfield_10": func() jira.FieldMeta {
 			var m jira.FieldMeta
@@ -44,12 +44,12 @@ func TestResolveEditableID(t *testing.T) {
 		}(),
 	}
 	// First candidate missing, second present.
-	id, kind, ok := ResolveEditableID([]string{"customfield_missing", "customfield_10"}, meta)
+	id, kind, ok := ResolveEditable([]string{"customfield_missing", "customfield_10"}, meta, "")
 	if !ok || id != "customfield_10" || kind != "option" {
 		t.Fatalf("got %q %q %v", id, kind, ok)
 	}
 	// Present but no editor kind → skip.
-	if _, _, ok := ResolveEditableID([]string{"customfield_skip"}, meta); ok {
+	if _, _, ok := ResolveEditable([]string{"customfield_skip"}, meta, ""); ok {
 		t.Fatal("unsupported schema should skip")
 	}
 
@@ -61,7 +61,7 @@ func TestResolveEditableID(t *testing.T) {
 		t.Fatalf("textarea EditKind=%q, want empty (excluded this slice)", got)
 	}
 	// None present.
-	if _, _, ok := ResolveEditableID([]string{"customfield_x"}, meta); ok {
+	if _, _, ok := ResolveEditable([]string{"customfield_x"}, meta, ""); ok {
 		t.Fatal("missing id should not resolve")
 	}
 }
@@ -74,11 +74,11 @@ func TestResolveEditableFallsBackToConfiguredKind(t *testing.T) {
 			return m
 		}(),
 	}
-	// FAIL-first: ResolveEditableID skipped unrecognized schemas, so CLI
-	// edit's kind fallback never ran while create's own loop accepted the
-	// same id via the configured kind.
-	if _, _, ok := ResolveEditableID([]string{"customfield_dt"}, meta); ok {
-		t.Fatal("datetime has no editor; ResolveEditableID should skip")
+	// FAIL-first (history): the ID-only call shape (fallbackKind "") skipped
+	// unrecognized schemas, so CLI edit's kind fallback never ran while
+	// create's own loop accepted the same id via the configured kind.
+	if _, _, ok := ResolveEditable([]string{"customfield_dt"}, meta, ""); ok {
+		t.Fatal("datetime has no editor; empty fallbackKind should skip")
 	}
 	id, kind, ok := ResolveEditable([]string{"customfield_dt"}, meta, "date")
 	if !ok || id != "customfield_dt" || kind != "date" {

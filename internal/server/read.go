@@ -666,10 +666,6 @@ func (s *server) handlePages(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"pages": pages, "total": len(pages)})
 }
 
-func (s *server) handlePageDetail(w http.ResponseWriter, r *http.Request) {
-	s.handlePageDetailKey(w, r, r.PathValue("key"))
-}
-
 func (s *server) handlePageDetailKey(w http.ResponseWriter, r *http.Request, key string) {
 	d, err := s.db.PageDetail(r.Context(), key)
 	if err != nil {

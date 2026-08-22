@@ -206,7 +206,7 @@
     syncError = null
     progress = null
     try {
-      progress = await api.startFullSync()
+      progress = await api.startSync('full')
     } catch (e) {
       // A run already in flight is not a failure: fall through to polling it.
       if (!(e instanceof ApiError && e.code === 'sync_in_progress')) {

@@ -132,8 +132,11 @@ func pairedStatusLine(cfg *config.Config, rem *pairing.Remote) string {
 
 func pairingMint(args []string) error {
 	fs := newFlagSet("pairing mint")
+	// ttlDefault renders defaultPairingTTL in the flag's <N><unit> syntax so
+	// the 90-day default has one owner.
+	ttlDefault := fmt.Sprintf("%dd", int(defaultPairingTTL/(24*time.Hour)))
 	label := fs.String("label", "", "device name shown in `gadak pairing list` (required)")
-	ttlFlag := fs.String("ttl", "90d", "token lifetime: <N><d|h|m|s>, e.g. 90d or 12h")
+	ttlFlag := fs.String("ttl", ttlDefault, "token lifetime: <N><d|h|m|s>, e.g. 90d or 12h")
 	endpoint := fs.String("endpoint", "", "URL remote devices reach this serve at (default: this machine's live serve address)")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if _, err := parseAround(fs, args); err != nil {

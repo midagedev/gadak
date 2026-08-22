@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	gadak "github.com/midagedev/gadak"
+	"github.com/midagedev/gadak/internal/clitool"
 )
 
 func TestInstallCLINewSymlink(t *testing.T) {
@@ -241,16 +242,16 @@ func TestInstallCLIConflictOtherSymlink(t *testing.T) {
 
 func TestPathContainsDir(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "bin")
-	if pathContainsDir("/usr/bin:"+dir+":/bin", dir) != true {
+	if clitool.PathContains("/usr/bin:"+dir+":/bin", dir) != true {
 		t.Error("should find dir in PATH")
 	}
-	if pathContainsDir("/usr/bin:/bin", dir) {
+	if clitool.PathContains("/usr/bin:/bin", dir) {
 		t.Error("should not find dir")
 	}
 }
 
 func TestPathExportLineZsh(t *testing.T) {
-	line, rc := pathExportLine("/opt/gadak/bin", "/bin/zsh")
+	line, rc := clitool.PathExportAdvise("/opt/gadak/bin", "/bin/zsh")
 	if !strings.Contains(line, ".zshrc") {
 		t.Errorf("line = %q", line)
 	}
@@ -374,7 +375,7 @@ func TestExpandHomePath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	got, err := expandHomePath("~/.local/bin")
+	got, err := clitool.ExpandHome("~/.local/bin")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -41,12 +41,6 @@ func resolveInstallCLIDir(flag string) (string, error) {
 	return clitool.ResolveDir(flag, os.Getenv("PATH"))
 }
 
-// expandHomePath expands a leading ~ or ~/… using os.UserHomeDir.
-// Kept for tests that call it by name; implementation lives in clitool.
-func expandHomePath(p string) (string, error) {
-	return clitool.ExpandHome(p)
-}
-
 // installCLI creates (or plans) the install. goos selects dest name and
 // symlink-vs-copy inside clitool — this function does not branch on it.
 // pathEnv and shell are used only for the post-install PATH advisory.
@@ -108,12 +102,6 @@ func printInstallCLISkillFollowup(w io.Writer, skill string) {
 	}
 }
 
-// pathContainsDir reports whether dir appears as a PATH entry.
-// Kept for tests that call it by name.
-func pathContainsDir(pathEnv, dir string) bool {
-	return clitool.PathContains(pathEnv, dir)
-}
-
 // advisePATH prints whether dir is already on PATH, or a shell-specific one-liner
 // to add it. goos is forwarded to clitool so Windows is not told to edit ~/.zshrc.
 func advisePATH(w io.Writer, dir, pathEnv, shell, goos string) {
@@ -127,10 +115,4 @@ func advisePATH(w io.Writer, dir, pathEnv, shell, goos string) {
 	if rc != "" {
 		fmt.Fprintf(w, "  (or append that export to %s and open a new shell)\n", rc)
 	}
-}
-
-// pathExportLine returns a one-liner to prepend dir to PATH, and a suggested
-// shell rc path for persistence (may be empty). Kept for tests.
-func pathExportLine(dir, shell string) (line, rc string) {
-	return clitool.PathExportAdvise(dir, shell)
 }

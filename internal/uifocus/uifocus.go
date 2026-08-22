@@ -24,11 +24,6 @@ type request struct {
 	At   string `json:"at"`
 }
 
-// Path is the focus file for the active profile.
-func Path() (string, error) {
-	return PathFor(config.Profile())
-}
-
 // PathFor is the focus file for a named profile ("" / "default" = root).
 func PathFor(profile string) (string, error) {
 	d, err := config.DirFor(profile)
@@ -59,13 +54,8 @@ func WriteFor(profile, hash string) error {
 	return os.WriteFile(p, body, 0o600)
 }
 
-// Take returns a still-fresh hash and deletes the file. ok is false when
-// there is nothing to apply (missing, empty, or stale).
-func Take() (hash string, ok bool, err error) {
-	return TakeFor(config.Profile())
-}
-
-// TakeFor is Take for a named profile. Workspace mounts pass the /w/<name>
+// TakeFor returns a still-fresh hash and deletes the file. ok is false when
+// there is nothing to apply (missing, empty, or stale). Workspace mounts pass the /w/<name>
 // segment so they do not consume the process-primary file.
 func TakeFor(profile string) (hash string, ok bool, err error) {
 	p, err := PathFor(profile)

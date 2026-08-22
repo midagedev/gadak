@@ -14,9 +14,9 @@ import (
 
 func TestServeArgsIncludesProfile(t *testing.T) {
 	// Without profile: serve --no-open only.
-	got := serveArgs()
+	got := serveArgsFor(config.Profile())
 	if len(got) < 2 || got[len(got)-2] != "serve" || got[len(got)-1] != "--no-open" {
-		t.Fatalf("serveArgs = %v", got)
+		t.Fatalf("serveArgsFor = %v", got)
 	}
 }
 
@@ -276,7 +276,7 @@ func TestInstallServiceWritesUnit(t *testing.T) {
 	}
 	// Don't call real launchctl/systemctl in unit tests — write the file the
 	// same way the install helpers do, then assert shape.
-	args := serveArgs()
+	args := serveArgsFor(config.Profile())
 	switch runtime.GOOS {
 	case "darwin":
 		dir := filepath.Join(home, "Library", "LaunchAgents")

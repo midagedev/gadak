@@ -16,12 +16,11 @@ import (
 )
 
 type actorCapture struct {
-	mu           sync.Mutex
-	actor        string
-	actorName    string
-	auth         string
-	reqs         int
-	unauthorized int
+	mu        sync.Mutex
+	actor     string
+	actorName string
+	auth      string
+	reqs      int
 }
 
 func (c *actorCapture) handler() http.Handler {

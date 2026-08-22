@@ -75,12 +75,6 @@ func cmdInstallService(args []string) error {
 	}
 }
 
-// serveArgs is the ProgramArguments / ExecStart tail: optional --profile, then
-// serve --no-open. Absolute binary path is separate.
-func serveArgs() []string {
-	return serveArgsFor(config.Profile())
-}
-
 func executablePath() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {

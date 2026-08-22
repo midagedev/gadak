@@ -592,6 +592,15 @@ followed:
   error transcripts, and the real loop could race a fast exit against its
   own success signal and call a successful install a failure. Production
   now feeds the one watched function the tests drive.
+- **Dead code is deleted, with its callers counted first** ([GDK-616]).
+  A staticcheck-and-deadcode sweep, every deletion preceded by a logged
+  zero-caller census: eight test-only wrapper shims rewired to the real
+  functions and removed, six dead one-offs deleted (one — the pairing TTL
+  default — turned out to be a constant nobody wired to its flag, fixed
+  instead of deleted), an unimported Svelte component and a deprecated
+  API alias dropped, and the createmeta fallback that existed inline
+  twice now lives once and fetches the catalog only when it needs it.
+  Net −108 lines.
 - **Six small owners, one each** ([GDK-619]). A sweep of byte-identical
   helper copies and near-misses: the date literal check turned out to
   exist three times, not two, and now lives once in `internal/fields`;
@@ -1740,6 +1749,7 @@ measured numbers instead of adjectives.
 [GDK-613]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-613
 [GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
 [GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
+[GDK-616]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-616
 [GDK-618]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-618
 [GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626

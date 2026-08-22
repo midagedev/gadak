@@ -25,13 +25,6 @@ func EditKind(m jira.FieldMeta) string {
 	return ""
 }
 
-// ResolveEditableID picks the first candidate id present in editmeta
-// that has an editor kind. Specs with a configured kind should call
-// ResolveEditable so an unreadable schema still resolves.
-func ResolveEditableID(candidates []string, meta map[string]jira.FieldMeta) (id, kind string, ok bool) {
-	return ResolveEditable(candidates, meta, "")
-}
-
 // ResolveEditable is the editmeta field-key interpreter: first candidate
 // present in meta whose schema EditKind understands, or whose fallbackKind
 // (the configured spec kind) can stand in. CLI edit, REST GET/PATCH fields,
