@@ -32,6 +32,11 @@
 
   let ta: HTMLTextAreaElement | null = $state(null)
   let fileInput: HTMLInputElement | null = $state(null)
+
+  /** Parents bind this instance (DetailPanel Esc, QuickComment open) instead of a global testid lookup. */
+  export function composerEl(): HTMLTextAreaElement | null {
+    return ta
+  }
   let dragOver = $state(false)
   // GDK-462: one Esc already spent on this draft (blur, or unfocused consume).
   let escConsumed = $state(false)

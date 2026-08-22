@@ -44,12 +44,33 @@
   import Icon from '../ui/Icon.svelte'
   import DialogShell from '../ui/DialogShell.svelte'
   import SidebarSection from './SidebarSection.svelte'
-  import { sidebarSections, type SectionId } from '../../stores/sidebar-sections.svelte'
+  import { sidebarSections, type SectionDrag, type SectionId } from '../../stores/sidebar-sections.svelte'
 
   sidebarSections.hydrate()
 
   /** Open server settings dialog — App.svelte mounts the dialog itself. */
   let { onOpenSettings }: { onOpenSettings: () => void } = $props()
+
+  let draggingId = $state<SectionId | null>(null)
+  let dropTargetId = $state<SectionId | null>(null)
+  const drag: SectionDrag = {
+    get draggingId() {
+      return draggingId
+    },
+    get dropTargetId() {
+      return dropTargetId
+    },
+    start(id) {
+      draggingId = id
+    },
+    hover(id) {
+      if (dropTargetId !== id) dropTargetId = id
+    },
+    clear() {
+      draggingId = null
+      dropTargetId = null
+    },
+  }
 
   let notesOpen = $state(false)
   let copiedCmd = $state(false)
@@ -579,7 +600,7 @@
     <div role="list" data-testid="sidebar-sections">
       {#each visibleIds as id (id)}
         {#if id === 'builtin'}
-          <SidebarSection id="builtin" label={t('sidebar.builtinViews')} {visibleIds}>
+          <SidebarSection id="builtin" label={t('sidebar.builtinViews')} {visibleIds} {drag}>
             {#each builtins as v (v.id)}
               <!-- aria-current rides the same condition as the paint: the class
                    is decoration, the attribute is the contract e2e and screen
@@ -615,6 +636,7 @@
             label={t('sidebar.jiraFilters')}
             testid="sidebar-jira-filters"
             {visibleIds}
+            {drag}
           >
             {#each views.source as v (v.id)}
               {@const href = jiraFilterUrl(v.external_id ?? '', v.jql)}
@@ -659,7 +681,7 @@
             {/each}
           </SidebarSection>
         {:else if id === 'personal'}
-          <SidebarSection id="personal" label={t('sidebar.myViews')} {visibleIds}>
+          <SidebarSection id="personal" label={t('sidebar.myViews')} {visibleIds} {drag}>
             {#each views.personal as v (v.id)}
               {@render viewRow({
                 id: v.id,
@@ -671,7 +693,7 @@
             {/each}
           </SidebarSection>
         {:else if id === 'team'}
-          <SidebarSection id="team" label={t('sidebar.teamViews')} {visibleIds}>
+          <SidebarSection id="team" label={t('sidebar.teamViews')} {visibleIds} {drag}>
             {#each views.team as v (v.id)}
               {@render viewRow({
                 id: v.id,
@@ -697,7 +719,7 @@
             profile read the switch as the feature disappearing. The row below says
             which of the two it is and leads to the screen that fixes it.
           -->
-          <SidebarSection id="docs" label={t('sidebar.docs')} {visibleIds}>
+          <SidebarSection id="docs" label={t('sidebar.docs')} {visibleIds} {drag}>
             {#if !pages.bySpace.length}
               <div data-testid="docs-section-empty">
                 <!-- Same gutter and leading glyph as the live rows below this header
@@ -816,7 +838,7 @@
         {:else if id === 'workspaces'}
           <!-- Workspaces: other profile mirrors this serve can mount. Hidden unless
                the server actually has more than one (older servers / demo → 404 → []). -->
-          <SidebarSection id="workspaces" label={t('sidebar.workspaces')} {visibleIds}>
+          <SidebarSection id="workspaces" label={t('sidebar.workspaces')} {visibleIds} {drag}>
             {#each workspaceList as w (w.name)}
               <a
                 href={workspaceHref(w)}

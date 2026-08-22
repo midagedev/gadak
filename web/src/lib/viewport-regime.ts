@@ -35,13 +35,41 @@ export function readViewportRegime(): ViewportRegime {
     : 'overlay'
 }
 
-export function subscribeViewportRegime(onChange: (regime: ViewportRegime) => void): () => void {
+type RegimeListener = (regime: ViewportRegime) => void
+
+let media: {
+  mq: MediaQueryList
+  listeners: Set<RegimeListener>
+  apply: () => void
+} | null = null
+
+/**
+ * One matchMedia for every subscriber (App + DetailPanel). Two MediaQueryList
+ * objects could theoretically disagree across a resize if they were created
+ * separately; they never should, but they also never needed to exist twice.
+ */
+export function subscribeViewportRegime(onChange: RegimeListener): () => void {
   if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(min-width: ${VIEWPORT_DOCKED_MIN_PX}px)`)
-  const apply = () => onChange(mq.matches ? 'docked' : 'overlay')
-  apply()
-  mq.addEventListener('change', apply)
-  return () => mq.removeEventListener('change', apply)
+  if (!media) {
+    const mq = window.matchMedia(`(min-width: ${VIEWPORT_DOCKED_MIN_PX}px)`)
+    const listeners = new Set<RegimeListener>()
+    const apply = () => {
+      const regime: ViewportRegime = mq.matches ? 'docked' : 'overlay'
+      for (const fn of listeners) fn(regime)
+    }
+    mq.addEventListener('change', apply)
+    media = { mq, listeners, apply }
+  }
+  media.listeners.add(onChange)
+  onChange(media.mq.matches ? 'docked' : 'overlay')
+  return () => {
+    if (!media) return
+    media.listeners.delete(onChange)
+    if (media.listeners.size === 0) {
+      media.mq.removeEventListener('change', media.apply)
+      media = null
+    }
+  }
 }
 
 export function isOverlayModal(regime: ViewportRegime, panelOpen: boolean): boolean {

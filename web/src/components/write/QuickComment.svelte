@@ -15,7 +15,7 @@
 
   let { issueKey, onclose }: { issueKey: string; onclose: () => void } = $props()
 
-  let rootEl = $state<HTMLDivElement | null>(null)
+  let composer = $state<ReturnType<typeof CommentComposer> | null>(null)
 
   const issue = $derived(issues.pool.get(issueKey))
 
@@ -23,7 +23,7 @@
   $effect(() => {
     void issueKey
     void tick().then(() => {
-      rootEl?.querySelector<HTMLTextAreaElement>('[data-testid="comment-composer"]')?.focus()
+      composer?.composerEl()?.focus()
     })
   })
 
@@ -54,7 +54,7 @@
       {issue?.summary ?? ''}
     </span>
   {/snippet}
-  <div bind:this={rootEl} class="px-4 pb-3 pt-1">
-    <CommentComposer {issueKey} onsubmitted={onclose} />
+  <div class="px-4 pb-3 pt-1">
+    <CommentComposer bind:this={composer} {issueKey} onsubmitted={onclose} />
   </div>
 </DialogShell>

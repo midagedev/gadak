@@ -34,6 +34,20 @@ export function isSectionId(value: string): value is SectionId {
 }
 
 /**
+ * In-flight HTML5 drag (opacity + drop line). Session-only — not persisted
+ * with collapsedIds / order. SidebarNav owns the object and passes it into
+ * each SidebarSection so siblings share one highlight without the persist store
+ * carrying a value that dies on mouseup.
+ */
+export interface SectionDrag {
+  readonly draggingId: SectionId | null
+  readonly dropTargetId: SectionId | null
+  start(id: SectionId): void
+  hover(id: SectionId): void
+  clear(): void
+}
+
+/**
  * Saved ids first (skip unknown / duplicates), then any default id not yet
  * present — new sections land at the end in catalog order.
  */
@@ -75,8 +89,6 @@ function saveArray(key: string, arr: string[]): void {
 class SidebarSectionsStore {
   collapsedIds = $state<string[]>([])
   order = $state<SectionId[]>([...SECTION_IDS])
-  draggingId = $state<SectionId | null>(null)
-  dropTargetId = $state<SectionId | null>(null)
   #loaded = false
 
   hydrate(): void {
@@ -126,11 +138,6 @@ class SidebarSectionsStore {
     const to = from + delta
     if (to < 0 || to >= visible.length) return
     this.reorder(id, visible[to])
-  }
-
-  clearDrag(): void {
-    this.draggingId = null
-    this.dropTargetId = null
   }
 }
 

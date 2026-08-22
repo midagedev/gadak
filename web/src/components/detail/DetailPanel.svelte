@@ -90,6 +90,7 @@
   // Esc the same way. Clearing the draft is forbidden — the localStorage
   // composer already keeps it, and reopening the issue restores it.
   let commentEscArmed = $state(false)
+  let composer = $state<ReturnType<typeof CommentComposer> | null>(null)
   $effect(() => {
     void key
     commentEscArmed = false
@@ -100,12 +101,12 @@
       commentEscArmed = true
       return
     }
-    const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="comment-composer"]')
-    const hasDraft = !!composer && composer.value.trim().length > 0
-    const focused = !!composer && document.activeElement === composer
+    const el = composer?.composerEl() ?? null
+    const hasDraft = !!el && el.value.trim().length > 0
+    const focused = !!el && document.activeElement === el
     if ((focused || hasDraft) && !commentEscArmed) {
       e.preventDefault()
-      if (focused) composer.blur()
+      if (focused) el.blur()
       commentEscArmed = true
       return
     }
@@ -294,7 +295,7 @@
               issueKey={key}
               attachments={detailForKey.attachments}
             />
-            <CommentComposer issueKey={key} />
+            <CommentComposer bind:this={composer} issueKey={key} />
           </Section>
 
           <!-- History -->

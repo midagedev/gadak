@@ -110,7 +110,7 @@
   // as queries.
   let draft = $state('')
   let query = $state('')
-  let idx = $state(0)
+  let idxRaw = $state(0)
   // GDK-461: a write must never be the default Enter target. Arrow/hover
   // can still land on create-now; query changes reset this so a shrinking
   // match set cannot leave create selected by accident.
@@ -884,18 +884,22 @@
     return list.findIndex((item) => item.id !== 'a:create-now')
   }
 
-  // Keep the highlight inside the viewport. Unmoved idx follows the first
-  // non-destructive row, or −1 when the list is only create-now / empty.
-  $effect(() => {
+  // SearchBox pattern: store the raw highlight, read it clamped. Unmoved
+  // follows the first non-destructive row, or −1 when the list is only
+  // create-now / empty. Overflow after a shrinking match set lands on the
+  // last row. The scroll is the only remaining effect — it is a DOM write.
+  const idx = $derived.by(() => {
     const list = items
-    if (!idxUserMoved) {
-      const next = firstSafeIndex(list)
-      if (idx !== next) idx = next
-    } else if (idx >= list.length) {
-      idx = list.length ? list.length - 1 : -1
-    }
-    if (idx >= 0) {
-      listEl?.querySelector(`[data-idx="${idx}"]`)?.scrollIntoView({ block: 'nearest' })
+    if (!idxUserMoved) return firstSafeIndex(list)
+    if (idxRaw >= list.length) return list.length ? list.length - 1 : -1
+    return idxRaw
+  })
+
+  $effect(() => {
+    const i = idx
+    void items
+    if (i >= 0) {
+      listEl?.querySelector(`[data-idx="${i}"]`)?.scrollIntoView({ block: 'nearest' })
     }
   })
 
@@ -915,12 +919,12 @@
       e.preventDefault()
       if (!items.length) return
       idxUserMoved = true
-      idx = idx < 0 ? 0 : (idx + 1) % items.length
+      idxRaw = idx < 0 ? 0 : (idx + 1) % items.length
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       if (!items.length) return
       idxUserMoved = true
-      idx = idx < 0 ? items.length - 1 : (idx - 1 + items.length) % items.length
+      idxRaw = idx < 0 ? items.length - 1 : (idx - 1 + items.length) % items.length
     } else if (e.key === 'Enter') {
       e.preventDefault()
       const item = idx >= 0 ? items[idx] : undefined
@@ -1021,7 +1025,7 @@
             : 'text-text-secondary hover:bg-bg-hover'}"
           onmousemove={() => {
             idxUserMoved = true
-            idx = i
+            idxRaw = i
           }}
           onmousedown={(e) => {
             e.preventDefault()

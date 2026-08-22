@@ -11,6 +11,7 @@
     isSectionId,
     SECTION_DND_TYPE,
     sidebarSections,
+    type SectionDrag,
     type SectionId,
   } from '../../stores/sidebar-sections.svelte'
 
@@ -19,19 +20,21 @@
     label,
     testid,
     visibleIds,
+    drag,
     children,
   }: {
     id: SectionId
     label: string
     testid?: string
     visibleIds: readonly SectionId[]
+    drag: SectionDrag
     children: Snippet
   } = $props()
 
   const expanded = $derived(!sidebarSections.collapsedIds.includes(id))
   const bodyId = $derived(`sidebar-section-body-${id}`)
-  const dragging = $derived(sidebarSections.draggingId === id)
-  const dropTarget = $derived(sidebarSections.dropTargetId === id)
+  const dragging = $derived(drag.draggingId === id)
+  const dropTarget = $derived(drag.dropTargetId === id)
 
   let suppressClick = false
 
@@ -55,30 +58,30 @@
     e.dataTransfer.setData('text/plain', id)
     e.dataTransfer.setData(SECTION_DND_TYPE, id)
     e.dataTransfer.effectAllowed = 'move'
-    sidebarSections.draggingId = id
+    drag.start(id)
     suppressClick = true
   }
 
   function onDragEnd() {
-    sidebarSections.clearDrag()
+    drag.clear()
     window.setTimeout(() => {
       suppressClick = false
     }, 0)
   }
 
   function onDragOver(e: DragEvent) {
-    const source = sidebarSections.draggingId
+    const source = drag.draggingId
     if (!source || source === id) return
     e.preventDefault()
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-    if (sidebarSections.dropTargetId !== id) sidebarSections.dropTargetId = id
+    drag.hover(id)
   }
 
   function onDrop(e: DragEvent) {
     e.preventDefault()
     const raw =
       e.dataTransfer?.getData(SECTION_DND_TYPE) || e.dataTransfer?.getData('text/plain') || ''
-    sidebarSections.clearDrag()
+    drag.clear()
     if (!isSectionId(raw) || raw === id) return
     sidebarSections.reorder(raw, id)
   }

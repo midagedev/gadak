@@ -326,6 +326,15 @@
   키맵은 모든 키를 무시하고 팔레트 자신은 그 키를 받은 적이 없었습니다 —
   쿼리에 타이핑될 뿐이었죠. 이제 빈 쿼리에서 팔레트가 화면을 시트에
   넘겨주고, 쿼리 중간의 `?`는 검색 문자로 남습니다.
+- **컴포넌트가 자기 자식의 위치를 document에 묻지 않습니다** ([GDK-645]).
+  상세 패널이 코멘트 입력창을 전역 셀렉터로 찾았습니다 — 화면에 입력창이
+  둘이면 엉뚱한 쪽을 blur할 수 있는 구조 — 퀵코멘트 다이얼로그도 자기
+  것을 그렇게 포커스했습니다. 이제 둘 다 자기가 렌더한 인스턴스를 바인딩
+  하고, 소스 스윕이 모든 컴포넌트를 그 규칙에 묶습니다. 팔레트 하이라이트
+  는 상태를 고쳐 쓰는 effect 대신 파생 클램프가 됐고, 사이드바의 진행 중
+  드래그는 영속 스토어에서 내려왔고, 뷰포트 구독자들은 matchMedia 하나를
+  공유합니다. 의도적으로 남긴 것: keymap의 testid 디스패치(대상이 마운트
+  됐는지 알 수 없는 이음새)와 타이핑 보호·IO를 수행하는 effect들.
 - **Esc는 겨눈 메뉴만 닫습니다 — 다른 건 건드리지 않고** ([GDK-617]).
   브레이크다운 메뉴에는 Esc 처리가 아예 없어서, 키가 셸 키맵까지
   떨어져 메뉴가 열린 채 선택만 풀렸습니다. 이 메뉴와 손으로 재구현돼
@@ -1962,6 +1971,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-649]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-649
+[GDK-645]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-645
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
 [GDK-641]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-641

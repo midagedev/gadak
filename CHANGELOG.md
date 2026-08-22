@@ -344,6 +344,16 @@ the fixes are all here.
   keys while a modal owns the screen and the palette never claimed the key
   — it just typed into the query. On an empty query the palette now hands
   the screen to the sheet; mid-query `?` stays a search character.
+- **A component stops asking the document where its own children are**
+  ([GDK-645]). The detail panel found its comment box with a global
+  selector — with two composers on screen it could blur the wrong one —
+  and the quick-comment dialog did the same to focus its own; both now
+  bind the instance they render, and a source sweep holds every component
+  to that rule. The palette's highlight is a derived clamp instead of an
+  effect rewriting state, the sidebar's in-flight drag no longer lives on
+  the persisted store, and every viewport subscriber shares one
+  matchMedia. Kept deliberately: the keymap's testid dispatch (it cannot
+  know what is mounted) and the effects that guard typing or perform IO.
 - **Esc closes the menu it was aimed at — and nothing else** ([GDK-617]).
   The breakdown menu had no Esc handling at all, so the keystroke fell
   through to the shell keymap and cleared the selection with the menu
@@ -2010,6 +2020,7 @@ measured numbers instead of adjectives.
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-649]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-649
+[GDK-645]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-645
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
 [GDK-641]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-641

@@ -17,10 +17,14 @@
  *  - FieldEditor keeps one hand-rolled mousedown listener: its boundary is
  *    two nodes (trigger + menu portaled to document.body), which the
  *    single-node action cannot express.
- *  - DetailPanel's document.querySelector is a cross-component lookup of
- *    the comment composer, not a self-lookup; out of this file's scope.
  *  - ScopePicker still carries a svelte:document hand-roll of its own —
- *    outside this round's whitelist; the lead has it in the round report.
+ *    outside this round's whitelist (GDK-630).
+ *
+ * GDK-645: a component must not look up its own tree (or a child's testid)
+ * with document.querySelector. DetailPanel used to find comment-composer that
+ * way; it now binds the CommentComposer instance. keymap.svelte.ts is the
+ * remaining global-selector dispatcher, and it lives under lib/ because the
+ * target may not be mounted — that seam is out of this file's scope.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -189,6 +193,38 @@ describe('a component does not find its own child by a global selector (GDK-617b
       'FieldEditor still reaches for document.querySelector',
     ).toBe(false)
   })
+
+  test("DetailPanel binds CommentComposer instead of querying comment-composer", () => {
+    const { source, nodes } = load('components/detail/DetailPanel.svelte')
+    const composer = nodes.find(
+      (n) => n.type === 'Component' && n.name === 'CommentComposer',
+    )
+    expect(composer, 'no <CommentComposer> in DetailPanel.svelte').toBeDefined()
+    expect(
+      bindDirective(composer as AnyNode, 'this'),
+      'CommentComposer has no bind:this — Esc still finds it some other way',
+    ).toBeDefined()
+    expect(
+      source.includes('document.querySelector'),
+      'DetailPanel still reaches for document.querySelector',
+    ).toBe(false)
+  })
+
+  test('QuickComment binds CommentComposer instead of querying its own tree', () => {
+    const { source, nodes } = load('components/write/QuickComment.svelte')
+    const composer = nodes.find(
+      (n) => n.type === 'Component' && n.name === 'CommentComposer',
+    )
+    expect(composer, 'no <CommentComposer> in QuickComment.svelte').toBeDefined()
+    expect(
+      bindDirective(composer as AnyNode, 'this'),
+      'CommentComposer has no bind:this — open-focus still finds it some other way',
+    ).toBeDefined()
+    expect(
+      source.includes('querySelector'),
+      'QuickComment still reaches for querySelector',
+    ).toBe(false)
+  })
 })
 
 describe('class blockade: window-level outside-close is dom-actions territory', () => {
@@ -206,6 +242,22 @@ describe('class blockade: window-level outside-close is dom-actions territory', 
       if (/addEventListener\((['"])mousedown\1/.test(source) && !rel.endsWith('FieldEditor.svelte')) {
         offenders.push(rel)
       }
+    }
+    expect(offenders).toEqual([])
+  })
+})
+
+describe('class blockade: a component does not query the document for its tree (GDK-645)', () => {
+  test('no file under web/src/components calls document.querySelector', () => {
+    const files = readdirSync(WEB_SRC, { recursive: true, encoding: 'utf8' }).filter((f) =>
+      f.endsWith('.svelte'),
+    )
+    expect(files.length, 'the sweep found no components to read').toBeGreaterThan(50)
+
+    const offenders: string[] = []
+    for (const rel of files) {
+      const source = readFileSync(join(WEB_SRC, rel), 'utf8')
+      if (source.includes('document.querySelector')) offenders.push(rel)
     }
     expect(offenders).toEqual([])
   })
