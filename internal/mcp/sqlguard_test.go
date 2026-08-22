@@ -25,6 +25,19 @@ func queryJSON(t *testing.T, dbPath, q string) (string, *queryResult) {
 	return string(b), res
 }
 
+func TestRejectNonSelectCommentEdges(t *testing.T) {
+	if err := rejectNonSelect("SELECT/*x*/1"); err != nil {
+		t.Errorf("SELECT/*x*/1 must stay a SELECT, got %v", err)
+	}
+	if err := rejectNonSelect("SELECT/*x*/key FROM issues_full"); err != nil {
+		t.Errorf("SELECT/*x*/key must stay a SELECT, got %v", err)
+	}
+	q := `SELECT 1 FROM "col--name"; DELETE FROM issues`
+	if err := rejectNonSelect(q); err == nil {
+		t.Errorf("double-quoted -- must not hide a second statement: %q", q)
+	}
+}
+
 func TestQueryWarnsOnZeroRowsWithDisplayNameFilter(t *testing.T) {
 	db := demoDB(t)
 	// demo.db is an English-locale mirror, so the localized spellings below

@@ -4,7 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode"
+
+	"github.com/midagedev/gadak/internal/sqlhint"
 )
 
 // ValidateGroupQuery accepts empty (disabled) or a single SELECT/WITH.
@@ -15,7 +16,7 @@ func ValidateGroupQuery(q string) error {
 	if q == "" {
 		return nil
 	}
-	s := stripSQLComments(q)
+	s := sqlhint.StripComments(q)
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return errors.New("groupQuery is empty after comments")
@@ -24,7 +25,7 @@ func ValidateGroupQuery(q string) error {
 	if strings.Contains(body, ";") {
 		return errors.New("groupQuery must be one SELECT or WITH")
 	}
-	kw := firstSQLKeyword(body)
+	kw := sqlhint.FirstKeyword(body)
 	switch strings.ToUpper(kw) {
 	case "SELECT", "WITH":
 		return nil
@@ -33,63 +34,4 @@ func ValidateGroupQuery(q string) error {
 	default:
 		return fmt.Errorf("groupQuery must be SELECT or WITH (got %q)", kw)
 	}
-}
-
-func stripSQLComments(s string) string {
-	var b strings.Builder
-	b.Grow(len(s))
-	i := 0
-	for i < len(s) {
-		if s[i] == '\'' {
-			b.WriteByte('\'')
-			i++
-			for i < len(s) {
-				if s[i] == '\'' {
-					b.WriteByte('\'')
-					i++
-					if i < len(s) && s[i] == '\'' {
-						b.WriteByte('\'')
-						i++
-						continue
-					}
-					break
-				}
-				b.WriteByte(s[i])
-				i++
-			}
-			continue
-		}
-		if i+1 < len(s) && s[i] == '-' && s[i+1] == '-' {
-			for i < len(s) && s[i] != '\n' {
-				i++
-			}
-			continue
-		}
-		if i+1 < len(s) && s[i] == '/' && s[i+1] == '*' {
-			i += 2
-			for i+1 < len(s) && !(s[i] == '*' && s[i+1] == '/') {
-				i++
-			}
-			if i+1 < len(s) {
-				i += 2
-			}
-			continue
-		}
-		b.WriteByte(s[i])
-		i++
-	}
-	return b.String()
-}
-
-func firstSQLKeyword(s string) string {
-	s = strings.TrimSpace(s)
-	i := 0
-	for i < len(s) && unicode.IsSpace(rune(s[i])) {
-		i++
-	}
-	j := i
-	for j < len(s) && (unicode.IsLetter(rune(s[j])) || s[j] == '_') {
-		j++
-	}
-	return s[i:j]
 }

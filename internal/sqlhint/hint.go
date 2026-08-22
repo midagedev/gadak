@@ -1,9 +1,10 @@
 // Package sqlhint is the shared SQL-error help used by gadak sql and
-// gadak_query (MCP). Status, issue type, and priority names are localized
-// per account; filtering on the display column is the locale trap that
-// returns zero rows silently. A "no such column" error also gets a
-// did-you-mean when the unknown name is close to a real column (GDK-255:
-// issue_key → key).
+// gadak_query (MCP), and the owner of SQL comment stripping (StripComments)
+// used by the group-query and MCP SELECT gates. Status, issue type, and
+// priority names are localized per account; filtering on the display column
+// is the locale trap that returns zero rows silently. A "no such column"
+// error also gets a did-you-mean when the unknown name is close to a real
+// column (GDK-255: issue_key → key).
 package sqlhint
 
 import (
@@ -31,78 +32,10 @@ func ZeroRowDisplayNameWarning(query string, rowCount int) string {
 	if rowCount != 0 {
 		return ""
 	}
-	if !displayNameFilterRe.MatchString(stripSQLComments(query)) {
+	if !displayNameFilterRe.MatchString(StripComments(query)) {
 		return ""
 	}
 	return ZeroRowWarning
-}
-
-// stripSQLComments removes -- line comments and /* */ block comments outside
-// of string literals so a leading comment does not hide the real keyword.
-func stripSQLComments(s string) string {
-	var b strings.Builder
-	b.Grow(len(s))
-	i := 0
-	for i < len(s) {
-		if s[i] == '\'' {
-			b.WriteByte('\'')
-			i++
-			for i < len(s) {
-				if s[i] == '\'' {
-					b.WriteByte('\'')
-					i++
-					if i < len(s) && s[i] == '\'' {
-						b.WriteByte('\'')
-						i++
-						continue
-					}
-					break
-				}
-				b.WriteByte(s[i])
-				i++
-			}
-			continue
-		}
-		if s[i] == '"' {
-			b.WriteByte('"')
-			i++
-			for i < len(s) {
-				c := s[i]
-				b.WriteByte(c)
-				i++
-				if c == '"' {
-					if i < len(s) && s[i] == '"' {
-						b.WriteByte('"')
-						i++
-						continue
-					}
-					break
-				}
-			}
-			continue
-		}
-		if s[i] == '-' && i+1 < len(s) && s[i+1] == '-' {
-			i += 2
-			for i < len(s) && s[i] != '\n' {
-				i++
-			}
-			continue
-		}
-		if s[i] == '/' && i+1 < len(s) && s[i+1] == '*' {
-			i += 2
-			for i+1 < len(s) && !(s[i] == '*' && s[i+1] == '/') {
-				i++
-			}
-			if i+1 < len(s) {
-				i += 2
-			}
-			b.WriteByte(' ')
-			continue
-		}
-		b.WriteByte(s[i])
-		i++
-	}
-	return b.String()
 }
 
 // hintTables are the agent-facing relations whose columns we offer as

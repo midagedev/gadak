@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode"
 
 	"github.com/midagedev/gadak/internal/sqlhint"
 )
@@ -34,7 +33,7 @@ func clampLimit(n int) int {
 // ATTACH, and multi-statement payloads still need an explicit check so the
 // agent gets a clear error instead of a surprising empty result.
 func rejectNonSelect(query string) error {
-	s := stripSQLComments(query)
+	s := sqlhint.StripComments(query)
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return errors.New("empty SQL")
@@ -44,7 +43,7 @@ func rejectNonSelect(query string) error {
 	if strings.Contains(body, ";") {
 		return errors.New("multiple statements are not allowed; send one SELECT or WITH")
 	}
-	kw := firstKeyword(body)
+	kw := sqlhint.FirstKeyword(body)
 	switch strings.ToUpper(kw) {
 	case "SELECT", "WITH":
 		return nil
@@ -53,97 +52,6 @@ func rejectNonSelect(query string) error {
 	default:
 		return fmt.Errorf("only SELECT or WITH statements are allowed (got %q)", kw)
 	}
-}
-
-// stripSQLComments removes -- line comments and /* */ block comments outside of
-// string literals so a leading comment does not hide the real keyword.
-func stripSQLComments(s string) string {
-	var b strings.Builder
-	b.Grow(len(s))
-	i := 0
-	for i < len(s) {
-		// Single-quoted string (SQL escapes '' as one quote).
-		if s[i] == '\'' {
-			b.WriteByte('\'')
-			i++
-			for i < len(s) {
-				if s[i] == '\'' {
-					b.WriteByte('\'')
-					i++
-					if i < len(s) && s[i] == '\'' {
-						b.WriteByte('\'')
-						i++
-						continue
-					}
-					break
-				}
-				b.WriteByte(s[i])
-				i++
-			}
-			continue
-		}
-		// Double-quoted identifier.
-		if s[i] == '"' {
-			b.WriteByte('"')
-			i++
-			for i < len(s) {
-				c := s[i]
-				b.WriteByte(c)
-				i++
-				if c == '"' {
-					if i < len(s) && s[i] == '"' {
-						b.WriteByte('"')
-						i++
-						continue
-					}
-					break
-				}
-			}
-			continue
-		}
-		// Line comment.
-		if s[i] == '-' && i+1 < len(s) && s[i+1] == '-' {
-			i += 2
-			for i < len(s) && s[i] != '\n' {
-				i++
-			}
-			continue
-		}
-		// Block comment.
-		if s[i] == '/' && i+1 < len(s) && s[i+1] == '*' {
-			i += 2
-			for i+1 < len(s) && !(s[i] == '*' && s[i+1] == '/') {
-				i++
-			}
-			if i+1 < len(s) {
-				i += 2
-			}
-			// Leave a space so "SELECT/*x*/1" stays tokenised.
-			b.WriteByte(' ')
-			continue
-		}
-		b.WriteByte(s[i])
-		i++
-	}
-	return b.String()
-}
-
-func firstKeyword(s string) string {
-	s = strings.TrimLeftFunc(s, unicode.IsSpace)
-	if s == "" {
-		return ""
-	}
-	end := 0
-	for end < len(s) {
-		r := rune(s[end])
-		// Keywords are ASCII letters; stop at anything else.
-		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r == '_' {
-			end++
-			continue
-		}
-		break
-	}
-	return s[:end]
 }
 
 // queryResult is the JSON shape returned by gadak_query.

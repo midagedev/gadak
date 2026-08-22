@@ -36,6 +36,21 @@ func TestSuggestColumnIssueKey(t *testing.T) {
 	}
 }
 
+func TestStripCommentsCommentEdges(t *testing.T) {
+	got := StripComments("SELECT/*x*/1")
+	if got != "SELECT 1" {
+		t.Errorf("SELECT/*x*/1 → %q, want \"SELECT 1\"", got)
+	}
+	got = StripComments("SELECT/*x*/key FROM issues_full")
+	if got != "SELECT key FROM issues_full" {
+		t.Errorf("SELECT/*x*/key → %q, want spaced SELECT", got)
+	}
+	got = StripComments(`SELECT "col--name"`)
+	if got != `SELECT "col--name"` {
+		t.Errorf("double-quoted -- must be preserved, got %q", got)
+	}
+}
+
 func TestParseNoSuchColumn(t *testing.T) {
 	name, ok := parseNoSuchColumn("SQL logic error: no such column: issue_key (1)")
 	if !ok || name != "issue_key" {
