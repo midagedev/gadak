@@ -133,6 +133,30 @@ func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) (Resu
 	return Result{Changed: true}, nil
 }
 
+// Preview answers what Apply would do without writing: the resolved
+// transition id when one would fire (changed=true), or the category no-op
+// (changed=false, empty id). It exists so a dry-run cannot drift from the
+// real write — both run the same pick and the same alreadyInCategory. A
+// pick miss that is not a no-op returns the pick error.
+func Preview(ctx context.Context, o Origin, key, target string) (id string, changed bool, err error) {
+	list, err := o.Transitions(ctx, key)
+	if err != nil {
+		return "", false, err
+	}
+	id, err = jira.PickTransition(key, target, list)
+	if err != nil {
+		noop, nerr := alreadyInCategory(ctx, o, key, target)
+		if nerr != nil {
+			return "", false, nerr
+		}
+		if noop {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return id, true, nil
+}
+
 func alreadyInCategory(ctx context.Context, o Origin, key, target string) (bool, error) {
 	token, ok := jira.StatusCategoryToken(target)
 	if !ok {

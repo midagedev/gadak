@@ -431,12 +431,18 @@ gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
 gadak edit NMB-140 --field severity=High
 gadak link NMB-140 NMB-141 --type blocks          # A blocks B; --type "is blocked by" reverses
 
-gadak create --batch -                        # one JSON object per line on stdin
+gadak create --batch -                        # one JSON object per line on stdin (stops at the first failure)
+gadak comment --batch -                       # JSON lines {"key","body"}; tries every line; one envelope row per key
+gadak transition --batch -                    # JSON lines {"key","target"}; --dry-run writes nothing (--json adds transition_id)
+gadak assign --batch -                        # JSON lines {"key","assignee"}; "-" unassigns
+gadak edit --batch -                          # JSON lines {"key"} plus summary, labels (+x/-x), priority, due, parent, fields
 gadak fields --apply                          # map in-use custom fields, then edit --field alias=value
 gadak project create IDEA --name Ideas        # grow a standalone workspace by a project
 gadak transition NMB-140 done --field environment=staging
 gadak search NMB-140 --explain                # why each hit ranked: key-exact, key-prefix, or fts
 ```
+
+`--batch -` on comment, transition, assign, and edit reads one JSON object per stdin line (at most 50). A line that fails does not stop the rest; stdout is one envelope row per line (`key`, `ok`, `changed`, `error`; `--json` is JSON lines). `create --batch -` still stops at the first failure.
 
 Custom-field writes follow this order: `gadak fields --apply` (save aliases) →
 `gadak issue KEY --editmeta` (which of those aliases this issue can edit) →

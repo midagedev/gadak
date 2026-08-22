@@ -393,13 +393,14 @@ var helps = map[string]cmdHelp{
 	"comment": {
 		summary: "add a comment (@Name resolves to a site user; ambiguous names are refused)",
 		usage: "gadak [--workspace <name>] comment <KEY> [<text> | -m <text|->]\n" +
-			"[--visibility role=NAME|group=NAME] [--internal] [--json]",
+			"[--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -",
 		examples: []string{
 			"gadak comment NMB-140 Reproduced on staging.",
 			"gadak comment NMB-140 -m \"Reproduced on staging.\"",
 			"gadak comment NMB-140 -m \"thanks @Dana\"",
 			"gadak comment NMB-140 -m -          # body from stdin",
 			"gadak comment NMB-140 -m \"done\" --json",
+			`printf '%s\n' '{"key":"NMB-140","body":"reproduced"}' | gadak comment --batch -`,
 		},
 		seeAlso: []string{"gadak transition", "gadak assign", "gadak issue"},
 	},
@@ -435,7 +436,7 @@ var helps = map[string]cmdHelp{
 			"[--label +x|-x]... [--component +x|-x]...\n" +
 			"[--fix-version +id-or-name|-id-or-name]...\n" +
 			"[--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none]\n" +
-			"[--field alias=value]... [--json]",
+			"[--field alias=value]... [--json] | --batch -",
 		examples: []string{
 			"gadak edit NMB-140 --summary \"Rename without opening Jira\"",
 			"gadak edit NMB-140 --label +batch --label -legacy --priority High",
@@ -444,6 +445,7 @@ var helps = map[string]cmdHelp{
 			"gadak edit NMB-140 --due 2026-09-01",
 			"gadak edit NMB-140 --due none",
 			"gadak edit NMB-140 --field severity=High",
+			`printf '%s\n' '{"key":"NMB-140","labels":["+regression"]}' | gadak edit --batch -`,
 		},
 		seeAlso: []string{"gadak create", "gadak attach", "gadak comment", "gadak issue"},
 	},
@@ -474,13 +476,15 @@ var helps = map[string]cmdHelp{
 		summary: "change issue status; accepts transition id, target status id, name, target status name, or status category new|inprogress|done; already in that category is a no-op",
 		usage: "gadak [--workspace <name>] transition <KEY>\n" +
 			"<transition-id|status-id|name|new|inprogress|done>\n" +
-			"[--resolution name|id] [--field key=JSON]... [-m text] [--json]",
+			"[--resolution name|id] [--field key=JSON]... [-m text] [--json] | --batch - [--dry-run]",
 		examples: []string{
 			"gadak transition NMB-140 \"In Review\"",
 			"gadak transition NMB-140 31",
 			"gadak transition NMB-140 done",
 			"gadak transition NMB-140 done --resolution \"Won't Do\"",
 			"gadak transition NMB-140 done -m \"fixed in 1.2\"",
+			`printf '%s\n' '{"key":"NMB-140","target":"done"}' | gadak transition --batch -`,
+			`printf '%s\n' '{"key":"NMB-140","target":"done"}' | gadak transition --batch - --dry-run`,
 		},
 		seeAlso: []string{"gadak close", "gadak comment", "gadak assign", "gadak issue"},
 	},
@@ -499,11 +503,12 @@ var helps = map[string]cmdHelp{
 	},
 	"assign": {
 		summary: "set the assignee; pass - to unassign",
-		usage:   "gadak [--workspace <name>] assign <KEY> <email|name|accountId|-> [--json]",
+		usage:   "gadak [--workspace <name>] assign <KEY> <email|name|accountId|-> [--json] | --batch -",
 		examples: []string{
 			"gadak assign NMB-140 dana@example.com",
 			"gadak assign NMB-140 -                 # unassign",
 			"gadak assign NMB-140 dana@example.com --json",
+			`printf '%s\n' '{"key":"NMB-140","assignee":"-"}' | gadak assign --batch -`,
 		},
 		seeAlso: []string{"gadak claim", "gadak comment", "gadak transition", "gadak issue"},
 	},

@@ -393,6 +393,18 @@ the fixes are all here.
 
 ### MCP and the CLI surface
 
+- **Batch writes, with an honest per-key envelope** ([GDK-501],
+  [GDK-428]). `--batch -` (JSON lines on stdin, create's idiom) now works
+  on comment, transition, assign, and edit — one shared engine, capped at
+  50 lines per call as an origin courtesy. A failing line does not stop
+  the batch: every line is tried, and the output is one row per key —
+  `key, ok, changed, error` as TSV or `--json` lines — with a non-zero
+  exit if anything failed, so an agent never reconstructs "what actually
+  happened" from a half-dead shell loop. Mass labeling is now
+  `{"key":…}` lines plus `--label +x` once. `transition --batch
+  --dry-run` prints the transition id each line would fire (or the
+  already-there no-op) and writes nothing — the preview runs the same
+  core code as the real write, so it cannot drift.
 - **Closing is one round trip, and retrying it is free** ([GDK-500]).
   `gadak close KEY -m "why"` transitions to the done category and posts
   the evidence comment in the same origin POST — it is sugar over
@@ -2022,7 +2034,9 @@ measured numbers instead of adjectives.
 [GDK-486]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-486
 [GDK-489]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-489
 [GDK-490]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-490
+[GDK-428]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-428
 [GDK-500]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-500
+[GDK-501]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-501
 [GDK-502]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-502
 [GDK-495]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-495
 [GDK-496]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-496

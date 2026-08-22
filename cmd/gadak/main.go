@@ -183,14 +183,14 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   edit       edit an issue    <KEY> [--summary S] [-m <text|->]
                    [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]...
                    [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none]
-                   [--field alias=value]... [--json]
+                   [--field alias=value]... [--json] | --batch -
   comment    add a comment    <KEY> [<text> | -m <text|->]
-                   [--visibility role=NAME|group=NAME] [--internal] [--json]
+                   [--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -
   transition change status    <KEY> [transition-id|status-id|name|new|inprogress|done]
-                   [--resolution name|id] [--field key=JSON]... [-m text] [--json]
+                   [--resolution name|id] [--field key=JSON]... [-m text] [--json] | --batch - [--dry-run]
   close      close an issue (status category done)  <KEY>
                    [--resolution name|id] [--field key=JSON]... [-m text] [--json]
-  assign     set assignee     <KEY> <email|name|accountId|-> [--json]
+  assign     set assignee     <KEY> <email|name|accountId|-> [--json] | --batch -
   claim      take an issue as yours (assignee + in-progress transition) <KEY> [--take-over] [--json]
                    (a claim another actor holds is refused — exit 75; their name is in the error)
   link       create an issue link <A> <B> --type <name|inward|outward|id> [--json]

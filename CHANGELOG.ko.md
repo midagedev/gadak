@@ -366,6 +366,17 @@
 
 ### MCP와 CLI 표면
 
+- **쓰기 배치, 그리고 키별 정직한 봉투** ([GDK-501], [GDK-428]).
+  `--batch -`(stdin JSON lines — create의 관용구)가 comment·transition·
+  assign·edit에서 작동합니다 — 공유 엔진 하나, 호출당 50줄 상한(origin
+  API 예의). 한 줄이 실패해도 배치는 멈추지 않습니다: 모든 줄을 시도한
+  뒤 키별 한 행 — `key, ok, changed, error`를 TSV 또는 `--json` 줄로 —
+  을 내고, 하나라도 실패면 exit 비영입니다. 에이전트가 반쯤 죽은 셸
+  루프의 stdout에서 "무엇이 됐나"를 재구성할 일이 없어집니다. 라벨 대량
+  부여는 이제 `{"key":…}` 줄들 + `--label +x` 한 번입니다. `transition
+  --batch --dry-run`은 각 줄이 쏠 전이 id(또는 이미-그-상태 no-op)를
+  찍고 아무것도 쓰지 않습니다 — 미리보기가 실제 쓰기와 같은 코어 코드를
+  달리므로 어긋날 수 없습니다.
 - **종결은 한 왕복이고, 재시도는 공짜입니다** ([GDK-500]). `gadak close
   KEY -m "근거"`가 done 카테고리 전이와 근거 코멘트를 같은 origin POST
   하나로 보냅니다 — `transition KEY done` 위의 슈가일 뿐, 자기 로직이
@@ -1992,7 +2003,9 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-486]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-486
 [GDK-489]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-489
 [GDK-490]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-490
+[GDK-428]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-428
 [GDK-500]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-500
+[GDK-501]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-501
 [GDK-502]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-502
 [GDK-495]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-495
 [GDK-496]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-496

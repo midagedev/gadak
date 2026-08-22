@@ -1758,6 +1758,7 @@ func cmdComment(args []string) error {
 	internal := fs.Bool("internal", false, "post as a JSM internal comment")
 	var visRaw labelFlags
 	fs.Var(&visRaw, "visibility", "restrict to role=NAME or group=NAME (once)")
+	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs key and body")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("comment", fs))
 		return nil
@@ -1766,12 +1767,21 @@ func cmdComment(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(pos) == 0 {
-		return usageError("comment", "usage: gadak comment <KEY> [<text> | -m <text|->] [--visibility role=NAME|group=NAME] [--internal] [--json]")
-	}
 	vis, err := parseCommentVisibility(visRaw)
 	if err != nil {
 		return err
+	}
+	if *batch != "" {
+		if err := rejectBatchFlag(*batch, *text); err != nil {
+			return err
+		}
+		if len(pos) != 0 {
+			return usageError("comment", "usage: gadak comment: --batch and a key/body are mutually exclusive")
+		}
+		return runCommentBatch(*asJSON, *internal, vis, *text)
+	}
+	if len(pos) == 0 {
+		return usageError("comment", commentUsage)
 	}
 	key := normalizeKey(pos[0])
 	body := *text
@@ -1794,20 +1804,74 @@ func cmdComment(args []string) error {
 		return errors.New("empty comment — pass -m <text>, or -m - to read stdin, or gadak comment KEY <text>")
 	}
 	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
-		mentions, unresolved, err := resolveCommentMentions(ctx, c, body)
+		return postComment(ctx, c, key, body, vis, *internal)
+	})
+}
+
+const commentUsage = "usage: gadak comment <KEY> [<text> | -m <text|->] [--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -"
+
+var commentBatchFields = []string{"key", "body", "internal", "visibility"}
+
+func postComment(ctx context.Context, c origin.Writer, key, body string, vis *jira.CommentVisibility, internal bool) (map[string]any, error) {
+	mentions, unresolved, err := resolveCommentMentions(ctx, c, body)
+	if err != nil {
+		return nil, err
+	}
+	warnUnresolvedMentions(unresolved)
+	created, err := c.AddComment(ctx, key, jira.Doc(body, mentions), vis, internal)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"comment": map[string]any{
+		"comment_id": created.ID,
+		"author":     created.Author.DisplayName,
+		"body":       jira.PlainText(created.Body),
+	}}, nil
+}
+
+func runCommentBatch(asJSON, internalDefault bool, visDefault *jira.CommentVisibility, bodyDefault string) error {
+	return runWriteBatch("comment", asJSON, func(raw string) batchResult {
+		obj, key, err := parseBatchLine(raw, commentBatchFields)
 		if err != nil {
-			return nil, err
+			return batchErr(key, false, err)
 		}
-		warnUnresolvedMentions(unresolved)
-		created, err := c.AddComment(ctx, key, jira.Doc(body, mentions), vis, *internal)
+		body := bodyDefault
+		if s, ok, err := jsonStringField(obj, "body"); err != nil {
+			return batchErr(key, false, err)
+		} else if ok {
+			body = s
+		}
+		if strings.TrimSpace(body) == "" {
+			return batchErr(key, false, errors.New("empty comment — JSON line needs \"body\""))
+		}
+		internal := internalDefault
+		if v, ok, err := jsonBoolField(obj, "internal"); err != nil {
+			return batchErr(key, false, err)
+		} else if ok {
+			internal = v
+		}
+		vis := visDefault
+		if s, ok, err := jsonStringField(obj, "visibility"); err != nil {
+			return batchErr(key, false, err)
+		} else if ok {
+			parsed, verr := parseCommentVisibility([]string{s})
+			if verr != nil {
+				return batchErr(key, false, verr)
+			}
+			vis = parsed
+		}
+		var wrote bool
+		err = withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+			if _, err := postComment(ctx, c, key, body, vis, internal); err != nil {
+				return err
+			}
+			wrote = true
+			return refreshAfterWrite(ctx, cfg, db, src, key)
+		})
 		if err != nil {
-			return nil, err
+			return batchErr(key, wrote, err)
 		}
-		return map[string]any{"comment": map[string]any{
-			"comment_id": created.ID,
-			"author":     created.Author.DisplayName,
-			"body":       jira.PlainText(created.Body),
-		}}, nil
+		return batchOK(key, true)
 	})
 }
 
@@ -1839,7 +1903,7 @@ func commentMark(c store.DetailComment) string {
 	return strings.Join(parts, " ")
 }
 
-const transitionUsage = "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--resolution name|id] [--field key=JSON]... [-m text] [--json]"
+const transitionUsage = "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--resolution name|id] [--field key=JSON]... [-m text] [--json] | --batch - [--dry-run]"
 
 const closeUsage = "usage: gadak close <KEY> [--resolution name|id] [--field key=JSON]... [-m text] [--json]"
 
@@ -1855,6 +1919,8 @@ func newTransitionFlags(name string) (*flag.FlagSet, *bool, *string, *labelFlags
 
 func cmdTransition(args []string) error {
 	fs, asJSON, resolution, fieldFlags, text := newTransitionFlags("transition")
+	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs key and target")
+	dryRun := fs.Bool("dry-run", false, "with --batch -: print the resolved transition id or no-op per line without writing")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("transition", fs))
 		return nil
@@ -1862,6 +1928,22 @@ func cmdTransition(args []string) error {
 	pos, err := parseAround(fs, args)
 	if err != nil {
 		return err
+	}
+	if *batch != "" {
+		if err := rejectBatchFlag(*batch, *text); err != nil {
+			return err
+		}
+		if len(pos) != 0 {
+			return usageError("transition", "usage: gadak transition: --batch and a key/target are mutually exclusive")
+		}
+		parsed, err := parseTransitionFieldFlags(*fieldFlags)
+		if err != nil {
+			return err
+		}
+		return runTransitionBatch(*asJSON, *dryRun, *resolution, parsed, *text)
+	}
+	if *dryRun {
+		return fmt.Errorf("--dry-run requires --batch -")
 	}
 	if len(pos) < 1 {
 		return usageError("transition", transitionUsage)
@@ -1928,17 +2010,88 @@ func readTransitionComment(text string) (string, error) {
 
 func applyTransitionWrite(key, want, resolution string, fields map[string]any, comment string, asJSON bool) error {
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-		res, err := transition.Apply(ctx, c, cfg, transition.Request{
-			Key:        key,
-			Target:     want,
-			Resolution: resolution,
-			Fields:     fields,
-			Comment:    comment,
-		})
-		if err := formatTransitionError(err); err != nil {
+		res, err := applyTransition(ctx, c, cfg, key, want, resolution, fields, comment)
+		if err != nil {
 			return err
 		}
 		return emitTransitionResult(ctx, cfg, db, src, key, want, comment, asJSON, res)
+	})
+}
+
+func applyTransition(ctx context.Context, c origin.Writer, cfg *config.Config, key, want, resolution string, fields map[string]any, comment string) (transition.Result, error) {
+	res, err := transition.Apply(ctx, c, cfg, transition.Request{
+		Key:        key,
+		Target:     want,
+		Resolution: resolution,
+		Fields:     fields,
+		Comment:    comment,
+	})
+	if err := formatTransitionError(err); err != nil {
+		return transition.Result{}, err
+	}
+	return res, nil
+}
+
+var transitionBatchFields = []string{"key", "target", "resolution", "fields", "comment"}
+
+func runTransitionBatch(asJSON, dryRun bool, resolutionDefault string, fieldsDefault map[string]any, commentDefault string) error {
+	return runWriteBatch("transition", asJSON, func(raw string) batchResult {
+		obj, key, err := parseBatchLine(raw, transitionBatchFields)
+		if err != nil {
+			return batchErr(key, false, err)
+		}
+		want, ok, err := jsonStringField(obj, "target")
+		if err != nil {
+			return batchErr(key, false, err)
+		}
+		if !ok || strings.TrimSpace(want) == "" {
+			return batchErr(key, false, errors.New("JSON line needs \"target\""))
+		}
+		want = strings.TrimSpace(want)
+		resolution := resolutionDefault
+		if s, ok, err := jsonStringField(obj, "resolution"); err != nil {
+			return batchErr(key, false, err)
+		} else if ok {
+			resolution = s
+		}
+		fields := fieldsDefault
+		if v, ok, err := jsonAnyObjectField(obj, "fields"); err != nil {
+			return batchErr(key, false, err)
+		} else if ok {
+			fields = v
+		}
+		comment := commentDefault
+		if s, ok, err := jsonStringField(obj, "comment"); err != nil {
+			return batchErr(key, false, err)
+		} else if ok {
+			comment = s
+		}
+		if dryRun {
+			var id string
+			var changed bool
+			err = withKeyWriteSession(key, func(ctx context.Context, _ *config.Config, _ *store.DB, c origin.Writer, _ string) error {
+				var perr error
+				id, changed, perr = transition.Preview(ctx, c, key, want)
+				return perr
+			})
+			if err != nil {
+				return batchErr(key, false, err)
+			}
+			return batchDryRun(key, id, changed)
+		}
+		var changed bool
+		err = withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+			res, err := applyTransition(ctx, c, cfg, key, want, resolution, fields, comment)
+			if err != nil {
+				return err
+			}
+			changed = res.Changed
+			return refreshAfterWrite(ctx, cfg, db, src, key)
+		})
+		if err != nil {
+			return batchErr(key, changed, err)
+		}
+		return batchOK(key, changed)
 	})
 }
 
@@ -2033,9 +2186,14 @@ func parseTransitionFieldFlags(raw []string) (map[string]any, error) {
 	return out, nil
 }
 
+const assignUsage = "usage: gadak assign <KEY> <email|name|accountId|-> [--json] | --batch -"
+
+var assignBatchFields = []string{"key", "assignee"}
+
 func cmdAssign(args []string) error {
 	fs := newFlagSet("assign")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs key and assignee")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("assign", fs))
 		return nil
@@ -2044,20 +2202,65 @@ func cmdAssign(args []string) error {
 	if err != nil {
 		return err
 	}
+	if *batch != "" {
+		if err := rejectBatchFlag(*batch, ""); err != nil {
+			return err
+		}
+		if len(pos) != 0 {
+			return usageError("assign", "usage: gadak assign: --batch and a key/assignee are mutually exclusive")
+		}
+		return runAssignBatch(*asJSON)
+	}
 	if len(pos) < 2 {
-		return usageError("assign", "usage: gadak assign <KEY> <email|name|accountId|-> [--json]")
+		return usageError("assign", assignUsage)
 	}
 	key, who := normalizeKey(pos[0]), strings.TrimSpace(strings.Join(pos[1:], " "))
 
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-		id, err := resolveAccount(ctx, c, who, src)
-		if err != nil {
-			return err
-		}
-		if err := c.SetAssignee(ctx, key, id); err != nil {
+		if err := assignTo(ctx, c, src, key, who); err != nil {
 			return err
 		}
 		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, nil)
+	})
+}
+
+func assignTo(ctx context.Context, c origin.Writer, src, key, who string) error {
+	id, err := resolveAccount(ctx, c, who, src)
+	if err != nil {
+		return err
+	}
+	return c.SetAssignee(ctx, key, id)
+}
+
+func runAssignBatch(asJSON bool) error {
+	return runWriteBatch("assign", asJSON, func(raw string) batchResult {
+		obj, key, err := parseBatchLine(raw, assignBatchFields)
+		if err != nil {
+			return batchErr(key, false, err)
+		}
+		who, ok, err := jsonStringField(obj, "assignee")
+		if err != nil {
+			return batchErr(key, false, err)
+		}
+		if !ok {
+			return batchErr(key, false, errors.New("JSON line needs \"assignee\" (`\"-\"` unassigns)"))
+		}
+		who = strings.TrimSpace(who)
+		if who == "" {
+			return batchErr(key, false, errors.New("JSON line needs \"assignee\" (`\"-\"` unassigns)"))
+		}
+		var wrote bool
+		err = withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+			if err := assignTo(ctx, c, src, key, who); err != nil {
+				return err
+			}
+			wrote = true
+			return refreshAfterWrite(ctx, cfg, db, src, key)
+		})
+		if err != nil {
+			return batchErr(key, wrote, err)
+		}
+		return batchOK(key, true)
 	})
 }
 
