@@ -516,6 +516,17 @@
 - **`gofmt`가 CI 게이트가 됐습니다** ([GDK-607]). 파일 4개가 표준
   포맷에서 벗어나 있어도 아무것도 알아채지 못했습니다; 다시 포맷했고,
   `gofmt -l`이 빌드를 실패시키는 것이 그 상태를 지킵니다.
+- **잘못된 커서는 문장이 아니라 정체성** ([GDK-609]). history 엔드포인트가
+  "이건 400"이라는 판정을 오류 메시지의 부분 문자열 매칭으로 내리고
+  있었습니다 — 문구를 고치면 클라이언트 오류가 소리 없이 500이 됩니다.
+  이제 store가 `ErrInvalidCursor`를 내보내고 핸들러는 `errors.Is`로
+  분기하며, 테스트가 파싱 실패 세 분기를 전부 센티널에 고정합니다.
+- **이슈를 세는 일이 이슈를 다 불러오지 않습니다** ([GDK-610]). 설정의
+  런타임 패널이 `len()`과 컬럼 합산을 위해 전체 이슈를 물질화했습니다;
+  이제 SQL 집계 둘로 묻고 요청 컨텍스트를 꿰었습니다. 이 재작성이 순진한
+  수정이 왜 틀리는지를 드러냈습니다 — 페이지 코멘트가 comments 테이블을
+  공유합니다 — 동등성 테스트가 그 발산을 고정해 패널의 숫자가 조용히
+  의미를 바꾸지 못하게 합니다.
 - **치명 오류의 형태는 하나** ([GDK-611]). `main`의 오류 경로 하나가
   아직 `log.Fatalf`를 지나고 있었습니다 — 형제 분기들이 전부 지키는
   exit 코드 계약을 타지 않고 무조건 1로 끝냅니다. 이제 나머지와 같은
@@ -1664,6 +1675,8 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-606]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-606
 [GDK-607]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-607
 [GDK-608]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-608
+[GDK-609]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-609
+[GDK-610]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-610
 [GDK-611]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-611
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86

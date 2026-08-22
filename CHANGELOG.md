@@ -550,6 +550,17 @@ followed:
 - **`gofmt` is a CI gate now** ([GDK-607]). Four files had drifted from
   canonical formatting with nothing to notice; they are reformatted and
   `gofmt -l` failing the build keeps it that way.
+- **A bad cursor is an identity, not a sentence** ([GDK-609]). The history
+  endpoint decided "this is a 400" by substring-matching the error message —
+  reword the message and the client error silently becomes a 500. The store
+  now exports `ErrInvalidCursor` and the handler keys on `errors.Is`; a test
+  pins each parse-failure branch to the sentinel.
+- **Counting issues stopped loading them** ([GDK-610]). The settings runtime
+  panel materialized every issue just to take `len()` and sum a column; it
+  now asks SQL for the two aggregates and threads the request context
+  through. The rewrite surfaced why the naive fix is wrong — page comments
+  share the comments table — and the equivalence test pins that divergence
+  so the figure the panel shows never quietly changes meaning.
 - **One shape for a fatal error** ([GDK-611]). One error path in `main`
   still went through `log.Fatalf`, which hard-codes exit 1 instead of
   routing through the exit-code contract every sibling branch honors. It
@@ -1683,6 +1694,8 @@ measured numbers instead of adjectives.
 [GDK-606]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-606
 [GDK-607]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-607
 [GDK-608]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-608
+[GDK-609]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-609
+[GDK-610]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-610
 [GDK-611]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-611
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86

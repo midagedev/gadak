@@ -325,6 +325,62 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 	}
 }
 
+// TestSettingsRuntimeCountsMatchIssueLites is the GDK-610 equivalence gate:
+// runtime.issueCount/commentCount must survive the aggregate rewrite with the
+// same wire values the IssueLites materialization produced. The test recomputes
+// the old loop (len + sum of CommentCount) as the oracle.
+//
+// It also pins the semantic hazard the rewrite had to route around: the
+// comments table holds page comments too (fixturePages seeds one), so
+// TableCount("comments") is issue+page comments. If commentCount ever switches
+// to that raw count, this test fails — it is a different figure than the
+// settings UI has ever shown.
+func TestSettingsRuntimeCountsMatchIssueLites(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	db, cfg := fixturePages(t)
+	h := New(db, cfg)
+
+	// The pre-refactor computation, recomputed here as the oracle.
+	lites, err := db.IssueLites(context.Background())
+	if err != nil {
+		t.Fatalf("lites: %v", err)
+	}
+	wantIssues, wantComments := len(lites), 0
+	for _, l := range lites {
+		wantComments += l.CommentCount
+	}
+	if wantIssues != 3 || wantComments != 1 {
+		t.Fatalf("fixture drifted: issues=%d comments=%d", wantIssues, wantComments)
+	}
+
+	rt := decode[settingsDoc](t, get(t, h, apiBase+"settings/", nil)).Runtime
+	if rt == nil {
+		t.Fatal("runtime missing")
+	}
+	if rt.IssueCount != wantIssues {
+		t.Fatalf("issueCount = %d, want %d (len(IssueLites))", rt.IssueCount, wantIssues)
+	}
+	if rt.CommentCount != wantComments {
+		t.Fatalf("commentCount = %d, want %d (sum of IssueLite.CommentCount)", rt.CommentCount, wantComments)
+	}
+
+	// The divergence, pinned: raw comments rows include the page comment, so
+	// the table count is one higher than the runtime figure on purpose.
+	raw, err := db.TableCount(context.Background(), "comments")
+	if err != nil {
+		t.Fatalf("table count comments: %v", err)
+	}
+	if raw != wantComments+1 {
+		t.Fatalf("comments table = %d, want %d (issue + one page comment)", raw, wantComments+1)
+	}
+	// issues is a straight row count and must equal the join len() exactly.
+	if ti, err := db.TableCount(context.Background(), "issues"); err != nil {
+		t.Fatalf("table count issues: %v", err)
+	} else if ti != wantIssues {
+		t.Fatalf("TableCount(issues) = %d, want %d", ti, wantIssues)
+	}
+}
+
 // GDK-349: false is the Windows no-op. omitempty would drop it and the UI
 // would treat an old-server omission as "supported" (hide the browser toggle).
 func TestOsNotifySupportedJSONIncludesFalse(t *testing.T) {

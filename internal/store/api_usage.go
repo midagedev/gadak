@@ -159,6 +159,18 @@ func (db *DB) TableCount(ctx context.Context, table string) (int, error) {
 	return n, err
 }
 
+// IssueCommentCount returns SUM(issues.comment_count): the comment figure the
+// settings runtime shows, which counts issue comments only. It is deliberately
+// not TableCount(ctx, "comments") — page comments share the comments table
+// (upsertPageRecord rewrites them through the same insertComment helper), so
+// the raw table count would mix wiki comments into an issue figure and move
+// the number the settings UI has always shown (GDK-610).
+func (db *DB) IssueCommentCount(ctx context.Context) (int, error) {
+	var n int
+	err := db.sql.QueryRowContext(ctx, "SELECT COALESCE(SUM(comment_count), 0) FROM issues").Scan(&n)
+	return n, err
+}
+
 // DistinctCount returns COUNT(DISTINCT col) for a fixed known table.column
 // used by doctor. Empty/NULL values are excluded.
 func (db *DB) DistinctCount(ctx context.Context, table, column string) (int, error) {

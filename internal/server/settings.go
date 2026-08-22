@@ -186,7 +186,7 @@ type settingsDoc struct {
 }
 
 func (s *server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.settingsResponse(s.config()))
+	writeJSON(w, http.StatusOK, s.settingsResponse(r.Context(), s.config()))
 }
 
 // spaceRow is one Confluence space in the settings picker. selected mirrors
@@ -344,7 +344,7 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	if scopeChanged(prev, &next) && next.HasCredential() && !next.SyncFrozen() {
 		_ = s.startSyncJob(&next, true)
 	}
-	writeJSON(w, http.StatusOK, s.settingsResponse(&next))
+	writeJSON(w, http.StatusOK, s.settingsResponse(r.Context(), &next))
 }
 
 // scopeChanged reports whether the mirrored source set differs between two
@@ -418,9 +418,9 @@ func settings(cfg *config.Config) settingsDoc {
 	return doc
 }
 
-func (s *server) settingsResponse(cfg *config.Config) settingsDoc {
+func (s *server) settingsResponse(ctx context.Context, cfg *config.Config) settingsDoc {
 	doc := settings(cfg)
-	doc.Runtime = s.runtimeInfo()
+	doc.Runtime = s.runtimeInfo(ctx)
 	// Read-only discovery surfaces — never written by handlePutSettings.
 	specs := cfg.FieldSpecs()
 	if specs == nil {
@@ -430,7 +430,7 @@ func (s *server) settingsResponse(cfg *config.Config) settingsDoc {
 	}
 	doc.FieldUsage = map[string]map[string]int{}
 	if s.db != nil {
-		if rows, err := s.db.FieldUsage(context.Background()); err == nil {
+		if rows, err := s.db.FieldUsage(ctx); err == nil {
 			for _, r := range rows {
 				m := doc.FieldUsage[r.ProjectKey]
 				if m == nil {
@@ -444,7 +444,9 @@ func (s *server) settingsResponse(cfg *config.Config) settingsDoc {
 	return doc
 }
 
-func (s *server) runtimeInfo() *runtimeInfo {
+// runtimeInfo is assembled per request; ctx is the request's context so the
+// mirror reads stop when the caller is gone (GDK-610).
+func (s *server) runtimeInfo(ctx context.Context) *runtimeInfo {
 	info := &runtimeInfo{
 		Profile:                     profileDisplay(s.profile),
 		GadakVersion:                Version,
@@ -466,16 +468,18 @@ func (s *server) runtimeInfo() *runtimeInfo {
 		}
 	}
 	if s.db != nil {
-		if lites, err := s.db.IssueLites(context.Background()); err == nil {
-			info.IssueCount = len(lites)
-			comments := 0
-			for _, l := range lites {
-				comments += l.CommentCount
-			}
-			info.CommentCount = comments
+		// Aggregates, not a full IssueLites materialization: counts never
+		// needed the rows (GDK-610). CommentCount is issue comments only —
+		// IssueCommentCount, not TableCount("comments"), because page
+		// comments share the comments table.
+		if n, err := s.db.TableCount(ctx, "issues"); err == nil {
+			info.IssueCount = n
+		}
+		if n, err := s.db.IssueCommentCount(ctx); err == nil {
+			info.CommentCount = n
 		}
 		info.SchemaVersion = s.db.SchemaVersion()
-		if st, err := s.db.SyncState(context.Background(), sourceID); err == nil {
+		if st, err := s.db.SyncState(ctx, sourceID); err == nil {
 			info.Watermark = st.Watermark
 			info.SyncVersion = st.Version
 			info.LastFullSyncAt = st.LastFullSyncAt
@@ -484,7 +488,7 @@ func (s *server) runtimeInfo() *runtimeInfo {
 				info.SchemaVersion = st.SchemaVersion
 			}
 		}
-		if summary, err := s.db.APIUsageSummary(context.Background()); err == nil {
+		if summary, err := s.db.APIUsageSummary(ctx); err == nil {
 			info.ApiUsage = &summary
 		}
 	}
