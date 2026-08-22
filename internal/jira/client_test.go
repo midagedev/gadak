@@ -23,6 +23,16 @@ func testClient(t *testing.T, h http.Handler) *Client {
 	return c
 }
 
+func TestNewProductionRetryBudget(t *testing.T) {
+	if DefaultRetries != 5 || DefaultBackoff != time.Second {
+		t.Fatalf("defaults Retries=%d Backoff=%s, want 5 and 1s", DefaultRetries, DefaultBackoff)
+	}
+	c := New("https://example.atlassian.net", "a@b.c", "tok")
+	if c.Retries != 5 || c.Backoff != time.Second {
+		t.Fatalf("New Retries=%d Backoff=%s, want 5 and 1s", c.Retries, c.Backoff)
+	}
+}
+
 func TestRetriesThenSucceeds(t *testing.T) {
 	calls := 0
 	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

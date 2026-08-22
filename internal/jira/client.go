@@ -46,8 +46,17 @@ type Client struct {
 	usage atlhttp.Meter
 }
 
+// DefaultRetries is the production retry budget New applies (total attempts).
+// Tests may assign a smaller value and restore it with t.Cleanup.
+var DefaultRetries = 5
+
+// DefaultBackoff is the first wait New applies, doubling per attempt and
+// capped at 30s. Tests may assign 0 and restore it with t.Cleanup.
+var DefaultBackoff = time.Second
+
 // New builds a Client for site using Basic auth (email:token). The HTTP
-// client times out at 60s; Retries is 5; the first Backoff is 1s.
+// client times out at 60s; Retries is DefaultRetries (5); the first
+// Backoff is DefaultBackoff (1s).
 //
 // Production code must not call New: use origin.Client (this workspace)
 // or origin.Connected (a candidate credential). Tests may call New to
@@ -58,8 +67,8 @@ func New(site, email, token string) *Client {
 		base:    strings.TrimRight(site, "/"),
 		auth:    "Basic " + base64.StdEncoding.EncodeToString([]byte(email+":"+token)),
 		HTTP:    &http.Client{Timeout: 60 * time.Second},
-		Retries: 5,
-		Backoff: time.Second,
+		Retries: DefaultRetries,
+		Backoff: DefaultBackoff,
 	}
 }
 

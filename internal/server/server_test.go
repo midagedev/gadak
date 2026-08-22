@@ -19,6 +19,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/selfupdate"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -128,6 +129,11 @@ func fixture(t *testing.T) (*store.DB, *config.Config) {
 // mirror: with SQL, from outside this process.
 func fixtureAt(t *testing.T) (*store.DB, *config.Config, string) {
 	t.Helper()
+	// This fixture's Site is 127.0.0.1:1 (connection refused immediately).
+	// Production jira.New retries 5 times with a 1s backoff — 15s of sleep
+	// per refused read. Tests shrink the budget so a stray origin call does
+	// not dominate the suite (GDK-608).
+	shrinkJiraRetryBudget(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "mirror.db")
 	db, err := store.Open(path)
@@ -227,6 +233,18 @@ func fixtureAt(t *testing.T) (*store.DB, *config.Config, string) {
 		GroupLabels: map[string]string{"batch": "배치", "cloud": "클라우드"},
 	}
 	return db, cfg, path
+}
+
+// shrinkJiraRetryBudget is the GDK-608 test seam: one attempt, no sleep.
+// Restored on cleanup so a later test in this package still sees production
+// New() defaults if it constructs a client without this fixture.
+func shrinkJiraRetryBudget(t *testing.T) {
+	t.Helper()
+	prevRetries, prevBackoff := jira.DefaultRetries, jira.DefaultBackoff
+	jira.DefaultRetries, jira.DefaultBackoff = 1, 0
+	t.Cleanup(func() {
+		jira.DefaultRetries, jira.DefaultBackoff = prevRetries, prevBackoff
+	})
 }
 
 // enrich writes one enrichment row the way a plugin does: raw SQL from another

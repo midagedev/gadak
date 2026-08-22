@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/store"
@@ -47,6 +48,10 @@ func pairingHome(t *testing.T) string {
 // `init --pairing-code` requires.
 func emptyHome(t *testing.T) string {
 	t.Helper()
+	// Pairing verify and paired create go through origin.Connected →
+	// jira.New. A closed serve is a refused dial; production retries
+	// sleep 15s. Shrink the budget for this fixture (GDK-608).
+	shrinkJiraRetryBudget(t)
 	clearCredentialEnv(t)
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -57,6 +62,16 @@ func emptyHome(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return dir
+}
+
+// shrinkJiraRetryBudget is the GDK-608 test seam: one attempt, no sleep.
+func shrinkJiraRetryBudget(t *testing.T) {
+	t.Helper()
+	prevRetries, prevBackoff := jira.DefaultRetries, jira.DefaultBackoff
+	jira.DefaultRetries, jira.DefaultBackoff = 1, 0
+	t.Cleanup(func() {
+		jira.DefaultRetries, jira.DefaultBackoff = prevRetries, prevBackoff
+	})
 }
 
 // pairingOriginServe answers the passthrough myself path the paired

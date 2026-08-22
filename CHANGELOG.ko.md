@@ -477,6 +477,23 @@
 - Go 테스트 스위트가 픽스처 자격증명을 실제 Atlassian 호스트로 향하게
   하던 것을 멈췄습니다([GDK-304]).
 
+### 2차 감사, 그리고 이미 고친 것
+
+태그 전에 코드베이스 전체를 6축 읽기 전용으로 다시 훑었습니다([GDK-603]);
+발견은 고쳐지는 대로 실립니다. 감사가 잡은 결함 2건은 당일 출고됐고
+([GDK-602], [GDK-604]), 구조 발견 2건이 뒤따랐습니다:
+
+- **SQL 주석 제거의 소유자는 하나** ([GDK-605]). 주석을 벗기고 첫 키워드를
+  읽는 로직이 세 벌 있었고, config 그룹쿼리 사본은 드리프트돼 있었습니다 —
+  `SELECT/*x*/key`가 한 토큰으로 붙고, 이중인용 식별자가 두 번째 문장을
+  숨길 수 있었습니다. 이제 `sqlhint`가 유일한 구현을 내보내고 두 게이트가
+  그것을 부릅니다 — 드리프트 사본의 결함 2건은 삭제로 고쳐졌습니다.
+- **테스트가 거부당한 다이얼에 잠들지 않습니다** ([GDK-608]). 테스트 5건이
+  죽은 origin을 가리키고 생산의 재시도 예산을 그대로 냈습니다 — 각 15초의
+  순수 슬립, 스위트 테스트 시간의 64%, CI race 스텝이 크리티컬 패스였던
+  이유. 테스트 소유 재시도 seam(생산 기본값은 자체 테스트로 고정)이 75초의
+  잠을 0.1초로 바꿨고, 해당 패키지 벽시계는 52초에서 13초가 됐습니다.
+
 ### 태그 전에 닫은 릴리스 감사
 
 이 릴리스 자신의 델타를 대상으로 읽기 전용 감사 3라운드([GDK-393])가
@@ -1614,6 +1631,9 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-601]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-601
 [GDK-602]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-602
 [GDK-604]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-604
+[GDK-603]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-603
+[GDK-605]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-605
+[GDK-608]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-608
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

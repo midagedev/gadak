@@ -504,6 +504,27 @@ plug in; and the documents an agent actually reads never learned the word
 - The Go test suite stopped pointing its fixture credential at a live
   Atlassian host ([GDK-304]).
 
+### The second audit, and what it already fixed
+
+A second six-axis read-only audit swept the whole codebase before the tag
+([GDK-603]); its findings land as they are fixed. Two defects it caught
+shipped the same day ([GDK-602], [GDK-604]), and two structural ones
+followed:
+
+- **One owner for SQL comment stripping** ([GDK-605]). The strip-and-read
+  -the-first-keyword logic existed three times, and the config group-query
+  copy had drifted — `SELECT/*x*/key` collapsed to one token and a
+  double-quoted identifier could hide a second statement. `sqlhint` now
+  exports the one implementation and both gates call it, so the drifted
+  copy's two defects are fixed by deletion.
+- **The test suite stops sleeping through refused dials** ([GDK-608]).
+  Five tests aimed a fixture at a dead origin and paid production's full
+  retry budget — 15 seconds of pure sleep each, 64% of the suite's test
+  time and the reason CI's race step was the critical path. A test-owned
+  retry seam (production defaults pinned by their own test) turns 75s of
+  sleeping into 0.1s; the affected packages' wall clock fell from 52s to
+  13s.
+
 ### The pre-tag audit, closed before the tag
 
 Three read-only audit rounds over this release's own delta ([GDK-393]) filed
@@ -1626,6 +1647,9 @@ measured numbers instead of adjectives.
 [GDK-601]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-601
 [GDK-602]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-602
 [GDK-604]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-604
+[GDK-603]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-603
+[GDK-605]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-605
+[GDK-608]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-608
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599
