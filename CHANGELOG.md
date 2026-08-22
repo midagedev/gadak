@@ -414,6 +414,12 @@ the fixes are all here.
   everywhere a person reads it ([GDK-460]–[GDK-483], [GDK-486], [GDK-489],
   [GDK-504], [GDK-446], [GDK-447], [GDK-448], [GDK-451], [GDK-454],
   [GDK-456]).
+- **A failed page comment speaks the catalog, not the wire** ([GDK-637]).
+  The page composer caught its own POST and painted `e.message` — often
+  `credential_required` or a raw status line — in a color token that does
+  not exist, so the error rendered as body copy. Posting now lives on the
+  write store beside issue comments (same toast, same way out), and a new
+  source gate proves every `text-*` color class names a real `@theme` token.
 - **The v0.17 audit sweep**: empty states, terms and affordances line up
   ([GDK-548], [GDK-559], [GDK-572]), sync and search failures read as
   sentences, not wire codes ([GDK-566], [GDK-549]), a saved view arms before
@@ -1893,6 +1899,7 @@ measured numbers instead of adjectives.
 [GDK-632]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-632
 [GDK-634]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-634
 [GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
+[GDK-637]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-637
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

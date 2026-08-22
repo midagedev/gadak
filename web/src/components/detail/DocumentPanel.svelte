@@ -12,7 +12,6 @@
    * index row while the body is still in flight.
    */
   import { t, relativeTime, absTime } from '../../lib/i18n'
-  import { commentOnPage } from '../../lib/api'
   import { pages } from '../../stores/pages.svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
@@ -86,33 +85,22 @@
 
   // Both directions of the text-derived issue references, counted once — the
   // section renders them as one list (see RelatedIssues).
-  // Page comment composer (GDK-381) — plain text through the origin.
+  // Page comment composer (GDK-381) — POST + error UX live on the write
+  // store so a failure cannot skip formatWriteRejection (GDK-637).
   let draft = $state('')
   let posting = $state(false)
-  let postError = $state('')
   async function postPageComment(): Promise<void> {
     const text = draft.trim()
     if (!key || !text || posting) return
-    if (!(await write.ensureWritable())) return
     posting = true
-    postError = ''
     try {
-      // Same hosted-demo guard as issue comments: no POST, keep the edit local.
-      if (isHostedDemo()) {
-        const first = write.demoEdits.size === 0
-        write.demoEdits.add(key)
-        if (first) write.toast(t('app.demoWriteNotice'), 'info')
-        draft = ''
-        return
-      }
-      const res = await commentOnPage(key, text)
+      const res = await write.submitPageComment(key, text)
+      if (!res.ok) return
       draft = ''
       if (res.page) {
         postedDetail = res.page
         pages.invalidateDetail(key)
       }
-    } catch (e) {
-      postError = e instanceof Error ? e.message : String(e)
     } finally {
       posting = false
     }
@@ -327,9 +315,6 @@
                   }
                 }}
               ></textarea>
-              {#if postError}
-                <p class="text-body text-danger-text" data-testid="doc-comment-error">{postError}</p>
-              {/if}
               <div class="flex justify-end">
                 <button
                   type="submit"

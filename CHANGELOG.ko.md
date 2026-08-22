@@ -383,6 +383,12 @@
   standalone은 Jira 말을 그만 쓰고, 읽는 사람이 보는 모든 곳에서 하나의
   이름 ([GDK-460]–[GDK-483], [GDK-486], [GDK-489], [GDK-504], [GDK-446],
   [GDK-447], [GDK-448], [GDK-451], [GDK-454], [GDK-456]).
+- **실패한 페이지 코멘트가 wire가 아니라 카탈로그로 말합니다**
+  ([GDK-637]). 페이지 컴포저가 자기 POST를 직접 catch해 `e.message` —
+  `credential_required`나 상태 줄 원문 — 를 존재하지 않는 색 토큰으로
+  칠했고, 그래서 오류가 본문처럼 렌더됐습니다. 게시가 이슈 코멘트 옆
+  write 스토어로 옮겨졌고(같은 토스트, 같은 출구), 모든 `text-*` 색
+  클래스가 실제 `@theme` 토큰을 가리키는지 재는 소스 게이트가 생겼습니다.
 - **v0.17 감사 스윕**: 빈 상태·용어·어포던스가 줄을 맞추고 ([GDK-548],
   [GDK-559], [GDK-572]), sync·검색 실패는 wire 코드가 아니라 문장으로
   읽히며 ([GDK-566], [GDK-549]), 저장된 뷰는 삭제 전에 무장하고 부분
@@ -1855,6 +1861,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-632]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-632
 [GDK-634]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-634
 [GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
+[GDK-637]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-637
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

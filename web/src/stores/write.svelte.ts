@@ -33,6 +33,7 @@ import type {
   EditMetaResponse,
   IssueLite,
   JiraUser,
+  PageDetail,
   PriorityOption,
   Transition,
   UploadedAttachment,
@@ -703,6 +704,32 @@ class WriteStore {
       this.#removePending(key, tmpId)
       this.#handleError(e, t('write.commentFailed'))
       return false
+    }
+  }
+
+  /**
+   * Post a wiki-page comment through the origin (GDK-381 / GDK-637).
+   * Failures take the same #handleError path as issue comments (catalog
+   * toast, never the wire message). Success returns the refreshed page so
+   * the panel can overlay the thread; the hosted demo succeeds with no page.
+   */
+  async submitPageComment(
+    pageId: string,
+    text: string,
+  ): Promise<{ ok: boolean; page?: PageDetail }> {
+    const body = text.trim()
+    if (!body) return { ok: false }
+    if (!(await this.ensureWritable())) return { ok: false }
+    if (isHostedDemo()) {
+      this.#noteDemoEdit(pageId)
+      return { ok: true }
+    }
+    try {
+      const res = await api.commentOnPage(pageId, body)
+      return { ok: true, page: res.page }
+    } catch (e) {
+      this.#handleError(e, t('write.commentFailed'))
+      return { ok: false }
     }
   }
 

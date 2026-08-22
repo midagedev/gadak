@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, searchInput, walkRows } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
 
 /** Click a visible tree row's title (each row also holds a toggle button). */
 async function openDoc(page: Page, title: string): Promise<void> {
@@ -205,5 +206,75 @@ test.describe('mirrored wiki documents', () => {
     await expect(panel.getByText(TYPED_COMMENT)).toHaveCount(0)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('page comment 409 toasts the catalog, not the wire error', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    const TYPED_COMMENT = 'wt-e2e typed page comment'
+
+    await page.route('**/api/v1/issues/pages/*/comment/', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        json: { error: 'credential_required' },
+      })
+    })
+
+    await gotoApp(page)
+    await openSpaceTree(page, 'PROD')
+    await page
+      .getByTestId('doc-tree-node')
+      .filter({ hasText: 'Feature Specs' })
+      .getByTestId('doc-tree-toggle')
+      .click()
+    await openDoc(page, 'Billing Settings Spec')
+
+    const panel = page.getByTestId('doc-panel')
+    await expect(panel.getByTestId('doc-comment-composer')).toBeVisible()
+    await panel.getByTestId('doc-comment-composer').fill(TYPED_COMMENT)
+    await panel.getByTestId('doc-comment-submit').click()
+
+    const toast = page.getByTestId('toast')
+    await expect(toast).toBeVisible()
+    await expect(toast).toContainText(en['write.needToken'])
+    await expect(toast).not.toContainText('credential_required')
+    await expect(panel.getByTestId('doc-comment-error')).toHaveCount(0)
+    await expect(panel.getByTestId('doc-comment-composer')).toHaveValue(TYPED_COMMENT)
+    await expect(page.locator('body')).not.toContainText('credential_required')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('page comment 502 toasts the catalog, not the wire status line', async ({ page }) => {
+    // Chromium logs the 502; toast-kind.spec.ts does not treat that log as a failure.
+    const TYPED_COMMENT = 'wt-e2e typed page comment 502'
+
+    await page.route('**/api/v1/issues/pages/*/comment/', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      await route.fulfill({ status: 502, contentType: 'text/plain', body: 'bad gateway' })
+    })
+
+    await gotoApp(page)
+    await openSpaceTree(page, 'PROD')
+    await page
+      .getByTestId('doc-tree-node')
+      .filter({ hasText: 'Feature Specs' })
+      .getByTestId('doc-tree-toggle')
+      .click()
+    await openDoc(page, 'Billing Settings Spec')
+
+    const panel = page.getByTestId('doc-panel')
+    await expect(panel.getByTestId('doc-comment-composer')).toBeVisible()
+    await panel.getByTestId('doc-comment-composer').fill(TYPED_COMMENT)
+    await panel.getByTestId('doc-comment-submit').click()
+
+    const toast = page.getByTestId('toast').and(page.getByRole('alert'))
+    await expect(toast).toBeVisible()
+    await expect(toast).toContainText(en['write.commentFailed'])
+    await expect(toast).not.toContainText(/POST pages\//)
+    await expect(toast).not.toContainText('502')
+    await expect(panel.getByTestId('doc-comment-error')).toHaveCount(0)
+    await expect(panel.getByTestId('doc-comment-composer')).toHaveValue(TYPED_COMMENT)
   })
 })
