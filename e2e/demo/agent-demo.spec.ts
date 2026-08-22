@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url'
 
 import { test, expect, type Page } from '@playwright/test'
 
-import { forceLocale } from '../helpers'
+import { forceLocale, DEMO_ISSUE_COUNT_EN_RE } from '../helpers'
 
 const isMedia = !!process.env.GADAK_MEDIA
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -118,7 +118,7 @@ test.describe('agent focus demo', () => {
     await page.setContent(FRAME, { waitUntil: 'domcontentloaded' })
 
     const app = page.frameLocator('#app')
-    await expect(app.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(app.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
     await expect(app.getByTestId('issue-list-scroller')).toBeVisible()
     await page.waitForTimeout(700)
 

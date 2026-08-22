@@ -6,6 +6,18 @@ import { expect, type ConsoleMessage, type Locator, type Page } from '@playwrigh
 
 const E2E_DIR = dirname(fileURLToPath(import.meta.url))
 
+/**
+ * Issue count in examples/demo.db. Single owner: a fixture regen that
+ * changes the count updates this constant, and every e2e assertion that
+ * waited on the pool size follows.
+ */
+export const DEMO_ISSUE_COUNT = 534
+export const DEMO_ISSUE_COUNT_EN = `${DEMO_ISSUE_COUNT} issues`
+export const DEMO_ISSUE_COUNT_KO = `${DEMO_ISSUE_COUNT}건`
+export const DEMO_ISSUE_COUNT_JA = `${DEMO_ISSUE_COUNT}件`
+export const DEMO_ISSUE_COUNT_EN_RE = new RegExp(`${DEMO_ISSUE_COUNT} issues`)
+export const DEMO_ISSUE_COUNT_RE = new RegExp(String(DEMO_ISSUE_COUNT))
+
 export type AssertServedArtifactOpts = {
   /** Tests: isolate from the process-global ${TMPDIR}/gadak-e2e-served-<port>.json. */
   stampPath?: string
@@ -116,16 +128,16 @@ export async function gotoApp(page: Page): Promise<void> {
   await page.goto('/')
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
   // Sidebar pool size — visible as soon as bootstrap lands, *before* the
-  // startup view. A "534 issues" match is not "the list is ready for keys".
-  await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+  // startup view. A DEMO_ISSUE_COUNT match is not "the list is ready for keys".
+  await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
   // applyStartupView waits for me.authChecked (favorites + GET auth/me/ +
   // personal loads) and then writes the default all-open filter into the
   // hash. IssueList's viewKey effect resetCursor()s on that write, so a
-  // j/k/x that landed on the unfiltered 534-row list is wiped. Wait on the
+  // j/k/x that landed on the unfiltered pool is wiped. Wait on the
   // hash *and* the refiltered count — Playwright auto-wait, not a sleep —
   // so keyboard tests start after that commit. (GDK-39)
   await expect(page).toHaveURL(/[#?&]sc=/, { timeout: 30_000 })
-  await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
+  await expect(page.getByTestId('list-count')).not.toHaveText(DEMO_ISSUE_COUNT_EN)
 }
 
 /**
@@ -139,7 +151,7 @@ export async function gotoAppBeforeStartup(page: Page): Promise<void> {
   await forceLocale(page, 'en')
   await page.goto('/')
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
 }
 

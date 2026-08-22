@@ -10,7 +10,7 @@
  * (see search.config.ts) or Playwright letterboxes the capture.
  */
 import { test, expect, type Page } from '@playwright/test'
-import { forceLocale } from '../helpers'
+import { forceLocale, DEMO_ISSUE_COUNT_RE } from '../helpers'
 
 const isMedia = !!process.env.GADAK_MEDIA
 
@@ -36,7 +36,7 @@ test.describe('unified search demo', () => {
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
     await expect(page.getByTestId('filter-chip').filter({ hasText: 'NMS' })).toBeVisible()
     await expect(page.getByTestId('palette-open')).toBeVisible()
-    await expect(page.getByTestId('list-count')).not.toHaveText(/534/)
+    await expect(page.getByTestId('list-count')).not.toHaveText(DEMO_ISSUE_COUNT_RE)
     await beat(page, 900)
 
     await page.keyboard.press('ControlOrMeta+k')

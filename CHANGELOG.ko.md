@@ -305,6 +305,14 @@
   목록을 자기 자신과 비교하고 있었습니다 — 행 없는 일곱 번째 다이얼로그가
   초록으로 남는 구조. 이제 소스 트리를 걸어 셸을 import하는 컴포넌트
   전수에 행 하나씩을 요구합니다.
+- **사다리 스윕 2차 — e2e 다섯 케이스가 내려왔고, 잃은 것은 없습니다**
+  ([GDK-649]). 문서 패널의 빈 상태 여섯 가지를 브라우저에서 전수
+  열거하고 있었습니다 — 분기 로직은 이제 순수 함수이고, 조합은 vitest가
+  걷고, e2e에는 대표 경로만 남습니다. IndexedDB 캐시 업그레이드 경로는
+  fake-indexeddb 위의 유닛으로 돌고, dialog-shell 소스 워크는 유닛 파일
+  컨벤션에 합류했고, 브라우저에서 실패할 수 없던 설정 단언은 소스 스캔이
+  됐고, 스펙 파일 29곳의 데모 fixture 이슈 수 리터럴 `534`는 e2e 헬퍼의
+  소유자 하나로 모여 fixture 재생성이 한 줄 수정이 됩니다.
 - **테스트 스위트가 재지도 않는 프로브에 값을 치르지 않습니다**
   ([GDK-648]). Linux 카탈로그 테스트 하나가 실제 `claude mcp get`을
   조용히 돌리고 있었습니다(런당 2초) — 파일이 이미 명시한 규칙(카탈로그
@@ -1953,6 +1961,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
+[GDK-649]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-649
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
 [GDK-641]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-641

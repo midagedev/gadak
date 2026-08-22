@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { gotoApp, openServerSettings } from './helpers'
+import { gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 import { THEMES } from '../web/src/lib/theme'
 
 const SETTINGS_URL = 'http://127.0.0.1:7877/api/v1/issues/settings/'
@@ -22,7 +22,7 @@ async function themePicker(page: Page) {
   // After a reload, issue-layout paints before boot overlays (credential
   // form, etc.) finish. Wait for the pool label — same signal locale.spec
   // uses — so Settings is not clicked through a z-50 presentation layer.
-  await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
   await openServerSettings(page)
   await expect(picker).toBeVisible()
   return picker

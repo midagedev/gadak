@@ -1,29 +1,13 @@
 <script module lang="ts">
   import { isDesktop } from '../../lib/config'
   import { isVisibleSettingsTab, visibleSettingsTabs } from '../../lib/integrations'
+  import { SETTINGS_TABS, type SettingsTab } from '../../lib/settings-tabs'
 
-  /** The settings tabs, in header order. Exported so App can validate an
+  /** The settings tabs, in header order. Re-exported so App can validate an
    *  incoming `settings=` place param (lib/url-state) against the real tab
    *  list instead of a second copy; TABS below attaches labels to these ids. */
-  export type Tab =
-    | 'sync'
-    | 'sources'
-    | 'features'
-    | 'groups'
-    | 'members'
-    | 'fields'
-    | 'integrations'
-    | 'about'
-  export const SETTINGS_TABS: readonly Tab[] = [
-    'sync',
-    'sources',
-    'features',
-    'groups',
-    'members',
-    'fields',
-    'integrations',
-    'about',
-  ]
+  export type Tab = SettingsTab
+  export { SETTINGS_TABS }
 
   /** Type guard for URL values: an unknown tab name (a link from before this
    *  build renamed or added tabs) must land on the default, not a blank

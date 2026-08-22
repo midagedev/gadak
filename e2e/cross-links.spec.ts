@@ -13,7 +13,7 @@
  * it.
  */
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, forceLocale } from './helpers'
+import { attachConsoleErrors, forceLocale, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 const BASE = 'http://127.0.0.1:7877'
 const PAGES_URL = `${BASE}/api/v1/issues/pages/`
@@ -36,7 +36,7 @@ async function gotoParams(page: Page, query: string): Promise<void> {
   await forceLocale(page, 'en')
   await page.goto(`/#/?${query}`)
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
 }
 
 /** 1 list + N detail fetches. Static for the server lifetime (workers: 1). */

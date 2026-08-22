@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import {
   attachConsoleErrors,
+  DEMO_ISSUE_COUNT_EN,
   forceLocale,
   gotoApp,
   gotoAppBeforeStartup,
@@ -271,14 +272,14 @@ test.describe('keyboard triage during boot (GDK-46)', () => {
 
     // Inside the window: list is the unfiltered pool, hash has no sc= yet.
     await expect(page).not.toHaveURL(/[#?&]sc=/)
-    await expect(page.getByTestId('list-count')).toHaveText('534 issues')
+    await expect(page.getByTestId('list-count')).toHaveText(DEMO_ISSUE_COUNT_EN)
 
     await page.keyboard.press('j')
     await page.keyboard.press('x')
     release()
 
     await expect(page).toHaveURL(/[#?&]sc=/, { timeout: 30_000 })
-    await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
+    await expect(page.getByTestId('list-count')).not.toHaveText(DEMO_ISSUE_COUNT_EN)
 
     await expect(page.locator('html')).toHaveAttribute('data-keys-ready', 'true')
 
@@ -301,7 +302,7 @@ test.describe('keyboard triage during boot (GDK-46)', () => {
     release()
 
     await expect(page).toHaveURL(/[#?&]sc=/, { timeout: 30_000 })
-    await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
+    await expect(page.getByTestId('list-count')).not.toHaveText(DEMO_ISSUE_COUNT_EN)
     await expect(page.locator('html')).toHaveAttribute('data-keys-ready', 'true')
     await expect(page.locator('[data-cursor="true"]')).toHaveCount(0)
     await expect(page.getByTestId('bulk-bar')).toBeHidden()

@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { test, expect } from '@playwright/test'
-import { attachConsoleErrors, gotoApp } from './helpers'
+import { attachConsoleErrors, gotoApp, DEMO_ISSUE_COUNT_RE } from './helpers'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const gadakBin = path.join(here, '.tmp/gadak')
@@ -80,7 +80,7 @@ test.describe('JQL paste', () => {
     await expect(page).toHaveURL(/sc=inprogress/)
     await expect(page.getByTestId('filter-chip').filter({ hasText: 'NMA' })).toBeVisible()
     await expect(page.getByTestId('filter-chip').filter({ hasText: 'In Progress' })).toBeVisible()
-    await expect(page.getByTestId('list-count')).not.toHaveText(/534/)
+    await expect(page.getByTestId('list-count')).not.toHaveText(DEMO_ISSUE_COUNT_RE)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

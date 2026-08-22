@@ -13,7 +13,7 @@
  */
 
 import { config, feature, type GadakFeatures } from './config'
-import { columnLabel } from './i18n'
+import { columnLabel, type ColumnLabelKey } from './i18n'
 import type { DeployState, HistoryEntry, IssueLite } from './types'
 
 /* ── Filter state ── */
@@ -137,6 +137,13 @@ const COLUMN_KEYS_ALL = [
   'dev_test_result',
 ] as const
 export type ColumnKey = (typeof COLUMN_KEYS_ALL)[number]
+type _ColumnLabelParity = ColumnKey extends ColumnLabelKey
+  ? ColumnLabelKey extends ColumnKey
+    ? true
+    : never
+  : never
+const _columnLabelParity: _ColumnLabelParity = true
+void _columnLabelParity
 
 /** Column catalog entry (label from active locale). */
 export interface ColumnDef {
@@ -533,7 +540,9 @@ export function isViewParam(key: string): boolean {
   return key.startsWith(DYN_FIELD_PREFIX) || (VIEW_PARAM_KEYS as readonly string[]).includes(key)
 }
 
-const RANGE_KEY = {
+type RangeBoundKey = `${RangeField}_from` | `${RangeField}_to`
+
+export const RANGE_KEY = {
   created_from: 'cf',
   created_to: 'ct',
   updated_from: 'uf',
@@ -542,7 +551,7 @@ const RANGE_KEY = {
   due_to: 'dt',
   resolved_from: 'rf',
   resolved_to: 'rt',
-} as const
+} as const satisfies Record<RangeBoundKey, string>
 
 const FLAG_KEY = 'fl' // Comma-joined flag list
 const Q_KEY = 'q'

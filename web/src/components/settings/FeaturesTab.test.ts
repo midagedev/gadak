@@ -42,3 +42,24 @@ describe('GDK-349 browser notify visibility', () => {
     expect(ko).not.toMatch(/항상 동작/)
   })
 })
+
+describe('GDK-188 / settings-audit: Features does not render a web-push toggle', () => {
+  const features = readFileSync(FEATURES_TAB, 'utf8')
+  const en = readFileSync(EN, 'utf8')
+  const ko = readFileSync(KO, 'utf8')
+  const ja = readFileSync(join(HERE, '../../lib/i18n/ja.ts'), 'utf8')
+
+  test('push is excluded from the visible feature list, not drawn as a checkbox', () => {
+    expect(features).toMatch(/Exclude<keyof GadakFeatures, 'push'>/)
+    expect(features).not.toMatch(/['"]Web push['"]/)
+    expect(features).not.toMatch(/settings\.featurePush/)
+    expect(features).not.toMatch(/draft\.features\.push/)
+  })
+
+  test('catalogs have no web-push toggle label', () => {
+    expect(en).not.toMatch(/'settings\.featurePush'/)
+    expect(ko).not.toMatch(/'settings\.featurePush'/)
+    expect(ja).not.toMatch(/'settings\.featurePush'/)
+    expect(en).not.toMatch(/'Web push'/)
+  })
+})

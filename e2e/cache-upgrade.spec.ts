@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Request } from '@playwright/test'
-import { gotoApp } from './helpers'
+import { gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 // e2e/serve.sh writes site https://nimbus.example.com — see composeCacheScope.
 const DB_NAME = 'issue-navigator:site:nimbus.example.com'
@@ -141,7 +141,7 @@ test.describe('IssueLite cache upgrade', () => {
 
     await page.reload()
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
     await expect
       .poll(() => log.requests.some((request) => request.url().includes('/delta/')))
       .toBe(true)
@@ -151,21 +151,6 @@ test.describe('IssueLite cache upgrade', () => {
     expect(reopened).toMatchObject({ version: 2, hasReporterID: true })
     expect(reopened.count).toBe(upgraded.count)
     expect(reopened.syncVersion).not.toBe(999)
-
-    log.stop()
-  })
-
-  test('fresh install creates a v2 cache and bootstraps normally', async ({ page }) => {
-    await deleteDatabase(page)
-    const log = issueRequestLog(page)
-
-    await gotoApp(page)
-
-    expect(log.requests.some((request) => request.url().includes('/bootstrap/'))).toBe(true)
-    await expect
-      .poll(() => cacheState(page), { timeout: 30_000 })
-      .toMatchObject({ version: 2, hasLegacyRow: false, hasReporterID: true })
-    expect((await cacheState(page)).count).toBeGreaterThan(0)
 
     log.stop()
   })

@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { test, expect, type Page } from '@playwright/test'
-import { appConsoleErrors, attachConsoleErrors, forceLocale, gotoApp } from './helpers'
+import { appConsoleErrors, attachConsoleErrors, forceLocale, gotoApp, DEMO_ISSUE_COUNT } from './helpers'
 
 /*
  * keys axis + ui-focus handoff + the hidden-tab poll pause.
@@ -129,7 +129,7 @@ test.describe('keys view and ui-focus', () => {
     expect(keys).toEqual(['NMB-110', 'NMA-1'])
 
     await page.getByTestId('filter-chip').filter({ hasText: /2 keys/ }).click()
-    await expect(page.getByTestId('list-count')).toContainText('534')
+    await expect(page.getByTestId('list-count')).toContainText(String(DEMO_ISSUE_COUNT))
     await expect(page).not.toHaveURL(/ks=/)
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])

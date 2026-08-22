@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { attachConsoleErrors, forceLocale, openServerSettings } from './helpers'
+import { attachConsoleErrors, forceLocale, openServerSettings, DEMO_ISSUE_COUNT_EN_RE, DEMO_ISSUE_COUNT_KO, DEMO_ISSUE_COUNT_JA } from './helpers'
 
 test.describe('locale', () => {
   test('switching to ko reloads with Korean copy', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await forceLocale(page, 'en')
     await page.goto('/')
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
 
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
@@ -20,7 +20,7 @@ test.describe('locale', () => {
     ])
 
     // ko.ts: sidebar.issueCount = '{n}건' (pool size; list count may be filtered)
-    await expect(page.getByText('534건')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_KO)).toBeVisible({ timeout: 30_000 })
     // <html lang> follows the locale so screen readers switch pronunciation.
     await expect(page.locator('html')).toHaveAttribute('lang', 'ko-KR')
     // ko.ts: sidebar.settings
@@ -39,7 +39,7 @@ test.describe('locale', () => {
     const errors = attachConsoleErrors(page)
     await forceLocale(page, 'en')
     await page.goto('/')
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
 
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
@@ -51,7 +51,7 @@ test.describe('locale', () => {
     ])
 
     // ja.ts: sidebar.issueCount = '{n}件' (pool size; list count may be filtered)
-    await expect(page.getByText('534件')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_JA)).toBeVisible({ timeout: 30_000 })
     await expect(page.locator('html')).toHaveAttribute('lang', 'ja-JP')
     // ja.ts: sidebar.settings
     await expect(page.getByRole('button', { name: '設定', exact: true })).toBeVisible()

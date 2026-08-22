@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { DEMO_ISSUE_COUNT_EN_RE } from '../helpers'
 import { dismissHostedFirstFrame } from './helpers'
 
 /**
@@ -99,7 +100,7 @@ test.describe('hosted demo in an in-app browser', () => {
     await expect(notice).toHaveCount(0)
     await expect(page.getByText(/In-app browsers/)).toHaveCount(0)
     await expect(layout).toBeVisible()
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 60_000 })
 
     await applyAllOpen(page)
     await searchInput(page).fill('NMB-110')

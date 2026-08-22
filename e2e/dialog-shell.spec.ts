@@ -1,6 +1,3 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
 import { gotoApp, openServerSettings } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
@@ -13,6 +10,9 @@ import { en } from '../web/src/lib/i18n/en'
  * Driven from DIALOGS below so a seventh is one row — a test that only
  * asserted `role=dialog` exists would pass every inconsistency this
  * round is closing.
+ *
+ * GDK-649: importer ↔ row coverage lives in e2e/dialog-shell.unit.ts (file
+ * walk, no browser). This file is the shell contract in a real dialog.
  *
  * These assertions will not catch:
  * - Backdrop-click dismiss, focus-trap Tab cycling, or which control is
@@ -318,55 +318,6 @@ const DIALOGS: DialogRow[] = [
     locate: (page) => page.getByTestId('update-notes'),
   },
 ]
-
-/*
- * GDK-620: this test used to re-list DIALOGS' ids against a literal in this
- * same file — a seventh dialog that forgot its row kept it green. The set
- * now comes from disk: every .svelte under web/src that imports
- * DialogShell.svelte must have a row, and every row must have its importer.
- * (web/src/components/ui/DialogShell.test.ts owns the visual-copy axis.)
- */
-const E2E_DIR = dirname(fileURLToPath(import.meta.url))
-const WEB_SRC = join(E2E_DIR, '../web/src')
-
-/** Importer file name -> DIALOGS row id, for the two whose names disagree. */
-const IMPORTER_ROW: Record<string, string> = {
-  'SettingsDialog.svelte': 'settings',
-  'NewIssueDialog.svelte': 'new-issue',
-  'ShortcutsDialog.svelte': 'shortcuts',
-  'JiraKeySettings.svelte': 'jira-credentials', // file name predates the dialog id
-  'QuickComment.svelte': 'quick-comment',
-  'SidebarNav.svelte': 'update-notes', // hosts the update-notes modal
-}
-
-function shellImporters(root: string): string[] {
-  const out: string[] = []
-  const walk = (dir: string): void => {
-    for (const name of readdirSync(dir)) {
-      if (name === 'node_modules' || name === 'dist') continue
-      const p = join(dir, name)
-      if (statSync(p).isDirectory()) walk(p)
-      else if (name.endsWith('.svelte')) {
-        if (/from\s+'[^']*DialogShell\.svelte'/.test(readFileSync(p, 'utf8'))) out.push(name)
-      }
-    }
-  }
-  walk(root)
-  return out
-}
-
-test('dialog-shell table covers every component that imports DialogShell', () => {
-  const importers = shellImporters(WEB_SRC)
-  const unmapped = importers.filter((f) => !(f in IMPORTER_ROW))
-  expect(
-    unmapped,
-    `DialogShell importer(s) without a DIALOGS row — add the row and the IMPORTER_ROW entry: ${unmapped}`,
-  ).toEqual([])
-  expect(
-    DIALOGS.map((d) => d.id).sort(),
-    'every row keeps a real importer; every importer gets a row',
-  ).toEqual(importers.map((f) => IMPORTER_ROW[f]).sort())
-})
 
 test.describe('dialog shell contract', () => {
   test.use({ viewport: { width: 1280, height: 900 } })

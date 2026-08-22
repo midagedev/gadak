@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
+import { attachConsoleErrors, gotoApp, searchInput, DEMO_ISSUE_COUNT_EN } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 
 /*
@@ -143,7 +143,7 @@ test.describe('F11 search / filter / empty state', () => {
       'aria-current',
       'true',
     )
-    await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
+    await expect(page.getByTestId('list-count')).not.toHaveText(DEMO_ISSUE_COUNT_EN)
 
     await page.screenshot({ path: '/tmp/f11-shots/478-after-clear-search.png' })
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
@@ -191,7 +191,7 @@ test.describe('F11 search / filter / empty state', () => {
       'aria-current',
       'true',
     )
-    await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
+    await expect(page.getByTestId('list-count')).not.toHaveText(DEMO_ISSUE_COUNT_EN)
     await expect(page.getByText(/Done \d+/)).toHaveCount(0)
 
     await page.screenshot({ path: '/tmp/f11-shots/479-after-reset.png' })

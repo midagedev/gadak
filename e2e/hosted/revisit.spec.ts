@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { DEMO_ISSUE_COUNT_EN_RE } from '../helpers'
 import { dismissHostedFirstFrame } from './helpers'
 
 /**
@@ -81,7 +82,7 @@ test.describe('hosted demo returning visitor', () => {
     await page.goto(DEMO)
     await dismissHostedFirstFrame(page)
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 60_000 })
 
     // Returning-visitor means IndexedDB is a complete cache, not a cold boot.
     await expect

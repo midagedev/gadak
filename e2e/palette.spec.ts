@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
+import { attachConsoleErrors, gotoApp, searchInput, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 test.describe('command palette', () => {
   test('Cmd+K opens it, typing stays local, Enter opens the issue detail', async ({ page }) => {
@@ -11,7 +11,7 @@ test.describe('command palette', () => {
     // pull to finish. Deliberately not networkidle: the app polls for a delta
     // every 15s, so "no network for 500ms" only becomes true after that poll
     // fires, which added 15s to this test for nothing.
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
     // Same observable ux-p1.spec.ts uses: chip data-state=syncing is
     // mirrorBusy (focus-time pull or background pass), not a duration.
     await expect(page.getByTestId('freshness-chip')).not.toHaveAttribute('data-state', 'syncing', {

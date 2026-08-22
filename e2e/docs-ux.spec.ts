@@ -749,8 +749,9 @@ test.describe('the document lists explain themselves', () => {
  *
  * The section used to have one sentence for four situations, and it was the
  * wrong one for the person who had just chosen a space and saved: the sidebar
- * went on asking them to connect a source they had already connected. These
- * tests pin each cause to its own sentence — the CTA belongs to "off" alone.
+ * went on asking them to connect a source they had already connected. The
+ * decision table is pinned in web/src/lib/docs-empty.test.ts; these two stay
+ * as representative wiring (click opens Settings; failed carries the reason).
  */
 test.describe('docs empty states', () => {
   const RUNS_CONFLUENCE = '**/sync/runs/**'
@@ -788,18 +789,6 @@ test.describe('docs empty states', () => {
     await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
   })
 
-  test('on but never fetched: it offers the sync, not the setup', async ({ page }) => {
-    await emptyDocs(page, true)
-    await confluenceRuns(page, [])
-    await gotoApp(page)
-
-    const cta = page.getByTestId('docs-empty-cta')
-    await expect(cta).toHaveAttribute('data-state', 'never')
-    await expect(cta).toContainText('Documents not fetched yet')
-    // The old copy would have sent someone who is already set up back to Settings.
-    await expect(cta).not.toContainText('Turn on Confluence')
-  })
-
   test('on and the last pass failed: it says so, and carries the reason', async ({ page }) => {
     await emptyDocs(page, true)
     await confluenceRuns(page, [
@@ -822,25 +811,6 @@ test.describe('docs empty states', () => {
     await expect(cta).toHaveAttribute('title', /403/)
   })
 
-  test('on, fetched, and the spaces are empty: it blames the selection', async ({ page }) => {
-    await emptyDocs(page, true)
-    await confluenceRuns(page, [
-      {
-        kind: 'full',
-        started_at: '2026-08-07T08:00:00Z',
-        finished_at: '2026-08-07T08:00:04Z',
-        fetched: 0,
-        changed: 0,
-        deleted: 0,
-      },
-    ])
-    await gotoApp(page)
-
-    const cta = page.getByTestId('docs-empty-cta')
-    await expect(cta).toHaveAttribute('data-state', 'empty')
-    await expect(cta).toContainText('No documents in these spaces')
-    await expect(cta).toContainText('Change the selection')
-  })
 })
 
 /*

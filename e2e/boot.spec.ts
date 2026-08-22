@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { attachConsoleErrors, forceLocale, gotoApp } from './helpers'
+import { attachConsoleErrors, forceLocale, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 test.describe('boot', () => {
   test('renders issue list with 534 count and English copy', async ({ page }) => {
@@ -9,7 +9,7 @@ test.describe('boot', () => {
 
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
     // list.countIssues — en.ts: '{n} issues'
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
     // Sidebar wordmark and built-in nav labels (en.ts)
     await expect(page.getByText('gadak', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()

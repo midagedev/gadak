@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, gotoApp } from './helpers'
+import { attachConsoleErrors, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 /*
  * Ways in to the one search.
@@ -23,7 +23,7 @@ async function openDocuments(page: Page): Promise<void> {
  *  the app polls for a delta every 15s, so "quiet for 500ms" only becomes true
  *  after that fires. */
 async function settled(page: Page): Promise<void> {
-  await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
   // Same observable ux-p1.spec.ts uses. The chip lives on ListView; documents
   // unmount that column, so the sidebar row (same mirrorBusy sentence) is the
   // stand-in — it stays mounted on every main-column screen.

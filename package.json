@@ -27,6 +27,7 @@
     "@tailwindcss/vite": "^4.1.11",
     "@tsconfig/svelte": "^5.0.4",
     "@types/node": "^22.10.2",
+    "fake-indexeddb": "^6.2.5",
     "svelte": "^5.36.0",
     "svelte-check": "^4.2.2",
     "tailwindcss": "^4.1.11",

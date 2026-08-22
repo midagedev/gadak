@@ -18,7 +18,7 @@
  *    toggle inside one space.
  */
 import { test, expect, type Page } from '@playwright/test'
-import { gotoApp, searchInput } from '../helpers'
+import { gotoApp, searchInput, DEMO_ISSUE_COUNT_EN_RE } from '../helpers'
 
 const isMedia = !!process.env.GADAK_MEDIA
 const ISSUE = 'NMA-123'
@@ -89,7 +89,7 @@ test.describe('web UI demo', () => {
 
     // ── Boot ──────────────────────────────────────────────────────────────
     await gotoApp(page)
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
     await beat(page, 900)
 

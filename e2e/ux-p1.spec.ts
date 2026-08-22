@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helpers'
+import { attachConsoleErrors, forceLocale, gotoApp, searchInput, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 /*
  * UX P1 coverage: Sync now (palette), empty-mirror Sync now, credential copy split.
@@ -60,7 +60,7 @@ test.describe('UX P1', () => {
   test('command palette offers Sync now and POSTs incremental sync', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
     // The focus-time mirror pull fires on a stale fixture, and runSyncNow is
     // single-flight: clicking while it runs joins that run instead of starting
     // one, so the POST this test is about never happens. Waiting on the chip

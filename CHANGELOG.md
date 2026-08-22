@@ -322,6 +322,15 @@ the fixes are all here.
   The dialog-registry test compared a list against itself — a seventh
   dialog without a row stayed green; it now walks the source tree for
   every component that imports the shell and demands a row for each.
+- **The ladder sweep ran again — five e2e cases stepped down, none lost**
+  ([GDK-649]). The docs pane's six empty states were being enumerated in a
+  browser; the branching is a pure function now, vitest walks the
+  combinations, and the e2e keeps the representative paths. The IndexedDB
+  cache-upgrade path runs as a unit over fake-indexeddb, the dialog-shell
+  source walk joined the unit-file convention, a settings assertion that
+  could not fail in a browser became a source scan, and the demo fixture's
+  issue count — a literal `534` in twenty-nine spec files — has one owner
+  in the e2e helpers, so regenerating the fixture changes one line.
 - **The test suite stops paying for probes it does not measure**
   ([GDK-648]). One Linux catalog test was quietly running a real `claude
   mcp get` (two seconds a run); the rule the file already stated — catalog
@@ -2000,6 +2009,7 @@ measured numbers instead of adjectives.
 [GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
+[GDK-649]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-649
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
 [GDK-641]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-641

@@ -7,6 +7,8 @@ import { gotoApp, searchInput } from './helpers'
  * I9 / L1 live in web/src/lib/view-config.test.ts (moved from this file).
  * C5 unit: web/src/lib/config-scope.test.ts; html attribute: e2e/tail-audit.spec.ts.
  * C6 unit cases live in web/src/lib/storage.test.ts.
+ * GDK-649: C6/C7 stay here — they are wiring (composer writes the key;
+ * a delta upsert actually drops the open detail), not the pure helpers.
  */
 
 test.describe('identity-web e2e', () => {

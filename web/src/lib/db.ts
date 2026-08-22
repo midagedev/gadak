@@ -9,18 +9,18 @@
  *  - meta:   key = 'sync' (single record: server_time / sync_version / members)
  */
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { openDB, type DBSchema, type IDBPDatabase, type OpenDBCallbacks } from 'idb'
 import { cacheScopeId } from './config'
 import type { CacheMeta, IssueLite, WriteMetaCache } from './types'
 
 /** IndexedDB name for a cache partition. Empty scope keeps the historic name. */
-function issueCacheDbName(scope = cacheScopeId()): string {
+export function issueCacheDbName(scope = cacheScopeId()): string {
   return scope ? `issue-navigator:${scope}` : 'issue-navigator'
 }
 // v2 invalidates IssueLite rows written before reporter_id joined the row
 // contract. SQLite already has the IDs, so one fresh bootstrap is sufficient;
 // write metadata is independent and remains warm.
-const DB_VERSION = 2
+export const ISSUE_CACHE_DB_VERSION = 2
 
 interface IssueDB extends DBSchema {
   issues: {
@@ -43,25 +43,41 @@ const OPEN_TIMEOUT_MS = 2_000
 
 let dbPromise: Promise<IDBPDatabase<IssueDB>> | null = null
 
+/**
+ * Schema upgrade for the issue cache. Exported so the v1→v2 invalidation
+ * can be pinned in node (fake-indexeddb) instead of only in Playwright.
+ */
+export const upgradeIssueCache: NonNullable<OpenDBCallbacks<IssueDB>['upgrade']> = (
+  database,
+  oldVersion,
+  _newVersion,
+  transaction,
+) => {
+  if (!database.objectStoreNames.contains('issues')) {
+    database.createObjectStore('issues', { keyPath: 'issue_key' })
+  }
+  if (!database.objectStoreNames.contains('meta')) {
+    database.createObjectStore('meta', { keyPath: 'key' })
+  }
+  // Existing v1 rows may not carry reporter_id. Clear only that legacy
+  // issue snapshot and its sync cursor: keeping the cursor could make an
+  // empty cache send If-None-Match and accept a 304. Fresh v2 databases
+  // and every later v2 reopen skip this branch entirely.
+  if (oldVersion > 0 && oldVersion < 2) {
+    void transaction.objectStore('issues').clear()
+    void transaction.objectStore('meta').delete('sync')
+  }
+}
+
+/** Test seam: drop the cached connection so the next open re-runs upgrade. */
+export function resetIssueCacheConnection(): void {
+  dbPromise = null
+}
+
 function db(): Promise<IDBPDatabase<IssueDB>> {
   if (!dbPromise) {
-    const opening = openDB<IssueDB>(issueCacheDbName(), DB_VERSION, {
-      upgrade(database, oldVersion, _newVersion, transaction) {
-        if (!database.objectStoreNames.contains('issues')) {
-          database.createObjectStore('issues', { keyPath: 'issue_key' })
-        }
-        if (!database.objectStoreNames.contains('meta')) {
-          database.createObjectStore('meta', { keyPath: 'key' })
-        }
-        // Existing v1 rows may not carry reporter_id. Clear only that legacy
-        // issue snapshot and its sync cursor: keeping the cursor could make an
-        // empty cache send If-None-Match and accept a 304. Fresh v2 databases
-        // and every later v2 reopen skip this branch entirely.
-        if (oldVersion > 0 && oldVersion < 2) {
-          void transaction.objectStore('issues').clear()
-          void transaction.objectStore('meta').delete('sync')
-        }
-      },
+    const opening = openDB<IssueDB>(issueCacheDbName(), ISSUE_CACHE_DB_VERSION, {
+      upgrade: upgradeIssueCache,
       // Yield the connection when another tab wants a higher-version upgrade (or delete).
       // Without this, bumping DB_VERSION on deploy freezes every new tab for users who
       // still have an old-version tab open — infinite skeleton waiting on the upgrade.

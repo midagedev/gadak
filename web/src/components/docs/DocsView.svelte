@@ -16,6 +16,7 @@
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type DocsTab } from '../../stores/pages.svelte'
   import { pageMatches } from '../../lib/doc-search'
+  import { docsListEmptyKind } from '../../lib/docs-empty'
   import type { PageLite } from '../../lib/types'
   import EmptyState from '../list/EmptyState.svelte'
   import DocsFilter from './DocsFilter.svelte'
@@ -124,6 +125,15 @@
     return out
   })
 
+  const emptyKind = $derived(
+    docsListEmptyKind({
+      empty: rows.length === 0,
+      filtering,
+      hasNeedle: needle !== '',
+      tab,
+    }),
+  )
+
   // Mirrors DocRow's own rule: the taller row exists only when there is a body
   // line to put in it, so a page with an empty excerpt stays 42px.
   function rowHeight(item: Row): number {
@@ -222,19 +232,19 @@
     </button>
   </header>
 
-  {#if rows.length === 0}
+  {#if emptyKind}
     <div class="min-h-0 flex-1 overflow-y-auto">
-      {#if filtering}
+      {#if emptyKind === 'filter-text' || emptyKind === 'filter-label'}
         <!-- Nothing here matched, but the mirror is bigger than this tab —
              Enter is the way to the rest of it. -->
         <EmptyState
           icon="search-x"
           title={t('docs.filterEmpty')}
-          hint={needle
+          hint={emptyKind === 'filter-text'
             ? t('docs.filterEmptyHint')
             : t('docs.filterEmptyLabelHint', { label: label ?? '' })}
         />
-      {:else if tab === 'viewed'}
+      {:else if emptyKind === 'viewed'}
         <EmptyState icon="clock" title={t('docs.viewedEmpty')} hint={t('docs.viewedEmptyHint')} />
       {:else}
         <EmptyState

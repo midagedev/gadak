@@ -30,6 +30,12 @@
   } from '../../lib/config'
   import { isStandalone, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
   import { busyLabel, fetchingDocuments, mirrorLabel } from '../../lib/mirror-status'
+  import {
+    docsEmptyClickAction,
+    docsEmptyCopy,
+    docsEmptyGlyph,
+    docsEmptyState as resolveDocsEmpty,
+  } from '../../lib/docs-empty'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
@@ -270,7 +276,7 @@
   })
 
   /*
-   * An empty DOCS section has five causes, and telling someone to go connect a
+   * An empty DOCS section has six causes, and telling someone to go connect a
    * source is right for exactly one of them. It was wrong for the user who had
    * just chosen a space and saved: the app kept asking for what it already had.
    *
@@ -281,8 +287,6 @@
    * never    — configured, nothing fetched yet. The one state with an action here.
    * empty    — fetched fine, and the chosen spaces hold nothing. Blame the selection.
    */
-  type DocsEmptyState = 'off' | 'syncing' | 'failed' | 'never' | 'empty' | 'unavailable'
-
   let confluenceRuns = $state<SyncRun[] | null>(null)
   const docsConfigured = $derived(config().confluenceEnabled)
 
@@ -294,46 +298,28 @@
     void getSyncRuns('confluence').then((doc) => (confluenceRuns = doc.runs))
   })
 
-  const docsEmptyState = $derived.by((): DocsEmptyState => {
-    // First question, before "is it configured": does this deployment have a
-    // docs server to configure at all. A static snapshot is not "off" — there
-    // is no Settings screen that could switch it on.
-    if (!hasServerVerb('docs')) return 'unavailable'
-    if (!docsConfigured) return 'off'
-    // Only while the mirror is fetching *documents*. An issue pass is the sync
-    // row's business, not this section's — that split is what made one mirror
-    // look like two.
-    if (fetchingDocuments()) return 'syncing'
-    if (confluenceRuns === null) return 'never' // not asked yet — never claim failure
-    if (confluenceRuns[0]?.error) return 'failed'
-    if (confluenceRuns.length === 0) return 'never'
-    return 'empty'
-  })
+  const docsEmptyState = $derived(
+    resolveDocsEmpty({
+      hasDocsServer: hasServerVerb('docs'),
+      confluenceEnabled: docsConfigured,
+      fetchingDocuments: fetchingDocuments(),
+      confluenceRuns,
+    }),
+  )
 
   const docsEmptyText = $derived.by(() => {
-    switch (docsEmptyState) {
-      case 'unavailable':
-        return { title: t('sidebar.docsUnavailable'), hint: '' }
-      case 'syncing':
-        // Literally the sync row's string, not a paraphrase of it: two places
-        // rendering one sentence cannot end up telling different stories.
-        return { title: busyLabel() ?? t('sidebar.docsSyncing'), hint: '' }
-      case 'failed':
-        return { title: t('sidebar.docsFetchFailed'), hint: t('sidebar.docsFetchFailedHint') }
-      case 'never':
-        return { title: t('sidebar.docsNotFetched'), hint: t('sidebar.docsNotFetchedHint') }
-      case 'empty':
-        return { title: t('sidebar.docsEmptySpaces'), hint: t('sidebar.docsEmptySpacesHint') }
-      default:
-        return { title: t('sidebar.docsNoneTitle'), hint: t('sidebar.docsNoneHint') }
+    const copy = docsEmptyCopy(docsEmptyState)
+    return {
+      title: copy.titlePrefersBusy ? (busyLabel() ?? t(copy.titleKey)) : t(copy.titleKey),
+      hint: copy.hintKey ? t(copy.hintKey) : '',
     }
   })
 
   /** 'never' is the one state the user can act on without leaving the sidebar. */
   function onDocsEmptyClick() {
-    if (docsEmptyState === 'unavailable') return
-    if (docsEmptyState === 'syncing') return
-    if (docsEmptyState === 'never') {
+    const action = docsEmptyClickAction(docsEmptyState)
+    if (action === 'none') return
+    if (action === 'sync') {
       void issues.pullMirror('full')
       return
     }
@@ -740,13 +726,7 @@
                        unavailable snapshot shares search-x with 'empty' — nothing to
                        find either way — but never the gear: there is nowhere to go. -->
                   <Icon
-                    name={docsEmptyState === 'failed'
-                      ? 'warning'
-                      : docsEmptyState === 'syncing' || docsEmptyState === 'never'
-                        ? 'refresh'
-                        : docsEmptyState === 'empty' || docsEmptyState === 'unavailable'
-                          ? 'search-x'
-                          : 'settings'}
+                    name={docsEmptyGlyph(docsEmptyState)}
                     size={15}
                     class="mt-0.5 flex-none {docsEmptyState === 'failed'
                       ? 'text-status-reopen'

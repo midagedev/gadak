@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, forceLocale, gotoApp } from './helpers'
+import { attachConsoleErrors, forceLocale, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 
 /*
@@ -74,7 +74,7 @@ test.describe('column-view interaction parity (GDK-651)', () => {
     await forceLocale(page, 'en')
     await page.goto('/#/?feed=all')
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
     await expect(feedClose(page)).toBeVisible()
     await blurActive(page)
 

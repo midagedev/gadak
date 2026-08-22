@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, openServerSettings } from './helpers'
+import { attachConsoleErrors, gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 const SETTINGS_URL = 'http://127.0.0.1:7877/api/v1/issues/settings/'
 
@@ -22,7 +22,7 @@ test.describe('settings dialog', () => {
     ])
 
     // After reload the list boots again.
-    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
 
     const res = await request.get(SETTINGS_URL)
     expect(res.ok()).toBeTruthy()
@@ -98,18 +98,11 @@ test.describe('settings dialog', () => {
  * failed against the pre-fix catalogs and Features tab (FAIL-first 2026-08-15):
  * sourcesNoProjects said "no issue is mirrored" / "미러링되는 이슈가 없습니다",
  * and Features rendered a "Web push" checkbox that saved a flag whose
- * endpoints 404.
+ * endpoints 404. The web-push toggle is a source-scan now
+ * (web/src/components/settings/FeaturesTab.test.ts) — it cannot fail in a
+ * browser once the checkbox is gone from the source.
  */
 test.describe('settings copy contracts', () => {
-  test('Features tab does not render the web-push toggle', async ({ page }) => {
-    await gotoApp(page)
-    await openServerSettings(page)
-    const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Features', exact: true }).click()
-    await expect(dialog.getByText('Personal feed')).toBeVisible()
-    await expect(dialog.getByText('Web push', { exact: true })).toHaveCount(0)
-  })
-
   test('empty project picker label includes every project', async ({ page }) => {
     const API = 'http://127.0.0.1:7877/api/v1/issues/'
     await page.route(`${API}settings/`, (route) =>

@@ -18,6 +18,8 @@
  * the tab itself is desktop-only (see visibleSettingsTabs).
  */
 
+import type { SettingsTab } from './settings-tabs'
+
 /** GET the list. */
 const INTEGRATIONS_PATH = '/desktop/integrations'
 
@@ -372,11 +374,15 @@ export function installBlocked(item: IntegrationItem): boolean {
  * gets a 404 from `gadak serve`, so the tab must not be offered — including
  * via a `settings=integrations` URL somebody pasted out of the desktop app.
  */
-const DESKTOP_ONLY_SETTINGS_TABS: readonly string[] = ['integrations']
+const DESKTOP_ONLY_SETTINGS_TABS = ['integrations'] as const satisfies readonly SettingsTab[]
+
+function isDesktopOnlyTab(tab: string): boolean {
+  return (DESKTOP_ONLY_SETTINGS_TABS as readonly string[]).includes(tab)
+}
 
 /** The tabs this surface may show, in the given order. */
 export function visibleSettingsTabs<T extends string>(all: readonly T[], desktop: boolean): T[] {
-  return all.filter((tab) => desktop || !DESKTOP_ONLY_SETTINGS_TABS.includes(tab))
+  return all.filter((tab) => desktop || !isDesktopOnlyTab(tab))
 }
 
 /** Whether an incoming tab name is one this surface can open. */
@@ -386,7 +392,7 @@ export function isVisibleSettingsTab(
   desktop: boolean,
 ): boolean {
   if (!all.includes(value)) return false
-  return desktop || !DESKTOP_ONLY_SETTINGS_TABS.includes(value)
+  return desktop || !isDesktopOnlyTab(value)
 }
 
 /* ── Network ── */

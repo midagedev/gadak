@@ -1,7 +1,5 @@
 import { describe, expect, test } from 'vitest'
 import {
-  DETAIL_TESTID,
-  NARROW_FIELD_TESTID,
   isBootHoldKey,
   isEditableTarget,
   isEnterActivatingTarget,
@@ -120,18 +118,6 @@ const ENTER_TARGET_CASES: {
 ]
 
 describe('narrow field / detail testid map', () => {
-  test('testids match the nodes the shell already mounts', () => {
-    expect(NARROW_FIELD_TESTID.history).toBe('history-filter-input')
-    expect(NARROW_FIELD_TESTID.docs).toBe('docs-filter-input')
-    expect(NARROW_FIELD_TESTID.issues).toBe('search-input')
-    expect(DETAIL_TESTID.status).toBe('status-transition')
-    expect(DETAIL_TESTID.assignee).toBe('assignee-picker')
-    expect(DETAIL_TESTID.priority).toBe('priority-picker')
-    expect(DETAIL_TESTID.labelInput).toBe('label-editor-input')
-    expect(DETAIL_TESTID.labelAdd).toBe('label-editor-add')
-    expect(DETAIL_TESTID.comment).toBe('comment-composer')
-  })
-
   test('narrowFieldTestId: feed blocks; else history, docs, issues', () => {
     expect(
       narrowFieldTestId({ feedBlocksNarrow: true, historyView: true, docsOpen: true }),

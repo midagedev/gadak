@@ -10,7 +10,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, gotoApp } from './helpers'
+import { attachConsoleErrors, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SHOT_COLLAPSED = path.join(here, '../scratch/gdk-434-sidebar-collapsed.png')
@@ -34,7 +34,7 @@ async function sectionOrder(page: Page): Promise<string[]> {
 async function reloadSidebar(page: Page): Promise<void> {
   await page.reload()
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId('sidebar-sections')).toBeVisible()
 }
 

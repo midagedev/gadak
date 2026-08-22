@@ -128,7 +128,31 @@ export function fieldLabel(field: string): string {
   return field
 }
 
-export function columnLabel(key: string): string {
+export const COLUMN_LABEL_KEYS = [
+  'assignee',
+  'updated',
+  'labels',
+  'reopen',
+  'stale',
+  'qa_impact',
+  'deploy',
+  'severity',
+  'issue_type',
+  'status',
+  'reporter',
+  'comment_count',
+  'fix_versions',
+  'components',
+  'created',
+  'due',
+  'environment',
+  'team_group',
+  'dev_test_result',
+] as const
+
+export type ColumnLabelKey = (typeof COLUMN_LABEL_KEYS)[number]
+
+export function columnLabel(key: ColumnLabelKey): string {
   const mk = `column.${key}` as MessageKey
   if (mk in en) return t(mk)
   return key
