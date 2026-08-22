@@ -61,8 +61,8 @@
         type="button"
         onclick={onClose}
         class="flex h-8 w-8 items-center justify-center text-white/60 transition-colors hover:text-white"
-        aria-label={t('detail.mediaClose')}
-        title={t('common.close')}
+        aria-label={t('common.closeEsc')}
+        title={t('common.closeEsc')}
       >
         <Icon name="x" size={20} />
       </button>

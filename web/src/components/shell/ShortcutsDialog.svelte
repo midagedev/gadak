@@ -2,8 +2,8 @@
   /*
    * Keyboard cheat sheet (`?`). Every row below maps to a handler that actually
    * exists — App.svelte owns the whole list/detail set (⌘K / , / ? / j / k / ↵ / o / x /
-   * s / a / l / p / c / Esc), SearchBox (/), CommandPalette (↑↓/Enter/Esc),
-   * CommentComposer (⌘↩). Do not document a key that no handler listens for.
+   * s / a / l / p / c / Esc), SearchBox (/), CommandPalette (↑↓/↵/Esc),
+   * CommentComposer (⌘↵). Do not document a key that no handler listens for.
    */
   import { t } from '../../lib/i18n'
   import { trapFocus } from '../../lib/focus-trap'
@@ -48,6 +48,11 @@
     {
       title: t('shortcuts.sectionDetail'),
       rows: [
+        // `o` resolves by what is open (keymap.svelte.ts open-origin): an
+        // issue goes to Jira, a page goes to its source. One caption cannot
+        // cover both surfaces honestly — two rows, the same grammar as `c`
+        // wearing a caption per context.
+        ['o', t('shortcuts.detailOpenJira')],
         ['o', t('doc.openSource')],
         ['s', t('shortcuts.focusStatus')],
         ['p', t('shortcuts.focusPriority')],

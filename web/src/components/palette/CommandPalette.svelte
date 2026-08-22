@@ -1075,7 +1075,7 @@
     <div
       class="flex-none border-t border-border-subtle px-3 py-1.5 text-micro text-text-muted"
     >
-      {t('palette.hintNav')} · <kbd class="font-mono">?</kbd> {t('palette.hintHelp')}
+      {t('palette.hintNav')} · <kbd class="rounded border border-border-strong bg-bg-elevated px-1.5 py-0.5 font-mono text-micro text-text-secondary">?</kbd> {t('palette.hintHelp')}
     </div>
   </div>
 </div>

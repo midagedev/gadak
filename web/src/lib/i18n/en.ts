@@ -5,7 +5,6 @@
 
 export const en = {
   /* ── Common ── */
-  'common.close': 'Close',
   'common.closeEsc': 'Close (Esc)',
   'common.cancel': 'Cancel',
   'common.save': 'Save',
@@ -538,7 +537,6 @@ export const en = {
   'detail.inLocalPool': 'In local pool',
   'detail.emptyComment': '(empty comment)',
   'detail.replyToComment': 'Reply to this comment',
-  'detail.mediaClose': 'Close media',
   'detail.enlarge': 'Enlarge {name}',
   'detail.play': 'Play {name}',
   'detail.attachmentLabel': 'Attachment: {name}',
@@ -619,7 +617,7 @@ export const en = {
   /* ── Person panel (people axis) ── */
   'person.comments': 'Comments',
   'person.noComments': 'No comments from this person in the mirror.',
-  'person.commentsFailed': 'Could not load this person’s comments.',
+  'person.commentsFailed': 'Could not load this person\'s comments.',
   'person.unlinked':
     'The mirror has no account id for this person yet, so their comments cannot be listed.',
   'person.showingOf': 'Showing the {n} most recent of {total}.',
@@ -713,7 +711,7 @@ export const en = {
   'write.credDeleted': 'Jira credentials deleted.',
   'write.credDeleteFailed': 'Could not delete credentials.',
   'write.commentPlaceholder': 'Add a comment…',
-  'write.commentShortcut': '{mod}Enter',
+  'write.commentShortcut': '{mod} ↵',
   'write.commentNeedCredentials': 'Set credentials to leave a comment',
   'write.commentPosting': 'Posting…',
   'write.commentButton': 'Comment',
@@ -802,7 +800,7 @@ export const en = {
   'settings.sourcesApplyHint': 'Saving starts a full sync immediately.',
   'settings.scopeLoading': 'Loading the list…',
   'settings.scopeNoMatch': 'No match',
-  'settings.scopeHint': '↑↓ move · Enter add · Esc close',
+  'settings.scopeHint': '↑↓ move · ↵ add · Esc close',
   'settings.scopeRemove': 'Remove {name}',
   'settings.scopeProjectPlaceholder': 'Type a project key or name…',
   'settings.scopeSpacePlaceholder': 'Type a space key or name…',
@@ -937,7 +935,7 @@ export const en = {
     '. Conditions in a row are AND; values within a list are OR; empty conditions always match.',
   'settings.groupQuery': 'Classification SQL',
   'settings.groupQueryHint':
-    'Optional. One SELECT or WITH returning (issue key, group). Empty group = unclassified. NULL or a missing key falls through to the rules above, then the assignee’s member group. Runs when the list is rebuilt, not on each keystroke. Site-specific logic belongs here, not in the binary.',
+    'Optional. One SELECT or WITH returning (issue key, group). Empty group = unclassified. NULL or a missing key falls through to the rules above, then the assignee\'s member group. Runs when the list is rebuilt, not on each keystroke. Site-specific logic belongs here, not in the binary.',
   'settings.projectsCol': 'Projects',
   'settings.componentsCol': 'Components',
   'settings.cloudPart': 'Cloud part',
@@ -1006,7 +1004,7 @@ export const en = {
   'palette.recent': 'Recently viewed',
   'palette.updated': 'Recently updated',
   'palette.empty': 'No matches',
-  'palette.hintNav': '↑↓ move · Enter run · Esc close',
+  'palette.hintNav': '↑↓ move · ↵ run · Esc close',
   'palette.hintHelp': 'shortcuts',
   'palette.viewBuiltin': 'Built-in view',
   'palette.viewPersonal': 'My view',
@@ -1189,6 +1187,7 @@ export const en = {
   'shortcuts.listLabels': 'Change labels (selection, or the cursor row)',
   'shortcuts.listComment': 'Comment on the row under the cursor',
   'shortcuts.clearSelection': 'Clear the selection, then close the detail panel',
+  'shortcuts.detailOpenJira': 'Open the issue in Jira',
   'shortcuts.focusStatus': 'Change status (when detail is open)',
   'shortcuts.focusPriority': 'Change priority (when detail is open)',
   'shortcuts.focusAssignee': 'Change assignee (when detail is open)',
@@ -1247,8 +1246,8 @@ export type MessageKey = keyof typeof en
  * `fail()` / `failJira` / `failCreate` codes from internal/server/write.go →
  * catalog keys. Only codes whose sentence differs from the operation generic
  * (or is reused from an existing write.* key). Unknown snake_case codes must
- * not appear here — writeErrorMessage falls those back to the caller’s generic
- * sentence. failCreate’s codes are derived from write.go by catalog.test.ts.
+ * not appear here — writeErrorMessage falls those back to the caller's generic
+ * sentence. failCreate's codes are derived from write.go by catalog.test.ts.
  */
 export const WRITE_ERROR_KEYS = {
   // Same latch for pulls and writes (GDK-507): the sentence carries the
@@ -1277,7 +1276,7 @@ const GADAK_ERROR_CODE = /^[a-z][a-z0-9_]*$/
 /**
  * Map a write-endpoint `error` body to a user-facing sentence.
  * Known codes → catalog. Unknown snake_case codes → fallback (never the raw
- * code). Anything else is Jira prose from failJira’s APIError.Message() and
+ * code). Anything else is Jira prose from failJira's APIError.Message() and
  * is returned as-is.
  */
 export function writeErrorMessage(

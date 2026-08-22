@@ -382,7 +382,10 @@ test.describe('dialog shell contract', () => {
         .soft(headerClose, `${row.id}: header close control with accessible name "${CLOSE_ESC}"`)
         .toBeVisible()
 
-      const exactClose = dialog.getByRole('button', { name: en['common.close'], exact: true })
+      // 'common.close' ("Close") was removed in GDK-621 — every close X now
+      // says closeEsc. The excluded name stays the bare word: a footer Close
+      // must not reappear next to the header X's "Close (Esc)".
+      const exactClose = dialog.getByRole('button', { name: 'Close', exact: true })
       const exactCancel = dialog.getByRole('button', { name: en['common.cancel'], exact: true })
 
       if (row.hasCommit) {

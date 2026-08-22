@@ -22,6 +22,7 @@ test.describe('keyboard cheat sheet', () => {
       'Move cursor down',
       'Open in Jira',
       'Open the original page',
+      'Open the issue in Jira',
       'Change priority (selection, or the cursor row)',
       'Change priority (when detail is open)',
       'Focus the search or filter box',

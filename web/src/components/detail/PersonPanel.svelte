@@ -119,7 +119,7 @@
             type="button"
             onclick={() => person.clear()}
             class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-            aria-label={t('common.close')}
+            aria-label={t('common.closeEsc')}
             title={t('common.closeEsc')}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">

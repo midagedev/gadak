@@ -50,15 +50,16 @@ test.describe('F12 detail / settings / server-down', () => {
 
     const shortcut = panel.getByTestId('comment-shortcut')
     await expect(shortcut).toHaveCount(1)
-    // GDK-354 / F-1: kbd is the platform modifier + Enter, not the catalog
-    // string (which used to hard-code ⌘Enter on every OS). Same platform
-    // test as modifierSymbol() in web/src/lib/unified-search.ts.
+    // GDK-354 / F-1: kbd is the platform modifier + the ↵ glyph the cheat
+    // sheet prints (GDK-621) — not a catalog string hard-coding ⌘Enter on
+    // every OS. Same platform test as modifierSymbol() in
+    // web/src/lib/unified-search.ts.
     expect(en['write.commentShortcut']).not.toMatch(/⌘/)
     expect(ko['write.commentShortcut']).not.toMatch(/⌘/)
     const mod = await page.evaluate(() =>
       /Mac|iP(hone|ad)/.test(navigator.platform) ? '⌘' : 'Ctrl',
     )
-    const label = `${mod}Enter`
+    const label = `${mod} ↵`
     await expect(shortcut).toHaveText(label)
     await expect(panel.getByText(label)).toHaveCount(1)
 
