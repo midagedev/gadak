@@ -18,6 +18,7 @@ import (
 	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/transition"
 )
 
@@ -316,7 +317,7 @@ func runEditBatch(asJSON bool, base editChange) error {
 				return err
 			}
 			wrote = true
-			return refreshAfterWrite(ctx, cfg, db, src, key)
+			return syncer.RefreshIssue(ctx, cfg, db, key, src)
 		})
 		if err != nil {
 			return batchErr(key, wrote, err)

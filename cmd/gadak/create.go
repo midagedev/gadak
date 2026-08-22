@@ -17,6 +17,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
 const createUsage = "usage: gadak create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--field alias=value]... [--json]"
@@ -543,7 +544,7 @@ func emitBatchLine(ctx context.Context, cfg *config.Config, db *store.DB, src, k
 		}
 		return err
 	}
-	if err := refreshAfterWrite(ctx, cfg, db, src, key); err != nil {
+	if err := syncer.RefreshIssue(ctx, cfg, db, key, src); err != nil {
 		return fmt.Errorf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %w", key, err)
 	}
 	lites, err := lookup(db, []string{key})

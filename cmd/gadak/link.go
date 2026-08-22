@@ -10,6 +10,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/transition"
 )
 
@@ -60,8 +61,8 @@ func cmdLink(args []string) error {
 			return err
 		}
 		// B first so emitAfterWrite's single-key refresh covers A: two
-		// refreshAfterWrite calls, then the A summary line (or JSON).
-		if err := refreshAfterWrite(ctx, cfg, db, srcB, b); err != nil {
+		// RefreshIssue calls, then the A summary line (or JSON).
+		if err := syncer.RefreshIssue(ctx, cfg, db, b, srcB); err != nil {
 			return fmt.Errorf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %w", b, err)
 		}
 		extra := map[string]any{

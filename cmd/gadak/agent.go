@@ -1541,7 +1541,7 @@ func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *s
 // reported as such, because retrying it would repeat the write Jira already
 // accepted.
 func emitAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, src, key string, asJSON bool, extra map[string]any) error {
-	if err := refreshAfterWrite(ctx, cfg, db, src, key); err != nil {
+	if err := syncer.RefreshIssue(ctx, cfg, db, key, src); err != nil {
 		return fmt.Errorf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %w", key, err)
 	}
 	lites, err := lookup(db, []string{key})
@@ -1560,18 +1560,6 @@ func emitAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, src, 
 	}
 	fmt.Println(summaryLine(lites[0]))
 	return nil
-}
-
-// refreshAfterWrite re-reads one issue from the origin that owns it.
-func refreshAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, src, key string) error {
-	if src == "linear" {
-		lc, err := origin.Linear(cfg)
-		if err != nil {
-			return err
-		}
-		return syncer.SyncLinearIssue(ctx, db, lc, key)
-	}
-	return syncer.SyncIssue(ctx, cfg, db, key, syncer.Options{})
 }
 
 // mutate is the whole write-through shape: call the origin that owns the
@@ -1894,7 +1882,7 @@ func runCommentBatch(asJSON, internalDefault bool, visDefault *jira.CommentVisib
 				return err
 			}
 			wrote = true
-			return refreshAfterWrite(ctx, cfg, db, src, key)
+			return syncer.RefreshIssue(ctx, cfg, db, key, src)
 		})
 		if err != nil {
 			return batchErr(key, wrote, err)
@@ -2114,7 +2102,7 @@ func runTransitionBatch(asJSON, dryRun bool, resolutionDefault string, fieldsDef
 				return err
 			}
 			changed = res.Changed
-			return refreshAfterWrite(ctx, cfg, db, src, key)
+			return syncer.RefreshIssue(ctx, cfg, db, key, src)
 		})
 		if err != nil {
 			return batchErr(key, changed, err)
@@ -2133,7 +2121,7 @@ func emitTransitionResult(ctx context.Context, cfg *config.Config, db *store.DB,
 		token = want
 	}
 	if asJSON {
-		if err := refreshAfterWrite(ctx, cfg, db, src, key); err != nil {
+		if err := syncer.RefreshIssue(ctx, cfg, db, key, src); err != nil {
 			return fmt.Errorf("already %s — nothing to do, but the mirror did not refresh (run `gadak sync`): %w", token, err)
 		}
 		lites, err := lookup(db, []string{key})
@@ -2283,7 +2271,7 @@ func runAssignBatch(asJSON bool) error {
 				return err
 			}
 			wrote = true
-			return refreshAfterWrite(ctx, cfg, db, src, key)
+			return syncer.RefreshIssue(ctx, cfg, db, key, src)
 		})
 		if err != nil {
 			return batchErr(key, wrote, err)

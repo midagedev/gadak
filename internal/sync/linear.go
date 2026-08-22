@@ -336,8 +336,9 @@ func sortedKeys(m map[string]int) []string {
 	return out
 }
 
-// SyncLinearIssue is the write-through tail for one Linear issue: re-read it
-// from the origin and commit the row, the Linear counterpart of SyncIssue.
+// SyncLinearIssue re-reads one Linear issue and commits the row, the Linear
+// counterpart of SyncIssue. RefreshIssue is the write-through tail that
+// routes here; CLI/REST must not branch on src at the call site.
 // Force is on for the same reason as the Jira path — the caller just wrote,
 // so an unchanged updatedAt must not skip the refresh.
 func SyncLinearIssue(ctx context.Context, db *store.DB, c *linear.Client, key string) error {

@@ -38,6 +38,13 @@ the fixes are all here.
 
 ### Write verbs an agent can trust
 
+- **One owner for the write-through re-read** ([GDK-642]). After a write,
+  the issue is re-read from the origin that owns it — and that routing
+  (Linear row → Linear re-read, everything else → Jira) existed as two
+  word-for-word copies, one in the CLI and one in REST. `sync.RefreshIssue`
+  is the single owner now; both surfaces call it, and a structural test
+  fails on any third copy of the pair, so the two paths cannot drift the
+  way they did before this audit.
 - **`create` and `edit` take `--field alias=value`** for the custom fields a
   project requires ([GDK-513]), the create dialog learns what this project
   and type actually require ([GDK-254]), and **`issue --editmeta` asks the
@@ -1944,6 +1951,7 @@ measured numbers instead of adjectives.
 [GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
+[GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655

@@ -246,19 +246,6 @@ func (s *server) keyWriter(w http.ResponseWriter, r *http.Request, key string) (
 	return c, cfg, src, true
 }
 
-// refreshIssue is the write-through tail routed per source: re-read the
-// issue from the origin that owns it and commit the row.
-func (s *server) refreshIssue(ctx context.Context, cfg *config.Config, key, src string) error {
-	if src == "linear" {
-		lc, err := origin.Linear(cfg)
-		if err != nil {
-			return err
-		}
-		return sync.SyncLinearIssue(ctx, s.db, lc, key)
-	}
-	return sync.SyncIssue(ctx, cfg, s.db, key, sync.Options{})
-}
-
 // mutate is the whole write-through shape: call the origin that owns the
 // key, re-read the issue, answer with the refreshed row plus whatever else
 // the endpoint adds.
@@ -273,7 +260,7 @@ func (s *server) mutate(w http.ResponseWriter, r *http.Request, key string,
 		failJira(w, r, s.config(), err)
 		return
 	}
-	if err := s.refreshIssue(r.Context(), cfg, key, src); err != nil {
+	if err := sync.RefreshIssue(r.Context(), cfg, s.db, key, src); err != nil {
 		// The write landed; only the re-read failed. Say so rather than reporting a
 		// failure the user would retry.
 		log.Printf("server: mirror refresh after write to %s: %v", key, err)
@@ -425,7 +412,7 @@ func (s *server) handleResync(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.refreshIssue(r.Context(), cfg, key, src); err != nil {
+	if err := sync.RefreshIssue(r.Context(), cfg, s.db, key, src); err != nil {
 		failJira(w, r, s.config(), err)
 		return
 	}
@@ -663,7 +650,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// The issue's attachment list changed, so the mirror has to catch up before the
 	// detail panel re-renders. Jira already accepted the upload: a re-read
 	// failure is 502 write_applied_mirror_stale (contracts/api.md), not 200.
-	if err := s.refreshIssue(r.Context(), cfg, key, src); err != nil {
+	if err := sync.RefreshIssue(r.Context(), cfg, s.db, key, src); err != nil {
 		log.Printf("server: mirror refresh after upload to %s: %v", key, err)
 		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
 		return

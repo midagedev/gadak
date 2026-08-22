@@ -16,10 +16,11 @@ import (
 // back: it is outside the credential's permissions, or it was just deleted.
 var ErrNotFound = errors.New("sync: issue not found upstream")
 
-// SyncIssue re-reads one issue and writes it to the mirror. Every write-through
-// endpoint ends here, which is what makes a row that came back from a write
-// identical to one a scheduled sync produced — same field mapping, same derived
-// fields, no second code path to keep in step.
+// SyncIssue re-reads one issue and writes it to the mirror. RefreshIssue is
+// the write-through tail that routes here (or to SyncLinearIssue); CLI/REST
+// must not branch on src at the call site. Ending here is what makes a row
+// that came back from a write identical to one a scheduled sync produced —
+// same field mapping, same derived fields, no second code path to keep in step.
 func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string, opts Options) error {
 	if !cfg.HasAtlassianCredential() {
 		return errors.New("sync: site, email and token are required")

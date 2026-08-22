@@ -38,6 +38,12 @@
 
 ### 에이전트가 신뢰할 수 있는 쓰기 동사
 
+- **쓰기 후 재읽기의 소유자는 하나** ([GDK-642]). 쓰기가 끝나면 그 이슈를
+  소유 origin에서 재읽는데 — 그 라우팅(Linear 행 → Linear 재읽기, 나머지
+  → Jira)이 CLI와 REST에 글자 그대로 두 벌 있었습니다. 이제
+  `sync.RefreshIssue`가 단일 소유자이고 두 표면이 그것을 호출하며, 구조
+  테스트가 그 쌍의 세 번째 사본에 실패하므로 두 경로가 이번 감사 전처럼
+  갈라질 수 없습니다.
 - **`create`와 `edit`가 `--field alias=value`를 받아** 프로젝트가 요구하는
   커스텀 필드를 채우고 ([GDK-513]), 생성 다이얼로그는 이 프로젝트·유형이
   실제로 요구하는 것을 배우며 ([GDK-254]), **`issue --editmeta`는 이 이슈가
@@ -1903,6 +1909,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
+[GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
