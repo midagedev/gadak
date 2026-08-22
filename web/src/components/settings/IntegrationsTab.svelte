@@ -22,6 +22,7 @@
   import { onMount, tick } from 'svelte'
   import { t, type MessageKey } from '../../lib/i18n'
   import { copyText } from '../../lib/copy-text'
+  import LoadingState from '../ui/LoadingState.svelte'
   import {
     actionLabelKind,
     fetchIntegrations,
@@ -250,7 +251,7 @@
   {/if}
 
   {#if loading && items.length === 0}
-    <p class="py-6 text-center text-text-muted">{t('settings.integrationsLoading')}</p>
+    <LoadingState label={t('settings.integrationsLoading')} />
   {:else if items.length === 0}
     {#if !error}
       <p class="py-6 text-center text-text-muted">{t('settings.integrationsEmpty')}</p>

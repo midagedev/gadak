@@ -197,7 +197,7 @@
             <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
           </div>
         {:else if person.comments.length === 0}
-          <p class="text-micro italic text-text-muted">{t('person.noComments')}</p>
+          <p class="text-micro text-text-muted">{t('person.noComments')}</p>
         {:else}
           <div class="-mx-5 anim-enter">
             {#each person.comments as c (`${c.key}-${c.created_at}`)}

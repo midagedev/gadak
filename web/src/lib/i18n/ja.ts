@@ -931,10 +931,13 @@ export const ja = {
   'settings.color': '色',
   'settings.addRow': '+ 行を追加',
   'settings.deleteRow': '行を削除',
+  'settings.groupsEmpty': 'まだグループがありません。',
   'settings.groupToProduct': 'グループ → 製品',
   'settings.productKey': '製品キー',
   'settings.productLabel': '製品ラベル',
+  'settings.productsEmpty': 'まだ製品がありません。',
   'settings.groupRules': 'グループ照合ルール',
+  'settings.rulesEmpty': 'まだルールがありません。',
   'settings.rulesTopDown': '上から下へ',
   'settings.rulesFirstWins': '最初の一致が勝ちます',
   'settings.rulesDetail':
@@ -953,6 +956,7 @@ export const ja = {
   'settings.jobTitle': '役職',
   'settings.avatarUrl': 'アバター URL',
   'settings.addMember': '+ メンバーを追加',
+  'settings.membersEmpty': 'まだメンバーがいません — 最初のメンバーを追加してください。',
   'settings.discoveredFields': '検出されたフィールド',
   'settings.discoveredFieldsHint':
     '最初の全同期で Jira から自動検出されます。ここの編集はピンされ、再検出後も残ります。`gadak fields --apply` で検出を再実行します。',

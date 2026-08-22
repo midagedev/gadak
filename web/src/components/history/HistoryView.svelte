@@ -26,6 +26,7 @@
   import { filters } from '../../stores/filters.svelte'
   import { me } from '../../stores/me.svelte'
   import EmptyState from '../list/EmptyState.svelte'
+  import LoadingState from '../ui/LoadingState.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
 
   const TABS: { key: HistoryKindFilter; label: string }[] = [
@@ -238,7 +239,9 @@
   </header>
 
   {#if !history.loaded && history.loading}
-    <p class="px-4 py-6 text-micro text-text-muted">{t('common.loading')}</p>
+    <div class="min-h-0 flex-1">
+      <LoadingState label={t('common.loading')} />
+    </div>
   {:else if rows.length === 0}
     <div class="min-h-0 flex-1 overflow-y-auto">
       {#if filtering}

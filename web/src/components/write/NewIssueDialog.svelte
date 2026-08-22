@@ -33,6 +33,7 @@
   import type { CreateMetaProject, JiraUser, PriorityOption } from '../../lib/types'
   import Icon from '../ui/Icon.svelte'
   import DialogShell from '../ui/DialogShell.svelte'
+  import LoadingState from '../ui/LoadingState.svelte'
 
   type WriteDialogState = 'loading' | 'need-token' | 'meta-failed' | 'form'
 
@@ -394,7 +395,7 @@
   footerClass="mt-1 flex flex-none flex-col gap-2 border-t border-border-subtle px-5 py-3"
 >
     {#if writeState === 'loading'}
-      <div class="px-5 py-8 text-center text-body text-text-muted">{t('common.loading')}</div>
+      <LoadingState label={t('common.loading')} />
     {:else if writeState === 'need-token'}
       <div class="flex flex-col items-center gap-3 px-5 py-8 text-center">
         <p class="text-body text-status-reopen">{t('write.needToken')}</p>

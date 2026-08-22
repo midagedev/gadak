@@ -914,10 +914,13 @@ export const ko = {
   'settings.color': '색상',
   'settings.addRow': '+ 행 추가',
   'settings.deleteRow': '행 삭제',
+  'settings.groupsEmpty': '아직 그룹이 없습니다.',
   'settings.groupToProduct': '그룹 → 제품',
   'settings.productKey': '제품 키',
   'settings.productLabel': '제품 라벨',
+  'settings.productsEmpty': '아직 제품이 없습니다.',
   'settings.groupRules': '그룹 판정 규칙',
+  'settings.rulesEmpty': '아직 규칙이 없습니다.',
   'settings.rulesTopDown': '위에서 아래로',
   'settings.rulesFirstWins': '첫 매치가 이깁니다',
   'settings.rulesDetail':
@@ -936,6 +939,7 @@ export const ko = {
   'settings.jobTitle': '직무',
   'settings.avatarUrl': '아바타 URL',
   'settings.addMember': '+ 멤버 추가',
+  'settings.membersEmpty': '아직 멤버가 없습니다 — 워크스페이스에 첫 멤버를 추가하세요.',
   'settings.discoveredFields': '발견된 필드',
   'settings.discoveredFieldsHint':
     '첫 전체 동기화에서 Jira로부터 자동 탐지됩니다. 여기서 수정하면 고정되어 재탐지에도 유지되고, `gadak fields --apply`로 재탐지할 수 있습니다.',

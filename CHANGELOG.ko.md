@@ -210,6 +210,12 @@
   body). 다이얼로그 제목은 패널 제목과 같은 최상단으로 올라가고, 워드마크는
   두 크기 대신 소유자 하나를 얻고, 테마 게이트가 이제 `text-[Npx]`
   유틸리티에 실패하므로 다섯 번째 크기는 돌아올 수 없습니다.
+- **비어 있음은 상태이지 공백이 아닙니다** ([GDK-130]). 설정의 멤버·그룹·
+  제품·규칙 표가 아무것도 없는 위에 컬럼 헤더만 그리고 있었습니다; 이제
+  각 표가 무엇이 없고 다음에 뭘 하면 되는지 한 줄로 말하고, 추가 버튼이
+  바로 아래 있습니다. 로딩 잔재 세 곳 — 새 이슈 다이얼로그·히스토리·
+  통합 — 은 제각각의 문단 대신 빈 상태와 같은 기하의 `LoadingState`
+  하나를 공유하고, 마지막 남은 이탤릭 빈 상태는 기울기를 잃었습니다.
 - **웹 UI가 일본어를 말합니다** ([GDK-626]). `en`/`ko` 옆에 전체 `ja`
   카탈로그가 붙습니다 — 일본어 Jira Cloud 어휘(課題, 進行中, 担当者), 모든
   카운트는 `{n}件` — 설정과 팔레트에서 선택할 수 있고 브라우저 언어에서
@@ -1720,6 +1726,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-127]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-127
 [GDK-128]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-128
 [GDK-129]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-129
+[GDK-130]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-130
 [GDK-131]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-131
 [GDK-132]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-132
 [GDK-133]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-133

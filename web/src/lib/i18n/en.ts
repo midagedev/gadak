@@ -924,10 +924,13 @@ export const en = {
   'settings.color': 'Color',
   'settings.addRow': '+ Add row',
   'settings.deleteRow': 'Delete row',
+  'settings.groupsEmpty': 'No groups yet.',
   'settings.groupToProduct': 'Group → product',
   'settings.productKey': 'Product key',
   'settings.productLabel': 'Product label',
+  'settings.productsEmpty': 'No products yet.',
   'settings.groupRules': 'Group matching rules',
+  'settings.rulesEmpty': 'No rules yet.',
   'settings.rulesTopDown': 'Top to bottom',
   'settings.rulesFirstWins': 'first match wins',
   'settings.rulesDetail':
@@ -946,6 +949,7 @@ export const en = {
   'settings.jobTitle': 'Title',
   'settings.avatarUrl': 'Avatar URL',
   'settings.addMember': '+ Add member',
+  'settings.membersEmpty': 'No members yet — add one to seed the workspace.',
   'settings.discoveredFields': 'Discovered fields',
   'settings.discoveredFieldsHint':
     'Auto-detected from your Jira on the first full sync. Edits here are pinned and survive re-discovery; `gadak fields --apply` re-runs detection.',

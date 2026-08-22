@@ -216,6 +216,13 @@ the fixes are all here.
   headings at the top step, the wordmark gets one owner instead of two
   sizes, and the theme gate now fails on any `text-[Npx]` utility so the
   fifth size cannot come back.
+- **Empty is a state, not a blank** ([GDK-130]). The settings tables for
+  members, groups, products, and rules used to render their column headers
+  over nothing; each now says what's missing and what to do next, with the
+  add button right below. The three loading leftovers — new-issue dialog,
+  history, integrations — share one `LoadingState` with the empty-state
+  geometry instead of three ad-hoc paragraphs, and the last italic
+  empty-state lost its slant.
 - **The web UI speaks Japanese** ([GDK-626]). A full `ja` catalog joins
   `en`/`ko` — Japanese Jira Cloud vocabulary (課題, 進行中, 担当者), every
   count in `{n}件` — selectable in Settings and the palette, detected from
@@ -1740,6 +1747,7 @@ measured numbers instead of adjectives.
 [GDK-127]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-127
 [GDK-128]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-128
 [GDK-129]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-129
+[GDK-130]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-130
 [GDK-131]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-131
 [GDK-132]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-132
 [GDK-133]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-133
