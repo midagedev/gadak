@@ -550,6 +550,11 @@ followed:
 - **`gofmt` is a CI gate now** ([GDK-607]). Four files had drifted from
   canonical formatting with nothing to notice; they are reformatted and
   `gofmt -l` failing the build keeps it that way.
+- **One shape for a fatal error** ([GDK-611]). One error path in `main`
+  still went through `log.Fatalf`, which hard-codes exit 1 instead of
+  routing through the exit-code contract every sibling branch honors. It
+  now prints and exits like the rest — today's message is byte-identical,
+  but a future coded error keeps its code instead of being flattened.
 
 ### The pre-tag audit, closed before the tag
 
@@ -1678,6 +1683,7 @@ measured numbers instead of adjectives.
 [GDK-606]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-606
 [GDK-607]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-607
 [GDK-608]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-608
+[GDK-611]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-611
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

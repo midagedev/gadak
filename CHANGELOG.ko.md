@@ -516,6 +516,11 @@
 - **`gofmt`가 CI 게이트가 됐습니다** ([GDK-607]). 파일 4개가 표준
   포맷에서 벗어나 있어도 아무것도 알아채지 못했습니다; 다시 포맷했고,
   `gofmt -l`이 빌드를 실패시키는 것이 그 상태를 지킵니다.
+- **치명 오류의 형태는 하나** ([GDK-611]). `main`의 오류 경로 하나가
+  아직 `log.Fatalf`를 지나고 있었습니다 — 형제 분기들이 전부 지키는
+  exit 코드 계약을 타지 않고 무조건 1로 끝냅니다. 이제 나머지와 같은
+  형태로 출력하고 종료합니다 — 오늘의 메시지는 바이트 단위로 동일하고,
+  장래의 코드 있는 오류가 1로 눌리는 대신 제 코드를 지킵니다.
 
 ### 태그 전에 닫은 릴리스 감사
 
@@ -1659,6 +1664,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-606]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-606
 [GDK-607]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-607
 [GDK-608]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-608
+[GDK-611]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-611
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
