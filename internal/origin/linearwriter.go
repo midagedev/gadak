@@ -277,7 +277,7 @@ func (w *linearWriter) CreateMeta(ctx context.Context, projects []string) ([]jir
 			Name: t.Name,
 			// Linear issues have no type; one entry keeps every picker
 			// rendering without a special case.
-			IssueTypes: []jira.NamedID{{ID: "issue", Name: "Issue"}},
+			IssueTypes: []jira.CreateMetaIssueType{{ID: "issue", Name: "Issue"}},
 		})
 	}
 	return out, nil

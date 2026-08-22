@@ -301,11 +301,39 @@ func (c *Client) CreateIssue(ctx context.Context, fields map[string]any) (string
 	return out.Key, c.write(ctx, http.MethodPost, apiPath+"/issue", map[string]any{"fields": fields}, &out)
 }
 
+// CreateMetaIssueType is one creatable issue type. Distinct from NamedID:
+// priorities, resolutions, components, and versions share {id,name} but have
+// no hierarchy, and putting subtask/hierarchyLevel on NamedID would leak
+// meaningless fields onto those catalogs. JSON names match Jira's createmeta
+// object (id, name, subtask, hierarchyLevel). omitempty keeps a standard
+// type (false, 0) looking the way it did before these fields existed.
+type CreateMetaIssueType struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Subtask        bool   `json:"subtask,omitempty"`
+	HierarchyLevel int    `json:"hierarchyLevel,omitempty"`
+}
+
+// NamedID is the id/name pair create.Type matching uses. Hierarchy is
+// dropped on purpose: matching keys on id or name, never on rank.
+func (t CreateMetaIssueType) NamedID() NamedID {
+	return NamedID{ID: t.ID, Name: t.Name}
+}
+
 // CreateMetaProject is one project a person may file into, with its issue types.
 type CreateMetaProject struct {
-	Key        string    `json:"key"`
-	Name       string    `json:"name"`
-	IssueTypes []NamedID `json:"issuetypes"`
+	Key        string                `json:"key"`
+	Name       string                `json:"name"`
+	IssueTypes []CreateMetaIssueType `json:"issuetypes"`
+}
+
+// NamedTypes is the id/name catalog create.Type / FormatTypes consume.
+func (p CreateMetaProject) NamedTypes() []NamedID {
+	out := make([]NamedID, len(p.IssueTypes))
+	for i, t := range p.IssueTypes {
+		out[i] = t.NamedID()
+	}
+	return out
 }
 
 // CreateMeta lists what can be created. Restricted to the configured projects:

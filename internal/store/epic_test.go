@@ -207,11 +207,20 @@ func TestEpicKeyDerivationOnUpsert(t *testing.T) {
 	if sb.EpicKey == nil || *sb.EpicKey != "EP-30" {
 		t.Errorf("SB-30 EpicKey=%v want EP-30", sb.EpicKey)
 	}
+	if sb.HierarchyLevel != -1 {
+		t.Errorf("SB-30 HierarchyLevel=%d want -1", sb.HierarchyLevel)
+	}
 	if byKey["EP-30"].EpicKey != nil {
 		t.Errorf("epic's EpicKey should be nil, got %v", byKey["EP-30"].EpicKey)
 	}
 	if byKey["EP-30"].ParentKey != nil {
 		t.Errorf("epic's ParentKey should be nil, got %v", byKey["EP-30"].ParentKey)
+	}
+	if byKey["EP-30"].HierarchyLevel != 1 {
+		t.Errorf("EP-30 HierarchyLevel=%d want 1", byKey["EP-30"].HierarchyLevel)
+	}
+	if byKey["ST-30"].HierarchyLevel != 0 {
+		t.Errorf("ST-30 HierarchyLevel=%d want 0", byKey["ST-30"].HierarchyLevel)
 	}
 }
 

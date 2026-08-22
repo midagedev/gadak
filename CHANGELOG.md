@@ -190,6 +190,18 @@ the fixes are all here.
   ([GDK-520]), `schema_version` has one owner — `PRAGMA user_version`
   ([GDK-526]) — and custom-field mapping state is visible instead of silent
   ([GDK-522]).
+- **Hierarchy survives the trip out of the mirror** ([GDK-329]). The
+  mirror has stored `hierarchy_level` since v11, but nothing carried it:
+  `IssueLite` now projects it as stored (epic 1, standard 0, sub-task −1,
+  never omitted — like `priority_rank`), so the web can tell a sub-task
+  apart without a localized type name. On the way in, createmeta issue
+  types kept only id and name; a dedicated parse type now carries Jira's
+  `subtask` and `hierarchyLevel` end to end — client, REST, web types —
+  and issuetap already sent both, so standalone gets it for free. The
+  contract doc catches up: `IssueLite` gains `hierarchy_level` and the
+  `parent_key` it had omitted all along. No UI behavior changes here —
+  the creation dialog learning "this type needs a parent" is its own
+  issue.
 
 - **A bot worker is identifiable in data, not by name** ([GDK-590]). The
   origin's account catalog lands in the mirror as `users` (v36): every
@@ -1954,6 +1966,7 @@ measured numbers instead of adjectives.
 [GDK-319]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-319
 [GDK-322]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-322
 [GDK-323]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-323
+[GDK-329]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-329
 [GDK-331]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-331
 [GDK-332]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-332
 [GDK-333]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-333

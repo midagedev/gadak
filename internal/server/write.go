@@ -1150,9 +1150,18 @@ func (s *server) handleCreateFields(w http.ResponseWriter, r *http.Request) {
 func createMeta(projects []jira.CreateMetaProject) []map[string]any {
 	out := make([]map[string]any, 0, len(projects))
 	for _, p := range projects {
-		types := make([]map[string]string, 0, len(p.IssueTypes))
+		types := make([]map[string]any, 0, len(p.IssueTypes))
 		for _, t := range p.IssueTypes {
-			types = append(types, map[string]string{"id": t.ID, "name": t.Name})
+			row := map[string]any{"id": t.ID, "name": t.Name}
+			// Same omitempty as jira.CreateMetaIssueType: false/0 stay
+			// off the wire so older clients see the previous shape.
+			if t.Subtask {
+				row["subtask"] = true
+			}
+			if t.HierarchyLevel != 0 {
+				row["hierarchyLevel"] = t.HierarchyLevel
+			}
+			types = append(types, row)
 		}
 		out = append(out, map[string]any{"key": p.Key, "name": p.Name, "issue_types": types})
 	}

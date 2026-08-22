@@ -274,3 +274,74 @@ func TestIssueLinkTypesAndLinkIssues(t *testing.T) {
 		t.Errorf("outward=%v inward=%v", outw, inw)
 	}
 }
+
+// TestCreateMetaParsesSubtaskAndHierarchyLevel is GDK-329: createmeta
+// issuetypes carry Jira's subtask and hierarchyLevel. NamedID does not —
+// CreateMetaIssueType is the dedicated parse type.
+func TestCreateMetaParsesSubtaskAndHierarchyLevel(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/api/3/issue/createmeta" {
+			t.Errorf("path %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"projects":[{"key":"GDK","name":"gadak","issuetypes":[
+			{"id":"10001","name":"에픽","subtask":false,"hierarchyLevel":1},
+			{"id":"10003","name":"작업","subtask":false,"hierarchyLevel":0},
+			{"id":"10004","name":"하위 작업","subtask":true,"hierarchyLevel":-1}
+		]}]}`))
+	}))
+	got, err := c.CreateMeta(context.Background(), []string{"GDK"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Key != "GDK" || len(got[0].IssueTypes) != 3 {
+		t.Fatalf("%+v", got)
+	}
+	byID := map[string]CreateMetaIssueType{}
+	for _, it := range got[0].IssueTypes {
+		byID[it.ID] = it
+	}
+	epic := byID["10001"]
+	if epic.Name != "에픽" || epic.Subtask || epic.HierarchyLevel != 1 {
+		t.Errorf("epic %+v", epic)
+	}
+	std := byID["10003"]
+	if std.Subtask || std.HierarchyLevel != 0 {
+		t.Errorf("standard %+v", std)
+	}
+	sub := byID["10004"]
+	if !sub.Subtask || sub.HierarchyLevel != -1 {
+		t.Errorf("sub-task %+v", sub)
+	}
+
+	raw, err := json.Marshal(got[0].IssueTypes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("CreateMeta issuetypes JSON: %s", raw)
+	var wired []map[string]any
+	if err := json.Unmarshal(raw, &wired); err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range wired {
+		switch it["id"] {
+		case "10001":
+			if _, ok := it["subtask"]; ok {
+				t.Errorf("epic subtask leaked: %v", it)
+			}
+			if it["hierarchyLevel"] != float64(1) {
+				t.Errorf("epic wire %v", it)
+			}
+		case "10003":
+			if _, ok := it["subtask"]; ok {
+				t.Errorf("standard subtask leaked: %v", it)
+			}
+			if _, ok := it["hierarchyLevel"]; ok {
+				t.Errorf("standard hierarchyLevel leaked: %v", it)
+			}
+		case "10004":
+			if it["subtask"] != true || it["hierarchyLevel"] != float64(-1) {
+				t.Errorf("sub-task wire %v", it)
+			}
+		}
+	}
+}

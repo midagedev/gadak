@@ -82,6 +82,8 @@ export interface IssueLite {
   epic_key: string | null
   /** Direct parent issue, which is the epic only when the parent happens to be one. */
   parent_key: string | null
+  /** Source tree rank from issues.hierarchy_level (epic 1, standard 0, sub-task -1). Older cached rows may omit it. */
+  hierarchy_level?: number
   source_project: string | null
   /** Origin that owns the row (`jira` / `linear`). Older caches omit it. */
   source?: string
@@ -720,6 +722,10 @@ export interface EditMetaResponse {
 export interface CreateMetaIssueType {
   id: string
   name: string
+  /** True when this type requires a parent. Omitted when false. */
+  subtask?: boolean
+  /** Source tree rank: epic 1, standard 0, sub-task -1. Omitted when 0. */
+  hierarchyLevel?: number
 }
 
 /** One creatable project (GET create-meta/). */

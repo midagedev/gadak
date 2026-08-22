@@ -1113,6 +1113,7 @@ func TestIssueLiteFieldNames(t *testing.T) {
 		"issue_key", "key", "summary", "project_key", "issue_type", "status", "status_id",
 		"status_category", "priority", "priority_rank", "assignee", "assignee_id", "assignee_email",
 		"reporter", "reporter_id", "reporter_email", "labels", "components", "fix_versions", "epic_key",
+		"parent_key", "hierarchy_level",
 		"created_at", "updated_at", "status_changed_at", "resolved_at", "reopen_count",
 		"comment_count", "team_group",
 	} {
@@ -1140,6 +1141,58 @@ func TestIssueLiteFieldNames(t *testing.T) {
 	// An issue with no aliases still carries the stored fields.
 	if _, ok := rows["NMA-9"]["issue_key"]; !ok {
 		t.Errorf("row without aliases lost its fields: %v", rows["NMA-9"])
+	}
+}
+
+// TestIssueLiteHierarchyLevelOnBootstrap is GDK-329: the REST IssueLite
+// carries issues.hierarchy_level as stored, including a sub-task −1.
+func TestIssueLiteHierarchyLevelOnBootstrap(t *testing.T) {
+	db, cfg := fixture(t)
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1099", SourceID: "jira", ExternalID: "1099", Key: "NMB-99",
+				Title: "child of NMB-1", CreatedAt: "2026-07-01T00:00:00.000Z",
+				UpdatedAt: "2026-08-02T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "NMB", IssueType: "Sub-task", IssueTypeID: "10005",
+				Status: "할 일", StatusID: "1", StatusCategory: "new",
+				ParentKey: "NMB-1", HierarchyLevel: -1,
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body := decode[struct {
+		Issues []map[string]json.RawMessage `json:"issues"`
+	}](t, get(t, New(db, cfg), apiBase+"bootstrap/", nil))
+	var found bool
+	for _, row := range body.Issues {
+		var key string
+		_ = json.Unmarshal(row["issue_key"], &key)
+		if key != "NMB-99" {
+			continue
+		}
+		found = true
+		t.Logf("NMB-99 IssueLite JSON fields hierarchy_level=%s parent_key=%s", row["hierarchy_level"], row["parent_key"])
+		var level int
+		if err := json.Unmarshal(row["hierarchy_level"], &level); err != nil {
+			t.Fatalf("hierarchy_level %s: %v", row["hierarchy_level"], err)
+		}
+		if level != -1 {
+			t.Errorf("NMB-99 hierarchy_level=%d want -1", level)
+		}
+		var parent *string
+		if err := json.Unmarshal(row["parent_key"], &parent); err != nil {
+			t.Fatalf("parent_key %s: %v", row["parent_key"], err)
+		}
+		if parent == nil || *parent != "NMB-1" {
+			t.Errorf("NMB-99 parent_key=%v want NMB-1", parent)
+		}
+	}
+	if !found {
+		t.Fatal("NMB-99 missing from bootstrap")
 	}
 }
 

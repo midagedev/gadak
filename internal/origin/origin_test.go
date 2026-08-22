@@ -2,6 +2,7 @@ package origin
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -196,6 +197,63 @@ func TestStandaloneClientCreateAndPersist(t *testing.T) {
 	// Confirm the persist path is under the workspace directory, nowhere else.
 	if !strings.HasPrefix(persist, home+string(filepath.Separator)) {
 		t.Fatalf("persist %q not under %q", persist, home)
+	}
+}
+
+// TestStandaloneCreateMetaCarriesSubtaskAndHierarchyLevel is GDK-329:
+// issuetap already sends both fields; CreateMeta must keep them.
+func TestStandaloneCreateMetaCarriesSubtaskAndHierarchyLevel(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = Close()
+		config.SetProfile("")
+	})
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Kind = config.KindStandalone
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := Client(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projects, err := c.CreateMeta(context.Background(), []string{DefaultProjectKey})
+	if err != nil {
+		t.Fatalf("CreateMeta: %v", err)
+	}
+	if len(projects) == 0 {
+		t.Fatal("standalone createmeta returned no projects")
+	}
+	if raw, err := json.Marshal(projects[0].IssueTypes); err == nil {
+		t.Logf("standalone CreateMeta issuetypes JSON: %s", raw)
+	}
+	var sawSubtask, sawEpic, sawStandard bool
+	for _, p := range projects {
+		for _, it := range p.IssueTypes {
+			switch {
+			case it.Subtask && it.HierarchyLevel == -1:
+				sawSubtask = true
+			case it.HierarchyLevel == 1:
+				sawEpic = true
+			case !it.Subtask && it.HierarchyLevel == 0:
+				sawStandard = true
+			}
+		}
+	}
+	if !sawSubtask || !sawEpic || !sawStandard {
+		t.Fatalf("standalone createmeta types missing hierarchy: subtask=%t epic=%t standard=%t projects=%+v",
+			sawSubtask, sawEpic, sawStandard, projects)
 	}
 }
 

@@ -186,6 +186,17 @@
   ([GDK-521]), 이슈가 왜 닫혔는지 말하는 컬럼이 안정된 id를 얻으며
   ([GDK-520]), `schema_version`의 소유자는 `PRAGMA user_version` 하나이고
   ([GDK-526]), 커스텀 필드 매핑 상태는 침묵 대신 보입니다 ([GDK-522]).
+- **계층이 미러 밖으로 나오는 길에 살아남습니다** ([GDK-329]). 미러는
+  v11부터 `hierarchy_level`을 저장해 왔지만 아무도 나르지 않았습니다: 이제
+  `IssueLite`가 저장된 값 그대로(에픽 1, 표준 0, 하위 작업 −1 —
+  `priority_rank`처럼 0도 생략하지 않고) 프로젝션해, 웹이 로컬라이즈된
+  타입명 없이 하위 작업을 구분할 수 있습니다. 들어오는 길에서는 createmeta
+  이슈 타입이 id와 name만 남겼는데, 전용 파싱 타입이 Jira의 `subtask`·
+  `hierarchyLevel`을 클라이언트→REST→웹 타입까지 끝까지 나릅니다 —
+  issuetap은 이미 둘 다 보내고 있어 standalone은 공짜로 얻습니다. 계약
+  문서도 따라잡습니다: `IssueLite`에 `hierarchy_level`과 줄곧 누락돼 있던
+  `parent_key`가 실립니다. UI 동작 변경은 없습니다 — 생성 다이얼로그가
+  "이 타입은 부모 필수"를 배우는 것은 별도 이슈입니다.
 
 - **봇 작업자가 이름이 아니라 데이터로 식별됩니다** ([GDK-590]). origin의
   계정 카탈로그가 `users` 테이블(v36)로 미러에 들어옵니다: 동기화가 이미
@@ -1923,6 +1934,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-319]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-319
 [GDK-322]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-322
 [GDK-323]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-323
+[GDK-329]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-329
 [GDK-331]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-331
 [GDK-332]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-332
 [GDK-333]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-333

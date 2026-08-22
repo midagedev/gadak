@@ -541,6 +541,82 @@ func TestIssueLiteSecurityLevelOnWire(t *testing.T) {
 	}
 }
 
+// TestIssueLiteHierarchyLevelOnWire: issues.hierarchy_level projects through
+// IssueLites JSON as stored (sub-task −1, standard 0). GDK-329.
+func TestIssueLiteHierarchyLevelOnWire(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{
+		Categories: map[string]string{"1": "new"},
+		Records: []IssueRecord{
+			{
+				Item: Item{
+					ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+					Key: "NMB-1", Title: "parent", CreatedAt: ago(1), UpdatedAt: ago(1),
+				},
+				Issue: Issue{
+					ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+					Status: "To Do", StatusID: "1", StatusCategory: "new",
+					HierarchyLevel: 0,
+				},
+			},
+			{
+				Item: Item{
+					ID: "jira:2", SourceID: "jira", Kind: "issue", ExternalID: "2",
+					Key: "NMB-2", Title: "child", CreatedAt: ago(1), UpdatedAt: ago(2),
+				},
+				Issue: Issue{
+					ProjectKey: "NMB", IssueType: "Sub-task", IssueTypeID: "2",
+					Status: "To Do", StatusID: "1", StatusCategory: "new",
+					ParentKey: "NMB-1", HierarchyLevel: -1,
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.IssueLites(context.Background())
+	if err != nil || len(rows) != 2 {
+		t.Fatalf("IssueLites: %v %+v", err, rows)
+	}
+	byKey := map[string]IssueLite{}
+	for _, r := range rows {
+		byKey[r.IssueKey] = r
+	}
+	if byKey["NMB-1"].HierarchyLevel != 0 {
+		t.Errorf("NMB-1 HierarchyLevel=%d want 0", byKey["NMB-1"].HierarchyLevel)
+	}
+	if byKey["NMB-2"].HierarchyLevel != -1 {
+		t.Errorf("NMB-2 HierarchyLevel=%d want -1", byKey["NMB-2"].HierarchyLevel)
+	}
+	raw, err := json.Marshal(byKey["NMB-2"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["hierarchy_level"] != float64(-1) {
+		t.Fatalf("hierarchy_level = %v want -1 in %s", m["hierarchy_level"], raw)
+	}
+	raw0, err := json.Marshal(byKey["NMB-1"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw0, &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m["hierarchy_level"]; !ok {
+		t.Fatalf("hierarchy_level omitted at 0: %s", raw0)
+	}
+	if m["hierarchy_level"] != float64(0) {
+		t.Fatalf("hierarchy_level = %v want 0 in %s", m["hierarchy_level"], raw0)
+	}
+}
+
 func TestPageLitesOrder(t *testing.T) {
 	db := openTemp(t)
 	seedPagesWithIssues(t, db)

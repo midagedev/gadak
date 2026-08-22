@@ -109,7 +109,7 @@ func matchType(want string, types []jira.NamedID) (string, error) {
 func MetaFor(meta []jira.CreateMetaProject, project string, cfg *config.Config) (jira.CreateMetaProject, []jira.NamedID, error) {
 	for _, p := range meta {
 		if strings.EqualFold(p.Key, project) {
-			return p, p.IssueTypes, nil
+			return p, p.NamedTypes(), nil
 		}
 	}
 	suffix := availableProjectsSuffix(meta)

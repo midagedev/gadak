@@ -239,7 +239,8 @@ are reused without another invalidation.
 ```
 issue_key, summary, project_key, issue_type, issue_type_id, status, status_id,
 status_category, priority, priority_rank, assignee, assignee_id, assignee_email,
-reporter, reporter_id, reporter_email, epic_key, labels[], components[], fix_versions[],
+reporter, reporter_id, reporter_email, epic_key, parent_key, hierarchy_level,
+labels[], components[], fix_versions[],
 duedate, resolution, created_at, updated_at, status_changed_at, resolved_at,
 reopen_count, reopened_at, comment_count
 ```
@@ -316,6 +317,11 @@ Implementation notes that are part of the contract:
 - A retry on a state-changing request would risk a duplicate, so only `429` and
   `503` — where Jira states it did not act — are retried, and a dropped connection
   never is.
+- `create-meta/` (and `meta/write/` `create_meta`) lists creatable projects and
+  issue types. Each type has `id` and `name`. `subtask` is present when the
+  type requires a parent; `hierarchyLevel` is the source tree rank (epic 1,
+  standard 0, sub-task −1). Both omit when false/0 so older clients see the
+  previous shape.
 - `meta/write/` fills `create_meta` but leaves `transitions` empty: precomputing it
   costs a Jira call per project and status, and the client already fetches an
   issue's transitions when the menu opens. Without a credential it answers `200`

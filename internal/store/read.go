@@ -41,12 +41,15 @@ type IssueLite struct {
 	// none. Distinct from ParentKey, which is the direct parent only.
 	EpicKey *string `json:"epic_key"`
 	// ParentKey is the direct parent issue key (source field), not the epic.
-	ParentKey   *string  `json:"parent_key"`
-	Labels      []string `json:"labels"`
-	Components  []string `json:"components"`
-	FixVersions []string `json:"fix_versions"`
-	Duedate     *string  `json:"duedate"`
-	Resolution  *string  `json:"resolution"`
+	ParentKey *string `json:"parent_key"`
+	// HierarchyLevel is issues.hierarchy_level as stored (epic 1, standard
+	// 0, sub-task −1). Projected, not recomputed.
+	HierarchyLevel int      `json:"hierarchy_level"`
+	Labels         []string `json:"labels"`
+	Components     []string `json:"components"`
+	FixVersions    []string `json:"fix_versions"`
+	Duedate        *string  `json:"duedate"`
+	Resolution     *string  `json:"resolution"`
 	// ResolutionID is the stable Jira resolution id (issues.resolution_id).
 	// Empty on rows a sync has not rewritten since the column was added —
 	// the same contract as priority_id. Unresolved issues also store ''.
@@ -129,7 +132,7 @@ const issueLiteSelect = `
 	       COALESCE(i.status, ''), COALESCE(i.status_id, ''), COALESCE(i.status_category, ''),
 	       i.priority, COALESCE(i.priority_id, ''), i.priority_rank,
 	       i.assignee, i.assignee_id, i.assignee_email, i.reporter, i.reporter_id, i.reporter_email,
-	       i.epic_key, i.parent_key,
+	       i.epic_key, i.parent_key, COALESCE(i.hierarchy_level, 0),
 	       COALESCE(i.labels, '[]'), COALESCE(i.components, '[]'), COALESCE(i.fix_versions, '[]'),
 	       i.duedate, i.resolution, COALESCE(i.resolution_id, ''), i.created_at, i.updated_at,
 	       i.status_changed_at, i.resolved_at, i.reopen_count, i.reopened_at,
@@ -250,7 +253,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 		if err := rows.Scan(&v.IssueKey, &v.Summary, &v.ProjectKey, &v.IssueType, &v.IssueTypeID,
 			&v.Status, &v.StatusID, &v.StatusCategory, &v.Priority, &v.PriorityID, &v.PriorityRank,
 			&v.Assignee, &v.AssigneeID, &v.AssigneeEmail, &v.Reporter, &v.ReporterID, &v.ReporterEmail,
-			&v.EpicKey, &v.ParentKey,
+			&v.EpicKey, &v.ParentKey, &v.HierarchyLevel,
 			&labels, &components, &fixVersions,
 			&v.Duedate, &v.Resolution, &v.ResolutionID, &v.CreatedAt, &v.UpdatedAt,
 			&v.StatusChangedAt, &v.ResolvedAt, &v.ReopenCount, &v.ReopenedAt,

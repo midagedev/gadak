@@ -1442,6 +1442,87 @@ func TestTransitionsAndUsersAndCreateMeta(t *testing.T) {
 	}
 }
 
+// TestCreateMetaForwardsSubtaskAndHierarchyLevel is GDK-329: the origin
+// sends both fields on issuetypes; the REST create-meta/ answer must not
+// drop them. False/0 are omitted (same omitempty as NamedID.value).
+func TestCreateMetaForwardsSubtaskAndHierarchyLevel(t *testing.T) {
+	f, h, _ := writable(t)
+	f.createMetaJSON = `{"projects":[{"key":"NMB","name":"Numbers","issuetypes":[
+		{"id":"10001","name":"에픽","subtask":false,"hierarchyLevel":1},
+		{"id":"10004","name":"버그","subtask":false,"hierarchyLevel":0},
+		{"id":"10005","name":"하위 작업","subtask":true,"hierarchyLevel":-1}
+	]}]}`
+
+	rec := get(t, h, apiBase+"create-meta/", nil)
+	t.Logf("create-meta JSON: %s", rec.Body.Bytes())
+	meta := decode[struct {
+		Projects []struct {
+			Key        string           `json:"key"`
+			IssueTypes []map[string]any `json:"issue_types"`
+		} `json:"projects"`
+	}](t, rec)
+	if len(meta.Projects) != 1 || meta.Projects[0].Key != "NMB" || len(meta.Projects[0].IssueTypes) != 3 {
+		t.Fatalf("create-meta %+v", meta.Projects)
+	}
+	byID := map[string]map[string]any{}
+	for _, it := range meta.Projects[0].IssueTypes {
+		id, _ := it["id"].(string)
+		byID[id] = it
+	}
+
+	epic := byID["10001"]
+	if epic["name"] != "에픽" {
+		t.Errorf("epic name %v", epic["name"])
+	}
+	if _, ok := epic["subtask"]; ok {
+		t.Errorf("epic subtask=false must omit: %v", epic)
+	}
+	if epic["hierarchyLevel"] != float64(1) {
+		t.Errorf("epic hierarchyLevel=%v want 1", epic["hierarchyLevel"])
+	}
+
+	bug := byID["10004"]
+	if _, ok := bug["subtask"]; ok {
+		t.Errorf("standard subtask=false must omit: %v", bug)
+	}
+	if _, ok := bug["hierarchyLevel"]; ok {
+		t.Errorf("standard hierarchyLevel=0 must omit: %v", bug)
+	}
+
+	sub := byID["10005"]
+	if sub["subtask"] != true {
+		t.Errorf("sub-task subtask=%v want true", sub["subtask"])
+	}
+	if sub["hierarchyLevel"] != float64(-1) {
+		t.Errorf("sub-task hierarchyLevel=%v want -1", sub["hierarchyLevel"])
+	}
+
+	wm := decode[map[string]json.RawMessage](t, get(t, h, apiBase+"meta/write/", nil))
+	var createMeta struct {
+		Projects []struct {
+			IssueTypes []map[string]any `json:"issue_types"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(wm["create_meta"], &createMeta); err != nil {
+		t.Fatalf("meta/write create_meta: %v %s", err, wm["create_meta"])
+	}
+	if len(createMeta.Projects) != 1 || len(createMeta.Projects[0].IssueTypes) != 3 {
+		t.Fatalf("meta/write create_meta types: %+v", createMeta)
+	}
+	foundSub := false
+	for _, it := range createMeta.Projects[0].IssueTypes {
+		if it["id"] == "10005" {
+			foundSub = true
+			if it["subtask"] != true || it["hierarchyLevel"] != float64(-1) {
+				t.Errorf("meta/write sub-task %v", it)
+			}
+		}
+	}
+	if !foundSub {
+		t.Fatalf("meta/write dropped types: %s", wm["create_meta"])
+	}
+}
+
 func TestWritesRequireACredential(t *testing.T) {
 	db, _ := fixture(t)
 	h := New(db, &config.Config{Projects: []string{"NMB"}})
