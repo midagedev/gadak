@@ -101,7 +101,8 @@ carry `key` as an alias of `issue_key`.
 Personal history lives in a second file next to the mirror (`local.db`),
 ATTACHed as `local` when gadak opens the mirror — you do not type ATTACH.
 `local.visits` is one row per view (`kind` is `issue` or `page`; `key` is the
-issue key or page id; `viewed_at`). `local.searches` is one row per executed
+issue key or page id; `viewed_at`) — written by the UI and, since GDK-502, by
+the CLI read verbs themselves (`gadak issue`, `gadak search`). `local.searches` is one row per executed
 search (`query`, `searched_at`, `result_count`, and `opened_kind`/`opened_key`
 when something was opened from it). `gadak views save` writes `local.saved_views`
 (not the mirror). There is no stored counter: `count(*)`
@@ -179,7 +180,8 @@ FROM issues_full
 WHERE status_category = 'new' AND assignee_id IS NULL AND priority_rank = 0
 ORDER BY created_at LIMIT 30;
 
--- 9. Recently viewed issues (then present: gadak views open --keys -)
+-- 9. Recently viewed issues (shortcut: `gadak recents`; the SQL form adds
+--    the visit count and feeds gadak views open --keys -)
 SELECT key, MAX(viewed_at) AS last_seen, COUNT(*) AS n
 FROM local.visits
 WHERE kind = 'issue'
