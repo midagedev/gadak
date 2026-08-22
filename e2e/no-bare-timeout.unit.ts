@@ -1,9 +1,14 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test } from '@playwright/test'
+import { expect, test } from 'vitest'
 
 /*
+ * GDK-620: moved out of the browser runner — this lint only reads files, so
+ * it lives with the vitest e2e-guard project (served-identity.unit.ts
+ * precedent: *.unit.ts, excluded from Playwright by its *.{spec,test}.ts
+ * matcher). GDK-290 unchanged below.
+ *
  * GDK-290: a waitForTimeout whose PASS means "N ms elapsed" is the flake class.
  * A duration wait is allowed only when the line (or the line immediately above)
  * names why the duration itself is the thing under test (CSS transition, poll
@@ -46,7 +51,7 @@ export function bareTimeouts(root = E2E): string[] {
   return hits
 }
 
-test('every waitForTimeout in e2e/*.spec.ts names why the duration is the contract', () => {
+test('every waitForTimeout under e2e/ names why the duration is the contract', () => {
   const hits = bareTimeouts()
   expect(
     hits,

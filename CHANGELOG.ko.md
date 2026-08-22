@@ -210,6 +210,14 @@
   body). 다이얼로그 제목은 패널 제목과 같은 최상단으로 올라가고, 워드마크는
   두 크기 대신 소유자 하나를 얻고, 테마 게이트가 이제 `text-[Npx]`
   유틸리티에 실패하므로 다섯 번째 크기는 돌아올 수 없습니다.
+- **테스트가 사다리를 내려오고, 둘은 정직해졌습니다** ([GDK-620]). 파일만
+  읽는 정적 린트가 더는 브라우저 러너에 상주하지 않습니다 — 이제 vitest
+  유닛입니다. i18n 키 패리티 테스트는 타입 시스템이 이미 강제하는 것을
+  재증명하고 있어, 타입이 못 보는 축(한 로케일만 빈 값, 플레이스홀더의
+  집합이 아니라 개수)으로 교체됐습니다. 다이얼로그 레지스트리 테스트는
+  목록을 자기 자신과 비교하고 있었습니다 — 행 없는 일곱 번째 다이얼로그가
+  초록으로 남는 구조. 이제 소스 트리를 걸어 셸을 import하는 컴포넌트
+  전수에 행 하나씩을 요구합니다.
 - **팔레트가 광고한 `?`가 이제 작동합니다** ([GDK-618]). 푸터는 줄곧
   `?`가 단축키 시트를 연다고 말해 왔지만, 모달이 화면을 잡는 동안 전역
   키맵은 모든 키를 무시하고 팔레트 자신은 그 키를 받은 적이 없었습니다 —
@@ -1727,6 +1735,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-616]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-616
 [GDK-618]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-618
 [GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619
+[GDK-620]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-620
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

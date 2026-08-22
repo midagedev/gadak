@@ -102,17 +102,33 @@ describe('catalog contracts', () => {
     }
   })
 
-  test('en, ko, and ja catalogs have the same key set', () => {
-    expect(Object.keys(ko).sort()).toEqual(Object.keys(en).sort())
-    expect(Object.keys(ja).sort()).toEqual(Object.keys(en).sort())
+  test('no catalog value is empty or whitespace-only', () => {
+    // GDK-620: the same-key test this replaces re-proved at runtime what
+    // `satisfies Record<keyof typeof en, string>` in ko.ts/ja.ts already
+    // enforces at typecheck. The type clause cannot see '' — a blank value
+    // ships missing UI copy in exactly one locale. That axis stays here.
+    const failures: string[] = []
+    for (const [locale, table] of [
+      ['en', en],
+      ['ko', ko],
+      ['ja', ja],
+    ] as const) {
+      for (const [key, value] of Object.entries(table)) {
+        if (value.trim() === '') failures.push(`${locale}.${key}=${JSON.stringify(value)}`)
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
   })
 
   test('ko and ja preserve every en placeholder token', () => {
     // Types force the key set; they cannot see `{n}` vs `{count}` inside a
-    // string. Compare the set of `{…}` tokens so a translation cannot drop,
-    // rename, or invent a placeholder the runtime substitutes.
+    // string. Compare the multiset of `{…}` tokens (counts, not just
+    // presence) so a translation cannot drop, rename, invent, or repeat a
+    // placeholder the runtime substitutes — '{n}건 ({n})' against en's
+    // '{n} issues' substitutes the same value twice and is a copy/paste
+    // defect, not a translation.
     const tokenRe = /\{[^{}]+\}/g
-    const tokens = (s: string): string[] => [...new Set(s.match(tokenRe) ?? [])].sort()
+    const tokens = (s: string): string[] => [...(s.match(tokenRe) ?? [])].sort()
     const failures: string[] = []
     for (const key of Object.keys(en) as (keyof typeof en)[]) {
       const want = tokens(en[key])

@@ -216,6 +216,14 @@ the fixes are all here.
   headings at the top step, the wordmark gets one owner instead of two
   sizes, and the theme gate now fails on any `text-[Npx]` utility so the
   fifth size cannot come back.
+- **Tests moved down the ladder, and two got honest** ([GDK-620]). A
+  static lint that only reads files no longer rides the browser runner —
+  it is a vitest unit now. The i18n key-parity test re-proved what the
+  type system already enforces and is replaced by the axis types cannot
+  see (a blank value in one locale; placeholder counts, not just sets).
+  The dialog-registry test compared a list against itself — a seventh
+  dialog without a row stayed green; it now walks the source tree for
+  every component that imports the shell and demands a row for each.
 - **The palette's advertised `?` works now** ([GDK-618]). The footer has
   always said `?` opens the shortcuts sheet, but the global keymap ignores
   keys while a modal owns the screen and the palette never claimed the key
@@ -1752,6 +1760,7 @@ measured numbers instead of adjectives.
 [GDK-616]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-616
 [GDK-618]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-618
 [GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619
+[GDK-620]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-620
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
