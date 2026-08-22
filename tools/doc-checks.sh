@@ -1023,4 +1023,62 @@ if ! grep -q 'local.db' skills/gadak/SKILL.md; then
 fi
 ok "SKILL.md does not put saved views in the mirror; names local.db"
 
+# ── 23. Public-surface GDK keys resolve on the public backlog (GDK-269) ─
+# Class: a GDK-nnn cited on a tracked public surface that is neither in the
+# published backlog snapshot nor in the private-key allowlist is a dangling
+# reference for an external reader. Tests, e2e, the snapshot itself, and the
+# allowlist are not public surfaces for this purpose.
+#
+# The snapshot is one-line JSON (a line-oriented grep of bootstrap.json has
+# already gone vacuous twice — tools/backlog-scrub-check.sh). Keys are
+# extracted as structural tokens `"key":"GDK-N"`, not by scanning the line.
+# An absent snapshot or a snapshot with 0 keys is a fail: that is the
+# published set vanishing, not a clean tree.
+#
+# FAIL-first 2026-08-22 against this worktree's unmodified sources + snapshot:
+# 21 distinct keys cited on tracked public surfaces, absent from
+# examples/backlog-snapshot/bootstrap.json:
+#   GDK-461 GDK-462 GDK-463 GDK-464 GDK-465 GDK-466 GDK-467 GDK-468
+#   GDK-469 GDK-470 GDK-474 GDK-476 GDK-477 GDK-478 GDK-479 GDK-481
+#   GDK-482 GDK-507 GDK-579 GDK-580 GDK-600
+BACKLOG_SNAP="examples/backlog-snapshot/bootstrap.json"
+BACKLOG_PRIVATE="tools/backlog-private-keys.txt"
+
+if [[ ! -f "$BACKLOG_SNAP" ]]; then
+  fail "public backlog snapshot is missing ($BACKLOG_SNAP) — cannot resolve GDK keys"
+fi
+if [[ ! -f "$BACKLOG_PRIVATE" ]]; then
+  fail "$BACKLOG_PRIVATE is missing — it is the private-key allowlist for this check (GDK-269)"
+fi
+
+published=$(grep -oE '"key":"GDK-[0-9]+"' "$BACKLOG_SNAP" | grep -oE 'GDK-[0-9]+' | sort -u) || true
+if [[ -z "$published" ]]; then
+  fail "public backlog snapshot has 0 issue keys ($BACKLOG_SNAP) — refusing to treat an empty snapshot as clean"
+fi
+
+private=""
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+  read -r key rest <<< "$line"
+  [[ "$key" =~ ^GDK-[0-9]+$ ]] || fail "$BACKLOG_PRIVATE: not a GDK key: ${key@Q}"
+  [[ -n "$rest" ]] || fail "$BACKLOG_PRIVATE: $key has no reason (format: GDK-nnn<space-or-tab>reason)"
+  private+="$key"$'\n'
+done < "$BACKLOG_PRIVATE"
+
+cited=$(
+  git ls-files \
+    | grep -vE '_test\.go$|\.spec\.ts$|^e2e/|^examples/backlog-snapshot/|^tools/backlog-private-keys\.txt$' \
+    | xargs grep -oEhI -E '\bGDK-[0-9]+\b' -- \
+    | sort -u
+) || true
+
+resolved=$(printf '%s\n%s' "$published" "$private" | sed '/^$/d' | sort -u)
+dangling=$(comm -23 <(printf '%s\n' "$cited" | sed '/^$/d') <(printf '%s\n' "$resolved") | sort -t- -k2,2n)
+if [[ -n "$dangling" ]]; then
+  list=$(printf '%s\n' "$dangling" | tr '\n' ' ')
+  list="${list%" "}"
+  fail "public surfaces cite GDK keys that are not on the public backlog: $list"$'\n'"  to publish a key: edit KEY --label +public, then tools/backlog-snapshot.sh"$'\n'"  to keep it private: add it to $BACKLOG_PRIVATE with a one-line reason"$'\n'"  the lead does both"
+fi
+ok "every GDK key on a public surface resolves on the public backlog or the private-key allowlist"
+
 echo "doc-checks: all passed"

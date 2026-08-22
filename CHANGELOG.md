@@ -500,6 +500,13 @@ the fixes are all here.
 - **gadak's own backlog is published at `/gadak/backlog/`** ([GDK-389]),
   with one owner for "is this a tenant hostname" ([GDK-431]) and a real
   snapshot for returning visitors — the fake delta is gone ([GDK-440]).
+- **A GDK key on a public surface is never a dangling pointer** ([GDK-269]).
+  Commits, comments and docs cite `GDK-nnn` freely, but a reader could not
+  resolve one the snapshot did not carry. A doc-check now fails when a key
+  cited on any tracked public surface is neither on the published backlog
+  nor in a private-key allowlist with a written reason — measured red on 21
+  keys before the fix, all 21 published. Rewriting the comments that
+  delegate their *reason* to a key is its own, bigger issue.
 - **The public backlog publishes what each issue actually says** ([GDK-430]).
   The scrub treated every content surface as one axis and forced descriptions to
   null with the comments and the attachments, so the published page was a list
@@ -1817,6 +1824,7 @@ measured numbers instead of adjectives.
 [GDK-23]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-23
 [GDK-24]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-24
 [GDK-26]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-26
+[GDK-269]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-269
 [GDK-35]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-35
 [GDK-46]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-46
 [GDK-48]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-48

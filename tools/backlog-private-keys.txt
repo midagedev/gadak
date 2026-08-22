@@ -1,0 +1,10 @@
+# Keys allowed to appear on a public surface without being in the published
+# backlog snapshot (GDK-269).
+#
+# A key listed here is intentionally private: it stays in comments / code /
+# docs, but it must not be a dangling pointer an external reader tries to
+# open on the public backlog. Adding a key is a lead decision — include a
+# one-line reason.
+#
+# Format: GDK-nnn<tab or space>reason
+# # comments and blank lines ignored.

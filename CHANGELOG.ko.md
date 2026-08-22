@@ -468,6 +468,12 @@
 - **gadak 자신의 백로그가 `/gadak/backlog/`에 게시됩니다** ([GDK-389]).
   "이것이 테넌트 호스트네임인가"의 소유자는 하나이고 ([GDK-431]), 재방문
   방문자는 진짜 스냅샷을 받습니다 — 가짜 델타는 사라졌습니다 ([GDK-440]).
+- **공개 표면의 GDK 키는 더 이상 dangling 포인터가 아닙니다** ([GDK-269]).
+  커밋·주석·문서가 `GDK-nnn`을 자유롭게 인용하는데, 스냅샷에 없는 키는
+  독자가 해소할 수 없었습니다. 추적된 공개 표면에 인용된 키가 게시된
+  백로그에도, 사유가 적힌 비공개 allowlist에도 없으면 doc-check가
+  실패합니다 — 수정 전 21개 키에서 실측 빨강, 21개 전부 공개했습니다.
+  *이유*를 키에 위임하는 주석의 재작성은 별도의 더 큰 이슈입니다.
 - **공개 백로그가 각 이슈가 실제로 말하는 것을 게시합니다** ([GDK-430]).
   스크럽이 모든 콘텐츠 표면을 한 축으로 취급해 설명을 코멘트·첨부와 함께
   null로 만들었고, 그래서 게시된 페이지는 헤드라인 목록이었습니다:
@@ -1784,6 +1790,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-23]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-23
 [GDK-24]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-24
 [GDK-26]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-26
+[GDK-269]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-269
 [GDK-35]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-35
 [GDK-46]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-46
 [GDK-48]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-48
