@@ -78,10 +78,11 @@ sqlite3 ~/.gadak/gadak.db "select watermark, last_error from sync_state"
 
 Confirm `last_error IS NULL` and that the watermark is recent before acting on an
 answer: a mirror that silently stopped syncing looks exactly like a quiet
-backlog. `issue`, `search`, `comment`, `transition`, `assign`, and `fields` also
-print a one-line warning to stderr when the last sync failed or is over an hour
-old, so a stale answer says so without being asked. (`sql` and `status` do not;
-use `gadak status --json` when you need an explicit freshness check.)
+backlog. `sql`, `issue`, `search`, `fields`, and the write verbs (`comment`,
+`transition`, `assign`, …) also print a one-line warning to stderr when the
+last sync failed or is over an hour old, so a stale answer says so without
+being asked. (`status` reports instead of warning; use `gadak status --json`
+when you need an explicit freshness check.)
 
 ## Rules
 

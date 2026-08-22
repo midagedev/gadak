@@ -471,6 +471,15 @@ plug in; and the documents an agent actually reads never learned the word
 
 ### Documents that stop contradicting the product
 
+- **The network gets its own page** ([GDK-601]): `docs/NETWORK.md` — every
+  outbound connection with its trigger and off switch, the four surfaces
+  that keep a mirror fresh without an agent managing sync, and the
+  deliberate direction: pairing over a tailnet, and a team sharing one
+  standalone workspace. Linked from the README; `SECURITY.md` stays the
+  enforcement record. Every claim was adversarially fact-checked against
+  the code before it shipped, and the stale-warning verb list in
+  `AGENT_ACCESS.md` was corrected on the way (`sql` warns too, since
+  [GDK-598]).
 - The install front door admits standalone ([GDK-271]): `INSTALL.md` no longer
   opens with "Atlassian Cloud only", and both it and the README carry the
   four-line no-account quickstart.
@@ -1603,6 +1612,7 @@ measured numbers instead of adjectives.
 [GDK-78]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-78
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
 [GDK-83]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-83
+[GDK-601]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-601
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

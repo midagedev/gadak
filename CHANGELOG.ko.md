@@ -447,6 +447,13 @@
 
 ### 제품과 모순되기를 멈춘 문서
 
+- **네트워크가 자기 페이지를 얻었습니다** ([GDK-601]): `docs/NETWORK.md` —
+  나가는 연결 전부를 트리거·끄는 법과 함께, 에이전트가 싱크를 관리하지
+  않아도 미러를 신선하게 유지하는 네 표면, 그리고 의도적인 방향: 테일넷
+  위의 페어링과 standalone 워크스페이스 하나를 팀이 같이 쓰는 구성.
+  README에서 링크되고 `SECURITY.md`는 집행 기록으로 남습니다. 모든 주장은
+  출고 전에 코드와 적대적으로 대조했고, 그 길에 `AGENT_ACCESS.md`의 낡은
+  stale 경고 동사 목록도 바로잡았습니다(`sql`도 경고합니다 — [GDK-598]).
 - 설치 앞문이 standalone을 인정합니다([GDK-271]): `INSTALL.md`가 더 이상
   "Atlassian Cloud only"로 시작하지 않고, README와 함께 계정 없는 4줄
   퀵스타트를 싣습니다.
@@ -1595,6 +1602,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-78]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-78
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
 [GDK-83]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-83
+[GDK-601]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-601
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

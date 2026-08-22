@@ -264,7 +264,10 @@ the mirror does not model — read-only unless `--write`, never on MCP.
 
 **An agent that reads your mirror sends what it reads to whatever model it
 talks to.** gadak itself sends nothing ([`SECURITY.md`](SECURITY.md)). Scope
-the mirror to what the agent should see.
+the mirror to what the agent should see. When gadak *does* touch the network
+— sync, writes, the pairing model that lets a tailnet or a whole team share
+one workspace — [`docs/NETWORK.md`](docs/NETWORK.md) walks every connection
+and its off switch.
 
 ## Install
 

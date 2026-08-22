@@ -122,6 +122,10 @@ Outbound traffic is exactly five destinations:
 There is no gadak account, no gadak server, no telemetry, and no multi-user
 model — no roles, no audit log.
 
+This section is the enforcement record; the operating manual for the same
+traffic — how the mirror stays fresh, and how pairing over a tailnet shares
+one workspace deliberately — is [`docs/NETWORK.md`](docs/NETWORK.md).
+
 Don't take our word for it — the claim is one grep:
 
 ```bash
