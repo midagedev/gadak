@@ -84,6 +84,15 @@
     else selection.select(c.key)
   }
 
+  // Same negotiation as DetailPanel: decline an Esc another listener already
+  // spent (keymap clear-bulk preventDefault-s first), and spend this one
+  // so a later surface does not close with us.
+  function onEscapeKey(e: KeyboardEvent): void {
+    if (e.defaultPrevented) return
+    e.preventDefault()
+    person.clear()
+  }
+
 </script>
 
 {#if email}
@@ -91,7 +100,7 @@
   <div
     class="flex h-full flex-col text-text-primary"
     data-testid="person-panel"
-    use:onEscape={() => person.clear()}
+    use:onEscape={onEscapeKey}
   >
     <!-- Header — outside the scroll (see DetailPanel). -->
     <div class="relative z-10 flex-none bg-bg-panel">

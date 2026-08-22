@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
   import type { DetailAttachment } from '../../lib/types'
+  import { trapFocus } from '../../lib/focus-trap'
   import Icon from '../ui/Icon.svelte'
 
   let {
@@ -12,22 +14,33 @@
   } = $props()
 
   function onKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') onClose()
+    if (event.key !== 'Escape') return
+    if (event.defaultPrevented) return
+    event.preventDefault()
+    onClose()
   }
+
+  // Capture: this overlay mounts after App's keymap and DetailPanel's
+  // onEscape, both bubble-phase window listeners. Same reason
+  // CommentComposer spends an unfocused-draft Esc in capture.
+  onMount(() => {
+    window.addEventListener('keydown', onKeydown, true)
+    return () => window.removeEventListener('keydown', onKeydown, true)
+  })
 
   function onBackdrop(event: MouseEvent) {
     if (event.target === event.currentTarget) onClose()
   }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
 <div
   class="fixed inset-0 z-[70] flex flex-col bg-black/90"
   role="dialog"
   aria-modal="true"
   aria-label={attachment.filename}
+  data-testid="media-viewer"
   tabindex="-1"
+  use:trapFocus
   onclick={onBackdrop}
   onkeydown={onKeydown}
 >

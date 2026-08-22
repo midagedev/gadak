@@ -315,6 +315,9 @@
     set shortcutsOpen(v) {
       shortcutsOpen = v
     },
+    get mediaViewerOpen() {
+      return mediaViewer.attachment !== null
+    },
     get serverSettingsOpen() {
       return serverSettingsOpen
     },

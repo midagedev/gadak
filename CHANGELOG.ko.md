@@ -203,6 +203,12 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **Esc 한 번은 표면 하나만 닫습니다** ([GDK-604]). 첨부를 확대한 상태의
+  Escape가 뷰어와 그 뒤의 상세 패널을 같이 닫았고(벌크 선택도 함께
+  풀렸습니다), 사람·문서 패널에도 같은 이중 소비가 있었습니다. 이제
+  keymap이 열린 미디어 뷰어에 양보하고, 뷰어는 키를 소비하며 다른
+  다이얼로그처럼 포커스를 가두고, 패널은 다른 표면이 이미 쓴 Esc를
+  거절합니다 — 협상 e2e 스펙으로 고정.
 - **스크린이 필요한 트랜지션은 그 자리에서 물어봅니다** ([GDK-83]). GET
   transitions가 각 트랜지션의 필수 스크린 필드(required만, 옵션 포함)를
   실어 주므로, "Resolve"를 고르면 사후 실패 대신 드롭다운 안에 작은 폼이
@@ -1607,6 +1613,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-83]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-83
 [GDK-601]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-601
 [GDK-602]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-602
+[GDK-604]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-604
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

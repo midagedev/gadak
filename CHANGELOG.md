@@ -208,6 +208,13 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **One Esc closes one surface** ([GDK-604]). Escape over an enlarged
+  attachment closed the viewer *and* the detail panel behind it (and
+  dropped a bulk selection on the way); the person and document panels had
+  the same double-spend. The keymap now yields to an open media viewer,
+  the viewer consumes the key and traps focus like every other dialog, and
+  the panels decline an Esc another surface already spent — pinned by an
+  e2e negotiation spec.
 - **A transition that needs a screen asks for it inline** ([GDK-83]). GET
   transitions now carries each transition's required screen fields —
   required only, options included — so picking "Resolve" opens a small
@@ -1618,6 +1625,7 @@ measured numbers instead of adjectives.
 [GDK-83]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-83
 [GDK-601]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-601
 [GDK-602]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-602
+[GDK-604]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-604
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

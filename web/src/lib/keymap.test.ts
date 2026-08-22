@@ -168,7 +168,7 @@ describe('resolveGlobalKey', () => {
     })
   })
 
-  test('open settings / new issue / palette / comment swallow keys other than ⌘K', () => {
+  test('open settings / new issue / palette / comment / media viewer swallow keys other than ⌘K', () => {
     expect(resolveGlobalKey(keyContext({ key: '?', settingsOpen: true }))).toEqual({
       type: 'ignore',
     })
@@ -182,6 +182,9 @@ describe('resolveGlobalKey', () => {
       type: 'ignore',
     })
     expect(resolveGlobalKey(keyContext({ key: '?', serverSettingsOpen: true }))).toEqual({
+      type: 'ignore',
+    })
+    expect(resolveGlobalKey(keyContext({ key: '?', mediaViewerOpen: true }))).toEqual({
       type: 'ignore',
     })
   })
@@ -214,6 +217,9 @@ describe('resolveGlobalKey', () => {
       type: 'ignore',
     })
     expect(resolveGlobalKey(keyContext({ key: ',', shortcutsOpen: true }))).toEqual({
+      type: 'ignore',
+    })
+    expect(resolveGlobalKey(keyContext({ key: ',', mediaViewerOpen: true }))).toEqual({
       type: 'ignore',
     })
   })
@@ -315,6 +321,16 @@ describe('resolveGlobalKey', () => {
       type: 'clear-selection',
     })
     expect(resolveGlobalKey(keyContext({ key: 'Escape' }))).toEqual({ type: 'ignore' })
+    expect(
+      resolveGlobalKey(
+        keyContext({
+          key: 'Escape',
+          mediaViewerOpen: true,
+          detailOpen: true,
+          bulkActive: true,
+        }),
+      ),
+    ).toEqual({ type: 'ignore' })
   })
 
   test('x: page, then person, then cursor, then detail', () => {

@@ -47,6 +47,7 @@ export interface KeyContext {
   paletteOpen: boolean
   commentOpen: boolean
   shortcutsOpen: boolean
+  mediaViewerOpen: boolean
   feedBlocksNarrow: boolean
   historyView: boolean
   docsOpen: boolean
@@ -103,6 +104,7 @@ export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
     paletteOpen: false,
     commentOpen: false,
     shortcutsOpen: false,
+    mediaViewerOpen: false,
     feedBlocksNarrow: false,
     historyView: false,
     docsOpen: false,
@@ -220,7 +222,8 @@ export function resolveGlobalKey(ctx: KeyContext): KeyCommand {
     ctx.newIssueOpen ||
     ctx.serverSettingsOpen ||
     ctx.paletteOpen ||
-    ctx.commentOpen
+    ctx.commentOpen ||
+    ctx.mediaViewerOpen
   ) {
     return { type: 'ignore' }
   }
@@ -313,6 +316,7 @@ export interface GlobalKeyHost {
   set paletteOpen(v: boolean)
   get shortcutsOpen(): boolean
   set shortcutsOpen(v: boolean)
+  get mediaViewerOpen(): boolean
   get serverSettingsOpen(): boolean
   set serverSettingsOpen(v: boolean)
   write: { settingsOpen: boolean; newIssueOpen: boolean; openNewIssue: () => void }
@@ -351,6 +355,7 @@ function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
     paletteOpen: host.paletteOpen,
     commentOpen: Boolean(host.triage.commentKey),
     shortcutsOpen: host.shortcutsOpen,
+    mediaViewerOpen: host.mediaViewerOpen,
     feedBlocksNarrow: host.me.feedOpen && host.feature('feed'),
     historyView: host.pages.historyView,
     docsOpen: host.pages.open,

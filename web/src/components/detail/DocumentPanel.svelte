@@ -124,6 +124,14 @@
     for (const k of detailForKey?.backlink_issue_keys ?? []) keys.add(k)
     return keys.size
   })
+
+  // Same negotiation as DetailPanel: decline an already-spent Esc, then
+  // spend this one so a later surface does not close with us.
+  function onEscapeKey(e: KeyboardEvent): void {
+    if (e.defaultPrevented) return
+    e.preventDefault()
+    pages.clear()
+  }
 </script>
 
 {#if key}
@@ -131,7 +139,7 @@
   <div
     class="flex h-full flex-col text-text-primary"
     data-testid="doc-panel"
-    use:onEscape={() => pages.clear()}
+    use:onEscape={onEscapeKey}
   >
     <!-- Header — outside the scroll (see DetailPanel). -->
     <div class="relative z-10 flex-none bg-bg-panel">
