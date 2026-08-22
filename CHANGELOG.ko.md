@@ -210,6 +210,11 @@
   body). 다이얼로그 제목은 패널 제목과 같은 최상단으로 올라가고, 워드마크는
   두 크기 대신 소유자 하나를 얻고, 테마 게이트가 이제 `text-[Npx]`
   유틸리티에 실패하므로 다섯 번째 크기는 돌아올 수 없습니다.
+- **팔레트가 광고한 `?`가 이제 작동합니다** ([GDK-618]). 푸터는 줄곧
+  `?`가 단축키 시트를 연다고 말해 왔지만, 모달이 화면을 잡는 동안 전역
+  키맵은 모든 키를 무시하고 팔레트 자신은 그 키를 받은 적이 없었습니다 —
+  쿼리에 타이핑될 뿐이었죠. 이제 빈 쿼리에서 팔레트가 화면을 시트에
+  넘겨주고, 쿼리 중간의 `?`는 검색 문자로 남습니다.
 - **"여기 있음"은 속성이지 페인트 색이 아닙니다** ([GDK-613]). e2e 스펙
   여섯이 활성 사이드바 행과 설정 탭을 배경 유틸리티 클래스로 단언하고
   있어, 팔레트 토큰 이름만 바꿔도 아무것도 안 깨진 채 빨강이 났을
@@ -1712,6 +1717,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-613]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-613
 [GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
 [GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
+[GDK-618]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-618
 [GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86

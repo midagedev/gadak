@@ -27,6 +27,7 @@
     createUnifiedSearch,
     emptyUnifiedView,
     projectUnifiedHits,
+    requestOpenShortcuts,
     type UnifiedView,
   } from '../../lib/unified-search'
   import { builtinViews } from '../../lib/builtin-views'
@@ -880,6 +881,24 @@
       e.preventDefault()
       const item = idx >= 0 ? items[idx] : undefined
       if (item) run(item)
+    } else if (
+      e.key === '?' &&
+      !draft &&
+      !e.isComposing &&
+      !ime.composing &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey
+    ) {
+      // GDK-618: the footer advertises `?` as the way to the shortcuts sheet,
+      // but the global keymap ignores every key while a modal owns the screen
+      // (keymap.svelte.ts) — so this input is the only place the advertised
+      // key can live. It owns `?` only while the query is empty: mid-query
+      // `?` is a search character, and a composing session keeps the Enter
+      // guard's rule (never touched mid-IME, GDK-169).
+      e.preventDefault()
+      closePalette()
+      requestOpenShortcuts()
     }
   }
 </script>

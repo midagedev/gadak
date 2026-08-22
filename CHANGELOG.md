@@ -216,6 +216,11 @@ the fixes are all here.
   headings at the top step, the wordmark gets one owner instead of two
   sizes, and the theme gate now fails on any `text-[Npx]` utility so the
   fifth size cannot come back.
+- **The palette's advertised `?` works now** ([GDK-618]). The footer has
+  always said `?` opens the shortcuts sheet, but the global keymap ignores
+  keys while a modal owns the screen and the palette never claimed the key
+  — it just typed into the query. On an empty query the palette now hands
+  the screen to the sheet; mid-query `?` stays a search character.
 - **"You are here" is an attribute, not a paint color** ([GDK-613]). Six
   e2e specs asserted the active sidebar row and settings tab by their
   background utility class, so renaming a palette token would have turned
@@ -1735,6 +1740,7 @@ measured numbers instead of adjectives.
 [GDK-613]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-613
 [GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
 [GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
+[GDK-618]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-618
 [GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86

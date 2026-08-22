@@ -297,4 +297,40 @@ test.describe('command palette', () => {
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  /*
+   * GDK-618: the palette footer advertises `?` as the way to the shortcuts
+   * sheet, but while the palette owns the screen the global keymap ignores
+   * every key (keymap.svelte.ts), and the palette's own handler never
+   * claimed it — the advertised key just typed into the query. The palette
+   * owns `?` now, but only on an empty query: mid-query `?` is a search
+   * character, and the sheet must not open over the palette.
+   */
+  test('? on an empty query swaps the palette for the advertised shortcuts sheet', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+
+    // Empty query: the advertised key is honored, and handing the screen
+    // over means the palette closes for the sheet.
+    await page.keyboard.press('?')
+    await expect(palette).toBeHidden()
+    await expect(page.getByTestId('shortcuts-dialog')).toBeVisible()
+
+    // Mid-query `?` stays an ordinary character — "a?" must be searchable.
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('shortcuts-dialog')).toBeHidden()
+    await page.keyboard.press('ControlOrMeta+k')
+    await expect(palette).toBeVisible()
+    await page.keyboard.type('a', { delay: 15 })
+    await page.keyboard.press('?')
+    await expect(palette.getByRole('combobox')).toHaveValue('a?')
+    await expect(page.getByTestId('shortcuts-dialog')).toHaveCount(0)
+    await expect(palette).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })
