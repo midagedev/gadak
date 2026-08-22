@@ -524,9 +524,13 @@ var helps = map[string]cmdHelp{
 	},
 	"mcp": {
 		summary: "MCP server on stdio for clients without a shell; install pins the workspace",
-		usage:   "gadak [--workspace <name>] mcp [install <client>]",
+		usage:   "gadak [--workspace <name>] mcp [--no-sync] [install <client>]",
+		options: []helpOption{
+			{name: "no-sync", desc: "do not run the incremental sync loop"},
+		},
 		examples: []string{
 			"gadak mcp",
+			"gadak mcp --no-sync",
 			"gadak --workspace demo mcp",
 			"gadak mcp install claude",
 			"gadak --workspace demo mcp install claude --dry-run",

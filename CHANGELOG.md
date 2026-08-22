@@ -252,6 +252,11 @@ the fixes are all here.
   rewrites the entry whenever its own path changes, so clicking a link in a
   browser or Slack opens the app — the portable pack itself still never
   touches the registry, and `--unregister-gadak-protocol` removes the key.
+- **The MCP process keeps its own mirror fresh** ([GDK-599]). `gadak mcp`
+  is a resident process, so it now runs the same incremental watch loop
+  `gadak serve` does — an agent on an MCP host reads a fresh mirror
+  without ever knowing sync exists. `--no-sync` opts out; all diagnostics
+  stay on stderr, never the JSON-RPC stream.
 - **`gadak sync --if-stale 15m` is the agent's session opener** ([GDK-598]).
   Fresh mirror → instant no-op with no network; a source older than the
   threshold — or whose last sync failed — gets one incremental pass, so a
@@ -1590,6 +1595,7 @@ measured numbers instead of adjectives.
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
+[GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599
 [GDK-81]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-81
 [GDK-88]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-88
 [GDK-89]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-89

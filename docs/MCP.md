@@ -2,8 +2,8 @@
 
 `gadak mcp` speaks the [Model Context Protocol](https://modelcontextprotocol.io/)
 over **stdio JSON-RPC 2.0**. It is a thin wrapper around the same local SQLite
-mirror that `gadak sql`, `gadak issue`, and `gadak search` already expose. It
-does not write to the mirror or to Jira. `gadak_show` writes only a local
+mirror that `gadak sql`, `gadak issue`, and `gadak search` already expose. Tools
+do not write to the mirror or to Jira. `gadak_show` writes only a local
 ui-focus file so the running app can present a view (SQL answers; show presents).
 
 The agent contract is `specs/000-product/contracts/agent.md`. This page is the
@@ -40,6 +40,13 @@ gadak --workspace demo mcp
 - **State**: none beyond the mirror file. Each request is independent.
 
 The process exits when stdin closes.
+
+While the server is running it keeps the mirror fresh on the same incremental
+loop `gadak serve` uses (`syncIntervalSec`; `--no-sync` turns the loop off —
+fixtures and demos). The loop starts only when the workspace has a credential
+(standalone origin included) and is not frozen, and it stops when stdin closes.
+A missing mirror still starts the protocol; the loop is not forced on that path.
+Tools still do not write to Jira or the mirror.
 
 ## Install (pin the workspace)
 

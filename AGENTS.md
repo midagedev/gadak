@@ -63,6 +63,8 @@ stalls on its own, so treat an old watermark as "possibly behind", not "broken".
 only). A CLI-only session can start with `gadak sync --if-stale 15m`: no-op
 when every source is fresh, one incremental pass when a source is older than
 15m or its last sync failed. A running `gadak serve` keeps the mirror fresh.
+An MCP host does not need that opener: `gadak mcp` keeps the mirror fresh
+itself while the server process is running (`--no-sync` opts out).
 
 ### The one mistake that silently returns nothing
 
@@ -432,10 +434,11 @@ gadak --workspace demo mcp
 ```
 
 Five tools: `gadak_query` (read-only SQL), `gadak_search`, `gadak_issue`,
-`gadak_status`, `gadak_show`. MCP does not write to the mirror or to Jira;
+`gadak_status`, `gadak_show`. Tools do not write to the mirror or to Jira;
 `gadak_show` writes a local ui-focus file so the running app presents the set
-(SQL answers; show presents). Setup examples (Claude Desktop config, workspaces,
-troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
+(SQL answers; show presents). The process itself keeps the mirror fresh from
+the origin while it runs (see above; `--no-sync` opts out). Setup examples
+(Claude Desktop config, workspaces, troubleshooting) live in **[docs/MCP.md](docs/MCP.md)**.
 
 ## Developing gadak
 

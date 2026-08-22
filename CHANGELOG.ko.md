@@ -242,6 +242,11 @@
   바뀌면 항목을 다시 씁니다 — 브라우저·슬랙에서 링크를 클릭하면 앱이
   열립니다. 포터블 팩 자체는 여전히 레지스트리를 건드리지 않고,
   `--unregister-gadak-protocol`로 키를 제거할 수 있습니다.
+- **MCP 프로세스가 자기 미러를 스스로 신선하게 유지합니다** ([GDK-599]).
+  `gadak mcp`는 상주 프로세스이므로 이제 `gadak serve`와 같은 증분 감시
+  루프를 돕니다 — MCP 호스트의 에이전트는 sync의 존재를 몰라도 신선한
+  미러를 읽습니다. `--no-sync`로 끄고, 진단은 전부 stderr로만(JSON-RPC
+  스트림 불침).
 - **`gadak sync --if-stale 15m`이 에이전트의 세션 첫 줄이 됩니다**
   ([GDK-598]). 미러가 신선하면 네트워크 없이 즉시 no-op, 임계보다 낡았거나
   지난 싱크가 실패한 소스만 증분 1회를 돕니다 — 죽었던 싱크가 다음 세션에
@@ -1584,6 +1589,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-82]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-82
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
+[GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599
 [GDK-81]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-81
 [GDK-88]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-88
 [GDK-89]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-89
