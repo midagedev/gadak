@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/url"
@@ -1840,13 +1841,20 @@ func commentMark(c store.DetailComment) string {
 
 const transitionUsage = "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--resolution name|id] [--field key=JSON]... [-m text] [--json]"
 
-func cmdTransition(args []string) error {
-	fs := newFlagSet("transition")
+const closeUsage = "usage: gadak close <KEY> [--resolution name|id] [--field key=JSON]... [-m text] [--json]"
+
+func newTransitionFlags(name string) (*flag.FlagSet, *bool, *string, *labelFlags, *string) {
+	fs := newFlagSet(name)
 	asJSON := fs.Bool("json", false, "emit JSON")
 	resolution := fs.String("resolution", "", "resolution name or id; a name is resolved from the transition's allowedValues, else GET /resolution")
 	var fieldFlags labelFlags
 	fs.Var(&fieldFlags, "field", "screen field key from `gadak transition KEY` (not a configured alias); key=JSON (repeatable); a value that is not JSON is sent as a string")
 	text := fs.String("m", "", "comment posted with the transition; `-` reads it from stdin")
+	return fs, asJSON, resolution, &fieldFlags, text
+}
+
+func cmdTransition(args []string) error {
+	fs, asJSON, resolution, fieldFlags, text := newTransitionFlags("transition")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("transition", fs))
 		return nil
@@ -1860,42 +1868,108 @@ func cmdTransition(args []string) error {
 	}
 	key := normalizeKey(pos[0])
 	if len(pos) < 2 {
-		if strings.TrimSpace(*resolution) != "" || len(fieldFlags) > 0 || *text != "" {
+		if strings.TrimSpace(*resolution) != "" || len(*fieldFlags) > 0 || *text != "" {
 			return usageError("transition", transitionUsage)
 		}
 		return listTransitions(key, *asJSON)
 	}
 	// Trailing words join the target so an unquoted `In Review` still works.
 	want := strings.TrimSpace(strings.Join(pos[1:], " "))
-
-	body := *text
-	if body == "-" {
-		buf, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return err
-		}
-		body = string(buf)
-		if strings.TrimSpace(body) == "" {
-			return errors.New("empty comment — pass -m <text>, or -m - to read stdin")
-		}
-	}
-
-	parsed, err := parseTransitionFieldFlags(fieldFlags)
+	body, err := readTransitionComment(*text)
 	if err != nil {
 		return err
 	}
+	parsed, err := parseTransitionFieldFlags(*fieldFlags)
+	if err != nil {
+		return err
+	}
+	return applyTransitionWrite(key, want, *resolution, parsed, body, *asJSON)
+}
+
+func cmdClose(args []string) error {
+	fs, asJSON, resolution, fieldFlags, text := newTransitionFlags("close")
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("close", fs))
+		return nil
+	}
+	pos, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 {
+		return usageError("close", closeUsage)
+	}
+	key := normalizeKey(pos[0])
+	body, err := readTransitionComment(*text)
+	if err != nil {
+		return err
+	}
+	parsed, err := parseTransitionFieldFlags(*fieldFlags)
+	if err != nil {
+		return err
+	}
+	return applyTransitionWrite(key, "done", *resolution, parsed, body, *asJSON)
+}
+
+func readTransitionComment(text string) (string, error) {
+	if text != "-" {
+		return text, nil
+	}
+	buf, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return "", err
+	}
+	body := string(buf)
+	if strings.TrimSpace(body) == "" {
+		return "", errors.New("empty comment — pass -m <text>, or -m - to read stdin")
+	}
+	return body, nil
+}
+
+func applyTransitionWrite(key, want, resolution string, fields map[string]any, comment string, asJSON bool) error {
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-		if err := formatTransitionError(transition.Apply(ctx, c, cfg, transition.Request{
+		res, err := transition.Apply(ctx, c, cfg, transition.Request{
 			Key:        key,
 			Target:     want,
-			Resolution: *resolution,
-			Fields:     parsed,
-			Comment:    body,
-		})); err != nil {
+			Resolution: resolution,
+			Fields:     fields,
+			Comment:    comment,
+		})
+		if err := formatTransitionError(err); err != nil {
 			return err
 		}
-		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, nil)
+		return emitTransitionResult(ctx, cfg, db, src, key, want, comment, asJSON, res)
 	})
+}
+
+func emitTransitionResult(ctx context.Context, cfg *config.Config, db *store.DB, src, key, want, comment string, asJSON bool, res transition.Result) error {
+	extra := map[string]any{"changed": res.Changed}
+	if res.Changed {
+		return emitAfterWrite(ctx, cfg, db, src, key, asJSON, extra)
+	}
+	token, ok := jira.StatusCategoryToken(want)
+	if !ok {
+		token = want
+	}
+	if asJSON {
+		if err := refreshAfterWrite(ctx, cfg, db, src, key); err != nil {
+			return fmt.Errorf("already %s — nothing to do, but the mirror did not refresh (run `gadak sync`): %w", token, err)
+		}
+		lites, err := lookup(db, []string{key})
+		if err != nil {
+			return err
+		}
+		if len(lites) == 0 {
+			return writeNotMirroredError{Key: key}
+		}
+		body := map[string]any{"issue": lites[0], "changed": false}
+		return json.NewEncoder(os.Stdout).Encode(body)
+	}
+	fmt.Fprintf(os.Stdout, "already %s — nothing to do\n", token)
+	if strings.TrimSpace(comment) != "" {
+		fmt.Fprintln(os.Stdout, "comment not posted")
+	}
+	return nil
 }
 
 // formatTransitionError adds CLI flag names to core refusals that do not

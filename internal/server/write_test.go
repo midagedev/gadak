@@ -49,6 +49,9 @@ type fakeJira struct {
 	createFieldsJSON   string // when set, GET /issue/createmeta/{p}/issuetypes/{t} answers this
 	createFieldsStatus int    // when non-zero, that GET fails with it
 	transitionsJSON    string // when set, GET /issue/{key}/transitions answers this
+	// issueStatusJSON overrides GET /issue/{key}?fields=status,assignee —
+	// the category no-op's origin read. Empty keeps NMB-1 in progress.
+	issueStatusJSON string
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
@@ -181,6 +184,13 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 	case path == "/user/search":
 		_, _ = w.Write([]byte(`[{"accountId":"acc-cl","displayName":"이클라","emailAddress":"cl@example.com",
 			"avatarUrls":{"48x48":"https://a/48.png"},"active":true}]`))
+	case strings.HasPrefix(path, "/issue/") && r.Method == http.MethodGet && !strings.Contains(strings.TrimPrefix(path, "/issue/"), "/"):
+		raw := f.issueStatusJSON
+		if raw == "" {
+			raw = `{"fields":{"status":{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}},
+				"assignee":{"accountId":"acc-hc","displayName":"김현철"}}}`
+		}
+		_, _ = w.Write([]byte(raw))
 	default:
 		// transitions POST, assignee PUT, issue PUT: 204, like Jira.
 		w.WriteHeader(http.StatusNoContent)
@@ -266,9 +276,41 @@ func TestTransitionRESTWithoutExtrasOmitsFieldsAndUpdate(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
+	var wrap struct {
+		Changed bool `json:"changed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &wrap); err != nil {
+		t.Fatalf("decode %s: %v", rec.Body.String(), err)
+	}
+	if !wrap.Changed {
+		t.Fatalf("write path must report changed=true: %s", rec.Body.String())
+	}
 	raw := string(f.bodies["POST /issue/NMB-1/transitions"])
 	if raw != `{"transition":{"id":"31"}}` {
 		t.Fatalf("POST body %q, want exactly {\"transition\":{\"id\":\"31\"}}", raw)
+	}
+}
+
+func TestTransitionRESTCategoryAlreadyThereIsNoop(t *testing.T) {
+	f, h, _ := writable(t)
+	f.transitionsJSON = `{"transitions":[]}`
+	f.issueStatusJSON = `{"fields":{"status":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},"assignee":null}}`
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/",
+		`{"transition_id":"done","comment":"retry"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var wrap struct {
+		Changed bool `json:"changed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &wrap); err != nil {
+		t.Fatalf("decode %s: %v", rec.Body.String(), err)
+	}
+	if wrap.Changed {
+		t.Fatalf("already done must report changed=false: %s", rec.Body.String())
+	}
+	if f.called("POST /issue/NMB-1/transitions") {
+		t.Fatalf("must not POST; body %s", f.bodies["POST /issue/NMB-1/transitions"])
 	}
 }
 

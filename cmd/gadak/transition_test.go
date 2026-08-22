@@ -492,6 +492,73 @@ func TestTransitionNoKeyIsUsage(t *testing.T) {
 	}
 }
 
+func alreadyDoneOrigin(t *testing.T) *fakeJira {
+	t.Helper()
+	f := withTransitions(t, `{"transitions":[]}`)
+	f.issueStatusJSON = `{"fields":{"status":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},"assignee":null}}`
+	return f
+}
+
+func TestTransitionAlreadyDoneIsNoop(t *testing.T) {
+	f := alreadyDoneOrigin(t)
+	out, err := capture(t, func() error {
+		return cmdTransition([]string{"NMB-1", "done", "-m", "retry"})
+	})
+	if err != nil {
+		t.Fatalf("already done: %v\n%s", err, out)
+	}
+	mustNotTransition(t, f, "NMB-1")
+	if !strings.Contains(out, "already done — nothing to do") {
+		t.Fatalf("human no-op missing: %q", out)
+	}
+	if !strings.Contains(out, "comment not posted") {
+		t.Fatalf("must say the comment was not posted: %q", out)
+	}
+}
+
+func TestTransitionAlreadyDoneJSON(t *testing.T) {
+	f := alreadyDoneOrigin(t)
+	out, err := capture(t, func() error {
+		return cmdTransition([]string{"NMB-1", "done", "-m", "retry", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("already done --json: %v\n%s", err, out)
+	}
+	mustNotTransition(t, f, "NMB-1")
+	var wrap struct {
+		Changed bool `json:"changed"`
+	}
+	if err := json.Unmarshal([]byte(out), &wrap); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if wrap.Changed {
+		t.Fatalf("want changed=false: %s", out)
+	}
+}
+
+func TestTransitionWriteJSONReportsChanged(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	out, err := capture(t, func() error {
+		return cmdTransition([]string{"NMB-1", "done", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("done --json: %v\n%s", err, out)
+	}
+	if postedTransitionID(t, f, "NMB-1") != "31" {
+		t.Fatal("write path must still POST")
+	}
+	var wrap struct {
+		Changed bool `json:"changed"`
+	}
+	if err := json.Unmarshal([]byte(out), &wrap); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if !wrap.Changed {
+		t.Fatalf("write path must report changed=true: %s", out)
+	}
+}
+
 // requiredResolutionJSON is one done-category transition whose screen requires
 // resolution. allowedValues ids are deliberately different from the default
 // site catalog so a catalog lookup cannot accidentally satisfy the name test.

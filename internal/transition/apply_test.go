@@ -21,6 +21,9 @@ type stubOrigin struct {
 	postErr     error
 	resolutions []jira.NamedID
 	resErr      error
+	status      jira.Status
+	statusErr   error
+	statusN     int
 }
 
 func (s *stubOrigin) Transitions(context.Context, string) ([]jira.Transition, error) {
@@ -37,6 +40,27 @@ func (s *stubOrigin) Transition(_ context.Context, _, id string, fields map[stri
 
 func (s *stubOrigin) Resolutions(context.Context) ([]jira.NamedID, error) {
 	return s.resolutions, s.resErr
+}
+
+func (s *stubOrigin) IssueStatus(context.Context, string) (jira.Status, *jira.User, error) {
+	s.statusN++
+	return s.status, nil, s.statusErr
+}
+
+func doneStatus() jira.Status {
+	var st jira.Status
+	st.ID = "10001"
+	st.Name = "완료"
+	st.StatusCategory.Key = "done"
+	return st
+}
+
+func inProgressStatus() jira.Status {
+	var st jira.Status
+	st.ID = "3"
+	st.Name = "진행 중"
+	st.StatusCategory.Key = "indeterminate"
+	return st
 }
 
 type noCatalog struct {
@@ -86,8 +110,12 @@ func requiredResolution() jira.Transition {
 
 func TestApplyPicksCategoryAndOmitsEmpty(t *testing.T) {
 	s := &stubOrigin{list: []jira.Transition{doneClose()}}
-	if err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done"}); err != nil {
+	res, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done"})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !res.Changed {
+		t.Fatal("write path must report changed")
 	}
 	if !s.posted || s.postID != "31" {
 		t.Fatalf("posted id %q, posted=%v", s.postID, s.posted)
@@ -98,11 +126,14 @@ func TestApplyPicksCategoryAndOmitsEmpty(t *testing.T) {
 	if len(s.postComment) != 0 {
 		t.Fatalf("comment %s, want omitted", s.postComment)
 	}
+	if s.statusN != 0 {
+		t.Fatalf("status lookups %d, want 0 on a hit", s.statusN)
+	}
 }
 
 func TestApplyRequiredResolutionRefusesWithoutValue(t *testing.T) {
 	s := &stubOrigin{list: []jira.Transition{requiredResolution()}}
-	err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done"})
+	_, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done"})
 	if err == nil {
 		t.Fatal("required resolution must refuse")
 	}
@@ -126,7 +157,7 @@ func TestApplyRequiredResolutionRefusesWithoutValue(t *testing.T) {
 
 func TestApplyResolutionNameUsesAllowedValues(t *testing.T) {
 	s := &stubOrigin{list: []jira.Transition{requiredResolution()}}
-	if err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Resolution: "Won't Do"}); err != nil {
+	if _, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Resolution: "Won't Do"}); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := s.postFields["resolution"].(map[string]string)
@@ -137,7 +168,7 @@ func TestApplyResolutionNameUsesAllowedValues(t *testing.T) {
 
 func TestApplyResolutionDigitsAreID(t *testing.T) {
 	s := &stubOrigin{list: []jira.Transition{doneClose()}}
-	if err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Resolution: "10002"}); err != nil {
+	if _, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Resolution: "10002"}); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := s.postFields["resolution"].(map[string]string)
@@ -151,7 +182,7 @@ func TestApplyResolutionNameUsesCatalog(t *testing.T) {
 		list:        []jira.Transition{doneClose()},
 		resolutions: []jira.NamedID{{ID: "10000", Name: "Done"}, {ID: "10002", Name: "Won't Do"}},
 	}
-	if err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Resolution: "Won't Do"}); err != nil {
+	if _, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Resolution: "Won't Do"}); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := s.postFields["resolution"].(map[string]string)
@@ -165,7 +196,7 @@ func TestApplyResolutionUnknownIsRefused(t *testing.T) {
 		list:        []jira.Transition{doneClose()},
 		resolutions: []jira.NamedID{{ID: "10000", Name: "Done"}, {ID: "10002", Name: "Won't Do"}},
 	}
-	err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Resolution: "Mystery"})
+	_, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Resolution: "Mystery"})
 	if err == nil {
 		t.Fatal("unknown resolution must refuse")
 	}
@@ -179,7 +210,7 @@ func TestApplyResolutionUnknownIsRefused(t *testing.T) {
 
 func TestApplyNoCatalogOriginRefusesName(t *testing.T) {
 	n := &noCatalog{list: []jira.Transition{doneClose()}}
-	err := Apply(context.Background(), n, nil, Request{Key: "NMB-1", Target: "done", Resolution: "Won't Do"})
+	_, err := Apply(context.Background(), n, nil, Request{Key: "NMB-1", Target: "done", Resolution: "Won't Do"})
 	if err == nil {
 		t.Fatal("name without catalog must refuse")
 	}
@@ -193,7 +224,7 @@ func TestApplyNoCatalogOriginRefusesName(t *testing.T) {
 
 func TestApplyCommentSendsADF(t *testing.T) {
 	s := &stubOrigin{list: []jira.Transition{doneClose()}}
-	if err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Comment: "closing out"}); err != nil {
+	if _, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Comment: "closing out"}); err != nil {
 		t.Fatal(err)
 	}
 	want := string(jira.Doc("closing out", nil))
@@ -209,7 +240,7 @@ func TestApplyRemapsFieldAlias(t *testing.T) {
 			{Alias: "severity", Label: "Severity", IDs: []string{"customfield_10001"}, Role: "facet", Kind: "option"},
 		},
 	}
-	err := Apply(context.Background(), s, cfg, Request{
+	_, err := Apply(context.Background(), s, cfg, Request{
 		Key:    "NMB-1",
 		Target: "31",
 		Fields: map[string]any{"severity": "High"},
@@ -227,7 +258,7 @@ func TestApplyRemapsFieldAlias(t *testing.T) {
 
 func TestApplyPickMissIsRefused(t *testing.T) {
 	s := &stubOrigin{list: []jira.Transition{doneClose()}}
-	err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "nonsense"})
+	_, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "nonsense"})
 	if err == nil {
 		t.Fatal("miss must refuse")
 	}
@@ -250,7 +281,7 @@ func TestApplyDoesNotMutateCallerFields(t *testing.T) {
 		},
 	}
 	in := map[string]any{"severity": "High"}
-	if err := Apply(context.Background(), s, cfg, Request{Key: "NMB-1", Target: "31", Fields: in}); err != nil {
+	if _, err := Apply(context.Background(), s, cfg, Request{Key: "NMB-1", Target: "31", Fields: in}); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := in["severity"]; !ok {
@@ -258,5 +289,90 @@ func TestApplyDoesNotMutateCallerFields(t *testing.T) {
 	}
 	if _, ok := in["customfield_10001"]; ok {
 		t.Fatal("caller map gained remapped key")
+	}
+}
+
+// GDK-500: a category token whose landing is already the origin's status
+// used to refuse ("no transition matching…") — a false failure for an
+// agent retry. After the fix this is a no-op success (Changed=false) and
+// must not POST, including a -m comment that would otherwise duplicate.
+func TestApplyCategoryTokenAlreadyThereIsNoop(t *testing.T) {
+	s := &stubOrigin{list: nil, status: doneStatus()}
+	res, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done", Comment: "retry"})
+	if err != nil {
+		t.Fatalf("already in target category must succeed, got %v", err)
+	}
+	if res.Changed {
+		t.Fatal("want changed=false")
+	}
+	if s.posted {
+		t.Fatal("must not POST")
+	}
+	if len(s.postComment) != 0 {
+		t.Fatal("must not post comment")
+	}
+	if s.statusN != 1 {
+		t.Fatalf("status lookups %d, want 1 after pick miss", s.statusN)
+	}
+}
+
+func TestApplyInProgressTokenAlreadyThereIsNoop(t *testing.T) {
+	s := &stubOrigin{list: nil, status: inProgressStatus()}
+	res, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "inprogress"})
+	if err != nil {
+		t.Fatalf("already inprogress must succeed, got %v", err)
+	}
+	if res.Changed || s.posted {
+		t.Fatalf("changed=%v posted=%v, want no-op", res.Changed, s.posted)
+	}
+}
+
+func TestApplyNamedMissStaysErrorWhenAlreadyDone(t *testing.T) {
+	s := &stubOrigin{list: nil, status: doneStatus()}
+	_, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "Close"})
+	if err == nil {
+		t.Fatal("named miss must stay an error")
+	}
+	if s.posted {
+		t.Fatal("must not POST")
+	}
+	if s.statusN != 0 {
+		t.Fatalf("status lookups %d, want 0 for a non-token", s.statusN)
+	}
+}
+
+func TestApplyCategoryTokenWrongCategoryStaysError(t *testing.T) {
+	s := &stubOrigin{list: nil, status: doneStatus()}
+	_, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "inprogress"})
+	if err == nil {
+		t.Fatal("wrong category must stay an error")
+	}
+	if s.posted {
+		t.Fatal("must not POST")
+	}
+	if !IsRefused(err) {
+		t.Fatalf("IsRefused=false for %v", err)
+	}
+}
+
+func TestApplyNoCatalogOriginCannotNoop(t *testing.T) {
+	n := &noCatalog{list: nil}
+	_, err := Apply(context.Background(), n, nil, Request{Key: "NMB-1", Target: "done"})
+	if err == nil {
+		t.Fatal("origin without IssueStatus cannot no-op")
+	}
+	if n.posted {
+		t.Fatal("must not POST")
+	}
+}
+
+func TestApplyIssueStatusErrorSurfaces(t *testing.T) {
+	s := &stubOrigin{list: nil, statusErr: errors.New("origin down")}
+	_, err := Apply(context.Background(), s, nil, Request{Key: "NMB-1", Target: "done"})
+	if err == nil || err.Error() != "origin down" {
+		t.Fatalf("want origin status error, got %v", err)
+	}
+	if s.posted {
+		t.Fatal("must not POST")
 	}
 }

@@ -417,6 +417,7 @@ gadak comment NMB-140 -m "done" --internal    # JSM internal
 gadak transition NMB-140                      # list tokens this credential can fire
 gadak transition NMB-140 "In Review"
 gadak transition NMB-140 done                 # status category: new | inprogress | done
+gadak close NMB-140                           # same as transition KEY done; already done is a no-op
 gadak transition NMB-140 done --resolution "Won't Do" -m "fixed in 1.2"
 gadak assign NMB-140 dana@example.com         # email, display name, or accountId; `-` unassigns. Ambiguous names are refused with the candidates.
 gadak claim NMB-140                            # Cloud has no atomic claim: assignee + transition run as two calls (warned on stderr); held issues refuse with exit 75

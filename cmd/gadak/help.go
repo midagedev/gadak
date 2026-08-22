@@ -471,7 +471,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak init"},
 	},
 	"transition": {
-		summary: "change issue status; accepts transition id, target status id, name, target status name, or status category new|inprogress|done",
+		summary: "change issue status; accepts transition id, target status id, name, target status name, or status category new|inprogress|done; already in that category is a no-op",
 		usage: "gadak [--workspace <name>] transition <KEY>\n" +
 			"<transition-id|status-id|name|new|inprogress|done>\n" +
 			"[--resolution name|id] [--field key=JSON]... [-m text] [--json]",
@@ -482,7 +482,20 @@ var helps = map[string]cmdHelp{
 			"gadak transition NMB-140 done --resolution \"Won't Do\"",
 			"gadak transition NMB-140 done -m \"fixed in 1.2\"",
 		},
-		seeAlso: []string{"gadak comment", "gadak assign", "gadak issue"},
+		seeAlso: []string{"gadak close", "gadak comment", "gadak assign", "gadak issue"},
+	},
+	"close": {
+		summary: "close an issue (transition to status category done); already done is a no-op",
+		usage: "gadak [--workspace <name>] close <KEY>\n" +
+			"[--resolution name|id] [--field key=JSON]... [-m text] [--json]",
+		examples: []string{
+			"gadak close NMB-140",
+			"gadak close NMB-140 -m \"fixed in 1.2\"",
+			"gadak close NMB-140 --json",
+			"gadak transition NMB-140 inprogress  # reopen; there is no gadak reopen",
+			"gadak transition NMB-140 new",
+		},
+		seeAlso: []string{"gadak transition", "gadak comment", "gadak issue"},
 	},
 	"assign": {
 		summary: "set the assignee; pass - to unassign",

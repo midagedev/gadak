@@ -55,7 +55,7 @@ func PickTransition(key, want string, list []Transition) (string, error) {
 			return t.ID, nil
 		}
 	}
-	if token, ok := statusCategoryToken(want); ok {
+	if token, ok := StatusCategoryToken(want); ok {
 		var hits []Transition
 		for _, t := range list {
 			if cat, ok := transitionCategory(t); ok && cat == token {
@@ -75,11 +75,12 @@ func PickTransition(key, want string, list []Transition) (string, error) {
 	return "", noTransitionMatch(key, want, list)
 }
 
-// statusCategoryToken accepts only the three values data-model.md documents.
+// StatusCategoryToken accepts only the three values data-model.md documents.
 // Category and jql.mapStatusCategory both fold aliases (todo, indeterminate)
 // onto those values; applying either to the user token would reopen the
-// localization trap this command is closing.
-func statusCategoryToken(s string) (string, bool) {
+// localization trap this command is closing. Apply's category no-op uses
+// this same function so a token PickTransition would refuse cannot no-op.
+func StatusCategoryToken(s string) (string, bool) {
 	switch strings.ToLower(s) {
 	case "new", "inprogress", "done":
 		return strings.ToLower(s), true

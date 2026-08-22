@@ -2191,6 +2191,7 @@ func TestWritesRefuseToRunWithoutACredential(t *testing.T) {
 	for name, run := range map[string]func() error{
 		"comment":    func() error { return cmdComment([]string{"NMB-1", "-m", "hello"}) },
 		"transition": func() error { return cmdTransition([]string{"NMB-1", "완료"}) },
+		"close":      func() error { return cmdClose([]string{"NMB-1"}) },
 		"assign":     func() error { return cmdAssign([]string{"NMB-1", "marco@example.com"}) },
 		"create":     func() error { return cmdCreate([]string{"a summary", "--project", "NMB", "--type", "Task"}) },
 		"attach":     func() error { return cmdAttach([]string{"NMB-1", tmp}) },

@@ -544,7 +544,7 @@ func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 	}
 	key := r.PathValue("key")
 	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
-		err := transition.Apply(ctx, c, s.config(), transition.Request{
+		res, err := transition.Apply(ctx, c, s.config(), transition.Request{
 			Key:        key,
 			Target:     body.TransitionID,
 			Resolution: body.Resolution,
@@ -556,7 +556,10 @@ func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 			// miss, required screen field, unknown resolution name.
 			return nil, &jira.APIError{Status: http.StatusBadRequest, Messages: []string{err.Error()}}
 		}
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"changed": res.Changed}, nil
 	})
 }
 

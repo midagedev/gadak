@@ -37,7 +37,7 @@ func TestSkillMarkdownCoversTheWriteVerbs(t *testing.T) {
 	skill := SkillMarkdown()
 	for _, verb := range []string{
 		"gadak create", "gadak attach", "gadak edit",
-		"gadak comment", "gadak transition", "gadak assign",
+		"gadak comment", "gadak transition", "gadak close", "gadak assign",
 	} {
 		if !bytes.Contains(skill, []byte(verb)) {
 			t.Errorf("skills/gadak/SKILL.md never mentions %q — a session with this "+

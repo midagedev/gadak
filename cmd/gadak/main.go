@@ -188,6 +188,8 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
                    [--visibility role=NAME|group=NAME] [--internal] [--json]
   transition change status    <KEY> [transition-id|status-id|name|new|inprogress|done]
                    [--resolution name|id] [--field key=JSON]... [-m text] [--json]
+  close      close an issue (status category done)  <KEY>
+                   [--resolution name|id] [--field key=JSON]... [-m text] [--json]
   assign     set assignee     <KEY> <email|name|accountId|-> [--json]
   claim      take an issue as yours (assignee + in-progress transition) <KEY> [--take-over] [--json]
                    (a claim another actor holds is refused — exit 75; their name is in the error)
@@ -339,6 +341,7 @@ var commands = map[string]func([]string) error{
 	"assign":          cmdAssign,
 	"attach":          cmdAttach,
 	"claim":           cmdClaim,
+	"close":           cmdClose,
 	"comment":         cmdComment,
 	"config":          cmdConfig,
 	"create":          cmdCreate,

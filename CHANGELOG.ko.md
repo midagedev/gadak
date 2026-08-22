@@ -366,6 +366,16 @@
 
 ### MCP와 CLI 표면
 
+- **종결은 한 왕복이고, 재시도는 공짜입니다** ([GDK-500]). `gadak close
+  KEY -m "근거"`가 done 카테고리 전이와 근거 코멘트를 같은 origin POST
+  하나로 보냅니다 — `transition KEY done` 위의 슈가일 뿐, 자기 로직이
+  없습니다. 진짜 수정은 그 아래 공유 transition 코어에 있습니다: 이미
+  속해 있는 상태 카테고리를 요청하면 에러("no transition matching")가
+  났고, 재시도하는 에이전트에게는 전부 거짓 실패로 읽혔습니다. 이제
+  no-op 성공입니다 — exit 0, `changed: false`, 그리고 아무것도 쓰지
+  않습니다(코멘트조차 — 재시도가 중복 게시할 수 없도록). 코어를 공유하는
+  두 표면인 CLI와 REST가 똑같이 얻습니다. 존재하지 않는 전이 이름은 여전히 에러이고, 재개는
+  `transition KEY inprogress` 그대로입니다 — `gadak reopen`은 없습니다.
 - **CLI 읽기가 흔적을 남기고, `gadak recents`가 그 길을 되짚습니다**
   ([GDK-502]). `gadak issue`와 `gadak search`가 UI가 줄곧 쓰던 것과 같은
   방문·검색 행을 `local.db`에 남깁니다 — best-effort라서 기록이 안 되는
@@ -1982,6 +1992,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-486]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-486
 [GDK-489]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-489
 [GDK-490]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-490
+[GDK-500]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-500
 [GDK-502]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-502
 [GDK-495]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-495
 [GDK-496]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-496

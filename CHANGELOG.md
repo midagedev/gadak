@@ -393,6 +393,18 @@ the fixes are all here.
 
 ### MCP and the CLI surface
 
+- **Closing is one round trip, and retrying it is free** ([GDK-500]).
+  `gadak close KEY -m "why"` transitions to the done category and posts
+  the evidence comment in the same origin POST — it is sugar over
+  `transition KEY done`, with no logic of its own. The real fix is
+  underneath, in the shared transition core: asking for a status category
+  the issue is already in used to be an error ("no transition matching"),
+  which read as a false failure to every retrying agent. It is a no-op
+  success now — exit 0, `changed: false`, and nothing written (not even
+  the comment, so a retry can never double-post) — on the CLI and REST
+  alike, the two surfaces that share the core. A named transition that
+  does not exist still errors, and
+  reopening stays `transition KEY inprogress`; there is no `gadak reopen`.
 - **CLI reads leave a trail, and `gadak recents` walks it back**
   ([GDK-502]). `gadak issue` and `gadak search` now append the same
   visit/search rows the UI has always written to `local.db` — best-effort,
@@ -2010,6 +2022,7 @@ measured numbers instead of adjectives.
 [GDK-486]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-486
 [GDK-489]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-489
 [GDK-490]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-490
+[GDK-500]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-500
 [GDK-502]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-502
 [GDK-495]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-495
 [GDK-496]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-496

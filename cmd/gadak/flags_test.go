@@ -454,6 +454,16 @@ func TestPositionalCommandsRejectUnknownFlag(t *testing.T) {
 			t.Fatalf("transition: %v", err)
 		}
 	})
+	t.Run("close", func(t *testing.T) {
+		f := newFakeJira(t)
+		mirror(t, f.URL)
+		_, err := capture(t, func() error {
+			return cmdClose([]string{"NMB-1", "--pretty"})
+		})
+		if err == nil || !strings.Contains(err.Error(), "unknown flag --pretty") {
+			t.Fatalf("close: %v", err)
+		}
+	})
 	t.Run("assign", func(t *testing.T) {
 		f := newFakeJira(t)
 		mirror(t, f.URL)

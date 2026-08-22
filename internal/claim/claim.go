@@ -133,7 +133,7 @@ func cloudFallback(ctx context.Context, o Origin, cfg *config.Config, req Reques
 		return Result{}, &TakenError{Key: req.Key, Holder: name}
 	}
 	if !inProgress {
-		if err := transition.Apply(ctx, o, cfg, transition.Request{Key: req.Key, Target: categoryInProgress}); err != nil {
+		if _, err := transition.Apply(ctx, o, cfg, transition.Request{Key: req.Key, Target: categoryInProgress}); err != nil {
 			return Result{}, err
 		}
 	}

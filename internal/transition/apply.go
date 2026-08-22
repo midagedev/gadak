@@ -1,6 +1,7 @@
 // Package transition is the single owner of the gadak transition write
-// (CLI and REST). Both surfaces call Apply so identifier resolution, required
-// screen fields, resolution lookup, field-alias remap, and the origin write
+// (CLI, including `gadak close`, and REST). Both surfaces call Apply so
+// identifier resolution, required screen fields, resolution lookup,
+// field-alias remap, category-token idempotency, and the origin write
 // cannot exist on one path and not the other.
 //
 // Refused errors carry catalogue data only. The CLI formats flag names;
@@ -43,6 +44,21 @@ type Request struct {
 	Comment    string
 }
 
+// Result is a successful Apply. Changed is false when Target was a category
+// token and the origin already reports that category: no POST (and no
+// comment). A named or id miss is still an error, not a no-op.
+type Result struct {
+	Changed bool `json:"changed"`
+}
+
+// issueStatusReader is GET /issue/{key}?fields=status,assignee — the origin
+// truth claim already uses. Optional so Linear (no method) keeps the old
+// pick-miss error instead of inventing a new request. Looked up only after
+// PickTransition fails a category token.
+type issueStatusReader interface {
+	IssueStatus(ctx context.Context, key string) (jira.Status, *jira.User, error)
+}
+
 // Refused is a caller-side refusal: the origin was not written. Adapters
 // map this to a 400 / CLI message; origin errors pass through unchanged.
 type Refused struct {
@@ -72,27 +88,37 @@ func IsRefused(err error) bool {
 }
 
 // Apply lists the issue's transitions, picks one, assembles fields, and
-// calls the origin. It does not refresh the mirror — that tail is mutate.
-func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) error {
+// calls the origin. A category-token target (new|inprogress|done) that the
+// origin already reports is a no-op success (Changed=false) after Pick
+// fails — the happy path stays one round-trip. It does not refresh the
+// mirror — that tail is mutate.
+func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) (Result, error) {
 	list, err := o.Transitions(ctx, req.Key)
 	if err != nil {
-		return err
+		return Result{}, err
 	}
 	id, err := jira.PickTransition(req.Key, req.Target, list)
 	if err != nil {
-		return &Refused{Msg: err.Error()}
+		noop, nerr := alreadyInCategory(ctx, o, req.Key, req.Target)
+		if nerr != nil {
+			return Result{}, nerr
+		}
+		if noop {
+			return Result{Changed: false}, nil
+		}
+		return Result{}, &Refused{Msg: err.Error()}
 	}
 	selected := byID(list, id)
 	assembled, err := assembleFields(ctx, o, cfg, selected, req.Resolution, req.Fields)
 	if err != nil {
-		return err
+		return Result{}, err
 	}
 	if missing := missingRequired(selected, assembled); len(missing) > 0 {
 		parts := make([]string, 0, len(missing))
 		for _, k := range missing {
 			parts = append(parts, formatField(k, selected.Fields[k]))
 		}
-		return &RequiredFieldsError{Key: req.Key, TransitionName: selected.Name, FormattedFields: parts}
+		return Result{}, &RequiredFieldsError{Key: req.Key, TransitionName: selected.Name, FormattedFields: parts}
 	}
 	var comment json.RawMessage
 	if strings.TrimSpace(req.Comment) != "" {
@@ -100,11 +126,31 @@ func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) error
 	}
 	if err := o.Transition(ctx, req.Key, id, assembled, comment); err != nil {
 		if hint := describeFields(selected); hint != "" {
-			return fmt.Errorf("%w\n%s", err, hint)
+			return Result{}, fmt.Errorf("%w\n%s", err, hint)
 		}
-		return err
+		return Result{}, err
 	}
-	return nil
+	return Result{Changed: true}, nil
+}
+
+func alreadyInCategory(ctx context.Context, o Origin, key, target string) (bool, error) {
+	token, ok := jira.StatusCategoryToken(target)
+	if !ok {
+		return false, nil
+	}
+	r, ok := o.(issueStatusReader)
+	if !ok {
+		return false, nil
+	}
+	st, _, err := r.IssueStatus(ctx, key)
+	if err != nil {
+		return false, err
+	}
+	cat, ok := jira.KnownCategory(st.StatusCategory.Key)
+	if !ok || cat != token {
+		return false, nil
+	}
+	return true, nil
 }
 
 func byID(list []jira.Transition, id string) jira.Transition {
