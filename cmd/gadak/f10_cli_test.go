@@ -13,6 +13,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/pairing"
+	"github.com/midagedev/gadak/internal/views"
 )
 
 func TestUnknownCommandError(t *testing.T) {
@@ -35,7 +36,7 @@ func TestViewsJSONEmptyIsArray(t *testing.T) {
 		t.Fatalf("empty views encoded as null: %s", out)
 	}
 	var doc struct {
-		Views []listedView `json:"views"`
+		Views []views.ListedView `json:"views"`
 	}
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("json: %v\n%s", err, out)

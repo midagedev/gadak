@@ -16,11 +16,13 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/uifocus"
+	"github.com/midagedev/gadak/internal/views"
 )
 
 // issueKeyPat is the same positional key shape as cmd/gadak/views.go
-// (`^[A-Z][A-Z0-9]*-\d+$`, compared after ToUpper). Copied because extracting
-// it would require editing views.go, which this track cannot touch.
+// (`^[A-Z][A-Z0-9]*-\d+$`, compared after ToUpper). Still a deliberate copy:
+// GDK-612 extracted the view-interpretation quartet into internal/views, not
+// this one-line pattern.
 var issueKeyPat = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d+$`)
 
 // Tool names match contracts/agent.md. Do not add tools without updating that
@@ -546,7 +548,7 @@ func (s *Server) toolShow(args map[string]any) ([]contentItem, error) {
 		if err := s.ensureDB(); err != nil {
 			return nil, err
 		}
-		v, err := findView(s.db, name)
+		v, err := views.FindView(s.db, name)
 		if err != nil {
 			return nil, err
 		}
@@ -621,108 +623,6 @@ func (s *Server) hashFromJQL(text string) (hash string, applied, unsupported []s
 	}
 	jql.ResolveIdentity(&parsed, nil, me)
 	return jql.Hash(parsed.Filters, parsed.Display), parsed.Applied, parsed.Unsupported, nil
-}
-
-// listedView and findView are a copy of cmd/gadak/views.go loadViews/findView/
-// hashFromConfig (including the id-suffix and substring match). Extracting
-// would require editing views.go, which this track cannot touch.
-type listedView struct {
-	Kind        string
-	ID          string
-	Name        string
-	Hash        string
-	Applied     []string
-	Unsupported []string
-}
-
-func loadViews(db *store.DB) ([]listedView, error) {
-	var out []listedView
-	src, err := db.SourceQueries(context.Background(), "jira")
-	if err != nil {
-		return nil, err
-	}
-	for _, q := range src {
-		out = append(out, listedView{
-			Kind: "jira", ID: q.ID, Name: q.Name,
-			Hash: hashFromConfig(q.Config), Applied: q.Applied, Unsupported: q.Unsupported,
-		})
-	}
-	saved, err := db.SavedViews(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	for _, s := range saved {
-		out = append(out, listedView{
-			Kind: "saved", ID: s.ID, Name: s.Name,
-			Hash: hashFromConfig(s.Config),
-		})
-	}
-	return out, nil
-}
-
-func findView(db *store.DB, name string) (listedView, error) {
-	list, err := loadViews(db)
-	if err != nil {
-		return listedView{}, err
-	}
-	want := strings.ToLower(strings.TrimSpace(name))
-	var exact, sub []listedView
-	for _, v := range list {
-		id := strings.ToLower(v.ID)
-		nm := strings.ToLower(v.Name)
-		ext := ""
-		if i := strings.LastIndex(v.ID, ":"); i >= 0 {
-			ext = strings.ToLower(v.ID[i+1:])
-		}
-		if id == want || nm == want || ext == want {
-			exact = append(exact, v)
-			continue
-		}
-		if strings.Contains(nm, want) || strings.Contains(id, want) {
-			sub = append(sub, v)
-		}
-	}
-	hits := exact
-	if len(hits) == 0 {
-		hits = sub
-	}
-	switch len(hits) {
-	case 1:
-		return hits[0], nil
-	case 0:
-		if len(list) == 0 {
-			return listedView{}, fmt.Errorf("no view matching %q — no saved views or synced Jira filters in this workspace", name)
-		}
-		names := make([]string, 0, len(list))
-		for _, v := range list {
-			if v.Name != "" {
-				names = append(names, v.Name)
-			} else {
-				names = append(names, v.ID)
-			}
-		}
-		return listedView{}, fmt.Errorf("no view matching %q — available: %s", name, strings.Join(names, "; "))
-	default:
-		names := make([]string, len(hits))
-		for i, h := range hits {
-			names[i] = h.Name
-		}
-		return listedView{}, fmt.Errorf("%q matches %d views — be more specific: %s", name, len(hits), strings.Join(names, "; "))
-	}
-}
-
-func hashFromConfig(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-	var c struct {
-		Filters jql.Filter  `json:"filters"`
-		Display jql.Display `json:"display"`
-	}
-	if err := json.Unmarshal(raw, &c); err != nil {
-		return ""
-	}
-	return jql.Hash(c.Filters, c.Display)
 }
 
 func countQuery(dbPath, q string, n *int) error {

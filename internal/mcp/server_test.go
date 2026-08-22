@@ -859,7 +859,7 @@ func TestShowNameUsesStoredViewLookup(t *testing.T) {
 		t.Fatalf("show JSON: %v\n%s", err, text)
 	}
 	if body.Hash != wantHash {
-		t.Fatalf("name hash = %q, want %q (same as CLI hashFromConfig)", body.Hash, wantHash)
+		t.Fatalf("name hash = %q, want %q (same as views.HashFromConfig)", body.Hash, wantHash)
 	}
 }
 

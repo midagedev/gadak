@@ -18,24 +18,12 @@ import (
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/uifocus"
+	"github.com/midagedev/gadak/internal/views"
 	"github.com/midagedev/gadak/internal/workspace"
 )
 
 // issueKeyPat is the G3 positional: a Jira key, compared after ToUpper.
 var issueKeyPat = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d+$`)
-
-type listedView struct {
-	Kind        string          `json:"kind"` // jira | saved
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	JQL         string          `json:"jql,omitempty"`
-	Hash        string          `json:"hash"`
-	Favourite   bool            `json:"favourite,omitempty"`
-	Owner       string          `json:"owner,omitempty"`
-	Applied     []string        `json:"applied,omitempty"`
-	Unsupported []string        `json:"unsupported,omitempty"`
-	Config      json.RawMessage `json:"-"`
-}
 
 func cmdViews(args []string) error {
 	if wantsHelp(args) {
@@ -76,7 +64,7 @@ func viewsList(args []string) error {
 		return err
 	}
 	defer db.Close()
-	list, err := loadViews(db)
+	list, err := views.LoadViews(db)
 	if err != nil {
 		return err
 	}
@@ -117,7 +105,7 @@ func viewsShow(args []string) error {
 		return err
 	}
 	defer db.Close()
-	v, err := findView(db, name)
+	v, err := views.FindView(db, name)
 	if err != nil {
 		return err
 	}
@@ -191,7 +179,7 @@ func viewsOpen(args []string) error {
 			return err
 		}
 		defer db.Close()
-		v, err := findView(db, name)
+		v, err := views.FindView(db, name)
 		if err != nil {
 			return err
 		}
@@ -300,13 +288,18 @@ func issueOrExactView(name string) (hash, label string) {
 	return "issue=" + k, k
 }
 
-func findExactView(db *store.DB, name string) (listedView, error) {
-	list, err := loadViews(db)
+// findExactView resolves against exact id/name/id-suffix matches only — no
+// substring fallback, and the 0-hit error carries no hint because callers
+// (issueOrExactView) treat a miss as "fall through to the issue key". The
+// match itself is the shared interpretation; only the miss policy is
+// CLI-local.
+func findExactView(db *store.DB, name string) (views.ListedView, error) {
+	list, err := views.LoadViews(db)
 	if err != nil {
-		return listedView{}, err
+		return views.ListedView{}, err
 	}
 	want := strings.ToLower(strings.TrimSpace(name))
-	var exact []listedView
+	var exact []views.ListedView
 	for _, v := range list {
 		id := strings.ToLower(v.ID)
 		nm := strings.ToLower(v.Name)
@@ -322,13 +315,13 @@ func findExactView(db *store.DB, name string) (listedView, error) {
 	case 1:
 		return exact[0], nil
 	case 0:
-		return listedView{}, fmt.Errorf("no view matching %q", name)
+		return views.ListedView{}, fmt.Errorf("no view matching %q", name)
 	default:
 		names := make([]string, len(exact))
 		for i, h := range exact {
 			names[i] = h.Name
 		}
-		return listedView{}, fmt.Errorf("%q matches %d views — be more specific: %s", name, len(exact), strings.Join(names, "; "))
+		return views.ListedView{}, fmt.Errorf("%q matches %d views — be more specific: %s", name, len(exact), strings.Join(names, "; "))
 	}
 }
 
@@ -400,96 +393,6 @@ func viewsSave(args []string) error {
 		fmt.Printf("unsupported\t%s\n", strings.Join(parsed.Unsupported, "; "))
 	}
 	return nil
-}
-
-func loadViews(db *store.DB) ([]listedView, error) {
-	out := make([]listedView, 0)
-	src, err := db.SourceQueries(context.Background(), "jira")
-	if err != nil {
-		return nil, err
-	}
-	for _, q := range src {
-		out = append(out, listedView{
-			Kind: "jira", ID: q.ID, Name: q.Name, JQL: q.QueryText,
-			Hash: hashFromConfig(q.Config), Favourite: q.Favourite, Owner: q.Owner,
-			Applied: q.Applied, Unsupported: q.Unsupported, Config: q.Config,
-		})
-	}
-	saved, err := db.SavedViews(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	for _, s := range saved {
-		h, jqlText, applied, unsupported := savedViewFields(s.Config)
-		out = append(out, listedView{
-			Kind: "saved", ID: s.ID, Name: s.Name,
-			JQL: jqlText, Hash: h, Applied: applied, Unsupported: unsupported,
-			Config: s.Config,
-		})
-	}
-	return out, nil
-}
-
-func findView(db *store.DB, name string) (listedView, error) {
-	list, err := loadViews(db)
-	if err != nil {
-		return listedView{}, err
-	}
-	want := strings.ToLower(strings.TrimSpace(name))
-	var exact, sub []listedView
-	for _, v := range list {
-		id := strings.ToLower(v.ID)
-		nm := strings.ToLower(v.Name)
-		ext := ""
-		if i := strings.LastIndex(v.ID, ":"); i >= 0 {
-			ext = strings.ToLower(v.ID[i+1:])
-		}
-		if id == want || nm == want || ext == want {
-			exact = append(exact, v)
-			continue
-		}
-		if strings.Contains(nm, want) || strings.Contains(id, want) {
-			sub = append(sub, v)
-		}
-	}
-	hits := exact
-	if len(hits) == 0 {
-		hits = sub
-	}
-	switch len(hits) {
-	case 1:
-		return hits[0], nil
-	case 0:
-		return listedView{}, fmt.Errorf("no view matching %q — run `gadak views` (sync first if you expected Jira filters)", name)
-	default:
-		names := make([]string, len(hits))
-		for i, h := range hits {
-			names[i] = h.Name
-		}
-		return listedView{}, fmt.Errorf("%q matches %d views — be more specific: %s", name, len(hits), strings.Join(names, "; "))
-	}
-}
-
-func hashFromConfig(raw json.RawMessage) string {
-	h, _, _, _ := savedViewFields(raw)
-	return h
-}
-
-func savedViewFields(raw json.RawMessage) (hash, jqlText string, applied, unsupported []string) {
-	if len(raw) == 0 {
-		return "", "", nil, nil
-	}
-	var c struct {
-		Filters     jql.Filter  `json:"filters"`
-		Display     jql.Display `json:"display"`
-		JQL         string      `json:"jql"`
-		Applied     []string    `json:"applied"`
-		Unsupported []string    `json:"unsupported"`
-	}
-	if err := json.Unmarshal(raw, &c); err != nil {
-		return "", "", nil, nil
-	}
-	return jql.Hash(c.Filters, c.Display), c.JQL, c.Applied, c.Unsupported
 }
 
 func hashFromJQL(text string) (string, error) {

@@ -14,6 +14,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/views"
 	"github.com/midagedev/gadak/internal/workspace"
 )
 
@@ -945,7 +946,7 @@ func TestViewsSavePartialPrintsAppliedAndFillsHash(t *testing.T) {
 	if len(saved) != 1 {
 		t.Fatalf("saved views %d", len(saved))
 	}
-	if h := hashFromConfig(saved[0].Config); !strings.Contains(h, "pjn=STD") {
+	if h := views.HashFromConfig(saved[0].Config); !strings.Contains(h, "pjn=STD") {
 		t.Fatalf("stored hash %q, want pjn=STD", h)
 	}
 }
