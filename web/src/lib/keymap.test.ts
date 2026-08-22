@@ -333,6 +333,42 @@ describe('resolveGlobalKey', () => {
     ).toEqual({ type: 'ignore' })
   })
 
+  /*
+   * GDK-651: after browse / menu / bulk / detail, Esc closes the visible
+   * main-column overlay. App.svelte paints feed > history > docs, so that
+   * is the close order — not the reverse.
+   */
+  test('Escape: after existing layers, close feed then history then docs', () => {
+    expect(resolveGlobalKey(keyContext({ key: 'Escape', docsOpen: true })).type).toBe('close-docs')
+    expect(resolveGlobalKey(keyContext({ key: 'Escape', historyView: true })).type).toBe(
+      'close-history',
+    )
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', feedBlocksNarrow: true })).type,
+    ).toBe('close-feed')
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: 'Escape', detailOpen: true, docsOpen: true, historyView: true }),
+      ).type,
+    ).toBe('clear-selection')
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', bulkActive: true, docsOpen: true })).type,
+    ).toBe('clear-bulk')
+    expect(
+      resolveGlobalKey(
+        keyContext({
+          key: 'Escape',
+          feedBlocksNarrow: true,
+          historyView: true,
+          docsOpen: true,
+        }),
+      ).type,
+    ).toBe('close-feed')
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', historyView: true, docsOpen: true })).type,
+    ).toBe('close-history')
+  })
+
   test('x: page, then person, then cursor, then detail', () => {
     expect(resolveGlobalKey(keyContext({ key: 'x', pageSelected: true, detailOpen: true }))).toEqual({
       type: 'clear-page',

@@ -4,6 +4,7 @@
   import type { FeedFocus, FeedItem } from '../../lib/types'
   import { selection } from '../../stores/selection.svelte'
   import { me } from '../../stores/me.svelte'
+  import { write } from '../../stores/write.svelte'
   import { relativeTime, absTime } from '../../lib/format'
   import { feature } from '../../lib/config'
   import EmptyState from '../list/EmptyState.svelte'
@@ -188,7 +189,12 @@
 
   <div class="min-h-0 flex-1 overflow-y-auto">
     {#if !me.identified}
-      <EmptyState icon="" title={t('feed.needCredentials')} />
+      <EmptyState
+        icon=""
+        title={t('feed.needCredentials')}
+        actionLabel={t('common.setCredentials')}
+        onAction={() => write.openSettings()}
+      />
     {:else if me.feedLoading && !me.feedLoaded}
       <div class="space-y-px p-2" aria-label={t('feed.loading')}>
         {#each Array(6) as _}

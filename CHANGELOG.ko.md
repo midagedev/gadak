@@ -240,6 +240,14 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **메인 컬럼 뷰들이 같은 키에 답합니다** ([GDK-651]). Esc가 이제 문서·
+  히스토리·피드를 닫습니다 — 화면이 그리는 순서대로 보이는 층부터 —
+  이슈 목록의 오버레이에서만 동작하던 것에서. 팔레트에 형제 뷰가
+  등재되고(히스토리 열기 옆에 문서 열기·피드 열기) 커서 행에는
+  즐겨찾기/워치 토글이 생깁니다. 피드의 미로그인 빈 상태는 사이드바가
+  이미 갖고 있던 설정 버튼을 얻고, 단축키 시트는 시늉을 멈춥니다: 새
+  섹션이 그 행들을 지나는 길로 Tab을 명문화합니다 (j/k 커서는 없습니다 —
+  실측 ~250줄짜리라 만들지 않고 문서화했습니다).
 - **모든 코멘트 상자 아래 같은 푸터** ([GDK-650]). 페이지 코멘트 폼은
   자체 제출 버튼만 있고 단축키 칩이 없어서, `{mod} ↵` 코드가 거기서도
   동작하는데 아무것도 그렇다고 말해 주지 않았습니다. 이제 두 컴포저가
@@ -1911,6 +1919,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
+[GDK-651]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-651
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656

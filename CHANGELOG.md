@@ -251,6 +251,16 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **The main-column views answer the same keys** ([GDK-651]). Esc now
+  closes documents, history, and the feed — visible layer first, the order
+  the screen paints them — instead of working only on the issue list's
+  overlays. The palette registers the sibling views (`Open documents`,
+  `Open feed` next to `Open history`) and the cursor row gains
+  favorite/watch toggles there. The feed's signed-out empty state grows the
+  settings button the sidebar already had, and the shortcut sheet stops
+  pretending: a new section documents Tab as the way through those rows
+  (they have no j/k cursor — a real one measured at ~250 lines across
+  three views, documented instead).
 - **One footer under every comment box** ([GDK-650]). The page comment
   form had its own submit button and no shortcut chip, so the `{mod} ↵`
   chord worked there but nothing said so. Both composers now render one
@@ -1953,6 +1963,7 @@ measured numbers instead of adjectives.
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
+[GDK-651]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-651
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656

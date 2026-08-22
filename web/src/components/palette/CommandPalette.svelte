@@ -49,6 +49,9 @@
   import { pages } from '../../stores/pages.svelte'
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
+  import { favorites } from '../../stores/favorites.svelte'
+  import { watches } from '../../stores/watches.svelte'
+  import { feature, isHostedDemo } from '../../lib/config'
   import { runSyncNow } from '../../lib/sync-now'
   import { openIssueOrigin, openOriginUrl } from '../../lib/desktop-links'
   import { THEME_MODES, persistThemePreference } from '../../lib/theme'
@@ -540,6 +543,24 @@
         kbd: 'x',
         run: () => bulk.toggle(cursor),
       })
+      out.push({
+        id: 'a:favorite',
+        label: favorites.has(cursor)
+          ? t('palette.actionUnfavorite', { key: cursor })
+          : t('palette.actionFavorite', { key: cursor }),
+        testid: 'palette-action-favorite',
+        run: () => void favorites.toggle(cursor),
+      })
+      if (me.identified && !isHostedDemo()) {
+        out.push({
+          id: 'a:watch',
+          label: watches.has(cursor)
+            ? t('palette.actionUnwatch', { key: cursor })
+            : t('palette.actionWatch', { key: cursor }),
+          testid: 'palette-action-watch',
+          run: () => void watches.toggle(cursor),
+        })
+      }
     }
     if (count) {
       out.push({
@@ -628,6 +649,29 @@
           pages.openHistory()
         },
       },
+      {
+        id: 'a:docs',
+        label: t('palette.actionDocs'),
+        testid: 'palette-action-docs',
+        run: () => {
+          me.closeFeed()
+          if (pages.docsView && pages.spaceView === null) return
+          pages.toggleDocs()
+        },
+      },
+      ...(feature('feed')
+        ? [
+            {
+              id: 'a:feed',
+              label: t('palette.actionFeed'),
+              testid: 'palette-action-feed',
+              run: () => {
+                pages.closeDocs()
+                me.openFeed()
+              },
+            },
+          ]
+        : []),
       { id: 'a:reset', label: t('palette.actionResetFilters'), run: () => filters.clearUserFilters() },
       { id: 'a:reopened', label: t('palette.actionToggleReopened'), run: () => filters.toggleFlag('reopened') },
       { id: 'a:unassigned', label: t('palette.actionToggleUnassigned'), run: () => filters.toggleFlag('unassigned') },

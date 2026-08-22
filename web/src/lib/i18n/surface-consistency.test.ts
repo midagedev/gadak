@@ -143,3 +143,68 @@ describe('GDK-621 close affordances agree with themselves', () => {
     expect(failures, failures.join('\n')).toEqual([])
   })
 })
+
+const PALETTE = join(WEB_SRC, 'components/palette/CommandPalette.svelte')
+const FEED = join(WEB_SRC, 'components/personal/PersonalFeed.svelte')
+const NEED_CREDENTIAL_KEYS = [
+  'personal.needCredentials',
+  'feed.needCredentials',
+  'write.commentNeedCredentials',
+  'doc.commentNeedCredentials',
+] as const
+
+describe('GDK-651 palette registers sibling views and cursor issue actions', () => {
+  test('CommandPalette owns a:docs, a:feed, a:favorite, a:watch', () => {
+    const src = readFileSync(PALETTE, 'utf8')
+    for (const id of ["id: 'a:docs'", "id: 'a:feed'", "id: 'a:favorite'", "id: 'a:watch'"]) {
+      expect(src, `missing ${id}`).toContain(id)
+    }
+    expect(src).toContain("t('palette.actionDocs')")
+    expect(src).toContain("t('palette.actionFeed')")
+    expect(src).toContain("t('palette.actionFavorite'")
+    expect(src).toContain("t('palette.actionWatch'")
+    expect(src).toContain('favorites.toggle')
+    expect(src).toContain('watches.toggle')
+    expect(src).toContain('me.openFeed')
+    expect(src).toContain("feature('feed')")
+    expect(src).toContain('me.identified')
+  })
+})
+
+describe('GDK-651 credentials affordance: one noun, one settings action', () => {
+  test('the four need-credentials surfaces use the credentials noun, not token', () => {
+    const noun = /credential|자격증명|資格情報/i
+    const token = /token|토큰|トークン/i
+    const failures: string[] = []
+    for (const [locale, table] of CATALOGS) {
+      for (const key of NEED_CREDENTIAL_KEYS) {
+        const value = table[key]
+        if (!noun.test(value)) {
+          failures.push(`${locale}.${key} has no credentials noun: ${JSON.stringify(value)}`)
+        }
+        if (token.test(value)) {
+          failures.push(`${locale}.${key} still names a token: ${JSON.stringify(value)}`)
+        }
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+  })
+
+  test('PersonalFeed empty-identity state uses common.setCredentials to open settings', () => {
+    const src = readFileSync(FEED, 'utf8')
+    expect(src).toContain("t('feed.needCredentials')")
+    expect(src).toContain("t('common.setCredentials')")
+    expect(src).toContain('write.openSettings')
+    expect(src).toContain('actionLabel')
+    expect(src).toContain('onAction')
+  })
+})
+
+describe('GDK-651 cheat sheet documents Tab on column views', () => {
+  test('ShortcutsDialog names Tab and Esc for documents, history, and feed', () => {
+    const src = readFileSync(SHEET, 'utf8')
+    expect(src).toContain("t('shortcuts.sectionColumnViews')")
+    expect(src).toContain("t('shortcuts.tabMoveRows')")
+    expect(src).toContain("t('shortcuts.closeColumnView')")
+  })
+})

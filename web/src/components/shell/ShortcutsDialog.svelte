@@ -46,6 +46,15 @@
       ],
     },
     {
+      // Tab is the browser's own focus walk — these views have no j/k cursor
+      // (GDK-651). Esc is a keymap handler (close-feed / close-history / close-docs).
+      title: t('shortcuts.sectionColumnViews'),
+      rows: [
+        ['Tab', t('shortcuts.tabMoveRows')],
+        ['Esc', t('shortcuts.closeColumnView')],
+      ],
+    },
+    {
       title: t('shortcuts.sectionDetail'),
       rows: [
         // `o` resolves by what is open (keymap.svelte.ts open-origin): an

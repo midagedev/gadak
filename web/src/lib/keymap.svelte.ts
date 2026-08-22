@@ -78,6 +78,9 @@ export type KeyCommand =
   | { type: 'hide-browse' }
   | { type: 'clear-bulk' }
   | { type: 'clear-selection' }
+  | { type: 'close-docs' }
+  | { type: 'close-history' }
+  | { type: 'close-feed' }
   | { type: 'clear-page' }
   | { type: 'clear-person' }
   | { type: 'toggle-bulk-cursor' }
@@ -270,6 +273,11 @@ export function resolveGlobalKey(ctx: KeyContext): KeyCommand {
     if (ctx.triageMenuOpen) return { type: 'ignore' }
     if (ctx.bulkActive) return { type: 'clear-bulk' }
     if (ctx.detailOpen) return { type: 'clear-selection' }
+    // Visible overlay (App.svelte paints feed > history > docs). Closing a
+    // hidden latch first would look like a no-op.
+    if (ctx.feedBlocksNarrow) return { type: 'close-feed' }
+    if (ctx.historyView) return { type: 'close-history' }
+    if (ctx.docsOpen) return { type: 'close-docs' }
     return { type: 'ignore' }
   }
 
@@ -332,11 +340,18 @@ export interface GlobalKeyHost {
     openComment: (key: string) => void
   }
   selection: { selectedKey: string | null; select: (key: string) => void; clear: () => void }
-  pages: { historyView: boolean; open: boolean; selectedKey: string | null; clear: () => void }
+  pages: {
+    historyView: boolean
+    open: boolean
+    selectedKey: string | null
+    clear: () => void
+    closeDocs: () => void
+    closeHistory: () => void
+  }
   person: { selectedEmail: string | null; clear: () => void }
   bulk: { active: boolean; clear: () => void; toggle: (key: string) => void }
   browse: { paneOpen: boolean; hidePane: () => void }
-  me: { feedOpen: boolean }
+  me: { feedOpen: boolean; closeFeed: () => void }
   feature: (name: 'feed') => boolean
   openOrigin: (target: 'issue' | 'page') => void
 }
@@ -426,6 +441,18 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     case 'clear-selection':
       e.preventDefault()
       host.selection.clear()
+      return
+    case 'close-docs':
+      e.preventDefault()
+      host.pages.closeDocs()
+      return
+    case 'close-history':
+      e.preventDefault()
+      host.pages.closeHistory()
+      return
+    case 'close-feed':
+      e.preventDefault()
+      host.me.closeFeed()
       return
     case 'clear-page':
       e.preventDefault()
