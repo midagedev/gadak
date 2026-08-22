@@ -23,7 +23,10 @@ func liveClient(t *testing.T) *Client {
 	if key == "" {
 		t.Skip("LINEAR_API_KEY not set")
 	}
-	return &Client{APIKey: key, Endpoint: Endpoint, HTTP: &http.Client{Timeout: 30 * time.Second}, Retries: 2}
+	c := New(key)
+	c.HTTP = &http.Client{Timeout: 30 * time.Second}
+	c.Retries = 2
+	return c
 }
 
 func TestLiveSeedAndWriteVerbs(t *testing.T) {

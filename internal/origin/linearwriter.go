@@ -201,7 +201,10 @@ func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[
 	for name, v := range fields {
 		switch name {
 		case "summary":
-			s, _ := v.(string)
+			s, err := stringField("summary", v)
+			if err != nil {
+				return err
+			}
 			upd.Title = &s
 		case "description":
 			text := ""
@@ -216,16 +219,9 @@ func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[
 		case "priority":
 			p := 0 // clearing a priority is Linear's 0, "No priority"
 			if v != nil {
-				id := ""
-				switch pv := v.(type) {
-				case map[string]string:
-					id = pv["id"]
-				case map[string]any:
-					id, _ = pv["id"].(string)
-				}
-				n, err := strconv.Atoi(id)
-				if err != nil || n < 0 || n > 4 {
-					return fmt.Errorf("linear: priority id %q is not on the 0-4 scale", id)
+				n, err := priorityID(v)
+				if err != nil {
+					return err
 				}
 				p = n
 			}
@@ -234,7 +230,10 @@ func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[
 			if v == nil {
 				return fmt.Errorf("linear: clearing a due date is not supported yet")
 			}
-			s, _ := v.(string)
+			s, err := stringField("duedate", v)
+			if err != nil {
+				return err
+			}
 			upd.DueDate = &s
 		default:
 			return fmt.Errorf("linear: field %q is not editable on this origin", name)
@@ -292,6 +291,41 @@ func contains(list []string, s string) bool {
 	return false
 }
 
+// stringField rejects a non-string so a wrong-typed any cannot become the
+// empty string Linear would store (GDK-643).
+func stringField(name string, v any) (string, error) {
+	s, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("linear: field %q wants string, got %T", name, v)
+	}
+	return s, nil
+}
+
+// priorityID reads the Writer-shaped priority value (create.PriorityField
+// is map[string]string{"id": …}; JSON-decoded maps are map[string]any).
+func priorityID(v any) (int, error) {
+	id := ""
+	switch pv := v.(type) {
+	case map[string]string:
+		id = pv["id"]
+	case map[string]any:
+		if raw := pv["id"]; raw != nil {
+			s, err := stringField("priority", raw)
+			if err != nil {
+				return 0, err
+			}
+			id = s
+		}
+	default:
+		return 0, fmt.Errorf("linear: field %q wants string, got %T", "priority", v)
+	}
+	n, err := strconv.Atoi(id)
+	if err != nil || n < 0 || n > 4 {
+		return 0, fmt.Errorf("linear: priority id %q is not on the 0-4 scale", id)
+	}
+	return n, nil
+}
+
 func (w *linearWriter) CreateIssue(ctx context.Context, fields map[string]any) (string, error) {
 	for _, name := range []string{"assignee", "labels", "parent", "issuetype"} {
 		if _, ok := fields[name]; ok {
@@ -300,10 +334,42 @@ func (w *linearWriter) CreateIssue(ctx context.Context, fields map[string]any) (
 	}
 	teamKey := ""
 	if p, ok := fields["project"].(map[string]any); ok {
-		teamKey, _ = p["key"].(string)
+		if raw, has := p["key"]; has && raw != nil {
+			s, err := stringField("project.key", raw)
+			if err != nil {
+				return "", err
+			}
+			teamKey = s
+		}
 	}
 	if teamKey == "" {
 		return "", fmt.Errorf("linear: create needs project.key (the team key)")
+	}
+	title, err := stringField("summary", fields["summary"])
+	if err != nil {
+		return "", err
+	}
+	in := linear.IssueCreate{Title: title}
+	if d, ok := fields["description"]; ok && d != nil {
+		raw, err := json.Marshal(d)
+		if err != nil {
+			return "", err
+		}
+		in.Description = adf.PlainText(raw)
+	}
+	if p, ok := fields["priority"]; ok && p != nil {
+		n, err := priorityID(p)
+		if err != nil {
+			return "", err
+		}
+		in.Priority = &n
+	}
+	if d, ok := fields["duedate"]; ok && d != nil {
+		s, err := stringField("duedate", d)
+		if err != nil {
+			return "", err
+		}
+		in.DueDate = s
 	}
 	teams, err := w.c.Teams(ctx)
 	if err != nil {
@@ -319,32 +385,7 @@ func (w *linearWriter) CreateIssue(ctx context.Context, fields map[string]any) (
 	if teamID == "" {
 		return "", fmt.Errorf("linear: no team with key %q", teamKey)
 	}
-	in := linear.IssueCreate{TeamID: teamID}
-	in.Title, _ = fields["summary"].(string)
-	if d, ok := fields["description"]; ok && d != nil {
-		raw, err := json.Marshal(d)
-		if err != nil {
-			return "", err
-		}
-		in.Description = adf.PlainText(raw)
-	}
-	if p, ok := fields["priority"]; ok && p != nil {
-		id := ""
-		switch pv := p.(type) {
-		case map[string]string:
-			id = pv["id"]
-		case map[string]any:
-			id, _ = pv["id"].(string)
-		}
-		n, err := strconv.Atoi(id)
-		if err != nil || n < 0 || n > 4 {
-			return "", fmt.Errorf("linear: priority id %q is not on the 0-4 scale", id)
-		}
-		in.Priority = &n
-	}
-	if d, ok := fields["duedate"].(string); ok && d != "" {
-		in.DueDate = d
-	}
+	in.TeamID = teamID
 	iss, err := w.c.CreateIssue(ctx, in)
 	if err != nil {
 		return "", err

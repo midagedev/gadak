@@ -69,11 +69,11 @@ var ErrAuth error = authError{}
 
 // Client talks to one Linear workspace over GraphQL.
 type Client struct {
-	// APIKey is sent bare in the Authorization header — no "Bearer" prefix.
+	// apiKey is sent bare in the Authorization header — no "Bearer" prefix.
 	// Linear rejects the prefixed form with a 400 that says so outright
 	// (measured 2026-08-18), which is why the header shape is pinned by a
-	// test.
-	APIKey string
+	// test. Assigned only by New.
+	apiKey string
 
 	// Endpoint is overridable so tests can point at an httptest server.
 	// Production callers get the constant from New.
@@ -96,7 +96,7 @@ type Client struct {
 // internal/jira ships.
 func New(apiKey string) *Client {
 	c := &Client{
-		APIKey:   apiKey,
+		apiKey:   apiKey,
 		Endpoint: Endpoint,
 		HTTP:     &http.Client{Timeout: 60 * time.Second},
 		Retries:  5,
@@ -285,7 +285,7 @@ func (c *Client) gqlCall(ctx context.Context, query string, vars map[string]any,
 		}
 		// Bare key. "Authorization: Bearer <key>" is rejected by Linear with
 		// a 400 telling you to remove the prefix — pinned by test.
-		req.Header.Set("Authorization", c.APIKey)
+		req.Header.Set("Authorization", c.apiKey)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json")
 

@@ -58,10 +58,11 @@ var DefaultBackoff = time.Second
 // client times out at 60s; Retries is DefaultRetries (5); the first
 // Backoff is DefaultBackoff (1s).
 //
-// Production code must not call New: use origin.Client (this workspace)
-// or origin.Connected (a candidate credential). Tests may call New to
-// stand up httptest servers. internal/origin/direct_new_gate_test.go
-// fails if a new production call site appears.
+// origin.Client is the only production construction path for this
+// workspace's Jira client. origin.Connected is the candidate-credential
+// sibling; both live in internal/origin and call New. Tests may call New
+// to stand up httptest servers. internal/origin/direct_new_gate_test.go
+// fails if a new production call site appears outside that package.
 func New(site, email, token string) *Client {
 	return &Client{
 		base:    strings.TrimRight(site, "/"),

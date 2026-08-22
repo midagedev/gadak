@@ -489,6 +489,12 @@
   ([GDK-314]), 스킬 감지는 설치기와 같은 방식으로 home을 해석하며
   ([GDK-352]), `ci-status`는 기본 브랜치 push 런만 평결로 칩니다
   ([GDK-432]).
+- **타입이 틀린 쓰기 필드는 빈 문자열이 아니라 거절입니다** ([GDK-643]).
+  Linear 어댑터의 필드 추출이 타입 불일치를 삼켰고(`s, _ := v.(string)`)
+  잘못된 값이 `""`로 Linear에 닿을 수 있었습니다 — 이제 네트워크 호출
+  전에 필드명과 받은 타입을 말하는 오류로 돌아옵니다. Linear API 키는
+  생성자만 대입하는 비공개 필드가 되어 `%+v`가 키를 찍을 수 없고,
+  `jira.New`의 주석은 실제로 그것을 지키는 게이트와 일치합니다.
 - **Linear 스토리지 PUT이 `http.DefaultClient` 대신 60초 타임아웃이 있는
   클라이언트를 탑니다** — 스토리지 호스트가 멈춰도 `gadak attach`가
   무기한 걸리지 않습니다 ([GDK-636]).
@@ -1889,6 +1895,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
 [GDK-637]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-637
 [GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
+[GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655

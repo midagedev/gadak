@@ -524,6 +524,14 @@ the fixes are all here.
   one ([GDK-314]), skill detection resolves home the way the installer does
   ([GDK-352]), and `ci-status` counts only default-branch push runs as the
   verdict ([GDK-432]).
+- **A wrong-typed write field is a refusal, not an empty string**
+  ([GDK-643]). The Linear adapter's field extractors swallowed type
+  mismatches (`s, _ := v.(string)`), so a malformed value could reach
+  Linear as `""`; they now return an error naming the field and the type
+  they got, before any network call. The Linear API key became a private
+  field assigned only by the constructor — a `%+v` on the client can no
+  longer print it — and `jira.New`'s comment now matches the gate that
+  actually guards it.
 - **The Linear storage PUT rides the client with the 60-second timeout**
   instead of `http.DefaultClient`, so a stalled storage host can no longer
   hang `gadak attach` forever ([GDK-636]).
@@ -1928,6 +1936,7 @@ measured numbers instead of adjectives.
 [GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
 [GDK-637]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-637
 [GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
+[GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655

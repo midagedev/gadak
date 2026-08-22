@@ -393,6 +393,84 @@ func TestCreateIssueKeepsSupportedFields(t *testing.T) {
 	}
 }
 
+// GDK-643: a wrong any must not become an empty string Linear then stores.
+// FAIL-first: on the pre-fix source, summary/duedate swallow the type assert
+// and the mutation goes out (UpdateFields) or the create succeeds with the
+// field omitted (CreateIssue duedate).
+func TestUpdateFieldsRejectsWrongValueTypes(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	ctx := context.Background()
+	cases := []struct {
+		name   string
+		fields map[string]any
+		field  string
+	}{
+		{"summary float64", map[string]any{"summary": 1.0}, "summary"},
+		{"duedate float64", map[string]any{"duedate": 1.0}, "duedate"},
+		{"priority id float64", map[string]any{"priority": map[string]any{"id": 2.0}}, "priority"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before := rec.updates
+			err := w.UpdateFields(ctx, "FIX-1", tc.fields)
+			if err == nil {
+				t.Fatalf("wrong-type %s succeeded (updates=%d); empty value would have been written", tc.field, rec.updates)
+			}
+			msg := err.Error()
+			if !strings.Contains(msg, tc.field) {
+				t.Errorf("error %q does not name field %q", msg, tc.field)
+			}
+			if !strings.Contains(msg, "wants string") {
+				t.Errorf("error %q, want it to say wants string", msg)
+			}
+			if !strings.Contains(msg, "float64") {
+				t.Errorf("error %q, want it to name got type float64", msg)
+			}
+			if rec.updates != before {
+				t.Errorf("issueUpdate ran; refuse must stay local")
+			}
+		})
+	}
+}
+
+func TestCreateIssueRejectsWrongValueTypes(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	ctx := context.Background()
+	project := map[string]any{"key": "FIX"}
+	cases := []struct {
+		name   string
+		fields map[string]any
+		field  string
+	}{
+		{"summary float64", map[string]any{"project": project, "summary": 1.0}, "summary"},
+		{"project.key float64", map[string]any{"project": map[string]any{"key": 1.0}, "summary": "typed"}, "project.key"},
+		{"duedate float64", map[string]any{"project": project, "summary": "typed", "duedate": 1.0}, "duedate"},
+		{"priority id float64", map[string]any{"project": project, "summary": "typed", "priority": map[string]any{"id": 2.0}}, "priority"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before := rec.creates
+			_, err := w.CreateIssue(ctx, tc.fields)
+			if err == nil {
+				t.Fatalf("wrong-type %s succeeded (creates=%d); empty value would have been written", tc.field, rec.creates)
+			}
+			msg := err.Error()
+			if !strings.Contains(msg, tc.field) {
+				t.Errorf("error %q does not name field %q", msg, tc.field)
+			}
+			if !strings.Contains(msg, "wants string") {
+				t.Errorf("error %q, want it to say wants string", msg)
+			}
+			if !strings.Contains(msg, "float64") {
+				t.Errorf("error %q, want it to name got type float64", msg)
+			}
+			if rec.creates != before {
+				t.Errorf("issueCreate ran; refuse must stay local")
+			}
+		})
+	}
+}
+
 // carrierTransport records every request the owning http.Client carries.
 // A request that goes out on http.DefaultClient never passes through it.
 type carrierTransport struct {
