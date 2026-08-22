@@ -117,6 +117,13 @@
 
 ### standalone과 issuetap
 
+- **데스크톱 두 번째 실행이 첫 창을 올립니다 — 스탠드얼론 포함**
+  ([GDK-658]). 데스크톱 앱이 wails의 중복 실행 판정보다 먼저 스탠드얼론
+  persist 락을 잡아서, 두 번째 실행이 창을 넘겨받는 대신 "workspace
+  busy"로 죽었습니다 — serve 명령의 live-owner 선확인([GDK-468] 클래스)의
+  데스크톱 쌍둥이. 이제 단일 인스턴스 판정이 먼저 돌고, persist 락·루프백
+  리스너·advertise 파일은 이긴 인스턴스만 잡습니다. 소스 순서 테스트와
+  실제 2프로세스 테스트가 그 순서를 계약으로 붙듭니다.
 - **standalone 워크스페이스가 사용자의 언어로 말합니다** ([GDK-597]).
   `gadak config set locale ko`면 워크스페이스의 트래커가 상태·이슈 유형
   이름을 한국어로 냅니다 — 우선순위 이름은 영어로 남습니다. 실제 한국어
@@ -1971,6 +1978,8 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-649]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-649
+[GDK-658]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-658
+[GDK-468]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-468
 [GDK-645]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-645
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
