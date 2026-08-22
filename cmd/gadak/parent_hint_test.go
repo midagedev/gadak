@@ -139,3 +139,134 @@ func TestParentHierarchyHintUnknownParentIsSilent(t *testing.T) {
 		t.Fatalf("unknown parent produced a hint: %q", got)
 	}
 }
+
+// seedEpics writes extra issues into the throwaway mirror opened by mirror().
+func seedEpics(t *testing.T, recs []store.IssueRecord) {
+	t.Helper()
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"3": "inprogress", "10001": "done", "10000": "new"},
+		Records:    recs,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func epicRec(id, key, project, title, updated, statusID, category string, level int) store.IssueRecord {
+	// IssueType is a localized display name on purpose: the hint query must
+	// key on hierarchy_level, never on "Epic".
+	return store.IssueRecord{
+		Item: store.Item{
+			ID: "jira:" + id, SourceID: "jira", Kind: "issue", ExternalID: id, Key: key,
+			Title: title, CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: updated,
+		},
+		Issue: store.Issue{
+			ProjectKey: project, IssueType: "에픽", IssueTypeID: "10001", HierarchyLevel: level,
+			Status: "진행 중", StatusID: statusID, StatusCategory: category,
+		},
+	}
+}
+
+// GDK-330: a level-0 parent rejection names the same project's open epics so
+// the caller does not have to query the mirror again. Done rows, other
+// projects, and a 4th (older) epic stay off the line; zero candidates omit it;
+// an epic-as-parent hint does not grow the suggestion (the fix is to drop
+// the parent or change type).
+func TestParentHierarchyHintNamesSameProjectOpenEpics(t *testing.T) {
+	mirror(t, "https://nimbus.example.com")
+	seedEpics(t, []store.IssueRecord{
+		epicRec("3010", "NMB-10", "NMB", "newest open epic", "2026-08-20T00:00:00.000Z", "3", "inprogress", 1),
+		epicRec("3011", "NMB-11", "NMB", "middle open epic", "2026-08-19T00:00:00.000Z", "3", "inprogress", 1),
+		epicRec("3012", "NMB-12", "NMB", "older open epic", "2026-08-18T00:00:00.000Z", "3", "inprogress", 1),
+		epicRec("3013", "NMB-13", "NMB", "oldest open epic should drop", "2026-08-17T00:00:00.000Z", "3", "inprogress", 1),
+		epicRec("3014", "NMB-14", "NMB", "done epic newest of all", "2026-08-21T00:00:00.000Z", "10001", "done", 1),
+		epicRec("4010", "GDK-1", "GDK", "other project epic", "2026-08-22T00:00:00.000Z", "3", "inprogress", 1),
+		epicRec("3015", "NMB-15", "NMB", "standard issue not an epic", "2026-08-23T00:00:00.000Z", "3", "inprogress", 0),
+	})
+
+	hint := parentHierarchyHint(context.Background(), "NMB-1")
+	if !strings.Contains(hint, "Pick an epic as --parent") {
+		t.Fatalf("level-0 sentence missing: %q", hint)
+	}
+	if !strings.Contains(hint, `open epics in NMB:`) {
+		t.Fatalf("missing same-project epic line: %q", hint)
+	}
+	for _, want := range []string{
+		`NMB-10 "newest open epic"`,
+		`NMB-11 "middle open epic"`,
+		`NMB-12 "older open epic"`,
+	} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("hint missing %q: %q", want, hint)
+		}
+	}
+	i10 := strings.Index(hint, "NMB-10")
+	i11 := strings.Index(hint, "NMB-11")
+	i12 := strings.Index(hint, "NMB-12")
+	if i10 < 0 || i11 < 0 || i12 < 0 || !(i10 < i11 && i11 < i12) {
+		t.Fatalf("open epics not in updated_at DESC order: %q", hint)
+	}
+	for _, drop := range []string{"NMB-13", "NMB-14", "GDK-1", "NMB-15", "oldest open", "done epic", "other project", "not an epic"} {
+		if strings.Contains(hint, drop) {
+			t.Fatalf("hint named excluded row %q: %q", drop, hint)
+		}
+	}
+}
+
+func TestParentHierarchyHintOmitsEpicLineWhenNone(t *testing.T) {
+	mirror(t, "https://nimbus.example.com")
+	seedEpics(t, []store.IssueRecord{
+		epicRec("3014", "NMB-14", "NMB", "only a done epic", "2026-08-21T00:00:00.000Z", "10001", "done", 1),
+		epicRec("4010", "GDK-1", "GDK", "open but other project", "2026-08-22T00:00:00.000Z", "3", "inprogress", 1),
+	})
+
+	hint := parentHierarchyHint(context.Background(), "NMB-1")
+	if !strings.Contains(hint, "Pick an epic as --parent") {
+		t.Fatalf("level-0 sentence missing: %q", hint)
+	}
+	if strings.Contains(hint, "open epics") {
+		t.Fatalf("zero-candidate hint grew an epic list: %q", hint)
+	}
+	if strings.Contains(hint, "NMB-14") || strings.Contains(hint, "GDK-1") {
+		t.Fatalf("hint named a non-candidate: %q", hint)
+	}
+}
+
+func TestParentHierarchyHintDoesNotSuggestEpicsForEpicParent(t *testing.T) {
+	mirror(t, "https://nimbus.example.com")
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"3": "inprogress"},
+		Records: []store.IssueRecord{
+			{
+				Item: store.Item{
+					ID: "jira:2001", SourceID: "jira", Kind: "issue", ExternalID: "2001", Key: "NMB-900",
+					Title: "the epic", CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-07-01T00:00:00.000Z",
+				},
+				Issue: store.Issue{
+					ProjectKey: "NMB", IssueType: "Epic", IssueTypeID: "10001", HierarchyLevel: 1,
+					Status: "진행 중", StatusID: "3", StatusCategory: "inprogress",
+				},
+			},
+			epicRec("3010", "NMB-10", "NMB", "another open epic", "2026-08-20T00:00:00.000Z", "3", "inprogress", 1),
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	hint := parentHierarchyHint(context.Background(), "NMB-900")
+	if !strings.Contains(hint, "one level above") {
+		t.Fatalf("epic-parent rule missing: %q", hint)
+	}
+	if strings.Contains(hint, "open epics") || strings.Contains(hint, "NMB-10") {
+		t.Fatalf("level>=1 hint must not suggest epics: %q", hint)
+	}
+}

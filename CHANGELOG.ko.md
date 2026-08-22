@@ -62,6 +62,12 @@
   거절됩니다. 이미 두 벌 복사돼 있던 키 모양 검증(CLI 위치 인자 키, MCP
   `gadak_show`)은 이제 `internal/fields`의 단일 소유자를 갖고, 새
   엔드포인트들은 세 번째 복사가 아니라 세 번째·네 번째 호출자입니다.
+- **parent 거절이 고를 수 있었던 에픽을 실명으로 알려줍니다** ([GDK-330]).
+  계층 힌트는 origin이 *왜* 거절했는지 이미 설명했는데(`NMB-1은 level 0 —
+  표준 이슈는 에픽 아래에만`), 이제 같은 프로젝트의 열린 에픽 최대 3개를
+  미러에서 바로 꺼내 끝에 붙입니다. 의도적으로 여전히 프리플라이트가
+  아닙니다: 판정은 origin이 하고 — 로컬 추측은 Premium 같은-레벨 계층에서
+  거짓 거절을 냅니다 — origin의 400 원문은 힌트 위에 그대로 남습니다.
 - **`gadak claim KEY`가 이슈를 자기 것으로 만듭니다** — 담당자 지정과
   진행 중 전환을 한 방에 ([GDK-591]). standalone·paired 워크스페이스에서는
   origin의 claim 엔드포인트를 향한 원자적 호출 한 번이고, 다른 actor가 이미
@@ -1967,6 +1973,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-323]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-323
 [GDK-328]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-328
 [GDK-329]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-329
+[GDK-330]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-330
 [GDK-331]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-331
 [GDK-332]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-332
 [GDK-333]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-333

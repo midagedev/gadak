@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -500,11 +501,11 @@ func parentHierarchyHint(_ context.Context, parentKey string) string {
 		return ""
 	}
 	defer db.Close()
-	var issueType string
+	var issueType, projectKey string
 	var level int
 	err = db.QueryRow(
-		`SELECT COALESCE(issue_type, ''), COALESCE(hierarchy_level, 0) FROM issues WHERE key = ?`,
-		parentKey).Scan(&issueType, &level)
+		`SELECT COALESCE(issue_type, ''), COALESCE(hierarchy_level, 0), COALESCE(project_key, '') FROM issues WHERE key = ?`,
+		parentKey).Scan(&issueType, &level, &projectKey)
 	if err != nil {
 		return ""
 	}
@@ -519,6 +520,41 @@ func parentHierarchyHint(_ context.Context, parentKey string) string {
 		return fmt.Sprintf("hint: %s is %q (hierarchy level %d) — a parent sits exactly one level above its child, so %s can only parent %s issues. Two issues at the same level cannot be parent and child.",
 			parentKey, issueType, level, parentKey, below)
 	}
-	return fmt.Sprintf("hint: %s is %q (hierarchy level %d) — a standard issue can only sit under a level-1 parent (an epic); only sub-task types can sit under %s. Pick an epic as --parent, or use a sub-task issue type.",
+	hint := fmt.Sprintf("hint: %s is %q (hierarchy level %d) — a standard issue can only sit under a level-1 parent (an epic); only sub-task types can sit under %s. Pick an epic as --parent, or use a sub-task issue type.",
 		parentKey, issueType, level, parentKey)
+	if extra := openEpicHint(db, projectKey); extra != "" {
+		return hint + "\n" + extra
+	}
+	return hint
+}
+
+// openEpicHint names up to three open level-1 issues in the rejected parent's
+// project. Empty project, query failure, or zero rows return "" so the base
+// hint still stands. Filter is hierarchy_level + status_category, never a
+// localized type name (GDK-330).
+func openEpicHint(db *sql.DB, projectKey string) string {
+	if projectKey == "" {
+		return ""
+	}
+	rows, err := db.Query(
+		`SELECT key, COALESCE(summary, '') FROM issues_full
+		 WHERE hierarchy_level = 1 AND status_category != 'done' AND project_key = ?
+		 ORDER BY updated_at DESC LIMIT 3`,
+		projectKey)
+	if err != nil {
+		return ""
+	}
+	defer rows.Close()
+	var parts []string
+	for rows.Next() {
+		var key, summary string
+		if err := rows.Scan(&key, &summary); err != nil {
+			return ""
+		}
+		parts = append(parts, fmt.Sprintf("%s %q", key, clip(summary, 60)))
+	}
+	if err := rows.Err(); err != nil || len(parts) == 0 {
+		return ""
+	}
+	return "open epics in " + projectKey + ": " + strings.Join(parts, ", ")
 }

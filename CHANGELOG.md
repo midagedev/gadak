@@ -63,6 +63,14 @@ the fixes are all here.
   (CLI positional keys, MCP `gadak_show`) now has one owner in
   `internal/fields`, and the new endpoints are its third and fourth
   callers, not its third copy.
+- **A parent rejection now names the epics you could have picked**
+  ([GDK-330]). The hierarchy hint already explained *why* the origin
+  refused (`NMB-1 is level 0 — a standard issue can only sit under an
+  epic`); it now ends with up to three open epics from the same project,
+  straight from the mirror. Deliberately still not a preflight: the
+  origin keeps deciding — a local guess would false-reject on Premium
+  same-level hierarchies — and the origin's own 400 stays verbatim above
+  the hint.
 - **`gadak claim KEY` takes an issue as yours** — assignee plus the
   in-progress transition in one step ([GDK-591]). On standalone and paired
   workspaces that is one atomic call on the origin's claim endpoint, and a
@@ -2003,6 +2011,7 @@ measured numbers instead of adjectives.
 [GDK-323]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-323
 [GDK-328]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-328
 [GDK-329]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-329
+[GDK-330]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-330
 [GDK-331]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-331
 [GDK-332]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-332
 [GDK-333]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-333
