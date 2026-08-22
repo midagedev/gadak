@@ -171,7 +171,8 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(`{"errorMessages":["no claim route on this origin"]}`))
-	case path == "/user/search":		q := r.URL.Query().Get("query")
+	case path == "/user/search":
+		q := r.URL.Query().Get("query")
 		f.searchQueries = append(f.searchQueries, q)
 		if f.searchUsers != nil {
 			body := f.searchUsers(q)

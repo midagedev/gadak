@@ -39,6 +39,13 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
+      # AGENTS.md documents `gofmt -l .` as a pre-gate; without CI enforcement
+      # unformatted files reached main twice (GDK-607). Empty output or fail.
+      - name: gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then echo "gofmt -l flagged:"; echo "$out"; exit 1; fi
+
       # Store/source firewall (docs/ARCHITECTURE.md:79). Not path-scoped: any
       # import-graph edit can break it.
       - name: Store dependency firewall

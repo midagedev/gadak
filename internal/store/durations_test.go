@@ -175,7 +175,7 @@ func TestDurationsLegacyStampsAndClamp(t *testing.T) {
 
 func TestFormatDuration(t *testing.T) {
 	cases := []struct {
-		d   time.Duration
+		d    time.Duration
 		want string
 	}{
 		{0, "0s"},
