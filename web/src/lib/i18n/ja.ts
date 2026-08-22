@@ -1117,9 +1117,9 @@ export const ja = {
     'Jira サイト URL を入力してください。例: https://your-team.atlassian.net',
   'onboarding.errFields': 'メールと API token の両方が必要です。',
   'onboarding.errConnect': 'Jira に到達できませんでした: {message}',
-  // Naming the empty case here is the point of GDK-99: leaving the list alone
-  // is the choice that keeps working as the site grows, so it must not read
-  // like an unfinished form.
+  // Naming the empty case here: leaving the list alone is the choice that
+  // keeps working as the site grows, so it must not read like an unfinished
+  // form (GDK-99).
   'onboarding.projectsIntro':
     'ミラーするプロジェクトを選ぶか、何も選ばずに見られるすべてのプロジェクトをミラーします — あとから作られるものも含みます。設定で変更できます。',
   'onboarding.loadingProjects': 'プロジェクトを読み込み中…',

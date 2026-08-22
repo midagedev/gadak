@@ -226,7 +226,7 @@ func dropSourceTx(tx *sql.Tx, sourceID string, removed map[string]int) error {
 // ResetForNewOrigin is the one owner of "this workspace's origin is being
 // replaced". Both conversion surfaces reach it through
 // originbind.DropStandaloneProjection, so the decision cannot exist on the CLI
-// path and not the HTTP one — the split that produced GDK-247.
+// path and not the HTTP one (GDK-247).
 //
 // One transaction: a conversion that dropped the mirror but left the feed marks
 // behind would be the same class of half-state this function exists to remove.

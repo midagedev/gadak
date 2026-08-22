@@ -1108,9 +1108,9 @@ export const en = {
   'onboarding.errSite': 'Enter your Jira site URL, for example https://your-team.atlassian.net.',
   'onboarding.errFields': 'Email and API token are both required.',
   'onboarding.errConnect': 'Could not reach Jira: {message}',
-  // Naming the empty case here is the point of GDK-99: leaving the list alone
-  // is the choice that keeps working as the site grows, so it must not read
-  // like an unfinished form.
+  // Naming the empty case here: leaving the list alone is the choice that
+  // keeps working as the site grows, so it must not read like an unfinished
+  // form (GDK-99).
   'onboarding.projectsIntro':
     'Pick the projects to mirror, or pick none to mirror every project you can see — including ones created later. You can change this in settings.',
   'onboarding.loadingProjects': 'Loading projects…',
